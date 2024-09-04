@@ -1,5 +1,5 @@
 [tool.scikit-build.cmake.define]
-SOME_DEFINE = {env="SOME_DEFINE", default="EMPTY"}
+BUILD_DOC = {env="BUILD_DOC", default="OFF"}
 
 
 [build-system]
