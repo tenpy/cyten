@@ -109,7 +109,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from tenpy.linalg import backends, spaces, symmetries, tensors, Dtype
+from cytnx import backends, spaces, symmetries, tensors, Dtype
 
 
 # QUICK CONFIGURATION
@@ -260,7 +260,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
             codomain = codomain[:]  # we do inplace operations below.
         if isinstance(domain, list):
             domain = domain[:]  # we do inplace operations below.
-        
+
         # 0) default for codomain
         if codomain is None:
             if cls in [tensors.SymmetricTensor, tensors. ChargedTensor]:
@@ -271,7 +271,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
                 codomain = [None]
             else:
                 raise ValueError
-        
+
         # 1) deal with strings in codomain / domain.
         # ======================================================================================
         if isinstance(codomain, spaces.ProductSpace):
@@ -409,7 +409,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
                     extra = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
                                                   is_dual=small_leg.is_bra_space)
                     large_leg = small_leg.direct_sum(extra)
-            
+
             if compatible_symmetry_backend == 'fusion_tree':
                 with pytest.raises(NotImplementedError, match='diagonal_to_mask'):
                     _ = tensors.Mask.from_random(large_leg=large_leg, small_leg=small_leg,
@@ -553,7 +553,7 @@ def random_vector_space(symmetry, max_num_blocks=5, max_block_size=5, is_dual=No
 
 def randomly_drop_blocks(res: tensors.SymmetricTensor | tensors.DiagonalTensor,
                          max_blocks: int | None, empty_ok: bool, np_random=np.random.default_rng()):
-    
+
     if isinstance(res.backend, backends.NoSymmetryBackend):
         # nothing to do
         return res
@@ -568,7 +568,7 @@ def randomly_drop_blocks(res: tensors.SymmetricTensor | tensors.DiagonalTensor,
         max_blocks = min(num_blocks, max_blocks)
     if max_blocks < min_blocks:
         return res
-    
+
     if np_random.uniform() < 0.5:
         # with 50% chance, keep maximum number
         num_keep = max_blocks

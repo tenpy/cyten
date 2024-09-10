@@ -22,11 +22,11 @@ U_close_1   U(n)                     ?                       /                  
 
 
 All functions in this module take a tuple ``(n, n)`` as first argument, such that
-we can use the function :meth:`~tenpy.linalg.np_conserved.Array.from_func`
-to generate a block diagonal :class:`~tenpy.linalg.np_conserved.Array` with the block from the
+we can use the function :meth:`~cytnx.tensors.Tensor.from_block_func`
+to generate a block diagonal :class:`~cytnx.tensors.Tensor` with the block from the
 corresponding ensemble, for example::
 
-    npc.Array.from_func_square(GOE, [leg, leg.conj()])
+    Tensor.from_func_square(GOE, [leg, leg.conj()])
 
 """
 # Copyright (C) TeNPy Developers, GNU GPLv3

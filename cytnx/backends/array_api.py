@@ -29,7 +29,7 @@ class ArrayApiBlockBackend(BlockBackend):
         self._api = api_namespace
         self.BlockCls = type(api_namespace.zero(1))
 
-        self.tenpy_dtype_map = {
+        self.cytnx_dtype_map = {
             api_namespace.float32: Dtype.float32,
             api_namespace.float64: Dtype.float64,
             api_namespace.complex64: Dtype.complex64,
@@ -52,7 +52,7 @@ class ArrayApiBlockBackend(BlockBackend):
             # force float or complex dtype without multiplying
             block = 1. * block
         if return_dtype:
-            return block, self.tenpy_dtype_map[block.dtype]
+            return block, self.cytnx_dtype_map[block.dtype]
         return block
 
     def block_all(self, a) -> bool:
@@ -76,7 +76,7 @@ class ArrayApiBlockBackend(BlockBackend):
         return a.item()
 
     def block_dtype(self, a: Block) -> Dtype:
-        return self.tenpy_dtype_map[a.dtype]
+        return self.cytnx_dtype_map[a.dtype]
 
     def block_to_dtype(self, a: Block, dtype: Dtype) -> Block:
         return self._api.astype(a, self.backend_dtype_map[dtype])

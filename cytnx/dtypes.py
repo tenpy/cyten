@@ -11,7 +11,7 @@ __all__ = ['Dtype']
 
 
 class Dtype(Enum):
-    # TODO expose those in some high-level init, maybe even as tenpy.float32 ?
+    # TODO expose those in some high-level init, maybe even as cytnx.float32 ?
     # value = num_bytes * 2 + int(not is_real)
     bool = 2
     float32 = 8
@@ -91,14 +91,14 @@ class Dtype(Enum):
         raise TypeError(f'Type {type(value)} is incompatible with dtype {dtype}')
 
     def to_numpy_dtype(dtype):
-        return _tenpy_dtype_to_numpy[dtype]
+        return _cytnx_dtype_to_numpy[dtype]
 
     @classmethod
     def from_numpy_dtype(cls, dtype):
-        return _numpy_dtype_to_tenpy[dtype]
+        return _numpy_dtype_to_cytnx[dtype]
 
 
-_numpy_dtype_to_tenpy = {
+_numpy_dtype_to_cytnx = {
     np.float32: Dtype.float32,
     np.float64: Dtype.float64,
     np.complex64: Dtype.complex64,
@@ -113,7 +113,7 @@ _numpy_dtype_to_tenpy = {
 }
 
 
-_tenpy_dtype_to_numpy = {
+_cytnx_dtype_to_numpy = {
     Dtype.float32: np.float32,
     Dtype.float64: np.float64,
     Dtype.complex64: np.complex64,

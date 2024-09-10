@@ -1,4 +1,4 @@
-"""Krylov-based algorithms for tenpy tensors"""
+"""Krylov-based algorithms for tensors"""
 # Copyright (C) TeNPy Developers, GNU GPLv3
 from abc import ABCMeta, abstractmethod
 import numpy as np
@@ -7,8 +7,7 @@ logger = logging.getLogger(__name__)
 
 from .tensors import Tensor
 from .sparse import LinearOperator, ShiftedLinearOperator, ProjectedLinearOperator
-from ..tools.params import asConfig
-from ..tools.misc import argsort
+from .tools.misc import argsort  # TODO replace this?
 
 
 __all__ = ['KrylovBased', 'Arnoldi', 'LanczosGroundState', 'LanczosEvolution', 'lanczos',
@@ -16,7 +15,7 @@ __all__ = ['KrylovBased', 'Arnoldi', 'LanczosGroundState', 'LanczosEvolution', '
 
 
 class KrylovBased(metaclass=ABCMeta):
-    r"""Base class for iterative algorithms building a Krylov basis with tenpy tensors.
+    r"""Base class for iterative algorithms building a Krylov basis with cytnx tensors.
 
     Algorithms like :class:`LanczosGroundState` and `:class:`ArnoldiDiagonalize`
     are based on iteratively building an orthonormal basis of the Krylov space spanned by
@@ -33,12 +32,12 @@ class KrylovBased(metaclass=ABCMeta):
 
     Parameters
     ----------
-    H : :class:`~tenpy.linalg.sparse.LinearOperator`
+    H : :class:`~cytnx.sparse.LinearOperator`
         A hermitian linear operator.
-        In order to use :class:`~tenpy.linalg.tensors.Tensor`s or other
-        :class:`~tenpy.linalg.tensors.Tensor` types, see :class:`~tenpy.linalg.sparse.TensorLinearOperator`.
+        In order to use :class:`~cytnx.tensors.Tensor`s or other
+        :class:`~cytnx.tensors.Tensor` types, see :class:`~cytnx.sparse.TensorLinearOperator`.
         The operator must map tensors to tensors with the same legs.
-    psi0 : :class:`~tenpy.linalg.tensors.Tensor`
+    psi0 : :class:`~cytnx.tensors.Tensor`
         The starting vector defining the Krylov basis.
         For finding the ground state, this should be the best guess available.
         Note that it does not have to be a 1D "vector"; we are fine with viewing
@@ -67,9 +66,9 @@ class KrylovBased(metaclass=ABCMeta):
             tolerance for final values!
         E_shift : float
             Shift the energy (=eigenvalues) by that amount *during* the Lanczos run by using the
-            :class:`~tenpy.linalg.sparse.ShiftedLinearOperator`.
+            :class:`~cytnx.sparse.ShiftedLinearOperator`.
             The ground state energy `E0` returned by :meth:`run` is made independent of the shift.
-            This option is useful if the :class:`~tenpy.linalg.sparse.ProjectedLinearOperator`
+            This option is useful if the :class:`~cytnx.sparse.ProjectedLinearOperator`
             is used: the orthogonal vectors are *exact* eigenvectors with eigenvalue 0 independent
             of the shift, so you can use it to ensure that the energy is smaller than zero
             to avoid getting those.
@@ -81,11 +80,11 @@ class KrylovBased(metaclass=ABCMeta):
 
     Attributes
     ----------
-    options : :class:`~tenpy.tools.params.Config`
+    options : dict_like
         Optional parameters.
-    H : :class:`~tenpy.linalg.sparse.LinearOperator`
+    H : :class:`~cytnx.sparse.LinearOperator`
         The linear operator used for building the Krylov space.
-    psi0 : :class:`~tenpy.linalg.tensors.Tensor`
+    psi0 : :class:`~cytnx.tensors.Tensor`
         The *normalized* starting vector.
     N_min, N_max, P_tol, min_gap, _cutoff, E_shift:
         Parameters as described in the options.
@@ -117,17 +116,17 @@ class KrylovBased(metaclass=ABCMeta):
         self.H = H
         self.psi0 = psi0
         self._psi0_norm = None
-        self.options = options = asConfig(options, self.__class__.__name__)
-        self.N_min = options.get('N_min', 2, int)
-        self.N_max = options.get('N_max', 20, int)
+        #  self.options = options = asConfig(options, self.__class__.__name__)
+        self.N_min = options.get('N_min', 2) #  int)
+        self.N_max = options.get('N_max', 20) # , int)
         self.N_cache = self.N_max
-        self.P_tol = options.get('P_tol', 1.e-14, 'real')
-        self.min_gap = options.get('min_gap', 1.e-12, 'real')
-        self.reortho = options.get('reortho', False, bool)
-        self.E_shift = options.get('E_shift', None, 'real')
+        self.P_tol = options.get('P_tol', 1.e-14) # , 'real')
+        self.min_gap = options.get('min_gap', 1.e-12) #, 'real')
+        self.reortho = options.get('reortho', False) #, bool)
+        self.E_shift = options.get('E_shift', None) #, 'real')
         if self.N_min < 2:
             raise ValueError("Should perform at least 2 steps.")
-        self._cutoff = options.get('cutoff', psi0.dtype.eps * 100, 'real')
+        self._cutoff = options.get('cutoff', psi0.dtype.eps * 100) #, 'real')
         if self.E_shift is not None:
             if isinstance(self.H, ProjectedLinearOperator):
                 self.H.original_operator = ShiftedLinearOperator(
@@ -221,7 +220,7 @@ class Arnoldi(KrylovBased):
         E0s : numpy array
             Best eigenvalue estimates, :cfg:option:`Arnoldi.num_ev` entries,
             sorted according to :cfg:option:`Arnoldi.which`.
-        psis : list of :class:`~tenpy.linalg.np_conserved.Array`
+        psis : list of :class:`~cytnx.np_conserved.Array`
             Corresponding best eigenvectors (estimates).
         N : int
             Used dimension of the Krylov space, i.e., how many iterations where performed.
@@ -355,7 +354,7 @@ class LanczosGroundState(KrylovBased):
         -------
         E0 : float
             Ground state energy (estimate).
-        psi0 : :class:`~tenpy.linalg.tensors.Tensor`
+        psi0 : :class:`~cytnx.tensors.Tensor`
             Ground state vector (estimate).
         N : int
             Used dimension of the Krylov space, i.e., how many iterations where performed.
@@ -497,7 +496,7 @@ class LanczosEvolution(LanczosGroundState):
 
         Returns
         -------
-        psi_f : :class:`~tenpy.linalg.tensors.Tensor`
+        psi_f : :class:`~cytnx.tensors.Tensor`
             Best approximation for ``expm(delta H).dot(psi0)``.
             If :cfg:option:`Lanczos.E_shift` is used, it's an approximation for
             ``expm(delta (H + E_shift)).dot(psi)``.
@@ -572,12 +571,12 @@ def lanczos_arpack(H, psi, options={}):
     """Use :func:`scipy.sparse.linalg.eigsh` to find the ground state of `H`.
 
     This function has the same call/return structure as :func:`lanczos`, but uses
-    the ARPACK package through the functions :func:`~tenpy.tools.math.speigsh` instead of the
+    the ARPACK package through the functions :func:`~cytnx.tools.math.speigsh` instead of the
     custom lanczos implementation in :class:`LanczosGroundState`.
 
     .. warning ::
         This function is mostly intended for debugging, since it requires to convert the vector
-        from tenpy :class:`~tenpy.linalg.tensors.Tensor` to a numpy array and back during
+        from cytnx :class:`~cytnx.tensors.Tensor` to a numpy array and back during
         *each* `matvec`-operation!
 
     Parameters
@@ -590,10 +589,10 @@ def lanczos_arpack(H, psi, options={}):
     -------
     E0 : float
         Ground state energy.
-    psi0 : :class:`~tenpy.linalg.tensors.Tensor`
+    psi0 : :class:`~cytnx.tensors.Tensor`
         Ground state vector.
     """
-    options = asConfig(options, "Lanczos")
+    #  options = asConfig(options, "Lanczos")
     raise NotImplementedError  # TODO need to implement DenseArrayLinearOperator (f.k.a. FlatLinearOperator)
     # H_dense = DenseArrayLinearOperator.from_LinearOperator(H)
     # psi_dense = H_dense.tensor_to_dense(psi)

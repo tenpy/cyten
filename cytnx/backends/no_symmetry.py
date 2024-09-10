@@ -8,7 +8,7 @@ from .abstract_backend import (TensorBackend, BlockBackend, Data, DiagonalData, 
 from ..dtypes import Dtype
 from ..symmetries import no_symmetry, Symmetry
 from ..spaces import Space, ElementarySpace, ProductSpace
-from ...tools.misc import rank_data
+from ..tools.misc import rank_data
 
 
 __all__ = ['NoSymmetryBackend']
@@ -29,7 +29,7 @@ class NoSymmetryBackend(TensorBackend):
 
     Notes
     -----
-    The data stored for the various tensor classes defined in ``tenpy.linalg.tensors`` is::
+    The data stored for the various tensor classes defined in ``cytnx.tensors`` is::
 
         - ``SymmetricTensor``:
             A single Block with as many axes as there a legs on the tensor.
@@ -103,7 +103,7 @@ class NoSymmetryBackend(TensorBackend):
 
     def data_item(self, a: Data | DiagonalData) -> float | complex:
         return self.block_backend.block_item(a)
-    
+
     def diagonal_all(self, a: DiagonalTensor) -> bool:
         return self.block_backend.block_all(a.data)
 
@@ -114,11 +114,11 @@ class NoSymmetryBackend(TensorBackend):
                                     func_kwargs, partial_zero_is_zero: bool
                                     ) -> DiagonalData:
         return func(a.data, b.data, **func_kwargs)
-    
+
     def diagonal_elementwise_unary(self, a: DiagonalTensor, func, func_kwargs, maps_zero_to_zero: bool
                                    ) -> DiagonalData:
         return func(a.data, **func_kwargs)
-    
+
     def diagonal_from_block(self, a: Block, co_domain: ProductSpace, tol: float) -> DiagonalData:
         return a
 
@@ -233,7 +233,7 @@ class NoSymmetryBackend(TensorBackend):
         l = self.block_backend.block_reshape(l, l_dims + (k,))
         q = self.block_backend.block_reshape(q, (k,) + q_dims)
         return l, q
-    
+
     def mask_binary_operand(self, mask1: Mask, mask2: Mask, func
                             ) -> tuple[DiagonalData, ElementarySpace]:
         large_leg = mask1.large_leg
@@ -262,7 +262,7 @@ class NoSymmetryBackend(TensorBackend):
             spaces[co_domain_idx] = mask.small_leg
             codomain = ProductSpace(spaces, symmetry=tensor.symmetry, backend=self)
         return data, codomain, domain
-    
+
     def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, ProductSpace, ProductSpace]:
         in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg_idx)
@@ -281,7 +281,7 @@ class NoSymmetryBackend(TensorBackend):
 
     def mask_dagger(self, mask: Mask) -> MaskData:
         return mask.data
-    
+
     def mask_from_block(self, a: Block, large_leg: Space) -> tuple[MaskData, ElementarySpace]:
         basis_perm = large_leg._basis_perm
         if basis_perm is not None:
@@ -314,7 +314,7 @@ class NoSymmetryBackend(TensorBackend):
             basis_perm=basis_perm
         )
         return data, small_leg
-        
+
     def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
         return self.block_backend.block_mul(a, b.data)
 
@@ -403,7 +403,7 @@ class NoSymmetryBackend(TensorBackend):
         u = self.block_backend.block_reshape(u, u_dims + (k,))
         vh = self.block_backend.block_reshape(vh, (k,) + vh_dims)
         return u, s, vh
-      
+
     def state_tensor_product(self, state1: Block, state2: Block, prod_space: ProductSpace):
         #TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
@@ -431,7 +431,7 @@ class NoSymmetryBackend(TensorBackend):
     def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype):
         return self.block_backend.zero_block(shape=[l.dim for l in conventional_leg_order(codomain, domain)],
                                dtype=dtype)
-    
+
     def zero_mask_data(self, large_leg: Space) -> MaskData:
         return self.block_backend.zero_block(shape=[large_leg.dim], dtype=Dtype.bool)
 

@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING, Sequence, Iterator
 from .dummy_config import printoptions
 from .symmetries import (Sector, SectorArray, Symmetry, ProductSymmetry, no_symmetry, FusionStyle,
                          SymmetryError)
-from ..tools.misc import (inverse_permutation, rank_data, to_iterable, UNSPECIFIED, make_stride,
+from .tools.misc import (inverse_permutation, rank_data, to_iterable, UNSPECIFIED, make_stride,
                           find_row_differences, unstridify, iter_common_sorted_arrays)
-from ..tools.string import format_like_list
+from .tools.string import format_like_list
 
 if TYPE_CHECKING:
     from .backends.abstract_backend import TensorBackend, Block
@@ -54,7 +54,7 @@ class Space(metaclass=ABCMeta):
         Whether this is a bra space. For :class:`ElementarySpace`, this is the same is
         :attr:`ElementarySpace.is_dual`. For :class:`ProductSpace`, it is always ``False``.
     """
-    
+
     def __init__(self, symmetry: Symmetry, sectors: SectorArray | Sequence[Sequence[int]],
                  multiplicities: Sequence[int] | None, is_bra_space: bool):
         self.symmetry = symmetry
@@ -133,7 +133,7 @@ class Space(metaclass=ABCMeta):
 
         Parameters
         ----------
-        symmetry : :class:`~tenpy.linalg.groups.Symmetry`
+        symmetry : :class:`~cytnx.groups.Symmetry`
             The symmetry of the new space
         sector_map : function (SectorArray,) -> (SectorArray,)
             A map of sectors (2D int arrays), such that ``new_sectors = sector_map(old_sectors)``.
@@ -141,7 +141,7 @@ class Space(metaclass=ABCMeta):
             ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as
             ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
             TODO do we need to assume more, i.e. compatibility with fusion?
-        backend : :class: `~tenpy.linalg.backends.abstract_backend.Backend`
+        backend : :class: `~cytnx.backends.abstract_backend.Backend`
             This parameter is ignored. We only include it to have matching signatures
             with :meth:`ProductSpace.change_symmetry`.
         injective: bool
@@ -257,7 +257,7 @@ class ElementarySpace(Space):
         is equivalent to ``ElementarySpace(sym, sec, is_dual=False).flip_is_dual()`` and equal to
         ``ElementarySpace(sym, dual_sectors(sec), is_dual=False).dual``.
     """
-    
+
     def __init__(self, symmetry: Symmetry, sectors: SectorArray, multiplicities: ndarray = None,
                  is_dual: bool = False, basis_perm: ndarray | None = None):
         Space.__init__(self, symmetry=symmetry, sectors=sectors, multiplicities=multiplicities,
@@ -425,7 +425,7 @@ class ElementarySpace(Space):
         else:
             multiplicities = np.asarray(multiplicities, dtype=int)
             assert multiplicities.shape == ((len(sectors),))
-        
+
         # sort sectors
         if symmetry.can_be_dropped:
             num_states = symmetry.batch_sector_dim(sectors) * multiplicities
@@ -462,7 +462,7 @@ class ElementarySpace(Space):
         ----------
         dim : int
             The dimension of the space.
-        symmetry : :class:`~tenpy.linalg.groups.Symmetry`
+        symmetry : :class:`~cytnx.groups.Symmetry`
             The symmetry of the space. By default, we use `no_symmetry`.
         is_real, is_dual : bool
             If the space should be real / dual.
@@ -478,7 +478,7 @@ class ElementarySpace(Space):
 
         For the inverse permutation, see :attr:`inverse_basis_perm`.
 
-        The tensor manipulations of ``tenpy.linalg`` benefit from choosing a canonical order for the
+        The tensor manipulations of ``cytnx`` benefit from choosing a canonical order for the
         basis of vector spaces. This attribute translates between the "public" order of the basis,
         in which e.g. the inputs to :meth:`from_dense_block` are interpreted to this internal order,
         such that ``public_basis[basis_perm] == internal_basis``.
@@ -486,7 +486,7 @@ class ElementarySpace(Space):
         We can translate indices as ``public_idx == basis_perm[internal_idx]``.
         Only available if ``symmetry.can_be_dropped``, as otherwise there is no well-defined
         notion of a basis.
-        
+
         ``_basis_perm`` is the internal version which may be ``None`` if the permutation is trivial.
         """
         if not self.symmetry.can_be_dropped:
@@ -644,7 +644,7 @@ class ElementarySpace(Space):
         """Form the direct sum (i.e. stacking).
 
         The basis of the new space results from concatenating the individual bases.
-        
+
         Spaces must have the same symmetry and is_dual.
         The result is a space with the same symmetry and is_dual, whose sectors are those
         that appear in any of the spaces and multiplicities are the sum of the multiplicities
@@ -692,7 +692,7 @@ class ElementarySpace(Space):
 
     def is_subspace_of(self, other: ElementarySpace) -> bool:
         """Whether self is a subspace of other.
-        
+
         Per convention, self is never a subspace of other, if the :attr:`is_dual` or the
         :attr:`symmetry` are different.
         The :attr:`basis_perm`s are not considered.
@@ -904,7 +904,7 @@ class ProductSpace(Space):
         if return_perm:
             return dual, perm
         return dual
-            
+
     @property
     def fusion_outcomes_sort(self):
         fusion_outcomes_sort = self.metadata.get('fusion_outcomes_sort', None)
@@ -938,7 +938,7 @@ class ProductSpace(Space):
 
     def __iter__(self):
         return iter(self.spaces)
-    
+
     def __len__(self):
         return self.num_spaces
 
@@ -979,7 +979,7 @@ class ProductSpace(Space):
         if all(len(l) < printoptions.linewidth for l in elements) and len(elements) <= printoptions.maxlines_spaces:
             return '\n'.join(elements)
         return None
-    
+
     def __eq__(self, other):
         if not isinstance(other, ProductSpace):
             return NotImplemented
@@ -1030,7 +1030,7 @@ class ProductSpace(Space):
         In particular, the order for the uncoupled basis does *not*
         consider :attr:`ElementarySpace.basis_perm`, i.e. it is in general not grouped by sectors.
         The coupled basis is grouped and sorted organized by sectors.
-        
+
         For abelian groups, this is achieved simply by permuting basis elements, see
         :meth:`get_basis_transformation_perm` for that permutation.
         For general groups, this is a more general unitary basis transformation.
@@ -1071,7 +1071,7 @@ class ProductSpace(Space):
         Such that we get
 
         .. testsetup :: get_basis_transformation
-            from tenpy.linalg import ProductSpace, ElementarySpace, su2_symmetry
+            from cytnx import ProductSpace, ElementarySpace, su2_symmetry
 
         .. doctest :: get_basis_transformation
 
@@ -1091,7 +1091,7 @@ class ProductSpace(Space):
             >>> trafo[:, :, 3]  # | s=1, m=1 >
             array([[1., 0.],
                    [0., 0.]])
-            
+
         """
         if not self.symmetry.can_be_dropped:
             raise SymmetryError
@@ -1101,7 +1101,7 @@ class ProductSpace(Space):
             transform[np.ix_(perm, range(self.dim))] = 1.
             return np.reshape(transform, (*(s.dim for s in self.spaces), self.dim))
         raise NotImplementedError  # TODO
-        
+
     def get_basis_transformation_perm(self):
         r"""Get the permutation equivalent to :meth:`get_basis_transformation`.
 
@@ -1133,7 +1133,7 @@ class ProductSpace(Space):
 
         .. testsetup :: get_basis_transformation_perm
             import numpy as np
-            from tenpy.linalg import ProductSpace, ElementarySpace, z2_symmetry
+            from cytnx import ProductSpace, ElementarySpace, z2_symmetry
 
         .. doctest :: get_basis_transformation_perm
 
@@ -1239,7 +1239,7 @@ class ProductSpace(Space):
             symmetry=self.symmetry, backend=backend,
             _sectors=isomorphic.sectors, _multiplicities=isomorphic.multiplicities
         )
-        
+
     def iter_uncoupled(self) -> Iterator[tuple[Sector]]:
         """Iterate over all combinations of sectors"""
         return it.product(*(s.sectors for s in self.spaces))
@@ -1255,10 +1255,10 @@ class ProductSpace(Space):
 
 def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend | None = None):
     """Helper function, called as part of ``ProductSpace.__init__``.
-    
+
     It determines the sectors and multiplicities of the ProductSpace.
     There is also a version of this function in the backends, i.e.
-    :meth:`~tenpy.linalg.backends.abstract_backend.TensorBackend._fuse_spaces`, which may
+    :meth:`~cytnx.backends.abstract_backend.TensorBackend._fuse_spaces`, which may
     customize this behavior and in particular may return metadata, i.e. attributes to be added to
     the ProductSpace.
     This default implementation returns default metadata, with only ``fusion_outcomes_sort``
@@ -1278,7 +1278,7 @@ def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend
         if len(spaces) == 0:
             raise ValueError('If spaces is empty, the symmetry arg is required.')
         symmetry = spaces[0].symmetry
-    
+
     if backend is not None:
         try:
             return backend._fuse_spaces(symmetry=symmetry, spaces=spaces)
@@ -1399,4 +1399,4 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
             remaining_symmetry = ProductSymmetry(factors)
 
     return which, remaining_symmetry
-    
+

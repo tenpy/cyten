@@ -41,7 +41,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
     block_backend : {None, 'numpy', 'torch', 'tensorflow', 'jax', 'cpu', 'gpu', 'tpu'}
     """
     # TODO these are a dummies, in the future we should have some mechanism to store the default
-    # values in some state-ful global config of tenpy
+    # values in some state-ful global config of cytnx
     if symmetry is None:
         symmetry = 'abelian'
     if block_backend is None:
@@ -78,6 +78,6 @@ def todo_get_backend():
     """temporary tool during development. Allows to get a backend.
 
     TODO revisit usages and decide if backends should be passed around through inits or a
-    global state of tenpy
+    global state of cytnx
     """
     return get_backend(block_backend='numpy', symmetry_backend='abelian')

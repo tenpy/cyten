@@ -1,12 +1,12 @@
-"""A collection of tests for tenpy.linalg.krylov_based."""
+"""A collection of tests for cytnx.krylov_based."""
 # Copyright (C) TeNPy Developers, GNU GPLv3
 import pytest
 from numpy import testing as npt
 import numpy as np
 from scipy.linalg import expm
 
-import tenpy as tp
-from tenpy.linalg import krylov_based, sparse, tensors, random_matrix
+import cytnx
+from cytnx import krylov_based, sparse, tensors, random_matrix
 
 
 pytest.skip("krylov_based not yet revised", allow_module_level=True)  # TODO
@@ -20,7 +20,7 @@ def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
     leg = make_compatible_space()
     backend = compatible_backend
     
-    if isinstance(compatible_backend, tp.linalg.backends.FusionTreeBackend):
+    if isinstance(compatible_backend, cytnx.backends.FusionTreeBackend):
         # TODO need to be more careful with from func.
         # shapes of the blocks depend on num_domain_legs!
         # and GUE((1, 9)) generates blocks with shape (9, 9) without error!!
@@ -31,7 +31,7 @@ def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
     
     H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
 
-    if isinstance(H.backend, tp.linalg.backends.FusionTreeBackend) and isinstance(leg.symmetry, tp.ProductSymmetry):
+    if isinstance(H.backend, cytnx.backends.FusionTreeBackend) and isinstance(leg.symmetry, cytnx.symmetries.ProductSymmetry):
         # TODO
         with pytest.raises(NotImplementedError, match='fusion_tensor is not implemented'):
             _ = H.to_numpy()
@@ -113,7 +113,7 @@ def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol)
     backend = compatible_backend
     leg = make_compatible_space()
     
-    if isinstance(compatible_backend, tp.linalg.backends.FusionTreeBackend):
+    if isinstance(compatible_backend, cytnx.backends.FusionTreeBackend):
         # TODO need to be more careful with from func.
         # shapes of the blocks depend on num_domain_legs!
         # and GUE((1, 9)) generates blocks with shape (9, 9) without error!!
@@ -125,13 +125,13 @@ def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol)
     H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
     H_op = sparse.TensorLinearOperator(H, which_leg=1)
 
-    if isinstance(H.backend, tp.linalg.backends.FusionTreeBackend) and isinstance(leg.symmetry, tp.ProductSymmetry):
+    if isinstance(H.backend, cytnx.backends.FusionTreeBackend) and isinstance(leg.symmetry, cytnx.symmetries.ProductSymmetry):
         # TODO
         with pytest.raises(NotImplementedError, match='fusion_tensor is not implemented'):
             _ = H.to_numpy()
         return
     
-    if isinstance(H.backend, tp.linalg.backends.FusionTreeBackend):
+    if isinstance(H.backend, cytnx.backends.FusionTreeBackend):
         # TODO
         with pytest.raises(AssertionError, match='norm not preserved'):
             _ = H.to_numpy()
@@ -165,7 +165,7 @@ def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
     # if looking for small/large real part, ensure hermitian H
     func = random_matrix.GUE if which[-1] == 'R' else random_matrix.standard_normal_complex
 
-    if which[-1] == 'R' and isinstance(compatible_backend, tp.linalg.backends.FusionTreeBackend):
+    if which[-1] == 'R' and isinstance(compatible_backend, cytnx.backends.FusionTreeBackend):
         # TODO need to be more careful with from func.
         # shapes of the blocks depend on num_domain_legs!
         # and GUE((1, 9)) generates blocks with shape (9, 9) without error!!
@@ -177,7 +177,7 @@ def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
     H = tensors.SymmetricTensor.from_numpy_func(func, legs=[leg, leg.dual], backend=backend)
     H_op = sparse.TensorLinearOperator(H, which_leg=1)
 
-    if isinstance(H.backend, tp.linalg.backends.FusionTreeBackend) and isinstance(leg.symmetry, tp.ProductSymmetry):
+    if isinstance(H.backend, cytnx.backends.FusionTreeBackend) and isinstance(leg.symmetry, cytnx.ProductSymmetry):
         # TODO
         with pytest.raises(NotImplementedError, match='should be implemented by subclass'):
             _ = H.to_numpy()
@@ -198,7 +198,7 @@ def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
 
     engine = krylov_based.Arnoldi(H_op, psi_init, {'which': which, 'num_ev': 1, 'N_max': N_max})
 
-    if isinstance(compatible_backend, tp.linalg.backends.FusionTreeBackend):
+    if isinstance(compatible_backend, cytnx.backends.FusionTreeBackend):
         # TODO
         with pytest.raises(NotImplementedError, match='tdot not implemented'):
             _ = engine.run()

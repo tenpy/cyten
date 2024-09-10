@@ -25,14 +25,14 @@ import copy
 from typing import TypeVar, Type
 from functools import partial, reduce
 
-from ..linalg.tensors import (Tensor, SymmetricTensor, SymmetricTensor, ChargedTensor,
+from ..tensors import (Tensor, SymmetricTensor, SymmetricTensor, ChargedTensor,
                               DiagonalTensor, almost_equal, angle, real_if_close, exp)
-from ..linalg.backends import TensorBackend, Block
-from ..linalg.symmetries import (ProductSymmetry, Symmetry, SU2Symmetry, U1Symmetry, ZNSymmetry,
+from ..backends import TensorBackend, Block
+from ..symmetries import (ProductSymmetry, Symmetry, SU2Symmetry, U1Symmetry, ZNSymmetry,
                              no_symmetry, SectorArray)
-from ..linalg.spaces import Space, ElementarySpace, ProductSpace
+from ..spaces import Space, ElementarySpace, ProductSpace
 from ..tools.misc import find_subclass, make_stride
-from ..tools.hdf5_io import Hdf5Exportable
+#  from ..tools.hdf5_io import Hdf5Exportable  # TODO add import/export by making Site a subclass of HDF5Exportable again
 
 __all__ = ['Site', 'GroupedSite', 'group_sites', 'set_common_symmetry', 'as_valid_operator_name',
            'split_charged_operator_symbol', 'ChargedOperator', 'SpinHalfSite', 'SpinSite',
@@ -49,7 +49,7 @@ _T = TypeVar('_T')
 #  - manual hc is a bit ugly, op1 needs hc=False and only op2 needs hc='op1', i.e. asymmetrical
 
 
-class Site(Hdf5Exportable):
+class Site:
     """Collects information about a single local site of a lattice.
 
     This class defines what the local basis states are via the :attr:`leg`, which defines the order
@@ -91,11 +91,11 @@ class Site(Hdf5Exportable):
 
     Parameters
     ----------
-    leg : :class:`~tenpy.linalg.spaces.Space`
+    leg : :class:`~cytnx.spaces.Space`
         The Hilbert space associated with the site. Defines the basis and the symmetry.
-    backend : :class:`~tenpy.linalg.backends.Backend`, optional
+    backend : :class:`~cytnx.backends.Backend`, optional
         The backend used to create the identity operator and possibly convert non-tensor operators
-        to :class:`~tenpy.linalg.tensors.Tensor`s.
+        to :class:`~cytnx.tensors.Tensor`s.
     state_labels : None | list of str
         Optionally, a label for each local basis state.
     JW : :class:`DiagonalTensor` | Block
@@ -104,7 +104,7 @@ class Site(Hdf5Exportable):
 
     Attributes
     ----------
-    leg : :class:`~tenpy.linalg.spaces.Space`
+    leg : :class:`~cytnx.spaces.Space`
         The Hilbert space associated with the site. Defines the basis and the symmetry.
     state_labels : {str: int}
         Labels for the local basis states. Maps from label to index of the state in the basis.
@@ -771,13 +771,13 @@ class GroupedSite(Site):
 
         Parameters
         ----------
-        ops : list of :class:`~tenpy.linalg.tensor.Tensor`
+        ops : list of :class:`~cytnx.tensor.Tensor`
             One operator (or operator name) on each of the ungrouped sites.
             Each operator should have labels ``['p', 'p*']``.
 
         Returns
         -------
-        prod : :class:`~tenpy.linalg.tensor.Tensor`
+        prod : :class:`~cytnx.tensor.Tensor`
             Kronecker product :math:`ops[0] \otimes ops[1] \otimes \cdots`,
             with labels ``['p', 'p*']``.
         """
@@ -835,7 +835,7 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
 
     Before we can contract operators (and tensors) corresponding to different :class:`Site`
     instances, we first need to define the overall symmetry, i.e., we need to merge the
-    :class:`~tenpy.linalg.groups.Symmetry` of their :attr:`Site.leg`s to a single, global symmetry
+    :class:`~cytnx.groups.Symmetry` of their :attr:`Site.leg`s to a single, global symmetry
     and adjust the sectors of the physical legs. That's what this function does.
 
     A typical place to do this would be in :meth:`tenpy.models.model.CouplingMPOModel.init_sites`.
@@ -1156,7 +1156,7 @@ class SpinHalfSite(Site):
     ----------
     conserve : 'Stot' | 'Sz' | 'parity' | 'None'
         Defines what is conserved, see table above.
-    backend : :class:`~tenpy.linalg.backends.Backend`, optional
+    backend : :class:`~cytnx.backends.Backend`, optional
         The backend used to create the operators.
     """
     def __init__(self, conserve: str = 'Sz', backend: TensorBackend = None):
@@ -1255,7 +1255,7 @@ class SpinSite(Site):
         The 2S+1 states range from m = -S, -S+1, ... +S.
     conserve : 'Stot' | 'Sz' | 'parity' | 'None'
         Defines what is conserved, see table above.
-    backend : :class:`~tenpy.linalg.backends.Backend`, optional
+    backend : :class:`~cytnx.backends.Backend`, optional
         The backend used to create the operators.
     """
 
@@ -1344,7 +1344,7 @@ class FermionSite(Site):
     ``'None'``      ``NoSymmetry``         ``[0, 0]``          --
     ==============  =====================  ==================  ==========================
 
-    TODO how to control if tenpy should use JW-strings or tenpy.linalg.groups.FermionParity?
+    TODO how to control if tenpy should use JW-strings or cytnx.groups.FermionParity?
 
     Local operators are composed of the fermionic creation ``'Cd'`` and annihilation ``'C'``
     operators. Note that the local operators do *not* include the Jordan-Wigner strings that
@@ -1378,7 +1378,7 @@ class FermionSite(Site):
         Defines what is conserved, see table above.
     filling : float
         Average filling. Used to define ``dN``.
-    backend : :class:`~tenpy.linalg.backends.Backend`, optional
+    backend : :class:`~cytnx.backends.Backend`, optional
         The backend used to create the operators.
     """
 
@@ -1510,7 +1510,7 @@ class SpinHalfFermionSite(Site):
         Whether spin is conserved, c.f. table above.
     filling : float
         Average filling. Used to define ``dN``.
-    backend : :class:`~tenpy.linalg.backends.Backend`, optional
+    backend : :class:`~cytnx.backends.Backend`, optional
         The backend used to create the operators.
     """
 
@@ -1658,7 +1658,7 @@ class SpinHalfHoleSite(Site):
         Whether spin is conserved, c.f. table above.
     filling : float
         Average filling. Used to define ``dN``.
-    backend : :class:`~tenpy.linalg.backends.Backend`, optional
+    backend : :class:`~cytnx.backends.Backend`, optional
         The backend used to create the operators.
     """
 
@@ -1805,7 +1805,7 @@ class BosonSite(Site):
         Defines what is conserved, see table above.
     filling : float
         Average filling. Used to define ``dN``.
-    backend : :class:`~tenpy.linalg.backends.Backend`, optional
+    backend : :class:`~cytnx.backends.Backend`, optional
         The backend used to create the operators.
     """
 
@@ -1981,7 +1981,7 @@ class ClockSite(Site):
         Number of states per site
     conserve : 'Z' | 'None'
         Defines what is conserved, see table above.
-    backend : :class:`~tenpy.linalg.backends.Backend`, optional
+    backend : :class:`~cytnx.backends.Backend`, optional
         The backend used to create the operators.
     """
     def __init__(self, q: int, conserve: str = 'Z', backend: TensorBackend = None):

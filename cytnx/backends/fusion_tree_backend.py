@@ -12,7 +12,7 @@ from ..dtypes import Dtype
 from ..symmetries import Sector, SectorArray, Symmetry
 from ..spaces import Space, ElementarySpace, ProductSpace
 from ..trees import FusionTree, fusion_trees
-from ...tools.misc import iter_common_sorted_arrays, iter_common_noncommon_sorted, iter_common_sorted
+from ..tools.misc import iter_common_sorted_arrays, iter_common_noncommon_sorted, iter_common_sorted
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
@@ -115,11 +115,11 @@ def _iter_sectors(spaces: list[Space], symmetry: Symmetry) -> Iterator[SectorArr
     for charges in product(*[space.sectors for space in spaces]):
         yield np.array(charges)
 
-        
+
 def _iter_sectors_mults_slices(spaces: list[Space], symmetry: Symmetry
                                ) -> Iterator[tuple[SectorArray, list[int], list[slice]]]:
     """Helper iterator over all combinations of sectors and respective mults and slices.
-    
+
     Yields
     ------
     uncoupled : list of 1D array of int
@@ -133,12 +133,12 @@ def _iter_sectors_mults_slices(spaces: list[Space], symmetry: Symmetry
     if len(spaces) == 0:
         yield symmetry.empty_sector_array, [], []
         return
-    
+
     if len(spaces) == 1:
         for a, m, slc in zip(spaces[0].sectors, spaces[0].multiplicities, spaces[0].slices):
             yield a[None, :], [m], [slice(*slc)]
         return
-    
+
     # OPTIMIZE there is probably some itertools magic that does this better?
     # OPTIMIZE or build a grid of indices?
     for a_0, m_0, slc_0 in zip(spaces[0].sectors, spaces[0].multiplicities, spaces[0].slices):
@@ -179,7 +179,7 @@ class FusionTreeData:
 # TODO eventually remove BlockBackend inheritance, it is not needed,
 #      jakob only keeps it around to make his IDE happy  (same in abelian and no_symmetry)
 class FusionTreeBackend(TensorBackend):
-    
+
     DataCls = FusionTreeData
     can_decompose_tensors = True
 
@@ -256,7 +256,7 @@ class FusionTreeBackend(TensorBackend):
 
     def apply_mask_to_DiagonalTensor(self, tensor: DiagonalTensor, mask: Mask) -> DiagonalData:
         raise NotImplementedError('apply_mask_to_DiagonalTensor not implemented')  # TODO
-    
+
     def combine_legs(self,
                      tensor: SymmetricTensor,
                      leg_idcs_combine: list[list[int]],
@@ -326,7 +326,7 @@ class FusionTreeBackend(TensorBackend):
 
     def diagonal_any(self, a: DiagonalTensor) -> bool:
         return any(self.block_backend.block_any(b) for b in a.data.blocks)
-    
+
     def diagonal_elementwise_binary(self, a: DiagonalTensor, b: DiagonalTensor, func,
                                     func_kwargs, partial_zero_is_zero: bool) -> DiagonalData:
         a_blocks = a.data.blocks
@@ -454,10 +454,10 @@ class FusionTreeBackend(TensorBackend):
 
     def diagonal_to_mask(self, tens: DiagonalTensor) -> tuple[DiagonalData, ElementarySpace]:
         raise NotImplementedError('diagonal_to_mask not implemented')
-    
+
     def diagonal_transpose(self, tens: DiagonalTensor) -> tuple[Space, DiagonalData]:
         raise NotImplementedError('diagonal_transpose not implemented')
-        
+
     def eigh(self, a: SymmetricTensor, sort: str = None) -> tuple[DiagonalData, Data]:
         a_blocks = a.data.blocks
         a_block_inds = a.data.block_inds
@@ -565,7 +565,7 @@ class FusionTreeBackend(TensorBackend):
         else:
             block_inds = np.array(block_inds, int)
         return FusionTreeData(block_inds, blocks, dtype)
-    
+
     def from_dense_block_trivial_sector(self, block: Block, leg: Space) -> Data:
         raise NotImplementedError('from_dense_block_trivial_sector not implemented')  # TODO
 
@@ -605,7 +605,7 @@ class FusionTreeBackend(TensorBackend):
 
     def get_element_diagonal(self, a: DiagonalTensor, idx: int) -> complex | float | bool:
         raise NotImplementedError('get_element_diagonal not implemented')  # TODO
-    
+
     def get_element_mask(self, a: Mask, idcs: list[int]) -> bool:
         raise NotImplementedError('get_element_mask not implemented')  # TODO
 
@@ -625,7 +625,7 @@ class FusionTreeBackend(TensorBackend):
             inn = self.block_backend.block_inner(a_blocks[i], b_blocks[j], do_dagger=do_dagger)
             res += a_codomain_qdims[a_codomain_block_inds[i]] * inn
         return res
-    
+
     def inv_part_from_dense_block_single_sector(self, vector: Block, space: Space,
                                                charge_leg: ElementarySpace) -> Data:
         raise NotImplementedError('inv_part_from_dense_block_single_sector not implemented')  # TODO
@@ -693,18 +693,18 @@ class FusionTreeBackend(TensorBackend):
         l_data = FusionTreeData(l_block_inds, l_blocks, a.dtype)
         q_data = FusionTreeData(q_block_inds, q_blocks, a.dtype)
         return l_data, q_data
-    
+
     def mask_binary_operand(self, mask1: Mask, mask2: Mask, func) -> tuple[MaskData, ElementarySpace]:
         raise NotImplementedError('mask_binary_operand not implemented')
 
     def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, ProductSpace, ProductSpace]:
         raise NotImplementedError('mask_contract_large_leg not implemented')
-    
+
     def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, ProductSpace, ProductSpace]:
         raise NotImplementedError('mask_contract_small_leg not implemented')
-    
+
     def mask_dagger(self, mask: Mask) -> MaskData:
         raise NotImplementedError('mask_dagger not implemented')
 
@@ -719,10 +719,10 @@ class FusionTreeBackend(TensorBackend):
 
     def mask_transpose(self, tens: Mask) -> tuple[Space, Space, MaskData]:
         raise NotImplementedError('mask_transpose not implemented')
-    
+
     def mask_unary_operand(self, mask: Mask, func) -> tuple[MaskData, ElementarySpace]:
         raise NotImplementedError
-        
+
     def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
         if a == 0.:
             return self.zero_data(b.codomain, b.domain, b.dtype)
@@ -807,11 +807,11 @@ class FusionTreeBackend(TensorBackend):
                                                       dtype=tensor.dtype)
             numbers.append(block_func(block))
         return func(numbers)
-        
+
     def scale_axis(self, a: SymmetricTensor, b: DiagonalTensor, leg: int) -> Data:
         in_domain, co_codomain_idx, leg_idx = a._parse_leg_idx(leg)
         ax_a = int(in_domain)  # 1 if in_domain, 0 else
-        
+
         a_blocks = a.data.blocks
         b_blocks = b.data.blocks
         a_block_inds = a.data.block_inds
@@ -819,7 +819,7 @@ class FusionTreeBackend(TensorBackend):
 
         if (in_domain and a.domain.num_spaces == 1) or (not in_domain and a.codomain.num_spaces == 1):
             # special case where it is essentially compose.
-            
+
             blocks = []
             block_inds = []
 

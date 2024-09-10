@@ -2,10 +2,10 @@
 
 Some linear algebra algorithms, e.g. Lanczos, do not require the full representations of a linear
 operator, but only the action on a vector, i.e., a matrix-vector product `matvec`. Here we define
-the structure of such a general operator, :class:`TenpyLinearOperator`, as it is used in our own
-implementations of these algorithms (e.g., :mod:`~tenpy.linalg.krylov_based`). Moreover, the
+the structure of such a general operator, :class:`LinearOperator`, as it is used in our own
+implementations of these algorithms (e.g., :mod:`~cytnx.krylov_based`). Moreover, the
 :class:`FlatLinearOperator` allows to use all the scipy sparse methods by providing functionality
-to convert flat numpy arrays to and from tenpy tensors.
+to convert flat numpy arrays to and from cytnx tensors.
 """
 # Copyright (C) TeNPy Developers, GNU GPLv3
 
@@ -21,8 +21,8 @@ from .spaces import Space, ProductSpace, Sector
 from .tensors import Tensor, SymmetricTensor, ChargedTensor
 from .backends.abstract_backend import TensorBackend
 from .dtypes import Dtype
-from ..tools.math import speigs, speigsh
-from ..tools.misc import argsort
+from .tools.math import speigs, speigsh
+from .tools.misc import argsort
 
 
 __all__ = ['LinearOperator', 'TensorLinearOperator', 'LinearOperatorWrapper', 'SumLinearOperator',
@@ -31,7 +31,7 @@ __all__ = ['LinearOperator', 'TensorLinearOperator', 'LinearOperatorWrapper', 'S
 
 
 class LinearOperator(metaclass=ABCMeta):
-    """Base class for a linear operator acting on tenpy tensors.
+    """Base class for a linear operator acting on cytnx tensors.
 
     Attributes
     ----------
@@ -243,7 +243,7 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
     ----------
     original_operator : :class:`LinearOperator`-like
         The original operator, denoted ``H`` in the summary above.
-    ortho_vecs : list of :class:`~tenpy.linalg.tensors.Tensor`
+    ortho_vecs : list of :class:`~cytnx.tensors.Tensor`
         The list of vectors spanning the projected space.
         They need not be orthonormal, as Gram-Schmidt is performed on them explicitly.
     project_operator: bool
@@ -319,24 +319,24 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
 
 
 class NumpyArrayLinearOperator(ScipyLinearOperator):
-    """Square Linear operator acting on numpy arrays based on a matvec acting on tenpy tensors.
+    """Square Linear operator acting on numpy arrays based on a matvec acting on cytnx tensors.
 
     Note that this class represents a square linear operator.
 
     Parameters
     ----------
-    tenpy_matvec : callable
-        Function with signature ``tenpy_matvec(vec: Tensor) -> Tensor`.
+    cytnx_matvec : callable
+        Function with signature ``cytnx_matvec(vec: Tensor) -> Tensor`.
         Has to return a tensor with the same legs and has to be linear.
         Unless `labels` are given, the leg order of the output must be the same as for the input.
-    legs : list of :class:`~tenpy.linalg.spaces.ElementarySpace`
-        The legs of a Tensor that `tenpy_matvec` can act on.
-    backend : :class:`~tenpy.linalg.backends.abstract_backend.Backend`
+    legs : list of :class:`~cytnx.spaces.ElementarySpace`
+        The legs of a Tensor that `cytnx_matvec` can act on.
+    backend : :class:`~cytnx.backends.abstract_backend.Backend`
         The backend for self
     dtype
         The numpy dtype for this operator.
     labels : list of str, optional
-        The labels for inputs to `tenpy_matvec`.
+        The labels for inputs to `cytnx_matvec`.
     charge_sector : None | Sector | 'trivial'
         If given, only the specified charge sector is considered.
         Per default, or if the string ``'trivial'`` is given, the trivial sector of the symmetry is used.
@@ -344,25 +344,25 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
 
     Attributes
     ----------
-    tenpy_matvec : callable
-        Function with signature ``tenpy_matvec(vec: Tensor) -> Tensor`.
-    legs : list of :class:`~tenpy.linalg.spaces.Space`
-        The legs of a Tensor that `tenpy_matvec` can act on.
-    backend : :class:`~tenpy.linalg.backends.abstract_backend.Backend`
+    cytnx_matvec : callable
+        Function with signature ``cytnx_matvec(vec: Tensor) -> Tensor`.
+    legs : list of :class:`~cytnx.spaces.Space`
+        The legs of a Tensor that `cytnx_matvec` can act on.
+    backend : :class:`~cytnx.backends.abstract_backend.Backend`
         The backend for self
     dtype
         The numpy dtype for this operator.
     labels : list of str, optional
-        The labels for inputs to `tenpy_matvec`.
+        The labels for inputs to `cytnx_matvec`.
     charge_sector : None | Sector | 'trivial'
         If given, only the specified charge sector is considered.
         If ``'trivial'`` is given, the trivial sector of the symmetry is used.
         ``None`` stands for *all* sectors.
     matvec_count : int
-        The number of times `tenpy_matvec` was called.
+        The number of times `cytnx_matvec` was called.
     N : int
         The length of the numpy vectors that this operator acts on
-    domain : :class:`~tenpy.linalg.spaces.ProductSpace`
+    domain : :class:`~cytnx.spaces.ProductSpace`
         The product of the :attr:`legs`. Self is an operator on either this entire space,
         or one of its sectors, as specified by :attr:`charge_sector`.
     symmetry
@@ -370,10 +370,10 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
     shape : (int, int)
         The shape of self as an operator on 1D numpy arrays
     """
-    def __init__(self, tenpy_matvec, legs: list[Space], backend: TensorBackend, dtype,
+    def __init__(self, cytnx_matvec, legs: list[Space], backend: TensorBackend, dtype,
                  labels: list[str] = None,
                  charge_sector: None | Sector | Literal['trivial'] = 'trivial'):
-        self.tenpy_matvec = tenpy_matvec
+        self.cytnx_matvec = cytnx_matvec
         self.legs = legs
         self.backend = backend
         # even if there is just one leg, we form the ProductSpace anyway, so we dont have to distinguish
@@ -395,7 +395,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
                     ) -> NumpyArrayLinearOperator:
         """Create a :class:`NumpyArrayLinearOperator` from a tensor that acts via contraction (`tdot`).
 
-        The `tenpy_matvec` acting on ``vec`` is given by ``tdot(tensor, vec, legs1, legs2)``.
+        The `cytnx_matvec` acting on ``vec`` is given by ``tdot(tensor, vec, legs1, legs2)``.
 
         Parameters
         ----------
@@ -427,15 +427,15 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         if not all(l_t.can_contract_with(l_v) for l_t, l_v in zip(tensor_contr_legs, vec_contr_legs)):
             raise ValueError('Expected contractible legs')
 
-        def tenpy_matvec(vec):
+        def cytnx_matvec(vec):
             return tensor.tdot(vec, legs1, legs2)
 
-        return cls(tenpy_matvec, legs=vec_contr_legs, backend=tensor.backend,
+        return cls(cytnx_matvec, legs=vec_contr_legs, backend=tensor.backend,
                    dtype=tensor.dtype.to_numpy_dtype(), labels=res_labels,
                    charge_sector=charge_sector)
 
     @classmethod
-    def from_matvec_and_vector(cls, tenpy_matvec, vector: Tensor, dtype=None
+    def from_matvec_and_vector(cls, cytnx_matvec, vector: Tensor, dtype=None
                                ) -> tuple[NumpyArrayLinearOperator, np.ndarray]:
         """Create a :class:`NumpyArrayLinearOperator` from a matvec and a vector that it can act on.
 
@@ -447,11 +447,11 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
 
         Parameters
         ----------
-        tenpy_matvec : callable
-            Function with signature ``tenpy_matvec(vec: Tensor) -> Tensor`.
+        cytnx_matvec : callable
+            Function with signature ``cytnx_matvec(vec: Tensor) -> Tensor`.
             Has to return a tensor with the same leg and has to be linear.
-        vector : :class:`~tenpy.linalg.tensors.Tensor` | :class:`~tenpy.linalg.tensors.ChargedTensor`
-            A tensor that `tenpy_matvec` can act on.
+        vector : :class:`~cytnx.tensors.Tensor` | :class:`~cytnx.tensors.ChargedTensor`
+            A tensor that `cytnx_matvec` can act on.
             If a ChargedTensor, expect a single sector on the dummy leg, which is used as the
             :attr:`charge_sector`.
             TODO revise this. purge the "dummy" language, its now "charged"
@@ -472,7 +472,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             sector = 'trivial'
         if dtype is None:
             dtype = vector.dtype.to_numpy_dtype()
-        op = cls(tenpy_matvec, legs=vector.legs, backend=vector.backend, dtype=dtype, charge_sector=sector)
+        op = cls(cytnx_matvec, legs=vector.legs, backend=vector.backend, dtype=dtype, charge_sector=sector)
         vec_flat = op.tensor_to_flat_array(vector)
         return op, vec_flat
         
@@ -519,7 +519,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             vec = np.squeeze(vec, axis=1)
             assert vec.ndim == 1
         tens = self.flat_array_to_tensor(vec)
-        tens = self.tenpy_matvec(tens)
+        tens = self.cytnx_matvec(tens)
         self.matvec_count += 1
         return self.tensor_to_flat_array(tens)
 
@@ -589,10 +589,10 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             After the first `NoConvergenceError` we increase the `tol` argument to that value.
         which : str
             Which eigenvalues to look for, see :func:`scipy.sparse.linalg.eigs`.
-            More details also in :func:`~tenpy.tools.misc.argsort`.
+            More details also in :func:`~cytnx.tools.misc.argsort`.
         v0_np : 1D ndarray
             Initial guess as a flat numpy array, i.e. a suitable input to :meth:`_matvec`.
-        v0_tensor : :class:`~tenpy.linalg.tensors.Tensor` | :class:`~tenpy.linalg.tensors.ChargedTensor`
+        v0_tensor : :class:`~cytnx.tensors.Tensor` | :class:`~cytnx.tensors.ChargedTensor`
             Initial guess as a tensor, i.e. a suitable input to :meth:`tensor_to_np`.
         cutoff : float
             Only used if ``self.charge_sector is None``; in that case it determines when entries in
@@ -608,7 +608,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         -------
         eta : 1D ndarray
             The eigenvalues, sorted according to `which`.
-        w : list of :class:`~tenpy.linalg.tensors.Tensor` or :class:`~tenpy.linalg.tensors.ChargedTensor`
+        w : list of :class:`~cytnx.tensors.Tensor` or :class:`~cytnx.tensors.ChargedTensor`
             The corresponding eigenvectors as tensors.
         """
         if max_num_ev is None:
@@ -664,14 +664,14 @@ def gram_schmidt(vecs: list[Tensor], rcond=1.e-14) -> list[Tensor]:
 
     Parameters
     ----------
-    vecs : list of :class:`~tenpy.linalg.tensors.Tensor`
+    vecs : list of :class:`~cytnx.tensors.Tensor`
         The list of vectors to be orthogonalized. All with the same legs.
     rcond : _type_, optional
         Vectors of ``norm < rcond`` (after projecting out previous vectors) are discarded.
 
     Returns
     -------
-    list of :class:`~tenpy.linalg.tensors.Tensor`
+    list of :class:`~cytnx.tensors.Tensor`
         A list of orthonormal vectors which span the same space as `vecs`.
     """
     res = []

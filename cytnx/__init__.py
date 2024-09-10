@@ -28,6 +28,8 @@ from .sparse import *
 from .krylov_based import *
 from .dtypes import *
 
+from ._core import *  # import pybind11 bindings from C++ code
+
 __all__ = ['symmetries', 'spaces', 'trees', 'backends', 'tensors', 'random_matrix', 'sparse',
            'krylov_based', 'dtypes',
            *symmetries.__all__,

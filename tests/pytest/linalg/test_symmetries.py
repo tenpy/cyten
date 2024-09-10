@@ -3,8 +3,8 @@ import pytest
 import numpy as np
 from numpy.testing import assert_array_equal, assert_array_almost_equal
 
-from tenpy.linalg import symmetries
-from tenpy.linalg.dtypes import _numpy_dtype_to_tenpy
+from cytnx import symmetries
+from cytnx.dtypes import _numpy_dtype_to_cytnx
 
 default_rng = np.random.default_rng()
 
@@ -61,7 +61,7 @@ def sample_sector_triplets(symmetry: symmetries.Symmetry, sectors, num_samples: 
     a_b_list = list(sampled_zip(sectors, num_copies=2, num_samples=num_samples, np_rng=np_rng,
                                 accept_fewer=True))
     fusion_outcomes = [symmetry.fusion_outcomes(a, b) for a, b in a_b_list]
-    
+
     if len(a_b_list) >= num_samples:  # it is enough to select one fusion outcome c per a_b
         for (a, b), outcomes in zip(a_b_list, fusion_outcomes):
             yield a, b, np_rng.choice(outcomes)
@@ -89,7 +89,7 @@ def sample_sector_triplets(symmetry: symmetries.Symmetry, sectors, num_samples: 
     for (a, b), outcomes, num in zip(a_b_list, fusion_outcomes, num_samples_per_a_b):
         for c in sample_from(outcomes, num_samples=num, accept_fewer=False, np_rng=np_rng):
             yield a, b, c
-    
+
 
 def sample_sector_sextets(symmetry: symmetries.Symmetry, sectors, num_samples: int,
                           accept_fewer: bool = True, np_rng=default_rng):
@@ -117,7 +117,7 @@ def sample_sector_sextets(symmetry: symmetries.Symmetry, sectors, num_samples: i
     assert accept_fewer
     yield from sample_sector_sextets(symmetry=symmetry, sectors=sectors, num_samples=len(abc_list),
                                      np_rng=np_rng)
-    
+
 
 def sample_sector_nonets(symmetry: symmetries.Symmetry, sectors, num_samples: int,
                          accept_fewer: bool = True, np_rng=default_rng):
@@ -203,7 +203,7 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
     sector_unitarity_test = list(sample_sector_unitarity_test(sym, example_sectors_low_qdim,
                                                               num_samples=10, accept_fewer=True,
                                                               np_rng=np_random))
-    
+
     assert sym.trivial_sector.shape == (sym.sector_ind_len,)
     assert sym.is_valid_sector(sym.trivial_sector)
     assert not sym.is_valid_sector(np.zeros(shape=(sym.sector_ind_len + 2), dtype=int))
@@ -263,7 +263,7 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
     for a, b, c, d, _, _ in sector_sextets:
         # TODO associativity constraint \sum_e N(a, b, e) N(e, c, d) == \sum_f N(b, c, d) N(a, f, d)
         pass
-    
+
     # check F symbol
     check_F_symbols(sym, sector_sextets, sector_unitarity_test)
     check_pentagon_equation(sym, sector_nonets)
@@ -277,7 +277,7 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
 
     # check B symbol
     check_B_symbols(sym, sector_triples)
-    
+
     # check derived topological data vs the fallback implementations.
     # we always check if the method is actually overridden, to avoid comparing identical implementations.
     SymCls = type(sym)
@@ -314,13 +314,13 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
     if sym.braiding_style.value <= symmetries.BraidingStyle.fermionic.value:  # check R symbols
         for a, b, c in sector_triples:
             assert_array_almost_equal(sym.r_symbol(a, b, c)**2, np.ones(sym.n_symbol(a, b, c)))
-    
+
     # check fusion style
     if sym.fusion_style == symmetries.FusionStyle.single:
         for a in example_sectors:
             for b in example_sectors:
                 assert len(sym.fusion_outcomes(a, b)) == 1
-    
+
     if sym.fusion_style.value <= symmetries.FusionStyle.multiple_unique.value:
         for a, b, c in sector_triples:
             # we check `== 1` and not `in [0, 1]` here since we iterate over sector_triples
@@ -354,7 +354,7 @@ def check_fusion_tensor(sym: symmetries.Symmetry, example_sectors, np_random):
         for c in fusion_outcomes:
             d_c = sym.sector_dim(c)
             X_abc = sym.fusion_tensor(a, b, c)
-            assert _numpy_dtype_to_tenpy[X_abc.dtype] == sym.fusion_tensor_dtype
+            assert _numpy_dtype_to_cytnx[X_abc.dtype] == sym.fusion_tensor_dtype
             N_abc = sym.n_symbol(a, b, c)
             Y_abc = np.conj(X_abc)
 
@@ -373,7 +373,7 @@ def check_fusion_tensor(sym: symmetries.Symmetry, example_sectors, np_random):
         eye_a = np.eye(d_a)[:, None, :, None]
         eye_b = np.eye(d_b)[None, :, None, :]
         assert_array_almost_equal(completeness_res, eye_a * eye_b)
-            
+
         # remains: orthonormality for different sectors
         for c, d in sample_offdiagonal(fusion_outcomes, num_samples=5, accept_fewer=True, np_rng=np_random):
             d_c = sym.sector_dim(c)
@@ -398,7 +398,7 @@ def check_fusion_tensor(sym: symmetries.Symmetry, example_sectors, np_random):
 
         # defining property of frobenius schur?
         assert_array_almost_equal(Z_a.T, sym.frobenius_schur(a) * Z_a)
-    
+
         # reduces to left/right unitor if one input is trivial?
         X_aua = sym.fusion_tensor(a, sym.trivial_sector, a)
         assert_array_almost_equal(X_aua, np.eye(d_a, dtype=X_aua.dtype)[None, :, None, :])
@@ -416,7 +416,7 @@ def check_fusion_tensor(sym: symmetries.Symmetry, example_sectors, np_random):
 
 def check_symbols_via_fusion_tensors(sym: symmetries.Symmetry, example_sectors, np_random):
     """Check the defining properties of the symbols with explicit fusion tensors.
-    
+
     Subroutine of `common_checks`.
     The ``example_sectors`` should be duplicate free.
 
@@ -458,7 +458,7 @@ def check_F_symbols(sym: symmetries.Symmetry, sector_sextets, sector_unitarity_t
             assert_array_almost_equal(res, np.eye(shape[0] * shape[1]).reshape(shape))
         else:
             assert_array_almost_equal(res, np.zeros(shape))
-            
+
 
 def check_R_symbols(sym: symmetries.Symmetry, sector_triplets, example_sectors_low_qdim):
     """Check correct shape and unitarity of R symbols."""
@@ -663,7 +663,7 @@ def test_product_symmetry(np_random):
         assert np.isclose(doubleIsing._r_symbol([1,1],[1,1],[0,0]),1)
         assert np.isclose(doubleIsing._r_symbol([1, 1], [2, 2], [1, 1]), 1)
         assert np.isclose(doubleIsing._r_symbol([2, 2],[1, 1], [1, 1]), 1)
-        
+
     sym = symmetries.ProductSymmetry([
         symmetries.SU2Symmetry(), symmetries.U1Symmetry(), symmetries.FermionParity()
     ])
@@ -861,7 +861,7 @@ def test_su2_symmetry(np_random):
     sym = symmetries.SU2Symmetry()
     common_checks(sym, example_sectors=np.array([[0], [3], [5], [2], [1], [23]]),
                   example_sectors_low_qdim=np.array([[0], [2], [5], [3], [4]]), np_random=np_random)
-    
+
     spin_1 = np.array([2])
     spin_3_half = np.array([3])
     sym_with_name = symmetries.SU2Symmetry('foo')

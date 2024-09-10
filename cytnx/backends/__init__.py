@@ -2,7 +2,7 @@
 # Copyright (C) TeNPy Developers, GNU GPLv3
 
 # hide the folder-structure and expose everyhting as if everything was implemented
-# directly in tenpy.linalg.backends
+# directly in cytnx.backends
 from . import abelian, abstract_backend, backend_factory, no_symmetry, fusion_tree_backend, numpy, torch
 from .abelian import *
 from .abstract_backend import *

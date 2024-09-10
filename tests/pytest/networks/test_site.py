@@ -1,4 +1,4 @@
-"""A collection of tests for :mod:`tenpy.models.site`."""
+"""A collection of tests for :mod:`cytnx.networks.site`."""
 # Copyright (C) TeNPy Developers, GNU GPLv3
 
 
@@ -8,8 +8,9 @@ import itertools as it
 import copy
 import pytest
 
-from tenpy import linalg as la, backends
-from tenpy.networks import site
+import cytnx
+from cytnx import backends
+from cytnx.networks import site
 
 from conftest import random_symmetry_sectors
 
@@ -29,16 +30,16 @@ def anticommutator(A, B):
 @pytest.mark.parametrize('symmetry_backend, use_sym',
                          [('abelian', True), ('abelian', False), ('no_symmetry', False)])
 def test_site(np_random, block_backend, symmetry_backend, use_sym):
-    backend = la.get_backend(block_backend=block_backend, symmetry=symmetry_backend)
+    backend = cytnx.get_backend(block_backend=block_backend, symmetry=symmetry_backend)
     if use_sym:
-        sym = la.u1_symmetry * la.z3_symmetry
+        sym = cytnx.u1_symmetry * cytnx.z3_symmetry
     else:
-        sym = la.no_symmetry
+        sym = cytnx.no_symmetry
     dim = 8
     some_sectors = random_symmetry_sectors(sym, num=dim, sort=False, np_random=np_random)
-    leg = la.ElementarySpace.from_basis(sym, np_random.choice(some_sectors, size=dim, replace=True))
+    leg = cytnx.ElementarySpace.from_basis(sym, np_random.choice(some_sectors, size=dim, replace=True))
     assert leg.dim == dim
-    op1 = la.SymmetricTensor.random_uniform([leg, leg.dual], backend, labels=['p', 'p*'])
+    op1 = cytnx.SymmetricTensor.random_uniform([leg, leg.dual], backend, labels=['p', 'p*'])
     labels = [f'x{i:d}' for i in range(10, 10 + dim)]
     s = site.Site(leg, backend=backend, state_labels=labels)
     s.add_symmetric_operator('silly_op', op1)
@@ -48,13 +49,13 @@ def test_site(np_random, block_backend, symmetry_backend, use_sym):
     assert s.all_op_names == {'silly_op', 'Id', 'JW'}
     assert s['silly_op'] is op1
     assert s.get_op('silly_op') is op1
-    op2 = la.SymmetricTensor.random_uniform([leg, leg.dual], backend, labels=['p', 'p*'])
+    op2 = cytnx.SymmetricTensor.random_uniform([leg, leg.dual], backend, labels=['p', 'p*'])
     s.add_symmetric_operator('op2', op2)
     assert s['op2'] is op2
     assert s.get_op('op2') is op2
     op3_dense = np.diag(np.arange(10, 10 + dim))
     s.add_symmetric_operator('op3', op3_dense)
-    assert isinstance(s.get_op('op3'), la.DiagonalTensor)
+    assert isinstance(s.get_op('op3'), cytnx.DiagonalTensor)
     npt.assert_equal(s.get_op('op3').to_numpy(), op3_dense)
     npt.assert_equal(s['op3'].to_numpy(), op3_dense)
 
@@ -65,7 +66,7 @@ def test_site(np_random, block_backend, symmetry_backend, use_sym):
     
     if use_sym:
         leg2 = leg.drop_symmetry(1)
-        leg2 = leg2.change_symmetry(symmetry=la.z3_symmetry, sector_map=lambda s: s % 3)
+        leg2 = leg2.change_symmetry(symmetry=cytnx.z3_symmetry, sector_map=lambda s: s % 3)
     else:
         leg2 = leg
     leg2.test_sanity()
@@ -78,10 +79,10 @@ def test_site(np_random, block_backend, symmetry_backend, use_sym):
 
 
 def test_double_site(any_backend):
-    if isinstance(any_backend, la.NoSymmetryBackend):
+    if isinstance(any_backend, cytnx.NoSymmetryBackend):
         all_conserve = ['None']
         fs_conserve = 'None'
-    elif isinstance(any_backend, (la.AbelianBackend, la.FusionTreeBackend)):
+    elif isinstance(any_backend, (cytnx.AbelianBackend, cytnx.FusionTreeBackend)):
         all_conserve = ['Sz', 'None']
         fs_conserve = 'N'
     else:
@@ -186,7 +187,7 @@ def check_operator_availability(s: site.Site, expect_symmetric_ops: dict[str, bo
     assert s.symmetric_op_names == expected_symmetric_names
     for name, is_diag in expect_symmetric_ops.items():
         assert name in s.symmetric_ops
-        assert isinstance(s.symmetric_ops[name], la.DiagonalTensor) == is_diag
+        assert isinstance(s.symmetric_ops[name], cytnx.DiagonalTensor) == is_diag
     for name, (can_use_alone, dim) in expect_charged_ops.items():
         assert name in s.charged_ops
         op = s.charged_ops[name]
@@ -199,11 +200,11 @@ def check_operator_availability(s: site.Site, expect_symmetric_ops: dict[str, bo
 def test_spin_half_site(any_backend):
     hcs = dict(Id='Id', JW='JW', Sx='Sx', Sy='Sy', Sz='Sz', Sp='Sm', Sm='Sp', Sigmax='Sigmax',
                Sigmay='Sigmay', Sigmaz='Sigmaz')
-    if isinstance(any_backend, la.NoSymmetryBackend):
+    if isinstance(any_backend, cytnx.NoSymmetryBackend):
         all_conserve = ['None']
-    elif isinstance(any_backend, la.AbelianBackend):
+    elif isinstance(any_backend, cytnx.AbelianBackend):
         all_conserve = ['Sz', 'parity', 'None']
-    elif isinstance(any_backend, la.FusionTreeBackend):
+    elif isinstance(any_backend, cytnx.FusionTreeBackend):
         all_conserve = ['Stot', 'Sz', 'parity', 'None']
         pytest.xfail('FusionTree backend not ready')
     else:
@@ -213,7 +214,7 @@ def test_spin_half_site(any_backend):
     for conserve in all_conserve:
         print(f'checking {conserve=}')
         s = site.SpinHalfSite(conserve, backend=any_backend)
-        assert la.almost_equal(s['Sp'], s['Sm'].hconj())
+        assert cytnx.almost_equal(s['Sp'], s['Sm'].hconj())
         s.test_sanity()
         for op in s.all_op_names:
             assert s.hc_ops[op] == hcs[op]
@@ -240,11 +241,11 @@ def test_spin_half_site(any_backend):
 @pytest.mark.parametrize('S', [0.5, 1, 1.5, 2, 5])
 def test_spin_site(any_backend, S):
     hcs = dict(Id='Id', JW='JW', Sx='Sx', Sy='Sy', Sz='Sz', Sp='Sm', Sm='Sp')
-    if isinstance(any_backend, la.NoSymmetryBackend):
+    if isinstance(any_backend, cytnx.NoSymmetryBackend):
         all_conserve = ['None']
-    elif isinstance(any_backend, la.AbelianBackend):
+    elif isinstance(any_backend, cytnx.AbelianBackend):
         all_conserve = ['Sz', 'parity', 'None']
-    elif isinstance(any_backend, la.FusionTreeBackend):
+    elif isinstance(any_backend, cytnx.FusionTreeBackend):
         all_conserve = ['SU(2)', 'Sz', 'parity', 'None']
         pytest.xfail('FusionTree backend not ready')
     else:
@@ -276,11 +277,11 @@ def test_spin_site(any_backend, S):
 
 def test_fermion_site(any_backend):
     hcs = dict(Id='Id', JW='JW', C='Cd', Cd='C', N='N', dN='dN', dNdN='dNdN')
-    if isinstance(any_backend, la.NoSymmetryBackend):
+    if isinstance(any_backend, cytnx.NoSymmetryBackend):
         all_conserve = ['None']
-    elif isinstance(any_backend, la.AbelianBackend):
+    elif isinstance(any_backend, cytnx.AbelianBackend):
         all_conserve = ['N', 'parity', 'None']
-    elif isinstance(any_backend, la.FusionTreeBackend):
+    elif isinstance(any_backend, cytnx.FusionTreeBackend):
         # TODO check JW-free fermions when ready?
         pytest.xfail('FusionTree backend not ready')
     else:
@@ -320,12 +321,12 @@ def test_spin_half_fermion_site(any_backend):
                Cu='Cdu', Cdu='Cu', Cd='Cdd', Cdd='Cd',
                Nu='Nu', Nd='Nd', NuNd='NuNd', Ntot='Ntot', dN='dN',
                Sx='Sx', Sy='Sy', Sz='Sz', Sp='Sm', Sm='Sp')  # yapf: disable
-    if isinstance(any_backend, la.NoSymmetryBackend):
+    if isinstance(any_backend, cytnx.NoSymmetryBackend):
         all_conserve_N = all_conserve_S = ['None']
-    elif isinstance(any_backend, la.AbelianBackend):
+    elif isinstance(any_backend, cytnx.AbelianBackend):
         all_conserve_N = ['N', 'parity', 'None']
         all_conserve_S = ['Sz', 'parity', 'None']
-    elif isinstance(any_backend, la.FusionTreeBackend):
+    elif isinstance(any_backend, cytnx.FusionTreeBackend):
         all_conserve_N = ['N', 'parity', 'None']
         all_conserve_S = ['Stot', 'Sz', 'parity', 'None']
         pytest.xfail('FusionTree backend not ready')
@@ -385,12 +386,12 @@ def test_spin_half_hole_site(any_backend):
                Cu='Cdu', Cdu='Cu', Cd='Cdd', Cdd='Cd',
                Nu='Nu', Nd='Nd', Ntot='Ntot', dN='dN',
                Sx='Sx', Sy='Sy', Sz='Sz', Sp='Sm', Sm='Sp')  # yapf: disable
-    if isinstance(any_backend, la.NoSymmetryBackend):
+    if isinstance(any_backend, cytnx.NoSymmetryBackend):
         all_conserve_N = all_conserve_S = ['None']
-    elif isinstance(any_backend, la.AbelianBackend):
+    elif isinstance(any_backend, cytnx.AbelianBackend):
         all_conserve_N = ['N', 'parity', 'None']
         all_conserve_S = ['Sz', 'parity', 'None']
-    elif isinstance(any_backend, la.FusionTreeBackend):
+    elif isinstance(any_backend, cytnx.FusionTreeBackend):
         all_conserve_N = ['N', 'parity', 'None']
         all_conserve_S = ['Stot', 'Sz', 'parity', 'None']
         pytest.xfail('FusionTree backend not ready')
@@ -442,9 +443,9 @@ def test_spin_half_hole_site(any_backend):
 
 @pytest.mark.parametrize('Nmax', [1, 2, 5, 10])
 def test_boson_site(any_backend, Nmax):
-    if isinstance(any_backend, la.NoSymmetryBackend):
+    if isinstance(any_backend, cytnx.NoSymmetryBackend):
         all_conserve = ['None']
-    elif isinstance(any_backend, (la.AbelianBackend, la.FusionTreeBackend)):
+    elif isinstance(any_backend, (cytnx.AbelianBackend, cytnx.FusionTreeBackend)):
         all_conserve = ['N', 'parity', 'None']
     else:
         raise ValueError
@@ -481,9 +482,9 @@ def test_boson_site(any_backend, Nmax):
 
 @pytest.mark.parametrize('q', [2, 3, 5, 10])
 def test_clock_site(any_backend, q):
-    if isinstance(any_backend, la.NoSymmetryBackend):
+    if isinstance(any_backend, cytnx.NoSymmetryBackend):
         all_conserve = ['None']
-    elif isinstance(any_backend, (la.AbelianBackend, la.FusionTreeBackend)):
+    elif isinstance(any_backend, (cytnx.AbelianBackend, cytnx.FusionTreeBackend)):
         all_conserve = ['Z', 'None']
     else:
         raise ValueError
@@ -530,18 +531,18 @@ def test_clock_site(any_backend, q):
 
 
 def test_set_common_symmetry(any_backend):
-    if isinstance(any_backend, la.NoSymmetryBackend):
+    if isinstance(any_backend, cytnx.NoSymmetryBackend):
         conserve_S = conserve_N = 'None'
-        expect_symm_Sz = expect_symm_Sz_N = expect_symm_Sz_N_Sz = la.no_symmetry
+        expect_symm_Sz = expect_symm_Sz_N = expect_symm_Sz_N_Sz = cytnx.no_symmetry
     else:
         conserve_S = 'Sz'
         conserve_N = 'N'
-        expect_symm_Sz = la.U1Symmetry('2*Sz')
-        expect_symm_Sz_N = la.U1Symmetry('2*Sz') * la.U1Symmetry('N')
-        expect_symm_Sz_N_Sz = la.U1Symmetry('2*Sz') * la.U1Symmetry('N') * la.U1Symmetry('2*Sz')
+        expect_symm_Sz = cytnx.U1Symmetry('2*Sz')
+        expect_symm_Sz_N = cytnx.U1Symmetry('2*Sz') * cytnx.U1Symmetry('N')
+        expect_symm_Sz_N_Sz = cytnx.U1Symmetry('2*Sz') * cytnx.U1Symmetry('N') * cytnx.U1Symmetry('2*Sz')
     
-    conserve_S = 'None' if isinstance(any_backend, la.NoSymmetryBackend) else 'Sz'
-    conserve_N = 'None' if isinstance(any_backend, la.NoSymmetryBackend) else 'N'
+    conserve_S = 'None' if isinstance(any_backend, cytnx.NoSymmetryBackend) else 'Sz'
+    conserve_N = 'None' if isinstance(any_backend, cytnx.NoSymmetryBackend) else 'N'
 
     if isinstance(any_backend, backends.FusionTreeBackend):
         with pytest.raises(NotImplementedError, match='diagonal_from_block_func not implemented'):
@@ -560,7 +561,7 @@ def test_set_common_symmetry(any_backend):
 
     for symmetry_combine, expect_symm in [('by_name', expect_symm_Sz_N),
                                           ('independent', expect_symm_Sz_N_Sz),
-                                          ('drop', la.no_symmetry)]:
+                                          ('drop', cytnx.no_symmetry)]:
         print(f'{symmetry_combine=}')
         site.set_common_symmetry([spin, ferm], symmetry_combine=symmetry_combine)
         assert spin.leg.symmetry == expect_symm
@@ -597,7 +598,7 @@ def test_set_common_symmetry(any_backend):
     spin = site.SpinSite(S=0.5, conserve=conserve_S, backend=any_backend)
     ferm = site.SpinHalfFermionSite(conserve_N=conserve_N, conserve_S=conserve_S)
 
-    if isinstance(any_backend, la.NoSymmetryBackend):
+    if isinstance(any_backend, cytnx.NoSymmetryBackend):
         return  # the last test really only makes sense with non-trivial symmetries
     
     print('symmetry_combine: list[list[tuple]]')
@@ -606,8 +607,8 @@ def test_set_common_symmetry(any_backend):
     spin_half_Sz = [(1, 0, ferm.symmetry.factor_where('2*Sz')), (1, 2, 0)]
     weird_occupation = [(2, 0, ferm.symmetry.factor_where('N')), (1, 3, 0)]
     spin_one_Sz = [(0.5, 1, 0)]
-    new_symmetry = (la.U1Symmetry('2*(Sz_f + Sz_spin-half)') * la.U1Symmetry('2*N_f+N_b')
-                    * la.U1Symmetry('Sz_spin-1'))
+    new_symmetry = (cytnx.U1Symmetry('2*(Sz_f + Sz_spin-half)') * cytnx.U1Symmetry('2*N_f+N_b')
+                    * cytnx.U1Symmetry('Sz_spin-1'))
     site.set_common_symmetry(sites, [spin_half_Sz, weird_occupation, spin_one_Sz], new_symmetry)
     for name, s, expect_ops in zip(['ferm', 'spin1', 'spin', 'boson'],
                                       [ferm, spin1, spin, boson],

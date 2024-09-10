@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 from numpy import testing as npt
 
-from tenpy.linalg import spaces, backends, symmetries, SymmetryError
+from cytnx import spaces, backends, symmetries, SymmetryError
 
 
 def test_vector_space(any_symmetry, make_any_sectors, np_random):
