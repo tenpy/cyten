@@ -21,3 +21,5 @@ coverage.*
 .ipynb_checkpoints
 *.ipynb
 *.pkl
+docs/build_docs
+docs/reference

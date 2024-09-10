@@ -103,9 +103,9 @@ IF(BUILD_DOC)
   if(DOXYGEN_FOUND)
     configure_file(cytnx_Doxyfile.in cytnxDoxyfile)
     add_custom_target(doc ALL
-      ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/cytnxDoxyfile
-      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-      COMMENT "Generating API documentation with Doxygen" VERBATIM
+      ${DOXYGEN_EXECUTABLE} ${PROJECT_SOURCE_DIR}/docs/Doxyfile
+      WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/docs
+      COMMENT "Generating API documentation with Doxygen in docs/build_docs/" VERBATIM
     )
   endif(DOXYGEN_FOUND)
 

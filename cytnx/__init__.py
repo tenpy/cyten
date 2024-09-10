@@ -2,22 +2,11 @@ r"""Cytnx library - tensor library for high-level tensor network algorithms.
 
 Provides a tensor class with block-sparsity from symmetries with an exchangable GPU or CPU backend.
 
-.. rubric:: Submodules
-
-.. autosummary::
-    :toctree: .
-
-    groups
-    spaces
-    backends
-    tensors
-    random_matrix
-    sparse
 """
 # Copyright (C) TeNPy Developers, GNU GPLv3
 
 
-from . import (spaces, backends, symmetries, tensors, random_matrix, sparse, krylov_based, trees)
+from . import (dtypes, spaces, backends, symmetries, tensors, random_matrix, sparse, krylov_based, trees)
 from .symmetries import *
 from .trees import *
 from .spaces import *
@@ -29,6 +18,8 @@ from .krylov_based import *
 from .dtypes import *
 
 from ._core import *  # import pybind11 bindings from C++ code
+
+from . import version
 
 __all__ = ['symmetries', 'spaces', 'trees', 'backends', 'tensors', 'random_matrix', 'sparse',
            'krylov_based', 'dtypes',
@@ -42,3 +33,17 @@ __all__ = ['symmetries', 'spaces', 'trees', 'backends', 'tensors', 'random_matri
            *krylov_based.__all__,
            *dtypes.__all__,
            ]
+
+#: hard-coded version string
+__version__ = version.version
+
+#: full version from git description, compile flags, and numpy/scipy/python versions
+__full_version__ = version.full_version
+
+
+def show_config():
+    """Print information about the version of tenpy and used libraries.
+
+    The information printed is :attr:`cytnx.version.version_summary`.
+    """
+    print(version.version_summary)

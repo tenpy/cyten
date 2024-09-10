@@ -1,0 +1,40 @@
+Cytnx main module
+=================
+
+- full name: cytnx
+- parent module: :mod:`cytnx`
+- type: module
+
+.. currentmodule:: cytnx
+
+.. rubric:: Submodules
+
+.. autosummary::
+    :toctree: reference
+
+    backends
+    dtypes
+    dummy_config
+    krylov_based
+    networks
+    random_matrix
+    spaces
+    sparse
+    symmetries
+    tools
+    trees
+    version
+
+.. rubric:: Module description
+.. automodule:: cytnx
+    :show-inheritance:
+
+
+.. autosummary::
+    :toctree: reference
+
+    show_config
+
+.. autodata:: __version__
+
+.. autodata:: __full_version__

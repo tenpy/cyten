@@ -1,4 +1,3 @@
-# note: if you want to build docs as well, use docs/environment.yml instead
 name: cytnx_v2
 channels:
   - conda-forge
@@ -22,13 +21,13 @@ dependencies:
   - sympy  # TODO: remove this dependency when no longer needed
 
   # building docs
-  # - doxygen
-  # - sphinx
-  # - sphinx_rtd_theme
-  # - graphviz
-  # - sphinx-copybutton
-  # - pip:
-  #   - breathe  # conde-forge version seems incompatible
+  - doxygen
+  - sphinx
+  - sphinx_rtd_theme
+  - graphviz
+  - sphinx-copybutton
+  - pip:
+    - breathe  # conde-forge version seems incompatible
 
   # I/O (to be added later...)
   # - hdf5

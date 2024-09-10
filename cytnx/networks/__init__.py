@@ -9,10 +9,6 @@ For example an MPS represents the contraction along the 'virtual' legs/bonds of 
     :toctree: .
 
     site
-    mps
-    mpo
-    terms
-    purification_mps
 """
 # Copyright (C) TeNPy Developers, GNU GPLv3
 
