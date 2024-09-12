@@ -1,14 +1,14 @@
-"""A collection of tests for cytnx.trees."""
+"""A collection of tests for cyten.trees."""
 # Copyright (C) TeNPy Developers, GNU GPLv3
 
 import numpy as np
 import pytest
 
-from cytnx import trees
-from cytnx.symmetries import Symmetry, SymmetryError
-from cytnx.spaces import ElementarySpace, ProductSpace
-from cytnx.dtypes import Dtype
-from cytnx.backends.backend_factory import get_backend
+from cyten import trees
+from cyten.symmetries import Symmetry, SymmetryError
+from cyten.spaces import ElementarySpace, ProductSpace
+from cyten.dtypes import Dtype
+from cyten.backends.backend_factory import get_backend
 
 
 @pytest.mark.xfail(reason='Test not implemented yet')

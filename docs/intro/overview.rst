@@ -4,9 +4,9 @@ Overview
 Repository
 ----------
 
-The root directory of the `git repository <https://github.com/tenpy/cytnx_v2>`_ contains the following folders:
+The root directory of the `git repository <https://github.com/tenpy/cyten>`_ contains the following folders:
 
-cytnx
+cyten
     The Python source code of the library.
     Every subfolder contains an ``__init__.py`` file with a summary what the modules in it are good for.
     (This file is also necessary to mark the folder as part of the python package.

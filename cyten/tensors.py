@@ -502,14 +502,14 @@ class Tensor(metaclass=ABCMeta):
         return NotImplemented
 
     def __complex__(self):
-        raise TypeError('complex() of a tensor is not defined. Use cytnx.item() instead.')
+        raise TypeError('complex() of a tensor is not defined. Use cyten.item() instead.')
 
     def __eq__(self, other):
-        msg = f'{self.__class__.__name__} does not support == comparison. Use cytnx.almost_equal instead.'
+        msg = f'{self.__class__.__name__} does not support == comparison. Use cyten.almost_equal instead.'
         raise TypeError(msg)
 
     def __float__(self):
-        raise TypeError('float() of a tensor is not defined. Use cytnx.item() instead.')
+        raise TypeError('float() of a tensor is not defined. Use cyten.item() instead.')
 
     def __getitem__(self, idx):
         if not self.symmetry.can_be_dropped:

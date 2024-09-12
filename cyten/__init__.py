@@ -1,4 +1,4 @@
-r"""Cytnx library - tensor library for high-level tensor network algorithms.
+r"""cyten library - tensor library for high-level tensor network algorithms.
 
 Provides a tensor class with block-sparsity from symmetries with an exchangable GPU or CPU backend.
 
@@ -44,6 +44,6 @@ __full_version__ = version.full_version
 def show_config():
     """Print information about the version of tenpy and used libraries.
 
-    The information printed is :attr:`cytnx.version.version_summary`.
+    The information printed is :attr:`cyten.version.version_summary`.
     """
     print(version.version_summary)

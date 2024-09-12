@@ -121,7 +121,7 @@ class TensorBackend(metaclass=ABCMeta):
                      new_codomain: ProductSpace,
                      new_domain: ProductSpace,
                      ) -> Data:
-        """Implementation of :func:`cytnx.tensors.combine_legs`.
+        """Implementation of :func:`cyten.tensors.combine_legs`.
 
         Assumptions:
         
@@ -410,7 +410,7 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, ProductSpace, ProductSpace]:
-        """Implementation of :func:`cytnx.tensors._compose_with_Mask` in the case where
+        """Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
         the large leg of the mask is contracted.
         Note that the mask may be a projection to be applied to the codomain or an inclusion
         to be contracted on the domain.
@@ -420,7 +420,7 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, ProductSpace, ProductSpace]:
-        """Implementation of :func:`cytnx.tensors._compose_with_Mask` in the case where
+        """Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
         the small leg of the mask is contracted.
         Note that the mask may be an inclusion to be applied to the codomain or a projection
         to be contracted on the domain.
@@ -880,7 +880,7 @@ class BlockBackend(metaclass=ABCMeta):
     def block_is_real(self, a: Block) -> bool:
         """If the block is comprised of real numbers.
         Complex numbers with small or zero imaginary part still cause a `False` return."""
-        return self.cytnx_dtype_map[self.block_dtype(a)].is_real
+        return self.cyten_dtype_map[self.block_dtype(a)].is_real
 
     @abstractmethod
     def block_item(self, a: Block) -> float | complex:

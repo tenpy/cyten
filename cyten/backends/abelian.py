@@ -143,7 +143,7 @@ class AbelianBackend(TensorBackend):
 
     Notes
     -----
-    The data stored for the various tensor classes defined in ``cytnx.tensors`` is::
+    The data stored for the various tensor classes defined in ``cyten.tensors`` is::
 
         - ``SymmetricTensor``:
             An ``AbelianBackendData`` instance whose blocks have as many axes as the tensor has legs.
@@ -399,7 +399,7 @@ class AbelianBackend(TensorBackend):
 
         We follow the same overall strategy;
 
-        Step 1) is implemented in ``cytnx.tdot`` and is already done when we call ``cytnx.compose``;
+        Step 1) is implemented in ``cyten.tdot`` and is already done when we call ``cyten.compose``;
         this function gets input with legs sorted accordingly. Note the different leg order the.
         We need to contract the last leg of `a` with the first legs of `b` and so on.
 

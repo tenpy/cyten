@@ -5,7 +5,7 @@
 #include <string>
 
 
-namespace cytnx {
+namespace cyten {
 
   int add(int i, int j) {
       return i + j;

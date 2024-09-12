@@ -22,8 +22,8 @@ U_close_1   U(n)                     ?                       /                  
 
 
 All functions in this module take a tuple ``(n, n)`` as first argument, such that
-we can use the function :meth:`~cytnx.tensors.Tensor.from_block_func`
-to generate a block diagonal :class:`~cytnx.tensors.Tensor` with the block from the
+we can use the function :meth:`~cyten.tensors.Tensor.from_block_func`
+to generate a block diagonal :class:`~cyten.tensors.Tensor` with the block from the
 corresponding ensemble, for example::
 
     Tensor.from_func_square(GOE, [leg, leg.conj()])

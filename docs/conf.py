@@ -6,18 +6,18 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-import cytnx
+import cyten
 
 import inspect
 import sys
 import os
 
-project = 'Cytnx'
-copyright = '2024, Cytnx v2 developer team'
-author = 'Cytnx v2 developer team'
-release = 'v2'
+project = 'Cyten'
+copyright = '2024, Cyten developer team'
+author = 'Cyten developer team'
+release = '0.1'
 
-GITHUBBASE = "https://github.com/tenpy/cytnx"
+GITHUBBASE = "https://github.com/tenpy/cyten"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -57,7 +57,7 @@ pygments_style = 'sphinx'  # syntax highlighting style
 
 html_theme = 'sphinx_rtd_theme'
 
-html_logo = "images/cytnx_logo.png"
+html_logo = "images/cyten_logo.png"
 #  html_favicon = "images/logo.ico"
 html_static_path = ['sphinx/static']
 html_last_updated_fmt = '%b %d, %Y'
@@ -69,16 +69,16 @@ html_css_files = [
 html_context = {
     "display_github": True,  # Integrate GitHub
     "github_user": "tenpy",  # Username
-    "github_repo": "cytnx_v2",  # Repo name
+    "github_repo": "cyten",  # Repo name
     "github_version": "main",  # Version
     "conf_py_path": "/docs/",  # Path in the checkout to the docs root
 }
 
 # -- breathe (including doxygen docs) -------------------------------------
 
-breathe_projects = {"Cytnx": "build_docs/doxy_xml"}
+breathe_projects = {"cyten": "build_docs/doxy_xml"}
 
-breathe_default_project = "Cytnx"
+breathe_default_project = "cyten"
 
 # -- sphinx.ext.autodoc ---------------------------------------------------
 
@@ -99,7 +99,7 @@ doctest_global_setup = """
 import numpy as np
 import scipy
 import scipy.linalg
-import cytnx
+import cyten
 np.set_printoptions(suppress=True)
 """
 
@@ -181,12 +181,12 @@ def linkcode_resolve(domain, info):
         linespec = "#L%d-L%d" % (lineno, lineno + len(source) - 1)
     else:
         linespec = ""
-    fn = os.path.relpath(fn, start=os.path.dirname(cytnx.__file__))
+    fn = os.path.relpath(fn, start=os.path.dirname(cyten.__file__))
     if fn.startswith('..'):
         return None
 
-    if cytnx.__version__ == cytnx.__full_version__:
-        return "%s/blob/v%s/cytnx/%s%s" % (GITHUBBASE, cytnx.__version__, fn, linespec)
+    if cyten.__version__ == cyten.__full_version__:
+        return "%s/blob/v%s/cyten/%s%s" % (GITHUBBASE, cyten.__version__, fn, linespec)
     else:
-        return "%s/blob/main/cytnx/%s%s" % (GITHUBBASE, fn, linespec)
+        return "%s/blob/main/cyten/%s%s" % (GITHUBBASE, fn, linespec)
 

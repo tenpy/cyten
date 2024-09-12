@@ -15,7 +15,7 @@ __all__ = ['KrylovBased', 'Arnoldi', 'LanczosGroundState', 'LanczosEvolution', '
 
 
 class KrylovBased(metaclass=ABCMeta):
-    r"""Base class for iterative algorithms building a Krylov basis with cytnx tensors.
+    r"""Base class for iterative algorithms building a Krylov basis with cyten tensors.
 
     Algorithms like :class:`LanczosGroundState` and `:class:`ArnoldiDiagonalize`
     are based on iteratively building an orthonormal basis of the Krylov space spanned by
@@ -32,12 +32,12 @@ class KrylovBased(metaclass=ABCMeta):
 
     Parameters
     ----------
-    H : :class:`~cytnx.sparse.LinearOperator`
+    H : :class:`~cyten.sparse.LinearOperator`
         A hermitian linear operator.
-        In order to use :class:`~cytnx.tensors.Tensor`s or other
-        :class:`~cytnx.tensors.Tensor` types, see :class:`~cytnx.sparse.TensorLinearOperator`.
+        In order to use :class:`~cyten.tensors.Tensor`s or other
+        :class:`~cyten.tensors.Tensor` types, see :class:`~cyten.sparse.TensorLinearOperator`.
         The operator must map tensors to tensors with the same legs.
-    psi0 : :class:`~cytnx.tensors.Tensor`
+    psi0 : :class:`~cyten.tensors.Tensor`
         The starting vector defining the Krylov basis.
         For finding the ground state, this should be the best guess available.
         Note that it does not have to be a 1D "vector"; we are fine with viewing
@@ -66,9 +66,9 @@ class KrylovBased(metaclass=ABCMeta):
             tolerance for final values!
         E_shift : float
             Shift the energy (=eigenvalues) by that amount *during* the Lanczos run by using the
-            :class:`~cytnx.sparse.ShiftedLinearOperator`.
+            :class:`~cyten.sparse.ShiftedLinearOperator`.
             The ground state energy `E0` returned by :meth:`run` is made independent of the shift.
-            This option is useful if the :class:`~cytnx.sparse.ProjectedLinearOperator`
+            This option is useful if the :class:`~cyten.sparse.ProjectedLinearOperator`
             is used: the orthogonal vectors are *exact* eigenvectors with eigenvalue 0 independent
             of the shift, so you can use it to ensure that the energy is smaller than zero
             to avoid getting those.
@@ -82,9 +82,9 @@ class KrylovBased(metaclass=ABCMeta):
     ----------
     options : dict_like
         Optional parameters.
-    H : :class:`~cytnx.sparse.LinearOperator`
+    H : :class:`~cyten.sparse.LinearOperator`
         The linear operator used for building the Krylov space.
-    psi0 : :class:`~cytnx.tensors.Tensor`
+    psi0 : :class:`~cyten.tensors.Tensor`
         The *normalized* starting vector.
     N_min, N_max, P_tol, min_gap, _cutoff, E_shift:
         Parameters as described in the options.
@@ -220,7 +220,7 @@ class Arnoldi(KrylovBased):
         E0s : numpy array
             Best eigenvalue estimates, :cfg:option:`Arnoldi.num_ev` entries,
             sorted according to :cfg:option:`Arnoldi.which`.
-        psis : list of :class:`~cytnx.np_conserved.Array`
+        psis : list of :class:`~cyten.np_conserved.Array`
             Corresponding best eigenvectors (estimates).
         N : int
             Used dimension of the Krylov space, i.e., how many iterations where performed.
@@ -354,7 +354,7 @@ class LanczosGroundState(KrylovBased):
         -------
         E0 : float
             Ground state energy (estimate).
-        psi0 : :class:`~cytnx.tensors.Tensor`
+        psi0 : :class:`~cyten.tensors.Tensor`
             Ground state vector (estimate).
         N : int
             Used dimension of the Krylov space, i.e., how many iterations where performed.
@@ -496,7 +496,7 @@ class LanczosEvolution(LanczosGroundState):
 
         Returns
         -------
-        psi_f : :class:`~cytnx.tensors.Tensor`
+        psi_f : :class:`~cyten.tensors.Tensor`
             Best approximation for ``expm(delta H).dot(psi0)``.
             If :cfg:option:`Lanczos.E_shift` is used, it's an approximation for
             ``expm(delta (H + E_shift)).dot(psi)``.
@@ -571,12 +571,12 @@ def lanczos_arpack(H, psi, options={}):
     """Use :func:`scipy.sparse.linalg.eigsh` to find the ground state of `H`.
 
     This function has the same call/return structure as :func:`lanczos`, but uses
-    the ARPACK package through the functions :func:`~cytnx.tools.math.speigsh` instead of the
+    the ARPACK package through the functions :func:`~cyten.tools.math.speigsh` instead of the
     custom lanczos implementation in :class:`LanczosGroundState`.
 
     .. warning ::
         This function is mostly intended for debugging, since it requires to convert the vector
-        from cytnx :class:`~cytnx.tensors.Tensor` to a numpy array and back during
+        from cyten :class:`~cyten.tensors.Tensor` to a numpy array and back during
         *each* `matvec`-operation!
 
     Parameters
@@ -589,7 +589,7 @@ def lanczos_arpack(H, psi, options={}):
     -------
     E0 : float
         Ground state energy.
-    psi0 : :class:`~cytnx.tensors.Tensor`
+    psi0 : :class:`~cyten.tensors.Tensor`
         Ground state vector.
     """
     #  options = asConfig(options, "Lanczos")

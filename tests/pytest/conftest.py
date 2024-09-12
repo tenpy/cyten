@@ -109,7 +109,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cytnx import backends, spaces, symmetries, tensors, Dtype
+from cyten import backends, spaces, symmetries, tensors, Dtype
 
 
 # QUICK CONFIGURATION

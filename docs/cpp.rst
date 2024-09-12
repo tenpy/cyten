@@ -5,7 +5,7 @@ C++ API Reference
    can we document all of the API automatically?
 
 
-.. doxygenfunction:: cytnx::add
+.. doxygenfunction:: cyten::add
 
 
 

@@ -1,7 +1,7 @@
 #pragma once
 
 
-namespace cytnx {
+namespace cyten {
 
 /**
  * A function adding the two arguments. Just there as a test of the surrounding setup.

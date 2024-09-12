@@ -133,7 +133,7 @@ class Space(metaclass=ABCMeta):
 
         Parameters
         ----------
-        symmetry : :class:`~cytnx.groups.Symmetry`
+        symmetry : :class:`~cyten.groups.Symmetry`
             The symmetry of the new space
         sector_map : function (SectorArray,) -> (SectorArray,)
             A map of sectors (2D int arrays), such that ``new_sectors = sector_map(old_sectors)``.
@@ -141,7 +141,7 @@ class Space(metaclass=ABCMeta):
             ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as
             ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
             TODO do we need to assume more, i.e. compatibility with fusion?
-        backend : :class: `~cytnx.backends.abstract_backend.Backend`
+        backend : :class: `~cyten.backends.abstract_backend.Backend`
             This parameter is ignored. We only include it to have matching signatures
             with :meth:`ProductSpace.change_symmetry`.
         injective: bool
@@ -462,7 +462,7 @@ class ElementarySpace(Space):
         ----------
         dim : int
             The dimension of the space.
-        symmetry : :class:`~cytnx.groups.Symmetry`
+        symmetry : :class:`~cyten.groups.Symmetry`
             The symmetry of the space. By default, we use `no_symmetry`.
         is_real, is_dual : bool
             If the space should be real / dual.
@@ -478,7 +478,7 @@ class ElementarySpace(Space):
 
         For the inverse permutation, see :attr:`inverse_basis_perm`.
 
-        The tensor manipulations of ``cytnx`` benefit from choosing a canonical order for the
+        The tensor manipulations of ``cyten`` benefit from choosing a canonical order for the
         basis of vector spaces. This attribute translates between the "public" order of the basis,
         in which e.g. the inputs to :meth:`from_dense_block` are interpreted to this internal order,
         such that ``public_basis[basis_perm] == internal_basis``.
@@ -1071,7 +1071,7 @@ class ProductSpace(Space):
         Such that we get
 
         .. testsetup :: get_basis_transformation
-            from cytnx import ProductSpace, ElementarySpace, su2_symmetry
+            from cyten import ProductSpace, ElementarySpace, su2_symmetry
 
         .. doctest :: get_basis_transformation
 
@@ -1133,7 +1133,7 @@ class ProductSpace(Space):
 
         .. testsetup :: get_basis_transformation_perm
             import numpy as np
-            from cytnx import ProductSpace, ElementarySpace, z2_symmetry
+            from cyten import ProductSpace, ElementarySpace, z2_symmetry
 
         .. doctest :: get_basis_transformation_perm
 
@@ -1258,7 +1258,7 @@ def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend
 
     It determines the sectors and multiplicities of the ProductSpace.
     There is also a version of this function in the backends, i.e.
-    :meth:`~cytnx.backends.abstract_backend.TensorBackend._fuse_spaces`, which may
+    :meth:`~cyten.backends.abstract_backend.TensorBackend._fuse_spaces`, which may
     customize this behavior and in particular may return metadata, i.e. attributes to be added to
     the ProductSpace.
     This default implementation returns default metadata, with only ``fusion_outcomes_sort``

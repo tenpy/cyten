@@ -4,7 +4,7 @@
 import numpy as np
 import numpy.testing as npt
 import itertools as it
-from cytnx import tools
+from cyten import tools
 import warnings
 import pytest
 import os.path

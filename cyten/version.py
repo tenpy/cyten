@@ -39,7 +39,7 @@ def _get_git_revision(cwd=None):
     ----------
     cwd : str | None
         Directory contained in the git repository to be considered.
-        ``None`` defaults to the top directory of the used cytnx source code.
+        ``None`` defaults to the top directory of the used cyten source code.
 
     Returns
     -------
@@ -92,11 +92,11 @@ full_version = _get_full_version()
 def _get_version_summary():
     import numpy
     import scipy
-    summary = ("cytnx {cytnx_ver!s},\n"
+    summary = ("cyten {cyten_ver!s},\n"
                "git revision {git_rev!s} using\n"
                "python {python_ver!s}\n"
                "numpy {numpy_ver!s}, scipy {scipy_ver!s}")
-    summary = summary.format(cytnx_ver=full_version,
+    summary = summary.format(cyten_ver=full_version,
                              git_rev=git_revision,
                              python_ver=sys.version,
                              numpy_ver=numpy.version.full_version,
@@ -104,5 +104,5 @@ def _get_version_summary():
     return summary
 
 
-#: summary of the cytnx, python, numpy and scipy versions used
+#: summary of the cyten, python, numpy and scipy versions used
 version_summary = _get_version_summary()

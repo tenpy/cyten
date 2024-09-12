@@ -1,5 +1,5 @@
 # note: if you want to build docs as well, use docs/environment.yml instead
-name: cytnx_v2
+name: cyten
 channels:
   - conda-forge
 dependencies:

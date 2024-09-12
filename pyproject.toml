@@ -12,12 +12,12 @@ build-dir = "build" # The build directory. Defaults to a temporary directory, bu
 cmake.build-type = "Debug"  # TODO: for now setup debug builds - update this once we release!
 # Select the editable mode to use. Can be "redirect" (default) or "inplace".
 # editable.mode = "inplace"
-wheel.packages = ["cytnx"]
+wheel.packages = ["cyten"]
 
 
 [project]
-name = "cytnx"
-version = "2.0.0a1"
+name = "cyten"
+version = "0.1"
 # dynamic = ["version"] # TODO: does this still work with scikit build?
 description = ""
 readme = {file = "README.md", content-type = "text/markdown"}
@@ -25,10 +25,10 @@ requires-python = ">=3.9"
 license = {text = "Apache_v2"}
 # authors = [
 #     {name = "TeNPy Developer Team"},
-#     {name = "Cytnx Developer Team"},
+#     {name = "cyten Developer Team"},
 # ]
 # maintainers = [
-#     {name = "Johannes Hauschild", email="cytnx@johannes-hauschild.de"},
+#     {name = "Johannes Hauschild", email="cyten@johannes-hauschild.de"},
 #     ...
 # ]
 keywords = ["tensor networks", "tensor"]
@@ -68,22 +68,22 @@ docbuild = [
     "sphinxcontrib-bibtex",
     "sphinx_copybutton",
 ]
-all = ["cytnx[io, test, extra, docbuild]"]
+all = ["cyten[io, test, extra, docbuild]"]
 
 
 [project.urls]
-"Homepage" = "https://github.com/tenpy/cytnx_v2"
-# "Documentation" = "https://cytnx.readthedocs.io/"
-"Source" = "https://github.com/tenpy/cytnx_v2"
-"Bug Tracker" = "https://github.com/tenpy/cytnx_v2/issues"
+"Homepage" = "https://github.com/tenpy/cyten"
+# "Documentation" = "https://cyten.readthedocs.io/"
+"Source" = "https://github.com/tenpy/cyten"
+"Bug Tracker" = "https://github.com/tenpy/cyten/issues"
 
 
 # [project.scripts]
-# cytnx-run = "cytnx:console_main"
+# cyten-run = "cyten:console_main"
 
 
 [tool.setuptools.packages.find]
-include = ['cytnx*']
+include = ['cyten*']
 
 
 [tool.pytest.ini_options]

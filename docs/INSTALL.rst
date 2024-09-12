@@ -7,16 +7,16 @@ Installation instructions
 
 With the `conda package manager <https://docs.conda.io>`_ you can install python with::
 
-    conda install --channel=conda-forge cytnx  # TODO doesn't work yet
+    conda install --channel=conda-forge cyten  # TODO doesn't work yet
 
 If you don't have conda, but you have `pip <https://pip.pypa.io>`_, you can::
 
-    pip install cytnx   # TODO doesn't work yet
+    pip install cyten   # TODO doesn't work yet
 
 Building from source
 ++++++++++++++++++++
 
-To build cytnx locally on your machine, install the following requirements 
+To build cyten locally on your machine, install the following requirements 
 (currently only tested on standard linux distros like ubuntu - no Windows support yet, use WSL):
 
 - C++ compiler with at least C++17 standard  (can be installed manually with `conda install -c conda-forge compilers` if needed)
@@ -29,8 +29,8 @@ The easiest way to install all of those is to create a conda envrironment from t
 and then pip install the package (use `docs/environment.yml` if you plan to build the documentation as well):
 
 ```
-conda env create -f environment.yml -n cytnx_v2
-conda activate cytnx_v2
+conda env create -f environment.yml -n cyten
+conda activate cyten
 conda install -c conda-forge _openmp_mutex=*=*_llvm # on Linux/WSL only
 conda install -c conda-forge llvm-openmp # on MacOS only
 pip install -v .

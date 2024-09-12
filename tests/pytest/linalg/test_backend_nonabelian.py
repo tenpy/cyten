@@ -1,9 +1,9 @@
-"""A collection of tests for cytnx.backends.fusion_tree_backend"""
+"""A collection of tests for cyten.backends.fusion_tree_backend"""
 # Copyright (C) TeNPy Developers, GNU GPLv3
 import pytest
 
-from cytnx.backends import fusion_tree_backend, get_backend
-from cytnx.spaces import ProductSpace
+from cyten.backends import fusion_tree_backend, get_backend
+from cyten.spaces import ProductSpace
 
 
 @pytest.mark.parametrize('num_spaces', [3, 4, 5])

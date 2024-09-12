@@ -8,7 +8,7 @@ from .abelian import AbelianBackend
 from .abstract_backend import BlockBackend, Block
 from .no_symmetry import NoSymmetryBackend
 from .fusion_tree_backend import FusionTreeBackend
-from ..dtypes import Dtype, _numpy_dtype_to_cytnx, _cytnx_dtype_to_numpy
+from ..dtypes import Dtype, _numpy_dtype_to_cyten, _cyten_dtype_to_numpy
 
 __all__ = ['NumpyBlockBackend', 'NoSymmetryNumpyBackend', 'AbelianNumpyBackend',
            'FusionTreeNumpyBackend']
@@ -18,15 +18,15 @@ class NumpyBlockBackend(BlockBackend):
     BlockCls = np.ndarray
     svd_algorithms = ['gesdd', 'gesvd', 'robust', 'robust_silent']
     
-    cytnx_dtype_map = _numpy_dtype_to_cytnx
-    backend_dtype_map = _cytnx_dtype_to_numpy
+    cyten_dtype_map = _numpy_dtype_to_cyten
+    backend_dtype_map = _cyten_dtype_to_numpy
     
     def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False) -> Block:
         block = np.asarray(a, dtype=self.backend_dtype_map[dtype])
         if np.issubdtype(block.dtype, np.integer):
             block = block.astype(np.float64, copy=False)
         if return_dtype:
-            return block, self.cytnx_dtype_map[block.dtype]
+            return block, self.cyten_dtype_map[block.dtype]
         return block
 
     def block_add_axis(self, a: Block, pos: int) -> Block:
@@ -60,7 +60,7 @@ class NumpyBlockBackend(BlockBackend):
         return np.copy(a)
 
     def block_dtype(self, a: Block) -> Dtype:
-        return self.cytnx_dtype_map[a.dtype]
+        return self.cyten_dtype_map[a.dtype]
 
     def block_eigh(self, block: Block, sort: str = None) -> tuple[Block, Block]:
         w, v = np.linalg.eigh(block)

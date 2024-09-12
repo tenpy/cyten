@@ -29,7 +29,7 @@ class NoSymmetryBackend(TensorBackend):
 
     Notes
     -----
-    The data stored for the various tensor classes defined in ``cytnx.tensors`` is::
+    The data stored for the various tensor classes defined in ``cyten.tensors`` is::
 
         - ``SymmetricTensor``:
             A single Block with as many axes as there a legs on the tensor.

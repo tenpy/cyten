@@ -1,13 +1,13 @@
-"""A collection of tests for cytnx.sparse"""
+"""A collection of tests for cyten.sparse"""
 # Copyright (C) TeNPy Developers, GNU GPLv3
 import numpy as np
 import numpy.testing as npt
 import pytest
 import scipy
 
-from cytnx import sparse, tensors, backends
-from cytnx.backends.backend_factory import get_backend
-from cytnx.tensors import Tensor, SymmetricTensor, Dtype, almost_equal
+from cyten import sparse, tensors, backends
+from cyten.backends.backend_factory import get_backend
+from cyten.tensors import Tensor, SymmetricTensor, Dtype, almost_equal
 
 pytest.skip("sparse not yet revised", allow_module_level=True)  # TODO
 

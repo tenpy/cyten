@@ -1,4 +1,4 @@
-Cytnx documentation
+Cyten documentation
 ===================
 
 If you're new here, start with the :doc:`readme_wrap`.

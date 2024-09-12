@@ -1,4 +1,4 @@
-"""A collection of tests for cytnx.tensors."""
+"""A collection of tests for cyten.tensors."""
 # Copyright (C) TeNPy Developers, GNU GPLv3
 from __future__ import annotations
 import numpy as np
@@ -8,13 +8,13 @@ import pytest
 import operator
 from contextlib import nullcontext
 
-from cytnx import backends, tensors
-from cytnx.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor
-from cytnx.backends.backend_factory import get_backend
-from cytnx.dtypes import Dtype
-from cytnx.spaces import ElementarySpace, ProductSpace
-from cytnx.symmetries import z4_symmetry, SU2Symmetry, SymmetryError
-from cytnx.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays
+from cyten import backends, tensors
+from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor
+from cyten.backends.backend_factory import get_backend
+from cyten.dtypes import Dtype
+from cyten.spaces import ElementarySpace, ProductSpace
+from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError
+from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays
 
 
 @pytest.fixture(params=[DiagonalTensor, SymmetricTensor, Mask, ChargedTensor])
@@ -1239,7 +1239,7 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
 
 
 @pytest.mark.parametrize(
-    'cytnx_func, numpy_func, dtype, kwargs',
+    'cyten_func, numpy_func, dtype, kwargs',
     # dtype=None indicates that we need to special case the tensor creations to fulfill constraints.
     [pytest.param(tensors.angle, np.angle, Dtype.complex128, {}, id='angle()-complex'),
      pytest.param(tensors.angle, np.angle, Dtype.float64, {}, id='angle()-real'),
@@ -1259,13 +1259,13 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
     ]
      # TODO more functions? exp, log
 )
-def test_DiagonalTensor_elementwise_unary(cytnx_func, numpy_func, dtype, kwargs, make_compatible_tensor):
+def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs, make_compatible_tensor):
     if dtype is not None:
         D: DiagonalTensor = make_compatible_tensor(cls=DiagonalTensor, dtype=dtype)
-    elif cytnx_func is tensors.sqrt:
+    elif cyten_func is tensors.sqrt:
         # need positive
         D: DiagonalTensor = abs(make_compatible_tensor(cls=DiagonalTensor, dtype=Dtype.float64))
-    elif cytnx_func is tensors.real_if_close:
+    elif cyten_func is tensors.real_if_close:
         # want almost real
         rp = make_compatible_tensor(cls=DiagonalTensor, dtype=Dtype.float64)
         ip = make_compatible_tensor(domain=rp.domain, cls=DiagonalTensor, dtype=Dtype.float64)
@@ -1273,7 +1273,7 @@ def test_DiagonalTensor_elementwise_unary(cytnx_func, numpy_func, dtype, kwargs,
     else:
         raise ValueError
 
-    res = cytnx_func(D, **kwargs)
+    res = cyten_func(D, **kwargs)
     res.test_sanity()
 
     if not D.symmetry.can_be_dropped:

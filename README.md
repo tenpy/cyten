@@ -1,6 +1,6 @@
-# Cytnx version 2.0
+# Cyten - a combination of Cytnx and TeNPy
 
-The name Cytnx is pronounced like sci-tens, and refers to scientific tensor networks implmented in C++ with a focus on the provided Python bindings, and the python-style library in modern C++.
+The name Cyten is pronounced like sci-ten, and refers to scientific tensor networks implmented in C++ with a focus on the provided Python bindings, and the python-style library in modern C++.
 
 ## About: combining forces of the TeNPy and Cytnx team
 This repo originates from a collaboration between the [Cytnx](https://github.com/cytnx-dev/cytnx) and [TeNPy](https://github.com/tenpy/tenpy) developers.
@@ -18,4 +18,4 @@ To test the C++ code, run `gtest` (from GoogleTest).
 
 ## Documentation
 Will eventually be online, but so far you also need to build it locally.
-See `README.md` in the `docs/` folder on how - essentially just install `cytnx`, run `doxygen` and then `make html` in the `docs/` folder.
+See `README.md` in the `docs/` folder on how - essentially just install `cyten`, run `doxygen` and then `make html` in the `docs/` folder.

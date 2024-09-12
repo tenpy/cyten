@@ -1,7 +1,7 @@
-import cytnx
+import cyten
 
 def test_check():
-    x = cytnx.add(1, 1)
+    x = cyten.add(1, 1)
     assert x == 2
-    assert cytnx.add(1, -1) == 0
+    assert cyten.add(1, -1) == 0
 

@@ -10,5 +10,5 @@ using namespace pybind11::literals; // provides "arg"_a literals
 
 PYBIND11_MODULE(_core, m) {
     m.doc() = "check that python bindings work."; // optional module docstring
-    m.def("add", &cytnx::add, "A function that adds two numbers");
+    m.def("add", &cyten::add, "A function that adds two numbers");
 }

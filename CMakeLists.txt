@@ -1,6 +1,6 @@
 message(STATUS "")
 message(STATUS "------------------------------------------------------------------------")
-message(STATUS " Project Cytnx, A Cross-section of Python & C++, Tensor network library ")
+message(STATUS " Project cyten, A Cross-section of Python & C++, Tensor network library ")
 message(STATUS "------------------------------------------------------------------------")
 message(STATUS "")
 
@@ -36,7 +36,7 @@ option(BUILD_DOC "Build API documentation" OFF)
 # ## PROJECT
 # #####################################################################
 project(
-    cytnx
+    cyten
     VERSION ${SKBUILD_PROJECT_VERSION}
     LANGUAGES CXX
 )
@@ -50,11 +50,11 @@ cmake_print_variables(CMAKE_CXX_STANDARD)
 # ## C++ LIBRARY
 # #####################################################################
 
-add_library(cytnx STATIC)
-set_property(TARGET cytnx PROPERTY C_VISIBILITY_PRESET hidden)
-set_property(TARGET cytnx PROPERTY VISIBILITY_INLINES_HIDDEN ON)
+add_library(cyten STATIC)
+set_property(TARGET cyten PROPERTY C_VISIBILITY_PRESET hidden)
+set_property(TARGET cyten PROPERTY VISIBILITY_INLINES_HIDDEN ON)
 
-target_include_directories(cytnx
+target_include_directories(cyten
   PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
   PUBLIC
@@ -87,11 +87,11 @@ target_include_directories(_core
   PUBLIC "${PROJECT_SOURCE_DIR}/include")
 add_subdirectory(pybind)  # adds source files to _core
 
-target_link_libraries(_core PUBLIC cytnx)
+target_link_libraries(_core PUBLIC cyten)
 
 
 # The install directory is the output (wheel) directory
-install(TARGETS _core LIBRARY DESTINATION cytnx)
+install(TARGETS _core LIBRARY DESTINATION cyten)
 
 
 # #####################################################################
@@ -101,7 +101,7 @@ IF(BUILD_DOC)
   FIND_PACKAGE(Doxygen REQUIRED)
 
   if(DOXYGEN_FOUND)
-    configure_file(cytnx_Doxyfile.in cytnxDoxyfile)
+    configure_file(cyten_Doxyfile.in cytenDoxyfile)
     add_custom_target(doc ALL
       ${DOXYGEN_EXECUTABLE} ${PROJECT_SOURCE_DIR}/docs/Doxyfile
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/docs
@@ -125,4 +125,4 @@ endif()
 
 
 # enable_testing()
-# add_test(NAME import_check COMMAND python -c "import cytnx")
+# add_test(NAME import_check COMMAND python -c "import cyten")

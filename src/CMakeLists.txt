@@ -2,7 +2,7 @@
 # ## ADD SUB-DIRECTORIES
 # #####################################################################
 
-target_sources(cytnx
+target_sources(cyten
   PRIVATE
   check.cpp
 )

@@ -1,11 +1,11 @@
-Cytnx main module
+Cyten main module
 =================
 
-- full name: cytnx
-- parent module: :mod:`cytnx`
+- full name: cyten
+- parent module: :mod:`cyten`
 - type: module
 
-.. currentmodule:: cytnx
+.. currentmodule:: cyten
 
 .. rubric:: Submodules
 
@@ -26,7 +26,7 @@ Cytnx main module
     version
 
 .. rubric:: Module description
-.. automodule:: cytnx
+.. automodule:: cyten
     :show-inheritance:
 
 

@@ -25,7 +25,7 @@ class TorchBlockBackend(BlockBackend):
             raise ImportError('Could not import torch. Use a different backend or install torch.') from e
         self.device = device
         torch_module = torch
-        self.cytnx_dtype_map = {
+        self.cyten_dtype_map = {
             torch.float32: Dtype.float32,
             torch.float64: Dtype.float64,
             torch.complex64: Dtype.complex64,
@@ -49,7 +49,7 @@ class TorchBlockBackend(BlockBackend):
         if dtype != Dtype.bool:
             block = 1. * block  # force int to float.
         if return_dtype:
-            return block, self.cytnx_dtype_map[block.dtype]
+            return block, self.cyten_dtype_map[block.dtype]
         return block
 
     def block_abs_argmax(self, block: Block) -> list[int]:
@@ -86,7 +86,7 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.tensor(a, device=self.device)
 
     def block_dtype(self, a: Block) -> Dtype:
-        return self.cytnx_dtype_map[a.dtype]
+        return self.cyten_dtype_map[a.dtype]
 
     def block_eigh(self, block: Block, sort: str = None) -> tuple[Block, Block]:
         w, v = torch_module.linalg.eigh(block)
