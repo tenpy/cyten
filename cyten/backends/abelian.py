@@ -288,7 +288,6 @@ class AbelianBackend(TensorBackend):
                      new_codomain: ProductSpace,
                      new_domain: ProductSpace,
                      ) -> Data:
-        raise NotImplementedError('currently bugged')  # TODO
         num_result_legs = tensor.num_legs - sum(len(group) - 1 for group in leg_idcs_combine)
         old_block_inds = tensor.data.block_inds
         old_blocks = tensor.data.blocks
@@ -1564,7 +1563,6 @@ class AbelianBackend(TensorBackend):
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
                    domain_split: list[int], new_codomain: ProductSpace, new_domain: ProductSpace
                    ) -> Data:
-        raise NotImplementedError  # TODO not yet reviewed
         # TODO (JH) below, we implement it by first generating the block_inds of the splitted tensor and
         # then extract subblocks from the original one.
         # Why not go the other way around and implement
@@ -1631,7 +1629,7 @@ class AbelianBackend(TensorBackend):
         old_rows = old_rows[sort]
 
         new_block_shapes = np.empty((res_num_blocks, res_num_legs), dtype=int)
-        for i, leg in conventional_leg_order(new_codomain, new_domain):
+        for i, leg in enumerate(conventional_leg_order(new_codomain, new_domain)):
             new_block_shapes[:, i] = leg.multiplicities[new_block_inds[:, i]]
 
         # the actual loop to split the blocks

@@ -1060,11 +1060,6 @@ def test_combine_split(make_compatible_tensor):
         with pytest.raises(NotImplementedError):
             _ = tensors.combine_legs(T, [1, 2])
         pytest.xfail()
-
-    if isinstance(T.backend, backends.AbelianBackend):
-        with pytest.raises(NotImplementedError, match='currently bugged'):
-            _ = tensors.combine_legs(T, [1, 2])
-        pytest.xfail()
     
     # 1) combine in codomain
     combined1 = tensors.combine_legs(T, [0, 1])
