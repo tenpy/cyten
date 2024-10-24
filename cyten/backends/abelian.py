@@ -92,8 +92,11 @@ class AbelianBackendData:
     block_inds : 2D ndarray
         A 2D array of positive integers with shape (len(blocks), num_legs).
         The block `blocks[n]` belongs to the `block_inds[n, m]`-th sector of ``leg``,
-        that is to ``leg.sectors[block_inds[n, m]]``,
-        where ``leg == (codomain.spaces[m] if m < len(codomain) else domain.spaces[-1 - m]``.
+        that is to ``leg.sectors[block_inds[n, m]]``, where::
+
+            leg == (codomain.spaces[m] if m < len(codomain) else domain.spaces[-1 - m])
+                == tensor.get_leg_co_domain(m)
+
         Thus, the columns of `block_inds` follow the same ordering convention as :attr:`Tensor.legs`.
         By convention, we store `blocks` and `block_inds` such that ``np.lexsort(block_inds.T)``
         is sorted.
@@ -216,6 +219,41 @@ class AbelianBackend(TensorBackend):
             assert self.block_backend.block_shape(block) == (large_leg.multiplicities[bi_large],)
             assert self.block_backend.block_sum_all(block) == small_leg.multiplicities[bi_small]
             assert self.block_backend.block_dtype(block) == Dtype.bool
+
+    def test_leg_sanity(self, leg: Space):
+        if isinstance(leg, ProductSpace):
+            # check if the leg has consistent metadata
+            strides = leg.metadata.get('_strides', None)
+            block_ind_map_slices = leg.metadata.get('_block_ind_map_slices', None)
+            block_ind_map = leg.metadata.get('_block_ind_map', None)
+
+            if strides is not None:
+                # check shape
+                assert strides.shape == (leg.num_spaces,)
+                # check entries
+                expect = 1
+                for i, num in enumerate(space.num_sectors for space in leg.spaces):
+                    assert strides[i] == expect
+                    expect *= num
+            if block_ind_map_slices is not None:
+                assert block_ind_map_slices.shape == (leg.num_sectors + 1,)
+                # do not check for full correctness, just for consistency as slices
+                assert block_ind_map_slices[0] == 0
+                assert block_ind_map_slices[-1] == np.prod([s.num_sectors for s in leg.spaces])
+                assert np.all(block_ind_map_slices[1:] >= block_ind_map_slices[:-1])
+            if block_ind_map is not None:
+                assert block_ind_map.shape == (np.prod([s.num_sectors for s in leg.spaces]),
+                                               3 + leg.num_spaces)
+                for i, (b1, b2, *idcs, J) in enumerate(block_ind_map):
+                    if i > 0 and J == block_ind_map[i - 1][-1]:
+                        assert b1 == block_ind_map[i - 1][1]
+                    else:
+                        assert b1 == 0
+                    charges = (sp.sectors[i] for i, sp in zip(idcs, leg.spaces))
+                    fused = leg.symmetry.multiple_fusion(*charges)
+                    assert np.all(fused == leg.sectors[J])
+        
+        return super().test_leg_sanity(leg)
 
     # ABSTRACT METHODS
 
