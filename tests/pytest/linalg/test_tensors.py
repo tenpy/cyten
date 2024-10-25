@@ -934,26 +934,34 @@ def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor,
 
     if not tens.symmetry.can_be_dropped:
         pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
-        
+
+    if cls in [DiagonalTensor, Mask]:
+        catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
+    else:
+        catch_warnings = nullcontext()
+
     tens_np = tens.to_numpy()
 
     print('via positional arg')
     pos = np_random.choice(tens.num_legs + 1)
-    res = tensors.add_trivial_leg(tens, pos, is_dual=is_dual)
+    with catch_warnings:
+        res = tensors.add_trivial_leg(tens, pos, is_dual=is_dual)
     res_np = res.to_numpy()
     expect = np.expand_dims(tens_np, pos)
     npt.assert_array_almost_equal_nulp(res_np, expect, 100)
 
     print('to_domain')
     pos = np_random.choice(tens.num_domain_legs + 1)
-    res = tensors.add_trivial_leg(tens, domain_pos=pos, is_dual=is_dual)
+    with catch_warnings:
+        res = tensors.add_trivial_leg(tens, domain_pos=pos, is_dual=is_dual)
     res_np = res.to_numpy()
     expect = np.expand_dims(tens_np, -1-pos)
     npt.assert_array_almost_equal_nulp(res_np, expect, 100)
 
     print('to_codomain')
     pos = np_random.choice(tens.num_codomain_legs + 1)
-    res = tensors.add_trivial_leg(tens, codomain_pos=pos, is_dual=is_dual)
+    with catch_warnings:
+        res = tensors.add_trivial_leg(tens, codomain_pos=pos, is_dual=is_dual)
     res_np = res.to_numpy()
     expect = np.expand_dims(tens_np, pos)
     npt.assert_array_almost_equal_nulp(res_np, expect, 100)
@@ -993,8 +1001,13 @@ def test_apply_mask(cls, codomain, domain, which_leg, make_compatible_tensor):
         with pytest.raises(NotImplementedError):
             _ = tensors.apply_mask(T, M, which_leg)
         pytest.xfail()
+    elif cls is DiagonalTensor:
+        catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
+    else:
+        catch_warnings = nullcontext()
 
-    res = tensors.apply_mask(T, M, which_leg)
+    with catch_warnings:
+        res = tensors.apply_mask(T, M, which_leg)
     res.test_sanity()
 
     in_domain, co_domain_idx, leg_idx = T._parse_leg_idx(which_leg)
@@ -1395,8 +1408,13 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
         with pytest.raises(NotImplementedError):
             _ = tensors.enlarge_leg(T, M, which_leg)
         pytest.xfail()
+    elif cls is DiagonalTensor:
+        catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
+    else:
+        catch_warnings = nullcontext()
 
-    res = tensors.enlarge_leg(T, M, which_leg)
+    with catch_warnings:
+        res = tensors.enlarge_leg(T, M, which_leg)
     res.test_sanity()
 
     _, _, leg_idx = T._parse_leg_idx(which_leg)
@@ -1642,6 +1660,15 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
     
     T_labels = list('abcdefghi')[:cod + dom]
     T: cls = make_compatible_tensor(cod, dom, labels=T_labels, cls=cls)
+
+    if cls in [DiagonalTensor, Mask]:
+        if (leg, codomain_pos, domain_pos) == (0, 0, None):
+            # that set of inputs means no actual legs move and no conversion happens
+            catch_warnings = nullcontext()
+        else:
+            catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
+    else:
+        catch_warnings = nullcontext()
     
     codomain_perm = [n for n in range(cod) if n != leg]
     domain_perm = [n for n in reversed(range(cod, cod + dom)) if n != leg]
@@ -1654,10 +1681,12 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
     is_trivial = (codomain_perm == list(range(cod))) and (domain_perm == list(reversed(range(cod, cod + dom))))
     if isinstance(T.backend, backends.FusionTreeBackend) and not is_trivial:
         with pytest.raises(NotImplementedError):
-            _ = tensors.move_leg(T, leg, codomain_pos=codomain_pos, domain_pos=domain_pos, levels=levels)
+            with catch_warnings:
+                _ = tensors.move_leg(T, leg, codomain_pos=codomain_pos, domain_pos=domain_pos, levels=levels)
         pytest.xfail()
 
-    res = tensors.move_leg(T, leg, codomain_pos=codomain_pos, domain_pos=domain_pos, levels=levels)
+    with catch_warnings:
+        res = tensors.move_leg(T, leg, codomain_pos=codomain_pos, domain_pos=domain_pos, levels=levels)
     res.test_sanity()
     
     assert res.labels == [T_labels[n] for n in perm]
@@ -1850,21 +1879,34 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
 def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_compatible_tensor):
     T = make_compatible_tensor(num_cod, num_dom, max_block_size=3, cls=cls)
     is_trivial = (codomain == [*range(num_cod)]) and (domain == [*reversed(range(num_cod, T.num_legs))])
+
+    if cls in [DiagonalTensor, Mask]:
+        if len(codomain) == 1:
+            # special case where legs are not actually permuted -> no warning expected
+            catch_warnings = nullcontext()
+        else:
+            catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
+    else:
+        catch_warnings = nullcontext()
     
     if isinstance(T.backend, backends.FusionTreeBackend) and cls in [SymmetricTensor, ChargedTensor] and not is_trivial:
         with pytest.raises(NotImplementedError, match='permute_legs not implemented'):
-            _ = tensors.permute_legs(T, codomain, domain, levels)
+            with catch_warnings:
+                _ = tensors.permute_legs(T, codomain, domain, levels)
         pytest.xfail()
     if isinstance(T.backend, backends.FusionTreeBackend) and cls is DiagonalTensor and codomain == [1]:
         with pytest.raises(NotImplementedError, match='diagonal_transpose not implemented'):
-            _ = tensors.permute_legs(T, codomain, domain, levels)
+            with catch_warnings:
+                _ = tensors.permute_legs(T, codomain, domain, levels)
         pytest.xfail()
     if isinstance(T.backend, backends.FusionTreeBackend) and cls is DiagonalTensor and len(codomain) != 1:
         with pytest.raises(NotImplementedError, match='permute_legs not implemented'):
-            _ = tensors.permute_legs(T, codomain, domain, levels)
+            with catch_warnings:
+                _ = tensors.permute_legs(T, codomain, domain, levels)
         pytest.xfail()
 
-    res = tensors.permute_legs(T, codomain, domain, levels)
+    with catch_warnings:
+        res = tensors.permute_legs(T, codomain, domain, levels)
     res.test_sanity()
 
     for n, i in enumerate(codomain):
@@ -1921,10 +1963,15 @@ def test_scalar_multiply(make_compatible_tensor_any_class):
 
     if not T.symmetry.can_be_dropped:
         pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+    if isinstance(T, Mask):
+        catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
+    else:
+        catch_warnings = nullcontext()
     
     T_np = T.to_numpy()
     for valid_scalar in [0, 1., 2. + 3.j, -42]:
-        res = tensors.scalar_multiply(valid_scalar, T)
+        with catch_warnings:
+            res = tensors.scalar_multiply(valid_scalar, T)
         npt.assert_allclose(res.to_numpy(), valid_scalar * T_np)
     for invalid_scalar in [None, (1, 2), T, 'abc']:
         with pytest.raises(TypeError, match='unsupported scalar type'):
@@ -1954,21 +2001,30 @@ def test_scale_axis(cls, codom, dom, which_leg, make_compatible_tensor, np_rando
         leg = leg.dual
     D: DiagonalTensor = make_compatible_tensor([leg], cls=DiagonalTensor, labels=['x', 'y'])
 
+    if cls is Mask:
+        catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
+    else:
+        catch_warnings = nullcontext()
+
     # 2) Call functions
     if isinstance(T.backend, backends.FusionTreeBackend) and need_transpose:
         with pytest.raises(NotImplementedError, match='diagonal_transpose not implemented'):
-            _ = tensors.scale_axis(T, D, which_leg)
+            with catch_warnings:
+                _ = tensors.scale_axis(T, D, which_leg)
         pytest.xfail()
     if isinstance(T.backend, backends.FusionTreeBackend) and cls in [SymmetricTensor, ChargedTensor]:
         with pytest.raises(NotImplementedError, match='scale_axis not implemented'):
-            _ = tensors.scale_axis(T, D, which_leg)
+            with catch_warnings:
+                _ = tensors.scale_axis(T, D, which_leg)
         pytest.xfail()
     
     how_to_call = np_random.choice(['by_idx', 'by_label'])
     if how_to_call == 'by_idx':
-        res = tensors.scale_axis(T, D, which_leg)
+        with catch_warnings:
+            res = tensors.scale_axis(T, D, which_leg)
     if how_to_call == 'by_label':
-        res = tensors.scale_axis(T, D, T_labels[which_leg])
+        with catch_warnings:
+            res = tensors.scale_axis(T, D, T_labels[which_leg])
 
     # 3) check tensor properties
     res.test_sanity()

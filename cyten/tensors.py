@@ -1106,7 +1106,9 @@ class SymmetricTensor(Tensor):
             codomain=codomain, domain=domain, backend=backend, labels=labels
         )
 
-    def as_SymmetricTensor(self) -> SymmetricTensor:
+    def as_SymmetricTensor(self, warning: str = None) -> SymmetricTensor:
+        # warning is simply ignored.
+        # TODO do we need a copy...?
         return self.copy()
 
     def copy(self, deep=True) -> SymmetricTensor:
@@ -1530,7 +1532,9 @@ class DiagonalTensor(SymmetricTensor):
             raise ValueError(f'all is not defined for dtype {self.dtype}')
         return self.backend.diagonal_any(self)
 
-    def as_SymmetricTensor(self) -> SymmetricTensor:
+    def as_SymmetricTensor(self, warning: str = None) -> SymmetricTensor:
+        if warning is not None:
+            warnings.warn(warning, UserWarning, stacklevel=2)
         return SymmetricTensor(
             data=self.backend.full_data_from_diagonal_tensor(self),
             codomain=self.codomain, domain=self.domain, backend=self.backend, labels=self.labels
@@ -2006,7 +2010,9 @@ class Mask(Tensor):
         return DiagonalTensor(data=self.backend.mask_to_diagonal(self, dtype=dtype),
                               leg=self.large_leg, backend=self.backend, labels=self.labels)
 
-    def as_SymmetricTensor(self, dtype=Dtype.complex128) -> SymmetricTensor:
+    def as_SymmetricTensor(self, dtype=Dtype.complex128, warning: str = None) -> SymmetricTensor:
+        if warning is not None:
+            warnings.warn(warning, UserWarning, stacklevel=2)
         if not self.is_projection:
             # OPTIMIZE how hard is it to deal with inclusions in the backend?
             return dagger(dagger(self).as_SymmetricTensor())
@@ -2637,7 +2643,9 @@ def add_trivial_leg(tens: Tensor,
         legs_pos = 0
 
     if isinstance(tens, (DiagonalTensor, Mask)):
-        tens = tens.as_SymmetricTensor()
+        msg = ('Converting to SymmetricTensor for add_trivial_leg. '
+               'Use as_SymmetricTensor() explicitly to suppress the warning.')
+        tens = tens.as_SymmetricTensor(warning=msg)
     if isinstance(tens, ChargedTensor):
         if add_to_domain:
             # domain[0] is the charge leg, so we need to add 1
@@ -3019,10 +3027,9 @@ def combine_legs(tensor: Tensor,
     # 1) Deal with different tensor types. Reduce everything to SymmetricTensor.
     # ==============================================================================================
     if isinstance(tensor, (DiagonalTensor, Mask)):
-        msg = (f'Converting {tensor.__class__.__name__} to SymmetricTensor for combine_legs. '
-               f'To suppress this warning, explicitly use as_SymmetricTensor() first.')
-        warnings.warn(msg, stacklevel=2)
-        tensor = tensor.as_SymmetricTensor()
+        msg = ('Converting to SymmetricTensor for combine_legs. '
+               'Use as_SymmetricTensor() explicitly to suppress the warning.')
+        tensor = tensor.as_SymmetricTensor(warning=msg)
 
     which_legs = [tensor.get_leg_idcs(group) for group in which_legs]
     #
@@ -3347,7 +3354,7 @@ def _compose_with_Mask(tensor: Tensor, mask: Mask, leg_idx: int) -> Tensor:
         return ChargedTensor(invariant_part, tensor.charged_state)
     if isinstance(tensor, Mask):
         raise NotImplementedError('tensors._compose_with_Mask not implemented for Mask')
-    tensor = tensor.as_SymmetricTensor()
+    tensor = tensor.as_SymmetricTensor(warning='Converting to SymmetricTensor.')
 
     backend = get_same_backend(tensor, mask)
     if in_domain == mask.is_projection:
@@ -3448,6 +3455,7 @@ def eigh(tensor: Tensor, new_labels: str | list[str] | None, new_leg_dual: bool,
     if isinstance(tensor, ChargedTensor):
         # do not define decompositions for ChargedTensors.
         raise NotImplementedError
+    # TODO for DiagonalTensor, we can have a trivial implementation `return tensor, eye` no?
     tensor = tensor.as_SymmetricTensor()
     new_leg = tensor.domain.as_ElementarySpace().with_is_dual(new_leg_dual)
     combine = (not tensor.backend.can_decompose_tensors) and (tensor.num_codomain_legs > 1)
@@ -3558,8 +3566,7 @@ def exp(obj: Tensor | complex | float) -> Tensor | complex | float:
         return obj._elementwise_unary(obj.backend.block_backend.block_exp)
     if isinstance(obj, ChargedTensor):
         raise TypeError('ChargedTensor can not be exponentiated.')
-    if isinstance(obj, Tensor):
-        obj = obj.as_SymmetricTensor()
+    if isinstance(obj, SymmetricTensor):
         assert obj.domain == obj.codomain
 
         # TODO refactor to support general power-series functions?
@@ -3576,6 +3583,8 @@ def exp(obj: Tensor | complex | float) -> Tensor | complex | float:
         if combine:
             res = split_legs(res, [0, 1])
         return res
+    if isinstance(obj, Tensor):
+        raise NotImplementedError  # should have considered all tensor types above
     return math_exp(obj)
 
 
@@ -3779,6 +3788,7 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
     if isinstance(v, ChargedTensor) or isinstance(w, ChargedTensor):
         raise TypeError('Can not add ChargedTensor and non-charged tensor.')
     # Remaining case: Mask, DiagonalTensor (but not both), SymmetricTensor
+    # TODO issue warnings that we are converting? see scalar_multiply()
     v = v.as_SymmetricTensor()
     w = w.as_SymmetricTensor()
     backend = get_same_backend(v, w)
@@ -3906,9 +3916,13 @@ def outer(tensor1: Tensor, tensor2: Tensor,
         input tensors were relabelled accordingly before contraction.
     """
     if isinstance(tensor1, (Mask, DiagonalTensor)):
-        tensor1 = tensor1.as_SymmetricTensor()
+        msg = ('Converting to SymmetricTensor for outer. '
+               'Use as_SymmetricTensor() explicitly to suppress the warning.')
+        tensor1 = tensor1.as_SymmetricTensor(warning=msg)
     if isinstance(tensor2, (Mask, DiagonalTensor)):
-        tensor2 = tensor2.as_SymmetricTensor()
+        msg = ('Converting to SymmetricTensor for outer. '
+               'Use as_SymmetricTensor() explicitly to suppress the warning.')
+        tensor2 = tensor2.as_SymmetricTensor(warning=msg)
     if isinstance(tensor1, ChargedTensor):
         if isinstance(tensor2, ChargedTensor):
             inv_part = outer(tensor1.invariant_part, tensor2.invariant_part,
@@ -4085,8 +4099,9 @@ def _permute_legs(tensor: Tensor,
             return transpose(tensor)
         # other cases involve two legs either in the domain or codomain.
         # Cant be done with Mask / DiagonalTensor
-        # TODO should we warn? is this expected?
-        tensor = tensor.as_SymmetricTensor()
+        msg = ('Converting to SymmetricTensor for permuting legs. '
+               'Use as_SymmetricTensor() explicitly to suppress the warning.')
+        tensor = tensor.as_SymmetricTensor(warning=msg)
     if isinstance(tensor, ChargedTensor):
         if levels is not None:
             # assign the highest level to the charge leg. since it does not move, it should not matter.
@@ -4285,7 +4300,9 @@ def scalar_multiply(a: Number, v: Tensor) -> Tensor:
     if isinstance(v, DiagonalTensor):
         return DiagonalTensor._elementwise_unary(v, func=lambda _v: a * _v, maps_zero_to_zero=True)
     if isinstance(v, Mask):
-        v = v.as_SymmetricTensor()
+        msg = ('Converting to SymmetricTensor for scalar multiplication. '
+               'Use as_SymmetricTensor() explicitly to suppress the warning.')
+        v = v.as_SymmetricTensor(warning=msg)
     if isinstance(v, ChargedTensor):
         if v.charged_state is None:
             inv_part = scalar_multiply(a, v.invariant_part)
@@ -4386,7 +4403,9 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
         are split.
     """
     if isinstance(tensor, (DiagonalTensor, Mask)):
-        tensor = tensor.as_SymmetricTensor()
+        msg = ('Converting to SymmetricTensor for split_legs. '
+               'Use as_SymmetricTensor() explicitly to suppress the warning.')
+        tensor = tensor.as_SymmetricTensor(warning=msg)
     if isinstance(tensor, ChargedTensor):
         if legs is not None:
             legs = tensor.get_leg_idcs(legs)
@@ -4477,7 +4496,9 @@ def squeeze_legs(tensor: Tensor, legs: int | str | list[int | str] = None) -> Te
     if len(legs) == 0:
         return tensor
     if isinstance(tensor, (DiagonalTensor, Mask)):
-        tensor = tensor.as_SymmetricTensor()
+        msg = ('Converting to SymmetricTensor for squeeze_legs. '
+               'Use as_SymmetricTensor() explicitly to suppress the warning.')
+        tensor = tensor.as_SymmetricTensor(warning=msg)
     if isinstance(tensor, ChargedTensor):
         return ChargedTensor(
             squeeze_legs(tensor.invariant_part, legs=legs),
