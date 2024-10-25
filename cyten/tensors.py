@@ -3097,10 +3097,10 @@ def combine_legs(tensor: Tensor,
             domain_labels_reversed.append(tensor.labels[n])
     #
     # OPTIMIZE might be better to compute these in the backend. especially for FusionTree.
-    codomain = ProductSpace(codomain_spaces, backend=tensor.backend,
+    codomain = ProductSpace(codomain_spaces, symmetry=tensor.symmetry, backend=tensor.backend,
                             _sectors=tensor.codomain.sectors,
                             _multiplicities=tensor.codomain.multiplicities)
-    domain = ProductSpace(domain_spaces_reversed[::-1], backend=tensor.backend,
+    domain = ProductSpace(domain_spaces_reversed[::-1], symmetry=tensor.symmetry, backend=tensor.backend,
                           _sectors=tensor.domain.sectors,
                           _multiplicities=tensor.domain.multiplicities)
     #

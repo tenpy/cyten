@@ -242,8 +242,8 @@ class AbelianBackend(TensorBackend):
                 assert block_ind_map_slices[-1] == np.prod([s.num_sectors for s in leg.spaces])
                 assert np.all(block_ind_map_slices[1:] >= block_ind_map_slices[:-1])
             if block_ind_map is not None:
-                assert block_ind_map.shape == (np.prod([s.num_sectors for s in leg.spaces]),
-                                               3 + leg.num_spaces)
+                assert block_ind_map.shape[0] <= np.prod([s.num_sectors for s in leg.spaces])
+                assert block_ind_map.shape[1] == 3 + leg.num_spaces
                 for i, (b1, b2, *idcs, J) in enumerate(block_ind_map):
                     if i > 0 and J == block_ind_map[i - 1][-1]:
                         assert b1 == block_ind_map[i - 1][1]
@@ -327,89 +327,94 @@ class AbelianBackend(TensorBackend):
                      new_domain: ProductSpace,
                      ) -> Data:
         num_result_legs = tensor.num_legs - sum(len(group) - 1 for group in leg_idcs_combine)
-        old_block_inds = tensor.data.block_inds
         old_blocks = tensor.data.blocks
-        #
+        old_block_inds = tensor.data.block_inds
+
         # first, find block indices of the final array to which we map
-        map_inds = [
-            self.product_space_map_incoming_block_inds(p_space, old_block_inds[:, first:last + 1])
-            for p_space, (first, *_, last) in zip(product_spaces, leg_idcs_combine)
-        ]
-        #
-        # build result block_inds
+        #   for each group k of legs to combine, map_inds[k] is a 1D array that identifies
+        #   which rows of the product spaces _block_ind_map match the corresponding block_inds.
+        #   This is in the sense that
+        #     map_inds[k][j] == J
+        #   indicates that we have
+        #     product_spaces[k].metadata['_block_ind_map'][J, 2:-1] == block_inds[j, group_k_idcs]
+        #   Note that it contains the same J multiple times (in general)
+        map_inds = []
+        for p_space, (first, *_, last) in zip(product_spaces, leg_idcs_combine):
+            in_domain = first >= tensor.num_codomain_legs
+            block_inds = old_block_inds[:, first:last + 1]
+            if in_domain:
+                # product space in the domain has opposite order of its spaces compared to the
+                # convention in block_inds
+                block_inds = block_inds[:, ::-1]
+            map_inds.append(self.product_space_map_incoming_block_inds(p_space, block_inds))
+
+        # build the result block_inds. in this first stage we allow duplicates
         res_block_inds = np.empty((len(old_block_inds), num_result_legs), int)
         i = 0  # res_block_inds[:, :i] is already set
         j = 0  # old_block_inds[:, :j] are already considered
         for group, p_space, map_ind in zip(leg_idcs_combine, product_spaces, map_inds):
-            # fill in block_inds for the uncombined legs that came up since the last group
+            # uncombined legs since last group: block_inds are simply unchanged
             num_uncombined = group[0] - j
             res_block_inds[:, i:i + num_uncombined] = old_block_inds[:, j:j + num_uncombined]
             i += num_uncombined
             j += num_uncombined
-            # fill in block_inds for the current combined group
+            # current combined group
             block_ind_map = p_space.get_metadata('_block_ind_map', backend=self)
             res_block_inds[:, i] = block_ind_map[map_ind, -1]
             i += 1
             j += len(group)
         # trailing uncombined legs:
         res_block_inds[:, i:] = old_block_inds[:, j:]
-        #
-        # now we have probably many duplicate rows in res_block_inds, since many combinations of
-        # non-combined block indices map to the same block index in product space
-        # -> find unique entries by sorting res_block_inds
+
+        # sort the new block_inds
+        #   we need them sorted at some point anyway, and sorting allows us to find duplicates later
         sort = np.lexsort(res_block_inds.T)
         res_block_inds = res_block_inds[sort]
         old_blocks = [old_blocks[i] for i in sort]
+        # old_block_inds = old_block_inds[sort]  # not actually needed
         map_inds = [map_[sort] for map_ in map_inds]
-        #
-        # determine slices in the new blocks
-        block_slices = np.zeros((len(old_blocks), num_result_legs, 2), int)
-        block_shape = np.empty((len(old_blocks), num_result_legs), int)
+
+        # determine for each old block which slices of the new block it should occupy
         i = 0  # have already set info for new_legs[:i]
         j = 0  # have already considered old_legs[:j]
+        block_slices = np.zeros((len(old_blocks), num_result_legs, 2), int)
         for group, p_space, map_ind in zip(leg_idcs_combine, product_spaces, map_inds):
-            # uncombined legs since previous group
+            # uncombined legs since last group: shape is just multiplicity, slice is all of 0:mult
             num_uncombined = group[0] - j
             for n in range(num_uncombined):
-                # block_slices[:, i + n, 0] = 0 is already set, since we initialized zeros
-                i2 = i + n
-                leg_idx = j + n
-                mult = tensor.get_leg_co_domain(leg_idx).multiplicities[res_block_inds[:, i2]]
-                block_slices[:, i2, 1] = mult
-                block_shape[:, i2] = mult
-            i += num_uncombined
-            j += num_uncombined
+                # block_slices[:, i, 0] = 0 is already set
+                block_slices[:, i, 1] = tensor.get_leg_co_domain(j).multiplicities[res_block_inds[:, i]]
+                i += 1
+                j += 1
             # current combined group
             block_ind_map = p_space.get_metadata('_block_ind_map', backend=self)
-            slices = block_ind_map[map_ind, :2]
-            block_slices[:, i, :] = slices
-            block_shape[:, i] = slices[:, 1] - slices[:, 0]
+            block_slices[:, i, :] = block_ind_map[map_ind, :2]
             i += 1
             j += len(group)
         # trailing uncombined legs
         for n in range(tensor.num_legs - j):
-            i2 = i + n
-            leg_idx = j + n
-            mult = tensor.get_leg_co_domain(leg_idx).multiplicities[res_block_inds[:, i2]]
-            block_slices[:, i2, 1] = mult
-            block_shape[:, i2] = mult
-        #
-        # split res_block_inds into parts, which give a unique new blocks
-        diffs = find_row_differences(res_block_inds, include_len=True)  # including 0 and len to have slices later
+            block_slices[:, i, 1] = tensor.get_leg_co_domain(j).multiplicities[res_block_inds[:, i]]
+            i += 1
+            j += 1
+        block_shapes = block_slices[:, :, 1] - block_slices[:, :, 0]
+
+        # identify the duplicates in res_block_inds -> these are mapped to the same new block
+        diffs = find_row_differences(res_block_inds, include_len=True)  # includes both 0 and len, to have slices later
+
+        # build the new blocks
         res_num_blocks = len(diffs) - 1
         res_block_inds = res_block_inds[diffs[:-1], :]
-        res_block_shapes = np.empty((res_num_blocks, num_result_legs), int)
+        res_block_shapes = np.zeros((res_num_blocks, num_result_legs), int)
         for i, leg in enumerate(conventional_leg_order(new_codomain, new_domain)):
             res_block_shapes[:, i] = leg.multiplicities[res_block_inds[:, i]]
-        #
-        # map the data
         res_blocks = []
         for shape, start, stop in zip(res_block_shapes, diffs[:-1], diffs[1:]):
             new_block = self.block_backend.zero_block(shape, dtype=tensor.dtype)
-            for old_row in range(start, stop):  # copy blocks
-                old_block = self.block_backend.block_reshape(old_blocks[old_row], block_shape[old_row])
-                new_slices = tuple(slice(b, e) for (b, e) in block_slices[old_row])
-                new_block[new_slices] = old_block
+            for row in range(start, stop):
+                slices = block_slices[row]
+                old_block = self.block_backend.block_reshape(old_blocks[row], block_shapes[row])
+                slices = tuple(slice(b, e) for (b, e) in block_slices[row])
+                new_block[slices] = old_block
             res_blocks.append(new_block)
 
         # we lexsort( .T)-ed res_block_inds while it still had duplicates, and then indexed by diffs,
@@ -1611,9 +1616,9 @@ class AbelianBackend(TensorBackend):
 
         if len(a.data.blocks) == 0:
             return self.zero_data(new_codomain, new_domain, a.data.dtype)
+
         n_split = len(leg_idcs)
-        # TODO dont use legs! use conventional_leg_order / domain / codomain
-        product_spaces = [a.legs[i] for i in leg_idcs]
+        product_spaces = [a.get_leg_co_domain(i) for i in leg_idcs]
         res_num_legs = new_codomain.num_spaces + new_domain.num_spaces
 
         old_blocks = a.data.blocks
@@ -1645,26 +1650,24 @@ class AbelianBackend(TensorBackend):
         j = 0  # index within product_spaces
         for i in range(a.num_legs):  # i = index in old tensor
             if i in leg_idcs:
+                in_domain = (i >= a.num_codomain_legs)
                 product_space = product_spaces[j]  # = a.legs[i]
                 k = i + shift  # = index where split legs begin in new tensor
                 k2 = k + len(product_space.spaces)  # = until where spaces go in new tensor
                 _block_ind_map = product_space.get_metadata('_block_ind_map', backend=self)[map_rows[:, j], :]
-                new_block_inds[:, k:k2] = _block_ind_map[:, 2:-1]
+                if in_domain:
+                    # if the leg to be split is in the domain, the order of block_inds and of its
+                    # _block_ind_map are opposite -> need to reverse
+                    new_block_inds[:, k:k2] = _block_ind_map[:, -2:1:-1]
+                else:
+                    new_block_inds[:, k:k2] = _block_ind_map[:, 2:-1]
                 old_block_beg[:, i] = _block_ind_map[:, 0]
                 old_block_shapes[:, i] = _block_ind_map[:, 1] - _block_ind_map[:, 0]
                 shift += len(product_space.spaces) - 1
                 j += 1
             else:
                 new_block_inds[:, i + shift] = nbi = old_block_inds[old_rows, i]
-                # TODO dont use legs! use conventional_leg_order / domain / codomain
-                old_block_shapes[:, i] = a.legs[i].multiplicities[nbi]
-        # sort new_block_inds
-        # OPTIMIZE (JU) could also skip sorting here and put is_sorted=False in AbelianBackendData(..) below?
-        sort = np.lexsort(new_block_inds.T)
-        new_block_inds = new_block_inds[sort, :]
-        old_block_beg = old_block_beg[sort]
-        old_block_shapes = old_block_shapes[sort]
-        old_rows = old_rows[sort]
+                old_block_shapes[:, i] = a.get_leg_co_domain(i).multiplicities[nbi]
 
         new_block_shapes = np.empty((res_num_blocks, res_num_legs), dtype=int)
         for i, leg in enumerate(conventional_leg_order(new_codomain, new_domain)):
@@ -1678,7 +1681,7 @@ class AbelianBackend(TensorBackend):
             new_block = old_block[slices]
             new_blocks.append(self.block_backend.block_reshape(new_block, new_block_shapes[i]))
 
-        return AbelianBackendData(a.data.dtype, new_blocks, new_block_inds, is_sorted=True)
+        return AbelianBackendData(a.data.dtype, new_blocks, new_block_inds, is_sorted=False)
 
     def squeeze_legs(self, a: SymmetricTensor, idcs: list[int]) -> Data:
         n_legs = a.num_legs
@@ -1973,7 +1976,7 @@ class AbelianBackend(TensorBackend):
         -------
         block_inds: 1D array
             For each row j of `incoming_block_inds` an index `J` such that
-            ``self.metadata['_block_ind_map'][J, 2:-1] == block_inds[j]``.
+            ``space.metadata['_block_ind_map'][J, 2:-1] == block_inds[j]``.
         """
         assert incoming_block_inds.shape[1] == len(space.spaces)
         # calculate indices of _block_ind_map by using the appropriate strides
