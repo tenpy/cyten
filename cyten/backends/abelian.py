@@ -1726,7 +1726,7 @@ class AbelianBackend(TensorBackend):
                 new_leg_dim = new_leg.multiplicities[n]
                 eye_u = self.block_backend.eye_matrix(a.codomain.multiplicities[j], a.dtype)
                 u_blocks.append(eye_u[:, :new_leg_dim])
-                eye_v = self.block_backend.eye_matrix(a.domain.multiplicities[j], a.dtype)
+                eye_v = self.block_backend.eye_matrix(a.domain.multiplicities[k], a.dtype)
                 vh_blocks.append(eye_v[:new_leg_dim, :])
             u_block_inds.append([j, n])
             vh_block_inds.append([n, k])
