@@ -133,10 +133,10 @@ class TensorBackend(metaclass=ABCMeta):
         tensor: SymmetricTensor
             The tensor to modify
         leg_idcs_combine: list of list of int
-            All leg indices of in any given sublist are supposed to be combined.
+            A list of groups. Each group a list of integer leg indices, to be combined.
         product_spaces: list of ProductSpace
             The resulting ProductSpaces. Same length and order as `leg_idcs_combine`.
-            Same entries as in new_(co)domain_combine (in particular wrt duality in the domain!),
+            In the domain, this is the product space as it will appear in the domain, not in legs.
         new_codomain_combine:
             A list of tuples ``(positions, combined)``, where positions are all the codomain-indices
             which should be combined and ``combined`` is the resulting :class:`ProductSpace`,

@@ -13,7 +13,7 @@ from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor
 from cyten.backends.backend_factory import get_backend
 from cyten.dtypes import Dtype
 from cyten.spaces import ElementarySpace, ProductSpace
-from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError
+from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError, u1_symmetry
 from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays
 
 
@@ -1051,7 +1051,6 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
     npt.assert_array_almost_equal_nulp(res.to_numpy(), tensor_np, 100)
 
 
-# TODO fix combine. implement split.
 def test_combine_split(make_compatible_tensor):
     T: SymmetricTensor = make_compatible_tensor(['a', 'b'], ['d', 'c'])
     assert T.labels == ['a', 'b', 'c', 'd']
@@ -1126,27 +1125,26 @@ def test_combine_split(make_compatible_tensor):
     with pytest.raises(ValueError, match='Not a ProductSpace.'):
         _ = tensors.split_legs(combined4, 0)
 
-    # TODO incorporate OLD_test_combine_legs_basis_trafo::
-    # @pytest.mark.xfail  # TODO
-    # def OLD_test_combine_legs_basis_trafo(make_compatible_tensor):
-    #     tens = make_compatible_tensor(labels=['a', 'b', 'c'], max_blocks=5, max_block_size=5)
-    #     a, b, c = tens.shape
-    #     dense = tens.to_numpy()  # [a, b, c]
-    #     combined = tensors.combine_legs(tens, ['a', 'b'])
-    #     dense_combined = combined.to_dense_block()  # [(a.b), c]
-    #     #
-    #     print('check via perm')
-    #     perm = combined.get_leg('(a.b)').get_basis_transformation_perm()
-    #     assert all(0 <= p < len(perm) for p in perm)
-    #     assert len(set(perm)) == len(perm)
-    #     reconstruct_combined = np.reshape(dense, (a * b, c))[perm, :]
-    #     #
-    #     npt.assert_array_almost_equal_nulp(dense_combined, reconstruct_combined, 100)
-    #     #
-    #     print('check via trafo')
-    #     trafo = combined.get_legs('(a.b)')[0].get_basis_transformation()  # [a, b, (a.b)]
-    #     reconstruct_combined = np.tensordot(trafo, dense, [[0, 1], [0, 1]])  # [(a.b), c]
-    #     npt.assert_array_almost_equal_nulp(dense_combined, reconstruct_combined, 100)
+    # 5) combine in domain, bend upward, split there
+    combined5 = tensors.combine_legs(T, [2, 3])
+    combined5.test_sanity()
+    assert combined5.labels == ['a', 'b', '(c.d)']
+    assert combined5.codomain.spaces == T.codomain.spaces
+    assert combined5.domain[0].spaces == T.domain.spaces
+    #
+    bent5 = tensors.bend_legs(combined5, num_domain_legs=0)
+    split5 = tensors.split_legs(bent5, 2)
+    split5.test_sanity()
+    assert split5.labels == ['a', 'b', 'c', 'd']
+    assert split5.codomain.spaces == T.legs
+    assert split5.domain.spaces == []
+    expect5 = tensors.bend_legs(T, num_domain_legs=0)
+    assert tensors.almost_equal(split5, expect5)
+    
+    # TODO test 
+    # combine -> to_numpy
+    # versus 
+    # to_numpy -> apply ProductSpace.get_basis_transformation(_perm)
 
 
 @pytest.mark.parametrize(
@@ -1722,11 +1720,7 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor):
             _ = tensors.outer(A, B, relabel1={'a': 'x'}, relabel2={'h': 'y'})
         pytest.xfail()
     if cls_A is ChargedTensor and cls_B is ChargedTensor:
-        if isinstance(A.backend, backends.AbelianBackend):
-            match = 'currently bugged'
-        else:
-            match = 'state_tensor_product not implemented'
-        with pytest.raises(NotImplementedError, match=match):
+        with pytest.raises(NotImplementedError, match='state_tensor_product not implemented'):
             _ = tensors.outer(A, B, relabel1={'a': 'x'}, relabel2={'h': 'y'})
         pytest.xfail()
 
@@ -1907,16 +1901,6 @@ def test_qr_lq(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     T_labels = list('efghijk')[:dom + cod]
     T: cls = make_compatible_tensor(dom, cod, cls=cls, labels=T_labels)
 
-    if (dom > 1 or cod > 1) and not T.backend.can_decompose_tensors:
-        # TODO combine_legs currently broken... when fixed, rm this clause and keep the one below
-        with pytest.raises((NotImplementedError, ValueError, IndexError)):
-            _ = tensors.qr(T, new_leg_dual=new_leg_dual)
-        pytest.xfail()
-        
-        with pytest.raises(NotImplementedError, match='split_legs not implemented'):
-            _ = tensors.qr(T, new_leg_dual=new_leg_dual)
-        pytest.xfail()
-
     Q, R = tensors.qr(T, new_leg_dual=new_leg_dual)
     Q.test_sanity()
     R.test_sanity()
@@ -2054,16 +2038,6 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     """
     T_labels = list('efghijklmn')[:dom + cod]
     T: cls = make_compatible_tensor(dom, cod, labels=T_labels, cls=cls)
-
-    if (dom > 1 or cod > 1) and not T.backend.can_decompose_tensors:
-        # TODO combine_legs currently broken... when fixed, rm this clause and keep the one below
-        with pytest.raises((NotImplementedError, ValueError, IndexError)):
-            _ = tensors.svd(T, new_labels=['a', 'b', 'c', 'd'])
-        pytest.xfail()
-        
-        with pytest.raises(NotImplementedError, match='split_legs not implemented'):
-            _ = tensors.svd(T, new_labels=['a', 'b', 'c', 'd'])
-        pytest.xfail()
 
     print('Normal (non-truncated) SVD')
 
