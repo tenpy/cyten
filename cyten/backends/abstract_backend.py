@@ -56,10 +56,10 @@ class TensorBackend(metaclass=ABCMeta):
         self.block_backend = block_backend
 
     def __repr__(self):
-        return f'{type(self).__name__}'
+        return f'{type(self).__name__}({self.block_backend!r})'
 
     def __str__(self):
-        return f'{type(self).__name__}'
+        return f'{type(self).__name__}({self.block_backend!r})'
 
     def item(self, a: SymmetricTensor | DiagonalTensor) -> float | complex:
         """Assumes that tensor is a scalar (i.e. has only one entry).
@@ -639,6 +639,12 @@ class BlockBackend(metaclass=ABCMeta):
     """Abstract base class that defines the operation on dense blocks."""
     svd_algorithms: list[str]  # first is default
     BlockCls = None  # to be set by subclass
+
+    def __repr__(self):
+        return f'{type(self).__name__}'
+
+    def __str__(self):
+        return f'{type(self).__name__}'
 
     def apply_basis_perm(self, block: Block, legs: list[Space], inv: bool = False) -> Block:
         """Apply basis_perm of a ElementarySpace (or its inverse) on every axis of a dense block"""
