@@ -2109,8 +2109,36 @@ class Mask(Tensor):
 
 
 class ChargedTensor(Tensor):
-    r"""Tensors which transform non-trivially under a symmetry.
+    r"""Tensors which are not symmetric, but carry a well defined charge.
 
+    This captures two related but slightly different concepts.
+    In both cases, the main component of a symmetric tensor is an invariant part, which
+    is a :class:`SymmetricTensor`, that has an additional hidden leg, which carries the charge.
+    See notes below.
+
+    If the symmetry is a group symmetry, a particular state (i.e. a vector) on the extra leg may be
+    specified. It is (generally) not symmetric, and thus this state is not a "tensor".
+    The composite object of invariant part and this `charged_state` then has a well-defined
+    transformation behavior under the action of the symmetry group; unlike a :class:`SymmetricTensor`,
+    which is invariant under the action, it transforms under the group representation associated
+    with the sectors of the additional leg.
+
+    Alternatively, if the symmetry has symmetric braiding (which includes all group symmetries),
+    we can leave the charged state unspecified and use the :class:`ChargedTensor` as a way to hide
+    an additional leg from algorithms.
+    We require the braiding to be symmetric, since otherwise the braiding behavior of the hidden
+    leg is ambiguous.
+
+    Parameters
+    ----------
+    invariant_part:
+        The symmetry-invariant part. the charge leg is the its ``domain.spaces[0]``.
+    charged_state: block | None
+        Either ``None``, or a backend-specific block of shape ``(charge_leg.dim,)``, which specifies
+        a state on the charge leg.
+
+    Notes
+    -----
     The non-trivial transformation is achieved by adding a "charged" extra leg.
     As discussed in :ref:`tensors_as_map`, we  can view symmetric tensors :math:`T` in a tensor
     space :math:`V_1 \otimes V_2 \otimes V_3` with ``legs == [V1, V2, V3]`` as a map
@@ -2163,15 +2191,6 @@ class ChargedTensor(Tensor):
     two-dimensional charge leg. But, for the correlation function, we do not actually need a state
     for that leg, we just need to contract it with the charge leg of the other :math:`S^x`, after
     having time-evolved :math:`S_j^x(0) \ket{\psi_0}`.
-    TODO revisit this paragraph, do we actually support doing that?
-
-    Parameters
-    ----------
-    invariant_part:
-        The symmetry-invariant part. the charge leg is the its ``domain.spaces[0]``.
-    charged_state: block | None
-        Either ``None``, or a backend-specific block of shape ``(charge_leg.dim,)``, which specifies
-        a state on the charge leg (see notes above).
     """
 
     _CHARGE_LEG_LABEL = '!'  # canonical label for the charge leg
@@ -2179,6 +2198,11 @@ class ChargedTensor(Tensor):
         assert invariant_part.domain.num_spaces > 0, 'domain must contain at least the charge leg'
         self.charge_leg = invariant_part.domain.spaces[0]
         assert invariant_part._labels[-1] == self._CHARGE_LEG_LABEL, 'incorrect label on charge leg'
+        if charged_state is None:
+            if not invariant_part.symmetry.has_symmetric_braid:
+                msg = (f'ChargedTensor is not well-defined for symmetry {invariant_part.symmetry} '
+                       f'with non-symmetric braiding.')
+                raise SymmetryError(msg)
         if charged_state is not None:
             if not invariant_part.symmetry.can_be_dropped:
                 msg = f'charged_state can not be specified for symmetry {invariant_part.symmetry}'

@@ -337,6 +337,9 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
             inv_part = make(codomain=codomain, domain=inv_domain, labels=inv_labels,
                             max_blocks=max_blocks, max_block_size=max_block_size, empty_ok=empty_ok,
                             all_blocks=all_blocks, cls=tensors.SymmetricTensor, dtype=dtype)
+            if not inv_part.symmetry.has_symmetric_braid:
+                # ChargedTensor is not defined for such symmetries
+                pytest.skip()  # TODO can we not generate this case in the first place?
             charged_state = [1] if inv_part.symmetry.can_be_dropped else None
             res = tensors.ChargedTensor(inv_part, charged_state=charged_state)
             res.test_sanity()
