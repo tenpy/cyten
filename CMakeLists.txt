@@ -62,6 +62,7 @@ target_include_directories(cyten
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 add_subdirectory(src)
+target_compile_options(cyten PUBLIC -fPIC)
 
 
 # #####################################################################
