@@ -5,5 +5,6 @@
 target_sources(cyten
   PRIVATE
   check.cpp
+  symmetries.cpp
 )
 
