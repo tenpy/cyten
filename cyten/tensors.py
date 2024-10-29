@@ -4898,114 +4898,89 @@ def transpose(tensor: Tensor) -> Tensor:
     raise TypeError
 
 
-def truncate_singular_values(S: DiagonalTensor, options: dict = {}) -> tuple[Mask, float, float]:
+def truncate_singular_values(S: DiagonalTensor, chi_max: int = None, chi_min: int = 1,
+                             degeneracy_tol: float = 0, trunc_cut: float = 0,
+                             svd_min: float = 0, mask_labels: list[str] = None
+                             ) -> tuple[Mask, float, float]:
     r"""Given *normalized* singular values, determine which to keep.
 
-    Options
-    -------
-    .. cfg:config:: truncation
+    Several constraints can be specified as keyword arguments.
+    If there are multiple choices that fulfill these constraints, the truncation with
+    the lowest resulting error is chosen, meaning roughly that as many singular values as
+    possible are kept.
 
-        chi_max : int
-            Keep at most `chi_max` singular values.
-        chi_min : int
-            Keep at least `chi_min` singular values
-        degeneracy_tol : float
-            Don't cut between neighboring singular values with
-            ``|log(S[i]/S[j])| < degeneracy_tol``, or equivalently
-            ``|S[i] - S[j]|/S[j] < exp(degeneracy_tol) - 1 ~= degeneracy_tol``
-            for small `degeneracy_tol`.
-            In other words, keep either both `i` and `j` or none, if the
-            Schmidt values are degenerate with a relative error smaller
-            than `degeneracy_tol`, which we expect to happen in the case
-            of symmetries.
-        svd_min : float
-            Discard all small singular values ``S[i] < svd_min``.
-        trunc_cut : float
-            Discard all small Schmidt values as long as
-            ``sum_{i discarded} S[i]**2 <= trunc_cut**2``.
+    TODO should we offer an option to instead keep as few as necessary?
 
     Parameters
     ----------
     S : DiagonalTensor
-        Singular values, normalized to ``S.norm() == 1``.
-    options : dict-like
-        Config with constraints for the truncation, see :cfg:config:`truncation`.
-        If a constraint can not be fulfilled (without violating a previous one), it is ignored.
-        A value ``None`` indicates that the constraint should be ignored.
+        Singular values, normalized to ``S.norm() == 1.``.
+    chi_max : int, optional
+        Keep at most this many singular values. ``None`` means no constraint.
+    chi_min : int, optional
+        Keep at least this many singular values. Comments for `chi_max` apply.
+    degeneracy_tol : float
+        Do not split (nearly) degenerate singular values.
+        We count ``S[i]`` and ``S[j]`` as nearly degenerate
+        if ``|log(S[i]/S[j])| < degeneracy_tol``, or equivalently
+        if ``|S[i] - S[j]|/S[j] < exp(degeneracy_tol) - 1 ~= degeneracy_tol``.
+        In that case, either both are kept or both are truncated.
+    trunc_cut : float
+        A *lower* bound on the incurred truncation error, meaning as long as the error remains
+        below this threshold, singular values will be truncated.
+        In particular, this means as long as ``sum_{i discarded} d[i] S[i] ** 2 <= trunc_cut ** 2``,
+        where ``d[i]`` is the quantum dimension (always one for abelian symmetries).
+    svd_min : float
+        Discard all singular values below this threshold ``S[i] < svd_min``.
+        This is intended to exclude singular values that can not be distinguished from zero at the
+        given precision. It does *not* have a direct implication on the resulting truncation error.
+        Use `trunc_cut` instead for setting a tolerable error. See notes below for details.
+    mask_labels : list of str, optional
+        The labels for the `mask`. Either a list of two string labels or ``None`` (default).
+        By default, the `mask` has labels ``[S.labels[0], dual_label(S.labels[0])]``.
 
     Returns
     -------
     mask : Mask
-        A mask, indicating which of the singular values to keep
+        A mask, indicating that ``S[mask]`` are the singular values to keep.
     err : float
-        the truncation error introduced, i.e. the norm(S_discarded) = sqrt(\sum_{i=k}^{N} S_i^2).
-        In the context of truncated SVD, this is the relative error in the 2-norm,
-        i.e. ``norm(T - T_approx) / norm(T)``.
+        The truncation error ``trunc_err == norm(S_trunc) == norm(S[mask.logical_not()])``.
+        This is the distance ``norm(S - S[mask])`` between the original singular values and the
+        *un-normalized* approximation.
     new_norm : float
-        The norm of S after truncation
+        The norm ``norm(S[mask])`` of the approximation.
+
+    Notes
+    -----
+    In the case of non-Abelian group symmetries, the quantum dimensions need to be considered when
+    truncating. Each independent "entry" :math:`S_i` in `S` is associated with a sector :math:`a`
+    of the symmetry, e.g. the spin 1 sector of an SU(2) symmetry. It represents an entire multiplet
+    (e.g. a triplet in the spin 1 case) of degenerate singular values in that charge sector, with
+    the degeneracy given by the quantum dimension :math:`d_a` of the sector. When converting to a
+    non-symmetric representation, e.g. via ``S.diagonal_to_numpy()``, that value :math:`S_i` will
+    appear :math:`d_a` times. In particular, the error that we get by truncating some of the
+    :math:`S_i` is given by :math:`\epsilon = \sum_{i discarded} d_{a_i} S_i^2`, such that the
+    quantum dimensions need to be considered when choosing which singular values to keep for an
+    optimal truncation error.
+
+    This is why the singular values are prioritized by largest :math:`d_{a_i} S_i^2`, and why
+    the quantum dimensions appear as a part 
+
+    For anyonic symmetries we lose the interpretation as a multiplet, since :math:`d_a` is in
+    general not integer, but the formula for the error holds, and the considerations for selecting
+    which singular values to keep applies just the same.
+    For abelian groups or for fermions these considerations become trivial, since all sectors are
+    one-dimensional.
     """
-    # by default, only truncate values which are much closer to zero than machine precision.
-    # This is only to avoid problems with taking the inverse of `S`.
-    chi_max = options.get('chi_max', 100)
-    chi_min = options.get('chi_min', None)
-    deg_tol = options.get('degeneracy_tol', None)
-    svd_min = options.get('svd_min', 1.e-14)
-    trunc_cut = options.get('trunc_cut', 1.e-14)
-
-    # OPTIMIZE should we do all of this logic with block-backend instead of numpy?
-    S_np = S.diagonal_as_numpy()
-
-    if trunc_cut is not None and trunc_cut >= 1.:
-        raise ValueError("trunc_cut >=1.")
-    if not np.any(S_np > 1.e-10):
-        warnings.warn("no singular value above 1.e-10", stacklevel=2)
-    if np.any(S_np < -1.e-10):
-        warnings.warn("negative singular values!", stacklevel=2)
-
-    # use 1.e-100 as replacement for <=0 values for a well-defined logarithm.
-    logS = np.log(np.choose(S_np <= 0., [S_np, 1.e-100 * np.ones(len(S_np))]))
-    piv = np.argsort(logS)  # sort *ascending*.
-    logS = logS[piv]
-    # goal: find an index 'cut' such that we keep piv[cut:], i.e. cut between `cut-1` and `cut`.
-    good = np.ones(len(piv), dtype=np.bool_)  # good[cut] = (is `cut` a good choice?)
-    # we choose the smallest 'good' cut.
-
-    if chi_max is not None:
-        # keep at most chi_max values
-        good2 = np.zeros(len(piv), dtype=np.bool_)
-        good2[-chi_max:] = True
-        good = _combine_constraints(good, good2, "chi_max")
-
-    if chi_min is not None and chi_min > 1:
-        # keep at least chi_min values
-        good2 = np.ones(len(piv), dtype=np.bool_)
-        good2[-chi_min + 1:] = False
-        good = _combine_constraints(good, good2, "chi_min")
-
-    if deg_tol:
-        # don't cut between values (cut-1, cut) with ``log(S[cut]/S[cut-1]) < deg_tol``
-        # this is equivalent to
-        # ``(S[cut] - S[cut-1])/S[cut-1] < exp(deg_tol) - 1 = deg_tol + O(deg_tol^2)``
-        good2 = np.empty(len(piv), np.bool_)
-        good2[0] = True
-        good2[1:] = np.greater_equal(logS[1:] - logS[:-1], deg_tol)
-        good = _combine_constraints(good, good2, "degeneracy_tol")
-
-    if svd_min is not None:
-        # keep only values S[i] >= svd_min
-        good2 = np.greater_equal(logS, np.log(svd_min))
-        good = _combine_constraints(good, good2, "svd_min")
-
-    if trunc_cut is not None:
-        good2 = (np.cumsum(S_np[piv]**2) > trunc_cut * trunc_cut)
-        good = _combine_constraints(good, good2, "trunc_cut")
-
-    cut = np.nonzero(good)[0][0]  # smallest possible cut: keep as many S as allowed
-    mask = np.zeros(len(S_np), dtype=np.bool_)
-    np.put(mask, piv[cut:], True)
-    new_norm = np.linalg.norm(S_np[mask])
-    err = np.linalg.norm(S_np[np.logical_not(mask)])
-    mask = Mask.from_block_mask(mask, large_leg=S.legs[0], backend=S.backend)
+    assert S.dtype.is_real
+    mask_data, new_leg, err, new_norm = S.backend.truncate_singular_values(
+        S, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol, trunc_cut=trunc_cut,
+        svd_min=svd_min
+    )
+    if mask_labels is None:
+        mask_labels = [S.labels[0], _dual_leg_label(S.labels[0])]
+    mask = Mask(mask_data, space_in=S.leg, space_out=new_leg, is_projection=True, backend=S.backend,
+                labels=mask_labels)
     return mask, err, new_norm
 
 
@@ -5014,7 +4989,11 @@ def truncated_svd(tensor: Tensor,
                   new_leg_dual: bool = False,
                   algorithm: str | None = None,
                   normalize_to: float = None,
-                  options: dict = {},
+                  chi_max: int = None,
+                  chi_min: int = 1,
+                  degeneracy_tol: float = 0,
+                  trunc_cut: float = 0,
+                  svd_min: float = 0
                   ) -> tuple[Tensor, DiagonalTensor, Tensor, float, float]:
     """Truncated version of :func:`svd`.
 
@@ -5026,8 +5005,8 @@ def truncated_svd(tensor: Tensor,
         If ``None`` (default), the resulting singular values are not renormalized,
         resulting in an approximation in terms of ``U, S, Vh`` which has smaller norm than `a`.
         If a ``float``, the singular values are scaled such that ``norm(S) == normalize_to``.
-    options : dict-like
-        Options that determine how many singular values are kept, see :cfg:config:`truncation`.
+    chi_max, chi_min, degeneracy_tol, trunc_cut, svd_min
+        Options for truncations, see documentation of :func:`truncate_singular_values`.
 
     Returns
     -------
@@ -5047,7 +5026,10 @@ def truncated_svd(tensor: Tensor,
     """
     U, S, Vh = svd(tensor, new_labels=new_labels, new_leg_dual=new_leg_dual, algorithm=algorithm)
     S_norm = norm(S)
-    mask, err, new_norm = truncate_singular_values(S / S_norm, options=options)
+    mask, err, new_norm = truncate_singular_values(
+        S / S_norm, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol,
+        trunc_cut=trunc_cut, svd_min=svd_min
+    )
     U, S, Vh = svd_apply_mask(U, S, Vh, mask)
     if normalize_to is None:
         renormalize = 1
@@ -5082,19 +5064,6 @@ def zero_like(tensor: Tensor) -> Tensor:
 
 
 T = TypeVar('T')
-
-
-def _combine_constraints(good1, good2, warn):
-    """return logical_and(good1, good2) if there remains at least one `True` entry.
-
-    Otherwise print a warning and return just `good1`.
-    """
-    assert good1.shape == good2.shape, f'{good1.shape} != {good2.shape}'
-    res = np.logical_and(good1, good2)
-    if np.any(res):
-        return res
-    warnings.warn("truncation: can't satisfy constraint for " + warn, stacklevel=3)
-    return good1
 
 
 def _combine_leg_labels(labels: list[str | None]) -> str:

@@ -10,7 +10,7 @@ from typing import TypeVar, Sequence, Set
 
 __all__ = [
     'UNSPECIFIED', 'duplicate_entries', 'to_iterable',
-    'argsort', 'inverse_permutation', 'list_to_dict_list',
+    'argsort', 'combine_constraints', 'inverse_permutation', 'list_to_dict_list',
     'find_subclass',
     'rank_data',
     'np_argsort', 'make_stride', 'find_row_differences', 'unstridify',
@@ -38,8 +38,6 @@ def to_iterable(a):
         return [a]
     else:
         return a
-
-
 
 
 # TODO remove in favor of backend.block_argsort?
@@ -95,6 +93,20 @@ def argsort(a, sort=None, **kwargs):
         else:
             raise ValueError("unknown sort option " + repr(sort))
     return np.argsort(a, **kwargs)
+
+
+def combine_constraints(good1, good2, warn):
+    """Combine constraints, given in the form of 1D numpy bool arrays.
+
+    Return ``logical_and(good1, good2)`` if there remains at least one ``True`` entry.
+    Otherwise, emit a warning and return just `good1`.
+    """
+    assert good1.shape == good2.shape, f'{good1.shape} != {good2.shape}'
+    res = np.logical_and(good1, good2)
+    if np.any(res):
+        return res
+    warnings.warn("truncation: can't satisfy constraint for " + warn, stacklevel=3)
+    return good1
 
 
 def inverse_permutation(perm):
