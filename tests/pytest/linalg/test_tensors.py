@@ -2010,27 +2010,12 @@ def test_scale_axis(cls, codom, dom, which_leg, make_compatible_tensor, np_rando
         leg = leg.dual
     D: DiagonalTensor = make_compatible_tensor([leg], cls=DiagonalTensor, labels=['x', 'y'])
 
-<<<<<<< HEAD
     if cls is Mask:
         catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
     else:
         catch_warnings = nullcontext()
 
     # 2) Call functions
-    if isinstance(T.backend, backends.FusionTreeBackend) and need_transpose:
-        with pytest.raises(NotImplementedError, match='diagonal_transpose not implemented'):
-            with catch_warnings:
-                _ = tensors.scale_axis(T, D, which_leg)
-        pytest.xfail()
-    if isinstance(T.backend, backends.FusionTreeBackend) and cls in [SymmetricTensor, ChargedTensor]:
-        with pytest.raises(NotImplementedError, match='scale_axis not implemented'):
-            with catch_warnings:
-                _ = tensors.scale_axis(T, D, which_leg)
-        pytest.xfail()
-
-=======
-    # 2) Call functions
->>>>>>> merge_from_v2
     how_to_call = np_random.choice(['by_idx', 'by_label'])
     if how_to_call == 'by_idx':
         with catch_warnings:
