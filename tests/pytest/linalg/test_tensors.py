@@ -2082,21 +2082,14 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
 
     if isinstance(T.backend, backends.FusionTreeBackend):
-        if not T.symmetry.can_be_dropped:
-            # truncation uses diagonal_as_block, which can not be done
-            with pytest.raises(SymmetryError):
-                _ = tensors.truncated_svd(T, new_leg_dual=new_leg_dual)
-            pytest.xfail()
-
-        with pytest.raises(NotImplementedError, match='mask_from_block not implemented'):
+        with pytest.raises(NotImplementedError, match='mask_dagger not implemented'):
             _ = tensors.truncated_svd(T, new_leg_dual=new_leg_dual)
         pytest.xfail()  # TODO
 
     print('Truncated SVD')
     for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:
-        options = dict(svd_min=svd_min)
         U, S, Vh, err, renormalize = tensors.truncated_svd(
-            T, new_leg_dual=new_leg_dual, normalize_to=normalize_to, options=options
+            T, new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min
         )
         U.test_sanity()
         S.test_sanity()

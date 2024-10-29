@@ -13,6 +13,7 @@ import numpy as np
 from ..symmetries import Symmetry
 from ..spaces import Space, ElementarySpace, ProductSpace
 from ..dtypes import Dtype
+from ..tools.misc import combine_constraints
 
 __all__ = ['Data', 'DiagonalData', 'MaskData', 'Block', 'TensorBackend', 'BlockBackend',
            'conventional_leg_order']
@@ -602,6 +603,108 @@ class TensorBackend(metaclass=ABCMeta):
         Note that ``new_codomain == a.domain.dual`` and ``new_domain == a.codomain.dual``.
         """
         ...
+
+    @abstractmethod
+    def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
+                                 degeneracy_tol: float, trunc_cut: float, svd_min: float
+                                 ) -> tuple[MaskData, ElementarySpace, float, float]:
+        """Implementation of :func:`cyten.tensors.truncate_singular_values`.
+
+        Returns
+        -------
+        mask_data
+            Data for the mask
+        new_leg : ElementarySpace
+            The new leg after truncation, i.e. the small leg of the mask
+        err : float
+            The truncation error ``norm(S_discard) == norm(S - S_keep)``.
+        new_norm
+            The norm ``norm(S_keep)`` of the approximation.
+        """
+        ...
+
+    def _truncate_singular_values_selection(self, S: np.ndarray, qdims: np.ndarray | None, 
+                                            chi_max: int | None, chi_min: int, 
+                                            degeneracy_tol: float, trunc_cut: float, svd_min: float
+                                            ) -> tuple[np.ndarray, float, float]:
+        """Helper function for :meth:`truncate_singular_values`.
+
+        Parameters
+        ----------
+        S_np : 1D numpy array of float
+            A numpy array of singular values S[i]
+        qdims : 1D numpy array of float
+            A numpy array of the quantum dimensions. ``None`` means all qdims are one.
+        chi_max, chi_min, degeneracy_tol, trunc_cut, svd_min
+            Constraints for truncation. See :func:`cyten.tensors.truncate_singular_values`.
+
+        Returns
+        -------
+        mask : 1D numpy array of bool
+            A boolean mask, indicating that ``S_np[mask]`` should be kept
+        err : float
+            The truncation error ``norm(S_discard) == norm(S - S_keep)``.
+        new_norm
+            The norm ``norm(S_keep)`` of the approximation.
+        """
+        # contributions ``err[i] = d[i] * S[i] ** 2`` to the error, if S[i] would be truncated.
+        if qdims is None:
+            marginal_errs = S ** 2
+        else:
+            marginal_errs = qdims * (S ** 2)
+
+        # sort *ascending* by marginal errors (smallest first, should be truncated first)
+        piv = np.argsort(marginal_errs)
+        S = S[piv]
+        # qdims = qdims[piv]  # not needed again.
+        marginal_errs = marginal_errs[piv]
+
+        # take safe logarithm, clipping small values to log(1e-100).
+        # this is only used for degeneracy tol. 
+        logS = np.log(np.choose(S <= 1.e-100, [S, 1.e-100 * np.ones(len(S))]))
+
+        # goal: find an index 'cut' such that we keep piv[cut:], i.e. cut between `cut-1` and `cut`.
+        # build an array good, where ``good[cut] = (is `cut` an allowed choice)``.
+        # we then choose the smallest good cut, i.e. we keep as many singular values as possible
+        good = np.ones(len(S), dtype=bool)
+
+        if (chi_max is not None) and (chi_max < len(S)):
+            # keep at most chi_max values
+            good2 = np.zeros(len(piv), dtype=np.bool_)
+            good2[-chi_max:] = True
+            good = combine_constraints(good, good2, "chi_max")
+
+        if (chi_min is not None) and (chi_min > 1):
+            # keep at least chi_min values
+            good2 = np.ones(len(piv), dtype=np.bool_)
+            good2[-chi_min + 1:] = False
+            good = combine_constraints(good, good2, "chi_min")
+
+        if (degeneracy_tol is not None) and (degeneracy_tol > 0):
+            # don't cut between values (cut-1, cut) with ``log(S[cut]/S[cut-1]) < deg_tol``
+            # this is equivalent to
+            # ``(S[cut] - S[cut-1])/S[cut-1] < exp(deg_tol) - 1 = deg_tol + O(deg_tol^2)``
+            good2 = np.empty(len(piv), np.bool_)
+            good2[0] = True
+            good2[1:] = np.greater_equal(logS[1:] - logS[:-1], degeneracy_tol)
+            good = combine_constraints(good, good2, "degeneracy_tol")
+
+        if (svd_min is not None):
+            # keep only values S[i] >= svd_min
+            good2 = np.greater_equal(S, svd_min)
+            good = combine_constraints(good, good2, "svd_min")
+
+        if (trunc_cut is not None):
+            good2 = (np.cumsum(marginal_errs) > trunc_cut * trunc_cut)
+            good = combine_constraints(good, good2, "trunc_cut")
+
+        cut = np.nonzero(good)[0][0]  # smallest cut for which good[cut] is True
+        err = np.sum(marginal_errs[:cut])
+        new_norm = np.sum(marginal_errs[cut:])
+        # build mask in the original order, before sorting
+        mask = np.zeros(len(S), dtype=bool)
+        np.put(mask, piv[cut:], True)
+        return mask, err, new_norm
 
     @abstractmethod
     def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype) -> Data:

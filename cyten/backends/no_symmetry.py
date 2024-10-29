@@ -428,6 +428,20 @@ class NoSymmetryBackend(TensorBackend):
         domain = a.codomain.dual
         return data, codomain, domain
 
+    def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
+                                 degeneracy_tol: float, trunc_cut: float, svd_min: float
+                                 ) -> tuple[MaskData, ElementarySpace, float, float]:
+        S_np = self.block_backend.block_to_numpy(S.data)
+        keep, err, new_norm = self._truncate_singular_values_selection(
+            S=S_np, qdims=None, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol,
+            trunc_cut=trunc_cut, svd_min=svd_min
+        )
+        mask_data = self.block_backend.block_from_numpy(keep, dtype=Dtype.bool)
+        new_leg = ElementarySpace.from_trivial_sector(
+            dim=keep.sum(), symmetry=S.symmetry, is_dual=S.leg.is_bra_space
+        )
+        return mask_data, new_leg, err, new_norm
+
     def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype):
         return self.block_backend.zero_block(shape=[l.dim for l in conventional_leg_order(codomain, domain)],
                                dtype=dtype)

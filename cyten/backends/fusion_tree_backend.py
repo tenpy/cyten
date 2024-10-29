@@ -1205,6 +1205,61 @@ class FusionTreeBackend(TensorBackend):
         # trees: https://github.com/Jutho/TensorKit.jl/blob/b026cf2c1d470c6df1788a8f742c20acca67db83/src/fusiontrees/manipulations.jl#L524
         raise NotImplementedError('transpose not implemented')  # TODO
 
+    def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
+                                 degeneracy_tol: float, trunc_cut: float, svd_min: float
+                                 ) -> tuple[MaskData, ElementarySpace, float, float]:
+        # build a numpy array of the singular values and a numpy array of the qdims
+        num_singular_values = np.sum(S.leg.multiplicities)
+        S_np = np.zeros(num_singular_values, S.dtype.to_numpy_dtype())
+        qdims = np.empty(num_singular_values, float)
+        slices = []
+        stop = 0
+        i = 0  # have already considered blocks[:i]
+        S_blocks = S.data.blocks
+        S_block_inds = S.data.block_inds
+        S_num_blocks = len(S_blocks)
+        for j, (qdim, mult) in enumerate(zip(S.leg.sector_qdims, S.leg.multiplicities)):
+            start = stop
+            stop += mult
+            slc = slice(start, stop)
+            slices.append(slc)
+            if i < S_num_blocks and S_block_inds[i, 0] == j:  # we have a block for that coupled sector
+                S_np[slc] = self.block_backend.block_to_numpy(S.data.blocks[i])
+                i += 1
+            qdims[slc] = qdim
+
+        # select which to keep
+        keep, err, new_norm = self._truncate_singular_values_selection(
+            S=S_np, qdims=qdims, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol,
+            trunc_cut=trunc_cut, svd_min=svd_min
+        )
+
+        # build the Mask
+        if S.leg._basis_perm is not None:
+            raise NotImplementedError  # TODO not sure how to deal with the basis perm here...
+        large_leg_block_inds = []
+        mask_blocks = []
+        small_leg_sectors = []
+        small_leg_multiplicities = []
+        for i, (slc, sector) in enumerate(zip(slices, S.leg.sectors)):
+            block = keep[slc]
+            if not np.any(block):
+                continue  # all False. skip this block.
+            large_leg_block_inds.append(i)
+            mask_blocks.append(self.block_backend.block_from_numpy(block))
+            small_leg_sectors.append(sector)
+            small_leg_multiplicities.append(np.sum(block))
+        #
+        mask_block_inds = np.column_stack([np.arange(len(small_leg_sectors)), large_leg_block_inds])
+        small_leg_sectors = np.array(small_leg_sectors, int)
+        small_leg_multiplicities = np.array(small_leg_multiplicities, int)
+        #
+        mask_data = FusionTreeData(mask_block_inds, mask_blocks, dtype=Dtype.bool, is_sorted=True)
+        small_leg = ElementarySpace(S.symmetry, small_leg_sectors, small_leg_multiplicities,
+                                    is_dual=S.leg.is_bra_space)
+        return mask_data, small_leg, err, new_norm
+        
+
     def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype
                   ) -> FusionTreeData:
         return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype)
