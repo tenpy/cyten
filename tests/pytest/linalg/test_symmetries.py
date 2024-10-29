@@ -109,9 +109,7 @@ def sample_sector_sextets(symmetry: symmetries.Symmetry, sectors, num_samples: i
             f = np_rng.choice(symmetry.fusion_outcomes(a, b))
             d = np_rng.choice(symmetry.fusion_outcomes(f, c))
             # need to find an f from the fusion products of b x c such that a x f -> d is allowed
-            outcomes=symmetry.fusion_outcomes(b, c)
-            np_rng.shuffle(outcomes, axis=0)
-            for e in outcomes:
+            for e in np_rng.permuted(symmetry.fusion_outcomes(b, c), axis=0):
                 if symmetry.can_fuse_to(a, e, d):
                     yield a, b, c, d, e, f
                     break
@@ -141,19 +139,15 @@ def sample_sector_nonets(symmetry: symmetries.Symmetry, sectors, num_samples: in
             e = np_rng.choice(symmetry.fusion_outcomes(g, d))
             # need to find l, k such that a x k -> e is allowed;
             # there may be choices for l such that all possible k are inconsistent
-            out_cd=symmetry.fusion_outcomes(c, d)
-            np_rng.shuffle(out_cd, axis=0)
-            for l in out_cd:
+            for l in np_rng.permuted(symmetry.fusion_outcomes(c, d), axis=0):
                 if symmetry.can_fuse_to(f, l, e):
-                    out_bl=symmetry.fusion_outcomes(b, l)
-                    np_rng.shuffle(out_bl, axis=0)
-                    for k in out_bl:
+                    for k in np_rng.permuted(symmetry.fusion_outcomes(b, l), axis=0):
                         if symmetry.can_fuse_to(a, k, e):
                             yield a, b, c, d, e, f, g, l, k
                             break
         return
 
-    # TODO do something analoguous to `sample_sector_triplets`?
+    # TODO do something analogous to `sample_sector_triplets`?
     assert accept_fewer
     yield from sample_sector_nonets(symmetry=symmetry, sectors=sectors, num_samples=len(abcd_list),
                                     np_rng=np_rng)
@@ -1093,7 +1087,7 @@ def test_ising_grading(nu, np_random):
     assert_array_equal(sym.fusion_outcomes(vac, anyon), anyon[None, :])
     assert_array_equal(sym.fusion_outcomes(vac, fermion), fermion[None, :])
     assert_array_equal(sym.fusion_outcomes(anyon, fermion), anyon[None, :])
-    assert_array_equal(np.sort(sym.fusion_outcomes(anyon, anyon), axis=0), np.stack([vac, fermion]))
+    assert_array_equal(sym.fusion_outcomes(anyon, anyon), np.stack([vac, fermion]))
 
     print('checking equality')
     assert sym == sym
