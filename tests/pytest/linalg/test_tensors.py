@@ -1666,11 +1666,10 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
             catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
     else:
         catch_warnings = nullcontext()
-    # TODO: following 3 lines from merge conflict (tenpy v2_alpha -> cyten)
-    #  if isinstance(T.backend, backends.FusionTreeBackend) and T.symmetry.braiding_style.value >= 20:
-    #      if cls is ChargedTensor:
-    #          pytest.skip('The concept of ChargedTensor is not sensical for anyonic symmetries')
-    #      levels = list(np_random.permutation(T.num_legs))
+        
+    if isinstance(T.backend, backends.FusionTreeBackend) and T.symmetry.braiding_style.value >= 20:
+        # need to specify levels for moving the leg
+        levels = list(np_random.permutation(T.num_legs))
 
     codomain_perm = [n for n in range(cod) if n != leg]
     domain_perm = [n for n in reversed(range(cod, cod + dom)) if n != leg]
@@ -1679,13 +1678,6 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
     if domain_pos is not None:
         domain_perm[domain_pos:domain_pos] = [leg]
     perm = [*codomain_perm, *reversed(domain_perm)]
-
-    is_trivial = (codomain_perm == list(range(cod))) and (domain_perm == list(reversed(range(cod, cod + dom))))
-    if isinstance(T.backend, backends.FusionTreeBackend) and not is_trivial:
-        with pytest.raises(NotImplementedError):
-            with catch_warnings:
-                _ = tensors.move_leg(T, leg, codomain_pos=codomain_pos, domain_pos=domain_pos, levels=levels)
-        pytest.xfail()
 
     with catch_warnings:
         res = tensors.move_leg(T, leg, codomain_pos=codomain_pos, domain_pos=domain_pos, levels=levels)
@@ -1890,29 +1882,6 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_comp
             catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
     else:
         catch_warnings = nullcontext()
-
-    if isinstance(T.backend, backends.FusionTreeBackend) and cls in [SymmetricTensor, ChargedTensor] and not is_trivial:
-        with pytest.raises(NotImplementedError, match='permute_legs not implemented'):
-            with catch_warnings:
-                _ = tensors.permute_legs(T, codomain, domain, levels)
-        pytest.xfail()
-    if isinstance(T.backend, backends.FusionTreeBackend) and cls is DiagonalTensor and codomain == [1]:
-        with pytest.raises(NotImplementedError, match='diagonal_transpose not implemented'):
-            with catch_warnings:
-                _ = tensors.permute_legs(T, codomain, domain, levels)
-        pytest.xfail()
-    if isinstance(T.backend, backends.FusionTreeBackend) and cls is DiagonalTensor and len(codomain) != 1:
-        with pytest.raises(NotImplementedError, match='permute_legs not implemented'):
-            with catch_warnings:
-                _ = tensors.permute_legs(T, codomain, domain, levels)
-    # TODO: following 2 lines from merge conflict (tenpy v2_alpha -> cyten)
-    #  if isinstance(T.backend, backends.FusionTreeBackend) and cls is Mask and codomain == [1]:
-    #      with pytest.raises(NotImplementedError, match='mask_transpose not implemented'):
-    #          _ = tensors.permute_legs(T, codomain, domain, levels)
-        pytest.xfail()
-    elif (isinstance(T.backend, backends.FusionTreeBackend) and cls is ChargedTensor and
-          T.symmetry.braiding_style.value >= 20):
-        pytest.skip('The concept of ChargedTensor is not sensical for anyonic symmetries')
 
     with catch_warnings:
         res = tensors.permute_legs(T, codomain, domain, levels)

@@ -1093,7 +1093,7 @@ def test_ising_grading(nu, np_random):
     assert_array_equal(sym.fusion_outcomes(vac, anyon), anyon[None, :])
     assert_array_equal(sym.fusion_outcomes(vac, fermion), fermion[None, :])
     assert_array_equal(sym.fusion_outcomes(anyon, fermion), anyon[None, :])
-    assert_array_equal(sym.fusion_outcomes(anyon, anyon), np.stack([vac, fermion]))
+    assert_array_equal(np.sort(sym.fusion_outcomes(anyon, anyon), axis=0), np.stack([vac, fermion]))
 
     print('checking equality')
     assert sym == sym
