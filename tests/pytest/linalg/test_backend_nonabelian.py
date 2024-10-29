@@ -471,6 +471,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         assert_clockwise_counterclockwise_trivial_long_range(tens, move_leg_or_permute_leg, eps, np_random)
 
 
+@pytest.mark.slow  # TODO can we speed it up?
 def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator):
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)
@@ -676,6 +677,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         assert_clockwise_counterclockwise_trivial_long_range(tens, move_leg_or_permute_leg, eps, np_random)
 
 
+@pytest.mark.slow  # TODO can we speed it up?
 def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)
@@ -905,6 +907,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         assert_clockwise_counterclockwise_trivial_long_range(tens, move_leg_or_permute_leg, eps, np_random)
 
 
+@pytest.mark.slow  # TODO can we speed it up?
 def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Generator):
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)
@@ -1085,6 +1088,7 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     assert_bending_and_scale_axis_commutation(tens, funcs, eps)
 
 
+@pytest.mark.slow  # TODO can we speed it up?
 def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator):
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)
@@ -1292,6 +1296,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     assert_bending_and_scale_axis_commutation(tens, funcs, eps)
 
 
+@pytest.mark.slow  # TODO can we speed it up?
 def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)
