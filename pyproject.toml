@@ -94,6 +94,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "FusionTree: marks tests that use the FusionTreeBackend.",
     "example: marks tests as example (deselect with '-m \"not example\"')",
+    "deselect_invalid_ChargedTensor_cases: modifies collection. See nots in conftest.py",
 ]
 log_level = "INFO"
 log_format = "%(asctime)s %(levelname)-8s %(filename)-16s%(lineno)4d: %(message)s"

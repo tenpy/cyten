@@ -17,44 +17,6 @@ from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError, u1_symmetr
 from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays
 
 
-@pytest.fixture(params=[DiagonalTensor, SymmetricTensor, Mask, ChargedTensor])
-def make_compatible_tensor_any_class(request, make_compatible_tensor, compatible_symmetry_backend):
-    def make(num=None):
-        cls = request.param
-
-        if cls is Mask and compatible_symmetry_backend == 'fusion_tree':
-            with pytest.raises(NotImplementedError, match='diagonal_to_mask not implemented'):
-                _ = make_compatible_tensor(cls=cls)
-            pytest.xfail()
-
-        if cls in [DiagonalTensor, Mask]:
-            first = make_compatible_tensor(cls=cls)
-            if num is None:
-                return first
-            more = [make_compatible_tensor(codomain=first.codomain, domain=first.domain)
-                    for _ in range(num - 1)]
-            return first, *more
-
-        first = make_compatible_tensor(codomain=2, domain=2, max_block_size=3, max_blocks=3,
-                                       cls=request.param)
-        if num is None:
-            return first
-        if cls is ChargedTensor:
-            more = []
-            for _ in range(num - 1):
-                inv_part = make_compatible_tensor(
-                    codomain=first.codomain, domain=first.invariant_part.domain,
-                    max_block_size=3, max_blocks=3, cls=SymmetricTensor,
-                    labels=first.invariant_part._labels
-                )
-                more.append(ChargedTensor(inv_part, first.charged_state))
-        else:
-            more = [make_compatible_tensor(codomain=first.codomain, domain=first.domain,
-                                           max_block_size=3, max_blocks=3, cls=cls)
-                    for _ in range(num - 1)]
-        return first, *more
-    return make
-
 
 # TENSOR CLASSES
 
@@ -440,6 +402,7 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
     _ = repr(M_zero)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases(get_cls=lambda kw: ChargedTensor)
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)],
                          ids=['1->1', '1->2', '0->3', '3->0'])
 def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatible_symmetry, leg_nums):
@@ -864,6 +827,7 @@ def test_Tensor_ascii_diagram(codomain_dims, domain_dims, labels):
     print(T.ascii_diagram)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, codomain, domain',
     [
@@ -874,7 +838,8 @@ def test_Tensor_ascii_diagram(codomain_dims, domain_dims, labels):
         pytest.param(ChargedTensor, ['vL'], ['vR', 'p'], id='Charged-vL-p-vR')
     ]
 )
-def test_Tensor_str_repr(cls, codomain, domain, make_compatible_tensor, str_max_lines=30, repr_max_lines=30):
+def test_Tensor_str_repr(cls, codomain, domain, make_compatible_tensor, str_max_lines=30,
+                         repr_max_lines=30):
     """Check if str and repr work.
 
     Automatically, we can only check if they run at all.
@@ -916,6 +881,7 @@ def test_Tensor_str_repr(cls, codomain, domain, make_compatible_tensor, str_max_
 # TENSOR FUNCTIONS
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, domain, codomain, is_dual',
     [
@@ -967,6 +933,7 @@ def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor,
     npt.assert_array_almost_equal_nulp(res_np, expect, 100)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize('cls', [DiagonalTensor, SymmetricTensor, ChargedTensor])
 def test_almost_equal(cls, make_compatible_tensor):
     T: cls = make_compatible_tensor(cls=cls)
@@ -985,6 +952,7 @@ def test_almost_equal(cls, make_compatible_tensor):
     assert not tensors.almost_equal(T, T2, rtol=1e-10, atol=1e-10)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, codomain, domain, which_leg',
     [pytest.param(SymmetricTensor, 2, 2, 1, id='Symm-2-2-codom'),
@@ -1201,6 +1169,7 @@ def test_compose(cls_A, cls_B, cod_A, shared, dom_B, make_compatible_tensor):
     npt.assert_almost_equal(res_np, expect)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, cod, dom',
     [pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
@@ -1452,6 +1421,7 @@ def test_entropy(n, make_compatible_tensor):
     npt.assert_almost_equal(ent, expect)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, cod, dom',
     [pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
@@ -1511,6 +1481,7 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
         assert_same(T[zero_idx], T_np[zero_idx])
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, cod, dom, do_dagger',
     [pytest.param(SymmetricTensor, 2, 2, True, id='Sym-2-2-True'),
@@ -1612,13 +1583,20 @@ def test_item(make_compatible_tensor, make_compatible_sectors, compatible_symmet
         _ = tensors.item(non_scalar_T)
 
 
-def test_linear_combination(make_compatible_tensor_any_class):
-    v, w = make_compatible_tensor_any_class(2)
-    assert v.domain == w.domain
-    assert v.codomain == w.codomain
+@pytest.mark.deselect_invalid_ChargedTensor_cases
+@pytest.mark.parametrize('cls', [SymmetricTensor, DiagonalTensor, Mask, ChargedTensor])
+def test_linear_combination(cls, make_compatible_tensor):
+    if cls in [SymmetricTensor, ChargedTensor]:
+        v = make_compatible_tensor(cls=cls, codomain=2, domain=2, max_block_size=3, max_blocks=3)
+    else:
+        v = make_compatible_tensor(cls=cls)
+    w = make_compatible_tensor(like=v)
 
     if not w.symmetry.can_be_dropped:
-        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+        # TODO  Need to re-design checks, cant use .to_numpy() etc
+        #       For now, just check if it runs at all
+        _ = tensors.linear_combination(42, v, 43j, w)
+        return
 
     v_np = v.to_numpy()
     w_np = w.to_numpy()
@@ -1631,6 +1609,7 @@ def test_linear_combination(make_compatible_tensor_any_class):
             _ = tensors.linear_combination(invalid_scalar, v, invalid_scalar, w)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, cod, dom, leg, codomain_pos, domain_pos, levels',
     [pytest.param(SymmetricTensor, 2, 2, 0, 1, None, None, id='Sym-a'),
@@ -1692,6 +1671,7 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
     npt.assert_allclose(res.to_numpy(), expect, atol=1.e-14)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, cod, dom',
     [pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
@@ -1719,6 +1699,9 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
     npt.assert_almost_equal(res, expect)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases(
+    get_cls=lambda kw: ChargedTensor if ChargedTensor in [kw['cls_A'], kw['cls_B']] else None
+)
 @pytest.mark.parametrize(
     'cls_A, cls_B, cA, dA, cB, dB',
     [pytest.param(SymmetricTensor, SymmetricTensor, 1, 2, 2, 1, id='Sym@Sym-1-2-2-1'),
@@ -1757,6 +1740,7 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor):
     npt.assert_almost_equal(res.to_numpy(), expect)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, codom, dom',
     [pytest.param(SymmetricTensor, ['a', 'b', 'a'], ['c', 'd'], id='Sym-aba-cd'),
@@ -1849,6 +1833,7 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
     npt.assert_almost_equal(res_np, expect)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, num_cod, num_dom, codomain, domain, levels',
     [
@@ -1934,8 +1919,13 @@ def test_qr_lq(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     assert tensors.almost_equal(Q2 @ Q2.hc, eye, allow_different_types=True)
 
 
-def test_scalar_multiply(make_compatible_tensor_any_class):
-    T = make_compatible_tensor_any_class()
+@pytest.mark.deselect_invalid_ChargedTensor_cases
+@pytest.mark.parametrize('cls', [SymmetricTensor, DiagonalTensor, Mask, ChargedTensor])
+def test_scalar_multiply(cls, make_compatible_tensor):
+    if cls in [SymmetricTensor, ChargedTensor]:
+        T = make_compatible_tensor(cls=cls, codomain=2, domain=2, max_block_size=3, max_blocks=3)
+    else:
+        T = make_compatible_tensor(cls=cls)
 
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
@@ -1954,6 +1944,7 @@ def test_scalar_multiply(make_compatible_tensor_any_class):
             _ = tensors.scalar_multiply(invalid_scalar, T)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, codom, dom, which_leg',
     [pytest.param(SymmetricTensor, 2, 2, 1, id='Sym-2-2-1'),
@@ -2101,6 +2092,11 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
         assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases(
+    get_cls=lambda kw: ChargedTensor if ChargedTensor in [kw['cls_A'], kw['cls_B']] else None
+    # the fixture only listens to ``get_cls(kwargs) is ChargedTensor``, so we need to return
+    # ChargedTensor if *either* of the two classes if ChargedTensor.
+)
 @pytest.mark.parametrize(
     'cls_A, cls_B, labels_A, labels_B, contr_A, contr_B',
     [pytest.param(SymmetricTensor, SymmetricTensor, [['a', 'b'], ['c', 'd']], [['c', 'e'], ['a', 'f']], [0, 3], [3, 0], id='Sym@Sym-4-2-4'),
@@ -2259,6 +2255,7 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
     npt.assert_almost_equal(res, expect)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, cod, dom',
     [pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),

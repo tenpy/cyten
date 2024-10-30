@@ -77,7 +77,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 from .dummy_config import printoptions
-from .symmetries import SymmetryError
+from .symmetries import SymmetryError, Symmetry
 from .spaces import Space, ElementarySpace, ProductSpace, Sector
 from .backends.backend_factory import get_backend
 from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order
@@ -2204,11 +2204,9 @@ class ChargedTensor(Tensor):
         assert invariant_part.domain.num_spaces > 0, 'domain must contain at least the charge leg'
         self.charge_leg = invariant_part.domain.spaces[0]
         assert invariant_part._labels[-1] == self._CHARGE_LEG_LABEL, 'incorrect label on charge leg'
-        if charged_state is None:
-            if not invariant_part.symmetry.has_symmetric_braid:
-                msg = (f'ChargedTensor is not well-defined for symmetry {invariant_part.symmetry} '
-                       f'with non-symmetric braiding.')
-                raise SymmetryError(msg)
+        if not self.supports_symmetry(invariant_part.symmetry):
+            msg = f'ChargedTensor is not well-defined for symmetry {invariant_part.symmetry}.'
+            raise SymmetryError(msg)
         if charged_state is not None:
             if not invariant_part.symmetry.can_be_dropped:
                 msg = f'charged_state can not be specified for symmetry {invariant_part.symmetry}'
@@ -2430,6 +2428,11 @@ class ChargedTensor(Tensor):
         inv_part = SymmetricTensor.from_zero(codomain=codomain, domain=inv_domain, backend=backend,
                                              labels=inv_labels, dtype=dtype)
         return ChargedTensor(inv_part, charged_state)
+
+    @classmethod
+    def supports_symmetry(cls, symmetry: Symmetry) -> bool:
+        """If the :class:`ChargedTensor` concept is well defined for the `symmetry`."""
+        return symmetry.has_symmetric_braid
 
     def as_SymmetricTensor(self) -> SymmetricTensor:
         """Convert to symmetric tensor, if possible."""

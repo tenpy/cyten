@@ -4,7 +4,7 @@
 import numpy as np
 import numpy.testing as npt
 import itertools as it
-from cyten import tools
+from cyten import tools, sparse
 import warnings
 import pytest
 import os.path
@@ -79,14 +79,33 @@ def test_speigs():
 
 
 def test_find_subclass():
-    pytest.skip()
-    BaseCls = tenpy.models.lattice.Lattice
-    SimpleLattice = tenpy.models.lattice.SimpleLattice  # direct sublcass of Lattice
-    Square = tenpy.models.lattice.Square  # sublcass of SimpleLattice -> recursion necessary
 
+    # artificial case
+
+    class Foo:
+        pass
+
+
+    class Bar(Foo):
+        pass
+
+
+    class Buzz(Bar):
+        pass
+    
     with pytest.raises(ValueError):
-        tools.misc.find_subclass(BaseCls, 'UnknownSubclass')
-    simple_found = tools.misc.find_subclass(BaseCls, 'SimpleLattice')
-    assert simple_found is SimpleLattice
-    square_found = tools.misc.find_subclass(BaseCls, 'Square')
-    assert square_found is Square
+        tools.misc.find_subclass(Foo, 'UnknownSubclass')
+    child = tools.misc.find_subclass(Foo, 'Bar')
+    assert child is Bar
+    grandchild = tools.misc.find_subclass(Foo, 'Buzz')
+    assert grandchild is Buzz
+
+    # random case from library
+    with pytest.raises(ValueError):
+        tools.misc.find_subclass(sparse.LinearOperator, 'UnknownSubclass')
+    child = tools.misc.find_subclass(sparse.LinearOperator, 'LinearOperatorWrapper')
+    assert child is sparse.LinearOperatorWrapper
+    grandchild = tools.misc.find_subclass(sparse.LinearOperator, 'SumLinearOperator')
+    assert grandchild is sparse.SumLinearOperator
+
+    

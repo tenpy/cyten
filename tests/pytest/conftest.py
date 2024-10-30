@@ -1,6 +1,7 @@
 """Provide test configuration for backends etc.
 
-TODO format this summary of fixtures:
+Fixtures
+--------
 
 The following table summarizes the available fixtures.
 There are three groups; miscellaneous independent fixtures, unconstrained fixtures
@@ -92,6 +93,10 @@ The function returned by the fixture ``make_compatible_tensor`` has the followin
     dtype: Dtype
         The dtype for the tensor.
     *
+    like: Tensor, optional
+        If given, the codomain, domain, labels, dtype and cls are taken to be the
+        same as for `like` and th explicit arguments are ignored.
+        For ChargedTensors, the same charge leg and state are initialized.
     max_blocks: int (default 5)
         The maximum number of blocks for the resulting tensor
     max_block_size: int (default 5)
@@ -103,6 +108,30 @@ The function returned by the fixture ``make_compatible_tensor`` has the followin
     cls: Tensor subtype
         The type of tensor to create: SymmetricTensor, DiagonalTensor, Mask or ChargedTensor
 
+
+Marks
+-----
+
+Deselecting invalid ChargedTensor cases
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+There is a custom mark ``deselect_invalid_ChargedTensor_cases``.
+It can be used as a decorator ``@pytest.mark.deselect_invalid_ChargedTensor_cases`` for test cases.
+The intended use case is in a situation where a test is parametrized over multiple symmetries and
+over multiple tensor types.
+Some symmetries will then be incompatible with the ``ChargedTensor`` type.
+Those cases should be deselected.
+
+The decorator takes two optional keyword arguments.
+``@pytest.mark.deselect_invalid_ChargedTensor_cases(get_cls: callable, get_sym: callable)``.
+Both are functions, and during setup of pytest they are called as e.g. ``get_cls(kwargs)``
+where kwargs are the explicit keyword arguments (e.g. parametrize keyword) of the testfunction.
+They should return the tensor type, e.g. ``ChargedTensor`` and the symmetry instance respectively.
+The default values are ``get_cls = lambda kw: kw['cls']``
+and ``get_sym = lambda kw: kw['_compatible_backend_symm_pairs'][1]``.
+As such, the default decorator with no arguments works in the most common design pattern for tests,
+where the symmetry is determined by the fixtures (e.g. because ``make_compatible_tensor`` is used)
+and the tensor cls comes from a parametrize with argname ``cls``.
+
 """
 # Copyright (C) TeNPy Developers, GNU GPLv3
 from __future__ import annotations
@@ -110,6 +139,27 @@ import numpy as np
 import pytest
 
 from cyten import backends, spaces, symmetries, tensors, Dtype
+
+# OVERRIDE pytest routines
+def pytest_collection_modifyitems(config, items):
+
+    # deselection logic:
+    removed = []
+    kept = []
+    for item in items:
+        m = item.get_closest_marker('deselect_invalid_ChargedTensor_cases')
+        if m:
+            get_cls = m.kwargs.get('get_cls', lambda kw: kw['cls'])
+            get_sym = m.kwargs.get('get_sym', lambda kw: kw['_compatible_backend_symm_pairs'][1])
+            cls = get_cls(item.callspec.params)
+            sym = get_sym(item.callspec.params)
+            if cls is tensors.ChargedTensor and not tensors.ChargedTensor.supports_symmetry(sym):
+                removed.append(item)
+                continue
+        kept.append(item)
+    if removed:
+        config.hook.pytest_deselected(items=removed)
+        items[:] = kept
 
 
 # QUICK CONFIGURATION
@@ -254,8 +304,20 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
              domain: list[spaces.Space | str | None] | spaces.ProductSpace | int = None,
              labels: list[str | None] = None, dtype: Dtype = None,
              *,
-             max_blocks=5, max_block_size=5, empty_ok=False, all_blocks=False,
-             cls=tensors.SymmetricTensor):
+             like: tensors.Tensor = None, max_blocks=5, max_block_size=5, empty_ok=False,
+             all_blocks=False, cls=tensors.SymmetricTensor):
+        if like is not None:
+            assert like.backend is compatible_backend
+            assert like.symmetry is compatible_symmetry
+            if isinstance(like, tensors.ChargedTensor):
+                return tensors.ChargedTensor(make(like=like.invariant_part), like.charged_state)
+            elif isinstance(like, tensors.Tensor):
+                return make(codomain=like.codomain, domain=like.domain, labels=like.labels,
+                            dtype=like.dtype, max_blocks=max_blocks, max_block_size=max_block_size,
+                            cls=type(like))
+            else:
+                raise TypeError(f'like must be a Tensor. Got {type(like)}')
+        
         if isinstance(codomain, list):
             codomain = codomain[:]  # we do inplace operations below.
         if isinstance(domain, list):
@@ -337,9 +399,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
             inv_part = make(codomain=codomain, domain=inv_domain, labels=inv_labels,
                             max_blocks=max_blocks, max_block_size=max_block_size, empty_ok=empty_ok,
                             all_blocks=all_blocks, cls=tensors.SymmetricTensor, dtype=dtype)
-            if not inv_part.symmetry.has_symmetric_braid:
-                # ChargedTensor is not defined for such symmetries
-                pytest.skip()  # TODO can we not generate this case in the first place?
+
             charged_state = [1] if inv_part.symmetry.can_be_dropped else None
             res = tensors.ChargedTensor(inv_part, charged_state=charged_state)
             res.test_sanity()
