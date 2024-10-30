@@ -12,6 +12,13 @@ from cyten.dtypes import _numpy_dtype_to_cyten
 default_rng = np.random.default_rng()
 
 
+def shuffled(x, axis=0, np_rng=default_rng):
+    """Like ``np.random.Generator.shuffle``, but returns a shuffled copy instead of acting in-place."""
+    x = np.copy(x)
+    np_rng.shuffle(x, axis=axis)
+    return x
+
+
 def sampled_zip(sequence, num_copies: int, num_samples: int, np_rng=default_rng, accept_fewer=True):
     """Generate a given number of random samples from the zip of multiple sequences"""
     len_sequence = len(sequence)
@@ -109,7 +116,7 @@ def sample_sector_sextets(symmetry: symmetries.Symmetry, sectors, num_samples: i
             f = np_rng.choice(symmetry.fusion_outcomes(a, b))
             d = np_rng.choice(symmetry.fusion_outcomes(f, c))
             # need to find an f from the fusion products of b x c such that a x f -> d is allowed
-            for e in np_rng.permuted(symmetry.fusion_outcomes(b, c), axis=0):
+            for e in shuffled(symmetry.fusion_outcomes(b, c), axis=0, np_rng=np_rng):
                 if symmetry.can_fuse_to(a, e, d):
                     yield a, b, c, d, e, f
                     break
@@ -139,9 +146,9 @@ def sample_sector_nonets(symmetry: symmetries.Symmetry, sectors, num_samples: in
             e = np_rng.choice(symmetry.fusion_outcomes(g, d))
             # need to find l, k such that a x k -> e is allowed;
             # there may be choices for l such that all possible k are inconsistent
-            for l in np_rng.permuted(symmetry.fusion_outcomes(c, d), axis=0):
+            for l in shuffled(symmetry.fusion_outcomes(c, d), axis=0, np_rng=np_rng):
                 if symmetry.can_fuse_to(f, l, e):
-                    for k in np_rng.permuted(symmetry.fusion_outcomes(b, l), axis=0):
+                    for k in shuffled(symmetry.fusion_outcomes(b, l), axis=0, np_rng=np_rng):
                         if symmetry.can_fuse_to(a, k, e):
                             yield a, b, c, d, e, f, g, l, k
                             break
@@ -169,7 +176,7 @@ def sample_sector_unitarity_test(symmetry: symmetries.Symmetry, sectors_low_qdim
             e = np_rng.choice(symmetry.fusion_outcomes(b, c))
             d = np_rng.choice(symmetry.fusion_outcomes(a, e))
             # need to find an g from the fusion products of b x c such that a x g -> d is allowed
-            for g in np_rng.permuted(symmetry.fusion_outcomes(b, c), axis=0):
+            for g in shuffled(symmetry.fusion_outcomes(b, c), axis=0, np_rng=np_rng):
                 if symmetry.can_fuse_to(a, g, d):
                     yield a, b, c, d, e, g
                     break
