@@ -3780,8 +3780,8 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
             inv_part = linear_combination(a, v.invariant_part, b, w.invariant_part)
             return ChargedTensor(inv_part, None)
         if v.charge_leg.dim == 1:
-            factor = v.backend.block_backend.block_item(v.charged_state) \
-                / v.backend.block_backend.block_item(w.charged_state)
+            factor = v.backend.block_backend.block_item(w.charged_state) \
+                / v.backend.block_backend.block_item(v.charged_state)
             inv_part = linear_combination(a, v.invariant_part, factor * b, w.invariant_part)
             return ChargedTensor(inv_part, v.charged_state)
         raise NotImplementedError
