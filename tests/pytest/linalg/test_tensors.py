@@ -25,7 +25,7 @@ def make_compatible_tensor_any_class(request, make_compatible_tensor, compatible
         if cls is Mask and compatible_symmetry_backend == 'fusion_tree':
             with pytest.raises(NotImplementedError, match='diagonal_to_mask not implemented'):
                 _ = make_compatible_tensor(cls=cls)
-            pytest.skip()
+            pytest.xfail()
 
         if cls in [DiagonalTensor, Mask]:
             first = make_compatible_tensor(cls=cls)
@@ -172,7 +172,7 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
     assert T.num_domain_legs == leg_nums[1]
 
     if not T.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     print('checking to_numpy')
     numpy_block = T.to_numpy()
@@ -261,7 +261,7 @@ def test_DiagonalTensor(make_compatible_tensor):
     T.test_sanity()
 
     if not T.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     print('checking diagonal_as_numpy')
     np_diag = T.diagonal_as_numpy()
@@ -451,7 +451,7 @@ def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatib
     assert T.num_domain_legs == leg_nums[1]
 
     if not T.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     print('checking to_numpy')
     numpy_block = T.to_numpy()
@@ -933,7 +933,7 @@ def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor,
     tens: cls = make_compatible_tensor(domain, codomain, cls=cls)
 
     if not tens.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     if cls in [DiagonalTensor, Mask]:
         catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
@@ -969,12 +969,17 @@ def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor,
 
 @pytest.mark.parametrize('cls', [DiagonalTensor, SymmetricTensor, ChargedTensor])
 def test_almost_equal(cls, make_compatible_tensor):
-    if cls is ChargedTensor:
-        # TODO
-        pytest.skip('Need to generate T_diff to have the same dummy leg!')
-
     T: cls = make_compatible_tensor(cls=cls)
-    T_diff: cls = make_compatible_tensor(domain=T.domain, codomain=T.codomain, cls=cls)
+
+    if cls is ChargedTensor:
+        T_diff_inv = make_compatible_tensor(
+            domain=T.invariant_part.domain, codomain=T.invariant_part.codomain, cls=SymmetricTensor,
+            labels=T.invariant_part.labels
+        )
+        T_diff = ChargedTensor(T_diff_inv, T.charged_state)
+    else:
+        T_diff: cls = make_compatible_tensor(domain=T.domain, codomain=T.codomain, cls=cls)
+        
     T2 = T + 1e-7 * T_diff
     assert tensors.almost_equal(T, T2, rtol=1e-5, atol=1e-5)
     assert not tensors.almost_equal(T, T2, rtol=1e-10, atol=1e-10)
@@ -1017,7 +1022,7 @@ def test_apply_mask(cls, codomain, domain, which_leg, make_compatible_tensor):
     assert res.labels == T.labels
 
     if not T.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     T_np = T.to_numpy()
     mask_np = M.as_numpy_mask()
@@ -1053,7 +1058,7 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
     assert res.legs == tensor.legs
 
     if not tensor.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     tensor_np = tensor.to_numpy()
     npt.assert_array_almost_equal_nulp(res.to_numpy(), tensor_np, 100)
@@ -1172,7 +1177,7 @@ def test_compose(cls_A, cls_B, cod_A, shared, dom_B, make_compatible_tensor):
     res = tensors.compose(A, B, relabel1={'a': 'x'}, relabel2={'m': 'y'})
 
     if not A.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     if cod_A == 0 == dom_B:  # scalar result
         assert isinstance(res, (float, complex))
@@ -1213,10 +1218,6 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
     T_labels = list('abcdefghi')[:cod + dom]
     T: cls = make_compatible_tensor(cod, dom, cls=cls, labels=T_labels)
 
-    if (isinstance(T.backend, backends.FusionTreeBackend) and cls is ChargedTensor and
-        T.symmetry.braiding_style.value >= 20):
-        pytest.skip('The concept of ChargedTensor is not sensical for anyonic symmetries')
-
     how_to_call = np_random.choice(['dagger()', '.hc', '.dagger'])
     print(how_to_call)
     if how_to_call == 'dagger()':
@@ -1232,7 +1233,7 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
     assert res.labels == [f'{l}*' for l in reversed(T_labels)]
 
     if not T.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     expect = np.conj(np.transpose(T.to_numpy(), list(reversed(range(cod + dom)))))
     npt.assert_almost_equal(res.to_numpy(), expect)
@@ -1277,7 +1278,7 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
     res.test_sanity()
 
     if not D.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     res_np = res.diagonal_as_numpy()
     expect = numpy_func(D.diagonal_as_numpy())
@@ -1307,7 +1308,7 @@ def test_DiagonalTensor_elementwise_binary(cls, op, dtype, make_compatible_tenso
         scalar = np_random.uniform() + 1.j * np_random.uniform()
 
     if not t1.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     t1_np = t1.diagonal_as_numpy()
     t2_np = t2.diagonal_as_numpy()
@@ -1418,7 +1419,7 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
     assert res.labels == T.labels
 
     if not T.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     T_np = T.to_numpy()
     mask_np = M.as_numpy_mask()
@@ -1438,7 +1439,7 @@ def test_entropy(n, make_compatible_tensor):
     p = D ** 2
 
     if not D.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     # make sure we have created a valid probability distribution
     D_np = D.diagonal_as_numpy()
@@ -1533,9 +1534,6 @@ def test_inner(cls, cod, dom, do_dagger, make_compatible_tensor):
     else:
         B: cls = make_compatible_tensor(codomain=A.domain, domain=A.codomain, cls=cls)
 
-    if (isinstance(A.backend, backends.FusionTreeBackend) and cls is ChargedTensor and
-        A.symmetry.braiding_style.value >= 20):
-        pytest.skip('The concept of ChargedTensor is not sensical for anyonic symmetries')
     if cls is Mask:
         with pytest.raises(NotImplementedError, match='tensors._compose_with_Mask not implemented for Mask'):
             _ = tensors.inner(A, B, do_dagger=do_dagger)
@@ -1551,7 +1549,7 @@ def test_inner(cls, cod, dom, do_dagger, make_compatible_tensor):
     assert isinstance(res, (float, complex))
 
     if not A.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     if do_dagger:
         expect = np.sum(np.conj(A.to_numpy()) * B.to_numpy())
@@ -1603,7 +1601,7 @@ def test_item(make_compatible_tensor, make_compatible_sectors, compatible_symmet
     res = tensors.item(T)
 
     if not T.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     expect = T.to_numpy().item()
     npt.assert_almost_equal(res, expect)
@@ -1620,7 +1618,7 @@ def test_linear_combination(make_compatible_tensor_any_class):
     assert v.codomain == w.codomain
 
     if not w.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     v_np = v.to_numpy()
     w_np = w.to_numpy()
@@ -1688,7 +1686,7 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
     assert res.num_codomain_legs == cod + int(codomain_pos is not None) - int(leg < cod)
 
     if not T.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     expect = T.to_numpy().transpose(perm)
     npt.assert_allclose(res.to_numpy(), expect, atol=1.e-14)
@@ -1715,7 +1713,7 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
     res = tensors.norm(T)
 
     if not T.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     expect = np.linalg.norm(T.to_numpy())
     npt.assert_almost_equal(res, expect)
@@ -1827,7 +1825,7 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
     #
     # 3) Test the result
     if not T.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
     #
     num_open = T.num_legs - 2 * len(pairs)
     if num_open == 0:
@@ -1902,7 +1900,7 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_comp
     else:
         # should we do a test like braiding two legs around each other with a single
         # anyonic sector and checking if the result is equal up to the expected phase?
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
 
 @pytest.mark.parametrize(
@@ -1940,7 +1938,7 @@ def test_scalar_multiply(make_compatible_tensor_any_class):
     T = make_compatible_tensor_any_class()
 
     if not T.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
     if isinstance(T, Mask):
         catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
     else:
@@ -2001,7 +1999,7 @@ def test_scale_axis(cls, codom, dom, which_leg, make_compatible_tensor, np_rando
     assert res.labels == T_labels
 
     if not T.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     # 4) compare to numpy
     expect = np.swapaxes(T.to_numpy(), which_leg, -1)  # swap axis to be scaled to the back
@@ -2035,7 +2033,7 @@ def test_squeeze_legs(make_compatible_tensor, compatible_symmetry):
         npt.assert_allclose(res_1.to_numpy(), expect_1)
         npt.assert_allclose(res_2.to_numpy(), expect_2)
     else:
-        pytest.skip('Need to design different checks')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
 
 @pytest.mark.parametrize(
@@ -2154,10 +2152,6 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
         labels=[*labels_B[0], *reversed(labels_B[1])], max_block_size=2, max_blocks=3, cls=cls_B
     )
 
-    if (isinstance(A.backend, backends.FusionTreeBackend) and (cls_A is ChargedTensor or cls_B is ChargedTensor) and
-        A.symmetry.braiding_style.value >= 20):
-        pytest.skip('The concept of ChargedTensor is not sensical for anyonic symmetries')
-
     num_contr = len(contr_A)
     num_open_A = A.num_legs - num_contr
     num_open_B = B.num_legs - num_contr
@@ -2215,7 +2209,7 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
         assert res.labels == expect_labels
 
     if not A.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO
 
     # compare with dense tensordot
     A_np = A.to_numpy()
@@ -2257,7 +2251,7 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
     assert isinstance(res, (float, complex))
 
     if not tensor.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     expect = tensor.to_numpy()
     while expect.ndim > 0:
@@ -2300,7 +2294,7 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     assert res.labels == [*labels[cod:], *labels[:cod]]
 
     if not tensor.symmetry.can_be_dropped:
-        pytest.skip('Need to re-design checks, cant use .to_numpy() etc')  # TODO
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     expect = np.transpose(tensor.to_numpy(), [*range(cod, cod + dom), *range(cod)])
     npt.assert_almost_equal(res.to_numpy(), expect)
