@@ -1590,11 +1590,19 @@ def test_linear_combination(cls, make_compatible_tensor):
         v = make_compatible_tensor(cls=cls, codomain=2, domain=2, max_block_size=3, max_blocks=3)
     else:
         v = make_compatible_tensor(cls=cls)
+        if cls is Mask:
+            # TODO basis_perm may not be handled correctly...
+            small_leg = ElementarySpace(v.symmetry, v.small_leg.sectors, v.small_leg.multiplicities,
+                                        v.small_leg.is_dual, basis_perm=None)
+            large_leg = ElementarySpace(v.symmetry, v.large_leg.sectors, v.large_leg.multiplicities,
+                                        v.large_leg.is_dual, basis_perm=None)
+            v = make_compatible_tensor(cls=cls, codomain=[large_leg], domain=[small_leg])
     w = make_compatible_tensor(like=v)
 
     if not w.symmetry.can_be_dropped:
         # TODO  Need to re-design checks, cant use .to_numpy() etc
-        #       For now, just check if it runs at all
+        #       For now, just check if it runs at all.
+        #       Could e.g. check versus inner product, if <x| av + bw> = a <x|v> + b <x|w>
         _ = tensors.linear_combination(42, v, 43j, w)
         return
 
