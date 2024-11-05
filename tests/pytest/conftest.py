@@ -124,7 +124,7 @@ Those cases should be deselected.
 The decorator takes two optional keyword arguments.
 ``@pytest.mark.deselect_invalid_ChargedTensor_cases(get_cls: callable, get_sym: callable)``.
 Both are functions, and during setup of pytest they are called as e.g. ``get_cls(kwargs)``
-where kwargs are the explicit keyword arguments (e.g. parametrize keyword) of the testfunction.
+where kwargs are the explicit keyword arguments (e.g. parametrize keyword) of the test function.
 They should return the tensor type, e.g. ``ChargedTensor`` and the symmetry instance respectively.
 The default values are ``get_cls = lambda kw: kw['cls']``
 and ``get_sym = lambda kw: kw['_compatible_backend_symm_pairs'][1]``.

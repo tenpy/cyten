@@ -1725,7 +1725,7 @@ class Mask(Tensor):
         Can either give two lists, one for the codomain, one for the domain.
         Or a single flat list for all legs in the order of the :attr:`legs`,
         such that ``[codomain_labels, domain_labels]`` is equivalent
-        to ``[*codomain_legs, *reversed(domain_legs)]``.
+        to ``[*codomain_labels, *reversed(domain_labels)]``.
     """
     _forbidden_dtypes = [Dtype.float32, Dtype.float64, Dtype.complex64, Dtype.complex128]
 
