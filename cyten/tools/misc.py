@@ -40,6 +40,13 @@ def to_iterable(a):
         return a
 
 
+def as_immutable_array(a, dtype=None):
+    """Like :func:`numpy.asarray`, but also makes the resulting array immutable."""
+    a = np.asarray(a, dtype=dtype)
+    a.setflags(write=False)
+    return a
+
+
 # TODO remove in favor of backend.block_argsort?
 def argsort(a, sort=None, **kwargs):
     """wrapper around np.argsort to allow sorting ascending/descending and by magnitude.
