@@ -12,6 +12,8 @@ import numpy as np
 import math
 
 from .dtypes import Dtype
+from .tools.misc import as_immutable_array
+
 
 __all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingStyle',
            # symmetry base-classes
@@ -172,12 +174,12 @@ class Symmetry(metaclass=ABCMeta):
                  group_name: str, num_sectors: int | float, descriptive_name: str | None = None):
         self.fusion_style = fusion_style
         self.braiding_style = braiding_style
-        self.trivial_sector = trivial_sector
+        self.trivial_sector = as_immutable_array(trivial_sector)
         self.group_name = group_name
         self.num_sectors = num_sectors
         self.descriptive_name = descriptive_name
         self.sector_ind_len = sector_ind_len = len(trivial_sector)
-        self.empty_sector_array = np.zeros((0, sector_ind_len), dtype=int)
+        self.empty_sector_array = as_immutable_array(np.zeros((0, sector_ind_len), dtype=int))
         self.is_abelian = (fusion_style == FusionStyle.single)
 
     # ABSTRACT METHODS
@@ -1036,11 +1038,11 @@ class AbelianGroup(GroupSymmetry, metaclass=_ABCFactorSymmetryMeta):
     fusion_tensor_dtype = Dtype.float64
 
     # TODO should we just have this in the module?
-    _one_1D = np.ones((1), dtype=int)
-    _one_2D = np.ones((1, 1), dtype=int)
-    _one_2D_float = np.ones((1, 1), dtype=float)
-    _one_4D = np.ones((1, 1, 1, 1), dtype=int)
-    _one_4D_float = np.ones((1, 1, 1, 1), dtype=float)
+    _one_1D = as_immutable_array(np.ones((1), dtype=int))
+    _one_2D = as_immutable_array(np.ones((1, 1), dtype=int))
+    _one_2D_float = as_immutable_array(np.ones((1, 1), dtype=float))
+    _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
+    _one_4D_float = as_immutable_array(np.ones((1, 1, 1, 1), dtype=float))
 
     def __init__(self, trivial_sector: Sector, group_name: str, num_sectors: int | float,
                  descriptive_name: str | None = None):
@@ -1885,10 +1887,10 @@ class FermionParity(Symmetry):
     The parity is the number of fermions in a given state modulo 2.
     """
     fusion_tensor_dtype = Dtype.float64
-    _one_2D = np.ones((1, 1), dtype=int)
-    _one_2D_float = np.ones((1, 1), dtype=float)
-    _one_4D = np.ones((1, 1, 1, 1), dtype=int)
-    _one_4D_float = np.ones((1, 1, 1, 1), dtype=float)
+    _one_2D = as_immutable_array(np.ones((1, 1), dtype=int))
+    _one_2D_float = as_immutable_array(np.ones((1, 1), dtype=float))
+    _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
+    _one_4D_float = as_immutable_array(np.ones((1, 1, 1, 1), dtype=float))
 
     def __init__(self):
         Symmetry.__init__(self, fusion_style=FusionStyle.single, braiding_style=BraidingStyle.fermionic,
@@ -1989,8 +1991,8 @@ class ZNAnyonCategory(Symmetry):
 
     The anyon category corresponding to opposite handedness is obtained for `N` and `N-n` (or `-n`).
     """
-    _one_1D = np.ones((1,), dtype=int)
-    _one_4D = np.ones((1, 1, 1, 1), dtype=int)
+    _one_1D = as_immutable_array(np.ones((1,), dtype=int))
+    _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
     def __init__(self, N: int, n: int):
         assert type(N) == int
@@ -2081,8 +2083,8 @@ class ZNAnyonCategory2(Symmetry):
 
     The anyon category corresponding to opposite handedness is obtained for `N` and `N-n` (or `-n`).
     """
-    _one_1D = np.ones((1,), dtype=int)
-    _one_4D = np.ones((1, 1, 1, 1), dtype=int)
+    _one_1D = as_immutable_array(np.ones((1,), dtype=int))
+    _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
     def __init__(self, N: int, n: int):
         assert type(N) == int
@@ -2167,8 +2169,8 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
 
     This is not a simple product for two `ZNAnyonCategory`s; there are nontrivial R-symbols.
     """
-    _one_2D = np.ones((1, 1), dtype=int)
-    _one_4D = np.ones((1, 1, 1, 1), dtype=int)
+    _one_2D = as_immutable_array(np.ones((1, 1), dtype=int))
+    _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
     def __init__(self, N: int):
         assert type(N) == int
@@ -2255,15 +2257,17 @@ class FibonacciAnyonCategory(Symmetry):
         e.g., the anyons realized in the Levin-Wen string-net models.
     """
     _fusion_map = {  # key: number of tau in fusion input
-        0: np.array([[0]]),  # 1 x 1 = 1
-        1: np.array([[1]]),  # 1 x t = t = t x 1
-        2: np.array([[0], [1]]),  # t x t = 1 + t
+        0: as_immutable_array(np.array([[0]])),  # 1 x 1 = 1
+        1: as_immutable_array(np.array([[1]])),  # 1 x t = t = t x 1
+        2: as_immutable_array(np.array([[0], [1]])),  # t x t = 1 + t
     }
     _phi = .5 * (1 + np.sqrt(5))  # the golden ratio
-    _f = np.expand_dims([_phi**-1, _phi**-0.5, -_phi**-1], axis=(1,2,3,4))  # nontrivial F-symbols
-    _r = np.expand_dims([np.exp(-4j*np.pi/5), np.exp(3j*np.pi/5)], axis=1)  # nontrivial R-symbols
-    _one_1D = np.ones((1,), dtype=int)
-    _one_4D = np.ones((1, 1, 1, 1), dtype=int)
+    # nontrivial F-symbols
+    _f = as_immutable_array(np.expand_dims([_phi**-1, _phi**-0.5, -_phi**-1], axis=(1,2,3,4)))
+    # nontrivial R-symbols
+    _r = as_immutable_array(np.expand_dims([np.exp(-4j*np.pi/5), np.exp(3j*np.pi/5)], axis=1))
+    _one_1D = as_immutable_array(np.ones((1,), dtype=int))
+    _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
     def __init__(self, handedness = 'left'):
         assert handedness in ['left', 'right']
@@ -2353,24 +2357,30 @@ class IsingAnyonCategory(Symmetry):
         The Ising anyon model of opposite handedness is obtained for `-nu`.
     """
     _fusion_map = {  # 1: vacuum, σ: Ising anyon, ψ: fermion
-        0: np.array([[0]]),  # 1 x 1 = 1
-        1: np.array([[1]]),  # 1 x σ = σ = σ x 1
-        2: np.array([[0], [2]]),  # σ x σ = 1 + ψ
-        4: np.array([[2]]),  # 1 x ψ = ψ = 1 x ψ
-        5: np.array([[1]]),  # σ x ψ = σ = σ x ψ
-        8: np.array([[0]])  # ψ x ψ = 1
+        0: as_immutable_array(np.array([[0]])),  # 1 x 1 = 1
+        1: as_immutable_array(np.array([[1]])),  # 1 x σ = σ = σ x 1
+        2: as_immutable_array(np.array([[0], [2]])),  # σ x σ = 1 + ψ
+        4: as_immutable_array(np.array([[2]])),  # 1 x ψ = ψ = 1 x ψ
+        5: as_immutable_array(np.array([[1]])),  # σ x ψ = σ = σ x ψ
+        8: as_immutable_array(np.array([[0]])),  # ψ x ψ = 1
     }
-    _one_1D = np.ones((1,), dtype=int)
-    _one_4D = np.ones((1, 1, 1, 1), dtype=int)
+    _one_1D = as_immutable_array(np.ones((1,), dtype=int))
+    _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
     def __init__(self, nu: int = 1):
         assert nu % 2 == 1
         self.nu = nu % 16
-        self.frobenius = [1, int((-1)**((self.nu**2-1)/8)), 1]
-        self._f = (np.expand_dims([1, 0, 1, 0, -1], axis=(1,2,3,4))
-                            * self.frobenius[1] / np.sqrt(2))  # nontrivial F-symbols
-        self._r = np.expand_dims([(-1j)**self.nu, -1, np.exp(3j*self.nu*np.pi/8) * self.frobenius[1],
-                    np.exp(-1j*self.nu*np.pi/8) * self.frobenius[1], 0], axis=1)  # nontrivial R-symbols
+        self.frobenius = as_immutable_array([1, int((-1)**((self.nu**2-1)/8)), 1])
+        # nontrivial F-symbols
+        self._f = as_immutable_array(
+            np.expand_dims([1, 0, 1, 0, -1], axis=(1,2,3,4)) * self.frobenius[1] / np.sqrt(2)
+        )
+        # nontrivial R-symbols
+        self._r = as_immutable_array(np.expand_dims(
+            [(-1j)**self.nu, -1, np.exp(3j*self.nu*np.pi/8) * self.frobenius[1],
+             np.exp(-1j*self.nu*np.pi/8) * self.frobenius[1], 0],
+            axis=1
+        ))
         self._c = [(-1j)**self.nu * self._one_4D, -1 * (-1j)**self.nu * self._one_4D,
                    super()._c_symbol([0], [1], [1], [0], [1], [1]),  # nontrivial C-symbols
                    super()._c_symbol([0], [1], [1], [2], [1], [1]),
@@ -2469,8 +2479,8 @@ class SU2_kAnyonCategory(Symmetry):
         Considering anyons of different handedness is necessary for doubled models like,
         e.g., the anyons realized in the Levin-Wen string-net models.
     """
-    _one_1D = np.ones((1,), dtype=int)
-    _one_4D = np.ones((1, 1, 1, 1), dtype=int)
+    _one_1D = as_immutable_array(np.ones((1,), dtype=int))
+    _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
     def __init__(self, k: int, handedness = 'left'):
         assert type(k) == int
@@ -2637,27 +2647,26 @@ class SU3_3AnyonCategory(Symmetry):
     The notion of handedness does not make sense for this specific anyon model since it
     only exchanges the two fusion multiplicities of anyon `8`.
     """
-    _one_1D = np.ones((1,), dtype=int)
-    _one_4D = np.ones((1, 1, 1, 1), dtype=int)
+    _one_1D = as_immutable_array(np.ones((1,), dtype=int))
+    _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
     _fusion_map = {  # notation: 10- = \bar{10}
-        0: np.array([[0]]),  # 1 x 1 = 1
-        1: np.array([[1]]),  # 1 x 8 = 8 = 8 x 1
-        4: np.array([[2]]),  # 1 x 10 = 10 = 1 x 10
-        9: np.array([[3]]),  # 1 x 10- = 10- = 1 x 10-
-        2: np.array([[0], [1], [2], [3]]),  # 8 x 8 = 1 + 8 + 8 + 10 + 10-
-        5: np.array([[1]]),  # 8 x 10 = 8 = 10 x 8
-        10: np.array([[1]]), # 8 x 10- = 8 = 10- x 8
-        8: np.array([[3]]),  # 10 x 10 = 10-
-        13: np.array([[0]]), # 10 x 10- = 1 = 10- x 10
-        18: np.array([[2]])  # 10- x 10- = 10
+        0: as_immutable_array([[0]]),  # 1 x 1 = 1
+        1: as_immutable_array([[1]]),  # 1 x 8 = 8 = 8 x 1
+        4: as_immutable_array([[2]]),  # 1 x 10 = 10 = 1 x 10
+        9: as_immutable_array([[3]]),  # 1 x 10- = 10- = 1 x 10-
+        2: as_immutable_array([[0], [1], [2], [3]]),  # 8 x 8 = 1 + 8 + 8 + 10 + 10-
+        5: as_immutable_array([[1]]),  # 8 x 10 = 8 = 10 x 8
+        10: as_immutable_array([[1]]), # 8 x 10- = 8 = 10- x 8
+        8: as_immutable_array([[3]]),  # 10 x 10 = 10-
+        13: as_immutable_array([[0]]), # 10 x 10- = 1 = 10- x 10
+        18: as_immutable_array([[2]])  # 10- x 10- = 10
     }
-    _dual_map = {0: np.array([0]),
-                 1: np.array([1]),
-                 2: np.array([3]),
-                 3: np.array([2])}
-    _f1 = np.identity(2)
-    _f2 = np.array([[-0.5, -3**0.5/2],
-                    [3**0.5/2, -0.5]])
+    _dual_map = {0: as_immutable_array([0]),
+                 1: as_immutable_array([1]),
+                 2: as_immutable_array([3]),
+                 3: as_immutable_array([2])}
+    _f1 = as_immutable_array(np.identity(2))
+    _f2 = as_immutable_array([[-0.5, -3**0.5/2], [3**0.5/2, -0.5]])
     _f3 = _f2.T
     _f4 = np.zeros((7,7))
     _f4[0,0] = _f4[5,5] = _f4[6,5] = _f4[5,6] = _f4[6,6] = 1/3
@@ -2669,6 +2678,7 @@ class SU3_3AnyonCategory(Symmetry):
     _f4[1,1] = _f4[4,4] = -0.5
     _f4[1,5] = _f4[1,6] = _f4[5,1] = _f4[6,1] = 12**-0.5
     _f4[4,5] = _f4[4,6] = _f4[5,4] = _f4[6,4] = 12**-0.5
+    _f4 = as_immutable_array(_f4)
     _fsym_map = {}
 
     def __init__(self):

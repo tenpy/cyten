@@ -1543,7 +1543,7 @@ class FusionTreeBackend(TensorBackend):
             if not bend_up:
                 b_sym = b_sym.conj()
             if tree1.are_dual[-1]:
-                b_sym *= symmetry.frobenius_schur(tree1.uncoupled[-1])
+                b_sym = b_sym * symmetry.frobenius_schur(tree1.uncoupled[-1])
             mu = tree1.multiplicities[-1] if tree1.multiplicities.shape[0] > 0 else 0
 
             for tree2, _, _ in _tree_block_iter_product_space(spaces[not bend_up], [tree1.coupled], symmetry):
