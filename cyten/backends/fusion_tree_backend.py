@@ -1863,7 +1863,7 @@ class FusionTreeBackend(TensorBackend):
         XOR domain and `in_domain` specifies whether the mapping is to be applied to the
         domain or codomain; there is no use for it in the other case.
         """
-        backend = self.backend.block_backend
+        backend = self.block_backend
         new_data = FusionTreeData._zero_data(new_codomain, new_domain, backend, Dtype.complex128)
 
         # we allow this case for more efficient treatment when only c symbols in the (co)domain are involved
