@@ -8,7 +8,7 @@ import numpy as np
 from cyten.backends import fusion_tree_backend, get_backend
 from cyten.spaces import ElementarySpace, ProductSpace
 from cyten import backends
-from cyten.tensors import DiagonalTensor, SymmetricTensor, move_leg
+from cyten.tensors import DiagonalTensor, SymmetricTensor, move_leg, combine_legs
 from cyten.symmetries import ProductSymmetry, fibonacci_anyon_category, SU2Symmetry, SU3_3AnyonCategory
 from cyten.dtypes import Dtype
 
@@ -192,7 +192,7 @@ def assert_braiding_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[C
 
 
 def assert_bending_up_and_down_trivial(codomains: list[ProductSpace], domains: list[ProductSpace],
-                                       funcs: list[Callable], backend: TensorBackend, multiple: bool, eps: float):
+                                       funcs: list[Callable], backend: backends.TensorBackend, multiple: bool, eps: float):
     """Check that bending a leg up and down (or down and up) is trivial. All given codomains are combined with all
     given domains to construct random tensors for which the identities are checked. All codomains and domains must
     have the same symmetry; this is not explicitly checked.
@@ -1523,3 +1523,25 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     # rescaling axis and then bending == bending and then rescaling axis
     assert_bending_and_scale_axis_commutation(tens, funcs, eps)
+
+
+def _test_combine_legs():
+    # sym = SU3_3AnyonCategory()
+    # e1 = ElementarySpace(sym, [[1], [2]], [1, 1])
+
+    sym = fibonacci_anyon_category
+    e1 = ElementarySpace(sym, [[0], [1]], [1, 2])
+    p1 = ProductSpace([e1, e1])
+    # p2 = ProductSpace([e1, p1])
+
+    # spc = ProductSpace([e1, e1])
+    spc = ProductSpace([e1, p1, e1, p1])
+
+    a = SymmetricTensor.from_random_uniform(spc, spc)
+    # 0 x 0 = 0: 0-5
+    # 1 x 1 = 0: 5-21
+    # 0 x 1 = 1: 0-8
+    # 1 x 0 = 1: 8-18
+    # 1 x 1 = 1: 18-34
+
+    combine_legs(a, [0, 1])

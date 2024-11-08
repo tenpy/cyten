@@ -74,8 +74,8 @@ def tree_block_slice(space: ProductSpace, tree: FusionTree) -> slice:
 
 def _tree_block_iter(a: SymmetricTensor):
     sym = a.symmetry
-    domain_are_dual = [sp.is_dual for sp in a.domain.spaces]
-    codomain_are_dual = [sp.is_dual for sp in a.codomain.spaces]
+    domain_are_dual = [sp.is_bra_space for sp in a.domain.spaces]
+    codomain_are_dual = [sp.is_bra_space for sp in a.codomain.spaces]
     for (bi, _), block in zip(a.data.block_inds, a.data.blocks):
         coupled = a.codomain.sectors[bi]
         i1_forest = 0  # start row index of the current forest block
@@ -103,8 +103,29 @@ def _tree_block_iter(a: SymmetricTensor):
             i2_forest += forest_block_width
 
 
+def _tree_block_iter_fix_uncoupled(space: ProductSpace, uncoupled: SectorArray | list[Sector],
+                                   coupled: SectorArray | list[Sector]) -> Iterator[tuple[FusionTree, slice]]:
+    """Iterator over all trees in `space` with uncoupled charges `uncoupled` and total charge in
+    `coupled`. Yields the `FusionTree`s consistent with the input together with the corresponding
+    slices. This function can be used to iterate over trees with certain uncoupled and coupled
+    charges; see `_tree_block_iter_product_space` for an iterator over all uncoupled charges.
+    """
+    symmetry = space.symmetry
+    are_dual = [sp.is_bra_space for sp in space.spaces]
+    tree_block_width = tree_block_size(space, uncoupled)
+    for c in coupled:
+        first_tree = True
+        for tree in fusion_trees(symmetry, uncoupled, c, are_dual):
+            if first_tree:
+                i = tree_block_slice(space, tree).start
+                first_tree = False
+            slc = slice(i, i + tree_block_width)
+            yield tree, slc
+            i += tree_block_width
+
+
 def _tree_block_iter_product_space(space: ProductSpace, coupled: SectorArray | list[Sector],
-                                   symmetry: Symmetry) -> Iterator[tuple[FusionTree, slice, int]]:
+                                   ) -> Iterator[tuple[FusionTree, slice, int]]:
     """Iterator over all trees in `space` with total charge in `coupled`.
     Yields the `FusionTree`s consistent with the input together with the corresponding slices and
     the index of the total charge within `coupled`. This index coincides with the index enumerating
@@ -112,7 +133,8 @@ def _tree_block_iter_product_space(space: ProductSpace, coupled: SectorArray | l
     This function can be used to iterate over domain OR codomain rather than both, as done in
     `_tree_block_iter`.
     """
-    are_dual = [sp.is_dual for sp in space.spaces]
+    symmetry = space.symmetry
+    are_dual = [sp.is_bra_space for sp in space.spaces]
     for ind, c in enumerate(coupled):
         i = 0
         for sectors in _iter_sectors(space.spaces, symmetry):
@@ -124,13 +146,14 @@ def _tree_block_iter_product_space(space: ProductSpace, coupled: SectorArray | l
 
 
 def _forest_block_iter_product_space(space: ProductSpace, coupled: SectorArray | list[Sector],
-                                     symmetry: Symmetry) -> Iterator[tuple[SectorArray, slice, int]]:
+                                     ) -> Iterator[tuple[SectorArray, slice, int]]:
     """Iterator over all forests in `space` with total charge in `coupled`.
     Yields the `SectorArray`s consistent with the input together with the corresponding slices and
     the index of the total charge within `coupled`. This index coincides with the index enumerating
     the blocks in `FusionTreeData` if `coupled` is lexsorted.
     See also `_tree_block_iter_product_space`.
     """
+    symmetry = space.symmetry
     for ind, c in enumerate(coupled):
         i = 0
         for sectors in _iter_sectors(space.spaces, symmetry):
@@ -360,6 +383,88 @@ class FusionTreeBackend(TensorBackend):
         #        During the manipulations here, we may accumulate all info to form the new
         #        codomain (in particular the metadata!). Then we should not compute it in
         #        tensors.combine_legs, but rather here. Note that sectors and mults are known (unchanged)
+
+        # we want to do it a similar way as with C and B symbols, but need additional information since
+        # we lose the information about the product space in the fusion tree
+        # -> need additional indices / slices
+        # reshape entries corresponding to old tree to shape given by new codomain / domain
+        # -> apply slices from dict -> reshape back -> add to blocks
+
+        # two possibilities for the mappings: either adjust product space after each iteration
+        # -> can use the new keys directly
+        # or keep same product space -> need to construct new fusion trees when translating fusion trees
+        backend = self.block_backend
+        old_data = tensor.data
+
+        # get the transformations for each group individually,
+        # then combine them for codomain and domain separately
+        codomain_mappings = []
+        domain_mappings = []
+        for i, idcs in enumerate(leg_idcs_combine):
+            idx_left = idcs[0]
+            in_domain = idx_left >= tensor.num_codomain_legs
+            if in_domain:
+                idx_left = tensor.num_legs - 1 - idcs[-1]
+            space = [tensor.codomain, tensor.domain][in_domain]
+            mapping = self._combine_split_legs_trees_trafo(space, idx_left,
+                                                           product_spaces[i], in_domain)
+            if in_domain:
+                domain_mappings.append(mapping)
+            else:
+                codomain_mappings.append(mapping)
+
+        # combining does not change the coupled charges
+        coupled = [sec for i, sec in enumerate(tensor.domain.sectors)
+                   if tensor.data.block_ind_from_domain_sector_ind(i) != None]
+        zero_blocks = [backend.zero_block(backend.block_shape(block), old_data.dtype)
+                       for block in old_data.blocks]
+        new_data = FusionTreeData(old_data.block_inds, zero_blocks, old_data.dtype, True)
+
+        # TODO combine all dicts in codomain_mappings and domain_mappings to a single one with keys
+        # being FusionTrees in the original codomain / domain [key = (tree, )] and values dicts.
+        # The values of these dicts are ((small_tree, slc1, slc2, ...), ) with small_tree a FusionTree
+        # from the new codomain / domain after combining, the slices correspond to the slices in the
+        # mapping obtained from `_combine_split_legs_trees_trafo`.
+        # The order of the slices should be left to right, i.e., if we have a function combining
+        # everything, we should use codomain_mappings and domain_mappings[::-1].
+        codomain_mappings = codomain_mappings[0]
+        # The above line is just a way to run the code below at least for a single group.
+
+        # codomain
+        slc_list = [slice(None)] * new_codomain.num_spaces
+        slc_idcs = []
+        offset = 0
+        for idcs in leg_idcs_combine:
+            if idcs[0] >= tensor.num_codomain_legs:
+                break
+            slc_idcs.append(idcs[0] - offset)
+            offset += len(idcs) - 1
+
+        if codomain_mappings != None:
+            groups = [idcs for idcs in leg_idcs_combine if idcs[0] < tensor.num_codomain_legs]
+            flat_groups = [idx for idcs in groups for idx in idcs]
+            groups += [[i] for i in range(tensor.num_codomain_legs) if not i in flat_groups]
+            groups.sort()
+            for tree, old_slc, ind in _tree_block_iter_product_space(tensor.codomain, coupled):
+                block = tensor.data.blocks[ind][old_slc, :]
+                inter_shape = [prod([tensor.codomain[i].sector_multiplicity(tree.uncoupled[i])
+                               for i in group]) for group in groups]
+                block = backend.block_reshape(block, (*inter_shape, -1))
+
+                transformed = codomain_mappings[(tree, )]
+                for ((new_tree, *slcs), ) in transformed:
+                    for i, slc in enumerate(slcs):
+                        slc_list[slc_idcs[i]] = slc
+                    new_slc = tree_block_slice(new_codomain, new_tree)
+                    new_inter_shape = [new_codomain[i].sector_multiplicity(sec)
+                                   for i, sec in enumerate(new_tree.uncoupled)]
+                    new_block = new_data.blocks[ind][new_slc, :]
+                    new_shape = backend.block_shape(new_block)
+                    new_block = backend.block_reshape(new_block, (*new_inter_shape, -1))
+                    new_block[(*slc_list, slice(None))] += block * transformed[((new_tree, *slcs), )]
+                    new_data.blocks[ind][new_slc, :] = backend.block_reshape(new_block, new_shape)
+
+        # TODO deal with domain
         raise NotImplementedError('combine_legs not implemented')  # TODO
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
@@ -1041,7 +1146,7 @@ class FusionTreeBackend(TensorBackend):
         coupled_sectors = np.array([a.codomain.sectors[ind[0]] for ind in a_block_inds])
         ind_mapping = {}  # mapping between index in coupled sectors and index in blocks
         iter_space = [a.codomain, a.domain][ax_a]
-        for uncoupled, slc, coupled_ind in _forest_block_iter_product_space(iter_space, coupled_sectors, a.symmetry):
+        for uncoupled, slc, coupled_ind in _forest_block_iter_product_space(iter_space, coupled_sectors):
             ind = a.domain.sectors_where(coupled_sectors[coupled_ind])
             ind_b = b.data.block_ind_from_domain_sector_ind(b.domain.sectors_where(uncoupled[co_domain_idx]))
             if ind_b == None:  # zero block
@@ -1258,7 +1363,7 @@ class FusionTreeBackend(TensorBackend):
         small_leg = ElementarySpace(S.symmetry, small_leg_sectors, small_leg_multiplicities,
                                     is_dual=S.leg.is_bra_space)
         return mask_data, small_leg, err, new_norm
-        
+
 
     def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype
                   ) -> FusionTreeData:
@@ -1383,6 +1488,120 @@ class FusionTreeBackend(TensorBackend):
         num_beta_trees = len(beta_tree_iter)
         return num_alpha_trees, num_beta_trees
 
+    # METHODS FOR COMBINING AND SPLITTING LEGS
+
+    def _combine_split_legs_single_tree_trafo(self, left_charge: Sector, inner: SectorArray | list[Sector],
+                                              multi: SectorArray | list[Sector], right_charge: Sector,
+                                              small_tree: FusionTree, sym: Symmetry, in_domain: bool):
+        """Return the amplitude corresponding to the change of fusion trees as needed when combining and
+        splitting legs. Does only take the charges of the original tree (in the codomain / domain) that
+        directly influence the transformation as input.
+
+        Parameters
+        ----------
+        left_charge:
+            Charge in the fusion tree to the left of the left-most leg to be combined; may be an inner
+            charge or an uncoupled charge of the original tree.
+        inner:
+            Inner charges of the original tree between left_charge and right_charge.
+        multi:
+            Multiplicities of the original tree associated with the relevant uncoupled charges.
+        right_charge:
+            Charge in the fusion tree to the right of the right-most leg to be combined; may be an inner
+            charge or the coupled charge of the original tree.
+        small_tree:
+            Fusion tree in the combined product space.
+        """
+        # TODO f_symbol -> _f_symbol
+        # TODO do checks regarding the correct number of entries??
+        uncoupled = small_tree.uncoupled
+        if len(uncoupled) == 2:
+            overlap = sym.f_symbol(left_charge, uncoupled[0], uncoupled[1], right_charge,
+                                   small_tree.coupled, inner[0])[small_tree.multiplicities[0], :,
+                                                                 multi[0], multi[1]]
+        else:
+            overlap = sym.f_symbol(left_charge, uncoupled[0], uncoupled[1], inner[1],
+                                   small_tree.inner_sectors[0], inner[0])[small_tree.multiplicities[0], :,
+                                                                          multi[0], multi[1]]
+            for i in range(len(uncoupled)-3):
+                next_f = sym.f_symbol(left_charge, small_tree.inner_sectors[i], uncoupled[i+2], inner[i+2],
+                                      small_tree.inner_sectors[i+1], inner[i+1])[small_tree.multiplicities[i+1], :,
+                                                                                 :, multi[i+2]]
+                overlap = np.tensordot(overlap, next_f, [[0], [1]])
+            final_f = sym.f_symbol(left_charge, small_tree.inner_sectors[-1], uncoupled[-1], right_charge,
+                                   small_tree.coupled, inner[-1])[small_tree.multiplicities[-1], :,
+                                                                  :, multi[-1]]
+            overlap = np.tensordot(overlap, final_f, [[0], [1]])
+
+        if in_domain:
+            return overlap.conj()
+        return overlap
+
+    def _combine_split_legs_trees_trafo(self, large_prodspace: ProductSpace, idx_left: int,
+                                        small_prodspace: ProductSpace, in_domain: bool):
+        """Return a `dict` containing information on how the fusion diagrams are transformed
+        upon combining multiple leg. This method can also be used to compute the transformation
+        when splitting legs rather than combining them.
+
+        Parameters
+        ----------
+        large_prodspace:
+            The product space describing the full codomain / domain before combining any legs.
+        idx_left:
+            Index of the first (left-most) space in large_prodspace that is combined.
+        small_prodspace:
+            The product space corresponding to the leg that is combined.
+        """
+        # TODO use this for now, can be deleted later when we are convinced the input is correct
+        num_uncoupled = len(small_prodspace)
+        assert num_uncoupled >= 2
+
+        sym = large_prodspace.symmetry
+        mapping = {}
+        if idx_left == 0:
+            for tree, _, _ in _tree_block_iter_product_space(large_prodspace, large_prodspace.sectors):
+                unc1 = tree.coupled if num_uncoupled == len(tree.uncoupled) else tree.inner_sectors[num_uncoupled-2]
+
+                small_tree = FusionTree(sym, tree.uncoupled[:num_uncoupled], tree.inner_sectors[num_uncoupled-2],
+                                        tree.are_dual[:num_uncoupled], tree.inner_sectors[:num_uncoupled-2],
+                                        tree.multiplicities[:num_uncoupled-1])
+                slc = tree_block_slice(small_prodspace, small_tree)
+
+                new_tree = FusionTree(sym, [unc1, *tree.uncoupled[num_uncoupled:]], tree.coupled,
+                                    [False, *tree.are_dual[num_uncoupled:]], tree.inner_sectors[num_uncoupled-1:],
+                                    tree.multiplicities[num_uncoupled-1:])
+                mapping[(tree, )] = {((new_tree, slc), ): 1}
+        else:
+            for tree, _, _ in _tree_block_iter_product_space(large_prodspace, large_prodspace.sectors):
+
+                sector_left = tree.uncoupled[0] if idx_left == 1 else tree.inner_sectors[idx_left-2]
+                sector_right = (tree.coupled if idx_left + num_uncoupled == len(tree.uncoupled)
+                                             else tree.inner_sectors[idx_left+num_uncoupled-2])
+
+                # coupled sectors for trees in new_prodspace consistent with the current tree
+                small_tree_cs = sym.fusion_outcomes(sym.dual_sectors(sector_left), sector_right)
+
+                new_unc = [*tree.uncoupled[:idx_left], small_tree_cs[0], *tree.uncoupled[idx_left + num_uncoupled:]]
+                new_dual = [*tree.are_dual[:idx_left], False, *tree.are_dual[idx_left + num_uncoupled:]]
+                new_inner = [*tree.inner_sectors[:idx_left - 1], *tree.inner_sectors[idx_left + num_uncoupled - 2:]]
+                new_multi = [*tree.multiplicities[:idx_left - 1], 0, *tree.multiplicities[idx_left+num_uncoupled - 1:]]
+                new_tree = FusionTree(sym, new_unc, tree.coupled, new_dual, new_inner, new_multi)
+
+                small_tree_unc = tree.uncoupled[idx_left:idx_left+num_uncoupled]
+                for small_tree, slc in _tree_block_iter_fix_uncoupled(small_prodspace, small_tree_unc, small_tree_cs):
+                    new_tree.uncoupled[idx_left] = small_tree.coupled
+
+                    trafo_inner = tree.inner_sectors[idx_left - 1:idx_left + num_uncoupled - 2]
+                    trafo_multi = tree.multiplicities[idx_left - 1:idx_left + num_uncoupled - 1]
+                    overlaps = self._combine_split_legs_single_tree_trafo(sector_left, trafo_inner, trafo_multi,
+                                                                          sector_right, small_tree, sym, in_domain)
+
+                    for i, overlap in enumerate(overlaps):
+                        if abs(overlap) > self.eps:
+                            new_tree.multiplicities[idx_left-1] = i
+                            self._add_to_mapping_dict(mapping, (tree, ), ((new_tree.copy(deep=True), slc), ), overlap)
+        return mapping
+
     # METHODS FOR COMPUTING THE ACTION OF B AND C SYMBOLS
 
     def _add_to_mapping_dict(self, mapping: dict, trees_i: tuple[FusionTree],
@@ -1416,7 +1635,7 @@ class FusionTreeBackend(TensorBackend):
             return tuple(newkey)
 
         new_mapping = {}
-        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled, prodspace.symmetry):
+        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled):
             for key in mapping:
                 if not np.all(tree.coupled == key[0].coupled):
                     continue
@@ -1467,7 +1686,7 @@ class FusionTreeBackend(TensorBackend):
             overbraid = not overbraid
 
         mapping = {}
-        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled, symmetry):
+        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled):
             unc, inn, mul = tree.uncoupled, tree.inner_sectors, tree.multiplicities
             if index == 0:
                 f = tree.coupled if len(inn) == 0 else inn[0]
@@ -1527,7 +1746,7 @@ class FusionTreeBackend(TensorBackend):
         mapping = {}
         new_coupled = []
         spaces = [codomain, domain]
-        for tree1, _, _ in _tree_block_iter_product_space(spaces[bend_up], coupled, symmetry):
+        for tree1, _, _ in _tree_block_iter_product_space(spaces[bend_up], coupled):
             if tree1.uncoupled.shape[0] == 1:
                 new_trees_coupled = symmetry.trivial_sector
             else:
@@ -1546,7 +1765,7 @@ class FusionTreeBackend(TensorBackend):
                 b_sym *= symmetry.frobenius_schur(tree1.uncoupled[-1])
             mu = tree1.multiplicities[-1] if tree1.multiplicities.shape[0] > 0 else 0
 
-            for tree2, _, _ in _tree_block_iter_product_space(spaces[not bend_up], [tree1.coupled], symmetry):
+            for tree2, _, _ in _tree_block_iter_product_space(spaces[not bend_up], [tree1.coupled]):
                 if len(tree2.uncoupled) == 0:
                     new_unc = np.array([symmetry.dual_sector(tree1.uncoupled[-1])])
                     new_dual = np.array([not tree1.are_dual[-1]])
@@ -1644,7 +1863,7 @@ class FusionTreeBackend(TensorBackend):
         XOR domain and `in_domain` specifies whether the mapping is to be applied to the
         domain or codomain; there is no use for it in the other case.
         """
-        backend = ten.backend.block_backend
+        backend = self.backend.block_backend
         new_data = FusionTreeData._zero_data(new_codomain, new_domain, backend, Dtype.complex128)
 
         # we allow this case for more efficient treatment when only c symbols in the (co)domain are involved
@@ -1664,7 +1883,7 @@ class FusionTreeBackend(TensorBackend):
             else:
                 block_axes_permutation.append(len(block_axes_permutation))
 
-            for tree, slc, ind in _tree_block_iter_product_space(iter_space, old_coupled, ten.symmetry):
+            for tree, slc, ind in _tree_block_iter_product_space(iter_space, old_coupled):
                 modified_shape = [iter_space[i].sector_multiplicity(sec) for i, sec in enumerate(tree.uncoupled)]
                 if in_domain:
                     block_slice = ten.data.blocks[ind][:, slc]
@@ -1716,7 +1935,7 @@ class FusionTreeBackend(TensorBackend):
 
                     new_data.blocks[block_ind][alpha_slice, beta_slice] += amplitude * tree_block
 
-        new_data.discard_zero_blocks(backend, ten.backend.eps)
+        new_data.discard_zero_blocks(backend, self.eps)
         return new_data
 
     # INEFFICIENT METHODS FOR COMPUTING THE ACTION OF B AND C SYMBOLS
@@ -1918,7 +2137,7 @@ class FusionTreeBackend(TensorBackend):
         iter_space = [ten.codomain, ten.domain][in_domain]
         iter_coupled = [ten.codomain.sectors[ind[0]] for ind in ten.data.block_inds]
 
-        for tree, slc, _ in _tree_block_iter_product_space(iter_space, iter_coupled, symmetry):
+        for tree, slc, _ in _tree_block_iter_product_space(iter_space, iter_coupled):
             block_charge = ten.domain.sectors_where(tree.coupled)
             block_charge = ten.data.block_ind_from_domain_sector_ind(block_charge)
 
