@@ -277,8 +277,10 @@ class Tensor(metaclass=ABCMeta):
         assert all(_is_valid_leg_label(l) for l in self._labels)
         assert not duplicate_entries(self._labels, ignore=[None])
         assert not duplicate_entries(list(self._labelmap.values()))
-        self.backend.test_leg_sanity(self.domain)
-        self.backend.test_leg_sanity(self.codomain)
+        for space in self.domain.spaces:
+            self.backend.test_leg_sanity(space)
+        for space in self.codomain.spaces:
+            self.backend.test_leg_sanity(space)
         assert self.dtype not in self._forbidden_dtypes
 
     @property

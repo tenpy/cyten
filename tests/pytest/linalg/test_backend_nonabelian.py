@@ -192,7 +192,8 @@ def assert_braiding_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[C
 
 
 def assert_bending_up_and_down_trivial(codomains: list[ProductSpace], domains: list[ProductSpace],
-                                       funcs: list[Callable], backend: TensorBackend, multiple: bool, eps: float):
+                                       funcs: list[Callable], backend: backends.TensorBackend,
+                                       multiple: bool, eps: float):
     """Check that bending a leg up and down (or down and up) is trivial. All given codomains are combined with all
     given domains to construct random tensors for which the identities are checked. All codomains and domains must
     have the same symmetry; this is not explicitly checked.

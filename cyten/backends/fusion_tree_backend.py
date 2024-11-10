@@ -262,9 +262,19 @@ class FusionTreeData:
 # TODO eventually remove BlockBackend inheritance, it is not needed,
 #      jakob only keeps it around to make his IDE happy  (same in abelian and no_symmetry)
 class FusionTreeBackend(TensorBackend):
+    """`ProductSpace`s on the individual legs of the tensors are not supported, only
+    `ElementarySpace`s are allowed. The reason for this is that product spaces transform
+    nontrivially upon, e.g., bending the corresponding leg, which necessitates further
+    transformations within the leg itself.
+
+    Therefore, the presence of a `ProductSpace` is checked in `test_leg_sanity` and
+    methods that always involve a `ProductSpace` (like `combine_legs` or `split_legs`)
+    raise errors.
+    """
 
     DataCls = FusionTreeData
     can_decompose_tensors = True
+    err_msg_prodspace = 'Product spaces on individual legs are not supported in the fusion tree backend.'
 
     def __init__(self, block_backend: BlockBackend, eps: float = 1.e-14):
         self.eps = eps
@@ -286,13 +296,12 @@ class FusionTreeBackend(TensorBackend):
             assert all(dim > 0 for dim in expect_shape), 'should skip forbidden block'
             self.block_backend.test_block_sanity(block, expect_shape=expect_shape, expect_dtype=a.dtype)
 
+    def test_leg_sanity(self, leg: Space):
+        assert not isinstance(leg, ProductSpace), self.err_msg_prodspace
+        return super().test_leg_sanity(leg)
+
     def test_mask_sanity(self, a: Mask):
         raise NotImplementedError  # TODO
-
-    # TODO do we need leg metadata?
-    #  related methods:
-    #   - test_leg_sanity
-    #   - _fuse_spaces
 
     # ABSTRACT METHODS
 
@@ -351,16 +360,7 @@ class FusionTreeBackend(TensorBackend):
                      new_codomain: ProductSpace,
                      new_domain: ProductSpace,
                      ) -> Data:
-        # TODO depending on how this implementation will actually look like, we may want to adjust
-        #      the signature.
-        #      - new_codomain_combine and new_domain_combine are not used by the other backends.
-        #        We have them available from tensors.combine_legs and I (Jakob) expect that they
-        #        may be useful here. If they are not, may as well remove them from the args.
-        #      - Should clearly design the metadata for productspaces first, then consider;
-        #        During the manipulations here, we may accumulate all info to form the new
-        #        codomain (in particular the metadata!). Then we should not compute it in
-        #        tensors.combine_legs, but rather here. Note that sectors and mults are known (unchanged)
-        raise NotImplementedError('combine_legs not implemented')  # TODO
+        raise RuntimeError(self.err_msg_prodspace)
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         res_dtype = Dtype.common(a.dtype, b.dtype)
@@ -576,7 +576,7 @@ class FusionTreeBackend(TensorBackend):
         return w_data, v_data
 
     def eye_data(self, co_domain: ProductSpace, dtype: Dtype) -> FusionTreeData:
-        # Note: the identity has the same matrix elements in all ONB, so ne need to consider
+        # Note: the identity has the same matrix elements in all ONB, so no need to consider
         #       the basis perms.
         blocks = [self.block_backend.eye_matrix(block_size(co_domain, c), dtype)
                   for c in co_domain.sectors]
@@ -1072,10 +1072,10 @@ class FusionTreeBackend(TensorBackend):
             blocks[ind_mapping[coupled_ind]][slcs[0], slcs[1]] = forest
         return FusionTreeData(block_inds, blocks, a.dtype)
 
-    def split_legs(self, a: SymmetricTensor, leg_idcs: list[int],
-                   final_legs: list[Space]) -> Data:
-        # TODO do we need metadata to split, like in abelian?
-        raise NotImplementedError('split_legs not implemented')  # TODO
+    def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
+                   domain_split: list[int], new_codomain: ProductSpace, new_domain: ProductSpace
+                   ) -> Data:
+        raise RuntimeError(self.err_msg_prodspace)
 
     def squeeze_legs(self, a: SymmetricTensor, idcs: list[int]) -> Data:
         return a.data
@@ -1269,6 +1269,11 @@ class FusionTreeBackend(TensorBackend):
 
     def zero_mask_data(self, large_leg: Space) -> MaskData:
         return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=Dtype.bool)
+
+    # OPTIONAL OVERRIDES
+
+    def _fuse_spaces(self, symmetry: Symmetry, spaces: list[Space]):
+        raise RuntimeError(self.err_msg_prodspace)
 
     # INTERNAL FUNCTIONS
 
