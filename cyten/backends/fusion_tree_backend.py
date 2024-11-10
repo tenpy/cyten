@@ -915,8 +915,11 @@ class FusionTreeBackend(TensorBackend):
         if len(all_exchanges) == 0:
             return a.data, a.codomain, a.domain
         # c symbols are involved
-        elif len(all_exchanges) - num_bend_down - num_bend_up > 0 and a.symmetry.braiding_style.value >= 20:
-            assert not levels_None, 'Levels must be specified when braiding with anyonic exchange statistics'
+        elif (len(all_exchanges) - num_bend_down - num_bend_up > 0 and
+              a.symmetry.braiding_style.value >= 20 and levels_None):
+            # return the old codomain and domain, the new ones are not computed;
+            # returning None as Data leads to a SymmetryError anyway.
+            return None, a.codomain, a.domain
 
         codomain = a.codomain
         domain = a.domain
