@@ -419,7 +419,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
+    def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, ProductSpace, ProductSpace]:
         """Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
         the small leg of the mask is contracted.
