@@ -9,7 +9,8 @@ from typing import TypeVar, Sequence, Set
 
 
 __all__ = [
-    'UNSPECIFIED', 'duplicate_entries', 'to_iterable',
+    'UNSPECIFIED', 'duplicate_entries', 'to_iterable', 'as_immutable_array',
+    'permutation_as_swaps',
     'argsort', 'combine_constraints', 'inverse_permutation', 'list_to_dict_list',
     'find_subclass',
     'rank_data',
@@ -46,6 +47,26 @@ def as_immutable_array(a, dtype=None):
     a.setflags(write=False)
     return a
 
+
+def permutation_as_swaps(initial_perm: list, final_perm: list) -> list:
+    """Given an initial and final permutation of the same numbers, return a list `swaps`
+    of indices such that exchanging the entries of the initial permutation as
+    `initial_perm[swaps[i]], initial_perm[swaps[i]+1] = initial_perm[swaps[i]+1], 
+    initial_perm[swaps[i]]` leads to the final permutation. The swaps must be applied
+    starting from `swaps[0]`.
+    
+    Consistency of the input is not checked.
+    """
+    swaps = []
+    while final_perm != initial_perm:
+        for i in range(len(final_perm)):
+            if final_perm[i] != initial_perm[i]:
+                ind = initial_perm.index(final_perm[i])
+                initial_perm[ind-1:ind+1] = initial_perm[ind-1:ind+1][::-1]
+                swaps.append(ind - 1)
+                break
+    return swaps
+    
 
 # TODO remove in favor of backend.block_argsort?
 def argsort(a, sort=None, **kwargs):
