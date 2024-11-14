@@ -282,9 +282,11 @@ def make_compatible_sectors(compatible_symmetry, np_random):
 
 @pytest.fixture
 def make_compatible_space(compatible_symmetry, np_random):
-    def make(max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None) -> spaces.ElementarySpace:
+    def make(max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None,
+             allow_basis_perm: bool = True) -> spaces.ElementarySpace:
         # returns ElementarySpace
-        return random_vector_space(compatible_symmetry, max_sectors, max_mult, is_dual, np_random=np_random)
+        return random_vector_space(compatible_symmetry, max_sectors, max_mult, is_dual,
+                                   allow_basis_perm=allow_basis_perm, np_random=np_random)
     return make
 
 
@@ -305,7 +307,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
              labels: list[str | None] = None, dtype: Dtype = None,
              *,
              like: tensors.Tensor = None, max_blocks=5, max_block_size=5, empty_ok=False,
-             all_blocks=False, cls=tensors.SymmetricTensor):
+             all_blocks=False, cls=tensors.SymmetricTensor, allow_basis_perm: bool = True):
         if like is not None:
             assert like.backend is compatible_backend
             assert like.symmetry is compatible_symmetry
@@ -324,6 +326,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
             domain = domain[:]  # we do inplace operations below.
 
         # 0) default for codomain
+        # ======================================================================================
         if codomain is None:
             if cls in [tensors.SymmetricTensor, tensors. ChargedTensor]:
                 codomain = 2
@@ -390,7 +393,8 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
         # 2) Deal with other tensor types
         # ======================================================================================
         if cls is tensors.ChargedTensor:
-            charge_leg = make_compatible_space(max_sectors=1, max_mult=1, is_dual=False)
+            charge_leg = make_compatible_space(max_sectors=1, max_mult=1, is_dual=False,
+                                               allow_basis_perm=allow_basis_perm)
             if isinstance(domain, spaces.ProductSpace):
                 inv_domain = domain.left_multiply(charge_leg, backend=compatible_backend)
             else:
@@ -398,7 +402,8 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
             inv_labels = [*labels, tensors.ChargedTensor._CHARGE_LEG_LABEL]
             inv_part = make(codomain=codomain, domain=inv_domain, labels=inv_labels,
                             max_blocks=max_blocks, max_block_size=max_block_size, empty_ok=empty_ok,
-                            all_blocks=all_blocks, cls=tensors.SymmetricTensor, dtype=dtype)
+                            all_blocks=all_blocks, cls=tensors.SymmetricTensor, dtype=dtype,
+                            allow_basis_perm=allow_basis_perm)
 
             charged_state = [1] if inv_part.symmetry.can_be_dropped else None
             res = tensors.ChargedTensor(inv_part, charged_state=charged_state)
@@ -424,7 +429,8 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
                 else:
                     assert len(domain) == 1
                     if domain[0] is None and codomain[0] is None:
-                        leg = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size)
+                        leg = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
+                                                    allow_basis_perm=allow_basis_perm)
                     elif domain[0] is None:
                         leg = codomain[0]
                     elif codomain[0] is None:
@@ -465,12 +471,16 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
             #
             if large_leg is None:
                 if small_leg is None:
-                    large_leg = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size)
+                    large_leg = make_compatible_space(
+                        max_sectors=max_blocks, max_mult=max_block_size,
+                        allow_basis_perm=allow_basis_perm
+                    )
                 else:
                     # TODO looks like this generates a basis_perm incompatible with the mask!
                     raise NotImplementedError('Mask generation broken')
                     extra = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
-                                                  is_dual=small_leg.is_bra_space)
+                                                  is_dual=small_leg.is_bra_space,
+                                                  allow_basis_perm=allow_basis_perm)
                     large_leg = small_leg.direct_sum(extra)
 
             if compatible_symmetry_backend == 'fusion_tree':
@@ -490,6 +500,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
                                                backend=compatible_backend, p_keep=.6, min_keep=1,
                                                labels=labels, np_random=np_random)
             assert res.small_leg.num_sectors > 0
+            res.test_sanity()
             return res
         #
         # 3) Fill in missing legs
@@ -498,7 +509,9 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
             # can just fill up the codomain with random legs.
             for n, sp in enumerate(codomain):
                 if sp is None:
-                    codomain[n] = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size)
+                    codomain[n] = make_compatible_space(max_sectors=max_blocks,
+                                                        max_mult=max_block_size,
+                                                        allow_basis_perm=allow_basis_perm)
             codomain = spaces.ProductSpace(codomain, symmetry=compatible_symmetry, backend=compatible_backend)
             codomain_complete = True
         if not codomain_complete:
@@ -507,7 +520,8 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
                 domain = spaces.ProductSpace(domain, symmetry=compatible_symmetry, backend=compatible_backend)
             missing = [n for n, sp in enumerate(codomain) if sp is None]
             for n in missing[:-1]:
-                codomain[n] = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size)
+                codomain[n] = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
+                                                    allow_basis_perm=allow_basis_perm)
             last = missing[-1]
             partial_codomain = spaces.ProductSpace(codomain[:last] + codomain[last + 1:],
                                                    symmetry=compatible_symmetry,
@@ -521,7 +535,8 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
                 codomain = spaces.ProductSpace(codomain, symmetry=compatible_symmetry, backend=compatible_backend)
             missing = [n for n, sp in enumerate(domain) if sp is None]
             for n in missing[:-1]:
-                domain[n] = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size)
+                domain[n] = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
+                                                  allow_basis_perm=allow_basis_perm)
             last = missing[-1]
             partial_domain = spaces.ProductSpace(domain[:last] + domain[last + 1:],
                                                  symmetry=compatible_symmetry,
@@ -592,7 +607,8 @@ def random_symmetry_sectors(symmetry: symmetries.Symmetry, num: int, sort: bool 
     return res
 
 
-def random_vector_space(symmetry, max_num_blocks=5, max_block_size=5, is_dual=None, np_random=None):
+def random_vector_space(symmetry, max_num_blocks=5, max_block_size=5, is_dual=None,
+                        allow_basis_perm=True, np_random=None):
     if np_random is None:
         np_random = np.random.default_rng()
     num_sectors = np_random.integers(1, max_num_blocks, endpoint=True)
@@ -600,16 +616,16 @@ def random_vector_space(symmetry, max_num_blocks=5, max_block_size=5, is_dual=No
     # if there are very few sectors, e.g. for symmetry==NoSymmetry(), dont let them be one-dimensional
     min_mult = min(max_block_size, max(4 - len(sectors), 1))
     mults = np_random.integers(min_mult, max_block_size, size=(len(sectors),), endpoint=True)
-    if symmetry.can_be_dropped:
+    if symmetry.can_be_dropped and allow_basis_perm:
         dim = np.sum(symmetry.batch_sector_dim(sectors) * mults)
         basis_perm = np_random.permutation(dim) if np_random.random() < 0.7 else None
     else:
         basis_perm = None
+    if is_dual is None:
+        is_dual = np_random.random() < 0.5
     res = spaces.ElementarySpace(
-        symmetry, sectors, mults, basis_perm=basis_perm,
+        symmetry, sectors, mults, basis_perm=basis_perm, is_dual=is_dual
     )
-    if (is_dual is None and np_random.random() < 0.5) or (is_dual is True):
-        res = res.dual
     res.test_sanity()
     return res
 
