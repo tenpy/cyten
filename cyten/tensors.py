@@ -725,7 +725,6 @@ class Tensor(metaclass=ABCMeta):
         block = self.to_dense_block(leg_order=leg_order)
         return self.backend.block_backend.block_to_numpy(block, numpy_dtype=numpy_dtype)
 
-
 class SymmetricTensor(Tensor):
     """A tensor that is symmetric, i.e. invariant under the symmetry.
 
@@ -1160,6 +1159,69 @@ class SymmetricTensor(Tensor):
             perm = np.argsort(leg.basis_perm[slice(*leg.slices[i])])
             block = self.backend.block_backend.apply_leg_permutations(block, [perm])
         return block
+
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        """Export `self` into a HDF5 file.
+
+        This method saves all the data it needs to reconstruct `self` with :meth:`from_hdf5`.
+
+        Specifically, it saves :attr:`chinfo`, :attr:`legs`, :attr:`dtype` under these names,
+        :attr:`qtotal` as ``"total_charge"``,
+        :attr:`_data` as ``"blocks"``, :attr:`_qdata` as ``:block_inds"``,
+        the :attr:`labels` in the list-form (as returned by :meth:`get_leg_labels`).
+        Moreover, it saves :attr:`rank`, :attr:`shape` and
+        :attr:`_qdata_sorted` (under the name ``"block_inds_sorted"``) as HDF5 attributes.
+
+        Parameters
+        ----------
+        hdf5_saver : :class:`~tenpy.tools.hdf5_io.Hdf5Saver`
+            Instance of the saving engine.
+        h5gr : :class`Group`
+            HDF5 group which is supposed to represent `self`.
+        subpath : str
+            The `name` of `h5gr` with a ``'/'`` in the end.
+        """
+        hdf5_saver.save(self.domain, subpath + "domain")
+        hdf5_saver.save(self.codomain, subpath + "codomain")
+        hdf5_saver.save(self.legs, subpath + "legs")
+        hdf5_saver.save(self.backend, subpath + "backend")
+        hdf5_saver.save(self._labels, subpath + "labels")
+        hdf5_saver.save(self.symmetry, subpath + "symmetry")
+        hdf5_saver.save(self.data, subpath + "data")
+        h5gr.attrs["dtype"] = self.dtype
+        h5gr.attrs["num_legs"] = self.num_legs
+        h5gr.attrs["shape"] = np.array(self.shape, np.intp)
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        """Load instance from a HDF5 file.
+
+        This method reconstructs a class instance from the data saved with :meth:`save_hdf5`.
+
+        Parameters
+        ----------
+        hdf5_loader : :class:`~tenpy.tools.hdf5_io.Hdf5Loader`
+            Instance of the loading engine.
+        h5gr : :class:`Group`
+            HDF5 group which is represent the object to be constructed.
+        subpath : str
+            The `name` of `h5gr` with a ``'/'`` in the end.
+
+        Returns
+        -------
+        obj : cls
+            Newly generated class instance containing the required data.
+        """
+        obj = cls.__new__(cls)  # create class instance, no __init__() call
+        hdf5_loader.memorize_load(h5gr, obj)
+        obj.domain = hdf5_loader.load(subpath + "domain")
+        obj.codomain = hdf5_loader.load(subpath + "codomain")
+        obj.backend = hdf5_loader.load(subpath + "backend")
+        obj._labels = hdf5_loader.load(subpath + "labels")
+        obj.symmetry = hdf5_loader.load(subpath + "symmetry")
+        obj._data = hdf5_loader.load(subpath + "data")
+        obj.test_sanity()
+        return obj
 
 
 class DiagonalTensor(SymmetricTensor):
@@ -1678,6 +1740,69 @@ class DiagonalTensor(SymmetricTensor):
             res = self.backend.block_backend.block_permute_axes(res, self.get_leg_idcs(leg_order))
         return res
 
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        """Export `self` into a HDF5 file.
+
+        This method saves all the data it needs to reconstruct `self` with :meth:`from_hdf5`.
+
+        Specifically, it saves :attr:`chinfo`, :attr:`legs`, :attr:`dtype` under these names,
+        :attr:`qtotal` as ``"total_charge"``,
+        :attr:`_data` as ``"blocks"``, :attr:`_qdata` as ``:block_inds"``,
+        the :attr:`labels` in the list-form (as returned by :meth:`get_leg_labels`).
+        Moreover, it saves :attr:`rank`, :attr:`shape` and
+        :attr:`_qdata_sorted` (under the name ``"block_inds_sorted"``) as HDF5 attributes.
+
+        Parameters
+        ----------
+        hdf5_saver : :class:`~tenpy.tools.hdf5_io.Hdf5Saver`
+            Instance of the saving engine.
+        h5gr : :class`Group`
+            HDF5 group which is supposed to represent `self`.
+        subpath : str
+            The `name` of `h5gr` with a ``'/'`` in the end.
+        """
+        hdf5_saver.save(self.domain, subpath + "domain")
+        hdf5_saver.save(self.codomain, subpath + "codomain")
+        hdf5_saver.save(self.legs, subpath + "legs")
+        hdf5_saver.save(self.backend, subpath + "backend")
+        hdf5_saver.save(self._labels, subpath + "labels")
+        hdf5_saver.save(self.symmetry, subpath + "symmetry")
+        hdf5_saver.save(self.data, subpath + "data")
+        h5gr.attrs["dtype"] = self.dtype
+        h5gr.attrs["num_legs"] = self.num_legs
+        h5gr.attrs["shape"] = np.array(self.shape, np.intp)
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        """Load instance from a HDF5 file.
+
+        This method reconstructs a class instance from the data saved with :meth:`save_hdf5`.
+
+        Parameters
+        ----------
+        hdf5_loader : :class:`~tenpy.tools.hdf5_io.Hdf5Loader`
+            Instance of the loading engine.
+        h5gr : :class:`Group`
+            HDF5 group which is represent the object to be constructed.
+        subpath : str
+            The `name` of `h5gr` with a ``'/'`` in the end.
+
+        Returns
+        -------
+        obj : cls
+            Newly generated class instance containing the required data.
+        """
+        obj = cls.__new__(cls)  # create class instance, no __init__() call
+        hdf5_loader.memorize_load(h5gr, obj)
+        obj.domain = hdf5_loader.load(subpath + "domain")
+        obj.codomain = hdf5_loader.load(subpath + "codomain")
+        obj.backend = hdf5_loader.load(subpath + "backend")
+        obj._labels = hdf5_loader.load(subpath + "labels")
+        obj.symmetry = hdf5_loader.load(subpath + "symmetry")
+        obj._data = hdf5_loader.load(subpath + "data")
+        obj.test_sanity()
+        return obj
+
 
 class Mask(Tensor):
     r"""A boolean mask that can be used to project or enlarge a leg.
@@ -2112,6 +2237,71 @@ class Mask(Tensor):
         data, small_leg = self.backend.mask_unary_operand(self, func)
         return Mask(data, space_in=self.large_leg, space_out=small_leg,
                     is_projection=True, backend=self.backend, labels=self.labels)
+
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        """Export `self` into a HDF5 file.
+
+        This method saves all the data it needs to reconstruct `self` with :meth:`from_hdf5`.
+
+        Specifically, it saves :attr:`chinfo`, :attr:`legs`, :attr:`dtype` under these names,
+        :attr:`qtotal` as ``"total_charge"``,
+        :attr:`_data` as ``"blocks"``, :attr:`_qdata` as ``:block_inds"``,
+        the :attr:`labels` in the list-form (as returned by :meth:`get_leg_labels`).
+        Moreover, it saves :attr:`rank`, :attr:`shape` and
+        :attr:`_qdata_sorted` (under the name ``"block_inds_sorted"``) as HDF5 attributes.
+
+        Parameters
+        ----------
+        hdf5_saver : :class:`~tenpy.tools.hdf5_io.Hdf5Saver`
+            Instance of the saving engine.
+        h5gr : :class`Group`
+            HDF5 group which is supposed to represent `self`.
+        subpath : str
+            The `name` of `h5gr` with a ``'/'`` in the end.
+        """
+        hdf5_saver.save(self.domain, subpath + "domain")
+        hdf5_saver.save(self.codomain, subpath + "codomain")
+        hdf5_saver.save(self.legs, subpath + "legs")
+        hdf5_saver.save(self.backend, subpath + "backend")
+        hdf5_saver.save(self._labels, subpath + "labels")
+        hdf5_saver.save(self.symmetry, subpath + "symmetry")
+        hdf5_saver.save(self.data, subpath + "data")
+        hdf5_saver.save(self.is_projection, subpath + "is_projection")
+        h5gr.attrs["dtype"] = self.dtype
+
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        """Load instance from a HDF5 file.
+
+        This method reconstructs a class instance from the data saved with :meth:`save_hdf5`.
+
+        Parameters
+        ----------
+        hdf5_loader : :class:`~tenpy.tools.hdf5_io.Hdf5Loader`
+            Instance of the loading engine.
+        h5gr : :class:`Group`
+            HDF5 group which is represent the object to be constructed.
+        subpath : str
+            The `name` of `h5gr` with a ``'/'`` in the end.
+
+        Returns
+        -------
+        obj : cls
+            Newly generated class instance containing the required data.
+        """
+        obj = cls.__new__(cls)  # create class instance, no __init__() call
+        hdf5_loader.memorize_load(h5gr, obj)
+        obj.domain = hdf5_loader.load(subpath + "domain")
+        obj.codomain = hdf5_loader.load(subpath + "codomain")
+        obj.legs = hdf5_loader.load(subpath + "legs")
+        obj.backend = hdf5_loader.load(subpath + "backend")
+        obj._labels = hdf5_loader.load(subpath + "labels")
+        obj.symmetry = hdf5_loader.load(subpath + "symmetry")
+        obj._data = hdf5_loader.load(subpath + "data")
+        obj.is_projection =hdf5_loader.load(subpath + "is_projection")
+        obj.test_sanity()
+        return obj
 
 
 class ChargedTensor(Tensor):

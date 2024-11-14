@@ -1,0 +1,13 @@
+*.swp
+./*.py
+*.pyc
+*.dat
+*.hdf5
+*.h5
+.DS_Store
+._*
+data
+.eggs
+*.egg-info
+__pycache__
+playground

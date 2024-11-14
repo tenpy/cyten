@@ -927,11 +927,11 @@ def test_su2_symmetry(np_random):
     )
 
 @pytest.mark.parametrize('N', [3])
-@pytest.mark.parametrize('CGfile', ['Test_N_3_HWeight_7.hdf5'])
-@pytest.mark.parametrize('Ffile', ['Test_Fsymb_3_HWeight_4.hdf5'])
-@pytest.mark.parametrize('Rfile', ['Test_Rsymb_3_HWeight_4.hdf5'])
-def test_suN_symmetry(N,CGfile, Ffile, Rfile, np_random):
-    if not all([os.path.exists(f) for f in [CGfile, Ffile, Rfile]]):
+@pytest.mark.parametrize('cg_file', ['Test_N_3_HWeight_7.hdf5'])
+@pytest.mark.parametrize('f_file', ['Test_Fsymb_3_HWeight_4.hdf5'])
+@pytest.mark.parametrize('r_file', ['Test_Rsymb_3_HWeight_4.hdf5'])
+def test_suN_symmetry(N,cg_file, f_file, r_file, np_random):
+    if not all([os.path.exists(f) for f in [cg_file, f_file, r_file]]):
         pytest.skip('Need to provide files for SU(N) data!')
     def gen_irrepsTEST(N, k):
         '''generates a list of all possible irreps for given N and highest weight k'''
@@ -946,11 +946,11 @@ def test_suN_symmetry(N,CGfile, Ffile, Rfile, np_random):
                     r.append(a[:])
         return r
 
-    CGfile = h5py.File(CGfile,"r")
-    Ffile = h5py.File(Ffile, "r")
-    Rfile = h5py.File(Rfile, "r")
-    sym = symmetries.SUNSymmetry(N, CGfile, Ffile, Rfile)
-    sym_with_name = symmetries.SUNSymmetry(N, CGfile, Ffile, Rfile, "Some SU(N)")
+    cg_file = h5py.File(cg_file, "r")
+    f_file = h5py.File(f_file, "r")
+    r_file = h5py.File(r_file, "r")
+    sym = symmetries.SUNSymmetry(N, cg_file, f_file, r_file)
+    sym_with_name = symmetries.SUNSymmetry(N, cg_file, f_file, r_file, "Some SU(N)")
     exsectors=np.array(gen_irrepsTEST(N,2))
     common_checks(sym, example_sectors=exsectors,
                   example_sectors_low_qdim=np.array([[0]*N, [1]+[0]*(N-1), [2]+[0]*(N-1)]), np_random=np_random)
@@ -1333,7 +1333,3 @@ def test_SU2_kAnyonCategory(k, handedness, np_random):
 
     print('checking dual_sectors')
     assert_array_equal(sym.dual_sectors(sectors_a), sectors_a)
-
-
-#test_suN_symmetry(3,'/space/ge36xeh/TenpyV2a/Test_N_3_HWeight_7.hdf5', '/space/ge36xeh/TenpyV2a/Test_Fsymb_3_HWeight_3.hdf5', '/space/ge36xeh/TenpyV2a/Test_Rsymb_3_HWeight_4.hdf5', default_rng)
-#test_suN_symmetry(2,'/space/ge36xeh/TenpyV2a/Test_N_2_HWeight_20.hdf5', '/space/ge36xeh/TenpyV2a/Test_Fsymb_2_HWeight_6.hdf5', '/space/ge36xeh/TenpyV2a/Test_Rsymb_2_HWeight_6.hdf5', default_rng)

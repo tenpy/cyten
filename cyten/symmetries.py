@@ -1335,35 +1335,34 @@ class SU2Symmetry(GroupSymmetry):
 
 
 class SUNSymmetry(GroupSymmetry):
-    """SU(N) group symmetry
+    """
+    SU(N) group symmetry
+    The sectors are arrays of length N which correspond to first rows of normalized
+    Gelfand-Tsetlin patterns(see https://arxiv.org/pdf/1009.0437 ).
+    E.g. for SU(3) the 8 dimensional irreducible representation is labeled by [2,1,0]
 
-    The sectors are arrays of length N which correspond to first rows of normalized Gelfand-Tsetlin patterns
-     (see https://arxiv.org/pdf/1009.0437 ).
-     E.g. for SU(3) the 8 dimensional irreducible representation is labeled by [2,1,0]
+    Clebsch Gordan coefficients and F/R symbols need to be calculated within the
+    clebsch_gordan_coefficients package and exported as hdf5 file.
 
-     Clebsch Gordan coefficients and F/R symbols need to be calculated within the clebsch_gordan_coefficients package and exported as hdf5 file.
-
-     CGfile: hdf5 file containing the clebsch gordan coefficients
-     Ffile: hdf5 file containing the F symbols
-     Rfile: hdf5 file containing the R Symbols
-
+    cg_file: hdf5 file containing the clebsch gordan coefficients
+    f_file: hdf5 file containing the F symbols
+    r_file: hdf5 file containing the R Symbols
     """
 
     fusion_tensor_dtype = Dtype.float64
 
-    def __init__(self, N:int, CGfile, Ffile, Rfile, descriptive_name: str | None = None):
+    def __init__(self, N:int, cg_file, f_file, r_file, descriptive_name: str | None = None):
 
         assert isinstance(N, int)
         if not isinstance(N, int) and N > 1:
             raise ValueError("Invalid N!")
 
-        if not N == CGfile.attrs['N'] or not N == Ffile.attrs['N'] or not N == Rfile.attrs['N']:
+        if not N == cg_file.attrs['N'] or not N == f_file.attrs['N'] or not N == r_file.attrs['N']:
             raise ValueError("Files must contain data for same N!")
         self.N = N
-        self.CGfile = CGfile
-        self.Ffile = Ffile
-        self.Rfile = Rfile
-
+        self.cg_file = cg_file
+        self.f_file = f_file
+        self.r_file = r_file
 
         GroupSymmetry.__init__(self,
                                fusion_style = FusionStyle.general,
@@ -1373,21 +1372,19 @@ class SUNSymmetry(GroupSymmetry):
                                descriptive_name = descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
-        l = (type(a) == np.ndarray)
-        if not l:
+        if not isinstance(a, np.ndarray): #check data type
             return False
 
-        for i in a: #check for negative entries
-            if i<0:
-                return False
+        if np.any(a<0): #check for negative entries
+            return False
 
-        for n in range(len(a)-1): #check that numbers in GT sequence are non increasing
-            if a[n+1]>a[n]:
-                return False
+        if np.all(a[1:] <= a[:-1]): #check that numbers in GT sequence are non increasing
+            return False
 
-        m = (len(a) == self.N)
-        n = (a[-1] == 0)
-        return m and n
+        if not len(a) == self.N: #check correckt length of sector label array
+            return False
+
+        return (a[-1] == 0) #check that last entry in array is zero (normalization of GT pattern)
 
     def is_same_symmetry(self, other) -> bool:
         if not isinstance(other, SUNSymmetry):
@@ -1412,7 +1409,8 @@ class SUNSymmetry(GroupSymmetry):
 
 
     def __repr__(self):
-        return f'SUN_Category()'
+        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
+        return f'SUNSymmetry({self.N}{name_str})'
 
 
     def dual_sector(self, a: Sector) -> Sector:
@@ -1445,7 +1443,7 @@ class SUNSymmetry(GroupSymmetry):
 
         for i in irreps:
             dimI = self.sector_dim(i)
-            if dimI == dimA and not list(i) == list(a):
+            if dimI == dimA and not np.all(i == a):
                 return i
 
         return a
@@ -1453,16 +1451,16 @@ class SUNSymmetry(GroupSymmetry):
     # def N_from_CG(self) -> int:
     #     """Returns the N in SU(N) from a given hdf5 file containing the CG coefficients"""
     #
-    #     return int(self.CGfile.attrs['N'])
+    #     return int(self.cg_file.attrs['N'])
 
     def hweight_from_CG_hdf5(self) -> int:
-        return int(self.CGfile.attrs['Highest_Weight'])
+        return int(self.cg_file.attrs['Highest_Weight'])
 
     def hweight_from_F_hdf5(self) -> int:
-        return int(self.Ffile.attrs['Highest_Weight'])
+        return int(self.f_file.attrs['Highest_Weight'])
 
     def hweight_from_R_hdf5(self) -> int:
-        return int(self.Rfile.attrs['Highest_Weight'])
+        return int(self.r_file.attrs['Highest_Weight'])
 
     def can_fuse_to(self, a: Sector, b: Sector, c: Sector) -> bool:
         """Returns True if c appears at least once in the decomposition of a x b and False otherwise
@@ -1488,13 +1486,13 @@ class SUNSymmetry(GroupSymmetry):
 
         key = N + astr + bstr
 
-        if not key in self.CGfile:
+        if not key in self.cg_file:
             key = N + bstr + astr
 
         dec = []
 
-        for i in list(self.CGfile[key]):
-            dec.append(list(self.CGfile[key][str(i)].attrs['Irreplabel']))
+        for i in list(self.cg_file[key]):
+            dec.append(list(self.cg_file[key][str(i)].attrs['Irreplabel']))
 
         if list(c) in dec:
             return True
@@ -1524,13 +1522,13 @@ class SUNSymmetry(GroupSymmetry):
 
         key = N + a + b
 
-        if not key in self.CGfile:
+        if not key in self.cg_file:
             key = N + b + a
 
-        if c not in list(self.CGfile[key]):
+        if c not in list(self.cg_file[key]):
             return 0
 
-        return self.CGfile[key][c].attrs['Outer Multiplicity']
+        return self.cg_file[key][c].attrs['Outer Multiplicity']
 
     def S_index_irrep_weight(self, a: Sector) -> int:
         """ to every su(N) irrep, labeled by the first row of a GT pattern, we can assign an integer number S
@@ -1568,12 +1566,12 @@ class SUNSymmetry(GroupSymmetry):
 
         key = N + a + b
 
-        if not key in self.CGfile:
+        if not key in self.cg_file:
             key = N + b + a
 
         dec =[]
-        for i in list(self.CGfile[key]):
-            dec.append(self.CGfile[key][str(i)].attrs['Irreplabel'])
+        for i in list(self.cg_file[key]):
+            dec.append(self.cg_file[key][str(i)].attrs['Irreplabel'])
 
         return np.array(dec)
 
@@ -1599,7 +1597,7 @@ class SUNSymmetry(GroupSymmetry):
 
         for k in keys:
             obj = 'Irrep' + ''.join(map(str, k)) + 'a1'
-            C[k] = int(self.CGfile[key][obj].attrs['Dimension'])
+            C[k] = int(self.cg_file[key][obj].attrs['Dimension'])
 
         return C
 
@@ -1625,7 +1623,7 @@ class SUNSymmetry(GroupSymmetry):
 
         for k in keys:
             obj = 'Irrep' + ''.join(map(str, k)) + 'a1'
-            C[k] = int(self.CGfile[key][obj].attrs['Outer Multiplicity'])
+            C[k] = int(self.cg_file[key][obj].attrs['Outer Multiplicity'])
 
         return C
 
@@ -1662,11 +1660,11 @@ class SUNSymmetry(GroupSymmetry):
         key1 = N + a + b
         key2 = 'Irrep' + c + 'a' + str(mu)
 
-        if key1 in self.CGfile:
-            arr = np.array(self.CGfile[key1][key2])[0]
+        if key1 in self.cg_file:
+            arr = np.array(self.cg_file[key1][key2])[0]
         else:
             key1 = N + b + a  # we only save a x b  and not also b x a since the clebsch gordan coefficients are the same in both cases
-            arr = np.array(self.CGfile[key1][key2])[0]
+            arr = np.array(self.cg_file[key1][key2])[0]
 
             ms = [float(q_b), float(q_a), float(q_c)]
 
@@ -1711,7 +1709,7 @@ class SUNSymmetry(GroupSymmetry):
                         rr = self.clebschgordan(a, m_a, b, m_b, c, m_c, mu)
                         X[m_a - 1, m_b - 1, m_c - 1, mu - 1] = rr
 
-        return X.transpose([3,0,1,2])
+        return X.transpose([3,0,1,2]) # transpose for consistent labeling order of X symbol
 
     def _f_symbol_from_CG(self,a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector):
         """a,b,c,d,e,f are irrep labels, i.e. first rows of GT patterns
@@ -1768,11 +1766,11 @@ class SUNSymmetry(GroupSymmetry):
         key = 'F' + str(list(a)) + str(list(b)) + str(list(c)) + str(list(d)) + str(list(e)) + str(list(f))
         keybar = 'F' + str(list(abar)) + str(list(bbar)) + str(list(cbar)) + str(list(dbar)) + str(list(ebar)) + str(list(fbar))
 
-        if key in self.Ffile['/F_sym/']:
-            return np.array(self.Ffile['/F_sym/'][key])
+        if key in self.f_file['/F_sym/']:
+            return np.array(self.f_file['/F_sym/'][key])
 
-        elif keybar in self.Ffile['/F_sym/']:
-            return np.array(self.Ffile['/F_sym/'][keybar])
+        elif keybar in self.f_file['/F_sym/']:
+            return np.array(self.f_file['/F_sym/'][keybar])
 
         return np.zeros((1, 1, 1, 1), dtype=complex)
 
@@ -1812,8 +1810,8 @@ class SUNSymmetry(GroupSymmetry):
 
         key = 'R' + str(list(a)) + str(list(b)) + str(list(c))
 
-        if key in self.Rfile['/R_sym/']:
-            return np.array(self.Rfile['/R_sym/'][key])
+        if key in self.r_file['/R_sym/']:
+            return np.array(self.r_file['/R_sym/'][key])
 
         return np.zeros((1,), dtype=complex)
 
@@ -1827,45 +1825,7 @@ class SUNSymmetry(GroupSymmetry):
 
             return Z
 
-        # elif self.N == 3:
-        #     d_a = self.sector_dim(a)
-        #     Z = np.zeros((d_a, d_a), dtype=float)
-        #     dia=[]
-        #     for n in range(d_a):
-        #         dia += [(-1)**(n)]
-        #     print(np.fliplr(np.diag(dia)))
-        #     return np.fliplr(np.diag(dia))
-
-        elif self.N==3:
-            d_a = self.sector_dim(a)
-            # Z = np.zeros((d_a, d_a), dtype=float)
-            if d_a==1:
-                return np.array([[1]])
-
-            Z=np.zeros((d_a,d_a), dtype=complex)
-            Z[0,d_a-1]=-1.j
-            Z[d_a-1,0]=1.j
-
-            for i in range(1,d_a-1):
-                Z[i,i]=1
-
-            return Z
-
-
-
-        #
-        # elif self.N == 3:
-        #     d_a = self.sector_dim(a)
-        #     # Z = np.zeros((d_a, d_a), dtype=float)
-        #     if d_a==1:
-        #         return np.array([[1]])
-        #
-        #     dia=[-1.j]
-        #     for n in range(1,d_a-1):
-        #         dia += [1]
-        #     dia+=[1.j]
-        #     print(np.fliplr(np.diag(dia)))
-        #     return np.fliplr(np.diag(dia))
+        return NotImplemented
 
     def frobenius_schur(self, a: Sector) -> int:
 
