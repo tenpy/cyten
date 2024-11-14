@@ -1682,21 +1682,23 @@ class DiagonalTensor(SymmetricTensor):
 class Mask(Tensor):
     r"""A boolean mask that can be used to project or enlarge a leg.
 
-    Masks come in two versions: projections and inclusions.
-    A projection Mask is a special kind of projection map, that either keeps or discards any given
-    sector. It has a single leg, the :attr:`large_leg` in its domain and maps it to a single leg,
-    the :attr:`small_leg` in the codomain.
-    An inclusion Mask is the dagger of this projection Mask and maps from the small leg in the
-    domain to the large leg in the codomain::
+    Masks come in two versions: projections and inclusions. A projection Mask has a single leg, the
+    :attr:`large_leg` in its domain and maps it to a single leg, the :attr:`small_leg` in the
+    codomain. An inclusion Mask is the dagger of this projection Mask and maps from the small leg
+    in the domain to the large leg in the codomain::
 
+        |         │                 ║
+        |      ┏━━┷━━┓           ┏━━┷━━┓
+        |      ┃ M_p ┃    OR     ┃ M_i ┃
+        |      ┗━━┯━━┛           ┗━━┯━━┛
+        |         ║                 │
 
-    |         │                 ║
-    |      ┏━━┷━━┓           ┏━━┷━━┓
-    |      ┃ M_p ┃    OR     ┃ M_i ┃
-    |      ┗━━┯━━┛           ┗━━┯━━┛
-    |         ║                 │
-
-    TODO think in detail about the basis_perm and how it interacts with masking...
+    A Mask places restrictions on the basis order of the respective legs. For a projection Mask,
+    the kept basis elements from the large leg need to appear in their original order in the small
+    leg. Analogously, for an inclusion, the basis elements from the small leg need to be embedded
+    into the large leg in their original order. This restricts
+    the :attr:`~cyten.linalg.ElementarySpace.basis_perm` of the legs, see notes below.
+    Most classmethods that are used to build Masks take care of this for you.
 
     Attributes
     ----------
@@ -1725,7 +1727,40 @@ class Mask(Tensor):
         Can either give two lists, one for the codomain, one for the domain.
         Or a single flat list for all legs in the order of the :attr:`legs`,
         such that ``[codomain_labels, domain_labels]`` is equivalent
-        to ``[*codomain_legs, *reversed(domain_legs)]``.
+        to ``[*codomain_labels, *reversed(domain_labels)]``.
+
+    Notes
+    -----
+    The :attr:`~cyten.linalg.ElementarySpace.basis_perm` of the legs is constrained by the 
+    requirements of the Mask, and in particular *depending on the data* as follows;
+    The following explanation is intuitive only for a projection Mask but also applies to inclusions.
+    Taking the ordered set of basis elements, permuting it by the large legs basis perm, then
+    discarding some of them according to the mask data, and finally permuting the remaining 
+    elements back by the (inverse) small leg perm should result in a basis of the small leg,
+    where the relative ordering of elements is preserved.
+
+    In code, this means ::
+    
+        ranks = self.large_leg.basis_perm[mask_in_internal_basis][self.small_leg.inverse_basis_perm]
+
+    In particular, the basis permutation of the small leg is uniquely determined by the
+    permutation of the large leg and the mask data.
+
+    Consider the following valid example, assuming for simplicity only one one-dim. sector ::
+
+        large_leg_perm = [2, 4, 0, 1, 3]
+        mask_in_internal_basis = [True, True, False, True, False]
+        # mask_in_public_basis = [False, True, True, False, True]
+        small_leg_perm = [1, 2, 0]
+        small_leg_perm_inv = [2, 0, 1]
+
+    Which maps an ordered basis as follows ::
+        {e0, e1, e2, e3, e4}
+        ---large_leg_perm--> {e2, e4, e0, e1, e3}
+        ---mask_in_internal_basis--> {e2, e4, e1}
+        ---small_leg_perm_inv--> {e1, e2, e4}
+
+    Such that the result is ordered.
     """
     _forbidden_dtypes = [Dtype.float32, Dtype.float64, Dtype.complex64, Dtype.complex128]
 
@@ -1752,16 +1787,34 @@ class Mask(Tensor):
         assert isinstance(space_out, ElementarySpace)
         Tensor.__init__(self, codomain=[space_out], domain=[space_in], backend=backend,
                         labels=labels, dtype=Dtype.bool)
-        assert isinstance(data, self.backend.DataCls)  # TODO rm check after testing?
         self.data = data
 
     def test_sanity(self):
         super().test_sanity()
         self.backend.test_mask_sanity(self)
         assert self.codomain.num_spaces == 1 == self.domain.num_spaces
+        assert isinstance(self.codomain.spaces[0], ElementarySpace)
+        assert isinstance(self.domain.spaces[0], ElementarySpace)
         assert self.large_leg.is_dual == self.small_leg.is_dual
         assert self.small_leg.is_subspace_of(self.large_leg)
         assert self.dtype == Dtype.bool
+
+        # check consistency of the basis perm of the small leg.
+        if self.large_leg._basis_perm is None:
+            if self.small_leg._basis_perm is None:
+                pass  # this is consistent.
+            else:
+                assert np.all(self.small_leg.basis_perm == np.arange(self.small_leg.dim))
+        else:
+            mask_in_internal_basis = self.backend.block_backend.block_to_numpy(
+                self.backend.mask_to_block(self),
+                bool
+            )
+            pi_1 = self.large_leg.basis_perm
+            pi_2_inv = self.small_leg.inverse_basis_perm
+            ranks = pi_1[mask_in_internal_basis][pi_2_inv]
+            # check if ranks is sorted
+            assert np.all(ranks[:-1] < ranks[1:])
 
     @property
     def large_leg(self) -> ElementarySpace:
@@ -1785,13 +1838,15 @@ class Mask(Tensor):
 
         Parameters
         ----------
-        large_leg, backend, labels:
+        leg : ElementarySpace
+            The single leg for the Mask, equal to both its small and large leg.
+        is_projection, backend, labels
             Arguments, like for constructor of :class:`Mask`.
 
         See Also
         --------
         from_zero
-            The projection Mask, that discards all states and keeps none.
+            The projection Mask that discards all states and keeps none.
         """
         diag = DiagonalTensor.from_eye(leg=leg, backend=backend, labels=labels, dtype=Dtype.bool)
         res = cls.from_DiagonalTensor(diag)
@@ -1805,6 +1860,10 @@ class Mask(Tensor):
         """Create a projection Mask from a boolean block.
 
         To get the related inclusion Mask, use :func:`dagger`.
+
+        The small leg of the projection is fully determined by the large leg and by the boolean
+        data. In particular, its basis permutation is such that the kept basis elements from the large
+        leg appear in order.
 
         Parameters
         ----------
@@ -1829,8 +1888,12 @@ class Mask(Tensor):
     def from_DiagonalTensor(cls, diag: DiagonalTensor):
         """Create a projection Mask from a boolean DiagonalTensor.
 
-        The resulting mask keeps exactly those basis elements for which the entry of `diag` is ``True``.
-        To get the related inclusion Mask, use the :func:`dagger`.
+        The resulting mask keeps exactly those basis elements for which the entry of `diag` is
+        ``True``. To get the related inclusion Mask, use the :func:`dagger`.
+
+        The small leg of the projection is fully determined by the large leg and by `diag`.
+        In particular, its basis permutation is such that those basis elements from the large leg
+        that are kept appear in order.
         """
         assert diag.dtype == Dtype.bool
         data, small_leg = diag.backend.diagonal_to_mask(diag)
@@ -1846,6 +1909,10 @@ class Mask(Tensor):
         """Create a projection Mask from the indices that are kept.
 
         To get the related inclusion Mask, use :func:`dagger`.
+
+        The small leg of the projection is fully determined by the large leg and by the `indices`.
+        In particular, its basis permutation is such that those basis elements from the large leg
+        that are kept appear in order.
 
         Parameters
         ----------
@@ -1873,7 +1940,9 @@ class Mask(Tensor):
         large_leg: Space
             The large leg, in the domain of the projection
         small_leg: Space, optional
-            The small leg. If given, must be a subspace of the `large_leg`.
+            The small leg. If given, must be a subspace of the `large_leg` with compatible basis
+            order (see notes in class docstring of :class:`Mask`).
+            If ``None``, a small leg is randomly generated, according to `p_keep` and `min_keep`.
         backend, labels
             Arguments, like for the constructor
         p_keep: float, optional
@@ -1886,6 +1955,9 @@ class Mask(Tensor):
 
         if backend is None:
             backend = get_backend(symmetry=large_leg.symmetry)
+
+        if not isinstance(large_leg, ElementarySpace):
+            raise ValueError('large_leg must be ElementarySpace.')
 
         if small_leg is None:
             assert 0 <= p_keep <= 1
@@ -1903,8 +1975,8 @@ class Mask(Tensor):
                 return Mask.from_eye(large_leg, is_projection=True, backend=backend, labels=labels)
             # explicitly constructing the small_leg with exactly min_keep sectors kept is
             # quite annoying bc of basis_perm. Instead we increase p_keep until we get there.
-            # first, try just a bit higher
-            p_keep = p_keep + 0.05 * (1 - p_keep)
+            # first, try a heuristic
+            p_keep = np.ceil(1.05 * min_keep / np.sum(large_leg.multiplicities))
             res = cls.from_DiagonalTensor(diag < (2 * p_keep - 1))
             for _ in range(20):
                 if np.sum(res.small_leg.multiplicities) >= min_keep:
@@ -1913,8 +1985,21 @@ class Mask(Tensor):
                 res = cls.from_DiagonalTensor(diag < (2 * p_keep - 1))
             raise RuntimeError('Could not fulfill min_keep')
 
-        assert small_leg.is_subspace_of(large_leg)
+        if not small_leg.is_subspace_of(large_leg):
+            raise ValueError('small_leg must be a subspace of the large leg.')
+        if not isinstance(small_leg, ElementarySpace):
+            raise ValueError('small_leg must be ElementarySpace.')
 
+        large_perm_trivial = large_leg._basis_perm is None \
+                or np.all(large_leg._basis_perm == np.arange(len(large_leg._basis_perm)))
+        small_perm_trivial = small_leg._basis_perm is None \
+                or np.all(small_leg._basis_perm == np.arange(len(small_leg._basis_perm)))
+
+        if (not large_perm_trivial) or (not small_perm_trivial):
+            # TODO support? if yes, adjust tests, e.g. in test_Mask
+            msg = ('Generating random Masks with non-trivial, fixed basis_perm is hard and '
+                   'hopefully never needed.')
+            raise NotImplementedError(msg)
 
         def func(shape, coupled):
             num_keep = small_leg.sector_multiplicity(coupled)
@@ -1927,8 +2012,7 @@ class Mask(Tensor):
             func, leg=large_leg, backend=backend, labels=labels, dtype=Dtype.bool
         )
         res = cls.from_DiagonalTensor(diag)
-        res.small_leg._basis_perm = small_leg._basis_perm
-        res.small_leg._inverse_basis_perm = small_leg._inverse_basis_perm
+        assert res.small_leg == small_leg
         return res
 
     @classmethod
@@ -1959,7 +2043,7 @@ class Mask(Tensor):
                    backend=backend, labels=labels)
 
     def __and__(self, other):  # ``self & other``
-        return self._binary_operand(other, operator.and_, '==')
+        return self._binary_operand(other, operator.and_, '&')
 
     def __bool__(self):
         msg = 'The truth value of a Mask is ambiguous. Use a.any() or a.all()'
@@ -2025,6 +2109,8 @@ class Mask(Tensor):
         """Utility function for a shared implementation of binary functions, whose second argument
         may be a scalar ("to be broadcast") or a Mask.
 
+    
+        
         Parameters
         ----------
         other
