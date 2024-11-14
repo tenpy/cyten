@@ -14,7 +14,7 @@ from ..spaces import Space, ElementarySpace, ProductSpace
 from ..trees import FusionTree, fusion_trees
 from ..tools.misc import (
     inverse_permutation, iter_common_sorted_arrays, iter_common_noncommon_sorted,
-    iter_common_sorted
+    iter_common_sorted, permutation_as_swaps
 )
 
 if TYPE_CHECKING:
@@ -843,16 +843,6 @@ class FusionTreeBackend(TensorBackend):
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:
-        def exchanges_within_productspace(initial_perm: list, final_perm: list) -> list:
-            exchanges = []
-            while final_perm != initial_perm:
-                for i in range(len(final_perm)):
-                    if final_perm[i] != initial_perm[i]:
-                        ind = initial_perm.index(final_perm[i])
-                        initial_perm[ind-1:ind+1] = initial_perm[ind-1:ind+1][::-1]
-                        exchanges.append(ind - 1)
-                        break
-            return exchanges
         # TODO special cases without bends
 
         # legs that need to be bent up or down
@@ -892,7 +882,7 @@ class FusionTreeBackend(TensorBackend):
         # exchanges within the domain such that the legs agree with domain_idcs
         inter_domain_idcs = ([i for i in range(a.num_legs-1, a.num_codomain_legs-1, -1) if not i in bend_up]
                              + bend_down[::-1])
-        exchanges = exchanges_within_productspace(inter_domain_idcs, domain_idcs)
+        exchanges = permutation_as_swaps(inter_domain_idcs, domain_idcs)
         exchanges = [a.num_legs - 2 - i for i in exchanges]
         all_exchanges += exchanges
         all_bend_ups += [None] * len(exchanges)
@@ -906,7 +896,7 @@ class FusionTreeBackend(TensorBackend):
 
         # exchanges within the codomain such that the legs agree with codomain_idcs
         inter_codomain_idcs = [i for i in range(a.num_codomain_legs) if not i in bend_down] + bend_up
-        exchanges = exchanges_within_productspace(inter_codomain_idcs, codomain_idcs)
+        exchanges = permutation_as_swaps(inter_codomain_idcs, codomain_idcs)
         all_exchanges += exchanges
         all_bend_ups += [None] * len(exchanges)
         num_operations.append(len(exchanges))
