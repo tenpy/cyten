@@ -20,10 +20,6 @@ if TYPE_CHECKING:
     from ..tensors import SymmetricTensor, DiagonalTensor, Mask
 
 
-# TODO eventually remove BlockBackend inheritance, it is not needed,
-#  jakob only keeps it around to make his IDE happy
-
-
 class NoSymmetryBackend(TensorBackend):
     """Abstract base class for backends that do not enforce any symmetry.
 

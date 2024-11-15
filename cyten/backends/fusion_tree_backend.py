@@ -258,9 +258,6 @@ class FusionTreeData:
         return cls(block_inds, zero_blocks, dtype=dtype, is_sorted=True)
 
 
-# TODO do we need to inherit from ABC again?? (same in abelian and no_symmetry)
-# TODO eventually remove BlockBackend inheritance, it is not needed,
-#      jakob only keeps it around to make his IDE happy  (same in abelian and no_symmetry)
 class FusionTreeBackend(TensorBackend):
     """`ProductSpace`s on the individual legs of the tensors are not supported, only
     `ElementarySpace`s are allowed. The reason for this is that product spaces transform
