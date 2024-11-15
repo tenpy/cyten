@@ -20,7 +20,7 @@ def apply_single_b_symbol_efficient(ten: SymmetricTensor, bend_up: bool
     This is of course inefficient usage of this implementation but a necessity  in order
     to use the structure of the already implemented tests.
     """
-    func = ten.backend._find_approproiate_mapping_dict
+    func = fusion_tree_backend.TreeMappingDict.from_b_or_c_symbol
     index = ten.num_codomain_legs - 1
     coupled = [ten.domain.sectors[ind[1]] for ind in ten.data.block_inds]
 
@@ -33,9 +33,8 @@ def apply_single_b_symbol_efficient(ten: SymmetricTensor, bend_up: bool
         axes_perm += [ten.num_codomain_legs - 1]
 
     mapp, new_codomain, new_domain, _ = func(ten.codomain, ten.domain, index, coupled,
-                                             None, bend_up)
-    new_data = ten.backend._apply_mapping_dict(ten, new_codomain, new_domain, axes_perm,
-                                               mapp, in_domain=None)
+                                             None, bend_up, ten.backend)
+    new_data = mapp.apply_to_tensor(ten, new_codomain, new_domain, axes_perm, in_domain=None)
     return new_data, new_codomain, new_domain
 
 
@@ -46,7 +45,7 @@ def apply_single_c_symbol_efficient(ten: SymmetricTensor, leg: int | str, levels
     This is of course inefficient usage of this implementation but a necessity  in order
     to use the structure of the already implemented tests.
     """
-    func = ten.backend._find_approproiate_mapping_dict
+    func = fusion_tree_backend.TreeMappingDict.from_b_or_c_symbol
     index = ten.get_leg_idcs(leg)[0]
     in_domain = index > ten.num_codomain_legs - 1
     overbraid = levels[index] > levels[index + 1]
@@ -61,9 +60,8 @@ def apply_single_c_symbol_efficient(ten: SymmetricTensor, leg: int | str, levels
     axes_perm[index_:index_ + 2] = axes_perm[index_:index_ + 2][::-1]
 
     mapp, new_codomain, new_domain, _ = func(ten.codomain, ten.domain, index, coupled,
-                                             overbraid, None)
-    new_data = ten.backend._apply_mapping_dict(ten, new_codomain, new_domain, axes_perm,
-                                               mapp, in_domain)
+                                             overbraid, None, ten.backend)
+    new_data = mapp.apply_to_tensor(ten, new_codomain, new_domain, axes_perm, in_domain)
     return new_data, new_codomain, new_domain
 
 

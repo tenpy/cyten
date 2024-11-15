@@ -927,23 +927,24 @@ class FusionTreeBackend(TensorBackend):
                 else:
                     overbraid = None
 
-                mapp, codomain, domain, coupled = self._find_approproiate_mapping_dict(codomain, domain,
-                                                                                       exchange_ind, coupled,
-                                                                                       overbraid, all_bend_ups[ind])
+                mapp, codomain, domain, coupled = TreeMappingDict.from_b_or_c_symbol(codomain, domain,
+                                                                                     exchange_ind, coupled,
+                                                                                     overbraid, all_bend_ups[ind],
+                                                                                     a.backend)
                 mappings_step.append(mapp)
 
             if len(mappings_step) > 0:
-                mappings_step = self._combine_multiple_mapping_dicts(mappings_step)
+                mappings_step = TreeMappingDict.compose_multiple(mappings_step)
                 if i == 0 or i == 5:
-                    mappings_step = self._add_prodspace_to_mapping_dict(mappings_step, domain, coupled, 1)
+                    mappings_step = mappings_step.add_prodspace(domain, coupled, 1)
                 elif i == 2 or i == 3:
-                    mappings_step = self._add_prodspace_to_mapping_dict(mappings_step, codomain, coupled, 0)
+                    mappings_step = mappings_step.add_prodspace(codomain, coupled, 0)
                 mappings.append(mappings_step)
 
-        mappings = self._combine_multiple_mapping_dicts(mappings)
+        mappings = TreeMappingDict.compose_multiple(mappings)
         axes_perm = codomain_idcs + domain_idcs
         axes_perm = [i if i < a.num_codomain_legs else a.num_legs - 1 - i + a.num_codomain_legs for i in axes_perm]
-        data = self._apply_mapping_dict(a, codomain, domain, axes_perm, mappings, None)
+        data = mappings.apply_to_tensor(a, codomain, domain, axes_perm, None)
         return data, codomain, domain
 
     def qr(self, a: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
@@ -1264,9 +1265,8 @@ class FusionTreeBackend(TensorBackend):
         return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=Dtype.bool)
 
     # OPTIONAL OVERRIDES
-
-    def _fuse_spaces(self, symmetry: Symmetry, spaces: list[Space]):
-        raise RuntimeError(self.err_msg_prodspace)
+    # despite not allowing product spaces on legs, we cannot raise an error when calling
+    # _fuse_spaces since the (co)domain is a ProductSpace
 
     # INTERNAL FUNCTIONS
 
@@ -1380,342 +1380,6 @@ class FusionTreeBackend(TensorBackend):
         num_alpha_trees = len(alpha_tree_iter)  # OPTIMIZE count loop iterations above instead?
         num_beta_trees = len(beta_tree_iter)
         return num_alpha_trees, num_beta_trees
-
-    # METHODS FOR COMPUTING THE ACTION OF B AND C SYMBOLS
-
-    def _add_to_mapping_dict(self, mapping: dict, trees_i: tuple[FusionTree],
-                             trees_f: tuple[FusionTree], amplitude: float | complex) -> None:
-        """Add the contribution that maps `tree_i` to `tree_f` with amplitude `amplitude`
-        to the mapping dict `mapping`.
-        """
-        if trees_i in mapping:
-            if trees_f in mapping[trees_i]:
-                mapping[trees_i][trees_f] += amplitude
-            else:
-                mapping[trees_i][trees_f] = amplitude
-        else:
-            mapping[trees_i] = {trees_f: amplitude}
-
-    def _add_prodspace_to_mapping_dict(self, mapping: dict, prodspace: ProductSpace,
-                                       coupled: SectorArray, index: int) -> dict:
-        """Add the product space `prodspace` to the mapping dict `mapping`. The new
-        mapping dict's key are now tuples with one additional entry corresponding to
-        fusion trees in `prodspace` with coupled sector in `coupled`. The new product
-        space does not affect the amplitudes in the mapping dict. `index` specifies
-        the position of the new trees within the new keys.
-
-        This function can be used to translate mapping dicts obtained for c symbols
-        to the level of both codomain and domain such that it can be combined with
-        b symbols.
-        """
-        def new_key(key, tree):
-            newkey = list(key)
-            newkey.insert(index, tree)
-            return tuple(newkey)
-
-        new_mapping = {}
-        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled, prodspace.symmetry):
-            for key in mapping:
-                if not np.all(tree.coupled == key[0].coupled):
-                    continue
-                new_value = {new_key(key2, tree): value for (key2, value) in mapping[key].items()}
-                new_mapping[new_key(key, tree)] = new_value
-        return new_mapping
-
-    def _combine_mapping_dicts(self, dict1: dict, dict2: dict) -> dict:
-        """Return a dict corresponding to the mapping associated with first applying
-        dict1 and then dict2.
-        """
-        comb = {}
-        for key1 in dict1:
-            comb[key1] = {}
-            for key2 in dict1[key1]:
-                for key3 in dict2[key2]:
-                    if key3 in comb[key1]:
-                        comb[key1][key3] += dict1[key1][key2] * dict2[key2][key3]
-                    else:
-                        comb[key1][key3] = dict1[key1][key2] * dict2[key2][key3]
-        return comb
-
-    def _combine_multiple_mapping_dicts(self, dicts: list[dict]) -> dict:
-        """Return a dict corresponding to the mapping associated with applying all
-        dicts in the order given by the list. It is assumed that the all keys have
-        the same format (i.e., all either specified by a single or by two fusion
-        diagrams).
-        """
-        comb = dicts[0]
-        for mapping in dicts[1:]:
-            comb = self._combine_mapping_dicts(comb, mapping)
-        return comb
-
-    def _single_c_symbol_as_mapping(self, prodspace: ProductSpace, coupled: SectorArray,
-                                    index: int, overbraid: bool, in_domain: bool) -> dict:
-        """Return a dictionary including the details on how to combine the old fusion trees
-        in `prodspace` in order to obtain the new ones after braiding. The braided spaces
-        correspond to `index` and `index+1`;  the counting is from left to right (standard)
-        in the codomain and from right to left (reverse) in the domain (if `in_domain ==
-        True`). If `overbraid == True`, the space corresponding to `index` is above the one
-        corresponding to `index+1`. The coupled sectors `coupled` correspond to the coupled
-        sectors of interest (= sectors with non-zero blocks of the tensor). Contributions
-        smaller than `self.eps` are discarded.
-        """
-        symmetry = prodspace.symmetry
-        if in_domain:
-            index = prodspace.num_spaces - 2 - index
-            overbraid = not overbraid
-
-        mapping = {}
-        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled, symmetry):
-            unc, inn, mul = tree.uncoupled, tree.inner_sectors, tree.multiplicities
-            if index == 0:
-                f = tree.coupled if len(inn) == 0 else inn[0]
-                if overbraid:
-                    factor = symmetry._r_symbol(unc[1], unc[0], f)[mul[0]]
-                else:
-                    factor = symmetry._r_symbol(unc[0], unc[1], f)[mul[0]].conj()
-                if in_domain:
-                    factor = factor.conj()
-
-                new_tree = tree.copy(deep=True)
-                new_tree.uncoupled[:2] = new_tree.uncoupled[:2][::-1]
-                new_tree.are_dual[:2] = new_tree.are_dual[:2][::-1]
-                self._add_to_mapping_dict(mapping, (tree, ), (new_tree, ), factor)
-            else:
-                left_charge = unc[0] if index == 1 else inn[index-2]
-                right_charge = tree.coupled if index == inn.shape[0] else inn[index]
-
-                for f in symmetry.fusion_outcomes(left_charge, unc[index+1]):
-                    if not symmetry.can_fuse_to(f, unc[index], right_charge):
-                        continue
-
-                    new_tree = tree.copy(deep=True)
-                    new_tree.inner_sectors[index-1] = f
-                    new_tree.uncoupled[index:index+2] = new_tree.uncoupled[index:index+2][::-1]
-                    new_tree.are_dual[index:index+2] = new_tree.are_dual[index:index+2][::-1]
-
-                    if overbraid:
-                        factors = symmetry._c_symbol(left_charge, unc[index+1], unc[index], right_charge,
-                                                     f, inn[index-1])[:, :, mul[index-1], mul[index]]
-                    else:
-                        factors = symmetry._c_symbol(left_charge, unc[index], unc[index+1], right_charge,
-                                                     inn[index-1], f)[mul[index-1], mul[index], :, :].conj()
-                    if in_domain:
-                        factors = factors.conj()
-
-                    for (kap, lam), factor in np.ndenumerate(factors):
-                        if abs(factor) < self.eps:
-                            continue
-
-                        new_tree.multiplicities[index-1] = kap
-                        new_tree.multiplicities[index] = lam
-                        self._add_to_mapping_dict(mapping, (tree, ), (new_tree.copy(deep=True), ), factor)
-        return mapping
-
-    def _single_b_symbol_as_mapping(self, codomain: ProductSpace, domain: ProductSpace,
-                                    coupled: SectorArray, bend_up: bool
-                                    ) -> tuple[dict, SectorArray]:
-        """Return a dictionary including the details on how to combine the old fusion
-        trees in `codomain` and `domain` in order to obtain the new ones after bending
-        the final leg in the codomain down (`bend_up == False`) / domain up (`bend_up
-        == True`). The coupled sectors `coupled` correspond to the coupled sectors of
-        interest (= sectors with non-zero blocks of the tensor). Contributions smaller
-        than `self.eps` are discarded.
-        """
-        symmetry = codomain.symmetry
-        mapping = {}
-        new_coupled = []
-        spaces = [codomain, domain]
-        for tree1, _, _ in _tree_block_iter_product_space(spaces[bend_up], coupled, symmetry):
-            if tree1.uncoupled.shape[0] == 1:
-                new_trees_coupled = symmetry.trivial_sector
-            else:
-                new_trees_coupled = tree1.inner_sectors[-1] if tree1.inner_sectors.shape[0] > 0 else tree1.uncoupled[0]
-
-            new_tree1 = FusionTree(symmetry, tree1.uncoupled[:-1], new_trees_coupled, tree1.are_dual[:-1],
-                                   tree1.inner_sectors[:-1], tree1.multiplicities[:-1])
-
-            if len(new_coupled) == 0 or not np.any( np.all(new_trees_coupled == new_coupled, axis=1) ):
-                new_coupled.append(new_trees_coupled)
-
-            b_sym = symmetry._b_symbol(new_trees_coupled, tree1.uncoupled[-1], tree1.coupled)
-            if not bend_up:
-                b_sym = b_sym.conj()
-            if tree1.are_dual[-1]:
-                b_sym = b_sym * symmetry.frobenius_schur(tree1.uncoupled[-1])
-            mu = tree1.multiplicities[-1] if tree1.multiplicities.shape[0] > 0 else 0
-
-            for tree2, _, _ in _tree_block_iter_product_space(spaces[not bend_up], [tree1.coupled], symmetry):
-                if len(tree2.uncoupled) == 0:
-                    new_unc = np.array([symmetry.dual_sector(tree1.uncoupled[-1])])
-                    new_dual = np.array([not tree1.are_dual[-1]])
-                    new_mul = np.array([], dtype=int)
-                else:
-                    new_unc = np.append(tree2.uncoupled, [symmetry.dual_sector(tree1.uncoupled[-1])], axis=0)
-                    new_dual = np.append(tree2.are_dual, [not tree1.are_dual[-1]])
-                    new_mul = np.append(tree2.multiplicities, [0]) if len(new_unc) > 2 else np.array([0])
-                new_in = np.append(tree2.inner_sectors, [tree2.coupled], axis=0) if len(new_unc) > 2 else []
-                new_tree2 = FusionTree(symmetry, new_unc, new_trees_coupled, new_dual, new_in, new_mul)
-
-                for nu in range(b_sym.shape[1]):
-                    if abs(b_sym[mu, nu]) < self.eps:
-                        continue
-
-                    # assign it only if new_tree2 has a multiplicity, i.e., more than 1 uncoupled charge
-                    if len(new_tree2.uncoupled) > 1:
-                        new_tree2.multiplicities[-1] = nu
-
-                    old_trees = ([tree1, tree2][bend_up], [tree1, tree2][not bend_up])
-                    new_trees = ([new_tree1, new_tree2][bend_up], [new_tree1, new_tree2][not bend_up])
-                    self._add_to_mapping_dict(mapping, old_trees, new_trees, b_sym[mu, nu])
-        # TODO should we lexsort new_coupled? I dont see a reason right now
-        return mapping, np.array(new_coupled)
-
-    def _find_approproiate_mapping_dict(self, codomain: ProductSpace, domain: ProductSpace,
-                                        index: int, coupled: SectorArray,
-                                        overbraid: bool | None, bend_up: bool | None
-                                        ) -> tuple[dict, ProductSpace, ProductSpace, SectorArray]:
-        """Return a mapping dict together with the new codomain, new domain and new
-        coupled charges that result from a specific operation on tensors over `codomain`
-        and `domain` with coupled charges `coupled`. This specific operation is the
-        application of a b symbol if `index == codomain.num_spaces - 1`, in which case
-        `bend_up` specifies if the final leg in the codomain is bent down or the final
-        leg in the domain is bent up. For all other values of `index`, the c symbol
-        exchanging the legs corresponding to `index` and `index + 1` is applied. In this
-        case, `overbraid == True` means that the leg corresponding to `index` is above
-        the other leg. Contributions smaller than `self.eps` are discarded.
-
-        The outputs are designed such that they can be used again as input to compute
-        the next step in a sequence of operations. Such sequences are then essentially
-        specified by lists containing the corresponding values for `index`, `overbraid`
-        and `bend_up`.
-        """
-        symmetry = codomain.symmetry
-        # b symbol
-        if index == codomain.num_spaces - 1:
-            if bend_up:
-                new_domain = ProductSpace(domain.spaces[:-1], symmetry, self)
-                new_codomain = ProductSpace(codomain.spaces + [domain.spaces[-1].dual], symmetry, self)
-            else:
-                new_codomain = ProductSpace(codomain.spaces[:-1], symmetry, self)
-                new_domain = ProductSpace(domain.spaces + [codomain.spaces[-1].dual], symmetry, self)
-
-            mapping, new_coupled = self._single_b_symbol_as_mapping(codomain, domain, coupled, bend_up)
-
-        # c symbol
-        else:
-            new_coupled = coupled
-            if index > codomain.num_spaces - 1:
-                in_domain = True
-                new_codomain = codomain
-                index_ = codomain.num_spaces + domain.num_spaces - 1 - (index + 1)
-                spaces = domain.spaces[:]
-                spaces[index_:index_ + 2] = spaces[index_:index_ + 2][::-1]
-                new_domain = ProductSpace(spaces, symmetry, self, domain.sectors, domain.multiplicities)
-                index -= codomain.num_spaces
-            else:
-                in_domain = False
-                new_domain = domain
-                spaces = codomain.spaces[:]
-                spaces[index:index + 2] = spaces[index:index + 2][::-1]
-                new_codomain = ProductSpace(spaces, symmetry, self, codomain.sectors, codomain.multiplicities)
-
-            prodspace = [codomain, domain][in_domain]
-            mapping = self._single_c_symbol_as_mapping(prodspace, coupled, index, overbraid, in_domain)
-
-        return mapping, new_codomain, new_domain, new_coupled
-
-    def _apply_mapping_dict(self, ten: SymmetricTensor, new_codomain: ProductSpace,
-                            new_domain: ProductSpace, block_axes_permutation: list[int],
-                            mapping: dict, in_domain: bool | None) -> FusionTreeData:
-        """Apply the mapping dict `mapping` to the tensor `ten` and return the resulting
-        `FusionTreeData`. `new_codomain` and `new_domain` are the codomain and domain of
-        the final tensor, `block_axes_permutation` gives the permutation of the axes
-        after reshaping the tree blocks such that each leg corresponds to its own axis.
-
-        If the keys in `mapping` contain fusion trees for both codomain and domain, all
-        operatrions are performed on this level (as described above); if the keys only
-        contain a single fusion tree, it is assumed (but not checked) that either the
-        codomain XOR domain is relevant for the mapping, the other one can be ignored.
-        That is, all operations are performed on the level of rows or columns of the
-        blocks rather than on the level of tree blocks. This is reflected in the inputs:
-        `block_axes_permutation` should then only feature the indices for the codomain
-        XOR domain and `in_domain` specifies whether the mapping is to be applied to the
-        domain or codomain; there is no use for it in the other case.
-        """
-        backend = ten.backend.block_backend
-        new_data = FusionTreeData._zero_data(new_codomain, new_domain, backend, Dtype.complex128)
-
-        # we allow this case for more efficient treatment when only c symbols in the (co)domain are involved
-        single_fusion_tree_in_keys = False
-        for key in mapping:
-            if len(key) == 1:
-                single_fusion_tree_in_keys = True
-            break
-
-        if single_fusion_tree_in_keys:
-            iter_space = [ten.codomain, ten.domain][in_domain]
-            new_space = [new_codomain, new_domain][in_domain]
-            old_coupled = [sec for i, sec in enumerate(ten.domain.sectors) if ten.data.block_ind_from_domain_sector_ind(i) != None]
-
-            if in_domain:
-                block_axes_permutation = [0] + [i+1 for i in block_axes_permutation]
-            else:
-                block_axes_permutation.append(len(block_axes_permutation))
-
-            for tree, slc, ind in _tree_block_iter_product_space(iter_space, old_coupled, ten.symmetry):
-                modified_shape = [iter_space[i].sector_multiplicity(sec) for i, sec in enumerate(tree.uncoupled)]
-                if in_domain:
-                    block_slice = ten.data.blocks[ind][:, slc]
-                    modified_shape.insert(0, -1)
-                else:
-                    block_slice = ten.data.blocks[ind][slc, :]
-                    modified_shape.append(-1)
-
-                final_shape = backend.block_shape(block_slice)
-
-                block_slice = backend.block_reshape(block_slice, tuple(modified_shape))
-                block_slice = backend.block_permute_axes(block_slice, block_axes_permutation)
-                block_slice = backend.block_reshape(block_slice, final_shape)
-
-                contributions = mapping[(tree, )]
-                for ((new_tree, ), amplitude) in contributions.items():
-                    new_slc = tree_block_slice(new_space, new_tree)
-                    coupled = new_tree.coupled
-                    block_ind = new_domain.sectors_where(coupled)
-                    block_ind = new_data.block_ind_from_domain_sector_ind(block_ind)
-
-                    if in_domain:
-                        new_data.blocks[block_ind][:, new_slc] += amplitude * block_slice
-                    else:
-                        new_data.blocks[block_ind][new_slc, :] += amplitude * block_slice
-
-        else:
-            for alpha_tree, beta_tree, tree_block in _tree_block_iter(ten):
-                contributions = mapping[(alpha_tree, beta_tree)]
-
-                # reshape tree_block
-                modified_shape = [ten.codomain[i].sector_multiplicity(sec) for i, sec in enumerate(alpha_tree.uncoupled)]
-                modified_shape += [ten.domain[i].sector_multiplicity(sec) for i, sec in enumerate(beta_tree.uncoupled)]
-                final_shape = [modified_shape[i] for i in block_axes_permutation]
-                final_shape = (prod(final_shape[:new_codomain.num_spaces]), prod(final_shape[new_codomain.num_spaces:]))
-
-                tree_block = backend.block_reshape(tree_block, tuple(modified_shape))
-                tree_block = backend.block_permute_axes(tree_block, block_axes_permutation)
-                tree_block = backend.block_reshape(tree_block, final_shape)
-
-                for ((new_alpha_tree, new_beta_tree), amplitude) in contributions.items():
-                    # TODO do we want to cache the slices and / or block_inds?
-                    alpha_slice = tree_block_slice(new_codomain, new_alpha_tree)
-                    beta_slice = tree_block_slice(new_domain, new_beta_tree)
-
-                    coupled = new_alpha_tree.coupled
-                    block_ind = new_domain.sectors_where(coupled)
-                    block_ind = new_data.block_ind_from_domain_sector_ind(block_ind)
-
-                    new_data.blocks[block_ind][alpha_slice, beta_slice] += amplitude * tree_block
-
-        new_data.discard_zero_blocks(backend, ten.backend.eps)
-        return new_data
 
     # INEFFICIENT METHODS FOR COMPUTING THE ACTION OF B AND C SYMBOLS
 
@@ -2092,3 +1756,410 @@ class FusionTreeBackend(TensorBackend):
         # TODO dtype? cast to float if initial tensor is float and result is real?
         new_data.discard_zero_blocks(backend, self.eps)
         return new_data, new_codomain, new_domain
+
+
+class TreeMappingDict(dict):
+    """Class describing how trees need to be transformed after braiding and / or
+    bending legs. This is essentially a `dict` with a few additional methods
+    allowing to represent the action of b and c symbols, combining them and
+    applying them to tensors, etc.
+
+    The keys are tuples containing one or two `FusionTree`s, depending on whether
+    fusion trees of codomain xor domain are transformed or of both codomain and
+    domain. The values are `dict`s, where the keys correspond to the new fusion
+    trees after the desired operations and the values the corresponding amplitude.
+
+    Examples
+    --------
+    Two legs in the codomain are exchanged, which only affects the trees in the
+    codomain. The associated `TreeMappingDict` has the form
+    
+    ``{(old_tree1, ) : {(new_tree1_1, ) : amplitude1_1, (new_tree1_2, ) : amplitude1_2},
+    (old_tree2, ) : {...}, ...}``
+
+    Here, the exchange process applied to `old_tree1` can be expressed as a
+    superposition of the trees `new_tree1_1` and `new_tree1_2` with amplitudes
+    `amplitude1_1` and `amplitude1_2`, respectively.
+
+    Now one leg is bent up or down. This affect both codomain and domain, such that
+    the associated `TreeMappingDict` has the form
+
+    ``{(old_tree_cod1, old_tree_dom1) : {(new_tree_cod1_1, new_tree_dom1_1) : amplitude1_1,
+    (new_tree_cod1_2, new_tree_dom1_2) : amplitude1_2, ...}, (old_tree_cod2, old_tree_dom2)
+    : {...}, ...}``
+    """
+    def add_contribution(self, trees_i: tuple[FusionTree], trees_f: tuple[FusionTree],
+                         amplitude: float | complex) -> None:
+        """Add the contribution that maps `tree_i` to `tree_f` with amplitude
+        `amplitude` to `self`.
+        """
+        if trees_i in self:
+            if trees_f in self[trees_i]:
+                self[trees_i][trees_f] += amplitude
+            else:
+                self[trees_i][trees_f] = amplitude
+        else:
+            self[trees_i] = {trees_f: amplitude}
+
+    def add_prodspace(self, prodspace: ProductSpace, coupled: SectorArray,
+                      index: int) -> TreeMappingDict:
+        """Return the `TreeMappingDict` that is obtained when adding the product space
+        `prodspace` to `self`. The new `TreeMappingDict`'s key are now tuples with one
+        additional entry corresponding to trees in `prodspace` with coupled sector in
+        `coupled`. The new product space does not affect the amplitudes in the
+        `TreeMappingDict`. `index` specifies the position of the new trees within the
+        new keys. That is, `index = 0` corresponds to adding `prodspace` as codomain,
+        `index = 1` adds it as domain.
+
+        This function can be used to translate `TreeMappingDict` associated c symbols to
+        the level of both codomain and domain such that it can be combined with the ones
+        associated with b symbols.
+        """
+        new_mapping = TreeMappingDict()
+        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled,
+                                                         prodspace.symmetry):
+            for key in self:
+                if not np.all(tree.coupled == key[0].coupled):
+                    continue
+                new_value = {self._new_key(key2, tree, index): value
+                             for (key2, value) in self[key].items()}
+                new_mapping[self._new_key(key, tree, index)] = new_value
+        return new_mapping
+
+    def apply_to_tensor(self, ten: SymmetricTensor, new_codomain: ProductSpace,
+                        new_domain: ProductSpace, block_axes_permutation: list[int],
+                        in_domain: bool | None) -> FusionTreeData:
+        """Apply `self` to the tensor `ten` and return the resulting `FusionTreeData`.
+        `new_codomain` and `new_domain` are the codomain and domain of the final
+        tensor, `block_axes_permutation` gives the permutation of the axes after
+        reshaping the tree blocks such that each leg corresponds to its own axis.
+
+        If the keys in `self` contain fusion trees for both codomain and domain, all
+        operations are performed on this level (as described above); if the keys only
+        contain a single fusion tree, it is assumed (but not checked) that either the
+        codomain XOR domain is relevant for the mapping, the other one can be ignored.
+        That is, all operations are performed on the level of rows or columns of the
+        blocks rather than on the level of tree blocks. This is reflected in the inputs:
+        `block_axes_permutation` should then only feature the indices for the codomain
+        XOR domain and `in_domain` specifies whether `self` is to be applied to the
+        domain or codomain; there is no use for it in the other case.
+        """
+        # allow this case for more efficient treatment when only c symbols are involved
+        single_fusion_tree_in_keys = False
+        for key in self:
+            if len(key) == 1:
+                single_fusion_tree_in_keys = True
+            break
+
+        if single_fusion_tree_in_keys:
+            return self._apply_single_tree_in_keys(ten, new_codomain, new_domain,
+                                                   block_axes_permutation, in_domain)
+        return self._apply_two_trees_in_keys(ten, new_codomain, new_domain,
+                                             block_axes_permutation)
+
+    def compose(self, dict2: TreeMappingDict) -> TreeMappingDict:
+        """Return a `TreeMappingDict` corresponding to the mapping associated with first
+        applying `self` and then `dict2`.
+        """
+        comb = TreeMappingDict()
+        for key1 in self:
+            comb[key1] = {}
+            for key2 in self[key1]:
+                for key3 in dict2[key2]:
+                    if key3 in comb[key1]:
+                        comb[key1][key3] += self[key1][key2] * dict2[key2][key3]
+                    else:
+                        comb[key1][key3] = self[key1][key2] * dict2[key2][key3]
+        return comb
+
+    @classmethod
+    def compose_multiple(cls, dicts: list[TreeMappingDict]) -> TreeMappingDict:
+        """Return a `TreeMappingDict` corresponding to the mapping associated with applying
+        all TreeMappingDict in `dicts` in the given order. It is assumed that the all keys
+        have the same format (i.e., all either specified by a single or by two trees).
+        """
+        res = dicts[0]
+        for mapping in dicts[1:]:
+            res = res.compose(mapping)
+        return res
+
+    @classmethod
+    def from_b_symbol(cls, codomain: ProductSpace, domain: ProductSpace, coupled: SectorArray,
+                      bend_up: bool, eps: float) -> tuple[TreeMappingDict, SectorArray]:
+        """Return the new coupled sectors and a `TreeMappingDict` including the details
+        on how to combine the old fusion trees in `codomain` and `domain` in order to
+        obtain the new ones after bending the final leg in the codomain down (`bend_up
+        == False`) / domain up (`bend_up == True`). The coupled sectors `coupled`
+        correspond to the coupled sectors of interest (= sectors with non-zero blocks
+        of the tensor). Contributions smaller than `eps` are discarded.
+        """
+        symmetry = codomain.symmetry
+        mapping = TreeMappingDict()
+        new_coupled = []
+        spaces = [codomain, domain]
+        for tree1, _, _ in _tree_block_iter_product_space(spaces[bend_up], coupled, symmetry):
+            if tree1.uncoupled.shape[0] == 1:
+                new_trees_coupled = symmetry.trivial_sector
+            else:
+                new_trees_coupled = (tree1.inner_sectors[-1] if tree1.inner_sectors.shape[0] > 0
+                                     else tree1.uncoupled[0])
+
+            new_tree1 = FusionTree(symmetry, tree1.uncoupled[:-1], new_trees_coupled, tree1.are_dual[:-1],
+                                   tree1.inner_sectors[:-1], tree1.multiplicities[:-1])
+
+            if len(new_coupled) == 0 or not np.any( np.all(new_trees_coupled == new_coupled, axis=1) ):
+                new_coupled.append(new_trees_coupled)
+
+            b_sym = symmetry._b_symbol(new_trees_coupled, tree1.uncoupled[-1], tree1.coupled)
+            if not bend_up:
+                b_sym = b_sym.conj()
+            if tree1.are_dual[-1]:
+                b_sym = b_sym * symmetry.frobenius_schur(tree1.uncoupled[-1])
+            mu = tree1.multiplicities[-1] if tree1.multiplicities.shape[0] > 0 else 0
+
+            for tree2, _, _ in _tree_block_iter_product_space(spaces[not bend_up], [tree1.coupled], symmetry):
+                if len(tree2.uncoupled) == 0:
+                    new_unc = np.array([symmetry.dual_sector(tree1.uncoupled[-1])])
+                    new_dual = np.array([not tree1.are_dual[-1]])
+                    new_mul = np.array([], dtype=int)
+                else:
+                    new_unc = np.append(tree2.uncoupled, [symmetry.dual_sector(tree1.uncoupled[-1])], axis=0)
+                    new_dual = np.append(tree2.are_dual, [not tree1.are_dual[-1]])
+                    new_mul = np.append(tree2.multiplicities, [0]) if len(new_unc) > 2 else np.array([0])
+                new_in = np.append(tree2.inner_sectors, [tree2.coupled], axis=0) if len(new_unc) > 2 else []
+                new_tree2 = FusionTree(symmetry, new_unc, new_trees_coupled, new_dual, new_in, new_mul)
+
+                for nu in range(b_sym.shape[1]):
+                    if abs(b_sym[mu, nu]) < eps:
+                        continue
+
+                    # assign it only if new_tree2 has a multiplicity, i.e., more than 1 uncoupled charge
+                    if len(new_tree2.uncoupled) > 1:
+                        new_tree2.multiplicities[-1] = nu
+
+                    old_trees = ([tree1, tree2][bend_up], [tree1, tree2][not bend_up])
+                    new_trees = ([new_tree1, new_tree2][bend_up], [new_tree1, new_tree2][not bend_up])
+                    mapping.add_contribution(old_trees, new_trees, b_sym[mu, nu])
+        return mapping, np.array(new_coupled)
+
+    @classmethod
+    def from_c_symbol(cls, prodspace: ProductSpace, coupled: SectorArray, index: int,
+                      overbraid: bool, in_domain: bool, eps: float) -> TreeMappingDict:
+        """Return a `TreeMappingDict` including the details on how to combine the old fusion
+        trees in `prodspace` in order to obtain the new ones after braiding. The braided spaces
+        correspond to `index` and `index+1`;  the counting is from left to right (standard)
+        in the codomain and from right to left (reverse) in the domain (if `in_domain ==
+        True`). If `overbraid == True`, the space corresponding to `index` is above the one
+        corresponding to `index+1`. The coupled sectors `coupled` correspond to the coupled
+        sectors of interest (= sectors with non-zero blocks of the tensor). Contributions
+        smaller than `eps` are discarded.
+        """
+        symmetry = prodspace.symmetry
+        if in_domain:
+            index = prodspace.num_spaces - 2 - index
+            overbraid = not overbraid
+
+        mapping = TreeMappingDict()
+        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled, symmetry):
+            unc, inn, mul = tree.uncoupled, tree.inner_sectors, tree.multiplicities
+            if index == 0:
+                f = tree.coupled if len(inn) == 0 else inn[0]
+                if overbraid:
+                    factor = symmetry._r_symbol(unc[1], unc[0], f)[mul[0]]
+                else:
+                    factor = symmetry._r_symbol(unc[0], unc[1], f)[mul[0]].conj()
+                if in_domain:
+                    factor = factor.conj()
+
+                new_tree = tree.copy(deep=True)
+                new_tree.uncoupled[:2] = new_tree.uncoupled[:2][::-1]
+                new_tree.are_dual[:2] = new_tree.are_dual[:2][::-1]
+                mapping.add_contribution((tree, ), (new_tree, ), factor)
+            else:
+                left_charge = unc[0] if index == 1 else inn[index-2]
+                right_charge = tree.coupled if index == inn.shape[0] else inn[index]
+
+                for f in symmetry.fusion_outcomes(left_charge, unc[index+1]):
+                    if not symmetry.can_fuse_to(f, unc[index], right_charge):
+                        continue
+
+                    new_tree = tree.copy(deep=True)
+                    new_tree.inner_sectors[index-1] = f
+                    new_tree.uncoupled[index:index+2] = new_tree.uncoupled[index:index+2][::-1]
+                    new_tree.are_dual[index:index+2] = new_tree.are_dual[index:index+2][::-1]
+
+                    if overbraid:
+                        factors = symmetry._c_symbol(left_charge, unc[index+1], unc[index], right_charge,
+                                                     f, inn[index-1])[:, :, mul[index-1], mul[index]]
+                    else:
+                        factors = symmetry._c_symbol(left_charge, unc[index], unc[index+1], right_charge,
+                                                     inn[index-1], f)[mul[index-1], mul[index], :, :].conj()
+                    if in_domain:
+                        factors = factors.conj()
+
+                    for (kap, lam), factor in np.ndenumerate(factors):
+                        if abs(factor) < eps:
+                            continue
+
+                        new_tree.multiplicities[index-1] = kap
+                        new_tree.multiplicities[index] = lam
+                        mapping.add_contribution((tree, ), (new_tree.copy(deep=True), ), factor)
+        return mapping
+
+    @classmethod
+    def from_b_or_c_symbol(cls, codomain: ProductSpace, domain: ProductSpace,
+                           index: int, coupled: SectorArray, overbraid: bool | None,
+                           bend_up: bool | None, backend: FusionTreeBackend
+                           ) -> tuple[TreeMappingDict, ProductSpace, ProductSpace, SectorArray]:
+        """Essentially a wrapper for `from_b_symbol` and `from_c_symbol` that, apart
+        from the corresponding `TreeMappingDict`, also returns the new codomain, new
+        domain and new coupled sectors resulting from the specified operation on a
+        tensor over `codomain` and `domain` with coupled charges `coupled`.
+
+        Applies `from_b_symbol` if `index == codomain.num_spaces - 1`. Then, `bend_up`
+        specifies if the final leg in the codomain is bent down or the final leg in the
+        domain is bent up.
+
+        Applies `from_c_symbol` for all other values of `index`. Then, the legs
+        corresponding to `index` and `index + 1` are exchanged, with `overbraid == True`
+        meaning that the leg associated with `index` is above the other leg.
+
+        Contributions smaller than `backend.eps` are discarded.
+        
+        The outputs are designed such that they can be used again as input to compute
+        the next step in a sequence of operations. Such sequences are then essentially
+        specified by lists containing the corresponding values for `index`, `overbraid`
+        and `bend_up`.
+
+        See Also
+        --------
+        `from_b_symbol`, `from_c_symbol`
+        """
+        symmetry = codomain.symmetry
+        # b symbol
+        if index == codomain.num_spaces - 1:
+            if bend_up:
+                new_domain = ProductSpace(domain.spaces[:-1], symmetry, backend)
+                new_codomain = ProductSpace(codomain.spaces + [domain.spaces[-1].dual],
+                                            symmetry, backend)
+            else:
+                new_codomain = ProductSpace(codomain.spaces[:-1], symmetry, backend)
+                new_domain = ProductSpace(domain.spaces + [codomain.spaces[-1].dual],
+                                          symmetry, backend)
+            mapping, new_coupled = cls.from_b_symbol(codomain, domain, coupled,
+                                                     bend_up, backend.eps)
+
+        # c symbol
+        else:
+            new_coupled = coupled
+            if index > codomain.num_spaces - 1:
+                in_domain = True
+                new_codomain = codomain
+                index_ = codomain.num_spaces + domain.num_spaces - 1 - (index + 1)
+                spaces = domain.spaces[:]
+                spaces[index_:index_ + 2] = spaces[index_:index_ + 2][::-1]
+                new_domain = ProductSpace(spaces, symmetry, backend,
+                                          domain.sectors, domain.multiplicities)
+                index -= codomain.num_spaces
+            else:
+                in_domain = False
+                new_domain = domain
+                spaces = codomain.spaces[:]
+                spaces[index:index + 2] = spaces[index:index + 2][::-1]
+                new_codomain = ProductSpace(spaces, symmetry, backend,
+                                            codomain.sectors, codomain.multiplicities)
+            prodspace = [codomain, domain][in_domain]
+            mapping = cls.from_c_symbol(prodspace, coupled, index, overbraid,
+                                        in_domain, backend.eps)
+        return mapping, new_codomain, new_domain, new_coupled
+
+    def _apply_single_tree_in_keys(self, ten: SymmetricTensor, new_codomain: ProductSpace,
+                                   new_domain: ProductSpace, block_axes_permutation: list[int],
+                                   in_domain: bool | None) -> FusionTreeData:
+        backend = ten.backend.block_backend
+        old_data = ten.data
+        zero_blocks = [backend.zero_block(backend.block_shape(block), old_data.dtype)
+                       for block in old_data.blocks]
+        new_data = FusionTreeData(old_data.block_inds, zero_blocks, old_data.dtype, True)
+
+        iter_space = [ten.codomain, ten.domain][in_domain]
+        new_space = [new_codomain, new_domain][in_domain]
+        old_coupled = [sec for i, sec in enumerate(ten.domain.sectors)
+                       if ten.data.block_ind_from_domain_sector_ind(i) != None]
+
+        if in_domain:
+            block_axes_permutation = [0] + [i+1 for i in block_axes_permutation]
+        else:
+            block_axes_permutation.append(len(block_axes_permutation))
+
+        for tree, slc, ind in _tree_block_iter_product_space(iter_space, old_coupled,
+                                                             ten.symmetry):
+            modified_shape = [iter_space[i].sector_multiplicity(sec)
+                              for i, sec in enumerate(tree.uncoupled)]
+            if in_domain:
+                block_slice = ten.data.blocks[ind][:, slc]
+                modified_shape.insert(0, -1)
+            else:
+                block_slice = ten.data.blocks[ind][slc, :]
+                modified_shape.append(-1)
+
+            final_shape = backend.block_shape(block_slice)
+
+            block_slice = backend.block_reshape(block_slice, tuple(modified_shape))
+            block_slice = backend.block_permute_axes(block_slice, block_axes_permutation)
+            block_slice = backend.block_reshape(block_slice, final_shape)
+
+            contributions = self[(tree, )]
+            for ((new_tree, ), amplitude) in contributions.items():
+                # TODO do we want to cache the slices
+                # the block indices do not change due to the way we construct new_data
+                new_slc = tree_block_slice(new_space, new_tree)
+                if in_domain:
+                    new_data.blocks[ind][:, new_slc] += amplitude * block_slice
+                else:
+                    new_data.blocks[ind][new_slc, :] += amplitude * block_slice
+
+        new_data.discard_zero_blocks(backend, ten.backend.eps)
+        return new_data
+
+    def _apply_two_trees_in_keys(self, ten: SymmetricTensor, new_codomain: ProductSpace,
+                                 new_domain: ProductSpace, block_axes_permutation: list[int],
+                                 ) -> FusionTreeData:
+        backend = ten.backend.block_backend
+        new_data = FusionTreeData._zero_data(new_codomain, new_domain,
+                                             backend, Dtype.complex128)
+        
+        for alpha_tree, beta_tree, tree_block in _tree_block_iter(ten):
+            contributions = self[(alpha_tree, beta_tree)]
+
+            # reshape tree_block
+            modified_shape = [ten.codomain[i].sector_multiplicity(sec)
+                              for i, sec in enumerate(alpha_tree.uncoupled)]
+            modified_shape += [ten.domain[i].sector_multiplicity(sec)
+                               for i, sec in enumerate(beta_tree.uncoupled)]
+            final_shape = [modified_shape[i] for i in block_axes_permutation]
+            final_shape = (prod(final_shape[:new_codomain.num_spaces]),
+                           prod(final_shape[new_codomain.num_spaces:]))
+
+            tree_block = backend.block_reshape(tree_block, tuple(modified_shape))
+            tree_block = backend.block_permute_axes(tree_block, block_axes_permutation)
+            tree_block = backend.block_reshape(tree_block, final_shape)
+
+            for ((new_alpha_tree, new_beta_tree), amplitude) in contributions.items():
+                # TODO do we want to cache the slices and / or block_inds?
+                alpha_slice = tree_block_slice(new_codomain, new_alpha_tree)
+                beta_slice = tree_block_slice(new_domain, new_beta_tree)
+
+                coupled = new_alpha_tree.coupled
+                block_ind = new_domain.sectors_where(coupled)
+                block_ind = new_data.block_ind_from_domain_sector_ind(block_ind)
+
+                new_data.blocks[block_ind][alpha_slice, beta_slice] += amplitude * tree_block
+
+        new_data.discard_zero_blocks(backend, ten.backend.eps)
+        return new_data
+
+    def _new_key(self, key, tree, index):
+        newkey = list(key)
+        newkey.insert(index, tree)
+        return tuple(newkey)
