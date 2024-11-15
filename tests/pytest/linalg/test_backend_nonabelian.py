@@ -4,264 +4,16 @@ from __future__ import annotations
 from typing import Callable
 import pytest
 import numpy as np
+from math import prod
 
 from cyten.backends import fusion_tree_backend, get_backend
+from cyten.trees import FusionTree
 from cyten.spaces import ElementarySpace, ProductSpace
 from cyten import backends
 from cyten.tensors import DiagonalTensor, SymmetricTensor, move_leg
 from cyten.symmetries import ProductSymmetry, fibonacci_anyon_category, SU2Symmetry, SU3_3AnyonCategory
 from cyten.dtypes import Dtype
 
-
-def apply_single_b_symbol_efficient(ten: SymmetricTensor, bend_up: bool
-                                    ) -> tuple[fusion_tree_backend.FusionTreeData, ProductSpace, ProductSpace]:
-    """Use the efficient implementation of b symbols to return the action of a single
-    b symbol in the same format (input and output) as the inefficient implementation.
-    This is of course inefficient usage of this implementation but a necessity  in order
-    to use the structure of the already implemented tests.
-    """
-    func = fusion_tree_backend.TreeMappingDict.from_b_or_c_symbol
-    index = ten.num_codomain_legs - 1
-    coupled = [ten.domain.sectors[ind[1]] for ind in ten.data.block_inds]
-
-    if bend_up:
-        axes_perm = list(range(ten.num_codomain_legs)) + [ten.num_legs - 1]
-        axes_perm += [ten.num_codomain_legs + i for i in range(ten.num_domain_legs - 1)]
-    else:
-        axes_perm = list(range(ten.num_codomain_legs - 1))
-        axes_perm += [ten.num_codomain_legs + i for i in range(ten.num_domain_legs)]
-        axes_perm += [ten.num_codomain_legs - 1]
-
-    mapp, new_codomain, new_domain, _ = func(ten.codomain, ten.domain, index, coupled,
-                                             None, bend_up, ten.backend)
-    new_data = mapp.apply_to_tensor(ten, new_codomain, new_domain, axes_perm, in_domain=None)
-    return new_data, new_codomain, new_domain
-
-
-def apply_single_c_symbol_efficient(ten: SymmetricTensor, leg: int | str, levels: list[int]
-                                    ) -> tuple[fusion_tree_backend.FusionTreeData, ProductSpace, ProductSpace]:
-    """Use the efficient implementation of c symbols to return the action of a single
-    c symbol in the same format (input and output) as the inefficient implementation.
-    This is of course inefficient usage of this implementation but a necessity  in order
-    to use the structure of the already implemented tests.
-    """
-    func = fusion_tree_backend.TreeMappingDict.from_b_or_c_symbol
-    index = ten.get_leg_idcs(leg)[0]
-    in_domain = index > ten.num_codomain_legs - 1
-    overbraid = levels[index] > levels[index + 1]
-    coupled = [ten.domain.sectors[ind[1]] for ind in ten.data.block_inds]
-
-    if not in_domain:
-        axes_perm = list(range(ten.num_codomain_legs))
-        index_ = index
-    else:
-        axes_perm = list(range(ten.num_domain_legs))
-        index_ = ten.num_legs - 1 - (index + 1)
-    axes_perm[index_:index_ + 2] = axes_perm[index_:index_ + 2][::-1]
-
-    mapp, new_codomain, new_domain, _ = func(ten.codomain, ten.domain, index, coupled,
-                                             overbraid, None, ten.backend)
-    new_data = mapp.apply_to_tensor(ten, new_codomain, new_domain, axes_perm, in_domain)
-    return new_data, new_codomain, new_domain
-
-
-def assert_tensors_almost_equal(a: SymmetricTensor, expect: SymmetricTensor, eps: float):
-    assert a.codomain == expect.codomain
-    assert a.domain == expect.domain
-    assert a.backend.almost_equal(a, expect, rtol=eps, atol=eps)
-
-
-def assert_repeated_braids_trivial(a: SymmetricTensor, funcs: list[Callable], levels: list[int],
-                                   repeat: int, eps: float):
-    """Check that repeatedly braiding two neighboring legs often enough leaves the tensor
-    invariant. The number of required repetitions must be chosen to be even (legs must be
-    at their initial positions again) and such that all (relevant) r symbols to the power
-    of the repetitions is identity. `levels` specifies whether the repeated exchange is
-    always clockwise or anti-clockwise.
-    This identity is checked for each neighboring pair of legs in the codomain and domain.
-    """
-    for func in funcs:
-        for leg in range(a.num_legs-1):
-            if leg == a.num_codomain_legs - 1:
-                continue
-            new_a = a.copy()
-            for _ in range(repeat):
-                new_data, new_codomain, new_domain = func(new_a, leg=leg, levels=levels)
-                new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=a.backend)
-
-            assert_tensors_almost_equal(new_a, a, eps)
-
-
-def assert_clockwise_counterclockwise_trivial(a: SymmetricTensor, funcs: list[Callable],
-                                              levels: list[int], eps: float):
-    """Check that braiding a pair of neighboring legs clockwise and then anti-clockwise
-    (or vice versa) leaves the tensor invariant. `levels` specifies whether the first
-    exchange is clockwise or anti-clockwise (the second is the opposite).
-    This identity is checked for each neighboring pair of legs in the codomain and domain.
-    """
-    for func in funcs:
-        for leg in range(a.num_legs-1):
-            if leg == a.num_codomain_legs - 1:
-                continue
-            new_a = a.copy()
-            new_levels = levels[:]
-            for _ in range(2):
-                new_data, new_codomain, new_domain = func(new_a, leg=leg, levels=new_levels)
-                new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=a.backend)
-                new_levels[leg:leg+2] = new_levels[leg:leg+2][::-1]
-
-            assert_tensors_almost_equal(new_a, a, eps)
-
-
-def assert_clockwise_counterclockwise_trivial_long_range(a: SymmetricTensor, move_leg_or_permute_leg: str,
-                                                         eps: float, np_random: np.random.Generator):
-    """Same as `assert_clockwise_counterclockwise_trivial` with the difference that a random
-    sequence of exchanges and bends is chosen. The identity is checked using `permute_legs`
-    of the tensor backend or using `move_leg` depending on `move_leg_or_permute_leg`.
-    """
-    levels = list(np_random.permutation(a.num_legs))
-    if move_leg_or_permute_leg == 'permute_leg':
-        # more general case; needs more input
-        permutation = list(np_random.permutation(a.num_legs))
-        inv_permutation = [permutation.index(i) for i in range(a.num_legs)]
-        inv_levels = [levels[i] for i in permutation]
-        num_codomain = np.random.randint(a.num_legs + 1)
-
-        new_data, new_codomain, new_domain = a.backend.permute_legs(a, permutation[:num_codomain],
-                                                                    permutation[num_codomain:][::-1], levels)
-        new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=a.backend)
-        new_data, new_codomain, new_domain = a.backend.permute_legs(new_a, inv_permutation[:a.num_codomain_legs],
-                                                                    inv_permutation[a.num_codomain_legs:][::-1], inv_levels)
-        new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=a.backend)
-
-    elif move_leg_or_permute_leg == 'move_leg':
-        leg = np_random.integers(a.num_legs)
-        co_dom_pos = np_random.integers(a.num_legs)
-
-        if co_dom_pos >= a.num_codomain_legs:
-            new_a = move_leg(a, leg, domain_pos=a.num_legs - 1 - co_dom_pos, levels=levels)
-        else:
-            new_a = move_leg(a, leg, codomain_pos=co_dom_pos, levels=levels)
-
-        tmp = levels[leg]
-        levels = [levels[i] for i in range(a.num_legs) if i != leg]
-        levels.insert(co_dom_pos, tmp)
-        if leg >= a.num_codomain_legs:
-            new_a = move_leg(new_a, co_dom_pos, domain_pos=a.num_legs - 1 - leg, levels=levels)
-        else:
-            new_a = move_leg(new_a, co_dom_pos, codomain_pos=leg, levels=levels)
-
-    assert_tensors_almost_equal(new_a, a, eps)
-
-
-def assert_braiding_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[Callable],
-                                               levels: list[int], eps: float):
-    """Check that when rescaling and exchanging legs, it does not matter whether one first
-    performs the rescaling and then the exchange process or vice versa. This is tested using
-    `scale_axis` in `FusionTreeBackend`, i.e., not the funtion directly acting on tensors;
-    this function is tested elsewhere.
-    """
-    for func in funcs:
-        for leg in range(a.num_legs-1):
-            if leg == a.num_codomain_legs - 1:
-                continue
-
-            legs = [a.legs[leg], a.legs[leg + 1]]
-            if leg > a.num_codomain_legs - 1:  # in domain
-                legs = [leg_.dual for leg_ in legs]
-            diag_left = DiagonalTensor.from_random_uniform(legs[0], backend=a.backend, dtype=a.dtype)
-            diag_right = DiagonalTensor.from_random_uniform(legs[1], backend=a.backend, dtype=a.dtype)
-            new_a = a.copy()
-            new_a2 = a.copy()
-
-            # apply scale_axis first
-            new_a.data = new_a.backend.scale_axis(new_a, diag_left, leg)
-            new_a.data = new_a.backend.scale_axis(new_a, diag_right, leg + 1)
-            new_data, new_codomain, new_domain = func(new_a, leg=leg, levels=levels)
-            new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=new_a.backend)
-
-            # exchange first
-            new_data, new_codomain, new_domain = func(new_a2, leg=leg, levels=levels)
-            new_a2 = SymmetricTensor(new_data, new_codomain, new_domain, backend=new_a2.backend)
-            new_a2.data = new_a2.backend.scale_axis(new_a2, diag_left, leg + 1)
-            new_a2.data = new_a2.backend.scale_axis(new_a2, diag_right, leg)
-
-            assert_tensors_almost_equal(new_a, new_a2, eps)
-
-
-def assert_bending_up_and_down_trivial(codomains: list[ProductSpace], domains: list[ProductSpace],
-                                       funcs: list[Callable], backend: backends.TensorBackend,
-                                       multiple: bool, eps: float):
-    """Check that bending a leg up and down (or down and up) is trivial. All given codomains are combined with all
-    given domains to construct random tensors for which the identities are checked. All codomains and domains must
-    have the same symmetry; this is not explicitly checked.
-    If `multiple == True`, the identity is also checked for bending multiple (i.e. more than one) legs up and down
-    up to the maximum number possible. Otherwise, the identity is only checked for a single leg.
-    """
-    for codomain in codomains:
-        for domain in domains:
-            tens = SymmetricTensor.from_random_uniform(codomain, domain, backend=backend)
-            if len(tens.data.blocks) == 0:  # trivial tensors
-                continue
-
-            bending = []
-            for i in range(tens.num_domain_legs):
-                bends = [True] * (i+1) + [False] * (i+1)
-                bending.append(bends)
-                if not multiple:
-                    break
-            for i in range(tens.num_codomain_legs):
-                bends = [False] * (i+1) + [True] * (i+1)
-                bending.append(bends)
-                if not multiple:
-                    break
-
-            for func in funcs:
-                for bends in bending:
-                    new_tens = tens.copy()
-                    for bend in bends:
-                        new_data, new_codomain, new_domain = func(new_tens, bend)
-                        new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
-
-                    assert_tensors_almost_equal(new_tens, tens, eps)
-
-
-def assert_bending_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[Callable], eps: float):
-    """Check that when rescaling and bending legs, it does not matter whether one first
-    performs the rescaling and then the bending process or vice versa. This is tested using
-    `scale_axis` in `FusionTreeBackend`, i.e., not the funtion directly acting on tensors;
-    this function is tested elsewhere.
-    """
-    bends = [True, False]
-    for bend_up in bends:
-        if a.num_codomain_legs == 0 and not bend_up:
-            continue
-        elif a.num_domain_legs == 0 and bend_up:
-            continue
-
-        for func in funcs:
-            if bend_up:
-                num_leg = a.num_codomain_legs - 1
-                leg = a.legs[num_leg]
-            else:
-                num_leg = a.num_codomain_legs
-                leg = a.legs[num_leg].dual
-
-            diag = DiagonalTensor.from_random_uniform(leg, backend=a.backend, dtype=a.dtype)
-            new_a = a.copy()
-            new_a2 = a.copy()
-
-            # apply scale_axis first
-            new_a.data = new_a.backend.scale_axis(new_a, diag, num_leg)
-            new_data, new_codomain, new_domain = func(new_a, bend_up)
-            new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=new_a.backend)
-
-            # bend first
-            new_data, new_codomain, new_domain = func(new_a2, bend_up)
-            new_a2 = SymmetricTensor(new_data, new_codomain, new_domain, backend=new_a2.backend)
-            new_a2.data = new_a2.backend.scale_axis(new_a2, diag, num_leg)
-
-            assert_tensors_almost_equal(new_a, new_a2, eps)
 
 
 @pytest.mark.parametrize('num_spaces', [3, 4, 5])
@@ -281,9 +33,9 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)
     backend = get_backend('fusion_tree', block_backend)
-    funcs = [backend._apply_single_c_symbol_inefficient,
-             backend._apply_single_c_symbol_more_efficient,
-             apply_single_c_symbol_efficient]
+    funcs = [cross_check_single_c_symbol_tree_blocks,
+             cross_check_single_c_symbol_tree_cols,
+             apply_single_c_symbol]
     eps = 1.e-14
     sym = fibonacci_anyon_category
     s1 = ElementarySpace(sym, [[1]], [1])  # only tau
@@ -475,9 +227,9 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)
     backend = get_backend('fusion_tree', block_backend)
-    funcs = [backend._apply_single_c_symbol_inefficient,
-             backend._apply_single_c_symbol_more_efficient,
-             apply_single_c_symbol_efficient]
+    funcs = [cross_check_single_c_symbol_tree_blocks,
+             cross_check_single_c_symbol_tree_cols,
+             apply_single_c_symbol]
     eps = 1.e-14
     sym = ProductSymmetry([fibonacci_anyon_category, SU2Symmetry()])
     s1 = ElementarySpace(sym, [[1, 1]], [2])  # only (tau, spin-1/2)
@@ -681,9 +433,9 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)
     backend = get_backend('fusion_tree', block_backend)
-    funcs = [backend._apply_single_c_symbol_inefficient,
-             backend._apply_single_c_symbol_more_efficient,
-             apply_single_c_symbol_efficient]
+    funcs = [cross_check_single_c_symbol_tree_blocks,
+             cross_check_single_c_symbol_tree_cols,
+             apply_single_c_symbol]
     eps = 1.e-14
     sym = SU3_3AnyonCategory()
     s1 = ElementarySpace(sym, [[1], [2]], [1, 1])  # 8 and 10
@@ -912,7 +664,7 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     print('use ' + move_leg_or_permute_leg)
     multiple = np_random.choice([True, False])
     backend = get_backend('fusion_tree', block_backend)
-    funcs = [backend._apply_single_b_symbol, apply_single_b_symbol_efficient]
+    funcs = [cross_check_single_b_symbol, apply_single_b_symbol]
     eps = 1.e-14
     sym = fibonacci_anyon_category
     s1 = ElementarySpace(sym, [[1]], [1])  # only tau
@@ -1093,7 +845,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     print('use ' + move_leg_or_permute_leg)
     multiple = np_random.choice([True, False])
     backend = get_backend('fusion_tree', block_backend)
-    funcs = [backend._apply_single_b_symbol, apply_single_b_symbol_efficient]
+    funcs = [cross_check_single_b_symbol, apply_single_b_symbol]
     perm_axes = backend.block_backend.block_permute_axes
     reshape = backend.block_backend.block_reshape
     eps = 1.e-14
@@ -1301,7 +1053,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     print('use ' + move_leg_or_permute_leg)
     multiple = np_random.choice([True, False])
     backend = get_backend('fusion_tree', block_backend)
-    funcs = [backend._apply_single_b_symbol, apply_single_b_symbol_efficient]
+    funcs = [cross_check_single_b_symbol, apply_single_b_symbol]
     perm_axes = backend.block_backend.block_permute_axes
     reshape = backend.block_backend.block_reshape
     eps = 1.e-14
@@ -1522,3 +1274,655 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     # rescaling axis and then bending == bending and then rescaling axis
     assert_bending_and_scale_axis_commutation(tens, funcs, eps)
+
+
+# HELPER FUNCTIONS FOR THE TESTS
+
+def apply_single_b_symbol(ten: SymmetricTensor, bend_up: bool
+                          ) -> tuple[fusion_tree_backend.FusionTreeData, ProductSpace, ProductSpace]:
+    """Use the implementation of b symbols using `TreeMappingDicts` to return the action
+    of a single b symbol in the same format (input and output) as the cross check
+    implementation. This is of course inefficient usage of this implementation but a
+    necessity in order to use the structure of the already implemented tests.
+    """
+    func = fusion_tree_backend.TreeMappingDict.from_b_or_c_symbol
+    index = ten.num_codomain_legs - 1
+    coupled = [ten.domain.sectors[ind[1]] for ind in ten.data.block_inds]
+
+    if bend_up:
+        axes_perm = list(range(ten.num_codomain_legs)) + [ten.num_legs - 1]
+        axes_perm += [ten.num_codomain_legs + i for i in range(ten.num_domain_legs - 1)]
+    else:
+        axes_perm = list(range(ten.num_codomain_legs - 1))
+        axes_perm += [ten.num_codomain_legs + i for i in range(ten.num_domain_legs)]
+        axes_perm += [ten.num_codomain_legs - 1]
+
+    mapp, new_codomain, new_domain, _ = func(ten.codomain, ten.domain, index, coupled,
+                                             None, bend_up, ten.backend)
+    new_data = mapp.apply_to_tensor(ten, new_codomain, new_domain, axes_perm, in_domain=None)
+    return new_data, new_codomain, new_domain
+
+
+def apply_single_c_symbol(ten: SymmetricTensor, leg: int | str, levels: list[int]
+                          ) -> tuple[fusion_tree_backend.FusionTreeData, ProductSpace, ProductSpace]:
+    """Use the implementation of c symbols using `TreeMappingDicts` to return the action
+    of a single c symbol in the same format (input and output) as the cross check
+    implementations. This is of course inefficient usage of this implementation but a
+    necessity in order to use the structure of the already implemented tests.
+    """
+    func = fusion_tree_backend.TreeMappingDict.from_b_or_c_symbol
+    index = ten.get_leg_idcs(leg)[0]
+    in_domain = index > ten.num_codomain_legs - 1
+    overbraid = levels[index] > levels[index + 1]
+    coupled = [ten.domain.sectors[ind[1]] for ind in ten.data.block_inds]
+
+    if not in_domain:
+        axes_perm = list(range(ten.num_codomain_legs))
+        index_ = index
+    else:
+        axes_perm = list(range(ten.num_domain_legs))
+        index_ = ten.num_legs - 1 - (index + 1)
+    axes_perm[index_:index_ + 2] = axes_perm[index_:index_ + 2][::-1]
+
+    mapp, new_codomain, new_domain, _ = func(ten.codomain, ten.domain, index, coupled,
+                                             overbraid, None, ten.backend)
+    new_data = mapp.apply_to_tensor(ten, new_codomain, new_domain, axes_perm, in_domain)
+    return new_data, new_codomain, new_domain
+
+
+def assert_bending_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[Callable], eps: float):
+    """Check that when rescaling and bending legs, it does not matter whether one first
+    performs the rescaling and then the bending process or vice versa. This is tested using
+    `scale_axis` in `FusionTreeBackend`, i.e., not the funtion directly acting on tensors;
+    this function is tested elsewhere.
+    """
+    bends = [True, False]
+    for bend_up in bends:
+        if a.num_codomain_legs == 0 and not bend_up:
+            continue
+        elif a.num_domain_legs == 0 and bend_up:
+            continue
+
+        for func in funcs:
+            if bend_up:
+                num_leg = a.num_codomain_legs - 1
+                leg = a.legs[num_leg]
+            else:
+                num_leg = a.num_codomain_legs
+                leg = a.legs[num_leg].dual
+
+            diag = DiagonalTensor.from_random_uniform(leg, backend=a.backend, dtype=a.dtype)
+            new_a = a.copy()
+            new_a2 = a.copy()
+
+            # apply scale_axis first
+            new_a.data = new_a.backend.scale_axis(new_a, diag, num_leg)
+            new_data, new_codomain, new_domain = func(new_a, bend_up)
+            new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=new_a.backend)
+
+            # bend first
+            new_data, new_codomain, new_domain = func(new_a2, bend_up)
+            new_a2 = SymmetricTensor(new_data, new_codomain, new_domain, backend=new_a2.backend)
+            new_a2.data = new_a2.backend.scale_axis(new_a2, diag, num_leg)
+
+            assert_tensors_almost_equal(new_a, new_a2, eps)
+
+
+def assert_bending_up_and_down_trivial(codomains: list[ProductSpace], domains: list[ProductSpace],
+                                       funcs: list[Callable], backend: backends.TensorBackend,
+                                       multiple: bool, eps: float):
+    """Check that bending a leg up and down (or down and up) is trivial. All given codomains are combined with all
+    given domains to construct random tensors for which the identities are checked. All codomains and domains must
+    have the same symmetry; this is not explicitly checked.
+    If `multiple == True`, the identity is also checked for bending multiple (i.e. more than one) legs up and down
+    up to the maximum number possible. Otherwise, the identity is only checked for a single leg.
+    """
+    for codomain in codomains:
+        for domain in domains:
+            tens = SymmetricTensor.from_random_uniform(codomain, domain, backend=backend)
+            if len(tens.data.blocks) == 0:  # trivial tensors
+                continue
+
+            bending = []
+            for i in range(tens.num_domain_legs):
+                bends = [True] * (i+1) + [False] * (i+1)
+                bending.append(bends)
+                if not multiple:
+                    break
+            for i in range(tens.num_codomain_legs):
+                bends = [False] * (i+1) + [True] * (i+1)
+                bending.append(bends)
+                if not multiple:
+                    break
+
+            for func in funcs:
+                for bends in bending:
+                    new_tens = tens.copy()
+                    for bend in bends:
+                        new_data, new_codomain, new_domain = func(new_tens, bend)
+                        new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
+
+                    assert_tensors_almost_equal(new_tens, tens, eps)
+
+
+def assert_braiding_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[Callable],
+                                               levels: list[int], eps: float):
+    """Check that when rescaling and exchanging legs, it does not matter whether one first
+    performs the rescaling and then the exchange process or vice versa. This is tested using
+    `scale_axis` in `FusionTreeBackend`, i.e., not the funtion directly acting on tensors;
+    this function is tested elsewhere.
+    """
+    for func in funcs:
+        for leg in range(a.num_legs-1):
+            if leg == a.num_codomain_legs - 1:
+                continue
+
+            legs = [a.legs[leg], a.legs[leg + 1]]
+            if leg > a.num_codomain_legs - 1:  # in domain
+                legs = [leg_.dual for leg_ in legs]
+            diag_left = DiagonalTensor.from_random_uniform(legs[0], backend=a.backend, dtype=a.dtype)
+            diag_right = DiagonalTensor.from_random_uniform(legs[1], backend=a.backend, dtype=a.dtype)
+            new_a = a.copy()
+            new_a2 = a.copy()
+
+            # apply scale_axis first
+            new_a.data = new_a.backend.scale_axis(new_a, diag_left, leg)
+            new_a.data = new_a.backend.scale_axis(new_a, diag_right, leg + 1)
+            new_data, new_codomain, new_domain = func(new_a, leg=leg, levels=levels)
+            new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=new_a.backend)
+
+            # exchange first
+            new_data, new_codomain, new_domain = func(new_a2, leg=leg, levels=levels)
+            new_a2 = SymmetricTensor(new_data, new_codomain, new_domain, backend=new_a2.backend)
+            new_a2.data = new_a2.backend.scale_axis(new_a2, diag_left, leg + 1)
+            new_a2.data = new_a2.backend.scale_axis(new_a2, diag_right, leg)
+
+            assert_tensors_almost_equal(new_a, new_a2, eps)
+            
+
+def assert_clockwise_counterclockwise_trivial(a: SymmetricTensor, funcs: list[Callable],
+                                              levels: list[int], eps: float):
+    """Check that braiding a pair of neighboring legs clockwise and then anti-clockwise
+    (or vice versa) leaves the tensor invariant. `levels` specifies whether the first
+    exchange is clockwise or anti-clockwise (the second is the opposite).
+    This identity is checked for each neighboring pair of legs in the codomain and domain.
+    """
+    for func in funcs:
+        for leg in range(a.num_legs-1):
+            if leg == a.num_codomain_legs - 1:
+                continue
+            new_a = a.copy()
+            new_levels = levels[:]
+            for _ in range(2):
+                new_data, new_codomain, new_domain = func(new_a, leg=leg, levels=new_levels)
+                new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=a.backend)
+                new_levels[leg:leg+2] = new_levels[leg:leg+2][::-1]
+
+            assert_tensors_almost_equal(new_a, a, eps)
+
+
+def assert_clockwise_counterclockwise_trivial_long_range(a: SymmetricTensor, move_leg_or_permute_leg: str,
+                                                         eps: float, np_random: np.random.Generator):
+    """Same as `assert_clockwise_counterclockwise_trivial` with the difference that a random
+    sequence of exchanges and bends is chosen. The identity is checked using `permute_legs`
+    of the tensor backend or using `move_leg` depending on `move_leg_or_permute_leg`.
+    """
+    levels = list(np_random.permutation(a.num_legs))
+    if move_leg_or_permute_leg == 'permute_leg':
+        # more general case; needs more input
+        permutation = list(np_random.permutation(a.num_legs))
+        inv_permutation = [permutation.index(i) for i in range(a.num_legs)]
+        inv_levels = [levels[i] for i in permutation]
+        num_codomain = np.random.randint(a.num_legs + 1)
+
+        new_data, new_codomain, new_domain = a.backend.permute_legs(a, permutation[:num_codomain],
+                                                                    permutation[num_codomain:][::-1], levels)
+        new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=a.backend)
+        new_data, new_codomain, new_domain = a.backend.permute_legs(new_a, inv_permutation[:a.num_codomain_legs],
+                                                                    inv_permutation[a.num_codomain_legs:][::-1], inv_levels)
+        new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=a.backend)
+
+    elif move_leg_or_permute_leg == 'move_leg':
+        leg = np_random.integers(a.num_legs)
+        co_dom_pos = np_random.integers(a.num_legs)
+
+        if co_dom_pos >= a.num_codomain_legs:
+            new_a = move_leg(a, leg, domain_pos=a.num_legs - 1 - co_dom_pos, levels=levels)
+        else:
+            new_a = move_leg(a, leg, codomain_pos=co_dom_pos, levels=levels)
+
+        tmp = levels[leg]
+        levels = [levels[i] for i in range(a.num_legs) if i != leg]
+        levels.insert(co_dom_pos, tmp)
+        if leg >= a.num_codomain_legs:
+            new_a = move_leg(new_a, co_dom_pos, domain_pos=a.num_legs - 1 - leg, levels=levels)
+        else:
+            new_a = move_leg(new_a, co_dom_pos, codomain_pos=leg, levels=levels)
+
+    assert_tensors_almost_equal(new_a, a, eps)
+
+
+def assert_repeated_braids_trivial(a: SymmetricTensor, funcs: list[Callable], levels: list[int],
+                                   repeat: int, eps: float):
+    """Check that repeatedly braiding two neighboring legs often enough leaves the tensor
+    invariant. The number of required repetitions must be chosen to be even (legs must be
+    at their initial positions again) and such that all (relevant) r symbols to the power
+    of the repetitions is identity. `levels` specifies whether the repeated exchange is
+    always clockwise or anti-clockwise.
+    This identity is checked for each neighboring pair of legs in the codomain and domain.
+    """
+    for func in funcs:
+        for leg in range(a.num_legs-1):
+            if leg == a.num_codomain_legs - 1:
+                continue
+            new_a = a.copy()
+            for _ in range(repeat):
+                new_data, new_codomain, new_domain = func(new_a, leg=leg, levels=levels)
+                new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=a.backend)
+
+            assert_tensors_almost_equal(new_a, a, eps)
+
+
+def assert_tensors_almost_equal(a: SymmetricTensor, expect: SymmetricTensor, eps: float):
+    assert a.codomain == expect.codomain
+    assert a.domain == expect.domain
+    assert a.backend.almost_equal(a, expect, rtol=eps, atol=eps)
+
+
+# FUNCTIONS FOR CROSS CHECKING THE COMPUTATION OF THE ACTION OF B AND C SYMBOLS
+
+def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str, levels: list[int]
+                                            ) -> tuple[fusion_tree_backend.FusionTreeData,
+                                                       ProductSpace, ProductSpace]:
+    """Naive implementation of a single C symbol for test purposes on the level
+    of the tree blocks. `ten.legs[leg]` is exchanged with `ten.legs[leg + 1]`.
+
+    NOTE this function may be deleted at a later stage
+    """
+    # NOTE the case of braiding in domain and codomain are treated separately despite being similar
+    # This way, it is easier to understand the more compact and more efficient function
+    ftb = fusion_tree_backend
+    index = ten.get_leg_idcs(leg)[0]
+    backend = ten.backend
+    block_backend = ten.backend.block_backend
+    symmetry = ten.symmetry
+
+    assert index != ten.num_codomain_legs - 1, 'Cannot apply C symbol without applying B symbol first.'
+    assert index < ten.num_legs - 1
+
+    in_domain = index > ten.num_codomain_legs - 1
+
+    if in_domain:
+        domain_index = ten.num_legs - 1 - (index + 1)  # + 1 because it braids with the leg left of it
+        new_domain = ProductSpace(ten.domain[:domain_index] + [ten.domain[domain_index + 1]]
+                                    + [ten.domain[domain_index]] + ten.domain[domain_index + 2:],
+                                    symmetry=symmetry, backend=backend, _sectors=ten.domain.sectors,
+                                    _multiplicities=ten.domain.multiplicities)
+        new_codomain = ten.codomain
+    else:
+        new_codomain = ProductSpace(ten.codomain[:index] + [ten.codomain[index + 1]]
+                                    + [ten.codomain[index]] + ten.codomain[index + 2:],
+                                    symmetry=symmetry, backend=backend, _sectors=ten.codomain.sectors,
+                                    _multiplicities=ten.codomain.multiplicities)
+        new_domain = ten.domain
+
+    zero_blocks = [block_backend.zero_block(block_backend.block_shape(block), dtype=Dtype.complex128)
+                   for block in ten.data.blocks]
+    new_data = ftb.FusionTreeData(ten.data.block_inds, zero_blocks, ten.data.dtype)
+    shape_perm = np.arange(ten.num_legs)  # for permuting the shape of the tree blocks
+    shifted_index = ten.num_codomain_legs + domain_index if in_domain else index
+    shape_perm[shifted_index:shifted_index+2] = shape_perm[shifted_index:shifted_index+2][::-1]
+
+    for alpha_tree, beta_tree, tree_block in ftb._tree_block_iter(ten):
+        block_charge = ten.domain.sectors_where(alpha_tree.coupled)
+        block_charge = ten.data.block_ind_from_domain_sector_ind(block_charge)
+
+        initial_shape = block_backend.block_shape(tree_block)
+        modified_shape = [ten.codomain[i].sector_multiplicity(sec)
+                          for i, sec in enumerate(alpha_tree.uncoupled)]
+        modified_shape += [ten.domain[i].sector_multiplicity(sec)
+                           for i, sec in enumerate(beta_tree.uncoupled)]
+
+        tree_block = block_backend.block_reshape(tree_block, tuple(modified_shape))
+        tree_block = block_backend.block_permute_axes(tree_block, shape_perm)
+        tree_block = block_backend.block_reshape(tree_block, initial_shape)
+
+        if index == 0 or index == ten.num_legs - 2:
+            if in_domain:
+                alpha_slice = ftb.tree_block_slice(new_codomain, alpha_tree)
+                b = beta_tree.copy(True)
+                b_unc, b_in, b_mul = b.uncoupled, b.inner_sectors, b.multiplicities
+                f = b.coupled if len(b_in) == 0 else b_in[0]
+                if symmetry.braiding_style.value >= 20 and levels[index] > levels[index + 1]:
+                    r = symmetry.r_symbol(b_unc[0], b_unc[1], f)[b_mul[0]]
+                else:
+                    r = symmetry.r_symbol(b_unc[1], b_unc[0], f)[b_mul[0]].conj()
+                b_unc[domain_index:domain_index+2] = b_unc[domain_index:domain_index+2][::-1]
+                beta_slice = ftb.tree_block_slice(new_domain, b)
+            else:
+                beta_slice = ftb.tree_block_slice(new_domain, beta_tree)
+                a = alpha_tree.copy(True)
+                a_unc, a_in, a_mul = a.uncoupled, a.inner_sectors, a.multiplicities
+                f = a.coupled if len(a_in) == 0 else a_in[0]
+                if symmetry.braiding_style.value >= 20 and levels[index] > levels[index + 1]:
+                    r = symmetry.r_symbol(a_unc[1], a_unc[0], f)[a_mul[0]]
+                else:
+                    r = symmetry.r_symbol(a_unc[0], a_unc[1], f)[a_mul[0]].conj()
+                a_unc[index:index+2] = a_unc[index:index+2][::-1]
+                alpha_slice = ftb.tree_block_slice(new_codomain, a)
+
+            new_data.blocks[block_charge][alpha_slice, beta_slice] += r * tree_block
+        else:
+            if in_domain:
+                alpha_slice = ftb.tree_block_slice(new_codomain, alpha_tree)
+
+                beta_unc, beta_in, beta_mul = (beta_tree.uncoupled, beta_tree.inner_sectors,
+                                               beta_tree.multiplicities)
+
+                if domain_index == 1:
+                    left_charge = beta_unc[domain_index-1]
+                else:
+                    left_charge = beta_in[domain_index-2]
+                if domain_index == ten.num_domain_legs - 2:
+                    right_charge = beta_tree.coupled
+                else:
+                    right_charge = beta_in[domain_index]
+
+                for f in symmetry.fusion_outcomes(left_charge, beta_unc[domain_index+1]):
+                    if not symmetry.can_fuse_to(f, beta_unc[domain_index], right_charge):
+                        continue
+
+                    if symmetry.braiding_style.value >= 20 and levels[index] > levels[index + 1]:
+                        cs = symmetry.c_symbol(left_charge, beta_unc[domain_index], beta_unc[domain_index+1],
+                                                right_charge, beta_in[domain_index-1], f)[
+                                                beta_mul[domain_index-1], beta_mul[domain_index], :, :]
+                    else:
+                        cs = symmetry.c_symbol(left_charge, beta_unc[domain_index+1], beta_unc[domain_index],
+                                                right_charge, f, beta_in[domain_index-1])[:, :,
+                                                beta_mul[domain_index-1], beta_mul[domain_index]].conj()
+
+                    b = beta_tree.copy(True)
+                    b_unc, b_in, b_mul = b.uncoupled, b.inner_sectors, b.multiplicities
+
+                    b_unc[domain_index:domain_index+2] = b_unc[domain_index:domain_index+2][::-1]
+                    b_in[domain_index-1] = f
+                    for (kap, lam), c in np.ndenumerate(cs):
+                        if abs(c) < backend.eps:
+                            continue
+                        b_mul[domain_index-1] = kap
+                        b_mul[domain_index] = lam
+
+                        beta_slice = ftb.tree_block_slice(new_domain, b)
+                        new_data.blocks[block_charge][alpha_slice, beta_slice] += c * tree_block
+            else:
+                beta_slice = ftb.tree_block_slice(new_domain, beta_tree)
+                alpha_unc, alpha_in, alpha_mul = (alpha_tree.uncoupled, alpha_tree.inner_sectors,
+                                                  alpha_tree.multiplicities)
+
+                left_charge = alpha_unc[0] if index == 1 else alpha_in[index-2]
+                right_charge = alpha_tree.coupled if index == ten.num_codomain_legs - 2 else alpha_in[index]
+
+                for f in symmetry.fusion_outcomes(left_charge, alpha_unc[index+1]):
+                    if not symmetry.can_fuse_to(f, alpha_unc[index], right_charge):
+                        continue
+
+                    if symmetry.braiding_style.value >= 20 and levels[index] > levels[index + 1]:
+                        cs = symmetry.c_symbol(left_charge, alpha_unc[index+1], alpha_unc[index],
+                                                right_charge, f, alpha_in[index-1])[:, :,
+                                                alpha_mul[index-1], alpha_mul[index]]
+                    else:
+                        cs = symmetry.c_symbol(left_charge, alpha_unc[index], alpha_unc[index+1],
+                                                right_charge, alpha_in[index-1], f)[
+                                                alpha_mul[index-1], alpha_mul[index], :, :].conj()
+
+                    a = alpha_tree.copy(True)
+                    a_unc, a_in, a_mul = a.uncoupled, a.inner_sectors, a.multiplicities
+
+                    a_unc[index:index+2] = a_unc[index:index+2][::-1]
+                    a_in[index-1] = f
+                    for (kap, lam), c in np.ndenumerate(cs):
+                        if abs(c) < backend.eps:
+                            continue
+                        a_mul[index-1] = kap
+                        a_mul[index] = lam
+
+                        alpha_slice = ftb.tree_block_slice(new_codomain, a)
+                        new_data.blocks[block_charge][alpha_slice, beta_slice] += c * tree_block
+    new_data.discard_zero_blocks(block_backend, backend.eps)
+    return new_data, new_codomain, new_domain
+
+
+def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, levels: list[int]
+                                          ) -> tuple[fusion_tree_backend.FusionTreeData,
+                                                     ProductSpace, ProductSpace]:
+    """Naive implementation of a single C symbol for test purposes on the level
+    of the tree columns (= tree slices of codomain xor domain). `ten.legs[leg]`
+    is exchanged with `ten.legs[leg + 1]`.
+
+    NOTE this function may be deleted at a later stage
+    """
+    ftb = fusion_tree_backend
+    index = ten.get_leg_idcs(leg)[0]
+    backend = ten.backend
+    block_backend = ten.backend.block_backend
+    symmetry = ten.symmetry
+
+    # NOTE do these checks in permute_legs for the actual (efficient) function
+    assert index != ten.num_codomain_legs - 1, 'Cannot apply C symbol without applying B symbol first.'
+    assert index < ten.num_legs - 1
+
+    in_domain = index > ten.num_codomain_legs - 1
+
+    if in_domain:
+        index = ten.num_legs - 1 - (index + 1)  # + 1 because it braids with the leg left of it
+        levels = levels[::-1]
+        new_domain = ProductSpace(ten.domain[:index] + ten.domain[index:index+2][::-1]
+                                  + ten.domain[index+2:], symmetry=symmetry, backend=backend,
+                                  _sectors=ten.domain.sectors, _multiplicities=ten.domain.multiplicities)
+        new_codomain = ten.codomain
+        # for permuting the shape of the tree blocks
+        shape_perm = np.append([0], np.arange(1, ten.num_domain_legs+1))
+        shape_perm[index+1:index+3] = shape_perm[index+1:index+3][::-1]
+    else:
+        new_codomain = ProductSpace(ten.codomain[:index] + ten.codomain[index:index+2][::-1]
+                                    + ten.codomain[index+2:], symmetry=symmetry, backend=backend,
+                                    _sectors=ten.codomain.sectors,
+                                    _multiplicities=ten.codomain.multiplicities)
+        new_domain = ten.domain
+        shape_perm = np.append(np.arange(ten.num_codomain_legs), [ten.num_codomain_legs])
+        shape_perm[index:index+2] = shape_perm[index:index+2][::-1]
+
+    zero_blocks = [block_backend.zero_block(block_backend.block_shape(block), dtype=Dtype.complex128)
+                   for block in ten.data.blocks]
+    new_data = ftb.FusionTreeData(ten.data.block_inds, zero_blocks, ten.data.dtype)
+    iter_space = [ten.codomain, ten.domain][in_domain]
+    iter_coupled = [ten.codomain.sectors[ind[0]] for ind in ten.data.block_inds]
+
+    for tree, slc, _ in ftb._tree_block_iter_product_space(iter_space, iter_coupled, symmetry):
+        block_charge = ten.domain.sectors_where(tree.coupled)
+        block_charge = ten.data.block_ind_from_domain_sector_ind(block_charge)
+
+        tree_block = (ten.data.blocks[block_charge][:,slc] if in_domain
+                      else ten.data.blocks[block_charge][slc,:])
+
+        initial_shape = block_backend.block_shape(tree_block)
+
+        modified_shape = [iter_space[i].sector_multiplicity(sec) for i, sec in enumerate(tree.uncoupled)]
+        modified_shape.insert((not in_domain) * len(modified_shape), initial_shape[not in_domain])
+
+        tree_block = block_backend.block_reshape(tree_block, tuple(modified_shape))
+        tree_block = block_backend.block_permute_axes(tree_block, shape_perm)
+        tree_block = block_backend.block_reshape(tree_block, initial_shape)
+
+        if index == 0 or index == ten.num_legs - 2:
+            new_tree = tree.copy(deep=True)
+            _unc, _in, _mul = new_tree.uncoupled, new_tree.inner_sectors, new_tree.multiplicities
+            f = new_tree.coupled if len(_in) == 0 else _in[0]
+
+            if symmetry.braiding_style.value >= 20 and levels[index] > levels[index + 1]:
+                r = symmetry._r_symbol(_unc[1], _unc[0], f)[_mul[0]]
+            else:
+                r = symmetry._r_symbol(_unc[0], _unc[1], f)[_mul[0]].conj()
+
+            if in_domain:
+                r = r.conj()
+
+            _unc[index:index+2] = _unc[index:index+2][::-1]
+            new_slc = ftb.tree_block_slice([new_codomain, new_domain][in_domain], new_tree)
+
+            if in_domain:
+                new_data.blocks[block_charge][:, new_slc] += r * tree_block
+            else:
+                new_data.blocks[block_charge][new_slc, :] += r * tree_block
+        else:
+            _unc, _in, _mul = tree.uncoupled, tree.inner_sectors, tree.multiplicities
+
+            left_charge = _unc[0] if index == 1 else _in[index-2]
+            right_charge = tree.coupled if index == _in.shape[0] else _in[index]
+
+            for f in symmetry.fusion_outcomes(left_charge, _unc[index+1]):
+                if not symmetry.can_fuse_to(f, _unc[index], right_charge):
+                    continue
+
+                if symmetry.braiding_style.value >= 20 and levels[index] > levels[index+1]:
+                    cs = symmetry._c_symbol(left_charge, _unc[index+1], _unc[index], right_charge,
+                                            f, _in[index-1])[:, :, _mul[index-1], _mul[index]]
+                else:
+                    cs = symmetry._c_symbol(left_charge, _unc[index], _unc[index+1], right_charge,
+                                            _in[index-1], f)[_mul[index-1], _mul[index], :, :].conj()
+
+                if in_domain:
+                    cs = cs.conj()
+
+                new_tree = tree.copy(deep=True)
+                new_tree.uncoupled[index:index+2] = new_tree.uncoupled[index:index+2][::-1]
+                new_tree.inner_sectors[index-1] = f
+                for (kap, lam), c in np.ndenumerate(cs):
+                    if abs(c) < backend.eps:
+                        continue
+                    new_tree.multiplicities[index-1] = kap
+                    new_tree.multiplicities[index] = lam
+
+                    new_slc = ftb.tree_block_slice([new_codomain, new_domain][in_domain], new_tree)
+
+                    if in_domain:
+                        new_data.blocks[block_charge][:, new_slc] += c * tree_block
+                    else:
+                        new_data.blocks[block_charge][new_slc, :] += c * tree_block
+    new_data.discard_zero_blocks(block_backend, backend.eps)
+    return new_data, new_codomain, new_domain
+
+
+def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
+                                ) -> tuple[fusion_tree_backend.FusionTreeData,
+                                           ProductSpace, ProductSpace]:
+    """Naive implementation of a single B symbol for test purposes.
+    If `bend_up == True`, the right-most leg in the domain is bent up,
+    otherwise the right-most leg in the codomain is bent down.
+
+    NOTE this function may be deleted at a later stage
+    """
+    ftb = fusion_tree_backend
+    backend = ten.backend
+    block_backend = ten.backend.block_backend
+    symmetry = ten.symmetry
+
+    # NOTE do these checks in permute_legs for the actual (efficient) function
+    if bend_up:
+        assert ten.num_domain_legs > 0, 'There is no leg to bend in the domain!'
+    else:
+        assert ten.num_codomain_legs > 0, 'There is no leg to bend in the codomain!'
+    assert len(ten.data.blocks) > 0, 'The given tensor has no blocks to act on!'
+
+    spaces = [ten.codomain, ten.domain]
+    space1, space2 = spaces[bend_up], spaces[not bend_up]
+    new_space1 = ProductSpace(space1.spaces[:-1], symmetry, backend)
+    new_space2 = ProductSpace(space2.spaces + [space1.spaces[-1].dual], symmetry, backend)
+
+    new_codomain = [new_space1, new_space2][bend_up]
+    new_domain = [new_space1, new_space2][not bend_up]
+
+    new_data = ftb.FusionTreeData._zero_data(new_codomain, new_domain,
+                                                             block_backend, Dtype.complex128)
+
+    for alpha_tree, beta_tree, tree_block in ftb._tree_block_iter(ten):
+        modified_shape = [ten.codomain[i].sector_multiplicity(sec)
+                          for i, sec in enumerate(alpha_tree.uncoupled)]
+        modified_shape += [ten.domain[i].sector_multiplicity(sec)
+                           for i, sec in enumerate(beta_tree.uncoupled)]
+
+        if bend_up:
+            if beta_tree.uncoupled.shape[0] == 1:
+                coupled = symmetry.trivial_sector
+            else:
+                coupled = (beta_tree.inner_sectors[-1] if beta_tree.inner_sectors.shape[0] > 0
+                           else beta_tree.uncoupled[0])
+            modified_shape = (prod(modified_shape[:ten.num_codomain_legs]),
+                                prod(modified_shape[ten.num_codomain_legs:ten.num_legs-1]),
+                                modified_shape[ten.num_legs-1])
+            sec_mul = ten.domain[-1].sector_multiplicity(beta_tree.uncoupled[-1])
+            final_shape = (block_backend.block_shape(tree_block)[0] * sec_mul,
+                           block_backend.block_shape(tree_block)[1] // sec_mul)
+        else:
+            if alpha_tree.uncoupled.shape[0] == 1:
+                coupled = symmetry.trivial_sector
+            else:
+                coupled = (alpha_tree.inner_sectors[-1] if alpha_tree.inner_sectors.shape[0] > 0
+                           else alpha_tree.uncoupled[0])
+            modified_shape = (prod(modified_shape[:ten.num_codomain_legs-1]),
+                                modified_shape[ten.num_codomain_legs-1],
+                                prod(modified_shape[ten.num_codomain_legs:ten.num_legs]))
+            sec_mul = ten.codomain[-1].sector_multiplicity(alpha_tree.uncoupled[-1])
+            final_shape = (block_backend.block_shape(tree_block)[0] // sec_mul,
+                           block_backend.block_shape(tree_block)[1] * sec_mul)
+        block_ind = new_domain.sectors_where(coupled)
+        block_ind = new_data.block_ind_from_domain_sector_ind(block_ind)
+
+        tree_block = block_backend.block_reshape(tree_block, modified_shape)
+        tree_block = block_backend.block_permute_axes(tree_block, [0, 2, 1])
+        tree_block = block_backend.block_reshape(tree_block, final_shape)
+
+        trees = [alpha_tree, beta_tree]
+        tree1, tree2 = trees[bend_up], trees[not bend_up]
+
+        if tree1.uncoupled.shape[0] == 1:
+            tree1_in_1 = symmetry.trivial_sector
+        else:
+            tree1_in_1 = (tree1.inner_sectors[-1] if tree1.inner_sectors.shape[0] > 0
+                          else tree1.uncoupled[0])
+
+        new_tree1 = FusionTree(symmetry, tree1.uncoupled[:-1], tree1_in_1, tree1.are_dual[:-1],
+                               tree1.inner_sectors[:-1], tree1.multiplicities[:-1])
+        new_tree2 = FusionTree(symmetry, np.append(tree2.uncoupled,
+                               [symmetry.dual_sector(tree1.uncoupled[-1])], axis=0),
+                               tree1_in_1, np.append(tree2.are_dual, [not tree1.are_dual[-1]]),
+                               np.append(tree2.inner_sectors, [tree2.coupled], axis=0),
+                               np.append(tree2.multiplicities, [0]))
+
+        b_sym = symmetry._b_symbol(tree1_in_1, tree1.uncoupled[-1], tree1.coupled)
+        if not bend_up:
+            b_sym = b_sym.conj()
+        if tree1.are_dual[-1]:
+            b_sym *= symmetry.frobenius_schur(tree1.uncoupled[-1])
+        mu = tree1.multiplicities[-1] if tree1.multiplicities.shape[0] > 0 else 0
+        for nu in range(b_sym.shape[1]):
+            if abs(b_sym[mu, nu]) < backend.eps:
+                continue
+            new_tree2.multiplicities[-1] = nu
+
+            if bend_up:
+                alpha_slice = ftb.tree_block_slice(new_codomain, new_tree2)
+                if new_tree1.uncoupled.shape[0] == 0:
+                    beta_slice = slice(0, 1)
+                else:
+                    beta_slice = ftb.tree_block_slice(new_domain, new_tree1)
+            else:
+                if new_tree1.uncoupled.shape[0] == 0:
+                    alpha_slice = slice(0, 1)
+                else:
+                    alpha_slice = ftb.tree_block_slice(new_codomain, new_tree1)
+                beta_slice = ftb.tree_block_slice(new_domain, new_tree2)
+
+            new_data.blocks[block_ind][alpha_slice, beta_slice] += b_sym[mu, nu] * tree_block
+    new_data.discard_zero_blocks(block_backend, backend.eps)
+    return new_data, new_codomain, new_domain
