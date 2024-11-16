@@ -17,13 +17,12 @@ class TorchBlockBackend(BlockBackend):
 
     svd_algorithms = ['gesvdj', 'gesvda', 'gesvd']
 
-    def __init__(self, device: str = 'cpu', **kwargs) -> None:
+    def __init__(self, default_device: str = 'cpu') -> None:
         global torch_module
         try:
             import torch
         except ImportError as e:
             raise ImportError('Could not import torch. Use a different backend or install torch.') from e
-        self.device = device
         torch_module = torch
         self.cyten_dtype_map = {
             torch.float32: Dtype.float32,
@@ -42,15 +41,26 @@ class TorchBlockBackend(BlockBackend):
             None: None,
         }
         self.BlockCls = torch.Tensor
-        super().__init__(**kwargs)
+        super().__init__(default_device=default_device)
     
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False) -> Block:
-        block = torch_module.as_tensor(a, dtype=self.backend_dtype_map[dtype], device=self.device)
+    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
+                 ) -> Block:
+        # TODO good error handling if a device does not support a given dtype
+        block = torch_module.as_tensor(a, dtype=self.backend_dtype_map[dtype],
+                                       device=self.as_device(device))
         if dtype != Dtype.bool:
             block = 1. * block  # force int to float.
         if return_dtype:
             return block, self.cyten_dtype_map[block.dtype]
         return block
+
+    def as_device(self, device: str | None) -> str:
+        if device is None:
+            device = self.default_device
+        res = torch_module.device(device)
+        if res.index is None:
+            res = torch_module.device(device, index=0)
+        return str(res)
 
     def block_abs_argmax(self, block: Block) -> list[int]:
         flat_idx = torch_module.argmax(torch_module.abs(block))
@@ -85,8 +95,11 @@ class TorchBlockBackend(BlockBackend):
     def block_conj(self, a: Block) -> Block:
         return torch_module.conj(a)
 
-    def block_copy(self, a: Block) -> Block:
-        return a.clone().detach()
+    def block_copy(self, a: Block, device: str = None) -> Block:
+        res = a.clone().detach()
+        if device is not None:
+            res = res.to(self.as_device(device))
+        return res
 
     def block_dtype(self, a: Block) -> Dtype:
         return self.cyten_dtype_map[a.dtype]
@@ -128,8 +141,15 @@ class TorchBlockBackend(BlockBackend):
         res[torch_module.arange(N), mask] = 1
         return res
 
-    def block_from_numpy(self, a: numpy.ndarray, dtype: Dtype = None) -> Block:
-        return torch_module.tensor(a, device=self.device, dtype=self.backend_dtype_map[dtype])
+    def block_from_numpy(self, a: numpy.ndarray, dtype: Dtype = None, device: str = None) -> Block:
+        return torch_module.tensor(a, device=self.as_device(device),
+                                   dtype=self.backend_dtype_map[dtype])
+
+    def block_get_device(self, a: Block) -> str:
+        res = a.device
+        if res.index is None:
+            res = torch_module.device(res.type, index=0)
+        return str(res)
 
     def block_get_diagonal(self, a: Block, check_offdiagonal: bool) -> Block:
         res = torch_module.diagonal(a)
@@ -186,13 +206,16 @@ class TorchBlockBackend(BlockBackend):
     def block_permute_axes(self, a: Block, permutation: list[int]) -> Block:
         return torch_module.permute(a, permutation)  # TODO: this is documented as a view. is that a problem?
 
-    def block_random_uniform(self, dims: list[int], dtype: Dtype) -> Block:
-        return torch_module.rand(*dims, dtype=self.backend_dtype_map[dtype], device=self.device)
+    def block_random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
+        return torch_module.rand(*dims, dtype=self.backend_dtype_map[dtype],
+                                 device=self.as_device(device))
 
-    def block_random_normal(self, dims: list[int], dtype: Dtype, sigma: float) -> Block:
-        # Note that if device is CUDA, this function synchronizes the device with the CPU
-        mean = torch_module.zeros(size=dims, dtype=self.backend_dtype_map[dtype], device=self.device)
-        std = sigma * torch_module.ones_like(mean, device=self.device)
+    def block_random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
+                            ) -> Block:
+        # TODO Note that if device is CUDA, this function synchronizes the device with the CPU
+        mean = torch_module.zeros(size=dims, dtype=self.backend_dtype_map[dtype],
+                                  device=self.as_device(device))
+        std = sigma * torch_module.ones_like(mean, device=device)
         return torch_module.normal(mean, std)
 
     def block_real(self, a: Block) -> Block:
@@ -257,8 +280,9 @@ class TorchBlockBackend(BlockBackend):
         a = torch_module.reshape(a, a.shape[:len(remaining)] + (trace_dim, trace_dim))
         return a.diagonal(offset=0, dim1=-1, dim2=-2).sum(-1)
 
-    def eye_matrix(self, dim: int, dtype: Dtype) -> Block:
-        return torch_module.eye(dim, dtype=self.backend_dtype_map[dtype], device=self.device)
+    def eye_matrix(self, dim: int, dtype: Dtype, device: str = None) -> Block:
+        return torch_module.eye(dim, dtype=self.backend_dtype_map[dtype], 
+                                device=self.as_device(device))
 
     def get_block_element(self, a: Block, idcs: list[int]) -> complex | float | bool:
         return self.block_item(a[tuple(idcs)])
@@ -290,8 +314,20 @@ class TorchBlockBackend(BlockBackend):
         U, S, V = torch_module.linalg.svd(a, full_matrices=False, driver=algorithm)
         return U, S, V
 
-    def ones_block(self, shape: list[int], dtype: Dtype) -> Block:
-        return torch_module.ones(list(shape), dtype=self.backend_dtype_map[dtype], device=self.device)
+    def ones_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
+        return torch_module.ones(list(shape), dtype=self.backend_dtype_map[dtype],
+                                 device=self.as_device(device))
+
+    def to_same_dtype(self, a: Block, b: Block, at_least=None) -> tuple[Block, ...]:
+        # OPTIMIZE is there something built in to torch?
+        dtype = torch_module.promote_types(a.dtype, b.dtype)
+        if at_least is not None:
+            dtype = torch_module.promote_types(dtype, at_least)
+        if a.dtype != dtype:
+            a = torch_module.as_tensor(a, dtype=dtype)
+        if b.dtype != dtype:
+            b = torch_module.as_tensor(b, dtype=dtype)
+        return a, b
 
     def to_same_dtype(self, a: Block, b: Block, at_least=None) -> tuple[Block, ...]:
         # OPTIMIZE is there something built in to torch?
@@ -306,25 +342,26 @@ class TorchBlockBackend(BlockBackend):
 
     def synchronize(self):
         """Wait for asynchronous processes (if any) to finish"""
-        torch_module.cuda.synchronize(device=self.device)
+        raise NotImplementedError  # TODO unclear which device to synchronize
 
-    def zero_block(self, shape: list[int], dtype: Dtype) -> Block:
-        return torch_module.zeros(list(shape), dtype=self.backend_dtype_map[dtype], device=self.device)
+    def zero_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
+        return torch_module.zeros(list(shape), dtype=self.backend_dtype_map[dtype],
+                                  device=self.as_device(device))
 
 
 class NoSymmetryTorchBackend(NoSymmetryBackend):
-    def __init__(self, device: str = 'cpu'):
-        block_backend =  TorchBlockBackend(device=device)
+    def __init__(self, default_device: str = 'cpu'):
+        block_backend = TorchBlockBackend(default_device=default_device)
         NoSymmetryBackend.__init__(self, block_backend=block_backend)
 
 
 class AbelianTorchBackend(AbelianBackend):
-    def __init__(self, device: str = 'cpu'):
-        block_backend =  TorchBlockBackend(device=device)
+    def __init__(self, default_device: str = 'cpu'):
+        block_backend = TorchBlockBackend(default_device=default_device)
         AbelianBackend.__init__(self, block_backend=block_backend)
 
 
 class FusionTreeTorchBackend(FusionTreeBackend):
-    def __init__(self, device: str = 'cpu'):
-        block_backend =  TorchBlockBackend(device=device)
+    def __init__(self, default_device: str = 'cpu'):
+        block_backend = TorchBlockBackend(default_device=default_device)
         FusionTreeBackend.__init__(self, block_backend=block_backend)

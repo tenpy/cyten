@@ -88,6 +88,8 @@ class TensorBackend(metaclass=ABCMeta):
                                          dtype_map: Callable[[Dtype], Dtype] | None) -> Data:
         """Apply functions like exp() and log() on a (square) block-diagonal `a`.
 
+        Assumes the block_method returns blocks on the same device.
+
         Parameters
         ----------
         a : Tensor
@@ -158,13 +160,30 @@ class TensorBackend(metaclass=ABCMeta):
 
         Assumes there is at least one open leg, i.e. the codomain of `a` and the domain of `b` are
         not both empty.
+
+        Assumes both input tensors are on the same device.
         """
         ...
 
     @abstractmethod
-    def copy_data(self, a: SymmetricTensor | DiagonalTensor | MaskData
+    def copy_data(self, a: SymmetricTensor | DiagonalTensor | MaskData, device: str = None
                   ) -> Data | DiagonalData | MaskData:
-        """Return a copy, such that future in-place operations on the output data do not affect the input data"""
+        """Return a copy.
+
+        The main requirement is that future in-place operations on the output data do not affect
+        the input data
+
+        Parameters
+        ----------
+        a : Tensor
+            The tensor to copy
+        device : str, optional
+            The device for the result. Per default (or if ``None``), use the same device as `a`.
+
+        See Also
+        --------
+        move_to_device
+        """
         ...
 
     @abstractmethod
@@ -200,6 +219,8 @@ class TensorBackend(metaclass=ABCMeta):
         Input tensors are both DiagonalTensor and have equal legs.
         ``partial_zero_is_zero=True`` promises that ``func(any_block, zero_block) == zero_block``,
         and similarly for the second argument.
+
+        Assumes both tensors are on the same device.
         """
         ...
 
@@ -220,7 +241,11 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def diagonal_from_sector_block_func(self, func, co_domain: ProductSpace) -> DiagonalData:
-        """Generate diagonal data from a function ``func(shape: tuple[int], coupled: Sector) -> Block``."""
+        """Generate diagonal data from a function.
+
+        Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
+        Assumes all generated blocks are on the same device.
+        """
         ...
        
     @abstractmethod
@@ -273,7 +298,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def eye_data(self, co_domain: ProductSpace, dtype: Dtype) -> Data:
+    def eye_data(self, co_domain: ProductSpace, dtype: Dtype, device: str) -> Data:
         """Data for :meth:``SymmetricTensor.eye``.
 
         The result has legs ``first_legs + [l.dual for l in reversed(firs_legs)]``.
@@ -303,12 +328,16 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def from_random_normal(self, codomain: ProductSpace, domain: ProductSpace, sigma: float,
-                           dtype: Dtype) -> Data:
+                           dtype: Dtype, device: str) -> Data:
         ...
 
     @abstractmethod
     def from_sector_block_func(self, func, codomain: ProductSpace, domain: ProductSpace) -> Data:
-        """Generate tensor data from a function ``func(shape: tuple[int], coupled: Sector) -> Block``."""
+        """Generate tensor data from a function-
+
+        Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
+        Assumes all generated blocks are on the same device.
+        """
         ...
 
     @abstractmethod
@@ -318,6 +347,11 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def full_data_from_mask(self, a: Mask, dtype: Dtype) -> Data:
         """May assume that the mask is a projection."""
+        ...
+
+    @abstractmethod
+    def get_device_from_data(self, a: Data) -> str:
+        """Extract the device from the data object"""
         ...
 
     @abstractmethod
@@ -392,6 +426,10 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def linear_combination(self, a, v: SymmetricTensor, b, w: SymmetricTensor) -> Data:
+        """Form the linear combinations ``a * v + b * w``.
+
+        Assumes `v` and `w` are on the same device.
+        """
         ...
 
     @abstractmethod
@@ -404,6 +442,9 @@ class TensorBackend(metaclass=ABCMeta):
 
         May assume that both masks are a projection (from large to small leg)
         and that the large legs match.
+
+        Assumes that `mask1` and `mask2` are on the same device.
+        
         returns ``mask_data, new_small_leg``
         """
         ...
@@ -465,6 +506,18 @@ class TensorBackend(metaclass=ABCMeta):
         Returns ``mask_data, new_small_leg``
         """
         ...
+
+    @abstractmethod
+    def move_to_device(self, a: SymmetricTensor | DiagonalTensor | Mask, device: str) -> Data:
+        """Move tensor to a given device.
+
+        The result is *not* guaranteed to be a copy. In particular, if `a` already is on the
+        target device, it is returned without modification.
+
+        See Also
+        --------
+        copy_data
+        """
         
     @abstractmethod
     def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
@@ -477,6 +530,10 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
+        """Form the outer product, or tensor product of maps.
+
+        Assumes that `a` and `b` are on the same device.
+        """
         ...
 
     @abstractmethod
@@ -527,6 +584,7 @@ class TensorBackend(metaclass=ABCMeta):
         """Scale axis ``leg`` of ``a`` with ``b``.
 
         Can assume ``a.get_leg_co_domain(leg) == b.leg``.
+        Assumes that `a` and `b` are on the same device.
         """
         ...
 
@@ -707,16 +765,18 @@ class TensorBackend(metaclass=ABCMeta):
         return mask, err, new_norm
 
     @abstractmethod
-    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype) -> Data:
+    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str
+                  ) -> Data:
         """Data for a zero tensor"""
         ...
 
     @abstractmethod
-    def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype) -> DiagonalData:
+    def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype, device: str
+                           ) -> DiagonalData:
         ...
 
     @abstractmethod
-    def zero_mask_data(self, large_leg: Space) -> MaskData:
+    def zero_mask_data(self, large_leg: Space, device: str) -> MaskData:
         ...
 
     # OPTIONALLY OVERRIDE THESE
@@ -743,6 +803,9 @@ class BlockBackend(metaclass=ABCMeta):
     svd_algorithms: list[str]  # first is default
     BlockCls = None  # to be set by subclass
 
+    def __init__(self, default_device: str):
+        self.default_device = default_device
+
     def __repr__(self):
         return f'{type(self).__name__}()'
 
@@ -765,12 +828,13 @@ class BlockBackend(metaclass=ABCMeta):
         return block[np.ix_(*perms)]
 
     @abstractmethod
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False
+    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
                  ) -> Block | tuple[Block, Dtype]:
         """Convert objects to blocks.
 
         Should support blocks, numpy arrays, nested python containers. May support more.
-        Convert to `dtype`, if given.
+        If `a` is already a block of correct dtype on the correct device, it may be returned
+        un-modified.
 
         TODO make sure to emit warning on complex -> float!
 
@@ -780,8 +844,28 @@ class BlockBackend(metaclass=ABCMeta):
             The new block
         dtype: Dtype, optional
             The new dtype of the block. Only returned if `return_dtype`.
+        device: str, optional
+            The device for the block. Default behavior (if ``None``) is to leave `a` on its
+            current device if it already is a block, and to use :attr:`default_device` if a new
+            block needs to be created (e.g. if `a` is a list).
+
+        See Also
+        --------
+        block_copy
+            Guarantees an independent copy.
         """
         ...
+
+    def as_device(self, device: str | None) -> str:
+        """Convert input string to unambiguous device name.
+
+        In particular, this should map any possible aliases to one unique name, e.g.
+        for PyTorch, map ``'cuda'`` to ``'cuda:0'``.
+        """
+        if device is None:
+            return self.default_device
+        # TODO should we check if it is available here?
+        return device
 
     @abstractmethod
     def block_abs_argmax(self, block: Block) -> list[int]:
@@ -892,7 +976,21 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def block_copy(self, a: Block) -> Block:
+    def block_copy(self, a: Block, device: str = None) -> Block:
+        """Create a new, independent block with the same data
+
+        Parameters
+        ----------
+        a
+            The block to copy
+        device
+            The device for the new block. Per default, use the same device as the old block.
+
+        See Also
+        --------
+        as_block
+            Function to guarantee dtype and device, without forcing copies.
+        """
         ...
 
     def block_dagger(self, a: Block) -> Block:
@@ -961,7 +1059,11 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def block_from_numpy(self, a: np.ndarray, dtype: Dtype = None) -> Block:
+    def block_from_numpy(self, a: np.ndarray, dtype: Dtype = None, device: str = None) -> Block:
+        ...
+
+    @abstractmethod
+    def block_get_device(self, a: Block) -> str:
         ...
 
     @abstractmethod
@@ -1070,11 +1172,12 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def block_random_normal(self, dims: list[int], dtype: Dtype, sigma: float) -> Block:
+    def block_random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
+                            ) -> Block:
         ...
 
     @abstractmethod
-    def block_random_uniform(self, dims: list[int], dtype: Dtype) -> Block:
+    def block_random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
         ...
 
     @abstractmethod
@@ -1182,7 +1285,7 @@ class BlockBackend(metaclass=ABCMeta):
     def block_trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining_idcs: list[int]) -> Block:
         ...
 
-    def eye_block(self, legs: list[int], dtype: Dtype) -> Data:
+    def eye_block(self, legs: list[int], dtype: Dtype, device: str = None) -> Data:
         """The identity matrix, reshaped to a block.
 
         Note the unusual leg order ``[m1,...,mJ,mJ*,...,m1*]``,
@@ -1192,14 +1295,14 @@ class BlockBackend(metaclass=ABCMeta):
         namely ``m1,...,mJ``.
         """
         J = len(legs)
-        eye = self.eye_matrix(prod(legs), dtype)
+        eye = self.eye_matrix(prod(legs), dtype, device)
         # [M, M*] -> [m1,...,mJ,m1*,...,mJ*]
         eye = self.block_reshape(eye, legs * 2)
         # [m1,...,mJ,mJ*,...,m1*]
         return self.block_permute_axes(eye, [*range(J), *reversed(range(J, 2 * J))])
 
     @abstractmethod
-    def eye_matrix(self, dim: int, dtype: Dtype) -> Block:
+    def eye_matrix(self, dim: int, dtype: Dtype, device: str = None) -> Block:
         """The ``dim x dim`` identity matrix"""
         ...
 
@@ -1244,7 +1347,7 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def ones_block(self, shape: list[int], dtype: Dtype) -> Block:
+    def ones_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
         ...
 
     def synchronize(self):
@@ -1252,15 +1355,17 @@ class BlockBackend(metaclass=ABCMeta):
         pass
 
     def test_block_sanity(self, block, expect_shape: tuple[int, ...] | None = None,
-                          expect_dtype: Dtype | None = None):
+                          expect_dtype: Dtype | None = None, expect_device: str | None = None):
         assert isinstance(block, self.BlockCls), 'wrong block type'
         if expect_shape is not None:
             assert self.block_shape(block) == expect_shape, 'wrong block shape'
         if expect_dtype is not None:
             assert self.block_dtype(block) == expect_dtype, 'wrong block dtype'
+        if expect_device is not None:
+            assert self.block_get_device(block) == expect_device, 'wrong block device'
 
     @abstractmethod
-    def zero_block(self, shape: list[int], dtype: Dtype) -> Block:
+    def zero_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
         ...
 
 

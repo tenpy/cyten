@@ -20,14 +20,27 @@ class NumpyBlockBackend(BlockBackend):
     
     cyten_dtype_map = _numpy_dtype_to_cyten
     backend_dtype_map = _cyten_dtype_to_numpy
+
+    def __init__(self):
+        super().__init__(default_device='cpu')
     
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False) -> Block:
+    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
+                 ) -> Block:
+        _ = self.as_device(device)  # for input check only
         block = np.asarray(a, dtype=self.backend_dtype_map[dtype])
         if np.issubdtype(block.dtype, np.integer):
             block = block.astype(np.float64, copy=False)
         if return_dtype:
             return block, self.cyten_dtype_map[block.dtype]
         return block
+
+    def as_device(self, device: str | None) -> str:
+        if device is None:
+            return self.default_device
+        if device != self.default_device:
+            msg = f'{self.__class__.__name__} does not support device {device}.'
+            raise ValueError(msg)
+        return device
 
     def block_add_axis(self, a: Block, pos: int) -> Block:
         return np.expand_dims(a, pos)
@@ -56,7 +69,8 @@ class NumpyBlockBackend(BlockBackend):
     def block_conj(self, a: Block) -> Block:
         return np.conj(a)
 
-    def block_copy(self, a: Block) -> Block:
+    def block_copy(self, a: Block, device: str = None) -> Block:
+        _ = self.as_device(device)  # for input check only
         return np.copy(a)
 
     def block_dtype(self, a: Block) -> Dtype:
@@ -100,10 +114,14 @@ class NumpyBlockBackend(BlockBackend):
         res[np.arange(N), mask] = 1
         return res
 
-    def block_from_numpy(self, a: np.ndarray, dtype: Dtype = None) -> Block:
+    def block_from_numpy(self, a: np.ndarray, dtype: Dtype = None, device: str = None) -> Block:
+        _ = self.as_device(device)  # for input check only
         if dtype is None:
             return a
         return np.asarray(a, self.backend_dtype_map[dtype])
+
+    def block_get_device(self, a: Block) -> str:
+        return self.default_device
     
     def block_get_diagonal(self, a: Block, check_offdiagonal: bool) -> Block:
         res = np.diagonal(a)
@@ -150,13 +168,16 @@ class NumpyBlockBackend(BlockBackend):
     def block_permute_axes(self, a: Block, permutation: list[int]) -> Block:
         return np.transpose(a, permutation)
 
-    def block_random_normal(self, dims: list[int], dtype: Dtype, sigma: float) -> Block:
+    def block_random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
+                            ) -> Block:
+        _ = self.as_device(device)  # for input check only
         res = np.random.normal(loc=0, scale=sigma, size=dims)
         if not dtype.is_real:
             res = res + 1.j * np.random.normal(loc=0, scale=sigma, size=dims)
         return res
 
-    def block_random_uniform(self, dims: list[int], dtype: Dtype) -> Block:
+    def block_random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
+        _ = self.as_device(device)  # for input check only
         res = np.random.uniform(-1, 1, size=dims)
         if not dtype.is_real:
             res = res + 1.j * np.random.uniform(-1, 1, size=dims)
@@ -218,7 +239,8 @@ class NumpyBlockBackend(BlockBackend):
         a = np.reshape(a, a.shape[:len(remaining)] + (trace_dim, trace_dim))
         return np.trace(a, axis1=-2, axis2=-1)
 
-    def eye_matrix(self, dim: int, dtype: Dtype) -> Block:
+    def eye_matrix(self, dim: int, dtype: Dtype, device: str = None) -> Block:
+        _ = self.as_device(device)  # for input check only
         return np.eye(dim, dtype=self.backend_dtype_map[dtype])
 
     def get_block_element(self, a: Block, idcs: list[int]) -> complex | float | bool:
@@ -258,10 +280,12 @@ class NumpyBlockBackend(BlockBackend):
         else:
             raise ValueError(f'SVD algorithm not supported: {algorithm}')
 
-    def ones_block(self, shape: list[int], dtype: Dtype) -> Block:
+    def ones_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
+        _ = self.as_device(device)  # for input check only
         return np.ones(shape, dtype=self.backend_dtype_map[dtype])
 
-    def zero_block(self, shape: list[int], dtype: Dtype) -> Block:
+    def zero_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
+        _ = self.as_device(device)  # for input check only
         return np.zeros(shape, dtype=self.backend_dtype_map[dtype])
 
 
