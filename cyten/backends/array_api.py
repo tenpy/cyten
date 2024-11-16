@@ -17,7 +17,6 @@ __all__ = ['ArrayApiBlockBackend', 'NoSymmetryArrayApiBackend', 'AbelianArrayApi
            'FusionTreeArrayApiBackend']
 
 
-# TODO carry through device args?
 # TODO provide an example...
 
 
@@ -25,7 +24,7 @@ class ArrayApiBlockBackend(BlockBackend):
 
     svd_algorithms = ['default']  # can not specify algorithms through the array API
 
-    def __init__(self, api_namespace):
+    def __init__(self, api_namespace, default_device: str = 'cpu'):
         self._api = api_namespace
         self.BlockCls = type(api_namespace.zero(1))
 
@@ -45,15 +44,26 @@ class ArrayApiBlockBackend(BlockBackend):
             Dtype.bool: api_namespace.bool,
             None: None,
         }
+        super().__init__(default_device=default_device)
         
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False) -> Block:
-        block = self._api.asarray(a, dtype=self.backend_dtype_map[dtype])
+    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
+                 ) -> Block:
+        if device is None and not hasattr(a, 'device'):
+            device = self.default_device
+        block = self._api.asarray(a, dtype=self.backend_dtype_map[dtype], device=device)
         if dtype != Dtype.bool:
             # force float or complex dtype without multiplying
             block = 1. * block
         if return_dtype:
             return block, self.cyten_dtype_map[block.dtype]
         return block
+
+    def as_device(self, device: str | None) -> str:
+        if device is None:
+            device = self.default_device
+        # need to do this hack, since the API does not provide a unified way to instantiate
+        # device objects
+        return str(self.ones_block([1], device=device).device)
 
     def block_all(self, a) -> bool:
         return self._api.all(a)
@@ -81,8 +91,8 @@ class ArrayApiBlockBackend(BlockBackend):
     def block_to_dtype(self, a: Block, dtype: Dtype) -> Block:
         return self._api.astype(a, self.backend_dtype_map[dtype])
 
-    def block_copy(self, a: Block) -> Block:
-        return self._api.asarray(a, copy=True)
+    def block_copy(self, a: Block, device: str = None) -> Block:
+        return self._api.asarray(a, copy=True, device=device)
 
     def _block_repr_lines(self, a: Block, indent: str, max_width: int, max_lines: int) -> list[str]:
         # TODO i like julia style much better actually, especially for many legs
@@ -188,36 +198,40 @@ class ArrayApiBlockBackend(BlockBackend):
     def matrix_log(self, matrix: Block) -> Block:
         raise NotImplementedError(f'{self} does not support matrix_log.')
 
-    def block_random_uniform(self, dims: list[int], dtype: Dtype) -> Block:
+    def block_random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
         # API does not specify random generation, so we generate in numpy and convert
         res = np.random.uniform(-1, 1, size=dims)
         if not dtype.is_real:
             res += 1.j * np.random.uniform(-1, 1, size=dims)
-        return self._api.asarray(res)
+        return self._api.asarray(res, device=device)
 
-    def block_random_normal(self, dims: list[int], dtype: Dtype, sigma: float) -> Block:
+    def block_random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
+                            ) -> Block:
         res = np.random.normal(loc=0, scale=sigma, size=dims)
         if not dtype.is_real:
             res += 1.j * np.random.normal(loc=0, scale=sigma, size=dims)
-        return self._api.asarray(res)
+        return self._api.asarray(res, device=device)
 
-    def block_from_numpy(self, a: np.ndarray, dtype: Dtype = None) -> Block:
-        return self._api.asarray(a, dtype=self.backend_dtype_map[dtype])
+    def block_from_numpy(self, a: np.ndarray, dtype: Dtype = None, device: str = None) -> Block:
+        return self._api.asarray(a, dtype=self.backend_dtype_map[dtype], device=device)
 
-    def zero_block(self, shape: list[int], dtype: Dtype) -> Block:
-        return self._api.zeros(shape, dtype=self.backend_dtype_map[dtype])
+    def zero_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
+        return self._api.zeros(shape, dtype=self.backend_dtype_map[dtype], device=device)
 
-    def ones_block(self, shape: list[int], dtype: Dtype) -> Block:
-        return self._api.ones(shape, dtype=self.backend_dtype_map[dtype])
+    def ones_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
+        return self._api.ones(shape, dtype=self.backend_dtype_map[dtype], device=device)
 
-    def eye_matrix(self, dim: int, dtype: Dtype) -> Block:
-        return self._api.eye(dim, dtype=self.backend_dtype_map[dtype])
+    def eye_matrix(self, dim: int, dtype: Dtype, device: str = None) -> Block:
+        return self._api.eye(dim, dtype=self.backend_dtype_map[dtype], device=device)
 
     def block_kron(self, a: Block, b: Block) -> Block:
         raise NotImplementedError  # TODO not in API...?
 
     def get_block_element(self, a: Block, idcs: list[int]) -> complex | float | bool:
         return a[tuple(idcs)].item()
+
+    def block_get_device(self, a: Block) -> str:
+        return a.device
 
     def block_get_diagonal(self, a: Block, check_offdiagonal: bool) -> Block:
         raise NotImplementedError  # TODO
