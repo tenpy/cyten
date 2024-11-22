@@ -15,7 +15,7 @@ __all__ = ['TorchBlockBackend', 'NoSymmetryTorchBackend', 'AbelianTorchBackend',
 
 class TorchBlockBackend(BlockBackend):
 
-    svd_algorithms = ['gesvdj', 'gesvd']
+    svd_algorithms = ['gesvdj', 'gesvda', 'gesvd']
 
     def __init__(self, device: str = 'cpu', **kwargs) -> None:
         global torch_module
@@ -271,9 +271,16 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.linalg.qr(a, mode='complete' if full else 'reduced')
 
     def matrix_svd(self, a: Block, algorithm: str | None) -> tuple[Block, Block, Block]:
-        if algorithm is None:
-            algorithm = 'gesvd'
-        assert algorithm in self.svd_algorithms
+        if a.device.type == 'cuda':
+            if algorithm is None:
+                algorithm = 'gesvd'
+            assert algorithm in self.svd_algorithms
+        else:
+            if algorithm == 'gesvd':
+                algorithm = None
+            if algorithm is not None:
+                msg = 'For torch, the algorithm keyword is only supported on CUDA hardware'
+                raise ValueError(msg)
         U, S, V = torch_module.linalg.svd(a, full_matrices=False, driver=algorithm)
         return U, S, V
 
