@@ -70,6 +70,7 @@ class TorchBlockBackend(BlockBackend):
     def block_allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
         a = torch_module.as_tensor(a)
         b = torch_module.as_tensor(b)
+        a, b = self.to_same_dtype(a, b)
         return torch_module.allclose(a, b, rtol=rtol, atol=atol)
 
     def block_angle(self, a: Block) -> Block:
@@ -143,6 +144,7 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.imag(a)
 
     def block_inner(self, a: Block, b: Block, do_dagger: bool) -> float | complex:
+        a, b = self.to_same_dtype(a, b, at_least=torch_module.float16)
         if do_dagger:
             res = torch_module.tensordot(torch_module.conj(a), b, a.ndim)
         else:
@@ -153,6 +155,7 @@ class TorchBlockBackend(BlockBackend):
         return a.item()
 
     def block_kron(self, a: Block, b: Block) -> Block:
+        a, b = self.to_same_dtype(a, b)
         return torch_module.kron(a, b)
 
     def block_log(self, a: Block) -> Block:
@@ -171,6 +174,7 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.linalg.vector_norm(a, ord=order, dim=axis)
     
     def block_outer(self, a: Block, b: Block) -> Block:
+        a, b = self.to_same_dtype(a, b, at_least=torch_module.float16)
         return torch_module.tensordot(a, b, ([], []))
 
     def block_permute_axes(self, a: Block, permutation: list[int]) -> Block:
@@ -228,6 +232,7 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.sum(a)
 
     def block_tdot(self, a: Block, b: Block, idcs_a: list[int], idcs_b: list[int]) -> Block:
+        a, b = self.to_same_dtype(a, b, at_least=torch_module.float16)
         return torch_module.tensordot(a, b, (idcs_a, idcs_b))
 
     def block_to_dtype(self, a: Block, dtype: Dtype) -> Block:
@@ -253,6 +258,7 @@ class TorchBlockBackend(BlockBackend):
         return a[tuple(idcs)].item()
 
     def matrix_dot(self, a: Block, b: Block) -> Block:
+        a, b = self.to_same_dtype(a, b)
         return torch_module.matmul(a, b)
 
     def matrix_exp(self, matrix: Block) -> Block:
@@ -273,6 +279,17 @@ class TorchBlockBackend(BlockBackend):
 
     def ones_block(self, shape: list[int], dtype: Dtype) -> Block:
         return torch_module.ones(list(shape), dtype=self.backend_dtype_map[dtype], device=self.device)
+
+    def to_same_dtype(self, a: Block, b: Block, at_least=None) -> tuple[Block, ...]:
+        # OPTIMIZE is there something built in to torch?
+        dtype = torch_module.promote_types(a.dtype, b.dtype)
+        if at_least is not None:
+            dtype = torch_module.promote_types(dtype, at_least)
+        if a.dtype != dtype:
+            a = torch_module.as_tensor(a, dtype=dtype)
+        if b.dtype != dtype:
+            b = torch_module.as_tensor(b, dtype=dtype)
+        return a, b
 
     def synchronize(self):
         """Wait for asynchronous processes (if any) to finish"""
