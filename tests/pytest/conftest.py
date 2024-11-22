@@ -164,7 +164,7 @@ def pytest_collection_modifyitems(config, items):
 
 # QUICK CONFIGURATION
 
-_block_backends = ['numpy']  # TODO reactivate 'torch'
+_block_backends = ['numpy', 'torch']
 _symmetries = {
     # groups:
     'NoSymm': symmetries.no_symmetry,
