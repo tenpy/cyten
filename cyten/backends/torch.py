@@ -158,7 +158,7 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.max(a)
     
     def block_max_abs(self, a: Block) -> float:
-        return torch_module.max(torch_module.max(a))
+        return torch_module.max(torch_module.abs(a))
 
     def block_min(self, a: Block) -> float | complex:
         return torch_module.min(a)
