@@ -85,7 +85,7 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.conj(a)
 
     def block_copy(self, a: Block) -> Block:
-        return torch_module.tensor(a, device=self.device)
+        return a.clone().detach()
 
     def block_dtype(self, a: Block) -> Dtype:
         return self.cyten_dtype_map[a.dtype]
@@ -138,13 +138,15 @@ class TorchBlockBackend(BlockBackend):
         return res
 
     def block_imag(self, a: Block) -> Block:
+        if not a.dtype.is_complex:
+            return torch_module.zeros_like(a)
         return torch_module.imag(a)
 
     def block_inner(self, a: Block, b: Block, do_dagger: bool) -> float | complex:
         if do_dagger:
             res = torch_module.tensordot(torch_module.conj(a), b, a.ndim)
         else:
-            res = torch_module.tensordot(a, b, [range(a.ndim), reversed(range(a.ndim))])
+            res = torch_module.tensordot(a, b, [tuple(range(a.ndim)), tuple(reversed(range(a.ndim)))])
         return res.item()
 
     def block_item(self, a: Block) -> float | complex:
@@ -187,7 +189,10 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.real(a)
 
     def block_real_if_close(self, a: Block, tol: float) -> Block:
-        raise NotImplementedError  # TODO
+        eps = 2.2204460492503131e-16  # TODO make it actually depend on the dtype!!
+        if torch_module.all(torch_module.abs(self.block_imag(a)) < tol * eps):
+            a = torch_module.real(a)
+        return a
 
     def _block_repr_lines(self, a: Block, indent: str, max_width: int, max_lines: int) -> list[str]:
         torch_module.set_printoptions(linewidth=max_width - len(indent))
@@ -237,7 +242,7 @@ class TorchBlockBackend(BlockBackend):
 
     def block_trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining: list[int]) -> Block:
         a = torch_module.permute(a, remaining + idcs1 + idcs2)
-        trace_dim = prod(a.shape[len(remaining):len(remaining)+len(idcs1)])
+        trace_dim = int(prod(a.shape[len(remaining):len(remaining)+len(idcs1)]))
         a = torch_module.reshape(a, a.shape[:len(remaining)] + (trace_dim, trace_dim))
         return a.diagonal(offset=0, dim1=-1, dim2=-2).sum(-1)
 
@@ -257,7 +262,7 @@ class TorchBlockBackend(BlockBackend):
         raise NotImplementedError  # TODO: could not find a torch implementation via their docs...?
 
     def matrix_qr(self, a: Block, full: bool) -> tuple[Block, Block]:
-        return torch_module.qr(a, some=not full)
+        return torch_module.linalg.qr(a, mode='complete' if full else 'reduced')
 
     def matrix_svd(self, a: Block, algorithm: str | None) -> tuple[Block, Block, Block]:
         if algorithm is None:

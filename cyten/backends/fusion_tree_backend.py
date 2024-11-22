@@ -1308,7 +1308,7 @@ class FusionTreeBackend(TensorBackend):
             Y = self.block_backend.block_conj(alpha_tree.as_block(backend=self))  # [a1,...,aJ,c]
             for beta_tree in beta_tree_iter:
                 X = beta_tree.as_block(backend=self)  # [b1,...,bK,c]
-                symmetry_data = self.block_backend.block_tdot(Y, X, -1, -1)  # [a1,...,aJ,b1,...,bK]
+                symmetry_data = self.block_backend.block_tdot(Y, X, [-1], [-1])  # [a1,...,aJ,b1,...,bK]
                 idx1 = slice(i1, i1 + tree_block_height)
                 idx2 = slice(i2, i2 + tree_block_width)
                 degeneracy_data = block[idx1, idx2]  # [M, N]
