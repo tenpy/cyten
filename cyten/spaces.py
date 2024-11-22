@@ -890,7 +890,7 @@ class ProductSpace(Space):
         This is equivalent to ``ProductSpace([p_space.spaces for p_space in factors])``,
         but avoids some of the computation of sectors.
         """
-        isomorphic = ProductSpace(factors, backend=backend)
+        isomorphic = ProductSpace([pr.as_ElementarySpace() for pr in factors], backend=backend)
         return ProductSpace(
             spaces=[sp for pr in factors for sp in pr.spaces], backend=backend,
             _sectors=isomorphic.sectors, _multiplicities=isomorphic.multiplicities
