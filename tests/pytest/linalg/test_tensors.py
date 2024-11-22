@@ -1048,6 +1048,7 @@ def test_combine_split(make_compatible_tensor):
         msg = 'Product spaces on individual legs are not supported in the fusion tree backend.'
         with pytest.raises(RuntimeError, match=msg):
             _ = tensors.combine_legs(T, [1, 2])
+        pytest.xfail()
 
     # 1) combine in codomain
     combined1 = tensors.combine_legs(T, [0, 1])
