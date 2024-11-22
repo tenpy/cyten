@@ -832,7 +832,7 @@ class FusionTreeBackend(TensorBackend):
         norm_sq = 0
         for i, block in zip(a.data.block_inds[:, 0], a.data.blocks):
             norm_sq += a.codomain.sector_qdims[i] * (self.block_backend.block_norm(block) ** 2)
-        return self.block_backend.block_sqrt(norm_sq)
+        return np.sqrt(norm_sq).item()
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         raise NotImplementedError('outer not implemented')  # TODO

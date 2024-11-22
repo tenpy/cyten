@@ -2552,7 +2552,7 @@ class ChargedTensor(Tensor):
             raise IndexError('Can not index a ChargedTensor with unspecified charged_state.')
         if len(self.charged_state) > 10:
             raise NotImplementedError  # should do sth smarter...
-        return sum((a * self.invariant_part._get_item([*idx, n])
+        return sum((self.backend.block_backend.block_item(a) * self.invariant_part._get_item([*idx, n])
                     for n, a in enumerate(self.charged_state)),
                    start=self.dtype.zero_scalar)
 

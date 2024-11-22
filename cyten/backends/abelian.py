@@ -1354,7 +1354,7 @@ class AbelianBackend(TensorBackend):
 
     def norm(self, a: SymmetricTensor | DiagonalTensor) -> float:
         block_norms = [self.block_backend.block_norm(b, order=2) for b in a.data.blocks]
-        return np.linalg.norm(block_norms, ord=2)
+        return float(np.linalg.norm(block_norms, ord=2))
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         a_blocks = a.data.blocks

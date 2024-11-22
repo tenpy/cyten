@@ -149,10 +149,13 @@ class TorchBlockBackend(BlockBackend):
             res = torch_module.tensordot(torch_module.conj(a), b, a.ndim)
         else:
             res = torch_module.tensordot(a, b, [tuple(range(a.ndim)), tuple(reversed(range(a.ndim)))])
-        return res.item()
+        return self.block_item(res)
 
     def block_item(self, a: Block) -> float | complex:
-        return a.item()
+        if a.dtype.is_complex:
+            return complex(a)
+        else:
+            return float(a)
 
     def block_kron(self, a: Block, b: Block) -> Block:
         a, b = self.to_same_dtype(a, b)
@@ -162,16 +165,19 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.log(a)
 
     def block_max(self, a: Block) -> float | complex:
-        return torch_module.max(a)
+        return self.block_item(torch_module.max(a))
     
     def block_max_abs(self, a: Block) -> float:
-        return torch_module.max(torch_module.abs(a))
+        return self.block_item(torch_module.max(torch_module.abs(a)))
 
     def block_min(self, a: Block) -> float | complex:
-        return torch_module.min(a)
+        return self.block_item(torch_module.min(a))
 
     def block_norm(self, a: Block, order: int | float = 2, axis: int | None = None) -> float:
-        return torch_module.linalg.vector_norm(a, ord=order, dim=axis)
+        res = torch_module.linalg.vector_norm(a, ord=order, dim=axis)
+        if axis is None:
+            res = self.block_item(res)
+        return res
     
     def block_outer(self, a: Block, b: Block) -> Block:
         a, b = self.to_same_dtype(a, b, at_least=torch_module.float16)
@@ -229,7 +235,7 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.sum(a, ax)
 
     def block_sum_all(self, a: Block) -> float | complex:
-        return torch_module.sum(a)
+        return self.block_item(torch_module.sum(a))
 
     def block_tdot(self, a: Block, b: Block, idcs_a: list[int], idcs_b: list[int]) -> Block:
         a, b = self.to_same_dtype(a, b, at_least=torch_module.float16)
@@ -243,7 +249,7 @@ class TorchBlockBackend(BlockBackend):
         trace_dim = prod(a.shape[:num_trace])
         perm = [*range(num_trace), *reversed(range(num_trace, 2 * num_trace))]
         a = torch_module.reshape(torch_module.permute(a, perm), (trace_dim, trace_dim))
-        return a.diagonal(offset=0, dim1=0, dim2=1).sum(0)
+        return self.block_item(a.diagonal(offset=0, dim1=0, dim2=1).sum(0))
 
     def block_trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining: list[int]) -> Block:
         a = torch_module.permute(a, remaining + idcs1 + idcs2)
@@ -255,7 +261,7 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.eye(dim, dtype=self.backend_dtype_map[dtype], device=self.device)
 
     def get_block_element(self, a: Block, idcs: list[int]) -> complex | float | bool:
-        return a[tuple(idcs)].item()
+        return self.block_item(a[tuple(idcs)])
 
     def matrix_dot(self, a: Block, b: Block) -> Block:
         a, b = self.to_same_dtype(a, b)

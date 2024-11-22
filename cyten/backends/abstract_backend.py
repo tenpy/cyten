@@ -1213,7 +1213,7 @@ class BlockBackend(metaclass=ABCMeta):
             # if the block has a False entry, the matrix has only False in that column
             return False
         # otherwise, there is exactly one True in that column, at index sum(a[:large_leg_idx])
-        return small_leg_idx == self.block_sum_all(a[:large_leg_idx])
+        return bool(small_leg_idx == self.block_sum_all(a[:large_leg_idx]))
 
     @abstractmethod
     def matrix_dot(self, a: Block, b: Block) -> Block:

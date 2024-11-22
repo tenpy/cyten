@@ -155,13 +155,13 @@ class ArrayApiBlockBackend(BlockBackend):
         return res
 
     def block_max(self, a: Block) -> float | complex:
-        return self._api.max(a)
+        return self._api.max(a).item()
     
     def block_max_abs(self, a: Block) -> float:
-        return self._api.max(self._api.abs(a))
+        return self._api.max(self._api.abs(a)).item()
 
     def block_min(self, a: Block) -> float | complex:
-        return self._api.min(a)
+        return self._api.min(a).item()
     
     def block_reshape(self, a: Block, shape: tuple[int]) -> Block:
         return self._api.reshape(a, shape)
@@ -238,7 +238,7 @@ class ArrayApiBlockBackend(BlockBackend):
         return self._api.sum(a, axis=ax)
 
     def block_sum_all(self, a: Block) -> float | complex:
-        return self._api.sum(a)
+        return self._api.sum(a).item()
 
     def block_eigh(self, block: Block, sort: str = None) -> tuple[Block, Block]:
         w, v = self._api.linalg.eigh(block)
