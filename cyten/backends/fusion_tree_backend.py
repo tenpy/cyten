@@ -1265,8 +1265,11 @@ class FusionTreeBackend(TensorBackend):
         return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=Dtype.bool)
 
     # OPTIONAL OVERRIDES
-    # despite not allowing product spaces on legs, we cannot raise an error when calling
-    # _fuse_spaces since the (co)domain is a ProductSpace
+
+    def _fuse_spaces(self, symmetry: Symmetry, spaces: list[Space]):
+        for space in spaces:
+            assert not isinstance(space, ProductSpace), self.err_msg_prodspace
+        raise NotImplementedError
 
     # INTERNAL FUNCTIONS
 
