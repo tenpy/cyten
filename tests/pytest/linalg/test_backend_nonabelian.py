@@ -36,6 +36,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     funcs = [cross_check_single_c_symbol_tree_blocks,
              cross_check_single_c_symbol_tree_cols,
              apply_single_c_symbol]
+    zero_block = backend.block_backend.zero_block
     eps = 1.e-14
     sym = fibonacci_anyon_category
     s1 = ElementarySpace(sym, [[1]], [1])  # only tau
@@ -54,7 +55,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     # exchange legs 0 and 1 (in codomain)
     r1 = np.exp(-4j*np.pi/5)  # R symbols
     rtau = np.exp(3j*np.pi/5)
-    expect = [np.zeros((8, 3), dtype=complex), np.zeros((13, 5), dtype=complex)]
+    expect = [zero_block([8, 3], Dtype.complex128), zero_block([13, 5], Dtype.complex128)]
 
     expect[0][0, :] = blocks[0][0, :]
     expect[0][1, :] = blocks[0][1, :]
@@ -99,7 +100,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
 
 
     # exchange legs 5 and 6 (in domain)
-    expect = [np.zeros((8, 3), dtype=complex), np.zeros((13, 5), dtype=complex)]
+    expect = [zero_block([8, 3], Dtype.complex128), zero_block([13, 5], Dtype.complex128)]
 
     expect[0][:, 0] = blocks[0][:, 0]
     expect[0][:, 1] = blocks[0][:, 1] * r1
@@ -135,7 +136,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     cttttt1 = phi**-0.5 * rtau * r1.conj()
     ctttt1t = phi**-0.5 * rtau.conj()
     ctttttt = -1*phi**-1
-    expect = [np.zeros((8, 3), dtype=complex), np.zeros((13, 5), dtype=complex)]
+    expect = [zero_block([8, 3], Dtype.complex128), zero_block([13, 5], Dtype.complex128)]
 
     expect[0][0, :] = blocks[0][1, :]
     expect[0][1, :] = blocks[0][0, :]
@@ -178,7 +179,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
 
 
     # exchange legs 4 and 5 (in domain)
-    expect = [np.zeros((8, 3), dtype=complex), np.zeros((13, 5), dtype=complex)]
+    expect = [zero_block([8, 3], Dtype.complex128), zero_block([13, 5], Dtype.complex128)]
 
     expect[0][:, 0] = blocks[0][:, 0] * r1
     expect[0][:, 1] = blocks[0][:, 1]
@@ -230,6 +231,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     funcs = [cross_check_single_c_symbol_tree_blocks,
              cross_check_single_c_symbol_tree_cols,
              apply_single_c_symbol]
+    zero_block = backend.block_backend.zero_block
     eps = 1.e-14
     sym = ProductSymmetry([fibonacci_anyon_category, SU2Symmetry()])
     s1 = ElementarySpace(sym, [[1, 1]], [2])  # only (tau, spin-1/2)
@@ -254,7 +256,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     exc2 = [4, 5, 6, 7, 0, 1, 2, 3]
     exc3 = [0, 1, 4, 5, 2, 3, 6, 7]
 
-    expect = [np.zeros(shp, dtype=complex) for shp in shapes]
+    expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
 
     expect[0][:9, :] = blocks[0][[0] + [1 + i for i in exc2], :]
     expect[0][9:, :] = blocks[0][[9 + i for i in exc], :] * r1 * -1
@@ -300,7 +302,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
 
 
     # exchange legs 4 and 5 (in domain)
-    expect = [np.zeros(shp, dtype=complex) for shp in shapes]
+    expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
 
     expect[0][:, :4] = blocks[0][:, :4]
     expect[0][:, 4:] = blocks[0][:, [4 + i for i in exc]] * r1 * -1
@@ -353,7 +355,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     ctttt1t = phi**-0.5 * rtau.conj()
     ctttttt = -1*phi**-1
     exc4 = [0, 2, 1, 3, 4, 6, 5, 7]
-    expect = [np.zeros(shp, dtype=complex) for shp in shapes]
+    expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
 
     expect[0][:, :4] = blocks[0][:, exc] * r1 * -1
     expect[0][:, 4:] = blocks[0][:, 4:]
@@ -436,6 +438,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     funcs = [cross_check_single_c_symbol_tree_blocks,
              cross_check_single_c_symbol_tree_cols,
              apply_single_c_symbol]
+    zero_block = backend.block_backend.zero_block
     eps = 1.e-14
     sym = SU3_3AnyonCategory()
     s1 = ElementarySpace(sym, [[1], [2]], [1, 1])  # 8 and 10
@@ -457,7 +460,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     # exchanging two 8s gives -1 except if they fuse to 8, then
     r8 = [-1j, 1j]  # for the two multiplicities
     # all other R symbols are trivial
-    expect = [np.zeros(shp, dtype=complex) for shp in shapes]
+    expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
 
     for i in [0, 2, 3]:
         expect[i][0, :] = blocks[i][0, :] * r8[0]
@@ -489,7 +492,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
 
     # exchange legs 4 and 5 (in domain)
-    expect = [np.zeros(shp, dtype=complex) for shp in shapes]
+    expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
 
     for i in [0, 2, 3]:
         expect[i][:, :4] = blocks[i][:, :4] * r8[0]
@@ -530,7 +533,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     f2 = np.array([[-.5, -3**.5/2], [3**.5/2, -.5]])
     f1 = f2.T
     csym = sym._c_symbol
-    expect = [np.zeros(shp, dtype=complex) for shp in shapes]
+    expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
 
     expect[0][0, :] = blocks[0][0, :] * r8[0]
     expect[0][1, :] = blocks[0][1, :] * r8[1]
@@ -547,7 +550,10 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     for i in range(7):
         w = [csym(c1, c1, c1, c1, charges[i], charges[j])[mul1[i], mul2[i], mul1[j], mul2[j]] for j in range(7)]
-        expect[1][i, :] = np.sum([v[j] * w[j] for j in range(7)], axis=0)
+        amplitudes = zero_block([7, backend.block_backend.block_shape(expect[1])[1]], Dtype.complex128)
+        for j in range(7):
+            amplitudes[j, :] = v[j] * w[j]
+        expect[1][i, :] = backend.block_backend.block_sum(amplitudes, ax=0)
 
     expect[1][7, :] = (blocks[1][9, :] * (f2[0,0]*f2[0,0] + f2[0,1]*f2[1,0])
                        + blocks[1][10, :] * (f2[1,0]*f2[0,0] + f2[1,1]*f2[1,0]))
@@ -599,7 +605,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     exc = [0, 2, 1, 3]
     exc4, exc8 = [4 + i for i in exc], [8 + i for i in exc]
     exc28, exc32 = [28 + i for i in exc], [32 + i for i in exc]
-    expect = [np.zeros(shp, dtype=complex) for shp in shapes]
+    expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
 
     expect[0][:, :4] = blocks[0][:, exc] * r8[0]
     expect[0][:, 4:8] = blocks[0][:, exc4] * r8[1]
@@ -608,7 +614,10 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     v = [blocks[1][:, [4*i + j for j in exc]] for i in range(7)]
     for i in range(7):
         w = [csym(c1, c1, c1, c1, charges[i], charges[j])[mul1[i], mul2[i], mul1[j], mul2[j]] for j in range(7)]
-        expect[1][:, 4*i:4*(i+1)] = np.sum([v[j] * w[j] for j in range(7)], axis=0)
+        amplitudes = zero_block([backend.block_backend.block_shape(expect[1])[0], 4], Dtype.complex128)
+        for j in range(7):
+            amplitudes += v[j] * w[j]
+        expect[1][:, 4*i:4*(i+1)] = amplitudes
 
     expect[1][:, 28:32] = (blocks[1][:, exc28] * (f1[0,0]*r8[0]*f2[0,0] + f1[0,1]*r8[1]*f2[1,0])
                           + blocks[1][:, exc32] * (f1[1,0]*r8[0]*f2[0,0] + f1[1,1]*r8[1]*f2[1,0]))
@@ -665,6 +674,7 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     multiple = np_random.choice([True, False])
     backend = get_backend('fusion_tree', block_backend)
     funcs = [cross_check_single_b_symbol, apply_single_b_symbol]
+    zero_block = backend.block_backend.zero_block
     eps = 1.e-14
     sym = fibonacci_anyon_category
     s1 = ElementarySpace(sym, [[1]], [1])  # only tau
@@ -739,7 +749,7 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
 
     # bend up
     phi = (1 + 5**0.5) / 2
-    expect = [np.zeros((5, 1), dtype=complex), np.zeros((8, 2), dtype=complex)]
+    expect = [zero_block([5, 1], Dtype.complex128), zero_block([8, 2], Dtype.complex128)]
 
     expect[0][0, 0] = blocks[0][0, 1] # (0, 0, 0) = (a, b, c) as in _b_symbol(a, b, c)
     expect[0][1, 0] = blocks[1][0, 3] * phi**0.5 # (0, 1, 1)
@@ -785,7 +795,7 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
 
 
     # bend down
-    expect = [np.zeros((1, 5), dtype=complex), np.zeros((2, 8), dtype=complex)]
+    expect = [zero_block([1, 5], Dtype.complex128), zero_block([2, 8], Dtype.complex128)]
 
     expect[0][0, 0] = blocks[1][1, 0] * phi**0.5 # (0, 1, 1)
     expect[0][0, 1] = blocks[1][1, 1] * phi**0.5 # (0, 1, 1)
@@ -848,6 +858,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     funcs = [cross_check_single_b_symbol, apply_single_b_symbol]
     perm_axes = backend.block_backend.block_permute_axes
     reshape = backend.block_backend.block_reshape
+    zero_block = backend.block_backend.zero_block
     eps = 1.e-14
     sym = ProductSymmetry([fibonacci_anyon_category, SU2Symmetry()])
     s1 = ElementarySpace(sym, [[1, 1]], [1])  # only (tau, spin-1/2)
@@ -864,7 +875,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
     expect_block_inds = np.array([[0, 0], [1, 1]])
-    expect = [np.zeros((1, 1), dtype=complex), np.zeros((2, 2), dtype=complex)]
+    expect = [zero_block([1, 1], Dtype.complex128), zero_block([2, 2], Dtype.complex128)]
 
     expect[0][0, 0] = blocks[0][0, 0]  # ([0, 0], [0, 0], [0, 0]) = (a, b, c) as in _b_symbol(a, b, c)
     expect[1][:, :] = perm_axes(reshape(blocks[0][0, 1:], (2, 2)), [1, 0])
@@ -901,7 +912,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
     expect_block_inds = np.array([[0, 2]])
-    expect = [np.zeros((1, 86), dtype=complex)]
+    expect = [zero_block([1, 86], Dtype.complex128)]
 
     expect[0][0, :2] = blocks[0][:, 0]
     expect[0][0, 18:26] = reshape(perm_axes(blocks[0][:, 1:], [1, 0]), (1, 8))
@@ -971,7 +982,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
     expect_block_inds = np.array([[0, 0], [3, 1]])
-    expect = [np.zeros((12, 1), dtype=complex), np.zeros((37, 2), dtype=complex)]
+    expect = [zero_block([12, 1], Dtype.complex128), zero_block([37, 2], Dtype.complex128)]
 
     expect[0][2:4, 0] = blocks[0][:, 0] # ([0, 0], [0, 0], [0, 0])
 
@@ -1056,6 +1067,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     funcs = [cross_check_single_b_symbol, apply_single_b_symbol]
     perm_axes = backend.block_backend.block_permute_axes
     reshape = backend.block_backend.block_reshape
+    zero_block = backend.block_backend.zero_block
     eps = 1.e-14
     sym = SU3_3AnyonCategory()
     s1 = ElementarySpace(sym, [[1], [2]], [1, 1])  # 8 and 10
@@ -1075,7 +1087,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
     expect_block_inds = np.array([[0, 1], [1, 2]])
-    expect = [np.zeros((1, 2), dtype=complex), np.zeros((1, 3), dtype=complex)]
+    expect = [zero_block([1, 2], Dtype.complex128), zero_block([1, 3], Dtype.complex128)]
 
     expect[0][0, :] = blocks[0][:2, 0] / qdim8  # (8, 8, 1) = (a, b, c) as in _b_symbol(a, b, c)
     expect[1][0, :] = blocks[0][2:, 0]  # (10, 10-, 1)
@@ -1109,7 +1121,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
     expect_block_inds = np.array([[0, 1], [1, 2]])
-    expect = [np.zeros((1, 16), dtype=complex), np.zeros((1, 4), dtype=complex)]
+    expect = [zero_block([1, 16], Dtype.complex128), zero_block([1, 4], Dtype.complex128)]
 
     expect[0][0, :2] = blocks[0][0, :]  # (8, 1, 8)
     expect[0][0, 2:6] = reshape(perm_axes(blocks[0][1:3, :], [1, 0]), (1, 4))  # (8, 8, 8)
@@ -1139,7 +1151,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     # same tensor, bend up
     expect_block_inds = np.array([[0, 0]])
-    expect = [np.zeros((20, 1), dtype=complex)]
+    expect = [zero_block([20, 1], Dtype.complex128)]
 
     expect[0][:2, 0] = blocks[0][0, :] * qdim8  # (1, 8, 8)
     expect[0][2:6, :] = reshape(blocks[0][1:3, :], (4, 1)) * qdim8  # (1, 8, 8)
@@ -1177,7 +1189,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
     expect_shapes = [(2, 32), (6, 88), (2, 32), (2, 32)]
-    expect = [np.zeros(shp, dtype=complex) for shp in expect_shapes]
+    expect = [zero_block(shp, Dtype.complex128) for shp in expect_shapes]
 
     expect[0][:, :4] = reshape(perm_axes(reshape(blocks[1][:4, :2], (2, 2, 2)), [0, 2, 1]), (2, 4))
     expect[0][:, 4:12] = reshape(perm_axes(reshape(blocks[1][:4, 2:6], (2, 2, 4)), [0, 2, 1]), (2, 8))
@@ -1572,6 +1584,7 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
     shape_perm = np.arange(ten.num_legs)  # for permuting the shape of the tree blocks
     shifted_index = ten.num_codomain_legs + domain_index if in_domain else index
     shape_perm[shifted_index:shifted_index+2] = shape_perm[shifted_index:shifted_index+2][::-1]
+    shape_perm = list(shape_perm)  # torch does not like np.arrays
 
     for alpha_tree, beta_tree, tree_block in ftb._tree_block_iter(ten):
         block_charge = ten.domain.sectors_where(alpha_tree.coupled)
@@ -1732,6 +1745,7 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
         shape_perm = np.append(np.arange(ten.num_codomain_legs), [ten.num_codomain_legs])
         shape_perm[index:index+2] = shape_perm[index:index+2][::-1]
 
+    shape_perm = list(shape_perm)  # torch does not like np.arrays
     zero_blocks = [block_backend.zero_block(block_backend.block_shape(block), dtype=Dtype.complex128)
                    for block in ten.data.blocks]
     new_data = ftb.FusionTreeData(ten.data.block_inds, zero_blocks, ten.data.dtype)
