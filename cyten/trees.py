@@ -208,7 +208,8 @@ class FusionTree:
             return block_backend.ones_block([1], dtype=dtype)
         if self.num_uncoupled == 1:
             if self.are_dual[0]:
-                return self.symmetry.Z_iso(self.coupled)
+                Z = self.symmetry.Z_iso(self.coupled)
+                return block_backend.block_from_numpy(Z, dtype=dtype)
             else:
                 dim_c = self.symmetry.sector_dim(self.coupled)
                 return block_backend.eye_block([dim_c], dtype)

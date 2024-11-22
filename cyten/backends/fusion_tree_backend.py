@@ -1370,7 +1370,8 @@ class FusionTreeBackend(TensorBackend):
                 tree_block = self.block_backend.block_trace_partial(projected, [-2], [-1], range_JK) / dim_c
                 # [m1,...,mJ,n1,...,nK] -> [M, N]
                 ms_ns = self.block_backend.block_shape(tree_block)
-                tree_block = np.reshape(tree_block, (prod(ms_ns[:J]), prod(ms_ns[J:])))
+                shape = (prod(ms_ns[:J]), prod(ms_ns[J:]))
+                tree_block = self.block_backend.block_reshape(tree_block, shape)
                 idx1 = slice(i1, i1 + tree_block_height)
                 idx2 = slice(i2, i2 + tree_block_width)
                 # make sure we set in-range elements! otherwise item assignment silently does nothing.

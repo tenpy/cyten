@@ -68,6 +68,8 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.all(a)
         
     def block_allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
+        a = torch_module.as_tensor(a)
+        b = torch_module.as_tensor(b)
         return torch_module.allclose(a, b, rtol=rtol, atol=atol)
 
     def block_angle(self, a: Block) -> Block:
