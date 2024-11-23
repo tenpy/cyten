@@ -26,6 +26,9 @@ class DummyTensor(tensors.Tensor):
     This overrides the abstractmethods, so we can actually make instances.
     """
 
+    def __init__(self, codomain, domain, backend, labels, dtype):
+        super().__init__(codomain, domain, backend, labels, dtype, device='cpu')
+
     def copy(self, deep=True) -> tensors.Tensor:
         raise NotImplementedError
 
@@ -38,13 +41,17 @@ class DummyTensor(tensors.Tensor):
     def _get_item(self, idx: list[int]) -> bool | float | complex:
         raise NotImplementedError
 
+    def move_to_device(self, device: str):
+        raise NotImplementedError
+
 
 def test_base_Tensor(make_compatible_space, compatible_backend):
 
     a, b, c, d, e = [make_compatible_space() for _ in range(5)]
 
     print('checking different labels input formats')
-    tens1 = DummyTensor([a, b, c], [d, e], backend=compatible_backend, labels=None, dtype=Dtype.float64)
+    tens1 = DummyTensor([a, b, c], [d, e], backend=compatible_backend, labels=None,
+                        dtype=Dtype.float64)
     tens1.test_sanity()
     assert tens1._labels == [None] * 5
 
