@@ -1129,7 +1129,21 @@ def test_combine_split(make_compatible_tensor):
     assert split5.codomain.spaces == T.legs
     assert split5.domain.spaces == []
     expect5 = tensors.bend_legs(T, num_domain_legs=0)
-    assert tensors.almost_equal(split5, expect5)
+
+    if not tensors.almost_equal(split5, expect5):
+        from cyten.dummy_config import printoptions
+        printoptions.linewidth = 200
+        print('bent5')
+        print(bent5)
+        for lab, leg in zip(bent5.labels, bent5.legs):
+            print(f'{lab}: {leg}')
+        print()
+        print()
+        print('split5')
+        print(split5)
+        for lab, leg in zip(split5.labels, split5.legs):
+            print(f'{lab}: {leg}')
+        assert False
 
     # TODO test
     # combine -> to_numpy
