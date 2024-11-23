@@ -6,7 +6,7 @@ import numpy as np
 
 from .symmetries import Symmetry, Sector, SectorArray, FusionStyle, SymmetryError
 from .dtypes import Dtype
-from .backends.abstract_backend import BlockBackend, Block
+from .backends.abstract_backend import TensorBackend, Block
 
 __all__ = ['FusionTree', 'fusion_trees']
 
@@ -181,7 +181,7 @@ class FusionTree:
         return (f'FusionTree({self.symmetry}, {uncoupled}, {self.coupled}, {self.are_dual}, '
                 f'{inner}, {self.multiplicities})')
 
-    def as_block(self, backend: BlockBackend = None, dtype: Dtype = None) -> Block:
+    def as_block(self, backend: TensorBackend = None, dtype: Dtype = None) -> Block:
         """Get the matrix elements of the map as a backend Block.
 
         If no backend is given, we return it as a numpy array.
@@ -208,7 +208,8 @@ class FusionTree:
             return block_backend.ones_block([1], dtype=dtype)
         if self.num_uncoupled == 1:
             if self.are_dual[0]:
-                return self.symmetry.Z_iso(self.coupled)
+                Z = self.symmetry.Z_iso(self.coupled)
+                return block_backend.block_from_numpy(Z, dtype=dtype)
             else:
                 dim_c = self.symmetry.sector_dim(self.coupled)
                 return block_backend.eye_block([dim_c], dtype)

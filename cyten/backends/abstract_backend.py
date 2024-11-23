@@ -744,10 +744,10 @@ class BlockBackend(metaclass=ABCMeta):
     BlockCls = None  # to be set by subclass
 
     def __repr__(self):
-        return f'{type(self).__name__}'
+        return f'{type(self).__name__}()'
 
     def __str__(self):
-        return f'{type(self).__name__}'
+        return f'{type(self).__name__}()'
 
     def apply_basis_perm(self, block: Block, legs: list[Space], inv: bool = False) -> Block:
         """Apply basis_perm of a ElementarySpace (or its inverse) on every axis of a dense block"""
@@ -813,7 +813,7 @@ class BlockBackend(metaclass=ABCMeta):
     
     def block_apply_mask(self, block: Block, mask: Block, ax: int) -> Block:
         """Apply a mask (1D boolean block) to a block, slicing/projecting that axis"""
-        idx = (slice(None, None, None),) * (ax - 1) + (mask,)
+        idx = (slice(None, None, None),) * ax + (mask,)
         return block[idx]
 
     def block_argsort(self, block: Block, sort: str = None, axis: int = 0) -> Block:
@@ -1213,7 +1213,7 @@ class BlockBackend(metaclass=ABCMeta):
             # if the block has a False entry, the matrix has only False in that column
             return False
         # otherwise, there is exactly one True in that column, at index sum(a[:large_leg_idx])
-        return small_leg_idx == self.block_sum_all(a[:large_leg_idx])
+        return bool(small_leg_idx == self.block_sum_all(a[:large_leg_idx]))
 
     @abstractmethod
     def matrix_dot(self, a: Block, b: Block) -> Block:

@@ -131,17 +131,17 @@ class NumpyBlockBackend(BlockBackend):
         return np.log(a)
 
     def block_max(self, a: Block) -> float | complex:
-        return np.max(a)
+        return np.max(a).item()
 
     def block_max_abs(self, a: Block) -> float:
-        return np.max(np.abs(a))
+        return np.max(np.abs(a)).item()
 
     def block_min(self, a: Block) -> float | complex:
-        return np.min(a)
+        return np.min(a).item()
     
     def block_norm(self, a: Block, order: int | float = 2, axis: int | None = None) -> float:
         if axis is None:
-            return np.linalg.norm(a.ravel(), ord=order)
+            return np.linalg.norm(a.ravel(), ord=order).item()
         return np.linalg.norm(a, ord=order, axis=axis)
 
     def block_outer(self, a: Block, b: Block) -> Block:
@@ -197,7 +197,7 @@ class NumpyBlockBackend(BlockBackend):
         return np.sum(a, axis=ax)
 
     def block_sum_all(self, a: Block) -> float | complex:
-        return np.sum(a)
+        return np.sum(a).item()
 
     def block_tdot(self, a: Block, b: Block, idcs_a: list[int], idcs_b: list[int]) -> Block:
         return np.tensordot(a, b, (idcs_a, idcs_b))

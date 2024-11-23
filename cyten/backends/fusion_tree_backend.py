@@ -832,7 +832,7 @@ class FusionTreeBackend(TensorBackend):
         norm_sq = 0
         for i, block in zip(a.data.block_inds[:, 0], a.data.blocks):
             norm_sq += a.codomain.sector_qdims[i] * (self.block_backend.block_norm(block) ** 2)
-        return self.block_backend.block_sqrt(norm_sq)
+        return np.sqrt(norm_sq).item()
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         raise NotImplementedError('outer not implemented')  # TODO
@@ -1308,7 +1308,7 @@ class FusionTreeBackend(TensorBackend):
             Y = self.block_backend.block_conj(alpha_tree.as_block(backend=self))  # [a1,...,aJ,c]
             for beta_tree in beta_tree_iter:
                 X = beta_tree.as_block(backend=self)  # [b1,...,bK,c]
-                symmetry_data = self.block_backend.block_tdot(Y, X, -1, -1)  # [a1,...,aJ,b1,...,bK]
+                symmetry_data = self.block_backend.block_tdot(Y, X, [-1], [-1])  # [a1,...,aJ,b1,...,bK]
                 idx1 = slice(i1, i1 + tree_block_height)
                 idx2 = slice(i2, i2 + tree_block_width)
                 degeneracy_data = block[idx1, idx2]  # [M, N]
@@ -1370,7 +1370,8 @@ class FusionTreeBackend(TensorBackend):
                 tree_block = self.block_backend.block_trace_partial(projected, [-2], [-1], range_JK) / dim_c
                 # [m1,...,mJ,n1,...,nK] -> [M, N]
                 ms_ns = self.block_backend.block_shape(tree_block)
-                tree_block = np.reshape(tree_block, (prod(ms_ns[:J]), prod(ms_ns[J:])))
+                shape = (prod(ms_ns[:J]), prod(ms_ns[J:]))
+                tree_block = self.block_backend.block_reshape(tree_block, shape)
                 idx1 = slice(i1, i1 + tree_block_height)
                 idx2 = slice(i2, i2 + tree_block_width)
                 # make sure we set in-range elements! otherwise item assignment silently does nothing.

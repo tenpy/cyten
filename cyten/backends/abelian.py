@@ -803,7 +803,8 @@ class AbelianBackend(TensorBackend):
             sectors.append(large_leg.sectors[bi])
             multiplicities.append(self.block_backend.block_sum_all(diag_block))
             if basis_perm is not None:
-                basis_perm_ranks.append(basis_perm[slice(*large_leg.slices[bi])][diag_block])
+                mask = self.block_backend.block_to_numpy(diag_block, bool)
+                basis_perm_ranks.append(basis_perm[slice(*large_leg.slices[bi])][mask])
 
         if len(blocks) == 0:
             sectors = tens.symmetry.empty_sector_array
@@ -1117,7 +1118,8 @@ class AbelianBackend(TensorBackend):
             sectors.append(sector)
             multiplicities.append(mult)
             if basis_perm is not None:
-                basis_perm_ranks.append(basis_perm[slice(*slc)][new_block])
+                mask = self.block_backend.block_to_numpy(new_block)
+                basis_perm_ranks.append(basis_perm[slice(*slc)][mask])
         block_inds = np.column_stack([np.arange(len(sectors)), large_leg_block_inds])
         data = AbelianBackendData(
             dtype=Dtype.bool, blocks=blocks, block_inds=block_inds, is_sorted=True
@@ -1230,7 +1232,8 @@ class AbelianBackend(TensorBackend):
             sectors.append(sector)
             multiplicities.append(mult)
             if basis_perm is not None:
-                basis_perm_ranks.append(large_leg.basis_perm[slice(*slc)][block])
+                mask = self.block_backend.block_to_numpy(block)
+                basis_perm_ranks.append(large_leg.basis_perm[slice(*slc)][mask])
 
         if len(blocks) == 0:
             sectors = large_leg.symmetry.empty_sector_array
@@ -1351,7 +1354,7 @@ class AbelianBackend(TensorBackend):
 
     def norm(self, a: SymmetricTensor | DiagonalTensor) -> float:
         block_norms = [self.block_backend.block_norm(b, order=2) for b in a.data.blocks]
-        return np.linalg.norm(block_norms, ord=2)
+        return float(np.linalg.norm(block_norms, ord=2))
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         a_blocks = a.data.blocks

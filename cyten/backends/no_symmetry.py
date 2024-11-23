@@ -141,7 +141,7 @@ class NoSymmetryBackend(TensorBackend):
         basis_perm = large_leg._basis_perm
         data = tens.data
         if basis_perm is not None:
-            basis_perm = rank_data(basis_perm[data])
+            basis_perm = rank_data(basis_perm[self.block_backend.block_to_numpy(data)])
         small_leg = ElementarySpace.from_trivial_sector(
             dim=self.block_backend.block_sum_all(data), symmetry=large_leg.symmetry, is_dual=large_leg.is_dual,
             basis_perm=basis_perm

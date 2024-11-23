@@ -1426,6 +1426,7 @@ def test_entropy(n, make_compatible_tensor):
     npt.assert_almost_equal(np.sum(p_np), 1)
 
     ent = tensors.entropy(p, n)
+    assert isinstance(ent, float)
     expect = tensors.entropy(p_np, n)
     npt.assert_almost_equal(ent, expect)
 
@@ -1471,6 +1472,8 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
             _ = T[random_idx]
         pytest.xfail()
 
+    entry = T[random_idx]
+    assert isinstance(entry, (bool, float, complex))
     assert_same(T[random_idx], T_np[random_idx])
 
     # trying to set items raises
@@ -1713,6 +1716,7 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
         return
 
     res = tensors.norm(T)
+    assert isinstance(res, (float, complex))
 
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
