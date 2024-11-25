@@ -1999,7 +1999,7 @@ class ZNAnyonCategory(Symmetry):
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
-    def __init__(self, N: int, n: int):
+    def __init__(self, N: int, n: int, descriptive_name: str | None = None):
         assert type(N) == int
         assert N > 1
         assert type(n) == int
@@ -2010,8 +2010,8 @@ class ZNAnyonCategory(Symmetry):
                           fusion_style=FusionStyle.single,
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
-                          group_name='ZNAnyonCategory',
-                          num_sectors=N, descriptive_name=None)
+                          group_name=f'ℤ_{N}^{n} anyon category',
+                          num_sectors=N, descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a[0] < self.N
@@ -2039,7 +2039,8 @@ class ZNAnyonCategory(Symmetry):
         return np.ones((len(a),), int)
 
     def __repr__(self):
-        return f'ZNAnyonCategory(N={self.N}, n={self.n})'
+        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
+        return f'ZNAnyonCategory({self.N}, {self.n}, {name_str})'
 
     def is_same_symmetry(self, other) -> bool:
         return isinstance(other, ZNAnyonCategory) and other.N == self.N and other.n == self.n
@@ -2092,7 +2093,7 @@ class ZNAnyonCategory2(Symmetry):
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
-    def __init__(self, N: int, n: int):
+    def __init__(self, N: int, n: int, descriptive_name: str | None = None):
         assert type(N) == int
         assert N > 1
         assert N % 2 == 0
@@ -2104,8 +2105,8 @@ class ZNAnyonCategory2(Symmetry):
                           fusion_style=FusionStyle.single,
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
-                          group_name='ZNAnyonCategory2',
-                          num_sectors=N, descriptive_name=None)
+                          group_name=f'ℤ_{N}^({n}+1/2) anyon category',
+                          num_sectors=N, descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a < self.N
@@ -2133,7 +2134,8 @@ class ZNAnyonCategory2(Symmetry):
         return np.ones((len(a),), int)
 
     def __repr__(self):
-        return f'ZNAnyonCategory2(N={self.N}, n={self.n})'
+        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
+        return f'ZNAnyonCategory2({self.N}, {self.n}, {name_str})'
 
     def is_same_symmetry(self, other) -> bool:
         return isinstance(other, ZNAnyonCategory2) and other.N == self.N and other.n == self.n
@@ -2179,7 +2181,7 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
     _one_2D = as_immutable_array(np.ones((1, 1), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
-    def __init__(self, N: int):
+    def __init__(self, N: int, descriptive_name: str | None = None):
         assert type(N) == int
         assert N > 1
         self.N = N
@@ -2188,8 +2190,8 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
                           fusion_style=FusionStyle.single,
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0, 0], dtype=int),
-                          group_name='QuantumDoubleZNAnyonCategory',
-                          num_sectors=N**2, descriptive_name=None)
+                          group_name=f'D(ℤ_{N})',
+                          num_sectors=N**2, descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (2,) and np.all(0 <= a) and np.all(a < self.N)
@@ -2217,7 +2219,8 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
         return np.ones((len(a),), int)
 
     def __repr__(self):
-        return f'QuantumDoubleZNAnyonCategory(N={self.N})'
+        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
+        return f'QuantumDoubleZNAnyonCategory({self.N}, {name_str})'
 
     def is_same_symmetry(self, other) -> bool:
         return isinstance(other, QuantumDoubleZNAnyonCategory) and other.N == self.N
