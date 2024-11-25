@@ -24,7 +24,7 @@ __all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingSty
            'SU2Symmetry', 'SUNSymmetry',
            # anyons
            'FermionParity', 'FibonacciAnyonCategory', 'IsingAnyonCategory', 'SU3_3AnyonCategory',
-           'QuantumDoubleZNAnyonCategory', 'SU2_kAnyonCategory', 'ZNAnyonCategory',
+           'QuantumDoubleZNAnyonCategory', 'ToricCodeCategory', 'SU2_kAnyonCategory', 'ZNAnyonCategory',
            'ZNAnyonCategory2',
            # concrete instances
            'no_symmetry', 'u1_symmetry', 'z2_symmetry', 'z3_symmetry', 'z4_symmetry', 'z5_symmetry', 'z6_symmetry',
@@ -2170,7 +2170,7 @@ class ZNAnyonCategory2(Symmetry):
 
 
 class QuantumDoubleZNAnyonCategory(Symmetry):
-    """Doubled abelian anyon category with fusion rules corresponding to the Z_N group;
+    """Doubled abelian anyon category with fusion rules corresponding to the Z_N x Z_N group;
     also written as :math:`D(Z_N)`.
 
     Allowed sectors are 1D arrays with two integers between `0` and `N-1`.
@@ -2253,6 +2253,29 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
     def all_sectors(self) -> SectorArray:
         x = np.arange(self.N, dtype=int)
         return np.dstack(np.meshgrid(x, x)).reshape(-1, 2)
+
+
+class ToricCodeCategory(QuantumDoubleZNAnyonCategory):
+    """Toric code anyon category. Essentially equivalent to `QuantumDoubleZNAnyonCategory(N=2)`.
+
+    The allowed sectors are 1D arrays with two integers between `0` and `1`,
+    `[0, 0]`, `[0, 1]`, `[1, 0]`, `[1, 1]`, which are known as vacuum, electric charge,
+    magnetic flux and fermion, respectively.
+
+    The electric charges and magnetic fluxes are mutual semions and self-bosons.
+    """
+    vacuum = as_immutable_array(np.array([0, 0], dtype=int))
+    electric_charge = as_immutable_array(np.array([0, 1], dtype=int))
+    magnetic_flux = as_immutable_array(np.array([1, 0], dtype=int))
+    fermion = as_immutable_array(np.array([1, 1], dtype=int))
+
+    def __init__(self, descriptive_name: str | None = None):
+        super().__init__(2, descriptive_name)
+
+    def __repr__(self):
+        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
+        return f'ToricCodeCategory({name_str})'
+    
 
 
 class FibonacciAnyonCategory(Symmetry):
@@ -2854,7 +2877,7 @@ z9_symmetry = ZNSymmetry(N=9)
 u1_symmetry = U1Symmetry()
 fermion_parity = FermionParity()
 semion_category = ZNAnyonCategory2(2, 0)
-toric_code_category = QuantumDoubleZNAnyonCategory(2)
+toric_code_category = ToricCodeCategory()
 double_semion_category = ProductSymmetry([ZNAnyonCategory2(2, 0), ZNAnyonCategory2(2, 1)])
 fibonacci_anyon_category = FibonacciAnyonCategory(handedness='left')
 ising_anyon_category = IsingAnyonCategory(nu=1)
