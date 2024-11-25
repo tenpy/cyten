@@ -26,8 +26,8 @@ _block_backends = dict(  # values: (cls, kwargs)
     tensorflow=None,  # TODO
     jax=None,  # TODO
     cpu=(NumpyBlockBackend, {}),
-    gpu=(TorchBlockBackend, dict(device='cuda')),
-    apple_silicon=(TorchBlockBackend, dict(device='mps')),
+    gpu=(TorchBlockBackend, dict(default_device='cuda')),
+    apple_silicon=(TorchBlockBackend, dict(default_device='mps')),
     tpu=None,  # TODO
 )
 _instantiated_backends = {}  # keys: (tensor_backend: str, block_backend: str)

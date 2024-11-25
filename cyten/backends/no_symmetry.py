@@ -20,10 +20,6 @@ if TYPE_CHECKING:
     from ..tensors import SymmetricTensor, DiagonalTensor, Mask
 
 
-# TODO eventually remove BlockBackend inheritance, it is not needed,
-#  jakob only keeps it around to make his IDE happy
-
-
 class NoSymmetryBackend(TensorBackend):
     """Abstract base class for backends that do not enforce any symmetry.
 
@@ -95,8 +91,9 @@ class NoSymmetryBackend(TensorBackend):
         b_codomain = list(range(b.num_codomain_legs))
         return self.block_backend.block_tdot(a.data, b.data, a_domain, b_codomain)
 
-    def copy_data(self, a: SymmetricTensor | DiagonalTensor) -> Data | DiagonalData:
-        return self.block_backend.block_copy(a.data)
+    def copy_data(self, a: SymmetricTensor | DiagonalTensor, device: str = None
+                  ) -> Data | DiagonalData:
+        return self.block_backend.block_copy(a.data, device=device)
 
     def dagger(self, a: SymmetricTensor) -> Data:
         return self.block_backend.block_dagger(a.data)
@@ -161,10 +158,11 @@ class NoSymmetryBackend(TensorBackend):
         v = self.block_backend.block_reshape(v, a.shape[:J] + (k,))
         return w, v
 
-    def eye_data(self, co_domain: ProductSpace, dtype: Dtype) -> Data:
+    def eye_data(self, co_domain: ProductSpace, dtype: Dtype, device: str) -> Data:
         # Note: the identity has the same matrix elements in all ONB, so ne need to consider
         #       the basis perms.
-        return self.block_backend.eye_block(legs=[l.dim for l in co_domain.spaces], dtype=dtype)
+        return self.block_backend.eye_block(legs=[l.dim for l in co_domain.spaces], dtype=dtype,
+                                            device=device)
 
     def from_dense_block(self, a: Block, codomain: ProductSpace, domain: ProductSpace, tol: float
                          ) -> Data:
@@ -175,9 +173,9 @@ class NoSymmetryBackend(TensorBackend):
         assert self.block_backend.block_shape(block) == (leg.dim,)
 
     def from_random_normal(self, codomain: ProductSpace, domain: ProductSpace, sigma: float,
-                           dtype: Dtype) -> Data:
+                           dtype: Dtype, device: str) -> Data:
         shape = [leg.dim for leg in conventional_leg_order(codomain, domain)]
-        return self.block_backend.block_random_normal(shape, dtype=dtype, sigma=sigma)
+        return self.block_backend.block_random_normal(shape, dtype=dtype, sigma=sigma, device=device)
 
     def from_sector_block_func(self, func, codomain: ProductSpace, domain: ProductSpace) -> Data:
         """Generate tensor data from a function ``func(shape: tuple[int], coupled: Sector) -> Block``."""
@@ -190,6 +188,9 @@ class NoSymmetryBackend(TensorBackend):
 
     def full_data_from_mask(self, a: Mask, dtype: Dtype) -> Data:
         return self.block_backend.block_from_mask(a.data, dtype=dtype)
+    
+    def get_device_from_data(self, a: Data) -> str:
+        return self.block_backend.block_get_device(a)
 
     def get_dtype_from_data(self, a: Data) -> Dtype:
         return self.block_backend.block_dtype(a)
@@ -314,6 +315,9 @@ class NoSymmetryBackend(TensorBackend):
             basis_perm=basis_perm
         )
         return data, small_leg
+
+    def move_to_device(self, a: SymmetricTensor | DiagonalTensor | Mask, device: str) -> Data:
+        return self.block_backend.as_block(a.data, device=device)
 
     def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
         return self.block_backend.block_mul(a, b.data)
@@ -442,12 +446,15 @@ class NoSymmetryBackend(TensorBackend):
         )
         return mask_data, new_leg, err, new_norm
 
-    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype):
-        return self.block_backend.zero_block(shape=[l.dim for l in conventional_leg_order(codomain, domain)],
-                               dtype=dtype)
+    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str):
+        return self.block_backend.zero_block(
+            shape=[l.dim for l in conventional_leg_order(codomain, domain)],
+            dtype=dtype, device=device
+        )
 
-    def zero_mask_data(self, large_leg: Space) -> MaskData:
-        return self.block_backend.zero_block(shape=[large_leg.dim], dtype=Dtype.bool)
+    def zero_mask_data(self, large_leg: Space, device: str) -> MaskData:
+        return self.block_backend.zero_block(shape=[large_leg.dim], dtype=Dtype.bool, device=device)
 
-    def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype) -> DiagonalData:
-        return self.block_backend.zero_block(shape=[co_domain.dim], dtype=dtype)
+    def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype, device: str
+                           ) -> DiagonalData:
+        return self.block_backend.zero_block(shape=[co_domain.dim], dtype=dtype, device=device)

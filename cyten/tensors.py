@@ -162,7 +162,9 @@ class Tensor(metaclass=ABCMeta):
                  domain: ProductSpace | list[Space] | None,
                  backend: TensorBackend | None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None,
-                 dtype: Dtype):
+                 dtype: Dtype,
+                 device: str,
+                 ):
         codomain, domain, backend, symmetry = self._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
@@ -174,7 +176,8 @@ class Tensor(metaclass=ABCMeta):
         codomain_num_legs = codomain.num_spaces
         domain_num_legs = domain.num_spaces
         self.num_legs = num_legs = codomain_num_legs + domain_num_legs
-        self.dtype = dtype
+        self.dtype = dtype  # TODO should be read-only ?
+        self.device = device  # TODO should be read-only ?
         self.shape = tuple(sp.dim for sp in codomain.spaces) + tuple(sp.dim for sp in reversed(domain.spaces))
         self._labels = labels = self._init_parse_labels(labels, codomain=codomain, domain=domain)
         assert len(labels) == num_legs
@@ -386,7 +389,16 @@ class Tensor(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def copy(self, deep=True) -> Tensor:
+    def copy(self, deep=True, device: str = None) -> Tensor:
+        """Copy the tensor.
+
+        Parameters
+        ----------
+        deep: bool
+            If the copy should be deep. A shallow copy is a new instance with the same data.
+        device: str, optional
+            The device for the result. Per default, use the same device as `self`.
+        """
         ...
 
     @abstractmethod
@@ -456,6 +468,11 @@ class Tensor(metaclass=ABCMeta):
         See :ref:`tensors_as_maps`.
         """
         return [*self.codomain.spaces, *(sp.dual for sp in reversed(self.domain.spaces))]
+    
+    @abstractmethod
+    def move_to_device(self, device: str):
+        """Move tensor to a given device, *in place*."""
+        ...
 
     @property
     def num_codomain_legs(self) -> int:
@@ -634,6 +651,7 @@ class Tensor(metaclass=ABCMeta):
         else:
             labels_str = f'{self._labels}   ;   {self.codomain_labels} <- {self.domain_labels}'
         lines = [
+            f'{indent}* Device: {self.device}',
             f'{indent}* Backend: {self.backend!s}',
             f'{indent}* Symmetry: {self.symmetry!s}',
             f'{indent}* Labels: {labels_str}',
@@ -770,12 +788,15 @@ class SymmetricTensor(Tensor):
             codomain=codomain, domain=domain, backend=backend
         )
         Tensor.__init__(self, codomain=codomain, domain=domain, backend=backend, labels=labels,
-                        dtype=backend.get_dtype_from_data(data))
+                        dtype=backend.get_dtype_from_data(data),
+                        device=backend.get_device_from_data(data))
         assert isinstance(data, self.backend.DataCls)
         self.data = data
 
     def test_sanity(self):
         super().test_sanity()
+        assert self.dtype == self.backend.get_dtype_from_data(self.data)
+        assert self.device == self.backend.get_device_from_data(self.data)
         self.backend.test_data_sanity(self, is_diagonal=isinstance(self, DiagonalTensor))
 
     @classmethod
@@ -787,6 +808,7 @@ class SymmetricTensor(Tensor):
                         func_kwargs: dict = None,
                         shape_kw: str = None,
                         dtype: Dtype = None,
+                        device: str = None,
                         ):
         """Initialize a :class:`SymmetricTensor` by generating its blocks from a function.
 
@@ -807,7 +829,7 @@ class SymmetricTensor(Tensor):
 
             Where ``shape`` is the shape of the block to be generate and `func_kwargs` are passed
             as ``kwargs``. The output is converted to backend-specific blocks
-            via ``backend.as_block``.
+            via ``backend.as_block``. In particular, it may be modified in-place after that.
         codomain, domain, backend, labels
             Arguments for constructor of :class:`SymmetricTensor`.
         func_kwargs: dict, optional
@@ -816,6 +838,10 @@ class SymmetricTensor(Tensor):
             If given, the shape is passed to `func` as a kwarg with this keyword.
         dtype: Dtype, None
             If given, the resulting blocks from `func` are converted to this dtype.
+        device: str, optional
+            If given, the resulting blocks are moved to that device.
+            Per default, if `func` returns backend-specific blocks, their device is used and
+            otherwise the default device of the backend.
 
         See Also
         --------
@@ -825,7 +851,8 @@ class SymmetricTensor(Tensor):
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
-        # wrap func to consider func_kwargs, shape_kw, dtype
+
+        # wrap func to consider func_kwargs, shape_kw, dtype, device
         if func_kwargs is None:
             func_kwargs = {}
 
@@ -836,7 +863,7 @@ class SymmetricTensor(Tensor):
                 block = func(shape, **func_kwargs)
             else:
                 block = func(**{shape_kw: shape}, **func_kwargs)
-            return backend.block_backend.as_block(block, dtype)
+            return backend.block_backend.as_block(block, dtype, device=device)
 
         data = backend.from_sector_block_func(block_func, codomain=codomain, domain=domain)
         res = cls(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
@@ -850,6 +877,7 @@ class SymmetricTensor(Tensor):
                          backend: TensorBackend | None = None,
                          labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                          dtype: Dtype = None,
+                         device: str = None,
                          tol: float = 1e-6):
         """Convert a dense block of the backend to a Tensor.
 
@@ -868,23 +896,29 @@ class SymmetricTensor(Tensor):
         dtype: Dtype, optional
             If given, the block is converted to that dtype and the resulting tensor will have that
             dtype. By default, we detect the dtype from the block.
+        device: str, optional
+            If given, the block is moved to that device. Per default, try to use the device of
+            the `block`, if it is a backend-specific block, or fall back to the backends default
+            device.
         """
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
-        block, dtype = backend.block_backend.as_block(block, dtype, return_dtype=True)
+        block = backend.block_backend.as_block(block, dtype=dtype, device=device)
         block = backend.block_backend.apply_basis_perm(block, conventional_leg_order(codomain, domain))
         data = backend.from_dense_block(block, codomain=codomain, domain=domain, tol=tol)
         return cls(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
 
     @classmethod
     def from_dense_block_trivial_sector(cls, vector: Block, space: Space,
-                                        backend: TensorBackend | None = None, label: str | None = None
+                                        backend: TensorBackend | None = None,
+                                        device: str = None,
+                                        label: str | None = None
                                         ) -> SymmetricTensor:
         """Inverse of to_dense_block_trivial_sector. TODO"""
         if backend is None:
             backend = get_backend(symmetry=space.symmetry)
-        vector = backend.block_backend.as_block(vector)
+        vector = backend.block_backend.as_block(vector, device=device)
         if space._basis_perm is not None:
             i = space.sectors_where(space.symmetry.trivial_sector)
             perm = rank_data(space.basis_perm[slice(*space.slices[i])])
@@ -895,7 +929,8 @@ class SymmetricTensor(Tensor):
     def from_eye(cls, co_domain: list[Space] | ProductSpace,
                  backend: TensorBackend | None = None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                 dtype: Dtype = Dtype.complex128
+                 dtype: Dtype = Dtype.complex128,
+                 device: str = None,
                  ) -> SymmetricTensor:
         """The identity map as a SymmetricTensor.
 
@@ -912,13 +947,17 @@ class SymmetricTensor(Tensor):
             The backend of the tensor.
         dtype: Dtype
             The dtype of the tensor.
+        device: str
+            The device of the tensor. If ``None``, use the :attr:`BlockBackend.default_device` of
+            the block backend.
         """
         co_domain, _, backend, _ = cls._init_parse_args(
             codomain=co_domain, domain=co_domain, backend=backend
         )
         labels = cls._init_parse_labels(labels, codomain=co_domain, domain=co_domain,
                                         is_endomorphism=True)
-        data = backend.eye_data(co_domain=co_domain, dtype=dtype)
+        device = backend.block_backend.as_device(device)
+        data = backend.eye_data(co_domain=co_domain, dtype=dtype, device=device)
         return cls(data, codomain=co_domain, domain=co_domain, backend=backend, labels=labels)
 
     @classmethod
@@ -928,7 +967,8 @@ class SymmetricTensor(Tensor):
                            sigma: float = 1.,
                            backend: TensorBackend | None = None,
                            labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                           dtype: Dtype = Dtype.complex128):
+                           dtype: Dtype = Dtype.complex128,
+                           device: str = None,):
         r"""Generate a sample from the complex normal distribution.
 
         The probability density is
@@ -982,10 +1022,17 @@ class SymmetricTensor(Tensor):
             codomain, domain, backend, _ = cls._init_parse_args(
                 codomain=codomain, domain=domain, backend=backend
             )
-        with_zero_mean = cls(
-            data=backend.from_random_normal(codomain, domain, sigma=sigma, dtype=dtype),
-            codomain=codomain, domain=domain, backend=backend, labels=labels
-        )
+
+        if device is None:
+            if mean is None:
+                device = backend.block_backend.default_device
+            else:
+                device = mean.backend
+
+        data = backend.from_random_normal(codomain, domain, sigma=sigma, dtype=dtype, device=device)
+        with_zero_mean = cls(data=data, codomain=codomain, domain=domain, backend=backend,
+                             labels=labels)
+        
         if mean is not None:
             return mean + with_zero_mean
         return with_zero_mean
@@ -995,7 +1042,8 @@ class SymmetricTensor(Tensor):
                             domain: ProductSpace | list[Space] | None = None,
                             backend: TensorBackend | None = None,
                             labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                            dtype: Dtype = Dtype.complex128):
+                            dtype: Dtype = Dtype.complex128,
+                            device: str = None):
         """Generate a tensor with uniformly random block-entries.
 
         The block entries, i.e. the free parameters of the tensor are drawn independently and
@@ -1020,7 +1068,7 @@ class SymmetricTensor(Tensor):
         return cls.from_block_func(
             func=backend.block_backend.block_random_uniform,
             codomain=codomain, domain=domain, backend=backend, labels=labels,
-            func_kwargs=dict(dtype=dtype), dtype=dtype
+            func_kwargs=dict(dtype=dtype, device=device), dtype=dtype
         )
 
     @classmethod
@@ -1031,6 +1079,7 @@ class SymmetricTensor(Tensor):
                                labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                                func_kwargs: dict = None,
                                dtype: Dtype = None,
+                               device: str = None,
                                ):
         """Initialize a :class:`SymmetricTensor` by generating its blocks from a function.
 
@@ -1064,6 +1113,10 @@ class SymmetricTensor(Tensor):
             If given, the shape is passed to `func` as a kwarg with this keyword.
         dtype: Dtype, None
             If given, the resulting blocks from `func` are converted to this dtype.
+        device: str, optional
+            If given, the resulting blocks are moved to that device.
+            Per default, if `func` returns backend-specific blocks, their device is used and
+            otherwise the default device of the backend.
 
         See Also
         --------
@@ -1078,7 +1131,7 @@ class SymmetricTensor(Tensor):
 
         def block_func(shape, coupled):
             block = func(shape, coupled, **func_kwargs)
-            return backend.block_backend.as_block(block, dtype)
+            return backend.block_backend.as_block(block, dtype, device=device)
 
         data = backend.from_sector_block_func(block_func, codomain=codomain, domain=domain)
         res = cls(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
@@ -1090,7 +1143,9 @@ class SymmetricTensor(Tensor):
                   domain: ProductSpace | list[Space] | None = None,
                   backend: TensorBackend | None = None,
                   labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                  dtype: Dtype = Dtype.complex128):
+                  dtype: Dtype = Dtype.complex128,
+                  device: str | None = None,
+                  ):
         """A zero tensor.
 
         Parameters
@@ -1099,12 +1154,16 @@ class SymmetricTensor(Tensor):
             Arguments, like for constructor of :class:`SymmetricTensor`.
         dtype: Dtype
             The dtype for the entries.
+        device: str
+            The device of the tensor. If ``None``, use the :attr:`BlockBackend.default_device` of
+            the block backend.
         """
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
+        device = backend.block_backend.as_device(device)
         return cls(
-            data=backend.zero_data(codomain=codomain, domain=domain, dtype=dtype),
+            data=backend.zero_data(codomain=codomain, domain=domain, dtype=dtype, device=device),
             codomain=codomain, domain=domain, backend=backend, labels=labels
         )
 
@@ -1113,9 +1172,11 @@ class SymmetricTensor(Tensor):
         # TODO do we need a copy...?
         return self.copy()
 
-    def copy(self, deep=True) -> SymmetricTensor:
+    def copy(self, deep=True, device: str = None) -> SymmetricTensor:
         if deep:
-            data = self.backend.copy_data(self)
+            data = self.backend.copy_data(self, device=device)
+        elif device is not None:
+            data = self.backend.move_to_device(self, device=device)
         else:
             data = self.data
         return SymmetricTensor(data=data, codomain=self.codomain, domain=self.domain,
@@ -1133,6 +1194,10 @@ class SymmetricTensor(Tensor):
 
     def _get_item(self, idx: list[int]) -> bool | float | complex:
         return self.backend.get_element(self, idx)
+
+    def move_to_device(self, device: str):
+        self.data = self.backend.move_to_device(self, device=device)
+        self.device = self.backend.block_backend.as_device(device)
 
     def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
         block = self.backend.to_dense_block(self)
@@ -1220,7 +1285,8 @@ class DiagonalTensor(SymmetricTensor):
                         labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                         func_kwargs: dict = None,
                         shape_kw: str = None,
-                        dtype: Dtype = None):
+                        dtype: Dtype = None,
+                        device: str = None):
         co_domain, _, backend, symmetry = cls._init_parse_args(
             codomain=[leg], domain=[leg], backend=backend
         )
@@ -1235,7 +1301,7 @@ class DiagonalTensor(SymmetricTensor):
                 block = func(shape, **func_kwargs)
             else:
                 block = func(**{shape_kw: shape}, **func_kwargs)
-            return backend.block_backend.as_block(block, dtype)
+            return backend.block_backend.as_block(block, dtype, device=device)
 
         data = backend.diagonal_from_sector_block_func(block_func, co_domain=co_domain)
         res = cls(data, leg=leg, backend=backend, labels=labels)
@@ -1245,19 +1311,18 @@ class DiagonalTensor(SymmetricTensor):
     @classmethod
     def from_dense_block(cls, block: Block, leg: Space, backend: TensorBackend | None = None,
                          labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                         dtype: Dtype = None, tol: float = 1e-6):
+                         dtype: Dtype = None, tol: float = 1e-6, device: str = None):
         if backend is None:
             backend = get_backend(symmetry=leg.symmetry)
-        diag = backend.block_backend.block_get_diagonal(
-            backend.block_backend.as_block(block, dtype=dtype), check_offdiagonal=True
-        )
+        block = backend.block_backend.as_block(block, dtype=dtype, device=device)
+        diag = backend.block_backend.block_get_diagonal(block, check_offdiagonal=True)
         return cls.from_diag_block(diag, leg=leg, backend=backend, labels=labels, dtype=dtype,
                                    tol=tol)
 
     @classmethod
     def from_diag_block(cls, diag: Block, leg: Space, backend: TensorBackend | None = None,
                         labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                        dtype: Dtype = None, tol: float = 1e-6):
+                        dtype: Dtype = None, device: str = None, tol: float = 1e-6):
         """Convert a dense 1D block containing the diagonal entries to a DiagonalTensor.
 
         Parameters
@@ -1279,7 +1344,7 @@ class DiagonalTensor(SymmetricTensor):
         co_domain, _, backend, symmetry = cls._init_parse_args(
             codomain=[leg], domain=[leg], backend=backend
         )
-        diag = backend.block_backend.as_block(diag, dtype=dtype)
+        diag = backend.block_backend.as_block(diag, dtype=dtype, device=device)
         diag = backend.block_backend.apply_basis_perm(diag, [leg])
         return cls(
             data=backend.diagonal_from_block(diag, co_domain=co_domain, tol=tol),
@@ -1289,7 +1354,7 @@ class DiagonalTensor(SymmetricTensor):
     @classmethod
     def from_eye(cls, leg: Space, backend: TensorBackend | None = None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                 dtype: Dtype = Dtype.float64):
+                 dtype: Dtype = Dtype.float64, device: str = None):
         """The identity map as a DiagonalTensor.
 
         Parameters
@@ -1304,7 +1369,7 @@ class DiagonalTensor(SymmetricTensor):
         )
         return cls.from_block_func(
             backend.block_backend.ones_block, leg=leg, backend=backend, labels=labels,
-            func_kwargs=dict(dtype=dtype), dtype=dtype
+            func_kwargs=dict(dtype=dtype, device=device), dtype=dtype
         )
 
     @classmethod
@@ -1313,7 +1378,7 @@ class DiagonalTensor(SymmetricTensor):
                            sigma: float = 1.,
                            backend: TensorBackend | None = None,
                            labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                           dtype: Dtype = Dtype.complex128):
+                           dtype: Dtype = Dtype.complex128, device: str = None):
         r"""Generate a sample from the complex normal distribution.
 
         The probability density is
@@ -1360,19 +1425,27 @@ class DiagonalTensor(SymmetricTensor):
             co_domain, _, backend, symmetry = cls._init_parse_args(
                 codomain=[leg], domain=[leg], backend=backend
             )
+
+        if device is None:
+            if mean is None:
+                device = backend.block_backend.default_device
+            else:
+                device = mean.device
+
         with_zero_mean = cls.from_block_func(
             backend.block_backend.block_random_normal, leg=leg, backend=backend, labels=labels,
             func_kwargs=dict(dtype=dtype), dtype=dtype
         )
+
         if mean is not None:
             return mean + with_zero_mean
         return with_zero_mean
 
     @classmethod
     def from_random_uniform(cls, leg: Space,
-                           backend: TensorBackend | None = None,
-                           labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                           dtype: Dtype = Dtype.complex128):
+                            backend: TensorBackend | None = None,
+                            labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                            dtype: Dtype = Dtype.complex128, device: str = None):
         """Generate a tensor with uniformly random block-entries.
 
         The block entries, i.e. the free parameters of the tensor are drawn independently and
@@ -1396,14 +1469,15 @@ class DiagonalTensor(SymmetricTensor):
         )
         return cls.from_block_func(
             func=backend.block_backend.block_random_uniform, leg=leg, backend=backend, labels=labels,
-            func_kwargs=dict(dtype=dtype), dtype=dtype
+            func_kwargs=dict(dtype=dtype, device=device), dtype=dtype
         )
 
     @classmethod
     def from_sector_block_func(cls, func, leg: Space, backend: TensorBackend | None = None,
                                labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                                func_kwargs: dict = None,
-                               dtype: Dtype = None):
+                               dtype: Dtype = None,
+                               device: str = None):
         co_domain, _, backend, _ = cls._init_parse_args(
             codomain=[leg], domain=[leg], backend=backend
         )
@@ -1413,7 +1487,7 @@ class DiagonalTensor(SymmetricTensor):
 
         def block_func(shape, coupled):
             block = func(shape, coupled, **func_kwargs)
-            return backend.block_backend.as_block(block, dtype)
+            return backend.block_backend.as_block(block, dtype, device=device)
 
         data = backend.diagonal_from_sector_block_func(block_func, co_domain=co_domain)
         res = cls(data, leg=leg, backend=backend, labels=labels)
@@ -1446,7 +1520,9 @@ class DiagonalTensor(SymmetricTensor):
     def from_zero(cls, leg: Space,
                   backend: TensorBackend | None = None,
                   labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                  dtype: Dtype = Dtype.complex128):
+                  dtype: Dtype = Dtype.complex128,
+                  device: str = None,
+                  ):
         """A zero tensor.
 
         Parameters
@@ -1455,12 +1531,16 @@ class DiagonalTensor(SymmetricTensor):
             Arguments for constructor of :class:`DiagonalTensor`.
         dtype: Dtype
             The dtype for the entries.
+        device: str
+            The device of the tensor. If ``None``, use the :attr:`BlockBackend.default_device` of
+            the block backend.
         """
         co_domain, _, backend, symmetry = cls._init_parse_args(
             codomain=[leg], domain=[leg], backend=backend
         )
+        device = backend.block_backend.as_device(device)
         return cls(
-            data=backend.zero_diagonal_data(co_domain=co_domain, dtype=dtype),
+            data=backend.zero_diagonal_data(co_domain=co_domain, dtype=dtype, device=device),
             leg=leg, backend=backend, labels=labels
         )
 
@@ -1597,9 +1677,11 @@ class DiagonalTensor(SymmetricTensor):
             raise TypeError(msg)
         return DiagonalTensor(data, leg=self.leg, backend=self.backend, labels=labels)
 
-    def copy(self, deep=True) -> SymmetricTensor:
+    def copy(self, deep=True, device: str = None) -> SymmetricTensor:
         if deep:
             data = self.backend.copy_data(self)
+        elif device is not None:
+            data = self.backend.move_to_device(self, device=device)
         else:
             data = self.data
         return DiagonalTensor(data, leg=self.leg, backend=self.backend, labels=self.labels)
@@ -1672,6 +1754,10 @@ class DiagonalTensor(SymmetricTensor):
         return self.backend.reduce_DiagonalTensor(
             self, block_func=self.backend.block_backend.block_min, func=min
         )
+
+    def move_to_device(self, device: str):
+        self.data = self.backend.move_to_device(self, device=device)
+        self.device = self.backend.block_backend.as_device(device)
 
     def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
         diag = self.diagonal_as_block(dtype=dtype)
@@ -1788,7 +1874,7 @@ class Mask(Tensor):
         assert isinstance(space_in, ElementarySpace)
         assert isinstance(space_out, ElementarySpace)
         Tensor.__init__(self, codomain=[space_out], domain=[space_in], backend=backend,
-                        labels=labels, dtype=Dtype.bool)
+                        labels=labels, dtype=Dtype.bool, device=backend.get_device_from_data(data))
         self.data = data
 
     def test_sanity(self):
@@ -1800,6 +1886,7 @@ class Mask(Tensor):
         assert self.large_leg.is_dual == self.small_leg.is_dual
         assert self.small_leg.is_subspace_of(self.large_leg)
         assert self.dtype == Dtype.bool
+        assert self.device == self.backend.get_device_from_data(self.data)
 
         # check consistency of the basis perm of the small leg.
         if self.large_leg._basis_perm is None:
@@ -1835,7 +1922,8 @@ class Mask(Tensor):
     @classmethod
     def from_eye(cls, leg: ElementarySpace, is_projection: bool = True,
                  backend: TensorBackend | None = None,
-                 labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+                 labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                 device: str = None):
         """The identity map as a Mask, i.e. the mask that keeps all states and discards none.
 
         Parameters
@@ -1850,7 +1938,8 @@ class Mask(Tensor):
         from_zero
             The projection Mask that discards all states and keeps none.
         """
-        diag = DiagonalTensor.from_eye(leg=leg, backend=backend, labels=labels, dtype=Dtype.bool)
+        diag = DiagonalTensor.from_eye(leg=leg, backend=backend, labels=labels, dtype=Dtype.bool,
+                                       device=device)
         res = cls.from_DiagonalTensor(diag)
         if not is_projection:
             return dagger(res)
@@ -1858,7 +1947,8 @@ class Mask(Tensor):
 
     @classmethod
     def from_block_mask(cls, block_mask: Block, large_leg: Space, backend: TensorBackend | None = None,
-                        labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+                        labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                        device: str = None):
         """Create a projection Mask from a boolean block.
 
         To get the related inclusion Mask, use :func:`dagger`.
@@ -1880,7 +1970,7 @@ class Mask(Tensor):
             raise SymmetryError
         if backend is None:
             backend = get_backend(symmetry=large_leg.symmetry)
-        block_mask = backend.block_backend.as_block(block_mask, Dtype.bool)
+        block_mask = backend.block_backend.as_block(block_mask, Dtype.bool, device=device)
         block_mask = backend.block_backend.apply_basis_perm(block_mask, [large_leg])
         data, small_leg = backend.mask_from_block(block_mask, large_leg=large_leg)
         return cls(data=data, space_in=large_leg, space_out=small_leg, is_projection=True,
@@ -1907,7 +1997,8 @@ class Mask(Tensor):
     @classmethod
     def from_indices(cls, indices: int | Sequence[int] | slice, large_leg: Space,
                      backend: TensorBackend = None,
-                     labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+                     labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                     device: str = None):
         """Create a projection Mask from the indices that are kept.
 
         To get the related inclusion Mask, use :func:`dagger`.
@@ -1926,12 +2017,14 @@ class Mask(Tensor):
         """
         block_mask = np.zeros(large_leg.dim, bool)
         block_mask[indices] = True
-        return cls.from_block_mask(block_mask, large_leg=large_leg, backend=backend, labels=labels)
+        return cls.from_block_mask(block_mask, large_leg=large_leg, backend=backend, labels=labels,
+                                   device=device)
 
     @classmethod
     def from_random(cls, large_leg: Space, small_leg: Space | None = None,
                     backend: TensorBackend | None = None, p_keep: float = .5, min_keep: int = 0,
                     labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                    device: str = None,
                     np_random: np.random.Generator = np.random.default_rng()):
         """Create a random projection Mask.
 
@@ -1964,7 +2057,7 @@ class Mask(Tensor):
         if small_leg is None:
             assert 0 <= p_keep <= 1
             diag = DiagonalTensor.from_random_uniform(large_leg, backend=backend, labels=labels,
-                                                      dtype=Dtype.float32)
+                                                      dtype=Dtype.float32, device=device)
             cutoff = 2 * p_keep - 1  # diagonal entries are uniform in [-1, 1].
             res = cls.from_DiagonalTensor(diag < cutoff)
 
@@ -2011,7 +2104,7 @@ class Mask(Tensor):
             return block
 
         diag = DiagonalTensor.from_sector_block_func(
-            func, leg=large_leg, backend=backend, labels=labels, dtype=Dtype.bool
+            func, leg=large_leg, backend=backend, labels=labels, dtype=Dtype.bool, device=device
         )
         res = cls.from_DiagonalTensor(diag)
         assert res.small_leg == small_leg
@@ -2019,7 +2112,8 @@ class Mask(Tensor):
 
     @classmethod
     def from_zero(cls, large_leg: Space, backend: TensorBackend | None = None,
-                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                  device: str = None):
         """The zero projection Mask, that discards all states and keeps none.
 
         To get the related inclusion Mask, use :func:`dagger`.
@@ -2030,6 +2124,9 @@ class Mask(Tensor):
             The large leg, in the domain of the projection
         backend, labels
             Arguments, like for the constructor
+        device: str
+            The device of the tensor. If ``None``, use the :attr:`BlockBackend.default_device` of
+            the block backend.
 
         See Also
         --------
@@ -2038,7 +2135,8 @@ class Mask(Tensor):
         """
         if backend is None:
             backend = get_backend(symmetry=large_leg.symmetry)
-        data = backend.zero_mask_data(large_leg=large_leg)
+        device = backend.block_backend.as_device(device)
+        data = backend.zero_mask_data(large_leg=large_leg, device=device)
         small_leg = ElementarySpace.from_null_space(symmetry=large_leg.symmetry,
                                                     is_dual=large_leg.is_bra_space)
         return cls(data, space_in=large_leg, space_out=small_leg, is_projection=True,
@@ -2153,9 +2251,11 @@ class Mask(Tensor):
                     is_projection=self.is_projection, backend=backend,
                     labels=_get_matching_labels(self.labels, other.labels))
 
-    def copy(self, deep=True) -> Mask:
+    def copy(self, deep=True, device: str = None) -> Mask:
         if deep:
             data = self.backend.copy_data(self)
+        elif device is not None:
+            data = self.backend.move_to_device(self, device=device)
         else:
             data = self.data
         return Mask(data, space_in=self.large_leg, space_out=self.small_leg,
@@ -2167,6 +2267,10 @@ class Mask(Tensor):
     def logical_not(self):
         """Alias for :meth:`orthogonal_complement`"""
         return self._unary_operand(operator.invert)
+
+    def move_to_device(self, device: str):
+        self.data = self.backend.move_to_device(self, device=device)
+        self.device = self.backend.block_backend.as_device(device)
 
     def orthogonal_complement(self):
         """The "opposite" Mask, that keeps exactly what self discards and vv."""
@@ -2300,7 +2404,7 @@ class ChargedTensor(Tensor):
                 msg = f'charged_state can not be specified for symmetry {invariant_part.symmetry}'
                 raise SymmetryError(msg)
             charged_state = invariant_part.backend.block_backend.as_block(
-                charged_state, invariant_part.dtype
+                charged_state, invariant_part.dtype, device=invariant_part.device
             )
         self.charged_state = charged_state
         self.invariant_part = invariant_part
@@ -2313,15 +2417,19 @@ class ChargedTensor(Tensor):
             ),
             backend=invariant_part.backend,
             labels=invariant_part._labels[:-1],
-            dtype=invariant_part.dtype
+            dtype=invariant_part.dtype,
+            device=invariant_part.device
         )
 
     def test_sanity(self):
         super().test_sanity()
         assert self.labels == self.invariant_part.labels[:-1]
         self.invariant_part.test_sanity()
+        assert self.invariant_part.device == self.device
         if self.charged_state is not None:
-            assert self.backend.block_backend.block_shape(self.charged_state) == (self.charge_leg.dim,)
+            self.backend.block_backend.test_block_sanity(
+                self.charged_state, expect_shape=(self.charge_leg.dim,), expect_device=self.device
+            )
 
     @staticmethod
     def _parse_inv_domain(domain: ProductSpace, charge: Space | Sector | Sequence[int],
@@ -2369,7 +2477,8 @@ class ChargedTensor(Tensor):
                         labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                         func_kwargs: dict = None,
                         shape_kw: str = None,
-                        dtype: Dtype = None,):
+                        dtype: Dtype = None,
+                        device: str = None):
         """Create a charged tensor with inv_part from :meth:`SymmetricTensor.from_block_func`.
 
         Parameters
@@ -2385,10 +2494,15 @@ class ChargedTensor(Tensor):
             Argument for constructor of :class:`ChargedTensor`.
         """
         codomain, domain, backend, symmetry = cls._init_parse_args(codomain, domain, backend)
+        if device is None:
+            if charged_state is None:
+                device = backend.block_backend.default_device
+            else:
+                device = backend.block_backend.block_get_device(charged_state)
         inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge, backend=backend)
         inv = SymmetricTensor.from_block_func(
             func=func, codomain=codomain, domain=inv_domain, backend=backend, labels=labels,
-            func_kwargs=func_kwargs, shape_kw=shape_kw, dtype=dtype
+            func_kwargs=func_kwargs, shape_kw=shape_kw, dtype=dtype, device=device
         )
         return ChargedTensor(inv, charged_state)
 
@@ -2400,6 +2514,7 @@ class ChargedTensor(Tensor):
                          backend: TensorBackend | None = None,
                          labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                          dtype: Dtype = None,
+                         device: str = None,
                          tol: float = 1e-6
                          ):
         """Convert a dense block of to a ChargedTensor, if possible.
@@ -2424,21 +2539,21 @@ class ChargedTensor(Tensor):
         labels, inv_labels = cls._parse_inv_labels(labels, codomain, domain)
         if not symmetry.can_be_dropped:
             raise SymmetryError
-        block, dtype = backend.block_backend.as_block(block, dtype, return_dtype=True)
+        block = backend.block_backend.as_block(block, dtype, device=device)
         inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge, backend=backend)
         if charge_leg.dim != 1:
             raise NotImplementedError  # TODO
         inv_part = SymmetricTensor.from_dense_block(
             block=backend.block_backend.add_axis(block, -1),
-            codomain=codomain, domain=inv_domain, backend=backend, labels=inv_labels, dtype=dtype,
+            codomain=codomain, domain=inv_domain, backend=backend, labels=inv_labels,
             tol=tol
         )
         return cls(inv_part, charged_state=[1])
 
     @classmethod
     def from_dense_block_single_sector(cls, vector: Block, space: Space, sector: Sector,
-                                       backend: TensorBackend | None = None, label: str | None = None
-                                       ) -> ChargedTensor:
+                                       backend: TensorBackend | None = None, label: str | None = None,
+                                       device: str = None) -> ChargedTensor:
         """Given a `vector` in single `space`, represent the components in a single given `sector`.
 
         The resulting charged tensor has a charge lector which has the `sector`.
@@ -2453,7 +2568,7 @@ class ChargedTensor(Tensor):
             # TODO how to handle multi-dim sectors? which dummy leg state to give?
             raise NotImplementedError
         charge_leg = ElementarySpace(space.symmetry, [sector])
-        vector = backend.block_backend.as_block(vector)
+        vector = backend.block_backend.as_block(vector, device=device)
         if space._basis_perm is not None:
             i = space.sectors_where(sector)
             perm = rank_data(space.basis_perm[slice(*space.slices[i])])
@@ -2508,13 +2623,26 @@ class ChargedTensor(Tensor):
                   backend: TensorBackend | None = None,
                   labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                   dtype: Dtype = Dtype.complex128,
+                  device: str = None,
                   ):
-        """A zero tensor."""
+        """A zero tensor.
+
+        Parameters
+        ----------
+        device: str, optional
+            The device for the tensor. Per default, we try to use the device of the `charged_state`.
+            If not available, use the default device for the backend.
+        """
         codomain, domain, backend, symmetry = cls._init_parse_args(codomain, domain, backend)
+        if device is None:
+            if charged_state is None:
+                device = backend.block_backend.default_device
+            else:
+                device = backend.block_backend.block_get_device(charged_state)
         inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge, backend=backend)
         labels, inv_labels = cls._parse_inv_labels(labels, codomain, domain)
         inv_part = SymmetricTensor.from_zero(codomain=codomain, domain=inv_domain, backend=backend,
-                                             labels=inv_labels, dtype=dtype)
+                                             labels=inv_labels, dtype=dtype, device=device)
         return ChargedTensor(inv_part, charged_state)
 
     @classmethod
@@ -2540,11 +2668,14 @@ class ChargedTensor(Tensor):
         res = tdot(state, self.invariant_part, 0, -1)
         return bend_legs(res, num_codomain_legs=self.num_codomain_legs)
 
-    def copy(self, deep=True) -> ChargedTensor:
-        inv_part = self.invariant_part.copy(deep=deep)  # this extra layer is cheap...
+    def copy(self, deep=True, device: str = None) -> ChargedTensor:
+        inv_part = self.invariant_part.copy(deep=deep, device=device)
         charged_state = self.charged_state
-        if deep and self.charged_state is not None:
-            charged_state = self.backend.block_backend.block_copy(charged_state)
+        if charged_state is not None:
+            if deep:
+                charged_state = self.backend.block_backend.block_copy(charged_state, device=device)
+            elif device is not None:
+                charged_state = self.backend.block_backend.as_block(charged_state, device=device)
         return ChargedTensor(inv_part, charged_state)
 
     def _get_item(self, idx: list[int]) -> bool | float | complex:
@@ -2555,6 +2686,14 @@ class ChargedTensor(Tensor):
         return sum((self.backend.block_backend.block_item(a) * self.invariant_part._get_item([*idx, n])
                     for n, a in enumerate(self.charged_state)),
                    start=self.dtype.zero_scalar)
+
+    def move_to_device(self, device: str):
+        self.invariant_part.move_to_device(device)
+        self.device = self.invariant_part.device
+        if self.charged_state is not None:
+            self.charged_state = self.backend.block_backend.as_block(
+                self.charged_state, device=device
+            )
 
     def _repr_header_lines(self, indent: str) -> list[str]:
         lines = Tensor._repr_header_lines(self, indent=indent)
@@ -2801,6 +2940,7 @@ def almost_equal(tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol=1e
     Unlike numpy, our definition is symmetric under exchanging
     """
     check_same_legs(tensor_1, tensor_2)
+    _ = get_same_device(tensor_1, tensor_2)
 
     if isinstance(tensor_1, Mask):
         if isinstance(tensor_2, Mask):
@@ -2898,6 +3038,7 @@ def apply_mask(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
     --------
     enlarge_leg, compose, tdot, scale_axis, apply_mask_DiagonalTensor
     """
+    _ = get_same_device(tensor, mask)
     in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg)
     assert mask.is_projection
     if in_domain:
@@ -2940,6 +3081,7 @@ def apply_mask_DiagonalTensor(tensor: DiagonalTensor, mask: Mask) -> DiagonalTen
     --------
     apply_mask
     """
+    _ = get_same_device(tensor, mask)
     assert mask.is_projection
     assert mask.large_leg == tensor.leg
     backend = get_same_backend(tensor, mask)
@@ -3379,6 +3521,8 @@ def compose(tensor1: Tensor, tensor2: Tensor, relabel1: dict[str, str] = None,
     --------
     tdot, apply_mask, scale_axis
     """
+    _ = get_same_device(tensor1, tensor2)
+    
     if tensor1.domain != tensor2.codomain:
         raise ValueError('Incompatible legs')
 
@@ -3600,6 +3744,7 @@ def enlarge_leg(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
     --------
     apply_mask, compose, tdot, scale_axis
     """
+    _ = get_same_device(tensor, mask)
     # parse inputs
     in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg)
     assert not mask.is_projection
@@ -3689,6 +3834,16 @@ def get_same_backend(*tensors: Tensor, error_msg: str = 'Incompatible backends.'
     return backend
 
 
+def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') -> str:
+    """If the given tensors have the same device, return it. Raise otherwise."""
+    if len(tensors) == 0:
+        raise ValueError('Need at least one tensor')
+    device = tensors[0].device
+    if not all(tens.device == device for tens in tensors[1:]):
+        raise ValueError(error_msg)
+    return device
+
+
 @_elementwise_function(block_func='block_imag', maps_zero_to_zero=True)
 def imag(x: _ElementwiseType) -> _ElementwiseType:
     """The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""
@@ -3733,6 +3888,8 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
     norm
         The Frobenius norm, induced by this inner product.
     """
+    _ = get_same_device(A, B)
+    
     if do_dagger:
         assert A.codomain == B.codomain
         assert A.domain == B.domain
@@ -3853,6 +4010,7 @@ def item(tensor: Tensor) -> float | complex | bool:
 
 def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
     """The linear combination ``a * v + b * w``"""
+    _ = get_same_device(v, w)
     # Note: We implement Tensor.__add__ and Tensor.__sub__ in terms of this function, so we cant
     #       use them (or the ``+`` and ``-`` operations) here.
     if (not isinstance(a, Number)) or (not isinstance(b, Number)):
@@ -3979,6 +4137,29 @@ def norm(tensor: Tensor) -> float:
     raise TypeError
 
 
+def on_device(tensor: Tensor, device: str, copy: bool = True) -> Tensor:
+    """An equivalent tensor (with the same entries) on another device.
+
+    Parameters
+    ----------
+    tensor: Tensor
+        The tensor to move
+    device: str
+        The device to move to
+    copy: bool
+        If a copy should be made. Otherwise, operate *in-place*.
+
+    Returns
+    -------
+    If `copy` (default), a new instance, on `device`.
+    Otherwise, the instance `tensor` is modified in-place, and then returned.
+    """
+    if copy:
+        return tensor.copy(device=device)
+    tensor.move_to_device(device)
+    return tensor
+
+
 def outer(tensor1: Tensor, tensor2: Tensor,
           relabel1: dict[str, str] = None, relabel2: dict[str, str] = None) -> Tensor:
     r"""The outer product, or tensor product.
@@ -4006,6 +4187,8 @@ def outer(tensor1: Tensor, tensor2: Tensor,
         A mapping of labels for each of the tensors. The result has labels, as if the
         input tensors were relabelled accordingly before contraction.
     """
+    _ = get_same_device(tensor1, tensor2)
+    
     if isinstance(tensor1, (Mask, DiagonalTensor)):
         msg = ('Converting to SymmetricTensor for outer. '
                'Use as_SymmetricTensor() explicitly to suppress the warning.')
@@ -4444,6 +4627,8 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
     --------
     dot, tdot, apply_mask
     """
+    _ = get_same_device(tensor, diag)
+    
     # transpose if needed
     in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg)
     if in_domain:
@@ -4763,6 +4948,8 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
     --------
     compose, apply_mask, scale_axis
     """
+    _ = get_same_device(tensor1, tensor2)
+    
     # parse legs to list[int] and check they are valid
     legs1 = tensor1.get_leg_idcs(to_iterable(legs1))
     legs2 = tensor2.get_leg_idcs(to_iterable(legs2))
@@ -5134,19 +5321,20 @@ def truncated_svd(tensor: Tensor,
 def zero_like(tensor: Tensor) -> Tensor:
     """Return a zero tensor with same type, dtype, legs, backend and labels."""
     if isinstance(tensor, Mask):
-        return Mask.from_zero(large_leg=tensor.large_leg, backend=tensor.backend, labels=tensor.labels)
+        return Mask.from_zero(large_leg=tensor.large_leg, backend=tensor.backend, 
+                              labels=tensor.labels, device=tensor.device)
     if isinstance(tensor, DiagonalTensor):
         return DiagonalTensor.from_zero(leg=tensor.leg, backend=tensor.backend, labels=tensor.labels,
-                                        dtype=tensor.dtype)
+                                        dtype=tensor.dtype, device=tensor.device)
     if isinstance(tensor, SymmetricTensor):
         return SymmetricTensor.from_zero(codomain=tensor.codomain, domain=tensor.domain,
                                          backend=tensor.backend, labels=tensor.labels,
-                                         dtype=tensor.dtype)
+                                         dtype=tensor.dtype, device=tensor.device)
     if isinstance(tensor, ChargedTensor):
         return ChargedTensor.from_zero(
             codomain=tensor.codomain, domain=tensor.domain, charge=tensor.charge_leg,
             charged_state=tensor.charged_state, backend=tensor.backend, labels=tensor.labels,
-            dtype=tensor.dtype
+            dtype=tensor.dtype, device=tensor.device
         )
     raise TypeError
 

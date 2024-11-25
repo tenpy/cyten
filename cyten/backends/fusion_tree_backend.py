@@ -201,12 +201,17 @@ class FusionTreeData:
         ``tensor.codomain.sectors[i] == coupled == tensor.domain.sectors[j]``.
     blocks : list of 2D Block
         The nonzero blocks, ``blocks[n]`` corresponding to ``coupled_sectors[n]``.
+    dtype : Dtype
+    device : str
+        The device on which the blocks are currently stored.
+        We currently only support tensors which have all blocks on a single device.
+        Should be the device returned by :func:`BlockBackend.as_device`.
     is_sorted : bool
         If ``False`` (default), we permute `blocks` and `block_inds` according to
         ``np.lexsort(block_inds.T)``.
         If ``True``, we assume they are sorted *without* checking.
     """
-    def __init__(self, block_inds: np.ndarray, blocks: list[Block], dtype: Dtype,
+    def __init__(self, block_inds: np.ndarray, blocks: list[Block], dtype: Dtype, device: str,
                  is_sorted: bool = False):
         if not is_sorted:
             perm = np.lexsort(block_inds.T)
@@ -215,6 +220,7 @@ class FusionTreeData:
         self.block_inds = block_inds
         self.blocks = blocks
         self.dtype = dtype
+        self.device = device
 
     def block_ind_from_domain_sector_ind(self, domain_sector_ind: int) -> int | None:
         "Return `ind` such that ``block_inds[ind][1] == domain_sector_ind``"
@@ -236,7 +242,7 @@ class FusionTreeData:
 
     @classmethod
     def _zero_data(cls, codomain: ProductSpace, domain: ProductSpace, backend: BlockBackend,
-                  dtype: Dtype) -> FusionTreeData:
+                   dtype: Dtype, device: str) -> FusionTreeData:
         """Return `FusionTreeData` consistent with `codomain` and `domain`, where all blocks
         (corresponding to all allowed coupled sectors) are zero. These zero blocks are stored
         such that new values can be assigned step by step. Note however that zero blocks are
@@ -255,12 +261,9 @@ class FusionTreeData:
         block_inds = np.array(block_inds)
 
         zero_blocks = [backend.zero_block(block_shape, dtype=dtype) for block_shape in block_shapes]
-        return cls(block_inds, zero_blocks, dtype=dtype, is_sorted=True)
+        return cls(block_inds, zero_blocks, dtype=dtype, device=device, is_sorted=True)
 
 
-# TODO do we need to inherit from ABC again?? (same in abelian and no_symmetry)
-# TODO eventually remove BlockBackend inheritance, it is not needed,
-#      jakob only keeps it around to make his IDE happy  (same in abelian and no_symmetry)
 class FusionTreeBackend(TensorBackend):
     """`ProductSpace`s on the individual legs of the tensors are not supported, only
     `ElementarySpace`s are allowed. The reason for this is that product spaces transform
@@ -282,6 +285,7 @@ class FusionTreeBackend(TensorBackend):
 
     def test_data_sanity(self, a: SymmetricTensor | DiagonalTensor | Mask, is_diagonal: bool):
         super().test_data_sanity(a, is_diagonal=is_diagonal)
+        assert a.device == a.data.device == self.block_backend.as_device(a.data.device)
         # coupled sectors must be lexsorted
         perm = np.lexsort(a.data.block_inds.T)
         assert np.all(perm == np.arange(len(perm)))
@@ -294,7 +298,8 @@ class FusionTreeBackend(TensorBackend):
                 assert expect_shape[0] == expect_shape[1]
                 expect_shape = (expect_shape[0],)
             assert all(dim > 0 for dim in expect_shape), 'should skip forbidden block'
-            self.block_backend.test_block_sanity(block, expect_shape=expect_shape, expect_dtype=a.dtype)
+            self.block_backend.test_block_sanity(block, expect_shape=expect_shape,
+                                                 expect_dtype=a.dtype, expect_device=a.device)
 
     def test_leg_sanity(self, leg: Space):
         assert not isinstance(leg, ProductSpace), self.err_msg_prodspace
@@ -327,7 +332,7 @@ class FusionTreeBackend(TensorBackend):
         else:
             dtype = dtype_map(a.dtype)
         res_block_inds = np.repeat(np.arange(a.domain.num_sectors)[:, None], 2, axis=1)
-        return FusionTreeData(res_block_inds, res_blocks, dtype)
+        return FusionTreeData(res_block_inds, res_blocks, dtype, a.data.device)
 
     def add_trivial_leg(self, a: SymmetricTensor, legs_pos: int, add_to_domain: bool,
                         co_domain_pos: int, new_codomain: ProductSpace, new_domain: ProductSpace
@@ -382,20 +387,24 @@ class FusionTreeBackend(TensorBackend):
             block_inds = np.zeros((0, 2), int)
         else:
             block_inds = np.array(block_inds, int)
-        return FusionTreeData(block_inds, blocks, res_dtype)
+        return FusionTreeData(block_inds, blocks, res_dtype, a.data.device)
 
-    def copy_data(self, a: SymmetricTensor) -> FusionTreeData:
+    def copy_data(self, a: SymmetricTensor, device: str = None) -> FusionTreeData:
+        blocks = [self.block_backend.block_copy(block, device=device) for block in a.data.blocks]
+        if device is None:
+            device = a.data.device
+        else:
+            device = self.block_backend.as_device(device)
         return FusionTreeData(
             block_inds=a.data.block_inds.copy(),  # OPTIMIZE do we need to copy these?
-            blocks=[self.block_backend.block_copy(block) for block in a.data.blocks],
-            dtype=a.data.dtype
+            blocks=blocks, dtype=a.data.dtype, device=device
         )
 
     def dagger(self, a: SymmetricTensor) -> Data:
         return FusionTreeData(
             block_inds=a.data.block_inds[:, ::-1],  # domain and codomain have swapped
             blocks=[self.block_backend.block_dagger(b) for b in a.data.blocks],
-            dtype=a.dtype
+            dtype=a.dtype, device=a.data.device
         )
 
     def data_item(self, a: FusionTreeData) -> float | complex:
@@ -459,7 +468,8 @@ class FusionTreeBackend(TensorBackend):
             b_block = self.block_backend.ones_block([1], dtype=b.dtype)
             example_block = func(a_block, b_block, **func_kwargs)
             dtype = self.block_backend.block_dtype(example_block)
-        return FusionTreeData(block_inds=block_inds, blocks=blocks, dtype=dtype)
+        return FusionTreeData(block_inds=block_inds, blocks=blocks, dtype=dtype,
+                              device=a.data.device)
 
     def diagonal_elementwise_unary(self, a: DiagonalTensor, func, func_kwargs,
                                    maps_zero_to_zero: bool) -> DiagonalData:
@@ -487,7 +497,8 @@ class FusionTreeBackend(TensorBackend):
         else:
             example_block = func(self.block_backend.ones_block([1], dtype=a.dtype), **func_kwargs)
             dtype = self.block_backend.block_dtype(example_block)
-        return FusionTreeData(block_inds=block_inds, blocks=blocks, dtype=dtype)
+        return FusionTreeData(block_inds=block_inds, blocks=blocks, dtype=dtype,
+                              device=a.data.device)
 
     def diagonal_from_block(self, a: Block, co_domain: ProductSpace, tol: float) -> DiagonalData:
         dtype = self.block_backend.block_dtype(a)
@@ -504,7 +515,8 @@ class FusionTreeBackend(TensorBackend):
             if self.block_backend.block_norm(entries - projected) > tol * self.block_backend.block_norm(entries):
                 raise ValueError('Block is not symmetric up to tolerance.')
             blocks.append(block)
-        return FusionTreeData(block_inds, blocks, dtype)
+        return FusionTreeData(block_inds, blocks, dtype,
+                              device=self.block_backend.block_get_device(a))
 
     def diagonal_from_sector_block_func(self, func, co_domain: ProductSpace) -> DiagonalData:
         blocks = [func((block_size(co_domain, coupled),), coupled) for coupled in co_domain.sectors]
@@ -514,7 +526,8 @@ class FusionTreeBackend(TensorBackend):
         else:
             sample_block = func((1,), co_domain.symmetry.trivial_sector)
         dtype = self.block_backend.block_dtype(sample_block)
-        return FusionTreeData(block_inds, blocks, dtype)
+        device = self.block_backend.block_get_device(sample_block)
+        return FusionTreeData(block_inds, blocks, dtype, device)
 
     def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool
                                        ) -> DiagonalData:
@@ -546,7 +559,7 @@ class FusionTreeBackend(TensorBackend):
     def diagonal_transpose(self, tens: DiagonalTensor) -> tuple[Space, DiagonalData]:
         dual_leg, perm = tens.leg._dual_space(return_perm=True)
         data = FusionTreeData(block_inds=inverse_permutation(perm)[tens.data.block_inds],
-                              blocks=tens.data.blocks, dtype=tens.dtype)
+                              blocks=tens.data.blocks, dtype=tens.dtype, device=tens.data.device)
         return dual_leg, data
 
     def eigh(self, a: SymmetricTensor, sort: str = None) -> tuple[DiagonalData, Data]:
@@ -571,17 +584,17 @@ class FusionTreeBackend(TensorBackend):
                 v_blocks.append(self.block_backend.eye_matrix(block_size, a.dtype))
         #
         v_block_inds = np.repeat(np.arange(a.codomain.num_sectors)[:, None], 2, axis=1)
-        v_data = FusionTreeData(v_block_inds, v_blocks, a.dtype)
-        w_data = FusionTreeData(a_block_inds, w_blocks, a.dtype.to_real)
+        v_data = FusionTreeData(v_block_inds, v_blocks, a.dtype, a.data.device)
+        w_data = FusionTreeData(a_block_inds, w_blocks, a.dtype.to_real, a.data.device)
         return w_data, v_data
 
-    def eye_data(self, co_domain: ProductSpace, dtype: Dtype) -> FusionTreeData:
+    def eye_data(self, co_domain: ProductSpace, dtype: Dtype, device: str) -> FusionTreeData:
         # Note: the identity has the same matrix elements in all ONB, so no need to consider
         #       the basis perms.
-        blocks = [self.block_backend.eye_matrix(block_size(co_domain, c), dtype)
+        blocks = [self.block_backend.eye_matrix(block_size(co_domain, c), dtype, device)
                   for c in co_domain.sectors]
         block_inds = np.repeat(np.arange(co_domain.num_sectors)[:, None], 2, axis=1)
-        return FusionTreeData(block_inds, blocks, dtype)
+        return FusionTreeData(block_inds, blocks, dtype, device)
 
     def from_dense_block(self, a: Block, codomain: ProductSpace, domain: ProductSpace, tol: float
                          ) -> FusionTreeData:
@@ -655,13 +668,14 @@ class FusionTreeBackend(TensorBackend):
             block_inds = np.zeros((0, 2), int)
         else:
             block_inds = np.array(block_inds, int)
-        return FusionTreeData(block_inds, blocks, dtype)
+        return FusionTreeData(block_inds, blocks, dtype,
+                              device=self.block_backend.block_get_device(block))
 
     def from_dense_block_trivial_sector(self, block: Block, leg: Space) -> Data:
         raise NotImplementedError('from_dense_block_trivial_sector not implemented')  # TODO
 
     def from_random_normal(self, codomain: ProductSpace, domain: ProductSpace, sigma: float,
-                           dtype: Dtype) -> Data:
+                           dtype: Dtype, device: str) -> Data:
         raise NotImplementedError  # TODO
 
     def from_sector_block_func(self, func, codomain: ProductSpace, domain: ProductSpace) -> FusionTreeData:
@@ -679,14 +693,18 @@ class FusionTreeBackend(TensorBackend):
             sample_block = func((1, 1), codomain.symmetry.trivial_sector)
             block_inds = np.zeros((0, 2), int)
         dtype = self.block_backend.block_dtype(sample_block)
-        return FusionTreeData(block_inds, blocks, dtype)
+        device = self.block_backend.block_get_device(sample_block)
+        return FusionTreeData(block_inds, blocks, dtype, device)
 
     def full_data_from_diagonal_tensor(self, a: DiagonalTensor) -> Data:
         blocks = [self.block_backend.block_from_diagonal(block) for block in a.data.blocks]
-        return FusionTreeData(a.data.block_inds, blocks, dtype=a.dtype)
+        return FusionTreeData(a.data.block_inds, blocks, dtype=a.dtype, device=a.data.device)
 
     def full_data_from_mask(self, a: Mask, dtype: Dtype) -> Data:
         raise NotImplementedError('full_data_from_mask not implemented')  # TODO
+
+    def get_device_from_data(self, a: FusionTreeData) -> str:
+        return a.device
 
     def get_dtype_from_data(self, a: FusionTreeData) -> Dtype:
         return a.dtype
@@ -748,7 +766,7 @@ class FusionTreeBackend(TensorBackend):
             block_inds = np.zeros((0, 2), int)
         else:
             block_inds = np.array(block_inds, int)
-        return FusionTreeData(block_inds, blocks, dtype)
+        return FusionTreeData(block_inds, blocks, dtype, device=v.data.device)
 
     def lq(self, a: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
         a_blocks = a.data.blocks
@@ -781,8 +799,8 @@ class FusionTreeBackend(TensorBackend):
             q_block_inds = np.zeros((0, 2), int)
         else:
             q_block_inds = np.array(q_block_inds)
-        l_data = FusionTreeData(l_block_inds, l_blocks, a.dtype)
-        q_data = FusionTreeData(q_block_inds, q_blocks, a.dtype)
+        l_data = FusionTreeData(l_block_inds, l_blocks, a.dtype, a.data.device)
+        q_data = FusionTreeData(q_block_inds, q_blocks, a.dtype, a.data.device)
         return l_data, q_data
 
     def mask_binary_operand(self, mask1: Mask, mask2: Mask, func) -> tuple[MaskData, ElementarySpace]:
@@ -814,9 +832,15 @@ class FusionTreeBackend(TensorBackend):
     def mask_unary_operand(self, mask: Mask, func) -> tuple[MaskData, ElementarySpace]:
         raise NotImplementedError
 
+    def move_to_device(self, a: SymmetricTensor | DiagonalTensor | Mask, device: str) -> Data:
+        for i in range(len(a.data.blocks)):
+            a.data.blocks[i] = self.block_backend.as_block(a.data.blocks[i], device=device)
+        a.data.device = self.block_backend.as_device(device)
+        return a.data
+
     def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
         if a == 0.:
-            return self.zero_data(b.codomain, b.domain, b.dtype)
+            return self.zero_data(b.codomain, b.domain, b.dtype, device=b.data.device)
         blocks = [self.block_backend.block_mul(a, T) for T in b.data.blocks]
         if len(blocks) == 0:
             if isinstance(a, float):
@@ -825,7 +849,7 @@ class FusionTreeBackend(TensorBackend):
                 dtype = b.data.dtype.to_complex()
         else:
             dtype = self.block_backend.block_dtype(blocks[0])
-        return FusionTreeData(b.data.block_inds, blocks, dtype)
+        return FusionTreeData(b.data.block_inds, blocks, dtype, b.data.device)
 
     def norm(self, a: SymmetricTensor | DiagonalTensor) -> float:
         # OPTIMIZE should we offer the square-norm instead?
@@ -980,8 +1004,8 @@ class FusionTreeBackend(TensorBackend):
             r_block_inds = np.zeros((0, 2), int)
         else:
             r_block_inds = np.array(r_block_inds)
-        q_data = FusionTreeData(q_block_inds, q_blocks, a.dtype)
-        r_data = FusionTreeData(r_block_inds, r_blocks, a.dtype)
+        q_data = FusionTreeData(q_block_inds, q_blocks, a.dtype, a.data.device)
+        r_data = FusionTreeData(r_block_inds, r_blocks, a.dtype, a.data.device)
         return q_data, r_data
 
     def reduce_DiagonalTensor(self, tensor: DiagonalTensor, block_func, func) -> float | complex:
@@ -1027,7 +1051,7 @@ class FusionTreeBackend(TensorBackend):
                 block_inds = np.zeros((0, 2), int)
             else:
                 block_inds = np.array(block_inds, int)
-            return FusionTreeData(block_inds, blocks, a.dtype)
+            return FusionTreeData(block_inds, blocks, a.dtype, a.data.device)
 
         blocks = []
         block_inds = np.zeros((0, 2), int)
@@ -1064,7 +1088,7 @@ class FusionTreeBackend(TensorBackend):
             forest = self.block_backend.block_scale_axis(forest, b_blocks[ind_b], axis=ax_a+co_domain_idx+1)
             forest = self.block_backend.block_reshape(forest, initial_shape)
             blocks[ind_mapping[coupled_ind]][slcs[0], slcs[1]] = forest
-        return FusionTreeData(block_inds, blocks, a.dtype)
+        return FusionTreeData(block_inds, blocks, a.dtype, a.data.device)
 
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
                    domain_split: list[int], new_codomain: ProductSpace, new_domain: ProductSpace
@@ -1123,9 +1147,9 @@ class FusionTreeBackend(TensorBackend):
             vh_block_inds = np.zeros((0, 2), int)
         else:
             vh_block_inds = np.array(vh_block_inds, int)
-        u_data = FusionTreeData(u_block_inds, u_blocks, a.dtype)
-        s_data = FusionTreeData(s_block_inds, s_blocks, a.dtype.to_real)
-        vh_data = FusionTreeData(vh_block_inds, vh_blocks, a.dtype)
+        u_data = FusionTreeData(u_block_inds, u_blocks, a.dtype, a.data.device)
+        s_data = FusionTreeData(s_block_inds, s_blocks, a.dtype.to_real, a.data.device)
+        vh_data = FusionTreeData(vh_block_inds, vh_blocks, a.dtype, a.data.device)
         return u_data, s_data, vh_data
 
     def state_tensor_product(self, state1: Block, state2: Block, prod_space: ProductSpace):
@@ -1184,7 +1208,7 @@ class FusionTreeBackend(TensorBackend):
 
     def to_dtype(self, a: SymmetricTensor, dtype: Dtype) -> FusionTreeData:
         blocks = [self.block_backend.block_to_dtype(block, dtype) for block in a.data.blocks]
-        return FusionTreeData(a.data.block_inds, blocks, dtype)
+        return FusionTreeData(a.data.block_inds, blocks, dtype, a.data.device)
 
     def trace_full(self, a: SymmetricTensor) -> float | complex:
         return sum(
@@ -1248,21 +1272,26 @@ class FusionTreeBackend(TensorBackend):
         small_leg_sectors = np.array(small_leg_sectors, int)
         small_leg_multiplicities = np.array(small_leg_multiplicities, int)
         #
-        mask_data = FusionTreeData(mask_block_inds, mask_blocks, dtype=Dtype.bool, is_sorted=True)
+        mask_data = FusionTreeData(mask_block_inds, mask_blocks, dtype=Dtype.bool,
+                                   device=S.data.device, is_sorted=True)
         small_leg = ElementarySpace(S.symmetry, small_leg_sectors, small_leg_multiplicities,
                                     is_dual=S.leg.is_bra_space)
         return mask_data, small_leg, err, new_norm
         
 
-    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype
+    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str
                   ) -> FusionTreeData:
-        return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype)
+        return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype,
+                              device=device)
 
-    def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype) -> DiagonalData:
-        return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype)
+    def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype, device: str
+                           ) -> DiagonalData:
+        return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype,
+                              device=device)
 
-    def zero_mask_data(self, large_leg: Space) -> MaskData:
-        return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=Dtype.bool)
+    def zero_mask_data(self, large_leg: Space, device: str,) -> MaskData:
+        return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=Dtype.bool,
+                              device=device)
 
     # OPTIONAL OVERRIDES
 
@@ -1708,7 +1737,8 @@ class TreeMappingDict(dict):
         old_data = ten.data
         zero_blocks = [backend.zero_block(backend.block_shape(block), old_data.dtype)
                        for block in old_data.blocks]
-        new_data = FusionTreeData(old_data.block_inds, zero_blocks, old_data.dtype, True)
+        new_data = FusionTreeData(old_data.block_inds, zero_blocks, old_data.dtype, old_data.device,
+                                  True)
 
         iter_space = [ten.codomain, ten.domain][in_domain]
         new_space = [new_codomain, new_domain][in_domain]
@@ -1754,8 +1784,8 @@ class TreeMappingDict(dict):
                                  new_domain: ProductSpace, block_axes_permutation: list[int],
                                  ) -> FusionTreeData:
         backend = ten.backend.block_backend
-        new_data = FusionTreeData._zero_data(new_codomain, new_domain,
-                                             backend, Dtype.complex128)
+        new_data = FusionTreeData._zero_data(new_codomain, new_domain, backend, Dtype.complex128,
+                                             device=ten.data.device)
         
         for alpha_tree, beta_tree, tree_block in _tree_block_iter(ten):
             contributions = self[(alpha_tree, beta_tree)]

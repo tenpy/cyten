@@ -92,6 +92,8 @@ The function returned by the fixture ``make_compatible_tensor`` has the followin
         The labels for the resulting tensor. Note that labels can also be specified via (co)domain.
     dtype: Dtype
         The dtype for the tensor.
+    device: str, optional
+        The device for the tensor. Per default, use the default device of the backend.
     *
     like: Tensor, optional
         If given, the codomain, domain, labels, dtype and cls are taken to be the
@@ -304,7 +306,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
     """Tensor RNG."""
     def make(codomain: list[spaces.Space | str | None] | spaces.ProductSpace | int = None,
              domain: list[spaces.Space | str | None] | spaces.ProductSpace | int = None,
-             labels: list[str | None] = None, dtype: Dtype = None,
+             labels: list[str | None] = None, dtype: Dtype = None, device: str = None,
              *,
              like: tensors.Tensor = None, max_blocks=5, max_block_size=5, empty_ok=False,
              all_blocks=False, cls=tensors.SymmetricTensor, allow_basis_perm: bool = True):
@@ -315,8 +317,8 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
                 return tensors.ChargedTensor(make(like=like.invariant_part), like.charged_state)
             elif isinstance(like, tensors.Tensor):
                 return make(codomain=like.codomain, domain=like.domain, labels=like.labels,
-                            dtype=like.dtype, max_blocks=max_blocks, max_block_size=max_block_size,
-                            cls=type(like))
+                            dtype=like.dtype, device=like.device, max_blocks=max_blocks,
+                            max_block_size=max_block_size, cls=type(like))
             else:
                 raise TypeError(f'like must be a Tensor. Got {type(like)}')
         
@@ -403,7 +405,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
             inv_part = make(codomain=codomain, domain=inv_domain, labels=inv_labels,
                             max_blocks=max_blocks, max_block_size=max_block_size, empty_ok=empty_ok,
                             all_blocks=all_blocks, cls=tensors.SymmetricTensor, dtype=dtype,
-                            allow_basis_perm=allow_basis_perm)
+                            device=device, allow_basis_perm=allow_basis_perm)
 
             charged_state = [1] if inv_part.symmetry.can_be_dropped else None
             res = tensors.ChargedTensor(inv_part, charged_state=charged_state)
@@ -442,7 +444,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
             real = False if dtype is None else dtype.is_real
             res = tensors.DiagonalTensor.from_block_func(
                 lambda size: make_compatible_block(size, real=real),
-                leg=leg, backend=compatible_backend, labels=labels, dtype=dtype
+                leg=leg, backend=compatible_backend, labels=labels, dtype=dtype, device=device
             )
             if not all_blocks:
                 res = randomly_drop_blocks(res, max_blocks=max_blocks, empty_ok=empty_ok,
@@ -493,12 +495,12 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
             if small_leg is not None and small_leg.dim > large_leg.dim:
                 res = tensors.Mask.from_random(large_leg=small_leg, small_leg=large_leg,
                                                backend=compatible_backend, p_keep=.6, min_keep=1,
-                                               labels=labels, np_random=np_random)
+                                               labels=labels, device=device, np_random=np_random)
                 res = tensors.dagger(res)
             else:
                 res = tensors.Mask.from_random(large_leg=large_leg, small_leg=small_leg,
                                                backend=compatible_backend, p_keep=.6, min_keep=1,
-                                               labels=labels, np_random=np_random)
+                                               labels=labels, device=device, np_random=np_random)
             assert res.small_leg.num_sectors > 0
             res.test_sanity()
             return res
@@ -558,7 +560,8 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
         real = False if dtype is None else dtype.is_real
         res = tensors.SymmetricTensor.from_block_func(
             lambda size: make_compatible_block(size, real=real),
-            codomain=codomain, domain=domain, backend=compatible_backend, labels=labels, dtype=dtype
+            codomain=codomain, domain=domain, backend=compatible_backend, labels=labels,
+            dtype=dtype, device=device
         )
         if not all_blocks:
             res = randomly_drop_blocks(res, max_blocks=max_blocks, empty_ok=empty_ok,
@@ -663,7 +666,8 @@ def randomly_drop_blocks(res: tensors.SymmetricTensor | tensors.DiagonalTensor,
             dtype=res.dtype,
             blocks=[res.data.blocks[n] for n in which],
             block_inds=res.data.block_inds[which],
-            is_sorted=True
+            is_sorted=True,
+            device=res.data.device
         )
         return res
 
@@ -671,7 +675,8 @@ def randomly_drop_blocks(res: tensors.SymmetricTensor | tensors.DiagonalTensor,
         res.data = backends.FusionTreeData(
             block_inds=res.data.block_inds[which, :],
             blocks=[res.data.blocks[n] for n in which],
-            dtype=res.data.dtype
+            dtype=res.data.dtype,
+            device=res.data.device
         )
         return res
 
