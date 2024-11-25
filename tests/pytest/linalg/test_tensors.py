@@ -8,14 +8,13 @@ import pytest
 import operator
 from contextlib import nullcontext
 
-from cyten import backends, tensors
+from cyten import backends, tensors, symmetries
 from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor
 from cyten.backends.backend_factory import get_backend
 from cyten.dtypes import Dtype
 from cyten.spaces import ElementarySpace, ProductSpace
 from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError, u1_symmetry
 from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays
-
 
 
 # TENSOR CLASSES
@@ -1135,6 +1134,49 @@ def test_combine_split(make_compatible_tensor):
     # combine -> to_numpy
     # versus
     # to_numpy -> apply ProductSpace.get_basis_transformation(_perm)
+
+
+def test_combine_split_pr_16():
+    """Check if the bug addressed in PR :pull:`16` is fixed"""
+    backend = get_backend('abelian', 'numpy')
+    symmetry = symmetries.u1_symmetry * symmetries.z3_symmetry
+
+    a = ElementarySpace(symmetry, sectors=[[-2, 0], [-1, 0], [-2, 1], [-2, 2]],
+                        multiplicities=[1, 2, 4, 4],
+                        basis_perm=[8, 0, 7, 3, 6, 2, 4, 10, 1, 5, 9],
+                        is_dual=True,)
+    b = ElementarySpace(symmetry, sectors=[[-3, 0], [0, 0], [-3, 1], [-3, 2]],
+                        multiplicities=[1, 1, 1, 1],
+                        basis_perm=None,
+                        is_dual=False,)
+    c = ElementarySpace(symmetry,
+        sectors=[[-4, 0], [-3, 0], [-7, 1], [-6, 1], [-3, 1]],
+        multiplicities=[5, 5, 5, 5, 5],
+        basis_perm=None,
+        is_dual=False,
+    )
+    d = ElementarySpace(symmetry, sectors=[[-2, 0], [1, 0], [2, 1]],
+                        multiplicities=[3, 3, 2],
+                        basis_perm=[6, 3, 4, 0, 7, 2, 5, 1],
+                        is_dual=True,)
+    
+    T = tensors.SymmetricTensor.from_random_normal([a, b], [d, c], backend=backend)
+    combined5 = tensors.combine_legs(T, [2, 3])
+    combined5.test_sanity()
+    assert combined5.codomain.spaces == T.codomain.spaces
+    assert combined5.domain[0].spaces == T.domain.spaces
+
+    re_split = tensors.split_legs(combined5, 2)
+    assert tensors.almost_equal(T, re_split)
+
+    bent5 = tensors.bend_legs(combined5, num_domain_legs=0)
+    split5 = tensors.split_legs(bent5, 2)
+    split5.test_sanity()
+    assert split5.codomain.spaces == T.legs
+    assert split5.domain.spaces == []
+    expect5 = tensors.bend_legs(T, num_domain_legs=0)
+
+    assert tensors.almost_equal(split5, expect5)
 
 
 @pytest.mark.parametrize(
