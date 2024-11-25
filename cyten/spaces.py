@@ -549,22 +549,23 @@ class ElementarySpace(Space):
                 basis_perm = 'None'
             else:
                 basis_perm = format_like_list(self._basis_perm)
-            elements = [f'ElementarySpace(']
+            elements = []
             if show_symmetry:
                 elements.append(f'{self.symmetry!r}')
             elements.extend([
                 f'sectors={format_like_list(self.symmetry.sector_str(a) for a in self.sectors)}',
                 f'multiplicities={format_like_list(self.multiplicities)}',
                 f'basis_perm={basis_perm}',
-                f'is_dual={self.is_dual}',
-                ')'
+                f'is_dual={self.is_dual}'
             ])
-            one_line = ', '.join(elements)
+            one_line = f'ElementarySpace(' + ', '.join(elements) + ')'
             if len(one_line) <= printoptions.linewidth:
                 return one_line
-            if all(len(l) <= printoptions.linewidth for l in elements) and len(elements) <= printoptions.maxlines_spaces:
-                elements[1:-1] = [f'{indent}{line},' for line in elements[1:-1]]
-                return '\n'.join(elements)
+            line_lengths_ok = all(len(l) <= printoptions.linewidth for l in elements)
+            num_lines_ok = (len(elements) + 2) <= printoptions.maxlines_spaces
+            if line_lengths_ok and num_lines_ok:
+                elements = [f'{indent}{line},' for line in elements]
+                return f'ElementarySpace(\n' +'\n'.join(elements) + '\n)'
         # 2) Try showing summarized data
         elements = [f'<ElementarySpace:']
         if show_symmetry:
