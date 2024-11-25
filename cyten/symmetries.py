@@ -1240,6 +1240,9 @@ class SU2Symmetry(GroupSymmetry):
     """
 
     fusion_tensor_dtype = Dtype.float64
+    spin_zero = as_immutable_array(np.array([0], dtype=int))
+    spin_half = as_immutable_array(np.array([1], dtype=int))
+    spin_one = as_immutable_array(np.array([2], dtype=int))
 
     def __init__(self, descriptive_name: str | None = None):
         GroupSymmetry.__init__(self, fusion_style=FusionStyle.multiple_unique, trivial_sector=np.array([0], dtype=int),
@@ -1891,6 +1894,8 @@ class FermionParity(Symmetry):
     _one_2D_float = as_immutable_array(np.ones((1, 1), dtype=float))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
     _one_4D_float = as_immutable_array(np.ones((1, 1, 1, 1), dtype=float))
+    even = as_immutable_array(np.array([0], dtype=int))
+    odd = as_immutable_array(np.array([1], dtype=int))
 
     def __init__(self):
         Symmetry.__init__(self, fusion_style=FusionStyle.single, braiding_style=BraidingStyle.fermionic,
@@ -1996,6 +2001,7 @@ class ZNAnyonCategory(Symmetry):
 
     def __init__(self, N: int, n: int):
         assert type(N) == int
+        assert N > 1
         assert type(n) == int
         self.N = N
         self.n = n % N
@@ -2088,6 +2094,7 @@ class ZNAnyonCategory2(Symmetry):
 
     def __init__(self, N: int, n: int):
         assert type(N) == int
+        assert N > 1
         assert N % 2 == 0
         assert type(n) == int
         self.N = N
@@ -2174,6 +2181,7 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
 
     def __init__(self, N: int):
         assert type(N) == int
+        assert N > 1
         self.N = N
         self._phase = np.exp(2j * np.pi / self.N)
         Symmetry.__init__(self,
@@ -2268,6 +2276,8 @@ class FibonacciAnyonCategory(Symmetry):
     _r = as_immutable_array(np.expand_dims([np.exp(-4j*np.pi/5), np.exp(3j*np.pi/5)], axis=1))
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
+    vacuum = as_immutable_array(np.array([0], dtype=int))
+    tau = as_immutable_array(np.array([1], dtype=int))
 
     def __init__(self, handedness = 'left'):
         assert handedness in ['left', 'right']
@@ -2366,6 +2376,9 @@ class IsingAnyonCategory(Symmetry):
     }
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
+    vacuum = as_immutable_array(np.array([0], dtype=int))
+    sigma = as_immutable_array(np.array([1], dtype=int))
+    psi = as_immutable_array(np.array([2], dtype=int))
 
     def __init__(self, nu: int = 1):
         assert nu % 2 == 1
@@ -2481,11 +2494,16 @@ class SU2_kAnyonCategory(Symmetry):
     """
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
+    spin_zero = as_immutable_array(np.array([0], dtype=int))
+    spin_half = as_immutable_array(np.array([1], dtype=int))
 
     def __init__(self, k: int, handedness = 'left'):
         assert type(k) == int
+        assert k >= 1
         assert handedness in ['left', 'right']
         self.k = k
+        if k >= 2:
+            self.spin_one = as_immutable_array(np.array([2], dtype=int))
         self.handedness = handedness
         self._q = np.exp(2j * np.pi / (k + 2))
 
