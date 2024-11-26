@@ -46,11 +46,10 @@ extensions = [
 templates_path = ['sphinx/templates']
 exclude_patterns = ['build_docs', 'Thumbs.db', '.DS_Store']
 
-source_suffix = {'.rst': 'restructuredtext'} # can add markdown if needed
+source_suffix = {'.rst': 'restructuredtext'}  # can add markdown if needed
 master_doc = 'index'  # The master toctree document.
-language = 'en' # no translations
+language = 'en'  # no translations
 pygments_style = 'sphinx'  # syntax highlighting style
-
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -144,6 +143,7 @@ extlinks = {
 # -- sphinx.ext.linkcode --------------------------------------------------
 # linkcode to put links to the github repository from the documentation
 
+
 def linkcode_resolve(domain, info):
     """Determine the URL corresponding to Python object."""
     # based on the corresponding linkcode_resolve in the `conf.py` of the numpy repository.
@@ -189,4 +189,3 @@ def linkcode_resolve(domain, info):
         return "%s/blob/v%s/cyten/%s%s" % (GITHUBBASE, cyten.__version__, fn, linespec)
     else:
         return "%s/blob/main/cyten/%s%s" % (GITHUBBASE, fn, linespec)
-

@@ -100,3 +100,15 @@ markers = [
 log_level = "INFO"
 log_format = "%(asctime)s %(levelname)-8s %(filename)-16s%(lineno)4d: %(message)s"
 testpaths = ["tests"]
+
+
+[tool.yapf]
+# Use `yapf -ir .` to perform the formatting in-place
+# Use `yapf -dr .` to show proposed changes without actually doing them
+based_on_style = "pep8"
+spaces_before_comment = 2
+column_limit = 100
+coalesce_brackets = true
+# dedent_closing_brackets = true
+SPACE_BETWEEN_ENDING_COMMA_AND_CLOSING_BRACKET = false
+SPLIT_PENALTY_FOR_ADDED_LINE_SPLIT = 300

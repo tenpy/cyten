@@ -17,7 +17,6 @@ Main changes  (TODO -> changelog)
 """
 # Copyright (C) TeNPy Developers, GNU GPLv3
 
-
 from __future__ import annotations
 import numpy as np
 import itertools
@@ -25,23 +24,22 @@ import copy
 from typing import TypeVar, Type
 from functools import partial, reduce
 
-from ..tensors import (Tensor, SymmetricTensor, SymmetricTensor, ChargedTensor,
-                              DiagonalTensor, almost_equal, angle, real_if_close, exp)
+from ..tensors import (Tensor, SymmetricTensor, SymmetricTensor, ChargedTensor, DiagonalTensor,
+                       almost_equal, angle, real_if_close, exp)
 from ..backends import TensorBackend, Block
 from ..symmetries import (ProductSymmetry, Symmetry, SU2Symmetry, U1Symmetry, ZNSymmetry,
-                             no_symmetry, SectorArray)
+                          no_symmetry, SectorArray)
 from ..spaces import Space, ElementarySpace, ProductSpace
 from ..tools.misc import find_subclass, make_stride
 #  from ..tools.hdf5_io import Hdf5Exportable  # TODO add import/export by making Site a subclass of HDF5Exportable again
 
-__all__ = ['Site', 'GroupedSite', 'group_sites', 'set_common_symmetry', 'as_valid_operator_name',
-           'split_charged_operator_symbol', 'ChargedOperator', 'SpinHalfSite', 'SpinSite',
-           'FermionSite', 'SpinHalfFermionSite', 'SpinHalfHoleSite', 'BosonSite', 'ClockSite',
-           'spin_half_species']
-
+__all__ = [
+    'Site', 'GroupedSite', 'group_sites', 'set_common_symmetry', 'as_valid_operator_name',
+    'split_charged_operator_symbol', 'ChargedOperator', 'SpinHalfSite', 'SpinSite', 'FermionSite',
+    'SpinHalfFermionSite', 'SpinHalfHoleSite', 'BosonSite', 'ClockSite', 'spin_half_species'
+]
 
 _T = TypeVar('_T')
-
 
 # TODO can we improve how hc's are added?
 #  - figure out what exactly hc means for the charged operators (-> use in test_sanity)
@@ -124,9 +122,12 @@ class Site:
         Mapping from operator names (keys of `symmetric_ops` or `charged_ops_*`) to the names of
         their hermitian conjugates. Use :meth:`get_hc_op_name` to obtain entries.
     """
-    
-    def __init__(self, leg: Space, backend: TensorBackend = None,
-                 state_labels: list[str] = None, JW: DiagonalTensor | Block = None):
+
+    def __init__(self,
+                 leg: Space,
+                 backend: TensorBackend = None,
+                 state_labels: list[str] = None,
+                 JW: DiagonalTensor | Block = None):
         self.leg = leg
         self.state_labels = {}
         if state_labels is not None:
@@ -169,7 +170,7 @@ class Site:
                     are_equivalent = almost_equal(op_L, op)
                 if not are_equivalent:
                     msg = ('Charged operators and symmetric operators with the same name must '
-                            'be equal.')
+                           'be equal.')
                     raise ValueError(msg)
         # check self.charged_ops
         for name, op in self.charged_ops.items():
@@ -212,17 +213,17 @@ class Site:
             raise ValueError('incompatible backend')
         if test_sanity:
             op.test_sanity()
-    
+
     @property
     def symmetric_op_names(self) -> set[str]:
         """The names of all symmetric operators, e.g. for iteration"""
         return set(self.symmetric_ops.keys())
-    
+
     @property
     def charged_op_names(self) -> set[str]:
         """The names of all charged operators, e.g. for iteration"""
         return set(self.charged_ops.keys())
-            
+
     @property
     def all_op_names(self) -> set[str]:
         """The names of all operators, symmetric *and* charged, e.g. for iteration"""
@@ -269,7 +270,10 @@ class Site:
         if not isinstance(op, Tensor):
             op = self.backend.as_block(op)
             if len(self.backend.block_shape(op)) == 1:
-                op = DiagonalTensor.from_diag(op, self.leg, backend=self.backend, labels=['p', 'p*'])
+                op = DiagonalTensor.from_diag(op,
+                                              self.leg,
+                                              backend=self.backend,
+                                              labels=['p', 'p*'])
             else:
                 raise NotImplementedError  # TODO
                 # op = tensor_from_block(op, legs=[self.leg, self.leg.dual], backend=self.backend,
@@ -302,9 +306,12 @@ class Site:
         self.check_valid_operator(op)
         return op
 
-    def add_symmetric_operator(self, name: str, op: SymmetricTensor | Block, need_JW: bool = False,
-                               hc: str | bool = None, also_as_charged: bool = False
-                               ) -> SymmetricTensor:
+    def add_symmetric_operator(self,
+                               name: str,
+                               op: SymmetricTensor | Block,
+                               need_JW: bool = False,
+                               hc: str | bool = None,
+                               also_as_charged: bool = False) -> SymmetricTensor:
         """Add a symmetric on-site operator.
 
         Parameters
@@ -363,8 +370,11 @@ class Site:
             self.JW_exponent = angle(real_if_close(op)) / np.pi
         return op
 
-    def add_charged_operator(self, name: str, op: ChargedOperator | ChargedTensor | Block,
-                             op_R: ChargedTensor | Block = None, need_JW: bool = False,
+    def add_charged_operator(self,
+                             name: str,
+                             op: ChargedOperator | ChargedTensor | Block,
+                             op_R: ChargedTensor | Block = None,
+                             need_JW: bool = False,
                              hc: str | bool = None) -> ChargedOperator:
         """Add a charged on-site operator.
 
@@ -428,10 +438,11 @@ class Site:
             self.hc_ops[name] = hc
         return op
 
-    def add_any_operator(self, name: str,
+    def add_any_operator(self,
+                         name: str,
                          op: SymmetricTensor | ChargedOperator | ChargedTensor | Block,
-                         need_JW: bool = False, hc: str | bool = None
-                         ) -> SymmetricTensor | ChargedTensor:
+                         need_JW: bool = False,
+                         hc: str | bool = None) -> SymmetricTensor | ChargedTensor:
         """Convenience wrapper for adding operators.
 
         The `op` may be either symmetric or charged.
@@ -442,7 +453,10 @@ class Site:
             return op.op_L
         op = self.as_operator(op, cls=Tensor)
         if isinstance(op, SymmetricTensor):
-            return self.add_symmetric_operator(name, op, need_JW=need_JW, hc=hc,
+            return self.add_symmetric_operator(name,
+                                               op,
+                                               need_JW=need_JW,
+                                               hc=hc,
                                                also_as_charged=True)
         else:
             op = self.add_charged_operator(name, op, need_JW=need_JW, hc=hc)
@@ -493,17 +507,20 @@ class Site:
         old_charged_ops = self.charged_ops
         self.charged_ops = {}
         for name, op in old_symmetric_ops.items():
-            self.add_symmetric_operator(name, op.to_dense_block(['p', 'p*']), need_JW=False, hc=False)
+            self.add_symmetric_operator(name,
+                                        op.to_dense_block(['p', 'p*']),
+                                        need_JW=False,
+                                        hc=False)
         for name, op in old_charged_ops.items():
             # TODO what to do if charged tensor
-            op = ChargedOperator(
-                self.as_operator(op.op_L.to_dense_block(['p', 'p*']), cls=ChargedTensor),
-                self.as_operator(op.op_R.to_dense_block(['p', 'p*']), cls=ChargedTensor),
-                can_use_alone=op.can_use_alone
-            )
+            op = ChargedOperator(self.as_operator(op.op_L.to_dense_block(['p', 'p*']),
+                                                  cls=ChargedTensor),
+                                 self.as_operator(op.op_R.to_dense_block(['p', 'p*']),
+                                                  cls=ChargedTensor),
+                                 can_use_alone=op.can_use_alone)
             self.add_charged_operator(name, op, need_JW=False, hc=False)
         return self
-        
+
     def rename_op(self, old_name: str, new_name: str):
         """Rename an added operator.
 
@@ -603,7 +620,7 @@ class Site:
             hc_name = self.get_hc_op_name(name)
             return f'({hc_name}*_)' if is_left else f'(_*{hc_name})'
         return self.hc_ops[name]
-    
+
     def op_needs_JW(self, name: str) -> bool:
         if ' ' in name:
             raise NotImplementedError  # TODO redesign the operator mini language?
@@ -620,7 +637,7 @@ class Site:
             except ValueError:
                 return False
         return name in self.all_ops_names
-    
+
     def multiply_op_names(self, names: list[str]) -> str:
         raise NotImplementedError  # TODO redesign the operator mini language?
 
@@ -715,7 +732,7 @@ class GroupedSite(Site):
         if symmetry_combine != 'same':
             # copy to avoid modifying the existing sites, then change the leg
             sites = [copy.copy(s).change_leg(l) for s, l in zip(sites, legs)]
-            
+
         # even though Site.__init__ will also set them, we need self.leg and self.backend earlier
         # to use kroneckerproduct
         self.backend = backend = sites[0].backend
@@ -733,7 +750,8 @@ class GroupedSite(Site):
                 # states_labels is a list of (label, index) pairs for every site
                 inds = np.array([i for _, i in states_labels])
                 prod_space_idx = np.sum(inds * strides)
-                state_label = ' '.join(f'{lbl}_{site_lbl}' for (lbl, _), site_lbl in zip(states_labels, labels))
+                state_label = ' '.join(f'{lbl}_{site_lbl}'
+                                       for (lbl, _), site_lbl in zip(states_labels, labels))
                 self.state_labels[state_label] = perm[prod_space_idx]
         else:
             # TODO fusion is more than a permutation. labels like above make no sense.
@@ -751,8 +769,10 @@ class GroupedSite(Site):
                 hc = False if name not in site.hc_ops else site.hc_ops[name] + labels[i]
                 ops = JW_Ids if need_JW else Ids
                 ops[i] = op
-                self.add_symmetric_operator(name + labels[i], self.kroneckerproduct(ops),
-                                            need_JW=need_JW, hc=hc)
+                self.add_symmetric_operator(name + labels[i],
+                                            self.kroneckerproduct(ops),
+                                            need_JW=need_JW,
+                                            hc=hc)
             for name, op in site.charged_ops.items():
                 need_JW = name in site.need_JW_string
                 hc = False if name not in site.hc_ops else site.hc_ops[name] + labels[i]
@@ -785,7 +805,10 @@ class GroupedSite(Site):
             # TODO proper implementation?
             # note that block_kron is associative, order does not matter
             diag = reduce(self.backend.block_kron, (op.diag_block for op in ops))
-            return DiagonalTensor.from_diag(diag, self.leg, backend=self.backend, labels=['p', 'p*'])
+            return DiagonalTensor.from_diag(diag,
+                                            self.leg,
+                                            backend=self.backend,
+                                            labels=['p', 'p*'])
         for i, op in enumerate(ops):
             if isinstance(op, DiagonalTensor):
                 ops[i] = op.as_Tensor()
@@ -829,7 +852,8 @@ def group_sites(sites, n=2, labels=None, symmetry_combine='same'):
     return grouped_sites
 
 
-def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | list = 'by_name',
+def set_common_symmetry(sites: list[Site],
+                        symmetry_combine: callable | str | list = 'by_name',
                         new_symmetry: Symmetry = None):
     """Adjust the symmetries of the given sites *in place* such that they can be used together.
 
@@ -893,8 +917,8 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
     if symmetry_combine == 'by_name':
         factors = []
         sites_and_slices = []  # for every factor, a list of tuples (site_idx, sector_slc)
-                               # indicating that this factor appears on sites[site_idx] and its
-                               # sectors are embedded at sector_slc of that sites symmetry
+        # indicating that this factor appears on sites[site_idx] and its
+        # sectors are embedded at sector_slc of that sites symmetry
         for i, site in enumerate(sites):
             if isinstance(site.leg.symmetry, ProductSymmetry):
                 new_factors = site.leg.symmetry.factors
@@ -916,16 +940,18 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
             new_symm_slices = [0, new_symmetry.sector_ind_len]
         else:
             new_symmetry = ProductSymmetry(factors)
-            new_symm_slices = [slice(new_symmetry.sector_slices[n], new_symmetry.sector_slices[n + 1])
-                               for n in range(len(factors))]
+            new_symm_slices = [
+                slice(new_symmetry.sector_slices[n], new_symmetry.sector_slices[n + 1])
+                for n in range(len(factors))
+            ]
         for i, site in enumerate(sites):
             slice_tuples = []  # list of tuples (new_slice, old_slice) indicating that
-                               # for this site, new_sector[new_slice] = old_sector[old_slice]
+            # for this site, new_sector[new_slice] = old_sector[old_slice]
             for n in range(len(factors)):
                 for j, slc in sites_and_slices[n]:
                     if i == j:
                         slice_tuples.append((new_symm_slices[n], slc))
-            
+
             def symmetry_combine(s):
                 mapped_sectors = np.tile(new_symmetry.trivial_sector[None, :], (len(s), 1))
                 for mapped_slice, old_slice in slice_tuples:
@@ -935,7 +961,7 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
             new_leg = site.leg.change_symmetry(symmetry=new_symmetry, sector_map=symmetry_combine)
             site.change_leg(new_leg)
         return
-    
+
     if symmetry_combine == 'drop':
         assert new_symmetry is None
         for site in sites:
@@ -945,7 +971,7 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
     if symmetry_combine == 'independent':
         factors = []
         ind_lens = []  # basically [site.leg.symmetry.sector_ind_len for site in sites]
-                       # but adjusted for the ignored no_symmetry s
+        # but adjusted for the ignored no_symmetry s
         for site in sites:
             site_symmetry = site.symmetry
             if isinstance(site_symmetry, ProductSymmetry):
@@ -972,7 +998,8 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
                 res[:, start:start + ind_len] = s
                 return res
 
-            site.change_leg(site.leg.change_symmetry(symmetry=new_symmetry, sector_map=symmetry_combine))
+            site.change_leg(
+                site.leg.change_symmetry(symmetry=new_symmetry, sector_map=symmetry_combine))
             start = start + ind_len
         return
 
@@ -995,13 +1022,14 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
                 if not np.allclose(col, cols[-1]):
                     raise ValueError(f'Sectors must have integer entries. Got {col}')
             return np.stack(cols, axis=1)
-        
+
     # can now assume that sector_map is an actual function
     # with signature (site_idx: int, sectors: SectorArray) -> SectorArray
     if new_symmetry is None:
         raise ValueError('Need to specify new_symmetry')
     for i, site in enumerate(sites):
-        new_leg = site.leg.change_symmetry(symmetry=new_symmetry, sector_map=partial(symmetry_combine, i))
+        new_leg = site.leg.change_symmetry(symmetry=new_symmetry,
+                                           sector_map=partial(symmetry_combine, i))
         site.change_leg(new_leg)
 
 
@@ -1159,6 +1187,7 @@ class SpinHalfSite(Site):
     backend : :class:`~cyten.backends.Backend`, optional
         The backend used to create the operators.
     """
+
     def __init__(self, conserve: str = 'Sz', backend: TensorBackend = None):
         # make leg
         if conserve == 'Stot':
@@ -1181,10 +1210,10 @@ class SpinHalfSite(Site):
         if conserve == 'Stot':
             # vector transforms under spin-1 irrep -> sector == [2 * J] == [2]
             dummy_leg = ElementarySpace(leg.symmetry, sectors=[[2]])
-            Svec_inv = SymmetricTensor.from_block_func(
-                self.backend.ones_block, backend=self.backend, legs=[leg, leg.dual, dummy_leg],
-                labels=['p', 'p*', '!']
-            )
+            Svec_inv = SymmetricTensor.from_block_func(self.backend.ones_block,
+                                                       backend=self.backend,
+                                                       legs=[leg, leg.dual, dummy_leg],
+                                                       labels=['p', 'p*', '!'])
             self.add_charged_operator('Svec', ChargedTensor(Svec_inv), hc='Svec')
         else:
             Sz = self.add_symmetric_operator('Sz', [.5, -.5])
@@ -1293,10 +1322,9 @@ class SpinSite(Site):
         # operators : Svec, Sz, Sp, Sm
         if conserve == 'Stot':
             dummy_leg = ElementarySpace(leg.symmetry, sectors=[[2]])
-            Svec_inv = SymmetricTensor.from_block_func(
-                self.backend.ones_block, legs=[leg, leg.dual, dummy_leg],
-                labels=['p', 'p*', '!']
-            )
+            Svec_inv = SymmetricTensor.from_block_func(self.backend.ones_block,
+                                                       legs=[leg, leg.dual, dummy_leg],
+                                                       labels=['p', 'p*', '!'])
             self.add_charged_operator('Svec', ChargedTensor(Svec_inv), hc='Svec')
         else:
             self.add_symmetric_operator('Sz', two_Sz / 2.)
@@ -1400,7 +1428,7 @@ class FermionSite(Site):
         N_diag = np.array([0., 1.])
         self.add_symmetric_operator('N', np.diag(N_diag))
         self.add_symmetric_operator('dN', np.diag(N_diag - filling))
-        self.add_symmetric_operator('dNdN', np.diag((N_diag - filling) ** 2))
+        self.add_symmetric_operator('dNdN', np.diag((N_diag - filling)**2))
         self.add_any_operator('C', [[0., 1.], [0., 0.]], need_JW=True, hc=False)
         self.add_any_operator('Cd', [[0., 0.], [1., 0.]], need_JW=True, hc='C')
 
@@ -1514,7 +1542,10 @@ class SpinHalfFermionSite(Site):
         The backend used to create the operators.
     """
 
-    def __init__(self, conserve_N: str = 'N', conserve_S: str = 'Sz', filling: float = 1.,
+    def __init__(self,
+                 conserve_N: str = 'N',
+                 conserve_S: str = 'Sz',
+                 filling: float = 1.,
                  backend: TensorBackend = None):
         # parse conserve_N
         if conserve_N == 'N':
@@ -1555,11 +1586,15 @@ class SpinHalfFermionSite(Site):
         elif sym_S is None:
             leg = ElementarySpace.from_basis(sym_N, sectors_N[:, None])
         else:
-            leg = ElementarySpace.from_basis(sym_N * sym_S, np.stack([sectors_N, sectors_S], axis=1))
+            leg = ElementarySpace.from_basis(sym_N * sym_S, np.stack([sectors_N, sectors_S],
+                                                                     axis=1))
         self.conserve_N = conserve_N
         self.conserve_S = conserve_S
         self.filling = filling
-        Site.__init__(self, leg=leg, backend=backend, state_labels=['empty', 'up', 'down', 'full'],
+        Site.__init__(self,
+                      leg=leg,
+                      backend=backend,
+                      state_labels=['empty', 'up', 'down', 'full'],
                       JW=[1., -1., -1., 1])
         # operators : NuNd, Ntot, dN
         self.add_symmetric_operator('NuNd', [0., 0., 0., 1.])
@@ -1574,10 +1609,10 @@ class SpinHalfFermionSite(Site):
             # the only allowed blocks by charge rule for legs [p, p*, dummy] the sectors [1, 1, 2],
             # i.e. acting on the spin 1/2 doublet [up, down].
             # This means that the same construction as for the SpinHalfSite works here too.
-            Svec_invariant_part = SymmetricTensor.from_block_func(
-                self.backend.ones_block, backend=self.backend, legs=[leg, leg.dual, dummy_leg],
-                labels=['p', 'p*', '!']
-            )
+            Svec_invariant_part = SymmetricTensor.from_block_func(self.backend.ones_block,
+                                                                  backend=self.backend,
+                                                                  legs=[leg, leg.dual, dummy_leg],
+                                                                  labels=['p', 'p*', '!'])
             self.add_charged_operator('Svec', ChargedTensor(Svec_invariant_part), hc='Svec')
         else:
             # TODO build Svec with 3-dim dummy leg
@@ -1662,7 +1697,10 @@ class SpinHalfHoleSite(Site):
         The backend used to create the operators.
     """
 
-    def __init__(self, conserve_N: str = 'N', conserve_S: str = 'Sz', filling: float = 1.,
+    def __init__(self,
+                 conserve_N: str = 'N',
+                 conserve_S: str = 'Sz',
+                 filling: float = 1.,
                  backend: TensorBackend = None):
         # parse conserve_N
         if conserve_N == 'N':
@@ -1700,12 +1738,16 @@ class SpinHalfHoleSite(Site):
         elif sym_S is None:
             leg = ElementarySpace.from_basis(sym_N, sectors_N[:, None])
         else:
-            leg = ElementarySpace.from_basis(sym_N * sym_S, np.stack([sectors_N, sectors_S], axis=1))
+            leg = ElementarySpace.from_basis(sym_N * sym_S, np.stack([sectors_N, sectors_S],
+                                                                     axis=1))
         # initialize Site
         self.conserve_N = conserve_N
         self.conserve_S = conserve_S
         self.filling = filling
-        Site.__init__(self, leg=leg, backend=backend, state_labels=['empty', 'up', 'down'],
+        Site.__init__(self,
+                      leg=leg,
+                      backend=backend,
+                      state_labels=['empty', 'up', 'down'],
                       JW=[1., -1., -1.])
         # operators : Ntot, dN
         Ntot = self.add_symmetric_operator('Ntot', [0., 1., 1.])
@@ -1719,10 +1761,10 @@ class SpinHalfHoleSite(Site):
             # the only allowed blocks by charge rule for legs [p, p*, dummy] the sectors [1, 1, 2],
             # i.e. acting on the spin 1/2 doublet [up, down].
             # This means that the same construction as for the SpinHalfSite works here too.
-            Svec_inv = SymmetricTensor.from_block_func(
-                self.backend.ones_block, backend=self.backend, legs=[leg, leg.dual, dummy_leg],
-                labels=['p', 'p*', '!']
-            )
+            Svec_inv = SymmetricTensor.from_block_func(self.backend.ones_block,
+                                                       backend=self.backend,
+                                                       legs=[leg, leg.dual, dummy_leg],
+                                                       labels=['p', 'p*', '!'])
             self.add_charged_operator('Svec', ChargedTensor(Svec_inv), hc='Svec')
         else:
             # TODO build Svec with 3-dim dummy leg
@@ -1809,7 +1851,10 @@ class BosonSite(Site):
         The backend used to create the operators.
     """
 
-    def __init__(self, Nmax: int = 1, conserve: str = 'N', filling: float = 0.,
+    def __init__(self,
+                 Nmax: int = 1,
+                 conserve: str = 'N',
+                 filling: float = 0.,
                  backend: TensorBackend = None):
         assert Nmax > 0
         d = Nmax + 1
@@ -1832,9 +1877,9 @@ class BosonSite(Site):
         self.state_labels['vac'] = self.state_labels['0']  # alias
         # operators
         self.add_symmetric_operator('N', N)
-        self.add_symmetric_operator('NN', N ** 2)
+        self.add_symmetric_operator('NN', N**2)
         self.add_symmetric_operator('dN', N - filling)
-        self.add_symmetric_operator('dNdN', (N - filling) ** 2)
+        self.add_symmetric_operator('dNdN', (N - filling)**2)
         self.add_symmetric_operator('P', 1. - 2. * (N % 2))
         B = np.zeros([d, d], dtype=float)
         for n in range(1, d):
@@ -1893,7 +1938,7 @@ def spin_half_species(SpeciesSite: type[Site], conserve_N: str, conserve_S: str,
         sym_N = None
     else:
         raise ValueError(f'invalid `conserve_N`: {conserve_N}')
-    
+
     if conserve_S == 'Sz':
         sym_S = U1Symmetry('2*Sz')
     elif conserve_S == 'parity':
@@ -1902,7 +1947,7 @@ def spin_half_species(SpeciesSite: type[Site], conserve_N: str, conserve_S: str,
         sym_S = None
     else:
         raise ValueError(f'invalid `conserve_S`: {conserve_S}')
-    
+
     if sym_N is None and sym_S is None:
         sym = no_symmetry
         symmetry_combine = 'drop'
@@ -1915,7 +1960,7 @@ def spin_half_species(SpeciesSite: type[Site], conserve_N: str, conserve_S: str,
             if conserve_S == 'parity':
                 S_sectors = S_sectors % 4
             return S_sectors
-        
+
     elif sym_S is None:
         sym = sym_N
         assert up_site.symmetry == down_site.symmetry
@@ -1984,6 +2029,7 @@ class ClockSite(Site):
     backend : :class:`~cyten.backends.Backend`, optional
         The backend used to create the operators.
     """
+
     def __init__(self, q: int, conserve: str = 'Z', backend: TensorBackend = None):
         if not (isinstance(q, int) and q > 1):
             raise ValueError(f'invalid q: {q}')
@@ -2003,10 +2049,13 @@ class ClockSite(Site):
         if q % 2 == 0:
             self.state_labels['down'] = self.state_labels[str(q // 2)]
         # operators
-        self.add_symmetric_operator('Z', np.exp(2.j * np.pi * np.arange(q, dtype=np.complex128) / q))
-        self.add_symmetric_operator('Zhc', np.exp(-2.j * np.pi * np.arange(q, dtype=np.complex128) / q))
-        self.add_symmetric_operator('Zphc', 2. * np.cos(2. * np.pi * np.arange(q, dtype=np.complex128) / q))
-        X = np.eye(q, k=1) + np.eye(q, k=1-q)
+        self.add_symmetric_operator('Z',
+                                    np.exp(2.j * np.pi * np.arange(q, dtype=np.complex128) / q))
+        self.add_symmetric_operator('Zhc',
+                                    np.exp(-2.j * np.pi * np.arange(q, dtype=np.complex128) / q))
+        self.add_symmetric_operator('Zphc',
+                                    2. * np.cos(2. * np.pi * np.arange(q, dtype=np.complex128) / q))
+        X = np.eye(q, k=1) + np.eye(q, k=1 - q)
         if q == 2:
             # for q=2 we have ising spins and X is hermitian
             hc_X = 'X'

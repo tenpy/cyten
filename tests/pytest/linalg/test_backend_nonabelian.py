@@ -15,7 +15,6 @@ from cyten.symmetries import ProductSymmetry, fibonacci_anyon_category, SU2Symme
 from cyten.dtypes import Dtype
 
 
-
 @pytest.mark.parametrize('num_spaces', [3, 4, 5])
 def test_block_sizes(any_symmetry, make_any_space, make_any_sectors, block_backend, num_spaces):
     backend = get_backend('fusion_tree', block_backend)
@@ -23,8 +22,9 @@ def test_block_sizes(any_symmetry, make_any_space, make_any_sectors, block_backe
     domain = ProductSpace(spaces, symmetry=any_symmetry, backend=backend)
 
     for coupled in make_any_sectors(10):
-        expect = sum(fusion_tree_backend.forest_block_size(domain, uncoupled, coupled)
-                    for uncoupled in domain.iter_uncoupled())
+        expect = sum(
+            fusion_tree_backend.forest_block_size(domain, uncoupled, coupled)
+            for uncoupled in domain.iter_uncoupled())
         res = fusion_tree_backend.block_size(domain, coupled)
         assert res == expect
 
@@ -33,9 +33,10 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)
     backend = get_backend('fusion_tree', block_backend)
-    funcs = [cross_check_single_c_symbol_tree_blocks,
-             cross_check_single_c_symbol_tree_cols,
-             apply_single_c_symbol]
+    funcs = [
+        cross_check_single_c_symbol_tree_blocks, cross_check_single_c_symbol_tree_cols,
+        apply_single_c_symbol
+    ]
     zero_block = backend.block_backend.zero_block
     eps = 1.e-14
     sym = fibonacci_anyon_category
@@ -44,18 +45,22 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     codomain = ProductSpace([s2, s1, s2, s2])
     domain = ProductSpace([s2, s1, s2])
 
-    block_inds = np.array([[0,0], [1,1]])
-    blocks = [backend.block_backend.block_random_uniform((8, 3), Dtype.complex128),
-              backend.block_backend.block_random_uniform((13, 5), Dtype.complex128)]
-    data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
+    block_inds = np.array([[0, 0], [1, 1]])
+    blocks = [
+        backend.block_backend.block_random_uniform((8, 3), Dtype.complex128),
+        backend.block_backend.block_random_uniform((13, 5), Dtype.complex128)
+    ]
+    data = backends.FusionTreeData(block_inds,
+                                   blocks,
+                                   Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
     levels = list(range(tens.num_legs))[::-1]  # for the exchanges
 
     # exchange legs 0 and 1 (in codomain)
-    r1 = np.exp(-4j*np.pi/5)  # R symbols
-    rtau = np.exp(3j*np.pi/5)
+    r1 = np.exp(-4j * np.pi / 5)  # R symbols
+    rtau = np.exp(3j * np.pi / 5)
     expect = [zero_block([8, 3], Dtype.complex128), zero_block([13, 5], Dtype.complex128)]
 
     expect[0][0, :] = blocks[0][0, :]
@@ -81,7 +86,9 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     expect[1][11, :] = blocks[1][11, :] * rtau
     expect[1][12, :] = blocks[1][12, :] * rtau
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_codomain = ProductSpace([s1, s2, s2, s2])
     expect_tens = SymmetricTensor(expect_data, expect_codomain, domain, backend=backend)
@@ -93,13 +100,13 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     if move_leg_or_permute_leg == 'permute_leg':
-        new_data, new_codomain, new_domain = backend.permute_legs(tens, [1, 0, 2, 3], [6, 5, 4], levels)
+        new_data, new_codomain, new_domain = backend.permute_legs(tens, [1, 0, 2, 3], [6, 5, 4],
+                                                                  levels)
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 0, codomain_pos=1, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # exchange legs 5 and 6 (in domain)
     expect = [zero_block([8, 3], Dtype.complex128), zero_block([13, 5], Dtype.complex128)]
@@ -114,7 +121,9 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     expect[1][:, 3] = blocks[1][:, 3] * r1
     expect[1][:, 4] = blocks[1][:, 4] * rtau
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_domain = ProductSpace([s1, s2, s2])
     expect_tens = SymmetricTensor(expect_data, codomain, expect_domain, backend=backend)
@@ -125,20 +134,20 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     if move_leg_or_permute_leg == 'permute_leg':
-        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 2, 3], [5, 6, 4], levels)
+        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 2, 3], [5, 6, 4],
+                                                                  levels)
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 6, domain_pos=1, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # exchange legs 2 and 3 (in codomain)
     phi = (1 + 5**0.5) / 2
     ctttt11 = phi**-1 * r1.conj()  # C symbols
     cttttt1 = phi**-0.5 * rtau * r1.conj()
     ctttt1t = phi**-0.5 * rtau.conj()
-    ctttttt = -1*phi**-1
+    ctttttt = -1 * phi**-1
     expect = [zero_block([8, 3], Dtype.complex128), zero_block([13, 5], Dtype.complex128)]
 
     expect[0][0, :] = blocks[0][1, :]
@@ -164,7 +173,9 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     expect[1][11, :] = blocks[1][11, :] * ctttt11 + blocks[1][12, :] * cttttt1
     expect[1][12, :] = blocks[1][11, :] * ctttt1t + blocks[1][12, :] * ctttttt
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_tens = SymmetricTensor(expect_data, codomain, domain, backend=backend)
 
@@ -174,13 +185,13 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     if move_leg_or_permute_leg == 'permute_leg':
-        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 3, 2], [6, 5, 4], levels)
+        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 3, 2], [6, 5, 4],
+                                                                  levels)
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 3, codomain_pos=2, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # exchange legs 4 and 5 (in domain)
     expect = [zero_block([8, 3], Dtype.complex128), zero_block([13, 5], Dtype.complex128)]
@@ -195,7 +206,9 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     expect[1][:, 3] = blocks[1][:, 3] * ctttt11 + blocks[1][:, 4] * cttttt1
     expect[1][:, 4] = blocks[1][:, 3] * ctttt1t + blocks[1][:, 4] * ctttttt
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_domain = ProductSpace([s2, s2, s1])
     expect_tens = SymmetricTensor(expect_data, codomain, expect_domain, backend=backend)
@@ -206,13 +219,13 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     if move_leg_or_permute_leg == 'permute_leg':
-        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 2, 3], [6, 4, 5], levels)
+        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 2, 3], [6, 4, 5],
+                                                                  levels)
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 4, domain_pos=1, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # braid 10 times == trivial
     assert_repeated_braids_trivial(tens, funcs, levels, repeat=10, eps=eps)
@@ -225,7 +238,8 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
 
     # do and undo sequence of braids == trivial (may include b symbols)
     for _ in range(2):
-        assert_clockwise_counterclockwise_trivial_long_range(tens, move_leg_or_permute_leg, eps, np_random)
+        assert_clockwise_counterclockwise_trivial_long_range(tens, move_leg_or_permute_leg, eps,
+                                                             np_random)
 
 
 @pytest.mark.slow  # TODO can we speed it up?
@@ -233,9 +247,10 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)
     backend = get_backend('fusion_tree', block_backend)
-    funcs = [cross_check_single_c_symbol_tree_blocks,
-             cross_check_single_c_symbol_tree_cols,
-             apply_single_c_symbol]
+    funcs = [
+        cross_check_single_c_symbol_tree_blocks, cross_check_single_c_symbol_tree_cols,
+        apply_single_c_symbol
+    ]
     zero_block = backend.block_backend.zero_block
     eps = 1.e-14
     sym = ProductSymmetry([fibonacci_anyon_category, SU2Symmetry()])
@@ -249,15 +264,17 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     block_inds = np.array([[i, i] for i in range(8)])
     shapes = [(13, 8), (12, 8), (16, 16), (38, 34), (12, 8), (12, 8), (8, 8), (16, 16)]
     blocks = [backend.block_backend.block_random_uniform(shp, Dtype.complex128) for shp in shapes]
-    data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
+    data = backends.FusionTreeData(block_inds,
+                                   blocks,
+                                   Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
     levels = list(range(tens.num_legs))[::-1]  # for the exchanges
 
     # exchange legs 0 and 1 (in codomain)
-    r1 = np.exp(-4j*np.pi/5)  # Fib R symbols
-    rtau = np.exp(3j*np.pi/5)
+    r1 = np.exp(-4j * np.pi / 5)  # Fib R symbols
+    rtau = np.exp(3j * np.pi / 5)
     exc = [0, 2, 1, 3]
     exc2 = [4, 5, 6, 7, 0, 1, 2, 3]
     exc3 = [0, 1, 4, 5, 2, 3, 6, 7]
@@ -290,7 +307,9 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     expect[7][:8, :] = blocks[7][exc3, :] * r1
     expect[7][8:, :] = blocks[7][[8 + i for i in exc3], :] * rtau
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_tens = SymmetricTensor(expect_data, codomain, domain, backend=backend)
 
@@ -300,13 +319,13 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     if move_leg_or_permute_leg == 'permute_leg':
-        new_data, new_codomain, new_domain = backend.permute_legs(tens, [1, 0, 2], [5, 4, 3], levels)
+        new_data, new_codomain, new_domain = backend.permute_legs(tens, [1, 0, 2], [5, 4, 3],
+                                                                  levels)
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 1, codomain_pos=0, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # exchange legs 4 and 5 (in domain)
     expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
@@ -337,7 +356,9 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     expect[7][:, :8] = blocks[7][:, exc3] * r1
     expect[7][:, 8:] = blocks[7][:, [8 + i for i in exc3]] * rtau
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_domain = ProductSpace([s1, s2, s2])
     expect_tens = SymmetricTensor(expect_data, codomain, expect_domain, backend=backend)
@@ -348,20 +369,20 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     if move_leg_or_permute_leg == 'permute_leg':
-        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 2], [4, 5, 3], levels)
+        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 2], [4, 5, 3],
+                                                                  levels)
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 5, domain_pos=1, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # exchange legs 3 and 4 (in domain)
     phi = (1 + 5**0.5) / 2
     ctttt11 = phi**-1 * r1.conj()  # C symbols
     cttttt1 = phi**-0.5 * rtau * r1.conj()
     ctttt1t = phi**-0.5 * rtau.conj()
-    ctttttt = -1*phi**-1
+    ctttttt = -1 * phi**-1
     exc4 = [0, 2, 1, 3, 4, 6, 5, 7]
     expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
 
@@ -372,28 +393,36 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     expect[1][:, 4:] = blocks[1][:, 4:]
 
     # f-symbols for su(2) [e -> f]: 0 -> 0: -1/2, 2 -> 2: 1/2, 0 -> 2 and 2 -> 0: 3**.5/2
-    expect[2][:, :8] = (blocks[2][:, exc4] * rtau * (-1/4 + 3/4)
-                       + blocks[2][:, [8 + i for i in exc4]] * rtau * (3**0.5/4 + 3**0.5/4))
-    expect[2][:, 8:] = (blocks[2][:, exc4] * rtau * (3**0.5/4 + 3**0.5/4)
-                       + blocks[2][:, [8 + i for i in exc4]] * rtau * (1/4 - 3/4))
+    expect[2][:, :8] = (blocks[2][:, exc4] * rtau * (-1 / 4 + 3 / 4) +
+                        blocks[2][:, [8 + i for i in exc4]] * rtau * (3**0.5 / 4 + 3**0.5 / 4))
+    expect[2][:, 8:] = (blocks[2][:, exc4] * rtau * (3**0.5 / 4 + 3**0.5 / 4) +
+                        blocks[2][:, [8 + i for i in exc4]] * rtau * (1 / 4 - 3 / 4))
 
     expect[3][:, :2] = blocks[3][:, :2]
-    expect[3][:, 2:10] = (blocks[3][:, [2 + i for i in exc4]] * ctttt11 * (-1/4 + 3/4)
-                         + blocks[3][:, [10 + i for i in exc4]] * ctttt11 * (3**0.5/4 + 3**0.5/4)
-                         + blocks[3][:, [18 + i for i in exc4]] * cttttt1 * (-1/4 + 3/4)
-                         + blocks[3][:, [26 + i for i in exc4]] * cttttt1 * (3**0.5/4 + 3**0.5/4))
-    expect[3][:, 10:18] = (blocks[3][:, [2 + i for i in exc4]] * ctttt11 * (3**0.5/4 + 3**0.5/4)
-                          + blocks[3][:, [10 + i for i in exc4]] * ctttt11 * (1/4 - 3/4)
-                          + blocks[3][:, [18 + i for i in exc4]] * cttttt1 * (3**0.5/4 + 3**0.5/4)
-                          + blocks[3][:, [26 + i for i in exc4]] * cttttt1 * (1/4 - 3/4))
-    expect[3][:, 18:26] = (blocks[3][:, [2 + i for i in exc4]] * ctttt1t * (-1/4 + 3/4)
-                          + blocks[3][:, [10 + i for i in exc4]] * ctttt1t * (3**0.5/4 + 3**0.5/4)
-                          + blocks[3][:, [18 + i for i in exc4]] * ctttttt * (-1/4 + 3/4)
-                          + blocks[3][:, [26 + i for i in exc4]] * ctttttt * (3**0.5/4 + 3**0.5/4))
-    expect[3][:, 26:34] = (blocks[3][:, [2 + i for i in exc4]] * ctttt1t * (3**0.5/4 + 3**0.5/4)
-                          + blocks[3][:, [10 + i for i in exc4]] * ctttt1t * (1/4 - 3/4)
-                          + blocks[3][:, [18 + i for i in exc4]] * ctttttt * (3**0.5/4 + 3**0.5/4)
-                          + blocks[3][:, [26 + i for i in exc4]] * ctttttt * (1/4 - 3/4))
+    expect[3][:, 2:10] = (blocks[3][:, [2 + i for i in exc4]] * ctttt11 * (-1 / 4 + 3 / 4) +
+                          blocks[3][:, [10 + i
+                                        for i in exc4]] * ctttt11 * (3**0.5 / 4 + 3**0.5 / 4) +
+                          blocks[3][:, [18 + i for i in exc4]] * cttttt1 * (-1 / 4 + 3 / 4) +
+                          blocks[3][:, [26 + i
+                                        for i in exc4]] * cttttt1 * (3**0.5 / 4 + 3**0.5 / 4))
+    expect[3][:, 10:18] = (blocks[3][:, [2 + i
+                                         for i in exc4]] * ctttt11 * (3**0.5 / 4 + 3**0.5 / 4) +
+                           blocks[3][:, [10 + i for i in exc4]] * ctttt11 * (1 / 4 - 3 / 4) +
+                           blocks[3][:, [18 + i
+                                         for i in exc4]] * cttttt1 * (3**0.5 / 4 + 3**0.5 / 4) +
+                           blocks[3][:, [26 + i for i in exc4]] * cttttt1 * (1 / 4 - 3 / 4))
+    expect[3][:, 18:26] = (blocks[3][:, [2 + i for i in exc4]] * ctttt1t * (-1 / 4 + 3 / 4) +
+                           blocks[3][:, [10 + i
+                                         for i in exc4]] * ctttt1t * (3**0.5 / 4 + 3**0.5 / 4) +
+                           blocks[3][:, [18 + i for i in exc4]] * ctttttt * (-1 / 4 + 3 / 4) +
+                           blocks[3][:, [26 + i
+                                         for i in exc4]] * ctttttt * (3**0.5 / 4 + 3**0.5 / 4))
+    expect[3][:, 26:34] = (blocks[3][:, [2 + i
+                                         for i in exc4]] * ctttt1t * (3**0.5 / 4 + 3**0.5 / 4) +
+                           blocks[3][:, [10 + i for i in exc4]] * ctttt1t * (1 / 4 - 3 / 4) +
+                           blocks[3][:, [18 + i
+                                         for i in exc4]] * ctttttt * (3**0.5 / 4 + 3**0.5 / 4) +
+                           blocks[3][:, [26 + i for i in exc4]] * ctttttt * (1 / 4 - 3 / 4))
 
     expect[4][:, :4] = blocks[4][:, exc] * r1
     expect[4][:, 4:] = blocks[4][:, 4:]
@@ -406,7 +435,9 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     expect[7][:, :8] = blocks[7][:, exc4] * ctttt11 + blocks[7][:, [8 + i for i in exc4]] * cttttt1
     expect[7][:, 8:] = blocks[7][:, exc4] * ctttt1t + blocks[7][:, [8 + i for i in exc4]] * ctttttt
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_domain = ProductSpace([s2, s2, s1])
     expect_tens = SymmetricTensor(expect_data, codomain, expect_domain, backend=backend)
@@ -417,13 +448,13 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     if move_leg_or_permute_leg == 'permute_leg':
-        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 2], [5, 3, 4], levels)
+        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 2], [5, 3, 4],
+                                                                  levels)
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 4, domain_pos=2, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # braid 10 times == trivial
     assert_repeated_braids_trivial(tens, funcs, levels, repeat=10, eps=eps)
@@ -436,7 +467,8 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
 
     # do and undo sequence of braids == trivial (may include b symbols)
     for _ in range(2):
-        assert_clockwise_counterclockwise_trivial_long_range(tens, move_leg_or_permute_leg, eps, np_random)
+        assert_clockwise_counterclockwise_trivial_long_range(tens, move_leg_or_permute_leg, eps,
+                                                             np_random)
 
 
 @pytest.mark.slow  # TODO can we speed it up?
@@ -444,9 +476,10 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)
     backend = get_backend('fusion_tree', block_backend)
-    funcs = [cross_check_single_c_symbol_tree_blocks,
-             cross_check_single_c_symbol_tree_cols,
-             apply_single_c_symbol]
+    funcs = [
+        cross_check_single_c_symbol_tree_blocks, cross_check_single_c_symbol_tree_cols,
+        apply_single_c_symbol
+    ]
     zero_block = backend.block_backend.zero_block
     eps = 1.e-14
     sym = SU3_3AnyonCategory()
@@ -459,7 +492,9 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     block_inds = np.array([[i, i] for i in range(4)])
     shapes = [(6, 12), (16, 36), (5, 12), (5, 12)]
     blocks = [backend.block_backend.block_random_uniform(shp, Dtype.complex128) for shp in shapes]
-    data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
+    data = backends.FusionTreeData(block_inds,
+                                   blocks,
+                                   Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
@@ -484,7 +519,9 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     expect[1][[2, 4, 8], :] = blocks[1][[2, 4, 8], :] * r8[1]
     expect[1][9:, :] = blocks[1][[12, 13, 14, 9, 10, 11, 15], :]
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_tens = SymmetricTensor(expect_data, codomain, domain, backend=backend)
 
@@ -494,13 +531,13 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     if move_leg_or_permute_leg == 'permute_leg':
-        new_data, new_codomain, new_domain = backend.permute_legs(tens, [1, 0, 2], [5, 4, 3], levels)
+        new_data, new_codomain, new_domain = backend.permute_legs(tens, [1, 0, 2], [5, 4, 3],
+                                                                  levels)
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 1, codomain_pos=0, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # exchange legs 4 and 5 (in domain)
     expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
@@ -518,7 +555,9 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     expect[1][:, 20:28] = blocks[1][:, 20:28] * -1
     expect[1][:, 28:] = blocks[1][:, 28:]
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_domain = ProductSpace([s2, s1, s2])
     expect_tens = SymmetricTensor(expect_data, codomain, expect_domain, backend=backend)
@@ -529,20 +568,20 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     if move_leg_or_permute_leg == 'permute_leg':
-        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 2], [4, 5, 3], levels)
+        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 2], [4, 5, 3],
+                                                                  levels)
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 5, domain_pos=1, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # exchange legs 1 and 2 (in codomain)
     # we usually use the convention that in the codomain, the two final indices are f, e
     # the F symbols f2 and f1 are chosen such that we use the indices e, f
     # e.g. f2[e, f] = _f_symbol(10, 8, 8, 8, f, e)
     #      f1[e, f] = _f_symbol(8, 10, 8, 8, f, e)
-    f2 = np.array([[-.5, -3**.5/2], [3**.5/2, -.5]])
+    f2 = np.array([[-.5, -3**.5 / 2], [3**.5 / 2, -.5]])
     f1 = f2.T
     csym = sym._c_symbol
     expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
@@ -554,49 +593,61 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     expect[0][5, :] = blocks[0][5, :]
 
     v = [blocks[1][i, :] for i in range(7)]
-    charges = [c0] + [c1]*4 + [c2, c3]
+    charges = [c0] + [c1] * 4 + [c2, c3]
     mul1 = [0] * 7
     mul2 = [0] * 7
     mul1[2], mul1[4] = 1, 1
     mul2[3], mul2[4] = 1, 1
 
     for i in range(7):
-        w = [csym(c1, c1, c1, c1, charges[i], charges[j])[mul1[i], mul2[i], mul1[j], mul2[j]] for j in range(7)]
-        amplitudes = zero_block([7, backend.block_backend.block_shape(expect[1])[1]], Dtype.complex128)
+        w = [
+            csym(c1, c1, c1, c1, charges[i], charges[j])[mul1[i], mul2[i], mul1[j], mul2[j]]
+            for j in range(7)
+        ]
+        amplitudes = zero_block([7, backend.block_backend.block_shape(expect[1])[1]],
+                                Dtype.complex128)
         for j in range(7):
             amplitudes[j, :] = v[j] * w[j]
         expect[1][i, :] = backend.block_backend.block_sum(amplitudes, ax=0)
 
-    expect[1][7, :] = (blocks[1][9, :] * (f2[0,0]*f2[0,0] + f2[0,1]*f2[1,0])
-                       + blocks[1][10, :] * (f2[1,0]*f2[0,0] + f2[1,1]*f2[1,0]))
-    expect[1][8, :] = (blocks[1][9, :] * (f2[0,0]*f2[0,1] + f2[0,1]*f2[1,1])
-                       + blocks[1][10, :] * (f2[1,0]*f2[0,1] + f2[1,1]*f2[1,1]))
-    expect[1][9, :] = (blocks[1][7, :] * (f1[0,0]*f1[0,0] + f1[0,1]*f1[1,0])
-                       + blocks[1][8, :] * (f1[1,0]*f1[0,0] + f1[1,1]*f1[1,0]))
-    expect[1][10, :] = (blocks[1][7, :] * (f1[0,0]*f1[0,1] + f1[0,1]*f1[1,1])
-                        + blocks[1][8, :] * (f1[1,0]*f1[0,1] + f1[1,1]*f1[1,1]))
+    expect[1][7, :] = (blocks[1][9, :] * (f2[0, 0] * f2[0, 0] + f2[0, 1] * f2[1, 0]) +
+                       blocks[1][10, :] * (f2[1, 0] * f2[0, 0] + f2[1, 1] * f2[1, 0]))
+    expect[1][8, :] = (blocks[1][9, :] * (f2[0, 0] * f2[0, 1] + f2[0, 1] * f2[1, 1]) +
+                       blocks[1][10, :] * (f2[1, 0] * f2[0, 1] + f2[1, 1] * f2[1, 1]))
+    expect[1][9, :] = (blocks[1][7, :] * (f1[0, 0] * f1[0, 0] + f1[0, 1] * f1[1, 0]) +
+                       blocks[1][8, :] * (f1[1, 0] * f1[0, 0] + f1[1, 1] * f1[1, 0]))
+    expect[1][10, :] = (blocks[1][7, :] * (f1[0, 0] * f1[0, 1] + f1[0, 1] * f1[1, 1]) +
+                        blocks[1][8, :] * (f1[1, 0] * f1[0, 1] + f1[1, 1] * f1[1, 1]))
     expect[1][11, :] = blocks[1][11, :]
-    expect[1][12, :] = (blocks[1][12, :] * (f1[0,0]*r8[0]*f2[0,0] + f1[0,1]*r8[1]*f2[1,0])
-                        + blocks[1][13, :] * (f1[1,0]*r8[0]*f2[0,0] + f1[1,1]*r8[1]*f2[1,0]))
-    expect[1][13, :] = (blocks[1][12, :] * (f1[0,0]*r8[0]*f2[0,1] + f1[0,1]*r8[1]*f2[1,1])
-                        + blocks[1][13, :] * (f1[1,0]*r8[0]*f2[0,1] + f1[1,1]*r8[1]*f2[1,1]))
+    expect[1][12, :] = (
+        blocks[1][12, :] * (f1[0, 0] * r8[0] * f2[0, 0] + f1[0, 1] * r8[1] * f2[1, 0]) +
+        blocks[1][13, :] * (f1[1, 0] * r8[0] * f2[0, 0] + f1[1, 1] * r8[1] * f2[1, 0]))
+    expect[1][13, :] = (
+        blocks[1][12, :] * (f1[0, 0] * r8[0] * f2[0, 1] + f1[0, 1] * r8[1] * f2[1, 1]) +
+        blocks[1][13, :] * (f1[1, 0] * r8[0] * f2[0, 1] + f1[1, 1] * r8[1] * f2[1, 1]))
     expect[1][[14, 15], :] = blocks[1][[15, 14], :] * -1
 
-    expect[2][0, :] = (blocks[2][0, :] * (f1[0,0]*r8[0]*f2[0,0] + f1[0,1]*r8[1]*f2[1,0])
-                       + blocks[2][1, :] * (f1[1,0]*r8[0]*f2[0,0] + f1[1,1]*r8[1]*f2[1,0]))
-    expect[2][1, :] = (blocks[2][0, :] * (f1[0,0]*r8[0]*f2[0,1] + f1[0,1]*r8[1]*f2[1,1])
-                       + blocks[2][1, :] * (f1[1,0]*r8[0]*f2[0,1] + f1[1,1]*r8[1]*f2[1,1]))
+    expect[2][0, :] = (
+        blocks[2][0, :] * (f1[0, 0] * r8[0] * f2[0, 0] + f1[0, 1] * r8[1] * f2[1, 0]) +
+        blocks[2][1, :] * (f1[1, 0] * r8[0] * f2[0, 0] + f1[1, 1] * r8[1] * f2[1, 0]))
+    expect[2][1, :] = (
+        blocks[2][0, :] * (f1[0, 0] * r8[0] * f2[0, 1] + f1[0, 1] * r8[1] * f2[1, 1]) +
+        blocks[2][1, :] * (f1[1, 0] * r8[0] * f2[0, 1] + f1[1, 1] * r8[1] * f2[1, 1]))
     expect[2][[2, 3], :] = blocks[2][[3, 2], :] * -1
     expect[2][4, :] = blocks[2][4, :] * -1
 
-    expect[3][0, :] = (blocks[3][0, :] * (f2[0,0]*r8[0]*f1[0,0] + f2[0,1]*r8[1]*f1[1,0])
-                       + blocks[3][1, :] * (f2[1,0]*r8[0]*f1[0,0] + f2[1,1]*r8[1]*f1[1,0]))
-    expect[3][1, :] = (blocks[3][0, :] * (f2[0,0]*r8[0]*f1[0,1] + f2[0,1]*r8[1]*f1[1,1])
-                       + blocks[3][1, :] * (f2[1,0]*r8[0]*f1[0,1] + f2[1,1]*r8[1]*f1[1,1]))
+    expect[3][0, :] = (
+        blocks[3][0, :] * (f2[0, 0] * r8[0] * f1[0, 0] + f2[0, 1] * r8[1] * f1[1, 0]) +
+        blocks[3][1, :] * (f2[1, 0] * r8[0] * f1[0, 0] + f2[1, 1] * r8[1] * f1[1, 0]))
+    expect[3][1, :] = (
+        blocks[3][0, :] * (f2[0, 0] * r8[0] * f1[0, 1] + f2[0, 1] * r8[1] * f1[1, 1]) +
+        blocks[3][1, :] * (f2[1, 0] * r8[0] * f1[0, 1] + f2[1, 1] * r8[1] * f1[1, 1]))
     expect[3][[2, 3], :] = blocks[3][[3, 2], :] * -1
     expect[3][4, :] = blocks[3][4, :] * -1
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_tens = SymmetricTensor(expect_data, codomain, domain, backend=backend)
 
@@ -606,13 +657,13 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     if move_leg_or_permute_leg == 'permute_leg':
-        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 2, 1], [5, 4, 3], levels)
+        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 2, 1], [5, 4, 3],
+                                                                  levels)
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 1, codomain_pos=2, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # exchange legs 3 and 4 (in domain)
     exc = [0, 2, 1, 3]
@@ -624,32 +675,44 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     expect[0][:, 4:8] = blocks[0][:, exc4] * r8[1]
     expect[0][:, 8:] = blocks[0][:, exc8] * -1
 
-    v = [blocks[1][:, [4*i + j for j in exc]] for i in range(7)]
+    v = [blocks[1][:, [4 * i + j for j in exc]] for i in range(7)]
     for i in range(7):
-        w = [csym(c1, c1, c1, c1, charges[i], charges[j])[mul1[i], mul2[i], mul1[j], mul2[j]] for j in range(7)]
-        amplitudes = zero_block([backend.block_backend.block_shape(expect[1])[0], 4], Dtype.complex128)
+        w = [
+            csym(c1, c1, c1, c1, charges[i], charges[j])[mul1[i], mul2[i], mul1[j], mul2[j]]
+            for j in range(7)
+        ]
+        amplitudes = zero_block([backend.block_backend.block_shape(expect[1])[0], 4],
+                                Dtype.complex128)
         for j in range(7):
             amplitudes += v[j] * w[j]
-        expect[1][:, 4*i:4*(i+1)] = amplitudes
+        expect[1][:, 4 * i:4 * (i + 1)] = amplitudes
 
-    expect[1][:, 28:32] = (blocks[1][:, exc28] * (f1[0,0]*r8[0]*f2[0,0] + f1[0,1]*r8[1]*f2[1,0])
-                          + blocks[1][:, exc32] * (f1[1,0]*r8[0]*f2[0,0] + f1[1,1]*r8[1]*f2[1,0]))
-    expect[1][:, 32:] = (blocks[1][:, exc28] * (f1[0,0]*r8[0]*f2[0,1] + f1[0,1]*r8[1]*f2[1,1])
-                        + blocks[1][:, exc32] * (f1[1,0]*r8[0]*f2[0,1] + f1[1,1]*r8[1]*f2[1,1]))
+    expect[1][:, 28:32] = (
+        blocks[1][:, exc28] * (f1[0, 0] * r8[0] * f2[0, 0] + f1[0, 1] * r8[1] * f2[1, 0]) +
+        blocks[1][:, exc32] * (f1[1, 0] * r8[0] * f2[0, 0] + f1[1, 1] * r8[1] * f2[1, 0]))
+    expect[1][:, 32:] = (
+        blocks[1][:, exc28] * (f1[0, 0] * r8[0] * f2[0, 1] + f1[0, 1] * r8[1] * f2[1, 1]) +
+        blocks[1][:, exc32] * (f1[1, 0] * r8[0] * f2[0, 1] + f1[1, 1] * r8[1] * f2[1, 1]))
 
-    expect[2][:, :4] = (blocks[2][:, exc] * (f1[0,0]*r8[0]*f2[0,0] + f1[0,1]*r8[1]*f2[1,0])
-                       + blocks[2][:, exc4] * (f1[1,0]*r8[0]*f2[0,0] + f1[1,1]*r8[1]*f2[1,0]))
-    expect[2][:, 4:8] = (blocks[2][:, exc] * (f1[0,0]*r8[0]*f2[0,1] + f1[0,1]*r8[1]*f2[1,1])
-                        + blocks[2][:, exc4] * (f1[1,0]*r8[0]*f2[0,1] + f1[1,1]*r8[1]*f2[1,1]))
+    expect[2][:, :4] = (
+        blocks[2][:, exc] * (f1[0, 0] * r8[0] * f2[0, 0] + f1[0, 1] * r8[1] * f2[1, 0]) +
+        blocks[2][:, exc4] * (f1[1, 0] * r8[0] * f2[0, 0] + f1[1, 1] * r8[1] * f2[1, 0]))
+    expect[2][:, 4:8] = (
+        blocks[2][:, exc] * (f1[0, 0] * r8[0] * f2[0, 1] + f1[0, 1] * r8[1] * f2[1, 1]) +
+        blocks[2][:, exc4] * (f1[1, 0] * r8[0] * f2[0, 1] + f1[1, 1] * r8[1] * f2[1, 1]))
     expect[2][:, 8:] = blocks[2][:, exc8] * -1
 
-    expect[3][:, :4] = (blocks[3][:, exc] * (f2[0,0]*r8[0]*f1[0,0] + f2[0,1]*r8[1]*f1[1,0])
-                       + blocks[3][:, exc4] * (f2[1,0]*r8[0]*f1[0,0] + f2[1,1]*r8[1]*f1[1,0]))
-    expect[3][:, 4:8] = (blocks[3][:, exc] * (f2[0,0]*r8[0]*f1[0,1] + f2[0,1]*r8[1]*f1[1,1])
-                        + blocks[3][:, exc4] * (f2[1,0]*r8[0]*f1[0,1] + f2[1,1]*r8[1]*f1[1,1]))
+    expect[3][:, :4] = (
+        blocks[3][:, exc] * (f2[0, 0] * r8[0] * f1[0, 0] + f2[0, 1] * r8[1] * f1[1, 0]) +
+        blocks[3][:, exc4] * (f2[1, 0] * r8[0] * f1[0, 0] + f2[1, 1] * r8[1] * f1[1, 0]))
+    expect[3][:, 4:8] = (
+        blocks[3][:, exc] * (f2[0, 0] * r8[0] * f1[0, 1] + f2[0, 1] * r8[1] * f1[1, 1]) +
+        blocks[3][:, exc4] * (f2[1, 0] * r8[0] * f1[0, 1] + f2[1, 1] * r8[1] * f1[1, 1]))
     expect[3][:, 8:] = blocks[3][:, exc8] * -1
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_tens = SymmetricTensor(expect_data, codomain, domain, backend=backend)
 
@@ -659,13 +722,13 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     if move_leg_or_permute_leg == 'permute_leg':
-        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 2], [5, 3, 4], levels)
+        new_data, new_codomain, new_domain = backend.permute_legs(tens, [0, 1, 2], [5, 3, 4],
+                                                                  levels)
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 4, domain_pos=2, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # braid 4 times == trivial
     assert_repeated_braids_trivial(tens, funcs, levels, repeat=4, eps=eps)
@@ -678,7 +741,8 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     # do and undo sequence of braids == trivial (may include b symbols)
     for _ in range(2):
-        assert_clockwise_counterclockwise_trivial_long_range(tens, move_leg_or_permute_leg, eps, np_random)
+        assert_clockwise_counterclockwise_trivial_long_range(tens, move_leg_or_permute_leg, eps,
+                                                             np_random)
 
 
 @pytest.mark.slow  # TODO can we speed it up?
@@ -701,7 +765,9 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
 
     block_inds = np.array([[0, 0]])
     blocks = [backend.block_backend.block_random_uniform((1, 1), Dtype.complex128)]
-    data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
+    data = backends.FusionTreeData(block_inds,
+                                   blocks,
+                                   Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
@@ -722,19 +788,22 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = move_leg(tens, 0, domain_pos=0, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # tensor with single leg in domain; bend up
     codomain = ProductSpace([], symmetry=sym)
     domain = ProductSpace([s3])
 
-    block_inds = np.array([[0,0]])
+    block_inds = np.array([[0, 0]])
     blocks = [backend.block_backend.block_random_uniform((1, 2), Dtype.complex128)]
-    data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
+    data = backends.FusionTreeData(block_inds,
+                                   blocks,
+                                   Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
     expect = [backend.block_backend.block_reshape(blocks[0], (2, 1))]
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_codomain = ProductSpace([s3.dual])
     expect_domain = ProductSpace([], symmetry=sym)
@@ -753,15 +822,18 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = move_leg(tens, 0, codomain_pos=0, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # more complicated tensor
     codomain = ProductSpace([s2, s1, s1])
     domain = ProductSpace([s2, s1, s2])
 
-    block_inds = np.array([[0,0], [1,1]])
-    blocks = [backend.block_backend.block_random_uniform((2, 3), Dtype.complex128),
-              backend.block_backend.block_random_uniform((3, 5), Dtype.complex128)]
-    data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
+    block_inds = np.array([[0, 0], [1, 1]])
+    blocks = [
+        backend.block_backend.block_random_uniform((2, 3), Dtype.complex128),
+        backend.block_backend.block_random_uniform((3, 5), Dtype.complex128)
+    ]
+    data = backends.FusionTreeData(block_inds,
+                                   blocks,
+                                   Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
@@ -769,31 +841,33 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     phi = (1 + 5**0.5) / 2
     expect = [zero_block([5, 1], Dtype.complex128), zero_block([8, 2], Dtype.complex128)]
 
-    expect[0][0, 0] = blocks[0][0, 1] # (0, 0, 0) = (a, b, c) as in _b_symbol(a, b, c)
-    expect[0][1, 0] = blocks[1][0, 3] * phi**0.5 # (0, 1, 1)
-    expect[0][2, 0] = blocks[0][1, 1] # (0, 0, 0)
-    expect[0][3, 0] = blocks[1][1, 3] * phi**0.5 # (0, 1, 1)
-    expect[0][4, 0] = blocks[1][2, 3] * phi**0.5 # (0, 1, 1)
+    expect[0][0, 0] = blocks[0][0, 1]  # (0, 0, 0) = (a, b, c) as in _b_symbol(a, b, c)
+    expect[0][1, 0] = blocks[1][0, 3] * phi**0.5  # (0, 1, 1)
+    expect[0][2, 0] = blocks[0][1, 1]  # (0, 0, 0)
+    expect[0][3, 0] = blocks[1][1, 3] * phi**0.5  # (0, 1, 1)
+    expect[0][4, 0] = blocks[1][2, 3] * phi**0.5  # (0, 1, 1)
 
-    expect[1][0, 0] = blocks[1][0, 0] # (1, 0, 1)
-    expect[1][1, 0] = blocks[0][0, 0] * phi**-0.5 # (1, 1, 0)
-    expect[1][2, 0] = blocks[1][0, 1] # (1, 1, 1)
-    expect[1][3, 0] = blocks[1][1, 0] # (1, 0, 1)
-    expect[1][4, 0] = blocks[1][2, 0] # (1, 0, 1)
-    expect[1][5, 0] = blocks[1][1, 1] # (1, 1, 1)
-    expect[1][6, 0] = blocks[0][1, 0] * phi**-0.5 # (1, 1, 0)
-    expect[1][7, 0] = blocks[1][2, 1] # (1, 1, 1)
+    expect[1][0, 0] = blocks[1][0, 0]  # (1, 0, 1)
+    expect[1][1, 0] = blocks[0][0, 0] * phi**-0.5  # (1, 1, 0)
+    expect[1][2, 0] = blocks[1][0, 1]  # (1, 1, 1)
+    expect[1][3, 0] = blocks[1][1, 0]  # (1, 0, 1)
+    expect[1][4, 0] = blocks[1][2, 0]  # (1, 0, 1)
+    expect[1][5, 0] = blocks[1][1, 1]  # (1, 1, 1)
+    expect[1][6, 0] = blocks[0][1, 0] * phi**-0.5  # (1, 1, 0)
+    expect[1][7, 0] = blocks[1][2, 1]  # (1, 1, 1)
 
-    expect[1][0, 1] = blocks[1][0, 2] # (1, 0, 1)
-    expect[1][1, 1] = blocks[0][0, 2] * phi**-0.5 # (1, 1, 0)
-    expect[1][2, 1] = blocks[1][0, 4] # (1, 1, 1)
-    expect[1][3, 1] = blocks[1][1, 2] # (1, 0, 1)
-    expect[1][4, 1] = blocks[1][2, 2] # (1, 0, 1)
-    expect[1][5, 1] = blocks[1][1, 4] # (1, 1, 1)
-    expect[1][6, 1] = blocks[0][1, 2] * phi**-0.5 # (1, 1, 0)
-    expect[1][7, 1] = blocks[1][2, 4] # (1, 1, 1)
+    expect[1][0, 1] = blocks[1][0, 2]  # (1, 0, 1)
+    expect[1][1, 1] = blocks[0][0, 2] * phi**-0.5  # (1, 1, 0)
+    expect[1][2, 1] = blocks[1][0, 4]  # (1, 1, 1)
+    expect[1][3, 1] = blocks[1][1, 2]  # (1, 0, 1)
+    expect[1][4, 1] = blocks[1][2, 2]  # (1, 0, 1)
+    expect[1][5, 1] = blocks[1][1, 4]  # (1, 1, 1)
+    expect[1][6, 1] = blocks[0][1, 2] * phi**-0.5  # (1, 1, 0)
+    expect[1][7, 1] = blocks[1][2, 4]  # (1, 1, 1)
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_codomain = ProductSpace([s2, s1, s1, s2.dual])
     expect_domain = ProductSpace([s2, s1])
@@ -812,35 +886,36 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = move_leg(tens, 3, codomain_pos=3, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # bend down
     expect = [zero_block([1, 5], Dtype.complex128), zero_block([2, 8], Dtype.complex128)]
 
-    expect[0][0, 0] = blocks[1][1, 0] * phi**0.5 # (0, 1, 1)
-    expect[0][0, 1] = blocks[1][1, 1] * phi**0.5 # (0, 1, 1)
-    expect[0][0, 2] = blocks[1][1, 2] * phi**0.5 # (0, 1, 1)
-    expect[0][0, 3] = blocks[1][1, 3] * phi**0.5 # (0, 1, 1)
-    expect[0][0, 4] = blocks[1][1, 4] * phi**0.5 # (0, 1, 1)
+    expect[0][0, 0] = blocks[1][1, 0] * phi**0.5  # (0, 1, 1)
+    expect[0][0, 1] = blocks[1][1, 1] * phi**0.5  # (0, 1, 1)
+    expect[0][0, 2] = blocks[1][1, 2] * phi**0.5  # (0, 1, 1)
+    expect[0][0, 3] = blocks[1][1, 3] * phi**0.5  # (0, 1, 1)
+    expect[0][0, 4] = blocks[1][1, 4] * phi**0.5  # (0, 1, 1)
 
-    expect[1][0, 0] = blocks[1][0, 0] # (1, 1, 1)
-    expect[1][0, 1] = blocks[0][0, 0] * phi**-0.5 # (1, 1, 0)
-    expect[1][0, 2] = blocks[1][0, 1] # (1, 1, 1)
-    expect[1][0, 3] = blocks[0][0, 1] * phi**-0.5 # (1, 1, 0)
-    expect[1][0, 4] = blocks[1][0, 2] # (1, 1, 1)
-    expect[1][0, 5] = blocks[1][0, 3] # (1, 1, 1)
-    expect[1][0, 6] = blocks[0][0, 2] * phi**-0.5 # (1, 1, 0)
-    expect[1][0, 7] = blocks[1][0, 4] # (1, 1, 1)
+    expect[1][0, 0] = blocks[1][0, 0]  # (1, 1, 1)
+    expect[1][0, 1] = blocks[0][0, 0] * phi**-0.5  # (1, 1, 0)
+    expect[1][0, 2] = blocks[1][0, 1]  # (1, 1, 1)
+    expect[1][0, 3] = blocks[0][0, 1] * phi**-0.5  # (1, 1, 0)
+    expect[1][0, 4] = blocks[1][0, 2]  # (1, 1, 1)
+    expect[1][0, 5] = blocks[1][0, 3]  # (1, 1, 1)
+    expect[1][0, 6] = blocks[0][0, 2] * phi**-0.5  # (1, 1, 0)
+    expect[1][0, 7] = blocks[1][0, 4]  # (1, 1, 1)
 
-    expect[1][1, 0] = blocks[1][2, 0] # (1, 1, 1)
-    expect[1][1, 1] = blocks[0][1, 0] * phi**-0.5 # (1, 1, 0)
-    expect[1][1, 2] = blocks[1][2, 1] # (1, 1, 1)
-    expect[1][1, 3] = blocks[0][1, 1] * phi**-0.5 # (1, 1, 0)
-    expect[1][1, 4] = blocks[1][2, 2] # (1, 1, 1)
-    expect[1][1, 5] = blocks[1][2, 3] # (1, 1, 1)
-    expect[1][1, 6] = blocks[0][1, 2] * phi**-0.5 # (1, 1, 0)
-    expect[1][1, 7] = blocks[1][2, 4] # (1, 1, 1)
+    expect[1][1, 0] = blocks[1][2, 0]  # (1, 1, 1)
+    expect[1][1, 1] = blocks[0][1, 0] * phi**-0.5  # (1, 1, 0)
+    expect[1][1, 2] = blocks[1][2, 1]  # (1, 1, 1)
+    expect[1][1, 3] = blocks[0][1, 1] * phi**-0.5  # (1, 1, 0)
+    expect[1][1, 4] = blocks[1][2, 2]  # (1, 1, 1)
+    expect[1][1, 5] = blocks[1][2, 3]  # (1, 1, 1)
+    expect[1][1, 6] = blocks[0][1, 2] * phi**-0.5  # (1, 1, 0)
+    expect[1][1, 7] = blocks[1][2, 4]  # (1, 1, 1)
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_codomain = ProductSpace([s2, s1])
     expect_domain = ProductSpace([s2, s1, s2, s1.dual])
@@ -859,9 +934,14 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = move_leg(tens, 2, domain_pos=3, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
-    spaces = [ProductSpace([], symmetry=sym), ProductSpace([s2]), ProductSpace([s3]),
-              ProductSpace([s1, s3]), ProductSpace([s2, s3]), ProductSpace([s3, s1, s3, s2])]
+    spaces = [
+        ProductSpace([], symmetry=sym),
+        ProductSpace([s2]),
+        ProductSpace([s3]),
+        ProductSpace([s1, s3]),
+        ProductSpace([s2, s3]),
+        ProductSpace([s3, s1, s3, s2])
+    ]
     # bend up and down again (and vice versa) == trivial
     assert_bending_up_and_down_trivial(spaces, spaces, funcs, backend, multiple=multiple, eps=eps)
 
@@ -883,7 +963,8 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     sym = ProductSymmetry([fibonacci_anyon_category, SU2Symmetry()])
     s1 = ElementarySpace(sym, [[1, 1]], [1])  # only (tau, spin-1/2)
     s2 = ElementarySpace(sym, [[0, 0], [1, 1]], [1, 2])  # (1, spin-0) and (tau, spin-1/2)
-    s3 = ElementarySpace(sym, [[0, 0], [1, 1], [1, 2]], [1, 2, 2])  # (1, spin-0), (tau, spin-1/2) and (tau, spin-1)
+    s3 = ElementarySpace(sym, [[0, 0], [1, 1], [1, 2]],
+                         [1, 2, 2])  # (1, spin-0), (tau, spin-1/2) and (tau, spin-1)
 
     # tensor with two legs in domain; bend up
     codomain = ProductSpace([], symmetry=sym)
@@ -891,18 +972,23 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
 
     block_inds = np.array([[0, 0]])
     blocks = [backend.block_backend.block_random_uniform((1, 5), Dtype.complex128)]
-    data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
+    data = backends.FusionTreeData(block_inds,
+                                   blocks,
+                                   Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
     expect_block_inds = np.array([[0, 0], [1, 1]])
     expect = [zero_block([1, 1], Dtype.complex128), zero_block([2, 2], Dtype.complex128)]
 
-    expect[0][0, 0] = blocks[0][0, 0]  # ([0, 0], [0, 0], [0, 0]) = (a, b, c) as in _b_symbol(a, b, c)
+    expect[0][0, 0] = blocks[0][0,
+                                0]  # ([0, 0], [0, 0], [0, 0]) = (a, b, c) as in _b_symbol(a, b, c)
     expect[1][:, :] = perm_axes(reshape(blocks[0][0, 1:], (2, 2)), [1, 0])
     expect[1][:, :] *= sym.inv_sqrt_qdim(np.array([1, 1])) * -1  # ([1, 1], [1, 1], [0, 0])
 
-    expect_data = backends.FusionTreeData(expect_block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(expect_block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_codomain = ProductSpace([s3.dual])
     expect_domain = ProductSpace([s2])
@@ -921,7 +1007,6 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         new_tens = move_leg(tens, 0, codomain_pos=0, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # tensor with two legs in codomain, two leg in domain; bend down
     codomain = ProductSpace([s1, s3])
     domain = ProductSpace([s2, s3])
@@ -930,7 +1015,9 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     block_inds = np.array([[i, i] for i in range(8)])
     shapes = [(2, 5), (2, 4), (2, 4), (3, 8), (2, 4), (2, 6), (2, 4), (2, 4)]
     blocks = [backend.block_backend.block_random_uniform(shp, Dtype.complex128) for shp in shapes]
-    data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
+    data = backends.FusionTreeData(block_inds,
+                                   blocks,
+                                   Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
@@ -943,11 +1030,13 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     # ([1, 1], [1, 1], [0, 0])
 
     expect[0][0, 34:42] = reshape(perm_axes(blocks[1][:, :], [1, 0]), (1, 8))
-    expect[0][0, 34:42] *= sym.inv_sqrt_qdim(np.array([1, 1])) * sym.sqrt_qdim(np.array([1, 0])) * -1
+    expect[0][0,
+              34:42] *= sym.inv_sqrt_qdim(np.array([1, 1])) * sym.sqrt_qdim(np.array([1, 0])) * -1
     # ([1, 1], [1, 1], [1, 0])
 
     expect[0][0, 54:62] = reshape(perm_axes(blocks[2][:, :], [1, 0]), (1, 8))
-    expect[0][0, 54:62] *= sym.inv_sqrt_qdim(np.array([1, 1])) * sym.sqrt_qdim(np.array([0, 1])) * -1
+    expect[0][0,
+              54:62] *= sym.inv_sqrt_qdim(np.array([1, 1])) * sym.sqrt_qdim(np.array([0, 1])) * -1
     # ([1, 1], [1, 2], [0, 1])
 
     expect[0][0, 2:4] = blocks[3][0, :2]
@@ -966,7 +1055,9 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
 
     expect[0][0, 8:12] = reshape(perm_axes(blocks[5][:, :2], [1, 0]), (1, 4))
     expect[0][0, 42:50] = reshape(perm_axes(blocks[5][:, 2:], [1, 0]), (1, 8))
-    expect[0][0, np.r_[8:12, 42:50]] *= sym.inv_sqrt_qdim(np.array([1, 1])) * sym.sqrt_qdim(np.array([1, 2]))
+    expect[0][0,
+              np.r_[8:12,
+                    42:50]] *= sym.inv_sqrt_qdim(np.array([1, 1])) * sym.sqrt_qdim(np.array([1, 2]))
     # ([1, 1], [1, 1], [1, 2])
 
     expect[0][0, 62:70] = reshape(perm_axes(blocks[6][:, :], [1, 0]), (1, 8))
@@ -977,7 +1068,9 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     expect[0][0, 78:] *= sym.inv_sqrt_qdim(np.array([1, 1])) * sym.sqrt_qdim(np.array([1, 3]))
     # ([1, 1], [1, 2], [1, 3])
 
-    expect_data = backends.FusionTreeData(expect_block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(expect_block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_codomain = ProductSpace([s1])
     expect_domain = ProductSpace([s2, s3, s3.dual])
@@ -996,20 +1089,21 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         new_tens = move_leg(tens, 1, domain_pos=2, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # similar tensor, replace one sector with its dual (Frobenius-Schur is now relevant); bend up
     codomain = ProductSpace([s1, s3])
     domain = ProductSpace([s2, s3.dual])
 
     blocks = [backend.block_backend.block_random_uniform(shp, Dtype.complex128) for shp in shapes]
-    data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
+    data = backends.FusionTreeData(block_inds,
+                                   blocks,
+                                   Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
     expect_block_inds = np.array([[0, 0], [3, 1]])
     expect = [zero_block([12, 1], Dtype.complex128), zero_block([37, 2], Dtype.complex128)]
 
-    expect[0][2:4, 0] = blocks[0][:, 0] # ([0, 0], [0, 0], [0, 0])
+    expect[0][2:4, 0] = blocks[0][:, 0]  # ([0, 0], [0, 0], [0, 0])
 
     expect[1][3:7, :] = reshape(perm_axes(reshape(blocks[0][:, 1:], (2, 2, 2)), [0, 2, 1]), (4, 2))
     expect[1][3:7, :] *= sym.inv_sqrt_qdim(np.array([1, 1]))  # ([1, 1], [1, 1], [0, 0])
@@ -1019,7 +1113,8 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     # ([1, 1], [1, 1], [1, 0])
 
     expect[1][21:25, :] = reshape(perm_axes(reshape(blocks[2][:, :], (2, 2, 2)), [0, 2, 1]), (4, 2))
-    expect[1][21:25, :] *= sym.inv_sqrt_qdim(np.array([1, 1])) * sym.sqrt_qdim(np.array([0, 1])) * -1
+    expect[1][21:25, :] *= sym.inv_sqrt_qdim(np.array([1, 1])) * sym.sqrt_qdim(np.array([0, 1
+                                                                                         ])) * -1
     # ([1, 1], [1, 2], [0, 1])
 
     expect[0][:2, 0] = blocks[3][0, :2]
@@ -1032,7 +1127,8 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     # ([1, 1], [0, 0], [1, 1])
 
     expect[1][1:3, :] = perm_axes(reshape(blocks[3][0, 4:], (2, 2)), [1, 0]) * -1
-    expect[1][29:33, :] = reshape(perm_axes(reshape(blocks[3][1:, 4:], (2, 2, 2)), [0, 2, 1]), (4, 2)) * -1
+    expect[1][29:33, :] = reshape(perm_axes(reshape(blocks[3][1:, 4:], (2, 2, 2)), [0, 2, 1]),
+                                  (4, 2)) * -1
     # ([1, 1], [1, 2], [1, 1])
 
     expect[1][7:11, :] = reshape(perm_axes(reshape(blocks[4][:, :], (2, 2, 2)), [0, 2, 1]), (4, 2))
@@ -1043,8 +1139,10 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     expect[0][4:8, :] *= sym.sqrt_qdim(np.array([1, 2]))
     # ([0, 0], [1, 2], [1, 2])
 
-    expect[1][15:19, :] = reshape(perm_axes(reshape(blocks[5][:, 2:], (2, 2, 2)), [0, 2, 1]), (4, 2))
-    expect[1][15:19, :] *= sym.inv_sqrt_qdim(np.array([1, 1])) * sym.sqrt_qdim(np.array([1, 2])) * -1
+    expect[1][15:19, :] = reshape(perm_axes(reshape(blocks[5][:, 2:], (2, 2, 2)), [0, 2, 1]),
+                                  (4, 2))
+    expect[1][15:19, :] *= sym.inv_sqrt_qdim(np.array([1, 1])) * sym.sqrt_qdim(np.array([1, 2
+                                                                                         ])) * -1
     # ([1, 1], [1, 1], [1, 2])
 
     expect[1][25:29, :] = reshape(perm_axes(reshape(blocks[6][:, :], (2, 2, 2)), [0, 2, 1]), (4, 2))
@@ -1055,7 +1153,9 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     expect[1][33:, :] *= sym.inv_sqrt_qdim(np.array([1, 1])) * sym.sqrt_qdim(np.array([1, 3]))
     # ([1, 1], [1, 2], [1, 3])
 
-    expect_data = backends.FusionTreeData(expect_block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(expect_block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_codomain = ProductSpace([s1, s3, s3])
     expect_domain = ProductSpace([s2])
@@ -1074,9 +1174,14 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         new_tens = move_leg(tens, 2, codomain_pos=2, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
-    spaces = [ProductSpace([], symmetry=sym), ProductSpace([s2]), ProductSpace([s3.dual]),
-              ProductSpace([s1, s3]), ProductSpace([s2, s3.dual]), ProductSpace([s1, s3, s2.dual])]
+    spaces = [
+        ProductSpace([], symmetry=sym),
+        ProductSpace([s2]),
+        ProductSpace([s3.dual]),
+        ProductSpace([s1, s3]),
+        ProductSpace([s2, s3.dual]),
+        ProductSpace([s1, s3, s2.dual])
+    ]
     # bend up and down again (and vice versa) == trivial
     assert_bending_up_and_down_trivial(spaces, spaces, funcs, backend, multiple=multiple, eps=eps)
 
@@ -1109,7 +1214,9 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     block_inds = np.array([[0, 0]])
     blocks = [backend.block_backend.block_random_uniform((5, 1), Dtype.complex128)]
-    data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
+    data = backends.FusionTreeData(block_inds,
+                                   blocks,
+                                   Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
@@ -1119,7 +1226,9 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     expect[0][0, :] = blocks[0][:2, 0] / qdim8  # (8, 8, 1) = (a, b, c) as in _b_symbol(a, b, c)
     expect[1][0, :] = blocks[0][2:, 0]  # (10, 10-, 1)
 
-    expect_data = backends.FusionTreeData(expect_block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(expect_block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_codomain = ProductSpace([s1])
     expect_domain = ProductSpace([s3.dual])
@@ -1138,14 +1247,15 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = move_leg(tens, 1, domain_pos=0, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # tensor with two legs in codomain, one leg in domain; bend down
     codomain = ProductSpace([s1, s3])
     domain = ProductSpace([s2])
 
     block_inds = np.array([[1, 0]])
     blocks = [backend.block_backend.block_random_uniform((10, 2), Dtype.complex128)]
-    data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
+    data = backends.FusionTreeData(block_inds,
+                                   blocks,
+                                   Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
@@ -1155,11 +1265,14 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     expect[0][0, :2] = blocks[0][0, :]  # (8, 1, 8)
     expect[0][0, 2:6] = reshape(perm_axes(blocks[0][1:3, :], [1, 0]), (1, 4))  # (8, 8, 8)
     expect[0][0, 6:10] = reshape(perm_axes(blocks[0][3:5, :], [1, 0]), (1, 4))  # (8, 8, 8)
-    expect[0][0, 10:] = reshape(perm_axes(blocks[0][5:8, :], [1, 0]), (1, 6)) * -1 # (8, 10-, 8)
+    expect[0][0, 10:] = reshape(perm_axes(blocks[0][5:8, :], [1, 0]), (1, 6)) * -1  # (8, 10-, 8)
 
-    expect[1][0, :] = reshape(perm_axes(blocks[0][8:, :], [1, 0]), (1, 4)) * qdim8 * -1  # (10, 8, 8)
+    expect[1][0, :] = reshape(perm_axes(blocks[0][8:, :], [1, 0]),
+                              (1, 4)) * qdim8 * -1  # (10, 8, 8)
 
-    expect_data = backends.FusionTreeData(expect_block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(expect_block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_codomain = ProductSpace([s1])
     expect_domain = ProductSpace([s2, s3.dual])
@@ -1178,7 +1291,6 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = move_leg(tens, 1, domain_pos=1, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # same tensor, bend up
     expect_block_inds = np.array([[0, 0]])
     expect = [zero_block([20, 1], Dtype.complex128)]
@@ -1189,7 +1301,9 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     expect[0][10:16, :] = reshape(blocks[0][5:8, :], (6, 1)) * qdim8  # (1, 8, 8)
     expect[0][16:, :] = reshape(blocks[0][8:, :], (4, 1)) * qdim8  # (1, 8, 8)
 
-    expect_data = backends.FusionTreeData(expect_block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(expect_block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_codomain = ProductSpace([s1, s3, s2.dual])
     expect_domain = ProductSpace([], symmetry=sym)
@@ -1208,7 +1322,6 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = move_leg(tens, 2, codomain_pos=2, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # more complicated tensor, bend down
     codomain = ProductSpace([s1, s2, s2])
     domain = ProductSpace([s2, s3])
@@ -1216,7 +1329,9 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     block_inds = np.array([[i, i] for i in range(4)])
     shapes = [(12, 4), (36, 16), (12, 4), (12, 4)]
     blocks = [backend.block_backend.block_random_uniform(shp, Dtype.complex128) for shp in shapes]
-    data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
+    data = backends.FusionTreeData(block_inds,
+                                   blocks,
+                                   Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
@@ -1224,75 +1339,121 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     expect = [zero_block(shp, Dtype.complex128) for shp in expect_shapes]
 
     expect[0][:, :4] = reshape(perm_axes(reshape(blocks[1][:4, :2], (2, 2, 2)), [0, 2, 1]), (2, 4))
-    expect[0][:, 4:12] = reshape(perm_axes(reshape(blocks[1][:4, 2:6], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[0][:, 12:20] = reshape(perm_axes(reshape(blocks[1][:4, 6:10], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[0][:, 20:32] = reshape(perm_axes(reshape(blocks[1][:4, 10:16], (2, 2, 6)), [0, 2, 1]), (2, 12))
+    expect[0][:, 4:12] = reshape(perm_axes(reshape(blocks[1][:4, 2:6], (2, 2, 4)), [0, 2, 1]),
+                                 (2, 8))
+    expect[0][:, 12:20] = reshape(perm_axes(reshape(blocks[1][:4, 6:10], (2, 2, 4)), [0, 2, 1]),
+                                  (2, 8))
+    expect[0][:, 20:32] = reshape(perm_axes(reshape(blocks[1][:4, 10:16], (2, 2, 6)), [0, 2, 1]),
+                                  (2, 12))
     expect[0][:, :] *= qdim8  # (1, 8, 8)
 
-    expect[1][:2, :4] = reshape(perm_axes(reshape(blocks[1][4:8, :2], (2, 2, 2)), [0, 2, 1]), (2, 4))
-    expect[1][:2, 4:8] = reshape(perm_axes(reshape(blocks[1][12:16, :2], (2, 2, 2)), [0, 2, 1]), (2, 4))
-    expect[1][2:4, :4] = reshape(perm_axes(reshape(blocks[1][8:12, :2], (2, 2, 2)), [0, 2, 1]), (2, 4))
-    expect[1][2:4, 4:8] = reshape(perm_axes(reshape(blocks[1][16:20, :2], (2, 2, 2)), [0, 2, 1]), (2, 4))
-    expect[1][4:, :4] = reshape(perm_axes(reshape(blocks[1][28:32, :2], (2, 2, 2)), [0, 2, 1]), (2, 4))
-    expect[1][4:, 4:8] = reshape(perm_axes(reshape(blocks[1][32:, :2], (2, 2, 2)), [0, 2, 1]), (2, 4))
+    expect[1][:2, :4] = reshape(perm_axes(reshape(blocks[1][4:8, :2], (2, 2, 2)), [0, 2, 1]),
+                                (2, 4))
+    expect[1][:2, 4:8] = reshape(perm_axes(reshape(blocks[1][12:16, :2], (2, 2, 2)), [0, 2, 1]),
+                                 (2, 4))
+    expect[1][2:4, :4] = reshape(perm_axes(reshape(blocks[1][8:12, :2], (2, 2, 2)), [0, 2, 1]),
+                                 (2, 4))
+    expect[1][2:4, 4:8] = reshape(perm_axes(reshape(blocks[1][16:20, :2], (2, 2, 2)), [0, 2, 1]),
+                                  (2, 4))
+    expect[1][4:, :4] = reshape(perm_axes(reshape(blocks[1][28:32, :2], (2, 2, 2)), [0, 2, 1]),
+                                (2, 4))
+    expect[1][4:, 4:8] = reshape(perm_axes(reshape(blocks[1][32:, :2], (2, 2, 2)), [0, 2, 1]),
+                                 (2, 4))
     # (8, 8, 8)
 
-    expect[1][:2, 8:16] = reshape(perm_axes(reshape(blocks[0][:4, :], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][2:4, 8:16] = reshape(perm_axes(reshape(blocks[0][4:8, :], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][4:, 8:16] = reshape(perm_axes(reshape(blocks[0][8:, :], (2, 2, 4)), [0, 2, 1]), (2, 8))
+    expect[1][:2, 8:16] = reshape(perm_axes(reshape(blocks[0][:4, :], (2, 2, 4)), [0, 2, 1]),
+                                  (2, 8))
+    expect[1][2:4, 8:16] = reshape(perm_axes(reshape(blocks[0][4:8, :], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
+    expect[1][4:, 8:16] = reshape(perm_axes(reshape(blocks[0][8:, :], (2, 2, 4)), [0, 2, 1]),
+                                  (2, 8))
     expect[1][:, 8:16] /= qdim8  # (1, 8, 1)
 
-    expect[1][:2, 16:24] = reshape(perm_axes(reshape(blocks[1][4:8, 2:6], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][2:4, 16:24] = reshape(perm_axes(reshape(blocks[1][8:12, 2:6], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][4:, 16:24] = reshape(perm_axes(reshape(blocks[1][28:32, 2:6], (2, 2, 4)), [0, 2, 1]), (2, 8))
+    expect[1][:2, 16:24] = reshape(perm_axes(reshape(blocks[1][4:8, 2:6], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
+    expect[1][2:4, 16:24] = reshape(perm_axes(reshape(blocks[1][8:12, 2:6], (2, 2, 4)), [0, 2, 1]),
+                                    (2, 8))
+    expect[1][4:, 16:24] = reshape(perm_axes(reshape(blocks[1][28:32, 2:6], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
     # (8, 8, 8)
 
-    expect[1][:2, 24:32] = reshape(perm_axes(reshape(blocks[1][4:8, 6:10], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][2:4, 24:32] = reshape(perm_axes(reshape(blocks[1][8:12, 6:10], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][4:, 24:32] = reshape(perm_axes(reshape(blocks[1][28:32, 6:10], (2, 2, 4)), [0, 2, 1]), (2, 8))
+    expect[1][:2, 24:32] = reshape(perm_axes(reshape(blocks[1][4:8, 6:10], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
+    expect[1][2:4, 24:32] = reshape(perm_axes(reshape(blocks[1][8:12, 6:10], (2, 2, 4)), [0, 2, 1]),
+                                    (2, 8))
+    expect[1][4:, 24:32] = reshape(perm_axes(reshape(blocks[1][28:32, 6:10], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
     # (8, 8, 8)
 
-    expect[1][:2, 32:40] = reshape(perm_axes(reshape(blocks[1][12:16, 2:6], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][2:4, 32:40] = reshape(perm_axes(reshape(blocks[1][16:20, 2:6], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][4:, 32:40] = reshape(perm_axes(reshape(blocks[1][32:, 2:6], (2, 2, 4)), [0, 2, 1]), (2, 8))
+    expect[1][:2, 32:40] = reshape(perm_axes(reshape(blocks[1][12:16, 2:6], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
+    expect[1][2:4, 32:40] = reshape(perm_axes(reshape(blocks[1][16:20, 2:6], (2, 2, 4)), [0, 2, 1]),
+                                    (2, 8))
+    expect[1][4:, 32:40] = reshape(perm_axes(reshape(blocks[1][32:, 2:6], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
     # (8, 8, 8)
 
-    expect[1][:2, 40:48] = reshape(perm_axes(reshape(blocks[1][12:16, 6:10], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][2:4, 40:48] = reshape(perm_axes(reshape(blocks[1][16:20, 6:10], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][4:, 40:48] = reshape(perm_axes(reshape(blocks[1][32:, 6:10], (2, 2, 4)), [0, 2, 1]), (2, 8))
+    expect[1][:2, 40:48] = reshape(perm_axes(reshape(blocks[1][12:16, 6:10], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
+    expect[1][2:4, 40:48] = reshape(
+        perm_axes(reshape(blocks[1][16:20, 6:10], (2, 2, 4)), [0, 2, 1]), (2, 8))
+    expect[1][4:, 40:48] = reshape(perm_axes(reshape(blocks[1][32:, 6:10], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
     # (8, 8, 8)
 
-    expect[1][:2, 48:56] = reshape(perm_axes(reshape(blocks[2][:4, :], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][2:4, 48:56] = reshape(perm_axes(reshape(blocks[2][4:8, :], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][4:, 48:56] = reshape(perm_axes(reshape(blocks[2][8:, :], (2, 2, 4)), [0, 2, 1]), (2, 8))
+    expect[1][:2, 48:56] = reshape(perm_axes(reshape(blocks[2][:4, :], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
+    expect[1][2:4, 48:56] = reshape(perm_axes(reshape(blocks[2][4:8, :], (2, 2, 4)), [0, 2, 1]),
+                                    (2, 8))
+    expect[1][4:, 48:56] = reshape(perm_axes(reshape(blocks[2][8:, :], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
     expect[1][:, 48:56] *= -1 / qdim8  # (8, 8, 10)
 
-    expect[1][:2, 56:64] = reshape(perm_axes(reshape(blocks[3][:4, :], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][2:4, 56:64] = reshape(perm_axes(reshape(blocks[3][4:8, :], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[1][4:, 56:64] = reshape(perm_axes(reshape(blocks[3][8:, :], (2, 2, 4)), [0, 2, 1]), (2, 8))
+    expect[1][:2, 56:64] = reshape(perm_axes(reshape(blocks[3][:4, :], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
+    expect[1][2:4, 56:64] = reshape(perm_axes(reshape(blocks[3][4:8, :], (2, 2, 4)), [0, 2, 1]),
+                                    (2, 8))
+    expect[1][4:, 56:64] = reshape(perm_axes(reshape(blocks[3][8:, :], (2, 2, 4)), [0, 2, 1]),
+                                   (2, 8))
     expect[1][:, 56:64] *= -1 / qdim8  # (8, 8, 10-)
 
-    expect[1][:2, 64:76] = reshape(perm_axes(reshape(blocks[1][4:8, 10:], (2, 2, 6)), [0, 2, 1]), (2, 12))
-    expect[1][:2, 76:] = reshape(perm_axes(reshape(blocks[1][12:16, 10:], (2, 2, 6)), [0, 2, 1]), (2, 12))
-    expect[1][2:4, 64:76] = reshape(perm_axes(reshape(blocks[1][8:12, 10:], (2, 2, 6)), [0, 2, 1]), (2, 12))
-    expect[1][2:4, 76:] = reshape(perm_axes(reshape(blocks[1][16:20, 10:], (2, 2, 6)), [0, 2, 1]), (2, 12))
-    expect[1][4:, 64:76] = reshape(perm_axes(reshape(blocks[1][28:32, 10:], (2, 2, 6)), [0, 2, 1]), (2, 12))
-    expect[1][4:, 76:] = reshape(perm_axes(reshape(blocks[1][32:, 10:], (2, 2, 6)), [0, 2, 1]), (2, 12))
+    expect[1][:2, 64:76] = reshape(perm_axes(reshape(blocks[1][4:8, 10:], (2, 2, 6)), [0, 2, 1]),
+                                   (2, 12))
+    expect[1][:2, 76:] = reshape(perm_axes(reshape(blocks[1][12:16, 10:], (2, 2, 6)), [0, 2, 1]),
+                                 (2, 12))
+    expect[1][2:4, 64:76] = reshape(perm_axes(reshape(blocks[1][8:12, 10:], (2, 2, 6)), [0, 2, 1]),
+                                    (2, 12))
+    expect[1][2:4, 76:] = reshape(perm_axes(reshape(blocks[1][16:20, 10:], (2, 2, 6)), [0, 2, 1]),
+                                  (2, 12))
+    expect[1][4:, 64:76] = reshape(perm_axes(reshape(blocks[1][28:32, 10:], (2, 2, 6)), [0, 2, 1]),
+                                   (2, 12))
+    expect[1][4:, 76:] = reshape(perm_axes(reshape(blocks[1][32:, 10:], (2, 2, 6)), [0, 2, 1]),
+                                 (2, 12))
     # (8, 8, 8)
 
-    expect[2][:, :4] = reshape(perm_axes(reshape(blocks[1][20:24, :2], (2, 2, 2)), [0, 2, 1]), (2, 4))
-    expect[2][:, 4:12] = reshape(perm_axes(reshape(blocks[1][20:24, 2:6], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[2][:, 12:20] = reshape(perm_axes(reshape(blocks[1][20:24, 6:10], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[2][:, 20:32] = reshape(perm_axes(reshape(blocks[1][20:24, 10:16], (2, 2, 6)), [0, 2, 1]), (2, 12))
+    expect[2][:, :4] = reshape(perm_axes(reshape(blocks[1][20:24, :2], (2, 2, 2)), [0, 2, 1]),
+                               (2, 4))
+    expect[2][:, 4:12] = reshape(perm_axes(reshape(blocks[1][20:24, 2:6], (2, 2, 4)), [0, 2, 1]),
+                                 (2, 8))
+    expect[2][:, 12:20] = reshape(perm_axes(reshape(blocks[1][20:24, 6:10], (2, 2, 4)), [0, 2, 1]),
+                                  (2, 8))
+    expect[2][:, 20:32] = reshape(perm_axes(reshape(blocks[1][20:24, 10:16], (2, 2, 6)), [0, 2, 1]),
+                                  (2, 12))
     expect[2][:, :] *= qdim8 * -1  # (10, 8, 8)
 
-    expect[3][:, :4] = reshape(perm_axes(reshape(blocks[1][24:28, :2], (2, 2, 2)), [0, 2, 1]), (2, 4))
-    expect[3][:, 4:12] = reshape(perm_axes(reshape(blocks[1][24:28, 2:6], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[3][:, 12:20] = reshape(perm_axes(reshape(blocks[1][24:28, 6:10], (2, 2, 4)), [0, 2, 1]), (2, 8))
-    expect[3][:, 20:32] = reshape(perm_axes(reshape(blocks[1][24:28, 10:16], (2, 2, 6)), [0, 2, 1]), (2, 12))
+    expect[3][:, :4] = reshape(perm_axes(reshape(blocks[1][24:28, :2], (2, 2, 2)), [0, 2, 1]),
+                               (2, 4))
+    expect[3][:, 4:12] = reshape(perm_axes(reshape(blocks[1][24:28, 2:6], (2, 2, 4)), [0, 2, 1]),
+                                 (2, 8))
+    expect[3][:, 12:20] = reshape(perm_axes(reshape(blocks[1][24:28, 6:10], (2, 2, 4)), [0, 2, 1]),
+                                  (2, 8))
+    expect[3][:, 20:32] = reshape(perm_axes(reshape(blocks[1][24:28, 10:16], (2, 2, 6)), [0, 2, 1]),
+                                  (2, 12))
     expect[3][:, :] *= qdim8 * -1  # (10-, 8, 8)
 
-    expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
+    expect_data = backends.FusionTreeData(block_inds,
+                                          expect,
+                                          Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_codomain = ProductSpace([s1, s2])
     expect_domain = ProductSpace([s2, s3, s2.dual])
@@ -1311,9 +1472,14 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = move_leg(tens, 2, domain_pos=2, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
-    spaces = [ProductSpace([], symmetry=sym), ProductSpace([s2]), ProductSpace([s3.dual]),
-              ProductSpace([s1, s3]), ProductSpace([s2, s3.dual]), ProductSpace([s1, s3, s2.dual])]
+    spaces = [
+        ProductSpace([], symmetry=sym),
+        ProductSpace([s2]),
+        ProductSpace([s3.dual]),
+        ProductSpace([s1, s3]),
+        ProductSpace([s2, s3.dual]),
+        ProductSpace([s1, s3, s2.dual])
+    ]
     # bend up and down again (and vice versa) == trivial
     assert_bending_up_and_down_trivial(spaces, spaces, funcs, backend, multiple=multiple, eps=eps)
 
@@ -1323,8 +1489,10 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
 # HELPER FUNCTIONS FOR THE TESTS
 
-def apply_single_b_symbol(ten: SymmetricTensor, bend_up: bool
-                          ) -> tuple[fusion_tree_backend.FusionTreeData, ProductSpace, ProductSpace]:
+
+def apply_single_b_symbol(
+        ten: SymmetricTensor,
+        bend_up: bool) -> tuple[fusion_tree_backend.FusionTreeData, ProductSpace, ProductSpace]:
     """Use the implementation of b symbols using `TreeMappingDicts` to return the action
     of a single b symbol in the same format (input and output) as the cross check
     implementation. This is of course inefficient usage of this implementation but a
@@ -1342,14 +1510,15 @@ def apply_single_b_symbol(ten: SymmetricTensor, bend_up: bool
         axes_perm += [ten.num_codomain_legs + i for i in range(ten.num_domain_legs)]
         axes_perm += [ten.num_codomain_legs - 1]
 
-    mapp, new_codomain, new_domain, _ = func(ten.codomain, ten.domain, index, coupled,
-                                             None, bend_up, ten.backend)
+    mapp, new_codomain, new_domain, _ = func(ten.codomain, ten.domain, index, coupled, None,
+                                             bend_up, ten.backend)
     new_data = mapp.apply_to_tensor(ten, new_codomain, new_domain, axes_perm, in_domain=None)
     return new_data, new_codomain, new_domain
 
 
-def apply_single_c_symbol(ten: SymmetricTensor, leg: int | str, levels: list[int]
-                          ) -> tuple[fusion_tree_backend.FusionTreeData, ProductSpace, ProductSpace]:
+def apply_single_c_symbol(
+        ten: SymmetricTensor, leg: int | str,
+        levels: list[int]) -> tuple[fusion_tree_backend.FusionTreeData, ProductSpace, ProductSpace]:
     """Use the implementation of c symbols using `TreeMappingDicts` to return the action
     of a single c symbol in the same format (input and output) as the cross check
     implementations. This is of course inefficient usage of this implementation but a
@@ -1369,13 +1538,14 @@ def apply_single_c_symbol(ten: SymmetricTensor, leg: int | str, levels: list[int
         index_ = ten.num_legs - 1 - (index + 1)
     axes_perm[index_:index_ + 2] = axes_perm[index_:index_ + 2][::-1]
 
-    mapp, new_codomain, new_domain, _ = func(ten.codomain, ten.domain, index, coupled,
-                                             overbraid, None, ten.backend)
+    mapp, new_codomain, new_domain, _ = func(ten.codomain, ten.domain, index, coupled, overbraid,
+                                             None, ten.backend)
     new_data = mapp.apply_to_tensor(ten, new_codomain, new_domain, axes_perm, in_domain)
     return new_data, new_codomain, new_domain
 
 
-def assert_bending_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[Callable], eps: float):
+def assert_bending_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[Callable],
+                                              eps: float):
     """Check that when rescaling and bending legs, it does not matter whether one first
     performs the rescaling and then the bending process or vice versa. This is tested using
     `scale_axis` in `FusionTreeBackend`, i.e., not the funtion directly acting on tensors;
@@ -1430,12 +1600,12 @@ def assert_bending_up_and_down_trivial(codomains: list[ProductSpace], domains: l
 
             bending = []
             for i in range(tens.num_domain_legs):
-                bends = [True] * (i+1) + [False] * (i+1)
+                bends = [True] * (i + 1) + [False] * (i + 1)
                 bending.append(bends)
                 if not multiple:
                     break
             for i in range(tens.num_codomain_legs):
-                bends = [False] * (i+1) + [True] * (i+1)
+                bends = [False] * (i + 1) + [True] * (i + 1)
                 bending.append(bends)
                 if not multiple:
                     break
@@ -1445,7 +1615,10 @@ def assert_bending_up_and_down_trivial(codomains: list[ProductSpace], domains: l
                     new_tens = tens.copy()
                     for bend in bends:
                         new_data, new_codomain, new_domain = func(new_tens, bend)
-                        new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
+                        new_tens = SymmetricTensor(new_data,
+                                                   new_codomain,
+                                                   new_domain,
+                                                   backend=backend)
 
                     assert_tensors_almost_equal(new_tens, tens, eps)
 
@@ -1458,15 +1631,19 @@ def assert_braiding_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[C
     this function is tested elsewhere.
     """
     for func in funcs:
-        for leg in range(a.num_legs-1):
+        for leg in range(a.num_legs - 1):
             if leg == a.num_codomain_legs - 1:
                 continue
 
             legs = [a.legs[leg], a.legs[leg + 1]]
             if leg > a.num_codomain_legs - 1:  # in domain
                 legs = [leg_.dual for leg_ in legs]
-            diag_left = DiagonalTensor.from_random_uniform(legs[0], backend=a.backend, dtype=a.dtype)
-            diag_right = DiagonalTensor.from_random_uniform(legs[1], backend=a.backend, dtype=a.dtype)
+            diag_left = DiagonalTensor.from_random_uniform(legs[0],
+                                                           backend=a.backend,
+                                                           dtype=a.dtype)
+            diag_right = DiagonalTensor.from_random_uniform(legs[1],
+                                                            backend=a.backend,
+                                                            dtype=a.dtype)
             new_a = a.copy()
             new_a2 = a.copy()
 
@@ -1483,7 +1660,7 @@ def assert_braiding_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[C
             new_a2.data = new_a2.backend.scale_axis(new_a2, diag_right, leg)
 
             assert_tensors_almost_equal(new_a, new_a2, eps)
-            
+
 
 def assert_clockwise_counterclockwise_trivial(a: SymmetricTensor, funcs: list[Callable],
                                               levels: list[int], eps: float):
@@ -1493,7 +1670,7 @@ def assert_clockwise_counterclockwise_trivial(a: SymmetricTensor, funcs: list[Ca
     This identity is checked for each neighboring pair of legs in the codomain and domain.
     """
     for func in funcs:
-        for leg in range(a.num_legs-1):
+        for leg in range(a.num_legs - 1):
             if leg == a.num_codomain_legs - 1:
                 continue
             new_a = a.copy()
@@ -1501,13 +1678,14 @@ def assert_clockwise_counterclockwise_trivial(a: SymmetricTensor, funcs: list[Ca
             for _ in range(2):
                 new_data, new_codomain, new_domain = func(new_a, leg=leg, levels=new_levels)
                 new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=a.backend)
-                new_levels[leg:leg+2] = new_levels[leg:leg+2][::-1]
+                new_levels[leg:leg + 2] = new_levels[leg:leg + 2][::-1]
 
             assert_tensors_almost_equal(new_a, a, eps)
 
 
-def assert_clockwise_counterclockwise_trivial_long_range(a: SymmetricTensor, move_leg_or_permute_leg: str,
-                                                         eps: float, np_random: np.random.Generator):
+def assert_clockwise_counterclockwise_trivial_long_range(a: SymmetricTensor,
+                                                         move_leg_or_permute_leg: str, eps: float,
+                                                         np_random: np.random.Generator):
     """Same as `assert_clockwise_counterclockwise_trivial` with the difference that a random
     sequence of exchanges and bends is chosen. The identity is checked using `permute_legs`
     of the tensor backend or using `move_leg` depending on `move_leg_or_permute_leg`.
@@ -1520,11 +1698,12 @@ def assert_clockwise_counterclockwise_trivial_long_range(a: SymmetricTensor, mov
         inv_levels = [levels[i] for i in permutation]
         num_codomain = np.random.randint(a.num_legs + 1)
 
-        new_data, new_codomain, new_domain = a.backend.permute_legs(a, permutation[:num_codomain],
-                                                                    permutation[num_codomain:][::-1], levels)
+        new_data, new_codomain, new_domain = a.backend.permute_legs(
+            a, permutation[:num_codomain], permutation[num_codomain:][::-1], levels)
         new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=a.backend)
-        new_data, new_codomain, new_domain = a.backend.permute_legs(new_a, inv_permutation[:a.num_codomain_legs],
-                                                                    inv_permutation[a.num_codomain_legs:][::-1], inv_levels)
+        new_data, new_codomain, new_domain = a.backend.permute_legs(
+            new_a, inv_permutation[:a.num_codomain_legs],
+            inv_permutation[a.num_codomain_legs:][::-1], inv_levels)
         new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=a.backend)
 
     elif move_leg_or_permute_leg == 'move_leg':
@@ -1557,7 +1736,7 @@ def assert_repeated_braids_trivial(a: SymmetricTensor, funcs: list[Callable], le
     This identity is checked for each neighboring pair of legs in the codomain and domain.
     """
     for func in funcs:
-        for leg in range(a.num_legs-1):
+        for leg in range(a.num_legs - 1):
             if leg == a.num_codomain_legs - 1:
                 continue
             new_a = a.copy()
@@ -1576,9 +1755,10 @@ def assert_tensors_almost_equal(a: SymmetricTensor, expect: SymmetricTensor, eps
 
 # FUNCTIONS FOR CROSS CHECKING THE COMPUTATION OF THE ACTION OF B AND C SYMBOLS
 
-def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str, levels: list[int]
-                                            ) -> tuple[fusion_tree_backend.FusionTreeData,
-                                                       ProductSpace, ProductSpace]:
+
+def cross_check_single_c_symbol_tree_blocks(
+        ten: SymmetricTensor, leg: int | str,
+        levels: list[int]) -> tuple[fusion_tree_backend.FusionTreeData, ProductSpace, ProductSpace]:
     """Naive implementation of a single C symbol for test purposes on the level
     of the tree blocks. `ten.legs[leg]` is exchanged with `ten.legs[leg + 1]`.
 
@@ -1598,26 +1778,35 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
     in_domain = index > ten.num_codomain_legs - 1
 
     if in_domain:
-        domain_index = ten.num_legs - 1 - (index + 1)  # + 1 because it braids with the leg left of it
-        new_domain = ProductSpace(ten.domain[:domain_index] + [ten.domain[domain_index + 1]]
-                                    + [ten.domain[domain_index]] + ten.domain[domain_index + 2:],
-                                    symmetry=symmetry, backend=backend, _sectors=ten.domain.sectors,
-                                    _multiplicities=ten.domain.multiplicities)
+        domain_index = ten.num_legs - 1 - (index + 1
+                                           )  # + 1 because it braids with the leg left of it
+        new_domain = ProductSpace(ten.domain[:domain_index] + [ten.domain[domain_index + 1]] +
+                                  [ten.domain[domain_index]] + ten.domain[domain_index + 2:],
+                                  symmetry=symmetry,
+                                  backend=backend,
+                                  _sectors=ten.domain.sectors,
+                                  _multiplicities=ten.domain.multiplicities)
         new_codomain = ten.codomain
     else:
-        new_codomain = ProductSpace(ten.codomain[:index] + [ten.codomain[index + 1]]
-                                    + [ten.codomain[index]] + ten.codomain[index + 2:],
-                                    symmetry=symmetry, backend=backend, _sectors=ten.codomain.sectors,
+        new_codomain = ProductSpace(ten.codomain[:index] + [ten.codomain[index + 1]] +
+                                    [ten.codomain[index]] + ten.codomain[index + 2:],
+                                    symmetry=symmetry,
+                                    backend=backend,
+                                    _sectors=ten.codomain.sectors,
                                     _multiplicities=ten.codomain.multiplicities)
         new_domain = ten.domain
 
-    zero_blocks = [block_backend.zero_block(block_backend.block_shape(block), dtype=Dtype.complex128)
-                   for block in ten.data.blocks]
-    new_data = ftb.FusionTreeData(ten.data.block_inds, zero_blocks, ten.data.dtype,
+    zero_blocks = [
+        block_backend.zero_block(block_backend.block_shape(block), dtype=Dtype.complex128)
+        for block in ten.data.blocks
+    ]
+    new_data = ftb.FusionTreeData(ten.data.block_inds,
+                                  zero_blocks,
+                                  ten.data.dtype,
                                   device=block_backend.default_device)
     shape_perm = np.arange(ten.num_legs)  # for permuting the shape of the tree blocks
     shifted_index = ten.num_codomain_legs + domain_index if in_domain else index
-    shape_perm[shifted_index:shifted_index+2] = shape_perm[shifted_index:shifted_index+2][::-1]
+    shape_perm[shifted_index:shifted_index + 2] = shape_perm[shifted_index:shifted_index + 2][::-1]
     shape_perm = list(shape_perm)  # torch does not like np.arrays
 
     for alpha_tree, beta_tree, tree_block in ftb._tree_block_iter(ten):
@@ -1625,10 +1814,12 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
         block_charge = ten.data.block_ind_from_domain_sector_ind(block_charge)
 
         initial_shape = block_backend.block_shape(tree_block)
-        modified_shape = [ten.codomain[i].sector_multiplicity(sec)
-                          for i, sec in enumerate(alpha_tree.uncoupled)]
-        modified_shape += [ten.domain[i].sector_multiplicity(sec)
-                           for i, sec in enumerate(beta_tree.uncoupled)]
+        modified_shape = [
+            ten.codomain[i].sector_multiplicity(sec) for i, sec in enumerate(alpha_tree.uncoupled)
+        ]
+        modified_shape += [
+            ten.domain[i].sector_multiplicity(sec) for i, sec in enumerate(beta_tree.uncoupled)
+        ]
 
         tree_block = block_backend.block_reshape(tree_block, tuple(modified_shape))
         tree_block = block_backend.block_permute_axes(tree_block, shape_perm)
@@ -1644,7 +1835,7 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
                     r = symmetry.r_symbol(b_unc[0], b_unc[1], f)[b_mul[0]]
                 else:
                     r = symmetry.r_symbol(b_unc[1], b_unc[0], f)[b_mul[0]].conj()
-                b_unc[domain_index:domain_index+2] = b_unc[domain_index:domain_index+2][::-1]
+                b_unc[domain_index:domain_index + 2] = b_unc[domain_index:domain_index + 2][::-1]
                 beta_slice = ftb.tree_block_slice(new_domain, b)
             else:
                 beta_slice = ftb.tree_block_slice(new_domain, beta_tree)
@@ -1655,7 +1846,7 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
                     r = symmetry.r_symbol(a_unc[1], a_unc[0], f)[a_mul[0]]
                 else:
                     r = symmetry.r_symbol(a_unc[0], a_unc[1], f)[a_mul[0]].conj()
-                a_unc[index:index+2] = a_unc[index:index+2][::-1]
+                a_unc[index:index + 2] = a_unc[index:index + 2][::-1]
                 alpha_slice = ftb.tree_block_slice(new_codomain, a)
 
             new_data.blocks[block_charge][alpha_slice, beta_slice] += r * tree_block
@@ -1667,36 +1858,41 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
                                                beta_tree.multiplicities)
 
                 if domain_index == 1:
-                    left_charge = beta_unc[domain_index-1]
+                    left_charge = beta_unc[domain_index - 1]
                 else:
-                    left_charge = beta_in[domain_index-2]
+                    left_charge = beta_in[domain_index - 2]
                 if domain_index == ten.num_domain_legs - 2:
                     right_charge = beta_tree.coupled
                 else:
                     right_charge = beta_in[domain_index]
 
-                for f in symmetry.fusion_outcomes(left_charge, beta_unc[domain_index+1]):
+                for f in symmetry.fusion_outcomes(left_charge, beta_unc[domain_index + 1]):
                     if not symmetry.can_fuse_to(f, beta_unc[domain_index], right_charge):
                         continue
 
                     if symmetry.braiding_style.value >= 20 and levels[index] > levels[index + 1]:
-                        cs = symmetry.c_symbol(left_charge, beta_unc[domain_index], beta_unc[domain_index+1],
-                                                right_charge, beta_in[domain_index-1], f)[
-                                                beta_mul[domain_index-1], beta_mul[domain_index], :, :]
+                        cs = symmetry.c_symbol(left_charge, beta_unc[domain_index],
+                                               beta_unc[domain_index +
+                                                        1], right_charge, beta_in[domain_index - 1],
+                                               f)[beta_mul[domain_index - 1],
+                                                  beta_mul[domain_index], :, :]
                     else:
-                        cs = symmetry.c_symbol(left_charge, beta_unc[domain_index+1], beta_unc[domain_index],
-                                                right_charge, f, beta_in[domain_index-1])[:, :,
-                                                beta_mul[domain_index-1], beta_mul[domain_index]].conj()
+                        cs = symmetry.c_symbol(left_charge, beta_unc[domain_index + 1],
+                                               beta_unc[domain_index], right_charge, f,
+                                               beta_in[domain_index -
+                                                       1])[:, :, beta_mul[domain_index - 1],
+                                                           beta_mul[domain_index]].conj()
 
                     b = beta_tree.copy(True)
                     b_unc, b_in, b_mul = b.uncoupled, b.inner_sectors, b.multiplicities
 
-                    b_unc[domain_index:domain_index+2] = b_unc[domain_index:domain_index+2][::-1]
-                    b_in[domain_index-1] = f
+                    b_unc[domain_index:domain_index + 2] = b_unc[domain_index:domain_index +
+                                                                 2][::-1]
+                    b_in[domain_index - 1] = f
                     for (kap, lam), c in np.ndenumerate(cs):
                         if abs(c) < backend.eps:
                             continue
-                        b_mul[domain_index-1] = kap
+                        b_mul[domain_index - 1] = kap
                         b_mul[domain_index] = lam
 
                         beta_slice = ftb.tree_block_slice(new_domain, b)
@@ -1706,31 +1902,33 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
                 alpha_unc, alpha_in, alpha_mul = (alpha_tree.uncoupled, alpha_tree.inner_sectors,
                                                   alpha_tree.multiplicities)
 
-                left_charge = alpha_unc[0] if index == 1 else alpha_in[index-2]
-                right_charge = alpha_tree.coupled if index == ten.num_codomain_legs - 2 else alpha_in[index]
+                left_charge = alpha_unc[0] if index == 1 else alpha_in[index - 2]
+                right_charge = alpha_tree.coupled if index == ten.num_codomain_legs - 2 else alpha_in[
+                    index]
 
-                for f in symmetry.fusion_outcomes(left_charge, alpha_unc[index+1]):
+                for f in symmetry.fusion_outcomes(left_charge, alpha_unc[index + 1]):
                     if not symmetry.can_fuse_to(f, alpha_unc[index], right_charge):
                         continue
 
                     if symmetry.braiding_style.value >= 20 and levels[index] > levels[index + 1]:
-                        cs = symmetry.c_symbol(left_charge, alpha_unc[index+1], alpha_unc[index],
-                                                right_charge, f, alpha_in[index-1])[:, :,
-                                                alpha_mul[index-1], alpha_mul[index]]
+                        cs = symmetry.c_symbol(
+                            left_charge, alpha_unc[index + 1], alpha_unc[index], right_charge, f,
+                            alpha_in[index - 1])[:, :, alpha_mul[index - 1], alpha_mul[index]]
                     else:
-                        cs = symmetry.c_symbol(left_charge, alpha_unc[index], alpha_unc[index+1],
-                                                right_charge, alpha_in[index-1], f)[
-                                                alpha_mul[index-1], alpha_mul[index], :, :].conj()
+                        cs = symmetry.c_symbol(left_charge, alpha_unc[index], alpha_unc[index + 1],
+                                               right_charge, alpha_in[index - 1],
+                                               f)[alpha_mul[index - 1],
+                                                  alpha_mul[index], :, :].conj()
 
                     a = alpha_tree.copy(True)
                     a_unc, a_in, a_mul = a.uncoupled, a.inner_sectors, a.multiplicities
 
-                    a_unc[index:index+2] = a_unc[index:index+2][::-1]
-                    a_in[index-1] = f
+                    a_unc[index:index + 2] = a_unc[index:index + 2][::-1]
+                    a_in[index - 1] = f
                     for (kap, lam), c in np.ndenumerate(cs):
                         if abs(c) < backend.eps:
                             continue
-                        a_mul[index-1] = kap
+                        a_mul[index - 1] = kap
                         a_mul[index] = lam
 
                         alpha_slice = ftb.tree_block_slice(new_codomain, a)
@@ -1739,9 +1937,9 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
     return new_data, new_codomain, new_domain
 
 
-def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, levels: list[int]
-                                          ) -> tuple[fusion_tree_backend.FusionTreeData,
-                                                     ProductSpace, ProductSpace]:
+def cross_check_single_c_symbol_tree_cols(
+        ten: SymmetricTensor, leg: int | str,
+        levels: list[int]) -> tuple[fusion_tree_backend.FusionTreeData, ProductSpace, ProductSpace]:
     """Naive implementation of a single C symbol for test purposes on the level
     of the tree columns (= tree slices of codomain xor domain). `ten.legs[leg]`
     is exchanged with `ten.legs[leg + 1]`.
@@ -1763,26 +1961,35 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
     if in_domain:
         index = ten.num_legs - 1 - (index + 1)  # + 1 because it braids with the leg left of it
         levels = levels[::-1]
-        new_domain = ProductSpace(ten.domain[:index] + ten.domain[index:index+2][::-1]
-                                  + ten.domain[index+2:], symmetry=symmetry, backend=backend,
-                                  _sectors=ten.domain.sectors, _multiplicities=ten.domain.multiplicities)
+        new_domain = ProductSpace(ten.domain[:index] + ten.domain[index:index + 2][::-1] +
+                                  ten.domain[index + 2:],
+                                  symmetry=symmetry,
+                                  backend=backend,
+                                  _sectors=ten.domain.sectors,
+                                  _multiplicities=ten.domain.multiplicities)
         new_codomain = ten.codomain
         # for permuting the shape of the tree blocks
-        shape_perm = np.append([0], np.arange(1, ten.num_domain_legs+1))
-        shape_perm[index+1:index+3] = shape_perm[index+1:index+3][::-1]
+        shape_perm = np.append([0], np.arange(1, ten.num_domain_legs + 1))
+        shape_perm[index + 1:index + 3] = shape_perm[index + 1:index + 3][::-1]
     else:
-        new_codomain = ProductSpace(ten.codomain[:index] + ten.codomain[index:index+2][::-1]
-                                    + ten.codomain[index+2:], symmetry=symmetry, backend=backend,
+        new_codomain = ProductSpace(ten.codomain[:index] + ten.codomain[index:index + 2][::-1] +
+                                    ten.codomain[index + 2:],
+                                    symmetry=symmetry,
+                                    backend=backend,
                                     _sectors=ten.codomain.sectors,
                                     _multiplicities=ten.codomain.multiplicities)
         new_domain = ten.domain
         shape_perm = np.append(np.arange(ten.num_codomain_legs), [ten.num_codomain_legs])
-        shape_perm[index:index+2] = shape_perm[index:index+2][::-1]
+        shape_perm[index:index + 2] = shape_perm[index:index + 2][::-1]
 
     shape_perm = list(shape_perm)  # torch does not like np.arrays
-    zero_blocks = [block_backend.zero_block(block_backend.block_shape(block), dtype=Dtype.complex128)
-                   for block in ten.data.blocks]
-    new_data = ftb.FusionTreeData(ten.data.block_inds, zero_blocks, ten.data.dtype,
+    zero_blocks = [
+        block_backend.zero_block(block_backend.block_shape(block), dtype=Dtype.complex128)
+        for block in ten.data.blocks
+    ]
+    new_data = ftb.FusionTreeData(ten.data.block_inds,
+                                  zero_blocks,
+                                  ten.data.dtype,
                                   device=block_backend.default_device)
     iter_space = [ten.codomain, ten.domain][in_domain]
     iter_coupled = [ten.codomain.sectors[ind[0]] for ind in ten.data.block_inds]
@@ -1791,12 +1998,14 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
         block_charge = ten.domain.sectors_where(tree.coupled)
         block_charge = ten.data.block_ind_from_domain_sector_ind(block_charge)
 
-        tree_block = (ten.data.blocks[block_charge][:,slc] if in_domain
-                      else ten.data.blocks[block_charge][slc,:])
+        tree_block = (ten.data.blocks[block_charge][:, slc]
+                      if in_domain else ten.data.blocks[block_charge][slc, :])
 
         initial_shape = block_backend.block_shape(tree_block)
 
-        modified_shape = [iter_space[i].sector_multiplicity(sec) for i, sec in enumerate(tree.uncoupled)]
+        modified_shape = [
+            iter_space[i].sector_multiplicity(sec) for i, sec in enumerate(tree.uncoupled)
+        ]
         modified_shape.insert((not in_domain) * len(modified_shape), initial_shape[not in_domain])
 
         tree_block = block_backend.block_reshape(tree_block, tuple(modified_shape))
@@ -1816,7 +2025,7 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
             if in_domain:
                 r = r.conj()
 
-            _unc[index:index+2] = _unc[index:index+2][::-1]
+            _unc[index:index + 2] = _unc[index:index + 2][::-1]
             new_slc = ftb.tree_block_slice([new_codomain, new_domain][in_domain], new_tree)
 
             if in_domain:
@@ -1826,30 +2035,31 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
         else:
             _unc, _in, _mul = tree.uncoupled, tree.inner_sectors, tree.multiplicities
 
-            left_charge = _unc[0] if index == 1 else _in[index-2]
+            left_charge = _unc[0] if index == 1 else _in[index - 2]
             right_charge = tree.coupled if index == _in.shape[0] else _in[index]
 
-            for f in symmetry.fusion_outcomes(left_charge, _unc[index+1]):
+            for f in symmetry.fusion_outcomes(left_charge, _unc[index + 1]):
                 if not symmetry.can_fuse_to(f, _unc[index], right_charge):
                     continue
 
-                if symmetry.braiding_style.value >= 20 and levels[index] > levels[index+1]:
-                    cs = symmetry._c_symbol(left_charge, _unc[index+1], _unc[index], right_charge,
-                                            f, _in[index-1])[:, :, _mul[index-1], _mul[index]]
+                if symmetry.braiding_style.value >= 20 and levels[index] > levels[index + 1]:
+                    cs = symmetry._c_symbol(left_charge, _unc[index + 1], _unc[index], right_charge,
+                                            f, _in[index - 1])[:, :, _mul[index - 1], _mul[index]]
                 else:
-                    cs = symmetry._c_symbol(left_charge, _unc[index], _unc[index+1], right_charge,
-                                            _in[index-1], f)[_mul[index-1], _mul[index], :, :].conj()
+                    cs = symmetry._c_symbol(left_charge, _unc[index], _unc[index + 1], right_charge,
+                                            _in[index - 1], f)[_mul[index - 1],
+                                                               _mul[index], :, :].conj()
 
                 if in_domain:
                     cs = cs.conj()
 
                 new_tree = tree.copy(deep=True)
-                new_tree.uncoupled[index:index+2] = new_tree.uncoupled[index:index+2][::-1]
-                new_tree.inner_sectors[index-1] = f
+                new_tree.uncoupled[index:index + 2] = new_tree.uncoupled[index:index + 2][::-1]
+                new_tree.inner_sectors[index - 1] = f
                 for (kap, lam), c in np.ndenumerate(cs):
                     if abs(c) < backend.eps:
                         continue
-                    new_tree.multiplicities[index-1] = kap
+                    new_tree.multiplicities[index - 1] = kap
                     new_tree.multiplicities[index] = lam
 
                     new_slc = ftb.tree_block_slice([new_codomain, new_domain][in_domain], new_tree)
@@ -1862,9 +2072,9 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
     return new_data, new_codomain, new_domain
 
 
-def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
-                                ) -> tuple[fusion_tree_backend.FusionTreeData,
-                                           ProductSpace, ProductSpace]:
+def cross_check_single_b_symbol(
+        ten: SymmetricTensor,
+        bend_up: bool) -> tuple[fusion_tree_backend.FusionTreeData, ProductSpace, ProductSpace]:
     """Naive implementation of a single B symbol for test purposes.
     If `bend_up == True`, the right-most leg in the domain is bent up,
     otherwise the right-most leg in the codomain is bent down.
@@ -1892,24 +2102,29 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
     new_codomain = [new_space1, new_space2][bend_up]
     new_domain = [new_space1, new_space2][not bend_up]
 
-    new_data = ftb.FusionTreeData._zero_data(new_codomain, new_domain, block_backend,
-                                             dtype=Dtype.complex128, device=device)
+    new_data = ftb.FusionTreeData._zero_data(new_codomain,
+                                             new_domain,
+                                             block_backend,
+                                             dtype=Dtype.complex128,
+                                             device=device)
 
     for alpha_tree, beta_tree, tree_block in ftb._tree_block_iter(ten):
-        modified_shape = [ten.codomain[i].sector_multiplicity(sec)
-                          for i, sec in enumerate(alpha_tree.uncoupled)]
-        modified_shape += [ten.domain[i].sector_multiplicity(sec)
-                           for i, sec in enumerate(beta_tree.uncoupled)]
+        modified_shape = [
+            ten.codomain[i].sector_multiplicity(sec) for i, sec in enumerate(alpha_tree.uncoupled)
+        ]
+        modified_shape += [
+            ten.domain[i].sector_multiplicity(sec) for i, sec in enumerate(beta_tree.uncoupled)
+        ]
 
         if bend_up:
             if beta_tree.uncoupled.shape[0] == 1:
                 coupled = symmetry.trivial_sector
             else:
-                coupled = (beta_tree.inner_sectors[-1] if beta_tree.inner_sectors.shape[0] > 0
-                           else beta_tree.uncoupled[0])
+                coupled = (beta_tree.inner_sectors[-1]
+                           if beta_tree.inner_sectors.shape[0] > 0 else beta_tree.uncoupled[0])
             modified_shape = (prod(modified_shape[:ten.num_codomain_legs]),
-                                prod(modified_shape[ten.num_codomain_legs:ten.num_legs-1]),
-                                modified_shape[ten.num_legs-1])
+                              prod(modified_shape[ten.num_codomain_legs:ten.num_legs - 1]),
+                              modified_shape[ten.num_legs - 1])
             sec_mul = ten.domain[-1].sector_multiplicity(beta_tree.uncoupled[-1])
             final_shape = (block_backend.block_shape(tree_block)[0] * sec_mul,
                            block_backend.block_shape(tree_block)[1] // sec_mul)
@@ -1917,11 +2132,11 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
             if alpha_tree.uncoupled.shape[0] == 1:
                 coupled = symmetry.trivial_sector
             else:
-                coupled = (alpha_tree.inner_sectors[-1] if alpha_tree.inner_sectors.shape[0] > 0
-                           else alpha_tree.uncoupled[0])
-            modified_shape = (prod(modified_shape[:ten.num_codomain_legs-1]),
-                                modified_shape[ten.num_codomain_legs-1],
-                                prod(modified_shape[ten.num_codomain_legs:ten.num_legs]))
+                coupled = (alpha_tree.inner_sectors[-1]
+                           if alpha_tree.inner_sectors.shape[0] > 0 else alpha_tree.uncoupled[0])
+            modified_shape = (prod(modified_shape[:ten.num_codomain_legs - 1]),
+                              modified_shape[ten.num_codomain_legs - 1],
+                              prod(modified_shape[ten.num_codomain_legs:ten.num_legs]))
             sec_mul = ten.codomain[-1].sector_multiplicity(alpha_tree.uncoupled[-1])
             final_shape = (block_backend.block_shape(tree_block)[0] // sec_mul,
                            block_backend.block_shape(tree_block)[1] * sec_mul)
@@ -1938,16 +2153,17 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
         if tree1.uncoupled.shape[0] == 1:
             tree1_in_1 = symmetry.trivial_sector
         else:
-            tree1_in_1 = (tree1.inner_sectors[-1] if tree1.inner_sectors.shape[0] > 0
-                          else tree1.uncoupled[0])
+            tree1_in_1 = (tree1.inner_sectors[-1]
+                          if tree1.inner_sectors.shape[0] > 0 else tree1.uncoupled[0])
 
         new_tree1 = FusionTree(symmetry, tree1.uncoupled[:-1], tree1_in_1, tree1.are_dual[:-1],
                                tree1.inner_sectors[:-1], tree1.multiplicities[:-1])
-        new_tree2 = FusionTree(symmetry, np.append(tree2.uncoupled,
-                               [symmetry.dual_sector(tree1.uncoupled[-1])], axis=0),
-                               tree1_in_1, np.append(tree2.are_dual, [not tree1.are_dual[-1]]),
-                               np.append(tree2.inner_sectors, [tree2.coupled], axis=0),
-                               np.append(tree2.multiplicities, [0]))
+        new_tree2 = FusionTree(
+            symmetry, np.append(tree2.uncoupled, [symmetry.dual_sector(tree1.uncoupled[-1])],
+                                axis=0), tree1_in_1,
+            np.append(tree2.are_dual, [not tree1.are_dual[-1]]),
+            np.append(tree2.inner_sectors, [tree2.coupled], axis=0),
+            np.append(tree2.multiplicities, [0]))
 
         b_sym = symmetry._b_symbol(tree1_in_1, tree1.uncoupled[-1], tree1.coupled)
         if not bend_up:

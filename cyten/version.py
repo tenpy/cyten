@@ -12,7 +12,6 @@ The version is provided in the standard python format ``major.minor.revision`` a
 """
 # Copyright (C) TeNPy Developers, GNU GPLv3
 
-
 import sys
 import subprocess
 import os

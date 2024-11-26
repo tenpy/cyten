@@ -10,22 +10,26 @@ from .no_symmetry import NoSymmetryBackend
 from .fusion_tree_backend import FusionTreeBackend
 from ..dtypes import Dtype, _numpy_dtype_to_cyten, _cyten_dtype_to_numpy
 
-__all__ = ['NumpyBlockBackend', 'NoSymmetryNumpyBackend', 'AbelianNumpyBackend',
-           'FusionTreeNumpyBackend']
+__all__ = [
+    'NumpyBlockBackend', 'NoSymmetryNumpyBackend', 'AbelianNumpyBackend', 'FusionTreeNumpyBackend'
+]
 
 
 class NumpyBlockBackend(BlockBackend):
     BlockCls = np.ndarray
     svd_algorithms = ['gesdd', 'gesvd', 'robust', 'robust_silent']
-    
+
     cyten_dtype_map = _numpy_dtype_to_cyten
     backend_dtype_map = _cyten_dtype_to_numpy
 
     def __init__(self):
         super().__init__(default_device='cpu')
-    
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
-                 ) -> Block:
+
+    def as_block(self,
+                 a,
+                 dtype: Dtype = None,
+                 return_dtype: bool = False,
+                 device: str = None) -> Block:
         _ = self.as_device(device)  # for input check only
         block = np.asarray(a, dtype=self.backend_dtype_map[dtype])
         if np.issubdtype(block.dtype, np.integer):
@@ -50,7 +54,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def block_all(self, a) -> bool:
         return np.all(a)
-        
+
     def block_allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
         return np.allclose(a, b, rtol=rtol, atol=atol)
 
@@ -122,7 +126,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def block_get_device(self, a: Block) -> str:
         return self.default_device
-    
+
     def block_get_diagonal(self, a: Block, check_offdiagonal: bool) -> Block:
         res = np.diagonal(a)
         if check_offdiagonal:
@@ -138,7 +142,7 @@ class NumpyBlockBackend(BlockBackend):
         if do_dagger:
             return np.tensordot(np.conj(a), b, a.ndim).item()
         return np.tensordot(a, b, [list(range(a.ndim)), list(reversed(range(a.ndim)))]).item()
-        
+
     def block_item(self, a: Block) -> float | complex:
         return a.item()
 
@@ -156,7 +160,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def block_min(self, a: Block) -> float | complex:
         return np.min(a).item()
-    
+
     def block_norm(self, a: Block, order: int | float = 2, axis: int | None = None) -> float:
         if axis is None:
             return np.linalg.norm(a.ravel(), ord=order).item()
@@ -168,8 +172,11 @@ class NumpyBlockBackend(BlockBackend):
     def block_permute_axes(self, a: Block, permutation: list[int]) -> Block:
         return np.transpose(a, permutation)
 
-    def block_random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
-                            ) -> Block:
+    def block_random_normal(self,
+                            dims: list[int],
+                            dtype: Dtype,
+                            sigma: float,
+                            device: str = None) -> Block:
         _ = self.as_device(device)  # for input check only
         res = np.random.normal(loc=0, scale=sigma, size=dims)
         if not dtype.is_real:
@@ -213,7 +220,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def block_stable_log(self, block: Block, cutoff: float) -> Block:
         return np.where(block > cutoff, np.log(block), 0.)
-    
+
     def block_sum(self, a: Block, ax: int) -> Block:
         return np.sum(a, axis=ax)
 
@@ -233,9 +240,10 @@ class NumpyBlockBackend(BlockBackend):
         a = np.reshape(np.transpose(a, perm), (trace_dim, trace_dim))
         return np.trace(a, axis1=0, axis2=1).item()
 
-    def block_trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining: list[int]) -> Block:
+    def block_trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int],
+                            remaining: list[int]) -> Block:
         a = np.transpose(a, remaining + idcs1 + idcs2)
-        trace_dim = np.prod(a.shape[len(remaining):len(remaining)+len(idcs1)], dtype=int)
+        trace_dim = np.prod(a.shape[len(remaining):len(remaining) + len(idcs1)], dtype=int)
         a = np.reshape(a, a.shape[:len(remaining)] + (trace_dim, trace_dim))
         return np.trace(a, axis1=-2, axis2=-1)
 
@@ -248,7 +256,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def matrix_dot(self, a: Block, b: Block) -> Block:
         return np.dot(a, b)
-    
+
     def matrix_exp(self, matrix: Block) -> Block:
         return scipy.linalg.expm(matrix)
 
@@ -290,16 +298,19 @@ class NumpyBlockBackend(BlockBackend):
 
 
 class NoSymmetryNumpyBackend(NoSymmetryBackend):
+
     def __init__(self):
         NoSymmetryBackend.__init__(self, block_backend=NumpyBlockBackend())
 
 
 class AbelianNumpyBackend(AbelianBackend):
+
     def __init__(self):
         AbelianBackend.__init__(self, block_backend=NumpyBlockBackend())
 
 
 class FusionTreeNumpyBackend(FusionTreeBackend):
+
     def __init__(self):
         FusionTreeBackend.__init__(self, block_backend=NumpyBlockBackend())
 

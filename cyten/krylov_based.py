@@ -3,15 +3,16 @@
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import logging
+
 logger = logging.getLogger(__name__)
 
 from .tensors import Tensor
 from .sparse import LinearOperator, ShiftedLinearOperator, ProjectedLinearOperator
 from .tools.misc import argsort  # TODO replace this?
 
-
-__all__ = ['KrylovBased', 'Arnoldi', 'LanczosGroundState', 'LanczosEvolution', 'lanczos',
-           'lanczos_arpack']
+__all__ = [
+    'KrylovBased', 'Arnoldi', 'LanczosGroundState', 'LanczosEvolution', 'lanczos', 'lanczos_arpack'
+]
 
 
 class KrylovBased(metaclass=ABCMeta):
@@ -117,21 +118,20 @@ class KrylovBased(metaclass=ABCMeta):
         self.psi0 = psi0
         self._psi0_norm = None
         #  self.options = options = asConfig(options, self.__class__.__name__)
-        self.N_min = options.get('N_min', 2) #  int)
-        self.N_max = options.get('N_max', 20) # , int)
+        self.N_min = options.get('N_min', 2)  #  int)
+        self.N_max = options.get('N_max', 20)  # , int)
         self.N_cache = self.N_max
-        self.P_tol = options.get('P_tol', 1.e-14) # , 'real')
-        self.min_gap = options.get('min_gap', 1.e-12) #, 'real')
-        self.reortho = options.get('reortho', False) #, bool)
-        self.E_shift = options.get('E_shift', None) #, 'real')
+        self.P_tol = options.get('P_tol', 1.e-14)  # , 'real')
+        self.min_gap = options.get('min_gap', 1.e-12)  #, 'real')
+        self.reortho = options.get('reortho', False)  #, bool)
+        self.E_shift = options.get('E_shift', None)  #, 'real')
         if self.N_min < 2:
             raise ValueError("Should perform at least 2 steps.")
-        self._cutoff = options.get('cutoff', psi0.dtype.eps * 100) #, 'real')
+        self._cutoff = options.get('cutoff', psi0.dtype.eps * 100)  #, 'real')
         if self.E_shift is not None:
             if isinstance(self.H, ProjectedLinearOperator):
-                self.H.original_operator = ShiftedLinearOperator(
-                    self.H.original_operator, self.E_shift
-                )
+                self.H.original_operator = ShiftedLinearOperator(self.H.original_operator,
+                                                                 self.E_shift)
             else:
                 self.H = ShiftedLinearOperator(self.H, self.E_shift)
         self._cache = []
@@ -206,6 +206,7 @@ class Arnoldi(KrylovBased):
             Number of eigenvectors to look for/return in `run`.
 
     """
+
     def __init__(self, H, psi0, options):
         super().__init__(H, psi0, options)
         self.E_tol = self.options.get('E_tol', np.inf, 'real')
@@ -264,7 +265,7 @@ class Arnoldi(KrylovBased):
             self._result_krylov = np.ones([1, 1], self._dtype_h_krylov)
         else:
             # Diagonalize h
-            E_kr, v_kr = np.linalg.eig(h[:k + 1, :k + 1]) # not hermitian!
+            E_kr, v_kr = np.linalg.eig(h[:k + 1, :k + 1])  # not hermitian!
             sort = argsort(E_kr, self.which)
             self.Es[k, :k + 1] = E_kr[sort]
             self._result_krylov = v_kr[:, sort]  # ground state of _h_krylov
@@ -310,7 +311,7 @@ class Arnoldi(KrylovBased):
         v0 = self._result_krylov[:, 0]
         E = self.Es[k, :]  # current energies
         RitzRes = abs(v0[k]) * self._h_krylov[k + 1, k]
-        gap = max(min([np.min(np.abs(E[i+1:] - E[i])) for i in range(self.num_ev)]), self.min_gap)
+        gap = max(min([np.min(np.abs(E[i + 1:] - E[i])) for i in range(self.num_ev)]), self.min_gap)
         P_err = (RitzRes / gap)**2
         Delta_E0 = self.Es[k - 1, 0] - E[0]
         return P_err < self.P_tol and Delta_E0 < self.E_tol
@@ -428,7 +429,7 @@ class LanczosGroundState(KrylovBased):
             elif k > 0:
                 w -= beta * self._cache[-2]  # noqa: F821
             beta = h[k, k + 1]  # = norm(w)
-            w = w._mul_scalar(1. /  beta)
+            w = w._mul_scalar(1. / beta)
             psif += vf[k + 1] * w
         # continue in _calc_result_full
 
@@ -477,6 +478,7 @@ class LanczosEvolution(LanczosGroundState):
     _result_norm : float
         Norm of the resulting vector.
     """
+
     def __init__(self, H, psi0, options):
         super().__init__(H, psi0, options)
         self._result_norm = 1.

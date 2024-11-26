@@ -9,7 +9,6 @@ import warnings
 import pytest
 import os.path
 
-
 # TODO use fixtures, e.g. np_random
 
 
@@ -85,14 +84,12 @@ def test_find_subclass():
     class Foo:
         pass
 
-
     class Bar(Foo):
         pass
 
-
     class Buzz(Bar):
         pass
-    
+
     with pytest.raises(ValueError):
         tools.misc.find_subclass(Foo, 'UnknownSubclass')
     child = tools.misc.find_subclass(Foo, 'Bar')
@@ -107,5 +104,3 @@ def test_find_subclass():
     assert child is sparse.LinearOperatorWrapper
     grandchild = tools.misc.find_subclass(sparse.LinearOperator, 'SumLinearOperator')
     assert grandchild is sparse.SumLinearOperator
-
-    

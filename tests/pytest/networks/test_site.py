@@ -1,7 +1,6 @@
 """A collection of tests for :mod:`cyten.networks.site`."""
 # Copyright (C) TeNPy Developers, GNU GPLv3
 
-
 import numpy as np
 import numpy.testing as npt
 import itertools as it
@@ -14,8 +13,6 @@ from cyten.networks import site
 
 from conftest import random_symmetry_sectors
 
-
-
 pytest.skip("site not yet revised", allow_module_level=True)  # TODO
 
 
@@ -27,8 +24,8 @@ def anticommutator(A, B):
     return np.dot(A, B) + np.dot(B, A)
 
 
-@pytest.mark.parametrize('symmetry_backend, use_sym',
-                         [('abelian', True), ('abelian', False), ('no_symmetry', False)])
+@pytest.mark.parametrize('symmetry_backend, use_sym', [('abelian', True), ('abelian', False),
+                                                       ('no_symmetry', False)])
 def test_site(np_random, block_backend, symmetry_backend, use_sym):
     backend = cyten.get_backend(block_backend=block_backend, symmetry=symmetry_backend)
     if use_sym:
@@ -37,7 +34,8 @@ def test_site(np_random, block_backend, symmetry_backend, use_sym):
         sym = cyten.no_symmetry
     dim = 8
     some_sectors = random_symmetry_sectors(sym, num=dim, sort=False, np_random=np_random)
-    leg = cyten.ElementarySpace.from_basis(sym, np_random.choice(some_sectors, size=dim, replace=True))
+    leg = cyten.ElementarySpace.from_basis(sym,
+                                           np_random.choice(some_sectors, size=dim, replace=True))
     assert leg.dim == dim
     op1 = cyten.SymmetricTensor.random_uniform([leg, leg.dual], backend, labels=['p', 'p*'])
     labels = [f'x{i:d}' for i in range(10, 10 + dim)]
@@ -63,7 +61,7 @@ def test_site(np_random, block_backend, symmetry_backend, use_sym):
     # npt.assert_equal(
     #     s.get_op('silly_op op2').to_numpy(),
     #     npc.tensordot(op1, op2, [1, 0]).to_numpy())
-    
+
     if use_sym:
         leg2 = leg.drop_symmetry(1)
         leg2 = leg2.change_symmetry(symmetry=cyten.z3_symmetry, sector_map=lambda s: s % 3)
@@ -90,7 +88,7 @@ def test_double_site(any_backend):
 
     # the order of the basis is determined by forming the ProductSpace and is sorted by sector.
     # the two states with
-    
+
     for conserve in all_conserve:
         print(f'{conserve=}')
 
@@ -108,10 +106,11 @@ def test_double_site(any_backend):
             raise NotImplementedError
 
         if isinstance(any_backend, backends.FusionTreeBackend):
-            with pytest.raises(NotImplementedError, match='diagonal_from_block_func not implemented'):
+            with pytest.raises(NotImplementedError,
+                               match='diagonal_from_block_func not implemented'):
                 site0 = site1 = site.SpinHalfSite(conserve, backend=any_backend)
             return  # TODO
-        
+
         site0 = site1 = site.SpinHalfSite(conserve, backend=any_backend)
         for symmetry_combine in ['same', 'drop', 'independent']:
             print(f'  {symmetry_combine=}')
@@ -120,7 +119,7 @@ def test_double_site(any_backend):
             print([ds.state_labels[l] for l in expect_labels])
             for idx, label in enumerate(expect_labels):
                 assert ds.state_labels[label] == idx
-        
+
     fs = site.FermionSite(fs_conserve, backend=any_backend)
     ds = site.GroupedSite([fs, fs], ['a', 'b'], symmetry_combine='same')
     assert ds.need_JW_string == set([op + 'a' for op in fs.need_JW_string] +
@@ -198,8 +197,16 @@ def check_operator_availability(s: site.Site, expect_symmetric_ops: dict[str, bo
 
 
 def test_spin_half_site(any_backend):
-    hcs = dict(Id='Id', JW='JW', Sx='Sx', Sy='Sy', Sz='Sz', Sp='Sm', Sm='Sp', Sigmax='Sigmax',
-               Sigmay='Sigmay', Sigmaz='Sigmaz')
+    hcs = dict(Id='Id',
+               JW='JW',
+               Sx='Sx',
+               Sy='Sy',
+               Sz='Sz',
+               Sp='Sm',
+               Sm='Sp',
+               Sigmax='Sigmax',
+               Sigmay='Sigmay',
+               Sigmaz='Sigmaz')
     if isinstance(any_backend, cyten.NoSymmetryBackend):
         all_conserve = ['None']
     elif isinstance(any_backend, cyten.AbelianBackend):
@@ -209,7 +216,7 @@ def test_spin_half_site(any_backend):
         pytest.xfail('FusionTree backend not ready')
     else:
         raise ValueError
-    
+
     sites = []
     for conserve in all_conserve:
         print(f'checking {conserve=}')
@@ -228,9 +235,16 @@ def test_spin_half_site(any_backend):
             expect_symmetric_ops.update(Sz=True, Sigmaz=True)
             expect_charged_ops.update(Sp=(1, True), Sm=(1, True))
         if conserve in ['parity', 'None']:
-            expect_charged_ops.update(Sx=(1, True), Sy=(1, True), Sigmax=(1, True), Sigmay=(1, True))
+            expect_charged_ops.update(Sx=(1, True),
+                                      Sy=(1, True),
+                                      Sigmax=(1, True),
+                                      Sigmay=(1, True))
         if conserve == 'None':
-            expect_symmetric_ops.update(Sx=False, Sy=False, Sigmax=False, Sigmay=False, Sp=False,
+            expect_symmetric_ops.update(Sx=False,
+                                        Sy=False,
+                                        Sigmax=False,
+                                        Sigmay=False,
+                                        Sp=False,
                                         Sm=False)
         check_operator_availability(s, expect_symmetric_ops, expect_charged_ops)
         # done
@@ -301,7 +315,8 @@ def test_fermion_site(any_backend):
         npt.assert_equal(np.dot(Cd, JW), -np.dot(JW, Cd))
         npt.assert_equal(np.dot(C, JW), -np.dot(JW, C))
         assert s.need_JW_string == set(['Cd', 'C', 'JW'])
-        for op in ['C', 'Cd']:  #  TODO reinstate with minilanguage: ['C', 'Cd', 'C N', 'C Cd C', 'C JW Cd']:
+        for op in ['C', 'Cd'
+                   ]:  #  TODO reinstate with minilanguage: ['C', 'Cd', 'C N', 'C Cd C', 'C JW Cd']:
             assert s.op_needs_JW(op)
         for op in ['N']:  #  TODO reinstate with minilanguage: ['N', 'C Cd', 'C JW', 'JW C']:
             assert not s.op_needs_JW(op)
@@ -360,15 +375,20 @@ def test_spin_half_fermion_site(any_backend):
         npt.assert_equal(np.dot(Cu, Cdd), -np.dot(Cdd, Cu))
         npt.assert_equal(np.dot(Cdu, Cd), -np.dot(Cd, Cdu))
         npt.assert_equal(np.dot(Cdu, Cdd), -np.dot(Cdd, Cdu))
-        SxSy = ['Sx', 'Sy'] if conserve_S in ['parity', 'None'] else None  # TODO include Sz when ready
+        SxSy = ['Sx', 'Sy'] if conserve_S in ['parity', 'None'
+                                              ] else None  # TODO include Sz when ready
         check_spin_algebra(s, SxSy=SxSy)
         # operator availability (check tables in docstring)
         expect_symmetric_ops = dict(Id=True, JW=True, NuNd=True, Ntot=True, dN=True)
         expect_charged_ops = dict()  # dict(Svec=3)  # TODO
         if conserve_S != 'Stot':  # (b), (c), (d), (e)
             expect_symmetric_ops.update(JWu=True, JWd=True, Nu=True, Nd=True, Sz=True)
-            expect_charged_ops.update(Cu=(1, True), Cdu=(1, True), Cd=(1, True), Cdd=(1, True),
-                                      Sp=(1, True), Sm=(1, True))
+            expect_charged_ops.update(Cu=(1, True),
+                                      Cdu=(1, True),
+                                      Cd=(1, True),
+                                      Cdd=(1, True),
+                                      Sp=(1, True),
+                                      Sm=(1, True))
         if conserve_S in ['parity', 'None']:  # (c), (d), (e)
             expect_charged_ops.update(Sx=(1, True), Sy=(1, True))
         if conserve_S == 'None':  # (d), (e)
@@ -420,15 +440,20 @@ def test_spin_half_hole_site(any_backend):
         # anti-commute Cu with Cd
         npt.assert_equal(np.dot(Cu, Cd), -np.dot(Cd, Cu))
         npt.assert_equal(np.dot(Cdu, Cdd), -np.dot(Cdd, Cdu))
-        SxSy = ['Sx', 'Sy'] if conserve_S in ['parity', 'None'] else None  # TODO include Sz when ready
+        SxSy = ['Sx', 'Sy'] if conserve_S in ['parity', 'None'
+                                              ] else None  # TODO include Sz when ready
         check_spin_algebra(s, SxSy=SxSy)
         # operator availability (check tables in docstring)
         expect_symmetric_ops = dict(Id=True, JW=True, Ntot=True, dN=True)
         expect_charged_ops = dict()  # dict(Svec=3)  # TODO
         if conserve_S != 'Stot':  # (b), (c), (d), (e)
             expect_symmetric_ops.update(JWu=True, JWd=True, Nu=True, Nd=True, Sz=True)
-            expect_charged_ops.update(Cu=(1, True), Cdu=(1, True), Cd=(1, True), Cdd=(1, True),
-                                      Sp=(1, True), Sm=(1, True))
+            expect_charged_ops.update(Cu=(1, True),
+                                      Cdu=(1, True),
+                                      Cd=(1, True),
+                                      Cdd=(1, True),
+                                      Sp=(1, True),
+                                      Sm=(1, True))
         if conserve_S in ['parity', 'None']:  # (c), (d), (e)
             expect_charged_ops.update(Sx=(1, True), Sy=(1, True))
         if conserve_S == 'None':  # (d), (e)
@@ -454,10 +479,11 @@ def test_boson_site(any_backend, Nmax):
     for conserve in all_conserve:
 
         if isinstance(any_backend, backends.FusionTreeBackend):
-            with pytest.raises(NotImplementedError, match='diagonal_from_block_func not implemented'):
+            with pytest.raises(NotImplementedError,
+                               match='diagonal_from_block_func not implemented'):
                 s = site.BosonSite(Nmax, conserve=conserve, backend=any_backend)
             return  # TODO
-        
+
         s = site.BosonSite(Nmax, conserve=conserve, backend=any_backend)
         s.test_sanity()
         for op in s.all_op_names:
@@ -498,10 +524,11 @@ def test_clock_site(any_backend, q):
     for conserve in all_conserve:
 
         if isinstance(any_backend, backends.FusionTreeBackend):
-            with pytest.raises(NotImplementedError, match='diagonal_from_block_func not implemented'):
+            with pytest.raises(NotImplementedError,
+                               match='diagonal_from_block_func not implemented'):
                 s = site.ClockSite(q=q, conserve=conserve, backend=any_backend)
             return  # TODO
-        
+
         s = site.ClockSite(q=q, conserve=conserve, backend=any_backend)
         s.test_sanity()
         for op in s.all_op_names:
@@ -539,8 +566,9 @@ def test_set_common_symmetry(any_backend):
         conserve_N = 'N'
         expect_symm_Sz = cyten.U1Symmetry('2*Sz')
         expect_symm_Sz_N = cyten.U1Symmetry('2*Sz') * cyten.U1Symmetry('N')
-        expect_symm_Sz_N_Sz = cyten.U1Symmetry('2*Sz') * cyten.U1Symmetry('N') * cyten.U1Symmetry('2*Sz')
-    
+        expect_symm_Sz_N_Sz = cyten.U1Symmetry('2*Sz') * cyten.U1Symmetry('N') * cyten.U1Symmetry(
+            '2*Sz')
+
     conserve_S = 'None' if isinstance(any_backend, cyten.NoSymmetryBackend) else 'Sz'
     conserve_N = 'None' if isinstance(any_backend, cyten.NoSymmetryBackend) else 'N'
 
@@ -548,7 +576,7 @@ def test_set_common_symmetry(any_backend):
         with pytest.raises(NotImplementedError, match='diagonal_from_block_func not implemented'):
             spin = site.SpinSite(S=0.5, conserve=conserve_S, backend=any_backend)
         return  # TODO
-    
+
     spin = site.SpinSite(S=0.5, conserve=conserve_S, backend=any_backend)
     spin1 = site.SpinSite(S=1, conserve=conserve_S, backend=any_backend)
     ferm = site.SpinHalfFermionSite(conserve_N=conserve_N, conserve_S=conserve_S)
@@ -581,7 +609,8 @@ def test_set_common_symmetry(any_backend):
 
     print('symmetry_combine: function')
     # drop the ferm N symmetry and conserve the total 2*Sz
-    site.set_common_symmetry([ferm, spin], symmetry_combine=lambda i, s: s[:, :1],
+    site.set_common_symmetry([ferm, spin],
+                             symmetry_combine=lambda i, s: s[:, :1],
                              new_symmetry=spin.symmetry)
     assert ferm.symmetry == expect_symm_Sz
     assert spin.symmetry == expect_symm_Sz
@@ -600,19 +629,18 @@ def test_set_common_symmetry(any_backend):
 
     if isinstance(any_backend, cyten.NoSymmetryBackend):
         return  # the last test really only makes sense with non-trivial symmetries
-    
+
     print('symmetry_combine: list[list[tuple]]')
     sites = [ferm, spin1, spin, boson]
     # [(prefactor, site_idx, sector_col_idx)]
     spin_half_Sz = [(1, 0, ferm.symmetry.factor_where('2*Sz')), (1, 2, 0)]
     weird_occupation = [(2, 0, ferm.symmetry.factor_where('N')), (1, 3, 0)]
     spin_one_Sz = [(0.5, 1, 0)]
-    new_symmetry = (cyten.U1Symmetry('2*(Sz_f + Sz_spin-half)') * cyten.U1Symmetry('2*N_f+N_b')
-                    * cyten.U1Symmetry('Sz_spin-1'))
+    new_symmetry = (cyten.U1Symmetry('2*(Sz_f + Sz_spin-half)') * cyten.U1Symmetry('2*N_f+N_b') *
+                    cyten.U1Symmetry('Sz_spin-1'))
     site.set_common_symmetry(sites, [spin_half_Sz, weird_occupation, spin_one_Sz], new_symmetry)
-    for name, s, expect_ops in zip(['ferm', 'spin1', 'spin', 'boson'],
-                                      [ferm, spin1, spin, boson],
-                                      [ferm_ops, spin1_ops, spin_ops, boson_ops]):
+    for name, s, expect_ops in zip(['ferm', 'spin1', 'spin', 'boson'], [ferm, spin1, spin, boson],
+                                   [ferm_ops, spin1_ops, spin_ops, boson_ops]):
         s.test_sanity()
         assert s.symmetry == new_symmetry
         for op_name, op_np in expect_ops.items():

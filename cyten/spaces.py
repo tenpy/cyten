@@ -11,7 +11,7 @@ from .dummy_config import printoptions
 from .symmetries import (Sector, SectorArray, Symmetry, ProductSymmetry, no_symmetry, FusionStyle,
                          SymmetryError)
 from .tools.misc import (inverse_permutation, rank_data, to_iterable, UNSPECIFIED, make_stride,
-                          find_row_differences, unstridify, iter_common_sorted_arrays)
+                         find_row_differences, unstridify, iter_common_sorted_arrays)
 from .tools.string import format_like_list
 
 if TYPE_CHECKING:
@@ -87,10 +87,12 @@ class Space(metaclass=ABCMeta):
     def test_sanity(self):
         assert self.dim >= 0
         # sectors
-        assert self.sectors.shape == (self.num_sectors, self.symmetry.sector_ind_len), 'wrong sectors.shape'
+        assert self.sectors.shape == (self.num_sectors,
+                                      self.symmetry.sector_ind_len), 'wrong sectors.shape'
         assert all(self.symmetry.is_valid_sector(s) for s in self.sectors), 'invalid sectors'
         assert len(np.unique(self.sectors, axis=0)) == self.num_sectors, 'duplicate sectors'
-        assert np.all(np.lexsort(self.sectors.T) == np.arange(self.num_sectors)), 'wrong sector order'
+        assert np.all(
+            np.lexsort(self.sectors.T) == np.arange(self.num_sectors)), 'wrong sector order'
         # multiplicities
         assert np.all(self.multiplicities > 0)
         assert self.multiplicities.shape == (self.num_sectors,)
@@ -127,7 +129,10 @@ class Space(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, backend: TensorBackend = None,
+    def change_symmetry(self,
+                        symmetry: Symmetry,
+                        sector_map: callable,
+                        backend: TensorBackend = None,
                         injective: bool = False) -> ElementarySpace:
         """Change the symmetry by specifying how the sectors change.
 
@@ -258,9 +263,16 @@ class ElementarySpace(Space):
         ``ElementarySpace(sym, dual_sectors(sec), is_dual=False).dual``.
     """
 
-    def __init__(self, symmetry: Symmetry, sectors: SectorArray, multiplicities: ndarray = None,
-                 is_dual: bool = False, basis_perm: ndarray | None = None):
-        Space.__init__(self, symmetry=symmetry, sectors=sectors, multiplicities=multiplicities,
+    def __init__(self,
+                 symmetry: Symmetry,
+                 sectors: SectorArray,
+                 multiplicities: ndarray = None,
+                 is_dual: bool = False,
+                 basis_perm: ndarray | None = None):
+        Space.__init__(self,
+                       symmetry=symmetry,
+                       sectors=sectors,
+                       multiplicities=multiplicities,
                        is_bra_space=is_dual)
         self.is_dual = is_dual
         if basis_perm is None:
@@ -287,7 +299,9 @@ class ElementarySpace(Space):
         super().test_sanity()
 
     @classmethod
-    def from_basis(cls, symmetry: Symmetry, sectors_of_basis: Sequence[Sequence[int]],
+    def from_basis(cls,
+                   symmetry: Symmetry,
+                   sectors_of_basis: Sequence[Sequence[int]],
                    is_dual: bool = False) -> ElementarySpace:
         """Create an ElementarySpace by specifying the sector of every basis element.
 
@@ -328,18 +342,22 @@ class ElementarySpace(Space):
         diffs = find_row_differences(sectors, include_len=True)
         sectors = sectors[diffs[:-1]]  # [:-1] to exclude len
         dims = symmetry.batch_sector_dim(sectors)
-        num_occurrences = diffs[1:] - diffs[:-1]  # how often each appears in the input sectors_of_basis
+        num_occurrences = diffs[
+            1:] - diffs[:-1]  # how often each appears in the input sectors_of_basis
         multiplicities, remainders = np.divmod(num_occurrences, dims)
         if np.any(remainders > 0):
             msg = ('Sectors must appear in whole multiplets, i.e. a number of times that is an '
                    'integer multiple of their dimension.')
             raise ValueError(msg)
-        return cls(symmetry=symmetry, sectors=sectors, multiplicities=multiplicities,
-                   is_dual=is_dual, basis_perm=basis_perm)
+        return cls(symmetry=symmetry,
+                   sectors=sectors,
+                   multiplicities=multiplicities,
+                   is_dual=is_dual,
+                   basis_perm=basis_perm)
 
     @classmethod
-    def from_independent_symmetries(cls, independent_descriptions: list[ElementarySpace]
-                                    ) -> ElementarySpace:
+    def from_independent_symmetries(
+            cls, independent_descriptions: list[ElementarySpace]) -> ElementarySpace:
         """Create an ElementarySpace with multiple independent symmetries.
 
         Parameters
@@ -354,13 +372,15 @@ class ElementarySpace(Space):
         dim = independent_descriptions[0].dim
         assert all(s.dim == dim for s in independent_descriptions)
         # ignore those with no_symmetry
-        independent_descriptions = [s for s in independent_descriptions if s.symmetry != no_symmetry]
+        independent_descriptions = [
+            s for s in independent_descriptions if s.symmetry != no_symmetry
+        ]
         if len(independent_descriptions) == 0:
             # all descriptions had no_symmetry
             return cls.from_trivial_sector(dim=dim)
-        symmetry = ProductSymmetry.from_nested_factors(
-            [s.symmetry for s in independent_descriptions]
-        )
+        symmetry = ProductSymmetry.from_nested_factors([
+            s.symmetry for s in independent_descriptions
+        ])
         if not symmetry.can_be_dropped:
             msg = f'from_independent_symmetries is not supported for {symmetry}.'
             # TODO is there a way to define this?
@@ -373,15 +393,21 @@ class ElementarySpace(Space):
     @classmethod
     def from_null_space(cls, symmetry: Symmetry, is_dual: bool = False) -> ElementarySpace:
         """The zero-dimensional space, i.e. the span of the empty set."""
-        return cls(symmetry=symmetry, sectors=symmetry.empty_sector_array,
-                   multiplicities=np.zeros(0, int), is_dual=is_dual)
+        return cls(symmetry=symmetry,
+                   sectors=symmetry.empty_sector_array,
+                   multiplicities=np.zeros(0, int),
+                   is_dual=is_dual)
 
     @classmethod
-    def from_sectors(cls, symmetry: Symmetry, sectors: SectorArray,
-                     multiplicities: Sequence[int] = None, is_dual: bool = False,
-                     basis_perm: ndarray = None, unique_sectors: bool = False,
-                     return_sorting_perm: bool = False
-                     ) -> ElementarySpace | tuple[ElementarySpace, ndarray]:
+    def from_sectors(
+            cls,
+            symmetry: Symmetry,
+            sectors: SectorArray,
+            multiplicities: Sequence[int] = None,
+            is_dual: bool = False,
+            basis_perm: ndarray = None,
+            unique_sectors: bool = False,
+            return_sorting_perm: bool = False) -> ElementarySpace | tuple[ElementarySpace, ndarray]:
         """Similar to the constructor, but with fewer requirements.
 
         .. note ::
@@ -436,8 +462,9 @@ class ElementarySpace(Space):
             else:
                 if basis_perm is None:
                     basis_perm = np.arange(np.sum(num_states))
-                basis_perm = np.concatenate([basis_perm[basis_slices[i]: basis_slices[i + 1]]
-                                            for i in sort])
+                basis_perm = np.concatenate([
+                    basis_perm[basis_slices[i]:basis_slices[i + 1]] for i in sort
+                ])
         else:
             sectors, multiplicities, sort = _sort_sectors(sectors, multiplicities)
             assert basis_perm is None
@@ -447,14 +474,20 @@ class ElementarySpace(Space):
             diffs = find_row_differences(sectors, include_len=True)
             multiplicities = mult_slices[diffs[1:]] - mult_slices[diffs[:-1]]
             sectors = sectors[diffs[:-1]]  # [:-1] to exclude len
-        res = cls(symmetry=symmetry, sectors=sectors, multiplicities=multiplicities,
-                  is_dual=is_dual, basis_perm=basis_perm)
+        res = cls(symmetry=symmetry,
+                  sectors=sectors,
+                  multiplicities=multiplicities,
+                  is_dual=is_dual,
+                  basis_perm=basis_perm)
         if return_sorting_perm:
             return res, sort
         return res
 
     @classmethod
-    def from_trivial_sector(cls, dim: int, symmetry: Symmetry = no_symmetry, is_dual: bool = False,
+    def from_trivial_sector(cls,
+                            dim: int,
+                            symmetry: Symmetry = no_symmetry,
+                            is_dual: bool = False,
                             basis_perm: ndarray = None) -> ElementarySpace:
         """Create an ElementarySpace that lives in the trivial sector (i.e. it is symmetric).
 
@@ -469,8 +502,11 @@ class ElementarySpace(Space):
         """
         if dim == 0:
             return cls.from_null_space(symmetry=symmetry, is_dual=is_dual)
-        return cls(symmetry=symmetry, sectors=symmetry.trivial_sector[None, :],
-                   multiplicities=[dim], is_dual=is_dual, basis_perm=basis_perm)
+        return cls(symmetry=symmetry,
+                   sectors=symmetry.trivial_sector[None, :],
+                   multiplicities=[dim],
+                   is_dual=is_dual,
+                   basis_perm=basis_perm)
 
     @property
     def basis_perm(self) -> ndarray:
@@ -555,8 +591,7 @@ class ElementarySpace(Space):
             elements.extend([
                 f'sectors={format_like_list(self.symmetry.sector_str(a) for a in self.sectors)}',
                 f'multiplicities={format_like_list(self.multiplicities)}',
-                f'basis_perm={basis_perm}',
-                f'is_dual={self.is_dual}'
+                f'basis_perm={basis_perm}', f'is_dual={self.is_dual}'
             ])
             one_line = f'ElementarySpace(' + ', '.join(elements) + ')'
             if len(one_line) <= printoptions.linewidth:
@@ -565,7 +600,7 @@ class ElementarySpace(Space):
             num_lines_ok = (len(elements) + 2) <= printoptions.maxlines_spaces
             if line_lengths_ok and num_lines_ok:
                 elements = [f'{indent}{line},' for line in elements]
-                return f'ElementarySpace(\n' +'\n'.join(elements) + '\n)'
+                return f'ElementarySpace(\n' + '\n'.join(elements) + '\n)'
         # 2) Try showing summarized data
         elements = [f'<ElementarySpace:']
         if show_symmetry:
@@ -579,7 +614,8 @@ class ElementarySpace(Space):
         one_line = ' '.join(elements)
         if len(one_line) < printoptions.linewidth:
             return one_line
-        if all(len(l) <= printoptions.linewidth for l in elements) and len(elements) <= printoptions.maxlines_spaces:
+        if all(len(l) <= printoptions.linewidth
+               for l in elements) and len(elements) <= printoptions.maxlines_spaces:
             elements[1:-1] = [f'{indent}{line},' for line in elements[1:-1]]
             return '\n'.join(elements)
         # 3) Try showing only symmetry
@@ -588,7 +624,8 @@ class ElementarySpace(Space):
             one_line = ' '.join(elements)
             if len(one_line) < printoptions.linewidth:
                 return one_line
-            if all(len(l) <= printoptions.linewidth for l in elements) and len(elements) <= printoptions.maxlines_spaces:
+            if all(len(l) <= printoptions.linewidth
+                   for l in elements) and len(elements) <= printoptions.maxlines_spaces:
                 elements[1:-1] = [f'{indent}{line},' for line in elements[1:-1]]
                 return '\n'.join(elements)
         # 4) Show no data at all
@@ -630,16 +667,20 @@ class ElementarySpace(Space):
             return self
         return self.with_opposite_duality()
 
-    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, backend: TensorBackend = None,
-                        injective: bool = False
-                        ) -> ElementarySpace:
+    def change_symmetry(self,
+                        symmetry: Symmetry,
+                        sector_map: callable,
+                        backend: TensorBackend = None,
+                        injective: bool = False) -> ElementarySpace:
         # backend is just there to have the same signature as ProductSpace.change_symmetry
         # TODO / OPTIMIZE can avoid some computation if the map is injective.
         #                 then we just need to sort the new sectors, no need to combine
-        return ElementarySpace.from_sectors(
-            symmetry=symmetry, sectors=sector_map(self.sectors), multiplicities=self.multiplicities,
-            is_dual=self.is_dual, basis_perm=self._basis_perm, unique_sectors=injective
-        )
+        return ElementarySpace.from_sectors(symmetry=symmetry,
+                                            sectors=sector_map(self.sectors),
+                                            multiplicities=self.multiplicities,
+                                            is_dual=self.is_dual,
+                                            basis_perm=self._basis_perm,
+                                            unique_sectors=injective)
 
     def direct_sum(self, *others: ElementarySpace) -> ElementarySpace:
         """Form the direct sum (i.e. stacking).
@@ -657,25 +698,28 @@ class ElementarySpace(Space):
         assert all(o.is_dual == self.is_dual for o in others)
         if self.symmetry.can_be_dropped:
             offsets = np.cumsum([self.dim, *(o.dim for o in others)])
-            basis_perm = np.concatenate(
-                [self.basis_perm] + [o.basis_perm + n for o, n in zip(others, offsets)]
-            )
+            basis_perm = np.concatenate([self.basis_perm] +
+                                        [o.basis_perm + n for o, n in zip(others, offsets)])
         else:
             basis_perm = None
-        return ElementarySpace.from_sectors(
-            symmetry=self.symmetry,
-            sectors=np.concatenate([self.sectors, *(o.sectors for o in others)]),
-            multiplicities=np.concatenate([self.multiplicities, *(o.multiplicities for o in others)]),
-            is_dual=self.is_dual, basis_perm=basis_perm
-        )
+        return ElementarySpace.from_sectors(symmetry=self.symmetry,
+                                            sectors=np.concatenate([
+                                                self.sectors, *(o.sectors for o in others)
+                                            ]),
+                                            multiplicities=np.concatenate([
+                                                self.multiplicities, *(o.multiplicities
+                                                                       for o in others)
+                                            ]),
+                                            is_dual=self.is_dual,
+                                            basis_perm=basis_perm)
 
     def drop_symmetry(self, which: int | list[int] = None):
         which, remaining_symmetry = _parse_inputs_drop_symmetry(which, self.symmetry)
         if which is None:
-            return ElementarySpace.from_trivial_sector(
-                dim=self.dim, symmetry=remaining_symmetry, is_dual=self.is_dual,
-                basis_perm=self._basis_perm
-            )
+            return ElementarySpace.from_trivial_sector(dim=self.dim,
+                                                       symmetry=remaining_symmetry,
+                                                       is_dual=self.is_dual,
+                                                       basis_perm=self._basis_perm)
         mask = np.ones((self.symmetry.sector_ind_len,), dtype=bool)
         for i in which:
             start, stop = self.symmetry.sector_slices[i:i + 2]
@@ -683,13 +727,16 @@ class ElementarySpace(Space):
         return self.change_symmetry(symmetry=remaining_symmetry,
                                     sector_map=lambda sectors: sectors[:, mask])
 
-    def _dual_space(self, return_perm: bool = False
-                    ) -> ElementarySpace | tuple[ElementarySpace, np.ndarray]:
-        return ElementarySpace.from_sectors(
-            symmetry=self.symmetry, sectors=self.symmetry.dual_sectors(self.sectors),
-            multiplicities=self.multiplicities, is_dual=not self.is_dual,
-            basis_perm=self._basis_perm, unique_sectors=True, return_sorting_perm=return_perm
-        )
+    def _dual_space(
+            self,
+            return_perm: bool = False) -> ElementarySpace | tuple[ElementarySpace, np.ndarray]:
+        return ElementarySpace.from_sectors(symmetry=self.symmetry,
+                                            sectors=self.symmetry.dual_sectors(self.sectors),
+                                            multiplicities=self.multiplicities,
+                                            is_dual=not self.is_dual,
+                                            basis_perm=self._basis_perm,
+                                            unique_sectors=True,
+                                            return_sorting_perm=return_perm)
 
     def is_subspace_of(self, other: ElementarySpace) -> bool:
         """Whether self is a subspace of other.
@@ -797,13 +844,18 @@ class ElementarySpace(Space):
         #
         # note blockmask is in the private basis order.
         basis_perm = rank_data(self.basis_perm[blockmask])
-        return ElementarySpace(symmetry=self.symmetry, sectors=sectors, multiplicities=mults,
-                               is_dual=self.is_dual, basis_perm=basis_perm)
+        return ElementarySpace(symmetry=self.symmetry,
+                               sectors=sectors,
+                               multiplicities=mults,
+                               is_dual=self.is_dual,
+                               basis_perm=basis_perm)
 
     def with_opposite_duality(self):
         """A space isomorphic to self with opposite ``is_dual`` attribute."""
-        return ElementarySpace(symmetry=self.symmetry, sectors=self.sectors,
-                               multiplicities=self.multiplicities, is_dual=not self.is_dual,
+        return ElementarySpace(symmetry=self.symmetry,
+                               sectors=self.sectors,
+                               multiplicities=self.multiplicities,
+                               is_dual=not self.is_dual,
                                basis_perm=self._basis_perm)
 
     def with_is_dual(self, is_dual: bool) -> ElementarySpace:
@@ -849,8 +901,12 @@ class ProductSpace(Space):
         A common entry is accessible via the property :attr:`fusion_outcomes_sort`.
     """
 
-    def __init__(self, spaces: list[Space], symmetry: Symmetry = None, backend: TensorBackend = None,
-                 _sectors: SectorArray = UNSPECIFIED, _multiplicities: ndarray = UNSPECIFIED,
+    def __init__(self,
+                 spaces: list[Space],
+                 symmetry: Symmetry = None,
+                 backend: TensorBackend = None,
+                 _sectors: SectorArray = UNSPECIFIED,
+                 _multiplicities: ndarray = UNSPECIFIED,
                  _metadata: dict = UNSPECIFIED):
         self.spaces = spaces[:]
         self.num_spaces = len(spaces)
@@ -862,11 +918,14 @@ class ProductSpace(Space):
             raise SymmetryError('Incompatible symmetries.')
         self.symmetry = symmetry
         if (_sectors is UNSPECIFIED) or (_multiplicities is UNSPECIFIED):
-            _sectors, _multiplicities, _metadata = _fuse_spaces(
-                symmetry=symmetry, spaces=spaces, backend=backend
-            )
-        Space.__init__(self, symmetry=symmetry, sectors=_sectors,
-                       multiplicities=_multiplicities, is_bra_space=False)
+            _sectors, _multiplicities, _metadata = _fuse_spaces(symmetry=symmetry,
+                                                                spaces=spaces,
+                                                                backend=backend)
+        Space.__init__(self,
+                       symmetry=symmetry,
+                       sectors=_sectors,
+                       multiplicities=_multiplicities,
+                       is_bra_space=False)
         if _metadata is UNSPECIFIED:
             if backend is None:
                 _metadata = {}
@@ -884,24 +943,28 @@ class ProductSpace(Space):
         Space.test_sanity(self)
 
     @classmethod
-    def from_partial_products(cls, *factors: ProductSpace, backend: TensorBackend | None = None
-                              ) -> ProductSpace:
+    def from_partial_products(cls,
+                              *factors: ProductSpace,
+                              backend: TensorBackend | None = None) -> ProductSpace:
         """Given multiple product spaces, create the flat product of all their :attr:`spaces`.
 
         This is equivalent to ``ProductSpace([p_space.spaces for p_space in factors])``,
         but avoids some of the computation of sectors.
         """
         isomorphic = ProductSpace([pr.as_ElementarySpace() for pr in factors], backend=backend)
-        return ProductSpace(
-            spaces=[sp for pr in factors for sp in pr.spaces], backend=backend,
-            _sectors=isomorphic.sectors, _multiplicities=isomorphic.multiplicities
-        )
+        return ProductSpace(spaces=[sp for pr in factors for sp in pr.spaces],
+                            backend=backend,
+                            _sectors=isomorphic.sectors,
+                            _multiplicities=isomorphic.multiplicities)
 
-    def _dual_space(self, return_perm: bool = False
-                    ) -> ProductSpace | tuple[ProductSpace, np.ndarray]:
-        sectors, mults, perm = _sort_sectors(self.symmetry.dual_sectors(self.sectors), self.multiplicities)
-        dual = ProductSpace([sp.dual for sp in reversed(self.spaces)], symmetry=self.symmetry,
-                            _sectors=sectors, _multiplicities=mults)
+    def _dual_space(self,
+                    return_perm: bool = False) -> ProductSpace | tuple[ProductSpace, np.ndarray]:
+        sectors, mults, perm = _sort_sectors(self.symmetry.dual_sectors(self.sectors),
+                                             self.multiplicities)
+        dual = ProductSpace([sp.dual for sp in reversed(self.spaces)],
+                            symmetry=self.symmetry,
+                            _sectors=sectors,
+                            _multiplicities=mults)
         if return_perm:
             return dual, perm
         return dual
@@ -913,10 +976,9 @@ class ProductSpace(Space):
             grid = np.indices(tuple(space.num_sectors for space in self.spaces), np.intp)
             grid = grid.T.reshape(-1, len(self.spaces))
             sectors = self.symmetry.multiple_fusion_broadcast(
-                *(sp.sectors[gr] for sp, gr in zip(self.spaces, grid.T))
-            )
-            multiplicities = np.prod([space.multiplicities[gr]
-                                      for space, gr in zip(self.spaces, grid.T)], axis=0)
+                *(sp.sectors[gr] for sp, gr in zip(self.spaces, grid.T)))
+            multiplicities = np.prod(
+                [space.multiplicities[gr] for space, gr in zip(self.spaces, grid.T)], axis=0)
             _, _, fusion_outcomes_sort = _unique_sorted_sectors(sectors, multiplicities)
             self.metadata['fusion_outcomes_sort'] = fusion_outcomes_sort
         return fusion_outcomes_sort
@@ -969,15 +1031,13 @@ class ProductSpace(Space):
         elements = [f'<ProductSpace']
         if show_symmetry:
             elements.append(f'symmetry={self.symmetry!r}')
-        elements.extend([
-            f'{self.num_spaces} spaces',
-            '>'
-        ])
+        elements.extend([f'{self.num_spaces} spaces', '>'])
         one_line = ' '.join(elements)
         if len(one_line) <= printoptions.linewidth:
             return one_line
         elements[1:-1] = [f'{indent}{line}' for line in elements]
-        if all(len(l) < printoptions.linewidth for l in elements) and len(elements) <= printoptions.maxlines_spaces:
+        if all(len(l) < printoptions.linewidth
+               for l in elements) and len(elements) <= printoptions.maxlines_spaces:
             return '\n'.join(elements)
         return None
 
@@ -989,23 +1049,27 @@ class ProductSpace(Space):
         return all(s1 == s2 for s1, s2 in zip(self.spaces, other.spaces))
 
     def as_ElementarySpace(self, is_dual: bool = None) -> ElementarySpace:
-        res = ElementarySpace(symmetry=self.symmetry, sectors=self.sectors,
+        res = ElementarySpace(symmetry=self.symmetry,
+                              sectors=self.sectors,
                               multiplicities=self.multiplicities)
         if is_dual is True:
             res = res.as_bra_space()
         return res
 
-    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, backend: TensorBackend = None
-                        ) -> ProductSpace:
-        sectors, multiplicities = _unique_sorted_sectors(
-            sector_map(self.sectors), self.multiplicities
-        )
+    def change_symmetry(self,
+                        symmetry: Symmetry,
+                        sector_map: callable,
+                        backend: TensorBackend = None) -> ProductSpace:
+        sectors, multiplicities = _unique_sorted_sectors(sector_map(self.sectors),
+                                                         self.multiplicities)
         # OPTIMIZE can we preserve the metadata?
-        return ProductSpace(
-            spaces=[sp.change_symmetry(symmetry, sector_map, backend) for sp in self.spaces],
-            symmetry=self.symmetry, backend=backend,
-            _sectors=sectors, _multiplicities=multiplicities
-        )
+        return ProductSpace(spaces=[
+            sp.change_symmetry(symmetry, sector_map, backend) for sp in self.spaces
+        ],
+                            symmetry=self.symmetry,
+                            backend=backend,
+                            _sectors=sectors,
+                            _multiplicities=multiplicities)
 
     def drop_symmetry(self, which: int | list[int] = None):
         which, remaining_symmetry = _parse_inputs_drop_symmetry(which, self.symmetry)
@@ -1153,7 +1217,8 @@ class ProductSpace(Space):
             raise SymmetryError('For non-abelian symmetries use get_basis_transformation instead.')
         # C-style for compatibility with e.g. numpy.reshape
         strides = make_stride(shape=[space.dim for space in self.spaces], cstyle=True)
-        order = unstridify(self._get_fusion_outcomes_perm(), strides).T  # indices of the internal bases
+        order = unstridify(self._get_fusion_outcomes_perm(),
+                           strides).T  # indices of the internal bases
         return sum(stride * space.inverse_basis_perm[p]
                    for stride, space, p in zip(strides, self.spaces, order))
 
@@ -1180,33 +1245,33 @@ class ProductSpace(Space):
         idcs = unstridify(np.arange(self.dim), dim_strides).T
         # [i, j] :: sector of the part of j in spaces[i] is spaces[i].sectors[sector_idcs[i, j]]
         #           sector_idcs[i, j] = bisect.bisect(spaces[i].slices[:, 0], idcs[i, j]) - 1
-        sector_idcs = np.array(
-            [[bisect.bisect(sp.slices[:, 0], idx) - 1 for idx in idx_col]
-             for sp, idx_col in zip(self.spaces, idcs)]
-        )  # OPTIMIZE can bisect.bisect be broadcast somehow? is there a numpy alternative?
+        sector_idcs = np.array([
+            [bisect.bisect(sp.slices[:, 0], idx) - 1 for idx in idx_col]
+            for sp, idx_col in zip(self.spaces, idcs)
+        ])  # OPTIMIZE can bisect.bisect be broadcast somehow? is there a numpy alternative?
         # [i, j] :: the part of j in spaces[i] is the degeneracy_idcs[i, j]-th state within that sector
         #           degeneracy_idcs[i, j] = idcs[i, j] - spaces[i].slices[sector_idcs[i, j], 0]
         degeneracy_idcs = idcs - np.stack(
-            [sp.slices[si_col, 0] for sp, si_col in zip(self.spaces, sector_idcs)]
-        )
+            [sp.slices[si_col, 0] for sp, si_col in zip(self.spaces, sector_idcs)])
         # [i, j] :: strides for combining degeneracy indices.
         #           degeneracy_strides[:, j] = make_stride([... mults with sector_idcs[:, j]])
-        degeneracy_strides = np.array(
-            [make_stride([sp.multiplicities[si] for sp, si in zip(self.spaces, si_row)])
-             for si_row in sector_idcs.T]
-        ).T  # OPTIMIZE make make_stride broadcast?
+        degeneracy_strides = np.array([
+            make_stride([sp.multiplicities[si] for sp, si in zip(self.spaces, si_row)])
+            for si_row in sector_idcs.T
+        ]).T  # OPTIMIZE make make_stride broadcast?
         # [j] :: position of j in the unsorted list of fusion outcomes
         fusion_outcome = np.sum(sector_idcs * sector_strides[:, None], axis=0)
         # [i, s] :: sector combination s has spaces[i].sectors[all_sector_idcs[i, s]]
         all_sector_idcs = unstridify(np.arange(num_sector_combinations), sector_strides).T
         # [i, s] :: all_mults[i, s] = spaces[i].multiplicities[all_sector_idcs[i, s]]
-        all_mults = np.array([sp.multiplicities[comb] for sp, comb in zip(self.spaces, all_sector_idcs)])
+        all_mults = np.array([
+            sp.multiplicities[comb] for sp, comb in zip(self.spaces, all_sector_idcs)
+        ])
         # [s] : total multiplicity of the fusion channel
         fusion_outcome_multiplicities = np.prod(all_mults, axis=0)
         # [s] : !!shape == (L_s + 1,)!!  ; starts ([s]) and stops ([s + 1]) of fusion channels in the sorted list
         fusion_outcome_slices = np.concatenate(
-            [[0], np.cumsum(fusion_outcome_multiplicities[self.fusion_outcomes_sort])]
-        )
+            [[0], np.cumsum(fusion_outcome_multiplicities[self.fusion_outcomes_sort])])
         # [j] : position of fusion channel after sorting
         sorted_pos = fusion_outcomes_inverse_sort[fusion_outcome]
         # [j] :: contribution from the sector, i.e. start of all the js of the same fusion channel
@@ -1215,8 +1280,10 @@ class ProductSpace(Space):
         degeneracy_part = np.sum(degeneracy_idcs * degeneracy_strides, axis=0)
         return inverse_permutation(sector_part + degeneracy_part)
 
-    def insert_multiply(self, other: Space, pos: int, backend: TensorBackend | None = None
-                        ) -> ProductSpace:
+    def insert_multiply(self,
+                        other: Space,
+                        pos: int,
+                        backend: TensorBackend | None = None) -> ProductSpace:
         """Insert an additional factor at given position.
 
         Parameters
@@ -1235,11 +1302,11 @@ class ProductSpace(Space):
         if pos < 0:
             pos += new_num_spaces
         isomorphic = ProductSpace([self, other])  # this space has the same sectors and mults
-        return ProductSpace(
-            spaces=self.spaces[:pos] + [other] + self.spaces[pos:],
-            symmetry=self.symmetry, backend=backend,
-            _sectors=isomorphic.sectors, _multiplicities=isomorphic.multiplicities
-        )
+        return ProductSpace(spaces=self.spaces[:pos] + [other] + self.spaces[pos:],
+                            symmetry=self.symmetry,
+                            backend=backend,
+                            _sectors=isomorphic.sectors,
+                            _multiplicities=isomorphic.multiplicities)
 
     def iter_uncoupled(self) -> Iterator[tuple[Sector]]:
         """Iterate over all combinations of sectors"""
@@ -1292,12 +1359,12 @@ def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend
             return symmetry.trivial_sector[None, :], [1], metadata
         grid = np.indices(tuple(space.num_sectors for space in spaces), np.intp)
         grid = grid.T.reshape(-1, len(spaces))
-        sectors = symmetry.multiple_fusion_broadcast(
-            *(sp.sectors[gr] for sp, gr in zip(spaces, grid.T))
-        )
+        sectors = symmetry.multiple_fusion_broadcast(*(sp.sectors[gr]
+                                                       for sp, gr in zip(spaces, grid.T)))
         multiplicities = np.prod([space.multiplicities[gr] for space, gr in zip(spaces, grid.T)],
-                                  axis=0)
-        sectors, multiplicities, fusion_outcomes_sort = _unique_sorted_sectors(sectors, multiplicities)
+                                 axis=0)
+        sectors, multiplicities, fusion_outcomes_sort = _unique_sorted_sectors(
+            sectors, multiplicities)
         metadata = dict(fusion_outcomes_sort=fusion_outcomes_sort)
         return sectors, multiplicities, metadata
 
@@ -1320,12 +1387,11 @@ def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend
                 new_mults = m1 * m2 * np.ones(len(new_sects), dtype=int)
             else:
                 # OPTIMIZE support batched N symbol?
-                new_mults = m1 * m2 * np.array([symmetry._n_symbol(s1, s2, c) for c in new_sects], dtype=int)
+                new_mults = m1 * m2 * np.array([symmetry._n_symbol(s1, s2, c) for c in new_sects],
+                                               dtype=int)
             mult_arrays.append(new_mults)
-    sectors, multiplicities, _ = _unique_sorted_sectors(
-        np.concatenate(sector_arrays, axis=0),
-        np.concatenate(mult_arrays, axis=0)
-    )
+    sectors, multiplicities, _ = _unique_sorted_sectors(np.concatenate(sector_arrays, axis=0),
+                                                        np.concatenate(mult_arrays, axis=0))
     return sectors, multiplicities, {}
 
 
@@ -1359,8 +1425,8 @@ def _sort_sectors(sectors: SectorArray, multiplicities: np.ndarray):
     return sectors[perm], multiplicities[perm], perm
 
 
-def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetry
-                                ) -> tuple[list[int] | None, Symmetry]:
+def _parse_inputs_drop_symmetry(which: int | list[int] | None,
+                                symmetry: Symmetry) -> tuple[list[int] | None, Symmetry]:
     """Input parsing for :meth:`Space.drop_symmetry`.
 
     Returns
@@ -1400,4 +1466,3 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
             remaining_symmetry = ProductSymmetry(factors)
 
     return which, remaining_symmetry
-

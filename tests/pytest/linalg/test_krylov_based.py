@@ -8,30 +8,34 @@ from scipy.linalg import expm
 import cyten
 from cyten import krylov_based, sparse, tensors, random_matrix
 
-
 pytest.skip("krylov_based not yet revised", allow_module_level=True)  # TODO
 
 
 @pytest.mark.parametrize(['N_cache', 'tol'], [(10, 5.e-13), (20, 5.e-14)])
 def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
     # TODO revise this. purge the "dummy" language, its now "charged"
-    
+
     # generate hermitian test array
     leg = make_compatible_space()
     backend = compatible_backend
-    
+
     if isinstance(compatible_backend, cyten.backends.FusionTreeBackend):
         # TODO need to be more careful with from func.
         # shapes of the blocks depend on num_domain_legs!
         # and GUE((1, 9)) generates blocks with shape (9, 9) without error!!
         # should GUE etc be Tensor classmethods?
         with pytest.raises(AssertionError, match='not a square matrix shape'):
-            H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
+            H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE,
+                                                        legs=[leg, leg.dual],
+                                                        backend=backend)
         return
-    
-    H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
 
-    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(leg.symmetry, cyten.symmetries.ProductSymmetry):
+    H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE,
+                                                legs=[leg, leg.dual],
+                                                backend=backend)
+
+    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(
+            leg.symmetry, cyten.symmetries.ProductSymmetry):
         # TODO
         with pytest.raises(NotImplementedError, match='fusion_tensor is not implemented'):
             _ = H.to_numpy()
@@ -39,14 +43,20 @@ def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
 
     H_np = H.to_numpy()
     H_op = sparse.TensorLinearOperator(H, which_leg=1)
-    npt.assert_allclose(H_np, H_np.conj().transpose())  # make sure we generated a hermitian operator
+    npt.assert_allclose(H_np,
+                        H_np.conj().transpose())  # make sure we generated a hermitian operator
     E_np, psi_np = np.linalg.eigh(H_np)
     E0_np, psi0_np = E_np[0], psi_np[:, 0]
 
     # detect in which charge sector the groundstate lives
-    sector, = tensors.detect_sectors_from_block(backend.block_from_numpy(psi0_np), legs=[leg], backend=backend)
+    sector, = tensors.detect_sectors_from_block(backend.block_from_numpy(psi0_np),
+                                                legs=[leg],
+                                                backend=backend)
     # TODO having to take the dual here is pretty unintuitive...
-    psi_init = tensors.ChargedTensor.random_uniform(legs=[leg], charge=sector, backend=backend, dummy_leg_state=[1.])
+    psi_init = tensors.ChargedTensor.random_uniform(legs=[leg],
+                                                    charge=sector,
+                                                    backend=backend,
+                                                    dummy_leg_state=[1.])
 
     E0, psi0, N = krylov_based.lanczos(H_op, psi_init, {'N_cache': N_cache})
     assert abs(psi0.norm() - 1.) < tol
@@ -58,7 +68,9 @@ def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
     assert abs(psi0.norm() - 1.) < tol
     print(f'<psi0|H|psi0> / E0 = 1. + {psi0_H_psi0 / E0 - 1.}')
     assert (abs(psi0_H_psi0 / E0 - 1.) < tol)
-    print(f'<psi0_np|H_np|psi0_np> / E0_np = {np.inner(psi0_np.conj(), np.dot(H_np, psi0_np)) / E0_np}')
+    print(
+        f'<psi0_np|H_np|psi0_np> / E0_np = {np.inner(psi0_np.conj(), np.dot(H_np, psi0_np)) / E0_np}'
+    )
     ov = np.inner(psi0.to_numpy().conj(), psi0_np)
     print(f'|<psi0|psi0_np>| = {abs(ov)}')
     assert abs(1. - abs(ov)) < tol
@@ -67,7 +79,9 @@ def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
     orthogonal_to = [psi0]
     for i in range(1, len(E_np)):
         E1_np, psi1_np = E_np[i], psi_np[:, i]
-        _sector, = tensors.detect_sectors_from_block(backend.block_from_numpy(psi1_np), legs=[leg], backend=backend)
+        _sector, = tensors.detect_sectors_from_block(backend.block_from_numpy(psi1_np),
+                                                     legs=[leg],
+                                                     backend=backend)
         if np.any(_sector != sector):
             continue  # psi1_np is in different sector
         print("--- excited state #", len(orthogonal_to))
@@ -80,8 +94,11 @@ def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
         print(f'{abs((E1 - E1_np) / E1_np)=}')
         psi1_H_psi1 = psi1.inner(H.tdot(psi1))
         print(f'<psi1|H|psi1> / E1 = 1. + {psi1_H_psi1 / E1 - 1.}')
-        assert (abs(psi1_H_psi1 / E1 - 1.) < 100 * tol)  # TODO why does this need such large tolerance?
-        print(f'<psi1_np|H_np|psi1_np> / E1_np = {np.inner(psi1_np.conj(), np.dot(H_np, psi1_np)) / E1_np}')
+        assert (abs(psi1_H_psi1 / E1 - 1.)
+                < 100 * tol)  # TODO why does this need such large tolerance?
+        print(
+            f'<psi1_np|H_np|psi1_np> / E1_np = {np.inner(psi1_np.conj(), np.dot(H_np, psi1_np)) / E1_np}'
+        )
         ov = np.inner(psi1.to_numpy().conj(), psi1_np)
         print(f'|<psi1|psi1_np>| = {abs(ov)}')
         assert (abs(1. - abs(ov)) < tol)
@@ -112,36 +129,45 @@ def test_lanczos_arpack():
 def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol):
     backend = compatible_backend
     leg = make_compatible_space()
-    
+
     if isinstance(compatible_backend, cyten.backends.FusionTreeBackend):
         # TODO need to be more careful with from func.
         # shapes of the blocks depend on num_domain_legs!
         # and GUE((1, 9)) generates blocks with shape (9, 9) without error!!
         # should GUE etc be Tensor classmethods?
         with pytest.raises(AssertionError, match='not a square matrix shape'):
-            H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
+            H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE,
+                                                        legs=[leg, leg.dual],
+                                                        backend=backend)
         return
-    
-    H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
+
+    H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE,
+                                                legs=[leg, leg.dual],
+                                                backend=backend)
     H_op = sparse.TensorLinearOperator(H, which_leg=1)
 
-    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(leg.symmetry, cyten.symmetries.ProductSymmetry):
+    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(
+            leg.symmetry, cyten.symmetries.ProductSymmetry):
         # TODO
         with pytest.raises(NotImplementedError, match='fusion_tensor is not implemented'):
             _ = H.to_numpy()
         return
-    
+
     if isinstance(H.backend, cyten.backends.FusionTreeBackend):
         # TODO
         with pytest.raises(AssertionError, match='norm not preserved'):
             _ = H.to_numpy()
         return
-    
+
     H_np = H.to_numpy()
-    npt.assert_allclose(H_np, H_np.conj().transpose())  # make sure we generated a hermitian operator
+    npt.assert_allclose(H_np,
+                        H_np.conj().transpose())  # make sure we generated a hermitian operator
 
     sector = leg.sectors[0]
-    psi_init = tensors.ChargedTensor.random_uniform(legs=[leg], charge=sector, backend=backend, dummy_leg_state=[1])
+    psi_init = tensors.ChargedTensor.random_uniform(legs=[leg],
+                                                    charge=sector,
+                                                    backend=backend,
+                                                    dummy_leg_state=[1])
 
     psi_init_np = psi_init.to_numpy()
 
@@ -171,18 +197,21 @@ def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
         # and GUE((1, 9)) generates blocks with shape (9, 9) without error!!
         # should GUE etc be Tensor classmethods?
         with pytest.raises(AssertionError, match='not a square matrix shape'):
-            H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
+            H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE,
+                                                        legs=[leg, leg.dual],
+                                                        backend=backend)
         return
-    
+
     H = tensors.SymmetricTensor.from_numpy_func(func, legs=[leg, leg.dual], backend=backend)
     H_op = sparse.TensorLinearOperator(H, which_leg=1)
 
-    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(leg.symmetry, cyten.ProductSymmetry):
+    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(
+            leg.symmetry, cyten.ProductSymmetry):
         # TODO
         with pytest.raises(NotImplementedError, match='should be implemented by subclass'):
             _ = H.to_numpy()
         return
-    
+
     H_np = H.to_numpy()
     E_np, psi_np = np.linalg.eig(H_np)
     if which == 'LM':
@@ -193,8 +222,13 @@ def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
         i = np.argmin(np.real(E_np))
     E0_np, psi0_np = E_np[i], psi_np[:, i]
 
-    sector, = tensors.detect_sectors_from_block(backend.block_from_numpy(psi0_np), legs=[leg], backend=backend)
-    psi_init = tensors.ChargedTensor.random_uniform(legs=[leg], charge=sector, backend=backend, dummy_leg_state=[1])
+    sector, = tensors.detect_sectors_from_block(backend.block_from_numpy(psi0_np),
+                                                legs=[leg],
+                                                backend=backend)
+    psi_init = tensors.ChargedTensor.random_uniform(legs=[leg],
+                                                    charge=sector,
+                                                    backend=backend,
+                                                    dummy_leg_state=[1])
 
     engine = krylov_based.Arnoldi(H_op, psi_init, {'which': which, 'num_ev': 1, 'N_max': N_max})
 
@@ -203,7 +237,7 @@ def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
         with pytest.raises(NotImplementedError, match='tdot not implemented'):
             _ = engine.run()
         return
-    
+
     (E0,), (psi0,), N = engine.run()
     print("full spectrum:", E_np)
     print("E0 = {E0:.14f} vs exact {E0_flat:.14f}".format(E0=E0, E0_flat=E0_np))

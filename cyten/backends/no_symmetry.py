@@ -10,9 +10,7 @@ from ..symmetries import no_symmetry, Symmetry
 from ..spaces import Space, ElementarySpace, ProductSpace
 from ..tools.misc import rank_data
 
-
 __all__ = ['NoSymmetryBackend']
-
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
@@ -61,38 +59,41 @@ class NoSymmetryBackend(TensorBackend):
 
     # ABSTRACT METHODS:
 
-    def act_block_diagonal_square_matrix(self, a: SymmetricTensor,
-                                         block_method: Callable[[Block], Block],
+    def act_block_diagonal_square_matrix(self, a: SymmetricTensor, block_method: Callable[[Block],
+                                                                                          Block],
                                          dtype_map: Callable[[Dtype], Dtype] | None) -> Data:
         return block_method(a.data)
 
     def add_trivial_leg(self, a: SymmetricTensor, legs_pos: int, add_to_domain: bool,
-                        co_domain_pos: int, new_codomain: ProductSpace, new_domain: ProductSpace
-                        ) -> Data:
+                        co_domain_pos: int, new_codomain: ProductSpace,
+                        new_domain: ProductSpace) -> Data:
         return self.block_backend.block_add_axis(a.data, legs_pos)
 
-    def almost_equal(self, a: SymmetricTensor, b: SymmetricTensor, rtol: float, atol: float) -> bool:
+    def almost_equal(self, a: SymmetricTensor, b: SymmetricTensor, rtol: float,
+                     atol: float) -> bool:
         return self.block_backend.block_allclose(a.data, b.data, rtol=rtol, atol=atol)
 
     def apply_mask_to_DiagonalTensor(self, tensor: DiagonalTensor, mask: Mask) -> DiagonalData:
         return self.block_backend.block_apply_mask(tensor.data, mask.data, ax=0)
 
-    def combine_legs(self,
-                     tensor: SymmetricTensor,
-                     leg_idcs_combine: list[list[int]],
-                     product_spaces: list[ProductSpace],
-                     new_codomain: ProductSpace,
-                     new_domain: ProductSpace,
-                     ) -> Data:
-         return self.block_backend.block_combine_legs(tensor.data, leg_idcs_combine)
+    def combine_legs(
+        self,
+        tensor: SymmetricTensor,
+        leg_idcs_combine: list[list[int]],
+        product_spaces: list[ProductSpace],
+        new_codomain: ProductSpace,
+        new_domain: ProductSpace,
+    ) -> Data:
+        return self.block_backend.block_combine_legs(tensor.data, leg_idcs_combine)
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         a_domain = list(reversed(range(a.num_codomain_legs, a.num_legs)))
         b_codomain = list(range(b.num_codomain_legs))
         return self.block_backend.block_tdot(a.data, b.data, a_domain, b_codomain)
 
-    def copy_data(self, a: SymmetricTensor | DiagonalTensor, device: str = None
-                  ) -> Data | DiagonalData:
+    def copy_data(self,
+                  a: SymmetricTensor | DiagonalTensor,
+                  device: str = None) -> Data | DiagonalData:
         return self.block_backend.block_copy(a.data, device=device)
 
     def dagger(self, a: SymmetricTensor) -> Data:
@@ -107,13 +108,12 @@ class NoSymmetryBackend(TensorBackend):
     def diagonal_any(self, a: DiagonalTensor) -> bool:
         return self.block_backend.block_any(a.data)
 
-    def diagonal_elementwise_binary(self, a: DiagonalTensor, b: DiagonalTensor, func,
-                                    func_kwargs, partial_zero_is_zero: bool
-                                    ) -> DiagonalData:
+    def diagonal_elementwise_binary(self, a: DiagonalTensor, b: DiagonalTensor, func, func_kwargs,
+                                    partial_zero_is_zero: bool) -> DiagonalData:
         return func(a.data, b.data, **func_kwargs)
 
-    def diagonal_elementwise_unary(self, a: DiagonalTensor, func, func_kwargs, maps_zero_to_zero: bool
-                                   ) -> DiagonalData:
+    def diagonal_elementwise_unary(self, a: DiagonalTensor, func, func_kwargs,
+                                   maps_zero_to_zero: bool) -> DiagonalData:
         return func(a.data, **func_kwargs)
 
     def diagonal_from_block(self, a: Block, co_domain: ProductSpace, tol: float) -> DiagonalData:
@@ -124,7 +124,8 @@ class NoSymmetryBackend(TensorBackend):
         shape = (co_domain.dim,)
         return func(shape, coupled)
 
-    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool) -> DiagonalData:
+    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor,
+                                         check_offdiagonal: bool) -> DiagonalData:
         return self.block_backend.block_get_diagonal(a.data, check_offdiagonal=check_offdiagonal)
 
     def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
@@ -139,10 +140,10 @@ class NoSymmetryBackend(TensorBackend):
         data = tens.data
         if basis_perm is not None:
             basis_perm = rank_data(basis_perm[self.block_backend.block_to_numpy(data)])
-        small_leg = ElementarySpace.from_trivial_sector(
-            dim=self.block_backend.block_sum_all(data), symmetry=large_leg.symmetry, is_dual=large_leg.is_dual,
-            basis_perm=basis_perm
-        )
+        small_leg = ElementarySpace.from_trivial_sector(dim=self.block_backend.block_sum_all(data),
+                                                        symmetry=large_leg.symmetry,
+                                                        is_dual=large_leg.is_dual,
+                                                        basis_perm=basis_perm)
         return data, small_leg
 
     def diagonal_transpose(self, tens: DiagonalTensor) -> tuple[Space, DiagonalData]:
@@ -161,11 +162,12 @@ class NoSymmetryBackend(TensorBackend):
     def eye_data(self, co_domain: ProductSpace, dtype: Dtype, device: str) -> Data:
         # Note: the identity has the same matrix elements in all ONB, so ne need to consider
         #       the basis perms.
-        return self.block_backend.eye_block(legs=[l.dim for l in co_domain.spaces], dtype=dtype,
+        return self.block_backend.eye_block(legs=[l.dim for l in co_domain.spaces],
+                                            dtype=dtype,
                                             device=device)
 
-    def from_dense_block(self, a: Block, codomain: ProductSpace, domain: ProductSpace, tol: float
-                         ) -> Data:
+    def from_dense_block(self, a: Block, codomain: ProductSpace, domain: ProductSpace,
+                         tol: float) -> Data:
         return a
 
     def from_dense_block_trivial_sector(self, block: Block, leg: Space) -> Data:
@@ -175,7 +177,10 @@ class NoSymmetryBackend(TensorBackend):
     def from_random_normal(self, codomain: ProductSpace, domain: ProductSpace, sigma: float,
                            dtype: Dtype, device: str) -> Data:
         shape = [leg.dim for leg in conventional_leg_order(codomain, domain)]
-        return self.block_backend.block_random_normal(shape, dtype=dtype, sigma=sigma, device=device)
+        return self.block_backend.block_random_normal(shape,
+                                                      dtype=dtype,
+                                                      sigma=sigma,
+                                                      device=device)
 
     def from_sector_block_func(self, func, codomain: ProductSpace, domain: ProductSpace) -> Data:
         """Generate tensor data from a function ``func(shape: tuple[int], coupled: Sector) -> Block``."""
@@ -188,7 +193,7 @@ class NoSymmetryBackend(TensorBackend):
 
     def full_data_from_mask(self, a: Mask, dtype: Dtype) -> Data:
         return self.block_backend.block_from_mask(a.data, dtype=dtype)
-    
+
     def get_device_from_data(self, a: Data) -> str:
         return self.block_backend.block_get_device(a)
 
@@ -235,21 +240,21 @@ class NoSymmetryBackend(TensorBackend):
         q = self.block_backend.block_reshape(q, (k,) + q_dims)
         return l, q
 
-    def mask_binary_operand(self, mask1: Mask, mask2: Mask, func
-                            ) -> tuple[DiagonalData, ElementarySpace]:
+    def mask_binary_operand(self, mask1: Mask, mask2: Mask,
+                            func) -> tuple[DiagonalData, ElementarySpace]:
         large_leg = mask1.large_leg
         basis_perm = large_leg._basis_perm
         data = func(mask1.data, mask2.data)
         if basis_perm is not None:
             basis_perm = rank_data(basis_perm[data])
-        small_leg = ElementarySpace.from_trivial_sector(
-            dim=self.block_backend.block_sum_all(data), symmetry=large_leg.symmetry, is_dual=large_leg.is_dual,
-            basis_perm=basis_perm
-        )
+        small_leg = ElementarySpace.from_trivial_sector(dim=self.block_backend.block_sum_all(data),
+                                                        symmetry=large_leg.symmetry,
+                                                        is_dual=large_leg.is_dual,
+                                                        basis_perm=basis_perm)
         return data, small_leg
 
-    def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
-                                ) -> tuple[Data, ProductSpace, ProductSpace]:
+    def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask,
+                                leg_idx: int) -> tuple[Data, ProductSpace, ProductSpace]:
         in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg_idx)
         data = self.block_backend.block_apply_mask(tensor.data, mask.data, leg_idx)
         if in_domain:
@@ -264,8 +269,8 @@ class NoSymmetryBackend(TensorBackend):
             codomain = ProductSpace(spaces, symmetry=tensor.symmetry, backend=self)
         return data, codomain, domain
 
-    def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
-                                ) -> tuple[Data, ProductSpace, ProductSpace]:
+    def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask,
+                                leg_idx: int) -> tuple[Data, ProductSpace, ProductSpace]:
         in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg_idx)
         data = self.block_backend.block_enlarge_leg(tensor.data, mask.data, leg_idx)
         if in_domain:
@@ -287,10 +292,10 @@ class NoSymmetryBackend(TensorBackend):
         basis_perm = large_leg._basis_perm
         if basis_perm is not None:
             basis_perm = rank_data(basis_perm[a])
-        small_leg = ElementarySpace.from_trivial_sector(
-            dim=self.block_backend.block_sum_all(a), symmetry=large_leg.symmetry, is_dual=large_leg.is_dual,
-            basis_perm=basis_perm
-        )
+        small_leg = ElementarySpace.from_trivial_sector(dim=self.block_backend.block_sum_all(a),
+                                                        symmetry=large_leg.symmetry,
+                                                        is_dual=large_leg.is_dual,
+                                                        basis_perm=basis_perm)
         return a, small_leg
 
     def mask_to_block(self, a: Mask) -> Block:
@@ -310,10 +315,10 @@ class NoSymmetryBackend(TensorBackend):
         data = func(mask.data)
         if basis_perm is not None:
             basis_perm = rank_data(basis_perm[data])
-        small_leg = ElementarySpace.from_trivial_sector(
-            dim=self.block_backend.block_sum_all(data), symmetry=large_leg.symmetry, is_dual=large_leg.is_dual,
-            basis_perm=basis_perm
-        )
+        small_leg = ElementarySpace.from_trivial_sector(dim=self.block_backend.block_sum_all(data),
+                                                        symmetry=large_leg.symmetry,
+                                                        is_dual=large_leg.is_dual,
+                                                        basis_perm=basis_perm)
         return data, small_leg
 
     def move_to_device(self, a: SymmetricTensor | DiagonalTensor | Mask, device: str) -> Data:
@@ -340,23 +345,25 @@ class NoSymmetryBackend(TensorBackend):
         data = self.block_backend.block_trace_partial(tensor.data, idcs1, idcs2, remaining)
         if len(remaining) == 0:
             return self.block_backend.block_item(data), None, None
-        codomain = ProductSpace(
-            [leg for n, leg in enumerate(tensor.codomain) if n in remaining],
-            symmetry=tensor.symmetry, backend=self
-        )
+        codomain = ProductSpace([leg for n, leg in enumerate(tensor.codomain) if n in remaining],
+                                symmetry=tensor.symmetry,
+                                backend=self)
         domain = ProductSpace(
             [leg for n, leg in enumerate(tensor.domain) if N - 1 - n in remaining],
-            symmetry=tensor.symmetry, backend=self
-        )
+            symmetry=tensor.symmetry,
+            backend=self)
         return data, codomain, domain
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:
         codomain = ProductSpace([a._as_codomain_leg(i) for i in codomain_idcs],
-                                symmetry=a.symmetry, backend=self)
+                                symmetry=a.symmetry,
+                                backend=self)
         domain = ProductSpace([a._as_domain_leg(i) for i in domain_idcs],
-                              symmetry=a.symmetry, backend=self)
-        data = self.block_backend.block_permute_axes(a.data, [*codomain_idcs, *reversed(domain_idcs)])
+                              symmetry=a.symmetry,
+                              backend=self)
+        data = self.block_backend.block_permute_axes(a.data,
+                                                     [*codomain_idcs, *reversed(domain_idcs)])
         return data, codomain, domain
 
     def qr(self, a: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
@@ -376,8 +383,8 @@ class NoSymmetryBackend(TensorBackend):
         return self.block_backend.block_scale_axis(a.data, b.data, leg)
 
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
-                   domain_split: list[int], new_codomain: ProductSpace, new_domain: ProductSpace
-                   ) -> Data:
+                   domain_split: list[int], new_codomain: ProductSpace,
+                   new_domain: ProductSpace) -> Data:
         dims = []
         for n in leg_idcs:
             in_domain, co_domain_idx, _ = a._parse_leg_idx(n)
@@ -397,8 +404,8 @@ class NoSymmetryBackend(TensorBackend):
     def supports_symmetry(self, symmetry: Symmetry) -> bool:
         return symmetry == no_symmetry
 
-    def svd(self, a: SymmetricTensor, new_leg: ElementarySpace, algorithm: str | None
-            ) -> tuple[Data, DiagonalData, Data]:
+    def svd(self, a: SymmetricTensor, new_leg: ElementarySpace,
+            algorithm: str | None) -> tuple[Data, DiagonalData, Data]:
         u_dims = a.shape[:a.num_codomain_legs]
         vh_dims = a.shape[a.num_codomain_legs:]
         mat = self.block_backend.block_reshape(a.data, (prod(u_dims), prod(vh_dims)))
@@ -433,28 +440,33 @@ class NoSymmetryBackend(TensorBackend):
         return data, codomain, domain
 
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
-                                 degeneracy_tol: float, trunc_cut: float, svd_min: float
-                                 ) -> tuple[MaskData, ElementarySpace, float, float]:
+                                 degeneracy_tol: float, trunc_cut: float,
+                                 svd_min: float) -> tuple[MaskData, ElementarySpace, float, float]:
         S_np = self.block_backend.block_to_numpy(S.data)
         keep, err, new_norm = self._truncate_singular_values_selection(
-            S=S_np, qdims=None, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol,
-            trunc_cut=trunc_cut, svd_min=svd_min
-        )
+            S=S_np,
+            qdims=None,
+            chi_max=chi_max,
+            chi_min=chi_min,
+            degeneracy_tol=degeneracy_tol,
+            trunc_cut=trunc_cut,
+            svd_min=svd_min)
         mask_data = self.block_backend.block_from_numpy(keep, dtype=Dtype.bool)
-        new_leg = ElementarySpace.from_trivial_sector(
-            dim=keep.sum(), symmetry=S.symmetry, is_dual=S.leg.is_bra_space
-        )
+        new_leg = ElementarySpace.from_trivial_sector(dim=keep.sum(),
+                                                      symmetry=S.symmetry,
+                                                      is_dual=S.leg.is_bra_space)
         return mask_data, new_leg, err, new_norm
 
     def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str):
-        return self.block_backend.zero_block(
-            shape=[l.dim for l in conventional_leg_order(codomain, domain)],
-            dtype=dtype, device=device
-        )
+        return self.block_backend.zero_block(shape=[
+            l.dim for l in conventional_leg_order(codomain, domain)
+        ],
+                                             dtype=dtype,
+                                             device=device)
 
     def zero_mask_data(self, large_leg: Space, device: str) -> MaskData:
         return self.block_backend.zero_block(shape=[large_leg.dim], dtype=Dtype.bool, device=device)
 
-    def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype, device: str
-                           ) -> DiagonalData:
+    def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype,
+                           device: str) -> DiagonalData:
         return self.block_backend.zero_block(shape=[co_domain.dim], dtype=dtype, device=device)
