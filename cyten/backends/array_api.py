@@ -12,10 +12,10 @@ from ..dtypes import Dtype
 
 import numpy as np
 
-
-__all__ = ['ArrayApiBlockBackend', 'NoSymmetryArrayApiBackend', 'AbelianArrayApiBackend',
-           'FusionTreeArrayApiBackend']
-
+__all__ = [
+    'ArrayApiBlockBackend', 'NoSymmetryArrayApiBackend', 'AbelianArrayApiBackend',
+    'FusionTreeArrayApiBackend'
+]
 
 # TODO provide an example...
 
@@ -45,9 +45,12 @@ class ArrayApiBlockBackend(BlockBackend):
             None: None,
         }
         super().__init__(default_device=default_device)
-        
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
-                 ) -> Block:
+
+    def as_block(self,
+                 a,
+                 dtype: Dtype = None,
+                 return_dtype: bool = False,
+                 device: str = None) -> Block:
         if device is None and not hasattr(a, 'device'):
             device = self.default_device
         block = self._api.asarray(a, dtype=self.backend_dtype_map[dtype], device=device)
@@ -67,7 +70,7 @@ class ArrayApiBlockBackend(BlockBackend):
 
     def block_all(self, a) -> bool:
         return self._api.all(a)
-        
+
     def block_any(self, a) -> bool:
         return self._api.any(a)
 
@@ -118,9 +121,10 @@ class ArrayApiBlockBackend(BlockBackend):
         res = self._api.linalg.trace(a)  # performs trace along last two axes
         return self.block_item(res)
 
-    def block_trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining: list[int]) -> Block:
+    def block_trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int],
+                            remaining: list[int]) -> Block:
         a = self._api.permute_dims(a, remaining + idcs1 + idcs2)
-        trace_dim = np.prod(a.shape[len(remaining):len(remaining)+len(idcs1)])
+        trace_dim = np.prod(a.shape[len(remaining):len(remaining) + len(idcs1)])
         a = self._api.reshape(a, (-1, trace_dim, trace_dim))
         return self._api.linalg.trace(a)
 
@@ -135,7 +139,7 @@ class ArrayApiBlockBackend(BlockBackend):
 
     def block_real_if_close(self, a: Block, tol: float) -> Block:
         raise NotImplementedError  # TODO
-    
+
     def block_sqrt(self, a: Block) -> Block:
         raise NotImplementedError  # TODO
 
@@ -166,13 +170,13 @@ class ArrayApiBlockBackend(BlockBackend):
 
     def block_max(self, a: Block) -> float | complex:
         return self._api.max(a).item()
-    
+
     def block_max_abs(self, a: Block) -> float:
         return self._api.max(self._api.abs(a)).item()
 
     def block_min(self, a: Block) -> float | complex:
         return self._api.min(a).item()
-    
+
     def block_reshape(self, a: Block, shape: tuple[int]) -> Block:
         return self._api.reshape(a, shape)
 
@@ -186,7 +190,7 @@ class ArrayApiBlockBackend(BlockBackend):
 
         if algorithm != 'default':
             raise ValueError(f'SVD algorithm not supported: {algorithm}')
-        
+
         self._api.linalg.svd(a, full_matrices=False)
 
     def matrix_qr(self, a: Block, full: bool) -> tuple[Block, Block]:
@@ -205,8 +209,11 @@ class ArrayApiBlockBackend(BlockBackend):
             res += 1.j * np.random.uniform(-1, 1, size=dims)
         return self._api.asarray(res, device=device)
 
-    def block_random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
-                            ) -> Block:
+    def block_random_normal(self,
+                            dims: list[int],
+                            dtype: Dtype,
+                            sigma: float,
+                            device: str = None) -> Block:
         res = np.random.normal(loc=0, scale=sigma, size=dims)
         if not dtype.is_real:
             res += 1.j * np.random.normal(loc=0, scale=sigma, size=dims)
@@ -268,7 +275,7 @@ class ArrayApiBlockBackend(BlockBackend):
             perm = self.block_argsort(w, sort)
             w = w[perm]
         return w
-            
+
     def block_abs_argmax(self, block: Block) -> list[int]:
         flat_idx = self._api.argmax(self._api.abs(block))
         # OPTIMIZE numpy has np.unravel_indices. no analogue here?
@@ -295,18 +302,21 @@ class ArrayApiBlockBackend(BlockBackend):
 
 
 class NoSymmetryArrayApiBackend(NoSymmetryBackend):
+
     def __init__(self, api_namespace):
         block_backend = ArrayApiBlockBackend(api_namespace)
         NoSymmetryBackend.__init__(self, block_backend=block_backend)
 
 
 class AbelianArrayApiBackend(AbelianBackend):
+
     def __init__(self, api_namespace):
         block_backend = ArrayApiBlockBackend(api_namespace)
         AbelianBackend.__init__(self, block_backend=block_backend)
 
 
 class FusionTreeArrayApiBackend(FusionTreeBackend):
+
     def __init__(self, api_namespace):
         block_backend = ArrayApiBlockBackend(api_namespace)
         FusionTreeBackend.__init__(self, block_backend=block_backend)

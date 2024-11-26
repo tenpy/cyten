@@ -142,6 +142,7 @@ import pytest
 
 from cyten import backends, spaces, symmetries, tensors, Dtype
 
+
 # OVERRIDE pytest routines
 def pytest_collection_modifyitems(config, items):
 
@@ -181,8 +182,8 @@ _symmetries = {
     'Fib_U1': symmetries.fibonacci_anyon_category * symmetries.u1_symmetry,
 }
 
-
 # "UNCONSTRAINED" FIXTURES  ->  independent (mostly) of the other features. no compatibility guarantees.
+
 
 @pytest.fixture
 def np_random() -> np.random.Generator:
@@ -196,7 +197,9 @@ def block_backend(request) -> str:
     return request.param
 
 
-@pytest.fixture(params=['no_symmetry', 'abelian', pytest.param('fusion_tree', marks=pytest.mark.FusionTree)])
+@pytest.fixture(
+    params=['no_symmetry', 'abelian',
+            pytest.param('fusion_tree', marks=pytest.mark.FusionTree)])
 def any_symmetry_backend(request) -> str:
     return request.param
 
@@ -217,22 +220,33 @@ def make_any_sectors(any_symmetry, np_random):
     def make(num: int, sort: bool = False) -> symmetries.SectorArray:
         # return SectorArray
         return random_symmetry_sectors(any_symmetry, num, sort, np_random=np_random)
+
     return make
 
 
 @pytest.fixture
 def make_any_space(any_symmetry, np_random):
-    def make(max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None) -> spaces.ElementarySpace:
+
+    def make(max_sectors: int = 5,
+             max_mult: int = 5,
+             is_dual: bool = None) -> spaces.ElementarySpace:
         # return ElementarySpace
-        return random_vector_space(any_symmetry, max_sectors, max_mult, is_dual, np_random=np_random)
+        return random_vector_space(any_symmetry,
+                                   max_sectors,
+                                   max_mult,
+                                   is_dual,
+                                   np_random=np_random)
+
     return make
 
 
 @pytest.fixture
 def make_any_block(any_backend, np_random):
+
     def make(size: tuple[int, ...], real=False) -> backends.Block:
         # return Block
         return random_block(any_backend.block_backend, size, real=real, np_random=np_random)
+
     return make
 
 
@@ -243,9 +257,9 @@ _compatible_pairs = {'NoSymmetry': ('no_symmetry', symmetries.no_symmetry)}  # {
 for _sym_name, _sym in _symmetries.items():
     if isinstance(_sym, symmetries.AbelianGroup):
         _compatible_pairs[f'AbelianBackend-{_sym_name}'] = ('abelian', _sym)
-    _compatible_pairs[f'FusionTreeBackend-{_sym_name}'] = pytest.param(
-        ('fusion_tree', _sym), marks=pytest.mark.FusionTree
-    )
+    _compatible_pairs[f'FusionTreeBackend-{_sym_name}'] = pytest.param(('fusion_tree', _sym),
+                                                                       marks=pytest.mark.FusionTree)
+
 
 @pytest.fixture(params=list(_compatible_pairs.values()), ids=list(_compatible_pairs.keys()))
 def _compatible_backend_symm_pairs(request) -> tuple[str, symmetries.Symmetry]:
@@ -279,24 +293,35 @@ def make_compatible_sectors(compatible_symmetry, np_random):
     def make(num: int, sort: bool = False) -> symmetries.SectorArray:
         # returns SectorArray
         return random_symmetry_sectors(compatible_symmetry, num, sort, np_random=np_random)
+
     return make
 
 
 @pytest.fixture
 def make_compatible_space(compatible_symmetry, np_random):
-    def make(max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None,
+
+    def make(max_sectors: int = 5,
+             max_mult: int = 5,
+             is_dual: bool = None,
              allow_basis_perm: bool = True) -> spaces.ElementarySpace:
         # returns ElementarySpace
-        return random_vector_space(compatible_symmetry, max_sectors, max_mult, is_dual,
-                                   allow_basis_perm=allow_basis_perm, np_random=np_random)
+        return random_vector_space(compatible_symmetry,
+                                   max_sectors,
+                                   max_mult,
+                                   is_dual,
+                                   allow_basis_perm=allow_basis_perm,
+                                   np_random=np_random)
+
     return make
 
 
 @pytest.fixture
 def make_compatible_block(compatible_backend, np_random):
+
     def make(size: tuple[int, ...], real: bool = False) -> backends.Block:
         # returns Block
         return random_block(compatible_backend.block_backend, size, real=real, np_random=np_random)
+
     return make
 
 
@@ -304,24 +329,37 @@ def make_compatible_block(compatible_backend, np_random):
 def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_symmetry_backend,
                            make_compatible_block, make_compatible_space, np_random):
     """Tensor RNG."""
+
     def make(codomain: list[spaces.Space | str | None] | spaces.ProductSpace | int = None,
              domain: list[spaces.Space | str | None] | spaces.ProductSpace | int = None,
-             labels: list[str | None] = None, dtype: Dtype = None, device: str = None,
+             labels: list[str | None] = None,
+             dtype: Dtype = None,
+             device: str = None,
              *,
-             like: tensors.Tensor = None, max_blocks=5, max_block_size=5, empty_ok=False,
-             all_blocks=False, cls=tensors.SymmetricTensor, allow_basis_perm: bool = True):
+             like: tensors.Tensor = None,
+             max_blocks=5,
+             max_block_size=5,
+             empty_ok=False,
+             all_blocks=False,
+             cls=tensors.SymmetricTensor,
+             allow_basis_perm: bool = True):
         if like is not None:
             assert like.backend is compatible_backend
             assert like.symmetry is compatible_symmetry
             if isinstance(like, tensors.ChargedTensor):
                 return tensors.ChargedTensor(make(like=like.invariant_part), like.charged_state)
             elif isinstance(like, tensors.Tensor):
-                return make(codomain=like.codomain, domain=like.domain, labels=like.labels,
-                            dtype=like.dtype, device=like.device, max_blocks=max_blocks,
-                            max_block_size=max_block_size, cls=type(like))
+                return make(codomain=like.codomain,
+                            domain=like.domain,
+                            labels=like.labels,
+                            dtype=like.dtype,
+                            device=like.device,
+                            max_blocks=max_blocks,
+                            max_block_size=max_block_size,
+                            cls=type(like))
             else:
                 raise TypeError(f'like must be a Tensor. Got {type(like)}')
-        
+
         if isinstance(codomain, list):
             codomain = codomain[:]  # we do inplace operations below.
         if isinstance(domain, list):
@@ -330,7 +368,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
         # 0) default for codomain
         # ======================================================================================
         if codomain is None:
-            if cls in [tensors.SymmetricTensor, tensors. ChargedTensor]:
+            if cls in [tensors.SymmetricTensor, tensors.ChargedTensor]:
                 codomain = 2
                 if domain is None:
                     domain = 2
@@ -389,23 +427,32 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
         for n, l in enumerate(domain_labels):
             if l is None:
                 continue
-            assert labels[-1-n] is None
-            labels[-1-n] = l
+            assert labels[-1 - n] is None
+            labels[-1 - n] = l
         #
         # 2) Deal with other tensor types
         # ======================================================================================
         if cls is tensors.ChargedTensor:
-            charge_leg = make_compatible_space(max_sectors=1, max_mult=1, is_dual=False,
+            charge_leg = make_compatible_space(max_sectors=1,
+                                               max_mult=1,
+                                               is_dual=False,
                                                allow_basis_perm=allow_basis_perm)
             if isinstance(domain, spaces.ProductSpace):
                 inv_domain = domain.left_multiply(charge_leg, backend=compatible_backend)
             else:
                 inv_domain = [charge_leg, *domain]
             inv_labels = [*labels, tensors.ChargedTensor._CHARGE_LEG_LABEL]
-            inv_part = make(codomain=codomain, domain=inv_domain, labels=inv_labels,
-                            max_blocks=max_blocks, max_block_size=max_block_size, empty_ok=empty_ok,
-                            all_blocks=all_blocks, cls=tensors.SymmetricTensor, dtype=dtype,
-                            device=device, allow_basis_perm=allow_basis_perm)
+            inv_part = make(codomain=codomain,
+                            domain=inv_domain,
+                            labels=inv_labels,
+                            max_blocks=max_blocks,
+                            max_block_size=max_block_size,
+                            empty_ok=empty_ok,
+                            all_blocks=all_blocks,
+                            cls=tensors.SymmetricTensor,
+                            dtype=dtype,
+                            device=device,
+                            allow_basis_perm=allow_basis_perm)
 
             charged_state = [1] if inv_part.symmetry.can_be_dropped else None
             res = tensors.ChargedTensor(inv_part, charged_state=charged_state)
@@ -431,7 +478,8 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
                 else:
                     assert len(domain) == 1
                     if domain[0] is None and codomain[0] is None:
-                        leg = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
+                        leg = make_compatible_space(max_sectors=max_blocks,
+                                                    max_mult=max_block_size,
                                                     allow_basis_perm=allow_basis_perm)
                     elif domain[0] is None:
                         leg = codomain[0]
@@ -444,10 +492,15 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
             real = False if dtype is None else dtype.is_real
             res = tensors.DiagonalTensor.from_block_func(
                 lambda size: make_compatible_block(size, real=real),
-                leg=leg, backend=compatible_backend, labels=labels, dtype=dtype, device=device
-            )
+                leg=leg,
+                backend=compatible_backend,
+                labels=labels,
+                dtype=dtype,
+                device=device)
             if not all_blocks:
-                res = randomly_drop_blocks(res, max_blocks=max_blocks, empty_ok=empty_ok,
+                res = randomly_drop_blocks(res,
+                                           max_blocks=max_blocks,
+                                           empty_ok=empty_ok,
                                            np_random=np_random)
             res.test_sanity()
             return res
@@ -473,34 +526,47 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
             #
             if large_leg is None:
                 if small_leg is None:
-                    large_leg = make_compatible_space(
-                        max_sectors=max_blocks, max_mult=max_block_size,
-                        allow_basis_perm=allow_basis_perm
-                    )
+                    large_leg = make_compatible_space(max_sectors=max_blocks,
+                                                      max_mult=max_block_size,
+                                                      allow_basis_perm=allow_basis_perm)
                 else:
                     # TODO looks like this generates a basis_perm incompatible with the mask!
                     raise NotImplementedError('Mask generation broken')
-                    extra = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
+                    extra = make_compatible_space(max_sectors=max_blocks,
+                                                  max_mult=max_block_size,
                                                   is_dual=small_leg.is_bra_space,
                                                   allow_basis_perm=allow_basis_perm)
                     large_leg = small_leg.direct_sum(extra)
 
             if compatible_symmetry_backend == 'fusion_tree':
                 with pytest.raises(NotImplementedError, match='diagonal_to_mask'):
-                    _ = tensors.Mask.from_random(large_leg=large_leg, small_leg=small_leg,
-                                                 backend=compatible_backend, p_keep=.6,
-                                                 labels=labels, np_random=np_random)
+                    _ = tensors.Mask.from_random(large_leg=large_leg,
+                                                 small_leg=small_leg,
+                                                 backend=compatible_backend,
+                                                 p_keep=.6,
+                                                 labels=labels,
+                                                 np_random=np_random)
                 pytest.xfail()
 
             if small_leg is not None and small_leg.dim > large_leg.dim:
-                res = tensors.Mask.from_random(large_leg=small_leg, small_leg=large_leg,
-                                               backend=compatible_backend, p_keep=.6, min_keep=1,
-                                               labels=labels, device=device, np_random=np_random)
+                res = tensors.Mask.from_random(large_leg=small_leg,
+                                               small_leg=large_leg,
+                                               backend=compatible_backend,
+                                               p_keep=.6,
+                                               min_keep=1,
+                                               labels=labels,
+                                               device=device,
+                                               np_random=np_random)
                 res = tensors.dagger(res)
             else:
-                res = tensors.Mask.from_random(large_leg=large_leg, small_leg=small_leg,
-                                               backend=compatible_backend, p_keep=.6, min_keep=1,
-                                               labels=labels, device=device, np_random=np_random)
+                res = tensors.Mask.from_random(large_leg=large_leg,
+                                               small_leg=small_leg,
+                                               backend=compatible_backend,
+                                               p_keep=.6,
+                                               min_keep=1,
+                                               labels=labels,
+                                               device=device,
+                                               np_random=np_random)
             assert res.small_leg.num_sectors > 0
             res.test_sanity()
             return res
@@ -514,43 +580,59 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
                     codomain[n] = make_compatible_space(max_sectors=max_blocks,
                                                         max_mult=max_block_size,
                                                         allow_basis_perm=allow_basis_perm)
-            codomain = spaces.ProductSpace(codomain, symmetry=compatible_symmetry, backend=compatible_backend)
+            codomain = spaces.ProductSpace(codomain,
+                                           symmetry=compatible_symmetry,
+                                           backend=compatible_backend)
             codomain_complete = True
         if not codomain_complete:
             # can assume that domain is complete
             if not isinstance(domain, spaces.ProductSpace):
-                domain = spaces.ProductSpace(domain, symmetry=compatible_symmetry, backend=compatible_backend)
+                domain = spaces.ProductSpace(domain,
+                                             symmetry=compatible_symmetry,
+                                             backend=compatible_backend)
             missing = [n for n, sp in enumerate(codomain) if sp is None]
             for n in missing[:-1]:
-                codomain[n] = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
+                codomain[n] = make_compatible_space(max_sectors=max_blocks,
+                                                    max_mult=max_block_size,
                                                     allow_basis_perm=allow_basis_perm)
             last = missing[-1]
             partial_codomain = spaces.ProductSpace(codomain[:last] + codomain[last + 1:],
                                                    symmetry=compatible_symmetry,
                                                    backend=compatible_backend)
-            leg = find_last_leg(same=partial_codomain, opposite=domain, max_sectors=max_blocks,
+            leg = find_last_leg(same=partial_codomain,
+                                opposite=domain,
+                                max_sectors=max_blocks,
                                 max_mult=max_block_size)
             codomain = partial_codomain.insert_multiply(leg, last, backend=compatible_backend)
         elif not domain_complete:
             # can assume codomain is complete
             if not isinstance(codomain, spaces.ProductSpace):
-                codomain = spaces.ProductSpace(codomain, symmetry=compatible_symmetry, backend=compatible_backend)
+                codomain = spaces.ProductSpace(codomain,
+                                               symmetry=compatible_symmetry,
+                                               backend=compatible_backend)
             missing = [n for n, sp in enumerate(domain) if sp is None]
             for n in missing[:-1]:
-                domain[n] = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
+                domain[n] = make_compatible_space(max_sectors=max_blocks,
+                                                  max_mult=max_block_size,
                                                   allow_basis_perm=allow_basis_perm)
             last = missing[-1]
             partial_domain = spaces.ProductSpace(domain[:last] + domain[last + 1:],
                                                  symmetry=compatible_symmetry,
                                                  backend=compatible_backend)
-            leg = find_last_leg(same=partial_domain, opposite=codomain, max_sectors=max_blocks,
+            leg = find_last_leg(same=partial_domain,
+                                opposite=codomain,
+                                max_sectors=max_blocks,
                                 max_mult=max_block_size)
             domain = partial_domain.insert_multiply(leg, last, backend=compatible_backend)
         else:
             if not isinstance(codomain, spaces.ProductSpace):
-                codomain = spaces.ProductSpace(codomain, symmetry=compatible_symmetry, backend=compatible_backend)
+                codomain = spaces.ProductSpace(codomain,
+                                               symmetry=compatible_symmetry,
+                                               backend=compatible_backend)
             if not isinstance(domain, spaces.ProductSpace):
-                domain = spaces.ProductSpace(domain, symmetry=compatible_symmetry, backend=compatible_backend)
+                domain = spaces.ProductSpace(domain,
+                                             symmetry=compatible_symmetry,
+                                             backend=compatible_backend)
         #
         # 3) Finish up
         # ======================================================================================
@@ -560,18 +642,25 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
         real = False if dtype is None else dtype.is_real
         res = tensors.SymmetricTensor.from_block_func(
             lambda size: make_compatible_block(size, real=real),
-            codomain=codomain, domain=domain, backend=compatible_backend, labels=labels,
-            dtype=dtype, device=device
-        )
+            codomain=codomain,
+            domain=domain,
+            backend=compatible_backend,
+            labels=labels,
+            dtype=dtype,
+            device=device)
         if not all_blocks:
-            res = randomly_drop_blocks(res, max_blocks=max_blocks, empty_ok=empty_ok,
-                                        np_random=np_random)
+            res = randomly_drop_blocks(res,
+                                       max_blocks=max_blocks,
+                                       empty_ok=empty_ok,
+                                       np_random=np_random)
         res.test_sanity()
         return res
+
     return make
 
 
 # RANDOM GENERATION
+
 
 def random_block(block_backend, size, real=False, np_random=np.random.default_rng(0)):
     block = np_random.normal(size=size)
@@ -580,7 +669,9 @@ def random_block(block_backend, size, real=False, np_random=np.random.default_rn
     return block_backend.block_from_numpy(block)
 
 
-def random_symmetry_sectors(symmetry: symmetries.Symmetry, num: int, sort: bool = False,
+def random_symmetry_sectors(symmetry: symmetries.Symmetry,
+                            num: int,
+                            sort: bool = False,
                             np_random=np.random.default_rng()) -> symmetries.SectorArray:
     """random unique symmetry sectors, optionally sorted"""
     if isinstance(symmetry, symmetries.SU2Symmetry):
@@ -596,8 +687,10 @@ def random_symmetry_sectors(symmetry: symmetries.Symmetry, num: int, sort: bool 
             res = symmetry.all_sectors()[which, :]
     elif isinstance(symmetry, symmetries.ProductSymmetry):
         factor_len = max(3, num // len(symmetry.factors))
-        factor_sectors = [random_symmetry_sectors(factor, factor_len, np_random=np_random)
-                          for factor in symmetry.factors]
+        factor_sectors = [
+            random_symmetry_sectors(factor, factor_len, np_random=np_random)
+            for factor in symmetry.factors
+        ]
         combs = np.indices([len(s) for s in factor_sectors]).T.reshape((-1, len(factor_sectors)))
         if len(combs) > num:
             combs = np_random.choice(combs, replace=False, size=num)
@@ -610,8 +703,12 @@ def random_symmetry_sectors(symmetry: symmetries.Symmetry, num: int, sort: bool 
     return res
 
 
-def random_vector_space(symmetry, max_num_blocks=5, max_block_size=5, is_dual=None,
-                        allow_basis_perm=True, np_random=None):
+def random_vector_space(symmetry,
+                        max_num_blocks=5,
+                        max_block_size=5,
+                        is_dual=None,
+                        allow_basis_perm=True,
+                        np_random=None):
     if np_random is None:
         np_random = np.random.default_rng()
     num_sectors = np_random.integers(1, max_num_blocks, endpoint=True)
@@ -626,15 +723,15 @@ def random_vector_space(symmetry, max_num_blocks=5, max_block_size=5, is_dual=No
         basis_perm = None
     if is_dual is None:
         is_dual = np_random.random() < 0.5
-    res = spaces.ElementarySpace(
-        symmetry, sectors, mults, basis_perm=basis_perm, is_dual=is_dual
-    )
+    res = spaces.ElementarySpace(symmetry, sectors, mults, basis_perm=basis_perm, is_dual=is_dual)
     res.test_sanity()
     return res
 
 
 def randomly_drop_blocks(res: tensors.SymmetricTensor | tensors.DiagonalTensor,
-                         max_blocks: int | None, empty_ok: bool, np_random=np.random.default_rng()):
+                         max_blocks: int | None,
+                         empty_ok: bool,
+                         np_random=np.random.default_rng()):
 
     if isinstance(res.backend, backends.NoSymmetryBackend):
         # nothing to do
@@ -662,30 +759,29 @@ def randomly_drop_blocks(res: tensors.SymmetricTensor | tensors.DiagonalTensor,
     which = np.sort(which)
 
     if isinstance(res.backend, backends.AbelianBackend):
-        res.data = backends.AbelianBackendData(
-            dtype=res.dtype,
-            blocks=[res.data.blocks[n] for n in which],
-            block_inds=res.data.block_inds[which],
-            is_sorted=True,
-            device=res.data.device
-        )
+        res.data = backends.AbelianBackendData(dtype=res.dtype,
+                                               blocks=[res.data.blocks[n] for n in which],
+                                               block_inds=res.data.block_inds[which],
+                                               is_sorted=True,
+                                               device=res.data.device)
         return res
 
     if isinstance(res.backend, backends.FusionTreeBackend):
-        res.data = backends.FusionTreeData(
-            block_inds=res.data.block_inds[which, :],
-            blocks=[res.data.blocks[n] for n in which],
-            dtype=res.data.dtype,
-            device=res.data.device
-        )
+        res.data = backends.FusionTreeData(block_inds=res.data.block_inds[which, :],
+                                           blocks=[res.data.blocks[n] for n in which],
+                                           dtype=res.data.dtype,
+                                           device=res.data.device)
         return res
 
     raise ValueError('Backend not recognized')
 
 
-def find_last_leg(same: spaces.ProductSpace, opposite: spaces.ProductSpace,
-                  max_sectors: int, max_mult: int,
-                  extra_sectors=None, np_random=np.random.default_rng()):
+def find_last_leg(same: spaces.ProductSpace,
+                  opposite: spaces.ProductSpace,
+                  max_sectors: int,
+                  max_mult: int,
+                  extra_sectors=None,
+                  np_random=np.random.default_rng()):
     """Find a leg such that the resulting tensor allows some non-zero blocks
 
     Parameters
@@ -710,7 +806,8 @@ def find_last_leg(same: spaces.ProductSpace, opposite: spaces.ProductSpace,
     mults = np.minimum(mults, max_mult)
     if extra_sectors is not None:
         # replace some sectors by extra_sectors
-        duplicates = np.any(np.all(extra_sectors[None, :, :] == sectors[:, None, :], axis=2), axis=0)
+        duplicates = np.any(np.all(extra_sectors[None, :, :] == sectors[:, None, :], axis=2),
+                            axis=0)
         extra_sectors = extra_sectors[np.logical_not(duplicates)]
         # replace some sectors
         min_replace = max(1, int(.2 * len(sectors)))

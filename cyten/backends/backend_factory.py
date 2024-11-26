@@ -18,8 +18,7 @@ logger = logging.getLogger(__name__)
 _tensor_backend_classes = dict(  # values: (cls, kwargs)
     no_symmetry=(NoSymmetryBackend, {}),
     abelian=(AbelianBackend, {}),
-    fusion_tree=(FusionTreeBackend, {})
-)
+    fusion_tree=(FusionTreeBackend, {}))
 _block_backends = dict(  # values: (cls, kwargs)
     numpy=(NumpyBlockBackend, {}),
     torch=(TorchBlockBackend, {}),

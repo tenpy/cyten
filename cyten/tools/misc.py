@@ -7,18 +7,13 @@ import os.path
 import warnings
 from typing import TypeVar, Sequence, Set
 
-
 __all__ = [
-    'UNSPECIFIED', 'duplicate_entries', 'to_iterable', 'as_immutable_array',
-    'permutation_as_swaps',
-    'argsort', 'combine_constraints', 'inverse_permutation', 'list_to_dict_list',
-    'find_subclass',
-    'rank_data',
-    'np_argsort', 'make_stride', 'find_row_differences', 'unstridify',
+    'UNSPECIFIED', 'duplicate_entries', 'to_iterable', 'as_immutable_array', 'permutation_as_swaps',
+    'argsort', 'combine_constraints', 'inverse_permutation', 'list_to_dict_list', 'find_subclass',
+    'rank_data', 'np_argsort', 'make_stride', 'find_row_differences', 'unstridify',
     'iter_common_noncommon_sorted', 'iter_common_noncommon_sorted_arrays', 'iter_common_sorted',
     'iter_common_sorted_arrays'
 ]
-
 
 UNSPECIFIED = object()  # sentinel, also used elsewhere
 _T = TypeVar('_T')  # used in typing some functions
@@ -62,11 +57,11 @@ def permutation_as_swaps(initial_perm: list, final_perm: list) -> list:
         for i in range(len(final_perm)):
             if final_perm[i] != initial_perm[i]:
                 ind = initial_perm.index(final_perm[i])
-                initial_perm[ind-1:ind+1] = initial_perm[ind-1:ind+1][::-1]
+                initial_perm[ind - 1:ind + 1] = initial_perm[ind - 1:ind + 1][::-1]
                 swaps.append(ind - 1)
                 break
     return swaps
-    
+
 
 # TODO remove in favor of backend.block_argsort?
 def argsort(a, sort=None, **kwargs):
@@ -164,7 +159,7 @@ def inverse_permutation(perm):
     inv_perm = np.empty_like(perm)
     inv_perm[perm] = np.arange(perm.shape[0], dtype=perm.dtype)
     return inv_perm
-     # equivalently: return np.argsort(perm) # would be O(N log(N))
+    # equivalently: return np.argsort(perm) # would be O(N log(N))
 
 
 def rank_data(a, stable=True):
@@ -199,11 +194,13 @@ def rank_data(a, stable=True):
 
 
 if int(np.version.version.split('.')[0]) >= 2:
+
     def np_argsort(a, stable=True):
         """Wrapper around np.argsort, using the ``stable`` kwarg if available"""
         return np.argsort(a, stable=stable)
 
 else:
+
     def np_argsort(a, stable=True):
         if stable:
             return np.argsort(a, kind='stable')
@@ -263,7 +260,7 @@ def list_to_dict_list(l):
     return d
 
 
-def find_row_differences(sectors, include_len: bool=False):
+def find_row_differences(sectors, include_len: bool = False):
     """Return indices where the rows of the 2D array `sectors` change.
 
     Parameters

@@ -5,8 +5,8 @@ Provides a tensor class with block-sparsity from symmetries with an exchangable 
 """
 # Copyright (C) TeNPy Developers, GNU GPLv3
 
-
-from . import (dtypes, spaces, backends, symmetries, tensors, random_matrix, sparse, krylov_based, trees)
+from . import (dtypes, spaces, backends, symmetries, tensors, random_matrix, sparse, krylov_based,
+               trees)
 from .symmetries import *
 from .trees import *
 from .spaces import *
@@ -21,18 +21,26 @@ from ._core import *  # import pybind11 bindings from C++ code
 
 from . import version
 
-__all__ = ['symmetries', 'spaces', 'trees', 'backends', 'tensors', 'random_matrix', 'sparse',
-           'krylov_based', 'dtypes',
-           *symmetries.__all__,
-           *trees.__all__,
-           *spaces.__all__,
-           *backends.__all__,
-           *tensors.__all__,
-           *random_matrix.__all__,
-           *sparse.__all__,
-           *krylov_based.__all__,
-           *dtypes.__all__,
-           ]
+__all__ = [
+    'symmetries',
+    'spaces',
+    'trees',
+    'backends',
+    'tensors',
+    'random_matrix',
+    'sparse',
+    'krylov_based',
+    'dtypes',
+    *symmetries.__all__,
+    *trees.__all__,
+    *spaces.__all__,
+    *backends.__all__,
+    *tensors.__all__,
+    *random_matrix.__all__,
+    *sparse.__all__,
+    *krylov_based.__all__,
+    *dtypes.__all__,
+]
 
 #: hard-coded version string
 __version__ = version.version

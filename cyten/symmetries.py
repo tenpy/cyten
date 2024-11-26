@@ -14,24 +14,51 @@ import math
 from .dtypes import Dtype
 from .tools.misc import as_immutable_array
 
-
-__all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingStyle',
-           # symmetry base-classes
-           'Symmetry', 'ProductSymmetry', 'GroupSymmetry', 'AbelianGroup',
-           # abelian groups
-           'NoSymmetry', 'U1Symmetry', 'ZNSymmetry',
-           # non-abelian groups
-           'SU2Symmetry', 'SUNSymmetry',
-           # anyons
-           'FermionParity', 'FibonacciAnyonCategory', 'IsingAnyonCategory', 'SU3_3AnyonCategory',
-           'QuantumDoubleZNAnyonCategory', 'SU2_kAnyonCategory', 'ZNAnyonCategory',
-           'ZNAnyonCategory2',
-           # concrete instances
-           'no_symmetry', 'u1_symmetry', 'z2_symmetry', 'z3_symmetry', 'z4_symmetry', 'z5_symmetry', 'z6_symmetry',
-           'z7_symmetry', 'z8_symmetry', 'z9_symmetry',
-           'fermion_parity', 'fibonacci_anyon_category', 'ising_anyon_category',
-           'double_semion_category', 'semion_category', 'toric_code_category',
-           ]
+__all__ = [
+    'SymmetryError',
+    'Sector',
+    'SectorArray',
+    'FusionStyle',
+    'BraidingStyle',
+    # symmetry base-classes
+    'Symmetry',
+    'ProductSymmetry',
+    'GroupSymmetry',
+    'AbelianGroup',
+    # abelian groups
+    'NoSymmetry',
+    'U1Symmetry',
+    'ZNSymmetry',
+    # non-abelian groups
+    'SU2Symmetry',
+    'SUNSymmetry',
+    # anyons
+    'FermionParity',
+    'FibonacciAnyonCategory',
+    'IsingAnyonCategory',
+    'SU3_3AnyonCategory',
+    'QuantumDoubleZNAnyonCategory',
+    'SU2_kAnyonCategory',
+    'ZNAnyonCategory',
+    'ZNAnyonCategory2',
+    # concrete instances
+    'no_symmetry',
+    'u1_symmetry',
+    'z2_symmetry',
+    'z3_symmetry',
+    'z4_symmetry',
+    'z5_symmetry',
+    'z6_symmetry',
+    'z7_symmetry',
+    'z8_symmetry',
+    'z9_symmetry',
+    'fermion_parity',
+    'fibonacci_anyon_category',
+    'ising_anyon_category',
+    'double_semion_category',
+    'semion_category',
+    'toric_code_category',
+]
 
 
 class SymmetryError(Exception):
@@ -47,7 +74,6 @@ SectorArray = npt.NDArray[np.int_]
 
 A 2D array of int with axis [s, q] and shape ``(num_sectors, sector_ind_len)``.
 """
-
 
 # TODO eventually decide if we want to do them or not or optionally.
 #      but we should definitely have these checks while developing.
@@ -170,8 +196,13 @@ class Symmetry(metaclass=ABCMeta):
     fusion_tensor_dtype = None
     """The dtype of fusion tensors, if available. Set to ``None`` otherwise."""
 
-    def __init__(self, fusion_style: FusionStyle, braiding_style: BraidingStyle, trivial_sector: Sector,
-                 group_name: str, num_sectors: int | float, descriptive_name: str | None = None):
+    def __init__(self,
+                 fusion_style: FusionStyle,
+                 braiding_style: BraidingStyle,
+                 trivial_sector: Sector,
+                 group_name: str,
+                 num_sectors: int | float,
+                 descriptive_name: str | None = None):
         self.fusion_style = fusion_style
         self.braiding_style = braiding_style
         self.trivial_sector = as_immutable_array(trivial_sector)
@@ -227,8 +258,8 @@ class Symmetry(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                  ) -> np.ndarray:
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         """Internal implementation of :meth:`f_symbol`. Can assume that inputs are valid."""
         ...
 
@@ -389,7 +420,8 @@ class Symmetry(metaclass=ABCMeta):
         F = self._f_symbol(a, b, self.dual_sector(b), a, self.trivial_sector, c).conj()
         return self.sqrt_qdim(b) * F[0, 0, :, :]
 
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         """Internal implementation of :meth:`c_symbol`. Can assume that inputs are valid."""
         R1 = self._r_symbol(e, c, d)
         F = self._f_symbol(c, a, b, d, e, f)
@@ -399,7 +431,8 @@ class Symmetry(metaclass=ABCMeta):
 
     def topological_twist(self, a: Sector) -> complex:
         """Phase acquired when charges fully rotate around their own axis once."""
-        return self.frobenius_schur(a) * self._r_symbol(self.dual_sector(a), a, self.trivial_sector)[0].conj()
+        return self.frobenius_schur(a) * self._r_symbol(self.dual_sector(a), a,
+                                                        self.trivial_sector)[0].conj()
 
     def s_matrix_element(self, a: Sector, b: Sector) -> complex:
         """Element of the S-matrix for anyon categories. The S-matrix is unitary for modular anyon categories."""
@@ -413,12 +446,13 @@ class Symmetry(metaclass=ABCMeta):
         """S-matrix for anyon categories. The S-matrix is unitary for modular anyon categories."""
         sectors = self.all_sectors()
         S = np.zeros((self.num_sectors, self.num_sectors), dtype=complex)
-        normalization = np.array([1/self.topological_twist(a) for a in sectors])
+        normalization = np.array([1 / self.topological_twist(a) for a in sectors])
         normalization = np.outer(normalization, normalization) / self.total_qdim()
         for a in range(sectors.shape[0]):
             for b in range(sectors.shape[0]):
                 for c in self.fusion_outcomes(sectors[a], sectors[b]):
-                    S[a,b] += self._n_symbol(sectors[a], sectors[b], c) * self.qdim(c) * self.topological_twist(c)
+                    S[a, b] += self._n_symbol(sectors[a], sectors[b],
+                                              c) * self.qdim(c) * self.topological_twist(c)
         return np.real_if_close(S * normalization)
 
     # CONCRETE IMPLEMENTATIONS
@@ -461,8 +495,8 @@ class Symmetry(metaclass=ABCMeta):
             return 0
         return self._n_symbol(a, b, c)
 
-    def f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                 ) -> np.ndarray:
+    def f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                 f: Sector) -> np.ndarray:
         r"""Coefficients :math:`[F^{abc}_d]^e_f` related to recoupling of fusion.
 
         The F symbol relates the following two maps::
@@ -567,7 +601,8 @@ class Symmetry(metaclass=ABCMeta):
                 raise SymmetryError('Sectors are not consistent with fusion rules.')
         return self._r_symbol(a, b, c)
 
-    def c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                 f: Sector) -> np.ndarray:
         r"""Coefficients :math:`[C^{abc}_d]^e_f` related to braiding on a pair of fusion tensors.
 
         The C symbol relates the following two maps::
@@ -601,8 +636,12 @@ class Symmetry(metaclass=ABCMeta):
                 raise SymmetryError('Sectors are not consistent with fusion rules.')
         return self._c_symbol(a, b, c, d, e, f)
 
-    def fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool = False, Z_b: bool = False
-                      ) -> np.ndarray:
+    def fusion_tensor(self,
+                      a: Sector,
+                      b: Sector,
+                      c: Sector,
+                      Z_a: bool = False,
+                      Z_b: bool = False) -> np.ndarray:
         r"""Matrix elements of the fusion tensor :math:`X^{ab}_{c,\mu}` for all :math:`\mu`.
 
         May not be well defined for anyons.
@@ -675,15 +714,15 @@ class ProductSymmetry(Symmetry):
         else:
             descriptive_name = ', '.join(f.descriptive_name or '-' for f in flat_factors)
         self.sector_slices = np.cumsum([0] + [f.sector_ind_len for f in flat_factors])
-        Symmetry.__init__(
-            self,
-            fusion_style=max((f.fusion_style for f in flat_factors), key=lambda style: style.value),
-            braiding_style=max((f.braiding_style for f in flat_factors), key=lambda style: style.value),
-            trivial_sector=np.concatenate([f.trivial_sector for f in flat_factors]),
-            group_name=' ⨉ '.join(f.group_name for f in flat_factors),
-            num_sectors=math.prod([symm.num_sectors for symm in flat_factors]),
-            descriptive_name=descriptive_name
-        )
+        Symmetry.__init__(self,
+                          fusion_style=max((f.fusion_style for f in flat_factors),
+                                           key=lambda style: style.value),
+                          braiding_style=max((f.braiding_style for f in flat_factors),
+                                             key=lambda style: style.value),
+                          trivial_sector=np.concatenate([f.trivial_sector for f in flat_factors]),
+                          group_name=' ⨉ '.join(f.group_name for f in flat_factors),
+                          num_sectors=math.prod([symm.num_sectors for symm in flat_factors]),
+                          descriptive_name=descriptive_name)
         self.can_be_dropped = all(f.can_be_dropped for f in flat_factors)
         dtypes = [f.fusion_tensor_dtype for f in flat_factors]
         if None in dtypes:
@@ -733,7 +772,8 @@ class ProductSymmetry(Symmetry):
         c_dtype = np.promote_types(a.dtype, b.dtype)
         result = np.zeros(num_possibilities + [self.sector_ind_len], dtype=c_dtype)
         for i, c_i in enumerate(all_outcomes):
-            res_idx = (colon,) * len(self.factors) + (slice(self.sector_slices[i], self.sector_slices[i + 1], None),)
+            res_idx = (colon,) * len(self.factors) + (slice(self.sector_slices[i],
+                                                            self.sector_slices[i + 1], None),)
             c_i_idx = (None,) * i + (colon,) + (None,) * (len(self.factors) - i - 1) + (colon,)
             result[res_idx] = c_i[c_i_idx]
 
@@ -757,7 +797,8 @@ class ProductSymmetry(Symmetry):
     def _multiple_fusion_broadcast(self, *sectors: SectorArray) -> SectorArray:
         components = []
         for i, f_i in enumerate(self.factors):
-            sectors_i = tuple(s[:, self.sector_slices[i]:self.sector_slices[i + 1]] for s in sectors)
+            sectors_i = tuple(s[:, self.sector_slices[i]:self.sector_slices[i + 1]]
+                              for s in sectors)
             c_i = f_i.multiple_fusion_broadcast(*sectors_i)
             components.append(c_i)
         return np.concatenate(components, axis=-1)
@@ -863,7 +904,8 @@ class ProductSymmetry(Symmetry):
         results_shape = [f.num_sectors for f in self.factors] + [self.sector_ind_len]
         results = np.zeros(results_shape, dtype=self.trivial_sector.dtype)
         for i, f_i in enumerate(self.factors):
-            lhs_idx = (colon,) * len(self.factors) + (slice(self.sector_slices[i], self.sector_slices[i + 1], None),)
+            lhs_idx = (colon,) * len(self.factors) + (slice(self.sector_slices[i],
+                                                            self.sector_slices[i + 1], None),)
             rhs_idx = (None,) * i + (colon,) + (None,) * (len(self.factors) - i - 1) + (colon,)
             results[lhs_idx] = f_i.all_sectors()[rhs_idx]
         return np.reshape(results, (np.prod(results_shape[:-1]), results_shape[-1]))
@@ -885,11 +927,14 @@ class ProductSymmetry(Symmetry):
             dims.append(f_i.qdim(a_i))
         return np.prod(dims)
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector ) -> np.ndarray:
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         #print(self.factors)
 
         contributions = []
-        for i, f_i in enumerate(self.factors):      #self =Fibonacci_L x Fibonacci_R Product symmetry i=index f_i= FibonacciGrading left, FibonacciGrading right
+        for i, f_i in enumerate(
+                self.factors
+        ):  #self =Fibonacci_L x Fibonacci_R Product symmetry i=index f_i= FibonacciGrading left, FibonacciGrading right
 
             a_k = a[self.sector_slices[i]:self.sector_slices[i + 1]]
             b_k = b[self.sector_slices[i]:self.sector_slices[i + 1]]
@@ -898,13 +943,11 @@ class ProductSymmetry(Symmetry):
             e_k = e[self.sector_slices[i]:self.sector_slices[i + 1]]
             f_k = f[self.sector_slices[i]:self.sector_slices[i + 1]]
 
+            contributions.append(f_i._f_symbol(a_k, b_k, c_k, d_k, e_k, f_k))  #[μ,ν,κ,λ]
 
-            contributions.append(f_i._f_symbol(a_k, b_k, c_k, d_k, e_k, f_k)) #[μ,ν,κ,λ]
-
-
-        Fs=np.multiply(contributions[0],contributions[1])
+        Fs = np.multiply(contributions[0], contributions[1])
         for i in contributions[2:]:
-            Fs = np.kron(Fs,i)
+            Fs = np.kron(Fs, i)
 
         return Fs
 
@@ -918,14 +961,18 @@ class ProductSymmetry(Symmetry):
 
             contributions.append(f_i._r_symbol(a_k, b_k, c_k))
 
-        rsym=np.kron(contributions[0],contributions[1])
+        rsym = np.kron(contributions[0], contributions[1])
         for i in contributions[2:]:
-            rsym=np.kron(rsym,i)
+            rsym = np.kron(rsym, i)
 
         return rsym
 
-    def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool = False, Z_b: bool = False
-                       ) -> np.ndarray:
+    def _fusion_tensor(self,
+                       a: Sector,
+                       b: Sector,
+                       c: Sector,
+                       Z_a: bool = False,
+                       Z_b: bool = False) -> np.ndarray:
         if not self.can_be_dropped:
             raise SymmetryError(f'fusion tensor can not be written as array for {self}')
 
@@ -993,10 +1040,18 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
     """
     can_be_dropped = True
 
-    def __init__(self, fusion_style: FusionStyle, trivial_sector: Sector, group_name: str,
-                 num_sectors: int | float, descriptive_name: str | None = None):
-        Symmetry.__init__(self, fusion_style=fusion_style, braiding_style=BraidingStyle.bosonic,
-                          trivial_sector=trivial_sector, group_name=group_name, num_sectors=num_sectors,
+    def __init__(self,
+                 fusion_style: FusionStyle,
+                 trivial_sector: Sector,
+                 group_name: str,
+                 num_sectors: int | float,
+                 descriptive_name: str | None = None):
+        Symmetry.__init__(self,
+                          fusion_style=fusion_style,
+                          braiding_style=BraidingStyle.bosonic,
+                          trivial_sector=trivial_sector,
+                          group_name=group_name,
+                          num_sectors=num_sectors,
                           descriptive_name=descriptive_name)
 
     @abstractmethod
@@ -1044,10 +1099,17 @@ class AbelianGroup(GroupSymmetry, metaclass=_ABCFactorSymmetryMeta):
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
     _one_4D_float = as_immutable_array(np.ones((1, 1, 1, 1), dtype=float))
 
-    def __init__(self, trivial_sector: Sector, group_name: str, num_sectors: int | float,
+    def __init__(self,
+                 trivial_sector: Sector,
+                 group_name: str,
+                 num_sectors: int | float,
                  descriptive_name: str | None = None):
-        GroupSymmetry.__init__(self, fusion_style=FusionStyle.single, trivial_sector=trivial_sector,
-                       group_name=group_name, num_sectors=num_sectors, descriptive_name=descriptive_name)
+        GroupSymmetry.__init__(self,
+                               fusion_style=FusionStyle.single,
+                               trivial_sector=trivial_sector,
+                               group_name=group_name,
+                               num_sectors=num_sectors,
+                               descriptive_name=descriptive_name)
 
     def sector_str(self, a: Sector) -> str:
         # we know sectors are labelled by a single number
@@ -1062,7 +1124,8 @@ class AbelianGroup(GroupSymmetry, metaclass=_ABCFactorSymmetryMeta):
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
         return 1
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         return self._one_4D
 
     def frobenius_schur(self, a: Sector) -> int:
@@ -1084,7 +1147,8 @@ class AbelianGroup(GroupSymmetry, metaclass=_ABCFactorSymmetryMeta):
         # For abelian groups, the R symbol is always 1.
         return self._one_1D
 
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         return self._one_4D
 
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
@@ -1101,8 +1165,11 @@ class NoSymmetry(AbelianGroup):
     """
 
     def __init__(self):
-        AbelianGroup.__init__(self, trivial_sector=np.array([0], dtype=int),
-                              group_name='no_symmetry', num_sectors=1, descriptive_name=None)
+        AbelianGroup.__init__(self,
+                              trivial_sector=np.array([0], dtype=int),
+                              group_name='no_symmetry',
+                              num_sectors=1,
+                              descriptive_name=None)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and a == 0
@@ -1145,9 +1212,13 @@ class U1Symmetry(AbelianGroup):
     Allowed sectors are 1D arrays with a single integer entry.
     ..., `[-2]`, `[-1]`, `[0]`, `[1]`, `[2]`, ...
     """
+
     def __init__(self, descriptive_name: str | None = None):
-        AbelianGroup.__init__(self, trivial_sector=np.array([0], dtype=int), group_name='U(1)',
-                              num_sectors=np.inf, descriptive_name=descriptive_name)
+        AbelianGroup.__init__(self,
+                              trivial_sector=np.array([0], dtype=int),
+                              group_name='U(1)',
+                              num_sectors=np.inf,
+                              descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,)
@@ -1185,17 +1256,31 @@ class ZNSymmetry(AbelianGroup):
     Allowed sectors are 1D arrays with a single integer entry between `0` and `N-1`.
     `[0]`, `[1]`, ..., `[N-1]`
     """
+
     def __init__(self, N: int, descriptive_name: str | None = None):
         assert isinstance(N, int)
         if not isinstance(N, int) and N > 1:
             raise ValueError(f"invalid ZNSymmetry(N={N!r},{descriptive_name!s})")
         self.N = N
-        subscript_map = {'0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆',
-                         '7': '₇', '8': '₈', '9': '₉'}
+        subscript_map = {
+            '0': '₀',
+            '1': '₁',
+            '2': '₂',
+            '3': '₃',
+            '4': '₄',
+            '5': '₅',
+            '6': '₆',
+            '7': '₇',
+            '8': '₈',
+            '9': '₉'
+        }
         subscript_N = ''.join(subscript_map[char] for char in str(N))
         group_name = f'ℤ{subscript_N}'
-        AbelianGroup.__init__(self, trivial_sector=np.array([0], dtype=int), group_name=group_name,
-                              num_sectors=N, descriptive_name=descriptive_name)
+        AbelianGroup.__init__(self,
+                              trivial_sector=np.array([0], dtype=int),
+                              group_name=group_name,
+                              num_sectors=N,
+                              descriptive_name=descriptive_name)
 
     def __repr__(self):
         name_str = '' if self.descriptive_name is None else f', "{self.descriptive_name}"'
@@ -1242,8 +1327,12 @@ class SU2Symmetry(GroupSymmetry):
     fusion_tensor_dtype = Dtype.float64
 
     def __init__(self, descriptive_name: str | None = None):
-        GroupSymmetry.__init__(self, fusion_style=FusionStyle.multiple_unique, trivial_sector=np.array([0], dtype=int),
-                       group_name='SU(2)', num_sectors=np.inf, descriptive_name=descriptive_name)
+        GroupSymmetry.__init__(self,
+                               fusion_style=FusionStyle.multiple_unique,
+                               trivial_sector=np.array([0], dtype=int),
+                               group_name='SU(2)',
+                               num_sectors=np.inf,
+                               descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and (a >= 0)
@@ -1293,8 +1382,8 @@ class SU2Symmetry(GroupSymmetry):
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
         return 1
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                  ) -> np.ndarray:
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         # OPTIMIZE: jutho has a special case if all sectors are trivial ...?
         from . import _su2data
         return _su2data.f_symbol(a[0], b[0], c[0], d[0], e[0], f[0])
@@ -1353,7 +1442,7 @@ class SUNSymmetry(GroupSymmetry):
 
     fusion_tensor_dtype = Dtype.float64
 
-    def __init__(self, N:int, CGfile, Ffile, Rfile, descriptive_name: str | None = None):
+    def __init__(self, N: int, CGfile, Ffile, Rfile, descriptive_name: str | None = None):
 
         assert isinstance(N, int)
         if not isinstance(N, int) and N > 1:
@@ -1366,25 +1455,24 @@ class SUNSymmetry(GroupSymmetry):
         self.Ffile = Ffile
         self.Rfile = Rfile
 
-
         GroupSymmetry.__init__(self,
-                               fusion_style = FusionStyle.general,
-                               trivial_sector = np.array([0]*N, dtype=int),
-                               group_name = f'SU({N})',
-                               num_sectors = np.inf,
-                               descriptive_name = descriptive_name)
+                               fusion_style=FusionStyle.general,
+                               trivial_sector=np.array([0] * N, dtype=int),
+                               group_name=f'SU({N})',
+                               num_sectors=np.inf,
+                               descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         l = (type(a) == np.ndarray)
         if not l:
             return False
 
-        for i in a: #check for negative entries
-            if i<0:
+        for i in a:  #check for negative entries
+            if i < 0:
                 return False
 
-        for n in range(len(a)-1): #check that numbers in GT sequence are non increasing
-            if a[n+1]>a[n]:
+        for n in range(len(a) - 1):  #check that numbers in GT sequence are non increasing
+            if a[n + 1] > a[n]:
                 return False
 
         m = (len(a) == self.N)
@@ -1395,7 +1483,6 @@ class SUNSymmetry(GroupSymmetry):
         if not isinstance(other, SUNSymmetry):
             return False
         return self.N == other.N
-
 
     def sector_dim(self, a: Sector) -> int:
         '''
@@ -1412,10 +1499,8 @@ class SUNSymmetry(GroupSymmetry):
 
         return int(dim)
 
-
     def __repr__(self):
         return f'SUN_Category()'
-
 
     def dual_sector(self, a: Sector) -> Sector:
         '''
@@ -1478,7 +1563,8 @@ class SUNSymmetry(GroupSymmetry):
 
         hmax = self.hweight_from_CG_hdf5()
         if a[0] > hmax or b[0] > hmax:
-            raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
+            raise ValueError(
+                'Input irreps have higher weight than highest weight irrep in HDF5-file')
 
         if c[0] > a[0] + b[0]:
             return False
@@ -1561,7 +1647,8 @@ class SUNSymmetry(GroupSymmetry):
 
         hmax = self.hweight_from_CG_hdf5()
         if a[0] > hmax or b[0] > hmax:
-            raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
+            raise ValueError(
+                'Input irreps have higher weight than highest weight irrep in HDF5-file')
 
         N = '/N_' + str(self.N) + '/'
 
@@ -1573,7 +1660,7 @@ class SUNSymmetry(GroupSymmetry):
         if not key in self.CGfile:
             key = N + b + a
 
-        dec =[]
+        dec = []
         for i in list(self.CGfile[key]):
             dec.append(self.CGfile[key][str(i)].attrs['Irreplabel'])
 
@@ -1631,7 +1718,8 @@ class SUNSymmetry(GroupSymmetry):
 
         return C
 
-    def clebschgordan(self, a: Sector, q_a: int, b: Sector, q_b: int, c: Sector, q_c: int, mu: int) -> float:
+    def clebschgordan(self, a: Sector, q_a: int, b: Sector, q_b: int, c: Sector, q_c: int,
+                      mu: int) -> float:
         '''
 
         :param a:       irrep a
@@ -1645,12 +1733,11 @@ class SUNSymmetry(GroupSymmetry):
         :return:        the CG coefficient for the given input
         '''
 
-
         hw = self.hweight_from_CG_hdf5()
 
         if a[0] > hw or b[0] > hw or c[0] > hw:
-            raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
-
+            raise ValueError(
+                'Input irreps have higher weight than highest weight irrep in HDF5-file')
 
         N = '/N_' + str(self.N) + '/'
 
@@ -1678,21 +1765,23 @@ class SUNSymmetry(GroupSymmetry):
 
         return 0.
 
-
-    def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool = False, Z_b: bool = False
-                      ) -> np.ndarray:
+    def _fusion_tensor(self,
+                       a: Sector,
+                       b: Sector,
+                       c: Sector,
+                       Z_a: bool = False,
+                       Z_b: bool = False) -> np.ndarray:
         '''
         a,b,c are irreps (first rows of GT patterns)
         CG_coeffs is the np.array from CG code for decomposition a x b = mu * c
 
         '''
 
-
         hw = self.hweight_from_CG_hdf5()
 
         if a[0] > hw or b[0] > hw or c[0] > hw:
-            raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
-
+            raise ValueError(
+                'Input irreps have higher weight than highest weight irrep in HDF5-file')
 
         dim_Sa = self.sector_dim(a)
         dim_Sb = self.sector_dim(b)
@@ -1713,44 +1802,49 @@ class SUNSymmetry(GroupSymmetry):
                         rr = self.clebschgordan(a, m_a, b, m_b, c, m_c, mu)
                         X[m_a - 1, m_b - 1, m_c - 1, mu - 1] = rr
 
-        return X.transpose([3,0,1,2])
+        return X.transpose([3, 0, 1, 2])
 
-    def _f_symbol_from_CG(self,a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector):
+    def _f_symbol_from_CG(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector):
         """a,b,c,d,e,f are irrep labels, i.e. first rows of GT patterns
         output is the conjugated F symbol [F^{abc}_{def}]^*_{mu,nu,kappa, lambda}
         where a x b = mu c, c x d =nu e, b x d= kappa f and a x f =lambda e """
 
-
         hw = self.hweight_from_CG_hdf5()
 
         if a[0] > hw or b[0] > hw or c[0] > hw or d[0] > hw or e[0] > hw or f[0] > hw:
-            raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
+            raise ValueError(
+                'Input irreps have higher weight than highest weight irrep in HDF5-file')
 
-        X1 = self._fusion_tensor(a, b, f).transpose([1,2,3,0])  # [a,b,f, kappa]
-        X2 = self._fusion_tensor(f, c, d).transpose([1,2,3,0])  # [f,c,d, lambda]
+        X1 = self._fusion_tensor(a, b, f).transpose([1, 2, 3, 0])  # [a,b,f, kappa]
+        X2 = self._fusion_tensor(f, c, d).transpose([1, 2, 3, 0])  # [f,c,d, lambda]
 
-        X3 = self._fusion_tensor(b, c, e).transpose([1,2,3,0])  # [b,c,e, mu]
-        X4 = self._fusion_tensor(a, e, d).transpose([1,2,3,0])  # [a,e,d, nu]
+        X3 = self._fusion_tensor(b, c, e).transpose([1, 2, 3, 0])  # [b,c,e, mu]
+        X4 = self._fusion_tensor(a, e, d).transpose([1, 2, 3, 0])  # [a,e,d, nu]
 
         if not X1.any() or not X2.any() or not X3.any() or not X4.any():
             return np.zeros((1, 1, 1, 1), dtype=complex)
 
-        X12 = np.tensordot(X1, X2, axes=[[2], [0]])  # [a,b,[f], kappa] ; [[f],c,d, lambda] --> [a,b,kappa,c,d, lambda]
+        X12 = np.tensordot(X1, X2, axes=[[2], [
+            0
+        ]])  # [a,b,[f], kappa] ; [[f],c,d, lambda] --> [a,b,kappa,c,d, lambda]
         X12 = X12.transpose([0, 1, 3, 4, 2, 5])  # [a,b,c,d,kappa,lambda]
 
-        X34 = np.tensordot(X3, X4, axes=[[2], [1]])  # [b,c,[e], mu] ; [a,[e],d, nu] --> [b,c,mu,a,d,nu]
+        X34 = np.tensordot(X3, X4, axes=[[2],
+                                         [1]])  # [b,c,[e], mu] ; [a,[e],d, nu] --> [b,c,mu,a,d,nu]
         X34 = X34.transpose([3, 0, 1, 4, 2, 5])  # [a,b,c,d,mu,nu]
 
-        F = np.tensordot(X12, np.conj(X34), axes=[[0, 1, 2, 3], [0, 1, 2, 3]])  # [a,b,c,d,kappa,lambda] ; [a,b,c,d,mu,nu] --> [kappa,lambda,mu,nu]
+        F = np.tensordot(X12, np.conj(X34), axes=[[0, 1, 2, 3], [
+            0, 1, 2, 3
+        ]])  # [a,b,c,d,kappa,lambda] ; [a,b,c,d,mu,nu] --> [kappa,lambda,mu,nu]
 
         F = F.transpose([2, 3, 0, 1])  # [mu, nu, kappa, lambda]
 
-        F[np.abs(F) < (10 ** -12)] = 0
+        F[np.abs(F) < (10**-12)] = 0
 
         return F / ((self.sector_dim(d) + 0.j))
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                 ) -> np.ndarray:
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         '''
         Returns the F-symbol F^{abc mu nu}_{def kappa lambda} from the hdf5 file
         '''
@@ -1758,7 +1852,8 @@ class SUNSymmetry(GroupSymmetry):
         hmax = self.hweight_from_F_hdf5()
 
         if a[0] > hmax or b[0] > hmax or c[0] > hmax or d[0] > hmax or e[0] > hmax or f[0] > hmax:
-            raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
+            raise ValueError(
+                'Input irreps have higher weight than highest weight irrep in HDF5-file')
 
         abar = self.dual_sector(a)
         bbar = self.dual_sector(b)
@@ -1767,8 +1862,10 @@ class SUNSymmetry(GroupSymmetry):
         ebar = self.dual_sector(e)
         fbar = self.dual_sector(f)
 
-        key = 'F' + str(list(a)) + str(list(b)) + str(list(c)) + str(list(d)) + str(list(e)) + str(list(f))
-        keybar = 'F' + str(list(abar)) + str(list(bbar)) + str(list(cbar)) + str(list(dbar)) + str(list(ebar)) + str(list(fbar))
+        key = 'F' + str(list(a)) + str(list(b)) + str(list(c)) + str(list(d)) + str(list(e)) + str(
+            list(f))
+        keybar = 'F' + str(list(abar)) + str(list(bbar)) + str(list(cbar)) + str(list(dbar)) + str(
+            list(ebar)) + str(list(fbar))
 
         if key in self.Ffile['/F_sym/']:
             return np.array(self.Ffile['/F_sym/'][key])
@@ -1778,7 +1875,7 @@ class SUNSymmetry(GroupSymmetry):
 
         return np.zeros((1, 1, 1, 1), dtype=complex)
 
-    def _r_symbol_from_CG(self, a: Sector ,b: Sector ,c: Sector):
+    def _r_symbol_from_CG(self, a: Sector, b: Sector, c: Sector):
         """a,b,c are irrep labels, i.e. first rows of GT patterns
         output is the R symbol [R^{ab}_{c}]^*_{mu,nu}
         where a x b = mu c, c x d =nu e, b x d= kappa f and a x f =lambda e """
@@ -1788,7 +1885,8 @@ class SUNSymmetry(GroupSymmetry):
         mult = self.fusion_multiplicity(a, b, c)
 
         if a[0] > hw or b[0] > hw or c[0] > hw:
-            raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
+            raise ValueError(
+                'Input irreps have higher weight than highest weight irrep in HDF5-file')
 
         X1 = self.fusion_tensor(a, b, c)  # [a,b,c, nu]
         Y1 = self.fusion_tensor(b, a, c).conj()  # [b,a,c,mu]
@@ -1796,7 +1894,8 @@ class SUNSymmetry(GroupSymmetry):
         if not X1.any() or not Y1.any():
             return np.zeros((1), dtype=complex)
 
-        R = np.tensordot(X1, Y1, axes=[[0, 1, 2], [1, 0, 2]])  # [[a],(b),{c}, nu] , [(b),[a],{c},mu] --> [nu,mu]
+        R = np.tensordot(X1, Y1, axes=[[0, 1, 2], [1, 0, 2]
+                                       ])  # [[a],(b),{c}, nu] , [(b),[a],{c},mu] --> [nu,mu]
 
         R = R.transpose([1, 0]) / ((self.sector_dim(c) + 0.j))
 
@@ -1810,7 +1909,8 @@ class SUNSymmetry(GroupSymmetry):
         hmax = self.hweight_from_R_hdf5()
 
         if a[0] > hmax or b[0] > hmax or c[0] > hmax:
-            raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
+            raise ValueError(
+                'Input irreps have higher weight than highest weight irrep in HDF5-file')
 
         key = 'R' + str(list(a)) + str(list(b)) + str(list(c))
 
@@ -1820,7 +1920,7 @@ class SUNSymmetry(GroupSymmetry):
         return np.zeros((1,), dtype=complex)
 
     def Z_iso(self, a: Sector) -> npt.NDArray:
-        if self.N==2:
+        if self.N == 2:
             d_a = self.sector_dim(a)
             Z = np.zeros((d_a, d_a), dtype=float)
 
@@ -1838,22 +1938,20 @@ class SUNSymmetry(GroupSymmetry):
         #     print(np.fliplr(np.diag(dia)))
         #     return np.fliplr(np.diag(dia))
 
-        elif self.N==3:
+        elif self.N == 3:
             d_a = self.sector_dim(a)
             # Z = np.zeros((d_a, d_a), dtype=float)
-            if d_a==1:
+            if d_a == 1:
                 return np.array([[1]])
 
-            Z=np.zeros((d_a,d_a), dtype=complex)
-            Z[0,d_a-1]=-1.j
-            Z[d_a-1,0]=1.j
+            Z = np.zeros((d_a, d_a), dtype=complex)
+            Z[0, d_a - 1] = -1.j
+            Z[d_a - 1, 0] = 1.j
 
-            for i in range(1,d_a-1):
-                Z[i,i]=1
+            for i in range(1, d_a - 1):
+                Z[i, i] = 1
 
             return Z
-
-
 
         #
         # elif self.N == 3:
@@ -1871,13 +1969,15 @@ class SUNSymmetry(GroupSymmetry):
 
     def frobenius_schur(self, a: Sector) -> int:
 
-        if self.N==2:
+        if self.N == 2:
             return 1 - 2 * (a[0] % 2)
 
-        F=self._f_symbol(a,self.dual_sector(a),a,a,self.trivial_sector, self.trivial_sector)[0,0,0,0]
-        print(a, self.trivial_sector, self._f_symbol(a,self.dual_sector(a),a,a,self.trivial_sector, self.trivial_sector))
+        F = self._f_symbol(a, self.dual_sector(a), a, a, self.trivial_sector,
+                           self.trivial_sector)[0, 0, 0, 0]
+        print(
+            a, self.trivial_sector,
+            self._f_symbol(a, self.dual_sector(a), a, a, self.trivial_sector, self.trivial_sector))
         return int(np.sign(F))
-
 
 
 class FermionParity(Symmetry):
@@ -1893,9 +1993,13 @@ class FermionParity(Symmetry):
     _one_4D_float = as_immutable_array(np.ones((1, 1, 1, 1), dtype=float))
 
     def __init__(self):
-        Symmetry.__init__(self, fusion_style=FusionStyle.single, braiding_style=BraidingStyle.fermionic,
-                          trivial_sector=np.array([0], dtype=int), group_name='FermionParity',
-                          num_sectors=2, descriptive_name=None)
+        Symmetry.__init__(self,
+                          fusion_style=FusionStyle.single,
+                          braiding_style=BraidingStyle.fermionic,
+                          trivial_sector=np.array([0], dtype=int),
+                          group_name='FermionParity',
+                          num_sectors=2,
+                          descriptive_name=None)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a < 2
@@ -1942,7 +2046,8 @@ class FermionParity(Symmetry):
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
         return 1
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         return self._one_4D
 
     def frobenius_schur(self, a: Sector) -> int:
@@ -1966,7 +2071,8 @@ class FermionParity(Symmetry):
         # in the first (second) case above, we have ``a * b`` equal to 1 (0).
         return 1 - 2 * a * b
 
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         # R^{ec}_d conj(R)^{ca}_f
         C = (1 - 2 * e * c) * (1 - 2 * c * a)
         return C[None, None, None, :]
@@ -2005,14 +2111,16 @@ class ZNAnyonCategory(Symmetry):
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
                           group_name='ZNAnyonCategory',
-                          num_sectors=N, descriptive_name=None)
+                          num_sectors=N,
+                          descriptive_name=None)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a[0] < self.N
 
     def are_valid_sectors(self, sectors) -> bool:
         shape = getattr(sectors, 'shape', ())
-        return len(shape) == 2 and shape[1] == 1 and np.all(0 <= sectors) and np.all(sectors < self.N)
+        return len(shape) == 2 and shape[1] == 1 and np.all(0 <= sectors) and np.all(
+            sectors < self.N)
 
     def fusion_outcomes(self, a: Sector, b: Sector) -> SectorArray:
         return self.fusion_outcomes_broadcast(a[np.newaxis, :], b[np.newaxis, :])
@@ -2047,8 +2155,8 @@ class ZNAnyonCategory(Symmetry):
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
         return 1
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                  ) -> np.ndarray:
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         return self._one_4D
 
     def frobenius_schur(self, a: Sector) -> int:
@@ -2058,9 +2166,10 @@ class ZNAnyonCategory(Symmetry):
         return 1
 
     def _r_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
-        return self._phase ** (a * b)
+        return self._phase**(a * b)
 
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         return self._phase**(b[0] * c[0]) * self._one_4D
 
     def all_sectors(self) -> SectorArray:
@@ -2098,14 +2207,16 @@ class ZNAnyonCategory2(Symmetry):
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
                           group_name='ZNAnyonCategory2',
-                          num_sectors=N, descriptive_name=None)
+                          num_sectors=N,
+                          descriptive_name=None)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a < self.N
 
     def are_valid_sectors(self, sectors) -> bool:
         shape = getattr(sectors, 'shape', ())
-        return len(shape) == 2 and shape[1] == 1 and np.all(0 <= sectors) and np.all(sectors < self.N)
+        return len(shape) == 2 and shape[1] == 1 and np.all(0 <= sectors) and np.all(
+            sectors < self.N)
 
     def fusion_outcomes(self, a: Sector, b: Sector) -> SectorArray:
         return self.fusion_outcomes_broadcast(a[np.newaxis, :], b[np.newaxis, :])
@@ -2140,9 +2251,9 @@ class ZNAnyonCategory2(Symmetry):
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
         return 1
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                  ) -> np.ndarray:
-        return (-1)**(a[0] * ((b[0] + c[0])//self.N)) * self._one_4D
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
+        return (-1)**(a[0] * ((b[0] + c[0]) // self.N)) * self._one_4D
 
     def frobenius_schur(self, a: Sector) -> int:
         return (-1)**a[0]
@@ -2151,9 +2262,10 @@ class ZNAnyonCategory2(Symmetry):
         return 1
 
     def _r_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
-        return self._phase ** (a * b) * self._one_1D
+        return self._phase**(a * b) * self._one_1D
 
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         return (self._phase**(b[0] * c[0])) * self._one_4D
 
     def all_sectors(self) -> SectorArray:
@@ -2181,14 +2293,16 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0, 0], dtype=int),
                           group_name='QuantumDoubleZNAnyonCategory',
-                          num_sectors=N**2, descriptive_name=None)
+                          num_sectors=N**2,
+                          descriptive_name=None)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (2,) and np.all(0 <= a) and np.all(a < self.N)
 
     def are_valid_sectors(self, sectors) -> bool:
         shape = getattr(sectors, 'shape', ())
-        return len(shape) == 2 and shape[1] == 2 and np.all(0 <= sectors) and np.all(sectors < self.N)
+        return len(shape) == 2 and shape[1] == 2 and np.all(0 <= sectors) and np.all(
+            sectors < self.N)
 
     def fusion_outcomes(self, a: Sector, b: Sector) -> SectorArray:
         return self.fusion_outcomes_broadcast(a[np.newaxis, :], b[np.newaxis, :])
@@ -2223,8 +2337,8 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
         return 1
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                  ) -> np.ndarray:
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         return self._one_4D
 
     def frobenius_schur(self, a: Sector) -> int:
@@ -2234,9 +2348,10 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
         return 1
 
     def _r_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
-        return self._phase ** (a[0:1] * b[1:2])
+        return self._phase**(a[0:1] * b[1:2])
 
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         return self._phase**(b[0] * c[1]) * self._one_4D
 
     def all_sectors(self) -> SectorArray:
@@ -2263,29 +2378,37 @@ class FibonacciAnyonCategory(Symmetry):
     }
     _phi = .5 * (1 + np.sqrt(5))  # the golden ratio
     # nontrivial F-symbols
-    _f = as_immutable_array(np.expand_dims([_phi**-1, _phi**-0.5, -_phi**-1], axis=(1,2,3,4)))
+    _f = as_immutable_array(np.expand_dims([_phi**-1, _phi**-0.5, -_phi**-1], axis=(1, 2, 3, 4)))
     # nontrivial R-symbols
-    _r = as_immutable_array(np.expand_dims([np.exp(-4j*np.pi/5), np.exp(3j*np.pi/5)], axis=1))
+    _r = as_immutable_array(
+        np.expand_dims([np.exp(-4j * np.pi / 5), np.exp(3j * np.pi / 5)], axis=1))
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
-    def __init__(self, handedness = 'left'):
+    def __init__(self, handedness='left'):
         assert handedness in ['left', 'right']
         self.handedness = handedness
         if handedness == 'right':
             self._r = self._r.conj()
-        self._c = [super()._c_symbol([0], [1], [1], [0], [1], [1]), 0, 0,  # nontrivial C-symbols
-                   super()._c_symbol([0], [1], [1], [1], [1], [1]), 0, 0,
-                   super()._c_symbol([1], [1], [1], [0], [1], [1]),
-                   super()._c_symbol([1], [1], [1], [1], [0], [0]),
-                   super()._c_symbol([1], [1], [1], [1], [1], [0]),
-                   super()._c_symbol([1], [1], [1], [1], [1], [1])]
+        self._c = [
+            super()._c_symbol([0], [1], [1], [0], [1], [1]),
+            0,
+            0,  # nontrivial C-symbols
+            super()._c_symbol([0], [1], [1], [1], [1], [1]),
+            0,
+            0,
+            super()._c_symbol([1], [1], [1], [0], [1], [1]),
+            super()._c_symbol([1], [1], [1], [1], [0], [0]),
+            super()._c_symbol([1], [1], [1], [1], [1], [0]),
+            super()._c_symbol([1], [1], [1], [1], [1], [1])
+        ]
         Symmetry.__init__(self,
                           fusion_style=FusionStyle.multiple_unique,
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
                           group_name='FibonacciAnyonCategory',
-                          num_sectors=2, descriptive_name=None)
+                          num_sectors=2,
+                          descriptive_name=None)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a < 2
@@ -2315,8 +2438,8 @@ class FibonacciAnyonCategory(Symmetry):
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
         return 1
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                  ) -> np.ndarray:
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         if np.all(np.concatenate([a, b, c, d])):
             return self._f[e[0] + f[0]]
         return self._one_4D
@@ -2335,7 +2458,8 @@ class FibonacciAnyonCategory(Symmetry):
             return self._r[c[0], :]
         return self._one_1D
 
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         if np.all(np.concatenate([b, c])):
             return self._c[6 * a[0] + 3 * d[0] + e[0] + f[0] - 2]
         return self._one_4D
@@ -2370,31 +2494,36 @@ class IsingAnyonCategory(Symmetry):
     def __init__(self, nu: int = 1):
         assert nu % 2 == 1
         self.nu = nu % 16
-        self.frobenius = as_immutable_array([1, int((-1)**((self.nu**2-1)/8)), 1])
+        self.frobenius = as_immutable_array([1, int((-1)**((self.nu**2 - 1) / 8)), 1])
         # nontrivial F-symbols
         self._f = as_immutable_array(
-            np.expand_dims([1, 0, 1, 0, -1], axis=(1,2,3,4)) * self.frobenius[1] / np.sqrt(2)
-        )
+            np.expand_dims([1, 0, 1, 0, -1], axis=(1, 2, 3, 4)) * self.frobenius[1] / np.sqrt(2))
         # nontrivial R-symbols
-        self._r = as_immutable_array(np.expand_dims(
-            [(-1j)**self.nu, -1, np.exp(3j*self.nu*np.pi/8) * self.frobenius[1],
-             np.exp(-1j*self.nu*np.pi/8) * self.frobenius[1], 0],
-            axis=1
-        ))
-        self._c = [(-1j)**self.nu * self._one_4D, -1 * (-1j)**self.nu * self._one_4D,
-                   super()._c_symbol([0], [1], [1], [0], [1], [1]),  # nontrivial C-symbols
-                   super()._c_symbol([0], [1], [1], [2], [1], [1]),
-                   super()._c_symbol([1], [1], [1], [1], [0], [0]),
-                   super()._c_symbol([1], [1], [1], [1], [0], [2]),
-                   super()._c_symbol([1], [1], [1], [1], [2], [2]), 0,
-                   super()._c_symbol([2], [1], [1], [0], [1], [1]),
-                   super()._c_symbol([2], [1], [1], [2], [1], [1]), -1 * self._one_4D]
+        self._r = as_immutable_array(
+            np.expand_dims([(-1j)**self.nu, -1,
+                            np.exp(3j * self.nu * np.pi / 8) * self.frobenius[1],
+                            np.exp(-1j * self.nu * np.pi / 8) * self.frobenius[1], 0],
+                           axis=1))
+        self._c = [
+            (-1j)**self.nu * self._one_4D,
+            -1 * (-1j)**self.nu * self._one_4D,
+            super()._c_symbol([0], [1], [1], [0], [1], [1]),  # nontrivial C-symbols
+            super()._c_symbol([0], [1], [1], [2], [1], [1]),
+            super()._c_symbol([1], [1], [1], [1], [0], [0]),
+            super()._c_symbol([1], [1], [1], [1], [0], [2]),
+            super()._c_symbol([1], [1], [1], [1], [2], [2]),
+            0,
+            super()._c_symbol([2], [1], [1], [0], [1], [1]),
+            super()._c_symbol([2], [1], [1], [2], [1], [1]),
+            -1 * self._one_4D
+        ]
         Symmetry.__init__(self,
                           fusion_style=FusionStyle.multiple_unique,
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
                           group_name='IsingAnyonCategory',
-                          num_sectors=3, descriptive_name=None)
+                          num_sectors=3,
+                          descriptive_name=None)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a < 3
@@ -2426,12 +2555,12 @@ class IsingAnyonCategory(Symmetry):
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
         return 1
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                  ) -> np.ndarray:
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         if not np.any(np.concatenate([a, b, c, d]) - [1, 1, 1, 1]):
             return self._f[e[0] + f[0]]
         elif (not np.any(np.concatenate([a, b, c, d]) - [2, 1, 2, 1])
-                or not np.any(np.concatenate([a, b, c, d]) - [1, 2, 1, 2])):
+              or not np.any(np.concatenate([a, b, c, d]) - [1, 2, 1, 2])):
             return -1 * self._one_4D
         return self._one_4D
 
@@ -2449,11 +2578,14 @@ class IsingAnyonCategory(Symmetry):
             return self._r[(a[0] + b[0]) * (c[0] - 1), :]
         return self._one_1D
 
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         if np.all(np.concatenate([b, c])):
-            factor = -1 * (b[0] - c[0] - 1) * (b[0] - c[0] + 1)  # = 0 if σ and ψ or σ and ψ, 1 otherwise
-            factor *= ( 1 - a[0]//2 - d[0]//2 + 9 * (b[0] - 1) + (2 - b[0]) * ((e[0] + f[0])//2 + d[0]//2 + 3 * a[0]) )
-            return self._c[factor + a[0]//2 + d[0]//2]
+            factor = -1 * (b[0] - c[0] - 1) * (b[0] - c[0] + 1
+                                               )  # = 0 if σ and ψ or σ and ψ, 1 otherwise
+            factor *= (1 - a[0] // 2 - d[0] // 2 + 9 * (b[0] - 1) + (2 - b[0]) *
+                       ((e[0] + f[0]) // 2 + d[0] // 2 + 3 * a[0]))
+            return self._c[factor + a[0] // 2 + d[0] // 2]
         return self._one_4D
 
     def all_sectors(self) -> SectorArray:
@@ -2482,7 +2614,7 @@ class SU2_kAnyonCategory(Symmetry):
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
-    def __init__(self, k: int, handedness = 'left'):
+    def __init__(self, k: int, handedness='left'):
         assert type(k) == int
         assert handedness in ['left', 'right']
         self.k = k
@@ -2494,29 +2626,30 @@ class SU2_kAnyonCategory(Symmetry):
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
                           group_name='SU2_kAnyonCategory',
-                          num_sectors=self.k+1, descriptive_name=None)
+                          num_sectors=self.k + 1,
+                          descriptive_name=None)
 
         self._r = {}
         for jj1, jj2, jj in product(range(self.k + 1), repeat=3):
             if jj > jj1 + jj2 or jj < abs(jj1 - jj2) or jj1 * jj2 == 0 or jj1 < jj2:
                 continue  # do not save trivial R-symbols and use symmetry jj1 <-> jj2
             factor = (-1)**((jj - jj1 - jj2) / 2)
-            factor *= self._q**(( jj*(jj+2) - jj1*(jj1+2) - jj2*(jj2+2) ) / 8)
+            factor *= self._q**((jj * (jj + 2) - jj1 * (jj1 + 2) - jj2 * (jj2 + 2)) / 8)
             if self.handedness == 'right':
                 factor = factor.conj()
             self._r[(jj1, jj2, jj)] = factor * self._one_1D
 
         self._6j = {}
         for jj1, jj2, jj3, jj, jj12, jj23 in product(range(self.k + 1), repeat=6):
-            if not (jj1 == np.max([jj1, jj2, jj3, jj, jj12, jj23]) and
-                                    jj2 == np.max([jj2, jj, jj12, jj23])):
+            if not (jj1 == np.max([jj1, jj2, jj3, jj, jj12, jj23])
+                    and jj2 == np.max([jj2, jj, jj12, jj23])):
                 continue
             jsymbol = self._j_symbol(jj1, jj2, jj12, jj3, jj, jj23)
             if jsymbol != 0:
                 self._6j[(jj1, jj2, jj12, jj3, jj, jj23)] = jsymbol
 
     def _n_q(self, n: int) -> float:
-        return (self._q**(.5*n) - self._q**(-.5*n)) / (self._q**.5 - self._q**-.5)
+        return (self._q**(.5 * n) - self._q**(-.5 * n)) / (self._q**.5 - self._q**-.5)
 
     def _n_q_fac(self, n: int) -> float:
         fac = 1
@@ -2525,8 +2658,10 @@ class SU2_kAnyonCategory(Symmetry):
         return fac
 
     def _delta(self, jj1: int, jj2: int, jj3: int) -> float:
-        res = self._n_q_fac( round(-1*jj1/2 + jj2/2 + jj3/2) ) * self._n_q_fac( round(jj1/2 - jj2/2 + jj3/2) )
-        res *= self._n_q_fac( round(jj1/2 + jj2/2 - jj3/2) ) / self._n_q_fac( round(jj1/2 + jj2/2 + jj3/2 + 1) )
+        res = self._n_q_fac(round(-1 * jj1 / 2 + jj2 / 2 + jj3 / 2)) * self._n_q_fac(
+            round(jj1 / 2 - jj2 / 2 + jj3 / 2))
+        res *= self._n_q_fac(round(jj1 / 2 + jj2 / 2 - jj3 / 2)) / self._n_q_fac(
+            round(jj1 / 2 + jj2 / 2 + jj3 / 2 + 1))
         return np.sqrt(res)
 
     def _j_symbol(self, jj1: int, jj2: int, jj12: int, jj3: int, jj: int, jj23: int) -> float:
@@ -2536,22 +2671,27 @@ class SU2_kAnyonCategory(Symmetry):
         start = max([jj1 + jj2 + jj12, jj12 + jj3 + jj, jj2 + jj3 + jj23, jj1 + jj23 + jj]) // 2
         stop = min([jj1 + jj2 + jj3 + jj, jj1 + jj12 + jj3 + jj23, jj2 + jj12 + jj + jj23]) // 2
         res = 0
-        for z in range(start, stop + 1):  # runs over all integers for which the factorials have non-negative arguments
-            factor = self._n_q_fac( round(z - jj1/2 - jj2/2 - jj12/2) ) * self._n_q_fac( round(z - jj12/2 - jj3/2 - jj/2) )
-            factor *= self._n_q_fac( round(z - jj2/2 - jj3/2 - jj23/2) ) * self._n_q_fac( round(z - jj1/2 - jj23/2 - jj/2) )
-            factor *= self._n_q_fac( round(jj1/2 + jj2/2 + jj3/2 + jj/2 - z) )
-            factor *= self._n_q_fac( round(jj1/2 + jj12/2 + jj3/2 + jj23/2 - z) )
-            factor *= self._n_q_fac( round(jj2/2 + jj12/2 + jj/2 + jj23/2 - z) )
+        for z in range(
+                start, stop +
+                1):  # runs over all integers for which the factorials have non-negative arguments
+            factor = self._n_q_fac(round(z - jj1 / 2 - jj2 / 2 - jj12 / 2)) * self._n_q_fac(
+                round(z - jj12 / 2 - jj3 / 2 - jj / 2))
+            factor *= self._n_q_fac(round(z - jj2 / 2 - jj3 / 2 - jj23 / 2)) * self._n_q_fac(
+                round(z - jj1 / 2 - jj23 / 2 - jj / 2))
+            factor *= self._n_q_fac(round(jj1 / 2 + jj2 / 2 + jj3 / 2 + jj / 2 - z))
+            factor *= self._n_q_fac(round(jj1 / 2 + jj12 / 2 + jj3 / 2 + jj23 / 2 - z))
+            factor *= self._n_q_fac(round(jj2 / 2 + jj12 / 2 + jj / 2 + jj23 / 2 - z))
             res += (-1)**z * self._n_q_fac(z + 1) / factor
-        return res * (self._delta(jj1, jj2, jj12) * self._delta(jj12, jj3, jj)
-                      * self._delta(jj2, jj3, jj23) * self._delta(jj1, jj23, jj))
+        return res * (self._delta(jj1, jj2, jj12) * self._delta(jj12, jj3, jj) *
+                      self._delta(jj2, jj3, jj23) * self._delta(jj1, jj23, jj))
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a <= self.k
 
     def are_valid_sectors(self, sectors) -> bool:
         shape = getattr(sectors, 'shape', ())
-        return len(shape) == 2 and shape[1] == 1 and np.all(0 <= sectors) and np.all(sectors <= self.k)
+        return len(shape) == 2 and shape[1] == 1 and np.all(0 <= sectors) and np.all(
+            sectors <= self.k)
 
     def fusion_outcomes(self, a: Sector, b: Sector) -> SectorArray:
         upper_limit = min(a[0] + b[0], 2 * self.k - a[0] - b[0])
@@ -2566,7 +2706,8 @@ class SU2_kAnyonCategory(Symmetry):
         return f'SU2_kAnyonCategory({self.k}, {self.handedness})'
 
     def is_same_symmetry(self, other) -> bool:
-        return isinstance(other, SU2_kAnyonCategory) and other.k == self.k and other.handedness == self.handedness
+        return isinstance(
+            other, SU2_kAnyonCategory) and other.k == self.k and other.handedness == self.handedness
 
     def dual_sector(self, a: Sector) -> Sector:
         return a
@@ -2577,15 +2718,15 @@ class SU2_kAnyonCategory(Symmetry):
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
         return 1
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                  ) -> np.ndarray:
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         # The q-deformed 6j symbols have the same symmetries as the usual SU(2) 6j symbols.
         # We can get all f symbols from the cases 6j symbols for
         # a == np.max([a, b, c, d, e, f]) and b == np.max([b, c, e, f]).
         # I.e., we need to exchange the charges accordingly
 
         # need to compute before exchanging charges
-        factor = np.sqrt( self._n_q(e[0]+1) * self._n_q(f[0]+1) )
+        factor = np.sqrt(self._n_q(e[0] + 1) * self._n_q(f[0] + 1))
         factor *= (-1)**((a[0] + b[0] + c[0] + d[0]) / 2)
 
         argm = np.argmax([a, c, b, d, f, e])
@@ -2599,7 +2740,7 @@ class SU2_kAnyonCategory(Symmetry):
         if argm_ > 1:
             b, d, f, e = f, e, b, d
 
-        if argm % 2 == 1 and argm_  % 2 == 1:
+        if argm % 2 == 1 and argm_ % 2 == 1:
             a, c, b, d = c, a, d, b
         elif argm % 2 == 1:
             a, c, f, e = c, a, e, f
@@ -2628,7 +2769,8 @@ class SU2_kAnyonCategory(Symmetry):
         except KeyError:
             return self._one_1D
 
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         return super()._c_symbol(a, b, c, d, e, f)
 
     def all_sectors(self) -> SectorArray:
@@ -2656,28 +2798,30 @@ class SU3_3AnyonCategory(Symmetry):
         9: as_immutable_array([[3]]),  # 1 x 10- = 10- = 1 x 10-
         2: as_immutable_array([[0], [1], [2], [3]]),  # 8 x 8 = 1 + 8 + 8 + 10 + 10-
         5: as_immutable_array([[1]]),  # 8 x 10 = 8 = 10 x 8
-        10: as_immutable_array([[1]]), # 8 x 10- = 8 = 10- x 8
+        10: as_immutable_array([[1]]),  # 8 x 10- = 8 = 10- x 8
         8: as_immutable_array([[3]]),  # 10 x 10 = 10-
-        13: as_immutable_array([[0]]), # 10 x 10- = 1 = 10- x 10
+        13: as_immutable_array([[0]]),  # 10 x 10- = 1 = 10- x 10
         18: as_immutable_array([[2]])  # 10- x 10- = 10
     }
-    _dual_map = {0: as_immutable_array([0]),
-                 1: as_immutable_array([1]),
-                 2: as_immutable_array([3]),
-                 3: as_immutable_array([2])}
+    _dual_map = {
+        0: as_immutable_array([0]),
+        1: as_immutable_array([1]),
+        2: as_immutable_array([3]),
+        3: as_immutable_array([2])
+    }
     _f1 = as_immutable_array(np.identity(2))
-    _f2 = as_immutable_array([[-0.5, -3**0.5/2], [3**0.5/2, -0.5]])
+    _f2 = as_immutable_array([[-0.5, -3**0.5 / 2], [3**0.5 / 2, -0.5]])
     _f3 = _f2.T
-    _f4 = np.zeros((7,7))
-    _f4[0,0] = _f4[5,5] = _f4[6,5] = _f4[5,6] = _f4[6,6] = 1/3
-    _f4[0,5] = _f4[0,6] = _f4[5,0] = _f4[6,0] = -1/3
-    _f4[0,1] = _f4[1,0] = _f4[0,4] = _f4[4,0] = 3**-0.5
-    _f4[2,2] = _f4[3,2] = _f4[2,3] = _f4[3,3] = _f4[1,4] = _f4[4,1] = 0.5
-    _f4[2,6] = _f4[6,3] = _f4[3,5] = _f4[5,2] = 0.5
-    _f4[2,5] = _f4[5,3] = _f4[3,6] = _f4[6,2] = -0.5
-    _f4[1,1] = _f4[4,4] = -0.5
-    _f4[1,5] = _f4[1,6] = _f4[5,1] = _f4[6,1] = 12**-0.5
-    _f4[4,5] = _f4[4,6] = _f4[5,4] = _f4[6,4] = 12**-0.5
+    _f4 = np.zeros((7, 7))
+    _f4[0, 0] = _f4[5, 5] = _f4[6, 5] = _f4[5, 6] = _f4[6, 6] = 1 / 3
+    _f4[0, 5] = _f4[0, 6] = _f4[5, 0] = _f4[6, 0] = -1 / 3
+    _f4[0, 1] = _f4[1, 0] = _f4[0, 4] = _f4[4, 0] = 3**-0.5
+    _f4[2, 2] = _f4[3, 2] = _f4[2, 3] = _f4[3, 3] = _f4[1, 4] = _f4[4, 1] = 0.5
+    _f4[2, 6] = _f4[6, 3] = _f4[3, 5] = _f4[5, 2] = 0.5
+    _f4[2, 5] = _f4[5, 3] = _f4[3, 6] = _f4[6, 2] = -0.5
+    _f4[1, 1] = _f4[4, 4] = -0.5
+    _f4[1, 5] = _f4[1, 6] = _f4[5, 1] = _f4[6, 1] = 12**-0.5
+    _f4[4, 5] = _f4[4, 6] = _f4[5, 4] = _f4[6, 4] = 12**-0.5
     _f4 = as_immutable_array(_f4)
     _fsym_map = {}
 
@@ -2688,40 +2832,46 @@ class SU3_3AnyonCategory(Symmetry):
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
                           group_name='SU3_3AnyonCategory',
-                          num_sectors=4, descriptive_name=None)
+                          num_sectors=4,
+                          descriptive_name=None)
 
         for charges in product(range(4), repeat=6):
             a, b, c, d, e, f = [np.array([i]) for i in charges]
-            self._fsym_map[(a[0], b[0], c[0], d[0], e[0], f[0])] = self._compute_f_symbol(a, b, c, d, e, f)
+            self._fsym_map[(a[0], b[0], c[0], d[0], e[0], f[0])] = self._compute_f_symbol(
+                a, b, c, d, e, f)
 
         for charges in product(range(4), repeat=6):
             a, b, c, d, e, f = [np.array([i]) for i in charges]
-            if (self.can_fuse_to(a, b, e) and self.can_fuse_to(e, c, d) and
-                    self.can_fuse_to(a, c, f) and self.can_fuse_to(f, b, d)):
+            if (self.can_fuse_to(a, b, e) and self.can_fuse_to(e, c, d)
+                    and self.can_fuse_to(a, c, f) and self.can_fuse_to(f, b, d)):
                 self._c[(a[0], b[0], c[0], d[0], e[0], f[0])] = super()._c_symbol(a, b, c, d, e, f)
 
-    def _compute_f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                  ) -> np.ndarray:
-        if not np.all([self.can_fuse_to(b, c, e), self.can_fuse_to(a, e, d),
-                       self.can_fuse_to(a, b, f), self.can_fuse_to(f, c, d)]):
+    def _compute_f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                          f: Sector) -> np.ndarray:
+        if not np.all([
+                self.can_fuse_to(b, c, e),
+                self.can_fuse_to(a, e, d),
+                self.can_fuse_to(a, b, f),
+                self.can_fuse_to(f, c, d)
+        ]):
             return self._one_4D
 
         abcd = [a, b, c, d]
         check_8 = [charge == np.array([1]) for charge in abcd]
-        shape = (self._n_symbol(b, c, e), self._n_symbol(a, e, d),
-                 self._n_symbol(a, b, f), self._n_symbol(f, c, d))
+        shape = (self._n_symbol(b, c, e), self._n_symbol(a, e, d), self._n_symbol(a, b, f),
+                 self._n_symbol(f, c, d))
 
         if check_8.count(True) == 4:
             slices = []
             for charge in [e, f]:
-                if charge ==  np.array([0]):
-                    slices.append(slice(0,1))
-                elif charge ==  np.array([1]):
-                    slices.append(slice(1,5))
-                elif charge ==  np.array([2]):
-                    slices.append(slice(5,6))
+                if charge == np.array([0]):
+                    slices.append(slice(0, 1))
+                elif charge == np.array([1]):
+                    slices.append(slice(1, 5))
+                elif charge == np.array([2]):
+                    slices.append(slice(5, 6))
                 else:
-                    slices.append(slice(6,7))
+                    slices.append(slice(6, 7))
             return self._f4[slices[1], slices[0]].reshape(shape)
 
         elif check_8.count(True) == 3:
@@ -2788,10 +2938,10 @@ class SU3_3AnyonCategory(Symmetry):
         return np.where(sectors >= 2, -sectors % 5, sectors)
 
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
-        return 2 if np.all(np.concatenate([a, b, c]) == np.array([[1]*3])) else 1
+        return 2 if np.all(np.concatenate([a, b, c]) == np.array([[1] * 3])) else 1
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                  ) -> np.ndarray:
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         return self._fsym_map[(a[0], b[0], c[0], d[0], e[0], f[0])]
 
     def frobenius_schur(self, a: Sector) -> int:
@@ -2810,7 +2960,8 @@ class SU3_3AnyonCategory(Symmetry):
             return -1 * self._one_1D
         return self._one_1D
 
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector,
+                  f: Sector) -> np.ndarray:
         try:
             return self._c[(a[0], b[0], c[0], d[0], e[0], f[0])]
         except KeyError:  # inconsistent fusion

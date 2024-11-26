@@ -11,7 +11,6 @@ try:
 except:
     S = clebsch_gordan = racah = None
 
-
 # TODO / OPTIMIZE : think about caching, pre-computing, ...
 #                 : this is a quick and stupid implementation
 CACHE_SIZE = 10_000

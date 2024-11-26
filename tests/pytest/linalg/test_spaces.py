@@ -37,14 +37,19 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
         wrong_mults[-2] += 1
     else:
         wrong_mults[0] += 1
-    assert s1 != spaces.ElementarySpace(symmetry=any_symmetry, sectors=sectors, multiplicities=wrong_mults)
+    assert s1 != spaces.ElementarySpace(symmetry=any_symmetry,
+                                        sectors=sectors,
+                                        multiplicities=wrong_mults)
     npt.assert_array_equal(s1_dual.sectors, dual_sectors[dual_sectors_sort])
     npt.assert_array_equal(s1_dual.multiplicities, s1.multiplicities[dual_sectors_sort])
     assert s1_dual.symmetry == s1.symmetry
     assert s1_dual.is_dual is True
     #
-    s1_modified = spaces.ElementarySpace(s1.symmetry, sectors=s1.sectors, multiplicities=s1.multiplicities,
-                                         is_dual=not s1.is_dual, basis_perm=s1._basis_perm)
+    s1_modified = spaces.ElementarySpace(s1.symmetry,
+                                         sectors=s1.sectors,
+                                         multiplicities=s1.multiplicities,
+                                         is_dual=not s1.is_dual,
+                                         basis_perm=s1._basis_perm)
     assert s1 != s1_modified
     assert s1_modified == s1.with_opposite_duality()
 
@@ -52,16 +57,18 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
     assert not s1.is_trivial
     assert not s2.is_trivial
     assert spaces.ElementarySpace.from_trivial_sector(dim=1).is_trivial
-    assert spaces.ElementarySpace(symmetry=any_symmetry, sectors=any_symmetry.trivial_sector[np.newaxis, :]).is_trivial
+    assert spaces.ElementarySpace(symmetry=any_symmetry,
+                                  sectors=any_symmetry.trivial_sector[np.newaxis, :]).is_trivial
 
     print('checking is_subspace_of')
-    same_sectors_less_mults = spaces.ElementarySpace(
-        symmetry=any_symmetry, sectors=sectors, multiplicities=[max(1, m - 1) for m in mults]
-    )
+    same_sectors_less_mults = spaces.ElementarySpace(symmetry=any_symmetry,
+                                                     sectors=sectors,
+                                                     multiplicities=[max(1, m - 1) for m in mults])
     same_sectors_different_mults = spaces.ElementarySpace(
-       symmetry=any_symmetry, sectors=sectors,
-       multiplicities=[max(1, m + (+1 if i % 2 == 0 else -1)) for i, m in enumerate(mults)]
-    )  # but at least one mult is larger than for s1
+        symmetry=any_symmetry,
+        sectors=sectors,
+        multiplicities=[max(1, m + (+1 if i % 2 == 0 else -1)) for i, m in enumerate(mults)
+                        ])  # but at least one mult is larger than for s1
     if len(sectors) > 2:
         which1 = [0, -1]
         which2 = [1, -2]
@@ -70,9 +77,11 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
         # both of which have multiple entries
         which1 = [0]
         which2 = [-1]
-    fewer_sectors1 = spaces.ElementarySpace(symmetry=any_symmetry, sectors=[sectors[i] for i in which1],
+    fewer_sectors1 = spaces.ElementarySpace(symmetry=any_symmetry,
+                                            sectors=[sectors[i] for i in which1],
                                             multiplicities=[mults[i] for i in which1])
-    fewer_sectors2 = spaces.ElementarySpace(symmetry=any_symmetry, sectors=[sectors[i] for i in which2],
+    fewer_sectors2 = spaces.ElementarySpace(symmetry=any_symmetry,
+                                            sectors=[sectors[i] for i in which2],
                                             multiplicities=[mults[i] for i in which2])
     assert s1.is_subspace_of(s1)
     assert not s1.dual.is_subspace_of(s1)
@@ -120,8 +129,9 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
             with pytest.raises(ValueError, match='Sectors must appear in whole multiplets'):
                 bad_sectors = np.array([0, 1, 1, 1, 2, 2, 2])[:, None]
                 # have three basis vectors for 2-dimensional spin-1/2
-                _ = spaces.ElementarySpace.from_basis(symmetry=any_symmetry, sectors_of_basis=bad_sectors)
-            
+                _ = spaces.ElementarySpace.from_basis(symmetry=any_symmetry,
+                                                      sectors_of_basis=bad_sectors)
+
             # spins 0, 1/2 and 1, each two times
             #                         0  1  2  3  4  5  6  7  8  9  10 11
             sectors_of_basis = np.array([0, 2, 2, 1, 2, 1, 2, 2, 0, 2, 1, 1])[:, None]
@@ -144,9 +154,11 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
                 which_sectors = np.array([2, 0, 1, 2, 2, 2, 0, 0, 1, 2])
                 expect_basis_perm = np.array([1, 6, 7, 2, 8, 0, 3, 4, 5, 9])
                 expect_sectors = sectors[:3]
-            expect_mults = np.sum(which_sectors[:, None] == np.arange(len(expect_sectors))[None, :], axis=0)
+            expect_mults = np.sum(which_sectors[:, None] == np.arange(len(expect_sectors))[None, :],
+                                  axis=0)
             sectors_of_basis = sectors[which_sectors]
-        space = spaces.ElementarySpace.from_basis(symmetry=any_symmetry, sectors_of_basis=sectors_of_basis)
+        space = spaces.ElementarySpace.from_basis(symmetry=any_symmetry,
+                                                  sectors_of_basis=sectors_of_basis)
         npt.assert_array_equal(space.sectors, expect_sectors)
         npt.assert_array_equal(space.multiplicities, expect_mults)
         npt.assert_array_equal(space.basis_perm, expect_basis_perm)
@@ -164,18 +176,17 @@ def test_ElementarySpace_from_sectors(any_symmetry, make_any_sectors, np_random)
         basis_perm = None
     #
     # call from_sectors
-    res = spaces.ElementarySpace.from_sectors(symmetry=any_symmetry, sectors=sectors,
-                                              multiplicities=multiplicities, basis_perm=basis_perm)
+    res = spaces.ElementarySpace.from_sectors(symmetry=any_symmetry,
+                                              sectors=sectors,
+                                              multiplicities=multiplicities,
+                                              basis_perm=basis_perm)
     res.test_sanity()
     #
     # check sectors and multiplicities
     expect_sectors = np.unique(sectors, axis=0)
     expect_sectors = expect_sectors[np.lexsort(expect_sectors.T)]
-    mult_contributions = np.where(
-        np.all(sectors[None, :, :] == expect_sectors[:, None, :], axis=2),
-        multiplicities[None, :],
-        0
-    )
+    mult_contributions = np.where(np.all(sectors[None, :, :] == expect_sectors[:, None, :], axis=2),
+                                  multiplicities[None, :], 0)
     expect_mults = np.sum(mult_contributions, axis=1)
     assert np.all(res.sectors == expect_sectors)
     assert np.all(res.multiplicities == expect_mults)
@@ -205,11 +216,13 @@ def test_take_slice(make_any_space, any_symmetry, np_random):
         with pytest.raises(SymmetryError, match='take_slice is meaningless for .*.'):
             _ = space.take_slice([True])
         return
-    
+
     if isinstance(any_symmetry, symmetries.SU2Symmetry):
         sectors = np.array([0, 1, 2, 4])[:, None]
         mults = np.array([3, 1, 2, 2])
-        basis_perm = np.array([19, 20, 17, 2, 9, 16, 8, 3, 0, 4, 11, 13, 5, 15, 12, 14, 10, 7, 1, 18, 6])
+        basis_perm = np.array([
+            19, 20, 17, 2, 9, 16, 8, 3, 0, 4, 11, 13, 5, 15, 12, 14, 10, 7, 1, 18, 6
+        ])
         space = spaces.ElementarySpace(any_symmetry, sectors, mults, basis_perm)
 
         # build an allowed and an illegal mask in the internal basis order
@@ -270,7 +283,7 @@ def test_ProductSpace(make_any_space):
     for n, p1 in enumerate(examples):
         print(f'{n}=')
         print(p1)
-        
+
         p1.test_sanity()
         _ = str(p1)
         _ = repr(p1)
@@ -288,7 +301,7 @@ def test_ProductSpace(make_any_space):
         for m, p2 in enumerate(expected_duals):
             # by construction, expect equality exactly if m == n
             assert (p1_dual == p2) == (n == m)
-        
+
         _ = p1.as_ElementarySpace()
 
     print('empty product is monoidal unit?')
@@ -297,7 +310,7 @@ def test_ProductSpace(make_any_space):
     assert np.all(empty_product.multiplicities == np.ones(1, dtype=int))
     monoidal_unit = spaces.ElementarySpace.from_trivial_sector(dim=1, symmetry=V1.symmetry)
     assert empty_product.as_ElementarySpace() == monoidal_unit
-        
+
 
 def test_ProductSpace_SU2():
     sym = symmetries.SU2Symmetry()
@@ -338,7 +351,7 @@ def test_ProductSpace_SU2():
     # 1     0   39*3            117
     # 1   3/2   39*1         39        39        39
     # 1   1/2   39*2         78        78
-    # 3/2   0   38*3                  114 
+    # 3/2   0   38*3                  114
     # 3/2 3/2   38*1   38        38        38        38
     # 3/2 1/2   38*2             76        76
     # 2     0   51*3                      153
@@ -353,9 +366,11 @@ def test_ProductSpace_SU2():
     # 7/2   0   18*3                                       54
     # 7/2 3/2   18*1                       18        18        18        18
     # 7/2 1/2   18*2                                 36        36
-    expect_mults = [96+38, 144+39+78+51, 48+96+117+38+76+18, 39+78+114+51+102+24,
-                    48+38+76+153+18+36+18, 39+51+102+54+24+48, 38+18+36+72+18+36, 51+24+48+54,
-                    18+18+36, 24, 18]
+    expect_mults = [
+        96 + 38, 144 + 39 + 78 + 51, 48 + 96 + 117 + 38 + 76 + 18, 39 + 78 + 114 + 51 + 102 + 24,
+        48 + 38 + 76 + 153 + 18 + 36 + 18, 39 + 51 + 102 + 54 + 24 + 48,
+        38 + 18 + 36 + 72 + 18 + 36, 51 + 24 + 48 + 54, 18 + 18 + 36, 24, 18
+    ]
     npt.assert_array_equal(abc.sectors, np.arange(11)[:, None])
     npt.assert_array_equal(abc.multiplicities, np.array(expect_mults))
 
@@ -421,7 +436,7 @@ def test_str_repr(make_any_space, str_max_lines=20, repr_max_lines=20):
     str_max_len = terminal_width * str_max_lines
     repr_max_len = terminal_width * str_max_lines
     # TODO output is a bit long, should we force shorter? -> consider config.printoptions!
-    
+
     space = make_any_space(max_sectors=20)
 
     print('----------------------')
@@ -431,7 +446,7 @@ def test_str_repr(make_any_space, str_max_lines=20, repr_max_lines=20):
     assert len(res) <= repr_max_len
     assert res.count('\n') <= repr_max_lines
     print(res)
-    
+
     print()
     print()
     print('----------------------')
@@ -454,7 +469,7 @@ def test_str_repr(make_any_space, str_max_lines=20, repr_max_lines=20):
         assert len(res) <= repr_max_len
         assert res.count('\n') <= repr_max_lines
         print(res)
-        
+
         print()
         print()
         print('-----------------------')

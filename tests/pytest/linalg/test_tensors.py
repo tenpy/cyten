@@ -16,9 +16,8 @@ from cyten.spaces import ElementarySpace, ProductSpace
 from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError, u1_symmetry
 from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays
 
-
-
 # TENSOR CLASSES
+
 
 class DummyTensor(tensors.Tensor):
     """Want to test the Tensor class directly.
@@ -50,23 +49,31 @@ def test_base_Tensor(make_compatible_space, compatible_backend):
     a, b, c, d, e = [make_compatible_space() for _ in range(5)]
 
     print('checking different labels input formats')
-    tens1 = DummyTensor([a, b, c], [d, e], backend=compatible_backend, labels=None,
+    tens1 = DummyTensor([a, b, c], [d, e],
+                        backend=compatible_backend,
+                        labels=None,
                         dtype=Dtype.float64)
     tens1.test_sanity()
     assert tens1._labels == [None] * 5
 
-    tens2 = DummyTensor([a, b, c], [d, e], backend=compatible_backend,
-                        labels=['a', 'b', 'c', 'e*', 'd*'], dtype=Dtype.float64)
+    tens2 = DummyTensor([a, b, c], [d, e],
+                        backend=compatible_backend,
+                        labels=['a', 'b', 'c', 'e*', 'd*'],
+                        dtype=Dtype.float64)
     tens2.test_sanity()
     assert tens2._labels == ['a', 'b', 'c', 'e*', 'd*']
 
-    tens3 = DummyTensor([a, b, c], [d, e], backend=compatible_backend,
-                        labels=[['a', None, None], ['d*', 'e*']], dtype=Dtype.float64)
+    tens3 = DummyTensor([a, b, c], [d, e],
+                        backend=compatible_backend,
+                        labels=[['a', None, None], ['d*', 'e*']],
+                        dtype=Dtype.float64)
     tens3.test_sanity()
     assert tens3._labels == ['a', None, None, 'e*', 'd*']
 
-    tens4 = DummyTensor([a, b, c], [d, e], backend=compatible_backend,
-                        labels=[['a', None, None], None], dtype=Dtype.float64)
+    tens4 = DummyTensor([a, b, c], [d, e],
+                        backend=compatible_backend,
+                        labels=[['a', None, None], None],
+                        dtype=Dtype.float64)
     tens4.test_sanity()
     assert tens4._labels == ['a', None, None, None, None]
 
@@ -148,18 +155,20 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
     dense_block = backend.block_backend.block_from_numpy(numpy_block)
 
     print('checking from_dense_block')
-    tens = SymmetricTensor.from_dense_block(
-        dense_block, codomain=T.codomain, domain=T.domain, backend=backend
-    )
+    tens = SymmetricTensor.from_dense_block(dense_block,
+                                            codomain=T.codomain,
+                                            domain=T.domain,
+                                            backend=backend)
     tens.test_sanity()
     npt.assert_allclose(tens.to_numpy(), numpy_block)
     if T.num_parameters < T.size:  # otherwise all blocks are symmetric
         pert = tens.backend.block_backend.block_random_uniform(T.shape, dtype=T.dtype)
         non_symmetric_block = dense_block + pert
         with pytest.raises(ValueError, match='Block is not symmetric'):
-            _ = SymmetricTensor.from_dense_block(
-                non_symmetric_block, codomain=T.codomain, domain=T.domain, backend=backend
-            )
+            _ = SymmetricTensor.from_dense_block(non_symmetric_block,
+                                                 codomain=T.codomain,
+                                                 domain=T.domain,
+                                                 backend=backend)
 
     # TODO: missing coverage:
     # - from_block_func / from_sector_block_func
@@ -176,21 +185,20 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
     if which.num_spaces > 2:
         # otherwise it gets a bit expensive to compute
         which = ProductSpace(which.spaces[:2], backend=backend)
-    labels=list('abcdefg')[:len(which)]
+    labels = list('abcdefg')[:len(which)]
     tens = SymmetricTensor.from_eye(which, backend=T.backend, labels=labels)
     expect_from_backend = backend.block_backend.block_to_numpy(
-        backend.block_backend.eye_block([leg.dim for leg in which.spaces], dtype=T.dtype)
-    )
+        backend.block_backend.eye_block([leg.dim for leg in which.spaces], dtype=T.dtype))
     res = tens.to_numpy()
     if which.num_spaces == 1:
         expect_explicit = np.eye(which.dim)
     elif which.num_spaces == 2:
-        expect_explicit = (np.eye(which.spaces[0].dim)[:, None, None, :]
-                           * np.eye(which.spaces[1].dim)[None, :, :, None])
+        expect_explicit = (np.eye(which.spaces[0].dim)[:, None, None, :] *
+                           np.eye(which.spaces[1].dim)[None, :, :, None])
     elif which.num_spaces == 3:
-        expect_explicit = (np.eye(which.spaces[0].dim)[:, None, None, None, None, :]
-                           * np.eye(which.spaces[1].dim)[None, :, None, None, :, None]
-                           * np.eye(which.spaces[2].dim)[None, None, :, :, None, None])
+        expect_explicit = (np.eye(which.spaces[0].dim)[:, None, None, None, None, :] *
+                           np.eye(which.spaces[1].dim)[None, :, None, None, :, None] *
+                           np.eye(which.spaces[2].dim)[None, None, :, :, None, None])
     else:
         raise RuntimeError('Need to adjust test design')
     npt.assert_allclose(expect_from_backend, expect_explicit)
@@ -420,7 +428,8 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
 @pytest.mark.deselect_invalid_ChargedTensor_cases(get_cls=lambda kw: ChargedTensor)
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)],
                          ids=['1->1', '1->2', '0->3', '3->0'])
-def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatible_symmetry, leg_nums):
+def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatible_symmetry,
+                       leg_nums):
     T: ChargedTensor = make_compatible_tensor(*leg_nums, cls=ChargedTensor)
     backend = T.backend
 
@@ -436,10 +445,11 @@ def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatib
     assert T.shape == numpy_block.shape
 
     print('checking from_zero')
-    zero_tens = ChargedTensor.from_zero(
-        codomain=T.codomain, domain=T.domain, charge=T.charge_leg, charged_state=T.charged_state,
-        backend=backend
-    )
+    zero_tens = ChargedTensor.from_zero(codomain=T.codomain,
+                                        domain=T.domain,
+                                        charge=T.charge_leg,
+                                        charged_state=T.charged_state,
+                                        backend=backend)
     zero_tens.test_sanity()
     npt.assert_array_almost_equal_nulp(zero_tens.to_numpy(), np.zeros(T.shape), 10)
 
@@ -464,16 +474,16 @@ def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatib
 
     block = tens.to_dense_block_single_sector()
     assert backend.block_backend.block_shape(block) == (block_size,)
-    tens2 = ChargedTensor.from_dense_block_single_sector(
-        vector=block, space=leg, sector=sector, backend=backend
-    )
+    tens2 = ChargedTensor.from_dense_block_single_sector(vector=block,
+                                                         space=leg,
+                                                         sector=sector,
+                                                         backend=backend)
     tens2.test_sanity()
     assert tens2.charge_leg == tens.charge_leg
     assert tensors.almost_equal(tens, tens2)
     block2 = tens2.to_dense_block_single_sector()
     npt.assert_array_almost_equal_nulp(tens.backend.block_backend.block_to_numpy(block),
-                                       tens.backend.block_backend.block_to_numpy(block2),
-                                       100)
+                                       tens.backend.block_backend.block_to_numpy(block2), 100)
 
     # TODO test to_dense_block_single_sector
 
@@ -507,7 +517,9 @@ def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatib
     #     npt.assert_array_equal(detected, sector)
 
 
-@pytest.mark.parametrize('symmetry_backend', ['abelian', pytest.param('fusion_tree', marks=pytest.mark.FusionTree)])
+@pytest.mark.parametrize('symmetry_backend',
+                         ['abelian',
+                          pytest.param('fusion_tree', marks=pytest.mark.FusionTree)])
 def test_explicit_blocks(symmetry_backend, block_backend):
     """Do detailed tests with concrete examples.
 
@@ -526,17 +538,19 @@ def test_explicit_blocks(symmetry_backend, block_backend):
     s1 = ElementarySpace.from_basis(z4_symmetry, basis1)  # sectors = [0, 2, 3]
     s2 = ElementarySpace.from_basis(z4_symmetry, basis2)  # sectors = [0, 1, 2, 3]
 
-
     print(f'\n\nBOTH LEGS IN CODOMAIN:\n')
 
     #             s2 : 2,  0,  1,  2,  3,  0,  1     s1
-    data = np.array([[ 0,  0,  1,  0,  0,  0,  2],  # 3
-                     [ 0,  0,  3,  0,  0,  0,  4],  # 3
-                     [ 5,  0,  0,  6,  0,  0,  0],  # 2
-                     [ 0,  7,  0,  0,  0,  8,  0],  # 0
-                     [ 0,  0,  9,  0,  0,  0, 10],  # 3
-                     [11,  0,  0, 12,  0,  0,  0]], # 2
-                    dtype=float)
+    data = np.array(
+        [
+            [0, 0, 1, 0, 0, 0, 2],  # 3
+            [0, 0, 3, 0, 0, 0, 4],  # 3
+            [5, 0, 0, 6, 0, 0, 0],  # 2
+            [0, 7, 0, 0, 0, 8, 0],  # 0
+            [0, 0, 9, 0, 0, 0, 10],  # 3
+            [11, 0, 0, 12, 0, 0, 0]
+        ],  # 2
+        dtype=float)
 
     print('after applying basis perm:')
     print(data[np.ix_(s1.basis_perm, s2.basis_perm)])
@@ -555,8 +569,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
     non_symmetric_data = data.copy()
     non_symmetric_data[0, 0] = 42
     with pytest.raises(ValueError, match='not symmetric'):
-        t = SymmetricTensor.from_dense_block(non_symmetric_data, codomain=[s1, s2],
-                                                    backend=backend)
+        t = SymmetricTensor.from_dense_block(non_symmetric_data, codomain=[s1, s2], backend=backend)
     # now continue with the symmetric block
 
     t = SymmetricTensor.from_dense_block(data, codomain=[s1, s2], backend=backend)
@@ -576,7 +589,8 @@ def test_explicit_blocks(symmetry_backend, block_backend):
         assert len(expect_blocks) == len(t.data.blocks)
         for i, (actual, expect) in enumerate(zip(t.data.blocks, expect_blocks)):
             print(f'checking blocks[{i}]')
-            npt.assert_array_almost_equal_nulp(t.backend.block_backend.block_to_numpy(actual), expect, 100)
+            npt.assert_array_almost_equal_nulp(t.backend.block_backend.block_to_numpy(actual),
+                                               expect, 100)
 
     elif symmetry_backend == 'fusion_tree':
         assert np.all(t.data.block_inds == np.array([0, 0])[None, :])
@@ -602,13 +616,16 @@ def test_explicit_blocks(symmetry_backend, block_backend):
     # note that this setup changes the charge rule! different entries are now allowed than before
 
     #             s2 : 2,  0,  1,  2,  3,  0,  1     s1
-    data = np.array([[ 0,  0,  0,  0, -1,  0,  0],  # 3
-                     [ 0,  0,  0,  0, -2,  0,  0],  # 3
-                     [ 5,  0,  0,  6,  0,  0,  0],  # 2
-                     [ 0,  7,  0,  0,  0,  8,  0],  # 0
-                     [ 0,  0,  0,  0, -3,  0,  0],  # 3
-                     [11,  0,  0, 12,  0,  0,  0]], # 2
-                    dtype=float)
+    data = np.array(
+        [
+            [0, 0, 0, 0, -1, 0, 0],  # 3
+            [0, 0, 0, 0, -2, 0, 0],  # 3
+            [5, 0, 0, 6, 0, 0, 0],  # 2
+            [0, 7, 0, 0, 0, 8, 0],  # 0
+            [0, 0, 0, 0, -3, 0, 0],  # 3
+            [11, 0, 0, 12, 0, 0, 0]
+        ],  # 2
+        dtype=float)
 
     print('after applying basis perm:')
     print(data[np.ix_(s1.basis_perm, s2.basis_perm)])
@@ -627,14 +644,13 @@ def test_explicit_blocks(symmetry_backend, block_backend):
     non_symmetric_data = data.copy()
     non_symmetric_data[0, 0] = 42
     with pytest.raises(ValueError, match='not symmetric'):
-        t = SymmetricTensor.from_dense_block(
-            non_symmetric_data, codomain=[s1], domain=[s2], backend=backend
-        )
+        t = SymmetricTensor.from_dense_block(non_symmetric_data,
+                                             codomain=[s1],
+                                             domain=[s2],
+                                             backend=backend)
     # now continue with the symmetric block
 
-    t = SymmetricTensor.from_dense_block(
-        data, codomain=[s1], domain=[s2], backend=backend
-    )
+    t = SymmetricTensor.from_dense_block(data, codomain=[s1], domain=[s2], backend=backend)
     t.test_sanity()
 
     # explicitly check the ``t.data`` vs what we expect
@@ -652,7 +668,8 @@ def test_explicit_blocks(symmetry_backend, block_backend):
         assert len(expect_blocks) == len(t.data.blocks)
         for i, (actual, expect) in enumerate(zip(t.data.blocks, expect_blocks)):
             print(f'checking blocks[{i}]')
-            npt.assert_array_almost_equal_nulp(t.backend.block_backend.block_to_numpy(actual), expect, 100)
+            npt.assert_array_almost_equal_nulp(t.backend.block_backend.block_to_numpy(actual),
+                                               expect, 100)
 
     elif symmetry_backend == 'fusion_tree':
         # expect coupled sectors q0, q2, q3.
@@ -663,7 +680,8 @@ def test_explicit_blocks(symmetry_backend, block_backend):
         assert len(expect_blocks) == len(t.data.blocks)
         for i, (actual, expect) in enumerate(zip(t.data.blocks, expect_blocks)):
             print(f'checking blocks[{i}]')
-            npt.assert_array_almost_equal_nulp(t.backend.block_backend.block_to_numpy(actual), expect, 100)
+            npt.assert_array_almost_equal_nulp(t.backend.block_backend.block_to_numpy(actual),
+                                               expect, 100)
 
     else:
         raise RuntimeError
@@ -680,17 +698,17 @@ def test_explicit_blocks(symmetry_backend, block_backend):
     # set the allowed elements manually
     # note the leg order for the dense array is [*codomain, *reversed(domain)] !!
     #                        SECTORS PER LEG  |  DOMAIN -> coupled -> CODOMAIN
-    data[1, 1, 1, 1] = 1   # [0, 0, 0, 0]     |  [0, 0] -> 0 -> [0, 0]
-    data[1, 1, 2, 2] = 2   # [0, 0, 2, 2]     |  [2, 2] -> 0 -> [0, 0]
-    data[2, 2, 1, 1] = 3   # [2, 2, 0, 0]     |  [0, 0] -> 0 -> [2, 2]
-    data[2, 2, 2, 2] = 4   # [2, 2, 2, 2]     |  [2, 2] -> 0 -> [2, 2]
+    data[1, 1, 1, 1] = 1  # [0, 0, 0, 0]     |  [0, 0] -> 0 -> [0, 0]
+    data[1, 1, 2, 2] = 2  # [0, 0, 2, 2]     |  [2, 2] -> 0 -> [0, 0]
+    data[2, 2, 1, 1] = 3  # [2, 2, 0, 0]     |  [0, 0] -> 0 -> [2, 2]
+    data[2, 2, 2, 2] = 4  # [2, 2, 2, 2]     |  [2, 2] -> 0 -> [2, 2]
     #
-    data[0, 1, 0, 1] = 5   # [1, 0, 1, 0]     |  [0, 1] -> 1 -> [1, 0]
-    data[0, 1, 1, 0] = 6   # [1, 0, 0, 1]     |  [1, 0] -> 1 -> [1, 0]
+    data[0, 1, 0, 1] = 5  # [1, 0, 1, 0]     |  [0, 1] -> 1 -> [1, 0]
+    data[0, 1, 1, 0] = 6  # [1, 0, 0, 1]     |  [1, 0] -> 1 -> [1, 0]
     #
-    data[0, 0, 0, 0] = 7   # [1, 1, 1, 1]     |  [1, 1] -> 2 -> [1, 1]
-    data[0, 0, 1, 2] = 8   # [1, 1, 0, 2]     |  [2, 0] -> 2 -> [1, 1]
-    data[1, 2, 0, 0] = 9   # [0, 2, 1, 1]     |  [1, 1] -> 2 -> [0, 2]
+    data[0, 0, 0, 0] = 7  # [1, 1, 1, 1]     |  [1, 1] -> 2 -> [1, 1]
+    data[0, 0, 1, 2] = 8  # [1, 1, 0, 2]     |  [2, 0] -> 2 -> [1, 1]
+    data[1, 2, 0, 0] = 9  # [0, 2, 1, 1]     |  [1, 1] -> 2 -> [0, 2]
     data[1, 2, 1, 2] = 10  # [0, 2, 0, 2]     |  [2, 0] -> 2 -> [0, 2]
     #
     data[0, 2, 0, 2] = 11  # [1, 2, 1, 2]     |  [2, 1] -> 3 -> [1, 2]
@@ -702,14 +720,13 @@ def test_explicit_blocks(symmetry_backend, block_backend):
     non_symmetric_data = data.copy()
     non_symmetric_data[0, 0, 1, 1] = 42
     with pytest.raises(ValueError, match='not symmetric'):
-        t = SymmetricTensor.from_dense_block(
-            non_symmetric_data, codomain=[s, s], domain=[s, s], backend=backend
-        )
+        t = SymmetricTensor.from_dense_block(non_symmetric_data,
+                                             codomain=[s, s],
+                                             domain=[s, s],
+                                             backend=backend)
     # now continue with the symmetric block
 
-    t = SymmetricTensor.from_dense_block(
-        data, codomain=[s, s], domain=[s, s], backend=backend
-    )
+    t = SymmetricTensor.from_dense_block(data, codomain=[s, s], domain=[s, s], backend=backend)
     t.test_sanity()
 
     # explicitly check the ``t.data`` vs what we expect
@@ -717,12 +734,11 @@ def test_explicit_blocks(symmetry_backend, block_backend):
         # all sectors appear only once, so each allowed entry is its own block.
         # In this case, the value of a sector is also its index in s.sectors
         # Thus the block inds are just the "SECTORS PER LEG" above.
-        expect_block_inds = np.asarray([
-            [0, 0, 0, 0], [0, 0, 2, 2], [2, 2, 0, 0], [2, 2, 2, 2],
-            [1, 0, 1, 0], [1, 0, 0, 1],
-            [1, 1, 1, 1], [1, 1, 0, 2], [0, 2, 1, 1], [0, 2, 0, 2],
-            [1, 2, 1, 2], [1, 2, 2, 1], [2, 1, 1, 2], [2, 1, 2, 1]
-        ], dtype=int)
+        expect_block_inds = np.asarray([[0, 0, 0, 0], [0, 0, 2, 2], [2, 2, 0, 0], [2, 2, 2, 2],
+                                        [1, 0, 1, 0], [1, 0, 0, 1], [1, 1, 1, 1], [1, 1, 0, 2],
+                                        [0, 2, 1, 1], [0, 2, 0, 2], [1, 2, 1, 2], [1, 2, 2, 1],
+                                        [2, 1, 1, 2], [2, 1, 2, 1]],
+                                       dtype=int)
         expect_blocks = [np.asarray([[x]], dtype=float) for x in range(1, 15)]
         perm = np.lexsort(expect_block_inds.T)
         expect_block_inds = expect_block_inds[perm]
@@ -750,33 +766,47 @@ def test_explicit_blocks(symmetry_backend, block_backend):
         # note: when setting the data we listed the uncoupled sectors of the domain
 
         #      dom uncoupled:  (0, 0)  ;  (2, 2)  |  codom uncoupled:
-        block_0 = np.asarray([[    1,         2],   #  (0, 0)
-                              [    3,         4]],  #  (2, 2)
-                             dtype=float)
+        block_0 = np.asarray(
+            [
+                [1, 2],  #  (0, 0)
+                [3, 4]
+            ],  #  (2, 2)
+            dtype=float)
         #      dom uncoupled:  (0, 1)  ;  (1, 0)  |  codom uncoupled:
-        block_1 = np.asarray([[    0,         0],   #  (0, 1)
-                              [    5,         6]],  #  (1, 0)
-                             dtype=float)
+        block_1 = np.asarray(
+            [
+                [0, 0],  #  (0, 1)
+                [5, 6]
+            ],  #  (1, 0)
+            dtype=float)
         #      dom uncoupled:  (0, 2)  ;  (1, 1)  ;  (2, 0)  |  codom uncoupled:
-        block_2 = np.asarray([[    0,         9,        10],   #  (0, 2)
-                              [    0,         7,         8],   #  (1, 1)
-                              [    0,         0,         0]],  #  (2, 0)
-                             dtype=float)
+        block_2 = np.asarray(
+            [
+                [0, 9, 10],  #  (0, 2)
+                [0, 7, 8],  #  (1, 1)
+                [0, 0, 0]
+            ],  #  (2, 0)
+            dtype=float)
         #      dom uncoupled:  (1, 2)  ;  (2, 1)  |  codom uncoupled:
-        block_3 = np.asarray([[   12,        11],   #  (1, 2)
-                              [   14,        13]],  #  (2, 1)
-                             dtype=float)
+        block_3 = np.asarray(
+            [
+                [12, 11],  #  (1, 2)
+                [14, 13]
+            ],  #  (2, 1)
+            dtype=float)
         expect_blocks = [block_0, block_1, block_2, block_3]
         assert len(expect_blocks) == len(t.data.blocks)
         for i, (actual, expect) in enumerate(zip(t.data.blocks, expect_blocks)):
             print(f'checking blocks[{i}]')
-            npt.assert_array_almost_equal_nulp(t.backend.block_backend.block_to_numpy(actual), expect, 100)
+            npt.assert_array_almost_equal_nulp(t.backend.block_backend.block_to_numpy(actual),
+                                               expect, 100)
 
     else:
         raise RuntimeError
 
 
-@pytest.mark.parametrize('symmetry_backend', [pytest.param('fusion_tree', marks=pytest.mark.FusionTree)])
+@pytest.mark.parametrize('symmetry_backend',
+                         [pytest.param('fusion_tree', marks=pytest.mark.FusionTree)])
 def test_from_block_su2_symm(symmetry_backend, block_backend):
     backend = get_backend(symmetry_backend, block_backend)
     sym = SU2Symmetry()
@@ -786,14 +816,16 @@ def test_from_block_su2_symm(symmetry_backend, block_backend):
     sx = .5 * np.array([[0., 1.], [1., 0.]], dtype=complex)
     sy = .5 * np.array([[0., 1.j], [-1.j, 0]], dtype=complex)
     sz = .5 * np.array([[-1., 0.], [0., +1.]], dtype=complex)
-    heisenberg_4 = sum(si[:, :, None, None] * si[None, None, :, :] for si in [sx, sy, sz])  # [p1, p1*, p2, p2*]
+    heisenberg_4 = sum(si[:, :, None, None] * si[None, None, :, :]
+                       for si in [sx, sy, sz])  # [p1, p1*, p2, p2*]
     print(heisenberg_4.transpose([0, 2, 1, 3]).reshape((4, 4)))
     heisenberg_4 = np.transpose(heisenberg_4, [0, 2, 3, 1])  # [p1, p2, p2*, p1*]
 
-    tens_4 = SymmetricTensor.from_dense_block(
-        heisenberg_4, codomain=[spin_half, spin_half], domain=[spin_half, spin_half],
-        backend=backend, labels=[['p1', 'p2'], ['p1*', 'p2*']]
-    )
+    tens_4 = SymmetricTensor.from_dense_block(heisenberg_4,
+                                              codomain=[spin_half, spin_half],
+                                              domain=[spin_half, spin_half],
+                                              backend=backend,
+                                              labels=[['p1', 'p2'], ['p1*', 'p2*']])
     tens_4.test_sanity()
     assert np.all(tens_4.data.block_inds == np.array([[0, 0], [1, 1]]))  # spin 0, spin 1
     # The blocks are the eigenvalue of the Heisenberg coupling in the fixed total spin sectors
@@ -815,16 +847,13 @@ def test_from_block_su2_symm(symmetry_backend, block_backend):
     assert backend.block_backend.block_allclose(recovered_block, heisenberg_4)
 
 
-@pytest.mark.parametrize(
-    'codomain_dims, domain_dims, labels',
-    [
-        ([42, 42], [42, 42], ['a', 'b', 'c', 'd']),
-        ([42], [42, 42], ['a', 'b', 'c']),
-        ([42, 42, 12345, 42], [1], ['a', 'b', 'c', 'lorem', 'ipsum']),
-        ([], [42, 42], ['a', 'b']),
-        ([42, 42, 42], [], ['a', 'b', 'c']),
-    ]
-)
+@pytest.mark.parametrize('codomain_dims, domain_dims, labels', [
+    ([42, 42], [42, 42], ['a', 'b', 'c', 'd']),
+    ([42], [42, 42], ['a', 'b', 'c']),
+    ([42, 42, 12345, 42], [1], ['a', 'b', 'c', 'lorem', 'ipsum']),
+    ([], [42, 42], ['a', 'b']),
+    ([42, 42, 42], [], ['a', 'b', 'c']),
+])
 def test_Tensor_ascii_diagram(codomain_dims, domain_dims, labels):
     """
     You may find useful (see comments in :func:`test_Tensor_str_repr`)::
@@ -843,17 +872,18 @@ def test_Tensor_ascii_diagram(codomain_dims, domain_dims, labels):
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
-@pytest.mark.parametrize(
-    'cls, codomain, domain',
-    [
-        pytest.param(SymmetricTensor, ['vL'], ['vR', 'p'], id='Sym-vL-p-vR'),
-        pytest.param(SymmetricTensor, ['p'], ['p*'], id='Sym-p-p*'),
-        pytest.param(DiagonalTensor, ['p'], ['p*'], id='Diag-p-p*'),
-        pytest.param(Mask, ['vL'], ['vL*'], id='Mask-vL-vL*'),
-        pytest.param(ChargedTensor, ['vL'], ['vR', 'p'], id='Charged-vL-p-vR')
-    ]
-)
-def test_Tensor_str_repr(cls, codomain, domain, make_compatible_tensor, str_max_lines=30,
+@pytest.mark.parametrize('cls, codomain, domain', [
+    pytest.param(SymmetricTensor, ['vL'], ['vR', 'p'], id='Sym-vL-p-vR'),
+    pytest.param(SymmetricTensor, ['p'], ['p*'], id='Sym-p-p*'),
+    pytest.param(DiagonalTensor, ['p'], ['p*'], id='Diag-p-p*'),
+    pytest.param(Mask, ['vL'], ['vL*'], id='Mask-vL-vL*'),
+    pytest.param(ChargedTensor, ['vL'], ['vR', 'p'], id='Charged-vL-p-vR')
+])
+def test_Tensor_str_repr(cls,
+                         codomain,
+                         domain,
+                         make_compatible_tensor,
+                         str_max_lines=30,
                          repr_max_lines=30):
     """Check if str and repr work.
 
@@ -936,7 +966,7 @@ def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor,
     with catch_warnings:
         res = tensors.add_trivial_leg(tens, domain_pos=pos, is_dual=is_dual)
     res_np = res.to_numpy()
-    expect = np.expand_dims(tens_np, -1-pos)
+    expect = np.expand_dims(tens_np, -1 - pos)
     npt.assert_array_almost_equal_nulp(res_np, expect, 100)
 
     print('to_codomain')
@@ -954,31 +984,29 @@ def test_almost_equal(cls, make_compatible_tensor):
     T: cls = make_compatible_tensor(cls=cls)
 
     if cls is ChargedTensor:
-        T_diff_inv = make_compatible_tensor(
-            domain=T.invariant_part.domain, codomain=T.invariant_part.codomain, cls=SymmetricTensor,
-            labels=T.invariant_part.labels
-        )
+        T_diff_inv = make_compatible_tensor(domain=T.invariant_part.domain,
+                                            codomain=T.invariant_part.codomain,
+                                            cls=SymmetricTensor,
+                                            labels=T.invariant_part.labels)
         T_diff = ChargedTensor(T_diff_inv, T.charged_state)
     else:
         T_diff: cls = make_compatible_tensor(domain=T.domain, codomain=T.codomain, cls=cls)
-        
+
     T2 = T + 1e-7 * T_diff
     assert tensors.almost_equal(T, T2, rtol=1e-5, atol=1e-5)
     assert not tensors.almost_equal(T, T2, rtol=1e-10, atol=1e-10)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
-@pytest.mark.parametrize(
-    'cls, codomain, domain, which_leg',
-    [pytest.param(SymmetricTensor, 2, 2, 1, id='Symm-2-2-codom'),
-     pytest.param(SymmetricTensor, 2, 2, -1, id='Symm-2-2-dom'),
-     pytest.param(ChargedTensor, 2, 2, 1, id='Charged-2-2-dom'),
-     pytest.param(ChargedTensor, 2, 2, -1, id='Charged-2-2-dom'),
-     pytest.param(DiagonalTensor, 1, 1, -1, id='Diag-dom'),
-     pytest.param(Mask, 1, 1, 0, id='Mask-codom'),
-     pytest.param(Mask, 1, 1, -1, id='Mask-dom'),
-    ]
-)
+@pytest.mark.parametrize('cls, codomain, domain, which_leg', [
+    pytest.param(SymmetricTensor, 2, 2, 1, id='Symm-2-2-codom'),
+    pytest.param(SymmetricTensor, 2, 2, -1, id='Symm-2-2-dom'),
+    pytest.param(ChargedTensor, 2, 2, 1, id='Charged-2-2-dom'),
+    pytest.param(ChargedTensor, 2, 2, -1, id='Charged-2-2-dom'),
+    pytest.param(DiagonalTensor, 1, 1, -1, id='Diag-dom'),
+    pytest.param(Mask, 1, 1, 0, id='Mask-codom'),
+    pytest.param(Mask, 1, 1, -1, id='Mask-dom'),
+])
 def test_apply_mask(cls, codomain, domain, which_leg, make_compatible_tensor):
     num_legs = codomain + domain
     labels = list('abcdefghijkl')[:num_legs]
@@ -1029,10 +1057,11 @@ def test_apply_mask_DiagonalTensor(make_compatible_tensor):
     npt.assert_almost_equal(res.diagonal_as_numpy(), expect)
 
 
-@pytest.mark.parametrize('cls, codomain, domain, num_codomain_legs',
-                         [pytest.param(SymmetricTensor, 2, 2, 2),
-                          pytest.param(SymmetricTensor, 2, 2, 1),
-                          pytest.param(SymmetricTensor, 2, 2, 4),])
+@pytest.mark.parametrize('cls, codomain, domain, num_codomain_legs', [
+    pytest.param(SymmetricTensor, 2, 2, 2),
+    pytest.param(SymmetricTensor, 2, 2, 1),
+    pytest.param(SymmetricTensor, 2, 2, 4),
+])
 def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_tensor):
     tensor: cls = make_compatible_tensor(codomain, domain, cls=cls)
 
@@ -1144,19 +1173,14 @@ def test_combine_split(make_compatible_tensor):
     # to_numpy -> apply ProductSpace.get_basis_transformation(_perm)
 
 
-@pytest.mark.parametrize(
-    'cls_A, cls_B, cod_A, shared, dom_B',
-    [pytest.param(SymmetricTensor, SymmetricTensor, 2, 2, 2, id='Sym@Sym-2-2-2'),]
-)
+@pytest.mark.parametrize('cls_A, cls_B, cod_A, shared, dom_B', [
+    pytest.param(SymmetricTensor, SymmetricTensor, 2, 2, 2, id='Sym@Sym-2-2-2'),
+])
 def test_compose(cls_A, cls_B, cod_A, shared, dom_B, make_compatible_tensor):
     labels_A = [list('abcd')[:cod_A], list('efgh')[:shared]]
     labels_B = [list('ijkl')[:shared], list('mnop')[:dom_B]]
-    A: cls_A = make_compatible_tensor(
-        codomain=cod_A, domain=shared, labels=labels_A, cls=cls_A
-    )
-    B: cls_B = make_compatible_tensor(
-        codomain=A.domain, domain=dom_B, labels=labels_B, cls=cls_B
-    )
+    A: cls_A = make_compatible_tensor(codomain=cod_A, domain=shared, labels=labels_A, cls=cls_A)
+    B: cls_B = make_compatible_tensor(codomain=A.domain, domain=dom_B, labels=labels_B, cls=cls_B)
 
     res = tensors.compose(A, B, relabel1={'a': 'x'}, relabel2={'m': 'y'})
 
@@ -1186,19 +1210,18 @@ def test_compose(cls_A, cls_B, cod_A, shared, dom_B, make_compatible_tensor):
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
-@pytest.mark.parametrize(
-    'cls, cod, dom',
-    [pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
-     pytest.param(SymmetricTensor, 3, 0, id='Sym-3-0'),
-     pytest.param(SymmetricTensor, 1, 1, id='Sym-1-1'),
-     pytest.param(SymmetricTensor, 0, 3, id='Sym-3-0'),
-     pytest.param(ChargedTensor, 2, 2, id='Charged-2-2'),
-     pytest.param(ChargedTensor, 3, 0, id='Charged-3-0'),
-     pytest.param(ChargedTensor, 1, 1, id='Charged-1-1'),
-     pytest.param(ChargedTensor, 0, 3, id='Charged-3-0'),
-     pytest.param(DiagonalTensor, 1, 1, id='Diag'),
-     pytest.param(Mask, 1, 1, id='Mask')]
-)
+@pytest.mark.parametrize('cls, cod, dom', [
+    pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
+    pytest.param(SymmetricTensor, 3, 0, id='Sym-3-0'),
+    pytest.param(SymmetricTensor, 1, 1, id='Sym-1-1'),
+    pytest.param(SymmetricTensor, 0, 3, id='Sym-3-0'),
+    pytest.param(ChargedTensor, 2, 2, id='Charged-2-2'),
+    pytest.param(ChargedTensor, 3, 0, id='Charged-3-0'),
+    pytest.param(ChargedTensor, 1, 1, id='Charged-1-1'),
+    pytest.param(ChargedTensor, 0, 3, id='Charged-3-0'),
+    pytest.param(DiagonalTensor, 1, 1, id='Diag'),
+    pytest.param(Mask, 1, 1, id='Mask')
+])
 def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
     T_labels = list('abcdefghi')[:cod + dom]
     T: cls = make_compatible_tensor(cod, dom, cls=cls, labels=T_labels)
@@ -1227,25 +1250,32 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
 @pytest.mark.parametrize(
     'cyten_func, numpy_func, dtype, kwargs',
     # dtype=None indicates that we need to special case the tensor creations to fulfill constraints.
-    [pytest.param(tensors.angle, np.angle, Dtype.complex128, {}, id='angle()-complex'),
-     pytest.param(tensors.angle, np.angle, Dtype.float64, {}, id='angle()-real'),
-     pytest.param(tensors.imag, np.imag, Dtype.complex128, {}, id='imag()-complex'),
-     pytest.param(tensors.imag, np.imag, Dtype.float64, {}, id='imag()-real'),
-     pytest.param(tensors.real, np.real, Dtype.complex128, {}, id='real()-complex'),
-     pytest.param(tensors.real, np.real, Dtype.float64, {}, id='real()-real'),
-     pytest.param(tensors.real_if_close, np.real_if_close, Dtype.complex128, {}, id='real_if_close()'),
-     pytest.param(tensors.real_if_close, np.real_if_close, Dtype.float64, dict(tol=100), id='real_if_close()'),
-     pytest.param(tensors.real_if_close, np.real_if_close, None, {}, id='real_if_close()'),
-     pytest.param(tensors.sqrt, np.sqrt, None, {}, id='sqrt()'),
-     pytest.param(DiagonalTensor.__abs__, np.abs, Dtype.float64, {}, id='abs()-real'),
-     pytest.param(DiagonalTensor.__abs__, np.abs, Dtype.complex128, {}, id='abs()-complex'),
-     pytest.param(tensors.real, np.real, Dtype.float64, {}, id='real()-real'),
-     pytest.param(tensors.complex_conj, np.conj, Dtype.float64, {}, id='conj()-real'),
-     pytest.param(tensors.complex_conj, np.conj, Dtype.complex128, {}, id='conj()-complex'),
+    [
+        pytest.param(tensors.angle, np.angle, Dtype.complex128, {}, id='angle()-complex'),
+        pytest.param(tensors.angle, np.angle, Dtype.float64, {}, id='angle()-real'),
+        pytest.param(tensors.imag, np.imag, Dtype.complex128, {}, id='imag()-complex'),
+        pytest.param(tensors.imag, np.imag, Dtype.float64, {}, id='imag()-real'),
+        pytest.param(tensors.real, np.real, Dtype.complex128, {}, id='real()-complex'),
+        pytest.param(tensors.real, np.real, Dtype.float64, {}, id='real()-real'),
+        pytest.param(
+            tensors.real_if_close, np.real_if_close, Dtype.complex128, {}, id='real_if_close()'),
+        pytest.param(tensors.real_if_close,
+                     np.real_if_close,
+                     Dtype.float64,
+                     dict(tol=100),
+                     id='real_if_close()'),
+        pytest.param(tensors.real_if_close, np.real_if_close, None, {}, id='real_if_close()'),
+        pytest.param(tensors.sqrt, np.sqrt, None, {}, id='sqrt()'),
+        pytest.param(DiagonalTensor.__abs__, np.abs, Dtype.float64, {}, id='abs()-real'),
+        pytest.param(DiagonalTensor.__abs__, np.abs, Dtype.complex128, {}, id='abs()-complex'),
+        pytest.param(tensors.real, np.real, Dtype.float64, {}, id='real()-real'),
+        pytest.param(tensors.complex_conj, np.conj, Dtype.float64, {}, id='conj()-real'),
+        pytest.param(tensors.complex_conj, np.conj, Dtype.complex128, {}, id='conj()-complex'),
     ]
-     # TODO more functions? exp, log
+    # TODO more functions? exp, log
 )
-def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs, make_compatible_tensor):
+def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
+                                          make_compatible_tensor):
     if dtype is not None:
         D: DiagonalTensor = make_compatible_tensor(cls=DiagonalTensor, dtype=dtype)
     elif cyten_func is tensors.sqrt:
@@ -1255,7 +1285,7 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
         # want almost real
         rp = make_compatible_tensor(cls=DiagonalTensor, dtype=Dtype.float64)
         ip = make_compatible_tensor(domain=rp.domain, cls=DiagonalTensor, dtype=Dtype.float64)
-        D = rp + 1-12j * ip
+        D = rp + 1 - 12j * ip
     else:
         raise ValueError
 
@@ -1270,18 +1300,16 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
     npt.assert_almost_equal(res_np, expect)
 
 
-@pytest.mark.parametrize(
-    'cls, op, dtype',
-    [pytest.param(DiagonalTensor, operator.add, Dtype.complex128, id='+'),
-     pytest.param(DiagonalTensor, operator.ge, Dtype.bool, id='>='),
-     pytest.param(DiagonalTensor, operator.gt, Dtype.bool, id='>'),
-     pytest.param(DiagonalTensor, operator.le, Dtype.bool, id='<='),
-     pytest.param(DiagonalTensor, operator.lt, Dtype.bool, id='<'),
-     pytest.param(DiagonalTensor, operator.mul, Dtype.complex128, id='*'),
-     pytest.param(DiagonalTensor, operator.pow, Dtype.complex128, id='**'),
-     pytest.param(DiagonalTensor, operator.sub, Dtype.complex128, id='-'),
-    ]
-)
+@pytest.mark.parametrize('cls, op, dtype', [
+    pytest.param(DiagonalTensor, operator.add, Dtype.complex128, id='+'),
+    pytest.param(DiagonalTensor, operator.ge, Dtype.bool, id='>='),
+    pytest.param(DiagonalTensor, operator.gt, Dtype.bool, id='>'),
+    pytest.param(DiagonalTensor, operator.le, Dtype.bool, id='<='),
+    pytest.param(DiagonalTensor, operator.lt, Dtype.bool, id='<'),
+    pytest.param(DiagonalTensor, operator.mul, Dtype.complex128, id='*'),
+    pytest.param(DiagonalTensor, operator.pow, Dtype.complex128, id='**'),
+    pytest.param(DiagonalTensor, operator.sub, Dtype.complex128, id='-'),
+])
 def test_DiagonalTensor_elementwise_binary(cls, op, dtype, make_compatible_tensor, np_random):
     t1: DiagonalTensor = make_compatible_tensor(cls=cls, dtype=dtype)
     t2: DiagonalTensor = make_compatible_tensor(domain=t1.domain, cls=cls, dtype=dtype)
@@ -1312,14 +1340,13 @@ def test_DiagonalTensor_elementwise_binary(cls, op, dtype, make_compatible_tenso
     npt.assert_almost_equal(res_np, expect)
 
 
-@pytest.mark.parametrize(
-    'cls, dom, new_leg_dual',
-    [pytest.param(SymmetricTensor, 1, False, id='Sym-1-False'),
-     pytest.param(SymmetricTensor, 1, True, id='Sym-1-True'),
-     pytest.param(SymmetricTensor, 2, False, id='Sym-2-False'),
-     pytest.param(DiagonalTensor, 1, False, id='Diag-False'),
-     pytest.param(DiagonalTensor, 1, True, id='Diag-True'),]
-)
+@pytest.mark.parametrize('cls, dom, new_leg_dual', [
+    pytest.param(SymmetricTensor, 1, False, id='Sym-1-False'),
+    pytest.param(SymmetricTensor, 1, True, id='Sym-1-True'),
+    pytest.param(SymmetricTensor, 2, False, id='Sym-2-False'),
+    pytest.param(DiagonalTensor, 1, False, id='Diag-False'),
+    pytest.param(DiagonalTensor, 1, True, id='Diag-True'),
+])
 def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     # prepare hermitian tensor
     T: cls = make_compatible_tensor(dom, dom, cls=cls)
@@ -1346,22 +1373,23 @@ def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     assert V.domain_labels == ['a']
 
     assert tensors.almost_equal(V @ W @ V.hc, T, allow_different_types=True)  # is decomposition
-    assert tensors.almost_equal(V @ V.hc, SymmetricTensor.from_eye(V.codomain, T.backend))  # unitary 1)
-    assert tensors.almost_equal(V.hc @ V, SymmetricTensor.from_eye(V.domain, T.backend))  # unitary 2)
+    assert tensors.almost_equal(V @ V.hc, SymmetricTensor.from_eye(V.codomain,
+                                                                   T.backend))  # unitary 1)
+    assert tensors.almost_equal(V.hc @ V, SymmetricTensor.from_eye(V.domain,
+                                                                   T.backend))  # unitary 2)
 
 
-@pytest.mark.parametrize(
-    'cls, codomain, domain, which_leg',
-    [pytest.param(SymmetricTensor, 2, 2, 1, id='Symm-2-2-codom'),
-     pytest.param(SymmetricTensor, 2, 2, 3, id='Symm-2-2-dom'),
-     pytest.param(ChargedTensor, 2, 2, 1, id='Charged-2-2-dom'),
-     pytest.param(ChargedTensor, 2, 2, 3, id='Charged-2-2-dom'),
-     pytest.param(DiagonalTensor, 1, 1, 1, id='Diag-dom'),
-     pytest.param(Mask, 1, 1, 0, id='Mask-codom'),
-     pytest.param(Mask, 1, 1, 1, id='Mask-dom'),
-    ]
-)
-def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, make_compatible_space):
+@pytest.mark.parametrize('cls, codomain, domain, which_leg', [
+    pytest.param(SymmetricTensor, 2, 2, 1, id='Symm-2-2-codom'),
+    pytest.param(SymmetricTensor, 2, 2, 3, id='Symm-2-2-dom'),
+    pytest.param(ChargedTensor, 2, 2, 1, id='Charged-2-2-dom'),
+    pytest.param(ChargedTensor, 2, 2, 3, id='Charged-2-2-dom'),
+    pytest.param(DiagonalTensor, 1, 1, 1, id='Diag-dom'),
+    pytest.param(Mask, 1, 1, 0, id='Mask-codom'),
+    pytest.param(Mask, 1, 1, 1, id='Mask-dom'),
+])
+def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor,
+                     make_compatible_space):
     num_legs = codomain + domain
     labels = list('abcdefghijkl')[:num_legs]
 
@@ -1421,7 +1449,7 @@ def test_entropy(n, make_compatible_tensor):
     D: DiagonalTensor = make_compatible_tensor(cls=DiagonalTensor)
     D = abs(D)  # non-negative
     D = D / tensors.norm(D)  # normalized
-    p = D ** 2
+    p = D**2
 
     if not D.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
@@ -1439,18 +1467,16 @@ def test_entropy(n, make_compatible_tensor):
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
-@pytest.mark.parametrize(
-    'cls, cod, dom',
-    [pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
-     pytest.param(SymmetricTensor, 1, 3, id='Sym-1-3'),
-     pytest.param(SymmetricTensor, 3, 0, id='Sym-3-0'),
-     pytest.param(DiagonalTensor, 1, 1, id='Diag'),
-     pytest.param(Mask, 1, 1, id='Mask-1-1'),
-     pytest.param(ChargedTensor, 2, 2, id='Charged-2-2'),
-     pytest.param(ChargedTensor, 0, 3, id='Charged-0-3'),
-     pytest.param(ChargedTensor, 3, 1, id='Charged-3-1'),
-     ]
-)
+@pytest.mark.parametrize('cls, cod, dom', [
+    pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
+    pytest.param(SymmetricTensor, 1, 3, id='Sym-1-3'),
+    pytest.param(SymmetricTensor, 3, 0, id='Sym-3-0'),
+    pytest.param(DiagonalTensor, 1, 1, id='Diag'),
+    pytest.param(Mask, 1, 1, id='Mask-1-1'),
+    pytest.param(ChargedTensor, 2, 2, id='Charged-2-2'),
+    pytest.param(ChargedTensor, 0, 3, id='Charged-0-3'),
+    pytest.param(ChargedTensor, 3, 1, id='Charged-3-1'),
+])
 def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
     T: cls = make_compatible_tensor(cod, dom, cls=cls)
 
@@ -1501,22 +1527,22 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
-@pytest.mark.parametrize(
-    'cls, cod, dom, do_dagger, allow_basis_perm',
-    [pytest.param(SymmetricTensor, 2, 2, True, True, id='Sym-2-2-True'),
-     pytest.param(SymmetricTensor, 2, 2, False, True, id='Sym-2-2-False'),
-     pytest.param(SymmetricTensor, 3, 0, True, True, id='Sym-3-0-True'),
-     pytest.param(SymmetricTensor, 0, 2, False, True, id='Sym-0-2-False'),
-     pytest.param(ChargedTensor, 2, 2, True, True, id='Charged-2-2-True'),
-     pytest.param(ChargedTensor, 2, 2, False, True, id='Charged-2-2-False'),
-     pytest.param(ChargedTensor, 3, 0, True, True, id='Charged-3-0-True'),
-     pytest.param(ChargedTensor, 0, 2, False, True, id='Charged-0-2-False'),
-     pytest.param(DiagonalTensor, 1, 1, True, True, id='Diag-1-1-True'),
-     pytest.param(DiagonalTensor, 1, 1, False, True, id='Diag-1-1-False'),
-     pytest.param(Mask, 1, 1, True, False, id='Mask-1-1-True'),
-     pytest.param(Mask, 1, 1, False, False, id='Mask-1-1-False'),]
-    # TODO also test mixed types
-)
+@pytest.mark.parametrize('cls, cod, dom, do_dagger, allow_basis_perm', [
+    pytest.param(SymmetricTensor, 2, 2, True, True, id='Sym-2-2-True'),
+    pytest.param(SymmetricTensor, 2, 2, False, True, id='Sym-2-2-False'),
+    pytest.param(SymmetricTensor, 3, 0, True, True, id='Sym-3-0-True'),
+    pytest.param(SymmetricTensor, 0, 2, False, True, id='Sym-0-2-False'),
+    pytest.param(ChargedTensor, 2, 2, True, True, id='Charged-2-2-True'),
+    pytest.param(ChargedTensor, 2, 2, False, True, id='Charged-2-2-False'),
+    pytest.param(ChargedTensor, 3, 0, True, True, id='Charged-3-0-True'),
+    pytest.param(ChargedTensor, 0, 2, False, True, id='Charged-0-2-False'),
+    pytest.param(DiagonalTensor, 1, 1, True, True, id='Diag-1-1-True'),
+    pytest.param(DiagonalTensor, 1, 1, False, True, id='Diag-1-1-False'),
+    pytest.param(Mask, 1, 1, True, False, id='Mask-1-1-True'),
+    pytest.param(Mask, 1, 1, False, False, id='Mask-1-1-False'),
+]
+                         # TODO also test mixed types
+                         )
 def test_inner(cls, cod, dom, do_dagger, allow_basis_perm, make_compatible_tensor):
     """
     Parameters
@@ -1533,7 +1559,8 @@ def test_inner(cls, cod, dom, do_dagger, allow_basis_perm, make_compatible_tenso
         B: cls = make_compatible_tensor(codomain=A.domain, domain=A.codomain, cls=cls)
 
     if cls is Mask:
-        with pytest.raises(NotImplementedError, match='tensors._compose_with_Mask not implemented for Mask'):
+        with pytest.raises(NotImplementedError,
+                           match='tensors._compose_with_Mask not implemented for Mask'):
             _ = tensors.inner(A, B, do_dagger=do_dagger)
         pytest.xfail()
 
@@ -1575,10 +1602,16 @@ def test_is_scalar():
     leg1 = ElementarySpace(z4_symmetry, [[2]])
     leg2 = ElementarySpace.from_sectors(z4_symmetry, [[2], [3], [1]])
     backend = get_backend()
-    scalar_tens1 = DummyTensor([leg1, leg1], [leg1, leg1], backend=backend, labels=None, dtype=Dtype.float64)
+    scalar_tens1 = DummyTensor([leg1, leg1], [leg1, leg1],
+                               backend=backend,
+                               labels=None,
+                               dtype=Dtype.float64)
     scalar_tens2 = DummyTensor([], [leg1, leg1], backend=backend, labels=None, dtype=Dtype.float64)
     scalar_tens3 = DummyTensor([leg1], [leg1], backend=backend, labels=None, dtype=Dtype.float64)
-    non_scalar_tens = DummyTensor([leg1, leg1], [leg2], backend=backend, labels=None, dtype=Dtype.float64)
+    non_scalar_tens = DummyTensor([leg1, leg1], [leg2],
+                                  backend=backend,
+                                  labels=None,
+                                  dtype=Dtype.float64)
     assert tensors.is_scalar(scalar_tens1)
     assert tensors.is_scalar(scalar_tens2)
     assert tensors.is_scalar(scalar_tens3)
@@ -1642,21 +1675,21 @@ def test_linear_combination(cls, make_compatible_tensor):
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
-@pytest.mark.parametrize(
-    'cls, cod, dom, leg, codomain_pos, domain_pos, levels',
-    [pytest.param(SymmetricTensor, 2, 2, 0, 1, None, None, id='Sym-a'),
-     pytest.param(SymmetricTensor, 2, 2, 0, 0, None, None, id='Sym-b'),
-     pytest.param(SymmetricTensor, 2, 2, 0, None, 0, None, id='Sym-c'),
-     pytest.param(SymmetricTensor, 2, 2, 3, 1, None, None, id='Sym-d'),
-     pytest.param(SymmetricTensor, 2, 2, 3, 0, None, None, id='Sym-e'),
-     pytest.param(SymmetricTensor, 2, 2, 3, None, 0, None, id='Sym-f'),
-     pytest.param(DiagonalTensor, 1, 1, 0, None, 1, None, id='Diag-a'),
-     pytest.param(DiagonalTensor, 1, 1, 0, 0, None, None, id='Diag-b'),
-     pytest.param(ChargedTensor, 2, 2, 0, 1, None, None, id='Charged-a'),
-     pytest.param(ChargedTensor, 2, 2, 0, None, 1, None, id='Charged-b'),
-     pytest.param(ChargedTensor, 2, 2, 3, 0, None, None, id='Charged-c'),]
-)
-def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_compatible_tensor, np_random):
+@pytest.mark.parametrize('cls, cod, dom, leg, codomain_pos, domain_pos, levels', [
+    pytest.param(SymmetricTensor, 2, 2, 0, 1, None, None, id='Sym-a'),
+    pytest.param(SymmetricTensor, 2, 2, 0, 0, None, None, id='Sym-b'),
+    pytest.param(SymmetricTensor, 2, 2, 0, None, 0, None, id='Sym-c'),
+    pytest.param(SymmetricTensor, 2, 2, 3, 1, None, None, id='Sym-d'),
+    pytest.param(SymmetricTensor, 2, 2, 3, 0, None, None, id='Sym-e'),
+    pytest.param(SymmetricTensor, 2, 2, 3, None, 0, None, id='Sym-f'),
+    pytest.param(DiagonalTensor, 1, 1, 0, None, 1, None, id='Diag-a'),
+    pytest.param(DiagonalTensor, 1, 1, 0, 0, None, None, id='Diag-b'),
+    pytest.param(ChargedTensor, 2, 2, 0, 1, None, None, id='Charged-a'),
+    pytest.param(ChargedTensor, 2, 2, 0, None, 1, None, id='Charged-b'),
+    pytest.param(ChargedTensor, 2, 2, 3, 0, None, None, id='Charged-c'),
+])
+def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_compatible_tensor,
+                  np_random):
     """Test `move_leg` for tensors without specifying any levels. In the case where the symmetry
     is anyonic, that is, `move_leg` needs levels as input, random levels are chosen and the
     resulting numerical values are not checked against another tensor.
@@ -1675,7 +1708,7 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
             catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
     else:
         catch_warnings = nullcontext()
-        
+
     if isinstance(T.backend, backends.FusionTreeBackend) and T.symmetry.braiding_style.value >= 20:
         # need to specify levels for moving the leg
         levels = list(np_random.permutation(T.num_legs))
@@ -1689,7 +1722,11 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
     perm = [*codomain_perm, *reversed(domain_perm)]
 
     with catch_warnings:
-        res = tensors.move_leg(T, leg, codomain_pos=codomain_pos, domain_pos=domain_pos, levels=levels)
+        res = tensors.move_leg(T,
+                               leg,
+                               codomain_pos=codomain_pos,
+                               domain_pos=domain_pos,
+                               levels=levels)
     res.test_sanity()
 
     assert res.labels == [T_labels[n] for n in perm]
@@ -1704,17 +1741,16 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
-@pytest.mark.parametrize(
-    'cls, cod, dom',
-    [pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
-     pytest.param(SymmetricTensor, 3, 1, id='Sym-3-1'),
-     pytest.param(SymmetricTensor, 3, 0, id='Sym-2-0'),
-     pytest.param(SymmetricTensor, 0, 2, id='Sym-0-2'),
-     pytest.param(ChargedTensor, 0, 2, id='Charged-0-2'),
-     pytest.param(ChargedTensor, 2, 2, id='Charged-2-2'),
-     pytest.param(DiagonalTensor, 1, 1, id='Diag'),
-     pytest.param(Mask, 1, 1, id='Mask'),]
-)
+@pytest.mark.parametrize('cls, cod, dom', [
+    pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
+    pytest.param(SymmetricTensor, 3, 1, id='Sym-3-1'),
+    pytest.param(SymmetricTensor, 3, 0, id='Sym-2-0'),
+    pytest.param(SymmetricTensor, 0, 2, id='Sym-0-2'),
+    pytest.param(ChargedTensor, 0, 2, id='Charged-0-2'),
+    pytest.param(ChargedTensor, 2, 2, id='Charged-2-2'),
+    pytest.param(DiagonalTensor, 1, 1, id='Diag'),
+    pytest.param(Mask, 1, 1, id='Mask'),
+])
 def test_norm(cls, cod, dom, make_compatible_tensor):
     T: cls = make_compatible_tensor(cod, dom, cls=cls)
 
@@ -1733,19 +1769,16 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases(
-    get_cls=lambda kw: ChargedTensor if ChargedTensor in [kw['cls_A'], kw['cls_B']] else None
-)
-@pytest.mark.parametrize(
-    'cls_A, cls_B, cA, dA, cB, dB',
-    [pytest.param(SymmetricTensor, SymmetricTensor, 1, 2, 2, 1, id='Sym@Sym-1-2-2-1'),
-     pytest.param(SymmetricTensor, SymmetricTensor, 2, 1, 1, 2, id='Sym@Sym-2-1-1-2'),
-     pytest.param(SymmetricTensor, SymmetricTensor, 0, 3, 2, 0, id='Sym@Sym-0-3-2-0'),
-     pytest.param(ChargedTensor, ChargedTensor, 1, 2, 2, 1, id='Charged@Charged-1-2-2-1'),
-     pytest.param(ChargedTensor, ChargedTensor, 0, 3, 2, 0, id='Charged@Charged-0-3-2-0'),
-     pytest.param(ChargedTensor, SymmetricTensor, 1, 2, 2, 1, id='Charged@Sym-1-2-2-1'),
-     pytest.param(SymmetricTensor, ChargedTensor, 0, 3, 2, 0, id='Sym@Charged-0-3-2-0'),
-     ]
-)
+    get_cls=lambda kw: ChargedTensor if ChargedTensor in [kw['cls_A'], kw['cls_B']] else None)
+@pytest.mark.parametrize('cls_A, cls_B, cA, dA, cB, dB', [
+    pytest.param(SymmetricTensor, SymmetricTensor, 1, 2, 2, 1, id='Sym@Sym-1-2-2-1'),
+    pytest.param(SymmetricTensor, SymmetricTensor, 2, 1, 1, 2, id='Sym@Sym-2-1-1-2'),
+    pytest.param(SymmetricTensor, SymmetricTensor, 0, 3, 2, 0, id='Sym@Sym-0-3-2-0'),
+    pytest.param(ChargedTensor, ChargedTensor, 1, 2, 2, 1, id='Charged@Charged-1-2-2-1'),
+    pytest.param(ChargedTensor, ChargedTensor, 0, 3, 2, 0, id='Charged@Charged-0-3-2-0'),
+    pytest.param(ChargedTensor, SymmetricTensor, 1, 2, 2, 1, id='Charged@Sym-1-2-2-1'),
+    pytest.param(SymmetricTensor, ChargedTensor, 0, 3, 2, 0, id='Sym@Charged-0-3-2-0'),
+])
 def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor):
     A_labels = list('abcdefg')[:cA + dA]
     B_labels = list('hijklmn')[:cB + dB]
@@ -1774,16 +1807,15 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor):
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
-@pytest.mark.parametrize(
-    'cls, codom, dom',
-    [pytest.param(SymmetricTensor, ['a', 'b', 'a'], ['c', 'd'], id='Sym-aba-cd'),
-     pytest.param(SymmetricTensor, ['a', 'b'], ['b', 'a'], id='Sym-ab-ba'),
-     pytest.param(SymmetricTensor, ['a', 'c'], ['b', 'a'], id='Sym-ac-ba'),
-     pytest.param(SymmetricTensor, ['a', 'b'], ['c', 'd'], id='Sym-ab-cd'),
-     pytest.param(ChargedTensor, ['a', 'b'], ['b', 'a'], id='Charged-ab-ba'),
-     pytest.param(ChargedTensor, ['a', 'b', 'a'], ['c', 'd'], id='Charged-aba-cd'),
-     pytest.param(DiagonalTensor, ['a'], ['a'], id='Diag-a-a'),]
-)
+@pytest.mark.parametrize('cls, codom, dom', [
+    pytest.param(SymmetricTensor, ['a', 'b', 'a'], ['c', 'd'], id='Sym-aba-cd'),
+    pytest.param(SymmetricTensor, ['a', 'b'], ['b', 'a'], id='Sym-ab-ba'),
+    pytest.param(SymmetricTensor, ['a', 'c'], ['b', 'a'], id='Sym-ac-ba'),
+    pytest.param(SymmetricTensor, ['a', 'b'], ['c', 'd'], id='Sym-ab-cd'),
+    pytest.param(ChargedTensor, ['a', 'b'], ['b', 'a'], id='Charged-ab-ba'),
+    pytest.param(ChargedTensor, ['a', 'b', 'a'], ['c', 'd'], id='Charged-aba-cd'),
+    pytest.param(DiagonalTensor, ['a'], ['a'], id='Diag-a-a'),
+])
 def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_tensor, np_random):
     #
     # 1) Prepare inputs
@@ -1820,7 +1852,9 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
             domain_spaces.append(make_compatible_space())
             domain_labels.append(l)
     #
-    T: cls = make_compatible_tensor(codomain_spaces, domain_spaces, cls=cls,
+    T: cls = make_compatible_tensor(codomain_spaces,
+                                    domain_spaces,
+                                    cls=cls,
                                     labels=[*codomain_labels, *reversed(domain_labels)])
     #
     how_to_call = np_random.choice(['positions', 'labels'])
@@ -1833,7 +1867,8 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
     #
     # 2) Call the actual function
     #
-    if isinstance(T.backend, backends.FusionTreeBackend) and len(trace_legs) > 0 and cls is not DiagonalTensor:
+    if isinstance(T.backend,
+                  backends.FusionTreeBackend) and len(trace_legs) > 0 and cls is not DiagonalTensor:
         with pytest.raises(NotImplementedError, match='partial_trace not implemented'):
             _ = tensors.partial_trace(T, *pairs)
         pytest.xfail()
@@ -1852,43 +1887,44 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
         assert isinstance(res, cls)
         res.test_sanity()
         assert res.labels == [l for l in T.labels if l[0] not in trace_legs]
-        assert res.codomain.spaces == [sp for sp, l in zip(T.codomain, T.codomain_labels)
-                                       if l[0] not in trace_legs]
-        assert res.domain.spaces == [sp for sp, l in zip(T.domain, T.domain_labels)
-                                     if l[0] not in trace_legs]
+        assert res.codomain.spaces == [
+            sp for sp, l in zip(T.codomain, T.codomain_labels) if l[0] not in trace_legs
+        ]
+        assert res.domain.spaces == [
+            sp for sp, l in zip(T.domain, T.domain_labels) if l[0] not in trace_legs
+        ]
         res_np = res.to_numpy()
     #
     idcs1 = [p[0] for p in pairs_positions]
     idcs2 = [p[1] for p in pairs_positions]
     remaining = [n for n in range(T.num_legs) if n not in idcs1 and n not in idcs2]
-    expect = T.backend.block_backend.block_trace_partial(T.to_dense_block(), idcs1, idcs2, remaining)
+    expect = T.backend.block_backend.block_trace_partial(T.to_dense_block(), idcs1, idcs2,
+                                                         remaining)
     expect = T.backend.block_backend.block_to_numpy(expect)
     npt.assert_almost_equal(res_np, expect)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
-@pytest.mark.parametrize(
-    'cls, num_cod, num_dom, codomain, domain, levels',
-    [
-        pytest.param(SymmetricTensor, 2, 2, [0, 1], [3, 2], None, id='Symmetric-2<2-trivial'),
-        pytest.param(SymmetricTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Symmetric-2<2-braid'),
-        pytest.param(SymmetricTensor, 2, 2, [0, 1, 2], [3], None, id='Symmetric-2<2-bend'),
-        pytest.param(SymmetricTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Symmetric-2<2-general'),
-        pytest.param(DiagonalTensor, 1, 1, [0], [1], [0, 1], id='Diagonal-trivial'),
-        pytest.param(DiagonalTensor, 1, 1, [1], [0], [0, 1], id='Diagonal-swap'),
-        pytest.param(DiagonalTensor, 1, 1, [1, 0], [], [0, 1], id='Diagonal-general'),
-        pytest.param(Mask, 1, 1, [0], [1], [0, 1], id='Mask-trivial'),
-        pytest.param(Mask, 1, 1, [1], [0], [0, 1], id='Mask-swap'),
-        pytest.param(Mask, 1, 1, [1, 0], [], [0, 1], id='Mask-general'),
-        pytest.param(ChargedTensor, 2, 2, [0, 1], [3, 2], None, id='Symmetric-2<2-trivial'),
-        pytest.param(ChargedTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Symmetric-2<2-braid'),
-        pytest.param(ChargedTensor, 2, 2, [0, 1, 2], [3], None, id='Symmetric-2<2-bend'),
-        pytest.param(ChargedTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Symmetric-2<2-general'),
-    ]
-)
+@pytest.mark.parametrize('cls, num_cod, num_dom, codomain, domain, levels', [
+    pytest.param(SymmetricTensor, 2, 2, [0, 1], [3, 2], None, id='Symmetric-2<2-trivial'),
+    pytest.param(SymmetricTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Symmetric-2<2-braid'),
+    pytest.param(SymmetricTensor, 2, 2, [0, 1, 2], [3], None, id='Symmetric-2<2-bend'),
+    pytest.param(SymmetricTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Symmetric-2<2-general'),
+    pytest.param(DiagonalTensor, 1, 1, [0], [1], [0, 1], id='Diagonal-trivial'),
+    pytest.param(DiagonalTensor, 1, 1, [1], [0], [0, 1], id='Diagonal-swap'),
+    pytest.param(DiagonalTensor, 1, 1, [1, 0], [], [0, 1], id='Diagonal-general'),
+    pytest.param(Mask, 1, 1, [0], [1], [0, 1], id='Mask-trivial'),
+    pytest.param(Mask, 1, 1, [1], [0], [0, 1], id='Mask-swap'),
+    pytest.param(Mask, 1, 1, [1, 0], [], [0, 1], id='Mask-general'),
+    pytest.param(ChargedTensor, 2, 2, [0, 1], [3, 2], None, id='Symmetric-2<2-trivial'),
+    pytest.param(ChargedTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Symmetric-2<2-braid'),
+    pytest.param(ChargedTensor, 2, 2, [0, 1, 2], [3], None, id='Symmetric-2<2-bend'),
+    pytest.param(ChargedTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Symmetric-2<2-general'),
+])
 def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_compatible_tensor):
     T = make_compatible_tensor(num_cod, num_dom, max_block_size=3, cls=cls)
-    is_trivial = (codomain == [*range(num_cod)]) and (domain == [*reversed(range(num_cod, T.num_legs))])
+    is_trivial = (codomain == [*range(num_cod)]) and (domain
+                                                      == [*reversed(range(num_cod, T.num_legs))])
 
     if cls in [DiagonalTensor, Mask]:
         if len(codomain) == 1:
@@ -1921,18 +1957,17 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_comp
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
 
-@pytest.mark.parametrize(
-    'cls, dom, cod, new_leg_dual',
-    [pytest.param(SymmetricTensor, 1, 1, False, id='Sym-1-1-False'),
-     pytest.param(SymmetricTensor, 1, 1, True, id='Sym-1-1-True'),
-     pytest.param(SymmetricTensor, 3, 1, False, id='Sym-3-1-False'),
-     pytest.param(SymmetricTensor, 2, 2, False, id='Sym-2-2-False'),
-     pytest.param(SymmetricTensor, 2, 2, True, id='Sym-2-2-True'),
-     pytest.param(DiagonalTensor, 1, 1, False, id='Diag-False'),
-     pytest.param(DiagonalTensor, 1, 1, True, id='Diag-True'),
-     pytest.param(Mask, 1, 1, False, id='Mask-False'),
-     pytest.param(Mask, 1, 1, True, id='Mask-True'),]
-)
+@pytest.mark.parametrize('cls, dom, cod, new_leg_dual', [
+    pytest.param(SymmetricTensor, 1, 1, False, id='Sym-1-1-False'),
+    pytest.param(SymmetricTensor, 1, 1, True, id='Sym-1-1-True'),
+    pytest.param(SymmetricTensor, 3, 1, False, id='Sym-3-1-False'),
+    pytest.param(SymmetricTensor, 2, 2, False, id='Sym-2-2-False'),
+    pytest.param(SymmetricTensor, 2, 2, True, id='Sym-2-2-True'),
+    pytest.param(DiagonalTensor, 1, 1, False, id='Diag-False'),
+    pytest.param(DiagonalTensor, 1, 1, True, id='Diag-True'),
+    pytest.param(Mask, 1, 1, False, id='Mask-False'),
+    pytest.param(Mask, 1, 1, True, id='Mask-True'),
+])
 def test_qr_lq(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     T_labels = list('efghijk')[:dom + cod]
     T: cls = make_compatible_tensor(dom, cod, cls=cls, labels=T_labels)
@@ -1978,19 +2013,18 @@ def test_scalar_multiply(cls, make_compatible_tensor):
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
-@pytest.mark.parametrize(
-    'cls, codom, dom, which_leg',
-    [pytest.param(SymmetricTensor, 2, 2, 1, id='Sym-2-2-1'),
-     pytest.param(SymmetricTensor, 2, 2, 3, id='Sym-2-2-3'),
-     pytest.param(SymmetricTensor, 0, 2, 1, id='Sym-0-2-1'),
-     pytest.param(SymmetricTensor, 3, 0, 1, id='Sym-3-0-1'),
-     pytest.param(ChargedTensor, 2, 2, 1, id='Charged-2-2-1'),
-     pytest.param(ChargedTensor, 2, 2, 3, id='Charged-2-2-3'),
-     pytest.param(DiagonalTensor, 1, 1, 0, id='Diag-0'),
-     pytest.param(DiagonalTensor, 1, 1, 1, id='Diag-1'),
-     pytest.param(Mask, 1, 1, 0, id='Mask-0'),
-     pytest.param(Mask, 1, 1, 1, id='Mask-1'),]
-)
+@pytest.mark.parametrize('cls, codom, dom, which_leg', [
+    pytest.param(SymmetricTensor, 2, 2, 1, id='Sym-2-2-1'),
+    pytest.param(SymmetricTensor, 2, 2, 3, id='Sym-2-2-3'),
+    pytest.param(SymmetricTensor, 0, 2, 1, id='Sym-0-2-1'),
+    pytest.param(SymmetricTensor, 3, 0, 1, id='Sym-3-0-1'),
+    pytest.param(ChargedTensor, 2, 2, 1, id='Charged-2-2-1'),
+    pytest.param(ChargedTensor, 2, 2, 3, id='Charged-2-2-3'),
+    pytest.param(DiagonalTensor, 1, 1, 0, id='Diag-0'),
+    pytest.param(DiagonalTensor, 1, 1, 1, id='Diag-1'),
+    pytest.param(Mask, 1, 1, 0, id='Mask-0'),
+    pytest.param(Mask, 1, 1, 1, id='Mask-1'),
+])
 def test_scale_axis(cls, codom, dom, which_leg, make_compatible_tensor, np_random):
     # 1) Prepare
     T_labels = list('abcdefghi')[:codom + dom]
@@ -2051,7 +2085,7 @@ def test_squeeze_legs(make_compatible_tensor, compatible_symmetry):
     if T.symmetry.can_be_dropped:
         T_np = T.to_numpy()
         expect_all = T_np[:, 0, 0, :, 0, :, :]
-        expect_1 = T_np [:, 0]
+        expect_1 = T_np[:, 0]
         expect_2 = T_np[:, 0, :, :, 0]
         npt.assert_allclose(res_all.to_numpy(), expect_all)
         npt.assert_allclose(res_1.to_numpy(), expect_1)
@@ -2060,19 +2094,17 @@ def test_squeeze_legs(make_compatible_tensor, compatible_symmetry):
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
 
-@pytest.mark.parametrize(
-    'cls, dom, cod, new_leg_dual',
-    [pytest.param(SymmetricTensor, 1, 1, False, id='Sym-1-1-False'),
-     pytest.param(SymmetricTensor, 1, 3, False, id='Sym-1-3-False'),
-     pytest.param(SymmetricTensor, 3, 1, False, id='Sym-3-1-False'),
-     pytest.param(SymmetricTensor, 2, 2, False, id='Sym-2-2-False'),
-     pytest.param(SymmetricTensor, 2, 2, True, id='Sym-2-2-True'),
-     pytest.param(DiagonalTensor, 1, 1, False, id='Diag-False'),
-     pytest.param(DiagonalTensor, 1, 1, True, id='Diag-True'),
-     pytest.param(Mask, 1, 1, False, id='Mask-False'),
-     pytest.param(Mask, 1, 1, True, id='Mask-True'),
-     ]
-)
+@pytest.mark.parametrize('cls, dom, cod, new_leg_dual', [
+    pytest.param(SymmetricTensor, 1, 1, False, id='Sym-1-1-False'),
+    pytest.param(SymmetricTensor, 1, 3, False, id='Sym-1-3-False'),
+    pytest.param(SymmetricTensor, 3, 1, False, id='Sym-3-1-False'),
+    pytest.param(SymmetricTensor, 2, 2, False, id='Sym-2-2-False'),
+    pytest.param(SymmetricTensor, 2, 2, True, id='Sym-2-2-True'),
+    pytest.param(DiagonalTensor, 1, 1, False, id='Diag-False'),
+    pytest.param(DiagonalTensor, 1, 1, True, id='Diag-True'),
+    pytest.param(Mask, 1, 1, False, id='Mask-False'),
+    pytest.param(Mask, 1, 1, True, id='Mask-True'),
+])
 def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     """Test svd and various related functions. Covers
 
@@ -2110,9 +2142,10 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
 
     print('Truncated SVD')
     for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:
-        U, S, Vh, err, renormalize = tensors.truncated_svd(
-            T, new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min
-        )
+        U, S, Vh, err, renormalize = tensors.truncated_svd(T,
+                                                           new_leg_dual=new_leg_dual,
+                                                           normalize_to=normalize_to,
+                                                           svd_min=svd_min)
         U.test_sanity()
         S.test_sanity()
         Vh.test_sanity()
@@ -2132,57 +2165,104 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
 )
 @pytest.mark.parametrize(
     'cls_A, cls_B, labels_A, labels_B, contr_A, contr_B',
-    [pytest.param(SymmetricTensor, SymmetricTensor, [['a', 'b'], ['c', 'd']], [['c', 'e'], ['a', 'f']], [0, 3], [3, 0], id='Sym@Sym-4-2-4'),
-     pytest.param(SymmetricTensor, SymmetricTensor, [['a', 'b'], ['c', 'd']], [['e', 'f'], ['g', 'h']], [], [], id='Sym@Sym-4-0-4'),
-     pytest.param(SymmetricTensor, SymmetricTensor, [['a', 'b'], ['c', 'd']], [['c', 'a'], ['d', 'b']], [0, 1, 3, 2], [1, 2, 0, 3], id='Sym@Sym-4-4-4'),
-     pytest.param(SymmetricTensor, SymmetricTensor, [[], ['a', 'b']], [['b', 'c'], ['d']], [0], [0], id='Sym@Sym-2-1-3'),
-     #
-     pytest.param(SymmetricTensor, ChargedTensor, [['a', 'b'], ['c', 'd']], [['c', 'e'], ['a', 'f']], [0, 3], [3, 0], id='Sym-Charged@4-2-4'),
-     pytest.param(ChargedTensor, SymmetricTensor, [['a', 'b'], ['c', 'd']], [['e', 'f'], ['g', 'h']], [], [], id='Charged@Sym-4-0-4'),
-     pytest.param(SymmetricTensor, ChargedTensor, [['a', 'b'], ['c', 'd']], [['c', 'a'], ['d', 'b']], [0, 1, 3, 2], [1, 2, 0, 3], id='Sym@Charged-4-4-4'),
-     pytest.param(SymmetricTensor, ChargedTensor, [[], ['a', 'b']], [['b', 'c'], ['d']], [0], [0], id='Sym@Charged-2-1-3'),
-     #
-     # Note: need to put DiagonalTensor first to get correct legs. If SymmetricTensor is first,
-     # it generates independent legs, which can not both be on a diagonalTensor.
-     pytest.param(DiagonalTensor, SymmetricTensor, [['c'], ['b']], [['a', 'b'], ['c', 'd']], [1, 0], [1, 3], id='Diag@Sym-4-2-2'),
-     pytest.param(SymmetricTensor, DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Sym@Diag-4-1-2'),
-     pytest.param(SymmetricTensor, DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['f']], [], [], id='Sym-Diag-4-0-2'),
-     #
-     # Note: If both legs of a mask are contracted, we should generate the mask first. otherwise its legs may be invalid.
-     pytest.param(Mask, SymmetricTensor, [['c'], ['b']], [['a', 'b'], ['c', 'd']], [1, 0], [1, 3], id='Sym@Mask-4-2-2'),
-     pytest.param(SymmetricTensor, Mask, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Sym@Mask-4-1-2'),
-     pytest.param(SymmetricTensor, Mask, [['a', 'b'], ['c', 'd']], [['e'], ['f']], [], [], id='Sym@Mask-4-0-2'),
-     #
-     pytest.param(ChargedTensor, DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Charged@Diag-4-1-2'),
-     pytest.param(ChargedTensor, Mask, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Charged@Mask-4-1-2'),
-     #
-     pytest.param(DiagonalTensor, DiagonalTensor, [['a'], ['b']], [['c'], ['b']], [1], [1], id='Diag@Diag-2-1-2'),
-     pytest.param(DiagonalTensor, DiagonalTensor, [['a'], ['b']], [['b'], ['a']], [1, 0], [0, 1], id='Diag@Diag-2-2-2'),
-     pytest.param(DiagonalTensor, DiagonalTensor, [['a'], ['b']], [['c'], ['d']], [], [], id='Diag@Diag-2-0-2'),
-     #
-     pytest.param(Mask, Mask, [['a'], ['b']], [['c'], ['b']], [1], [1], id='Mask@Mask-2-1-2'),
-     #
-     # TODO: having issues randomly generating the masks in this case...
-     #pytest.param(Mask, Mask, [['a'], ['b']], [['a'], ['b']], [0, 1], [0, 1], id='Mask@Mask-2-2-2'),
-     #
-     pytest.param(Mask, Mask, [['a'], ['b']], [['c'], ['d']], [], [], id='Mask@Mask-2-0-2'),
-
-    ]
-)
-def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
-              labels_A: list[list[str]], labels_B: list[list[str]],
-              contr_A: list[int], contr_B: list[int],
+    [
+        pytest.param(SymmetricTensor,
+                     SymmetricTensor, [['a', 'b'], ['c', 'd']], [['c', 'e'], ['a', 'f']], [0, 3],
+                     [3, 0],
+                     id='Sym@Sym-4-2-4'),
+        pytest.param(SymmetricTensor,
+                     SymmetricTensor, [['a', 'b'], ['c', 'd']], [['e', 'f'], ['g', 'h']], [], [],
+                     id='Sym@Sym-4-0-4'),
+        pytest.param(SymmetricTensor,
+                     SymmetricTensor, [['a', 'b'], ['c', 'd']], [['c', 'a'], ['d', 'b']],
+                     [0, 1, 3, 2], [1, 2, 0, 3],
+                     id='Sym@Sym-4-4-4'),
+        pytest.param(SymmetricTensor,
+                     SymmetricTensor, [[], ['a', 'b']], [['b', 'c'], ['d']], [0], [0],
+                     id='Sym@Sym-2-1-3'),
+        #
+        pytest.param(SymmetricTensor,
+                     ChargedTensor, [['a', 'b'], ['c', 'd']], [['c', 'e'], ['a', 'f']], [0, 3],
+                     [3, 0],
+                     id='Sym-Charged@4-2-4'),
+        pytest.param(ChargedTensor,
+                     SymmetricTensor, [['a', 'b'], ['c', 'd']], [['e', 'f'], ['g', 'h']], [], [],
+                     id='Charged@Sym-4-0-4'),
+        pytest.param(SymmetricTensor,
+                     ChargedTensor, [['a', 'b'], ['c', 'd']], [['c', 'a'], ['d', 'b']],
+                     [0, 1, 3, 2], [1, 2, 0, 3],
+                     id='Sym@Charged-4-4-4'),
+        pytest.param(SymmetricTensor,
+                     ChargedTensor, [[], ['a', 'b']], [['b', 'c'], ['d']], [0], [0],
+                     id='Sym@Charged-2-1-3'),
+        #
+        # Note: need to put DiagonalTensor first to get correct legs. If SymmetricTensor is first,
+        # it generates independent legs, which can not both be on a diagonalTensor.
+        pytest.param(DiagonalTensor,
+                     SymmetricTensor, [['c'], ['b']], [['a', 'b'], ['c', 'd']], [1, 0], [1, 3],
+                     id='Diag@Sym-4-2-2'),
+        pytest.param(SymmetricTensor,
+                     DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1],
+                     id='Sym@Diag-4-1-2'),
+        pytest.param(SymmetricTensor,
+                     DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['f']], [], [],
+                     id='Sym-Diag-4-0-2'),
+        #
+        # Note: If both legs of a mask are contracted, we should generate the mask first. otherwise its legs may be invalid.
+        pytest.param(Mask,
+                     SymmetricTensor, [['c'], ['b']], [['a', 'b'], ['c', 'd']], [1, 0], [1, 3],
+                     id='Sym@Mask-4-2-2'),
+        pytest.param(SymmetricTensor,
+                     Mask, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1],
+                     id='Sym@Mask-4-1-2'),
+        pytest.param(SymmetricTensor,
+                     Mask, [['a', 'b'], ['c', 'd']], [['e'], ['f']], [], [],
+                     id='Sym@Mask-4-0-2'),
+        #
+        pytest.param(ChargedTensor,
+                     DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1],
+                     id='Charged@Diag-4-1-2'),
+        pytest.param(ChargedTensor,
+                     Mask, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1],
+                     id='Charged@Mask-4-1-2'),
+        #
+        pytest.param(DiagonalTensor,
+                     DiagonalTensor, [['a'], ['b']], [['c'], ['b']], [1], [1],
+                     id='Diag@Diag-2-1-2'),
+        pytest.param(DiagonalTensor,
+                     DiagonalTensor, [['a'], ['b']], [['b'], ['a']], [1, 0], [0, 1],
+                     id='Diag@Diag-2-2-2'),
+        pytest.param(DiagonalTensor,
+                     DiagonalTensor, [['a'], ['b']], [['c'], ['d']], [], [],
+                     id='Diag@Diag-2-0-2'),
+        #
+        pytest.param(Mask, Mask, [['a'], ['b']], [['c'], ['b']], [1], [1], id='Mask@Mask-2-1-2'),
+        #
+        # TODO: having issues randomly generating the masks in this case...
+        #pytest.param(Mask, Mask, [['a'], ['b']], [['a'], ['b']], [0, 1], [0, 1], id='Mask@Mask-2-2-2'),
+        #
+        pytest.param(Mask, Mask, [['a'], ['b']], [['c'], ['d']], [], [], id='Mask@Mask-2-0-2'),
+    ])
+def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor], labels_A: list[list[str]],
+              labels_B: list[list[str]], contr_A: list[int], contr_B: list[int],
               make_compatible_tensor, np_random):
-    
+
     A: cls_A = make_compatible_tensor(
-        codomain=len(labels_A[0]), domain=len(labels_A[1]),
-        labels=[*labels_A[0], *reversed(labels_A[1])], max_block_size=3, max_blocks=3, cls=cls_A,
+        codomain=len(labels_A[0]),
+        domain=len(labels_A[1]),
+        labels=[*labels_A[0], *reversed(labels_A[1])],
+        max_block_size=3,
+        max_blocks=3,
+        cls=cls_A,
     )
     # create B such that legs with the same label can be contracted
     B: cls_B = make_compatible_tensor(
         codomain=[A._as_domain_leg(l) if A.has_label(l) else None for l in labels_B[0]],
         domain=[A._as_codomain_leg(l) if A.has_label(l) else None for l in labels_B[1]],
-        labels=[*labels_B[0], *reversed(labels_B[1])], max_block_size=2, max_blocks=3, cls=cls_B,
+        labels=[*labels_B[0], *reversed(labels_B[1])],
+        max_block_size=2,
+        max_blocks=3,
+        cls=cls_B,
     )
 
     num_contr = len(contr_A)
@@ -2191,12 +2271,15 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
     num_open = num_open_A + num_open_B
     # make sure we defined compatible legs
     for ia, ib in zip(contr_A, contr_B):
-        assert A._as_domain_leg(ia) == B._as_codomain_leg(ib), f'{ia} / {A.labels[ia]} incompatible with {ib} / {B.labels[ib]}'
+        assert A._as_domain_leg(ia) == B._as_codomain_leg(
+            ib), f'{ia} / {A.labels[ia]} incompatible with {ib} / {B.labels[ib]}'
 
     expect_codomain = [A._as_codomain_leg(n) for n in range(A.num_legs) if n not in contr_A]
     expect_domain = [B._as_domain_leg(n) for n in range(B.num_legs) if not n in contr_B][::-1]
-    expect_legs = [A.get_leg(n) for n in range(A.num_legs) if n not in contr_A] + [B.get_leg(n) for n in range(B.num_legs) if not n in contr_B]
-    expect_labels = [A._labels[n] for n in range(A.num_legs) if n not in contr_A] + [B._labels[n] for n in range(B.num_legs) if not n in contr_B]
+    expect_legs = [A.get_leg(n) for n in range(A.num_legs) if n not in contr_A
+                   ] + [B.get_leg(n) for n in range(B.num_legs) if not n in contr_B]
+    expect_labels = [A._labels[n] for n in range(A.num_legs) if n not in contr_A
+                     ] + [B._labels[n] for n in range(B.num_legs) if not n in contr_B]
 
     # Context manager to catch expected errors
     catch_errors = nullcontext()
@@ -2204,13 +2287,19 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
     if (cls_A is Mask and cls_B is Mask) and num_contr > 0:
         catch_errors = pytest.raises(NotImplementedError)
     if cls_A is ChargedTensor and A.charged_state == None and A.num_legs + B.num_legs == 2 * num_contr:
-            catch_errors = pytest.raises(ValueError, match='Can not instantiate ChargedTensor with no legs and unspecified charged_states.')
+        catch_errors = pytest.raises(
+            ValueError,
+            match='Can not instantiate ChargedTensor with no legs and unspecified charged_states.')
     if cls_B is ChargedTensor and B.charged_state == None and A.num_legs + B.num_legs == 2 * num_contr:
-            catch_errors = pytest.raises(ValueError, match='Can not instantiate ChargedTensor with no legs and unspecified charged_states.')
+        catch_errors = pytest.raises(
+            ValueError,
+            match='Can not instantiate ChargedTensor with no legs and unspecified charged_states.')
 
-    if isinstance(A.backend, backends.FusionTreeBackend) and cls_A is DiagonalTensor and not cls_B is DiagonalTensor and num_contr == 2:
+    if isinstance(A.backend, backends.FusionTreeBackend
+                  ) and cls_A is DiagonalTensor and not cls_B is DiagonalTensor and num_contr == 2:
         catch_errors = pytest.raises(NotImplementedError)
-    elif isinstance(A.backend, backends.FusionTreeBackend) and A.symmetry.braiding_style.value >= 20:
+    elif isinstance(A.backend,
+                    backends.FusionTreeBackend) and A.symmetry.braiding_style.value >= 20:
         if not cls_A is DiagonalTensor:
             levels_A = list(np_random.permutation(A.num_legs))
             codomain_A = [i for i in range(A.num_legs) if not i in contr_A]
@@ -2251,13 +2340,15 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
     npt.assert_allclose(res_np, expect, atol=1.e-14)
 
 
-@pytest.mark.parametrize('cls, legs', [pytest.param(SymmetricTensor, 2, id='Sym-2'),
-                                       pytest.param(SymmetricTensor, 1, id='Sym-1'),
-                                       pytest.param(ChargedTensor, 2, id='Charged-2'),
-                                       pytest.param(ChargedTensor, 1, id='Charged-1'),
-                                       pytest.param(DiagonalTensor, 1, id='Diag'),])
+@pytest.mark.parametrize('cls, legs', [
+    pytest.param(SymmetricTensor, 2, id='Sym-2'),
+    pytest.param(SymmetricTensor, 1, id='Sym-1'),
+    pytest.param(ChargedTensor, 2, id='Charged-2'),
+    pytest.param(ChargedTensor, 1, id='Charged-1'),
+    pytest.param(DiagonalTensor, 1, id='Diag'),
+])
 def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_compatible_sectors,
-                    make_compatible_space):
+               make_compatible_space):
     co_domain_spaces = [make_compatible_space() for _ in range(legs)]
     if cls is ChargedTensor:
         if not compatible_symmetry.can_be_dropped:
@@ -2266,7 +2357,8 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
         # make a ChargedTensor that has the trivial sector, otherwise the trace is always 0
         other_sector = make_compatible_sectors(1)[0]
         charge_leg = ElementarySpace.from_sectors(
-            compatible_symmetry, [compatible_symmetry.trivial_sector, other_sector],
+            compatible_symmetry,
+            [compatible_symmetry.trivial_sector, other_sector],
         )
         inv_part = make_compatible_tensor(co_domain_spaces, [charge_leg, *co_domain_spaces],
                                           cls=SymmetricTensor)
@@ -2293,19 +2385,18 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
-@pytest.mark.parametrize(
-    'cls, cod, dom',
-    [pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
-     pytest.param(SymmetricTensor, 3, 0, id='Sym-3-0'),
-     pytest.param(SymmetricTensor, 1, 1, id='Sym-1-1'),
-     pytest.param(SymmetricTensor, 0, 3, id='Sym-3-0'),
-     pytest.param(ChargedTensor, 2, 2, id='Charged-2-2'),
-     pytest.param(ChargedTensor, 3, 0, id='Charged-3-0'),
-     pytest.param(ChargedTensor, 1, 1, id='Charged-1-1'),
-     pytest.param(ChargedTensor, 0, 3, id='Charged-3-0'),
-     pytest.param(DiagonalTensor, 1, 1, id='Diag'),
-     pytest.param(Mask, 1, 1, id='Mask')]
-)
+@pytest.mark.parametrize('cls, cod, dom', [
+    pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
+    pytest.param(SymmetricTensor, 3, 0, id='Sym-3-0'),
+    pytest.param(SymmetricTensor, 1, 1, id='Sym-1-1'),
+    pytest.param(SymmetricTensor, 0, 3, id='Sym-3-0'),
+    pytest.param(ChargedTensor, 2, 2, id='Charged-2-2'),
+    pytest.param(ChargedTensor, 3, 0, id='Charged-3-0'),
+    pytest.param(ChargedTensor, 1, 1, id='Charged-1-1'),
+    pytest.param(ChargedTensor, 0, 3, id='Charged-3-0'),
+    pytest.param(DiagonalTensor, 1, 1, id='Diag'),
+    pytest.param(Mask, 1, 1, id='Mask')
+])
 def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     labels = list('abcdefghi')[:cod + dom]
     tensor: cls = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
