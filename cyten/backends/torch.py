@@ -281,7 +281,7 @@ class TorchBlockBackend(BlockBackend):
         return a.diagonal(offset=0, dim1=-1, dim2=-2).sum(-1)
 
     def eye_matrix(self, dim: int, dtype: Dtype, device: str = None) -> Block:
-        return torch_module.eye(dim, dtype=self.backend_dtype_map[dtype], 
+        return torch_module.eye(dim, dtype=self.backend_dtype_map[dtype],
                                 device=self.as_device(device))
 
     def get_block_element(self, a: Block, idcs: list[int]) -> complex | float | bool:
@@ -317,17 +317,6 @@ class TorchBlockBackend(BlockBackend):
     def ones_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
         return torch_module.ones(list(shape), dtype=self.backend_dtype_map[dtype],
                                  device=self.as_device(device))
-
-    def to_same_dtype(self, a: Block, b: Block, at_least=None) -> tuple[Block, ...]:
-        # OPTIMIZE is there something built in to torch?
-        dtype = torch_module.promote_types(a.dtype, b.dtype)
-        if at_least is not None:
-            dtype = torch_module.promote_types(dtype, at_least)
-        if a.dtype != dtype:
-            a = torch_module.as_tensor(a, dtype=dtype)
-        if b.dtype != dtype:
-            b = torch_module.as_tensor(b, dtype=dtype)
-        return a, b
 
     def to_same_dtype(self, a: Block, b: Block, at_least=None) -> tuple[Block, ...]:
         # OPTIMIZE is there something built in to torch?

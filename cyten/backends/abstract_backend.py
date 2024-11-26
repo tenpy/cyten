@@ -250,7 +250,7 @@ class TensorBackend(metaclass=ABCMeta):
        
     @abstractmethod
     def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool
-                                       ) -> DiagonalData:
+                                         ) -> DiagonalData:
         """Get the DiagonalData corresponding to a tensor with two legs.
 
         Can assume that domain and codomain consist of the same single leg.
@@ -409,7 +409,7 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def inv_part_from_dense_block_single_sector(self, vector: Block, space: Space,
-                                               charge_leg: ElementarySpace) -> Data:
+                                                charge_leg: ElementarySpace) -> Data:
         """Data for the invariant part used in ChargedTensor.from_dense_block_single_sector
 
         The vector is given in the *internal* basis order of `spaces`.
@@ -681,8 +681,8 @@ class TensorBackend(metaclass=ABCMeta):
         """
         ...
 
-    def _truncate_singular_values_selection(self, S: np.ndarray, qdims: np.ndarray | None, 
-                                            chi_max: int | None, chi_min: int, 
+    def _truncate_singular_values_selection(self, S: np.ndarray, qdims: np.ndarray | None,
+                                            chi_max: int | None, chi_min: int,
                                             degeneracy_tol: float, trunc_cut: float, svd_min: float
                                             ) -> tuple[np.ndarray, float, float]:
         """Helper function for :meth:`truncate_singular_values`.
@@ -718,7 +718,7 @@ class TensorBackend(metaclass=ABCMeta):
         marginal_errs = marginal_errs[piv]
 
         # take safe logarithm, clipping small values to log(1e-100).
-        # this is only used for degeneracy tol. 
+        # this is only used for degeneracy tol.
         logS = np.log(np.choose(S <= 1.e-100, [S, 1.e-100 * np.ones(len(S))]))
 
         # goal: find an index 'cut' such that we keep piv[cut:], i.e. cut between `cut-1` and `cut`.
@@ -821,7 +821,7 @@ class BlockBackend(metaclass=ABCMeta):
         for leg in legs:
             p = leg._inverse_basis_perm if inv else leg._basis_perm
             if p is None:
-                # OPTIMIZE support None in apply_leg_permutations, to skip permuting that leg? 
+                # OPTIMIZE support None in apply_leg_permutations, to skip permuting that leg?
                 p = np.arange(leg.dim)
             perms.append(p)
         return self.apply_leg_permutations(block, perms)
@@ -1208,7 +1208,7 @@ class BlockBackend(metaclass=ABCMeta):
         ``block * factors[None, None, :, None]``.
         """
         idx = [None] * len(self.block_shape(block))
-        idx[axis] = slice(None, None,  None)
+        idx[axis] = slice(None, None, None)
         return block * factors[tuple(idx)]
 
     @abstractmethod

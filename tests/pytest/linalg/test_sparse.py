@@ -12,7 +12,6 @@ from cyten.tensors import Tensor, SymmetricTensor, Dtype, almost_equal
 pytest.skip("sparse not yet revised", allow_module_level=True)  # TODO
 
 
-
 # define a few simple operators to test the wrappers:
 
 

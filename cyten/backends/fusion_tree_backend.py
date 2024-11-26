@@ -224,7 +224,7 @@ class FusionTreeData:
 
     def block_ind_from_domain_sector_ind(self, domain_sector_ind: int) -> int | None:
         "Return `ind` such that ``block_inds[ind][1] == domain_sector_ind``"
-        ind = np.searchsorted(self.block_inds[:,1], domain_sector_ind)
+        ind = np.searchsorted(self.block_inds[:, 1], domain_sector_ind)
         if ind >= len(self.block_inds) or self.block_inds[ind, 1] != domain_sector_ind:
             return None
         if ind + 1 < self.block_inds.shape[0] and self.block_inds[ind + 1, 1] == domain_sector_ind:
@@ -356,7 +356,7 @@ class FusionTreeBackend(TensorBackend):
             b_blocks = [self.block_backend.block_to_dtype(bl, res_dtype) for bl in b_blocks]
         blocks = []
         block_inds = []
-        if len(a.data.block_inds) > 0 and  len(b.data.block_inds) > 0:
+        if len(a.data.block_inds) > 0 and len(b.data.block_inds) > 0:
             for i, j in iter_common_sorted(a.data.block_inds[:, 1], b.data.block_inds[:, 0]):
                 blocks.append(self.block_backend.matrix_dot(a_blocks[i], b_blocks[j]))
                 block_inds.append([a_block_inds[i, 0], b_block_inds[j, 1]])
@@ -507,7 +507,7 @@ class FusionTreeBackend(TensorBackend):
         return FusionTreeData(block_inds, blocks, dtype, device)
 
     def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool
-                                       ) -> DiagonalData:
+                                         ) -> DiagonalData:
         raise NotImplementedError('diagonal_tensor_from_full_tensor not implemented')  # TODO
 
     def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
@@ -519,7 +519,6 @@ class FusionTreeBackend(TensorBackend):
 
     def diagonal_tensor_to_block(self, a: DiagonalTensor) -> Block:
         assert a.symmetry.can_be_dropped
-        block_inds = a.data.block_inds
         res = self.block_backend.zero_block([a.leg.dim], a.dtype)
         for n, i in enumerate(a.data.block_inds[:, 0]):
             dim_c = a.codomain.sector_dims[i]
@@ -713,7 +712,7 @@ class FusionTreeBackend(TensorBackend):
         return res
 
     def inv_part_from_dense_block_single_sector(self, vector: Block, space: Space,
-                                               charge_leg: ElementarySpace) -> Data:
+                                                charge_leg: ElementarySpace) -> Data:
         raise NotImplementedError('inv_part_from_dense_block_single_sector not implemented')  # TODO
 
     def inv_part_to_dense_block_single_sector(self, tensor: SymmetricTensor) -> Block:
@@ -853,7 +852,7 @@ class FusionTreeBackend(TensorBackend):
         num_bend_down = len(bend_down)
         all_exchanges, all_bend_ups = [], []
         num_operations = []
-        levels_None = levels == None
+        levels_None = (levels is None)
         if not levels_None:
             levels = levels[:]
 
@@ -881,8 +880,10 @@ class FusionTreeBackend(TensorBackend):
         num_operations.append(len(exchanges))
 
         # exchanges within the domain such that the legs agree with domain_idcs
-        inter_domain_idcs = ([i for i in range(a.num_legs-1, a.num_codomain_legs-1, -1) if not i in bend_up]
-                             + bend_down[::-1])
+        inter_domain_idcs = [
+            i for i in range(a.num_legs-1, a.num_codomain_legs-1, -1) if not i in bend_up
+        ]
+        inter_domain_idcs.extend(bend_down[::-1])
         exchanges = permutation_as_swaps(inter_domain_idcs, domain_idcs)
         exchanges = [a.num_legs - 2 - i for i in exchanges]
         all_exchanges += exchanges
@@ -1017,7 +1018,7 @@ class FusionTreeBackend(TensorBackend):
             blocks = []
             block_inds = []
 
-            if len(a_block_inds) > 0 and  len(b_block_inds) > 0:
+            if len(a_block_inds) > 0 and len(b_block_inds) > 0:
                 for n_a, n_b in iter_common_sorted(a_block_inds[:, ax_a], b_block_inds[:, 1 - ax_a]):
                     blocks.append(self.block_backend.block_scale_axis(a_blocks[n_a], b_blocks[n_b], axis=ax_a))
                     if in_domain:
@@ -1039,12 +1040,16 @@ class FusionTreeBackend(TensorBackend):
         for uncoupled, slc, coupled_ind in _forest_block_iter_product_space(iter_space, coupled_sectors, a.symmetry):
             ind = a.domain.sectors_where(coupled_sectors[coupled_ind])
             ind_b = b.data.block_ind_from_domain_sector_ind(b.domain.sectors_where(uncoupled[co_domain_idx]))
-            if ind_b == None:  # zero block
+            if ind_b is None:  # zero block
                 continue
 
             if not ind in block_inds[:, 1]:
                 ind_mapping[coupled_ind] = len(blocks)
-                block_inds = np.append(block_inds, np.array([[a.codomain.sectors_where(a.domain.sectors[ind]), ind]]), axis=0)
+                block_inds = np.append(
+                    block_inds,
+                    np.array([[a.codomain.sectors_where(a.domain.sectors[ind]), ind]]),
+                    axis=0
+                )
                 shape = self.block_backend.block_shape(a_blocks[coupled_ind])
                 blocks.append(self.block_backend.zero_block(shape, a.dtype))
 
@@ -1130,7 +1135,7 @@ class FusionTreeBackend(TensorBackend):
         return u_data, s_data, vh_data
 
     def state_tensor_product(self, state1: Block, state2: Block, prod_space: ProductSpace):
-        #TODO clearly define what this should do in tensors.py first!
+        # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError
 
     def to_dense_block(self, a: SymmetricTensor) -> Block:
@@ -1169,8 +1174,8 @@ class FusionTreeBackend(TensorBackend):
                     perm = [i + offset for i in range(num_legs) for offset in [0, num_legs]]
                     entries = self.block_backend.block_permute_axes(entries, perm)
                     # reshape to [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
-                    shape = [d_a * m for d_a, m in zip(a_dims, m_dims)] \
-                            + [d_b * n for d_b, n in zip(b_dims, n_dims)]
+                    shape = [d_a * m for d_a, m in zip(a_dims, m_dims)] + \
+                        [d_b * n for d_b, n in zip(b_dims, n_dims)]
                     entries = self.block_backend.block_reshape(entries, shape)
                     res[(*j1, *j2)] += entries
                     i1 += forest_b_height  # move down by one forest-block
@@ -1195,9 +1200,6 @@ class FusionTreeBackend(TensorBackend):
         )
 
     def transpose(self, a: SymmetricTensor) -> tuple[Data, ProductSpace, ProductSpace]:
-        # Juthos implementation:
-        # tensors: https://github.com/Jutho/TensorKit.jl/blob/b026cf2c1d470c6df1788a8f742c20acca67db83/src/tensors/indexmanipulations.jl#L143
-        # trees: https://github.com/Jutho/TensorKit.jl/blob/b026cf2c1d470c6df1788a8f742c20acca67db83/src/fusiontrees/manipulations.jl#L524
         raise NotImplementedError('transpose not implemented')  # TODO
 
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
@@ -1343,14 +1345,14 @@ class FusionTreeBackend(TensorBackend):
                 i2 += tree_block_width
             i2 = i2_init  # reset to the left of the current forest-block
             i1 += tree_block_height
-        num_alpha_trees = len(alpha_tree_iter)  # OPTIMIZE count loop iterations above instead?
-                                                #          (same in _add_forest_block_entries)
+        # OPTIMIZE count loop iterations above instead?  (same in _add_forest_block_entries)
+        num_alpha_trees = len(alpha_tree_iter)
         num_beta_trees = len(beta_tree_iter)
         return entries, num_alpha_trees, num_beta_trees
 
     def _add_forest_block_entries(self, block, entries, sym: Symmetry, codomain, domain, coupled,
-                                dim_c, a_sectors, b_sectors, tree_block_width, tree_block_height,
-                                i1_init, i2_init):
+                                  dim_c, a_sectors, b_sectors, tree_block_width, tree_block_height,
+                                  i1_init, i2_init):
         """Helper function for :meth:`from_dense_block`.
 
         Adds the entries from a single forest-block to the current `block`, in place.
@@ -1739,7 +1741,7 @@ class TreeMappingDict(dict):
         iter_space = [ten.codomain, ten.domain][in_domain]
         new_space = [new_codomain, new_domain][in_domain]
         old_coupled = [sec for i, sec in enumerate(ten.domain.sectors)
-                       if ten.data.block_ind_from_domain_sector_ind(i) != None]
+                       if ten.data.block_ind_from_domain_sector_ind(i) is not None]
 
         if in_domain:
             block_axes_permutation = [0] + [i+1 for i in block_axes_permutation]

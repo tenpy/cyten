@@ -215,7 +215,7 @@ class ShiftedLinearOperator(LinearOperatorWrapper):
 
     def adjoint(self):
         return ShiftedLinearOperator(original_operator=self.original_operator.adjoint(),
-                                          shift=np.conj(self.shift))
+                                     shift=np.conj(self.shift))
 
 
 class ProjectedLinearOperator(LinearOperatorWrapper):
@@ -257,7 +257,7 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
         if len(ortho_vecs) == 0:
             warnings.warn('empty ortho_vecs: no need for ProjectedLinearOperator', stacklevel=2)
         if not project_operator and penalty is None:
-            warnings.warn('project_operator=False and penalty=None means ' \
+            warnings.warn('project_operator=False and penalty=None means '
                           'ProjectedLinearOperator does not do anything')
         super().__init__(original_operator=original_operator)
         assert all(v.shape == original_operator.vector_shape for v in ortho_vecs)
@@ -291,7 +291,7 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
         return res
 
     def to_tensor(self, **kw) -> Tensor:
-        raise NotImplementedError 
+        raise NotImplementedError
         # TODO adjust to changed leg convention (change convention of outer to match this?)
         #      or change conj accordingly? or implement a projector function |a><a|
         # res = self.original_operator.to_tensor(**kw)

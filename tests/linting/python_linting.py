@@ -10,6 +10,7 @@ import cyten
 import types
 import os
 
+
 def main():
     """Called when this script is called, e.g. via `python linting.py`"""
     print('Checking __all__ attributes')

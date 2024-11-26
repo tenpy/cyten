@@ -74,7 +74,6 @@ import numpy as np
 import warnings
 import functools
 import logging
-logger = logging.getLogger(__name__)
 
 from .dummy_config import printoptions
 from .symmetries import SymmetryError, Symmetry
@@ -94,6 +93,9 @@ __all__ = ['Tensor', 'SymmetricTensor', 'DiagonalTensor', 'ChargedTensor', 'Mask
            'sqrt', 'squeeze_legs', 'stable_log', 'svd', 'svd_apply_mask', 'tdot', 'trace',
            'transpose', 'truncate_singular_values', 'truncated_svd', 'zero_like',
            'get_same_backend', 'check_same_legs']
+
+
+logger = logging.getLogger(__name__)
 
 
 # TENSOR CLASSES
@@ -1819,11 +1821,11 @@ class Mask(Tensor):
 
     Notes
     -----
-    The :attr:`~cyten.linalg.ElementarySpace.basis_perm` of the legs is constrained by the 
+    The :attr:`~cyten.linalg.ElementarySpace.basis_perm` of the legs is constrained by the
     requirements of the Mask, and in particular *depending on the data* as follows;
     The following explanation is intuitive only for a projection Mask but also applies to inclusions.
     Taking the ordered set of basis elements, permuting it by the large legs basis perm, then
-    discarding some of them according to the mask data, and finally permuting the remaining 
+    discarding some of them according to the mask data, and finally permuting the remaining
     elements back by the (inverse) small leg perm should result in a basis of the small leg,
     where the relative ordering of elements is preserved.
 
@@ -2086,9 +2088,9 @@ class Mask(Tensor):
             raise ValueError('small_leg must be ElementarySpace.')
 
         large_perm_trivial = large_leg._basis_perm is None \
-                or np.all(large_leg._basis_perm == np.arange(len(large_leg._basis_perm)))
+            or np.all(large_leg._basis_perm == np.arange(len(large_leg._basis_perm)))
         small_perm_trivial = small_leg._basis_perm is None \
-                or np.all(small_leg._basis_perm == np.arange(len(small_leg._basis_perm)))
+            or np.all(small_leg._basis_perm == np.arange(len(small_leg._basis_perm)))
 
         if (not large_perm_trivial) or (not small_perm_trivial):
             # TODO support? if yes, adjust tests, e.g. in test_Mask
@@ -2392,6 +2394,7 @@ class ChargedTensor(Tensor):
     """
 
     _CHARGE_LEG_LABEL = '!'  # canonical label for the charge leg
+    
     def __init__(self, invariant_part: SymmetricTensor, charged_state: Block | None):
         assert invariant_part.domain.num_spaces > 0, 'domain must contain at least the charge leg'
         self.charge_leg = invariant_part.domain.spaces[0]
@@ -3810,7 +3813,7 @@ def exp(obj: Tensor | complex | float) -> Tensor | complex | float:
         if combine:
             # OPTIMIZE avoid re-computing the ProductSpace metadata
             obj = combine_legs(obj, range(obj.num_codomain_legs),
-                                  range(obj.num_codomain_legs, obj.num_legs))
+                               range(obj.num_codomain_legs, obj.num_legs))
         data = obj.backend.act_block_diagonal_square_matrix(
             obj, obj.backend.block_backend.matrix_exp, dtype_map=None
         )
@@ -5064,7 +5067,7 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
         )
     if isinstance(tensor1, ChargedTensor):
         inv_part = tdot(tensor1.invariant_part, tensor2, legs1=legs1, legs2=legs2,
-                            relabel1=relabel1, relabel2=relabel2)
+                        relabel1=relabel1, relabel2=relabel2)
         inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0)
         return ChargedTensor.from_invariant_part(inv_part, tensor1.charged_state)
     if isinstance(tensor2, ChargedTensor):
@@ -5242,7 +5245,7 @@ def truncate_singular_values(S: DiagonalTensor, chi_max: int = None, chi_min: in
     optimal truncation error.
 
     This is why the singular values are prioritized by largest :math:`d_{a_i} S_i^2`, and why
-    the quantum dimensions appear as a part 
+    the quantum dimensions appear as a part
 
     For anyonic symmetries we lose the interpretation as a multiplet, since :math:`d_a` is in
     general not integer, but the formula for the error holds, and the considerations for selecting
@@ -5321,7 +5324,7 @@ def truncated_svd(tensor: Tensor,
 def zero_like(tensor: Tensor) -> Tensor:
     """Return a zero tensor with same type, dtype, legs, backend and labels."""
     if isinstance(tensor, Mask):
-        return Mask.from_zero(large_leg=tensor.large_leg, backend=tensor.backend, 
+        return Mask.from_zero(large_leg=tensor.large_leg, backend=tensor.backend,
                               labels=tensor.labels, device=tensor.device)
     if isinstance(tensor, DiagonalTensor):
         return DiagonalTensor.from_zero(leg=tensor.leg, backend=tensor.backend, labels=tensor.labels,

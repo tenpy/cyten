@@ -501,7 +501,6 @@ class AbelianBackend(TensorBackend):
         if b.dtype != res_dtype:
             b_blocks = [self.block_backend.block_to_dtype(B, res_dtype) for B in b_blocks]
 
-
         # need to contract the domain legs of a with the codomain legs of b.
         # due to the leg ordering
 
@@ -697,9 +696,11 @@ class AbelianBackend(TensorBackend):
         block_inds = []
 
         ia = 0  # next block of a to process
-        bi_a = -1 if len(a_block_inds) == 0 else a_block_inds[ia, 0]  # block_ind of that block => it belongs to leg.sectors[bi_a]
+        # block_ind of that block => it belongs to leg.sectors[bi_a]
+        bi_a = -1 if len(a_block_inds) == 0 else a_block_inds[ia, 0]
         ib = 0  # next block of b to process
-        bi_b = -1 if len(b_block_inds) == 0 else b_block_inds[ib, 0]  # block_ind of that block => it belongs to leg.sectors[bi_b]
+        # block_ind of that block => it belongs to leg.sectors[bi_b]
+        bi_b = -1 if len(b_block_inds) == 0 else b_block_inds[ib, 0]
         #
         for i, mult in enumerate(leg.multiplicities):
             if i == bi_a:
@@ -1410,7 +1411,7 @@ class AbelianBackend(TensorBackend):
         # grid is lexsorted, with rows as all combinations of a/b block indices.
         #
         res_block_inds = np.empty((l_a * l_b, N_a + N_b), dtype=int)
-        res_block_inds[:, :K_a] =  a_block_inds[grid[:, 0], :K_a]
+        res_block_inds[:, :K_a] = a_block_inds[grid[:, 0], :K_a]
         res_block_inds[:, K_a:K_a+N_b] = b_block_inds[grid[:, 1]]
         res_block_inds[:, K_a+N_b:] = a_block_inds[grid[:, 0], K_a:]
         res_blocks = [self.block_backend.block_tensor_outer(a_blocks[i], b_blocks[j], K_a)
@@ -1444,6 +1445,7 @@ class AbelianBackend(TensorBackend):
         #     this permutation could be applied to the block_inds and then we can compare on block_inds
         #     level again, without resorting to the sectors.
         #
+
         def on_diagonal(bi1, bi2):
             # given bi1==block_inds_1[n] and bi2==block_inds_2[n], return if blocks[n] is on the
             # diagonal and thus contributes to the trace, or not.
@@ -1496,7 +1498,6 @@ class AbelianBackend(TensorBackend):
             symmetry=tensor.symmetry, backend=self
         )
         return data, codomain, domain
-
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:
@@ -1688,7 +1689,7 @@ class AbelianBackend(TensorBackend):
         new_block_inds = np.empty((res_num_blocks, res_num_legs), dtype=int)
         old_block_beg = np.zeros((res_num_blocks, a.num_legs), dtype=int)
         old_block_shapes = np.empty((res_num_blocks, a.num_legs), dtype=int)
-        shift = 0  #  = i - k for indices below
+        shift = 0  # = i - k for indices below
         j = 0  # index within product_spaces
         for i in range(a.num_legs):  # i = index in old tensor
             if i in leg_idcs:
@@ -1793,11 +1794,11 @@ class AbelianBackend(TensorBackend):
         u_data = AbelianBackendData(a.dtype, a.data.device, u_blocks, u_block_inds, is_sorted=True)
         s_data = AbelianBackendData(a.dtype.to_real, a.data.device, s_blocks, s_block_inds,
                                     is_sorted=True)
-        vh_data = AbelianBackendData(a.dtype,a.data.device, vh_blocks, vh_block_inds, is_sorted=True)
+        vh_data = AbelianBackendData(a.dtype, a.data.device, vh_blocks, vh_block_inds, is_sorted=True)
         return u_data, s_data, vh_data
 
     def state_tensor_product(self, state1: Block, state2: Block, prod_space: ProductSpace):
-        #TODO clearly define what this should do in tensors.py first!
+        # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
 
     def to_dense_block(self, a: SymmetricTensor) -> Block:
@@ -2008,7 +2009,7 @@ class AbelianBackend(TensorBackend):
 
         sectors = sectors[diffs]
 
-        new_block_ind = np.zeros(len(_block_ind_map), dtype=np.intp) # = J
+        new_block_ind = np.zeros(len(_block_ind_map), dtype=np.intp)  # = J
         new_block_ind[diffs[1:]] = 1  # not for the first entry => np.cumsum starts with 0
         _block_ind_map[:, -1] = new_block_ind = np.cumsum(new_block_ind)
         # calculate the slices within blocks: subtract the start of each block
