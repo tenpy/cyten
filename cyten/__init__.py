@@ -1,12 +1,12 @@
 r"""cyten library - tensor library for high-level tensor network algorithms.
 
-Provides a tensor class with block-sparsity from symmetries with an exchangable GPU or CPU backend.
+Provides a tensor class with block-sparsity from symmetries with an exchangeable GPU or CPU backend.
 
 """
 # Copyright (C) TeNPy Developers, GNU GPLv3
 
-
-from . import (dtypes, spaces, backends, symmetries, tensors, random_matrix, sparse, krylov_based, trees)
+from . import (dtypes, spaces, backends, symmetries, tensors, random_matrix, sparse, krylov_based,
+               trees, dummy_config, tools)
 from .symmetries import *
 from .trees import *
 from .spaces import *
@@ -22,7 +22,7 @@ from ._core import *  # import pybind11 bindings from C++ code
 from . import version
 
 __all__ = ['symmetries', 'spaces', 'trees', 'backends', 'tensors', 'random_matrix', 'sparse',
-           'krylov_based', 'dtypes',
+           'krylov_based', 'dtypes', 'dummy_config', 'tools', 'version',
            *symmetries.__all__,
            *trees.__all__,
            *spaces.__all__,
@@ -32,6 +32,7 @@ __all__ = ['symmetries', 'spaces', 'trees', 'backends', 'tensors', 'random_matri
            *sparse.__all__,
            *krylov_based.__all__,
            *dtypes.__all__,
+           'show_config'
            ]
 
 #: hard-coded version string
