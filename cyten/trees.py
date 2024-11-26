@@ -231,7 +231,7 @@ class FusionTree:
             b = self.uncoupled[vertex + 1]
             c = self.inner_sectors[vertex] if vertex < self.num_inner_edges else self.coupled
             X = self.symmetry.fusion_tensor(a, b, c, Z_b=self.are_dual[vertex + 1])[mu]
-            X_block =block_backend.block_from_numpy(X, dtype)
+            X_block = block_backend.block_from_numpy(X, dtype)
             #  [a0, a1, ..., an, i{n-1}] & [i{n-1}, a{n+1}, in] -> [a0, a1, ..., a{n+1}, in]
             res = block_backend.block_tdot(res, X_block, [-1], [0])
         return res
@@ -316,13 +316,13 @@ class FusionTree:
         
         if t2.num_vertices == 1:
             # inserting a single X tensor
-            raise NotImplementedError # TODO
+            raise NotImplementedError  # TODO
             # - can assume n > 0
             # - do F moves right to left
 
         # remaining case: t1 has at least 1 vertex and t2 has at least 2.
         # recursively insert: split t2 into a 1-vertex tree and a rest.
-        raise NotImplementedError # TODO
+        raise NotImplementedError  # TODO
 
     def split(self, n: int) -> tuple[FusionTree, FusionTree]:
         """Split into two separate fusion trees.
@@ -418,7 +418,7 @@ class fusion_trees:
             are_dual = np.concatenate([[False], self.are_dual[2:]])
             # set multiplicity index to 0 for now. will adjust it later.
             left_tree = FusionTree(self.symmetry, self.uncoupled[:2], b, self.are_dual[:2],
-                                    [], [0])
+                                   [], [0])
             for rest_tree in fusion_trees(self.symmetry, uncoupled, self.coupled, are_dual):
                 tree = rest_tree.insert(left_tree)
                 for mu in range(self.symmetry._n_symbol(a1, a2, b)):

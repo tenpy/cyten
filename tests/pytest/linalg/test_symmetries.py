@@ -161,7 +161,7 @@ def sample_sector_nonets(symmetry: symmetries.Symmetry, sectors, num_samples: in
 
 
 def sample_sector_unitarity_test(symmetry: symmetries.Symmetry, sectors_low_qdim, num_samples: int,
-                                         accept_fewer: bool = True, np_rng=default_rng):
+                                 accept_fewer: bool = True, np_rng=default_rng):
     """Yield samples ``(a, b, c, d, e, g)`` that can be used for the F/C symbol unitarity tests.
 
     The constraint is that both ``a x (b x c) -> a x e -> d`` and ``a x (b x c) -> a x g -> d``
@@ -486,7 +486,8 @@ def check_R_symbols(sym: symmetries.Symmetry, sector_triplets, example_sectors_l
 
         assert R.shape == shape  # shape
         assert_array_almost_equal(np.abs(R), np.ones(shape))  # unitarity
-        assert_array_almost_equal(sym.topological_twist(a), sym.frobenius_schur(a) *  # TODO is this general ???
+        # TODO is this general ???
+        assert_array_almost_equal(sym.topological_twist(a), sym.frobenius_schur(a) *
                                   sym.r_symbol(sym.dual_sector(a), a, sym.trivial_sector)[0].conj())
 
         if np.any([np.array_equal(charge, sym.trivial_sector) for charge in [a, b]]):
@@ -557,15 +558,15 @@ def check_pentagon_equation(sym: symmetries.Symmetry, sector_nonets):
         a, b, c, d, e, f, g, j, i = charges
 
         lhs = sym.f_symbol(f, c, d, e, j, g) # [γ, σ, ν, ρ]
-        lhs = np.tensordot(lhs, sym.f_symbol(a, b, j, e, i, f), axes=[1,3]) #  [γ, ν, ρ, δ, κ, μ]
+        lhs = np.tensordot(lhs, sym.f_symbol(a, b, j, e, i, f), axes=[1,3])  # [γ, ν, ρ, δ, κ, μ]
         lhs = lhs.transpose([5, 1, 4, 2, 0, 3]) # [μ, ν, κ, ρ, γ, δ]
 
         rhs = np.zeros_like(lhs, dtype=complex)
         for h in sym.fusion_outcomes(b, c):
             if sym.can_fuse_to(h, a, g) and sym.can_fuse_to(h, d, i):
                 rhs_ = sym.f_symbol(a, b, c, g, h, f) # [σ, λ, μ, ν]
-                rhs_ = np.tensordot(rhs_, sym.f_symbol(a, h, d, e, i, g), axes=[1,2]) # [σ, μ, ν, ω, κ, ρ]
-                rhs_ = np.tensordot(rhs_, sym.f_symbol(b, c, d, i, j, h), axes=([0,3], [2,3])) # [μ, ν, κ, ρ, γ, δ]
+                rhs_ = np.tensordot(rhs_, sym.f_symbol(a, h, d, e, i, g), axes=[1,2])  # [σ, μ, ν, ω, κ, ρ]
+                rhs_ = np.tensordot(rhs_, sym.f_symbol(b, c, d, i, j, h), axes=([0,3], [2,3]))  # [μ, ν, κ, ρ, γ, δ]
                 rhs += rhs_
 
         assert_array_almost_equal(lhs, rhs)
@@ -670,12 +671,15 @@ def test_no_symmetry(np_random):
 # @pytest.mark.xfail(reason='Topological data not implemented.')
 def test_product_symmetry(np_random):
     doubleFibo = symmetries.ProductSymmetry([symmetries.FibonacciAnyonCategory('left'), symmetries.FibonacciAnyonCategory('right')])
-    common_checks(doubleFibo, example_sectors=np.array([[0,0],[0,1],[1,0],[1,1]]), example_sectors_low_qdim=np.array([[0,0],[0,1],[1,0],[1,1]]), np_random=np_random)
-    assert doubleFibo._f_symbol([0,0], [0,0], [0,0], [0,0], [0,0], [0,0]) == 1
-    assert np.isclose(doubleFibo._f_symbol([1,1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1])[0,0,0,0] , 1/ ((0.5 * (1 + np.sqrt(5))) ** 2))
+    common_checks(doubleFibo, example_sectors=np.array([[0, 0],[0, 1],[1, 0],[1, 1]]), example_sectors_low_qdim=np.array([[0, 0], [0, 1], [1, 0], [1, 1]]), np_random=np_random)
+    assert doubleFibo._f_symbol([0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]) == 1
+    assert np.isclose(
+        doubleFibo._f_symbol([1,1], [1, 1], [1, 1], [1, 1], [1, 1], [1, 1])[0, 0, 0, 0],
+        1 / ((0.5 * (1 + np.sqrt(5))) ** 2)
+    )
 
     for k in range(1,16,2):
-        doubleIsing= symmetries.ProductSymmetry([symmetries.IsingAnyonCategory(k), symmetries.IsingAnyonCategory(-k)])
+        doubleIsing = symmetries.ProductSymmetry([symmetries.IsingAnyonCategory(k), symmetries.IsingAnyonCategory(-k)])
         common_checks(doubleIsing, example_sectors=np.array([[0,0], [0,1], [1,0], [1,1], [2,1], [1,2], [2,2], [0,2], [2,0]]), example_sectors_low_qdim=np.array([[0,0], [0,1], [1,0], [1,1], [2,1], [1,2], [2,2], [0,2], [2,0]]), np_random=np_random)
         assert np.isclose(doubleIsing._r_symbol([1,1],[1,1],[0,0]),1)
         assert np.isclose(doubleIsing._r_symbol([1, 1], [2, 2], [1, 1]), 1)
@@ -926,6 +930,7 @@ def test_su2_symmetry(np_random):
         np.stack([spin_1, spin_3_half])
     )
 
+
 @pytest.mark.parametrize('N', [3])
 @pytest.mark.parametrize('CGfile', ['Test_N_3_HWeight_7.hdf5'])
 @pytest.mark.parametrize('Ffile', ['Test_Fsymb_3_HWeight_4.hdf5'])
@@ -933,6 +938,7 @@ def test_su2_symmetry(np_random):
 def test_suN_symmetry(N,CGfile, Ffile, Rfile, np_random):
     if not all([os.path.exists(f) for f in [CGfile, Ffile, Rfile]]):
         pytest.skip('Need to provide files for SU(N) data!')
+
     def gen_irrepsTEST(N, k):
         '''generates a list of all possible irreps for given N and highest weight k'''
 
@@ -951,7 +957,7 @@ def test_suN_symmetry(N,CGfile, Ffile, Rfile, np_random):
     Rfile = h5py.File(Rfile, "r")
     sym = symmetries.SUNSymmetry(N, CGfile, Ffile, Rfile)
     sym_with_name = symmetries.SUNSymmetry(N, CGfile, Ffile, Rfile, "Some SU(N)")
-    exsectors=np.array(gen_irrepsTEST(N,2))
+    exsectors = np.array(gen_irrepsTEST(N,2))
     common_checks(sym, example_sectors=exsectors,
                   example_sectors_low_qdim=np.array([[0]*N, [1]+[0]*(N-1), [2]+[0]*(N-1)]), np_random=np_random)
 
@@ -970,17 +976,14 @@ def test_suN_symmetry(N,CGfile, Ffile, Rfile, np_random):
     for invalid in [[-1], [-1, 0],[1, 2]]:
         assert not sym.is_valid_sector(np.array(invalid))
 
-
     print('checking sector dimensions')
     assert sym.sector_dim([0]*N) == 1
-
 
     print('checking equality')
     assert sym == sym
     assert sym != sym_with_name
     assert sym != symmetries.SU2Symmetry()
     assert sym != symmetries.fermion_parity
-
 
 
 def test_fermion_parity(np_random):
@@ -1335,5 +1338,5 @@ def test_SU2_kAnyonCategory(k, handedness, np_random):
     assert_array_equal(sym.dual_sectors(sectors_a), sectors_a)
 
 
-#test_suN_symmetry(3,'/space/ge36xeh/TenpyV2a/Test_N_3_HWeight_7.hdf5', '/space/ge36xeh/TenpyV2a/Test_Fsymb_3_HWeight_3.hdf5', '/space/ge36xeh/TenpyV2a/Test_Rsymb_3_HWeight_4.hdf5', default_rng)
-#test_suN_symmetry(2,'/space/ge36xeh/TenpyV2a/Test_N_2_HWeight_20.hdf5', '/space/ge36xeh/TenpyV2a/Test_Fsymb_2_HWeight_6.hdf5', '/space/ge36xeh/TenpyV2a/Test_Rsymb_2_HWeight_6.hdf5', default_rng)
+# test_suN_symmetry(3,'/space/ge36xeh/TenpyV2a/Test_N_3_HWeight_7.hdf5', '/space/ge36xeh/TenpyV2a/Test_Fsymb_3_HWeight_3.hdf5', '/space/ge36xeh/TenpyV2a/Test_Rsymb_3_HWeight_4.hdf5', default_rng)
+# test_suN_symmetry(2,'/space/ge36xeh/TenpyV2a/Test_N_2_HWeight_20.hdf5', '/space/ge36xeh/TenpyV2a/Test_Fsymb_2_HWeight_6.hdf5', '/space/ge36xeh/TenpyV2a/Test_Rsymb_2_HWeight_6.hdf5', default_rng)

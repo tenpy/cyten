@@ -1,9 +1,7 @@
 """Miscellaneous tools, somewhat random mix yet often helpful."""
 # Copyright (C) TeNPy Developers, Apache license
 
-import operator
 import numpy as np
-import os.path
 import warnings
 from typing import TypeVar, Sequence, Set
 
@@ -31,7 +29,7 @@ def duplicate_entries(seq: Sequence[_T], ignore: Sequence[_T] = []) -> Set[_T]:
 
 def to_iterable(a):
     """If `a` is a not iterable or a string, return ``[a]``, else return ``a``."""
-    if type(a) == str:
+    if type(a) is str:
         return [a]
     try:
         iter(a)
@@ -51,7 +49,7 @@ def as_immutable_array(a, dtype=None):
 def permutation_as_swaps(initial_perm: list, final_perm: list) -> list:
     """Given an initial and final permutation of the same numbers, return a list `swaps`
     of indices such that exchanging the entries of the initial permutation as
-    `initial_perm[swaps[i]], initial_perm[swaps[i]+1] = initial_perm[swaps[i]+1], 
+    `initial_perm[swaps[i]], initial_perm[swaps[i]+1] = initial_perm[swaps[i]+1],
     initial_perm[swaps[i]]` leads to the final permutation. The swaps must be applied
     starting from `swaps[0]`.
     
@@ -62,7 +60,7 @@ def permutation_as_swaps(initial_perm: list, final_perm: list) -> list:
         for i in range(len(final_perm)):
             if final_perm[i] != initial_perm[i]:
                 ind = initial_perm.index(final_perm[i])
-                initial_perm[ind-1:ind+1] = initial_perm[ind-1:ind+1][::-1]
+                initial_perm[ind - 1:ind + 1] = initial_perm[ind - 1:ind + 1][::-1]
                 swaps.append(ind - 1)
                 break
     return swaps
@@ -164,7 +162,7 @@ def inverse_permutation(perm):
     inv_perm = np.empty_like(perm)
     inv_perm[perm] = np.arange(perm.shape[0], dtype=perm.dtype)
     return inv_perm
-     # equivalently: return np.argsort(perm) # would be O(N log(N))
+    # equivalently: return np.argsort(perm) # would be O(N log(N))
 
 
 def rank_data(a, stable=True):
@@ -263,7 +261,7 @@ def list_to_dict_list(l):
     return d
 
 
-def find_row_differences(sectors, include_len: bool=False):
+def find_row_differences(sectors, include_len: bool = False):
     """Return indices where the rows of the 2D array `sectors` change.
 
     Parameters

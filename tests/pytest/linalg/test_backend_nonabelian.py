@@ -15,7 +15,6 @@ from cyten.symmetries import ProductSymmetry, fibonacci_anyon_category, SU2Symme
 from cyten.dtypes import Dtype
 
 
-
 @pytest.mark.parametrize('num_spaces', [3, 4, 5])
 def test_block_sizes(any_symmetry, make_any_space, make_any_sectors, block_backend, num_spaces):
     backend = get_backend('fusion_tree', block_backend)
@@ -100,7 +99,6 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = move_leg(tens, 0, codomain_pos=1, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # exchange legs 5 and 6 (in domain)
     expect = [zero_block([8, 3], Dtype.complex128), zero_block([13, 5], Dtype.complex128)]
 
@@ -131,7 +129,6 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 6, domain_pos=1, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # exchange legs 2 and 3 (in codomain)
     phi = (1 + 5**0.5) / 2
@@ -181,7 +178,6 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = move_leg(tens, 3, codomain_pos=2, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # exchange legs 4 and 5 (in domain)
     expect = [zero_block([8, 3], Dtype.complex128), zero_block([13, 5], Dtype.complex128)]
 
@@ -212,7 +208,6 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 4, domain_pos=1, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # braid 10 times == trivial
     assert_repeated_braids_trivial(tens, funcs, levels, repeat=10, eps=eps)
@@ -307,7 +302,6 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         new_tens = move_leg(tens, 1, codomain_pos=0, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # exchange legs 4 and 5 (in domain)
     expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
 
@@ -354,7 +348,6 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 5, domain_pos=1, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # exchange legs 3 and 4 (in domain)
     phi = (1 + 5**0.5) / 2
@@ -423,7 +416,6 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 4, domain_pos=2, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # braid 10 times == trivial
     assert_repeated_braids_trivial(tens, funcs, levels, repeat=10, eps=eps)
@@ -501,7 +493,6 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = move_leg(tens, 1, codomain_pos=0, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # exchange legs 4 and 5 (in domain)
     expect = [zero_block(shp, Dtype.complex128) for shp in shapes]
 
@@ -535,7 +526,6 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 5, domain_pos=1, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # exchange legs 1 and 2 (in codomain)
     # we usually use the convention that in the codomain, the two final indices are f, e
@@ -613,7 +603,6 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = move_leg(tens, 1, codomain_pos=2, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # exchange legs 3 and 4 (in domain)
     exc = [0, 2, 1, 3]
     exc4, exc8 = [4 + i for i in exc], [8 + i for i in exc]
@@ -665,7 +654,6 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 4, domain_pos=2, levels=levels)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # braid 4 times == trivial
     assert_repeated_braids_trivial(tens, funcs, levels, repeat=4, eps=eps)
@@ -722,7 +710,6 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = move_leg(tens, 0, domain_pos=0, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # tensor with single leg in domain; bend up
     codomain = ProductSpace([], symmetry=sym)
     domain = ProductSpace([s3])
@@ -752,7 +739,6 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 0, codomain_pos=0, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # more complicated tensor
     codomain = ProductSpace([s2, s1, s1])
@@ -812,7 +798,6 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = move_leg(tens, 3, codomain_pos=3, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # bend down
     expect = [zero_block([1, 5], Dtype.complex128), zero_block([2, 8], Dtype.complex128)]
 
@@ -858,7 +843,6 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 2, domain_pos=3, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     spaces = [ProductSpace([], symmetry=sym), ProductSpace([s2]), ProductSpace([s3]),
               ProductSpace([s1, s3]), ProductSpace([s2, s3]), ProductSpace([s3, s1, s3, s2])]
@@ -920,7 +904,6 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 0, codomain_pos=0, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # tensor with two legs in codomain, two leg in domain; bend down
     codomain = ProductSpace([s1, s3])
@@ -995,7 +978,6 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 1, domain_pos=2, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # similar tensor, replace one sector with its dual (Frobenius-Schur is now relevant); bend up
     codomain = ProductSpace([s1, s3])
@@ -1074,7 +1056,6 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         new_tens = move_leg(tens, 2, codomain_pos=2, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     spaces = [ProductSpace([], symmetry=sym), ProductSpace([s2]), ProductSpace([s3.dual]),
               ProductSpace([s1, s3]), ProductSpace([s2, s3.dual]), ProductSpace([s1, s3, s2.dual])]
     # bend up and down again (and vice versa) == trivial
@@ -1138,7 +1119,6 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = move_leg(tens, 1, domain_pos=0, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # tensor with two legs in codomain, one leg in domain; bend down
     codomain = ProductSpace([s1, s3])
     domain = ProductSpace([s2])
@@ -1178,7 +1158,6 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = move_leg(tens, 1, domain_pos=1, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-
     # same tensor, bend up
     expect_block_inds = np.array([[0, 0]])
     expect = [zero_block([20, 1], Dtype.complex128)]
@@ -1207,7 +1186,6 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 2, codomain_pos=2, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     # more complicated tensor, bend down
     codomain = ProductSpace([s1, s2, s2])
@@ -1310,7 +1288,6 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     elif move_leg_or_permute_leg == 'move_leg':
         new_tens = move_leg(tens, 2, domain_pos=2, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
-
 
     spaces = [ProductSpace([], symmetry=sym), ProductSpace([s2]), ProductSpace([s3.dual]),
               ProductSpace([s1, s3]), ProductSpace([s2, s3.dual]), ProductSpace([s1, s3, s2.dual])]
@@ -1599,15 +1576,15 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
 
     if in_domain:
         domain_index = ten.num_legs - 1 - (index + 1)  # + 1 because it braids with the leg left of it
-        new_domain = ProductSpace(ten.domain[:domain_index] + [ten.domain[domain_index + 1]]
-                                    + [ten.domain[domain_index]] + ten.domain[domain_index + 2:],
-                                    symmetry=symmetry, backend=backend, _sectors=ten.domain.sectors,
-                                    _multiplicities=ten.domain.multiplicities)
+        spaces = ten.domain[:domain_index] + [ten.domain[domain_index + 1]] + \
+            [ten.domain[domain_index]] + ten.domain[domain_index + 2:]
+        new_domain = ProductSpace(spaces, symmetry=symmetry, backend=backend, _sectors=ten.domain.sectors,
+                                  _multiplicities=ten.domain.multiplicities)
         new_codomain = ten.codomain
     else:
-        new_codomain = ProductSpace(ten.codomain[:index] + [ten.codomain[index + 1]]
-                                    + [ten.codomain[index]] + ten.codomain[index + 2:],
-                                    symmetry=symmetry, backend=backend, _sectors=ten.codomain.sectors,
+        spaces = ten.codomain[:index] + [ten.codomain[index + 1]] + [ten.codomain[index]] + ten.codomain[index + 2:]
+        new_codomain = ProductSpace(spaces,  symmetry=symmetry, backend=backend,
+                                    _sectors=ten.codomain.sectors,
                                     _multiplicities=ten.codomain.multiplicities)
         new_domain = ten.domain
 
@@ -1681,12 +1658,12 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
 
                     if symmetry.braiding_style.value >= 20 and levels[index] > levels[index + 1]:
                         cs = symmetry.c_symbol(left_charge, beta_unc[domain_index], beta_unc[domain_index+1],
-                                                right_charge, beta_in[domain_index-1], f)[
+                                               right_charge, beta_in[domain_index-1], f)[
                                                 beta_mul[domain_index-1], beta_mul[domain_index], :, :]
                     else:
                         cs = symmetry.c_symbol(left_charge, beta_unc[domain_index+1], beta_unc[domain_index],
-                                                right_charge, f, beta_in[domain_index-1])[:, :,
-                                                beta_mul[domain_index-1], beta_mul[domain_index]].conj()
+                                               right_charge, f, beta_in[domain_index-1])[:, :,
+                                               beta_mul[domain_index-1], beta_mul[domain_index]].conj()
 
                     b = beta_tree.copy(True)
                     b_unc, b_in, b_mul = b.uncoupled, b.inner_sectors, b.multiplicities
@@ -1715,12 +1692,12 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
 
                     if symmetry.braiding_style.value >= 20 and levels[index] > levels[index + 1]:
                         cs = symmetry.c_symbol(left_charge, alpha_unc[index+1], alpha_unc[index],
-                                                right_charge, f, alpha_in[index-1])[:, :,
-                                                alpha_mul[index-1], alpha_mul[index]]
+                                               right_charge, f, alpha_in[index-1])[:, :,
+                                               alpha_mul[index-1], alpha_mul[index]]
                     else:
                         cs = symmetry.c_symbol(left_charge, alpha_unc[index], alpha_unc[index+1],
-                                                right_charge, alpha_in[index-1], f)[
-                                                alpha_mul[index-1], alpha_mul[index], :, :].conj()
+                                               right_charge, alpha_in[index-1], f)[
+                                               alpha_mul[index-1], alpha_mul[index], :, :].conj()
 
                     a = alpha_tree.copy(True)
                     a_unc, a_in, a_mul = a.uncoupled, a.inner_sectors, a.multiplicities
@@ -1763,16 +1740,16 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
     if in_domain:
         index = ten.num_legs - 1 - (index + 1)  # + 1 because it braids with the leg left of it
         levels = levels[::-1]
-        new_domain = ProductSpace(ten.domain[:index] + ten.domain[index:index+2][::-1]
-                                  + ten.domain[index+2:], symmetry=symmetry, backend=backend,
+        spaces = ten.domain[:index] + ten.domain[index:index+2][::-1] + ten.domain[index+2:]
+        new_domain = ProductSpace(spaces, symmetry=symmetry, backend=backend,
                                   _sectors=ten.domain.sectors, _multiplicities=ten.domain.multiplicities)
         new_codomain = ten.codomain
         # for permuting the shape of the tree blocks
         shape_perm = np.append([0], np.arange(1, ten.num_domain_legs+1))
         shape_perm[index+1:index+3] = shape_perm[index+1:index+3][::-1]
     else:
-        new_codomain = ProductSpace(ten.codomain[:index] + ten.codomain[index:index+2][::-1]
-                                    + ten.codomain[index+2:], symmetry=symmetry, backend=backend,
+        spaces = ten.codomain[:index] + ten.codomain[index:index+2][::-1] + ten.codomain[index+2:]
+        new_codomain = ProductSpace(spaces, symmetry=symmetry, backend=backend,
                                     _sectors=ten.codomain.sectors,
                                     _multiplicities=ten.codomain.multiplicities)
         new_domain = ten.domain
@@ -1908,8 +1885,8 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
                 coupled = (beta_tree.inner_sectors[-1] if beta_tree.inner_sectors.shape[0] > 0
                            else beta_tree.uncoupled[0])
             modified_shape = (prod(modified_shape[:ten.num_codomain_legs]),
-                                prod(modified_shape[ten.num_codomain_legs:ten.num_legs-1]),
-                                modified_shape[ten.num_legs-1])
+                              prod(modified_shape[ten.num_codomain_legs:ten.num_legs-1]),
+                              modified_shape[ten.num_legs-1])
             sec_mul = ten.domain[-1].sector_multiplicity(beta_tree.uncoupled[-1])
             final_shape = (block_backend.block_shape(tree_block)[0] * sec_mul,
                            block_backend.block_shape(tree_block)[1] // sec_mul)
@@ -1920,8 +1897,8 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
                 coupled = (alpha_tree.inner_sectors[-1] if alpha_tree.inner_sectors.shape[0] > 0
                            else alpha_tree.uncoupled[0])
             modified_shape = (prod(modified_shape[:ten.num_codomain_legs-1]),
-                                modified_shape[ten.num_codomain_legs-1],
-                                prod(modified_shape[ten.num_codomain_legs:ten.num_legs]))
+                              modified_shape[ten.num_codomain_legs-1],
+                              prod(modified_shape[ten.num_codomain_legs:ten.num_legs]))
             sec_mul = ten.codomain[-1].sector_multiplicity(alpha_tree.uncoupled[-1])
             final_shape = (block_backend.block_shape(tree_block)[0] // sec_mul,
                            block_backend.block_shape(tree_block)[1] * sec_mul)

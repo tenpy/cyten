@@ -3,7 +3,6 @@
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import logging
-logger = logging.getLogger(__name__)
 
 from .tensors import Tensor
 from .sparse import LinearOperator, ShiftedLinearOperator, ProjectedLinearOperator
@@ -12,6 +11,9 @@ from .tools.misc import argsort  # TODO replace this?
 
 __all__ = ['KrylovBased', 'Arnoldi', 'LanczosGroundState', 'LanczosEvolution', 'lanczos',
            'lanczos_arpack']
+
+
+logger = logging.getLogger(__name__)
 
 
 class KrylovBased(metaclass=ABCMeta):
@@ -117,16 +119,16 @@ class KrylovBased(metaclass=ABCMeta):
         self.psi0 = psi0
         self._psi0_norm = None
         #  self.options = options = asConfig(options, self.__class__.__name__)
-        self.N_min = options.get('N_min', 2) #  int)
-        self.N_max = options.get('N_max', 20) # , int)
+        self.N_min = options.get('N_min', 2)
+        self.N_max = options.get('N_max', 20)
         self.N_cache = self.N_max
-        self.P_tol = options.get('P_tol', 1.e-14) # , 'real')
-        self.min_gap = options.get('min_gap', 1.e-12) #, 'real')
-        self.reortho = options.get('reortho', False) #, bool)
-        self.E_shift = options.get('E_shift', None) #, 'real')
+        self.P_tol = options.get('P_tol', 1.e-14)
+        self.min_gap = options.get('min_gap', 1.e-12)
+        self.reortho = options.get('reortho', False)
+        self.E_shift = options.get('E_shift', None)
         if self.N_min < 2:
             raise ValueError("Should perform at least 2 steps.")
-        self._cutoff = options.get('cutoff', psi0.dtype.eps * 100) #, 'real')
+        self._cutoff = options.get('cutoff', psi0.dtype.eps * 100)
         if self.E_shift is not None:
             if isinstance(self.H, ProjectedLinearOperator):
                 self.H.original_operator = ShiftedLinearOperator(
@@ -264,7 +266,7 @@ class Arnoldi(KrylovBased):
             self._result_krylov = np.ones([1, 1], self._dtype_h_krylov)
         else:
             # Diagonalize h
-            E_kr, v_kr = np.linalg.eig(h[:k + 1, :k + 1]) # not hermitian!
+            E_kr, v_kr = np.linalg.eig(h[:k + 1, :k + 1])  # not hermitian!
             sort = argsort(E_kr, self.which)
             self.Es[k, :k + 1] = E_kr[sort]
             self._result_krylov = v_kr[:, sort]  # ground state of _h_krylov
@@ -428,7 +430,7 @@ class LanczosGroundState(KrylovBased):
             elif k > 0:
                 w -= beta * self._cache[-2]  # noqa: F821
             beta = h[k, k + 1]  # = norm(w)
-            w = w._mul_scalar(1. /  beta)
+            w = w._mul_scalar(1. / beta)
             psif += vf[k + 1] * w
         # continue in _calc_result_full
 

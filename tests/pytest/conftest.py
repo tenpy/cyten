@@ -142,6 +142,7 @@ import pytest
 
 from cyten import backends, spaces, symmetries, tensors, Dtype
 
+
 # OVERRIDE pytest routines
 def pytest_collection_modifyitems(config, items):
 
@@ -246,6 +247,7 @@ for _sym_name, _sym in _symmetries.items():
     _compatible_pairs[f'FusionTreeBackend-{_sym_name}'] = pytest.param(
         ('fusion_tree', _sym), marks=pytest.mark.FusionTree
     )
+
 
 @pytest.fixture(params=list(_compatible_pairs.values()), ids=list(_compatible_pairs.keys()))
 def _compatible_backend_symm_pairs(request) -> tuple[str, symmetries.Symmetry]:
@@ -554,7 +556,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
         #
         # 3) Finish up
         # ======================================================================================
-        if not cls is tensors.SymmetricTensor:
+        if cls is not tensors.SymmetricTensor:
             raise ValueError(f'Unknown tensor cls: {cls}')
 
         real = False if dtype is None else dtype.is_real

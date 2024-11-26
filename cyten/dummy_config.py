@@ -4,6 +4,7 @@ __all__ = ['config', 'printoptions']
 
 # TODO this whole module is a dummy
 
+
 class printoptions:
     linewidth: int = 75
     indent: int = 2
