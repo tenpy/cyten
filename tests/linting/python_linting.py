@@ -4,7 +4,7 @@ These are checks for coding guidelines, best practices etc.
 The code may still run fine even if these checks fail.
 We therefore consider them part of a linting routine and do *not* call them from pytest.
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 import cyten
 import types
@@ -73,7 +73,7 @@ def get_python_files(top):
 
 
 def check_copyright_notice():
-    expected_notice = '# Copyright (C) TeNPy Developers, GNU GPLv3'
+    expected_notice = '# Copyright (C) TeNPy Developers, Apache license'
     cyten_files = get_python_files(os.path.dirname(cyten.__file__))
     for fn in cyten_files:
         with open(fn, 'r') as f:

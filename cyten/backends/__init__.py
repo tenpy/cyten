@@ -1,5 +1,5 @@
 """TODO write docs"""
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 # hide the folder-structure and expose everyhting as if everything was implemented
 # directly in cyten.backends

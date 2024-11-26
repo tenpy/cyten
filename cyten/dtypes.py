@@ -1,5 +1,5 @@
 """Utility function concerning dtypes and in particular the Dtype class."""
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
 from enum import Enum

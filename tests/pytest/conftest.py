@@ -135,7 +135,7 @@ where the symmetry is determined by the fixtures (e.g. because ``make_compatible
 and the tensor cls comes from a parametrize with argname ``cls``.
 
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 import numpy as np
 import pytest

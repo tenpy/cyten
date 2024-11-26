@@ -1,4 +1,4 @@
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 __all__ = ['config', 'printoptions']
 

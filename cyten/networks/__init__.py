@@ -10,7 +10,7 @@ For example an MPS represents the contraction along the 'virtual' legs/bonds of 
 
     site
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 
 # TODO uncomment everything

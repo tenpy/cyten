@@ -3,7 +3,7 @@ r"""cyten library - tensor library for high-level tensor network algorithms.
 Provides a tensor class with block-sparsity from symmetries with an exchangeable GPU or CPU backend.
 
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 from . import (dtypes, spaces, backends, symmetries, tensors, random_matrix, sparse, krylov_based,
                trees, dummy_config, tools)

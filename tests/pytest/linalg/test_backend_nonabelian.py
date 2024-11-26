@@ -1,5 +1,5 @@
 """A collection of tests for cyten.backends.fusion_tree_backend"""
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from typing import Callable
 import pytest

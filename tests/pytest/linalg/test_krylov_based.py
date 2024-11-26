@@ -1,5 +1,5 @@
 """A collection of tests for cyten.krylov_based."""
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 import pytest
 from numpy import testing as npt
 import numpy as np

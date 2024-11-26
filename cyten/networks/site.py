@@ -15,7 +15,7 @@ Main changes  (TODO -> changelog)
 - sites have a backend. all operators on the site need to have that backend.
 
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 
 from __future__ import annotations
