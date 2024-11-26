@@ -1,0 +1,17 @@
+[flake8]
+exclude = 
+    .git,
+    __pycache__,
+    build,
+    dist,
+    doc,
+    playground,
+max-complexity = 10
+ignore = F541,E741,C901,E114,W293,E713,W504,E226,E201,E202
+show-source = False
+statistics = True
+count = True
+per-file-ignores =
+    __init__.py:F401,F403,
+    tests/*:F403,W503,F841,E501,E261,E241,E231,E124,E201,E126,E127,E128
+max-line-length = 120
