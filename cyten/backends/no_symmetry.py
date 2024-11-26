@@ -446,7 +446,8 @@ class NoSymmetryBackend(TensorBackend):
         )
         return mask_data, new_leg, err, new_norm
 
-    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str):
+    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str,
+                  all_blocks: bool = False) -> Data:
         return self.block_backend.zero_block(
             shape=[l.dim for l in conventional_leg_order(codomain, domain)],
             dtype=dtype, device=device

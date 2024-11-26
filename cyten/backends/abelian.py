@@ -1853,10 +1853,19 @@ class AbelianBackend(TensorBackend):
         mask_data, small_leg = self.mask_from_block(keep, large_leg=S.leg)
         return mask_data, small_leg, err, new_norm
 
-    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str
-                  ) -> AbelianBackendData:
-        block_inds = np.zeros((0, codomain.num_spaces + domain.num_spaces), dtype=int)
-        return AbelianBackendData(dtype, device, blocks=[], block_inds=block_inds, is_sorted=True)
+    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str,
+                  all_blocks: bool = False) -> AbelianBackendData:
+        if not all_blocks:
+            block_inds = np.zeros((0, codomain.num_spaces + domain.num_spaces), dtype=int)
+            return AbelianBackendData(dtype, device, blocks=[], block_inds=block_inds, is_sorted=True)
+
+        block_inds = _valid_block_inds(codomain=codomain, domain=domain)
+        zero_blocks = []
+        for idcs in block_inds:
+            shape = [leg.multiplicities[i]
+                     for i, leg in zip(idcs, conventional_leg_order(codomain, domain))]
+            zero_blocks.append(self.block_backend.zero_block(shape, dtype=dtype))
+        return AbelianBackendData(dtype, device, zero_blocks, block_inds, is_sorted=True)
 
     def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype, device: str
                            ) -> DiagonalData:

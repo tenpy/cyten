@@ -765,8 +765,8 @@ class TensorBackend(metaclass=ABCMeta):
         return mask, err, new_norm
 
     @abstractmethod
-    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str
-                  ) -> Data:
+    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str,
+                  all_blocks: bool = False) -> Data:
         """Data for a zero tensor"""
         ...
 
