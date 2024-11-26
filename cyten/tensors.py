@@ -62,7 +62,7 @@ TODO elaborate on the details of decompositions (svd, eig, qr, ...) that they ha
 I.e. viewing tensors as linear maps, combining legs or not, mention :func:`combine_to_matrix`.
 
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod

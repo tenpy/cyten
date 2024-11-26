@@ -7,7 +7,7 @@ implementations of these algorithms (e.g., :mod:`~cyten.krylov_based`). Moreover
 :class:`FlatLinearOperator` allows to use all the scipy sparse methods by providing functionality
 to convert flat numpy arrays to and from cyten tensors.
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod

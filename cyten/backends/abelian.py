@@ -18,7 +18,7 @@ Changes compared to old np_conserved:
 - keep `block_inds` sorted (i.e. no arbitrary gauge permutation in block indices)
 
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable

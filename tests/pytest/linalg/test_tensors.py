@@ -1,5 +1,5 @@
 """A collection of tests for cyten.tensors."""
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 import numpy as np
 import numpy.testing as npt
