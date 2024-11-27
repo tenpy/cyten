@@ -1,4 +1,4 @@
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 import pytest
 import numpy as np
 from numpy import testing as npt
@@ -59,8 +59,8 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
         symmetry=any_symmetry, sectors=sectors, multiplicities=[max(1, m - 1) for m in mults]
     )
     same_sectors_different_mults = spaces.ElementarySpace(
-       symmetry=any_symmetry, sectors=sectors,
-       multiplicities=[max(1, m + (+1 if i % 2 == 0 else -1)) for i, m in enumerate(mults)]
+        symmetry=any_symmetry, sectors=sectors,
+        multiplicities=[max(1, m + (+1 if i % 2 == 0 else -1)) for i, m in enumerate(mults)]
     )  # but at least one mult is larger than for s1
     if len(sectors) > 2:
         which1 = [0, -1]
@@ -338,7 +338,7 @@ def test_ProductSpace_SU2():
     # 1     0   39*3            117
     # 1   3/2   39*1         39        39        39
     # 1   1/2   39*2         78        78
-    # 3/2   0   38*3                  114 
+    # 3/2   0   38*3                  114
     # 3/2 3/2   38*1   38        38        38        38
     # 3/2 1/2   38*2             76        76
     # 2     0   51*3                      153

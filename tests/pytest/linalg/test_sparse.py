@@ -1,5 +1,5 @@
 """A collection of tests for cyten.sparse"""
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 import numpy as np
 import numpy.testing as npt
 import pytest
@@ -10,7 +10,6 @@ from cyten.backends.backend_factory import get_backend
 from cyten.tensors import Tensor, SymmetricTensor, Dtype, almost_equal
 
 pytest.skip("sparse not yet revised", allow_module_level=True)  # TODO
-
 
 
 # define a few simple operators to test the wrappers:

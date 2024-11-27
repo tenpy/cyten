@@ -10,7 +10,7 @@ The version is provided in the standard python format ``major.minor.revision`` a
 .. autodata :: full_version
 .. autodata :: version_summary
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 
 import sys
@@ -68,7 +68,7 @@ def _get_git_description():
         descr = subprocess.check_output(['git', 'describe', '--tags', '--long'],
                                         cwd=os.path.dirname(os.path.abspath(__file__)),
                                         stderr=subprocess.STDOUT).decode().strip()
-    except:
+    except Exception:
         return 0
     return int(descr.split('-')[1])
 

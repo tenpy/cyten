@@ -1,5 +1,5 @@
 """Compute symmetry data for SU(2)"""
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
 import numpy as np
@@ -8,8 +8,8 @@ from functools import lru_cache
 try:
     from sympy import S as sympy_S
     from sympy.physics.wigner import clebsch_gordan as sympy_cg, racah as sympy_racah
-except:
-    S = clebsch_gordan = racah = None
+except Exception:
+    sympy_S = sympy_cg = sympy_racah = None
 
 
 # TODO / OPTIMIZE : think about caching, pre-computing, ...
