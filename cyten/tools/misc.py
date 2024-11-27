@@ -55,6 +55,14 @@ def permutation_as_swaps(initial_perm: list, final_perm: list) -> list:
     
     Consistency of the input is not checked.
     """
+    assert len(initial_perm) == len(final_perm), 'mismatched lengths'
+    unique_entries_initial = set(initial_perm)
+    unique_entries_final = set(final_perm)
+    assert unique_entries_initial == unique_entries_final, 'mismatched entries'
+    assert len(initial_perm) == len(unique_entries_initial), 'duplicated entries'
+
+    # TODO avoid infinite loop
+    # OPTIMIZE is this efficient??
     swaps = []
     while final_perm != initial_perm:
         for i in range(len(final_perm)):
