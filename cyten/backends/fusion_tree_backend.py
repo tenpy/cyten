@@ -240,29 +240,6 @@ class FusionTreeData:
         self.blocks = [self.blocks[i] for i in keep]
         self.block_inds = self.block_inds[keep]
 
-    @classmethod
-    def _zero_data(cls, codomain: ProductSpace, domain: ProductSpace, backend: BlockBackend,
-                   dtype: Dtype, device: str) -> FusionTreeData:
-        """Return `FusionTreeData` consistent with `codomain` and `domain`, where all blocks
-        (corresponding to all allowed coupled sectors) are zero. These zero blocks are stored
-        such that new values can be assigned step by step. Note however that zero blocks are
-        generally not stored in tensors.
-        """
-        # TODO leave this here? would be more consistet in FusionTreeBackend
-        block_shapes = []
-        block_inds = []
-        for j, coupled in enumerate(domain.sectors):
-            i = codomain.sectors_where(coupled)
-            if i == None:
-                continue
-            shp = (block_size(codomain, coupled), block_size(domain, coupled))
-            block_shapes.append(shp)
-            block_inds.append([i, j])
-        block_inds = np.array(block_inds)
-
-        zero_blocks = [backend.zero_block(block_shape, dtype=dtype) for block_shape in block_shapes]
-        return cls(block_inds, zero_blocks, dtype=dtype, device=device, is_sorted=True)
-
 
 class FusionTreeBackend(TensorBackend):
     """`ProductSpace`s on the individual legs of the tensors are not supported, only
@@ -1278,11 +1255,30 @@ class FusionTreeBackend(TensorBackend):
                                     is_dual=S.leg.is_bra_space)
         return mask_data, small_leg, err, new_norm
         
+    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str,
+                  all_blocks: bool = False) -> FusionTreeData:
+        if not all_blocks:
+            return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype,
+                                  device=device)
+            
+        block_shapes = []
+        block_inds = []
+        for j, coupled in enumerate(domain.sectors):
+            i = codomain.sectors_where(coupled)
+            if i == None:
+                continue
+            shp = (block_size(codomain, coupled), block_size(domain, coupled))
+            block_shapes.append(shp)
+            block_inds.append([i, j])
 
-    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str
-                  ) -> FusionTreeData:
-        return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype,
-                              device=device)
+        if len(block_inds) == 0:
+            return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype,
+                                  device=device)
+        
+        block_inds = np.array(block_inds)
+        zero_blocks = [self.block_backend.zero_block(block_shape, dtype=dtype)
+                       for block_shape in block_shapes]
+        return FusionTreeData(block_inds, zero_blocks, dtype=dtype, device=device, is_sorted=True)
 
     def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype, device: str
                            ) -> DiagonalData:
@@ -1784,8 +1780,8 @@ class TreeMappingDict(dict):
                                  new_domain: ProductSpace, block_axes_permutation: list[int],
                                  ) -> FusionTreeData:
         backend = ten.backend.block_backend
-        new_data = FusionTreeData._zero_data(new_codomain, new_domain, backend, Dtype.complex128,
-                                             device=ten.data.device)
+        new_data = ten.backend.zero_data(new_codomain, new_domain, Dtype.complex128,
+                                         device=ten.data.device, all_blocks=True)
         
         for alpha_tree, beta_tree, tree_block in _tree_block_iter(ten):
             contributions = self[(alpha_tree, beta_tree)]

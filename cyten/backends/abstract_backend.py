@@ -765,9 +765,12 @@ class TensorBackend(metaclass=ABCMeta):
         return mask, err, new_norm
 
     @abstractmethod
-    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str
-                  ) -> Data:
-        """Data for a zero tensor"""
+    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str,
+                  all_blocks: bool = False) -> Data:
+        """Data for a zero tensor. Explicitly constructs the zero blocks corresponding to all
+        consistent sectors of the correct shape if `all_blocks == True`. Otherwise, the blocks
+        in the returned `Data` is an empty list.
+        """
         ...
 
     @abstractmethod

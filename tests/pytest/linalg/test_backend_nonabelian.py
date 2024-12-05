@@ -1892,8 +1892,8 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
     new_codomain = [new_space1, new_space2][bend_up]
     new_domain = [new_space1, new_space2][not bend_up]
 
-    new_data = ftb.FusionTreeData._zero_data(new_codomain, new_domain, block_backend,
-                                             dtype=Dtype.complex128, device=device)
+    new_data = ten.backend.zero_data(new_codomain, new_domain, dtype=Dtype.complex128,
+                                     device=device, all_blocks=True)
 
     for alpha_tree, beta_tree, tree_block in ftb._tree_block_iter(ten):
         modified_shape = [ten.codomain[i].sector_multiplicity(sec)
