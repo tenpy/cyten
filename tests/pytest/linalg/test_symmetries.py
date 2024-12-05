@@ -435,13 +435,14 @@ def check_symbols_via_fusion_tensors(sym: symmetries.Symmetry, example_sectors, 
     Subroutine of `common_checks`.
     The ``example_sectors`` should be duplicate free.
 
-    We check:
+    We check::
+        - nothing yet
 
-    TODO:
-    - F symbol
-    - R symbol
-    - C symbol
-    - B symbol
+    TODO to check::
+        - F symbol
+        - R symbol
+        - C symbol
+        - B symbol
     """
     pass
 
@@ -940,8 +941,7 @@ def test_suN_symmetry(N,CGfile, Ffile, Rfile, np_random):
         pytest.skip('Need to provide files for SU(N) data!')
 
     def gen_irrepsTEST(N, k):
-        '''generates a list of all possible irreps for given N and highest weight k'''
-
+        """generates a list of all possible irreps for given N and highest weight k"""
         if N <= 0:
             return [[]]
         r = []

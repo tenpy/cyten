@@ -47,7 +47,9 @@ def as_immutable_array(a, dtype=None):
 
 
 def permutation_as_swaps(initial_perm: list, final_perm: list) -> list:
-    """Given an initial and final permutation of the same numbers, return a list `swaps`
+    """Decompose a permutation as a sequence of pairwise swaps.
+
+    Given an initial and final permutation of the same numbers, return a list `swaps`
     of indices such that exchanging the entries of the initial permutation as
     `initial_perm[swaps[i]], initial_perm[swaps[i]+1] = initial_perm[swaps[i]+1],
     initial_perm[swaps[i]]` leads to the final permutation. The swaps must be applied
@@ -76,7 +78,7 @@ def permutation_as_swaps(initial_perm: list, final_perm: list) -> list:
 
 # TODO remove in favor of backend.block_argsort?
 def argsort(a, sort=None, **kwargs):
-    """wrapper around np.argsort to allow sorting ascending/descending and by magnitude.
+    """Wrapper around np.argsort to allow sorting ascending/descending and by magnitude.
 
     Parameters
     ----------
@@ -144,7 +146,7 @@ def combine_constraints(good1, good2, warn):
 
 
 def inverse_permutation(perm):
-    """reverse sorting indices.
+    """Reverse sorting indices.
 
     Sort functions (as :meth:`LegCharge.sort`) return a (1D) permutation `perm` array,
     such that ``sorted_array = old_array[perm]``.

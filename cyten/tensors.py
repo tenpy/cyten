@@ -157,6 +157,7 @@ class Tensor(metaclass=ABCMeta):
     dtype : Dtype
         The dtype of tensor entries.
     """
+    
     _forbidden_dtypes = [Dtype.bool]
 
     def __init__(self,
@@ -780,6 +781,7 @@ class SymmetricTensor(Tensor):
         Backend-specific data structure that contains the numerical data, i.e. the free parameters
         of tensors with the given symmetry.
     """
+    
     def __init__(self,
                  data,
                  codomain: ProductSpace | list[Space],
@@ -1270,6 +1272,7 @@ class DiagonalTensor(SymmetricTensor):
     ---------------------
     TODO elaborate
     """
+    
     _forbidden_dtypes = []
 
     def __init__(self, data, leg: Space, backend: TensorBackend | None = None,
@@ -1852,6 +1855,7 @@ class Mask(Tensor):
 
     Such that the result is ordered.
     """
+    
     _forbidden_dtypes = [Dtype.float32, Dtype.float64, Dtype.complex64, Dtype.complex128]
 
     def __init__(self, data, space_in: ElementarySpace, space_out: ElementarySpace,
@@ -2049,7 +2053,6 @@ class Mask(Tensor):
             If `small_leg` is not given, the minimum number of sectors kept.
             Is ignored of `small_leg` is given.
         """
-
         if backend is None:
             backend = get_backend(symmetry=large_leg.symmetry)
 
@@ -2208,10 +2211,7 @@ class Mask(Tensor):
 
     def _binary_operand(self, other: bool | Mask, func, operand: str,
                         return_NotImplemented: bool = True) -> Mask:
-        """Utility function for a shared implementation of binary functions, whose second argument
-        may be a scalar ("to be broadcast") or a Mask.
-
-    
+        """Utility function for a shared implementation of binary functions.
         
         Parameters
         ----------
@@ -2464,8 +2464,7 @@ class ChargedTensor(Tensor):
     @staticmethod
     def _parse_inv_labels(labels: Sequence[list[str | None] | None] | list[str | None] | None,
                           codomain: ProductSpace, domain: ProductSpace):
-        """Utility like :meth:`_init_parse_labels`, but also returns the labels for the invariant
-        part."""
+        """Utility like :meth:`_init_parse_labels`, but also returns invariant part labels."""
         labels = ChargedTensor._init_parse_labels(labels, codomain, domain)
         inv_labels = labels + [ChargedTensor._CHARGE_LEG_LABEL]
         return labels, inv_labels
@@ -2603,11 +2602,7 @@ class ChargedTensor(Tensor):
     @classmethod
     def from_two_charge_legs(cls, invariant_part: SymmetricTensor, state1: Block | None,
                              state2: Block | None) -> ChargedTensor | complex:
-        """Create a charged tensor from an invariant part with two charged legs.
-
-        Parameters
-        -
-        """
+        """Create a charged tensor from an invariant part with two charged legs."""
         inv_part = combine_legs(invariant_part, [-2, -1])
         inv_part.set_label(-1, cls._CHARGE_LEG_LABEL)
         if state1 is None and state2 is None:
@@ -2734,7 +2729,9 @@ class ChargedTensor(Tensor):
         return block
 
     def to_dense_block_single_sector(self) -> Block:
-        """Assumes a single-leg tensor living in a single sector and returns its components within
+        """Return the components associated with a single sector.
+
+        Assumes a single-leg tensor living in a single sector and returns its components within
         that sector.
 
         See Also
@@ -2841,7 +2838,6 @@ def add_trivial_leg(tens: Tensor,
         but if `domain_pos` is given, we have ``result.domain[domain_pos].is_dual == is_dual``,
         which are mutually opposite.
     """
-
     res_num_legs = tens.num_legs + 1
     # parse position to format:
     #  - leg_pos: int,  0 <= leg_pos < res_num_legs
@@ -5349,7 +5345,7 @@ T = TypeVar('T')
 
 
 def _combine_leg_labels(labels: list[str | None]) -> str:
-    """the label that a combined leg should have"""
+    """The label that a combined leg should have"""
     return '(' + '.'.join(f'?{n}' if l is None else l for n, l in enumerate(labels)) + ')'
 
 
@@ -5399,7 +5395,7 @@ def _dual_label_list(labels: list[str | None]) -> list[str | None]:
 
 
 def _dual_leg_label(label: str | None) -> str | None:
-    """the label that a leg should have after conjugation"""
+    """The label that a leg should have after conjugation"""
     if label is None:
         return None
     if label.startswith('(') and label.endswith(')'):
@@ -5452,8 +5448,9 @@ def _normalize_idx(idx: int, length: int) -> int:
 
 def _parse_idcs(idcs: T | Sequence[T], length: int, fill: T = slice(None, None, None)
                 ) -> list[T]:
-    """Parse a single index or sequence of indices to a list of given length by replacing Ellipsis
-    (``...``) and missing entries at the back with `fill`.
+    """Parse a single index or sequence of indices to a list of given length.
+
+    Ellipsis (``...``) and missing entries at the back are filled in using `fill`.
 
     For invalid input, an IndexError is raised instead of ValueError, since this is a helper
     function for __getitem__ and __setitem__.
@@ -5478,7 +5475,7 @@ def _parse_idcs(idcs: T | Sequence[T], length: int, fill: T = slice(None, None, 
 
 
 def _split_leg_label(label: str | None, num: int = None) -> list[str | None]:
-    """undo _combine_leg_labels, i.e. recover the original labels"""
+    """Undo _combine_leg_labels, i.e. recover the original labels"""
     if label is None:
         assert num is not None
         return [None] * num

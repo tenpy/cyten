@@ -11,6 +11,8 @@ __all__ = ['Dtype']
 
 
 class Dtype(Enum):
+    """The dtype of (entries in) a tensor."""
+    
     # TODO expose those in some high-level init, maybe even as cyten.float32 ?
     # value = num_bytes * 2 + int(not is_real)
     bool = 2

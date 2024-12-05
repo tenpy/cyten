@@ -378,6 +378,7 @@ class fusion_trees:
 
     TODO elaborate on canonical order of trees -> reference in module level docstring.
     """
+    
     def __init__(self, symmetry: Symmetry, uncoupled: SectorArray | list[Sector], coupled: Sector,
                  are_dual=None):
         # DOC: coupled = None means trivial sector

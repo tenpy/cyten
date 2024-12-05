@@ -1,3 +1,4 @@
+"""Implements a BlockBackend using PyTorch."""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from numpy import prod
@@ -14,6 +15,7 @@ __all__ = ['TorchBlockBackend', 'NoSymmetryTorchBackend', 'AbelianTorchBackend',
 
 
 class TorchBlockBackend(BlockBackend):
+    """A block-backend using PyTorch"""
 
     svd_algorithms = ['gesvdj', 'gesvda', 'gesvd']
 
@@ -339,18 +341,24 @@ class TorchBlockBackend(BlockBackend):
 
 
 class NoSymmetryTorchBackend(NoSymmetryBackend):
+    """TODO"""
+    
     def __init__(self, default_device: str = 'cpu'):
         block_backend = TorchBlockBackend(default_device=default_device)
         NoSymmetryBackend.__init__(self, block_backend=block_backend)
 
 
 class AbelianTorchBackend(AbelianBackend):
+    """TODO"""
+    
     def __init__(self, default_device: str = 'cpu'):
         block_backend = TorchBlockBackend(default_device=default_device)
         AbelianBackend.__init__(self, block_backend=block_backend)
 
 
 class FusionTreeTorchBackend(FusionTreeBackend):
+    """TODO"""
+    
     def __init__(self, default_device: str = 'cpu'):
         block_backend = TorchBlockBackend(default_device=default_device)
         FusionTreeBackend.__init__(self, block_backend=block_backend)

@@ -1,6 +1,6 @@
-"""TODO
-Also contains some private utility function used by multiple backend modules.
+"""TODO summary
 
+Also contains some private utility function used by multiple backend modules.
 """
 
 # Copyright (C) TeNPy Developers, Apache license
@@ -47,6 +47,7 @@ class TensorBackend(metaclass=ABCMeta):
     to operate on blocks. This allows the tensor backend to be agnostic of the details of these
     blocks.
     """
+    
     DataCls = None  # to be set by subclasses
     
     can_decompose_tensors = False
@@ -63,8 +64,10 @@ class TensorBackend(metaclass=ABCMeta):
         return f'{type(self).__name__}({self.block_backend!r})'
 
     def item(self, a: SymmetricTensor | DiagonalTensor) -> float | complex:
-        """Assumes that tensor is a scalar (i.e. has only one entry).
-        Returns that scalar as python float or complex"""
+        """Convert tensor to a python scalar.
+
+        Assumes that tensor is a scalar (i.e. has only one entry).
+        """
         return self.data_item(a.data)
     
     def test_data_sanity(self, a: SymmetricTensor | DiagonalTensor, is_diagonal: bool):
@@ -155,13 +158,10 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
-        """Assumes ``a.domain == b.codomain`` and performs map composition,
-        i.e. tensor contraction over those shared legs.
-
+        """Assumes ``a.domain == b.codomain`` and performs contraction over those legs.
+        
         Assumes there is at least one open leg, i.e. the codomain of `a` and the domain of `b` are
-        not both empty.
-
-        Assumes both input tensors are on the same device.
+        not both empty. Assumes both input tensors are on the same device.
         """
         ...
 
@@ -236,7 +236,7 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def diagonal_from_block(self, a: Block, co_domain: ProductSpace, tol: float) -> DiagonalData:
-        """DiagonalData from a 1D block in *internal* basis order."""
+        """The DiagonalData from a 1D block in *internal* basis order."""
         ...
 
     @abstractmethod
@@ -452,7 +452,9 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, ProductSpace, ProductSpace]:
-        """Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
+        """Contraction with the large leg of a Mask.
+
+        Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
         the large leg of the mask is contracted.
         Note that the mask may be a projection to be applied to the codomain or an inclusion
         to be contracted on the domain.
@@ -462,7 +464,9 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, ProductSpace, ProductSpace]:
-        """Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
+        """Contraction with the small leg of a Mask.
+        
+        Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
         the small leg of the mask is contracted.
         Note that the mask may be an inclusion to be applied to the codomain or a projection
         to be contracted on the domain.
@@ -540,6 +544,7 @@ class TensorBackend(metaclass=ABCMeta):
     def partial_trace(self, tensor: SymmetricTensor, pairs: list[tuple[int, int]],
                       levels: list[int] | None) -> tuple[Data, ProductSpace, ProductSpace]:
         """Perform an arbitrary number of traces. Pairs are converted to leg idcs.
+        
         Returns ``data, codomain, domain``.
         """
         ...
@@ -648,7 +653,7 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def to_dtype(self, a: SymmetricTensor, dtype: Dtype) -> Data:
-        """cast to given dtype. No copy if already has dtype."""
+        """Cast to given dtype. No copy if already has dtype."""
         ...
 
     @abstractmethod
@@ -658,6 +663,7 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def transpose(self, a: SymmetricTensor) -> tuple[Data, ProductSpace, ProductSpace]:
         """Returns ``data, new_codomain, new_domain``.
+        
         Note that ``new_codomain == a.domain.dual`` and ``new_domain == a.codomain.dual``.
         """
         ...
@@ -767,9 +773,14 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str,
                   all_blocks: bool = False) -> Data:
-        """Data for a zero tensor. Explicitly constructs the zero blocks corresponding to all
-        consistent sectors of the correct shape if `all_blocks == True`. Otherwise, the blocks
-        in the returned `Data` is an empty list.
+        """Data for a zero tensor.
+
+        Parameters
+        ----------
+        all_blocks: bool
+            Some specific backends can omit zero blocks ("sparsity").
+            By default (``False``), omit them if possible.
+            If ``True``, force all blocks to be created, with zero entries.
         """
         ...
 
@@ -785,8 +796,9 @@ class TensorBackend(metaclass=ABCMeta):
     # OPTIONALLY OVERRIDE THESE
 
     def _fuse_spaces(self, symmetry: Symmetry, spaces: list[Space]):
-        """Backends may override the behavior of linalg.spaces._fuse_spaces in order to compute
-        their backend-specific metadata alongside the sectors.
+        """Backends may override the behavior of linalg.spaces._fuse_spaces.
+
+        They may add their backend-specific metadata alongside the sectors.
         """
         raise NotImplementedError
 
@@ -796,13 +808,16 @@ class TensorBackend(metaclass=ABCMeta):
 
     def is_real(self, a: SymmetricTensor) -> bool:
         """If the Tensor is comprised of real numbers.
-        Complex numbers with small or zero imaginary part still cause a `False` return."""
+
+        Complex numbers with small or zero imaginary part still cause a `False` return.
+        """
         # FusionTree backend might implement this differently.
         return a.dtype.is_real
 
 
 class BlockBackend(metaclass=ABCMeta):
     """Abstract base class that defines the operation on dense blocks."""
+    
     svd_algorithms: list[str]  # first is default
     BlockCls = None  # to be set by subclass
 
@@ -959,7 +974,7 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     def block_combine_legs(self, a: Block, leg_idcs_combine: list[list[int]]) -> Block:
-        """no transpose, only reshape ``legs[b:e] for b,e in legs_slice`` to single legs"""
+        """No transpose, only reshape ``legs[b:e] for b,e in legs_slice`` to single legs"""
         old_shape = self.block_shape(a)
         new_shape = []
         last_stop = 0
@@ -975,7 +990,7 @@ class BlockBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def block_conj(self, a: Block) -> Block:
-        """complex conjugate of a block"""
+        """Complex conjugate of a block"""
         ...
 
     @abstractmethod
@@ -1046,8 +1061,10 @@ class BlockBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def block_exp(self, a: Block) -> Block:
-        """The *elementwise* exponential. Not to be confused with :meth:`matrix_exp`, the *matrix*
-        exponential."""
+        """The *elementwise* exponential.
+
+        Not to be confused with :meth:`matrix_exp`, the *matrix* exponential.
+        """
         ...
 
     @abstractmethod
@@ -1057,8 +1074,11 @@ class BlockBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def block_from_mask(self, mask: Block, dtype: Dtype) -> Block:
-        """Return a (N, M) of numbers (float or complex dtype) from a 1D bool-valued block shape (M,)
-        where N is the number of True entries. The result is the coefficient matrix of the projection map."""
+        """Convert a mask to a full block.
+
+        Return a (N, M) of numbers (float or complex dtype) from a 1D bool-valued block shape (M,)
+        where N is the number of True entries. The result is the coefficient matrix of the projection map.
+        """
         ...
 
     @abstractmethod
@@ -1093,7 +1113,9 @@ class BlockBackend(metaclass=ABCMeta):
 
     def block_is_real(self, a: Block) -> bool:
         """If the block is comprised of real numbers.
-        Complex numbers with small or zero imaginary part still cause a `False` return."""
+        
+        Complex numbers with small or zero imaginary part still cause a `False` return.
+        """
         return self.cyten_dtype_map[self.block_dtype(a)].is_real
 
     @abstractmethod
@@ -1127,8 +1149,10 @@ class BlockBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def block_log(self, a: Block) -> Block:
-        """The *elementwise* natural logarithm. Not to be confused with :meth:`matrix_log`, the
-        *matrix* logarithm."""
+        """The *elementwise* natural logarithm.
+
+        Not to be confused with :meth:`matrix_log`, the *matrix* logarithm.
+        """
         ...
 
     @abstractmethod
@@ -1190,8 +1214,10 @@ class BlockBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def block_real_if_close(self, a: Block, tol: float) -> Block:
-        """If a block is close to its real part, return the real part. Otherwise the original block.
-        Elementwise."""
+        """If a block is close to its real part, return the real part.
+
+        Otherwise the original block. Elementwise.
+        """
         ...
 
     @abstractmethod
@@ -1203,7 +1229,8 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     def block_scale_axis(self, block: Block, factors: Block, axis: int) -> Block:
-        """multiply block with the factors (a 1D block), along a given axis.
+        """Multiply block with the factors (a 1D block), along a given axis.
+        
         E.g. if block is 4D and ``axis==2`` with numpy-like broadcasting, this is would be
         ``block * factors[None, None, :, None]``.
         """
@@ -1249,6 +1276,7 @@ class BlockBackend(metaclass=ABCMeta):
     @abstractmethod
     def block_sum_all(self, a: Block) -> float | complex:
         """The sum of all entries of the block.
+        
         If the block contains boolean values, this should return the number of ``True`` entries.
         """
         ...

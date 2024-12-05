@@ -179,8 +179,7 @@ def check_operator_availability(s: site.Site, expect_symmetric_ops: dict[str, bo
     """Check if the operators on a site are as expected.
 
     We check if the available operators
-
-    Parameters
+    TODO expand this
     """
     expected_symmetric_names = set(expect_symmetric_ops.keys()) | {'Id', 'JW'}
     assert s.symmetric_op_names == expected_symmetric_names

@@ -181,7 +181,7 @@ class KrylovBased(metaclass=ABCMeta):
         return psif.multiply_scalar(1. / psif_norm)
 
     def _to_cache(self, psi):
-        """add psi to cache, keep at most self.N_cache."""
+        """Add psi to cache, keep at most self.N_cache."""
         cache = self._cache
         cache.append(psi)
         if len(cache) > self.N_cache:
@@ -208,6 +208,7 @@ class Arnoldi(KrylovBased):
             Number of eigenvectors to look for/return in `run`.
 
     """
+    
     def __init__(self, H, psi0, options):
         super().__init__(H, psi0, options)
         self.E_tol = self.options.get('E_tol', np.inf, 'real')
@@ -259,7 +260,7 @@ class Arnoldi(KrylovBased):
         return k + 1
 
     def _calc_result_krylov(self, k):
-        """calculate ground state of _h_krylov[:k+1, :k+1]"""
+        """Calculate ground state of _h_krylov[:k+1, :k+1]"""
         h = self._h_krylov
         if k == 0:
             self.Es[0, 0] = h[0, 0]
@@ -303,7 +304,7 @@ class Arnoldi(KrylovBased):
         return psis
 
     def _to_cache(self, psi):
-        """add psi to cache, keep at most self.N_cache."""
+        """Add psi to cache, keep at most self.N_cache."""
         cache = self._cache
         cache.append(psi)
         assert len(cache) <= self.N_cache
@@ -435,7 +436,7 @@ class LanczosGroundState(KrylovBased):
         # continue in _calc_result_full
 
     def _calc_result_krylov(self, k):
-        """calculate ground state of _h_krylov[:k+1, :k+1]"""
+        """Calculate ground state of _h_krylov[:k+1, :k+1]"""
         h = self._h_krylov
         if k == 0:
             self.Es[0, 0] = h[0, 0]
@@ -479,6 +480,7 @@ class LanczosEvolution(LanczosGroundState):
     _result_norm : float
         Norm of the resulting vector.
     """
+    
     def __init__(self, H, psi0, options):
         super().__init__(H, psi0, options)
         self._result_norm = 1.
@@ -525,8 +527,7 @@ class LanczosEvolution(LanczosGroundState):
         return (self._psi0_norm * self._result_norm) * result_full, N
 
     def _calc_result_krylov(self, k):
-        """calculate ``expm(delta h).dot(e0)`` for ``h = _h_krylov[:k+1, :k+1]``"""
-
+        """Calculate ``expm(delta h).dot(e0)`` for ``h = _h_krylov[:k+1, :k+1]``"""
         # self._result_krylov should be a normalized vector.
         h = self._h_krylov
         delta = self.delta

@@ -1,5 +1,6 @@
-"""Implements a generic BlockBackend that works with any library which follows the Array API standard
-https://data-apis.org/array-api/latest/purpose_and_scope.html
+"""Implements a generic BlockBackend that works with any library which follows the Array API.
+
+The API standard is documented at https://data-apis.org/array-api/latest/purpose_and_scope.html
 """
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
@@ -21,6 +22,7 @@ __all__ = ['ArrayApiBlockBackend', 'NoSymmetryArrayApiBackend', 'AbelianArrayApi
 
 
 class ArrayApiBlockBackend(BlockBackend):
+    """A block-backend based on a generic Array API compliant library"""
 
     svd_algorithms = ['default']  # can not specify algorithms through the array API
 
@@ -295,18 +297,24 @@ class ArrayApiBlockBackend(BlockBackend):
 
 
 class NoSymmetryArrayApiBackend(NoSymmetryBackend):
+    """TODO"""
+    
     def __init__(self, api_namespace):
         block_backend = ArrayApiBlockBackend(api_namespace)
         NoSymmetryBackend.__init__(self, block_backend=block_backend)
 
 
 class AbelianArrayApiBackend(AbelianBackend):
+    """TODO"""
+    
     def __init__(self, api_namespace):
         block_backend = ArrayApiBlockBackend(api_namespace)
         AbelianBackend.__init__(self, block_backend=block_backend)
 
 
 class FusionTreeArrayApiBackend(FusionTreeBackend):
+    """TODO"""
+    
     def __init__(self, api_namespace):
         block_backend = ArrayApiBlockBackend(api_namespace)
         FusionTreeBackend.__init__(self, block_backend=block_backend)

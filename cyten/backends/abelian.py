@@ -114,6 +114,7 @@ class AbelianBackendData:
         ``np.lexsort(block_inds.T)``.
         If ``True``, we assume they are sorted *without* checking.
     """
+    
     def __init__(self, dtype: Dtype, device: str, blocks: list[Block], block_inds: ndarray,
                  is_sorted: bool = False):
         if not is_sorted:
@@ -138,7 +139,9 @@ class AbelianBackendData:
         return match[0]
 
     def get_block(self, block_inds: ndarray) -> Block | None:
-        """Return the block in :attr:`blocks` matching the given block_inds,
+        """Get the block at given block indices.
+
+        Return the block in :attr:`blocks` matching the given block_inds,
         i.e. `self.blocks[n]` such that `all(self.block_inds[n, :] == blocks_inds)`
         or None if no such block exists
         """
@@ -167,6 +170,7 @@ class AbelianBackend(TensorBackend):
             the usual order. Note that the position of the larger leg depends on ``Mask.is_projection``!
 
     """
+    
     DataCls = AbelianBackendData
 
     def test_data_sanity(self, a: SymmetricTensor | DiagonalTensor, is_diagonal: bool):
@@ -429,7 +433,7 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(tensor.dtype, tensor.data.device, res_blocks, res_block_inds, is_sorted=True)
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
-        """
+        """See parent docstring.
 
         Notes
         -----
@@ -621,7 +625,8 @@ class AbelianBackend(TensorBackend):
                                   is_sorted=True)
 
     def _compose_no_contraction(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
-        """special case of :meth:`compose` where no legs are actually contracted.
+        """Special case of :meth:`compose` where no legs are actually contracted.
+        
         Note that this is not the same as :meth:`outer`, the resulting leg order is different.
         """
         res_dtype = a.data.dtype.common(b.data.dtype)
@@ -1881,7 +1886,8 @@ class AbelianBackend(TensorBackend):
 
     def _fuse_spaces(self, symmetry: Symmetry, spaces: list[Space]
                      ) -> tuple[SectorArray, ndarray, dict]:
-        r"""
+        r"""See parent docstring.
+        
         The abelian backend adds the following metadata:
             _strides : 1D numpy array of int
                 F-style strides for the shape ``tuple(space.num_sectors for space in spaces)``.
@@ -1939,7 +1945,6 @@ class AbelianBackend(TensorBackend):
             ...]
 
         """
-
         # this function heavily uses numpys advanced indexing, for details see
         # http://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
 

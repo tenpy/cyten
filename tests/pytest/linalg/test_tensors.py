@@ -521,7 +521,6 @@ def test_explicit_blocks(symmetry_backend, block_backend):
     This is useful e.g. for debugging from_dense_block and to check that the data format is
     what we expect.
     """
-
     backend = get_backend(symmetry_backend, block_backend)
     all_qi = z4_symmetry.all_sectors()
     q0, q1, q2, q3 = all_qi

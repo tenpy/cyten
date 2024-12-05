@@ -1,3 +1,4 @@
+"""Implements the fusion tree backend."""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, Iterator
@@ -106,6 +107,7 @@ def _tree_block_iter(a: SymmetricTensor):
 def _tree_block_iter_product_space(space: ProductSpace, coupled: SectorArray | list[Sector],
                                    symmetry: Symmetry) -> Iterator[tuple[FusionTree, slice, int]]:
     """Iterator over all trees in `space` with total charge in `coupled`.
+    
     Yields the `FusionTree`s consistent with the input together with the corresponding slices and
     the index of the total charge within `coupled`. This index coincides with the index enumerating
     the blocks in `FusionTreeData` if `coupled` is lexsorted.
@@ -126,6 +128,7 @@ def _tree_block_iter_product_space(space: ProductSpace, coupled: SectorArray | l
 def _forest_block_iter_product_space(space: ProductSpace, coupled: SectorArray | list[Sector],
                                      symmetry: Symmetry) -> Iterator[tuple[SectorArray, slice, int]]:
     """Iterator over all forests in `space` with total charge in `coupled`.
+    
     Yields the `SectorArray`s consistent with the input together with the corresponding slices and
     the index of the total charge within `coupled`. This index coincides with the index enumerating
     the blocks in `FusionTreeData` if `coupled` is lexsorted.
@@ -142,6 +145,7 @@ def _forest_block_iter_product_space(space: ProductSpace, coupled: SectorArray |
 
 def _iter_sectors(spaces: list[Space], symmetry: Symmetry) -> Iterator[SectorArray]:
     """Helper iterator over all combinations of sectors.
+    
     Simplified version of `_iter_sectors_mults_slices`.
 
     Yields
@@ -211,6 +215,7 @@ class FusionTreeData:
         ``np.lexsort(block_inds.T)``.
         If ``True``, we assume they are sorted *without* checking.
     """
+    
     def __init__(self, block_inds: np.ndarray, blocks: list[Block], dtype: Dtype, device: str,
                  is_sorted: bool = False):
         if not is_sorted:
@@ -223,7 +228,7 @@ class FusionTreeData:
         self.device = device
 
     def block_ind_from_domain_sector_ind(self, domain_sector_ind: int) -> int | None:
-        "Return `ind` such that ``block_inds[ind][1] == domain_sector_ind``"
+        """Return `ind` such that ``block_inds[ind][1] == domain_sector_ind``"""
         ind = np.searchsorted(self.block_inds[:, 1], domain_sector_ind)
         if ind >= len(self.block_inds) or self.block_inds[ind, 1] != domain_sector_ind:
             return None
@@ -232,7 +237,7 @@ class FusionTreeData:
         return ind
 
     def discard_zero_blocks(self, backend: BlockBackend, eps: float) -> None:
-        "Discard blocks whose norm is below the threshold `eps`"
+        """Discard blocks whose norm is below the threshold `eps`"""
         keep = []
         for i, block in enumerate(self.blocks):
             if backend.block_norm(block) >= eps:
@@ -242,7 +247,9 @@ class FusionTreeData:
 
 
 class FusionTreeBackend(TensorBackend):
-    """`ProductSpace`s on the individual legs of the tensors are not supported, only
+    """A backend based on fusion trees.
+
+    `ProductSpace`s on the individual legs of the tensors are not supported, only
     `ElementarySpace`s are allowed. The reason for this is that product spaces transform
     nontrivially upon, e.g., bending the corresponding leg, which necessitates further
     transformations within the leg itself.
@@ -1267,7 +1274,7 @@ class FusionTreeBackend(TensorBackend):
         block_inds = []
         for j, coupled in enumerate(domain.sectors):
             i = codomain.sectors_where(coupled)
-            if i == None:
+            if i is None:
                 continue
             shp = (block_size(codomain, coupled), block_size(domain, coupled))
             block_shapes.append(shp)
@@ -1308,22 +1315,36 @@ class FusionTreeBackend(TensorBackend):
 
         Obtain the contributions from a given forest block
 
-        Parameters:
-            block: The current block
-            sym: The symmetry
-            codomain, domain: The codomain and domain of the new tensor
-            coupled, dim_c: The coupled sector of the current block and its quantum dimension
-            a_sectors: The codomain uncoupled sectors [a1, a2, ..., aJ]
-            b_sectors: The domain uncoupled sectors [b1, b2, ..., bK]
-            tree_block_width: Equal to ``tree_block_size(domain, b_sectors)``
-            tree_block_height: Equal to ``tree_block_size(codomain, a_sectors)``
-            i1_init, i2_init: The start indices of the current forest block within the block
+        Parameters
+        ----------
+        block:
+            The current block
+        sym:
+            The symmetry
+        codomain, domain:
+            The codomain and domain of the new tensor
+        coupled, dim_c:
+            The coupled sector of the current block and its quantum dimension
+        a_sectors:
+            The codomain uncoupled sectors [a1, a2, ..., aJ]
+        b_sectors:
+            The domain uncoupled sectors [b1, b2, ..., bK]
+        tree_block_width:
+            Equal to ``tree_block_size(domain, b_sectors)``
+        tree_block_height:
+            Equal to ``tree_block_size(codomain, a_sectors)``
+        i1_init, i2_init:
+            The start indices of the current forest block within the block
 
-        Returns:
-            entries: The entries of the dense block corresponding to the given uncoupled sectors.
-                     Legs [a1,...,aJ, b1,...,bK, m1,...,mJ, n1,...,nK]
-            num_alpha_trees: The number of fusion trees from ``a_sectors`` to ``coupled``
-            num_beta_trees : The number of fusion trees from ``b_sectors`` to ``coupled``
+        Returns
+        -------
+        entries:
+            The entries of the dense block corresponding to the given uncoupled sectors.
+            Legs [a1,...,aJ, b1,...,bK, m1,...,mJ, n1,...,nK]
+        num_alpha_trees:
+            The number of fusion trees from ``a_sectors`` to ``coupled``
+        num_beta_trees:
+            The number of fusion trees from ``b_sectors`` to ``coupled``
         """
         # OPTIMIZE do one loop per vertex in the tree instead.
         i1 = i1_init  # i1: start row index of the current tree block within the block
@@ -1357,22 +1378,36 @@ class FusionTreeBackend(TensorBackend):
 
         Adds the entries from a single forest-block to the current `block`, in place.
 
-        Parameters:
-            block: The block to modify
-            entries: The entries of the dense block corresponding to the given uncoupled sectors.
-                     Legs [a1,...,aJ, b1,...,bK, m1,...,mJ, n1,...,nK]
-            sym: The symmetry
-            codomain, domain: The codomain and domain of the new tensor
-            coupled, dim_c: The coupled sector of the current block and its quantum dimension
-            a_sectors: The codomain uncoupled sectors [a1, a2, ..., aJ]
-            b_sectors: The domain uncoupled sectors [b1, b2, ..., bK]
-            tree_block_width: Equal to ``tree_block_size(domain, b_sectors)``
-            tree_block_height: Equal to ``tree_block_size(codomain, a_sectors)``
-            i1_init, i2_init: The start indices of the current forest block within the block
+        Parameters
+        ----------
+        block:
+            The block to modify
+        entries:
+            The entries of the dense block corresponding to the given uncoupled sectors.
+            Legs [a1,...,aJ, b1,...,bK, m1,...,mJ, n1,...,nK]
+        sym:
+            The symmetry
+        codomain, domain:
+            The codomain and domain of the new tensor
+        coupled, dim_c:
+            The coupled sector of the current block and its quantum dimension
+        a_sectors:
+            The codomain uncoupled sectors [a1, a2, ..., aJ]
+        b_sectors:
+            The domain uncoupled sectors [b1, b2, ..., bK]
+        tree_block_width:
+            Equal to ``tree_block_size(domain, b_sectors)``
+        tree_block_height:
+            Equal to ``tree_block_size(codomain, a_sectors)``
+        i1_init, i2_init:
+            The start indices of the current forest block within the block
 
-        Returns:
-            num_alpha_trees: The number of fusion trees from ``a_sectors`` to ``coupled``
-            num_beta_trees : The number of fusion trees from ``b_sectors`` to ``coupled``
+        Returns
+        -------
+        num_alpha_trees:
+            The number of fusion trees from ``a_sectors`` to ``coupled``
+        num_beta_trees :
+            The number of fusion trees from ``b_sectors`` to ``coupled``
         """
         # OPTIMIZE do one loop per vertex in the tree instead.
         i1 = i1_init  # i1: start row index of the current tree block within the block
@@ -1414,8 +1449,9 @@ class FusionTreeBackend(TensorBackend):
 
 
 class TreeMappingDict(dict):
-    """Class describing how trees need to be transformed after braiding and / or
-    bending legs. This is essentially a `dict` with a few additional methods
+    """A description how trees need to be transformed after braiding and / or bending legs.
+
+    This is essentially a `dict` with a few additional methods
     allowing to represent the action of b and c symbols, combining them and
     applying them to tensors, etc.
 
@@ -1443,11 +1479,10 @@ class TreeMappingDict(dict):
     (new_tree_cod1_2, new_tree_dom1_2) : amplitude1_2, ...}, (old_tree_cod2, old_tree_dom2)
     : {...}, ...}``
     """
+    
     def add_contribution(self, trees_i: tuple[FusionTree], trees_f: tuple[FusionTree],
                          amplitude: float | complex) -> None:
-        """Add the contribution that maps `tree_i` to `tree_f` with amplitude
-        `amplitude` to `self`.
-        """
+        """Add a contribution that maps `tree_i` to `tree_f`, in-place."""
         if trees_i in self:
             if trees_f in self[trees_i]:
                 self[trees_i][trees_f] += amplitude
@@ -1458,8 +1493,14 @@ class TreeMappingDict(dict):
 
     def add_prodspace(self, prodspace: ProductSpace, coupled: SectorArray,
                       index: int) -> TreeMappingDict:
-        """Return the `TreeMappingDict` that is obtained when adding the product space
-        `prodspace` to `self`. The new `TreeMappingDict`'s key are now tuples with one
+        """Add a product space.
+
+        Return the `TreeMappingDict` that is obtained when adding the product space
+        `prodspace` to `self`.
+
+        TODO (JU) what does it mean to add a space to a mapping?
+
+        The new `TreeMappingDict`'s key are now tuples with one
         additional entry corresponding to trees in `prodspace` with coupled sector in
         `coupled`. The new product space does not affect the amplitudes in the
         `TreeMappingDict`. `index` specifies the position of the new trees within the
@@ -1485,6 +1526,7 @@ class TreeMappingDict(dict):
                         new_domain: ProductSpace, block_axes_permutation: list[int],
                         in_domain: bool | None) -> FusionTreeData:
         """Apply `self` to the tensor `ten` and return the resulting `FusionTreeData`.
+        
         `new_codomain` and `new_domain` are the codomain and domain of the final
         tensor, `block_axes_permutation` gives the permutation of the axes after
         reshaping the tree blocks such that each leg corresponds to its own axis.
@@ -1513,7 +1555,9 @@ class TreeMappingDict(dict):
                                              block_axes_permutation)
 
     def compose(self, dict2: TreeMappingDict) -> TreeMappingDict:
-        """Return a `TreeMappingDict` corresponding to the mapping associated with first
+        """Compose mapping dicts.
+
+        Return a `TreeMappingDict` corresponding to the mapping associated with first
         applying `self` and then `dict2`.
         """
         comb = TreeMappingDict()
@@ -1529,7 +1573,9 @@ class TreeMappingDict(dict):
 
     @classmethod
     def compose_multiple(cls, dicts: list[TreeMappingDict]) -> TreeMappingDict:
-        """Return a `TreeMappingDict` corresponding to the mapping associated with applying
+        """Compose multiple mapping dicts.
+
+        Return a `TreeMappingDict` corresponding to the mapping associated with applying
         all TreeMappingDict in `dicts` in the given order. It is assumed that the all keys
         have the same format (i.e., all either specified by a single or by two trees).
         """
@@ -1541,7 +1587,9 @@ class TreeMappingDict(dict):
     @classmethod
     def from_b_symbol(cls, codomain: ProductSpace, domain: ProductSpace, coupled: SectorArray,
                       bend_up: bool, eps: float) -> tuple[TreeMappingDict, SectorArray]:
-        """Return the new coupled sectors and a `TreeMappingDict` including the details
+        """From a single B move.
+
+        Return the new coupled sectors and a `TreeMappingDict` including the details
         on how to combine the old fusion trees in `codomain` and `domain` in order to
         obtain the new ones after bending the final leg in the codomain down (`bend_up
         == False`) / domain up (`bend_up == True`). The coupled sectors `coupled`
@@ -1600,7 +1648,9 @@ class TreeMappingDict(dict):
     @classmethod
     def from_c_symbol(cls, prodspace: ProductSpace, coupled: SectorArray, index: int,
                       overbraid: bool, in_domain: bool, eps: float) -> TreeMappingDict:
-        """Return a `TreeMappingDict` including the details on how to combine the old fusion
+        """From a single C move.
+
+        Return a `TreeMappingDict` including the details on how to combine the old fusion
         trees in `prodspace` in order to obtain the new ones after braiding. The braided spaces
         correspond to `index` and `index+1`;  the counting is from left to right (standard)
         in the codomain and from right to left (reverse) in the domain (if `in_domain ==
@@ -1666,7 +1716,9 @@ class TreeMappingDict(dict):
                            index: int, coupled: SectorArray, overbraid: bool | None,
                            bend_up: bool | None, backend: FusionTreeBackend
                            ) -> tuple[TreeMappingDict, ProductSpace, ProductSpace, SectorArray]:
-        """Essentially a wrapper for `from_b_symbol` and `from_c_symbol` that, apart
+        """Helper function.
+
+        Essentially a wrapper for `from_b_symbol` and `from_c_symbol` that, apart
         from the corresponding `TreeMappingDict`, also returns the new codomain, new
         domain and new coupled sectors resulting from the specified operation on a
         tensor over `codomain` and `domain` with coupled charges `coupled`.

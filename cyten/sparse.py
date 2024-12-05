@@ -42,6 +42,7 @@ class LinearOperator(metaclass=ABCMeta):
     acts_on : list of str
         Labels of the state on which the operator can act. NB: Class attribute.
     """
+    
     acts_on = None  # Derived classes should set this as a class attribute
     
     def __init__(self, vector_shape, dtype: Dtype):  # TODO Shape removed
@@ -99,6 +100,7 @@ class TensorLinearOperator(LinearOperator):
     which_legs : int or str
         Which leg of `tensor` is to be contracted on matvec.
     """
+    
     def __init__(self, tensor: SymmetricTensor, which_leg: int | str = -1):
         if tensor.num_legs > 2:
             raise ValueError('Expected a two-leg tensor')
@@ -145,6 +147,7 @@ class LinearOperatorWrapper(LinearOperator):
     original_operator : :class:`LinearOperator`
         The original operator implementing the `matvec`.
     """
+    
     def __init__(self, original_operator: LinearOperator):
         self.original_operator = original_operator
         # TODO (JU) should we call LinearOperator.__init__ or super().__init__ here?
@@ -175,6 +178,7 @@ class LinearOperatorWrapper(LinearOperator):
 
 class SumLinearOperator(LinearOperatorWrapper):
     """The sum of multiple operators"""
+    
     def __init__(self, original_operator: LinearOperator, *more_operators: LinearOperator):
         super().__init__(original_operator=original_operator)
         assert all(op.vector_shape == original_operator.vector_shape for op in more_operators)
@@ -198,6 +202,7 @@ class ShiftedLinearOperator(LinearOperatorWrapper):
 
     This can be useful e.g. for better Lanczos convergence.
     """
+    
     def __init__(self, original_operator: LinearOperator, shift: Number):
         if shift in [0, 0.]:
             warnings.warn('shift=0: no need for ShiftedLinearOperator', stacklevel=2)
@@ -252,6 +257,7 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
     penalty : complex, optional
         See summary above. Defaults to ``None``, which is equivalent to ``0.``.
     """
+    
     def __init__(self, original_operator: LinearOperator, ortho_vecs: list[Tensor],
                  project_operator: bool = True, penalty: Number = None):
         if len(ortho_vecs) == 0:
@@ -370,6 +376,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
     shape : (int, int)
         The shape of self as an operator on 1D numpy arrays
     """
+    
     def __init__(self, cyten_matvec, legs: list[Space], backend: TensorBackend, dtype,
                  labels: list[str] = None,
                  charge_sector: None | Sector | Literal['trivial'] = 'trivial'):
@@ -650,11 +657,11 @@ class HermitianNumpyArrayLinearOperator(NumpyArrayLinearOperator):
 
     Note that we don't check hermicity of :meth:`matvec`.
     """
+    
     def _adjoint(self):
         return self
 
     def eigenvectors(self, *args, **kwargs):
-        """Same as NumpyArrayLinearOperator.eigenvectors(..., hermitian=True)"""
         kwargs['hermitian'] = True
         return NumpyArrayLinearOperator.eigenvectors(self, *args, **kwargs)
         

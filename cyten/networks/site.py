@@ -1027,6 +1027,7 @@ def as_valid_operator_name(name) -> str:
 
 def split_charged_operator_symbol(name: str) -> tuple[str, bool]:
     """Helper function to parse charged operators ``"(O*_)"`` or ``"(_*O)"``.
+    
     Returns
     -------
     name : str
@@ -1163,6 +1164,7 @@ class SpinHalfSite(Site):
     backend : :class:`~cyten.backends.Backend`, optional
         The backend used to create the operators.
     """
+    
     def __init__(self, conserve: str = 'Sz', backend: TensorBackend = None):
         # make leg
         if conserve == 'Stot':
@@ -1989,6 +1991,7 @@ class ClockSite(Site):
     backend : :class:`~cyten.backends.Backend`, optional
         The backend used to create the operators.
     """
+    
     def __init__(self, q: int, conserve: str = 'Z', backend: TensorBackend = None):
         if not (isinstance(q, int) and q > 1):
             raise ValueError(f'invalid q: {q}')

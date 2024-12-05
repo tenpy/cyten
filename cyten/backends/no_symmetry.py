@@ -1,3 +1,4 @@
+"""Implements a 'dummy' tensor backend that does not exploit symmetries."""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
@@ -38,6 +39,7 @@ class NoSymmetryBackend(TensorBackend):
             The bool values indicate which indices of the large leg are kept for the small leg.
 
     """
+    
     DataCls = "Block of BlockBackend"  # is dynamically set by __init__
     can_decompose_tensors = True
 

@@ -29,6 +29,8 @@ Please follow these guidelines when contributing code
   reports any violations. Install it using either `pip` or `conda`.
   Run e.g. `flake8 .` in the repository root.
   Feel free to use the git hooks, see `docs/contributing/code_style.rst`.
+  It is recommended to also install the `flake8-docstring <https://github.com/pycqa/flake8-docstrings>`
+  extension.
 
 - Every function/class/module should be documented by its doc-string, see :pep:`257`.
   Exception: If you override a method of a parent class, only add a docstring if it adds value.

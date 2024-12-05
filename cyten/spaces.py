@@ -1,3 +1,7 @@
+"""The spaces, i.e. the legs of a tensor.
+
+TODO elaborate
+"""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod

@@ -1,3 +1,4 @@
+"""A block backend using numpy."""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
@@ -15,6 +16,8 @@ __all__ = ['NumpyBlockBackend', 'NoSymmetryNumpyBackend', 'AbelianNumpyBackend',
 
 
 class NumpyBlockBackend(BlockBackend):
+    """A block backend using numpy."""
+    
     BlockCls = np.ndarray
     svd_algorithms = ['gesdd', 'gesvd', 'robust', 'robust_silent']
     
@@ -290,16 +293,22 @@ class NumpyBlockBackend(BlockBackend):
 
 
 class NoSymmetryNumpyBackend(NoSymmetryBackend):
+    """TODO"""
+    
     def __init__(self):
         NoSymmetryBackend.__init__(self, block_backend=NumpyBlockBackend())
 
 
 class AbelianNumpyBackend(AbelianBackend):
+    """TODO"""
+    
     def __init__(self):
         AbelianBackend.__init__(self, block_backend=NumpyBlockBackend())
 
 
 class FusionTreeNumpyBackend(FusionTreeBackend):
+    """TODO"""
+    
     def __init__(self):
         FusionTreeBackend.__init__(self, block_backend=NumpyBlockBackend())
 
