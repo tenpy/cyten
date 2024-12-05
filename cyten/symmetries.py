@@ -24,7 +24,7 @@ __all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingSty
            'SU2Symmetry', 'SUNSymmetry',
            # anyons
            'FermionParity', 'FibonacciAnyonCategory', 'IsingAnyonCategory', 'SU3_3AnyonCategory',
-           'QuantumDoubleZNAnyonCategory', 'SU2_kAnyonCategory', 'ZNAnyonCategory',
+           'QuantumDoubleZNAnyonCategory', 'ToricCodeCategory', 'SU2_kAnyonCategory', 'ZNAnyonCategory',
            'ZNAnyonCategory2',
            # concrete instances
            'no_symmetry', 'u1_symmetry', 'z2_symmetry', 'z3_symmetry', 'z4_symmetry', 'z5_symmetry', 'z6_symmetry',
@@ -1240,6 +1240,9 @@ class SU2Symmetry(GroupSymmetry):
     """
 
     fusion_tensor_dtype = Dtype.float64
+    spin_zero = as_immutable_array(np.array([0], dtype=int))
+    spin_half = as_immutable_array(np.array([1], dtype=int))
+    spin_one = as_immutable_array(np.array([2], dtype=int))
 
     def __init__(self, descriptive_name: str | None = None):
         GroupSymmetry.__init__(self, fusion_style=FusionStyle.multiple_unique, trivial_sector=np.array([0], dtype=int),
@@ -1891,6 +1894,8 @@ class FermionParity(Symmetry):
     _one_2D_float = as_immutable_array(np.ones((1, 1), dtype=float))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
     _one_4D_float = as_immutable_array(np.ones((1, 1, 1, 1), dtype=float))
+    even = as_immutable_array(np.array([0], dtype=int))
+    odd = as_immutable_array(np.array([1], dtype=int))
 
     def __init__(self):
         Symmetry.__init__(self, fusion_style=FusionStyle.single, braiding_style=BraidingStyle.fermionic,
@@ -1994,8 +1999,9 @@ class ZNAnyonCategory(Symmetry):
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
-    def __init__(self, N: int, n: int):
+    def __init__(self, N: int, n: int, descriptive_name: str | None = None):
         assert type(N) == int
+        assert N > 1
         assert type(n) == int
         self.N = N
         self.n = n % N
@@ -2004,8 +2010,8 @@ class ZNAnyonCategory(Symmetry):
                           fusion_style=FusionStyle.single,
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
-                          group_name='ZNAnyonCategory',
-                          num_sectors=N, descriptive_name=None)
+                          group_name=f'ℤ_{N}^{n} anyon category',
+                          num_sectors=N, descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a[0] < self.N
@@ -2033,7 +2039,8 @@ class ZNAnyonCategory(Symmetry):
         return np.ones((len(a),), int)
 
     def __repr__(self):
-        return f'ZNAnyonCategory(N={self.N}, n={self.n})'
+        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
+        return f'ZNAnyonCategory({self.N}, {self.n}, {name_str})'
 
     def is_same_symmetry(self, other) -> bool:
         return isinstance(other, ZNAnyonCategory) and other.N == self.N and other.n == self.n
@@ -2086,8 +2093,9 @@ class ZNAnyonCategory2(Symmetry):
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
-    def __init__(self, N: int, n: int):
+    def __init__(self, N: int, n: int, descriptive_name: str | None = None):
         assert type(N) == int
+        assert N > 1
         assert N % 2 == 0
         assert type(n) == int
         self.N = N
@@ -2097,8 +2105,8 @@ class ZNAnyonCategory2(Symmetry):
                           fusion_style=FusionStyle.single,
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
-                          group_name='ZNAnyonCategory2',
-                          num_sectors=N, descriptive_name=None)
+                          group_name=f'ℤ_{N}^({n}+1/2) anyon category',
+                          num_sectors=N, descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a < self.N
@@ -2126,7 +2134,8 @@ class ZNAnyonCategory2(Symmetry):
         return np.ones((len(a),), int)
 
     def __repr__(self):
-        return f'ZNAnyonCategory2(N={self.N}, n={self.n})'
+        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
+        return f'ZNAnyonCategory2({self.N}, {self.n}, {name_str})'
 
     def is_same_symmetry(self, other) -> bool:
         return isinstance(other, ZNAnyonCategory2) and other.N == self.N and other.n == self.n
@@ -2161,7 +2170,7 @@ class ZNAnyonCategory2(Symmetry):
 
 
 class QuantumDoubleZNAnyonCategory(Symmetry):
-    """Doubled abelian anyon category with fusion rules corresponding to the Z_N group;
+    """Doubled abelian anyon category with fusion rules corresponding to the Z_N x Z_N group;
     also written as :math:`D(Z_N)`.
 
     Allowed sectors are 1D arrays with two integers between `0` and `N-1`.
@@ -2172,16 +2181,17 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
     _one_2D = as_immutable_array(np.ones((1, 1), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
-    def __init__(self, N: int):
+    def __init__(self, N: int, descriptive_name: str | None = None):
         assert type(N) == int
+        assert N > 1
         self.N = N
         self._phase = np.exp(2j * np.pi / self.N)
         Symmetry.__init__(self,
                           fusion_style=FusionStyle.single,
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0, 0], dtype=int),
-                          group_name='QuantumDoubleZNAnyonCategory',
-                          num_sectors=N**2, descriptive_name=None)
+                          group_name=f'D(ℤ_{N})',
+                          num_sectors=N**2, descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (2,) and np.all(0 <= a) and np.all(a < self.N)
@@ -2209,7 +2219,8 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
         return np.ones((len(a),), int)
 
     def __repr__(self):
-        return f'QuantumDoubleZNAnyonCategory(N={self.N})'
+        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
+        return f'QuantumDoubleZNAnyonCategory({self.N}, {name_str})'
 
     def is_same_symmetry(self, other) -> bool:
         return isinstance(other, QuantumDoubleZNAnyonCategory) and other.N == self.N
@@ -2244,6 +2255,28 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
         return np.dstack(np.meshgrid(x, x)).reshape(-1, 2)
 
 
+class ToricCodeCategory(QuantumDoubleZNAnyonCategory):
+    """Toric code anyon category. Essentially equivalent to `QuantumDoubleZNAnyonCategory(N=2)`.
+
+    The allowed sectors are 1D arrays with two integers between `0` and `1`,
+    `[0, 0]`, `[0, 1]`, `[1, 0]`, `[1, 1]`, which are known as vacuum, electric charge,
+    magnetic flux and fermion, respectively.
+
+    The electric charges and magnetic fluxes are mutual semions and self-bosons.
+    """
+    vacuum = as_immutable_array(np.array([0, 0], dtype=int))
+    electric_charge = as_immutable_array(np.array([0, 1], dtype=int))
+    magnetic_flux = as_immutable_array(np.array([1, 0], dtype=int))
+    fermion = as_immutable_array(np.array([1, 1], dtype=int))
+
+    def __init__(self, descriptive_name: str | None = None):
+        super().__init__(2, descriptive_name)
+
+    def __repr__(self):
+        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
+        return f'ToricCodeCategory({name_str})'
+    
+
 class FibonacciAnyonCategory(Symmetry):
     """Category describing Fibonacci anyons.
 
@@ -2268,6 +2301,8 @@ class FibonacciAnyonCategory(Symmetry):
     _r = as_immutable_array(np.expand_dims([np.exp(-4j*np.pi/5), np.exp(3j*np.pi/5)], axis=1))
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
+    vacuum = as_immutable_array(np.array([0], dtype=int))
+    tau = as_immutable_array(np.array([1], dtype=int))
 
     def __init__(self, handedness = 'left'):
         assert handedness in ['left', 'right']
@@ -2366,6 +2401,9 @@ class IsingAnyonCategory(Symmetry):
     }
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
+    vacuum = as_immutable_array(np.array([0], dtype=int))
+    sigma = as_immutable_array(np.array([1], dtype=int))
+    psi = as_immutable_array(np.array([2], dtype=int))
 
     def __init__(self, nu: int = 1):
         assert nu % 2 == 1
@@ -2481,11 +2519,16 @@ class SU2_kAnyonCategory(Symmetry):
     """
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
+    spin_zero = as_immutable_array(np.array([0], dtype=int))
+    spin_half = as_immutable_array(np.array([1], dtype=int))
 
     def __init__(self, k: int, handedness = 'left'):
         assert type(k) == int
+        assert k >= 1
         assert handedness in ['left', 'right']
         self.k = k
+        if k >= 2:
+            self.spin_one = as_immutable_array(np.array([2], dtype=int))
         self.handedness = handedness
         self._q = np.exp(2j * np.pi / (k + 2))
 
@@ -2833,7 +2876,7 @@ z9_symmetry = ZNSymmetry(N=9)
 u1_symmetry = U1Symmetry()
 fermion_parity = FermionParity()
 semion_category = ZNAnyonCategory2(2, 0)
-toric_code_category = QuantumDoubleZNAnyonCategory(2)
+toric_code_category = ToricCodeCategory()
 double_semion_category = ProductSymmetry([ZNAnyonCategory2(2, 0), ZNAnyonCategory2(2, 1)])
 fibonacci_anyon_category = FibonacciAnyonCategory(handedness='left')
 ising_anyon_category = IsingAnyonCategory(nu=1)
