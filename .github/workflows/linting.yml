@@ -1,0 +1,45 @@
+name: Linting
+# Run linter (flake8) and custom linting script (tests/linting/python_linting.py)
+
+on:
+  # pushes to main
+  push:
+    branches:
+      - main
+  # PRs
+  pull_request:
+
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.12
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install --upgrade setuptools build
+        python -m pip install --upgrade flake8 flake8-docstrings
+    
+    - name: Build and install cyten
+      # needed to run custom linting script, which imports cyten
+      run: |
+        python -m build .
+        python -m pip install .
+    
+    - name: Run linter
+      # uses options from .flake8 config file
+      run: |
+        flake8 .
+    
+    - name: Run custom linting script
+      run: |
+        python ./tests/linting/python_linting.py

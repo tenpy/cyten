@@ -1,4 +1,5 @@
-# Copyright (C) TeNPy Developers, GNU GPLv3
+"""Utility functions to access backend instances."""
+# Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
 import logging
@@ -34,11 +35,18 @@ _instantiated_backends = {}  # keys: (tensor_backend: str, block_backend: str)
 
 
 def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> TensorBackend:
-    """
+    """Get an instance of an appropriate backend.
+
+    Backends are instantiated only once and then cached. If a suitable backend instance is in
+    the cache, that same instance is returned.
+    
     Parameters
     ----------
     symmetry : {'no_symmetry', 'abelian', 'fusion_tree'} | Symmetry
+        Specifies which subclass of :class:`TensorBackend` to use, either directly via string,
+        or as the minimal version which supports the given symmetry.
     block_backend : {None, 'numpy', 'torch', 'tensorflow', 'jax', 'cpu', 'gpu', 'tpu'}
+        Specify which block backend to use.
     """
     # TODO these are a dummies, in the future we should have some mechanism to store the default
     # values in some state-ful global config of cyten
@@ -75,7 +83,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
 
 def todo_get_backend():
-    """temporary tool during development. Allows to get a backend.
+    """Temporary tool during development. Allows to get a backend.
 
     TODO revisit usages and decide if backends should be passed around through inits or a
     global state of cyten

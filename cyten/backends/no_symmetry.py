@@ -1,4 +1,5 @@
-# Copyright (C) TeNPy Developers, GNU GPLv3
+"""Implements a 'dummy' tensor backend that does not exploit symmetries."""
+# Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 from math import prod
@@ -38,6 +39,7 @@ class NoSymmetryBackend(TensorBackend):
             The bool values indicate which indices of the large leg are kept for the small leg.
 
     """
+    
     DataCls = "Block of BlockBackend"  # is dynamically set by __init__
     can_decompose_tensors = True
 
@@ -84,7 +86,7 @@ class NoSymmetryBackend(TensorBackend):
                      new_codomain: ProductSpace,
                      new_domain: ProductSpace,
                      ) -> Data:
-         return self.block_backend.block_combine_legs(tensor.data, leg_idcs_combine)
+        return self.block_backend.block_combine_legs(tensor.data, leg_idcs_combine)
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         a_domain = list(reversed(range(a.num_codomain_legs, a.num_legs)))
@@ -409,7 +411,7 @@ class NoSymmetryBackend(TensorBackend):
         return u, s, vh
 
     def state_tensor_product(self, state1: Block, state2: Block, prod_space: ProductSpace):
-        #TODO clearly define what this should do in tensors.py first!
+        # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
 
     def to_dense_block(self, a: SymmetricTensor) -> Block:

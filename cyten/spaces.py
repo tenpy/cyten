@@ -1,4 +1,8 @@
-# Copyright (C) TeNPy Developers, GNU GPLv3
+"""The spaces, i.e. the legs of a tensor.
+
+TODO elaborate
+"""
+# Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
 import numpy as np
@@ -11,7 +15,7 @@ from .dummy_config import printoptions
 from .symmetries import (Sector, SectorArray, Symmetry, ProductSymmetry, no_symmetry, FusionStyle,
                          SymmetryError)
 from .tools.misc import (inverse_permutation, rank_data, to_iterable, UNSPECIFIED, make_stride,
-                          find_row_differences, unstridify, iter_common_sorted_arrays)
+                         find_row_differences, unstridify, iter_common_sorted_arrays)
 from .tools.string import format_like_list
 
 if TYPE_CHECKING:
@@ -565,7 +569,7 @@ class ElementarySpace(Space):
             num_lines_ok = (len(elements) + 2) <= printoptions.maxlines_spaces
             if line_lengths_ok and num_lines_ok:
                 elements = [f'{indent}{line},' for line in elements]
-                return f'ElementarySpace(\n' +'\n'.join(elements) + '\n)'
+                return f'ElementarySpace(\n' + '\n'.join(elements) + '\n)'
         # 2) Try showing summarized data
         elements = [f'<ElementarySpace:']
         if show_symmetry:
@@ -588,7 +592,9 @@ class ElementarySpace(Space):
             one_line = ' '.join(elements)
             if len(one_line) < printoptions.linewidth:
                 return one_line
-            if all(len(l) <= printoptions.linewidth for l in elements) and len(elements) <= printoptions.maxlines_spaces:
+            line_lengths_ok = all(len(l) <= printoptions.linewidth for l in elements)
+            num_lines_ok = len(elements) <= printoptions.maxlines_spaces
+            if line_lengths_ok and num_lines_ok:
                 elements[1:-1] = [f'{indent}{line},' for line in elements[1:-1]]
                 return '\n'.join(elements)
         # 4) Show no data at all
@@ -1170,7 +1176,8 @@ class ProductSpace(Space):
         # OPTIMIZE this probably not the most efficient way to do this, but it hurts my brain
         #  and i need to get this work, if only in an ugly way...
         fusion_outcomes_inverse_sort = inverse_permutation(self.fusion_outcomes_sort)
-        # j : multi-index into the uncoupled private basis, i.e. into the C-style product of internal bases of the spaces
+        # j : multi-index into the uncoupled private basis, i.e. into the C-style product of
+        #     internal bases of the spaces
         # i : index of self.spaces
         # s : index of the list of all fusion outcomes / fusion channels
         dim_strides = make_stride([sp.dim for sp in self.spaces])  # (num_spaces,)
@@ -1296,7 +1303,7 @@ def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend
             *(sp.sectors[gr] for sp, gr in zip(spaces, grid.T))
         )
         multiplicities = np.prod([space.multiplicities[gr] for space, gr in zip(spaces, grid.T)],
-                                  axis=0)
+                                 axis=0)
         sectors, multiplicities, fusion_outcomes_sort = _unique_sorted_sectors(sectors, multiplicities)
         metadata = dict(fusion_outcomes_sort=fusion_outcomes_sort)
         return sectors, multiplicities, metadata
@@ -1400,4 +1407,3 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
             remaining_symmetry = ProductSymmetry(factors)
 
     return which, remaining_symmetry
-

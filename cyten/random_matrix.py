@@ -29,7 +29,7 @@ corresponding ensemble, for example::
     Tensor.from_func_square(GOE, [leg, leg.conj()])
 
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 import numpy as np
 
@@ -39,12 +39,12 @@ __all__ = [
 
 
 def box(size, W=1.):
-    """return random number uniform in (-W, W]."""
+    """Generate random number uniform in (-W, W]."""
     return (0.5 - np.random.random(size)) * (2. * W)
 
 
 def standard_normal_complex(size):
-    """return ``(R + 1.j*I)`` for independent `R` and `I` from np.random.standard_normal."""
+    """Generate ``(R + 1.j*I)`` for independent `R` and `I` from np.random.standard_normal."""
     return np.random.standard_normal(size) + 1.j * np.random.standard_normal(size)
 
 
@@ -154,7 +154,7 @@ def CUE(size):
 
 
 def O_close_1(size, a=0.01):
-    r"""return an random orthogonal matrix 'close' to the Identity.
+    r"""Generate an random orthogonal matrix 'close' to the Identity.
 
     Parameters
     ----------
@@ -180,7 +180,7 @@ def O_close_1(size, a=0.01):
 
 
 def U_close_1(size, a=0.01):
-    r"""return an random orthogonal matrix 'close' to the identity.
+    r"""Generate an random orthogonal matrix 'close' to the identity.
 
     Parameters
     ----------

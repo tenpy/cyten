@@ -15,7 +15,7 @@ Main changes  (TODO -> changelog)
 - sites have a backend. all operators on the site need to have that backend.
 
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 
 from __future__ import annotations
@@ -25,14 +25,16 @@ import copy
 from typing import TypeVar, Type
 from functools import partial, reduce
 
-from ..tensors import (Tensor, SymmetricTensor, SymmetricTensor, ChargedTensor,
-                              DiagonalTensor, almost_equal, angle, real_if_close, exp)
+from ..tensors import (Tensor, SymmetricTensor, ChargedTensor, DiagonalTensor, almost_equal, angle,
+                       real_if_close, exp)
 from ..backends import TensorBackend, Block
 from ..symmetries import (ProductSymmetry, Symmetry, SU2Symmetry, U1Symmetry, ZNSymmetry,
-                             no_symmetry, SectorArray)
+                          no_symmetry, SectorArray)
 from ..spaces import Space, ElementarySpace, ProductSpace
 from ..tools.misc import find_subclass, make_stride
-#  from ..tools.hdf5_io import Hdf5Exportable  # TODO add import/export by making Site a subclass of HDF5Exportable again
+
+# TODO add import/export by making Site a subclass of HDF5Exportable again
+#  from ..tools.hdf5_io import Hdf5Exportable
 
 __all__ = ['Site', 'GroupedSite', 'group_sites', 'set_common_symmetry', 'as_valid_operator_name',
            'split_charged_operator_symbol', 'ChargedOperator', 'SpinHalfSite', 'SpinSite',
@@ -169,7 +171,7 @@ class Site:
                     are_equivalent = almost_equal(op_L, op)
                 if not are_equivalent:
                     msg = ('Charged operators and symmetric operators with the same name must '
-                            'be equal.')
+                           'be equal.')
                     raise ValueError(msg)
         # check self.charged_ops
         for name, op in self.charged_ops.items():
@@ -694,7 +696,6 @@ class GroupedSite(Site):
         # determine new legs
         if symmetry_combine == 'same':
             legs = [site.leg for site in sites]
-            res_symmetry = sites[0].leg.symmetry
         elif symmetry_combine == 'drop':
             legs = [s.leg.drop_symmetry() for s in sites]
         elif symmetry_combine == 'independent':
@@ -892,9 +893,10 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
 
     if symmetry_combine == 'by_name':
         factors = []
-        sites_and_slices = []  # for every factor, a list of tuples (site_idx, sector_slc)
-                               # indicating that this factor appears on sites[site_idx] and its
-                               # sectors are embedded at sector_slc of that sites symmetry
+        # for every factor, a list of tuples (site_idx, sector_slc)
+        # indicating that this factor appears on sites[site_idx] and its
+        # sectors are embedded at sector_slc of that sites symmetry
+        sites_and_slices = []
         for i, site in enumerate(sites):
             if isinstance(site.leg.symmetry, ProductSymmetry):
                 new_factors = site.leg.symmetry.factors
@@ -919,8 +921,9 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
             new_symm_slices = [slice(new_symmetry.sector_slices[n], new_symmetry.sector_slices[n + 1])
                                for n in range(len(factors))]
         for i, site in enumerate(sites):
-            slice_tuples = []  # list of tuples (new_slice, old_slice) indicating that
-                               # for this site, new_sector[new_slice] = old_sector[old_slice]
+            # list of tuples (new_slice, old_slice) indicating that
+            # for this site, new_sector[new_slice] = old_sector[old_slice]
+            slice_tuples = []
             for n in range(len(factors)):
                 for j, slc in sites_and_slices[n]:
                     if i == j:
@@ -944,8 +947,9 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
 
     if symmetry_combine == 'independent':
         factors = []
-        ind_lens = []  # basically [site.leg.symmetry.sector_ind_len for site in sites]
-                       # but adjusted for the ignored no_symmetry s
+        # basically [site.leg.symmetry.sector_ind_len for site in sites]
+        # but adjusted for the ignored no_symmetry s
+        ind_lens = []
         for site in sites:
             site_symmetry = site.symmetry
             if isinstance(site_symmetry, ProductSymmetry):
@@ -1023,6 +1027,7 @@ def as_valid_operator_name(name) -> str:
 
 def split_charged_operator_symbol(name: str) -> tuple[str, bool]:
     """Helper function to parse charged operators ``"(O*_)"`` or ``"(_*O)"``.
+    
     Returns
     -------
     name : str
@@ -1159,6 +1164,7 @@ class SpinHalfSite(Site):
     backend : :class:`~cyten.backends.Backend`, optional
         The backend used to create the operators.
     """
+    
     def __init__(self, conserve: str = 'Sz', backend: TensorBackend = None):
         # make leg
         if conserve == 'Stot':
@@ -1304,8 +1310,9 @@ class SpinSite(Site):
             self.add_any_operator('Sm', Sm, hc='Sp')
         # operators : Sx, Sy
         if conserve in ['Sz', 'parity']:
-            Sp_inv = self.charged_ops['Sp'].op_L.invariant_part
-            Sm_inv = self.charged_ops['Sm'].op_L.invariant_part
+            pass
+            # Sp_inv = self.charged_ops['Sp'].op_L.invariant_part
+            # Sm_inv = self.charged_ops['Sm'].op_L.invariant_part
             # Sx_inv = concatenate([.5 * Sp_inv, .5 * Sm_inv], leg=-1)
             # Sy_inv = concatenate([-.5j * Sp_inv, .5j * Sm_inv], leg=-1)
             # self.add_charged_operator('Sx', ChargedTensor(Sx_inv), hc='Sx')
@@ -1984,6 +1991,7 @@ class ClockSite(Site):
     backend : :class:`~cyten.backends.Backend`, optional
         The backend used to create the operators.
     """
+    
     def __init__(self, q: int, conserve: str = 'Z', backend: TensorBackend = None):
         if not (isinstance(q, int) and q > 1):
             raise ValueError(f'invalid q: {q}')

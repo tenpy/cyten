@@ -1,9 +1,8 @@
 """Krylov-based algorithms for tensors"""
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 from abc import ABCMeta, abstractmethod
 import numpy as np
 import logging
-logger = logging.getLogger(__name__)
 
 from .tensors import Tensor
 from .sparse import LinearOperator, ShiftedLinearOperator, ProjectedLinearOperator
@@ -12,6 +11,9 @@ from .tools.misc import argsort  # TODO replace this?
 
 __all__ = ['KrylovBased', 'Arnoldi', 'LanczosGroundState', 'LanczosEvolution', 'lanczos',
            'lanczos_arpack']
+
+
+logger = logging.getLogger(__name__)
 
 
 class KrylovBased(metaclass=ABCMeta):
@@ -117,16 +119,16 @@ class KrylovBased(metaclass=ABCMeta):
         self.psi0 = psi0
         self._psi0_norm = None
         #  self.options = options = asConfig(options, self.__class__.__name__)
-        self.N_min = options.get('N_min', 2) #  int)
-        self.N_max = options.get('N_max', 20) # , int)
+        self.N_min = options.get('N_min', 2)
+        self.N_max = options.get('N_max', 20)
         self.N_cache = self.N_max
-        self.P_tol = options.get('P_tol', 1.e-14) # , 'real')
-        self.min_gap = options.get('min_gap', 1.e-12) #, 'real')
-        self.reortho = options.get('reortho', False) #, bool)
-        self.E_shift = options.get('E_shift', None) #, 'real')
+        self.P_tol = options.get('P_tol', 1.e-14)
+        self.min_gap = options.get('min_gap', 1.e-12)
+        self.reortho = options.get('reortho', False)
+        self.E_shift = options.get('E_shift', None)
         if self.N_min < 2:
             raise ValueError("Should perform at least 2 steps.")
-        self._cutoff = options.get('cutoff', psi0.dtype.eps * 100) #, 'real')
+        self._cutoff = options.get('cutoff', psi0.dtype.eps * 100)
         if self.E_shift is not None:
             if isinstance(self.H, ProjectedLinearOperator):
                 self.H.original_operator = ShiftedLinearOperator(
@@ -179,7 +181,7 @@ class KrylovBased(metaclass=ABCMeta):
         return psif.multiply_scalar(1. / psif_norm)
 
     def _to_cache(self, psi):
-        """add psi to cache, keep at most self.N_cache."""
+        """Add psi to cache, keep at most self.N_cache."""
         cache = self._cache
         cache.append(psi)
         if len(cache) > self.N_cache:
@@ -206,6 +208,7 @@ class Arnoldi(KrylovBased):
             Number of eigenvectors to look for/return in `run`.
 
     """
+    
     def __init__(self, H, psi0, options):
         super().__init__(H, psi0, options)
         self.E_tol = self.options.get('E_tol', np.inf, 'real')
@@ -257,14 +260,14 @@ class Arnoldi(KrylovBased):
         return k + 1
 
     def _calc_result_krylov(self, k):
-        """calculate ground state of _h_krylov[:k+1, :k+1]"""
+        """Calculate ground state of _h_krylov[:k+1, :k+1]"""
         h = self._h_krylov
         if k == 0:
             self.Es[0, 0] = h[0, 0]
             self._result_krylov = np.ones([1, 1], self._dtype_h_krylov)
         else:
             # Diagonalize h
-            E_kr, v_kr = np.linalg.eig(h[:k + 1, :k + 1]) # not hermitian!
+            E_kr, v_kr = np.linalg.eig(h[:k + 1, :k + 1])  # not hermitian!
             sort = argsort(E_kr, self.which)
             self.Es[k, :k + 1] = E_kr[sort]
             self._result_krylov = v_kr[:, sort]  # ground state of _h_krylov
@@ -301,7 +304,7 @@ class Arnoldi(KrylovBased):
         return psis
 
     def _to_cache(self, psi):
-        """add psi to cache, keep at most self.N_cache."""
+        """Add psi to cache, keep at most self.N_cache."""
         cache = self._cache
         cache.append(psi)
         assert len(cache) <= self.N_cache
@@ -428,12 +431,12 @@ class LanczosGroundState(KrylovBased):
             elif k > 0:
                 w -= beta * self._cache[-2]  # noqa: F821
             beta = h[k, k + 1]  # = norm(w)
-            w = w._mul_scalar(1. /  beta)
+            w = w._mul_scalar(1. / beta)
             psif += vf[k + 1] * w
         # continue in _calc_result_full
 
     def _calc_result_krylov(self, k):
-        """calculate ground state of _h_krylov[:k+1, :k+1]"""
+        """Calculate ground state of _h_krylov[:k+1, :k+1]"""
         h = self._h_krylov
         if k == 0:
             self.Es[0, 0] = h[0, 0]
@@ -477,6 +480,7 @@ class LanczosEvolution(LanczosGroundState):
     _result_norm : float
         Norm of the resulting vector.
     """
+    
     def __init__(self, H, psi0, options):
         super().__init__(H, psi0, options)
         self._result_norm = 1.
@@ -523,8 +527,7 @@ class LanczosEvolution(LanczosGroundState):
         return (self._psi0_norm * self._result_norm) * result_full, N
 
     def _calc_result_krylov(self, k):
-        """calculate ``expm(delta h).dot(e0)`` for ``h = _h_krylov[:k+1, :k+1]``"""
-
+        """Calculate ``expm(delta h).dot(e0)`` for ``h = _h_krylov[:k+1, :k+1]``"""
         # self._result_krylov should be a normalized vector.
         h = self._h_krylov
         delta = self.delta
