@@ -2277,7 +2277,6 @@ class ToricCodeCategory(QuantumDoubleZNAnyonCategory):
         return f'ToricCodeCategory({name_str})'
     
 
-
 class FibonacciAnyonCategory(Symmetry):
     """Category describing Fibonacci anyons.
 
