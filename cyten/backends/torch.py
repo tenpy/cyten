@@ -4,14 +4,10 @@ from __future__ import annotations
 from numpy import prod
 import numpy
 
-from .abelian import AbelianBackend
 from .abstract_backend import BlockBackend, Block
-from .no_symmetry import NoSymmetryBackend
-from .fusion_tree_backend import FusionTreeBackend
 from ..dtypes import Dtype
 
-__all__ = ['TorchBlockBackend', 'NoSymmetryTorchBackend', 'AbelianTorchBackend',
-           'FusionTreeTorchBackend']
+__all__ = ['TorchBlockBackend']
 
 
 class TorchBlockBackend(BlockBackend):
@@ -338,27 +334,3 @@ class TorchBlockBackend(BlockBackend):
     def zero_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
         return torch_module.zeros(list(shape), dtype=self.backend_dtype_map[dtype],
                                   device=self.as_device(device))
-
-
-class NoSymmetryTorchBackend(NoSymmetryBackend):
-    """TODO"""
-    
-    def __init__(self, default_device: str = 'cpu'):
-        block_backend = TorchBlockBackend(default_device=default_device)
-        NoSymmetryBackend.__init__(self, block_backend=block_backend)
-
-
-class AbelianTorchBackend(AbelianBackend):
-    """TODO"""
-    
-    def __init__(self, default_device: str = 'cpu'):
-        block_backend = TorchBlockBackend(default_device=default_device)
-        AbelianBackend.__init__(self, block_backend=block_backend)
-
-
-class FusionTreeTorchBackend(FusionTreeBackend):
-    """TODO"""
-    
-    def __init__(self, default_device: str = 'cpu'):
-        block_backend = TorchBlockBackend(default_device=default_device)
-        FusionTreeBackend.__init__(self, block_backend=block_backend)

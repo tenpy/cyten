@@ -5,14 +5,10 @@ from __future__ import annotations
 import numpy as np
 import scipy
 
-from .abelian import AbelianBackend
 from .abstract_backend import BlockBackend, Block
-from .no_symmetry import NoSymmetryBackend
-from .fusion_tree_backend import FusionTreeBackend
 from ..dtypes import Dtype, _numpy_dtype_to_cyten, _cyten_dtype_to_numpy
 
-__all__ = ['NumpyBlockBackend', 'NoSymmetryNumpyBackend', 'AbelianNumpyBackend',
-           'FusionTreeNumpyBackend']
+__all__ = ['NumpyBlockBackend']
 
 
 class NumpyBlockBackend(BlockBackend):
@@ -290,27 +286,6 @@ class NumpyBlockBackend(BlockBackend):
     def zero_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
         _ = self.as_device(device)  # for input check only
         return np.zeros(shape, dtype=self.backend_dtype_map[dtype])
-
-
-class NoSymmetryNumpyBackend(NoSymmetryBackend):
-    """TODO"""
-    
-    def __init__(self):
-        NoSymmetryBackend.__init__(self, block_backend=NumpyBlockBackend())
-
-
-class AbelianNumpyBackend(AbelianBackend):
-    """TODO"""
-    
-    def __init__(self):
-        AbelianBackend.__init__(self, block_backend=NumpyBlockBackend())
-
-
-class FusionTreeNumpyBackend(FusionTreeBackend):
-    """TODO"""
-    
-    def __init__(self):
-        FusionTreeBackend.__init__(self, block_backend=NumpyBlockBackend())
 
 
 def _svd_gesvd(a):
