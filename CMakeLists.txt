@@ -30,6 +30,7 @@ endif()
 # ## COMMAND LINE OPTIONS
 # #####################################################################
 option(BUILD_DOC "Build API documentation" OFF)
+option(BUILD_TESTING "Build ctest tests" ON)
 
 
 # #####################################################################
@@ -98,8 +99,8 @@ install(TARGETS _core LIBRARY DESTINATION cyten)
 # #####################################################################
 # ## DOCUMENTATION
 # #####################################################################
-IF(BUILD_DOC)
-  FIND_PACKAGE(Doxygen REQUIRED)
+if(BUILD_DOC)
+  find_package(Doxygen REQUIRED)
 
   if(DOXYGEN_FOUND)
     configure_file(cyten_Doxyfile.in cytenDoxyfile)
@@ -124,6 +125,12 @@ if(DOXYGEN_FOUND)
 endif()
 
 
+# #####################################################################
+# ## CTest
+# #####################################################################
 
-# enable_testing()
-# add_test(NAME import_check COMMAND python -c "import cyten")
+include(CTest)
+if(BUILD_TESTING)
+  enable_testing()
+  add_subdirectory(tests/ctest)
+endif()
