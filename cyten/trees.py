@@ -1,6 +1,7 @@
 """TODO module docstring"""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
+from math import prod
 from typing import Iterator
 import numpy as np
 
@@ -395,17 +396,17 @@ class fusion_trees:
         self.are_dual = are_dual
 
     def __iter__(self) -> Iterator[FusionTree]:
-        if len(self.uncoupled) == 0:
+        if self.num_uncoupled == 0:
             if np.all(self.coupled == self.symmetry.trivial_sector):
                 yield FusionTree(self.symmetry, self.uncoupled, self.coupled, [], [], [])
             return
         
-        if len(self.uncoupled) == 1:
+        if self.num_uncoupled == 1:
             if np.all(self.uncoupled[0] == self.coupled):
                 yield FusionTree(self.symmetry, self.uncoupled, self.coupled, self.are_dual, [], [])
             return
         
-        if len(self.uncoupled) == 2:
+        if self.num_uncoupled == 2:
             # OPTIMIZE does handling of multiplicities introduce significant overhead?
             #          could do a specialized version for multiplicity-free fusion
             for mu in range(self.symmetry.n_symbol(*self.uncoupled, self.coupled)):
@@ -431,17 +432,17 @@ class fusion_trees:
     def __len__(self) -> int:
         # OPTIMIZE caching ?
 
-        if len(self.uncoupled) == 0:
+        if self.num_uncoupled == 0:
             if np.all(self.coupled == self.symmetry.trivial_sector):
                 return 1
             return 0
 
-        if len(self.uncoupled) == 1:
+        if self.num_uncoupled == 1:
             if np.all(self.uncoupled[0] == self.coupled):
                 return 1
             return 0
 
-        if len(self.uncoupled) == 2:
+        if self.num_uncoupled == 2:
             return self.symmetry.n_symbol(*self.uncoupled, self.coupled)
 
         a1 = self.uncoupled[0]
@@ -464,10 +465,58 @@ class fusion_trees:
         return f'fusion_trees({self.symmetry}, {uncoupled}, {self.coupled}, {self.are_dual})'
 
     def index(self, tree: FusionTree) -> int:
-        # TODO check compatibility first (same symmetry, same uncoupled, same coupled)
-        # TODO inefficient dummy implementation, can exploit __len__ of iterator over subtrees
-        # to know how many we need to skip.
-        for n, t in enumerate(self):
-            if t == tree:
-                return n
-        raise ValueError(f'Tree not found.')
+        # check compatibility first (same symmetry, same uncoupled, same coupled, same are_dual)
+        if not self.symmetry.is_same_symmetry(tree.symmetry):
+            raise ValueError(f'Inconsistent symmetries, {self.symmetry} != {tree.symmetry}')
+        if not np.all(self.uncoupled == tree.uncoupled):
+            raise ValueError(f'Inconsistent uncoupled sectors, {self.uncoupled} != {tree.uncoupled}')
+        if not self.coupled == tree.coupled:
+            raise ValueError(f'Inconsistent coupled sector, {self.coupled} != {tree.coupled}')
+        if not np.all(self.are_dual == tree.are_dual):
+            raise ValueError(f'Inconsistent dualities, {self.are_dual} != {tree.are_dual}')
+        return self._compute_index(tree)
+
+    def _compute_index(self, tree: FusionTree) -> int:
+        if self.num_uncoupled < 2:
+            if self.num_uncoupled == 0 and np.all(self.coupled == self.symmetry.trivial_sector):
+                return 0
+            elif self.num_uncoupled == 1 and np.all(self.uncoupled[0] == self.coupled):
+                return 0
+            raise ValueError(f'Inconsistent coupled sector.')
+
+        idx = 0
+        # product of all multiplicities to the left of left_sec in for loop below
+        left_multi = 1
+        # upper limit for the values multiplities take at each vertex (of the tree)
+        max_multis = []
+        for i in range(self.num_uncoupled-2):
+            # coupled sector is unique, no need to shift idx for target_sec == self.coupled
+            target_sec = tree.inner_sectors[i]
+            left_sec = self.uncoupled[i] if i == 0 else tree.inner_sectors[i-1]
+            sector_found = False
+            for fusion_sec in self.symmetry.fusion_outcomes(left_sec, self.uncoupled[i+1]):
+                multi = self.symmetry._n_symbol(left_sec, self.uncoupled[i+1], fusion_sec)
+                if fusion_sec == target_sec:
+                    sector_found = True
+                    left_multi *= multi
+                    max_multis.append(multi)
+                    break
+                uncoupled = np.concatenate([fusion_sec[None, :], self.uncoupled[i+2:]])
+                are_dual = np.concatenate([[False], self.are_dual[i+2:]])
+                idx += left_multi * multi * len(fusion_trees(self.symmetry, uncoupled,
+                                                             self.coupled, are_dual))
+            if not sector_found:
+                raise ValueError(f'Inconsistent inner sector.')
+
+        left_sec = self.uncoupled[0] if self.num_uncoupled == 2 else tree.inner_sectors[-1]
+        if not self.symmetry.can_fuse_to(left_sec, self.uncoupled[-1], self.coupled):
+            raise ValueError(f'Inconsistent inner sector.')
+
+        max_multis.append(self.symmetry._n_symbol(left_sec, self.uncoupled[-1], self.coupled))
+        if not np.all(tree.multiplicities < max_multis):
+            raise ValueError(f'Inconsistent multiplicity.')
+
+        # idx shift from multiplicities
+        if not self.symmetry.is_abelian:
+            idx += sum([multi * prod(max_multis[:i]) for i, multi in enumerate(tree.multiplicities)])
+        return idx
