@@ -1,9 +1,10 @@
+// Implements main pybind11 python module cyten._core with all python bindings.
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/numpy.h>
 #include <pybind11/operators.h>
 
-#include <check.h>
+#include "check.h"
 
 using namespace std;
 using namespace cyten;
