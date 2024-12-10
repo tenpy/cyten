@@ -19,20 +19,20 @@ Feel free to use the following git hooks (this is Jakobs current setup for the c
     # "@{push}" is the target of "git push" and "@" is HEAD 
     # Filter only added (A), copied (C), modified (M) files
     for file in $(git diff --name-only --diff-filter=ACM @{push} @); do
-    # note: only the last grep should be quiet (-q)!
-    #       the first one should return the matches, the last only the exit code
-    if git show :0:"$file" | grep -E "^\+" | grep -Eq "^[<>=]{7}"; then
-        echo -e "\033[1;31mLeftover conflict markers in $file\033[0m"
-        STOP_PUSH=true
-    fi
+        # note: only the last grep should be quiet (-q)!
+        #       the first one should return the matches, the last only the exit code
+        if git show :0:"$file" | grep -E "^\+" | grep -Eq "^[<>=]{7}"; then
+            echo -e "\033[1;31mLeftover conflict markers in $file\033[0m"
+            STOP_PUSH=true
+        fi
     done
 
     # 2) Check for forbidden patterns in the commit messages
     # ======================================================================================
 
     for hash in $(git rev-list @{push}..@); do
-    MESSAGE=$(git log -n 1 --pretty=format:%s "$hash")
-    SHORTHASH=$(git log -n 1 --pretty=format:%h "$hash")
+        MESSAGE=$(git log -n 1 --pretty=format:%s "$hash")
+        SHORTHASH=$(git log -n 1 --pretty=format:%h "$hash")
     done
 
     # 3) Lint
@@ -41,27 +41,27 @@ Feel free to use the following git hooks (this is Jakobs current setup for the c
     # Run custom linting script
     if python tests/linting/python_linting.py &> /dev/null
     then
-    echo "Custom linting passed"
+        echo "Custom linting passed"
     else
-    python tests/linting/python_linting.py
-    STOP_COMMIT=true
+        python tests/linting/python_linting.py
+        STOP_PUSH=true
     fi
 
     # Run flake8 linter
     if python -m flake8 . &> /dev/null
     then
-    echo "flake8 passed"
-    else
-    python -m flake8 .
-    STOP_COMMIT=true
+        echo "flake8 passed"
+        else
+        python -m flake8 .
+        STOP_PUSH=true
     fi
 
     # 4) If there was any error then stop push
     # ======================================================================================
 
     if $STOP_PUSH; then
-    echo "\033[1;31mPush blocked.\033[0m Use '--no-verify' to circumvent the hook and push anyway."
-    exit 1
+        echo "\033[1;31mPush blocked.\033[0m Use '--no-verify' to circumvent the hook and push anyway."
+        exit 1
     fi
     ```
     
