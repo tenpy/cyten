@@ -3,8 +3,7 @@
 
 from __future__ import annotations
 from abc import abstractmethod, ABCMeta
-from enum import Enum
-from functools import reduce, total_ordering
+from functools import reduce
 from itertools import product
 
 from numpy import typing as npt
@@ -14,6 +13,7 @@ import math
 from .dtypes import Dtype
 from .tools.misc import as_immutable_array
 
+from ._core import FusionStyle, BraidingStyle
 
 __all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingStyle',
            # symmetry base-classes
@@ -36,7 +36,7 @@ __all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingSty
 
 class SymmetryError(Exception):
     """An exception that is raised whenever something is not possible or not allowed due to symmetry"""
-    
+
     pass
 
 
@@ -53,60 +53,6 @@ A 2D array of int with axis [s, q] and shape ``(num_sectors, sector_ind_len)``.
 # TODO eventually decide if we want to do them or not or optionally.
 #      but we should definitely have these checks while developing.
 _DO_FUSION_INPUT_CHECKS = True
-
-
-@total_ordering
-class FusionStyle(Enum):
-    """Describes properties of fusion, i.e. of the tensor product.
-
-    =================  =============================================================================
-    Value              Meaning
-    =================  =============================================================================
-    single             Fusing sectors results in a single sector ``a ⊗ b = c``, e.g. abelian groups.
-    -----------------  -----------------------------------------------------------------------------
-    multiple_unique    Every sector appears at most once in pairwise fusion, ``N_symbol in [0, 1]``.
-    -----------------  -----------------------------------------------------------------------------
-    general            No assumptions, ``N_symbol in [0, 1, 2, 3, ...]``.
-    =================  =============================================================================
-
-    """
-    
-    single = 0  # only one resulting sector, a ⊗ b = c, e.g. abelian symmetry groups
-    multiple_unique = 10  # every sector appears at most once in pairwise fusion, N^{ab}_c \in {0,1}
-    general = 20  # no assumptions N^{ab}_c = 0, 1, 2, ...
-
-    def __lt__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value <= other.value
-        return NotImplemented
-
-
-@total_ordering
-class BraidingStyle(Enum):
-    """Describes properties of braiding.
-
-    =============  ===========================================
-    Value
-    =============  ===========================================
-    bosonic        Symmetric braiding with trivial twist
-    -------------  -------------------------------------------
-    fermionic      Symmetric braiding with non-trivial twist
-    -------------  -------------------------------------------
-    anyonic        General, non-symmetric braiding
-    -------------  -------------------------------------------
-    no_braiding    Braiding is not defined
-    =============  ===========================================
-    """
-
-    bosonic = 0  # symmetric braiding with trivial twist; v ⊗ w ↦ w ⊗ v
-    fermionic = 10  # symmetric braiding with non-trivial twist; v ⊗ w ↦ (-1)^p(v,w) w ⊗ v
-    anyonic = 20  # non-symmetric braiding
-    no_braiding = 30  # braiding is not defined
-
-    def __lt__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value <= other.value
-        return NotImplemented
 
 
 class Symmetry(metaclass=ABCMeta):
@@ -207,7 +153,7 @@ class Symmetry(metaclass=ABCMeta):
     @abstractmethod
     def is_same_symmetry(self, other) -> bool:
         """Whether self and other describe the same mathematical structure.
-        
+
         descriptive_name is ignored.
         """
         ...
@@ -225,7 +171,7 @@ class Symmetry(metaclass=ABCMeta):
     @abstractmethod
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
         """Optimized version of self.n_symbol that assumes that c is a valid fusion outcome.
-        
+
         If it is not, the results may be nonsensical. We do this for optimization purposes
         """
         ...
@@ -662,7 +608,7 @@ class ProductSymmetry(Symmetry):
         nesting is flattened, i.e. ``[*others, psymm]`` is translated to
         ``[*others, *psymm.factors]`` for a :class:`ProductSymmetry` ``psymm``.
     """
-    
+
     can_be_dropped = None  # set by __init__
 
     def __init__(self, factors: list[Symmetry]):
@@ -991,7 +937,7 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
     be used to check if a given `ProductSymmetry` *instance* is a group-symmetry.
     See examples in docstring of :class:`AbelianGroup`.
     """
-    
+
     can_be_dropped = True
 
     def __init__(self, fusion_style: FusionStyle, trivial_sector: Sector, group_name: str,
@@ -1145,7 +1091,7 @@ class U1Symmetry(AbelianGroup):
     Allowed sectors are 1D arrays with a single integer entry.
     ..., `[-2]`, `[-1]`, `[0]`, `[1]`, `[2]`, ...
     """
-    
+
     def __init__(self, descriptive_name: str | None = None):
         AbelianGroup.__init__(self, trivial_sector=np.array([0], dtype=int), group_name='U(1)',
                               num_sectors=np.inf, descriptive_name=descriptive_name)
@@ -1186,7 +1132,7 @@ class ZNSymmetry(AbelianGroup):
     Allowed sectors are 1D arrays with a single integer entry between `0` and `N-1`.
     `[0]`, `[1]`, ..., `[N-1]`
     """
-    
+
     def __init__(self, N: int, descriptive_name: str | None = None):
         assert isinstance(N, int)
         if not isinstance(N, int) and N > 1:
@@ -1542,7 +1488,7 @@ class SUNSymmetry(GroupSymmetry):
 
     def dims_of_irreps(self, a: Sector, b: Sector) -> dict:
         """Returns a dictionary with irreps as keys and their dimension as values.
-        
+
         The irreps are the ones appearing in the decomposition of a x b
         Does not contain multiplicities!
         """
@@ -1642,7 +1588,7 @@ class SUNSymmetry(GroupSymmetry):
 
         if Z_a or Z_b:
             raise NotImplementedError
-        
+
         hw = self.hweight_from_CG_hdf5()
 
         if a[0] > hw or b[0] > hw or c[0] > hw:
@@ -1669,7 +1615,7 @@ class SUNSymmetry(GroupSymmetry):
 
     def _f_symbol_from_CG(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector):
         """a,b,c,d,e,f are irrep labels, i.e. first rows of GT patterns
-        
+
         output is the conjugated F symbol [F^{abc}_{def}]^*_{mu,nu,kappa, lambda}
         where a x b = mu c, c x d =nu e, b x d= kappa f and a x f =lambda e
         """
@@ -1723,7 +1669,7 @@ class SUNSymmetry(GroupSymmetry):
 
     def _r_symbol_from_CG(self, a: Sector, b: Sector, c: Sector):
         """a,b,c are irrep labels, i.e. first rows of GT patterns
-        
+
         output is the R symbol [R^{ab}_{c}]^*_{mu,nu}
         where a x b = mu c, c x d =nu e, b x d= kappa f and a x f =lambda e
         """
@@ -1822,7 +1768,7 @@ class FermionParity(Symmetry):
     Allowed sectors are arrays with a single entry; either ``[0]`` (even) or ``1`` (odd).
     The parity is the number of fermions in a given state modulo 2.
     """
-    
+
     fusion_tensor_dtype = Dtype.float64
     _one_2D = as_immutable_array(np.ones((1, 1), dtype=int))
     _one_2D_float = as_immutable_array(np.ones((1, 1), dtype=float))
@@ -1919,7 +1865,7 @@ class FermionParity(Symmetry):
 
 class ZNAnyonCategory(Symmetry):
     r"""Abelian anyon category with fusion rules corresponding to the Z_N group;
-    
+
     also written as :math:`Z_N^{(n)}`.
 
     Allowed sectors are 1D arrays with a single integer entry between `0` and `N-1`.
@@ -1931,7 +1877,7 @@ class ZNAnyonCategory(Symmetry):
 
     The anyon category corresponding to opposite handedness is obtained for `N` and `N-n` (or `-n`).
     """
-    
+
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
@@ -2012,7 +1958,7 @@ class ZNAnyonCategory(Symmetry):
 
 class ZNAnyonCategory2(Symmetry):
     r"""Abelian anyon category with fusion rules corresponding to the Z_N group;
-    
+
     also written as :math:`Z_N^{(n+1/2)}`. `N` must be even.
 
     .. todo ::
@@ -2027,7 +1973,7 @@ class ZNAnyonCategory2(Symmetry):
 
     The anyon category corresponding to opposite handedness is obtained for `N` and `N-n` (or `-n`).
     """
-    
+
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
@@ -2118,7 +2064,7 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
 
     This is not a simple product of two `ZNAnyonCategory`s; there are nontrivial R-symbols.
     """
-    
+
     _one_2D = as_immutable_array(np.ones((1, 1), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
@@ -2217,7 +2163,7 @@ class ToricCodeCategory(QuantumDoubleZNAnyonCategory):
     def __repr__(self):
         name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
         return f'ToricCodeCategory({name_str})'
-    
+
 
 class FibonacciAnyonCategory(Symmetry):
     """Category describing Fibonacci anyons.
@@ -2231,7 +2177,7 @@ class FibonacciAnyonCategory(Symmetry):
         Considering anyons of different handedness is necessary for doubled models like,
         e.g., the anyons realized in the Levin-Wen string-net models.
     """
-    
+
     _fusion_map = {  # key: number of tau in fusion input
         0: as_immutable_array(np.array([[0]])),  # 1 x 1 = 1
         1: as_immutable_array(np.array([[1]])),  # 1 x t = t = t x 1
@@ -2334,7 +2280,7 @@ class IsingAnyonCategory(Symmetry):
         anyon model. Different `nu` correspond to different topological twists of the Ising anyons.
         The Ising anyon model of opposite handedness is obtained for `-nu`.
     """
-    
+
     _fusion_map = {  # 1: vacuum, σ: Ising anyon, ψ: fermion
         0: as_immutable_array(np.array([[0]])),  # 1 x 1 = 1
         1: as_immutable_array(np.array([[1]])),  # 1 x σ = σ = σ x 1
@@ -2462,7 +2408,7 @@ class SU2_kAnyonCategory(Symmetry):
         Considering anyons of different handedness is necessary for doubled models like,
         e.g., the anyons realized in the Levin-Wen string-net models.
     """
-    
+
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
     spin_zero = as_immutable_array(np.array([0], dtype=int))
@@ -2640,7 +2586,7 @@ class SU3_3AnyonCategory(Symmetry):
     The notion of handedness does not make sense for this specific anyon model since it
     only exchanges the two fusion multiplicities of anyon `8`.
     """
-    
+
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
     _fusion_map = {  # notation: 10- = \bar{10}
