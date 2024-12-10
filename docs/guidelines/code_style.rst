@@ -21,7 +21,7 @@ Feel free to use the following git hooks (this is Jakobs current setup for the c
     for file in $(git diff --name-only --diff-filter=ACM @{push} @); do
     # note: only the last grep should be quiet (-q)!
     #       the first one should return the matches, the last only the exit code
-    if git show :0:"$file" | ggrep -E "^\+" | ggrep -Eq "^[<>=]{7}"; then
+    if git show :0:"$file" | grep -E "^\+" | grep -Eq "^[<>=]{7}"; then
         echo -e "\033[1;31mLeftover conflict markers in $file\033[0m"
         STOP_PUSH=true
     fi
@@ -80,11 +80,11 @@ Feel free to use the following git hooks (this is Jakobs current setup for the c
     # check for leftover conflict markers in *whole file*
     # note: only the last grep should be quiet (-q)!
     #       the first one should return the matches, the last only the exit code
-    if git show :0:"$file" | ggrep -E "^\+" | ggrep -Eq "^[<>=]{7}"; then
+    if git show :0:"$file" | grep -E "^\+" | grep -Eq "^[<>=]{7}"; then
         echo -e "\033[1;31mLeftover conflict markers in $file\033[0m"
         STOP_COMMIT=true
     fi
-    if git diff --staged $file | ggrep -E "^\+" | ggrep -Eq "breakpoint()|set_trace()"; then
+    if git diff --staged $file | grep -E "^\+" | grep -Eq "breakpoint()|set_trace()"; then
         echo -e "\033[1;31mDebugging breakpoint in $file\033[0m"
         STOP_COMMIT=true
     fi
@@ -119,3 +119,9 @@ Feel free to use the following git hooks (this is Jakobs current setup for the c
     exit 1
     fi
     ```
+
+3. On MacOS only, note that the builtin ``grep`` command does not support the features used above.
+   Use the GNU version from `homebrew <https://formulae.brew.sh/formula/grep>` instead.
+   Note that ``brew`` installs the command under the different name ``ggrep`` by default,
+   so either adjust the hook accordingly or add ``$HOMEBREW_PREFIX/opt/grep/libexec/gnubin``
+   to your ``$PATH``.
