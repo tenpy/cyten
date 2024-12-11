@@ -56,44 +56,9 @@ void bind_symmetries(py::module_ &m){
         .value("no_braiding", BraidingStyle::no_braiding)
         .export_values();
     
+    m.def("compress_Sector", &compress_Sector_dynamic);
+    m.def("decompress_Sector", &decompress_Sector_dynamic);
     
-    py::class_<SectorArray>(m, "SectorArray", py::buffer_protocol())
-        .def(py::init<size_t>())
-        .def(py::init([](py::array_t<charge> array){
-            if (array.ndim() != 2)
-                throw std::runtime_error("expect Array of size 2");
-            size_t size = array.shape()[0];
-            size_t sector_len = array.shape()[1];
-            SectorArray * copy = new SectorArray(sector_len);
-            Sector s(sector_len);
-            for (size_t i = 0; i < size; ++i)
-                for (size_t j = 0; j < sector_len; ++j)
-                    s[j] = array.at(i,j);
-                copy->push_back(s);
-            return copy;
-        }))
-        .def_buffer([](SectorArray & array) {
-            return py::buffer_info(
-                (void*) array.raw_pointer(),  // raw pointer
-                sizeof(charge), // element size
-                py::format_descriptor<charge>::format(), // python format descriptor
-                2, // dimension
-                { array.size(), array.sector_len }, // buffer dims
-                { sizeof(charge) * array.sector_len, sizeof(charge) }, // strides (in bytes)
-                true // readonly
-            );
-        })
-        .def_readonly("sector_len", &SectorArray::sector_len)
-        .def_property_readonly("shape", [](SectorArray const & a){ 
-            return std::make_tuple(a.size(), a.sector_len);
-            })
-        .def("append", [](SectorArray & a, Sector const & s){
-            if (s.size() != a.sector_len)
-                throw std::length_error("Incompatible size of Sector to be added");
-            a.push_back(s);
-        }, "append a sector to the array")
-        ;
-
     // py::class_<Symmetry> symmetry(m, "Symmetry");
     
     
