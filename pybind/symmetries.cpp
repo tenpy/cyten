@@ -4,7 +4,7 @@
 #include <pybind11/operators.h>
 #include <exception>
 
-#include "symmetries.h"
+#include "cyten/symmetries.h"
 
 
 using namespace std;

@@ -1,8 +1,9 @@
 
-#include "symmetries.h"
 #include <iostream>
 #include <cassert>
 #include <bitset>
+
+#include "cyten/symmetries.h"
 
 using namespace cyten;
 

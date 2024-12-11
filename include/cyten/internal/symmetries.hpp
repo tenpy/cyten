@@ -1,15 +1,10 @@
-
-#include "cyten/symmetries.h"
-
-#include <cassert>
-#include <stdexcept>
+#pragma once
 
 namespace cyten {
-    
-Sector compress_Sector_dynamic(std::vector<Sector> decompressed, std::vector<int> const &bit_lengths)
+
+template<int N>
+Sector compress_Sector(std::array<Sector, N> decompressed, std::array<int, N> const & bit_lengths)
 {
-    const int N = bit_lengths.size();
-    // rest is same code as in compress_Sector<N>(std::array<Sector, N> const &, std::array<int, N> const &)
     Sector compressed = 0;
     int shift = 0;
     const Sector sign_bit = Sector(1) << 63;
@@ -27,17 +22,16 @@ Sector compress_Sector_dynamic(std::vector<Sector> decompressed, std::vector<int
                 throw std::overflow_error("discarding bits in compress_Sector");
         }
         compressed |= compress_i << shift;
-        shift += bit_lengths[i];           
+        shift += bit_lengths[i];
     }
     assert(shift <= 64);
     return compressed;
 }
 
-std::vector<Sector> decompress_Sector_dynamic(Sector compressed, std::vector<int> const &bit_lengths)
+template<int N>
+std::array<Sector, N> decompress_Sector(Sector compressed, std::array<int, N> const & bit_lengths)
 {
-    const int N = bit_lengths.size();
-    std::vector<Sector> decompressed(bit_lengths.size());
-    // rest is same code as in decompress_Sector<N>(Sector, std::array<int, N> const &)
+    std::array<Sector, N> decompressed;
     int shift = 0;
     const Sector sign_bit = Sector(1) << 63;
     for (size_t i = 0; i < N ; ++i) 
@@ -48,11 +42,10 @@ std::vector<Sector> decompress_Sector_dynamic(Sector compressed, std::vector<int
         if (decomp >> (bit_lengths[i] - 1))
             decomp |= ~mask_last_bits;
         decompressed[i] = decomp;
-        shift += bit_lengths[i];           
+        shift += bit_lengths[i];
     }
     assert(shift <= 64);
     return decompressed;
 }
 
-    
 } // namespace cyten
