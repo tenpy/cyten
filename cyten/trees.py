@@ -451,7 +451,8 @@ class fusion_trees:
         for b in self.symmetry.fusion_outcomes(a1, a2):
             uncoupled = np.concatenate([b[None, :], self.uncoupled[2:]])
             num_subtrees = len(fusion_trees(self.symmetry, uncoupled, self.coupled))
-            count += self.symmetry.n_symbol(a1, a2, b) * num_subtrees
+            # no need to check if the fusion is allowed in n_symbol -> use _n_symbol
+            count += self.symmetry._n_symbol(a1, a2, b) * num_subtrees
         return count
 
     def __str__(self):
@@ -470,7 +471,7 @@ class fusion_trees:
             raise ValueError(f'Inconsistent symmetries, {self.symmetry} != {tree.symmetry}')
         if not np.all(self.uncoupled == tree.uncoupled):
             raise ValueError(f'Inconsistent uncoupled sectors, {self.uncoupled} != {tree.uncoupled}')
-        if not self.coupled == tree.coupled:
+        if not np.all(self.coupled == tree.coupled):
             raise ValueError(f'Inconsistent coupled sector, {self.coupled} != {tree.coupled}')
         if not np.all(self.are_dual == tree.are_dual):
             raise ValueError(f'Inconsistent dualities, {self.are_dual} != {tree.are_dual}')
@@ -496,7 +497,7 @@ class fusion_trees:
             sector_found = False
             for fusion_sec in self.symmetry.fusion_outcomes(left_sec, self.uncoupled[i+1]):
                 multi = self.symmetry._n_symbol(left_sec, self.uncoupled[i+1], fusion_sec)
-                if fusion_sec == target_sec:
+                if np.all(fusion_sec == target_sec):
                     sector_found = True
                     left_multi *= multi
                     max_multis.append(multi)
