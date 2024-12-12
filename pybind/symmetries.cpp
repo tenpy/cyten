@@ -17,6 +17,8 @@ void bind_symmetries(py::module_ &m){
     py::options options;
     options.disable_enum_members_docstring();
 
+    py::register_exception<SymmetryError>(m, "SymmetryError");
+
     py::enum_<FusionStyle>(m, "FusionStyle", py::arithmetic(), R"pbdoc(
         Describes properties of fusion, i.e. of the tensor product.
 
@@ -56,14 +58,15 @@ void bind_symmetries(py::module_ &m){
         .value("no_braiding", BraidingStyle::no_braiding)
         .export_values();
     
-    m.def("compress_Sector", &compress_Sector_dynamic);
-    m.def("decompress_Sector", &decompress_Sector_dynamic);
     
+    // template<typename Symmetry_subclass>
+    // void def_symmetry(py::class_<Symmetry_subclass> sym) {
+    //     sym.def_read("fusion_style", &Symmetry::fusion_style)
+    //        .def_read("braiding_style", &Symmetry::braiding_style)
+    //        .def_read("can_be_dropped", &Symmetry::can_be_dropped);
+    // };
+
     // py::class_<Symmetry> symmetry(m, "Symmetry");
     
-    
     // symmetry.def(py::init<FusionStyle, BraidingStyle, bool>())
-    //     .def_read("fusion_style", &Symmetry::fusion_style)
-    //     .def_read("braiding_style", &Symmetry::braiding_style)
-    //     .def_read("can_be_dropped", &Symmetry::can_be_dropped);
 }

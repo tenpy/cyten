@@ -14,8 +14,8 @@ int test_symmetries(int argc, char ** args) {
     Sector a =-1, b=-5;
     std::array<int, 2> bit_lengths {4,4};
 
-    Sector c = compress_sector_fixed<2>({a,b}, bit_lengths);
-    auto dec = decompress_sector_fixed<2>(c, bit_lengths);
+    Sector c = _compress_sector_fixed<2>({a,b}, bit_lengths);
+    auto dec = _decompress_sector_fixed<2>(c, bit_lengths);
     std::cout << std::bitset<64>(a) << ", " << std::bitset<64>(b) << std::endl
               << " -> " << std::bitset<64>(c) << std::endl
               << " -> " << std::bitset<64>(dec[0]) << ", " << std::bitset<64>(dec[1]) << std::endl;

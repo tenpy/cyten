@@ -2,14 +2,24 @@
 
 namespace cyten {
 
+Sector _compress_sector(std::vector<Sector> decompressed, std::vector<int> const & bit_lengths);
+
 template<int N>
-Sector compress_sector_fixed(std::array<Sector, N> decompressed, std::array<int, N> const & bit_lengths)
-{
+Sector _compress_sector_fixed(std::array<Sector, N> decompressed, std::array<int, N> const & bit_lengths);
+
+std::vector<Sector> _decompress_sector(Sector compressed, std::vector<int> const & bit_lengths);
+
+template<int N>
+std::array<Sector, N> _decompress_sector_fixed(Sector compressed, std::array<int, N> const & bit_lengths);
+
+
+
+template<int N>
+Sector _compress_sector_fixed(std::array<Sector, N> decompressed, std::array<int, N> const & bit_lengths) {
     Sector compressed = 0;
     int shift = 0;
     const Sector sign_bit = Sector(1) << 63;
-    for (int i = 0; i < N ; ++i) 
-    {
+    for (int i = 0; i < N ; ++i) {
         //keep least significant bit_lengths[i] bits
         // note: negative values start with bitstrings of 1, so most significant bit kept is new sign bit.
         Sector mask_last_bits = (Sector(1) << bit_lengths[i]) - 1;
@@ -29,13 +39,11 @@ Sector compress_sector_fixed(std::array<Sector, N> decompressed, std::array<int,
 }
 
 template<int N>
-std::array<Sector, N> decompress_sector_fixed(Sector compressed, std::array<int, N> const & bit_lengths)
-{
+std::array<Sector, N> _decompress_sector_fixed(Sector compressed, std::array<int, N> const & bit_lengths) {
     std::array<Sector, N> decompressed;
     int shift = 0;
     const Sector sign_bit = Sector(1) << 63;
-    for (size_t i = 0; i < N ; ++i) 
-    {
+    for (size_t i = 0; i < N ; ++i) {
         // kept sign bit + bit_lengths[i]-1 bits from right of decompressed[i]
         Sector mask_last_bits = (Sector(1) << bit_lengths[i]) - 1;
         Sector decomp = (compressed >> shift) & mask_last_bits;
