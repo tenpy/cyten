@@ -18,4 +18,5 @@
 namespace cyten {
 
     namespace py = ::pybind11;
+    typedef std::int64_t cyten_int;
 } // namespace cyten
