@@ -229,6 +229,16 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
     #                                     100)
 
 
+def test_fixes_23():
+    # See PR #23
+    sym = SU2Symmetry()
+    site = ElementarySpace(sym, sym.spin_half[None, :])
+    block = np.zeros((2,) * 6, float)
+    tens = SymmetricTensor.from_dense_block(block, codomain=[site] * 3, domain=[site] * 3)
+    tens.test_sanity()
+    npt.assert_allclose(tensors.norm(tens), 0)
+
+
 def test_DiagonalTensor(make_compatible_tensor):
     T: DiagonalTensor = make_compatible_tensor(cls=DiagonalTensor)
     T.test_sanity()

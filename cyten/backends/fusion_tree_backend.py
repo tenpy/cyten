@@ -1424,12 +1424,12 @@ class FusionTreeBackend(TensorBackend):
         for alpha_tree in alpha_tree_iter:
             X = alpha_tree.as_block(backend=self)
             # entries: [a1,...,aJ,b1,...,bK,m1,...,mJ,n1,...,nK]
-            projected = self.block_backend.block_tdot(entries, X, range_J, range_J)  # [{bk}, {mj}, {nk}, c]
+            X_projected = self.block_backend.block_tdot(entries, X, range_J, range_J)  # [{bk}, {mj}, {nk}, c]
             for beta_tree in beta_tree_iter:
                 Y = self.block_backend.block_conj(beta_tree.as_block(backend=self))
-                projected = self.block_backend.block_tdot(projected, Y, range_K, range_K)  # [{mj}, {nk}, c, c']
+                XY_projected = self.block_backend.block_tdot(X_projected, Y, range_K, range_K)  # [{mj}, {nk}, c, c']
                 # projected onto the identity on [c, c']
-                tree_block = self.block_backend.block_trace_partial(projected, [-2], [-1], range_JK) / dim_c
+                tree_block = self.block_backend.block_trace_partial(XY_projected, [-2], [-1], range_JK) / dim_c
                 # [m1,...,mJ,n1,...,nK] -> [M, N]
                 ms_ns = self.block_backend.block_shape(tree_block)
                 shape = (prod(ms_ns[:J]), prod(ms_ns[J:]))
