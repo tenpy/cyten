@@ -38,13 +38,22 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
     else:
         wrong_mults[0] += 1
     assert s1 != spaces.ElementarySpace(symmetry=any_symmetry, sectors=sectors, multiplicities=wrong_mults)
-    npt.assert_array_equal(s1_dual.sectors, dual_sectors[dual_sectors_sort])
-    npt.assert_array_equal(s1_dual.multiplicities, s1.multiplicities[dual_sectors_sort])
+    npt.assert_array_equal(s1_dual.sectors, dual_sectors)
+    npt.assert_array_equal(s1_dual.multiplicities, s1.multiplicities)
     assert s1_dual.symmetry == s1.symmetry
     assert s1_dual.is_dual is True
     #
-    s1_modified = spaces.ElementarySpace(s1.symmetry, sectors=s1.sectors, multiplicities=s1.multiplicities,
-                                         is_dual=not s1.is_dual, basis_perm=s1._basis_perm)
+
+    if s1.symmetry.can_be_dropped:
+        offsets = np.append([0], np.cumsum(s1.multiplicities[:-1]*s1.sector_dims[:-1]))
+        basis_perm = np.concatenate(
+            [np.arange(offsets[i], offsets[i] + s1.multiplicities[i] * s1.sector_dims[i]) for i in dual_sectors_sort]
+        )
+    else:
+        basis_perm = None
+    s1_modified = spaces.ElementarySpace(s1.symmetry, sectors=s1.sectors[dual_sectors_sort],
+                                         multiplicities=s1.multiplicities[dual_sectors_sort],
+                                         is_dual=not s1.is_dual, basis_perm=basis_perm)
     assert s1 != s1_modified
     assert s1_modified == s1.with_opposite_duality()
 
@@ -155,6 +164,7 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
 
 
 def test_ElementarySpace_from_sectors(any_symmetry, make_any_sectors, np_random):
+    is_dual = np_random.choice([True, False])
     sectors = np.concatenate([make_any_sectors(5) for _ in range(5)])
     multiplicities = np_random.integers(1, 5, size=len(sectors))
     if any_symmetry.can_be_dropped:
@@ -165,12 +175,17 @@ def test_ElementarySpace_from_sectors(any_symmetry, make_any_sectors, np_random)
     #
     # call from_sectors
     res = spaces.ElementarySpace.from_sectors(symmetry=any_symmetry, sectors=sectors,
-                                              multiplicities=multiplicities, basis_perm=basis_perm)
+                                              multiplicities=multiplicities, is_dual=is_dual,
+                                              basis_perm=basis_perm)
     res.test_sanity()
     #
     # check sectors and multiplicities
     expect_sectors = np.unique(sectors, axis=0)
-    expect_sectors = expect_sectors[np.lexsort(expect_sectors.T)]
+    if res.is_dual:
+        perm = np.lexsort(any_symmetry.dual_sectors(expect_sectors).T)
+    else:
+        perm = np.lexsort(expect_sectors.T)
+    expect_sectors = expect_sectors[perm]
     mult_contributions = np.where(
         np.all(sectors[None, :, :] == expect_sectors[:, None, :], axis=2),
         multiplicities[None, :],
@@ -405,7 +420,10 @@ def test_direct_sum(make_any_space, max_mult=5, max_sectors=5):
             sector2mult[key] = sector2mult.get(key, 0) + m
     sectors = np.array(list(sector2mult.keys()))
     mults = np.array(list(sector2mult.values()))
-    sort = np.lexsort(sectors.T)
+    if a.is_dual:
+        sort = np.lexsort(a.symmetry.dual_sectors(sectors).T)
+    else:
+        sort = np.lexsort(sectors.T)
     sectors = sectors[sort]
     mults = mults[sort]
     assert np.all(d.sectors == sectors)

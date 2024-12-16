@@ -11,7 +11,7 @@ from .dummy_config import printoptions
 from .symmetries import (Sector, SectorArray, Symmetry, ProductSymmetry, no_symmetry, FusionStyle,
                          SymmetryError)
 from .tools.misc import (inverse_permutation, rank_data, to_iterable, UNSPECIFIED, make_stride,
-                          find_row_differences, unstridify, iter_common_sorted_arrays)
+                         find_row_differences, unstridify, iter_common_sorted_arrays)
 from .tools.string import format_like_list
 
 if TYPE_CHECKING:
@@ -33,8 +33,10 @@ class Space(metaclass=ABCMeta):
     sectors : 2D numpy array of int
         The sectors that compose this space. A 2D array of integers with axes [s, q] where s goes
         over different sectors and q over the (one or more) numbers needed to label a sector.
-        The sectors (to be precise, the rows ``sectors[i, :]``) are unique and sorted, such that
-        ``np.lexsort(sectors.T)`` is trivial. We use :attr:`multiplicities` for duplicates.
+        The sectors (to be precise, the rows ``sectors[i, :]``) are unique and sorted; we use 
+        :attr:`multiplicities` for duplicates. The sorting is such that ``np.lexsort(sectors.T)``
+        is trivial for spaces with ``is_bra_space == False``. For ``is_bra_space == True``, the
+        sectors are sorted such that ``np.lexsort(symmetry.dual_sectors(sectors).T)`` is trivial.
     multiplicities : 1D numpy array of int
         How often each of the :attr:`sectors` appears. A 1D array of positive integers with axis [s].
         ``sectors[i, :]`` appears ``multiplicities[i]`` times.
@@ -90,7 +92,11 @@ class Space(metaclass=ABCMeta):
         assert self.sectors.shape == (self.num_sectors, self.symmetry.sector_ind_len), 'wrong sectors.shape'
         assert all(self.symmetry.is_valid_sector(s) for s in self.sectors), 'invalid sectors'
         assert len(np.unique(self.sectors, axis=0)) == self.num_sectors, 'duplicate sectors'
-        assert np.all(np.lexsort(self.sectors.T) == np.arange(self.num_sectors)), 'wrong sector order'
+        if self.is_bra_space:
+            assert np.all(np.lexsort(self.symmetry.dual_sectors(self.sectors).T)
+                          == np.arange(self.num_sectors)), 'wrong sector order'
+        else:
+            assert np.all(np.lexsort(self.sectors.T) == np.arange(self.num_sectors)), 'wrong sector order'
         # multiplicities
         assert np.all(self.multiplicities > 0)
         assert self.multiplicities.shape == (self.num_sectors,)
@@ -203,7 +209,8 @@ class Space(metaclass=ABCMeta):
         assert self.symmetry == other.symmetry
         sectors = []
         mults = []
-        for i, j in iter_common_sorted_arrays(self.sectors, other.sectors):
+        lexsorted = not self.is_bra_space and not other.is_bra_space
+        for i, j in iter_common_sorted_arrays(self.sectors, other.sectors, lexsorted=lexsorted):
             sectors.append(self.sectors[i])
             mults.append(min(self.multiplicities[i], other.multiplicities[j]))
         return ElementarySpace(self.symmetry, sectors, mults, is_dual=is_dual)
@@ -233,7 +240,8 @@ class ElementarySpace(Space):
     :math:`V_b \cong \bar{b}_1 \oplus \bar{b}_2 \oplus \dots \plus \bar{b}_N`,
     where :math:`\bar{b}` is the :meth:`Symmetry.dual_sector` of :math:`b`.
     The :attr:`sectors` of a space then describe the :math:`\{a_n\}` for the ket space
-    :math:`V_k` and the :math:`\{\bar{b}_n\}` for the bra space :math:`V_b`.
+    :math:`V_k` and the :math:`\{\bar{b}_n\}` for the bra space :math:`V_b`. The sectors are
+    sorted in different order depending on `is_dual`, see :class:`Space`
 
     If the symmetry :attr:`Symmetry.can_be_dropped`, there is a notion of a basis for the
     spaces. We demand the basis to be compatible with the symmetry, i.e. each basis vector
@@ -323,7 +331,10 @@ class ElementarySpace(Space):
         sectors_of_basis = np.asarray(sectors_of_basis, dtype=int)
         assert sectors_of_basis.shape[1] == symmetry.sector_ind_len
         # note: numpy.lexsort is stable, i.e. it preserves the order of equal keys.
-        basis_perm = np.lexsort(sectors_of_basis.T)
+        if is_dual:
+            basis_perm = np.lexsort(symmetry.dual_sectors(sectors_of_basis).T)
+        else:
+            basis_perm = np.lexsort(sectors_of_basis.T)
         sectors = sectors_of_basis[basis_perm]
         diffs = find_row_differences(sectors, include_len=True)
         sectors = sectors[diffs[:-1]]  # [:-1] to exclude len
@@ -430,7 +441,8 @@ class ElementarySpace(Space):
         if symmetry.can_be_dropped:
             num_states = symmetry.batch_sector_dim(sectors) * multiplicities
             basis_slices = np.concatenate([[0], np.cumsum(num_states)], axis=0)
-            sectors, multiplicities, sort = _sort_sectors(sectors, multiplicities)
+            sectors, multiplicities, sort = _sort_sectors(sectors, multiplicities,
+                                                          symmetry, is_dual)
             if len(sectors) == 0:
                 basis_perm = np.zeros(0, int)
             else:
@@ -439,7 +451,8 @@ class ElementarySpace(Space):
                 basis_perm = np.concatenate([basis_perm[basis_slices[i]: basis_slices[i + 1]]
                                             for i in sort])
         else:
-            sectors, multiplicities, sort = _sort_sectors(sectors, multiplicities)
+            sectors, multiplicities, sort = _sort_sectors(sectors, multiplicities,
+                                                          symmetry, is_dual)
             assert basis_perm is None
         # combine duplicate sectors (does not affect basis_perm)
         if not unique_sectors:
@@ -685,11 +698,13 @@ class ElementarySpace(Space):
 
     def _dual_space(self, return_perm: bool = False
                     ) -> ElementarySpace | tuple[ElementarySpace, np.ndarray]:
-        return ElementarySpace.from_sectors(
-            symmetry=self.symmetry, sectors=self.symmetry.dual_sectors(self.sectors),
-            multiplicities=self.multiplicities, is_dual=not self.is_dual,
-            basis_perm=self._basis_perm, unique_sectors=True, return_sorting_perm=return_perm
-        )
+        # sectors are already sorted, no need to call from_sectors
+        basis_perm = self._basis_perm
+        space =  ElementarySpace(self.symmetry, self.symmetry.dual_sectors(self.sectors),
+                                 self.multiplicities, not self.is_dual, basis_perm)
+        if return_perm:
+            return space, np.arange(self.dim)
+        return space
 
     def is_subspace_of(self, other: ElementarySpace) -> bool:
         """Whether self is a subspace of other.
@@ -802,9 +817,11 @@ class ElementarySpace(Space):
 
     def with_opposite_duality(self):
         """A space isomorphic to self with opposite ``is_dual`` attribute."""
-        return ElementarySpace(symmetry=self.symmetry, sectors=self.sectors,
-                               multiplicities=self.multiplicities, is_dual=not self.is_dual,
-                               basis_perm=self._basis_perm)
+        return ElementarySpace.from_sectors(
+            symmetry=self.symmetry, sectors=self.sectors,
+            multiplicities=self.multiplicities, is_dual=not self.is_dual,
+            basis_perm=self._basis_perm, unique_sectors=True, return_sorting_perm=False
+        )
 
     def with_is_dual(self, is_dual: bool) -> ElementarySpace:
         """A space isomorphic to self with given ``is_dual`` attribute."""
@@ -899,7 +916,9 @@ class ProductSpace(Space):
 
     def _dual_space(self, return_perm: bool = False
                     ) -> ProductSpace | tuple[ProductSpace, np.ndarray]:
-        sectors, mults, perm = _sort_sectors(self.symmetry.dual_sectors(self.sectors), self.multiplicities)
+        # unlike for ElementarySpace, is_bra_space is always False
+        sectors, mults, perm = _sort_sectors(self.symmetry.dual_sectors(self.sectors),
+                                             self.multiplicities, self.symmetry, is_dual=False)
         dual = ProductSpace([sp.dual for sp in reversed(self.spaces)], symmetry=self.symmetry,
                             _sectors=sectors, _multiplicities=mults)
         if return_perm:
@@ -917,7 +936,8 @@ class ProductSpace(Space):
             )
             multiplicities = np.prod([space.multiplicities[gr]
                                       for space, gr in zip(self.spaces, grid.T)], axis=0)
-            _, _, fusion_outcomes_sort = _unique_sorted_sectors(sectors, multiplicities)
+            _, _, fusion_outcomes_sort = _unique_sorted_sectors(sectors, multiplicities,
+                                                                self.symmetry, is_dual=False)
             self.metadata['fusion_outcomes_sort'] = fusion_outcomes_sort
         return fusion_outcomes_sort
 
@@ -989,6 +1009,7 @@ class ProductSpace(Space):
         return all(s1 == s2 for s1, s2 in zip(self.spaces, other.spaces))
 
     def as_ElementarySpace(self, is_dual: bool = None) -> ElementarySpace:
+        # since is_bra_space is always False, self.sectors are lexsorted
         res = ElementarySpace(symmetry=self.symmetry, sectors=self.sectors,
                               multiplicities=self.multiplicities)
         if is_dual is True:
@@ -998,7 +1019,7 @@ class ProductSpace(Space):
     def change_symmetry(self, symmetry: Symmetry, sector_map: callable, backend: TensorBackend = None
                         ) -> ProductSpace:
         sectors, multiplicities = _unique_sorted_sectors(
-            sector_map(self.sectors), self.multiplicities
+            sector_map(self.sectors), self.multiplicities, self.symmetry, is_dual=False
         )
         # OPTIMIZE can we preserve the metadata?
         return ProductSpace(
@@ -1083,7 +1104,7 @@ class ProductSpace(Space):
             >>> trafo[:, :, 0]  # | s=0, m=0 >
             array([[ 0.        ,  0.70710678],
                    [-0.70710678,  0.        ]])
-            >>> trafo[:, :, 1]  # |s=0, m=-1 >
+            >>> trafo[:, :, 1]  # | s=1, m=-1 >
             array([[0., 0.],
                    [0., 1.]])
             >>> trafo[:, :, 2]  # | s=1, m=0 >
@@ -1297,7 +1318,8 @@ def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend
         )
         multiplicities = np.prod([space.multiplicities[gr] for space, gr in zip(spaces, grid.T)],
                                   axis=0)
-        sectors, multiplicities, fusion_outcomes_sort = _unique_sorted_sectors(sectors, multiplicities)
+        sectors, multiplicities, fusion_outcomes_sort = _unique_sorted_sectors(sectors, multiplicities,
+                                                                               symmetry, is_dual=False)
         metadata = dict(fusion_outcomes_sort=fusion_outcomes_sort)
         return sectors, multiplicities, metadata
 
@@ -1306,6 +1328,10 @@ def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend
         return symmetry.trivial_sector[None, :], [1], {}
 
     if len(spaces) == 1:
+        if spaces[0].is_bra_space:
+            # need to sort by dual sectors since the product space has is_bra_space = False
+            perm = np.lexsort(spaces[0].sectors.T)
+            return spaces[0].sectors[perm], spaces[0].multiplicities[perm], {}
         return spaces[0].sectors, spaces[0].multiplicities, {}
 
     sectors_1, mults_1, _ = _fuse_spaces(symmetry, spaces[:-1])
@@ -1323,13 +1349,14 @@ def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend
                 new_mults = m1 * m2 * np.array([symmetry._n_symbol(s1, s2, c) for c in new_sects], dtype=int)
             mult_arrays.append(new_mults)
     sectors, multiplicities, _ = _unique_sorted_sectors(
-        np.concatenate(sector_arrays, axis=0),
-        np.concatenate(mult_arrays, axis=0)
+        np.concatenate(sector_arrays, axis=0), np.concatenate(mult_arrays, axis=0),
+        symmetry, is_dual=False
     )
     return sectors, multiplicities, {}
 
 
-def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicities: np.ndarray):
+def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicities: np.ndarray,
+                           symmetry: Symmetry, is_dual: bool):
     """Sort sectors and merge duplicates.
 
     Given unsorted sectors which may contain duplicates,
@@ -1345,7 +1372,8 @@ def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicitie
     perm
         The permutation that sorts the input, i.e. ``np.lexsort(unsorted_sectors.T)``.
     """
-    sectors, multiplicities, perm = _sort_sectors(unsorted_sectors, unsorted_multiplicities)
+    sectors, multiplicities, perm = _sort_sectors(unsorted_sectors, unsorted_multiplicities,
+                                                  symmetry, is_dual)
     slices = np.concatenate([[0], np.cumsum(multiplicities)], axis=0)
     diffs = find_row_differences(sectors, include_len=True)
     slices = slices[diffs]
@@ -1354,8 +1382,12 @@ def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicitie
     return sectors, multiplicities, perm
 
 
-def _sort_sectors(sectors: SectorArray, multiplicities: np.ndarray):
-    perm = np.lexsort(sectors.T)
+def _sort_sectors(sectors: SectorArray, multiplicities: np.ndarray, symmetry: Symmetry,
+                  is_dual: bool):
+    if is_dual:
+        perm = np.lexsort(symmetry.dual_sectors(sectors).T)
+    else:
+        perm = np.lexsort(sectors.T)
     return sectors[perm], multiplicities[perm], perm
 
 

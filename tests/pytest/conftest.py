@@ -581,7 +581,8 @@ def random_block(block_backend, size, real=False, np_random=np.random.default_rn
 
 
 def random_symmetry_sectors(symmetry: symmetries.Symmetry, num: int, sort: bool = False,
-                            np_random=np.random.default_rng()) -> symmetries.SectorArray:
+                            is_dual: bool = False, np_random=np.random.default_rng()
+                            ) -> symmetries.SectorArray:
     """random unique symmetry sectors, optionally sorted"""
     if isinstance(symmetry, symmetries.SU2Symmetry):
         res = np_random.choice(int(1.3 * num), replace=False, size=(num, 1))
@@ -605,7 +606,10 @@ def random_symmetry_sectors(symmetry: symmetries.Symmetry, num: int, sort: bool 
     else:
         pytest.skip("don't know how to get symmetry sectors")  # raises Skipped
     if sort:
-        order = np.lexsort(res.T)
+        if is_dual:
+            order = np.lexsort(symmetry.dual_sectors(res).T)
+        else:
+            order = np.lexsort(res.T)
         res = res[order]
     return res
 
@@ -614,8 +618,11 @@ def random_vector_space(symmetry, max_num_blocks=5, max_block_size=5, is_dual=No
                         allow_basis_perm=True, np_random=None):
     if np_random is None:
         np_random = np.random.default_rng()
+    if is_dual is None:
+        is_dual = np_random.random() < 0.5
     num_sectors = np_random.integers(1, max_num_blocks, endpoint=True)
-    sectors = random_symmetry_sectors(symmetry, num_sectors, sort=True, np_random=np_random)
+    sectors = random_symmetry_sectors(symmetry, num_sectors, sort=True, is_dual=is_dual,
+                                      np_random=np_random)
     # if there are very few sectors, e.g. for symmetry==NoSymmetry(), dont let them be one-dimensional
     min_mult = min(max_block_size, max(4 - len(sectors), 1))
     mults = np_random.integers(min_mult, max_block_size, size=(len(sectors),), endpoint=True)
@@ -624,8 +631,6 @@ def random_vector_space(symmetry, max_num_blocks=5, max_block_size=5, is_dual=No
         basis_perm = np_random.permutation(dim) if np_random.random() < 0.7 else None
     else:
         basis_perm = None
-    if is_dual is None:
-        is_dual = np_random.random() < 0.5
     res = spaces.ElementarySpace(
         symmetry, sectors, mults, basis_perm=basis_perm, is_dual=is_dual
     )

@@ -363,7 +363,8 @@ def iter_common_sorted(a, b):
             j += 1
 
 
-def iter_common_sorted_arrays(a, b, a_strict: bool = True, b_strict: bool = True):
+def iter_common_sorted_arrays(a, b, a_strict: bool = True, b_strict: bool = True,
+                              lexsorted: bool = True):
     """Yield indices ``i, j`` for which ``a[i, :] == b[j, :]``.
 
     *Assumes* that `a` and `b` are lex-sorted (according to ``np.lexsort(a.T)``).
@@ -375,6 +376,10 @@ def iter_common_sorted_arrays(a, b, a_strict: bool = True, b_strict: bool = True
     """
     if (not a_strict) and (not b_strict):
         raise ValueError('One of the two arrays must be strictly sorted.')
+
+    if not lexsorted:
+        a = a[np.lexsort(a.T)]
+        b = b[np.lexsort(b.T)]
 
     l_a, d_a = a.shape
     l_b, d_b = b.shape

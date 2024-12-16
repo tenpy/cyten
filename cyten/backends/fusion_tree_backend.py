@@ -557,7 +557,13 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError('diagonal_to_mask not implemented')
 
     def diagonal_transpose(self, tens: DiagonalTensor) -> tuple[Space, DiagonalData]:
-        dual_leg, perm = tens.leg._dual_space(return_perm=True)
+        # while the dual leg does not change the ordering of the sectors if it is an
+        # ElementarySpace, the (co)domain always does since it is by definition ProductSpace
+        if isinstance(tens.leg, ProductSpace):
+            dual_leg, perm = tens.leg._dual_space(return_perm=True)
+        else:
+            dual_leg = tens.leg._dual_space(return_perm=False)
+            _, perm = tens.codomain._dual_space(return_perm=True)
         data = FusionTreeData(block_inds=inverse_permutation(perm)[tens.data.block_inds],
                               blocks=tens.data.blocks, dtype=tens.dtype, device=tens.data.device)
         return dual_leg, data
