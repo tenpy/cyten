@@ -6,10 +6,10 @@
 
 namespace cyten {
     
-Sector compress_Sector_dynamic(std::vector<Sector> decompressed, std::vector<int> const &bit_lengths)
+Sector compress_sector(std::vector<Sector> decompressed, std::vector<int> const &bit_lengths)
 {
     const int N = bit_lengths.size();
-    // rest is same code as in compress_Sector<N>(std::array<Sector, N> const &, std::array<int, N> const &)
+    // rest is same code as in compress_sector_fixed<N>(std::array<Sector, N> const &, std::array<int, N> const &)
     Sector compressed = 0;
     int shift = 0;
     const Sector sign_bit = Sector(1) << 63;
@@ -33,11 +33,11 @@ Sector compress_Sector_dynamic(std::vector<Sector> decompressed, std::vector<int
     return compressed;
 }
 
-std::vector<Sector> decompress_Sector_dynamic(Sector compressed, std::vector<int> const &bit_lengths)
+std::vector<Sector> decompress_sector(Sector compressed, std::vector<int> const &bit_lengths)
 {
     const int N = bit_lengths.size();
     std::vector<Sector> decompressed(bit_lengths.size());
-    // rest is same code as in decompress_Sector<N>(Sector, std::array<int, N> const &)
+    // rest is same code as in decompress_Sector_fixed<N>(Sector, std::array<int, N> const &)
     int shift = 0;
     const Sector sign_bit = Sector(1) << 63;
     for (size_t i = 0; i < N ; ++i) 
