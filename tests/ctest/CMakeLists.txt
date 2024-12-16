@@ -16,7 +16,7 @@ target_include_directories(CommonCppTests
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests/ctest
   PUBLIC ${PROJECT_SOURCE_DIR}/include
 )
-target_link_libraries(CommonCppTests PUBLIC cyten)
+target_link_libraries(CommonCppTests PUBLIC cyten pybind11::embed)
 
 # Add all the ADD_TEST for each test
 foreach (test ${TestsToRun})

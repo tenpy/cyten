@@ -3,7 +3,7 @@
 namespace cyten {
 
 template<int N>
-Sector compress_Sector(std::array<Sector, N> decompressed, std::array<int, N> const & bit_lengths)
+Sector compress_sector_fixed(std::array<Sector, N> decompressed, std::array<int, N> const & bit_lengths)
 {
     Sector compressed = 0;
     int shift = 0;
@@ -29,7 +29,7 @@ Sector compress_Sector(std::array<Sector, N> decompressed, std::array<int, N> co
 }
 
 template<int N>
-std::array<Sector, N> decompress_Sector(Sector compressed, std::array<int, N> const & bit_lengths)
+std::array<Sector, N> decompress_sector_fixed(Sector compressed, std::array<int, N> const & bit_lengths)
 {
     std::array<Sector, N> decompressed;
     int shift = 0;

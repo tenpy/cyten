@@ -46,6 +46,21 @@ include(CMakePrintHelpers)
 cmake_print_variables(PROJECT_SOURCE_DIR)
 cmake_print_variables(CMAKE_CXX_STANDARD)
 
+# #####################################################################
+# ## find python
+# #####################################################################
+
+set(Python_FIND_VIRTUALENV ONLY)
+set(Python_FIND_STRATEGY LOCATION)
+find_package(Python REQUIRED COMPONENTS Interpreter Development.Module Development.Embed)
+
+find_package(pybind11 CONFIG REQUIRED)
+# Find the module development requirements (requires FindPython from 3.17 or
+# scikit-build-core's built-in backport)
+cmake_print_variables(Python_VERSION)
+cmake_print_variables(Python_INCLUDE_DIRS)
+cmake_print_variables(Python_NumPy_VERSION)
+cmake_print_variables(Python_NumPy_INCLUDE_DIRS)
 
 # #####################################################################
 # ## C++ LIBRARY
@@ -65,22 +80,11 @@ target_include_directories(cyten
 add_subdirectory(src)
 target_compile_options(cyten PUBLIC -fPIC)
 
+target_link_libraries(cyten PUBLIC pybind11::pybind11)
 
 # #####################################################################
 # ## PYTHON BINDINGS
 # #####################################################################
-
-set(Python_FIND_VIRTUALENV ONLY)
-set(Python_FIND_STRATEGY LOCATION)
-find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
-
-find_package(pybind11 CONFIG REQUIRED)
-# Find the module development requirements (requires FindPython from 3.17 or
-# scikit-build-core's built-in backport)
-cmake_print_variables(Python_VERSION)
-cmake_print_variables(Python_INCLUDE_DIRS)
-# cmake_print_variables(Python_NumPy_VERSION)
-# cmake_print_variables(Python_NumPy_INCLUDE_DIRS)
 
 pybind11_add_module(_core pybind/core.cpp)
 
