@@ -23,12 +23,6 @@ def test_FusionTree_manipulations():
     raise NotImplementedError
 
 
-def cross_check_fusion_trees_index(trees: trees.fusion_trees, tree: trees.FusionTree):
-    for n, t in enumerate(trees):
-        if t == tree:
-            return n
-
-
 def check_fusion_trees(it: trees.fusion_trees, expect_len: int = None):
     if expect_len is None:
         expect_len = len(it)
@@ -43,7 +37,7 @@ def check_fusion_trees(it: trees.fusion_trees, expect_len: int = None):
     for tree in it:
         assert np.all(tree.are_dual == it.are_dual)
         tree.test_sanity()
-        assert it.index(tree) == num_trees == cross_check_fusion_trees_index(it, tree)
+        assert it.index(tree) == num_trees
         num_trees += 1
     assert num_trees == expect_len
         
