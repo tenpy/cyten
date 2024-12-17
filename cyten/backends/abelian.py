@@ -466,7 +466,7 @@ class AbelianBackend(TensorBackend):
         where `i` can be any row of `a_block_inds_keep`, `j` can be any row of `b_block_inds_keep`.
         The `k1` and `k2` are rows/columns of `a/b_block_inds_contr`, which come from compatible legs.
         In our storage scheme, `a.data.blocks[s]` then contains the block :math:`A_{i,k1}` for
-        ``j = a_block_inds_keep[s]`` and ``k1 = a_block_inds_contr[s]``.
+        ``i = a_block_inds_keep[s]`` and ``k1 = a_block_inds_contr[s]``.
         To identify the different indices `i` and `j`, it is easiest to lexsort in the `s`.
         Note that we give priority to the `{a,b}_block_inds_keep` over the `_contr`, such that
         equal rows of `i` are contiguous in `a_block_inds_keep`.
@@ -483,9 +483,9 @@ class AbelianBackend(TensorBackend):
         Third, given ``i`` and ``j``, the sum over ``k`` runs only over
         ``k1`` with nonzero :math:`A_{i,k1}`, and ``k2` with nonzero :math:`B_{k2,j}`.
 
-         How many multiplications :math:`A_{i,k} B_{k,j}` we actually have to perform
-         depends on the sparseness. If ``k`` comes from a single leg, it is completely sorted
-         by charges, so the 'sum' over ``k`` will contain at most one term!
+        How many multiplications :math:`A_{i,k} B_{k,j}` we actually have to perform
+        depends on the sparseness. If ``k`` comes from a single leg, it is completely sorted
+        by charges, so the 'sum' over ``k`` will contain at most one term!
         """
         if a.num_codomain_legs == 0 and b.num_domain_legs == 0:
             return self.inner(a, b, do_dagger=False)
@@ -1017,7 +1017,7 @@ class AbelianBackend(TensorBackend):
             dtype=self.block_backend.block_dtype(vector),
             device=self.block_backend.block_get_device(vector),
             blocks=[self.block_backend.block_add_axis(vector, pos=1)],
-            block_inds=np.array([[bi, 0]])
+            block_inds=np.array([[bi, 0]]), is_sorted=True
         )
 
     def inv_part_to_dense_block_single_sector(self, tensor: SymmetricTensor) -> Block:
@@ -1156,7 +1156,7 @@ class AbelianBackend(TensorBackend):
         data = AbelianBackendData(
             dtype=Dtype.bool, device=mask1.device, blocks=blocks, block_inds=block_inds, is_sorted=True
         )
-        if len(sector) == 0:
+        if len(sectors) == 0:
             sectors = mask1.symmetry.empty_sector_array
             multiplicities = np.zeros(0, int)
             basis_perm = None
@@ -1940,8 +1940,8 @@ class AbelianBackend(TensorBackend):
             [ ...,
             [ b_{J,k},   b_{J,k+1},  i_1,    ..., i_{nlegs}   , J,   ],
             [ b_{J,k+1}, b_{J,k+2},  i'_1,   ..., i'_{nlegs}  , J,   ],
-            [ 0,         b_{J,1},    i''_1,  ..., i''_{nlegs} , J + 1],
-            [ b_{J,1},   b_{J,2},    i'''_1, ..., i'''_{nlegs}, J + 1],
+            [ 0,         b_{J+1,1},  i''_1,  ..., i''_{nlegs} , J + 1],
+            [ b_{J+1,1}, b_{J+1,2},  i'''_1, ..., i'''_{nlegs}, J + 1],
             ...]
 
         """
