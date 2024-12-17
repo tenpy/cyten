@@ -68,7 +68,8 @@ def tree_block_slice(space: ProductSpace, tree: FusionTree) -> slice:
     else:  # no break ocurred
         raise ValueError('Uncoupled sectors incompatible with `space`')
     tree_block_sizes = tree_block_size(space, tree.uncoupled)
-    offset += fusion_trees(space.symmetry, tree.uncoupled, tree.coupled).index(tree) * tree_block_sizes
+    offset += tree_block_sizes * fusion_trees(space.symmetry, tree.uncoupled,
+                                              tree.coupled, tree.are_dual).index(tree)
     size = tree_block_sizes
     return slice(offset, offset + size)
 

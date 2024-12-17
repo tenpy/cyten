@@ -73,7 +73,7 @@ class FusionTree:
         self.num_vertices = num_vertices = max(len(uncoupled) - 1, 0)
         self.num_inner_edges = max(len(uncoupled) - 2, 0)
         self.coupled = coupled
-        self.are_dual = np.asarray(are_dual)
+        self.are_dual = np.asarray(are_dual, dtype=bool)
         if len(inner_sectors) == 0:
             inner_sectors = symmetry.empty_sector_array
         # empty lists are by default converted to arrays with dtype=float, which leads to issues in __hash__
