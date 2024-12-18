@@ -850,108 +850,13 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError('partial_trace not implemented')  # TODO
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:
-        # TODO special cases without bends
+                     levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:        
+        mappings, codomain, domain = TreeMappingDict.from_permute_legs(
+            a=a, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels
+        )
+        if mappings is None:  # levels are not given but would be needed
+            return None, codomain, domain
 
-        # legs that need to be bent up or down
-        bend_up = sorted([i for i in codomain_idcs if i >= a.num_codomain_legs])
-        bend_down = sorted([i for i in domain_idcs if i < a.num_codomain_legs])
-        num_bend_up = len(bend_up)
-        num_bend_down = len(bend_down)
-        all_exchanges, all_bend_ups = [], []
-        num_operations = []
-        levels_None = (levels is None)
-        if not levels_None:
-            levels = levels[:]
-
-        # exchanges such that the legs to be bent down are on the right in the codomain
-        exchanges = []
-        for i in range(len(bend_down)):
-            for j in range(bend_down[-1 - i], a.num_codomain_legs - 1 - i):
-                exchanges.append(j)
-        all_exchanges += exchanges
-        all_bend_ups += [None] * len(exchanges)
-        num_operations.append(len(exchanges))
-
-        # bend down
-        all_exchanges += list(range(a.num_codomain_legs - 1, a.num_codomain_legs - 1 - num_bend_down, -1))
-        all_bend_ups += [False] * num_bend_down
-        num_operations.append(num_bend_down)
-
-        # exchanges in the domain such that the legs to be bent up are on the right
-        exchanges = []
-        for i in range(len(bend_up)):
-            for j in range(a.num_legs - bend_up[i] - 1, a.num_domain_legs + num_bend_down - 1 - i):
-                exchanges.append(a.num_legs - 2 - j)
-        all_exchanges += exchanges
-        all_bend_ups += [None] * len(exchanges)
-        num_operations.append(len(exchanges))
-
-        # exchanges within the domain such that the legs agree with domain_idcs
-        inter_domain_idcs = [
-            i for i in range(a.num_legs-1, a.num_codomain_legs-1, -1) if not i in bend_up
-        ]
-        inter_domain_idcs.extend(bend_down[::-1])
-        exchanges = permutation_as_swaps(inter_domain_idcs, domain_idcs)
-        exchanges = [a.num_legs - 2 - i for i in exchanges]
-        all_exchanges += exchanges
-        all_bend_ups += [None] * len(exchanges)
-        num_operations.append(len(exchanges))
-
-        # bend up
-        all_exchanges += list(range(a.num_codomain_legs - 1 - num_bend_down,
-                                    a.num_codomain_legs - 1 - num_bend_down + num_bend_up))
-        all_bend_ups += [True] * num_bend_up
-        num_operations.append(num_bend_up)
-
-        # exchanges within the codomain such that the legs agree with codomain_idcs
-        inter_codomain_idcs = [i for i in range(a.num_codomain_legs) if not i in bend_down] + bend_up
-        exchanges = permutation_as_swaps(inter_codomain_idcs, codomain_idcs)
-        all_exchanges += exchanges
-        all_bend_ups += [None] * len(exchanges)
-        num_operations.append(len(exchanges))
-
-        # no legs are permuted
-        if len(all_exchanges) == 0:
-            return a.data, a.codomain, a.domain
-        # c symbols are involved
-        elif (len(all_exchanges) - num_bend_down - num_bend_up > 0 and
-              a.symmetry.braiding_style.value >= 20 and levels_None):
-            # return the old codomain and domain, the new ones are not computed;
-            # returning None as Data leads to a SymmetryError anyway.
-            return None, a.codomain, a.domain
-
-        codomain = a.codomain
-        domain = a.domain
-        coupled = np.array([domain.sectors[i[1]] for i in a.data.block_inds])
-        mappings = []
-        offset = [0] + list(np.cumsum(num_operations))
-        for i in range(len(num_operations)):
-            mappings_step = []
-            for j in range(num_operations[i]):
-                ind = offset[i] + j
-                exchange_ind = all_exchanges[ind]
-                if exchange_ind != codomain.num_spaces - 1 and not levels_None:
-                    overbraid = levels[exchange_ind] > levels[exchange_ind + 1]
-                    levels[exchange_ind:exchange_ind + 2] = levels[exchange_ind:exchange_ind + 2][::-1]
-                else:
-                    overbraid = None
-
-                mapp, codomain, domain, coupled = TreeMappingDict.from_b_or_c_symbol(codomain, domain,
-                                                                                     exchange_ind, coupled,
-                                                                                     overbraid, all_bend_ups[ind],
-                                                                                     a.backend)
-                mappings_step.append(mapp)
-
-            if len(mappings_step) > 0:
-                mappings_step = TreeMappingDict.compose_multiple(mappings_step)
-                if i == 0 or i == 5:
-                    mappings_step = mappings_step.add_prodspace(domain, coupled, 1)
-                elif i == 2 or i == 3:
-                    mappings_step = mappings_step.add_prodspace(codomain, coupled, 0)
-                mappings.append(mappings_step)
-
-        mappings = TreeMappingDict.compose_multiple(mappings)
         axes_perm = codomain_idcs + domain_idcs
         axes_perm = [i if i < a.num_codomain_legs else a.num_legs - 1 - i + a.num_codomain_legs for i in axes_perm]
         data = mappings.apply_to_tensor(a, codomain, domain, axes_perm, None)
@@ -1497,20 +1402,33 @@ class TreeMappingDict(dict):
         """Add a product space.
 
         Return the `TreeMappingDict` that is obtained when adding the product space
-        `prodspace` to `self`.
+        `prodspace` to `self`. That is, extend the `TreeMappingDict` to contain the
+        fusion trees of `prodspace` without it affecting the transformation described
+        by `self`, see below how the new keys may look like.
 
-        TODO (JU) what does it mean to add a space to a mapping?
-
-        The new `TreeMappingDict`'s key are now tuples with one
-        additional entry corresponding to trees in `prodspace` with coupled sector in
-        `coupled`. The new product space does not affect the amplitudes in the
-        `TreeMappingDict`. `index` specifies the position of the new trees within the
-        new keys. That is, `index = 0` corresponds to adding `prodspace` as codomain,
-        `index = 1` adds it as domain.
+        The new `TreeMappingDict`'s keys are now tuples with one additional entry that
+        corresponds to the trees in `prodspace` with coupled sector in `coupled`; the
+        new product space does not affect the amplitudes in the `TreeMappingDict`.
+        `index` specifies the position of the new trees within the new keys. That is,
+        `index = 0` corresponds to adding `prodspace` as codomain, `index = 1` adds it
+        as domain.
 
         This function can be used to translate `TreeMappingDict` associated c symbols to
         the level of both codomain and domain such that it can be combined with the ones
         associated with b symbols.
+
+        For example, a `TreeMappingDict` may have the form
+
+        ``{(old_tree1, ) : {(new_tree1_1, ) : amplitude1_1, (new_tree1_2, ) : amplitude1_2},
+        (old_tree2, ) : {...}, ...}``.
+
+        Adding a product space `prodspace` with fusion trees ``add_tree1, add_tree2, ...``
+        with `index = 1` yields
+
+        ``{(old_tree1, add_tree1) : {(new_tree1_1, add_tree1) : amplitude1_1, (new_tree1_2,
+        add_tree1) : amplitude1_2}, (old_tree1, add_tree2) : {(new_tree1_1, add_tree2) :
+        amplitude1_1, (new_tree1_2, add_tree2) : amplitude1_2}, ..., (old_tree2, add_tree1)
+        : {...}, ...}``.
         """
         new_mapping = TreeMappingDict()
         for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled,
@@ -1780,6 +1698,116 @@ class TreeMappingDict(dict):
             mapping = cls.from_c_symbol(prodspace, coupled, index, overbraid,
                                         in_domain, backend.eps)
         return mapping, new_codomain, new_domain, new_coupled
+
+    @classmethod
+    def from_permute_legs(cls, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
+                          levels: list[int] | None) -> tuple[TreeMappingDict, ProductSpace, ProductSpace]:
+        """`permute_legs` as `TreeMappingDict`.
+        
+        Takes the same input as `permute_legs` in `FusionTreeBackend` and returns a
+        `TreeMappingDict` corresponding to exchanging the legs of the tensor `a` as
+        specified in `codomain_idcs`, `domain_idcs` and `levels`. Also returns the
+        resulting codomain and domain of the resulting tensor.
+        """
+        # TODO special cases without bends -> can act on codomain and domain separately
+        # -> do operations on the rows and columns independently rather than on the block level
+
+        # legs that need to be bent up or down
+        bend_up = sorted([i for i in codomain_idcs if i >= a.num_codomain_legs])
+        bend_down = sorted([i for i in domain_idcs if i < a.num_codomain_legs])
+        num_bend_up = len(bend_up)
+        num_bend_down = len(bend_down)
+        all_exchanges, all_bend_ups = [], []
+        num_operations = []
+        levels_None = (levels is None)
+        if not levels_None:
+            levels = levels[:]
+
+        # exchanges such that the legs to be bent down are on the right in the codomain
+        exchanges = []
+        for i in range(len(bend_down)):
+            for j in range(bend_down[-1 - i], a.num_codomain_legs - 1 - i):
+                exchanges.append(j)
+        all_exchanges += exchanges
+        all_bend_ups += [None] * len(exchanges)
+        num_operations.append(len(exchanges))
+
+        # bend down
+        all_exchanges += list(range(a.num_codomain_legs - 1, a.num_codomain_legs - 1 - num_bend_down, -1))
+        all_bend_ups += [False] * num_bend_down
+        num_operations.append(num_bend_down)
+
+        # exchanges in the domain such that the legs to be bent up are on the right
+        exchanges = []
+        for i in range(len(bend_up)):
+            for j in range(a.num_legs - bend_up[i] - 1, a.num_domain_legs + num_bend_down - 1 - i):
+                exchanges.append(a.num_legs - 2 - j)
+        all_exchanges += exchanges
+        all_bend_ups += [None] * len(exchanges)
+        num_operations.append(len(exchanges))
+
+        # exchanges within the domain such that the legs agree with domain_idcs
+        inter_domain_idcs = [
+            i for i in range(a.num_legs-1, a.num_codomain_legs-1, -1) if not i in bend_up
+        ]
+        inter_domain_idcs.extend(bend_down[::-1])
+        exchanges = permutation_as_swaps(inter_domain_idcs, domain_idcs)
+        exchanges = [a.num_legs - 2 - i for i in exchanges]
+        all_exchanges += exchanges
+        all_bend_ups += [None] * len(exchanges)
+        num_operations.append(len(exchanges))
+
+        # bend up
+        all_exchanges += list(range(a.num_codomain_legs - 1 - num_bend_down,
+                                    a.num_codomain_legs - 1 - num_bend_down + num_bend_up))
+        all_bend_ups += [True] * num_bend_up
+        num_operations.append(num_bend_up)
+
+        # exchanges within the codomain such that the legs agree with codomain_idcs
+        inter_codomain_idcs = [i for i in range(a.num_codomain_legs) if not i in bend_down] + bend_up
+        exchanges = permutation_as_swaps(inter_codomain_idcs, codomain_idcs)
+        all_exchanges += exchanges
+        all_bend_ups += [None] * len(exchanges)
+        num_operations.append(len(exchanges))
+
+        # c symbols are involved
+        if (len(all_exchanges) - num_bend_down - num_bend_up > 0 and
+                a.symmetry.braiding_style.value >= 20 and levels_None):
+            # return the old codomain and domain, the new ones are not computed;
+            # returning None as Data leads to a SymmetryError anyway.
+            return None, a.codomain, a.domain
+
+        codomain = a.codomain
+        domain = a.domain
+        coupled = np.array([domain.sectors[i[1]] for i in a.data.block_inds])
+        mappings = []
+        offset = [0] + list(np.cumsum(num_operations))
+        for i in range(len(num_operations)):
+            mappings_step = []
+            for j in range(num_operations[i]):
+                ind = offset[i] + j
+                exchange_ind = all_exchanges[ind]
+                if exchange_ind != codomain.num_spaces - 1 and not levels_None:
+                    overbraid = levels[exchange_ind] > levels[exchange_ind + 1]
+                    levels[exchange_ind:exchange_ind + 2] = levels[exchange_ind:exchange_ind + 2][::-1]
+                else:
+                    overbraid = None
+
+                mapp, codomain, domain, coupled = cls.from_b_or_c_symbol(codomain, domain, exchange_ind,
+                                                                         coupled, overbraid,
+                                                                         all_bend_ups[ind], a.backend)
+                mappings_step.append(mapp)
+
+            if len(mappings_step) > 0:
+                mappings_step = cls.compose_multiple(mappings_step)
+                if i == 0 or i == 5:
+                    mappings_step = mappings_step.add_prodspace(domain, coupled, 1)
+                elif i == 2 or i == 3:
+                    mappings_step = mappings_step.add_prodspace(codomain, coupled, 0)
+                mappings.append(mappings_step)
+
+        mappings = cls.compose_multiple(mappings)
+        return mappings, codomain, domain
 
     def _apply_single_tree_in_keys(self, ten: SymmetricTensor, new_codomain: ProductSpace,
                                    new_domain: ProductSpace, block_axes_permutation: list[int],
