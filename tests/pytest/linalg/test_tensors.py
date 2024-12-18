@@ -2319,8 +2319,8 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     labels = list('abcdefghi')[:cod + dom]
     tensor: cls = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
 
-    if isinstance(tensor.backend, backends.FusionTreeBackend) and cls is not DiagonalTensor:
-        with pytest.raises(NotImplementedError, match='transpose not implemented'):
+    if isinstance(tensor.backend, backends.FusionTreeBackend) and cls is Mask:
+        with pytest.raises(NotImplementedError, match='mask_transpose not implemented'):
             _ = tensors.transpose(tensor)
         pytest.xfail()
 
