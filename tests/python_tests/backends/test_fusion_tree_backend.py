@@ -1285,6 +1285,20 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     assert_bending_and_scale_axis_commutation(tens, funcs, eps)
 
 
+def test_nonabelian_transpose(make_compatible_tensor, np_random: np.random.Generator):
+    num_codom_legs, num_dom_legs = np_random.integers(low=3, high=4, size=2)
+    tens = make_compatible_tensor(int(num_codom_legs), int(num_dom_legs),
+                                  cls=SymmetricTensor, max_block_size=3)
+    if not isinstance(tens.backend, fusion_tree_backend.FusionTreeBackend):
+        pytest.xfail()
+
+    data1, codom1, dom1 = tens.backend.transpose(tens)
+    data2, codom2, dom2 = cross_check_transpose(tens)
+    tens1 = SymmetricTensor(data1, codom1, dom1, backend=tens.backend)
+    tens2 = SymmetricTensor(data2, codom2, dom2, backend=tens.backend)
+    assert_tensors_almost_equal(tens1, tens2, eps=1e-14)
+
+
 # HELPER FUNCTIONS FOR THE TESTS
 
 def apply_single_b_symbol(ten: SymmetricTensor, bend_up: bool
@@ -1946,3 +1960,34 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
             new_data.blocks[block_ind][alpha_slice, beta_slice] += b_sym[mu, nu] * tree_block
     new_data.discard_zero_blocks(block_backend, backend.eps)
     return new_data, new_codomain, new_domain
+
+
+def cross_check_transpose(ten: SymmetricTensor)-> tuple[fusion_tree_backend.FusionTreeData,
+                                                        ProductSpace, ProductSpace]:
+    """There are two different ways to compute the transpose when using `permute_legs`.
+    The one used in `FusionTreeBackend` corresponds to twisting the legs in the codomain
+    and braiding them *over* the legs in the domain. This should be equivalent to twisting
+    the codomain legs in the opposite way and and braiding them *under* the legs in the domain.
+
+    This function implements the latter approach.
+    """
+    ftb_TMD = fusion_tree_backend.TreeMappingDict
+    codomain_idcs = list(range(ten.num_codomain_legs, ten.num_legs))
+    domain_idcs = list(reversed(range(ten.num_codomain_legs)))
+    levels = list(range(ten.num_legs))
+    coupled = np.array([ten.domain.sectors[i[1]] for i in ten.data.block_inds])
+
+    mapping_twists = ftb_TMD.from_topological_twists(ten.codomain, coupled, inverse=True)
+    mapping_twists = mapping_twists.add_prodspace(ten.domain, coupled, index=1)
+
+    mapping_permute, codomain, domain = ftb_TMD.from_permute_legs(
+        a=ten, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels
+    )
+    full_mapping = mapping_twists.compose(mapping_permute)
+
+    axes_perm = codomain_idcs + domain_idcs
+    axes_perm = [i if i < ten.num_codomain_legs else ten.num_legs - 1 - i + ten.num_codomain_legs
+                 for i in axes_perm]
+    assert axes_perm == list(reversed(range(ten.num_legs)))
+    data = full_mapping.apply_to_tensor(ten, codomain, domain, axes_perm, None)
+    return data, codomain, domain

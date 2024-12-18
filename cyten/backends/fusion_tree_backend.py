@@ -802,7 +802,8 @@ class FusionTreeBackend(TensorBackend):
             return None, codomain, domain
 
         axes_perm = codomain_idcs + domain_idcs
-        axes_perm = [i if i < a.num_codomain_legs else a.num_legs - 1 - i + a.num_codomain_legs for i in axes_perm]
+        axes_perm = [i if i < a.num_codomain_legs else a.num_legs - 1 - i + a.num_codomain_legs
+                     for i in axes_perm]
         data = mappings.apply_to_tensor(a, codomain, domain, axes_perm, None)
         return data, codomain, domain
 
@@ -1062,7 +1063,22 @@ class FusionTreeBackend(TensorBackend):
         )
 
     def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorProduct, TensorProduct]:
-        raise NotImplementedError('transpose not implemented')  # TODO
+        codomain_idcs = list(range(a.num_codomain_legs, a.num_legs))
+        domain_idcs = list(reversed(range(a.num_codomain_legs)))
+        levels = list(reversed(range(a.num_legs)))
+        coupled = np.array([a.domain.sectors[i[1]] for i in a.data.block_inds])
+
+        mapping_twists = TreeMappingDict.from_topological_twists(a.codomain, coupled)
+        mapping_twists = mapping_twists.add_prodspace(a.domain, coupled, index=1)
+
+        mapping_permute, codomain, domain = TreeMappingDict.from_permute_legs(
+            a=a, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels
+        )
+        full_mapping = mapping_twists.compose(mapping_permute)
+
+        axes_perm = list(reversed(range(a.num_legs)))
+        data = full_mapping.apply_to_tensor(a, codomain, domain, axes_perm, None)
+        return data, codomain, domain
 
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
                                  degeneracy_tol: float, trunc_cut: float, svd_min: float
@@ -1464,7 +1480,7 @@ class TreeMappingDict(dict):
         of the tensor). Contributions smaller than `eps` are discarded.
         """
         symmetry = codomain.symmetry
-        mapping = TreeMappingDict()
+        mapping = cls()
         new_coupled = []
         spaces = [codomain, domain]
         for tree1, _, _ in spaces[bend_up].iter_tree_blocks(coupled):
@@ -1531,7 +1547,7 @@ class TreeMappingDict(dict):
             index = co_domain.num_factors - 2 - index
             overbraid = not overbraid
 
-        mapping = TreeMappingDict()
+        mapping = cls()
         for tree, _, _ in co_domain.iter_tree_blocks(coupled):
             unc, inn, mul = tree.uncoupled, tree.inner_sectors, tree.multiplicities
             if index == 0:
@@ -1754,6 +1770,27 @@ class TreeMappingDict(dict):
 
         mappings = cls.compose_multiple(mappings)
         return mappings, codomain, domain
+
+    @classmethod
+    def from_topological_twists(cls, prodspace: ProductSpace, coupled: SectorArray,
+                                inverse: bool = False) -> TreeMappingDict:
+        """From topological twists of the coupled charges.
+        
+        Return a `TreeMappingDict` corresponding to twisting all coupled charges
+        of the fusion trees in `prodspace`, such that each tree simply acquires a
+        factor equal to the topological twist of the respective coupled charge.
+        If `inverse == True`, the inverse twist is applied.
+
+        This method is useful for computing the transpose of tensors.
+        """
+        symmetry = prodspace.symmetry
+        mapping = cls()
+        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled, symmetry):
+            factor = symmetry.topological_twist(tree.coupled)
+            if inverse:
+                factor = 1 / factor
+            mapping.add_contribution((tree, ), (tree, ), factor)
+        return mapping
 
     def _apply_single_tree_in_keys(self, ten: SymmetricTensor, new_codomain: TensorProduct,
                                    new_domain: TensorProduct, block_axes_permutation: list[int],
