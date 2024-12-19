@@ -303,8 +303,7 @@ def make_compatible_block(compatible_backend, np_random):
 
 
 @pytest.fixture
-def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_symmetry_backend,
-                           make_compatible_block, make_compatible_space, np_random):
+def make_compatible_tensor(compatible_backend, compatible_symmetry, np_random):
     """Tensor RNG."""
     def make(codomain: list[spaces.Space | str | None] | spaces.ProductSpace | int = None,
              domain: list[spaces.Space | str | None] | spaces.ProductSpace | int = None,
@@ -312,264 +311,12 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, compatible_s
              *,
              like: tensors.Tensor = None, max_blocks=5, max_block_size=5, empty_ok=False,
              all_blocks=False, cls=tensors.SymmetricTensor, allow_basis_perm: bool = True):
-        if like is not None:
-            assert like.backend is compatible_backend
-            assert like.symmetry is compatible_symmetry
-            if isinstance(like, tensors.ChargedTensor):
-                return tensors.ChargedTensor(make(like=like.invariant_part), like.charged_state)
-            elif isinstance(like, tensors.Tensor):
-                return make(codomain=like.codomain, domain=like.domain, labels=like.labels,
-                            dtype=like.dtype, device=like.device, max_blocks=max_blocks,
-                            max_block_size=max_block_size, cls=type(like))
-            else:
-                raise TypeError(f'like must be a Tensor. Got {type(like)}')
-        
-        if isinstance(codomain, list):
-            codomain = codomain[:]  # we do inplace operations below.
-        if isinstance(domain, list):
-            domain = domain[:]  # we do inplace operations below.
-
-        # 0) default for codomain
-        # ======================================================================================
-        if codomain is None:
-            if cls in [tensors.SymmetricTensor, tensors. ChargedTensor]:
-                codomain = 2
-                if domain is None:
-                    domain = 2
-            elif cls in [tensors.DiagonalTensor, tensors.Mask]:
-                codomain = [None]
-            else:
-                raise ValueError
-
-        # 1) deal with strings in codomain / domain.
-        # ======================================================================================
-        if isinstance(codomain, spaces.ProductSpace):
-            assert codomain.symmetry == compatible_symmetry
-            num_codomain = codomain.num_spaces
-            codomain_complete = True
-            codomain_labels = [None] * len(codomain)
-        else:
-            if isinstance(codomain, int):
-                codomain = [None] * codomain
-            num_codomain = len(codomain)
-            codomain_labels = [None] * len(codomain)
-            for n, sp in enumerate(codomain):
-                if isinstance(sp, str):
-                    codomain_labels[n] = sp
-                    codomain[n] = None
-            codomain_complete = (None not in codomain)
-        #
-        if domain is None:
-            if cls in [tensors.SymmetricTensor, tensors.ChargedTensor]:
-                domain = []
-            if cls in [tensors.DiagonalTensor, tensors.Mask]:
-                domain = [None]
-        if isinstance(domain, spaces.ProductSpace):
-            assert domain.symmetry == compatible_symmetry
-            num_domain = domain.num_spaces
-            domain_labels = [None] * len(domain)
-            domain_complete = True
-        else:
-            if isinstance(domain, int):
-                domain = [None] * domain
-            num_domain = len(domain)
-            domain_labels = [None] * len(domain)
-            for n, sp in enumerate(domain):
-                if isinstance(sp, str):
-                    domain_labels[n] = sp
-                    domain[n] = None
-            domain_complete = (None not in domain)
-        #
-        num_legs = num_codomain + num_domain
-        if labels is None:
-            labels = [None] * num_legs
-        for n, l in enumerate(codomain_labels):
-            if l is None:
-                continue
-            assert labels[n] is None
-            labels[n] = l
-        for n, l in enumerate(domain_labels):
-            if l is None:
-                continue
-            assert labels[-1-n] is None
-            labels[-1-n] = l
-        #
-        # 2) Deal with other tensor types
-        # ======================================================================================
-        if cls is tensors.ChargedTensor:
-            charge_leg = make_compatible_space(max_sectors=1, max_mult=1, is_dual=False,
-                                               allow_basis_perm=allow_basis_perm)
-            if isinstance(domain, spaces.ProductSpace):
-                inv_domain = domain.left_multiply(charge_leg, backend=compatible_backend)
-            else:
-                inv_domain = [charge_leg, *domain]
-            inv_labels = [*labels, tensors.ChargedTensor._CHARGE_LEG_LABEL]
-            inv_part = make(codomain=codomain, domain=inv_domain, labels=inv_labels,
-                            max_blocks=max_blocks, max_block_size=max_block_size, empty_ok=empty_ok,
-                            all_blocks=all_blocks, cls=tensors.SymmetricTensor, dtype=dtype,
-                            device=device, allow_basis_perm=allow_basis_perm)
-
-            charged_state = [1] if inv_part.symmetry.can_be_dropped else None
-            res = tensors.ChargedTensor(inv_part, charged_state=charged_state)
-            res.test_sanity()
-            return res
-        #
-        if cls is tensors.DiagonalTensor:
-            # fill in legs.
-            if isinstance(codomain, spaces.ProductSpace):
-                assert codomain.num_spaces == 1
-                leg = codomain.spaces[0]
-                if isinstance(domain, spaces.ProductSpace):
-                    assert domain == codomain
-                else:
-                    assert len(domain) == 1
-                    assert domain[0] is None or domain[0] == leg
-            else:
-                assert len(codomain) == 1
-                if isinstance(domain, spaces.ProductSpace):
-                    assert domain.num_spaces == 1
-                    leg = domain.spaces[0]
-                    assert codomain[0] is None or codomain[0] == leg
-                else:
-                    assert len(domain) == 1
-                    if domain[0] is None and codomain[0] is None:
-                        leg = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
-                                                    allow_basis_perm=allow_basis_perm)
-                    elif domain[0] is None:
-                        leg = codomain[0]
-                    elif codomain[0] is None:
-                        leg = domain[0]
-                    else:
-                        leg = codomain[0]
-                        assert domain[0] == leg
-            #
-            real = False if dtype is None else dtype.is_real
-            res = tensors.DiagonalTensor.from_block_func(
-                lambda size: make_compatible_block(size, real=real),
-                leg=leg, backend=compatible_backend, labels=labels, dtype=dtype, device=device
-            )
-            if not all_blocks:
-                res = randomly_drop_blocks(res, max_blocks=max_blocks, empty_ok=empty_ok,
-                                           np_random=np_random)
-            res.test_sanity()
-            return res
-        #
-        if cls is tensors.Mask:
-            assert dtype in [None, Dtype.bool]
-            if isinstance(codomain, spaces.ProductSpace):
-                assert codomain.num_spaces == 1
-                small_leg = codomain.spaces[0]
-            elif codomain is None:
-                small_leg is None
-            else:
-                assert len(codomain) == 1
-                small_leg = codomain[0]
-            if isinstance(domain, spaces.ProductSpace):
-                assert domain.num_spaces == 1
-                large_leg = domain.spaces[0]
-            elif domain is None:
-                large_leg = None
-            else:
-                assert len(domain) == 1
-                large_leg = domain[0]
-            #
-            if large_leg is None:
-                if small_leg is None:
-                    large_leg = make_compatible_space(
-                        max_sectors=max_blocks, max_mult=max_block_size,
-                        allow_basis_perm=allow_basis_perm
-                    )
-                else:
-                    # TODO looks like this generates a basis_perm incompatible with the mask!
-                    raise NotImplementedError('Mask generation broken')
-                    extra = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
-                                                  is_dual=small_leg.is_bra_space,
-                                                  allow_basis_perm=allow_basis_perm)
-                    large_leg = small_leg.direct_sum(extra)
-
-            if compatible_symmetry_backend == 'fusion_tree':
-                with pytest.raises(NotImplementedError, match='diagonal_to_mask'):
-                    _ = tensors.Mask.from_random(large_leg=large_leg, small_leg=small_leg,
-                                                 backend=compatible_backend, p_keep=.6,
-                                                 labels=labels, np_random=np_random)
-                pytest.xfail()
-
-            if small_leg is not None and small_leg.dim > large_leg.dim:
-                res = tensors.Mask.from_random(large_leg=small_leg, small_leg=large_leg,
-                                               backend=compatible_backend, p_keep=.6, min_keep=1,
-                                               labels=labels, device=device, np_random=np_random)
-                res = tensors.dagger(res)
-            else:
-                res = tensors.Mask.from_random(large_leg=large_leg, small_leg=small_leg,
-                                               backend=compatible_backend, p_keep=.6, min_keep=1,
-                                               labels=labels, device=device, np_random=np_random)
-            assert res.small_leg.num_sectors > 0
-            res.test_sanity()
-            return res
-        #
-        # 3) Fill in missing legs
-        # ======================================================================================
-        if (not codomain_complete) and (not domain_complete):
-            # can just fill up the codomain with random legs.
-            for n, sp in enumerate(codomain):
-                if sp is None:
-                    codomain[n] = make_compatible_space(max_sectors=max_blocks,
-                                                        max_mult=max_block_size,
-                                                        allow_basis_perm=allow_basis_perm)
-            codomain = spaces.ProductSpace(codomain, symmetry=compatible_symmetry, backend=compatible_backend)
-            codomain_complete = True
-        if not codomain_complete:
-            # can assume that domain is complete
-            if not isinstance(domain, spaces.ProductSpace):
-                domain = spaces.ProductSpace(domain, symmetry=compatible_symmetry, backend=compatible_backend)
-            missing = [n for n, sp in enumerate(codomain) if sp is None]
-            for n in missing[:-1]:
-                codomain[n] = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
-                                                    allow_basis_perm=allow_basis_perm)
-            last = missing[-1]
-            partial_codomain = spaces.ProductSpace(codomain[:last] + codomain[last + 1:],
-                                                   symmetry=compatible_symmetry,
-                                                   backend=compatible_backend)
-            leg = find_last_leg(same=partial_codomain, opposite=domain, max_sectors=max_blocks,
-                                max_mult=max_block_size)
-            codomain = partial_codomain.insert_multiply(leg, last, backend=compatible_backend)
-        elif not domain_complete:
-            # can assume codomain is complete
-            if not isinstance(codomain, spaces.ProductSpace):
-                codomain = spaces.ProductSpace(codomain, symmetry=compatible_symmetry, backend=compatible_backend)
-            missing = [n for n, sp in enumerate(domain) if sp is None]
-            for n in missing[:-1]:
-                domain[n] = make_compatible_space(max_sectors=max_blocks, max_mult=max_block_size,
-                                                  allow_basis_perm=allow_basis_perm)
-            last = missing[-1]
-            partial_domain = spaces.ProductSpace(domain[:last] + domain[last + 1:],
-                                                 symmetry=compatible_symmetry,
-                                                 backend=compatible_backend)
-            leg = find_last_leg(same=partial_domain, opposite=codomain, max_sectors=max_blocks,
-                                max_mult=max_block_size)
-            domain = partial_domain.insert_multiply(leg, last, backend=compatible_backend)
-        else:
-            if not isinstance(codomain, spaces.ProductSpace):
-                codomain = spaces.ProductSpace(codomain, symmetry=compatible_symmetry, backend=compatible_backend)
-            if not isinstance(domain, spaces.ProductSpace):
-                domain = spaces.ProductSpace(domain, symmetry=compatible_symmetry, backend=compatible_backend)
-        #
-        # 3) Finish up
-        # ======================================================================================
-        if cls is not tensors.SymmetricTensor:
-            raise ValueError(f'Unknown tensor cls: {cls}')
-
-        real = False if dtype is None else dtype.is_real
-        res = tensors.SymmetricTensor.from_block_func(
-            lambda size: make_compatible_block(size, real=real),
-            codomain=codomain, domain=domain, backend=compatible_backend, labels=labels,
-            dtype=dtype, device=device
+        return random_tensor(
+            symmetry=compatible_symmetry, codomain=codomain, domain=domain, labels=labels,
+            dtype=dtype, backend=compatible_backend, device=device, like=like, max_blocks=max_blocks,
+            max_block_size=max_block_size, empty_ok=empty_ok, all_blocks=all_blocks, cls=cls,
+            allow_basis_perm=allow_basis_perm, np_random=np_random
         )
-        if not all_blocks:
-            res = randomly_drop_blocks(res, max_blocks=max_blocks, empty_ok=empty_ok,
-                                        np_random=np_random)
-        res.test_sanity()
-        return res
     return make
 
 
@@ -734,4 +481,284 @@ def find_last_leg(same: spaces.ProductSpace, opposite: spaces.ProductSpace,
     assert parent_space.sector_multiplicity(same.symmetry.trivial_sector) > 0
     res.test_sanity()
 
+    return res
+
+
+def random_tensor(symmetry: symmetries.Symmetry,
+                  codomain: list[spaces.Space | str | None] | spaces.ProductSpace | int = None,
+                  domain: list[spaces.Space | str | None] | spaces.ProductSpace | int = None,
+                  labels: list[str | None] = None, dtype: Dtype = None,
+                  backend: backends.TensorBackend = None, device: str = None,
+                  like: tensors.Tensor = None, max_blocks=5, max_block_size=5, empty_ok=False,
+                  all_blocks=False, cls=tensors.SymmetricTensor, allow_basis_perm: bool = True,
+                  np_random=np.random.default_rng()):
+    if backend is None:
+        backend = backends.get_backend()
+    assert isinstance(backend, backends.TensorBackend)
+    
+    if like is not None:
+        assert like.backend is backend
+        assert like.symmetry is symmetry
+        if isinstance(like, tensors.ChargedTensor):
+            inv_part = random_tensor(symmetry=symmetry, backend=backend, like=like.invariant_part)
+            return tensors.ChargedTensor(inv_part, like.charged_state)
+        elif isinstance(like, tensors.Tensor):
+            return random_tensor(symmetry=symmetry, codomain=like.codomain, domain=like.domain,
+                                 labels=like.labels, backend=backend, dtype=like.dtype,
+                                 device=like.device, max_blocks=max_blocks,
+                                 max_block_size=max_block_size, cls=type(like), np_random=np_random)
+        else:
+            raise TypeError(f'like must be a Tensor. Got {type(like)}')
+    
+    if isinstance(codomain, list):
+        codomain = codomain[:]  # we do inplace operations below.
+    if isinstance(domain, list):
+        domain = domain[:]  # we do inplace operations below.
+
+    # 0) default for codomain
+    # ======================================================================================
+    if codomain is None:
+        if cls in [tensors.SymmetricTensor, tensors. ChargedTensor]:
+            codomain = 2
+            if domain is None:
+                domain = 2
+        elif cls in [tensors.DiagonalTensor, tensors.Mask]:
+            codomain = [None]
+        else:
+            raise ValueError
+
+    # 1) deal with strings in codomain / domain.
+    # ======================================================================================
+    if isinstance(codomain, spaces.ProductSpace):
+        assert codomain.symmetry == symmetry
+        num_codomain = codomain.num_spaces
+        codomain_complete = True
+        codomain_labels = [None] * len(codomain)
+    else:
+        if isinstance(codomain, int):
+            codomain = [None] * codomain
+        num_codomain = len(codomain)
+        codomain_labels = [None] * len(codomain)
+        for n, sp in enumerate(codomain):
+            if isinstance(sp, str):
+                codomain_labels[n] = sp
+                codomain[n] = None
+        codomain_complete = (None not in codomain)
+    #
+    if domain is None:
+        if cls in [tensors.SymmetricTensor, tensors.ChargedTensor]:
+            domain = []
+        if cls in [tensors.DiagonalTensor, tensors.Mask]:
+            domain = [None]
+    if isinstance(domain, spaces.ProductSpace):
+        assert domain.symmetry == symmetry
+        num_domain = domain.num_spaces
+        domain_labels = [None] * len(domain)
+        domain_complete = True
+    else:
+        if isinstance(domain, int):
+            domain = [None] * domain
+        num_domain = len(domain)
+        domain_labels = [None] * len(domain)
+        for n, sp in enumerate(domain):
+            if isinstance(sp, str):
+                domain_labels[n] = sp
+                domain[n] = None
+        domain_complete = (None not in domain)
+    #
+    num_legs = num_codomain + num_domain
+    if labels is None:
+        labels = [None] * num_legs
+    for n, l in enumerate(codomain_labels):
+        if l is None:
+            continue
+        assert labels[n] is None
+        labels[n] = l
+    for n, l in enumerate(domain_labels):
+        if l is None:
+            continue
+        assert labels[-1-n] is None
+        labels[-1-n] = l
+    #
+    # 2) Deal with other tensor types
+    # ======================================================================================
+    if cls is tensors.ChargedTensor:
+        charge_leg = random_vector_space(symmetry=symmetry, max_num_blocks=1, max_block_size=1,
+                                         is_dual=False, allow_basis_perm=allow_basis_perm,
+                                         np_random=np_random)
+        if isinstance(domain, spaces.ProductSpace):
+            inv_domain = domain.left_multiply(charge_leg, backend=backend)
+        else:
+            inv_domain = [charge_leg, *domain]
+        inv_labels = [*labels, tensors.ChargedTensor._CHARGE_LEG_LABEL]
+        inv_part = random_tensor(
+            symmetry=symmetry, codomain=codomain, domain=inv_domain, labels=inv_labels, dtype=dtype,
+            backend=backend, device=device, max_blocks=max_blocks, max_block_size=max_block_size,
+            empty_ok=empty_ok, all_blocks=all_blocks, cls=tensors.SymmetricTensor,
+            allow_basis_perm=allow_basis_perm, np_random=np_random
+        )
+
+        charged_state = [1] if inv_part.symmetry.can_be_dropped else None
+        res = tensors.ChargedTensor(inv_part, charged_state=charged_state)
+        res.test_sanity()
+        return res
+    #
+    if cls is tensors.DiagonalTensor:
+        # fill in legs.
+        if isinstance(codomain, spaces.ProductSpace):
+            assert codomain.num_spaces == 1
+            leg = codomain.spaces[0]
+            if isinstance(domain, spaces.ProductSpace):
+                assert domain == codomain
+            else:
+                assert len(domain) == 1
+                assert domain[0] is None or domain[0] == leg
+        else:
+            assert len(codomain) == 1
+            if isinstance(domain, spaces.ProductSpace):
+                assert domain.num_spaces == 1
+                leg = domain.spaces[0]
+                assert codomain[0] is None or codomain[0] == leg
+            else:
+                assert len(domain) == 1
+                if domain[0] is None and codomain[0] is None:
+                    leg = random_vector_space(symmetry=symmetry, max_num_blocks=max_blocks,
+                                              max_block_size=max_block_size,
+                                              allow_basis_perm=allow_basis_perm, np_random=np_random)
+                elif domain[0] is None:
+                    leg = codomain[0]
+                elif codomain[0] is None:
+                    leg = domain[0]
+                else:
+                    leg = codomain[0]
+                    assert domain[0] == leg
+        #
+        real = False if dtype is None else dtype.is_real
+        res = tensors.DiagonalTensor.from_block_func(
+            lambda size: random_block(block_backend=backend.block_backend, size=size, real=real, np_random=np_random),
+            leg=leg, backend=backend, labels=labels, dtype=dtype, device=device
+        )
+        if not all_blocks:
+            res = randomly_drop_blocks(res, max_blocks=max_blocks, empty_ok=empty_ok,
+                                        np_random=np_random)
+        res.test_sanity()
+        return res
+    #
+    if cls is tensors.Mask:
+        assert dtype in [None, Dtype.bool]
+        if isinstance(codomain, spaces.ProductSpace):
+            assert codomain.num_spaces == 1
+            small_leg = codomain.spaces[0]
+        elif codomain is None:
+            small_leg is None
+        else:
+            assert len(codomain) == 1
+            small_leg = codomain[0]
+        if isinstance(domain, spaces.ProductSpace):
+            assert domain.num_spaces == 1
+            large_leg = domain.spaces[0]
+        elif domain is None:
+            large_leg = None
+        else:
+            assert len(domain) == 1
+            large_leg = domain[0]
+        #
+        if large_leg is None:
+            if small_leg is None:
+                large_leg = random_vector_space(
+                    symmetry=symmetry, max_num_blocks=max_blocks, max_block_size=max_block_size,
+                    allow_basis_perm=allow_basis_perm, np_random=np_random
+                )
+            else:
+                # TODO looks like this generates a basis_perm incompatible with the mask!
+                raise NotImplementedError('Mask generation broken')
+                extra = random_vector_space(symmetry=symmetry, max_num_blocks=max_blocks,
+                                            max_block_size=max_block_size, is_dual=small_leg.is_dual,
+                                            allow_basis_perm=allow_basis_perm, np_random=np_random)
+                large_leg = small_leg.direct_sum(extra)
+
+        if isinstance(backend, backends.FusionTreeBackend):
+            with pytest.raises(NotImplementedError, match='diagonal_to_mask'):
+                _ = tensors.Mask.from_random(large_leg=large_leg, small_leg=small_leg,
+                                             backend=backend, p_keep=.6,
+                                             labels=labels, np_random=np_random)
+            pytest.xfail()
+
+        if small_leg is not None and small_leg.dim > large_leg.dim:
+            res = tensors.Mask.from_random(large_leg=small_leg, small_leg=large_leg,
+                                           backend=backend, p_keep=.6, min_keep=1,
+                                           labels=labels, device=device, np_random=np_random)
+            res = tensors.dagger(res)
+        else:
+            res = tensors.Mask.from_random(large_leg=large_leg, small_leg=small_leg,
+                                           backend=backend, p_keep=.6, min_keep=1,
+                                           labels=labels, device=device, np_random=np_random)
+        assert res.small_leg.num_sectors > 0
+        res.test_sanity()
+        return res
+    #
+    # 3) Fill in missing legs
+    # ======================================================================================
+    if (not codomain_complete) and (not domain_complete):
+        # can just fill up the codomain with random legs.
+        for n, sp in enumerate(codomain):
+            if sp is None:
+                codomain[n] = random_vector_space(symmetry=symmetry, max_num_blocks=max_blocks,
+                                                  max_block_size=max_block_size,
+                                                  allow_basis_perm=allow_basis_perm)
+        codomain = spaces.ProductSpace(codomain, symmetry=symmetry, backend=backend)
+        codomain_complete = True
+    if not codomain_complete:
+        # can assume that domain is complete
+        if not isinstance(domain, spaces.ProductSpace):
+            domain = spaces.ProductSpace(domain, symmetry=symmetry, backend=backend)
+        missing = [n for n, sp in enumerate(codomain) if sp is None]
+        for n in missing[:-1]:
+            codomain[n] = random_vector_space(symmetry=symmetry, max_num_blocks=max_blocks,
+                                              max_block_size=max_block_size,
+                                              allow_basis_perm=allow_basis_perm)
+        last = missing[-1]
+        partial_codomain = spaces.ProductSpace(codomain[:last] + codomain[last + 1:],
+                                                symmetry=symmetry,
+                                                backend=backend)
+        leg = find_last_leg(same=partial_codomain, opposite=domain, max_sectors=max_blocks,
+                            max_mult=max_block_size)
+        codomain = partial_codomain.insert_multiply(leg, last, backend=backend)
+    elif not domain_complete:
+        # can assume codomain is complete
+        if not isinstance(codomain, spaces.ProductSpace):
+            codomain = spaces.ProductSpace(codomain, symmetry=symmetry, backend=backend)
+        missing = [n for n, sp in enumerate(domain) if sp is None]
+        for n in missing[:-1]:
+            domain[n] = random_vector_space(symmetry=symmetry, max_num_blocks=max_blocks,
+                                            max_block_size=max_block_size,
+                                            allow_basis_perm=allow_basis_perm)
+        last = missing[-1]
+        partial_domain = spaces.ProductSpace(domain[:last] + domain[last + 1:],
+                                                symmetry=symmetry,
+                                                backend=backend)
+        leg = find_last_leg(same=partial_domain, opposite=codomain, max_sectors=max_blocks,
+                            max_mult=max_block_size)
+        domain = partial_domain.insert_multiply(leg, last, backend=backend)
+    else:
+        if not isinstance(codomain, spaces.ProductSpace):
+            codomain = spaces.ProductSpace(codomain, symmetry=symmetry, backend=backend)
+        if not isinstance(domain, spaces.ProductSpace):
+            domain = spaces.ProductSpace(domain, symmetry=symmetry, backend=backend)
+    #
+    # 3) Finish up
+    # ======================================================================================
+    if cls is not tensors.SymmetricTensor:
+        raise ValueError(f'Unknown tensor cls: {cls}')
+
+    real = False if dtype is None else dtype.is_real
+    res = tensors.SymmetricTensor.from_block_func(
+        lambda size: random_block(block_backend=backend.block_backend, size=size, real=real, np_random=np_random),
+        codomain=codomain, domain=domain, backend=backend, labels=labels,
+        dtype=dtype, device=device
+    )
+    if not all_blocks:
+        res = randomly_drop_blocks(res, max_blocks=max_blocks, empty_ok=empty_ok,
+                                    np_random=np_random)
+    res.test_sanity()
     return res
