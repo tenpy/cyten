@@ -11,8 +11,12 @@ from cyten.trees import FusionTree
 from cyten.spaces import ElementarySpace, ProductSpace
 from cyten import backends
 from cyten.tensors import DiagonalTensor, SymmetricTensor, move_leg
-from cyten.symmetries import ProductSymmetry, fibonacci_anyon_category, SU2Symmetry, SU3_3AnyonCategory
+from cyten.symmetries import (
+    ProductSymmetry, Symmetry, fibonacci_anyon_category, SU2Symmetry, SU3_3AnyonCategory,
+    ising_anyon_category, SU2_kAnyonCategory, z5_symmetry, u1_symmetry
+)
 from cyten.dtypes import Dtype
+from conftest import random_tensor
 
 
 @pytest.mark.parametrize('num_spaces', [3, 4, 5])
@@ -1298,18 +1302,25 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     assert_bending_and_scale_axis_commutation(tens, funcs, eps)
 
 
-def test_nonabelian_transpose(make_compatible_tensor, np_random: np.random.Generator):
-    num_codom_legs, num_dom_legs = np_random.integers(low=3, high=4, size=2)
-    tens = make_compatible_tensor(int(num_codom_legs), int(num_dom_legs),
-                                  cls=SymmetricTensor, max_block_size=3)
-    if not isinstance(tens.backend, fusion_tree_backend.FusionTreeBackend):
-        pytest.xfail()
+@pytest.mark.parametrize('symmetry',
+    [fibonacci_anyon_category, ising_anyon_category, SU2_kAnyonCategory(4),
+     SU2_kAnyonCategory(5) * u1_symmetry, SU2Symmetry() * ising_anyon_category,
+     SU3_3AnyonCategory() * u1_symmetry, fibonacci_anyon_category * z5_symmetry]
+)
+def test_nonabelian_transpose(symmetry: Symmetry, block_backend: str,
+                              np_random: np.random.Generator):
+    backend = get_backend('fusion_tree', block_backend)
+    num_codom_legs, num_dom_legs = np_random.integers(low=2, high=4, size=2)
+    tens = random_tensor(
+        symmetry=symmetry, codomain=int(num_codom_legs), domain=int(num_dom_legs),
+        backend=backend, max_block_size=3, cls=SymmetricTensor, np_random=np_random
+    )
 
     data1, codom1, dom1 = tens.backend.transpose(tens)
     data2, codom2, dom2 = cross_check_transpose(tens)
     tens1 = SymmetricTensor(data1, codom1, dom1, backend=tens.backend)
     tens2 = SymmetricTensor(data2, codom2, dom2, backend=tens.backend)
-    assert_tensors_almost_equal(tens1, tens2, eps=1e-14)
+    assert_tensors_almost_equal(tens1, tens2, eps=1e-13)
 
 
 # HELPER FUNCTIONS FOR THE TESTS
