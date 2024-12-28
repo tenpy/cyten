@@ -77,7 +77,7 @@ import logging
 
 from .dummy_config import printoptions
 from .symmetries import SymmetryError, Symmetry
-from .spaces import Space, ElementarySpace, ProductSpace, Sector, TensorDomain
+from .spaces import Space, ElementarySpace, ProductSpace, Sector, TensorDomain, Leg
 from .backends.backend_factory import get_backend
 from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order
 from .dtypes import Dtype
@@ -288,6 +288,10 @@ class Tensor(metaclass=ABCMeta):
         for space in self.codomain.spaces:
             self.backend.test_leg_sanity(space)
         assert self.dtype not in self._forbidden_dtypes
+        assert not self.domain.is_bra_space
+        assert not self.codomain.is_bra_space
+        assert all(isinstance(leg, Leg) for leg in self.domain.spaces)
+        assert all(isinstance(leg, Leg) for leg in self.codomain.spaces)
 
     @property
     def ascii_diagram(self) -> str:

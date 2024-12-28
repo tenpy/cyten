@@ -23,7 +23,50 @@ from .trees import FusionTree, fusion_trees
 if TYPE_CHECKING:
     from .backends.abstract_backend import TensorBackend, Block
 
-__all__ = ['Space', 'ElementarySpace', 'ProductSpace']
+__all__ = ['Leg', 'Space', 'ElementarySpace', 'ProductSpace']
+
+
+class Leg(metaclass=ABCMeta):
+    """Common base class for a single leg of a tensor.
+
+    A single leg on a tensor can either be an :class:`ElementarySpace` or, e.g. as the result
+    of combining legs, a :class:`LegPipe`.
+
+    TODO do we need the following at this level?
+     - change_symmetry
+     - drop_symmetry
+     - repr
+     - num_parameters
+     - tools for displaying the leg, in Tensor.__repr__ or in Tensor.ascii_diagram
+
+    Attributes
+    ----------
+    symmetry : Symmetry
+        The symmetry associated with this leg.
+    dim : int or float
+        The (quantum-)dimension of this leg.
+        Is integer if ``symmetry.can_be_dropped``, otherwise may be float.
+    """
+    
+    def __init__(self, symmetry: Symmetry, dim: int | float):
+        self.symmetry = symmetry
+        self.dim = dim
+
+    @abstractmethod
+    def as_Space(self) -> Space:
+        """Convert to (an appropriate subclass of) :class:`Space`."""
+        ...
+
+    def as_ElementarySpace(self) -> ElementarySpace:
+        """Convert to an isomorphic :class:`ElementarySpace`"""
+        # can be overridden for performance
+        return self.as_Space().as_ElementarySpace()
+
+    @property
+    @abstractmethod
+    def dual(self) -> Leg:
+        """The dual leg, that is obtained when bending this leg."""
+        ...
 
 
 class Space(metaclass=ABCMeta):
@@ -230,7 +273,7 @@ class Space(metaclass=ABCMeta):
         return self.multiplicities[idx]
 
 
-class ElementarySpace(Space):
+class ElementarySpace(Space, Leg):
     r"""A space which is graded by a symmetry, but has no further structure.
 
     We distinguish ket spaces :math:`V_k := a_1 \oplus a_2 \oplus \dots \plus a_N` with
@@ -268,6 +311,7 @@ class ElementarySpace(Space):
                  is_dual: bool = False, basis_perm: ndarray | None = None):
         Space.__init__(self, symmetry=symmetry, sectors=sectors, multiplicities=multiplicities,
                        is_bra_space=is_dual)
+        Leg.__init__(self, symmetry=symmetry, dim=self.dim)
         self.is_dual = is_dual
         if basis_perm is None:
             self._basis_perm = self._inverse_basis_perm = None
@@ -621,6 +665,9 @@ class ElementarySpace(Space):
                 return False
         return True
 
+    def as_Space(self):
+        return self
+
     def as_ElementarySpace(self, is_dual: bool = None) -> ElementarySpace:
         if (is_dual is None) or (is_dual == self.is_dual):
             return self
@@ -821,7 +868,7 @@ class ElementarySpace(Space):
         return self.with_opposite_duality()
 
 
-class ProductSpace(Space):
+class ProductSpace(Space, Leg):
     r"""The tensor product of multiple spaces, which is itself a space.
 
     Unlike for :class:`ElementarySpace`, we do not distinguish between bra and ket spaces.
@@ -875,6 +922,7 @@ class ProductSpace(Space):
             )
         Space.__init__(self, symmetry=symmetry, sectors=_sectors,
                        multiplicities=_multiplicities, is_bra_space=False)
+        Leg.__init__(self, symmetry=symmetry, dim=self.dim)
         if _metadata is UNSPECIFIED:
             if backend is None:
                 _metadata = {}
@@ -995,6 +1043,9 @@ class ProductSpace(Space):
         if self.num_spaces != other.num_spaces:
             return False
         return all(s1 == s2 for s1, s2 in zip(self.spaces, other.spaces))
+    
+    def as_Space(self):
+        return self
 
     def as_ElementarySpace(self, is_dual: bool = None) -> ElementarySpace:
         res = ElementarySpace(symmetry=self.symmetry, sectors=self.sectors,
