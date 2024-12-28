@@ -11,7 +11,7 @@ from .abstract_backend import (
 )
 from ..dtypes import Dtype
 from ..symmetries import Sector, SectorArray, Symmetry
-from ..spaces import Space, ElementarySpace, ProductSpace
+from ..spaces import Space, ElementarySpace, ProductSpace, TensorDomain
 from ..trees import FusionTree, fusion_trees
 from ..tools.misc import (
     inverse_permutation, iter_common_sorted_arrays, iter_common_noncommon_sorted,
@@ -24,54 +24,7 @@ if TYPE_CHECKING:
     from ..tensors import SymmetricTensor, DiagonalTensor, Mask
 
 
-__all__ = ['block_size', 'forest_block_size', 'tree_block_size', 'forest_block_slice',
-           'tree_block_slice', 'FusionTreeBackend', 'FusionTreeData']
-
-
-def block_size(space: ProductSpace, coupled: Sector) -> int:
-    """The size of a block"""
-    return space.sector_multiplicity(coupled)
-
-
-def forest_block_size(space: ProductSpace, uncoupled: tuple[Sector], coupled: Sector) -> int:
-    """The size of a forest-block"""
-    return len(fusion_trees(space.symmetry, uncoupled, coupled)) * tree_block_size(space, uncoupled)
-
-
-def tree_block_size(space: ProductSpace, uncoupled: tuple[Sector]) -> int:
-    """The size of a tree-block"""
-    return prod(s.sector_multiplicity(a) for s, a in zip(space.spaces, uncoupled))
-
-
-def forest_block_slice(space: ProductSpace, uncoupled: tuple[Sector], coupled: Sector) -> slice:
-    """The range of indices of a forest-block within its block, as a slice."""
-    # OPTIMIZE ?
-    offset = 0
-    for _unc in space.iter_uncoupled():
-        if all(np.all(a == b) for a, b in zip(_unc, uncoupled)):
-            break
-        offset += forest_block_size(space, _unc, coupled)
-    else:  # no break ocurred
-        raise ValueError('Uncoupled sectors incompatible with `space`')
-    size = forest_block_size(space, uncoupled, coupled)
-    return slice(offset, offset + size)
-
-
-def tree_block_slice(space: ProductSpace, tree: FusionTree) -> slice:
-    """The range of indices of a tree-block within its block, as a slice."""
-    # OPTIMIZE ?
-    offset = 0
-    for _unc in space.iter_uncoupled():
-        if all(np.all(a == b) for a, b in zip(_unc, tree.uncoupled)):
-            break
-        offset += forest_block_size(space, _unc, tree.coupled)
-    else:  # no break ocurred
-        raise ValueError('Uncoupled sectors incompatible with `space`')
-    tree_block_sizes = tree_block_size(space, tree.uncoupled)
-    offset += tree_block_sizes * fusion_trees(space.symmetry, tree.uncoupled,
-                                              tree.coupled, tree.are_dual).index(tree)
-    size = tree_block_sizes
-    return slice(offset, offset + size)
+__all__ = ['FusionTreeBackend', 'FusionTreeData']
 
 
 def _tree_block_iter(a: SymmetricTensor):
@@ -83,10 +36,10 @@ def _tree_block_iter(a: SymmetricTensor):
         i1_forest = 0  # start row index of the current forest block
         i2_forest = 0  # start column index of the current forest block
         for b_sectors in _iter_sectors(a.domain.spaces, sym):
-            tree_block_width = tree_block_size(a.domain, b_sectors)
+            tree_block_width = a.domain.tree_block_size(b_sectors)
             forest_block_width = 0
             for a_sectors in _iter_sectors(a.codomain.spaces, sym):
-                tree_block_height = tree_block_size(a.codomain, a_sectors)
+                tree_block_height = a.codomain.tree_block_size(a_sectors)
                 i1 = i1_forest  # start row index of the current tree block
                 i2 = i2_forest  # start column index of the current tree block
                 for alpha_tree in fusion_trees(sym, a_sectors, coupled, codomain_are_dual):
@@ -105,7 +58,7 @@ def _tree_block_iter(a: SymmetricTensor):
             i2_forest += forest_block_width
 
 
-def _tree_block_iter_product_space(space: ProductSpace, coupled: SectorArray | list[Sector],
+def _tree_block_iter_product_space(space: TensorDomain, coupled: SectorArray | list[Sector],
                                    symmetry: Symmetry) -> Iterator[tuple[FusionTree, slice, int]]:
     """Iterator over all trees in `space` with total charge in `coupled`.
     
@@ -119,14 +72,14 @@ def _tree_block_iter_product_space(space: ProductSpace, coupled: SectorArray | l
     for ind, c in enumerate(coupled):
         i = 0
         for sectors in _iter_sectors(space.spaces, symmetry):
-            tree_block_width = tree_block_size(space, sectors)
+            tree_block_width = space.tree_block_size(sectors)
             for tree in fusion_trees(symmetry, sectors, c, are_dual):
                 slc = slice(i, i + tree_block_width)
                 yield tree, slc, ind
                 i += tree_block_width
 
 
-def _forest_block_iter_product_space(space: ProductSpace, coupled: SectorArray | list[Sector],
+def _forest_block_iter_product_space(space: TensorDomain, coupled: SectorArray | list[Sector],
                                      symmetry: Symmetry) -> Iterator[tuple[SectorArray, slice, int]]:
     """Iterator over all forests in `space` with total charge in `coupled`.
     
@@ -138,7 +91,7 @@ def _forest_block_iter_product_space(space: ProductSpace, coupled: SectorArray |
     for ind, c in enumerate(coupled):
         i = 0
         for sectors in _iter_sectors(space.spaces, symmetry):
-            forest_block_width = forest_block_size(space, sectors, c)
+            forest_block_width = space.forest_block_size(sectors, c)
             slc = slice(i, i + forest_block_width)
             yield sectors, slc, ind
             i += forest_block_width
@@ -320,7 +273,7 @@ class FusionTreeBackend(TensorBackend):
         return FusionTreeData(res_block_inds, res_blocks, dtype, a.data.device)
 
     def add_trivial_leg(self, a: SymmetricTensor, legs_pos: int, add_to_domain: bool,
-                        co_domain_pos: int, new_codomain: ProductSpace, new_domain: ProductSpace
+                        co_domain_pos: int, new_codomain: TensorDomain, new_domain: TensorDomain
                         ) -> Data:
         # does not change blocks or coupled sectors at all.
         return a.data
@@ -485,7 +438,7 @@ class FusionTreeBackend(TensorBackend):
         return FusionTreeData(block_inds=block_inds, blocks=blocks, dtype=dtype,
                               device=a.data.device)
 
-    def diagonal_from_block(self, a: Block, co_domain: ProductSpace, tol: float) -> DiagonalData:
+    def diagonal_from_block(self, a: Block, co_domain: TensorDomain, tol: float) -> DiagonalData:
         dtype = self.block_backend.block_dtype(a)
         block_inds = np.repeat(np.arange(co_domain.num_sectors)[:, None], 2, axis=1)
         blocks = []
@@ -503,8 +456,9 @@ class FusionTreeBackend(TensorBackend):
         return FusionTreeData(block_inds, blocks, dtype,
                               device=self.block_backend.block_get_device(a))
 
-    def diagonal_from_sector_block_func(self, func, co_domain: ProductSpace) -> DiagonalData:
-        blocks = [func((block_size(co_domain, coupled),), coupled) for coupled in co_domain.sectors]
+    def diagonal_from_sector_block_func(self, func, co_domain: TensorDomain) -> DiagonalData:
+        blocks = [func((co_domain.block_size(coupled_idx),), coupled)
+                  for coupled_idx, coupled in enumerate(co_domain.sectors)]
         block_inds = np.repeat(np.arange(co_domain.num_sectors)[:, None], 2, axis=1)
         if len(blocks) > 0:
             sample_block = blocks[0]
@@ -572,15 +526,15 @@ class FusionTreeBackend(TensorBackend):
         w_data = FusionTreeData(a_block_inds, w_blocks, a.dtype.to_real, a.data.device)
         return w_data, v_data
 
-    def eye_data(self, co_domain: ProductSpace, dtype: Dtype, device: str) -> FusionTreeData:
+    def eye_data(self, co_domain: TensorDomain, dtype: Dtype, device: str) -> FusionTreeData:
         # Note: the identity has the same matrix elements in all ONB, so no need to consider
         #       the basis perms.
-        blocks = [self.block_backend.eye_matrix(block_size(co_domain, c), dtype, device)
-                  for c in co_domain.sectors]
+        blocks = [self.block_backend.eye_matrix(co_domain.block_size(c_idx), dtype, device)
+                  for c_idx in range(co_domain.num_sectors)]
         block_inds = np.repeat(np.arange(co_domain.num_sectors)[:, None], 2, axis=1)
         return FusionTreeData(block_inds, blocks, dtype, device)
 
-    def from_dense_block(self, a: Block, codomain: ProductSpace, domain: ProductSpace, tol: float
+    def from_dense_block(self, a: Block, codomain: TensorDomain, domain: TensorDomain, tol: float
                          ) -> FusionTreeData:
         sym = codomain.symmetry
         assert sym.can_be_dropped
@@ -606,10 +560,10 @@ class FusionTreeBackend(TensorBackend):
             i2 = 0  # start column index of the current forest block
             for b_sectors, n_dims, j2 in _iter_sectors_mults_slices(domain.spaces, sym):
                 b_dims = sym.batch_sector_dim(b_sectors)
-                tree_block_width = tree_block_size(domain, b_sectors)
+                tree_block_width = domain.tree_block_size(b_sectors)
                 for a_sectors, m_dims, j1 in _iter_sectors_mults_slices(codomain.spaces, sym):
                     a_dims = sym.batch_sector_dim(a_sectors)
-                    tree_block_height = tree_block_size(codomain, a_sectors)
+                    tree_block_height = codomain.tree_block_size(a_sectors)
                     entries = a[(*j1, *j2)]  # [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
                     # reshape to [a1,m1,...,aJ,mJ, b1,n1,...,bK,nK]
                     shape = [0] * (2 * num_legs)
@@ -658,16 +612,16 @@ class FusionTreeBackend(TensorBackend):
     def from_dense_block_trivial_sector(self, block: Block, leg: Space) -> Data:
         raise NotImplementedError('from_dense_block_trivial_sector not implemented')  # TODO
 
-    def from_random_normal(self, codomain: ProductSpace, domain: ProductSpace, sigma: float,
+    def from_random_normal(self, codomain: TensorDomain, domain: TensorDomain, sigma: float,
                            dtype: Dtype, device: str) -> Data:
         raise NotImplementedError  # TODO
 
-    def from_sector_block_func(self, func, codomain: ProductSpace, domain: ProductSpace) -> FusionTreeData:
+    def from_sector_block_func(self, func, codomain: TensorDomain, domain: TensorDomain) -> FusionTreeData:
         blocks = []
         block_inds = []
         for i, j in iter_common_sorted_arrays(codomain.sectors, domain.sectors):
             coupled = codomain.sectors[i]
-            shape = (block_size(codomain, coupled), block_size(domain, coupled))
+            shape = (codomain.block_size(i), domain.block_size(j))
             block_inds.append([i, j])
             blocks.append(func(shape, coupled))
         if len(blocks) > 0:
@@ -791,11 +745,11 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError('mask_binary_operand not implemented')
 
     def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
-                                ) -> tuple[Data, ProductSpace, ProductSpace]:
+                                ) -> tuple[Data, TensorDomain, TensorDomain]:
         raise NotImplementedError('mask_contract_large_leg not implemented')
 
     def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
-                                ) -> tuple[Data, ProductSpace, ProductSpace]:
+                                ) -> tuple[Data, TensorDomain, TensorDomain]:
         raise NotImplementedError('mask_contract_small_leg not implemented')
 
     def mask_dagger(self, mask: Mask) -> MaskData:
@@ -846,11 +800,11 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError('outer not implemented')  # TODO
 
     def partial_trace(self, tensor: SymmetricTensor, pairs: list[tuple[int, int]],
-                      levels: list[int] | None) -> tuple[Data, ProductSpace, ProductSpace]:
+                      levels: list[int] | None) -> tuple[Data, TensorDomain, TensorDomain]:
         raise NotImplementedError('partial_trace not implemented')  # TODO
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:
+                     levels: list[int] | None) -> tuple[Data | None, TensorDomain, TensorDomain]:
         # TODO special cases without bends
 
         # legs that need to be bent up or down
@@ -1081,7 +1035,7 @@ class FusionTreeBackend(TensorBackend):
         return FusionTreeData(block_inds, blocks, a.dtype, a.data.device)
 
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
-                   domain_split: list[int], new_codomain: ProductSpace, new_domain: ProductSpace
+                   domain_split: list[int], new_codomain: TensorDomain, new_domain: TensorDomain
                    ) -> Data:
         raise RuntimeError(self.err_msg_prodspace)
 
@@ -1164,10 +1118,10 @@ class FusionTreeBackend(TensorBackend):
             i2 = 0  # start column index of the current forest block
             for b_sectors, n_dims, j2 in _iter_sectors_mults_slices(a.domain.spaces, sym):
                 b_dims = sym.batch_sector_dim(b_sectors)
-                tree_block_width = tree_block_size(a.domain, b_sectors)
+                tree_block_width = a.domain.tree_block_size(b_sectors)
                 for a_sectors, m_dims, j1 in _iter_sectors_mults_slices(a.codomain.spaces, sym):
                     a_dims = sym.batch_sector_dim(a_sectors)
-                    tree_block_height = tree_block_size(a.codomain, a_sectors)
+                    tree_block_height = a.codomain.tree_block_size(a_sectors)
                     entries, num_alpha_trees, num_beta_trees = self._get_forest_block_contribution(
                         block, sym, a.codomain, a.domain, coupled, a_sectors, b_sectors,
                         a_dims, b_dims, tree_block_width, tree_block_height, i1, i2, m_dims, n_dims,
@@ -1207,7 +1161,7 @@ class FusionTreeBackend(TensorBackend):
             a.dtype.zero_scalar
         )
 
-    def transpose(self, a: SymmetricTensor) -> tuple[Data, ProductSpace, ProductSpace]:
+    def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorDomain, TensorDomain]:
         raise NotImplementedError('transpose not implemented')  # TODO
 
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
@@ -1265,7 +1219,7 @@ class FusionTreeBackend(TensorBackend):
                                     is_dual=S.leg.is_bra_space)
         return mask_data, small_leg, err, new_norm
         
-    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str,
+    def zero_data(self, codomain: TensorDomain, domain: TensorDomain, dtype: Dtype, device: str,
                   all_blocks: bool = False) -> FusionTreeData:
         if not all_blocks:
             return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype,
@@ -1277,7 +1231,7 @@ class FusionTreeBackend(TensorBackend):
             i = codomain.sectors_where(coupled)
             if i is None:
                 continue
-            shp = (block_size(codomain, coupled), block_size(domain, coupled))
+            shp = (codomain.block_size(i), domain.block_size(j))
             block_shapes.append(shp)
             block_inds.append([i, j])
 
@@ -1290,7 +1244,7 @@ class FusionTreeBackend(TensorBackend):
                        for block_shape in block_shapes]
         return FusionTreeData(block_inds, zero_blocks, dtype=dtype, device=device, is_sorted=True)
 
-    def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype, device: str
+    def zero_diagonal_data(self, co_domain: TensorDomain, dtype: Dtype, device: str
                            ) -> DiagonalData:
         return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype,
                               device=device)
@@ -1492,7 +1446,7 @@ class TreeMappingDict(dict):
         else:
             self[trees_i] = {trees_f: amplitude}
 
-    def add_prodspace(self, prodspace: ProductSpace, coupled: SectorArray,
+    def add_prodspace(self, prodspace: TensorDomain, coupled: SectorArray,
                       index: int) -> TreeMappingDict:
         """Add a product space.
 
@@ -1523,8 +1477,8 @@ class TreeMappingDict(dict):
                 new_mapping[self._new_key(key, tree, index)] = new_value
         return new_mapping
 
-    def apply_to_tensor(self, ten: SymmetricTensor, new_codomain: ProductSpace,
-                        new_domain: ProductSpace, block_axes_permutation: list[int],
+    def apply_to_tensor(self, ten: SymmetricTensor, new_codomain: TensorDomain,
+                        new_domain: TensorDomain, block_axes_permutation: list[int],
                         in_domain: bool | None) -> FusionTreeData:
         """Apply `self` to the tensor `ten` and return the resulting `FusionTreeData`.
         
@@ -1586,7 +1540,7 @@ class TreeMappingDict(dict):
         return res
 
     @classmethod
-    def from_b_symbol(cls, codomain: ProductSpace, domain: ProductSpace, coupled: SectorArray,
+    def from_b_symbol(cls, codomain: TensorDomain, domain: TensorDomain, coupled: SectorArray,
                       bend_up: bool, eps: float) -> tuple[TreeMappingDict, SectorArray]:
         """From a single B move.
 
@@ -1647,7 +1601,7 @@ class TreeMappingDict(dict):
         return mapping, np.array(new_coupled)
 
     @classmethod
-    def from_c_symbol(cls, prodspace: ProductSpace, coupled: SectorArray, index: int,
+    def from_c_symbol(cls, prodspace: TensorDomain, coupled: SectorArray, index: int,
                       overbraid: bool, in_domain: bool, eps: float) -> TreeMappingDict:
         """From a single C move.
 
@@ -1713,10 +1667,10 @@ class TreeMappingDict(dict):
         return mapping
 
     @classmethod
-    def from_b_or_c_symbol(cls, codomain: ProductSpace, domain: ProductSpace,
+    def from_b_or_c_symbol(cls, codomain: TensorDomain, domain: TensorDomain,
                            index: int, coupled: SectorArray, overbraid: bool | None,
                            bend_up: bool | None, backend: FusionTreeBackend
-                           ) -> tuple[TreeMappingDict, ProductSpace, ProductSpace, SectorArray]:
+                           ) -> tuple[TreeMappingDict, TensorDomain, TensorDomain, SectorArray]:
         """Helper function.
 
         Essentially a wrapper for `from_b_symbol` and `from_c_symbol` that, apart
@@ -1747,13 +1701,11 @@ class TreeMappingDict(dict):
         # b symbol
         if index == codomain.num_spaces - 1:
             if bend_up:
-                new_domain = ProductSpace(domain.spaces[:-1], symmetry, backend)
-                new_codomain = ProductSpace(codomain.spaces + [domain.spaces[-1].dual],
-                                            symmetry, backend)
+                new_domain = TensorDomain(domain.spaces[:-1], symmetry)
+                new_codomain = TensorDomain(codomain.spaces + [domain.spaces[-1].dual], symmetry)
             else:
-                new_codomain = ProductSpace(codomain.spaces[:-1], symmetry, backend)
-                new_domain = ProductSpace(domain.spaces + [codomain.spaces[-1].dual],
-                                          symmetry, backend)
+                new_codomain = TensorDomain(codomain.spaces[:-1], symmetry)
+                new_domain = TensorDomain(domain.spaces + [codomain.spaces[-1].dual], symmetry)
             mapping, new_coupled = cls.from_b_symbol(codomain, domain, coupled,
                                                      bend_up, backend.eps)
 
@@ -1766,23 +1718,23 @@ class TreeMappingDict(dict):
                 index_ = codomain.num_spaces + domain.num_spaces - 1 - (index + 1)
                 spaces = domain.spaces[:]
                 spaces[index_:index_ + 2] = spaces[index_:index_ + 2][::-1]
-                new_domain = ProductSpace(spaces, symmetry, backend,
-                                          domain.sectors, domain.multiplicities)
+                new_domain = TensorDomain(spaces, symmetry)
+                # TODO could re-use  domain.sectors, domain.multiplicities)
                 index -= codomain.num_spaces
             else:
                 in_domain = False
                 new_domain = domain
                 spaces = codomain.spaces[:]
                 spaces[index:index + 2] = spaces[index:index + 2][::-1]
-                new_codomain = ProductSpace(spaces, symmetry, backend,
-                                            codomain.sectors, codomain.multiplicities)
+                new_codomain = TensorDomain(spaces, symmetry)
+            # TODO codomain.sectors, codomain.multiplicities)
             prodspace = [codomain, domain][in_domain]
             mapping = cls.from_c_symbol(prodspace, coupled, index, overbraid,
                                         in_domain, backend.eps)
         return mapping, new_codomain, new_domain, new_coupled
 
-    def _apply_single_tree_in_keys(self, ten: SymmetricTensor, new_codomain: ProductSpace,
-                                   new_domain: ProductSpace, block_axes_permutation: list[int],
+    def _apply_single_tree_in_keys(self, ten: SymmetricTensor, new_codomain: TensorDomain,
+                                   new_domain: TensorDomain, block_axes_permutation: list[int],
                                    in_domain: bool | None) -> FusionTreeData:
         backend = ten.backend.block_backend
         old_data = ten.data
@@ -1822,7 +1774,7 @@ class TreeMappingDict(dict):
             for ((new_tree, ), amplitude) in contributions.items():
                 # TODO do we want to cache the slices
                 # the block indices do not change due to the way we construct new_data
-                new_slc = tree_block_slice(new_space, new_tree)
+                new_slc = new_space.tree_block_slice(new_tree)
                 if in_domain:
                     new_data.blocks[ind][:, new_slc] += amplitude * block_slice
                 else:
@@ -1831,8 +1783,8 @@ class TreeMappingDict(dict):
         new_data.discard_zero_blocks(backend, ten.backend.eps)
         return new_data
 
-    def _apply_two_trees_in_keys(self, ten: SymmetricTensor, new_codomain: ProductSpace,
-                                 new_domain: ProductSpace, block_axes_permutation: list[int],
+    def _apply_two_trees_in_keys(self, ten: SymmetricTensor, new_codomain: TensorDomain,
+                                 new_domain: TensorDomain, block_axes_permutation: list[int],
                                  ) -> FusionTreeData:
         backend = ten.backend.block_backend
         new_data = ten.backend.zero_data(new_codomain, new_domain, Dtype.complex128,
@@ -1856,8 +1808,8 @@ class TreeMappingDict(dict):
 
             for ((new_alpha_tree, new_beta_tree), amplitude) in contributions.items():
                 # TODO do we want to cache the slices and / or block_inds?
-                alpha_slice = tree_block_slice(new_codomain, new_alpha_tree)
-                beta_slice = tree_block_slice(new_domain, new_beta_tree)
+                alpha_slice = new_codomain.tree_block_slice(new_alpha_tree)
+                beta_slice = new_domain.tree_block_slice(new_beta_tree)
 
                 coupled = new_alpha_tree.coupled
                 block_ind = new_domain.sectors_where(coupled)

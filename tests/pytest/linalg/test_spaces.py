@@ -239,8 +239,19 @@ def test_take_slice(make_any_space, any_symmetry, np_random):
     npt.assert_array_equal(x[mask][small.basis_perm], x[space.basis_perm][internal_mask])
 
 
+@pytest.mark.parametrize('num_spaces', [3, 4, 5])
+def test_TensorDomain(any_symmetry, make_any_space, make_any_sectors, num_spaces):
+    domain = spaces.TensorDomain([make_any_space() for _ in range(num_spaces)], symmetry=any_symmetry)
+    domain.test_sanity()
+    
+    for coupled in make_any_sectors(10):
+        expect = sum(domain.forest_block_size(uncoupled, coupled) for uncoupled in domain.iter_uncoupled())
+        res = domain.block_size(coupled)
+        assert res == expect
+
+
 def test_ProductSpace(make_any_space):
-    """Test TensorProduct and ProductSpace"""
+    """Test ProductSpace"""
     V1, V2, V3 = [make_any_space() for _ in range(3)]
 
     examples = [

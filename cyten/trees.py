@@ -2,12 +2,14 @@
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from math import prod
-from typing import Iterator
+from typing import Iterator, TYPE_CHECKING
 import numpy as np
 
 from .symmetries import Symmetry, Sector, SectorArray, FusionStyle, SymmetryError
 from .dtypes import Dtype
-from .backends.abstract_backend import TensorBackend, Block
+
+if TYPE_CHECKING:
+    from .backends.abstract_backend import TensorBackend, Block
 
 __all__ = ['FusionTree', 'fusion_trees']
 
