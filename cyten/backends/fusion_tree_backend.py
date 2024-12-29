@@ -32,7 +32,7 @@ def _tree_block_iter(a: SymmetricTensor):
     domain_are_dual = [sp.is_dual for sp in a.domain.spaces]
     codomain_are_dual = [sp.is_dual for sp in a.codomain.spaces]
     for (bi, _), block in zip(a.data.block_inds, a.data.blocks):
-        coupled = a.codomain.sectors[bi]
+        coupled = a.codomain.sector_decomposition[bi]
         i1_forest = 0  # start row index of the current forest block
         i2_forest = 0  # start column index of the current forest block
         for b_sectors in _iter_sectors(a.domain.spaces, sym):
@@ -105,14 +105,14 @@ def _iter_sectors(spaces: list[Space], symmetry: Symmetry) -> Iterator[SectorArr
     Yields
     ------
     uncoupled : list of 1D array of int
-        A combination ``[spaces[0].sectors[i0], spaces[1].sectors[i1], ...]``
+        A combination ``[spaces[0].sector_decomposition[i0], spaces[1].sector_decomposition[i1], ...]``
         of uncoupled sectors
     """
     if len(spaces) == 0:
         yield symmetry.empty_sector_array
         return
 
-    for charges in product(*[space.sectors for space in spaces]):
+    for charges in product(*[space.sector_decomposition for space in spaces]):
         yield np.array(charges)
 
 
@@ -123,7 +123,7 @@ def _iter_sectors_mults_slices(spaces: list[Space], symmetry: Symmetry
     Yields
     ------
     uncoupled : list of 1D array of int
-        A combination ``[spaces[0].sectors[i0], spaces[1].sectors[i1], ...]``
+        A combination ``[spaces[0].sector_decomposition[i0], spaces[1].sector_decomposition[i1], ...]``
         of uncoupled sectors
     mults : list of int
         The corresponding ``[spaces[0].multiplicities[i0], spaces[1].multiplicities[i1], ...]``.
@@ -135,13 +135,13 @@ def _iter_sectors_mults_slices(spaces: list[Space], symmetry: Symmetry
         return
 
     if len(spaces) == 1:
-        for a, m, slc in zip(spaces[0].sectors, spaces[0].multiplicities, spaces[0].slices):
+        for a, m, slc in zip(spaces[0].sector_decomposition, spaces[0].multiplicities, spaces[0].slices):
             yield a[None, :], [m], [slice(*slc)]
         return
 
     # OPTIMIZE there is probably some itertools magic that does this better?
     # OPTIMIZE or build a grid of indices?
-    for a_0, m_0, slc_0 in zip(spaces[0].sectors, spaces[0].multiplicities, spaces[0].slices):
+    for a_0, m_0, slc_0 in zip(spaces[0].sector_decomposition, spaces[0].multiplicities, spaces[0].slices):
         for a_rest, m_rest, slc_rest in _iter_sectors_mults_slices(spaces[1:], symmetry):
             yield np.concatenate([a_0[None, :], a_rest]), [m_0, *m_rest], [slice(*slc_0), *slc_rest]
 
@@ -156,7 +156,7 @@ class FusionTreeData:
     block_inds : 2D array
         Indices that specify the coupled sectors of the non-zero blocks.
         ``block_inds[n] == [i, j]`` indicates that the coupled sector for ``blocks[n]`` is given by
-        ``tensor.codomain.sectors[i] == coupled == tensor.domain.sectors[j]``.
+        ``tensor.codomain.sector_decomposition[i] == coupled == tensor.domain.sector_decomposition[j]``.
     blocks : list of 2D Block
         The nonzero blocks, ``blocks[n]`` corresponding to ``coupled_sectors[n]``.
     dtype : Dtype
@@ -442,7 +442,7 @@ class FusionTreeBackend(TensorBackend):
         dtype = self.block_backend.block_dtype(a)
         block_inds = np.repeat(np.arange(co_domain.num_sectors)[:, None], 2, axis=1)
         blocks = []
-        for coupled, mult, slc in zip(co_domain.sectors, co_domain.multiplicities, co_domain.slices):
+        for coupled, mult, slc in zip(co_domain.sector_decomposition, co_domain.multiplicities, co_domain.slices):
             dim_c = co_domain.symmetry.sector_dim(coupled)
             entries = self.block_backend.block_reshape(a[slice(*slc)], (dim_c, mult))
             # project onto the identity on the coupled sector
@@ -458,7 +458,7 @@ class FusionTreeBackend(TensorBackend):
 
     def diagonal_from_sector_block_func(self, func, co_domain: TensorDomain) -> DiagonalData:
         blocks = [func((co_domain.block_size(coupled_idx),), coupled)
-                  for coupled_idx, coupled in enumerate(co_domain.sectors)]
+                  for coupled_idx, coupled in enumerate(co_domain.sector_decomposition)]
         block_inds = np.repeat(np.arange(co_domain.num_sectors)[:, None], 2, axis=1)
         if len(blocks) > 0:
             sample_block = blocks[0]
@@ -549,8 +549,8 @@ class FusionTreeBackend(TensorBackend):
         block_inds = []
         blocks = []
         norm_sq_projected = 0
-        for i, j in iter_common_sorted_arrays(codomain.sectors, domain.sectors):
-            coupled = codomain.sectors[i]
+        for i, j in iter_common_sorted_arrays(codomain.sector_decomposition, domain.sector_decomposition):
+            coupled = codomain.sector_decomposition[i]
             dim_c = codomain.sector_dims[i]
             block_size = [codomain.multiplicities[i], domain.multiplicities[j]]
             # OPTIMIZE could be sth like np.empty
@@ -619,8 +619,8 @@ class FusionTreeBackend(TensorBackend):
     def from_sector_block_func(self, func, codomain: TensorDomain, domain: TensorDomain) -> FusionTreeData:
         blocks = []
         block_inds = []
-        for i, j in iter_common_sorted_arrays(codomain.sectors, domain.sectors):
-            coupled = codomain.sectors[i]
+        for i, j in iter_common_sorted_arrays(codomain.sector_decomposition, domain.sector_decomposition):
+            coupled = codomain.sector_decomposition[i]
             shape = (codomain.block_size(i), domain.block_size(j))
             block_inds.append([i, j])
             blocks.append(func(shape, coupled))
@@ -716,7 +716,9 @@ class FusionTreeBackend(TensorBackend):
         q_block_inds = []
         n = 0
         bi_cod = -1 if n >= len(a_block_inds) else a_block_inds[n, 0]
-        for i_new, (i_cod, i_dom) in enumerate(iter_common_sorted_arrays(a.codomain.sectors, a.domain.sectors)):
+        itr = iter_common_sorted_arrays(a.codomain.sector_decomposition,
+                                        a.domain.sector_decomposition)
+        for i_new, (i_cod, i_dom) in enumerate(itr):
             q_block_inds.append([i_new, i_dom])
             if bi_cod == i_cod:
                 l, q = self.block_backend.matrix_lq(a_blocks[n], full=False)
@@ -877,7 +879,7 @@ class FusionTreeBackend(TensorBackend):
 
         codomain = a.codomain
         domain = a.domain
-        coupled = np.array([domain.sectors[i[1]] for i in a.data.block_inds])
+        coupled = np.array([domain.sector_decomposition[i[1]] for i in a.data.block_inds])
         mappings = []
         offset = [0] + list(np.cumsum(num_operations))
         for i in range(len(num_operations)):
@@ -921,7 +923,9 @@ class FusionTreeBackend(TensorBackend):
         r_block_inds = []
         n = 0  # running index, indicating we have already processed a_blocks[:n]
         bi_cod = -1 if n >= len(a_block_inds) else a_block_inds[n, 0]
-        for i_new, (i_cod, i_dom) in enumerate(iter_common_sorted_arrays(a.codomain.sectors, a.domain.sectors)):
+        itr = iter_common_sorted_arrays(a.codomain.sector_decomposition,
+                                        a.domain.sector_decomposition)
+        for i_new, (i_cod, i_dom) in enumerate(itr):
             q_block_inds.append([i_cod, i_new])
             if bi_cod == i_cod:
                 q, r = self.block_backend.matrix_qr(a_blocks[n], full=False)
@@ -996,12 +1000,14 @@ class FusionTreeBackend(TensorBackend):
         blocks = []
         block_inds = np.zeros((0, 2), int)
         # potential coupled sectors
-        coupled_sectors = np.array([a.codomain.sectors[ind[0]] for ind in a_block_inds])
+        coupled_sectors = np.array([a.codomain.sector_decomposition[ind[0]] for ind in a_block_inds])
         ind_mapping = {}  # mapping between index in coupled sectors and index in blocks
         iter_space = [a.codomain, a.domain][ax_a]
         for uncoupled, slc, coupled_ind in _forest_block_iter_product_space(iter_space, coupled_sectors, a.symmetry):
-            ind = a.domain.sectors_where(coupled_sectors[coupled_ind])
-            ind_b = b.data.block_ind_from_domain_sector_ind(b.domain.sectors_where(uncoupled[co_domain_idx]))
+            ind = a.domain.sector_decomposition_where(coupled_sectors[coupled_ind])
+            ind_b = b.data.block_ind_from_domain_sector_ind(
+                b.domain.sector_decomposition_where(uncoupled[co_domain_idx])
+            )
             if ind_b is None:  # zero block
                 continue
 
@@ -1009,7 +1015,7 @@ class FusionTreeBackend(TensorBackend):
                 ind_mapping[coupled_ind] = len(blocks)
                 block_inds = np.append(
                     block_inds,
-                    np.array([[a.codomain.sectors_where(a.domain.sectors[ind]), ind]]),
+                    np.array([[a.codomain.sector_decomposition_where(a.domain.sector_decomposition[ind]), ind]]),
                     axis=0
                 )
                 shape = self.block_backend.block_shape(a_blocks[coupled_ind])
@@ -1060,7 +1066,8 @@ class FusionTreeBackend(TensorBackend):
         #
         n = 0
         bi_cod = -1 if n >= len(a_block_inds) else a_block_inds[n, 0]
-        for i_new, (i_cod, i_dom) in enumerate(iter_common_sorted_arrays(a.codomain.sectors, a.domain.sectors)):
+        itr = iter_common_sorted_arrays(a.codomain.sector_decomposition, a.domain.sector_decomposition)
+        for i_new, (i_cod, i_dom) in enumerate(itr):
             u_block_inds.append([i_cod, i_new])
             vh_block_inds.append([i_new, i_dom])
             if bi_cod == i_cod:
@@ -1113,7 +1120,7 @@ class FusionTreeBackend(TensorBackend):
         shape = [leg.dim for leg in a.codomain.spaces] + [leg.dim for leg in a.domain.spaces]
         res = self.block_backend.zero_block(shape, dtype)
         for bi_cod, block in zip(a.data.block_inds[:, 0], a.data.blocks):
-            coupled = a.codomain.sectors[bi_cod]
+            coupled = a.codomain.sector_decomposition[bi_cod]
             i1 = 0  # start row index of the current forest block
             i2 = 0  # start column index of the current forest block
             for b_sectors, n_dims, j2 in _iter_sectors_mults_slices(a.domain.spaces, sym):
@@ -1200,7 +1207,7 @@ class FusionTreeBackend(TensorBackend):
         mask_blocks = []
         small_leg_sectors = []
         small_leg_multiplicities = []
-        for i, (slc, sector) in enumerate(zip(slices, S.leg.sectors)):
+        for i, (slc, sector) in enumerate(zip(slices, S.leg.sector_decomposition)):
             block = keep[slc]
             if not np.any(block):
                 continue  # all False. skip this block.
@@ -1216,7 +1223,7 @@ class FusionTreeBackend(TensorBackend):
         mask_data = FusionTreeData(mask_block_inds, mask_blocks, dtype=Dtype.bool,
                                    device=S.data.device, is_sorted=True)
         small_leg = ElementarySpace(S.symmetry, small_leg_sectors, small_leg_multiplicities,
-                                    is_dual=S.leg.is_bra_space)
+                                    is_dual=S.leg.is_dual)
         return mask_data, small_leg, err, new_norm
         
     def zero_data(self, codomain: TensorDomain, domain: TensorDomain, dtype: Dtype, device: str,
@@ -1227,8 +1234,8 @@ class FusionTreeBackend(TensorBackend):
             
         block_shapes = []
         block_inds = []
-        for j, coupled in enumerate(domain.sectors):
-            i = codomain.sectors_where(coupled)
+        for j, coupled in enumerate(domain.sector_decomposition):
+            i = codomain.sector_decomposition_where(coupled)
             if i is None:
                 continue
             shp = (codomain.block_size(i), domain.block_size(j))
@@ -1719,7 +1726,7 @@ class TreeMappingDict(dict):
                 spaces = domain.spaces[:]
                 spaces[index_:index_ + 2] = spaces[index_:index_ + 2][::-1]
                 new_domain = TensorDomain(spaces, symmetry)
-                # TODO could re-use  domain.sectors, domain.multiplicities)
+                # TODO could re-use  domain.sector_decomposition, domain.multiplicities)
                 index -= codomain.num_spaces
             else:
                 in_domain = False
@@ -1727,7 +1734,7 @@ class TreeMappingDict(dict):
                 spaces = codomain.spaces[:]
                 spaces[index:index + 2] = spaces[index:index + 2][::-1]
                 new_codomain = TensorDomain(spaces, symmetry)
-            # TODO codomain.sectors, codomain.multiplicities)
+            # TODO codomain.sector_decomposition, codomain.multiplicities)
             prodspace = [codomain, domain][in_domain]
             mapping = cls.from_c_symbol(prodspace, coupled, index, overbraid,
                                         in_domain, backend.eps)
@@ -1745,7 +1752,7 @@ class TreeMappingDict(dict):
 
         iter_space = [ten.codomain, ten.domain][in_domain]
         new_space = [new_codomain, new_domain][in_domain]
-        old_coupled = [sec for i, sec in enumerate(ten.domain.sectors)
+        old_coupled = [sec for i, sec in enumerate(ten.domain.sector_decomposition)
                        if ten.data.block_ind_from_domain_sector_ind(i) is not None]
 
         if in_domain:
@@ -1812,7 +1819,7 @@ class TreeMappingDict(dict):
                 beta_slice = new_domain.tree_block_slice(new_beta_tree)
 
                 coupled = new_alpha_tree.coupled
-                block_ind = new_domain.sectors_where(coupled)
+                block_ind = new_domain.sector_decomposition_where(coupled)
                 block_ind = new_data.block_ind_from_domain_sector_ind(block_ind)
 
                 new_data.blocks[block_ind][alpha_slice, beta_slice] += amplitude * tree_block

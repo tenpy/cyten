@@ -54,10 +54,10 @@ def _valid_block_inds(codomain: ProductSpace, domain: ProductSpace):
     grid = np.indices((s.num_sectors for s in conventional_leg_order(codomain, domain)), dtype=int)
     grid = grid.T.reshape((-1, M + N))
     codomain_coupled = symmetry.multiple_fusion_broadcast(
-        *(space.sectors[i] for space, i in zip(codomain.spaces, grid.T))
+        *(space.sector_decomposition[i] for space, i in zip(codomain.spaces, grid.T))
     )
     domain_coupled = symmetry.multiple_fusion_broadcast(
-        *(space.sectors[i] for space, i in zip(domain.spaces, grid.T[::-1]))
+        *(space.sector_decomposition[i] for space, i in zip(domain.spaces, grid.T[::-1]))
     )
     valid = np.all(codomain_coupled == domain_coupled, axis=1)
     block_inds = grid[valid, :]
@@ -96,7 +96,7 @@ class AbelianBackendData:
     block_inds : 2D ndarray
         A 2D array of positive integers with shape (len(blocks), num_legs).
         The block `blocks[n]` belongs to the `block_inds[n, m]`-th sector of ``leg``,
-        that is to ``leg.sectors[block_inds[n, m]]``, where::
+        that is to ``leg.sector_decomposition[block_inds[n, m]]``, where::
 
             leg == (codomain.spaces[m] if m < len(codomain) else domain.spaces[-1 - m])
                 == tensor.get_leg_co_domain(m)
@@ -190,10 +190,10 @@ class AbelianBackend(TensorBackend):
         for inds in a.data.block_inds:
             # OPTIMIZE can do this with one multiple_fusion_broadcast call?
             codomain_coupled = a.symmetry.multiple_fusion(
-                *(leg.sectors[i] for leg, i in zip(a.codomain.spaces, inds))
+                *(leg.sector_decomposition[i] for leg, i in zip(a.codomain.spaces, inds))
             )
             domain_coupled = a.symmetry.multiple_fusion(
-                *(leg.sectors[i] for leg, i in zip(a.domain.spaces, inds[::-1]))
+                *(leg.sector_decomposition[i] for leg, i in zip(a.domain.spaces, inds[::-1]))
             )
             assert np.all(codomain_coupled == domain_coupled)
         # check expected tensor dimensions
@@ -225,7 +225,7 @@ class AbelianBackend(TensorBackend):
             assert 0 <= bi_large < large_leg.num_sectors
             assert 0 <= bi_small < small_leg.num_sectors
             assert bi_large >= bi_small
-            assert np.all(large_leg.sectors[bi_large] == small_leg.sectors[bi_small])
+            assert np.all(large_leg.sector_decomposition[bi_large] == small_leg.sector_decomposition[bi_small])
             assert self.block_backend.block_shape(block) == (large_leg.multiplicities[bi_large],)
             assert self.block_backend.block_sum_all(block) == small_leg.multiplicities[bi_small]
             assert self.block_backend.block_dtype(block) == Dtype.bool
@@ -259,9 +259,9 @@ class AbelianBackend(TensorBackend):
                         assert b1 == block_ind_map[i - 1][1]
                     else:
                         assert b1 == 0
-                    charges = (sp.sectors[i] for i, sp in zip(idcs, leg.spaces))
+                    charges = (sp.sector_decomposition[i] for i, sp in zip(idcs, leg.spaces))
                     fused = leg.symmetry.multiple_fusion(*charges)
-                    assert np.all(fused == leg.sectors[J])
+                    assert np.all(fused == leg.sector_decomposition[J])
         
         return super().test_leg_sanity(leg)
 
@@ -578,13 +578,13 @@ class AbelianBackend(TensorBackend):
         # compute coupled sectors for all rows of the block inds // for all blocks
         if a.num_codomain_legs > 0:
             a_charges = a.symmetry.multiple_fusion_broadcast(
-                *(leg.sectors[bi] for leg, bi in zip(a.codomain, a_block_inds_keep.T))
+                *(leg.sector_decomposition[bi] for leg, bi in zip(a.codomain, a_block_inds_keep.T))
             )
         else:
             a_charges = np.repeat(a.symmetry.trivial_sector[None, :], len(a_block_inds_keep), axis=1)
         if b.num_domain_legs > 0:
             b_charges = a.symmetry.multiple_fusion_broadcast(
-                *(leg.sectors[bi] for leg, bi in zip(b.domain, b_block_inds_keep[:, ::-1].T))
+                *(leg.sector_decomposition[bi] for leg, bi in zip(b.domain, b_block_inds_keep[:, ::-1].T))
             )
         else:
             b_charges = np.repeat(a.symmetry.trivial_sector[None, :], len(b_block_inds_keep), axis=1)
@@ -701,10 +701,10 @@ class AbelianBackend(TensorBackend):
         block_inds = []
 
         ia = 0  # next block of a to process
-        # block_ind of that block => it belongs to leg.sectors[bi_a]
+        # block_ind of that block => it belongs to leg.sector_decomposition[bi_a]
         bi_a = -1 if len(a_block_inds) == 0 else a_block_inds[ia, 0]
         ib = 0  # next block of b to process
-        # block_ind of that block => it belongs to leg.sectors[bi_b]
+        # block_ind of that block => it belongs to leg.sector_decomposition[bi_b]
         bi_b = -1 if len(b_block_inds) == 0 else b_block_inds[ib, 0]
         #
         for i, mult in enumerate(leg.multiplicities):
@@ -784,7 +784,7 @@ class AbelianBackend(TensorBackend):
         leg = co_domain.spaces[0]
         block_inds = np.repeat(np.arange(leg.num_sectors)[:, None], 2, axis=1)
         blocks = [func((mult,), coupled)
-                  for coupled, mult in zip(leg.sectors, leg.multiplicities)]
+                  for coupled, mult in zip(leg.sector_decomposition, leg.multiplicities)]
         if len(blocks) == 0:
             sample_block = func((1,), co_domain.symmetry.trivial_sector)
         else:
@@ -825,7 +825,7 @@ class AbelianBackend(TensorBackend):
             #
             blocks.append(diag_block)
             large_leg_block_inds.append(bi)
-            sectors.append(large_leg.sectors[bi])
+            sectors.append(large_leg.sector_decomposition[bi])
             multiplicities.append(self.block_backend.block_sum_all(diag_block))
             if basis_perm is not None:
                 mask = self.block_backend.block_to_numpy(diag_block, bool)
@@ -915,7 +915,7 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(dtype, device, blocks, block_inds, is_sorted=True)
 
     def from_dense_block_trivial_sector(self, block: Block, leg: Space) -> Data:
-        bi = leg.sectors_where(leg.symmetry.trivial_sector)
+        bi = leg.sector_decomposition_where(leg.symmetry.trivial_sector)
         return AbelianBackendData(
             dtype=self.block_backend.block_dtype(block),
             device=self.block_backend.block_get_device(block),
@@ -938,7 +938,7 @@ class AbelianBackend(TensorBackend):
             shape = [leg.multiplicities[i]
                      for i, leg in zip(b_i, conventional_leg_order(codomain, domain))]
             coupled = codomain.symmetry.multiple_fusion(
-                *(leg.sectors[i] for i, leg in zip(b_i, codomain.spaces))
+                *(leg.sector_decomposition[i] for i, leg in zip(b_i, codomain.spaces))
             )
             blocks.append(func(shape, coupled))
         if len(blocks) == 0:
@@ -1010,7 +1010,7 @@ class AbelianBackend(TensorBackend):
     def inv_part_from_dense_block_single_sector(self, vector: Block, space: Space,
                                                 charge_leg: ElementarySpace) -> Data:
         assert charge_leg.num_sectors == 1
-        bi = space.sectors_where(charge_leg.sectors[0])
+        bi = space.sector_decomposition_where(charge_leg.sector_decomposition[0])
         assert bi is not None
         assert self.block_backend.block_shape(vector) == (space.multiplicities[bi])
         return AbelianBackendData(
@@ -1025,7 +1025,7 @@ class AbelianBackend(TensorBackend):
         assert num_blocks <= 1
         if num_blocks == 1:
             return tensor.data.blocks[0][:, 0]
-        sector = tensor.domain[0].sectors[0]
+        sector = tensor.domain[0].sector_decomposition[0]
         dim = tensor.codomain[0].sector_multiplicity(sector)
         return self.block_backend.zero_block([dim], dtype=tensor.data.dtype)
 
@@ -1070,10 +1070,11 @@ class AbelianBackend(TensorBackend):
         a_block_inds = a.data.block_inds
         #
         i = 0  # running index, indicating we have already processed a_blocks[:i]
-        for n, (j, k) in enumerate(iter_common_sorted_arrays(a.codomain.sectors, a.domain.sectors)):
+        for n, (j, k) in enumerate(iter_common_sorted_arrays(a.codomain.sector_decomposition,
+                                                             a.domain.sector_decomposition)):
             # due to the loop setup we have:
-            #   a.codomain.sectors[j] == new_leg.sectors[n]
-            #   a.domain.sectors[k] == new_leg.sectors[n]
+            #   a.codomain.sector_decomposition[j] == new_leg.sector_decomposition[n]
+            #   a.domain.sector_decomposition[k] == new_leg.sector_decomposition[n]
             if i < len(a_block_inds) and a_block_inds[i, 0] == j:
                 # we have a block for that sector -> decompose it
                 l, q = self.block_backend.matrix_lq(a_blocks[i], full=False)
@@ -1122,7 +1123,7 @@ class AbelianBackend(TensorBackend):
         i2 = 0
         b2_i2 = -1 if len(mask2_block_inds) == 0 else mask2_block_inds[i2, 1]
         #
-        for sector_idx, (sector, slc) in enumerate(zip(large_leg.sectors, large_leg.slices)):
+        for sector_idx, (sector, slc) in enumerate(zip(large_leg.sector_decomposition, large_leg.slices)):
             if sector_idx == b1_i1:
                 block1 = mask1_blocks[i1]
                 i1 += 1
@@ -1255,7 +1256,7 @@ class AbelianBackend(TensorBackend):
         sectors = []
         multiplicities = []
         basis_perm_ranks = []
-        for bi_large, (slc, sector) in enumerate(zip(large_leg.slices, large_leg.sectors)):
+        for bi_large, (slc, sector) in enumerate(zip(large_leg.slices, large_leg.sector_decomposition)):
             block = a[slice(*slc)]
             mult = self.block_backend.block_sum_all(block)
             if mult == 0:
@@ -1333,7 +1334,7 @@ class AbelianBackend(TensorBackend):
         #
         i = 0
         b_i = -1 if len(mask_blocks_inds) == 0 else mask_blocks_inds[i, 1]
-        for sector_idx, (sector, slc) in enumerate(zip(large_leg.sectors, large_leg.slices)):
+        for sector_idx, (sector, slc) in enumerate(zip(large_leg.sector_decomposition, large_leg.slices)):
             if sector_idx == b_i:
                 block = mask_blocks[i]
                 i += 1
@@ -1461,8 +1462,8 @@ class AbelianBackend(TensorBackend):
                         return False
                 else:
                     # legs have opposite duality. need to compare sectors explicitly
-                    sector1 = tensor.get_leg_co_domain(idcs1[n]).sectors[i1]
-                    sector2 = tensor.get_leg_co_domain(idcs2[n]).sectors[i2]
+                    sector1 = tensor.get_leg_co_domain(idcs1[n]).sector_decomposition[i1]
+                    sector2 = tensor.get_leg_co_domain(idcs2[n]).sector_decomposition[i2]
                     if not np.all(sector1 == tensor.symmetry.dual_sector(sector2)):
                         return False
             return True
@@ -1511,11 +1512,13 @@ class AbelianBackend(TensorBackend):
         for i in codomain_idcs:
             in_domain, co_domain_idx, _ = a._parse_leg_idx(i)
             if in_domain:
-                # leg.sectors == duals(old_leg.sectors)[perm]
+                # leg.sector_decomposition == duals(old_leg.sector_decomposition)[perm]
                 # block with given sectors which had bi_old belonged to
-                # old_leg.sectors[bi_old]
+                # old_leg.sector_decomposition[bi_old]
                 # it now belongs to
-                # dual(old_leg.sectors[bi_old]) == dual(old_leg.sectors[perm[bi_new]]) == leg.sectors[bi_new]
+                # dual(old_leg.sector_decomposition[bi_old])
+                #   == dual(old_leg.sector_decomposition[perm[bi_new]])
+                #   == leg.sector_decomposition[bi_new]
                 #  -> bi_old == perm[bi_new]
                 leg, perm = a.domain[co_domain_idx]._dual_space(return_perm=True)
                 perm = inverse_permutation(perm)
@@ -1562,10 +1565,11 @@ class AbelianBackend(TensorBackend):
         a_block_inds = a.data.block_inds
         #
         i = 0  # running index, indicating we have already processed a_blocks[:i]
-        for n, (j, k) in enumerate(iter_common_sorted_arrays(a.codomain.sectors, a.domain.sectors)):
+        for n, (j, k) in enumerate(iter_common_sorted_arrays(a.codomain.sector_decomposition,
+                                                             a.domain.sector_decomposition)):
             # due to the loop setup we have:
-            #   a.codomain.sectors[j] == new_leg.sectors[n]
-            #   a.domain.sectors[k] == new_leg.sectors[n]
+            #   a.codomain.sector_decomposition[j] == new_leg.sector_decomposition[n]
+            #   a.domain.sector_decomposition[k] == new_leg.sector_decomposition[n]
             if i < len(a_block_inds) and a_block_inds[i, 0] == j:
                 # we have a block for that sector -> decompose it
                 q, r = self.block_backend.matrix_qr(a_blocks[i], full=False)
@@ -1759,10 +1763,11 @@ class AbelianBackend(TensorBackend):
         a_block_inds = a.data.block_inds
         #
         i = 0  # running index, indicating we have already processed a_blocks[:i]
-        for n, (j, k) in enumerate(iter_common_sorted_arrays(a.codomain.sectors, a.domain.sectors)):
+        for n, (j, k) in enumerate(iter_common_sorted_arrays(a.codomain.sector_decomposition,
+                                                             a.domain.sector_decomposition)):
             # due to the loop setup we have:
-            #   a.codomain.sectors[j] == new_leg.sectors[n]
-            #   a.domain.sectors[k] == new_leg.sectors[n]
+            #   a.codomain.sector_decomposition[j] == new_leg.sector_decomposition[n]
+            #   a.domain.sector_decomposition[k] == new_leg.sector_decomposition[n]
             if i < len(a_block_inds) and a_block_inds[i, 0] == j:
                 # we have a block for that sector -> decompose it
                 u, s, vh = self.block_backend.matrix_svd(a_blocks[i], algorithm=algorithm)
@@ -1898,7 +1903,7 @@ class AbelianBackend(TensorBackend):
                 Fusing all sectors of all spaces and sorting the outcomes gives a list which
                 contains (in general) duplicates.
                 The slice ``_block_ind_map_slices[n]:_block_ind_map_slices[n + 1]`` within this
-                sorted list contains the same entry, namely ``product_space.sectors[n]``.
+                sorted list contains the same entry, namely ``product_space.sector_decomposition[n]``.
             _block_ind_map : 2D numpy array of int
                 Map for the embedding of uncoupled to coupled indices, see notes below.
                 Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
@@ -1920,7 +1925,7 @@ class AbelianBackend(TensorBackend):
         It will be a subslice of a new total block in the `ProductSpace` labelled by block index
         :math:`J`. We fuse charges according to the rule::
 
-            ProductSpace.sectors[J] = fusion_outcomes(*[l.sectors[i_l]
+            ProductSpace.sector_decomposition[J] = fusion_outcomes(*[lsector_decomposition[i_l]
                 for l, i_l, l in zip(incoming_block_inds, spaces)])
 
         Since many charge combinations can fuse to the same total charge,
@@ -1991,7 +1996,7 @@ class AbelianBackend(TensorBackend):
 
         # calculate new non-dual sectors
         sectors = symmetry.multiple_fusion_broadcast(
-            *(s.sectors[gr] for s, gr in zip(spaces, grid.T))
+            *(s.sector_decomposition[gr] for s, gr in zip(spaces, grid.T))
         )
 
         # sort (non-dual) charge sectors.

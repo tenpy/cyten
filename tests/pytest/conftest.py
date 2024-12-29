@@ -450,7 +450,7 @@ def find_last_leg(same: spaces.ProductSpace, opposite: spaces.ProductSpace,
     assert same.num_sectors > 0
     assert opposite.num_sectors > 0
     prod = spaces.ProductSpace.from_partial_products(same.dual, opposite)
-    sectors = prod.sectors
+    sectors = prod.sector_decomposition
     mults = prod.multiplicities
     if len(sectors) > max_sectors:
         which = np_random.choice(len(sectors), size=max_sectors, replace=False, shuffle=False)

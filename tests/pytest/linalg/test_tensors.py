@@ -384,7 +384,7 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
     M = Mask.from_random(large_leg, small_leg=None, backend=backend)
     M.test_sanity()
     # specifying small_leg is currently only possible if the legs have no permutation
-    large_leg_no_perm = ElementarySpace(M.symmetry, large_leg.sectors, large_leg.multiplicities)
+    large_leg_no_perm = ElementarySpace(M.symmetry, large_leg.sector_decomposition, large_leg.multiplicities)
     M2 = Mask.from_random(large_leg_no_perm, small_leg=None, backend=backend)
     M2.test_sanity()
     M3 = Mask.from_random(large_leg_no_perm, small_leg=M2.small_leg, backend=backend)
@@ -590,8 +590,8 @@ def test_explicit_blocks(symmetry_backend, block_backend):
     # explicitly check the ``t.data`` vs what we expect
     if symmetry_backend == 'abelian':
         # listing this in an order such that the resulting block_inds are lexsorted:
-        # blocks allowed for q:   [] -> [0, 0]  ;  [] -> [3, 1]  ;  [] -> [2, 2]
-        # indices in .sectors:    [] -> [0, 0]  ;  [] -> [2, 1]  ;  [] -> [1, 2]
+        # blocks allowed for q:                [] -> [0, 0]  ;  [] -> [3, 1]  ;  [] -> [2, 2]
+        # indices in .sector_decomposition:    [] -> [0, 0]  ;  [] -> [2, 1]  ;  [] -> [1, 2]
         expect_block_inds = np.array([[0, 0], [2, 1], [1, 2]])
         expect_blocks = [block_00, block_31, block_22]
         #
@@ -665,9 +665,9 @@ def test_explicit_blocks(symmetry_backend, block_backend):
     # explicitly check the ``t.data`` vs what we expect
     if symmetry_backend == 'abelian':
         # listing this in an order such that the resulting block_inds are lexsorted:
-        # blocks allowed for q:   [0] -> [0]  ;  [2] -> [2]  ;  [3] -> [3]
-        # indices in .sectors:    [0] -> [0]  ;  [2] -> [1]  ;  [3] -> [2]
-        # block_inds row:         [0, 0]      ;  [1, 2]      ;  [2, 3]
+        # blocks allowed for q:               [0] -> [0]  ;  [2] -> [2]  ;  [3] -> [3]
+        # indices in .sector_decomposition:   [0] -> [0]  ;  [2] -> [1]  ;  [3] -> [2]
+        # block_inds row:                     [0, 0]      ;  [1, 2]      ;  [2, 3]
         expect_block_inds = np.array([[0, 0], [1, 2], [2, 3]])
         expect_blocks = [block_00, block_22, block_33]
         #
@@ -681,8 +681,8 @@ def test_explicit_blocks(symmetry_backend, block_backend):
 
     elif symmetry_backend == 'fusion_tree':
         # expect coupled sectors q0, q2, q3.
-        # codomain.sectors == [q0, q2, q3]
-        # domain.sectors == [q0, q1, q2, q3]
+        # codomain.sector_decomposition == [q0, q2, q3]
+        # domain.sector_decomposition == [q0, q1, q2, q3]
         npt.assert_array_equal(t.data.block_inds, np.array([[0, 0], [1, 2], [2, 3]]))
         expect_blocks = [block_00, block_22, block_33]
         assert len(expect_blocks) == len(t.data.blocks)
@@ -740,7 +740,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
     # explicitly check the ``t.data`` vs what we expect
     if symmetry_backend == 'abelian':
         # all sectors appear only once, so each allowed entry is its own block.
-        # In this case, the value of a sector is also its index in s.sectors
+        # In this case, the value of a sector is also its index in s.sector_decomposition
         # Thus the block inds are just the "SECTORS PER LEG" above.
         expect_block_inds = np.asarray([
             [0, 0, 0, 0], [0, 0, 2, 2], [2, 2, 0, 0], [2, 2, 2, 2],
@@ -765,9 +765,9 @@ def test_explicit_blocks(symmetry_backend, block_backend):
             npt.assert_array_almost_equal_nulp(actual_block, expect_block, 100)
 
     elif symmetry_backend == 'fusion_tree':
-        # check block_inds. first make sure the (co)domain.sectors are what we expect
-        assert np.all(t.codomain.sectors == np.stack([q0, q1, q2, q3]))
-        assert np.all(t.domain.sectors == np.stack([q0, q1, q2, q3]))
+        # check block_inds. first make sure the (co)domain.sector_decomposition are what we expect
+        assert np.all(t.codomain.sector_decomposition == np.stack([q0, q1, q2, q3]))
+        assert np.all(t.domain.sector_decomposition == np.stack([q0, q1, q2, q3]))
         # expect coupled sectors [q0, q1, q2, q3]
         assert np.all(t.data.block_inds == np.repeat(np.arange(4)[:, None], 2, axis=1))
         #

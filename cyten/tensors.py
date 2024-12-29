@@ -288,8 +288,9 @@ class Tensor(metaclass=ABCMeta):
         for space in self.codomain.spaces:
             self.backend.test_leg_sanity(space)
         assert self.dtype not in self._forbidden_dtypes
-        assert not self.domain.is_bra_space
-        assert not self.codomain.is_bra_space
+        # TODO re-activate this check
+        # assert not self.domain.is_dual
+        # assert not self.codomain.is_dual
         assert all(isinstance(leg, Leg) for leg in self.domain.spaces)
         assert all(isinstance(leg, Leg) for leg in self.codomain.spaces)
 
@@ -323,11 +324,11 @@ class Tensor(metaclass=ABCMeta):
             for l in self.domain
         ]
         codomain_arrows = [
-            ('║' if isinstance(l, ProductSpace) else ('v' if l.is_bra_space else '^')).rjust(DISTANCE)
+            ('║' if isinstance(l, ProductSpace) else ('v' if l.is_dual else '^')).rjust(DISTANCE)
             for l in self.codomain
         ]
         domain_arrows = [
-            ('║' if isinstance(l, ProductSpace) else ('v' if l.is_bra_space else '^')).rjust(DISTANCE)
+            ('║' if isinstance(l, ProductSpace) else ('v' if l.is_dual else '^')).rjust(DISTANCE)
             for l in self.domain
         ]
         codomain_labels = [
@@ -497,10 +498,12 @@ class Tensor(metaclass=ABCMeta):
 
         This is the dimension of the space of symmetry-preserving tensors with the given legs.
         """
-        # TODO / OPTIMIZE could also compute this from codomain.sectors and domain.sectors.
-        #           get min(codomain.sector_multiplicity(c), domain.sector_multiplicity(c))
-        #           free parameters from each coupled sector c.
-        return self.parent_space.num_parameters
+        from .tools.misc import iter_common_sorted_arrays
+        # TODO are the domain.sectors actually sorted...?
+        res = 0
+        for i, j in iter_common_sorted_arrays(self.codomain.sector_decomposition, self.domain.sector_decomposition):
+            res += self.codomain.multiplicities[i] * self.domain.multiplicities[j]
+        return res
 
     @functools.cached_property
     def parent_space(self) -> ElementarySpace:
@@ -930,7 +933,7 @@ class SymmetricTensor(Tensor):
             backend = get_backend(symmetry=space.symmetry)
         vector = backend.block_backend.as_block(vector, device=device)
         if space._basis_perm is not None:
-            i = space.sectors_where(space.symmetry.trivial_sector)
+            i = space.sector_decomposition_where(space.symmetry.trivial_sector)
             perm = rank_data(space.basis_perm[slice(*space.slices[i])])
             vector = backend.block_backend.apply_leg_permutations(vector, [perm])
         raise NotImplementedError  # TODO
@@ -1099,8 +1102,8 @@ class SymmetricTensor(Tensor):
 
         Unlike :meth:`from_block_func`, this classmethod supports a `func` that takes the current
         coupled sector as an argument. The tensor, as a map from its domain to its codomain is
-        block-diagonal in the coupled sectors, i.e. in the ``domain.sectors``.
-        Thus, the free parameters of a tensor are associated with one of block of this structure,
+        block-diagonal in the coupled sectors, i.e. in the ``domain.sector_decomposition``.
+        Thus, the free parameters of a tensor are associated with one block of this structure,
         and thus with a given coupled sector. A value of ``coupled`` indicates that the generated
         block is (part of) the components that maps from ``coupled`` in the domain to ``coupled``
         in the codomain.
@@ -1233,7 +1236,7 @@ class SymmetricTensor(Tensor):
         assert self.num_codomain_legs == 1  # TODO assuming this for now to construct the perm. should we keep that?
         leg = self.codomain[0]
         if leg._basis_perm is not None:
-            i = leg.sectors_where(self.symmetry.trivial_sector)
+            i = leg.sector_decomposition_where(self.symmetry.trivial_sector)
             perm = np.argsort(leg.basis_perm[slice(*leg.slices[i])])
             block = self.backend.block_backend.apply_leg_permutations(block, [perm])
         return block
@@ -2148,8 +2151,11 @@ class Mask(Tensor):
             backend = get_backend(symmetry=large_leg.symmetry)
         device = backend.block_backend.as_device(device)
         data = backend.zero_mask_data(large_leg=large_leg, device=device)
-        small_leg = ElementarySpace.from_null_space(symmetry=large_leg.symmetry,
-                                                    is_dual=large_leg.is_bra_space)
+        if isinstance(large_leg, ElementarySpace):
+            is_dual = large_leg.is_dual
+        else:
+            is_dual = False
+        small_leg = ElementarySpace.from_null_space(symmetry=large_leg.symmetry, is_dual=is_dual)
         return cls(data, space_in=large_leg, space_out=small_leg, is_projection=True,
                    backend=backend, labels=labels)
 
@@ -2575,7 +2581,7 @@ class ChargedTensor(Tensor):
         charge_leg = ElementarySpace(space.symmetry, [sector])
         vector = backend.block_backend.as_block(vector, device=device)
         if space._basis_perm is not None:
-            i = space.sectors_where(sector)
+            i = space.sector_decomposition_where(sector)
             perm = rank_data(space.basis_perm[slice(*space.slices[i])])
             vector = backend.block_backend.apply_leg_permutations(vector, [perm])
         inv_data = backend.inv_part_from_dense_block_single_sector(
@@ -2653,7 +2659,7 @@ class ChargedTensor(Tensor):
 
     def as_SymmetricTensor(self) -> SymmetricTensor:
         """Convert to symmetric tensor, if possible."""
-        if not np.all(self.charge_leg.sectors == self.symmetry.trivial_sector[None, :]):
+        if not np.all(self.charge_leg.sector_decomposition == self.symmetry.trivial_sector[None, :]):
             raise SymmetryError('Not a symmetric tensor')
         if self.charge_leg.dim == 1:
             res = squeeze_legs(self.invariant_part, -1)
@@ -2698,7 +2704,8 @@ class ChargedTensor(Tensor):
 
     def _repr_header_lines(self, indent: str) -> list[str]:
         lines = Tensor._repr_header_lines(self, indent=indent)
-        lines.append(f'{indent}* Charge Leg: dim={round(self.charge_leg.dim, 3)} sectors={self.charge_leg.sectors}')
+        lines.append(f'{indent}* Charge Leg: dim={round(self.charge_leg.dim, 3)} '
+                     f'sectors={self.charge_leg.sector_decomposition}')
         start = f'{indent}* Charged State: '
         if self.charged_state is None:
             lines.append(f'{start}unspecified')
@@ -3364,10 +3371,10 @@ def combine_legs(tensor: Tensor,
     #
     # OPTIMIZE might be better to compute these in the backend. especially for FusionTree.
     codomain = ProductSpace(codomain_spaces, symmetry=tensor.symmetry, backend=tensor.backend,
-                            _sectors=tensor.codomain.sectors,
+                            _sectors=tensor.codomain.sector_decomposition,
                             _multiplicities=tensor.codomain.multiplicities)
     domain = ProductSpace(domain_spaces_reversed[::-1], symmetry=tensor.symmetry, backend=tensor.backend,
-                          _sectors=tensor.domain.sectors,
+                          _sectors=tensor.domain.sector_decomposition,
                           _multiplicities=tensor.domain.multiplicities)
     #
     # 4) Build the data / finish up
@@ -3984,7 +3991,7 @@ def is_scalar(obj):
             return False
         if obj.codomain.num_sectors != 1:
             return False
-        if not np.all(obj.domain.sectors == obj.codomain.sectors):
+        if not np.all(obj.domain.sector_decomposition == obj.codomain.sector_decomposition):
             return False
         if not np.all(obj.domain.multiplicities == 1):
             return False

@@ -443,8 +443,12 @@ class NoSymmetryBackend(TensorBackend):
             trunc_cut=trunc_cut, svd_min=svd_min
         )
         mask_data = self.block_backend.block_from_numpy(keep, dtype=Dtype.bool)
+        if isinstance(S.leg, ElementarySpace):
+            is_dual = S.leg.is_dual
+        else:
+            is_dual = True
         new_leg = ElementarySpace.from_trivial_sector(
-            dim=keep.sum(), symmetry=S.symmetry, is_dual=S.leg.is_bra_space
+            dim=keep.sum(), symmetry=S.symmetry, is_dual=is_dual
         )
         return mask_data, new_leg, err, new_norm
 

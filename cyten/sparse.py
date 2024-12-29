@@ -474,7 +474,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         """
         if isinstance(vector, ChargedTensor):
             assert vector.dummy_leg.num_sectors == 1 and vector.dummy_leg.multiplicities[0] == 1
-            sector = vector.dummy_leg.sectors[0]
+            sector = vector.dummy_leg.sector_decomposition[0]
         else:
             sector = 'trivial'
         if dtype is None:
@@ -500,7 +500,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         if sector is None:
             size = self.domain.dim
         else:
-            sector_idx = self.domain.sectors_where(sector)
+            sector_idx = self.domain.sector_decomposition_where(sector)
             if sector_idx is None:
                 raise ValueError('Domain of linear operator does not have this sector')
             size = (self.symmetry.sector_dim(sector) * self.domain.multiplicities[sector_idx]).item()

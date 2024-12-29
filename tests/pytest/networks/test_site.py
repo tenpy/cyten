@@ -99,7 +99,7 @@ def test_double_site(any_backend):
             # all sectors are [0] -> same order [up, down] as for original sites, c-style
             expect_labels = ['up_0 up_1', 'up_0 down_1', 'down_0 up_1', 'down_0 down_1']
         elif conserve == 'Sz':
-            # we have sorted sectors of site0.sectors == [-1, 1], i.e. [down, up].
+            # we have sorted sectors of site0.sector_decomposition == [-1, 1], i.e. [down, up].
             # The c-style product gives [(down, down), (down, up), (up, down), (up, up)]
             # This would then be sorted, but it is already.
             expect_labels = ['down_0 down_1', 'down_0 up_1', 'up_0 down_1', 'up_0 up_1']

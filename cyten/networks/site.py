@@ -56,8 +56,9 @@ class Site:
 
     This class defines what the local basis states are via the :attr:`leg`, which defines the order
     of basis states (:attr:`ElementarySpace.basis_perm`) and how the symmetry acts on them
-    (by assigning them to :attr:`Space.sectors`). It also provides :attr:`state_labels` for the
-    basis. A `Site` instance therefore already determines which symmetry is explicitly used.
+    (by assigning them to a sector in the :attr:`Space.sector_decomposition`). It also provides
+    :attr:`state_labels` for the basis. A `Site` instance therefore already determines which
+    symmetry is explicitly used.
     Using the same "kind" of physical site (typically a particular subclass of `Site`),
     but using different symmetries requires *different* `Site` instances.
     

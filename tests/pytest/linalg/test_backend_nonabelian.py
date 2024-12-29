@@ -1296,7 +1296,7 @@ def apply_single_b_symbol(ten: SymmetricTensor, bend_up: bool
     """
     func = fusion_tree_backend.TreeMappingDict.from_b_or_c_symbol
     index = ten.num_codomain_legs - 1
-    coupled = [ten.domain.sectors[ind[1]] for ind in ten.data.block_inds]
+    coupled = [ten.domain.sector_decomposition[ind[1]] for ind in ten.data.block_inds]
 
     if bend_up:
         axes_perm = list(range(ten.num_codomain_legs)) + [ten.num_legs - 1]
@@ -1323,7 +1323,7 @@ def apply_single_c_symbol(ten: SymmetricTensor, leg: int | str, levels: list[int
     index = ten.get_leg_idcs(leg)[0]
     in_domain = index > ten.num_codomain_legs - 1
     overbraid = levels[index] > levels[index + 1]
-    coupled = [ten.domain.sectors[ind[1]] for ind in ten.data.block_inds]
+    coupled = [ten.domain.sector_decomposition[ind[1]] for ind in ten.data.block_inds]
 
     if not in_domain:
         axes_perm = list(range(ten.num_codomain_legs))
@@ -1566,12 +1566,12 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
         spaces = ten.domain[:domain_index] + [ten.domain[domain_index + 1]] + \
             [ten.domain[domain_index]] + ten.domain[domain_index + 2:]
         new_domain = TensorDomain(spaces, symmetry=symmetry)
-        # TODO can re-use: _sectors=ten.domain.sectors, _multiplicities=ten.domain.multiplicities)
+        # TODO can re-use: _sectors=ten.domain.sector_decomposition, _multiplicities=ten.domain.multiplicities)
         new_codomain = ten.codomain
     else:
         spaces = ten.codomain[:index] + [ten.codomain[index + 1]] + [ten.codomain[index]] + ten.codomain[index + 2:]
         new_codomain = TensorDomain(spaces,  symmetry=symmetry)
-        # TODO can re-use: ten.codomain.sectors, ten.codomain.multiplicities
+        # TODO can re-use: ten.codomain.sector_decomposition, ten.codomain.multiplicities
         new_domain = ten.domain
 
     zero_blocks = [block_backend.zero_block(block_backend.block_shape(block), dtype=Dtype.complex128)
@@ -1584,7 +1584,7 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
     shape_perm = list(shape_perm)  # torch does not like np.arrays
 
     for alpha_tree, beta_tree, tree_block in ftb._tree_block_iter(ten):
-        block_charge = ten.domain.sectors_where(alpha_tree.coupled)
+        block_charge = ten.domain.sector_decomposition_where(alpha_tree.coupled)
         block_charge = ten.data.block_ind_from_domain_sector_ind(block_charge)
 
         initial_shape = block_backend.block_shape(tree_block)
@@ -1728,7 +1728,7 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
         levels = levels[::-1]
         spaces = ten.domain[:index] + ten.domain[index:index+2][::-1] + ten.domain[index+2:]
         new_domain = TensorDomain(spaces, symmetry=symmetry)
-        # TODO can re-use:_sectors=ten.domain.sectors, _multiplicities=ten.domain.multiplicities)
+        # TODO can re-use:_sectors=ten.domain.sector_decomposition, _multiplicities=ten.domain.multiplicities)
         new_codomain = ten.codomain
         # for permuting the shape of the tree blocks
         shape_perm = np.append([0], np.arange(1, ten.num_domain_legs+1))
@@ -1737,7 +1737,7 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
         spaces = ten.codomain[:index] + ten.codomain[index:index+2][::-1] + ten.codomain[index+2:]
         new_codomain = TensorDomain(spaces, symmetry=symmetry)
         # TODO can re-use:
-        # _sectors=ten.codomain.sectors,
+        # _sectors=ten.codomain.sector_decomposition,
         # _multiplicities=ten.codomain.multiplicities)
         new_domain = ten.domain
         shape_perm = np.append(np.arange(ten.num_codomain_legs), [ten.num_codomain_legs])
@@ -1749,10 +1749,10 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
     new_data = ftb.FusionTreeData(ten.data.block_inds, zero_blocks, ten.data.dtype,
                                   device=block_backend.default_device)
     iter_space = [ten.codomain, ten.domain][in_domain]
-    iter_coupled = [ten.codomain.sectors[ind[0]] for ind in ten.data.block_inds]
+    iter_coupled = [ten.codomain.sector_decomposition[ind[0]] for ind in ten.data.block_inds]
 
     for tree, slc, _ in ftb._tree_block_iter_product_space(iter_space, iter_coupled, symmetry):
-        block_charge = ten.domain.sectors_where(tree.coupled)
+        block_charge = ten.domain.sector_decomposition_where(tree.coupled)
         block_charge = ten.data.block_ind_from_domain_sector_ind(block_charge)
 
         tree_block = (ten.data.blocks[block_charge][:,slc] if in_domain
@@ -1895,7 +1895,7 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
             sec_mul = ten.codomain[-1].sector_multiplicity(alpha_tree.uncoupled[-1])
             final_shape = (block_backend.block_shape(tree_block)[0] // sec_mul,
                            block_backend.block_shape(tree_block)[1] * sec_mul)
-        block_ind = new_domain.sectors_where(coupled)
+        block_ind = new_domain.sector_decomposition_where(coupled)
         block_ind = new_data.block_ind_from_domain_sector_ind(block_ind)
 
         tree_block = block_backend.block_reshape(tree_block, modified_shape)

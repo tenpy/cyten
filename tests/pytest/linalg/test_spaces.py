@@ -18,8 +18,8 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
     s1 = spaces.ElementarySpace(symmetry=any_symmetry, sectors=sectors, multiplicities=mults)
     s2 = spaces.ElementarySpace.from_trivial_sector(dim=8)
 
-    print('checking ElementarySpace.sectors')
-    npt.assert_array_equal(s2.sectors, symmetries.no_symmetry.trivial_sector[None, :])
+    print('checking ElementarySpace.sector_decomposition')
+    npt.assert_array_equal(s2.sector_decomposition, symmetries.no_symmetry.trivial_sector[None, :])
 
     print('checking str and repr')
     _ = str(s1)
@@ -38,12 +38,12 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
     else:
         wrong_mults[0] += 1
     assert s1 != spaces.ElementarySpace(symmetry=any_symmetry, sectors=sectors, multiplicities=wrong_mults)
-    npt.assert_array_equal(s1_dual.sectors, dual_sectors[dual_sectors_sort])
+    npt.assert_array_equal(s1_dual.sector_decomposition, dual_sectors[dual_sectors_sort])
     npt.assert_array_equal(s1_dual.multiplicities, s1.multiplicities[dual_sectors_sort])
     assert s1_dual.symmetry == s1.symmetry
     assert s1_dual.is_dual is True
     #
-    s1_modified = spaces.ElementarySpace(s1.symmetry, sectors=s1.sectors, multiplicities=s1.multiplicities,
+    s1_modified = spaces.ElementarySpace(s1.symmetry, sectors=s1.sector_decomposition, multiplicities=s1.multiplicities,
                                          is_dual=not s1.is_dual, basis_perm=s1._basis_perm)
     assert s1 != s1_modified
     assert s1_modified == s1.with_opposite_duality()
@@ -97,7 +97,7 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
     print('check idx_to_sector and parse_idx')
     if any_symmetry.can_be_dropped:
         idx = 0  # will step this up during the loop
-        for n_sector, sector in enumerate(s1.sectors):
+        for n_sector, sector in enumerate(s1.sector_decomposition):
             d = any_symmetry.sector_dim(sector)
             for m in range(s1.multiplicities[n_sector]):
                 for mu in range(d):
@@ -110,9 +110,9 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
     print('check sector lookup')
     for expect in [2, 3, 4]:
         expect = expect % s1.num_sectors
-        assert s1.sectors_where(s1.sectors[expect]) == expect
-        assert s1.sectors_where(s1.sectors[expect]) == expect
-        assert s1.sector_multiplicity(s1.sectors[expect]) == s1.multiplicities[expect]
+        assert s1.sector_decomposition_where(s1.sector_decomposition[expect]) == expect
+        assert s1.sector_decomposition_where(s1.sector_decomposition[expect]) == expect
+        assert s1.sector_multiplicity(s1.sector_decomposition[expect]) == s1.multiplicities[expect]
 
     print('check from_basis')
     if any_symmetry.can_be_dropped:
@@ -147,7 +147,7 @@ def test_vector_space(any_symmetry, make_any_sectors, np_random):
             expect_mults = np.sum(which_sectors[:, None] == np.arange(len(expect_sectors))[None, :], axis=0)
             sectors_of_basis = sectors[which_sectors]
         space = spaces.ElementarySpace.from_basis(symmetry=any_symmetry, sectors_of_basis=sectors_of_basis)
-        npt.assert_array_equal(space.sectors, expect_sectors)
+        npt.assert_array_equal(space.sector_decomposition, expect_sectors)
         npt.assert_array_equal(space.multiplicities, expect_mults)
         npt.assert_array_equal(space.basis_perm, expect_basis_perm)
         # also check sectors_of_basis property
@@ -177,7 +177,7 @@ def test_ElementarySpace_from_sectors(any_symmetry, make_any_sectors, np_random)
         0
     )
     expect_mults = np.sum(mult_contributions, axis=1)
-    assert np.all(res.sectors == expect_sectors)
+    assert np.all(res.sector_decomposition == expect_sectors)
     assert np.all(res.multiplicities == expect_mults)
     #
     # check basis perm
@@ -190,7 +190,7 @@ def test_ElementarySpace_from_sectors(any_symmetry, make_any_sectors, np_random)
         expect_public_basis[basis_perm] = expect_internal_basis
         #
         internal_basis = []
-        for s, m in zip(res.sectors, res.multiplicities):
+        for s, m in zip(res.sector_decomposition, res.multiplicities):
             internal_basis.extend([s] * m * any_symmetry.sector_dim(s))
         internal_basis = np.array(internal_basis)
         public_basis = np.zeros_like(internal_basis)
@@ -304,7 +304,7 @@ def test_ProductSpace(make_any_space):
 
     print('empty product is monoidal unit?')
     empty_product = spaces.ProductSpace([], symmetry=V1.symmetry)
-    assert np.all(empty_product.sectors == V1.symmetry.trivial_sector)
+    assert np.all(empty_product.sector_decomposition == V1.symmetry.trivial_sector)
     assert np.all(empty_product.multiplicities == np.ones(1, dtype=int))
     monoidal_unit = spaces.ElementarySpace.from_trivial_sector(dim=1, symmetry=V1.symmetry)
     assert empty_product.as_ElementarySpace() == monoidal_unit
@@ -325,7 +325,7 @@ def test_ProductSpace_SU2():
     # 3/2   2              18      18      18      18
     # 1     1/2            20      20
     # 1     2                  24      24      24
-    npt.assert_array_equal(ab.sectors, np.array([1, 2, 3, 4, 5, 6, 7])[:, None])
+    npt.assert_array_equal(ab.sector_decomposition, np.array([1, 2, 3, 4, 5, 6, 7])[:, None])
     npt.assert_array_equal(ab.multiplicities, np.array([48, 39, 38, 51, 18, 24, 18]))
 
     bc = spaces.ProductSpace([b, c])
@@ -337,7 +337,7 @@ def test_ProductSpace_SU2():
     # 3/2   2      1*6          6       6       6       6
     # 1/2   1/2    2*5     10      10
     # 1/2   2      2*6                 12      12
-    npt.assert_array_equal(bc.sectors, np.array([0, 1, 2, 3, 4, 5, 7])[:, None])
+    npt.assert_array_equal(bc.sector_decomposition, np.array([0, 1, 2, 3, 4, 5, 7])[:, None])
     npt.assert_array_equal(bc.multiplicities, np.array([10, 21, 15, 18, 23, 18, 6]))
 
     abc = spaces.ProductSpace([a, b, c])
@@ -367,7 +367,7 @@ def test_ProductSpace_SU2():
     expect_mults = [96+38, 144+39+78+51, 48+96+117+38+76+18, 39+78+114+51+102+24,
                     48+38+76+153+18+36+18, 39+51+102+54+24+48, 38+18+36+72+18+36, 51+24+48+54,
                     18+18+36, 24, 18]
-    npt.assert_array_equal(abc.sectors, np.arange(11)[:, None])
+    npt.assert_array_equal(abc.sector_decomposition, np.arange(11)[:, None])
     npt.assert_array_equal(abc.multiplicities, np.array(expect_mults))
 
 
@@ -375,7 +375,7 @@ def test_get_basis_transformation():
     # TODO expand this
     even, odd = [0], [1]
     spin1 = spaces.ElementarySpace.from_basis(symmetries.z2_symmetry, [even, odd, even])
-    assert np.array_equal(spin1.sectors, [even, odd])
+    assert np.array_equal(spin1.sector_decomposition, [even, odd])
     assert np.array_equal(spin1.basis_perm, [0, 2, 1])
     backend = backends.get_backend(block_backend='numpy', symmetry='abelian')
     product_space = spaces.ProductSpace([spin1, spin1], backend=backend)
@@ -411,7 +411,7 @@ def test_direct_sum(make_any_space, max_mult=5, max_sectors=5):
         npt.assert_array_equal(d.sectors_of_basis, expect)
     sector2mult = {}
     for leg in [a, b, c]:
-        for s, m in zip(leg.sectors, leg.multiplicities):
+        for s, m in zip(leg.sector_decomposition, leg.multiplicities):
             key = tuple(s)
             sector2mult[key] = sector2mult.get(key, 0) + m
     sectors = np.array(list(sector2mult.keys()))
@@ -419,7 +419,7 @@ def test_direct_sum(make_any_space, max_mult=5, max_sectors=5):
     sort = np.lexsort(sectors.T)
     sectors = sectors[sort]
     mults = mults[sort]
-    assert np.all(d.sectors == sectors)
+    assert np.all(d.sector_decomposition == sectors)
     assert np.all(d.multiplicities == mults)
 
 
@@ -485,7 +485,7 @@ def assert_spaces_equal(space1: spaces.Space, space2: spaces.Space):
         assert space1.symmetry == space2.symmetry, 'mismatched symmetry'
         assert space1.num_sectors == space2.num_sectors, 'mismatched num_sectors'
         assert np.all(space1.multiplicities == space2.multiplicities), 'mismatched multiplicities'
-        assert np.all(space1.sectors == space2.sectors), 'mismatched sectors'
+        assert np.all(space1.sector_decomposition == space2.sector_decomposition), 'mismatched sectors'
         if (space1._basis_perm is not None) or (space2._basis_perm is not None):
             # otherwise both are trivial and this match
             assert np.all(space1.basis_perm == space2.basis_perm), 'mismatched basis_perm'
