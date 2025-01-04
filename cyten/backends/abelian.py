@@ -825,7 +825,7 @@ class AbelianBackend(TensorBackend):
             #
             blocks.append(diag_block)
             large_leg_block_inds.append(bi)
-            sectors.append(large_leg.sector_decomposition[bi])
+            sectors.append(large_leg.defining_sectors[bi])
             multiplicities.append(self.block_backend.block_sum_all(diag_block))
             if basis_perm is not None:
                 mask = self.block_backend.block_to_numpy(diag_block, bool)
@@ -848,20 +848,17 @@ class AbelianBackend(TensorBackend):
             block_inds=np.array(block_inds, int), is_sorted=True
         )
         small_leg = ElementarySpace(
-            symmetry=tens.symmetry, sectors=sectors, multiplicities=multiplicities,
+            symmetry=tens.symmetry, defining_sectors=sectors, multiplicities=multiplicities,
             is_dual=large_leg.is_dual, basis_perm=basis_perm
         )
         return data, small_leg
 
     def diagonal_transpose(self, tens: DiagonalTensor) -> tuple[Space, DiagonalData]:
-        dual_leg, perm = tens.leg._dual_space(return_perm=True)
-        data = AbelianBackendData(
-            tens.dtype, tens.data.device, blocks=tens.data.blocks,
-            block_inds=inverse_permutation(perm)[tens.data.block_inds]
-        )
-        return dual_leg, data
+        # OPTIMIZE copy needed?
+        return tens.leg.dual, self.copy_data(tens)
 
     def eigh(self, a: SymmetricTensor, sort: str = None) -> tuple[DiagonalData, Data]:
+        raise NotImplementedError  # TODO revisit after combine_legs is fixed
         a_block_inds = a.data.block_inds
         # for missing blocks, i.e. a zero block, the eigenvalues are zero, so we can just skip
         # adding that block to the eigenvalues.
@@ -1123,7 +1120,7 @@ class AbelianBackend(TensorBackend):
         i2 = 0
         b2_i2 = -1 if len(mask2_block_inds) == 0 else mask2_block_inds[i2, 1]
         #
-        for sector_idx, (sector, slc) in enumerate(zip(large_leg.sector_decomposition, large_leg.slices)):
+        for sector_idx, (sector, slc) in enumerate(zip(large_leg.defining_sectors, large_leg.slices)):
             if sector_idx == b1_i1:
                 block1 = mask1_blocks[i1]
                 i1 += 1
@@ -1167,7 +1164,7 @@ class AbelianBackend(TensorBackend):
             if basis_perm is not None:
                 basis_perm = rank_data(np.concatenate(basis_perm_ranks))
         small_leg = ElementarySpace(
-            symmetry=mask1.symmetry, sectors=sectors, multiplicities=multiplicities,
+            symmetry=mask1.symmetry, defining_sectors=sectors, multiplicities=multiplicities,
             is_dual=large_leg.is_dual, basis_perm=basis_perm
         )
         return data, small_leg
@@ -1256,7 +1253,7 @@ class AbelianBackend(TensorBackend):
         sectors = []
         multiplicities = []
         basis_perm_ranks = []
-        for bi_large, (slc, sector) in enumerate(zip(large_leg.slices, large_leg.sector_decomposition)):
+        for bi_large, (slc, sector) in enumerate(zip(large_leg.slices, large_leg.defining_sectors)):
             block = a[slice(*slc)]
             mult = self.block_backend.block_sum_all(block)
             if mult == 0:
@@ -1284,7 +1281,7 @@ class AbelianBackend(TensorBackend):
         data = AbelianBackendData(dtype=Dtype.bool, device=self.block_backend.block_get_device(a),
                                   blocks=blocks, block_inds=block_inds, is_sorted=True)
         small_leg = ElementarySpace(
-            symmetry=large_leg.symmetry, sectors=sectors, multiplicities=multiplicities,
+            symmetry=large_leg.symmetry, defining_sectors=sectors, multiplicities=multiplicities,
             is_dual=large_leg.is_dual, basis_perm=basis_perm
         )
         return data, small_leg
@@ -1308,17 +1305,10 @@ class AbelianBackend(TensorBackend):
                                   block_inds=block_inds)
 
     def mask_transpose(self, tens: Mask) -> tuple[Space, Space, MaskData]:
-        leg_in, perm1 = tens.codomain[0]._dual_space(return_perm=True)
-        leg_out, perm2 = tens.domain[0]._dual_space(return_perm=True)
-        # block_inds[:, 0] refers to tens.codomain[0]. Thus it should be permuted with perm1.
-        # It ends up being result.domain[0] -> second column of block_inds
-        block_inds = np.column_stack([
-            inverse_permutation(perm2)[tens.data.block_inds[:, 1]],
-            inverse_permutation(perm1)[tens.data.block_inds[:, 0]]
-        ])
+        block_inds = tens.data.block_inds[:, ::-1]
         data = AbelianBackendData(dtype=tens.dtype, device=tens.data.device,
                                   blocks=tens.data.blocks, block_inds=block_inds, is_sorted=False)
-        return leg_in, leg_out, data
+        return tens.codomain[0].dual, tens.domain[0].dual, data
 
     def mask_unary_operand(self, mask: Mask, func) -> tuple[DiagonalData, ElementarySpace]:
         large_leg = mask.large_leg
@@ -1334,7 +1324,7 @@ class AbelianBackend(TensorBackend):
         #
         i = 0
         b_i = -1 if len(mask_blocks_inds) == 0 else mask_blocks_inds[i, 1]
-        for sector_idx, (sector, slc) in enumerate(zip(large_leg.sector_decomposition, large_leg.slices)):
+        for sector_idx, (sector, slc) in enumerate(zip(large_leg.defining_sectors, large_leg.slices)):
             if sector_idx == b_i:
                 block = mask_blocks[i]
                 i += 1
@@ -1370,7 +1360,7 @@ class AbelianBackend(TensorBackend):
             is_sorted=True
         )
         small_leg = ElementarySpace(
-            symmetry=mask.symmetry, sectors=sectors, multiplicities=multiplicities,
+            symmetry=mask.symmetry, defining_sectors=sectors, multiplicities=multiplicities,
             is_dual=large_leg.is_dual, basis_perm=basis_perm
         )
         return data, small_leg
@@ -1508,54 +1498,33 @@ class AbelianBackend(TensorBackend):
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:
         codomain_legs = []
-        codomain_sector_perms = []
         for i in codomain_idcs:
             in_domain, co_domain_idx, _ = a._parse_leg_idx(i)
             if in_domain:
-                # leg.sector_decomposition == duals(old_leg.sector_decomposition)[perm]
-                # block with given sectors which had bi_old belonged to
-                # old_leg.sector_decomposition[bi_old]
-                # it now belongs to
-                # dual(old_leg.sector_decomposition[bi_old])
-                #   == dual(old_leg.sector_decomposition[perm[bi_new]])
-                #   == leg.sector_decomposition[bi_new]
-                #  -> bi_old == perm[bi_new]
-                leg, perm = a.domain[co_domain_idx]._dual_space(return_perm=True)
-                perm = inverse_permutation(perm)
+                codomain_legs.append(a.domain[co_domain_idx].dual)
             else:
-                leg = a.codomain[co_domain_idx]
-                perm = None
-            codomain_legs.append(leg)
-            codomain_sector_perms.append(perm)
+                codomain_legs.append(a.codomain[co_domain_idx])
         codomain = ProductSpace(codomain_legs, symmetry=a.symmetry, backend=self)
         #
         domain_legs = []
-        domain_sector_perms = []
         for i in domain_idcs:
             in_domain, co_domain_idx, _ = a._parse_leg_idx(i)
             if in_domain:
-                leg = a.domain[co_domain_idx]
-                perm = None
+                domain_legs.append(a.domain[co_domain_idx])
             else:
-                leg, perm = a.codomain[co_domain_idx]._dual_space(return_perm=True)
-                perm = inverse_permutation(perm)
-            domain_legs.append(leg)
-            domain_sector_perms.append(perm)
+                domain_legs.append(a.codomain[co_domain_idx].dual)
         domain = ProductSpace(domain_legs, symmetry=a.symmetry, backend=self)
         #
         axes_perm = [*codomain_idcs, *reversed(domain_idcs)]
-        sector_perms = [*codomain_sector_perms, *reversed(domain_sector_perms)]
         blocks = [self.block_backend.block_permute_axes(block, axes_perm) for block in a.data.blocks]
         block_inds = a.data.block_inds[:, axes_perm]
-        for ax, sector_perm in enumerate(sector_perms):
-            if sector_perm is None:
-                continue
-            block_inds[:, ax] = sector_perm[block_inds[:, ax]]
         data = AbelianBackendData(a.dtype, a.data.device, blocks=blocks, block_inds=block_inds,
                                   is_sorted=False)
         return data, codomain, domain
 
     def qr(self, a: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
+        raise NotImplementedError  # TODO currently broken
+    
         assert a.num_codomain_legs == 1 == a.num_domain_legs  # since self.can_decompose_tensors is False
         q_blocks = []
         r_blocks = []
@@ -1752,6 +1721,7 @@ class AbelianBackend(TensorBackend):
 
     def svd(self, a: SymmetricTensor, new_leg: ElementarySpace, algorithm: str | None
             ) -> tuple[Data, DiagonalData, Data]:
+        raise NotImplementedError  # TODO currently broken
         assert a.num_codomain_legs == 1 == a.num_domain_legs  # since self.can_decompose_tensors is False
         u_blocks = []
         s_blocks = []

@@ -1169,7 +1169,7 @@ class SpinHalfSite(Site):
     def __init__(self, conserve: str = 'Sz', backend: TensorBackend = None):
         # make leg
         if conserve == 'Stot':
-            leg = ElementarySpace(symmetry=SU2Symmetry('Stot'), sectors=[[1]])
+            leg = ElementarySpace(symmetry=SU2Symmetry('Stot'), defining_sectors=[[1]])
         elif conserve == 'Sz':
             leg = ElementarySpace.from_sectors(U1Symmetry('2*Sz'), [[1], [-1]])
         elif conserve == 'parity':
@@ -1187,7 +1187,7 @@ class SpinHalfSite(Site):
         # operators : Svec, Sz, Sigmaz, Sp, Sm
         if conserve == 'Stot':
             # vector transforms under spin-1 irrep -> sector == [2 * J] == [2]
-            dummy_leg = ElementarySpace(leg.symmetry, sectors=[[2]])
+            dummy_leg = ElementarySpace(leg.symmetry, defining_sectors=[[2]])
             Svec_inv = SymmetricTensor.from_block_func(
                 self.backend.ones_block, backend=self.backend, legs=[leg, leg.dual, dummy_leg],
                 labels=['p', 'p*', '!']
@@ -1283,7 +1283,7 @@ class SpinSite(Site):
         Sm = np.transpose(Sp)  # no need to conj, Sp is real
         # make leg
         if conserve == 'Stot':
-            leg = ElementarySpace(symmetry=SU2Symmetry('Stot'), sectors=[[d - 1]])
+            leg = ElementarySpace(symmetry=SU2Symmetry('Stot'), defining_sectors=[[d - 1]])
         elif conserve == 'Sz':
             leg = ElementarySpace.from_sectors(U1Symmetry('2*Sz'), two_Sz[:, None])
         elif conserve == 'parity':
@@ -1299,7 +1299,7 @@ class SpinSite(Site):
         self.state_labels['up'] = self.state_labels[names[-1]]
         # operators : Svec, Sz, Sp, Sm
         if conserve == 'Stot':
-            dummy_leg = ElementarySpace(leg.symmetry, sectors=[[2]])
+            dummy_leg = ElementarySpace(leg.symmetry, defining_sectors=[[2]])
             Svec_inv = SymmetricTensor.from_block_func(
                 self.backend.ones_block, legs=[leg, leg.dual, dummy_leg],
                 labels=['p', 'p*', '!']
@@ -1578,7 +1578,7 @@ class SpinHalfFermionSite(Site):
             sector = [2]  # spin 1
             if sym_N is not None:
                 sector.append(0)
-            dummy_leg = ElementarySpace(leg.symmetry, sectors=[sector])
+            dummy_leg = ElementarySpace(leg.symmetry, defining_sectors=[sector])
             # the only allowed blocks by charge rule for legs [p, p*, dummy] the sectors [1, 1, 2],
             # i.e. acting on the spin 1/2 doublet [up, down].
             # This means that the same construction as for the SpinHalfSite works here too.
@@ -1723,7 +1723,7 @@ class SpinHalfHoleSite(Site):
             sector = [2]  # spin 1
             if sym_N is not None:
                 sector.append(0)
-            dummy_leg = ElementarySpace(leg.symmetry, sectors=[sector])
+            dummy_leg = ElementarySpace(leg.symmetry, defining_sectors=[sector])
             # the only allowed blocks by charge rule for legs [p, p*, dummy] the sectors [1, 1, 2],
             # i.e. acting on the spin 1/2 doublet [up, down].
             # This means that the same construction as for the SpinHalfSite works here too.

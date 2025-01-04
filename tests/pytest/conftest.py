@@ -473,7 +473,7 @@ def find_last_leg(same: spaces.ProductSpace, opposite: spaces.ProductSpace,
     sectors = sectors[order]
     mults = mults[order]
     #
-    res = spaces.ElementarySpace(prod.symmetry, sectors=sectors, multiplicities=mults)
+    res = spaces.ElementarySpace(prod.symmetry, defining_sectors=sectors, multiplicities=mults)
     #
     # check that it actually worked
     # OPTIMIZE remove?

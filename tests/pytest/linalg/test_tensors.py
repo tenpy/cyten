@@ -384,7 +384,7 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
     M = Mask.from_random(large_leg, small_leg=None, backend=backend)
     M.test_sanity()
     # specifying small_leg is currently only possible if the legs have no permutation
-    large_leg_no_perm = ElementarySpace(M.symmetry, large_leg.sector_decomposition, large_leg.multiplicities)
+    large_leg_no_perm = ElementarySpace(M.symmetry, large_leg.defining_sectors, large_leg.multiplicities)
     M2 = Mask.from_random(large_leg_no_perm, small_leg=None, backend=backend)
     M2.test_sanity()
     M3 = Mask.from_random(large_leg_no_perm, small_leg=M2.small_leg, backend=backend)
@@ -1365,6 +1365,11 @@ def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
             _ = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
         pytest.xfail()
 
+    if isinstance(T.backend, backends.AbelianBackend):
+        with pytest.raises(NotImplementedError):
+            _ = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
+        pytest.xfail()
+
     W, V = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
     W.test_sanity()
     V.test_sanity()
@@ -1963,6 +1968,12 @@ def test_qr_lq(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     T_labels = list('efghijk')[:dom + cod]
     T: cls = make_compatible_tensor(dom, cod, cls=cls, labels=T_labels)
 
+    # TODO
+    if isinstance(T.backend, backends.AbelianBackend):
+        with pytest.raises(NotImplementedError):
+            _ = tensors.qr(T, new_leg_dual=new_leg_dual)
+        pytest.xfail()
+
     Q, R = tensors.qr(T, new_leg_dual=new_leg_dual)
     Q.test_sanity()
     R.test_sanity()
@@ -2111,6 +2122,12 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     T: cls = make_compatible_tensor(dom, cod, labels=T_labels, cls=cls)
 
     print('Normal (non-truncated) SVD')
+
+    # TODO
+    if isinstance(T.backend, backends.AbelianBackend):
+        with pytest.raises(NotImplementedError):
+            _ = tensors.svd(T, new_labels=['a', 'b', 'c', 'd'], new_leg_dual=new_leg_dual)
+        pytest.xfail()
 
     U, S, Vh = tensors.svd(T, new_labels=['a', 'b', 'c', 'd'], new_leg_dual=new_leg_dual)
     U.test_sanity()

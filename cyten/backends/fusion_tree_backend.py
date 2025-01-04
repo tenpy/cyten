@@ -134,6 +134,8 @@ def _iter_sectors_mults_slices(spaces: list[Space], symmetry: Symmetry
         yield symmetry.empty_sector_array, [], []
         return
 
+    # TODO sector_decomposition or defining_sectors...?
+
     if len(spaces) == 1:
         for a, m, slc in zip(spaces[0].sector_decomposition, spaces[0].multiplicities, spaces[0].slices):
             yield a[None, :], [m], [slice(*slc)]
@@ -495,7 +497,7 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError('diagonal_to_mask not implemented')
 
     def diagonal_transpose(self, tens: DiagonalTensor) -> tuple[Space, DiagonalData]:
-        dual_leg, perm = tens.leg._dual_space(return_perm=True)
+        dual_leg, perm = tens.leg._dual_space(return_perm=True)  # TODO probably, this perm should be irrelevant
         data = FusionTreeData(block_inds=inverse_permutation(perm)[tens.data.block_inds],
                               blocks=tens.data.blocks, dtype=tens.dtype, device=tens.data.device)
         return dual_leg, data
@@ -1223,7 +1225,7 @@ class FusionTreeBackend(TensorBackend):
         mask_data = FusionTreeData(mask_block_inds, mask_blocks, dtype=Dtype.bool,
                                    device=S.data.device, is_sorted=True)
         small_leg = ElementarySpace(S.symmetry, small_leg_sectors, small_leg_multiplicities,
-                                    is_dual=S.leg.is_dual)
+                                    is_dual=S.leg.is_dual)  # TODO this looks wrong (duality of defining_sectors)
         return mask_data, small_leg, err, new_norm
         
     def zero_data(self, codomain: TensorDomain, domain: TensorDomain, dtype: Dtype, device: str,

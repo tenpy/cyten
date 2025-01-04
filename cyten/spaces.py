@@ -52,6 +52,9 @@ class Leg(metaclass=ABCMeta):
         self.symmetry = symmetry
         self.dim = dim
 
+    def test_sanity(self):
+        pass
+
     @abstractmethod
     def as_Space(self) -> Space:
         """Convert to (an appropriate subclass of) :class:`Space`."""
@@ -265,9 +268,19 @@ class Space(metaclass=ABCMeta):
 
     def as_ElementarySpace(self, is_dual: bool = False) -> ElementarySpace:
         """Convert to an isomorphic :class:`ElementarySpace`."""
-        # TODO double check behavior for is_dual=True
-        return ElementarySpace(symmetry=self.symmetry, sectors=self.sector_decomposition,
-                               multiplicities=self.multiplicities, is_dual=is_dual)
+        if is_dual:
+            defining_sectors = self.symmetry.dual_sectors(self.sector_decomposition)
+            is_sorted = (self.sector_order == 'dual_sorted')
+        else:
+            defining_sectors = self.sector_decomposition
+            is_sorted = (self.sector_order == 'sorted')
+
+        if is_sorted:
+            return ElementarySpace(symmetry=self.symmetry, defining_sectors=defining_sectors,
+                                   multiplicities=self.multiplicities, is_dual=is_dual)
+        return ElementarySpace.from_sectors(symmetry=self.symmetry, defining_sectors=defining_sectors,
+                                            multiplicities=self.multiplicities, is_dual=is_dual,
+                                            unique_sectors=True)
 
     @abstractmethod
     def change_symmetry(self, symmetry: Symmetry, sector_map: callable, backend: TensorBackend = None,
@@ -335,15 +348,17 @@ class Space(metaclass=ABCMeta):
             for i, j in iter_common_sorted_arrays(self.sector_decomposition, other.sector_decomposition):
                 sectors.append(self.sector_decomposition[i])
                 mults.append(min(self.multiplicities[i], other.multiplicities[j]))
-            return ElementarySpace(self.symmetry, sectors, mults, is_dual=is_dual)
-        # OPTIMIZE implementation for mixed orders? or just override this in ElementarySpace?
-        for i, sector in enumerate(self.sector_decomposition):
-            j = other.sector_decomposition_where(sector)
-            if j is None:
-                continue
-            sectors.append(sector)
-            mults.append(min(self.multiplicities[i], other.multiplicities[j]))
-        return ElementarySpace(self.symmetry, sectors, mults, is_dual=is_dual)
+            res = ElementarySpace(self.symmetry, sectors, mults)
+        else:
+            # OPTIMIZE implementation for mixed orders? or just override this in ElementarySpace?
+            for i, sector in enumerate(self.sector_decomposition):
+                j = other.sector_decomposition_where(sector)
+                if j is None:
+                    continue
+                sectors.append(sector)
+                mults.append(min(self.multiplicities[i], other.multiplicities[j]))
+            res = ElementarySpace(self.symmetry, sectors, mults, is_dual=is_dual)
+        return res.with_is_dual(is_dual)
 
     def sector_decomposition_where(self, sector: Sector) -> int | None:
         """Find the index of a given sector in the :attr:`sector_decomposition`.
@@ -374,15 +389,20 @@ class Space(metaclass=ABCMeta):
 
 
 class ElementarySpace(Space, Leg):
-    r"""A space which is graded by a symmetry, but has no further structure.
+    r"""A :class:`Space` that is defined as (the dual of) a direct sum of sectors.
 
-    We distinguish ket spaces :math:`V_k := a_1 \oplus a_2 \oplus \dots \plus a_N` with
-    ``is_dual=False`` and bra spaces :math:`V_b := [b_1 \oplus b_2 \oplus \dots \plus b_N]^*`
-    with ``is_dual=True``. The bra space also decomposes into sectors, as
-    :math:`V_b \cong \bar{b}_1 \oplus \bar{b}_2 \oplus \dots \plus \bar{b}_N`,
-    where :math:`\bar{b}` is the :meth:`Symmetry.dual_sector` of :math:`b`.
-    The :attr:`sectors` of a space then describe the :math:`\{a_n\}` for the ket space
-    :math:`V_k` and the :math:`\{\bar{b}_n\}` for the bra space :math:`V_b`.
+    While every :class:`Space` is isomorphic to a direct sum of sectors, an :class:`ElementarySpace`
+    is by definition *equal* to such a direct sum, or to the dual of such a sum. We distinguish
+    "ket" spaces :math:`V_k := a_1 \oplus a_2 \oplus \dots \plus a_N` with ``is_dual=False`` and
+    "bra" spaces :math:`V_b := [b_1 \oplus b_2 \oplus \dots \plus b_N]^*` with ``is_dual=True``.
+    The listed sectors, :math:`\{a_n\}` for the ket space :math:`V_k` and the :math:`\{b_n\}`
+    for the bra space, are the :attr:`defining_sectors` of the space. For a ket space, they coincide
+    with the :attr:`sector_decomposition`, while for a bra space they are mutually dual, since
+    we have :math:`V_b \cong \bar{b}_1 \oplus \bar{b}_2 \oplus \dots \plus \bar{b}_N`.
+
+    We impose a canonical order of sectors, such that the :attr:`defining_sectors` are sorted.
+    This in turn means that the :attr:`sector_order` is ``'sorted'`` for ket spaces and
+    ``'dual_sorted'`` for bra spaces.
 
     If the symmetry :attr:`Symmetry.can_be_dropped`, there is a notion of a basis for the
     spaces. We demand the basis to be compatible with the symmetry, i.e. each basis vector
@@ -391,27 +411,34 @@ class ElementarySpace(Space, Leg):
     basis order, e.g. for matrix representations. For example, the standard basis of a spin-1
     degree of freedom with ``'Sz_parity'`` conservation has sectors ``[[1], [0], [1]]`` and is
     neither sorted by sector nor contiguous. We allow these different *public* basis orders
-    and store the relevant perturbation as :attr:`basis_perm`.
+    and store the relevant permutations as :attr:`basis_perm` and :attr:`inverse_basis_perm`.
     See also :attr:`sectors_of_basis` and :meth:`from_basis`.
 
     Parameters
     ----------
     symmetry, sectors, multiplicities, is_dual, basis_perm
-        Like attributes of the same name, and nested lists are allowed in place of arrays.
+        Like attributes of the same name, except nested sequences are allowed in place of arrays.
 
     Attributes
     ----------
     is_dual: bool
-        If this is a bra or a ket space, such that ``ElementarySpace(sym, sec, is_dual=True)``
-        is equivalent to ``ElementarySpace(sym, sec, is_dual=False).flip_is_dual()`` and equal to
-        ``ElementarySpace(sym, dual_sectors(sec), is_dual=False).dual``.
+    defining_sectors: 2D array of int
     """
 
-    def __init__(self, symmetry: Symmetry, sectors: SectorArray, multiplicities: ndarray = None,
-                 is_dual: bool = False, basis_perm: ndarray | None = None):
-        Space.__init__(self, symmetry=symmetry, sector_decomposition=sectors, multiplicities=multiplicities,
-                       sector_order='sorted')
+    def __init__(self, symmetry: Symmetry, defining_sectors: SectorArray,
+                 multiplicities: ndarray = None, is_dual: bool = False,
+                 basis_perm: ndarray | None = None):
+        defining_sectors = np.asarray(defining_sectors, dtype=int)
+        if is_dual:
+            sector_decomposition = symmetry.dual_sectors(defining_sectors)
+            sector_order = 'dual_sorted'
+        else:
+            sector_decomposition = defining_sectors
+            sector_order = 'sorted'
+        Space.__init__(self, symmetry=symmetry, sector_decomposition=sector_decomposition,
+                       multiplicities=multiplicities, sector_order=sector_order)
         Leg.__init__(self, symmetry=symmetry, dim=self.dim)
+        self.defining_sectors = defining_sectors
         self.is_dual = is_dual
         if basis_perm is None:
             self._basis_perm = self._inverse_basis_perm = None
@@ -433,18 +460,24 @@ class ElementarySpace(Space, Leg):
             assert len(np.unique(self._basis_perm)) == self.dim  # is a permutation
             assert len(np.unique(self._inverse_basis_perm)) == self.dim  # is a permutation
             assert np.all(self._basis_perm[self._inverse_basis_perm] == np.arange(self.dim))
-        super().test_sanity()
+        assert self.defining_sectors.shape == (self.num_sectors, self.symmetry.sector_ind_len)
+        if self.is_dual:
+            assert self.sector_order == 'dual_sorted'
+        else:
+            assert self.sector_order == 'sorted'
+        Space.test_sanity(self)
+        Leg.test_sanity(self)
 
     @classmethod
-    def from_basis(cls, symmetry: Symmetry, sectors_of_basis: Sequence[Sequence[int]],
-                   is_dual: bool = False) -> ElementarySpace:
+    def from_basis(cls, symmetry: Symmetry, sectors_of_basis: Sequence[Sequence[int]]
+                   ) -> ElementarySpace:
         """Create an ElementarySpace by specifying the sector of every basis element.
 
         .. note ::
             Unlike :meth:`from_sectors`, this method expects the same sector to be listed
             multiple times, if the sector is multi-dimensional. The Hilbert Space of a spin-one-half
             D.O.F. can e.g. be created as ``ElementarySpace.from_basis(su2, [spin_half, spin_half])``
-            or as ``ElementarySpace.from_sectors(su2, [[spin_half]])``. In the former case we need to
+            or as ``ElementarySpace.from_sectors(su2, [spin_half])``. In the former case we need to
             list the same sector both for the spin up and spin down state.
 
         Parameters
@@ -457,9 +490,6 @@ class ElementarySpace(Space, Leg):
             occurrences. They need not be contiguous though. They will be grouped by order of
             appearance, such that they ``m``-th time a sector appears, that basis state is interpreted
             as the ``(m % d)``-th state of the multiplet.
-        is_dual : bool
-            If the space is a bra space of a ket space. Either way, it decomposes into the given
-            sectors.
 
         See Also
         --------
@@ -483,13 +513,17 @@ class ElementarySpace(Space, Leg):
             msg = ('Sectors must appear in whole multiplets, i.e. a number of times that is an '
                    'integer multiple of their dimension.')
             raise ValueError(msg)
-        return cls(symmetry=symmetry, sectors=sectors, multiplicities=multiplicities,
-                   is_dual=is_dual, basis_perm=basis_perm)
+        return cls(symmetry=symmetry, defining_sectors=sectors, multiplicities=multiplicities,
+                   is_dual=False, basis_perm=basis_perm)
 
     @classmethod
     def from_independent_symmetries(cls, independent_descriptions: list[ElementarySpace]
                                     ) -> ElementarySpace:
         """Create an ElementarySpace with multiple independent symmetries.
+
+        TODO this interface is more general than it needs to be. The use case in GroupedSite
+        would allow us to specialize, if that is easier. A given state is in the trivial sector
+        for all but one of the independent_descriptions
 
         Parameters
         ----------
@@ -522,11 +556,11 @@ class ElementarySpace(Space, Leg):
     @classmethod
     def from_null_space(cls, symmetry: Symmetry, is_dual: bool = False) -> ElementarySpace:
         """The zero-dimensional space, i.e. the span of the empty set."""
-        return cls(symmetry=symmetry, sectors=symmetry.empty_sector_array,
+        return cls(symmetry=symmetry, defining_sectors=symmetry.empty_sector_array,
                    multiplicities=np.zeros(0, int), is_dual=is_dual)
 
     @classmethod
-    def from_sectors(cls, symmetry: Symmetry, sectors: SectorArray,
+    def from_sectors(cls, symmetry: Symmetry, defining_sectors: SectorArray,
                      multiplicities: Sequence[int] = None, is_dual: bool = False,
                      basis_perm: ndarray = None, unique_sectors: bool = False,
                      return_sorting_perm: bool = False
@@ -544,18 +578,19 @@ class ElementarySpace(Space, Leg):
         ----------
         symmetry: Symmetry
             The symmetry associated with this space.
-        sectors: 2D array_like of int
-            The sectors of the symmetry that compose this space.
-            Can be in any order and may contain duplicates (see `unique_sectors`).
+        defining_sectors: 2D array_like of int
+            Like the :attr:`defining_sectors` attribute, but can be in any order and may contain
+            duplicates (see `unique_sectors`).
         multiplicities: 1D array_like of int, optional
-            How often each of the `sectors` appears. A 1D array of positive integers with axis [s].
-            ``sectors[i_s, :]`` appears ``multiplicities[i_s]`` times.
-            If not given, a multiplicity ``1`` is assumed for all `sectors`.
+            How often each of the `defining_sectors` appears. A 1D array of positive integers with
+            axis [s]. ``defining_sectors[i_s, :]`` appears ``multiplicities[i_s]`` times.
+            If not given, a multiplicity ``1`` is assumed for all `defining_sectors`.
         is_dual: bool
-            If the result is a bra- or a ket space.
+            If the result is a bra- or a ket space, like the attribute :attr:`is_dual`.
+            Note that this changes the meaning of the `defining_sectors`.
         basis_perm: ndarray, optional
-            The permutation from the desired public basis to the basis described by `sectors`
-            and `multiplicities`.
+            The permutation from the desired public basis to the basis described by
+            `defining_sectors` and `multiplicities`.
         unique_sectors: bool
             If ``True``, the `sectors` are assumed to be duplicate-free.
         return_sorting_perm: bool
@@ -565,22 +600,22 @@ class ElementarySpace(Space, Leg):
         -------
         space: ElementarySpace
         sector_sort: 1D array, optional
-            Only returned ``if return_sorting_perm``. The permutation that sorts the `sectors`.
+            Only ``if return_sorting_perm``. The permutation that sorts the `defining_sectors`.
         """
-        sectors = np.asarray(sectors, dtype=int)
-        assert sectors.ndim == 2 and sectors.shape[1] == symmetry.sector_ind_len
+        defining_sectors = np.asarray(defining_sectors, dtype=int)
+        assert defining_sectors.ndim == 2 and defining_sectors.shape[1] == symmetry.sector_ind_len
         if multiplicities is None:
-            multiplicities = np.ones((len(sectors),), dtype=int)
+            multiplicities = np.ones((len(defining_sectors),), dtype=int)
         else:
             multiplicities = np.asarray(multiplicities, dtype=int)
-            assert multiplicities.shape == ((len(sectors),))
+            assert multiplicities.shape == ((len(defining_sectors),))
 
         # sort sectors
         if symmetry.can_be_dropped:
-            num_states = symmetry.batch_sector_dim(sectors) * multiplicities
+            num_states = symmetry.batch_sector_dim(defining_sectors) * multiplicities
             basis_slices = np.concatenate([[0], np.cumsum(num_states)], axis=0)
-            sectors, multiplicities, sort = _sort_sectors(sectors, multiplicities)
-            if len(sectors) == 0:
+            defining_sectors, multiplicities, sort = _sort_sectors(defining_sectors, multiplicities)
+            if len(defining_sectors) == 0:
                 basis_perm = np.zeros(0, int)
             else:
                 if basis_perm is None:
@@ -588,23 +623,23 @@ class ElementarySpace(Space, Leg):
                 basis_perm = np.concatenate([basis_perm[basis_slices[i]: basis_slices[i + 1]]
                                             for i in sort])
         else:
-            sectors, multiplicities, sort = _sort_sectors(sectors, multiplicities)
+            defining_sectors, multiplicities, sort = _sort_sectors(defining_sectors, multiplicities)
             assert basis_perm is None
         # combine duplicate sectors (does not affect basis_perm)
         if not unique_sectors:
             mult_slices = np.concatenate([[0], np.cumsum(multiplicities)], axis=0)
-            diffs = find_row_differences(sectors, include_len=True)
+            diffs = find_row_differences(defining_sectors, include_len=True)
             multiplicities = mult_slices[diffs[1:]] - mult_slices[diffs[:-1]]
-            sectors = sectors[diffs[:-1]]  # [:-1] to exclude len
-        res = cls(symmetry=symmetry, sectors=sectors, multiplicities=multiplicities,
-                  is_dual=is_dual, basis_perm=basis_perm)
+            defining_sectors = defining_sectors[diffs[:-1]]  # [:-1] to exclude len
+        res = cls(symmetry=symmetry, defining_sectors=defining_sectors,
+                  multiplicities=multiplicities, is_dual=is_dual, basis_perm=basis_perm)
         if return_sorting_perm:
             return res, sort
         return res
 
     @classmethod
-    def from_trivial_sector(cls, dim: int, symmetry: Symmetry = no_symmetry, is_dual: bool = False,
-                            basis_perm: ndarray = None) -> ElementarySpace:
+    def from_trivial_sector(cls, dim: int = 1, symmetry: Symmetry = no_symmetry,
+                            is_dual: bool = False, basis_perm: ndarray = None) -> ElementarySpace:
         """Create an ElementarySpace that lives in the trivial sector (i.e. it is symmetric).
 
         Parameters
@@ -612,13 +647,13 @@ class ElementarySpace(Space, Leg):
         dim : int
             The dimension of the space.
         symmetry : :class:`~cyten.groups.Symmetry`
-            The symmetry of the space. By default, we use `no_symmetry`.
-        is_real, is_dual : bool
-            If the space should be real / dual.
+            The symmetry of the space.
+        is_dual : bool
+            If the space should be bra or a ket space.
         """
         if dim == 0:
             return cls.from_null_space(symmetry=symmetry, is_dual=is_dual)
-        return cls(symmetry=symmetry, sectors=symmetry.trivial_sector[None, :],
+        return cls(symmetry=symmetry, defining_sectors=symmetry.trivial_sector[None, :],
                    multiplicities=[dim], is_dual=is_dual, basis_perm=basis_perm)
 
     @property
@@ -676,7 +711,7 @@ class ElementarySpace(Space, Leg):
 
     @property
     def sectors_of_basis(self):
-        """The sector for each basis vector, like the input of :meth:`from_basis`."""
+        """The sector (from the :attr:`sector_decomposition`) of each basis vector."""
         if not self.symmetry.can_be_dropped:
             msg = f'sectors_of_basis is meaningless for {self.symmetry}.'
             raise SymmetryError(msg)
@@ -692,7 +727,7 @@ class ElementarySpace(Space, Leg):
         # used by Space.__repr__
         indent = printoptions.indent * ' '
         # 1) Try showing all data
-        if 3 * self.sector_decomposition.size < printoptions.linewidth:
+        if 3 * self.defining_sectors.size < printoptions.linewidth:
             # otherwise there is no chance to print all sectors in one line anyway
             if self._basis_perm is None:
                 basis_perm = 'None'
@@ -702,7 +737,7 @@ class ElementarySpace(Space, Leg):
             if show_symmetry:
                 elements.append(f'{self.symmetry!r}')
             elements.extend([
-                f'sectors={format_like_list(self.symmetry.sector_str(a) for a in self.sector_decomposition)}',
+                f'defining_sectors={format_like_list(self.symmetry.sector_str(a) for a in self.defining_sectors)}',
                 f'multiplicities={format_like_list(self.multiplicities)}',
                 f'basis_perm={basis_perm}',
                 f'is_dual={self.is_dual}'
@@ -756,12 +791,13 @@ class ElementarySpace(Space, Leg):
             return False
         if not np.all(self.multiplicities == other.multiplicities):
             return False
-        if not np.all(self.sector_decomposition == other.sector_decomposition):
+        if not np.all(self.defining_sectors == other.defining_sectors):
             return False
         if (self._basis_perm is not None) or (other._basis_perm is not None):
-            # otherwise both are trivial and this match
             if not np.all(self.basis_perm == other.basis_perm):
                 return False
+        else:
+            pass  # both permutations are trivial, thus equal
         return True
 
     def as_Space(self):
@@ -791,8 +827,9 @@ class ElementarySpace(Space, Leg):
         # TODO / OPTIMIZE can avoid some computation if the map is injective.
         #                 then we just need to sort the new sectors, no need to combine
         return ElementarySpace.from_sectors(
-            symmetry=symmetry, sectors=sector_map(self.sector_decomposition), multiplicities=self.multiplicities,
-            is_dual=self.is_dual, basis_perm=self._basis_perm, unique_sectors=injective
+            symmetry=symmetry, defining_sectors=sector_map(self.defining_sectors),
+            multiplicities=self.multiplicities, is_dual=self.is_dual, basis_perm=self._basis_perm,
+            unique_sectors=injective
         )
 
     def direct_sum(self, *others: ElementarySpace) -> ElementarySpace:
@@ -818,7 +855,7 @@ class ElementarySpace(Space, Leg):
             basis_perm = None
         return ElementarySpace.from_sectors(
             symmetry=self.symmetry,
-            sectors=np.concatenate([self.sector_decomposition, *(o.sector_decomposition for o in others)]),
+            defining_sectors=np.concatenate([self.defining_sectors, *(o.defining_sectors for o in others)]),
             multiplicities=np.concatenate([self.multiplicities, *(o.multiplicities for o in others)]),
             is_dual=self.is_dual, basis_perm=basis_perm
         )
@@ -839,14 +876,10 @@ class ElementarySpace(Space, Leg):
 
     @property
     def dual(self) -> ElementarySpace:
-        return self._dual_space(return_perm=False)
-
-    def _dual_space(self, return_perm: bool = False
-                    ) -> ElementarySpace | tuple[ElementarySpace, np.ndarray]:
-        return ElementarySpace.from_sectors(
-            symmetry=self.symmetry, sectors=self.symmetry.dual_sectors(self.sector_decomposition),
+        return ElementarySpace(
+            self.symmetry, defining_sectors=self.defining_sectors,
             multiplicities=self.multiplicities, is_dual=not self.is_dual,
-            basis_perm=self._basis_perm, unique_sectors=True, return_sorting_perm=return_perm
+            basis_perm=self._basis_perm
         )
 
     def is_subspace_of(self, other: ElementarySpace) -> bool:
@@ -922,7 +955,7 @@ class ElementarySpace(Space, Leg):
         #
         sectors = []
         mults = []
-        for a, d_a, slc in zip(self.sector_decomposition, self.sector_dims, self.slices):
+        for a, d_a, slc in zip(self.defining_sectors, self.sector_dims, self.slices):
             sector_mask = blockmask[slice(*slc)]
             per_basis_state = np.reshape(sector_mask, (-1, d_a))
             if not np.all(per_basis_state == per_basis_state[:, 0, None]):
@@ -955,14 +988,22 @@ class ElementarySpace(Space, Leg):
         #
         # note blockmask is in the private basis order.
         basis_perm = rank_data(self.basis_perm[blockmask])
-        return ElementarySpace(symmetry=self.symmetry, sectors=sectors, multiplicities=mults,
+        return ElementarySpace(symmetry=self.symmetry, defining_sectors=sectors, multiplicities=mults,
                                is_dual=self.is_dual, basis_perm=basis_perm)
 
     def with_opposite_duality(self):
         """A space isomorphic to self with opposite ``is_dual`` attribute."""
-        return ElementarySpace(symmetry=self.symmetry, sectors=self.sector_decomposition,
-                               multiplicities=self.multiplicities, is_dual=not self.is_dual,
-                               basis_perm=self._basis_perm)
+        if self.is_dual:
+            # already have the self.symmetry.dual_sectors(self.defining_sectors)
+            dual_defining_sectors = self.sector_decomposition
+        else:
+            dual_defining_sectors = self.symmetry.dual_sectors(self.defining_sectors)
+        # note: dual_defining_sectors are not sorted, but they are unique.
+        return ElementarySpace.from_sectors(
+            symmetry=self.symmetry, defining_sectors=dual_defining_sectors,
+            multiplicities=self.multiplicities, is_dual=not self.is_dual,
+            basis_perm=self._basis_perm, unique_sectors=True
+        )
 
     def with_is_dual(self, is_dual: bool) -> ElementarySpace:
         """A space isomorphic to self with given ``is_dual`` attribute."""
@@ -1058,16 +1099,11 @@ class ProductSpace(Space, Leg):
 
     @property
     def dual(self):
-        return self._dual_space(return_perm=False)
-
-    def _dual_space(self, return_perm: bool = False
-                    ) -> ProductSpace | tuple[ProductSpace, np.ndarray]:
-        sectors, mults, perm = _sort_sectors(self.symmetry.dual_sectors(self.sector_decomposition), self.multiplicities)
-        dual = ProductSpace([sp.dual for sp in reversed(self.spaces)], symmetry=self.symmetry,
+        sectors, mults, perm = _sort_sectors(
+            self.symmetry.dual_sectors(self.sector_decomposition), self.multiplicities
+        )
+        return ProductSpace([sp.dual for sp in reversed(self.spaces)], symmetry=self.symmetry,
                             _sectors=sectors, _multiplicities=mults)
-        if return_perm:
-            return dual, perm
-        return dual
 
     @property
     def fusion_outcomes_sort(self):
@@ -1456,7 +1492,12 @@ class TensorDomain(Space):
             return self.symmetry.trivial_sector[None, :], np.ones([1], int)
 
         if len(spaces) == 1:
-            return spaces[0].sector_decomposition, spaces[0].multiplicities
+            sectors = spaces[0].sector_decomposition
+            mults = spaces[0].multiplicities
+            if spaces[0].sector_order == 'sorted':
+                return sectors, mults
+            perm = np.lexsort(sectors.T)
+            return sectors[perm], mults[perm]
 
         if self.symmetry.is_abelian:
             grid = np.indices(tuple(space.num_sectors for space in spaces), np.intp)
@@ -1601,9 +1642,6 @@ class TensorDomain(Space):
     def dual(self):
         # TODO include an additional is_dual flag
         return TensorDomain([sp.dual for sp in reversed(self.spaces)], symmetry=self.symmetry)
-
-    def _dual_space(self, return_perm=False):
-        raise NotImplementedError  # TODO rm this from Space class??
 
     def _repr(self, show_symmetry):
         raise NotImplementedError  # TODO rm this from Space class??

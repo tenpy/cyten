@@ -283,10 +283,12 @@ class Tensor(metaclass=ABCMeta):
         assert all(_is_valid_leg_label(l) for l in self._labels)
         assert not duplicate_entries(self._labels, ignore=[None])
         assert not duplicate_entries(list(self._labelmap.values()))
+        self.domain.test_sanity()
+        self.codomain.test_sanity()
         for space in self.domain.spaces:
-            self.backend.test_leg_sanity(space)
+            self.backend.test_leg_sanity(space)  # TODO rm this??
         for space in self.codomain.spaces:
-            self.backend.test_leg_sanity(space)
+            self.backend.test_leg_sanity(space)  # TODO rm this??
         assert self.dtype not in self._forbidden_dtypes
         # TODO re-activate this check
         # assert not self.domain.is_dual
@@ -2391,7 +2393,7 @@ class ChargedTensor(Tensor):
     Consider for example a U(1) symmetry which conserves the boson particle number and the
     integer sectors label that particle number. Then, the boson creation operator :math:`b^\dagger`
     can be written as a charged tensor with charge leg
-    ``C == ElementarySpace(u1_sym, sectors=[[+1]])``.
+    ``C == ElementarySpace(u1_sym, defining_sectors=[[+1]])``.
     Similarly, if the Sz magnetization of a spin system is conserved, the spin raising operator
     can be written only as a charged tensor.
 
@@ -3701,7 +3703,7 @@ def eigh(tensor: Tensor, new_labels: str | list[str] | None, new_leg_dual: bool,
         raise NotImplementedError
     # TODO for DiagonalTensor, we can have a trivial implementation `return tensor, eye` no?
     tensor = tensor.as_SymmetricTensor()
-    new_leg = tensor.domain.as_ElementarySpace().with_is_dual(new_leg_dual)
+    new_leg = tensor.domain.as_ElementarySpace(is_dual=new_leg_dual)
     combine = (not tensor.backend.can_decompose_tensors) and (tensor.num_codomain_legs > 1)
     if combine:
         tensor = combine_legs(tensor, range(tensor.num_codomain_legs),
