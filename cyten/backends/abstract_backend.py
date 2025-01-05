@@ -285,15 +285,30 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def eigh(self, a: SymmetricTensor, sort: str = None) -> tuple[DiagonalData, Data]:
+    def eigh(self, a: SymmetricTensor, new_leg_dual: bool, sort: str = None
+             ) -> tuple[DiagonalData, Data, ElementarySpace]:
         """Eigenvalue decomposition of a hermitian tensor
+
+        Note that this does *not* guarantee to return the duality given by `new_leg_dual`.
+        In particular, for the abelian backend, the duality is fixed.
 
         Parameters
         ----------
         a
+        new_leg_dual : bool
+            If the new leg should be dual or not.
         sort : {'m>', 'm<', '>', '<'}
             How the eigenvalues are sorted *within* each charge block.
             See :func:`argsort` for details.
+
+        Returns
+        -------
+        w_data
+            Data for the :class:`DiagonalTensor` of eigenvalues
+        v_data
+            Data for the :class:`Tensor` of eigenvectors
+        new_leg
+            The new leg.
         """
         ...
 

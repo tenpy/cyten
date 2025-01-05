@@ -3180,6 +3180,7 @@ def combine_legs(tensor: Tensor,
                  *which_legs: list[int | str],
                  combined_spaces: list[ProductSpace | None] = None,
                  levels: list[int] | dict[str | int, int] = None,
+                 **kw
                  ) -> Tensor:
     """Combine (multiple) groups of legs, each to a :class:`ProductSpace`.
 
@@ -3268,6 +3269,9 @@ def combine_legs(tensor: Tensor,
     Then, each group is replaced by the appropriate product space, either in the domain or the
     codomain.
     """
+    # TODO add arg: pipe_duality : list[bool] = None
+    raise NotImplementedError('combine / split is probably broken during refactoring of spaces')  # TODO
+    
     # 1) Deal with different tensor types. Reduce everything to SymmetricTensor.
     # ==============================================================================================
     if isinstance(tensor, (DiagonalTensor, Mask)):
@@ -3703,17 +3707,29 @@ def eigh(tensor: Tensor, new_labels: str | list[str] | None, new_leg_dual: bool,
         raise NotImplementedError
     # TODO for DiagonalTensor, we can have a trivial implementation `return tensor, eye` no?
     tensor = tensor.as_SymmetricTensor()
-    new_leg = tensor.domain.as_ElementarySpace(is_dual=new_leg_dual)
-    combine = (not tensor.backend.can_decompose_tensors) and (tensor.num_codomain_legs > 1)
-    if combine:
-        tensor = combine_legs(tensor, range(tensor.num_codomain_legs),
-                              range(tensor.num_codomain_legs, tensor.num_legs))
-    w_data, v_data = tensor.backend.eigh(tensor, sort=sort)
+
+    # If the backend requires it, combine legs firt
+    if not tensor.backend.can_decompose_tensors:
+        tensor = combine_legs(
+            tensor,
+            range(tensor.num_codomain_legs), range(tensor.num_codomain_legs, tensor.num_legs),
+            pipe_duality=[new_leg_dual, new_leg_dual]
+        )
+
+    # first, compute a decomposition where the new leg is a ket space
+    w_data, v_data, new_leg = tensor.backend.eigh(tensor, new_leg_dual, sort=sort)
     W = DiagonalTensor(w_data, new_leg, tensor.backend, [b, c])
     V = SymmetricTensor(v_data, codomain=tensor.codomain, domain=[new_leg], backend=tensor.backend,
                         labels=[tensor.codomain_labels, [a]])
-    if combine:
+
+    # undo the combine
+    if not tensor.backend.can_decompose_tensors:
         V = split_legs(V, -1)
+
+    # if required, flip the leg duality
+    if new_leg_dual != new_leg.is_dual:
+        raise NotImplementedError
+
     return W, V
 
 
@@ -4689,6 +4705,8 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
         Which legs to split. If ``None`` (default), all those legs that are :class:`ProductSpace`s
         are split.
     """
+    raise NotImplementedError('combine / split is probably broken during refactoring of spaces')  # TODO
+
     if isinstance(tensor, (DiagonalTensor, Mask)):
         msg = ('Converting to SymmetricTensor for split_legs. '
                'Use as_SymmetricTensor() explicitly to suppress the warning.')

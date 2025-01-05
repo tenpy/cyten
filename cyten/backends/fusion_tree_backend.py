@@ -502,7 +502,9 @@ class FusionTreeBackend(TensorBackend):
                               blocks=tens.data.blocks, dtype=tens.dtype, device=tens.data.device)
         return dual_leg, data
 
-    def eigh(self, a: SymmetricTensor, sort: str = None) -> tuple[DiagonalData, Data]:
+    def eigh(self, a: SymmetricTensor, new_leg_dual: bool, sort: str = None
+             ) -> tuple[DiagonalData, Data, ElementarySpace]:
+        new_leg = a.domain.as_ElementarySpace(is_dual=new_leg_dual)
         a_blocks = a.data.blocks
         a_block_inds = a.data.block_inds
         #
@@ -526,7 +528,7 @@ class FusionTreeBackend(TensorBackend):
         v_block_inds = np.repeat(np.arange(a.codomain.num_sectors)[:, None], 2, axis=1)
         v_data = FusionTreeData(v_block_inds, v_blocks, a.dtype, a.data.device)
         w_data = FusionTreeData(a_block_inds, w_blocks, a.dtype.to_real, a.data.device)
-        return w_data, v_data
+        return w_data, v_data, new_leg
 
     def eye_data(self, co_domain: TensorDomain, dtype: Dtype, device: str) -> FusionTreeData:
         # Note: the identity has the same matrix elements in all ONB, so no need to consider

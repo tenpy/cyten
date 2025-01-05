@@ -150,7 +150,9 @@ class NoSymmetryBackend(TensorBackend):
     def diagonal_transpose(self, tens: DiagonalTensor) -> tuple[Space, DiagonalData]:
         return tens.leg.dual, tens.data
 
-    def eigh(self, a: SymmetricTensor, sort: str = None) -> tuple[DiagonalData, Data]:
+    def eigh(self, a: SymmetricTensor, new_leg_dual: bool, sort: str = None
+             ) -> tuple[DiagonalData, Data, ElementarySpace]:
+        new_leg = a.domain.as_ElementarySpace(is_dual=new_leg_dual)
         J = a.num_codomain_legs
         N = 2 * J
         mat = self.block_backend.block_permute_axes(a.data, [*range(J), *reversed(range(J, N))])
@@ -158,7 +160,7 @@ class NoSymmetryBackend(TensorBackend):
         mat = self.block_backend.block_reshape(mat, (k,) * 2)
         w, v = self.block_backend.block_eigh(mat, sort=sort)
         v = self.block_backend.block_reshape(v, a.shape[:J] + (k,))
-        return w, v
+        return w, v, new_leg
 
     def eye_data(self, co_domain: ProductSpace, dtype: Dtype, device: str) -> Data:
         # Note: the identity has the same matrix elements in all ONB, so ne need to consider

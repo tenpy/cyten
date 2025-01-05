@@ -1355,18 +1355,8 @@ def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     T.set_labels(list('efghijk')[:2 * dom])
     T.test_sanity()
 
-    if (not T.backend.can_decompose_tensors) and (dom > 1):
-        # TODO combine_legs currently broken... when fixed, rm this clause and keep the one below
-        with pytest.raises((NotImplementedError, ValueError, IndexError)):
-            _ = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
-        pytest.xfail()
-
-        with pytest.raises(NotImplementedError, match='split_legs not implemented'):
-            _ = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
-        pytest.xfail()
-
     if isinstance(T.backend, backends.AbelianBackend):
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(NotImplementedError, match='combine / split is probably broken during refactoring of spaces'):
             _ = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
         pytest.xfail()
 
@@ -1789,7 +1779,8 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor):
             _ = tensors.outer(A, B, relabel1={'a': 'x'}, relabel2={'h': 'y'})
         pytest.xfail()
     if cls_A is ChargedTensor and cls_B is ChargedTensor:
-        with pytest.raises(NotImplementedError, match='state_tensor_product not implemented'):
+        # with pytest.raises(NotImplementedError, match='state_tensor_product not implemented'):
+        with pytest.raises(NotImplementedError, match='combine / split is probably broken during refactoring of spaces'):
             _ = tensors.outer(A, B, relabel1={'a': 'x'}, relabel2={'h': 'y'})
         pytest.xfail()
 

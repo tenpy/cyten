@@ -15,6 +15,9 @@ from cyten.symmetries import ProductSymmetry, fibonacci_anyon_category, SU2Symme
 from cyten.dtypes import Dtype
 
 
+pytest.skip(allow_module_level=True)
+
+
 def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Generator):
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)

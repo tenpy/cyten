@@ -857,8 +857,14 @@ class AbelianBackend(TensorBackend):
         # OPTIMIZE copy needed?
         return tens.leg.dual, self.copy_data(tens)
 
-    def eigh(self, a: SymmetricTensor, sort: str = None) -> tuple[DiagonalData, Data]:
-        raise NotImplementedError  # TODO revisit after combine_legs is fixed
+    def eigh(self, a: SymmetricTensor, new_leg_dual: bool, sort: str = None
+             ) -> tuple[DiagonalData, Data, ElementarySpace]:
+        # in tensors.py, we do pre-processing such that the following holds:
+        assert a.num_codomain_legs == 1 == a.num_domain_legs
+        assert new_leg_dual == a.domain[0].is_dual  # such that we can use the same block_inds
+        
+        new_leg = a.domain.as_ElementarySpace(is_dual=new_leg_dual)
+        
         a_block_inds = a.data.block_inds
         # for missing blocks, i.e. a zero block, the eigenvalues are zero, so we can just skip
         # adding that block to the eigenvalues.
@@ -873,7 +879,7 @@ class AbelianBackend(TensorBackend):
             v_data.blocks[bi[0]] = vects
         w_data = AbelianBackendData(dtype=a.dtype.to_real, device=a.data.device, blocks=w_blocks,
                                     block_inds=a_block_inds, is_sorted=True)
-        return w_data, v_data
+        return w_data, v_data, new_leg
 
     def eye_data(self, co_domain: ProductSpace, dtype: Dtype, device: str) -> Data:
         # Note: the identity has the same matrix elements in all ONB, so ne need to consider
