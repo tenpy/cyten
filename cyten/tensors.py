@@ -81,7 +81,7 @@ from .spaces import Space, ElementarySpace, ProductSpace, Sector, TensorProduct,
 from .backends.backend_factory import get_backend
 from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order
 from .dtypes import Dtype
-from .tools.misc import to_iterable, rank_data, inverse_permutation, duplicate_entries
+from .tools.misc import to_iterable, rank_data, inverse_permutation, duplicate_entries, iter_common_sorted_arrays
 
 
 __all__ = ['Tensor', 'SymmetricTensor', 'DiagonalTensor', 'ChargedTensor', 'Mask',
@@ -439,6 +439,7 @@ class Tensor(metaclass=ABCMeta):
 
     @property
     def hc(self) -> Tensor:
+        """The :func:`dagger`"""
         return dagger(self)
 
     @property
@@ -493,19 +494,11 @@ class Tensor(metaclass=ABCMeta):
 
         This is the dimension of the space of symmetry-preserving tensors with the given legs.
         """
-        from .tools.misc import iter_common_sorted_arrays
-        # TODO are the domain.sectors actually sorted...?
+        assert self.domain.sector_order == 'sorted' == self.codomain.sector_order
         res = 0
         for i, j in iter_common_sorted_arrays(self.codomain.sector_decomposition, self.domain.sector_decomposition):
             res += self.codomain.multiplicities[i] * self.domain.multiplicities[j]
         return res
-
-    @functools.cached_property
-    def parent_space(self) -> ElementarySpace:
-        """The space that the tensor lives in. This is the product of the :attr:`legs`."""
-        # TODO maybe do sth like::
-        # return TensorProduct.from_parent_space(self).as_ElementarySpace()
-        raise NotImplementedError
 
     @property
     def size(self) -> int:
@@ -516,10 +509,11 @@ class Tensor(metaclass=ABCMeta):
         """
         if not self.symmetry.can_be_dropped:
             raise SymmetryError(f'Tensor.size is not defined for symmetry {self.symmetry}')
-        return self.parent_space.dim
+        return int(self.domain.dim * self.codomain.dim)
 
     @property
     def T(self) -> Tensor:
+        """The :func:`transpose`."""
         return transpose(self)
 
     def __add__(self, other):

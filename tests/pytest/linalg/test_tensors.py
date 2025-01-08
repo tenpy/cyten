@@ -83,7 +83,6 @@ def test_base_Tensor(make_compatible_space, compatible_backend):
             else:
                 with pytest.raises(SymmetryError, match='not defined'):
                     _ = t.size
-            t.parent_space.test_sanity()
         except NotImplementedError:
             pass
         else:
