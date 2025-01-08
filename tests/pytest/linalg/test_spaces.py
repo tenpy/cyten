@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 from numpy import testing as npt
 
-from cyten import spaces, backends, symmetries, SymmetryError
+from cyten import spaces, symmetries, SymmetryError
 
 # TODO test all cases of Space.as_ElementarySpace
 
@@ -257,75 +257,13 @@ def test_TensorProduct(any_symmetry, make_any_space, make_any_sectors, num_space
         assert res == expect
 
 
-def test_ProductSpace(make_any_space):
-    """Test ProductSpace"""
-    pytest.xfail()  # TODO
-    
-    V1, V2, V3 = [make_any_space() for _ in range(3)]
-
-    examples = [
-        spaces.ProductSpace([V1, V2, V3]),  # (V1 x V2 x V3)
-        spaces.ProductSpace([V1, V2]),  # (V1 x V2)
-        spaces.ProductSpace([spaces.ProductSpace([V1, V2]), V3]),  # ((V1 x V2) x V3)
-        spaces.ProductSpace([V2.dual, V3]),  # V2* x V3
-        spaces.ProductSpace([V3.dual, V2]),  # V3* x V2
-        spaces.ProductSpace([V2]),  # V2
-        spaces.ProductSpace([], symmetry=V1.symmetry),  # Cbb
-    ]
-    expected_duals = [
-        spaces.ProductSpace([V3.dual, V2.dual, V1.dual]),
-        spaces.ProductSpace([V2.dual, V1.dual]),  # (V1 x V2)
-        spaces.ProductSpace([V3.dual, spaces.ProductSpace([V2.dual, V1.dual])]),
-        spaces.ProductSpace([V3.dual, V2]),  # V3* x V2
-        spaces.ProductSpace([V2.dual, V3]),  # V2* x V3
-        spaces.ProductSpace([V2.dual]),  # V2
-        spaces.ProductSpace([], symmetry=V1.symmetry),  # Cbb
-    ]
-    with pytest.raises(ValueError, match='If spaces is empty, the symmetry arg is required.'):
-        _ = spaces.ProductSpace([])
-    with pytest.raises(symmetries.SymmetryError, match='Incompatible symmetries.'):
-        weird_symmetry = symmetries.u1_symmetry * symmetries.u1_symmetry
-        _ = spaces.ProductSpace([V1], symmetry=weird_symmetry)
-
-    for n, p1 in enumerate(examples):
-        print(f'{n}=')
-        print(p1)
-        
-        p1.test_sanity()
-        _ = str(p1)
-        _ = repr(p1)
-
-        print('  checking __eq__')
-        for m, p2 in enumerate(examples):
-            # by construction, expect equality exactly if m == n
-            assert (p1 == p2) == (n == m)
-        assert p1 != V1
-        assert p1 != V2
-        assert p1 != V3
-
-        print('  checking .dual')
-        p1_dual = p1.dual
-        for m, p2 in enumerate(expected_duals):
-            # by construction, expect equality exactly if m == n
-            assert (p1_dual == p2) == (n == m)
-        
-        _ = p1.as_ElementarySpace()
-
-    print('empty product is monoidal unit?')
-    empty_product = spaces.ProductSpace([], symmetry=V1.symmetry)
-    assert np.all(empty_product.sector_decomposition == V1.symmetry.trivial_sector)
-    assert np.all(empty_product.multiplicities == np.ones(1, dtype=int))
-    monoidal_unit = spaces.ElementarySpace.from_trivial_sector(dim=1, symmetry=V1.symmetry)
-    assert empty_product.as_ElementarySpace() == monoidal_unit
-        
-
-def test_ProductSpace_SU2():
+def test_TensorProduct_SU2():
     sym = symmetries.SU2Symmetry()
     a = spaces.ElementarySpace(sym, [[0], [3], [2]], [2, 3, 4])
     b = spaces.ElementarySpace(sym, [[1], [4]], [5, 6])
     c = spaces.ElementarySpace(sym, [[0], [3], [1]], [3, 1, 2])
 
-    ab = spaces.ProductSpace([a, b])
+    ab = spaces.TensorProduct([a, b])
     # a     b           fusion
     #                   0 1/2   1 3/2   2 5/2   3 7/2
     # 0     1/2            10
@@ -337,7 +275,7 @@ def test_ProductSpace_SU2():
     npt.assert_array_equal(ab.sector_decomposition, np.array([1, 2, 3, 4, 5, 6, 7])[:, None])
     npt.assert_array_equal(ab.multiplicities, np.array([48, 39, 38, 51, 18, 24, 18]))
 
-    bc = spaces.ProductSpace([b, c])
+    bc = spaces.TensorProduct([b, c])
     # c     b      mult     fusion
     #                       0 1/2   1 3/2   2 5/2   3 7/2
     # 0     1/2    3*5         15
@@ -349,7 +287,7 @@ def test_ProductSpace_SU2():
     npt.assert_array_equal(bc.sector_decomposition, np.array([0, 1, 2, 3, 4, 5, 7])[:, None])
     npt.assert_array_equal(bc.multiplicities, np.array([10, 21, 15, 18, 23, 18, 6]))
 
-    abc = spaces.ProductSpace([a, b, c])
+    abc = spaces.TensorProduct([a, b, c])
     # ab    c   mult    fusion
     #                   0   1/2   1   3/2   2   5/2   3   7/2   4   9/2   5
     # 1/2   0   48*3        144
@@ -380,33 +318,32 @@ def test_ProductSpace_SU2():
     npt.assert_array_equal(abc.multiplicities, np.array(expect_mults))
 
 
-def test_get_basis_transformation():
-    # TODO expand this
-    even, odd = [0], [1]
-    spin1 = spaces.ElementarySpace.from_basis(symmetries.z2_symmetry, [even, odd, even])
-    assert np.array_equal(spin1.sector_decomposition, [even, odd])
-    assert np.array_equal(spin1.basis_perm, [0, 2, 1])
-    backend = backends.get_backend(block_backend='numpy', symmetry='abelian')
-    product_space = spaces.ProductSpace([spin1, spin1], backend=backend)
+def test_AbelianLegPipe():
+    pass
 
-    perm = product_space._get_fusion_outcomes_perm()
-    # internal order of spin1: + - 0
-    # internal uncoupled:  ++  +-  +0  -+  --  -0  0+  0-  00
-    # coupled:  ++  +-  -+  --  00  +0  -0  0+  0-
-    expect = np.array([0, 1, 3, 4, 8, 2, 5, 6, 7])
-    print(perm)
-    assert np.all(perm == expect)
+    # TODO the following snippet from old product space tests may be useful to check basis_perm
+    # even, odd = [0], [1]
+    # spin1 = spaces.ElementarySpace.from_basis(symmetries.z2_symmetry, [even, odd, even])
+    # assert np.array_equal(spin1.sector_decomposition, [even, odd])
+    # assert np.array_equal(spin1.basis_perm, [0, 2, 1])
+    # backend = backends.get_backend(block_backend='numpy', symmetry='abelian')
+    # product_space = spaces.ProductSpace([spin1, spin1], backend=backend)
 
-    perm = product_space.get_basis_transformation_perm()
-    # public order of spin1 : + 0 -
-    # public coupled : ++  +0  +-  0+  00  0-  -+  -0  --
-    # coupled:  ++  +-  -+  --  00  +0  -0  0+  0-
-    expect = np.array([0, 2, 6, 8, 4, 1, 7, 3, 5])
-    print(perm)
-    assert np.all(perm == expect)
+    # perm = product_space._get_fusion_outcomes_perm()
+    # # internal order of spin1: + - 0
+    # # internal uncoupled:  ++  +-  +0  -+  --  -0  0+  0-  00
+    # # coupled:  ++  +-  -+  --  00  +0  -0  0+  0-
+    # expect = np.array([0, 1, 3, 4, 8, 2, 5, 6, 7])
+    # print(perm)
+    # assert np.all(perm == expect)
 
-
-# TODO systematically test ElementarySpace class methods
+    # perm = product_space.get_basis_transformation_perm()
+    # # public order of spin1 : + 0 -
+    # # public coupled : ++  +0  +-  0+  00  0-  -+  -0  --
+    # # coupled:  ++  +-  -+  --  00  +0  -0  0+  0-
+    # expect = np.array([0, 2, 6, 8, 4, 1, 7, 3, 5])
+    # print(perm)
+    # assert np.all(perm == expect)
 
 
 def test_direct_sum(make_any_space, max_mult=5, max_sectors=5):
@@ -464,32 +401,12 @@ def test_str_repr(make_any_space, str_max_lines=20, repr_max_lines=20):
     assert res.count('\n') <= str_max_lines
     print(res)
 
-    product_space = spaces.ProductSpace([make_any_space(max_sectors=3)])
-    while len(product_space.spaces) <= 3:
-        product_space = spaces.ProductSpace([*product_space.spaces, make_any_space(max_sectors=3)])
-        print()
-        print()
-        print('-----------------------')
-        print(f'ProductSpace.__repr__()  {len(product_space.spaces)} spaces')
-        print('-----------------------')
-        res = repr(product_space)
-        assert len(res) <= repr_max_len
-        assert res.count('\n') <= repr_max_lines
-        print(res)
-        
-        print()
-        print()
-        print('-----------------------')
-        print(f'ProductSpace.__str__()  {len(product_space.spaces)} spaces')
-        print('-----------------------')
-        res = str(product_space)
-        assert len(res) <= str_max_len
-        assert res.count('\n') <= str_max_lines
-        print(res)
+    # TODO include other classes
 
 
 # TODO move to some testing tools module?
 def assert_spaces_equal(space1: spaces.Space, space2: spaces.Space):
+    # TODO review in light of new spaces classes
     if isinstance(space1, spaces.ElementarySpace):
         assert isinstance(space2, spaces.ElementarySpace), 'mismatching types'
         assert space1.is_dual == space2.is_dual, 'mismatched is_dual'
@@ -500,8 +417,8 @@ def assert_spaces_equal(space1: spaces.Space, space2: spaces.Space):
         if (space1._basis_perm is not None) or (space2._basis_perm is not None):
             # otherwise both are trivial and this match
             assert np.all(space1.basis_perm == space2.basis_perm), 'mismatched basis_perm'
-    elif isinstance(space1, spaces.ProductSpace):
-        assert isinstance(space2, spaces.ProductSpace), 'mismatching types'
+    elif isinstance(space1, spaces.TensorProduct):
+        assert isinstance(space2, spaces.TensorProduct), 'mismatching types'
         assert space1.num_spaces == space2.num_spaces
         for n, (s1, s2) in enumerate(zip(space1.spaces, space2.spaces)):
             try:

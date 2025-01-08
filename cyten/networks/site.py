@@ -30,7 +30,7 @@ from ..tensors import (Tensor, SymmetricTensor, ChargedTensor, DiagonalTensor, a
 from ..backends import TensorBackend, Block
 from ..symmetries import (ProductSymmetry, Symmetry, SU2Symmetry, U1Symmetry, ZNSymmetry,
                           no_symmetry, SectorArray)
-from ..spaces import Space, ElementarySpace, ProductSpace
+from ..spaces import Space, ElementarySpace, LegPipe
 from ..tools.misc import find_subclass, make_stride
 
 # TODO add import/export by making Site a subclass of HDF5Exportable again
@@ -722,7 +722,11 @@ class GroupedSite(Site):
         # to use kroneckerproduct
         self.backend = backend = sites[0].backend
         assert all(s.backend == backend for s in sites)
-        self.leg = leg = ProductSpace(legs, backend=backend)
+
+        # TODO revise this. how do we get the right pipe depending on the backend? backend.make_pipe?
+        raise NotImplementedError
+
+        self.leg = leg = LegPipe(legs, backend=backend)
         # initialize Site
         JW_all = self.kroneckerproduct([s.JW for s in sites])
         Site.__init__(self, leg, backend=backend, state_labels=None, JW=JW_all)

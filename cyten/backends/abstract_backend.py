@@ -11,7 +11,7 @@ from math import prod
 import numpy as np
 
 from ..symmetries import Symmetry
-from ..spaces import Space, ElementarySpace, ProductSpace
+from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe
 from ..dtypes import Dtype
 from ..tools.misc import combine_constraints
 
@@ -107,7 +107,7 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def add_trivial_leg(self, a: SymmetricTensor, legs_pos: int, add_to_domain: bool,
-                        co_domain_pos: int, new_codomain: ProductSpace, new_domain: ProductSpace
+                        co_domain_pos: int, new_codomain: TensorProduct, new_domain: TensorProduct
                         ) -> Data:
         ...
 
@@ -123,9 +123,9 @@ class TensorBackend(metaclass=ABCMeta):
     def combine_legs(self,
                      tensor: SymmetricTensor,
                      leg_idcs_combine: list[list[int]],
-                     product_spaces: list[ProductSpace],
-                     new_codomain: ProductSpace,
-                     new_domain: ProductSpace,
+                     product_spaces: list[LegPipe],
+                     new_codomain: TensorProduct,
+                     new_domain: TensorProduct,
                      ) -> Data:
         """Implementation of :func:`cyten.tensors.combine_legs`.
 
@@ -140,18 +140,18 @@ class TensorBackend(metaclass=ABCMeta):
             The tensor to modify
         leg_idcs_combine: list of list of int
             A list of groups. Each group a list of integer leg indices, to be combined.
-        product_spaces: list of ProductSpace
-            The resulting ProductSpaces. Same length and order as `leg_idcs_combine`.
+        product_spaces: list of LegPipe
+            The resulting pipes. Same length and order as `leg_idcs_combine`.
             In the domain, this is the product space as it will appear in the domain, not in legs.
         new_codomain_combine:
             A list of tuples ``(positions, combined)``, where positions are all the codomain-indices
-            which should be combined and ``combined`` is the resulting :class:`ProductSpace`,
-            i.e. ``combined == ProductSpace([tensor.codomain[n] for n in positions])``
+            which should be combined and ``combined`` is the resulting :class:`LegPipe`,
+            i.e. ``combined == LegPipe([tensor.codomain[n] for n in positions])``
         new_domain_combine:
             Similar as `new_codomain_combine` but for the domain. Note that ``positions`` are
             domain-indices, i.e ``n = positions[i]`` refers to ``tensor.domain[n]``, *not*
             ``tensor.legs[n]`` !
-        new_codomain, new_domain: ProductSpace
+        new_codomain, new_domain: TensorProduct
             The codomain and domain of the resulting tensor
         """
         ...
@@ -235,12 +235,12 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def diagonal_from_block(self, a: Block, co_domain: ProductSpace, tol: float) -> DiagonalData:
+    def diagonal_from_block(self, a: Block, co_domain: TensorProduct, tol: float) -> DiagonalData:
         """The DiagonalData from a 1D block in *internal* basis order."""
         ...
 
     @abstractmethod
-    def diagonal_from_sector_block_func(self, func, co_domain: ProductSpace) -> DiagonalData:
+    def diagonal_from_sector_block_func(self, func, co_domain: TensorProduct) -> DiagonalData:
         """Generate diagonal data from a function.
 
         Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
@@ -313,7 +313,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def eye_data(self, co_domain: ProductSpace, dtype: Dtype, device: str) -> Data:
+    def eye_data(self, co_domain: TensorProduct, dtype: Dtype, device: str) -> Data:
         """Data for :meth:``SymmetricTensor.eye``.
 
         The result has legs ``first_legs + [l.dual for l in reversed(firs_legs)]``.
@@ -321,7 +321,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def from_dense_block(self, a: Block, codomain: ProductSpace, domain: ProductSpace, tol: float
+    def from_dense_block(self, a: Block, codomain: TensorProduct, domain: TensorProduct, tol: float
                          ) -> Data:
         """Convert a dense block to the data for a symmetric tensor.
 
@@ -342,12 +342,12 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def from_random_normal(self, codomain: ProductSpace, domain: ProductSpace, sigma: float,
+    def from_random_normal(self, codomain: TensorProduct, domain: TensorProduct, sigma: float,
                            dtype: Dtype, device: str) -> Data:
         ...
 
     @abstractmethod
-    def from_sector_block_func(self, func, codomain: ProductSpace, domain: ProductSpace) -> Data:
+    def from_sector_block_func(self, func, codomain: TensorProduct, domain: TensorProduct) -> Data:
         """Generate tensor data from a function-
 
         Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
@@ -466,7 +466,7 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
-                                ) -> tuple[Data, ProductSpace, ProductSpace]:
+                                ) -> tuple[Data, TensorProduct, TensorProduct]:
         """Contraction with the large leg of a Mask.
 
         Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
@@ -478,7 +478,7 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
-                                ) -> tuple[Data, ProductSpace, ProductSpace]:
+                                ) -> tuple[Data, TensorProduct, TensorProduct]:
         """Contraction with the small leg of a Mask.
         
         Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
@@ -557,7 +557,7 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def partial_trace(self, tensor: SymmetricTensor, pairs: list[tuple[int, int]],
-                      levels: list[int] | None) -> tuple[Data, ProductSpace, ProductSpace]:
+                      levels: list[int] | None) -> tuple[Data, TensorProduct, TensorProduct]:
         """Perform an arbitrary number of traces. Pairs are converted to leg idcs.
         
         Returns ``data, codomain, domain``.
@@ -566,7 +566,7 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:
+                     levels: list[int] | None) -> tuple[Data | None, TensorProduct, TensorProduct]:
         """Permute legs on the tensors.
 
         codomain_idcs, domain_idcs:
@@ -610,7 +610,7 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
-                   domain_split: list[int], new_codomain: ProductSpace, new_domain: ProductSpace
+                   domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
                    ) -> Data:
         """Split (multiple) product space legs.
 
@@ -642,7 +642,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def state_tensor_product(self, state1: Block, state2: Block, prod_space: ProductSpace):
+    def state_tensor_product(self, state1: Block, state2: Block, prod_space: LegPipe):
         """TODO clearly define what this should do in tensors.py first!
 
         In particular regarding basis orders.
@@ -676,7 +676,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def transpose(self, a: SymmetricTensor) -> tuple[Data, ProductSpace, ProductSpace]:
+    def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorProduct, TensorProduct]:
         """Returns ``data, new_codomain, new_domain``.
         
         Note that ``new_codomain == a.domain.dual`` and ``new_domain == a.codomain.dual``.
@@ -786,7 +786,7 @@ class TensorBackend(metaclass=ABCMeta):
         return mask, err, new_norm
 
     @abstractmethod
-    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str,
+    def zero_data(self, codomain: TensorProduct, domain: TensorProduct, dtype: Dtype, device: str,
                   all_blocks: bool = False) -> Data:
         """Data for a zero tensor.
 
@@ -800,26 +800,13 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype, device: str
+    def zero_diagonal_data(self, co_domain: TensorProduct, dtype: Dtype, device: str
                            ) -> DiagonalData:
         ...
 
     @abstractmethod
     def zero_mask_data(self, large_leg: Space, device: str) -> MaskData:
         ...
-
-    # OPTIONALLY OVERRIDE THESE
-
-    def _fuse_spaces(self, symmetry: Symmetry, spaces: list[Space]):
-        """Backends may override the behavior of linalg.spaces._fuse_spaces.
-
-        They may add their backend-specific metadata alongside the sectors.
-        """
-        raise NotImplementedError
-
-    def get_leg_metadata(self, leg: Space) -> dict:
-        """Get just the metadata returned by :meth:`_fuse_spaces`, without the sectors."""
-        return {}
 
     def is_real(self, a: SymmetricTensor) -> bool:
         """If the Tensor is comprised of real numbers.
@@ -1415,8 +1402,8 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
 
-def conventional_leg_order(tensor_or_codomain: SymmetricTensor | ProductSpace,
-                           domain: ProductSpace = None) -> Iterator[Space]:
+def conventional_leg_order(tensor_or_codomain: SymmetricTensor | TensorProduct,
+                           domain: TensorProduct = None) -> Iterator[Space]:
     if domain is None:
         codomain = tensor_or_codomain.codomain
         domain = tensor_or_codomain.domain

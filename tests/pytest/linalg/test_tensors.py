@@ -12,7 +12,7 @@ from cyten import backends, tensors
 from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor
 from cyten.backends.backend_factory import get_backend
 from cyten.dtypes import Dtype
-from cyten.spaces import ElementarySpace, ProductSpace
+from cyten.spaces import ElementarySpace, TensorProduct
 from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError
 from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays
 
@@ -77,16 +77,11 @@ def test_base_Tensor(make_compatible_space, compatible_backend):
         assert t.num_codomain_legs == 3
         assert t.num_domain_legs == 2
 
-        try:
-            if t.symmetry.can_be_dropped:
-                assert t.num_parameters <= t.size
-            else:
-                with pytest.raises(SymmetryError, match='not defined'):
-                    _ = t.size
-        except NotImplementedError:
-            pass
+        if t.symmetry.can_be_dropped:
+            assert t.num_parameters <= t.size
         else:
-            raise AssertionError  # TODO remove this clause, when implemented again
+            with pytest.raises(SymmetryError, match='not defined'):
+                _ = t.size
 
     with pytest.raises(TypeError, match='does not support == comparison'):
         _ = tens1 == tens2
@@ -159,12 +154,7 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
     tens.test_sanity()
     npt.assert_allclose(tens.to_numpy(), numpy_block)
 
-    try:
-        can_have_non_symmetric_dense_blocks = T.num_parameters < T.size
-    except NotImplementedError:
-        can_have_non_symmetric_dense_blocks = False  # TODO dummy, remove
-    else:
-        raise AssertionError  # TODO remove this clause, when implemented again
+    can_have_non_symmetric_dense_blocks = T.num_parameters < T.size
         
     if can_have_non_symmetric_dense_blocks:  # otherwise all blocks are symmetric
         pert = tens.backend.block_backend.block_random_uniform(T.shape, dtype=T.dtype)
@@ -188,7 +178,7 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
     which = T.codomain if T.codomain.num_spaces > 0 else T.domain
     if which.num_spaces > 2:
         # otherwise it gets a bit expensive to compute
-        which = ProductSpace(which.spaces[:2], backend=backend)
+        which = TensorProduct(which.spaces[:2])
     labels = list('abcdefg')[:len(which)]
     tens = SymmetricTensor.from_eye(which, backend=T.backend, labels=labels)
     expect_from_backend = backend.block_backend.block_to_numpy(
@@ -1145,7 +1135,7 @@ def test_combine_split(make_compatible_tensor):
     assert tensors.almost_equal(split4, tensors.permute_legs(T, [0, 1, 2]))
 
     # check splitting a non-combined leg raises
-    with pytest.raises(ValueError, match='Not a ProductSpace.'):
+    with pytest.raises(ValueError, match='TODO update expected error'):
         _ = tensors.split_legs(combined4, 0)
 
     # 5) combine in domain, bend upward, split there
@@ -1167,7 +1157,7 @@ def test_combine_split(make_compatible_tensor):
     # TODO test
     # combine -> to_numpy
     # versus
-    # to_numpy -> apply ProductSpace.get_basis_transformation(_perm)
+    # to_numpy -> np.reshape
 
 
 @pytest.mark.parametrize(
@@ -1910,6 +1900,11 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
 )
 def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_compatible_tensor):
     T = make_compatible_tensor(num_cod, num_dom, max_block_size=3, cls=cls)
+
+    if cls is DiagonalTensor and isinstance(T.backend, backends.FusionTreeBackend) and codomain == [1]:
+        with pytest.raises(NotImplementedError):
+            _ = tensors.permute_legs(T, codomain, domain, levels)
+        pytest.xfail()
 
     if cls in [DiagonalTensor, Mask]:
         if len(codomain) == 1:

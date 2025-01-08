@@ -11,7 +11,7 @@ from .abstract_backend import (
 )
 from ..dtypes import Dtype
 from ..symmetries import Sector, SectorArray, Symmetry
-from ..spaces import Space, ElementarySpace, ProductSpace, TensorProduct
+from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe
 from ..trees import FusionTree, fusion_trees
 from ..tools.misc import (
     inverse_permutation, iter_common_sorted_arrays, iter_common_noncommon_sorted,
@@ -205,15 +205,15 @@ class FusionTreeData:
 class FusionTreeBackend(TensorBackend):
     """A backend based on fusion trees.
 
-    `ProductSpace`s on the individual legs of the tensors are not supported, only
-    `ElementarySpace`s are allowed. The reason for this is that product spaces transform
-    nontrivially upon, e.g., bending the corresponding leg, which necessitates further
-    transformations within the leg itself.
+    TODO this no longer applies::
+        `ProductSpace`s on the individual legs of the tensors are not supported, only
+        `ElementarySpace`s are allowed. The reason for this is that product spaces transform
+        nontrivially upon, e.g., bending the corresponding leg, which necessitates further
+        transformations within the leg itself.
 
-    TODO this no longer applies:
-    Therefore, the presence of a `ProductSpace` is checked in `test_leg_sanity` and
-    methods that always involve a `ProductSpace` (like `combine_legs` or `split_legs`)
-    raise errors.
+        Therefore, the presence of a `ProductSpace` is checked in `test_leg_sanity` and
+        methods that always involve a `ProductSpace` (like `combine_legs` or `split_legs`)
+        raise errors.
     """
 
     DataCls = FusionTreeData
@@ -298,9 +298,9 @@ class FusionTreeBackend(TensorBackend):
     def combine_legs(self,
                      tensor: SymmetricTensor,
                      leg_idcs_combine: list[list[int]],
-                     product_spaces: list[ProductSpace],
-                     new_codomain: ProductSpace,
-                     new_domain: ProductSpace,
+                     product_spaces: list[LegPipe],
+                     new_codomain: TensorProduct,
+                     new_domain: TensorProduct,
                      ) -> Data:
         raise RuntimeError(self.err_msg_prodspace)
 
@@ -494,6 +494,7 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError('diagonal_to_mask not implemented')
 
     def diagonal_transpose(self, tens: DiagonalTensor) -> tuple[Space, DiagonalData]:
+        raise NotImplementedError  # TODO
         dual_leg, perm = tens.leg._dual_space(return_perm=True)  # TODO probably, this perm should be irrelevant
         data = FusionTreeData(block_inds=inverse_permutation(perm)[tens.data.block_inds],
                               blocks=tens.data.blocks, dtype=tens.dtype, device=tens.data.device)
@@ -1104,7 +1105,7 @@ class FusionTreeBackend(TensorBackend):
         vh_data = FusionTreeData(vh_block_inds, vh_blocks, a.dtype, a.data.device)
         return u_data, s_data, vh_data
 
-    def state_tensor_product(self, state1: Block, state2: Block, prod_space: ProductSpace):
+    def state_tensor_product(self, state1: Block, state2: Block, prod_space: LegPipe):
         # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError
 
@@ -1260,13 +1261,6 @@ class FusionTreeBackend(TensorBackend):
     def zero_mask_data(self, large_leg: Space, device: str,) -> MaskData:
         return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=Dtype.bool,
                               device=device)
-
-    # OPTIONAL OVERRIDES
-
-    def _fuse_spaces(self, symmetry: Symmetry, spaces: list[Space]):
-        for space in spaces:
-            assert not isinstance(space, ProductSpace), self.err_msg_prodspace
-        raise NotImplementedError
 
     # INTERNAL FUNCTIONS
 

@@ -17,7 +17,7 @@ from typing import Literal
 import numpy as np
 from scipy.sparse.linalg import LinearOperator as ScipyLinearOperator, ArpackNoConvergence
 
-from .spaces import Space, ProductSpace, Sector
+from .spaces import Space, TensorProduct, Sector
 from .tensors import Tensor, SymmetricTensor, ChargedTensor
 from .backends.abstract_backend import TensorBackend
 from .dtypes import Dtype
@@ -73,7 +73,7 @@ class LinearOperator(metaclass=ABCMeta):
 
     def to_matrix(self, backend: TensorBackend = None) -> Tensor:
         """The tensor representation of self, reshaped to a matrix."""
-        # OPTIMIZE could find a way to store the ProductSpace and use it here
+        # OPTIMIZE could find a way to store the TensorProduct and use it here
         N = self.vector_shape.num_legs
         return self.to_tensor(backend=backend).combine_legs(list(range(N)), list(range(N, 2 * N)))
 
@@ -368,7 +368,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         The number of times `cyten_matvec` was called.
     N : int
         The length of the numpy vectors that this operator acts on
-    domain : :class:`~cyten.spaces.ProductSpace`
+    domain : :class:`~cyten.spaces.TensorProduct`
         The product of the :attr:`legs`. Self is an operator on either this entire space,
         or one of its sectors, as specified by :attr:`charge_sector`.
     symmetry
@@ -383,9 +383,9 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         self.cyten_matvec = cyten_matvec
         self.legs = legs
         self.backend = backend
-        # even if there is just one leg, we form the ProductSpace anyway, so we dont have to distinguish
+        # even if there is just one leg, we form the TensorProduct anyway, so we dont have to distinguish
         #  cases and use combine_legs / split_legs in np_to_tensor and tensor_to_np
-        self.domain = ProductSpace(legs, backend=backend)
+        self.domain = TensorProduct(legs, backend=backend)
         self.symmetry = legs[0].symmetry
         self.matvec_count = 0
         self.labels = labels

@@ -3,12 +3,12 @@
 Changes compared to old np_conserved:
 
 - replace `ChargeInfo` by subclasses of `AbelianGroup` (or `ProductSymmetry`)
-- replace `LegCharge` by `ElementarySpace` and `LegPipe` by `ProductSpace`. Changed class hierarchy!
+- replace `LegCharge` by `ElementarySpace` and `LegPipe` by `AbelianLegPipe`. Changed class hierarchy!
 - standard `Tensor` have qtotal=0, only ChargedTensor can have non-zero qtotal
 - relabeling:
     - `Array.qdata`, "qind" and "qindices" to `AbelianBackendData.block_inds` and "block indices"
-    - `LegPipe.qmap` to `ProductSpace.metadata['_block_ind_map']` (with changed column order!!!)
-    - `LegPipe._perm` to `ProductSpace._perm_block_inds_map`  TODO (JU) this is outdated np?
+    - `LegPipe.qmap` to `AbelianLegPipe.block_ind_map` (with changed column order!!!)
+    - `LegPipe._perm` to `AbelianLegPipe.perm_block_inds_map`  TODO (JU) this is outdated np?
     - `LegCharge.get_block_sizes()` is just `Space.multiplicities`
 - TODO point towards Space attributes
 - keep spaces "sorted" and "bunched",
@@ -29,8 +29,8 @@ from .abstract_backend import (
     TensorBackend, Data, DiagonalData, MaskData, Block, conventional_leg_order
 )
 from ..dtypes import Dtype
-from ..symmetries import BraidingStyle, Symmetry, SectorArray
-from ..spaces import Space, ElementarySpace, ProductSpace, LegPipe, AbelianLegPipe
+from ..symmetries import BraidingStyle, Symmetry
+from ..spaces import Space, ElementarySpace, LegPipe, AbelianLegPipe, TensorProduct
 from ..tools.misc import (
     inverse_permutation, list_to_dict_list, rank_data, iter_common_noncommon_sorted_arrays,
     iter_common_sorted, iter_common_sorted_arrays, make_stride, find_row_differences
@@ -45,7 +45,7 @@ if TYPE_CHECKING:
     from ..tensors import SymmetricTensor, DiagonalTensor, Mask
 
 
-def _valid_block_inds(codomain: ProductSpace, domain: ProductSpace):
+def _valid_block_inds(codomain: TensorProduct, domain: TensorProduct):
     # OPTIMIZE: this is brute-force going through all possible combinations of block indices
     # spaces are sorted, so we can probably reduce that search space quite a bit...
     M = codomain.num_spaces
@@ -261,7 +261,7 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(dtype, a.data.device, res_blocks, all_block_inds, is_sorted=True)
 
     def add_trivial_leg(self, a: SymmetricTensor, legs_pos: int, add_to_domain: bool,
-                        co_domain_pos: int, new_codomain: ProductSpace, new_domain: ProductSpace
+                        co_domain_pos: int, new_codomain: TensorProduct, new_domain: TensorProduct
                         ) -> Data:
         blocks = [self.block_backend.block_add_axis(block, legs_pos) for block in a.data.blocks]
         block_inds = np.insert(a.data.block_inds, legs_pos, 0, axis=1)
@@ -305,10 +305,11 @@ class AbelianBackend(TensorBackend):
     def combine_legs(self,
                      tensor: SymmetricTensor,
                      leg_idcs_combine: list[list[int]],
-                     product_spaces: list[ProductSpace],
-                     new_codomain: ProductSpace,
-                     new_domain: ProductSpace,
+                     product_spaces: list[LegPipe],
+                     new_codomain: TensorProduct,
+                     new_domain: TensorProduct,
                      ) -> Data:
+        # TODO product_space.metadata['_name'] is now lep_pipe.name, laxly
         num_result_legs = tensor.num_legs - sum(len(group) - 1 for group in leg_idcs_combine)
         old_blocks = tensor.data.blocks
         old_block_inds = tensor.data.block_inds
@@ -744,7 +745,7 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(dtype=dtype, device=a.data.device, blocks=blocks,
                                   block_inds=block_inds, is_sorted=True)
 
-    def diagonal_from_block(self, a: Block, co_domain: ProductSpace, tol: float) -> DiagonalData:
+    def diagonal_from_block(self, a: Block, co_domain: TensorProduct, tol: float) -> DiagonalData:
         leg = co_domain.spaces[0]
         dtype = self.block_backend.block_dtype(a)
         block_inds = np.repeat(np.arange(co_domain.num_sectors)[:, None], 2, axis=1)
@@ -752,7 +753,7 @@ class AbelianBackend(TensorBackend):
         device = self.block_backend.block_get_device(a)
         return AbelianBackendData(dtype, device, blocks, block_inds, is_sorted=True)
 
-    def diagonal_from_sector_block_func(self, func, co_domain: ProductSpace) -> DiagonalData:
+    def diagonal_from_sector_block_func(self, func, co_domain: TensorProduct) -> DiagonalData:
         leg = co_domain.spaces[0]
         block_inds = np.repeat(np.arange(leg.num_sectors)[:, None], 2, axis=1)
         blocks = [func((mult,), coupled)
@@ -853,7 +854,7 @@ class AbelianBackend(TensorBackend):
                                     block_inds=a_block_inds, is_sorted=True)
         return w_data, v_data, new_leg
 
-    def eye_data(self, co_domain: ProductSpace, dtype: Dtype, device: str) -> Data:
+    def eye_data(self, co_domain: TensorProduct, dtype: Dtype, device: str) -> Data:
         # Note: the identity has the same matrix elements in all ONB, so ne need to consider
         #       the basis perms.
         # results[i1,...im,jm,...,j1] = delta_{i1,j1} ... delta{im,jm}
@@ -871,7 +872,7 @@ class AbelianBackend(TensorBackend):
             blocks.append(self.block_backend.eye_block(shape, dtype, device=device))
         return AbelianBackendData(dtype, device, blocks, block_inds, is_sorted=True)
 
-    def from_dense_block(self, a: Block, codomain: ProductSpace, domain: ProductSpace, tol: float
+    def from_dense_block(self, a: Block, codomain: TensorProduct, domain: TensorProduct, tol: float
                          ) -> AbelianBackendData:
         dtype = self.block_backend.block_dtype(a)
         device = self.block_backend.block_get_device(a)
@@ -897,14 +898,14 @@ class AbelianBackend(TensorBackend):
             blocks=[block], block_inds=np.array([[bi]]), is_sorted=True
         )
 
-    def from_random_normal(self, codomain: ProductSpace, domain: ProductSpace, sigma: float,
+    def from_random_normal(self, codomain: TensorProduct, domain: TensorProduct, sigma: float,
                            dtype: Dtype, device: str) -> Data:
         def func(shape, coupled):
             return self.block_backend.block_random_normal(shape, dtype, sigma, device=device)
         
         return self.from_sector_block_func(func, codomain=codomain, domain=domain)
 
-    def from_sector_block_func(self, func, codomain: ProductSpace, domain: ProductSpace) -> Data:
+    def from_sector_block_func(self, func, codomain: TensorProduct, domain: TensorProduct) -> Data:
         """Generate tensor data from a function ``func(shape: tuple[int], coupled: Sector) -> Block``."""
         block_inds = _valid_block_inds(codomain=codomain, domain=domain)
         M = codomain.num_spaces
@@ -1148,15 +1149,15 @@ class AbelianBackend(TensorBackend):
         return data, small_leg
 
     def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
-                                ) -> tuple[Data, ProductSpace, ProductSpace]:
+                                ) -> tuple[Data, TensorProduct, TensorProduct]:
         return self._mask_contract(tensor, mask, leg_idx, large_leg=True)
 
     def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
-                                ) -> tuple[Data, ProductSpace, ProductSpace]:
+                                ) -> tuple[Data, TensorProduct, TensorProduct]:
         return self._mask_contract(tensor, mask, leg_idx, large_leg=False)
 
     def _mask_contract(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int, large_leg: bool
-                       ) -> tuple[Data, ProductSpace, ProductSpace]:
+                       ) -> tuple[Data, TensorProduct, TensorProduct]:
         in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg_idx)
         if in_domain:
             assert mask.is_projection != large_leg
@@ -1209,12 +1210,12 @@ class AbelianBackend(TensorBackend):
             codomain = tensor.codomain
             spaces = tensor.domain.spaces[:]
             spaces[co_domain_idx] = mask.small_leg if large_leg else mask.large_leg
-            domain = ProductSpace(spaces, symmetry=tensor.symmetry, backend=self)
+            domain = TensorProduct(spaces, symmetry=tensor.symmetry)
         else:
             domain = tensor.domain
             spaces = tensor.codomain.spaces[:]
             spaces[co_domain_idx] = mask.small_leg if large_leg else mask.large_leg
-            codomain = ProductSpace(spaces, symmetry=tensor.symmetry, backend=self)
+            codomain = TensorProduct(spaces, symmetry=tensor.symmetry)
         return data, codomain, domain
 
     def mask_dagger(self, mask: Mask) -> MaskData:
@@ -1396,7 +1397,7 @@ class AbelianBackend(TensorBackend):
                                   is_sorted=False)
 
     def partial_trace(self, tensor: SymmetricTensor, pairs: list[tuple[int, int]],
-                      levels: list[int] | None) -> tuple[Data, ProductSpace, ProductSpace]:
+                      levels: list[int] | None) -> tuple[Data, TensorProduct, TensorProduct]:
         N = tensor.num_legs
         K = tensor.num_codomain_legs
         idcs1 = []
@@ -1463,18 +1464,18 @@ class AbelianBackend(TensorBackend):
             res_block_inds = np.array(list(res_data.keys()), int)
         data = AbelianBackendData(tensor.dtype, tensor.data.device, res_blocks, res_block_inds,
                                   is_sorted=False)
-        codomain = ProductSpace(
+        codomain = TensorProduct(
             [leg for n, leg in enumerate(tensor.codomain) if n in remaining],
-            symmetry=tensor.symmetry, backend=self
+            symmetry=tensor.symmetry
         )
-        domain = ProductSpace(
+        domain = TensorProduct(
             [leg for n, leg in enumerate(tensor.domain) if N - 1 - n in remaining],
-            symmetry=tensor.symmetry, backend=self
+            symmetry=tensor.symmetry
         )
         return data, codomain, domain
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:
+                     levels: list[int] | None) -> tuple[Data | None, TensorProduct, TensorProduct]:
         codomain_legs = []
         for i in codomain_idcs:
             in_domain, co_domain_idx, _ = a._parse_leg_idx(i)
@@ -1482,7 +1483,7 @@ class AbelianBackend(TensorBackend):
                 codomain_legs.append(a.domain[co_domain_idx].dual)
             else:
                 codomain_legs.append(a.codomain[co_domain_idx])
-        codomain = ProductSpace(codomain_legs, symmetry=a.symmetry, backend=self)
+        codomain = TensorProduct(codomain_legs, symmetry=a.symmetry)
         #
         domain_legs = []
         for i in domain_idcs:
@@ -1491,7 +1492,7 @@ class AbelianBackend(TensorBackend):
                 domain_legs.append(a.domain[co_domain_idx])
             else:
                 domain_legs.append(a.codomain[co_domain_idx].dual)
-        domain = ProductSpace(domain_legs, symmetry=a.symmetry, backend=self)
+        domain = TensorProduct(domain_legs, symmetry=a.symmetry)
         #
         axes_perm = [*codomain_idcs, *reversed(domain_idcs)]
         blocks = [self.block_backend.block_permute_axes(block, axes_perm) for block in a.data.blocks]
@@ -1603,7 +1604,7 @@ class AbelianBackend(TensorBackend):
                                   is_sorted=False)
 
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
-                   domain_split: list[int], new_codomain: ProductSpace, new_domain: ProductSpace
+                   domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
                    ) -> Data:
         # TODO (JH) below, we implement it by first generating the block_inds of the splitted tensor and
         # then extract subblocks from the original one.
@@ -1755,7 +1756,7 @@ class AbelianBackend(TensorBackend):
         vh_data = AbelianBackendData(a.dtype, a.data.device, vh_blocks, vh_block_inds, is_sorted=True)
         return u_data, s_data, vh_data
 
-    def state_tensor_product(self, state1: Block, state2: Block, prod_space: ProductSpace):
+    def state_tensor_product(self, state1: Block, state2: Block, prod_space: AbelianLegPipe):
         # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
 
@@ -1794,7 +1795,7 @@ class AbelianBackend(TensorBackend):
             # else: block is entirely off-diagonal and does not contribute to the trace
         return res
 
-    def transpose(self, a: SymmetricTensor) -> tuple[Data, ProductSpace, ProductSpace]:
+    def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorProduct, TensorProduct]:
         return self.permute_legs(a,
                                  codomain_idcs=list(range(a.num_codomain_legs, a.num_legs)),
                                  domain_idcs=list(reversed(range(a.num_codomain_legs))),
@@ -1812,7 +1813,7 @@ class AbelianBackend(TensorBackend):
         mask_data, small_leg = self.mask_from_block(keep, large_leg=S.leg)
         return mask_data, small_leg, err, new_norm
 
-    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype, device: str,
+    def zero_data(self, codomain: TensorProduct, domain: TensorProduct, dtype: Dtype, device: str,
                   all_blocks: bool = False) -> AbelianBackendData:
         if not all_blocks:
             block_inds = np.zeros((0, codomain.num_spaces + domain.num_spaces), dtype=int)
@@ -1826,7 +1827,7 @@ class AbelianBackend(TensorBackend):
             zero_blocks.append(self.block_backend.zero_block(shape, dtype=dtype))
         return AbelianBackendData(dtype, device, zero_blocks, block_inds, is_sorted=True)
 
-    def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype, device: str
+    def zero_diagonal_data(self, co_domain: TensorProduct, dtype: Dtype, device: str
                            ) -> DiagonalData:
         return AbelianBackendData(dtype, device, blocks=[], block_inds=np.zeros((0, 2), dtype=int),
                                   is_sorted=True)
@@ -1835,165 +1836,17 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(Dtype.bool, device, blocks=[], block_inds=np.zeros((0, 2), dtype=int),
                                   is_sorted=True)
 
-    # OPTIONAL OVERRIDES
-
-    def _fuse_spaces(self, symmetry: Symmetry, spaces: list[Space]
-                     ) -> tuple[SectorArray, ndarray, dict]:
-        r"""See parent docstring.
-        
-        The abelian backend adds the following metadata:
-            _strides : 1D numpy array of int
-                F-style strides for the shape ``tuple(space.num_sectors for space in spaces)``.
-                This allows one-to-one mapping between multi-indices (one block_ind per space) to a single index.
-            _block_ind_map_slices : 1D numpy array of int
-                Slices for embedding the unique fused sectors in the sorted list of all fusion outcomes.
-                Shape is ``(K,)`` where ``K == product_space.num_sectors + 1``.
-                Fusing all sectors of all spaces and sorting the outcomes gives a list which
-                contains (in general) duplicates.
-                The slice ``_block_ind_map_slices[n]:_block_ind_map_slices[n + 1]`` within this
-                sorted list contains the same entry, namely ``product_space.sector_decomposition[n]``.
-            _block_ind_map : 2D numpy array of int
-                Map for the embedding of uncoupled to coupled indices, see notes below.
-                Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
-                i.e. ``M == prod(s.num_sectors for s in spaces)`` and ``N == 3 + len(spaces)``.
-
-        Notes
-        -----
-        For ``np.reshape``, taking, for example,  :math:`i,j,... \rightarrow k` amounted to
-        :math:`k = s_1*i + s_2*j + ...` for appropriate strides :math:`s_1,s_2`.
-
-        In the charged case, however, we want to block :math:`k` by charge, so we must
-        implicitly permute as well.  This reordering is encoded in `_block_ind_map` as follows.
-
-        Each block index combination :math:`(i_1, ..., i_{nlegs})` of the `nlegs=len(spaces)`
-        input `Space`s will end up getting placed in some slice :math:`a_j:a_{j+1}` of the
-        resulting `ProductSpace`. Within this slice, the data is simply reshaped in usual row-major
-        fashion ('C'-order), i.e., with strides :math:`s_1 > s_2 > ...` given by the block size.
-
-        It will be a subslice of a new total block in the `ProductSpace` labelled by block index
-        :math:`J`. We fuse charges according to the rule::
-
-            ProductSpace.sector_decomposition[J] = fusion_outcomes(*[lsector_decomposition[i_l]
-                for l, i_l, l in zip(incoming_block_inds, spaces)])
-
-        Since many charge combinations can fuse to the same total charge,
-        in general there will be many tuples :math:`(i_1, ..., i_{nlegs})` belonging to the same
-        charge block :math:`J` in the `ProductSpace`.
-
-        The rows of `_block_ind_map` are precisely the collections of
-        ``[b_{J,k}, b_{J,k+1}, i_1, . . . , i_{nlegs}, J]``.
-        Here, :math:`b_k:b_{k+1}` denotes the slice of this block index combination *within*
-        the total block `J`, i.e., ``b_{J,k} = a_j - self.slices[J]``.
-
-        The rows of `_block_ind_map` are lex-sorted first by ``J``, then the ``i``.
-        Each ``J`` will have multiple rows, and the order in which they are stored in `block_inds`
-        is the order the data is stored in the actual tensor.
-        Thus, ``_block_ind_map`` might look like ::
-
-            [ ...,
-            [ b_{J,k},   b_{J,k+1},  i_1,    ..., i_{nlegs}   , J,   ],
-            [ b_{J,k+1}, b_{J,k+2},  i'_1,   ..., i'_{nlegs}  , J,   ],
-            [ 0,         b_{J+1,1},  i''_1,  ..., i''_{nlegs} , J + 1],
-            [ b_{J+1,1}, b_{J+1,2},  i'''_1, ..., i'''_{nlegs}, J + 1],
-            ...]
-
-        """
-        # this function heavily uses numpys advanced indexing, for details see
-        # http://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
-
-        if len(spaces) == 0:
-            metadata = dict(
-                _strides=np.ones((0,), int),
-                fusion_outcomes_sort=np.array([0], dtype=int),
-                _block_ind_map_slices=np.array([0, 1], int),
-                _block_ind_map=np.ones((0, 3), int),
-            )
-            sectors = symmetry.trivial_sector[None, :]
-            multiplicities = [1]
-            return sectors, multiplicities, metadata
-
-        metadata = {}
-
-        num_spaces = len(spaces)
-        spaces_num_sectors = tuple(space.num_sectors for space in spaces)
-        metadata['_strides'] = make_stride(spaces_num_sectors, cstyle=False)
-        # (save strides for :meth:`product_space_map_incoming_block_inds`)
-
-        # create a grid to select the multi-index sector
-        grid = np.indices(spaces_num_sectors, np.intp)
-        # grid is an array with shape ``(num_spaces, *spaces_num_sectors)``,
-        # with grid[li, ...] = {np.arange(space_block_numbers[li]) increasing in li-th direction}
-        # collapse the different directions into one.
-        grid = grid.T.reshape(-1, num_spaces)  # *this* is the actual `reshaping`
-        # *rows* of grid are now all possible combinations of qindices.
-        # transpose before reshape ensures that grid.T is np.lexsort()-ed
-
-        nblocks = grid.shape[0]  # number of blocks in ProductSpace = np.product(spaces_num_sectors)
-        # this is different from num_sectors
-
-        # determine _block_ind_map -- it's essentially the grid.
-        _block_ind_map = np.zeros((nblocks, 3 + num_spaces), dtype=np.intp)
-        _block_ind_map[:, 2:-1] = grid  # possible combinations of indices
-
-        # the block size for given (i1, i2, ...) is the product of ``multiplicities[il]``
-        # advanced indexing:
-        # ``grid.T[li]`` is a 1D array containing the qindex `q_li` of leg ``li`` for all blocks
-        multiplicities = np.prod([space.multiplicities[gr] for space, gr in zip(spaces, grid.T)],
-                                 axis=0)
-        # _block_ind_map[:, :2] and [:, -1] is initialized after sort/bunch.
-
-        # calculate new non-dual sectors
-        sectors = symmetry.multiple_fusion_broadcast(
-            *(s.sector_decomposition[gr] for s, gr in zip(spaces, grid.T))
-        )
-
-        # sort (non-dual) charge sectors.
-        fusion_outcomes_sort = np.lexsort(sectors.T)
-        _block_ind_map = _block_ind_map[fusion_outcomes_sort]
-        sectors = sectors[fusion_outcomes_sort]
-        multiplicities = multiplicities[fusion_outcomes_sort]
-        metadata['fusion_outcomes_sort'] = fusion_outcomes_sort
-
-        slices = np.concatenate([[0], np.cumsum(multiplicities)], axis=0)
-        _block_ind_map[:, 0] = slices[:-1]  # start with 0
-        _block_ind_map[:, 1] = slices[1:]
-
-        # bunch sectors with equal charges together
-        diffs = find_row_differences(sectors, include_len=True)
-        metadata['_block_ind_map_slices'] = diffs
-        slices = slices[diffs]
-        multiplicities = slices[1:] - slices[:-1]
-        diffs = diffs[:-1]
-
-        sectors = sectors[diffs]
-
-        new_block_ind = np.zeros(len(_block_ind_map), dtype=np.intp)  # = J
-        new_block_ind[diffs[1:]] = 1  # not for the first entry => np.cumsum starts with 0
-        _block_ind_map[:, -1] = new_block_ind = np.cumsum(new_block_ind)
-        # calculate the slices within blocks: subtract the start of each block
-        _block_ind_map[:, :2] -= slices[new_block_ind][:, np.newaxis]
-        metadata['_block_ind_map'] = _block_ind_map
-
-        return sectors, multiplicities, metadata
-
-    def get_leg_metadata(self, leg: Space) -> dict:
-        if isinstance(leg, ProductSpace):
-            # TODO / OPTIMIZE write a version that just calculates the metadata?
-            _, _, metadata = self._fuse_spaces(symmetry=leg.symmetry, spaces=leg.spaces)
-            return metadata
-        return {}
-
     # INTERNAL HELPERS
 
-    def product_space_map_incoming_block_inds(self, space: ProductSpace, incoming_block_inds):
+    def product_space_map_incoming_block_inds(self, pipe: AbelianLegPipe, incoming_block_inds):
         """Map incoming block indices to indices of :attr:`_block_ind_map`.
 
         Needed for `combine_legs`.
 
         Parameters
         ----------
-        space : ProductSpace
-            The ProductSpace which indices are to be mapped
+        space : AbelianLegPipe
+            The pipe which indices are to be mapped
         incoming_block_inds : 2D array
             Rows are block indices :math:`(i_1, i_2, ... i_{nlegs})` for incoming legs.
 
@@ -2003,9 +1856,8 @@ class AbelianBackend(TensorBackend):
             For each row j of `incoming_block_inds` an index `J` such that
             ``space.metadata['_block_ind_map'][J, 2:-1] == block_inds[j]``.
         """
-        assert incoming_block_inds.shape[1] == len(space.spaces)
+        assert incoming_block_inds.shape[1] == len(pipe.spaces)
         # calculate indices of _block_ind_map by using the appropriate strides
-        strides = space.get_metadata('_strides', backend=self)
-        inds_before_perm = np.sum(incoming_block_inds * strides[np.newaxis, :], axis=1)
+        inds_before_perm = np.sum(incoming_block_inds * pipe.sector_strides[np.newaxis, :], axis=1)
         # now permute them to indices in _block_ind_map
-        return inverse_permutation(space.fusion_outcomes_sort)[inds_before_perm]
+        return inverse_permutation(pipe.fusion_outcomes_sort)[inds_before_perm]

@@ -87,6 +87,7 @@ def test_double_site(any_backend):
     else:
         raise ValueError
 
+    # TODO update this. remove ``ProductSpace``: outdated class
     # the order of the basis is determined by forming the ProductSpace and is sorted by sector.
     # the two states with
     

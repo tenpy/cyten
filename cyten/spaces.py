@@ -16,15 +16,15 @@ import warnings
 from .dummy_config import printoptions
 from .symmetries import (Sector, SectorArray, Symmetry, ProductSymmetry, no_symmetry, FusionStyle,
                          SymmetryError)
-from .tools.misc import (inverse_permutation, rank_data, to_iterable, UNSPECIFIED, make_stride,
+from .tools.misc import (inverse_permutation, rank_data, to_iterable, make_stride,
                          find_row_differences, unstridify, iter_common_sorted_arrays)
 from .tools.string import format_like_list
 from .trees import FusionTree, fusion_trees
 
 if TYPE_CHECKING:
-    from .backends.abstract_backend import TensorBackend, Block
+    from .backends.abstract_backend import Block
 
-__all__ = ['Leg', 'Space', 'ElementarySpace', 'ProductSpace']
+__all__ = ['Leg', 'Space', 'ElementarySpace']
 
 
 class Leg(metaclass=ABCMeta):
@@ -34,7 +34,6 @@ class Leg(metaclass=ABCMeta):
     of combining legs, a :class:`LegPipe`.
 
     TODO do we need the following at this level?
-     - change_symmetry
      - drop_symmetry
      - repr
      - num_parameters
@@ -331,8 +330,8 @@ class Space(metaclass=ABCMeta):
                                             unique_sectors=True)
 
     @abstractmethod
-    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, backend: TensorBackend = None,
-                        injective: bool = False) -> ElementarySpace:
+    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, injective: bool = False
+                        ) -> ElementarySpace:
         """Change the symmetry by specifying how the sectors change.
 
         TODO this assumes by construction that the mapping is one-to-one.
@@ -348,9 +347,6 @@ class Space(metaclass=ABCMeta):
             ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as
             ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
             TODO do we need to assume more, i.e. compatibility with fusion?
-        backend : :class: `~cyten.backends.abstract_backend.Backend`
-            This parameter is ignored. We only include it to have matching signatures
-            with :meth:`ProductSpace.change_symmetry`.
         injective: bool
             If ``True``, the `sector_map` is assumed to be injective, i.e. produce a list of
             unique outputs, if the inputs are unique.
@@ -848,10 +844,8 @@ class ElementarySpace(Space, Leg):
             return self
         return self.with_opposite_duality()
 
-    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, backend: TensorBackend = None,
-                        injective: bool = False
+    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, injective: bool = False
                         ) -> ElementarySpace:
-        # backend is just there to have the same signature as ProductSpace.change_symmetry
         return ElementarySpace.from_sectors(
             symmetry=symmetry, defining_sectors=sector_map(self.defining_sectors),
             multiplicities=self.multiplicities, is_dual=self.is_dual, basis_perm=self._basis_perm,
@@ -1038,446 +1032,6 @@ class ElementarySpace(Space, Leg):
         return self.with_opposite_duality()
 
 
-class ProductSpace(Space, Leg):
-    r"""The tensor product of multiple spaces, which is itself a space.
-
-    Unlike for :class:`ElementarySpace`, we do not distinguish between bra and ket spaces.
-    This is indeed what makes the :class:`ElementarySpace` "elementary".
-
-    The :class:`ProductSpace` introduces a basis transformation the *uncoupled* ("public") basis
-    is given by products of the individual (thus "uncoupled") basis elements.
-    E.g. for a product space :math:`P = V \otimes W \otimes \dots \otimes Z`, this basis consists
-    of elements of the form :math:`v_{i_1} \otimes w_{i_2} \otimes \dots \otimes z_{i_n}`.
-    The order is given in C-style (varying the last index, here :math:`i_n` the fastest) combination
-    of the *public* basis order of the factor :attr:`spaces`.
-    The *coupled* basis is given by the fusion outcomes, sorted and grouped by sector.
-    See :meth:`get_basis_transformation` for the explicit transformation.
-    Thus, a product space does not have a ``basis_perm`` attribute, unlike an
-    :class:`ElementarySpace`.
-
-    Backends may add :attr:`metadata` to ProductSpaces.
-
-    Parameters
-    ----------
-    spaces, symmetry
-        Like the attributes of the same name
-    backend: TensorBackend | None
-        The backend, used in :meth:`_fuse_spaces`, to add backend-specific :attr:`metadata`.
-    _sectors, _multiplicities, _metadata
-        Can optionally be passed to avoid recomputation.
-
-    Attributes
-    ----------
-    metadata: dict
-        Backend-specific additional data, added by :meth:`TensorBackend._fuse_spaces`.
-        Metadata is considered optional and can be computed on-demand via :meth:`get_metadata`.
-        A common entry is accessible via the property :attr:`fusion_outcomes_sort`.
-    """
-
-    def __init__(self, spaces: list[Space], symmetry: Symmetry = None, backend: TensorBackend = None,
-                 _sectors: SectorArray = UNSPECIFIED, _multiplicities: ndarray = UNSPECIFIED,
-                 _metadata: dict = UNSPECIFIED):
-        self.spaces = spaces[:]
-        self.num_spaces = len(spaces)
-        if symmetry is None:
-            if len(spaces) == 0:
-                raise ValueError('If spaces is empty, the symmetry arg is required.')
-            symmetry = spaces[0].symmetry
-        if not all(sp.symmetry == symmetry for sp in spaces):
-            raise SymmetryError('Incompatible symmetries.')
-        self.symmetry = symmetry
-        if (_sectors is UNSPECIFIED) or (_multiplicities is UNSPECIFIED):
-            _sectors, _multiplicities, _metadata = _fuse_spaces(
-                symmetry=symmetry, spaces=spaces, backend=backend
-            )
-        Space.__init__(self, symmetry=symmetry, sector_decomposition=_sectors, multiplicities=_multiplicities,
-                       sector_order='sorted')
-        # TODO the is_dual behavior here is contradicting the definition in Leg, but this whole
-        #      class should soon be removed anyway.
-        Leg.__init__(self, symmetry=symmetry, dim=self.dim, is_dual=False)
-        if _metadata is UNSPECIFIED:
-            if backend is None:
-                _metadata = {}
-            else:
-                _metadata = backend.get_leg_metadata(self)
-        self.metadata = _metadata
-        self._basis_perm = None
-        self._inverse_basis_perm = None
-
-    def test_sanity(self):
-        assert isinstance(self.metadata, dict)
-        assert len(self.spaces) == self.num_spaces
-        for sp in self.spaces:
-            sp.test_sanity()
-        Space.test_sanity(self)
-
-    @classmethod
-    def from_partial_products(cls, *factors: ProductSpace, backend: TensorBackend | None = None
-                              ) -> ProductSpace:
-        """Given multiple product spaces, create the flat product of all their :attr:`spaces`.
-
-        This is equivalent to ``ProductSpace([p_space.spaces for p_space in factors])``,
-        but avoids some of the computation of sectors.
-        """
-        isomorphic = ProductSpace([pr.as_ElementarySpace() for pr in factors], backend=backend)
-        return ProductSpace(
-            spaces=[sp for pr in factors for sp in pr.spaces], backend=backend,
-            _sectors=isomorphic.sector_decomposition, _multiplicities=isomorphic.multiplicities
-        )
-
-    @property
-    def dual(self):
-        sectors, mults, perm = _sort_sectors(
-            self.symmetry.dual_sectors(self.sector_decomposition), self.multiplicities
-        )
-        return ProductSpace([sp.dual for sp in reversed(self.spaces)], symmetry=self.symmetry,
-                            _sectors=sectors, _multiplicities=mults)
-
-    @property
-    def fusion_outcomes_sort(self):
-        fusion_outcomes_sort = self.metadata.get('fusion_outcomes_sort', None)
-        if fusion_outcomes_sort is None:
-            grid = np.indices(tuple(space.num_sectors for space in self.spaces), np.intp)
-            grid = grid.T.reshape(-1, len(self.spaces))
-            sectors = self.symmetry.multiple_fusion_broadcast(
-                *(sp.sector_decomposition[gr] for sp, gr in zip(self.spaces, grid.T))
-            )
-            multiplicities = np.prod([space.multiplicities[gr]
-                                      for space, gr in zip(self.spaces, grid.T)], axis=0)
-            _, _, fusion_outcomes_sort = _unique_sorted_sectors(sectors, multiplicities)
-            self.metadata['fusion_outcomes_sort'] = fusion_outcomes_sort
-        return fusion_outcomes_sort
-
-    @property
-    def is_trivial(self) -> bool:
-        return all(s.is_trivial for s in self.spaces)
-
-    def get_metadata(self, key: str, backend: TensorBackend = None):
-        if key not in self.metadata:
-            _, _, metadata = _fuse_spaces(self.symmetry, self.spaces, backend)
-            self.metadata.update(metadata)
-            if key not in self.metadata:
-                msg = f'Unable to find key or generate it using _fuse_spaces: {key}'
-                raise KeyError(msg)
-        return self.metadata[key]
-
-    def __getitem__(self, idx):
-        return self.spaces[idx]
-
-    def __iter__(self):
-        return iter(self.spaces)
-
-    def __len__(self):
-        return self.num_spaces
-
-    def _repr(self, show_symmetry: bool):
-        indent = printoptions.indent * ' '
-        lines = [f'ProductSpace(']
-        if show_symmetry:
-            lines.append(f'{indent}symmetry={self.symmetry!r},')
-        num_lines = len(lines) + 1  # already consider final line ')'
-        summarize = len(self.spaces) == 0  # if there are no spaces, auto-summarize
-        for sp in self.spaces:
-            sp_repr = sp._repr(show_symmetry=False)
-            if sp_repr is None:
-                summarize = True
-                break
-            next_space = indent + sp_repr.replace('\n', '\n' + indent) + ','
-            additional_lines = 1 + next_space.count('\n')
-            if num_lines + additional_lines > printoptions.maxlines_spaces:
-                summarize = True
-                break
-            lines.append(next_space)
-            num_lines += additional_lines
-        lines.append(')')
-        if not summarize:
-            return '\n'.join(lines)
-        # need to summarize
-        elements = [f'<ProductSpace']
-        if show_symmetry:
-            elements.append(f'symmetry={self.symmetry!r}')
-        elements.extend([
-            f'{self.num_spaces} spaces',
-            '>'
-        ])
-        one_line = ' '.join(elements)
-        if len(one_line) <= printoptions.linewidth:
-            return one_line
-        elements[1:-1] = [f'{indent}{line}' for line in elements]
-        if all(len(l) < printoptions.linewidth for l in elements) and len(elements) <= printoptions.maxlines_spaces:
-            return '\n'.join(elements)
-        return None
-
-    def __eq__(self, other):
-        if not isinstance(other, ProductSpace):
-            return NotImplemented
-        if self.num_spaces != other.num_spaces:
-            return False
-        return all(s1 == s2 for s1, s2 in zip(self.spaces, other.spaces))
-    
-    def as_Space(self):
-        return self
-
-    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, backend: TensorBackend = None
-                        ) -> ProductSpace:
-        sectors, multiplicities = _unique_sorted_sectors(
-            sector_map(self.sector_decomposition), self.multiplicities
-        )
-        # OPTIMIZE can we preserve the metadata?
-        return ProductSpace(
-            spaces=[sp.change_symmetry(symmetry, sector_map, backend) for sp in self.spaces],
-            symmetry=self.symmetry, backend=backend,
-            _sectors=sectors, _multiplicities=multiplicities
-        )
-
-    def drop_symmetry(self, which: int | list[int] = None):
-        which, remaining_symmetry = _parse_inputs_drop_symmetry(which, self.symmetry)
-        return ProductSpace(spaces=[sp.drop_symmetry(which) for sp in self.spaces],
-                            symmetry=remaining_symmetry)
-
-    def fuse_states(self, states: list[Block], backend: TensorBackend) -> Block:
-        """TODO"""
-        if not self.symmetry.can_be_dropped:
-            raise SymmetryError
-        if self.symmetry.is_abelian:
-            # first kron then use get_basis_transformation_perm()
-            raise NotImplementedError  # TODO
-        # other wise contract get_basis_transformation() with the states
-        raise NotImplementedError
-
-    def get_basis_transformation(self) -> np.ndarray:
-        r"""Get the basis transformation from uncoupled to coupled basis.
-
-        The uncoupled basis of the ProductSpace :math:`P = V \otimes W \otimes \dots \otimes Z`
-        is given by products of the individual ("uncoupled") basis elements, i.e. by elements of
-        the form :math:`v_{i_1} \otimes w_{i_2} \otimes \dots \otimes z_{i_n}`.
-        In particular, the order for the uncoupled basis does *not*
-        consider :attr:`ElementarySpace.basis_perm`, i.e. it is in general not grouped by sectors.
-        The coupled basis is grouped and sorted organized by sectors.
-
-        For abelian groups, this is achieved simply by permuting basis elements, see
-        :meth:`get_basis_transformation_perm` for that permutation.
-        For general groups, this is a more general unitary basis transformation.
-        For non-group symmetries, this is not well defined.
-
-        Returns
-        -------
-        trafo : ndarray
-            A numpy array with shape ``(*space.dim for space in self.spaces, self.dim)``.
-            The first axes go over the basis for each of the :attr:`spaces` (in public order).
-            The last axis goes over the coupled basis of self.
-            The entries are coefficients of the basis transformation such that
-
-            .. math ::
-                \ket{c} = \sum_{i_1, \dots, i_N} \texttt{trafo[i1, ..., iN, c]}
-                          \ket{i_1} \otimes \dots \otimes \ket{i_n}
-
-        Examples
-        --------
-        See :meth:`get_basis_transformation_perm` for an example with an abelian symmetry.
-
-        Consider two spin-1/2 sites with SU(2) conservation.
-        For both sites, we choose the basis :math:`\set{\ket{\uparrow}, \ket{\downarrow}}`.
-        The uncoupled basis for the product is
-
-        .. math ::
-            \set{\ket{\uparrow;\uparrow}, \ket{\uparrow;\downarrow}, \ket{\downarrow;\uparrow},
-                 \ket{\downarrow;\downarrow}}
-
-        But the coupled basis is given by a basis transformation
-
-        .. math ::
-            \ket{s=0, m=0} = \frac{1}{\sqrt{2}}\left( \ket{\uparrow;\downarrow} - \ket{\downarrow;\uparrow} \right)
-            \ket{s=1, m=-1} = \ket{\downarrow;\downarrow}
-            \ket{s=1, m=0} = \frac{1}{\sqrt{2}}\left( \ket{\uparrow;\downarrow} + \ket{\downarrow;\uparrow} \right)
-            \ket{s=1, m=1} = \ket{\uparrow;\uparrow}
-
-        Such that we get
-
-        .. testsetup :: get_basis_transformation
-            from cyten import ProductSpace, ElementarySpace, su2_symmetry
-
-        .. doctest :: get_basis_transformation
-
-            >>> spin_one_half = [1]  # sectors are labelled by 2*S
-            >>> site = ElementarySpace(su2_symmetry, [spin_one_half])
-            >>> prod_space = ProductSpace([site, site])
-            >>> trafo = prod_space.get_basis_transformation()
-            >>> trafo[:, :, 0]  # | s=0, m=0 >
-            array([[ 0.        ,  0.70710678],
-                   [-0.70710678,  0.        ]])
-            >>> trafo[:, :, 1]  # | s=1, m=-1 >
-            array([[0., 0.],
-                   [0., 1.]])
-            >>> trafo[:, :, 2]  # | s=1, m=0 >
-            array([[0.        , 0.70710678],
-                   [0.70710678, 0.        ]])
-            >>> trafo[:, :, 3]  # | s=1, m=1 >
-            array([[1., 0.],
-                   [0., 0.]])
-
-        """
-        if not self.symmetry.can_be_dropped:
-            raise SymmetryError
-        if self.symmetry.is_abelian:
-            transform = np.zeros((self.dim, self.dim), dtype=np.intp)
-            perm = self.get_basis_transformation_perm()
-            transform[np.ix_(perm, range(self.dim))] = 1.
-            return np.reshape(transform, (*(s.dim for s in self.spaces), self.dim))
-        raise NotImplementedError  # TODO
-
-    def get_basis_transformation_perm(self):
-        r"""Get the permutation equivalent to :meth:`get_basis_transformation`.
-
-        This is only defined for abelian symmetries, since then :meth:`get_basis_transformation`
-        gives (up to reshaping) a permutation matrix::
-
-            permutation_matrix = self.get_basis_transformation().reshape((self.dim, self.dim))
-
-        which only has nonzero entries at ``permutation_matrix[perm[i], i] for i in range(self.dim)``.
-        This method returns the permutation ``perm``.
-
-        Examples
-        --------
-        Consider two spin-1 sites with Sz_parity conservation.
-        For both sites, we choose the basis :math:`\set{\ket{+}, \ket{0}, \ket{-}}`.
-        Now the uncoupled basis for the product is
-
-        .. math ::
-            \set{\ket{+;+}, \ket{+;0}, \ket{+;-}, \ket{0;+}, \ket{0;0}, \ket{0;-},
-                 \ket{-;+}, \ket{-;0}, \ket{-;-}}
-
-        Which becomes the following after grouping and sorting by sector
-
-        .. math ::
-            \set{\ket{+;+}, \ket{+;-}, \ket{0;0}, \ket{-;+}, \ket{-;-},
-                 \ket{+;0}, \ket{0;+}, \ket{0;-}, \ket{-;0}}
-
-        Such that we get
-
-        .. testsetup :: get_basis_transformation_perm
-            import numpy as np
-            from cyten import ProductSpace, ElementarySpace, z2_symmetry
-
-        .. doctest :: get_basis_transformation_perm
-
-            >>> even, odd = [0], [1]
-            >>> spin1 = ElementarySpace.from_basis(z2_symmetry, [even, odd, even])
-            >>> product_space = ProductSpace([spin1, spin1])
-            >>> perm = product_space.get_basis_transformation_perm()
-            >>> perm
-            array([0, 2, 4, 6, 8, 1, 3, 5, 7])
-            >>> transform = np.zeros((9, 9))
-            >>> transform[np.ix_(perm, range(9))] = 1.
-            >>> np.all(product_space.get_basis_transformation() == transform.reshape((3, 3, 9)))
-            True
-        """
-        if not self.symmetry.is_abelian:
-            raise SymmetryError('For non-abelian symmetries use get_basis_transformation instead.')
-        # C-style for compatibility with e.g. numpy.reshape
-        strides = make_stride(shape=[space.dim for space in self.spaces], cstyle=True)
-        order = unstridify(self._get_fusion_outcomes_perm(), strides).T  # indices of the internal bases
-        return sum(stride * space.inverse_basis_perm[p]
-                   for stride, space, p in zip(strides, self.spaces, order))
-
-    def _get_fusion_outcomes_perm(self):
-        r"""Get the permutation introduced by the fusion.
-
-        This permutation arises as follows:
-        For each of the :attr:`spaces` consider all sectors by order of appearance in the internal
-        order, i.e. in :attr:`ElementarySpace.sectors``. Take all combinations of sectors from all the
-        spaces in C-style order, i.e. varying those from the last space the fastest.
-        For each combination, take all of its fusion outcomes (TODO define order for FusionTree).
-        The target permutation np.lexsort( .T)s the resulting list of sectors.
-        """
-        # OPTIMIZE this probably not the most efficient way to do this, but it hurts my brain
-        #  and i need to get this work, if only in an ugly way...
-        fusion_outcomes_inverse_sort = inverse_permutation(self.fusion_outcomes_sort)
-        # j : multi-index into the uncoupled private basis, i.e. into the C-style product of
-        #     internal bases of the spaces
-        # i : index of self.spaces
-        # s : index of the list of all fusion outcomes / fusion channels
-        dim_strides = make_stride([sp.dim for sp in self.spaces])  # (num_spaces,)
-        sector_strides = make_stride([sp.num_sectors for sp in self.spaces])  # (num_spaces,)
-        num_sector_combinations = np.prod([space.num_sectors for space in self.spaces])
-        # [i, j] :: position of the part of j in spaces[i] within its private basis
-        idcs = unstridify(np.arange(self.dim), dim_strides).T
-        # [i, j] :: sector of the part of j in spaces[i] is spaces[i].sectors[sector_idcs[i, j]]
-        #           sector_idcs[i, j] = bisect.bisect(spaces[i].slices[:, 0], idcs[i, j]) - 1
-        sector_idcs = np.array(
-            [[bisect.bisect(sp.slices[:, 0], idx) - 1 for idx in idx_col]
-             for sp, idx_col in zip(self.spaces, idcs)]
-        )  # OPTIMIZE can bisect.bisect be broadcast somehow? is there a numpy alternative?
-        # [i, j] :: the part of j in spaces[i] is the degeneracy_idcs[i, j]-th state within that sector
-        #           degeneracy_idcs[i, j] = idcs[i, j] - spaces[i].slices[sector_idcs[i, j], 0]
-        degeneracy_idcs = idcs - np.stack(
-            [sp.slices[si_col, 0] for sp, si_col in zip(self.spaces, sector_idcs)]
-        )
-        # [i, j] :: strides for combining degeneracy indices.
-        #           degeneracy_strides[:, j] = make_stride([... mults with sector_idcs[:, j]])
-        degeneracy_strides = np.array(
-            [make_stride([sp.multiplicities[si] for sp, si in zip(self.spaces, si_row)])
-             for si_row in sector_idcs.T]
-        ).T  # OPTIMIZE make make_stride broadcast?
-        # [j] :: position of j in the unsorted list of fusion outcomes
-        fusion_outcome = np.sum(sector_idcs * sector_strides[:, None], axis=0)
-        # [i, s] :: sector combination s has spaces[i].sectors[all_sector_idcs[i, s]]
-        all_sector_idcs = unstridify(np.arange(num_sector_combinations), sector_strides).T
-        # [i, s] :: all_mults[i, s] = spaces[i].multiplicities[all_sector_idcs[i, s]]
-        all_mults = np.array([sp.multiplicities[comb] for sp, comb in zip(self.spaces, all_sector_idcs)])
-        # [s] : total multiplicity of the fusion channel
-        fusion_outcome_multiplicities = np.prod(all_mults, axis=0)
-        # [s] : !!shape == (L_s + 1,)!!  ; starts ([s]) and stops ([s + 1]) of fusion channels in the sorted list
-        fusion_outcome_slices = np.concatenate(
-            [[0], np.cumsum(fusion_outcome_multiplicities[self.fusion_outcomes_sort])]
-        )
-        # [j] : position of fusion channel after sorting
-        sorted_pos = fusion_outcomes_inverse_sort[fusion_outcome]
-        # [j] :: contribution from the sector, i.e. start of all the js of the same fusion channel
-        sector_part = fusion_outcome_slices[sorted_pos]
-        # [j] :: contribution from the multiplicities, i.e. position with all js of the same fusion channel
-        degeneracy_part = np.sum(degeneracy_idcs * degeneracy_strides, axis=0)
-        return inverse_permutation(sector_part + degeneracy_part)
-
-    def insert_multiply(self, other: Space, pos: int, backend: TensorBackend | None = None
-                        ) -> ProductSpace:
-        """Insert an additional factor at given position.
-
-        Parameters
-        ----------
-        other: Space
-            The new factor to insert into :attr:`spaces`.
-        pos: int
-            The position of the new factor in the *result* :attr:`spaces`.
-
-        Returns
-        -------
-        A new product space, consisting of ``spaces[:pos] + [other] + spaces[pos:]``.
-        """
-        new_num_spaces = self.num_spaces + 1
-        assert -new_num_spaces <= pos < new_num_spaces
-        if pos < 0:
-            pos += new_num_spaces
-        isomorphic = ProductSpace([self, other])  # this space has the same sectors and mults
-        return ProductSpace(
-            spaces=self.spaces[:pos] + [other] + self.spaces[pos:],
-            symmetry=self.symmetry, backend=backend,
-            _sectors=isomorphic.sector_decomposition, _multiplicities=isomorphic.multiplicities
-        )
-
-    def iter_uncoupled(self) -> Iterator[tuple[Sector]]:
-        """Iterate over all combinations of sectors"""
-        return it.product(*(s.sector_decomposition for s in self.spaces))
-
-    def left_multiply(self, other: Space, backend: TensorBackend | None = None) -> ProductSpace:
-        """Add a new factor at the left / beginning of the spaces"""
-        return self.insert_multiply(other, 0, backend=backend)
-
-    def right_multiply(self, other: Space, backend: TensorBackend | None = None) -> ProductSpace:
-        """Add a new factor at the right / end of the spaces"""
-        return self.insert_multiply(other, -1, backend=backend)
-
-
 class TensorProduct(Space):
     """Represents a tensor product of :class:`Spaces`s, e.g. the (co-)domain of a tensor.
 
@@ -1547,10 +1101,10 @@ class TensorProduct(Space):
             return self.multiplicities[coupled]
         return self.sector_multiplicity(coupled)
 
-    def change_symmetry(self, symmetry, sector_map, backend=None, injective=False):
+    def change_symmetry(self, symmetry, sector_map, injective=False):
         # TODO can we avoid recomputation of fusion?
         return TensorProduct(
-            [space.change_symmetry(symmetry, sector_map, backend, injective)
+            [space.change_symmetry(symmetry, sector_map, injective)
              for space in self.spaces],
             symmetry=self.symmetry
         )
@@ -1590,15 +1144,15 @@ class TensorProduct(Space):
         """Iterate over all combinations of sectors"""
         return it.product(*(s.sector_decomposition for s in self.spaces))
     
-    def left_multiply(self, other: Space) -> ProductSpace:
+    def left_multiply(self, other: Space) -> TensorProduct:
         """Add a new factor at the left / beginning of the spaces"""
         return self.insert_multiply(other, 0)
 
-    def right_multiply(self, other: Space) -> ProductSpace:
+    def right_multiply(self, other: Space) -> TensorProduct:
         """Add a new factor at the right / end of the spaces"""
         return self.insert_multiply(other, -1)
 
-    def tree_block_size(space: ProductSpace, uncoupled: tuple[Sector]) -> int:
+    def tree_block_size(space: TensorProduct, uncoupled: tuple[Sector]) -> int:
         """The size of a tree-block"""
         # OPTIMIZE ?
         return prod(s.sector_multiplicity(a) for s, a in zip(space.spaces, uncoupled))
@@ -1735,6 +1289,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     Notes
     -----
     TODO review these old notes. do they still apply? should they live somewhere else?
+         this references the outdated ``ProductSpace``
     
     For ``np.reshape``, taking, for example,  :math:`i,j,... \rightarrow k` amounted to
     :math:`k = s_1*i + s_2*j + ...` for appropriate strides :math:`s_1,s_2`.
@@ -1854,9 +1409,9 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     def from_trivial_sector(cls, *a, **kw):
         raise TypeError('from_trivial_sector is not supported for AbelianLegPipe')
 
-    def change_symmetry(self, symmetry, sector_map, backend=None, injective=False):
+    def change_symmetry(self, symmetry, sector_map, injective=False):
         # TODO can we avoid some recomputation of _calc_sectors and _basis_perm?
-        legs = [l.change_symmetry(symmetry, sector_map, backend, injective) for l in self.legs]
+        legs = [l.change_symmetry(symmetry, sector_map, injective) for l in self.legs]
         return AbelianLegPipe(legs, is_dual=self.is_dual)
 
     def drop_symmetry(self, which: int | list[int] = None):
@@ -2027,81 +1582,6 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         # [j] :: contribution from the multiplicities, i.e. position with all js of the same fusion channel
         degeneracy_part = np.sum(degeneracy_idcs * degeneracy_strides, axis=0)
         return inverse_permutation(sector_part + degeneracy_part)
-
-
-def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend | None = None):
-    """Helper function, called as part of ``ProductSpace.__init__``.
-
-    It determines the sectors and multiplicities of the ProductSpace.
-    There is also a version of this function in the backends, i.e.
-    :meth:`~cyten.backends.abstract_backend.TensorBackend._fuse_spaces`, which may
-    customize this behavior and in particular may return metadata, i.e. attributes to be added to
-    the ProductSpace.
-    This default implementation returns default metadata, with only ``fusion_outcomes_sort``
-    if the symmetry is abelian and empty metadata otherwise.
-
-    Returns
-    -------
-    sectors : 2D array of int
-        The :attr:`Space.sector_decomposition`.
-    multiplicities : 1D array of int
-        the :attr:`Space.multiplicities`.
-    metadata : dict
-        A dictionary with string keys and arbitrary values.
-        These will be added as attributes of the ProductSpace
-    """
-    if symmetry is None:
-        if len(spaces) == 0:
-            raise ValueError('If spaces is empty, the symmetry arg is required.')
-        symmetry = spaces[0].symmetry
-
-    if backend is not None:
-        try:
-            return backend._fuse_spaces(symmetry=symmetry, spaces=spaces)
-        except NotImplementedError:
-            pass
-
-    if symmetry.is_abelian:
-        if len(spaces) == 0:
-            metadata = dict(fusion_outcomes_sort=np.array([0], dtype=int))
-            return symmetry.trivial_sector[None, :], [1], metadata
-        grid = np.indices(tuple(space.num_sectors for space in spaces), np.intp)
-        grid = grid.T.reshape(-1, len(spaces))
-        sectors = symmetry.multiple_fusion_broadcast(
-            *(sp.sector_decomposition[gr] for sp, gr in zip(spaces, grid.T))
-        )
-        multiplicities = np.prod([space.multiplicities[gr] for space, gr in zip(spaces, grid.T)],
-                                 axis=0)
-        sectors, multiplicities, fusion_outcomes_sort = _unique_sorted_sectors(sectors, multiplicities)
-        metadata = dict(fusion_outcomes_sort=fusion_outcomes_sort)
-        return sectors, multiplicities, metadata
-
-    # define recursively. base cases:
-    if len(spaces) == 0:
-        return symmetry.trivial_sector[None, :], [1], {}
-
-    if len(spaces) == 1:
-        return spaces[0].sector_decomposition, spaces[0].multiplicities, {}
-
-    sectors_1, mults_1, _ = _fuse_spaces(symmetry, spaces[:-1])
-
-    sector_arrays = []
-    mult_arrays = []
-    for s2, m2 in zip(spaces[-1].sector_decomposition, spaces[-1].multiplicities):
-        for s1, m1 in zip(sectors_1, mults_1):
-            new_sects = symmetry.fusion_outcomes(s1, s2)
-            sector_arrays.append(new_sects)
-            if symmetry.fusion_style <= FusionStyle.multiple_unique:
-                new_mults = m1 * m2 * np.ones(len(new_sects), dtype=int)
-            else:
-                # OPTIMIZE support batched N symbol?
-                new_mults = m1 * m2 * np.array([symmetry._n_symbol(s1, s2, c) for c in new_sects], dtype=int)
-            mult_arrays.append(new_mults)
-    sectors, multiplicities, _ = _unique_sorted_sectors(
-        np.concatenate(sector_arrays, axis=0),
-        np.concatenate(mult_arrays, axis=0)
-    )
-    return sectors, multiplicities, {}
 
 
 def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicities: np.ndarray):
