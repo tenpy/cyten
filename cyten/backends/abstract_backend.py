@@ -70,14 +70,14 @@ class TensorBackend(metaclass=ABCMeta):
         """
         return self.data_item(a.data)
     
-    def test_data_sanity(self, a: SymmetricTensor | DiagonalTensor, is_diagonal: bool):
-        # subclasses will typically call super().test_data_sanity(a)
-        assert isinstance(a.data, self.DataCls), str(type(a.data))
+    def test_tensor_sanity(self, a: SymmetricTensor | DiagonalTensor, is_diagonal: bool):
+        """Called as part of :meth:`cyten.Tensor.test_sanity`.
 
-    def test_leg_sanity(self, leg: Space):
-        # subclasses will typically call super().test_leg_sanity(a)
-        assert isinstance(leg, Space)
-        leg.test_sanity()
+        Perform sanity checks on the ``a.data``, and possibly additional backend-specific checks
+        of the tensor.
+        """
+        # subclasses will typically call super().test_tensor_sanity(a)
+        assert isinstance(a.data, self.DataCls), str(type(a.data))
 
     def test_mask_sanity(self, a: Mask):
         # subclasses will typically call super().test_mask_sanity(a)

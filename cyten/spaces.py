@@ -1801,6 +1801,8 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     def test_sanity(self):
         for l in self.legs:
             assert isinstance(l, ElementarySpace)
+            if isinstance(l, LegPipe):
+                assert isinstance(l, AbelianLegPipe)
             l.test_sanity()
         # check self.sector_strides
         assert self.sector_strides.shape == (self.num_legs,)

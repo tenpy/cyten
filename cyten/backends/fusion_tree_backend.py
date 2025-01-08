@@ -210,6 +210,7 @@ class FusionTreeBackend(TensorBackend):
     nontrivially upon, e.g., bending the corresponding leg, which necessitates further
     transformations within the leg itself.
 
+    TODO this no longer applies:
     Therefore, the presence of a `ProductSpace` is checked in `test_leg_sanity` and
     methods that always involve a `ProductSpace` (like `combine_legs` or `split_legs`)
     raise errors.
@@ -223,8 +224,8 @@ class FusionTreeBackend(TensorBackend):
         self.eps = eps
         super().__init__(block_backend)
 
-    def test_data_sanity(self, a: SymmetricTensor | DiagonalTensor | Mask, is_diagonal: bool):
-        super().test_data_sanity(a, is_diagonal=is_diagonal)
+    def test_tensor_sanity(self, a: SymmetricTensor | DiagonalTensor | Mask, is_diagonal: bool):
+        super().test_tensor_sanity(a, is_diagonal=is_diagonal)
         assert a.device == a.data.device == self.block_backend.as_device(a.data.device)
         # coupled sectors must be lexsorted
         perm = np.lexsort(a.data.block_inds.T)
@@ -240,10 +241,6 @@ class FusionTreeBackend(TensorBackend):
             assert all(dim > 0 for dim in expect_shape), 'should skip forbidden block'
             self.block_backend.test_block_sanity(block, expect_shape=expect_shape,
                                                  expect_dtype=a.dtype, expect_device=a.device)
-
-    def test_leg_sanity(self, leg: Space):
-        assert not isinstance(leg, ProductSpace), self.err_msg_prodspace
-        return super().test_leg_sanity(leg)
 
     def test_mask_sanity(self, a: Mask):
         raise NotImplementedError  # TODO

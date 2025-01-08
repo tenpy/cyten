@@ -283,16 +283,9 @@ class Tensor(metaclass=ABCMeta):
         assert all(_is_valid_leg_label(l) for l in self._labels)
         assert not duplicate_entries(self._labels, ignore=[None])
         assert not duplicate_entries(list(self._labelmap.values()))
-        self.domain.test_sanity()
-        self.codomain.test_sanity()
-        for space in self.domain.spaces:
-            self.backend.test_leg_sanity(space)  # TODO rm this??
-        for space in self.codomain.spaces:
-            self.backend.test_leg_sanity(space)  # TODO rm this??
+        self.domain.test_sanity()  # this checks all legs, and recursively through pipes
+        self.codomain.test_sanity()  # this checks all legs, and recursively through pipes
         assert self.dtype not in self._forbidden_dtypes
-        # TODO re-activate this check
-        # assert not self.domain.is_dual
-        # assert not self.codomain.is_dual
         assert all(isinstance(leg, Leg) for leg in self.domain.spaces)
         assert all(isinstance(leg, Leg) for leg in self.codomain.spaces)
 
@@ -812,7 +805,7 @@ class SymmetricTensor(Tensor):
         super().test_sanity()
         assert self.dtype == self.backend.get_dtype_from_data(self.data)
         assert self.device == self.backend.get_device_from_data(self.data)
-        self.backend.test_data_sanity(self, is_diagonal=isinstance(self, DiagonalTensor))
+        self.backend.test_tensor_sanity(self, is_diagonal=isinstance(self, DiagonalTensor))
 
     @classmethod
     def from_block_func(cls, func,

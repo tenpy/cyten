@@ -47,8 +47,8 @@ class NoSymmetryBackend(TensorBackend):
         super().__init__(block_backend=block_backend)
         self.DataCls = block_backend.BlockCls
 
-    def test_data_sanity(self, a: SymmetricTensor | DiagonalTensor | Mask, is_diagonal: bool):
-        super().test_data_sanity(a, is_diagonal=is_diagonal)
+    def test_tensor_sanity(self, a: SymmetricTensor | DiagonalTensor | Mask, is_diagonal: bool):
+        super().test_tensor_sanity(a, is_diagonal=is_diagonal)
         if is_diagonal:
             assert self.block_backend.block_shape(a.data) == (a.legs[0].dim,), \
                 f'{self.block_backend.block_shape(a)} != {(a.legs[0].dim,)}'
