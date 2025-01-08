@@ -11,6 +11,7 @@ import bisect
 import itertools as it
 from math import prod
 from typing import TYPE_CHECKING, Sequence, Iterator, Literal
+import warnings
 
 from .dummy_config import printoptions
 from .symmetries import (Sector, SectorArray, Symmetry, ProductSymmetry, no_symmetry, FusionStyle,
@@ -46,11 +47,15 @@ class Leg(metaclass=ABCMeta):
     dim : int or float
         The (quantum-)dimension of this leg.
         Is integer if ``symmetry.can_be_dropped``, otherwise may be float.
+    is_dual : bool
+        A boolean flag that changes when the :attr:`dual` is taken. May or may not have additional
+        meaning and implications, depending on the concrete subclass of :class:`Leg`.
     """
     
-    def __init__(self, symmetry: Symmetry, dim: int | float):
+    def __init__(self, symmetry: Symmetry, dim: int | float, is_dual: bool):
         self.symmetry = symmetry
         self.dim = dim
+        self.is_dual = is_dual
 
     def test_sanity(self):
         pass
@@ -70,6 +75,49 @@ class Leg(metaclass=ABCMeta):
     def dual(self) -> Leg:
         """The dual leg, that is obtained when bending this leg."""
         ...
+
+
+class LegPipe(Leg):
+    """A group of legs, i.e. resulting from :func:`~cyten.tensors.combine_legs`.
+
+    Note that the abelian backend defines a custom subclass.
+
+    TODO elaborate
+
+    Attributes
+    ----------
+    legs
+        The legs that were grouped, and that this pipe can be split into.
+    """
+
+    def __init__(self, legs: Sequence[Leg], is_dual: bool = False):
+        self.legs = legs[:]
+        self.num_legs = num_legs = len(legs)
+        assert num_legs > 0
+        Leg.__init__(self, symmetry=legs[0].symmetry, dim=prod(l.dim for l in legs),
+                     is_dual=is_dual)
+
+    def test_sanity(self):
+        assert all(l.symmetry == self.symmetry for l in self.legs)
+        for l in self.legs:
+            l.test_sanity()
+        Leg.test_sanity(self)
+
+    def as_Space(self):
+        return TensorDomain([l.as_Space() for l in self.legs], symmetry=self.symmetry)
+
+    @property
+    def dual(self) -> LegPipe:
+        return LegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual)
+
+    def __getitem__(self, idx):
+        return self.legs[idx]
+
+    def __iter__(self):
+        return iter(self.legs)
+
+    def __len__(self):
+        return self.num_legs
 
 
 class Space(metaclass=ABCMeta):
@@ -437,9 +485,8 @@ class ElementarySpace(Space, Leg):
             sector_order = 'sorted'
         Space.__init__(self, symmetry=symmetry, sector_decomposition=sector_decomposition,
                        multiplicities=multiplicities, sector_order=sector_order)
-        Leg.__init__(self, symmetry=symmetry, dim=self.dim)
+        Leg.__init__(self, symmetry=symmetry, dim=self.dim, is_dual=is_dual)
         self.defining_sectors = defining_sectors
-        self.is_dual = is_dual
         if basis_perm is None:
             self._basis_perm = self._inverse_basis_perm = None
         else:
@@ -824,8 +871,6 @@ class ElementarySpace(Space, Leg):
                         injective: bool = False
                         ) -> ElementarySpace:
         # backend is just there to have the same signature as ProductSpace.change_symmetry
-        # TODO / OPTIMIZE can avoid some computation if the map is injective.
-        #                 then we just need to sort the new sectors, no need to combine
         return ElementarySpace.from_sectors(
             symmetry=symmetry, defining_sectors=sector_map(self.defining_sectors),
             multiplicities=self.multiplicities, is_dual=self.is_dual, basis_perm=self._basis_perm,
@@ -1066,7 +1111,9 @@ class ProductSpace(Space, Leg):
             )
         Space.__init__(self, symmetry=symmetry, sector_decomposition=_sectors, multiplicities=_multiplicities,
                        sector_order='sorted')
-        Leg.__init__(self, symmetry=symmetry, dim=self.dim)
+        # TODO the is_dual behavior here is contradicting the definition in Leg, but this whole
+        #      class should soon be removed anyway.
+        Leg.__init__(self, symmetry=symmetry, dim=self.dim, is_dual=False)
         if _metadata is UNSPECIFIED:
             if backend is None:
                 _metadata = {}
@@ -1278,7 +1325,7 @@ class ProductSpace(Space, Leg):
             >>> trafo[:, :, 0]  # | s=0, m=0 >
             array([[ 0.        ,  0.70710678],
                    [-0.70710678,  0.        ]])
-            >>> trafo[:, :, 1]  # | s=0, m=-1 >
+            >>> trafo[:, :, 1]  # | s=1, m=-1 >
             array([[0., 0.],
                    [0., 1.]])
             >>> trafo[:, :, 2]  # | s=1, m=0 >
@@ -1457,6 +1504,7 @@ class TensorDomain(Space):
          now I want to keep the different roles of the old ProductSpace separate.
 
     TODO do we need the fusion_outcomes_sort from _calc_sectors ?
+         probably not.
 
     TODO name?
     TODO elaborate in docstring
@@ -1655,6 +1703,343 @@ class TensorDomain(Space):
     @property
     def is_trivial(self):
         raise NotImplementedError  # TODO rm this from Space class??
+
+
+class AbelianLegPipe(LegPipe, ElementarySpace):
+    r"""Special case of a :class:`LegPipe` for abelian symmetries.
+
+    This class essentially exists to allow specialized handling of combined legs in the
+    :class:`AbelianBackend`. For this backend, we want to treat combined legs, i.e. pipes, exactly
+    the same as regular legs. This is why this class also inherits from :class:`ElementarySpace`,
+    which are the "uncombined" legs. Crucially, this allows the pipe to have
+    :attr:`defining_sectors` for the :attr:`cyten.backends.abelian.AbelianBackendData.block_inds`
+    to point to, a well behaved :attr:`is_dual` attribute and to have a :attr:`basis_perm`,
+    which can account for the basis permutation that is induced by going from sectors of the
+    individual legs to a sorted list of coupled sectors on the pipe.
+
+    Attributes
+    ----------
+    legs:
+        The individual legs that form this pipe, and that the pipe can be split into.
+        In particular, these are such that the pipe, as an :class:`ElementarySpace`, is isomorphic
+        to their tensor product ``TensorDomain(legs)``, i.e. has the same :attr:`sector_decomposition`.
+    sector_strides : 1D numpy array of int
+        F-style strides for the shape ``[leg.num_sectors for leg in self.legs]``. This allows
+        one-to-one mapping between multi-indices (one block_ind per space) to a single index.
+        Used in :meth:`AbelianBackend.combine_legs`.
+    fusion_outcomes_sort : 1D numpy array of int
+        The permutation that sorts the list of fusion outcomes.
+        To calculate the :attr:`sector_decomposition` of the pipe, we go through all combinations
+        of sectors from the :attr:`legs` in C-style order, i.e. varying sectors from the last leg
+        the fastest. For each combination of sectors, we perform their fusion, which yields a single
+        sector in the abelian case assumed here. The resulting list of fused sectors is in general
+        neither sorted nor unique. This permutation (stable) sorts the resulting list.
+    block_ind_map_slices : 1D numpy array of int
+        Slices for embedding the unique fused sectors in the sorted list of all fusion outcomes.
+        Shape is ``(K,)`` where ``K == pipe.num_sectors + 1``.
+        Fusing all sectors from the :attr:`sector_decomposition` of all legs and sorting the
+        outcomes gives a list which contains (in general) duplicates.
+        The slice ``block_ind_map_slices[n]:block_ind_map_slices[n + 1]`` within this sorted list
+        contains the same entry, namely ``pipe.sector_decomposition[n]``.
+        Used in :math:`AbelianBackend.split_legs`.
+    block_ind_map : 2D numpy array of int
+        Map for the embedding of uncoupled to coupled indices, see notes below.
+        Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
+        i.e. ``M == prod(s.num_sectors for s in spaces)`` and ``N == 3 + len(spaces)``.
+
+    Notes
+    -----
+    TODO review these old notes. do they still apply? should they live somewhere else?
+    
+    For ``np.reshape``, taking, for example,  :math:`i,j,... \rightarrow k` amounted to
+    :math:`k = s_1*i + s_2*j + ...` for appropriate strides :math:`s_1,s_2`.
+
+    In the charged case, however, we want to block :math:`k` by charge, so we must
+    implicitly permute as well.  This reordering is encoded in `_block_ind_map` as follows.
+
+    Each block index combination :math:`(i_1, ..., i_{nlegs})` of the `nlegs=len(spaces)`
+    input `Space`s will end up getting placed in some slice :math:`a_j:a_{j+1}` of the
+    resulting `ProductSpace`. Within this slice, the data is simply reshaped in usual row-major
+    fashion ('C'-order), i.e., with strides :math:`s_1 > s_2 > ...` given by the block size.
+
+    It will be a subslice of a new total block in the `ProductSpace` labelled by block index
+    :math:`J`. We fuse charges according to the rule::
+
+        ProductSpace.sector_decomposition[J] = fusion_outcomes(*[lsector_decomposition[i_l]
+            for l, i_l, l in zip(incoming_block_inds, spaces)])
+
+    Since many charge combinations can fuse to the same total charge,
+    in general there will be many tuples :math:`(i_1, ..., i_{nlegs})` belonging to the same
+    charge block :math:`J` in the `ProductSpace`.
+
+    The rows of `_block_ind_map` are precisely the collections of
+    ``[b_{J,k}, b_{J,k+1}, i_1, . . . , i_{nlegs}, J]``.
+    Here, :math:`b_k:b_{k+1}` denotes the slice of this block index combination *within*
+    the total block `J`, i.e., ``b_{J,k} = a_j - self.slices[J]``.
+
+    The rows of `_block_ind_map` are lex-sorted first by ``J``, then the ``i``.
+    Each ``J`` will have multiple rows, and the order in which they are stored in `block_inds`
+    is the order the data is stored in the actual tensor.
+    Thus, ``_block_ind_map`` might look like ::
+
+        [ ...,
+        [ b_{J,k},   b_{J,k+1},  i_1,    ..., i_{nlegs}   , J,   ],
+        [ b_{J,k+1}, b_{J,k+2},  i'_1,   ..., i'_{nlegs}  , J,   ],
+        [ 0,         b_{J+1,1},  i''_1,  ..., i''_{nlegs} , J + 1],
+        [ b_{J+1,1}, b_{J+1,2},  i'''_1, ..., i'''_{nlegs}, J + 1],
+        ...]
+
+    """
+
+    def __init__(self, legs: Sequence[ElementarySpace], is_dual: bool = False):
+        LegPipe.__init__(self, legs=legs, is_dual=is_dual)
+        sectors, mults = self._calc_sectors()  # also sets some attributes
+        basis_perm = self._calc_basis_perm()
+        ElementarySpace.__init__(self, symmetry=self.symmetry, defining_sectors=sectors,
+                                 multiplicities=mults, is_dual=is_dual, basis_perm=basis_perm)
+
+    def test_sanity(self):
+        for l in self.legs:
+            assert isinstance(l, ElementarySpace)
+            l.test_sanity()
+        # check self.sector_strides
+        assert self.sector_strides.shape == (self.num_legs,)
+        expect = 1
+        for i, num in enumerate(l.num_sectors for l in self.legs):
+            assert self.sector_strides[i] == expect
+            expect *= num
+        # check block_ind_map_slices
+        # note: we do not check for full correctness, just for consistency as slices
+        assert self.block_ind_map_slices.shape == (self.num_sectors + 1,)
+        assert self.block_ind_map_slices[0] == 0
+        assert self.block_ind_map_slices[-1] == np.prod([l.num_sectors for l in self.legs])
+        assert np.all(self.block_ind_map_slices[1:] >= self.block_ind_map_slices[:-1])
+        # check block_ind_map
+        assert self.block_ind_map.shape[0] <= np.prod([l.num_sectors for l in self.legs])
+        assert self.block_ind_map.shape[1] == 3 + self.num_legs
+        for i, (b1, b2, *idcs, J) in enumerate(self.block_ind_map):
+            if i > 0 and J == self.block_ind_map[i - 1][-1]:
+                assert b1 == self.block_ind_map[i - 1][1]
+            else:
+                assert b1 == 0
+            charges = (leg.sector_decomposition[i] for i, leg in zip(idcs, self.legs))
+            fused = self.symmetry.multiple_fusion(*charges)
+            assert np.all(fused == self.sector_decomposition[J])
+        # call to super class(es)
+        LegPipe.test_sanity(self)
+        ElementarySpace.test_sanity(self)
+
+    def as_Space(self):
+        return self
+
+    def as_ElementarySpace(self, is_dual: bool = False):
+        return self.with_is_dual(is_dual=is_dual)
+
+    @property
+    def dual(self) -> AbelianLegPipe:
+        # TODO can we avoid recomputation of _calc_sectors and/or _calc_basis_perm??
+        return AbelianLegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual)
+
+    @classmethod
+    def from_basis(cls, *a, **kw):
+        raise TypeError('from_basis is not supported for AbelianLegPipe')
+
+    @classmethod
+    def from_independent_symmetries(cls, independent_descriptions):
+        assert all(isinstance(i, AbelianLegPipe) for i in independent_descriptions)
+        is_dual = independent_descriptions[0].is_dual
+        assert all(i.is_dual == is_dual for i in independent_descriptions[1:])
+        legs = [
+            i_legs[0].from_independent_symmetries(i_legs)
+            for i_legs in zip(*(i.legs for i in independent_descriptions), strict=True)
+        ]
+        return cls(legs, is_dual=is_dual)
+
+    @classmethod
+    def from_null_space(cls, symmetry, is_dual=False):
+        raise TypeError('from_null_space is not supported for AbelianLegPipe')
+
+    @classmethod
+    def from_sectors(cls, *a, **kw):
+        raise TypeError('from_sectors is not supported for AbelianLegPipe')
+
+    @classmethod
+    def from_trivial_sector(cls, *a, **kw):
+        raise TypeError('from_trivial_sector is not supported for AbelianLegPipe')
+
+    def change_symmetry(self, symmetry, sector_map, backend=None, injective=False):
+        # TODO can we avoid some recomputation of _calc_sectors and _basis_perm?
+        legs = [l.change_symmetry(symmetry, sector_map, backend, injective) for l in self.legs]
+        return AbelianLegPipe(legs, is_dual=self.is_dual)
+
+    def drop_symmetry(self, which: int | list[int] = None):
+        # TODO can we avoid some recomputation of _calc_sectors and _basis_perm?
+        legs = [l.drop_symmetry(which) for l in self.legs]
+        return AbelianLegPipe(legs, is_dual=self.is_dual)
+
+    def take_slice(self, blockmask):
+        msg = (
+            'Using `AbelianLegPipe.take_slice` loses the product (pipe) structure and results in '
+            'a plain ElementarySpace. Explicitly convert using `as_ElementarySpace` to suppress '
+            'this warning.'
+        )
+        warnings.warn(msg, stacklevel=2)
+        return self.as_ElementarySpace(is_dual=self.is_dual).take_slice(blockmask)
+
+    def with_opposite_duality(self):
+        # TODO can we avoid some recomputation here?
+        return AbelianLegPipe(legs=self.legs, is_dual=not self.is_dual)
+
+    def __eq__(self, other):
+        if not isinstance(other, AbelianLegPipe):
+            return NotImplemented
+        if self.is_dual != other.is_dual:
+            return False
+        if self.num_legs != other.num_legs:
+            return False
+        return all(l1 == l2 for l1, l2 in zip(self.legs, other.legs))
+
+    def _calc_sectors(self):
+        """Helper function for :meth:`__init__`. Assumes ``LegPipe.__init__`` was called.
+        
+        Returns the defining_sectors and related multiplicities. Also sets the some attributes.
+        """
+        legs_num_sectors = tuple(l.num_sectors for l in self.legs)
+        self.sector_strides = make_stride(legs_num_sectors, cstyle=False)
+
+        # create a grid to select the multi-index sector
+        grid = np.indices(legs_num_sectors, np.intp)
+        # grid is an array with shape ``(num_legs, *legs_num_sectors)``,
+        # with grid[li, ...] = {np.arange(space_block_numbers[li]) increasing in li-th direction}
+
+        # collapse the different directions into one.
+        grid = grid.T.reshape(-1, self.num_legs)  # *this* is the actual `reshaping`
+        # *rows* of grid are now all possible combinations of block_inds.
+        # transpose before reshape ensures that grid.T is np.lexsort()-ed
+
+        nblocks = grid.shape[0]  # number of blocks in pipe = np.product(spaces_num_sectors)
+        # this is different from num_sectors
+
+        # determine block_ind_map -- it's essentially the grid.
+        block_ind_map = np.zeros((nblocks, 3 + self.num_legs), dtype=np.intp)
+        block_ind_map[:, 2:-1] = grid  # possible combinations of indices
+        # block_ind_map[:, :2] and [:, -1] are set later.
+
+        # the multiplicity for given (i1, i2, ...) is the product of ``multiplicities[il]``
+        # advanced indexing:
+        # ``grid.T[li]`` is a 1D array containing the block_indices `b_li` of leg ``li`` for all blocks
+        multiplicities = np.prod([space.multiplicities[gr] for space, gr in zip(self.legs, grid.T)],
+                                 axis=0)
+
+        # calculate new defining_sectors
+        sectors = self.symmetry.multiple_fusion_broadcast(
+            *(s.sector_decomposition[gr] for s, gr in zip(self.legs, grid.T))
+        )
+        if self.is_dual:
+            # the above are the future self.sector_decomposition
+            # but we want to compute (and in particular sort according to) the defining_sectors
+            sectors = self.symmetry.dual_sectors(sectors)
+
+        # sort (non-dual) charge sectors.
+        self.fusion_outcomes_sort = fusion_outcomes_sort = np.lexsort(sectors.T)
+        block_ind_map = block_ind_map[fusion_outcomes_sort]
+        sectors = sectors[fusion_outcomes_sort]
+        multiplicities = multiplicities[fusion_outcomes_sort]
+
+        slices = np.concatenate([[0], np.cumsum(multiplicities)], axis=0)
+        block_ind_map[:, 0] = slices[:-1]  # start with 0
+        block_ind_map[:, 1] = slices[1:]
+
+        # bunch sectors with equal charges together
+        diffs = find_row_differences(sectors, include_len=True)
+        self.block_ind_map_slices = diffs
+        slices = slices[diffs]
+        multiplicities = slices[1:] - slices[:-1]
+        diffs = diffs[:-1]
+
+        sectors = sectors[diffs]
+
+        new_block_ind = np.zeros(len(block_ind_map), dtype=np.intp)  # = J
+        new_block_ind[diffs[1:]] = 1  # not for the first entry => np.cumsum starts with 0
+        block_ind_map[:, -1] = new_block_ind = np.cumsum(new_block_ind)
+        # calculate the slices within blocks: subtract the start of each block
+        block_ind_map[:, :2] -= slices[new_block_ind][:, np.newaxis]
+        self.block_ind_map = block_ind_map
+
+        return sectors, multiplicities
+
+    def _calc_basis_perm(self):
+        """Helper function for :meth:`__init__`.
+
+        Assumes ``LegPipe.__init__`` and ``_calc_sectors` were called. Returns the basis_perm.
+        """
+        # OPTIMIZE (JU) could make this a (cached) property and only compute when needed
+        # TODO triple check and test this! -> implications on to_numpy after combine (adjust test!)
+        # C-style for compatibility with e.g. numpy.reshape
+        strides = make_stride(shape=[space.dim for space in self.spaces], cstyle=True)
+        order = unstridify(self._get_fusion_outcomes_perm(), strides).T  # indices of the internal bases
+        return sum(stride * space.inverse_basis_perm[p]
+                   for stride, space, p in zip(strides, self.spaces, order))
+
+    def _get_fusion_outcomes_perm(self):
+        r"""Get the permutation introduced by the fusion.
+
+        This permutation arises as follows:
+        For each of the :attr:`legs` consider all sectors by order of appearance in the internal
+        order, i.e. in :attr:`ElementarySpace.sector_decomposition``. Take all combinations of
+        sectors from all the legs in C-style order, i.e. varying those from the last space the
+        fastest. For each combination, perform the fusion (for abelian symmetries this yields
+        a single sector each). This yields a list of sectors.
+        The target permutation np.lexsort( .T)s this list of sectors.
+        """
+        # OPTIMIZE (JU) this is probably not the most efficient way to do this, but it hurts my brain
+        #               and i need to get this to work, if only in an ugly way...
+        fusion_outcomes_inverse_sort = inverse_permutation(self.fusion_outcomes_sort)
+        # j : multi-index into the uncoupled private basis, i.e. into the C-style product of
+        #     internal bases of the legs
+        # i : index of self.legs
+        # s : index of the list of all fusion outcomes / fusion channels
+        dim_strides = make_stride([sp.dim for sp in self.legs])  # (num_legs,)
+        sector_strides = make_stride([sp.num_sectors for sp in self.legs])  # (num_legs,)
+        num_sector_combinations = np.prod([space.num_sectors for space in self.legs])
+        # [i, j] :: position of the part of j in legs[i] within its private basis
+        idcs = unstridify(np.arange(self.dim), dim_strides).T
+        # [i, j] :: sector of the part of j in legs[i] is legs[i].sectors[sector_idcs[i, j]]
+        #           sector_idcs[i, j] = bisect.bisect(legs[i].slices[:, 0], idcs[i, j]) - 1
+        sector_idcs = np.array(
+            [[bisect.bisect(sp.slices[:, 0], idx) - 1 for idx in idx_col]
+             for sp, idx_col in zip(self.legs, idcs)]
+        )  # OPTIMIZE can bisect.bisect be broadcast somehow? is there a numpy alternative?
+        # [i, j] :: the part of j in legs[i] is the degeneracy_idcs[i, j]-th state within that sector
+        #           degeneracy_idcs[i, j] = idcs[i, j] - legs[i].slices[sector_idcs[i, j], 0]
+        degeneracy_idcs = idcs - np.stack(
+            [sp.slices[si_col, 0] for sp, si_col in zip(self.legs, sector_idcs)]
+        )
+        # [i, j] :: strides for combining degeneracy indices.
+        #           degeneracy_strides[:, j] = make_stride([... mults with sector_idcs[:, j]])
+        degeneracy_strides = np.array(
+            [make_stride([sp.multiplicities[si] for sp, si in zip(self.legs, si_row)])
+             for si_row in sector_idcs.T]
+        ).T  # OPTIMIZE make make_stride broadcast?
+        # [j] :: position of j in the unsorted list of fusion outcomes
+        fusion_outcome = np.sum(sector_idcs * sector_strides[:, None], axis=0)
+        # [i, s] :: sector combination s has legs[i].sectors[all_sector_idcs[i, s]]
+        all_sector_idcs = unstridify(np.arange(num_sector_combinations), sector_strides).T
+        # [i, s] :: all_mults[i, s] = legs[i].multiplicities[all_sector_idcs[i, s]]
+        all_mults = np.array([sp.multiplicities[comb] for sp, comb in zip(self.legs, all_sector_idcs)])
+        # [s] : total multiplicity of the fusion channel
+        fusion_outcome_multiplicities = np.prod(all_mults, axis=0)
+        # [s] : !!shape == (L_s + 1,)!!  ; starts ([s]) and stops ([s + 1]) of fusion channels in the sorted list
+        fusion_outcome_slices = np.concatenate(
+            [[0], np.cumsum(fusion_outcome_multiplicities[self.fusion_outcomes_sort])]
+        )
+        # [j] : position of fusion channel after sorting
+        sorted_pos = fusion_outcomes_inverse_sort[fusion_outcome]
+        # [j] :: contribution from the sector, i.e. start of all the js of the same fusion channel
+        sector_part = fusion_outcome_slices[sorted_pos]
+        # [j] :: contribution from the multiplicities, i.e. position with all js of the same fusion channel
+        degeneracy_part = np.sum(degeneracy_idcs * degeneracy_strides, axis=0)
+        return inverse_permutation(sector_part + degeneracy_part)
 
 
 def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend | None = None):
