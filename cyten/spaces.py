@@ -104,7 +104,7 @@ class LegPipe(Leg):
         Leg.test_sanity(self)
 
     def as_Space(self):
-        return TensorDomain([l.as_Space() for l in self.legs], symmetry=self.symmetry)
+        return TensorProduct([l.as_Space() for l in self.legs], symmetry=self.symmetry)
 
     @property
     def dual(self) -> LegPipe:
@@ -736,25 +736,6 @@ class ElementarySpace(Space, Leg):
         if self._inverse_basis_perm is None:
             return np.arange(self.dim)
         return self._inverse_basis_perm
-
-    @property
-    def is_trivial(self) -> bool:
-        """Whether self is the trivial space.
-
-        The trivial space is a one-dimensional space which consists only of the trivial sector,
-        appearing exactly once. In a mathematical sense, the trivial sector _is_ the trivial space.
-        We count both the bra space and the ket space with these attributes as trivial.
-
-        TODO name is maybe not ideal... the ElementarySpace.from_null_space could also be called "trivial"
-             this space is the unit of fusion
-        """
-        if self.num_sectors != 1:
-            return False
-        if self.multiplicities[0] != 1:
-            return False
-        if not np.all(self.sector_decomposition[0] == self.symmetry.trivial_sector):
-            return False
-        return True
 
     @property
     def sectors_of_basis(self):
@@ -1497,25 +1478,12 @@ class ProductSpace(Space, Leg):
         return self.insert_multiply(other, -1, backend=backend)
 
 
-class TensorDomain(Space):
+class TensorProduct(Space):
     """Represents a tensor product of :class:`Spaces`s, e.g. the (co-)domain of a tensor.
 
-    TODO This class was added during refactoring. Might be unified with another class later, but for
-         now I want to keep the different roles of the old ProductSpace separate.
-
-    TODO do we need the fusion_outcomes_sort from _calc_sectors ?
-         probably not.
-
-    TODO name?
-    TODO elaborate in docstring
-
-    TODO do we need those: ??
-    - change_symmetry
-    - drop_symmetry
-
-    TODO sort class contents
-
-    TODO doc attrs, params
+    TODO discuss / review how this relates to :class:`LegPipe`.
+         Mostly, this is not a leg pipe, because it does not have an ``is_dual`` attr??
+         And LegPipes are not TensorProducts because they dont have a ``sector_decomposition``
     """
 
     def __init__(self, spaces: list[Space], symmetry: Symmetry = None):
@@ -1529,10 +1497,150 @@ class TensorDomain(Space):
         self.symmetry = symmetry
         self.spaces = spaces[:]
         sectors, multiplicities = self._calc_sectors(spaces)
-        # TODO By default, TensorDomain is never a bra space.
-        #      Maybe remove that attr from Space? We should only have it in ElementarySpace, no?
         Space.__init__(self, symmetry=symmetry, sector_decomposition=sectors, multiplicities=multiplicities,
                        sector_order='sorted')
+
+    def test_sanity(self):
+        assert len(self.spaces) == self.num_spaces
+        for sp in self.spaces:
+            sp.test_sanity()
+        Space.test_sanity(self)
+
+    # CLASSMETHODS
+
+    @classmethod
+    def from_partial_products(cls, *factors: TensorProduct) -> TensorProduct:
+        r"""Form the :class:`TensorProduct` of all :attr:`spaces` from partial products.
+
+        The result has as :attr:`spaces` all those spaces that appear on the `factors`.
+        I.e. we form :math:`V_1 \otimes V_2 \otimes W_1 \otimes W_2 \dots` from
+        :math:`V_1 \otimes V_2` and :math:`W_1 \otimes W_2 \dots`.
+        """
+        spaces = factors[0].spaces[:]
+        symmetry = factors[0].symmetry
+        for f in factors[1:]:
+            spaces.extend(f.spaces)
+            assert f.symmetry == symmetry, 'Mismatched symmetries'
+        # TODO faster computation of sectors etc
+        return TensorProduct(spaces=spaces, symmetry=symmetry)
+
+    # PROPERTIES
+
+    @property
+    def dual(self):
+        # TODO is this needed ...?
+        return TensorProduct([sp.dual for sp in reversed(self.spaces)], symmetry=self.symmetry)
+
+    # METHODS
+
+    def block_size(self, coupled: Sector | int) -> int:
+        """The size of a block.
+
+        Parameters
+        ----------
+        coupled : Sector or int
+            Specify the coupled sector, either directly as a sector or as an integer, which
+            is interpreted as an index, i.e. is equivalent to the sector
+            ``self.sector_decomposition[coupled]``.
+        """
+        if isinstance(coupled, int):
+            return self.multiplicities[coupled]
+        return self.sector_multiplicity(coupled)
+
+    def change_symmetry(self, symmetry, sector_map, backend=None, injective=False):
+        # TODO can we avoid recomputation of fusion?
+        return TensorProduct(
+            [space.change_symmetry(symmetry, sector_map, backend, injective)
+             for space in self.spaces],
+            symmetry=self.symmetry
+        )
+
+    def drop_symmetry(self, which=None):
+        # TODO can we avoid recomputation of fusion?
+        return TensorProduct(
+            [space.drop_symmetry(which) for space in self.spaces],
+            symmetry=self.symmetry
+        )
+
+    def forest_block_size(self, uncoupled: tuple[Sector], coupled: Sector) -> int:
+        """The size of a forest-block"""
+        # OPTIMIZE ?
+        num_trees = len(fusion_trees(self.symmetry, uncoupled, coupled))
+        return num_trees * self.tree_block_size(uncoupled)
+
+    def forest_block_slice(self, uncoupled: tuple[Sector], coupled: Sector) -> slice:
+        """The range of indices of a forest-block within its block, as a slice."""
+        # OPTIMIZE ?
+        offset = 0
+        for _unc in self.iter_uncoupled():
+            if all(np.all(a == b) for a, b in zip(_unc, uncoupled)):
+                break
+            offset += self.forest_block_size(_unc, coupled)
+        else:  # no break occurred
+            raise ValueError('Uncoupled sectors incompatible')
+        size = self.forest_block_size(uncoupled, coupled)
+        return slice(offset, offset + size)
+
+    def insert_multiply(self, other: Space, pos: int) -> TensorProduct:
+        """Insert a new space into the product at position `pos`."""
+        # TODO optimize (can compute sectors etc more efficiently)
+        return TensorProduct(self.spaces[:pos] + [other] + self.spaces[pos:], symmetry=self.symmetry)
+
+    def iter_uncoupled(self) -> Iterator[tuple[Sector]]:
+        """Iterate over all combinations of sectors"""
+        return it.product(*(s.sector_decomposition for s in self.spaces))
+    
+    def left_multiply(self, other: Space) -> ProductSpace:
+        """Add a new factor at the left / beginning of the spaces"""
+        return self.insert_multiply(other, 0)
+
+    def right_multiply(self, other: Space) -> ProductSpace:
+        """Add a new factor at the right / end of the spaces"""
+        return self.insert_multiply(other, -1)
+
+    def tree_block_size(space: ProductSpace, uncoupled: tuple[Sector]) -> int:
+        """The size of a tree-block"""
+        # OPTIMIZE ?
+        return prod(s.sector_multiplicity(a) for s, a in zip(space.spaces, uncoupled))
+
+    def tree_block_slice(self, tree: FusionTree) -> slice:
+        """The range of indices of a tree-block within its block, as a slice."""
+        # OPTIMIZE ?
+        offset = 0
+        for _unc in self.iter_uncoupled():
+            if all(np.all(a == b) for a, b in zip(_unc, tree.uncoupled)):
+                break
+            offset += self.forest_block_size(_unc, tree.coupled)
+        else:  # no break occurred
+            raise ValueError('Uncoupled sectors incompatible')
+        tree_block_sizes = self.tree_block_size(tree.uncoupled)
+        tree_idx = fusion_trees(self.symmetry, tree.uncoupled, tree.coupled, tree.are_dual).index(tree)
+        offset += tree_block_sizes * tree_idx
+        size = tree_block_sizes
+        return slice(offset, offset + size)
+
+    # DUNDERS AND INTERNAL HELPERS
+
+    def __eq__(self, other):
+        if not isinstance(other, TensorProduct):
+            return NotImplemented
+        if self.num_spaces != other.num_spaces:
+            return False
+        if self.symmetry != other.symmetry:
+            return False
+        return all(s1 == s2 for s1, s2 in zip(self.spaces, other.spaces, strict=True))
+
+    def __getitem__(self, idx):
+        return self.spaces[idx]
+
+    def __iter__(self):
+        return iter(self.spaces)
+
+    def __len__(self):
+        return self.num_spaces
+
+    def _repr(self, show_symmetry):
+        raise NotImplementedError  # TODO rm this from Space class??
 
     def _calc_sectors(self, spaces: list[Space]) -> tuple[SectorArray, ndarray]:
         """Helper function for :meth:`__init__`"""
@@ -1580,130 +1688,6 @@ class TensorDomain(Space):
         )
         return sectors, multiplicities
 
-    def test_sanity(self):
-        assert len(self.spaces) == self.num_spaces
-        for sp in self.spaces:
-            sp.test_sanity()
-        Space.test_sanity(self)
-
-    @classmethod
-    def from_product(cls, *factors: TensorDomain) -> TensorDomain:
-        spaces = factors[0].spaces[:]
-        symmetry = factors[0].symmetry
-        for f in factors[1:]:
-            spaces.extend(f.spaces)
-            assert f.symmetry == symmetry, 'Mismatched symmetries'
-        # TODO faster computation of sectors etc
-        return TensorDomain(spaces=spaces, symmetry=symmetry)
-
-    def __getitem__(self, idx):
-        return self.spaces[idx]
-
-    def __iter__(self):
-        return iter(self.spaces)
-
-    def __len__(self):
-        return self.num_spaces
-
-    # TODO repr
-
-    def __eq__(self, other):
-        if not isinstance(other, TensorDomain):
-            return NotImplemented
-        if self.num_spaces != other.num_spaces:
-            return False
-        if self.symmetry != other.symmetry:
-            return False
-        return all(s1 == s2 for s1, s2 in zip(self.spaces, other.spaces, strict=True))
-
-    def insert_multiply(self, other: Space, pos: int) -> TensorDomain:
-        # TODO optimize (can compute sectors etc more efficiently)
-        return TensorDomain(self.spaces[:pos] + [other] + self.spaces[pos:], symmetry=self.symmetry)
-
-    def iter_uncoupled(self) -> Iterator[tuple[Sector]]:
-        """Iterate over all combinations of sectors"""
-        return it.product(*(s.sector_decomposition for s in self.spaces))
-    
-    def left_multiply(self, other: Space) -> ProductSpace:
-        """Add a new factor at the left / beginning of the spaces"""
-        return self.insert_multiply(other, 0)
-
-    def right_multiply(self, other: Space) -> ProductSpace:
-        """Add a new factor at the right / end of the spaces"""
-        return self.insert_multiply(other, -1)
-
-    def block_size(self, coupled: Sector | int) -> int:
-        """The size of a block.
-
-        Parameters
-        ----------
-        coupled : Sector or int
-            Specify the coupled sector, either directly as a sector or as an integer, which
-            is interpreted as an index, i.e. is equivalent to the sector
-            ``self.sector_decomposition[coupled]``.
-        """
-        if isinstance(coupled, int):
-            return self.multiplicities[coupled]
-        return self.sector_multiplicity(coupled)
-
-    def forest_block_size(self, uncoupled: tuple[Sector], coupled: Sector) -> int:
-        """The size of a forest-block"""
-        # OPTIMIZE ?
-        num_trees = len(fusion_trees(self.symmetry, uncoupled, coupled))
-        return num_trees * self.tree_block_size(uncoupled)
-
-    def forest_block_slice(self, uncoupled: tuple[Sector], coupled: Sector) -> slice:
-        """The range of indices of a forest-block within its block, as a slice."""
-        # OPTIMIZE ?
-        offset = 0
-        for _unc in self.iter_uncoupled():
-            if all(np.all(a == b) for a, b in zip(_unc, uncoupled)):
-                break
-            offset += self.forest_block_size(_unc, coupled)
-        else:  # no break occurred
-            raise ValueError('Uncoupled sectors incompatible')
-        size = self.forest_block_size(uncoupled, coupled)
-        return slice(offset, offset + size)
-
-    def tree_block_size(space: ProductSpace, uncoupled: tuple[Sector]) -> int:
-        """The size of a tree-block"""
-        # OPTIMIZE ?
-        return prod(s.sector_multiplicity(a) for s, a in zip(space.spaces, uncoupled))
-
-    def tree_block_slice(self, tree: FusionTree) -> slice:
-        """The range of indices of a tree-block within its block, as a slice."""
-        # OPTIMIZE ?
-        offset = 0
-        for _unc in self.iter_uncoupled():
-            if all(np.all(a == b) for a, b in zip(_unc, tree.uncoupled)):
-                break
-            offset += self.forest_block_size(_unc, tree.coupled)
-        else:  # no break occurred
-            raise ValueError('Uncoupled sectors incompatible')
-        tree_block_sizes = self.tree_block_size(tree.uncoupled)
-        tree_idx = fusion_trees(self.symmetry, tree.uncoupled, tree.coupled, tree.are_dual).index(tree)
-        offset += tree_block_sizes * tree_idx
-        size = tree_block_sizes
-        return slice(offset, offset + size)
-
-    @property
-    def dual(self):
-        # TODO include an additional is_dual flag
-        return TensorDomain([sp.dual for sp in reversed(self.spaces)], symmetry=self.symmetry)
-
-    def _repr(self, show_symmetry):
-        raise NotImplementedError  # TODO rm this from Space class??
-
-    def change_symmetry(self, symmetry, sector_map, backend=None, injective=False):
-        raise NotImplementedError  # TODO rm this from Space class??
-
-    def drop_symmetry(self, which=None):
-        raise NotImplementedError  # TODO rm this from Space class??
-
-    @property
-    def is_trivial(self):
-        raise NotImplementedError  # TODO rm this from Space class??
-
 
 class AbelianLegPipe(LegPipe, ElementarySpace):
     r"""Special case of a :class:`LegPipe` for abelian symmetries.
@@ -1722,7 +1706,8 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     legs:
         The individual legs that form this pipe, and that the pipe can be split into.
         In particular, these are such that the pipe, as an :class:`ElementarySpace`, is isomorphic
-        to their tensor product ``TensorDomain(legs)``, i.e. has the same :attr:`sector_decomposition`.
+        to their tensor product ``TensorProduct(legs)``, i.e. has the same :attr:`sector_decomposition`.
+        TODO make this a test
     sector_strides : 1D numpy array of int
         F-style strides for the shape ``[leg.num_sectors for leg in self.legs]``. This allows
         one-to-one mapping between multi-indices (one block_ind per space) to a single index.

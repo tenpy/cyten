@@ -8,7 +8,7 @@ from math import prod
 
 from cyten.backends import fusion_tree_backend, get_backend
 from cyten.trees import FusionTree
-from cyten.spaces import ElementarySpace, TensorDomain
+from cyten.spaces import ElementarySpace, TensorProduct
 from cyten import backends
 from cyten.tensors import DiagonalTensor, SymmetricTensor, move_leg
 from cyten.symmetries import ProductSymmetry, fibonacci_anyon_category, SU2Symmetry, SU3_3AnyonCategory
@@ -30,8 +30,8 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     sym = fibonacci_anyon_category
     s1 = ElementarySpace(sym, [[1]], [1])  # only tau
     s2 = ElementarySpace(sym, [[0], [1]], [1, 1])  # 1 and tau
-    codomain = TensorDomain([s2, s1, s2, s2])
-    domain = TensorDomain([s2, s1, s2])
+    codomain = TensorProduct([s2, s1, s2, s2])
+    domain = TensorProduct([s2, s1, s2])
 
     block_inds = np.array([[0,0], [1,1]])
     blocks = [backend.block_backend.block_random_uniform((8, 3), Dtype.complex128),
@@ -72,7 +72,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
 
     expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_codomain = TensorDomain([s1, s2, s2, s2])
+    expect_codomain = TensorProduct([s1, s2, s2, s2])
     expect_tens = SymmetricTensor(expect_data, expect_codomain, domain, backend=backend)
 
     # do this without permute_legs for the different implementations
@@ -104,7 +104,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
 
     expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_domain = TensorDomain([s1, s2, s2])
+    expect_domain = TensorProduct([s1, s2, s2])
     expect_tens = SymmetricTensor(expect_data, codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -183,7 +183,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
 
     expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_domain = TensorDomain([s2, s2, s1])
+    expect_domain = TensorProduct([s2, s2, s1])
     expect_tens = SymmetricTensor(expect_data, codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -226,8 +226,8 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     sym = ProductSymmetry([fibonacci_anyon_category, SU2Symmetry()])
     s1 = ElementarySpace(sym, [[1, 1]], [2])  # only (tau, spin-1/2)
     s2 = ElementarySpace(sym, [[0, 0], [1, 1]], [1, 2])  # (1, spin-0) and (tau, spin-1/2)
-    codomain = TensorDomain([s2, s2, s2])
-    domain = TensorDomain([s2, s1, s2])
+    codomain = TensorProduct([s2, s2, s2])
+    domain = TensorProduct([s2, s1, s2])
 
     # block charges: 0: [0, 0], 1: [1, 0], 2: [0, 1], 3: [1, 1]
     #                4: [0, 2], 5: [1, 2], 6: [0, 3], 7: [1, 3]
@@ -323,7 +323,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
 
     expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_domain = TensorDomain([s1, s2, s2])
+    expect_domain = TensorProduct([s1, s2, s2])
     expect_tens = SymmetricTensor(expect_data, codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -391,7 +391,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
 
     expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_domain = TensorDomain([s2, s2, s1])
+    expect_domain = TensorProduct([s2, s2, s1])
     expect_tens = SymmetricTensor(expect_data, codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -435,8 +435,8 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     s1 = ElementarySpace(sym, [[1], [2]], [1, 1])  # 8 and 10
     s2 = ElementarySpace(sym, [[1]], [2])  # 8 with multiplicity 2
     [c0, c1, c2, c3] = [np.array([i]) for i in range(4)]  # charges
-    codomain = TensorDomain([s1, s1, s1])
-    domain = TensorDomain([s1, s2, s2])
+    codomain = TensorProduct([s1, s1, s1])
+    domain = TensorProduct([s1, s2, s2])
 
     block_inds = np.array([[i, i] for i in range(4)])
     shapes = [(6, 12), (16, 36), (5, 12), (5, 12)]
@@ -501,7 +501,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_domain = TensorDomain([s2, s1, s2])
+    expect_domain = TensorProduct([s2, s1, s2])
     expect_tens = SymmetricTensor(expect_data, codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -674,8 +674,8 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     s3 = ElementarySpace(sym, [[0], [1]], [2, 3])  # 1 and tau
 
     # tensor with single leg in codomain; bend down
-    codomain = TensorDomain([s2])
-    domain = TensorDomain([], symmetry=sym)
+    codomain = TensorProduct([s2])
+    domain = TensorProduct([], symmetry=sym)
 
     block_inds = np.array([[0, 0]])
     blocks = [backend.block_backend.block_random_uniform((1, 1), Dtype.complex128)]
@@ -683,8 +683,8 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
-    expect_codomain = TensorDomain([], symmetry=sym)
-    expect_domain = TensorDomain([s2.dual])
+    expect_codomain = TensorProduct([], symmetry=sym)
+    expect_domain = TensorProduct([s2.dual])
     expect_tens = SymmetricTensor(data, expect_codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -701,8 +701,8 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     # tensor with single leg in domain; bend up
-    codomain = TensorDomain([], symmetry=sym)
-    domain = TensorDomain([s3])
+    codomain = TensorProduct([], symmetry=sym)
+    domain = TensorProduct([s3])
 
     block_inds = np.array([[0,0]])
     blocks = [backend.block_backend.block_random_uniform((1, 2), Dtype.complex128)]
@@ -713,8 +713,8 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     expect = [backend.block_backend.block_reshape(blocks[0], (2, 1))]
     expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_codomain = TensorDomain([s3.dual])
-    expect_domain = TensorDomain([], symmetry=sym)
+    expect_codomain = TensorProduct([s3.dual])
+    expect_domain = TensorProduct([], symmetry=sym)
     expect_tens = SymmetricTensor(expect_data, expect_codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -731,8 +731,8 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     # more complicated tensor
-    codomain = TensorDomain([s2, s1, s1])
-    domain = TensorDomain([s2, s1, s2])
+    codomain = TensorProduct([s2, s1, s1])
+    domain = TensorProduct([s2, s1, s2])
 
     block_inds = np.array([[0,0], [1,1]])
     blocks = [backend.block_backend.block_random_uniform((2, 3), Dtype.complex128),
@@ -771,8 +771,8 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
 
     expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_codomain = TensorDomain([s2, s1, s1, s2.dual])
-    expect_domain = TensorDomain([s2, s1])
+    expect_codomain = TensorProduct([s2, s1, s1, s2.dual])
+    expect_domain = TensorProduct([s2, s1])
     expect_tens = SymmetricTensor(expect_data, expect_codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -817,8 +817,8 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
 
     expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_codomain = TensorDomain([s2, s1])
-    expect_domain = TensorDomain([s2, s1, s2, s1.dual])
+    expect_codomain = TensorProduct([s2, s1])
+    expect_domain = TensorProduct([s2, s1, s2, s1.dual])
     expect_tens = SymmetricTensor(expect_data, expect_codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -834,8 +834,8 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = move_leg(tens, 2, domain_pos=3, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-    spaces = [TensorDomain([], symmetry=sym), TensorDomain([s2]), TensorDomain([s3]),
-              TensorDomain([s1, s3]), TensorDomain([s2, s3]), TensorDomain([s3, s1, s3, s2])]
+    spaces = [TensorProduct([], symmetry=sym), TensorProduct([s2]), TensorProduct([s3]),
+              TensorProduct([s1, s3]), TensorProduct([s2, s3]), TensorProduct([s3, s1, s3, s2])]
     # bend up and down again (and vice versa) == trivial
     assert_bending_up_and_down_trivial(spaces, spaces, funcs, backend, multiple=multiple, eps=eps)
 
@@ -860,8 +860,8 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     s3 = ElementarySpace(sym, [[0, 0], [1, 1], [1, 2]], [1, 2, 2])  # (1, spin-0), (tau, spin-1/2) and (tau, spin-1)
 
     # tensor with two legs in domain; bend up
-    codomain = TensorDomain([], symmetry=sym)
-    domain = TensorDomain([s2, s3])
+    codomain = TensorProduct([], symmetry=sym)
+    domain = TensorProduct([s2, s3])
 
     block_inds = np.array([[0, 0]])
     blocks = [backend.block_backend.block_random_uniform((1, 5), Dtype.complex128)]
@@ -878,8 +878,8 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
 
     expect_data = backends.FusionTreeData(expect_block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_codomain = TensorDomain([s3.dual])
-    expect_domain = TensorDomain([s2])
+    expect_codomain = TensorProduct([s3.dual])
+    expect_domain = TensorProduct([s2])
     expect_tens = SymmetricTensor(expect_data, expect_codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -896,8 +896,8 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     # tensor with two legs in codomain, two leg in domain; bend down
-    codomain = TensorDomain([s1, s3])
-    domain = TensorDomain([s2, s3])
+    codomain = TensorProduct([s1, s3])
+    domain = TensorProduct([s2, s3])
 
     # charges [0, 0], [1, 0], [0, 1], [1, 1], [0, 2], [1, 2], [0, 3], [1, 3]
     block_inds = np.array([[i, i] for i in range(8)])
@@ -952,8 +952,8 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
 
     expect_data = backends.FusionTreeData(expect_block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_codomain = TensorDomain([s1])
-    expect_domain = TensorDomain([s2, s3, s3.dual])
+    expect_codomain = TensorProduct([s1])
+    expect_domain = TensorProduct([s2, s3, s3.dual])
     expect_tens = SymmetricTensor(expect_data, expect_codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -970,8 +970,8 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     # similar tensor, replace one sector with its dual (Frobenius-Schur is now relevant); bend up
-    codomain = TensorDomain([s1, s3])
-    domain = TensorDomain([s2, s3.dual])
+    codomain = TensorProduct([s1, s3])
+    domain = TensorProduct([s2, s3.dual])
 
     blocks = [backend.block_backend.block_random_uniform(shp, Dtype.complex128) for shp in shapes]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
@@ -1029,8 +1029,8 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
 
     expect_data = backends.FusionTreeData(expect_block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_codomain = TensorDomain([s1, s3, s3])
-    expect_domain = TensorDomain([s2])
+    expect_codomain = TensorProduct([s1, s3, s3])
+    expect_domain = TensorProduct([s2])
     expect_tens = SymmetricTensor(expect_data, expect_codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -1046,8 +1046,8 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         new_tens = move_leg(tens, 2, codomain_pos=2, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-    spaces = [TensorDomain([], symmetry=sym), TensorDomain([s2]), TensorDomain([s3.dual]),
-              TensorDomain([s1, s3]), TensorDomain([s2, s3.dual]), TensorDomain([s1, s3, s2.dual])]
+    spaces = [TensorProduct([], symmetry=sym), TensorProduct([s2]), TensorProduct([s3.dual]),
+              TensorProduct([s1, s3]), TensorProduct([s2, s3.dual]), TensorProduct([s1, s3, s2.dual])]
     # bend up and down again (and vice versa) == trivial
     assert_bending_up_and_down_trivial(spaces, spaces, funcs, backend, multiple=multiple, eps=eps)
 
@@ -1075,8 +1075,8 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     # the b symbols are diagonal in the multiplicity index
 
     # tensor with two legs in codomain; bend down
-    codomain = TensorDomain([s1, s3])
-    domain = TensorDomain([], symmetry=sym)
+    codomain = TensorProduct([s1, s3])
+    domain = TensorProduct([], symmetry=sym)
 
     block_inds = np.array([[0, 0]])
     blocks = [backend.block_backend.block_random_uniform((5, 1), Dtype.complex128)]
@@ -1092,8 +1092,8 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     expect_data = backends.FusionTreeData(expect_block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_codomain = TensorDomain([s1])
-    expect_domain = TensorDomain([s3.dual])
+    expect_codomain = TensorProduct([s1])
+    expect_domain = TensorProduct([s3.dual])
     expect_tens = SymmetricTensor(expect_data, expect_codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -1110,8 +1110,8 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     # tensor with two legs in codomain, one leg in domain; bend down
-    codomain = TensorDomain([s1, s3])
-    domain = TensorDomain([s2])
+    codomain = TensorProduct([s1, s3])
+    domain = TensorProduct([s2])
 
     block_inds = np.array([[1, 0]])
     blocks = [backend.block_backend.block_random_uniform((10, 2), Dtype.complex128)]
@@ -1131,8 +1131,8 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     expect_data = backends.FusionTreeData(expect_block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_codomain = TensorDomain([s1])
-    expect_domain = TensorDomain([s2, s3.dual])
+    expect_codomain = TensorProduct([s1])
+    expect_domain = TensorProduct([s2, s3.dual])
     expect_tens = SymmetricTensor(expect_data, expect_codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -1160,8 +1160,8 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     expect_data = backends.FusionTreeData(expect_block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_codomain = TensorDomain([s1, s3, s2.dual])
-    expect_domain = TensorDomain([], symmetry=sym)
+    expect_codomain = TensorProduct([s1, s3, s2.dual])
+    expect_domain = TensorProduct([], symmetry=sym)
     expect_tens = SymmetricTensor(expect_data, expect_codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -1178,8 +1178,8 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
     # more complicated tensor, bend down
-    codomain = TensorDomain([s1, s2, s2])
-    domain = TensorDomain([s2, s3])
+    codomain = TensorProduct([s1, s2, s2])
+    domain = TensorProduct([s2, s3])
 
     block_inds = np.array([[i, i] for i in range(4)])
     shapes = [(12, 4), (36, 16), (12, 4), (12, 4)]
@@ -1262,8 +1262,8 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
-    expect_codomain = TensorDomain([s1, s2])
-    expect_domain = TensorDomain([s2, s3, s2.dual])
+    expect_codomain = TensorProduct([s1, s2])
+    expect_domain = TensorProduct([s2, s3, s2.dual])
     expect_tens = SymmetricTensor(expect_data, expect_codomain, expect_domain, backend=backend)
 
     for func in funcs:
@@ -1279,8 +1279,8 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = move_leg(tens, 2, domain_pos=2, levels=None)
         assert_tensors_almost_equal(new_tens, expect_tens, eps)
 
-    spaces = [TensorDomain([], symmetry=sym), TensorDomain([s2]), TensorDomain([s3.dual]),
-              TensorDomain([s1, s3]), TensorDomain([s2, s3.dual]), TensorDomain([s1, s3, s2.dual])]
+    spaces = [TensorProduct([], symmetry=sym), TensorProduct([s2]), TensorProduct([s3.dual]),
+              TensorProduct([s1, s3]), TensorProduct([s2, s3.dual]), TensorProduct([s1, s3, s2.dual])]
     # bend up and down again (and vice versa) == trivial
     assert_bending_up_and_down_trivial(spaces, spaces, funcs, backend, multiple=multiple, eps=eps)
 
@@ -1291,7 +1291,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 # HELPER FUNCTIONS FOR THE TESTS
 
 def apply_single_b_symbol(ten: SymmetricTensor, bend_up: bool
-                          ) -> tuple[fusion_tree_backend.FusionTreeData, TensorDomain, TensorDomain]:
+                          ) -> tuple[fusion_tree_backend.FusionTreeData, TensorProduct, TensorProduct]:
     """Use the implementation of b symbols using `TreeMappingDicts` to return the action
     of a single b symbol in the same format (input and output) as the cross check
     implementation. This is of course inefficient usage of this implementation but a
@@ -1316,7 +1316,7 @@ def apply_single_b_symbol(ten: SymmetricTensor, bend_up: bool
 
 
 def apply_single_c_symbol(ten: SymmetricTensor, leg: int | str, levels: list[int]
-                          ) -> tuple[fusion_tree_backend.FusionTreeData, TensorDomain, TensorDomain]:
+                          ) -> tuple[fusion_tree_backend.FusionTreeData, TensorProduct, TensorProduct]:
     """Use the implementation of c symbols using `TreeMappingDicts` to return the action
     of a single c symbol in the same format (input and output) as the cross check
     implementations. This is of course inefficient usage of this implementation but a
@@ -1380,7 +1380,7 @@ def assert_bending_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[Ca
             assert_tensors_almost_equal(new_a, new_a2, eps)
 
 
-def assert_bending_up_and_down_trivial(codomains: list[TensorDomain], domains: list[TensorDomain],
+def assert_bending_up_and_down_trivial(codomains: list[TensorProduct], domains: list[TensorProduct],
                                        funcs: list[Callable], backend: backends.TensorBackend,
                                        multiple: bool, eps: float):
     """Check that bending a leg up and down (or down and up) is trivial. All given codomains are combined with all
@@ -1545,7 +1545,7 @@ def assert_tensors_almost_equal(a: SymmetricTensor, expect: SymmetricTensor, eps
 
 def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str, levels: list[int]
                                             ) -> tuple[fusion_tree_backend.FusionTreeData,
-                                                       TensorDomain, TensorDomain]:
+                                                       TensorProduct, TensorProduct]:
     """Naive implementation of a single C symbol for test purposes on the level
     of the tree blocks. `ten.legs[leg]` is exchanged with `ten.legs[leg + 1]`.
 
@@ -1568,12 +1568,12 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
         domain_index = ten.num_legs - 1 - (index + 1)  # + 1 because it braids with the leg left of it
         spaces = ten.domain[:domain_index] + [ten.domain[domain_index + 1]] + \
             [ten.domain[domain_index]] + ten.domain[domain_index + 2:]
-        new_domain = TensorDomain(spaces, symmetry=symmetry)
+        new_domain = TensorProduct(spaces, symmetry=symmetry)
         # TODO can re-use: _sectors=ten.domain.sector_decomposition, _multiplicities=ten.domain.multiplicities)
         new_codomain = ten.codomain
     else:
         spaces = ten.codomain[:index] + [ten.codomain[index + 1]] + [ten.codomain[index]] + ten.codomain[index + 2:]
-        new_codomain = TensorDomain(spaces,  symmetry=symmetry)
+        new_codomain = TensorProduct(spaces,  symmetry=symmetry)
         # TODO can re-use: ten.codomain.sector_decomposition, ten.codomain.multiplicities
         new_domain = ten.domain
 
@@ -1707,7 +1707,7 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
 
 def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, levels: list[int]
                                           ) -> tuple[fusion_tree_backend.FusionTreeData,
-                                                     TensorDomain, TensorDomain]:
+                                                     TensorProduct, TensorProduct]:
     """Naive implementation of a single C symbol for test purposes on the level
     of the tree columns (= tree slices of codomain xor domain). `ten.legs[leg]`
     is exchanged with `ten.legs[leg + 1]`.
@@ -1730,7 +1730,7 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
         index = ten.num_legs - 1 - (index + 1)  # + 1 because it braids with the leg left of it
         levels = levels[::-1]
         spaces = ten.domain[:index] + ten.domain[index:index+2][::-1] + ten.domain[index+2:]
-        new_domain = TensorDomain(spaces, symmetry=symmetry)
+        new_domain = TensorProduct(spaces, symmetry=symmetry)
         # TODO can re-use:_sectors=ten.domain.sector_decomposition, _multiplicities=ten.domain.multiplicities)
         new_codomain = ten.codomain
         # for permuting the shape of the tree blocks
@@ -1738,7 +1738,7 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
         shape_perm[index+1:index+3] = shape_perm[index+1:index+3][::-1]
     else:
         spaces = ten.codomain[:index] + ten.codomain[index:index+2][::-1] + ten.codomain[index+2:]
-        new_codomain = TensorDomain(spaces, symmetry=symmetry)
+        new_codomain = TensorProduct(spaces, symmetry=symmetry)
         # TODO can re-use:
         # _sectors=ten.codomain.sector_decomposition,
         # _multiplicities=ten.codomain.multiplicities)
@@ -1837,7 +1837,7 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
 
 def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
                                 ) -> tuple[fusion_tree_backend.FusionTreeData,
-                                           TensorDomain, TensorDomain]:
+                                           TensorProduct, TensorProduct]:
     """Naive implementation of a single B symbol for test purposes.
     If `bend_up == True`, the right-most leg in the domain is bent up,
     otherwise the right-most leg in the codomain is bent down.
@@ -1859,8 +1859,8 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
 
     spaces = [ten.codomain, ten.domain]
     space1, space2 = spaces[bend_up], spaces[not bend_up]
-    new_space1 = TensorDomain(space1.spaces[:-1], symmetry, backend)
-    new_space2 = TensorDomain(space2.spaces + [space1.spaces[-1].dual], symmetry, backend)
+    new_space1 = TensorProduct(space1.spaces[:-1], symmetry, backend)
+    new_space2 = TensorProduct(space2.spaces + [space1.spaces[-1].dual], symmetry, backend)
 
     new_codomain = [new_space1, new_space2][bend_up]
     new_domain = [new_space1, new_space2][not bend_up]

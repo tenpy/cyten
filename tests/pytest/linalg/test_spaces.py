@@ -247,8 +247,8 @@ def test_take_slice(make_any_space, any_symmetry, np_random):
 
 
 @pytest.mark.parametrize('num_spaces', [3, 4, 5])
-def test_TensorDomain(any_symmetry, make_any_space, make_any_sectors, num_spaces):
-    domain = spaces.TensorDomain([make_any_space() for _ in range(num_spaces)], symmetry=any_symmetry)
+def test_TensorProduct(any_symmetry, make_any_space, make_any_sectors, num_spaces):
+    domain = spaces.TensorProduct([make_any_space() for _ in range(num_spaces)], symmetry=any_symmetry)
     domain.test_sanity()
     
     for coupled in make_any_sectors(10):
