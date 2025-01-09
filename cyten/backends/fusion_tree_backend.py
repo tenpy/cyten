@@ -438,12 +438,16 @@ class FusionTreeBackend(TensorBackend):
                               device=a.data.device)
 
     def diagonal_from_block(self, a: Block, co_domain: TensorProduct, tol: float) -> DiagonalData:
+        leg = co_domain[0]
         dtype = self.block_backend.block_dtype(a)
         block_inds = np.repeat(np.arange(co_domain.num_sectors)[:, None], 2, axis=1)
         blocks = []
-        for coupled, mult, slc in zip(co_domain.sector_decomposition, co_domain.multiplicities, co_domain.slices):
+        for coupled, mult in zip(co_domain.sector_decomposition, co_domain.multiplicities):
             dim_c = co_domain.symmetry.sector_dim(coupled)
-            entries = self.block_backend.block_reshape(a[slice(*slc)], (dim_c, mult))
+            # TODO this lookup is annoying, but currently needed because of potentially different sorting
+            #      order of the ``a.domain == TensorProduct(a.leg)`` versus the ``a.leg`` itself
+            j = leg.sector_decomposition_where(coupled)
+            entries = self.block_backend.block_reshape(a[slice(*leg.slices[j])], (dim_c, mult))
             # project onto the identity on the coupled sector
             block = self.block_backend.block_sum(entries, 0) / dim_c
             projected = self.block_backend.block_outer(
@@ -481,13 +485,17 @@ class FusionTreeBackend(TensorBackend):
     def diagonal_tensor_to_block(self, a: DiagonalTensor) -> Block:
         assert a.symmetry.can_be_dropped
         res = self.block_backend.zero_block([a.leg.dim], a.dtype)
-        for n, i in enumerate(a.data.block_inds[:, 0]):
-            dim_c = a.codomain.sector_dims[i]
+        for n, bi in enumerate(a.data.block_inds[:, 0]):
+            c = a.codomain.sector_decomposition[bi]
+            dim_c = a.codomain.sector_dims[bi]
             symmetry_data = self.block_backend.ones_block([dim_c], dtype=a.dtype)
             degeneracy_data = a.data.blocks[n]
             entries = self.block_backend.block_outer(symmetry_data, degeneracy_data)
             entries = self.block_backend.block_reshape(entries, (-1,))
-            res[slice(*a.leg.slices[i])] = entries
+            # TODO this lookup is annoying, but currently needed because of potentially different sorting
+            #      order of the ``a.domain == TensorProduct(a.leg)`` versus the ``a.leg`` itself
+            j = a.leg.sector_decomposition_where(c)
+            res[slice(*a.leg.slices[j])] = entries
         return res
 
     def diagonal_to_mask(self, tens: DiagonalTensor) -> tuple[DiagonalData, ElementarySpace]:
