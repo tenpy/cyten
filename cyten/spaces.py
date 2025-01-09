@@ -313,6 +313,47 @@ class Space(metaclass=ABCMeta):
             return False
         return np.all(self.sector_decomposition[perm1] == other.sector_decomposition[perm2])
 
+    def is_subspace_of(self, other: Space) -> bool:
+        """Whether self is (isomorphic to) a subspace of other.
+
+        Per convention, self is never a subspace of other, if the :attr:`symmetry` are different.
+
+        See Also
+        --------
+        ElementarySpace.from_largest_common_subspace
+        """
+        if not self.symmetry.is_same_symmetry(other.symmetry):
+            return False
+        if self.num_sectors == 0:
+            return True
+        if self.sector_order == 'sorted' == other.sector_order:
+            # sectors are sorted, so we can just iterate over both of them
+            n_self = 0
+            for other_sector, other_mult in zip(other.sector_decomposition, other.multiplicities):
+                if np.all(self.sector_decomposition[n_self] == other_sector):
+                    if self.multiplicities[n_self] > other_mult:
+                        return False
+                    n_self += 1
+                if n_self == self.num_sectors:
+                    # have checked all sectors of self
+                    return True
+            # reaching this line means self has sectors which other does not have
+            return False
+
+        # OPTIMIZE sort once instead of looking up each time
+        num_sectors_checked = 0
+        for sector, mult in zip(other.sector_decomposition, other.multiplicities):
+            m = self.sector_multiplicity(sector)
+            if m == 0:
+                continue
+            if m > mult:
+                return False
+            num_sectors_checked += 1
+        if num_sectors_checked < self.num_sectors:
+            # this means self has some sectors that other doesn't have
+            return False
+        return True
+
     def as_ElementarySpace(self, is_dual: bool = False) -> ElementarySpace:
         """Convert to an isomorphic :class:`ElementarySpace`."""
         if is_dual:
@@ -382,27 +423,6 @@ class Space(metaclass=ABCMeta):
         if res is None:
             return f'<{self.__class__.__name__}>'
         return res
-
-    def largest_common_subspace(self, other: Space, is_dual: bool = False) -> ElementarySpace:
-        """The largest common subspace."""
-        assert self.symmetry == other.symmetry
-        sectors = []
-        mults = []
-        if self.sector_order == other.sector_order == 'ordered':
-            for i, j in iter_common_sorted_arrays(self.sector_decomposition, other.sector_decomposition):
-                sectors.append(self.sector_decomposition[i])
-                mults.append(min(self.multiplicities[i], other.multiplicities[j]))
-            res = ElementarySpace(self.symmetry, sectors, mults)
-        else:
-            # OPTIMIZE implementation for mixed orders? or just override this in ElementarySpace?
-            for i, sector in enumerate(self.sector_decomposition):
-                j = other.sector_decomposition_where(sector)
-                if j is None:
-                    continue
-                sectors.append(sector)
-                mults.append(min(self.multiplicities[i], other.multiplicities[j]))
-            res = ElementarySpace(self.symmetry, sectors, mults, is_dual=is_dual)
-        return res.with_is_dual(is_dual)
 
     def sector_decomposition_where(self, sector: Sector) -> int | None:
         """Find the index of a given sector in the :attr:`sector_decomposition`.
@@ -595,6 +615,45 @@ class ElementarySpace(Space, Leg):
         sectors_of_basis = np.concatenate([s.sectors_of_basis for s in independent_descriptions],
                                           axis=1)
         return cls.from_basis(symmetry, sectors_of_basis)
+
+    @classmethod
+    def from_largest_common_subspace(cls, *spaces: Space, is_dual: bool = False) -> ElementarySpace:
+        """The largest common subspace of a list of spaces.
+
+        The largest :class:`ElementarySpace` that :meth:`is_subspace_of` all of the `spaces`.
+        I.e. the :attr:`sector_decomposition` is given by the "sector-wise minimum" of all
+        multiplicities of the `spaces`.
+
+        See Also
+        --------
+        is_subspace_of
+        """
+        if len(spaces) == 0:
+            raise ValueError('Need at least one space')
+        if len(spaces) == 1:
+            return spaces[0].as_ElementarySpace(is_dual=is_dual)
+        sp1, sp2, *more = spaces
+        if more:
+            # OPTIMIZE directly implement for many
+            sp = ElementarySpace.from_largest_common_subspace(sp1, sp2)
+            return ElementarySpace.from_largest_common_subspace(sp, *more, is_dual=is_dual)
+        sectors = []
+        mults = []
+        if sp1.sector_order == 'sorted' == sp2.sector_order:
+            for i, j in iter_common_sorted_arrays(sp1.sector_decomposition, sp2.sector_decomposition):
+                sectors.append(sp1.sector_decomposition[i])
+                mults.append(min(sp1.multiplicities[i], sp2.multiplicities[j]))
+        else:
+            # OPTIMIZE implementation for mixed orders? or just override this in ElementarySpace?
+            for i, sector in enumerate(sp1.sector_decomposition):
+                j = sp2.sector_decomposition_where(sector)
+                if j is None:
+                    continue
+                sectors.append(sector)
+                mults.append(min(sp1.multiplicities[i], sp2.multiplicities[j]))
+
+        # TODO implement convenience function ElementarySpace.from_sector_decomposition??
+        return ElementarySpace(sp1.symmetry, sectors, mults).with_is_dual(is_dual)
 
     @classmethod
     def from_null_space(cls, symmetry: Symmetry, is_dual: bool = False) -> ElementarySpace:
@@ -901,32 +960,6 @@ class ElementarySpace(Space, Leg):
             multiplicities=self.multiplicities, is_dual=not self.is_dual,
             basis_perm=self._basis_perm
         )
-
-    def is_subspace_of(self, other: ElementarySpace) -> bool:
-        """Whether self is a subspace of other.
-
-        Per convention, self is never a subspace of other, if the :attr:`is_dual` or the
-        :attr:`symmetry` are different.
-        The :attr:`basis_perm`s are not considered.
-        """
-        if self.is_dual != other.is_dual:
-            return False
-        if not self.symmetry.is_same_symmetry(other.symmetry):
-            return False
-        if self.num_sectors == 0:
-            return True
-        # sectors are sorted, so we can just iterate over both of them
-        n_self = 0
-        for other_sector, other_mult in zip(other.sector_decomposition, other.multiplicities):
-            if np.all(self.sector_decomposition[n_self] == other_sector):
-                if self.multiplicities[n_self] > other_mult:
-                    return False
-                n_self += 1
-            if n_self == self.num_sectors:
-                # have checked all sectors of self
-                return True
-        # reaching this line means self has sectors which other does not have
-        return False
 
     def parse_index(self, idx: int) -> tuple[int, int]:
         """Utility function to translate an index.

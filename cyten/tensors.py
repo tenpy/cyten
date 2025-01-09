@@ -5368,7 +5368,7 @@ def _decomposition_prepare(tensor: Tensor, new_leg_dual: bool
         raise NotImplementedError
     tensor = tensor.as_SymmetricTensor()
 
-    new_leg = ElementarySpace.largest_common_subspace(
+    new_leg = ElementarySpace.from_largest_common_subspace(
         tensor.codomain, tensor.domain, is_dual=new_leg_dual
     )
     if tensor.backend.can_decompose_tensors:
