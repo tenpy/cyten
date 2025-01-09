@@ -229,7 +229,7 @@ class NoSymmetryBackend(TensorBackend):
     def linear_combination(self, a, v: SymmetricTensor, b, w: SymmetricTensor) -> Data:
         return self.block_backend.block_linear_combination(a, v.data, b, w.data)
 
-    def lq(self, tensor: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
+    def lq(self, tensor: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
         l_dims = tensor.shape[:tensor.num_codomain_legs]
         q_dims = tensor.shape[tensor.num_codomain_legs:]
         mat = self.block_backend.block_reshape(tensor.data, (prod(l_dims), prod(q_dims)))
@@ -363,7 +363,7 @@ class NoSymmetryBackend(TensorBackend):
         data = self.block_backend.block_permute_axes(a.data, [*codomain_idcs, *reversed(domain_idcs)])
         return data, codomain, domain
 
-    def qr(self, a: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
+    def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
         q_dims = a.shape[:a.num_codomain_legs]
         r_dims = a.shape[a.num_codomain_legs:]
         mat = self.block_backend.block_reshape(a.data, (prod(q_dims), prod(r_dims)))

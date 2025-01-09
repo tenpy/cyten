@@ -4488,11 +4488,11 @@ def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
         If the new leg should be a ket space (``False``) or bra space (``True``)
     """
     a, b = _decomposition_labels(new_labels)
-    tensor, new_leg, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
-    q_data, r_data = tensor.backend.qr(tensor, new_leg=new_leg)
-    Q = SymmetricTensor(q_data, codomain=tensor.codomain, domain=[new_leg], backend=tensor.backend,
+    tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
+    q_data, r_data = tensor.backend.qr(tensor, new_co_domain=new_co_domain)
+    Q = SymmetricTensor(q_data, codomain=tensor.codomain, domain=new_co_domain, backend=tensor.backend,
                         labels=[tensor.codomain_labels, [a]])
-    R = SymmetricTensor(r_data, codomain=[new_leg], domain=tensor.domain, backend=tensor.backend,
+    R = SymmetricTensor(r_data, codomain=new_co_domain, domain=tensor.domain, backend=tensor.backend,
                         labels=[[b], tensor.domain_labels])
     if combine_codomain:
         Q = split_legs(Q, 0)
@@ -4563,11 +4563,11 @@ def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
         If the new leg should be a ket space (``False``) or bra space (``True``)
     """
     a, b = _decomposition_labels(new_labels)
-    tensor, new_leg, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
-    l_data, q_data = tensor.backend.lq(tensor, new_leg=new_leg)
-    L = SymmetricTensor(l_data, codomain=tensor.codomain, domain=[new_leg], backend=tensor.backend,
+    tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
+    l_data, q_data = tensor.backend.lq(tensor, new_co_domain=new_co_domain)
+    L = SymmetricTensor(l_data, codomain=tensor.codomain, domain=new_co_domain, backend=tensor.backend,
                         labels=[tensor.codomain_labels, [a]])
-    Q = SymmetricTensor(q_data, codomain=[new_leg], domain=tensor.domain, backend=tensor.backend,
+    Q = SymmetricTensor(q_data, codomain=new_co_domain, domain=tensor.domain, backend=tensor.backend,
                         labels=[[b], tensor.domain_labels])
     if combine_codomain:
         L = split_legs(L, 0)
@@ -4881,12 +4881,13 @@ def svd(tensor: Tensor,
         TODO specify how the type depends on tensors type.
     """
     a, b, c, d = _svd_new_labels(new_labels)
-    tensor, new_leg, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
+    tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
+    new_leg = new_co_domain[0]  # TODO probably should pass new_codomain to backend.svd
     u_data, s_data, vh_data = tensor.backend.svd(tensor, new_leg=new_leg, algorithm=algorithm)
-    U = SymmetricTensor(u_data, codomain=tensor.codomain, domain=[new_leg], backend=tensor.backend,
+    U = SymmetricTensor(u_data, codomain=tensor.codomain, domain=new_co_domain, backend=tensor.backend,
                         labels=[tensor.codomain_labels, [a]])
-    S = DiagonalTensor(s_data, new_leg, backend=tensor.backend, labels=[b, c])
-    Vh = SymmetricTensor(vh_data, codomain=[new_leg], domain=tensor.domain, backend=tensor.backend,
+    S = DiagonalTensor(s_data, leg=new_co_domain[0], backend=tensor.backend, labels=[b, c])
+    Vh = SymmetricTensor(vh_data, codomain=new_co_domain, domain=tensor.domain, backend=tensor.backend,
                          labels=[[d], tensor.domain_labels])
     # split legs, if they were previously combined
     if combine_codomain:
@@ -5371,6 +5372,7 @@ def _decomposition_prepare(tensor: Tensor, new_leg_dual: bool
     new_leg = ElementarySpace.from_largest_common_subspace(
         tensor.codomain, tensor.domain, is_dual=new_leg_dual
     )
+    new_co_domain = TensorProduct([new_leg])
     if tensor.backend.can_decompose_tensors:
         combine_codomain = combine_domain = False
     else:
@@ -5383,7 +5385,7 @@ def _decomposition_prepare(tensor: Tensor, new_leg_dual: bool
             tensor = combine_legs(tensor, range(tensor.num_codomain_legs))
         elif combine_domain:
             tensor = combine_legs(tensor, range(tensor.num_codomain_legs, tensor.num_legs))
-    return tensor, new_leg, combine_codomain, combine_domain
+    return tensor, new_co_domain, combine_codomain, combine_domain
 
 
 def _decomposition_labels(new_labels: str | None | list[str]) -> tuple[str, str]:

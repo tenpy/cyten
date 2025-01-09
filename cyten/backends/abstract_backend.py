@@ -448,7 +448,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def lq(self, tensor: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
+    def lq(self, tensor: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
         ...
 
     @abstractmethod
@@ -586,7 +586,13 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def qr(self, a: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
+    def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
+        """Perform a QR decomposition.
+
+        With ``a == Q @ R``
+        ``Q.domain == a.domain``, ``Q.codomain == new_codomain``
+        ``R.domain == new_codomain``, ``R.codomain == a.codomain``
+        """
         ...
 
     @abstractmethod
@@ -1391,7 +1397,9 @@ class BlockBackend(metaclass=ABCMeta):
                           expect_dtype: Dtype | None = None, expect_device: str | None = None):
         assert isinstance(block, self.BlockCls), 'wrong block type'
         if expect_shape is not None:
-            assert self.block_shape(block) == expect_shape, 'wrong block shape'
+            if self.block_shape(block) != expect_shape:
+                msg = f'wrong block shape {self.block_shape(block)} != {expect_shape}'
+                raise AssertionError(msg)
         if expect_dtype is not None:
             assert self.block_dtype(block) == expect_dtype, 'wrong block dtype'
         if expect_device is not None:

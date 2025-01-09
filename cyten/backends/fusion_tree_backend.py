@@ -721,7 +721,7 @@ class FusionTreeBackend(TensorBackend):
             block_inds = np.array(block_inds, int)
         return FusionTreeData(block_inds, blocks, dtype, device=v.data.device)
 
-    def lq(self, a: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
+    def lq(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
         a_blocks = a.data.blocks
         a_block_inds = a.data.block_inds
         #
@@ -744,7 +744,7 @@ class FusionTreeBackend(TensorBackend):
                 bi_cod = -1 if n >= len(a_block_inds) else a_block_inds[n, 0]
             else:
                 B_dom = a.domain.multiplicities[i_dom]
-                B_new = new_leg.multiplicities[i_new]
+                B_new = new_co_domain.multiplicities[i_new]
                 q_blocks.append(self.block_backend.eye_matrix(B_dom, a.dtype)[:B_new, :])
         if len(l_block_inds) == 0:
             l_block_inds = np.zeros((0, 2), int)
@@ -928,7 +928,7 @@ class FusionTreeBackend(TensorBackend):
         data = mappings.apply_to_tensor(a, codomain, domain, axes_perm, None)
         return data, codomain, domain
 
-    def qr(self, a: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
+    def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
         a_blocks = a.data.blocks
         a_block_inds = a.data.block_inds
         #
@@ -953,7 +953,7 @@ class FusionTreeBackend(TensorBackend):
                 # there is no block for that sector. => r=0, no need to set it.
                 # choose basis vectors for q as standard basis vectors (cols/rows of eye)
                 B_cod = a.codomain.multiplicities[i_cod]
-                B_new = new_leg.multiplicities[i_new]
+                B_new = new_co_domain.multiplicities[i_new]
                 q_blocks.append(self.block_backend.eye_matrix(B_cod, a.dtype)[:, :B_new])
         if len(q_block_inds) == 0:
             q_block_inds = np.zeros((0, 2), int)

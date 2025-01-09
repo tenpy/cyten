@@ -1036,7 +1036,9 @@ class AbelianBackend(TensorBackend):
             res_block_inds = np.zeros((0, v.num_legs), int)
         return AbelianBackendData(common_dtype, v.data.device, res_blocks, res_block_inds, is_sorted=True)
 
-    def lq(self, a: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
+    def lq(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
+        raise NotImplementedError  # TODO
+        new_leg = new_co_domain[0]  # TODO
         assert a.num_codomain_legs == 1 == a.num_domain_legs  # since self.can_decompose_tensors is False
         l_blocks = []
         q_blocks = []
@@ -1501,9 +1503,9 @@ class AbelianBackend(TensorBackend):
                                   is_sorted=False)
         return data, codomain, domain
 
-    def qr(self, a: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
-        raise NotImplementedError  # TODO currently broken
-    
+    def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
+        raise NotImplementedError  # TODO
+        new_leg = new_co_domain[0]  # TODO check this
         assert a.num_codomain_legs == 1 == a.num_domain_legs  # since self.can_decompose_tensors is False
         q_blocks = []
         r_blocks = []
