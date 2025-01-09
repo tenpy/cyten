@@ -494,11 +494,16 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError('diagonal_to_mask not implemented')
 
     def diagonal_transpose(self, tens: DiagonalTensor) -> tuple[Space, DiagonalData]:
-        raise NotImplementedError  # TODO
-        dual_leg, perm = tens.leg._dual_space(return_perm=True)  # TODO probably, this perm should be irrelevant
+        # result has block associated with coupled sector c that is given by the block of tens
+        # with coupled sector dual(c).
+        # since the TensorProduct.sector_decomposition is always sorted, those corresponding
+        # sectors do not appear in the same order.
+        
+        # OPTIMIZE doing this sorting is duplicate work between here and forming tens.leg.dual
+        perm = np.lexsort(tens.symmetry.dual_sectors(tens.domain.sector_decomposition).T)
         data = FusionTreeData(block_inds=inverse_permutation(perm)[tens.data.block_inds],
                               blocks=tens.data.blocks, dtype=tens.dtype, device=tens.data.device)
-        return dual_leg, data
+        return tens.leg.dual, data
 
     def eigh(self, a: SymmetricTensor, new_leg_dual: bool, sort: str = None
              ) -> tuple[DiagonalData, Data, ElementarySpace]:

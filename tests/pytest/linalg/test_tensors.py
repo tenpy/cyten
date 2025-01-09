@@ -1901,11 +1901,6 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
 def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_compatible_tensor):
     T = make_compatible_tensor(num_cod, num_dom, max_block_size=3, cls=cls)
 
-    if cls is DiagonalTensor and isinstance(T.backend, backends.FusionTreeBackend) and codomain == [1]:
-        with pytest.raises(NotImplementedError):
-            _ = tensors.permute_legs(T, codomain, domain, levels)
-        pytest.xfail()
-
     if cls in [DiagonalTensor, Mask]:
         if len(codomain) == 1:
             # special case where legs are not actually permuted -> no warning expected
