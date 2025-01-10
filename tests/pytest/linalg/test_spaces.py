@@ -159,7 +159,8 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
         npt.assert_array_equal(space.sectors_of_basis, sectors_of_basis)
 
 
-def test_ElementarySpace_from_sectors(any_symmetry, make_any_sectors, np_random):
+def test_ElementarySpace_from_defining_sectors(any_symmetry, make_any_sectors, np_random):
+    # TODO also test from_sector_decomposition
     sectors = np.concatenate([make_any_sectors(5) for _ in range(5)])
     multiplicities = np_random.integers(1, 5, size=len(sectors))
     if any_symmetry.can_be_dropped:
@@ -168,9 +169,9 @@ def test_ElementarySpace_from_sectors(any_symmetry, make_any_sectors, np_random)
     else:
         basis_perm = None
     #
-    # call from_sectors
-    res = spaces.ElementarySpace.from_sectors(symmetry=any_symmetry, defining_sectors=sectors,
-                                              multiplicities=multiplicities, basis_perm=basis_perm)
+    # call from_defining_sectors
+    res = spaces.ElementarySpace.from_defining_sectors(symmetry=any_symmetry, defining_sectors=sectors,
+                                                       multiplicities=multiplicities, basis_perm=basis_perm)
     res.test_sanity()
     #
     # check sectors and multiplicities

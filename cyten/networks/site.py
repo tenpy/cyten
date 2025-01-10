@@ -1175,9 +1175,9 @@ class SpinHalfSite(Site):
         if conserve == 'Stot':
             leg = ElementarySpace(symmetry=SU2Symmetry('Stot'), defining_sectors=[[1]])
         elif conserve == 'Sz':
-            leg = ElementarySpace.from_sectors(U1Symmetry('2*Sz'), [[1], [-1]])
+            leg = ElementarySpace.from_defining_sectors(U1Symmetry('2*Sz'), [[1], [-1]])
         elif conserve == 'parity':
-            leg = ElementarySpace.from_sectors(ZNSymmetry(2, 'parity_Sz'), [[1], [0]])
+            leg = ElementarySpace.from_defining_sectors(ZNSymmetry(2, 'parity_Sz'), [[1], [0]])
         elif conserve == 'None':
             leg = ElementarySpace.from_trivial_sector(2)
         else:
@@ -1289,7 +1289,7 @@ class SpinSite(Site):
         if conserve == 'Stot':
             leg = ElementarySpace(symmetry=SU2Symmetry('Stot'), defining_sectors=[[d - 1]])
         elif conserve == 'Sz':
-            leg = ElementarySpace.from_sectors(U1Symmetry('2*Sz'), two_Sz[:, None])
+            leg = ElementarySpace.from_defining_sectors(U1Symmetry('2*Sz'), two_Sz[:, None])
         elif conserve == 'parity':
             leg = ElementarySpace.from_basis(ZNSymmetry(2, 'parity_Sz'), np.arange(d)[:, None] % 2)
         elif conserve == 'None':
@@ -1397,9 +1397,9 @@ class FermionSite(Site):
     def __init__(self, conserve: str = 'N', filling: float = 0.5, backend: TensorBackend = None):
         # make leg
         if conserve == 'N':
-            leg = ElementarySpace.from_sectors(U1Symmetry('N'), [[0], [1]])
+            leg = ElementarySpace.from_defining_sectors(U1Symmetry('N'), [[0], [1]])
         elif conserve == 'parity':
-            leg = ElementarySpace.from_sectors(ZNSymmetry(2, 'parity_N'), [[0], [1]])
+            leg = ElementarySpace.from_defining_sectors(ZNSymmetry(2, 'parity_N'), [[0], [1]])
         elif conserve == 'None':
             leg = ElementarySpace.from_trivial_sector(2)
         else:
@@ -1828,9 +1828,9 @@ class BosonSite(Site):
         N = np.arange(d)
         # build leg
         if conserve == 'N':
-            leg = ElementarySpace.from_sectors(U1Symmetry('N'), N[:, None])
+            leg = ElementarySpace.from_defining_sectors(U1Symmetry('N'), N[:, None])
         elif conserve == 'parity':
-            leg = ElementarySpace.from_sectors(ZNSymmetry(2, 'parity_N'), N[:, None] % 2)
+            leg = ElementarySpace.from_defining_sectors(ZNSymmetry(2, 'parity_N'), N[:, None] % 2)
         elif conserve == 'None':
             leg = ElementarySpace.from_trivial_sector(d)
         else:

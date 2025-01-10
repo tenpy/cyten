@@ -1584,7 +1584,7 @@ def test_is_scalar():
     assert not tensors.is_scalar(np.array([1., 2]))
     # Tensors
     leg1 = ElementarySpace(z4_symmetry, [[2]])
-    leg2 = ElementarySpace.from_sectors(z4_symmetry, [[2], [3], [1]])
+    leg2 = ElementarySpace.from_defining_sectors(z4_symmetry, [[2], [3], [1]])
     backend = get_backend()
     scalar_tens1 = DummyTensor([leg1, leg1], [leg1, leg1], backend=backend, labels=None, dtype=Dtype.float64)
     scalar_tens2 = DummyTensor([], [leg1, leg1], backend=backend, labels=None, dtype=Dtype.float64)
@@ -2287,7 +2287,7 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
             return
         # make a ChargedTensor that has the trivial sector, otherwise the trace is always 0
         other_sector = make_compatible_sectors(1)[0]
-        charge_leg = ElementarySpace.from_sectors(
+        charge_leg = ElementarySpace.from_defining_sectors(
             compatible_symmetry, [compatible_symmetry.trivial_sector, other_sector],
         )
         inv_part = make_compatible_tensor(co_domain_spaces, [charge_leg, *co_domain_spaces],

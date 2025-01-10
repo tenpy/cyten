@@ -366,9 +366,9 @@ class Space(metaclass=ABCMeta):
         if is_sorted:
             return ElementarySpace(symmetry=self.symmetry, defining_sectors=defining_sectors,
                                    multiplicities=self.multiplicities, is_dual=is_dual)
-        return ElementarySpace.from_sectors(symmetry=self.symmetry, defining_sectors=defining_sectors,
-                                            multiplicities=self.multiplicities, is_dual=is_dual,
-                                            unique_sectors=True)
+        return ElementarySpace.from_defining_sectors(symmetry=self.symmetry, defining_sectors=defining_sectors,
+                                                     multiplicities=self.multiplicities, is_dual=is_dual,
+                                                     unique_sectors=True)
 
     @abstractmethod
     def change_symmetry(self, symmetry: Symmetry, sector_map: callable, injective: bool = False
@@ -537,11 +537,11 @@ class ElementarySpace(Space, Leg):
         """Create an ElementarySpace by specifying the sector of every basis element.
 
         .. note ::
-            Unlike :meth:`from_sectors`, this method expects the same sector to be listed
+            Unlike :meth:`from_defining_sectors`, this method expects the same sector to be listed
             multiple times, if the sector is multi-dimensional. The Hilbert Space of a spin-one-half
             D.O.F. can e.g. be created as ``ElementarySpace.from_basis(su2, [spin_half, spin_half])``
-            or as ``ElementarySpace.from_sectors(su2, [spin_half])``. In the former case we need to
-            list the same sector both for the spin up and spin down state.
+            or as ``ElementarySpace.from_defining_sectors(su2, [spin_half])``. In the former case
+            we need to list the same sector both for the spin up and spin down state.
 
         Parameters
         ----------
@@ -652,8 +652,9 @@ class ElementarySpace(Space, Leg):
                 sectors.append(sector)
                 mults.append(min(sp1.multiplicities[i], sp2.multiplicities[j]))
 
-        # TODO implement convenience function ElementarySpace.from_sector_decomposition??
-        return ElementarySpace(sp1.symmetry, sectors, mults).with_is_dual(is_dual)
+        return ElementarySpace.from_sector_decomposition(
+            sp1.symmetry, sectors, mults, is_dual=is_dual, unique_sectors=True
+        )
 
     @classmethod
     def from_null_space(cls, symmetry: Symmetry, is_dual: bool = False) -> ElementarySpace:
@@ -662,19 +663,19 @@ class ElementarySpace(Space, Leg):
                    multiplicities=np.zeros(0, int), is_dual=is_dual)
 
     @classmethod
-    def from_sectors(cls, symmetry: Symmetry, defining_sectors: SectorArray,
-                     multiplicities: Sequence[int] = None, is_dual: bool = False,
-                     basis_perm: ndarray = None, unique_sectors: bool = False,
-                     return_sorting_perm: bool = False
-                     ) -> ElementarySpace | tuple[ElementarySpace, ndarray]:
+    def from_defining_sectors(cls, symmetry: Symmetry, defining_sectors: SectorArray,
+                              multiplicities: Sequence[int] = None, is_dual: bool = False,
+                              basis_perm: ndarray = None, unique_sectors: bool = False,
+                              return_sorting_perm: bool = False
+                              ) -> ElementarySpace | tuple[ElementarySpace, ndarray]:
         """Similar to the constructor, but with fewer requirements.
 
         .. note ::
             Unlike :meth:`from_basis`, this method expects a multi-dimensional sector to be listed
             only once to mean its entire multiplet of basis states. The Hilbert Space of a spin-1/2
             D.O.F. can e.g. be created as ``ElementarySpace.from_basis(su2, [spin_half, spin_half])``
-            or as ``ElementarySpace.from_sectors(su2, [spin_half])``. In the former case we need to
-            list the same sector both for the spin up and spin down state.
+            or as ``ElementarySpace.from_defining_sectors(su2, [spin_half])``. In the former case
+            we need to list the same sector both for the spin up and spin down state.
 
         Parameters
         ----------
@@ -738,6 +739,46 @@ class ElementarySpace(Space, Leg):
         if return_sorting_perm:
             return res, sort
         return res
+
+    @classmethod
+    def from_sector_decomposition(cls, symmetry: Symmetry, sector_decomposition: SectorArray,
+                                  multiplicities: Sequence[int] = None, is_dual: bool = False,
+                                  basis_perm: ndarray = None, unique_sectors: bool = False
+                                  ) -> ElementarySpace:
+        """Create a :class:`ElementarySpace` that has a given :attr:`sector_decomposition`.
+
+        Parameters
+        ----------
+        symmetry: Symmetry
+            The symmetry associated with this space.
+        sector_decomposition: 2D array_like of int
+            Like the :attr:`sector_decomposition` attribute, but can be in any order and may contain
+            duplicates (see `unique_sectors`).
+        multiplicities: 1D array_like of int, optional
+            How often each of the `sector_decomposition` appears. A 1D array of positive integers
+            with axis [s]. ``sector_decomposition[i_s, :]`` appears ``multiplicities[i_s]`` times.
+            If not given, a multiplicity ``1`` is assumed for all `sector_decomposition`.
+        is_dual: bool
+            If the result is a bra- or a ket space, like the attribute :attr:`is_dual`.
+        basis_perm: ndarray, optional
+            The permutation from the desired public basis to the basis described by
+            `sector_decomposition` and `multiplicities`.
+        unique_sectors: bool
+            If ``True``, the `sectors` are assumed to be duplicate-free.
+
+        See Also
+        --------
+        from_defining_sectors
+        """
+        sector_decomposition = np.asarray(sector_decomposition, int)
+        assert sector_decomposition.ndim == 2 and sector_decomposition.shape[1] == symmetry.sector_ind_len
+        if is_dual:
+            defining_sectors = symmetry.dual_sectors(sector_decomposition)
+        else:
+            defining_sectors = sector_decomposition
+        return cls.from_defining_sectors(symmetry=symmetry, defining_sectors=defining_sectors,
+                                         multiplicities=multiplicities, is_dual=is_dual,
+                                         basis_perm=basis_perm, unique_sectors=unique_sectors)
 
     @classmethod
     def from_trivial_sector(cls, dim: int = 1, symmetry: Symmetry = no_symmetry,
@@ -905,7 +946,7 @@ class ElementarySpace(Space, Leg):
 
     def change_symmetry(self, symmetry: Symmetry, sector_map: callable, injective: bool = False
                         ) -> ElementarySpace:
-        return ElementarySpace.from_sectors(
+        return ElementarySpace.from_defining_sectors(
             symmetry=symmetry, defining_sectors=sector_map(self.defining_sectors),
             multiplicities=self.multiplicities, is_dual=self.is_dual, basis_perm=self._basis_perm,
             unique_sectors=injective
@@ -932,7 +973,7 @@ class ElementarySpace(Space, Leg):
             )
         else:
             basis_perm = None
-        return ElementarySpace.from_sectors(
+        return ElementarySpace.from_defining_sectors(
             symmetry=self.symmetry,
             defining_sectors=np.concatenate([self.defining_sectors, *(o.defining_sectors for o in others)]),
             multiplicities=np.concatenate([self.multiplicities, *(o.multiplicities for o in others)]),
@@ -1052,7 +1093,7 @@ class ElementarySpace(Space, Leg):
         else:
             dual_defining_sectors = self.symmetry.dual_sectors(self.defining_sectors)
         # note: dual_defining_sectors are not sorted, but they are unique.
-        return ElementarySpace.from_sectors(
+        return ElementarySpace.from_defining_sectors(
             symmetry=self.symmetry, defining_sectors=dual_defining_sectors,
             multiplicities=self.multiplicities, is_dual=not self.is_dual,
             basis_perm=self._basis_perm, unique_sectors=True
@@ -1435,8 +1476,8 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         raise TypeError('from_null_space is not supported for AbelianLegPipe')
 
     @classmethod
-    def from_sectors(cls, *a, **kw):
-        raise TypeError('from_sectors is not supported for AbelianLegPipe')
+    def from_defining_sectors(cls, *a, **kw):
+        raise TypeError('from_defining_sectors is not supported for AbelianLegPipe')
 
     @classmethod
     def from_trivial_sector(cls, *a, **kw):
