@@ -175,6 +175,10 @@ class AbelianBackend(TensorBackend):
 
     def test_tensor_sanity(self, a: SymmetricTensor | DiagonalTensor, is_diagonal: bool):
         super().test_tensor_sanity(a, is_diagonal=is_diagonal)
+        data: AbelianBackendData = a.data
+        # check device and dtype
+        assert a.device == data.device == self.block_backend.as_device(data.device)
+        assert a.dtype == data.dtype
         # check leg types
         for l in (a.get_leg_co_domain(n) for n in range(a.num_legs)):
             assert isinstance(l, ElementarySpace), 'legs must be ElementarySpace'
@@ -183,19 +187,14 @@ class AbelianBackend(TensorBackend):
             # recursion into nested pipes is handled via AbelianLegPipe.test_sanity(), which
             # is called via (co)domain.test_sanity() during Tensor.test_sanity()
         # check block_inds
-        assert not np.any(a.data.block_inds < 0)
-        sector_nums = [leg.num_sectors for leg in conventional_leg_order(a)]
-        assert not np.any(a.data.block_inds >= np.array([sector_nums]))
-        assert np.all(np.lexsort(a.data.block_inds.T) == np.arange(len(a.data.blocks)))
-        if a.data.block_inds.shape != (len(a.data.blocks), a.num_legs):
-            msg = f'Wrong blocks_inds shape. ' \
-                  f'Expected {(len(a.data.blocks), a.num_legs)}, got {a.data.block_inds.shape}.'
-            raise ValueError(msg)
-        if is_diagonal:
-            assert np.all(a.data.block_inds[:, 0] == a.data.block_inds[:, 1])
+        assert data.block_inds.shape == (len(data.blocks), a.num_legs)
+        assert np.all(data.block_inds >= 0)
+        assert np.all(data.block_inds < np.array([[leg.num_sectors for leg in conventional_leg_order(a)]]))
+        assert np.all(np.lexsort(data.block_inds.T) == np.arange(len(data.blocks)))
         # check block_inds fulfill charge rule
-        for inds in a.data.block_inds:
-            # OPTIMIZE can do this with one multiple_fusion_broadcast call?
+        if is_diagonal:
+            assert np.all(data.block_inds[:, 0] == data.block_inds[:, 1])
+        for inds in data.block_inds:
             codomain_coupled = a.symmetry.multiple_fusion(
                 *(leg.sector_decomposition[i] for leg, i in zip(a.codomain.spaces, inds))
             )
@@ -203,8 +202,8 @@ class AbelianBackend(TensorBackend):
                 *(leg.sector_decomposition[i] for leg, i in zip(a.domain.spaces, inds[::-1]))
             )
             assert np.all(codomain_coupled == domain_coupled)
-        # check expected tensor dimensions
-        for block, b_i in zip(a.data.blocks, a.data.block_inds):
+        # check blocks and charge rule
+        for block, b_i in zip(data.blocks, data.block_inds):
             if is_diagonal:
                 shape = (a.leg.multiplicities[b_i[0]],)
             else:
@@ -212,30 +211,37 @@ class AbelianBackend(TensorBackend):
                               for leg, i in zip(conventional_leg_order(a), b_i))
             self.block_backend.test_block_sanity(block, expect_shape=shape, expect_dtype=a.dtype,
                                                  expect_device=a.device)
-        # check matching dtypes
-        assert all(self.block_backend.block_dtype(block) == a.data.dtype for block in a.data.blocks)
 
     def test_mask_sanity(self, a: Mask):
         super().test_mask_sanity(a)
-        if a.data.block_inds.shape != (len(a.data.blocks), 2):
-            msg = f'Wrong blocks_inds shape. ' \
-                  f'Expected {(len(a.data.blocks), 2)}, got {a.data.block_inds.shape}.'
-            raise ValueError(msg)
-        assert a.dtype == a.data.dtype == Dtype.bool
-        large_leg = a.large_leg
-        small_leg = a.small_leg
-        for block, block_inds in zip(a.data.blocks, a.data.block_inds):
+        data: AbelianBackendData = a.data
+        # check device and dtype
+        assert a.device == data.device == self.block_backend.as_device(data.device)
+        assert a.dtype == data.dtype == Dtype.bool
+        # check leg types
+        assert all(isinstance(l, ElementarySpace) for l in [a.large_leg, a.small_leg])
+        # check block_inds
+        assert data.block_inds.shape == (len(data.blocks), a.num_legs)
+        assert np.all(data.block_inds >= 0)
+        assert np.all(data.block_inds < np.array([[leg.num_sectors for leg in conventional_leg_order(a)]]))
+        assert np.all(np.lexsort(data.block_inds.T) == np.arange(len(data.blocks)))
+        # check blocks and charge rule
+        for block, block_inds in zip(data.blocks, data.block_inds):
             if a.is_projection:
                 bi_small, bi_large = block_inds
             else:
                 bi_large, bi_small = block_inds
-            assert 0 <= bi_large < large_leg.num_sectors
-            assert 0 <= bi_small < small_leg.num_sectors
             assert bi_large >= bi_small
-            assert np.all(large_leg.sector_decomposition[bi_large] == small_leg.sector_decomposition[bi_small])
-            assert self.block_backend.block_shape(block) == (large_leg.multiplicities[bi_large],)
-            assert self.block_backend.block_sum_all(block) == small_leg.multiplicities[bi_small]
-            assert self.block_backend.block_dtype(block) == Dtype.bool
+            # check charge rule
+            assert np.all(a.large_leg.sector_decomposition[bi_large] == a.small_leg.sector_decomposition[bi_small])
+            # check blocks
+            expect_len = a.large_leg.multiplicities[bi_large]
+            expect_sum = a.small_leg.multiplicities[bi_small]
+            assert expect_len > 0
+            assert expect_sum > 0
+            self.block_backend.test_block_sanity(block, expect_shape=(expect_len,),
+                                                 expect_dtype=Dtype.bool, expect_device=data.device)
+            assert self.block_backend.block_sum_all(block) == expect_sum
 
     # ABSTRACT METHODS
 

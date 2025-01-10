@@ -226,12 +226,22 @@ class FusionTreeBackend(TensorBackend):
 
     def test_tensor_sanity(self, a: SymmetricTensor | DiagonalTensor | Mask, is_diagonal: bool):
         super().test_tensor_sanity(a, is_diagonal=is_diagonal)
-        assert a.device == a.data.device == self.block_backend.as_device(a.data.device)
-        # coupled sectors must be lexsorted
-        perm = np.lexsort(a.data.block_inds.T)
-        assert np.all(perm == np.arange(len(perm)))
+        data: FusionTreeData = a.data
+        # check device and dtype
+        assert a.device == data.device == self.block_backend.as_device(data.device)
+        assert a.dtype == data.dtype
+        # block_inds
+        assert data.block_inds.shape == (len(data.blocks), 2)
+        assert np.all(data.block_inds >= 0)
+        assert np.all(data.block_inds[:, 0] < a.codomain.num_sectors)
+        assert np.all(data.block_inds[:, 1] < a.domain.num_sectors)
+        assert np.all(np.lexsort(data.block_inds.T) == np.arange(len(data.blocks)))
+        # check charge rule (matching coupled sectors)
+        coupled_codomain = a.codomain.sector_decomposition[data.block_inds[:, 0]]
+        coupled_domain = a.domain.sector_decomposition[data.block_inds[:, 1]]
+        assert np.all(coupled_codomain == coupled_domain)
         # blocks
-        for (i, j), block in zip(a.data.block_inds, a.data.blocks):
+        for (i, j), block in zip(data.block_inds, data.blocks):
             assert 0 <= i < a.codomain.num_sectors
             assert 0 <= j < a.domain.num_sectors
             expect_shape = (a.codomain.multiplicities[i], a.domain.multiplicities[j])
@@ -243,7 +253,34 @@ class FusionTreeBackend(TensorBackend):
                                                  expect_dtype=a.dtype, expect_device=a.device)
 
     def test_mask_sanity(self, a: Mask):
-        raise NotImplementedError  # TODO
+        super().test_mask_sanity(a)
+        data: FusionTreeData = a.data
+        # check device and dtype
+        assert a.device == a.data.device == self.block_backend.as_device(a.data.device)
+        assert a.dtype == data.dtype == Dtype.bool
+        # block_inds
+        assert data.block_inds.shape == (len(data.blocks), 2)
+        assert np.all(data.block_inds >= 0)
+        assert np.all(data.block_inds[:, 0] < a.codomain.num_sectors)
+        assert np.all(data.block_inds[:, 1] < a.domain.num_sectors)
+        assert np.all(np.lexsort(data.block_inds.T) == np.arange(len(data.blocks)))
+        # check charge rule (matching coupled sectors)
+        coupled_codomain = a.codomain.sector_decomposition[data.block_inds[:, 0]]
+        coupled_domain = a.domain.sector_decomposition[data.block_inds[:, 1]]
+        assert np.all(coupled_codomain == coupled_domain)
+        # blocks
+        for (i, j), block in zip(data.block_inds, data.blocks):
+            if a.is_projection:
+                expect_len = a.domain.multiplicities[j]
+                expect_sum = a.codomain.multiplicities[i]
+            else:
+                expect_len = a.codomain.multiplicities[i]
+                expect_sum = a.domain.multiplicities[j]
+            assert expect_len > 0
+            assert expect_sum > 0
+            self.block_backend.test_block_sanity(block, expect_shape=(expect_len,),
+                                                 expect_dtype=Dtype.bool, expect_device=a.device)
+            assert self.block_backend.block_sum_all(block) == expect_sum
 
     # ABSTRACT METHODS
 
@@ -1217,12 +1254,15 @@ class FusionTreeBackend(TensorBackend):
 
         # build the Mask
         if S.leg._basis_perm is not None:
-            raise NotImplementedError  # TODO not sure how to deal with the basis perm here...
+            # TODO not sure how to deal with the basis perm here...
+            #      but ideally the new leg of an SVD has no basis_perm anyway
+            raise NotImplementedError
+        
         large_leg_block_inds = []
         mask_blocks = []
         small_leg_sectors = []
         small_leg_multiplicities = []
-        for i, (slc, sector) in enumerate(zip(slices, S.leg.sector_decomposition)):
+        for i, (slc, sector) in enumerate(zip(slices, S.domain.sector_decomposition)):
             block = keep[slc]
             if not np.any(block):
                 continue  # all False. skip this block.
@@ -1237,8 +1277,11 @@ class FusionTreeBackend(TensorBackend):
         #
         mask_data = FusionTreeData(mask_block_inds, mask_blocks, dtype=Dtype.bool,
                                    device=S.data.device, is_sorted=True)
-        small_leg = ElementarySpace(S.symmetry, small_leg_sectors, small_leg_multiplicities,
-                                    is_dual=S.leg.is_dual)  # TODO this looks wrong (duality of defining_sectors)
+        small_leg = ElementarySpace.from_sector_decomposition(
+            S.symmetry, small_leg_sectors, small_leg_multiplicities, is_dual=S.leg.is_dual
+        )
+        small_leg._basis_perm = None
+        small_leg._inverse_basis_perm = None
         return mask_data, small_leg, err, new_norm
         
     def zero_data(self, codomain: TensorProduct, domain: TensorProduct, dtype: Dtype, device: str,

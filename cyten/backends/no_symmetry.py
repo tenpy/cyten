@@ -50,15 +50,16 @@ class NoSymmetryBackend(TensorBackend):
     def test_tensor_sanity(self, a: SymmetricTensor | DiagonalTensor | Mask, is_diagonal: bool):
         super().test_tensor_sanity(a, is_diagonal=is_diagonal)
         if is_diagonal:
-            assert self.block_backend.block_shape(a.data) == (a.legs[0].dim,), \
-                f'{self.block_backend.block_shape(a)} != {(a.legs[0].dim,)}'
+            expect_shape = (a.legs[0].dim,)
         else:
-            assert self.block_backend.block_shape(a.data) == a.shape, \
-                f'{self.block_backend.block_shape(a.data)} != {a.shape}'
+            expect_shape = a.shape
+        self.block_backend.test_block_sanity(a.data, expect_shape=expect_shape,
+                                             expect_dtype=a.dtype, expect_device=a.device)
 
     def test_mask_sanity(self, a: Mask):
         super().test_mask_sanity(a)
-        assert self.block_backend.block_shape(a.data) == (a.large_leg.dim,)
+        self.block_backend.test_block_sanity(a.data, expect_shape=(a.large_leg.dim,),
+                                             expect_dtype=Dtype.bool, expect_device=a.device)
         assert self.block_backend.block_sum_all(a.data) == a.small_leg.dim
 
     # ABSTRACT METHODS:
