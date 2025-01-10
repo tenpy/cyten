@@ -402,7 +402,7 @@ class NoSymmetryBackend(TensorBackend):
     def supports_symmetry(self, symmetry: Symmetry) -> bool:
         return symmetry == no_symmetry
 
-    def svd(self, a: SymmetricTensor, new_leg: ElementarySpace, algorithm: str | None
+    def svd(self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None
             ) -> tuple[Data, DiagonalData, Data]:
         u_dims = a.shape[:a.num_codomain_legs]
         vh_dims = a.shape[a.num_codomain_legs:]

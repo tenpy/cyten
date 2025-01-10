@@ -2127,9 +2127,19 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
 
     if isinstance(T.backend, backends.FusionTreeBackend):
+        # Missing implementation of mask_dagger to actually apply the mask.
+        # Until then, run the parts that we can do without it
+        
+        mask, err, new_norm = tensors.truncate_singular_values(S=S / tensors.norm(S), svd_min=1e-14)
+        mask.test_sanity()
+        assert err >= 0
+        assert new_norm > 0
+
+        # Now just make sure the expected NotImplementedError is actually raised.
+        # If it no longer does, remove this whole if clause!
         with pytest.raises(NotImplementedError, match='mask_dagger not implemented'):
             _ = tensors.truncated_svd(T, new_leg_dual=new_leg_dual)
-        pytest.xfail()  # TODO
+        pytest.xfail()
 
     print('Truncated SVD')
     for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:

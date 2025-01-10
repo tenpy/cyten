@@ -4882,10 +4882,10 @@ def svd(tensor: Tensor,
     """
     a, b, c, d = _svd_new_labels(new_labels)
     tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
-    new_leg = new_co_domain[0]  # TODO probably should pass new_codomain to backend.svd
-    u_data, s_data, vh_data = tensor.backend.svd(tensor, new_leg=new_leg, algorithm=algorithm)
+    u_data, s_data, vh_data = tensor.backend.svd(tensor, new_co_domain=new_co_domain, algorithm=algorithm)
     U = SymmetricTensor(u_data, codomain=tensor.codomain, domain=new_co_domain, backend=tensor.backend,
                         labels=[tensor.codomain_labels, [a]])
+    # TODO should DiagonalTensor take the co_domain directly as arg??
     S = DiagonalTensor(s_data, leg=new_co_domain[0], backend=tensor.backend, labels=[b, c])
     Vh = SymmetricTensor(vh_data, codomain=new_co_domain, domain=tensor.domain, backend=tensor.backend,
                          labels=[[d], tensor.domain_labels])

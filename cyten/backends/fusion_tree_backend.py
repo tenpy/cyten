@@ -1104,7 +1104,7 @@ class FusionTreeBackend(TensorBackend):
         # supports all symmetries
         return isinstance(symmetry, Symmetry)
 
-    def svd(self, a: SymmetricTensor, new_leg: ElementarySpace, algorithm: str | None
+    def svd(self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None
             ) -> tuple[Data, DiagonalData, Data]:
         a_blocks = a.data.blocks
         a_block_inds = a.data.block_inds
@@ -1135,7 +1135,7 @@ class FusionTreeBackend(TensorBackend):
                 # choose basis vectors for u/vh as standard basis vectors (cols/rows of eye)
                 B_cod = a.codomain.multiplicities[i_cod]
                 B_dom = a.domain.multiplicities[i_dom]
-                B_new = new_leg.multiplicities[i_new]
+                B_new = new_co_domain.multiplicities[i_new]
                 u_blocks.append(self.block_backend.eye_matrix(B_cod, a.dtype)[:, :B_new])
                 vh_blocks.append(self.block_backend.eye_matrix(B_dom, a.dtype)[:B_new, :])
         if len(u_block_inds) == 0:
@@ -1236,7 +1236,7 @@ class FusionTreeBackend(TensorBackend):
         S_blocks = S.data.blocks
         S_block_inds = S.data.block_inds
         S_num_blocks = len(S_blocks)
-        for j, (qdim, mult) in enumerate(zip(S.leg.sector_qdims, S.leg.multiplicities)):
+        for j, (qdim, mult) in enumerate(zip(S.domain.sector_qdims, S.domain.multiplicities)):
             start = stop
             stop += mult
             slc = slice(start, stop)

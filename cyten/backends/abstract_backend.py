@@ -643,7 +643,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def svd(self, a: SymmetricTensor, new_leg: ElementarySpace, algorithm: str | None
+    def svd(self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None
             ) -> tuple[Data, DiagonalData, Data]:
         ...
 

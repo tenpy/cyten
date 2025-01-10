@@ -652,9 +652,14 @@ class ElementarySpace(Space, Leg):
                 sectors.append(sector)
                 mults.append(min(sp1.multiplicities[i], sp2.multiplicities[j]))
 
-        return ElementarySpace.from_sector_decomposition(
+        res = ElementarySpace.from_sector_decomposition(
             sp1.symmetry, sectors, mults, is_dual=is_dual, unique_sectors=True
         )
+        # from_sector_decomposition potentially introduces a meaningless basis_perm,
+        # which we want to ignore here
+        res._basis_perm = None
+        res._inverse_basis_perm = None
+        return res
 
     @classmethod
     def from_null_space(cls, symmetry: Symmetry, is_dual: bool = False) -> ElementarySpace:
