@@ -1,4 +1,4 @@
-"""Provide test configuration for backends etc.
+r"""Provide test configuration for backends etc.
 
 Fixtures
 --------
@@ -113,6 +113,13 @@ The function returned by the fixture ``make_compatible_tensor`` has the followin
 
 Marks
 -----
+Note: a list of marks should also be maintained in ``pyproject.toml``.
+
+- ``slow``: marks tests as slow (deselect with ``-m "not slow"``)
+- ``FusionTree``: marks tests that use the FusionTreeBackend.
+- ``numpy``: marks tests that use the numpy block backend.
+- ``torch``: marks tests that use the torch block backend.
+
 
 Deselecting invalid ChargedTensor cases
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -167,7 +174,7 @@ def pytest_collection_modifyitems(config, items):
 
 # QUICK CONFIGURATION
 
-_block_backends = ['numpy', 'torch']
+_block_backends = [pytest.param('numpy', marks=pytest.mark.numpy), pytest.param('torch', marks=pytest.mark.torch)]
 _symmetries = {
     # groups:
     'NoSymm': symmetries.no_symmetry,

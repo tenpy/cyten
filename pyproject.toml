@@ -94,6 +94,8 @@ filterwarnings = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "FusionTree: marks tests that use the FusionTreeBackend.",
+    "numpy: marks tests that use the numpy block backend.",
+    "torch: marks tests that use the torch block backend.",
     "example: marks tests as example (deselect with '-m \"not example\"')",
     "deselect_invalid_ChargedTensor_cases: modifies collection. See notes in conftest.py",
 ]
