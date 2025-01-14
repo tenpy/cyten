@@ -17,7 +17,7 @@ class SimpleNDArray {
         size_t ndim;
         std::vector<size_t> shape;
         std::vector<size_t> strides; 
-}
+};
 
 
 } // namespace cyten

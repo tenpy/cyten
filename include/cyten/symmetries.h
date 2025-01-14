@@ -51,26 +51,28 @@ class Symmetry {
     protected:
         size_t _num_sectors;
         const static size_t INFINITE_NUM_SECTORS = -1;
-        Sector _trivial_sector;       
         // subclasses might have a bitlength array/vector.
-        size_t _sector_ind_len;   // how many ints does the decompressed sector split into?
-        size_t _max_sector_bits;  // how many bits are needed to represent biggest sector in this int?
+        size_t _sector_ind_len = 1;   // how many ints does the decompressed sector split into?
+        size_t _max_sector_bits = -1;  // how many bits are needed to represent biggest sector in this int?
                                  // i.e. how many bits the FactorSymmetry needs to reserve for this.
+    public:
+        py::module_ np;
+    // constructor / attribute accesss
     public:
         Symmetry(FusionStyle fusion, BraidingStyle braiding);
         virtual bool can_be_dropped() const;
-        virtual std::string group_name() const = 0;
         bool is_abelian() const;
         size_t num_sectors() const;
-        virtual Sector trivial_sector() const = 0;
         size_t sector_ind_len() const;
-        virtual Sector compress_sector(std::vector<Sector> const & decompressed) = 0;
-        virtual std::vector<Sector> decompress_sector(Sector compressed) = 0;
-        SectorArray compress_sectorarray(py::array_t<Sector> sectors);
-        py::array_t<Sector> decompress_sectorarray(SectorArray sectors);
+        bool has_symmetric_braid() const;
         
+    // ABSTRACT METHODS (need to be overwritten)
+    public:
+        virtual std::string group_name() const = 0;
+        virtual Sector trivial_sector() const = 0;
+
         virtual bool is_valid_sector(Sector sector) const = 0;
-        virtual SectorArray fusion_outcomes(Sector a, Sector b) = 0;
+        virtual SectorArray fusion_outcomes(Sector a, Sector b) const = 0;
 
         // Convention: valid syntax for the constructor, i.e. "ClassName(..., name='...')"
         virtual std::string __repr__() const = 0; // TODO maybe easier in python?
@@ -81,21 +83,79 @@ class Symmetry {
         /// The sector dual to a, such that N^{a,dual(a)}_u = 1.
         virtual Sector dual_sector(Sector a) const = 0;
 
+    protected:
         /// Optimized version of n_symbol() that assumes that c is a valid fusion outcome.
         /// If it is not, the results may be nonsensical. We do this for optimization purposes
-        virtual cyten_int _n_symbol(Sector a, Sector b, Sector c) = 0;
-        /// @brief Internal implementation of :meth:`f_symbol`. Can assume that inputs are valid."""
-        virtual py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) = 0;
+        virtual cyten_int _n_symbol(Sector a, Sector b, Sector c) const = 0;
+        /// @brief Internal implementation of :meth:`f_symbol`. Can assume that inputs are valid.
+        virtual py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const = 0;
         /// @brief Internal implementation of :meth:`r_symbol`. Can assume that inputs are valid.
-        virtual py::array _r_symbol(Sector a, Sector b, Sector c) = 0;
-        
-        bool has_symmetric_braid();
-        
-        virtual py::array _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b);
+        virtual py::array _r_symbol(Sector a, Sector b, Sector c) const = 0;
+        virtual py::array _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const;
+    public:
         virtual py::array Z_iso(Sector a) = 0;
-        virtual SectorArray all_sectors() ;
+        virtual SectorArray all_sectors() const ;
+
+    // FALLBACK IMPLEMENTATIONS (might want to override)
+    public: 
+        // default implementation for _sector_ind_len = 1
+        virtual Sector compress_sector(std::vector<Sector> const & decompressed) const;
+        // default implementation for _sector_ind_len = 1
+        virtual std::vector<Sector> decompress_sector(Sector compressed) const;
+        SectorArray compress_sectorarray(py::array_t<Sector> sectors) const;
+        py::array_t<Sector> decompress_sectorarray(SectorArray sectors) const;
+ 
+        virtual bool are_valid_sectors(SectorArray const & sectors) const;
+        virtual SectorArray fusion_outcomes_broadcast(SectorArray const & a, SectorArray const & b) const;
         
-        // TODO: continue with FALLBACK IMPLEMENTATIONS in py
+        Sector multiple_fusion(std::vector<Sector> const & sectors) const;
+        SectorArray multiple_fusion_broadcast(std::vector<SectorArray> const & sectors) const;
+    protected:
+        virtual SectorArray _multiple_fusion_broadcast(std::vector<SectorArray> const & sectors) const;
+    public:
+        
+        virtual bool can_fuse_to(Sector a, Sector b, Sector c) const;
+        
+        /// @brief The dimension of a sector, as an unstructured space (i.e. if we drop the symmetry).
+        /// For bosonic braiding style, e.g. for group symmetries, this coincides with the quantum dimension computed by :meth:`qdim`.
+        /// For other braiding styles,
+        virtual cyten_int sector_dim(Sector a) const;
+        // batch_sector_dim in python
+        virtual std::vector<cyten_int> sector_dim(SectorArray const& a) const;
+
+        /// The quantum dimension ``Tr(id_a)`` of a sector
+        virtual cyten_float qdim(Sector a) const;
+        virtual std::vector<cyten_float> qdim(SectorArray const& a) const;
+        cyten_float sqrt_qdim(Sector a) const;
+        cyten_float inv_sqrt_qdim(Sector a) const;
+        // Total quantum dimension, :math:`D = \sqrt{\sum_a d_a^2}`.
+        cyten_float total_qdim() const;
+
+        /// Short and readable string for the sector. Is used in __str__ of symmetry-related objects.
+        virtual std::string sector_str(Sector a) const;
+        
+        
+        /// The Frobenius Schur indicator of a sector.
+        virtual cyten_int frobenius_schur(Sector a) const;
+        
+        py::array b_symbol(Sector a, Sector b, Sector c) const;
+        py::array c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
+    protected:
+        virtual py::array _b_symbol(Sector a, Sector b, Sector c) const;
+        virtual py::array _c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
+    public:
+        cyten_complex topological_twist(Sector a) const;
+        cyten_complex s_matrix_element(Sector a, Sector b) const;
+        py::array s_matrix(Sector a, Sector b) const;
+        
+
+    // COMMON IMPLEMENTATIONS
+    public:
+       // element-wise dual_sector(a), dual_sectors in python
+        SectorArray dual_sector(SectorArray const& sectors) const;
+
+        // TODO: continue here
+        // std::string __str__() const;
 };
 
 
