@@ -2,15 +2,20 @@
 
 #include <cassert>
 #include <stdexcept>
+#include <ranges>
 
 #include "cyten/symmetries.h"
+
+#ifndef DO_FUSION_INPUT_CHECKS
+#define DO_FUSION_INPUT_CHECKS 1
+#endif
 
 namespace cyten {
     
 Symmetry::Symmetry(FusionStyle fusion, BraidingStyle braiding)
     : fusion_style(fusion), braiding_style(braiding), _num_sectors(INFINITE_NUM_SECTORS)
 {
-
+    np = py::module_::import("numpy");
 }
 
 bool Symmetry::can_be_dropped() const {
@@ -29,7 +34,41 @@ size_t Symmetry::sector_ind_len() const {
     return _sector_ind_len;
 }
 
-SectorArray Symmetry::compress_sectorarray(py::array_t<Sector> sectors) {
+bool Symmetry::has_symmetric_braid() const {
+    return braiding_style <= BraidingStyle::fermionic;
+}
+
+py::array Symmetry::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
+{
+    throw SymmetryError("Not defined for " + group_name());
+}
+
+SectorArray Symmetry::all_sectors() const
+{
+    if (_num_sectors == INFINITE_NUM_SECTORS)
+        throw SymmetryError("Infinite Sectors in " + group_name());
+    throw SymmetryError("all_sectors() not implemented in " + group_name());
+}
+
+// FALLBACK IMPLEMENTATIONS (might want to override)
+
+Sector Symmetry::compress_sector(std::vector<Sector> const & decompressed) const {
+    // default implementation for _sector_ind_len = 1
+    if (_sector_ind_len != 1)
+        throw SymmetryError("compress_sector() for _sector_ind_len != 1 needs to be implemented");
+    assert(decompressed.size() == 1);
+    return decompressed[0];
+}
+
+std::vector<Sector> Symmetry::decompress_sector(Sector compressed) const {
+    // default implementation for _sector_ind_len = 1
+    if (_sector_ind_len != 1)
+        throw SymmetryError("decompress_sector() for _sector_ind_len != 1 needs to be implemented");
+    return {compressed};
+}
+
+
+SectorArray Symmetry::compress_sectorarray(py::array_t<Sector> sectors) const {
     assert(sectors.ndim() == 1);
     std::vector<Sector> decompressed(sector_ind_len()); 
     SectorArray result(sectors.shape()[0]);
@@ -41,7 +80,7 @@ SectorArray Symmetry::compress_sectorarray(py::array_t<Sector> sectors) {
     return result;
 }
 
-py::array_t<Sector> Symmetry::decompress_sectorarray(SectorArray sectors) {
+py::array_t<Sector> Symmetry::decompress_sectorarray(SectorArray sectors) const {
     py::array_t<Sector> result({sectors.size(), sector_ind_len()});
     for(size_t i = 0; i < sectors.size(); ++i) {
         std::vector<Sector> decompressed = decompress_sector(sectors[i]);
@@ -51,19 +90,189 @@ py::array_t<Sector> Symmetry::decompress_sectorarray(SectorArray sectors) {
     return result;
 }
 
-bool Symmetry::has_symmetric_braid() {
-    return braiding_style <= BraidingStyle::fermionic;
+
+bool Symmetry::are_valid_sectors(SectorArray const& sectors) const {
+    for (auto const& s : sectors)
+        if (! is_valid_sector(s))
+            return false;
+    return true;
 }
 
-py::array Symmetry::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b)
-{
-    throw SymmetryError("Not defined");
+SectorArray Symmetry::fusion_outcomes_broadcast(SectorArray const & a, SectorArray const & b) const {
+    assert(a.size() == b.size());
+    SectorArray result(a.size());
+    for (auto [c, a_entry, b_entry] : std::views::zip(result, a, b))
+        c = fusion_outcomes(a_entry, b_entry)[0];
+    return result;
 }
 
-SectorArray Symmetry::all_sectors()
-{
-    return SectorArray();
+Sector Symmetry::multiple_fusion(std::vector<Sector> const & sectors) const {
+    // fall back to multiple_fusion_broadcast implementation
+    std::vector<SectorArray> sector_arrays;
+    for (auto & s : sectors)
+        sector_arrays.push_back({s});
+    return multiple_fusion_broadcast(sector_arrays)[0];
 }
+
+SectorArray Symmetry::multiple_fusion_broadcast(std::vector<SectorArray> const & sectors) const {
+    assert(is_abelian());
+    if (sectors.size() == 0)
+        return {trivial_sector()};
+    if (sectors.size() == 1)
+        return *sectors.begin();
+    return _multiple_fusion_broadcast(sectors);
+}
+
+SectorArray Symmetry::_multiple_fusion_broadcast(std::vector<SectorArray> const & sectors) const {
+    assert(sectors.size() > 1); // can assume sectors.size() > 2
+    auto it = sectors.begin();
+    SectorArray result = fusion_outcomes_broadcast(*it++, *it++);
+    for (; it != sectors.end(); ++it)
+        result = fusion_outcomes_broadcast(result, *it);
+    return result;
+}
+
+
+bool Symmetry::can_fuse_to(Sector a, Sector b, Sector c) const {
+    for (Sector s : fusion_outcomes(a, b))
+        if (s == c)
+            return true;
+    return false;
+}
+
+cyten_int Symmetry::sector_dim(Sector a) const {
+    if (! can_be_dropped())
+        throw SymmetryError("sector_dim is not supported for " + group_name());
+    return (cyten_int)(qdim(a) + 0.5);
+}
+
+std::vector<cyten_int> Symmetry::sector_dim(SectorArray const & a) const {
+    std::vector<cyten_int> result;
+    result.reserve(a.size());
+    for (Sector b : a)
+        result.push_back(sector_dim(b));
+    return result;
+    // return a | std::views::transform(sector_dim);
+}
+
+cyten_float Symmetry::qdim(Sector a) const {
+    py::array f = _f_symbol(a, dual_sector(a), a, a, trivial_sector(), trivial_sector());
+    cyten_complex c = * static_cast<cyten_complex const*>(f.data(0, 0, 0, 0)); // TODO make f_symbol return py::array_t
+    return 1./std::abs(c);
+}
+
+cyten_int Symmetry::frobenius_schur(Sector a) const {
+    py::array f = _f_symbol(a, dual_sector(a), a, a, trivial_sector(), trivial_sector());
+    cyten_complex c = f[py::make_tuple(0, 0, 0, 0)].cast<cyten_complex>();
+    return 1 ? (c.real() > 0) : -1;
+}
+
+std::vector<cyten_float> Symmetry::qdim(SectorArray const& a) const {
+    std::vector<cyten_float> result;
+    result.reserve(a.size());
+    for (Sector b : a)
+        result.push_back(qdim(b));
+    return result;
+}
+
+
+std::string Symmetry::sector_str(Sector a) const {
+    return std::to_string(a);
+}
+
+cyten_float Symmetry::sqrt_qdim(Sector a) const {
+    return std::sqrt(qdim(a));
+}
+
+cyten_float Symmetry::inv_sqrt_qdim(Sector a) const {
+    return 1./std::sqrt(qdim(a));
+}
+
+cyten_float Symmetry::total_qdim() const {
+    cyten_int D = 0;
+    for (Sector a : all_sectors()) {
+        cyten_int d = qdim(a);
+        D += d*d;
+    }
+    return std::sqrt((cyten_float) D);
+}
+
+
+py::array Symmetry::b_symbol(Sector a, Sector b, Sector c) const {
+#if DO_FUSION_INPUT_CHECKS 
+    if (!can_fuse_to(a, b, c))       
+        throw SymmetryError("Sectors are not consistent with fusion rules.");
+#endif
+    return _b_symbol(a, b, c);
+}
+
+py::array Symmetry::c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const {
+#if DO_FUSION_INPUT_CHECKS
+    if (!(can_fuse_to(a, b, e) && 
+          can_fuse_to(e, c, d) && 
+          can_fuse_to(a, c, f) &&
+          can_fuse_to(f, b, d)))
+        throw SymmetryError("Sectors are not consistent with fusion rules.");
+#endif 
+    return _c_symbol(a, b, c, d, e, f);
+}
+
+
+py::array Symmetry::_b_symbol(Sector a, Sector b, Sector c) const {
+    py::array F = _f_symbol(a, b, dual_sector(b), a, trivial_sector(), c).attr("conj")();
+    return py::float_(sqrt_qdim(b)) * F[py::make_tuple(0, 0, py::slice(), py::slice())]; // TODO: without python wrapping?
+}
+
+py::array Symmetry::_c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const {
+    // axis [mu, nu, kap, lam] ; R symbols are diagonal
+    py::object R1 = np.attr("array")(_r_symbol(e, c, d))[py::make_tuple(py::none(), py::slice(), py::none(), py::none())];
+    py::object F = np.attr("array")(_f_symbol(c, a, b, d, e, f));
+    py::object R2 = np.attr("conj")(_r_symbol(a, c, f))[py::make_tuple(py::none(), py::none(), py::slice(), py::none())];
+    return R1 * F * R2;  // TODO: without python wrapping?
+}
+
+cyten_complex Symmetry::topological_twist(Sector a) const {
+    return static_cast<cyten_float>(frobenius_schur(a)) * std::conj(*static_cast<cyten_complex const*>(_r_symbol(dual_sector(a), a, trivial_sector()).data(0)));
+}
+
+cyten_complex Symmetry::s_matrix_element(Sector a, Sector b) const {
+    cyten_complex S = 0;
+    for (Sector c : fusion_outcomes(a, b))
+        S += _n_symbol(a, b, c) * qdim(c) * topological_twist(c);
+    S /= topological_twist(a) * topological_twist(b) * total_qdim();
+    return S;
+}
+py::array Symmetry::s_matrix(Sector a, Sector b) const {
+    py::array_t<cyten_complex> result({num_sectors(), num_sectors()});
+    auto res = result.mutable_unchecked<2>();
+    auto all_sectors_ = all_sectors();
+    auto total_qdim_ = total_qdim();
+    for(size_t i = 0; i < num_sectors(); ++i) {
+        Sector a = all_sectors_[i];
+        for(size_t j = 0; j < num_sectors(); ++j) {
+            Sector b = all_sectors_[j];
+            cyten_complex entry = 0;
+            for (Sector c : fusion_outcomes(a, b))
+                entry += _n_symbol(a, b, c) * qdim(c) * topological_twist(c);
+            res(i, j) = entry / topological_twist(a) / topological_twist(b) / total_qdim_;
+        }
+    }
+    return result;
+}
+
+
+
+// COMMON IMPLEMENTATIONS
+
+
+SectorArray Symmetry::dual_sector(SectorArray const & sectors) const {
+    SectorArray res;
+    res.reserve(sectors.size());
+    for (Sector a : sectors)
+        res.push_back(dual_sector(a));
+    return res;
+}
+
 
 GroupSymmetry::GroupSymmetry(FusionStyle fusion)
     :Symmetry(fusion, BraidingStyle::bosonic)
