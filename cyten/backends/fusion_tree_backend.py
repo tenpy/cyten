@@ -63,6 +63,24 @@ def _tree_block_iter(a: SymmetricTensor):
             i1_forest = 0  # reset to the top of the block
             i2_forest += forest_block_width
 
+def _iter_sectors(spaces: list[Space], symmetry: Symmetry) -> Iterator[SectorArray]:
+    """Helper iterator over all combinations of sectors.
+    
+    Simplified version of `_iter_sectors_mults_slices`.
+
+    Yields
+    ------
+    uncoupled : list of 1D array of int
+        A combination ``[spaces[0].sectors[i0], spaces[1].sectors[i1], ...]``
+        of uncoupled sectors
+    """
+    if len(spaces) == 0:
+        yield symmetry.empty_sector_array
+        return
+
+    for charges in product(*[space.sectors for space in spaces]):
+        yield np.array(charges)
+
 
 def _iter_sectors_mults_slices(spaces: list[Space], symmetry: Symmetry
                                ) -> Iterator[tuple[SectorArray, list[int], list[slice]]]:
@@ -1785,7 +1803,7 @@ class TreeMappingDict(dict):
         """
         symmetry = prodspace.symmetry
         mapping = cls()
-        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled, symmetry):
+        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled):
             factor = symmetry.topological_twist(tree.coupled)
             if inverse:
                 factor = 1 / factor
