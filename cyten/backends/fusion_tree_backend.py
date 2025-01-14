@@ -106,7 +106,7 @@ def _tree_block_iter(a: SymmetricTensor):
 
 
 def _tree_block_iter_product_space(space: ProductSpace, coupled: SectorArray | list[Sector],
-                                   symmetry: Symmetry) -> Iterator[tuple[FusionTree, slice, int]]:
+                                   ) -> Iterator[tuple[FusionTree, slice, int]]:
     """Iterator over all trees in `space` with total charge in `coupled`.
     
     Yields the `FusionTree`s consistent with the input together with the corresponding slices and
@@ -118,16 +118,16 @@ def _tree_block_iter_product_space(space: ProductSpace, coupled: SectorArray | l
     are_dual = [sp.is_dual for sp in space.spaces]
     for ind, c in enumerate(coupled):
         i = 0
-        for sectors in _iter_sectors(space.spaces, symmetry):
+        for sectors in _iter_sectors(space.spaces, space.symmetry):
             tree_block_width = tree_block_size(space, sectors)
-            for tree in fusion_trees(symmetry, sectors, c, are_dual):
+            for tree in fusion_trees(space.symmetry, sectors, c, are_dual):
                 slc = slice(i, i + tree_block_width)
                 yield tree, slc, ind
                 i += tree_block_width
 
 
 def _forest_block_iter_product_space(space: ProductSpace, coupled: SectorArray | list[Sector],
-                                     symmetry: Symmetry) -> Iterator[tuple[SectorArray, slice, int]]:
+                                     ) -> Iterator[tuple[SectorArray, slice, int]]:
     """Iterator over all forests in `space` with total charge in `coupled`.
     
     Yields the `SectorArray`s consistent with the input together with the corresponding slices and
@@ -137,7 +137,7 @@ def _forest_block_iter_product_space(space: ProductSpace, coupled: SectorArray |
     """
     for ind, c in enumerate(coupled):
         i = 0
-        for sectors in _iter_sectors(space.spaces, symmetry):
+        for sectors in _iter_sectors(space.spaces, space.symmetry):
             forest_block_width = forest_block_size(space, sectors, c)
             slc = slice(i, i + forest_block_width)
             yield sectors, slc, ind
@@ -850,7 +850,7 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError('partial_trace not implemented')  # TODO
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:        
+                     levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:
         mappings, codomain, domain = TreeMappingDict.from_permute_legs(
             a=a, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels
         )
@@ -951,7 +951,7 @@ class FusionTreeBackend(TensorBackend):
         coupled_sectors = np.array([a.codomain.sectors[ind[0]] for ind in a_block_inds])
         ind_mapping = {}  # mapping between index in coupled sectors and index in blocks
         iter_space = [a.codomain, a.domain][ax_a]
-        for uncoupled, slc, coupled_ind in _forest_block_iter_product_space(iter_space, coupled_sectors, a.symmetry):
+        for uncoupled, slc, coupled_ind in _forest_block_iter_product_space(iter_space, coupled_sectors):
             ind = a.domain.sectors_where(coupled_sectors[coupled_ind])
             ind_b = b.data.block_ind_from_domain_sector_ind(b.domain.sectors_where(uncoupled[co_domain_idx]))
             if ind_b is None:  # zero block
@@ -1447,8 +1447,7 @@ class TreeMappingDict(dict):
         : {...}, ...}``.
         """
         new_mapping = TreeMappingDict()
-        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled,
-                                                         prodspace.symmetry):
+        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled):
             for key in self:
                 if not np.all(tree.coupled == key[0].coupled):
                     continue
@@ -1535,7 +1534,7 @@ class TreeMappingDict(dict):
         mapping = cls()
         new_coupled = []
         spaces = [codomain, domain]
-        for tree1, _, _ in _tree_block_iter_product_space(spaces[bend_up], coupled, symmetry):
+        for tree1, _, _ in _tree_block_iter_product_space(spaces[bend_up], coupled):
             if tree1.uncoupled.shape[0] == 1:
                 new_trees_coupled = symmetry.trivial_sector
             else:
@@ -1555,7 +1554,7 @@ class TreeMappingDict(dict):
                 b_sym = b_sym * symmetry.frobenius_schur(tree1.uncoupled[-1])
             mu = tree1.multiplicities[-1] if tree1.multiplicities.shape[0] > 0 else 0
 
-            for tree2, _, _ in _tree_block_iter_product_space(spaces[not bend_up], [tree1.coupled], symmetry):
+            for tree2, _, _ in _tree_block_iter_product_space(spaces[not bend_up], [tree1.coupled]):
                 if len(tree2.uncoupled) == 0:
                     new_unc = np.array([symmetry.dual_sector(tree1.uncoupled[-1])])
                     new_dual = np.array([not tree1.are_dual[-1]])
@@ -1600,7 +1599,7 @@ class TreeMappingDict(dict):
             overbraid = not overbraid
 
         mapping = cls()
-        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled, symmetry):
+        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled):
             unc, inn, mul = tree.uncoupled, tree.inner_sectors, tree.multiplicities
             if index == 0:
                 f = tree.coupled if len(inn) == 0 else inn[0]
@@ -1839,7 +1838,7 @@ class TreeMappingDict(dict):
         """
         symmetry = prodspace.symmetry
         mapping = cls()
-        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled, symmetry):
+        for tree, _, _ in _tree_block_iter_product_space(prodspace, coupled):
             factor = symmetry.topological_twist(tree.coupled)
             if inverse:
                 factor = 1 / factor
@@ -1866,8 +1865,7 @@ class TreeMappingDict(dict):
         else:
             block_axes_permutation.append(len(block_axes_permutation))
 
-        for tree, slc, ind in _tree_block_iter_product_space(iter_space, old_coupled,
-                                                             ten.symmetry):
+        for tree, slc, ind in _tree_block_iter_product_space(iter_space, old_coupled):
             modified_shape = [iter_space[i].sector_multiplicity(sec)
                               for i, sec in enumerate(tree.uncoupled)]
             if in_domain:
