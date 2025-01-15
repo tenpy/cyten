@@ -10,7 +10,7 @@ from .abstract_backend import (
     TensorBackend, BlockBackend, Block, Data, DiagonalData, MaskData
 )
 from ..dtypes import Dtype
-from ..symmetries import Sector, SectorArray, Symmetry
+from ..symmetries import Sector, SectorArray, Symmetry, SymmetryError
 from ..spaces import Space, ElementarySpace, ProductSpace
 from ..trees import FusionTree, fusion_trees
 from ..tools.misc import (
@@ -847,7 +847,148 @@ class FusionTreeBackend(TensorBackend):
 
     def partial_trace(self, tensor: SymmetricTensor, pairs: list[tuple[int, int]],
                       levels: list[int] | None) -> tuple[Data, ProductSpace, ProductSpace]:
-        raise NotImplementedError('partial_trace not implemented')  # TODO
+        # step 1: permute legs such that the paired legs are next to each other
+        # it does not matter which leg is moved; the partial trace implies that
+        # the fusion channel of each pair is trivial. It is however crucial that
+        # we keep the ordering within each pair.
+        # TODO decide if we want to optimize: There is in principle no need to
+        # braid when tracing out two pairs of the form [1, 4] and [2, 3]
+        pairs = sorted([pair if pair[0] < pair[1] else (pair[1], pair[0]) for pair in pairs])
+        idcs1 = []
+        idcs2 = []
+        for i1, i2 in pairs:
+            idcs1.append(i1)
+            idcs2.append(i2)
+        remaining = [n for n in range(tensor.num_legs) if n not in idcs1 and n not in idcs2]
+
+        new_codomain = ProductSpace(
+            [leg for n, leg in enumerate(tensor.codomain) if n in remaining],
+            symmetry=tensor.symmetry, backend=self
+        )
+        new_domain = ProductSpace(
+            [leg for n, leg in enumerate(tensor.domain) if tensor.num_legs - 1 - n in remaining],
+            symmetry=tensor.symmetry, backend=self
+        )
+
+        insert_idcs = [np.searchsorted(remaining, pair[0]) + 2 * i for i, pair in enumerate(pairs)]
+        # permute legs such that the ones with the smaller index do not move
+        num_codom_legs = tensor.num_codomain_legs
+        idcs = remaining[:]
+        for idx, pair in zip(insert_idcs, pairs):
+            idcs[idx: idx] = list(pair)
+            if pair[0] < num_codom_legs and pair[1] >= num_codom_legs:
+                num_codom_legs += 1  # leg at pair[1] is bent up
+        num_dom_legs = tensor.num_legs - num_codom_legs
+
+        if not np.all(idcs == np.arange(tensor.num_legs, dtype=int)):
+            if tensor.symmetry.braiding_style.value >= 20 and levels is None:
+                msg = 'need to specify levels when (implicitly) permuting legs \
+                       with non-abelian braiding'
+                raise SymmetryError(msg)
+            # TODO do we only want to check the levels that are actually needed for the braids?
+            if levels is not None:
+                msg = 'inconsistent levels: there should not be a leg with a level \
+                       between the levels of a pair of legs that is traced over'
+                for pair in pairs:
+                    for i, level in enumerate(levels):
+                        if i in pair:
+                            continue
+                        assert (level < levels[pair[0]]) == (level < levels[pair[1]]), msg
+
+        data, codom, dom = self.permute_legs(tensor, codomain_idcs=idcs[:num_codom_legs],
+                                             domain_idcs=idcs[num_codom_legs:][::-1],
+                                             levels=levels)
+        coupled = np.array([dom.sectors[i[1]] for i in data.block_inds])
+        new_data = self.zero_data(new_codomain, new_domain, tensor.dtype, tensor.device,
+                                  all_blocks=True)
+
+        # step 2: compute new entries: iterate over all trees in the untraced
+        # spaces and construct the consistent trees in the traced spaces
+
+        def on_diagonal(tree: FusionTree, idcs: list[int]) -> tuple[bool, float | complex]:
+            sym = tree.symmetry
+            b_symbols = 1.
+            for idx in idcs:
+                if not np.all(tree.uncoupled[idx] == sym.dual_sector(tree.uncoupled[idx + 1])):
+                    return False, 0.
+                left_sec = [sym.trivial_sector, tree.uncoupled[0]][idx] if idx < 2 \
+                            else tree.inner_sectors[idx - 2]
+                center_sec = tree.uncoupled[0] if idx == 0 else tree.inner_sectors[idx - 1]
+                right_sec = tree.inner_sectors[idx] if idx < tree.num_inner_edges else tree.coupled
+                if not np.all(left_sec == right_sec):
+                    return False, 0.
+                if idx == 0 and not np.all(tree.multiplicities[:2] == [0, 0]):
+                    # this must be the case if there is only one way to fuse to the trivial sector
+                    return False, 0.
+                mu = 0 if idx == 0 else tree.multiplicities[idx - 1]
+                nu = tree.multiplicities[idx]
+                b_symbols *= sym.b_symbol(left_sec, tree.uncoupled[idx], center_sec)[mu, nu].conj()
+                if tree.are_dual[idx]:
+                    b_symbols *= sym.frobenius_schur(tree.uncoupled[idx])
+            return True, b_symbols
+
+        # need to get updated indices after permuting the legs
+        codom_unc_idcs = [i for i, idx in enumerate(idcs[:num_codom_legs]) if idx in remaining]
+        codom_inner_idcs = [i - 2 for i in codom_unc_idcs[2:]]
+        codom_multi_idcs = [i - 1 for i in codom_unc_idcs[1:]]
+        codom_tree_idcs = [i for i, idx in enumerate(idcs[:num_codom_legs]) if idx in idcs1]
+
+        dom_unc_idcs = [num_dom_legs - 1 - i for i, idx in enumerate(idcs[num_codom_legs:])
+                        if idx in remaining][::-1]
+        dom_inner_idcs = [i - 2 for i in dom_unc_idcs[2:]]
+        dom_multi_idcs = [i - 1 for i in dom_unc_idcs[1:]]
+        dom_tree_idcs = [num_dom_legs - 1 - i for i, idx in enumerate(idcs[num_codom_legs:])
+                         if idx in idcs2][::-1]
+
+        tr_idcs1 = [i for i, idx in enumerate(idcs) if idx in idcs1]
+        tr_idcs2 = [i for i, idx in enumerate(idcs) if idx in idcs2]
+        remain_idcs = [i for i, idx in enumerate(idcs) if idx in remaining]
+
+        for codom_tree, codom_slc, ind in _tree_block_iter_product_space(codom, coupled):
+            on_diag, factor_codom = on_diagonal(codom_tree, codom_tree_idcs)
+            if not on_diag:
+                continue
+            codom_shape = [codom[i].sector_multiplicity(sec)
+                           for i, sec in enumerate(codom_tree.uncoupled)]
+            new_codom_tree = FusionTree(
+                tensor.symmetry, codom_tree.uncoupled[codom_unc_idcs], codom_tree.coupled,
+                codom_tree.are_dual[codom_unc_idcs], codom_tree.inner_sectors[codom_inner_idcs],
+                codom_tree.multiplicities[codom_multi_idcs]
+            )
+            new_codom_slc = tree_block_slice(new_codomain, new_codom_tree)
+            new_ind = new_domain.sectors_where(codom_tree.coupled)
+            new_ind = new_data.block_ind_from_domain_sector_ind(new_ind)
+            for dom_tree, dom_slc, _ in _tree_block_iter_product_space(dom, [codom_tree.coupled]):
+                on_diag, factor_dom = on_diagonal(dom_tree, dom_tree_idcs)
+                if not on_diag:
+                    continue
+                dom_shape = [dom[i].sector_multiplicity(sec)
+                             for i, sec in enumerate(dom_tree.uncoupled)]
+                tmp_shape = tuple(codom_shape + dom_shape)
+                new_dom_tree = FusionTree(
+                    tensor.symmetry, dom_tree.uncoupled[dom_unc_idcs], dom_tree.coupled,
+                    dom_tree.are_dual[dom_unc_idcs], dom_tree.inner_sectors[dom_inner_idcs],
+                    dom_tree.multiplicities[dom_multi_idcs]
+                )
+                new_dom_slc = tree_block_slice(new_domain, new_dom_tree)
+
+                old_block = data.blocks[ind][codom_slc, dom_slc]
+                old_block = self.block_backend.block_reshape(old_block, tmp_shape)
+                contribution = self.block_backend.block_trace_partial(old_block, tr_idcs1,
+                                                                      tr_idcs2, remain_idcs)
+                new_shape = new_data.blocks[new_ind][new_codom_slc, new_dom_slc].shape
+                contribution = self.block_backend.block_reshape(contribution, new_shape)
+                contribution *= factor_codom * factor_dom
+                new_data.blocks[new_ind][new_codom_slc, new_dom_slc] += contribution
+        new_data.discard_zero_blocks(self.block_backend, self.eps)
+
+        if len(remaining) == 0:
+            if len(new_data.blocks) == 0:
+                return tensor.dtype.zero_scalar, None, None
+            elif len(new_data.blocks) == 1:
+                return self.block_backend.block_item(new_data.blocks[0]), None, None
+            raise RuntimeError
+        return new_data, new_codomain, new_domain
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:

@@ -1844,12 +1844,23 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
     #
     # 2) Call the actual function
     #
-    if isinstance(T.backend, backends.FusionTreeBackend) and len(trace_legs) > 0 and cls is not DiagonalTensor:
-        with pytest.raises(NotImplementedError, match='partial_trace not implemented'):
-            _ = tensors.partial_trace(T, *pairs)
-        pytest.xfail()
+    levels = None
+    if isinstance(T.backend, backends.FusionTreeBackend) and T.symmetry.braiding_style.value >= 20:
+        levels = list(np_random.permutation(T.num_legs - len(pairs)))
+        idcs1 = [p[0] for p in pairs_positions]
+        idcs2 = [p[1] for p in pairs_positions]
+        for idx in np.argsort(idcs2):
+            level = levels[idcs1[idx]]
+            levels = [l + 1 if l > level else l for l in levels]
+            levels.insert(idcs2[idx], level + 1)
+    if cls is ChargedTensor and not T.symmetry.can_be_dropped and len(pairs) * 2 == T.num_legs:
+        # trace over all legs except charge_leg -> charged_state != None must be fulfilled
+        # -> symmetry.can_be_dropped == True must be fulfilled
+        # with the current deselection of ChargedTensors in the tests, we catch FermionParity
+        # with id='Charged-ab-ba' here
+        return
     #
-    res = tensors.partial_trace(T, *pairs)
+    res = tensors.partial_trace(T, *pairs, levels=levels)
     #
     # 3) Test the result
     if not T.symmetry.can_be_dropped:
