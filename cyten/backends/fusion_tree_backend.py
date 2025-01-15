@@ -876,7 +876,7 @@ class FusionTreeBackend(TensorBackend):
         idcs = remaining[:]
         for idx, pair in zip(insert_idcs, pairs):
             idcs[idx: idx] = list(pair)
-            if pair[0] < num_codom_legs and pair[1] >= num_codom_legs:
+            if pair[0] < tensor.num_codomain_legs and pair[1] >= tensor.num_codomain_legs:
                 num_codom_legs += 1  # leg at pair[1] is bent up
         num_dom_legs = tensor.num_legs - num_codom_legs
 
@@ -992,6 +992,11 @@ class FusionTreeBackend(TensorBackend):
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:
+        idcs = list(range(a.num_legs))
+        if np.all(codomain_idcs == idcs[:a.num_codomain_legs]) and \
+                np.all(domain_idcs == idcs[a.num_codomain_legs:][::-1]):
+            return a.data, a.codomain, a.domain
+
         mappings, codomain, domain = TreeMappingDict.from_permute_legs(
             a=a, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels
         )

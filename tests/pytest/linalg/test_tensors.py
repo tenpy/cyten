@@ -2227,10 +2227,7 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
     if cls_B is ChargedTensor and B.charged_state is None and A.num_legs + B.num_legs == 2 * num_contr:
         catch_errors = pytest.raises(ValueError, match='Can not instantiate ChargedTensor with no legs and unspecified charged_states.')
 
-    if isinstance(A.backend, backends.FusionTreeBackend) and \
-            cls_A is DiagonalTensor and cls_B is not DiagonalTensor and num_contr == 2:
-        catch_errors = pytest.raises(NotImplementedError)
-    elif isinstance(A.backend, backends.FusionTreeBackend) and A.symmetry.braiding_style.value >= 20:
+    if isinstance(A.backend, backends.FusionTreeBackend) and A.symmetry.braiding_style.value >= 20:
         if cls_A is not DiagonalTensor:
             levels_A = list(np_random.permutation(A.num_legs))
             codomain_A = [i for i in range(A.num_legs) if not i in contr_A]
@@ -2294,11 +2291,6 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
         tensor = ChargedTensor(inv_part.set_label(-1, '!'), charged_state)
     else:
         tensor: cls = make_compatible_tensor(co_domain_spaces, co_domain_spaces, cls=cls)
-
-    if cls is ChargedTensor and isinstance(tensor.backend, backends.FusionTreeBackend):
-        with pytest.raises(NotImplementedError, match='partial_trace not implemented'):
-            _ = tensors.trace(tensor)
-        pytest.xfail()
 
     res = tensors.trace(tensor)
     assert isinstance(res, (float, complex))
