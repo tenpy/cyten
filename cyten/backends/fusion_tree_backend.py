@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from ..tensors import SymmetricTensor, DiagonalTensor, Mask
 
 
-__all__ = ['FusionTreeBackend', 'FusionTreeData']
+__all__ = ['FusionTreeBackend', 'FusionTreeData', 'TreeMappingDict']
 
 
 def _tree_block_iter(a: SymmetricTensor):

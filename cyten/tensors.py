@@ -92,7 +92,7 @@ __all__ = ['Tensor', 'SymmetricTensor', 'DiagonalTensor', 'ChargedTensor', 'Mask
            'pinv', 'qr', 'real', 'real_if_close', 'scalar_multiply', 'scale_axis', 'split_legs',
            'sqrt', 'squeeze_legs', 'stable_log', 'svd', 'svd_apply_mask', 'tdot', 'trace',
            'transpose', 'truncate_singular_values', 'truncated_svd', 'zero_like',
-           'get_same_backend', 'check_same_legs']
+           'get_same_backend', 'check_same_legs', 'get_same_device', 'on_device']
 
 
 logger = logging.getLogger(__name__)

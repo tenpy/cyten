@@ -24,7 +24,7 @@ from .trees import FusionTree, fusion_trees
 if TYPE_CHECKING:
     from .backends.abstract_backend import Block
 
-__all__ = ['Leg', 'Space', 'ElementarySpace']
+__all__ = ['Leg', 'LegPipe', 'Space', 'ElementarySpace', 'TensorProduct', 'AbelianLegPipe']
 
 
 class Leg(metaclass=ABCMeta):
