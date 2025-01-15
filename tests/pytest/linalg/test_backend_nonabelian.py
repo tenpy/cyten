@@ -1980,7 +1980,7 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
     return new_data, new_codomain, new_domain
 
 
-def cross_check_transpose(ten: SymmetricTensor)-> tuple[fusion_tree_backend.FusionTreeData,
+def cross_check_transpose(ten: SymmetricTensor) -> tuple[fusion_tree_backend.FusionTreeData,
                                                         ProductSpace, ProductSpace]:
     """There are two different ways to compute the transpose when using `permute_legs`.
     The one used in `FusionTreeBackend` corresponds to twisting the legs in the codomain

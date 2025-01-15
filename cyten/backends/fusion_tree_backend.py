@@ -911,8 +911,8 @@ class FusionTreeBackend(TensorBackend):
             for idx in idcs:
                 if not np.all(tree.uncoupled[idx] == sym.dual_sector(tree.uncoupled[idx + 1])):
                     return False, 0.
-                left_sec = [sym.trivial_sector, tree.uncoupled[0]][idx] if idx < 2 \
-                            else tree.inner_sectors[idx - 2]
+                left_sec = [sym.trivial_sector, tree.uncoupled[0]]
+                left_sec = left_sec[idx] if idx < 2 else tree.inner_sectors[idx - 2]
                 center_sec = tree.uncoupled[0] if idx == 0 else tree.inner_sectors[idx - 1]
                 right_sec = tree.inner_sectors[idx] if idx < tree.num_inner_edges else tree.coupled
                 if not np.all(left_sec == right_sec):
