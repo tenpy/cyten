@@ -16,7 +16,7 @@ from cyten.symmetries import (
     ising_anyon_category, SU2_kAnyonCategory, z5_symmetry, u1_symmetry
 )
 from cyten.dtypes import Dtype
-from conftest import random_tensor
+from ..util import random_tensor, random_ElementarySpace
 
 
 def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Generator):
@@ -1300,11 +1300,63 @@ def test_nonabelian_transpose(symmetry: Symmetry, block_backend: str,
     num_codom_legs, num_dom_legs = np_random.integers(low=2, high=4, size=2)
     tens = random_tensor(
         symmetry=symmetry, codomain=int(num_codom_legs), domain=int(num_dom_legs),
-        backend=backend, max_block_size=3, cls=SymmetricTensor, np_random=np_random
+        backend=backend, max_multiplicity=3, cls=SymmetricTensor, np_random=np_random
     )
 
     data1, codom1, dom1 = tens.backend.transpose(tens)
     data2, codom2, dom2 = cross_check_transpose(tens)
+    tens1 = SymmetricTensor(data1, codom1, dom1, backend=tens.backend)
+    tens2 = SymmetricTensor(data2, codom2, dom2, backend=tens.backend)
+    assert_tensors_almost_equal(tens1, tens2, eps=1e-13)
+
+
+# TODO add symmetry with off-diagonal entries in b symbols to test below
+# TODO make sure that there is a case that fails when not complex conjugating
+# the b symbols for domain trees
+# (all tests currently seem to pass irrespective of complex conjugation)
+@pytest.mark.parametrize('symmetry',
+    [fibonacci_anyon_category, ising_anyon_category, SU2_kAnyonCategory(4),
+     SU2_kAnyonCategory(5) * u1_symmetry, SU2Symmetry() * ising_anyon_category,
+     SU3_3AnyonCategory() * u1_symmetry, fibonacci_anyon_category * z5_symmetry]
+)
+def test_nonabelian_partial_trace(symmetry: Symmetry, block_backend: str,
+                                  np_random: np.random.Generator):
+    backend = get_backend('fusion_tree', block_backend)
+    num_codom_legs, num_dom_legs = np_random.integers(low=2, high=4, size=2)
+    num_legs = num_codom_legs + num_dom_legs
+    pairs = [[[0, 1]], [[0, 3]], [[1, 3]], [[0, 2]], [[0, 2], [1, 3]], [[0, 3], [1, 2]]]
+    if num_legs >= 5:
+        pairs.extend([[[0, 4]], [[1, 4], [0, 2]], [[0, 4], [1, 3]]])
+    pairs = pairs[np_random.choice(len(pairs))]
+
+    spaces = []
+    idcs1 = [p[0] for p in pairs]
+    idcs2 = [p[1] for p in pairs]
+    for i in range(num_legs):
+        if i in idcs2:
+            idx = idcs2.index(i)
+            if i >= num_codom_legs and idcs1[idx] < num_codom_legs:
+                spaces.append(spaces[idcs1[idx]])
+            else:
+                spaces.append(spaces[idcs1[idx]].dual)
+        else:
+            spaces.append(random_ElementarySpace(symmetry=symmetry, np_random=np_random))
+
+    levels = list(np_random.permutation(num_legs - len(pairs)))
+    for idx in np.argsort(idcs2):
+        level = levels[idcs1[idx]]
+        levels = [l + 1 if l > level else l for l in levels]
+        levels.insert(idcs2[idx], level + 1)
+
+    codomain = spaces[:num_codom_legs]
+    domain = spaces[num_codom_legs:][::-1]
+    tens = random_tensor(
+        symmetry=symmetry, codomain=codomain, domain=domain,
+        backend=backend, max_multiplicity=3, cls=SymmetricTensor, np_random=np_random
+    )
+
+    data1, codom1, dom1 = tens.backend.partial_trace(tens, pairs=pairs, levels=levels)
+    data2, codom2, dom2 = cross_check_partial_trace(tens, pairs=pairs, levels=levels)
     tens1 = SymmetricTensor(data1, codom1, dom1, backend=tens.backend)
     tens2 = SymmetricTensor(data2, codom2, dom2, backend=tens.backend)
     assert_tensors_almost_equal(tens1, tens2, eps=1e-13)
@@ -1564,6 +1616,50 @@ def assert_tensors_almost_equal(a: SymmetricTensor, expect: SymmetricTensor, eps
 
 
 # FUNCTIONS FOR CROSS CHECKING THE COMPUTATION OF THE ACTION OF B AND C SYMBOLS
+
+def cross_check_partial_trace(ten: SymmetricTensor, pairs: list[tuple[int, int]], levels: list[int]):
+    """There are different ways to compute partial traces. One particular
+    choice is implemented in `partial_trace` in the `FusionTreeBackend` by
+    choosing a certain way of braiding the paired legs such that they are
+    adjacent to each other.
+    
+    Here we choose a different way to achieve this adjacency before performing
+    the partial trace itself (which is again done by calling this very method
+    `partial_trace`).
+    """
+    # we do not need to check that the levels are consistent since the result
+    # of this function is compared to the result obtained using partial_trace
+    # in the fusion_tree_backend, where the levels are checked.
+    pairs = np.asarray([pair if pair[0] < pair[1] else (pair[1], pair[0]) for pair in pairs],
+                       dtype=int)
+    # sort w.r.t. the second entry first
+    pairs = pairs[np.lexsort(pairs.T)]
+    idcs1 = []
+    idcs2 = []
+    for i1, i2 in pairs:
+        idcs1.append(i1)
+        idcs2.append(i2)
+    remaining = [n for n in range(ten.num_legs) if n not in idcs1 and n not in idcs2]
+
+    insert_idcs = [np.searchsorted(remaining, pair[1]) + 2 * i for i, pair in enumerate(pairs)]
+    # permute legs such that the ones with the larger index do not move
+    num_codom_legs = ten.num_codomain_legs
+    idcs = remaining[:]
+    for idx, pair in zip(insert_idcs, pairs):
+        idcs[idx: idx] = list(pair)
+        if pair[0] < ten.num_codomain_legs and pair[1] >= ten.num_codomain_legs:
+            num_codom_legs -= 1  # leg at pair[0] is bent down
+
+    data, codom, dom = ten.backend.permute_legs(ten, codomain_idcs=idcs[:num_codom_legs],
+                                                domain_idcs=idcs[num_codom_legs:][::-1],
+                                                levels=levels)
+    tr_idcs1 = [i for i, idx in enumerate(idcs) if idx in idcs1]
+    tr_idcs2 = [i for i, idx in enumerate(idcs) if idx in idcs2]
+    new_pairs = list(zip(tr_idcs1, tr_idcs2))
+
+    ten = SymmetricTensor(data=data, codomain=codom, domain=dom, backend=ten.backend)
+    return ten.backend.partial_trace(ten, pairs=new_pairs, levels=None)
+
 
 def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str, levels: list[int]
                                             ) -> tuple[fusion_tree_backend.FusionTreeData,
@@ -1973,8 +2069,8 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
     return new_data, new_codomain, new_domain
 
 
-def cross_check_transpose(ten: SymmetricTensor)-> tuple[fusion_tree_backend.FusionTreeData,
-                                                        ProductSpace, ProductSpace]:
+def cross_check_transpose(ten: SymmetricTensor
+                          ) -> tuple[fusion_tree_backend.FusionTreeData, TensorProduct, TensorProduct]:
     """There are two different ways to compute the transpose when using `permute_legs`.
     The one used in `FusionTreeBackend` corresponds to twisting the legs in the codomain
     and braiding them *over* the legs in the domain. This should be equivalent to twisting
@@ -1986,10 +2082,10 @@ def cross_check_transpose(ten: SymmetricTensor)-> tuple[fusion_tree_backend.Fusi
     codomain_idcs = list(range(ten.num_codomain_legs, ten.num_legs))
     domain_idcs = list(reversed(range(ten.num_codomain_legs)))
     levels = list(range(ten.num_legs))
-    coupled = np.array([ten.domain.sectors[i[1]] for i in ten.data.block_inds])
+    coupled = np.array([ten.domain.sector_decomposition[i[1]] for i in ten.data.block_inds])
 
     mapping_twists = ftb_TMD.from_topological_twists(ten.codomain, coupled, inverse=True)
-    mapping_twists = mapping_twists.add_prodspace(ten.domain, coupled, index=1)
+    mapping_twists = mapping_twists.add_tensorproduct(ten.domain, coupled, index=1)
 
     mapping_permute, codomain, domain = ftb_TMD.from_permute_legs(
         a=ten, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels
