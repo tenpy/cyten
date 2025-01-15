@@ -1219,9 +1219,80 @@ class TensorProduct(Space):
         # TODO optimize (can compute sectors etc more efficiently)
         return TensorProduct(self.spaces[:pos] + [other] + self.spaces[pos:], symmetry=self.symmetry)
 
-    def iter_uncoupled(self) -> Iterator[tuple[Sector]]:
-        """Iterate over all combinations of sectors"""
-        return it.product(*(s.sector_decomposition for s in self.spaces))
+    def iter_tree_blocks(self, coupled: Sequence[Sector]
+                         ) -> Iterator[tuple[FusionTree, slice, int]]:
+        """Iterate over tree blocks. Helper function for :class:`FusionTreeBackend`.
+
+        See :ref:`fusion_tree_backend__blocks` for definitions of blocks and tree blocks.
+
+        Yields
+        ------
+        tree : FusionTree
+            A fusion tree whose uncoupled sectors are consistent with `self` and whose
+            coupled sector is ``coupled[i]``
+        slc : slice
+            The slice of the tree-block associated with `tree` in its block.
+        i : int
+            The index of the current coupled sector in `coupled`
+
+        See Also
+        --------
+        iter_forest_blocks
+        iter_uncoupled
+        """
+        # OPTIMIZE some users in FTBackend ignore the slc and i...
+        if any(not isinstance(sp, ElementarySpace) for sp in self.spaces):
+            raise NotImplementedError  # TODO what to do if there are pipes?
+        are_dual = [sp.is_dual for sp in self.spaces]
+        for i, c in enumerate(coupled):
+            start = 0  # start index of the current tree block within the block
+            for uncoupled in self.iter_uncoupled():
+                tree_block_width = self.tree_block_size(uncoupled)
+                for tree in fusion_trees(self.symmetry, uncoupled, c, are_dual):
+                    yield tree, slice(start, start + tree_block_width), i
+                    start += tree_block_width
+
+    def iter_forest_blocks(self, coupled: Sequence[Sector]
+                           ) -> Iterator[tuple[tuple[Sector], slice, int]]:
+        """Iterate over tree blocks. Helper function for :class:`FusionTreeBackend`.
+
+        See :ref:`fusion_tree_backend__blocks` for definitions of blocks and forest blocks.
+
+        Yields
+        ------
+        uncoupled : tuple of Sector
+            A tuple of uncoupled sectors that can fuse to a coupled sector ``coupled[i]``
+        slc : slice
+            The slice of the tree-block associated with `tree` in its block.
+        i : int
+            The index of the current coupled sector in `coupled`
+
+        See Also
+        --------
+        iter_tree_blocks
+        iter_uncoupled
+        """
+        for i, c in enumerate(coupled):
+            start = 0
+            for uncoupled in self.iter_uncoupled():
+                forest_block_width = self.forest_block_size(uncoupled, c)
+                if forest_block_width == 0:
+                    continue
+                slc = slice(start, start + forest_block_width)
+                yield uncoupled, slc, i
+                start += forest_block_width
+
+    def iter_uncoupled(self) -> Iterator[SectorArray]:
+        """Iterate over all combinations of sectors
+
+        For a TensorProduct of zero spaces, i.e. with ``num_space == 0``, we yield an empty
+        array once.
+        """
+        if self.num_spaces == 0:
+            yield self.symmetry.empty_sector_array
+            return
+        for unc in it.product(*(s.sector_decomposition for s in self.spaces)):
+            yield np.array(unc, int)
     
     def left_multiply(self, other: Space) -> TensorProduct:
         """Add a new factor at the left / beginning of the spaces"""
@@ -1368,36 +1439,36 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     Notes
     -----
     TODO review these old notes. do they still apply? should they live somewhere else?
-         this references the outdated ``ProductSpace``
     
     For ``np.reshape``, taking, for example,  :math:`i,j,... \rightarrow k` amounted to
     :math:`k = s_1*i + s_2*j + ...` for appropriate strides :math:`s_1,s_2`.
 
     In the charged case, however, we want to block :math:`k` by charge, so we must
-    implicitly permute as well.  This reordering is encoded in `_block_ind_map` as follows.
+    implicitly permute as well.  This reordering is encoded in :attr:`block_ind_map` as follows.
 
-    Each block index combination :math:`(i_1, ..., i_{nlegs})` of the `nlegs=len(spaces)`
-    input `Space`s will end up getting placed in some slice :math:`a_j:a_{j+1}` of the
-    resulting `ProductSpace`. Within this slice, the data is simply reshaped in usual row-major
-    fashion ('C'-order), i.e., with strides :math:`s_1 > s_2 > ...` given by the block size.
+    Each block index combination :math:`(i_1, ..., i_{nlegs})` of the ``nlegs=len(spaces)``
+    input :class:`ElementarySpace`s will end up getting placed in some slice :math:`a_j:a_{j+1}`
+    of the resulting :class:`AbelianLegPipe`. Within this slice, the data is simply reshaped in
+    usual row-major fashion ('C'-order), i.e., with strides :math:`s_1 > s_2 > ...` given by the
+    block size.
 
-    It will be a subslice of a new total block in the `ProductSpace` labelled by block index
+    It will be a subslice of a new total block in the `AbelianLegPipe` labelled by block index
     :math:`J`. We fuse charges according to the rule::
 
-        ProductSpace.sector_decomposition[J] = fusion_outcomes(*[lsector_decomposition[i_l]
-            for l, i_l, l in zip(incoming_block_inds, spaces)])
+        AbelianLegPipe.sector_decomposition[J] = fusion_outcomes(*[l.sector_decomposition[i_l]
+            for i_l, l in zip(incoming_block_inds, spaces)])
 
     Since many charge combinations can fuse to the same total charge,
     in general there will be many tuples :math:`(i_1, ..., i_{nlegs})` belonging to the same
-    charge block :math:`J` in the `ProductSpace`.
+    charge block :math:`J` in the `AbelianLegPipe`.
 
-    The rows of `_block_ind_map` are precisely the collections of
+    The rows of :attr:`block_ind_map` are precisely the collections of
     ``[b_{J,k}, b_{J,k+1}, i_1, . . . , i_{nlegs}, J]``.
     Here, :math:`b_k:b_{k+1}` denotes the slice of this block index combination *within*
     the total block `J`, i.e., ``b_{J,k} = a_j - self.slices[J]``.
 
-    The rows of `_block_ind_map` are lex-sorted first by ``J``, then the ``i``.
-    Each ``J`` will have multiple rows, and the order in which they are stored in `block_inds`
+    The rows of :attr:`block_ind_map` are lex-sorted first by ``J``, then the ``i``.
+    Each ``J`` will have multiple rows, and the order in which they are stored in :attr:`block_inds`
     is the order the data is stored in the actual tensor.
     Thus, ``_block_ind_map`` might look like ::
 
@@ -1625,7 +1696,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         num_sector_combinations = np.prod([space.num_sectors for space in self.legs])
         # [i, j] :: position of the part of j in legs[i] within its private basis
         idcs = unstridify(np.arange(self.dim), dim_strides).T
-        # [i, j] :: sector of the part of j in legs[i] is legs[i].sectors[sector_idcs[i, j]]
+        # [i, j] :: sector of the part of j in legs[i] is legs[i].sector_decomposition[sector_idcs[i, j]]
         #           sector_idcs[i, j] = bisect.bisect(legs[i].slices[:, 0], idcs[i, j]) - 1
         sector_idcs = np.array(
             [[bisect.bisect(sp.slices[:, 0], idx) - 1 for idx in idx_col]
@@ -1644,7 +1715,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         ).T  # OPTIMIZE make make_stride broadcast?
         # [j] :: position of j in the unsorted list of fusion outcomes
         fusion_outcome = np.sum(sector_idcs * sector_strides[:, None], axis=0)
-        # [i, s] :: sector combination s has legs[i].sectors[all_sector_idcs[i, s]]
+        # [i, s] :: sector combination s has legs[i].sector_decomposition[all_sector_idcs[i, s]]
         all_sector_idcs = unstridify(np.arange(num_sector_combinations), sector_strides).T
         # [i, s] :: all_mults[i, s] = legs[i].multiplicities[all_sector_idcs[i, s]]
         all_mults = np.array([sp.multiplicities[comb] for sp, comb in zip(self.legs, all_sector_idcs)])

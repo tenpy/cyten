@@ -123,7 +123,7 @@ class TensorBackend(metaclass=ABCMeta):
     def combine_legs(self,
                      tensor: SymmetricTensor,
                      leg_idcs_combine: list[list[int]],
-                     product_spaces: list[LegPipe],
+                     pipes: list[LegPipe],
                      new_codomain: TensorProduct,
                      new_domain: TensorProduct,
                      ) -> Data:
@@ -140,7 +140,7 @@ class TensorBackend(metaclass=ABCMeta):
             The tensor to modify
         leg_idcs_combine: list of list of int
             A list of groups. Each group a list of integer leg indices, to be combined.
-        product_spaces: list of LegPipe
+        pipes: list of LegPipe
             The resulting pipes. Same length and order as `leg_idcs_combine`.
             In the domain, this is the product space as it will appear in the domain, not in legs.
         new_codomain_combine:
@@ -648,7 +648,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def state_tensor_product(self, state1: Block, state2: Block, prod_space: LegPipe):
+    def state_tensor_product(self, state1: Block, state2: Block, pipe: LegPipe):
         """TODO clearly define what this should do in tensors.py first!
 
         In particular regarding basis orders.

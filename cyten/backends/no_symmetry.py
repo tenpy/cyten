@@ -83,7 +83,7 @@ class NoSymmetryBackend(TensorBackend):
     def combine_legs(self,
                      tensor: SymmetricTensor,
                      leg_idcs_combine: list[list[int]],
-                     product_spaces: list[LegPipe],
+                     pipes: list[LegPipe],
                      new_codomain: TensorProduct,
                      new_domain: TensorProduct,
                      ) -> Data:
@@ -413,7 +413,7 @@ class NoSymmetryBackend(TensorBackend):
         vh = self.block_backend.block_reshape(vh, (k,) + vh_dims)
         return u, s, vh
 
-    def state_tensor_product(self, state1: Block, state2: Block, prod_space: LegPipe):
+    def state_tensor_product(self, state1: Block, state2: Block, pipe: LegPipe):
         # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
 

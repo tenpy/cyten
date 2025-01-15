@@ -738,9 +738,9 @@ class GroupedSite(Site):
             for states_labels in itertools.product(*[s.state_labels.items() for s in sites]):
                 # states_labels is a list of (label, index) pairs for every site
                 inds = np.array([i for _, i in states_labels])
-                prod_space_idx = np.sum(inds * strides)
+                pipe_idx = np.sum(inds * strides)
                 state_label = ' '.join(f'{lbl}_{site_lbl}' for (lbl, _), site_lbl in zip(states_labels, labels))
-                self.state_labels[state_label] = perm[prod_space_idx]
+                self.state_labels[state_label] = perm[pipe_idx]
         else:
             # TODO fusion is more than a permutation. labels like above make no sense.
             raise NotImplementedError
@@ -800,7 +800,7 @@ class GroupedSite(Site):
             op = op.outer(op_i, relabel2={'p': f'p{i}', 'p*': f'p{i}*'})
         return op.combine_legs([f'p{i}' for i in range(self.n_sites)],
                                [f'p{i}*' for i in range(self.n_sites)],
-                               product_spaces=[self.leg, self.leg.dual],
+                               pipes=[self.leg, self.leg.dual],
                                new_labels=['p', 'p*'])
 
     def __repr__(self):

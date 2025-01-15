@@ -311,11 +311,10 @@ class AbelianBackend(TensorBackend):
     def combine_legs(self,
                      tensor: SymmetricTensor,
                      leg_idcs_combine: list[list[int]],
-                     product_spaces: list[LegPipe],
+                     pipes: list[LegPipe],
                      new_codomain: TensorProduct,
                      new_domain: TensorProduct,
                      ) -> Data:
-        # TODO product_space.metadata['_name'] is now lep_pipe.name, laxly
         num_result_legs = tensor.num_legs - sum(len(group) - 1 for group in leg_idcs_combine)
         old_blocks = tensor.data.blocks
         old_block_inds = tensor.data.block_inds
@@ -326,31 +325,30 @@ class AbelianBackend(TensorBackend):
         #   This is in the sense that
         #     map_inds[k][j] == J
         #   indicates that we have
-        #     product_spaces[k].metadata['_block_ind_map'][J, 2:-1] == block_inds[j, group_k_idcs]
+        #     pipes[k].block_ind_map[J, 2:-1] == block_inds[j, group_k_idcs]
         #   Note that it contains the same J multiple times (in general)
         map_inds = []
-        for p_space, (first, *_, last) in zip(product_spaces, leg_idcs_combine):
+        for p_space, (first, *_, last) in zip(pipes, leg_idcs_combine):
             in_domain = first >= tensor.num_codomain_legs
             block_inds = old_block_inds[:, first:last + 1]
             if in_domain:
                 # product space in the domain has opposite order of its spaces compared to the
                 # convention in block_inds
                 block_inds = block_inds[:, ::-1]
-            map_inds.append(self.product_space_map_incoming_block_inds(p_space, block_inds))
+            map_inds.append(self.leg_pipe_map_incoming_block_inds(p_space, block_inds))
 
         # build the result block_inds. in this first stage we allow duplicates
         res_block_inds = np.empty((len(old_block_inds), num_result_legs), int)
         i = 0  # res_block_inds[:, :i] is already set
         j = 0  # old_block_inds[:, :j] are already considered
-        for group, p_space, map_ind in zip(leg_idcs_combine, product_spaces, map_inds):
+        for group, p_space, map_ind in zip(leg_idcs_combine, pipes, map_inds):
             # uncombined legs since last group: block_inds are simply unchanged
             num_uncombined = group[0] - j
             res_block_inds[:, i:i + num_uncombined] = old_block_inds[:, j:j + num_uncombined]
             i += num_uncombined
             j += num_uncombined
             # current combined group
-            block_ind_map = p_space.get_metadata('_block_ind_map', backend=self)
-            res_block_inds[:, i] = block_ind_map[map_ind, -1]
+            res_block_inds[:, i] = p_space.block_ind_map[map_ind, -1]
             i += 1
             j += len(group)
         # trailing uncombined legs:
@@ -368,7 +366,7 @@ class AbelianBackend(TensorBackend):
         i = 0  # have already set info for new_legs[:i]
         j = 0  # have already considered old_legs[:j]
         block_slices = np.zeros((len(old_blocks), num_result_legs, 2), int)
-        for group, p_space, map_ind in zip(leg_idcs_combine, product_spaces, map_inds):
+        for group, p_space, map_ind in zip(leg_idcs_combine, pipes, map_inds):
             # uncombined legs since last group: shape is just multiplicity, slice is all of 0:mult
             num_uncombined = group[0] - j
             for n in range(num_uncombined):
@@ -377,8 +375,7 @@ class AbelianBackend(TensorBackend):
                 i += 1
                 j += 1
             # current combined group
-            block_ind_map = p_space.get_metadata('_block_ind_map', backend=self)
-            block_slices[:, i, :] = block_ind_map[map_ind, :2]
+            block_slices[:, i, :] = p_space.block_ind_map[map_ind, :2]
             i += 1
             j += len(group)
         # trailing uncombined legs
@@ -1626,7 +1623,7 @@ class AbelianBackend(TensorBackend):
             return self.zero_data(new_codomain, new_domain, a.data.dtype, device=a.data.device)
 
         n_split = len(leg_idcs)
-        product_spaces = [a.get_leg_co_domain(i) for i in leg_idcs]
+        pipes = [a.get_leg_co_domain(i) for i in leg_idcs]
         res_num_legs = new_codomain.num_spaces + new_domain.num_spaces
 
         old_blocks = a.data.blocks
@@ -1634,11 +1631,10 @@ class AbelianBackend(TensorBackend):
 
         map_slices_beg = np.zeros((len(old_blocks), n_split), int)
         map_slices_shape = np.zeros((len(old_blocks), n_split), int)  # = end - beg
-        for j, product_space in enumerate(product_spaces):
+        for j, pipe in enumerate(pipes):
             block_inds_j = old_block_inds[:, leg_idcs[j]]
-            block_ind_map_slices = product_space.get_metadata('_block_ind_map_slices', backend=self)
-            map_slices_beg[:, j] = block_ind_map_slices[block_inds_j]
-            sizes = block_ind_map_slices[1:] - block_ind_map_slices[:-1]
+            map_slices_beg[:, j] = pipe.block_ind_map_slices[block_inds_j]
+            sizes = pipe.block_ind_map_slices[1:] - pipe.block_ind_map_slices[:-1]
             map_slices_shape[:, j] = sizes[block_inds_j]
         new_data_blocks_per_old_block = np.prod(map_slices_shape, axis=1)
 
@@ -1655,23 +1651,22 @@ class AbelianBackend(TensorBackend):
         old_block_beg = np.zeros((res_num_blocks, a.num_legs), dtype=int)
         old_block_shapes = np.empty((res_num_blocks, a.num_legs), dtype=int)
         shift = 0  # = i - k for indices below
-        j = 0  # index within product_spaces
+        j = 0  # index within pipes
         for i in range(a.num_legs):  # i = index in old tensor
             if i in leg_idcs:
                 in_domain = (i >= a.num_codomain_legs)
-                product_space = product_spaces[j]  # = a.legs[i]
+                pipe = pipes[j]  # = a.legs[i]
                 k = i + shift  # = index where split legs begin in new tensor
-                k2 = k + len(product_space.spaces)  # = until where spaces go in new tensor
-                _block_ind_map = product_space.get_metadata('_block_ind_map', backend=self)[map_rows[:, j], :]
+                k2 = k + len(pipe.spaces)  # = until where spaces go in new tensor
                 if in_domain:
                     # if the leg to be split is in the domain, the order of block_inds and of its
                     # _block_ind_map are opposite -> need to reverse
-                    new_block_inds[:, k:k2] = _block_ind_map[:, -2:1:-1]
+                    new_block_inds[:, k:k2] = pipe.block_ind_map[:, -2:1:-1]
                 else:
-                    new_block_inds[:, k:k2] = _block_ind_map[:, 2:-1]
-                old_block_beg[:, i] = _block_ind_map[:, 0]
-                old_block_shapes[:, i] = _block_ind_map[:, 1] - _block_ind_map[:, 0]
-                shift += len(product_space.spaces) - 1
+                    new_block_inds[:, k:k2] = pipe.block_ind_map[:, 2:-1]
+                old_block_beg[:, i] = pipe.block_ind_map[:, 0]
+                old_block_shapes[:, i] = pipe.block_ind_map[:, 1] - pipe.block_ind_map[:, 0]
+                shift += len(pipe.spaces) - 1
                 j += 1
             else:
                 new_block_inds[:, i + shift] = nbi = old_block_inds[old_rows, i]
@@ -1765,7 +1760,7 @@ class AbelianBackend(TensorBackend):
         vh_data = AbelianBackendData(a.dtype, a.data.device, vh_blocks, vh_block_inds, is_sorted=True)
         return u_data, s_data, vh_data
 
-    def state_tensor_product(self, state1: Block, state2: Block, prod_space: AbelianLegPipe):
+    def state_tensor_product(self, state1: Block, state2: Block, pipe: AbelianLegPipe):
         # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
 
@@ -1847,14 +1842,14 @@ class AbelianBackend(TensorBackend):
 
     # INTERNAL HELPERS
 
-    def product_space_map_incoming_block_inds(self, pipe: AbelianLegPipe, incoming_block_inds):
-        """Map incoming block indices to indices of :attr:`_block_ind_map`.
+    def leg_pipe_map_incoming_block_inds(self, pipe: AbelianLegPipe, incoming_block_inds):
+        """Map incoming block indices to indices of :attr:`block_ind_map`.
 
         Needed for `combine_legs`.
 
         Parameters
         ----------
-        space : AbelianLegPipe
+        pipe : AbelianLegPipe
             The pipe which indices are to be mapped
         incoming_block_inds : 2D array
             Rows are block indices :math:`(i_1, i_2, ... i_{nlegs})` for incoming legs.
@@ -1863,7 +1858,7 @@ class AbelianBackend(TensorBackend):
         -------
         block_inds: 1D array
             For each row j of `incoming_block_inds` an index `J` such that
-            ``space.metadata['_block_ind_map'][J, 2:-1] == block_inds[j]``.
+            ``pipe.block_ind_map[J, 2:-1] == block_inds[j]``.
         """
         assert incoming_block_inds.shape[1] == len(pipe.spaces)
         # calculate indices of _block_ind_map by using the appropriate strides

@@ -1754,7 +1754,7 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
     iter_space = [ten.codomain, ten.domain][in_domain]
     iter_coupled = [ten.codomain.sector_decomposition[ind[0]] for ind in ten.data.block_inds]
 
-    for tree, slc, _ in ftb._tree_block_iter_product_space(iter_space, iter_coupled, symmetry):
+    for tree, slc, _ in iter_space.iter_tree_blocks(iter_coupled):
         block_charge = ten.domain.sector_decomposition_where(tree.coupled)
         block_charge = ten.data.block_ind_from_domain_sector_ind(block_charge)
 

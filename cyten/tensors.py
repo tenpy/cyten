@@ -3160,7 +3160,7 @@ def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | Non
 
 def combine_legs(tensor: Tensor,
                  *which_legs: list[int | str],
-                 combined_spaces: list[LegPipe | None] = None,
+                 pipes: list[LegPipe | None] = None,
                  levels: list[int] | dict[str | int, int] = None,
                  **kw
                  ) -> Tensor:
@@ -3191,9 +3191,9 @@ def combine_legs(tensor: Tensor,
     and then take the dual if we need the combined leg in the domain::
 
         result.domain[2] == result.legs[4].dual
-                         == TensorProduct([T.legs[7], T.legs[8], T.legs[9]]).dual
-                         == TensorProduct([T.domain[4].dual, T.domain[3].dual, T.domain[2].dual]).dual
-                         == TensorProduct([T.domain[2], T.domain[3], T.domain[4]])
+                         == LegPipe([T.legs[7], T.legs[8], T.legs[9]]).dual
+                         == LegPipe([T.domain[4].dual, T.domain[3].dual, T.domain[2].dual]).dual
+                         == LegPipe([T.domain[2], T.domain[3], T.domain[4]])
 
     In the general case, the legs are permuted first, to match that leg order.
     The combined leg takes the position of the first of its original legs on the tensor.
@@ -3271,7 +3271,7 @@ def combine_legs(tensor: Tensor,
         # note: its important to parse negative integers before via tensor.get_leg_idcs, since
         #       the invariant part has an additional leg.
         inv_part = combine_legs(
-            tensor.invariant_part, *which_legs, combined_spaces=combined_spaces
+            tensor.invariant_part, *which_legs, pipes=pipes
         )
         return ChargedTensor(inv_part, charged_state=tensor.charged_state)
     #
@@ -3312,8 +3312,8 @@ def combine_legs(tensor: Tensor,
     #
     # 3) build new domain and codomain, labels
     # ==============================================================================================
-    if combined_spaces is None:
-        combined_spaces = [None] * len(which_legs)
+    if pipes is None:
+        pipes = [None] * len(which_legs)
     codomain_spaces = []
     codomain_labels = []
     domain_labels_reversed = []
@@ -3323,12 +3323,12 @@ def combine_legs(tensor: Tensor,
         if n in codomain_groups:
             group = codomain_groups[n]
             spaces_to_combine = tensor.codomain[group[0]:group[-1] + 1]
-            combined = combined_spaces[i]
+            combined = pipes[i]
             if combined is None:
                 combined = ProductSpace(
                     spaces_to_combine, symmetry=tensor.symmetry, backend=tensor.backend
                 )
-                combined_spaces[i] = combined
+                pipes[i] = combined
             else:
                 assert combined.spaces == spaces_to_combine
             codomain_spaces.append(combined)
@@ -3339,12 +3339,12 @@ def combine_legs(tensor: Tensor,
             domain_idx1 = N - 1 - group[0]
             codomain_idx2 = N - 1 - group[-1]
             spaces_to_combine = tensor.domain[codomain_idx2:domain_idx1 + 1]
-            combined = combined_spaces[i]
+            combined = pipes[i]
             if combined is None:
                 combined = ProductSpace(
                     spaces_to_combine, symmetry=tensor.symmetry, backend=tensor.backend
                 )
-                combined_spaces[i] = combined
+                pipes[i] = combined
             else:
                 assert combined.spaces == spaces_to_combine
             domain_spaces_reversed.append(combined)
@@ -3369,7 +3369,7 @@ def combine_legs(tensor: Tensor,
     # 4) Build the data / finish up
     # ==============================================================================================
     data = tensor.backend.combine_legs(
-        tensor, leg_idcs_combine=which_legs, product_spaces=combined_spaces, new_codomain=codomain,
+        tensor, leg_idcs_combine=which_legs, pipes=pipes, new_codomain=codomain,
         new_domain=domain
     )
     return SymmetricTensor(data, codomain=codomain, domain=domain, backend=tensor.backend,

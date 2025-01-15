@@ -18,7 +18,7 @@ import numpy as np
 from scipy.sparse.linalg import LinearOperator as ScipyLinearOperator, ArpackNoConvergence
 
 from .spaces import Space, TensorProduct, Sector
-from .tensors import Tensor, SymmetricTensor, ChargedTensor
+from .tensors import Tensor, SymmetricTensor, ChargedTensor, combine_legs
 from .backends.abstract_backend import TensorBackend
 from .dtypes import Dtype
 from .tools.math import speigs, speigsh
@@ -385,6 +385,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         self.backend = backend
         # even if there is just one leg, we form the TensorProduct anyway, so we dont have to distinguish
         #  cases and use combine_legs / split_legs in np_to_tensor and tensor_to_np
+        # TODO this probably no longer makes sense after the update of how spaces work!
         self.domain = TensorProduct(legs, backend=backend)
         self.symmetry = legs[0].symmetry
         self.matvec_count = 0
@@ -566,10 +567,11 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             # TODO undo the conversion from flat_array_to_tensor
             raise NotImplementedError
         elif isinstance(self._charge_sector, str) and self._charge_sector == 'trivial':
-            res = tens.combine_legs(list(range(tens.num_legs)), product_spaces=[self.domain])
+            # TODO save the pipe!
+            res = combine_legs(tens, list(range(tens.num_legs)), pipes=[self.pipe])
             res = res.to_dense_block_trivial_sector()
         else:
-            res = tens.combine_legs(list(range(tens.num_legs)), product_spaces=[self.domain])
+            res = combine_legs(tens, list(range(tens.num_legs)), pipes=[self.pipe])
             res = res.to_dense_block_single_sector()
         res = self.backend.block_to_numpy(res)
         assert res.shape == (self.shape[0],)
