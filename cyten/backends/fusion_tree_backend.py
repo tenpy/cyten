@@ -332,7 +332,7 @@ class FusionTreeBackend(TensorBackend):
             if j is None:
                 if self.block_backend.block_max_abs(a.data.blocks[i]) > atol:
                     return False
-            if i is None:
+            elif i is None:
                 if self.block_backend.block_max_abs(b.data.blocks[j]) > atol:
                     return False
             else:
