@@ -35,8 +35,8 @@ __all__ = ['FusionTreeBackend', 'FusionTreeData', 'TreeMappingDict']
 
 def _tree_block_iter(a: SymmetricTensor):
     sym = a.symmetry
-    domain_are_dual = [sp.is_dual for sp in a.domain.spaces]
-    codomain_are_dual = [sp.is_dual for sp in a.codomain.spaces]
+    domain_are_dual = [sp.is_dual for sp in a.domain.factors]
+    codomain_are_dual = [sp.is_dual for sp in a.codomain.factors]
     for (bi, _), block in zip(a.data.block_inds, a.data.blocks):
         coupled = a.codomain.sector_decomposition[bi]
         i1_forest = 0  # start row index of the current forest block
@@ -531,8 +531,8 @@ class FusionTreeBackend(TensorBackend):
         sym = codomain.symmetry
         assert sym.can_be_dropped
         # convert to internal basis order, where the sectors are sorted and contiguous
-        J = len(codomain.spaces)
-        K = len(domain.spaces)
+        J = codomain.num_factors
+        K = domain.num_factors
         num_legs = J + K
         # [i1,...,iJ,jK,...,j1] -> [i1,...,iJ,j1,...,jK]
         a = self.block_backend.block_permute_axes(a, [*range(J), *reversed(range(J, num_legs))])
@@ -550,10 +550,10 @@ class FusionTreeBackend(TensorBackend):
             # iterate over uncoupled sectors / forest-blocks within the block
             i1 = 0  # start row index of the current forest block
             i2 = 0  # start column index of the current forest block
-            for b_sectors, n_dims, j2 in _iter_sectors_mults_slices(domain.spaces, sym):
+            for b_sectors, n_dims, j2 in _iter_sectors_mults_slices(domain.factors, sym):
                 b_dims = sym.batch_sector_dim(b_sectors)
                 tree_block_width = domain.tree_block_size(b_sectors)
-                for a_sectors, m_dims, j1 in _iter_sectors_mults_slices(codomain.spaces, sym):
+                for a_sectors, m_dims, j1 in _iter_sectors_mults_slices(codomain.factors, sym):
                     a_dims = sym.batch_sector_dim(a_sectors)
                     tree_block_height = codomain.tree_block_size(a_sectors)
                     entries = a[(*j1, *j2)]  # [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
@@ -879,7 +879,7 @@ class FusionTreeBackend(TensorBackend):
             for j in range(num_operations[i]):
                 ind = offset[i] + j
                 exchange_ind = all_exchanges[ind]
-                if exchange_ind != codomain.num_spaces - 1 and not levels_None:
+                if exchange_ind != codomain.num_factors - 1 and not levels_None:
                     overbraid = levels[exchange_ind] > levels[exchange_ind + 1]
                     levels[exchange_ind:exchange_ind + 2] = levels[exchange_ind:exchange_ind + 2][::-1]
                 else:
@@ -970,7 +970,7 @@ class FusionTreeBackend(TensorBackend):
         a_block_inds = a.data.block_inds
         b_block_inds = b.data.block_inds
 
-        if (in_domain and a.domain.num_spaces == 1) or (not in_domain and a.codomain.num_spaces == 1):
+        if (in_domain and a.domain.num_factors == 1) or (not in_domain and a.codomain.num_factors == 1):
             # special case where it is essentially compose.
 
             blocks = []
@@ -1101,24 +1101,24 @@ class FusionTreeBackend(TensorBackend):
 
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         assert a.symmetry.can_be_dropped
-        J = len(a.codomain.spaces)
-        K = len(a.domain.spaces)
+        J = len(a.codomain.factors)
+        K = len(a.domain.factors)
         num_legs = J + K
         dtype = Dtype.common(a.data.dtype, a.symmetry.fusion_tensor_dtype)
         sym = a.symmetry
         # build in internal basis order first, then apply permutations in the end
         # build in codomain/domain leg order first, then permute legs in the end
         # [i1,...,iJ,j1,...,jK]
-        shape = [leg.dim for leg in a.codomain.spaces] + [leg.dim for leg in a.domain.spaces]
+        shape = [leg.dim for leg in a.codomain.factors] + [leg.dim for leg in a.domain.factors]
         res = self.block_backend.zero_block(shape, dtype)
         for bi_cod, block in zip(a.data.block_inds[:, 0], a.data.blocks):
             coupled = a.codomain.sector_decomposition[bi_cod]
             i1 = 0  # start row index of the current forest block
             i2 = 0  # start column index of the current forest block
-            for b_sectors, n_dims, j2 in _iter_sectors_mults_slices(a.domain.spaces, sym):
+            for b_sectors, n_dims, j2 in _iter_sectors_mults_slices(a.domain.factors, sym):
                 b_dims = sym.batch_sector_dim(b_sectors)
                 tree_block_width = a.domain.tree_block_size(b_sectors)
-                for a_sectors, m_dims, j1 in _iter_sectors_mults_slices(a.codomain.spaces, sym):
+                for a_sectors, m_dims, j1 in _iter_sectors_mults_slices(a.codomain.factors, sym):
                     a_dims = sym.batch_sector_dim(a_sectors)
                     tree_block_height = a.codomain.tree_block_size(a_sectors)
                     entries, num_alpha_trees, num_beta_trees = self._get_forest_block_contribution(
@@ -1302,8 +1302,9 @@ class FusionTreeBackend(TensorBackend):
         # OPTIMIZE do one loop per vertex in the tree instead.
         i1 = i1_init  # i1: start row index of the current tree block within the block
         i2 = i2_init  # i2: start column index of the current tree block within the block
-        alpha_tree_iter = fusion_trees(sym, a_sectors, coupled, [sp.is_dual for sp in codomain.spaces])
-        beta_tree_iter = fusion_trees(sym, b_sectors, coupled, [sp.is_dual for sp in domain.spaces])
+        # TODO should probably replace (co)domain.factors with a flat list of ElementarySpace !!
+        alpha_tree_iter = fusion_trees(sym, a_sectors, coupled, [sp.is_dual for sp in codomain.factors])
+        beta_tree_iter = fusion_trees(sym, b_sectors, coupled, [sp.is_dual for sp in domain.factors])
         entries = self.block_backend.zero_block([*a_dims, *b_dims, *m_dims, *n_dims], dtype)
         for alpha_tree in alpha_tree_iter:
             Y = self.block_backend.block_conj(alpha_tree.as_block(backend=self))  # [a1,...,aJ,c]
@@ -1324,9 +1325,9 @@ class FusionTreeBackend(TensorBackend):
         num_beta_trees = len(beta_tree_iter)
         return entries, num_alpha_trees, num_beta_trees
 
-    def _add_forest_block_entries(self, block, entries, sym: Symmetry, codomain, domain, coupled,
-                                  dim_c, a_sectors, b_sectors, tree_block_width, tree_block_height,
-                                  i1_init, i2_init):
+    def _add_forest_block_entries(self, block, entries, sym: Symmetry, codomain: TensorProduct,
+                                  domain: TensorProduct, coupled, dim_c, a_sectors, b_sectors,
+                                  tree_block_width, tree_block_height, i1_init, i2_init):
         """Helper function for :meth:`from_dense_block`.
 
         Adds the entries from a single forest-block to the current `block`, in place.
@@ -1365,10 +1366,10 @@ class FusionTreeBackend(TensorBackend):
         # OPTIMIZE do one loop per vertex in the tree instead.
         i1 = i1_init  # i1: start row index of the current tree block within the block
         i2 = i2_init  # i2: start column index of the current tree block within the block
-        domain_are_dual = [sp.is_dual for sp in domain.spaces]
-        codomain_are_dual = [sp.is_dual for sp in codomain.spaces]
-        J = len(codomain.spaces)
-        K = len(domain.spaces)
+        domain_are_dual = [sp.is_dual for sp in domain.factors]
+        codomain_are_dual = [sp.is_dual for sp in codomain.factors]
+        J = codomain.num_factors
+        K = domain.num_factors
         range_J = list(range(J))  # used in tdot calls below
         range_K = list(range(K))  # used in tdot calls below
         range_JK = list(range(J + K))
@@ -1613,7 +1614,7 @@ class TreeMappingDict(dict):
         """
         symmetry = co_domain.symmetry
         if in_domain:
-            index = co_domain.num_spaces - 2 - index
+            index = co_domain.num_factors - 2 - index
             overbraid = not overbraid
 
         mapping = TreeMappingDict()
@@ -1696,32 +1697,32 @@ class TreeMappingDict(dict):
         """
         symmetry = codomain.symmetry
         # b symbol
-        if index == codomain.num_spaces - 1:
+        if index == codomain.num_factors - 1:
             if bend_up:
-                new_domain = TensorProduct(domain.spaces[:-1], symmetry)
-                new_codomain = TensorProduct(codomain.spaces + [domain.spaces[-1].dual], symmetry)
+                new_domain = TensorProduct(domain.factors[:-1], symmetry)
+                new_codomain = TensorProduct(codomain.factors + [domain.factors[-1].dual], symmetry)
             else:
-                new_codomain = TensorProduct(codomain.spaces[:-1], symmetry)
-                new_domain = TensorProduct(domain.spaces + [codomain.spaces[-1].dual], symmetry)
+                new_codomain = TensorProduct(codomain.factors[:-1], symmetry)
+                new_domain = TensorProduct(domain.factors + [codomain.factors[-1].dual], symmetry)
             mapping, new_coupled = cls.from_b_symbol(codomain, domain, coupled,
                                                      bend_up, backend.eps)
 
         # c symbol
         else:
             new_coupled = coupled
-            if index > codomain.num_spaces - 1:
+            if index > codomain.num_factors - 1:
                 in_domain = True
                 new_codomain = codomain
-                index_ = codomain.num_spaces + domain.num_spaces - 1 - (index + 1)
-                spaces = domain.spaces[:]
+                index_ = codomain.num_factors + domain.num_factors - 1 - (index + 1)
+                spaces = domain.factors[:]
                 spaces[index_:index_ + 2] = spaces[index_:index_ + 2][::-1]
                 new_domain = TensorProduct(spaces, symmetry)
                 # TODO could re-use  domain.sector_decomposition, domain.multiplicities)
-                index -= codomain.num_spaces
+                index -= codomain.num_factors
             else:
                 in_domain = False
                 new_domain = domain
-                spaces = codomain.spaces[:]
+                spaces = codomain.factors[:]
                 spaces[index:index + 2] = spaces[index:index + 2][::-1]
                 new_codomain = TensorProduct(spaces, symmetry)
             # TODO codomain.sector_decomposition, codomain.multiplicities)
@@ -1797,8 +1798,8 @@ class TreeMappingDict(dict):
             modified_shape += [ten.domain[i].sector_multiplicity(sec)
                                for i, sec in enumerate(beta_tree.uncoupled)]
             final_shape = [modified_shape[i] for i in block_axes_permutation]
-            final_shape = (prod(final_shape[:new_codomain.num_spaces]),
-                           prod(final_shape[new_codomain.num_spaces:]))
+            final_shape = (prod(final_shape[:new_codomain.num_factors]),
+                           prod(final_shape[new_codomain.num_factors:]))
 
             tree_block = backend.block_reshape(tree_block, tuple(modified_shape))
             tree_block = backend.block_permute_axes(tree_block, block_axes_permutation)

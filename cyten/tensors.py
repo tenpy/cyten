@@ -176,12 +176,12 @@ class Tensor(metaclass=ABCMeta):
         self.domain = domain
         self.backend = backend
         self.symmetry = symmetry
-        codomain_num_legs = codomain.num_spaces
-        domain_num_legs = domain.num_spaces
+        codomain_num_legs = codomain.num_factors
+        domain_num_legs = domain.num_factors
         self.num_legs = num_legs = codomain_num_legs + domain_num_legs
         self.dtype = dtype  # TODO should be read-only ?
         self.device = device  # TODO should be read-only ?
-        self.shape = tuple(sp.dim for sp in codomain.spaces) + tuple(sp.dim for sp in reversed(domain.spaces))
+        self.shape = tuple(sp.dim for sp in codomain.factors) + tuple(sp.dim for sp in reversed(domain.factors))
         self._labels = labels = self._init_parse_labels(labels, codomain=codomain, domain=domain)
         assert len(labels) == num_legs
         self._labelmap = {label: legnum
@@ -245,9 +245,9 @@ class Tensor(metaclass=ABCMeta):
         and the domain labels are auto-filled with the respective dual labels.
         """
         # TODO improve errors on illegal formats
-        num_legs = codomain.num_spaces + domain.num_spaces
+        num_legs = codomain.num_factors + domain.num_factors
         if is_endomorphism:
-            assert codomain.num_spaces == domain.num_spaces
+            assert codomain.num_factors == domain.num_factors
 
         # case 1: None
         if labels is None:
@@ -261,18 +261,18 @@ class Tensor(metaclass=ABCMeta):
                 if is_endomorphism and domain_labels is not None:
                     codomain_labels = [_dual_leg_label(l) for l in domain_labels]
                 else:
-                    codomain_labels = [None] * codomain.num_spaces
-            assert len(codomain_labels) == codomain.num_spaces
+                    codomain_labels = [None] * codomain.num_factors
+            assert len(codomain_labels) == codomain.num_factors
             if domain_labels is None:
                 if is_endomorphism:
                     domain_labels = [_dual_leg_label(l) for l in codomain_labels]
                 else:
-                    domain_labels = [None] * domain.num_spaces
-            assert len(domain_labels) == domain.num_spaces
+                    domain_labels = [None] * domain.num_factors
+            assert len(domain_labels) == domain.num_factors
             return [*codomain_labels, *reversed(domain_labels)]
 
         # case 3a: (only if is_endomorphism) a flat list for the codomain
-        if is_endomorphism and len(labels) == codomain.num_spaces:
+        if is_endomorphism and len(labels) == codomain.num_factors:
             return [*labels, *(_dual_leg_label(l) for l in reversed(labels))]
 
         # case 3: a flat list for the legs
@@ -286,8 +286,8 @@ class Tensor(metaclass=ABCMeta):
         self.domain.test_sanity()  # this checks all legs, and recursively through pipes
         self.codomain.test_sanity()  # this checks all legs, and recursively through pipes
         assert self.dtype not in self._forbidden_dtypes
-        assert all(isinstance(leg, Leg) for leg in self.domain.spaces)
-        assert all(isinstance(leg, Leg) for leg in self.codomain.spaces)
+        assert all(isinstance(leg, Leg) for leg in self.domain.factors)
+        assert all(isinstance(leg, Leg) for leg in self.codomain.factors)
 
     @property
     def ascii_diagram(self) -> str:
@@ -466,7 +466,7 @@ class Tensor(metaclass=ABCMeta):
 
         See :ref:`tensors_as_maps`.
         """
-        return [*self.codomain.spaces, *(sp.dual for sp in reversed(self.domain.spaces))]
+        return [*self.codomain.factors, *(sp.dual for sp in reversed(self.domain.factors))]
     
     @abstractmethod
     def move_to_device(self, device: str):
@@ -476,12 +476,12 @@ class Tensor(metaclass=ABCMeta):
     @property
     def num_codomain_legs(self) -> int:
         """How many of the legs are in the codomain. See :ref:`tensors_as_maps`."""
-        return self.codomain.num_spaces
+        return self.codomain.num_factors
 
     @property
     def num_domain_legs(self) -> int:
         """How many of the legs are in the domain. See :ref:`tensors_as_maps`."""
-        return self.domain.num_spaces
+        return self.domain.num_factors
 
     @property
     def num_parameters(self) -> int:
@@ -673,8 +673,8 @@ class Tensor(metaclass=ABCMeta):
             return list(map(self.get_leg, which_leg))
         in_domain, co_domain_idx, _ = self._parse_leg_idx(which_leg)
         if in_domain:
-            return self.domain.spaces[co_domain_idx].dual
-        return self.codomain.spaces[co_domain_idx]
+            return self.domain.factors[co_domain_idx].dual
+        return self.codomain.factors[co_domain_idx]
 
     def get_leg_co_domain(self, which_leg: int | str) -> Space:
         """Get the specified leg from the domain or codomain.
@@ -687,8 +687,8 @@ class Tensor(metaclass=ABCMeta):
             return list(map(self.get_leg, which_leg))
         in_domain, co_domain_idx, _ = self._parse_leg_idx(which_leg)
         if in_domain:
-            return self.domain.spaces[co_domain_idx]
-        return self.codomain.spaces[co_domain_idx]
+            return self.domain.factors[co_domain_idx]
+        return self.codomain.factors[co_domain_idx]
 
     def get_leg_idcs(self, idcs: int | str | Sequence[int | str]) -> list[int]:
         """Parse leg-idcs of leg-labels to leg-idcs (i.e. indices of :attr:`legs`)."""
@@ -1276,7 +1276,7 @@ class DiagonalTensor(SymmetricTensor):
     def test_sanity(self):
         super().test_sanity()
         assert self.domain == self.codomain
-        assert self.domain.num_spaces == 1
+        assert self.domain.num_factors == 1
 
     @classmethod
     def from_block_func(cls, func, leg: Space, backend: TensorBackend | None = None,
@@ -1512,7 +1512,7 @@ class DiagonalTensor(SymmetricTensor):
         assert tens.num_legs == 2
         assert tens.domain == tens.codomain
         data = tens.backend.diagonal_tensor_from_full_tensor(tens, check_offdiagonal=check_offdiagonal)
-        return cls(data=data, leg=tens.codomain.spaces[0], backend=tens.backend, labels=tens.labels)
+        return cls(data=data, leg=tens.codomain.factors[0], backend=tens.backend, labels=tens.labels)
 
     @classmethod
     def from_zero(cls, leg: Space,
@@ -1545,7 +1545,7 @@ class DiagonalTensor(SymmetricTensor):
     @property
     def leg(self) -> Space:
         """Return the single space that makes up to domain and codomain."""
-        return self.codomain.spaces[0]
+        return self.codomain.factors[0]
 
     def __abs__(self):
         return self._elementwise_unary(func=operator.abs, maps_zero_to_zero=True)
@@ -1879,9 +1879,9 @@ class Mask(Tensor):
     def test_sanity(self):
         super().test_sanity()
         self.backend.test_mask_sanity(self)
-        assert self.codomain.num_spaces == 1 == self.domain.num_spaces
-        assert isinstance(self.codomain.spaces[0], ElementarySpace)
-        assert isinstance(self.domain.spaces[0], ElementarySpace)
+        assert self.codomain.num_factors == 1 == self.domain.num_factors
+        assert isinstance(self.codomain.factors[0], ElementarySpace)
+        assert isinstance(self.domain.factors[0], ElementarySpace)
         assert self.large_leg.is_dual == self.small_leg.is_dual
         assert self.small_leg.is_subspace_of(self.large_leg)
         assert self.dtype == Dtype.bool
@@ -1907,16 +1907,16 @@ class Mask(Tensor):
     @property
     def large_leg(self) -> ElementarySpace:
         if self.is_projection:
-            return self.domain.spaces[0]
+            return self.domain.factors[0]
         else:
-            return self.codomain.spaces[0]
+            return self.codomain.factors[0]
 
     @property
     def small_leg(self) -> ElementarySpace:
         if self.is_projection:
-            return self.codomain.spaces[0]
+            return self.codomain.factors[0]
         else:
-            return self.domain.spaces[0]
+            return self.domain.factors[0]
 
     @classmethod
     def from_eye(cls, leg: ElementarySpace, is_projection: bool = True,
@@ -1989,7 +1989,7 @@ class Mask(Tensor):
         assert diag.dtype == Dtype.bool
         data, small_leg = diag.backend.diagonal_to_mask(diag)
         return cls(
-            data=data, space_in=diag.domain.spaces[0], space_out=small_leg, is_projection=True,
+            data=data, space_in=diag.domain.factors[0], space_out=small_leg, is_projection=True,
             backend=diag.backend, labels=diag.labels
         )
 
@@ -2392,8 +2392,8 @@ class ChargedTensor(Tensor):
     _CHARGE_LEG_LABEL = '!'  # canonical label for the charge leg
     
     def __init__(self, invariant_part: SymmetricTensor, charged_state: Block | None):
-        assert invariant_part.domain.num_spaces > 0, 'domain must contain at least the charge leg'
-        self.charge_leg = invariant_part.domain.spaces[0]
+        assert invariant_part.domain.num_factors > 0, 'domain must contain at least the charge leg'
+        self.charge_leg = invariant_part.domain.factors[0]
         assert invariant_part._labels[-1] == self._CHARGE_LEG_LABEL, 'incorrect label on charge leg'
         if not self.supports_symmetry(invariant_part.symmetry):
             msg = f'ChargedTensor is not well-defined for symmetry {invariant_part.symmetry}.'
@@ -2411,7 +2411,7 @@ class ChargedTensor(Tensor):
             self,
             codomain=invariant_part.codomain,
             domain=TensorProduct(
-                invariant_part.domain.spaces[1:], symmetry=invariant_part.symmetry,
+                invariant_part.domain.factors[1:], symmetry=invariant_part.symmetry,
             ),  # TODO do we really need to calculate the fusion here...?
             backend=invariant_part.backend,
             labels=invariant_part._labels[:-1],

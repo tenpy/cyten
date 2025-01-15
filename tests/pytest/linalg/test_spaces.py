@@ -420,8 +420,8 @@ def assert_spaces_equal(space1: spaces.Space, space2: spaces.Space):
             assert np.all(space1.basis_perm == space2.basis_perm), 'mismatched basis_perm'
     elif isinstance(space1, spaces.TensorProduct):
         assert isinstance(space2, spaces.TensorProduct), 'mismatching types'
-        assert space1.num_spaces == space2.num_spaces
-        for n, (s1, s2) in enumerate(zip(space1.spaces, space2.spaces)):
+        assert space1.num_factors == space2.num_factors
+        for n, (s1, s2) in enumerate(zip(space1.factors, space2.factors)):
             try:
                 assert_spaces_equal(s1, s2)
             except AssertionError as e:

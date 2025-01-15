@@ -418,6 +418,9 @@ class Space(metaclass=ABCMeta):
 
     # CONCRETE IMPLEMENTATIONS
 
+    def as_Space(self):
+        return self
+    
     def __repr__(self):
         res = self._repr(show_symmetry=True)
         if res is None:
@@ -929,9 +932,6 @@ class ElementarySpace(Space, Leg):
             pass  # both permutations are trivial, thus equal
         return True
 
-    def as_Space(self):
-        return self
-
     def as_ElementarySpace(self, is_dual: bool = False) -> ElementarySpace:
         if bool(is_dual) == self.is_dual:
             return self
@@ -1118,24 +1118,26 @@ class TensorProduct(Space):
          Mostly, this is not a leg pipe, because it does not have an ``is_dual`` attr??
          And LegPipes are not TensorProducts because they dont have a ``sector_decomposition``
     """
-
-    def __init__(self, spaces: list[Space], symmetry: Symmetry = None):
-        self.num_spaces = num_spaces = len(spaces)
+    
+    def __init__(self, factors: list[Space | LegPipe], symmetry: Symmetry = None):
+        self.num_factors = num_factors = len(factors)
         if symmetry is None:
-            if num_spaces == 0:
+            if num_factors == 0:
                 raise ValueError('If spaces is empty, the symmetry arg is required.')
-            symmetry = spaces[0].symmetry
-        if not all(sp.symmetry == symmetry for sp in spaces):
+            symmetry = factors[0].symmetry
+        if not all(sp.symmetry == symmetry for sp in factors):
             raise SymmetryError('Incompatible symmetries.')
         self.symmetry = symmetry
-        self.spaces = spaces[:]
-        sectors, multiplicities = self._calc_sectors(spaces)
+        self.factors = factors[:]
+        # TODO add an attr spaces: list[Space] that contains a flat list, where all nesting into
+        #      pipes of factors in flattened??
+        sectors, multiplicities = self._calc_sectors(factors)
         Space.__init__(self, symmetry=symmetry, sector_decomposition=sectors, multiplicities=multiplicities,
                        sector_order='sorted')
 
     def test_sanity(self):
-        assert len(self.spaces) == self.num_spaces
-        for sp in self.spaces:
+        assert len(self.factors) == self.num_factors
+        for sp in self.factors:
             sp.test_sanity()
         Space.test_sanity(self)
 
@@ -1149,20 +1151,20 @@ class TensorProduct(Space):
         I.e. we form :math:`V_1 \otimes V_2 \otimes W_1 \otimes W_2 \dots` from
         :math:`V_1 \otimes V_2` and :math:`W_1 \otimes W_2 \dots`.
         """
-        spaces = factors[0].spaces[:]
+        spaces = factors[0].factors[:]
         symmetry = factors[0].symmetry
         for f in factors[1:]:
-            spaces.extend(f.spaces)
+            spaces.extend(f.factors)
             assert f.symmetry == symmetry, 'Mismatched symmetries'
         # TODO faster computation of sectors etc
-        return TensorProduct(spaces=spaces, symmetry=symmetry)
+        return TensorProduct(factors=spaces, symmetry=symmetry)
 
     # PROPERTIES
 
     @property
     def dual(self):
         # TODO is this needed ...?
-        return TensorProduct([sp.dual for sp in reversed(self.spaces)], symmetry=self.symmetry)
+        return TensorProduct([sp.dual for sp in reversed(self.factors)], symmetry=self.symmetry)
 
     # METHODS
 
@@ -1184,14 +1186,14 @@ class TensorProduct(Space):
         # TODO can we avoid recomputation of fusion?
         return TensorProduct(
             [space.change_symmetry(symmetry, sector_map, injective)
-             for space in self.spaces],
+             for space in self.factors],
             symmetry=self.symmetry
         )
 
     def drop_symmetry(self, which=None):
         # TODO can we avoid recomputation of fusion?
         return TensorProduct(
-            [space.drop_symmetry(which) for space in self.spaces],
+            [space.drop_symmetry(which) for space in self.factors],
             symmetry=self.symmetry
         )
 
@@ -1217,7 +1219,7 @@ class TensorProduct(Space):
     def insert_multiply(self, other: Space, pos: int) -> TensorProduct:
         """Insert a new space into the product at position `pos`."""
         # TODO optimize (can compute sectors etc more efficiently)
-        return TensorProduct(self.spaces[:pos] + [other] + self.spaces[pos:], symmetry=self.symmetry)
+        return TensorProduct(self.factors[:pos] + [other] + self.factors[pos:], symmetry=self.symmetry)
 
     def iter_tree_blocks(self, coupled: Sequence[Sector]
                          ) -> Iterator[tuple[FusionTree, slice, int]]:
@@ -1241,9 +1243,9 @@ class TensorProduct(Space):
         iter_uncoupled
         """
         # OPTIMIZE some users in FTBackend ignore the slc and i...
-        if any(not isinstance(sp, ElementarySpace) for sp in self.spaces):
+        if any(not isinstance(sp, ElementarySpace) for sp in self.factors):
             raise NotImplementedError  # TODO what to do if there are pipes?
-        are_dual = [sp.is_dual for sp in self.spaces]
+        are_dual = [sp.is_dual for sp in self.factors]
         for i, c in enumerate(coupled):
             start = 0  # start index of the current tree block within the block
             for uncoupled in self.iter_uncoupled():
@@ -1288,10 +1290,10 @@ class TensorProduct(Space):
         For a TensorProduct of zero spaces, i.e. with ``num_space == 0``, we yield an empty
         array once.
         """
-        if self.num_spaces == 0:
+        if self.num_factors == 0:
             yield self.symmetry.empty_sector_array
             return
-        for unc in it.product(*(s.sector_decomposition for s in self.spaces)):
+        for unc in it.product(*(s.sector_decomposition for s in self.factors)):
             yield np.array(unc, int)
     
     def left_multiply(self, other: Space) -> TensorProduct:
@@ -1305,7 +1307,7 @@ class TensorProduct(Space):
     def tree_block_size(space: TensorProduct, uncoupled: tuple[Sector]) -> int:
         """The size of a tree-block"""
         # OPTIMIZE ?
-        return prod(s.sector_multiplicity(a) for s, a in zip(space.spaces, uncoupled))
+        return prod(s.sector_multiplicity(a) for s, a in zip(space.factors, uncoupled))
 
     def tree_block_slice(self, tree: FusionTree) -> slice:
         """The range of indices of a tree-block within its block, as a slice."""
@@ -1328,55 +1330,62 @@ class TensorProduct(Space):
     def __eq__(self, other):
         if not isinstance(other, TensorProduct):
             return NotImplemented
-        if self.num_spaces != other.num_spaces:
+        if self.num_factors != other.num_factors:
             return False
         if self.symmetry != other.symmetry:
             return False
-        return all(s1 == s2 for s1, s2 in zip(self.spaces, other.spaces, strict=True))
+        return all(s1 == s2 for s1, s2 in zip(self.factors, other.factors, strict=True))
 
     def __getitem__(self, idx):
-        return self.spaces[idx]
+        return self.factors[idx]
 
     def __iter__(self):
-        return iter(self.spaces)
+        return iter(self.factors)
 
     def __len__(self):
-        return self.num_spaces
+        return self.num_factors
 
     def _repr(self, show_symmetry):
         raise NotImplementedError  # TODO rm this from Space class??
 
-    def _calc_sectors(self, spaces: list[Space]) -> tuple[SectorArray, ndarray]:
+    def _calc_sectors(self, factors: list[Space | Leg]) -> tuple[SectorArray, ndarray]:
         """Helper function for :meth:`__init__`"""
-        if len(spaces) == 0:
+        # TODO (JU) FTBackend: when a tensor is built, we often iterate over fusion-trees, which
+        #           effectively already computes the fusion here. avoid this double computation
+
+        if len(factors) == 0:
             return self.symmetry.trivial_sector[None, :], np.ones([1], int)
 
-        if len(spaces) == 1:
-            sectors = spaces[0].sector_decomposition
-            mults = spaces[0].multiplicities
-            if spaces[0].sector_order == 'sorted':
+        # need the sector decomposition of each factor. easiest way: convert to Space
+        # OPTIMIZE is this optimal? should we store the f.as_Space() for later use?
+        factors = [f.as_Space() for f in factors]
+
+        if len(factors) == 1:
+            sectors = factors[0].sector_decomposition
+            mults = factors[0].multiplicities
+            if factors[0].sector_order == 'sorted':
                 return sectors, mults
             perm = np.lexsort(sectors.T)
             return sectors[perm], mults[perm]
 
         if self.symmetry.is_abelian:
-            grid = np.indices(tuple(space.num_sectors for space in spaces), np.intp)
-            grid = grid.T.reshape(-1, len(spaces))
+            grid = np.indices(tuple(space.num_sectors for space in factors), np.intp)
+            grid = grid.T.reshape(-1, len(factors))
             sectors = self.symmetry.multiple_fusion_broadcast(
-                *(sp.sector_decomposition[gr] for sp, gr in zip(spaces, grid.T))
+                *(sp.sector_decomposition[gr] for sp, gr in zip(factors, grid.T))
             )
             multiplicities = np.prod(
-                [space.multiplicities[gr] for space, gr in zip(spaces, grid.T)],
+                [space.multiplicities[gr] for space, gr in zip(factors, grid.T)],
                 axis=0
             )
-            sectors, multiplicities, fusion_outcomes_sort = _unique_sorted_sectors(sectors, multiplicities)
+            sectors, multiplicities, _ = _unique_sorted_sectors(sectors, multiplicities)
             return sectors, multiplicities
 
         # define recursively
-        sectors, mults = self._calc_sectors(spaces[:-1])
+        sectors, mults = self._calc_sectors(factors[:-1])
         sector_arrays = []
         mult_arrays = []
-        for s2, m2 in zip(spaces[-1].sector_decomposition, spaces[-1].multiplicities):
+        for s2, m2 in zip(factors[-1].sector_decomposition, factors[-1].multiplicities):
             for s1, m1 in zip(sectors, mults):
                 new_sects = self.symmetry.fusion_outcomes(s1, s2)
                 sector_arrays.append(new_sects)
@@ -1668,10 +1677,10 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         # OPTIMIZE (JU) could make this a (cached) property and only compute when needed
         # TODO triple check and test this! -> implications on to_numpy after combine (adjust test!)
         # C-style for compatibility with e.g. numpy.reshape
-        strides = make_stride(shape=[space.dim for space in self.spaces], cstyle=True)
+        strides = make_stride(shape=[space.dim for space in self.legs], cstyle=True)
         order = unstridify(self._get_fusion_outcomes_perm(), strides).T  # indices of the internal bases
         return sum(stride * space.inverse_basis_perm[p]
-                   for stride, space, p in zip(strides, self.spaces, order))
+                   for stride, space, p in zip(strides, self.legs, order))
 
     def _get_fusion_outcomes_perm(self):
         r"""Get the permutation introduced by the fusion.

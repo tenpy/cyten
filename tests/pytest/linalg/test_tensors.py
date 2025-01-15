@@ -175,28 +175,28 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
     npt.assert_array_almost_equal_nulp(zero_tens.to_numpy(), np.zeros(T.shape), 10)
 
     print('checking from_eye')
-    which = T.codomain if T.codomain.num_spaces > 0 else T.domain
-    if which.num_spaces > 2:
+    which = T.codomain if T.codomain.num_factors > 0 else T.domain
+    if which.num_factors > 2:
         # otherwise it gets a bit expensive to compute
-        which = TensorProduct(which.spaces[:2])
+        which = TensorProduct(which.factors[:2])
     labels = list('abcdefg')[:len(which)]
     tens = SymmetricTensor.from_eye(which, backend=T.backend, labels=labels)
     expect_from_backend = backend.block_backend.block_to_numpy(
-        backend.block_backend.eye_block([leg.dim for leg in which.spaces], dtype=T.dtype)
+        backend.block_backend.eye_block([leg.dim for leg in which.factors], dtype=T.dtype)
     )
     res = tens.to_numpy()
-    if which.num_spaces == 1:
+    if which.num_factors == 1:
         expect_explicit = np.eye(which.dim)
-    elif which.num_spaces == 2:
+    elif which.num_factors == 2:
         expect_explicit = (
-            np.eye(which.spaces[0].dim)[:, None, None, :] *
-            np.eye(which.spaces[1].dim)[None, :, :, None]
+            np.eye(which.factors[0].dim)[:, None, None, :] *
+            np.eye(which.factors[1].dim)[None, :, :, None]
         )
-    elif which.num_spaces == 3:
+    elif which.num_factors == 3:
         expect_explicit = (
-            np.eye(which.spaces[0].dim)[:, None, None, None, None, :] *
-            np.eye(which.spaces[1].dim)[None, :, None, None, :, None] *
-            np.eye(which.spaces[2].dim)[None, None, :, :, None, None]
+            np.eye(which.factors[0].dim)[:, None, None, None, None, :] *
+            np.eye(which.factors[1].dim)[None, :, None, None, :, None] *
+            np.eye(which.factors[2].dim)[None, None, :, :, None, None]
         )
     else:
         raise RuntimeError('Need to adjust test design')
@@ -1125,7 +1125,7 @@ def test_combine_split(make_compatible_tensor):
     assert len(combined4.codomain) == 2
     assert combined4.codomain[0] == T.codomain[0]
     assert combined4.codomain[1].spaces == [T.codomain[1], T.domain[1].dual]
-    assert combined4.domain.spaces == [T.domain[0]]
+    assert combined4.domain.factors == [T.domain[0]]
     #
     split4 = tensors.split_legs(combined4, 1)
     split4.test_sanity()
@@ -1142,8 +1142,8 @@ def test_combine_split(make_compatible_tensor):
     combined5 = tensors.combine_legs(T, [2, 3])
     combined5.test_sanity()
     assert combined5.labels == ['a', 'b', '(c.d)']
-    assert combined5.codomain.spaces == T.codomain.spaces
-    assert combined5.domain[0].spaces == T.domain.spaces
+    assert combined5.codomain.factors == T.codomain.factors
+    assert combined5.domain[0].spaces == T.domain.factors
     #
     bent5 = tensors.bend_legs(combined5, num_domain_legs=0)
     split5 = tensors.split_legs(bent5, 2)
@@ -1864,9 +1864,9 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
         assert isinstance(res, cls)
         res.test_sanity()
         assert res.labels == [l for l in T.labels if l[0] not in trace_legs]
-        assert res.codomain.spaces == [sp for sp, l in zip(T.codomain, T.codomain_labels)
+        assert res.codomain.factors == [sp for sp, l in zip(T.codomain, T.codomain_labels)
                                        if l[0] not in trace_legs]
-        assert res.domain.spaces == [sp for sp, l in zip(T.domain, T.domain_labels)
+        assert res.domain.factors == [sp for sp, l in zip(T.domain, T.domain_labels)
                                      if l[0] not in trace_legs]
         res_np = res.to_numpy()
     #
@@ -2268,8 +2268,8 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
         res.test_sanity()
         if A.symmetry.can_be_dropped:
             res_np = res.to_numpy()
-        assert res.codomain.spaces == expect_codomain
-        assert res.domain.spaces == expect_domain
+        assert res.codomain.factors == expect_codomain
+        assert res.domain.factors == expect_domain
         assert res.legs == expect_legs
         assert res.labels == expect_labels
 

@@ -538,7 +538,7 @@ def random_tensor(symmetry: symmetries.Symmetry,
     # ======================================================================================
     if isinstance(codomain, spaces.TensorProduct):
         assert codomain.symmetry == symmetry
-        num_codomain = codomain.num_spaces
+        num_codomain = codomain.num_factors
         codomain_complete = True
         codomain_labels = [None] * len(codomain)
     else:
@@ -559,7 +559,7 @@ def random_tensor(symmetry: symmetries.Symmetry,
             domain = [None]
     if isinstance(domain, spaces.TensorProduct):
         assert domain.symmetry == symmetry
-        num_domain = domain.num_spaces
+        num_domain = domain.num_factors
         domain_labels = [None] * len(domain)
         domain_complete = True
     else:
@@ -613,8 +613,8 @@ def random_tensor(symmetry: symmetries.Symmetry,
     if cls is tensors.DiagonalTensor:
         # fill in legs.
         if isinstance(codomain, spaces.TensorProduct):
-            assert codomain.num_spaces == 1
-            leg = codomain.spaces[0]
+            assert codomain.num_factors == 1
+            leg = codomain.factors[0]
             if isinstance(domain, spaces.TensorProduct):
                 assert domain == codomain
             else:
@@ -623,8 +623,8 @@ def random_tensor(symmetry: symmetries.Symmetry,
         else:
             assert len(codomain) == 1
             if isinstance(domain, spaces.TensorProduct):
-                assert domain.num_spaces == 1
-                leg = domain.spaces[0]
+                assert domain.num_factors == 1
+                leg = domain.factors[0]
                 assert codomain[0] is None or codomain[0] == leg
             else:
                 assert len(domain) == 1
@@ -654,16 +654,16 @@ def random_tensor(symmetry: symmetries.Symmetry,
     if cls is tensors.Mask:
         assert dtype in [None, Dtype.bool]
         if isinstance(codomain, spaces.TensorProduct):
-            assert codomain.num_spaces == 1
-            small_leg = codomain.spaces[0]
+            assert codomain.num_factors == 1
+            small_leg = codomain.factors[0]
         elif codomain is None:
             small_leg is None
         else:
             assert len(codomain) == 1
             small_leg = codomain[0]
         if isinstance(domain, spaces.TensorProduct):
-            assert domain.num_spaces == 1
-            large_leg = domain.spaces[0]
+            assert domain.num_factors == 1
+            large_leg = domain.factors[0]
         elif domain is None:
             large_leg = None
         else:

@@ -1859,8 +1859,8 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
 
     spaces = [ten.codomain, ten.domain]
     space1, space2 = spaces[bend_up], spaces[not bend_up]
-    new_space1 = TensorProduct(space1.spaces[:-1], symmetry, backend)
-    new_space2 = TensorProduct(space2.spaces + [space1.spaces[-1].dual], symmetry, backend)
+    new_space1 = TensorProduct(space1.factors[:-1], symmetry, backend)
+    new_space2 = TensorProduct(space2.factors + [space1.factors[-1].dual], symmetry, backend)
 
     new_codomain = [new_space1, new_space2][bend_up]
     new_domain = [new_space1, new_space2][not bend_up]

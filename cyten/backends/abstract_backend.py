@@ -1417,5 +1417,5 @@ def conventional_leg_order(tensor_or_codomain: SymmetricTensor | TensorProduct,
         domain = tensor_or_codomain.domain
     else:
         codomain = tensor_or_codomain
-    yield from codomain.spaces
-    yield from reversed(domain.spaces)
+    yield from codomain.factors
+    yield from reversed(domain.factors)

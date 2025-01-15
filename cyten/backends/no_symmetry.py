@@ -166,7 +166,7 @@ class NoSymmetryBackend(TensorBackend):
     def eye_data(self, co_domain: TensorProduct, dtype: Dtype, device: str) -> Data:
         # Note: the identity has the same matrix elements in all ONB, so ne need to consider
         #       the basis perms.
-        return self.block_backend.eye_block(legs=[l.dim for l in co_domain.spaces], dtype=dtype,
+        return self.block_backend.eye_block(legs=[l.dim for l in co_domain.factors], dtype=dtype,
                                             device=device)
 
     def from_dense_block(self, a: Block, codomain: TensorProduct, domain: TensorProduct, tol: float
@@ -259,12 +259,12 @@ class NoSymmetryBackend(TensorBackend):
         data = self.block_backend.block_apply_mask(tensor.data, mask.data, leg_idx)
         if in_domain:
             codomain = tensor.codomain
-            spaces = tensor.domain.spaces[:]
+            spaces = tensor.domain.factors[:]
             spaces[co_domain_idx] = mask.small_leg
             domain = TensorProduct(spaces, symmetry=tensor.symmetry)
         else:
             domain = tensor.domain
-            spaces = tensor.codomain.spaces[:]
+            spaces = tensor.codomain.factors[:]
             spaces[co_domain_idx] = mask.small_leg
             codomain = TensorProduct(spaces, symmetry=tensor.symmetry)
         return data, codomain, domain
@@ -275,12 +275,12 @@ class NoSymmetryBackend(TensorBackend):
         data = self.block_backend.block_enlarge_leg(tensor.data, mask.data, leg_idx)
         if in_domain:
             codomain = tensor.codomain
-            spaces = tensor.domain.spaces[:]
+            spaces = tensor.domain.factors[:]
             spaces[co_domain_idx] = mask.large_leg
             domain = TensorProduct(spaces, symmetry=tensor.symmetry)
         else:
             domain = tensor.domain
-            spaces = tensor.codomain.spaces[:]
+            spaces = tensor.codomain.factors[:]
             spaces[co_domain_idx] = mask.large_leg
             codomain = TensorProduct(spaces, symmetry=tensor.symmetry)
         return data, codomain, domain
