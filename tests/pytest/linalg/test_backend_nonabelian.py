@@ -15,9 +15,6 @@ from cyten.symmetries import ProductSymmetry, fibonacci_anyon_category, SU2Symme
 from cyten.dtypes import Dtype
 
 
-pytest.skip(allow_module_level=True)
-
-
 def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Generator):
     move_leg_or_permute_leg = np_random.choice(['move_leg', 'permute_leg'])
     print('use ' + move_leg_or_permute_leg)
@@ -1859,8 +1856,8 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
 
     spaces = [ten.codomain, ten.domain]
     space1, space2 = spaces[bend_up], spaces[not bend_up]
-    new_space1 = TensorProduct(space1.factors[:-1], symmetry, backend)
-    new_space2 = TensorProduct(space2.factors + [space1.factors[-1].dual], symmetry, backend)
+    new_space1 = TensorProduct(space1.factors[:-1], symmetry=symmetry)
+    new_space2 = TensorProduct(space2.factors + [space1.factors[-1].dual], symmetry=symmetry)
 
     new_codomain = [new_space1, new_space2][bend_up]
     new_domain = [new_space1, new_space2][not bend_up]
@@ -1934,17 +1931,17 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
             new_tree2.multiplicities[-1] = nu
 
             if bend_up:
-                alpha_slice = ftb.tree_block_slice(new_codomain, new_tree2)
+                alpha_slice = new_codomain.tree_block_slice(new_tree2)
                 if new_tree1.uncoupled.shape[0] == 0:
                     beta_slice = slice(0, 1)
                 else:
-                    beta_slice = ftb.tree_block_slice(new_domain, new_tree1)
+                    beta_slice = new_domain.tree_block_slice(new_tree1)
             else:
                 if new_tree1.uncoupled.shape[0] == 0:
                     alpha_slice = slice(0, 1)
                 else:
-                    alpha_slice = ftb.tree_block_slice(new_codomain, new_tree1)
-                beta_slice = ftb.tree_block_slice(new_domain, new_tree2)
+                    alpha_slice = new_codomain.tree_block_slice(new_tree1)
+                beta_slice = new_domain.tree_block_slice(new_tree2)
 
             new_data.blocks[block_ind][alpha_slice, beta_slice] += b_sym[mu, nu] * tree_block
     new_data.discard_zero_blocks(block_backend, backend.eps)
