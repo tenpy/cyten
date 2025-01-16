@@ -118,6 +118,41 @@ class LegPipe(Leg):
     def __len__(self):
         return self.num_legs
 
+    def __repr__(self, show_symmetry: bool = True, one_line=False):
+        ClsName = type(self).__name__
+
+        if one_line:
+            if show_symmetry:
+                res = f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual}, symmetry={self.symmetry!r})'
+                if len(res) <= printoptions.linewidth:
+                    return res
+                return self.__repr__(show_symmetry=False, one_line=True)
+            else:
+                res = f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual})'
+                if len(res) <= printoptions.linewidth:
+                    return res
+                raise RuntimeError  # the above should always fit in linewidth ...
+
+        lines = [f'{ClsName}([']
+        indent = printoptions.indent * ' '
+
+        for force_children_one_line in [False, True]:
+            for leg in self.legs:
+                rep = leg.__repr__(show_symmetry=False, one_line=force_children_one_line)
+                for new_line in rep.split('\n'):
+                    lines.append(indent + new_line)
+            if show_symmetry:
+                lines.append(f'], is_dual={self.is_dual}, symmetry={self.symmetry!r})')
+            else:
+                lines.append(f'], is_dual={self.is_dual})')
+            maxlines_ok = len(lines) <= printoptions.maxlines_spaces
+            linewidth_ok = all(len(l) < printoptions.linewidth for l in lines)
+            if maxlines_ok and linewidth_ok:
+                return '\n'.join(lines)
+
+        # fallback
+        return self.__repr__(show_symmetry=show_symmetry, one_line=True)
+
 
 class Space(metaclass=ABCMeta):
     r"""Base class for symmetry spaces, see :class:`ElementarySpace` for the standard case.
@@ -412,20 +447,10 @@ class Space(metaclass=ABCMeta):
         """
         ...
 
-    @abstractmethod
-    def _repr(self, show_symmetry: bool):
-        ...
-
     # CONCRETE IMPLEMENTATIONS
 
     def as_Space(self):
         return self
-    
-    def __repr__(self):
-        res = self._repr(show_symmetry=True)
-        if res is None:
-            return f'<{self.__class__.__name__}>'
-        return res
 
     def sector_decomposition_where(self, sector: Sector) -> int | None:
         """Find the index of a given sector in the :attr:`sector_decomposition`.
@@ -855,62 +880,51 @@ class ElementarySpace(Space, Leg):
             res = res[self._inverse_basis_perm]
         return res
 
-    def _repr(self, show_symmetry: bool):
-        # used by Space.__repr__
+    def __repr__(self, show_symmetry: bool = True, one_line=False):
+        ClsName = type(self).__name__
         indent = printoptions.indent * ' '
-        # 1) Try showing all data
-        if 3 * self.defining_sectors.size < printoptions.linewidth:
-            # otherwise there is no chance to print all sectors in one line anyway
-            if self._basis_perm is None:
-                basis_perm = 'None'
-            else:
-                basis_perm = format_like_list(self._basis_perm)
-            elements = []
-            if show_symmetry:
-                elements.append(f'{self.symmetry!r}')
-            elements.extend([
-                f'defining_sectors={format_like_list(self.symmetry.sector_str(a) for a in self.defining_sectors)}',
-                f'multiplicities={format_like_list(self.multiplicities)}',
-                f'basis_perm={basis_perm}',
-                f'is_dual={self.is_dual}'
-            ])
-            one_line = f'ElementarySpace(' + ', '.join(elements) + ')'
-            if len(one_line) <= printoptions.linewidth:
-                return one_line
-            line_lengths_ok = all(len(l) <= printoptions.linewidth for l in elements)
-            num_lines_ok = (len(elements) + 2) <= printoptions.maxlines_spaces
-            if line_lengths_ok and num_lines_ok:
-                elements = [f'{indent}{line},' for line in elements]
-                return f'ElementarySpace(\n' + '\n'.join(elements) + '\n)'
-        # 2) Try showing summarized data
-        elements = [f'<ElementarySpace:']
-        if show_symmetry:
-            elements.append(f'{self.symmetry!s}')
-        elements.extend([
-            f'{self.num_sectors} sectors',
-            f'basis_perm={"None" if self._basis_perm is None else "[...]"}',
-            f'is_dual={self.is_dual}',
-            '>',
-        ])
-        one_line = ' '.join(elements)
-        if len(one_line) < printoptions.linewidth:
-            return one_line
-        if all(len(l) <= printoptions.linewidth for l in elements) and len(elements) <= printoptions.maxlines_spaces:
-            elements[1:-1] = [f'{indent}{line},' for line in elements[1:-1]]
-            return '\n'.join(elements)
-        # 3) Try showing only symmetry
-        if show_symmetry:
-            elements[2:-1] = []
-            one_line = ' '.join(elements)
-            if len(one_line) < printoptions.linewidth:
-                return one_line
-            line_lengths_ok = all(len(l) <= printoptions.linewidth for l in elements)
-            num_lines_ok = len(elements) <= printoptions.maxlines_spaces
-            if line_lengths_ok and num_lines_ok:
-                elements[1:-1] = [f'{indent}{line},' for line in elements[1:-1]]
-                return '\n'.join(elements)
-        # 4) Show no data at all
-        return None
+
+        # try to show everything, then less and less
+        for full_sectors, summarized_sectors, symmetry in [(True, False, show_symmetry),
+                                                           (False, True, show_symmetry),
+                                                           (False, False, show_symmetry),
+                                                           (False, False, False)]:
+            if full_sectors and (3 * self.defining_sectors.size > printoptions.linewidth):
+                # there is no chance to print all sectors in one line
+                continue
+
+            items = []
+
+            if symmetry:
+                items.append(f'symmetry={self.symmetry!r}')
+            if full_sectors:
+                def_sector_strs = [self.symmetry.sector_str(a) for a in self.defining_sectors]
+                sector_dec_strs = [self.symmetry.sector_str(a) for a in self.sector_decomposition]
+                items.append(f'defining_sectors={format_like_list(def_sector_strs)}')
+                items.append(f'sector_decomposition={format_like_list(sector_dec_strs)}')
+                items.append(f'multiplicities={format_like_list(self.multiplicities)}')
+                if self._basis_perm is not None:
+                    items.append(f'basis_perm={format_like_list(self._basis_perm)}')
+            if summarized_sectors:
+                items.append(f'num_sectors={self.num_sectors}')
+                if self._basis_perm is not None:
+                    items.append(f'basis_perm=[...]')
+            items.append(f'is_dual={self.is_dual}')
+
+            # try one line
+            res = ClsName + '(' + ', '.join(items) + ')'
+            if len(res) <= printoptions.linewidth:
+                return res
+
+            if not one_line:
+                # try multi line
+                items = [indent + i + ',' for i in items]
+                maxlines_ok = len(items) + 2 <= printoptions.maxlines_spaces
+                linewidth_ok = all(len(l) < printoptions.linewidth for l in items)
+                if maxlines_ok and linewidth_ok:
+                    return ClsName + '(\n' + '\n'.join(indent + i for i in items) + '\n)'
+
+        raise RuntimeError  # one of the above returns should have triggered
 
     def __eq__(self, other):
         if not isinstance(other, ElementarySpace):
@@ -1345,8 +1359,59 @@ class TensorProduct(Space):
     def __len__(self):
         return self.num_factors
 
-    def _repr(self, show_symmetry):
-        raise NotImplementedError  # TODO rm this from Space class??
+    def __repr__(self, show_symmetry: bool = True, one_line=False):
+        ClsName = type(self).__name__
+        indent = printoptions.indent * ' '
+
+        for mode in [(True, False, True, show_symmetry), (False, True, True, show_symmetry),
+                     (True, False, False, show_symmetry), (False, True, False, show_symmetry),
+                     (False, False, False, show_symmetry), (False, False, False, False)]:
+            full_sectors, summarized_sectors, show_all_factors, symmetry = mode
+
+            if full_sectors and (3 * self.sector_decomposition.size > printoptions.linewidth):
+                # there is no chance to print all sectors in one line
+                continue
+
+            # populate two lists; one intended for single line, one for multiline
+            one_line_items = []
+            lines = [f'{ClsName}(']
+            if symmetry:
+                one_line_items.append(f'symmetry={self.symmetry!r}')
+                lines.append(f'{indent}symmetry={self.symmetry!r},')
+            if show_all_factors:
+                reprs = [f.__repr__(show_symmetry=False, one_line=True) for f in self.factors]
+                one_line_items.append(f'factors=[{", ".join(reprs)}]')
+                lines.append(f'{indent}factors=[')
+                for r in reprs:
+                    lines.append(f'{indent}{indent}{r},')
+                lines.append(f'{indent}],')
+            else:
+                one_line_items.append(f'num_factors={self.num_factors}')
+                lines.append(f'{indent}num_factors={self.num_factors},')
+            if full_sectors:
+                sector_strs = [self.symmetry.sector_str(a) for a in self.sector_decomposition]
+                new_items = [f'sector_decomposition={format_like_list(sector_strs)}',
+                             f'multiplicities={format_like_list(self.multiplicities)}']
+                one_line_items.extend(new_items)
+                lines.extend(indent + i + ',' for i in new_items)
+            if summarized_sectors:
+                one_line_items.extend(f'num_sectors={self.num_sectors}')
+                lines.extend(f'{indent}num_sectors={self.num_sectors},')
+            lines.append(')')
+
+            # try one line
+            res = ClsName + '(' + ', '.join(one_line_items) + ')'
+            if len(res) <= printoptions.linewidth:
+                return res
+
+            if not one_line:
+                # try multi line
+                maxlines_ok = len(lines) <= printoptions.maxlines_spaces
+                linewidth_ok = all(len(l) < printoptions.linewidth for l in lines)
+                if maxlines_ok and linewidth_ok:
+                    return '\n'.join(lines)
+
+        raise RuntimeError  # one of the above returns should have triggered
 
     def _calc_sectors(self, factors: list[Space | Leg]) -> tuple[SectorArray, ndarray]:
         """Helper function for :meth:`__init__`"""
@@ -1492,6 +1557,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
     def __init__(self, legs: Sequence[ElementarySpace], is_dual: bool = False):
         LegPipe.__init__(self, legs=legs, is_dual=is_dual)
+        assert self.symmetry.is_abelian
         sectors, mults = self._calc_sectors()  # also sets some attributes
         basis_perm = self._calc_basis_perm()
         ElementarySpace.__init__(self, symmetry=self.symmetry, defining_sectors=sectors,
@@ -1600,6 +1666,88 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             return False
         return all(l1 == l2 for l1, l2 in zip(self.legs, other.legs))
 
+    def __repr__(self, show_symmetry: bool = True, one_line=False):
+        ClsName = type(self).__name__
+        indent = printoptions.indent * ' '
+        
+        for mode in [(0, 0, False, show_symmetry), (0, 0, True, show_symmetry),
+                     (0, 1, True, show_symmetry), (0, 2, True, show_symmetry),
+                     (1, 2, True, show_symmetry), (2, 2, True, show_symmetry),
+                     (2, 2, True, False)]:
+            sector_mode, child_mode, summarize_basis_perm, symmetry = mode
+            # sector_mode:  0=show full arrays , 1=show only nums, 2=dont show
+            # child_mode: 0=show full , 1=force one-line each, 2=show only num
+            # summarize_basis_perm: bool
+
+            if (sector_mode == 0) and (3 * self.sector_decomposition.size > printoptions.linewidth):
+                # there is no chance to print all sectors in one line
+                continue
+
+            # populate two lists; one intended for single line, one for multiline
+            # this is because lines behaves differently when dealing with the children / self.legs
+            one_line_items = []
+            lines = [f'{ClsName}(']
+
+            if symmetry:
+                one_line_items.append(f'symmetry={self.symmetry!r}')
+                lines.append(f'{indent}symmetry={self.symmetry!r},')
+
+            if child_mode < 2:
+                reprs = [f.__repr__(show_symmetry=False, one_line=child_mode > 0) for f in self.legs]
+                one_line_items.append(f'factors=[{", ".join(reprs)}]')
+                lines.append(f'{indent}factors=[')
+                for r in reprs:
+                    lines.append(f'{indent}{indent}{r},')
+                lines.append(f'{indent}],')
+            elif child_mode == 2:
+                one_line_items.append(f'num_legs={self.num_legs}')
+                lines.append(f'{indent}num_legs={self.num_legs},')
+            else:
+                raise RuntimeError
+
+            if sector_mode == 0:
+                sector_dec_strs = [self.symmetry.sector_str(a) for a in self.sector_decomposition]
+                def_sector_strs = [self.symmetry.sector_str(a) for a in self.defining_sectors]
+                new_items = [f'sector_decomposition={format_like_list(sector_dec_strs)}',
+                             f'defining_sectors={format_like_list(def_sector_strs)}',
+                             f'multiplicities={format_like_list(self.multiplicities)}']
+                one_line_items.extend(new_items)
+                lines.extend(indent + i + ',' for i in new_items)
+            elif sector_mode == 1:
+                one_line_items.append(f'num_sectors={self.num_sectors}')
+                lines.append(f'{indent}num_sectors={self.num_sectors},')
+            elif sector_mode == 2:
+                pass  # dont add anything
+            else:
+                raise RuntimeError
+
+            if self._basis_perm is not None:
+                if summarize_basis_perm:
+                    one_line_items.append('basis_perm=[...]')
+                    lines.append(f'{indent}basis_perm=[...],')
+                else:
+                    one_line_items.append(f'basis_perm={format_like_list(self._basis_perm)}')
+                    lines.append(f'{indent}basis_perm={format_like_list(self._basis_perm)},')
+
+            one_line_items.append(f'is_dual={self.is_dual}')
+            lines.append(f'{indent}is_dual={self.is_dual},')
+
+            lines.append(')')
+
+            # try one line
+            res = ClsName + '(' + ', '.join(one_line_items) + ')'
+            if len(res) <= printoptions.linewidth:
+                return res
+
+            if not one_line:
+                # try multi line
+                maxlines_ok = len(lines) <= printoptions.maxlines_spaces
+                linewidth_ok = all(len(l) < printoptions.linewidth for l in lines)
+                if maxlines_ok and linewidth_ok:
+                    return '\n'.join(lines)
+
+        raise RuntimeError  # one of the above returns should have triggered
+
     def _calc_sectors(self):
         """Helper function for :meth:`__init__`. Assumes ``LegPipe.__init__`` was called.
         
@@ -1695,6 +1843,11 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         """
         # OPTIMIZE (JU) this is probably not the most efficient way to do this, but it hurts my brain
         #               and i need to get this to work, if only in an ugly way...
+
+        # TODO (JU) doc this assumption (or remove it?), we need to assume can_be_dropped to
+        #           use the :attr:`ElementarySpace.slices` of the self.legs
+        assert self.symmetry.can_be_dropped
+
         fusion_outcomes_inverse_sort = inverse_permutation(self.fusion_outcomes_sort)
         # j : multi-index into the uncoupled private basis, i.e. into the C-style product of
         #     internal bases of the legs

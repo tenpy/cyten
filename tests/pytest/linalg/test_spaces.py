@@ -372,7 +372,7 @@ def test_direct_sum(make_any_space, max_mult=5, max_sectors=5):
     assert np.all(d.multiplicities == mults)
 
 
-def test_str_repr(make_any_space, str_max_lines=20, repr_max_lines=20):
+def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines=20):
     """Check if str and repr work. Automatically, we can only check if they run at all.
     To check if the output is sensible and useful, a human should look at it.
     Run ``pytest -rP -k test_str_repr`` to see the output.
@@ -381,28 +381,42 @@ def test_str_repr(make_any_space, str_max_lines=20, repr_max_lines=20):
     str_max_len = terminal_width * str_max_lines
     repr_max_len = terminal_width * str_max_lines
     # TODO output is a bit long, should we force shorter? -> consider config.printoptions!
-    
-    space = make_any_space(max_sectors=20)
 
-    print('----------------------')
-    print('ElementarySpace.__repr__()')
-    print('----------------------')
-    res = repr(space)
-    assert len(res) <= repr_max_len
-    assert res.count('\n') <= repr_max_lines
-    print(res)
-    
-    print()
-    print()
-    print('----------------------')
-    print('ElementarySpace.__str__() ')
-    print('----------------------')
-    res = str(space)
-    assert len(res) <= str_max_len
-    assert res.count('\n') <= str_max_lines
-    print(res)
+    instances = {
+        'ElementarySpace (short)': make_any_space(max_sectors=3, is_dual=True),
+        'ElementarySpace (med)': make_any_space(max_sectors=10, is_dual=False),
+        'ElementarySpace (long)': make_any_space(max_sectors=100, is_dual=True),
+        'LegPipe (1)': spaces.LegPipe([make_any_space(max_sectors=5)]),
+        'LegPipe (3)': spaces.LegPipe([make_any_space(max_sectors=5) for _ in range(3)], is_dual=True),
+        'LegPipe (5)': spaces.LegPipe([make_any_space(max_sectors=3) for _ in range(5)]),
+        'TensorProduct (1)': spaces.TensorProduct([make_any_space(max_sectors=5)], ),
+        'TensorProduct (3)': spaces.TensorProduct([make_any_space(max_sectors=5) for _ in range(3)]),
+        'TensorProduct (5)': spaces.TensorProduct([make_any_space(max_sectors=3) for _ in range(5)]),
+    }
+    if any_symmetry.is_abelian and any_symmetry.can_be_dropped:
+        more = {
+            'AbelianLegPipe (1)': spaces.AbelianLegPipe([make_any_space(max_sectors=5)]),
+            'AbelianLegPipe (3)': spaces.AbelianLegPipe([make_any_space(max_sectors=5) for _ in range(3)], is_dual=True),
+            'AbelianLegPipe (5)': spaces.AbelianLegPipe([make_any_space(max_sectors=3) for _ in range(5)]),
+        }
+        instances.update(more)
 
-    # TODO include other classes
+    for name, space in instances.items():
+        print()
+        print()
+        print('-' * 40)
+        print(name)
+        print('-' * 40)
+        res = repr(space)
+        assert len(res) <= repr_max_len
+        assert res.count('\n') <= repr_max_lines
+        print(res)
+
+        print()
+        res = str(space)
+        assert len(res) <= str_max_len
+        assert res.count('\n') <= str_max_lines
+        print(res)
 
 
 # TODO move to some testing tools module?
