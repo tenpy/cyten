@@ -898,9 +898,16 @@ class FusionTreeBackend(TensorBackend):
         data, codom, dom = self.permute_legs(tensor, codomain_idcs=idcs[:num_codom_legs],
                                              domain_idcs=idcs[num_codom_legs:][::-1],
                                              levels=levels)
-        coupled = np.array([dom.sectors[i[1]] for i in data.block_inds])
+        # only consider coupled sectors in data that are consistent with co(domain) after tracing
+        coupled = np.array([dom.sectors[i[1]] for i in data.block_inds
+                            if (new_domain.sectors_where(dom.sectors[i[1]]) is not None
+                                and new_codomain.sectors_where(dom.sectors[i[1]]) is not None)])
         new_data = self.zero_data(new_codomain, new_domain, tensor.dtype, tensor.device,
                                   all_blocks=True)
+        # block indices
+        old_inds = [data.block_ind_from_domain_sector_ind(dom.sectors_where(c)) for c in coupled]
+        new_inds = [new_data.block_ind_from_domain_sector_ind(new_domain.sectors_where(c))
+                    for c in coupled]
 
         # step 2: compute new entries: iterate over all trees in the untraced
         # spaces and construct the consistent trees in the traced spaces
@@ -940,9 +947,10 @@ class FusionTreeBackend(TensorBackend):
         dom_tree_idcs = [num_dom_legs - 1 - i for i, idx in enumerate(idcs[num_codom_legs:])
                          if idx in idcs2][::-1]
 
-        tr_idcs1 = [i for i, idx in enumerate(idcs) if idx in idcs1]
-        tr_idcs2 = [i for i, idx in enumerate(idcs) if idx in idcs2]
-        remain_idcs = [i for i, idx in enumerate(idcs) if idx in remaining]
+        tr_idcs = idcs[:num_codom_legs] + idcs[num_codom_legs:][::-1]
+        tr_idcs1 = [i for i, idx in enumerate(tr_idcs) if idx in idcs1]
+        tr_idcs2 = [i for i, idx in enumerate(tr_idcs) if idx in idcs2]
+        remain_idcs = [i for i, idx in enumerate(tr_idcs) if idx in remaining]
 
         for codom_tree, codom_slc, ind in _tree_block_iter_product_space(codom, coupled):
             on_diag, factor_codom = on_diagonal(codom_tree, codom_tree_idcs)
@@ -956,8 +964,8 @@ class FusionTreeBackend(TensorBackend):
                 codom_tree.multiplicities[codom_multi_idcs]
             )
             new_codom_slc = tree_block_slice(new_codomain, new_codom_tree)
-            new_ind = new_domain.sectors_where(codom_tree.coupled)
-            new_ind = new_data.block_ind_from_domain_sector_ind(new_ind)
+            old_ind = old_inds[ind]
+            new_ind = new_inds[ind]
             for dom_tree, dom_slc, _ in _tree_block_iter_product_space(dom, [codom_tree.coupled]):
                 on_diag, factor_dom = on_diagonal(dom_tree, dom_tree_idcs)
                 if not on_diag:
@@ -972,11 +980,12 @@ class FusionTreeBackend(TensorBackend):
                 )
                 new_dom_slc = tree_block_slice(new_domain, new_dom_tree)
 
-                old_block = data.blocks[ind][codom_slc, dom_slc]
+                old_block = data.blocks[old_ind][codom_slc, dom_slc]
                 old_block = self.block_backend.block_reshape(old_block, tmp_shape)
                 contribution = self.block_backend.block_trace_partial(old_block, tr_idcs1,
                                                                       tr_idcs2, remain_idcs)
-                new_shape = new_data.blocks[new_ind][new_codom_slc, new_dom_slc].shape
+                new_shape = self.block_backend.block_shape(new_data.blocks[new_ind][new_codom_slc,
+                                                                                    new_dom_slc])
                 contribution = self.block_backend.block_reshape(contribution, new_shape)
                 contribution *= factor_codom * factor_dom
                 new_data.blocks[new_ind][new_codom_slc, new_dom_slc] += contribution
