@@ -856,6 +856,15 @@ class ElementarySpace(Space, Leg):
             return np.arange(self.dim)
         return self._basis_perm
 
+    @basis_perm.setter
+    def basis_perm(self, basis_perm):
+        if basis_perm is None:
+            self._basis_perm = None
+            self._inverse_basis_perm = None
+        else:
+            self._basis_perm = basis_perm
+            self._inverse_basis_perm = inverse_permutation(basis_perm)
+
     @property
     def inverse_basis_perm(self) -> ndarray:
         """Inverse permutation of :attr:`basis_perm`."""
@@ -865,6 +874,15 @@ class ElementarySpace(Space, Leg):
         if self._inverse_basis_perm is None:
             return np.arange(self.dim)
         return self._inverse_basis_perm
+
+    @inverse_basis_perm.setter
+    def inverse_basis_perm(self, inverse_basis_perm):
+        if inverse_basis_perm is None:
+            self._basis_perm = None
+            self._inverse_basis_perm = None
+        else:
+            self._basis_perm = inverse_permutation(inverse_basis_perm)
+            self._inverse_basis_perm = inverse_basis_perm
 
     @property
     def sectors_of_basis(self):
