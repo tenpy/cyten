@@ -319,32 +319,92 @@ def test_TensorProduct_SU2():
     npt.assert_array_equal(abc.multiplicities, np.array(expect_mults))
 
 
-def test_AbelianLegPipe():
-    pass
+@pytest.mark.parametrize('pipe_dual', [False, True])
+def test_AbelianLegPipe(make_any_space, pipe_dual, np_random):
+    leg_1: spaces.ElementarySpace = make_any_space()
+    leg_2: spaces.ElementarySpace = make_any_space()
+    if not (leg_1.symmetry.is_abelian and leg_1.symmetry.can_be_dropped):
+        # TODO make fixtures more flexible, so we can actually parametrize over abelian only
+        pytest.skip()
+    leg_1.basis_perm = np_random.permutation(leg_1.dim)
+    leg_2.basis_perm = np_random.permutation(leg_2.dim)
+    
+    pipe = spaces.AbelianLegPipe([leg_1, leg_2], is_dual=pipe_dual)
+    pipe.test_sanity()
 
-    # TODO the following snippet from old product space tests may be useful to check basis_perm
-    # even, odd = [0], [1]
-    # spin1 = spaces.ElementarySpace.from_basis(symmetries.z2_symmetry, [even, odd, even])
-    # assert np.array_equal(spin1.sector_decomposition, [even, odd])
-    # assert np.array_equal(spin1.basis_perm, [0, 2, 1])
-    # backend = backends.get_backend(block_backend='numpy', symmetry='abelian')
-    # product_space = spaces.ProductSpace([spin1, spin1], backend=backend)
+    # Setup
+    # =======================================
+    sym = leg_1.symmetry
+    if not isinstance(sym, symmetries.AbelianGroup):
+        pytest.skip()
 
-    # perm = product_space._get_fusion_outcomes_perm()
-    # # internal order of spin1: + - 0
-    # # internal uncoupled:  ++  +-  +0  -+  --  -0  0+  0-  00
-    # # coupled:  ++  +-  -+  --  00  +0  -0  0+  0-
-    # expect = np.array([0, 1, 3, 4, 8, 2, 5, 6, 7])
-    # print(perm)
-    # assert np.all(perm == expect)
+    # for each basis element, store its sector and an int as a unique identifier
+    public_basis_1 = [(s, i) for i, s in enumerate(leg_1.sectors_of_basis)]
+    public_basis_2 = [(s, i) for i, s in enumerate(leg_2.sectors_of_basis)]
+    internal_basis_1 = [public_basis_1[n] for n in leg_1.basis_perm]
+    internal_basis_2 = [public_basis_2[n] for n in leg_2.basis_perm]
 
-    # perm = product_space.get_basis_transformation_perm()
-    # # public order of spin1 : + 0 -
-    # # public coupled : ++  +0  +-  0+  00  0-  -+  -0  --
-    # # coupled:  ++  +-  -+  --  00  +0  -0  0+  0-
-    # expect = np.array([0, 2, 6, 8, 4, 1, 7, 3, 5])
-    # print(perm)
-    # assert np.all(perm == expect)
+    # make sure we built them correctly
+    start = 0
+    for sector, mult in zip(leg_1.sector_decomposition, leg_1.multiplicities):
+        for b in internal_basis_1[start: start + mult]:
+            assert np.all(b[0] == sector)
+        start = start + mult
+    assert start == leg_1.dim
+
+    # Misc properties of the pipe
+    # =======================================
+    assert pipe.is_isomorphic_to(spaces.TensorProduct([leg_1, leg_2]))
+    
+    # check fusion_outcomes_sort
+    # =======================================
+    # note: F style combinations!
+    fusion_outcomes = [sym.fusion_outcomes(s_1, s_2)[0]
+                       for s_2 in leg_2.sector_decomposition
+                       for s_1 in leg_1.sector_decomposition]
+    fusion_outcomes_sorted, expect = _sort_sectors(fusion_outcomes, sym, by_duals=pipe.is_dual)
+    assert np.all(pipe.fusion_outcomes_sort == expect)
+
+    # check block_ind_map_slices
+    # =======================================
+    for n, sector in enumerate(pipe.sector_decomposition):
+        start = pipe.block_ind_map_slices[n]
+        stop = pipe.block_ind_map_slices[n + 1]
+        assert np.all(fusion_outcomes_sorted[start:stop, :] == sector)
+
+    # check block_ind_map
+    # =======================================
+    pass  # completely checked by pipe.test_sanity()
+
+    # check _get_fusion_outcomes_perm()
+    # =======================================
+    internal_fusion_outcomes = [(sym.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
+                                for b_1 in internal_basis_1 for b_2 in internal_basis_2]
+    _, fusion_outcomes_perm = _sort_sectors([b[0] for b in internal_fusion_outcomes], sym,
+                                            by_duals=pipe.is_dual)
+    
+    assert np.all(pipe._get_fusion_outcomes_perm() == fusion_outcomes_perm)
+    
+    # check basis_perm
+    # =======================================
+    assert pipe.basis_perm.shape == (pipe.dim,)
+    assert np.all(np.sort(pipe.basis_perm) == np.arange(pipe.dim))
+    public_basis_pipe = [(sym.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
+                         for b_1 in public_basis_1 for b_2 in public_basis_2]
+    internal_basis_pipe = [internal_fusion_outcomes[n] for n in fusion_outcomes_perm]
+    
+    # want to do ``expect_perm = [public_basis_pipe.index(i) for i in internal_basis_pipe]``
+    # but need to deal with array comparison
+    expect_perm = []
+    for i in internal_basis_pipe:
+        for j, p in enumerate(public_basis_pipe):
+            if np.all(i[0] == p[0]) and i[1:] == p[1:]:
+                expect_perm.append(j)
+                break
+        else:  # else == "no break occurred"
+            raise RuntimeError
+
+    assert np.all(pipe.basis_perm == np.array(expect_perm))
 
 
 def test_direct_sum(make_any_space, max_mult=5, max_sectors=5):
@@ -402,6 +462,7 @@ def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines
         instances.update(more)
 
     for name, space in instances.items():
+        space.test_sanity()
         print()
         print()
         print('-' * 40)
@@ -445,3 +506,10 @@ def assert_spaces_equal(space1: spaces.Space, space2: spaces.Space):
 
     # should have checked all conditions already, but just to be sure do this again
     assert space1 == space2
+
+
+def _sort_sectors(sectors, sym: symmetries.Symmetry, by_duals: bool = False):
+    sectors = np.array(sectors)
+    sort_by = sym.dual_sectors(sectors) if by_duals else sectors
+    perm = np.lexsort(sort_by.T)
+    return sectors[perm], perm

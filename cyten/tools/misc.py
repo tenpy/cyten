@@ -148,9 +148,8 @@ def combine_constraints(good1, good2, warn):
 def inverse_permutation(perm):
     """Reverse sorting indices.
 
-    Sort functions (as :meth:`LegCharge.sort`) return a (1D) permutation `perm` array,
-    such that ``sorted_array = old_array[perm]``.
-    This function inverts the permutation `perm`,
+    We sort arrays in various places, i.e. use a (1D) permutation array `perm`, such that e.g.
+    ``sorted_array = old_array[perm]``. This function inverts the permutation `perm`,
     such that ``old_array = sorted_array[inverse_permutation(perm)]``.
 
     Parameters
@@ -166,7 +165,8 @@ def inverse_permutation(perm):
 
     Notes
     -----
-    This is equivalent to ``numpy.argsort``, but has O(N) complexity instead of O(N log(N))
+    For permutations, this is equivalent to ``numpy.argsort``, but has ``O(N)`` complexity instead
+    of ``O(N log(N))``.
     """
     perm = np.asarray(perm, dtype=np.intp)
     inv_perm = np.empty_like(perm)
