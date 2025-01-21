@@ -30,7 +30,7 @@ from .abstract_backend import (
 )
 from ..dtypes import Dtype
 from ..symmetries import BraidingStyle, Symmetry
-from ..spaces import Space, ElementarySpace, LegPipe, AbelianLegPipe, TensorProduct
+from ..spaces import Space, ElementarySpace, LegPipe, AbelianLegPipe, TensorProduct, Leg
 from ..tools.misc import (
     inverse_permutation, list_to_dict_list, rank_data, iter_common_noncommon_sorted_arrays,
     iter_common_sorted, iter_common_sorted_arrays, make_stride, find_row_differences
@@ -242,6 +242,12 @@ class AbelianBackend(TensorBackend):
             self.block_backend.test_block_sanity(block, expect_shape=(expect_len,),
                                                  expect_dtype=Dtype.bool, expect_device=data.device)
             assert self.block_backend.block_sum_all(block) == expect_sum
+
+    # OVERRIDES
+
+    def make_pipe(self, legs: list[Leg], is_dual: bool) -> LegPipe:
+        assert all(isinstance(l, ElementarySpace) for l in legs)  # OPTIMIZE rm check
+        return AbelianLegPipe(legs, is_dual=is_dual)
 
     # ABSTRACT METHODS
 

@@ -8,7 +8,7 @@ from .abstract_backend import (TensorBackend, BlockBackend, Data, DiagonalData, 
                                conventional_leg_order)
 from ..dtypes import Dtype
 from ..symmetries import no_symmetry, Symmetry
-from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe
+from ..spaces import Space, ElementarySpace, TensorProduct, Leg, LegPipe, AbelianLegPipe
 from ..tools.misc import rank_data
 
 
@@ -47,6 +47,8 @@ class NoSymmetryBackend(TensorBackend):
         super().__init__(block_backend=block_backend)
         self.DataCls = block_backend.BlockCls
 
+    # OVERRIDES
+
     def test_tensor_sanity(self, a: SymmetricTensor | DiagonalTensor | Mask, is_diagonal: bool):
         super().test_tensor_sanity(a, is_diagonal=is_diagonal)
         if is_diagonal:
@@ -61,6 +63,10 @@ class NoSymmetryBackend(TensorBackend):
         self.block_backend.test_block_sanity(a.data, expect_shape=(a.large_leg.dim,),
                                              expect_dtype=Dtype.bool, expect_device=a.device)
         assert self.block_backend.block_sum_all(a.data) == a.small_leg.dim
+
+    def make_pipe(self, legs: list[Leg], is_dual: bool) -> LegPipe:
+        assert all(isinstance(l, ElementarySpace) for l in legs)  # OPTIMIZE rm check
+        return AbelianLegPipe(legs, is_dual=is_dual)
 
     # ABSTRACT METHODS:
 

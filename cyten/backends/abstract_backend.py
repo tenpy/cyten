@@ -11,7 +11,7 @@ from math import prod
 import numpy as np
 
 from ..symmetries import Symmetry
-from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe
+from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe, Leg
 from ..dtypes import Dtype
 from ..tools.misc import combine_constraints
 
@@ -82,6 +82,10 @@ class TensorBackend(metaclass=ABCMeta):
     def test_mask_sanity(self, a: Mask):
         # subclasses will typically call super().test_mask_sanity(a)
         assert isinstance(a.data, self.DataCls), str(type(a.data))
+
+    def make_pipe(self, legs: list[Leg], is_dual: bool) -> LegPipe:
+        """Make a pipe *of the appropriate type* for :meth:`combine_legs`."""
+        return LegPipe(legs, is_dual=is_dual)
 
     # ABSTRACT METHODS
     
