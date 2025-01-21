@@ -1528,7 +1528,6 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         Map for the embedding of uncoupled to coupled indices, see notes below.
         Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
         i.e. ``M == prod(s.num_sectors for s in spaces)`` and ``N == 3 + len(spaces)``.
-        Is ``np.lexsort( .T)``-ed.
 
     Notes
     -----
@@ -1562,7 +1561,8 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     Here, :math:`b_k:b_{k+1}` denotes the slice of this block index combination *within*
     the total block `J`, i.e., ``b_{J,k} = a_j - self.slices[J]``.
 
-    The rows of :attr:`block_ind_map` are lex-sorted first by ``J``, then the ``i``.
+    The rows of :attr:`block_ind_map` are sorted first by ``J``, then the ``i`` *in C-style order*,
+    i.e. first by ``i_1``, then ``i_2``, ... and finally by ``i_{nlegs}``.
     Each ``J`` will have multiple rows, and the order in which they are stored in :attr:`block_inds`
     is the order the data is stored in the actual tensor.
     Thus, ``block_ind_map`` might look like ::
@@ -1593,9 +1593,9 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         # check self.sector_strides
         assert self.sector_strides.shape == (self.num_legs,)
         expect = 1
-        for i, num in enumerate(l.num_sectors for l in self.legs):
+        for i in reversed(range(self.num_legs)):
             assert self.sector_strides[i] == expect
-            expect *= num
+            expect *= self.legs[i].num_sectors
         # check block_ind_map_slices
         # note: we do not check for full correctness, just for consistency as slices
         assert self.block_ind_map_slices.shape == (self.num_sectors + 1,)
@@ -1603,7 +1603,11 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         assert self.block_ind_map_slices[-1] == np.prod([l.num_sectors for l in self.legs])
         assert np.all(self.block_ind_map_slices[1:] >= self.block_ind_map_slices[:-1])
         # check block_ind_map
-        assert np.all(np.lexsort(self.block_ind_map.T) == np.arange(len(self.block_ind_map)))
+        #   rows should be sorted first by block_ind_map[-1],
+        #   then by multi-indices in block_ind_map[2:-1] in C-style order
+        should_be_sorted = self.block_ind_map[:, 2:].copy()
+        should_be_sorted[:, :-1] = should_be_sorted[:, -2::-1]
+        assert np.all(np.lexsort(should_be_sorted.T) == np.arange(len(should_be_sorted)))
         assert self.block_ind_map.shape[0] <= np.prod([l.num_sectors for l in self.legs])
         assert self.block_ind_map.shape[1] == 3 + self.num_legs
         for i, (b1, b2, *idcs, J) in enumerate(self.block_ind_map):
@@ -1776,17 +1780,16 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         Returns the defining_sectors and related multiplicities. Also sets the some attributes.
         """
         legs_num_sectors = tuple(l.num_sectors for l in self.legs)
-        self.sector_strides = make_stride(legs_num_sectors, cstyle=False)
+        self.sector_strides = make_stride(legs_num_sectors)
 
-        # create a grid to select the multi-index sector
-        grid = np.indices(legs_num_sectors, np.intp)
-        # grid is an array with shape ``(num_legs, *legs_num_sectors)``,
-        # with grid[li, ...] = {np.arange(space_block_numbers[li]) increasing in li-th direction}
-
-        # collapse the different directions into one.
-        grid = grid.T.reshape(-1, self.num_legs)  # *this* is the actual `reshaping`
-        # *rows* of grid are now all possible combinations of block_inds.
-        # transpose before reshape ensures that grid.T is np.lexsort()-ed
+        # create a grid that has as rows all possible combinations of sector_indices in C-style order
+        # grid = [[0, 0, ..., 0, 0],
+        #         [0, 0, ..., 0, 1],
+        #         [0, 0, ..., 0, 2],
+        #         ...
+        #         [0, 0, ..., 1, 0],
+        #         ...]
+        grid = np.indices([leg.num_sectors for leg in self.legs], int).reshape(self.num_legs, -1).T
 
         nblocks = grid.shape[0]  # number of blocks in pipe = np.product(spaces_num_sectors)
         # this is different from num_sectors
@@ -1803,6 +1806,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
                                  axis=0)
 
         # calculate new defining_sectors
+        # at this point, they have duplicates and are not sorted
         sectors = self.symmetry.multiple_fusion_broadcast(
             *(s.sector_decomposition[gr] for s, gr in zip(self.legs, grid.T))
         )
@@ -1817,16 +1821,17 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         sectors = sectors[fusion_outcomes_sort]
         multiplicities = multiplicities[fusion_outcomes_sort]
 
+        # compute slices in the whole internal basis (we subtract the start of each block later)
         slices = np.concatenate([[0], np.cumsum(multiplicities)], axis=0)
         block_ind_map[:, 0] = slices[:-1]  # start with 0
         block_ind_map[:, 1] = slices[1:]
 
         # bunch sectors with equal charges together
-        diffs = find_row_differences(sectors, include_len=True)
+        diffs = find_row_differences(sectors, include_len=True)  # include len, to index slices
         self.block_ind_map_slices = diffs
         slices = slices[diffs]
         multiplicities = slices[1:] - slices[:-1]
-        diffs = diffs[:-1]
+        diffs = diffs[:-1]  # now exclude len, to index sectors by diffs
 
         sectors = sectors[diffs]
 

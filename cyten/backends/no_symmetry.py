@@ -393,13 +393,9 @@ class NoSymmetryBackend(TensorBackend):
         for n in leg_idcs:
             in_domain, co_domain_idx, _ = a._parse_leg_idx(n)
             if in_domain:
-                dims.append([s.dim for s in reversed(a.domain[co_domain_idx].spaces)])
+                dims.append([s.dim for s in reversed(a.domain[co_domain_idx].legs)])
             else:
-                dims.append([s.dim for s in a.codomain[co_domain_idx].spaces])
-        # determine the dims to split to
-        # new_legs = list(conventional_leg_order(new_codomain, new_domain))
-        # dims = [[s.dim for s in l.spaces]
-        #         for n, l in enumerate(conventional_leg_order(a)) if n in leg_idcs]
+                dims.append([s.dim for s in a.codomain[co_domain_idx].legs])
         return self.block_backend.block_split_legs(a.data, leg_idcs, dims)
 
     def squeeze_legs(self, a: SymmetricTensor, idcs: list[int]) -> Data:

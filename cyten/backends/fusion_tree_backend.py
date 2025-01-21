@@ -279,7 +279,7 @@ class FusionTreeBackend(TensorBackend):
                      new_codomain: TensorProduct,
                      new_domain: TensorProduct,
                      ) -> Data:
-        raise NotImplementedError
+        raise NotImplementedError('FusionTreeBackend.combine_legs not implemented')
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         res_dtype = Dtype.common(a.dtype, b.dtype)

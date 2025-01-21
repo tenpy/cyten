@@ -3160,9 +3160,9 @@ def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | Non
 
 def combine_legs(tensor: Tensor,
                  *which_legs: list[int | str],
+                 pipe_dualities: list[bool] = None,
                  pipes: list[LegPipe | None] = None,
                  levels: list[int] | dict[str | int, int] = None,
-                 **kw
                  ) -> Tensor:
     """Combine (multiple) groups of legs, each to a :class:`LegPipe`.
 
@@ -3179,7 +3179,6 @@ def combine_legs(tensor: Tensor,
         |       │   │   ╰───┴──╥╯   │
         |       │   │          ║    │
 
-    TODO review this order convention!! (also in backend.combine_legs)
     Note that the conventional leg order in the domain goes right to left, such that the first
     element in the group, ``7``, is the *right*-most leg in the product, but we still have
     ``result.domain[2] == LegPipe([T.domain[2], T.domain[3], T.domain[4]])`` in left-to-right
@@ -3213,29 +3212,31 @@ def combine_legs(tensor: Tensor,
         |       │           │     ╰──┴─╥╯
         |       │           │          ║
 
-    .. warning ::
-        TODO (JU) review if this still applies. i suspect it will not.
-        Combining legs introduces a basis-transformation. This is important to consider if
-        you convert to a dense block (e.g. via :meth:`Tensor.to_dense_block`).
-        In particular it is (in general) impossible to obtain
-        ``some_tens.combine_legs(...).to_numpy()`` via
-        ``some_tens.to_numpy().transpose(transp).reshape(new_shape)``.
-
     Parameters
     ----------
     tensor:
         The tensor whose legs should be combined.
     *which_legs : list of {int | str}
         One or more groups of legs to combine.
-    combined_spaces: list of {LegPipe | None}, optional
+    pipe_dualities : list of bool, optional
+        Can optionally specify the :attr:`LegPipe.is_dual` attribute of each resulting pipe.
+        This is an arbitrary choice for each pipe.
+        The pipes are formed such that ``result.legs.[pipe_idx].is_dual == pipe_dualities[i]``.
+        Defaults to all ``False``.
+        TODO which way around is the definition more natural?
+            as result.legs.[pipe_idx].is_dual
+            or as result.get_co_domain_leg(pipe_idx).is_dual ?
+        TODO what is a good default?
+        TODO comment on how to guarantee that we can contract
+    pipes: list of {LegPipe | None}, optional
         For each ``group = which_legs[i]`` of legs, the resulting pipe can be passed to
         avoid recomputation. If we group to the codomain (``group[0] < tensor.num_codomain_legs``),
         we expect ``LegPipe([tensor._as_codomain_leg(i) for i in group])``.
         Otherwise we expect ``LegPipe([tensor._as_domain_leg(i) for i in reversed(group)])``.
         Note the reverse order in the latter case!
-        TODO review this order convention!
         In the intended use case, when another tensor with the same legs has already been combined,
-        obtain those product spaces via :meth:`Tensor.get_leg_co_domain`.
+        obtain those pipes simply via :meth:`Tensor.get_leg_co_domain`.
+        It is possible to pass only some of the pipes, use ``None`` as filler.
     levels: optional
         Is ignored if the symmetry has symmetric braids. Otherwise, these levels specify the
         chirality of any possible braids induced by permuting the legs. See :func:`permute_legs`.
@@ -3252,12 +3253,6 @@ def combine_legs(tensor: Tensor,
     Then, each group is replaced by the appropriate product space, either in the domain or the
     codomain.
     """
-    # TODO add arg: pipe_duality : list[bool] = None?
-    
-    ProductSpace = LegPipe  # to make flake8 happy for now
-    
-    raise NotImplementedError('combine / split is probably broken during refactoring of spaces')  # TODO
-    
     # 1) Deal with different tensor types. Reduce everything to SymmetricTensor.
     # ==============================================================================================
     if isinstance(tensor, (DiagonalTensor, Mask)):
@@ -3270,8 +3265,9 @@ def combine_legs(tensor: Tensor,
     if isinstance(tensor, ChargedTensor):
         # note: its important to parse negative integers before via tensor.get_leg_idcs, since
         #       the invariant part has an additional leg.
+        # TODO what about levels??
         inv_part = combine_legs(
-            tensor.invariant_part, *which_legs, pipes=pipes
+            tensor.invariant_part, *which_legs, pipe_dualities=pipe_dualities, pipes=pipes
         )
         return ChargedTensor(inv_part, charged_state=tensor.charged_state)
     #
@@ -3307,6 +3303,9 @@ def combine_legs(tensor: Tensor,
     inv_perm = inverse_permutation([*codomain_idcs, *domain_idcs_reversed])
     which_legs = [[inv_perm[l] for l in group] for group in which_legs]
     to_combine = [idx for group in which_legs for idx in group]
+    # TODO (JU) double check that updating J here is correct
+    #      (was missing before. i think that was a typo, but might be intentional!!)
+    J = tensor.num_codomain_legs
     codomain_groups = {group[0]: group for group in which_legs if group[0] < J}
     domain_groups = {group[0]: group for group in which_legs if group[0] >= J}
     #
@@ -3314,20 +3313,20 @@ def combine_legs(tensor: Tensor,
     # ==============================================================================================
     if pipes is None:
         pipes = [None] * len(which_legs)
+    if pipe_dualities is None:
+        pipe_dualities = [False] * len(which_legs)
     codomain_spaces = []
     codomain_labels = []
     domain_labels_reversed = []
     domain_spaces_reversed = []
-    i = 0  # have already used combined_spaces[:i]
+    i = 0  # have already used pipes[:i]
     for n in range(N):
         if n in codomain_groups:
             group = codomain_groups[n]
             spaces_to_combine = tensor.codomain[group[0]:group[-1] + 1]
             combined = pipes[i]
             if combined is None:
-                combined = ProductSpace(
-                    spaces_to_combine, symmetry=tensor.symmetry, backend=tensor.backend
-                )
+                combined = tensor.backend.make_pipe(spaces_to_combine, is_dual=pipe_dualities[i])
                 pipes[i] = combined
             else:
                 assert combined.spaces == spaces_to_combine
@@ -3341,9 +3340,9 @@ def combine_legs(tensor: Tensor,
             spaces_to_combine = tensor.domain[codomain_idx2:domain_idx1 + 1]
             combined = pipes[i]
             if combined is None:
-                combined = ProductSpace(
-                    spaces_to_combine, symmetry=tensor.symmetry, backend=tensor.backend
-                )
+                # Note: this is the result.domain[some_idx],  which has opposite duality from
+                #       result.legs[-1-some_idx], so we need to invert pipe_dualities[i]
+                combined = tensor.backend.make_pipe(spaces_to_combine, is_dual=not pipe_dualities[i])
                 pipes[i] = combined
             else:
                 assert combined.spaces == spaces_to_combine
@@ -3360,9 +3359,7 @@ def combine_legs(tensor: Tensor,
         else:
             domain_spaces_reversed.append(tensor.domain[N - 1 - n])
             domain_labels_reversed.append(tensor.labels[n])
-    #
-    # OPTIMIZE might be better to compute these in the backend. especially for FusionTree,
-    #          to avoid recomputing the sectors
+    # TODO no need to re-compute the sectors of (co)domain, they dont change.
     codomain = TensorProduct(codomain_spaces, symmetry=tensor.symmetry)
     domain = TensorProduct(domain_spaces_reversed[::-1], symmetry=tensor.symmetry)
     #
@@ -3691,12 +3688,12 @@ def eigh(tensor: Tensor, new_labels: str | list[str] | None, new_leg_dual: bool,
     # TODO for DiagonalTensor, we can have a trivial implementation `return tensor, eye` no?
     tensor = tensor.as_SymmetricTensor()
 
-    # If the backend requires it, combine legs firt
+    # If the backend requires it, combine legs first
     if not tensor.backend.can_decompose_tensors:
         tensor = combine_legs(
             tensor,
             range(tensor.num_codomain_legs), range(tensor.num_codomain_legs, tensor.num_legs),
-            pipe_duality=[new_leg_dual, new_leg_dual]
+            pipe_dualities=[new_leg_dual, new_leg_dual]
         )
 
     # first, compute a decomposition where the new leg is a ket space
@@ -4688,8 +4685,7 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
         Which legs to split. If ``None`` (default), all those legs that are :class:`LegPipe`s
         are split.
     """
-    raise NotImplementedError('combine / split is probably broken during refactoring of spaces')  # TODO
-
+    # Deal with different tensor types. Reduce everything to SymmetricTensor.
     if isinstance(tensor, (DiagonalTensor, Mask)):
         msg = ('Converting to SymmetricTensor for split_legs. '
                'Use as_SymmetricTensor() explicitly to suppress the warning.')
@@ -4698,7 +4694,6 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
         if legs is not None:
             legs = tensor.get_leg_idcs(legs)
         return ChargedTensor(split_legs(tensor.invariant_part, legs), tensor.charged_state)
-    # remaining case: SymmetricTensor.
     #
     # parse indices
     if legs is None:
@@ -4723,13 +4718,13 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     codomain_spaces = []
     for n, l in enumerate(tensor.codomain):
         if n in codomain_split:
-            codomain_spaces.extend(l.spaces)
+            codomain_spaces.extend(l.legs)
         else:
             codomain_spaces.append(l)
     domain_spaces = []
     for n, l in enumerate(tensor.domain):
         if n in domain_split:
-            domain_spaces.extend(l.spaces)
+            domain_spaces.extend(l.legs)
         else:
             domain_spaces.append(l)
 
@@ -4742,7 +4737,7 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     labels = []
     for n, l in enumerate(tensor.labels):
         if n in leg_idcs:
-            labels.extend(_split_leg_label(l, num=tensor.get_leg_co_domain(n).num_spaces))
+            labels.extend(_split_leg_label(l, num=tensor.get_leg_co_domain(n).num_legs))
         else:
             labels.append(l)
     #

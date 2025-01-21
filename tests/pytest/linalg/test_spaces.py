@@ -358,10 +358,9 @@ def test_AbelianLegPipe(make_any_space, pipe_dual, np_random):
     
     # check fusion_outcomes_sort
     # =======================================
-    # note: F style combinations!
     fusion_outcomes = [sym.fusion_outcomes(s_1, s_2)[0]
-                       for s_2 in leg_2.sector_decomposition
-                       for s_1 in leg_1.sector_decomposition]
+                       for s_1 in leg_1.sector_decomposition
+                       for s_2 in leg_2.sector_decomposition]
     fusion_outcomes_sorted, expect = _sort_sectors(fusion_outcomes, sym, by_duals=pipe.is_dual)
     assert np.all(pipe.fusion_outcomes_sort == expect)
 
