@@ -87,6 +87,10 @@ class LegPipe(Leg):
     ----------
     legs
         The legs that were grouped, and that this pipe can be split into.
+
+    See Also
+    --------
+    TensorProduct
     """
 
     def __init__(self, legs: Sequence[Leg], is_dual: bool = False):
@@ -514,7 +518,12 @@ class ElementarySpace(Space, Leg):
     Attributes
     ----------
     is_dual: bool
+        If this is a ket space (``False``) or a bra space (``True``).
     defining_sectors: 2D array of int
+        The defining sectors, see class docstring of :class:`ElementarySpace`.
+        Is ``np.lexsort( .T)``-ed.
+        The :attr:`sector_decomposition` is equal for ket spaces (``is_dual=False``) or given by
+        the respective :meth:`~cyten.symmetries.Symmetry.dual_sectors` for bra spaces.
     """
 
     def __init__(self, symmetry: Symmetry, defining_sectors: SectorArray,
@@ -564,12 +573,21 @@ class ElementarySpace(Space, Leg):
                    ) -> ElementarySpace:
         """Create an ElementarySpace by specifying the sector of every basis element.
 
+        This requires that the symmetry :attr:`~cyten.symmetries.Symmetry.can_be_dropped`, such
+        that there is a useful notion of a basis.
+
         .. note ::
             Unlike :meth:`from_defining_sectors`, this method expects the same sector to be listed
             multiple times, if the sector is multi-dimensional. The Hilbert Space of a spin-one-half
             D.O.F. can e.g. be created as ``ElementarySpace.from_basis(su2, [spin_half, spin_half])``
             or as ``ElementarySpace.from_defining_sectors(su2, [spin_half])``. In the former case
             we need to list the same sector both for the spin up and spin down state.
+
+        .. note ::
+            This classmethod always creates ket-spaces with ``is_dual=False``. This is to make
+            it unambiguous if `sectors_of_basis` refers to the :attr:`sector_decomposition` or the
+            :attr:`defining_sectors`, since they coincide for ket spaces.
+            Use :attr:`dual` or :meth:`as_bra_space` to create bra spaces.
 
         Parameters
         ----------
@@ -586,6 +604,7 @@ class ElementarySpace(Space, Leg):
         --------
         :attr:`sectors_of_basis`
             Reproduces the `sectors_of_basis` parameter.
+        from_defining_sectors
         """
         if not symmetry.can_be_dropped:
             msg = f'from_basis is meaningless for {symmetry}.'
@@ -1146,9 +1165,23 @@ class ElementarySpace(Space, Leg):
 class TensorProduct(Space):
     """Represents a tensor product of :class:`Spaces`s, e.g. the (co-)domain of a tensor.
 
-    TODO discuss / review how this relates to :class:`LegPipe`.
-         Mostly, this is not a leg pipe, because it does not have an ``is_dual`` attr??
-         And LegPipes are not TensorProducts because they dont have a ``sector_decomposition``
+    Attributes
+    ----------
+    factors : list[Space | LegPipe]
+        The factors in the tensor product, e.g. some of the legs of a tensor.
+    num_factors : int
+        The number of :attr:`factors`.
+
+    See Also
+    --------
+    LegPipe
+        A :class:`LegPipe` has the same mathematical idea as the :class:`TensorProduct`.
+        There are two main differences:
+        Firstly, for a :class:`TensorProduct`, we compute the :attr:`sector_decomposition`, which
+        we do not do for a :class`LegPipe`. This is reflected in the fact that only
+        :class:`TensorProduct`s are :class:`Space`s, while :class:`LegPipe`s are not.
+        Secondly, we only keep track of duality with an explicit flag for :class:`Leg`s, to have
+        arrows on our tensor legs. A :class:`TensorProduct` has no ``is_dual`` attribute.
     """
     
     def __init__(self, factors: list[Space | LegPipe], symmetry: Symmetry = None):
@@ -1159,7 +1192,7 @@ class TensorProduct(Space):
             symmetry = factors[0].symmetry
         if not all(sp.symmetry == symmetry for sp in factors):
             raise SymmetryError('Incompatible symmetries.')
-        self.symmetry = symmetry
+        self.symmetry = symmetry  # need to set this early, for use in _calc_sectors
         self.factors = factors[:]
         # TODO add an attr spaces: list[Space] that contains a flat list, where all nesting into
         #      pipes of factors in flattened??
@@ -1195,7 +1228,6 @@ class TensorProduct(Space):
 
     @property
     def dual(self):
-        # TODO is this needed ...?
         return TensorProduct([sp.dual for sp in reversed(self.factors)], symmetry=self.symmetry)
 
     # METHODS
@@ -1493,7 +1525,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     the same as regular legs. This is why this class also inherits from :class:`ElementarySpace`,
     which are the "uncombined" legs. Crucially, this allows the pipe to have
     :attr:`defining_sectors` for the :attr:`cyten.backends.abelian.AbelianBackendData.block_inds`
-    to point to, a well behaved :attr:`is_dual` attribute and to have a :attr:`basis_perm`,
+    to point to, to have a well-behaved :attr:`is_dual` attribute and to have a :attr:`basis_perm`,
     which can account for the basis permutation that is induced by going from sectors of the
     individual legs to a sorted list of coupled sectors on the pipe.
 
@@ -1527,34 +1559,33 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     block_ind_map : 2D numpy array of int
         Map for the embedding of uncoupled to coupled indices, see notes below.
         Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
-        i.e. ``M == prod(s.num_sectors for s in spaces)`` and ``N == 3 + len(spaces)``.
+        i.e. ``M == prod(s.num_sectors for s in legs)`` and ``N == 3 + len(legs)``.
 
     Notes
     -----
-    TODO review these old notes. do they still apply? should they live somewhere else?
-    
-    For ``np.reshape``, taking, for example,  :math:`i,j,... \rightarrow k` amounted to
+    In ``numpy``, combining legs is usually done via ``np.reshape``.
+    There, mapping indices :math:`i,j,... \rightarrow k` amounted to
     :math:`k = s_1*i + s_2*j + ...` for appropriate strides :math:`s_1,s_2`.
 
-    In the charged case, however, we want to block :math:`k` by charge, so we must
-    implicitly permute as well.  This reordering is encoded in :attr:`block_ind_map` as follows.
+    In the symmetric case, however, we want to group and sort the :math:`k` by sector, so we must
+    implicitly permute as well. This reordering is encoded in :attr:`block_ind_map` as follows.
 
-    Each block index combination :math:`(i_1, ..., i_{nlegs})` of the ``nlegs=len(spaces)``
+    Each block index combination :math:`(i_1, ..., i_{nlegs})` of the ``nlegs=len(legs)``
     input :class:`ElementarySpace`s will end up getting placed in some slice :math:`a_j:a_{j+1}`
     of the resulting :class:`AbelianLegPipe`. Within this slice, the data is simply reshaped in
     usual row-major fashion ('C'-order), i.e., with strides :math:`s_1 > s_2 > ...` given by the
     block size.
 
     It will be a subslice of a new total block in the `AbelianLegPipe` labelled by block index
-    :math:`J`. We fuse charges according to the rule::
+    :math:`J`. We fuse sectors according to the rule::
 
         pipe.sector_decomposition[J] == pipe.symmetry.multiple_fusion(
-            *[l.sector_decomposition[i_l] for i_l, l in zip([incoming_block_inds], pipe.legs)]
+            *[l.sector_decomposition[i_l] for i_l, l in zip(block_index_combination, pipe.legs)]
         )
 
-    Since many charge combinations can fuse to the same total charge,
+    Since many sector combinations can fuse to the same coupled sector,
     in general there will be many tuples :math:`(i_1, ..., i_{nlegs})` belonging to the same
-    charge block :math:`J` in the `AbelianLegPipe`.
+    block :math:`J` in the `AbelianLegPipe`.
 
     The rows of :attr:`block_ind_map` are precisely the collections of
     ``[b_{J,k}, b_{J,k+1}, i_1, . . . , i_{nlegs}, J]``.
@@ -1562,7 +1593,8 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     the total block `J`, i.e., ``b_{J,k} = a_j - self.slices[J]``.
 
     The rows of :attr:`block_ind_map` are sorted first by ``J``, then the ``i`` *in C-style order*,
-    i.e. first by ``i_1``, then ``i_2``, ... and finally by ``i_{nlegs}``.
+    i.e. second by ``i_1``, then ``i_2``, ... and finally by ``i_{nlegs}``.
+    In particular, that means that ``block_ind_map[:, [-2, -3, ..., 3, 2, -1]]`` is lexsorted.
     Each ``J`` will have multiple rows, and the order in which they are stored in :attr:`block_inds`
     is the order the data is stored in the actual tensor.
     Thus, ``block_ind_map`` might look like ::
@@ -1603,20 +1635,18 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         assert self.block_ind_map_slices[-1] == np.prod([l.num_sectors for l in self.legs])
         assert np.all(self.block_ind_map_slices[1:] >= self.block_ind_map_slices[:-1])
         # check block_ind_map
-        #   rows should be sorted first by block_ind_map[-1],
-        #   then by multi-indices in block_ind_map[2:-1] in C-style order
-        should_be_sorted = self.block_ind_map[:, 2:].copy()
-        should_be_sorted[:, :-1] = should_be_sorted[:, -2::-1]
+        M, N = self.block_ind_map.shape
+        assert M <= np.prod([l.num_sectors for l in self.legs])  # TODO why ``<=`` and not ``==``?
+        assert N == 3 + self.num_legs
+        should_be_sorted = self.block_ind_map[:, [*reversed(range(2, N - 1)), -1]]  # see notes
         assert np.all(np.lexsort(should_be_sorted.T) == np.arange(len(should_be_sorted)))
-        assert self.block_ind_map.shape[0] <= np.prod([l.num_sectors for l in self.legs])
-        assert self.block_ind_map.shape[1] == 3 + self.num_legs
         for i, (b1, b2, *idcs, J) in enumerate(self.block_ind_map):
             if i > 0 and J == self.block_ind_map[i - 1][-1]:
                 assert b1 == self.block_ind_map[i - 1][1]
             else:
                 assert b1 == 0
-            charges = (leg.sector_decomposition[i] for i, leg in zip(idcs, self.legs))
-            fused = self.symmetry.multiple_fusion(*charges)
+            sectors = (leg.sector_decomposition[i] for i, leg in zip(idcs, self.legs))
+            fused = self.symmetry.multiple_fusion(*sectors)
             assert np.all(fused == self.sector_decomposition[J])
         # call to super class(es)
         LegPipe.test_sanity(self)
@@ -1791,7 +1821,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         #         ...]
         grid = np.indices([leg.num_sectors for leg in self.legs], int).reshape(self.num_legs, -1).T
 
-        nblocks = grid.shape[0]  # number of blocks in pipe = np.product(spaces_num_sectors)
+        nblocks = grid.shape[0]  # number of blocks in pipe = np.product(legs_num_sectors)
         # this is different from num_sectors
 
         # determine block_ind_map -- it's essentially the grid.
@@ -1826,7 +1856,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         block_ind_map[:, 0] = slices[:-1]  # start with 0
         block_ind_map[:, 1] = slices[1:]
 
-        # bunch sectors with equal charges together
+        # bunch sectors with equal sectors together
         diffs = find_row_differences(sectors, include_len=True)  # include len, to index slices
         self.block_ind_map_slices = diffs
         slices = slices[diffs]
