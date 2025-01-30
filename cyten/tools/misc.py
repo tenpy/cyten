@@ -12,7 +12,7 @@ __all__ = [
     'argsort', 'combine_constraints', 'inverse_permutation', 'list_to_dict_list',
     'find_subclass',
     'rank_data',
-    'np_argsort', 'make_stride', 'find_row_differences', 'unstridify',
+    'np_argsort', 'make_stride', 'make_grid', 'find_row_differences', 'unstridify',
     'iter_common_noncommon_sorted', 'iter_common_noncommon_sorted_arrays', 'iter_common_sorted',
     'iter_common_sorted_arrays'
 ]
@@ -257,11 +257,11 @@ def make_grid(shape, cstyle=True) -> np.ndarray:
     Returns
     -------
     grid : 2D array of int
+        All possible index combinations into the `shape`.
         Shape is ``(M, N)`` where ``M == prod(shape)`` and ``N == len(shape)``.
         Each combination ``(i_0, ..., i_{N-1})`` of indices, with ``0 <= i_n < shape[n]`` appears
         exactly once as a row ``grid[m]``.
-        each row ``grid[m]``.
-        Is lexsorted if ``cstyle=False``. Otherwise, ``grid[:, ::-1]`` is lexsorted.
+        Is ``np.lexsorted(_.T)`` if ``cstyle=False``. Otherwise, ``grid[:, ::-1]`` is sorted.
 
     Examples
     --------
