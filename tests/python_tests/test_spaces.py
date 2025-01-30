@@ -4,6 +4,7 @@ import numpy as np
 from numpy import testing as npt
 
 from cyten import spaces, symmetries, SymmetryError
+from .util import random_ElementarySpace
 
 # TODO test all cases of Space.as_ElementarySpace
 
@@ -321,7 +322,7 @@ def test_TensorProduct_SU2():
 
 @pytest.mark.parametrize('combine_cstyle', [True, False])
 @pytest.mark.parametrize('pipe_dual', [False, True])
-def test_AbelianLegPipe(make_any_space, combine_cstyle, pipe_dual, np_random):
+def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_random):
 
     def iter_combinations(s1, s2):
         # iterate combinations in either C-style or F-style
@@ -333,12 +334,8 @@ def test_AbelianLegPipe(make_any_space, combine_cstyle, pipe_dual, np_random):
             for b in s2:
                 for a in s1:
                     yield a, b
-    
-    leg_1: spaces.ElementarySpace = make_any_space()
-    leg_2: spaces.ElementarySpace = make_any_space()
-    if not (leg_1.symmetry.is_abelian and leg_1.symmetry.can_be_dropped):
-        # TODO make fixtures more flexible, so we can actually parametrize over abelian only
-        pytest.skip()
+    leg_1: spaces.ElementarySpace = random_ElementarySpace(symmetry=abelian_group_symmetry, np_random=np_random)
+    leg_2: spaces.ElementarySpace = random_ElementarySpace(symmetry=abelian_group_symmetry, np_random=np_random)
     leg_1.basis_perm = np_random.permutation(leg_1.dim)
     leg_2.basis_perm = np_random.permutation(leg_2.dim)
 
