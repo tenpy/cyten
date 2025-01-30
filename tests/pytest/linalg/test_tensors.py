@@ -12,7 +12,7 @@ from cyten import backends, tensors
 from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor
 from cyten.backends.backend_factory import get_backend
 from cyten.dtypes import Dtype
-from cyten.spaces import ElementarySpace, TensorProduct
+from cyten.spaces import ElementarySpace, TensorProduct, AbelianLegPipe, LegPipe
 from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError
 from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays
 
@@ -830,16 +830,20 @@ def test_from_block_su2_symm(symmetry_backend, block_backend):
 
 
 @pytest.mark.parametrize(
-    'codomain_dims, domain_dims, labels',
+    'codomain_dims, domain_dims, labels, abelian_pipe',
     [
-        ([42, 42], [42, 42], ['a', 'b', 'c', 'd']),
-        ([42], [42, 42], ['a', 'b', 'c']),
-        ([42, 42, 12345, 42], [1], ['a', 'b', 'c', 'lorem', 'ipsum']),
-        ([], [42, 42], ['a', 'b']),
-        ([42, 42, 42], [], ['a', 'b', 'c']),
+        ([42, 42], [42, 42], ['a', 'b', 'c', 'd'], None),
+        ([42, 42], [42, 42], ['a', 'b', 'c', 'd'], None),
+        ([42], [42, 42], ['a', 'b', 'c'], None),
+        ([42, 42, 12345, 42], [1], ['a', 'b', 'c', 'lorem', 'ipsum'], None),
+        ([], [42, 42], ['a', 'b'], None),
+        ([42, 42, 42], [], ['a', 'b', 'c'], None),
+        ([[3, 2], 42], [42, 42], ['a', 'b', 'c', 'd'], True),
+        ([42, 42], [[4, 5], 42], ['a', 'b', 'c', 'd'], False),
+        ([[3, 3], 42], [42, [4, 5]], ['a', 'b', 'c', 'd'], True),
     ]
 )
-def test_Tensor_ascii_diagram(codomain_dims, domain_dims, labels):
+def test_Tensor_ascii_diagram(codomain_dims, domain_dims, labels, abelian_pipe, np_random):
     """
     You may find useful (see comments in :func:`test_Tensor_str_repr`)::
 
@@ -850,8 +854,21 @@ def test_Tensor_ascii_diagram(codomain_dims, domain_dims, labels):
         pytest -rP -k test_Tensor_ascii_diagram > playground/test_Tensor_ascii_diagram.txt && vim playground/test_Tensor_ascii_diagram.txt
 
     """
-    codomain = [ElementarySpace.from_trivial_sector(dim=d) for d in codomain_dims]
-    domain = [ElementarySpace.from_trivial_sector(dim=d) for d in domain_dims]
+    codomain = []
+    domain = []
+    for co_domain, dims in zip([codomain, domain], [codomain_dims, domain_dims]):
+        for d in dims:
+            if isinstance(d, int):
+                co_domain.append(ElementarySpace.from_trivial_sector(dim=d, is_dual=np_random.choice([True, False])))
+            else:
+                pipe_legs = []
+                for _d in d:
+                    pipe_legs.append(ElementarySpace.from_trivial_sector(dim=_d, is_dual=np_random.choice([True, False])))
+                if abelian_pipe:
+                    pipe = AbelianLegPipe(pipe_legs, is_dual=np_random.choice([True, False]))
+                else:
+                    pipe = LegPipe(pipe_legs, is_dual=np_random.choice([True, False]))
+                co_domain.append(pipe)
     T = DummyTensor(codomain, domain, backend=get_backend(), labels=labels, dtype=Dtype.complex128)
     print(T.ascii_diagram)
 

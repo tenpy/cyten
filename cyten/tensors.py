@@ -291,17 +291,25 @@ class Tensor(metaclass=ABCMeta):
 
     @property
     def ascii_diagram(self) -> str:
-        # example:
-        # |     123   123   132   123
-        # |       ^     v     v     ^
-        # |       a     b     c     d
-        # |   ┏━━━┷━━━━━┷━━━━━┷━━━━━┷━━━┓
-        # |   ┃          TEXT           ┃
-        # |   ┗┯━━━━━┯━━━━━┯━━━━━┯━━━━━┯┛
-        # |    i     h     g     f     e
-        # |    ^     v     ^     ^     v
-        # |   42   777    11     2     3
-        # TODO indicate if pipe or not??
+        """An ascii representation of the tensor.
+
+        It shows they type, leg labels, leg dimensions and leg arrows.
+
+        Example
+        -------
+        Consider the following example::
+
+            |     123   123   132   123
+            |       ^     v     v     ^
+            |       a     b     c     d
+            |   ┏━━━┷━━━━━┷━━━━━┷━━━━━┷━━━┓
+            |   ┃          TEXT           ┃
+            |   ┗┯━━━━━┯━━━━━┯━━━━━┯━━━━━┯┛
+            |    i     h     g     f     e
+            |    ^     v     ^     ^     v
+            |   42   777    11     2     3
+        
+        """
         text = {
             SymmetricTensor: 'Symm',
             ChargedTensor: 'Charged',
@@ -311,16 +319,19 @@ class Tensor(metaclass=ABCMeta):
         #
 
         DISTANCE = 5  # distance between legs in chars, i.e. number of '━' between the '┯'
+        huge_dim = f'>1e{DISTANCE + 1}'  # for numbers that can not fit in DISTANCE digits
+        assert len(huge_dim) <= DISTANCE
+        huge_dim = huge_dim.rjust(DISTANCE)
         codomain_dims = [
-            str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else 'huge'.rjust(DISTANCE)
+            str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else huge_dim
             for l in self.codomain
         ]
         domain_dims = [
-            str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else 'huge'.rjust(DISTANCE)
+            str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else huge_dim
             for l in self.domain
         ]
-        codomain_arrows = [('v' if l.is_dual else '^').rjust(DISTANCE) for l in self.codomain]
-        domain_arrows = [('v' if l.is_dual else '^').rjust(DISTANCE) for l in self.domain]
+        codomain_arrows = [l.ascii_arrow.rjust(DISTANCE) for l in self.codomain]
+        domain_arrows = [l.ascii_arrow.rjust(DISTANCE) for l in self.domain]
         codomain_labels = [
             str(l).rjust(DISTANCE) if len(str(l)) <= DISTANCE else '...'.rjust(DISTANCE)
             for l in self.codomain_labels

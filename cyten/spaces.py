@@ -75,6 +75,23 @@ class Leg(metaclass=ABCMeta):
         """The dual leg, that is obtained when bending this leg."""
         ...
 
+    @property
+    def ascii_arrow(self) -> str:
+        """A single character arrow, for use in tensor diagrams
+
+        Indicates (a) if the leg is a pipe and (b) for ElementarySpaces, the duality
+        """
+        is_pipe = isinstance(self, LegPipe)
+        if isinstance(self, ElementarySpace):
+            return {
+                (False, False): '^',
+                (False, True): '▲',
+                (True, False): 'v',
+                (True, True): '▼',
+            }[self.is_dual, is_pipe]
+        assert is_pipe
+        return '║'
+
 
 class LegPipe(Leg):
     """A group of legs, i.e. resulting from :func:`~cyten.tensors.combine_legs`.
