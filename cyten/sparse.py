@@ -17,8 +17,8 @@ from typing import Literal
 import numpy as np
 from scipy.sparse.linalg import LinearOperator as ScipyLinearOperator, ArpackNoConvergence
 
-from .spaces import Space, ProductSpace, Sector
-from .tensors import Tensor, SymmetricTensor, ChargedTensor
+from .spaces import Space, TensorProduct, Sector
+from .tensors import Tensor, SymmetricTensor, ChargedTensor, combine_legs
 from .backends.abstract_backend import TensorBackend
 from .dtypes import Dtype
 from .tools.math import speigs, speigsh
@@ -73,7 +73,7 @@ class LinearOperator(metaclass=ABCMeta):
 
     def to_matrix(self, backend: TensorBackend = None) -> Tensor:
         """The tensor representation of self, reshaped to a matrix."""
-        # OPTIMIZE could find a way to store the ProductSpace and use it here
+        # OPTIMIZE could find a way to store the TensorProduct and use it here
         N = self.vector_shape.num_legs
         return self.to_tensor(backend=backend).combine_legs(list(range(N)), list(range(N, 2 * N)))
 
@@ -368,7 +368,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         The number of times `cyten_matvec` was called.
     N : int
         The length of the numpy vectors that this operator acts on
-    domain : :class:`~cyten.spaces.ProductSpace`
+    domain : :class:`~cyten.spaces.TensorProduct`
         The product of the :attr:`legs`. Self is an operator on either this entire space,
         or one of its sectors, as specified by :attr:`charge_sector`.
     symmetry
@@ -383,9 +383,10 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         self.cyten_matvec = cyten_matvec
         self.legs = legs
         self.backend = backend
-        # even if there is just one leg, we form the ProductSpace anyway, so we dont have to distinguish
+        # even if there is just one leg, we form the TensorProduct anyway, so we dont have to distinguish
         #  cases and use combine_legs / split_legs in np_to_tensor and tensor_to_np
-        self.domain = ProductSpace(legs, backend=backend)
+        # TODO this probably no longer makes sense after the update of how spaces work!
+        self.domain = TensorProduct(legs, backend=backend)
         self.symmetry = legs[0].symmetry
         self.matvec_count = 0
         self.labels = labels
@@ -474,7 +475,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         """
         if isinstance(vector, ChargedTensor):
             assert vector.dummy_leg.num_sectors == 1 and vector.dummy_leg.multiplicities[0] == 1
-            sector = vector.dummy_leg.sectors[0]
+            sector = vector.dummy_leg.sector_decomposition[0]
         else:
             sector = 'trivial'
         if dtype is None:
@@ -500,7 +501,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         if sector is None:
             size = self.domain.dim
         else:
-            sector_idx = self.domain.sectors_where(sector)
+            sector_idx = self.domain.sector_decomposition_where(sector)
             if sector_idx is None:
                 raise ValueError('Domain of linear operator does not have this sector')
             size = (self.symmetry.sector_dim(sector) * self.domain.multiplicities[sector_idx]).item()
@@ -566,10 +567,11 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             # TODO undo the conversion from flat_array_to_tensor
             raise NotImplementedError
         elif isinstance(self._charge_sector, str) and self._charge_sector == 'trivial':
-            res = tens.combine_legs(list(range(tens.num_legs)), product_spaces=[self.domain])
+            # TODO save the pipe!
+            res = combine_legs(tens, list(range(tens.num_legs)), pipes=[self.pipe])
             res = res.to_dense_block_trivial_sector()
         else:
-            res = tens.combine_legs(list(range(tens.num_legs)), product_spaces=[self.domain])
+            res = combine_legs(tens, list(range(tens.num_legs)), pipes=[self.pipe])
             res = res.to_dense_block_single_sector()
         res = self.backend.block_to_numpy(res)
         assert res.shape == (self.shape[0],)

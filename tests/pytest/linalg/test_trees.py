@@ -6,7 +6,7 @@ import pytest
 
 from cyten import trees
 from cyten.symmetries import Symmetry, SymmetryError
-from cyten.spaces import ElementarySpace, ProductSpace
+from cyten.spaces import ElementarySpace, TensorProduct
 from cyten.dtypes import Dtype
 from cyten.backends.backend_factory import get_backend
 
@@ -59,7 +59,7 @@ def test_fusion_trees(any_symmetry: Symmetry, make_any_sectors, np_random):
     uncoupled = some_sectors[:5]
     are_dual = np_random.choice([True, False], size=len(uncoupled), replace=True)
     # find the allowed coupled sectors
-    allowed = ProductSpace([ElementarySpace(any_symmetry, [a]) for a in uncoupled]).sectors
+    allowed = TensorProduct([ElementarySpace(any_symmetry, [a]) for a in uncoupled]).sector_decomposition
     some_allowed = np_random.choice(allowed, axis=0)
     print(f'  uncoupled={", ".join(map(str, uncoupled))}   coupled={some_allowed}')
     it = trees.fusion_trees(any_symmetry, uncoupled, some_allowed, are_dual=are_dual)
@@ -108,8 +108,8 @@ def test_fusion_trees(any_symmetry: Symmetry, make_any_sectors, np_random):
 def check_to_block(symmetry, backend, uncoupled, np_random, dtype):
     """Common implementation for test_to_block and test_to_block_no_backend"""
     spaces = [ElementarySpace(symmetry, [a]) for a in uncoupled]
-    domain = ProductSpace(spaces, backend=backend)
-    coupled = np_random.choice(domain.sectors)
+    domain = TensorProduct(spaces)
+    coupled = np_random.choice(domain.sector_decomposition)
     all_trees = list(trees.fusion_trees(symmetry, uncoupled, coupled))
 
     if not symmetry.can_be_dropped:

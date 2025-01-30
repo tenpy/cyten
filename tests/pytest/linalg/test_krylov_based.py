@@ -140,7 +140,7 @@ def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol)
     H_np = H.to_numpy()
     npt.assert_allclose(H_np, H_np.conj().transpose())  # make sure we generated a hermitian operator
 
-    sector = leg.sectors[0]
+    sector = leg.sector_decomposition[0]
     psi_init = tensors.ChargedTensor.random_uniform(legs=[leg], charge=sector, backend=backend, dummy_leg_state=[1])
 
     psi_init_np = psi_init.to_numpy()

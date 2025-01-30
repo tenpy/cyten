@@ -9,7 +9,7 @@ __all__ = ['config', 'printoptions']
 class printoptions:
     """A collection of global config options. The class is used as a namespace"""
     
-    linewidth: int = 75
+    linewidth: int = 100
     indent: int = 2
     precision: int = 8  # #digits
     maxlines_spaces: int = 15

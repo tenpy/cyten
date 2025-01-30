@@ -20,6 +20,12 @@ def main():
     print('Done')
 
 
+# Exceptions: these do not need to be listed in __all__
+_dunder_all_exceptions = {
+    cyten.tensors: [cyten.tensors.T],
+}
+
+
 def check_all_attribute(check_module=cyten):
     """Recursively check the `__all__` attribute of a module.
 
@@ -31,6 +37,7 @@ def check_all_attribute(check_module=cyten):
     if not hasattr(check_module, '__all__'):
         raise AssertionError("module {0} has no line __all__ = [...]".format(_name_))
     _all_ = check_module.__all__
+    exceptions = _dunder_all_exceptions.get(check_module, [])
 
     # print("test __all__ of", _name_)
     # find entries in __all__ but not in the module
@@ -40,23 +47,37 @@ def check_all_attribute(check_module=cyten):
             nonexistent, _name_))
 
     # find objects in the module, which are not listed in __all__ (although they should be)
+    missing_objects = []
+    missing_modules = []
     for n in dir(check_module):
         if n[0] == '_' or n in _all_:  # private or listed in __all__
             continue
         obj = getattr(check_module, n)
+        if obj in exceptions:
+            continue
         if getattr(obj, "__module__", None) == _name_:
-            # got a class or function defined in the module
-            raise AssertionError("object {0!r} defined in {1} but not in __all__".format(
-                obj, _name_))
+            missing_objects.append(obj)
+            continue
         if hasattr(obj, "__package__") and obj.__name__.startswith(_name_):
-            # imported submodule
-            raise AssertionError("Module {0!r} imported in {1} but not listed in __all__".format(
-                obj.__name__, _name_))
+            missing_modules.append(obj)
+            continue
+    if missing_objects or missing_modules:
+        print()
+        print(f'File "{check_module.__file__}:"')
+        print(f'Missing objects (if any):')
+        for obj in missing_objects:
+            print(f'  {obj.__name__}')
+        print(f'Missing modules (if any):')
+        for mod in missing_modules:
+            print(f'  {mod.__name__}')
+        print()
+        msg = f'In module {_name_}, the items listed before the stacktrace are missing from __all__'
+        raise AssertionError(msg)
 
     # recurse into submodules
     submodules = [getattr(check_module, n, None) for n in _all_]
     for m in submodules:
-        if isinstance(m, types.ModuleType) and m.__name__.startswith('tenpy'):
+        if isinstance(m, types.ModuleType) and m.__name__.startswith('cyten'):
             check_all_attribute(m)
 
 

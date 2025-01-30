@@ -103,3 +103,21 @@ def test_find_subclass():
     assert child is sparse.LinearOperatorWrapper
     grandchild = tools.misc.find_subclass(sparse.LinearOperator, 'SumLinearOperator')
     assert grandchild is sparse.SumLinearOperator
+
+
+@pytest.mark.parametrize('cstyle', [True, False])
+@pytest.mark.parametrize('shape', [[1], [5], [1, 1, 2, 1], [3, 5, 4, 2], [1, 2], [3, 1], [4, 5]])
+def test_make_grid(cstyle, shape):
+    grid = tools.misc.make_grid(shape, cstyle=cstyle)
+    assert grid.shape == (np.prod(shape), len(shape))
+    # valid idcs
+    assert np.all(grid >= 0)
+    for n, dim in enumerate(shape):
+        assert np.all(grid[:, n] < dim)
+    # order
+    should_be_sorted = grid[:, ::-1] if cstyle else grid
+    perm = np.lexsort(should_be_sorted.T)
+    assert np.all(perm == np.arange(len(perm)))
+    # contains all entries
+    #    if we have prod(shape) many valid combinations, we have all of them
+    assert len(np.unique(grid, axis=0)) == len(grid)
