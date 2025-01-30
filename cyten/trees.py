@@ -236,7 +236,7 @@ class FusionTree:
             X = self.symmetry.fusion_tensor(a, b, c, Z_b=self.are_dual[vertex + 1])[mu]
             X_block = block_backend.block_from_numpy(X, dtype)
             #  [a0, a1, ..., an, i{n-1}] & [i{n-1}, a{n+1}, in] -> [a0, a1, ..., a{n+1}, in]
-            res = block_backend.block_tdot(res, X_block, [-1], [0])
+            res = block_backend.tdot(res, X_block, [-1], [0])
         return res
 
     def copy(self, deep=False) -> FusionTree:

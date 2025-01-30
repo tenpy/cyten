@@ -157,7 +157,7 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
     can_have_non_symmetric_dense_blocks = T.num_parameters < T.size
         
     if can_have_non_symmetric_dense_blocks:  # otherwise all blocks are symmetric
-        pert = tens.backend.block_backend.block_random_uniform(T.shape, dtype=T.dtype)
+        pert = tens.backend.block_backend.random_uniform(T.shape, dtype=T.dtype)
         non_symmetric_block = dense_block + pert
         with pytest.raises(ValueError, match='Block is not symmetric'):
             _ = SymmetricTensor.from_dense_block(
@@ -181,7 +181,7 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
         which = TensorProduct(which.factors[:2])
     labels = list('abcdefg')[:len(which)]
     tens = SymmetricTensor.from_eye(which, backend=T.backend, labels=labels)
-    expect_from_backend = backend.block_backend.block_to_numpy(
+    expect_from_backend = backend.block_backend.to_numpy(
         backend.block_backend.eye_block([leg.dim for leg in which.factors], dtype=T.dtype)
     )
     res = tens.to_numpy()
@@ -480,7 +480,7 @@ def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatib
         pytest.xfail()
 
     block = tens.to_dense_block_single_sector()
-    assert backend.block_backend.block_shape(block) == (block_size,)
+    assert backend.block_backend.get_shape(block) == (block_size,)
     tens2 = ChargedTensor.from_dense_block_single_sector(
         vector=block, space=leg, sector=sector, backend=backend
     )
@@ -488,8 +488,8 @@ def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatib
     assert tens2.charge_leg == tens.charge_leg
     assert tensors.almost_equal(tens, tens2)
     block2 = tens2.to_dense_block_single_sector()
-    npt.assert_array_almost_equal_nulp(tens.backend.block_backend.block_to_numpy(block),
-                                       tens.backend.block_backend.block_to_numpy(block2),
+    npt.assert_array_almost_equal_nulp(tens.backend.block_backend.to_numpy(block),
+                                       tens.backend.block_backend.to_numpy(block2),
                                        100)
 
     # TODO test to_dense_block_single_sector
@@ -590,7 +590,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
         assert len(expect_blocks) == len(t.data.blocks)
         for i, (actual, expect) in enumerate(zip(t.data.blocks, expect_blocks)):
             print(f'checking blocks[{i}]')
-            npt.assert_array_almost_equal_nulp(t.backend.block_backend.block_to_numpy(actual), expect, 100)
+            npt.assert_array_almost_equal_nulp(t.backend.block_backend.to_numpy(actual), expect, 100)
 
     elif symmetry_backend == 'fusion_tree':
         assert np.all(t.data.block_inds == np.array([0, 0])[None, :])
@@ -600,7 +600,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
         # forest blocks are sorted C-style, i.e. first by first row.
         expect_block = np.concatenate([forest_block_00, forest_block_22, forest_block_31], axis=0)
         assert len(t.data.blocks) == 1
-        actual = t.backend.block_backend.block_to_numpy(t.data.blocks[0])
+        actual = t.backend.block_backend.to_numpy(t.data.blocks[0])
         npt.assert_array_almost_equal_nulp(actual, expect_block, 100)
 
     else:
@@ -666,7 +666,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
         assert len(expect_blocks) == len(t.data.blocks)
         for i, (actual, expect) in enumerate(zip(t.data.blocks, expect_blocks)):
             print(f'checking blocks[{i}]')
-            npt.assert_array_almost_equal_nulp(t.backend.block_backend.block_to_numpy(actual), expect, 100)
+            npt.assert_array_almost_equal_nulp(t.backend.block_backend.to_numpy(actual), expect, 100)
 
     elif symmetry_backend == 'fusion_tree':
         # expect coupled sectors q0, q2, q3.
@@ -677,7 +677,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
         assert len(expect_blocks) == len(t.data.blocks)
         for i, (actual, expect) in enumerate(zip(t.data.blocks, expect_blocks)):
             print(f'checking blocks[{i}]')
-            npt.assert_array_almost_equal_nulp(t.backend.block_backend.block_to_numpy(actual), expect, 100)
+            npt.assert_array_almost_equal_nulp(t.backend.block_backend.to_numpy(actual), expect, 100)
 
     else:
         raise RuntimeError
@@ -746,7 +746,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
         valid_block_inds = backends.abelian._valid_block_inds(t.codomain, t.domain)
         for i, j in iter_common_noncommon_sorted_arrays(expect_block_inds, valid_block_inds):
             assert j is not None  # j=None would mean that the row of expect_block_inds is not in valid_block_inds
-            actual_block = t.backend.block_backend.block_to_numpy(t.data.blocks[j])
+            actual_block = t.backend.block_backend.to_numpy(t.data.blocks[j])
             if i is None:
                 expect_block = np.zeros_like(actual_block)
             else:
@@ -784,7 +784,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
         assert len(expect_blocks) == len(t.data.blocks)
         for i, (actual, expect) in enumerate(zip(t.data.blocks, expect_blocks)):
             print(f'checking blocks[{i}]')
-            npt.assert_array_almost_equal_nulp(t.backend.block_backend.block_to_numpy(actual), expect, 100)
+            npt.assert_array_almost_equal_nulp(t.backend.block_backend.to_numpy(actual), expect, 100)
 
     else:
         raise RuntimeError
@@ -815,8 +815,8 @@ def test_from_block_su2_symm(symmetry_backend, block_backend):
     # For triplet states (coupled=spin-1), we have eigenvalue +1/4
     expect_spin_0 = -3 / 4
     expect_spin_1 = 1 / 4
-    assert backend.block_backend.block_allclose(tens_4.data.blocks[0], expect_spin_0)
-    assert backend.block_backend.block_allclose(tens_4.data.blocks[1], expect_spin_1)
+    assert backend.block_backend.allclose(tens_4.data.blocks[0], expect_spin_0)
+    assert backend.block_backend.allclose(tens_4.data.blocks[1], expect_spin_1)
 
     recovered_block = tens_4.to_dense_block()
     print()
@@ -826,7 +826,7 @@ def test_from_block_su2_symm(symmetry_backend, block_backend):
     print('expect:')
     print(heisenberg_4.reshape((4, 4)))
 
-    assert backend.block_backend.block_allclose(recovered_block, heisenberg_4)
+    assert backend.block_backend.allclose(recovered_block, heisenberg_4)
 
 
 @pytest.mark.parametrize(
@@ -1918,8 +1918,8 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
     idcs1 = [p[0] for p in pairs_positions]
     idcs2 = [p[1] for p in pairs_positions]
     remaining = [n for n in range(T.num_legs) if n not in idcs1 and n not in idcs2]
-    expect = T.backend.block_backend.block_trace_partial(T.to_dense_block(), idcs1, idcs2, remaining)
-    expect = T.backend.block_backend.block_to_numpy(expect)
+    expect = T.backend.block_backend.trace_partial(T.to_dense_block(), idcs1, idcs2, remaining)
+    expect = T.backend.block_backend.to_numpy(expect)
     npt.assert_almost_equal(res_np, expect)
 
 
