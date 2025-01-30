@@ -3326,7 +3326,9 @@ def combine_legs(tensor: Tensor,
             spaces_to_combine = tensor.codomain[group[0]:group[-1] + 1]
             combined = pipes[i]
             if combined is None:
-                combined = tensor.backend.make_pipe(spaces_to_combine, is_dual=pipe_dualities[i])
+                combined = tensor.backend.make_pipe(
+                    spaces_to_combine, is_dual=pipe_dualities[i], in_domain=False
+                )
                 pipes[i] = combined
             else:
                 assert combined.spaces == spaces_to_combine
@@ -3342,7 +3344,9 @@ def combine_legs(tensor: Tensor,
             if combined is None:
                 # Note: this is the result.domain[some_idx],  which has opposite duality from
                 #       result.legs[-1-some_idx], so we need to invert pipe_dualities[i]
-                combined = tensor.backend.make_pipe(spaces_to_combine, is_dual=not pipe_dualities[i])
+                combined = tensor.backend.make_pipe(
+                    spaces_to_combine, is_dual=not pipe_dualities[i], in_domain=True
+                )
                 pipes[i] = combined
             else:
                 assert combined.spaces == spaces_to_combine

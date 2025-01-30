@@ -48,9 +48,7 @@ if TYPE_CHECKING:
 
 def _valid_block_inds(codomain: TensorProduct, domain: TensorProduct):
     # OPTIMIZE: this is brute-force going through all possible combinations of block indices
-    # spaces are sorted, so we can probably reduce that search space quite a bit...
-    M = codomain.num_factors
-    N = domain.num_factors
+    #           spaces are sorted, so we can probably reduce that search space quite a bit...
     symmetry = codomain.symmetry
     grid = make_grid([s.num_sectors for s in conventional_leg_order(codomain, domain)], cstyle=False)
     codomain_coupled = symmetry.multiple_fusion_broadcast(
@@ -245,9 +243,9 @@ class AbelianBackend(TensorBackend):
 
     # OVERRIDES
 
-    def make_pipe(self, legs: list[Leg], is_dual: bool) -> LegPipe:
+    def make_pipe(self, legs: list[Leg], is_dual: bool, in_domain: bool) -> LegPipe:
         assert all(isinstance(l, ElementarySpace) for l in legs)  # OPTIMIZE rm check
-        return AbelianLegPipe(legs, is_dual=is_dual)
+        return AbelianLegPipe(legs, is_dual=is_dual, combine_cstyle=not in_domain)
 
     # ABSTRACT METHODS
 
@@ -383,7 +381,7 @@ class AbelianBackend(TensorBackend):
             j += 1
 
         # identify the duplicates in res_block_inds
-        # these old_blocks are mapped to a single new block
+        # all those old_blocks are embedded into a single new block
         diffs = find_row_differences(res_block_inds, include_len=True)  # includes both 0 and len, to have slices later
 
         # build the new blocks

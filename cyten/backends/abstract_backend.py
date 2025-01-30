@@ -83,7 +83,7 @@ class TensorBackend(metaclass=ABCMeta):
         # subclasses will typically call super().test_mask_sanity(a)
         assert isinstance(a.data, self.DataCls), str(type(a.data))
 
-    def make_pipe(self, legs: list[Leg], is_dual: bool) -> LegPipe:
+    def make_pipe(self, legs: list[Leg], is_dual: bool, in_domain: bool) -> LegPipe:
         """Make a pipe *of the appropriate type* for :meth:`combine_legs`."""
         return LegPipe(legs, is_dual=is_dual)
 

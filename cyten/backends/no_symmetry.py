@@ -64,9 +64,9 @@ class NoSymmetryBackend(TensorBackend):
                                              expect_dtype=Dtype.bool, expect_device=a.device)
         assert self.block_backend.block_sum_all(a.data) == a.small_leg.dim
 
-    def make_pipe(self, legs: list[Leg], is_dual: bool) -> LegPipe:
+    def make_pipe(self, legs: list[Leg], is_dual: bool, in_domain: bool) -> LegPipe:
         assert all(isinstance(l, ElementarySpace) for l in legs)  # OPTIMIZE rm check
-        return AbelianLegPipe(legs, is_dual=is_dual)
+        return AbelianLegPipe(legs, is_dual=is_dual, combine_cstyle=not in_domain)
 
     # ABSTRACT METHODS:
 
