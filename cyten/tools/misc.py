@@ -244,6 +244,59 @@ def make_stride(shape, cstyle=True):
     return res
 
 
+def make_grid(shape, cstyle=True) -> np.ndarray:
+    """Create a grid of all possible combinations of indices.
+
+    Parameters
+    ----------
+    shape : sequence of int
+    cstyle : bool
+        If the resulting grid should be in C-style order (varying the last index the fastest),
+        or in F-style order (varying the first index the fastest).
+
+    Returns
+    -------
+    grid : 2D array of int
+        Shape is ``(M, N)`` where ``M == prod(shape)`` and ``N == len(shape)``.
+        Each combination ``(i_0, ..., i_{N-1})`` of indices, with ``0 <= i_n < shape[n]`` appears
+        exactly once as a row ``grid[m]``.
+        each row ``grid[m]``.
+        Is lexsorted if ``cstyle=False``. Otherwise, ``grid[:, ::-1]`` is lexsorted.
+
+    Examples
+    --------
+    For C-style grid we have::
+
+        make_grid([4, 5, 2, 3], cstyle=True) == [
+            [0, 0, 0, 0],
+            [0, 0, 0, 1],
+            [0, 0, 0, 2],
+            [0, 1, 0, 0],
+            ...
+            [3, 4, 1, 1],
+            [3, 4, 1, 2]
+        ]
+
+    Or for F-style we have::
+
+        make_grid([4, 5, 2, 3], cstyle=False) == [
+            [0, 0, 0, 0],
+            [1, 0, 0, 0],
+            [2, 0, 0, 0],
+            [3, 0, 0, 0],
+            [0, 1, 0, 0],
+            ...
+            [2, 4, 1, 2],
+            [3, 4, 1, 2]
+        ]
+
+    """
+    if cstyle:
+        return np.indices(shape, int).reshape(len(shape), -1).T
+    else:
+        return np.indices(shape, int).T.reshape(-1, len(shape))
+
+
 def list_to_dict_list(l):
     """Given a list `l` of objects, construct a lookup table.
 

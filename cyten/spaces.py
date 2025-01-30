@@ -16,7 +16,7 @@ import warnings
 from .dummy_config import printoptions
 from .symmetries import (Sector, SectorArray, Symmetry, ProductSymmetry, no_symmetry, FusionStyle,
                          SymmetryError)
-from .tools.misc import (inverse_permutation, rank_data, to_iterable, make_stride,
+from .tools.misc import (inverse_permutation, rank_data, to_iterable, make_stride, make_grid,
                          find_row_differences, unstridify, iter_common_sorted_arrays)
 from .tools.string import format_like_list
 from .trees import FusionTree, fusion_trees
@@ -1484,8 +1484,7 @@ class TensorProduct(Space):
             return sectors[perm], mults[perm]
 
         if self.symmetry.is_abelian:
-            grid = np.indices(tuple(space.num_sectors for space in factors), np.intp)
-            grid = grid.T.reshape(-1, len(factors))
+            grid = make_grid([space.num_sectors for space in factors], cstyle=False)
             sectors = self.symmetry.multiple_fusion_broadcast(
                 *(sp.sector_decomposition[gr] for sp, gr in zip(factors, grid.T))
             )
@@ -1812,14 +1811,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         legs_num_sectors = tuple(l.num_sectors for l in self.legs)
         self.sector_strides = make_stride(legs_num_sectors)
 
-        # create a grid that has as rows all possible combinations of sector_indices in C-style order
-        # grid = [[0, 0, ..., 0, 0],
-        #         [0, 0, ..., 0, 1],
-        #         [0, 0, ..., 0, 2],
-        #         ...
-        #         [0, 0, ..., 1, 0],
-        #         ...]
-        grid = np.indices([leg.num_sectors for leg in self.legs], int).reshape(self.num_legs, -1).T
+        grid = make_grid([leg.num_sectors for leg in self.legs], cstyle=True)
 
         nblocks = grid.shape[0]  # number of blocks in pipe = np.product(legs_num_sectors)
         # this is different from num_sectors
@@ -1937,12 +1929,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         # OPTIMIZE (JU) this is probably not the most efficient way to do this, but it hurts my brain
         #               and i need to get this to work, if only in an ugly way...
 
-        # TODO (JU) can not use the self.fusion_outcomes_sort since that sorts the F-style combinations!!
-        #      if we end up changing that definition, can use the self.fusion_outcomes_sort again.
-        #      same for sector_strides
-
-        # Note this grid is C style!
-        grid = np.indices([leg.num_sectors for leg in self.legs], int).reshape(self.num_legs, -1)
+        grid = make_grid([leg.num_sectors for leg in self.legs], cstyle=True)
         fusion_outcomes = self.symmetry.multiple_fusion_broadcast(
             *(leg.sector_decomposition[gr] for leg, gr in zip(self.legs, grid))
         )

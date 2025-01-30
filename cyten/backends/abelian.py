@@ -34,7 +34,7 @@ from ..symmetries import BraidingStyle, Symmetry
 from ..spaces import Space, ElementarySpace, LegPipe, AbelianLegPipe, TensorProduct, Leg
 from ..tools.misc import (
     inverse_permutation, list_to_dict_list, rank_data, iter_common_noncommon_sorted_arrays,
-    iter_common_sorted, iter_common_sorted_arrays, make_stride, find_row_differences
+    iter_common_sorted, iter_common_sorted_arrays, make_stride, find_row_differences, make_grid
 )
 
 __all__ = ['AbelianBackendData', 'AbelianBackend']
@@ -52,8 +52,7 @@ def _valid_block_inds(codomain: TensorProduct, domain: TensorProduct):
     M = codomain.num_factors
     N = domain.num_factors
     symmetry = codomain.symmetry
-    grid = np.indices((s.num_sectors for s in conventional_leg_order(codomain, domain)), dtype=int)
-    grid = grid.T.reshape((-1, M + N))
+    grid = make_grid([s.num_sectors for s in conventional_leg_order(codomain, domain)], cstyle=False)
     codomain_coupled = symmetry.multiple_fusion_broadcast(
         *(space.sector_decomposition[i] for space, i in zip(codomain.factors, grid.T))
     )
@@ -616,7 +615,7 @@ class AbelianBackend(TensorBackend):
         b_block_inds = b.data.block_inds
         l_a, num_legs_a = a_block_inds.shape
         l_b, num_legs_b = b_block_inds.shape
-        grid = np.indices([len(a_block_inds), len(b_block_inds)]).T.reshape(-1, 2)
+        grid = make_grid([len(a_block_inds), len(b_block_inds)], cstyle=False)
         # grid is lexsorted, with rows as all combinations of a/b block indices.
         res_block_inds = np.empty((l_a * l_b, num_legs_a + num_legs_b), dtype=int)
         res_block_inds[:, :num_legs_a] = a_block_inds[grid[:, 0]]
@@ -1387,8 +1386,7 @@ class AbelianBackend(TensorBackend):
         if b.dtype != res_dtype:
             b_blocks = [self.block_backend.block_to_dtype(T, res_dtype) for T in b_blocks]
         #
-        grid = np.indices([l_a, l_b]).T.reshape(-1, 2)
-        # grid is lexsorted, with rows as all combinations of a/b block indices.
+        grid = make_grid([l_a, l_b], cstyle=False)
         #
         res_block_inds = np.empty((l_a * l_b, N_a + N_b), dtype=int)
         res_block_inds[:, :K_a] = a_block_inds[grid[:, 0], :K_a]
