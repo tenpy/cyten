@@ -232,7 +232,7 @@ def make_any_sectors(any_symmetry, np_random):
 def make_any_space(any_symmetry, np_random):
     def make(max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None) -> spaces.ElementarySpace:
         # return ElementarySpace
-        return random_vector_space(any_symmetry, max_sectors, max_mult, is_dual, np_random=np_random)
+        return random_ElementarySpace(any_symmetry, max_sectors, max_mult, is_dual, np_random=np_random)
     return make
 
 
@@ -296,7 +296,7 @@ def make_compatible_space(compatible_symmetry, np_random):
     def make(max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None,
              allow_basis_perm: bool = True) -> spaces.ElementarySpace:
         # returns ElementarySpace
-        return random_vector_space(compatible_symmetry, max_sectors, max_mult, is_dual,
+        return random_ElementarySpace(compatible_symmetry, max_sectors, max_mult, is_dual,
                                    allow_basis_perm=allow_basis_perm, np_random=np_random)
     return make
 
@@ -321,7 +321,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, np_random):
         return random_tensor(
             symmetry=compatible_symmetry, codomain=codomain, domain=domain, labels=labels,
             dtype=dtype, backend=compatible_backend, device=device, like=like, max_blocks=max_blocks,
-            max_block_size=max_block_size, empty_ok=empty_ok, all_blocks=all_blocks, cls=cls,
+            max_multiplicity=max_block_size, empty_ok=empty_ok, all_blocks=all_blocks, cls=cls,
             allow_basis_perm=allow_basis_perm, np_random=np_random
         )
     return make
@@ -366,15 +366,15 @@ def random_symmetry_sectors(symmetry: symmetries.Symmetry, num: int, sort: bool 
     return res
 
 
-def random_vector_space(symmetry, max_num_blocks=5, max_block_size=5, is_dual=None,
-                        allow_basis_perm=True, np_random=None):
+def random_ElementarySpace(symmetry, max_sectors=5, max_multiplicity=5, is_dual=None,
+                           allow_basis_perm=True, np_random=None):
     if np_random is None:
         np_random = np.random.default_rng()
-    num_sectors = np_random.integers(1, max_num_blocks, endpoint=True)
+    num_sectors = np_random.integers(1, max_sectors, endpoint=True)
     sectors = random_symmetry_sectors(symmetry, num_sectors, sort=True, np_random=np_random)
     # if there are very few sectors, e.g. for symmetry==NoSymmetry(), dont let them be one-dimensional
-    min_mult = min(max_block_size, max(4 - len(sectors), 1))
-    mults = np_random.integers(min_mult, max_block_size, size=(len(sectors),), endpoint=True)
+    min_mult = min(max_multiplicity, max(4 - len(sectors), 1))
+    mults = np_random.integers(min_mult, max_multiplicity, size=(len(sectors),), endpoint=True)
     if symmetry.can_be_dropped and allow_basis_perm:
         dim = np.sum(symmetry.batch_sector_dim(sectors) * mults)
         basis_perm = np_random.permutation(dim) if np_random.random() < 0.7 else None
@@ -496,9 +496,9 @@ def random_tensor(symmetry: symmetries.Symmetry,
                   domain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
                   labels: list[str | None] = None, dtype: Dtype = None,
                   backend: backends.TensorBackend = None, device: str = None,
-                  like: tensors.Tensor = None, max_blocks=5, max_block_size=5, empty_ok=False,
-                  all_blocks=False, cls=tensors.SymmetricTensor, allow_basis_perm: bool = True,
-                  np_random=np.random.default_rng()):
+                  like: tensors.Tensor = None, max_blocks=5, max_multiplicity=5,
+                  empty_ok=False, all_blocks=False, cls=tensors.SymmetricTensor,
+                  allow_basis_perm: bool = True, np_random=np.random.default_rng()):
     if backend is None:
         backend = backends.get_backend()
     assert isinstance(backend, backends.TensorBackend)
@@ -513,7 +513,7 @@ def random_tensor(symmetry: symmetries.Symmetry,
             return random_tensor(symmetry=symmetry, codomain=like.codomain, domain=like.domain,
                                  labels=like.labels, backend=backend, dtype=like.dtype,
                                  device=like.device, max_blocks=max_blocks,
-                                 max_block_size=max_block_size, cls=type(like), np_random=np_random)
+                                 max_multiplicity=max_multiplicity, cls=type(like), np_random=np_random)
         else:
             raise TypeError(f'like must be a Tensor. Got {type(like)}')
     
@@ -590,9 +590,9 @@ def random_tensor(symmetry: symmetries.Symmetry,
     # 2) Deal with other tensor types
     # ======================================================================================
     if cls is tensors.ChargedTensor:
-        charge_leg = random_vector_space(symmetry=symmetry, max_num_blocks=1, max_block_size=1,
-                                         is_dual=False, allow_basis_perm=allow_basis_perm,
-                                         np_random=np_random)
+        charge_leg = random_ElementarySpace(symmetry=symmetry, max_sectors=1, max_multiplicity=1,
+                                            is_dual=False, allow_basis_perm=allow_basis_perm,
+                                            np_random=np_random)
         if isinstance(domain, spaces.TensorProduct):
             inv_domain = domain.left_multiply(charge_leg)
         else:
@@ -600,7 +600,7 @@ def random_tensor(symmetry: symmetries.Symmetry,
         inv_labels = [*labels, tensors.ChargedTensor._CHARGE_LEG_LABEL]
         inv_part = random_tensor(
             symmetry=symmetry, codomain=codomain, domain=inv_domain, labels=inv_labels, dtype=dtype,
-            backend=backend, device=device, max_blocks=max_blocks, max_block_size=max_block_size,
+            backend=backend, device=device, max_blocks=max_blocks, max_multiplicity=max_multiplicity,
             empty_ok=empty_ok, all_blocks=all_blocks, cls=tensors.SymmetricTensor,
             allow_basis_perm=allow_basis_perm, np_random=np_random
         )
@@ -629,9 +629,10 @@ def random_tensor(symmetry: symmetries.Symmetry,
             else:
                 assert len(domain) == 1
                 if domain[0] is None and codomain[0] is None:
-                    leg = random_vector_space(symmetry=symmetry, max_num_blocks=max_blocks,
-                                              max_block_size=max_block_size,
-                                              allow_basis_perm=allow_basis_perm, np_random=np_random)
+                    leg = random_ElementarySpace(
+                        symmetry=symmetry, max_sectors=max_blocks, max_multiplicity=max_multiplicity,
+                        allow_basis_perm=allow_basis_perm, np_random=np_random
+                    )
                 elif domain[0] is None:
                     leg = codomain[0]
                 elif codomain[0] is None:
@@ -647,7 +648,7 @@ def random_tensor(symmetry: symmetries.Symmetry,
         )
         if not all_blocks:
             res = randomly_drop_blocks(res, max_blocks=max_blocks, empty_ok=empty_ok,
-                                        np_random=np_random)
+                                       np_random=np_random)
         res.test_sanity()
         return res
     #
@@ -672,15 +673,15 @@ def random_tensor(symmetry: symmetries.Symmetry,
         #
         if large_leg is None:
             if small_leg is None:
-                large_leg = random_vector_space(
-                    symmetry=symmetry, max_num_blocks=max_blocks, max_block_size=max_block_size,
+                large_leg = random_ElementarySpace(
+                    symmetry=symmetry, max_sectors=max_blocks, max_multiplicity=max_multiplicity,
                     allow_basis_perm=allow_basis_perm, np_random=np_random
                 )
             else:
                 # TODO looks like this generates a basis_perm incompatible with the mask!
                 raise NotImplementedError('Mask generation broken')
-                extra = random_vector_space(symmetry=symmetry, max_num_blocks=max_blocks,
-                                            max_block_size=max_block_size, is_dual=small_leg.is_dual,
+                extra = random_ElementarySpace(symmetry=symmetry, max_sectors=max_blocks,
+                                            max_multiplicity=max_multiplicity, is_dual=small_leg.is_dual,
                                             allow_basis_perm=allow_basis_perm, np_random=np_random)
                 large_leg = small_leg.direct_sum(extra)
 
@@ -710,8 +711,8 @@ def random_tensor(symmetry: symmetries.Symmetry,
         # can just fill up the codomain with random legs.
         for n, sp in enumerate(codomain):
             if sp is None:
-                codomain[n] = random_vector_space(symmetry=symmetry, max_num_blocks=max_blocks,
-                                                  max_block_size=max_block_size,
+                codomain[n] = random_ElementarySpace(symmetry=symmetry, max_sectors=max_blocks,
+                                                  max_multiplicity=max_multiplicity,
                                                   allow_basis_perm=allow_basis_perm)
         codomain = spaces.TensorProduct(codomain, symmetry=symmetry)
         codomain_complete = True
@@ -721,14 +722,14 @@ def random_tensor(symmetry: symmetries.Symmetry,
             domain = spaces.TensorProduct(domain, symmetry=symmetry)
         missing = [n for n, sp in enumerate(codomain) if sp is None]
         for n in missing[:-1]:
-            codomain[n] = random_vector_space(symmetry=symmetry, max_num_blocks=max_blocks,
-                                              max_block_size=max_block_size,
+            codomain[n] = random_ElementarySpace(symmetry=symmetry, max_sectors=max_blocks,
+                                              max_multiplicity=max_multiplicity,
                                               allow_basis_perm=allow_basis_perm)
         last = missing[-1]
         partial_codomain = spaces.TensorProduct(codomain[:last] + codomain[last + 1:],
                                                 symmetry=symmetry)
         leg = find_last_leg(same=partial_codomain, opposite=domain, max_sectors=max_blocks,
-                            max_mult=max_block_size)
+                            max_mult=max_multiplicity)
         codomain = partial_codomain.insert_multiply(leg, last)
     elif not domain_complete:
         # can assume codomain is complete
@@ -736,13 +737,13 @@ def random_tensor(symmetry: symmetries.Symmetry,
             codomain = spaces.TensorProduct(codomain, symmetry=symmetry)
         missing = [n for n, sp in enumerate(domain) if sp is None]
         for n in missing[:-1]:
-            domain[n] = random_vector_space(symmetry=symmetry, max_num_blocks=max_blocks,
-                                            max_block_size=max_block_size,
+            domain[n] = random_ElementarySpace(symmetry=symmetry, max_sectors=max_blocks,
+                                            max_multiplicity=max_multiplicity,
                                             allow_basis_perm=allow_basis_perm)
         last = missing[-1]
         partial_domain = spaces.TensorProduct(domain[:last] + domain[last + 1:], symmetry=symmetry)
         leg = find_last_leg(same=partial_domain, opposite=codomain, max_sectors=max_blocks,
-                            max_mult=max_block_size)
+                            max_mult=max_multiplicity)
         domain = partial_domain.insert_multiply(leg, last)
     else:
         if not isinstance(codomain, spaces.TensorProduct):
