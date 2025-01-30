@@ -319,8 +319,21 @@ def test_TensorProduct_SU2():
     npt.assert_array_equal(abc.multiplicities, np.array(expect_mults))
 
 
+@pytest.mark.parametrize('combine_cstyle', [True, False])
 @pytest.mark.parametrize('pipe_dual', [False, True])
-def test_AbelianLegPipe(make_any_space, pipe_dual, np_random):
+def test_AbelianLegPipe(make_any_space, combine_cstyle, pipe_dual, np_random):
+
+    def iter_combinations(s1, s2):
+        # iterate combinations in either C-style or F-style
+        if combine_cstyle:
+            for a in s1:
+                for b in s2:
+                    yield a, b
+        else:
+            for b in s2:
+                for a in s1:
+                    yield a, b
+    
     leg_1: spaces.ElementarySpace = make_any_space()
     leg_2: spaces.ElementarySpace = make_any_space()
     if not (leg_1.symmetry.is_abelian and leg_1.symmetry.can_be_dropped):
@@ -328,8 +341,8 @@ def test_AbelianLegPipe(make_any_space, pipe_dual, np_random):
         pytest.skip()
     leg_1.basis_perm = np_random.permutation(leg_1.dim)
     leg_2.basis_perm = np_random.permutation(leg_2.dim)
-    
-    pipe = spaces.AbelianLegPipe([leg_1, leg_2], is_dual=pipe_dual)
+
+    pipe = spaces.AbelianLegPipe([leg_1, leg_2], is_dual=pipe_dual, combine_cstyle=combine_cstyle)
     pipe.test_sanity()
 
     # Setup
@@ -359,8 +372,7 @@ def test_AbelianLegPipe(make_any_space, pipe_dual, np_random):
     # check fusion_outcomes_sort
     # =======================================
     fusion_outcomes = [sym.fusion_outcomes(s_1, s_2)[0]
-                       for s_1 in leg_1.sector_decomposition
-                       for s_2 in leg_2.sector_decomposition]
+                       for s_1, s_2 in iter_combinations(leg_1.sector_decomposition, leg_2.sector_decomposition)]
     fusion_outcomes_sorted, expect = _sort_sectors(fusion_outcomes, sym, by_duals=pipe.is_dual)
     assert np.all(pipe.fusion_outcomes_sort == expect)
 
@@ -378,7 +390,7 @@ def test_AbelianLegPipe(make_any_space, pipe_dual, np_random):
     # check _get_fusion_outcomes_perm()
     # =======================================
     internal_fusion_outcomes = [(sym.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
-                                for b_1 in internal_basis_1 for b_2 in internal_basis_2]
+                                for b_1, b_2 in iter_combinations(internal_basis_1, internal_basis_2)]
     _, fusion_outcomes_perm = _sort_sectors([b[0] for b in internal_fusion_outcomes], sym,
                                             by_duals=pipe.is_dual)
     
@@ -389,7 +401,7 @@ def test_AbelianLegPipe(make_any_space, pipe_dual, np_random):
     assert pipe.basis_perm.shape == (pipe.dim,)
     assert np.all(np.sort(pipe.basis_perm) == np.arange(pipe.dim))
     public_basis_pipe = [(sym.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
-                         for b_1 in public_basis_1 for b_2 in public_basis_2]
+                         for b_1, b_2 in iter_combinations(public_basis_1, public_basis_2)]
     internal_basis_pipe = [internal_fusion_outcomes[n] for n in fusion_outcomes_perm]
     
     # want to do ``expect_perm = [public_basis_pipe.index(i) for i in internal_basis_pipe]``
@@ -455,8 +467,9 @@ def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines
     if any_symmetry.is_abelian and any_symmetry.can_be_dropped:
         more = {
             'AbelianLegPipe (1)': spaces.AbelianLegPipe([make_any_space(max_sectors=5)]),
+            'AbelianLegPipe (1F)': spaces.AbelianLegPipe([make_any_space(max_sectors=5)], combine_cstyle=False),
             'AbelianLegPipe (3)': spaces.AbelianLegPipe([make_any_space(max_sectors=5) for _ in range(3)], is_dual=True),
-            'AbelianLegPipe (5)': spaces.AbelianLegPipe([make_any_space(max_sectors=3) for _ in range(5)]),
+            'AbelianLegPipe (5)': spaces.AbelianLegPipe([make_any_space(max_sectors=3) for _ in range(5)],),
         }
         instances.update(more)
 
