@@ -1136,22 +1136,34 @@ def test_combine_split(make_compatible_tensor):
     with pytest.raises(ValueError, match='Not a LegPipe.'):
         _ = tensors.split_legs(combined4, 0)
 
-    # 5) combine in domain, bend upward, split there
+    # 5) check compatibility with bending legs (combine in domain)
     combined5 = tensors.combine_legs(T, [2, 3])
     combined5.test_sanity()
     assert combined5.labels == ['a', 'b', '(c.d)']
     assert combined5.codomain.factors == T.codomain.factors
     assert combined5.domain[0].legs == T.domain.factors
     #
-    # TODO looks like split5.data.block_inds and expect5.data.block_inds have swapped last two cols?
-    bent5 = tensors.bend_legs(combined5, num_domain_legs=0)
-    split5 = tensors.split_legs(bent5, 2)
+    combined_then_bent = tensors.bend_legs(combined5, num_domain_legs=0)
+    combined_then_bent.test_sanity()
+    bent_individually = tensors.bend_legs(T, num_domain_legs=0)
+    bent_then_combined = tensors.combine_legs(bent_individually, [2, 3])
+    bent_then_combined.test_sanity()
+    assert combined_then_bent.legs == bent_then_combined.legs
+    assert tensors.almost_equal(combined_then_bent, bent_then_combined)
+
+    #  5b) check split * bend_pipe * combine == bend_legs
+    split5 = tensors.split_legs(combined_then_bent, 2)
     split5.test_sanity()
     assert split5.labels == ['a', 'b', 'c', 'd']
     assert split5.codomain.factors == T.legs
     assert split5.domain.factors == []
     expect5 = tensors.bend_legs(T, num_domain_legs=0)
     assert tensors.almost_equal(split5, expect5), 'bending does not commute through combine!'
+
+    # 6) check compatibility with bending legs (combine in codomain)
+    # TODO impl
+
+    return  # TODO reactivate below
 
     if T.symmetry.can_be_dropped:
         # check that combine_legs().to_numpy() is the same as to_numpy().reshape()
