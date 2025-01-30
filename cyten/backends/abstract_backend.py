@@ -906,12 +906,12 @@ class BlockBackend(metaclass=ABCMeta):
         return device
 
     @abstractmethod
-    def block_abs_argmax(self, block: Block) -> list[int]:
+    def abs_argmax(self, block: Block) -> list[int]:
         """Return the indices (one per axis) of the largest entry (by magnitude) of the block"""
         ...
 
     @abstractmethod
-    def block_add_axis(self, a: Block, pos: int) -> Block:
+    def add_axis(self, a: Block, pos: int) -> Block:
         ...
 
     @abstractmethod
@@ -920,11 +920,11 @@ class BlockBackend(metaclass=ABCMeta):
         ...
         
     @abstractmethod
-    def block_allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
+    def allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
         ...
 
     @abstractmethod
-    def block_angle(self, a: Block) -> Block:
+    def angle(self, a: Block) -> Block:
         """The angle of a complex number such that ``a == exp(1.j * angle(a))``. Elementwise."""
         ...
 
@@ -933,12 +933,12 @@ class BlockBackend(metaclass=ABCMeta):
         """Require a boolean block. If any of its entries are True"""
         ...
     
-    def block_apply_mask(self, block: Block, mask: Block, ax: int) -> Block:
+    def apply_mask(self, block: Block, mask: Block, ax: int) -> Block:
         """Apply a mask (1D boolean block) to a block, slicing/projecting that axis"""
         idx = (slice(None, None, None),) * ax + (mask,)
         return block[idx]
 
-    def block_argsort(self, block: Block, sort: str = None, axis: int = 0) -> Block:
+    def argsort(self, block: Block, sort: str = None, axis: int = 0) -> Block:
         """Return the permutation that would sort a block along one axis.
 
         Parameters
@@ -986,16 +986,16 @@ class BlockBackend(metaclass=ABCMeta):
             block = -np.imag(block)
         else:
             raise ValueError("unknown sort option " + repr(sort))
-        return self._block_argsort(block, axis=axis)
+        return self._argsort(block, axis=axis)
 
     @abstractmethod
-    def _block_argsort(self, block: Block, axis: int) -> Block:
+    def _argsort(self, block: Block, axis: int) -> Block:
         """Like :meth:`block_argsort` but can assume real valued block, and sort ascending"""
         ...
 
-    def block_combine_legs(self, a: Block, leg_idcs_combine: list[list[int]]) -> Block:
+    def combine_legs(self, a: Block, leg_idcs_combine: list[list[int]]) -> Block:
         """No transpose, only reshape ``legs[b:e] for b,e in legs_slice`` to single legs"""
-        old_shape = self.block_shape(a)
+        old_shape = self.get_shape(a)
         new_shape = []
         last_stop = 0
         for group in leg_idcs_combine:
@@ -1006,15 +1006,15 @@ class BlockBackend(metaclass=ABCMeta):
             new_shape.append(np.prod(old_shape[start:stop]))
             last_stop = stop
         new_shape.extend(old_shape[last_stop:])
-        return self.block_reshape(a, tuple(new_shape))
+        return self.reshape(a, tuple(new_shape))
 
     @abstractmethod
-    def block_conj(self, a: Block) -> Block:
+    def conj(self, a: Block) -> Block:
         """Complex conjugate of a block"""
         ...
 
     @abstractmethod
-    def block_copy(self, a: Block, device: str = None) -> Block:
+    def copy_block(self, a: Block, device: str = None) -> Block:
         """Create a new, independent block with the same data
 
         Parameters
@@ -1031,18 +1031,18 @@ class BlockBackend(metaclass=ABCMeta):
         """
         ...
 
-    def block_dagger(self, a: Block) -> Block:
+    def dagger(self, a: Block) -> Block:
         """Permute axes to reverse order and elementwise conj."""
-        num_legs = len(self.block_shape(a))
-        res = self.block_permute_axes(a, list(reversed(range(num_legs))))
-        return self.block_conj(res)
+        num_legs = len(self.get_shape(a))
+        res = self.permute_axes(a, list(reversed(range(num_legs))))
+        return self.conj(res)
 
     @abstractmethod
-    def block_dtype(self, a: Block) -> Dtype:
+    def get_dtype(self, a: Block) -> Dtype:
         ...
 
     @abstractmethod
-    def block_eigh(self, block: Block, sort: str = None) -> tuple[Block, Block]:
+    def eigh(self, block: Block, sort: str = None) -> tuple[Block, Block]:
         """Eigenvalue decomposition of a 2D hermitian block.
 
         Return a 1D block of eigenvalues and a 2D block of eigenvectors
@@ -1057,7 +1057,7 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def block_eigvalsh(self, block: Block, sort: str = None) -> Block:
+    def eigvalsh(self, block: Block, sort: str = None) -> Block:
         """Eigenvalues of a 2D hermitian block.
 
         Return a 1D block of eigenvalues
@@ -1071,16 +1071,16 @@ class BlockBackend(metaclass=ABCMeta):
         """
         ...
 
-    def block_enlarge_leg(self, block: Block, mask: Block, axis: int) -> Block:
-        shape = list(self.block_shape(block))
-        shape[axis] = self.block_shape(mask)[0]
-        res = self.zero_block(shape, dtype=self.block_dtype(block))
+    def enlarge_leg(self, block: Block, mask: Block, axis: int) -> Block:
+        shape = list(self.get_shape(block))
+        shape[axis] = self.get_shape(mask)[0]
+        res = self.zeros(shape, dtype=self.get_dtype(block))
         idcs = (slice(None, None, None),) * axis + (mask,)
         res[idcs] = block  # TODO mutability?
         return res
 
     @abstractmethod
-    def block_exp(self, a: Block) -> Block:
+    def exp(self, a: Block) -> Block:
         """The *elementwise* exponential.
 
         Not to be confused with :meth:`matrix_exp`, the *matrix* exponential.
@@ -1106,45 +1106,45 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def block_get_device(self, a: Block) -> str:
+    def get_device(self, a: Block) -> str:
         ...
 
     @abstractmethod
-    def block_get_diagonal(self, a: Block, check_offdiagonal: bool) -> Block:
+    def get_diagonal(self, a: Block, check_offdiagonal: bool) -> Block:
         """Get the diagonal of a 2D block as a 1D block"""
         ...
 
     @abstractmethod
-    def block_imag(self, a: Block) -> Block:
+    def imag(self, a: Block) -> Block:
         """The imaginary part of a complex number, elementwise."""
         ...
 
-    def block_inner(self, a: Block, b: Block, do_dagger: bool) -> float | complex:
+    def inner(self, a: Block, b: Block, do_dagger: bool) -> float | complex:
         """Dense block version of tensors.inner.
 
         If do dagger, ``sum(conj(a[i1, i2, ..., iN]) * b[i1, ..., iN])``
         otherwise, ``sum(a[i1, ..., iN] * b[iN, ..., i2, i1])``.
         """
         if do_dagger:
-            a = self.block_conj(a)
+            a = self.conj(a)
         else:
-            a = self.block_permute_axes(a, list(reversed(range(a.ndim))))
-        return self.block_sum_all(a * b)  # TODO or do tensordot?
+            a = self.permute_axes(a, list(reversed(range(a.ndim))))
+        return self.sum_all(a * b)  # TODO or do tensordot?
 
-    def block_is_real(self, a: Block) -> bool:
+    def is_real(self, a: Block) -> bool:
         """If the block is comprised of real numbers.
         
         Complex numbers with small or zero imaginary part still cause a `False` return.
         """
-        return self.cyten_dtype_map[self.block_dtype(a)].is_real
+        return self.cyten_dtype_map[self.get_dtype(a)].is_real
 
     @abstractmethod
-    def block_item(self, a: Block) -> float | complex:
+    def item(self, a: Block) -> float | complex:
         """Assumes that data is a scalar (i.e. has only one entry). Returns that scalar as python float or complex"""
         ...
 
     @abstractmethod
-    def block_kron(self, a: Block, b: Block) -> Block:
+    def kron(self, a: Block, b: Block) -> Block:
         """The kronecker product.
 
         Parameters
@@ -1164,11 +1164,11 @@ class BlockBackend(metaclass=ABCMeta):
         """
         ...
 
-    def block_linear_combination(self, a, v: Block, b, w: Block) -> Block:
+    def linear_combination(self, a, v: Block, b, w: Block) -> Block:
         return a * v + b * w
 
     @abstractmethod
-    def block_log(self, a: Block) -> Block:
+    def log(self, a: Block) -> Block:
         """The *elementwise* natural logarithm.
 
         Not to be confused with :meth:`matrix_log`, the *matrix* logarithm.
@@ -1176,22 +1176,22 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def block_max(self, a: Block) -> float:
+    def max(self, a: Block) -> float:
         ...
 
     @abstractmethod
-    def block_max_abs(self, a: Block) -> float:
+    def max_abs(self, a: Block) -> float:
         ...
 
     @abstractmethod
-    def block_min(self, a: Block) -> float:
+    def min(self, a: Block) -> float:
         ...
         
-    def block_mul(self, a: float | complex, b: Block) -> Block:
+    def mul(self, a: float | complex, b: Block) -> Block:
         return a * b
 
     @abstractmethod
-    def block_norm(self, a: Block, order: int | float = 2, axis: int | None = None) -> float:
+    def norm(self, a: Block, order: int | float = 2, axis: int | None = None) -> float:
         r"""The p-norm vector-norm of a block.
 
         Parameters
@@ -1207,7 +1207,7 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def block_outer(self, a: Block, b: Block) -> Block:
+    def outer(self, a: Block, b: Block) -> Block:
         """Outer product of blocks.
 
         ``res[i1,...,iN,j1,...,jM] = a[i1,...,iN] * b[j1,...,jM]``
@@ -1215,25 +1215,25 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def block_permute_axes(self, a: Block, permutation: list[int]) -> Block:
+    def permute_axes(self, a: Block, permutation: list[int]) -> Block:
         ...
 
     @abstractmethod
-    def block_random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
-                            ) -> Block:
+    def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
+                      ) -> Block:
         ...
 
     @abstractmethod
-    def block_random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
+    def random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
         ...
 
     @abstractmethod
-    def block_real(self, a: Block) -> Block:
+    def real(self, a: Block) -> Block:
         """The real part of a complex number, elementwise."""
         ...
 
     @abstractmethod
-    def block_real_if_close(self, a: Block, tol: float) -> Block:
+    def real_if_close(self, a: Block, tol: float) -> Block:
         """If a block is close to its real part, return the real part.
 
         Otherwise the original block. Elementwise.
@@ -1245,25 +1245,25 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def block_reshape(self, a: Block, shape: tuple[int]) -> Block:
+    def reshape(self, a: Block, shape: tuple[int]) -> Block:
         ...
 
-    def block_scale_axis(self, block: Block, factors: Block, axis: int) -> Block:
+    def scale_axis(self, block: Block, factors: Block, axis: int) -> Block:
         """Multiply block with the factors (a 1D block), along a given axis.
         
         E.g. if block is 4D and ``axis==2`` with numpy-like broadcasting, this is would be
         ``block * factors[None, None, :, None]``.
         """
-        idx = [None] * len(self.block_shape(block))
+        idx = [None] * len(self.get_shape(block))
         idx[axis] = slice(None, None, None)
         return block * factors[tuple(idx)]
 
     @abstractmethod
-    def block_shape(self, a: Block) -> tuple[int]:
+    def get_shape(self, a: Block) -> tuple[int]:
         ...
 
-    def block_split_legs(self, a: Block, idcs: list[int], dims: list[list[int]]) -> Block:
-        old_shape = self.block_shape(a)
+    def split_legs(self, a: Block, idcs: list[int], dims: list[list[int]]) -> Block:
+        old_shape = self.get_shape(a)
         new_shape = []
         start = 0
         for i, i_dims in zip(idcs, dims):
@@ -1271,30 +1271,29 @@ class BlockBackend(metaclass=ABCMeta):
             new_shape.extend(i_dims)
             start = i + 1
         new_shape.extend(old_shape[start:])
-        return self.block_reshape(a, tuple(new_shape))
+        return self.reshape(a, tuple(new_shape))
 
     @abstractmethod
-    def block_sqrt(self, a: Block) -> Block:
+    def sqrt(self, a: Block) -> Block:
         """The elementwise square root"""
         ...
 
     @abstractmethod
-    def block_squeeze_legs(self, a: Block, idcs: list[int]) -> Block:
-        # TODO rename to squeeze_axes ?
+    def squeeze_axes(self, a: Block, idcs: list[int]) -> Block:
         ...
 
     @abstractmethod
-    def block_stable_log(self, block: Block, cutoff: float) -> Block:
+    def stable_log(self, block: Block, cutoff: float) -> Block:
         """Elementwise stable log. For entries > cutoff, yield their natural log. Otherwise 0."""
         ...
 
     @abstractmethod
-    def block_sum(self, a: Block, ax: int) -> Block:
+    def sum(self, a: Block, ax: int) -> Block:
         """The sum over a single axis."""
         ...
 
     @abstractmethod
-    def block_sum_all(self, a: Block) -> float | complex:
+    def sum_all(self, a: Block) -> float | complex:
         """The sum of all entries of the block.
         
         If the block contains boolean values, this should return the number of ``True`` entries.
@@ -1302,11 +1301,10 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def block_tdot(self, a: Block, b: Block, idcs_a: list[int], idcs_b: list[int]
-                   ) -> Block:
+    def tdot(self, a: Block, b: Block, idcs_a: list[int], idcs_b: list[int]) -> Block:
         ...
 
-    def block_tensor_outer(self, a: Block, b: Block, K: int) -> Block:
+    def tensor_outer(self, a: Block, b: Block, K: int) -> Block:
         """Version of ``tensors.outer`` on blocks.
 
         Note the different leg order to usual outer products::
@@ -1315,25 +1313,25 @@ class BlockBackend(metaclass=ABCMeta):
 
         intended to be used with ``K == a_num_codomain_legs``.
         """
-        res = self.block_outer(a, b)  # [i1,...,iN,j1,...,jM]
-        N = len(self.block_shape(a))
-        M = len(self.block_shape(b))
-        return self.block_permute_axes(res, [*range(K), *range(N, N + M), *range(K, N)])
+        res = self.outer(a, b)  # [i1,...,iN,j1,...,jM]
+        N = len(self.get_shape(a))
+        M = len(self.get_shape(b))
+        return self.permute_axes(res, [*range(K), *range(N, N + M), *range(K, N)])
 
     @abstractmethod
-    def block_to_dtype(self, a: Block, dtype: Dtype) -> Block:
+    def to_dtype(self, a: Block, dtype: Dtype) -> Block:
         ...
 
-    def block_to_numpy(self, a: Block, numpy_dtype=None) -> np.ndarray:
+    def to_numpy(self, a: Block, numpy_dtype=None) -> np.ndarray:
         # BlockBackends may override, if this implementation is not valid
         return np.asarray(a, dtype=numpy_dtype)
 
     @abstractmethod
-    def block_trace_full(self, a: Block) -> float | complex:
+    def trace_full(self, a: Block) -> float | complex:
         ...
 
     @abstractmethod
-    def block_trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining_idcs: list[int]) -> Block:
+    def trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining_idcs: list[int]) -> Block:
         ...
 
     def eye_block(self, legs: list[int], dtype: Dtype, device: str = None) -> Data:
@@ -1348,9 +1346,9 @@ class BlockBackend(metaclass=ABCMeta):
         J = len(legs)
         eye = self.eye_matrix(prod(legs), dtype, device)
         # [M, M*] -> [m1,...,mJ,m1*,...,mJ*]
-        eye = self.block_reshape(eye, legs * 2)
+        eye = self.reshape(eye, legs * 2)
         # [m1,...,mJ,mJ*,...,m1*]
-        return self.block_permute_axes(eye, [*range(J), *reversed(range(J, 2 * J))])
+        return self.permute_axes(eye, [*range(J), *reversed(range(J, 2 * J))])
 
     @abstractmethod
     def eye_matrix(self, dim: int, dtype: Dtype, device: str = None) -> Block:
@@ -1367,7 +1365,7 @@ class BlockBackend(metaclass=ABCMeta):
             # if the block has a False entry, the matrix has only False in that column
             return False
         # otherwise, there is exactly one True in that column, at index sum(a[:large_leg_idx])
-        return bool(small_leg_idx == self.block_sum_all(a[:large_leg_idx]))
+        return bool(small_leg_idx == self.sum_all(a[:large_leg_idx]))
 
     @abstractmethod
     def matrix_dot(self, a: Block, b: Block) -> Block:
@@ -1384,8 +1382,8 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     def matrix_lq(self, a: Block, full: bool) -> tuple[Block, Block]:
-        q, r = self.matrix_qr(self.block_permute_axes(a, [1, 0]), full=full)
-        return self.block_permute_axes(r, [1, 0]), self.block_permute_axes(q, [1, 0])
+        q, r = self.matrix_qr(self.permute_axes(a, [1, 0]), full=full)
+        return self.permute_axes(r, [1, 0]), self.permute_axes(q, [1, 0])
     
     @abstractmethod
     def matrix_qr(self, a: Block, full: bool) -> tuple[Block, Block]:
@@ -1409,16 +1407,16 @@ class BlockBackend(metaclass=ABCMeta):
                           expect_dtype: Dtype | None = None, expect_device: str | None = None):
         assert isinstance(block, self.BlockCls), 'wrong block type'
         if expect_shape is not None:
-            if self.block_shape(block) != expect_shape:
-                msg = f'wrong block shape {self.block_shape(block)} != {expect_shape}'
+            if self.get_shape(block) != expect_shape:
+                msg = f'wrong block shape {self.get_shape(block)} != {expect_shape}'
                 raise AssertionError(msg)
         if expect_dtype is not None:
-            assert self.block_dtype(block) == expect_dtype, 'wrong block dtype'
+            assert self.get_dtype(block) == expect_dtype, 'wrong block dtype'
         if expect_device is not None:
-            assert self.block_get_device(block) == expect_device, 'wrong block device'
+            assert self.get_device(block) == expect_device, 'wrong block device'
 
     @abstractmethod
-    def zero_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
+    def zeros(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
         ...
 
 

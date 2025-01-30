@@ -750,7 +750,7 @@ class Tensor(metaclass=ABCMeta):
     def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None) -> np.ndarray:
         """Convert to a numpy array"""
         block = self.to_dense_block(leg_order=leg_order)
-        return self.backend.block_backend.block_to_numpy(block, numpy_dtype=numpy_dtype)
+        return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
 
 class SymmetricTensor(Tensor):
@@ -1074,7 +1074,7 @@ class SymmetricTensor(Tensor):
             codomain=codomain, domain=domain, backend=backend
         )
         return cls.from_block_func(
-            func=backend.block_backend.block_random_uniform,
+            func=backend.block_backend.random_uniform,
             codomain=codomain, domain=domain, backend=backend, labels=labels,
             func_kwargs=dict(dtype=dtype, device=device), dtype=dtype
         )
@@ -1211,9 +1211,9 @@ class SymmetricTensor(Tensor):
         block = self.backend.to_dense_block(self)
         block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self), inv=True)
         if dtype is not None:
-            block = self.backend.block_backend.block_to_dtype(block, dtype)
+            block = self.backend.block_backend.to_dtype(block, dtype)
         if leg_order is not None:
-            block = self.backend.block_backend.block_permute_axes(block, self.get_leg_idcs(leg_order))
+            block = self.backend.block_backend.permute_axes(block, self.get_leg_idcs(leg_order))
         return block
 
     def to_dense_block_trivial_sector(self) -> Block:
@@ -1324,7 +1324,7 @@ class DiagonalTensor(SymmetricTensor):
         if backend is None:
             backend = get_backend(symmetry=leg.symmetry)
         block = backend.block_backend.as_block(block, dtype=dtype, device=device)
-        diag = backend.block_backend.block_get_diagonal(block, check_offdiagonal=True)
+        diag = backend.block_backend.get_diagonal(block, check_offdiagonal=True)
         return cls.from_diag_block(diag, leg=leg, backend=backend, labels=labels, dtype=dtype,
                                    tol=tol)
 
@@ -1442,7 +1442,7 @@ class DiagonalTensor(SymmetricTensor):
                 device = mean.device
 
         with_zero_mean = cls.from_block_func(
-            backend.block_backend.block_random_normal, leg=leg, backend=backend, labels=labels,
+            backend.block_backend.random_normal, leg=leg, backend=backend, labels=labels,
             func_kwargs=dict(dtype=dtype), dtype=dtype
         )
 
@@ -1477,7 +1477,7 @@ class DiagonalTensor(SymmetricTensor):
             codomain=[leg], domain=[leg], backend=backend
         )
         return cls.from_block_func(
-            func=backend.block_backend.block_random_uniform, leg=leg, backend=backend, labels=labels,
+            func=backend.block_backend.random_uniform, leg=leg, backend=backend, labels=labels,
             func_kwargs=dict(dtype=dtype, device=device), dtype=dtype
         )
 
@@ -1704,12 +1704,12 @@ class DiagonalTensor(SymmetricTensor):
         res = self.backend.diagonal_tensor_to_block(self)
         res = self.backend.block_backend.apply_basis_perm(res, [self.leg], inv=True)
         if dtype is not None:
-            res = self.backend.block_backend.block_to_dtype(res, dtype)
+            res = self.backend.block_backend.to_dtype(res, dtype)
         return res
 
     def diagonal_as_numpy(self, numpy_dtype=None) -> np.ndarray:
         block = self.diagonal_as_block(dtype=Dtype.from_numpy_dtype(numpy_dtype))
-        return self.backend.block_backend.block_to_numpy(block, numpy_dtype=numpy_dtype)
+        return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
     def elementwise_almost_equal(self, other: DiagonalTensor, rtol: float = 1e-5, atol=1e-8
                                  ) -> DiagonalTensor:
@@ -1755,13 +1755,13 @@ class DiagonalTensor(SymmetricTensor):
     def max(self):
         assert self.dtype.is_real
         return self.backend.reduce_DiagonalTensor(
-            self, block_func=self.backend.block_backend.block_max, func=max
+            self, block_func=self.backend.block_backend.max, func=max
         )
 
     def min(self):
         assert self.dtype.is_real
         return self.backend.reduce_DiagonalTensor(
-            self, block_func=self.backend.block_backend.block_min, func=min
+            self, block_func=self.backend.block_backend.min, func=min
         )
 
     def move_to_device(self, device: str):
@@ -1772,7 +1772,7 @@ class DiagonalTensor(SymmetricTensor):
         diag = self.diagonal_as_block(dtype=dtype)
         res = self.backend.block_backend.block_from_diagonal(diag)
         if leg_order is not None:
-            res = self.backend.block_backend.block_permute_axes(res, self.get_leg_idcs(leg_order))
+            res = self.backend.block_backend.permute_axes(res, self.get_leg_idcs(leg_order))
         return res
 
 
@@ -1905,7 +1905,7 @@ class Mask(Tensor):
             else:
                 assert np.all(self.small_leg.basis_perm == np.arange(self.small_leg.dim))
         else:
-            mask_in_internal_basis = self.backend.block_backend.block_to_numpy(
+            mask_in_internal_basis = self.backend.block_backend.to_numpy(
                 self.backend.mask_to_block(self),
                 bool
             )
@@ -2200,7 +2200,7 @@ class Mask(Tensor):
 
     def as_numpy_mask(self) -> np.ndarray:
         res = self.as_block_mask()
-        return self.backend.block_backend.block_to_numpy(res, numpy_dtype=bool)
+        return self.backend.block_backend.to_numpy(res, numpy_dtype=bool)
 
     def as_DiagonalTensor(self, dtype=Dtype.complex128) -> DiagonalTensor:
         return DiagonalTensor(data=self.backend.mask_to_diagonal(self, dtype=dtype),
@@ -2504,7 +2504,7 @@ class ChargedTensor(Tensor):
             if charged_state is None:
                 device = backend.block_backend.default_device
             else:
-                device = backend.block_backend.block_get_device(charged_state)
+                device = backend.block_backend.get_device(charged_state)
         inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge)
         inv = SymmetricTensor.from_block_func(
             func=func, codomain=codomain, domain=inv_domain, backend=backend, labels=labels,
@@ -2598,7 +2598,7 @@ class ChargedTensor(Tensor):
                 raise ValueError('Can not instantiate ChargedTensor with no legs and unspecified charged_states.')
             # OPTIMIZE ?
             inv_block = invariant_part.to_dense_block()
-            return invariant_part.backend.block_backend.block_inner(
+            return invariant_part.backend.block_backend.inner(
                 inv_block, charged_state, do_dagger=False
             )
         return cls(invariant_part, charged_state)
@@ -2640,7 +2640,7 @@ class ChargedTensor(Tensor):
             if charged_state is None:
                 device = backend.block_backend.default_device
             else:
-                device = backend.block_backend.block_get_device(charged_state)
+                device = backend.block_backend.get_device(charged_state)
         inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge)
         labels, inv_labels = cls._parse_inv_labels(labels, codomain, domain)
         inv_part = SymmetricTensor.from_zero(codomain=codomain, domain=inv_domain, backend=backend,
@@ -2659,7 +2659,7 @@ class ChargedTensor(Tensor):
         if self.charge_leg.dim == 1:
             res = squeeze_legs(self.invariant_part, -1)
             if self.charged_state is not None:
-                res = self.backend.block_backend.block_item(self.charged_state) * res
+                res = self.backend.block_backend.item(self.charged_state) * res
             return res
         if self.charged_state is None:
             raise ValueError('Can not convert to SymmetricTensor. charged_state is not defined.')
@@ -2675,7 +2675,7 @@ class ChargedTensor(Tensor):
         charged_state = self.charged_state
         if charged_state is not None:
             if deep:
-                charged_state = self.backend.block_backend.block_copy(charged_state, device=device)
+                charged_state = self.backend.block_backend.copy_block(charged_state, device=device)
             elif device is not None:
                 charged_state = self.backend.block_backend.as_block(charged_state, device=device)
         return ChargedTensor(inv_part, charged_state)
@@ -2685,7 +2685,7 @@ class ChargedTensor(Tensor):
             raise IndexError('Can not index a ChargedTensor with unspecified charged_state.')
         if len(self.charged_state) > 10:
             raise NotImplementedError  # should do sth smarter...
-        return sum((self.backend.block_backend.block_item(a) * self.invariant_part._get_item([*idx, n])
+        return sum((self.backend.block_backend.item(a) * self.invariant_part._get_item([*idx, n])
                     for n, a in enumerate(self.charged_state)),
                    start=self.dtype.zero_scalar)
 
@@ -2726,11 +2726,11 @@ class ChargedTensor(Tensor):
         if self.charged_state is None:
             raise ValueError('charged_state not specified.')
         inv_block = self.invariant_part.to_dense_block(leg_order=None, dtype=dtype)
-        block = self.backend.block_backend.block_tdot(inv_block, self.charged_state, [-1], [0])
+        block = self.backend.block_backend.tdot(inv_block, self.charged_state, [-1], [0])
         if dtype is not None:
-            block = self.backend.block_backend.block_to_dtype(block, dtype)
+            block = self.backend.block_backend.to_dtype(block, dtype)
         if leg_order is not None:
-            block = self.backend.block_backend.block_permute_axes(block, self._as_leg_idcs(leg_order))
+            block = self.backend.block_backend.permute_axes(block, self._as_leg_idcs(leg_order))
         return block
 
     def to_dense_block_single_sector(self) -> Block:
@@ -2752,7 +2752,7 @@ class ChargedTensor(Tensor):
         if self.charge_leg.sector_dims[0] > 1:
             raise NotImplementedError
         block = self.backend.inv_part_to_dense_block_single_sector(self.invariant_part)
-        return self.backend.block_backend.block_item(self.charged_state) * block
+        return self.backend.block_backend.item(self.charged_state) * block
 
 
 _ElementwiseType = TypeVar('_ElementwiseType', Number, DiagonalTensor)
@@ -2909,7 +2909,7 @@ def add_trivial_leg(tens: Tensor,
     )
 
 
-@_elementwise_function(block_func='block_angle', maps_zero_to_zero=True)
+@_elementwise_function(block_func='angle', maps_zero_to_zero=True)
 def angle(x: _ElementwiseType) -> _ElementwiseType:
     """The angle of a complex number, :ref:`elementwise <diagonal_elementwise>`.
 
@@ -2993,8 +2993,8 @@ def almost_equal(tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol=1e
             backend = get_same_backend(tensor_1, tensor_2)
             if tensor_1.charge_leg.dim == 1:
                 return almost_equal(
-                    backend.block_backend.block_item(tensor_2.charged_state) * tensor_1.invariant_part,
-                    backend.block_backend.block_item(tensor_1.charged_state) * tensor_2.invariant_part,
+                    backend.block_backend.item(tensor_2.charged_state) * tensor_1.invariant_part,
+                    backend.block_backend.item(tensor_1.charged_state) * tensor_2.invariant_part,
                     rtol=rtol, atol=atol
                 )
             raise NotImplementedError  # TODO
@@ -3428,7 +3428,7 @@ def combine_to_matrix(tensor: Tensor,
     return combine_legs(res, range(res.num_codomain_legs), range(res.num_codomain_legs, res.num_legs))
 
 
-@_elementwise_function(block_func='block_conj', maps_zero_to_zero=True)
+@_elementwise_function(block_func='conj', maps_zero_to_zero=True)
 def complex_conj(x: _ElementwiseType) -> _ElementwiseType:
     """Complex conjugation, :ref:`elementwise <diagonal_elementwise>`."""
     return np.conj(x)
@@ -3494,7 +3494,7 @@ def dagger(tensor: Tensor) -> Tensor:
         inv_part = move_leg(inv_part, 0, domain_pos=0)
         charged_state = tensor.charged_state
         if charged_state is not None:
-            charged_state = tensor.backend.block_backend.block_conj(charged_state)
+            charged_state = tensor.backend.block_backend.conj(charged_state)
         return ChargedTensor(inv_part, charged_state)
     raise TypeError
 
@@ -3813,7 +3813,7 @@ def exp(obj: Tensor | complex | float) -> Tensor | complex | float:
     the :ref:`elementwise <diagonal_elementwise>` exponential function.
     """
     if isinstance(obj, DiagonalTensor):
-        return obj._elementwise_unary(obj.backend.block_backend.block_exp)
+        return obj._elementwise_unary(obj.backend.block_backend.exp)
     if isinstance(obj, ChargedTensor):
         raise TypeError('ChargedTensor can not be exponentiated.')
     if isinstance(obj, SymmetricTensor):
@@ -3858,7 +3858,7 @@ def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') 
     return device
 
 
-@_elementwise_function(block_func='block_imag', maps_zero_to_zero=True)
+@_elementwise_function(block_func='imag', maps_zero_to_zero=True)
 def imag(x: _ElementwiseType) -> _ElementwiseType:
     """The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.imag(x)
@@ -3935,21 +3935,21 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
                 bend_legs(B.invariant_part, num_domain_legs=1)  # [*b_legs] <- ['!']
             )  # ['!*', '!']
             # OPTIMIZE: like GEMM, should we offer an interface where dagger is implicitly done during tdot?
-            res = backend.block_backend.block_tdot(
-                backend.block_backend.block_conj(A.charged_state),
-                backend.block_backend.block_tdot(inv_part.to_dense_block(), B.charged_state, [1], [0]),
+            res = backend.block_backend.tdot(
+                backend.block_backend.conj(A.charged_state),
+                backend.block_backend.tdot(inv_part.to_dense_block(), B.charged_state, [1], [0]),
                 [0], [0]
             )
         else:
             inv_part = tdot(A.invariant_part,
                             B.invariant_part,
                             [*range(A.num_legs)], [*reversed(range(A.num_legs))])  # ['?1', '?2']
-            res = backend.block_backend.block_tdot(
+            res = backend.block_backend.tdot(
                 A.charged_state,
-                backend.block_backend.block_tdot(inv_part.to_dense_block(), B.charged_state, [1], [0]),
+                backend.block_backend.tdot(inv_part.to_dense_block(), B.charged_state, [1], [0]),
                 [0], [0]
             )
-        return backend.block_backend.block_item(res)
+        return backend.block_backend.item(res)
 
     if isinstance(A, ChargedTensor):  # and B is a SymmetricTensor
         # reduce to the case where B is charged and A is not  # OPTIMIZE write it out instead...
@@ -3966,12 +3966,12 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
         #           could exploit by projecting to those components first.
         if do_dagger:
             inv_part = tdot(dagger(A), B.invariant_part, [*range(A.num_legs)], [*reversed(range(A.num_legs))])
-            B_state = backend.block_backend.block_conj(B.charged_state)
-            res = backend.block_backend.block_tdot(inv_part.to_dense_block(), B_state, [0], [0])
+            B_state = backend.block_backend.conj(B.charged_state)
+            res = backend.block_backend.tdot(inv_part.to_dense_block(), B_state, [0], [0])
         else:
             inv_part = tdot(A, B.invariant_part, [*range(A.num_legs)], [*reversed(range(A.num_legs))])
-            res = backend.block_backend.block_tdot(inv_part.to_dense_block(), B.charged_state, [0], [0])
-        return backend.block_backend.block_item(res)
+            res = backend.block_backend.tdot(inv_part.to_dense_block(), B.charged_state, [0], [0])
+        return backend.block_backend.item(res)
 
     # remaining case: both are SymmetricTensor
     return backend.inner(A, B, do_dagger=do_dagger)
@@ -4017,8 +4017,8 @@ def item(tensor: Tensor) -> float | complex | bool:
         if tensor.charged_state is None:
             raise ValueError('Can not compute .item of ChargedTensor with unspecified charged_state.')
         inv_block = tensor.invariant_part.to_dense_block()
-        res = tensor.backend.block_backend.block_tdot(tensor.charged_state, inv_block, 0, -1)
-        return tensor.backend.block_backend.block_item(res)
+        res = tensor.backend.block_backend.tdot(tensor.charged_state, inv_block, 0, -1)
+        return tensor.backend.block_backend.item(res)
     raise TypeError
 
 
@@ -4043,8 +4043,8 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
             inv_part = linear_combination(a, v.invariant_part, b, w.invariant_part)
             return ChargedTensor(inv_part, None)
         if v.charge_leg.dim == 1:
-            factor = v.backend.block_backend.block_item(w.charged_state) \
-                / v.backend.block_backend.block_item(v.charged_state)
+            factor = v.backend.block_backend.item(w.charged_state) \
+                / v.backend.block_backend.item(v.charged_state)
             inv_part = linear_combination(a, v.invariant_part, factor * b, w.invariant_part)
             return ChargedTensor(inv_part, v.charged_state)
         raise NotImplementedError
@@ -4142,12 +4142,12 @@ def norm(tensor: Tensor) -> float:
                    'Use e.g. norm(tensor.invariant_part).')
             raise ValueError(msg)
         if tensor.charge_leg.dim == 1:
-            factor = abs(tensor.backend.block_backend.block_item(tensor.charged_state))
+            factor = abs(tensor.backend.block_backend.item(tensor.charged_state))
             return factor * tensor.backend.norm(tensor.invariant_part)
         else:
             # OPTIMIZE
             warnings.warn('Converting ChargedTensor to dense block for `norm`', stacklevel=2)
-            return tensor.backend.block_backend.block_norm(tensor.to_dense_block(), order=2)
+            return tensor.backend.block_backend.norm(tensor.to_dense_block(), order=2)
     raise TypeError
 
 
@@ -4319,10 +4319,10 @@ def partial_trace(tensor: Tensor,
             # scalar result
             if tensor.charged_state is None:
                 raise ValueError('Need to specify charged_state for full trace of ChargedTensor')
-            res = tensor.backend.block_backend.block_tdot(
+            res = tensor.backend.block_backend.tdot(
                 invariant_part.to_dense_block(), tensor.charged_state, [0], [0]
             )
-            return tensor.backend.block_backend.block_item(res)
+            return tensor.backend.block_backend.item(res)
         return ChargedTensor(invariant_part, tensor.charged_state)
     if not isinstance(tensor, SymmetricTensor):
         raise TypeError(f'Unexpected tensor type: {type(tensor).__name__}')
@@ -4505,13 +4505,13 @@ def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
     return Q, R
 
 
-@_elementwise_function(block_func='block_real', maps_zero_to_zero=True)
+@_elementwise_function(block_func='real', maps_zero_to_zero=True)
 def real(x: _ElementwiseType) -> _ElementwiseType:
     """The real part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.real(x)
 
 
-@_elementwise_function(block_func='block_real_if_close', func_kwargs=dict(tol=100),
+@_elementwise_function(block_func='real_if_close', func_kwargs=dict(tol=100),
                        maps_zero_to_zero=True)
 def real_if_close(x: _ElementwiseType, tol: float = 100) -> _ElementwiseType:
     """If close to real, return the :func:`real` part, :ref:`elementwise <diagonal_elementwise>`.
@@ -4597,7 +4597,7 @@ def scalar_multiply(a: Number, v: Tensor) -> Tensor:
             charged_state = None
         else:
             inv_part = v.invariant_part
-            charged_state = v.backend.block_backend.block_mul(a, v.charged_state)
+            charged_state = v.backend.block_backend.mul(a, v.charged_state)
         return ChargedTensor(inv_part, charged_state)
     # remaining case: SymmetricTensor
     return SymmetricTensor(
@@ -4753,7 +4753,7 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     return SymmetricTensor(data, codomain, domain, backend=tensor.backend, labels=labels)
 
 
-@_elementwise_function(block_func='block_sqrt', maps_zero_to_zero=True)
+@_elementwise_function(block_func='sqrt', maps_zero_to_zero=True)
 def sqrt(x: _ElementwiseType) -> _ElementwiseType:
     """The square root of a number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.sqrt(x)
@@ -4807,7 +4807,7 @@ def squeeze_legs(tensor: Tensor, legs: int | str | list[int | str] = None) -> Te
                            labels=[tensor._labels[n] for n in remaining])
 
 
-@_elementwise_function(block_func='block_stable_log', func_kwargs=dict(cutoff=1e-30),
+@_elementwise_function(block_func='stable_log', func_kwargs=dict(cutoff=1e-30),
                        maps_zero_to_zero=True)
 def stable_log(x: _ElementwiseType, cutoff=1e-30) -> _ElementwiseType:
     """Stabilized logarithm, :ref:`elementwise <diagonal_elementwise>`.
@@ -5130,8 +5130,8 @@ def trace(tensor: Tensor):
         N = tensor.num_legs
         pairs = [[n, N-1-n] for n in range(tensor.num_codomain_legs)]
         inv_block = partial_trace(tensor.invariant_part, *pairs).to_dense_block()
-        res = tensor.backend.block_backend.block_tdot(inv_block, tensor.charged_state, [0], [0])
-        return tensor.backend.block_backend.block_item(res)
+        res = tensor.backend.block_backend.tdot(inv_block, tensor.charged_state, [0], [0])
+        return tensor.backend.block_backend.item(res)
     return tensor.backend.trace_full(tensor)
 
 

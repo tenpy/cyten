@@ -22,7 +22,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     funcs = [cross_check_single_c_symbol_tree_blocks,
              cross_check_single_c_symbol_tree_cols,
              apply_single_c_symbol]
-    zero_block = backend.block_backend.zero_block
+    zero_block = backend.block_backend.zeros
     eps = 1.e-14
     sym = fibonacci_anyon_category
     s1 = ElementarySpace(sym, [[1]], [1])  # only tau
@@ -31,8 +31,8 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     domain = TensorProduct([s2, s1, s2])
 
     block_inds = np.array([[0,0], [1,1]])
-    blocks = [backend.block_backend.block_random_uniform((8, 3), Dtype.complex128),
-              backend.block_backend.block_random_uniform((13, 5), Dtype.complex128)]
+    blocks = [backend.block_backend.random_uniform((8, 3), Dtype.complex128),
+              backend.block_backend.random_uniform((13, 5), Dtype.complex128)]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
@@ -218,7 +218,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     funcs = [cross_check_single_c_symbol_tree_blocks,
              cross_check_single_c_symbol_tree_cols,
              apply_single_c_symbol]
-    zero_block = backend.block_backend.zero_block
+    zero_block = backend.block_backend.zeros
     eps = 1.e-14
     sym = ProductSymmetry([fibonacci_anyon_category, SU2Symmetry()])
     s1 = ElementarySpace(sym, [[1, 1]], [2])  # only (tau, spin-1/2)
@@ -230,7 +230,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     #                4: [0, 2], 5: [1, 2], 6: [0, 3], 7: [1, 3]
     block_inds = np.array([[i, i] for i in range(8)])
     shapes = [(13, 8), (12, 8), (16, 16), (38, 34), (12, 8), (12, 8), (8, 8), (16, 16)]
-    blocks = [backend.block_backend.block_random_uniform(shp, Dtype.complex128) for shp in shapes]
+    blocks = [backend.block_backend.random_uniform(shp, Dtype.complex128) for shp in shapes]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
@@ -426,7 +426,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     funcs = [cross_check_single_c_symbol_tree_blocks,
              cross_check_single_c_symbol_tree_cols,
              apply_single_c_symbol]
-    zero_block = backend.block_backend.zero_block
+    zero_block = backend.block_backend.zeros
     eps = 1.e-14
     sym = SU3_3AnyonCategory()
     s1 = ElementarySpace(sym, [[1], [2]], [1, 1])  # 8 and 10
@@ -437,7 +437,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     block_inds = np.array([[i, i] for i in range(4)])
     shapes = [(6, 12), (16, 36), (5, 12), (5, 12)]
-    blocks = [backend.block_backend.block_random_uniform(shp, Dtype.complex128) for shp in shapes]
+    blocks = [backend.block_backend.random_uniform(shp, Dtype.complex128) for shp in shapes]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
@@ -539,10 +539,10 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     for i in range(7):
         w = [csym(c1, c1, c1, c1, charges[i], charges[j])[mul1[i], mul2[i], mul1[j], mul2[j]] for j in range(7)]
-        amplitudes = zero_block([7, backend.block_backend.block_shape(expect[1])[1]], Dtype.complex128)
+        amplitudes = zero_block([7, backend.block_backend.get_shape(expect[1])[1]], Dtype.complex128)
         for j in range(7):
             amplitudes[j, :] = v[j] * w[j]
-        expect[1][i, :] = backend.block_backend.block_sum(amplitudes, ax=0)
+        expect[1][i, :] = backend.block_backend.sum(amplitudes, ax=0)
 
     expect[1][7, :] = (blocks[1][9, :] * (f2[0,0]*f2[0,0] + f2[0,1]*f2[1,0])
                        + blocks[1][10, :] * (f2[1,0]*f2[0,0] + f2[1,1]*f2[1,0]))
@@ -603,7 +603,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     v = [blocks[1][:, [4*i + j for j in exc]] for i in range(7)]
     for i in range(7):
         w = [csym(c1, c1, c1, c1, charges[i], charges[j])[mul1[i], mul2[i], mul1[j], mul2[j]] for j in range(7)]
-        amplitudes = zero_block([backend.block_backend.block_shape(expect[1])[0], 4], Dtype.complex128)
+        amplitudes = zero_block([backend.block_backend.get_shape(expect[1])[0], 4], Dtype.complex128)
         for j in range(7):
             amplitudes += v[j] * w[j]
         expect[1][:, 4*i:4*(i+1)] = amplitudes
@@ -663,7 +663,7 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     multiple = np_random.choice([True, False])
     backend = get_backend('fusion_tree', block_backend)
     funcs = [cross_check_single_b_symbol, apply_single_b_symbol]
-    zero_block = backend.block_backend.zero_block
+    zero_block = backend.block_backend.zeros
     eps = 1.e-14
     sym = fibonacci_anyon_category
     s1 = ElementarySpace(sym, [[1]], [1])  # only tau
@@ -675,7 +675,7 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     domain = TensorProduct([], symmetry=sym)
 
     block_inds = np.array([[0, 0]])
-    blocks = [backend.block_backend.block_random_uniform((1, 1), Dtype.complex128)]
+    blocks = [backend.block_backend.random_uniform((1, 1), Dtype.complex128)]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
@@ -702,12 +702,12 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     domain = TensorProduct([s3])
 
     block_inds = np.array([[0,0]])
-    blocks = [backend.block_backend.block_random_uniform((1, 2), Dtype.complex128)]
+    blocks = [backend.block_backend.random_uniform((1, 2), Dtype.complex128)]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
 
-    expect = [backend.block_backend.block_reshape(blocks[0], (2, 1))]
+    expect = [backend.block_backend.reshape(blocks[0], (2, 1))]
     expect_data = backends.FusionTreeData(block_inds, expect, Dtype.complex128,
                                           device=backend.block_backend.default_device)
     expect_codomain = TensorProduct([s3.dual])
@@ -732,8 +732,8 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     domain = TensorProduct([s2, s1, s2])
 
     block_inds = np.array([[0,0], [1,1]])
-    blocks = [backend.block_backend.block_random_uniform((2, 3), Dtype.complex128),
-              backend.block_backend.block_random_uniform((3, 5), Dtype.complex128)]
+    blocks = [backend.block_backend.random_uniform((2, 3), Dtype.complex128),
+              backend.block_backend.random_uniform((3, 5), Dtype.complex128)]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
@@ -847,9 +847,9 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     multiple = np_random.choice([True, False])
     backend = get_backend('fusion_tree', block_backend)
     funcs = [cross_check_single_b_symbol, apply_single_b_symbol]
-    perm_axes = backend.block_backend.block_permute_axes
-    reshape = backend.block_backend.block_reshape
-    zero_block = backend.block_backend.zero_block
+    perm_axes = backend.block_backend.permute_axes
+    reshape = backend.block_backend.reshape
+    zero_block = backend.block_backend.zeros
     eps = 1.e-14
     sym = ProductSymmetry([fibonacci_anyon_category, SU2Symmetry()])
     s1 = ElementarySpace(sym, [[1, 1]], [1])  # only (tau, spin-1/2)
@@ -861,7 +861,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     domain = TensorProduct([s2, s3])
 
     block_inds = np.array([[0, 0]])
-    blocks = [backend.block_backend.block_random_uniform((1, 5), Dtype.complex128)]
+    blocks = [backend.block_backend.random_uniform((1, 5), Dtype.complex128)]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
@@ -899,7 +899,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     # charges [0, 0], [1, 0], [0, 1], [1, 1], [0, 2], [1, 2], [0, 3], [1, 3]
     block_inds = np.array([[i, i] for i in range(8)])
     shapes = [(2, 5), (2, 4), (2, 4), (3, 8), (2, 4), (2, 6), (2, 4), (2, 4)]
-    blocks = [backend.block_backend.block_random_uniform(shp, Dtype.complex128) for shp in shapes]
+    blocks = [backend.block_backend.random_uniform(shp, Dtype.complex128) for shp in shapes]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
@@ -970,7 +970,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     codomain = TensorProduct([s1, s3])
     domain = TensorProduct([s2, s3.dual])
 
-    blocks = [backend.block_backend.block_random_uniform(shp, Dtype.complex128) for shp in shapes]
+    blocks = [backend.block_backend.random_uniform(shp, Dtype.complex128) for shp in shapes]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
@@ -1059,9 +1059,9 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     multiple = np_random.choice([True, False])
     backend = get_backend('fusion_tree', block_backend)
     funcs = [cross_check_single_b_symbol, apply_single_b_symbol]
-    perm_axes = backend.block_backend.block_permute_axes
-    reshape = backend.block_backend.block_reshape
-    zero_block = backend.block_backend.zero_block
+    perm_axes = backend.block_backend.permute_axes
+    reshape = backend.block_backend.reshape
+    zero_block = backend.block_backend.zeros
     eps = 1.e-14
     sym = SU3_3AnyonCategory()
     s1 = ElementarySpace(sym, [[1], [2]], [1, 1])  # 8 and 10
@@ -1076,7 +1076,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     domain = TensorProduct([], symmetry=sym)
 
     block_inds = np.array([[0, 0]])
-    blocks = [backend.block_backend.block_random_uniform((5, 1), Dtype.complex128)]
+    blocks = [backend.block_backend.random_uniform((5, 1), Dtype.complex128)]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
@@ -1111,7 +1111,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     domain = TensorProduct([s2])
 
     block_inds = np.array([[1, 0]])
-    blocks = [backend.block_backend.block_random_uniform((10, 2), Dtype.complex128)]
+    blocks = [backend.block_backend.random_uniform((10, 2), Dtype.complex128)]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
@@ -1180,7 +1180,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
 
     block_inds = np.array([[i, i] for i in range(4)])
     shapes = [(12, 4), (36, 16), (12, 4), (12, 4)]
-    blocks = [backend.block_backend.block_random_uniform(shp, Dtype.complex128) for shp in shapes]
+    blocks = [backend.block_backend.random_uniform(shp, Dtype.complex128) for shp in shapes]
     data = backends.FusionTreeData(block_inds, blocks, Dtype.complex128,
                                    device=backend.block_backend.default_device)
     tens = SymmetricTensor(data, codomain, domain, backend=backend)
@@ -1574,7 +1574,7 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
         # TODO can re-use: ten.codomain.sector_decomposition, ten.codomain.multiplicities
         new_domain = ten.domain
 
-    zero_blocks = [block_backend.zero_block(block_backend.block_shape(block), dtype=Dtype.complex128)
+    zero_blocks = [block_backend.zeros(block_backend.get_shape(block), dtype=Dtype.complex128)
                    for block in ten.data.blocks]
     new_data = ftb.FusionTreeData(ten.data.block_inds, zero_blocks, ten.data.dtype,
                                   device=block_backend.default_device)
@@ -1587,15 +1587,15 @@ def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str
         block_charge = ten.domain.sector_decomposition_where(alpha_tree.coupled)
         block_charge = ten.data.block_ind_from_domain_sector_ind(block_charge)
 
-        initial_shape = block_backend.block_shape(tree_block)
+        initial_shape = block_backend.get_shape(tree_block)
         modified_shape = [ten.codomain[i].sector_multiplicity(sec)
                           for i, sec in enumerate(alpha_tree.uncoupled)]
         modified_shape += [ten.domain[i].sector_multiplicity(sec)
                            for i, sec in enumerate(beta_tree.uncoupled)]
 
-        tree_block = block_backend.block_reshape(tree_block, tuple(modified_shape))
-        tree_block = block_backend.block_permute_axes(tree_block, shape_perm)
-        tree_block = block_backend.block_reshape(tree_block, initial_shape)
+        tree_block = block_backend.reshape(tree_block, tuple(modified_shape))
+        tree_block = block_backend.permute_axes(tree_block, shape_perm)
+        tree_block = block_backend.reshape(tree_block, initial_shape)
 
         if index == 0 or index == ten.num_legs - 2:
             if in_domain:
@@ -1744,7 +1744,7 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
         shape_perm[index:index+2] = shape_perm[index:index+2][::-1]
 
     shape_perm = list(shape_perm)  # torch does not like np.arrays
-    zero_blocks = [block_backend.zero_block(block_backend.block_shape(block), dtype=Dtype.complex128)
+    zero_blocks = [block_backend.zeros(block_backend.get_shape(block), dtype=Dtype.complex128)
                    for block in ten.data.blocks]
     new_data = ftb.FusionTreeData(ten.data.block_inds, zero_blocks, ten.data.dtype,
                                   device=block_backend.default_device)
@@ -1758,14 +1758,14 @@ def cross_check_single_c_symbol_tree_cols(ten: SymmetricTensor, leg: int | str, 
         tree_block = (ten.data.blocks[block_charge][:,slc] if in_domain
                       else ten.data.blocks[block_charge][slc,:])
 
-        initial_shape = block_backend.block_shape(tree_block)
+        initial_shape = block_backend.get_shape(tree_block)
 
         modified_shape = [iter_space[i].sector_multiplicity(sec) for i, sec in enumerate(tree.uncoupled)]
         modified_shape.insert((not in_domain) * len(modified_shape), initial_shape[not in_domain])
 
-        tree_block = block_backend.block_reshape(tree_block, tuple(modified_shape))
-        tree_block = block_backend.block_permute_axes(tree_block, shape_perm)
-        tree_block = block_backend.block_reshape(tree_block, initial_shape)
+        tree_block = block_backend.reshape(tree_block, tuple(modified_shape))
+        tree_block = block_backend.permute_axes(tree_block, shape_perm)
+        tree_block = block_backend.reshape(tree_block, initial_shape)
 
         if index == 0 or index == ten.num_legs - 2:
             new_tree = tree.copy(deep=True)
@@ -1881,8 +1881,8 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
                               prod(modified_shape[ten.num_codomain_legs:ten.num_legs-1]),
                               modified_shape[ten.num_legs-1])
             sec_mul = ten.domain[-1].sector_multiplicity(beta_tree.uncoupled[-1])
-            final_shape = (block_backend.block_shape(tree_block)[0] * sec_mul,
-                           block_backend.block_shape(tree_block)[1] // sec_mul)
+            final_shape = (block_backend.get_shape(tree_block)[0] * sec_mul,
+                           block_backend.get_shape(tree_block)[1] // sec_mul)
         else:
             if alpha_tree.uncoupled.shape[0] == 1:
                 coupled = symmetry.trivial_sector
@@ -1893,14 +1893,14 @@ def cross_check_single_b_symbol(ten: SymmetricTensor, bend_up: bool
                               modified_shape[ten.num_codomain_legs-1],
                               prod(modified_shape[ten.num_codomain_legs:ten.num_legs]))
             sec_mul = ten.codomain[-1].sector_multiplicity(alpha_tree.uncoupled[-1])
-            final_shape = (block_backend.block_shape(tree_block)[0] // sec_mul,
-                           block_backend.block_shape(tree_block)[1] * sec_mul)
+            final_shape = (block_backend.get_shape(tree_block)[0] // sec_mul,
+                           block_backend.get_shape(tree_block)[1] * sec_mul)
         block_ind = new_domain.sector_decomposition_where(coupled)
         block_ind = new_data.block_ind_from_domain_sector_ind(block_ind)
 
-        tree_block = block_backend.block_reshape(tree_block, modified_shape)
-        tree_block = block_backend.block_permute_axes(tree_block, [0, 2, 1])
-        tree_block = block_backend.block_reshape(tree_block, final_shape)
+        tree_block = block_backend.reshape(tree_block, modified_shape)
+        tree_block = block_backend.permute_axes(tree_block, [0, 2, 1])
+        tree_block = block_backend.reshape(tree_block, final_shape)
 
         trees = [alpha_tree, beta_tree]
         tree1, tree2 = trees[bend_up], trees[not bend_up]
