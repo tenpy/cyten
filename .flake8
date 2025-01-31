@@ -16,7 +16,7 @@ statistics = True
 count = True
 per-file-ignores =
     __init__.py:F401,F403,D100
-    tests/*:F403,W503,F841,E501,E261,E241,E231,E124,E201,E126,E127,E128,D100,D403,D205,D101
+    tests/*:F403,W503,F841,E501,E261,E241,E231,E124,E201,E126,E127,E128,D100,D403,D205,D101,D104
     docs/*:D100
 max-line-length = 120
 docstring-convention = numpy
