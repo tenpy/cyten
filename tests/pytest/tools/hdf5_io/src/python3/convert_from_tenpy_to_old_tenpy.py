@@ -5,7 +5,6 @@ import convert
 from convert import Hdf5Converter
 import hdf5_io
 
-import tenpy  # requirement: can import the new tenpy
 import tenpy.linalg.np_conserved as npc
 import numpy as np
 
