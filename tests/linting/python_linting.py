@@ -13,11 +13,12 @@ import os
 
 def main():
     """Called when this script is called, e.g. via `python linting.py`"""
-    print('Checking __all__ attributes')
+    print('Custom Linting:')
+    print('  Checking __all__ attributes')
     check_all_attribute()
-    print('Checking copyright notices')
+    print('  Checking copyright notices')
     check_copyright_notice()
-    print('Done')
+    print('Custom Linting passed.')
 
 
 # Exceptions: these do not need to be listed in __all__
@@ -64,12 +65,13 @@ def check_all_attribute(check_module=cyten):
     if missing_objects or missing_modules:
         print()
         print(f'File "{check_module.__file__}:"')
-        print(f'Missing objects (if any):')
-        for obj in missing_objects:
-            print(f'  {obj.__name__}')
-        print(f'Missing modules (if any):')
-        for mod in missing_modules:
-            print(f'  {mod.__name__}')
+        if missing_objects:
+            print(f'Missing objects:')
+            print(f'  ' + "'" + "', '".join(o.__name__ for o in missing_objects) + "'")
+        if missing_modules:
+            print(f'Missing modules:')
+            print(f'  ' + "'" + "', '".join(m.__name__ for m in missing_modules) + "'")
+        print()
         print()
         msg = f'In module {_name_}, the items listed before the stacktrace are missing from __all__'
         raise AssertionError(msg)
