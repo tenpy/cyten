@@ -885,6 +885,7 @@ class ElementarySpace(Space, Leg):
         notion of a basis.
 
         ``_basis_perm`` is the internal version which may be ``None`` if the permutation is trivial.
+        See also :meth:`apply_basis_perm`.
         """
         if not self.symmetry.can_be_dropped:
             msg = f'basis_perm is meaningless for {self.symmetry}.'
@@ -931,9 +932,7 @@ class ElementarySpace(Space, Leg):
         res = np.zeros((self.dim, self.symmetry.sector_ind_len), dtype=int)
         for sect, slc in zip(self.sector_decomposition, self.slices):
             res[slice(*slc), :] = sect[None, :]
-        if self._inverse_basis_perm is not None:
-            res = res[self._inverse_basis_perm]
-        return res
+        return self.apply_basis_perm(res, inverse=True)
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
@@ -1000,6 +999,36 @@ class ElementarySpace(Space, Leg):
         else:
             pass  # both permutations are trivial, thus equal
         return True
+
+    def apply_basis_perm(self, arr, axis: int = 0, inverse: bool = False, pre_compose: bool = False):
+        """Apply the basis_perm, i.e. form ``arr[self.basis_perm]``.
+
+        This is the preferred method of accessing the permutation, since we may skip applying
+        trivial permutations.
+
+        Parameters
+        ----------
+        arr : numpy array
+            The data to act on.
+        axis : int
+            Which axis of ``arr`` to act on. We use ``numpy.take(arr, perm, axis)``.
+        inverse : bool
+            If we should apply the inverse permutation :attr:`inverse_basis_perm` instead.
+        pre_compose : bool
+            If we should pre-compose instead, i.e. form ``basis_perm[arr]``.
+            Note that in that case, `axis` is ignored.
+        """
+        # this implementation assumes _basis_perm. AbelianLegPipe overrides this method.
+        perm = self._inverse_basis_perm if inverse else self._basis_perm
+        if perm is None:
+            # TODO we dont check if `arr` is compatible.
+            #      for pre_compose, this means all(0 <= arr < dim), other wise that the shape admits perm
+            # perm is identity permutation
+            return arr
+        if pre_compose:
+            assert axis == 0
+            return perm[arr]
+        return np.take(arr, perm, axis=axis)
 
     def as_ElementarySpace(self, is_dual: bool = False) -> ElementarySpace:
         if bool(is_dual) == self.is_dual:
@@ -1095,8 +1124,7 @@ class ElementarySpace(Space, Leg):
         if not self.symmetry.can_be_dropped:
             msg = f'parse_index is meaningless for {self.symmetry}.'
             raise SymmetryError(msg)
-        if self._inverse_basis_perm is not None:
-            idx = self._inverse_basis_perm[idx]
+        idx = self.apply_basis_perm(idx, inverse=True, pre_compose=True)
         sector_idx = bisect.bisect(self.slices[:, 0], idx) - 1
         multiplicity_idx = idx - self.slices[sector_idx, 0]
         return sector_idx, multiplicity_idx
@@ -1118,9 +1146,7 @@ class ElementarySpace(Space, Leg):
             msg = f'take_slice is meaningless for {self.symmetry}.'
             raise SymmetryError(msg)
         blockmask = np.asarray(blockmask, dtype=bool)
-        if self._basis_perm is not None:
-            blockmask = blockmask[self._basis_perm]
-        #
+        blockmask = self.apply_basis_perm(blockmask)
         sectors = []
         mults = []
         for a, d_a, slc in zip(self.defining_sectors, self.sector_dims, self.slices):
@@ -1940,7 +1966,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         or by ``np.lexsort(dual_sectors(_).T)`` (if ``is_dual=True``), i.e. such that the resulting
         :attr:`defining_sectors` are sorted.
 
-        TODO (JU) should we make this on-demand only? i.e. make ``_basis_perm`` a cached property?
+        OPTIMIZE (JU) should we make this on-demand only? i.e. make ``_basis_perm`` a cached property?
         """
         # see diagram in docstring:
         # res == (fusion^{-1}) * (basis_perm of all legs) * (fusion) * (sort)
