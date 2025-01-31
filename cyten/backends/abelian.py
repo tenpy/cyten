@@ -140,6 +140,23 @@ class AbelianBackendData:
         block_num = self.get_block_num(block_inds)
         return None if block_num is None else self.blocks[block_num]
 
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        hdf5_saver.save(self.block_inds, subpath + 'block_inds')
+        hdf5_saver.save(self.blocks, subpath + 'blocks')
+        hdf5_saver.save(self.dtype.to_numpy_dtype(), subpath + 'dtype')
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.block_inds = hdf5_loader.load(subpath + 'block_inds')
+        obj.blocks = hdf5_loader.load(subpath + 'blocks')
+        dt = hdf5_loader.load(subpath + 'dtype')
+        obj.dtype = Dtype.from_numpy_dtype(dt)
+
+        return obj
+
 
 class AbelianBackend(TensorBackend):
     """Backend for Abelian group symmetries.
@@ -1996,3 +2013,17 @@ class AbelianBackend(TensorBackend):
         inds_before_perm = np.sum(incoming_block_inds * strides[np.newaxis, :], axis=1)
         # now permute them to indices in _block_ind_map
         return inverse_permutation(space.fusion_outcomes_sort)[inds_before_perm]
+
+
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+
+        hdf5_saver.save(self.DataCls, subpath + 'DataCls')
+
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+        obj.DataCls = hdf5_loader.load(subpath + 'DataCls')
+
+        return obj

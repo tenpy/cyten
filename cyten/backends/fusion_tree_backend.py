@@ -257,6 +257,23 @@ class FusionTreeData:
         zero_blocks = [backend.zero_block(block_shape, dtype=dtype) for block_shape in block_shapes]
         return cls(block_inds, zero_blocks, dtype=dtype, is_sorted=True)
 
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        hdf5_saver.save(self.block_inds, subpath + 'block_inds')
+        hdf5_saver.save(self.blocks, subpath + 'blocks')
+        hdf5_saver.save(self.dtype.to_numpy_dtype(), subpath + 'dtype')
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.block_inds = hdf5_loader.load(subpath + 'block_inds')
+        obj.blocks = hdf5_loader.load(subpath + 'blocks')
+        dt = hdf5_loader.load(subpath + 'dtype')
+        obj.dtype = Dtype.from_numpy_dtype(dt)
+
+        return obj
+
 
 # TODO do we need to inherit from ABC again?? (same in abelian and no_symmetry)
 # TODO eventually remove BlockBackend inheritance, it is not needed,

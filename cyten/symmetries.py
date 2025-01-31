@@ -628,6 +628,39 @@ class Symmetry(metaclass=ABCMeta):
                 raise SymmetryError('Sectors are not consistent with fusion rules.')
         return self._fusion_tensor(a, b, c, Z_a, Z_b)
 
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        hdf5_saver.save(self.group_name, subpath + 'group_name')
+        hdf5_saver.save(self.fusion_style.value, subpath + 'fusion_style')
+        hdf5_saver.save(self.braiding_style.value, subpath + 'braiding_style')
+        hdf5_saver.save(self.trivial_sector, subpath + 'trivial_sector')
+        hdf5_saver.save(self.num_sectors, subpath + 'num_sectors')
+        hdf5_saver.save(self.sector_ind_len, subpath + 'sector_ind_len')
+
+        h5gr.attrs['descriptive_name'] = self.descriptive_name.__str__()
+        h5gr.attrs['is_abelian'] = bool(self.is_abelian)
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.group_name = hdf5_loader.load(subpath + 'group_name')
+
+        fstyle = hdf5_loader.load(subpath + 'fusion_style')
+        obj.fusion_style = FusionStyle(fstyle)
+
+        bstyle = hdf5_loader.load(subpath + 'braiding_style')
+        obj.braiding_style = BraidingStyle(bstyle)
+
+        obj.trivial_sector = hdf5_loader.load(subpath + 'trivial_sector')
+        obj.num_sectors = hdf5_loader.load(subpath + 'num_sectors')
+        obj.sector_ind_len = hdf5_loader.load(subpath + 'sector_ind_len')
+
+        obj.descriptive_name = hdf5_loader.get_attr(h5gr, 'descriptive_name')
+        obj.is_abelian = hdf5_loader.get_attr(h5gr, 'is_abelian')
+
+        return obj
+
 
 class ProductSymmetry(Symmetry):
     """Multiple symmetries.
@@ -916,7 +949,7 @@ class ProductSymmetry(Symmetry):
 
             contributions.append(f_i._r_symbol(a_k, b_k, c_k))
 
-        rsym=np.kron(contributions[0],contributions[1])
+        rsym = np.kron(contributions[0],contributions[1])
         for i in contributions[2:]:
             rsym=np.kron(rsym,i)
 
@@ -1337,10 +1370,10 @@ class SU2Symmetry(GroupSymmetry):
 class SUNSymmetry(GroupSymmetry):
     """
     SU(N) group symmetry
+
     The sectors are arrays of length N which correspond to first rows of normalized
     Gelfand-Tsetlin patterns(see https://arxiv.org/pdf/1009.0437 ).
     E.g. for SU(3) the 8 dimensional irreducible representation is labeled by [2,1,0]
-
     Clebsch Gordan coefficients and F/R symbols need to be calculated within the
     clebsch_gordan_coefficients package and exported as hdf5 file.
 
@@ -1351,7 +1384,7 @@ class SUNSymmetry(GroupSymmetry):
 
     fusion_tensor_dtype = Dtype.float64
 
-    def __init__(self, N:int, cg_file, f_file, r_file, descriptive_name: str | None = None):
+    def __init__(self, N: int, cg_file, f_file, r_file, descriptive_name: str | None = None):
 
         assert isinstance(N, int)
         if not isinstance(N, int) and N > 1:
@@ -1365,40 +1398,35 @@ class SUNSymmetry(GroupSymmetry):
         self.r_file = r_file
 
         GroupSymmetry.__init__(self,
-                               fusion_style = FusionStyle.general,
-                               trivial_sector = np.array([0]*N, dtype=int),
-                               group_name = f'SU({N})',
-                               num_sectors = np.inf,
-                               descriptive_name = descriptive_name)
+                               fusion_style=FusionStyle.general,
+                               trivial_sector=np.array([0]*N, dtype=int),
+                               group_name=f'SU({N})',
+                               num_sectors=np.inf,
+                               descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
-        if not isinstance(a, np.ndarray): #check data type
+        if not isinstance(a, np.ndarray):  # check data type
             return False
 
-        if np.any(a<0): #check for negative entries
+        if np.any(a < 0):  # check for negative entries
             return False
 
-        if np.all(a[1:] <= a[:-1]): #check that numbers in GT sequence are non increasing
+        if np.all(a[1:] <= a[:-1]):  # check that numbers in GT sequence are non-increasing
             return False
 
-        if not len(a) == self.N: #check correckt length of sector label array
+        if not len(a) == self.N:  # check correct length of sector label array
             return False
 
-        return (a[-1] == 0) #check that last entry in array is zero (normalization of GT pattern)
+        return a[-1] == 0  # check that last entry in array is zero (normalization of GT pattern)
 
     def is_same_symmetry(self, other) -> bool:
         if not isinstance(other, SUNSymmetry):
             return False
         return self.N == other.N
 
-
     def sector_dim(self, a: Sector) -> int:
-        '''
-        dimension of irrep given as first row of GT pattern
-        '''
-
+        """Dimension of irrep given as first row of GT pattern."""
         N = len(a)
-
         dim = 1
 
         for kp in range(2, N + 1):
@@ -1407,51 +1435,23 @@ class SUNSymmetry(GroupSymmetry):
 
         return int(dim)
 
-
     def __repr__(self):
         name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
         return f'SUNSymmetry({self.N}{name_str})'
 
-
     def dual_sector(self, a: Sector) -> Sector:
-        '''
-        Finds the dual irrep for a given input irrep. if the irrep is self dual, then the input irrep is returned.
+        """Finds the dual irrep for a given input irrep.
+
+        If the irrep is self dual, then the input irrep is returned.
         Dual irreps have the same highest weight and dimension.
 
-        :param a: irrep i.e. first row of a GT pattern
-        :return: dual irrep
-        '''
-
-        def gen_irreps(N, k):
-            '''generates a list of all possible irreps for given N and highest weight k'''
-
-            if N <= 0:
-                return [[]]
-            r = []
-            for i in range(k, -1, -1):
-                for comb in gen_irreps(N - 1, i):
-                    a = [i] + comb
-                    if a[-1] == 0:
-                        r.append(a[:])
-            return r
-
-        hweight = a[0]
-        dimA = self.sector_dim(a)
-
-        irreps = gen_irreps(len(a), hweight)
-        irreps = [k for k in irreps if a[0] == hweight]
-
-        for i in irreps:
-            dimI = self.sector_dim(i)
-            if dimI == dimA and not np.all(i == a):
-                return i
-
-        return a
-
-    # def N_from_CG(self) -> int:
-    #     """Returns the N in SU(N) from a given hdf5 file containing the CG coefficients"""
-    #
-    #     return int(self.cg_file.attrs['N'])
+        Parameters
+        ----------
+        a: Sector
+            Irrep i.e. first row of a GT pattern
+        """
+        b = np.array(a) - int(max(a))
+        return np.ndarray(map(int, (reversed(np.abs(b)))))
 
     def hweight_from_CG_hdf5(self) -> int:
         return int(self.cg_file.attrs['Highest_Weight'])
@@ -1463,15 +1463,13 @@ class SUNSymmetry(GroupSymmetry):
         return int(self.r_file.attrs['Highest_Weight'])
 
     def can_fuse_to(self, a: Sector, b: Sector, c: Sector) -> bool:
-        """Returns True if c appears at least once in the decomposition of a x b and False otherwise
+        """Returns True if c appears at least once in the decomposition of a x b and False otherwise.
 
-            Parameters:
-            -----------
-            a,b: lists, labeling an irrep i.e. first row of GT pattern e.g. [1,0]
-            c: list, labeling an irrep i.e. first row of GT pattern e.g. [1,0]
-            file: hdf5 file containing the Clebsch Gordan coefficients
-            """
-
+        Parameters
+        ----------
+        a,b,c: Sector
+         Labeling an irrep i.e. first row of GT pattern.
+        """
         hmax = self.hweight_from_CG_hdf5()
         if a[0] > hmax or b[0] > hmax:
             raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
@@ -1500,19 +1498,13 @@ class SUNSymmetry(GroupSymmetry):
         return False
 
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
-        """returns the fusion multiplicity of an irrep c in the decomposition of a x b specified in the file
+        """Returns the fusion multiplicity of an irrep c in the decomposition of a x b.
 
-        Parameters:
-        -----------
-        a,b: lists, labeling an irrep i.e. first row of GT pattern e.g. [1,0]
-        c: list, labeling an irrep i.e. first row of GT pattern e.g. [1,0]
-        file: hdf5 file containing the Clebsch Gordan coefficients
-
-        Returns:
-        --------
-        Fusion multiplicity (value of N^{ab}_c symbol) as integer
+        Parameters
+        ----------
+        a,b,c: Sector
+         Labeling an irrep i.e. first row of GT pattern.
         """
-
         N = '/N_' + str(self.N) + '/'
 
         a = "/".join(tuple(map(str, a))) + '/'
@@ -1531,9 +1523,7 @@ class SUNSymmetry(GroupSymmetry):
         return self.cg_file[key][c].attrs['Outer Multiplicity']
 
     def S_index_irrep_weight(self, a: Sector) -> int:
-        """ to every su(N) irrep, labeled by the first row of a GT pattern, we can assign an integer number S
-        """
-
+        """To every su(N) irrep, labeled by the first row of a GT pattern, one can assign an integer number S"""
         N = self.N
         S = 0
 
@@ -1543,18 +1533,15 @@ class SUNSymmetry(GroupSymmetry):
         return int(S)
 
     def highest_irrep_in_decomp(self, a: Sector, b: Sector) -> Sector:
-        '''
-        Returns the highest irrep (i.e. first row of GT pattern) which appears in the decomposition of irrep1 x irrep2.
-        '''
-
-        #assert len(a) == len(b)
+        """Returns the highest irrep which appears inthe decomposition of irrep1 x irrep2."""
         return np.array(a) + np.array(b)
 
     def fusion_outcomes(self, a: Sector, b: Sector) -> SectorArray:
-        """Returns a SectorArray of all irreps appearing in the decomposition of  a x b
-        The irreps in this list are again Sectors of the form [2,1,0]. i.e. first rows of a GT pattern
-         """
+        """
+        Returns a SectorArray of all irreps appearing in the decomposition of  a x b.
 
+        The irreps in this list are again Sectors of the form [2,1,0]. i.e. first rows of a GT pattern.
+        """
         hmax = self.hweight_from_CG_hdf5()
         if a[0] > hmax or b[0] > hmax:
             raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
@@ -1569,7 +1556,7 @@ class SUNSymmetry(GroupSymmetry):
         if not key in self.cg_file:
             key = N + b + a
 
-        dec =[]
+        dec = []
         for i in list(self.cg_file[key]):
             dec.append(self.cg_file[key][str(i)].attrs['Irreplabel'])
 
@@ -1577,10 +1564,10 @@ class SUNSymmetry(GroupSymmetry):
 
     def dims_of_irreps(self, a: Sector, b: Sector) -> dict:
         """Returns a dictionary with irreps as keys and their dimension as values.
+
         The irreps are the ones appearing in the decomposition of a x b
         Does not contain multiplicities!
         """
-
         dec = self.fusion_outcomes(a, b)
         N = '/N_' + str(self.N) + '/'
 
@@ -1602,11 +1589,7 @@ class SUNSymmetry(GroupSymmetry):
         return C
 
     def outer_multiplicity_from_CG(self, a: Sector, b: Sector) -> dict:
-        '''
-
-        returns a dictionary with the outer multiplicities for the corresp. irrep (as key) in the decomp of a x b
-        '''
-
+        """Returns a dictionary with the outer multiplicities for the corresp. irrep (as key) in the decomp of a x b."""
         dec = self.fusion_outcomes(a, b)
         N = '/N_' + str(self.N) + '/'
 
@@ -1628,33 +1611,25 @@ class SUNSymmetry(GroupSymmetry):
         return C
 
     def clebschgordan(self, a: Sector, q_a: int, b: Sector, q_b: int, c: Sector, q_c: int, mu: int) -> float:
-        '''
+        """
+        Returns the clebsch gordan coefficient for the specified input irreps.
 
-        :param a:       irrep a
-        :param q_a:     index of the Gelfand Tsetlin pattern
-        :param b:       irrep b
-        :param q_b:     index of the Gelfand Tsetlin pattern
-        :param c:       irrep c
-        :param q_c:     index of the Gelfand Tsetlin pattern
-        :param mu:      multiplicity index 1 <= mu
-        :param file:    the file that contains the CG coefficients
-        :return:        the CG coefficient for the given input
-        '''
-
-
+        Parameters
+        ----------
+        a, b, c:   Sector
+            Irreps specifying the CG coefficient.
+        q_a, q_b, q_c:
+            Index of the Gelfand Tsetlin pattern
+        """
         hw = self.hweight_from_CG_hdf5()
 
         if a[0] > hw or b[0] > hw or c[0] > hw:
             raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
 
-
         N = '/N_' + str(self.N) + '/'
-
         a = "/".join(tuple(map(str, a))) + '/'
         b = "/".join(tuple(map(str, b))) + '/'
-
         c = "".join(map(str, c))
-
         ms = [float(q_a), float(q_b), float(q_c)]
 
         key1 = N + a + b
@@ -1663,7 +1638,8 @@ class SUNSymmetry(GroupSymmetry):
         if key1 in self.cg_file:
             arr = np.array(self.cg_file[key1][key2])[0]
         else:
-            key1 = N + b + a  # we only save a x b  and not also b x a since the clebsch gordan coefficients are the same in both cases
+            key1 = N + b + a  # we only save a x b  and not also b x a since the clebsch gordan coefficients
+            # are the same in both cases
             arr = np.array(self.cg_file[key1][key2])[0]
 
             ms = [float(q_b), float(q_a), float(q_c)]
@@ -1674,21 +1650,18 @@ class SUNSymmetry(GroupSymmetry):
 
         return 0.
 
+    def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool = False, Z_b: bool = False) -> np.ndarray:
+        """Returns the clebsch fusion tensor for the specified input irreps.
 
-    def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool = False, Z_b: bool = False
-                      ) -> np.ndarray:
-        '''
-        a,b,c are irreps (first rows of GT patterns)
-        CG_coeffs is the np.array from CG code for decomposition a x b = mu * c
-
-        '''
-
-
+        Parameters
+        ----------
+        a, b, c:   Sector
+            Irreps specifying the CG coefficient.
+        """
         hw = self.hweight_from_CG_hdf5()
 
         if a[0] > hw or b[0] > hw or c[0] > hw:
             raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
-
 
         dim_Sa = self.sector_dim(a)
         dim_Sb = self.sector_dim(b)
@@ -1704,53 +1677,62 @@ class SUNSymmetry(GroupSymmetry):
             for m_b in range(1, dim_Sb + 1):
                 for m_c in range(1, dim_Sc + 1):
                     for mu in range(1, dim_mu + 1):
-                        # print(m_a,m_b,m_c)
-                        # print(clebschgordan(a, m_a, b, m_b, c, m_c, mu, file))
                         rr = self.clebschgordan(a, m_a, b, m_b, c, m_c, mu)
                         X[m_a - 1, m_b - 1, m_c - 1, mu - 1] = rr
 
-        return X.transpose([3,0,1,2]) # transpose for consistent labeling order of X symbol
+        return X.transpose([3, 0, 1, 2])  # transpose for consistent labeling order of X symbol
 
-    def _f_symbol_from_CG(self,a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector):
-        """a,b,c,d,e,f are irrep labels, i.e. first rows of GT patterns
+    def _f_symbol_from_CG(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector):
+        """Returns the F symbol for the specified input irreps calculated from CG coefficients.
+
+        a,b,c,d,e,f are irrep labels, i.e. first rows of GT patterns
         output is the conjugated F symbol [F^{abc}_{def}]^*_{mu,nu,kappa, lambda}
-        where a x b = mu c, c x d =nu e, b x d= kappa f and a x f =lambda e """
+        where a x b = mu c, c x d =nu e, b x d= kappa f and a x f =lambda e
 
-
+        Parameters
+        ----------
+        a, b, c, d, e, f:   Sector
+            Irreps specifying the CG coefficient.
+        """
         hw = self.hweight_from_CG_hdf5()
 
         if a[0] > hw or b[0] > hw or c[0] > hw or d[0] > hw or e[0] > hw or f[0] > hw:
             raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
 
-        X1 = self._fusion_tensor(a, b, f).transpose([1,2,3,0])  # [a,b,f, kappa]
-        X2 = self._fusion_tensor(f, c, d).transpose([1,2,3,0])  # [f,c,d, lambda]
-
-        X3 = self._fusion_tensor(b, c, e).transpose([1,2,3,0])  # [b,c,e, mu]
-        X4 = self._fusion_tensor(a, e, d).transpose([1,2,3,0])  # [a,e,d, nu]
+        X1 = self._fusion_tensor(a, b, f).transpose([1, 2, 3, 0])  # [a,b,f, kappa]
+        X2 = self._fusion_tensor(f, c, d).transpose([1, 2, 3, 0])  # [f,c,d, lambda]
+        X3 = self._fusion_tensor(b, c, e).transpose([1, 2, 3, 0])  # [b,c,e, mu]
+        X4 = self._fusion_tensor(a, e, d).transpose([1, 2, 3, 0])  # [a,e,d, nu]
 
         if not X1.any() or not X2.any() or not X3.any() or not X4.any():
             return np.zeros((1, 1, 1, 1), dtype=complex)
 
         X12 = np.tensordot(X1, X2, axes=[[2], [0]])  # [a,b,[f], kappa] ; [[f],c,d, lambda] --> [a,b,kappa,c,d, lambda]
         X12 = X12.transpose([0, 1, 3, 4, 2, 5])  # [a,b,c,d,kappa,lambda]
-
         X34 = np.tensordot(X3, X4, axes=[[2], [1]])  # [b,c,[e], mu] ; [a,[e],d, nu] --> [b,c,mu,a,d,nu]
         X34 = X34.transpose([3, 0, 1, 4, 2, 5])  # [a,b,c,d,mu,nu]
 
-        F = np.tensordot(X12, np.conj(X34), axes=[[0, 1, 2, 3], [0, 1, 2, 3]])  # [a,b,c,d,kappa,lambda] ; [a,b,c,d,mu,nu] --> [kappa,lambda,mu,nu]
+        F = np.tensordot(X12, np.conj(X34), axes=[[0, 1, 2, 3], [0, 1, 2, 3]])
+        # [a,b,c,d,kappa,lambda] ; [a,b,c,d,mu,nu] --> [kappa,lambda,mu,nu]
 
         F = F.transpose([2, 3, 0, 1])  # [mu, nu, kappa, lambda]
 
         F[np.abs(F) < (10 ** -12)] = 0
 
-        return F / ((self.sector_dim(d) + 0.j))
+        return F / (self.sector_dim(d) + 0.j)
 
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
-                 ) -> np.ndarray:
-        '''
-        Returns the F-symbol F^{abc mu nu}_{def kappa lambda} from the hdf5 file
-        '''
+    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+        """Returns the F symbol for the specified input irreps loaded from the hdf5 file.
 
+        a,b,c,d,e,f are irrep labels, i.e. first rows of GT patterns
+        output is the conjugated F symbol [F^{abc}_{def}]^*_{mu,nu,kappa, lambda}
+        where a x b = mu c, c x d =nu e, b x d= kappa f and a x f =lambda e.
+
+        Parameters
+        ----------
+        a, b, c, d, e, f:   Sector
+            Irreps specifying the CG coefficient.
+        """
         hmax = self.hweight_from_F_hdf5()
 
         if a[0] > hmax or b[0] > hmax or c[0] > hmax or d[0] > hmax or e[0] > hmax or f[0] > hmax:
@@ -1764,7 +1746,8 @@ class SUNSymmetry(GroupSymmetry):
         fbar = self.dual_sector(f)
 
         key = 'F' + str(list(a)) + str(list(b)) + str(list(c)) + str(list(d)) + str(list(e)) + str(list(f))
-        keybar = 'F' + str(list(abar)) + str(list(bbar)) + str(list(cbar)) + str(list(dbar)) + str(list(ebar)) + str(list(fbar))
+        keybar = 'F' + str(list(abar)) + str(list(bbar)) + str(list(cbar)) \
+                 + str(list(dbar)) + str(list(ebar)) + str(list(fbar))
 
         if key in self.f_file['/F_sym/']:
             return np.array(self.f_file['/F_sym/'][key])
@@ -1774,14 +1757,15 @@ class SUNSymmetry(GroupSymmetry):
 
         return np.zeros((1, 1, 1, 1), dtype=complex)
 
-    def _r_symbol_from_CG(self, a: Sector ,b: Sector ,c: Sector):
-        """a,b,c are irrep labels, i.e. first rows of GT patterns
-        output is the R symbol [R^{ab}_{c}]^*_{mu,nu}
-        where a x b = mu c, c x d =nu e, b x d= kappa f and a x f =lambda e """
+    def _r_symbol_from_CG(self, a: Sector, b: Sector, c: Sector):
+        """Returns the R symbol for the specified input irreps calculated from CG coefficients.
 
+        Parameters
+        ----------
+        a, b, c:   Sector
+            Irreps specifying the R symbol.
+        """
         hw = self.hweight_from_CG_hdf5()
-
-        mult = self.fusion_multiplicity(a, b, c)
 
         if a[0] > hw or b[0] > hw or c[0] > hw:
             raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
@@ -1794,15 +1778,18 @@ class SUNSymmetry(GroupSymmetry):
 
         R = np.tensordot(X1, Y1, axes=[[0, 1, 2], [1, 0, 2]])  # [[a],(b),{c}, nu] , [(b),[a],{c},mu] --> [nu,mu]
 
-        R = R.transpose([1, 0]) / ((self.sector_dim(c) + 0.j))
+        R = R.transpose([1, 0]) / (self.sector_dim(c) + 0.j)
 
         return np.diag(R)
 
     def _r_symbol(self, a: Sector, b: Sector, c: Sector):
-        '''
-        Returns the R-symbol R^{ab}_{c mu} from the hdf5 file
-        '''
+        """Returns the R symbol for the specified input irreps from the hdf5 file.
 
+        Parameters
+        ----------
+        a, b, c:   Sector
+            Irreps specifying the R symbol.
+        """
         hmax = self.hweight_from_R_hdf5()
 
         if a[0] > hmax or b[0] > hmax or c[0] > hmax:
@@ -1816,7 +1803,8 @@ class SUNSymmetry(GroupSymmetry):
         return np.zeros((1,), dtype=complex)
 
     def Z_iso(self, a: Sector) -> npt.NDArray:
-        if self.N==2:
+        """Returns the Z isomorphism which maps a sector to its dual sector"""
+        if self.N == 2:
             d_a = self.sector_dim(a)
             Z = np.zeros((d_a, d_a), dtype=float)
 
@@ -1828,14 +1816,13 @@ class SUNSymmetry(GroupSymmetry):
         return NotImplemented
 
     def frobenius_schur(self, a: Sector) -> int:
-
-        if self.N==2:
+        """Returns the Frobenius-Schur indicator for a given irrep"""
+        if self.N == 2:
             return 1 - 2 * (a[0] % 2)
 
-        F=self._f_symbol(a,self.dual_sector(a),a,a,self.trivial_sector, self.trivial_sector)[0,0,0,0]
-        print(a, self.trivial_sector, self._f_symbol(a,self.dual_sector(a),a,a,self.trivial_sector, self.trivial_sector))
-        return int(np.sign(F))
+        F = self._f_symbol(a, self.dual_sector(a), a, a, self.trivial_sector, self.trivial_sector)[0, 0, 0, 0]
 
+        return int(np.sign(F))
 
 
 class FermionParity(Symmetry):

@@ -811,6 +811,40 @@ class ElementarySpace(Space):
             return self  # TODO copy?
         return self.with_opposite_duality()
 
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        hdf5_saver.save(self.sectors, subpath + 'sectors')
+        hdf5_saver.save(self._basis_perm, subpath + '_basis_perm')
+        hdf5_saver.save(self._inverse_basis_perm, subpath + '_inverse_basis_perm')
+        hdf5_saver.save(self.multiplicities, subpath + 'multiplicities')
+        hdf5_saver.save(self.symmetry, subpath + 'symmetry')
+        hdf5_saver.save(self.dim, subpath + 'dim')
+        hdf5_saver.save(self.num_sectors, subpath + 'num_sectors')
+        hdf5_saver.save(self.slices, subpath + 'slices')
+        hdf5_saver.save(self.sector_dims, subpath + 'sector_dims')
+
+        h5gr.attrs['is_dual'] = self.is_dual
+        h5gr.attrs['is_bra_space'] = self.is_bra_space
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.sectors = hdf5_loader.load(subpath + 'sectors')
+        obj._basis_perm = hdf5_loader.load(subpath + '_basis_perm')
+        obj._inverse_basis_perm = hdf5_loader.load(subpath + '_inverse_basis_perm')
+        obj.multiplicities = hdf5_loader.load(subpath + 'multiplicities')
+        obj.symmetry = hdf5_loader.load(subpath + 'symmetry')
+        obj.dim = hdf5_loader.load(subpath + 'dim')
+        obj.num_sectors = hdf5_loader.load(subpath + 'num_sectors')
+        obj.slices = hdf5_loader.load(subpath + 'slices')
+        obj.sector_dims = hdf5_loader.load(subpath + 'sector_dims')
+
+        obj.is_dual = hdf5_loader.get_attr(h5gr, 'is_dual')
+        obj.is_bra_space = hdf5_loader.get_attr(h5gr, 'is_bra_space')
+
+        return obj
+
 
 class ProductSpace(Space):
     r"""The tensor product of multiple spaces, which is itself a space.
@@ -1252,6 +1286,37 @@ class ProductSpace(Space):
         """Add a new factor at the right / end of the spaces"""
         return self.insert_multiply(other, -1, backend=backend)
 
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+
+        hdf5_saver.save(self.spaces, subpath + 'spaces')
+        hdf5_saver.save(self.symmetry, subpath + 'symmetry')
+        hdf5_saver.save(self.sectors, subpath + 'sectors')
+        hdf5_saver.save(self.num_spaces, subpath + 'num_spaces')
+        hdf5_saver.save(self.num_sectors, subpath + 'num_sectors')
+        hdf5_saver.save(self.metadata, subpath + 'metadata')
+        hdf5_saver.save(self.dim, subpath + 'dim')
+        hdf5_saver.save(self.multiplicities, subpath + 'multiplicities')
+        hdf5_saver.save(self.slices, subpath + 'slices')
+        hdf5_saver.save(self.sector_dims, subpath + 'sector_dims')
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.spaces = hdf5_loader.load(subpath + 'spaces')
+        obj.symmetry = hdf5_loader.load(subpath + 'symmetry')
+        obj.sectors = hdf5_loader.load(subpath + 'sectors')
+        obj.num_spaces = hdf5_loader.load(subpath + 'num_spaces')
+        obj.num_sectors = hdf5_loader.load(subpath + 'num_sectors')
+        obj.dim = hdf5_loader.load(subpath + 'dim')
+        obj.multiplicities = hdf5_loader.load(subpath + 'multiplicities')
+        obj.slices = hdf5_loader.load(subpath + 'slices')
+        obj.sector_dims = hdf5_loader.load(subpath + 'sector_dims')
+        obj.metadata = hdf5_loader.load(subpath + 'metadata')
+
+        return obj
+
 
 def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend | None = None):
     """Helper function, called as part of ``ProductSpace.__init__``.
@@ -1294,8 +1359,7 @@ def _fuse_spaces(symmetry: Symmetry, spaces: list[Space], backend: TensorBackend
         sectors = symmetry.multiple_fusion_broadcast(
             *(sp.sectors[gr] for sp, gr in zip(spaces, grid.T))
         )
-        multiplicities = np.prod([space.multiplicities[gr] for space, gr in zip(spaces, grid.T)],
-                                  axis=0)
+        multiplicities = np.prod([space.multiplicities[gr] for space, gr in zip(spaces, grid.T)], axis=0)
         sectors, multiplicities, fusion_outcomes_sort = _unique_sorted_sectors(sectors, multiplicities)
         metadata = dict(fusion_outcomes_sort=fusion_outcomes_sort)
         return sectors, multiplicities, metadata
@@ -1399,4 +1463,3 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
             remaining_symmetry = ProductSymmetry(factors)
 
     return which, remaining_symmetry
-

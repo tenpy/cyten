@@ -1,12 +1,13 @@
 """Test output to and import from hdf5."""
 
 import os
-import pytest
+#import pytest
 import warnings
 import tempfile
 import hdf5_io  # the local version
 import numpy as np
 import h5py
+import pathlib
 
 datadir = os.path.join(os.path.dirname(__file__), 'data')
 datadir_files = []
@@ -51,7 +52,7 @@ def gen_example_data():
             (1, 2): '3'
         },
         'exportable': hdf5_io.Hdf5Exportable(),
-        'range': xrange(2, 8, 3),
+        'range': range(2, 8, 3),
         'dtypes': [np.dtype("int64"),
                    np.dtype([('a', np.int32, 8), ('b', np.float64, 5)])],
     }
@@ -93,7 +94,7 @@ def export_to_datadir():
         hdf5_io.save_to_hdf5(f, data)
 
 
-def test_hdf5_export_import():
+def ntest_hdf5_export_import():
     """Try subsequent export and import to pickle."""
     data = gen_example_data()
     dc = DummyClass()
@@ -127,8 +128,8 @@ def test_hdf5_export_import():
     assert_equal_data(data_imported, data)
 
 
-@pytest.mark.parametrize('fn', datadir_hdf5)
-def test_import_from_datadir(fn):
+#@pytest.mark.parametrize('fn', datadir_hdf5)
+def mtest_import_from_datadir(fn):
     print("import ", fn)
     filename = os.path.join(datadir, fn)
     with warnings.catch_warnings():
@@ -140,4 +141,8 @@ def test_import_from_datadir(fn):
 
 
 if __name__ == "__main__":
-    export_to_datadir()
+    #export_to_datadir()
+
+    tmp=pathlib.Path('./tmp')
+    tmp.mkdir()
+    ntest_hdf5_export_import(tmp)

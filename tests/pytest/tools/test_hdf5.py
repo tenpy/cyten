@@ -1,12 +1,14 @@
 """Test output to and import from hdf5."""
-# Copyright (C) TeNPy Developers, GNU GPLv3
-
-
+import cyten
 import io_test
 import os
 import pytest
 import warnings
-import hdf5_io
+from tests.pytest.tools.hdf5_io.src.python3 import hdf5_io
+import pathlib
+from cyten import spaces, symmetries, tensors, backends
+
+from tests.pytest import conftest
 
 h5py = pytest.importorskip('h5py')
 
@@ -33,10 +35,9 @@ def export_to_datadir():
 
 
 @pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
-def test_hdf5_export_import(tmp_path):
+def test_hdf5_export_import(make_compatible_space, compatible_backend, tmp_path):
     """Try subsequent export and import to pickle."""
-    pytest.xfail('Example data missing')  # TODO
-    data = io_test.gen_example_data()
+    data = io_test.new_example_data(make_compatible_space,compatible_backend)
     io_test.assert_event_handler_example_works(data)  #if this fails, it's not import/export
     filename = tmp_path / 'test.hdf5'
     with h5py.File(str(filename), 'w') as f:
@@ -46,15 +47,33 @@ def test_hdf5_export_import(tmp_path):
     io_test.assert_equal_data(data_imported, data)
     io_test.assert_event_handler_example_works(data_imported)
 
+@pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
+def test_hdf5_tensor_io(make_compatible_space, compatible_backend, tmp_path):
+    """Try subsequent export and import to pickle."""
+
+    testU1 = io_test.U1_sym_test_tensor()
+    testSU2 = io_test.SU2_sym_test_tensor()
+    testrand = io_test.create_test_random_symmetric_tensor()
+    testdiag = io_test.create_test_random_diagonal_tensor()
+
+    for data in [testU1, testSU2, testrand, testdiag]:
+        io_test.assert_event_handler_example_works(data)  # if this fails, it's not import/export
+        filename = tmp_path / 'test.hdf5'
+        with h5py.File(str(filename), 'w') as f:
+            hdf5_io.save_to_hdf5(f, data)
+        with h5py.File(str(filename), 'r') as f:
+            data_imported = hdf5_io.load_from_hdf5(f)
+        io_test.assert_equal_data(data_imported, data)
+        io_test.assert_event_handler_example_works(data_imported)
+
 
 @pytest.mark.parametrize('fn', datadir_hdf5)
+@pytest.mark.filterwarnings('ignore::FutureWarning')
 def test_import_from_datadir(fn):
     print("import ", fn)
     filename = os.path.join(io_test.datadir, fn)
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=FutureWarning)
-        with h5py.File(filename, 'r') as f:
-            data = hdf5_io.load_from_hdf5(f)
+    with h5py.File(filename, 'r') as f:
+        data = hdf5_io.load_from_hdf5(f)
     if 'version' in data:
         data_expected = io_test.gen_example_data(data['version'])
     else:
@@ -64,4 +83,9 @@ def test_import_from_datadir(fn):
 
 
 if __name__ == "__main__":
-    export_to_datadir()
+    #export_to_datadir()
+
+    # tmp = pathlib.Path('./tmp')
+    # test_hdf5_export_import(tmp)
+
+    print(create_test_symmetric_tensor())
