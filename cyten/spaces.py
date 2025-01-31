@@ -17,7 +17,7 @@ from .dummy_config import printoptions
 from .symmetries import (Sector, SectorArray, Symmetry, ProductSymmetry, no_symmetry, FusionStyle,
                          SymmetryError)
 from .tools.misc import (inverse_permutation, rank_data, to_iterable, make_stride, make_grid,
-                         find_row_differences, unstridify, iter_common_sorted_arrays)
+                         find_row_differences, iter_common_sorted_arrays)
 from .tools.string import format_like_list
 from .trees import FusionTree, fusion_trees
 
@@ -720,7 +720,8 @@ class ElementarySpace(Space, Leg):
             sp1.symmetry, sectors, mults, is_dual=is_dual, unique_sectors=True
         )
         # from_sector_decomposition potentially introduces a meaningless basis_perm,
-        # which we want to ignore here
+        # which we want to ignore here.
+        # OPTIMIZE (JU) then dont compute it in the first place?
         res._basis_perm = None
         res._inverse_basis_perm = None
         return res
@@ -1970,66 +1971,39 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         or by ``np.lexsort(dual_sectors(_).T)`` (if ``is_dual=True``), i.e. such that the resulting
         :attr:`defining_sectors` are sorted.
         """
-        # OPTIMIZE (JU) this is probably not the most efficient way to do this, but it hurts my brain
-        #               and i need to get this to work, if only in an ugly way...
+        dim_strides = make_stride([leg.dim for leg in self.legs], cstyle=self.combine_cstyle)
+        perm = np.empty(self.dim, int)
 
-        grid = make_grid([leg.num_sectors for leg in self.legs], cstyle=self.combine_cstyle)
-        fusion_outcomes = self.symmetry.multiple_fusion_broadcast(
-            *(leg.sector_decomposition[gr] for leg, gr in zip(self.legs, grid.T))
-        )
-        if self.is_dual:
-            # the above are the future self.sector_decomposition
-            # but we want to compute (and in particular sort according to) the defining_sectors
-            fusion_outcomes = self.symmetry.dual_sectors(fusion_outcomes)
-        fusion_outcomes_sort = np.lexsort(fusion_outcomes.T)
-        fusion_outcomes_inverse_sort = inverse_permutation(fusion_outcomes_sort)
+        for start, stop, *idcs, J in self.block_ind_map:
+            # shift the slice start:stop from within the block back to within the whole internal basis
+            offset = self.slices[J, 0]
+            start = start + offset
+            stop = stop + offset
 
-        # j : multi-index into the uncoupled private basis, i.e. into the C-style product of
-        #     internal bases of the legs
-        # i : index of self.legs
-        # s : index of the list of all fusion outcomes / fusion channels
-        dim_strides = make_stride([sp.dim for sp in self.legs], cstyle=self.combine_cstyle)  # (num_legs,)
-        sector_strides = self.sector_strides  # (num_legs,)
-        num_sector_combinations = len(fusion_outcomes_sort)
-        # [i, j] :: position of the part of j in legs[i] within its private basis
-        idcs = unstridify(np.arange(self.dim), dim_strides).T
-        # [i, j] :: sector of the part of j in legs[i] is legs[i].sector_decomposition[sector_idcs[i, j]]
-        #           sector_idcs[i, j] = bisect.bisect(legs[i].slices[:, 0], idcs[i, j]) - 1
-        sector_idcs = np.array(
-            [[bisect.bisect(leg.slices[:, 0], idx) - 1 for idx in idx_col]
-             for leg, idx_col in zip(self.legs, idcs)]
-        )  # OPTIMIZE can bisect.bisect be broadcast somehow? is there a numpy alternative?
-        # [i, j] :: the part of j in legs[i] is the degeneracy_idcs[i, j]-th state within that sector
-        #           degeneracy_idcs[i, j] = idcs[i, j] - legs[i].slices[sector_idcs[i, j], 0]
-        degeneracy_idcs = idcs - np.stack(
-            [leg.slices[si_col, 0] for leg, si_col in zip(self.legs, sector_idcs)]
-        )
-        # [i, j] :: strides for combining degeneracy indices.
-        #           degeneracy_strides[:, j] = make_stride([... mults with sector_idcs[:, j]])
-        degeneracy_strides = np.array(
-            [make_stride([sp.multiplicities[si] for sp, si in zip(self.legs, si_row)],
-                         cstyle=self.combine_cstyle)
-             for si_row in sector_idcs.T]
-        ).T  # OPTIMIZE make make_stride broadcast?
-        # [j] :: position of j in the unsorted list of fusion outcomes
-        fusion_outcome = np.sum(sector_idcs * sector_strides[:, None], axis=0)
-        # [i, s] :: sector combination s has legs[i].sector_decomposition[all_sector_idcs[i, s]]
-        all_sector_idcs = unstridify(np.arange(num_sector_combinations), sector_strides).T
-        # [i, s] :: all_mults[i, s] = legs[i].multiplicities[all_sector_idcs[i, s]]
-        all_mults = np.array([sp.multiplicities[comb] for sp, comb in zip(self.legs, all_sector_idcs)])
-        # [s] : total multiplicity of the fusion channel
-        fusion_outcome_multiplicities = np.prod(all_mults, axis=0)
-        # [s] : !!shape == (L_s + 1,)!!  ; starts ([s]) and stops ([s + 1]) of fusion channels in the sorted list
-        fusion_outcome_slices = np.concatenate(
-            [[0], np.cumsum(fusion_outcome_multiplicities[fusion_outcomes_sort])]
-        )
-        # [j] : position of fusion channel after sorting
-        sorted_pos = fusion_outcomes_inverse_sort[fusion_outcome]
-        # [j] :: contribution from the sector, i.e. start of all the js of the same fusion channel
-        sector_part = fusion_outcome_slices[sorted_pos]
-        # [j] :: contribution from the multiplicities, i.e. position with all js of the same fusion channel
-        degeneracy_part = np.sum(degeneracy_idcs * degeneracy_strides, axis=0)
-        return inverse_permutation(sector_part + degeneracy_part)
+            # Now for each basis element in start:stop, we construct where it was before sorting
+
+            # multiplicity_grid :: each row stands combination of uncoupled basis elements.
+            #                      they are the indices of that basis element *within* the sector.
+            multiplicity_grid = make_grid([leg.multiplicities[idx] for leg, idx in zip(self.legs, idcs)],
+                                          cstyle=self.combine_cstyle)
+
+            # sector_starts[n] is the index of the first basis vector for legs[n] that is in the
+            # current sector, namely legs[n].sector_decomposition[idcs[n]]
+            sector_starts = np.array([leg.slices[idx, 0] for leg, idx in zip(self.legs, idcs)])
+
+            # multiplicity_grid :: each row stands combination of uncoupled basis elements.
+            #                      they are the indices of that basis element within the legs internal basis
+            basis_grid = multiplicity_grid + sector_starts
+
+            # now we need to map the multi-indices (rows of basis_grid) to single indices into
+            # the unsorted list of fusion outcomes. Note that the relevant strides are ``dim_strides``,
+            # and that these strides come from a *different* shape than the multiplicity_grid.
+
+            # The next line is a batched version of
+            # ``perm[start + n] = np.sum(basis_grid[n] * dim_strides)``
+            perm[start:stop] == np.sum(basis_grid * dim_strides, axis=1)
+
+        return perm
 
 
 def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicities: np.ndarray):
