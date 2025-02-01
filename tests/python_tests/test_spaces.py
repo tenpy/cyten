@@ -388,7 +388,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
     _, fusion_outcomes_perm = _sort_sectors([b[0] for b in internal_fusion_outcomes], abelian_group_symmetry,
                                             by_duals=pipe.is_dual)
 
-    assert np.all(pipe._get_fusion_outcomes_perm() == fusion_outcomes_perm)
+    assert np.all(pipe._get_fusion_outcomes_perm(pipe.multiplicities) == fusion_outcomes_perm)
     
     # check basis_perm
     # =======================================

@@ -1677,7 +1677,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         assert self.symmetry.is_abelian and self.symmetry.can_be_dropped
         self.combine_cstyle = combine_cstyle
         sectors, mults = self._calc_sectors()  # also sets some attributes
-        basis_perm = self._calc_basis_perm()
+        basis_perm = self._calc_basis_perm(mults)
         ElementarySpace.__init__(self, symmetry=self.symmetry, defining_sectors=sectors,
                                  multiplicities=mults, is_dual=is_dual, basis_perm=basis_perm)
 
@@ -1937,7 +1937,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
         return sectors, multiplicities
 
-    def _calc_basis_perm(self):
+    def _calc_basis_perm(self, multiplicities):
         """Calculate the :attr:`basis_perm`.
 
         Helper function for :meth:`__init__`.
@@ -1978,10 +1978,10 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         # fusion
         res2 = np.reshape(res2, (self.dim,), order=order)
         # apply fusion_outcomes_perm (``sort`` in the diagram)
-        res2 = res2[self._get_fusion_outcomes_perm()]
+        res2 = res2[self._get_fusion_outcomes_perm(multiplicities)]
         return res2
 
-    def _get_fusion_outcomes_perm(self):
+    def _get_fusion_outcomes_perm(self, multiplicities):
         r"""Get the permutation of basis elements that is introduced by the fusion.
 
         Helper function for :meth:`_calc_basis_perm`.
@@ -2000,9 +2000,13 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         dim_strides = make_stride([leg.dim for leg in self.legs], cstyle=self.combine_cstyle)
         perm = np.empty(self.dim, int)
 
+        # slices_starts is slices[:, 0], but we need to compute it here,
+        # since ElementarySpace.__init__ was not called yet at this point
+        slices_starts = np.concatenate([[0], np.cumsum(multiplicities)[:-1]])
+
         for start, stop, *idcs, J in self.block_ind_map:
             # shift the slice start:stop from within the block back to within the whole internal basis
-            offset = self.slices[J, 0]
+            offset = slices_starts[J]
             start = start + offset
             stop = stop + offset
 
@@ -2027,7 +2031,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
             # The next line is a batched version of
             # ``perm[start + n] = np.sum(basis_grid[n] * dim_strides)``
-            perm[start:stop] == np.sum(basis_grid * dim_strides, axis=1)
+            perm[start:stop] = np.sum(basis_grid * dim_strides, axis=1)
 
         return perm
 
