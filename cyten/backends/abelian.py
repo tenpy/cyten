@@ -18,6 +18,13 @@ Changes compared to old np_conserved:
   In turn, ElementarySpace saves a `_perm` used to sort the originally passed `sectors`.
 - keep `block_inds` sorted (i.e. no arbitrary gauge permutation in block indices)
 
+.. _abelian_backend__blocks:
+
+Blocks
+------
+TODO elaborate about blocks, block_inds etc
+TODO link to this section from appropriate places
+
 """
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
@@ -625,10 +632,12 @@ class AbelianBackend(TensorBackend):
         res_block_inds[:, :num_legs_a] = a_block_inds[grid[:, 0]]
         res_block_inds[:, num_legs_a:] = b_block_inds[grid[:, 1]]
         res_blocks = [self.block_backend.outer(a_blocks[i], b_blocks[j]) for i, j in grid]
-        # TODO (JU) are the block_inds actually sorted?
-        #  if yes: add comment explaining why, adjust argument below
+
+        # Since the grid was in F-style, and the a_block_inds, b_block_inds are sorted,
+        # the res_block_inds are sorted.
+        assert np.all(np.lexsort(res_block_inds.T) == np.arange(len(res_block_inds)))  # TODO remove check
         return AbelianBackendData(res_dtype, a.data.device, res_blocks, res_block_inds,
-                                  is_sorted=False)
+                                  is_sorted=True)
 
     def copy_data(self, a: SymmetricTensor | DiagonalTensor, device: str = None
                   ) -> Data | DiagonalData:
@@ -666,10 +675,7 @@ class AbelianBackend(TensorBackend):
     def diagonal_elementwise_binary(self, a: DiagonalTensor, b: DiagonalTensor, func,
                                     func_kwargs, partial_zero_is_zero: bool
                                     ) -> DiagonalData:
-        # TODO could further distinguish cases for what is zero and drop respective blocks:
-        #  - only left:: func(0, b) == 0
-        #  - only right:: func(a, 0) == 0
-        #  - only both:: func(0, 0) == 0
+        # OPTIMIZE should we drop zero blocks after?
         leg = a.leg
         a_blocks = a.data.blocks
         b_blocks = b.data.blocks
@@ -1613,13 +1619,6 @@ class AbelianBackend(TensorBackend):
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
                    domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
                    ) -> Data:
-        # TODO (JH) below, we implement it by first generating the block_inds of the splitted tensor and
-        # then extract subblocks from the original one.
-        # Why not go the other way around and implement
-        # block_views = self.block_backend.block_split(block, block_sizes, axis) similar as np.array_split()
-        # and call that for each axis to be split for each block?
-        # we do a lot of numpy index tricks below, but does that really save time for splitting?
-        # block_split should just be views anyways, not data copies?
 
         if len(a.data.blocks) == 0:
             return self.zero_data(new_codomain, new_domain, a.data.dtype, device=a.data.device)

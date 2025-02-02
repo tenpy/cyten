@@ -82,8 +82,6 @@ def _iter_sectors_mults_slices(spaces: list[Space], symmetry: Symmetry
         yield symmetry.empty_sector_array, [], []
         return
 
-    # TODO sector_decomposition or defining_sectors...?
-
     if len(spaces) == 1:
         for a, m, slc in zip(spaces[0].sector_decomposition, spaces[0].multiplicities, spaces[0].slices):
             yield a[None, :], [m], [slice(*slc)]
@@ -98,8 +96,6 @@ def _iter_sectors_mults_slices(spaces: list[Space], symmetry: Symmetry
 
 class FusionTreeData:
     r"""Data stored in a Tensor for :class:`FusionTreeBackend`.
-
-    TODO describe/define what blocks are
 
     Attributes
     ----------
@@ -151,11 +147,7 @@ class FusionTreeData:
 
 
 class FusionTreeBackend(TensorBackend):
-    """A backend based on fusion trees.
-
-    TODO summarize approach, differences to AbelianBackend
-    
-    """
+    """A backend based on fusion trees."""
 
     DataCls = FusionTreeData
     can_decompose_tensors = True
@@ -270,7 +262,7 @@ class FusionTreeBackend(TensorBackend):
         return True
 
     def apply_mask_to_DiagonalTensor(self, tensor: DiagonalTensor, mask: Mask) -> DiagonalData:
-        raise NotImplementedError('apply_mask_to_DiagonalTensor not implemented')  # TODO
+        raise NotImplementedError('apply_mask_to_DiagonalTensor not implemented')
 
     def combine_legs(self,
                      tensor: SymmetricTensor,
@@ -421,8 +413,9 @@ class FusionTreeBackend(TensorBackend):
         blocks = []
         for coupled, mult in zip(co_domain.sector_decomposition, co_domain.multiplicities):
             dim_c = co_domain.symmetry.sector_dim(coupled)
-            # TODO this lookup is annoying, but currently needed because of potentially different sorting
-            #      order of the ``a.domain == TensorProduct(a.leg)`` versus the ``a.leg`` itself
+            # OPTIMIZE (JU) this lookup is annoying, but currently needed because of potentially
+            #               different sorting order of the ``a.domain == TensorProduct(a.leg)``
+            #               versus the ``a.leg`` itself
             j = leg.sector_decomposition_where(coupled)
             entries = self.block_backend.reshape(a[slice(*leg.slices[j])], (dim_c, mult))
             # project onto the identity on the coupled sector
@@ -450,7 +443,7 @@ class FusionTreeBackend(TensorBackend):
 
     def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool
                                          ) -> DiagonalData:
-        raise NotImplementedError('diagonal_tensor_from_full_tensor not implemented')  # TODO
+        raise NotImplementedError('diagonal_tensor_from_full_tensor not implemented')
 
     def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
         return sum(
@@ -469,8 +462,9 @@ class FusionTreeBackend(TensorBackend):
             degeneracy_data = a.data.blocks[n]
             entries = self.block_backend.outer(symmetry_data, degeneracy_data)
             entries = self.block_backend.reshape(entries, (-1,))
-            # TODO this lookup is annoying, but currently needed because of potentially different sorting
-            #      order of the ``a.domain == TensorProduct(a.leg)`` versus the ``a.leg`` itself
+            # OPTIMIZE (JU) this lookup is annoying, but currently needed because of potentially
+            #               different sorting order of the ``a.domain == TensorProduct(a.leg)``
+            #               versus the ``a.leg`` itself
             j = a.leg.sector_decomposition_where(c)
             res[slice(*a.leg.slices[j])] = entries
         return res
@@ -602,11 +596,13 @@ class FusionTreeBackend(TensorBackend):
                               device=self.block_backend.get_device(block))
 
     def from_dense_block_trivial_sector(self, block: Block, leg: Space) -> Data:
-        raise NotImplementedError('from_dense_block_trivial_sector not implemented')  # TODO
+        raise NotImplementedError('from_dense_block_trivial_sector not implemented')
 
     def from_random_normal(self, codomain: TensorProduct, domain: TensorProduct, sigma: float,
                            dtype: Dtype, device: str) -> Data:
-        raise NotImplementedError  # TODO
+        # TODO (JU) make sure we draw from the correct distribution,
+        #           as defined in SymmetricTensor.from_random_normal
+        raise NotImplementedError
 
     def from_sector_block_func(self, func, codomain: TensorProduct, domain: TensorProduct) -> FusionTreeData:
         blocks = []
@@ -667,10 +663,10 @@ class FusionTreeBackend(TensorBackend):
 
     def inv_part_from_dense_block_single_sector(self, vector: Block, space: Space,
                                                 charge_leg: ElementarySpace) -> Data:
-        raise NotImplementedError('inv_part_from_dense_block_single_sector not implemented')  # TODO
+        raise NotImplementedError('inv_part_from_dense_block_single_sector not implemented')
 
     def inv_part_to_dense_block_single_sector(self, tensor: SymmetricTensor) -> Block:
-        raise NotImplementedError('inv_part_to_dense_block_single_sector not implemented')  # TODO
+        raise NotImplementedError('inv_part_to_dense_block_single_sector not implemented')
 
     def linear_combination(self, a, v: SymmetricTensor, b, w: SymmetricTensor) -> Data:
         dtype = v.data.dtype.common(w.data.dtype)
@@ -750,7 +746,7 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError('mask_dagger not implemented')
 
     def mask_from_block(self, a: Block, large_leg: Space) -> tuple[MaskData, ElementarySpace]:
-        raise NotImplementedError('mask_from_block not implemented')  # TODO
+        raise NotImplementedError('mask_from_block not implemented')
 
     def mask_to_block(self, a: Mask) -> Block:
         raise NotImplementedError
@@ -791,11 +787,11 @@ class FusionTreeBackend(TensorBackend):
         return np.sqrt(norm_sq).item()
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
-        raise NotImplementedError('outer not implemented')  # TODO
+        raise NotImplementedError('outer not implemented')
 
     def partial_trace(self, tensor: SymmetricTensor, pairs: list[tuple[int, int]],
                       levels: list[int] | None) -> tuple[Data, TensorProduct, TensorProduct]:
-        raise NotImplementedError('partial_trace not implemented')  # TODO
+        raise NotImplementedError('partial_trace not implemented')
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      levels: list[int] | None) -> tuple[Data | None, TensorProduct, TensorProduct]:
@@ -1147,7 +1143,7 @@ class FusionTreeBackend(TensorBackend):
         return res
 
     def to_dense_block_trivial_sector(self, tensor: SymmetricTensor) -> Block:
-        raise NotImplementedError('to_dense_block_trivial_sector not implemented')  # TODO
+        raise NotImplementedError('to_dense_block_trivial_sector not implemented')
 
     def to_dtype(self, a: SymmetricTensor, dtype: Dtype) -> FusionTreeData:
         blocks = [self.block_backend.to_dtype(block, dtype) for block in a.data.blocks]

@@ -983,8 +983,6 @@ class SymmetricTensor(Tensor):
                 \frac{1}{2 \sigma^2} \mathrm{Tr} (T - \mathtt{mean}) (T - \mathtt{mean})^\dagger
             \right]
 
-        TODO make sure we actually generate from that distribution in the non-abelian or anyonic case!
-
         Parameters
         ----------
         codomain, domain, backend, labels
