@@ -1,7 +1,4 @@
-"""The spaces, i.e. the legs of a tensor.
-
-TODO elaborate
-"""
+"""The spaces, i.e. the legs of a tensor."""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
@@ -32,12 +29,6 @@ class Leg(metaclass=ABCMeta):
 
     A single leg on a tensor can either be an :class:`ElementarySpace` or, e.g. as the result
     of combining legs, a :class:`LegPipe`.
-
-    TODO do we need the following at this level?
-     - drop_symmetry
-     - repr
-     - num_parameters
-     - tools for displaying the leg, in Tensor.__repr__ or in Tensor.ascii_diagram
 
     Attributes
     ----------
@@ -98,7 +89,9 @@ class LegPipe(Leg):
 
     Note that the abelian backend defines a custom subclass.
 
-    TODO elaborate
+    The :attr:`dual` of a pipe is given by another :class:`LegPipe`, which consists of the
+    dual of each of the :attr:`legs`, *in reverse order*. We also flip the :attr:`is_dual`
+    attribute to keep track of that (but the attribute has no further meaning).
 
     Attributes
     ----------
@@ -188,8 +181,6 @@ class Space(metaclass=ABCMeta):
     the decomposition at least once, e.g. with `N_a > 0`, are stored in :attr:`sector_decomposition`
     in a canonical order, while their multiplicities :math:`N_a` are stored in :attr:`multiplicities`.
 
-    TODO should this have sectors_of_basis here or is that an attribute for ElementarySpace only?
-
     Attributes
     ----------
     symmetry: Symmetry
@@ -221,7 +212,6 @@ class Space(metaclass=ABCMeta):
     dim : int | float
         The total dimension. Is integer if ``symmetry.can_be_dropped``, otherwise may be float.
     slices : 2D numpy array of int | None
-        TODO do we keep these?
         For every sector ``sector_decomposition[n]``, the start ``slices[n, 0]`` and stop
         ``slices[n, 1]`` of indices (in the *internal* basis order) that belong to this sector.
         Conversely, ``basis_perm[slices[n, 0]:slices[n, 1]]`` are the elements of the public
@@ -298,12 +288,10 @@ class Space(metaclass=ABCMeta):
         """The dual space of the same type.
 
         A dual space necessarily has a :attr:`sector_decomposition` which consists of the
-        :meth:`Symmetry.dual_sectors` of the original (though )
-        
+        :meth:`Symmetry.dual_sectors` of the original (though not necessarily in order).
+
         Strictly speaking, this only guarantees to give one possible choice for a dual space and
         might differ from *the* dual space by an irrelevant isomorphism.
-
-        TODO discuss duality in all class docstrings
         """
         ...
 
@@ -430,9 +418,6 @@ class Space(metaclass=ABCMeta):
     def change_symmetry(self, symmetry: Symmetry, sector_map: callable, injective: bool = False
                         ) -> ElementarySpace:
         """Change the symmetry by specifying how the sectors change.
-
-        TODO this assumes by construction that the mapping is one-to-one.
-             It does not fit well with e.g. relaxing SU(2) -> U(1)
 
         Parameters
         ----------
@@ -1021,8 +1006,6 @@ class ElementarySpace(Space, Leg):
         # this implementation assumes _basis_perm. AbelianLegPipe overrides this method.
         perm = self._inverse_basis_perm if inverse else self._basis_perm
         if perm is None:
-            # TODO we dont check if `arr` is compatible.
-            #      for pre_compose, this means all(0 <= arr < dim), other wise that the shape admits perm
             # perm is identity permutation
             return arr
         if pre_compose:
@@ -1265,7 +1248,7 @@ class TensorProduct(Space):
         for f in factors[1:]:
             spaces.extend(f.factors)
             assert f.symmetry == symmetry, 'Mismatched symmetries'
-        # TODO faster computation of sectors etc
+        # OPTIMIZE faster computation of sectors etc
         return TensorProduct(factors=spaces, symmetry=symmetry)
 
     # PROPERTIES
@@ -1291,7 +1274,7 @@ class TensorProduct(Space):
         return self.sector_multiplicity(coupled)
 
     def change_symmetry(self, symmetry, sector_map, injective=False):
-        # TODO can we avoid recomputation of fusion?
+        # OPTIMIZE can we avoid recomputation of fusion?
         return TensorProduct(
             [space.change_symmetry(symmetry, sector_map, injective)
              for space in self.factors],
@@ -1299,7 +1282,7 @@ class TensorProduct(Space):
         )
 
     def drop_symmetry(self, which=None):
-        # TODO can we avoid recomputation of fusion?
+        # OPTIMIZE can we avoid recomputation of fusion?
         return TensorProduct(
             [space.drop_symmetry(which) for space in self.factors],
             symmetry=self.symmetry
@@ -1326,7 +1309,7 @@ class TensorProduct(Space):
 
     def insert_multiply(self, other: Space, pos: int) -> TensorProduct:
         """Insert a new space into the product at position `pos`."""
-        # TODO optimize (can compute sectors etc more efficiently)
+        # OPTIMIZE can compute sectors etc more efficiently
         return TensorProduct(self.factors[:pos] + [other] + self.factors[pos:], symmetry=self.symmetry)
 
     def iter_tree_blocks(self, coupled: Sequence[Sector]
@@ -1609,7 +1592,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     block_ind_map : 2D numpy array of int
         Map for the embedding of uncoupled to coupled indices, see notes below.
         Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
-        i.e. ``M == prod(s.num_sectors for s in legs)`` and ``N == 3 + len(legs)``.
+        i.e. ``M == prod(leg.num_sectors for leg in legs)`` and ``N == 3 + len(legs)``.
 
     Notes
     -----
@@ -1699,7 +1682,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         assert np.all(self.block_ind_map_slices[1:] >= self.block_ind_map_slices[:-1])
         # check block_ind_map
         M, N = self.block_ind_map.shape
-        assert M <= np.prod([l.num_sectors for l in self.legs])  # TODO why ``<=`` and not ``==``?
+        assert M == np.prod([leg.num_sectors for leg in self.legs])
         assert N == 3 + self.num_legs
         if self.combine_cstyle:
             # C style grid -> lexsorted after reversing column order (see notes)
@@ -1728,7 +1711,6 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
     @property
     def dual(self) -> AbelianLegPipe:
-        # TODO can we avoid recomputation of _calc_sectors and/or _calc_basis_perm??
         return AbelianLegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual,
                               combine_cstyle=not self.combine_cstyle)
 
@@ -1760,12 +1742,10 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         raise TypeError('from_trivial_sector is not supported for AbelianLegPipe')
 
     def change_symmetry(self, symmetry, sector_map, injective=False):
-        # TODO can we avoid some recomputation of _calc_sectors and _basis_perm?
         legs = [l.change_symmetry(symmetry, sector_map, injective) for l in self.legs]
         return AbelianLegPipe(legs, is_dual=self.is_dual, combine_cstyle=self.combine_cstyle)
 
     def drop_symmetry(self, which: int | list[int] = None):
-        # TODO can we avoid some recomputation of _calc_sectors and _basis_perm?
         legs = [l.drop_symmetry(which) for l in self.legs]
         return AbelianLegPipe(legs, is_dual=self.is_dual, combine_cstyle=self.combine_cstyle)
 
@@ -1779,7 +1759,6 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         return self.as_ElementarySpace(is_dual=self.is_dual).take_slice(blockmask)
 
     def with_opposite_duality(self):
-        # TODO can we avoid some recomputation here?
         return AbelianLegPipe(legs=self.legs, is_dual=not self.is_dual,
                               combine_cstyle=self.combine_cstyle)
 
