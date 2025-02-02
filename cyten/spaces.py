@@ -203,6 +203,8 @@ class Space(metaclass=ABCMeta):
         ``None`` is equivalent to a sequence of ``1`` of appropriate length.
     num_sectors : int
         The number of sectors in the :attr:`sector_decomposition`.
+        This is the number of *unique* sectors, regardless of their multiplicity, and different
+        from the total number of sectors ``sum(multiplicities)``.
     sector_dims : 1D array of int | None
         If ``symmetry.can_be_dropped``, the integer dimension of each sector of the
         :attr:`sector_decomposition`. Otherwise, not defined and set to ``None``.
