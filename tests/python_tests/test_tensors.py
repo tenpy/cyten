@@ -1407,7 +1407,7 @@ def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     T.set_labels(list('efghijk')[:2 * dom])
     T.test_sanity()
 
-    if isinstance(T.backend, backends.AbelianBackend):
+    if isinstance(T.backend, backends.AbelianBackend) and cls is not DiagonalTensor:
         with pytest.raises(AssertionError):
             _ = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
         pytest.xfail()
@@ -1702,6 +1702,12 @@ def test_linear_combination(cls, make_compatible_tensor):
         #       For now, just check if it runs at all.
         #       Could e.g. check versus inner product, if <x| av + bw> = a <x|v> + b <x|w>
         _ = tensors.linear_combination(42, v, 43j, w)
+        return
+
+    if cls is Mask:
+        with pytest.warns(UserWarning, match='Converting types'):
+            _ = tensors.linear_combination(1, v, 2, w)
+        # type conversion results in linear combination of SymmetricTensors, which is tested already
         return
 
     v_np = v.to_numpy()

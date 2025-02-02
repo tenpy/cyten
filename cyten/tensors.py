@@ -8,8 +8,10 @@ Leg Labels
 
 TODO elaborate
 
-The following characters have special meaning in labels and should be avoided:
+The following characters have special meaning in labels and should be avoided for "single" labels:
 `(`, `.`, `)`, `?`, `!` and `*`.
+
+See :func:`is_valid_leg_label`.
 
 
 .. _tensors_as_maps:
@@ -87,12 +89,13 @@ from .tools.misc import to_iterable, rank_data, inverse_permutation, duplicate_e
 __all__ = ['Tensor', 'SymmetricTensor', 'DiagonalTensor', 'ChargedTensor', 'Mask',
            'add_trivial_leg', 'almost_equal', 'angle', 'apply_mask', 'apply_mask_DiagonalTensor',
            'bend_legs', 'combine_legs', 'combine_to_matrix', 'complex_conj', 'dagger',
-           'compose', 'eigh', 'enlarge_leg', 'entropy', 'exp', 'imag', 'inner', 'is_scalar', 'item',
-           'linear_combination', 'lq', 'move_leg', 'norm', 'outer', 'partial_trace', 'permute_legs',
-           'pinv', 'qr', 'real', 'real_if_close', 'scalar_multiply', 'scale_axis', 'split_legs',
-           'sqrt', 'squeeze_legs', 'stable_log', 'svd', 'svd_apply_mask', 'tdot', 'trace',
-           'transpose', 'truncate_singular_values', 'truncated_svd', 'zero_like',
-           'get_same_backend', 'check_same_legs', 'get_same_device', 'on_device']
+           'compose', 'eigh', 'enlarge_leg', 'entropy', 'exp', 'imag', 'inner', 'is_scalar',
+           'is_valid_leg_label', 'item', 'linear_combination', 'lq', 'move_leg', 'norm', 'outer',
+           'partial_trace', 'permute_legs', 'pinv', 'qr', 'real', 'real_if_close',
+           'scalar_multiply', 'scale_axis', 'split_legs', 'sqrt', 'squeeze_legs', 'stable_log',
+           'svd', 'svd_apply_mask', 'tdot', 'trace', 'transpose', 'truncate_singular_values',
+           'truncated_svd', 'zero_like', 'get_same_backend', 'check_same_legs', 'get_same_device',
+           'on_device']
 
 
 logger = logging.getLogger(__name__)
@@ -179,8 +182,8 @@ class Tensor(metaclass=ABCMeta):
         codomain_num_legs = codomain.num_factors
         domain_num_legs = domain.num_factors
         self.num_legs = num_legs = codomain_num_legs + domain_num_legs
-        self.dtype = dtype  # TODO should be read-only ?
-        self.device = device  # TODO should be read-only ?
+        self.dtype = dtype
+        self.device = device
         self.shape = tuple(sp.dim for sp in codomain.factors) + tuple(sp.dim for sp in reversed(domain.factors))
         self._labels = labels = self._init_parse_labels(labels, codomain=codomain, domain=domain)
         assert len(labels) == num_legs
@@ -244,7 +247,6 @@ class Tensor(metaclass=ABCMeta):
         and codomain coincide), where a flat list of labels for the codomain can be given,
         and the domain labels are auto-filled with the respective dual labels.
         """
-        # TODO improve errors on illegal formats
         num_legs = codomain.num_factors + domain.num_factors
         if is_endomorphism:
             assert codomain.num_factors == domain.num_factors
@@ -280,7 +282,7 @@ class Tensor(metaclass=ABCMeta):
         return labels[:]
 
     def test_sanity(self):
-        assert all(_is_valid_leg_label(l) for l in self._labels)
+        assert all(is_valid_leg_label(l) for l in self._labels)
         assert not duplicate_entries(self._labels, ignore=[None])
         assert not duplicate_entries(list(self._labelmap.values()))
         self.domain.test_sanity()  # this checks all legs, and recursively through pipes
@@ -569,7 +571,7 @@ class Tensor(metaclass=ABCMeta):
         indent = printoptions.indent * ' '
         lines = [f'<{self.__class__.__name__}']
         lines.extend(self._repr_header_lines(indent=indent))
-        # TODO skipped showing data. see commit 4bdaa5c for an old implementation of showing data.
+        # skipped showing data. see commit 4bdaa5c for an old implementation of showing data.
         lines.append('>')
         return "\n".join(lines)
 
@@ -675,10 +677,7 @@ class Tensor(metaclass=ABCMeta):
         return lines
 
     def get_leg(self, which_leg: int | str | list[int | str]) -> Space | list[Space]:
-        """Basically ``self.legs[which_leg]``, but allows labels and multiple indices.
-
-        TODO elaborate
-        """
+        """Basically ``self.legs[which_leg]``, but allows labels and multiple indices."""
         if not isinstance(which_leg, (Integral, str)):
             # which_leg is a list
             return list(map(self.get_leg, which_leg))
@@ -759,8 +758,6 @@ class SymmetricTensor(Tensor):
     .. note ::
         The constructor is not particularly user friendly.
         Consider using the various classmethods instead.
-
-    TODO elaborate
 
     Parameters
     ----------
@@ -923,7 +920,7 @@ class SymmetricTensor(Tensor):
                                         device: str = None,
                                         label: str | None = None
                                         ) -> SymmetricTensor:
-        """Inverse of to_dense_block_trivial_sector. TODO"""
+        """Inverse of to_dense_block_trivial_sector."""
         if backend is None:
             backend = get_backend(symmetry=space.symmetry)
         vector = backend.block_backend.as_block(vector, device=device)
@@ -931,7 +928,7 @@ class SymmetricTensor(Tensor):
             i = space.sector_decomposition_where(space.symmetry.trivial_sector)
             perm = rank_data(space.basis_perm[slice(*space.slices[i])])
             vector = backend.block_backend.apply_leg_permutations(vector, [perm])
-        raise NotImplementedError  # TODO
+        raise NotImplementedError
 
     @classmethod
     def from_eye(cls, co_domain: list[Space] | TensorProduct,
@@ -1219,7 +1216,6 @@ class SymmetricTensor(Tensor):
     def to_dense_block_trivial_sector(self) -> Block:
         """Assumes self is a single-leg tensor and returns its components in the trivial sector.
 
-        TODO elaborate.
         TODO better name?
 
         See Also
@@ -1252,8 +1248,8 @@ class DiagonalTensor(SymmetricTensor):
     i.e. it is given by :math:`\bigoplus_a \lambda_a \eye_a`, where the sum goes over sectors
     :math:`a` of the `leg` :math:`V = \bigoplus_a a`.
 
-    This is the natural type e.g. for singular values or eigenvalue and allows elementwise methods
-    such as TODO.
+    This is the natural type e.g. for singular values or eigenvalue and allows
+    :ref:`elementwise <diagonal_elementwise>` operations.
 
     Parameters
     ----------
@@ -1275,6 +1271,7 @@ class DiagonalTensor(SymmetricTensor):
     Elementwise Functions
     ---------------------
     TODO elaborate
+         use examples: :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
     """
     
     _forbidden_dtypes = []
@@ -1566,8 +1563,6 @@ class DiagonalTensor(SymmetricTensor):
             return bool(item(self))
         msg = 'The truth value of a non-scalar DiagonalTensor is ambiguous. Use a.any() or a.all()'
         raise ValueError(msg)
-
-    # TODO offer elementwise boolean operations: and, or, xor, eq
 
     def __add__(self, other):
         return self._binary_operand(other, func=operator.add, operand='+')
@@ -2100,7 +2095,6 @@ class Mask(Tensor):
             or np.all(small_leg._basis_perm == np.arange(len(small_leg._basis_perm)))
 
         if (not large_perm_trivial) or (not small_perm_trivial):
-            # TODO support? if yes, adjust tests, e.g. in test_Mask
             msg = ('Generating random Masks with non-trivial, fixed basis_perm is hard and '
                    'hopefully never needed.')
             raise NotImplementedError(msg)
@@ -2423,7 +2417,7 @@ class ChargedTensor(Tensor):
             codomain=invariant_part.codomain,
             domain=TensorProduct(
                 invariant_part.domain.factors[1:], symmetry=invariant_part.symmetry,
-            ),  # TODO do we really need to calculate the fusion here...?
+            ),
             backend=invariant_part.backend,
             labels=invariant_part._labels[:-1],
             dtype=invariant_part.dtype,
@@ -2548,7 +2542,7 @@ class ChargedTensor(Tensor):
         block = backend.block_backend.as_block(block, dtype, device=device)
         inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge)
         if charge_leg.dim != 1:
-            raise NotImplementedError  # TODO
+            raise NotImplementedError
         inv_part = SymmetricTensor.from_dense_block(
             block=backend.block_backend.add_axis(block, -1),
             codomain=codomain, domain=inv_domain, backend=backend, labels=inv_labels,
@@ -2571,7 +2565,7 @@ class ChargedTensor(Tensor):
         if backend is None:
             backend = get_backend(symmetry=space.symmetry)
         if space.symmetry.sector_dim(sector) > 1:
-            # TODO how to handle multi-dim sectors? which dummy leg state to give?
+            # how to handle multi-dim sectors? which dummy leg state to give?
             raise NotImplementedError
         charge_leg = ElementarySpace(space.symmetry, [sector])
         vector = backend.block_backend.as_block(vector, device=device)
@@ -2997,7 +2991,7 @@ def almost_equal(tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol=1e
                     backend.block_backend.item(tensor_1.charged_state) * tensor_2.invariant_part,
                     rtol=rtol, atol=atol
                 )
-            raise NotImplementedError  # TODO
+            raise NotImplementedError
 
     msg = f'Incompatible types: {tensor_1.__class__.__name__} and {tensor_2.__class__.__name__}'
     raise TypeError(msg)
@@ -3030,7 +3024,6 @@ def apply_mask(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
         Note that if the leg is in the domain this means ``mask.large_leg == domain[n].dual == legs[-n]``!
     leg: int | str
         Which leg of the tensor to project
-    TODO add arg to specify the label? Now we just use the same as from `tensor`.
 
     Returns
     -------
@@ -3234,11 +3227,6 @@ def combine_legs(tensor: Tensor,
         This is an arbitrary choice for each pipe.
         The pipes are formed such that ``result.legs.[pipe_idx].is_dual == pipe_dualities[i]``.
         Defaults to all ``False``.
-        TODO which way around is the definition more natural?
-            as result.legs.[pipe_idx].is_dual
-            or as result.get_co_domain_leg(pipe_idx).is_dual ?
-        TODO what is a good default?
-        TODO comment on how to guarantee that we can contract
     pipes: list of {LegPipe | None}, optional
         For each ``group = which_legs[i]`` of legs, the resulting pipe can be passed to
         avoid recomputation. If we group to the codomain (``group[0] < tensor.num_codomain_legs``),
@@ -3276,7 +3264,10 @@ def combine_legs(tensor: Tensor,
     if isinstance(tensor, ChargedTensor):
         # note: its important to parse negative integers before via tensor.get_leg_idcs, since
         #       the invariant part has an additional leg.
-        # TODO what about levels??
+        if levels is not None:
+            # charge leg is not combined with anything and thus does not braid.
+            # so its level is irrelevant. just make sure its not a duplicate
+            levels = [*levels, min(levels) - 1]
         inv_part = combine_legs(
             tensor.invariant_part, *which_legs, pipe_dualities=pipe_dualities, pipes=pipes
         )
@@ -3314,8 +3305,6 @@ def combine_legs(tensor: Tensor,
     inv_perm = inverse_permutation([*codomain_idcs, *domain_idcs_reversed])
     which_legs = [[inv_perm[l] for l in group] for group in which_legs]
     to_combine = [idx for group in which_legs for idx in group]
-    # TODO (JU) double check that updating J here is correct
-    #      (was missing before. i think that was a typo, but might be intentional!!)
     J = tensor.num_codomain_legs
     codomain_groups = {group[0]: group for group in which_legs if group[0] < J}
     domain_groups = {group[0]: group for group in which_legs if group[0] >= J}
@@ -3366,7 +3355,6 @@ def combine_legs(tensor: Tensor,
         else:
             domain_spaces_reversed.append(tensor.domain[N - 1 - n])
             domain_labels_reversed.append(tensor.labels[n])
-    # TODO no need to re-compute the sectors of (co)domain, they dont change.
     codomain = TensorProduct(codomain_spaces, symmetry=tensor.symmetry)
     domain = TensorProduct(domain_spaces_reversed[::-1], symmetry=tensor.symmetry)
     #
@@ -3661,7 +3649,7 @@ def eigh(tensor: Tensor, new_labels: str | list[str] | None, new_leg_dual: bool,
         The labels for the new legs can be specified in the following three ways;
         Three labels ``[a, b, c]`` result in ``V.labels[-1] == a`` and ``W.labels == [b, c]``.
         Two labels ``[a, b]`` are equivalent to ``[a, b, a]``.
-        A single label ``a`` is equivalent to ``[a, a*, a]``.  TODO is this a good convention?
+        A single label ``a`` is equivalent to ``[a, a*, a]``.
         The new legs are unlabelled by default.
     new_leg_dual: bool
         If the new leg should be a ket space (``False``) or bra space (``True``)
@@ -3692,7 +3680,13 @@ def eigh(tensor: Tensor, new_labels: str | list[str] | None, new_leg_dual: bool,
     if isinstance(tensor, ChargedTensor):
         # do not define decompositions for ChargedTensors.
         raise NotImplementedError
-    # TODO for DiagonalTensor, we can have a trivial implementation `return tensor, eye` no?
+    if isinstance(tensor, DiagonalTensor):
+        V = SymmetricTensor.from_eye(
+            [tensor.leg], backend=tensor.backend, labels=[tensor.codomain_labels[0], a],
+            dtype=tensor.dtype, device=tensor.device
+        )
+        W = tensor.copy().set_labels([b, c])
+        return W, V
     tensor = tensor.as_SymmetricTensor()
 
     # If the backend requires it, combine legs first
@@ -3819,7 +3813,6 @@ def exp(obj: Tensor | complex | float) -> Tensor | complex | float:
     if isinstance(obj, SymmetricTensor):
         assert obj.domain == obj.codomain
 
-        # TODO refactor to support general power-series functions?
         combine = (not obj.backend.can_decompose_tensors) and obj.num_domain_legs > 1
         if combine:
             # OPTIMIZE have the same pipe in domain and codomain. could avoid recomputing?
@@ -3884,8 +3877,6 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
     The inner product is defined as :math:`\mathrm{Tr}[ A^\dagger \circ B]`.
     It is thus equivalent to, but more efficient than ``trace(dot(A, B))``.
 
-    TODO should we allow an arg here to permute the legs before inner?
-
     Parameters
     ----------
     A, B
@@ -3895,7 +3886,6 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
         If ``False``, we assume that the dagger has already been performed on one of the tensors.
         Thus we require ``tensor_1.domain == tensor_2.codomain`` and vice versa and just perform
         the contraction and trace.
-    TODO allow an argument that specifies a permutation first? probably cant do levels well?
 
     See Also
     --------
@@ -4050,10 +4040,16 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
         raise NotImplementedError
     if isinstance(v, ChargedTensor) or isinstance(w, ChargedTensor):
         raise TypeError('Can not add ChargedTensor and non-charged tensor.')
+    
     # Remaining case: Mask, DiagonalTensor (but not both), SymmetricTensor
-    # TODO issue warnings that we are converting? see scalar_multiply()
+    if isinstance(v, (DiagonalTensor, Mask)) or isinstance(w, (DiagonalTensor, Mask)):
+        msg = (f'Converting types ({type(v).__name__, type(w).__name__}) to '
+               f'(SymmetricTensor, SymmetricTensor) for  linear_combination. '
+               f'Use tensor.as_SymmetricTensor() explicitly to suppress this warning.')
+        warnings.warn(msg, stacklevel=2)
     v = v.as_SymmetricTensor()
     w = w.as_SymmetricTensor()
+
     backend = get_same_backend(v, w)
     assert v.codomain == w.codomain, 'Mismatched domain'
     assert v.domain == w.domain, 'Mismatched domain'
@@ -4099,8 +4095,6 @@ def move_leg(tensor: Tensor, which_leg: int | str, codomain_pos: int | None = No
         Is ignored if the symmetry has symmetric braids. Otherwise, these levels specify the
         chirality of any possible braids induced by permuting the legs. See :func:`permute_legs`.
     """
-    # TODO make this a separate backend function? Easier to determine move order for fusion tree.
-
     from_domain, _, leg_idx = tensor._parse_leg_idx(which_leg)
     if from_domain:
         new_codomain = list(range(tensor.num_codomain_legs))
@@ -4228,7 +4222,6 @@ def outer(tensor1: Tensor, tensor2: Tensor,
         return ChargedTensor(inv_part, tensor2.charged_state)
     backend = get_same_backend(tensor1, tensor2)
     data = backend.outer(tensor1, tensor2)
-    # TODO is it easier to compute the (co)domain in the backend?
     codomain = TensorProduct.from_partial_products(tensor1.codomain, tensor2.codomain)
     domain = TensorProduct.from_partial_products(tensor1.domain, tensor2.domain)
     # construct new labels
@@ -4311,9 +4304,9 @@ def partial_trace(tensor: Tensor,
         return trace(tensor)
     if isinstance(tensor, ChargedTensor):
         if levels is not None:
-            # assign highest level to charge leg.
-            # probably want to unify implementation with other functions that use levels.
-            raise NotImplementedError  # TODO
+            # charge leg is not traced and thus does not braid.
+            # so its level is irrelevant. just make sure its not a duplicate
+            levels = [*levels, min(levels) - 1]
         invariant_part = partial_trace(tensor.invariant_part, *pairs, levels=levels)
         if invariant_part.num_legs == 1:
             # scalar result
@@ -4655,7 +4648,6 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
         diag = transpose(diag)
     else:
         raise ValueError('Incompatible legs')
-    assert tensor.get_leg_co_domain(leg_idx) == diag.leg  # TODO rm check?
 
     if isinstance(tensor, DiagonalTensor):
         return (tensor * diag).set_labels(tensor.labels)
@@ -4735,7 +4727,6 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
         else:
             domain_spaces.append(l)
 
-    # TODO avoid recomputing sectors, they are the same as for tensor.(co)domain
     codomain = TensorProduct(codomain_spaces, symmetry=tensor.symmetry)
     domain = TensorProduct(domain_spaces, symmetry=tensor.symmetry)
 
@@ -4793,8 +4784,6 @@ def squeeze_legs(tensor: Tensor, legs: int | str | list[int | str] = None) -> Te
     # Remaining case: SymmetricTensor
     remaining = [n for n in range(tensor.num_legs) if n not in legs]
     data = tensor.backend.squeeze_legs(tensor, legs)
-    # since the legs we remove are all trivial, the sectors of the (co-)domain do not change
-    # TODO use the old sectors / mults!
     codomain = TensorProduct(
         [tensor.codomain[n] for n in range(tensor.num_codomain_legs) if n not in legs],
         symmetry=tensor.symmetry
@@ -4866,28 +4855,26 @@ def svd(tensor: Tensor,
         Four labels ``[a, b, c, d]`` result in ``U.labels[-1] == a``, ``S.labels == [b, c]`` and
         ``Vh.labels[0] == d``.
         Two labels ``[a, b]`` are equivalent to ``[a, b, a, b]``.
-        A single label ``a`` is equivalent to ``[a, a*, a, a*]``.  TODO is this a good convention?
+        A single label ``a`` is equivalent to ``[a, a*, a, a*]``.
         The new legs are unlabelled by default.
     new_leg_dual: bool
         If the new leg should be a ket space (``False``) or bra space (``True``)
     algorithm: str, optional
-        The algorithm (a.k.a. "driver") for the block-wise svd.
-        Choices are backend-specific (TODO doc them).
+        The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
+        See the :attr:`~cyten.backends.BlockBackend.svd_algorithms` attribute of the
+        ``tensor.backend.block_backend``.
 
     Returns
     -------
-    U: Tensor
-        TODO specify how the type depends on tensors type.
+    U: SymmetricTensor
     S: DiagonalTensor
-    Vh: Tensor
-        TODO specify how the type depends on tensors type.
+    Vh: SymmetricTensor
     """
     a, b, c, d = _svd_new_labels(new_labels)
     tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
     u_data, s_data, vh_data = tensor.backend.svd(tensor, new_co_domain=new_co_domain, algorithm=algorithm)
     U = SymmetricTensor(u_data, codomain=tensor.codomain, domain=new_co_domain, backend=tensor.backend,
                         labels=[tensor.codomain_labels, [a]])
-    # TODO should DiagonalTensor take the co_domain directly as arg??
     S = DiagonalTensor(s_data, leg=new_co_domain[0], backend=tensor.backend, labels=[b, c])
     Vh = SymmetricTensor(vh_data, codomain=new_co_domain, domain=tensor.domain, backend=tensor.backend,
                          labels=[[d], tensor.domain_labels])
@@ -5171,8 +5158,6 @@ def transpose(tensor: Tensor) -> Tensor:
                     is_projection=not tensor.is_projection, backend=tensor.backend,
                     labels=labels)
     if isinstance(tensor, DiagonalTensor):
-        # TODO implement this backend method.
-        #      the result has dual leg, which means a permutation of sectors.
         dual_leg, data = tensor.backend.diagonal_transpose(tensor)
         return DiagonalTensor(data=data, leg=dual_leg, backend=tensor.backend, labels=labels)
     if isinstance(tensor, SymmetricTensor):
@@ -5446,8 +5431,7 @@ def _get_matching_labels(labels1: list[str | None], labels2: list[str | None],
     return labels
 
 
-def _is_valid_leg_label(label) -> bool:
-    # TODO this correct?
+def is_valid_leg_label(label) -> bool:
     return label is None or isinstance(label, str)
 
 
