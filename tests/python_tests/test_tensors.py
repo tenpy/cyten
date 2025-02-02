@@ -1153,7 +1153,8 @@ def test_combine_split(make_compatible_tensor):
     with pytest.raises(ValueError, match='Not a LegPipe.'):
         _ = tensors.split_legs(combined4, 0)
 
-    # 5) check compatibility with bending legs (combine in domain)
+    # 5) check compatibility with bending legs
+    #  5a) combine in domain
     combined5 = tensors.combine_legs(T, [2, 3])
     combined5.test_sanity()
     assert combined5.labels == ['a', 'b', '(c.d)']
@@ -1177,13 +1178,29 @@ def test_combine_split(make_compatible_tensor):
     expect5 = tensors.bend_legs(T, num_domain_legs=0)
     assert tensors.almost_equal(split5, expect5), 'bending does not commute through combine!'
 
-    # 6) check compatibility with bending legs (combine in codomain)
-    # TODO impl
+    # 5c) combine in codomain
+    assert combined1.labels == ['(a.b)', 'c', 'd']
+    combined_then_bent = tensors.bend_legs(combined1, num_codomain_legs=0)
+    combined_then_bent.test_sanity()
+    bent_individually = tensors.bend_legs(T, num_codomain_legs=0)
+    bent_then_combined = tensors.combine_legs(bent_individually, [0, 1])
+    bent_then_combined.test_sanity()
+    assert combined_then_bent.legs == bent_then_combined.legs
+    assert tensors.almost_equal(combined_then_bent, bent_then_combined)
 
-    return  # TODO reactivate below
+    # 5d) combine across codomain
+    assert combined4.labels == ['a', '(b.c)', 'd']
+    assert combined4.codomain.num_factors == 2
+    combined_then_bent = tensors.bend_legs(combined4, num_codomain_legs=0)
+    combined_then_bent.test_sanity()
+    bent_individually = tensors.bend_legs(T, num_codomain_legs=0)
+    bent_then_combined = tensors.combine_legs(bent_individually, [1, 2])
+    bent_then_combined.test_sanity()
+    assert combined_then_bent.legs == bent_then_combined.legs
+    assert tensors.almost_equal(combined_then_bent, bent_then_combined)
 
+    # check that combine_legs().to_numpy() is the same as to_numpy().reshape()
     if T.symmetry.can_be_dropped:
-        # check that combine_legs().to_numpy() is the same as to_numpy().reshape()
         T_np = T.to_numpy()
         a, b, c, d = T_np.shape
 
