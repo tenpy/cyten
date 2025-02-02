@@ -17,7 +17,7 @@ from .dummy_config import printoptions
 from .symmetries import (Sector, SectorArray, Symmetry, ProductSymmetry, no_symmetry, FusionStyle,
                          SymmetryError)
 from .tools.misc import (inverse_permutation, rank_data, to_iterable, make_stride, make_grid,
-                         find_row_differences, unstridify, iter_common_sorted_arrays)
+                         find_row_differences, iter_common_sorted_arrays)
 from .tools.string import format_like_list
 from .trees import FusionTree, fusion_trees
 
@@ -720,7 +720,8 @@ class ElementarySpace(Space, Leg):
             sp1.symmetry, sectors, mults, is_dual=is_dual, unique_sectors=True
         )
         # from_sector_decomposition potentially introduces a meaningless basis_perm,
-        # which we want to ignore here
+        # which we want to ignore here.
+        # OPTIMIZE (JU) then dont compute it in the first place?
         res._basis_perm = None
         res._inverse_basis_perm = None
         return res
@@ -884,6 +885,7 @@ class ElementarySpace(Space, Leg):
         notion of a basis.
 
         ``_basis_perm`` is the internal version which may be ``None`` if the permutation is trivial.
+        See also :meth:`apply_basis_perm`.
         """
         if not self.symmetry.can_be_dropped:
             msg = f'basis_perm is meaningless for {self.symmetry}.'
@@ -930,9 +932,7 @@ class ElementarySpace(Space, Leg):
         res = np.zeros((self.dim, self.symmetry.sector_ind_len), dtype=int)
         for sect, slc in zip(self.sector_decomposition, self.slices):
             res[slice(*slc), :] = sect[None, :]
-        if self._inverse_basis_perm is not None:
-            res = res[self._inverse_basis_perm]
-        return res
+        return self.apply_basis_perm(res, inverse=True)
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
@@ -999,6 +999,36 @@ class ElementarySpace(Space, Leg):
         else:
             pass  # both permutations are trivial, thus equal
         return True
+
+    def apply_basis_perm(self, arr, axis: int = 0, inverse: bool = False, pre_compose: bool = False):
+        """Apply the basis_perm, i.e. form ``arr[self.basis_perm]``.
+
+        This is the preferred method of accessing the permutation, since we may skip applying
+        trivial permutations.
+
+        Parameters
+        ----------
+        arr : numpy array
+            The data to act on.
+        axis : int
+            Which axis of ``arr`` to act on. We use ``numpy.take(arr, perm, axis)``.
+        inverse : bool
+            If we should apply the inverse permutation :attr:`inverse_basis_perm` instead.
+        pre_compose : bool
+            If we should pre-compose instead, i.e. form ``basis_perm[arr]``.
+            Note that in that case, `axis` is ignored.
+        """
+        # this implementation assumes _basis_perm. AbelianLegPipe overrides this method.
+        perm = self._inverse_basis_perm if inverse else self._basis_perm
+        if perm is None:
+            # TODO we dont check if `arr` is compatible.
+            #      for pre_compose, this means all(0 <= arr < dim), other wise that the shape admits perm
+            # perm is identity permutation
+            return arr
+        if pre_compose:
+            assert axis == 0
+            return perm[arr]
+        return np.take(arr, perm, axis=axis)
 
     def as_ElementarySpace(self, is_dual: bool = False) -> ElementarySpace:
         if bool(is_dual) == self.is_dual:
@@ -1094,8 +1124,7 @@ class ElementarySpace(Space, Leg):
         if not self.symmetry.can_be_dropped:
             msg = f'parse_index is meaningless for {self.symmetry}.'
             raise SymmetryError(msg)
-        if self._inverse_basis_perm is not None:
-            idx = self._inverse_basis_perm[idx]
+        idx = self.apply_basis_perm(idx, inverse=True, pre_compose=True)
         sector_idx = bisect.bisect(self.slices[:, 0], idx) - 1
         multiplicity_idx = idx - self.slices[sector_idx, 0]
         return sector_idx, multiplicity_idx
@@ -1117,9 +1146,7 @@ class ElementarySpace(Space, Leg):
             msg = f'take_slice is meaningless for {self.symmetry}.'
             raise SymmetryError(msg)
         blockmask = np.asarray(blockmask, dtype=bool)
-        if self._basis_perm is not None:
-            blockmask = blockmask[self._basis_perm]
-        #
+        blockmask = self.apply_basis_perm(blockmask)
         sectors = []
         mults = []
         for a, d_a, slc in zip(self.defining_sectors, self.sector_dims, self.slices):
@@ -1650,7 +1677,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         assert self.symmetry.is_abelian and self.symmetry.can_be_dropped
         self.combine_cstyle = combine_cstyle
         sectors, mults = self._calc_sectors()  # also sets some attributes
-        basis_perm = self._calc_basis_perm()
+        basis_perm = self._calc_basis_perm(mults)
         ElementarySpace.__init__(self, symmetry=self.symmetry, defining_sectors=sectors,
                                  multiplicities=mults, is_dual=is_dual, basis_perm=basis_perm)
 
@@ -1910,7 +1937,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
         return sectors, multiplicities
 
-    def _calc_basis_perm(self):
+    def _calc_basis_perm(self, multiplicities):
         """Calculate the :attr:`basis_perm`.
 
         Helper function for :meth:`__init__`.
@@ -1939,7 +1966,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         or by ``np.lexsort(dual_sectors(_).T)`` (if ``is_dual=True``), i.e. such that the resulting
         :attr:`defining_sectors` are sorted.
 
-        TODO (JU) should we make this on-demand only? i.e. make ``_basis_perm`` a cached property?
+        OPTIMIZE (JU) should we make this on-demand only? i.e. make ``_basis_perm`` a cached property?
         """
         # see diagram in docstring:
         # res == (fusion^{-1}) * (basis_perm of all legs) * (fusion) * (sort)
@@ -1951,10 +1978,10 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         # fusion
         res2 = np.reshape(res2, (self.dim,), order=order)
         # apply fusion_outcomes_perm (``sort`` in the diagram)
-        res2 = res2[self._get_fusion_outcomes_perm()]
+        res2 = res2[self._get_fusion_outcomes_perm(multiplicities)]
         return res2
 
-    def _get_fusion_outcomes_perm(self):
+    def _get_fusion_outcomes_perm(self, multiplicities):
         r"""Get the permutation of basis elements that is introduced by the fusion.
 
         Helper function for :meth:`_calc_basis_perm`.
@@ -1970,66 +1997,43 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         or by ``np.lexsort(dual_sectors(_).T)`` (if ``is_dual=True``), i.e. such that the resulting
         :attr:`defining_sectors` are sorted.
         """
-        # OPTIMIZE (JU) this is probably not the most efficient way to do this, but it hurts my brain
-        #               and i need to get this to work, if only in an ugly way...
+        dim_strides = make_stride([leg.dim for leg in self.legs], cstyle=self.combine_cstyle)
+        perm = np.empty(self.dim, int)
 
-        grid = make_grid([leg.num_sectors for leg in self.legs], cstyle=self.combine_cstyle)
-        fusion_outcomes = self.symmetry.multiple_fusion_broadcast(
-            *(leg.sector_decomposition[gr] for leg, gr in zip(self.legs, grid.T))
-        )
-        if self.is_dual:
-            # the above are the future self.sector_decomposition
-            # but we want to compute (and in particular sort according to) the defining_sectors
-            fusion_outcomes = self.symmetry.dual_sectors(fusion_outcomes)
-        fusion_outcomes_sort = np.lexsort(fusion_outcomes.T)
-        fusion_outcomes_inverse_sort = inverse_permutation(fusion_outcomes_sort)
+        # slices_starts is slices[:, 0], but we need to compute it here,
+        # since ElementarySpace.__init__ was not called yet at this point
+        slices_starts = np.concatenate([[0], np.cumsum(multiplicities)[:-1]])
 
-        # j : multi-index into the uncoupled private basis, i.e. into the C-style product of
-        #     internal bases of the legs
-        # i : index of self.legs
-        # s : index of the list of all fusion outcomes / fusion channels
-        dim_strides = make_stride([sp.dim for sp in self.legs], cstyle=self.combine_cstyle)  # (num_legs,)
-        sector_strides = self.sector_strides  # (num_legs,)
-        num_sector_combinations = len(fusion_outcomes_sort)
-        # [i, j] :: position of the part of j in legs[i] within its private basis
-        idcs = unstridify(np.arange(self.dim), dim_strides).T
-        # [i, j] :: sector of the part of j in legs[i] is legs[i].sector_decomposition[sector_idcs[i, j]]
-        #           sector_idcs[i, j] = bisect.bisect(legs[i].slices[:, 0], idcs[i, j]) - 1
-        sector_idcs = np.array(
-            [[bisect.bisect(leg.slices[:, 0], idx) - 1 for idx in idx_col]
-             for leg, idx_col in zip(self.legs, idcs)]
-        )  # OPTIMIZE can bisect.bisect be broadcast somehow? is there a numpy alternative?
-        # [i, j] :: the part of j in legs[i] is the degeneracy_idcs[i, j]-th state within that sector
-        #           degeneracy_idcs[i, j] = idcs[i, j] - legs[i].slices[sector_idcs[i, j], 0]
-        degeneracy_idcs = idcs - np.stack(
-            [leg.slices[si_col, 0] for leg, si_col in zip(self.legs, sector_idcs)]
-        )
-        # [i, j] :: strides for combining degeneracy indices.
-        #           degeneracy_strides[:, j] = make_stride([... mults with sector_idcs[:, j]])
-        degeneracy_strides = np.array(
-            [make_stride([sp.multiplicities[si] for sp, si in zip(self.legs, si_row)],
-                         cstyle=self.combine_cstyle)
-             for si_row in sector_idcs.T]
-        ).T  # OPTIMIZE make make_stride broadcast?
-        # [j] :: position of j in the unsorted list of fusion outcomes
-        fusion_outcome = np.sum(sector_idcs * sector_strides[:, None], axis=0)
-        # [i, s] :: sector combination s has legs[i].sector_decomposition[all_sector_idcs[i, s]]
-        all_sector_idcs = unstridify(np.arange(num_sector_combinations), sector_strides).T
-        # [i, s] :: all_mults[i, s] = legs[i].multiplicities[all_sector_idcs[i, s]]
-        all_mults = np.array([sp.multiplicities[comb] for sp, comb in zip(self.legs, all_sector_idcs)])
-        # [s] : total multiplicity of the fusion channel
-        fusion_outcome_multiplicities = np.prod(all_mults, axis=0)
-        # [s] : !!shape == (L_s + 1,)!!  ; starts ([s]) and stops ([s + 1]) of fusion channels in the sorted list
-        fusion_outcome_slices = np.concatenate(
-            [[0], np.cumsum(fusion_outcome_multiplicities[fusion_outcomes_sort])]
-        )
-        # [j] : position of fusion channel after sorting
-        sorted_pos = fusion_outcomes_inverse_sort[fusion_outcome]
-        # [j] :: contribution from the sector, i.e. start of all the js of the same fusion channel
-        sector_part = fusion_outcome_slices[sorted_pos]
-        # [j] :: contribution from the multiplicities, i.e. position with all js of the same fusion channel
-        degeneracy_part = np.sum(degeneracy_idcs * degeneracy_strides, axis=0)
-        return inverse_permutation(sector_part + degeneracy_part)
+        for start, stop, *idcs, J in self.block_ind_map:
+            # shift the slice start:stop from within the block back to within the whole internal basis
+            offset = slices_starts[J]
+            start = start + offset
+            stop = stop + offset
+
+            # Now for each basis element in start:stop, we construct where it was before sorting
+
+            # multiplicity_grid :: each row stands combination of uncoupled basis elements.
+            #                      they are the indices of that basis element *within* the sector.
+            multiplicity_grid = make_grid([leg.multiplicities[idx] for leg, idx in zip(self.legs, idcs)],
+                                          cstyle=self.combine_cstyle)
+
+            # sector_starts[n] is the index of the first basis vector for legs[n] that is in the
+            # current sector, namely legs[n].sector_decomposition[idcs[n]]
+            sector_starts = np.array([leg.slices[idx, 0] for leg, idx in zip(self.legs, idcs)])
+
+            # multiplicity_grid :: each row stands combination of uncoupled basis elements.
+            #                      they are the indices of that basis element within the legs internal basis
+            basis_grid = multiplicity_grid + sector_starts
+
+            # now we need to map the multi-indices (rows of basis_grid) to single indices into
+            # the unsorted list of fusion outcomes. Note that the relevant strides are ``dim_strides``,
+            # and that these strides come from a *different* shape than the multiplicity_grid.
+
+            # The next line is a batched version of
+            # ``perm[start + n] = np.sum(basis_grid[n] * dim_strides)``
+            perm[start:stop] = np.sum(basis_grid * dim_strides, axis=1)
+
+        return perm
 
 
 def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicities: np.ndarray):

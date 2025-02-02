@@ -1220,7 +1220,7 @@ class FusionTreeBackend(TensorBackend):
         small_leg = ElementarySpace.from_sector_decomposition(
             S.symmetry, small_leg_sectors, small_leg_multiplicities, is_dual=S.leg.is_dual
         )
-        small_leg._basis_perm = None
+        small_leg._basis_perm = None  # OPTIMIZE avoid computing it, if we reset it anyway
         small_leg._inverse_basis_perm = None
         return mask_data, small_leg, err, new_norm
         

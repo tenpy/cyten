@@ -852,13 +852,11 @@ class BlockBackend(metaclass=ABCMeta):
 
     def apply_basis_perm(self, block: Block, legs: list[Space], inv: bool = False) -> Block:
         """Apply basis_perm of a ElementarySpace (or its inverse) on every axis of a dense block"""
-        perms = []
-        for leg in legs:
-            p = leg._inverse_basis_perm if inv else leg._basis_perm
-            if p is None:
-                # OPTIMIZE support None in apply_leg_permutations, to skip permuting that leg?
-                p = np.arange(leg.dim)
-            perms.append(p)
+        # OPTIMIZE avoid applying permutations that we know are trivial (_basis_perm = None)
+        if inv:
+            perms = [leg.inverse_basis_perm for leg in legs]
+        else:
+            perms = [leg.basis_perm for leg in legs]
         return self.apply_leg_permutations(block, perms)
 
     def apply_leg_permutations(self, block: Block, perms: list[np.ndarray]) -> Block:

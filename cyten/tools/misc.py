@@ -12,7 +12,7 @@ __all__ = [
     'argsort', 'combine_constraints', 'inverse_permutation', 'list_to_dict_list',
     'find_subclass',
     'rank_data',
-    'np_argsort', 'make_stride', 'make_grid', 'find_row_differences', 'unstridify',
+    'np_argsort', 'make_stride', 'make_grid', 'find_row_differences',
     'iter_common_noncommon_sorted', 'iter_common_noncommon_sorted_arrays', 'iter_common_sorted',
     'iter_common_sorted_arrays'
 ]
@@ -345,29 +345,6 @@ def find_row_differences(sectors, include_len: bool = False):
     diff = np.ones(len_sectors + int(include_len), dtype=np.bool_)
     diff[1:len_sectors] = np.any(sectors[1:] != sectors[:-1], axis=1)
     return np.nonzero(diff)[0]  # get the indices of True-values
-
-
-def unstridify(x, strides):
-    """Undo applying strides to an index.
-
-    Parameters
-    ----------
-    x : (..., M) ndarray
-        1D array of non-negative integers. Broadcast over leading axis.
-    strides : (N,) ndarray
-        C-style strides, i.e. positive integers such that ``strides[i]`` is an integer multiple
-        of ``strides[i + 1]``.
-
-    Returns
-    -------
-    (..., M, N) ndarray
-        The unique ``ys`` such that ``x == np.sum(strides * ys, axis=-1)``.
-    """
-    y_list = []
-    for s in strides:
-        y, x = np.divmod(x, s)
-        y_list.append(y)
-    return np.stack(y_list, axis=-1)
 
 
 def iter_common_noncommon_sorted(a, b):

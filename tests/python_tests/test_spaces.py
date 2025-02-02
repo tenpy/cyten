@@ -334,6 +334,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
             for b in s2:
                 for a in s1:
                     yield a, b
+
     leg_1: spaces.ElementarySpace = random_ElementarySpace(symmetry=abelian_group_symmetry, np_random=np_random)
     leg_2: spaces.ElementarySpace = random_ElementarySpace(symmetry=abelian_group_symmetry, np_random=np_random)
     leg_1.basis_perm = np_random.permutation(leg_1.dim)
@@ -344,10 +345,6 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
 
     # Setup
     # =======================================
-    sym = leg_1.symmetry
-    if not isinstance(sym, symmetries.AbelianGroup):
-        pytest.skip()
-
     # for each basis element, store its sector and an int as a unique identifier
     public_basis_1 = [(s, i) for i, s in enumerate(leg_1.sectors_of_basis)]
     public_basis_2 = [(s, i) for i, s in enumerate(leg_2.sectors_of_basis)]
@@ -368,9 +365,9 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
     
     # check fusion_outcomes_sort
     # =======================================
-    fusion_outcomes = [sym.fusion_outcomes(s_1, s_2)[0]
+    fusion_outcomes = [abelian_group_symmetry.fusion_outcomes(s_1, s_2)[0]
                        for s_1, s_2 in iter_combinations(leg_1.sector_decomposition, leg_2.sector_decomposition)]
-    fusion_outcomes_sorted, expect = _sort_sectors(fusion_outcomes, sym, by_duals=pipe.is_dual)
+    fusion_outcomes_sorted, expect = _sort_sectors(fusion_outcomes, abelian_group_symmetry, by_duals=pipe.is_dual)
     assert np.all(pipe.fusion_outcomes_sort == expect)
 
     # check block_ind_map_slices
@@ -386,18 +383,18 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
 
     # check _get_fusion_outcomes_perm()
     # =======================================
-    internal_fusion_outcomes = [(sym.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
+    internal_fusion_outcomes = [(abelian_group_symmetry.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
                                 for b_1, b_2 in iter_combinations(internal_basis_1, internal_basis_2)]
-    _, fusion_outcomes_perm = _sort_sectors([b[0] for b in internal_fusion_outcomes], sym,
+    _, fusion_outcomes_perm = _sort_sectors([b[0] for b in internal_fusion_outcomes], abelian_group_symmetry,
                                             by_duals=pipe.is_dual)
-    
-    assert np.all(pipe._get_fusion_outcomes_perm() == fusion_outcomes_perm)
+
+    assert np.all(pipe._get_fusion_outcomes_perm(pipe.multiplicities) == fusion_outcomes_perm)
     
     # check basis_perm
     # =======================================
     assert pipe.basis_perm.shape == (pipe.dim,)
     assert np.all(np.sort(pipe.basis_perm) == np.arange(pipe.dim))
-    public_basis_pipe = [(sym.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
+    public_basis_pipe = [(abelian_group_symmetry.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
                          for b_1, b_2 in iter_combinations(public_basis_1, public_basis_2)]
     internal_basis_pipe = [internal_fusion_outcomes[n] for n in fusion_outcomes_perm]
     
