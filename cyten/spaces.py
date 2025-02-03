@@ -1427,7 +1427,7 @@ class TensorProduct(Space):
             return False
         if self.symmetry != other.symmetry:
             return False
-        return all(s1 == s2 for s1, s2 in zip(self.factors, other.factors, strict=True))
+        return all(s1 == s2 for s1, s2 in zip(self.factors, other.factors))
 
     def __getitem__(self, idx):
         return self.factors[idx]
@@ -1725,9 +1725,11 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         assert all(isinstance(i, AbelianLegPipe) for i in independent_descriptions)
         is_dual = independent_descriptions[0].is_dual
         assert all(i.is_dual == is_dual for i in independent_descriptions[1:])
+        num_legs = independent_descriptions[0].num_legs
+        assert all(i.num_legs == num_legs for i in independent_descriptions[1:])
         legs = [
             i_legs[0].from_independent_symmetries(i_legs)
-            for i_legs in zip(*(i.legs for i in independent_descriptions), strict=True)
+            for i_legs in zip(*(i.legs for i in independent_descriptions))
         ]
         return cls(legs, is_dual=is_dual)
 
