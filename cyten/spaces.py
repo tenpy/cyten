@@ -1951,8 +1951,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
         OPTIMIZE (JU) should we make this on-demand only? i.e. make ``_basis_perm`` a cached property?
         """
-        # see diagram in docstring:
-        # res == (fusion^{-1}) * (basis_perm of all legs) * (fusion) * (sort)
+        # see diagram in docstring, we follow the path parallel to ``pipe.basis_perm``.
         # inverse of fusion
         order = 'C' if self.combine_cstyle else 'F'
         res2 = np.reshape(np.arange(self.dim), [leg.dim for leg in self.legs], order=order)
@@ -1995,7 +1994,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
             # Now for each basis element in start:stop, we construct where it was before sorting
 
-            # multiplicity_grid :: each row stands combination of uncoupled basis elements.
+            # multiplicity_grid :: each row stands for a combination of uncoupled basis elements.
             #                      they are the indices of that basis element *within* the sector.
             multiplicity_grid = make_grid([leg.multiplicities[idx] for leg, idx in zip(self.legs, idcs)],
                                           cstyle=self.combine_cstyle)
@@ -2004,16 +2003,15 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             # current sector, namely legs[n].sector_decomposition[idcs[n]]
             sector_starts = np.array([leg.slices[idx, 0] for leg, idx in zip(self.legs, idcs)])
 
-            # multiplicity_grid :: each row stands combination of uncoupled basis elements.
-            #                      they are the indices of that basis element within the legs internal basis
+            # basis_grid :: each row stands for a combination of uncoupled basis elements.
+            #               they are the indices of that basis element within its legs internal basis
             basis_grid = multiplicity_grid + sector_starts
 
             # now we need to map the multi-indices (rows of basis_grid) to single indices into
             # the unsorted list of fusion outcomes. Note that the relevant strides are ``dim_strides``,
             # and that these strides come from a *different* shape than the multiplicity_grid.
-
-            # The next line is a batched version of
-            # ``perm[start + n] = np.sum(basis_grid[n] * dim_strides)``
+            # That is, we want to do ``perm[start + n] = np.sum(basis_grid[n] * dim_strides)``.
+            # Turns out we can do it batched:
             perm[start:stop] = np.sum(basis_grid * dim_strides, axis=1)
 
         return perm
