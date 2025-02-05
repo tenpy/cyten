@@ -1705,8 +1705,18 @@ class AbelianBackend(TensorBackend):
 
     def svd(self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None
             ) -> tuple[Data, DiagonalData, Data]:
-        raise NotImplementedError  # TODO currently broken
-        new_leg = new_co_domain[0]  # TODO
+        # The issue here is that sector_decomposition of the (co)domain is sorted, but may be
+        # dual_sorted for the single leg in the (co)domain. The block_inds do contain the indices
+        # of the legs, i.e., either we (generically) cannot iterate over sorted arrays (= iterate
+        # over legs) or we iterate over sorted arrays (= iterate over (co)domain) and then need an
+        # additional step to find the correct indices.
+        # We do the latter, i.e., assuming that sector_decomposition_where is efficient.
+        # Additionally, the block_inds of u, s, vh are in general no longer lexsorted.
+
+        # In the special case in which the sector_decomposition of all legs is sorted, it reduces
+        # to the previous case, where we do not need to find any indices and the block_inds are
+        # constructed in a lexsorted way.
+        new_leg = new_co_domain[0]
         assert a.num_codomain_legs == 1 == a.num_domain_legs  # since self.can_decompose_tensors is False
         u_blocks = []
         s_blocks = []
@@ -1723,6 +1733,18 @@ class AbelianBackend(TensorBackend):
             # due to the loop setup we have:
             #   a.codomain.sector_decomposition[j] == new_leg.sector_decomposition[n]
             #   a.domain.sector_decomposition[k] == new_leg.sector_decomposition[n]
+            # but we still need the leg indices (which may differ depending on the sector_order)
+            sector = a.codomain.sector_decomposition[j]
+            if a.codomain[0].sector_order != 'sorted':
+                j = a.codomain[0].sector_decomposition_where(sector)
+            if a.domain[0].sector_order != 'sorted':
+                k = a.domain[0].sector_decomposition_where(sector)
+                # block_inds is lexsorted and in this case duplicate-free
+                # -> running index i is correct iff domain is correctly sorted
+                i = np.searchsorted(a_block_inds[:, 1], k)
+            if new_leg.sector_order != 'sorted':
+                n = new_leg.sector_decomposition_where(sector)
+                
             if i < len(a_block_inds) and a_block_inds[i, 0] == j:
                 # we have a block for that sector -> decompose it
                 u, s, vh = self.block_backend.matrix_svd(a_blocks[i], algorithm=algorithm)
@@ -1736,9 +1758,9 @@ class AbelianBackend(TensorBackend):
                 #  => S_block == 0, dont even set it.
                 #  can choose arbitrary blocks for u and vh, as long as they are isometric / orthogonal
                 new_leg_dim = new_leg.multiplicities[n]
-                eye_u = self.block_backend.eye_matrix(a.codomain.multiplicities[j], a.dtype)
+                eye_u = self.block_backend.eye_matrix(a.codomain[0].multiplicities[j], a.dtype)
                 u_blocks.append(eye_u[:, :new_leg_dim])
-                eye_v = self.block_backend.eye_matrix(a.domain.multiplicities[k], a.dtype)
+                eye_v = self.block_backend.eye_matrix(a.domain[0].multiplicities[k], a.dtype)
                 vh_blocks.append(eye_v[:new_leg_dim, :])
             u_block_inds.append([j, n])
             vh_block_inds.append([n, k])
@@ -1755,11 +1777,15 @@ class AbelianBackend(TensorBackend):
             vh_block_inds = np.array(vh_block_inds, int)
 
         # for all block_inds, the last column is sorted and duplicate-free,
-        # thus the block_inds are np.lexsort( .T)-ed
-        u_data = AbelianBackendData(a.dtype, a.data.device, u_blocks, u_block_inds, is_sorted=True)
+        # thus the block_inds are np.lexsort( .T)-ed if the sector_order of
+        # the corresponding leg is sorted
+        u_sorted = s_sorted = new_leg.sector_order == 'sorted'
+        vh_sorted = a.domain[0].sector_order == 'sorted'
+
+        u_data = AbelianBackendData(a.dtype, a.data.device, u_blocks, u_block_inds, is_sorted=u_sorted)
         s_data = AbelianBackendData(a.dtype.to_real, a.data.device, s_blocks, s_block_inds,
-                                    is_sorted=True)
-        vh_data = AbelianBackendData(a.dtype, a.data.device, vh_blocks, vh_block_inds, is_sorted=True)
+                                    is_sorted=s_sorted)
+        vh_data = AbelianBackendData(a.dtype, a.data.device, vh_blocks, vh_block_inds, is_sorted=vh_sorted)
         return u_data, s_data, vh_data
 
     def state_tensor_product(self, state1: Block, state2: Block, pipe: AbelianLegPipe):
