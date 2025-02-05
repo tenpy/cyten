@@ -1049,7 +1049,6 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(common_dtype, v.data.device, res_blocks, res_block_inds, is_sorted=True)
 
     def lq(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
-        raise NotImplementedError  # TODO
         new_leg = new_co_domain[0]  # TODO
         assert a.num_codomain_legs == 1 == a.num_domain_legs  # since self.can_decompose_tensors is False
         l_blocks = []
@@ -1065,6 +1064,18 @@ class AbelianBackend(TensorBackend):
             # due to the loop setup we have:
             #   a.codomain.sector_decomposition[j] == new_leg.sector_decomposition[n]
             #   a.domain.sector_decomposition[k] == new_leg.sector_decomposition[n]
+            # but we still need the leg indices (which may differ depending on the sector_order)
+            sector = a.codomain.sector_decomposition[j]
+            if a.codomain[0].sector_order != 'sorted':
+                j = a.codomain[0].sector_decomposition_where(sector)
+            if a.domain[0].sector_order != 'sorted':
+                k = a.domain[0].sector_decomposition_where(sector)
+                # block_inds is lexsorted and in this case duplicate-free
+                # -> running index i is correct iff domain is correctly sorted
+                i = np.searchsorted(a_block_inds[:, 1], k)
+            if new_leg.sector_order != 'sorted':
+                n = new_leg.sector_decomposition_where(sector)
+
             if i < len(a_block_inds) and a_block_inds[i, 0] == j:
                 # we have a block for that sector -> decompose it
                 l, q = self.block_backend.matrix_lq(a_blocks[i], full=False)
@@ -1078,7 +1089,7 @@ class AbelianBackend(TensorBackend):
                 # can choose arbitrary blocks for q, as long as they are isometric
                 new_leg_dim = new_leg.multiplicities[n]
                 q_blocks.append(
-                    self.block_backend.eye_matrix(a.domain.multiplicities[k], a.dtype)[:new_leg_dim, :]
+                    self.block_backend.eye_matrix(a.domain[0].multiplicities[k], a.dtype)[:new_leg_dim, :]
                 )
             q_block_inds.append([n, k])
         if len(l_blocks) == 0:
@@ -1090,8 +1101,10 @@ class AbelianBackend(TensorBackend):
         else:
             q_block_inds = np.array(q_block_inds, int)
         #
-        l_data = AbelianBackendData(a.dtype, a.data.device, l_blocks, l_block_inds, is_sorted=True)
-        q_data = AbelianBackendData(a.dtype, a.data.device, q_blocks, q_block_inds, is_sorted=True)
+        l_sorted = new_leg.sector_order == 'sorted'
+        q_sorted = a.domain[0].sector_order == 'sorted'
+        l_data = AbelianBackendData(a.dtype, a.data.device, l_blocks, l_block_inds, is_sorted=l_sorted)
+        q_data = AbelianBackendData(a.dtype, a.data.device, q_blocks, q_block_inds, is_sorted=q_sorted)
         return l_data, q_data
 
     def mask_binary_operand(self, mask1: Mask, mask2: Mask, func) -> tuple[DiagonalData, ElementarySpace]:
@@ -1515,7 +1528,6 @@ class AbelianBackend(TensorBackend):
         return data, codomain, domain
 
     def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
-        raise NotImplementedError  # TODO
         new_leg = new_co_domain[0]  # TODO check this
         assert a.num_codomain_legs == 1 == a.num_domain_legs  # since self.can_decompose_tensors is False
         q_blocks = []
@@ -1531,6 +1543,18 @@ class AbelianBackend(TensorBackend):
             # due to the loop setup we have:
             #   a.codomain.sector_decomposition[j] == new_leg.sector_decomposition[n]
             #   a.domain.sector_decomposition[k] == new_leg.sector_decomposition[n]
+            # but we still need the leg indices (which may differ depending on the sector_order)
+            sector = a.codomain.sector_decomposition[j]
+            if a.codomain[0].sector_order != 'sorted':
+                j = a.codomain[0].sector_decomposition_where(sector)
+            if a.domain[0].sector_order != 'sorted':
+                k = a.domain[0].sector_decomposition_where(sector)
+                # block_inds is lexsorted and in this case duplicate-free
+                # -> running index i is correct iff domain is correctly sorted
+                i = np.searchsorted(a_block_inds[:, 1], k)
+            if new_leg.sector_order != 'sorted':
+                n = new_leg.sector_decomposition_where(sector)
+
             if i < len(a_block_inds) and a_block_inds[i, 0] == j:
                 # we have a block for that sector -> decompose it
                 q, r = self.block_backend.matrix_qr(a_blocks[i], full=False)
@@ -1543,7 +1567,7 @@ class AbelianBackend(TensorBackend):
                 # => R_block == 0 and we dont even set it.
                 # can choose arbitrary blocks for q, as long as they are isometric
                 new_leg_dim = new_leg.multiplicities[n]
-                eye = self.block_backend.eye_matrix(a.codomain.multiplicities[j], a.dtype)
+                eye = self.block_backend.eye_matrix(a.codomain[0].multiplicities[j], a.dtype)
                 q_blocks.append(eye[:, :new_leg_dim])
             q_block_inds.append([j, n])
         #
@@ -1556,8 +1580,10 @@ class AbelianBackend(TensorBackend):
         else:
             r_block_inds = np.array(r_block_inds, int)
         #
-        q_data = AbelianBackendData(a.dtype, a.data.device, q_blocks, q_block_inds, is_sorted=True)
-        r_data = AbelianBackendData(a.dtype, a.data.device, r_blocks, r_block_inds, is_sorted=True)
+        q_sorted = new_leg.sector_order == 'sorted'
+        r_sorted = a.domain[0].sector_order == 'sorted'
+        q_data = AbelianBackendData(a.dtype, a.data.device, q_blocks, q_block_inds, is_sorted=q_sorted)
+        r_data = AbelianBackendData(a.dtype, a.data.device, r_blocks, r_block_inds, is_sorted=r_sorted)
         return q_data, r_data
 
     def reduce_DiagonalTensor(self, tensor: DiagonalTensor, block_func, func) -> float | complex:

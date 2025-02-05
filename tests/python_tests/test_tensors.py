@@ -2027,12 +2027,6 @@ def test_qr_lq(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     T_labels = list('efghijk')[:dom + cod]
     T: cls = make_compatible_tensor(dom, cod, cls=cls, labels=T_labels)
 
-    # TODO
-    if isinstance(T.backend, backends.AbelianBackend):
-        with pytest.raises(NotImplementedError):
-            _ = tensors.qr(T, new_leg_dual=new_leg_dual)
-        pytest.xfail()
-
     Q, R = tensors.qr(T, new_leg_dual=new_leg_dual)
     Q.test_sanity()
     R.test_sanity()
