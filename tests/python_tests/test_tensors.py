@@ -2182,12 +2182,6 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
 
     print('Normal (non-truncated) SVD')
 
-    # TODO
-    if isinstance(T.backend, backends.AbelianBackend):
-        with pytest.raises(NotImplementedError):
-            _ = tensors.svd(T, new_labels=['a', 'b', 'c', 'd'], new_leg_dual=new_leg_dual)
-        pytest.xfail()
-
     U, S, Vh = tensors.svd(T, new_labels=['a', 'b', 'c', 'd'], new_leg_dual=new_leg_dual)
     U.test_sanity()
     S.test_sanity()
