@@ -1484,7 +1484,7 @@ class SUNSymmetry(GroupSymmetry):
 
         key = N + astr + bstr
 
-        if not key in self.cg_file:
+        if (key not in self.cg_file) or len(self.cg_file[key]) == 0:
             key = N + bstr + astr
 
         dec = []
@@ -1514,10 +1514,10 @@ class SUNSymmetry(GroupSymmetry):
 
         key = N + a + b
 
-        if not key in self.cg_file:
+        if (key not in self.cg_file) or len(self.cg_file[key]) == 0:
             key = N + b + a
 
-        if c not in list(self.cg_file[key]):
+        if not any(self.cg_file[key][:] == c):
             return 0
 
         return self.cg_file[key][c].attrs['Outer Multiplicity']
@@ -1553,7 +1553,7 @@ class SUNSymmetry(GroupSymmetry):
 
         key = N + a + b
 
-        if not key in self.cg_file:
+        if (key not in self.cg_file) or len(self.cg_file[key]) == 0:
             key = N + b + a
 
         dec = []
@@ -1635,7 +1635,7 @@ class SUNSymmetry(GroupSymmetry):
         key1 = N + a + b
         key2 = 'Irrep' + c + 'a' + str(mu)
 
-        if key1 in self.cg_file:
+        if (key1 in self.cg_file) and len(self.cg_file[key1]) > 0:
             arr = np.array(self.cg_file[key1][key2])[0]
         else:
             key1 = N + b + a  # we only save a x b  and not also b x a since the clebsch gordan coefficients
