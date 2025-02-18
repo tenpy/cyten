@@ -3692,7 +3692,7 @@ def eigh(tensor: Tensor, new_labels: str | list[str] | None, new_leg_dual: bool,
         tensor = combine_legs(
             tensor,
             range(tensor.num_codomain_legs), range(tensor.num_codomain_legs, tensor.num_legs),
-            pipe_dualities=[new_leg_dual, new_leg_dual]
+            pipe_dualities=[new_leg_dual, not new_leg_dual]
         )
 
     # first, compute a decomposition where the new leg is a ket space
@@ -3703,7 +3703,7 @@ def eigh(tensor: Tensor, new_labels: str | list[str] | None, new_leg_dual: bool,
 
     # undo the combine
     if not tensor.backend.can_decompose_tensors:
-        V = split_legs(V, -1)
+        V = split_legs(V, 0)
 
     # if required, flip the leg duality
     if new_leg_dual != new_leg.is_dual:
