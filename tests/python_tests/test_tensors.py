@@ -1407,9 +1407,7 @@ def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     T.set_labels(list('efghijk')[:2 * dom])
     T.test_sanity()
 
-    if isinstance(T.backend, backends.AbelianBackend) and cls is not DiagonalTensor:
-        with pytest.raises(AssertionError):
-            _ = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
+    if isinstance(T.backend, backends.AbelianBackend) and cls is not DiagonalTensor and T.num_legs != 2:
         pytest.xfail()
 
     W, V = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
