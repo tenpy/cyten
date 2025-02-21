@@ -78,6 +78,8 @@ html_context = {
 
 breathe_projects = {"cyten": "build_docs/doxy_xml"}
 
+breathe_projects_source = {"cyten": ("../include/cyten", ["symmetries.h"])}
+
 breathe_default_project = "cyten"
 
 # -- sphinx.ext.autodoc ---------------------------------------------------

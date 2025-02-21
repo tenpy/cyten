@@ -14,6 +14,8 @@ from .dtypes import Dtype
 from .tools.misc import as_immutable_array
 
 from ._core import FusionStyle, BraidingStyle
+FusionStyle.__module__ = __name__
+BraidingStyle.__module__ = __name__
 
 __all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingStyle',
            # symmetry base-classes
