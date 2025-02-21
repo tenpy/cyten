@@ -1190,6 +1190,43 @@ class ElementarySpace(Space, Leg):
             return self  # TODO copy?
         return self.with_opposite_duality()
 
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+
+        hdf5_saver.save(self.defining_sectors, subpath + 'defining_sectors')
+        hdf5_saver.save(self.sector_decomposition, subpath + 'sector_decomposition')
+        hdf5_saver.save(self.sector_order, subpath + 'sector_order')
+        hdf5_saver.save(self._basis_perm, subpath + '_basis_perm')
+        hdf5_saver.save(self._inverse_basis_perm, subpath + '_inverse_basis_perm')
+        hdf5_saver.save(self.multiplicities, subpath + 'multiplicities')
+        hdf5_saver.save(self.symmetry, subpath + 'symmetry')
+        hdf5_saver.save(self.dim, subpath + 'dim')
+        hdf5_saver.save(self.num_sectors, subpath + 'num_sectors')
+        hdf5_saver.save(self.slices, subpath + 'slices')
+        hdf5_saver.save(self.sector_dims, subpath + 'sector_dims')
+
+        h5gr.attrs['is_dual'] = self.is_dual
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.defining_sectors = hdf5_loader.load(subpath + 'defining_sectors')
+        obj.sector_decomposition = hdf5_loader.load(subpath + 'sector_decomposition')
+        obj.sector_order = hdf5_loader.load(subpath + 'sector_order')
+        obj._basis_perm = hdf5_loader.load(subpath + '_basis_perm')
+        obj._inverse_basis_perm = hdf5_loader.load(subpath + '_inverse_basis_perm')
+        obj.multiplicities = hdf5_loader.load(subpath + 'multiplicities')
+        obj.symmetry = hdf5_loader.load(subpath + 'symmetry')
+        obj.dim = hdf5_loader.load(subpath + 'dim')
+        obj.num_sectors = hdf5_loader.load(subpath + 'num_sectors')
+        obj.slices = hdf5_loader.load(subpath + 'slices')
+        obj.sector_dims = hdf5_loader.load(subpath + 'sector_dims')
+        obj.is_dual = hdf5_loader.get_attr(h5gr, 'is_dual')
+
+        return obj
+
 
 class TensorProduct(Space):
     """Represents a tensor product of :class:`Spaces`s, e.g. the (co-)domain of a tensor.
@@ -1543,6 +1580,39 @@ class TensorProduct(Space):
             np.concatenate(mult_arrays, axis=0)
         )
         return sectors, multiplicities
+
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+
+        hdf5_saver.save(self.factors, subpath + 'factors')
+        hdf5_saver.save(self.slices, subpath + 'slices')
+        hdf5_saver.save(self.symmetry, subpath + 'symmetry')
+        hdf5_saver.save(self.num_sectors, subpath + 'num_sectors')
+        hdf5_saver.save(self.num_factors, subpath + 'num_factors')
+        hdf5_saver.save(self.sector_decomposition, subpath + 'sector_decomposition')
+        hdf5_saver.save(self.sector_order, subpath + 'sector_order')
+        hdf5_saver.save(self.dim, subpath + 'dim')
+        hdf5_saver.save(self.multiplicities, subpath + 'multiplicities')
+        hdf5_saver.save(self.sector_dims, subpath + 'sector_dims')
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+
+        obj = cls.__new__(cls)
+
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.factors = hdf5_loader.load(subpath + 'factors')
+        obj.slices = hdf5_loader.load(subpath + 'slices')
+        obj.symmetry = hdf5_loader.load(subpath + 'symmetry')
+        obj.num_sectors = hdf5_loader.load(subpath + 'num_sectors')
+        obj.num_factors = hdf5_loader.load(subpath + 'num_factors')
+        obj.sector_decomposition = hdf5_loader.load(subpath + 'sector_decomposition')
+        obj.sector_order = hdf5_loader.load(subpath + 'sector_order')
+        obj.dim = hdf5_loader.load(subpath + 'dim')
+        obj.multiplicities = hdf5_loader.load(subpath + 'multiplicities')
+        obj.sector_dims = hdf5_loader.load(subpath + 'sector_dims')
+
+        return obj
 
 
 class AbelianLegPipe(LegPipe, ElementarySpace):
