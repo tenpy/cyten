@@ -302,7 +302,7 @@ py::array Symmetry::s_matrix(Sector a, Sector b) const {
 
 // CONCRETE IMPLEMENTATIONS
 
-SectorArray Symmetry::dual_sector(SectorArray const & sectors) const {
+SectorArray Symmetry::dual_sectors(SectorArray const & sectors) const {
     SectorArray res;
     res.reserve(sectors.size());
     for (Sector a : sectors)
