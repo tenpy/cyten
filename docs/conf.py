@@ -81,6 +81,8 @@ breathe_projects = {'cyten': 'build_docs/doxy_xml'}
 
 breathe_default_project = 'cyten'
 
+breathe_projects_source = {'cyten': ('../include/cyten', ['symmetries.h'])}
+
 # -- sphinx.ext.autodoc ---------------------------------------------------
 
 autodoc_default_options = {}
