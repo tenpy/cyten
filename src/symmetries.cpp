@@ -38,9 +38,47 @@ bool Symmetry::has_symmetric_braid() const {
     return braiding_style <= BraidingStyle::fermionic;
 }
 
+cyten_int Symmetry::n_symbol(Sector a, Sector b, Sector c) const {
+    if (! can_fuse_to(a, b, c))
+        return 0;
+    return _n_symbol(a, b, c);
+}
+
+py::array Symmetry::f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const {
+#if DO_FUSION_INPUT_CHECKS
+    if (!( 
+        can_fuse_to(b, c, e) &&
+        can_fuse_to(a, e, d) &&
+        can_fuse_to(a, b, f) &&
+        can_fuse_to(f, c, d)
+    ))
+        throw SymmetryError("Sectors are not consistent with fusion rules.");
+#endif
+    return _f_symbol(a, b, c, d, e, f);
+}
+
+py::array Symmetry::r_symbol(Sector a, Sector b, Sector c) const {
+#if DO_FUSION_INPUT_CHECKS
+    if (!can_fuse_to(a, b, c))
+        throw SymmetryError("Sectors are not consistent with fusion rules.");
+#endif
+    return _r_symbol(a, b, c);
+}
+
+
+py::array Symmetry::fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const {
+#if DO_FUSION_INPUT_CHECKS
+    if (!can_fuse_to(a, b, c))
+        throw SymmetryError("Sectors are not consistent with fusion rules.");
+#endif
+    return _fusion_tensor(a, b, c, Z_a, Z_b);
+}
+
 py::array Symmetry::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
 {
-    throw SymmetryError("Not defined for " + group_name());
+    if (! can_be_dropped())
+        throw SymmetryError("fusion_tensor not possible: can't drop symmetry for " + group_name());
+    throw SymmetryError("not implemented for " + group_name());
 }
 
 SectorArray Symmetry::all_sectors() const
@@ -242,6 +280,7 @@ cyten_complex Symmetry::s_matrix_element(Sector a, Sector b) const {
     S /= topological_twist(a) * topological_twist(b) * total_qdim();
     return S;
 }
+
 py::array Symmetry::s_matrix(Sector a, Sector b) const {
     py::array_t<cyten_complex> result({num_sectors(), num_sectors()});
     auto res = result.mutable_unchecked<2>();
@@ -261,9 +300,7 @@ py::array Symmetry::s_matrix(Sector a, Sector b) const {
 }
 
 
-
-// COMMON IMPLEMENTATIONS
-
+// CONCRETE IMPLEMENTATIONS
 
 SectorArray Symmetry::dual_sector(SectorArray const & sectors) const {
     SectorArray res;
@@ -273,6 +310,17 @@ SectorArray Symmetry::dual_sector(SectorArray const & sectors) const {
     return res;
 }
 
+std::string Symmetry::__str__() const {
+    if (descriptive_name.size() > 0)
+        return group_name() + "(" + descriptive_name + ")";
+    return group_name();
+}
+
+bool Symmetry::operator==(Symmetry const & rhs) const {
+    if (descriptive_name != rhs.descriptive_name)
+        return false;
+    return is_same_symmetry(rhs);
+}
 
 GroupSymmetry::GroupSymmetry(FusionStyle fusion)
     :Symmetry(fusion, BraidingStyle::bosonic)

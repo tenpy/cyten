@@ -43,6 +43,8 @@ std::array<Sector, N> _decompress_sector_fixed(Sector compressed, std::array<int
 
 typedef std::vector<Sector> SectorArray;
 
+class ProductSymmetry;  // forward declaration
+
 class Symmetry {
     public:
         const FusionStyle fusion_style;
@@ -66,7 +68,7 @@ class Symmetry {
         size_t sector_ind_len() const;
         bool has_symmetric_braid() const;
         
-    // ABSTRACT METHODS (need to be overwritten)
+    // ABSTRACT METHODS (virtual methods need to be overwritten)
     public:
         virtual std::string group_name() const = 0;
         virtual Sector trivial_sector() const = 0;
@@ -75,28 +77,42 @@ class Symmetry {
         virtual SectorArray fusion_outcomes(Sector a, Sector b) const = 0;
 
         // Convention: valid syntax for the constructor, i.e. "ClassName(..., name='...')"
-        virtual std::string __repr__() const = 0; // TODO maybe easier in python?
+        virtual std::string __repr__() const = 0;
 
         /// Whether self and other describe the same mathematical structure.
-        virtual bool is_same_symmetry(Symmetry * other) const = 0;        
+        virtual bool is_same_symmetry(Symmetry const & other) const = 0;        
         
         /// The sector dual to a, such that N^{a,dual(a)}_u = 1.
         virtual Sector dual_sector(Sector a) const = 0;
+       // element-wise dual_sector(a), dual_sectors in python
+        SectorArray dual_sector(SectorArray const& sectors) const;
 
+    public:
+        cyten_int n_symbol(Sector a, Sector b, Sector c) const;
     protected:
-        /// Optimized version of n_symbol() that assumes that c is a valid fusion outcome.
+        /// @brief Optimized version of n_symbol() that assumes that c is a valid fusion outcome.
         /// If it is not, the results may be nonsensical. We do this for optimization purposes
         virtual cyten_int _n_symbol(Sector a, Sector b, Sector c) const = 0;
+    public:
+        py::array f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
+    protected:
         /// @brief Internal implementation of :meth:`f_symbol`. Can assume that inputs are valid.
         virtual py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const = 0;
+    public:
+        py::array r_symbol(Sector a, Sector b, Sector c) const;
+    protected:
         /// @brief Internal implementation of :meth:`r_symbol`. Can assume that inputs are valid.
         virtual py::array _r_symbol(Sector a, Sector b, Sector c) const = 0;
+    public:
+        py::array fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const;
+    protected:
+        /// @brief Internal implementation of :meth:`fusion_tensor`. Can assume that inputs are valid.
         virtual py::array _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const;
     public:
         virtual py::array Z_iso(Sector a) = 0;
         virtual SectorArray all_sectors() const ;
 
-    // FALLBACK IMPLEMENTATIONS (might want to override)
+    // FALLBACK IMPLEMENTATIONS (might want to override virtual methods)
     public: 
         // default implementation for _sector_ind_len = 1
         virtual Sector compress_sector(std::vector<Sector> const & decompressed) const;
@@ -148,23 +164,26 @@ class Symmetry {
         cyten_complex s_matrix_element(Sector a, Sector b) const;
         py::array s_matrix(Sector a, Sector b) const;
         
-
+        
     // COMMON IMPLEMENTATIONS
     public:
-       // element-wise dual_sector(a), dual_sectors in python
-        SectorArray dual_sector(SectorArray const& sectors) const;
 
-        // TODO: continue here
-        // std::string __str__() const;
+        std::string __str__() const;
+
+        // TODO __mul__ equivelent operator*
+        // ProductSymmetry operator* (Symmetry & rhs);
+        bool operator== (Symmetry const & rhs) const;
+
 };
 
 
-// class ProductSymmetry : public Symmetry {
-//     public: 
-//         const std::vector<std::shared_ptr<Symmetry *>> factors; 
-//     public:
-//         ProductSymmetry(std::vector<std::shared_ptr<Symmetry *>> const & factors);
-// };
+class ProductSymmetry : public Symmetry {
+    public: 
+        const std::vector<std::shared_ptr<Symmetry *>> factors; 
+    public:
+        ProductSymmetry(std::vector<std::shared_ptr<Symmetry *>> const & factors);
+};
+
 
 
 class GroupSymmetry : public Symmetry {
