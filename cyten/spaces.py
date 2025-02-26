@@ -123,6 +123,15 @@ class LegPipe(Leg):
     def dual(self) -> LegPipe:
         return LegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual)
 
+    def __eq__(self, other):
+        if not isinstance(other, LegPipe):
+            return False
+        if self.is_dual != other.is_dual:
+            return False
+        if self.num_legs != other.num_legs:
+            return False
+        return all(l1 == l2 for l1, l2 in zip(self.legs, other.legs))
+
     def __getitem__(self, idx):
         return self.legs[idx]
 
@@ -1772,6 +1781,8 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         if self.is_dual != other.is_dual:
             return False
         if self.num_legs != other.num_legs:
+            return False
+        if self.combine_cstyle != other.combine_cstyle:
             return False
         return all(l1 == l2 for l1, l2 in zip(self.legs, other.legs))
 
