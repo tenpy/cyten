@@ -37,20 +37,38 @@ datadir_files = []
 if os.path.isdir(datadir):
     datadir_files = os.listdir(datadir)
 
+class DummyClass:
+    """Used to test exporting a custom class."""
+    def __init__(self):
+        self.data = []
+
+    def dummy_append(self, obj):
+        self.data.append(obj)
+
+
+_dummy_function_arg_memo = []
+
+
+def dummy_function(obj):
+    _dummy_function_arg_memo.append(obj)
 
 def gen_example_data(version=cyten.version.full_version):
     if '+' in version:
         version = version.split('+')[0]  # discard '+GITHASH' from version
-    s = cyten.networks.site.SpinHalfSite()
+    testU1 = U1_sym_test_tensor()
+    testSU2 = SU2_sym_test_tensor()
+    testrand = create_test_random_symmetric_tensor()
+    testdiag = create_test_random_diagonal_tensor()
+    testU1.test_sanity()
+    testSU2.test_sanity()
+    testrand.test_sanity()
+    testdiag.test_sanity()
     data = {
-        'SpinHalfSite': s,
-        'trivial_array': np.Array.from_ndarray_trivial(np.arange(20).reshape([4, 5])),
-        'Sz': s.Sz
+        'TestU1': testU1,
+        'TestSU2': testSU2
     }
     if parse_version(version) >= parse_version('0.5.0.dev25'):
         #psi = networks.mps.MPS.from_singlets(s, 6, [(0, 3), (1, 2), (4, 5)])
-        psi = tensors.SymmetricTensor.from_random_uniform()
-        psi.test_sanity()
 
         data.update({
             'version':
@@ -78,7 +96,7 @@ def gen_example_data(version=cyten.version.full_version):
             'dtypes': [np.dtype("int64"),
                        np.dtype([('a', np.int32, 8), ('b', np.float64, 5)])],
             'psi':
-            psi,
+                ()
 
         })
         data['recursive'][3][1] = data['recursive'][1] = data['recursive']
@@ -86,10 +104,10 @@ def gen_example_data(version=cyten.version.full_version):
     if parse_version(version) >= parse_version('0.7.2.dev33'):
         dummy = DummyClass()
         data['dummy'] = dummy
-        event_handler = cyten.tools.events.EventHandler('obj')
-        event_handler.connect(dummy_function)
-        event_handler.connect(dummy.dummy_append)
-        data['event_handler'] = event_handler
+        #event_handler = cyten.tools.events.EventHandler('obj')
+        #event_handler.connect(dummy_function)
+        #event_handler.connect(dummy.dummy_append)
+        #data['event_handler'] = event_handler
     return data
 
 

@@ -34,7 +34,7 @@ def export_to_datadir():
 @pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
 def test_hdf5_export_import(make_compatible_space, compatible_backend, tmp_path):
     """Try subsequent export and import to pickle."""
-    data = io_test.new_example_data(make_compatible_space, compatible_backend)
+    data = io_test.gen_example_data()
     io_test.assert_event_handler_example_works(data)  #if this fails, it's not import/export
     filename = tmp_path / 'test.hdf5'
     with h5py.File(str(filename), 'w') as f:
