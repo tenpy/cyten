@@ -83,6 +83,10 @@ class Leg(metaclass=ABCMeta):
         assert is_pipe
         return '║'
 
+    @abstractmethod
+    def __eq__(self, other):
+        ...
+
 
 class LegPipe(Leg):
     """A group of legs, i.e. resulting from :func:`~cyten.tensors.combine_legs`.
@@ -125,12 +129,16 @@ class LegPipe(Leg):
 
     def __eq__(self, other):
         if not isinstance(other, LegPipe):
+            return NotImplemented
+        if isinstance(self, AbelianLegPipe) != isinstance(other, AbelianLegPipe):
             return False
         if self.is_dual != other.is_dual:
             return False
         if self.num_legs != other.num_legs:
             return False
-        return all(l1 == l2 for l1, l2 in zip(self.legs, other.legs))
+        if not all(l1 == l2 for l1, l2 in zip(self.legs, other.legs)):
+            return False
+        return True
 
     def __getitem__(self, idx):
         return self.legs[idx]
@@ -1776,15 +1784,11 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
                               combine_cstyle=self.combine_cstyle)
 
     def __eq__(self, other):
-        if not isinstance(other, AbelianLegPipe):
-            return NotImplemented
-        if self.is_dual != other.is_dual:
-            return False
-        if self.num_legs != other.num_legs:
+        if not LegPipe.__eq__(self, other):
             return False
         if self.combine_cstyle != other.combine_cstyle:
             return False
-        return all(l1 == l2 for l1, l2 in zip(self.legs, other.legs))
+        return True
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
