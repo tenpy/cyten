@@ -63,12 +63,14 @@ def gen_example_data(version=cyten.version.full_version):
     testSU2.test_sanity()
     testrand.test_sanity()
     testdiag.test_sanity()
+
     data = {
         'TestU1': testU1,
-        'TestSU2': testSU2
+        'TestSU2': testSU2,
+        'Testrand': testrand,
+        'Testdiag': testdiag
     }
     if parse_version(version) >= parse_version('0.5.0.dev25'):
-        #psi = networks.mps.MPS.from_singlets(s, 6, [(0, 3), (1, 2), (4, 5)])
 
         data.update({
             'version':
