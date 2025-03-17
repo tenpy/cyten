@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cyten import symmetries, spaces, tensors, backends, Dtype
+from cyten import symmetries, spaces, tensors, backends, Dtype, tools
 
 
 def random_block(block_backend, size, real=False, np_random=np.random.default_rng(0)):
@@ -57,7 +57,6 @@ def random_ElementarySpace(symmetry, max_sectors=5, max_multiplicity=5, is_dual=
 def random_LegPipe(symmetry, backend, max_sectors=5, max_multiplicity=5, is_dual=None,
                    allow_basis_perm=True, num_legs=2, combine_cstyle=None, np_random=None):
     # combine_cstyle is only relevant for the abelian backend
-    # TODO do we want to keep the factorization of max_sectors and max_multiplicity?
     if np_random is None:
         np_random = np.random.default_rng()
     if is_dual is None:
@@ -65,9 +64,6 @@ def random_LegPipe(symmetry, backend, max_sectors=5, max_multiplicity=5, is_dual
     if combine_cstyle is None:
         combine_cstyle = np_random.random() < 0.5
 
-    # TODO max_sectors and max_multiplicity is only fulfilled for
-    # abelian fusion rules with the code below.
-    # Is there an easy way to do this more generally?
     num_sectors_legs = np_random.choice(_factorize_limit(max_sectors, num_legs))
     max_mults_legs = np_random.choice(_factorize_limit(max_multiplicity, num_legs))
     legs = []
@@ -78,18 +74,32 @@ def random_LegPipe(symmetry, backend, max_sectors=5, max_multiplicity=5, is_dual
         )
         legs.append(leg)
 
-    if isinstance(backend, backends.AbelianBackend):
-        return spaces.AbelianLegPipe(legs=legs, is_dual=is_dual, combine_cstyle=combine_cstyle)
-    return spaces.LegPipe(legs=legs, is_dual=is_dual)
+    cls = spaces.AbelianLegPipe if isinstance(backend, backends.AbelianBackend) else spaces.LegPipe
+    args = [is_dual, combine_cstyle] if isinstance(backend, backends.AbelianBackend) else [is_dual]
+    pipe = cls(legs, *args)
+    pipe_as_space = pipe.as_Space()
+
+    # make sure that for non-abelian symmetries, max_sectors and max_multiplicity is not violated
+    # by more than a factor of 2 by replacing some of the legs in the pipe by trivial legs
+    idx = 0
+    triv = spaces.ElementarySpace(symmetry, defining_sectors=[symmetry.trivial_sector],
+                                  multiplicities=[1])
+    while (pipe_as_space.sector_decomposition.shape[0] > 2 * max_sectors or
+            np.max(pipe_as_space.multiplicities) > 2 * max_multiplicity):
+        legs[idx] = triv
+        idx += 1
+        pipe = cls(legs, *args)
+        pipe_as_space = pipe.as_Space()
+    return pipe
 
 
 def random_leg(symmetry, backend, max_sectors=5, max_multiplicity=5, is_dual=None,
-               allow_basis_perm=True, use_pipes=False, num_legs=2, combine_cstyle=None,
+               allow_basis_perm=True, use_pipes=False, combine_cstyle=None,
                np_random=np.random.default_rng()):
     if np_random.random() < use_pipes:
         return random_LegPipe(
             symmetry=symmetry, backend=backend, max_sectors=max_sectors, max_multiplicity=max_multiplicity,
-            is_dual=is_dual, allow_basis_perm=allow_basis_perm, num_legs=num_legs,
+            is_dual=is_dual, allow_basis_perm=allow_basis_perm, num_legs=_random_num_legs(np_random=np_random),
             combine_cstyle=combine_cstyle, np_random=np_random
         )
     return random_ElementarySpace(
@@ -205,10 +215,11 @@ def find_last_leg(same: spaces.TensorProduct, opposite: spaces.TensorProduct,
         # should this become more nontrivial?
         triv = spaces.ElementarySpace(prod.symmetry, defining_sectors=[prod.symmetry.trivial_sector],
                                       multiplicities=[1])
+        legs = [res] + [triv] * (_random_num_legs(np_random=np_random) - 1)
         if isinstance(backend, backends.AbelianBackend):
-            res = spaces.AbelianLegPipe(legs=[res, triv], combine_cstyle=combine_cstyle)
+            res = spaces.AbelianLegPipe(legs=legs, combine_cstyle=combine_cstyle)
         else:
-            res = spaces.LegPipe(legs=[res, triv])
+            res = spaces.LegPipe(legs=legs)
     #
     # check that it actually worked
     # OPTIMIZE remove?
@@ -375,6 +386,8 @@ def random_tensor(symmetry: symmetries.Symmetry,
                     assert domain[0] == leg
         #
         real = False if dtype is None else dtype.is_real
+        # there is no need to check the memory usage of diagonal tensors since there is only
+        # a single leg in the (co)domain and we have max_sectors and max_multiplicity
         res = tensors.DiagonalTensor.from_block_func(
             lambda size: random_block(block_backend=backend.block_backend, size=size, real=real, np_random=np_random),
             leg=leg, backend=backend, labels=labels, dtype=dtype, device=device
@@ -498,6 +511,7 @@ def random_tensor(symmetry: symmetries.Symmetry,
         raise ValueError(f'Unknown tensor cls: {cls}')
 
     real = False if dtype is None else dtype.is_real
+    check_tensor_memory_usage(codomain=codomain, domain=domain, real=real)
     res = tensors.SymmetricTensor.from_block_func(
         lambda size: random_block(block_backend=backend.block_backend, size=size, real=real, np_random=np_random),
         codomain=codomain, domain=domain, backend=backend, labels=labels,
@@ -508,6 +522,23 @@ def random_tensor(symmetry: symmetries.Symmetry,
                                    np_random=np_random)
     res.test_sanity()
     return res
+
+
+def check_tensor_memory_usage(codomain: spaces.TensorProduct,
+                              domain: spaces.TensorProduct, real: bool):
+    """Estimate memory usage based on the number of entries in all blocks.
+    Raise error if estimated memory is larger than 1 GB
+    """
+    limit = 1.
+    num_entries = 0
+    for i, j in tools.misc.iter_common_sorted_arrays(codomain.sector_decomposition, domain.sector_decomposition):
+        num_entries += codomain.block_size(i) * domain.block_size(j)
+    # real floats use 8 bytes of memory, complex floats 16 bytes
+    memory = 8 * num_entries * 1024 ** -3
+    if not real:
+        memory *= 2
+    if memory > limit:
+        raise RuntimeError(f'Estimated memory of tensor is larger than {limit:.2f}GB ({memory:.2f}GB estimated)')
 
 
 def _factorize_limit(limit: int, num_components: int):
@@ -523,7 +554,8 @@ def _factorize_limit(limit: int, num_components: int):
 
 def _random_ElementarySpace(symmetry, num_sectors, max_multiplicity, is_dual,
                             allow_basis_perm, np_random):
-    "similar to `random_ElementarySpace`, but with fixed number of sectors"
+    """Similar to `random_ElementarySpace`, but with fixed number of sectors
+    """
     sectors = random_symmetry_sectors(symmetry, num_sectors, sort=True, np_random=np_random)
     # if there are very few sectors, e.g. for symmetry==NoSymmetry(), dont let them be one-dimensional
     min_mult = min(max_multiplicity, max(4 - len(sectors), 1))
@@ -540,3 +572,15 @@ def _random_ElementarySpace(symmetry, num_sectors, max_multiplicity, is_dual,
     )
     res.test_sanity()
     return res
+
+
+def _random_num_legs(np_random):
+    """Return random number of legs of pipr construction.
+    Probabilities are 80% for 1 leg, 15% for 2 legs, 5% for 3 legs.
+    """
+    rnd = np_random.random()
+    if rnd < 0.8:
+        return 1
+    elif rnd < 0.95:
+        return 2
+    return 3
