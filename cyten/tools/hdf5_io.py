@@ -266,16 +266,19 @@ def valid_hdf5_path_component(name):
 
 class Hdf5FormatError(Exception):
     """Common base class for errors regarding our HDF5 format."""
+
     pass
 
 
 class Hdf5ExportError(Hdf5FormatError):
     """This exception is raised when something went wrong during export to hdf5."""
+
     pass
 
 
 class Hdf5ImportError(Hdf5FormatError):
     """This exception is raised when something went wrong during import from hdf5."""
+
     pass
 
 
@@ -293,6 +296,7 @@ class Hdf5Exportable:
     In particular, this works for python-defined classes which simply store data using
     ``self.data = data`` in their methods.
     """
+
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
         """Export `self` into a HDF5 file.
 
@@ -371,6 +375,7 @@ class Hdf5Ignored:
     name : str
         See above.
     """
+
     def __init__(self, name='unknown'):
         self.name = name
 
@@ -418,6 +423,7 @@ class Hdf5Saver:
         :meth:`Hdf5Exportable.save_hdf5` implementations.
         For example, :class:`~tenpy.linalg.LegCharge` checks it for the key ``"LegCharge"``.
     """
+
     def __init__(self, h5group, format_selection=None):
         self.h5group = h5group
         self.memo_save = {}
@@ -738,7 +744,7 @@ class Hdf5Saver:
         # numpy version 1.20 introduced separate subclasses of dtype for the standard types
         for t in np.dtype.__subclasses__():
             if t.__name__.startswith('_'):
-                 # HACK: numpy version 2.0 introduced subclasses of subclasses
+                # HACK: numpy version 2.0 introduced subclasses of subclasses
                 for t2 in t.__subclasses__():
                     dispatch_save[t2] = (save_dtype, REPR_DTYPE)
             else:
@@ -825,6 +831,7 @@ class Hdf5Loader:
         The dictionary key is a h5py group- or dataset ``id``;
         the value is the loaded object. See :meth:`memorize_load`.
     """
+
     def __init__(self, h5group, ignore_unknown=True, exclude=None):
         self.h5group = h5group
         self.ignore_unknown = ignore_unknown

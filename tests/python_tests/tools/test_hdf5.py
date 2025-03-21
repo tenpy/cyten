@@ -4,8 +4,6 @@ import os
 import pytest
 import warnings
 from cyten.tools import hdf5_io
-import pathlib
-#from tests.pytest import conftest
 
 h5py = pytest.importorskip('h5py')
 
@@ -35,7 +33,7 @@ def export_to_datadir():
 def test_hdf5_export_import(make_compatible_space, compatible_backend, tmp_path):
     """Try subsequent export and import to pickle."""
     data = io_test.gen_example_data()
-    io_test.assert_event_handler_example_works(data)  #if this fails, it's not import/export
+    io_test.assert_event_handler_example_works(data)  # if this fails, it's not import/export
     filename = tmp_path / 'test.hdf5'
     with h5py.File(str(filename), 'w') as f:
         hdf5_io.save_to_hdf5(f, data)

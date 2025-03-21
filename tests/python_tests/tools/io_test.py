@@ -14,7 +14,6 @@ import os
 import types
 import cyten.networks
 from cyten import symmetries, spaces, backends, tensors
-from cyten.dtypes import Dtype
 
 try:
     from packaging.version import parse as parse_version  # part of setuptools
@@ -37,8 +36,10 @@ datadir_files = []
 if os.path.isdir(datadir):
     datadir_files = os.listdir(datadir)
 
+
 class DummyClass:
     """Used to test exporting a custom class."""
+
     def __init__(self):
         self.data = []
 
@@ -51,6 +52,7 @@ _dummy_function_arg_memo = []
 
 def dummy_function(obj):
     _dummy_function_arg_memo.append(obj)
+
 
 def gen_example_data(version=cyten.version.full_version):
     if '+' in version:
@@ -103,13 +105,7 @@ def gen_example_data(version=cyten.version.full_version):
         })
         data['recursive'][3][1] = data['recursive'][1] = data['recursive']
         data['exportable'].some_attr = "something"
-    if parse_version(version) >= parse_version('0.7.2.dev33'):
-        dummy = DummyClass()
-        data['dummy'] = dummy
-        #event_handler = cyten.tools.events.EventHandler('obj')
-        #event_handler.connect(dummy_function)
-        #event_handler.connect(dummy.dummy_append)
-        #data['event_handler'] = event_handler
+
     return data
 
 
@@ -209,7 +205,7 @@ def assert_equal_data(data_imported, data_expected, max_recursion_depth=10):
             for vi, ve in zip(data_imported, data_expected):
                 assert_equal_data(vi, ve, max_recursion_depth - 1)
     elif isinstance(data_expected, np.ndarray):
-        assert np.norm(data_imported - data_expected) == 0.  # should be exactly equal!
+        assert np.linalg.norm(data_imported - data_expected) == 0.  # should be exactly equal!
     elif isinstance(data_expected, np.ndarray):
         np.testing.assert_array_equal(data_imported, data_expected)
     elif isinstance(data_expected, (int, float, np.int64, np.float64, complex, str)):
