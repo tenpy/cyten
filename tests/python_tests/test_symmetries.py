@@ -403,34 +403,29 @@ def check_fusion_tensor(sym: symmetries.Symmetry, example_sectors, np_random):
     for a in example_sectors:
         d_a = sym.sector_dim(a)
         a_bar = sym.dual_sector(a)
-        Z_a = sym.Z_iso(a_bar)
+        Z_a = sym.Z_iso(a)  # [m_a, m_abar]
         Z_a_hc = Z_a.conj().T
+        Z_a_bar = sym.Z_iso(a_bar)  # [m_abar, m_a]
 
         # Z iso unitary?
         assert_array_almost_equal(Z_a @ Z_a_hc, np.eye(d_a))
         assert_array_almost_equal(Z_a_hc @ Z_a, np.eye(d_a))
 
         # defining property of frobenius schur?
-        print('FS:',sym.frobenius_schur(a))
-        assert_array_almost_equal(Z_a.T, sym.frobenius_schur(a) * Z_a)
+        assert_array_almost_equal(Z_a.T, sym.frobenius_schur(a) * Z_a_bar)
 
-        # TODO: this was commented out in the merge from TeNPy v2_alpha branch into the cyten repo.
-        # TODO: If the tests now fail, check why... if tests pass, remove this comment...
-        assert_array_almost_equal(Z_a_hc, sym.frobenius_schur(a) * Z_a)
-
-        # reduces to left/right unitor if one input is trivial?
+        # reduces to left/right unitor if one input is trivial?  [Jakob thesis, (5.63)
         X_aua = sym.fusion_tensor(a, sym.trivial_sector, a)
         assert_array_almost_equal(X_aua, np.eye(d_a, dtype=X_aua.dtype)[None, :, None, :])
         X_uaa = sym.fusion_tensor(sym.trivial_sector, a, a)
         assert_array_almost_equal(X_uaa, np.eye(d_a, dtype=X_uaa.dtype)[None, None, :, :])
 
-        # relationship to cap
-        X_a_abar_u = sym.fusion_tensor(a, a_bar, sym.trivial_sector)[0, :, :, 0]  # set mu=0, m_c=0
-        cup = np.eye(d_a)
-        expect_1 = np.tensordot(cup, Z_a_hc, (1, 1)) / np.sqrt(d_a)
-        expect_2 = sym.frobenius_schur(a) * np.tensordot(Z_a_hc, cup, (1, 0)) / np.sqrt(d_a)
-        assert_array_almost_equal(X_a_abar_u, expect_1)
-        assert_array_almost_equal(X_a_abar_u, expect_2)
+        # relationship to cup  [Jakob thesis, (5.84)]
+        Y = sym.fusion_tensor(a, a_bar, sym.trivial_sector).conj()[0, :, :, 0]  # [m_a, m_abar]
+        expect_1 = Z_a.T / np.sqrt(d_a)  # transpose [m_a, m_abar] -> [m_a, m_abar]
+        expect_2 = sym.frobenius_schur(a) / np.sqrt(d_a) * Z_a_bar
+        assert_array_almost_equal(Y, expect_1)
+        assert_array_almost_equal(Y, expect_2)
 
 
 def check_symbols_via_fusion_tensors(sym: symmetries.Symmetry, example_sectors, np_random):
