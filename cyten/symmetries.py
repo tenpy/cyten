@@ -999,7 +999,7 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
     be used to check if a given `ProductSymmetry` *instance* is a group-symmetry.
     See examples in docstring of :class:`AbelianGroup`.
     """
-    
+
     can_be_dropped = True
 
     def __init__(self, fusion_style: FusionStyle, trivial_sector: Sector, group_name: str,
@@ -1010,11 +1010,6 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
 
     @abstractmethod
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> npt.NDArray:
-        # subclasses must implement. for groups it is always possible.
-        ...
-
-    @abstractmethod
-    def Z_iso(self, a: Sector) -> npt.NDArray:
         # subclasses must implement. for groups it is always possible.
         ...
 
@@ -1768,53 +1763,6 @@ class SUNSymmetry(GroupSymmetry):
             return np.array(self.Rfile['/R_sym/'][key])
 
         return np.zeros((1,), dtype=complex)
-
-    def Z_iso(self, a: Sector) -> npt.NDArray:
-        if self.N == 2:
-            d_a = self.sector_dim(a)
-            Z = np.zeros((d_a, d_a), dtype=float)
-
-            for k in range(d_a):
-                Z[k, d_a - 1 - k] = 1 - 2 * np.mod(a[0] - k, 2)
-
-            return Z
-
-        # elif self.N == 3:
-        #     d_a = self.sector_dim(a)
-        #     Z = np.zeros((d_a, d_a), dtype=float)
-        #     dia=[]
-        #     for n in range(d_a):
-        #         dia += [(-1)**(n)]
-        #     print(np.fliplr(np.diag(dia)))
-        #     return np.fliplr(np.diag(dia))
-
-        elif self.N == 3:
-            d_a = self.sector_dim(a)
-            # Z = np.zeros((d_a, d_a), dtype=float)
-            if d_a == 1:
-                return np.array([[1]])
-
-            Z = np.zeros((d_a, d_a), dtype=complex)
-            Z[0, d_a-1] = -1.j
-            Z[d_a-1, 0] = 1.j
-
-            for i in range(1, d_a-1):
-                Z[i, i] = 1
-
-            return Z
-        #
-        # elif self.N == 3:
-        #     d_a = self.sector_dim(a)
-        #     # Z = np.zeros((d_a, d_a), dtype=float)
-        #     if d_a==1:
-        #         return np.array([[1]])
-        #
-        #     dia=[-1.j]
-        #     for n in range(1,d_a-1):
-        #         dia += [1]
-        #     dia+=[1.j]
-        #     print(np.fliplr(np.diag(dia)))
-        #     return np.fliplr(np.diag(dia))
 
     def frobenius_schur(self, a: Sector) -> int:
         if self.N == 2:
