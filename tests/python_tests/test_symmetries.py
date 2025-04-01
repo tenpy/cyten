@@ -291,6 +291,10 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
     # check derived topological data vs the fallback implementations.
     # we always check if the method is actually overridden, to avoid comparing identical implementations.
     SymCls = type(sym)
+    if sym.can_be_dropped and SymCls.Z_iso is not symmetries.Symmetry.Z_iso:
+        for a in example_sectors:
+            msg = 'Z_iso does not match fallback'
+            assert_array_almost_equal(sym.Z_iso(a), symmetries.Symmetry.Z_iso(sym, a)), msg
     if SymCls.frobenius_schur is not symmetries.Symmetry.frobenius_schur:
         for a in example_sectors:
             msg = 'frobenius_schur does not match fallback'

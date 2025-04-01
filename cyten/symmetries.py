@@ -277,7 +277,15 @@ class Symmetry(metaclass=ABCMeta):
         """
         if not self.can_be_dropped:
             raise SymmetryError(f'Z iso can not be written as array for {self}')
-        raise NotImplementedError('should be implemented by subclass')
+        # fallback implementation: solve [Jakob thesis, (5.84)] for Z_a
+        X = self.fusion_tensor(a, self.dual_sector(a), self.trivial_sector)
+        # Note: leg order might be unintuitive at first!
+        #   [1] [2]     ;     [0]                 .--.  [0]
+        #    |   |      ;      |                  |  |   |
+        #    Y[0]Y      ;      Z   =   sqrt(d_a)  |  YYYYY   = sqrt(d_a) np.transpose(Y[0, :, :, 0])
+        #      |        ;      |                  |
+        #     [3]       ;     [1]                [1]
+        return self.sqrt_qdim(a) * X.conj()[0, :, :, 0].T
 
     def all_sectors(self) -> SectorArray:
         """If there are finitely many sectors, return all of them. Else raise a ValueError.
