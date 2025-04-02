@@ -626,9 +626,11 @@ class Symmetry(metaclass=ABCMeta):
         ----------
         a, b, c
             Sectors. Must be compatible with the fusion described above.
-        Z_a, Z_b : bool
-            If we should include a Z isomorphism below the sector a.
-            If so, the composite is a map from :math:`\bar{a}^* \otimes b \to c`.
+        Z_a : bool
+            If we should include a Z isomorphism :math:`Z_{\bar{a}} : \bar{a}^* -> a` below the
+            sector a. If so, the composite is a map from :math:`\bar{a}^* \otimes b \to c`.
+        Z_b : bool
+            Analogously to `Z_a`.
 
         Returns
         -------
@@ -1328,12 +1330,20 @@ class SU2Symmetry(GroupSymmetry):
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
         from . import _su2data
         X = _su2data.fusion_tensor(a[0], b[0], c[0])
-        if Z_a:
-            X = np.tensordot(self.Z_iso(a), X, (1, 1))  # [m_a, mu, m_b, m_c]
-            X = np.transpose(X, [1, 0, 2, 3])
-        if Z_b:
-            X = np.tensordot(self.Z_iso(b), X, (1, 2))  # [m_b, mu, m_a, m_c]
-            X = np.transpose(X, [1, 2, 0, 3])
+        if Z_a and Z_b:
+            # [µ, m_a, m_b, m_c] @ [m_a, m_abar*] -> [µ, m_b, m_c, m_abar*]
+            X = np.tensordot(X, self.Z_iso(self.dual_sector(a)), (1, 0))
+            # [µ, m_b, m_c, m_abar*] @ [m_b, m_bbar*] -> [µ, m_c, m_abar*, m_bbar*]
+            X = np.tensordot(X, self.Z_iso(self.dual_sector(b)), (1, 0))
+            X = np.transpose(X, [0, 2, 3, 1])
+        elif Z_a:
+            # [µ, m_a, m_b, m_c] @ [m_a, m_abar*] -> [µ, m_b, m_c, m_abar*]
+            X = np.tensordot(X, self.Z_iso(self.dual_sector(a)), (1, 0))
+            X = np.transpose(X, [0, 3, 1, 2])
+        elif Z_b:
+            # [µ, m_a, m_b, m_c] @ [m_b, m_bbar*] -> [µ, m_a, m_c, m_bbar*]
+            X = np.tensordot(X, self.Z_iso(self.dual_sector(b)), (2, 0))
+            X = np.transpose(X, [0, 1, 3, 2])
         return X
 
     def Z_iso(self, a: Sector) -> np.ndarray:
