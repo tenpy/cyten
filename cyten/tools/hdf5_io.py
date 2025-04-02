@@ -76,7 +76,7 @@ import warnings
 import sys
 try:
     from packaging.version import parse as parse_version
-except:
+except (ImportError, AttributeError):
     try:
         from setuptools._vendor.packaging.version import parse as parse_version
     except ImportError:
@@ -300,7 +300,7 @@ class Hdf5Exportable:
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
         """Export `self` into a HDF5 file.
 
-        This method saves all the data it needs to reconstruct `self` with :meth:`from_hdf5`.
+        Saves all the data it needs to reconstruct `self` with :meth:`from_hdf5`.
 
         This implementation saves the content of :attr:`~object.__dict__` with
         :meth:`~tenpy.tools.hdf5_io.Hdf5Saver.save_dict_content`,
@@ -327,7 +327,7 @@ class Hdf5Exportable:
     def from_hdf5(cls, hdf5_loader, h5gr, subpath):
         """Load instance from a HDF5 file.
 
-        This method reconstructs a class instance from the data saved with :meth:`save_hdf5`.
+        Reconstructs a class instance from the data saved with :meth:`save_hdf5`.
 
         Parameters
         ----------
