@@ -271,13 +271,13 @@ class Hdf5FormatError(Exception):
 
 
 class Hdf5ExportError(Hdf5FormatError):
-    """This exception is raised when something went wrong during export to hdf5."""
+    """Raises an exception when something went wrong during export to hdf5."""
 
     pass
 
 
 class Hdf5ImportError(Hdf5FormatError):
-    """This exception is raised when something went wrong during import from hdf5."""
+    """Raises an exception when something went wrong during import from hdf5."""
 
     pass
 
