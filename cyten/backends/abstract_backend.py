@@ -991,7 +991,7 @@ class BlockBackend(metaclass=ABCMeta):
         """Like :meth:`block_argsort` but can assume real valued block, and sort ascending"""
         ...
 
-    def combine_legs(self, a: Block, leg_idcs_combine: list[list[int]], cstyles: bool | list[bool]=True) -> Block:
+    def combine_legs(self, a: Block, leg_idcs_combine: list[list[int]], cstyles: bool | list[bool] = True) -> Block:
         """Combine each group of legs in `leg_idcs_combine` into a single leg.
 
         The group of legs in each entry of `leg_idcs_combine` must be contiguous.
@@ -1271,7 +1271,7 @@ class BlockBackend(metaclass=ABCMeta):
     def get_shape(self, a: Block) -> tuple[int]:
         ...
 
-    def split_legs(self, a: Block, idcs: list[int], dims: list[list[int]], cstyles: bool | list[bool]=True) -> Block:
+    def split_legs(self, a: Block, idcs: list[int], dims: list[list[int]], cstyles: bool | list[bool] = True) -> Block:
         """Split legs into groups of legs with specified dimensions.
 
         The splitting of a leg can be in C style (default) or F style. In the
