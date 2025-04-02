@@ -13,7 +13,7 @@ import numpy as np
 from ..symmetries import Symmetry
 from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe, Leg
 from ..dtypes import Dtype
-from ..tools.misc import combine_constraints
+from ..tools.misc import combine_constraints, to_iterable
 
 __all__ = ['Data', 'DiagonalData', 'MaskData', 'Block', 'TensorBackend', 'BlockBackend',
            'conventional_leg_order']
@@ -991,20 +991,31 @@ class BlockBackend(metaclass=ABCMeta):
         """Like :meth:`block_argsort` but can assume real valued block, and sort ascending"""
         ...
 
-    def combine_legs(self, a: Block, leg_idcs_combine: list[list[int]]) -> Block:
-        """No transpose, only reshape ``legs[b:e] for b,e in legs_slice`` to single legs"""
+    def combine_legs(self, a: Block, leg_idcs_combine: list[list[int]], cstyles: bool | list[bool]=True) -> Block:
+        """Combine each group of legs in `leg_idcs_combine` into a single leg.
+
+        The group of legs in each entry of `leg_idcs_combine` must be contiguous.
+        The legs can be combined in C style (default) or F style; the style can
+        be specified for each group of legs independently.
+        """
+        cstyles = to_iterable(cstyles)  # single bool to list
+        if len(cstyles) == 1:
+            cstyles *= len(leg_idcs_combine)
         old_shape = self.get_shape(a)
+        axes_perm = list(range(len(old_shape)))
         new_shape = []
         last_stop = 0
-        for group in leg_idcs_combine:
+        for group, cstyle in zip(leg_idcs_combine, cstyles):
             start = group[0]
             stop = group[-1] + 1
             assert list(group) == list(range(start, stop))  # TODO rm check
             new_shape.extend(old_shape[last_stop:start])  # all leg *not* to be combined
             new_shape.append(np.prod(old_shape[start:stop]))
+            if not cstyle:
+                axes_perm[start:stop] = axes_perm[start:stop][::-1]
             last_stop = stop
         new_shape.extend(old_shape[last_stop:])
-        return self.reshape(a, tuple(new_shape))
+        return self.reshape(self.permute_axes(a, axes_perm), tuple(new_shape))
 
     @abstractmethod
     def conj(self, a: Block) -> Block:
@@ -1260,16 +1271,33 @@ class BlockBackend(metaclass=ABCMeta):
     def get_shape(self, a: Block) -> tuple[int]:
         ...
 
-    def split_legs(self, a: Block, idcs: list[int], dims: list[list[int]]) -> Block:
+    def split_legs(self, a: Block, idcs: list[int], dims: list[list[int]], cstyles: bool | list[bool]=True) -> Block:
+        """Split legs into groups of legs with specified dimensions.
+
+        The splitting of a leg can be in C style (default) or F style. In the
+        latter case, the specified dimensions of the resulting group of legs
+        *are reversed*. The style can be specified for each group of legs
+        independently.
+        """
+        cstyles = to_iterable(cstyles)  # single bool to list
+        if len(cstyles) == 1:
+            cstyles *= len(idcs)
+        axes_perm = []
         old_shape = self.get_shape(a)
         new_shape = []
         start = 0
-        for i, i_dims in zip(idcs, dims):
+        for i, i_dims, cstyle in zip(idcs, dims, cstyles):
             new_shape.extend(old_shape[start:i])
             new_shape.extend(i_dims)
+            axes_perm.extend(list(range(len(axes_perm), len(axes_perm) + i - start)))
+            if cstyle:
+                axes_perm.extend(list(range(len(axes_perm), len(axes_perm) + len(i_dims))))
+            else:
+                axes_perm.extend(list(range(len(axes_perm), len(axes_perm) + len(i_dims)))[::-1])
             start = i + 1
         new_shape.extend(old_shape[start:])
-        return self.reshape(a, tuple(new_shape))
+        axes_perm.extend(list(range(len(axes_perm), len(axes_perm) + len(old_shape) - start)))
+        return self.permute_axes(self.reshape(a, tuple(new_shape)), axes_perm)
 
     @abstractmethod
     def sqrt(self, a: Block) -> Block:

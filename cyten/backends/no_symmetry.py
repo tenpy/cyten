@@ -68,11 +68,11 @@ class NoSymmetryBackend(TensorBackend):
                   pipe: LegPipe | None) -> LegPipe:
         assert all(isinstance(l, ElementarySpace) for l in legs)  # OPTIMIZE rm check
         if isinstance(pipe, AbelianLegPipe):
-            assert pipe.combine_cstyle == (not in_domain)
+            assert pipe.combine_cstyle == (not is_dual)
             assert pipe.is_dual == is_dual
             assert pipe.legs == legs
             return pipe
-        return AbelianLegPipe(legs, is_dual=is_dual, combine_cstyle=not in_domain)
+        return AbelianLegPipe(legs, is_dual=is_dual, combine_cstyle=not is_dual)
 
     # ABSTRACT METHODS:
 
@@ -99,7 +99,9 @@ class NoSymmetryBackend(TensorBackend):
                      new_codomain: TensorProduct,
                      new_domain: TensorProduct,
                      ) -> Data:
-        return self.block_backend.combine_legs(tensor.data, leg_idcs_combine)
+        in_domain = [group[0] >= tensor.num_codomain_legs for group in leg_idcs_combine]
+        cstyles = [pipe.combine_cstyle != in_dom for pipe, in_dom in zip(pipes, in_domain)]
+        return self.block_backend.combine_legs(tensor.data, leg_idcs_combine, cstyles)
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         a_domain = list(reversed(range(a.num_codomain_legs, a.num_legs)))
@@ -396,13 +398,16 @@ class NoSymmetryBackend(TensorBackend):
                    domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
                    ) -> Data:
         dims = []
+        cstyles = []
         for n in leg_idcs:
             in_domain, co_domain_idx, _ = a._parse_leg_idx(n)
             if in_domain:
                 dims.append([s.dim for s in reversed(a.domain[co_domain_idx].legs)])
+                cstyles.append(not a.domain[co_domain_idx].combine_cstyle)
             else:
                 dims.append([s.dim for s in a.codomain[co_domain_idx].legs])
-        return self.block_backend.split_legs(a.data, leg_idcs, dims)
+                cstyles.append(a.codomain[co_domain_idx].combine_cstyle)
+        return self.block_backend.split_legs(a.data, leg_idcs, dims, cstyles)
 
     def squeeze_legs(self, a: SymmetricTensor, idcs: list[int]) -> Data:
         return self.block_backend.squeeze_axes(a.data, idcs)
