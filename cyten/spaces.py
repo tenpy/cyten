@@ -253,6 +253,7 @@ class Space(metaclass=ABCMeta):
             self.multiplicities = multiplicities = np.ones((num_sectors,), dtype=int)
         else:
             self.multiplicities = multiplicities = np.asarray(multiplicities, dtype=int)
+            assert multiplicities.shape == (num_sectors,)
         if symmetry.can_be_dropped:
             self.sector_dims = sector_dims = symmetry.batch_sector_dim(sector_decomposition)
             self.sector_qdims = sector_dims
@@ -1217,6 +1218,9 @@ class TensorProduct(Space):
         The factors in the tensor product, e.g. some of the legs of a tensor.
     num_factors : int
         The number of :attr:`factors`.
+    _sectors, _multiplicities
+        If the sectors, multiplicities are already known, recomputation can be skipped.
+        Warning: If given, they are not checked for correctness!
 
     See Also
     --------
@@ -1230,7 +1234,8 @@ class TensorProduct(Space):
         arrows on our tensor legs. A :class:`TensorProduct` has no ``is_dual`` attribute.
     """
     
-    def __init__(self, factors: list[Space | LegPipe], symmetry: Symmetry = None):
+    def __init__(self, factors: list[Space | LegPipe], symmetry: Symmetry = None,
+                 _sector_decomposition: SectorArray = None, _multiplicities: SectorArray = None):
         self.num_factors = num_factors = len(factors)
         if symmetry is None:
             if num_factors == 0:
@@ -1242,9 +1247,13 @@ class TensorProduct(Space):
         self.factors = factors[:]
         # TODO add an attr spaces: list[Space] that contains a flat list, where all nesting into
         #      pipes of factors in flattened??
-        sectors, multiplicities = self._calc_sectors(factors)
-        Space.__init__(self, symmetry=symmetry, sector_decomposition=sectors, multiplicities=multiplicities,
-                       sector_order='sorted')
+        if _sector_decomposition is None or _multiplicities is None:
+            if _sector_decomposition is not None or _multiplicities is not None:
+                msg = 'Need both _sectors and _multiplicities to skip recomputation. Got just one.'
+                warnings.warn(msg)
+            _sector_decomposition, _multiplicities = self._calc_sectors(factors)
+        Space.__init__(self, symmetry=symmetry, sector_decomposition=_sector_decomposition,
+                       multiplicities=_multiplicities, sector_order='sorted')
 
     def test_sanity(self):
         assert len(self.factors) == self.num_factors
