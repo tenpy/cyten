@@ -1218,7 +1218,7 @@ class TensorProduct(Space):
         The factors in the tensor product, e.g. some of the legs of a tensor.
     num_factors : int
         The number of :attr:`factors`.
-    _sectors, _multiplicities
+    _sector_decomposition, _multiplicities
         If the sectors, multiplicities are already known, recomputation can be skipped.
         Warning: If given, they are not checked for correctness!
 
@@ -1276,8 +1276,12 @@ class TensorProduct(Space):
         for f in factors[1:]:
             spaces.extend(f.factors)
             assert f.symmetry == symmetry, 'Mismatched symmetries'
-        # OPTIMIZE faster computation of sectors etc
-        return TensorProduct(factors=spaces, symmetry=symmetry)
+        isomorphic = TensorProduct(factors=factors, symmetry=symmetry)
+        # forming isomorphic performs the fusion more efficiently, since it uses the partially
+        # fused [f.sectors for f in factors] instead of the flat [s.factors for f in factors for s in f.factors]
+        return TensorProduct(factors=spaces, symmetry=symmetry,
+                             _sector_decomposition=isomorphic.sector_decomposition,
+                             _multiplicities=isomorphic.multiplicities)
 
     # PROPERTIES
 
