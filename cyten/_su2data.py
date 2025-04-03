@@ -67,11 +67,12 @@ def fusion_tensor(a: int, b: int, c: int) -> np.ndarray:
 def Z_iso(a: int) -> np.ndarray:
     d_a = a + 1  # 2 j_a + 1
     Z = np.zeros((d_a, d_a), dtype=float)
-    for k in range(d_a):  # m == -j + k == -a/2 + k
-        # OPTIMIZE can probably do this with pure numpy, no python loop...
-        # Z[k, -k] = Z_{m,-m} = (-1) ** (j - m) / sqrt(2j + 1), do factor later
-        # (-1) ** (j - m) == 1 - 2 * (j - m) % 2 = 1 - 2 * (a - k) % 2
-        Z[k, d_a - 1 - k] = 1 - 2 * np.mod(a - k, 2)
+    i = np.arange(d_a)
+    # Note: Jakobs PhD thesis has an annoying (according to me, Jakob) index convention for
+    #       the matrix elements of Z in (A.19). The natural matrix representation is
+    #       Z_{m,n} = A_{n,m} i.e. the *transpose* of the given matrix.
+    # Z[0, -1] = -1, and then alternating [-1, +1, -1, ...] along anti-diagonal
+    Z[i, -1-i] = 1 - 2 * np.mod(i, 2)
     return Z
 
 

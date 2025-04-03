@@ -204,7 +204,7 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
     example_sectors_low_qdim = np.unique(example_sectors_low_qdim, axis=0)
 
     # generate a few samples of sectors that fulfill fusion rules, used to check the symbols
-    sector_triples = list(sample_sector_triplets(sym, example_sectors, num_samples=10,
+    sector_triplets = list(sample_sector_triplets(sym, example_sectors, num_samples=10,
                                                  accept_fewer=True, np_rng=np_random))
     sector_sextets = list(sample_sector_sextets(sym, example_sectors, num_samples=10,
                                                 accept_fewer=True, np_rng=np_random))
@@ -250,7 +250,7 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
         pass
     elif sym.can_be_dropped:
         check_fusion_tensor(sym, example_sectors, np_random)
-        check_symbols_via_fusion_tensors(sym, example_sectors, np_random)
+        check_symbols_via_fusion_tensors(sym, sector_triplets, sector_sextets, np_random)
     else:
         with pytest.raises(symmetries.SymmetryError, match='fusion tensor can not be written as array'):
             _ = sym.fusion_tensor(sym.trivial_sector, sym.trivial_sector, sym.trivial_sector)
@@ -279,18 +279,22 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
     check_pentagon_equation(sym, sector_nonets)
 
     # check R symbol
-    check_R_symbols(sym, sector_triples, example_sectors_low_qdim)
+    check_R_symbols(sym, sector_triplets, example_sectors_low_qdim)
     check_hexagon_equation(sym, sector_sextets, True)
 
     # check C symbol
     check_C_symbols(sym, sector_sextets, sector_unitarity_test)
 
     # check B symbol
-    check_B_symbols(sym, sector_triples)
+    check_B_symbols(sym, sector_triplets)
 
     # check derived topological data vs the fallback implementations.
     # we always check if the method is actually overridden, to avoid comparing identical implementations.
     SymCls = type(sym)
+    if sym.can_be_dropped and SymCls.Z_iso is not symmetries.Symmetry.Z_iso:
+        for a in example_sectors:
+            msg = 'Z_iso does not match fallback'
+            assert_array_almost_equal(sym.Z_iso(a), symmetries.Symmetry.Z_iso(sym, a)), msg
     if SymCls.frobenius_schur is not symmetries.Symmetry.frobenius_schur:
         for a in example_sectors:
             msg = 'frobenius_schur does not match fallback'
@@ -300,7 +304,7 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
             # need almost equal for non-integer qdim
             assert_array_almost_equal(sym.qdim(a), symmetries.Symmetry.qdim(sym, a)), 'qdim does not match fallback'
     if SymCls._b_symbol is not symmetries.Symmetry._b_symbol:
-        for a, b, c in sector_triples:
+        for a, b, c in sector_triplets:
             assert_array_almost_equal(
                 sym._b_symbol(a, b, c),
                 symmetries.Symmetry._b_symbol(sym, a, b, c),
@@ -322,7 +326,7 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
             assert_array_almost_equal(sym.topological_twist(a)**2, 1)
 
     if sym.braiding_style.value <= symmetries.BraidingStyle.fermionic.value:  # check R symbols
-        for a, b, c in sector_triples:
+        for a, b, c in sector_triplets:
             assert_array_almost_equal(sym.r_symbol(a, b, c)**2, np.ones(sym.n_symbol(a, b, c)))
 
     # check fusion style
@@ -332,8 +336,8 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
                 assert len(sym.fusion_outcomes(a, b)) == 1
 
     if sym.fusion_style.value <= symmetries.FusionStyle.multiple_unique.value:
-        for a, b, c in sector_triples:
-            # we check `== 1` and not `in [0, 1]` here since we iterate over sector_triples
+        for a, b, c in sector_triplets:
+            # we check `== 1` and not `in [0, 1]` here since we iterate over sector_triplets
             assert sym.n_symbol(a, b, c) == 1
 
 
@@ -399,52 +403,118 @@ def check_fusion_tensor(sym: symmetries.Symmetry, example_sectors, np_random):
     for a in example_sectors:
         d_a = sym.sector_dim(a)
         a_bar = sym.dual_sector(a)
-        Z_a = sym.Z_iso(a_bar)
+        Z_a = sym.Z_iso(a)  # [m_a, m_abar]
         Z_a_hc = Z_a.conj().T
+        Z_a_bar = sym.Z_iso(a_bar)  # [m_abar, m_a]
 
         # Z iso unitary?
         assert_array_almost_equal(Z_a @ Z_a_hc, np.eye(d_a))
         assert_array_almost_equal(Z_a_hc @ Z_a, np.eye(d_a))
 
         # defining property of frobenius schur?
-        print('FS:',sym.frobenius_schur(a))
-        assert_array_almost_equal(Z_a.T, sym.frobenius_schur(a) * Z_a)
+        assert_array_almost_equal(Z_a.T, sym.frobenius_schur(a) * Z_a_bar)
 
-        # TODO: this was commented out in the merge from TeNPy v2_alpha branch into the cyten repo.
-        # TODO: If the tests now fail, check why... if tests pass, remove this comment...
-        assert_array_almost_equal(Z_a_hc, sym.frobenius_schur(a) * Z_a)
-
-        # reduces to left/right unitor if one input is trivial?
+        # reduces to left/right unitor if one input is trivial?  [Jakob thesis, (5.63)
         X_aua = sym.fusion_tensor(a, sym.trivial_sector, a)
         assert_array_almost_equal(X_aua, np.eye(d_a, dtype=X_aua.dtype)[None, :, None, :])
         X_uaa = sym.fusion_tensor(sym.trivial_sector, a, a)
         assert_array_almost_equal(X_uaa, np.eye(d_a, dtype=X_uaa.dtype)[None, None, :, :])
 
-        # relationship to cap
-        X_a_abar_u = sym.fusion_tensor(a, a_bar, sym.trivial_sector)[0, :, :, 0]  # set mu=0, m_c=0
-        cup = np.eye(d_a)
-        expect_1 = np.tensordot(cup, Z_a_hc, (1, 1)) / np.sqrt(d_a)
-        expect_2 = sym.frobenius_schur(a) * np.tensordot(Z_a_hc, cup, (1, 0)) / np.sqrt(d_a)
-        assert_array_almost_equal(X_a_abar_u, expect_1)
-        assert_array_almost_equal(X_a_abar_u, expect_2)
+        # relationship to cup  [Jakob thesis, (5.84)]
+        Y = sym.fusion_tensor(a, a_bar, sym.trivial_sector).conj()[0, :, :, 0]  # [m_a, m_abar]
+        expect_1 = Z_a.T / np.sqrt(d_a)  # transpose [m_a, m_abar] -> [m_a, m_abar]
+        expect_2 = sym.frobenius_schur(a) / np.sqrt(d_a) * Z_a_bar
+        assert_array_almost_equal(Y, expect_1)
+        assert_array_almost_equal(Y, expect_2)
 
 
-def check_symbols_via_fusion_tensors(sym: symmetries.Symmetry, example_sectors, np_random):
-    """Check the defining properties of the symbols with explicit fusion tensors.
+def check_symbols_via_fusion_tensors(sym: symmetries.Symmetry, sector_triplets, sector_sextets, np_random):
+    """Check the defining properties of the F, R, C, B symbols with explicit fusion tensors.
 
     Subroutine of `common_checks`.
     The ``example_sectors`` should be duplicate free.
-
-    We check::
-        - nothing yet
-
-    TODO to check::
-        - F symbol
-        - R symbol
-        - C symbol
-        - B symbol
     """
-    pass
+    # ================
+    # F symbol
+    # ================
+    # [Jakob thesis (5.74)]
+    for a, b, c, d, e, f in sector_sextets:
+        # need (a x b x c) -> (a x e) -> d AND (a x b x c) -> (f x c) -> d
+        res = sym.fusion_tensor(f, c, d).conj()  # [lambda, f, c, d]
+        # [lambda, (f), c, d] @ [kappa, a, b, (f)] -> [lambda, c, d, kappa, a, b]
+        res = np.tensordot(res, sym.fusion_tensor(a, b, f).conj(), (1, 3))
+        # [lambda, (c), d, kappa, a, (b)] @ [mu, (b), (c), e] -> [lambda, d, kappa, a, mu, e]
+        res = np.tensordot(res, sym.fusion_tensor(b, c, e), ([1, 5], [2, 1]))
+        # [lambda, d, kappa, (a), mu, (e)] @ [nu, (a), (e), d] -> [lambda, d, kappa, mu, nu, d]
+        res = np.tensordot(res, sym.fusion_tensor(a, e, d), ([3, 5], [1, 2]))
+        # [lambda, d, kappa, mu, nu, d] -> [mu, nu, kappa, lambda, d, d]
+        res = np.transpose(res, [3, 4, 2, 0, 1, 5])
+
+        F = sym.f_symbol(a, b, c, d, e, f)
+        id_d = np.eye(sym.sector_dim(d))
+        expect = F[..., None, None] * id_d[None, None, None, None, :, :]
+        assert np.allclose(res, expect)
+
+    # ================
+    # R symbol
+    # ================
+    # [Jakob thesis (5.76)]
+    for a, b, c in sector_triplets:
+        # need a x b -> c
+        res = sym.fusion_tensor(b, a, c).conj()  # [nu, b, a, c]
+        # note: braid is taken care of simply by the leg order, since we are in Rep(G).
+        # [nu, b, a, c] @ [mu, a, b, c] -> [nu, c, mu, c]
+        res = np.tensordot(res, sym.fusion_tensor(a, b, c), ([1, 2], [2, 1]))
+        # [nu, c, mu, c] -> [mu, nu, c, c]
+        res = np.transpose(res, [2, 0, 1, 3])
+
+        R = sym.r_symbol(a, b, c)  # [mu, nu]
+        id_c = np.eye(sym.sector_dim(c))  # [c, c]
+        expect = np.diag(R)[:, :, None, None] * id_c[None, None, :, :]
+        assert np.allclose(res, expect)
+
+    # ================
+    # C symbol
+    # ================
+    # [Jakob thesis (5.88)]
+    for c, a, b, d, e, f in sector_sextets:
+        # need (a x b x c) -> (e x c) -> f  AND  (a x c x b) -> (f x b) -> d
+        res = sym.fusion_tensor(f, b, d).conj()  # [lambda, f, b, d]
+        # [lambda, (f), b, d] @ [kappa, a, c, (f)] -> [lambda, b, d, kappa, a, c]
+        res = np.tensordot(res, sym.fusion_tensor(a, c, f).conj(), (1, -1))
+        # note: braid is taken care of simply by the leg order, since we are in Rep(G).
+        # [lambda, (b), d, kappa, (a), c] @ [mu, (a), (b), e] -> [lambda, d, kappa, c, mu, e]
+        res = np.tensordot(res, sym.fusion_tensor(a, b, e), ([1, 4], [2, 1]))
+        # [lambda, d, kappa, (c), mu, (e)] @ [nu, (e), (c), d] -> [lambda, d, kappa, mu, nu, d]
+        res = np.tensordot(res, sym.fusion_tensor(e, c, d), ([3, 5], [2, 1]))
+        # [lambda, d, kappa, mu, nu, d] -> [mu, nu, kappa, lambda, d, d]
+        res = np.transpose(res, [3, 4, 2, 0, 1, 5])
+
+        C = sym.c_symbol(a, b, c, d, e, f)
+        id_d = np.eye(sym.sector_dim(d))
+        expect = C[..., None, None] * id_d[None, None, None, None, :, :]
+        assert np.allclose(res, expect)
+
+    # ================
+    # B symbol
+    # ================
+    # [Jakob thesis (5.94)]
+    for a, b, c in sector_triplets:
+        bbar = sym.dual_sector(b)
+        # need (a x b) -> c
+        res = sym.fusion_tensor(a, b, c)  # [mu, a, b, c]
+        # note: cup is taken care of trivially, since we are in Rep(G)
+        # [mu, a, (b), c] @ [bbar, (b)] -> [mu, a, c, bbar]
+        res = np.tensordot(res, sym.Z_iso(b), (2, 1))
+        # [mu, a, (c), (bbar)] @ [nu, (c), (bbar), a] -> [mu, a, nu, a]
+        res = np.tensordot(res, sym.fusion_tensor(c, bbar, a), ([2, 3], [1, 2]))
+        # [mu, a, nu, a] -> [mu, nu, a, a]
+        res = np.transpose(res, [0, 2, 1, 3])
+
+        B = sym.b_symbol(a, b, c)
+        id_a = np.eye(sym.sector_dim(a))
+        expect = B[:, :, None, None] * id_a[None, None, :, :]
+        assert np.allclose(res, expect)
 
 
 def check_F_symbols(sym: symmetries.Symmetry, sector_sextets, sector_unitarity_test):

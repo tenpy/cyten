@@ -1438,7 +1438,7 @@ class DiagonalTensor(SymmetricTensor):
 
         with_zero_mean = cls.from_block_func(
             backend.block_backend.random_normal, leg=leg, backend=backend, labels=labels,
-            func_kwargs=dict(dtype=dtype), dtype=dtype
+            func_kwargs=dict(dtype=dtype, sigma=sigma), dtype=dtype
         )
 
         if mean is not None:
