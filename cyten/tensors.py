@@ -3353,6 +3353,8 @@ def combine_legs(tensor: Tensor,
         else:
             domain_spaces_reversed.append(tensor.domain[N - 1 - n])
             domain_labels_reversed.append(tensor.labels[n])
+
+    # OPTIMIZE if no bending happened, we can re-use the (co)domain.sector_decomposition.
     codomain = TensorProduct(codomain_spaces, symmetry=tensor.symmetry)
     domain = TensorProduct(domain_spaces_reversed[::-1], symmetry=tensor.symmetry)
     #
@@ -4725,8 +4727,13 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
         else:
             domain_spaces.append(l)
 
-    codomain = TensorProduct(codomain_spaces, symmetry=tensor.symmetry)
-    domain = TensorProduct(domain_spaces, symmetry=tensor.symmetry)
+    # we only split, i.e. remove parentheses in tensor products, so sectors dont change
+    codomain = TensorProduct(codomain_spaces, symmetry=tensor.symmetry,
+                             _sector_decomposition=tensor.codomain.sector_decomposition,
+                             _multiplcities=tensor.codomain.multiplicities,)
+    domain = TensorProduct(domain_spaces, symmetry=tensor.symmetry,
+                           _sector_decomposition=tensor.domain.sector_order,
+                           _multiplicities=tensor.domain.multiplicities)
 
     #
     # build labels
@@ -4782,13 +4789,19 @@ def squeeze_legs(tensor: Tensor, legs: int | str | list[int | str] = None) -> Te
     # Remaining case: SymmetricTensor
     remaining = [n for n in range(tensor.num_legs) if n not in legs]
     data = tensor.backend.squeeze_legs(tensor, legs)
+
+    # the fusion with the trivial legs was trivial, so removing it doesnt change the sectors
     codomain = TensorProduct(
         [tensor.codomain[n] for n in range(tensor.num_codomain_legs) if n not in legs],
-        symmetry=tensor.symmetry
+        symmetry=tensor.symmetry,
+        _sector_decomposition=tensor.codomain.sector_decomposition,
+        _multiplicities=tensor.codomain.multiplicities,
     )
     domain = TensorProduct(
         [tensor.domain[n] for n in range(tensor.num_domain_legs) if (tensor.num_legs - 1 - n) not in legs],
-        symmetry=tensor.symmetry
+        symmetry=tensor.symmetry,
+        _sector_decomposition=tensor.domain.sector_decomposition,
+        _multiplicities=tensor.domain.multiplicities,
     )
     return SymmetricTensor(data, codomain, domain, backend=tensor.backend,
                            labels=[tensor._labels[n] for n in remaining])
