@@ -4730,9 +4730,9 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     # we only split, i.e. remove parentheses in tensor products, so sectors dont change
     codomain = TensorProduct(codomain_spaces, symmetry=tensor.symmetry,
                              _sector_decomposition=tensor.codomain.sector_decomposition,
-                             _multiplcities=tensor.codomain.multiplicities,)
+                             _multiplicities=tensor.codomain.multiplicities,)
     domain = TensorProduct(domain_spaces, symmetry=tensor.symmetry,
-                           _sector_decomposition=tensor.domain.sector_order,
+                           _sector_decomposition=tensor.domain.sector_decomposition,
                            _multiplicities=tensor.domain.multiplicities)
 
     #

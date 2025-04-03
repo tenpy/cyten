@@ -1288,7 +1288,7 @@ class TensorProduct(Space):
     @property
     def dual(self):
         sectors = self.symmetry.dual_sectors(self.sector_decomposition)
-        sectors, mults = _sort_sectors(sectors, self.multiplicities)
+        sectors, mults, _ = _sort_sectors(sectors, self.multiplicities)
         return TensorProduct([sp.dual for sp in reversed(self.factors)], symmetry=self.symmetry,
                              _sector_decomposition=sectors, _multiplicities=mults)
 
@@ -1312,9 +1312,9 @@ class TensorProduct(Space):
         sectors = sector_map(self.sector_decomposition)
         multiplicities = self.multiplicities
         if not injective:
-            sectors, multiplicities = _unique_sorted_sectors(sectors, multiplicities)
+            sectors, multiplicities, _ = _unique_sorted_sectors(sectors, multiplicities)
         else:
-            sectors, multiplicities = _sort_sectors(sectors, multiplicities)
+            sectors, multiplicities, _ = _sort_sectors(sectors, multiplicities)
         return TensorProduct(
             [space.change_symmetry(symmetry, sector_map, injective)
              for space in self.factors],
@@ -1333,7 +1333,7 @@ class TensorProduct(Space):
                 mask[start:stop] = False
             sectors = self.sector_decomposition[mask, :]
             multiplicities = self.multiplicities
-            sectors, multiplicities = _unique_sorted_sectors(sectors, multiplicities)
+            sectors, multiplicities, _ = _unique_sorted_sectors(sectors, multiplicities)
         return TensorProduct(
             [space.drop_symmetry(which) for space in self.factors], symmetry=remaining_symmetry,
             _sector_decomposition=sectors, _multiplicities=multiplicities
