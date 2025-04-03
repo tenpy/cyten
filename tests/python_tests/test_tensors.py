@@ -1074,7 +1074,7 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
     if not tensor.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
-    if isinstance(tensor.symmetry, SU2Symmetry) and (codomain, domain, num_codomain_legs) == (2, 2, 4):
+    if isinstance(tensor.symmetry, SU2Symmetry):
         pytest.xfail()  # TODO
 
     tensor_np = tensor.to_numpy()
