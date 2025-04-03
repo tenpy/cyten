@@ -1223,7 +1223,17 @@ def test_combine_split(make_compatible_tensor):
         combined4_np = combined4.to_numpy()
         assert np.allclose(combined4_np, expect4), 'combined4 vs numpy'
 
-    # TODO test [combine -> contract] versus [contract multiple]
+    # 6) check contracting combined leg versus contracting the individual legs
+    T2: SymmetricTensor = make_compatible_tensor(
+        [None, T.codomain[1].dual, T.domain[1]], [None],
+        labels=['x', 'b*', 'c*', 'y']
+    )
+    contracted_individual = tensors.tdot(T, T2, ['b', 'c'], ['b*', 'c*'])
+    contracted_individual.test_sanity()
+    T2_combined = tensors.combine_legs(T2, ['c*', 'b*'], pipe_dualities=[True])
+    contracted_via_pipes = tensors.tdot(combined4, T2_combined, '(b.c)', '(c*.b*)')
+    contracted_via_pipes.test_sanity()
+    assert tensors.almost_equal(contracted_individual, contracted_via_pipes)
 
 
 @pytest.mark.parametrize(
