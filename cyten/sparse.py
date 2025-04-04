@@ -377,7 +377,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         The shape of self as an operator on 1D numpy arrays
     """
     
-    def __init__(self, cyten_matvec, legs: list[Space], backend: TensorBackend, dtype,
+    def __init__(self, cyten_matvec, legs: TensorProduct | list[Space], backend: TensorBackend, dtype,
                  labels: list[str] = None,
                  charge_sector: None | Sector | Literal['trivial'] = 'trivial'):
         self.cyten_matvec = cyten_matvec
@@ -386,15 +386,20 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         # even if there is just one leg, we form the TensorProduct anyway, so we dont have to distinguish
         #  cases and use combine_legs / split_legs in np_to_tensor and tensor_to_np
         # TODO this probably no longer makes sense after the update of how spaces work!
-        self.domain = TensorProduct(legs, backend=backend)
-        self.symmetry = legs[0].symmetry
+        # OPTIMIZE pass domain as an arg instead, to allow us to avoid recomputing it?
+        if not isinstance(legs, TensorProduct):
+            self.domain = TensorProduct(legs, backend=backend)
+            self.symmetry = legs[0].symmetry
+        else:
+            self.domain = legs
+            self.symmetry = legs.symmetry
         self.matvec_count = 0
         self.labels = labels
-        
+
         self.shape = None  # set by charge_sector.setter
         self._charge_sector = None  # set by charge_sector.setter
         self.charge_sector = charge_sector  # uses setter with its input checks and conversions
-        
+
         ScipyLinearOperator.__init__(self, dtype=dtype, shape=self.shape)
 
     @classmethod
