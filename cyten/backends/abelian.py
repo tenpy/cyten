@@ -251,7 +251,7 @@ class AbelianBackend(TensorBackend):
     # OVERRIDES
 
     def make_pipe(self, legs: list[Leg], is_dual: bool, in_domain: bool,
-                  pipe: LegPipe | None) -> LegPipe:
+                  pipe: LegPipe | None = None) -> LegPipe:
         assert all(isinstance(l, ElementarySpace) for l in legs)  # OPTIMIZE rm check
         if isinstance(pipe, AbelianLegPipe):
             assert pipe.combine_cstyle == (not is_dual)
