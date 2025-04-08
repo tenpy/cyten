@@ -54,15 +54,12 @@ def random_ElementarySpace(symmetry, max_sectors=5, max_multiplicity=5, is_dual=
                                    allow_basis_perm, np_random)
 
 
-def random_LegPipe(symmetry, backend, max_sectors=5, max_multiplicity=5, is_dual=None,
-                   allow_basis_perm=True, num_legs=2, combine_cstyle=None, np_random=None):
-    # combine_cstyle is only relevant for the abelian backend
+def random_LegPipe(symmetry, backend, in_domain, max_sectors=5, max_multiplicity=5,
+                   is_dual=None, allow_basis_perm=True, num_legs=2, np_random=None):
     if np_random is None:
         np_random = np.random.default_rng()
     if is_dual is None:
         is_dual = np_random.random() < 0.5
-    if combine_cstyle is None:
-        combine_cstyle = np_random.random() < 0.5
 
     num_sectors_legs = np_random.choice(_factorize_limit(max_sectors, num_legs))
     max_mults_legs = np_random.choice(_factorize_limit(max_multiplicity, num_legs))
@@ -74,13 +71,12 @@ def random_LegPipe(symmetry, backend, max_sectors=5, max_multiplicity=5, is_dual
         )
         legs.append(leg)
 
-    cls = spaces.AbelianLegPipe if isinstance(backend, backends.AbelianBackend) else spaces.LegPipe
-    args = [is_dual, combine_cstyle] if isinstance(backend, backends.AbelianBackend) else [is_dual]
-    pipe = cls(legs, *args)
+    pipe = backend.make_pipe(legs=legs, is_dual=is_dual, in_domain=in_domain)
     pipe_as_space = pipe.as_Space()
 
-    # make sure that for non-abelian symmetries, max_sectors and max_multiplicity is not violated
-    # by more than a factor of 2 by replacing some of the legs in the pipe by trivial legs
+    # make sure that for non-abelian symmetries, max_sectors and max_multiplicity
+    # is not violated by more than a factor of 2 by replacing some of the legs in
+    # the pipe by trivial legs if necessary
     idx = 0
     triv = spaces.ElementarySpace(symmetry, defining_sectors=[symmetry.trivial_sector],
                                   multiplicities=[1])
@@ -88,19 +84,19 @@ def random_LegPipe(symmetry, backend, max_sectors=5, max_multiplicity=5, is_dual
             np.max(pipe_as_space.multiplicities) > 2 * max_multiplicity):
         legs[idx] = triv
         idx += 1
-        pipe = cls(legs, *args)
+        pipe = backend.make_pipe(legs=legs, is_dual=is_dual, in_domain=in_domain)
         pipe_as_space = pipe.as_Space()
     return pipe
 
 
-def random_leg(symmetry, backend, max_sectors=5, max_multiplicity=5, is_dual=None,
-               allow_basis_perm=True, use_pipes=False, combine_cstyle=None,
+def random_leg(symmetry, backend, in_domain, max_sectors=5, max_multiplicity=5,
+               is_dual=None, allow_basis_perm=True, use_pipes=False,
                np_random=np.random.default_rng()):
     if np_random.random() < use_pipes:
         return random_LegPipe(
-            symmetry=symmetry, backend=backend, max_sectors=max_sectors, max_multiplicity=max_multiplicity,
-            is_dual=is_dual, allow_basis_perm=allow_basis_perm, num_legs=_random_num_legs(np_random=np_random),
-            combine_cstyle=combine_cstyle, np_random=np_random
+            symmetry=symmetry, backend=backend, in_domain=in_domain, max_sectors=max_sectors,
+            max_multiplicity=max_multiplicity, is_dual=is_dual, allow_basis_perm=allow_basis_perm,
+            num_legs=_random_num_legs(np_random=np_random), np_random=np_random
         )
     return random_ElementarySpace(
         symmetry=symmetry, max_sectors=max_sectors, max_multiplicity=max_multiplicity, is_dual=is_dual,
@@ -160,8 +156,8 @@ def randomly_drop_blocks(res: tensors.SymmetricTensor | tensors.DiagonalTensor,
 
 def find_last_leg(same: spaces.TensorProduct, opposite: spaces.TensorProduct,
                   max_sectors: int, max_mult: int, backend: backends.TensorBackend,
-                  use_pipes:  bool | float, combine_cstyle: bool,
-                  extra_sectors=None, np_random=np.random.default_rng()):
+                  use_pipes:  bool | float, in_domain: bool, extra_sectors=None,
+                  np_random=np.random.default_rng()):
     """Find a leg such that the resulting tensor allows some non-zero blocks
 
     Parameters
@@ -177,9 +173,8 @@ def find_last_leg(same: spaces.TensorProduct, opposite: spaces.TensorProduct,
     use_pipes
         Probability of forming a pipe; boolean values correspond to
         probabilities 1 and 0
-    combine_cstyle
-        How the multi-indices are combined into single indices for
-        `AbelianLegPipe`s
+    in_domain
+        Whether or not the leg is in the domain
     extra_sectors
         If given, extra sectors to mix in
     """
@@ -216,10 +211,7 @@ def find_last_leg(same: spaces.TensorProduct, opposite: spaces.TensorProduct,
         triv = spaces.ElementarySpace(prod.symmetry, defining_sectors=[prod.symmetry.trivial_sector],
                                       multiplicities=[1])
         legs = [res] + [triv] * (_random_num_legs(np_random=np_random) - 1)
-        if isinstance(backend, backends.AbelianBackend):
-            res = spaces.AbelianLegPipe(legs=legs, combine_cstyle=combine_cstyle)
-        else:
-            res = spaces.LegPipe(legs=legs)
+        res = backend.make_pipe(legs=legs, is_dual=False, in_domain=in_domain)
     #
     # check that it actually worked
     # OPTIMIZE remove?
@@ -458,9 +450,9 @@ def random_tensor(symmetry: symmetries.Symmetry,
         for n, sp in enumerate(codomain):
             if sp is None:
                 codomain[n] = random_leg(
-                    symmetry=symmetry, backend=backend, max_sectors=max_blocks,
+                    symmetry=symmetry, backend=backend, in_domain=False, max_sectors=max_blocks,
                     max_multiplicity=max_multiplicity, allow_basis_perm=allow_basis_perm,
-                    use_pipes=use_pipes, combine_cstyle=True, np_random=np_random
+                    use_pipes=use_pipes, np_random=np_random
                 )
         codomain = spaces.TensorProduct(codomain, symmetry=symmetry)
         codomain_complete = True
@@ -471,16 +463,16 @@ def random_tensor(symmetry: symmetries.Symmetry,
         missing = [n for n, sp in enumerate(codomain) if sp is None]
         for n in missing[:-1]:
             codomain[n] = random_leg(
-                symmetry=symmetry, backend=backend, max_sectors=max_blocks,
+                symmetry=symmetry, backend=backend, in_domain=False, max_sectors=max_blocks,
                 max_multiplicity=max_multiplicity, allow_basis_perm=allow_basis_perm,
-                use_pipes=use_pipes, combine_cstyle=True, np_random=np_random
+                use_pipes=use_pipes, np_random=np_random
             )
         last = missing[-1]
         partial_codomain = spaces.TensorProduct(codomain[:last] + codomain[last + 1:],
                                                 symmetry=symmetry)
         leg = find_last_leg(same=partial_codomain, opposite=domain, max_sectors=max_blocks,
                             max_mult=max_multiplicity, backend=backend, use_pipes=use_pipes,
-                            combine_cstyle=True)
+                            in_domain=False)
         codomain = partial_codomain.insert_multiply(leg, last)
     elif not domain_complete:
         # can assume codomain is complete
@@ -489,15 +481,15 @@ def random_tensor(symmetry: symmetries.Symmetry,
         missing = [n for n, sp in enumerate(domain) if sp is None]
         for n in missing[:-1]:
             domain[n] = random_leg(
-                symmetry=symmetry, backend=backend, max_sectors=max_blocks,
+                symmetry=symmetry, backend=backend, in_domain=True, max_sectors=max_blocks,
                 max_multiplicity=max_multiplicity, allow_basis_perm=allow_basis_perm,
-                use_pipes=use_pipes, combine_cstyle=False, np_random=np_random
+                use_pipes=use_pipes, np_random=np_random
             )
         last = missing[-1]
         partial_domain = spaces.TensorProduct(domain[:last] + domain[last + 1:], symmetry=symmetry)
         leg = find_last_leg(same=partial_domain, opposite=codomain, max_sectors=max_blocks,
                             max_mult=max_multiplicity, backend=backend, use_pipes=use_pipes,
-                            combine_cstyle=False)
+                            in_domain=True)
         domain = partial_domain.insert_multiply(leg, last)
     else:
         if not isinstance(codomain, spaces.TensorProduct):
@@ -527,7 +519,7 @@ def random_tensor(symmetry: symmetries.Symmetry,
 def check_tensor_memory_usage(codomain: spaces.TensorProduct,
                               domain: spaces.TensorProduct, real: bool):
     """Estimate memory usage based on the number of entries in all blocks.
-    Raise error if estimated memory is larger than 1 GB
+    Raise error if estimated memory is larger than 1 GB.
     """
     limit = 1.
     num_entries = 0
@@ -554,8 +546,7 @@ def _factorize_limit(limit: int, num_components: int):
 
 def _random_ElementarySpace(symmetry, num_sectors, max_multiplicity, is_dual,
                             allow_basis_perm, np_random):
-    """Similar to `random_ElementarySpace`, but with fixed number of sectors
-    """
+    """Similar to `random_ElementarySpace`, but with fixed number of sectors"""
     sectors = random_symmetry_sectors(symmetry, num_sectors, sort=True, np_random=np_random)
     # if there are very few sectors, e.g. for symmetry==NoSymmetry(), dont let them be one-dimensional
     min_mult = min(max_multiplicity, max(4 - len(sectors), 1))
