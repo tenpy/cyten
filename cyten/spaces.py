@@ -1353,8 +1353,8 @@ class TensorProduct(Space):
         iter_uncoupled
         """
         # OPTIMIZE some users in FTBackend ignore the slc and i...
-        if any(not isinstance(sp, ElementarySpace) for sp in self.factors):
-            raise NotImplementedError  # TODO what to do if there are pipes?
+        #if any(not isinstance(sp, ElementarySpace) for sp in self.factors):
+            #raise NotImplementedError  # TODO what to do if there are pipes?
         are_dual = [sp.is_dual for sp in self.factors]
         for i, c in enumerate(coupled):
             start = 0  # start index of the current tree block within the block
@@ -1782,6 +1782,11 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     def with_opposite_duality(self):
         return AbelianLegPipe(legs=self.legs, is_dual=not self.is_dual,
                               combine_cstyle=self.combine_cstyle)
+
+    def with_opposite_duality_and_combinestyle(self):
+        return AbelianLegPipe(legs=self.legs, is_dual=not self.is_dual,
+                              combine_cstyle=not self.combine_cstyle)
+
 
     def __eq__(self, other):
         if not LegPipe.__eq__(self, other):

@@ -273,6 +273,7 @@ class FusionTreeBackend(TensorBackend):
                      ) -> Data:
         raise NotImplementedError('FusionTreeBackend.combine_legs not implemented')
 
+
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         res_dtype = Dtype.common(a.dtype, b.dtype)
         a_blocks = a.data.blocks
