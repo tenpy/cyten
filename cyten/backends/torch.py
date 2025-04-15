@@ -225,6 +225,9 @@ class TorchBlockBackend(BlockBackend):
             a = torch_module.real(a)
         return a
 
+    def repeat(self, a: Block, repeats: int, axis: int | None = None) -> Block:
+        return torch_module.repeat_interleave(a, repeats=repeats, dim=axis)
+
     def _block_repr_lines(self, a: Block, indent: str, max_width: int, max_lines: int) -> list[str]:
         torch_module.set_printoptions(linewidth=max_width - len(indent))
         lines = [f'{indent}{line}' for line in repr(a).split('\n')]
