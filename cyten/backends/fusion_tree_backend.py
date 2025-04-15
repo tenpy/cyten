@@ -90,7 +90,7 @@ from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe
 from ..trees import FusionTree, fusion_trees
 from ..tools.misc import (
     inverse_permutation, iter_common_sorted_arrays, iter_common_noncommon_sorted,
-    iter_common_sorted, permutation_as_swaps
+    iter_common_sorted, permutation_as_swaps, rank_data
 )
 
 if TYPE_CHECKING:
@@ -539,7 +539,64 @@ class FusionTreeBackend(TensorBackend):
         return res
 
     def diagonal_to_mask(self, tens: DiagonalTensor) -> tuple[DiagonalData, ElementarySpace]:
-        raise NotImplementedError('diagonal_to_mask not implemented')
+        large_leg = tens.leg
+        basis_perm = large_leg._basis_perm
+        blocks = []
+        codom_block_inds = []
+        sectors = []
+        multiplicities = []
+        basis_perm_ranks = []
+        # block_inds are w.r.t. TensorProducts, not the legs
+        # -> maybe need to do additional sorting if leg is dual
+        is_sorted = not large_leg.is_dual
+        for diag_block, diag_bi in zip(tens.data.blocks, tens.data.block_inds):
+            if not self.block_backend.block_any(diag_block):
+                continue
+            bi, _ = diag_bi
+            
+            # get the defining sector
+            sector = tens.codomain.sector_decomposition[bi]
+            if large_leg.is_dual:
+                sector = large_leg.symmetry.dual_sector(sector)
+
+            blocks.append(diag_block)
+            codom_block_inds.append(bi)
+            sectors.append(sector)
+            multiplicities.append(self.block_backend.sum_all(diag_block))
+            if basis_perm is not None:
+                dim = large_leg.symmetry.sector_dim(sector)
+                mask = self.block_backend.to_numpy(diag_block, bool).repeat(dim)
+                if large_leg.is_dual:
+                    bi = large_leg.sector_decomposition_where(tens.codomain.sector_decomposition[bi])
+                basis_perm_ranks.append(basis_perm[slice(*large_leg.slices[bi])][mask])
+
+        if len(blocks) == 0:
+            sectors = tens.symmetry.empty_sector_array
+            multiplicities = np.zeros(0, int)
+            basis_perm = None
+            block_inds = np.zeros((0, 2), int)
+        else:
+            sectors = np.array(sectors, int)
+            multiplicities = np.array(multiplicities, int)
+            if not is_sorted:
+                perm = np.lexsort(sectors.T)
+                sectors = sectors[perm]
+                multiplicities = multiplicities[perm]
+            if basis_perm is not None:
+                if not is_sorted:
+                    basis_perm_ranks = [basis_perm_ranks[p] for p in perm]
+                basis_perm = rank_data(np.concatenate(basis_perm_ranks))
+            block_inds = np.column_stack([np.arange(len(sectors)), codom_block_inds])
+
+        data = FusionTreeData(
+            block_inds=np.array(block_inds, int), blocks=blocks,
+            dtype=Dtype.bool, device=tens.data.device, is_sorted=True
+        )
+        small_leg = ElementarySpace(
+            symmetry=tens.symmetry, defining_sectors=sectors, multiplicities=multiplicities,
+            is_dual=large_leg.is_dual, basis_perm=basis_perm
+        )
+        return data, small_leg
 
     def diagonal_transpose(self, tens: DiagonalTensor) -> tuple[Space, DiagonalData]:
         # result has block associated with coupled sector c that is given by the block of tens
@@ -818,7 +875,18 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError('mask_from_block not implemented')
 
     def mask_to_block(self, a: Mask) -> Block:
-        raise NotImplementedError
+        large_leg = a.large_leg
+        res = self.block_backend.zeros([large_leg.dim], Dtype.bool)
+        idx = 1 if a.is_projection else 0
+        co_dom = a.domain if a.is_projection else a.codomain
+        for block, b_i in zip(a.data.blocks, a.data.block_inds):
+            bi_large = b_i[idx]
+            sector = co_dom.sector_decomposition[bi_large]
+            dim = co_dom.symmetry.sector_dim(sector)
+            if large_leg.is_dual:
+                bi_large = large_leg.sector_decomposition_where(sector)
+            res[slice(*large_leg.slices[bi_large])] = a.backend.block_backend.repeat(block, dim)
+        return res
 
     def mask_to_diagonal(self, a: Mask, dtype: Dtype) -> DiagonalData:
         raise NotImplementedError
