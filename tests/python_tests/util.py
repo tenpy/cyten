@@ -423,13 +423,6 @@ def random_tensor(symmetry: symmetries.Symmetry,
                                             allow_basis_perm=allow_basis_perm, np_random=np_random)
                 large_leg = small_leg.direct_sum(extra)
 
-        if isinstance(backend, backends.FusionTreeBackend):
-            with pytest.raises(NotImplementedError, match='diagonal_to_mask'):
-                _ = tensors.Mask.from_random(large_leg=large_leg, small_leg=small_leg,
-                                             backend=backend, p_keep=.6,
-                                             labels=labels, np_random=np_random)
-            pytest.xfail()
-
         if small_leg is not None and small_leg.dim > large_leg.dim:
             res = tensors.Mask.from_random(large_leg=small_leg, small_leg=large_leg,
                                            backend=backend, p_keep=.6, min_keep=1,

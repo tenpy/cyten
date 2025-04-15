@@ -298,13 +298,6 @@ def test_DiagonalTensor(make_compatible_tensor):
 
 
 def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
-
-    if compatible_symmetry_backend == 'fusion_tree':
-        # necessary functions to create Masks from fixture are not implemented yet
-        with pytest.raises(NotImplementedError, match='diagonal_to_mask not implemented'):
-            make_compatible_tensor(cls=Mask)
-        pytest.xfail()
-
     M_projection: Mask = make_compatible_tensor(cls=Mask)
     backend = M_projection.backend
     symmetry = M_projection.symmetry
