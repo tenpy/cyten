@@ -1250,6 +1250,11 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
+    def repeat(self, a: Block, repeats: int, axis: int | None = None) -> Block:
+        """Repeat each element of a block after themselves along a specific axis."""
+        ...
+
+    @abstractmethod
     def _block_repr_lines(self, a: Block, indent: str, max_width: int, max_lines: int) -> list[str]:
         ...
 
