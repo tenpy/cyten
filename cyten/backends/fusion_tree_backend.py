@@ -885,7 +885,11 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError('mask_contract_small_leg not implemented')
 
     def mask_dagger(self, mask: Mask) -> MaskData:
-        raise NotImplementedError('mask_dagger not implemented')
+        # the legs swap between domain and codomain. need to swap the two columns of block_inds.
+        # since both columns are unique and ascending, the resulting block_inds are still sorted.
+        block_inds = mask.data.block_inds[:, ::-1]
+        return FusionTreeData(block_inds=block_inds, blocks=mask.data.blocks, dtype=mask.dtype,
+                              device=mask.device, is_sorted=True)
 
     def mask_from_block(self, a: Block, large_leg: Space) -> tuple[MaskData, ElementarySpace]:
         raise NotImplementedError('mask_from_block not implemented')
@@ -908,7 +912,16 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError
 
     def mask_transpose(self, tens: Mask) -> tuple[Space, Space, MaskData]:
-        raise NotImplementedError('mask_transpose not implemented')
+        # similar implementation to diagonal_transpose
+        # OPTIMIZE doing this sorting is duplicate work between here and forming tens.leg.dual
+        block_inds = tens.data.block_inds
+        perm_dom = np.lexsort(tens.symmetry.dual_sectors(tens.domain.sector_decomposition).T)
+        perm_codom = np.lexsort(tens.symmetry.dual_sectors(tens.codomain.sector_decomposition).T)
+        block_inds = np.stack([inverse_permutation(perm_dom)[block_inds[:, 1]],
+                               inverse_permutation(perm_codom)[block_inds[:, 0]]], axis=1)
+        data = FusionTreeData(block_inds=block_inds, blocks=tens.data.blocks,
+                              dtype=tens.dtype, device=tens.data.device, is_sorted=False)
+        return tens.codomain[0].dual, tens.domain[0].dual, data
 
     def mask_unary_operand(self, mask: Mask, func) -> tuple[MaskData, ElementarySpace]:
         raise NotImplementedError
