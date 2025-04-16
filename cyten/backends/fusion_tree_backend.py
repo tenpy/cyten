@@ -331,7 +331,23 @@ class FusionTreeBackend(TensorBackend):
         return True
 
     def apply_mask_to_DiagonalTensor(self, tensor: DiagonalTensor, mask: Mask) -> DiagonalData:
-        raise NotImplementedError('apply_mask_to_DiagonalTensor not implemented')
+        tensor_blocks = tensor.data.blocks
+        tensor_block_inds_contr = tensor.data.block_inds[:, :1]  # is sorted
+        mask_blocks = mask.data.blocks
+        mask_block_inds = mask.data.block_inds
+        mask_block_inds_contr = mask_block_inds[:, 1]  # is sorted
+        res_blocks = []
+        res_block_inds = []  # append only for one leg, repeat later
+        for i, j in iter_common_sorted(tensor_block_inds_contr, mask_block_inds_contr):
+            block = self.block_backend.apply_mask(tensor_blocks[i], mask_blocks[j], ax=0)
+            res_blocks.append(block)
+            res_block_inds.append(mask_block_inds[j, 0])
+        if len(res_block_inds) > 0:
+            res_block_inds = np.repeat(np.array(res_block_inds)[:, None], 2, axis=1)
+        else:
+            res_block_inds = np.zeros((0, 2), int)
+        return FusionTreeData(res_block_inds, res_blocks, tensor.dtype, tensor.data.device,
+                              is_sorted=True)
 
     def combine_legs(self,
                      tensor: SymmetricTensor,
@@ -565,7 +581,7 @@ class FusionTreeBackend(TensorBackend):
             multiplicities.append(self.block_backend.sum_all(diag_block))
             if basis_perm is not None:
                 dim = large_leg.symmetry.sector_dim(sector)
-                mask = self.block_backend.to_numpy(diag_block, bool).repeat(dim)
+                mask = np.tile(self.block_backend.to_numpy(diag_block, bool), dim)
                 if large_leg.is_dual:
                     bi = large_leg.sector_decomposition_where(tens.codomain.sector_decomposition[bi])
                 basis_perm_ranks.append(basis_perm[slice(*large_leg.slices[bi])][mask])
