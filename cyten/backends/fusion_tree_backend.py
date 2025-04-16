@@ -769,7 +769,9 @@ class FusionTreeBackend(TensorBackend):
         return FusionTreeData(a.data.block_inds, blocks, dtype=a.dtype, device=a.data.device)
 
     def full_data_from_mask(self, a: Mask, dtype: Dtype) -> Data:
-        raise NotImplementedError('full_data_from_mask not implemented')  # TODO
+        blocks = [self.block_backend.block_from_mask(block, dtype) for block in a.data.blocks]        
+        return FusionTreeData(block_inds=a.data.block_inds, blocks=blocks,
+                              dtype=dtype, device=a.data.device, is_sorted=True)
 
     def get_device_from_data(self, a: FusionTreeData) -> str:
         return a.device
@@ -909,7 +911,11 @@ class FusionTreeBackend(TensorBackend):
         return res
 
     def mask_to_diagonal(self, a: Mask, dtype: Dtype) -> DiagonalData:
-        raise NotImplementedError
+        blocks = [self.block_backend.to_dtype(b, dtype) for b in a.data.blocks]
+        large_leg_bi = a.data.block_inds[:, 1] if a.is_projection else a.data.block_inds[:, 0]
+        block_inds = np.repeat(large_leg_bi[:, None], 2, axis=1)
+        return FusionTreeData(block_inds=block_inds, blocks=blocks,
+                              dtype=dtype, device=a.data.device, is_sorted=True)
 
     def mask_transpose(self, tens: Mask) -> tuple[Space, Space, MaskData]:
         # similar implementation to diagonal_transpose
