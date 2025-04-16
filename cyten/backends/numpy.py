@@ -189,7 +189,7 @@ class NumpyBlockBackend(BlockBackend):
         return np.real_if_close(a, tol=tol)
 
     def repeat(self, a: Block, repeats: int, axis: int | None = None) -> Block:
-        return np.repeat(a, repeats=repeats, axis=axis)
+        return np.tile(a, repeats)
 
     def _block_repr_lines(self, a: Block, indent: str, max_width: int, max_lines: int) -> list[str]:
         # TODO i like julia style much better actually, especially for many legs
