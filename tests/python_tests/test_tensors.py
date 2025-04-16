@@ -1081,6 +1081,9 @@ def test_apply_mask_DiagonalTensor(make_compatible_tensor):
     assert res.leg == mask.small_leg
     assert res.labels == tensor.labels
 
+    if not tensor.symmetry.can_be_dropped:
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+
     diag = tensor.diagonal_as_numpy()
     mask_np = mask.as_numpy_mask()
     expect = diag[mask_np]
