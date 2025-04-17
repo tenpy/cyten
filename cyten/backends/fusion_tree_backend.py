@@ -979,11 +979,94 @@ class FusionTreeBackend(TensorBackend):
 
     def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, TensorProduct, TensorProduct]:
+        return self._mask_contract(tensor, mask, leg_idx, large_leg=True)
         raise NotImplementedError('mask_contract_large_leg not implemented')
 
     def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, TensorProduct, TensorProduct]:
+        return self._mask_contract(tensor, mask, leg_idx, large_leg=False)
         raise NotImplementedError('mask_contract_small_leg not implemented')
+
+    def _mask_contract(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int, large_leg: bool
+                       ) -> tuple[Data, TensorProduct, TensorProduct]:
+        backend = self.block_backend
+        in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg_idx)
+        in_domain_int = int(in_domain)
+        if in_domain:
+            assert mask.is_projection != large_leg
+        else:
+            assert mask.is_projection == large_leg
+        
+        if in_domain:
+            codomain = tensor.codomain
+            spaces = tensor.domain.factors[:]
+            spaces[co_domain_idx] = mask.small_leg if large_leg else mask.large_leg
+            target_space = domain = TensorProduct(spaces, symmetry=tensor.symmetry)
+        else:
+            domain = tensor.domain
+            spaces = tensor.codomain.factors[:]
+            spaces[co_domain_idx] = mask.small_leg if large_leg else mask.large_leg
+            target_space = codomain = TensorProduct(spaces, symmetry=tensor.symmetry)
+
+        tensor_blocks = tensor.data.blocks
+        tensor_block_inds = tensor.data.block_inds
+        mask_blocks = mask.data.blocks
+        mask_block_inds = mask.data.block_inds
+
+        coupled = [tensor.domain.sector_decomposition[bi[1]] for bi in tensor_block_inds]
+        iter_space = [tensor.codomain, tensor.domain][in_domain_int]
+        same_decomp = len(iter_space.sector_decomposition) == len(target_space.sector_decomposition)
+        res_blocks = [backend.zeros([codomain.block_size(c), domain.block_size(c)], tensor.data.dtype)
+                      for c in coupled]
+        res_block_inds = tensor_block_inds.copy()
+        if not same_decomp:
+            # sector decomposition changes, need to adjust res_block_inds
+            for i, (c, block) in enumerate(zip(coupled, res_blocks)):
+                # some coupled sectors may no longer be allowed if uncoupled sectors are projected out
+                # -> the corresponding shape has a zero entry -> remove later using discard_zero_blocks
+                if backend.get_shape(block)[in_domain_int] > 0:
+                    res_block_inds[i, in_domain_int] = target_space.sector_decomposition_where(c)
+        
+        for uncoupled, slc, i in iter_space.iter_forest_blocks(coupled):
+            dom_idx_mask = mask.domain.sector_decomposition_where(uncoupled[co_domain_idx])
+            if dom_idx_mask is None:
+                continue  # uncoupled sector not in mask
+            j = np.searchsorted(mask_block_inds[:, 1], dom_idx_mask)
+            if dom_idx_mask <= mask_block_inds[-1, 1] and mask_block_inds[j, 1] == dom_idx_mask:
+                pass
+            else:
+                continue  # uncoupled sector not in mask
+
+            intermediate_shape = [iter_space[i].sector_multiplicity(sec)
+                                  for i, sec in enumerate(uncoupled)]
+            if in_domain:
+                block_slice = tensor_blocks[i][:, slc]
+                intermediate_shape.insert(0, -1)
+                final_shape = (backend.get_shape(block_slice)[0], -1)
+            else:
+                block_slice = tensor_blocks[i][slc, :]
+                intermediate_shape.append(-1)
+                final_shape = (-1, backend.get_shape(block_slice)[1])
+
+            block_slice = backend.reshape(block_slice, tuple(intermediate_shape))
+            if large_leg:
+                block_slice = backend.apply_mask(block_slice, mask_blocks[j],
+                                                 ax=in_domain_int + co_domain_idx)
+            else:
+                block_slice = backend.enlarge_leg(block_slice, mask_blocks[j],
+                                                  axis=in_domain_int + co_domain_idx)
+            block_slice = backend.reshape(block_slice, final_shape)
+
+            new_slc = target_space.forest_block_slice(uncoupled, coupled[i])
+            if in_domain:
+                res_blocks[i][:, new_slc] = block_slice
+            else:
+                res_blocks[i][new_slc, :] = block_slice
+
+        data = FusionTreeData(block_inds=res_block_inds, blocks=res_blocks, dtype=tensor.dtype,
+                              device=tensor.device, is_sorted=True)
+        data.discard_zero_blocks(self.block_backend, self.eps)
+        return data, codomain, domain
 
     def mask_dagger(self, mask: Mask) -> MaskData:
         # the legs swap between domain and codomain. need to swap the two columns of block_inds.

@@ -1422,7 +1422,7 @@ class TensorProduct(Space):
 
     def iter_forest_blocks(self, coupled: Sequence[Sector]
                            ) -> Iterator[tuple[tuple[Sector], slice, int]]:
-        """Iterate over tree blocks. Helper function for :class:`FusionTreeBackend`.
+        """Iterate over forest blocks. Helper function for :class:`FusionTreeBackend`.
 
         See :ref:`fusion_tree_backend__blocks` for definitions of blocks and forest blocks.
 
