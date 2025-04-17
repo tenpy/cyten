@@ -980,12 +980,10 @@ class FusionTreeBackend(TensorBackend):
     def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, TensorProduct, TensorProduct]:
         return self._mask_contract(tensor, mask, leg_idx, large_leg=True)
-        raise NotImplementedError('mask_contract_large_leg not implemented')
 
     def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, TensorProduct, TensorProduct]:
         return self._mask_contract(tensor, mask, leg_idx, large_leg=False)
-        raise NotImplementedError('mask_contract_small_leg not implemented')
 
     def _mask_contract(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int, large_leg: bool
                        ) -> tuple[Data, TensorProduct, TensorProduct]:
