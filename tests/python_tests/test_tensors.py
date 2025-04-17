@@ -1569,6 +1569,7 @@ def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     assert tensors.almost_equal(V.hc @ V, SymmetricTensor.from_eye(V.domain, T.backend))  # unitary 2)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, codomain, domain, which_leg',
     [pytest.param(SymmetricTensor, 2, 2, 1, id='Symm-2-2-codom'),
@@ -1861,6 +1862,12 @@ def test_linear_combination(cls, make_compatible_tensor):
     else:
         v = make_compatible_tensor(cls=cls)
     w = make_compatible_tensor(like=v)
+
+    if cls is Mask:
+        with pytest.warns(UserWarning, match='Converting types'):
+            _ = tensors.linear_combination(1, v, 2, w)
+        # type conversion results in linear combination of SymmetricTensors, which is tested already
+        return
 
     if not w.symmetry.can_be_dropped:
         # TODO  Need to re-design checks, cant use .to_numpy() etc
@@ -2426,21 +2433,6 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     assert tensors.almost_equal(U.hc @ U, eye, allow_different_types=True)
     assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
 
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        # Missing implementation of mask_dagger to actually apply the mask.
-        # Until then, run the parts that we can do without it
-        
-        mask, err, new_norm = tensors.truncate_singular_values(S=S / tensors.norm(S), svd_min=1e-14)
-        mask.test_sanity()
-        assert err >= 0
-        assert new_norm > 0
-
-        # Now just make sure the expected NotImplementedError is actually raised.
-        # If it no longer does, remove this whole if clause!
-        with pytest.raises(NotImplementedError, match='mask_dagger not implemented'):
-            _ = tensors.truncated_svd(T, new_leg_dual=new_leg_dual)
-        pytest.xfail()
-
     print('Truncated SVD')
     for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:
         U, S, Vh, err, renormalize = tensors.truncated_svd(
@@ -2546,6 +2538,9 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
         catch_errors = pytest.raises(ValueError, match='Can not instantiate ChargedTensor with no legs and unspecified charged_states.')
     if cls_B is ChargedTensor and B.charged_state is None and A.num_legs + B.num_legs == 2 * num_contr:
         catch_errors = pytest.raises(ValueError, match='Can not instantiate ChargedTensor with no legs and unspecified charged_states.')
+    if (cls_A is SymmetricTensor and cls_B is Mask) and num_contr == 1 and not A.symmetry.has_symmetric_braid:
+        # tensors.tdot calls permute_legs; maybe needs checking
+        catch_errors = pytest.raises(SymmetryError, match='The given permutation requires levels, but none were given.')
 
     if isinstance(A.backend, backends.FusionTreeBackend) and A.symmetry.braiding_style.value >= 20:
         if cls_A is not DiagonalTensor:
@@ -2555,7 +2550,13 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
                 with pytest.raises(NotImplementedError):
                     _ = tensors.permute_legs(A, codomain=codomain_A, domain=contr_A, levels=levels_A)
                 pytest.xfail()
-            A = tensors.permute_legs(A, codomain=codomain_A, domain=contr_A, levels=levels_A)
+            if cls_A is Mask and len(codomain_A) != 1:
+                # otherwise, mask transpose is used
+                catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
+            else:
+                catch_warnings = nullcontext()
+            with catch_warnings:
+                A = tensors.permute_legs(A, codomain=codomain_A, domain=contr_A, levels=levels_A)
             contr_A = [A.num_legs - 1 - i for i in range(num_contr)]
         if cls_B is not DiagonalTensor:
             levels_B = list(np_random.permutation(B.num_legs))
@@ -2564,7 +2565,12 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
                 with pytest.raises(NotImplementedError):
                     _ = tensors.permute_legs(B, codomain=contr_B, domain=domain_B, levels=levels_B)
                 pytest.xfail()
-            B = tensors.permute_legs(B, codomain=contr_B, domain=domain_B, levels=levels_B)
+            if cls_B is Mask and len(domain_B) != 1:
+                catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
+            else:
+                catch_warnings = nullcontext()
+            with catch_warnings:
+                B = tensors.permute_legs(B, codomain=contr_B, domain=domain_B, levels=levels_B)
             contr_B = list(range(num_contr))
 
     if isinstance(A.backend, backends.FusionTreeBackend):
