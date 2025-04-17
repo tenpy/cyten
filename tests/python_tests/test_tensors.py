@@ -389,29 +389,32 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
         _ = bool(M_projection)
 
     print('checking .any() and .all()')
-    assert M_projection.all() == np.all(M_projection_np)
-    assert M_inclusion.all() == np.all(M_projection_np)
-    assert M_projection.any() == np.any(M_projection_np)
-    assert M_inclusion.any() == np.any(M_projection_np)
+    if symmetry.can_be_dropped:
+        assert M_projection.all() == np.all(M_projection_np)
+        assert M_inclusion.all() == np.all(M_projection_np)
+        assert M_projection.any() == np.any(M_projection_np)
+        assert M_inclusion.any() == np.any(M_projection_np)
     assert M_eye.all()
     assert M_eye.any()
     assert not M_zero.all()
     assert not M_zero.any()
 
     print('checking to_numpy vs as_SymmetricTensor')
-    res_direct = M_projection.to_numpy()
     M_SymmetricTensor = M_projection.as_SymmetricTensor(dtype=Dtype.float64)
     assert M_SymmetricTensor.shape == M_projection.shape
     M_SymmetricTensor.test_sanity()
-    res_via_Symmetric = M_SymmetricTensor.to_numpy()
-    npt.assert_allclose(res_via_Symmetric, res_direct)
+    if symmetry.can_be_dropped:
+        res_via_Symmetric = M_SymmetricTensor.to_numpy()
+        res_direct = M_projection.to_numpy()
+        npt.assert_allclose(res_via_Symmetric, res_direct)
     print('   also for inclusion Mask')
-    res_direct = M_inclusion.to_numpy()
     M_SymmetricTensor = M_inclusion.as_SymmetricTensor(dtype=Dtype.float64)
     assert M_SymmetricTensor.shape == M_inclusion.shape
     M_SymmetricTensor.test_sanity()
-    res_via_Symmetric = M_SymmetricTensor.to_numpy()
-    npt.assert_allclose(res_via_Symmetric, res_direct)
+    if symmetry.can_be_dropped:
+        res_via_Symmetric = M_SymmetricTensor.to_numpy()
+        res_direct = M_inclusion.to_numpy()
+        npt.assert_allclose(res_via_Symmetric, res_direct)
 
     # TODO check binary operands: &, ==, !=, &, |, ^ :
     #   left and right
