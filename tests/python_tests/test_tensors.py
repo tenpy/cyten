@@ -330,6 +330,15 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
         # checks that rely on dense block representations
         print('checking from_block_mask / as_block_mask')
         block_mask = np_random.choice([True, False], large_leg.dim, replace=True)
+        if not M_projection.symmetry.fusion_style.value == 0:
+            # can only have True XOR False for all entries corresponding to the same multiplicity index
+            for slc, sector in zip(large_leg.slices, large_leg.defining_sectors):
+                dim = symmetry.sector_dim(sector)
+                if dim > 1:
+                    slc = slice(*slc)
+                    stop = int(len(block_mask[slc]) // dim)
+                    block_mask[slc] = np.tile(block_mask[slc][:stop], dim)
+            block_mask = backend.block_backend.apply_basis_perm(block_mask, [large_leg], inv=True)
         M = Mask.from_block_mask(block_mask, large_leg=large_leg, backend=backend)
         M.test_sanity()
         assert M.large_leg == large_leg
