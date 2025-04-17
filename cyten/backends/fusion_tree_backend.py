@@ -605,8 +605,7 @@ class FusionTreeBackend(TensorBackend):
             block_inds = np.column_stack([np.arange(len(sectors)), codom_block_inds])
 
         data = FusionTreeData(
-            block_inds=np.array(block_inds, int), blocks=blocks,
-            dtype=Dtype.bool, device=tens.data.device, is_sorted=True
+            block_inds=block_inds, blocks=blocks, dtype=Dtype.bool, device=tens.data.device, is_sorted=True
         )
         small_leg = ElementarySpace(
             symmetry=tens.symmetry, defining_sectors=sectors, multiplicities=multiplicities,
@@ -876,7 +875,107 @@ class FusionTreeBackend(TensorBackend):
         return l_data, q_data
 
     def mask_binary_operand(self, mask1: Mask, mask2: Mask, func) -> tuple[MaskData, ElementarySpace]:
-        raise NotImplementedError('mask_binary_operand not implemented')
+        large_leg = mask1.large_leg
+        basis_perm = large_leg._basis_perm
+        mask1_block_inds = mask1.data.block_inds
+        mask1_blocks = mask1.data.blocks
+        mask2_block_inds = mask2.data.block_inds
+        mask2_blocks = mask2.data.blocks
+        #
+        blocks = []
+        dom_block_inds = []
+        sectors = []
+        multiplicities = []
+        basis_perm_ranks = []
+        # block_inds are w.r.t. TensorProducts, not the legs
+        # -> maybe need to do additional sorting and searching if leg is dual
+        is_sorted = not large_leg.is_dual
+        #
+        i1 = 0  # next block of mask1 to process; iterating like this only works if is_sorted.
+        b1_i1 = -1 if len(mask1_block_inds) == 0 else mask1_block_inds[i1, 1]  # its block_ind for the large leg.
+        i2 = 0
+        b2_i2 = -1 if len(mask2_block_inds) == 0 else mask2_block_inds[i2, 1]
+        #
+        for sector_idx, sector in enumerate(large_leg.defining_sectors):
+            if not is_sorted:
+                # do this here for both masks
+                dual_sec = large_leg.sector_decomposition[sector_idx]
+                dom_idx = mask1.domain.sector_decomposition_where(dual_sec)
+
+            block1_found = False
+            if is_sorted and sector_idx == b1_i1:
+                block1_found = True
+                block1 = mask1_blocks[i1]
+                i1 += 1
+                if i1 >= len(mask1_block_inds):
+                    b1_i1 = -1  # mask1 has no further blocks
+                else:
+                    b1_i1 = mask1_block_inds[i1, 1]
+            elif not is_sorted:
+                i1 = np.searchsorted(mask1_block_inds[:, 1], dom_idx)
+                if dom_idx <= mask1_block_inds[-1, 1] and mask1_block_inds[i1, 1] == dom_idx:
+                    block1_found = True
+                    block1 = mask1_blocks[i1]
+            if not block1_found:
+                block1 = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
+
+            block2_found = False
+            if is_sorted and sector_idx == b2_i2:
+                block2_found = True
+                block2 = mask2_blocks[i2]
+                i2 += 1
+                if i2 >= len(mask2_block_inds):
+                    b2_i2 = -1  # mask2 has no further blocks
+                else:
+                    b2_i2 = mask2_block_inds[i2, 1]
+            elif not is_sorted:
+                i2 = np.searchsorted(mask2_block_inds[:, 1], dom_idx)
+                if dom_idx <= mask2_block_inds[-1, 1] and mask2_block_inds[i2, 1] == dom_idx:
+                    block2_found = True
+                    block2 = mask2_blocks[i2]
+            if not block2_found:
+                block2 = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
+
+            new_block = func(block1, block2)
+            mult = self.block_backend.sum_all(new_block)
+            if mult == 0:
+                continue
+            blocks.append(new_block)
+            dom_block_inds.append(sector_idx)
+            sectors.append(sector)
+            multiplicities.append(mult)
+            if basis_perm is not None:
+                dim = large_leg.symmetry.sector_dim(sector)
+                mask = np.tile(self.block_backend.to_numpy(new_block, bool), dim)
+                if large_leg.is_dual:
+                    sector_idx = large_leg.sector_decomposition_where(dual_sec)
+                basis_perm_ranks.append(basis_perm[slice(*large_leg.slices[sector_idx])][mask])
+
+        if len(sectors) == 0:
+            sectors = mask1.symmetry.empty_sector_array
+            multiplicities = np.zeros(0, int)
+            basis_perm = None
+            block_inds = np.zeros((0, 2), int)
+        else:
+            sectors = np.array(sectors, int)
+            multiplicities = np.array(multiplicities, int)
+            if not is_sorted:
+                perm = np.lexsort(sectors.T)
+                sectors = sectors[perm]
+                multiplicities = multiplicities[perm]
+            if basis_perm is not None:
+                if not is_sorted:
+                    basis_perm_ranks = [basis_perm_ranks[p] for p in perm]
+                basis_perm = rank_data(np.concatenate(basis_perm_ranks))
+            block_inds = np.column_stack([np.arange(len(sectors)), dom_block_inds])
+        data = FusionTreeData(
+            block_inds=block_inds, blocks=blocks, dtype=Dtype.bool, device=mask1.device, is_sorted=True
+        )
+        small_leg = ElementarySpace(
+            symmetry=mask1.symmetry, defining_sectors=sectors, multiplicities=multiplicities,
+            is_dual=large_leg.is_dual, basis_perm=basis_perm
+        )
+        return data, small_leg
 
     def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, TensorProduct, TensorProduct]:
