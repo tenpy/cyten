@@ -947,8 +947,6 @@ class FusionTreeBackend(TensorBackend):
             if basis_perm is not None:
                 dim = large_leg.symmetry.sector_dim(sector)
                 mask = np.tile(self.block_backend.to_numpy(new_block, bool), dim)
-                if large_leg.is_dual:
-                    sector_idx = large_leg.sector_decomposition_where(dual_sec)
                 basis_perm_ranks.append(basis_perm[slice(*large_leg.slices[sector_idx])][mask])
 
         if len(sectors) == 0:
@@ -959,13 +957,7 @@ class FusionTreeBackend(TensorBackend):
         else:
             sectors = np.array(sectors, int)
             multiplicities = np.array(multiplicities, int)
-            if not is_sorted:
-                perm = np.lexsort(sectors.T)
-                sectors = sectors[perm]
-                multiplicities = multiplicities[perm]
             if basis_perm is not None:
-                if not is_sorted:
-                    basis_perm_ranks = [basis_perm_ranks[p] for p in perm]
                 basis_perm = rank_data(np.concatenate(basis_perm_ranks))
             block_inds = np.column_stack([np.arange(len(sectors)), dom_block_inds])
         data = FusionTreeData(
@@ -1166,7 +1158,75 @@ class FusionTreeBackend(TensorBackend):
         return tens.codomain[0].dual, tens.domain[0].dual, data
 
     def mask_unary_operand(self, mask: Mask, func) -> tuple[MaskData, ElementarySpace]:
-        raise NotImplementedError
+        large_leg = mask.large_leg
+        basis_perm = large_leg._basis_perm
+        mask_block_inds = mask.data.block_inds
+        mask_blocks = mask.data.blocks
+        #
+        blocks = []
+        dom_block_inds = []
+        sectors = []
+        multiplicities = []
+        basis_perm_ranks = []
+        # block_inds are w.r.t. TensorProducts, not the legs
+        # -> maybe need to do additional sorting and searching if leg is dual
+        is_sorted = not large_leg.is_dual
+        #
+        i = 0  # next block of mask to process; iterating like this only works if is_sorted.
+        b_i = -1 if len(mask_block_inds) == 0 else mask_block_inds[i, 1]
+        #
+        for sector_idx, sector in enumerate(large_leg.defining_sectors):
+            block_found = False
+            if is_sorted and sector_idx == b_i:
+                block_found = True
+                block = mask_blocks[i]
+                i += 1
+                if i >= len(mask_block_inds):
+                    b_i = -1  # mask has no further blocks
+                else:
+                    b_i = mask_block_inds[i, 1]
+            elif not is_sorted:
+                dual_sec = large_leg.sector_decomposition[sector_idx]
+                dom_idx = mask.domain.sector_decomposition_where(dual_sec)
+                i = np.searchsorted(mask_block_inds[:, 1], dom_idx)
+                if dom_idx <= mask_block_inds[-1, 1] and mask_block_inds[i, 1] == dom_idx:
+                    block_found = True
+                    block = mask_blocks[i]
+            if not block_found:
+                block = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
+
+            new_block = func(block)
+            mult = self.block_backend.sum_all(new_block)
+            if mult == 0:
+                continue
+            blocks.append(new_block)
+            dom_block_inds.append(sector_idx)
+            sectors.append(sector)
+            multiplicities.append(mult)
+            if basis_perm is not None:
+                dim = large_leg.symmetry.sector_dim(sector)
+                mask = np.tile(self.block_backend.to_numpy(new_block, bool), dim)
+                basis_perm_ranks.append(basis_perm[slice(*large_leg.slices[sector_idx])][mask])
+
+        if len(sectors) == 0:
+            sectors = mask.symmetry.empty_sector_array
+            multiplicities = np.zeros(0, int)
+            basis_perm = None
+            block_inds = np.zeros((0, 2), int)
+        else:
+            sectors = np.array(sectors, int)
+            multiplicities = np.array(multiplicities, int)
+            if basis_perm is not None:
+                basis_perm = rank_data(np.concatenate(basis_perm_ranks))
+            block_inds = np.column_stack([np.arange(len(sectors)), dom_block_inds])
+        data = FusionTreeData(
+            block_inds=block_inds, blocks=blocks, dtype=Dtype.bool, device=mask.device, is_sorted=True
+        )
+        small_leg = ElementarySpace(
+            symmetry=mask.symmetry, defining_sectors=sectors, multiplicities=multiplicities,
+            is_dual=large_leg.is_dual, basis_perm=basis_perm
+        )
+        return data, small_leg
 
     def move_to_device(self, a: SymmetricTensor | DiagonalTensor | Mask, device: str) -> Data:
         for i in range(len(a.data.blocks)):
