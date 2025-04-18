@@ -528,7 +528,9 @@ class FusionTreeBackend(TensorBackend):
 
     def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool
                                          ) -> DiagonalData:
-        raise NotImplementedError('diagonal_tensor_from_full_tensor not implemented')
+        blocks = [self.block_backend.get_diagonal(block, check_offdiagonal)
+                  for block in a.data.blocks]
+        return FusionTreeData(a.data.block_inds, blocks, a.dtype, a.data.device, is_sorted=True)
 
     def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
         return sum(
