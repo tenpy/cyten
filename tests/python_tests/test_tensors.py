@@ -1694,13 +1694,7 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
         else:
             npt.assert_almost_equal(a, b)
 
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        if cls is DiagonalTensor:
-            # getting an off-diagonal element is handled without going to the backend function
-            with pytest.raises(NotImplementedError, match='get_element.* not implemented'):
-                _ = T[0, 0]
-            pytest.xfail()
-
+    if isinstance(T.backend, backends.FusionTreeBackend) and not cls == DiagonalTensor:
         with pytest.raises(NotImplementedError, match='get_element.* not implemented'):
             _ = T[random_idx]
         pytest.xfail()
