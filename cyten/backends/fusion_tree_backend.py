@@ -924,7 +924,7 @@ class FusionTreeBackend(TensorBackend):
                     b1_i1 = mask1_block_inds[i1, 1]
             elif not is_sorted:
                 i1 = mask1.data.block_ind_from_domain_sector_ind(dom_idx)
-                if not i1 is None:
+                if i1 is not None:
                     block1_found = True
                     block1 = mask1_blocks[i1]
             if not block1_found:
@@ -941,7 +941,7 @@ class FusionTreeBackend(TensorBackend):
                     b2_i2 = mask2_block_inds[i2, 1]
             elif not is_sorted:
                 i2 = mask2.data.block_ind_from_domain_sector_ind(dom_idx)
-                if not i2 is None:
+                if i2 is not None:
                     block2_found = True
                     block2 = mask2_blocks[i2]
             if not block2_found:
@@ -1197,7 +1197,7 @@ class FusionTreeBackend(TensorBackend):
                 dual_sec = large_leg.sector_decomposition[sector_idx]
                 dom_idx = mask.domain.sector_decomposition_where(dual_sec)
                 i = mask.data.block_ind_from_domain_sector_ind(dom_idx)
-                if not i is None:
+                if i is not None:
                     block_found = True
                     block = mask_blocks[i]
             if not block_found:
