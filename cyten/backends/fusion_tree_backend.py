@@ -571,7 +571,7 @@ class FusionTreeBackend(TensorBackend):
             if not self.block_backend.block_any(diag_block):
                 continue
             bi, _ = diag_bi
-            
+
             # get the defining sector
             sector = tens.codomain.sector_decomposition[bi]
             if large_leg.is_dual:
@@ -770,7 +770,7 @@ class FusionTreeBackend(TensorBackend):
         return FusionTreeData(a.data.block_inds, blocks, dtype=a.dtype, device=a.data.device)
 
     def full_data_from_mask(self, a: Mask, dtype: Dtype) -> Data:
-        blocks = [self.block_backend.block_from_mask(block, dtype) for block in a.data.blocks]        
+        blocks = [self.block_backend.block_from_mask(block, dtype) for block in a.data.blocks]
         return FusionTreeData(block_inds=a.data.block_inds, blocks=blocks,
                               dtype=dtype, device=a.data.device, is_sorted=True)
 
@@ -784,7 +784,16 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError('get_element not implemented')  # TODO
 
     def get_element_diagonal(self, a: DiagonalTensor, idx: int) -> complex | float | bool:
-        raise NotImplementedError('get_element_diagonal not implemented')  # TODO
+        sector_idx, idx_within = a.leg.parse_index(idx)
+        multi = a.leg.multiplicities[sector_idx]
+        if a.leg.is_dual:
+            sector = a.leg.sector_decomposition[sector_idx]
+            sector_idx = a.domain.sector_decomposition_where(sector)
+        block_idx = a.data.block_ind_from_domain_sector_ind(sector_idx)
+        if block_idx is None:
+            return a.dtype.zero_scalar
+        block = a.data.blocks[block_idx]
+        return self.block_backend.get_block_element(block, [idx_within % multi])
 
     def get_element_mask(self, a: Mask, idcs: list[int]) -> bool:
         raise NotImplementedError('get_element_mask not implemented')  # TODO
@@ -914,8 +923,8 @@ class FusionTreeBackend(TensorBackend):
                 else:
                     b1_i1 = mask1_block_inds[i1, 1]
             elif not is_sorted:
-                i1 = np.searchsorted(mask1_block_inds[:, 1], dom_idx)
-                if dom_idx <= mask1_block_inds[-1, 1] and mask1_block_inds[i1, 1] == dom_idx:
+                i1 = mask1.data.block_ind_from_domain_sector_ind(dom_idx)
+                if not i1 is None:
                     block1_found = True
                     block1 = mask1_blocks[i1]
             if not block1_found:
@@ -931,8 +940,8 @@ class FusionTreeBackend(TensorBackend):
                 else:
                     b2_i2 = mask2_block_inds[i2, 1]
             elif not is_sorted:
-                i2 = np.searchsorted(mask2_block_inds[:, 1], dom_idx)
-                if dom_idx <= mask2_block_inds[-1, 1] and mask2_block_inds[i2, 1] == dom_idx:
+                i2 = mask2.data.block_ind_from_domain_sector_ind(dom_idx)
+                if not i2 is None:
                     block2_found = True
                     block2 = mask2_blocks[i2]
             if not block2_found:
@@ -988,7 +997,7 @@ class FusionTreeBackend(TensorBackend):
             assert mask.is_projection != large_leg
         else:
             assert mask.is_projection == large_leg
-        
+
         if in_domain:
             codomain = tensor.codomain
             spaces = tensor.domain.factors[:]
@@ -1003,7 +1012,6 @@ class FusionTreeBackend(TensorBackend):
         tensor_blocks = tensor.data.blocks
         tensor_block_inds = tensor.data.block_inds
         mask_blocks = mask.data.blocks
-        mask_block_inds = mask.data.block_inds
 
         coupled = [tensor.domain.sector_decomposition[bi[1]] for bi in tensor_block_inds]
         iter_space = [tensor.codomain, tensor.domain][in_domain_int]
@@ -1023,10 +1031,8 @@ class FusionTreeBackend(TensorBackend):
             dom_idx_mask = mask.domain.sector_decomposition_where(uncoupled[co_domain_idx])
             if dom_idx_mask is None:
                 continue  # uncoupled sector not in mask
-            j = np.searchsorted(mask_block_inds[:, 1], dom_idx_mask)
-            if dom_idx_mask <= mask_block_inds[-1, 1] and mask_block_inds[j, 1] == dom_idx_mask:
-                pass
-            else:
+            j = mask.data.block_ind_from_domain_sector_ind(dom_idx_mask)
+            if j is None:
                 continue  # uncoupled sector not in mask
 
             intermediate_shape = [iter_space[i].sector_multiplicity(sec)
@@ -1190,8 +1196,8 @@ class FusionTreeBackend(TensorBackend):
             elif not is_sorted:
                 dual_sec = large_leg.sector_decomposition[sector_idx]
                 dom_idx = mask.domain.sector_decomposition_where(dual_sec)
-                i = np.searchsorted(mask_block_inds[:, 1], dom_idx)
-                if dom_idx <= mask_block_inds[-1, 1] and mask_block_inds[i, 1] == dom_idx:
+                i = mask.data.block_ind_from_domain_sector_ind(dom_idx)
+                if not i is None:
                     block_found = True
                     block = mask_blocks[i]
             if not block_found:
