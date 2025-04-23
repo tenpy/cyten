@@ -143,6 +143,12 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in T.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = T.to_numpy()
+            pytest.xfail()
+
     print('checking to_numpy')
     numpy_block = T.to_numpy()
     dense_block = backend.block_backend.block_from_numpy(numpy_block)
@@ -448,6 +454,12 @@ def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatib
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in T.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = T.to_numpy()
+            pytest.xfail()
+
     print('checking to_numpy')
     numpy_block = T.to_numpy()
     assert T.shape == numpy_block.shape
@@ -472,6 +484,13 @@ def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatib
     inv_part = make_compatible_tensor(codomain=1, domain=[charge_leg], labels=[None, '!'])
     tens = ChargedTensor(inv_part, charged_state=[1])
     leg = tens.codomain[0]
+
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if isinstance(leg, LegPipe):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_multiplicity'"):
+                _ = leg.sector_multiplicity(sector)
+            pytest.xfail()
+
     block_size = leg.sector_multiplicity(sector)
 
     if isinstance(backend, backends.FusionTreeBackend):
@@ -908,6 +927,14 @@ def test_Tensor_str_repr(cls, codomain, domain, make_compatible_tensor, str_max_
     """
     terminal_width = 80
     T = make_compatible_tensor(codomain=codomain, domain=domain, cls=cls)
+
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        symmetry_cond = (not T.symmetry.can_be_dropped) or (not T.symmetry.is_abelian)
+        if any([isinstance(leg, LegPipe) for leg in T.legs]) and symmetry_cond:
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'multiplicities'"):
+                _ = repr(T)
+            pytest.xfail()
+            
     print('repr(T):')
     res = repr(T)
     print(res)
@@ -946,6 +973,12 @@ def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor,
 
     if not tens.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+
+    if isinstance(tens.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in tens.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = tens.to_numpy()
+            pytest.xfail()
 
     if cls in [DiagonalTensor, Mask]:
         catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
@@ -1014,6 +1047,14 @@ def test_apply_mask(cls, codomain, domain, which_leg, make_compatible_tensor):
     num_legs = codomain + domain
     labels = list('abcdefghijkl')[:num_legs]
     T: cls = make_compatible_tensor(codomain=codomain, domain=domain, labels=labels, cls=cls)
+
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if isinstance(T.legs[which_leg], LegPipe):
+            with pytest.raises(ValueError, match='large_leg must be ElementarySpace.'):
+                _ = make_compatible_tensor(domain=[T.get_leg(which_leg)], cls=Mask)
+            # TODO maybe redesign such that we can guarantee that a certain leg is not a pipe?
+            pytest.xfail()
+
     M: Mask = make_compatible_tensor(domain=[T.get_leg(which_leg)], cls=Mask)
 
     if cls is Mask:
@@ -1067,6 +1108,12 @@ def test_apply_mask_DiagonalTensor(make_compatible_tensor):
 def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_tensor):
     tensor: cls = make_compatible_tensor(codomain, domain, cls=cls)
 
+    if isinstance(tensor.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in tensor.legs]) and codomain != num_codomain_legs:
+            with pytest.raises(NotImplementedError):
+                _ = tensors.bend_legs(tensor, num_codomain_legs)
+            pytest.xfail()
+
     res = tensors.bend_legs(tensor, num_codomain_legs)
     res.test_sanity()
     assert res.legs == tensor.legs
@@ -1077,17 +1124,30 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
     if isinstance(tensor.symmetry, SU2Symmetry):
         pytest.xfail()  # TODO
 
+    if isinstance(tensor.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = tensor.to_numpy()
+            pytest.xfail()
+
     tensor_np = tensor.to_numpy()
     npt.assert_array_almost_equal_nulp(res.to_numpy(), tensor_np, 100)
 
 
-def test_combine_split(make_compatible_tensor):
-    T: SymmetricTensor = make_compatible_tensor(['a', 'b'], ['d', 'c'])
+@pytest.mark.parametrize(
+    'use_pipes',
+    [pytest.param(True, id='pipes'),
+     pytest.param(False, id='no pipes'),
+    ]
+)
+def test_combine_split(use_pipes, make_compatible_tensor):
+    T: SymmetricTensor = make_compatible_tensor(['a', 'b'], ['d', 'c'], use_pipes=use_pipes)
     assert T.labels == ['a', 'b', 'c', 'd']
 
     if isinstance(T.backend, backends.FusionTreeBackend):
-        msg = 'FusionTreeBackend.combine_legs not implemented'
-        with pytest.raises(RuntimeError, match=msg):
+        err = NotImplementedError if use_pipes else RuntimeError
+        msg = '' if use_pipes else 'FusionTreeBackend.combine_legs not implemented'
+        with pytest.raises(err, match=msg):
             _ = tensors.combine_legs(T, [1, 2])
         pytest.xfail()
 
@@ -1129,7 +1189,11 @@ def test_combine_split(make_compatible_tensor):
     assert combined3.codomain[0].legs == [T.codomain[1], T.codomain[0]]
     assert combined3.domain == T.domain
     #
-    split3 = tensors.split_legs(combined3)
+    if use_pipes:
+        split3 = tensors.split_legs(combined3, '(b.a)')
+    else:
+        # check that it can be called without specifying the leg
+        split3 = tensors.split_legs(combined3)
     split3.test_sanity()
     assert split3.labels == ['b', 'a', 'c', 'd']
     assert split3.codomain.factors == [T.codomain[1], T.codomain[0]]
@@ -1152,9 +1216,16 @@ def test_combine_split(make_compatible_tensor):
     assert split4.domain.factors == [T.domain[0]]
     assert tensors.almost_equal(split4, tensors.permute_legs(T, [0, 1, 2]))
 
-    # check splitting a non-combined leg raises
-    with pytest.raises(ValueError, match='Not a LegPipe.'):
-        _ = tensors.split_legs(combined4, 0)
+    if use_pipes:
+        # check splitting a non-combined leg (that is a pipe) raises
+        with pytest.raises(ValueError, match='Invalid format for a combined label'):
+            _ = tensors.split_legs(combined4)
+        with pytest.raises(ValueError, match='Invalid format for a combined label'):
+            _ = tensors.split_legs(T, 0)
+    else:
+        # check splitting a non-combined leg raises
+        with pytest.raises(ValueError, match='Not a LegPipe.'):
+            _ = tensors.split_legs(combined4, 0)
 
     # 5) check compatibility with bending legs
     #  5a) combine in domain
@@ -1270,6 +1341,13 @@ def test_compose(cls_A, cls_B, cod_A, shared, dom_B, make_compatible_tensor):
             expect_labels.extend(reversed(B.domain_labels[1:]))
             expect_labels.append('y')
         assert res.labels == expect_labels
+
+        if isinstance(res.backend, backends.FusionTreeBackend):
+            if any([isinstance(leg, LegPipe) for leg in res.legs]):
+                with pytest.raises(AttributeError, match="'LegPipe' object has no attribute *"):
+                    _ = res.to_numpy()
+                pytest.xfail()
+
         res_np = res.to_numpy()
 
     axes = [list(range(cod_A, cod_A + shared)), list(reversed(range(shared)))]
@@ -1295,6 +1373,12 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
     T_labels = list('abcdefghi')[:cod + dom]
     T: cls = make_compatible_tensor(cod, dom, cls=cls, labels=T_labels)
 
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in T.legs]) and cls is ChargedTensor:
+            with pytest.raises(NotImplementedError):
+                _ = T.dagger
+            pytest.xfail()
+
     how_to_call = np_random.choice(['dagger()', '.hc', '.dagger'])
     print(how_to_call)
     if how_to_call == 'dagger()':
@@ -1311,6 +1395,12 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
 
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in T.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = T.to_numpy()
+            pytest.xfail()
 
     expect = np.conj(np.transpose(T.to_numpy(), list(reversed(range(cod + dom)))))
     npt.assert_almost_equal(res.to_numpy(), expect)
@@ -1544,6 +1634,12 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
             _ = T[(0,) * (cod + dom)]
         return
 
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in T.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = T.to_numpy()
+            pytest.xfail()
+
     T_np = T.to_numpy()
     random_idx = tuple(np_random.choice(d) for d in T.shape)
 
@@ -1628,11 +1724,25 @@ def test_inner(cls, cod, dom, do_dagger, allow_basis_perm, make_compatible_tenso
         # but the, we can not compute inner.
         return
 
+    if isinstance(A.backend, backends.FusionTreeBackend):
+        cond = any([isinstance(leg, LegPipe) for leg in A.legs]) or any([isinstance(leg, LegPipe) for leg in B.legs])
+        if cls is ChargedTensor and dom == 2 and cond:
+            with pytest.raises(NotImplementedError):
+                _ = tensors.inner(A, B, do_dagger=do_dagger)
+            pytest.xfail()
+
     res = tensors.inner(A, B, do_dagger=do_dagger)
     assert isinstance(res, (float, complex))
 
     if not A.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+
+    if isinstance(A.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in A.legs]) or any([isinstance(leg, LegPipe) for leg in B.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = A.to_numpy()
+                _ = B.to_numpy()
+            pytest.xfail()
 
     if do_dagger:
         expect = np.sum(np.conj(A.to_numpy()) * B.to_numpy())
@@ -1721,6 +1831,12 @@ def test_linear_combination(cls, make_compatible_tensor):
         # type conversion results in linear combination of SymmetricTensors, which is tested already
         return
 
+    if isinstance(v.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in v.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = v.to_numpy()
+            pytest.xfail()
+
     v_np = v.to_numpy()
     w_np = w.to_numpy()
     for valid_scalar in [0, 1., 2. + 3.j, -42]:
@@ -1779,6 +1895,16 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
         domain_perm[domain_pos:domain_pos] = [leg]
     perm = [*codomain_perm, *reversed(domain_perm)]
 
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if domain_pos is None:
+            move = leg != codomain_pos
+        else:
+            move = leg != T.num_legs - 1 - domain_pos
+        if any([isinstance(leg, LegPipe) for leg in T.legs]) and move:
+            with pytest.raises(NotImplementedError):
+                _ = tensors.move_leg(T, leg, codomain_pos=codomain_pos, domain_pos=domain_pos, levels=levels)
+            pytest.xfail()
+
     with catch_warnings:
         res = tensors.move_leg(T, leg, codomain_pos=codomain_pos, domain_pos=domain_pos, levels=levels)
     res.test_sanity()
@@ -1789,6 +1915,12 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
 
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in T.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = T.to_numpy()
+            pytest.xfail()
 
     expect = T.to_numpy().transpose(perm)
     npt.assert_allclose(res.to_numpy(), expect, atol=1.e-14)
@@ -1818,6 +1950,12 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
 
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in T.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = T.to_numpy()
+            pytest.xfail()
 
     expect = np.linalg.norm(T.to_numpy())
     npt.assert_almost_equal(res, expect)
@@ -2000,6 +2138,13 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_comp
     else:
         catch_warnings = nullcontext()
 
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        trivial = codomain == list(range(num_cod)) and domain == list(range(num_cod, num_cod + num_dom))[::-1]
+        if any([isinstance(leg, LegPipe) for leg in T.legs]) and not trivial:
+            with pytest.raises(NotImplementedError):
+                _ = tensors.permute_legs(T, codomain, domain, levels)
+            pytest.xfail()
+
     with catch_warnings:
         res = tensors.permute_legs(T, codomain, domain, levels)
     res.test_sanity()
@@ -2012,6 +2157,12 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_comp
     assert res.domain_labels == [T.labels[n] for n in domain]
 
     if T.symmetry.can_be_dropped:
+        if isinstance(T.backend, backends.FusionTreeBackend):
+            if any([isinstance(leg, LegPipe) for leg in T.legs]):
+                with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                    _ = T.to_numpy()
+                pytest.xfail()
+
         # makes sense to compare with dense blocks
         expect = np.transpose(T.to_numpy(), [*codomain, *reversed(domain)])
         actual = res.to_numpy()
@@ -2068,6 +2219,12 @@ def test_scalar_multiply(cls, make_compatible_tensor):
     else:
         catch_warnings = nullcontext()
 
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in T.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = T.to_numpy()
+            pytest.xfail()
+
     T_np = T.to_numpy()
     for valid_scalar in [0, 1., 2. + 3.j, -42]:
         with catch_warnings:
@@ -2107,6 +2264,13 @@ def test_scale_axis(cls, codom, dom, which_leg, make_compatible_tensor, np_rando
     else:
         catch_warnings = nullcontext()
 
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        co_dom = T.codomain if which_leg < T.num_codomain_legs else T.domain
+        if any([isinstance(leg, LegPipe) for leg in co_dom]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = tensors.scale_axis(T, D, which_leg)
+            pytest.xfail()
+
     # 2) Call functions
     how_to_call = np_random.choice(['by_idx', 'by_label'])
     if how_to_call == 'by_idx':
@@ -2126,6 +2290,12 @@ def test_scale_axis(cls, codom, dom, which_leg, make_compatible_tensor, np_rando
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in T.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = T.to_numpy()
+            pytest.xfail()
+
     # 4) compare to numpy
     expect = np.swapaxes(T.to_numpy(), which_leg, -1)  # swap axis to be scaled to the back
     expect = expect * D.diagonal_as_numpy()  # broadcasts to last axis of expect
@@ -2137,6 +2307,12 @@ def test_squeeze_legs(make_compatible_tensor, compatible_symmetry):
     trivial_leg = ElementarySpace.from_trivial_sector(1, symmetry=compatible_symmetry)
     T = make_compatible_tensor([None, trivial_leg, trivial_leg, None], [None, None, trivial_leg],
                                labels=list('abcdefg'))
+
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in T.legs]):
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'is_trivial'"):
+                _ = tensors.squeeze_legs(T)
+            pytest.xfail()
 
     res_all = tensors.squeeze_legs(T)
     res_all.test_sanity()
@@ -2248,7 +2424,7 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
      pytest.param(SymmetricTensor, SymmetricTensor, [['a', 'b'], ['c', 'd']], [['c', 'a'], ['d', 'b']], [0, 1, 3, 2], [1, 2, 0, 3], id='Sym@Sym-4-4-4'),
      pytest.param(SymmetricTensor, SymmetricTensor, [[], ['a', 'b']], [['b', 'c'], ['d']], [0], [0], id='Sym@Sym-2-1-3'),
      #
-     pytest.param(SymmetricTensor, ChargedTensor, [['a', 'b'], ['c', 'd']], [['c', 'e'], ['a', 'f']], [0, 3], [3, 0], id='Sym-Charged@4-2-4'),
+     pytest.param(SymmetricTensor, ChargedTensor, [['a', 'b'], ['c', 'd']], [['c', 'e'], ['a', 'f']], [0, 3], [3, 0], id='Sym@Charged-4-2-4'),
      pytest.param(ChargedTensor, SymmetricTensor, [['a', 'b'], ['c']], [['d', 'e'], ['f']], [], [], id='Charged@Sym-3-0-3'),
      pytest.param(SymmetricTensor, ChargedTensor, [['a', 'b'], ['c', 'd']], [['c', 'a'], ['d', 'b']], [0, 1, 3, 2], [1, 2, 0, 3], id='Sym@Charged-4-4-4'),
      pytest.param(SymmetricTensor, ChargedTensor, [[], ['a', 'b']], [['b', 'c'], ['d']], [0], [0], id='Sym@Charged-2-1-3'),
@@ -2257,7 +2433,7 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
      # it generates independent legs, which can not both be on a diagonalTensor.
      pytest.param(DiagonalTensor, SymmetricTensor, [['c'], ['b']], [['a', 'b'], ['c', 'd']], [1, 0], [1, 3], id='Diag@Sym-4-2-2'),
      pytest.param(SymmetricTensor, DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Sym@Diag-4-1-2'),
-     pytest.param(SymmetricTensor, DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['f']], [], [], id='Sym-Diag-4-0-2'),
+     pytest.param(SymmetricTensor, DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['f']], [], [], id='Sym@Diag-4-0-2'),
      #
      # Note: If both legs of a mask are contracted, we should generate the mask first. otherwise its legs may be invalid.
      pytest.param(Mask, SymmetricTensor, [['c'], ['b']], [['a', 'b'], ['c', 'd']], [1, 0], [1, 3], id='Sym@Mask-4-2-2'),
@@ -2287,6 +2463,20 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
         codomain=len(labels_A[0]), domain=len(labels_A[1]),
         labels=[*labels_A[0], *reversed(labels_A[1])], max_block_size=3, max_blocks=3, cls=cls_A,
     )
+
+    if isinstance(A.backend, backends.FusionTreeBackend) and cls_B is Mask:
+        leg_labels = [l for l in labels_B[0] if A.has_label(l)]
+        leg_labels.extend([l for l in labels_B[1] if A.has_label(l)])
+        if any([isinstance(A.get_leg(l), LegPipe) for l in leg_labels]):
+            with pytest.raises(ValueError, match='large_leg must be ElementarySpace.'):
+                _ = make_compatible_tensor(
+                    codomain=[A._as_domain_leg(l) if A.has_label(l) else None for l in labels_B[0]],
+                    domain=[A._as_codomain_leg(l) if A.has_label(l) else None for l in labels_B[1]],
+                    max_block_size=2, max_blocks=3, cls=cls_B,
+                )
+            # TODO maybe redesign such that we can guarantee that a certain leg is not a pipe?
+            pytest.xfail()
+
     # create B such that legs with the same label can be contracted
     B: cls_B = make_compatible_tensor(
         codomain=[A._as_domain_leg(l) if A.has_label(l) else None for l in labels_B[0]],
@@ -2321,13 +2511,27 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
         if cls_A is not DiagonalTensor:
             levels_A = list(np_random.permutation(A.num_legs))
             codomain_A = [i for i in range(A.num_legs) if not i in contr_A]
+            if any([isinstance(leg, LegPipe) for leg in A.legs]):
+                with pytest.raises(NotImplementedError):
+                    _ = tensors.permute_legs(A, codomain=codomain_A, domain=contr_A, levels=levels_A)
+                pytest.xfail()
             A = tensors.permute_legs(A, codomain=codomain_A, domain=contr_A, levels=levels_A)
             contr_A = [A.num_legs - 1 - i for i in range(num_contr)]
         if cls_B is not DiagonalTensor:
             levels_B = list(np_random.permutation(B.num_legs))
             domain_B = [i for i in range(B.num_legs) if not i in contr_B][::-1]
+            if any([isinstance(leg, LegPipe) for leg in B.legs]):
+                with pytest.raises(NotImplementedError):
+                    _ = tensors.permute_legs(B, codomain=contr_B, domain=domain_B, levels=levels_B)
+                pytest.xfail()
             B = tensors.permute_legs(B, codomain=contr_B, domain=domain_B, levels=levels_B)
             contr_B = list(range(num_contr))
+
+    if isinstance(A.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in A.legs]) or any([isinstance(leg, LegPipe) for leg in B.legs]):
+            with pytest.raises((AttributeError, NotImplementedError)):
+                _ = tensors.tdot(A, B, contr_A, contr_B)
+            pytest.xfail()
 
     with catch_errors:
         res = tensors.tdot(A, B, contr_A, contr_B)
@@ -2416,6 +2620,12 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
         with pytest.raises(NotImplementedError, match='mask_transpose not implemented'):
             _ = tensors.transpose(tensor)
         pytest.xfail()
+
+    if isinstance(tensor.backend, backends.FusionTreeBackend):
+        if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
+            with pytest.raises(NotImplementedError):
+                _ = tensor.T
+            pytest.xfail()
 
     how_to_call = np_random.choice(['dagger()', '.T'])
     print(how_to_call)
