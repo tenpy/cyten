@@ -1820,7 +1820,10 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
                               combine_cstyle=self.combine_cstyle)
 
     def __eq__(self, other):
-        if not LegPipe.__eq__(self, other):
+        res = LegPipe.__eq__(self, other)
+        if res is NotImplemented:
+            return res
+        if not res:
             return False
         if self.combine_cstyle != other.combine_cstyle:
             return False

@@ -332,7 +332,7 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, np_random):
              *,
              like: tensors.Tensor = None, max_blocks=5, max_block_size=5, empty_ok=False,
              all_blocks=False, cls=tensors.SymmetricTensor, allow_basis_perm: bool = True,
-             use_pipes: bool | float = False):
+             use_pipes: bool | float = 0.3):
         return random_tensor(
             symmetry=compatible_symmetry, codomain=codomain, domain=domain, labels=labels,
             dtype=dtype, backend=compatible_backend, device=device, like=like, max_blocks=max_blocks,
