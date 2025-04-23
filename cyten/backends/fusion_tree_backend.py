@@ -1143,7 +1143,7 @@ class FusionTreeBackend(TensorBackend):
             dim = co_dom.symmetry.sector_dim(sector)
             if large_leg.is_dual:
                 bi_large = large_leg.sector_decomposition_where(sector)
-            res[slice(*large_leg.slices[bi_large])] = a.backend.block_backend.repeat(block, dim)
+            res[slice(*large_leg.slices[bi_large])] = a.backend.block_backend.tile(block, dim)
         return res
 
     def mask_to_diagonal(self, a: Mask, dtype: Dtype) -> DiagonalData:

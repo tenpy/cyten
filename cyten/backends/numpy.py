@@ -188,7 +188,7 @@ class NumpyBlockBackend(BlockBackend):
     def real_if_close(self, a: Block, tol: float) -> Block:
         return np.real_if_close(a, tol=tol)
 
-    def repeat(self, a: Block, repeats: int, axis: int | None = None) -> Block:
+    def tile(self, a: Block, repeats: int, axis: int | None = None) -> Block:
         return np.tile(a, repeats)
 
     def _block_repr_lines(self, a: Block, indent: str, max_width: int, max_lines: int) -> list[str]:

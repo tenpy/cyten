@@ -1250,8 +1250,8 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def repeat(self, a: Block, repeats: int) -> Block:
-        """Repeat a (1d) block multiple times."""
+    def tile(self, a: Block, repeats: int) -> Block:
+        """Repeat a (1d) block multiple times. Similar to numpy.tile and torch.Tensor.repeat."""
         ...
 
     @abstractmethod
