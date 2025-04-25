@@ -1421,7 +1421,7 @@ class TensorProduct(Space):
     def tree_block_size(space: TensorProduct, uncoupled: tuple[Sector]) -> int:
         """The size of a tree-block"""
         # OPTIMIZE ?
-        return prod(s.sector_multiplicity(a) for s, a in zip(space.factors, uncoupled))
+        return prod(s.sector_multiplicity(a) for s, a in zip(_make_flat_legs(space.factors), uncoupled))
 
     def tree_block_slice(self, tree: FusionTree) -> slice:
         """The range of indices of a tree-block within its block, as a slice."""
