@@ -1097,7 +1097,7 @@ class FusionTreeBackend(TensorBackend):
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
                    domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
                    ) -> Data:
-        raise NotImplementedError
+        raise NotImplementedError('FusionTreeBackend.split_legs not implemented')
 
     def squeeze_legs(self, a: SymmetricTensor, idcs: list[int]) -> Data:
         return a.data
@@ -1163,6 +1163,8 @@ class FusionTreeBackend(TensorBackend):
 
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         assert a.symmetry.can_be_dropped
+        if a.has_pipes:
+            return a._to_dense_block_by_splitting_pipes()
         J = len(a.codomain.factors)
         K = len(a.domain.factors)
         num_legs = J + K

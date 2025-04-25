@@ -145,7 +145,7 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
 
     if isinstance(T.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in T.legs]):
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                 _ = T.to_numpy()
             pytest.xfail()
 
@@ -456,7 +456,7 @@ def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatib
 
     if isinstance(T.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in T.legs]):
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                 _ = T.to_numpy()
             pytest.xfail()
 
@@ -976,7 +976,7 @@ def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor,
 
     if isinstance(tens.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in tens.legs]):
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                 _ = tens.to_numpy()
             pytest.xfail()
 
@@ -1126,7 +1126,7 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
 
     if isinstance(tensor.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                 _ = tensor.to_numpy()
             pytest.xfail()
 
@@ -1344,7 +1344,7 @@ def test_compose(cls_A, cls_B, cod_A, shared, dom_B, make_compatible_tensor):
 
         if isinstance(res.backend, backends.FusionTreeBackend):
             if any([isinstance(leg, LegPipe) for leg in res.legs]):
-                with pytest.raises(AttributeError, match="'LegPipe' object has no attribute *"):
+                with pytest.raises(NotImplementedError, match="FusionTreeBackend.split_legs not implemented"):
                     _ = res.to_numpy()
                 pytest.xfail()
 
@@ -1398,7 +1398,7 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
 
     if isinstance(T.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in T.legs]):
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                 _ = T.to_numpy()
             pytest.xfail()
 
@@ -1636,7 +1636,7 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
 
     if isinstance(T.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in T.legs]):
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                 _ = T.to_numpy()
             pytest.xfail()
 
@@ -1739,7 +1739,7 @@ def test_inner(cls, cod, dom, do_dagger, allow_basis_perm, make_compatible_tenso
 
     if isinstance(A.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in A.legs]) or any([isinstance(leg, LegPipe) for leg in B.legs]):
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                 _ = A.to_numpy()
                 _ = B.to_numpy()
             pytest.xfail()
@@ -1833,7 +1833,7 @@ def test_linear_combination(cls, make_compatible_tensor):
 
     if isinstance(v.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in v.legs]):
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                 _ = v.to_numpy()
             pytest.xfail()
 
@@ -1918,7 +1918,7 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
 
     if isinstance(T.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in T.legs]):
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                 _ = T.to_numpy()
             pytest.xfail()
 
@@ -1953,7 +1953,7 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
 
     if isinstance(T.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in T.legs]):
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                 _ = T.to_numpy()
             pytest.xfail()
 
@@ -2159,7 +2159,7 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_comp
     if T.symmetry.can_be_dropped:
         if isinstance(T.backend, backends.FusionTreeBackend):
             if any([isinstance(leg, LegPipe) for leg in T.legs]):
-                with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                     _ = T.to_numpy()
                 pytest.xfail()
 
@@ -2221,7 +2221,7 @@ def test_scalar_multiply(cls, make_compatible_tensor):
 
     if isinstance(T.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in T.legs]):
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                 _ = T.to_numpy()
             pytest.xfail()
 
@@ -2292,7 +2292,7 @@ def test_scale_axis(cls, codom, dom, which_leg, make_compatible_tensor, np_rando
 
     if isinstance(T.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in T.legs]):
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
                 _ = T.to_numpy()
             pytest.xfail()
 

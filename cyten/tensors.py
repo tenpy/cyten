@@ -1220,6 +1220,17 @@ class SymmetricTensor(Tensor):
             block = self.backend.block_backend.permute_axes(block, self.get_leg_idcs(leg_order))
         return block
 
+    def _to_dense_block_by_splitting_pipes(self) -> Block:
+        """Helper for :meth:`to_dense_block` if the backend cant deal with pipes directly.
+
+        This method can replace ``backend.to_dense_block``.
+        It first splits the legs of the tensors, does ``backend.to_dense_block``,
+        then re-combines on the result
+        """
+        self_split, combines = _split_all_pipes(self)
+        block = self.backend.to_dense_block(self_split)
+        return self.backend.block_backend.combine_legs(block, combines)
+
     def to_dense_block_trivial_sector(self) -> Block:
         """Assumes self is a single-leg tensor and returns its components in the trivial sector.
 
@@ -5488,6 +5499,37 @@ def _parse_idcs(idcs: T | Sequence[T], length: int, fill: T = slice(None, None, 
         if num_fill < 0:
             raise IndexError(f'Too many indices. Expected {length}. Got {len(idcs)}.')
         return idcs + [fill] * num_fill
+
+
+def _split_all_pipes(a: SymmetricTensor | ChargedTensor) -> tuple[SymmetricTensor, list[list[int]]]:
+    """Split all pipes on a tensor, including nested pipes.
+
+    Returns
+    -------
+    split : SymmetricTensor | ChargedTensor
+        The result of repeatedly applying :func:`split_legs` to `a`.
+    combine_list : list of list of int
+        Which legs of `split` would need to be combined to recontruct `a` from `split`, except for
+        nesting of pipes.
+    """
+    split = a.copy(deep=False).set_labels(None)
+    while split.has_pipes:
+        split = split_legs(split)
+
+    combine_list = []
+    for i in range(a.num_codomain_legs):
+        grp = a.codomain.flat_leg_idcs(i)
+        if len(grp) == 1:
+            continue  # no need to combine anything
+        combine_list.append(grp)
+    for i in range(a.num_domain_legs):
+        grp = a.domain.flat_leg_idcs(i)
+        if len(grp) == 1:
+            continue  # no need to combine anything
+        grp = [split.num_legs - 1 - n for n in grp]
+        combine_list.append(grp)
+
+    return split, combine_list
 
 
 def _split_leg_label(label: str | None, num: int = None) -> list[str | None]:
