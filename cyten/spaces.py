@@ -67,6 +67,11 @@ class Leg(metaclass=ABCMeta):
         ...
 
     @property
+    @abstractmethod
+    def is_trivial(self) -> bool:
+        ...
+
+    @property
     def ascii_arrow(self) -> str:
         """A single character arrow, for use in tensor diagrams
 
@@ -126,6 +131,10 @@ class LegPipe(Leg):
     @property
     def dual(self) -> LegPipe:
         return LegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual)
+
+    @property
+    def is_trivial(self) -> bool:
+        return all(l.is_trivial for l in self.legs)
 
     def __eq__(self, other):
         if not isinstance(other, LegPipe):
@@ -1778,6 +1787,10 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     def dual(self) -> AbelianLegPipe:
         return AbelianLegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual,
                               combine_cstyle=not self.combine_cstyle)
+
+    @property
+    def is_trivial(self) -> bool:
+        return ElementarySpace.is_trivial.fget(self)
 
     @classmethod
     def from_basis(cls, *a, **kw):
