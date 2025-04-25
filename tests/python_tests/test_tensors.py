@@ -8,7 +8,7 @@ import pytest
 import operator
 from contextlib import nullcontext
 
-from cyten import backends, tensors
+from cyten import backends, tensors, symmetries
 from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor
 from cyten.backends.backend_factory import get_backend
 from cyten.dtypes import Dtype
@@ -1305,6 +1305,49 @@ def test_combine_split(use_pipes, make_compatible_tensor):
     contracted_via_pipes = tensors.tdot(combined4, T2_combined, '(b.c)', '(c*.b*)')
     contracted_via_pipes.test_sanity()
     assert tensors.almost_equal(contracted_individual, contracted_via_pipes)
+
+
+def test_combine_split_pr_16():
+    """Check if the bug addressed in PR :pull:`16` is fixed"""
+    backend = get_backend('abelian', 'numpy')
+    symmetry = symmetries.u1_symmetry * symmetries.z3_symmetry
+
+    a = ElementarySpace(symmetry, defining_sectors=[[-2, 0], [-1, 0], [-2, 1], [-2, 2]],
+                        multiplicities=[1, 2, 4, 4],
+                        basis_perm=[8, 0, 7, 3, 6, 2, 4, 10, 1, 5, 9],
+                        is_dual=True,)
+    b = ElementarySpace(symmetry, defining_sectors=[[-3, 0], [0, 0], [-3, 1], [-3, 2]],
+                        multiplicities=[1, 1, 1, 1],
+                        basis_perm=None,
+                        is_dual=False,)
+    c = ElementarySpace(symmetry,
+        defining_sectors=[[-4, 0], [-3, 0], [-7, 1], [-6, 1], [-3, 1]],
+        multiplicities=[5, 5, 5, 5, 5],
+        basis_perm=None,
+        is_dual=False,
+    )
+    d = ElementarySpace(symmetry, defining_sectors=[[-2, 0], [1, 0], [2, 1]],
+                        multiplicities=[3, 3, 2],
+                        basis_perm=[6, 3, 4, 0, 7, 2, 5, 1],
+                        is_dual=True,)
+    
+    T = tensors.SymmetricTensor.from_random_normal([a, b], [d, c], backend=backend)
+    combined5 = tensors.combine_legs(T, [2, 3])
+    combined5.test_sanity()
+    assert combined5.codomain.factors == T.codomain.factors
+    assert combined5.domain[0].legs == T.domain.factors
+
+    re_split = tensors.split_legs(combined5, 2)
+    assert tensors.almost_equal(T, re_split)
+
+    bent5 = tensors.bend_legs(combined5, num_domain_legs=0)
+    split5 = tensors.split_legs(bent5, 2)
+    split5.test_sanity()
+    assert split5.codomain.factors == T.legs
+    assert split5.domain.factors == []
+    expect5 = tensors.bend_legs(T, num_domain_legs=0)
+
+    assert tensors.almost_equal(split5, expect5)
 
 
 @pytest.mark.parametrize(
