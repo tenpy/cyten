@@ -446,6 +446,15 @@ class Tensor(metaclass=ABCMeta):
         return self._labels[self.num_codomain_legs:][::-1]
 
     @property
+    def has_pipes(self) -> bool:
+        """If any of the legs is a pipe"""
+        if any(isinstance(l, LegPipe) for l in self.codomain):
+            return True
+        if any(isinstance(l, LegPipe) for l in self.domain):
+            return True
+        return False
+
+    @property
     def hc(self) -> Tensor:
         """The :func:`dagger`"""
         return dagger(self)
@@ -670,10 +679,14 @@ class Tensor(metaclass=ABCMeta):
             domain_dims = tuple(reversed(self.shape[self.num_codomain_legs:]))
             lines.append(f'{indent}* Shape: {self.shape}   ;   {codomain_dims} <- {domain_dims}')
         if (not self.symmetry.can_be_dropped) or (not self.symmetry.is_abelian):
-            codomain_nums = tuple(np.sum(leg.multiplicities).item() for leg in self.codomain)
-            domain_nums = tuple(np.sum(leg.multiplicities).item() for leg in self.domain)
-            all_nums = tuple((*codomain_nums, *reversed(domain_nums)))
-            lines.append(f'{indent}* Num Sectors: {all_nums}   ;   {codomain_nums} <- {domain_nums}')
+            if self.has_pipes:
+                pass  # TODO should we put some info still ...?
+            else:
+                codomain_nums = []
+                codomain_nums = tuple(np.sum(leg.multiplicities).item() for leg in self.codomain)
+                domain_nums = tuple(np.sum(leg.multiplicities).item() for leg in self.domain)
+                all_nums = tuple((*codomain_nums, *reversed(domain_nums)))
+                lines.append(f'{indent}* Num Sectors: {all_nums}   ;   {codomain_nums} <- {domain_nums}')
         return lines
 
     def get_leg(self, which_leg: int | str | list[int | str]) -> Space | list[Space]:
@@ -1211,6 +1224,17 @@ class SymmetricTensor(Tensor):
             block = self.backend.block_backend.permute_axes(block, self.get_leg_idcs(leg_order))
         return block
 
+    def _to_dense_block_by_splitting_pipes(self) -> Block:
+        """Helper for :meth:`to_dense_block` if the backend cant deal with pipes directly.
+
+        This method can replace ``backend.to_dense_block``.
+        It first splits the legs of the tensors, does ``backend.to_dense_block``,
+        then re-combines on the result
+        """
+        self_split, combines = _split_all_pipes(self)
+        block = self.backend.to_dense_block(self_split)
+        return self.backend.block_backend.combine_legs(block, combines)
+
     def to_dense_block_trivial_sector(self) -> Block:
         """Assumes self is a single-leg tensor and returns its components in the trivial sector.
 
@@ -1276,6 +1300,8 @@ class DiagonalTensor(SymmetricTensor):
 
     def __init__(self, data, leg: Space, backend: TensorBackend | None = None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+        if isinstance(leg, LegPipe):
+            raise ValueError('DiagonalTensor is not defined on LegPipes.')
         SymmetricTensor.__init__(self, data, codomain=[leg], domain=[leg], backend=backend,
                                  labels=labels)
 
@@ -1858,6 +1884,8 @@ class Mask(Tensor):
     def __init__(self, data, space_in: ElementarySpace, space_out: ElementarySpace,
                  is_projection: bool = None, backend: TensorBackend | None = None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+        if isinstance(space_in, LegPipe) or isinstance(space_out, LegPipe):
+            raise ValueError('Mask is not defined on LegPipes.')
         if is_projection is None:
             if space_in.dim == space_out.dim:
                 raise ValueError('Need to specify is_projection for equal spaces.')
@@ -5479,6 +5507,37 @@ def _parse_idcs(idcs: T | Sequence[T], length: int, fill: T = slice(None, None, 
         if num_fill < 0:
             raise IndexError(f'Too many indices. Expected {length}. Got {len(idcs)}.')
         return idcs + [fill] * num_fill
+
+
+def _split_all_pipes(a: SymmetricTensor | ChargedTensor) -> tuple[SymmetricTensor, list[list[int]]]:
+    """Split all pipes on a tensor, including nested pipes.
+
+    Returns
+    -------
+    split : SymmetricTensor | ChargedTensor
+        The result of repeatedly applying :func:`split_legs` to `a`.
+    combine_list : list of list of int
+        Which legs of `split` would need to be combined to recontruct `a` from `split`, except for
+        nesting of pipes.
+    """
+    split = a.copy(deep=False).set_labels(None)
+    while split.has_pipes:
+        split = split_legs(split)
+
+    combine_list = []
+    for i in range(a.num_codomain_legs):
+        grp = a.codomain.flat_leg_idcs(i)
+        if len(grp) == 1:
+            continue  # no need to combine anything
+        combine_list.append(grp)
+    for i in range(a.num_domain_legs):
+        grp = a.domain.flat_leg_idcs(i)
+        if len(grp) == 1:
+            continue  # no need to combine anything
+        grp = [split.num_legs - 1 - n for n in grp]
+        combine_list.append(grp)
+
+    return split, combine_list
 
 
 def _split_leg_label(label: str | None, num: int = None) -> list[str | None]:

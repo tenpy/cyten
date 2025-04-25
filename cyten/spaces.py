@@ -67,6 +67,11 @@ class Leg(metaclass=ABCMeta):
         ...
 
     @property
+    @abstractmethod
+    def is_trivial(self) -> bool:
+        ...
+
+    @property
     def ascii_arrow(self) -> str:
         """A single character arrow, for use in tensor diagrams
 
@@ -126,6 +131,10 @@ class LegPipe(Leg):
     @property
     def dual(self) -> LegPipe:
         return LegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual)
+
+    @property
+    def is_trivial(self) -> bool:
+        return all(l.is_trivial for l in self.legs)
 
     def __eq__(self, other):
         if not isinstance(other, LegPipe):
@@ -1339,6 +1348,17 @@ class TensorProduct(Space):
             _sector_decomposition=sectors, _multiplicities=multiplicities
         )
 
+    def flat_legs(self) -> list[Space]:
+        """Flatten any pipes in the :attr:`factors`, recursively."""
+        return _flatten_leg_pipes(self.factors)
+
+    def flat_leg_idcs(self, i: int) -> list[int]:
+        """All indices into the :meth:`flat_legs` that the leg ``factors[i]`` flattens to."""
+        # OPTIMIZE could just add the lengths without building the actual lists...
+        start = len(_flatten_leg_pipes(self.factors[:i]))
+        num = len(_flatten_leg_pipes(self.factors[i:i+1]))
+        return list(range(start, start + num))
+
     def forest_block_size(self, uncoupled: tuple[Sector], coupled: Sector) -> int:
         """The size of a forest-block"""
         # OPTIMIZE ?
@@ -1440,7 +1460,7 @@ class TensorProduct(Space):
             return
         for unc in it.product(*(s.sector_decomposition for s in self.factors)):
             yield np.array(unc, int)
-    
+
     def left_multiply(self, other: Space) -> TensorProduct:
         """Add a new factor at the left / beginning of the spaces"""
         return self.insert_multiply(other, 0)
@@ -1768,6 +1788,10 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         return AbelianLegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual,
                               combine_cstyle=not self.combine_cstyle)
 
+    @property
+    def is_trivial(self) -> bool:
+        return ElementarySpace.is_trivial.fget(self)
+
     @classmethod
     def from_basis(cls, *a, **kw):
         raise TypeError('from_basis is not supported for AbelianLegPipe')
@@ -2069,6 +2093,23 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             perm[start:stop] = np.sum(basis_grid * dim_strides, axis=1)
 
         return perm
+
+
+def _flatten_leg_pipes(legs: list[Leg]) -> list[ElementarySpace]:
+    res = legs[:]
+    for _ in range(1000):  # loop should end via break, this is just a failsafe vs infinite loop
+        seen_pipes = False  # if we do a sweep without seeing any pipes, we know we can stop.
+        for i in reversed(range(len(res))):
+            # go in reverse so we dont change indices of earlier factors when flattening
+            f = res[i]
+            if isinstance(f, LegPipe):
+                res[i:i+1] = f.legs
+                seen_pipes = True
+        if not seen_pipes:
+            break
+    else:  # else triggers if no break ocurred
+        raise RuntimeError('Either LegPipes are nested too deep or there is a bug.')
+    return res
 
 
 def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicities: np.ndarray):
