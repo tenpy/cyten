@@ -928,13 +928,6 @@ def test_Tensor_str_repr(cls, codomain, domain, make_compatible_tensor, str_max_
     terminal_width = 80
     T = make_compatible_tensor(codomain=codomain, domain=domain, cls=cls)
 
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        symmetry_cond = (not T.symmetry.can_be_dropped) or (not T.symmetry.is_abelian)
-        if any([isinstance(leg, LegPipe) for leg in T.legs]) and symmetry_cond:
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'multiplicities'"):
-                _ = repr(T)
-            pytest.xfail()
-            
     print('repr(T):')
     res = repr(T)
     print(res)

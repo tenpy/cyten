@@ -679,10 +679,14 @@ class Tensor(metaclass=ABCMeta):
             domain_dims = tuple(reversed(self.shape[self.num_codomain_legs:]))
             lines.append(f'{indent}* Shape: {self.shape}   ;   {codomain_dims} <- {domain_dims}')
         if (not self.symmetry.can_be_dropped) or (not self.symmetry.is_abelian):
-            codomain_nums = tuple(np.sum(leg.multiplicities).item() for leg in self.codomain)
-            domain_nums = tuple(np.sum(leg.multiplicities).item() for leg in self.domain)
-            all_nums = tuple((*codomain_nums, *reversed(domain_nums)))
-            lines.append(f'{indent}* Num Sectors: {all_nums}   ;   {codomain_nums} <- {domain_nums}')
+            if self.has_pipes:
+                pass  # TODO should we put some info still ...?
+            else:
+                codomain_nums = []
+                codomain_nums = tuple(np.sum(leg.multiplicities).item() for leg in self.codomain)
+                domain_nums = tuple(np.sum(leg.multiplicities).item() for leg in self.domain)
+                all_nums = tuple((*codomain_nums, *reversed(domain_nums)))
+                lines.append(f'{indent}* Num Sectors: {all_nums}   ;   {codomain_nums} <- {domain_nums}')
         return lines
 
     def get_leg(self, which_leg: int | str | list[int | str]) -> Space | list[Space]:
