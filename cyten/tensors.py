@@ -1300,6 +1300,8 @@ class DiagonalTensor(SymmetricTensor):
 
     def __init__(self, data, leg: Space, backend: TensorBackend | None = None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+        if isinstance(leg, LegPipe):
+            raise ValueError('DiagonalTensor is not defined on LegPipes.')
         SymmetricTensor.__init__(self, data, codomain=[leg], domain=[leg], backend=backend,
                                  labels=labels)
 
@@ -1882,6 +1884,8 @@ class Mask(Tensor):
     def __init__(self, data, space_in: ElementarySpace, space_out: ElementarySpace,
                  is_projection: bool = None, backend: TensorBackend | None = None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+        if isinstance(space_in, LegPipe) or isinstance(space_out, LegPipe):
+            raise ValueError('Mask is not defined on LegPipes.')
         if is_projection is None:
             if space_in.dim == space_out.dim:
                 raise ValueError('Need to specify is_projection for equal spaces.')
