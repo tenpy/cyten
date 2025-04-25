@@ -446,6 +446,15 @@ class Tensor(metaclass=ABCMeta):
         return self._labels[self.num_codomain_legs:][::-1]
 
     @property
+    def has_pipes(self) -> bool:
+        """If any of the legs is a pipe"""
+        if any(isinstance(l, LegPipe) for l in self.codomain):
+            return True
+        if any(isinstance(l, LegPipe) for l in self.domain):
+            return True
+        return False
+
+    @property
     def hc(self) -> Tensor:
         """The :func:`dagger`"""
         return dagger(self)
