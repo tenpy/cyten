@@ -1024,6 +1024,9 @@ class FusionTreeBackend(TensorBackend):
         return func(numbers)
 
     def scale_axis(self, a: SymmetricTensor, b: DiagonalTensor, leg: int) -> Data:
+        if a.has_pipes:
+            raise NotImplementedError('scale_axis with pipes currently broken. (iter_uncoupled())')
+
         in_domain, co_domain_idx, leg_idx = a._parse_leg_idx(leg)
         ax_a = int(in_domain)  # 1 if in_domain, 0 else
 
