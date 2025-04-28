@@ -203,8 +203,6 @@ class FusionTree:
         if dtype is None:
             dtype = self.symmetry.fusion_tensor_dtype
         # handle special cases of small trees
-        if dtype is None:
-            dtype = self.symmetry.fusion_tensor_dtype
         if self.num_uncoupled == 0:
             # must be identity on the trivial sector. But since there is no uncoupled sector,
             # do not even give it an axis.
@@ -266,7 +264,7 @@ class FusionTree:
             multiplicities=np.concatenate([t2.multiplicities, self.multiplicities])
         )
         
-    def insert_at(self, n: int, t2: FusionTree) -> dict[FusionTree, complex]:
+    def insert_at(self, n: int, t2: FusionTree, eps: float = 1.e-14) -> dict[FusionTree, complex]:
         r"""Insert a tree `t2` below the `n`-th uncoupled sector.
 
         The result is (in general) not a canonical tree::
@@ -318,15 +316,49 @@ class FusionTree:
             # result is already a canonical tree -> no need to do F moves
             return {self.insert(t2): 1}
         
-        if t2.num_vertices == 1:
-            # inserting a single X tensor
-            raise NotImplementedError  # TODO
-            # - can assume n > 0
-            # - do F moves right to left
+        # should be more efficient than using recursion
+        sym = self.symmetry
+        coefficients = {}
+        new_unc = np.vstack((self.uncoupled[:n], t2.uncoupled, self.uncoupled[n + 1:]))
+        new_dual = np.concatenate([self.are_dual[:n], t2.are_dual, self.are_dual[n + 1:]])
+        new_inners_left = self.inner_sectors[:n - 1]
+        new_inners_right = self.inner_sectors[n - 1:]
+        new_multis_left = self.multiplicities[:n - 1]
+        new_multis_right = self.multiplicities[n:]
 
-        # remaining case: t1 has at least 1 vertex and t2 has at least 2.
-        # recursively insert: split t2 into a 1-vertex tree and a rest.
-        raise NotImplementedError  # TODO
+        # build the remaining parts (inner and multiplicities) from the right
+        a = self.uncoupled[0] if len(new_inners_left) == 0 else new_inners_left[-1]
+        d_initial = self.coupled if n == self.num_uncoupled - 1 else new_inners_right[0]
+        tree_parts = {(tuple(), (self.multiplicities[n - 1], )) : 1}
+        for i in range(t2.num_uncoupled - 1, 0, -1):
+            new_tree_parts = {}  # contains new inner_sectors and multiplicities
+            for (inners, multis), amplitude in tree_parts.items():
+                b = t2.inner_sectors[i - 2] if i > 1 else t2.uncoupled[0]
+                c = t2.uncoupled[i]
+                d = np.asarray(inners[0], dtype=int) if len(inners) > 0 else d_initial
+                e = t2.coupled if len(inners) == 0 else t2.inner_sectors[i - 1]
+                multi = t2.multiplicities[i - 1]
+                for f in sym.fusion_outcomes(a, b):
+                    if not sym.can_fuse_to(f, c, d):
+                        continue
+                    fs = sym._f_symbol(a, b, c, d, e, f)[multi, multis[0], :, :]
+                    for (kap, lam), factor in np.ndenumerate(fs):
+                        if abs(factor) < eps:
+                            continue
+                        new_parts = ((tuple(f), *inners), (kap, lam, *multis[1:]))
+                        if new_parts in new_tree_parts:
+                            new_tree_parts[new_parts] += amplitude * factor
+                        else:
+                            new_tree_parts[new_parts] = amplitude * factor
+            tree_parts = new_tree_parts
+
+        for (inners, multis), amplitude in tree_parts.items():
+            inners = np.asarray(inners, dtype=int)
+            new_inners = np.vstack((new_inners_left, inners, new_inners_right))
+            new_multis = np.concatenate([new_multis_left, multis, new_multis_right])
+            new_tree = FusionTree(sym, new_unc, self.coupled, new_dual, new_inners, new_multis)
+            coefficients[new_tree] = amplitude
+        return coefficients
 
     def split(self, n: int) -> tuple[FusionTree, FusionTree]:
         """Split into two separate fusion trees.
