@@ -329,7 +329,7 @@ class FusionTree:
         # build the remaining parts (inner and multiplicities) from the right
         a = self.uncoupled[0] if len(new_inners_left) == 0 else new_inners_left[-1]
         d_initial = self.coupled if n == self.num_uncoupled - 1 else new_inners_right[0]
-        tree_parts = {(tuple(), (self.multiplicities[n - 1], )) : 1}
+        tree_parts = {(tuple(), (self.multiplicities[n - 1], )): 1}
         for i in range(t2.num_uncoupled - 1, 0, -1):
             new_tree_parts = {}  # contains new inner_sectors and multiplicities
             for (inners, multis), amplitude in tree_parts.items():
