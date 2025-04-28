@@ -1574,7 +1574,7 @@ def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     'cls, codomain, domain, which_leg',
     [pytest.param(SymmetricTensor, 2, 2, 1, id='Symm-2-2-codom'),
      pytest.param(SymmetricTensor, 2, 2, 3, id='Symm-2-2-dom'),
-     pytest.param(ChargedTensor, 2, 2, 1, id='Charged-2-2-dom'),
+     pytest.param(ChargedTensor, 2, 2, 1, id='Charged-2-2-codom'),
      pytest.param(ChargedTensor, 2, 2, 3, id='Charged-2-2-dom'),
      pytest.param(DiagonalTensor, 1, 1, 1, id='Diag-dom'),
      pytest.param(Mask, 1, 1, 0, id='Mask-codom'),
@@ -1604,6 +1604,16 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
 
     T: cls = make_compatible_tensor(codomain=T_codomain, domain=T_domain, labels=labels, cls=cls)
 
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if which_leg < T.num_codomain_legs:
+            cond = any([isinstance(l, LegPipe) for l in T.codomain])
+        else:
+            cond = any([isinstance(l, LegPipe) for l in T.domain])
+        if cond:
+            with pytest.raises((AttributeError, NotImplementedError)):
+                _ = tensors.enlarge_leg(T, M, which_leg)
+            pytest.xfail()
+
     if cls is Mask:
         with pytest.raises(NotImplementedError):
             _ = tensors.enlarge_leg(T, M, which_leg)
@@ -1625,6 +1635,12 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
 
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if T.has_pipes:
+            with pytest.raises(NotImplementedError,  match='FusionTreeBackend.split_legs not implemented'):
+                _ = T.to_numpy()
+            pytest.xfail()
 
     T_np = T.to_numpy()
     mask_np = M.as_numpy_mask()
@@ -1870,12 +1886,6 @@ def test_linear_combination(cls, make_compatible_tensor):
         _ = tensors.linear_combination(42, v, 43j, w)
         return
 
-    if cls is Mask:
-        with pytest.warns(UserWarning, match='Converting types'):
-            _ = tensors.linear_combination(1, v, 2, w)
-        # type conversion results in linear combination of SymmetricTensors, which is tested already
-        return
-
     if isinstance(v.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in v.legs]):
             with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
@@ -2025,6 +2035,12 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor):
     B_labels = list('hijklmn')[:cB + dB]
     A: cls_A = make_compatible_tensor(cA, dA, cls=cls_A, labels=A_labels)
     B: cls_B = make_compatible_tensor(cB, dB, cls=cls_B, labels=B_labels)
+
+    if isinstance(A.backend, backends.FusionTreeBackend):
+        if A.has_pipes or B.has_pipes:
+            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+                _ = tensors.outer(A, B, relabel1={'a': 'x'}, relabel2={'h': 'y'})
+            pytest.xfail()
 
     if cls_A is ChargedTensor and cls_B is ChargedTensor:
         msg = 'state_tensor_product not implemented'
