@@ -54,7 +54,7 @@ def test_FusionTree_manipulations(compatible_symmetry, compatible_backend, make_
         assert np.all(left_tree.coupled == split_sector)
         assert np.all(left_tree.multiplicities == tree.multiplicities[:n_split - 1])
 
-        #test right tree
+        # test right tree
         assert np.all(right_tree.uncoupled == np.vstack((split_sector, tree.uncoupled[n_split:])))
         assert np.all(right_tree.are_dual == np.append([False], tree.are_dual[n_split:]))
         assert np.all(right_tree.inner_sectors == tree.inner_sectors[n_split - 1:])
@@ -147,7 +147,7 @@ def check_insert_at_via_f_symbols(tree1: trees.FusionTree, tree2: trees.FusionTr
     assert np.isclose(norm, 1)
 
 
-def random_trees_from_uncoupled(symmetry, uncoupled, np_random, are_dual = None
+def random_trees_from_uncoupled(symmetry, uncoupled, np_random, are_dual=None
                                 ) -> list[trees.FusionTree]:
     """Choose a random coupled sector consistent with the given uncoupled sectors and
     return all fusion trees with consistent inner sectors and multiplicities as list.
@@ -158,7 +158,7 @@ def random_trees_from_uncoupled(symmetry, uncoupled, np_random, are_dual = None
     return list(trees.fusion_trees(symmetry, uncoupled, coupled, are_dual=are_dual))
 
 
-def tree_superposition_as_block(superposition, backend, dtype = None) -> Block:
+def tree_superposition_as_block(superposition, backend, dtype=None) -> Block:
     for i, (tree, amp) in enumerate(superposition.items()):
         if i == 0:
             res = amp * tree.as_block(backend, dtype)
