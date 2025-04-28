@@ -1263,7 +1263,59 @@ class FusionTreeBackend(TensorBackend):
         return np.sqrt(norm_sq).item()
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
-        raise NotImplementedError('outer not implemented')
+        # idea: get the fusion trees in the combined (co)domain by inserting an identity
+        # = summing over all fusion products of the coupled sectors of tensors a and b
+        # OPTIMIZE new_codomain and new_domain are already computed in tensors.py -> reuse here
+        new_codomain = TensorProduct.from_partial_products(a.codomain, b.codomain)
+        new_domain = TensorProduct.from_partial_products(a.domain, b.domain)
+        new_data = self.zero_data(new_codomain, new_domain, a.dtype, a.device, all_blocks=True)
+        for a_codom_tree, a_dom_tree, a_tree_block in _tree_block_iter(a):
+            for b_codom_tree, b_dom_tree, b_tree_block in _tree_block_iter(b):
+                # axes of new_tree_block after outer: (a.codomain, a.domain, b.codomain, b.domain)
+                new_tree_block = self.block_backend.outer(a_tree_block, b_tree_block)
+                new_tree_block = self.block_backend.permute_axes(new_tree_block, [0, 2, 1, 3])
+                new_tree_block = self.block_backend.combine_legs(new_tree_block, [[0, 1], [2, 3]])
+                #
+                new_codom_trees = self._outer_fuse_trees(a_codom_tree, b_codom_tree)
+                new_dom_trees = self._outer_fuse_trees(a_dom_tree, b_dom_tree)
+                for new_dom_tree, dom_amp in new_dom_trees.items():
+                    dom_slc = new_domain.tree_block_slice(new_dom_tree)
+                    block_idx = new_domain.sector_decomposition_where(new_dom_tree.coupled)
+                    block_idx = new_data.block_ind_from_domain_sector_ind(block_idx)
+                    for new_codom_tree, codom_amp in new_codom_trees.items():
+                        if not all(new_codom_tree.coupled == new_dom_tree.coupled):
+                            continue
+                        codom_slc = new_codomain.tree_block_slice(new_codom_tree)
+                        factor = np.conj(codom_amp) * dom_amp
+                        new_data.blocks[block_idx][codom_slc, dom_slc] += new_tree_block * factor
+        new_data.discard_zero_blocks(self.block_backend, self.eps)
+        return new_data
+
+    def _outer_fuse_trees(self, left_tree: FusionTree, right_tree: FusionTree
+                          ) -> dict[FusionTree, complex]:
+        # trivial cases
+        if left_tree.num_uncoupled == 0:
+            return {right_tree: 1}
+        if right_tree.num_uncoupled == 0:
+            return {left_tree: 1}
+
+        # use left_tree.insert_at(right_tree) -> construct new tree with
+        # right_tree.coupled as uncoupled sector at the end
+        sym = left_tree.symmetry
+        res = {}
+        unc = np.vstack((left_tree.uncoupled, right_tree.coupled))
+        dual = np.concatenate([left_tree.are_dual, [False]])
+        if left_tree.num_uncoupled <= 1:
+            inner = np.zeros((0, unc.shape[1]), dtype=int)
+        else:
+            inner = np.vstack((left_tree.inner_sectors, left_tree.coupled))
+        for new_coupled in sym.fusion_outcomes(left_tree.coupled, right_tree.coupled):
+            for m in range(sym._n_symbol(left_tree.coupled, right_tree.coupled, new_coupled)):
+                multi = np.concatenate([left_tree.multiplicities, [m]])
+                tree = FusionTree(symmetry=sym, uncoupled=unc, coupled=new_coupled,
+                                  are_dual=dual, inner_sectors=inner, multiplicities=multi)
+                res.update(tree.insert_at(left_tree.num_uncoupled, right_tree, eps=self.eps))
+        return res
 
     def partial_trace(self, tensor: SymmetricTensor, pairs: list[tuple[int, int]],
                       levels: list[int] | None) -> tuple[Data, TensorProduct, TensorProduct]:

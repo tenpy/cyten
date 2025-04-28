@@ -2026,12 +2026,11 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor):
     A: cls_A = make_compatible_tensor(cA, dA, cls=cls_A, labels=A_labels)
     B: cls_B = make_compatible_tensor(cB, dB, cls=cls_B, labels=B_labels)
 
-    if isinstance(A.backend, backends.FusionTreeBackend):
-        with pytest.raises(NotImplementedError, match='outer not implemented'):
-            _ = tensors.outer(A, B, relabel1={'a': 'x'}, relabel2={'h': 'y'})
-        pytest.xfail()
     if cls_A is ChargedTensor and cls_B is ChargedTensor:
-        with pytest.raises(NotImplementedError, match='state_tensor_product not implemented'):
+        msg = 'state_tensor_product not implemented'
+        if isinstance(A.backend, backends.FusionTreeBackend):
+            msg = 'FusionTreeBackend.combine_legs not implemented'
+        with pytest.raises(NotImplementedError, match=msg):
             _ = tensors.outer(A, B, relabel1={'a': 'x'}, relabel2={'h': 'y'})
         pytest.xfail()
 
@@ -2041,6 +2040,9 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor):
     A_relabelled = ['x', *A_labels[1:]]
     B_relabelled = ['y', *B_labels[1:]]
     assert res.labels == [*A_relabelled[:cA], *B_relabelled, *A_relabelled[cA:]]
+
+    if not A.symmetry.can_be_dropped:
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     perm = [*range(cA), *range(cA + dA, cA + cB + dB + dA), *range(cA, cA + dA)]
     expect = np.transpose(np.tensordot(A.to_numpy(), B.to_numpy(), [(), ()]), perm)
