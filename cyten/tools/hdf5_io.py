@@ -88,7 +88,7 @@ except (ImportError, AttributeError):
 try:
     import h5py
     h5py_version = h5py.version.version_tuple
-except ImportError:
+except (ImportError, AttributeError):
     h5py_version = (0, 0)
 
 __all__ = [

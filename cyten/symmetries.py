@@ -13,7 +13,11 @@ import math
 
 from .dtypes import Dtype
 from .tools.misc import as_immutable_array
-import h5py
+try:
+    import h5py
+    h5py_version = h5py.version.version_tuple
+except (ImportError, AttributeError):
+    h5py_version = (0, 0)
 
 
 __all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingStyle',
