@@ -78,7 +78,7 @@ import functools
 import logging
 
 from .dummy_config import printoptions
-from .symmetries import SymmetryError, Symmetry
+from .symmetries import SymmetryError, BraidChiralityUnspecifiedError, Symmetry
 from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
 from .backends.backend_factory import get_backend
 from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order
@@ -4620,18 +4620,21 @@ def _permute_legs(tensor: Tensor,
                                  levels=levels, err_msg=err_msg)
         return ChargedTensor(inv_part, charged_state=tensor.charged_state)
     # Remaining case: SymmetricTensor
-    if levels is not None:
-        levels = list(levels)  # ensure copy
+    if levels is None:
+        needs_braids = ([*codomain, *reversed(domain)] != list(range(tensor.num_legs)))
+        if needs_braids and not tensor.symmetry.has_symmetric_braid:
+            raise BraidChiralityUnspecifiedError(err_msg)
+    else:
+        levels = list(levels)
+        if len(levels) != tensor.num_legs:
+            raise ValueError('Wrong length of levels')
         if duplicate_entries(levels):
             raise ValueError('Levels must be unique.')
         if any(l < 0 for l in levels):
             raise ValueError('Levels must be non-negative.')
-    try:
-        data, new_codomain, new_domain = tensor.backend.permute_legs(
-            tensor, codomain_idcs=codomain, domain_idcs=domain, levels=levels
-        )
-    except SymmetryError as e:
-        raise type(e)(err_msg) from None
+    data, new_codomain, new_domain = tensor.backend.permute_legs(
+        tensor, codomain_idcs=codomain, domain_idcs=domain, levels=levels
+    )
     labels = [[tensor._labels[n] for n in codomain], [tensor._labels[n] for n in domain]]
     return SymmetricTensor(data, new_codomain, new_domain, backend=tensor.backend, labels=labels)
 
