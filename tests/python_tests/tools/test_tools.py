@@ -121,3 +121,37 @@ def test_make_grid(cstyle, shape):
     # contains all entries
     #    if we have prod(shape) many valid combinations, we have all of them
     assert len(np.unique(grid, axis=0)) == len(grid)
+
+
+@pytest.mark.parametrize('N', [0, 1, 2, 3, 5, 10])
+@pytest.mark.parametrize('which_perm', ["random", "trivial", "single_swap"])
+def test_permutation_as_swaps(N, which_perm, np_random):
+    data = list('abcdefghijklmnopqrstuvwxyz')[:N]
+
+    if which_perm == 'random':
+        perm = np_random.permutation(N)
+        # make sure the permutation is as non-trivial as possible
+        for _ in range(2 * N):
+            # make sure the permutation is not identity
+            if N > 1 and np.all(perm == np.arange(N)):
+                perm = np_random.permutation(N)
+                continue
+            # make sure the permutation is
+            if N > 2 and np.all(perm[perm] == np.arange(N)):
+                perm = np_random.permutation(N)
+                continue
+            break
+    elif which_perm == 'trivial' or N < 2 and which_perm == 'single_swap':
+        perm = np.arange(N)
+        assert len(list(tools.misc.permutation_as_swaps(perm))) == 0
+    elif which_perm == 'single_swap':
+        j = np_random.integers(0, N - 1, 1)[0]
+        perm = [*range(j), j + 1, j, *range(j + 2, N)]
+        assert len(list(tools.misc.permutation_as_swaps(perm))) == 1
+
+    expect = [data[i] for i in perm]
+    res = data[:]
+    for j in tools.misc.permutation_as_swaps(perm):
+        assert 0 <= j < j + 1 < N
+        res[j], res[j + 1] = res[j + 1], res[j]
+    assert res == expect
