@@ -3,7 +3,7 @@
 
 import numpy as np
 import warnings
-from typing import TypeVar, Sequence, Set
+from typing import TypeVar, Sequence, Set, Generator
 
 
 UNSPECIFIED = object()  # sentinel, also used elsewhere
@@ -43,7 +43,37 @@ def as_immutable_array(a, dtype=None):
     return a
 
 
-def permutation_as_swaps(initial_perm: list, final_perm: list) -> list:
+def permutation_as_swaps(permutation: list[int]) -> Generator[int, None, None]:
+    """Decompose an arbitrary permutation into a sequence of swaps.
+
+    Parameters
+    ----------
+    permutation : list of int
+        A permutation. The goal is to move ``permutation[j]`` to position ``j`` via the sequence of
+        swaps.
+
+    Yields
+    ------
+    j : int
+        Represents a swap of ``j <-> j + 1``, i.e. the permutation
+        ``[*range(j), j + 1, j, *range(j + 2, len(permutation))]``.
+    """
+    N = len(permutation)
+    if set(permutation) != set(range(N)):
+        raise ValueError('Not a permutation')
+    current_positions = np.arange(N)
+    for target_pos, original_pos in enumerate(permutation[:-1]):
+        current_pos = current_positions[original_pos]
+        # due to the set-up we always have target_pos <= current_pos
+        yield from reversed(range(target_pos, current_pos))
+        # update current positions: build the permutation we just yielded as swaps
+        perm = np.arange(N)
+        perm[target_pos:current_pos + 1] = np.roll(perm[target_pos:current_pos + 1], -1)
+        current_positions = perm[current_positions]
+    return
+
+
+def permutation_as_swaps2(initial_perm: list, final_perm: list) -> list:
     """Decompose a permutation as a sequence of pairwise swaps.
 
     Given an initial and final permutation of the same numbers, return a list `swaps`
@@ -51,7 +81,7 @@ def permutation_as_swaps(initial_perm: list, final_perm: list) -> list:
     `initial_perm[swaps[i]], initial_perm[swaps[i]+1] = initial_perm[swaps[i]+1],
     initial_perm[swaps[i]]` leads to the final permutation. The swaps must be applied
     starting from `swaps[0]`.
-    
+
     Consistency of the input is not checked.
     """
     assert len(initial_perm) == len(final_perm), 'mismatched lengths'
@@ -71,7 +101,7 @@ def permutation_as_swaps(initial_perm: list, final_perm: list) -> list:
                 swaps.append(ind - 1)
                 break
     return swaps
-    
+
 
 # TODO remove in favor of backend.block_argsort?
 def argsort(a, sort=None, **kwargs):

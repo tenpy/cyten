@@ -93,7 +93,7 @@ from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe
 from ..trees import FusionTree, fusion_trees
 from ..tools.misc import (
     inverse_permutation, iter_common_sorted_arrays, iter_common_noncommon_sorted,
-    iter_common_sorted, permutation_as_swaps, rank_data
+    iter_common_sorted, permutation_as_swaps, permutation_as_swaps2, rank_data
 )
 
 if TYPE_CHECKING:
@@ -2503,7 +2503,7 @@ class TreeMappingDict(dict):
             i for i in range(a.num_legs-1, a.num_codomain_legs-1, -1) if not i in bend_up
         ]
         inter_domain_idcs.extend(bend_down[::-1])
-        exchanges = permutation_as_swaps(inter_domain_idcs, domain_idcs)
+        exchanges = permutation_as_swaps2(inter_domain_idcs, domain_idcs)
         exchanges = [a.num_legs - 2 - i for i in exchanges]
         all_exchanges += exchanges
         all_bend_ups += [None] * len(exchanges)
@@ -2517,7 +2517,7 @@ class TreeMappingDict(dict):
 
         # exchanges within the codomain such that the legs agree with codomain_idcs
         inter_codomain_idcs = [i for i in range(a.num_codomain_legs) if not i in bend_down] + bend_up
-        exchanges = permutation_as_swaps(inter_codomain_idcs, codomain_idcs)
+        exchanges = permutation_as_swaps2(inter_codomain_idcs, codomain_idcs)
         all_exchanges += exchanges
         all_bend_ups += [None] * len(exchanges)
         num_operations.append(len(exchanges))
