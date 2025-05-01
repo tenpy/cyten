@@ -27,6 +27,12 @@ class SymmetryError(Exception):
     pass
 
 
+class BraidChiralityUnspecifiedError(SymmetryError):
+    """An exception that is raised whenever a braid chirality should be specified but wasn't."""
+
+    pass
+
+
 Sector = npt.NDArray[np.int_]
 """Type hint for a sector. A 1D array of integers with axis [q] and shape ``(sector_ind_len,)``."""
 
@@ -86,6 +92,11 @@ class BraidingStyle(IntEnum):
     @property
     def has_symmetric_braid(self):
         return self < BraidingStyle.anyonic
+
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value < other.value
+        return NotImplemented
 
 
 class Symmetry(metaclass=ABCMeta):

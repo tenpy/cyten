@@ -1490,6 +1490,12 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
     T_labels = list('abcdefghi')[:cod + dom]
     T: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=T_labels)
 
+    if cls is ChargedTensor and not T.symmetry.has_symmetric_braid:
+        # TODO : should be ok to just choose levels, as long as charge leg is very top or very bot
+        with pytest.raises(symmetries.BraidChiralityUnspecifiedError):
+            _ = tensors.dagger(T)
+        pytest.xfail()
+
     if isinstance(T.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in T.legs]) and cls is ChargedTensor:
             with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
