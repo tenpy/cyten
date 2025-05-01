@@ -15,7 +15,8 @@ from .dtypes import Dtype
 from .tools.misc import as_immutable_array
 
 
-__all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingStyle',
+__all__ = ['SymmetryError', 'BraidChiralityUnspecifiedError', 'Sector', 'SectorArray',
+           'FusionStyle', 'BraidingStyle',
            # symmetry base-classes
            'Symmetry', 'ProductSymmetry', 'GroupSymmetry', 'AbelianGroup',
            # abelian groups
@@ -36,7 +37,11 @@ __all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingSty
 
 class SymmetryError(Exception):
     """An exception that is raised whenever something is not possible or not allowed due to symmetry"""
-    
+    pass
+
+
+class BraidChiralityUnspecifiedError(SymmetryError):
+    """An exception that is raised whenever a braid chirality should be specified but wasnt."""
     pass
 
 
@@ -109,7 +114,7 @@ class BraidingStyle(Enum):
 
     def __lt__(self, other):
         if self.__class__ is other.__class__:
-            return self.value <= other.value
+            return self.value < other.value
         return NotImplemented
 
 
