@@ -88,7 +88,7 @@ from .abstract_backend import (
     conventional_leg_order
 )
 from ..dtypes import Dtype
-from ..symmetries import SectorArray, Symmetry, SymmetryError
+from ..symmetries import SectorArray, Symmetry, BraidChiralityUnspecifiedError
 from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe
 from ..trees import FusionTree, fusion_trees
 from ..tools.misc import (
@@ -1472,16 +1472,17 @@ class FusionTreeBackend(TensorBackend):
             if tensor.symmetry.braiding_style.value >= 20 and levels is None:
                 msg = 'need to specify levels when (implicitly) permuting legs \
                        with non-abelian braiding'
-                raise SymmetryError(msg)
+                raise BraidChiralityUnspecifiedError(msg)
             # TODO do we only want to check the levels that are actually needed for the braids?
             if levels is not None:
-                msg = 'inconsistent levels: there should not be a leg with a level \
-                       between the levels of a pair of legs that is traced over'
                 for pair in pairs:
                     for i, level in enumerate(levels):
                         if i in pair:
                             continue
-                        assert (level < levels[pair[0]]) == (level < levels[pair[1]]), msg
+                        if (level < levels[pair[0]]) != (level < levels[pair[1]]):
+                            msg = ('inconsistent levels: there should not be a leg with a level '
+                                   'between the levels of a pair of legs that is traced over')
+                            raise BraidChiralityUnspecifiedError(msg)
 
         data, codom, dom = self.permute_legs(tensor, codomain_idcs=idcs[:num_codom_legs],
                                              domain_idcs=idcs[num_codom_legs:][::-1],
@@ -2524,9 +2525,7 @@ class TreeMappingDict(dict):
         # c symbols are involved
         if (len(all_exchanges) - num_bend_down - num_bend_up > 0 and
                 a.symmetry.braiding_style.value >= 20 and levels_None):
-            # return the old codomain and domain, the new ones are not computed;
-            # returning None as Data leads to a SymmetryError anyway.
-            return None, a.codomain, a.domain
+            raise BraidChiralityUnspecifiedError
 
         codomain = a.codomain
         domain = a.domain
