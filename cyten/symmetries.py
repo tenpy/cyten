@@ -83,6 +83,10 @@ class BraidingStyle(IntEnum):
     anyonic = 20  # non-symmetric braiding
     no_braiding = 30  # braiding is not defined
 
+    @property
+    def has_symmetric_braid(self):
+        return self < BraidingStyle.anyonic
+
 
 class Symmetry(metaclass=ABCMeta):
     r"""Base class for symmetries that impose a block-structure on tensors
@@ -218,7 +222,7 @@ class Symmetry(metaclass=ABCMeta):
 
     @property
     def has_symmetric_braid(self) -> bool:
-        return self.braiding_style <= BraidingStyle.fermionic
+        return self.braiding_style.has_symmetric_braid
 
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
         """Internal implementation of :meth:`fusion_tensor`. Can assume that inputs are valid."""
