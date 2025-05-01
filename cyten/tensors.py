@@ -4562,11 +4562,12 @@ def _permute_legs(tensor: Tensor,
             raise ValueError('Levels must be unique.')
         if any(l < 0 for l in levels):
             raise ValueError('Levels must be non-negative.')
-    data, new_codomain, new_domain = tensor.backend.permute_legs(
-        tensor, codomain_idcs=codomain, domain_idcs=domain, levels=levels
-    )
-    if data is None:
-        raise SymmetryError(err_msg)
+    try:
+        data, new_codomain, new_domain = tensor.backend.permute_legs(
+            tensor, codomain_idcs=codomain, domain_idcs=domain, levels=levels
+        )
+    except SymmetryError as e:
+        raise type(e)(err_msg) from None
     labels = [[tensor._labels[n] for n in codomain], [tensor._labels[n] for n in domain]]
     return SymmetricTensor(data, new_codomain, new_domain, backend=tensor.backend, labels=labels)
 

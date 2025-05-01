@@ -23,7 +23,11 @@ except (ImportError, AttributeError):
 
 class SymmetryError(Exception):
     """An exception that is raised whenever something is not possible or not allowed due to symmetry"""
+    pass
 
+
+class BraidChiralityUnspecifiedError(SymmetryError):
+    """An exception that is raised whenever a braid chirality should be specified but wasnt."""
     pass
 
 
@@ -86,6 +90,11 @@ class BraidingStyle(IntEnum):
     @property
     def has_symmetric_braid(self):
         return self < BraidingStyle.anyonic
+
+    def __lt__(self, other):
+        if self.__class__ is other.__class__:
+            return self.value < other.value
+        return NotImplemented
 
 
 class Symmetry(metaclass=ABCMeta):
