@@ -1310,6 +1310,161 @@ def test_nonabelian_transpose(symmetry: Symmetry, block_backend: str,
     assert_tensors_almost_equal(tens1, tens2, eps=1e-13)
 
 
+def test_permute_legs_instructions():
+    codomain = 6
+    domain = 6
+
+    num_legs = codomain + domain
+    original_codomain_idcs = np.arange(codomain)
+    original_domain_idcs = num_legs - 1 - np.arange(domain)
+
+    # =============================================
+    # 0) do nothing
+    # =============================================
+    instructions0 = fusion_tree_backend.permute_legs_instructions(
+        codomain, domain, codomain_idcs=original_codomain_idcs, domain_idcs=original_domain_idcs,
+        levels=None, has_symmetric_braid=False
+    )
+    assert list(instructions0) == []
+
+    # =============================================
+    # 1) codomain permutation only
+    # =============================================
+    codomain_idcs1 = np.array([1, 0, 4, 3, 5, 2])
+    levels1 = [1, 0, 3, 2, 5, 4, *range(codomain, num_legs)]
+    #
+    instructions1 = fusion_tree_backend.permute_legs_instructions(
+        codomain, domain, codomain_idcs=codomain_idcs1, domain_idcs=original_domain_idcs,
+        levels=levels1, has_symmetric_braid=False
+    )
+    instructions1 = list(instructions1)
+    # to derive the expected braids, you need to draw the braiding and derive them manually
+    # note that the order of braids is in general not unique, and we need to make the same conventional
+    # choice as the implementation: first braid the leg that ends up at codomain[0] and so on
+    expect_instructions1 = [
+        fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
+        for j, overbraid in [(0, True), (3, False), (2, False), (3, True), (4, False)]
+    ]
+    assert instructions1 == expect_instructions1
+
+    # =============================================
+    # 2) domain permutation only
+    # =============================================
+    domain_idcs2 = [10, 8, 9, 11, 7, 6]
+    levels2 = [*range(6), 7, 9, 8, 6, 10, 11]
+    #
+    instructions2 = fusion_tree_backend.permute_legs_instructions(
+        codomain, domain, codomain_idcs=original_codomain_idcs, domain_idcs=domain_idcs2,
+        levels=levels2, has_symmetric_braid=False
+    )
+    instructions2 = list(instructions2)
+    #
+    expect_instructions2 = [
+        fusion_tree_backend.BraidInstruction(codomain=False, idx=j, overbraid=overbraid)
+        for j, overbraid in [(0, True), (2, False), (1, True), (2, True)]
+    ]
+    assert instructions2 == expect_instructions2
+
+    # =============================================
+    # 3) domain and codomain permutations, but no bends
+    # =============================================
+    # just do the braids of the two cases above
+    levels3 = levels1[:6] + levels2[6:]
+    instructions3 = fusion_tree_backend.permute_legs_instructions(
+        codomain, domain, codomain_idcs=codomain_idcs1, domain_idcs=domain_idcs2,
+        levels=levels3, has_symmetric_braid=False
+    )
+    instructions3 = list(instructions3)
+    expect_instructions3 = expect_instructions2 + expect_instructions1
+    assert instructions3 == expect_instructions3
+
+    # =============================================
+    # 4) up bends only (levels=None)
+    # =============================================
+    num = 3
+    instructions4 = fusion_tree_backend.permute_legs_instructions(
+        codomain, domain,
+        codomain_idcs=[*range(6 + num)], domain_idcs=[*reversed(range(6 + num, num_legs))],
+        levels=None, has_symmetric_braid=False
+    )
+    assert list(instructions4) == [fusion_tree_backend.BendInstruction(bend_up=True)] * num
+
+    # =============================================
+    # 5) down bends only
+    # =============================================
+    num = 2
+    instructions5 = fusion_tree_backend.permute_legs_instructions(
+        codomain, domain,
+        codomain_idcs=[*range(6 - num)], domain_idcs=[*reversed(range(6 - num, num_legs))],
+        levels=[*range(12)], has_symmetric_braid=False
+    )
+    assert list(instructions5) == [fusion_tree_backend.BendInstruction(bend_up=False)] * num
+
+    # =============================================
+    # 6) codomain perm and bends
+    # =============================================
+    instructions6 = fusion_tree_backend.permute_legs_instructions(
+        codomain, domain,
+        codomain_idcs=[6, 0, 1, 5, 3, 7, 4, 2], domain_idcs=[11, 10, 9, 8],
+        levels=[8, 2, 11, 7, 1, 4, 6, 9, 0, 5, 10, 3], has_symmetric_braid=False
+    )
+    expect_instructions6 = [fusion_tree_backend.BendInstruction(bend_up=True)] * 2
+    expect_instructions6 += [
+        fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
+        for j, overbraid in [(5, False), (4, False), (3, True), (2, True), (1, False), (0, True),
+                             (5, False), (4, True), (3, True), (4, True), (6, False), (5, True),
+                             (6, True)]
+    ]
+    assert list(instructions6) == expect_instructions6
+
+    # =============================================
+    # domain perm and bends
+    # =============================================
+    instructions7 = fusion_tree_backend.permute_legs_instructions(
+        codomain, domain,
+        codomain_idcs=[0, 1, 2, 3], domain_idcs=[7, 9, 5, 11, 10, 4, 8, 6],
+        levels=[5, 8, 7, 6, 4, 3, 0, 1, 2, 10, 9, 11], has_symmetric_braid=False
+    )
+    instructions7 = list(instructions7)
+    expect_instructions7 = [fusion_tree_backend.BendInstruction(bend_up=False)] * 2
+    expect_instructions7 += [
+        fusion_tree_backend.BraidInstruction(codomain=False, idx=j, overbraid=overbraid)
+        for j, overbraid in zip([3, 2, 1, 0, 2, 1, 5, 4, 3, 2, 6, 5],
+                                [True, True, True, True, False, True, False, False, True, True,
+                                 False, False])]
+    assert list(instructions7) == expect_instructions7
+
+    # =============================================
+    # general case
+    # =============================================
+    instructions8 = fusion_tree_backend.permute_legs_instructions(
+        codomain, domain,
+        codomain_idcs=[6, 3, 9, 5, 10, 4, 2], domain_idcs=[8, 7, 1, 0, 11],
+        levels=[1, 2, 0, 4, 10, 3, 8, 11, 5, 7, 6, 9], has_symmetric_braid=False
+    )
+    instructions8 = list(instructions8)
+    expect_instructions8 = [
+        fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
+        for j, overbraid in zip([1, 2, 3, 4, 0, 1, 2, 3],
+                                [True, False, False, False, True, False, False, False])
+    ]
+    expect_instructions8 += [fusion_tree_backend.BendInstruction(bend_up=False)] * 2
+    expect_instructions8 += [
+        fusion_tree_backend.BraidInstruction(codomain=False, idx=j, overbraid=overbraid)
+        for j, overbraid in zip([2, 1, 0, 3, 2, 1, 5, 4, 3, 2, 6, 5, 4, 3],
+                                [True, True, True, False, False, False, True, True, True, True,
+                                 True, True, True, True])
+    ]
+    expect_instructions8 += [fusion_tree_backend.BendInstruction(bend_up=True)] * 3
+    expect_instructions8 += [
+        fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
+        for j, overbraid in zip([3, 2, 1, 0, 1, 4, 3, 2, 4, 3, 5, 4, 5],
+                                [False, True, False, False, False, False, True, False, True, False,
+                                 True, False, False])
+    ]
+    assert instructions8 == expect_instructions8
+
+
 # TODO add symmetry with off-diagonal entries in b symbols to test below
 # TODO make sure that there is a case that fails when not complex conjugating
 # the b symbols for domain trees
