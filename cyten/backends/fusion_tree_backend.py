@@ -78,6 +78,8 @@ Visually, the blocks have the following structure::
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, Iterator
+from abc import ABCMeta
+from dataclasses import dataclass
 from math import prod
 from copy import deepcopy
 import numpy as np
@@ -2105,6 +2107,161 @@ class FusionTreeBackend(TensorBackend):
         num_alpha_trees = len(alpha_tree_iter)  # OPTIMIZE count loop iterations above instead?
         num_beta_trees = len(beta_tree_iter)
         return num_alpha_trees, num_beta_trees
+
+
+class Instruction(metaclass=ABCMeta):
+    """An instruction represents an elementary operation on a tensor.
+
+    This is e.g. a single NN-braid or a single leg bend, for which we have symbols (R, C, B)
+    that tell us exactly how the fusion trees within a tensor transform.
+
+    We can then build more general tensor operations from these instructions,
+    see e.g. :meth:`FusionTreeBackend.permute_legs`.
+    """
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class BraidInstruction(Instruction):
+    """Instruction to braid two neighbouring legs.
+
+    Attributes
+    ----------
+    codomain : bool
+        If the braid is in the codomain. Otherwise in the domain.
+    idx : int
+        Which leg of the (co-)domain braids.
+        We braid ``(co)domain[idx]`` with ``(co)domain[idx + 1]``
+    overbraid : bool
+        Specifies the chirality of the braid.
+        ``True`` if ``(co)domain[idx]`` goes over ``(co)domain[idx + 1]``
+    """
+    codomain: bool
+    idx: int
+    overbraid: bool
+
+
+@dataclass(frozen=True, slots=True)
+class BendInstruction(Instruction):
+    """Instruction to bend the rightmost leg of the codomain down (of the domain up)."""
+    bend_up: bool
+
+
+def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
+                              codomain_idcs: list[int], domain_idcs: list[int],
+                              levels: list[int] | None, has_symmetric_braid: bool,
+                              ) -> Iterator[Instruction]:
+    """Helper to decompose a ``permute_legs`` call into elementary instructions.
+
+    Parameters
+    ----------
+    num_codomain_legs, numd_domain_legs : int
+        Number of (co-)domain legs of the input tensor
+    codomain_idcs, domain_idcs : list of int
+        ``(co)domain_idcs[i] == j`` means that the leg ``tensor.legs[j]`` should end up at
+        ``result.(co)domain[i]``
+    levels : list of int | None
+        The levels that specify braid chirality.
+    has_symmetric_braid : bool
+        If the symmetry has a symmetric braid, i.e. if the `levels` are irrelevant.
+
+    Yields
+    ------
+    instructions : Instruction
+        A sequence of instructions, such that if applied to a tensor in this order,
+        the target permutation is realised
+    """
+    num_legs = num_codomain_legs + num_domain_legs
+    # we update levels in-place, to account for swaps.
+    if levels is None:
+        needs_braids = ([*codomain_idcs, *reversed(domain_idcs)] != list(range(num_legs)))
+        assert not needs_braids or has_symmetric_braid  # should have been caught in tensors.py
+        # if they dont matter, just use arbitrary levels
+        levels = list(range(num_legs))
+    else:
+        levels = levels[:]  # copy, since we modify in-place.
+
+    # 0) identify which legs need to be bent
+    #   bend_up: legs that are in domain but go to codomain. Sorted by current position in tensor.legs
+    bend_up = sorted([i for i in codomain_idcs if i >= num_codomain_legs])
+    num_bend_up = len(bend_up)
+    stay_up = sorted([i for i in codomain_idcs if i < num_codomain_legs])
+    num_stay_up = len(stay_up)
+    #   bend_down: are in codomain but go to domain. Sorted by current position in tensor.legs
+    bend_down = sorted([i for i in domain_idcs if i < num_codomain_legs])
+    num_bend_down = len(bend_down)
+    # define lookup tables for those lists, since we want ``bend_up.index(i)`` etc multiple times
+    bend_up_lookup = {v: idx for idx, v in enumerate(bend_up)}
+    stay_up_lookup = {v: idx for idx, v in enumerate(stay_up)}
+    bend_down_lookup = {v: idx for idx, v in enumerate(bend_down)}
+
+    # 1) swap the `bend_down` legs to the very right of the codomain, preserving their order
+    #       start with the rightmost of them and move it to the very right
+    #       then second rightmost and so on
+    for i, leg in enumerate(reversed(bend_down)):  # reverse: go from right to left
+        for j in range(leg, num_codomain_legs - 1 - i):
+            yield BraidInstruction(codomain=True, idx=j, overbraid=levels[j] > levels[j + 1])
+            levels[j], levels[j + 1] = levels[j + 1], levels[j]
+    # TODO put the stay_up into the correct places already at this point?
+
+    # 2) bend them down
+    for j in range(num_bend_down):
+        yield BendInstruction(bend_up=False)
+    num_codomain_legs -= num_bend_down
+    num_domain_legs += num_bend_down
+
+    # 3) permute legs in the domain:
+    #       move the `bend_down` leg to the very right, preserving their order
+    #       move the other legs of the domain to their target positions
+    # 3a) first, construct the permutation that we need to do on the domain.
+    domain_perm = []
+    for original_leg_idx in domain_idcs:
+        if original_leg_idx in bend_down:
+            # bend_down[0] got bent down to the very end of the current domain, i.e. -1
+            # bend_down[1] to -2, and so on
+            curr_domain_idx = num_domain_legs - 1 - bend_down_lookup[original_leg_idx]
+        else:
+            # so far, we only bend some legs down, to the end of the domain.
+            # for these legs, that already were in the domain to begin with, their domain idx is still valid
+            curr_domain_idx = num_legs - 1 - original_leg_idx
+        domain_perm.append(curr_domain_idx)
+    # remaining: those legs that are not in domain_idcs, i.e. exactly the `bend_up`.
+    # we permute them to the end of the domain, in order of their appearance in the current domain
+    domain_perm.extend(i for i in range(num_domain_legs) if i not in domain_perm)
+
+    # 3b) Now, do this permutation
+    for j_domain in permutation_as_swaps(domain_perm):
+        # should swap j_domain with j_domain + 1, i.e. j_leg_idx with j_leg_idx - 1
+        j_leg_idx = num_legs - 1 - j_domain
+        overbraid = levels[j_leg_idx] > levels[j_leg_idx - 1]
+        yield BraidInstruction(codomain=False, idx=j_domain, overbraid=overbraid)
+        levels[j_leg_idx], levels[j_leg_idx - 1] = levels[j_leg_idx - 1], levels[j_leg_idx]
+
+    # 4) Bend up
+    for j in range(num_bend_up):
+        yield BendInstruction(bend_up=True)
+    num_codomain_legs += num_bend_up
+    num_domain_legs -= num_bend_up
+    assert num_codomain_legs == len(codomain_idcs)
+    assert num_domain_legs == len(domain_idcs)
+
+    # 5) permute the legs in the codomain
+    # 5a) first build the permutation
+    codomain_perm = []
+    for original_leg_idx in codomain_idcs:
+        if original_leg_idx in bend_up:
+            # bend_up[-1] is now the last leg in the codomain
+            # bend_up[0] is at position num_stay_up
+            codomain_perm.append(num_stay_up + bend_up_lookup[original_leg_idx])
+        else:
+            codomain_perm.append(stay_up_lookup[original_leg_idx])
+    # 5b) now do this permutation
+    for j in permutation_as_swaps(codomain_perm):
+        yield BraidInstruction(codomain=True, idx=j, overbraid=levels[j] > levels[j + 1])
+        levels[j], levels[j + 1] = levels[j + 1], levels[j]
+
+    # done
+    return
 
 
 class TreeMappingDict(dict):
