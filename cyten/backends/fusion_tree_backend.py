@@ -82,7 +82,8 @@ from math import prod
 import numpy as np
 
 from .abstract_backend import (
-    TensorBackend, BlockBackend, Block, Data, DiagonalData, MaskData
+    TensorBackend, BlockBackend, Block, Data, DiagonalData, MaskData,
+    conventional_leg_order
 )
 from ..dtypes import Dtype
 from ..symmetries import SectorArray, Symmetry, SymmetryError
@@ -796,7 +797,24 @@ class FusionTreeBackend(TensorBackend):
         return self.block_backend.get_block_element(block, [idx_within % multi])
 
     def get_element_mask(self, a: Mask, idcs: list[int]) -> bool:
-        raise NotImplementedError('get_element_mask not implemented')  # TODO
+        pos = np.array([l.parse_index(idx) for l, idx in zip(conventional_leg_order(a), idcs)])
+        sector_idx = pos[1, 0]  # domain leg index
+        sector = a.domain[0].sector_decomposition[sector_idx]
+        if not all(sector == a.codomain[0].sector_decomposition[pos[0, 0]]):
+            return False
+        if a.domain[0].is_dual:
+            sector_idx = a.domain.sector_decomposition_where(sector)
+        block_idx = a.data.block_ind_from_domain_sector_ind(sector_idx)
+        if block_idx is None:
+            return False
+        block = a.data.blocks[block_idx]
+        if a.is_projection:
+            small, large = pos[:, 1]
+            multi = a.small_leg.multiplicities[pos[0, 0]]
+        else:
+            large, small = pos[:, 1]
+            multi = a.small_leg.multiplicities[pos[1, 0]]
+        return self.block_backend.get_block_mask_element(block, large, small, sum_block=multi)
 
     def inner(self, a: SymmetricTensor, b: SymmetricTensor, do_dagger: bool) -> float | complex:
         a_blocks = a.data.blocks
