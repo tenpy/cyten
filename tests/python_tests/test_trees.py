@@ -1,21 +1,119 @@
 """A collection of tests for cyten.trees."""
 # Copyright (C) TeNPy Developers, Apache license
+from typing import Callable
 
 import numpy as np
 import pytest
 
 from cyten import trees
-from cyten.symmetries import Symmetry, SymmetryError
+from cyten.symmetries import Symmetry, SymmetryError, SectorArray, Sector
 from cyten.spaces import ElementarySpace, TensorProduct
 from cyten.dtypes import Dtype
 from cyten.backends.backend_factory import get_backend
 from cyten.backends.abstract_backend import Block
 
 
+def random_fusion_tree(symmetry: Symmetry, num_uncoupled: int, sector_rng: Callable[[], Sector],
+                       np_random: np.random.Generator
+                       ) -> trees.FusionTree:
+    fusion_outcomes = []
+    multiplicities = []
+    left = sector_rng()
+    uncoupled = [left]
+    for _ in range(num_uncoupled - 1):
+        right = sector_rng()
+        uncoupled.append(right)
+        outcome = np_random.choice(symmetry.fusion_outcomes(left, right))
+        fusion_outcomes.append(outcome)
+        multiplicities.append(np_random.choice(symmetry.n_symbol(left, right, outcome)))
+        left = outcome
+    coupled = fusion_outcomes[-1]
+    are_dual = np_random.choice([True, False], size=num_uncoupled)
+    inner_sectors = fusion_outcomes[:-1]
+    res = trees.FusionTree(symmetry, uncoupled=uncoupled, coupled=coupled, are_dual=are_dual,
+                           inner_sectors=inner_sectors, multiplicities=multiplicities)
+    res.test_sanity()
+    return res
+
+
 @pytest.mark.xfail(reason='Test not implemented yet')
 def test_FusionTree_class():
     # TODO test hash, eq, str, repr, copy
     raise NotImplementedError
+
+
+@pytest.mark.parametrize('overbraid', [True, False])
+@pytest.mark.parametrize('j', [0, 1, 2])
+def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_random):
+    tree = random_fusion_tree(symmetry=any_symmetry, num_uncoupled=5,
+                              sector_rng=lambda: make_any_sectors(1)[0], np_random=np_random)
+    braided1 = list(tree.braid(j, overbraid=overbraid).items())
+    for t, _ in braided1:
+        assert np.all(t.uncoupled[:j] == tree.uncoupled[:j])
+        assert np.all(t.uncoupled[j] == tree.uncoupled[j + 1])
+        assert np.all(t.uncoupled[j + 1] == tree.uncoupled[j])
+        assert np.all(t.uncoupled[j + 2:] == tree.uncoupled[j + 2:])
+        #
+        assert np.all(t.are_dual[:j] == tree.are_dual[:j])
+        assert t.are_dual[j] == tree.are_dual[j + 1]
+        assert t.are_dual[j + 1] == tree.are_dual[j]
+        assert np.all(t.are_dual[j + 2:] == tree.are_dual[j + 2:])
+        #
+        t.test_sanity()
+
+    # for groups: check versus explicit matrix representations
+    if any_symmetry.can_be_dropped:
+        tree_np = tree.as_block()
+        expect = np.swapaxes(tree_np, j, j + 1)
+        res = sum(a * t.as_block() for t, a in braided1)
+        assert np.allclose(res, expect)
+
+    # check if opposite braid undoes it
+    res = {}
+    for t_in, a in braided1:
+        for t_out, b in t_in.braid(j, overbraid=not overbraid).items():
+            res[t_out] = res.get(t_out, 0) + a * b
+    assert tree in res
+    for t, a in res.items():
+        assert np.allclose(a, 1 if t == tree else 0)
+
+    # check yang baxter
+    #   \   /   |          |   \   /
+    #    \ /    |          |    \ /
+    #     X     |          |     X
+    #    / \   /            \   / \
+    #   |   \ /              \ /   |
+    #   |    X        =       X    |
+    #   |   / \              / \   |
+    #    \ /   \            /   \ /
+    #     X     |          |     X
+    #    / \    |          |    / \
+    #   /   \   |          |   /   \
+    #  j   j+1  j+2
+    lhs1 = {t: a for t, a in braided1}
+    lhs2 = {}  # apply braid (j+1, j+2)
+    for t_in, a in lhs1.items():
+        for t_out, b in t_in.braid(j + 1, overbraid=overbraid).items():
+            lhs2[t_out] = lhs2.get(t_out, 0) + a * b
+    lhs = {}  # apply braid (j, j+1)
+    for t_in, a in lhs2.items():
+        for t_out, b in t_in.braid(j, overbraid=overbraid).items():
+            lhs[t_out] = lhs.get(t_out, 0) + a * b
+
+    rhs1 = tree.braid(j + 1, overbraid=overbraid)
+    rhs2 = {}
+    for t_in, a in rhs1.items():
+        for t_out, b in t_in.braid(j, overbraid=overbraid).items():
+            rhs2[t_out] = rhs2.get(t_out, 0) + a * b
+    rhs = {}
+    for t_in, a in rhs2.items():
+        for t_out, b in t_in.braid(j + 1, overbraid=overbraid).items():
+            rhs[t_out] = rhs.get(t_out, 0) + a * b
+
+    assert lhs.keys() == rhs.keys()
+    for t, a_lhs in lhs.items():
+        a_rhs = rhs[t]
+        assert np.allclose(a_lhs, a_rhs)
 
 
 def test_FusionTree_manipulations(compatible_symmetry, compatible_backend, make_compatible_sectors, np_random):
@@ -249,8 +347,8 @@ def check_fusion_trees(it: trees.fusion_trees, expect_len: int = None):
         assert it.index(tree) == num_trees
         num_trees += 1
     assert num_trees == expect_len
-        
-    
+
+
 def test_fusion_trees(any_symmetry: Symmetry, make_any_sectors, np_random):
     """test the ``fusion_trees`` iterator"""
     some_sectors = make_any_sectors(20)  # generates unique sectors
