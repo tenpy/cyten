@@ -181,6 +181,111 @@ class FusionTree:
         final = symmetry.sector_str(coupled)
         return f'{before_Z} -> {after_Z} -> {final}'
 
+    def braid(self, j: int, overbraid: bool, cutoff: float = 1e-16, do_conj: bool = False,
+              ) -> dict[FusionTree, float | complex]:
+        r"""Braid a leg on a fusion tree, return the resulting linear combination of trees.
+
+        Graphically::
+
+            |   overbraid:                  underbraid
+            |
+            |   │                           │
+            |   ┢━━━━━━━━━━━━━┓             ┢━━━━━━━━━━━━━┓
+            |   ┡━━━┯━━━┯━━━┯━┛             ┡━━━┯━━━┯━━━┯━┛
+            |   │   j  j+1  │               │   j  j+1  │
+            |   │    ╲ ╱    │               │    ╲ ╱    │
+            |   │     ╲     │               │     ╱     │
+            |   │    ╱ ╲    │               │    ╱ ╲    │
+            |   │   │   │   │               │   │   │   │
+
+        .. warning ::
+            When braiding splitting trees (daggers of fusion trees), consider the notes below.
+
+        Parameters
+        ----------
+        j : int
+            The index for the braid. We braid ``uncoupled[j]`` with ``uncoupled[j + 1]``.
+        overbraid : bool
+            If the leg that was at ``uncoupled[j]`` before the braid goes over the other one.
+            See graphic above.
+        cutoff : float
+            We skip contributions with a prefactor below this.
+        do_conj : bool
+            If ``True``, return the conjugate of the coefficients instead.
+
+        Returns
+        -------
+        linear_combination : dict {FusionTree: complex}
+            The braided fusion tree is a linear combination ``braided_self = sum_i a_i X_i``.
+            The returned dictionary has entries ``linear_combination[X_i] = a_i`` for the
+            contributions to this linear combination (i.e. trees for which the coefficient vanishes
+            may be omitted).
+
+        Notes
+        -----
+        When braiding splitting trees (hermitian conjugates of fusion trees), which appear
+        in the codomain of tensors, special care is needed to get the chirality of the
+        braid correct.
+        This is because we need to pick one of the legs as a reference in order to say that
+        it goes either over or under the other one. In cyten, in particular in the definition
+        of the :class:`BraidingInstruction`, we have made the choice to refer to the leg
+        that is to the left *on the unbraided tensor* and ends up to the right in the result.
+        As a consequence, the map that is applied when over-braiding a splitting tree
+        is the *dagger* of the map that is applied when over-braiding a fusion tree, and equal
+        to the map that is applied when under-braiding a fusion tree.
+        Thus, when braiding a splitting tree, we only need to adjust the `do_conj` parameter,
+        and the `overbraid` arg has the same meaning as the attr in :class:`BraidingInstruction`
+        """
+        assert 0 <= j < self.num_uncoupled - 1
+        if j == 0:  # R-move
+            a, b, mu, c = self.vertex_labels(0)
+            if overbraid:
+                a_i = np.conj(self.symmetry.r_symbol(b, a, c)[mu])
+            else:
+                a_i = self.symmetry.r_symbol(a, b, c)[mu]
+            if do_conj:
+                a_i = np.conj(a_i)
+            X_i = self.copy(deep=True)
+            X_i.uncoupled[0] = b
+            X_i.uncoupled[1] = a
+            X_i.are_dual[:2] = X_i.are_dual[1::-1]
+            return {X_i: a_i}
+
+        # C-move
+        res = {}
+        a, b, mu, e = self.vertex_labels(j - 1)
+        _e, c, nu, d = self.vertex_labels(j)
+        X_new = self.copy(deep=True)
+        X_new.uncoupled[j] = c
+        X_new.uncoupled[j + 1] = b
+        X_new.are_dual[j] = self.are_dual[j + 1]
+        X_new.are_dual[j + 1] = self.are_dual[j]
+        for f in self.symmetry.fusion_outcomes(a, c):
+            if not self.symmetry.can_fuse_to(f, b, d):
+                continue
+            if overbraid:
+                # overbraid compared to underbraid:
+                #  - conj
+                #  - b <-> c  [in args of c_symbol(...)]
+                #  - e <-> f  [in args of c_symbol(...)]
+                #  - (mu,nu) <-> (kappa,lambda)  [by indexing c_symbol(...) differently]
+                Csym = np.conj(self.symmetry.c_symbol(a, c, b, d, f, e)[:, :, mu, nu])
+            else:
+                Csym = self.symmetry.c_symbol(a, b, c, d, e, f)[mu, nu]
+            for kappa, C_kappa in enumerate(Csym):
+                for lambda_, a_i in enumerate(C_kappa):
+                    if abs(a_i) < cutoff:
+                        continue
+                    if do_conj:
+                        a_i = np.conj(a_i)
+                    X_i = X_new.copy(deep=True)
+                    X_i.inner_sectors[j - 1] = f
+                    X_i.multiplicities[j - 1] = kappa
+                    X_i.multiplicities[j] = lambda_
+                    assert X_i not in res  # OPTIMIZE rm check
+                    res[X_i] = a_i
+        return res
+
     def vertex_labels(self, n: int) -> tuple[Sector, Sector, int, Sector]:
         r"""For the ``n``-th fusion vertex, get the respective sectors.
 
@@ -304,7 +409,7 @@ class FusionTree:
             res = block_backend.tdot(res, X_block, [-1], [0])
         return res
 
-    def copy(self, deep=False) -> FusionTree:
+    def copy(self, deep=True) -> FusionTree:
         """Return a shallow (or deep) copy."""
         if deep:
             return FusionTree(self.symmetry, self.uncoupled.copy(), self.coupled.copy(),
