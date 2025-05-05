@@ -181,6 +181,81 @@ class FusionTree:
         final = symmetry.sector_str(coupled)
         return f'{before_Z} -> {after_Z} -> {final}'
 
+    @staticmethod
+    def bend_leg(Y: FusionTree, X: FusionTree, bend_upward: bool, do_conj: bool = False,
+                 ) -> dict[tuple[FusionTree, FusionTree], float | complex]:
+        r"""Bend a leg on a tree-pair, return the resulting linear combination of tree-pairs.
+
+        Graphically::
+
+            |    bend_upward=True                      bend_upward=False
+            |
+            |   │   │   │   │    │                    │   │   │   ╭────╮
+            |   ┢━━━┷━━━┷━━━┷━┓  │                    ┢━━━┷━━━┷━━━┷━┓  │
+            |   ┡━━━━━━━━━━━━━┛  │                    ┡━━━━━━━━━━━━━┛  │
+            |   │                │                    │                │
+            |   ┢━━━━━━━━━━━━━┓  │                    ┢━━━━━━━━━━━━━┓  │
+            |   ┡━━━┯━━━┯━━━┯━┛  │                    ┡━━━┯━━━┯━━━┯━┛  │
+            |   │   │   │   ╰────╯                    │   │   │   │    │
+
+        Parameters
+        ----------
+        Y, X : FusionTree
+            The original tree pair, such that we modify ``hconj(Y) @ X``.
+            Note that `Y` is a fusion tree that represents the splitting tree ``hconj(Y)``.
+        bend_upward : bool
+            If we should do the B move to bend a leg upward or an inverse B move to bend downward.
+        do_conj : bool
+            If ``True``, return the conjugate of the coefficients instead.
+
+        Returns
+        -------
+        linar_combination : dict {FusionTree: complex}
+            The bent tree pair is a linear combination ``bent = sum_i a_i hconj(Y_i) @ X_i`` of tree
+            pairs (where ``Y_i`` is a fusion tree and thus ``hconj(Y_i)`` a splitting tree).
+            The returned dictionary has entries ``linar_combination[Y_i, X_i] = a_i`` for the
+            contributions to this linear combination (i.e. tree pairs for which the coefficient
+            vanishes may be omitted).
+        """
+        if not bend_upward:
+            # OPTIMIZE: do it explicitly instead?
+            # bend_down(dagger(Y) @ X)
+            # == dagger(dagger(bend_down(dagger(Y) @ X))
+            # == dagger(bend_up(dagger(dagger(Y) @ X))))
+            # == dagger(bend_up(dagger(X) @ Y))
+            # == dagger(sum_i b_i (dagger(Y_i) @ X_i))
+            # == sum_i conj(b_i) dagger(X_i) @ Y_i
+            # i.e. we need to swap the order of inputs and invert bend_upward,
+            # then for the result, swap the trees back and conj the coefficients (invert do_conj)
+            other = FusionTree.bend_leg(X, Y, bend_upward=True, do_conj=not do_conj)
+            return {(X_i, Y_i): b_i for (Y_i, X_i), b_i in other.items()}
+
+        # OPTIMIZE remove input checks?
+        assert X.symmetry == Y.symmetry
+        assert np.all(X.coupled == Y.coupled)
+        #
+        symmetry = X.symmetry
+        c = X.coupled
+
+        if X.num_uncoupled == 0:
+            raise ValueError('No leg to be bent.')
+
+        is_dual = X.are_dual[-1]
+        X_i, c, mu, z = X.split_topmost()
+        B = symmetry.b_symbol(X_i.coupled, z, c)
+        chi_z = symmetry.frobenius_schur(z)
+        zbar = symmetry.dual_sector(z)
+        res = {}
+        for nu in range(len(B)):
+            b_i = B[mu, nu]
+            Y_i = Y.extended(zbar, nu, X_i.coupled, not is_dual)
+            if is_dual:
+                b_i = b_i * chi_z
+            if do_conj:
+                b_i = np.conj(b_i)
+            res[Y_i, X_i] = b_i
+        return res
+
     def braid(self, j: int, overbraid: bool, cutoff: float = 1e-16, do_conj: bool = False,
               ) -> dict[FusionTree, float | complex]:
         r"""Braid a leg on a fusion tree, return the resulting linear combination of trees.

@@ -36,6 +36,29 @@ def random_fusion_tree(symmetry: Symmetry, num_uncoupled: int, sector_rng: Calla
     return res
 
 
+def random_tree_pair(symmetry: Symmetry, num_uncoupled_in: int, num_uncoupled_out: SectorArray,
+                     sector_rng: Callable[[], Sector], np_random: np.random.Generator
+                     ) -> trees.FusionTree:
+    X = random_fusion_tree(symmetry, num_uncoupled_in, sector_rng, np_random)
+    root = X.coupled
+    uncoupled_out_reversed = []
+    multiplicities_reversed = []
+    inner_sectors_reversed = []
+    for _ in range(num_uncoupled_out - 1):
+        right = sector_rng()
+        uncoupled_out_reversed.append(right)
+        outcome = np_random.choice(symmetry.fusion_outcomes(root, symmetry.dual_sector(right)))
+        multiplicities_reversed.append(np_random.choice(symmetry.n_symbol(right, outcome, root)))
+        inner_sectors_reversed.append(outcome)
+        root = outcome
+    uncoupled_out_reversed.append(inner_sectors_reversed.pop(-1))
+    are_dual = np_random.choice([True, False], num_uncoupled_out)
+    Y = trees.FusionTree(symmetry, uncoupled_out_reversed[::-1], X.coupled, are_dual,
+                         inner_sectors_reversed[::-1], multiplicities_reversed[::-1])
+    Y.test_sanity()
+    return X, Y
+
+
 @pytest.mark.xfail(reason='Test not implemented yet')
 def test_FusionTree_class():
     # TODO test hash, eq, str, repr, copy
@@ -114,6 +137,47 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
     for t, a_lhs in lhs.items():
         a_rhs = rhs[t]
         assert np.allclose(a_lhs, a_rhs)
+
+
+@pytest.mark.parametrize('bend_up', [True, False])
+def test_FusionTree_bend_leg(bend_up, any_symmetry, make_any_sectors, np_random):
+    Y, X = random_tree_pair(symmetry=any_symmetry, num_uncoupled_in=4, num_uncoupled_out=4,
+                            sector_rng=lambda: make_any_sectors(1)[0], np_random=np_random)
+    Y.test_sanity()
+    X.test_sanity()
+    res = list(trees.FusionTree.bend_leg(Y, X, bend_up).items())
+
+    for (Y_i, X_i), _ in res:
+        Y_i.test_sanity()
+        X_i.test_sanity()
+        assert np.all(Y_i.coupled == X_i.coupled)
+        if bend_up:
+            assert np.all(Y_i.uncoupled[:-1] == Y.uncoupled)
+            assert np.all(X_i.uncoupled == X.uncoupled[:-1])
+            assert np.all(Y_i.uncoupled[-1] == any_symmetry.dual_sector(X.uncoupled[-1]))
+        else:
+            assert np.all(Y_i.uncoupled == Y.uncoupled[:-1])
+            assert np.all(X_i.uncoupled[:-1] == X.uncoupled)
+            assert np.all(X_i.uncoupled[-1] == any_symmetry.dual_sector(Y.uncoupled[-1]))
+
+    # compare to matrix representation
+    if any_symmetry.can_be_dropped:
+        # bending leg does nothing in this case
+        expect = np.tensordot(Y.as_block().conj(), X.as_block(), (-1, -1))
+        res_np = sum(a_i * np.tensordot(Y_i.as_block().conj(), X_i.as_block().conj(), (-1, -1))
+                     for (Y_i, X_i), a_i in res)
+        assert np.allclose(res_np, expect)
+
+    # check that bending back gives back the same tree
+    res2 = {}
+    for (Y_i, X_i), a_i in res:
+        for (Y2_i, X2_i), b_i in trees.FusionTree.bend_leg(Y_i, X_i, not bend_up).items():
+            res2[Y2_i, X2_i] = res2.get((Y2_i, X2_i), 0) + a_i * b_i
+    assert (Y, X) in res2
+    for pair, a in res2.items():
+        assert np.allclose(a, 1 if pair == (Y, X) else 0)
+
+    # TODO is there anything else we can check at this level...?
 
 
 def test_FusionTree_manipulations(compatible_symmetry, compatible_backend, make_compatible_sectors, np_random):
