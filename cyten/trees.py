@@ -180,6 +180,88 @@ class FusionTree:
         final = symmetry.sector_str(coupled)
         return f'{before_Z} -> {after_Z} -> {final}'
 
+    def braid(self, j: int, overbraid: bool, cutoff: float = 1e-16, do_conj: bool = False,
+              ) -> dict[FusionTree, float | complex]:
+        r"""Braid a leg on a fusion tree, return the resulting linear combination of trees.
+
+        Graphically::
+
+            |   overbraid:                  underbraid
+            |
+            |   │                           │
+            |   ┢━━━━━━━━━━━━━┓             ┢━━━━━━━━━━━━━┓
+            |   ┡━━━┯━━━┯━━━┯━┛             ┡━━━┯━━━┯━━━┯━┛
+            |   │   j  j+1  │               │   j  j+1  │
+            |   │    ╲ ╱    │               │    ╲ ╱    │
+            |   │     ╲     │               │     ╱     │
+            |   │    ╱ ╲    │               │    ╱ ╲    │
+            |   │   │   │   │               │   │   │   │
+
+        Parameters
+        ----------
+        j : int
+            The index for the braid. We braid ``uncoupled[j]`` with ``uncoupled[j + 1]``.
+        overbraid : bool
+            If the leg that was at ``uncoupled[j]`` before the braid goes over the other one.
+            See graphic above.
+        cutoff : float
+            We skip contributions with a prefactor below this.
+        do_conj : bool
+            If ``True``, return the conjugate of the coefficients instead.
+
+        Returns
+        -------
+        linar_combination : dict {FusionTree: complex}
+            The braided fusion tree is a linear combination ``braided_self = sum_i a_i X_i``.
+            The returned dictionary has entries ``linar_combination[X_i] = a_i`` for the
+            contributions to this linear combination (i.e. trees for which the coefficient vanishes
+            may be omitted).
+        """
+        assert 0 <= j < self.num_uncoupled - 1
+        if j == 0:  # R-move
+            a, b, mu, c = self.vertex_labels(0)
+            if overbraid:
+                a_i = np.conj(self.symmetry.r_symbol(b, a, c)[mu])
+            else:
+                a_i = self.symmetry.r_symbol(a, b, c)[mu]
+            if do_conj:
+                a_i = np.conj(a_i)
+            X_i = self.copy(deep=True)
+            X_i.uncoupled[0] = b
+            X_i.uncoupled[1] = a
+            X_i.are_dual[:2] = X_i.are_dual[1::-1]
+            return {X_i: a_i}
+
+        # C-move
+        res = {}
+        a, b, mu, e = self.vertex_labels(j - 1)
+        _e, c, nu, d = self.vertex_labels(j)
+        X_new = self.copy(deep=True)
+        X_new.uncoupled[j] = c
+        X_new.uncoupled[j + 1] = b
+        X_new.are_dual[j] = self.are_dual[j + 1]
+        X_new.are_dual[j + 1] = self.are_dual[j]
+        for f in self.symmetry.fusion_outcomes(a, c):
+            if not self.symmetry.can_fuse_to(f, b, d):
+                continue
+            if overbraid:
+                Csym = np.conj(self.symmetry.c_symbol(a, c, b, d, f, e)[:, :, mu, nu])
+            else:
+                Csym = self.symmetry.c_symbol(a, b, c, d, e, f)[mu, nu]
+            for kappa, C_kappa in enumerate(Csym):
+                for lambda_, a_i in enumerate(C_kappa):
+                    if abs(a_i) < cutoff:
+                        continue
+                    if do_conj:
+                        a_i = np.conj(a_i)
+                    X_i = X_new.copy()
+                    X_i.inner_sectors[j - 1] = f
+                    X_i.multiplicities[j - 1] = kappa
+                    X_i.multiplicities[j] = lambda_
+                    assert X_i not in res  # OPTIMIZE rm check
+                    res[X_i] = a_i
+        return res
+
     def vertex_labels(self, n: int) -> tuple[Sector, Sector, int, Sector]:
         r"""For the ``n``-th fusion vertex, get the respective sectors.
 
