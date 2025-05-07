@@ -145,6 +145,27 @@ class FusionTreeData:
         self.blocks = [self.blocks[i] for i in keep]
         self.block_inds = self.block_inds[keep]
 
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+
+        hdf5_saver.save(self.block_inds, subpath + 'block_inds')
+        hdf5_saver.save(self.blocks, subpath + 'blocks')
+        hdf5_saver.save(self.dtype.to_numpy_dtype(), subpath + 'dtype')
+        hdf5_saver.save(self.device, subpath + 'device')
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.block_inds = hdf5_loader.load(subpath + 'block_inds')
+        obj.blocks = hdf5_loader.load(subpath + 'blocks')
+        obj.device = hdf5_loader.load(subpath + 'device')
+        dt = hdf5_loader.load(subpath + 'dtype')
+        obj.dtype = Dtype.from_numpy_dtype(dt)
+
+        return obj
+
 
 class FusionTreeBackend(TensorBackend):
     """A backend based on fusion trees."""
