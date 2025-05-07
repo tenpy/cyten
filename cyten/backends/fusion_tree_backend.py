@@ -782,7 +782,47 @@ class FusionTreeBackend(TensorBackend):
         return a.dtype
 
     def get_element(self, a: SymmetricTensor, idcs: list[int]) -> complex | float | bool:
-        raise NotImplementedError('get_element not implemented')  # TODO
+        num_cod_legs = a.num_codomain_legs
+        num_legs = a.num_legs        
+        # reverse domain idcs -> work in the non-conventional leg order [i1,...,iJ,j1,...,jK]
+        a_legs = [*a.codomain.factors, *a.domain.factors]
+        idcs = idcs[:num_cod_legs] + idcs[num_cod_legs:][::-1]
+        pos = np.array([l.parse_index(idx) for l, idx in zip(a_legs, idcs)])
+        sector_idcs = pos[:, 0]
+
+        uncoupled = np.array([l.sector_decomposition[sector_idcs[i]] for i, l in enumerate(a_legs)])
+        codom_uncoupled = uncoupled[:num_cod_legs, :]
+        dom_uncoupled = uncoupled[num_cod_legs:, :]
+        mults = [l.multiplicities[sector_idcs[i]] for i, l in enumerate(a_legs)]
+        codom_mults = mults[:num_cod_legs]
+        dom_mults = mults[num_cod_legs:]
+        dims = a.symmetry.batch_sector_dim(uncoupled)
+        codom_dims = dims[:num_cod_legs]
+        dom_dims = dims[num_cod_legs:]
+
+        # build the correct forest block to get the element
+        shape = [d * m for d, m in zip(dims, mults)]
+        dtype = Dtype.common(a.data.dtype, a.symmetry.fusion_tensor_dtype)
+        forest_block = self.block_backend.zeros(shape, dtype=dtype, device=a.device)
+        tree_block_height = a.codomain.tree_block_size(codom_uncoupled)
+        tree_block_width = a.domain.tree_block_size(dom_uncoupled)
+        for bi_cod, block in zip(a.data.block_inds[:, 0], a.data.blocks):
+            coupled = a.codomain.sector_decomposition[bi_cod]
+            i1 = a.codomain.forest_block_slice(codom_uncoupled, coupled).start
+            i2 = a.domain.forest_block_slice(dom_uncoupled, coupled).start
+            entries, _, _ = self._get_forest_block_contribution(
+                block, a.symmetry, a.codomain, a.domain, coupled, codom_uncoupled, dom_uncoupled,
+                codom_dims, dom_dims, tree_block_width, tree_block_height, i1, i2, codom_mults,
+                dom_mults, dtype
+            )
+            # entries : [a1,...,aJ, b1,...,bK, m1,...,mJ, n1,...,nK]
+            # permute to [a1,m1,...,aJ,mJ, b1,n1,...,bK,nK]
+            perm = [i + offset for i in range(num_legs) for offset in [0, num_legs]]
+            entries = self.block_backend.permute_axes(entries, perm)
+            # reshape to [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
+            entries = self.block_backend.reshape(entries, shape)
+            forest_block += entries
+        return self.block_backend.get_block_element(forest_block, pos[:, 1])
 
     def get_element_diagonal(self, a: DiagonalTensor, idx: int) -> complex | float | bool:
         sector_idx, idx_within = a.leg.parse_index(idx)
