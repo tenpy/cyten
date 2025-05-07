@@ -1710,11 +1710,6 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
         else:
             npt.assert_almost_equal(a, b)
 
-    if isinstance(T.backend, backends.FusionTreeBackend) and not cls == DiagonalTensor and not cls == Mask:
-        with pytest.raises(NotImplementedError, match='get_element.* not implemented'):
-            _ = T[random_idx]
-        pytest.xfail()
-
     entry = T[random_idx]
     assert isinstance(entry, (bool, float, complex))
     assert_same(T[random_idx], T_np[random_idx])
