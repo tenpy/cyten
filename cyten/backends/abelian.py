@@ -272,14 +272,14 @@ class AbelianBackend(TensorBackend):
     # OVERRIDES
 
     def make_pipe(self, legs: list[Leg], is_dual: bool, in_domain: bool,
-                  pipe: LegPipe | None) -> LegPipe:
+                  pipe: LegPipe | None = None) -> LegPipe:
         assert all(isinstance(l, ElementarySpace) for l in legs)  # OPTIMIZE rm check
         if isinstance(pipe, AbelianLegPipe):
-            assert pipe.combine_cstyle == (not in_domain)
+            assert pipe.combine_cstyle == (not is_dual)
             assert pipe.is_dual == is_dual
             assert pipe.legs == legs
             return pipe
-        return AbelianLegPipe(legs, is_dual=is_dual, combine_cstyle=not in_domain)
+        return AbelianLegPipe(legs, is_dual=is_dual, combine_cstyle=not is_dual)
 
     # ABSTRACT METHODS
 
@@ -356,6 +356,7 @@ class AbelianBackend(TensorBackend):
         assert all(isinstance(p, AbelianLegPipe) for p in pipes), 'abelian backend requires ``AbelianLegPipe``s'
         num_result_legs = tensor.num_legs - sum(len(group) - 1 for group in leg_idcs_combine)
         old_blocks = tensor.data.blocks
+        cstyles = []  # which combined legs are formed in C and F style
 
         # build new block_inds, compatible with old_blocks, but contain duplicates and are not sorted
         res_block_inds = np.empty((len(tensor.data.block_inds), num_result_legs), int)
@@ -370,6 +371,7 @@ class AbelianBackend(TensorBackend):
             j += num_uncombined
             # current combined group
             in_domain = (group[0] >= tensor.num_codomain_legs)
+            cstyles.append(pipe.combine_cstyle != in_domain)
             block_inds = tensor.data.block_inds[:, group[0]:group[-1] + 1]
             if in_domain:
                 # product space in the domain has opposite order of its spaces compared to the
@@ -429,9 +431,8 @@ class AbelianBackend(TensorBackend):
             new_block = self.block_backend.zeros(shape, dtype=tensor.dtype, device=tensor.device)
             for row in range(start, stop):
                 slices = tuple(slice(b, e) for (b, e) in block_slices[row])
-                new_block[slices] = self.block_backend.reshape(
-                    old_blocks[row],
-                    block_slices[row, :, 1] - block_slices[row, :, 0]
+                new_block[slices] = self.block_backend.combine_legs(
+                    old_blocks[row], leg_idcs_combine, cstyles
                 )
             res_blocks.append(new_block)
 
@@ -1698,6 +1699,8 @@ class AbelianBackend(TensorBackend):
         new_block_inds = np.empty((res_num_blocks, res_num_legs), dtype=int)
         old_block_beg = np.zeros((res_num_blocks, a.num_legs), dtype=int)
         old_block_shapes = np.empty((res_num_blocks, a.num_legs), dtype=int)
+        # splitting pipes in F style is done by splitting them in C style and permuting the axes
+        axes_perm = list(range(res_num_legs))
         shift = 0  # = i - k for indices below
         j = 0  # index within pipes
         for i in range(a.num_legs):  # i = index in old tensor
@@ -1706,6 +1709,8 @@ class AbelianBackend(TensorBackend):
                 pipe = pipes[j]  # = a.legs[i]
                 k = i + shift  # = index where split legs begin in new tensor
                 k2 = k + pipe.num_legs  # = until where spaces go in new tensor
+                if pipe.combine_cstyle == in_domain:
+                    axes_perm[k:k2] = axes_perm[k:k2][::-1]
                 block_ind_map = pipe.block_ind_map[map_rows[:, j], :]
                 if in_domain:
                     # if the leg to be split is in the domain, the order of block_inds and of its
@@ -1732,6 +1737,7 @@ class AbelianBackend(TensorBackend):
             slices = tuple(slice(b, b + s) for b, s in zip(old_block_beg[i], old_block_shapes[i]))
             new_block = old_block[slices]
             new_blocks.append(self.block_backend.reshape(new_block, new_block_shapes[i]))
+        new_blocks = [self.block_backend.permute_axes(block, axes_perm) for block in new_blocks]
 
         return AbelianBackendData(a.data.dtype, a.data.device, new_blocks, new_block_inds,
                                   is_sorted=False)

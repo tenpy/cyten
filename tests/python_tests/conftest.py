@@ -331,11 +331,12 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, np_random):
              labels: list[str | None] = None, dtype: Dtype = None, device: str = None,
              *,
              like: tensors.Tensor = None, max_blocks=5, max_block_size=5, empty_ok=False,
-             all_blocks=False, cls=tensors.SymmetricTensor, allow_basis_perm: bool = True):
+             all_blocks=False, cls=tensors.SymmetricTensor, allow_basis_perm: bool = True,
+             use_pipes: bool | float = 0.3):
         return random_tensor(
             symmetry=compatible_symmetry, codomain=codomain, domain=domain, labels=labels,
             dtype=dtype, backend=compatible_backend, device=device, like=like, max_blocks=max_blocks,
             max_multiplicity=max_block_size, empty_ok=empty_ok, all_blocks=all_blocks, cls=cls,
-            allow_basis_perm=allow_basis_perm, np_random=np_random
+            allow_basis_perm=allow_basis_perm, use_pipes=use_pipes, np_random=np_random
         )
     return make

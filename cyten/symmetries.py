@@ -282,7 +282,15 @@ class Symmetry(metaclass=ABCMeta):
         """
         if not self.can_be_dropped:
             raise SymmetryError(f'Z iso can not be written as array for {self}')
-        raise NotImplementedError('should be implemented by subclass')
+        # fallback implementation: solve [Jakob thesis, (5.84)] for Z_a
+        X = self.fusion_tensor(a, self.dual_sector(a), self.trivial_sector)
+        # Note: leg order might be unintuitive at first!
+        #   [1] [2]     ;     [0]                 .--.  [0]
+        #    |   |      ;      |                  |  |   |
+        #    Y[0]Y      ;      Z   =   sqrt(d_a)  |  YYYYY   = sqrt(d_a) np.transpose(Y[0, :, :, 0])
+        #      |        ;      |                  |
+        #     [3]       ;     [1]                [1]
+        return self.sqrt_qdim(a) * X.conj()[0, :, :, 0].T
 
     def all_sectors(self) -> SectorArray:
         """If there are finitely many sectors, return all of them. Else raise a ValueError.
@@ -623,9 +631,11 @@ class Symmetry(metaclass=ABCMeta):
         ----------
         a, b, c
             Sectors. Must be compatible with the fusion described above.
-        Z_a, Z_b : bool
-            If we should include a Z isomorphism below the sector a.
-            If so, the composite is a map from :math:`\bar{a}^* \otimes b \to c`.
+        Z_a : bool
+            If we should include a Z isomorphism :math:`Z_{\bar{a}} : \bar{a}^* -> a` below the
+            sector a. If so, the composite is a map from :math:`\bar{a}^* \otimes b \to c`.
+        Z_b : bool
+            Analogously to `Z_a`.
 
         Returns
         -------
@@ -1027,7 +1037,7 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
     be used to check if a given `ProductSymmetry` *instance* is a group-symmetry.
     See examples in docstring of :class:`AbelianGroup`.
     """
-    
+
     can_be_dropped = True
 
     def __init__(self, fusion_style: FusionStyle, trivial_sector: Sector, group_name: str,
@@ -1038,11 +1048,6 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
 
     @abstractmethod
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> npt.NDArray:
-        # subclasses must implement. for groups it is always possible.
-        ...
-
-    @abstractmethod
-    def Z_iso(self, a: Sector) -> npt.NDArray:
         # subclasses must implement. for groups it is always possible.
         ...
 
@@ -1361,12 +1366,20 @@ class SU2Symmetry(GroupSymmetry):
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
         from . import _su2data
         X = _su2data.fusion_tensor(a[0], b[0], c[0])
-        if Z_a:
-            X = np.tensordot(self.Z_iso(a), X, (1, 1))  # [m_a, mu, m_b, m_c]
-            X = np.transpose(X, [1, 0, 2, 3])
-        if Z_b:
-            X = np.tensordot(self.Z_iso(b), X, (1, 2))  # [m_b, mu, m_a, m_c]
-            X = np.transpose(X, [1, 2, 0, 3])
+        if Z_a and Z_b:
+            # [µ, m_a, m_b, m_c] @ [m_a, m_abar*] -> [µ, m_b, m_c, m_abar*]
+            X = np.tensordot(X, self.Z_iso(self.dual_sector(a)), (1, 0))
+            # [µ, m_b, m_c, m_abar*] @ [m_b, m_bbar*] -> [µ, m_c, m_abar*, m_bbar*]
+            X = np.tensordot(X, self.Z_iso(self.dual_sector(b)), (1, 0))
+            X = np.transpose(X, [0, 2, 3, 1])
+        elif Z_a:
+            # [µ, m_a, m_b, m_c] @ [m_a, m_abar*] -> [µ, m_b, m_c, m_abar*]
+            X = np.tensordot(X, self.Z_iso(self.dual_sector(a)), (1, 0))
+            X = np.transpose(X, [0, 3, 1, 2])
+        elif Z_b:
+            # [µ, m_a, m_b, m_c] @ [m_b, m_bbar*] -> [µ, m_a, m_c, m_bbar*]
+            X = np.tensordot(X, self.Z_iso(self.dual_sector(b)), (2, 0))
+            X = np.transpose(X, [0, 1, 3, 2])
         return X
 
     def Z_iso(self, a: Sector) -> np.ndarray:

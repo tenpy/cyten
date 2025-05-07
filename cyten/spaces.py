@@ -67,6 +67,11 @@ class Leg(metaclass=ABCMeta):
         ...
 
     @property
+    @abstractmethod
+    def is_trivial(self) -> bool:
+        ...
+
+    @property
     def ascii_arrow(self) -> str:
         """A single character arrow, for use in tensor diagrams
 
@@ -82,6 +87,10 @@ class Leg(metaclass=ABCMeta):
             }[self.is_dual, is_pipe]
         assert is_pipe
         return '║'
+
+    @abstractmethod
+    def __eq__(self, other):
+        ...
 
 
 class LegPipe(Leg):
@@ -122,6 +131,23 @@ class LegPipe(Leg):
     @property
     def dual(self) -> LegPipe:
         return LegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual)
+
+    @property
+    def is_trivial(self) -> bool:
+        return all(l.is_trivial for l in self.legs)
+
+    def __eq__(self, other):
+        if not isinstance(other, LegPipe):
+            return NotImplemented
+        if isinstance(self, AbelianLegPipe) != isinstance(other, AbelianLegPipe):
+            return False
+        if self.is_dual != other.is_dual:
+            return False
+        if self.num_legs != other.num_legs:
+            return False
+        if not all(l1 == l2 for l1, l2 in zip(self.legs, other.legs)):
+            return False
+        return True
 
     def __getitem__(self, idx):
         return self.legs[idx]
@@ -236,6 +262,7 @@ class Space(metaclass=ABCMeta):
             self.multiplicities = multiplicities = np.ones((num_sectors,), dtype=int)
         else:
             self.multiplicities = multiplicities = np.asarray(multiplicities, dtype=int)
+            assert multiplicities.shape == (num_sectors,)
         if symmetry.can_be_dropped:
             self.sector_dims = sector_dims = symmetry.batch_sector_dim(sector_decomposition)
             self.sector_qdims = sector_dims
@@ -1237,6 +1264,9 @@ class TensorProduct(Space):
         The factors in the tensor product, e.g. some of the legs of a tensor.
     num_factors : int
         The number of :attr:`factors`.
+    _sector_decomposition, _multiplicities
+        If the sectors, multiplicities are already known, recomputation can be skipped.
+        Warning: If given, they are not checked for correctness!
 
     See Also
     --------
@@ -1250,7 +1280,8 @@ class TensorProduct(Space):
         arrows on our tensor legs. A :class:`TensorProduct` has no ``is_dual`` attribute.
     """
     
-    def __init__(self, factors: list[Space | LegPipe], symmetry: Symmetry = None):
+    def __init__(self, factors: list[Space | LegPipe], symmetry: Symmetry = None,
+                 _sector_decomposition: SectorArray = None, _multiplicities: SectorArray = None):
         self.num_factors = num_factors = len(factors)
         if symmetry is None:
             if num_factors == 0:
@@ -1262,9 +1293,13 @@ class TensorProduct(Space):
         self.factors = factors[:]
         # TODO add an attr spaces: list[Space] that contains a flat list, where all nesting into
         #      pipes of factors in flattened??
-        sectors, multiplicities = self._calc_sectors(factors)
-        Space.__init__(self, symmetry=symmetry, sector_decomposition=sectors, multiplicities=multiplicities,
-                       sector_order='sorted')
+        if _sector_decomposition is None or _multiplicities is None:
+            if _sector_decomposition is not None or _multiplicities is not None:
+                msg = 'Need both _sectors and _multiplicities to skip recomputation. Got just one.'
+                warnings.warn(msg)
+            _sector_decomposition, _multiplicities = self._calc_sectors(factors)
+        Space.__init__(self, symmetry=symmetry, sector_decomposition=_sector_decomposition,
+                       multiplicities=_multiplicities, sector_order='sorted')
 
     def test_sanity(self):
         assert len(self.factors) == self.num_factors
@@ -1287,14 +1322,21 @@ class TensorProduct(Space):
         for f in factors[1:]:
             spaces.extend(f.factors)
             assert f.symmetry == symmetry, 'Mismatched symmetries'
-        # OPTIMIZE faster computation of sectors etc
-        return TensorProduct(factors=spaces, symmetry=symmetry)
+        isomorphic = TensorProduct(factors=factors, symmetry=symmetry)
+        # forming isomorphic performs the fusion more efficiently, since it uses the partially
+        # fused [f.sectors for f in factors] instead of the flat [s.factors for f in factors for s in f.factors]
+        return TensorProduct(factors=spaces, symmetry=symmetry,
+                             _sector_decomposition=isomorphic.sector_decomposition,
+                             _multiplicities=isomorphic.multiplicities)
 
     # PROPERTIES
 
     @property
     def dual(self):
-        return TensorProduct([sp.dual for sp in reversed(self.factors)], symmetry=self.symmetry)
+        sectors = self.symmetry.dual_sectors(self.sector_decomposition)
+        sectors, mults, _ = _sort_sectors(sectors, self.multiplicities)
+        return TensorProduct([sp.dual for sp in reversed(self.factors)], symmetry=self.symmetry,
+                             _sector_decomposition=sectors, _multiplicities=mults)
 
     # METHODS
 
@@ -1313,19 +1355,46 @@ class TensorProduct(Space):
         return self.sector_multiplicity(coupled)
 
     def change_symmetry(self, symmetry, sector_map, injective=False):
-        # OPTIMIZE can we avoid recomputation of fusion?
+        sectors = sector_map(self.sector_decomposition)
+        multiplicities = self.multiplicities
+        if not injective:
+            sectors, multiplicities, _ = _unique_sorted_sectors(sectors, multiplicities)
+        else:
+            sectors, multiplicities, _ = _sort_sectors(sectors, multiplicities)
         return TensorProduct(
             [space.change_symmetry(symmetry, sector_map, injective)
              for space in self.factors],
-            symmetry=self.symmetry
+            symmetry=self.symmetry, _sector_decomposition=sectors, _multiplicities=multiplicities
         )
 
     def drop_symmetry(self, which=None):
-        # OPTIMIZE can we avoid recomputation of fusion?
+        which, remaining_symmetry = _parse_inputs_drop_symmetry(which, self.symmetry)
+        if which is None:
+            sectors = self.symmetry.trivial_sector[None, :]
+            multiplicities = [self.dim]
+        else:
+            mask = np.ones((self.symmetry.sector_ind_len,), dtype=bool)
+            for i in which:
+                start, stop = self.symmetry.sector_slices[i:i + 2]
+                mask[start:stop] = False
+            sectors = self.sector_decomposition[mask, :]
+            multiplicities = self.multiplicities
+            sectors, multiplicities, _ = _unique_sorted_sectors(sectors, multiplicities)
         return TensorProduct(
-            [space.drop_symmetry(which) for space in self.factors],
-            symmetry=self.symmetry
+            [space.drop_symmetry(which) for space in self.factors], symmetry=remaining_symmetry,
+            _sector_decomposition=sectors, _multiplicities=multiplicities
         )
+
+    def flat_legs(self) -> list[Space]:
+        """Flatten any pipes in the :attr:`factors`, recursively."""
+        return _flatten_leg_pipes(self.factors)
+
+    def flat_leg_idcs(self, i: int) -> list[int]:
+        """All indices into the :meth:`flat_legs` that the leg ``factors[i]`` flattens to."""
+        # OPTIMIZE could just add the lengths without building the actual lists...
+        start = len(_flatten_leg_pipes(self.factors[:i]))
+        num = len(_flatten_leg_pipes(self.factors[i:i+1]))
+        return list(range(start, start + num))
 
     def forest_block_size(self, uncoupled: tuple[Sector], coupled: Sector) -> int:
         """The size of a forest-block"""
@@ -1348,8 +1417,11 @@ class TensorProduct(Space):
 
     def insert_multiply(self, other: Space, pos: int) -> TensorProduct:
         """Insert a new space into the product at position `pos`."""
-        # OPTIMIZE can compute sectors etc more efficiently
-        return TensorProduct(self.factors[:pos] + [other] + self.factors[pos:], symmetry=self.symmetry)
+        isomorphic = TensorProduct([self, other])
+        return TensorProduct(self.factors[:pos] + [other] + self.factors[pos:],
+                             symmetry=self.symmetry,
+                             _sector_decomposition=isomorphic.sector_decomposition,
+                             _multiplicities=isomorphic.multiplicities)
 
     def iter_tree_blocks(self, coupled: Sequence[Sector]
                          ) -> Iterator[tuple[FusionTree, slice, int]]:
@@ -1425,7 +1497,7 @@ class TensorProduct(Space):
             return
         for unc in it.product(*(s.sector_decomposition for s in self.factors)):
             yield np.array(unc, int)
-    
+
     def left_multiply(self, other: Space) -> TensorProduct:
         """Add a new factor at the left / beginning of the spaces"""
         return self.insert_multiply(other, 0)
@@ -1786,6 +1858,10 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         return AbelianLegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual,
                               combine_cstyle=not self.combine_cstyle)
 
+    @property
+    def is_trivial(self) -> bool:
+        return ElementarySpace.is_trivial.fget(self)
+
     @classmethod
     def from_basis(cls, *a, **kw):
         raise TypeError('from_basis is not supported for AbelianLegPipe')
@@ -1820,6 +1896,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         return AbelianLegPipe(legs, is_dual=self.is_dual, combine_cstyle=self.combine_cstyle)
 
     def drop_symmetry(self, which: int | list[int] = None):
+        # OPTIMIZE can we avoid recomputation of fusion?
         legs = [l.drop_symmetry(which) for l in self.legs]
         return AbelianLegPipe(legs, is_dual=self.is_dual, combine_cstyle=self.combine_cstyle)
 
@@ -1837,13 +1914,14 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
                               combine_cstyle=self.combine_cstyle)
 
     def __eq__(self, other):
-        if not isinstance(other, AbelianLegPipe):
-            return NotImplemented
-        if self.is_dual != other.is_dual:
+        res = LegPipe.__eq__(self, other)
+        if res is NotImplemented:
+            return res
+        if not res:
             return False
-        if self.num_legs != other.num_legs:
+        if self.combine_cstyle != other.combine_cstyle:
             return False
-        return all(l1 == l2 for l1, l2 in zip(self.legs, other.legs))
+        return True
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
@@ -2085,6 +2163,23 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             perm[start:stop] = np.sum(basis_grid * dim_strides, axis=1)
 
         return perm
+
+
+def _flatten_leg_pipes(legs: list[Leg]) -> list[ElementarySpace]:
+    res = legs[:]
+    for _ in range(1000):  # loop should end via break, this is just a failsafe vs infinite loop
+        seen_pipes = False  # if we do a sweep without seeing any pipes, we know we can stop.
+        for i in reversed(range(len(res))):
+            # go in reverse so we dont change indices of earlier factors when flattening
+            f = res[i]
+            if isinstance(f, LegPipe):
+                res[i:i+1] = f.legs
+                seen_pipes = True
+        if not seen_pipes:
+            break
+    else:  # else triggers if no break ocurred
+        raise RuntimeError('Either LegPipes are nested too deep or there is a bug.')
+    return res
 
 
 def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicities: np.ndarray):
