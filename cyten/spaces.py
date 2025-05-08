@@ -1389,7 +1389,7 @@ class TensorProduct(Space):
                              _multiplicities=isomorphic.multiplicities)
 
     def iter_tree_blocks(self, coupled: Sequence[Sector]
-                         ) -> Generator[tuple[FusionTree, slice, int], None, None]:
+                         ) -> Generator[tuple[FusionTree, slice, np.ndarray, int], None, None]:
         """Iterate over tree blocks. Helper function for :class:`FusionTreeBackend`.
 
         See :ref:`fusion_tree_backend__blocks` for definitions of blocks and tree blocks.
@@ -1401,6 +1401,8 @@ class TensorProduct(Space):
             coupled sector is ``coupled[i]``
         slc : slice
             The slice of the tree-block associated with `tree` in its block.
+        mults : 1D array of int
+            The multiplicities of the uncoupled sectors of `tree` within their ``self.factor``.
         i : int
             The index of the current coupled sector in `coupled`
 
@@ -1409,7 +1411,8 @@ class TensorProduct(Space):
         iter_forest_blocks
         iter_uncoupled
         """
-        # OPTIMIZE some users in FTBackend ignore the slc and i...
+        # OPTIMIZE some users in FTBackend ignore some of the yielded values.
+        #          is that ok performance wise or should we have special case iterators?
         if any(not isinstance(sp, ElementarySpace) for sp in self.factors):
             raise NotImplementedError  # TODO what to do if there are pipes?
         are_dual = [sp.is_dual for sp in self.factors]
@@ -1418,7 +1421,7 @@ class TensorProduct(Space):
             for uncoupled, mults in self.iter_uncoupled():
                 tree_block_size = prod(mults)
                 for tree in fusion_trees(self.symmetry, uncoupled, c, are_dual):
-                    yield tree, slice(start, start + tree_block_size), i
+                    yield tree, slice(start, start + tree_block_size), mults, i
                     start += tree_block_size
 
     def iter_forest_blocks(self, coupled: Sequence[Sector]
