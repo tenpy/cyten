@@ -112,11 +112,11 @@ def _tree_block_iter(a: SymmetricTensor):
         coupled = a.codomain.sector_decomposition[bi]
         i1_forest = 0  # start row index of the current forest block
         i2_forest = 0  # start column index of the current forest block
-        for b_sectors in a.domain.iter_uncoupled():
-            tree_block_width = a.domain.tree_block_size(b_sectors)
+        for b_sectors, b_mults in a.domain.iter_uncoupled():
+            tree_block_width = np.prod(b_mults)
             forest_block_width = 0
-            for a_sectors in a.codomain.iter_uncoupled():
-                tree_block_height = a.codomain.tree_block_size(a_sectors)
+            for a_sectors, a_mults in a.codomain.iter_uncoupled():
+                tree_block_height = np.prod(a_mults)
                 i1 = i1_forest  # start row index of the current tree block
                 i2 = i2_forest  # start column index of the current tree block
                 for alpha_tree in fusion_trees(sym, a_sectors, coupled, codomain_are_dual):
@@ -133,36 +133,6 @@ def _tree_block_iter(a: SymmetricTensor):
                 i1_forest += forest_block_height
             i1_forest = 0  # reset to the top of the block
             i2_forest += forest_block_width
-
-
-def _iter_sectors_mults_slices(spaces: list[Space], symmetry: Symmetry
-                               ) -> Generator[tuple[SectorArray, list[int], list[slice]], None, None]:
-    """Helper iterator over all combinations of sectors and respective mults and slices.
-
-    Yields
-    ------
-    uncoupled : list of 1D array of int
-        A combination ``[spaces[0].sector_decomposition[i0], spaces[1].sector_decomposition[i1], ...]``
-        of uncoupled sectors
-    mults : list of int
-        The corresponding ``[spaces[0].multiplicities[i0], spaces[1].multiplicities[i1], ...]``.
-    slices : list of slice
-        The corresponding ``[slice(*spaces[0].slices[i0]), slice(*spaces[1].slices[i1]), ...]``.
-    """
-    if len(spaces) == 0:
-        yield symmetry.empty_sector_array, [], []
-        return
-
-    if len(spaces) == 1:
-        for a, m, slc in zip(spaces[0].sector_decomposition, spaces[0].multiplicities, spaces[0].slices):
-            yield a[None, :], [m], [slice(*slc)]
-        return
-
-    # OPTIMIZE there is probably some itertools magic that does this better?
-    # OPTIMIZE or build a grid of indices?
-    for a_0, m_0, slc_0 in zip(spaces[0].sector_decomposition, spaces[0].multiplicities, spaces[0].slices):
-        for a_rest, m_rest, slc_rest in _iter_sectors_mults_slices(spaces[1:], symmetry):
-            yield np.concatenate([a_0[None, :], a_rest]), [m_0, *m_rest], [slice(*slc_0), *slc_rest]
 
 
 class FusionTreeData:
@@ -710,17 +680,17 @@ class FusionTreeBackend(TensorBackend):
             # iterate over uncoupled sectors / forest-blocks within the block
             i1 = 0  # start row index of the current forest block
             i2 = 0  # start column index of the current forest block
-            for b_sectors, n_dims, j2 in _iter_sectors_mults_slices(domain.factors, sym):
+            for b_sectors, n_dims, j2 in domain.iter_uncoupled(yield_slices=True):
                 b_dims = sym.batch_sector_dim(b_sectors)
                 tree_block_width = domain.tree_block_size(b_sectors)
-                for a_sectors, m_dims, j1 in _iter_sectors_mults_slices(codomain.factors, sym):
+                for a_sectors, m_dims, j1 in codomain.iter_uncoupled(yield_slices=True):
                     a_dims = sym.batch_sector_dim(a_sectors)
                     tree_block_height = codomain.tree_block_size(a_sectors)
                     entries = a[(*j1, *j2)]  # [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
                     # reshape to [a1,m1,...,aJ,mJ, b1,n1,...,bK,nK]
                     shape = [0] * (2 * num_legs)
                     shape[::2] = [*a_dims, *b_dims]
-                    shape[1::2] = m_dims + n_dims
+                    shape[1::2] = [*m_dims, *n_dims]
                     entries = self.block_backend.reshape(entries, shape)
                     # permute to [a1,...,aJ, b1,...,bK, m1,...,mJ, n1,...nK]
                     perm = [*range(0, 2 * num_legs, 2), *range(1, 2 * num_legs, 2)]
@@ -1807,10 +1777,10 @@ class FusionTreeBackend(TensorBackend):
             coupled = a.codomain.sector_decomposition[bi_cod]
             i1 = 0  # start row index of the current forest block
             i2 = 0  # start column index of the current forest block
-            for b_sectors, n_dims, j2 in _iter_sectors_mults_slices(a.domain.factors, sym):
+            for b_sectors, n_dims, j2 in a.domain.iter_uncoupled(yield_slices=True):
                 b_dims = sym.batch_sector_dim(b_sectors)
                 tree_block_width = a.domain.tree_block_size(b_sectors)
-                for a_sectors, m_dims, j1 in _iter_sectors_mults_slices(a.codomain.factors, sym):
+                for a_sectors, m_dims, j1 in a.codomain.iter_uncoupled(yield_slices=True):
                     a_dims = sym.batch_sector_dim(a_sectors)
                     tree_block_height = a.codomain.tree_block_size(a_sectors)
                     entries, num_alpha_trees, num_beta_trees = self._get_forest_block_contribution(
@@ -2022,7 +1992,7 @@ class FusionTreeBackend(TensorBackend):
                 idx2 = slice(i2, i2 + tree_block_width)
                 degeneracy_data = block[idx1, idx2]  # [M, N]
                 # [M, N] -> [m1,...,mJ,n1,...,nK]
-                degeneracy_data = self.block_backend.reshape(degeneracy_data, m_dims + n_dims)
+                degeneracy_data = self.block_backend.reshape(degeneracy_data, [*m_dims, *n_dims])
                 entries += self.block_backend.outer(symmetry_data, degeneracy_data)  # [{aj} {bk} {mj} {nk}]
                 i2 += tree_block_width
             i2 = i2_init  # reset to the left of the current forest-block

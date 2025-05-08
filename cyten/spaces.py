@@ -7,7 +7,7 @@ from numpy import ndarray
 import bisect
 import itertools as it
 from math import prod
-from typing import TYPE_CHECKING, Sequence, Literal, Generator
+from typing import TYPE_CHECKING, Sequence, Literal, Generator, Union
 import warnings
 
 from .dummy_config import printoptions
@@ -1430,12 +1430,13 @@ class TensorProduct(Space):
 
     def forest_block_slice(self, uncoupled: tuple[Sector], coupled: Sector) -> slice:
         """The range of indices of a forest-block within its block, as a slice."""
-        # OPTIMIZE ?
         offset = 0
-        for _unc in self.iter_uncoupled():
-            if all(np.all(a == b) for a, b in zip(_unc, uncoupled)):
+        for unc, mults in self.iter_uncoupled():
+            if all(np.all(a == b) for a, b in zip(unc, uncoupled)):
                 break
-            offset += self.forest_block_size(_unc, coupled)
+            tree_block_size = np.prod(mults)
+            forest_block_size = len(fusion_trees(self.symmetry, unc, coupled)) * tree_block_size
+            offset += forest_block_size
         else:  # no break occurred
             raise ValueError('Uncoupled sectors incompatible')
         size = self.forest_block_size(uncoupled, coupled)
@@ -1476,11 +1477,11 @@ class TensorProduct(Space):
         are_dual = [sp.is_dual for sp in self.factors]
         for i, c in enumerate(coupled):
             start = 0  # start index of the current tree block within the block
-            for uncoupled in self.iter_uncoupled():
-                tree_block_width = self.tree_block_size(uncoupled)
+            for uncoupled, mults in self.iter_uncoupled():
+                tree_block_size = prod(mults)
                 for tree in fusion_trees(self.symmetry, uncoupled, c, are_dual):
-                    yield tree, slice(start, start + tree_block_width), i
-                    start += tree_block_width
+                    yield tree, slice(start, start + tree_block_size), i
+                    start += tree_block_size
 
     def iter_forest_blocks(self, coupled: Sequence[Sector]
                            ) -> Generator[tuple[tuple[Sector], slice, int], None, None]:
@@ -1504,25 +1505,46 @@ class TensorProduct(Space):
         """
         for i, c in enumerate(coupled):
             start = 0
-            for uncoupled in self.iter_uncoupled():
-                forest_block_width = self.forest_block_size(uncoupled, c)
+            for uncoupled, mults in self.iter_uncoupled():
+                tree_block_size = np.prod(mults)
+                num_trees = len(fusion_trees(self.symmetry, uncoupled, c))
+                forest_block_width = num_trees * tree_block_size
                 if forest_block_width == 0:
                     continue
                 slc = slice(start, start + forest_block_width)
                 yield uncoupled, slc, i
                 start += forest_block_width
 
-    def iter_uncoupled(self) -> Generator[SectorArray, None, None]:
-        """Iterate over all combinations of sectors
+    def iter_uncoupled(self, yield_slices: bool = False
+                       ) -> Union[Generator[tuple[SectorArray, np.ndarray], None, None],
+                                  Generator[tuple[SectorArray, np.ndarray, list[slice]], None, None]]:
+        """Iterate over all combinations of sectors from the :attr:`factors`.
 
-        For a TensorProduct of zero spaces, i.e. with ``num_space == 0``, we yield an empty
-        array once.
+        Yields
+        ------
+        uncoupled : 2D array of int
+            A combination of uncoupled sectors, where
+            ``uncoupled[i] == self.factors[i].sector_decomposition[some_idx]``.
+        multiplicities : 1D array of int
+            The corresponding multiplicities
+            ``multiplcities[i] == self.factors[i].multiplicities[some_idx]``.
+        slices : list of slice, optional
+            Only if ``yield_slices``, the corresponding entry of :attr:`Space.slices`, as a slice.
+            I.e. ``slices[i] == slice(*self.factors[i].slices[some_idx])``.
+
+        Note
+        ----
+        For a TensorProduct of zero spaces, i.e. with ``num_factors == 0``,
+        we *do* yield once, where the yielded arrays are empty (e.g. ``len(uncoupled) == 0``).
         """
-        if self.num_factors == 0:
-            yield self.symmetry.empty_sector_array
-            return
-        for unc in it.product(*(s.sector_decomposition for s in self.factors)):
-            yield np.array(unc, int)
+        for idcs in it.product(*(range(s.num_sectors) for s in self.factors)):
+            a = np.array([self.factors[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
+            m = np.array([self.factors[n].multiplicities[i] for n, i in enumerate(idcs)], int)
+            if yield_slices:
+                slcs = [slice(*self.factors[n].slices[i]) for n, i in enumerate(idcs)]
+                yield a, m, slcs
+            else:
+                yield a, m
 
     def left_multiply(self, other: Space) -> TensorProduct:
         """Add a new factor at the left / beginning of the spaces"""
@@ -1540,18 +1562,19 @@ class TensorProduct(Space):
     def tree_block_slice(self, tree: FusionTree) -> slice:
         """The range of indices of a tree-block within its block, as a slice."""
         # OPTIMIZE ?
-        offset = 0
-        for _unc in self.iter_uncoupled():
-            if all(np.all(a == b) for a, b in zip(_unc, tree.uncoupled)):
+        start = 0
+        for unc, mults in self.iter_uncoupled():
+            if all(np.all(a == b) for a, b in zip(unc, tree.uncoupled)):
                 break
-            offset += self.forest_block_size(_unc, tree.coupled)
+            tree_block_size = np.prod(mults)
+            num_trees = len(fusion_trees(self.symmetry, unc, tree.coupled))
+            start += num_trees * tree_block_size
         else:  # no break occurred
             raise ValueError('Uncoupled sectors incompatible')
-        tree_block_sizes = self.tree_block_size(tree.uncoupled)
+        tree_block_size = self.tree_block_size(tree.uncoupled)
         tree_idx = fusion_trees(self.symmetry, tree.uncoupled, tree.coupled, tree.are_dual).index(tree)
-        offset += tree_block_sizes * tree_idx
-        size = tree_block_sizes
-        return slice(offset, offset + size)
+        start += tree_block_size * tree_idx
+        return slice(start, start + tree_block_size)
 
     # DUNDERS AND INTERNAL HELPERS
 
