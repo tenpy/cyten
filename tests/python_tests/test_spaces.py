@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 from numpy import testing as npt
 
-from cyten import spaces, symmetries, SymmetryError
+from cyten import spaces, symmetries, trees, SymmetryError
 from .util import random_ElementarySpace
 
 # TODO test all cases of Space.as_ElementarySpace
@@ -254,9 +254,12 @@ def test_TensorProduct(any_symmetry, make_any_space, make_any_sectors, num_space
     domain.test_sanity()
     
     for coupled in make_any_sectors(10):
-        expect = sum(domain.forest_block_size(uncoupled, coupled) for uncoupled in domain.iter_uncoupled())
+        expect1 = sum(len(trees.fusion_trees(any_symmetry, uncoupled, coupled)) * np.prod(mults)
+                      for uncoupled, mults in domain.iter_uncoupled())
+        expect2 = sum(domain.forest_block_size(uncoupled, coupled) for uncoupled, _ in domain.iter_uncoupled())
         res = domain.block_size(coupled)
-        assert res == expect
+        assert res == expect1
+        assert res == expect2
 
 
 def test_TensorProduct_SU2():
