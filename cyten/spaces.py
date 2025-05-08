@@ -7,7 +7,7 @@ from numpy import ndarray
 import bisect
 import itertools as it
 from math import prod
-from typing import TYPE_CHECKING, Sequence, Iterator, Literal
+from typing import TYPE_CHECKING, Sequence, Literal, Generator
 import warnings
 
 from .dummy_config import printoptions
@@ -1450,7 +1450,7 @@ class TensorProduct(Space):
                              _multiplicities=isomorphic.multiplicities)
 
     def iter_tree_blocks(self, coupled: Sequence[Sector]
-                         ) -> Iterator[tuple[FusionTree, slice, int]]:
+                         ) -> Generator[tuple[FusionTree, slice, int], None, None]:
         """Iterate over tree blocks. Helper function for :class:`FusionTreeBackend`.
 
         See :ref:`fusion_tree_backend__blocks` for definitions of blocks and tree blocks.
@@ -1483,7 +1483,7 @@ class TensorProduct(Space):
                     start += tree_block_width
 
     def iter_forest_blocks(self, coupled: Sequence[Sector]
-                           ) -> Iterator[tuple[tuple[Sector], slice, int]]:
+                           ) -> Generator[tuple[tuple[Sector], slice, int], None, None]:
         """Iterate over forest blocks. Helper function for :class:`FusionTreeBackend`.
 
         See :ref:`fusion_tree_backend__blocks` for definitions of blocks and forest blocks.
@@ -1512,7 +1512,7 @@ class TensorProduct(Space):
                 yield uncoupled, slc, i
                 start += forest_block_width
 
-    def iter_uncoupled(self) -> Iterator[SectorArray]:
+    def iter_uncoupled(self) -> Generator[SectorArray, None, None]:
         """Iterate over all combinations of sectors
 
         For a TensorProduct of zero spaces, i.e. with ``num_space == 0``, we yield an empty

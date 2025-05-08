@@ -2,7 +2,7 @@
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from math import prod
-from typing import Iterator, TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 import numpy as np
 
 from .symmetries import Symmetry, Sector, SectorArray, FusionStyle, SymmetryError
@@ -811,8 +811,8 @@ class FusionTree:
         return rest_tree, self.coupled, self.multiplicities[-1], self.uncoupled[-1]
 
 
-class fusion_trees:
-    """Iterator over all :class:`FusionTree`s with given uncoupled and coupled sectors.
+class fusion_trees(Iterable[FusionTree]):
+    """Iterable over all :class:`FusionTree`s with given uncoupled and coupled sectors.
 
     This custom iterator has efficient implementations of ``len`` and :meth:`index`, which
     avoid generating all intermediate trees.
@@ -835,7 +835,7 @@ class fusion_trees:
             are_dual = np.asarray(are_dual)
         self.are_dual = are_dual
 
-    def __iter__(self) -> Iterator[FusionTree]:
+    def __iter__(self):
         if self.num_uncoupled == 0:
             if np.all(self.coupled == self.symmetry.trivial_sector):
                 yield FusionTree(self.symmetry, self.uncoupled, self.coupled, [], [], [])

@@ -77,7 +77,7 @@ Visually, the blocks have the following structure::
 """
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable, Iterator
+from typing import TYPE_CHECKING, Callable, Generator
 from abc import ABCMeta
 from dataclasses import dataclass
 from math import prod
@@ -136,7 +136,7 @@ def _tree_block_iter(a: SymmetricTensor):
 
 
 def _iter_sectors_mults_slices(spaces: list[Space], symmetry: Symmetry
-                               ) -> Iterator[tuple[SectorArray, list[int], list[slice]]]:
+                               ) -> Generator[tuple[SectorArray, list[int], list[slice]], None, None]:
     """Helper iterator over all combinations of sectors and respective mults and slices.
 
     Yields
@@ -2150,7 +2150,7 @@ class BendInstruction(Instruction):
 def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
                               codomain_idcs: list[int], domain_idcs: list[int],
                               levels: list[int] | None, has_symmetric_braid: bool,
-                              ) -> Iterator[Instruction]:
+                              ) -> Generator[Instruction, None, None]:
     """Helper to decompose a ``permute_legs`` call into elementary instructions.
 
     Parameters

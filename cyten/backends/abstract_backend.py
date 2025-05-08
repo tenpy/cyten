@@ -6,7 +6,7 @@ Also contains some private utility function used by multiple backend modules.
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
-from typing import TypeVar, TYPE_CHECKING, Callable, Iterator
+from typing import TypeVar, TYPE_CHECKING, Callable, Generator
 from math import prod
 import numpy as np
 
@@ -1528,7 +1528,7 @@ class BlockBackend(metaclass=ABCMeta):
 
 
 def conventional_leg_order(tensor_or_codomain: SymmetricTensor | TensorProduct,
-                           domain: TensorProduct = None) -> Iterator[Space]:
+                           domain: TensorProduct = None) -> Generator[Space, None, None]:
     if domain is None:
         codomain = tensor_or_codomain.codomain
         domain = tensor_or_codomain.domain
