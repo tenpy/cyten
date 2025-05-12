@@ -783,7 +783,7 @@ class FusionTreeBackend(TensorBackend):
 
     def get_element(self, a: SymmetricTensor, idcs: list[int]) -> complex | float | bool:
         num_cod_legs = a.num_codomain_legs
-        num_legs = a.num_legs        
+        num_legs = a.num_legs
         # reverse domain idcs -> work in the non-conventional leg order [i1,...,iJ,j1,...,jK]
         a_legs = [*a.codomain.factors, *a.domain.factors]
         idcs = idcs[:num_cod_legs] + idcs[num_cod_legs:][::-1]
@@ -1588,7 +1588,6 @@ class FusionTreeBackend(TensorBackend):
         return func(numbers)
 
     def scale_axis(self, a: SymmetricTensor, b: DiagonalTensor, leg: int) -> Data:
-
         in_domain, co_domain_idx, leg_idx = a._parse_leg_idx(leg)
         ax_a = int(in_domain)  # 1 if in_domain, 0 else
 
@@ -1599,7 +1598,6 @@ class FusionTreeBackend(TensorBackend):
 
         if (in_domain and a.domain.num_factors == 1) or (not in_domain and a.codomain.num_factors == 1):
             # special case where it is essentially compose.
-
             blocks = []
             block_inds = []
 
@@ -1616,17 +1614,22 @@ class FusionTreeBackend(TensorBackend):
                 block_inds = np.array(block_inds, int)
             return FusionTreeData(block_inds, blocks, a.dtype, a.data.device)
 
+        iter_space = [a.codomain, a.domain][ax_a]
         if a.has_pipes:
-            raise NotImplementedError('scale_axis with pipes currently broken. (iter_uncoupled())')
-
+            # use flattened tensor product -> need to shift co_domain_idx
+            for i in range(co_domain_idx):
+                co_domain_idx += len(iter_space.flat_leg_idcs(i)) - 1
+            iter_space = TensorProduct(
+                factors=iter_space.flat_legs(), symmetry=iter_space.symmetry,
+                _sector_decomposition=iter_space.sector_decomposition, _multiplicities=iter_space.multiplicities
+            )
         blocks = []
         block_inds = np.zeros((0, 2), int)
         # potential coupled sectors
         coupled_sectors = np.array([a.codomain.sector_decomposition[ind[0]] for ind in a_block_inds])
         ind_mapping = {}  # mapping between index in coupled sectors and index in blocks
-        iter_space = [a.codomain, a.domain][ax_a]
         for uncoupled, slc, coupled_ind in iter_space.iter_forest_blocks(coupled_sectors):
-            ind = a.domain.sector_decomposition_where(coupled_sectors[coupled_ind])
+            ind = a_block_inds[coupled_ind, 1]
             ind_b = b.data.block_ind_from_domain_sector_ind(
                 b.domain.sector_decomposition_where(uncoupled[co_domain_idx])
             )
@@ -1635,11 +1638,7 @@ class FusionTreeBackend(TensorBackend):
 
             if not ind in block_inds[:, 1]:
                 ind_mapping[coupled_ind] = len(blocks)
-                block_inds = np.append(
-                    block_inds,
-                    np.array([[a.codomain.sector_decomposition_where(a.domain.sector_decomposition[ind]), ind]]),
-                    axis=0
-                )
+                block_inds = np.append(block_inds, np.array([[a_block_inds[coupled_ind, 0], ind]]), axis=0)
                 shape = self.block_backend.get_shape(a_blocks[coupled_ind])
                 blocks.append(self.block_backend.zeros(shape, a.dtype))
 
