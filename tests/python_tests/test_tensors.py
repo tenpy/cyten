@@ -2327,11 +2327,6 @@ def test_scale_axis(cls, codom, dom, which_leg, make_compatible_tensor, np_rando
     else:
         catch_warnings = nullcontext()
 
-    if isinstance(T.backend, backends.FusionTreeBackend) and T.has_pipes:
-        with pytest.raises(NotImplementedError, match="scale_axis with pipes currently broken"):
-            _ = tensors.scale_axis(T, D, which_leg)
-        pytest.xfail()
-
     # 2) Call functions
     how_to_call = np_random.choice(['by_idx', 'by_label'])
     if how_to_call == 'by_idx':
