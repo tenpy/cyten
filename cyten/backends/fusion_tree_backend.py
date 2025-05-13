@@ -1,10 +1,78 @@
-"""Implements the fusion tree backend.
+r"""Implements the fusion tree backend.
 
 .. _fusion_tree_backend__blocks:
 
 Blocks
 ------
-TODO elaborate about blocks, forest blocks and tree blocks
+A block :math:`T_c` of a symmetric tensor is associated with a coupled sector :math:`c` and is a
+matrix. It has the following indices
+
+    [ [ T_c ]^{a_1, ..., a_J, 𝛼}_{b_1, ..., b_K, β} ]^{m_1, ..., m_J}_{n_1, ..., n_K}
+
+Where :math:`a_j` is an uncoupled sector ``a_j = codomain[j].sector_decomposition[i_j]`` of the
+a space in the codomain, and ``0 <= m_j < codomain[j].multiplicities[i_j]`` is an associated
+multiplicity index, and :math:`𝛼` labels a fusion tree ``(a_1, ..., a_J) -> c``.
+Similarly, :math:`b_k` are uncoupled sectors ``b_k = domain[k].sector_decomposition[i_k]``, and
+``0 <= n_k < domain[k].multiplicities[i_k]`` is a multiplicity index and :math:`β` labels
+a fusion tree ``(b_1, ..., b_K) -> c``.
+
+We call ``T_c`` a *block* and  ``[ T_c ]^{a_1, ..., a_J, 𝛼}_{b_1, ..., b_K, β}`` a *tree block*.
+We group the tree blocks with the same uncoupled sectors to a *forest block*
+``[ T_c ]^{a_1, ..., a_J}_{b_1, ..., b_K}``.
+
+The blocks parametrize a tensor as::
+
+    |                                                                        V1         VK
+    |                                                                         │    │    │
+    |                                                                      m1 ▽    ▽    ▽ mJ
+    |                                                                      a1 ↑    ↓    ↑ aJ
+    |                                                                         │    ◱    │
+    |   V1     VJ                                                          a1 ↑    ↑    ↑ aJ
+    |    ↑  ↓  ↑                                                             ┏┷━━━━┷━━━━┷┓
+    |    │  │  │                                                             ┃     𝛼     ┃
+    |   ┏┷━━┷━━┷┓                              ┌ ┌     ┐a1..aJ,𝛼 ┐m1..mJ     ┗━━━━━┯━━━━━┛
+    |   ┃   T   ┃   =   sum     sum     sum    │ │ T_c │         │                 │ c
+    |   ┗┯━━┯━━┯┛      b1..bK  a1..aJ    c     └ └     ┘b1..bK,β ┘n1..nK     ┏━━━━━┷━━━━━┓
+    |    │  │  │       n1..nK  m1..mJ   𝛼 β                                  ┃     β     ┃
+    |    ↓  ↓  ↑                                                             ┗┯━━━━┯━━━━┯┛
+    |   W1     WK                                                          b1 ↑    ↑    ↑ bK
+    |                                                                         ◰    ◰    │
+    |                                                                dual(b1) ↓    ↓    ↑ bK
+    |                                                                      n1 △    △    △ nK
+    |                                                                         │    │    │
+    |                                                                        W1         WK
+
+And we store the blocks as matrices, with combined multi-indices::
+
+    |   ┌ ┌     ┐a1..aJ,𝛼 ┐m1..mJ
+    |   │ │ T_c │         │         =   blocks[c_idx][M, N]
+    |   └ └     ┘b1..bK,β ┘n1..nK
+
+where ``M = stridify(a1, ..., aJ, 𝛼, m1, ..., mJ)``, i.e. such that ``mJ`` changes the fastest when
+``M`` is increased, and analogously ``N = stridify(b1, ..., bK, β, n1, ..., nK)``.
+See the following methods for the respective slices / strides of the indices ``M, N``::
+
+    - :meth:`TensorProduct.forest_block_size`
+    - :meth:`TensorProduct.forest_block_slice`
+    - :meth:`TensorProduct.forest_tree_size`
+    - :meth:`TensorProduct.forest_tree_slice`
+
+Visually, the blocks have the following structure::
+
+    |         --------------------------> (b1...bK)
+    |          ----->β ------->β ------>β
+    |    |    ┏━━━┯━━━┳━┯━┯━┯━┯━┳━━┯━━┯━━┓
+    |    | |  ┃   │   ┃ │ │ │ │ ┃  │  │  ┃
+    |    | |  ┠───┼───╂─┼─┼─┼─┼─╂──┼──┼──┃
+    |    | |  ┃   │   ┃ │ │ │ │ ┃  │  │  ┃
+    |    | v  ┠───┼───╂─┼─┼─┼─┼─╂──┼──┼──┃
+    |    | 𝛼  ┃   │   ┃ │ │ │ │ ┃  │  │  ┃
+    |    |    ┣━━━┿━━━╋━┿━┿━┿━┿━╋━━┿━━┿━━┫
+    |    | |  ┃   │   ┃ │ │ │ │ ┃  │  │  ┃
+    |    | v  ┠───┼───╂─┼─┼─┼─┼─╂──┼──┼──┃
+    |    | 𝛼  ┃   │   ┃ │ │ │ │ ┃  │  │  ┃
+    |    V    ┗━━━┷━━━┻━┷━┷━┷━┷━┻━━┷━━┷━━┛
+    |  (a1..aJ)
 """
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
