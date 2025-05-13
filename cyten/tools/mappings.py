@@ -2,10 +2,10 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
-from typing import TypeVar, TypeAlias, Generic, Iterable
+from typing import TypeVar, TypeAlias, Generic, Iterable, Sequence
 
 
-__all__ = ['SparseMapping']
+__all__ = ['SparseMapping', 'IdentityMapping']
 
 
 _KT = TypeVar('_KT')  # type for keys, labelling basis elements
@@ -62,3 +62,30 @@ class SparseMapping(Generic[_KT], dict[_KT, dict[_KT, _Scalar]]):
         for j in self.keys():
             self[j] = {i: a for i, a in self[j].items() if abs(a) > cutoff}
         return self
+
+
+class IdentityMapping(Generic[_KT]):
+    """An identity mapping with same call structure as :class:`SparseMapping`"""
+
+    def __init__(self, keys: Sequence[_KT]):
+        self.keys = set(keys)
+
+    def precompose(self, other: SparseMapping[_KT] | dict[_KT, dict[_KT, _Scalar]]
+                   ) -> SparseMapping[_KT]:
+        # res_{ik} = \sum_j other_{ij} self_{jk} = delta_{k in self} other_{ik}
+        res = SparseMapping()
+        for k in self.keys:
+            if k not in other:
+                continue
+            res[k] = other[k].copy()
+        return res
+
+    def nonzero_rows(self) -> set[_KT]:
+        return self.keys
+
+    def nonzero_cols(self) -> set[_KT]:
+        return self.keys
+
+    def prune(self, cutoff: float):
+        """Remove small entries, in-place."""
+        pass
