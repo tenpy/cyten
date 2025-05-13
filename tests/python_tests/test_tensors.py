@@ -2257,20 +2257,21 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
 @pytest.mark.parametrize(
     'cls, num_cod, num_dom, codomain, domain, levels',
     [
-        pytest.param(SymmetricTensor, 2, 2, [0, 1], [3, 2], None, id='Symmetric-2<2-trivial'),
-        pytest.param(SymmetricTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Symmetric-2<2-braid'),
-        pytest.param(SymmetricTensor, 2, 2, [0, 1, 2], [3], None, id='Symmetric-2<2-bend'),
-        pytest.param(SymmetricTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Symmetric-2<2-general'),
+        pytest.param(SymmetricTensor, 2, 2, [0, 1], [3, 2], None, id='Symmetric-2-2-trivial'),
+        pytest.param(SymmetricTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Symmetric-2-2-braid'),
+        pytest.param(SymmetricTensor, 2, 2, [0, 1, 2], [3], None, id='Symmetric-2-2-bend'),
+        pytest.param(SymmetricTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Symmetric-2-2-general'),
+        pytest.param(SymmetricTensor, 3, 3, [1, 4, 0], [2, 3, 5], [4, 1, 3, 5, 0, 2], id='Symmetric-3-3-general'),
         pytest.param(DiagonalTensor, 1, 1, [0], [1], [0, 1], id='Diagonal-trivial'),
         pytest.param(DiagonalTensor, 1, 1, [1], [0], [0, 1], id='Diagonal-swap'),
         pytest.param(DiagonalTensor, 1, 1, [1, 0], [], [0, 1], id='Diagonal-general'),
         pytest.param(Mask, 1, 1, [0], [1], [0, 1], id='Mask-trivial'),
         pytest.param(Mask, 1, 1, [1], [0], [0, 1], id='Mask-swap'),
         pytest.param(Mask, 1, 1, [1, 0], [], [0, 1], id='Mask-general'),
-        pytest.param(ChargedTensor, 2, 2, [0, 1], [3, 2], None, id='Symmetric-2<2-trivial'),
-        pytest.param(ChargedTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Symmetric-2<2-braid'),
-        pytest.param(ChargedTensor, 2, 2, [0, 1, 2], [3], None, id='Symmetric-2<2-bend'),
-        pytest.param(ChargedTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Symmetric-2<2-general'),
+        pytest.param(ChargedTensor, 2, 2, [0, 1], [3, 2], None, id='Charged-2-2-trivial'),
+        pytest.param(ChargedTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Charged-2-2-braid'),
+        pytest.param(ChargedTensor, 2, 2, [0, 1, 2], [3], None, id='Charged-2-2-bend'),
+        pytest.param(ChargedTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Charged-2-2-general'),
     ]
 )
 def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_compatible_tensor):
