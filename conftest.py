@@ -201,7 +201,7 @@ def np_random() -> np.random.Generator:
 @pytest.fixture(params=_block_backends)
 def block_backend(request) -> str:
     if request.param == 'torch':
-        torch = pytest.importorskip('torch', reason='torch not installed')
+        _ = pytest.importorskip('torch', reason='torch not installed')
     return request.param
 
 
@@ -310,7 +310,7 @@ def make_compatible_space(compatible_symmetry, np_random):
              allow_basis_perm: bool = True) -> spaces.ElementarySpace:
         # returns ElementarySpace
         return random_ElementarySpace(compatible_symmetry, max_sectors, max_mult, is_dual,
-                                   allow_basis_perm=allow_basis_perm, np_random=np_random)
+                                      allow_basis_perm=allow_basis_perm, np_random=np_random)
     return make
 
 
