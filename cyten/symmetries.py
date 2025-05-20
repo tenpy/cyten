@@ -1394,18 +1394,13 @@ class SUNSymmetry(GroupSymmetry):
     def is_valid_sector(self, a: Sector) -> bool:
         if not isinstance(a, np.ndarray):
             return False
-
-        for i in a:  # check for negative entries
-            if i < 0:
-                return False
-
-        for n in range(len(a)-1):  # check that numbers in GT sequence are non increasing
-            if a[n+1] > a[n]:
-                return False
-
-        m = (len(a) == self.N)
-        n = (a[-1] == 0)
-        return m and n
+        if a.shape != (self.N,):
+            return False
+        if np.any(a < 0):
+            return False
+        if np.any(a[1:] > a[:-1]):  # numbers in GT sequence should be non-increasing
+            return False
+        return a[-1] == 0
 
     def is_same_symmetry(self, other) -> bool:
         if not isinstance(other, SUNSymmetry):
@@ -1425,27 +1420,19 @@ class SUNSymmetry(GroupSymmetry):
         return int(dim)
 
     def __repr__(self):
-        return f'SUN_Category()'
+        return f'SUNSymmetry(N={self.N})'
 
     def dual_sector(self, a: Sector) -> Sector:
-        # TODO why is this nested?
-        def gen_irreps(N, k):
-            """Generates a list of all possible irreps for given N and highest weight k"""
-            if N <= 0:
-                return [[]]
-            r = []
-            for i in range(k, -1, -1):
-                for comb in gen_irreps(N - 1, i):
-                    a = [i] + comb
-                    if a[-1] == 0:
-                        r.append(a[:])
-            return r
-
+        # OPTIMIZE it should be possible to write down a formula for the GT pattern??
         hweight = a[0]
         dimA = self.sector_dim(a)
 
-        irreps = gen_irreps(len(a), hweight)
+        irreps = SUNSymmetry.generate_sectors(len(a), hweight)
         irreps = [k for k in irreps if a[0] == hweight]
+        if len(irreps) != 2:
+            # if there is exactly two sectors with these weights, then we know that the other
+            # one is the dual of a. otherwise, we dont know which one is the dual
+            raise NotImplementedError
 
         for i in irreps:
             dimI = self.sector_dim(i)
@@ -1454,10 +1441,17 @@ class SUNSymmetry(GroupSymmetry):
 
         return a
 
-    # def N_from_CG(self) -> int:
-    #     """Returns the N in SU(N) from a given hdf5 file containing the CG coefficients"""
-    #
-    #     return int(self.CGfile.attrs['N'])
+    @staticmethod
+    def generate_sectors(N: int, max_weight: int) -> list[list[int]]:
+        if N <= 0:
+            return [[]]
+        r = []
+        for i in range(max_weight, -1, -1):
+            for comb in SUNSymmetry.generate_sectors(N - 1, i):
+                a = [i] + comb
+                if a[-1] == 0:
+                    r.append(a[:])
+        return r
 
     def hweight_from_CG_hdf5(self) -> int:
         return int(self.CGfile.attrs['Highest_Weight'])
