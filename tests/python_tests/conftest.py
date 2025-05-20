@@ -148,8 +148,7 @@ import numpy as np
 import pytest
 
 from cyten import backends, spaces, symmetries, tensors, Dtype
-
-from .util import random_block, random_ElementarySpace, random_symmetry_sectors, random_tensor
+from cyten.testing import random_block, random_ElementarySpace, random_symmetry_sectors, random_tensor
 
 
 # OVERRIDE pytest routines
