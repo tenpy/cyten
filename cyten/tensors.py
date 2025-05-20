@@ -83,7 +83,10 @@ from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
 from .backends.backend_factory import get_backend
 from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order
 from .dtypes import Dtype
-from .tools.misc import to_iterable, rank_data, inverse_permutation, duplicate_entries, iter_common_sorted_arrays
+from .tools.misc import (
+    to_iterable, rank_data, inverse_permutation, duplicate_entries, iter_common_sorted_arrays,
+    to_valid_idx
+)
 
 
 __all__ = ['Tensor', 'SymmetricTensor', 'DiagonalTensor', 'ChargedTensor', 'Mask',
@@ -559,7 +562,7 @@ class Tensor(metaclass=ABCMeta):
             idx = [int(i) for i in idx]
         except TypeError:
             raise IndexError('Indices must be integers.') from None
-        idx = [_normalize_idx(i, d) for i, d in zip(idx, self.shape)]
+        idx = [to_valid_idx(i, d) for i, d in zip(idx, self.shape)]
         return self._get_item(idx)
 
     def __matmul__(self, other):
@@ -655,7 +658,7 @@ class Tensor(metaclass=ABCMeta):
                 msg = f'No leg with label {which_leg}. Labels are {self._labels}'
                 raise ValueError(msg)
         else:
-            idx = _normalize_idx(which_leg, self.num_legs)
+            idx = to_valid_idx(which_leg, self.num_legs)
         in_domain = (idx >= len(self.codomain))
         if in_domain:
             co_domain_idx = self.num_legs - 1 - idx
@@ -723,7 +726,7 @@ class Tensor(metaclass=ABCMeta):
                     msg = f'No leg with label {idx}. Labels are {self._labels}'
                     raise ValueError(msg)
             else:
-                idx = _normalize_idx(idx, self.num_legs)
+                idx = to_valid_idx(idx, self.num_legs)
             res.append(idx)
         return res
 
@@ -2733,7 +2736,7 @@ class ChargedTensor(Tensor):
         return lines
 
     def set_label(self, pos: int, label: str | None):
-        pos = _normalize_idx(pos, self.num_legs)
+        pos = to_valid_idx(pos, self.num_legs)
         self.invariant_part.set_label(pos, label)
         return super().set_label(pos, label)
 
@@ -2871,7 +2874,7 @@ def add_trivial_leg(tens: Tensor,
     #  - is_dual: bool, if the leg in the [co]domain should be dual
     if legs_pos is not None:
         assert codomain_pos is None and domain_pos is None
-        legs_pos = _normalize_idx(legs_pos, res_num_legs)
+        legs_pos = to_valid_idx(legs_pos, res_num_legs)
         add_to_domain = (legs_pos > tens.num_codomain_legs)
         if add_to_domain:
             co_domain_pos = res_num_legs - 1 - legs_pos
@@ -2880,14 +2883,14 @@ def add_trivial_leg(tens: Tensor,
     elif codomain_pos is not None:
         assert legs_pos is None and domain_pos is None
         res_codomain_legs = tens.num_codomain_legs + 1
-        codomain_pos = _normalize_idx(codomain_pos, res_codomain_legs)
+        codomain_pos = to_valid_idx(codomain_pos, res_codomain_legs)
         add_to_domain = False
         co_domain_pos = codomain_pos
         legs_pos = codomain_pos
     elif domain_pos is not None:
         assert legs_pos is None and codomain_pos is None
         res_domain_legs = tens.num_domain_legs + 1
-        domain_pos = _normalize_idx(domain_pos, res_domain_legs)
+        domain_pos = to_valid_idx(domain_pos, res_domain_legs)
         add_to_domain = True
         co_domain_pos = domain_pos
         legs_pos = res_num_legs - 1 - domain_pos
@@ -4135,10 +4138,10 @@ def move_leg(tensor: Tensor, which_leg: int | str, codomain_pos: int | None = No
     if codomain_pos is not None:
         if domain_pos is not None:
             raise ValueError('Can not specify both codomain_pos and domain_pos.')
-        pos = _normalize_idx(codomain_pos, len(new_codomain) + 1)
+        pos = to_valid_idx(codomain_pos, len(new_codomain) + 1)
         new_codomain[pos:pos] = [leg_idx]
     elif domain_pos is not None:
-        pos = _normalize_idx(domain_pos, len(new_domain) + 1)
+        pos = to_valid_idx(domain_pos, len(new_domain) + 1)
         new_domain[pos:pos] = [leg_idx]
     else:
         raise ValueError('Need to specify either codomain_pos or domain_pos.')
@@ -5472,13 +5475,6 @@ def _get_matching_labels(labels1: list[str | None], labels2: list[str | None],
 
 def is_valid_leg_label(label) -> bool:
     return label is None or isinstance(label, str)
-
-
-def _normalize_idx(idx: int, length: int) -> int:
-    assert -length <= idx < length, 'index out of bounds'
-    if idx < 0:
-        idx += length
-    return idx
 
 
 def _parse_idcs(idcs: T | Sequence[T], length: int, fill: T = slice(None, None, None)
