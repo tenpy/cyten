@@ -169,6 +169,10 @@ class NumpyBlockBackend(BlockBackend):
 
     def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
                       ) -> Block:
+        # if sigma is standard deviation for complex numbers, need to divide by sqrt(2)
+        # to get standard deviation in real and imag parts
+        if not dtype.is_real:
+            sigma /= np.sqrt(2)
         _ = self.as_device(device)  # for input check only
         res = np.random.normal(loc=0, scale=sigma, size=dims)
         if not dtype.is_real:
