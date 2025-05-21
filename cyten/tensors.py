@@ -914,6 +914,7 @@ class SymmetricTensor(Tensor):
             codomain=codomain, domain=domain, backend=backend
         )
         block = backend.block_backend.as_block(block, dtype=dtype, device=device)
+        assert len(backend.block_backend.get_shape(block)) == codomain.num_factors + domain.num_factors
         block = backend.block_backend.apply_basis_perm(block, conventional_leg_order(codomain, domain))
         data = backend.from_dense_block(block, codomain=codomain, domain=domain, tol=tol)
         return cls(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
