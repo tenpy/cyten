@@ -213,7 +213,9 @@ class TorchBlockBackend(BlockBackend):
         # TODO Note that if device is CUDA, this function synchronizes the device with the CPU
         mean = torch_module.zeros(size=dims, dtype=self.backend_dtype_map[dtype],
                                   device=self.as_device(device))
-        std = sigma * torch_module.ones_like(mean, device=device)
+        # avoid complex dtype in std (leads to error in torch_module.normal)
+        # dtype of result == dtype of mean
+        std = sigma * torch_module.ones_like(mean, device=device, dtype=torch_module.float64)
         return torch_module.normal(mean, std)
 
     def real(self, a: Block) -> Block:

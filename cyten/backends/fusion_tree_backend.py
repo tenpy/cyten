@@ -744,9 +744,10 @@ class FusionTreeBackend(TensorBackend):
 
     def from_random_normal(self, codomain: TensorProduct, domain: TensorProduct, sigma: float,
                            dtype: Dtype, device: str) -> Data:
-        # TODO (JU) make sure we draw from the correct distribution,
-        #           as defined in SymmetricTensor.from_random_normal
-        raise NotImplementedError
+        def func(shape, coupled):
+            return self.block_backend.random_normal(shape, dtype, sigma, device=device)
+        
+        return self.from_sector_block_func(func, codomain=codomain, domain=domain)
 
     def from_sector_block_func(self, func, codomain: TensorProduct, domain: TensorProduct) -> FusionTreeData:
         blocks = []
