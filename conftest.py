@@ -148,11 +148,18 @@ import numpy as np
 import pytest
 
 from cyten import backends, spaces, symmetries, tensors, Dtype
-
-from .util import random_block, random_ElementarySpace, random_symmetry_sectors, random_tensor
+from cyten.testing import random_block, random_ElementarySpace, random_symmetry_sectors, random_tensor
 
 
 # OVERRIDE pytest routines
+
+def pytest_addoption(parser):
+    parser.addoption(
+        '--block-backends', action='store', default='numpy',
+        help=f'Comma separated block-backend names'
+    )
+
+
 def pytest_collection_modifyitems(config, items):
 
     # deselection logic:
@@ -174,9 +181,19 @@ def pytest_collection_modifyitems(config, items):
         items[:] = kept
 
 
+def pytest_generate_tests(metafunc):
+    if 'block_backend' in metafunc.fixturenames:
+        block_backends = metafunc.config.getoption('--block-backends').split(',')
+        assert all(b in _block_backend_params for b in block_backends), str(block_backends)
+        metafunc.parametrize('block_backend', block_backends)
+
+
 # QUICK CONFIGURATION
 
-_block_backends = [pytest.param('numpy', marks=pytest.mark.numpy), pytest.param('torch', marks=pytest.mark.torch)]
+_block_backend_params = dict(
+    numpy=pytest.param('numpy', marks=pytest.mark.numpy),
+    torch=pytest.param('torch', marks=pytest.mark.torch),
+)
 _symmetries = {
     # groups:
     'NoSymm': symmetries.no_symmetry,
@@ -199,10 +216,10 @@ def np_random() -> np.random.Generator:
     return np.random.default_rng(seed=12345)
 
 
-@pytest.fixture(params=_block_backends)
+@pytest.fixture  # values defined during `pytest_generate_tests`
 def block_backend(request) -> str:
     if request.param == 'torch':
-        torch = pytest.importorskip('torch', reason='torch not installed')
+        _ = pytest.importorskip('torch', reason='torch not installed')
     return request.param
 
 
@@ -311,7 +328,7 @@ def make_compatible_space(compatible_symmetry, np_random):
              allow_basis_perm: bool = True) -> spaces.ElementarySpace:
         # returns ElementarySpace
         return random_ElementarySpace(compatible_symmetry, max_sectors, max_mult, is_dual,
-                                   allow_basis_perm=allow_basis_perm, np_random=np_random)
+                                      allow_basis_perm=allow_basis_perm, np_random=np_random)
     return make
 
 

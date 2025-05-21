@@ -7,6 +7,7 @@ Provides a tensor class with block-sparsity from symmetries with an exchangeable
 
 from . import (dtypes, spaces, backends, symmetries, tensors, random_matrix, sparse, krylov_based,
                trees, dummy_config, tools)
+from . import testing  # should be pretty late
 from .symmetries import *
 from .trees import *
 from .spaces import *
@@ -32,7 +33,7 @@ __all__ = ['symmetries', 'spaces', 'trees', 'backends', 'tensors', 'random_matri
            *sparse.__all__,
            *krylov_based.__all__,
            *dtypes.__all__,
-           'show_config'
+           'show_config', 'testing'
            ]
 
 #: hard-coded version string
