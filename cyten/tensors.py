@@ -2480,9 +2480,12 @@ class ChargedTensor(Tensor):
             The charge_leg of the resulting ChargedTensor
         """
         assert isinstance(domain, TensorProduct), 'call _init_parse_args first?'
-        if not isinstance(charge, Space):
-            sectors = np.asarray(charge, int)[None, :]
-            charge = Space(domain.symmetry, sectors)
+        if isinstance(charge, ElementarySpace):
+            pass
+        elif isinstance(charge, (Space, Leg)):
+            raise TypeError
+        else:
+            charge = ElementarySpace(domain.symmetry, np.asarray(charge, int)[None, :])
         return domain.left_multiply(charge), charge
 
     @staticmethod
@@ -2558,7 +2561,7 @@ class ChargedTensor(Tensor):
         codomain, domain, backend, labels
             Arguments, like for constructor of :class:`SymmetricTensor`.
         dtype: Dtype, optional
-        If given, the block is converted to that dtype and the resulting tensor will have that
+            If given, the block is converted to that dtype and the resulting tensor will have that
             dtype. By default, we detect the dtype from the block.
         """
         codomain, domain, backend, symmetry = cls._init_parse_args(codomain, domain, backend)
@@ -2566,6 +2569,8 @@ class ChargedTensor(Tensor):
         if not symmetry.can_be_dropped:
             raise SymmetryError
         block = backend.block_backend.as_block(block, dtype, device=device)
+        if charge is None:
+            raise NotImplementedError
         inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge)
         if charge_leg.dim != 1:
             raise NotImplementedError
