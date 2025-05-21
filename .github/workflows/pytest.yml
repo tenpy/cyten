@@ -43,7 +43,7 @@ jobs:
       # also installs extra dependencies defined in pyproject.toml
       run: |
         python -m build .
-        python -m pip install ".[test]"
+        python -m pip install -e ".[test]"
     
     - name: Run pytest
       # configuration in pyproject.toml
