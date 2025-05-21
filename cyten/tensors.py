@@ -4456,6 +4456,18 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
     |         ╰───│───│─────│─│─╯
     |             │ ╭─│─────╯ │
 
+    .. note ::
+        We expect that there are only two cases where you should do explicit leg permutations:
+        Firstly, if you need to specify the `levels` explicitly in the case of an anyonic symmetry.
+        Secondly, if you are optimizing for performance and know what you are doing.
+        In most other cases, you should be able to refer to legs by label and let the API functions
+        do implicit leg rearrangements as needed.
+
+    .. warning ::
+        It is inefficient (especially when using the fusiontree backend) to do a series of leg
+        rearrangements as multiple function calls. For performance, they should be done in a
+        single call.
+
     Parameters
     ----------
     tensor: Tensor
