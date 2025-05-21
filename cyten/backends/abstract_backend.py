@@ -902,6 +902,7 @@ class BlockBackend(metaclass=ABCMeta):
 
     def apply_leg_permutations(self, block: Block, perms: list[np.ndarray]) -> Block:
         """Apply permutations to every axis of a dense block"""
+        assert len(block.shape) == len(perms)
         return block[np.ix_(*perms)]
 
     @abstractmethod
