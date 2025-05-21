@@ -26,7 +26,7 @@ The blocks parametrize a tensor as::
     |                                                                         │    │    │
     |                                                                      m1 ▽    ▽    ▽ mJ
     |                                                                      a1 ↑    ↓    ↑ aJ
-    |                                                                         │    ◱    │
+    |                                                                         │    Z    │
     |   V1     VJ                                                          a1 ↑    ↑    ↑ aJ
     |    ↑  ↓  ↑                                                             ┏┷━━━━┷━━━━┷┓
     |    │  │  │                                                             ┃     𝛼     ┃
@@ -36,8 +36,8 @@ The blocks parametrize a tensor as::
     |    │  │  │       n1..nK  m1..mJ   𝛼 β                                  ┃     β     ┃
     |    ↓  ↓  ↑                                                             ┗┯━━━━┯━━━━┯┛
     |   W1     WK                                                          b1 ↑    ↑    ↑ bK
-    |                                                                         ◰    ◰    │
-    |                                                                dual(b1) ↓    ↓    ↑ bK
+    |                                                                         Z    Z    │
+    |                                                                 bar(b1) ↓    ↓    ↑ bK
     |                                                                      n1 △    △    △ nK
     |                                                                         │    │    │
     |                                                                        W1         WK
@@ -48,7 +48,8 @@ And we store the blocks as matrices, with combined multi-indices::
     |   │ │ T_c │         │         =   blocks[c_idx][M, N]
     |   └ └     ┘b1..bK,β ┘n1..nK
 
-where ``M = stridify(a1, ..., aJ, 𝛼, m1, ..., mJ)``, i.e. such that ``mJ`` changes the fastest when
+where ``c = codomain.sector_decompositon[block_inds[c_idx, 0]]`` and
+``M = stridify(a1, ..., aJ, 𝛼, m1, ..., mJ)``, i.e. such that ``mJ`` changes the fastest when
 ``M`` is increased, and analogously ``N = stridify(b1, ..., bK, β, n1, ..., nK)``.
 See the following methods for the respective slices / strides of the indices ``M, N``::
 
@@ -1242,7 +1243,7 @@ class FusionTreeBackend(TensorBackend):
         num_legs = J + K
         dtype = Dtype.common(a.data.dtype, a.symmetry.fusion_tensor_dtype)
         sym = a.symmetry
-        # build in internal basis order first, then apply permutations in the end
+        # build in internal basis order, is converted to public basis order in SymmetricTensor.to_dense_block
         # build in codomain/domain leg order first, then permute legs in the end
         # [i1,...,iJ,j1,...,jK]
         shape = [leg.dim for leg in a.codomain.factors] + [leg.dim for leg in a.domain.factors]
