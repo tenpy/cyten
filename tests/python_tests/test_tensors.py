@@ -14,7 +14,7 @@ from cyten.backends.backend_factory import get_backend
 from cyten.dtypes import Dtype
 from cyten.spaces import ElementarySpace, TensorProduct, AbelianLegPipe, LegPipe
 from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError
-from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays
+from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays, to_valid_idx
 
 
 # TENSOR CLASSES
@@ -1039,8 +1039,7 @@ def test_apply_mask(cls, codomain, domain, which_leg, make_compatible_tensor, co
         kwargs['use_pipes'] = False
     M: Mask = make_compatible_tensor(cls=Mask)
     num_legs = domain + codomain
-    if which_leg < 0:
-        which_leg += num_legs
+    which_leg = to_valid_idx(which_leg, num_legs)
     if which_leg >= codomain:
         domain = [None] * domain
         domain[num_legs - which_leg - 1] = M.large_leg.dual

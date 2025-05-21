@@ -932,28 +932,6 @@ class FusionTreeBackend(TensorBackend):
         # step 2: compute new entries: iterate over all trees in the untraced
         # spaces and construct the consistent trees in the traced spaces
 
-        def on_diagonal(tree: FusionTree, idcs: list[int]) -> tuple[bool, float | complex]:
-            sym = tree.symmetry
-            b_symbols = 1.
-            for idx in idcs:
-                if not np.all(tree.uncoupled[idx] == sym.dual_sector(tree.uncoupled[idx + 1])):
-                    return False, 0.
-                left_sec = [sym.trivial_sector, tree.uncoupled[0]]
-                left_sec = left_sec[idx] if idx < 2 else tree.inner_sectors[idx - 2]
-                center_sec = tree.uncoupled[0] if idx == 0 else tree.inner_sectors[idx - 1]
-                right_sec = tree.inner_sectors[idx] if idx < tree.num_inner_edges else tree.coupled
-                if not np.all(left_sec == right_sec):
-                    return False, 0.
-                if idx == 0 and not np.all(tree.multiplicities[:2] == [0, 0]):
-                    # this must be the case if there is only one way to fuse to the trivial sector
-                    return False, 0.
-                mu = 0 if idx == 0 else tree.multiplicities[idx - 1]
-                nu = tree.multiplicities[idx]
-                b_symbols *= sym.b_symbol(left_sec, tree.uncoupled[idx], center_sec)[mu, nu].conj()
-                if tree.are_dual[idx]:
-                    b_symbols *= sym.frobenius_schur(tree.uncoupled[idx])
-            return True, b_symbols
-
         # need to get updated indices after permuting the legs
         codom_unc_idcs = [i for i, idx in enumerate(idcs[:num_codom_legs]) if idx in remaining]
         codom_inner_idcs = [i - 2 for i in codom_unc_idcs[2:]]
@@ -973,7 +951,7 @@ class FusionTreeBackend(TensorBackend):
         remain_idcs = [i for i, idx in enumerate(tr_idcs) if idx in remaining]
 
         for codom_tree, codom_slc, ind in codom.iter_tree_blocks(coupled):
-            on_diag, factor_codom = on_diagonal(codom_tree, codom_tree_idcs)
+            on_diag, factor_codom = _partial_trace_helper(codom_tree, codom_tree_idcs)
             if not on_diag:
                 continue
             codom_shape = [codom[i].sector_multiplicity(sec)
@@ -987,7 +965,7 @@ class FusionTreeBackend(TensorBackend):
             old_ind = old_inds[ind]
             new_ind = new_inds[ind]
             for dom_tree, dom_slc, _ in dom.iter_tree_blocks([codom_tree.coupled]):
-                on_diag, factor_dom = on_diagonal(dom_tree, dom_tree_idcs)
+                on_diag, factor_dom = _partial_trace_helper(dom_tree, dom_tree_idcs)
                 if not on_diag:
                     continue
                 dom_shape = [dom[i].sector_multiplicity(sec)
@@ -2120,3 +2098,43 @@ class TreeMappingDict(dict):
         newkey = list(key)
         newkey.insert(index, tree)
         return tuple(newkey)
+
+
+def _partial_trace_helper(tree: FusionTree, idcs: list[int]) -> tuple[bool, float | complex]:
+    """Helper for :meth:`FusionTreeBackend.partial_trace`.
+
+    Parameters
+    ----------
+    tree : FusionTree
+    idcs : list of int
+        Indicates which of the legs are traced: ``idcs[i]`` with ``idcs[i] + 1`` and so on.
+
+    Returns
+    -------
+    contributes : bool
+        If tree blocks with this tree contribute to the trace at all, i.e. if they are
+        "on the diagonal" of this trace.
+    b_symbol : float | complex
+        The resulting B symbol.
+    """
+    sym = tree.symmetry
+    b_symbols = 1.
+    for idx in idcs:
+        if not np.all(tree.uncoupled[idx] == sym.dual_sector(tree.uncoupled[idx + 1])):
+            return False, 0.
+        left_sec = [sym.trivial_sector, tree.uncoupled[0]]
+        left_sec = left_sec[idx] if idx < 2 else tree.inner_sectors[idx - 2]
+        center_sec = tree.uncoupled[0] if idx == 0 else tree.inner_sectors[idx - 1]
+        right_sec = tree.inner_sectors[idx] if idx < tree.num_inner_edges else tree.coupled
+        # TODO use tree.vertex_labels(idx)
+        if not np.all(left_sec == right_sec):
+            return False, 0.
+        if idx == 0 and not np.all(tree.multiplicities[:2] == [0, 0]):
+            # this must be the case if there is only one way to fuse to the trivial sector
+            return False, 0.
+        mu = 0 if idx == 0 else tree.multiplicities[idx - 1]
+        nu = tree.multiplicities[idx]
+        b_symbols *= sym.b_symbol(left_sec, tree.uncoupled[idx], center_sec)[mu, nu].conj()
+        if tree.are_dual[idx]:
+            b_symbols *= sym.frobenius_schur(tree.uncoupled[idx])
+    return True, b_symbols
