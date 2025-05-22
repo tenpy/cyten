@@ -205,8 +205,12 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.permute(a, permutation)  # TODO: this is documented as a view. is that a problem?
 
     def random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
-        return torch_module.rand(*dims, dtype=self.backend_dtype_map[dtype],
-                                 device=self.as_device(device))
+        # rand samples between 0 and 1; we want to sample between -1 and 1
+        offset = -1
+        if dtype.is_complex:
+            offset -= 1j
+        return offset + 2 * torch_module.rand(*dims, dtype=self.backend_dtype_map[dtype],
+                                              device=self.as_device(device))
 
     def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
                       ) -> Block:

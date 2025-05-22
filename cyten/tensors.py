@@ -990,7 +990,7 @@ class SymmetricTensor(Tensor):
                            labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                            dtype: Dtype = Dtype.complex128,
                            device: str = None,):
-        r"""Generate a sample from the complex normal distribution.
+        r"""Generate a sample from the normal distribution.
 
         The probability density is
 
@@ -998,6 +998,11 @@ class SymmetricTensor(Tensor):
             p(T) \propto \mathrm{exp}\left[
                 \frac{1}{2 \sigma^2} \mathrm{Tr} (T - \mathtt{mean}) (T - \mathtt{mean})^\dagger
             \right]
+
+        .. note ::
+            For a complex `dtype`, the samples are taken from the complex normal distribution,
+            which corresponds to sampling the real and imaginary parts independently from (real)
+            normal distributions with half the variance of the complex normal distribution.
 
         Parameters
         ----------
@@ -1012,7 +1017,6 @@ class SymmetricTensor(Tensor):
         sigma: float
             The standard deviation of the distribution
         """
-        assert dtype.is_complex
         assert sigma > 0.
         if mean is not None:
             if codomain is None:
