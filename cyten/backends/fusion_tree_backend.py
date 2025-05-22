@@ -33,36 +33,6 @@ if TYPE_CHECKING:
 __all__ = ['FusionTreeBackend', 'FusionTreeData', 'TreeMappingDict']
 
 
-# def _tree_block_iter(a: SymmetricTensor):
-#     sym = a.symmetry
-#     domain_are_dual = [sp.is_dual for sp in a.domain.factors]
-#     codomain_are_dual = [sp.is_dual for sp in a.codomain.factors]
-#     for (bi, _), block in zip(a.data.block_inds, a.data.blocks):
-#         coupled = a.codomain.sector_decomposition[bi]
-#         i1_forest = 0  # start row index of the current forest block
-#         i2_forest = 0  # start column index of the current forest block
-#         for b_sectors in a.domain.iter_uncoupled():
-#             tree_block_width = a.domain.tree_block_size(b_sectors)
-#             forest_block_width = 0
-#             for a_sectors in a.codomain.iter_uncoupled():
-#                 tree_block_height = a.codomain.tree_block_size(a_sectors)
-#                 i1 = i1_forest  # start row index of the current tree block
-#                 i2 = i2_forest  # start column index of the current tree block
-#                 for alpha_tree in fusion_trees(sym, a_sectors, coupled, codomain_are_dual):
-#                     i2 = i2_forest  # reset to the left of the current forest block
-#                     for beta_tree in fusion_trees(sym, b_sectors, coupled, domain_are_dual):
-#                         idx1 = slice(i1, i1 + tree_block_height)
-#                         idx2 = slice(i2, i2 + tree_block_width)
-#                         entries = block[idx1, idx2]
-#                         yield alpha_tree, beta_tree, entries
-#                         i2 += tree_block_width  # move right by one tree block
-#                     i1 += tree_block_height  # move down by one tree block
-#                 forest_block_height = i1 - i1_forest
-#                 forest_block_width = max(forest_block_width, i2 - i2_forest)
-#                 i1_forest += forest_block_height
-#             i1_forest = 0  # reset to the top of the block
-#             i2_forest += forest_block_width
-
 def _tree_block_iter(a: SymmetricTensor):
     sym = a.symmetry
     domain_are_dual = [sp.is_dual for sp in a.domain.flat_legs]
@@ -92,8 +62,6 @@ def _tree_block_iter(a: SymmetricTensor):
                 i1_forest += forest_block_height
             i1_forest = 0  # reset to the top of the block
             i2_forest += forest_block_width
-
-
 
 
 def _iter_sectors_mults_slices(spaces: list[Space], symmetry: Symmetry
@@ -147,7 +115,7 @@ class FusionTreeData:
         ``np.lexsort(block_inds.T)``.
         If ``True``, we assume they are sorted *without* checking.
     """
-    
+
     def __init__(self, block_inds: np.ndarray, blocks: list[Block], dtype: Dtype, device: str,
                  is_sorted: bool = False):
         if not is_sorted:
@@ -303,10 +271,9 @@ class FusionTreeBackend(TensorBackend):
                      new_codomain: TensorProduct,
                      new_domain: TensorProduct,
                      ) -> Data:
-        #raise NotImplementedError('FusionTreeBackend.combine_legs not implemented')
 
-        return FusionTreeData(block_inds=tensor.data.block_inds,blocks= tensor.data.blocks, dtype= tensor.dtype, device=tensor.device)
-
+        return FusionTreeData(block_inds=tensor.data.block_inds, blocks=tensor.data.blocks,
+                              dtype=tensor.dtype, device=tensor.device)
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         res_dtype = Dtype.common(a.dtype, b.dtype)
@@ -512,7 +479,7 @@ class FusionTreeBackend(TensorBackend):
         # with coupled sector dual(c).
         # since the TensorProduct.sector_decomposition is always sorted, those corresponding
         # sectors do not appear in the same order.
-        
+
         # OPTIMIZE doing this sorting is duplicate work between here and forming tens.leg.dual
         perm = np.lexsort(tens.symmetry.dual_sectors(tens.domain.sector_decomposition).T)
         data = FusionTreeData(block_inds=inverse_permutation(perm)[tens.data.block_inds],
@@ -983,39 +950,21 @@ class FusionTreeBackend(TensorBackend):
             raise RuntimeError
         return new_data, new_codomain, new_domain
 
-    # def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-    #                  levels: list[int] | None) -> tuple[Data | None, TensorProduct, TensorProduct]:
-    #     idcs = list(range(a.num_legs))
-    #     if np.all(codomain_idcs == idcs[:a.num_codomain_legs]) and \
-    #             np.all(domain_idcs == idcs[a.num_codomain_legs:][::-1]):
-    #         return a.data, a.codomain, a.domain
-    #
-    #     mappings, codomain, domain = TreeMappingDict.from_permute_legs(
-    #         a=a, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels
-    #     )
-    #     if mappings is None:  # levels are not given but would be needed
-    #         return None, codomain, domain
-    #
-    #     axes_perm = codomain_idcs + domain_idcs
-    #     axes_perm = [i if i < a.num_codomain_legs else a.num_legs - 1 - i + a.num_codomain_legs
-    #                  for i in axes_perm]
-    #     data = mappings.apply_to_tensor(a, codomain, domain, axes_perm, None)
-    #     return data, codomain, domain
-    #
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      levels: list[int] | None) -> tuple[Data | None, TensorProduct, TensorProduct]:
-
 
         num_codomain_flat_legs = a.num_codomain_flat_legs
         num_domain_flat_legs = a.num_domain_flat_legs
 
         flat_domain = a.domain.flat_legs
-        flat_codomain =a.codomain.flat_legs
+        flat_codomain = a.codomain.flat_legs
+
+        dom_dualities = [k.is_dual for k in a.domain]
+        codom_dualities = [k.is_dual for k in a.codomain]
 
         flat_domain_prod = TensorProduct(flat_domain)
         flat_codomain_prod = TensorProduct(flat_codomain)
         flat_legs = TensorProduct(flat_codomain + flat_domain)
-
 
         # Create two lists to keep track of pipe indices in flattened out domain and codomain
         codomain_pipe_inds = []
@@ -1042,6 +991,7 @@ class FusionTreeBackend(TensorBackend):
         new_codomain_idcs = []
         new_domain_idcs = []
 
+        # mapping to flat indices for TreeMappingDict.from_permute_legs
         leg_comb = codomain_pipe_inds + domain_pipe_inds
         for i, l in enumerate(leg_comb):
             if i in codomain_idcs:
@@ -1057,7 +1007,8 @@ class FusionTreeBackend(TensorBackend):
             return a.data, a.codomain, a.domain
 
         mappings, codomain, domain = TreeMappingDict.from_permute_legs(
-            a=a, codomain_idcs=new_codomain_idcs, domain_idcs=new_domain_idcs, levels=levels
+            a=a, codomain_idcs=new_codomain_idcs, domain_idcs=new_domain_idcs, levels=levels,
+            codomain=flat_codomain_prod, domain=flat_domain_prod
         )
         if mappings is None:  # levels are not given but would be needed
             return None, codomain, domain
@@ -1068,89 +1019,40 @@ class FusionTreeBackend(TensorBackend):
 
         data = mappings.apply_to_tensor(a, codomain, domain, axes_perm, None)
 
-        #recombine flat domain and codomain from TreeMappingDict.from_permute_legs to original pipe structure
+        # recombine flat domain and codomain from TreeMappingDict.from_permute_legs to pipe structure
 
         repiped_codomain = []
         for pi in codomain_idcs:
             if len(leg_comb[pi]) > 1:
                 if leg_comb[pi] in domain_pipe_inds:
-                    repiped_codomain.append(LegPipe([flat_legs[k].dual for k in leg_comb[pi]]))
+                    ind = domain_pipe_inds.index(leg_comb[pi])
+                    repiped_codomain.append(LegPipe([flat_legs[k].dual for k in leg_comb[pi]],
+                                                    is_dual=not dom_dualities[ind]))
                 else:
                     repiped_codomain.append(LegPipe([flat_legs[k] for k in leg_comb[pi]]))
             else:
-                repiped_codomain.append(codomain[leg_comb[pi][0]])
-        #########################################LEG DUALITIES SEEM TO BE WRONG WHEN BENDING!!!!!!!!!!!!!########################
+                if leg_comb[pi] in domain_pipe_inds:
+                    repiped_codomain.append(flat_legs[leg_comb[pi][0]].dual)
+                else:
+                    repiped_codomain.append(flat_legs[leg_comb[pi][0]])
+
         repiped_domain = []
         for pi in domain_idcs:
             if len(leg_comb[pi]) > 1:
                 if leg_comb[pi] in codomain_pipe_inds:
-                    repiped_domain.append(LegPipe([flat_legs[k].dual for k in leg_comb[pi]]).dual)
+                    ind = codomain_pipe_inds.index(leg_comb[pi])
+                    repiped_domain.append(LegPipe([flat_legs[k].dual for k in leg_comb[pi]],
+                                                  is_dual=not codom_dualities[ind]))
                 else:
                     repiped_domain.append(LegPipe([flat_legs[k] for k in leg_comb[pi]]))
             else:
-                repiped_domain.append(domain[leg_comb[pi][0]])
+                if leg_comb[pi] in codomain_pipe_inds:
+                    repiped_domain.append(flat_legs[leg_comb[pi][0]].dual)
+                else:
+                    repiped_domain.append(flat_legs[leg_comb[pi][0]])
 
-        return data, TensorProduct(repiped_codomain, symmetry= a.symmetry), TensorProduct(repiped_domain, symmetry= a.symmetry)
-
-    # def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int], levels: list[int] | None
-    #                  ) -> tuple[Data | None, TensorProduct, TensorProduct]:
-    #
-    #     num_cod_flat = a.num_codomain_flat_legs
-    #     num_dom_flat = a.num_domain_flat_legs
-    #
-    #     flat_legs = TensorProduct(a.codomain.flat_legs + a.domain.flat_legs)
-    #
-    #     # flatten the legs and assign indices
-    #     cod_pipes, dom_pipes = [], []
-    #     flat_idx = 0
-    #     for i, leg in enumerate(a.legs):
-    #         is_codomain = i < a.num_codomain_legs
-    #         leg_len = leg.num_legs if isinstance(leg, LegPipe) else 1
-    #         indices = list(range(flat_idx, flat_idx + leg_len))
-    #         (cod_pipes if is_codomain else dom_pipes).append(indices)
-    #         flat_idx += leg_len
-    #
-    #     # map non-flattened leg indices to flattened ones
-    #     new_cod_idcs = [i for idx in codomain_idcs for i in (cod_pipes + dom_pipes)[idx]]
-    #     new_dom_idcs = [i for idx in domain_idcs for i in (cod_pipes + dom_pipes)[idx]]
-    #
-    #     # identity permutation
-    #     flat_idcs = list(range(num_cod_flat + num_dom_flat))
-    #     expected_cod = flat_idcs[:num_cod_flat]
-    #     expected_dom = flat_idcs[num_cod_flat:][::-1]
-    #     if new_cod_idcs == expected_cod and new_dom_idcs == expected_dom:
-    #         return a.data, a.codomain, a.domain
-    #
-    #     # mapping based on flattened permutations
-    #     mappings, codomain, domain = TreeMappingDict.from_permute_legs(
-    #         a=a,
-    #         codomain_idcs=new_cod_idcs,
-    #         domain_idcs=new_dom_idcs,
-    #         levels=levels
-    #     )
-    #     if mappings is None:
-    #         return None, codomain, domain
-    #
-    #     # axes permutation must reverse domain legs
-    #     axes_perm = new_cod_idcs + new_dom_idcs
-    #     axes_perm = [
-    #         i if i < num_cod_flat else a.num_flat_legs - 1 - i + num_cod_flat
-    #         for i in axes_perm
-    #     ]
-    #
-    #     data = mappings.apply_to_tensor(a, codomain, domain, axes_perm, None)
-    #
-    #     # rebuild repiped TensorProduct from flat list
-    #     def repipe(idcs, pipe_list, flat_legs):
-    #         return [
-    #             LegPipe([flat_legs[i] for i in pipe]) if len(pipe) > 1 else flat_legs[pipe[0]]
-    #             for pipe in (pipe_list[idx] for idx in idcs)
-    #         ]
-    #
-    #     repiped_codomain = repipe(codomain_idcs, cod_pipes + dom_pipes, flat_legs)
-    #     repiped_domain = repipe(domain_idcs, cod_pipes + dom_pipes, flat_legs)
-    #
-    #     return data, TensorProduct(repiped_codomain, symmetry=a.symmetry), TensorProduct(repiped_domain, symmetry=a.symmetry)
+        return data, TensorProduct(repiped_codomain, symmetry=a.symmetry), TensorProduct(repiped_domain,
+                                                                                         symmetry=a.symmetry)
 
     def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
         a_blocks = a.data.blocks
@@ -1282,7 +1184,6 @@ class FusionTreeBackend(TensorBackend):
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
                    domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
                    ) -> Data:
-        #raise NotImplementedError
 
         return FusionTreeData(block_inds=a.data.block_inds, blocks=a.data.blocks, dtype=a.dtype, device=a.device)
 
@@ -1410,22 +1311,104 @@ class FusionTreeBackend(TensorBackend):
         )
 
     def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorProduct, TensorProduct]:
-        codomain_idcs = list(range(a.num_codomain_flat_legs, a.num_flat_legs))
-        domain_idcs = list(reversed(range(a.num_codomain_flat_legs)))
+
+        flat_domain = a.domain.flat_legs
+        flat_codomain = a.codomain.flat_legs
+
+        flat_domain_prod = TensorProduct(flat_domain)
+        flat_codomain_prod = TensorProduct(flat_codomain)
+        flat_legs = TensorProduct(flat_codomain + flat_domain)
+
+        dom_dualities = [k.is_dual for k in a.domain]
+        codom_dualities = [k.is_dual for k in a.codomain]
+
+        # Create two lists to keep track of pipe indices in flattened out domain and codomain
+        codomain_pipe_inds = []
+        domain_pipe_inds = []
+        flat_index = 0
+
+        for i, leg in enumerate(a.legs):
+            is_codomain = i < a.num_codomain_legs
+            if isinstance(leg, LegPipe):
+                indices = list(range(flat_index, flat_index + leg.num_legs))
+                if is_codomain:
+                    codomain_pipe_inds.append(indices)
+                else:
+                    domain_pipe_inds.append(indices)
+                flat_index += leg.num_legs
+            else:
+                if is_codomain:
+                    codomain_pipe_inds.append([flat_index])
+                else:
+                    domain_pipe_inds.append([flat_index])
+
+                flat_index += 1
+
+        new_codomain_idcs = []
+        new_domain_idcs = []
+
+        codomain_idcs = list(range(a.num_codomain_legs, a.num_legs))
+        domain_idcs = list(reversed(range(a.num_codomain_legs)))
         levels = list(reversed(range(a.num_flat_legs)))
         coupled = np.array([a.domain.sector_decomposition[i[1]] for i in a.data.block_inds])
 
-        mapping_twists = TreeMappingDict.from_topological_twists(a.codomain, coupled)
-        mapping_twists = mapping_twists.add_tensorproduct(a.domain, coupled, index=1)
+        leg_comb = codomain_pipe_inds + domain_pipe_inds
+        for i, l in enumerate(leg_comb):
+            if i in codomain_idcs:
+                new_codomain_idcs.extend(l)
+            elif i in domain_idcs:
+                new_domain_idcs.extend(l)
+            else:
+                raise ValueError
+
+        mapping_twists = TreeMappingDict.from_topological_twists(flat_codomain_prod, coupled)
+        mapping_twists = mapping_twists.add_tensorproduct(flat_domain_prod, coupled, index=1)
 
         mapping_permute, codomain, domain = TreeMappingDict.from_permute_legs(
-            a=a, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels
+            a=a, codomain_idcs=new_codomain_idcs, domain_idcs=new_domain_idcs, levels=levels,
+            codomain=flat_codomain_prod, domain=flat_domain_prod
         )
+
         full_mapping = mapping_twists.compose(mapping_permute)
 
         axes_perm = list(reversed(range(a.num_flat_legs)))
+
         data = full_mapping.apply_to_tensor(a, codomain, domain, axes_perm, None)
-        return data, codomain, domain
+
+        # recombine flat domain and codomain from TreeMappingDict.from_permute_legs to pipe structure
+
+        repiped_codomain = []
+        for pi in codomain_idcs:
+            if len(leg_comb[pi]) > 1:
+                if leg_comb[pi] in domain_pipe_inds:
+                    ind = domain_pipe_inds.index(leg_comb[pi])
+                    repiped_codomain.append(LegPipe([flat_legs[k].dual for k in leg_comb[pi]],
+                                                    is_dual=not dom_dualities[ind]))
+                else:
+                    repiped_codomain.append(LegPipe([flat_legs[k] for k in leg_comb[pi]]))
+            else:
+                if leg_comb[pi] in domain_pipe_inds:
+                    repiped_codomain.append(flat_legs[leg_comb[pi][0]].dual)
+                else:
+                    repiped_codomain.append(flat_legs[leg_comb[pi][0]])
+
+        repiped_domain = []
+        for pi in domain_idcs:
+            if len(leg_comb[pi]) > 1:
+                if leg_comb[pi] in codomain_pipe_inds:
+                    ind = codomain_pipe_inds.index(leg_comb[pi])
+                    repiped_domain.append(LegPipe([flat_legs[k].dual for k in leg_comb[pi]],
+                                                  is_dual=not codom_dualities[ind]))
+                else:
+                    repiped_domain.append(LegPipe([flat_legs[k] for k in leg_comb[pi]]))
+            else:
+                if leg_comb[pi] in codomain_pipe_inds:
+                    repiped_domain.append(flat_legs[leg_comb[pi][0]].dual)
+                else:
+                    repiped_domain.append(flat_legs[leg_comb[pi][0]])
+
+        return data, TensorProduct(repiped_codomain, symmetry=a.symmetry), TensorProduct(repiped_domain,
+                                                                                         symmetry=a.symmetry)
 
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
                                  degeneracy_tol: float, trunc_cut: float, svd_min: float
@@ -1461,7 +1444,7 @@ class FusionTreeBackend(TensorBackend):
             # TODO not sure how to deal with the basis perm here...
             #      but ideally the new leg of an SVD has no basis_perm anyway
             raise NotImplementedError
-        
+
         large_leg_block_inds = []
         mask_blocks = []
         small_leg_sectors = []
@@ -1487,13 +1470,13 @@ class FusionTreeBackend(TensorBackend):
         small_leg._basis_perm = None  # OPTIMIZE avoid computing it, if we reset it anyway
         small_leg._inverse_basis_perm = None
         return mask_data, small_leg, err, new_norm
-        
+
     def zero_data(self, codomain: TensorProduct, domain: TensorProduct, dtype: Dtype, device: str,
                   all_blocks: bool = False) -> FusionTreeData:
         if not all_blocks:
             return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype,
                                   device=device)
-            
+
         block_shapes = []
         block_inds = []
         for j, coupled in enumerate(domain.sector_decomposition):
@@ -1507,7 +1490,7 @@ class FusionTreeBackend(TensorBackend):
         if len(block_inds) == 0:
             return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype,
                                   device=device)
-        
+
         block_inds = np.array(block_inds)
         zero_blocks = [self.block_backend.zeros(block_shape, dtype=dtype)
                        for block_shape in block_shapes]
@@ -1697,7 +1680,7 @@ class TreeMappingDict(dict):
     (new_tree_cod1_2, new_tree_dom1_2) : amplitude1_2, ...}, (old_tree_cod2, old_tree_dom2)
     : {...}, ...}``
     """
-    
+
     def add_contribution(self, trees_i: tuple[FusionTree], trees_f: tuple[FusionTree],
                          amplitude: float | complex) -> None:
         """Add a contribution that maps `tree_i` to `tree_f`, in-place."""
@@ -2010,7 +1993,9 @@ class TreeMappingDict(dict):
 
     @classmethod
     def from_permute_legs(cls, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                          levels: list[int] | None
+                          levels: list[int] | None,
+                          codomain: TensorProduct,
+                          domain: TensorProduct,
                           ) -> tuple[TreeMappingDict, TensorProduct, TensorProduct]:
         """`permute_legs` as `TreeMappingDict`.
         
@@ -2086,9 +2071,6 @@ class TreeMappingDict(dict):
             # return the old codomain and domain, the new ones are not computed;
             # returning None as Data leads to a SymmetryError anyway.
             return None, a.codomain, a.domain
-
-        codomain = TensorProduct(a.codomain.flat_legs)
-        domain = TensorProduct(a.domain.flat_legs)
 
         coupled = np.array([domain.sector_decomposition[i[1]] for i in a.data.block_inds])
         mappings = []

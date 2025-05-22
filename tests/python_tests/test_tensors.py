@@ -2470,12 +2470,7 @@ def test_leg_dualities(make_compatible_tensor):
         The input tensor whose leg dualities are being tested.
     """
 
-    #tens = make_compatible_tensor(2, 2)
-
     tens: SymmetricTensor = make_compatible_tensor(2, 2, cls=SymmetricTensor)
-
-    if isinstance(tens.backend, backends.FusionTreeBackend):
-        pytest.xfail()
 
     lcd = len(tens.codomain)
     k = lcd

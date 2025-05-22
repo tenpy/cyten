@@ -127,6 +127,9 @@ class LegPipe(Leg):
     def dual(self) -> LegPipe:
         return LegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual)
 
+    def with_opposite_duality(self) -> LegPipe:
+        return LegPipe(self.legs, is_dual=not self.is_dual)
+
     def __eq__(self, other):
         if not isinstance(other, LegPipe):
             return NotImplemented

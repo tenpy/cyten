@@ -56,7 +56,6 @@ def SU2_sym_test_tensor():
 
     return tens
 
-
 def U1_sym_test_tensor():
     sym = symmetries.U1Symmetry()
     spin_half = spaces.ElementarySpace(sym, np.array([[1]]))
@@ -124,8 +123,8 @@ def flip_leg_duality(tens: tensors.Tensor, leg_indices):
         if isinstance(tens.legs[i], spaces.AbelianLegPipe):
             tens.legs[i] = spaces.AbelianLegPipe.with_opposite_duality_and_combinestyle(tens.legs[i])
 
-        # elif isinstance(tens.legs[i], spaces.LegPipe) and not isinstance(tens.legs[i], spaces.AbelianLegPipe):
-        #     raise NotImplementedError('Not yet implemented')
+        elif isinstance(tens.legs[i], spaces.LegPipe) and not isinstance(tens.legs[i], spaces.AbelianLegPipe):
+            tens.legs[i] = spaces.LegPipe.with_opposite_duality(tens.legs[i])
         else:
             tens.legs[i] = tens.legs[i].dual
 
@@ -150,7 +149,7 @@ def te_pipe_dualities(tens: tensors.Tensor):
              │                   │                     │
              ▼                   ▼                     ▼
           A B (V* ⊗ W*)        A B V W              A B (W ⊗ V)
-          ^ ^  ▲               ^ ^ ^ ^              ^ ^  ▼
+          ^ ^  ▲               ^ ^ ▽ ▽              ^ ^  ▼
         ┏━┷━┷━━┷━┓           ┏━┷━┷━┷━┷┓           ┏━┷━┷━━┷━┓
         ┃ tens_ld┃   ◀────▶  ┃ tens_md┃   ◀────▶  ┃ tens_rd┃
         ┗━━━━━━━━┛           ┗━━━━━━━━┛           ┗━━━━━━━━┛
@@ -166,20 +165,20 @@ def te_pipe_dualities(tens: tensors.Tensor):
     k = lcd
     kn = k+1
 
-    tens_lu = tensors.combine_legs(tens, [k, kn], pipe_dualities=[False])
-    tens_ld = tensors.bend_legs(tens_lu, lcd+1)
+    tens_lu = tensors.combine_legs(tens.copy(), [k, kn], pipe_dualities=[False])
+    tens_ld = tensors.bend_legs(tens_lu.copy(), lcd+1)
 
-    tens_md = tensors.bend_legs(tens, lcd+2)
-    tens_ld_p = tensors.combine_legs(tens_md, [k, kn], pipe_dualities=[False])
+    tens_md = tensors.bend_legs(tens.copy(), lcd+2)
+    tens_ld_p = tensors.combine_legs(tens_md.copy(), [k, kn], pipe_dualities=[False])
 
     assert tensors.almost_equal(tens_ld, tens_ld_p)
     assert tens_ld.legs.__eq__(tens_ld_p.legs)
 
-    tens_ru = tensors.combine_legs(tens, [k, kn], pipe_dualities=[True])
-    tens_rd = tensors.bend_legs(tens_ru, lcd+1)
+    tens_ru = tensors.combine_legs(tens.copy(), [k, kn], pipe_dualities=[True])
+    tens_rd = tensors.bend_legs(tens_ru.copy(), lcd+1)
 
-    tens_md = tensors.bend_legs(tens, lcd+2)
-    tens_rd_p = tensors.combine_legs(tens_md, [k, kn], pipe_dualities=[True])
+    tens_md = tensors.bend_legs(tens.copy(), lcd+2)
+    tens_rd_p = tensors.combine_legs(tens_md.copy(), [k, kn], pipe_dualities=[True])
 
     assert tensors.almost_equal(tens_rd, tens_rd_p)
     assert tens_rd.legs.__eq__(tens_rd_p.legs)
@@ -191,32 +190,6 @@ def te_pipe_dualities(tens: tensors.Tensor):
     assert tens_ru.legs.__eq__(tens_lu.legs)
 
 
-    def iter_uncoupled(self) -> Iterator[SectorArray]:
-        """Iterate over all combinations of sectors
-
-        For a TensorProduct of zero spaces, i.e. with ``num_space == 0``, we yield an empty
-        array once.
-        """
-
-        if self.num_factors == 0:
-            yield self.symmetry.empty_sector_array
-            return
-
-        if any(not isinstance(sp, ElementarySpace) for sp in self.factors):
-            tup = []
-            for i in self.factors:
-                if not isinstance(i, LegPipe):
-                    tup.append(i.sector_decomposition)
-                else:
-                    for leg in i.legs:
-                        tup.append(leg.sector_decomposition)
-            for unc in it.product(*tup):
-                yield np.array(unc, int)
-
-        for unc in it.product(*(s.sector_decomposition for s in self.factors)):
-            yield np.array(unc, int)
-
-
 if __name__ == "__main__":
 
     # tens = U1_sym_test_tensor()
@@ -224,18 +197,28 @@ if __name__ == "__main__":
     #
     # te_pipe_dualities(tens)
 
-    tens2=SU2_sym_test_tensor()
+    #tens2=SU2_sym_test_tensor()
+    tens2=create_test_random_symmetric_tensor()
     #te_pipe_dualities(tens2)
-
-    tens2=tensors.combine_legs(tens2,[0,1])
     tens2.test_sanity()
     print(tens2.ascii_diagram)
 
-    print(tens2.legs[0])
+    #print(tens2.legs[0])
 
-    flip_leg_duality(tens2, [0])
+    #flip_leg_duality(tens2, [0])
 
-    print(tens2.legs[0])
+    #print(tens2.legs[0])
+    tens2=tensors.combine_legs(tens2, [0,1])
+    print(tens2.ascii_diagram)
+
+    #tens2=tensors.permute_legs(tens2, [2,1], [0])
+    #print(tens2.ascii_diagram)
+
+    te_pipe_dualities(tens2)
+
+
+    #tens3=tensors.transpose(tens2)
+    #print(tens3.ascii_diagram)
 
 
     #print(tens2.legs[0].legs)
@@ -255,7 +238,6 @@ if __name__ == "__main__":
 
     #flip_leg_duality(tens, [2])
     #te_pipe_dualities(tens)
-
 
 
 

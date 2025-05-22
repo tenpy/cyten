@@ -767,17 +767,17 @@ class Tensor(metaclass=ABCMeta):
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
     def flip_leg_duality(self, leg_indices: list[int]):
-        """
-        Flips the duality of a given Tensor leg. The leg can also be a leg pipe in which case
-        also the combinestyle is flipped
-        """
+        """Flips the duality of a given Tensor leg.
 
+        The leg can also be a leg pipe in which case also the combinestyle is flipped
+        """
         for i in leg_indices:
             if isinstance(self.legs[i], AbelianLegPipe):
                 self.legs[i] = AbelianLegPipe.with_opposite_duality_and_combinestyle(self.legs[i])
 
-            # elif isinstance(self.legs[i], LegPipe) and not isinstance(self.legs[i], AbelianLegPipe):
-            #     self.legs[i] =self.legs[i].dual
+            elif isinstance(self.legs[i], LegPipe) and not isinstance(self.legs[i], AbelianLegPipe):
+                self.legs[i] = LegPipe.with_opposite_duality(self.legs[i])
+
             else:
                 self.legs[i] = self.legs[i].dual
 
@@ -3355,6 +3355,7 @@ def combine_legs(tensor: Tensor,
             combined = tensor.backend.make_pipe(
                 spaces_to_combine, is_dual=pipe_dualities[i], in_domain=False, pipe=pipes[i]
             )
+
             pipes[i] = combined
             codomain_spaces.append(combined)
             codomain_labels.append(_combine_leg_labels(tensor.labels[group[0]:group[-1] + 1]))
@@ -3369,6 +3370,7 @@ def combine_legs(tensor: Tensor,
             combined = tensor.backend.make_pipe(
                 spaces_to_combine, is_dual=not pipe_dualities[i], in_domain=True, pipe=pipes[i]
             )
+
             pipes[i] = combined
             domain_spaces_reversed.append(combined)
             domain_labels_reversed.append(
