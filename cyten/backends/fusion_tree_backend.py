@@ -80,6 +80,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, Iterator
 from math import prod
 import numpy as np
+import warnings
 
 from .abstract_backend import (
     TensorBackend, BlockBackend, Block, Data, DiagonalData, MaskData,
@@ -783,6 +784,11 @@ class FusionTreeBackend(TensorBackend):
         return a.dtype
 
     def get_element(self, a: SymmetricTensor, idcs: list[int]) -> complex | float | bool:
+        msg = ('Accessing individual entries in the FusionTreeBackend is comparably '
+               'expensive. When accessing multiple entries, it may be more efficient '
+               'to use to_numpy() first and then access the entries of the tensor.')
+        warnings.warn(msg, UserWarning, stacklevel=2)
+
         num_cod_legs = a.num_codomain_legs
         num_legs = a.num_legs
         # reverse domain idcs -> work in the non-conventional leg order [i1,...,iJ,j1,...,jK]
@@ -1073,7 +1079,7 @@ class FusionTreeBackend(TensorBackend):
         mask_blocks = mask.data.blocks
 
         coupled = [tensor.domain.sector_decomposition[bi[1]] for bi in tensor_block_inds]
-        iter_space = [tensor.codomain, tensor.domain][in_domain_int]
+        iter_space = tensor.domain if in_domain else tensor.codomain
         same_decomp = len(iter_space.sector_decomposition) == len(target_space.sector_decomposition)
         res_blocks = [backend.zeros([codomain.block_size(c), domain.block_size(c)], tensor.data.dtype)
                       for c in coupled]
@@ -1322,6 +1328,8 @@ class FusionTreeBackend(TensorBackend):
         return np.sqrt(norm_sq).item()
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
+        if a.has_pipes or b.has_pipes:
+            raise NotImplementedError("'outer' can not deal with 'LegPipe's")
         # idea: get the fusion trees in the combined (co)domain by inserting an identity
         # = summing over all fusion products of the coupled sectors of tensors a and b
         # OPTIMIZE new_codomain and new_domain are already computed in tensors.py -> reuse here
@@ -1335,8 +1343,8 @@ class FusionTreeBackend(TensorBackend):
                 new_tree_block = self.block_backend.permute_axes(new_tree_block, [0, 2, 1, 3])
                 new_tree_block = self.block_backend.combine_legs(new_tree_block, [[0, 1], [2, 3]])
                 #
-                new_codom_trees = self._outer_fuse_trees(a_codom_tree, b_codom_tree)
-                new_dom_trees = self._outer_fuse_trees(a_dom_tree, b_dom_tree)
+                new_codom_trees = a_codom_tree.outer(b_codom_tree)
+                new_dom_trees = a_dom_tree.outer(b_dom_tree)
                 for new_dom_tree, dom_amp in new_dom_trees.items():
                     dom_slc = new_domain.tree_block_slice(new_dom_tree)
                     block_idx = new_domain.sector_decomposition_where(new_dom_tree.coupled)
@@ -1349,32 +1357,6 @@ class FusionTreeBackend(TensorBackend):
                         new_data.blocks[block_idx][codom_slc, dom_slc] += new_tree_block * factor
         new_data.discard_zero_blocks(self.block_backend, self.eps)
         return new_data
-
-    def _outer_fuse_trees(self, left_tree: FusionTree, right_tree: FusionTree
-                          ) -> dict[FusionTree, complex]:
-        # trivial cases
-        if left_tree.num_uncoupled == 0:
-            return {right_tree: 1}
-        if right_tree.num_uncoupled == 0:
-            return {left_tree: 1}
-
-        # use left_tree.insert_at(right_tree) -> construct new tree with
-        # right_tree.coupled as uncoupled sector at the end
-        sym = left_tree.symmetry
-        res = {}
-        unc = np.vstack((left_tree.uncoupled, right_tree.coupled))
-        dual = np.concatenate([left_tree.are_dual, [False]])
-        if left_tree.num_uncoupled <= 1:
-            inner = np.zeros((0, unc.shape[1]), dtype=int)
-        else:
-            inner = np.vstack((left_tree.inner_sectors, left_tree.coupled))
-        for new_coupled in sym.fusion_outcomes(left_tree.coupled, right_tree.coupled):
-            for m in range(sym._n_symbol(left_tree.coupled, right_tree.coupled, new_coupled)):
-                multi = np.concatenate([left_tree.multiplicities, [m]])
-                tree = FusionTree(symmetry=sym, uncoupled=unc, coupled=new_coupled,
-                                  are_dual=dual, inner_sectors=inner, multiplicities=multi)
-                res.update(tree.insert_at(left_tree.num_uncoupled, right_tree, eps=self.eps))
-        return res
 
     def partial_trace(self, tensor: SymmetricTensor, pairs: list[tuple[int, int]],
                       levels: list[int] | None) -> tuple[Data, TensorProduct, TensorProduct]:
@@ -1615,7 +1597,7 @@ class FusionTreeBackend(TensorBackend):
                 block_inds = np.array(block_inds, int)
             return FusionTreeData(block_inds, blocks, a.dtype, a.data.device)
 
-        iter_space = [a.codomain, a.domain][ax_a]
+        iter_space = a.domain if in_domain else a.codomain
         if a.has_pipes:
             # use flattened tensor product -> need to shift co_domain_idx
             for i in range(co_domain_idx):
@@ -1657,7 +1639,7 @@ class FusionTreeBackend(TensorBackend):
                 slcs = [slc, slice(initial_shape[1])]
 
             # + 1 for axis comes from adding -1 to the reshaping
-            forest = self.block_backend.scale_axis(forest, b_blocks[ind_b], axis=ax_a+co_domain_idx+1)
+            forest = self.block_backend.scale_axis(forest, b_blocks[ind_b], axis=ax_a + co_domain_idx + 1)
             forest = self.block_backend.reshape(forest, initial_shape)
             blocks[ind_mapping[coupled_ind]][slcs[0], slcs[1]] = forest
         return FusionTreeData(block_inds, blocks, a.dtype, a.data.device)

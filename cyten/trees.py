@@ -282,6 +282,8 @@ class FusionTree:
             We must have have ``self.are_dual[n] is False``, as we can not have a Z between trees.
         t2 : :class:`FusionTree`
             The fusion tree to insert
+        eps : float
+            F symbols whose absolute values are smaller than this number are treated as zero.
 
         Returns
         -------
@@ -359,6 +361,78 @@ class FusionTree:
             new_tree = FusionTree(sym, new_unc, self.coupled, new_dual, new_inners, new_multis)
             coefficients[new_tree] = amplitude
         return coefficients
+
+    def outer(self, right_tree: FusionTree, eps: float = 1.e-14) -> dict[FusionTree, complex]:
+        r"""Outer product with another tree.
+
+        Fuse with `right_tree` at the coupled sector (-> new coupled sectors are all sectors that
+        are allowed fusion channels of the coupled sectors).
+
+        Graphically::
+
+            |    self                  right_tree                       self.outer(right_tree)
+            |
+            |    |                     |                                |
+            |    coupled               coupled_r                        new_coupled
+            |    |                     |                                |   \
+            |    m1                    m0_r                             |    \
+            |    |  \                  |   \                            |     \
+            |    i1  \                 d    e                           |      \
+            |    |    \                |    |                           |       \
+            |    m0    \                                                |        \
+            |    |  \   \                                               coupled   coupled_r
+            |    a   b   c                               ->             |         |
+            |    |   |   |                                              m1        m0_r
+            |                                                           |  \      |   \
+            |                                                           i1  \     d    e
+            |                                                           |    \    |    |
+            |                                                           m0    \
+            |                                                           |  \   \
+            |                                                           a   b   c
+            |                                                           |   |   |
+
+        Parameters
+        ----------
+        rigth_tree : FusionTree
+            Tree to be combined with at the coupled sector from the right.
+        eps : float
+            F symbols whose absolute values are smaller than this number are treated as zero.
+
+        Returns
+        -------
+        linar_combination : dict {FusionTree: complex}
+            Result expressed as linear combination of fusion trees in the canonical basis with the
+            corresponding coefficients.
+
+        See Also
+        --------
+        insert_at
+            Similar insertion, but the tree is inserted on top of an uncoupled sector rather than
+            fused with the coupled sector.
+        """
+        # trivial cases
+        if self.num_uncoupled == 0:
+            return {right_tree: 1}
+        if right_tree.num_uncoupled == 0:
+            return {self: 1}
+
+        # use self.insert_at(right_tree) -> construct new tree with
+        # right_tree.coupled as uncoupled sector at the end
+        sym = self.symmetry
+        res = {}
+        unc = np.vstack((self.uncoupled, right_tree.coupled))
+        dual = np.concatenate([self.are_dual, [False]])
+        if self.num_uncoupled <= 1:
+            inner = np.zeros((0, unc.shape[1]), dtype=int)
+        else:
+            inner = np.vstack((self.inner_sectors, self.coupled))
+        for new_coupled in sym.fusion_outcomes(self.coupled, right_tree.coupled):
+            for m in range(sym._n_symbol(self.coupled, right_tree.coupled, new_coupled)):
+                multi = np.concatenate([self.multiplicities, [m]])
+                tree = FusionTree(symmetry=sym, uncoupled=unc, coupled=new_coupled,
+                                  are_dual=dual, inner_sectors=inner, multiplicities=multi)
+                res.update(tree.insert_at(self.num_uncoupled, right_tree, eps=eps))
+        return res
 
     def split(self, n: int) -> tuple[FusionTree, FusionTree]:
         """Split into two separate fusion trees.

@@ -97,6 +97,21 @@ def test_FusionTree_manipulations(compatible_symmetry, compatible_backend, make_
                     combined_block = tree_superposition_as_block(combined_tree, backend)
                     assert backend.block_backend.allclose(combined_block, expect, rtol=1e-8, atol=1e-5)
 
+    # test outer
+    uncoupled1 = np.vstack([np_random.choice(make_compatible_sectors(5)) for _ in range(num_uncoupled[0])])
+    are_dual1 = np_random.choice([True, False], size=num_uncoupled[0])
+    all_trees1 = random_trees_from_uncoupled(sym, uncoupled1, np_random, are_dual=are_dual1)
+    random_trees1 = np_random.choice(all_trees1, size=5)
+
+    uncoupled2 = np.vstack([np_random.choice(make_compatible_sectors(5)) for _ in range(num_uncoupled[1])])
+    are_dual2 = np_random.choice([True, False], size=num_uncoupled[1])
+    all_trees2 = random_trees_from_uncoupled(sym, uncoupled2, np_random, are_dual=are_dual2)
+    random_trees2 = np_random.choice(all_trees2, size=5)
+
+    for tree1 in random_trees1:
+        for tree2 in random_trees2:
+            check_outer_via_f_symbols(tree1, tree2)
+
 
 def check_insert_at_via_f_symbols(tree1: trees.FusionTree, tree2: trees.FusionTree, i: int):
     """Check correct amplitudes, normalization (sum of amplitudes), uncoupled sectors,
@@ -145,6 +160,56 @@ def check_insert_at_via_f_symbols(tree1: trees.FusionTree, tree2: trees.FusionTr
         assert np.isclose(fs, amp)
         norm += amp * np.conj(amp)
     assert np.isclose(norm, 1)
+
+
+def check_outer_via_f_symbols(tree1: trees.FusionTree, tree2: trees.FusionTree):
+    """Check correct amplitudes, normalization (sum of amplitudes), uncoupled sectors,
+    inner sectors, coupled sectors and multilcities.
+    """
+    combined_tree = tree1.outer(tree2)
+    uncoupled = np.vstack((tree1.uncoupled, tree2.uncoupled))
+    are_dual = np.concatenate([tree1.are_dual, tree2.are_dual])
+    coupled = tree1.symmetry.fusion_outcomes(tree1.coupled, tree2.coupled)
+    # one normalized tree for each new consistent coupled sector
+    norm_expect = sum([tree1.symmetry.n_symbol(tree1.coupled, tree2.coupled, c) for c in coupled])
+    norm = 0
+    for tree, amp in combined_tree.items():
+        tree.test_sanity()
+        assert np.all(tree.uncoupled == uncoupled)
+        assert np.all(tree.are_dual == are_dual)
+        assert np.all(tree.inner_sectors[:tree1.num_inner_edges] == tree1.inner_sectors)
+        assert np.all(tree.inner_sectors[tree1.num_inner_edges] == tree1.coupled)
+        assert np.all(tree.multiplicities[:tree1.num_inner_edges] == tree1.multiplicities[:-1])
+
+        if tree1.num_uncoupled == 0 or tree2.num_uncoupled <= 1:
+            fs = 1
+        else:
+            f_symbols = []
+            a = tree1.coupled
+            for j in range(tree2.num_uncoupled - 1):
+                b = tree2.uncoupled[j] if j == 0 else tree2.inner_sectors[j - 1]
+                c = tree2.uncoupled[j + 1]
+                d = tree.coupled if j + 1 == tree2.num_uncoupled - 1 else tree.inner_sectors[tree1.num_inner_edges + j + 2]
+                e = tree2.coupled if j == tree2.num_inner_edges else tree2.inner_sectors[j]
+                f = tree.inner_sectors[tree1.num_inner_edges + j + 1]
+                f_symbols.append(np.conj(tree1.symmetry.f_symbol(a, b, c, d, e, f)))
+
+            # deal with multiplicities
+            kap = tree.multiplicities[tree1.num_vertices]
+            lam = tree.multiplicities[tree1.num_vertices + 1]
+            mu = tree2.multiplicities[0]
+            fs = f_symbols[0][mu, :, kap, lam]
+            for j, f in enumerate(f_symbols[1:]):
+                lam = tree.multiplicities[tree1.num_vertices + j + 2]
+                mu = tree2.multiplicities[j + 1]
+                fs = np.tensordot(fs, f[mu, :, :, lam], [0, 1])
+            # the remaining axis specifies the multiplicity in the vertex where the
+            # two coupled sectors fuse -> sum them as we allow all multiplicities
+            fs = np.sum(fs[:])
+
+        assert np.isclose(fs, amp)
+        norm += amp * np.conj(amp)
+    assert np.isclose(norm, norm_expect)
 
 
 def random_trees_from_uncoupled(symmetry, uncoupled, np_random, are_dual=None
