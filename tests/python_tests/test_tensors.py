@@ -132,7 +132,7 @@ def test_base_Tensor(make_compatible_space, compatible_backend):
 
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)],
                          ids=['1->1', '1->2', '0->3', '3->0'])
-def test_SymmetricTensor(make_compatible_tensor, leg_nums):
+def test_SymmetricTensor(make_compatible_tensor, leg_nums, np_random):
     T: SymmetricTensor = make_compatible_tensor(*leg_nums)
     backend = T.backend
 
@@ -172,7 +172,6 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
 
     # TODO: missing coverage:
     # - from_block_func / from_sector_block_func
-    # - random_uniform / random_normal
     # - diagonal
 
     print('checking from_zero')
@@ -214,6 +213,75 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
     _ = repr(T)
     _ = str(zero_tens)
     _ = repr(zero_tens)
+
+    # use larger block size to reliably check distributions
+    # based on some test runs, this corresponds to up to 9e5 samples
+    # but may also only be 5e2 samples for a single leg in codomain and domain
+    T: SymmetricTensor = make_compatible_tensor(*leg_nums, max_block_size=80)
+
+    print('checking from_random_uniform')
+    dtype = np_random.choice([Dtype.float64, Dtype.complex128])
+    rand_tens = SymmetricTensor.from_random_uniform(codomain=T.codomain, domain=T.domain,
+                                                    backend=backend, dtype=dtype)
+    if isinstance(backend, backends.NoSymmetryBackend):
+        samples = np.asarray(rand_tens.data).flatten()
+    else:
+        samples = np.concatenate([np.asarray(block).flatten() for block in rand_tens.data.blocks])
+    # test distribution if there are enough samples
+    if samples.size > 1e4:
+        true_mean = 0
+        true_var = 1 / 3
+        tol = 5 * samples.size ** -0.5
+        mean = np.mean(samples)
+        if dtype.is_real:
+            npt.assert_allclose(mean, true_mean, atol=tol)
+            npt.assert_allclose(np.var(samples), true_var, atol=tol)
+            assert samples[samples < -1].size == 0
+            assert samples[samples > 1].size == 0
+            # probability of happening: 0.999 ** samples.size; smaller than 4.5e-5
+            assert samples[samples < -0.998].size > 0
+            assert samples[samples > 0.998].size > 0
+        else:
+            npt.assert_allclose(mean.real, true_mean, atol=tol)
+            npt.assert_allclose(mean.imag, true_mean, atol=tol)
+            npt.assert_allclose(np.var(samples.real), true_var, atol=tol)
+            npt.assert_allclose(np.var(samples.imag), true_var, atol=tol)
+            assert samples[samples.real < -1].size == 0
+            assert samples[samples.imag < -1].size == 0
+            assert samples[samples.real > 1].size == 0
+            assert samples[samples.imag > 1].size == 0
+            assert samples[samples.real < -0.998].size > 0
+            assert samples[samples.imag < -0.998].size > 0
+            assert samples[samples.real > 0.998].size > 0
+            assert samples[samples.imag > 0.998].size > 0
+            
+    print('checking from_random_normal')
+    # TODO do we want to test nontrivial means?
+    dtype = np_random.choice([Dtype.float64, Dtype.complex128])
+    sigma = np_random.uniform(high=3.)
+    rand_tens = SymmetricTensor.from_random_normal(codomain=T.codomain, domain=T.domain,
+                                                   sigma=sigma, backend=backend, dtype=dtype)
+    if isinstance(backend, backends.NoSymmetryBackend):
+        samples = np.asarray(rand_tens.data).flatten()
+    else:
+        samples = np.concatenate([np.asarray(block).flatten() for block in rand_tens.data.blocks])
+    # test distribution if there are enough samples
+    if samples.size > 1e4:
+        true_mean = 0
+        true_var = sigma ** 2
+        tol = 10 * samples.size ** -0.5
+        mean = np.mean(samples)
+        if dtype.is_real:
+            npt.assert_allclose(mean, true_mean, atol=tol)
+            npt.assert_allclose(np.var(samples), true_var, rtol=tol)
+        else:
+            npt.assert_allclose(mean.real, true_mean, atol=tol)
+            npt.assert_allclose(mean.imag, true_mean, atol=tol)
+            npt.assert_allclose(np.var(samples.real), true_var / 2, rtol=tol)
+            npt.assert_allclose(np.var(samples.imag), true_var / 2, rtol=tol)
+            # absolute values are Rayleigh distributed
+            npt.assert_allclose(np.mean(np.abs(samples)), np.sqrt(np.pi / 4) * sigma, atol=tol)
+            npt.assert_allclose(np.var(np.abs(samples)), (4 - np.pi) / 4 * true_var, rtol=tol)
 
     # TODO test to_dense_block_trivial_sector
     # def OLD_test_Tensor_tofrom_dense_block_trivial_sector(make_compatible_tensor):
