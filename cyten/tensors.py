@@ -3175,6 +3175,8 @@ def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | Non
     is mixed up by accident), the error message is amended accordingly on mismatched legs.
     If the legs still match regardless, a warning is issued.
     """
+    if not t1.symmetry.is_same_symmetry(t2.symmetry):
+        raise ValueError('Incompatible symmetries')
     incompatible_labels = False
     for n1, l1 in enumerate(t1._labels):
         n2 = t2._labelmap.get(l1, None)
@@ -3548,9 +3550,7 @@ def compose(tensor1: Tensor, tensor2: Tensor, relabel1: dict[str, str] = None,
     tdot, apply_mask, scale_axis
     """
     _ = get_same_device(tensor1, tensor2)
-    
-    if tensor1.domain != tensor2.codomain:
-        raise ValueError('Incompatible legs')
+    _check_compatible_legs([tensor1.domain], [tensor2.codomain])
 
     if relabel1 is None:
         codomain_labels = tensor1.codomain_labels
@@ -3605,9 +3605,9 @@ def _compose_with_Mask(tensor: Tensor, mask: Mask, leg_idx: int) -> Tensor:
     """
     in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg_idx)
     if in_domain:
-        assert tensor.domain[co_domain_idx] == mask.codomain[0]
+        _check_compatible_legs([tensor.domain[co_domain_idx]], [mask.codomain[0]])
     else:
-        assert tensor.codomain[co_domain_idx] == mask.domain[0]
+        _check_compatible_legs([tensor.codomain[co_domain_idx]], [mask.codomain[0]])
 
     # deal with other tensor types
     if isinstance(tensor, ChargedTensor):
@@ -3847,7 +3847,7 @@ def exp(obj: Tensor | complex | float) -> Tensor | complex | float:
     if isinstance(obj, ChargedTensor):
         raise TypeError('ChargedTensor can not be exponentiated.')
     if isinstance(obj, SymmetricTensor):
-        assert obj.domain == obj.codomain
+        _check_compatible_legs([obj.domain], [obj.codomain])
 
         combine = (not obj.backend.can_decompose_tensors) and obj.num_domain_legs > 1
         if combine:
@@ -3931,11 +3931,9 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
     _ = get_same_device(A, B)
     
     if do_dagger:
-        assert A.codomain == B.codomain
-        assert A.domain == B.domain
+        _check_compatible_legs([A.codomain, A.domain], [B.codomain, B.domain])
     else:
-        assert A.domain == B.codomain
-        assert A.codomain == B.domain
+        _check_compatible_legs([A.codomain, A.domain], [B.domain, B.codomain])
 
     if isinstance(A, (DiagonalTensor, Mask)):
         # in this case, there is no benefit to having a dedicated backend function,
@@ -4051,6 +4049,7 @@ def item(tensor: Tensor) -> float | complex | bool:
 def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
     """The linear combination ``a * v + b * w``"""
     _ = get_same_device(v, w)
+    _check_compatible_legs([v.codomain, v.domain], [w.codomain, w.domain])
     # Note: We implement Tensor.__add__ and Tensor.__sub__ in terms of this function, so we cant
     #       use them (or the ``+`` and ``-`` operations) here.
     if (not isinstance(a, Number)) or (not isinstance(b, Number)):
@@ -4087,8 +4086,6 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
     w = w.as_SymmetricTensor()
 
     backend = get_same_backend(v, w)
-    assert v.codomain == w.codomain, 'Mismatched domain'
-    assert v.domain == w.domain, 'Mismatched domain'
     return SymmetricTensor(
         backend.linear_combination(a, v, b, w),
         codomain=v.codomain, domain=v.domain, backend=backend,
@@ -4232,6 +4229,7 @@ def outer(tensor1: Tensor, tensor2: Tensor,
         input tensors were relabelled accordingly before contraction.
     """
     _ = get_same_device(tensor1, tensor2)
+    assert tensor1.symmetry.is_same_symmetry(tensor2.symmetry)
     
     if isinstance(tensor1, (Mask, DiagonalTensor)):
         msg = ('Converting to SymmetricTensor for outer. '
@@ -4325,12 +4323,8 @@ def partial_trace(tensor: Tensor,
     duplicates = duplicate_entries(traced_idcs)
     if duplicates:
         raise ValueError('Pairs may not contain duplicates.')
-    for i1, i2 in pairs:
-        in_domain, co_domain_idx, _ = tensor._parse_leg_idx(i1)
-        if in_domain:
-            assert tensor.domain[co_domain_idx] == tensor._as_codomain_leg(i2), 'incompatible legs'
-        else:
-            assert tensor.codomain[co_domain_idx] == tensor._as_domain_leg(i2), 'incompatible legs'
+    _check_compatible_legs([tensor._as_codomain_leg(i1) for i1, _ in pairs],
+                           [tensor._as_domain_leg(i2) for _, i2 in pairs])
 
     if len(pairs) == 0:
         return tensor
@@ -4690,6 +4684,7 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
         leg = tensor.domain[co_domain_idx]
     else:
         leg = tensor.codomain[co_domain_idx]
+    assert tensor.symmetry.is_same_symmetry(diag.symmetry)
     if leg == diag.leg:
         pass
     elif leg == diag.leg.dual:
@@ -5013,8 +5008,10 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
         raise ValueError(f'Duplicate leg entries.')
     num_contr = len(legs1)
     assert len(legs2) == num_contr
-    for i1, i2 in zip(legs1, legs2):
-        assert tensor1._as_domain_leg(i1) == tensor2._as_codomain_leg(i2), 'incompatible legs'
+    _check_compatible_legs(
+        (tensor1._as_domain_leg(i1) for i1 in legs1),
+        (tensor2._as_codomain_leg(i2) for i2 in legs2)
+    )
 
     # Deal with Masks: either return or reduce to SymmetricTensor
     if isinstance(tensor1, Mask):
@@ -5166,7 +5163,7 @@ def trace(tensor: Tensor):
     partial_trace
         Trace only some legs, or trace all legs with a different connectivity.
     """
-    assert tensor.domain == tensor.codomain, 'Incompatible legs'
+    _check_compatible_legs([tensor.domain], [tensor.codomain])
     if isinstance(tensor, DiagonalTensor):
         return tensor.backend.diagonal_tensor_trace_full(tensor)
     if isinstance(tensor, ChargedTensor):
@@ -5397,6 +5394,16 @@ def zero_like(tensor: Tensor) -> Tensor:
 
 
 T = TypeVar('T')
+
+
+def _check_compatible_legs(legs1: Sequence[Leg], legs2: Sequence[Leg], expect_equal: bool = True):
+    """Check if legs are compatible (equal if `expect_equal`, otherwise mutually dual)."""
+    for l1, l2 in zip(legs1, legs2, strict=True):
+        if not l1.symmetry.is_same_symmetry(l2.symmetry):
+            raise ValueError('Different symmetries')
+        compatible = l1 == (l2 if expect_equal else l2.dual)
+        if not compatible:
+            raise ValueError('Incompatible legs.')
 
 
 def _combine_leg_labels(labels: list[str | None]) -> str:
