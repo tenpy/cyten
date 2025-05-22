@@ -158,6 +158,10 @@ def pytest_addoption(parser):
         '--block-backends', action='store', default='numpy',
         help=f'Comma separated block-backend names'
     )
+    parser.addoption(
+        '--rng-seed', action='store', default=12345, type=int,
+        help=f'The rng seed'
+    )
 
 
 def pytest_collection_modifyitems(config, items):
@@ -212,8 +216,8 @@ _symmetries = {
 # "UNCONSTRAINED" FIXTURES  ->  independent (mostly) of the other features. no compatibility guarantees.
 
 @pytest.fixture
-def np_random() -> np.random.Generator:
-    return np.random.default_rng(seed=12345)
+def np_random(request) -> np.random.Generator:
+    return np.random.default_rng(seed=request.config.getoption('--rng-seed'))
 
 
 @pytest.fixture  # values defined during `pytest_generate_tests`
