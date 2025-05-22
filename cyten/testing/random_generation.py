@@ -440,11 +440,6 @@ def random_tensor(symmetry: symmetries.Symmetry,
         if isinstance(backend, backends.FusionTreeBackend):
             if pytest is None:
                 raise ValueError('Cant generate masks yet')
-            with pytest.raises(NotImplementedError, match='diagonal_to_mask'):
-                _ = tensors.Mask.from_random(large_leg=large_leg, small_leg=small_leg,
-                                             backend=backend, p_keep=.6,
-                                             labels=labels, np_random=np_random)
-            pytest.xfail()
 
         if small_leg is not None and small_leg.dim > large_leg.dim:
             res = tensors.Mask.from_random(large_leg=small_leg, small_leg=large_leg,
