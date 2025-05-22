@@ -1674,10 +1674,10 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
 
     if isinstance(T.backend, backends.FusionTreeBackend):
         if which_leg < T.num_codomain_legs:
-            cond = any([isinstance(l, LegPipe) for l in T.codomain])
+            expect_err = any([isinstance(l, LegPipe) for l in T.codomain])
         else:
-            cond = any([isinstance(l, LegPipe) for l in T.domain])
-        if cond:
+            expect_err = any([isinstance(l, LegPipe) for l in T.domain])
+        if expect_err:
             with pytest.raises((AttributeError, NotImplementedError)):
                 _ = tensors.enlarge_leg(T, M, which_leg)
             pytest.xfail()
@@ -1769,6 +1769,11 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
                 _ = T.to_numpy()
             pytest.xfail()
 
+    if (cls is SymmetricTensor or cls is ChargedTensor) and isinstance(T.backend, backends.FusionTreeBackend):
+        catch_warnings = pytest.warns(UserWarning, match='Accessing individual entries')
+    else:
+        catch_warnings = nullcontext()
+
     T_np = T.to_numpy()
     random_idx = tuple(np_random.choice(d) for d in T.shape)
 
@@ -1778,9 +1783,10 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
         else:
             npt.assert_almost_equal(a, b)
 
-    entry = T[random_idx]
+    with catch_warnings:
+        entry = T[random_idx]
     assert isinstance(entry, (bool, float, complex))
-    assert_same(T[random_idx], T_np[random_idx])
+    assert_same(entry, T_np[random_idx])
 
     # trying to set items raises
     with pytest.raises(TypeError, match='.* do.* not support item assignment.'):
@@ -1790,13 +1796,17 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
     which = np_random.choice(len(non_zero_idcs[0]))
     non_zero_idx = tuple(ax[which] for ax in non_zero_idcs)
     assert len(non_zero_idx) > 0
-    assert_same(T[non_zero_idx], T_np[non_zero_idx])
+    with catch_warnings:
+        entry = T[non_zero_idx]
+    assert_same(entry, T_np[non_zero_idx])
 
     zero_idcs = np.where(np.abs(T_np) < 1e-8)
     if len(zero_idcs[0]) > 0:
         which = np_random.choice(len(zero_idcs[0]))
         zero_idx = tuple(ax[which] for ax in zero_idcs)
-        assert_same(T[zero_idx], T_np[zero_idx])
+        with catch_warnings:
+            entry = T[zero_idx]
+        assert_same(entry, T_np[zero_idx])
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
@@ -1937,16 +1947,16 @@ def test_linear_combination(cls, make_compatible_tensor):
     w = make_compatible_tensor(like=v)
 
     if cls is Mask:
-        with pytest.warns(UserWarning, match='Converting types'):
-            _ = tensors.linear_combination(1, v, 2, w)
-        # type conversion results in linear combination of SymmetricTensors, which is tested already
-        return
+        catch_warnings = pytest.warns(UserWarning, match='Converting types')
+    else:
+        catch_warnings = nullcontext()
 
     if not w.symmetry.can_be_dropped:
         # TODO  Need to re-design checks, cant use .to_numpy() etc
         #       For now, just check if it runs at all.
         #       Could e.g. check versus inner product, if <x| av + bw> = a <x|v> + b <x|w>
-        _ = tensors.linear_combination(42, v, 43j, w)
+        with catch_warnings:
+            _ = tensors.linear_combination(42, v, 43j, w)
         return
 
     if isinstance(v.backend, backends.FusionTreeBackend):
@@ -1958,7 +1968,8 @@ def test_linear_combination(cls, make_compatible_tensor):
     v_np = v.to_numpy()
     w_np = w.to_numpy()
     for valid_scalar in [0, 1., 2. + 3.j, -42]:
-        res = tensors.linear_combination(valid_scalar, v, 2 * valid_scalar, w)
+        with catch_warnings:
+            res = tensors.linear_combination(valid_scalar, v, 2 * valid_scalar, w)
         expect = valid_scalar * v_np + 2 * valid_scalar * w_np
         npt.assert_allclose(res.to_numpy(), expect)
     for invalid_scalar in [None, (1, 2), v, 'abc']:
@@ -2101,7 +2112,7 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor):
 
     if isinstance(A.backend, backends.FusionTreeBackend):
         if A.has_pipes or B.has_pipes:
-            with pytest.raises(AttributeError, match="'LegPipe' object has no attribute 'sector_decomposition'"):
+            with pytest.raises(NotImplementedError, match="'outer' can not deal with 'LegPipe's"):
                 _ = tensors.outer(A, B, relabel1={'a': 'x'}, relabel2={'h': 'y'})
             pytest.xfail()
 
