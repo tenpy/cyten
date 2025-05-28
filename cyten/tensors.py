@@ -4568,8 +4568,21 @@ def _permute_legs(tensor: Tensor,
             raise ValueError('Levels must be unique.')
         if any(l < 0 for l in levels):
             raise ValueError('Levels must be non-negative.')
-    data, new_codomain, new_domain = tensor.backend.permute_legs(
-        tensor, codomain_idcs=codomain, domain_idcs=domain, levels=levels
+    # Build new codomain and domain
+    mixes_codomain_domain = any(i >= tensor.num_codomain_legs for i in codomain) \
+        or any(i < tensor.num_codomain_legs for i in domain)
+    if mixes_codomain_domain:
+        new_codomain = TensorProduct([tensor._as_codomain_leg(i) for i in codomain],
+                                     symmetry=tensor.symmetry)
+        new_domain = TensorProduct([tensor._as_domain_leg(i) for i in domain],
+                                   symmetry=tensor.symmetry)
+    else:
+        # (co)domain has the same factor as before, only permuted -> can re-use sectors!
+        new_codomain = tensor.codomain.permuted(codomain)
+        new_domain = tensor.domain.permuted([tensor.num_legs - 1 - i for i in domain])
+    data = tensor.backend.permute_legs(
+        tensor, codomain_idcs=codomain, domain_idcs=domain, new_codomain=new_codomain,
+        new_domain=new_domain, mixes_codomain_domain=mixes_codomain_domain, levels=levels
     )
     labels = [[tensor._labels[n] for n in codomain], [tensor._labels[n] for n in domain]]
     return SymmetricTensor(data, new_codomain, new_domain, backend=tensor.backend, labels=labels)
@@ -5473,7 +5486,9 @@ def transpose(tensor: Tensor) -> Tensor:
         dual_leg, data = tensor.backend.diagonal_transpose(tensor)
         return DiagonalTensor(data=data, leg=dual_leg, backend=tensor.backend, labels=labels)
     if isinstance(tensor, SymmetricTensor):
-        data, codomain, domain = tensor.backend.transpose(tensor)
+        data = tensor.backend.transpose(tensor)
+        codomain = tensor.domain.dual
+        domain = tensor.codomain.dual
         return SymmetricTensor(data=data, codomain=codomain, domain=domain, backend=tensor.backend,
                                labels=labels)
     if isinstance(tensor, ChargedTensor):

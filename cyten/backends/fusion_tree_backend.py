@@ -1456,9 +1456,26 @@ class FusionTreeBackend(TensorBackend):
                                    'between the levels of a pair of legs that is traced over')
                             raise BraidChiralityUnspecifiedError(msg)
 
-        data, codom, dom = self.permute_legs(tensor, codomain_idcs=idcs[:num_codom_legs],
-                                             domain_idcs=idcs[num_codom_legs:][::-1],
-                                             levels=levels)
+        # Build new codomain and domain
+        # TODO (JU) this is duplicate code with tensors._permute_legs, but we cant import that
+        #           here (cyclic)
+        codomain_idcs = idcs[:num_codom_legs]
+        domain_idcs = idcs[num_codom_legs:][::-1]
+        mixes_codomain_domain = any(i >= tensor.num_codomain_legs for i in codomain_idcs) \
+            or any(i < tensor.num_codomain_legs for i in domain_idcs)
+        if mixes_codomain_domain:
+            codom = TensorProduct([tensor._as_codomain_leg(i) for i in codomain_idcs],
+                                  symmetry=tensor.symmetry)
+            dom = TensorProduct([tensor._as_domain_leg(i) for i in domain_idcs],
+                                symmetry=tensor.symmetry)
+        else:
+            # (co)domain has the same factor as before, only permuted -> can re-use sectors!
+            codom = tensor.codomain.permuted(codomain_idcs)
+            dom = tensor.domain.permuted([tensor.num_legs - 1 - i for i in domain_idcs])
+        data = self.permute_legs(tensor, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
+                                 new_codomain=codom, new_domain=dom,
+                                 mixes_codomain_domain=mixes_codomain_domain, levels=levels)
+
         # only consider coupled sectors in data that are consistent with co(domain) after tracing
         coupled = []
         for _, i in data.block_inds:
@@ -1540,7 +1557,8 @@ class FusionTreeBackend(TensorBackend):
         return new_data, new_codomain, new_domain
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     levels: list[int] | None) -> tuple[Data | None, TensorProduct, TensorProduct]:
+                     new_codomain: TensorProduct, new_domain: TensorProduct,
+                     mixes_codomain_domain: bool, levels: list[int] | None) -> FusionTreeData:
         idcs = list(range(a.num_legs))
         if np.all(codomain_idcs == idcs[:a.num_codomain_legs]) and \
                 np.all(domain_idcs == idcs[a.num_codomain_legs:][::-1]):
@@ -1556,7 +1574,7 @@ class FusionTreeBackend(TensorBackend):
         axes_perm = [i if i < a.num_codomain_legs else a.num_legs - 1 - i + a.num_codomain_legs
                      for i in axes_perm]
         data = mappings.apply_to_tensor(a, codomain, domain, axes_perm, None)
-        return data, codomain, domain
+        return data
 
     def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
         a_blocks = a.data.blocks
@@ -1818,7 +1836,9 @@ class FusionTreeBackend(TensorBackend):
             a.dtype.zero_scalar
         )
 
-    def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorProduct, TensorProduct]:
+    def transpose(self, a: SymmetricTensor) -> Data:
+        # OPTIMIZE if transpose is ever really relevant, we could try to figure out
+        #          how to transpose fusion trees...
         codomain_idcs = list(range(a.num_codomain_legs, a.num_legs))
         domain_idcs = list(reversed(range(a.num_codomain_legs)))
         levels = list(reversed(range(a.num_legs)))
@@ -1834,7 +1854,7 @@ class FusionTreeBackend(TensorBackend):
 
         axes_perm = list(reversed(range(a.num_legs)))
         data = full_mapping.apply_to_tensor(a, codomain, domain, axes_perm, None)
-        return data, codomain, domain
+        return data
 
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
                                  degeneracy_tol: float, trunc_cut: float, svd_min: float

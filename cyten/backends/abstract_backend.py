@@ -607,12 +607,21 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     levels: list[int] | None) -> tuple[Data | None, TensorProduct, TensorProduct]:
+                     new_codomain: TensorProduct, new_domain: TensorProduct,
+                     mixes_codomain_domain: bool, levels: list[int] | None) -> Data:
         """Permute legs on the tensors.
 
+        Parameters
+        ----------
+        a : SymmetricTensor
+            The tensor to act on
         codomain_idcs, domain_idcs:
             Which of the legs should end up in the (co-)domain.
             All are leg indices (``0 <= i < a.num_legs``)
+        new_codomain, new_domain : TensorProduct
+            The (co)domain of the result.
+        mixes_codomain_domain : bool
+            If any leg move from codomain to domain or vv during the permutation.
         levels:
             The levels. Can assume they are unique, support comparison and are non-negative.
             ``None`` means unspecified.
@@ -723,9 +732,9 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorProduct, TensorProduct]:
+    def transpose(self, a: SymmetricTensor) -> Data:
         """Returns ``data, new_codomain, new_domain``.
-        
+
         Note that ``new_codomain == a.domain.dual`` and ``new_domain == a.codomain.dual``.
         """
         ...
