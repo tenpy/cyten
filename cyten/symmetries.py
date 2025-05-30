@@ -15,7 +15,8 @@ from .dtypes import Dtype
 from .tools.misc import as_immutable_array
 
 
-__all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingStyle',
+__all__ = ['SymmetryError', 'BraidChiralityUnspecifiedError', 'Sector', 'SectorArray',
+           'FusionStyle', 'BraidingStyle',
            # symmetry base-classes
            'Symmetry', 'ProductSymmetry', 'GroupSymmetry', 'AbelianGroup',
            # abelian groups
@@ -36,7 +37,11 @@ __all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingSty
 
 class SymmetryError(Exception):
     """An exception that is raised whenever something is not possible or not allowed due to symmetry"""
-    
+    pass
+
+
+class BraidChiralityUnspecifiedError(SymmetryError):
+    """An exception that is raised whenever a braid chirality should be specified but wasnt."""
     pass
 
 
@@ -103,9 +108,13 @@ class BraidingStyle(Enum):
     anyonic = 20  # non-symmetric braiding
     no_braiding = 30  # braiding is not defined
 
+    @property
+    def has_symmetric_braid(self):
+        return self < BraidingStyle.anyonic
+
     def __lt__(self, other):
         if self.__class__ is other.__class__:
-            return self.value <= other.value
+            return self.value < other.value
         return NotImplemented
 
 
@@ -243,7 +252,7 @@ class Symmetry(metaclass=ABCMeta):
 
     @property
     def has_symmetric_braid(self) -> bool:
-        return self.braiding_style <= BraidingStyle.fermionic
+        return self.braiding_style.has_symmetric_braid
 
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
         """Internal implementation of :meth:`fusion_tensor`. Can assume that inputs are valid."""
