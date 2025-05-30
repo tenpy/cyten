@@ -2278,11 +2278,21 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
     ]
 )
 def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_compatible_tensor,
-                      compatible_symmetry):
+                      compatible_symmetry, np_random):
     if isinstance(compatible_symmetry, symmetries.SU2Symmetry) and (num_cod + num_dom) > 4:
-        # FIXME generate smaller sectors...?
-        pytest.skip('Takes too long to generate the symmetry data needed.')
-    T = make_compatible_tensor(num_cod, num_dom, max_block_size=3, cls=cls,
+        # make sure we dont need symmetry data for too large sectors
+        sectors = [[0], [1], [2]]
+        legs = []
+        for _ in range(num_cod + num_dom):
+            mults = np_random.integers(1, 5, size=3)
+            is_dual = np_random.choice([True, False])
+            legs.append(ElementarySpace(compatible_symmetry, sectors, mults, is_dual))
+        T_codomain = legs[:num_cod]
+        T_domain = legs[num_cod:]
+    else:
+        T_codomain = num_cod
+        T_domain = num_dom
+    T = make_compatible_tensor(T_codomain, T_domain, max_block_size=3, cls=cls,
                                use_pipes=0,  # FIXME use again!
                                allow_basis_perm=False,  # FIXME reenable
                                )
