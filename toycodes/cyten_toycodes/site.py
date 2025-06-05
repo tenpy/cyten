@@ -149,24 +149,39 @@ class SimpleSite:
         remove_trivial_legs_from_on_site_op
         """
         trivial_space = ct.ElementarySpace.from_trivial_sector(dim=1, symmetry=self.symmetry)
+        idx = op.num_codomain_legs
         labels = op.labels
+        data = op.data
         if left:
             assert op.num_codomain_legs == 1
+            idx += 1
             labels.insert(0, 'vL')
             new_codom = ct.TensorProduct([trivial_space, op.codomain[0]], symmetry=self.symmetry,
                                          _sector_decomposition=op.codomain.sector_decomposition,
                                          _multiplicities=op.codomain.multiplicities)
+            if isinstance(self.backend, ct.AbelianBackend):
+                data.block_inds = np.insert(data.block_inds, 0, values=0, axis=1)
+                shapes = [self.backend.block_backend.get_shape(block) for block in data.blocks]
+                shapes = [[1, *shape] for shape in shapes]
+                data.blocks = [self.backend.block_backend.reshape(block, shape)
+                               for block, shape in zip(data.blocks, shapes)]
         else:
             new_codom = op.codomain
         if right:
             assert op.num_domain_legs == 1
-            labels.insert(op.num_codomain_legs, 'vR*')
+            labels.insert(idx, 'vR*')
             new_dom = ct.TensorProduct([op.domain[0], trivial_space], symmetry=self.symmetry,
                                        _sector_decomposition=op.domain.sector_decomposition,
                                        _multiplicities=op.domain.multiplicities)
+            if isinstance(self.backend, ct.AbelianBackend):
+                data.block_inds = np.insert(data.block_inds, idx, values=0, axis=1)
+                shapes = [self.backend.block_backend.get_shape(block) for block in data.blocks]
+                shapes = [[*shape[:idx], 1, *shape[idx:]] for shape in shapes]
+                data.blocks = [self.backend.block_backend.reshape(block, shape)
+                               for block, shape in zip(data.blocks, shapes)]
         else:
             new_dom = op.domain
-        return ct.SymmetricTensor(op.data, new_codom, new_dom, self.backend, labels=labels)
+        return ct.SymmetricTensor(data, new_codom, new_dom, self.backend, labels=labels)
 
     def remove_trivial_legs_from_on_site_op(self, op: ct.SymmetricTensor, left: bool,
                                             right: bool) -> ct.SymmetricTensor:
@@ -295,6 +310,50 @@ class SimpleSpinSite(SimpleSite):
     @abstractmethod
     def add_on_site_spin_ops(self):
         ...
+
+
+class SimpleU1SpinSite(SimpleSpinSite):
+    def __init__(self, spin, backend=None):
+        super().__init__(spin, ct.u1_symmetry, backend)
+
+    def add_on_site_spin_ops(self):
+        # TODO add sx, sy, sz
+        n = self.physical_space.dim
+        spin = (n - 1) / 2
+        sz = np.diag(-1 * spin + np.arange(n))
+        sp = np.zeros([n, n])
+        for i in np.arange(n - 1):
+            # Sp |m> =sqrt( S(S+1)-m(m+1)) |m+1>
+            m = i - spin
+            sp[i + 1, i] = np.sqrt(spin * (spin + 1) - m * (m + 1))
+        sm = np.transpose(sp)
+        # Sp = Sx + i Sy, Sm = Sx - i Sy
+        sx = (sp + sm) * 0.5
+        sy = (sm - sp) * 0.5j
+
+        slist = [sx, sy, sz]
+        # construct dense operator corresponding to s . s
+        s_dot_s_dense = np.zeros([n] * 4, dtype=complex)
+        for si in slist:
+            s_dot_s_dense += si[:, None, None, :] * si[None, :, :, None]
+        co_dom = ct.TensorProduct([self.physical_space] * 2, self.symmetry)
+        names = ['s_dot', 'dot_s']
+        self.add_operators_from_dense_multi_site_op(names=names, co_dom=co_dom,
+                                                    block=s_dot_s_dense)
+
+        # construct dense operator corresponding to s . s x s
+        s_dot_s_x_s_dense = np.zeros([n] * 6, dtype=complex)
+        for i in range(3):
+            s_dot_s_x_s_dense += (slist[i % 3][:, None, None, None, None, :]
+                                  * slist[(i + 1) % 3][None, :, None, None, :, None]
+                                  * slist[(i + 2) % 3][None, None, :, :, None, None])
+            s_dot_s_x_s_dense -= (slist[i % 3][:, None, None, None, None, :]
+                                  * slist[(i + 2) % 3][None, :, None, None, :, None]
+                                  * slist[(i + 1) % 3][None, None, :, :, None, None])
+        co_dom = ct.TensorProduct([self.physical_space] * 3, self.symmetry)
+        names = ['s_dot_x', 'dot_s_x', 'dot_x_s']
+        self.add_operators_from_dense_multi_site_op(names=names, co_dom=co_dom,
+                                                    block=s_dot_s_x_s_dense)
 
 
 class SimpleSU2SpinSite(SimpleSpinSite):
