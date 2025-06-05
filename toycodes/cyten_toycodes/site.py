@@ -1,5 +1,7 @@
 """Toy code implementing a site."""
 # Copyright (C) TeNPy Developers, Apache license
+from abc import abstractmethod
+import numpy as np
 import cyten as ct
 
 
@@ -276,3 +278,69 @@ class SimpleSite:
         levels = list(range(4)) if overbraid else list(range(3, -1, -1))
         op = ct.permute_legs(op, domain=['p*', 'vR*'], levels=levels)
         return op
+
+
+class SimpleSpinSite(SimpleSite):
+    def __init__(self, spin, symmetry, backend = None):
+        if isinstance(symmetry, ct.SU2Symmetry):
+            sectors = np.array([[spin]])
+        elif isinstance(symmetry, ct.U1Symmetry):
+            sectors = np.arange(-1 * spin, spin + 2, 2)[:, None]
+        else:
+            raise NotImplementedError
+        physical_space = ct.ElementarySpace(symmetry, sectors)
+        super().__init__(physical_space, backend)
+        self.add_on_site_spin_ops()
+
+    @abstractmethod
+    def add_on_site_spin_ops(self):
+        ...
+
+
+class SimpleSU2SpinSite(SimpleSpinSite):
+    def __init__(self, spin, backend=None):
+        super().__init__(spin, ct.SU2Symmetry(), backend)
+
+    def add_on_site_spin_ops(self):
+        self.add_s_dot_s_ops()
+        self.add_s_dot_s_x_s_ops()
+
+    def add_s_dot_s_ops(self):
+        s_dot_s = ct.SymmetricTensor.from_eye([self.physical_space] * 2, backend=self.backend)
+        spin = (self.physical_space.dim - 1) / 2
+        on_site_casimir = spin * (spin + 1)
+        for block, idcs in zip(s_dot_s.data.blocks, s_dot_s.data.block_inds):
+            coupled_spin = s_dot_s.domain.sector_decomposition[idcs[1]][0] / 2
+            coupled_casimir = coupled_spin * (coupled_spin + 1)
+            block[0, 0] = coupled_casimir / 2 - on_site_casimir
+        self.add_operators_from_multi_site_op(['s_dot', 'dot_s'], s_dot_s)
+
+    def add_s_dot_s_x_s_ops(self):
+        n = self.physical_space.dim
+        spin = (n - 1) / 2
+        sz = np.diag(-1 * spin + np.arange(n))
+        sp = np.zeros([n, n])
+        for i in np.arange(n - 1):
+            # Sp |m> =sqrt( S(S+1)-m(m+1)) |m+1>
+            m = i - spin
+            sp[i + 1, i] = np.sqrt(spin * (spin + 1) - m * (m + 1))
+        sm = np.transpose(sp)
+        # Sp = Sx + i Sy, Sm = Sx - i Sy
+        sx = (sp + sm) * 0.5
+        sy = (sm - sp) * 0.5j
+
+        # construct dense operator corresponding to s . s x s
+        slist = [sx, sy, sz]
+        s_dot_s_x_s_dense = 0
+        for i in range(3):
+            s_dot_s_x_s_dense += (slist[i % 3][:, None, None, None, None, :]
+                                  * slist[(i + 1) % 3][None, :, None, None, :, None]
+                                  * slist[(i + 2) % 3][None, None, :, :, None, None])
+            s_dot_s_x_s_dense -= (slist[i % 3][:, None, None, None, None, :]
+                                  * slist[(i + 2) % 3][None, :, None, None, :, None]
+                                  * slist[(i + 1) % 3][None, None, :, :, None, None])
+
+        co_dom = ct.TensorProduct([self.physical_space] * 3, self.symmetry)
+        names = ['s_dot_x', 'dot_s_x', 'dot_x_s']
+        self.add_operators_from_dense_multi_site_op(names=names, co_dom=co_dom,
+                                                    block=s_dot_s_x_s_dense)
