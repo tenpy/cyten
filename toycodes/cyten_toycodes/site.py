@@ -41,6 +41,17 @@ class SimpleSite:
         for name, op in site_ops.items():
             self.add_operator(name, op)
 
+    def test_sanity(self):
+        assert isinstance(self.physical_space, ct.ElementarySpace)
+        self.physical_space.test_sanity()
+        assert isinstance(self.symmetry, ct.Symmetry)
+        assert isinstance(self.backend, ct.TensorBackend)
+        for label, state in self.state_labels.items():
+            assert isinstance(label, str) and isinstance(state, int)
+        for op in self.opnames:
+            assert hasattr(self, op)
+            getattr(self, op).test_sanity()
+
     def add_operator(self, name: str, op: ct.SymmetricTensor):
         """Add an on-site operator.
 
@@ -191,6 +202,7 @@ class SimpleSite:
         --------
         add_trivial_legs_to_on_site_op
         """
+        # TODO could use squeeze_legs...
         labels = op.labels
         if left:
             assert op.num_codomain_legs == 2
@@ -296,15 +308,29 @@ class SimpleSite:
 
 
 class SimpleSpinSite(SimpleSite):
-    def __init__(self, spin, symmetry, backend = None):
+    """Simple class for a spin site with SU(2) or U(1) symmetry.
+
+    Parameters
+    ----------
+    spin : int
+        2 * spin on the site.
+    symmetry : Symmetry
+        Conserved symmetry. Must be SU(2) or U(1) symmetry.
+    backend, state_labels, **site_ops: see :class:`SimpleSite`.
+    """
+    def __init__(self, spin: int, symmetry: ct.Symmetry, backend: ct.TensorBackend = None,
+                 state_labels: None | list[str | None] = None, **site_ops):
+        assert isinstance(spin, int)
         if isinstance(symmetry, ct.SU2Symmetry):
             sectors = np.array([[spin]])
         elif isinstance(symmetry, ct.U1Symmetry):
             sectors = np.arange(-1 * spin, spin + 2, 2)[:, None]
+            if spin == 1 and state_labels is None:
+                state_labels = ['down', 'up']
         else:
             raise NotImplementedError
         physical_space = ct.ElementarySpace(symmetry, sectors)
-        super().__init__(physical_space, backend)
+        super().__init__(physical_space, backend, state_labels, **site_ops)
         self.add_on_site_spin_ops()
 
     @abstractmethod
@@ -313,7 +339,8 @@ class SimpleSpinSite(SimpleSite):
 
 
 class SimpleU1SpinSite(SimpleSpinSite):
-    def __init__(self, spin, backend=None):
+    """Simple class for a spin site with U(1) symmetry."""
+    def __init__(self, spin: int, backend: ct.TensorBackend = None):
         super().__init__(spin, ct.u1_symmetry, backend)
 
     def add_on_site_spin_ops(self):
@@ -357,7 +384,8 @@ class SimpleU1SpinSite(SimpleSpinSite):
 
 
 class SimpleSU2SpinSite(SimpleSpinSite):
-    def __init__(self, spin, backend=None):
+    """Simple class for a spin site with SU(2) symmetry."""
+    def __init__(self, spin: int, backend: ct.TensorBackend = None):
         super().__init__(spin, ct.SU2Symmetry(), backend)
 
     def add_on_site_spin_ops(self):
@@ -403,3 +431,53 @@ class SimpleSU2SpinSite(SimpleSpinSite):
         names = ['s_dot_x', 'dot_s_x', 'dot_x_s']
         self.add_operators_from_dense_multi_site_op(names=names, co_dom=co_dom,
                                                     block=s_dot_s_x_s_dense)
+
+
+def verify_operator_decomposition_spins(spin: int = 1):
+    n = spin + 1
+    spin_ = spin / 2
+    sz = np.diag(-1 * spin_ + np.arange(n))
+    sp = np.zeros([n, n])
+    for i in np.arange(n - 1):
+        m = i - spin_
+        sp[i + 1, i] = np.sqrt(spin_ * (spin_ + 1) - m * (m + 1))
+    sm = np.transpose(sp)
+    sx = (sp + sm) * 0.5
+    sy = (sm - sp) * 0.5j
+
+    slist = [sx, sy, sz]
+    # construct dense operator corresponding to s . s
+    s_dot_s_dense = np.zeros([n] * 4, dtype=complex)
+    for si in slist:
+        s_dot_s_dense += si[:, None, None, :] * si[None, :, :, None]
+
+    # construct dense operator corresponding to s . s x s
+    s_dot_s_x_s_dense = np.zeros([n] * 6, dtype=complex)
+    for i in range(3):
+        s_dot_s_x_s_dense += (slist[i % 3][:, None, None, None, None, :]
+                                * slist[(i + 1) % 3][None, :, None, None, :, None]
+                                * slist[(i + 2) % 3][None, None, :, :, None, None])
+        s_dot_s_x_s_dense -= (slist[i % 3][:, None, None, None, None, :]
+                                * slist[(i + 2) % 3][None, :, None, None, :, None]
+                                * slist[(i + 1) % 3][None, None, :, :, None, None])
+
+    siteU1_1 = SimpleU1SpinSite(spin, backend=ct.AbelianBackend(ct.NumpyBlockBackend()))
+    siteU1_2 = SimpleU1SpinSite(spin, backend=ct.FusionTreeBackend(ct.NumpyBlockBackend()))
+    siteSU2 = SimpleSU2SpinSite(spin)
+    for site in [siteU1_1, siteU1_2, siteSU2]:
+        site.test_sanity()
+
+        s_dot_s = ct.tdot(site.s_dot, site.dot_s, 'vR*', 'vL', relabel1={'p': 'p0', 'p*': 'p0*'}, relabel2={'p': 'p1', 'p*': 'p1*'})
+        s_dot_s = ct.squeeze_legs(s_dot_s)
+        s_dot_s = ct.permute_legs(s_dot_s, codomain=['p0', 'p1'], domain=['p0*', 'p1*'])
+        np.testing.assert_almost_equal(s_dot_s.to_numpy(), s_dot_s_dense)
+
+        s_dot_s_x_s = ct.tdot(site.s_dot_x, site.dot_s_x, 'vR*', 'vL', relabel1={'p': 'p0', 'p*': 'p0*'}, relabel2={'p': 'p1', 'p*': 'p1*'})
+        s_dot_s_x_s = ct.tdot(s_dot_s_x_s, site.dot_x_s, 'vR*', 'vL', relabel2={'p': 'p2', 'p*': 'p2*'})
+        s_dot_s_x_s = ct.squeeze_legs(s_dot_s_x_s)
+        s_dot_s_x_s = ct.permute_legs(s_dot_s_x_s, codomain=['p0', 'p1', 'p2'], domain=['p0*', 'p1*', 'p2*'])
+        np.testing.assert_almost_equal(s_dot_s_x_s.to_numpy(), s_dot_s_x_s_dense)
+
+
+if __name__ == '__main__':
+    verify_operator_decomposition_spins(spin=1)
