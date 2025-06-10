@@ -71,6 +71,11 @@ class SimpleSite:
             corresponding to the labels ``(vL, p, vR*, p*)``, i.e.,
             ``op.codomain[1] == self.physical_space`` and
             ``op.domain[0] == self.physical_space``.
+
+        See Also
+        --------
+        add_operator_from_dense_single_site_op, add_operators_from_multi_site_op,
+        add_operators_from_dense_multi_site_op
         """
         assert isinstance(op, ct.SymmetricTensor)
         if name in self.opnames:
@@ -94,6 +99,34 @@ class SimpleSite:
         setattr(self, name, op)
         self.opnames.add(name)
 
+    def add_operator_from_dense_single_site_op(self, name: str, block: ct.Block,
+                                               dtype: ct.Dtype = None):
+        """Add a dense on-site operator.
+
+        `block` must be given in a form such that the codomain and the domain
+        only contain a single leg, which is the site's physical leg.
+
+        Parameters
+        ----------
+        name : str
+            The variable name used to label the operator under which it is
+            added as attribute to self.
+        block : Block
+            The data to be converted to the multi-site operator.
+        dtype: Dtype
+            If given, resulting multi-site operator will have that dtype.
+
+        See Also
+        --------
+        add_operator, add_operators_from_multi_site_op,
+        add_operators_from_dense_multi_site_op
+        """
+        co_dom = ct.TensorProduct([self.physical_space], symmetry=self.symmetry)
+        op = ct.SymmetricTensor.from_dense_block(block, co_dom, co_dom,
+                                                 backend=self.backend, dtype=dtype)
+        op = self.add_trivial_legs_to_on_site_op(op, left=True, right=True)
+        self.add_operator(name, op)
+
     def add_operators_from_multi_site_op(self, names: list[str | None],
                                          multi_site_op: ct.SymmetricTensor) -> list[ct.SymmetricTensor]:
         """Split an operator into multiple on-site operators and add them.
@@ -115,6 +148,7 @@ class SimpleSite:
 
         See Also
         --------
+        add_operator, add_operator_from_dense_single_site_op,
         add_operators_from_dense_multi_site_op
         """
         assert multi_site_op.num_codomain_legs == len(names)
@@ -150,6 +184,7 @@ class SimpleSite:
 
         See Also
         --------
+        add_operator, add_operator_from_dense_single_site_op,
         add_operators_from_multi_site_op
         """
         assert len(co_dom) == len(names)
@@ -357,7 +392,7 @@ class SimpleU1SpinSite(SimpleSpinSite):
         super().__init__(spin, ct.u1_symmetry, backend)
 
     def add_on_site_spin_ops(self):
-        # TODO add sx, sy, sz
+        # TODO add sx, sy, sp, sm?
         n = self.physical_space.dim
         spin = (n - 1) / 2
         sz = np.diag(-1 * spin + np.arange(n))
@@ -370,6 +405,7 @@ class SimpleU1SpinSite(SimpleSpinSite):
         # Sp = Sx + i Sy, Sm = Sx - i Sy
         sx = (sp + sm) * 0.5
         sy = (sm - sp) * 0.5j
+        self.add_operator_from_dense_single_site_op('sz', sz)
 
         slist = [sx, sy, sz]
         # construct dense operator corresponding to s . s
