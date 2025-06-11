@@ -7,8 +7,6 @@ import numpy
 from .abstract_backend import BlockBackend, Block
 from ..dtypes import Dtype
 
-__all__ = ['TorchBlockBackend']
-
 
 class TorchBlockBackend(BlockBackend):
     """A block-backend using PyTorch"""

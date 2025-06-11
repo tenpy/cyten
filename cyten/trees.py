@@ -11,8 +11,6 @@ from .dtypes import Dtype
 if TYPE_CHECKING:
     from .backends.abstract_backend import TensorBackend, Block
 
-__all__ = ['FusionTree', 'fusion_trees']
-
 
 class FusionTree:
     r"""A fusion tree, which represents the map from uncoupled to coupled sectors.

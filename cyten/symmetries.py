@@ -15,25 +15,6 @@ from .dtypes import Dtype
 from .tools.misc import as_immutable_array
 
 
-__all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingStyle',
-           # symmetry base-classes
-           'Symmetry', 'ProductSymmetry', 'GroupSymmetry', 'AbelianGroup',
-           # abelian groups
-           'NoSymmetry', 'U1Symmetry', 'ZNSymmetry',
-           # non-abelian groups
-           'SU2Symmetry', 'SUNSymmetry',
-           # anyons
-           'FermionParity', 'FibonacciAnyonCategory', 'IsingAnyonCategory', 'SU3_3AnyonCategory',
-           'QuantumDoubleZNAnyonCategory', 'ToricCodeCategory', 'SU2_kAnyonCategory', 'ZNAnyonCategory',
-           'ZNAnyonCategory2',
-           # concrete instances
-           'no_symmetry', 'u1_symmetry', 'z2_symmetry', 'z3_symmetry', 'z4_symmetry', 'z5_symmetry', 'z6_symmetry',
-           'z7_symmetry', 'z8_symmetry', 'z9_symmetry',
-           'fermion_parity', 'fibonacci_anyon_category', 'ising_anyon_category',
-           'double_semion_category', 'semion_category', 'toric_code_category',
-           ]
-
-
 class SymmetryError(Exception):
     """An exception that is raised whenever something is not possible or not allowed due to symmetry"""
     

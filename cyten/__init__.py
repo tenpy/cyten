@@ -22,19 +22,6 @@ from ._core import *  # import pybind11 bindings from C++ code
 
 from . import version
 
-__all__ = ['symmetries', 'spaces', 'trees', 'backends', 'tensors', 'random_matrix', 'sparse',
-           'krylov_based', 'dtypes', 'dummy_config', 'tools', 'version',
-           *symmetries.__all__,
-           *trees.__all__,
-           *spaces.__all__,
-           *backends.__all__,
-           *tensors.__all__,
-           *random_matrix.__all__,
-           *sparse.__all__,
-           *krylov_based.__all__,
-           *dtypes.__all__,
-           'show_config', 'testing'
-           ]
 
 #: hard-coded version string
 __version__ = version.version

@@ -12,9 +12,6 @@ from ..spaces import Space, ElementarySpace, TensorProduct, Leg, LegPipe, Abelia
 from ..tools.misc import rank_data
 
 
-__all__ = ['NoSymmetryBackend']
-
-
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
     # this clause allows mypy etc to evaluate the type-hints anyway

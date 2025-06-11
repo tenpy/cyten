@@ -33,10 +33,6 @@ corresponding ensemble, for example::
 
 import numpy as np
 
-__all__ = [
-    'box', 'standard_normal_complex', 'GOE', 'GUE', 'CRE', 'COE', 'CUE', 'O_close_1', 'U_close_1'
-]
-
 
 def box(size, W=1.):
     """Generate random number uniform in (-W, W]."""

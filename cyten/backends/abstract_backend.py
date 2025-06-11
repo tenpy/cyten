@@ -15,9 +15,6 @@ from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe, Leg
 from ..dtypes import Dtype
 from ..tools.misc import combine_constraints, to_iterable
 
-__all__ = ['Data', 'DiagonalData', 'MaskData', 'Block', 'TensorBackend', 'BlockBackend',
-           'conventional_leg_order']
-
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import

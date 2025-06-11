@@ -7,9 +7,6 @@ from numbers import Number
 import numpy as np
 
 
-__all__ = ['Dtype']
-
-
 class Dtype(Enum):
     """The dtype of (entries in) a tensor."""
     

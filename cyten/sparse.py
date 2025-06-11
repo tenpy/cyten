@@ -25,11 +25,6 @@ from .tools.math import speigs, speigsh
 from .tools.misc import argsort
 
 
-__all__ = ['LinearOperator', 'TensorLinearOperator', 'LinearOperatorWrapper', 'SumLinearOperator',
-           'ShiftedLinearOperator', 'ProjectedLinearOperator', 'NumpyArrayLinearOperator',
-           'HermitianNumpyArrayLinearOperator', 'gram_schmidt']
-
-
 class LinearOperator(metaclass=ABCMeta):
     """Base class for a linear operator acting on cyten tensors.
 
