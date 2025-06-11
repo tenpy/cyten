@@ -9,7 +9,7 @@ import operator
 from contextlib import nullcontext
 
 from cyten import backends, tensors, symmetries
-from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor
+from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor, Tensor
 from cyten.backends.backend_factory import get_backend
 from cyten.dtypes import Dtype
 from cyten.spaces import ElementarySpace, TensorProduct, AbelianLegPipe, LegPipe
@@ -1028,7 +1028,7 @@ def test_Tensor_str_repr(cls, codomain, domain, make_compatible_tensor, str_max_
     ],
 )
 def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor, np_random):
-    tens: cls = make_compatible_tensor(domain, codomain, cls=cls)
+    tens: Tensor = make_compatible_tensor(domain, codomain, cls=cls)
 
     if not tens.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
@@ -1074,16 +1074,17 @@ def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor,
 @pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize('cls', [DiagonalTensor, SymmetricTensor, ChargedTensor])
 def test_almost_equal(cls, make_compatible_tensor):
-    T: cls = make_compatible_tensor(cls=cls)
+    T: Tensor = make_compatible_tensor(cls=cls)
 
     if cls is ChargedTensor:
+        T: ChargedTensor
         T_diff_inv = make_compatible_tensor(
             domain=T.invariant_part.domain, codomain=T.invariant_part.codomain, cls=SymmetricTensor,
             labels=T.invariant_part.labels
         )
         T_diff = ChargedTensor(T_diff_inv, T.charged_state)
     else:
-        T_diff: cls = make_compatible_tensor(domain=T.domain, codomain=T.codomain, cls=cls)
+        T_diff: Tensor = make_compatible_tensor(domain=T.domain, codomain=T.codomain, cls=cls)
         
     T2 = T + 1e-7 * T_diff
     assert tensors.almost_equal(T, T2, rtol=1e-5, atol=1e-5)
@@ -1175,7 +1176,7 @@ def test_apply_mask_DiagonalTensor(make_compatible_tensor):
                           pytest.param(SymmetricTensor, 2, 2, 1),
                           pytest.param(SymmetricTensor, 2, 2, 4),])
 def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_tensor):
-    tensor: cls = make_compatible_tensor(codomain, domain, cls=cls)
+    tensor: Tensor = make_compatible_tensor(codomain, domain, cls=cls)
 
     if isinstance(tensor.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in tensor.legs]) and codomain != num_codomain_legs:
@@ -1428,10 +1429,10 @@ def test_combine_split_pr_16():
 def test_compose(cls_A, cls_B, cod_A, shared, dom_B, make_compatible_tensor):
     labels_A = [list('abcd')[:cod_A], list('efgh')[:shared]]
     labels_B = [list('ijkl')[:shared], list('mnop')[:dom_B]]
-    A: cls_A = make_compatible_tensor(
+    A: Tensor = make_compatible_tensor(
         codomain=cod_A, domain=shared, labels=labels_A, cls=cls_A
     )
-    B: cls_B = make_compatible_tensor(
+    B: Tensor = make_compatible_tensor(
         codomain=A.domain, domain=dom_B, labels=labels_B, cls=cls_B
     )
 
@@ -1485,7 +1486,7 @@ def test_compose(cls_A, cls_B, cod_A, shared, dom_B, make_compatible_tensor):
 )
 def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
     T_labels = list('abcdefghi')[:cod + dom]
-    T: cls = make_compatible_tensor(cod, dom, cls=cls, labels=T_labels)
+    T: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=T_labels)
 
     if isinstance(T.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in T.legs]) and cls is ChargedTensor:
@@ -1618,8 +1619,8 @@ def test_DiagonalTensor_elementwise_binary(cls, op, dtype, make_compatible_tenso
 )
 def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     # prepare hermitian tensor
-    T: cls = make_compatible_tensor(dom, dom, cls=cls)
-    T: cls = make_compatible_tensor(T.domain, T.domain, cls=cls)
+    T: Tensor = make_compatible_tensor(dom, dom, cls=cls)
+    T: Tensor = make_compatible_tensor(T.domain, T.domain, cls=cls)
     T = T + T.hc
     T.set_labels(list('efghijk')[:2 * dom])
     T.test_sanity()
@@ -1672,7 +1673,7 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
             _ = make_compatible_tensor(codomain=T_codomain, domain=T_domain, labels=labels, cls=cls)
         pytest.xfail()
 
-    T: cls = make_compatible_tensor(codomain=T_codomain, domain=T_domain, labels=labels, cls=cls)
+    T: Tensor = make_compatible_tensor(codomain=T_codomain, domain=T_domain, labels=labels, cls=cls)
 
     if isinstance(T.backend, backends.FusionTreeBackend):
         if which_leg < T.num_codomain_legs:
@@ -1758,7 +1759,7 @@ def test_entropy(n, make_compatible_tensor):
      ]
 )
 def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
-    T: cls = make_compatible_tensor(cod, dom, cls=cls)
+    T: Tensor = make_compatible_tensor(cod, dom, cls=cls)
 
     if not T.symmetry.can_be_dropped:
         with pytest.raises(SymmetryError, match='Can not access elements'):
@@ -1837,11 +1838,11 @@ def test_inner(cls, cod, dom, do_dagger, allow_basis_perm, make_compatible_tenso
         Mask random generation does not allow basis perms right now. This flag allows generating
         only legs with trivial basis perm.
     """
-    A: cls = make_compatible_tensor(cod, dom, cls=cls, allow_basis_perm=allow_basis_perm)
+    A: Tensor = make_compatible_tensor(cod, dom, cls=cls, allow_basis_perm=allow_basis_perm)
     if do_dagger:
-        B: cls = make_compatible_tensor(codomain=A.codomain, domain=A.domain, cls=cls)
+        B: Tensor = make_compatible_tensor(codomain=A.codomain, domain=A.domain, cls=cls)
     else:
-        B: cls = make_compatible_tensor(codomain=A.domain, domain=A.codomain, cls=cls)
+        B: Tensor = make_compatible_tensor(codomain=A.domain, domain=A.codomain, cls=cls)
 
     if cls is Mask:
         with pytest.raises(NotImplementedError, match='tensors._compose_with_Mask not implemented for Mask'):
@@ -2003,7 +2004,7 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
     assert sum(x is None for x in [domain_pos, codomain_pos]) == 1
 
     T_labels = list('abcdefghi')[:cod + dom]
-    T: cls = make_compatible_tensor(cod, dom, labels=T_labels, cls=cls)
+    T: Tensor = make_compatible_tensor(cod, dom, labels=T_labels, cls=cls)
 
     if cls in [DiagonalTensor, Mask]:
         if (leg, codomain_pos, domain_pos) == (0, 0, None):
@@ -2070,7 +2071,7 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
      pytest.param(Mask, 1, 1, id='Mask'),]
 )
 def test_norm(cls, cod, dom, make_compatible_tensor):
-    T: cls = make_compatible_tensor(cod, dom, cls=cls)
+    T: Tensor = make_compatible_tensor(cod, dom, cls=cls)
 
     if not T.symmetry.can_be_dropped and cls is ChargedTensor:
         assert T.charged_state is None  # can not have a charged state for anyons -> can not compute norm
@@ -2109,8 +2110,8 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
 def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor):
     A_labels = list('abcdefg')[:cA + dA]
     B_labels = list('hijklmn')[:cB + dB]
-    A: cls_A = make_compatible_tensor(cA, dA, cls=cls_A, labels=A_labels)
-    B: cls_B = make_compatible_tensor(cB, dB, cls=cls_B, labels=B_labels)
+    A: Tensor = make_compatible_tensor(cA, dA, cls=cls_A, labels=A_labels)
+    B: Tensor = make_compatible_tensor(cB, dB, cls=cls_B, labels=B_labels)
 
     if isinstance(A.backend, backends.FusionTreeBackend):
         if A.has_pipes or B.has_pipes:
@@ -2188,7 +2189,7 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
             domain_spaces.append(make_compatible_space())
             domain_labels.append(l)
     #
-    T: cls = make_compatible_tensor(codomain_spaces, domain_spaces, cls=cls,
+    T: Tensor = make_compatible_tensor(codomain_spaces, domain_spaces, cls=cls,
                                     labels=[*codomain_labels, *reversed(domain_labels)])
     #
     how_to_call = np_random.choice(['positions', 'labels'])
@@ -2326,7 +2327,7 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_comp
 )
 def test_qr_lq(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     T_labels = list('efghijk')[:dom + cod]
-    T: cls = make_compatible_tensor(dom, cod, cls=cls, labels=T_labels)
+    T: Tensor = make_compatible_tensor(dom, cod, cls=cls, labels=T_labels)
 
     Q, R = tensors.qr(T, new_leg_dual=new_leg_dual)
     Q.test_sanity()
@@ -2495,7 +2496,7 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
         - svd_apply_mask
     """
     T_labels = list('efghijklmn')[:dom + cod]
-    T: cls = make_compatible_tensor(dom, cod, labels=T_labels, cls=cls)
+    T: Tensor = make_compatible_tensor(dom, cod, labels=T_labels, cls=cls)
 
     print('Normal (non-truncated) SVD')
 
@@ -2585,14 +2586,14 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
         #      can be pipes
         kwargs['use_pipes'] = False
     
-    A: cls_A = make_compatible_tensor(
+    A: Tensor = make_compatible_tensor(
         codomain=len(labels_A[0]), domain=len(labels_A[1]),
         labels=[*labels_A[0], *reversed(labels_A[1])], max_block_size=3, max_blocks=3, cls=cls_A,
         **kwargs
     )
 
     # create B such that legs with the same label can be contracted
-    B: cls_B = make_compatible_tensor(
+    B: Tensor = make_compatible_tensor(
         codomain=[A._as_domain_leg(l) if A.has_label(l) else None for l in labels_B[0]],
         domain=[A._as_codomain_leg(l) if A.has_label(l) else None for l in labels_B[1]],
         labels=[*labels_B[0], *reversed(labels_B[1])], max_block_size=2, max_blocks=3, cls=cls_B,
@@ -2713,7 +2714,7 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
         charged_state = inv_part.backend.block_backend.as_block(list(range(charge_leg.dim)))
         tensor = ChargedTensor(inv_part.set_label(-1, '!'), charged_state)
     else:
-        tensor: cls = make_compatible_tensor(co_domain_spaces, co_domain_spaces, cls=cls)
+        tensor: Tensor = make_compatible_tensor(co_domain_spaces, co_domain_spaces, cls=cls)
 
     res = tensors.trace(tensor)
     assert isinstance(res, (float, complex))
@@ -2743,7 +2744,7 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
 )
 def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     labels = list('abcdefghi')[:cod + dom]
-    tensor: cls = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
+    tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
 
     if isinstance(tensor.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
