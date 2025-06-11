@@ -1214,9 +1214,11 @@ def test_combine_split(use_pipes, make_compatible_tensor):
     assert T.labels == ['a', 'b', 'c', 'd']
 
     if isinstance(T.backend, backends.FusionTreeBackend):
-        err = NotImplementedError if use_pipes else RuntimeError
-        msg = '' if use_pipes else 'FusionTreeBackend.combine_legs not implemented'
-        with pytest.raises(err, match=msg):
+        if use_pipes:
+            match = None
+        else:
+            match = 'FusionTreeBackend.combine_legs not implemented'
+        with pytest.raises(NotImplementedError, match=match):
             _ = tensors.combine_legs(T, [1, 2])
         pytest.xfail()
 
