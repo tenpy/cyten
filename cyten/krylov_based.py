@@ -9,10 +9,6 @@ from .sparse import LinearOperator, ShiftedLinearOperator, ProjectedLinearOperat
 from .tools.misc import argsort  # TODO replace this?
 
 
-__all__ = ['KrylovBased', 'Arnoldi', 'LanczosGroundState', 'LanczosEvolution', 'lanczos',
-           'lanczos_arpack']
-
-
 logger = logging.getLogger(__name__)
 
 

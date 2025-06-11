@@ -11,10 +11,6 @@ from .misc import argsort
 import scipy.linalg
 import scipy.sparse.linalg
 
-__all__ = [
-    'speigs', 'speigsh',
-]
-
 
 def speigs(A, k, *args, **kwargs):
     """Wrapper around :func:`scipy.sparse.linalg.eigs`, lifting the restriction ``k < rank(A)-1``.

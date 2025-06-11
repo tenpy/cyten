@@ -44,8 +44,6 @@ from ..tools.misc import (
     iter_common_sorted, iter_common_sorted_arrays, make_stride, find_row_differences, make_grid
 )
 
-__all__ = ['AbelianBackendData', 'AbelianBackend']
-
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import

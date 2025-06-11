@@ -11,9 +11,6 @@ from ..dtypes import Dtype
 import numpy as np
 
 
-__all__ = ['ArrayApiBlockBackend']
-
-
 # TODO provide an example...
 
 

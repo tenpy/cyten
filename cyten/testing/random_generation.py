@@ -11,11 +11,6 @@ except Exception:
 from .. import symmetries, spaces, tensors, backends, dtypes, tools
 
 
-__all__ = ['random_block', 'random_symmetry_sectors', 'random_ElementarySpace', 'random_LegPipe',
-           'random_leg', 'randomly_drop_blocks', 'find_last_leg', 'random_tensor',
-           'check_tensor_memory_usage']
-
-
 def random_block(block_backend, size, real=False, np_random=np.random.default_rng(0)):
     block = np_random.normal(size=size)
     if not real:
