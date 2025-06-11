@@ -1,351 +1,221 @@
 """Toy code implementing a site."""
 # Copyright (C) TeNPy Developers, Apache license
+from __future__ import annotations
 from abc import abstractmethod
 import numpy as np
 import cyten as ct
 
 
+class Coupling:
+    """Simple class for couplings, i.e., operators on sites.
+
+    By convention, all single-site operators making up a coupling have four
+    legs and are given labels ``(vL, pi, vR*, pi*)``, where the leg to the
+    left, `vL`, is part of the codomain and the leg to the right, `vR*`, part
+    of the domain. The `i` in `pi` is an integer that coincides with the number
+    enumerating the attribute ``tensors``.
+
+    Parameters
+    ----------
+    names : list[str]
+        All the (equivalent) names used to refer to the coupling.
+    tensors : list[SymmetricTensor]
+        Tensors defining the coupling. The codomain and domain of each tensor
+        in this list must contain two legs such that
+        ``tensors[i].codomain[1] == tensors[i].domain[0]``.
+    """
+
+    def __init__(self, names: list[str], tensors: list[ct.SymmetricTensor]):
+        self.names = names
+        self.symmetry = tensors[0].symmetry
+        self.backend = tensors[0].backend
+        self.tensors = tensors
+
+    def __len__(self):
+        return len(self.tensors)
+
+    def test_sanity(self):
+        for name in self.names:
+            assert isinstance(name, str)
+        assert isinstance(self.symmetry, ct.Symmetry)
+        assert isinstance(self.backend, ct.TensorBackend)
+        for i, ten in enumerate(self.tensors):
+            assert self.symmetry.is_same_symmetry(ten.symmetry)
+            assert ten.backend == self.backend
+            assert ten.num_codomain_legs == 2
+            assert ten.num_domain_legs == 2
+            assert ten.codomain[1] == ten.domain[0]
+            ten.test_sanity()
+            # make sure the tensors can be contracted
+            if i < len(self) - 1:
+                assert ten.domain[1] == self.tensors[i + 1].codomain[0]
+
+    @classmethod
+    def from_operator(cls, names: list[str], op: ct.SymmetricTensor) -> Coupling:
+        """Convert an operator / symmetric tensor to a coupling.
+
+        Parameters
+        ----------
+        names : list[str]
+            All the (equivalent) names used to refer to the coupling.
+        op : SymmetricTensor
+            Tensor to be converted to a coupling. May act on a single or on
+            multiple sites.
+        """
+        assert op.codomain == op.domain
+        labels = [f'p{i}' for i in range(op.num_codomain_legs)]
+        labels.extend([l + '*' for l in labels[::-1]])
+        op.labels = labels
+        if op.num_codomain_legs > 1:
+            tensors = decompose_multi_site_operator(op)
+        else:
+            tensors = [add_trivial_legs_to_on_site_op(op)]
+        return cls(names, tensors)
+
+    @classmethod
+    def from_dense_block(cls, names: list[str], co_dom: ct.TensorProduct,
+                         block: ct.Block, backend: ct.TensorBackend,
+                         dtype: ct.Dtype | None = None) -> Coupling:
+        """Convert an operator defined via a dense block to a coupling.
+
+        Parameters
+        ----------
+        names : list[str]
+            All the (equivalent) names used to refer to the coupling.
+        co_dom : TensorProduct
+            Tensorproduct describing both the codomain and the domain on which
+            the operator acts.
+        block : Block
+            The block data to be converted to the operator.
+        backend : TensorBackend
+            Backend of the coupling.
+        dtype: Dtype
+            If given, resulting coupling will have that dtype.
+        """
+        op = ct.SymmetricTensor.from_dense_block(block, codomain=co_dom, domain=co_dom,
+                                                 backend=backend, dtype=dtype)
+        return cls.from_operator(names, op)
+
+    def to_numpy(self) -> ct.SymmetricTensor:
+        """Convert to numpy array."""
+        # the convention for the decomposition is that legs to the right have
+        # higher levels -> this must now also hold
+        op = self.tensors[0]
+        for n in range(len(self) - 1):
+            levels = list(range(2 * n + 1))
+            levels.extend([2 * n + 1, 2 * n + 3, 2 * n + 2])
+            op = ct.permute_legs(op, domain=['vR*'])
+            op = ct.tdot(op, self.tensors[n + 1], legs1='vR*', legs2='vL')
+        op = ct.squeeze_legs(op, legs=['vL', 'vR*'])
+        codom_labels = [f'p{i}' for i in range(len(self))]
+        dom_labels = [l + '*' for l in codom_labels]
+        op = ct.permute_legs(op, codomain=codom_labels, domain=dom_labels,
+                             levels=list(range(2 * len(self))))
+        return op.to_numpy()
+        
+
 class SimpleSite:
     """Simple class for a site.
 
-    By convention, all operators are given the labels ``(vL, p, vR*, p*)``,
-    where the leg to the left, `vL`, is part of the codomain and the leg to the
-    right, `vR*`, part of the domain.
+    Operators acting on the sites are :class:`Coupling`s
+
+    TODO state_labels: should be added to `ElementarySpace` and describe the
+    states in the public basis.
 
     Parameters
     ----------
     physical_space : ElementarySpace
         Describes the on-site (physical) Hilbert space.
     backend : TensorBackend
-        Backend used for the on-site operators.
-    state_labels : None | list[str | None]
-        Optional labels for each local basis states. ``None`` entries are
-        ignored / not set.
-    **site_ops :
-        Additional keyword arguments of the form ``name = op`` given to
-        :meth:`add_operator`.
+        Backend used for the operators.
+    **couplings : dict[str, Coupling]
+        Additional keyword arguments of the form ``name = coupling`` given to
+        :meth:`add_coupling`.
     """
 
-    def __init__(self, physical_space: ct.ElementarySpace, backend: ct.TensorBackend | None = None,
-                 state_labels: None | list[str | None] = None, **site_ops):
+    def __init__(self, physical_space: ct.ElementarySpace,
+                 backend: ct.TensorBackend | None = None, **couplings: dict[str, Coupling]):
         self.physical_space = physical_space
         self.symmetry = physical_space.symmetry
         if backend is None:
             backend = ct.get_backend(symmetry=self.symmetry)
         self.backend = backend
-        self.state_labels = dict()
-        if state_labels is not None:
-            for i, v in enumerate(state_labels):
-                if v is not None:
-                    self.state_labels[str(v)] = i
-        self.opnames = set()
-        for name, op in site_ops.items():
-            self.add_operator(name, op)
+        self.couplings: dict[str, Coupling] = dict()
+        for name, coupling in couplings.items():
+            self.add_coupling(name, coupling)
 
     def test_sanity(self):
         assert isinstance(self.physical_space, ct.ElementarySpace)
         self.physical_space.test_sanity()
         assert isinstance(self.symmetry, ct.Symmetry)
         assert isinstance(self.backend, ct.TensorBackend)
-        for label, state in self.state_labels.items():
-            assert isinstance(label, str) and isinstance(state, int)
-        for op in self.opnames:
-            assert hasattr(self, op)
-            op = getattr(self, op)
-            assert op.num_codomain_legs == 2
-            assert op.num_domain_legs == 2
-            assert op.codomain[1] == self.physical_space
-            assert op.domain[0] == self.physical_space
-            op.test_sanity()
+        for coupling in self.couplings.values():
+            coupling.test_sanity()
+            for ten in coupling.tensors:
+                assert ten.domain[0] == self.physical_space
 
-    def add_operator(self, name: str, op: ct.SymmetricTensor):
-        """Add an on-site operator.
+    def add_coupling(self, coupling: Coupling):
+        """Add a coupling.
 
         Parameters
         ----------
-        name : str
-            The variable name used to label the operator. `op` is added as
-            attribute to self under this name.
+        coupling : Coupling
+            Coupling to be added. Must have consistent backend and legs acting
+            on the physical space.
+
+        See Also
+        --------
+        add_coupling_from_operator, add_coupling_from_dense_block
+        """
+        assert self.backend == coupling.backend
+        for ten in coupling.tensors:
+            assert ten.domain[0] == self.physical_space
+        for name in coupling.names:
+            if name in self.couplings:
+                raise ValueError("Coupling with that name already existent: " + name)
+            self.couplings[name] = coupling
+
+    def add_coupling_from_operator(self, names: list[str], op: ct.SymmetricTensor):
+        """Add a coupling from a tensor.
+
+        Parameters
+        ----------
+        names : list[str]
+            All the (equivalent) names used to refer to the coupling.
         op : SymmetricTensor
-            Tensor representing an on-site operator. Must have legs
-            corresponding to the labels ``(vL, p, vR*, p*)``, i.e.,
-            ``op.codomain[1] == self.physical_space`` and
-            ``op.domain[0] == self.physical_space``.
+            Tensor to be converted to a coupling. May act on a single or on
+            multiple sites.
 
         See Also
         --------
-        add_operator_from_dense_single_site_op, add_operators_from_multi_site_op,
-        add_operators_from_dense_multi_site_op
+        add_coupling, add_coupling_from_dense_block
         """
-        assert isinstance(op, ct.SymmetricTensor)
-        if name in self.opnames:
-            raise ValueError("Operator with that name already existent: " + name)
-        if hasattr(self, name):
-            raise ValueError("Site already has that attribute name: " + name)
-        if not op.backend == self.backend:
-            op = ct.SymmetricTensor(data=op.data, codomain=op.codomain,
-                                    domain=op.domain, backend=self.backend)
+        assert self.backend == op.backend
+        coupling = Coupling.from_operator(names, op)
+        self.add_coupling(coupling)
 
-        # TODO maybe we do want to allow inconsistent leg numbers among
-        # operators from omitting trivial legs?
-        assert op.num_codomain_legs == 2, "Operator has too many legs in the codomain"
-        assert op.codomain[1] == self.physical_space
-        assert op.num_domain_legs == 2, "Operator has too many legs in the domain"
-        assert op.domain[0] == self.physical_space
-
-        # TODO do we want to allow different labels?
-        # rename labels to fit the convention (vL, p, vR*, p*)
-        op.labels = ['vL', 'p', 'vR*', 'p*']
-        setattr(self, name, op)
-        self.opnames.add(name)
-
-    def add_operator_from_dense_single_site_op(self, name: str, block: ct.Block,
-                                               dtype: ct.Dtype = None):
-        """Add a dense on-site operator.
-
-        `block` must be given in a form such that the codomain and the domain
-        only contain a single leg, which is the site's physical leg.
+    def add_coupling_from_dense_block(self, names: list[str], co_dom: ct.TensorProduct,
+                                      block: ct.Block, dtype: ct.Dtype | None = None):
+        """Add a coupling from a dense block.
 
         Parameters
         ----------
-        name : str
-            The variable name used to label the operator under which it is
-            added as attribute to self.
-        block : Block
-            The data to be converted to the multi-site operator.
-        dtype: Dtype
-            If given, resulting multi-site operator will have that dtype.
-
-        See Also
-        --------
-        add_operator, add_operators_from_multi_site_op,
-        add_operators_from_dense_multi_site_op
-        """
-        co_dom = ct.TensorProduct([self.physical_space], symmetry=self.symmetry)
-        op = ct.SymmetricTensor.from_dense_block(block, co_dom, co_dom,
-                                                 backend=self.backend, dtype=dtype)
-        op = self.add_trivial_legs_to_on_site_op(op, left=True, right=True)
-        self.add_operator(name, op)
-
-    def add_operators_from_multi_site_op(self, names: list[str | None],
-                                         multi_site_op: ct.SymmetricTensor) -> list[ct.SymmetricTensor]:
-        """Split an operator into multiple on-site operators and add them.
-
-        It is possible to add on-site operators originating from multi-site
-        operators acting on sites with different Hilbert spaces by setting the
-        entries in ``names`` corresponding to sites inconsistent with self to
-        ``None``.
-
-        Parameters
-        ----------
-        names : list[str | None]
-            Names under which the on-site operators obtained from decomposing
-            `op` are added to self. ``None`` entries are omitted / not set.
-        multi_site_op : SymmetricTensor
-            Multi-site operator to be split into on-site operators. The on-site
-            operator acting on the `i`-th site is added under the name
-            ``names[i]`` to self.
-
-        See Also
-        --------
-        add_operator, add_operator_from_dense_single_site_op,
-        add_operators_from_dense_multi_site_op
-        """
-        assert multi_site_op.num_codomain_legs == len(names)
-        ops = self.decompose_multi_site_operator(multi_site_op)
-        for name, op in zip(names, ops):
-            if name is None:
-                continue
-            self.add_operator(name, op)
-        return ops
-
-    def add_operators_from_dense_multi_site_op(self, names: list[str | None],
-                                               co_dom: ct.TensorProduct, block: ct.Block,
-                                               dtype: ct.Dtype = None) -> list[ct.SymmetricTensor]:
-        """Split a dense operator into multiple on-site operators and add them.
-
-        It is possible to add on-site operators originating from multi-site
-        operators acting on sites with different Hilbert spaces by setting the
-        entries in ``names`` corresponding to sites inconsistent with self to
-        ``None``.
-
-        Parameters
-        ----------
-        names : list[str | None]
-            Names under which the on-site operators obtained from decomposing
-            `op` are added to self. ``None`` entries are omitted / not set.
+        names : list[str]
+            All the (equivalent) names used to refer to the coupling.
         co_dom : TensorProduct
             Tensorproduct describing both the codomain and the domain on which
-            the multi-site operator acts.
+            the operator acts.
         block : Block
-            The data to be converted to the multi-site operator.
+            The block data to be converted to the operator.
         dtype: Dtype
-            If given, resulting multi-site operator will have that dtype.
+            If given, resulting coupling will have that dtype.
 
         See Also
         --------
-        add_operator, add_operator_from_dense_single_site_op,
-        add_operators_from_multi_site_op
+        add_coupling, add_coupling_from_operator
         """
-        assert len(co_dom) == len(names)
-        multi_site_op = ct.SymmetricTensor.from_dense_block(block, co_dom, co_dom,
-                                                            backend=self.backend, dtype=dtype)
-        return self.add_operators_from_multi_site_op(names, multi_site_op)
-
-    def add_trivial_legs_to_on_site_op(self, op: ct.SymmetricTensor, left: bool,
-                                       right: bool) -> ct.SymmetricTensor:
-        """Add trivial legs on the left and / or right of an on-site operator.
-
-        See Also
-        --------
-        remove_trivial_legs_from_on_site_op
-        """
-        trivial_space = ct.ElementarySpace.from_trivial_sector(dim=1, symmetry=self.symmetry)
-        idx = op.num_codomain_legs
-        labels = op.labels
-        data = op.data
-        if left:
-            assert op.num_codomain_legs == 1
-            idx += 1
-            labels.insert(0, 'vL')
-            new_codom = ct.TensorProduct([trivial_space, op.codomain[0]], symmetry=self.symmetry,
-                                         _sector_decomposition=op.codomain.sector_decomposition,
-                                         _multiplicities=op.codomain.multiplicities)
-            if isinstance(self.backend, ct.AbelianBackend):
-                data.block_inds = np.insert(data.block_inds, 0, values=0, axis=1)
-                shapes = [self.backend.block_backend.get_shape(block) for block in data.blocks]
-                shapes = [[1, *shape] for shape in shapes]
-                data.blocks = [self.backend.block_backend.reshape(block, shape)
-                               for block, shape in zip(data.blocks, shapes)]
-        else:
-            new_codom = op.codomain
-        if right:
-            assert op.num_domain_legs == 1
-            labels.insert(idx, 'vR*')
-            new_dom = ct.TensorProduct([op.domain[0], trivial_space], symmetry=self.symmetry,
-                                       _sector_decomposition=op.domain.sector_decomposition,
-                                       _multiplicities=op.domain.multiplicities)
-            if isinstance(self.backend, ct.AbelianBackend):
-                data.block_inds = np.insert(data.block_inds, idx, values=0, axis=1)
-                shapes = [self.backend.block_backend.get_shape(block) for block in data.blocks]
-                shapes = [[*shape[:idx], 1, *shape[idx:]] for shape in shapes]
-                data.blocks = [self.backend.block_backend.reshape(block, shape)
-                               for block, shape in zip(data.blocks, shapes)]
-        else:
-            new_dom = op.domain
-        return ct.SymmetricTensor(data, new_codom, new_dom, self.backend, labels=labels)
-
-    def remove_trivial_legs_from_on_site_op(self, op: ct.SymmetricTensor, left: bool,
-                                            right: bool) -> ct.SymmetricTensor:
-        """Remove trivial legs on the left and / or right of an on-site operator.
-
-        See Also
-        --------
-        add_trivial_legs_to_on_site_op
-        """
-        # TODO could use squeeze_legs...
-        labels = op.labels
-        if left:
-            assert op.num_codomain_legs == 2
-            assert op.codomain[0].is_trivial
-            labels = labels[1:]
-            new_codom = ct.TensorProduct([op.codomain[1]], symmetry=self.symmetry,
-                                         _sector_decomposition=op.codomain.sector_decomposition,
-                                         _multiplicities=op.codomain.multiplicities)
-        else:
-            new_codom = op.codomain
-        if right:
-            assert op.num_domain_legs == 2
-            labels = labels[:op.num_codomain_legs] + labels[op.num_codomain_legs + 1:]
-            new_dom = ct.TensorProduct([op.domain[0]], symmetry=self.symmetry,
-                                       _sector_decomposition=op.domain.sector_decomposition,
-                                       _multiplicities=op.domain.multiplicities)
-        else:
-            new_dom = op.domain
-        return ct.SymmetricTensor(op.data, new_codom, new_dom, self.backend, labels=labels)
-
-    def decompose_multi_site_operator(self, op: ct.SymmetricTensor, add_trivial_leg_left: bool = True,
-                                      add_trivial_leg_right: bool = True) -> list[ct.SymmetricTensor]:
-        """Decompose a multi-site operator into multiple on-site operators.
-
-        The decomposition is done from right to left using LQ decompositions.
-        The additional legs connecting the on-site operators get labels `vL`
-        and `vR*`.
-
-        It is not checked whether or not ``op`` has legs that are consistent
-        with the physical Hilbert space defined by self. This allows for the
-        decomposition multi-site operators acting on sites of different local
-        Hilbert spaces.
-
-        Parameters
-        ----------
-        op : SymmetricTensor
-            Multi-site operator to be split into on-site operators.
-        add_trivial_leg_left : bool
-            Whether or not to add a trivial leg on the left of the left-most
-            on-site operator obtained from the decomposition. Doing so results
-            in a four-leg tensor that can be added to self using
-            :meth:`add_operator`.
-        add_trivial_leg_right : bool
-            Whether or not to add a trivial leg on the right of the right-most
-            on-site operator obtained from the decomposition. Doing so results
-            in a four-leg tensor that can be added to self using
-            :meth:`add_operator`.
-        """
-        # do not test that every leg == self.physical leg to allow construction of on-site
-        # operators from operators acting on sites with different Hilbert spaces
-        assert self.symmetry.is_same_symmetry(op.symmetry)
-        assert op.codomain == op.domain
-
-        op_list = []
-        # decompose from right to left using LQ decomposition
-        # convention for levels: legs to the right have higher levels
-        n = op.num_codomain_legs
-        levels = [2 * i for i in range(n)]
-        levels.extend([2 * i + 1 for i in range(n)][::-1])
-        l = ct.permute_legs(op, domain=[n, n - 1], levels=levels)
-        l, q = ct.lq(l, ['vR*', 'vL'])
-        q = ct.permute_legs(q, codomain=[0, 1])
-        if add_trivial_leg_right:
-            q = self.add_trivial_legs_to_on_site_op(q, left=False, right=True)
-        op_list.append(q)
-
-        for n in range(op.num_codomain_legs - 1, 1, -1):
-            levels = [2 * i for i in range(n)]
-            levels.extend([2 * i + 1 for i in range(n)][::-1])
-            # for the leg connecting to the previous operator that is already in op_list
-            levels.append(2 * n)
-            l = ct.permute_legs(l, domain=[n, -1, n - 1], levels=levels)
-            l, q = ct.lq(l, ['vR*', 'vL'])
-            q = ct.permute_legs(q, codomain=[0, 1])
-            op_list.append(q)
-
-        l = ct.permute_legs(l, domain=[1, 2], levels=[0, 1, 2])
-        if add_trivial_leg_left:
-            l = self.add_trivial_legs_to_on_site_op(l, left=True, right=False)
-        op_list.append(l)
-        return op_list[::-1]
-
-    def identity_on_site_operator(self, v: ct.ElementarySpace,
-                                  overbraid: bool = True) -> ct.SymmetricTensor:
-        """Construct on-site identity operator for a given space from the left.
-
-        The identity operator corresponds to ``v`` passing in front of or
-        behind the physical Hilbert space.
-
-        Parameters
-        ----------
-        v : ElementarySpace
-            Space passing the physical Hilbert space.
-        overbraid : bool
-            Whether or not ``v`` is in front of the on-site space. This is of
-            importance only for symmetries with non-symmetric braids.
-        """
-        assert self.symmetry.is_same_symmetry(v.symmetry)
-        op = ct.SymmetricTensor.from_eye([v, self.physical_space], labels=['vL', 'p', 'p*', 'vR*'])
-        levels = list(range(4)) if overbraid else list(range(3, -1, -1))
-        op = ct.permute_legs(op, domain=['p*', 'vR*'], levels=levels)
-        return op
+        coupling = Coupling.from_dense_block(names, co_dom, block, backend=self.backend, dtype=dtype)
+        self.add_coupling(coupling)
 
 
 class SimpleSpinSite(SimpleSite):
@@ -357,30 +227,30 @@ class SimpleSpinSite(SimpleSite):
         2 * spin on the site.
     symmetry : Symmetry
         Conserved symmetry. Must be SU(2) or U(1) symmetry.
-    backend, state_labels, **site_ops: see :class:`SimpleSite`.
+    backend, **couplings: see :class:`SimpleSite`.
     """
 
-    def __init__(self, spin: int, symmetry: ct.Symmetry, backend: ct.TensorBackend = None,
-                 state_labels: None | list[str | None] = None, **site_ops):
+    def __init__(self, spin: int, symmetry: ct.Symmetry,
+                 backend: ct.TensorBackend = None, **couplings):
         assert isinstance(spin, int)
         if isinstance(symmetry, ct.SU2Symmetry):
             sectors = np.array([[spin]])
         elif isinstance(symmetry, ct.U1Symmetry):
             sectors = np.arange(-1 * spin, spin + 2, 2)[:, None]
-            if spin == 1 and state_labels is None:
-                state_labels = ['down', 'up']
         else:
             raise NotImplementedError
         physical_space = ct.ElementarySpace(symmetry, sectors)
-        super().__init__(physical_space, backend, state_labels, **site_ops)
+        super().__init__(physical_space, backend, **couplings)
         self.add_on_site_spin_ops()
 
     @abstractmethod
     def add_on_site_spin_ops(self):
-        """Add on-site operators corresponding to multi-site spin operators.
+        """Add common combinations of spin operators as couplings.
 
-        The added operators correspond to the SU(2) symmetric multi-site
-        operators ``S . S`` and ``S . S x S``.
+        The added couplings correspond to the SU(2) symmetric multi-site
+        operators ``S dot S`` and ``S dot (S x S)`` for U(1) and SU(2)
+        symmetry. For U(1) symmetry, the couplings ``Sz``, ``Sz Sz``,
+        ``S+ S-`` and ``S- S+`` are also added.
         """
         ...
 
@@ -392,7 +262,6 @@ class SimpleU1SpinSite(SimpleSpinSite):
         super().__init__(spin, ct.u1_symmetry, backend)
 
     def add_on_site_spin_ops(self):
-        # TODO add sx, sy, sp, sm?
         n = self.physical_space.dim
         spin = (n - 1) / 2
         sz = np.diag(-1 * spin + np.arange(n))
@@ -405,17 +274,22 @@ class SimpleU1SpinSite(SimpleSpinSite):
         # Sp = Sx + i Sy, Sm = Sx - i Sy
         sx = (sp + sm) * 0.5
         sy = (sm - sp) * 0.5j
-        self.add_operator_from_dense_single_site_op('sz', sz)
+        co_dom = ct.TensorProduct([self.physical_space], self.symmetry)
+        self.add_coupling_from_dense_block(['Sz'], co_dom=co_dom, block=sz)
+
+        # construct dense operators for sz sz, sp sm, sm sp
+        co_dom = ct.TensorProduct([self.physical_space] * 2, self.symmetry)
+        for s1, s2, name in zip([sz, sp, sm], [sz, sm, sp], ['Sz Sz', 'S+ S-', 'S- S+']):
+            s1s2_dense = s1[:, None, None, :] * s2[None, :, :, None]
+            self.add_coupling_from_dense_block([name], co_dom=co_dom, block=s1s2_dense)
 
         slist = [sx, sy, sz]
         # construct dense operator corresponding to s . s
         s_dot_s_dense = np.zeros([n] * 4, dtype=complex)
         for si in slist:
             s_dot_s_dense += si[:, None, None, :] * si[None, :, :, None]
-        co_dom = ct.TensorProduct([self.physical_space] * 2, self.symmetry)
-        names = ['s_dot', 'dot_s']
-        self.add_operators_from_dense_multi_site_op(names=names, co_dom=co_dom,
-                                                    block=s_dot_s_dense)
+        self.add_coupling_from_dense_block(['S dot S'], co_dom=co_dom,
+                                           block=s_dot_s_dense)
 
         # construct dense operator corresponding to s . s x s
         s_dot_s_x_s_dense = np.zeros([n] * 6, dtype=complex)
@@ -427,9 +301,8 @@ class SimpleU1SpinSite(SimpleSpinSite):
                                   slist[(i + 2) % 3][None, :, None, None, :, None] *
                                   slist[(i + 1) % 3][None, None, :, :, None, None])
         co_dom = ct.TensorProduct([self.physical_space] * 3, self.symmetry)
-        names = ['s_dot_x', 'dot_s_x', 'dot_x_s']
-        self.add_operators_from_dense_multi_site_op(names=names, co_dom=co_dom,
-                                                    block=s_dot_s_x_s_dense)
+        self.add_coupling_from_dense_block(['S dot (S x S)'], co_dom=co_dom,
+                                           block=s_dot_s_x_s_dense)
 
 
 class SimpleSU2SpinSite(SimpleSpinSite):
@@ -443,18 +316,19 @@ class SimpleSU2SpinSite(SimpleSpinSite):
         self.add_s_dot_s_x_s_ops()
 
     def add_s_dot_s_ops(self):
-        """Add the on-site operators corresponding to ``S . S``."""
-        s_dot_s = ct.SymmetricTensor.from_eye([self.physical_space] * 2, backend=self.backend)
+        """Add the coupling corresponding to ``S dot S``."""
+        s_dot_s = ct.SymmetricTensor.from_eye([self.physical_space] * 2,
+                                              backend=self.backend)
         spin = (self.physical_space.dim - 1) / 2
         on_site_casimir = spin * (spin + 1)
         for block, idcs in zip(s_dot_s.data.blocks, s_dot_s.data.block_inds):
             coupled_spin = s_dot_s.domain.sector_decomposition[idcs[1]][0] / 2
             coupled_casimir = coupled_spin * (coupled_spin + 1)
             block[0, 0] = coupled_casimir / 2 - on_site_casimir
-        self.add_operators_from_multi_site_op(['s_dot', 'dot_s'], s_dot_s)
+        self.add_coupling_from_operator(['S dot S'], s_dot_s)
 
     def add_s_dot_s_x_s_ops(self):
-        """Add the on-site operators corresponding to ``S . S x S``."""
+        """Add the couping corresponding to ``S dot (S x S)``."""
         n = self.physical_space.dim
         spin = (n - 1) / 2
         sz = np.diag(-1 * spin + np.arange(n))
@@ -480,16 +354,109 @@ class SimpleSU2SpinSite(SimpleSpinSite):
                                   slist[(i + 1) % 3][None, None, :, :, None, None])
 
         co_dom = ct.TensorProduct([self.physical_space] * 3, self.symmetry)
-        names = ['s_dot_x', 'dot_s_x', 'dot_x_s']
-        self.add_operators_from_dense_multi_site_op(names=names, co_dom=co_dom,
-                                                    block=s_dot_s_x_s_dense)
+        self.add_coupling_from_dense_block(['S dot (S x S)'], co_dom=co_dom,
+                                           block=s_dot_s_x_s_dense)
+
+
+def _add_trivial_leg_abelian_data(data: ct.AbelianBackendData, backend: ct.TensorBackend,
+                                  leg_idx: int) -> ct.AbelianBackendData:
+    """Change abelian backend data when adding a trivial leg to the associated tensor."""
+    data.block_inds = np.insert(data.block_inds, leg_idx, values=0, axis=1)
+    shapes = [backend.block_backend.get_shape(block) for block in data.blocks]
+    shapes = [[*shape[:leg_idx], 1, *shape[leg_idx:]] for shape in shapes]
+    data.blocks = [backend.block_backend.reshape(block, shape)
+                   for block, shape in zip(data.blocks, shapes)]
+    return data
+
+
+def add_trivial_legs_to_on_site_op(op: ct.SymmetricTensor) -> ct.SymmetricTensor:
+    """Add trivial legs to an on-site operator.
+    
+    Trivial legs are only added to the co_domain if it contains a single leg.
+    For co_domains with two legs, no trivial leg is added.
+
+    Parameters
+    ----------
+    op : SymmetricTensor
+        On-site operator to which trivial legs should be added.
+    """
+    trivial_space = ct.ElementarySpace.from_trivial_sector(dim=1, symmetry=op.symmetry)
+    labels = op.labels
+    data = op.data
+    backend = op.backend
+    if op.num_codomain_legs == 1:
+        labels.insert(0, 'vL')
+        new_codom = ct.TensorProduct([trivial_space, op.codomain[0]], symmetry=op.symmetry,
+                                     _sector_decomposition=op.codomain.sector_decomposition,
+                                     _multiplicities=op.codomain.multiplicities)
+        if isinstance(backend, ct.AbelianBackend):
+            _add_trivial_leg_abelian_data(data, backend, leg_idx=0)
+    else:
+        assert op.num_codomain_legs == 2
+        new_codom = op.codomain
+
+    if op.num_domain_legs == 1:
+        labels.insert(2, 'vR*')
+        new_dom = ct.TensorProduct([op.domain[0], trivial_space], symmetry=op.symmetry,
+                                   _sector_decomposition=op.domain.sector_decomposition,
+                                   _multiplicities=op.domain.multiplicities)
+        if isinstance(backend, ct.AbelianBackend):
+            _add_trivial_leg_abelian_data(data, backend, leg_idx=2)
+    else:
+        assert op.num_domain_legs == 2
+        new_dom = op.domain
+    return ct.SymmetricTensor(data, new_codom, new_dom, backend, labels=labels)
+
+
+def decompose_multi_site_operator(op: ct.SymmetricTensor) -> list[ct.SymmetricTensor]:
+    """Decompose a multi-site operator into multiple on-site operators.
+
+    The decomposition is done from right to left using SVDs. The additional
+    legs connecting the on-site operators get labels `vL` and `vR*`.
+
+    Parameters
+    ----------
+    op : SymmetricTensor
+        Multi-site operator to be split into on-site operators.
+    """
+    op_list = []
+    # decompose from right to left using SVD
+    # convention for levels: legs to the right have higher levels
+    n = op.num_codomain_legs
+    levels = [2 * i for i in range(n)]
+    levels.extend([2 * i + 1 for i in range(n)][::-1])
+
+    u = ct.permute_legs(op, domain=[n, n - 1], levels=levels)
+    u, s, v = ct.svd(u, ['vR*', 'vL'])
+    u = ct.scale_axis(u, s, leg='vR*')
+    v = ct.permute_legs(v, codomain=[0, 1])
+    v = add_trivial_legs_to_on_site_op(v)
+    op_list.append(v)
+
+    for n in range(op.num_codomain_legs - 1, 1, -1):
+        levels = [2 * i for i in range(n)]
+        levels.extend([2 * i + 1 for i in range(n)][::-1])
+        # for the leg connecting to the previous operator that is already in op_list
+        levels.append(2 * n)
+        u = ct.permute_legs(u, domain=[n, -1, n - 1], levels=levels)
+        u, s, v = ct.svd(u, ['vR*', 'vL'])
+        u = ct.scale_axis(u, s, leg='vR*')
+        v = ct.permute_legs(v, codomain=[0, 1])
+        op_list.append(v)
+
+    u = ct.permute_legs(u, domain=[1, 2], levels=[0, 1, 2])
+    u = add_trivial_legs_to_on_site_op(u)
+    op_list.append(u)
+    return op_list[::-1]
 
 
 def verify_operator_decomposition_spins(spin: int = 1):
-    """Check that the spin sites work and verify the decomposed operators.
+    """Check that the spin sites work and verify their couplings.
     
     Verifies that the decompositions of the SU(2) symmetric operators ``S . S``
-    and ``S . S x S`` are correct for both U(1) and SU(2) symmetric sites.
+    and ``S . (S x S)`` are correct for both U(1) and SU(2) symmetric sites.
+    For U(1) symmetry, the couplings ``Sz``, ``Sz Sz``, ``S+ S-`` and ``S- S+``
+    are also checked.
     """
     n = spin + 1
     spin_ = spin / 2
@@ -501,6 +468,10 @@ def verify_operator_decomposition_spins(spin: int = 1):
     sm = np.transpose(sp)
     sx = (sp + sm) * 0.5
     sy = (sm - sp) * 0.5j
+
+    szsz_dense = sz[:, None, None, :] * sz[None, :, :, None]
+    spsm_dense = sp[:, None, None, :] * sm[None, :, :, None]
+    smsp_dense = sm[:, None, None, :] * sp[None, :, :, None]
 
     slist = [sx, sy, sz]
     # construct dense operator corresponding to s . s
@@ -524,18 +495,13 @@ def verify_operator_decomposition_spins(spin: int = 1):
     for site in [siteU1_1, siteU1_2, siteSU2]:
         site.test_sanity()
 
-        labels0 = {'p': 'p0', 'p*': 'p0*'}
-        labels1 = {'p': 'p1', 'p*': 'p1*'}
-        s_dot_s = ct.tdot(site.s_dot, site.dot_s, 'vR*', 'vL', relabel1=labels0, relabel2=labels1)
-        s_dot_s = ct.squeeze_legs(s_dot_s)
-        s_dot_s = ct.permute_legs(s_dot_s, codomain=['p0', 'p1'], domain=['p0*', 'p1*'])
-        np.testing.assert_almost_equal(s_dot_s.to_numpy(), s_dot_s_dense)
+        if ct.u1_symmetry.is_same_symmetry(site.symmetry):
+            np.testing.assert_almost_equal(site.couplings['Sz Sz'].to_numpy(), szsz_dense)
+            np.testing.assert_almost_equal(site.couplings['S+ S-'].to_numpy(), spsm_dense)
+            np.testing.assert_almost_equal(site.couplings['S- S+'].to_numpy(), smsp_dense)
 
-        s_dot_s_x_s = ct.tdot(site.s_dot_x, site.dot_s_x, 'vR*', 'vL', relabel1=labels0, relabel2=labels1)
-        s_dot_s_x_s = ct.tdot(s_dot_s_x_s, site.dot_x_s, 'vR*', 'vL', relabel2={'p': 'p2', 'p*': 'p2*'})
-        s_dot_s_x_s = ct.squeeze_legs(s_dot_s_x_s)
-        s_dot_s_x_s = ct.permute_legs(s_dot_s_x_s, codomain=['p0', 'p1', 'p2'], domain=['p0*', 'p1*', 'p2*'])
-        np.testing.assert_almost_equal(s_dot_s_x_s.to_numpy(), s_dot_s_x_s_dense)
+        np.testing.assert_almost_equal(site.couplings['S dot S'].to_numpy(), s_dot_s_dense)
+        np.testing.assert_almost_equal(site.couplings['S dot (S x S)'].to_numpy(), s_dot_s_x_s_dense)
 
 
 if __name__ == '__main__':
