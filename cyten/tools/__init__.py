@@ -1,7 +1,7 @@
 """TODO write docs"""
 # Copyright (C) TeNPy Developers, Apache license
 
-from . import math, misc, string
+from . import math, misc, string, mappings
 from .math import speigs, speigsh
 from .misc import (
     duplicate_entries, to_iterable, to_valid_idx, as_immutable_array, permutation_as_swaps,
@@ -11,3 +11,4 @@ from .misc import (
     find_subclass
 )
 from .string import format_like_list
+from .mappings import SparseMapping
