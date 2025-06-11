@@ -27,7 +27,7 @@ from functools import partial, reduce
 
 from ..tensors import (Tensor, SymmetricTensor, ChargedTensor, DiagonalTensor, almost_equal, angle,
                        real_if_close, exp)
-from ..backends import TensorBackend, Block
+from ..backends.abstract_backend import TensorBackend, Block
 from ..symmetries import (ProductSymmetry, Symmetry, SU2Symmetry, U1Symmetry, ZNSymmetry,
                           no_symmetry, SectorArray)
 from ..spaces import Space, ElementarySpace, LegPipe

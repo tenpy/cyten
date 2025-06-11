@@ -2766,6 +2766,8 @@ z7_symmetry = ZNSymmetry(N=7)
 z8_symmetry = ZNSymmetry(N=8)
 z9_symmetry = ZNSymmetry(N=9)
 u1_symmetry = U1Symmetry()
+su2_symmetry = SU2Symmetry()
+# TODO SU(3) and SU(4) singletons?
 fermion_parity = FermionParity()
 semion_category = ZNAnyonCategory2(2, 0)
 toric_code_category = ToricCodeCategory()
