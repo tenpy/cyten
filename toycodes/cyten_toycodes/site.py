@@ -114,18 +114,15 @@ class Coupling:
         return op.to_numpy()
         
 
-class SimpleSite:
-    """Simple class for a site.
+class AbstractSimpleSite():
+    """Abstract class for a site.
 
-    Operators acting on the sites are :class:`Coupling`s
-
-    TODO state_labels: should be added to `ElementarySpace` and describe the
-    states in the public basis.
+    Operators acting on the sites are :class:`Coupling`s.
 
     Parameters
     ----------
-    physical_space : ElementarySpace
-        Describes the on-site (physical) Hilbert space.
+    symmetry : Symmetry
+        The symmetry the on-site (physical) Hilbert space(s).
     backend : TensorBackend
         Backend used for the operators.
     **couplings : dict[str, Coupling]
@@ -133,11 +130,10 @@ class SimpleSite:
         :meth:`add_coupling`.
     """
 
-    def __init__(self, physical_space: ct.ElementarySpace,
+    def __init__(self, symmetry: ct.symmetries.Symmetry,
                  backend: ct.backends.TensorBackend | None = None,
                  **couplings: dict[str, Coupling]):
-        self.physical_space = physical_space
-        self.symmetry = physical_space.symmetry
+        self.symmetry = symmetry
         if backend is None:
             backend = ct.get_backend(symmetry=self.symmetry)
         self.backend = backend
@@ -146,15 +142,12 @@ class SimpleSite:
             self.add_coupling(name, coupling)
 
     def test_sanity(self):
-        assert isinstance(self.physical_space, ct.ElementarySpace)
-        self.physical_space.test_sanity()
         assert isinstance(self.symmetry, ct.symmetries.Symmetry)
         assert isinstance(self.backend, ct.backends.TensorBackend)
         for coupling in self.couplings.values():
             coupling.test_sanity()
-            for ten in coupling.tensors:
-                assert ten.domain[0] == self.physical_space
 
+    @abstractmethod
     def add_coupling(self, coupling: Coupling):
         """Add a coupling.
 
@@ -168,13 +161,7 @@ class SimpleSite:
         --------
         add_coupling_from_operator, add_coupling_from_dense_block
         """
-        assert self.backend == coupling.backend
-        for ten in coupling.tensors:
-            assert ten.domain[0] == self.physical_space
-        for name in coupling.names:
-            if name in self.couplings:
-                raise ValueError("Coupling with that name already existent: " + name)
-            self.couplings[name] = coupling
+        ...
 
     def add_coupling_from_operator(self, names: list[str], op: ct.SymmetricTensor):
         """Add a coupling from a tensor.
@@ -215,8 +202,124 @@ class SimpleSite:
         --------
         add_coupling, add_coupling_from_operator
         """
-        coupling = Coupling.from_dense_block(names, co_dom, block, backend=self.backend, dtype=dtype)
+        coupling = Coupling.from_dense_block(names, co_dom, block,
+                                             backend=self.backend, dtype=dtype)
         self.add_coupling(coupling)
+
+
+class SimpleSite(AbstractSimpleSite):
+    """Simple class for a site.
+
+    Operators acting on the sites are :class:`Coupling`s
+
+    TODO state_labels: should be added to `ElementarySpace` and describe the
+    states in the public basis.
+
+    Parameters
+    ----------
+    physical_space : ElementarySpace
+        Describes the on-site (physical) Hilbert space.
+    backend : TensorBackend
+        Backend used for the operators.
+    **couplings : dict[str, Coupling]
+        Additional keyword arguments of the form ``name = coupling`` given to
+        :meth:`add_coupling`.
+    """
+
+    def __init__(self, physical_space: ct.ElementarySpace,
+                 backend: ct.backends.TensorBackend | None = None,
+                 **couplings: dict[str, Coupling]):
+        self.physical_space = physical_space
+        super().__init__(physical_space.symmetry, backend, **couplings)
+
+    def test_sanity(self):
+        super().test_sanity()
+        assert isinstance(self.physical_space, ct.ElementarySpace)
+        self.physical_space.test_sanity()
+        for coupling in self.couplings.values():
+            for ten in coupling.tensors:
+                assert ten.domain[0] == self.physical_space
+
+    def add_coupling(self, coupling: Coupling):
+        assert self.backend == coupling.backend
+        assert self.symmetry.is_same_symmetry(coupling.symmetry)
+        for ten in coupling.tensors:
+            assert ten.domain[0] == self.physical_space
+        for name in coupling.names:
+            if name in self.couplings:
+                raise ValueError("Coupling with that name already existent: " + name)
+            self.couplings[name] = coupling
+
+
+class SimpleMultiSpecies(AbstractSimpleSite):
+    """Simple class for multiple sites.
+
+    Operators acting on the sites are :class:`Coupling`s
+
+    TODO state_labels: should be added to `ElementarySpace` and describe the
+    states in the public basis.
+
+    Parameters
+    ----------
+    physical_spaces : list[ElementarySpace]
+        Describes the on-site (physical) Hilbert spaces. Couplings act on the different sites
+    backend : TensorBackend
+        Backend used for the operators.
+    **couplings : dict[str, Coupling]
+        Additional keyword arguments of the form ``name = coupling`` given to
+        :meth:`add_coupling`.
+    """
+
+    def __init__(self, physical_spaces: list[ct.ElementarySpace],
+                 backend: ct.backends.TensorBackend | None = None,
+                 **couplings: dict[str, Coupling]):
+        self.physical_spaces = physical_spaces
+        self.coupling_space_idcs = dict()
+        super().__init__(physical_spaces[0].symmetry, backend, **couplings)
+
+    def __len__(self):
+        return len(self.physical_spaces)
+
+    def test_sanity(self):
+        super().test_sanity()
+        for space in self.physical_spaces:
+            assert isinstance(space, ct.ElementarySpace)
+            assert space.symmetry.is_same_symmetry(self.physical_spaces[0].symmetry)
+            space.test_sanity()
+        for name, coupling in self.couplings.items():
+            idcs = self.coupling_space_idcs[name]
+            for idx in idcs:
+                for i, ten in enumerate(coupling.tensors):
+                    assert ten.domain[0] == self.physical_spaces[(idx + i) % len(self)]
+
+    def add_coupling(self, coupling: Coupling):
+        assert self.backend == coupling.backend
+        assert self.symmetry.is_same_symmetry(coupling.symmetry)
+        idcs = self.space_idcs(coupling)
+        for name in coupling.names:
+            if name in self.couplings:
+                raise ValueError("Coupling with that name already existent: " + name)
+            self.couplings[name] = coupling
+            self.coupling_space_idcs[name] = idcs
+
+    def space_idcs(self, coupling: Coupling) -> list[int]:
+        """Indices for `physical_spaces` such that the coupling can act on the sites.
+
+        Parameters
+        ----------
+        coupling : Coupling
+            Coupling to be considered. Must be consistent with `physical_spaces` in the
+            sense that there exists an `idx` with ``physical_spaces[idx + i]`` being
+            consistent with ``coupling.tensors[i]`` (``for i in len(couplings)``).
+        """
+        idcs = []
+        for idx in range(len(self)):
+            if all([self.physical_spaces[(idx + i) % len(self)] == coupling.tensors[i].domain[0]
+                    for i in range(len(coupling))]):
+                idcs.append(idx)
+        if len(idcs) == 0:
+            raise ValueError("The given coupling is not consistent with the physical spaces.")
+        return idcs
 
 
 class SimpleSpinSite(SimpleSite):
@@ -242,10 +345,10 @@ class SimpleSpinSite(SimpleSite):
             raise NotImplementedError
         physical_space = ct.ElementarySpace(symmetry, sectors)
         super().__init__(physical_space, backend, **couplings)
-        self.add_on_site_spin_ops()
+        self.add_spin_couplings()
 
     @abstractmethod
-    def add_on_site_spin_ops(self):
+    def add_spin_couplings(self):
         """Add common combinations of spin operators as couplings.
 
         The added couplings correspond to the SU(2) symmetric multi-site
@@ -262,13 +365,13 @@ class SimpleU1SpinSite(SimpleSpinSite):
     def __init__(self, spin: int, backend: ct.backends.TensorBackend = None):
         super().__init__(spin, ct.u1_symmetry, backend)
 
-    def add_on_site_spin_ops(self):
+    def add_spin_couplings(self):
         spin = self.physical_space.dim - 1
         sz = np.diag(-1 * spin / 2 + np.arange(self.physical_space.dim))
         co_dom = ct.TensorProduct([self.physical_space], self.symmetry)
         self.add_coupling_from_dense_block(['Sz'], co_dom=co_dom, block=sz)
 
-        dense_blocks = get_dense_spin_operators(spin)
+        dense_blocks = get_dense_spin_operators([spin] * 3)
         names = ['Sz Sz', 'S+ S-', 'S- S+', 'S dot S', 'S dot (S x S)']
         co_dom = ct.TensorProduct([self.physical_space] * 2, self.symmetry)
         for block, name in zip(dense_blocks[:4], names[:4]):
@@ -285,11 +388,11 @@ class SimpleSU2SpinSite(SimpleSpinSite):
     def __init__(self, spin: int, backend: ct.backends.TensorBackend = None):
         super().__init__(spin, ct.su2_symmetry, backend)
 
-    def add_on_site_spin_ops(self):
-        self.add_s_dot_s_ops()
-        self.add_s_dot_s_x_s_ops()
+    def add_spin_couplings(self):
+        self.add_s_dot_s_coupling()
+        self.add_s_dot_s_x_s_coupling()
 
-    def add_s_dot_s_ops(self):
+    def add_s_dot_s_coupling(self):
         """Add the coupling corresponding to ``S dot S``."""
         s_dot_s = ct.SymmetricTensor.from_eye([self.physical_space] * 2,
                                               backend=self.backend)
@@ -301,13 +404,123 @@ class SimpleSU2SpinSite(SimpleSpinSite):
             block[0, 0] = coupled_casimir / 2 - on_site_casimir
         self.add_coupling_from_operator(['S dot S'], s_dot_s)
 
-    def add_s_dot_s_x_s_ops(self):
+    def add_s_dot_s_x_s_coupling(self):
         """Add the couping corresponding to ``S dot (S x S)``."""
         spin = self.physical_space.dim - 1
-        dense_block = get_dense_spin_operators(spin)[-1]
+        dense_block = get_dense_spin_operators([spin] * 3)[-1]
         co_dom = ct.TensorProduct([self.physical_space] * 3, self.symmetry)
         self.add_coupling_from_dense_block(['S dot (S x S)'], co_dom=co_dom,
                                            block=dense_block)
+
+
+class SimpleMultiSpinSpecies(SimpleMultiSpecies):
+    """Simple class for multiple spin sites with SU(2) or U(1) symmetry.
+
+    Parameters
+    ----------
+    spins : list[int]
+        2 * spin on the site.
+    symmetry : Symmetry
+        Conserved symmetry. Must be SU(2) or U(1) symmetry.
+    backend, **couplings: see :class:`SimpleSite`.
+    """
+
+    def __init__(self, spins: list[int], symmetry: ct.symmetries.Symmetry,
+                 backend: ct.backends.TensorBackend = None, **couplings):
+        assert all(isinstance(spin, int) for spin in spins)
+        if symmetry.is_same_symmetry(ct.su2_symmetry):
+            sectors = [np.array([[spin]]) for spin in spins]
+        elif symmetry.is_same_symmetry(ct.u1_symmetry):
+            sectors = [np.arange(-1 * spin, spin + 2, 2)[:, None] for spin in spins]
+        else:
+            raise NotImplementedError
+        physical_spaces = [ct.ElementarySpace(symmetry, sector) for sector in sectors]
+        super().__init__(physical_spaces, backend, **couplings)
+        self.add_spin_couplings()
+
+    @abstractmethod
+    def add_spin_couplings(self):
+        """Add common combinations of spin operators as couplings.
+
+        The added couplings correspond to the SU(2) symmetric multi-site
+        operators ``S dot S`` and ``S dot (S x S)`` for U(1) and SU(2)
+        symmetry. For U(1) symmetry, the couplings ``Sz``, ``Sz Sz``,
+        ``S+ S-`` and ``S- S+`` are also added.
+        The above operators  are added for all combinations of spins that are
+        consistent with ``physical_spaces``.
+        """
+        ...
+
+
+class SimpleU1MultiSpinSpecies(SimpleMultiSpinSpecies):
+    """Simple class for multiple spin sites with U(1) symmetry."""
+
+    def __init__(self, spins: list[int], backend: ct.backends.TensorBackend = None):
+        super().__init__(spins, ct.u1_symmetry, backend)
+
+    def add_spin_couplings(self):
+
+        added = []
+        for i in range(len(self)):
+            spaces = [self.physical_spaces[i], self.physical_spaces[(i + 1) % len(self)],
+                      self.physical_spaces[(i + 2) % len(self)]]
+            spins = [space.dim - 1 for space in spaces]
+            if spins in added:
+                continue
+            dense_blocks = get_dense_spin_operators(spins)
+            names = ['Sz%d Sz%d', 'S+%d S-%d', 'S-%d S+%d', 'S%d dot S%d', 'S%d dot (S%d x S%d)']
+
+            co_dom = ct.TensorProduct(spaces[:2], self.symmetry)
+            for block, name in zip(dense_blocks[:4], names[:4]):
+                self.add_coupling_from_dense_block([name % tuple(spins[:2])],
+                                                   co_dom=co_dom, block=block)
+
+            co_dom = ct.TensorProduct(spaces, self.symmetry)
+            self.add_coupling_from_dense_block([names[-1] % tuple(spins)],
+                                               co_dom=co_dom, block=dense_blocks[-1])
+            added.append(spins)
+
+
+class SimpleSU2MultiSpinSpecies(SimpleMultiSpinSpecies):
+    """Simple class for multiple spin sites with SU(2) symmetry."""
+
+    def __init__(self, spins: list[int], backend: ct.backends.TensorBackend = None):
+        super().__init__(spins, ct.su2_symmetry, backend)
+
+    def add_spin_couplings(self):
+        self.add_s_dot_s_couplings()
+        self.add_s_dot_s_x_s_couplings()
+
+    def add_s_dot_s_couplings(self):
+        """Add the coupling(s) corresponding to ``S dot S``."""
+        added = []
+        for i in range(len(self)):
+            spaces = [self.physical_spaces[i], self.physical_spaces[(i + 1) % len(self)]]
+            spins = [space.dim - 1 for space in spaces]
+            if spins in added:
+                continue
+            on_site_casimirs = [spin / 2 * (spin / 2 + 1) for spin in spins]
+            s_dot_s = ct.SymmetricTensor.from_eye(spaces, backend=self.backend)
+            for block, idcs in zip(s_dot_s.data.blocks, s_dot_s.data.block_inds):
+                coupled_spin = s_dot_s.domain.sector_decomposition[idcs[1]][0] / 2
+                coupled_casimir = coupled_spin * (coupled_spin + 1)
+                block[0, 0] = coupled_casimir / 2 - sum(on_site_casimirs) / 2
+            self.add_coupling_from_operator(['S%d dot S%d' % tuple(spins)], s_dot_s)
+            added.append(spins)
+
+    def add_s_dot_s_x_s_couplings(self):
+        """Add the couping(s9 corresponding to ``S dot (S x S)``."""
+        added = []
+        for i in range(len(self)):
+            spaces = [self.physical_spaces[i], self.physical_spaces[(i + 1) % len(self)],
+                      self.physical_spaces[(i + 2) % len(self)]]
+            spins = [space.dim - 1 for space in spaces]
+            if spins in added:
+                continue
+            dense_block = get_dense_spin_operators(spins)[-1]
+            self.add_coupling_from_dense_block(['S%d dot (S%d x S%d)' % tuple(spins)],
+                                               co_dom=spaces, block=dense_block)
+            added.append(spins)
 
 
 def _add_trivial_leg_abelian_data(data: ct.backends.AbelianBackendData,
@@ -403,12 +616,11 @@ def decompose_multi_site_operator(op: ct.SymmetricTensor) -> list[ct.SymmetricTe
     return op_list[::-1]
 
 
-def get_dense_spin_operators(spin: int) -> list[np.ndarray]:
+def get_dense_spin_on_site_operators(spin: int) -> list[np.ndarray]:
     """Construct symmetric spin operators as dense blocks.
 
     The constructed dense blocks correspond to the U(1) symmetric operators
-    ``Sz Sz``, ``S+ S-`` and ``S- S+``, and to the SU(2) symmetric operators
-    ``S . S`` and ``S . (S x S)``.
+    ``Sx``, ``Sy``, ``Sz``, ``S+`` and ``S-``.
     
     Parameters
     ----------
@@ -427,30 +639,50 @@ def get_dense_spin_operators(spin: int) -> list[np.ndarray]:
     # Sp = Sx + i Sy, Sm = Sx - i Sy
     sx = (sp + sm) * 0.5
     sy = (sm - sp) * 0.5j
+    return sx, sy, sz, sp, sm
 
-    szsz = sz[:, None, None, :] * sz[None, :, :, None]
-    spsm = sp[:, None, None, :] * sm[None, :, :, None]
-    smsp = sm[:, None, None, :] * sp[None, :, :, None]
 
-    slist = [sx, sy, sz]
+def get_dense_spin_operators(spins: list[int]) -> list[np.ndarray]:
+    """Construct on-site spin operators as dense blocks.
+
+    The constructed dense blocks correspond to the U(1) symmetric operators
+    ``Sz1 Sz2``, ``S+1 S-2`` and ``S-1 S+2``, and to the SU(2) symmetric
+    operators ``S1 dot S2`` and ``S1 dot (S2 x S3)``, where the numbers 1, 2
+    and 3 denote the different spins.
+    
+    Parameters
+    ----------
+    spins : list[int]
+        List of three spins, each corresponding to 2 * S, with S the spin to be
+        considered.
+    """
+    dims = [spin + 1 for spin in spins]
+    s_ops1 = get_dense_spin_on_site_operators(spins[0])
+    s_ops2 = get_dense_spin_on_site_operators(spins[1])
+    s_ops3 = get_dense_spin_on_site_operators(spins[2])
+
+    szsz = s_ops1[2][:, None, None, :] * s_ops2[2][None, :, :, None]
+    spsm = s_ops1[3][:, None, None, :] * s_ops2[4][None, :, :, None]
+    smsp = s_ops1[4][:, None, None, :] * s_ops2[3][None, :, :, None]
+
     # construct dense operator corresponding to s . s
-    s_dot_s = np.zeros([n] * 4, dtype=complex)
-    for si in slist:
-        s_dot_s += si[:, None, None, :] * si[None, :, :, None]
+    s_dot_s = np.zeros(dims[:2] + dims[:2][::-1], dtype=complex)
+    for i in range(3):
+        s_dot_s += s_ops1[i][:, None, None, :] * s_ops2[i][None, :, :, None]
 
     # construct dense operator corresponding to s . s x s
-    s_dot_s_x_s = np.zeros([n] * 6, dtype=complex)
+    s_dot_s_x_s = np.zeros(dims + dims[::-1], dtype=complex)
     for i in range(3):
-        s_dot_s_x_s += (slist[i % 3][:, None, None, None, None, :] *
-                        slist[(i + 1) % 3][None, :, None, None, :, None] *
-                        slist[(i + 2) % 3][None, None, :, :, None, None])
-        s_dot_s_x_s -= (slist[i % 3][:, None, None, None, None, :] *
-                        slist[(i + 2) % 3][None, :, None, None, :, None] *
-                        slist[(i + 1) % 3][None, None, :, :, None, None])
+        s_dot_s_x_s += (s_ops1[i % 3][:, None, None, None, None, :] *
+                        s_ops2[(i + 1) % 3][None, :, None, None, :, None] *
+                        s_ops3[(i + 2) % 3][None, None, :, :, None, None])
+        s_dot_s_x_s -= (s_ops1[i % 3][:, None, None, None, None, :] *
+                        s_ops2[(i + 2) % 3][None, :, None, None, :, None] *
+                        s_ops3[(i + 1) % 3][None, None, :, :, None, None])
     return szsz, spsm, smsp, s_dot_s, s_dot_s_x_s
 
 
-def verify_operator_decomposition_spins(spin: int = 1):
+def verify_spin_couplings(spin: int = 1):
     """Check that the spin sites work and verify their couplings.
     
     Verifies that the decompositions of the SU(2) symmetric operators ``S . S``
@@ -458,7 +690,7 @@ def verify_operator_decomposition_spins(spin: int = 1):
     For U(1) symmetry, the couplings ``Sz``, ``Sz Sz``, ``S+ S-`` and ``S- S+``
     are also checked.
     """
-    szsz, spsm, smsp, s_dot_s, s_dot_s_x_s = get_dense_spin_operators(spin)
+    szsz, spsm, smsp, s_dot_s, s_dot_s_x_s = get_dense_spin_operators([spin] * 3)
 
     np_bak = ct.backends.NumpyBlockBackend()
     siteU1_1 = SimpleU1SpinSite(spin, backend=ct.backends.AbelianBackend(np_bak))
@@ -476,5 +708,43 @@ def verify_operator_decomposition_spins(spin: int = 1):
         np.testing.assert_almost_equal(site.couplings['S dot (S x S)'].to_numpy(), s_dot_s_x_s)
 
 
+def verify_multiple_spin_couplings(spins: list[int] = [1, 2]):
+    """Check that the multi spin species work and verify their couplings.
+    
+    Verifies the couplings by looking at their transpose since, e.g.,
+    ``S1 dot S2`` and ``S2 dot S1`` are related.
+
+    TODO: Further checks necessary? S dot (S x S)?
+    """
+    # otherwise the construction with isdigit() below will not work
+    assert max(spins) < 10
+    np_bak = ct.backends.NumpyBlockBackend()
+    siteU1_1 = SimpleU1MultiSpinSpecies(spins, backend=ct.backends.AbelianBackend(np_bak))
+    siteU1_2 = SimpleU1MultiSpinSpecies(spins, backend=ct.backends.FusionTreeBackend(np_bak))
+    siteSU2 = SimpleSU2MultiSpinSpecies(spins)
+    for site in [siteU1_1, siteU1_2, siteSU2]:
+        site.test_sanity()
+
+        # test 2-spin couplings
+        omit = []
+        for name in site.couplings.keys():
+            spin_config = [int(s) for s in name if s.isdigit()]
+            if len(spin_config) != 2 or spin_config[0] == spin_config[1] or spin_config in omit:
+                continue
+            if not spin_config[::-1] in omit:
+                omit.append(spin_config[::-1])
+
+            op1 = site.couplings[name].to_numpy()
+            # number of characters describing a single spin op
+            width = 2 if 'dot' in name else 3
+            name = name[-width:] + name[width:-width] + name[:width]
+            if not name in site.couplings:
+                continue
+            op2 = site.couplings[name].to_numpy()
+
+            np.testing.assert_almost_equal(np.transpose(op1, [1, 0, 3, 2]), op2)
+
+
 if __name__ == '__main__':
-    verify_operator_decomposition_spins(spin=1)
+    verify_spin_couplings(spin=1)
+    verify_multiple_spin_couplings(spins=[1, 2])
