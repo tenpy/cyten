@@ -37,8 +37,8 @@ class Coupling:
     def test_sanity(self):
         for name in self.names:
             assert isinstance(name, str)
-        assert isinstance(self.symmetry, ct.Symmetry)
-        assert isinstance(self.backend, ct.TensorBackend)
+        assert isinstance(self.symmetry, ct.symmetries.Symmetry)
+        assert isinstance(self.backend, ct.backends.TensorBackend)
         for i, ten in enumerate(self.tensors):
             assert self.symmetry.is_same_symmetry(ten.symmetry)
             assert ten.backend == self.backend
@@ -74,7 +74,7 @@ class Coupling:
 
     @classmethod
     def from_dense_block(cls, names: list[str], co_dom: ct.TensorProduct,
-                         block: ct.Block, backend: ct.TensorBackend,
+                         block: ct.Block, backend: ct.backends.TensorBackend,
                          dtype: ct.Dtype | None = None) -> Coupling:
         """Convert an operator defined via a dense block to a coupling.
 
@@ -134,7 +134,8 @@ class SimpleSite:
     """
 
     def __init__(self, physical_space: ct.ElementarySpace,
-                 backend: ct.TensorBackend | None = None, **couplings: dict[str, Coupling]):
+                 backend: ct.backends.TensorBackend | None = None,
+                 **couplings: dict[str, Coupling]):
         self.physical_space = physical_space
         self.symmetry = physical_space.symmetry
         if backend is None:
@@ -147,8 +148,8 @@ class SimpleSite:
     def test_sanity(self):
         assert isinstance(self.physical_space, ct.ElementarySpace)
         self.physical_space.test_sanity()
-        assert isinstance(self.symmetry, ct.Symmetry)
-        assert isinstance(self.backend, ct.TensorBackend)
+        assert isinstance(self.symmetry, ct.symmetries.Symmetry)
+        assert isinstance(self.backend, ct.backends.TensorBackend)
         for coupling in self.couplings.values():
             coupling.test_sanity()
             for ten in coupling.tensors:
@@ -230,12 +231,12 @@ class SimpleSpinSite(SimpleSite):
     backend, **couplings: see :class:`SimpleSite`.
     """
 
-    def __init__(self, spin: int, symmetry: ct.Symmetry,
-                 backend: ct.TensorBackend = None, **couplings):
+    def __init__(self, spin: int, symmetry: ct.symmetries.Symmetry,
+                 backend: ct.backends.TensorBackend = None, **couplings):
         assert isinstance(spin, int)
-        if isinstance(symmetry, ct.SU2Symmetry):
+        if symmetry.is_same_symmetry(ct.su2_symmetry):
             sectors = np.array([[spin]])
-        elif isinstance(symmetry, ct.U1Symmetry):
+        elif symmetry.is_same_symmetry(ct.u1_symmetry):
             sectors = np.arange(-1 * spin, spin + 2, 2)[:, None]
         else:
             raise NotImplementedError
@@ -258,58 +259,31 @@ class SimpleSpinSite(SimpleSite):
 class SimpleU1SpinSite(SimpleSpinSite):
     """Simple class for a spin site with U(1) symmetry."""
 
-    def __init__(self, spin: int, backend: ct.TensorBackend = None):
+    def __init__(self, spin: int, backend: ct.backends.TensorBackend = None):
         super().__init__(spin, ct.u1_symmetry, backend)
 
     def add_on_site_spin_ops(self):
-        n = self.physical_space.dim
-        spin = (n - 1) / 2
-        sz = np.diag(-1 * spin + np.arange(n))
-        sp = np.zeros([n, n])
-        for i in np.arange(n - 1):
-            # Sp |m> =sqrt( S(S+1)-m(m+1)) |m+1>
-            m = i - spin
-            sp[i + 1, i] = np.sqrt(spin * (spin + 1) - m * (m + 1))
-        sm = np.transpose(sp)
-        # Sp = Sx + i Sy, Sm = Sx - i Sy
-        sx = (sp + sm) * 0.5
-        sy = (sm - sp) * 0.5j
+        spin = self.physical_space.dim - 1
+        sz = np.diag(-1 * spin / 2 + np.arange(self.physical_space.dim))
         co_dom = ct.TensorProduct([self.physical_space], self.symmetry)
         self.add_coupling_from_dense_block(['Sz'], co_dom=co_dom, block=sz)
 
-        # construct dense operators for sz sz, sp sm, sm sp
+        dense_blocks = get_dense_spin_operators(spin)
+        names = ['Sz Sz', 'S+ S-', 'S- S+', 'S dot S', 'S dot (S x S)']
         co_dom = ct.TensorProduct([self.physical_space] * 2, self.symmetry)
-        for s1, s2, name in zip([sz, sp, sm], [sz, sm, sp], ['Sz Sz', 'S+ S-', 'S- S+']):
-            s1s2_dense = s1[:, None, None, :] * s2[None, :, :, None]
-            self.add_coupling_from_dense_block([name], co_dom=co_dom, block=s1s2_dense)
+        for block, name in zip(dense_blocks[:4], names[:4]):
+            self.add_coupling_from_dense_block([name], co_dom=co_dom, block=block)
 
-        slist = [sx, sy, sz]
-        # construct dense operator corresponding to s . s
-        s_dot_s_dense = np.zeros([n] * 4, dtype=complex)
-        for si in slist:
-            s_dot_s_dense += si[:, None, None, :] * si[None, :, :, None]
-        self.add_coupling_from_dense_block(['S dot S'], co_dom=co_dom,
-                                           block=s_dot_s_dense)
-
-        # construct dense operator corresponding to s . s x s
-        s_dot_s_x_s_dense = np.zeros([n] * 6, dtype=complex)
-        for i in range(3):
-            s_dot_s_x_s_dense += (slist[i % 3][:, None, None, None, None, :] *
-                                  slist[(i + 1) % 3][None, :, None, None, :, None] *
-                                  slist[(i + 2) % 3][None, None, :, :, None, None])
-            s_dot_s_x_s_dense -= (slist[i % 3][:, None, None, None, None, :] *
-                                  slist[(i + 2) % 3][None, :, None, None, :, None] *
-                                  slist[(i + 1) % 3][None, None, :, :, None, None])
         co_dom = ct.TensorProduct([self.physical_space] * 3, self.symmetry)
-        self.add_coupling_from_dense_block(['S dot (S x S)'], co_dom=co_dom,
-                                           block=s_dot_s_x_s_dense)
+        self.add_coupling_from_dense_block([names[-1]], co_dom=co_dom,
+                                           block=dense_blocks[-1])
 
 
 class SimpleSU2SpinSite(SimpleSpinSite):
     """Simple class for a spin site with SU(2) symmetry."""
 
-    def __init__(self, spin: int, backend: ct.TensorBackend = None):
-        super().__init__(spin, ct.SU2Symmetry(), backend)
+    def __init__(self, spin: int, backend: ct.backends.TensorBackend = None):
+        super().__init__(spin, ct.su2_symmetry, backend)
 
     def add_on_site_spin_ops(self):
         self.add_s_dot_s_ops()
@@ -329,37 +303,16 @@ class SimpleSU2SpinSite(SimpleSpinSite):
 
     def add_s_dot_s_x_s_ops(self):
         """Add the couping corresponding to ``S dot (S x S)``."""
-        n = self.physical_space.dim
-        spin = (n - 1) / 2
-        sz = np.diag(-1 * spin + np.arange(n))
-        sp = np.zeros([n, n])
-        for i in np.arange(n - 1):
-            # Sp |m> =sqrt( S(S+1)-m(m+1)) |m+1>
-            m = i - spin
-            sp[i + 1, i] = np.sqrt(spin * (spin + 1) - m * (m + 1))
-        sm = np.transpose(sp)
-        # Sp = Sx + i Sy, Sm = Sx - i Sy
-        sx = (sp + sm) * 0.5
-        sy = (sm - sp) * 0.5j
-
-        # construct dense operator corresponding to s . s x s
-        slist = [sx, sy, sz]
-        s_dot_s_x_s_dense = 0
-        for i in range(3):
-            s_dot_s_x_s_dense += (slist[i % 3][:, None, None, None, None, :] *
-                                  slist[(i + 1) % 3][None, :, None, None, :, None] *
-                                  slist[(i + 2) % 3][None, None, :, :, None, None])
-            s_dot_s_x_s_dense -= (slist[i % 3][:, None, None, None, None, :] *
-                                  slist[(i + 2) % 3][None, :, None, None, :, None] *
-                                  slist[(i + 1) % 3][None, None, :, :, None, None])
-
+        spin = self.physical_space.dim - 1
+        dense_block = get_dense_spin_operators(spin)[-1]
         co_dom = ct.TensorProduct([self.physical_space] * 3, self.symmetry)
         self.add_coupling_from_dense_block(['S dot (S x S)'], co_dom=co_dom,
-                                           block=s_dot_s_x_s_dense)
+                                           block=dense_block)
 
 
-def _add_trivial_leg_abelian_data(data: ct.AbelianBackendData, backend: ct.TensorBackend,
-                                  leg_idx: int) -> ct.AbelianBackendData:
+def _add_trivial_leg_abelian_data(data: ct.backends.AbelianBackendData,
+                                  backend: ct.backends.TensorBackend,
+                                  leg_idx: int) -> ct.backends.AbelianBackendData:
     """Change abelian backend data when adding a trivial leg to the associated tensor."""
     data.block_inds = np.insert(data.block_inds, leg_idx, values=0, axis=1)
     shapes = [backend.block_backend.get_shape(block) for block in data.blocks]
@@ -389,7 +342,7 @@ def add_trivial_legs_to_on_site_op(op: ct.SymmetricTensor) -> ct.SymmetricTensor
         new_codom = ct.TensorProduct([trivial_space, op.codomain[0]], symmetry=op.symmetry,
                                      _sector_decomposition=op.codomain.sector_decomposition,
                                      _multiplicities=op.codomain.multiplicities)
-        if isinstance(backend, ct.AbelianBackend):
+        if isinstance(backend, ct.backends.AbelianBackend):
             _add_trivial_leg_abelian_data(data, backend, leg_idx=0)
     else:
         assert op.num_codomain_legs == 2
@@ -400,7 +353,7 @@ def add_trivial_legs_to_on_site_op(op: ct.SymmetricTensor) -> ct.SymmetricTensor
         new_dom = ct.TensorProduct([op.domain[0], trivial_space], symmetry=op.symmetry,
                                    _sector_decomposition=op.domain.sector_decomposition,
                                    _multiplicities=op.domain.multiplicities)
-        if isinstance(backend, ct.AbelianBackend):
+        if isinstance(backend, ct.backends.AbelianBackend):
             _add_trivial_leg_abelian_data(data, backend, leg_idx=2)
     else:
         assert op.num_domain_legs == 2
@@ -450,6 +403,53 @@ def decompose_multi_site_operator(op: ct.SymmetricTensor) -> list[ct.SymmetricTe
     return op_list[::-1]
 
 
+def get_dense_spin_operators(spin: int) -> list[np.ndarray]:
+    """Construct symmetric spin operators as dense blocks.
+
+    The constructed dense blocks correspond to the U(1) symmetric operators
+    ``Sz Sz``, ``S+ S-`` and ``S- S+``, and to the SU(2) symmetric operators
+    ``S . S`` and ``S . (S x S)``.
+    
+    Parameters
+    ----------
+    spin : int
+        Correspons to 2 * S, with S the spin to be considered.
+    """
+    n = spin + 1
+    spin_ = spin / 2
+    sz = np.diag(-1 * spin_ + np.arange(n))
+    sp = np.zeros([n, n])
+    for i in np.arange(n - 1):
+        # Sp |m> =sqrt( S(S+1)-m(m+1)) |m+1>
+        m = i - spin_
+        sp[i + 1, i] = np.sqrt(spin_ * (spin_ + 1) - m * (m + 1))
+    sm = np.transpose(sp)
+    # Sp = Sx + i Sy, Sm = Sx - i Sy
+    sx = (sp + sm) * 0.5
+    sy = (sm - sp) * 0.5j
+
+    szsz = sz[:, None, None, :] * sz[None, :, :, None]
+    spsm = sp[:, None, None, :] * sm[None, :, :, None]
+    smsp = sm[:, None, None, :] * sp[None, :, :, None]
+
+    slist = [sx, sy, sz]
+    # construct dense operator corresponding to s . s
+    s_dot_s = np.zeros([n] * 4, dtype=complex)
+    for si in slist:
+        s_dot_s += si[:, None, None, :] * si[None, :, :, None]
+
+    # construct dense operator corresponding to s . s x s
+    s_dot_s_x_s = np.zeros([n] * 6, dtype=complex)
+    for i in range(3):
+        s_dot_s_x_s += (slist[i % 3][:, None, None, None, None, :] *
+                        slist[(i + 1) % 3][None, :, None, None, :, None] *
+                        slist[(i + 2) % 3][None, None, :, :, None, None])
+        s_dot_s_x_s -= (slist[i % 3][:, None, None, None, None, :] *
+                        slist[(i + 2) % 3][None, :, None, None, :, None] *
+                        slist[(i + 1) % 3][None, None, :, :, None, None])
+    return szsz, spsm, smsp, s_dot_s, s_dot_s_x_s
+
+
 def verify_operator_decomposition_spins(spin: int = 1):
     """Check that the spin sites work and verify their couplings.
     
@@ -458,50 +458,22 @@ def verify_operator_decomposition_spins(spin: int = 1):
     For U(1) symmetry, the couplings ``Sz``, ``Sz Sz``, ``S+ S-`` and ``S- S+``
     are also checked.
     """
-    n = spin + 1
-    spin_ = spin / 2
-    sz = np.diag(-1 * spin_ + np.arange(n))
-    sp = np.zeros([n, n])
-    for i in np.arange(n - 1):
-        m = i - spin_
-        sp[i + 1, i] = np.sqrt(spin_ * (spin_ + 1) - m * (m + 1))
-    sm = np.transpose(sp)
-    sx = (sp + sm) * 0.5
-    sy = (sm - sp) * 0.5j
+    szsz, spsm, smsp, s_dot_s, s_dot_s_x_s = get_dense_spin_operators(spin)
 
-    szsz_dense = sz[:, None, None, :] * sz[None, :, :, None]
-    spsm_dense = sp[:, None, None, :] * sm[None, :, :, None]
-    smsp_dense = sm[:, None, None, :] * sp[None, :, :, None]
-
-    slist = [sx, sy, sz]
-    # construct dense operator corresponding to s . s
-    s_dot_s_dense = np.zeros([n] * 4, dtype=complex)
-    for si in slist:
-        s_dot_s_dense += si[:, None, None, :] * si[None, :, :, None]
-
-    # construct dense operator corresponding to s . s x s
-    s_dot_s_x_s_dense = np.zeros([n] * 6, dtype=complex)
-    for i in range(3):
-        s_dot_s_x_s_dense += (slist[i % 3][:, None, None, None, None, :] *
-                              slist[(i + 1) % 3][None, :, None, None, :, None] *
-                              slist[(i + 2) % 3][None, None, :, :, None, None])
-        s_dot_s_x_s_dense -= (slist[i % 3][:, None, None, None, None, :] *
-                              slist[(i + 2) % 3][None, :, None, None, :, None] *
-                              slist[(i + 1) % 3][None, None, :, :, None, None])
-
-    siteU1_1 = SimpleU1SpinSite(spin, backend=ct.AbelianBackend(ct.NumpyBlockBackend()))
-    siteU1_2 = SimpleU1SpinSite(spin, backend=ct.FusionTreeBackend(ct.NumpyBlockBackend()))
+    np_bak = ct.backends.NumpyBlockBackend()
+    siteU1_1 = SimpleU1SpinSite(spin, backend=ct.backends.AbelianBackend(np_bak))
+    siteU1_2 = SimpleU1SpinSite(spin, backend=ct.backends.FusionTreeBackend(np_bak))
     siteSU2 = SimpleSU2SpinSite(spin)
     for site in [siteU1_1, siteU1_2, siteSU2]:
         site.test_sanity()
 
         if ct.u1_symmetry.is_same_symmetry(site.symmetry):
-            np.testing.assert_almost_equal(site.couplings['Sz Sz'].to_numpy(), szsz_dense)
-            np.testing.assert_almost_equal(site.couplings['S+ S-'].to_numpy(), spsm_dense)
-            np.testing.assert_almost_equal(site.couplings['S- S+'].to_numpy(), smsp_dense)
+            np.testing.assert_almost_equal(site.couplings['Sz Sz'].to_numpy(), szsz)
+            np.testing.assert_almost_equal(site.couplings['S+ S-'].to_numpy(), spsm)
+            np.testing.assert_almost_equal(site.couplings['S- S+'].to_numpy(), smsp)
 
-        np.testing.assert_almost_equal(site.couplings['S dot S'].to_numpy(), s_dot_s_dense)
-        np.testing.assert_almost_equal(site.couplings['S dot (S x S)'].to_numpy(), s_dot_s_x_s_dense)
+        np.testing.assert_almost_equal(site.couplings['S dot S'].to_numpy(), s_dot_s)
+        np.testing.assert_almost_equal(site.couplings['S dot (S x S)'].to_numpy(), s_dot_s_x_s)
 
 
 if __name__ == '__main__':
