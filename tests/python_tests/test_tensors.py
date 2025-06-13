@@ -1072,12 +1072,12 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
     assert res.legs == tensor.legs
 
     if not tensor.symmetry.can_be_dropped:
-        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
-
-    if isinstance(tensor.symmetry, SU2Symmetry):
-        pytest.xfail()  # TODO
+        #return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+        pytest.xfail()
 
     tensor_np = tensor.to_numpy()
+    print("Difference:")
+    print(res.to_numpy() - tensor_np)
     npt.assert_array_almost_equal_nulp(res.to_numpy(), tensor_np, 100)
 
 
@@ -1085,11 +1085,11 @@ def test_combine_split(make_compatible_tensor):
     T: SymmetricTensor = make_compatible_tensor(['a', 'b'], ['d', 'c'])
     assert T.labels == ['a', 'b', 'c', 'd']
 
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        msg = 'FusionTreeBackend.combine_legs not implemented'
-        with pytest.raises(RuntimeError, match=msg):
-            _ = tensors.combine_legs(T, [1, 2])
-        pytest.xfail()
+    # if isinstance(T.backend, backends.FusionTreeBackend):
+    #     msg = 'FusionTreeBackend.combine_legs not implemented'
+    #     with pytest.raises(RuntimeError, match=msg):
+    #         _ = tensors.combine_legs(T, [1, 2])
+    #     pytest.xfail()
 
     # 1) combine in codomain
     combined1 = tensors.combine_legs(T, [0, 1])
