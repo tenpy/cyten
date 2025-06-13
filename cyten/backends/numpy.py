@@ -8,8 +8,6 @@ import scipy
 from .abstract_backend import BlockBackend, Block
 from ..dtypes import Dtype, _numpy_dtype_to_cyten, _cyten_dtype_to_numpy
 
-__all__ = ['NumpyBlockBackend']
-
 
 class NumpyBlockBackend(BlockBackend):
     """A block backend using numpy."""
@@ -169,6 +167,10 @@ class NumpyBlockBackend(BlockBackend):
 
     def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
                       ) -> Block:
+        # if sigma is standard deviation for complex numbers, need to divide by sqrt(2)
+        # to get standard deviation in real and imag parts
+        if not dtype.is_real:
+            sigma /= np.sqrt(2)
         _ = self.as_device(device)  # for input check only
         res = np.random.normal(loc=0, scale=sigma, size=dims)
         if not dtype.is_real:
@@ -187,6 +189,9 @@ class NumpyBlockBackend(BlockBackend):
 
     def real_if_close(self, a: Block, tol: float) -> Block:
         return np.real_if_close(a, tol=tol)
+
+    def tile(self, a: Block, repeats: int, axis: int | None = None) -> Block:
+        return np.tile(a, repeats)
 
     def _block_repr_lines(self, a: Block, indent: str, max_width: int, max_lines: int) -> list[str]:
         # TODO i like julia style much better actually, especially for many legs

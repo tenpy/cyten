@@ -1,11 +1,14 @@
-"""Utility functions for testing"""
+"""Utility functions for generating random test cases."""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
 import numpy as np
-import pytest
+try:
+    import pytest
+except Exception:
+    pytest = None
 
-from cyten import symmetries, spaces, tensors, backends, Dtype, tools
+from .. import symmetries, spaces, tensors, backends, dtypes, tools
 
 
 def random_block(block_backend, size, real=False, np_random=np.random.default_rng(0)):
@@ -17,7 +20,7 @@ def random_block(block_backend, size, real=False, np_random=np.random.default_rn
 
 def random_symmetry_sectors(symmetry: symmetries.Symmetry, num: int, sort: bool = False,
                             np_random=np.random.default_rng()) -> symmetries.SectorArray:
-    """random unique symmetry sectors, optionally sorted"""
+    """Random unique symmetry sectors, optionally sorted."""
     if isinstance(symmetry, symmetries.SU2Symmetry):
         res = np_random.choice(int(1.3 * num), replace=False, size=(num, 1))
     elif isinstance(symmetry, symmetries.U1Symmetry):
@@ -38,7 +41,11 @@ def random_symmetry_sectors(symmetry: symmetries.Symmetry, num: int, sort: bool 
             combs = np_random.choice(combs, replace=False, size=num)
         res = np.hstack([fs[i] for fs, i in zip(factor_sectors, combs.T)])
     else:
-        pytest.skip("don't know how to get symmetry sectors")  # raises Skipped
+        msg = "don't know how to get symmetry sectors"
+        if pytest is None:
+            raise ValueError(msg)
+        else:
+            pytest.skip(msg)
     if sort:
         order = np.lexsort(res.T)
         res = res[order]
@@ -156,7 +163,7 @@ def randomly_drop_blocks(res: tensors.SymmetricTensor | tensors.DiagonalTensor,
 
 def find_last_leg(same: spaces.TensorProduct, opposite: spaces.TensorProduct,
                   max_sectors: int, max_mult: int, backend: backends.TensorBackend,
-                  use_pipes:  bool | float, in_domain: bool, extra_sectors=None,
+                  use_pipes: bool | float, in_domain: bool, extra_sectors=None,
                   np_random=np.random.default_rng()):
     """Find a leg such that the resulting tensor allows some non-zero blocks
 
@@ -225,13 +232,15 @@ def find_last_leg(same: spaces.TensorProduct, opposite: spaces.TensorProduct,
 def random_tensor(symmetry: symmetries.Symmetry,
                   codomain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
                   domain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
-                  labels: list[str | None] = None, dtype: Dtype = None,
+                  labels: list[str | None] = None, dtype: dtypes.Dtype = None,
                   backend: backends.TensorBackend = None, device: str = None,
                   like: tensors.Tensor = None, max_blocks=5, max_multiplicity=5,
                   empty_ok=False, all_blocks=False, cls=tensors.SymmetricTensor,
                   allow_basis_perm: bool = True, use_pipes: bool | float = False,
                   np_random=np.random.default_rng()):
-    """`use_pipes` is ignored for legs in the co_domain if the corresponding
+    """Generate a random tensor.
+
+    `use_pipes` is ignored for legs in the co_domain if the corresponding
     legs are specified using individual `Space`s or `LegPipe`s or if the full
     co_domain is specified using a `TensorProduct`.
     """
@@ -391,7 +400,7 @@ def random_tensor(symmetry: symmetries.Symmetry,
         return res
     #
     if cls is tensors.Mask:
-        assert dtype in [None, Dtype.bool]
+        assert dtype in [None, dtypes.Dtype.bool]
         if isinstance(codomain, spaces.TensorProduct):
             assert codomain.num_factors == 1
             small_leg = codomain.factors[0]
@@ -419,9 +428,13 @@ def random_tensor(symmetry: symmetries.Symmetry,
                 # TODO looks like this generates a basis_perm incompatible with the mask!
                 raise NotImplementedError('Mask generation broken')
                 extra = random_ElementarySpace(symmetry=symmetry, max_sectors=max_blocks,
-                                            max_multiplicity=max_multiplicity, is_dual=small_leg.is_dual,
-                                            allow_basis_perm=allow_basis_perm, np_random=np_random)
+                                               max_multiplicity=max_multiplicity, is_dual=small_leg.is_dual,
+                                               allow_basis_perm=allow_basis_perm, np_random=np_random)
                 large_leg = small_leg.direct_sum(extra)
+
+        if isinstance(backend, backends.FusionTreeBackend):
+            if pytest is None:
+                raise ValueError('Cant generate masks yet')
 
         if small_leg is not None and small_leg.dim > large_leg.dim:
             res = tensors.Mask.from_random(large_leg=small_leg, small_leg=large_leg,
@@ -512,6 +525,7 @@ def random_tensor(symmetry: symmetries.Symmetry,
 def check_tensor_memory_usage(codomain: spaces.TensorProduct,
                               domain: spaces.TensorProduct, real: bool):
     """Estimate memory usage based on the number of entries in all blocks.
+
     Raise error if estimated memory is larger than 1 GB.
     """
     limit = 1.
@@ -539,7 +553,7 @@ def _factorize_limit(limit: int, num_components: int):
 
 def _random_ElementarySpace(symmetry, num_sectors, max_multiplicity, is_dual,
                             allow_basis_perm, np_random):
-    """Similar to `random_ElementarySpace`, but with fixed number of sectors"""
+    """Similar to `random_ElementarySpace`, but with fixed number of sectors."""
     sectors = random_symmetry_sectors(symmetry, num_sectors, sort=True, np_random=np_random)
     # if there are very few sectors, e.g. for symmetry==NoSymmetry(), dont let them be one-dimensional
     min_mult = min(max_multiplicity, max(4 - len(sectors), 1))
@@ -560,6 +574,7 @@ def _random_ElementarySpace(symmetry, num_sectors, max_multiplicity, is_dual,
 
 def _random_num_legs(np_random):
     """Return random number of legs of pipr construction.
+
     Probabilities are 80% for 1 leg, 15% for 2 legs, 5% for 3 legs.
     """
     rnd = np_random.random()

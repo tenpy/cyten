@@ -6,18 +6,6 @@ import warnings
 from typing import TypeVar, Sequence, Set
 
 
-__all__ = [
-    'UNSPECIFIED', 'duplicate_entries', 'to_iterable', 'as_immutable_array',
-    'permutation_as_swaps',
-    'argsort', 'combine_constraints', 'inverse_permutation', 'list_to_dict_list',
-    'find_subclass',
-    'rank_data',
-    'np_argsort', 'make_stride', 'make_grid', 'find_row_differences',
-    'iter_common_noncommon_sorted', 'iter_common_noncommon_sorted_arrays', 'iter_common_sorted',
-    'iter_common_sorted_arrays'
-]
-
-
 UNSPECIFIED = object()  # sentinel, also used elsewhere
 _T = TypeVar('_T')  # used in typing some functions
 _MAX_INT = np.iinfo(int).max
@@ -37,6 +25,15 @@ def to_iterable(a):
         return [a]
     else:
         return a
+
+
+def to_valid_idx(idx: int, length: int) -> int:
+    """Convert to a valid non-negative index into the given `length`, if possible."""
+    if not -length <= idx < length:
+        raise IndexError(f'Index {idx} out of bounds for length {length}')
+    if idx < 0:
+        idx += length
+    return idx
 
 
 def as_immutable_array(a, dtype=None):
@@ -206,6 +203,7 @@ def rank_data(a, stable=True):
     return ranks
 
 
+# np_argsort : depending on numpy version
 if int(np.version.version.split('.')[0]) >= 2:
     def np_argsort(a, stable=True):
         """Wrapper around np.argsort, using the ``stable`` kwarg if available"""

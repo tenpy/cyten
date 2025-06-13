@@ -9,12 +9,12 @@ import operator
 from contextlib import nullcontext
 
 from cyten import backends, tensors, symmetries
-from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor
+from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor, Tensor
 from cyten.backends.backend_factory import get_backend
 from cyten.dtypes import Dtype
 from cyten.spaces import ElementarySpace, TensorProduct, AbelianLegPipe, LegPipe
 from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError
-from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays
+from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays, to_valid_idx
 
 
 # TENSOR CLASSES
@@ -132,7 +132,7 @@ def test_base_Tensor(make_compatible_space, compatible_backend):
 
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)],
                          ids=['1->1', '1->2', '0->3', '3->0'])
-def test_SymmetricTensor(make_compatible_tensor, leg_nums):
+def test_SymmetricTensor(make_compatible_tensor, leg_nums, np_random):
     T: SymmetricTensor = make_compatible_tensor(*leg_nums)
     backend = T.backend
 
@@ -172,7 +172,6 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
 
     # TODO: missing coverage:
     # - from_block_func / from_sector_block_func
-    # - random_uniform / random_normal
     # - diagonal
 
     print('checking from_zero')
@@ -214,6 +213,75 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
     _ = repr(T)
     _ = str(zero_tens)
     _ = repr(zero_tens)
+
+    # use larger block size to reliably check distributions
+    # based on some test runs, this corresponds to up to 9e5 samples
+    # but may also only be 5e2 samples for a single leg in codomain and domain
+    T: SymmetricTensor = make_compatible_tensor(*leg_nums, max_block_size=80)
+
+    print('checking from_random_uniform')
+    dtype = np_random.choice([Dtype.float64, Dtype.complex128])
+    rand_tens = SymmetricTensor.from_random_uniform(codomain=T.codomain, domain=T.domain,
+                                                    backend=backend, dtype=dtype)
+    if isinstance(backend, backends.NoSymmetryBackend):
+        samples = np.asarray(rand_tens.data).flatten()
+    else:
+        samples = np.concatenate([np.asarray(block).flatten() for block in rand_tens.data.blocks])
+    # test distribution if there are enough samples
+    if samples.size > 1e4:
+        true_mean = 0
+        true_var = 1 / 3
+        tol = 5 * samples.size ** -0.5
+        mean = np.mean(samples)
+        if dtype.is_real:
+            npt.assert_allclose(mean, true_mean, atol=tol)
+            npt.assert_allclose(np.var(samples), true_var, atol=tol)
+            assert samples[samples < -1].size == 0
+            assert samples[samples > 1].size == 0
+            # probability of happening: 0.999 ** samples.size; smaller than 4.5e-5
+            assert samples[samples < -0.998].size > 0
+            assert samples[samples > 0.998].size > 0
+        else:
+            npt.assert_allclose(mean.real, true_mean, atol=tol)
+            npt.assert_allclose(mean.imag, true_mean, atol=tol)
+            npt.assert_allclose(np.var(samples.real), true_var, atol=tol)
+            npt.assert_allclose(np.var(samples.imag), true_var, atol=tol)
+            assert samples[samples.real < -1].size == 0
+            assert samples[samples.imag < -1].size == 0
+            assert samples[samples.real > 1].size == 0
+            assert samples[samples.imag > 1].size == 0
+            assert samples[samples.real < -0.998].size > 0
+            assert samples[samples.imag < -0.998].size > 0
+            assert samples[samples.real > 0.998].size > 0
+            assert samples[samples.imag > 0.998].size > 0
+            
+    print('checking from_random_normal')
+    # TODO do we want to test nontrivial means?
+    dtype = np_random.choice([Dtype.float64, Dtype.complex128])
+    sigma = np_random.uniform(high=3.)
+    rand_tens = SymmetricTensor.from_random_normal(codomain=T.codomain, domain=T.domain,
+                                                   sigma=sigma, backend=backend, dtype=dtype)
+    if isinstance(backend, backends.NoSymmetryBackend):
+        samples = np.asarray(rand_tens.data).flatten()
+    else:
+        samples = np.concatenate([np.asarray(block).flatten() for block in rand_tens.data.blocks])
+    # test distribution if there are enough samples
+    if samples.size > 1e4:
+        true_mean = 0
+        true_var = sigma ** 2
+        tol = 10 * samples.size ** -0.5
+        mean = np.mean(samples)
+        if dtype.is_real:
+            npt.assert_allclose(mean, true_mean, atol=tol)
+            npt.assert_allclose(np.var(samples), true_var, rtol=tol)
+        else:
+            npt.assert_allclose(mean.real, true_mean, atol=tol)
+            npt.assert_allclose(mean.imag, true_mean, atol=tol)
+            npt.assert_allclose(np.var(samples.real), true_var / 2, rtol=tol)
+            npt.assert_allclose(np.var(samples.imag), true_var / 2, rtol=tol)
+            # absolute values are Rayleigh distributed
+            npt.assert_allclose(np.mean(np.abs(samples)), np.sqrt(np.pi / 4) * sigma, atol=tol)
+            npt.assert_allclose(np.var(np.abs(samples)), (4 - np.pi) / 4 * true_var, rtol=tol)
 
     # TODO test to_dense_block_trivial_sector
     # def OLD_test_Tensor_tofrom_dense_block_trivial_sector(make_compatible_tensor):
@@ -298,13 +366,6 @@ def test_DiagonalTensor(make_compatible_tensor):
 
 
 def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
-
-    if compatible_symmetry_backend == 'fusion_tree':
-        # necessary functions to create Masks from fixture are not implemented yet
-        with pytest.raises(NotImplementedError, match='diagonal_to_mask not implemented'):
-            make_compatible_tensor(cls=Mask)
-        pytest.xfail()
-
     M_projection: Mask = make_compatible_tensor(cls=Mask)
     backend = M_projection.backend
     symmetry = M_projection.symmetry
@@ -337,6 +398,15 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
         # checks that rely on dense block representations
         print('checking from_block_mask / as_block_mask')
         block_mask = np_random.choice([True, False], large_leg.dim, replace=True)
+        if not M_projection.symmetry.fusion_style.value == 0:
+            # can only have True XOR False for all entries corresponding to the same multiplicity index
+            for slc, sector in zip(large_leg.slices, large_leg.defining_sectors):
+                dim = symmetry.sector_dim(sector)
+                if dim > 1:
+                    slc = slice(*slc)
+                    stop = int(len(block_mask[slc]) // dim)
+                    block_mask[slc] = np.tile(block_mask[slc][:stop], dim)
+            block_mask = backend.block_backend.apply_basis_perm(block_mask, [large_leg], inv=True)
         M = Mask.from_block_mask(block_mask, large_leg=large_leg, backend=backend)
         M.test_sanity()
         assert M.large_leg == large_leg
@@ -396,29 +466,32 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
         _ = bool(M_projection)
 
     print('checking .any() and .all()')
-    assert M_projection.all() == np.all(M_projection_np)
-    assert M_inclusion.all() == np.all(M_projection_np)
-    assert M_projection.any() == np.any(M_projection_np)
-    assert M_inclusion.any() == np.any(M_projection_np)
+    if symmetry.can_be_dropped:
+        assert M_projection.all() == np.all(M_projection_np)
+        assert M_inclusion.all() == np.all(M_projection_np)
+        assert M_projection.any() == np.any(M_projection_np)
+        assert M_inclusion.any() == np.any(M_projection_np)
     assert M_eye.all()
     assert M_eye.any()
     assert not M_zero.all()
     assert not M_zero.any()
 
     print('checking to_numpy vs as_SymmetricTensor')
-    res_direct = M_projection.to_numpy()
     M_SymmetricTensor = M_projection.as_SymmetricTensor(dtype=Dtype.float64)
     assert M_SymmetricTensor.shape == M_projection.shape
     M_SymmetricTensor.test_sanity()
-    res_via_Symmetric = M_SymmetricTensor.to_numpy()
-    npt.assert_allclose(res_via_Symmetric, res_direct)
+    if symmetry.can_be_dropped:
+        res_via_Symmetric = M_SymmetricTensor.to_numpy()
+        res_direct = M_projection.to_numpy()
+        npt.assert_allclose(res_via_Symmetric, res_direct)
     print('   also for inclusion Mask')
-    res_direct = M_inclusion.to_numpy()
     M_SymmetricTensor = M_inclusion.as_SymmetricTensor(dtype=Dtype.float64)
     assert M_SymmetricTensor.shape == M_inclusion.shape
     M_SymmetricTensor.test_sanity()
-    res_via_Symmetric = M_SymmetricTensor.to_numpy()
-    npt.assert_allclose(res_via_Symmetric, res_direct)
+    if symmetry.can_be_dropped:
+        res_via_Symmetric = M_SymmetricTensor.to_numpy()
+        res_direct = M_inclusion.to_numpy()
+        npt.assert_allclose(res_via_Symmetric, res_direct)
 
     # TODO check binary operands: &, ==, !=, &, |, ^ :
     #   left and right
@@ -955,7 +1028,7 @@ def test_Tensor_str_repr(cls, codomain, domain, make_compatible_tensor, str_max_
     ],
 )
 def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor, np_random):
-    tens: cls = make_compatible_tensor(domain, codomain, cls=cls)
+    tens: Tensor = make_compatible_tensor(domain, codomain, cls=cls)
 
     if not tens.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
@@ -1001,16 +1074,17 @@ def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor,
 @pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize('cls', [DiagonalTensor, SymmetricTensor, ChargedTensor])
 def test_almost_equal(cls, make_compatible_tensor):
-    T: cls = make_compatible_tensor(cls=cls)
+    T: Tensor = make_compatible_tensor(cls=cls)
 
     if cls is ChargedTensor:
+        T: ChargedTensor
         T_diff_inv = make_compatible_tensor(
             domain=T.invariant_part.domain, codomain=T.invariant_part.codomain, cls=SymmetricTensor,
             labels=T.invariant_part.labels
         )
         T_diff = ChargedTensor(T_diff_inv, T.charged_state)
     else:
-        T_diff: cls = make_compatible_tensor(domain=T.domain, codomain=T.codomain, cls=cls)
+        T_diff: Tensor = make_compatible_tensor(domain=T.domain, codomain=T.codomain, cls=cls)
         
     T2 = T + 1e-7 * T_diff
     assert tensors.almost_equal(T, T2, rtol=1e-5, atol=1e-5)
@@ -1039,8 +1113,7 @@ def test_apply_mask(cls, codomain, domain, which_leg, make_compatible_tensor, co
         kwargs['use_pipes'] = False
     M: Mask = make_compatible_tensor(cls=Mask)
     num_legs = domain + codomain
-    if which_leg < 0:
-        which_leg += num_legs
+    which_leg = to_valid_idx(which_leg, num_legs)
     if which_leg >= codomain:
         domain = [None] * domain
         domain[num_legs - which_leg - 1] = M.large_leg.dual
@@ -1089,6 +1162,9 @@ def test_apply_mask_DiagonalTensor(make_compatible_tensor):
     assert res.leg == mask.small_leg
     assert res.labels == tensor.labels
 
+    if not tensor.symmetry.can_be_dropped:
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+
     diag = tensor.diagonal_as_numpy()
     mask_np = mask.as_numpy_mask()
     expect = diag[mask_np]
@@ -1100,7 +1176,7 @@ def test_apply_mask_DiagonalTensor(make_compatible_tensor):
                           pytest.param(SymmetricTensor, 2, 2, 1),
                           pytest.param(SymmetricTensor, 2, 2, 4),])
 def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_tensor):
-    tensor: cls = make_compatible_tensor(codomain, domain, cls=cls)
+    tensor: Tensor = make_compatible_tensor(codomain, domain, cls=cls)
 
     if isinstance(tensor.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in tensor.legs]) and codomain != num_codomain_legs:
@@ -1139,9 +1215,11 @@ def test_combine_split(use_pipes, make_compatible_tensor):
     assert T.labels == ['a', 'b', 'c', 'd']
 
     if isinstance(T.backend, backends.FusionTreeBackend):
-        err = NotImplementedError if use_pipes else RuntimeError
-        msg = '' if use_pipes else 'FusionTreeBackend.combine_legs not implemented'
-        with pytest.raises(err, match=msg):
+        if use_pipes:
+            match = None
+        else:
+            match = 'FusionTreeBackend.combine_legs not implemented'
+        with pytest.raises(NotImplementedError, match=match):
             _ = tensors.combine_legs(T, [1, 2])
         pytest.xfail()
 
@@ -1351,10 +1429,10 @@ def test_combine_split_pr_16():
 def test_compose(cls_A, cls_B, cod_A, shared, dom_B, make_compatible_tensor):
     labels_A = [list('abcd')[:cod_A], list('efgh')[:shared]]
     labels_B = [list('ijkl')[:shared], list('mnop')[:dom_B]]
-    A: cls_A = make_compatible_tensor(
+    A: Tensor = make_compatible_tensor(
         codomain=cod_A, domain=shared, labels=labels_A, cls=cls_A
     )
-    B: cls_B = make_compatible_tensor(
+    B: Tensor = make_compatible_tensor(
         codomain=A.domain, domain=dom_B, labels=labels_B, cls=cls_B
     )
 
@@ -1408,7 +1486,7 @@ def test_compose(cls_A, cls_B, cod_A, shared, dom_B, make_compatible_tensor):
 )
 def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
     T_labels = list('abcdefghi')[:cod + dom]
-    T: cls = make_compatible_tensor(cod, dom, cls=cls, labels=T_labels)
+    T: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=T_labels)
 
     if isinstance(T.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in T.legs]) and cls is ChargedTensor:
@@ -1541,8 +1619,8 @@ def test_DiagonalTensor_elementwise_binary(cls, op, dtype, make_compatible_tenso
 )
 def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     # prepare hermitian tensor
-    T: cls = make_compatible_tensor(dom, dom, cls=cls)
-    T: cls = make_compatible_tensor(T.domain, T.domain, cls=cls)
+    T: Tensor = make_compatible_tensor(dom, dom, cls=cls)
+    T: Tensor = make_compatible_tensor(T.domain, T.domain, cls=cls)
     T = T + T.hc
     T.set_labels(list('efghijk')[:2 * dom])
     T.test_sanity()
@@ -1562,11 +1640,12 @@ def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     assert tensors.almost_equal(V.hc @ V, SymmetricTensor.from_eye(V.domain, T.backend))  # unitary 2)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, codomain, domain, which_leg',
     [pytest.param(SymmetricTensor, 2, 2, 1, id='Symm-2-2-codom'),
      pytest.param(SymmetricTensor, 2, 2, 3, id='Symm-2-2-dom'),
-     pytest.param(ChargedTensor, 2, 2, 1, id='Charged-2-2-dom'),
+     pytest.param(ChargedTensor, 2, 2, 1, id='Charged-2-2-codom'),
      pytest.param(ChargedTensor, 2, 2, 3, id='Charged-2-2-dom'),
      pytest.param(DiagonalTensor, 1, 1, 1, id='Diag-dom'),
      pytest.param(Mask, 1, 1, 0, id='Mask-codom'),
@@ -1594,7 +1673,17 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
             _ = make_compatible_tensor(codomain=T_codomain, domain=T_domain, labels=labels, cls=cls)
         pytest.xfail()
 
-    T: cls = make_compatible_tensor(codomain=T_codomain, domain=T_domain, labels=labels, cls=cls)
+    T: Tensor = make_compatible_tensor(codomain=T_codomain, domain=T_domain, labels=labels, cls=cls)
+
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if which_leg < T.num_codomain_legs:
+            expect_err = any([isinstance(l, LegPipe) for l in T.codomain])
+        else:
+            expect_err = any([isinstance(l, LegPipe) for l in T.domain])
+        if expect_err:
+            with pytest.raises((AttributeError, NotImplementedError)):
+                _ = tensors.enlarge_leg(T, M, which_leg)
+            pytest.xfail()
 
     if cls is Mask:
         with pytest.raises(NotImplementedError):
@@ -1617,6 +1706,12 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
 
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+
+    if isinstance(T.backend, backends.FusionTreeBackend):
+        if T.has_pipes:
+            with pytest.raises(NotImplementedError,  match='FusionTreeBackend.split_legs not implemented'):
+                _ = T.to_numpy()
+            pytest.xfail()
 
     T_np = T.to_numpy()
     mask_np = M.as_numpy_mask()
@@ -1664,7 +1759,7 @@ def test_entropy(n, make_compatible_tensor):
      ]
 )
 def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
-    T: cls = make_compatible_tensor(cod, dom, cls=cls)
+    T: Tensor = make_compatible_tensor(cod, dom, cls=cls)
 
     if not T.symmetry.can_be_dropped:
         with pytest.raises(SymmetryError, match='Can not access elements'):
@@ -1677,6 +1772,11 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
                 _ = T.to_numpy()
             pytest.xfail()
 
+    if (cls is SymmetricTensor or cls is ChargedTensor) and isinstance(T.backend, backends.FusionTreeBackend):
+        catch_warnings = pytest.warns(UserWarning, match='Accessing individual entries')
+    else:
+        catch_warnings = nullcontext()
+
     T_np = T.to_numpy()
     random_idx = tuple(np_random.choice(d) for d in T.shape)
 
@@ -1686,20 +1786,10 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
         else:
             npt.assert_almost_equal(a, b)
 
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        if cls is DiagonalTensor:
-            # getting an off-diagonal element is handled without going to the backend function
-            with pytest.raises(NotImplementedError, match='get_element.* not implemented'):
-                _ = T[0, 0]
-            pytest.xfail()
-
-        with pytest.raises(NotImplementedError, match='get_element.* not implemented'):
-            _ = T[random_idx]
-        pytest.xfail()
-
-    entry = T[random_idx]
+    with catch_warnings:
+        entry = T[random_idx]
     assert isinstance(entry, (bool, float, complex))
-    assert_same(T[random_idx], T_np[random_idx])
+    assert_same(entry, T_np[random_idx])
 
     # trying to set items raises
     with pytest.raises(TypeError, match='.* do.* not support item assignment.'):
@@ -1709,13 +1799,17 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
     which = np_random.choice(len(non_zero_idcs[0]))
     non_zero_idx = tuple(ax[which] for ax in non_zero_idcs)
     assert len(non_zero_idx) > 0
-    assert_same(T[non_zero_idx], T_np[non_zero_idx])
+    with catch_warnings:
+        entry = T[non_zero_idx]
+    assert_same(entry, T_np[non_zero_idx])
 
     zero_idcs = np.where(np.abs(T_np) < 1e-8)
     if len(zero_idcs[0]) > 0:
         which = np_random.choice(len(zero_idcs[0]))
         zero_idx = tuple(ax[which] for ax in zero_idcs)
-        assert_same(T[zero_idx], T_np[zero_idx])
+        with catch_warnings:
+            entry = T[zero_idx]
+        assert_same(entry, T_np[zero_idx])
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
@@ -1744,11 +1838,11 @@ def test_inner(cls, cod, dom, do_dagger, allow_basis_perm, make_compatible_tenso
         Mask random generation does not allow basis perms right now. This flag allows generating
         only legs with trivial basis perm.
     """
-    A: cls = make_compatible_tensor(cod, dom, cls=cls, allow_basis_perm=allow_basis_perm)
+    A: Tensor = make_compatible_tensor(cod, dom, cls=cls, allow_basis_perm=allow_basis_perm)
     if do_dagger:
-        B: cls = make_compatible_tensor(codomain=A.codomain, domain=A.domain, cls=cls)
+        B: Tensor = make_compatible_tensor(codomain=A.codomain, domain=A.domain, cls=cls)
     else:
-        B: cls = make_compatible_tensor(codomain=A.domain, domain=A.codomain, cls=cls)
+        B: Tensor = make_compatible_tensor(codomain=A.domain, domain=A.codomain, cls=cls)
 
     if cls is Mask:
         with pytest.raises(NotImplementedError, match='tensors._compose_with_Mask not implemented for Mask'):
@@ -1855,17 +1949,17 @@ def test_linear_combination(cls, make_compatible_tensor):
         v = make_compatible_tensor(cls=cls)
     w = make_compatible_tensor(like=v)
 
+    if cls is Mask:
+        catch_warnings = pytest.warns(UserWarning, match='Converting types')
+    else:
+        catch_warnings = nullcontext()
+
     if not w.symmetry.can_be_dropped:
         # TODO  Need to re-design checks, cant use .to_numpy() etc
         #       For now, just check if it runs at all.
         #       Could e.g. check versus inner product, if <x| av + bw> = a <x|v> + b <x|w>
-        _ = tensors.linear_combination(42, v, 43j, w)
-        return
-
-    if cls is Mask:
-        with pytest.warns(UserWarning, match='Converting types'):
-            _ = tensors.linear_combination(1, v, 2, w)
-        # type conversion results in linear combination of SymmetricTensors, which is tested already
+        with catch_warnings:
+            _ = tensors.linear_combination(42, v, 43j, w)
         return
 
     if isinstance(v.backend, backends.FusionTreeBackend):
@@ -1877,7 +1971,8 @@ def test_linear_combination(cls, make_compatible_tensor):
     v_np = v.to_numpy()
     w_np = w.to_numpy()
     for valid_scalar in [0, 1., 2. + 3.j, -42]:
-        res = tensors.linear_combination(valid_scalar, v, 2 * valid_scalar, w)
+        with catch_warnings:
+            res = tensors.linear_combination(valid_scalar, v, 2 * valid_scalar, w)
         expect = valid_scalar * v_np + 2 * valid_scalar * w_np
         npt.assert_allclose(res.to_numpy(), expect)
     for invalid_scalar in [None, (1, 2), v, 'abc']:
@@ -1909,7 +2004,7 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
     assert sum(x is None for x in [domain_pos, codomain_pos]) == 1
 
     T_labels = list('abcdefghi')[:cod + dom]
-    T: cls = make_compatible_tensor(cod, dom, labels=T_labels, cls=cls)
+    T: Tensor = make_compatible_tensor(cod, dom, labels=T_labels, cls=cls)
 
     if cls in [DiagonalTensor, Mask]:
         if (leg, codomain_pos, domain_pos) == (0, 0, None):
@@ -1976,7 +2071,7 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
      pytest.param(Mask, 1, 1, id='Mask'),]
 )
 def test_norm(cls, cod, dom, make_compatible_tensor):
-    T: cls = make_compatible_tensor(cod, dom, cls=cls)
+    T: Tensor = make_compatible_tensor(cod, dom, cls=cls)
 
     if not T.symmetry.can_be_dropped and cls is ChargedTensor:
         assert T.charged_state is None  # can not have a charged state for anyons -> can not compute norm
@@ -2015,15 +2110,20 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
 def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor):
     A_labels = list('abcdefg')[:cA + dA]
     B_labels = list('hijklmn')[:cB + dB]
-    A: cls_A = make_compatible_tensor(cA, dA, cls=cls_A, labels=A_labels)
-    B: cls_B = make_compatible_tensor(cB, dB, cls=cls_B, labels=B_labels)
+    A: Tensor = make_compatible_tensor(cA, dA, cls=cls_A, labels=A_labels)
+    B: Tensor = make_compatible_tensor(cB, dB, cls=cls_B, labels=B_labels)
 
     if isinstance(A.backend, backends.FusionTreeBackend):
-        with pytest.raises(NotImplementedError, match='outer not implemented'):
-            _ = tensors.outer(A, B, relabel1={'a': 'x'}, relabel2={'h': 'y'})
-        pytest.xfail()
+        if A.has_pipes or B.has_pipes:
+            with pytest.raises(NotImplementedError, match="'outer' can not deal with 'LegPipe's"):
+                _ = tensors.outer(A, B, relabel1={'a': 'x'}, relabel2={'h': 'y'})
+            pytest.xfail()
+
     if cls_A is ChargedTensor and cls_B is ChargedTensor:
-        with pytest.raises(NotImplementedError, match='state_tensor_product not implemented'):
+        msg = 'state_tensor_product not implemented'
+        if isinstance(A.backend, backends.FusionTreeBackend):
+            msg = 'FusionTreeBackend.combine_legs not implemented'
+        with pytest.raises(NotImplementedError, match=msg):
             _ = tensors.outer(A, B, relabel1={'a': 'x'}, relabel2={'h': 'y'})
         pytest.xfail()
 
@@ -2033,6 +2133,9 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor):
     A_relabelled = ['x', *A_labels[1:]]
     B_relabelled = ['y', *B_labels[1:]]
     assert res.labels == [*A_relabelled[:cA], *B_relabelled, *A_relabelled[cA:]]
+
+    if not A.symmetry.can_be_dropped:
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     perm = [*range(cA), *range(cA + dA, cA + cB + dB + dA), *range(cA, cA + dA)]
     expect = np.transpose(np.tensordot(A.to_numpy(), B.to_numpy(), [(), ()]), perm)
@@ -2086,7 +2189,7 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
             domain_spaces.append(make_compatible_space())
             domain_labels.append(l)
     #
-    T: cls = make_compatible_tensor(codomain_spaces, domain_spaces, cls=cls,
+    T: Tensor = make_compatible_tensor(codomain_spaces, domain_spaces, cls=cls,
                                     labels=[*codomain_labels, *reversed(domain_labels)])
     #
     how_to_call = np_random.choice(['positions', 'labels'])
@@ -2224,7 +2327,7 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_comp
 )
 def test_qr_lq(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     T_labels = list('efghijk')[:dom + cod]
-    T: cls = make_compatible_tensor(dom, cod, cls=cls, labels=T_labels)
+    T: Tensor = make_compatible_tensor(dom, cod, cls=cls, labels=T_labels)
 
     Q, R = tensors.qr(T, new_leg_dual=new_leg_dual)
     Q.test_sanity()
@@ -2305,11 +2408,6 @@ def test_scale_axis(cls, codom, dom, which_leg, make_compatible_tensor, np_rando
         catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
     else:
         catch_warnings = nullcontext()
-
-    if isinstance(T.backend, backends.FusionTreeBackend) and T.has_pipes:
-        with pytest.raises(NotImplementedError, match="scale_axis with pipes currently broken"):
-            _ = tensors.scale_axis(T, D, which_leg)
-        pytest.xfail()
 
     # 2) Call functions
     how_to_call = np_random.choice(['by_idx', 'by_label'])
@@ -2398,7 +2496,7 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
         - svd_apply_mask
     """
     T_labels = list('efghijklmn')[:dom + cod]
-    T: cls = make_compatible_tensor(dom, cod, labels=T_labels, cls=cls)
+    T: Tensor = make_compatible_tensor(dom, cod, labels=T_labels, cls=cls)
 
     print('Normal (non-truncated) SVD')
 
@@ -2418,21 +2516,6 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
     assert tensors.almost_equal(U.hc @ U, eye, allow_different_types=True)
     assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
-
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        # Missing implementation of mask_dagger to actually apply the mask.
-        # Until then, run the parts that we can do without it
-        
-        mask, err, new_norm = tensors.truncate_singular_values(S=S / tensors.norm(S), svd_min=1e-14)
-        mask.test_sanity()
-        assert err >= 0
-        assert new_norm > 0
-
-        # Now just make sure the expected NotImplementedError is actually raised.
-        # If it no longer does, remove this whole if clause!
-        with pytest.raises(NotImplementedError, match='mask_dagger not implemented'):
-            _ = tensors.truncated_svd(T, new_leg_dual=new_leg_dual)
-        pytest.xfail()
 
     print('Truncated SVD')
     for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:
@@ -2503,14 +2586,14 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
         #      can be pipes
         kwargs['use_pipes'] = False
     
-    A: cls_A = make_compatible_tensor(
+    A: Tensor = make_compatible_tensor(
         codomain=len(labels_A[0]), domain=len(labels_A[1]),
         labels=[*labels_A[0], *reversed(labels_A[1])], max_block_size=3, max_blocks=3, cls=cls_A,
         **kwargs
     )
 
     # create B such that legs with the same label can be contracted
-    B: cls_B = make_compatible_tensor(
+    B: Tensor = make_compatible_tensor(
         codomain=[A._as_domain_leg(l) if A.has_label(l) else None for l in labels_B[0]],
         domain=[A._as_codomain_leg(l) if A.has_label(l) else None for l in labels_B[1]],
         labels=[*labels_B[0], *reversed(labels_B[1])], max_block_size=2, max_blocks=3, cls=cls_B,
@@ -2539,6 +2622,9 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
         catch_errors = pytest.raises(ValueError, match='Can not instantiate ChargedTensor with no legs and unspecified charged_states.')
     if cls_B is ChargedTensor and B.charged_state is None and A.num_legs + B.num_legs == 2 * num_contr:
         catch_errors = pytest.raises(ValueError, match='Can not instantiate ChargedTensor with no legs and unspecified charged_states.')
+    if (cls_A is SymmetricTensor and cls_B is Mask) and num_contr == 1 and not A.symmetry.has_symmetric_braid:
+        # tensors.tdot calls permute_legs; maybe needs checking
+        catch_errors = pytest.raises(SymmetryError, match='The given permutation requires levels, but none were given.')
 
     if isinstance(A.backend, backends.FusionTreeBackend) and A.symmetry.braiding_style.value >= 20:
         if cls_A is not DiagonalTensor:
@@ -2548,7 +2634,13 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
                 with pytest.raises(NotImplementedError):
                     _ = tensors.permute_legs(A, codomain=codomain_A, domain=contr_A, levels=levels_A)
                 pytest.xfail()
-            A = tensors.permute_legs(A, codomain=codomain_A, domain=contr_A, levels=levels_A)
+            if cls_A is Mask and len(codomain_A) != 1:
+                # otherwise, mask transpose is used
+                catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
+            else:
+                catch_warnings = nullcontext()
+            with catch_warnings:
+                A = tensors.permute_legs(A, codomain=codomain_A, domain=contr_A, levels=levels_A)
             contr_A = [A.num_legs - 1 - i for i in range(num_contr)]
         if cls_B is not DiagonalTensor:
             levels_B = list(np_random.permutation(B.num_legs))
@@ -2557,7 +2649,12 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
                 with pytest.raises(NotImplementedError):
                     _ = tensors.permute_legs(B, codomain=contr_B, domain=domain_B, levels=levels_B)
                 pytest.xfail()
-            B = tensors.permute_legs(B, codomain=contr_B, domain=domain_B, levels=levels_B)
+            if cls_B is Mask and len(domain_B) != 1:
+                catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
+            else:
+                catch_warnings = nullcontext()
+            with catch_warnings:
+                B = tensors.permute_legs(B, codomain=contr_B, domain=domain_B, levels=levels_B)
             contr_B = list(range(num_contr))
 
     if isinstance(A.backend, backends.FusionTreeBackend):
@@ -2617,7 +2714,7 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
         charged_state = inv_part.backend.block_backend.as_block(list(range(charge_leg.dim)))
         tensor = ChargedTensor(inv_part.set_label(-1, '!'), charged_state)
     else:
-        tensor: cls = make_compatible_tensor(co_domain_spaces, co_domain_spaces, cls=cls)
+        tensor: Tensor = make_compatible_tensor(co_domain_spaces, co_domain_spaces, cls=cls)
 
     res = tensors.trace(tensor)
     assert isinstance(res, (float, complex))
@@ -2647,12 +2744,7 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
 )
 def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     labels = list('abcdefghi')[:cod + dom]
-    tensor: cls = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
-
-    if isinstance(tensor.backend, backends.FusionTreeBackend) and cls is Mask:
-        with pytest.raises(NotImplementedError, match='mask_transpose not implemented'):
-            _ = tensors.transpose(tensor)
-        pytest.xfail()
+    tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
 
     if isinstance(tensor.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in tensor.legs]):

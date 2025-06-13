@@ -17,9 +17,6 @@ import sys
 import subprocess
 import os
 
-__all__ = [
-    "version", "released", "short_version", "git_revision", "full_version", "version_summary"
-]
 
 # hard-coded version for people without git...
 #: current release version as a string

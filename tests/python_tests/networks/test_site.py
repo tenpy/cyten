@@ -11,8 +11,7 @@ import pytest
 import cyten
 from cyten import backends
 from cyten.networks import site
-
-from ..conftest import random_symmetry_sectors
+from cyten.testing import random_symmetry_sectors
 
 
 pytest.skip("site not yet revised", allow_module_level=True)  # TODO

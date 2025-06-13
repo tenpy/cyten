@@ -21,8 +21,6 @@ from .trees import FusionTree, fusion_trees
 if TYPE_CHECKING:
     from .backends.abstract_backend import Block
 
-__all__ = ['Leg', 'LegPipe', 'Space', 'ElementarySpace', 'TensorProduct', 'AbelianLegPipe']
-
 
 class Leg(metaclass=ABCMeta):
     """Common base class for a single leg of a tensor.
@@ -282,7 +280,7 @@ class Space(metaclass=ABCMeta):
         # sectors
         if self.sector_decomposition.shape != (self.num_sectors, self.symmetry.sector_ind_len):
             raise AssertionError('wrong sectors.shape')
-        assert all(self.symmetry.is_valid_sector(s) for s in self.sector_decomposition), 'invalid sectors'
+        assert self.symmetry.are_valid_sectors(self.sector_decomposition), 'invalid sectors'
         assert len(np.unique(self.sector_decomposition, axis=0)) == self.num_sectors, 'duplicate sectors'
         if self.sector_order == 'sorted':
             assert np.all(np.lexsort(self.sector_decomposition.T) == np.arange(self.num_sectors)), 'wrong sector order'
@@ -561,6 +559,7 @@ class ElementarySpace(Space, Leg):
                  multiplicities: ndarray = None, is_dual: bool = False,
                  basis_perm: ndarray | None = None):
         defining_sectors = np.asarray(defining_sectors, dtype=int)
+        assert symmetry.are_valid_sectors(defining_sectors), 'invalid sectors'
         if is_dual:
             sector_decomposition = symmetry.dual_sectors(defining_sectors)
             sector_order = 'dual_sorted'
@@ -1458,7 +1457,7 @@ class TensorProduct(Space):
 
     def iter_forest_blocks(self, coupled: Sequence[Sector]
                            ) -> Iterator[tuple[tuple[Sector], slice, int]]:
-        """Iterate over tree blocks. Helper function for :class:`FusionTreeBackend`.
+        """Iterate over forest blocks. Helper function for :class:`FusionTreeBackend`.
 
         See :ref:`fusion_tree_backend__blocks` for definitions of blocks and forest blocks.
 
