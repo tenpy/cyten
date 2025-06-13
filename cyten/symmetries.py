@@ -20,25 +20,6 @@ except (ImportError, AttributeError):
     h5py_version = (0, 0)
 
 
-__all__ = ['SymmetryError', 'Sector', 'SectorArray', 'FusionStyle', 'BraidingStyle',
-           # symmetry base-classes
-           'Symmetry', 'ProductSymmetry', 'GroupSymmetry', 'AbelianGroup',
-           # abelian groups
-           'NoSymmetry', 'U1Symmetry', 'ZNSymmetry',
-           # non-abelian groups
-           'SU2Symmetry', 'SUNSymmetry',
-           # anyons
-           'FermionParity', 'FibonacciAnyonCategory', 'IsingAnyonCategory', 'SU3_3AnyonCategory',
-           'QuantumDoubleZNAnyonCategory', 'ToricCodeCategory', 'SU2_kAnyonCategory', 'ZNAnyonCategory',
-           'ZNAnyonCategory2',
-           # concrete instances
-           'no_symmetry', 'u1_symmetry', 'z2_symmetry', 'z3_symmetry', 'z4_symmetry', 'z5_symmetry', 'z6_symmetry',
-           'z7_symmetry', 'z8_symmetry', 'z9_symmetry',
-           'fermion_parity', 'fibonacci_anyon_category', 'ising_anyon_category',
-           'double_semion_category', 'semion_category', 'toric_code_category',
-           ]
-
-
 class SymmetryError(Exception):
     """An exception that is raised whenever something is not possible or not allowed due to symmetry"""
     
@@ -1462,11 +1443,11 @@ class SUNSymmetry(GroupSymmetry):
         return int(dim)
 
     def __repr__(self):
-        return f'SUN_Category()'
+        return f'SUNSymmetry(N={self.N})'
 
     def dual_sector(self, a: Sector) -> Sector:
         """Finds the dual irrep for a given input irrep.
-
+        
         If the irrep is self dual, then the input irrep is returned.
         Dual irreps have the same highest weight and dimension.
 
@@ -1952,6 +1933,7 @@ class SUNSymmetry(GroupSymmetry):
             if not valid_keys:  # Ensure all keys start with 'R['
                 raise ValueError("No valid R-symbol keys found in '/R_sym/'.")
 
+except (ImportError, AttributeError):
             first_key = valid_keys[0]
             num_lists = first_key.count('[')
 
@@ -2991,6 +2973,8 @@ z7_symmetry = ZNSymmetry(N=7)
 z8_symmetry = ZNSymmetry(N=8)
 z9_symmetry = ZNSymmetry(N=9)
 u1_symmetry = U1Symmetry()
+su2_symmetry = SU2Symmetry()
+# TODO SU(3) and SU(4) singletons?
 fermion_parity = FermionParity()
 semion_category = ZNAnyonCategory2(2, 0)
 toric_code_category = ToricCodeCategory()

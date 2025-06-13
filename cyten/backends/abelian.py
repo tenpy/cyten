@@ -44,8 +44,6 @@ from ..tools.misc import (
     iter_common_sorted, iter_common_sorted_arrays, make_stride, find_row_differences, make_grid
 )
 
-__all__ = ['AbelianBackendData', 'AbelianBackend']
-
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
@@ -1461,34 +1459,25 @@ class AbelianBackend(TensorBackend):
         block_inds_1 = tensor.data.block_inds[:, idcs1]
         block_inds_2 = tensor.data.block_inds[:, idcs2]
         block_inds_rem = tensor.data.block_inds[:, remaining]
-        #
-        # OPTIMIZE
-        #   - avoid python loops / function calls
-        #   - spaces could store (or cache!) the sector permutation between itself and its dual.
-        #     this permutation could be applied to the block_inds and then we can compare on block_inds
-        #     level again, without resorting to the sectors.
-        #
 
-        def on_diagonal(bi1, bi2):
-            # given bi1==block_inds_1[n] and bi2==block_inds_2[n], return if blocks[n] is on the
-            # diagonal and thus contributes to the trace, or not.
-            for n, (i1, i2) in enumerate(zip(bi1, bi2)):
-                if opposite_sides[n]:
-                    # legs are the same -> can compare block_inds
-                    if i1 != i2:
-                        return False
-                else:
-                    # legs have opposite duality. need to compare sectors explicitly
-                    sector1 = tensor.get_leg_co_domain(idcs1[n]).sector_decomposition[i1]
-                    sector2 = tensor.get_leg_co_domain(idcs2[n]).sector_decomposition[i2]
-                    if not np.all(sector1 == tensor.symmetry.dual_sector(sector2)):
-                        return False
-            return True
+        # only blocks "on the diagonal" of the trace contribute.
+        # figure out which blocks are on the diagonal.
+        on_diagonal = np.ones(len(blocks), bool)  # we do logical_and, so we start with all true
+        for n, opposite in enumerate(opposite_sides):
+            if opposite:
+                # legs are the same -> can compare the block_inds
+                on_diagonal &= (block_inds_1[:, n] == block_inds_2[:, n])
+            else:
+                # legs have opposite duality. need to compare sectors explicitly
+                # OPTIMIZE (JU) spaces could store (or cache!) the sector permutation between
+                #               itself and its dual, then we could compare on the level of block_inds
+                s1 = tensor.get_leg_co_domain(idcs1[n]).sector_decomposition[block_inds_1[:, n], :]
+                s2 = tensor.get_leg_co_domain(idcs2[n]).sector_decomposition[block_inds_2[:, n], :]
+                on_diagonal &= np.all(s1 == tensor.symmetry.dual_sectors(s2), axis=1)
 
-        #
         res_data = {}  # dictionary res_block_inds_row -> Block
-        for block, i1, i2, bi_rem in zip(blocks, block_inds_1, block_inds_2, block_inds_rem):
-            if not on_diagonal(i1, i2):
+        for block, contributes, bi_rem in zip(blocks, on_diagonal, block_inds_rem):
+            if not contributes:
                 continue
             bi_rem = tuple(bi_rem)
             block = self.block_backend.trace_partial(block, idcs1, idcs2, remaining)

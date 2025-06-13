@@ -7,8 +7,6 @@ import numpy
 from .abstract_backend import BlockBackend, Block
 from ..dtypes import Dtype
 
-__all__ = ['TorchBlockBackend']
-
 
 class TorchBlockBackend(BlockBackend):
     """A block-backend using PyTorch"""
@@ -205,15 +203,21 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.permute(a, permutation)  # TODO: this is documented as a view. is that a problem?
 
     def random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
-        return torch_module.rand(*dims, dtype=self.backend_dtype_map[dtype],
-                                 device=self.as_device(device))
+        # rand samples between 0 and 1; we want to sample between -1 and 1
+        offset = -1
+        if dtype.is_complex:
+            offset -= 1j
+        return offset + 2 * torch_module.rand(*dims, dtype=self.backend_dtype_map[dtype],
+                                              device=self.as_device(device))
 
     def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
                       ) -> Block:
         # TODO Note that if device is CUDA, this function synchronizes the device with the CPU
         mean = torch_module.zeros(size=dims, dtype=self.backend_dtype_map[dtype],
                                   device=self.as_device(device))
-        std = sigma * torch_module.ones_like(mean, device=device)
+        # avoid complex dtype in std (leads to error in torch_module.normal)
+        # dtype of result == dtype of mean
+        std = sigma * torch_module.ones_like(mean, device=device, dtype=torch_module.float64)
         return torch_module.normal(mean, std)
 
     def real(self, a: Block) -> Block:
@@ -224,6 +228,9 @@ class TorchBlockBackend(BlockBackend):
         if torch_module.all(torch_module.abs(self.imag(a)) < tol * eps):
             a = torch_module.real(a)
         return a
+
+    def tile(self, a: Block, repeats: int, axis: int | None = None) -> Block:
+        return a.repeat(repeats)
 
     def _block_repr_lines(self, a: Block, indent: str, max_width: int, max_lines: int) -> list[str]:
         torch_module.set_printoptions(linewidth=max_width - len(indent))

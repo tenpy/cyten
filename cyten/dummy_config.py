@@ -1,7 +1,6 @@
 """Temporary solution for global config options."""
 # Copyright (C) TeNPy Developers, Apache license
 
-__all__ = ['config', 'printoptions']
 
 # TODO this whole module is a dummy
 

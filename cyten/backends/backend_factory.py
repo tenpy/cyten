@@ -12,7 +12,6 @@ from .numpy import NumpyBlockBackend
 from .torch import TorchBlockBackend
 from ..symmetries import Symmetry, no_symmetry, AbelianGroup
 
-__all__ = ['get_backend', 'todo_get_backend']
 
 logger = logging.getLogger(__name__)
 

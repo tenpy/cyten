@@ -15,9 +15,6 @@ from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe, Leg
 from ..dtypes import Dtype
 from ..tools.misc import combine_constraints, to_iterable
 
-__all__ = ['Data', 'DiagonalData', 'MaskData', 'Block', 'TensorBackend', 'BlockBackend',
-           'conventional_leg_order']
-
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
@@ -1171,7 +1168,7 @@ class BlockBackend(metaclass=ABCMeta):
         Parameters
         ----------
         a, b
-            Twp blocks with the same number of dimensions.
+            Two blocks with the same number of dimensions.
 
         Notes
         -----
@@ -1259,6 +1256,11 @@ class BlockBackend(metaclass=ABCMeta):
 
         Otherwise the original block. Elementwise.
         """
+        ...
+
+    @abstractmethod
+    def tile(self, a: Block, repeats: int) -> Block:
+        """Repeat a (1d) block multiple times. Similar to numpy.tile and torch.Tensor.repeat."""
         ...
 
     @abstractmethod
@@ -1397,13 +1399,32 @@ class BlockBackend(metaclass=ABCMeta):
     def get_block_element(self, a: Block, idcs: list[int]) -> complex | float | bool:
         ...
 
-    def get_block_mask_element(self, a: Block, large_leg_idx: int, small_leg_idx: int) -> bool:
+    def get_block_mask_element(self, a: Block, large_leg_idx: int, small_leg_idx: int,
+                               sum_block: int = 0) -> bool:
+        """Get an element of a mask.
+        
+        Mask elements are `True` if the entry `a[large_leg_idx]` is the `small_leg_idx`-th `True`
+        in the block.
+
+        Parameters
+        ----------
+        a
+            The mask block
+        large_leg_idx, small_leg_idx
+            The block indices
+        sum_block
+            Number of `True` entries in the block, i.e., ``sum_block == self.sum_all(a)``. Agrees
+            with the sector multiplicity of the small leg.
+            (Only important if the sector dimension is larger than 1.)
+        """
+        offset = (large_leg_idx // self.get_shape(a)[0]) * sum_block
+        large_leg_idx = large_leg_idx % self.get_shape(a)[0]
         # if this does not work, need to override.
         if not a[large_leg_idx]:
             # if the block has a False entry, the matrix has only False in that column
             return False
         # otherwise, there is exactly one True in that column, at index sum(a[:large_leg_idx])
-        return bool(small_leg_idx == self.sum_all(a[:large_leg_idx]))
+        return bool(small_leg_idx == offset + self.sum_all(a[:large_leg_idx]))
 
     @abstractmethod
     def matrix_dot(self, a: Block, b: Block) -> Block:
