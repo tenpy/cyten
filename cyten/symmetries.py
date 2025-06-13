@@ -1933,7 +1933,6 @@ class SUNSymmetry(GroupSymmetry):
             if not valid_keys:  # Ensure all keys start with 'R['
                 raise ValueError("No valid R-symbol keys found in '/R_sym/'.")
 
-except (ImportError, AttributeError):
             first_key = valid_keys[0]
             num_lists = first_key.count('[')
 
