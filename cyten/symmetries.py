@@ -1894,6 +1894,18 @@ class SUNSymmetry(GroupSymmetry):
         F = self._f_symbol(a, self.dual_sector(a), a, a, self.trivial_sector, self.trivial_sector)[0, 0, 0, 0]
         return int(np.sign(F))
 
+    def has_data_in_group(self, group):
+
+        if isinstance(group, h5py.Dataset):
+            return group.size > 0  # Dataset is not empty
+
+        elif isinstance(group, h5py.Group):
+            # Iterate through all items in the group and check if any of them has data
+            for key in group.keys():
+                if self.has_data_in_group(group[key]):
+                    return True
+        return False
+
     def sanity_check_hdf5(self, file):
         """Sanity check for Hdf5 files containing CG-coefficients, F-symbols or R-symbols.
 
@@ -1902,18 +1914,6 @@ class SUNSymmetry(GroupSymmetry):
         but cannot guarantee completeness of the file and correctness of the data in the file.
         In particular, consistency of the data in the file should be checked by the cyten tests for SU(N) symmetry.
         """
-
-        def has_data_in_group(group):
-
-            if isinstance(group, h5py.Dataset):
-                return group.size > 0  # Dataset is not empty
-
-            elif isinstance(group, h5py.Group):
-                # Iterate through all items in the group and check if any of them has data
-                for key in group.keys():
-                    if has_data_in_group(group[key]):
-                        return True
-            return False
 
         H = file.attrs['Highest_Weight']
         N = file.attrs['N']
@@ -1978,7 +1978,7 @@ class SUNSymmetry(GroupSymmetry):
             for group in [high, low]:
                 assert len(group.keys()) != 0  # Assert key for loop weight is non-empty
 
-                if not has_data_in_group(group):
+                if not self.has_data_in_group(group):
                     raise ValueError(f"Key exists but contains no data.")
 
 
