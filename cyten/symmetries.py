@@ -1895,7 +1895,6 @@ class SUNSymmetry(GroupSymmetry):
         but cannot guarantee completeness of the file and correctness of the data in the file.
         In particular, consistency of the data in the file should be checked by the cyten tests for SU(N) symmetry.
         """
-
         H = file.attrs['Highest_Weight']
         N = file.attrs['N']
         filetype = str(list(file.keys())[0])[0]
