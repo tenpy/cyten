@@ -831,6 +831,18 @@ class TensorBackend(metaclass=ABCMeta):
         # FusionTree backend might implement this differently.
         return a.dtype.is_real
 
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+
+        hdf5_saver.save(self.block_backend, subpath + 'block_backend')
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.block_backend = hdf5_loader.load(subpath + 'block_backend')
+
 
 class BlockBackend(metaclass=ABCMeta):
     """Abstract base class that defines the operation on dense blocks."""
@@ -1465,6 +1477,22 @@ class BlockBackend(metaclass=ABCMeta):
     @abstractmethod
     def zeros(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
         ...
+
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+
+        hdf5_saver.save(self.BlockCls, subpath + 'BlockCls')
+        hdf5_saver.save(self.svd_algorithms, subpath + 'svd_algorithms')
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.BlockCls = hdf5_loader.load(subpath + 'BlockCls')
+        obj.svd_algorithms = hdf5_loader.load(subpath + 'svd_algorithms')
+
+        return obj
 
 
 def conventional_leg_order(tensor_or_codomain: SymmetricTensor | TensorProduct,

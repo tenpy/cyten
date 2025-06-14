@@ -1249,6 +1249,46 @@ class SymmetricTensor(Tensor):
             block = self.backend.block_backend.apply_leg_permutations(block, [perm])
         return block
 
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        """Export SymmetricTensor to hdf5 such that it can be re-imported with from_hdf5"""
+        hdf5_saver.save(self.domain, subpath + 'domain')
+        hdf5_saver.save(self.codomain, subpath + 'codomain')
+        hdf5_saver.save(self.backend, subpath + 'backend')
+        hdf5_saver.save(self.data, subpath + 'data')
+        hdf5_saver.save(self.symmetry, subpath + 'symmetry')
+        hdf5_saver.save(self.dtype.to_numpy_dtype(), subpath + 'dtype')
+        hdf5_saver.save(self.device, subpath + 'device')
+        h5gr.attrs['num_legs'] = self.num_legs
+        h5gr.attrs['shape'] = np.array(self.shape, np.intp)
+
+        if all(i is None for i in self.labels):
+            h5gr.attrs['labels'] = []
+
+        else:
+            h5gr.attrs['labels'] = self.labels
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        """Import SymmetricTensor from hdf5"""
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.domain = hdf5_loader.load(subpath + 'domain')
+        obj.codomain = hdf5_loader.load(subpath + 'codomain')
+        obj.symmetry = hdf5_loader.load(subpath + 'symmetry')
+        obj.backend = get_backend(obj.symmetry, 'numpy')
+        obj.data = hdf5_loader.load(subpath + 'data')
+        obj.device = hdf5_loader.load(subpath + 'device')
+        dt = hdf5_loader.load(subpath + 'dtype')
+        obj.dtype = Dtype.from_numpy_dtype(dt)
+        obj.num_legs = hdf5_loader.get_attr(h5gr, 'num_legs')
+        obj.shape = hdf5_loader.get_attr(h5gr, 'shape')
+        labels = hdf5_loader.get_attr(h5gr, 'labels')
+        obj._labels = labels
+        obj._labelmap = {label: legnum for legnum, label in enumerate(labels) if label is not None}
+
+        return obj
+
 
 class DiagonalTensor(SymmetricTensor):
     r"""Special case of a :class:`SymmetricTensor` that is diagonal in the computational basis.
@@ -1788,6 +1828,20 @@ class DiagonalTensor(SymmetricTensor):
         if leg_order is not None:
             res = self.backend.block_backend.permute_axes(res, self.get_leg_idcs(leg_order))
         return res
+
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        """Export DiagonalTensor to hdf5 such that it can be re-imported with from_hdf5"""
+        super().save_hdf5(hdf5_saver, h5gr, subpath)
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        """Import DiagonalTensor from hdf5"""
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj = super().from_hdf5(hdf5_loader, h5gr, subpath)
+
+        return obj
 
 
 class Mask(Tensor):
@@ -2329,6 +2383,35 @@ class Mask(Tensor):
         return Mask(data, space_in=self.large_leg, space_out=small_leg,
                     is_projection=True, backend=self.backend, labels=self.labels)
 
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        """Export Mask to hdf5 such that it can be re-imported with from_hdf5"""
+        hdf5_saver.save(self.domain, subpath + 'domain')
+        hdf5_saver.save(self.codomain, subpath + 'codomain')
+        hdf5_saver.save(self.backend, subpath + 'backend')
+        hdf5_saver.save(self.data, subpath + 'data')
+        hdf5_saver.save(self.symmetry, subpath + 'symmetry')
+        h5gr.attrs['dtype'] = self.dtype.name
+        h5gr.attrs['num_legs'] = self.num_legs
+        h5gr.attrs['shape'] = np.array(self.shape, np.intp)
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        """Import Mask from hdf5"""
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.domain = hdf5_loader.load(subpath + 'domain')
+        obj.codomain = hdf5_loader.load(subpath + 'codomain')
+        obj.symmetry = hdf5_loader.load(subpath + 'symmetry')
+        obj.backend = hdf5_loader.load(subpath + 'backend')
+        obj.data = hdf5_loader.load(subpath + 'data')
+        obj.dtype = hdf5_loader.get_attr(h5gr, 'dtype')
+        obj.num_legs = hdf5_loader.get_attr(h5gr, 'num_legs')
+        obj.shape = hdf5_loader.get_attr(h5gr, 'shape')
+        obj.dtype = hdf5_loader.get_attr(h5gr, 'dtype')
+        obj.num_legs = hdf5_loader.get_attr(h5gr, 'num_legs')
+        obj.shape = hdf5_loader.get_attr(h5gr, 'shape')
+
 
 class ChargedTensor(Tensor):
     r"""Tensors which are not symmetric, but carry a well defined charge.
@@ -2773,6 +2856,37 @@ class ChargedTensor(Tensor):
             raise NotImplementedError
         block = self.backend.inv_part_to_dense_block_single_sector(self.invariant_part)
         return self.backend.block_backend.item(self.charged_state) * block
+
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        """Export ChargedTensor to hdf5 such that it can be re-imported with from_hdf5"""
+        hdf5_saver.save(self.domain, subpath + 'domain')
+        hdf5_saver.save(self.codomain, subpath + 'codomain')
+        hdf5_saver.save(self.backend, subpath + 'backend')
+        hdf5_saver.save(self.data, subpath + 'data')
+        hdf5_saver.save(self.symmetry, subpath + 'symmetry')
+        h5gr.attrs['dtype'] = self.dtype.name
+        h5gr.attrs['num_legs'] = self.num_legs
+        h5gr.attrs['shape'] = np.array(self.shape, np.intp)
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        """Import ChargedTensor from hdf5"""
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.domain = hdf5_loader.load(subpath + 'domain')
+        obj.codomain = hdf5_loader.load(subpath + 'codomain')
+        obj.symmetry = hdf5_loader.load(subpath + 'symmetry')
+        obj.backend = hdf5_loader.load(subpath + 'backend')
+        obj.data = hdf5_loader.load(subpath + 'data')
+        obj.dtype = hdf5_loader.get_attr(h5gr, 'dtype')
+        obj.num_legs = hdf5_loader.get_attr(h5gr, 'num_legs')
+        obj.shape = hdf5_loader.get_attr(h5gr, 'shape')
+        obj.dtype = hdf5_loader.get_attr(h5gr, 'dtype')
+        obj.num_legs = hdf5_loader.get_attr(h5gr, 'num_legs')
+        obj.shape = hdf5_loader.get_attr(h5gr, 'shape')
+
+        return obj
 
 
 _ElementwiseType = TypeVar('_ElementwiseType', Number, DiagonalTensor)

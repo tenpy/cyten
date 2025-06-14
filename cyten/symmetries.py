@@ -13,6 +13,11 @@ import math
 
 from .dtypes import Dtype
 from .tools.misc import as_immutable_array
+try:
+    import h5py
+    h5py_version = h5py.version.version_tuple
+except (ImportError, AttributeError):
+    h5py_version = (0, 0)
 
 
 class SymmetryError(Exception):
@@ -624,6 +629,37 @@ class Symmetry(metaclass=ABCMeta):
             if not is_correct:
                 raise SymmetryError('Sectors are not consistent with fusion rules.')
         return self._fusion_tensor(a, b, c, Z_a, Z_b)
+
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+
+        hdf5_saver.save(self.group_name, subpath + 'group_name')
+        hdf5_saver.save(self.fusion_style.value, subpath + 'fusion_style')
+        hdf5_saver.save(self.braiding_style.value, subpath + 'braiding_style')
+        hdf5_saver.save(self.trivial_sector, subpath + 'trivial_sector')
+        hdf5_saver.save(self.num_sectors, subpath + 'num_sectors')
+        hdf5_saver.save(self.sector_ind_len, subpath + 'sector_ind_len')
+        h5gr.attrs['descriptive_name'] = self.descriptive_name.__str__()
+        h5gr.attrs['is_abelian'] = bool(self.is_abelian)
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.group_name = hdf5_loader.load(subpath + 'group_name')
+
+        fstyle = hdf5_loader.load(subpath + 'fusion_style')
+        obj.fusion_style = FusionStyle(fstyle)
+        bstyle = hdf5_loader.load(subpath + 'braiding_style')
+        obj.braiding_style = BraidingStyle(bstyle)
+        obj.trivial_sector = hdf5_loader.load(subpath + 'trivial_sector')
+        obj.num_sectors = hdf5_loader.load(subpath + 'num_sectors')
+        obj.sector_ind_len = hdf5_loader.load(subpath + 'sector_ind_len')
+        obj.descriptive_name = hdf5_loader.get_attr(h5gr, 'descriptive_name')
+        obj.is_abelian = hdf5_loader.get_attr(h5gr, 'is_abelian')
+
+        return obj
 
 
 class ProductSymmetry(Symmetry):
@@ -1360,6 +1396,11 @@ class SUNSymmetry(GroupSymmetry):
 
         if not N == CGfile.attrs['N'] or not N == Ffile.attrs['N'] or not N == Rfile.attrs['N']:
             raise ValueError("Files must contain data for same N!")
+
+        self.sanity_check_hdf5(CGfile)
+        self.sanity_check_hdf5(Ffile)
+        self.sanity_check_hdf5(Rfile)
+
         self.N = N
         self.CGfile = CGfile
         self.Ffile = Ffile
@@ -1373,15 +1414,16 @@ class SUNSymmetry(GroupSymmetry):
                                descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
-        if not isinstance(a, np.ndarray):
+        if not isinstance(a, np.ndarray) or a.ndim != 1 or not np.issubdtype(a.dtype, np.integer):
             return False
-        if a.shape != (self.N,):
+
+        if np.any(a < 0):  # check for negative entries
             return False
-        if np.any(a < 0):
+
+        if not np.all(a[:-1] >= a[1:]):  # check that integer numbers in GT sequence are non increasing
             return False
-        if np.any(a[1:] > a[:-1]):  # numbers in GT sequence should be non-increasing
-            return False
-        return a[-1] == 0
+
+        return len(a) == self.N and a[-1] == 0
 
     def is_same_symmetry(self, other) -> bool:
         if not isinstance(other, SUNSymmetry):
@@ -1390,8 +1432,8 @@ class SUNSymmetry(GroupSymmetry):
 
     def sector_dim(self, a: Sector) -> int:
         """Dimension of irrep given as first row of GT pattern"""
+        assert self.is_valid_sector(a)
         N = len(a)
-
         dim = 1
 
         for kp in range(2, N + 1):
@@ -1404,35 +1446,18 @@ class SUNSymmetry(GroupSymmetry):
         return f'SUNSymmetry(N={self.N})'
 
     def dual_sector(self, a: Sector) -> Sector:
-        # OPTIMIZE it should be possible to write down a formula for the GT pattern??
-        hweight = a[0]
-        dimA = self.sector_dim(a)
+        """Finds the dual irrep for a given input irrep.
+        
+        If the irrep is self dual, then the input irrep is returned.
+        Dual irreps have the same highest weight and dimension.
 
-        irreps = SUNSymmetry.generate_sectors(len(a), hweight)
-        irreps = [k for k in irreps if a[0] == hweight]
-        if len(irreps) != 2:
-            # if there is exactly two sectors with these weights, then we know that the other
-            # one is the dual of a. otherwise, we dont know which one is the dual
-            raise NotImplementedError
-
-        for i in irreps:
-            dimI = self.sector_dim(i)
-            if dimI == dimA and not list(i) == list(a):
-                return i
-
-        return a
-
-    @staticmethod
-    def generate_sectors(N: int, max_weight: int) -> list[list[int]]:
-        if N <= 0:
-            return [[]]
-        r = []
-        for i in range(max_weight, -1, -1):
-            for comb in SUNSymmetry.generate_sectors(N - 1, i):
-                a = [i] + comb
-                if a[-1] == 0:
-                    r.append(a[:])
-        return r
+        Parameters
+        ----------
+        a: Sector
+            Irrep i.e. first row of a GT pattern
+        """
+        b = np.array(a) - int(max(a))
+        return np.abs(b)[::-1].astype(int)
 
     def hweight_from_CG_hdf5(self) -> int:
         return int(self.CGfile.attrs['Highest_Weight'])
@@ -1444,6 +1469,13 @@ class SUNSymmetry(GroupSymmetry):
         return int(self.Rfile.attrs['Highest_Weight'])
 
     def can_fuse_to(self, a: Sector, b: Sector, c: Sector) -> bool:
+        """Returns True if c appears at least once in the decomposition of a x b and False otherwise.
+
+        Parameters
+        ----------
+        a,b,c: Sector
+         Labeling an irrep i.e. first row of GT pattern.
+        """
         hmax = self.hweight_from_CG_hdf5()
         if a[0] > hmax or b[0] > hmax:
             raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
@@ -1458,7 +1490,7 @@ class SUNSymmetry(GroupSymmetry):
 
         key = N + astr + bstr
 
-        if not key in self.CGfile:
+        if (key not in self.CGfile) or len(self.CGfile[key]) == 0:
             key = N + bstr + astr
 
         dec = []
@@ -1472,6 +1504,13 @@ class SUNSymmetry(GroupSymmetry):
         return False
 
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
+        """Returns the fusion multiplicity of an irrep c in the decomposition of a x b.
+
+        Parameters
+        ----------
+        a, b, c: Sector
+         Labeling an irrep i.e. first row of GT pattern.
+        """
         N = '/N_' + str(self.N) + '/'
 
         a = "/".join(tuple(map(str, a))) + '/'
@@ -1481,20 +1520,16 @@ class SUNSymmetry(GroupSymmetry):
 
         key = N + a + b
 
-        if not key in self.CGfile:
+        if (key not in self.CGfile) or len(self.CGfile[key]) == 0:
             key = N + b + a
 
-        if c not in list(self.CGfile[key]):
+        if not any(self.CGfile[key][:] == c):
             return 0
 
         return self.CGfile[key][c].attrs['Outer Multiplicity']
 
     def S_index_irrep_weight(self, a: Sector) -> int:
-        """The S index of a sector.
-
-        To every SU(N) irrep, labeled by the first row of a GT pattern, we can assign an integer
-        number S.
-        """
+        """To every SU(N) irrep, labeled by the first row of a GT pattern, we can assign an integer S."""
         N = self.N
         S = 0
 
@@ -1508,6 +1543,10 @@ class SUNSymmetry(GroupSymmetry):
         return np.array(a) + np.array(b)
 
     def fusion_outcomes(self, a: Sector, b: Sector) -> SectorArray:
+        """Returns a SectorArray of all irreps appearing in the decomposition of  a x b.
+
+        The irreps in this list are again Sectors of the form [2,1,0]. i.e. first rows of a GT pattern.
+        """
         hmax = self.hweight_from_CG_hdf5()
         if a[0] > hmax or b[0] > hmax:
             raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
@@ -1519,7 +1558,7 @@ class SUNSymmetry(GroupSymmetry):
 
         key = N + a + b
 
-        if not key in self.CGfile:
+        if (key not in self.CGfile) or len(self.CGfile[key]) == 0:
             key = N + b + a
 
         dec = []
@@ -1555,7 +1594,7 @@ class SUNSymmetry(GroupSymmetry):
         return C
 
     def outer_multiplicity_from_CG(self, a: Sector, b: Sector) -> dict:
-        """Returns a dictionary with the outer multiplicities for the corresp. irrep (as key) in the decomp of a x b"""
+        """Returns a dictionary with the outer multiplicities for the irreps in the decomposition of a x b."""
         dec = self.fusion_outcomes(a, b)
         N = '/N_' + str(self.N) + '/'
 
@@ -1609,7 +1648,7 @@ class SUNSymmetry(GroupSymmetry):
         key1 = N + a + b
         key2 = 'Irrep' + c + 'a' + str(mu)
 
-        if key1 in self.CGfile:
+        if (key1 in self.CGfile) and len(self.CGfile[key1]) > 0:
             arr = np.array(self.CGfile[key1][key2])[0]
         else:
             # we only save a x b  and not also b x a since the clebsch gordan coefficients are
@@ -1627,7 +1666,13 @@ class SUNSymmetry(GroupSymmetry):
 
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool = False, Z_b: bool = False
                        ) -> np.ndarray:
+        """Returns the clebsch fusion tensor for the specified input irreps.
 
+        Parameters
+        ----------
+        a, b, c:   Sector
+        Irreps specifying the CG coefficient.
+        """
         if Z_a or Z_b:
             raise NotImplementedError
         
@@ -1656,10 +1701,17 @@ class SUNSymmetry(GroupSymmetry):
         return X.transpose([3, 0, 1, 2])
 
     def _f_symbol_from_CG(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector):
-        """a,b,c,d,e,f are irrep labels, i.e. first rows of GT patterns
-        
+        """Returns the F symbol for the specified input irreps calculated from CG coefficients.
+
+        a,b,c,d,e,f are irrep labels, i.e. first rows of GT patterns
         output is the conjugated F symbol [F^{abc}_{def}]^*_{mu,nu,kappa, lambda}
         where a x b = mu c, c x d =nu e, b x d= kappa f and a x f =lambda e
+
+        Parameters
+        ----------
+        a, b, c, d, e, f:   Sector
+            Irreps specifying the CG coefficient.
+
         """
         hw = self.hweight_from_CG_hdf5()
 
@@ -1668,7 +1720,6 @@ class SUNSymmetry(GroupSymmetry):
 
         X1 = self._fusion_tensor(a, b, f).transpose([1, 2, 3, 0])  # [a,b,f, kappa]
         X2 = self._fusion_tensor(f, c, d).transpose([1, 2, 3, 0])  # [f,c,d, lambda]
-
         X3 = self._fusion_tensor(b, c, e).transpose([1, 2, 3, 0])  # [b,c,e, mu]
         X4 = self._fusion_tensor(a, e, d).transpose([1, 2, 3, 0])  # [a,e,d, nu]
 
@@ -1692,14 +1743,25 @@ class SUNSymmetry(GroupSymmetry):
 
     def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
                   ) -> np.ndarray:
-        """Returns the F-symbol F^{abc mu nu}_{def kappa lambda} from the hdf5 file"""
+        """Returns the F symbol for the specified input irreps loaded from the hdf5 file.
+
+        a,b,c,d,e,f are irrep labels, i.e. first rows of GT patterns
+        output is the conjugated F symbol [F^{abc}_{def}]^*_{mu,nu,kappa, lambda}
+        where a x b = mu c, c x d =nu e, b x d= kappa f and a x f =lambda e.
+
+        Parameters
+        ----------
+        a, b, c, d, e, f:   Sector
+            Irreps specifying the CG coefficient.
+        """
         hmax = self.hweight_from_F_hdf5()
 
         if a[0] > hmax or b[0] > hmax or c[0] > hmax or d[0] > hmax or e[0] > hmax or f[0] > hmax:
             raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
 
-        key = 'F' + ''.join(str(list(s)) for s in [a, b, c, d, e, f])
-        keybar = 'F' + ''.join(str(list(self.dual_sector(s))) for s in [a, b, c, d, e, f])
+        key = 'F' + ''.join(f"[{', '.join(map(lambda x: str(int(x)), s))}]" for s in [a, b, c, d, e, f])
+        keybar = 'F' + ''.join(
+            f"[{', '.join(map(lambda x: str(int(x)), self.dual_sector(s)))}]" for s in [a, b, c, d, e, f])
 
         if key in self.Ffile['/F_sym/']:
             return np.array(self.Ffile['/F_sym/'][key])
@@ -1710,10 +1772,12 @@ class SUNSymmetry(GroupSymmetry):
         return np.zeros((1, 1, 1, 1), dtype=complex)
 
     def _r_symbol_from_CG(self, a: Sector, b: Sector, c: Sector):
-        """a,b,c are irrep labels, i.e. first rows of GT patterns
-        
-        output is the R symbol [R^{ab}_{c}]^*_{mu,nu}
-        where a x b = mu c, c x d =nu e, b x d= kappa f and a x f =lambda e
+        """Returns the R symbol for the specified input irreps calculated from CG coefficients.
+
+        Parameters
+        ----------
+        a, b, c:   Sector
+            Irreps specifying the R symbol.
         """
         hw = self.hweight_from_CG_hdf5()
 
@@ -1736,25 +1800,166 @@ class SUNSymmetry(GroupSymmetry):
         return np.diag(R)
 
     def _r_symbol(self, a: Sector, b: Sector, c: Sector):
-        """Returns the R-symbol R^{ab}_{c mu} from the hdf5 file"""
+        """Returns the R symbol for the specified input irreps from the hdf5 file.
+
+        Parameters
+        ----------
+        a, b, c:   Sector
+            Irreps specifying the R symbol.
+        """
         hmax = self.hweight_from_R_hdf5()
 
         if a[0] > hmax or b[0] > hmax or c[0] > hmax:
             raise ValueError('Input irreps have higher weight than highest weight irrep in HDF5-file')
 
-        key = 'R' + str(list(a)) + str(list(b)) + str(list(c))
+        key = 'R' + ''.join(f"[{', '.join(map(lambda x: str(int(x)), s))}]" for s in [a, b, c])
 
         if key in self.Rfile['/R_sym/']:
             return np.array(self.Rfile['/R_sym/'][key])
 
         return np.zeros((1,), dtype=complex)
 
+    def Z_iso(self, a: Sector) -> npt.NDArray:
+        """Returns the Z isomorphism which maps a sector to its dual sector"""
+        if self.N == 2:
+            d_a = self.sector_dim(a)
+            Z = np.zeros((d_a, d_a), dtype=float)
+
+            for k in range(d_a):
+                Z[k, d_a - 1 - k] = 1 - 2 * np.mod(a[0] - k, 2)
+
+            return Z
+
+        # elif self.N == 3:
+        #     d_a = self.sector_dim(a)
+        #     Z = np.zeros((d_a, d_a), dtype=float)
+        #     dia=[]
+        #     for n in range(d_a):
+        #         dia += [(-1)**(n)]
+        #     print(np.fliplr(np.diag(dia)))
+        #     return np.fliplr(np.diag(dia))
+
+        elif self.N == 3:
+            d_a = self.sector_dim(a)
+            # Z = np.zeros((d_a, d_a), dtype=float)
+            if d_a == 1:
+                return np.array([[1]])
+
+            Z = np.zeros((d_a, d_a), dtype=complex)
+            Z[0, d_a-1] = -1.j
+            Z[d_a-1, 0] = 1.j
+
+            for i in range(1, d_a-1):
+                Z[i, i] = 1
+
+            return Z
+        #
+        # elif self.N == 3:
+        #     d_a = self.sector_dim(a)
+        #     # Z = np.zeros((d_a, d_a), dtype=float)
+        #     if d_a==1:
+        #         return np.array([[1]])
+        #
+        #     dia=[-1.j]
+        #     for n in range(1,d_a-1):
+        #         dia += [1]
+        #     dia+=[1.j]
+        #     print(np.fliplr(np.diag(dia)))
+        #     return np.fliplr(np.diag(dia))
+
     def frobenius_schur(self, a: Sector) -> int:
+        """Returns the Frobenius-Schur indicator for a given irrep"""
         if self.N == 2:
             return 1 - 2 * (a[0] % 2)
 
         F = self._f_symbol(a, self.dual_sector(a), a, a, self.trivial_sector, self.trivial_sector)[0, 0, 0, 0]
         return int(np.sign(F))
+
+    def has_data_in_group(self, group):
+
+        if isinstance(group, h5py.Dataset):
+            return group.size > 0  # Dataset is not empty
+
+        elif isinstance(group, h5py.Group):
+            # Iterate through all items in the group and check if any of them has data
+            for key in group.keys():
+                if self.has_data_in_group(group[key]):
+                    return True
+        return False
+
+    def sanity_check_hdf5(self, file):
+        """Sanity check for Hdf5 files containing CG-coefficients, F-symbols or R-symbols.
+
+        This method takes a Hdf5 file and checks if it has the required structure and if
+        the necessary data has been saved to it. This excludes the possibility of using incompletely generated files,
+        but cannot guarantee completeness of the file and correctness of the data in the file.
+        In particular, consistency of the data in the file should be checked by the cyten tests for SU(N) symmetry.
+        """
+        H = file.attrs['Highest_Weight']
+        N = file.attrs['N']
+        filetype = str(list(file.keys())[0])[0]
+
+        if filetype == 'F':
+
+            if '/F_sym/' not in file:  # Check if /F_sym/ group exists
+                raise ValueError("HDF5 file does not contain '/F_sym/' group.")
+
+            keys = list(file['/F_sym/'].keys())
+            valid_keys = [key for key in keys if key.startswith('F[')]  # Ensure all keys start with 'F['
+            if not valid_keys:
+                raise ValueError("No valid F-symbol keys found in '/F_sym/'.")
+
+            first_key = valid_keys[0]  # Determine list length
+            num_lists = first_key.count('[')
+
+            # Check for all-zero key
+            zero_key = 'F' + ''.join('[0' + ', 0' * (first_key.count(',') // num_lists) + ']' for _ in range(num_lists))
+            if zero_key not in keys:
+                raise ValueError(f'Missing key for all-trivial-sector F-symbol: {zero_key}')
+
+            h_key = f"[{H}, {H}, 0]"
+            found_h_key = any(h_key in key for key in keys)  # Check for at least one entry containing [H, H, 0]
+            if not found_h_key:
+                raise ValueError(f"No key found containing {h_key}.")
+
+        elif filetype == 'R':
+
+            if '/R_sym/' not in file:  # Check if /R_sym/ group exists
+                raise ValueError("HDF5 file does not contain '/R_sym/' group.")
+
+            keys = list(file['/R_sym/'].keys())
+            valid_keys = [key for key in keys if key.startswith('R[')]
+            if not valid_keys:  # Ensure all keys start with 'R['
+                raise ValueError("No valid R-symbol keys found in '/R_sym/'.")
+
+            first_key = valid_keys[0]
+            num_lists = first_key.count('[')
+
+            zero_key = 'R' + ''.join('[0' + ', 0' * (first_key.count(',') // num_lists) + ']' for _ in range(num_lists))
+            if zero_key not in keys:
+                raise ValueError(f"Missing key for all-trivial-sector R-symbol: {zero_key}")
+
+            h_key = f"[{H}, {H}, 0]"  # Check for at least one entry containing [H, H, 0]
+            found_h_key = any(h_key in key for key in keys)
+            if not found_h_key:
+                raise ValueError(f"No key found containing {h_key}.")
+
+        elif filetype == 'N':
+
+            if f'/N_{N}/' not in file:
+                raise ValueError(f'HDF5 file does not contain /N_{N}/ group.')
+
+            keys = list(file[f'/N_{N}/'].keys())
+            assert len(keys) == H + 1  # Contains all the keys up to the highest weight
+
+            high = file[f'/N_{N}/' + str(keys[-1])]
+            low = file[f'/N_{N}/' + str(keys[0])]
+
+            for group in [high, low]:
+                assert len(group.keys()) != 0  # Assert key for loop weight is non-empty
+
+                if not self.has_data_in_group(group):
+                    raise ValueError(f"Key exists but contains no data.")
 
 
 class FermionParity(Symmetry):
