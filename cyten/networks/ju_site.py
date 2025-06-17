@@ -1,10 +1,43 @@
 from __future__ import annotations
 import numpy as np
-from typing import Literal
+from typing import Literal, ClassVar
 
 from ..spaces import ElementarySpace
 from ..tensors import SymmetricTensor
 from ..symmetries import SU2Symmetry, U1Symmetry, ZNSymmetry, NoSymmetry, FibonacciAnyonCategory, ProductSymmetry
+
+
+# ==========================================================================================
+# Design constraints / criteria
+# ==========================================================================================
+# factorized form:
+#       eventually we need to extract an MPO-like form for multi-site operators
+#       e.g. when building hamiltonian/WI/WII MPOs, or for correlation_function etc
+# short identifiers:
+#       We want a system, similar to tenpy v1, where we can refer to operators by a short and
+#       intuitively readable (string?) identifier.
+#       TBD: what is the scope/namespace where they must be unique?
+#            per site-type? per model? globally in cyten?
+# customizing:
+#       It should be (as) easy (as possible) to add custom sites / operators / models
+# coupling different kinds of sites:
+#       We will need the "same" coupling between many different kinds of sites.
+#       E.g. Heisenberg between spin-1/2 sites, between spin-1 sites, or between fermions, or
+#       between mixed types.
+#       This is easy in tenpy v1, since local operators are referred to by name only, and all
+#       of those site types define e.g. Sz, Sp, Sm.
+#       We should preserve that and have an interface to add a heisenberg coupling that is not
+#       specialized to the site types, and e.g. still works unmodified if a site is changed.
+# allow MPOGraph optimizations
+#       The framework should allow MPOGraph to do its optimization, though the graph may
+#       need to change. This may require us to deal with a basis for elementary local MPO parts.
+#       Elementary meaning their virutal legs only have a single sector, since these "parts" are
+#       the edges in the MPO graph. Problem: there may be an infinite number of possible parts,
+#       if there is an infinite number of sectors, as e.g. in U(1).
+
+
+
+
 
 
 # ==========================================================================================
@@ -19,11 +52,6 @@ class Site:
     state_labels: list[str]
     leg: ElementarySpace
     onsite_operators: dict[str, OnSiteOperator]
-    
-    def __init__(self, leg: ElementarySpace,
-                 onsite_operators: dict[str, np.ndarray | SymmetricTensor | OnSiteOperator]
-                 ):
-        ...
 
 
 # Intermediate "interface" classes that promise a certain operator algebra::
@@ -31,47 +59,20 @@ class Site:
 
 
 class SpinfulSite(Site):
-    spin_vector: np.ndarray  # [p, p*, i]
+    spin_vector: np.ndarray  # [p, p*, i]  ,  ==  [Sx, Sy, Sz]
     spin_conserve: Literal['SU(2)', 'Sz', 'parity', 'None']
     spin_symmetry: SU2Symmetry | U1Symmetry | ZNSymmetry | NoSymmetry
     # adds e.g. onsite_operators['Sz'] if symmetry allows it and so on
 
-    def __init__(self,
-                 leg: ElementarySpace,
-                 which_symmetry: int | None,  # such that leg.symmetry[which_symmetry] is the spin symm
-                 spin_conserve: Literal['SU(2)', 'Sz', 'parity', 'None'],
-                 spin_vector: np.ndarray,
-                 onsite_operators: dict[str, np.ndarray | SymmetricTensor | OnSiteOperator]):
-        assert spin_vector.shape == (leg.dim, leg.dim, 3)
-        if spin_conserve != 'SU(2)':
-            self.Sz = spin_vector[:, :, 2]
-        ...
-
 
 class FermionicSite(Site):
     # TODO similarly for bosons...
-    creators: np.ndarray  # [p, p*, i] where i are different species
-    annihilators: np.ndarray  # [p, p*, i]
+    creators: np.ndarray  # [p, p*, i] where i are different species ;  == [Cd0, Cd1, ...]
+    annihilators: np.ndarray  # [p, p*, i] ;  == [C0, C1, ...]
     fermion_species_labels: list[str]  # [i]
     fermion_conserve: Literal['N', 'parity', 'None']
     fermion_symmetry: FermionOccupation | FermionParity | NoSymmetry
-
-    def __init__(self,
-                 leg: ElementarySpace,
-                 which_symmetry: int | None,  # such that leg.symmetry[which_symmetry] is the spin symm
-                 fermion_conserve: Literal['N', 'parity', 'None'],
-                 creators: np.ndarray, annihilators: np.ndarray,
-                 fermion_species_labels: list[str],
-                 onsite_operators: dict[str, np.ndarray | SymmetricTensor | OnSiteOperator]
-                 ):
-        self.num_species = Nk = creators.shape[-1]
-        assert creators.shape == (leg.dim, leg.dim, Nk)
-        assert annihilators.shape == (leg.dim, leg.dim, Nk)
-        # N = \sum_k Cd_k C_k    ;   N[p, p*]  = sum_k sum_q Cd[p, q, k] C[q, p*, k]
-        self.fermion_N = np.tensordot(creators, annihilators, ([1, 2], [0, 2]))
-        if fermion_conserve == 'None':
-            raise NotImplementedError  # TODO need to deal with JW strings!
-        ...
+    # defines e.g. ``N = sum_k Cd_k C``
 
 
 # Concrete classes::
@@ -79,25 +80,17 @@ class FermionicSite(Site):
 
 
 class SpinSite(SpinfulSite):
-    def __init__(self, spin: float = .5, spin_conserve: Literal['SU(2)', 'Sz', 'parity', 'None'] = 'None'):
-        ...
+    spin: float = .5
 
 
 
 # TODO maybe do composition instead of diamond inheritance?
 class SpinHalfFermionSite(SpinfulSite, FermionicSite):
-    def __init__(self,
-                 spin_conserve: Literal['SU(2)', 'Sz', 'parity', 'None'],
-                 fermion_conserve: Literal['N', 'parity', 'None'],
-                 ):
-        ...
+    ...
 
 
 class SpinLessFermionSite(FermionicSite):
-    def __init__(self,
-                 fermion_conserve: Literal['N', 'parity', 'None'],
-                 ):
-        ...
+    ...
 
 
 class GoldenSite(Site):
@@ -115,6 +108,7 @@ class GoldenSite(Site):
 
 
 class Coupling:
+    aliases: tuple[str, ...] = ()  # if couplings are subclasses: classvar, otherwise regular attr
     sites: list[Site]
     factorization: list[SymmetricTensor]  # [vL, p, vR, p*]
 
@@ -228,3 +222,6 @@ def get_coupling(cls: str | type[Coupling], sites: list[Site]):
             cls = find_subclass(Coupling, cls)
     assert issubclass(cls, Coupling)
     return cls(*sites)
+
+
+# FIXME make model mockups!
