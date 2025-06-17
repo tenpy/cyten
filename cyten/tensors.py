@@ -1150,6 +1150,35 @@ class SymmetricTensor(Tensor):
         return res
 
     @classmethod
+    def from_sector_projection(cls,
+                               co_domain: list[Space] | TensorProduct,
+                               sector: Sector,
+                               backend: TensorBackend | None = None,
+                               labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                               dtype: Dtype = None,
+                               device: str = None,
+                               ) -> SymmetricTensor:
+        """A tensor that projects onto a given coupled sector of it domain."""
+        if not isinstance(co_domain, TensorProduct):
+            co_domain = TensorProduct(co_domain)
+        assert co_domain.symmetry.is_valid_sector(sector)
+        if co_domain.sector_multiplicity(sector) == 0:
+            warnings.warn('Sector does not appear. from_sector_projection yields zero')
+        if backend is None:
+            backend = get_backend(symmetry=co_domain.symmetry)
+
+        def func(shape: tuple[int, ...], coupled: Sector):
+            if np.all(coupled == sector):
+                return backend.block_backend.eye_block([*shape[:co_domain.num_factors]],
+                                                       dtype=dtype, device=device)
+            return backend.block_backend.zeros(shape, dtype=dtype, device=device)
+
+        data = backend.from_sector_block_func(func, codomain=co_domain, domain=co_domain)
+        res = cls(data, codomain=co_domain, domain=co_domain, backend=backend, labels=labels)
+        res.test_sanity()
+        return res
+
+    @classmethod
     def from_zero(cls, codomain: TensorProduct | list[Space],
                   domain: TensorProduct | list[Space] | None = None,
                   backend: TensorBackend | None = None,

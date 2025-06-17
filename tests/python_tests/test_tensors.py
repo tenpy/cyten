@@ -172,6 +172,7 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums, np_random):
 
     # TODO: missing coverage:
     # - from_block_func / from_sector_block_func
+    # - from_sector_projection
     # - diagonal
 
     print('checking from_zero')
