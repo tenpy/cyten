@@ -10,16 +10,13 @@ The version is provided in the standard python format ``major.minor.revision`` a
 .. autodata :: full_version
 .. autodata :: version_summary
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 
 import sys
 import subprocess
 import os
 
-__all__ = [
-    "version", "released", "short_version", "git_revision", "full_version", "version_summary"
-]
 
 # hard-coded version for people without git...
 #: current release version as a string
@@ -68,7 +65,7 @@ def _get_git_description():
         descr = subprocess.check_output(['git', 'describe', '--tags', '--long'],
                                         cwd=os.path.dirname(os.path.abspath(__file__)),
                                         stderr=subprocess.STDOUT).decode().strip()
-    except:
+    except Exception:
         return 0
     return int(descr.split('-')[1])
 
@@ -78,7 +75,7 @@ git_revision = _get_git_revision()
 
 
 def _get_full_version():
-    """obtain version from git."""
+    """Obtain version from git."""
     full_version = version
     if not released:
         full_version += '.dev{0:d}+{1!s}'.format(_get_git_description(), git_revision[:7])

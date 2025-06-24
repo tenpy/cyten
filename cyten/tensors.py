@@ -8,8 +8,10 @@ Leg Labels
 
 TODO elaborate
 
-The following characters have special meaning in labels and should be avoided:
+The following characters have special meaning in labels and should be avoided for "single" labels:
 `(`, `.`, `)`, `?`, `!` and `*`.
+
+See :func:`is_valid_leg_label`.
 
 
 .. _tensors_as_maps:
@@ -62,7 +64,7 @@ TODO elaborate on the details of decompositions (svd, eig, qr, ...) that they ha
 I.e. viewing tensors as linear maps, combining legs or not, mention :func:`combine_to_matrix`.
 
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
@@ -74,26 +76,20 @@ import numpy as np
 import warnings
 import functools
 import logging
-logger = logging.getLogger(__name__)
 
 from .dummy_config import printoptions
 from .symmetries import SymmetryError, Symmetry
-from .spaces import Space, ElementarySpace, ProductSpace, Sector
+from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
 from .backends.backend_factory import get_backend
 from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order
 from .dtypes import Dtype
-from .tools.misc import to_iterable, rank_data, inverse_permutation, duplicate_entries
+from .tools.misc import (
+    to_iterable, rank_data, inverse_permutation, duplicate_entries, iter_common_sorted_arrays,
+    to_valid_idx
+)
 
 
-__all__ = ['Tensor', 'SymmetricTensor', 'DiagonalTensor', 'ChargedTensor', 'Mask',
-           'add_trivial_leg', 'almost_equal', 'angle', 'apply_mask', 'apply_mask_DiagonalTensor',
-           'bend_legs', 'combine_legs', 'combine_to_matrix', 'complex_conj', 'dagger',
-           'compose', 'eigh', 'enlarge_leg', 'entropy', 'exp', 'imag', 'inner', 'is_scalar', 'item',
-           'linear_combination', 'lq', 'move_leg', 'norm', 'outer', 'partial_trace', 'permute_legs',
-           'pinv', 'qr', 'real', 'real_if_close', 'scalar_multiply', 'scale_axis', 'split_legs',
-           'sqrt', 'squeeze_legs', 'stable_log', 'svd', 'svd_apply_mask', 'tdot', 'trace',
-           'transpose', 'truncate_singular_values', 'truncated_svd', 'zero_like',
-           'get_same_backend', 'check_same_legs']
+logger = logging.getLogger(__name__)
 
 
 # TENSOR CLASSES
@@ -124,7 +120,7 @@ class Tensor(metaclass=ABCMeta):
 
     Attributes
     ----------
-    codomain, domain : ProductSpace
+    codomain, domain : TensorProduct
         The domain and codomain of the tensor. See also :attr:`legs` and :ref:`tensors_as_maps`.
     backend : TensorBackend
         The backend of the tensor.
@@ -140,9 +136,9 @@ class Tensor(metaclass=ABCMeta):
 
     Parameters
     ----------
-    codomain : ProductSpace | list[Space]
+    codomain : TensorProduct | list[Space]
         The codomain.
-    domain : ProductSpace | list[Space] | None
+    domain : TensorProduct | list[Space] | None
         The domain. ``None`` is equivalent to ``[]``, i.e. no legs in the domain.
     backend : TensorBackend
         The backend of the tensor.
@@ -155,14 +151,17 @@ class Tensor(metaclass=ABCMeta):
     dtype : Dtype
         The dtype of tensor entries.
     """
+    
     _forbidden_dtypes = [Dtype.bool]
 
     def __init__(self,
-                 codomain: ProductSpace | list[Space],
-                 domain: ProductSpace | list[Space] | None,
+                 codomain: TensorProduct | list[Space],
+                 domain: TensorProduct | list[Space] | None,
                  backend: TensorBackend | None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None,
-                 dtype: Dtype):
+                 dtype: Dtype,
+                 device: str,
+                 ):
         codomain, domain, backend, symmetry = self._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
@@ -171,11 +170,12 @@ class Tensor(metaclass=ABCMeta):
         self.domain = domain
         self.backend = backend
         self.symmetry = symmetry
-        codomain_num_legs = codomain.num_spaces
-        domain_num_legs = domain.num_spaces
+        codomain_num_legs = codomain.num_factors
+        domain_num_legs = domain.num_factors
         self.num_legs = num_legs = codomain_num_legs + domain_num_legs
         self.dtype = dtype
-        self.shape = tuple(sp.dim for sp in codomain.spaces) + tuple(sp.dim for sp in reversed(domain.spaces))
+        self.device = device
+        self.shape = tuple(sp.dim for sp in codomain.factors) + tuple(sp.dim for sp in reversed(domain.factors))
         self._labels = labels = self._init_parse_labels(labels, codomain=codomain, domain=domain)
         assert len(labels) == num_legs
         self._labelmap = {label: legnum
@@ -183,8 +183,8 @@ class Tensor(metaclass=ABCMeta):
                           if label is not None}
 
     @staticmethod
-    def _init_parse_args(codomain: ProductSpace | list[Space],
-                         domain: ProductSpace | list[Space] | None,
+    def _init_parse_args(codomain: TensorProduct | list[Space],
+                         domain: TensorProduct | list[Space] | None,
                          backend: TensorBackend | None):
         """Common input parsing for ``__init__`` methods of tensor classes.
 
@@ -192,19 +192,19 @@ class Tensor(metaclass=ABCMeta):
 
         Returns
         -------
-        codomain, domain: ProductSpace
-            The codomain and domain, converted to ProductSpace if needed.
+        codomain, domain: TensorProduct
+            The codomain and domain, converted to :class:`TensorProduct` if needed.
         backend: TensorBackend
             The given backend, or the default backend compatible with `symmetry`.
         symmetry: Symmetry
             The symmetry of the domain and codomain
         """
         # Extract the symmetry from codomain or domain. Note that either may be empty, but not both.
-        if isinstance(codomain, ProductSpace):
+        if isinstance(codomain, TensorProduct):
             symmetry = codomain.symmetry
         elif len(codomain) > 0:
             symmetry = codomain[0].symmetry
-        elif isinstance(domain, ProductSpace):
+        elif isinstance(domain, TensorProduct):
             symmetry = domain.symmetry
         elif len(domain) > 0:
             symmetry = domain[0].symmetry
@@ -217,20 +217,20 @@ class Tensor(metaclass=ABCMeta):
         else:
             assert backend.supports_symmetry(symmetry)
 
-        # Bring (co-)domain to ProductSpace form
-        if not isinstance(codomain, ProductSpace):
-            codomain = ProductSpace(codomain, symmetry=symmetry, backend=backend)
+        # Bring (co-)domain to TensorProduct form
+        if not isinstance(codomain, TensorProduct):
+            codomain = TensorProduct(codomain, symmetry=symmetry)
         assert codomain.symmetry == symmetry
         if domain is None:
             domain = []
-        if not isinstance(domain, ProductSpace):
-            domain = ProductSpace(domain, symmetry=symmetry, backend=backend)
+        if not isinstance(domain, TensorProduct):
+            domain = TensorProduct(domain, symmetry=symmetry)
         assert domain.symmetry == symmetry
         return codomain, domain, backend, symmetry
 
     @staticmethod
     def _init_parse_labels(labels: Sequence[list[str | None] | None] | list[str | None] | None,
-                           codomain: ProductSpace, domain: ProductSpace,
+                           codomain: TensorProduct, domain: TensorProduct,
                            is_endomorphism: bool = False):
         """Parse the various allowed input formats for labels to the format of :attr:`labels`.
 
@@ -238,10 +238,9 @@ class Tensor(metaclass=ABCMeta):
         and codomain coincide), where a flat list of labels for the codomain can be given,
         and the domain labels are auto-filled with the respective dual labels.
         """
-        # TODO improve errors on illegal formats
-        num_legs = codomain.num_spaces + domain.num_spaces
+        num_legs = codomain.num_factors + domain.num_factors
         if is_endomorphism:
-            assert codomain.num_spaces == domain.num_spaces
+            assert codomain.num_factors == domain.num_factors
 
         # case 1: None
         if labels is None:
@@ -255,18 +254,18 @@ class Tensor(metaclass=ABCMeta):
                 if is_endomorphism and domain_labels is not None:
                     codomain_labels = [_dual_leg_label(l) for l in domain_labels]
                 else:
-                    codomain_labels = [None] * codomain.num_spaces
-            assert len(codomain_labels) == codomain.num_spaces
+                    codomain_labels = [None] * codomain.num_factors
+            assert len(codomain_labels) == codomain.num_factors
             if domain_labels is None:
                 if is_endomorphism:
                     domain_labels = [_dual_leg_label(l) for l in codomain_labels]
                 else:
-                    domain_labels = [None] * domain.num_spaces
-            assert len(domain_labels) == domain.num_spaces
+                    domain_labels = [None] * domain.num_factors
+            assert len(domain_labels) == domain.num_factors
             return [*codomain_labels, *reversed(domain_labels)]
 
         # case 3a: (only if is_endomorphism) a flat list for the codomain
-        if is_endomorphism and len(labels) == codomain.num_spaces:
+        if is_endomorphism and len(labels) == codomain.num_factors:
             return [*labels, *(_dual_leg_label(l) for l in reversed(labels))]
 
         # case 3: a flat list for the legs
@@ -274,25 +273,36 @@ class Tensor(metaclass=ABCMeta):
         return labels[:]
 
     def test_sanity(self):
-        assert all(_is_valid_leg_label(l) for l in self._labels)
+        assert all(is_valid_leg_label(l) for l in self._labels)
         assert not duplicate_entries(self._labels, ignore=[None])
         assert not duplicate_entries(list(self._labelmap.values()))
-        self.backend.test_leg_sanity(self.domain)
-        self.backend.test_leg_sanity(self.codomain)
+        self.domain.test_sanity()  # this checks all legs, and recursively through pipes
+        self.codomain.test_sanity()  # this checks all legs, and recursively through pipes
         assert self.dtype not in self._forbidden_dtypes
+        assert all(isinstance(leg, Leg) for leg in self.domain.factors)
+        assert all(isinstance(leg, Leg) for leg in self.codomain.factors)
 
     @property
     def ascii_diagram(self) -> str:
-        # example:
-        # |     123   123   132   123
-        # |       ^     v     v     ^
-        # |       a     b     c     d
-        # |   ┏━━━┷━━━━━┷━━━━━┷━━━━━┷━━━┓
-        # |   ┃          TEXT           ┃
-        # |   ┗┯━━━━━┯━━━━━┯━━━━━┯━━━━━┯┛
-        # |    i     h     g     f     e
-        # |    ^     v     ^     ^     v
-        # |   42   777    11     2     3
+        """An ascii representation of the tensor.
+
+        It shows they type, leg labels, leg dimensions and leg arrows.
+
+        Example
+        -------
+        Consider the following example::
+
+            |     123   123   132   123
+            |       ^     v     v     ^
+            |       a     b     c     d
+            |   ┏━━━┷━━━━━┷━━━━━┷━━━━━┷━━━┓
+            |   ┃          TEXT           ┃
+            |   ┗┯━━━━━┯━━━━━┯━━━━━┯━━━━━┯┛
+            |    i     h     g     f     e
+            |    ^     v     ^     ^     v
+            |   42   777    11     2     3
+        
+        """
         text = {
             SymmetricTensor: 'Symm',
             ChargedTensor: 'Charged',
@@ -302,22 +312,19 @@ class Tensor(metaclass=ABCMeta):
         #
 
         DISTANCE = 5  # distance between legs in chars, i.e. number of '━' between the '┯'
+        huge_dim = f'>1e{DISTANCE + 1}'  # for numbers that can not fit in DISTANCE digits
+        assert len(huge_dim) <= DISTANCE
+        huge_dim = huge_dim.rjust(DISTANCE)
         codomain_dims = [
-            str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else 'huge'.rjust(DISTANCE)
+            str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else huge_dim
             for l in self.codomain
         ]
         domain_dims = [
-            str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else 'huge'.rjust(DISTANCE)
+            str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else huge_dim
             for l in self.domain
         ]
-        codomain_arrows = [
-            ('║' if isinstance(l, ProductSpace) else ('v' if l.is_bra_space else '^')).rjust(DISTANCE)
-            for l in self.codomain
-        ]
-        domain_arrows = [
-            ('║' if isinstance(l, ProductSpace) else ('v' if l.is_bra_space else '^')).rjust(DISTANCE)
-            for l in self.domain
-        ]
+        codomain_arrows = [l.ascii_arrow.rjust(DISTANCE) for l in self.codomain]
+        domain_arrows = [l.ascii_arrow.rjust(DISTANCE) for l in self.domain]
         codomain_labels = [
             str(l).rjust(DISTANCE) if len(str(l)) <= DISTANCE else '...'.rjust(DISTANCE)
             for l in self.codomain_labels
@@ -384,7 +391,16 @@ class Tensor(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def copy(self, deep=True) -> Tensor:
+    def copy(self, deep=True, device: str = None) -> Tensor:
+        """Copy the tensor.
+
+        Parameters
+        ----------
+        deep: bool
+            If the copy should be deep. A shallow copy is a new instance with the same data.
+        device: str, optional
+            The device for the result. Per default, use the same device as `self`.
+        """
         ...
 
     @abstractmethod
@@ -421,7 +437,17 @@ class Tensor(metaclass=ABCMeta):
         return self._labels[self.num_codomain_legs:][::-1]
 
     @property
+    def has_pipes(self) -> bool:
+        """If any of the legs is a pipe"""
+        if any(isinstance(l, LegPipe) for l in self.codomain):
+            return True
+        if any(isinstance(l, LegPipe) for l in self.domain):
+            return True
+        return False
+
+    @property
     def hc(self) -> Tensor:
+        """The :func:`dagger`"""
         return dagger(self)
 
     @property
@@ -453,17 +479,22 @@ class Tensor(metaclass=ABCMeta):
 
         See :ref:`tensors_as_maps`.
         """
-        return [*self.codomain.spaces, *(sp.dual for sp in reversed(self.domain.spaces))]
+        return [*self.codomain.factors, *(sp.dual for sp in reversed(self.domain.factors))]
+    
+    @abstractmethod
+    def move_to_device(self, device: str):
+        """Move tensor to a given device, *in place*."""
+        ...
 
     @property
     def num_codomain_legs(self) -> int:
         """How many of the legs are in the codomain. See :ref:`tensors_as_maps`."""
-        return self.codomain.num_spaces
+        return self.codomain.num_factors
 
     @property
     def num_domain_legs(self) -> int:
         """How many of the legs are in the domain. See :ref:`tensors_as_maps`."""
-        return self.domain.num_spaces
+        return self.domain.num_factors
 
     @property
     def num_parameters(self) -> int:
@@ -471,15 +502,11 @@ class Tensor(metaclass=ABCMeta):
 
         This is the dimension of the space of symmetry-preserving tensors with the given legs.
         """
-        # TODO / OPTIMIZE could also compute this from codomain.sectors and domain.sectors.
-        #           get min(codomain.sector_multiplicity(c), domain.sector_multiplicity(c))
-        #           free parameters from each coupled sector c.
-        return self.parent_space.num_parameters
-
-    @functools.cached_property
-    def parent_space(self) -> ProductSpace:
-        """The space that the tensor lives in. This is the product of the :attr:`legs`."""
-        return ProductSpace.from_partial_products(self.codomain, self.domain.dual, backend=self.backend)
+        assert self.domain.sector_order == 'sorted' == self.codomain.sector_order
+        res = 0
+        for i, j in iter_common_sorted_arrays(self.codomain.sector_decomposition, self.domain.sector_decomposition):
+            res += self.codomain.multiplicities[i] * self.domain.multiplicities[j]
+        return res
 
     @property
     def size(self) -> int:
@@ -490,10 +517,11 @@ class Tensor(metaclass=ABCMeta):
         """
         if not self.symmetry.can_be_dropped:
             raise SymmetryError(f'Tensor.size is not defined for symmetry {self.symmetry}')
-        return self.parent_space.dim
+        return int(self.domain.dim * self.codomain.dim)
 
     @property
     def T(self) -> Tensor:
+        """The :func:`transpose`."""
         return transpose(self)
 
     def __add__(self, other):
@@ -522,7 +550,7 @@ class Tensor(metaclass=ABCMeta):
             idx = [int(i) for i in idx]
         except TypeError:
             raise IndexError('Indices must be integers.') from None
-        idx = [_normalize_idx(i, d) for i, d in zip(idx, self.shape)]
+        idx = [to_valid_idx(i, d) for i, d in zip(idx, self.shape)]
         return self._get_item(idx)
 
     def __matmul__(self, other):
@@ -543,7 +571,7 @@ class Tensor(metaclass=ABCMeta):
         indent = printoptions.indent * ' '
         lines = [f'<{self.__class__.__name__}']
         lines.extend(self._repr_header_lines(indent=indent))
-        # TODO skipped showing data. see commit 4bdaa5c for an old implementation of showing data.
+        # skipped showing data. see commit 4bdaa5c for an old implementation of showing data.
         lines.append('>')
         return "\n".join(lines)
 
@@ -618,7 +646,7 @@ class Tensor(metaclass=ABCMeta):
                 msg = f'No leg with label {which_leg}. Labels are {self._labels}'
                 raise ValueError(msg)
         else:
-            idx = _normalize_idx(which_leg, self.num_legs)
+            idx = to_valid_idx(which_leg, self.num_legs)
         in_domain = (idx >= len(self.codomain))
         if in_domain:
             co_domain_idx = self.num_legs - 1 - idx
@@ -632,6 +660,7 @@ class Tensor(metaclass=ABCMeta):
         else:
             labels_str = f'{self._labels}   ;   {self.codomain_labels} <- {self.domain_labels}'
         lines = [
+            f'{indent}* Device: {self.device}',
             f'{indent}* Backend: {self.backend!s}',
             f'{indent}* Symmetry: {self.symmetry!s}',
             f'{indent}* Labels: {labels_str}',
@@ -641,24 +670,25 @@ class Tensor(metaclass=ABCMeta):
             domain_dims = tuple(reversed(self.shape[self.num_codomain_legs:]))
             lines.append(f'{indent}* Shape: {self.shape}   ;   {codomain_dims} <- {domain_dims}')
         if (not self.symmetry.can_be_dropped) or (not self.symmetry.is_abelian):
-            codomain_nums = tuple(np.sum(leg.multiplicities).item() for leg in self.codomain)
-            domain_nums = tuple(np.sum(leg.multiplicities).item() for leg in self.domain)
-            all_nums = tuple((*codomain_nums, *reversed(domain_nums)))
-            lines.append(f'{indent}* Num Sectors: {all_nums}   ;   {codomain_nums} <- {domain_nums}')
+            if self.has_pipes:
+                pass  # TODO should we put some info still ...?
+            else:
+                codomain_nums = []
+                codomain_nums = tuple(np.sum(leg.multiplicities).item() for leg in self.codomain)
+                domain_nums = tuple(np.sum(leg.multiplicities).item() for leg in self.domain)
+                all_nums = tuple((*codomain_nums, *reversed(domain_nums)))
+                lines.append(f'{indent}* Num Sectors: {all_nums}   ;   {codomain_nums} <- {domain_nums}')
         return lines
 
     def get_leg(self, which_leg: int | str | list[int | str]) -> Space | list[Space]:
-        """Basically ``self.legs[which_leg]``, but allows labels and multiple indices.
-
-        TODO elaborate
-        """
+        """Basically ``self.legs[which_leg]``, but allows labels and multiple indices."""
         if not isinstance(which_leg, (Integral, str)):
             # which_leg is a list
             return list(map(self.get_leg, which_leg))
         in_domain, co_domain_idx, _ = self._parse_leg_idx(which_leg)
         if in_domain:
-            return self.domain.spaces[co_domain_idx].dual
-        return self.codomain.spaces[co_domain_idx]
+            return self.domain.factors[co_domain_idx].dual
+        return self.codomain.factors[co_domain_idx]
 
     def get_leg_co_domain(self, which_leg: int | str) -> Space:
         """Get the specified leg from the domain or codomain.
@@ -671,8 +701,8 @@ class Tensor(metaclass=ABCMeta):
             return list(map(self.get_leg, which_leg))
         in_domain, co_domain_idx, _ = self._parse_leg_idx(which_leg)
         if in_domain:
-            return self.domain.spaces[co_domain_idx]
-        return self.codomain.spaces[co_domain_idx]
+            return self.domain.factors[co_domain_idx]
+        return self.codomain.factors[co_domain_idx]
 
     def get_leg_idcs(self, idcs: int | str | Sequence[int | str]) -> list[int]:
         """Parse leg-idcs of leg-labels to leg-idcs (i.e. indices of :attr:`legs`)."""
@@ -684,7 +714,7 @@ class Tensor(metaclass=ABCMeta):
                     msg = f'No leg with label {idx}. Labels are {self._labels}'
                     raise ValueError(msg)
             else:
-                idx = _normalize_idx(idx, self.num_legs)
+                idx = to_valid_idx(idx, self.num_legs)
             res.append(idx)
         return res
 
@@ -723,7 +753,8 @@ class Tensor(metaclass=ABCMeta):
     def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None) -> np.ndarray:
         """Convert to a numpy array"""
         block = self.to_dense_block(leg_order=leg_order)
-        return self.backend.block_backend.block_to_numpy(block, numpy_dtype=numpy_dtype)
+        return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
+
 
 class SymmetricTensor(Tensor):
     """A tensor that is symmetric, i.e. invariant under the symmetry.
@@ -732,13 +763,11 @@ class SymmetricTensor(Tensor):
         The constructor is not particularly user friendly.
         Consider using the various classmethods instead.
 
-    TODO elaborate
-
     Parameters
     ----------
-    codomain : ProductSpace | list[Space]
+    codomain : TensorProduct | list[Space]
         The codomain.
-    domain : ProductSpace | list[Space] | None
+    domain : TensorProduct | list[Space] | None
         The domain. ``None`` (the default) is equivalent to ``[]``, i.e. no legs in the domain.
     backend : TensorBackend
         The backend of the tensor.
@@ -757,33 +786,38 @@ class SymmetricTensor(Tensor):
         Backend-specific data structure that contains the numerical data, i.e. the free parameters
         of tensors with the given symmetry.
     """
+    
     def __init__(self,
                  data,
-                 codomain: ProductSpace | list[Space],
-                 domain: ProductSpace | list[Space] | None = None,
+                 codomain: TensorProduct | list[Space],
+                 domain: TensorProduct | list[Space] | None = None,
                  backend: TensorBackend | None = None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
         codomain, domain, backend, _ = self._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
         Tensor.__init__(self, codomain=codomain, domain=domain, backend=backend, labels=labels,
-                        dtype=backend.get_dtype_from_data(data))
+                        dtype=backend.get_dtype_from_data(data),
+                        device=backend.get_device_from_data(data))
         assert isinstance(data, self.backend.DataCls)
         self.data = data
 
     def test_sanity(self):
         super().test_sanity()
-        self.backend.test_data_sanity(self, is_diagonal=isinstance(self, DiagonalTensor))
+        assert self.dtype == self.backend.get_dtype_from_data(self.data)
+        assert self.device == self.backend.get_device_from_data(self.data)
+        self.backend.test_tensor_sanity(self, is_diagonal=isinstance(self, DiagonalTensor))
 
     @classmethod
     def from_block_func(cls, func,
-                        codomain: ProductSpace | list[Space],
-                        domain: ProductSpace | list[Space] | None = None,
+                        codomain: TensorProduct | list[Space],
+                        domain: TensorProduct | list[Space] | None = None,
                         backend: TensorBackend | None = None,
                         labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                         func_kwargs: dict = None,
                         shape_kw: str = None,
                         dtype: Dtype = None,
+                        device: str = None,
                         ):
         """Initialize a :class:`SymmetricTensor` by generating its blocks from a function.
 
@@ -804,7 +838,7 @@ class SymmetricTensor(Tensor):
 
             Where ``shape`` is the shape of the block to be generate and `func_kwargs` are passed
             as ``kwargs``. The output is converted to backend-specific blocks
-            via ``backend.as_block``.
+            via ``backend.as_block``. In particular, it may be modified in-place after that.
         codomain, domain, backend, labels
             Arguments for constructor of :class:`SymmetricTensor`.
         func_kwargs: dict, optional
@@ -813,6 +847,10 @@ class SymmetricTensor(Tensor):
             If given, the shape is passed to `func` as a kwarg with this keyword.
         dtype: Dtype, None
             If given, the resulting blocks from `func` are converted to this dtype.
+        device: str, optional
+            If given, the resulting blocks are moved to that device.
+            Per default, if `func` returns backend-specific blocks, their device is used and
+            otherwise the default device of the backend.
 
         See Also
         --------
@@ -822,7 +860,8 @@ class SymmetricTensor(Tensor):
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
-        # wrap func to consider func_kwargs, shape_kw, dtype
+
+        # wrap func to consider func_kwargs, shape_kw, dtype, device
         if func_kwargs is None:
             func_kwargs = {}
 
@@ -833,7 +872,7 @@ class SymmetricTensor(Tensor):
                 block = func(shape, **func_kwargs)
             else:
                 block = func(**{shape_kw: shape}, **func_kwargs)
-            return backend.block_backend.as_block(block, dtype)
+            return backend.block_backend.as_block(block, dtype, device=device)
 
         data = backend.from_sector_block_func(block_func, codomain=codomain, domain=domain)
         res = cls(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
@@ -842,11 +881,12 @@ class SymmetricTensor(Tensor):
 
     @classmethod
     def from_dense_block(cls, block,
-                         codomain: ProductSpace | list[Space],
-                         domain: ProductSpace | list[Space] | None = None,
+                         codomain: TensorProduct | list[Space],
+                         domain: TensorProduct | list[Space] | None = None,
                          backend: TensorBackend | None = None,
                          labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                          dtype: Dtype = None,
+                         device: str = None,
                          tol: float = 1e-6):
         """Convert a dense block of the backend to a Tensor.
 
@@ -865,34 +905,41 @@ class SymmetricTensor(Tensor):
         dtype: Dtype, optional
             If given, the block is converted to that dtype and the resulting tensor will have that
             dtype. By default, we detect the dtype from the block.
+        device: str, optional
+            If given, the block is moved to that device. Per default, try to use the device of
+            the `block`, if it is a backend-specific block, or fall back to the backends default
+            device.
         """
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
-        block, dtype = backend.block_backend.as_block(block, dtype, return_dtype=True)
+        block = backend.block_backend.as_block(block, dtype=dtype, device=device)
         block = backend.block_backend.apply_basis_perm(block, conventional_leg_order(codomain, domain))
         data = backend.from_dense_block(block, codomain=codomain, domain=domain, tol=tol)
         return cls(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
 
     @classmethod
     def from_dense_block_trivial_sector(cls, vector: Block, space: Space,
-                                        backend: TensorBackend | None = None, label: str | None = None
+                                        backend: TensorBackend | None = None,
+                                        device: str = None,
+                                        label: str | None = None
                                         ) -> SymmetricTensor:
-        """Inverse of to_dense_block_trivial_sector. TODO"""
+        """Inverse of to_dense_block_trivial_sector."""
         if backend is None:
             backend = get_backend(symmetry=space.symmetry)
-        vector = backend.block_backend.as_block(vector)
+        vector = backend.block_backend.as_block(vector, device=device)
         if space._basis_perm is not None:
-            i = space.sectors_where(space.symmetry.trivial_sector)
+            i = space.sector_decomposition_where(space.symmetry.trivial_sector)
             perm = rank_data(space.basis_perm[slice(*space.slices[i])])
             vector = backend.block_backend.apply_leg_permutations(vector, [perm])
-        raise NotImplementedError  # TODO
+        raise NotImplementedError
 
     @classmethod
-    def from_eye(cls, co_domain: list[Space] | ProductSpace,
+    def from_eye(cls, co_domain: list[Space] | TensorProduct,
                  backend: TensorBackend | None = None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                 dtype: Dtype = Dtype.complex128
+                 dtype: Dtype = Dtype.complex128,
+                 device: str = None,
                  ) -> SymmetricTensor:
         """The identity map as a SymmetricTensor.
 
@@ -909,24 +956,29 @@ class SymmetricTensor(Tensor):
             The backend of the tensor.
         dtype: Dtype
             The dtype of the tensor.
+        device: str
+            The device of the tensor. If ``None``, use the :attr:`BlockBackend.default_device` of
+            the block backend.
         """
         co_domain, _, backend, _ = cls._init_parse_args(
             codomain=co_domain, domain=co_domain, backend=backend
         )
         labels = cls._init_parse_labels(labels, codomain=co_domain, domain=co_domain,
                                         is_endomorphism=True)
-        data = backend.eye_data(co_domain=co_domain, dtype=dtype)
+        device = backend.block_backend.as_device(device)
+        data = backend.eye_data(co_domain=co_domain, dtype=dtype, device=device)
         return cls(data, codomain=co_domain, domain=co_domain, backend=backend, labels=labels)
 
     @classmethod
-    def from_random_normal(cls, codomain: ProductSpace | list[Space],
-                           domain: ProductSpace | list[Space] | None = None,
+    def from_random_normal(cls, codomain: TensorProduct | list[Space],
+                           domain: TensorProduct | list[Space] | None = None,
                            mean: SymmetricTensor | None = None,
                            sigma: float = 1.,
                            backend: TensorBackend | None = None,
                            labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                           dtype: Dtype = Dtype.complex128):
-        r"""Generate a sample from the complex normal distribution.
+                           dtype: Dtype = Dtype.complex128,
+                           device: str = None,):
+        r"""Generate a sample from the normal distribution.
 
         The probability density is
 
@@ -935,7 +987,10 @@ class SymmetricTensor(Tensor):
                 \frac{1}{2 \sigma^2} \mathrm{Tr} (T - \mathtt{mean}) (T - \mathtt{mean})^\dagger
             \right]
 
-        TODO make sure we actually generate from that distribution in the non-abelian or anyonic case!
+        .. note ::
+            For a complex `dtype`, the samples are taken from the complex normal distribution,
+            which corresponds to sampling the real and imaginary parts independently from (real)
+            normal distributions with half the variance of the complex normal distribution.
 
         Parameters
         ----------
@@ -950,7 +1005,6 @@ class SymmetricTensor(Tensor):
         sigma: float
             The standard deviation of the distribution
         """
-        assert dtype.is_complex
         assert sigma > 0.
         if mean is not None:
             if codomain is None:
@@ -979,20 +1033,28 @@ class SymmetricTensor(Tensor):
             codomain, domain, backend, _ = cls._init_parse_args(
                 codomain=codomain, domain=domain, backend=backend
             )
-        with_zero_mean = cls(
-            data=backend.from_random_normal(codomain, domain, sigma=sigma, dtype=dtype),
-            codomain=codomain, domain=domain, backend=backend, labels=labels
-        )
+
+        if device is None:
+            if mean is None:
+                device = backend.block_backend.default_device
+            else:
+                device = mean.backend
+
+        data = backend.from_random_normal(codomain, domain, sigma=sigma, dtype=dtype, device=device)
+        with_zero_mean = cls(data=data, codomain=codomain, domain=domain, backend=backend,
+                             labels=labels)
+        
         if mean is not None:
             return mean + with_zero_mean
         return with_zero_mean
 
     @classmethod
-    def from_random_uniform(cls, codomain: ProductSpace | list[Space],
-                            domain: ProductSpace | list[Space] | None = None,
+    def from_random_uniform(cls, codomain: TensorProduct | list[Space],
+                            domain: TensorProduct | list[Space] | None = None,
                             backend: TensorBackend | None = None,
                             labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                            dtype: Dtype = Dtype.complex128):
+                            dtype: Dtype = Dtype.complex128,
+                            device: str = None):
         """Generate a tensor with uniformly random block-entries.
 
         The block entries, i.e. the free parameters of the tensor are drawn independently and
@@ -1015,19 +1077,20 @@ class SymmetricTensor(Tensor):
             codomain=codomain, domain=domain, backend=backend
         )
         return cls.from_block_func(
-            func=backend.block_backend.block_random_uniform,
+            func=backend.block_backend.random_uniform,
             codomain=codomain, domain=domain, backend=backend, labels=labels,
-            func_kwargs=dict(dtype=dtype), dtype=dtype
+            func_kwargs=dict(dtype=dtype, device=device), dtype=dtype
         )
 
     @classmethod
     def from_sector_block_func(cls, func,
-                               codomain: ProductSpace | list[Space],
-                               domain: ProductSpace | list[Space] | None = None,
+                               codomain: TensorProduct | list[Space],
+                               domain: TensorProduct | list[Space] | None = None,
                                backend: TensorBackend | None = None,
                                labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                                func_kwargs: dict = None,
                                dtype: Dtype = None,
+                               device: str = None,
                                ):
         """Initialize a :class:`SymmetricTensor` by generating its blocks from a function.
 
@@ -1037,8 +1100,8 @@ class SymmetricTensor(Tensor):
 
         Unlike :meth:`from_block_func`, this classmethod supports a `func` that takes the current
         coupled sector as an argument. The tensor, as a map from its domain to its codomain is
-        block-diagonal in the coupled sectors, i.e. in the ``domain.sectors``.
-        Thus, the free parameters of a tensor are associated with one of block of this structure,
+        block-diagonal in the coupled sectors, i.e. in the ``domain.sector_decomposition``.
+        Thus, the free parameters of a tensor are associated with one block of this structure,
         and thus with a given coupled sector. A value of ``coupled`` indicates that the generated
         block is (part of) the components that maps from ``coupled`` in the domain to ``coupled``
         in the codomain.
@@ -1061,6 +1124,10 @@ class SymmetricTensor(Tensor):
             If given, the shape is passed to `func` as a kwarg with this keyword.
         dtype: Dtype, None
             If given, the resulting blocks from `func` are converted to this dtype.
+        device: str, optional
+            If given, the resulting blocks are moved to that device.
+            Per default, if `func` returns backend-specific blocks, their device is used and
+            otherwise the default device of the backend.
 
         See Also
         --------
@@ -1075,7 +1142,7 @@ class SymmetricTensor(Tensor):
 
         def block_func(shape, coupled):
             block = func(shape, coupled, **func_kwargs)
-            return backend.block_backend.as_block(block, dtype)
+            return backend.block_backend.as_block(block, dtype, device=device)
 
         data = backend.from_sector_block_func(block_func, codomain=codomain, domain=domain)
         res = cls(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
@@ -1083,11 +1150,42 @@ class SymmetricTensor(Tensor):
         return res
 
     @classmethod
-    def from_zero(cls, codomain: ProductSpace | list[Space],
-                  domain: ProductSpace | list[Space] | None = None,
+    def from_sector_projection(cls,
+                               co_domain: list[Space] | TensorProduct,
+                               sector: Sector,
+                               backend: TensorBackend | None = None,
+                               labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                               dtype: Dtype = None,
+                               device: str = None,
+                               ) -> SymmetricTensor:
+        """A tensor that projects onto a given coupled sector of it domain."""
+        if not isinstance(co_domain, TensorProduct):
+            co_domain = TensorProduct(co_domain)
+        assert co_domain.symmetry.is_valid_sector(sector)
+        if co_domain.sector_multiplicity(sector) == 0:
+            warnings.warn('Sector does not appear. from_sector_projection yields zero')
+        if backend is None:
+            backend = get_backend(symmetry=co_domain.symmetry)
+
+        def func(shape: tuple[int, ...], coupled: Sector):
+            if np.all(coupled == sector):
+                return backend.block_backend.eye_block([*shape[:co_domain.num_factors]],
+                                                       dtype=dtype, device=device)
+            return backend.block_backend.zeros(shape, dtype=dtype, device=device)
+
+        data = backend.from_sector_block_func(func, codomain=co_domain, domain=co_domain)
+        res = cls(data, codomain=co_domain, domain=co_domain, backend=backend, labels=labels)
+        res.test_sanity()
+        return res
+
+    @classmethod
+    def from_zero(cls, codomain: TensorProduct | list[Space],
+                  domain: TensorProduct | list[Space] | None = None,
                   backend: TensorBackend | None = None,
                   labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                  dtype: Dtype = Dtype.complex128):
+                  dtype: Dtype = Dtype.complex128,
+                  device: str | None = None,
+                  ):
         """A zero tensor.
 
         Parameters
@@ -1096,12 +1194,16 @@ class SymmetricTensor(Tensor):
             Arguments, like for constructor of :class:`SymmetricTensor`.
         dtype: Dtype
             The dtype for the entries.
+        device: str
+            The device of the tensor. If ``None``, use the :attr:`BlockBackend.default_device` of
+            the block backend.
         """
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
+        device = backend.block_backend.as_device(device)
         return cls(
-            data=backend.zero_data(codomain=codomain, domain=domain, dtype=dtype),
+            data=backend.zero_data(codomain=codomain, domain=domain, dtype=dtype, device=device),
             codomain=codomain, domain=domain, backend=backend, labels=labels
         )
 
@@ -1110,9 +1212,11 @@ class SymmetricTensor(Tensor):
         # TODO do we need a copy...?
         return self.copy()
 
-    def copy(self, deep=True) -> SymmetricTensor:
+    def copy(self, deep=True, device: str = None) -> SymmetricTensor:
         if deep:
-            data = self.backend.copy_data(self)
+            data = self.backend.copy_data(self, device=device)
+        elif device is not None:
+            data = self.backend.move_to_device(self, device=device)
         else:
             data = self.data
         return SymmetricTensor(data=data, codomain=self.codomain, domain=self.domain,
@@ -1131,19 +1235,33 @@ class SymmetricTensor(Tensor):
     def _get_item(self, idx: list[int]) -> bool | float | complex:
         return self.backend.get_element(self, idx)
 
+    def move_to_device(self, device: str):
+        self.data = self.backend.move_to_device(self, device=device)
+        self.device = self.backend.block_backend.as_device(device)
+
     def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
         block = self.backend.to_dense_block(self)
         block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self), inv=True)
         if dtype is not None:
-            block = self.backend.block_backend.block_to_dtype(block, dtype)
+            block = self.backend.block_backend.to_dtype(block, dtype)
         if leg_order is not None:
-            block = self.backend.block_backend.block_permute_axes(block, self.get_leg_idcs(leg_order))
+            block = self.backend.block_backend.permute_axes(block, self.get_leg_idcs(leg_order))
         return block
+
+    def _to_dense_block_by_splitting_pipes(self) -> Block:
+        """Helper for :meth:`to_dense_block` if the backend cant deal with pipes directly.
+
+        This method can replace ``backend.to_dense_block``.
+        It first splits the legs of the tensors, does ``backend.to_dense_block``,
+        then re-combines on the result
+        """
+        self_split, combines = _split_all_pipes(self)
+        block = self.backend.to_dense_block(self_split)
+        return self.backend.block_backend.combine_legs(block, combines)
 
     def to_dense_block_trivial_sector(self) -> Block:
         """Assumes self is a single-leg tensor and returns its components in the trivial sector.
 
-        TODO elaborate.
         TODO better name?
 
         See Also
@@ -1155,72 +1273,49 @@ class SymmetricTensor(Tensor):
         assert self.num_codomain_legs == 1  # TODO assuming this for now to construct the perm. should we keep that?
         leg = self.codomain[0]
         if leg._basis_perm is not None:
-            i = leg.sectors_where(self.symmetry.trivial_sector)
+            i = leg.sector_decomposition_where(self.symmetry.trivial_sector)
             perm = np.argsort(leg.basis_perm[slice(*leg.slices[i])])
             block = self.backend.block_backend.apply_leg_permutations(block, [perm])
         return block
 
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
-        """Export `self` into a HDF5 file.
+        """Export SymmetricTensor to hdf5 such that it can be re-imported with from_hdf5"""
+        hdf5_saver.save(self.domain, subpath + 'domain')
+        hdf5_saver.save(self.codomain, subpath + 'codomain')
+        hdf5_saver.save(self.backend, subpath + 'backend')
+        hdf5_saver.save(self.data, subpath + 'data')
+        hdf5_saver.save(self.symmetry, subpath + 'symmetry')
+        hdf5_saver.save(self.dtype.to_numpy_dtype(), subpath + 'dtype')
+        hdf5_saver.save(self.device, subpath + 'device')
+        h5gr.attrs['num_legs'] = self.num_legs
+        h5gr.attrs['shape'] = np.array(self.shape, np.intp)
 
-        This method saves all the data it needs to reconstruct `self` with :meth:`from_hdf5`.
+        if all(i is None for i in self.labels):
+            h5gr.attrs['labels'] = []
 
-        Specifically, it saves :attr:`chinfo`, :attr:`legs`, :attr:`dtype` under these names,
-        :attr:`qtotal` as ``"total_charge"``,
-        :attr:`_data` as ``"blocks"``, :attr:`_qdata` as ``:block_inds"``,
-        the :attr:`labels` in the list-form (as returned by :meth:`get_leg_labels`).
-        Moreover, it saves :attr:`rank`, :attr:`shape` and
-        :attr:`_qdata_sorted` (under the name ``"block_inds_sorted"``) as HDF5 attributes.
-
-        Parameters
-        ----------
-        hdf5_saver : :class:`~tenpy.tools.hdf5_io.Hdf5Saver`
-            Instance of the saving engine.
-        h5gr : :class`Group`
-            HDF5 group which is supposed to represent `self`.
-        subpath : str
-            The `name` of `h5gr` with a ``'/'`` in the end.
-        """
-        hdf5_saver.save(self.domain, subpath + "domain")
-        hdf5_saver.save(self.codomain, subpath + "codomain")
-        hdf5_saver.save(self.legs, subpath + "legs")
-        hdf5_saver.save(self.backend, subpath + "backend")
-        hdf5_saver.save(self._labels, subpath + "labels")
-        hdf5_saver.save(self.symmetry, subpath + "symmetry")
-        hdf5_saver.save(self.data, subpath + "data")
-        h5gr.attrs["dtype"] = self.dtype
-        h5gr.attrs["num_legs"] = self.num_legs
-        h5gr.attrs["shape"] = np.array(self.shape, np.intp)
+        else:
+            h5gr.attrs['labels'] = self.labels
 
     @classmethod
     def from_hdf5(cls, hdf5_loader, h5gr, subpath):
-        """Load instance from a HDF5 file.
-
-        This method reconstructs a class instance from the data saved with :meth:`save_hdf5`.
-
-        Parameters
-        ----------
-        hdf5_loader : :class:`~tenpy.tools.hdf5_io.Hdf5Loader`
-            Instance of the loading engine.
-        h5gr : :class:`Group`
-            HDF5 group which is represent the object to be constructed.
-        subpath : str
-            The `name` of `h5gr` with a ``'/'`` in the end.
-
-        Returns
-        -------
-        obj : cls
-            Newly generated class instance containing the required data.
-        """
-        obj = cls.__new__(cls)  # create class instance, no __init__() call
+        """Import SymmetricTensor from hdf5"""
+        obj = cls.__new__(cls)
         hdf5_loader.memorize_load(h5gr, obj)
-        obj.domain = hdf5_loader.load(subpath + "domain")
-        obj.codomain = hdf5_loader.load(subpath + "codomain")
-        obj.backend = hdf5_loader.load(subpath + "backend")
-        obj._labels = hdf5_loader.load(subpath + "labels")
-        obj.symmetry = hdf5_loader.load(subpath + "symmetry")
-        obj._data = hdf5_loader.load(subpath + "data")
-        obj.test_sanity()
+
+        obj.domain = hdf5_loader.load(subpath + 'domain')
+        obj.codomain = hdf5_loader.load(subpath + 'codomain')
+        obj.symmetry = hdf5_loader.load(subpath + 'symmetry')
+        obj.backend = get_backend(obj.symmetry, 'numpy')
+        obj.data = hdf5_loader.load(subpath + 'data')
+        obj.device = hdf5_loader.load(subpath + 'device')
+        dt = hdf5_loader.load(subpath + 'dtype')
+        obj.dtype = Dtype.from_numpy_dtype(dt)
+        obj.num_legs = hdf5_loader.get_attr(h5gr, 'num_legs')
+        obj.shape = hdf5_loader.get_attr(h5gr, 'shape')
+        labels = hdf5_loader.get_attr(h5gr, 'labels')
+        obj._labels = labels
+        obj._labelmap = {label: legnum for legnum, label in enumerate(labels) if label is not None}
+
         return obj
 
 
@@ -1239,8 +1334,8 @@ class DiagonalTensor(SymmetricTensor):
     i.e. it is given by :math:`\bigoplus_a \lambda_a \eye_a`, where the sum goes over sectors
     :math:`a` of the `leg` :math:`V = \bigoplus_a a`.
 
-    This is the natural type e.g. for singular values or eigenvalue and allows elementwise methods
-    such as TODO.
+    This is the natural type e.g. for singular values or eigenvalue and allows
+    :ref:`elementwise <diagonal_elementwise>` operations.
 
     Parameters
     ----------
@@ -1262,25 +1357,30 @@ class DiagonalTensor(SymmetricTensor):
     Elementwise Functions
     ---------------------
     TODO elaborate
+         use examples: :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
     """
+    
     _forbidden_dtypes = []
 
     def __init__(self, data, leg: Space, backend: TensorBackend | None = None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+        if isinstance(leg, LegPipe):
+            raise ValueError('DiagonalTensor is not defined on LegPipes.')
         SymmetricTensor.__init__(self, data, codomain=[leg], domain=[leg], backend=backend,
                                  labels=labels)
 
     def test_sanity(self):
         super().test_sanity()
         assert self.domain == self.codomain
-        assert self.domain.num_spaces == 1
+        assert self.domain.num_factors == 1
 
     @classmethod
     def from_block_func(cls, func, leg: Space, backend: TensorBackend | None = None,
                         labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                         func_kwargs: dict = None,
                         shape_kw: str = None,
-                        dtype: Dtype = None):
+                        dtype: Dtype = None,
+                        device: str = None):
         co_domain, _, backend, symmetry = cls._init_parse_args(
             codomain=[leg], domain=[leg], backend=backend
         )
@@ -1295,7 +1395,7 @@ class DiagonalTensor(SymmetricTensor):
                 block = func(shape, **func_kwargs)
             else:
                 block = func(**{shape_kw: shape}, **func_kwargs)
-            return backend.block_backend.as_block(block, dtype)
+            return backend.block_backend.as_block(block, dtype, device=device)
 
         data = backend.diagonal_from_sector_block_func(block_func, co_domain=co_domain)
         res = cls(data, leg=leg, backend=backend, labels=labels)
@@ -1305,19 +1405,18 @@ class DiagonalTensor(SymmetricTensor):
     @classmethod
     def from_dense_block(cls, block: Block, leg: Space, backend: TensorBackend | None = None,
                          labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                         dtype: Dtype = None, tol: float = 1e-6):
+                         dtype: Dtype = None, tol: float = 1e-6, device: str = None):
         if backend is None:
             backend = get_backend(symmetry=leg.symmetry)
-        diag = backend.block_backend.block_get_diagonal(
-            backend.block_backend.as_block(block, dtype=dtype), check_offdiagonal=True
-        )
+        block = backend.block_backend.as_block(block, dtype=dtype, device=device)
+        diag = backend.block_backend.get_diagonal(block, check_offdiagonal=True)
         return cls.from_diag_block(diag, leg=leg, backend=backend, labels=labels, dtype=dtype,
                                    tol=tol)
 
     @classmethod
     def from_diag_block(cls, diag: Block, leg: Space, backend: TensorBackend | None = None,
                         labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                        dtype: Dtype = None, tol: float = 1e-6):
+                        dtype: Dtype = None, device: str = None, tol: float = 1e-6):
         """Convert a dense 1D block containing the diagonal entries to a DiagonalTensor.
 
         Parameters
@@ -1339,7 +1438,7 @@ class DiagonalTensor(SymmetricTensor):
         co_domain, _, backend, symmetry = cls._init_parse_args(
             codomain=[leg], domain=[leg], backend=backend
         )
-        diag = backend.block_backend.as_block(diag, dtype=dtype)
+        diag = backend.block_backend.as_block(diag, dtype=dtype, device=device)
         diag = backend.block_backend.apply_basis_perm(diag, [leg])
         return cls(
             data=backend.diagonal_from_block(diag, co_domain=co_domain, tol=tol),
@@ -1349,7 +1448,7 @@ class DiagonalTensor(SymmetricTensor):
     @classmethod
     def from_eye(cls, leg: Space, backend: TensorBackend | None = None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                 dtype: Dtype = Dtype.float64):
+                 dtype: Dtype = Dtype.float64, device: str = None):
         """The identity map as a DiagonalTensor.
 
         Parameters
@@ -1364,7 +1463,7 @@ class DiagonalTensor(SymmetricTensor):
         )
         return cls.from_block_func(
             backend.block_backend.ones_block, leg=leg, backend=backend, labels=labels,
-            func_kwargs=dict(dtype=dtype), dtype=dtype
+            func_kwargs=dict(dtype=dtype, device=device), dtype=dtype
         )
 
     @classmethod
@@ -1373,7 +1472,7 @@ class DiagonalTensor(SymmetricTensor):
                            sigma: float = 1.,
                            backend: TensorBackend | None = None,
                            labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                           dtype: Dtype = Dtype.complex128):
+                           dtype: Dtype = Dtype.complex128, device: str = None):
         r"""Generate a sample from the complex normal distribution.
 
         The probability density is
@@ -1420,19 +1519,27 @@ class DiagonalTensor(SymmetricTensor):
             co_domain, _, backend, symmetry = cls._init_parse_args(
                 codomain=[leg], domain=[leg], backend=backend
             )
+
+        if device is None:
+            if mean is None:
+                device = backend.block_backend.default_device
+            else:
+                device = mean.device
+
         with_zero_mean = cls.from_block_func(
-            backend.block_backend.block_random_normal, leg=leg, backend=backend, labels=labels,
-            func_kwargs=dict(dtype=dtype), dtype=dtype
+            backend.block_backend.random_normal, leg=leg, backend=backend, labels=labels,
+            func_kwargs=dict(dtype=dtype, sigma=sigma), dtype=dtype
         )
+
         if mean is not None:
             return mean + with_zero_mean
         return with_zero_mean
 
     @classmethod
     def from_random_uniform(cls, leg: Space,
-                           backend: TensorBackend | None = None,
-                           labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                           dtype: Dtype = Dtype.complex128):
+                            backend: TensorBackend | None = None,
+                            labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                            dtype: Dtype = Dtype.complex128, device: str = None):
         """Generate a tensor with uniformly random block-entries.
 
         The block entries, i.e. the free parameters of the tensor are drawn independently and
@@ -1455,15 +1562,16 @@ class DiagonalTensor(SymmetricTensor):
             codomain=[leg], domain=[leg], backend=backend
         )
         return cls.from_block_func(
-            func=backend.block_backend.block_random_uniform, leg=leg, backend=backend, labels=labels,
-            func_kwargs=dict(dtype=dtype), dtype=dtype
+            func=backend.block_backend.random_uniform, leg=leg, backend=backend, labels=labels,
+            func_kwargs=dict(dtype=dtype, device=device), dtype=dtype
         )
 
     @classmethod
     def from_sector_block_func(cls, func, leg: Space, backend: TensorBackend | None = None,
                                labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                                func_kwargs: dict = None,
-                               dtype: Dtype = None):
+                               dtype: Dtype = None,
+                               device: str = None):
         co_domain, _, backend, _ = cls._init_parse_args(
             codomain=[leg], domain=[leg], backend=backend
         )
@@ -1473,7 +1581,7 @@ class DiagonalTensor(SymmetricTensor):
 
         def block_func(shape, coupled):
             block = func(shape, coupled, **func_kwargs)
-            return backend.block_backend.as_block(block, dtype)
+            return backend.block_backend.as_block(block, dtype, device=device)
 
         data = backend.diagonal_from_sector_block_func(block_func, co_domain=co_domain)
         res = cls(data, leg=leg, backend=backend, labels=labels)
@@ -1500,13 +1608,15 @@ class DiagonalTensor(SymmetricTensor):
         assert tens.num_legs == 2
         assert tens.domain == tens.codomain
         data = tens.backend.diagonal_tensor_from_full_tensor(tens, check_offdiagonal=check_offdiagonal)
-        return cls(data=data, leg=tens.codomain.spaces[0], backend=tens.backend, labels=tens.labels)
+        return cls(data=data, leg=tens.codomain.factors[0], backend=tens.backend, labels=tens.labels)
 
     @classmethod
     def from_zero(cls, leg: Space,
                   backend: TensorBackend | None = None,
                   labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                  dtype: Dtype = Dtype.complex128):
+                  dtype: Dtype = Dtype.complex128,
+                  device: str = None,
+                  ):
         """A zero tensor.
 
         Parameters
@@ -1515,19 +1625,23 @@ class DiagonalTensor(SymmetricTensor):
             Arguments for constructor of :class:`DiagonalTensor`.
         dtype: Dtype
             The dtype for the entries.
+        device: str
+            The device of the tensor. If ``None``, use the :attr:`BlockBackend.default_device` of
+            the block backend.
         """
         co_domain, _, backend, symmetry = cls._init_parse_args(
             codomain=[leg], domain=[leg], backend=backend
         )
+        device = backend.block_backend.as_device(device)
         return cls(
-            data=backend.zero_diagonal_data(co_domain=co_domain, dtype=dtype),
+            data=backend.zero_diagonal_data(co_domain=co_domain, dtype=dtype, device=device),
             leg=leg, backend=backend, labels=labels
         )
 
     @property
     def leg(self) -> Space:
         """Return the single space that makes up to domain and codomain."""
-        return self.codomain.spaces[0]
+        return self.codomain.factors[0]
 
     def __abs__(self):
         return self._elementwise_unary(func=operator.abs, maps_zero_to_zero=True)
@@ -1537,8 +1651,6 @@ class DiagonalTensor(SymmetricTensor):
             return bool(item(self))
         msg = 'The truth value of a non-scalar DiagonalTensor is ambiguous. Use a.any() or a.all()'
         raise ValueError(msg)
-
-    # TODO offer elementwise boolean operations: and, or, xor, eq
 
     def __add__(self, other):
         return self._binary_operand(other, func=operator.add, operand='+')
@@ -1657,9 +1769,11 @@ class DiagonalTensor(SymmetricTensor):
             raise TypeError(msg)
         return DiagonalTensor(data, leg=self.leg, backend=self.backend, labels=labels)
 
-    def copy(self, deep=True) -> SymmetricTensor:
+    def copy(self, deep=True, device: str = None) -> SymmetricTensor:
         if deep:
             data = self.backend.copy_data(self)
+        elif device is not None:
+            data = self.backend.move_to_device(self, device=device)
         else:
             data = self.data
         return DiagonalTensor(data, leg=self.leg, backend=self.backend, labels=self.labels)
@@ -1673,12 +1787,12 @@ class DiagonalTensor(SymmetricTensor):
         res = self.backend.diagonal_tensor_to_block(self)
         res = self.backend.block_backend.apply_basis_perm(res, [self.leg], inv=True)
         if dtype is not None:
-            res = self.backend.block_backend.block_to_dtype(res, dtype)
+            res = self.backend.block_backend.to_dtype(res, dtype)
         return res
 
     def diagonal_as_numpy(self, numpy_dtype=None) -> np.ndarray:
         block = self.diagonal_as_block(dtype=Dtype.from_numpy_dtype(numpy_dtype))
-        return self.backend.block_backend.block_to_numpy(block, numpy_dtype=numpy_dtype)
+        return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
     def elementwise_almost_equal(self, other: DiagonalTensor, rtol: float = 1e-5, atol=1e-8
                                  ) -> DiagonalTensor:
@@ -1724,104 +1838,61 @@ class DiagonalTensor(SymmetricTensor):
     def max(self):
         assert self.dtype.is_real
         return self.backend.reduce_DiagonalTensor(
-            self, block_func=self.backend.block_backend.block_max, func=max
+            self, block_func=self.backend.block_backend.max, func=max
         )
 
     def min(self):
         assert self.dtype.is_real
         return self.backend.reduce_DiagonalTensor(
-            self, block_func=self.backend.block_backend.block_min, func=min
+            self, block_func=self.backend.block_backend.min, func=min
         )
+
+    def move_to_device(self, device: str):
+        self.data = self.backend.move_to_device(self, device=device)
+        self.device = self.backend.block_backend.as_device(device)
 
     def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
         diag = self.diagonal_as_block(dtype=dtype)
         res = self.backend.block_backend.block_from_diagonal(diag)
         if leg_order is not None:
-            res = self.backend.block_backend.block_permute_axes(res, self.get_leg_idcs(leg_order))
+            res = self.backend.block_backend.permute_axes(res, self.get_leg_idcs(leg_order))
         return res
 
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
-        """Export `self` into a HDF5 file.
-
-        This method saves all the data it needs to reconstruct `self` with :meth:`from_hdf5`.
-
-        Specifically, it saves :attr:`chinfo`, :attr:`legs`, :attr:`dtype` under these names,
-        :attr:`qtotal` as ``"total_charge"``,
-        :attr:`_data` as ``"blocks"``, :attr:`_qdata` as ``:block_inds"``,
-        the :attr:`labels` in the list-form (as returned by :meth:`get_leg_labels`).
-        Moreover, it saves :attr:`rank`, :attr:`shape` and
-        :attr:`_qdata_sorted` (under the name ``"block_inds_sorted"``) as HDF5 attributes.
-
-        Parameters
-        ----------
-        hdf5_saver : :class:`~tenpy.tools.hdf5_io.Hdf5Saver`
-            Instance of the saving engine.
-        h5gr : :class`Group`
-            HDF5 group which is supposed to represent `self`.
-        subpath : str
-            The `name` of `h5gr` with a ``'/'`` in the end.
-        """
-        hdf5_saver.save(self.domain, subpath + "domain")
-        hdf5_saver.save(self.codomain, subpath + "codomain")
-        hdf5_saver.save(self.legs, subpath + "legs")
-        hdf5_saver.save(self.backend, subpath + "backend")
-        hdf5_saver.save(self._labels, subpath + "labels")
-        hdf5_saver.save(self.symmetry, subpath + "symmetry")
-        hdf5_saver.save(self.data, subpath + "data")
-        h5gr.attrs["dtype"] = self.dtype
-        h5gr.attrs["num_legs"] = self.num_legs
-        h5gr.attrs["shape"] = np.array(self.shape, np.intp)
+        """Export DiagonalTensor to hdf5 such that it can be re-imported with from_hdf5"""
+        super().save_hdf5(hdf5_saver, h5gr, subpath)
 
     @classmethod
     def from_hdf5(cls, hdf5_loader, h5gr, subpath):
-        """Load instance from a HDF5 file.
-
-        This method reconstructs a class instance from the data saved with :meth:`save_hdf5`.
-
-        Parameters
-        ----------
-        hdf5_loader : :class:`~tenpy.tools.hdf5_io.Hdf5Loader`
-            Instance of the loading engine.
-        h5gr : :class:`Group`
-            HDF5 group which is represent the object to be constructed.
-        subpath : str
-            The `name` of `h5gr` with a ``'/'`` in the end.
-
-        Returns
-        -------
-        obj : cls
-            Newly generated class instance containing the required data.
-        """
-        obj = cls.__new__(cls)  # create class instance, no __init__() call
+        """Import DiagonalTensor from hdf5"""
+        obj = cls.__new__(cls)
         hdf5_loader.memorize_load(h5gr, obj)
-        obj.domain = hdf5_loader.load(subpath + "domain")
-        obj.codomain = hdf5_loader.load(subpath + "codomain")
-        obj.backend = hdf5_loader.load(subpath + "backend")
-        obj._labels = hdf5_loader.load(subpath + "labels")
-        obj.symmetry = hdf5_loader.load(subpath + "symmetry")
-        obj._data = hdf5_loader.load(subpath + "data")
-        obj.test_sanity()
+
+        obj = super().from_hdf5(hdf5_loader, h5gr, subpath)
+
         return obj
 
 
 class Mask(Tensor):
     r"""A boolean mask that can be used to project or enlarge a leg.
 
-    Masks come in two versions: projections and inclusions.
-    A projection Mask is a special kind of projection map, that either keeps or discards any given
-    sector. It has a single leg, the :attr:`large_leg` in its domain and maps it to a single leg,
-    the :attr:`small_leg` in the codomain.
-    An inclusion Mask is the dagger of this projection Mask and maps from the small leg in the
-    domain to the large leg in the codomain::
+    Masks come in two versions: projections and inclusions. A projection Mask has a single leg, the
+    :attr:`large_leg` in its domain and maps it to a single leg, the :attr:`small_leg` in the
+    codomain. An inclusion Mask is the dagger of this projection Mask and maps from the small leg
+    in the domain to the large leg in the codomain::
 
+        |         │                 ║
+        |      ┏━━┷━━┓           ┏━━┷━━┓
+        |      ┃ M_p ┃    OR     ┃ M_i ┃
+        |      ┗━━┯━━┛           ┗━━┯━━┛
+        |         ║                 │
 
-    |         │                 ║
-    |      ┏━━┷━━┓           ┏━━┷━━┓
-    |      ┃ M_p ┃    OR     ┃ M_i ┃
-    |      ┗━━┯━━┛           ┗━━┯━━┛
-    |         ║                 │
-
-    TODO think in detail about the basis_perm and how it interacts with masking...
+    A Mask places restrictions on the basis order of the respective legs. For a projection Mask,
+    the kept basis elements from the large leg need to appear in their original order in the small
+    leg. Analogously, for an inclusion, the basis elements from the small leg need to be embedded
+    into the large leg in their original order. This restricts
+    the :attr:`~cyten.linalg.ElementarySpace.basis_perm` of the legs, see notes below.
+    Most classmethods that are used to build Masks take care of this for you.
 
     Attributes
     ----------
@@ -1850,13 +1921,49 @@ class Mask(Tensor):
         Can either give two lists, one for the codomain, one for the domain.
         Or a single flat list for all legs in the order of the :attr:`legs`,
         such that ``[codomain_labels, domain_labels]`` is equivalent
-        to ``[*codomain_legs, *reversed(domain_legs)]``.
+        to ``[*codomain_labels, *reversed(domain_labels)]``.
+
+    Notes
+    -----
+    The :attr:`~cyten.linalg.ElementarySpace.basis_perm` of the legs is constrained by the
+    requirements of the Mask, and in particular *depending on the data* as follows;
+    The following explanation is intuitive only for a projection Mask but also applies to inclusions.
+    Taking the ordered set of basis elements, permuting it by the large legs basis perm, then
+    discarding some of them according to the mask data, and finally permuting the remaining
+    elements back by the (inverse) small leg perm should result in a basis of the small leg,
+    where the relative ordering of elements is preserved.
+
+    In code, this means ::
+    
+        ranks = self.large_leg.basis_perm[mask_in_internal_basis][self.small_leg.inverse_basis_perm]
+
+    In particular, the basis permutation of the small leg is uniquely determined by the
+    permutation of the large leg and the mask data.
+
+    Consider the following valid example, assuming for simplicity only one one-dim. sector ::
+
+        large_leg_perm = [2, 4, 0, 1, 3]
+        mask_in_internal_basis = [True, True, False, True, False]
+        # mask_in_public_basis = [False, True, True, False, True]
+        small_leg_perm = [1, 2, 0]
+        small_leg_perm_inv = [2, 0, 1]
+
+    Which maps an ordered basis as follows ::
+        {e0, e1, e2, e3, e4}
+        ---large_leg_perm--> {e2, e4, e0, e1, e3}
+        ---mask_in_internal_basis--> {e2, e4, e1}
+        ---small_leg_perm_inv--> {e1, e2, e4}
+
+    Such that the result is ordered.
     """
+    
     _forbidden_dtypes = [Dtype.float32, Dtype.float64, Dtype.complex64, Dtype.complex128]
 
     def __init__(self, data, space_in: ElementarySpace, space_out: ElementarySpace,
                  is_projection: bool = None, backend: TensorBackend | None = None,
                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+        if isinstance(space_in, LegPipe) or isinstance(space_out, LegPipe):
+            raise ValueError('Mask is not defined on LegPipes.')
         if is_projection is None:
             if space_in.dim == space_out.dim:
                 raise ValueError('Need to specify is_projection for equal spaces.')
@@ -1876,49 +1983,72 @@ class Mask(Tensor):
         assert isinstance(space_in, ElementarySpace)
         assert isinstance(space_out, ElementarySpace)
         Tensor.__init__(self, codomain=[space_out], domain=[space_in], backend=backend,
-                        labels=labels, dtype=Dtype.bool)
-        assert isinstance(data, self.backend.DataCls)  # TODO rm check after testing?
+                        labels=labels, dtype=Dtype.bool, device=backend.get_device_from_data(data))
         self.data = data
 
     def test_sanity(self):
         super().test_sanity()
         self.backend.test_mask_sanity(self)
-        assert self.codomain.num_spaces == 1 == self.domain.num_spaces
+        assert self.codomain.num_factors == 1 == self.domain.num_factors
+        assert isinstance(self.codomain.factors[0], ElementarySpace)
+        assert isinstance(self.domain.factors[0], ElementarySpace)
         assert self.large_leg.is_dual == self.small_leg.is_dual
         assert self.small_leg.is_subspace_of(self.large_leg)
         assert self.dtype == Dtype.bool
+        assert self.device == self.backend.get_device_from_data(self.data)
+
+        # check consistency of the basis perm of the small leg.
+        if self.large_leg._basis_perm is None:
+            if self.small_leg._basis_perm is None:
+                pass  # this is consistent.
+            else:
+                assert np.all(self.small_leg.basis_perm == np.arange(self.small_leg.dim))
+        else:
+            mask_in_internal_basis = self.backend.block_backend.to_numpy(
+                self.backend.mask_to_block(self),
+                bool
+            )
+            pi_1 = self.large_leg.basis_perm
+            pi_2_inv = self.small_leg.inverse_basis_perm
+            ranks = pi_1[mask_in_internal_basis][pi_2_inv]
+            # check if ranks is sorted
+            assert np.all(ranks[:-1] < ranks[1:])
 
     @property
     def large_leg(self) -> ElementarySpace:
         if self.is_projection:
-            return self.domain.spaces[0]
+            return self.domain.factors[0]
         else:
-            return self.codomain.spaces[0]
+            return self.codomain.factors[0]
 
     @property
     def small_leg(self) -> ElementarySpace:
         if self.is_projection:
-            return self.codomain.spaces[0]
+            return self.codomain.factors[0]
         else:
-            return self.domain.spaces[0]
+            return self.domain.factors[0]
 
     @classmethod
     def from_eye(cls, leg: ElementarySpace, is_projection: bool = True,
                  backend: TensorBackend | None = None,
-                 labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+                 labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                 device: str = None):
         """The identity map as a Mask, i.e. the mask that keeps all states and discards none.
 
         Parameters
         ----------
-        large_leg, backend, labels:
+        leg : ElementarySpace
+            The single leg for the Mask, equal to both its small and large leg.
+        is_projection, backend, labels
             Arguments, like for constructor of :class:`Mask`.
 
         See Also
         --------
         from_zero
-            The projection Mask, that discards all states and keeps none.
+            The projection Mask that discards all states and keeps none.
         """
-        diag = DiagonalTensor.from_eye(leg=leg, backend=backend, labels=labels, dtype=Dtype.bool)
+        diag = DiagonalTensor.from_eye(leg=leg, backend=backend, labels=labels, dtype=Dtype.bool,
+                                       device=device)
         res = cls.from_DiagonalTensor(diag)
         if not is_projection:
             return dagger(res)
@@ -1926,10 +2056,15 @@ class Mask(Tensor):
 
     @classmethod
     def from_block_mask(cls, block_mask: Block, large_leg: Space, backend: TensorBackend | None = None,
-                        labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+                        labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                        device: str = None):
         """Create a projection Mask from a boolean block.
 
         To get the related inclusion Mask, use :func:`dagger`.
+
+        The small leg of the projection is fully determined by the large leg and by the boolean
+        data. In particular, its basis permutation is such that the kept basis elements from the large
+        leg appear in order.
 
         Parameters
         ----------
@@ -1944,7 +2079,7 @@ class Mask(Tensor):
             raise SymmetryError
         if backend is None:
             backend = get_backend(symmetry=large_leg.symmetry)
-        block_mask = backend.block_backend.as_block(block_mask, Dtype.bool)
+        block_mask = backend.block_backend.as_block(block_mask, Dtype.bool, device=device)
         block_mask = backend.block_backend.apply_basis_perm(block_mask, [large_leg])
         data, small_leg = backend.mask_from_block(block_mask, large_leg=large_leg)
         return cls(data=data, space_in=large_leg, space_out=small_leg, is_projection=True,
@@ -1954,23 +2089,32 @@ class Mask(Tensor):
     def from_DiagonalTensor(cls, diag: DiagonalTensor):
         """Create a projection Mask from a boolean DiagonalTensor.
 
-        The resulting mask keeps exactly those basis elements for which the entry of `diag` is ``True``.
-        To get the related inclusion Mask, use the :func:`dagger`.
+        The resulting mask keeps exactly those basis elements for which the entry of `diag` is
+        ``True``. To get the related inclusion Mask, use the :func:`dagger`.
+
+        The small leg of the projection is fully determined by the large leg and by `diag`.
+        In particular, its basis permutation is such that those basis elements from the large leg
+        that are kept appear in order.
         """
         assert diag.dtype == Dtype.bool
         data, small_leg = diag.backend.diagonal_to_mask(diag)
         return cls(
-            data=data, space_in=diag.domain.spaces[0], space_out=small_leg, is_projection=True,
+            data=data, space_in=diag.domain.factors[0], space_out=small_leg, is_projection=True,
             backend=diag.backend, labels=diag.labels
         )
 
     @classmethod
     def from_indices(cls, indices: int | Sequence[int] | slice, large_leg: Space,
                      backend: TensorBackend = None,
-                     labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+                     labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                     device: str = None):
         """Create a projection Mask from the indices that are kept.
 
         To get the related inclusion Mask, use :func:`dagger`.
+
+        The small leg of the projection is fully determined by the large leg and by the `indices`.
+        In particular, its basis permutation is such that those basis elements from the large leg
+        that are kept appear in order.
 
         Parameters
         ----------
@@ -1982,12 +2126,14 @@ class Mask(Tensor):
         """
         block_mask = np.zeros(large_leg.dim, bool)
         block_mask[indices] = True
-        return cls.from_block_mask(block_mask, large_leg=large_leg, backend=backend, labels=labels)
+        return cls.from_block_mask(block_mask, large_leg=large_leg, backend=backend, labels=labels,
+                                   device=device)
 
     @classmethod
     def from_random(cls, large_leg: Space, small_leg: Space | None = None,
                     backend: TensorBackend | None = None, p_keep: float = .5, min_keep: int = 0,
                     labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                    device: str = None,
                     np_random: np.random.Generator = np.random.default_rng()):
         """Create a random projection Mask.
 
@@ -1998,7 +2144,9 @@ class Mask(Tensor):
         large_leg: Space
             The large leg, in the domain of the projection
         small_leg: Space, optional
-            The small leg. If given, must be a subspace of the `large_leg`.
+            The small leg. If given, must be a subspace of the `large_leg` with compatible basis
+            order (see notes in class docstring of :class:`Mask`).
+            If ``None``, a small leg is randomly generated, according to `p_keep` and `min_keep`.
         backend, labels
             Arguments, like for the constructor
         p_keep: float, optional
@@ -2008,14 +2156,16 @@ class Mask(Tensor):
             If `small_leg` is not given, the minimum number of sectors kept.
             Is ignored of `small_leg` is given.
         """
-
         if backend is None:
             backend = get_backend(symmetry=large_leg.symmetry)
+
+        if not isinstance(large_leg, ElementarySpace):
+            raise ValueError('large_leg must be ElementarySpace.')
 
         if small_leg is None:
             assert 0 <= p_keep <= 1
             diag = DiagonalTensor.from_random_uniform(large_leg, backend=backend, labels=labels,
-                                                      dtype=Dtype.float32)
+                                                      dtype=Dtype.float32, device=device)
             cutoff = 2 * p_keep - 1  # diagonal entries are uniform in [-1, 1].
             res = cls.from_DiagonalTensor(diag < cutoff)
 
@@ -2028,8 +2178,8 @@ class Mask(Tensor):
                 return Mask.from_eye(large_leg, is_projection=True, backend=backend, labels=labels)
             # explicitly constructing the small_leg with exactly min_keep sectors kept is
             # quite annoying bc of basis_perm. Instead we increase p_keep until we get there.
-            # first, try just a bit higher
-            p_keep = p_keep + 0.05 * (1 - p_keep)
+            # first, try a heuristic
+            p_keep = np.ceil(1.05 * min_keep / np.sum(large_leg.multiplicities))
             res = cls.from_DiagonalTensor(diag < (2 * p_keep - 1))
             for _ in range(20):
                 if np.sum(res.small_leg.multiplicities) >= min_keep:
@@ -2038,8 +2188,20 @@ class Mask(Tensor):
                 res = cls.from_DiagonalTensor(diag < (2 * p_keep - 1))
             raise RuntimeError('Could not fulfill min_keep')
 
-        assert small_leg.is_subspace_of(large_leg)
+        if not small_leg.is_subspace_of(large_leg):
+            raise ValueError('small_leg must be a subspace of the large leg.')
+        if not isinstance(small_leg, ElementarySpace):
+            raise ValueError('small_leg must be ElementarySpace.')
 
+        large_perm_trivial = large_leg._basis_perm is None \
+            or np.all(large_leg._basis_perm == np.arange(len(large_leg._basis_perm)))
+        small_perm_trivial = small_leg._basis_perm is None \
+            or np.all(small_leg._basis_perm == np.arange(len(small_leg._basis_perm)))
+
+        if (not large_perm_trivial) or (not small_perm_trivial):
+            msg = ('Generating random Masks with non-trivial, fixed basis_perm is hard and '
+                   'hopefully never needed.')
+            raise NotImplementedError(msg)
 
         def func(shape, coupled):
             num_keep = small_leg.sector_multiplicity(coupled)
@@ -2049,16 +2211,16 @@ class Mask(Tensor):
             return block
 
         diag = DiagonalTensor.from_sector_block_func(
-            func, leg=large_leg, backend=backend, labels=labels, dtype=Dtype.bool
+            func, leg=large_leg, backend=backend, labels=labels, dtype=Dtype.bool, device=device
         )
         res = cls.from_DiagonalTensor(diag)
-        res.small_leg._basis_perm = small_leg._basis_perm
-        res.small_leg._inverse_basis_perm = small_leg._inverse_basis_perm
+        assert res.small_leg == small_leg
         return res
 
     @classmethod
     def from_zero(cls, large_leg: Space, backend: TensorBackend | None = None,
-                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None):
+                  labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                  device: str = None):
         """The zero projection Mask, that discards all states and keeps none.
 
         To get the related inclusion Mask, use :func:`dagger`.
@@ -2069,6 +2231,9 @@ class Mask(Tensor):
             The large leg, in the domain of the projection
         backend, labels
             Arguments, like for the constructor
+        device: str
+            The device of the tensor. If ``None``, use the :attr:`BlockBackend.default_device` of
+            the block backend.
 
         See Also
         --------
@@ -2077,14 +2242,18 @@ class Mask(Tensor):
         """
         if backend is None:
             backend = get_backend(symmetry=large_leg.symmetry)
-        data = backend.zero_mask_data(large_leg=large_leg)
-        small_leg = ElementarySpace.from_null_space(symmetry=large_leg.symmetry,
-                                                    is_dual=large_leg.is_bra_space)
+        device = backend.block_backend.as_device(device)
+        data = backend.zero_mask_data(large_leg=large_leg, device=device)
+        if isinstance(large_leg, ElementarySpace):
+            is_dual = large_leg.is_dual
+        else:
+            is_dual = False
+        small_leg = ElementarySpace.from_null_space(symmetry=large_leg.symmetry, is_dual=is_dual)
         return cls(data, space_in=large_leg, space_out=small_leg, is_projection=True,
                    backend=backend, labels=labels)
 
     def __and__(self, other):  # ``self & other``
-        return self._binary_operand(other, operator.and_, '==')
+        return self._binary_operand(other, operator.and_, '&')
 
     def __bool__(self):
         msg = 'The truth value of a Mask is ambiguous. Use a.any() or a.all()'
@@ -2129,7 +2298,7 @@ class Mask(Tensor):
 
     def as_numpy_mask(self) -> np.ndarray:
         res = self.as_block_mask()
-        return self.backend.block_backend.block_to_numpy(res, numpy_dtype=bool)
+        return self.backend.block_backend.to_numpy(res, numpy_dtype=bool)
 
     def as_DiagonalTensor(self, dtype=Dtype.complex128) -> DiagonalTensor:
         return DiagonalTensor(data=self.backend.mask_to_diagonal(self, dtype=dtype),
@@ -2147,9 +2316,8 @@ class Mask(Tensor):
 
     def _binary_operand(self, other: bool | Mask, func, operand: str,
                         return_NotImplemented: bool = True) -> Mask:
-        """Utility function for a shared implementation of binary functions, whose second argument
-        may be a scalar ("to be broadcast") or a Mask.
-
+        """Utility function for a shared implementation of binary functions.
+        
         Parameters
         ----------
         other
@@ -2190,9 +2358,11 @@ class Mask(Tensor):
                     is_projection=self.is_projection, backend=backend,
                     labels=_get_matching_labels(self.labels, other.labels))
 
-    def copy(self, deep=True) -> Mask:
+    def copy(self, deep=True, device: str = None) -> Mask:
         if deep:
             data = self.backend.copy_data(self)
+        elif device is not None:
+            data = self.backend.move_to_device(self, device=device)
         else:
             data = self.data
         return Mask(data, space_in=self.large_leg, space_out=self.small_leg,
@@ -2204,6 +2374,10 @@ class Mask(Tensor):
     def logical_not(self):
         """Alias for :meth:`orthogonal_complement`"""
         return self._unary_operand(operator.invert)
+
+    def move_to_device(self, device: str):
+        self.data = self.backend.move_to_device(self, device=device)
+        self.device = self.backend.block_backend.as_device(device)
 
     def orthogonal_complement(self):
         """The "opposite" Mask, that keeps exactly what self discards and vv."""
@@ -2239,69 +2413,33 @@ class Mask(Tensor):
                     is_projection=True, backend=self.backend, labels=self.labels)
 
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
-        """Export `self` into a HDF5 file.
-
-        This method saves all the data it needs to reconstruct `self` with :meth:`from_hdf5`.
-
-        Specifically, it saves :attr:`chinfo`, :attr:`legs`, :attr:`dtype` under these names,
-        :attr:`qtotal` as ``"total_charge"``,
-        :attr:`_data` as ``"blocks"``, :attr:`_qdata` as ``:block_inds"``,
-        the :attr:`labels` in the list-form (as returned by :meth:`get_leg_labels`).
-        Moreover, it saves :attr:`rank`, :attr:`shape` and
-        :attr:`_qdata_sorted` (under the name ``"block_inds_sorted"``) as HDF5 attributes.
-
-        Parameters
-        ----------
-        hdf5_saver : :class:`~tenpy.tools.hdf5_io.Hdf5Saver`
-            Instance of the saving engine.
-        h5gr : :class`Group`
-            HDF5 group which is supposed to represent `self`.
-        subpath : str
-            The `name` of `h5gr` with a ``'/'`` in the end.
-        """
-        hdf5_saver.save(self.domain, subpath + "domain")
-        hdf5_saver.save(self.codomain, subpath + "codomain")
-        hdf5_saver.save(self.legs, subpath + "legs")
-        hdf5_saver.save(self.backend, subpath + "backend")
-        hdf5_saver.save(self._labels, subpath + "labels")
-        hdf5_saver.save(self.symmetry, subpath + "symmetry")
-        hdf5_saver.save(self.data, subpath + "data")
-        hdf5_saver.save(self.is_projection, subpath + "is_projection")
-        h5gr.attrs["dtype"] = self.dtype
-
+        """Export Mask to hdf5 such that it can be re-imported with from_hdf5"""
+        hdf5_saver.save(self.domain, subpath + 'domain')
+        hdf5_saver.save(self.codomain, subpath + 'codomain')
+        hdf5_saver.save(self.backend, subpath + 'backend')
+        hdf5_saver.save(self.data, subpath + 'data')
+        hdf5_saver.save(self.symmetry, subpath + 'symmetry')
+        h5gr.attrs['dtype'] = self.dtype.name
+        h5gr.attrs['num_legs'] = self.num_legs
+        h5gr.attrs['shape'] = np.array(self.shape, np.intp)
 
     @classmethod
     def from_hdf5(cls, hdf5_loader, h5gr, subpath):
-        """Load instance from a HDF5 file.
-
-        This method reconstructs a class instance from the data saved with :meth:`save_hdf5`.
-
-        Parameters
-        ----------
-        hdf5_loader : :class:`~tenpy.tools.hdf5_io.Hdf5Loader`
-            Instance of the loading engine.
-        h5gr : :class:`Group`
-            HDF5 group which is represent the object to be constructed.
-        subpath : str
-            The `name` of `h5gr` with a ``'/'`` in the end.
-
-        Returns
-        -------
-        obj : cls
-            Newly generated class instance containing the required data.
-        """
-        obj = cls.__new__(cls)  # create class instance, no __init__() call
+        """Import Mask from hdf5"""
+        obj = cls.__new__(cls)
         hdf5_loader.memorize_load(h5gr, obj)
-        obj.domain = hdf5_loader.load(subpath + "domain")
-        obj.codomain = hdf5_loader.load(subpath + "codomain")
-        obj.legs = hdf5_loader.load(subpath + "legs")
-        obj.backend = hdf5_loader.load(subpath + "backend")
-        obj._labels = hdf5_loader.load(subpath + "labels")
-        obj.symmetry = hdf5_loader.load(subpath + "symmetry")
-        obj._data = hdf5_loader.load(subpath + "data")
-        obj.is_projection =hdf5_loader.load(subpath + "is_projection")
-        obj.test_sanity()
-        return obj
+
+        obj.domain = hdf5_loader.load(subpath + 'domain')
+        obj.codomain = hdf5_loader.load(subpath + 'codomain')
+        obj.symmetry = hdf5_loader.load(subpath + 'symmetry')
+        obj.backend = hdf5_loader.load(subpath + 'backend')
+        obj.data = hdf5_loader.load(subpath + 'data')
+        obj.dtype = hdf5_loader.get_attr(h5gr, 'dtype')
+        obj.num_legs = hdf5_loader.get_attr(h5gr, 'num_legs')
+        obj.shape = hdf5_loader.get_attr(h5gr, 'shape')
+        obj.dtype = hdf5_loader.get_attr(h5gr, 'dtype')
+        obj.num_legs = hdf5_loader.get_attr(h5gr, 'num_legs')
+        obj.shape = hdf5_loader.get_attr(h5gr, 'shape')
 
 
 class ChargedTensor(Tensor):
@@ -2375,7 +2513,7 @@ class ChargedTensor(Tensor):
     Consider for example a U(1) symmetry which conserves the boson particle number and the
     integer sectors label that particle number. Then, the boson creation operator :math:`b^\dagger`
     can be written as a charged tensor with charge leg
-    ``C == ElementarySpace(u1_sym, sectors=[[+1]])``.
+    ``C == ElementarySpace(u1_sym, defining_sectors=[[+1]])``.
     Similarly, if the Sz magnetization of a spin system is conserved, the spin raising operator
     can be written only as a charged tensor.
 
@@ -2390,9 +2528,10 @@ class ChargedTensor(Tensor):
     """
 
     _CHARGE_LEG_LABEL = '!'  # canonical label for the charge leg
+    
     def __init__(self, invariant_part: SymmetricTensor, charged_state: Block | None):
-        assert invariant_part.domain.num_spaces > 0, 'domain must contain at least the charge leg'
-        self.charge_leg = invariant_part.domain.spaces[0]
+        assert invariant_part.domain.num_factors > 0, 'domain must contain at least the charge leg'
+        self.charge_leg = invariant_part.domain.factors[0]
         assert invariant_part._labels[-1] == self._CHARGE_LEG_LABEL, 'incorrect label on charge leg'
         if not self.supports_symmetry(invariant_part.symmetry):
             msg = f'ChargedTensor is not well-defined for symmetry {invariant_part.symmetry}.'
@@ -2402,61 +2541,64 @@ class ChargedTensor(Tensor):
                 msg = f'charged_state can not be specified for symmetry {invariant_part.symmetry}'
                 raise SymmetryError(msg)
             charged_state = invariant_part.backend.block_backend.as_block(
-                charged_state, invariant_part.dtype
+                charged_state, invariant_part.dtype, device=invariant_part.device
             )
         self.charged_state = charged_state
         self.invariant_part = invariant_part
         Tensor.__init__(
             self,
             codomain=invariant_part.codomain,
-            domain=ProductSpace(
-                invariant_part.domain.spaces[1:], symmetry=invariant_part.symmetry,
-                backend=invariant_part.backend
+            domain=TensorProduct(
+                invariant_part.domain.factors[1:], symmetry=invariant_part.symmetry,
             ),
             backend=invariant_part.backend,
             labels=invariant_part._labels[:-1],
-            dtype=invariant_part.dtype
+            dtype=invariant_part.dtype,
+            device=invariant_part.device
         )
 
     def test_sanity(self):
         super().test_sanity()
         assert self.labels == self.invariant_part.labels[:-1]
         self.invariant_part.test_sanity()
+        assert self.invariant_part.device == self.device
         if self.charged_state is not None:
-            assert self.backend.block_backend.block_shape(self.charged_state) == (self.charge_leg.dim,)
+            self.backend.block_backend.test_block_sanity(
+                self.charged_state, expect_shape=(self.charge_leg.dim,), expect_device=self.device
+            )
 
     @staticmethod
-    def _parse_inv_domain(domain: ProductSpace, charge: Space | Sector | Sequence[int],
-                          backend: TensorBackend) -> tuple[ProductSpace, Space]:
+    def _parse_inv_domain(domain: TensorProduct, charge: Space | Sector | Sequence[int]
+                          ) -> tuple[TensorProduct, Space]:
         """Helper function to build the domain of the invariant part.
 
         Parameters
         ----------
-        domain: ProductSpace
+        domain: TensorProduct
             The domain of the ChargedTensor
         charge: Space | SectorLike
             Specification for the charge_leg, either as a space or a single sector
-        backend: TensorBackend
-            The backend, used for building the output ProductSpace.
 
         Returns
         -------
-        inv_domain: ProductSpace
+        inv_domain: TensorProduct
             The domain of the invariant part
         charge_leg: Space
             The charge_leg of the resulting ChargedTensor
         """
-        assert isinstance(domain, ProductSpace), 'call _init_parse_args first?'
-        if not isinstance(charge, Space):
-            sectors = np.asarray(charge, int)[None, :]
-            charge = Space(domain.symmetry, sectors)
-        return domain.left_multiply(charge, backend=backend), charge
+        assert isinstance(domain, TensorProduct), 'call _init_parse_args first?'
+        if isinstance(charge, ElementarySpace):
+            pass
+        elif isinstance(charge, (Space, Leg)):
+            raise TypeError
+        else:
+            charge = ElementarySpace(domain.symmetry, np.asarray(charge, int)[None, :])
+        return domain.left_multiply(charge), charge
 
     @staticmethod
     def _parse_inv_labels(labels: Sequence[list[str | None] | None] | list[str | None] | None,
-                          codomain: ProductSpace, domain: ProductSpace):
-        """Utility like :meth:`_init_parse_labels`, but also returns the labels for the invariant
-        part."""
+                          codomain: TensorProduct, domain: TensorProduct):
+        """Utility like :meth:`_init_parse_labels`, but also returns invariant part labels."""
         labels = ChargedTensor._init_parse_labels(labels, codomain, domain)
         inv_labels = labels + [ChargedTensor._CHARGE_LEG_LABEL]
         return labels, inv_labels
@@ -2464,14 +2606,15 @@ class ChargedTensor(Tensor):
     @classmethod
     def from_block_func(cls, func,
                         charge: Space | Sector,
-                        codomain: ProductSpace | list[Space],
-                        domain: ProductSpace | list[Space] | None = None,
+                        codomain: TensorProduct | list[Space],
+                        domain: TensorProduct | list[Space] | None = None,
                         charged_state: Block | None = None,
                         backend: TensorBackend | None = None,
                         labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                         func_kwargs: dict = None,
                         shape_kw: str = None,
-                        dtype: Dtype = None,):
+                        dtype: Dtype = None,
+                        device: str = None):
         """Create a charged tensor with inv_part from :meth:`SymmetricTensor.from_block_func`.
 
         Parameters
@@ -2487,21 +2630,27 @@ class ChargedTensor(Tensor):
             Argument for constructor of :class:`ChargedTensor`.
         """
         codomain, domain, backend, symmetry = cls._init_parse_args(codomain, domain, backend)
-        inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge, backend=backend)
+        if device is None:
+            if charged_state is None:
+                device = backend.block_backend.default_device
+            else:
+                device = backend.block_backend.get_device(charged_state)
+        inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge)
         inv = SymmetricTensor.from_block_func(
             func=func, codomain=codomain, domain=inv_domain, backend=backend, labels=labels,
-            func_kwargs=func_kwargs, shape_kw=shape_kw, dtype=dtype
+            func_kwargs=func_kwargs, shape_kw=shape_kw, dtype=dtype, device=device
         )
         return ChargedTensor(inv, charged_state)
 
     @classmethod
     def from_dense_block(cls, block: Block,
-                         codomain: ProductSpace | list[Space],
-                         domain: ProductSpace | list[Space] | None = None,
+                         codomain: TensorProduct | list[Space],
+                         domain: TensorProduct | list[Space] | None = None,
                          charge: Space | Sector | None = None,
                          backend: TensorBackend | None = None,
                          labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                          dtype: Dtype = None,
+                         device: str = None,
                          tol: float = 1e-6
                          ):
         """Convert a dense block of to a ChargedTensor, if possible.
@@ -2519,28 +2668,30 @@ class ChargedTensor(Tensor):
         codomain, domain, backend, labels
             Arguments, like for constructor of :class:`SymmetricTensor`.
         dtype: Dtype, optional
-        If given, the block is converted to that dtype and the resulting tensor will have that
+            If given, the block is converted to that dtype and the resulting tensor will have that
             dtype. By default, we detect the dtype from the block.
         """
         codomain, domain, backend, symmetry = cls._init_parse_args(codomain, domain, backend)
         labels, inv_labels = cls._parse_inv_labels(labels, codomain, domain)
         if not symmetry.can_be_dropped:
             raise SymmetryError
-        block, dtype = backend.block_backend.as_block(block, dtype, return_dtype=True)
-        inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge, backend=backend)
+        block = backend.block_backend.as_block(block, dtype, device=device)
+        if charge is None:
+            raise NotImplementedError
+        inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge)
         if charge_leg.dim != 1:
-            raise NotImplementedError  # TODO
+            raise NotImplementedError
         inv_part = SymmetricTensor.from_dense_block(
             block=backend.block_backend.add_axis(block, -1),
-            codomain=codomain, domain=inv_domain, backend=backend, labels=inv_labels, dtype=dtype,
+            codomain=codomain, domain=inv_domain, backend=backend, labels=inv_labels,
             tol=tol
         )
         return cls(inv_part, charged_state=[1])
 
     @classmethod
     def from_dense_block_single_sector(cls, vector: Block, space: Space, sector: Sector,
-                                       backend: TensorBackend | None = None, label: str | None = None
-                                       ) -> ChargedTensor:
+                                       backend: TensorBackend | None = None, label: str | None = None,
+                                       device: str = None) -> ChargedTensor:
         """Given a `vector` in single `space`, represent the components in a single given `sector`.
 
         The resulting charged tensor has a charge lector which has the `sector`.
@@ -2552,12 +2703,12 @@ class ChargedTensor(Tensor):
         if backend is None:
             backend = get_backend(symmetry=space.symmetry)
         if space.symmetry.sector_dim(sector) > 1:
-            # TODO how to handle multi-dim sectors? which dummy leg state to give?
+            # how to handle multi-dim sectors? which dummy leg state to give?
             raise NotImplementedError
         charge_leg = ElementarySpace(space.symmetry, [sector])
-        vector = backend.block_backend.as_block(vector)
+        vector = backend.block_backend.as_block(vector, device=device)
         if space._basis_perm is not None:
-            i = space.sectors_where(sector)
+            i = space.sector_decomposition_where(sector)
             perm = rank_data(space.basis_perm[slice(*space.slices[i])])
             vector = backend.block_backend.apply_leg_permutations(vector, [perm])
         inv_data = backend.inv_part_from_dense_block_single_sector(
@@ -2579,7 +2730,7 @@ class ChargedTensor(Tensor):
                 raise ValueError('Can not instantiate ChargedTensor with no legs and unspecified charged_states.')
             # OPTIMIZE ?
             inv_block = invariant_part.to_dense_block()
-            return invariant_part.backend.block_backend.block_inner(
+            return invariant_part.backend.block_backend.inner(
                 inv_block, charged_state, do_dagger=False
             )
         return cls(invariant_part, charged_state)
@@ -2587,11 +2738,7 @@ class ChargedTensor(Tensor):
     @classmethod
     def from_two_charge_legs(cls, invariant_part: SymmetricTensor, state1: Block | None,
                              state2: Block | None) -> ChargedTensor | complex:
-        """Create a charged tensor from an invariant part with two charged legs.
-
-        Parameters
-        -
-        """
+        """Create a charged tensor from an invariant part with two charged legs."""
         inv_part = combine_legs(invariant_part, [-2, -1])
         inv_part.set_label(-1, cls._CHARGE_LEG_LABEL)
         if state1 is None and state2 is None:
@@ -2603,20 +2750,33 @@ class ChargedTensor(Tensor):
         return cls.from_invariant_part(inv_part, state)
 
     @classmethod
-    def from_zero(cls, codomain: ProductSpace | list[Space],
-                  domain: ProductSpace | list[Space] | None = None,
+    def from_zero(cls, codomain: TensorProduct | list[Space],
+                  domain: TensorProduct | list[Space] | None = None,
                   charge: Space | Sector | None = None,
                   charged_state: Block | None = None,
                   backend: TensorBackend | None = None,
                   labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                   dtype: Dtype = Dtype.complex128,
+                  device: str = None,
                   ):
-        """A zero tensor."""
+        """A zero tensor.
+
+        Parameters
+        ----------
+        device: str, optional
+            The device for the tensor. Per default, we try to use the device of the `charged_state`.
+            If not available, use the default device for the backend.
+        """
         codomain, domain, backend, symmetry = cls._init_parse_args(codomain, domain, backend)
-        inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge, backend=backend)
+        if device is None:
+            if charged_state is None:
+                device = backend.block_backend.default_device
+            else:
+                device = backend.block_backend.get_device(charged_state)
+        inv_domain, charge_leg = cls._parse_inv_domain(domain=domain, charge=charge)
         labels, inv_labels = cls._parse_inv_labels(labels, codomain, domain)
         inv_part = SymmetricTensor.from_zero(codomain=codomain, domain=inv_domain, backend=backend,
-                                             labels=inv_labels, dtype=dtype)
+                                             labels=inv_labels, dtype=dtype, device=device)
         return ChargedTensor(inv_part, charged_state)
 
     @classmethod
@@ -2626,12 +2786,12 @@ class ChargedTensor(Tensor):
 
     def as_SymmetricTensor(self) -> SymmetricTensor:
         """Convert to symmetric tensor, if possible."""
-        if not np.all(self.charge_leg.sectors == self.symmetry.trivial_sector[None, :]):
+        if not np.all(self.charge_leg.sector_decomposition == self.symmetry.trivial_sector[None, :]):
             raise SymmetryError('Not a symmetric tensor')
         if self.charge_leg.dim == 1:
             res = squeeze_legs(self.invariant_part, -1)
             if self.charged_state is not None:
-                res = self.backend.block_backend.block_item(self.charged_state) * res
+                res = self.backend.block_backend.item(self.charged_state) * res
             return res
         if self.charged_state is None:
             raise ValueError('Can not convert to SymmetricTensor. charged_state is not defined.')
@@ -2642,11 +2802,14 @@ class ChargedTensor(Tensor):
         res = tdot(state, self.invariant_part, 0, -1)
         return bend_legs(res, num_codomain_legs=self.num_codomain_legs)
 
-    def copy(self, deep=True) -> ChargedTensor:
-        inv_part = self.invariant_part.copy(deep=deep)  # this extra layer is cheap...
+    def copy(self, deep=True, device: str = None) -> ChargedTensor:
+        inv_part = self.invariant_part.copy(deep=deep, device=device)
         charged_state = self.charged_state
-        if deep and self.charged_state is not None:
-            charged_state = self.backend.block_backend.block_copy(charged_state)
+        if charged_state is not None:
+            if deep:
+                charged_state = self.backend.block_backend.copy_block(charged_state, device=device)
+            elif device is not None:
+                charged_state = self.backend.block_backend.as_block(charged_state, device=device)
         return ChargedTensor(inv_part, charged_state)
 
     def _get_item(self, idx: list[int]) -> bool | float | complex:
@@ -2654,13 +2817,22 @@ class ChargedTensor(Tensor):
             raise IndexError('Can not index a ChargedTensor with unspecified charged_state.')
         if len(self.charged_state) > 10:
             raise NotImplementedError  # should do sth smarter...
-        return sum((a * self.invariant_part._get_item([*idx, n])
+        return sum((self.backend.block_backend.item(a) * self.invariant_part._get_item([*idx, n])
                     for n, a in enumerate(self.charged_state)),
                    start=self.dtype.zero_scalar)
 
+    def move_to_device(self, device: str):
+        self.invariant_part.move_to_device(device)
+        self.device = self.invariant_part.device
+        if self.charged_state is not None:
+            self.charged_state = self.backend.block_backend.as_block(
+                self.charged_state, device=device
+            )
+
     def _repr_header_lines(self, indent: str) -> list[str]:
         lines = Tensor._repr_header_lines(self, indent=indent)
-        lines.append(f'{indent}* Charge Leg: dim={round(self.charge_leg.dim, 3)} sectors={self.charge_leg.sectors}')
+        lines.append(f'{indent}* Charge Leg: dim={round(self.charge_leg.dim, 3)} '
+                     f'sectors={self.charge_leg.sector_decomposition}')
         start = f'{indent}* Charged State: '
         if self.charged_state is None:
             lines.append(f'{start}unspecified')
@@ -2673,7 +2845,7 @@ class ChargedTensor(Tensor):
         return lines
 
     def set_label(self, pos: int, label: str | None):
-        pos = _normalize_idx(pos, self.num_legs)
+        pos = to_valid_idx(pos, self.num_legs)
         self.invariant_part.set_label(pos, label)
         return super().set_label(pos, label)
 
@@ -2686,15 +2858,17 @@ class ChargedTensor(Tensor):
         if self.charged_state is None:
             raise ValueError('charged_state not specified.')
         inv_block = self.invariant_part.to_dense_block(leg_order=None, dtype=dtype)
-        block = self.backend.block_backend.block_tdot(inv_block, self.charged_state, [-1], [0])
+        block = self.backend.block_backend.tdot(inv_block, self.charged_state, [-1], [0])
         if dtype is not None:
-            block = self.backend.block_backend.block_to_dtype(block, dtype)
+            block = self.backend.block_backend.to_dtype(block, dtype)
         if leg_order is not None:
-            block = self.backend.block_backend.block_permute_axes(block, self._as_leg_idcs(leg_order))
+            block = self.backend.block_backend.permute_axes(block, self._as_leg_idcs(leg_order))
         return block
 
     def to_dense_block_single_sector(self) -> Block:
-        """Assumes a single-leg tensor living in a single sector and returns its components within
+        """Return the components associated with a single sector.
+
+        Assumes a single-leg tensor living in a single sector and returns its components within
         that sector.
 
         See Also
@@ -2710,7 +2884,38 @@ class ChargedTensor(Tensor):
         if self.charge_leg.sector_dims[0] > 1:
             raise NotImplementedError
         block = self.backend.inv_part_to_dense_block_single_sector(self.invariant_part)
-        return self.backend.block_backend.block_item(self.charged_state) * block
+        return self.backend.block_backend.item(self.charged_state) * block
+
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        """Export ChargedTensor to hdf5 such that it can be re-imported with from_hdf5"""
+        hdf5_saver.save(self.domain, subpath + 'domain')
+        hdf5_saver.save(self.codomain, subpath + 'codomain')
+        hdf5_saver.save(self.backend, subpath + 'backend')
+        hdf5_saver.save(self.data, subpath + 'data')
+        hdf5_saver.save(self.symmetry, subpath + 'symmetry')
+        h5gr.attrs['dtype'] = self.dtype.name
+        h5gr.attrs['num_legs'] = self.num_legs
+        h5gr.attrs['shape'] = np.array(self.shape, np.intp)
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        """Import ChargedTensor from hdf5"""
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.domain = hdf5_loader.load(subpath + 'domain')
+        obj.codomain = hdf5_loader.load(subpath + 'codomain')
+        obj.symmetry = hdf5_loader.load(subpath + 'symmetry')
+        obj.backend = hdf5_loader.load(subpath + 'backend')
+        obj.data = hdf5_loader.load(subpath + 'data')
+        obj.dtype = hdf5_loader.get_attr(h5gr, 'dtype')
+        obj.num_legs = hdf5_loader.get_attr(h5gr, 'num_legs')
+        obj.shape = hdf5_loader.get_attr(h5gr, 'shape')
+        obj.dtype = hdf5_loader.get_attr(h5gr, 'dtype')
+        obj.num_legs = hdf5_loader.get_attr(h5gr, 'num_legs')
+        obj.shape = hdf5_loader.get_attr(h5gr, 'shape')
+
+        return obj
 
 
 _ElementwiseType = TypeVar('_ElementwiseType', Number, DiagonalTensor)
@@ -2801,7 +3006,6 @@ def add_trivial_leg(tens: Tensor,
         but if `domain_pos` is given, we have ``result.domain[domain_pos].is_dual == is_dual``,
         which are mutually opposite.
     """
-
     res_num_legs = tens.num_legs + 1
     # parse position to format:
     #  - leg_pos: int,  0 <= leg_pos < res_num_legs
@@ -2810,7 +3014,7 @@ def add_trivial_leg(tens: Tensor,
     #  - is_dual: bool, if the leg in the [co]domain should be dual
     if legs_pos is not None:
         assert codomain_pos is None and domain_pos is None
-        legs_pos = _normalize_idx(legs_pos, res_num_legs)
+        legs_pos = to_valid_idx(legs_pos, res_num_legs)
         add_to_domain = (legs_pos > tens.num_codomain_legs)
         if add_to_domain:
             co_domain_pos = res_num_legs - 1 - legs_pos
@@ -2819,14 +3023,14 @@ def add_trivial_leg(tens: Tensor,
     elif codomain_pos is not None:
         assert legs_pos is None and domain_pos is None
         res_codomain_legs = tens.num_codomain_legs + 1
-        codomain_pos = _normalize_idx(codomain_pos, res_codomain_legs)
+        codomain_pos = to_valid_idx(codomain_pos, res_codomain_legs)
         add_to_domain = False
         co_domain_pos = codomain_pos
         legs_pos = codomain_pos
     elif domain_pos is not None:
         assert legs_pos is None and codomain_pos is None
         res_domain_legs = tens.num_domain_legs + 1
-        domain_pos = _normalize_idx(domain_pos, res_domain_legs)
+        domain_pos = to_valid_idx(domain_pos, res_domain_legs)
         add_to_domain = True
         co_domain_pos = domain_pos
         legs_pos = res_num_legs - 1 - domain_pos
@@ -2868,7 +3072,7 @@ def add_trivial_leg(tens: Tensor,
     )
 
 
-@_elementwise_function(block_func='block_angle', maps_zero_to_zero=True)
+@_elementwise_function(block_func='angle', maps_zero_to_zero=True)
 def angle(x: _ElementwiseType) -> _ElementwiseType:
     """The angle of a complex number, :ref:`elementwise <diagonal_elementwise>`.
 
@@ -2903,6 +3107,7 @@ def almost_equal(tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol=1e
     Unlike numpy, our definition is symmetric under exchanging
     """
     check_same_legs(tensor_1, tensor_2)
+    _ = get_same_device(tensor_1, tensor_2)
 
     if isinstance(tensor_1, Mask):
         if isinstance(tensor_2, Mask):
@@ -2951,11 +3156,11 @@ def almost_equal(tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol=1e
             backend = get_same_backend(tensor_1, tensor_2)
             if tensor_1.charge_leg.dim == 1:
                 return almost_equal(
-                    backend.block_backend.block_item(tensor_2.charged_state) * tensor_1.invariant_part,
-                    backend.block_backend.block_item(tensor_1.charged_state) * tensor_2.invariant_part,
+                    backend.block_backend.item(tensor_2.charged_state) * tensor_1.invariant_part,
+                    backend.block_backend.item(tensor_1.charged_state) * tensor_2.invariant_part,
                     rtol=rtol, atol=atol
                 )
-            raise NotImplementedError  # TODO
+            raise NotImplementedError
 
     msg = f'Incompatible types: {tensor_1.__class__.__name__} and {tensor_2.__class__.__name__}'
     raise TypeError(msg)
@@ -2988,7 +3193,6 @@ def apply_mask(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
         Note that if the leg is in the domain this means ``mask.large_leg == domain[n].dual == legs[-n]``!
     leg: int | str
         Which leg of the tensor to project
-    TODO add arg to specify the label? Now we just use the same as from `tensor`.
 
     Returns
     -------
@@ -3000,6 +3204,7 @@ def apply_mask(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
     --------
     enlarge_leg, compose, tdot, scale_axis, apply_mask_DiagonalTensor
     """
+    _ = get_same_device(tensor, mask)
     in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg)
     assert mask.is_projection
     if in_domain:
@@ -3042,6 +3247,7 @@ def apply_mask_DiagonalTensor(tensor: DiagonalTensor, mask: Mask) -> DiagonalTen
     --------
     apply_mask
     """
+    _ = get_same_device(tensor, mask)
     assert mask.is_projection
     assert mask.large_leg == tensor.leg
     backend = get_same_backend(tensor, mask)
@@ -3104,6 +3310,8 @@ def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | Non
     is mixed up by accident), the error message is amended accordingly on mismatched legs.
     If the legs still match regardless, a warning is issued.
     """
+    if not t1.symmetry.is_same_symmetry(t2.symmetry):
+        raise ValueError('Incompatible symmetries')
     incompatible_labels = False
     for n1, l1 in enumerate(t1._labels):
         n2 = t2._labelmap.get(l1, None)
@@ -3127,10 +3335,11 @@ def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | Non
 
 def combine_legs(tensor: Tensor,
                  *which_legs: list[int | str],
-                 combined_spaces: list[ProductSpace | None] = None,
+                 pipe_dualities: list[bool] = None,
+                 pipes: list[LegPipe | None] = None,
                  levels: list[int] | dict[str | int, int] = None,
                  ) -> Tensor:
-    """Combine (multiple) groups of legs, each to a :class:`ProductSpace`.
+    """Combine (multiple) groups of legs, each to a :class:`LegPipe`.
 
     If the legs to be combined are contiguous to begin with (and ordered within each group),
     the combine is just a grouping of the legs::
@@ -3147,7 +3356,7 @@ def combine_legs(tensor: Tensor,
 
     Note that the conventional leg order in the domain goes right to left, such that the first
     element in the group, ``7``, is the *right*-most leg in the product, but we still have
-    ``result.domain[2] == ProductSpace([T.domain[2], T.domain[3], T.domain[4]])`` in left-to-right
+    ``result.domain[2] == LegPipe([T.domain[2], T.domain[3], T.domain[4]])`` in left-to-right
     order.
     This is needed to make :func:`combine_legs` cooperate seamlessly with :func:`bend_legs`,
     i.e. you get the same result if you bend legs 6-9 to the codomain first and combine ``[7, 8, 9]``
@@ -3156,9 +3365,9 @@ def combine_legs(tensor: Tensor,
     and then take the dual if we need the combined leg in the domain::
 
         result.domain[2] == result.legs[4].dual
-                         == ProductSpace([T.legs[7], T.legs[8], T.legs[9]]).dual
-                         == ProductSpace([T.domain[4].dual, T.domain[3].dual, T.domain[2].dual]).dual
-                         == ProductSpace([T.domain[2], T.domain[3], T.domain[4]])
+                         == LegPipe([T.legs[7], T.legs[8], T.legs[9]]).dual
+                         == LegPipe([T.domain[4].dual, T.domain[3].dual, T.domain[2].dual]).dual
+                         == LegPipe([T.domain[2], T.domain[3], T.domain[4]])
 
     In the general case, the legs are permuted first, to match that leg order.
     The combined leg takes the position of the first of its original legs on the tensor.
@@ -3178,29 +3387,26 @@ def combine_legs(tensor: Tensor,
         |       │           │     ╰──┴─╥╯
         |       │           │          ║
 
-    .. warning ::
-        Combining legs introduces a basis-transformation. This is important to consider if
-        you convert to a dense block (e.g. via :meth:`Tensor.to_dense_block`).
-        In particular it is (in general) impossible to obtain
-        ``some_tens.combine_legs(...).to_numpy()`` via
-        ``some_tens.to_numpy().transpose(transp).reshape(new_shape)``.
-        See :meth:`ProductSpace.get_basis_transformation`.
-        TODO include an example / doctest?
-
     Parameters
     ----------
     tensor:
         The tensor whose legs should be combined.
     *which_legs : list of {int | str}
         One or more groups of legs to combine.
-    combined_spaces: list of {ProductSpace | None}, optional
-        For each ``group = which_legs[i]`` of legs, the resulting ProductSpace can be passed to
+    pipe_dualities : list of bool, optional
+        Can optionally specify the :attr:`LegPipe.is_dual` attribute of each resulting pipe.
+        This is an arbitrary choice for each pipe.
+        The pipes are formed such that ``result.legs.[pipe_idx].is_dual == pipe_dualities[i]``.
+        Defaults to all ``False``.
+    pipes: list of {LegPipe | None}, optional
+        For each ``group = which_legs[i]`` of legs, the resulting pipe can be passed to
         avoid recomputation. If we group to the codomain (``group[0] < tensor.num_codomain_legs``),
-        we expect ``ProductSpace([tensor._as_codomain_leg(i) for i in group])``.
-        Otherwise we expect ``ProductSpace([tensor._as_domain_leg(i) for i in reversed(group)])``.
+        we expect ``LegPipe([tensor._as_codomain_leg(i) for i in group])``.
+        Otherwise we expect ``LegPipe([tensor._as_domain_leg(i) for i in reversed(group)])``.
         Note the reverse order in the latter case!
         In the intended use case, when another tensor with the same legs has already been combined,
-        obtain those product spaces via :meth:`Tensor.get_leg_co_domain`.
+        obtain those pipes simply via :meth:`Tensor.get_leg_co_domain`.
+        It is possible to pass only some of the pipes, use ``None`` as filler.
     levels: optional
         Is ignored if the symmetry has symmetric braids. Otherwise, these levels specify the
         chirality of any possible braids induced by permuting the legs. See :func:`permute_legs`.
@@ -3229,8 +3435,12 @@ def combine_legs(tensor: Tensor,
     if isinstance(tensor, ChargedTensor):
         # note: its important to parse negative integers before via tensor.get_leg_idcs, since
         #       the invariant part has an additional leg.
+        if levels is not None:
+            # charge leg is not combined with anything and thus does not braid.
+            # so its level is irrelevant. just make sure its not a duplicate
+            levels = [*levels, min(levels) - 1]
         inv_part = combine_legs(
-            tensor.invariant_part, *which_legs, combined_spaces=combined_spaces
+            tensor.invariant_part, *which_legs, pipe_dualities=pipe_dualities, pipes=pipes
         )
         return ChargedTensor(inv_part, charged_state=tensor.charged_state)
     #
@@ -3266,30 +3476,29 @@ def combine_legs(tensor: Tensor,
     inv_perm = inverse_permutation([*codomain_idcs, *domain_idcs_reversed])
     which_legs = [[inv_perm[l] for l in group] for group in which_legs]
     to_combine = [idx for group in which_legs for idx in group]
+    J = tensor.num_codomain_legs
     codomain_groups = {group[0]: group for group in which_legs if group[0] < J}
     domain_groups = {group[0]: group for group in which_legs if group[0] >= J}
     #
     # 3) build new domain and codomain, labels
     # ==============================================================================================
-    if combined_spaces is None:
-        combined_spaces = [None] * len(which_legs)
+    if pipes is None:
+        pipes = [None] * len(which_legs)
+    if pipe_dualities is None:
+        pipe_dualities = [False] * len(which_legs)
     codomain_spaces = []
     codomain_labels = []
     domain_labels_reversed = []
     domain_spaces_reversed = []
-    i = 0  # have already used combined_spaces[:i]
+    i = 0  # have already used pipes[:i]
     for n in range(N):
         if n in codomain_groups:
             group = codomain_groups[n]
             spaces_to_combine = tensor.codomain[group[0]:group[-1] + 1]
-            combined = combined_spaces[i]
-            if combined is None:
-                combined = ProductSpace(
-                    spaces_to_combine, symmetry=tensor.symmetry, backend=tensor.backend
-                )
-                combined_spaces[i] = combined
-            else:
-                assert combined.spaces == spaces_to_combine
+            combined = tensor.backend.make_pipe(
+                spaces_to_combine, is_dual=pipe_dualities[i], in_domain=False, pipe=pipes[i]
+            )
+            pipes[i] = combined
             codomain_spaces.append(combined)
             codomain_labels.append(_combine_leg_labels(tensor.labels[group[0]:group[-1] + 1]))
             i += 1
@@ -3298,14 +3507,12 @@ def combine_legs(tensor: Tensor,
             domain_idx1 = N - 1 - group[0]
             codomain_idx2 = N - 1 - group[-1]
             spaces_to_combine = tensor.domain[codomain_idx2:domain_idx1 + 1]
-            combined = combined_spaces[i]
-            if combined is None:
-                combined = ProductSpace(
-                    spaces_to_combine, symmetry=tensor.symmetry, backend=tensor.backend
-                )
-                combined_spaces[i] = combined
-            else:
-                assert combined.spaces == spaces_to_combine
+            # Note: this is the result.domain[some_idx],  which has opposite duality from
+            #       result.legs[-1-some_idx], so we need to invert pipe_dualities[i]
+            combined = tensor.backend.make_pipe(
+                spaces_to_combine, is_dual=not pipe_dualities[i], in_domain=True, pipe=pipes[i]
+            )
+            pipes[i] = combined
             domain_spaces_reversed.append(combined)
             domain_labels_reversed.append(
                 _combine_leg_labels(tensor.labels[group[0]:group[-1] + 1])
@@ -3319,19 +3526,15 @@ def combine_legs(tensor: Tensor,
         else:
             domain_spaces_reversed.append(tensor.domain[N - 1 - n])
             domain_labels_reversed.append(tensor.labels[n])
-    #
-    # OPTIMIZE might be better to compute these in the backend. especially for FusionTree.
-    codomain = ProductSpace(codomain_spaces, symmetry=tensor.symmetry, backend=tensor.backend,
-                            _sectors=tensor.codomain.sectors,
-                            _multiplicities=tensor.codomain.multiplicities)
-    domain = ProductSpace(domain_spaces_reversed[::-1], symmetry=tensor.symmetry, backend=tensor.backend,
-                          _sectors=tensor.domain.sectors,
-                          _multiplicities=tensor.domain.multiplicities)
+
+    # OPTIMIZE if no bending happened, we can re-use the (co)domain.sector_decomposition.
+    codomain = TensorProduct(codomain_spaces, symmetry=tensor.symmetry)
+    domain = TensorProduct(domain_spaces_reversed[::-1], symmetry=tensor.symmetry)
     #
     # 4) Build the data / finish up
     # ==============================================================================================
     data = tensor.backend.combine_legs(
-        tensor, leg_idcs_combine=which_legs, product_spaces=combined_spaces, new_codomain=codomain,
+        tensor, leg_idcs_combine=which_legs, pipes=pipes, new_codomain=codomain,
         new_domain=domain
     )
     return SymmetricTensor(data, codomain=codomain, domain=domain, backend=tensor.backend,
@@ -3343,7 +3546,7 @@ def combine_to_matrix(tensor: Tensor,
                       domain: int | str | list[int | str] | None = None,
                       levels: list[int] | dict[str | int, int] = None,
                       ) -> Tensor:
-    """Combine legs of a tensor into two combined ProductSpaces.
+    """Combine legs of a tensor into two combined LegPipes.
 
     The resulting tensor can be interpreted as a matrix, i.e. has two legs::
 
@@ -3386,7 +3589,7 @@ def combine_to_matrix(tensor: Tensor,
     return combine_legs(res, range(res.num_codomain_legs), range(res.num_codomain_legs, res.num_legs))
 
 
-@_elementwise_function(block_func='block_conj', maps_zero_to_zero=True)
+@_elementwise_function(block_func='conj', maps_zero_to_zero=True)
 def complex_conj(x: _ElementwiseType) -> _ElementwiseType:
     """Complex conjugation, :ref:`elementwise <diagonal_elementwise>`."""
     return np.conj(x)
@@ -3452,7 +3655,7 @@ def dagger(tensor: Tensor) -> Tensor:
         inv_part = move_leg(inv_part, 0, domain_pos=0)
         charged_state = tensor.charged_state
         if charged_state is not None:
-            charged_state = tensor.backend.block_backend.block_conj(charged_state)
+            charged_state = tensor.backend.block_backend.conj(charged_state)
         return ChargedTensor(inv_part, charged_state)
     raise TypeError
 
@@ -3481,8 +3684,8 @@ def compose(tensor1: Tensor, tensor2: Tensor, relabel1: dict[str, str] = None,
     --------
     tdot, apply_mask, scale_axis
     """
-    if tensor1.domain != tensor2.codomain:
-        raise ValueError('Incompatible legs')
+    _ = get_same_device(tensor1, tensor2)
+    _check_compatible_legs([tensor1.domain], [tensor2.codomain])
 
     if relabel1 is None:
         codomain_labels = tensor1.codomain_labels
@@ -3537,9 +3740,9 @@ def _compose_with_Mask(tensor: Tensor, mask: Mask, leg_idx: int) -> Tensor:
     """
     in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg_idx)
     if in_domain:
-        assert tensor.domain[co_domain_idx] == mask.codomain[0]
+        _check_compatible_legs([tensor.domain[co_domain_idx]], [mask.codomain[0]])
     else:
-        assert tensor.codomain[co_domain_idx] == mask.domain[0]
+        _check_compatible_legs([tensor.codomain[co_domain_idx]], [mask.domain[0]])
 
     # deal with other tensor types
     if isinstance(tensor, ChargedTensor):
@@ -3617,7 +3820,7 @@ def eigh(tensor: Tensor, new_labels: str | list[str] | None, new_leg_dual: bool,
         The labels for the new legs can be specified in the following three ways;
         Three labels ``[a, b, c]`` result in ``V.labels[-1] == a`` and ``W.labels == [b, c]``.
         Two labels ``[a, b]`` are equivalent to ``[a, b, a]``.
-        A single label ``a`` is equivalent to ``[a, a*, a]``.  TODO is this a good convention?
+        A single label ``a`` is equivalent to ``[a, a*, a]``.
         The new legs are unlabelled by default.
     new_leg_dual: bool
         If the new leg should be a ket space (``False``) or bra space (``True``)
@@ -3648,19 +3851,37 @@ def eigh(tensor: Tensor, new_labels: str | list[str] | None, new_leg_dual: bool,
     if isinstance(tensor, ChargedTensor):
         # do not define decompositions for ChargedTensors.
         raise NotImplementedError
-    # TODO for DiagonalTensor, we can have a trivial implementation `return tensor, eye` no?
+    if isinstance(tensor, DiagonalTensor):
+        V = SymmetricTensor.from_eye(
+            [tensor.leg], backend=tensor.backend, labels=[tensor.codomain_labels[0], a],
+            dtype=tensor.dtype, device=tensor.device
+        )
+        W = tensor.copy().set_labels([b, c])
+        return W, V
     tensor = tensor.as_SymmetricTensor()
-    new_leg = tensor.domain.as_ElementarySpace().with_is_dual(new_leg_dual)
-    combine = (not tensor.backend.can_decompose_tensors) and (tensor.num_codomain_legs > 1)
-    if combine:
-        tensor = combine_legs(tensor, range(tensor.num_codomain_legs),
-                              range(tensor.num_codomain_legs, tensor.num_legs))
-    w_data, v_data = tensor.backend.eigh(tensor, sort=sort)
+
+    # If the backend requires it, combine legs first
+    if not tensor.backend.can_decompose_tensors:
+        tensor = combine_legs(
+            tensor,
+            range(tensor.num_codomain_legs), range(tensor.num_codomain_legs, tensor.num_legs),
+            pipe_dualities=[new_leg_dual, not new_leg_dual]
+        )
+
+    # first, compute a decomposition where the new leg is a ket space
+    w_data, v_data, new_leg = tensor.backend.eigh(tensor, new_leg_dual, sort=sort)
     W = DiagonalTensor(w_data, new_leg, tensor.backend, [b, c])
     V = SymmetricTensor(v_data, codomain=tensor.codomain, domain=[new_leg], backend=tensor.backend,
                         labels=[tensor.codomain_labels, [a]])
-    if combine:
-        V = split_legs(V, -1)
+
+    # undo the combine
+    if not tensor.backend.can_decompose_tensors:
+        V = split_legs(V, 0)
+
+    # if required, flip the leg duality
+    if new_leg_dual != new_leg.is_dual:
+        raise NotImplementedError
+
     return W, V
 
 
@@ -3702,6 +3923,7 @@ def enlarge_leg(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
     --------
     apply_mask, compose, tdot, scale_axis
     """
+    _ = get_same_device(tensor, mask)
     # parse inputs
     in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg)
     assert not mask.is_projection
@@ -3756,18 +3978,17 @@ def exp(obj: Tensor | complex | float) -> Tensor | complex | float:
     the :ref:`elementwise <diagonal_elementwise>` exponential function.
     """
     if isinstance(obj, DiagonalTensor):
-        return obj._elementwise_unary(obj.backend.block_backend.block_exp)
+        return obj._elementwise_unary(obj.backend.block_backend.exp)
     if isinstance(obj, ChargedTensor):
         raise TypeError('ChargedTensor can not be exponentiated.')
     if isinstance(obj, SymmetricTensor):
-        assert obj.domain == obj.codomain
+        _check_compatible_legs([obj.domain], [obj.codomain])
 
-        # TODO refactor to support general power-series functions?
         combine = (not obj.backend.can_decompose_tensors) and obj.num_domain_legs > 1
         if combine:
-            # OPTIMIZE avoid re-computing the ProductSpace metadata
+            # OPTIMIZE have the same pipe in domain and codomain. could avoid recomputing?
             obj = combine_legs(obj, range(obj.num_codomain_legs),
-                                  range(obj.num_codomain_legs, obj.num_legs))
+                               range(obj.num_codomain_legs, obj.num_legs))
         data = obj.backend.act_block_diagonal_square_matrix(
             obj, obj.backend.block_backend.matrix_exp, dtype_map=None
         )
@@ -3791,7 +4012,17 @@ def get_same_backend(*tensors: Tensor, error_msg: str = 'Incompatible backends.'
     return backend
 
 
-@_elementwise_function(block_func='block_imag', maps_zero_to_zero=True)
+def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') -> str:
+    """If the given tensors have the same device, return it. Raise otherwise."""
+    if len(tensors) == 0:
+        raise ValueError('Need at least one tensor')
+    device = tensors[0].device
+    if not all(tens.device == device for tens in tensors[1:]):
+        raise ValueError(error_msg)
+    return device
+
+
+@_elementwise_function(block_func='imag', maps_zero_to_zero=True)
 def imag(x: _ElementwiseType) -> _ElementwiseType:
     """The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.imag(x)
@@ -3817,8 +4048,6 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
     The inner product is defined as :math:`\mathrm{Tr}[ A^\dagger \circ B]`.
     It is thus equivalent to, but more efficient than ``trace(dot(A, B))``.
 
-    TODO should we allow an arg here to permute the legs before inner?
-
     Parameters
     ----------
     A, B
@@ -3828,19 +4057,18 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
         If ``False``, we assume that the dagger has already been performed on one of the tensors.
         Thus we require ``tensor_1.domain == tensor_2.codomain`` and vice versa and just perform
         the contraction and trace.
-    TODO allow an argument that specifies a permutation first? probably cant do levels well?
 
     See Also
     --------
     norm
         The Frobenius norm, induced by this inner product.
     """
+    _ = get_same_device(A, B)
+    
     if do_dagger:
-        assert A.codomain == B.codomain
-        assert A.domain == B.domain
+        _check_compatible_legs([A.codomain, A.domain], [B.codomain, B.domain])
     else:
-        assert A.domain == B.codomain
-        assert A.codomain == B.domain
+        _check_compatible_legs([A.codomain, A.domain], [B.domain, B.codomain])
 
     if isinstance(A, (DiagonalTensor, Mask)):
         # in this case, there is no benefit to having a dedicated backend function,
@@ -3866,21 +4094,21 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
                 bend_legs(B.invariant_part, num_domain_legs=1)  # [*b_legs] <- ['!']
             )  # ['!*', '!']
             # OPTIMIZE: like GEMM, should we offer an interface where dagger is implicitly done during tdot?
-            res = backend.block_backend.block_tdot(
-                backend.block_backend.block_conj(A.charged_state),
-                backend.block_backend.block_tdot(inv_part.to_dense_block(), B.charged_state, [1], [0]),
+            res = backend.block_backend.tdot(
+                backend.block_backend.conj(A.charged_state),
+                backend.block_backend.tdot(inv_part.to_dense_block(), B.charged_state, [1], [0]),
                 [0], [0]
             )
         else:
             inv_part = tdot(A.invariant_part,
                             B.invariant_part,
                             [*range(A.num_legs)], [*reversed(range(A.num_legs))])  # ['?1', '?2']
-            res = backend.block_backend.block_tdot(
+            res = backend.block_backend.tdot(
                 A.charged_state,
-                backend.block_backend.block_tdot(inv_part.to_dense_block(), B.charged_state, [1], [0]),
+                backend.block_backend.tdot(inv_part.to_dense_block(), B.charged_state, [1], [0]),
                 [0], [0]
             )
-        return backend.block_backend.block_item(res)
+        return backend.block_backend.item(res)
 
     if isinstance(A, ChargedTensor):  # and B is a SymmetricTensor
         # reduce to the case where B is charged and A is not  # OPTIMIZE write it out instead...
@@ -3897,12 +4125,12 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
         #           could exploit by projecting to those components first.
         if do_dagger:
             inv_part = tdot(dagger(A), B.invariant_part, [*range(A.num_legs)], [*reversed(range(A.num_legs))])
-            B_state = backend.block_backend.block_conj(B.charged_state)
-            res = backend.block_backend.block_tdot(inv_part.to_dense_block(), B_state, [0], [0])
+            B_state = backend.block_backend.conj(B.charged_state)
+            res = backend.block_backend.tdot(inv_part.to_dense_block(), B_state, [0], [0])
         else:
             inv_part = tdot(A, B.invariant_part, [*range(A.num_legs)], [*reversed(range(A.num_legs))])
-            res = backend.block_backend.block_tdot(inv_part.to_dense_block(), B.charged_state, [0], [0])
-        return backend.block_backend.block_item(res)
+            res = backend.block_backend.tdot(inv_part.to_dense_block(), B.charged_state, [0], [0])
+        return backend.block_backend.item(res)
 
     # remaining case: both are SymmetricTensor
     return backend.inner(A, B, do_dagger=do_dagger)
@@ -3927,7 +4155,7 @@ def is_scalar(obj):
             return False
         if obj.codomain.num_sectors != 1:
             return False
-        if not np.all(obj.domain.sectors == obj.codomain.sectors):
+        if not np.all(obj.domain.sector_decomposition == obj.codomain.sector_decomposition):
             return False
         if not np.all(obj.domain.multiplicities == 1):
             return False
@@ -3948,13 +4176,15 @@ def item(tensor: Tensor) -> float | complex | bool:
         if tensor.charged_state is None:
             raise ValueError('Can not compute .item of ChargedTensor with unspecified charged_state.')
         inv_block = tensor.invariant_part.to_dense_block()
-        res = tensor.backend.block_backend.block_tdot(tensor.charged_state, inv_block, 0, -1)
-        return tensor.backend.block_backend.block_item(res)
+        res = tensor.backend.block_backend.tdot(tensor.charged_state, inv_block, 0, -1)
+        return tensor.backend.block_backend.item(res)
     raise TypeError
 
 
 def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
     """The linear combination ``a * v + b * w``"""
+    _ = get_same_device(v, w)
+    _check_compatible_legs([v.codomain, v.domain], [w.codomain, w.domain])
     # Note: We implement Tensor.__add__ and Tensor.__sub__ in terms of this function, so we cant
     #       use them (or the ``+`` and ``-`` operations) here.
     if (not isinstance(a, Number)) or (not isinstance(b, Number)):
@@ -3973,20 +4203,24 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
             inv_part = linear_combination(a, v.invariant_part, b, w.invariant_part)
             return ChargedTensor(inv_part, None)
         if v.charge_leg.dim == 1:
-            factor = v.backend.block_backend.block_item(w.charged_state) \
-                / v.backend.block_backend.block_item(v.charged_state)
+            factor = v.backend.block_backend.item(w.charged_state) \
+                / v.backend.block_backend.item(v.charged_state)
             inv_part = linear_combination(a, v.invariant_part, factor * b, w.invariant_part)
             return ChargedTensor(inv_part, v.charged_state)
         raise NotImplementedError
     if isinstance(v, ChargedTensor) or isinstance(w, ChargedTensor):
         raise TypeError('Can not add ChargedTensor and non-charged tensor.')
+    
     # Remaining case: Mask, DiagonalTensor (but not both), SymmetricTensor
-    # TODO issue warnings that we are converting? see scalar_multiply()
+    if isinstance(v, (DiagonalTensor, Mask)) or isinstance(w, (DiagonalTensor, Mask)):
+        msg = (f'Converting types ({type(v).__name__, type(w).__name__}) to '
+               f'(SymmetricTensor, SymmetricTensor) for  linear_combination. '
+               f'Use tensor.as_SymmetricTensor() explicitly to suppress this warning.')
+        warnings.warn(msg, stacklevel=2)
     v = v.as_SymmetricTensor()
     w = w.as_SymmetricTensor()
+
     backend = get_same_backend(v, w)
-    assert v.codomain == w.codomain, 'Mismatched domain'
-    assert v.domain == w.domain, 'Mismatched domain'
     return SymmetricTensor(
         backend.linear_combination(a, v, b, w),
         codomain=v.codomain, domain=v.domain, backend=backend,
@@ -4029,8 +4263,6 @@ def move_leg(tensor: Tensor, which_leg: int | str, codomain_pos: int | None = No
         Is ignored if the symmetry has symmetric braids. Otherwise, these levels specify the
         chirality of any possible braids induced by permuting the legs. See :func:`permute_legs`.
     """
-    # TODO make this a separate backend function? Easier to determine move order for fusion tree.
-
     from_domain, _, leg_idx = tensor._parse_leg_idx(which_leg)
     if from_domain:
         new_codomain = list(range(tensor.num_codomain_legs))
@@ -4043,10 +4275,10 @@ def move_leg(tensor: Tensor, which_leg: int | str, codomain_pos: int | None = No
     if codomain_pos is not None:
         if domain_pos is not None:
             raise ValueError('Can not specify both codomain_pos and domain_pos.')
-        pos = _normalize_idx(codomain_pos, len(new_codomain) + 1)
+        pos = to_valid_idx(codomain_pos, len(new_codomain) + 1)
         new_codomain[pos:pos] = [leg_idx]
     elif domain_pos is not None:
-        pos = _normalize_idx(domain_pos, len(new_domain) + 1)
+        pos = to_valid_idx(domain_pos, len(new_domain) + 1)
         new_domain[pos:pos] = [leg_idx]
     else:
         raise ValueError('Need to specify either codomain_pos or domain_pos.')
@@ -4072,13 +4304,36 @@ def norm(tensor: Tensor) -> float:
                    'Use e.g. norm(tensor.invariant_part).')
             raise ValueError(msg)
         if tensor.charge_leg.dim == 1:
-            factor = abs(tensor.backend.block_backend.block_item(tensor.charged_state))
+            factor = abs(tensor.backend.block_backend.item(tensor.charged_state))
             return factor * tensor.backend.norm(tensor.invariant_part)
         else:
             # OPTIMIZE
             warnings.warn('Converting ChargedTensor to dense block for `norm`', stacklevel=2)
-            return tensor.backend.block_backend.block_norm(tensor.to_dense_block(), order=2)
+            return tensor.backend.block_backend.norm(tensor.to_dense_block(), order=2)
     raise TypeError
+
+
+def on_device(tensor: Tensor, device: str, copy: bool = True) -> Tensor:
+    """An equivalent tensor (with the same entries) on another device.
+
+    Parameters
+    ----------
+    tensor: Tensor
+        The tensor to move
+    device: str
+        The device to move to
+    copy: bool
+        If a copy should be made. Otherwise, operate *in-place*.
+
+    Returns
+    -------
+    If `copy` (default), a new instance, on `device`.
+    Otherwise, the instance `tensor` is modified in-place, and then returned.
+    """
+    if copy:
+        return tensor.copy(device=device)
+    tensor.move_to_device(device)
+    return tensor
 
 
 def outer(tensor1: Tensor, tensor2: Tensor,
@@ -4108,6 +4363,9 @@ def outer(tensor1: Tensor, tensor2: Tensor,
         A mapping of labels for each of the tensors. The result has labels, as if the
         input tensors were relabelled accordingly before contraction.
     """
+    _ = get_same_device(tensor1, tensor2)
+    assert tensor1.symmetry.is_same_symmetry(tensor2.symmetry)
+    
     if isinstance(tensor1, (Mask, DiagonalTensor)):
         msg = ('Converting to SymmetricTensor for outer. '
                'Use as_SymmetricTensor() explicitly to suppress the warning.')
@@ -4133,9 +4391,8 @@ def outer(tensor1: Tensor, tensor2: Tensor,
         return ChargedTensor(inv_part, tensor2.charged_state)
     backend = get_same_backend(tensor1, tensor2)
     data = backend.outer(tensor1, tensor2)
-    # TODO is it easier to compute the (co)domain in the backend?
-    codomain = ProductSpace.from_partial_products(tensor1.codomain, tensor2.codomain, backend=backend)
-    domain = ProductSpace.from_partial_products(tensor1.domain, tensor2.domain, backend=backend)
+    codomain = TensorProduct.from_partial_products(tensor1.codomain, tensor2.codomain)
+    domain = TensorProduct.from_partial_products(tensor1.domain, tensor2.domain)
     # construct new labels
     codomain_labels = []
     domain_labels = []
@@ -4201,12 +4458,8 @@ def partial_trace(tensor: Tensor,
     duplicates = duplicate_entries(traced_idcs)
     if duplicates:
         raise ValueError('Pairs may not contain duplicates.')
-    for i1, i2 in pairs:
-        in_domain, co_domain_idx, _ = tensor._parse_leg_idx(i1)
-        if in_domain:
-            assert tensor.domain[co_domain_idx] == tensor._as_codomain_leg(i2), 'incompatible legs'
-        else:
-            assert tensor.codomain[co_domain_idx] == tensor._as_domain_leg(i2), 'incompatible legs'
+    _check_compatible_legs([tensor._as_codomain_leg(i1) for i1, _ in pairs],
+                           [tensor._as_domain_leg(i2) for _, i2 in pairs])
 
     if len(pairs) == 0:
         return tensor
@@ -4216,18 +4469,18 @@ def partial_trace(tensor: Tensor,
         return trace(tensor)
     if isinstance(tensor, ChargedTensor):
         if levels is not None:
-            # assign highest level to charge leg.
-            # probably want to unify implementation with other functions that use levels.
-            raise NotImplementedError  # TODO
+            # charge leg is not traced and thus does not braid.
+            # so its level is irrelevant. just make sure its not a duplicate
+            levels = [*levels, min(levels) - 1]
         invariant_part = partial_trace(tensor.invariant_part, *pairs, levels=levels)
         if invariant_part.num_legs == 1:
             # scalar result
             if tensor.charged_state is None:
                 raise ValueError('Need to specify charged_state for full trace of ChargedTensor')
-            res = tensor.backend.block_backend.block_tdot(
+            res = tensor.backend.block_backend.tdot(
                 invariant_part.to_dense_block(), tensor.charged_state, [0], [0]
             )
-            return tensor.backend.block_backend.block_item(res)
+            return tensor.backend.block_backend.item(res)
         return ChargedTensor(invariant_part, tensor.charged_state)
     if not isinstance(tensor, SymmetricTensor):
         raise TypeError(f'Unexpected tensor type: {type(tensor).__name__}')
@@ -4332,6 +4585,18 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
     |         ╰───│───│─────│─│─╯
     |             │ ╭─│─────╯ │
 
+    .. note ::
+        We expect that there are only two cases where you should do explicit leg permutations:
+        Firstly, if you need to specify the `levels` explicitly in the case of an anyonic symmetry.
+        Secondly, if you are optimizing for performance and know what you are doing.
+        In most other cases, you should be able to refer to legs by label and let the API functions
+        do implicit leg rearrangements as needed.
+
+    .. warning ::
+        It is inefficient (especially when using the fusiontree backend) to do a series of leg
+        rearrangements as multiple function calls. For performance, they should be done in a
+        single call.
+
     Parameters
     ----------
     tensor: Tensor
@@ -4397,11 +4662,11 @@ def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
         If the new leg should be a ket space (``False``) or bra space (``True``)
     """
     a, b = _decomposition_labels(new_labels)
-    tensor, new_leg, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
-    q_data, r_data = tensor.backend.qr(tensor, new_leg=new_leg)
-    Q = SymmetricTensor(q_data, codomain=tensor.codomain, domain=[new_leg], backend=tensor.backend,
+    tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
+    q_data, r_data = tensor.backend.qr(tensor, new_co_domain=new_co_domain)
+    Q = SymmetricTensor(q_data, codomain=tensor.codomain, domain=new_co_domain, backend=tensor.backend,
                         labels=[tensor.codomain_labels, [a]])
-    R = SymmetricTensor(r_data, codomain=[new_leg], domain=tensor.domain, backend=tensor.backend,
+    R = SymmetricTensor(r_data, codomain=new_co_domain, domain=tensor.domain, backend=tensor.backend,
                         labels=[[b], tensor.domain_labels])
     if combine_codomain:
         Q = split_legs(Q, 0)
@@ -4410,13 +4675,13 @@ def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
     return Q, R
 
 
-@_elementwise_function(block_func='block_real', maps_zero_to_zero=True)
+@_elementwise_function(block_func='real', maps_zero_to_zero=True)
 def real(x: _ElementwiseType) -> _ElementwiseType:
     """The real part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.real(x)
 
 
-@_elementwise_function(block_func='block_real_if_close', func_kwargs=dict(tol=100),
+@_elementwise_function(block_func='real_if_close', func_kwargs=dict(tol=100),
                        maps_zero_to_zero=True)
 def real_if_close(x: _ElementwiseType, tol: float = 100) -> _ElementwiseType:
     """If close to real, return the :func:`real` part, :ref:`elementwise <diagonal_elementwise>`.
@@ -4472,11 +4737,11 @@ def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
         If the new leg should be a ket space (``False``) or bra space (``True``)
     """
     a, b = _decomposition_labels(new_labels)
-    tensor, new_leg, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
-    l_data, q_data = tensor.backend.lq(tensor, new_leg=new_leg)
-    L = SymmetricTensor(l_data, codomain=tensor.codomain, domain=[new_leg], backend=tensor.backend,
+    tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
+    l_data, q_data = tensor.backend.lq(tensor, new_co_domain=new_co_domain)
+    L = SymmetricTensor(l_data, codomain=tensor.codomain, domain=new_co_domain, backend=tensor.backend,
                         labels=[tensor.codomain_labels, [a]])
-    Q = SymmetricTensor(q_data, codomain=[new_leg], domain=tensor.domain, backend=tensor.backend,
+    Q = SymmetricTensor(q_data, codomain=new_co_domain, domain=tensor.domain, backend=tensor.backend,
                         labels=[[b], tensor.domain_labels])
     if combine_codomain:
         L = split_legs(L, 0)
@@ -4502,7 +4767,7 @@ def scalar_multiply(a: Number, v: Tensor) -> Tensor:
             charged_state = None
         else:
             inv_part = v.invariant_part
-            charged_state = v.backend.block_backend.block_mul(a, v.charged_state)
+            charged_state = v.backend.block_backend.mul(a, v.charged_state)
         return ChargedTensor(inv_part, charged_state)
     # remaining case: SymmetricTensor
     return SymmetricTensor(
@@ -4546,19 +4811,21 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
     --------
     dot, tdot, apply_mask
     """
+    _ = get_same_device(tensor, diag)
+    
     # transpose if needed
     in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg)
     if in_domain:
         leg = tensor.domain[co_domain_idx]
     else:
         leg = tensor.codomain[co_domain_idx]
+    assert tensor.symmetry.is_same_symmetry(diag.symmetry)
     if leg == diag.leg:
         pass
     elif leg == diag.leg.dual:
         diag = transpose(diag)
     else:
         raise ValueError('Incompatible legs')
-    assert tensor.get_leg_co_domain(leg_idx) == diag.leg  # TODO rm check?
 
     if isinstance(tensor, DiagonalTensor):
         return (tensor * diag).set_labels(tensor.labels)
@@ -4592,9 +4859,10 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     tensor
         The tensor to act on.
     legs: list of int | str
-        Which legs to split. If ``None`` (default), all those legs that are :class:`ProductSpace`s
+        Which legs to split. If ``None`` (default), all those legs that are :class:`LegPipe`s
         are split.
     """
+    # Deal with different tensor types. Reduce everything to SymmetricTensor.
     if isinstance(tensor, (DiagonalTensor, Mask)):
         msg = ('Converting to SymmetricTensor for split_legs. '
                'Use as_SymmetricTensor() explicitly to suppress the warning.')
@@ -4603,12 +4871,11 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
         if legs is not None:
             legs = tensor.get_leg_idcs(legs)
         return ChargedTensor(split_legs(tensor.invariant_part, legs), tensor.charged_state)
-    # remaining case: SymmetricTensor.
     #
     # parse indices
     if legs is None:
-        codomain_split = [n for n, l in enumerate(tensor.codomain) if isinstance(l, ProductSpace)]
-        domain_split = [n for n, l in enumerate(tensor.domain) if isinstance(l, ProductSpace)]
+        codomain_split = [n for n, l in enumerate(tensor.codomain) if isinstance(l, LegPipe)]
+        domain_split = [n for n, l in enumerate(tensor.domain) if isinstance(l, LegPipe)]
         leg_idcs = [*codomain_split, *(tensor.num_legs - 1 - n for n in domain_split)]
     else:
         leg_idcs = []
@@ -4621,37 +4888,37 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
                 domain_split.append(co_domain_idx)
             else:
                 codomain_split.append(co_domain_idx)
-            if not isinstance(tensor.get_leg_co_domain(leg_idx), ProductSpace):
-                raise ValueError('Not a ProductSpace.')
+            if not isinstance(tensor.get_leg_co_domain(leg_idx), LegPipe):
+                raise ValueError('Not a LegPipe.')
     #
     # build new (co)domain
     codomain_spaces = []
     for n, l in enumerate(tensor.codomain):
         if n in codomain_split:
-            codomain_spaces.extend(l.spaces)
+            codomain_spaces.extend(l.legs)
         else:
             codomain_spaces.append(l)
     domain_spaces = []
     for n, l in enumerate(tensor.domain):
         if n in domain_split:
-            domain_spaces.extend(l.spaces)
+            domain_spaces.extend(l.legs)
         else:
             domain_spaces.append(l)
-    codomain = ProductSpace(
-        codomain_spaces, symmetry=tensor.symmetry, backend=tensor.backend,
-        _sectors=tensor.codomain.sectors, _multiplicities=tensor.codomain.multiplicities
-    )
-    domain = ProductSpace(
-        domain_spaces, symmetry=tensor.symmetry, backend=tensor.backend,
-        _sectors=tensor.domain.sectors, _multiplicities=tensor.domain.multiplicities
-    )
-    # OPTIMIZE any way to avoid recomputing the metadata?
+
+    # we only split, i.e. remove parentheses in tensor products, so sectors dont change
+    codomain = TensorProduct(codomain_spaces, symmetry=tensor.symmetry,
+                             _sector_decomposition=tensor.codomain.sector_decomposition,
+                             _multiplicities=tensor.codomain.multiplicities,)
+    domain = TensorProduct(domain_spaces, symmetry=tensor.symmetry,
+                           _sector_decomposition=tensor.domain.sector_decomposition,
+                           _multiplicities=tensor.domain.multiplicities)
+
     #
     # build labels
     labels = []
     for n, l in enumerate(tensor.labels):
         if n in leg_idcs:
-            labels.extend(_split_leg_label(l, num=tensor.get_leg_co_domain(n).num_spaces))
+            labels.extend(_split_leg_label(l, num=tensor.get_leg_co_domain(n).num_legs))
         else:
             labels.append(l)
     #
@@ -4660,7 +4927,7 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     return SymmetricTensor(data, codomain, domain, backend=tensor.backend, labels=labels)
 
 
-@_elementwise_function(block_func='block_sqrt', maps_zero_to_zero=True)
+@_elementwise_function(block_func='sqrt', maps_zero_to_zero=True)
 def sqrt(x: _ElementwiseType) -> _ElementwiseType:
     """The square root of a number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.sqrt(x)
@@ -4700,22 +4967,25 @@ def squeeze_legs(tensor: Tensor, legs: int | str | list[int | str] = None) -> Te
     # Remaining case: SymmetricTensor
     remaining = [n for n in range(tensor.num_legs) if n not in legs]
     data = tensor.backend.squeeze_legs(tensor, legs)
-    # since the legs we remove are all trivial, the sectors of the (co-)domain do not change
-    codomain = ProductSpace(
+
+    # the fusion with the trivial legs was trivial, so removing it doesnt change the sectors
+    codomain = TensorProduct(
         [tensor.codomain[n] for n in range(tensor.num_codomain_legs) if n not in legs],
-        symmetry=tensor.symmetry, backend=tensor.backend, _sectors=tensor.codomain.sectors,
-        _multiplicities=tensor.codomain.multiplicities
+        symmetry=tensor.symmetry,
+        _sector_decomposition=tensor.codomain.sector_decomposition,
+        _multiplicities=tensor.codomain.multiplicities,
     )
-    domain = ProductSpace(
+    domain = TensorProduct(
         [tensor.domain[n] for n in range(tensor.num_domain_legs) if (tensor.num_legs - 1 - n) not in legs],
-        symmetry=tensor.symmetry, backend=tensor.backend, _sectors=tensor.domain.sectors,
-        _multiplicities=tensor.domain.multiplicities
+        symmetry=tensor.symmetry,
+        _sector_decomposition=tensor.domain.sector_decomposition,
+        _multiplicities=tensor.domain.multiplicities,
     )
     return SymmetricTensor(data, codomain, domain, backend=tensor.backend,
                            labels=[tensor._labels[n] for n in remaining])
 
 
-@_elementwise_function(block_func='block_stable_log', func_kwargs=dict(cutoff=1e-30),
+@_elementwise_function(block_func='stable_log', func_kwargs=dict(cutoff=1e-30),
                        maps_zero_to_zero=True)
 def stable_log(x: _ElementwiseType, cutoff=1e-30) -> _ElementwiseType:
     """Stabilized logarithm, :ref:`elementwise <diagonal_elementwise>`.
@@ -4774,29 +5044,28 @@ def svd(tensor: Tensor,
         Four labels ``[a, b, c, d]`` result in ``U.labels[-1] == a``, ``S.labels == [b, c]`` and
         ``Vh.labels[0] == d``.
         Two labels ``[a, b]`` are equivalent to ``[a, b, a, b]``.
-        A single label ``a`` is equivalent to ``[a, a*, a, a*]``.  TODO is this a good convention?
+        A single label ``a`` is equivalent to ``[a, a*, a, a*]``.
         The new legs are unlabelled by default.
     new_leg_dual: bool
         If the new leg should be a ket space (``False``) or bra space (``True``)
     algorithm: str, optional
-        The algorithm (a.k.a. "driver") for the block-wise svd.
-        Choices are backend-specific (TODO doc them).
+        The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
+        See the :attr:`~cyten.backends.BlockBackend.svd_algorithms` attribute of the
+        ``tensor.backend.block_backend``.
 
     Returns
     -------
-    U: Tensor
-        TODO specify how the type depends on tensors type.
+    U: SymmetricTensor
     S: DiagonalTensor
-    Vh: Tensor
-        TODO specify how the type depends on tensors type.
+    Vh: SymmetricTensor
     """
     a, b, c, d = _svd_new_labels(new_labels)
-    tensor, new_leg, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
-    u_data, s_data, vh_data = tensor.backend.svd(tensor, new_leg=new_leg, algorithm=algorithm)
-    U = SymmetricTensor(u_data, codomain=tensor.codomain, domain=[new_leg], backend=tensor.backend,
+    tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
+    u_data, s_data, vh_data = tensor.backend.svd(tensor, new_co_domain=new_co_domain, algorithm=algorithm)
+    U = SymmetricTensor(u_data, codomain=tensor.codomain, domain=new_co_domain, backend=tensor.backend,
                         labels=[tensor.codomain_labels, [a]])
-    S = DiagonalTensor(s_data, new_leg, backend=tensor.backend, labels=[b, c])
-    Vh = SymmetricTensor(vh_data, codomain=[new_leg], domain=tensor.domain, backend=tensor.backend,
+    S = DiagonalTensor(s_data, leg=new_co_domain[0], backend=tensor.backend, labels=[b, c])
+    Vh = SymmetricTensor(vh_data, codomain=new_co_domain, domain=tensor.domain, backend=tensor.backend,
                          labels=[[d], tensor.domain_labels])
     # split legs, if they were previously combined
     if combine_codomain:
@@ -4865,6 +5134,8 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
     --------
     compose, apply_mask, scale_axis
     """
+    _ = get_same_device(tensor1, tensor2)
+    
     # parse legs to list[int] and check they are valid
     legs1 = tensor1.get_leg_idcs(to_iterable(legs1))
     legs2 = tensor2.get_leg_idcs(to_iterable(legs2))
@@ -4872,8 +5143,10 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
         raise ValueError(f'Duplicate leg entries.')
     num_contr = len(legs1)
     assert len(legs2) == num_contr
-    for i1, i2 in zip(legs1, legs2):
-        assert tensor1._as_domain_leg(i1) == tensor2._as_codomain_leg(i2), 'incompatible legs'
+    _check_compatible_legs(
+        [tensor1._as_domain_leg(i1) for i1 in legs1],
+        [tensor2._as_codomain_leg(i2) for i2 in legs2],
+    )
 
     # Deal with Masks: either return or reduce to SymmetricTensor
     if isinstance(tensor1, Mask):
@@ -4979,7 +5252,7 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
         )
     if isinstance(tensor1, ChargedTensor):
         inv_part = tdot(tensor1.invariant_part, tensor2, legs1=legs1, legs2=legs2,
-                            relabel1=relabel1, relabel2=relabel2)
+                        relabel1=relabel1, relabel2=relabel2)
         inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0)
         return ChargedTensor.from_invariant_part(inv_part, tensor1.charged_state)
     if isinstance(tensor2, ChargedTensor):
@@ -5025,7 +5298,7 @@ def trace(tensor: Tensor):
     partial_trace
         Trace only some legs, or trace all legs with a different connectivity.
     """
-    assert tensor.domain == tensor.codomain, 'Incompatible legs'
+    _check_compatible_legs([tensor.domain], [tensor.codomain])
     if isinstance(tensor, DiagonalTensor):
         return tensor.backend.diagonal_tensor_trace_full(tensor)
     if isinstance(tensor, ChargedTensor):
@@ -5035,8 +5308,8 @@ def trace(tensor: Tensor):
         N = tensor.num_legs
         pairs = [[n, N-1-n] for n in range(tensor.num_codomain_legs)]
         inv_block = partial_trace(tensor.invariant_part, *pairs).to_dense_block()
-        res = tensor.backend.block_backend.block_tdot(inv_block, tensor.charged_state, [0], [0])
-        return tensor.backend.block_backend.block_item(res)
+        res = tensor.backend.block_backend.tdot(inv_block, tensor.charged_state, [0], [0])
+        return tensor.backend.block_backend.item(res)
     return tensor.backend.trace_full(tensor)
 
 
@@ -5076,8 +5349,6 @@ def transpose(tensor: Tensor) -> Tensor:
                     is_projection=not tensor.is_projection, backend=tensor.backend,
                     labels=labels)
     if isinstance(tensor, DiagonalTensor):
-        # TODO implement this backend method.
-        #      the result has dual leg, which means a permutation of sectors.
         dual_leg, data = tensor.backend.diagonal_transpose(tensor)
         return DiagonalTensor(data=data, leg=dual_leg, backend=tensor.backend, labels=labels)
     if isinstance(tensor, SymmetricTensor):
@@ -5157,7 +5428,7 @@ def truncate_singular_values(S: DiagonalTensor, chi_max: int = None, chi_min: in
     optimal truncation error.
 
     This is why the singular values are prioritized by largest :math:`d_{a_i} S_i^2`, and why
-    the quantum dimensions appear as a part 
+    the quantum dimensions appear as a part
 
     For anyonic symmetries we lose the interpretation as a multiplet, since :math:`d_a` is in
     general not integer, but the formula for the error holds, and the considerations for selecting
@@ -5236,19 +5507,20 @@ def truncated_svd(tensor: Tensor,
 def zero_like(tensor: Tensor) -> Tensor:
     """Return a zero tensor with same type, dtype, legs, backend and labels."""
     if isinstance(tensor, Mask):
-        return Mask.from_zero(large_leg=tensor.large_leg, backend=tensor.backend, labels=tensor.labels)
+        return Mask.from_zero(large_leg=tensor.large_leg, backend=tensor.backend,
+                              labels=tensor.labels, device=tensor.device)
     if isinstance(tensor, DiagonalTensor):
         return DiagonalTensor.from_zero(leg=tensor.leg, backend=tensor.backend, labels=tensor.labels,
-                                        dtype=tensor.dtype)
+                                        dtype=tensor.dtype, device=tensor.device)
     if isinstance(tensor, SymmetricTensor):
         return SymmetricTensor.from_zero(codomain=tensor.codomain, domain=tensor.domain,
                                          backend=tensor.backend, labels=tensor.labels,
-                                         dtype=tensor.dtype)
+                                         dtype=tensor.dtype, device=tensor.device)
     if isinstance(tensor, ChargedTensor):
         return ChargedTensor.from_zero(
             codomain=tensor.codomain, domain=tensor.domain, charge=tensor.charge_leg,
             charged_state=tensor.charged_state, backend=tensor.backend, labels=tensor.labels,
-            dtype=tensor.dtype
+            dtype=tensor.dtype, device=tensor.device
         )
     raise TypeError
 
@@ -5259,8 +5531,20 @@ def zero_like(tensor: Tensor) -> Tensor:
 T = TypeVar('T')
 
 
+def _check_compatible_legs(legs1: Sequence[Leg], legs2: Sequence[Leg], expect_equal: bool = True):
+    """Check if legs are compatible (equal if `expect_equal`, otherwise mutually dual)."""
+    if len(legs1) != len(legs2):
+        raise ValueError('Different number of legs')
+    for l1, l2 in zip(legs1, legs2):
+        if not l1.symmetry.is_same_symmetry(l2.symmetry):
+            raise ValueError('Different symmetries')
+        compatible = l1 == (l2 if expect_equal else l2.dual)
+        if not compatible:
+            raise ValueError('Incompatible legs.')
+
+
 def _combine_leg_labels(labels: list[str | None]) -> str:
-    """the label that a combined leg should have"""
+    """The label that a combined leg should have"""
     return '(' + '.'.join(f'?{n}' if l is None else l for n, l in enumerate(labels)) + ')'
 
 
@@ -5275,9 +5559,10 @@ def _decomposition_prepare(tensor: Tensor, new_leg_dual: bool
         raise NotImplementedError
     tensor = tensor.as_SymmetricTensor()
 
-    new_leg = ElementarySpace.largest_common_subspace(
+    new_leg = ElementarySpace.from_largest_common_subspace(
         tensor.codomain, tensor.domain, is_dual=new_leg_dual
     )
+    new_co_domain = TensorProduct([new_leg])
     if tensor.backend.can_decompose_tensors:
         combine_codomain = combine_domain = False
     else:
@@ -5290,7 +5575,7 @@ def _decomposition_prepare(tensor: Tensor, new_leg_dual: bool
             tensor = combine_legs(tensor, range(tensor.num_codomain_legs))
         elif combine_domain:
             tensor = combine_legs(tensor, range(tensor.num_codomain_legs, tensor.num_legs))
-    return tensor, new_leg, combine_codomain, combine_domain
+    return tensor, new_co_domain, combine_codomain, combine_domain
 
 
 def _decomposition_labels(new_labels: str | None | list[str]) -> tuple[str, str]:
@@ -5310,7 +5595,7 @@ def _dual_label_list(labels: list[str | None]) -> list[str | None]:
 
 
 def _dual_leg_label(label: str | None) -> str | None:
-    """the label that a leg should have after conjugation"""
+    """The label that a leg should have after conjugation"""
     if label is None:
         return None
     if label.startswith('(') and label.endswith(')'):
@@ -5349,22 +5634,15 @@ def _get_matching_labels(labels1: list[str | None], labels2: list[str | None],
     return labels
 
 
-def _is_valid_leg_label(label) -> bool:
-    # TODO this correct?
+def is_valid_leg_label(label) -> bool:
     return label is None or isinstance(label, str)
-
-
-def _normalize_idx(idx: int, length: int) -> int:
-    assert -length <= idx < length, 'index out of bounds'
-    if idx < 0:
-        idx += length
-    return idx
 
 
 def _parse_idcs(idcs: T | Sequence[T], length: int, fill: T = slice(None, None, None)
                 ) -> list[T]:
-    """Parse a single index or sequence of indices to a list of given length by replacing Ellipsis
-    (``...``) and missing entries at the back with `fill`.
+    """Parse a single index or sequence of indices to a list of given length.
+
+    Ellipsis (``...``) and missing entries at the back are filled in using `fill`.
 
     For invalid input, an IndexError is raised instead of ValueError, since this is a helper
     function for __getitem__ and __setitem__.
@@ -5388,8 +5666,39 @@ def _parse_idcs(idcs: T | Sequence[T], length: int, fill: T = slice(None, None, 
         return idcs + [fill] * num_fill
 
 
+def _split_all_pipes(a: SymmetricTensor | ChargedTensor) -> tuple[SymmetricTensor, list[list[int]]]:
+    """Split all pipes on a tensor, including nested pipes.
+
+    Returns
+    -------
+    split : SymmetricTensor | ChargedTensor
+        The result of repeatedly applying :func:`split_legs` to `a`.
+    combine_list : list of list of int
+        Which legs of `split` would need to be combined to recontruct `a` from `split`, except for
+        nesting of pipes.
+    """
+    split = a.copy(deep=False).set_labels(None)
+    while split.has_pipes:
+        split = split_legs(split)
+
+    combine_list = []
+    for i in range(a.num_codomain_legs):
+        grp = a.codomain.flat_leg_idcs(i)
+        if len(grp) == 1:
+            continue  # no need to combine anything
+        combine_list.append(grp)
+    for i in range(a.num_domain_legs):
+        grp = a.domain.flat_leg_idcs(i)
+        if len(grp) == 1:
+            continue  # no need to combine anything
+        grp = [split.num_legs - 1 - n for n in grp]
+        combine_list.append(grp)
+
+    return split, combine_list
+
+
 def _split_leg_label(label: str | None, num: int = None) -> list[str | None]:
-    """undo _combine_leg_labels, i.e. recover the original labels"""
+    """Undo _combine_leg_labels, i.e. recover the original labels"""
     if label is None:
         assert num is not None
         return [None] * num

@@ -3,12 +3,13 @@
 Changes compared to old np_conserved:
 
 - replace `ChargeInfo` by subclasses of `AbelianGroup` (or `ProductSymmetry`)
-- replace `LegCharge` by `ElementarySpace` and `LegPipe` by `ProductSpace`. Changed class hierarchy!
+- replace `LegCharge` by `ElementarySpace` and `LegPipe` by `AbelianLegPipe`. Changed class hierarchy!
 - standard `Tensor` have qtotal=0, only ChargedTensor can have non-zero qtotal
 - relabeling:
     - `Array.qdata`, "qind" and "qindices" to `AbelianBackendData.block_inds` and "block indices"
-    - `LegPipe.qmap` to `ProductSpace.metadata['_block_ind_map']` (with changed column order!!!)
-    - `LegPipe._perm` to `ProductSpace._perm_block_inds_map`  TODO (JU) this is outdated np?
+    - `LegPipe.qmap` to `AbelianLegPipe.block_ind_map` (with changed column order, and no longer lexsorted!!!)
+    - `LegPipe` now forms the sector combinations in C-style (no longer F-style) order.
+    - `LegPipe._perm` to `AbelianLegPipe.perm_block_inds_map`  TODO (JU) this is outdated np?
     - `LegCharge.get_block_sizes()` is just `Space.multiplicities`
 - TODO point towards Space attributes
 - keep spaces "sorted" and "bunched",
@@ -17,8 +18,15 @@ Changes compared to old np_conserved:
   In turn, ElementarySpace saves a `_perm` used to sort the originally passed `sectors`.
 - keep `block_inds` sorted (i.e. no arbitrary gauge permutation in block indices)
 
+.. _abelian_backend__blocks:
+
+Blocks
+------
+TODO elaborate about blocks, block_inds etc
+TODO link to this section from appropriate places
+
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable
@@ -29,14 +37,12 @@ from .abstract_backend import (
     TensorBackend, Data, DiagonalData, MaskData, Block, conventional_leg_order
 )
 from ..dtypes import Dtype
-from ..symmetries import BraidingStyle, Symmetry, SectorArray
-from ..spaces import Space, ElementarySpace, ProductSpace
+from ..symmetries import BraidingStyle, Symmetry
+from ..spaces import Space, ElementarySpace, LegPipe, AbelianLegPipe, TensorProduct, Leg
 from ..tools.misc import (
     inverse_permutation, list_to_dict_list, rank_data, iter_common_noncommon_sorted_arrays,
-    iter_common_sorted, iter_common_sorted_arrays, make_stride, find_row_differences
+    iter_common_sorted, iter_common_sorted_arrays, make_stride, find_row_differences, make_grid
 )
-
-__all__ = ['AbelianBackendData', 'AbelianBackend']
 
 
 if TYPE_CHECKING:
@@ -45,19 +51,16 @@ if TYPE_CHECKING:
     from ..tensors import SymmetricTensor, DiagonalTensor, Mask
 
 
-def _valid_block_inds(codomain: ProductSpace, domain: ProductSpace):
+def _valid_block_inds(codomain: TensorProduct, domain: TensorProduct):
     # OPTIMIZE: this is brute-force going through all possible combinations of block indices
-    # spaces are sorted, so we can probably reduce that search space quite a bit...
-    M = codomain.num_spaces
-    N = domain.num_spaces
+    #           spaces are sorted, so we can probably reduce that search space quite a bit...
     symmetry = codomain.symmetry
-    grid = np.indices((s.num_sectors for s in conventional_leg_order(codomain, domain)), dtype=int)
-    grid = grid.T.reshape((-1, M + N))
+    grid = make_grid([s.num_sectors for s in conventional_leg_order(codomain, domain)], cstyle=False)
     codomain_coupled = symmetry.multiple_fusion_broadcast(
-        *(space.sectors[i] for space, i in zip(codomain.spaces, grid.T))
+        *(space.sector_decomposition[i] for space, i in zip(codomain.factors, grid.T))
     )
     domain_coupled = symmetry.multiple_fusion_broadcast(
-        *(space.sectors[i] for space, i in zip(domain.spaces, grid.T[::-1]))
+        *(space.sector_decomposition[i] for space, i in zip(domain.factors, grid.T[::-1]))
     )
     valid = np.all(codomain_coupled == domain_coupled, axis=1)
     block_inds = grid[valid, :]
@@ -86,13 +89,17 @@ class AbelianBackendData:
     ----------
     dtype : Dtype
         The dtype of the data
+    device : str
+        The device on which the blocks are currently stored.
+        We currently only support tensors which have all blocks on a single device.
+        Should be the device returned by :func:`BlockBackend.as_device`.
     blocks : list of block
         A list of blocks containing the actual entries of the tensor.
         Leg order is ``[*codomain, *reversed(domain()]``, like ``Tensor.legs``.
     block_inds : 2D ndarray
         A 2D array of positive integers with shape (len(blocks), num_legs).
         The block `blocks[n]` belongs to the `block_inds[n, m]`-th sector of ``leg``,
-        that is to ``leg.sectors[block_inds[n, m]]``, where::
+        that is to ``leg.sector_decomposition[block_inds[n, m]]``, where::
 
             leg == (codomain.spaces[m] if m < len(codomain) else domain.spaces[-1 - m])
                 == tensor.get_leg_co_domain(m)
@@ -103,20 +110,22 @@ class AbelianBackendData:
 
     Parameters
     ----------
-    dtype, blocks, block_inds
+    dtype, device, blocks, block_inds
         like attributes above, but not necessarily sorted
     is_sorted : bool
         If ``False`` (default), we permute `blocks` and `block_inds` according to
         ``np.lexsort(block_inds.T)``.
         If ``True``, we assume they are sorted *without* checking.
     """
-    def __init__(self, dtype: Dtype, blocks: list[Block], block_inds: ndarray,
+    
+    def __init__(self, dtype: Dtype, device: str, blocks: list[Block], block_inds: ndarray,
                  is_sorted: bool = False):
         if not is_sorted:
             perm = np.lexsort(block_inds.T)
             block_inds = block_inds[perm, :]
             blocks = [blocks[n] for n in perm]
         self.dtype = dtype
+        self.device = device
         self.blocks = blocks
         self.block_inds = block_inds
 
@@ -133,12 +142,35 @@ class AbelianBackendData:
         return match[0]
 
     def get_block(self, block_inds: ndarray) -> Block | None:
-        """Return the block in :attr:`blocks` matching the given block_inds,
+        """Get the block at given block indices.
+
+        Return the block in :attr:`blocks` matching the given block_inds,
         i.e. `self.blocks[n]` such that `all(self.block_inds[n, :] == blocks_inds)`
         or None if no such block exists
         """
         block_num = self.get_block_num(block_inds)
         return None if block_num is None else self.blocks[block_num]
+
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+
+        hdf5_saver.save(self.block_inds, subpath + 'block_inds')
+        hdf5_saver.save(self.blocks, subpath + 'blocks')
+        hdf5_saver.save(self.dtype.to_numpy_dtype(), subpath + 'dtype')
+        hdf5_saver.save(self.device, subpath + 'device')
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.block_inds = hdf5_loader.load(subpath + 'block_inds')
+        obj.blocks = hdf5_loader.load(subpath + 'blocks')
+        obj.device = hdf5_loader.load(subpath + 'device')
+        dt = hdf5_loader.load(subpath + 'dtype')
+        obj.dtype = Dtype.from_numpy_dtype(dt)
+
+        return obj
 
 
 class AbelianBackend(TensorBackend):
@@ -162,112 +194,104 @@ class AbelianBackend(TensorBackend):
             the usual order. Note that the position of the larger leg depends on ``Mask.is_projection``!
 
     """
+    
     DataCls = AbelianBackendData
 
-    def test_data_sanity(self, a: SymmetricTensor | DiagonalTensor, is_diagonal: bool):
-        super().test_data_sanity(a, is_diagonal=is_diagonal)
+    def test_tensor_sanity(self, a: SymmetricTensor | DiagonalTensor, is_diagonal: bool):
+        super().test_tensor_sanity(a, is_diagonal=is_diagonal)
+        data: AbelianBackendData = a.data
+        # check device and dtype
+        assert a.device == data.device == self.block_backend.as_device(data.device)
+        assert a.dtype == data.dtype
+        # check leg types
+        for l in (a.get_leg_co_domain(n) for n in range(a.num_legs)):
+            assert isinstance(l, ElementarySpace), 'legs must be ElementarySpace'
+            if isinstance(l, LegPipe):
+                assert isinstance(l, AbelianLegPipe), 'pipes must be AbelianLegPipe'
+            # recursion into nested pipes is handled via AbelianLegPipe.test_sanity(), which
+            # is called via (co)domain.test_sanity() during Tensor.test_sanity()
         # check block_inds
-        assert not np.any(a.data.block_inds < 0)
-        sector_nums = [leg.num_sectors for leg in conventional_leg_order(a)]
-        assert not np.any(a.data.block_inds >= np.array([sector_nums]))
-        assert np.all(np.lexsort(a.data.block_inds.T) == np.arange(len(a.data.blocks)))
-        if a.data.block_inds.shape != (len(a.data.blocks), a.num_legs):
-            msg = f'Wrong blocks_inds shape. ' \
-                  f'Expected {(len(a.data.blocks), a.num_legs)}, got {a.data.block_inds.shape}.'
-            raise ValueError(msg)
-        if is_diagonal:
-            assert np.all(a.data.block_inds[:, 0] == a.data.block_inds[:, 1])
+        assert data.block_inds.shape == (len(data.blocks), a.num_legs)
+        assert np.all(data.block_inds >= 0)
+        assert np.all(data.block_inds < np.array([[leg.num_sectors for leg in conventional_leg_order(a)]]))
+        assert np.all(np.lexsort(data.block_inds.T) == np.arange(len(data.blocks)))
         # check block_inds fulfill charge rule
-        for inds in a.data.block_inds:
-            # OPTIMIZE can do this with one multiple_fusion_broadcast call?
+        if is_diagonal:
+            assert np.all(data.block_inds[:, 0] == data.block_inds[:, 1])
+        for inds in data.block_inds:
             codomain_coupled = a.symmetry.multiple_fusion(
-                *(leg.sectors[i] for leg, i in zip(a.codomain.spaces, inds))
+                *(leg.sector_decomposition[i] for leg, i in zip(a.codomain.factors, inds))
             )
             domain_coupled = a.symmetry.multiple_fusion(
-                *(leg.sectors[i] for leg, i in zip(a.domain.spaces, inds[::-1]))
+                *(leg.sector_decomposition[i] for leg, i in zip(a.domain.factors, inds[::-1]))
             )
             assert np.all(codomain_coupled == domain_coupled)
-        # check expected tensor dimensions
-        for block, b_i in zip(a.data.blocks, a.data.block_inds):
+        # check blocks and charge rule
+        for block, b_i in zip(data.blocks, data.block_inds):
             if is_diagonal:
                 shape = (a.leg.multiplicities[b_i[0]],)
             else:
                 shape = tuple(leg.multiplicities[i]
                               for leg, i in zip(conventional_leg_order(a), b_i))
-            self.block_backend.test_block_sanity(block, expect_shape=shape, expect_dtype=a.dtype)
-        # check matching dtypes
-        assert all(self.block_backend.block_dtype(block) == a.data.dtype for block in a.data.blocks)
+            self.block_backend.test_block_sanity(block, expect_shape=shape, expect_dtype=a.dtype,
+                                                 expect_device=a.device)
 
     def test_mask_sanity(self, a: Mask):
         super().test_mask_sanity(a)
-        if a.data.block_inds.shape != (len(a.data.blocks), 2):
-            msg = f'Wrong blocks_inds shape. ' \
-                  f'Expected {(len(a.data.blocks), 2)}, got {a.data.block_inds.shape}.'
-            raise ValueError(msg)
-        assert a.dtype == a.data.dtype == Dtype.bool
-        large_leg = a.large_leg
-        small_leg = a.small_leg
-        for block, block_inds in zip(a.data.blocks, a.data.block_inds):
+        data: AbelianBackendData = a.data
+        # check device and dtype
+        assert a.device == data.device == self.block_backend.as_device(data.device)
+        assert a.dtype == data.dtype == Dtype.bool
+        # check leg types
+        assert all(isinstance(l, ElementarySpace) for l in [a.large_leg, a.small_leg])
+        # check block_inds
+        assert data.block_inds.shape == (len(data.blocks), a.num_legs)
+        assert np.all(data.block_inds >= 0)
+        assert np.all(data.block_inds < np.array([[leg.num_sectors for leg in conventional_leg_order(a)]]))
+        assert np.all(np.lexsort(data.block_inds.T) == np.arange(len(data.blocks)))
+        # check blocks and charge rule
+        for block, block_inds in zip(data.blocks, data.block_inds):
             if a.is_projection:
                 bi_small, bi_large = block_inds
             else:
                 bi_large, bi_small = block_inds
-            assert 0 <= bi_large < large_leg.num_sectors
-            assert 0 <= bi_small < small_leg.num_sectors
             assert bi_large >= bi_small
-            assert np.all(large_leg.sectors[bi_large] == small_leg.sectors[bi_small])
-            assert self.block_backend.block_shape(block) == (large_leg.multiplicities[bi_large],)
-            assert self.block_backend.block_sum_all(block) == small_leg.multiplicities[bi_small]
-            assert self.block_backend.block_dtype(block) == Dtype.bool
+            # check charge rule
+            assert np.all(a.large_leg.sector_decomposition[bi_large] == a.small_leg.sector_decomposition[bi_small])
+            # check blocks
+            expect_len = a.large_leg.multiplicities[bi_large]
+            expect_sum = a.small_leg.multiplicities[bi_small]
+            assert expect_len > 0
+            assert expect_sum > 0
+            self.block_backend.test_block_sanity(block, expect_shape=(expect_len,),
+                                                 expect_dtype=Dtype.bool, expect_device=data.device)
+            assert self.block_backend.sum_all(block) == expect_sum
 
-    def test_leg_sanity(self, leg: Space):
-        if isinstance(leg, ProductSpace):
-            # check if the leg has consistent metadata
-            strides = leg.metadata.get('_strides', None)
-            block_ind_map_slices = leg.metadata.get('_block_ind_map_slices', None)
-            block_ind_map = leg.metadata.get('_block_ind_map', None)
+    # OVERRIDES
 
-            if strides is not None:
-                # check shape
-                assert strides.shape == (leg.num_spaces,)
-                # check entries
-                expect = 1
-                for i, num in enumerate(space.num_sectors for space in leg.spaces):
-                    assert strides[i] == expect
-                    expect *= num
-            if block_ind_map_slices is not None:
-                assert block_ind_map_slices.shape == (leg.num_sectors + 1,)
-                # do not check for full correctness, just for consistency as slices
-                assert block_ind_map_slices[0] == 0
-                assert block_ind_map_slices[-1] == np.prod([s.num_sectors for s in leg.spaces])
-                assert np.all(block_ind_map_slices[1:] >= block_ind_map_slices[:-1])
-            if block_ind_map is not None:
-                assert block_ind_map.shape[0] <= np.prod([s.num_sectors for s in leg.spaces])
-                assert block_ind_map.shape[1] == 3 + leg.num_spaces
-                for i, (b1, b2, *idcs, J) in enumerate(block_ind_map):
-                    if i > 0 and J == block_ind_map[i - 1][-1]:
-                        assert b1 == block_ind_map[i - 1][1]
-                    else:
-                        assert b1 == 0
-                    charges = (sp.sectors[i] for i, sp in zip(idcs, leg.spaces))
-                    fused = leg.symmetry.multiple_fusion(*charges)
-                    assert np.all(fused == leg.sectors[J])
-        
-        return super().test_leg_sanity(leg)
+    def make_pipe(self, legs: list[Leg], is_dual: bool, in_domain: bool,
+                  pipe: LegPipe | None = None) -> LegPipe:
+        assert all(isinstance(l, ElementarySpace) for l in legs)  # OPTIMIZE rm check
+        if isinstance(pipe, AbelianLegPipe):
+            assert pipe.combine_cstyle == (not is_dual)
+            assert pipe.is_dual == is_dual
+            assert pipe.legs == legs
+            return pipe
+        return AbelianLegPipe(legs, is_dual=is_dual, combine_cstyle=not is_dual)
 
     # ABSTRACT METHODS
 
     def act_block_diagonal_square_matrix(self, a: SymmetricTensor,
                                          block_method: Callable[[Block], Block],
                                          dtype_map: Callable[[Dtype], Dtype] | None) -> Data:
-        leg = a.domain.spaces[0]
+        leg = a.domain.factors[0]
         a_block_inds = a.data.block_inds
         all_block_inds = np.repeat(np.arange(leg.num_sectors)[:, None], 2, axis=1)
         res_blocks = []
         for i, j in iter_common_noncommon_sorted_arrays(a_block_inds, all_block_inds):
             if i is None:
                 # use that all_block_inds is just ascending -> all_block_inds[j, 0] == j
-                block = self.block_backend.zero_block(shape=[leg.multiplicities[j]] * 2, dtype=a.dtype)
+                block = self.block_backend.zeros(shape=[leg.multiplicities[j]] * 2, dtype=a.dtype)
             else:
                 block = a.data.blocks[i]
             res_blocks.append(block_method(block))
@@ -275,29 +299,29 @@ class AbelianBackend(TensorBackend):
             dtype = a.dtype
         else:
             dtype = dtype_map(a.dtype)
-        res_blocks = [self.block_backend.block_to_dtype(block, dtype) for block in res_blocks]
-        return AbelianBackendData(dtype, res_blocks, all_block_inds, is_sorted=True)
+        res_blocks = [self.block_backend.to_dtype(block, dtype) for block in res_blocks]
+        return AbelianBackendData(dtype, a.data.device, res_blocks, all_block_inds, is_sorted=True)
 
     def add_trivial_leg(self, a: SymmetricTensor, legs_pos: int, add_to_domain: bool,
-                        co_domain_pos: int, new_codomain: ProductSpace, new_domain: ProductSpace
+                        co_domain_pos: int, new_codomain: TensorProduct, new_domain: TensorProduct
                         ) -> Data:
-        blocks = [self.block_backend.block_add_axis(block, legs_pos) for block in a.data.blocks]
+        blocks = [self.block_backend.add_axis(block, legs_pos) for block in a.data.blocks]
         block_inds = np.insert(a.data.block_inds, legs_pos, 0, axis=1)
         # since the new column is constant, block_inds are still sorted.
-        return AbelianBackendData(a.data.dtype, blocks, block_inds, is_sorted=True)
+        return AbelianBackendData(a.data.dtype, a.data.device, blocks, block_inds, is_sorted=True)
 
     def almost_equal(self, a: SymmetricTensor, b: SymmetricTensor, rtol: float, atol: float) -> bool:
         a_blocks = a.data.blocks
         b_blocks = b.data.blocks
         for i, j in iter_common_noncommon_sorted_arrays(a.data.block_inds, b.data.block_inds):
             if j is None:
-                if self.block_backend.block_max_abs(a_blocks[i]) > atol:
+                if self.block_backend.max_abs(a_blocks[i]) > atol:
                     return False
             elif i is None:
-                if self.block_backend.block_max_abs(b_blocks[j]) > atol:
+                if self.block_backend.max_abs(b_blocks[j]) > atol:
                     return False
             else:
-                if not self.block_backend.block_allclose(a_blocks[i], b_blocks[j], rtol=rtol, atol=atol):
+                if not self.block_backend.allclose(a_blocks[i], b_blocks[j], rtol=rtol, atol=atol):
                     return False
         return True
 
@@ -310,95 +334,88 @@ class AbelianBackend(TensorBackend):
         res_blocks = []
         res_block_inds = []  # append only for one leg, repeat later
         for i, j in iter_common_sorted(tensor_block_inds_contr, mask_block_inds_contr):
-            block = self.block_backend.block_apply_mask(tensor_blocks[i], mask_blocks[j], ax=0)
+            block = self.block_backend.apply_mask(tensor_blocks[i], mask_blocks[j], ax=0)
             res_blocks.append(block)
             res_block_inds.append(mask_block_inds[j, 0])
         if len(res_block_inds) > 0:
             res_block_inds = np.repeat(np.array(res_block_inds)[:, None], 2, axis=1)
         else:
             res_block_inds = np.zeros((0, 2), int)
-        return AbelianBackendData(tensor.dtype, res_blocks, res_block_inds, is_sorted=True)
+        return AbelianBackendData(tensor.dtype, tensor.data.device, res_blocks, res_block_inds,
+                                  is_sorted=True)
 
     def combine_legs(self,
                      tensor: SymmetricTensor,
                      leg_idcs_combine: list[list[int]],
-                     product_spaces: list[ProductSpace],
-                     new_codomain: ProductSpace,
-                     new_domain: ProductSpace,
+                     pipes: list[LegPipe],
+                     new_codomain: TensorProduct,
+                     new_domain: TensorProduct,
                      ) -> Data:
+        assert all(isinstance(p, AbelianLegPipe) for p in pipes), 'abelian backend requires ``AbelianLegPipe``s'
         num_result_legs = tensor.num_legs - sum(len(group) - 1 for group in leg_idcs_combine)
         old_blocks = tensor.data.blocks
-        old_block_inds = tensor.data.block_inds
+        cstyles = []  # which combined legs are formed in C and F style
 
-        # first, find block indices of the final array to which we map
-        #   for each group k of legs to combine, map_inds[k] is a 1D array that identifies
-        #   which rows of the product spaces _block_ind_map match the corresponding block_inds.
-        #   This is in the sense that
-        #     map_inds[k][j] == J
-        #   indicates that we have
-        #     product_spaces[k].metadata['_block_ind_map'][J, 2:-1] == block_inds[j, group_k_idcs]
-        #   Note that it contains the same J multiple times (in general)
+        # build new block_inds, compatible with old_blocks, but contain duplicates and are not sorted
+        res_block_inds = np.empty((len(tensor.data.block_inds), num_result_legs), int)
+        i = 0  # res_block_inds[:, :i] is already set
+        j = 0  # old_block_inds[:, :j] are already considered
         map_inds = []
-        for p_space, (first, *_, last) in zip(product_spaces, leg_idcs_combine):
-            in_domain = first >= tensor.num_codomain_legs
-            block_inds = old_block_inds[:, first:last + 1]
+        for group, pipe in zip(leg_idcs_combine, pipes):
+            # uncombined legs since last group: block_inds are simply unchanged
+            num_uncombined = group[0] - j
+            res_block_inds[:, i:i + num_uncombined] = tensor.data.block_inds[:, j:j + num_uncombined]
+            i += num_uncombined
+            j += num_uncombined
+            # current combined group
+            in_domain = (group[0] >= tensor.num_codomain_legs)
+            cstyles.append(pipe.combine_cstyle != in_domain)
+            block_inds = tensor.data.block_inds[:, group[0]:group[-1] + 1]
             if in_domain:
                 # product space in the domain has opposite order of its spaces compared to the
                 # convention in block_inds
                 block_inds = block_inds[:, ::-1]
-            map_inds.append(self.product_space_map_incoming_block_inds(p_space, block_inds))
-
-        # build the result block_inds. in this first stage we allow duplicates
-        res_block_inds = np.empty((len(old_block_inds), num_result_legs), int)
-        i = 0  # res_block_inds[:, :i] is already set
-        j = 0  # old_block_inds[:, :j] are already considered
-        for group, p_space, map_ind in zip(leg_idcs_combine, product_spaces, map_inds):
-            # uncombined legs since last group: block_inds are simply unchanged
-            num_uncombined = group[0] - j
-            res_block_inds[:, i:i + num_uncombined] = old_block_inds[:, j:j + num_uncombined]
-            i += num_uncombined
-            j += num_uncombined
-            # current combined group
-            block_ind_map = p_space.get_metadata('_block_ind_map', backend=self)
-            res_block_inds[:, i] = block_ind_map[map_ind, -1]
+            # for each row of block_inds, find the corresponding row of pipe.block_ind_map
+            multi_indices = np.sum(block_inds * pipe.sector_strides[None, :], axis=1)
+            block_ind_map_rows = inverse_permutation(pipe.fusion_outcomes_sort)[multi_indices]
+            map_inds.append(block_ind_map_rows)
+            res_block_inds[:, i] = pipe.block_ind_map[block_ind_map_rows, -1]
             i += 1
             j += len(group)
         # trailing uncombined legs:
-        res_block_inds[:, i:] = old_block_inds[:, j:]
+        res_block_inds[:, i:] = tensor.data.block_inds[:, j:]
 
         # sort the new block_inds
-        #   we need them sorted at some point anyway, and sorting allows us to find duplicates later
         sort = np.lexsort(res_block_inds.T)
         res_block_inds = res_block_inds[sort]
         old_blocks = [old_blocks[i] for i in sort]
-        # old_block_inds = old_block_inds[sort]  # not actually needed
-        map_inds = [map_[sort] for map_ in map_inds]
+        map_inds = [rows[sort] for rows in map_inds]
 
-        # determine for each old block which slices of the new block it should occupy
+        # determine, for each old block, which slices of the new block it should occupy
         i = 0  # have already set info for new_legs[:i]
         j = 0  # have already considered old_legs[:j]
         block_slices = np.zeros((len(old_blocks), num_result_legs, 2), int)
-        for group, p_space, map_ind in zip(leg_idcs_combine, product_spaces, map_inds):
-            # uncombined legs since last group: shape is just multiplicity, slice is all of 0:mult
+        for group, pipe, block_ind_map_rows in zip(leg_idcs_combine, pipes, map_inds):
+            # uncombined legs since last group: slice is all of 0:mult
             num_uncombined = group[0] - j
-            for n in range(num_uncombined):
+            for _ in range(num_uncombined):
                 # block_slices[:, i, 0] = 0 is already set
                 block_slices[:, i, 1] = tensor.get_leg_co_domain(j).multiplicities[res_block_inds[:, i]]
                 i += 1
                 j += 1
             # current combined group
-            block_ind_map = p_space.get_metadata('_block_ind_map', backend=self)
-            block_slices[:, i, :] = block_ind_map[map_ind, :2]
+            block_slices[:, i, :] = pipe.block_ind_map[block_ind_map_rows, :2]
             i += 1
             j += len(group)
         # trailing uncombined legs
-        for n in range(tensor.num_legs - j):
+        for _ in range(tensor.num_legs - j):
+            # block_slices[:, i, 0] = 0 is already set
             block_slices[:, i, 1] = tensor.get_leg_co_domain(j).multiplicities[res_block_inds[:, i]]
             i += 1
             j += 1
-        block_shapes = block_slices[:, :, 1] - block_slices[:, :, 0]
 
-        # identify the duplicates in res_block_inds -> these are mapped to the same new block
+        # identify the duplicates in res_block_inds
+        # all those old_blocks are embedded into a single new block
         diffs = find_row_differences(res_block_inds, include_len=True)  # includes both 0 and len, to have slices later
 
         # build the new blocks
@@ -409,20 +426,20 @@ class AbelianBackend(TensorBackend):
             res_block_shapes[:, i] = leg.multiplicities[res_block_inds[:, i]]
         res_blocks = []
         for shape, start, stop in zip(res_block_shapes, diffs[:-1], diffs[1:]):
-            new_block = self.block_backend.zero_block(shape, dtype=tensor.dtype)
+            new_block = self.block_backend.zeros(shape, dtype=tensor.dtype, device=tensor.device)
             for row in range(start, stop):
-                slices = block_slices[row]
-                old_block = self.block_backend.block_reshape(old_blocks[row], block_shapes[row])
                 slices = tuple(slice(b, e) for (b, e) in block_slices[row])
-                new_block[slices] = old_block
+                new_block[slices] = self.block_backend.combine_legs(
+                    old_blocks[row], leg_idcs_combine, cstyles
+                )
             res_blocks.append(new_block)
 
         # we lexsort( .T)-ed res_block_inds while it still had duplicates, and then indexed by diffs,
         # which is sorted and thus preserves lexsort( .T)-ing of res_block_inds
-        return AbelianBackendData(tensor.dtype, res_blocks, res_block_inds, is_sorted=True)
+        return AbelianBackendData(tensor.dtype, tensor.data.device, res_blocks, res_block_inds, is_sorted=True)
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
-        """
+        """See parent docstring.
 
         Notes
         -----
@@ -455,7 +472,7 @@ class AbelianBackend(TensorBackend):
         where `i` can be any row of `a_block_inds_keep`, `j` can be any row of `b_block_inds_keep`.
         The `k1` and `k2` are rows/columns of `a/b_block_inds_contr`, which come from compatible legs.
         In our storage scheme, `a.data.blocks[s]` then contains the block :math:`A_{i,k1}` for
-        ``j = a_block_inds_keep[s]`` and ``k1 = a_block_inds_contr[s]``.
+        ``i = a_block_inds_keep[s]`` and ``k1 = a_block_inds_contr[s]``.
         To identify the different indices `i` and `j`, it is easiest to lexsort in the `s`.
         Note that we give priority to the `{a,b}_block_inds_keep` over the `_contr`, such that
         equal rows of `i` are contiguous in `a_block_inds_keep`.
@@ -472,9 +489,9 @@ class AbelianBackend(TensorBackend):
         Third, given ``i`` and ``j``, the sum over ``k`` runs only over
         ``k1`` with nonzero :math:`A_{i,k1}`, and ``k2` with nonzero :math:`B_{k2,j}`.
 
-         How many multiplications :math:`A_{i,k} B_{k,j}` we actually have to perform
-         depends on the sparseness. If ``k`` comes from a single leg, it is completely sorted
-         by charges, so the 'sum' over ``k`` will contain at most one term!
+        How many multiplications :math:`A_{i,k} B_{k,j}` we actually have to perform
+        depends on the sparseness. If ``k`` comes from a single leg, it is completely sorted
+        by charges, so the 'sum' over ``k`` will contain at most one term!
         """
         if a.num_codomain_legs == 0 and b.num_domain_legs == 0:
             return self.inner(a, b, do_dagger=False)
@@ -484,16 +501,15 @@ class AbelianBackend(TensorBackend):
 
         if len(a.data.blocks) == 0 or len(b.data.blocks) == 0:
             # if there are no actual blocks to contract, we can directly return 0
-            return self.zero_data(a.codomain, b.domain, res_dtype)
+            return self.zero_data(a.codomain, b.domain, res_dtype, device=a.data.device)
 
         # convert blocks to common dtype
         a_blocks = a.data.blocks
         if a.dtype != res_dtype:
-            a_blocks = [self.block_backend.block_to_dtype(B, res_dtype) for B in a_blocks]
+            a_blocks = [self.block_backend.to_dtype(B, res_dtype) for B in a_blocks]
         b_blocks = b.data.blocks
         if b.dtype != res_dtype:
-            b_blocks = [self.block_backend.block_to_dtype(B, res_dtype) for B in b_blocks]
-
+            b_blocks = [self.block_backend.to_dtype(B, res_dtype) for B in b_blocks]
 
         # need to contract the domain legs of a with the codomain legs of b.
         # due to the leg ordering
@@ -535,16 +551,16 @@ class AbelianBackend(TensorBackend):
         #         One of the a_blocks may be contracted with many different b_blocks, and require
         #         the same reshape every time. Instead, we do it once at this point.
         # All blocks in a_blocks[n] have the same kept legs -> same kept shape
-        a_shape_keep = [self.block_backend.block_shape(blocks[0])[:a.num_codomain_legs]
+        a_shape_keep = [self.block_backend.get_shape(blocks[0])[:a.num_codomain_legs]
                         for blocks in a_blocks]
-        b_shape_keep = [self.block_backend.block_shape(blocks[0])[b.num_codomain_legs:]
+        b_shape_keep = [self.block_backend.get_shape(blocks[0])[b.num_codomain_legs:]
                         for blocks in b_blocks]
         if a.num_codomain_legs == 0:
             # special case: reshape to vector.
-            a_blocks = [[self.block_backend.block_reshape(B, (-1,)) for B in blocks]
+            a_blocks = [[self.block_backend.reshape(B, (-1,)) for B in blocks]
                         for blocks in a_blocks]
         else:
-            a_blocks = [[self.block_backend.block_reshape(B, (np.prod(shape_keep), -1))
+            a_blocks = [[self.block_backend.reshape(B, (np.prod(shape_keep), -1))
                          for B in blocks] for blocks, shape_keep in zip(a_blocks, a_shape_keep)]
         # need to permute the leg order of one group of permuted legs.
         # OPTIMIZE does it matter, which?
@@ -553,14 +569,14 @@ class AbelianBackend(TensorBackend):
             # special case: reshape to vector
             perm = list(reversed(range(b.num_legs)))
             b_blocks = [[
-                self.block_backend.block_reshape(self.block_backend.block_permute_axes(B, perm), (-1,))
+                self.block_backend.reshape(self.block_backend.permute_axes(B, perm), (-1,))
                 for B in blocks
             ] for blocks in b_blocks]
         else:
             perm = [*reversed(range(b.num_codomain_legs)), *range(b.num_codomain_legs, b.num_legs)]
             b_blocks = [[
-                self.block_backend.block_reshape(self.block_backend.block_permute_axes(B, perm),
-                                                 (-1, np.prod(shape_keep)))
+                self.block_backend.reshape(self.block_backend.permute_axes(B, perm),
+                                           (-1, np.prod(shape_keep)))
                 for B in blocks]
                 for blocks, shape_keep in zip(b_blocks, b_shape_keep)
             ]
@@ -568,13 +584,13 @@ class AbelianBackend(TensorBackend):
         # compute coupled sectors for all rows of the block inds // for all blocks
         if a.num_codomain_legs > 0:
             a_charges = a.symmetry.multiple_fusion_broadcast(
-                *(leg.sectors[bi] for leg, bi in zip(a.codomain, a_block_inds_keep.T))
+                *(leg.sector_decomposition[bi] for leg, bi in zip(a.codomain, a_block_inds_keep.T))
             )
         else:
             a_charges = np.repeat(a.symmetry.trivial_sector[None, :], len(a_block_inds_keep), axis=1)
         if b.num_domain_legs > 0:
             b_charges = a.symmetry.multiple_fusion_broadcast(
-                *(leg.sectors[bi] for leg, bi in zip(b.domain, b_block_inds_keep[:, ::-1].T))
+                *(leg.sector_decomposition[bi] for leg, bi in zip(b.domain, b_block_inds_keep[:, ::-1].T))
             )
         else:
             b_charges = np.repeat(a.symmetry.trivial_sector[None, :], len(b_block_inds_keep), axis=1)
@@ -599,7 +615,7 @@ class AbelianBackend(TensorBackend):
                 # for further pairs of common indices, add the result onto the existing block
                 for k1, k2 in common_inds_iter:
                     block += self.block_backend.matrix_dot(a_blocks_in_row[k1], b_blocks_in_col[k2])
-                block = self.block_backend.block_reshape(
+                block = self.block_backend.reshape(
                     block, a_shape_keep[row_a] + b_shape_keep[col_b]
                 )
                 res_blocks.append(block)
@@ -611,49 +627,60 @@ class AbelianBackend(TensorBackend):
             block_inds = np.zeros((0, a.num_codomain_legs + b.num_domain_legs), dtype=int)
         else:
             block_inds = np.hstack((res_block_inds_a, res_block_inds_b))
-        return AbelianBackendData(res_dtype, blocks=res_blocks, block_inds=block_inds,
+        return AbelianBackendData(res_dtype, a.data.device, blocks=res_blocks, block_inds=block_inds,
                                   is_sorted=True)
 
     def _compose_no_contraction(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
-        """special case of :meth:`compose` where no legs are actually contracted.
+        """Special case of :meth:`compose` where no legs are actually contracted.
+        
         Note that this is not the same as :meth:`outer`, the resulting leg order is different.
         """
         res_dtype = a.data.dtype.common(b.data.dtype)
         a_blocks = a.data.blocks
         b_blocks = b.data.blocks
         if a.data.dtype != res_dtype:
-            a_blocks = [self.block_backend.block_to_dtype(T, res_dtype) for T in a_blocks]
+            a_blocks = [self.block_backend.to_dtype(T, res_dtype) for T in a_blocks]
         if b.data.dtype != res_dtype:
-            b_blocks = [self.block_backend.block_to_dtype(T, res_dtype) for T in b_blocks]
+            b_blocks = [self.block_backend.to_dtype(T, res_dtype) for T in b_blocks]
         a_block_inds = a.data.block_inds
         b_block_inds = b.data.block_inds
         l_a, num_legs_a = a_block_inds.shape
         l_b, num_legs_b = b_block_inds.shape
-        grid = np.indices([len(a_block_inds), len(b_block_inds)]).T.reshape(-1, 2)
+        grid = make_grid([len(a_block_inds), len(b_block_inds)], cstyle=False)
         # grid is lexsorted, with rows as all combinations of a/b block indices.
         res_block_inds = np.empty((l_a * l_b, num_legs_a + num_legs_b), dtype=int)
         res_block_inds[:, :num_legs_a] = a_block_inds[grid[:, 0]]
         res_block_inds[:, num_legs_a:] = b_block_inds[grid[:, 1]]
-        res_blocks = [self.block_backend.block_outer(a_blocks[i], b_blocks[j]) for i, j in grid]
-        # TODO (JU) are the block_inds actually sorted?
-        #  if yes: add comment explaining why, adjust argument below
-        return AbelianBackendData(res_dtype, res_blocks, res_block_inds, is_sorted=False)
+        res_blocks = [self.block_backend.outer(a_blocks[i], b_blocks[j]) for i, j in grid]
 
-    def copy_data(self, a: SymmetricTensor | DiagonalTensor) -> Data | DiagonalData:
-        blocks = [self.block_backend.block_copy(b) for b in a.data.blocks]
-        return AbelianBackendData(a.data.dtype, blocks, a.data.block_inds.copy(), is_sorted=True)
+        # Since the grid was in F-style, and the a_block_inds, b_block_inds are sorted,
+        # the res_block_inds are sorted.
+        assert np.all(np.lexsort(res_block_inds.T) == np.arange(len(res_block_inds)))  # TODO remove check
+        return AbelianBackendData(res_dtype, a.data.device, res_blocks, res_block_inds,
+                                  is_sorted=True)
+
+    def copy_data(self, a: SymmetricTensor | DiagonalTensor, device: str = None
+                  ) -> Data | DiagonalData:
+        blocks = [self.block_backend.copy_block(b, device=device) for b in a.data.blocks]
+        if device is None:
+            device = a.data.device
+        else:
+            device = self.block_backend.as_device(device)
+        # OPTIMIZE do we need to copy the block_inds ??
+        return AbelianBackendData(a.data.dtype, device, blocks, a.data.block_inds.copy(),
+                                  is_sorted=True)
 
     def dagger(self, a: SymmetricTensor) -> Data:
-        blocks = [self.block_backend.block_dagger(b) for b in a.data.blocks]
+        blocks = [self.block_backend.dagger(b) for b in a.data.blocks]
         block_inds = a.data.block_inds[:, ::-1]
-        return AbelianBackendData(a.dtype, blocks=blocks, block_inds=block_inds)
+        return AbelianBackendData(a.dtype, a.data.device, blocks=blocks, block_inds=block_inds)
 
     def data_item(self, a: Data | DiagonalData) -> float | complex:
         if len(a.blocks) > 1:
             raise ValueError("More than 1 block!")
         if len(a.blocks) == 0:
             return a.dtype.zero_scalar
-        return self.block_backend.block_item(a.blocks[0])
+        return self.block_backend.item(a.blocks[0])
 
     def diagonal_all(self, a: DiagonalTensor) -> bool:
         if len(a.data.block_inds) < a.leg.num_sectors:
@@ -668,10 +695,7 @@ class AbelianBackend(TensorBackend):
     def diagonal_elementwise_binary(self, a: DiagonalTensor, b: DiagonalTensor, func,
                                     func_kwargs, partial_zero_is_zero: bool
                                     ) -> DiagonalData:
-        # TODO could further distinguish cases for what is zero and drop respective blocks:
-        #  - only left:: func(0, b) == 0
-        #  - only right:: func(a, 0) == 0
-        #  - only both:: func(0, 0) == 0
+        # OPTIMIZE should we drop zero blocks after?
         leg = a.leg
         a_blocks = a.data.blocks
         b_blocks = b.data.blocks
@@ -682,9 +706,11 @@ class AbelianBackend(TensorBackend):
         block_inds = []
 
         ia = 0  # next block of a to process
-        bi_a = -1 if len(a_block_inds) == 0 else a_block_inds[ia, 0]  # block_ind of that block => it belongs to leg.sectors[bi_a]
+        # block_ind of that block => it belongs to leg.sector_decomposition[bi_a]
+        bi_a = -1 if len(a_block_inds) == 0 else a_block_inds[ia, 0]
         ib = 0  # next block of b to process
-        bi_b = -1 if len(b_block_inds) == 0 else b_block_inds[ib, 0]  # block_ind of that block => it belongs to leg.sectors[bi_b]
+        # block_ind of that block => it belongs to leg.sector_decomposition[bi_b]
+        bi_b = -1 if len(b_block_inds) == 0 else b_block_inds[ib, 0]
         #
         for i, mult in enumerate(leg.multiplicities):
             if i == bi_a:
@@ -697,7 +723,7 @@ class AbelianBackend(TensorBackend):
             elif partial_zero_is_zero:
                 continue
             else:
-                block_a = self.block_backend.zero_block([mult], a.dtype)
+                block_a = self.block_backend.zeros([mult], a.dtype)
 
             if i == bi_b:
                 block_b = b_blocks[ib]
@@ -709,21 +735,22 @@ class AbelianBackend(TensorBackend):
             elif partial_zero_is_zero:
                 continue
             else:
-                block_b = self.block_backend.zero_block([mult], a.dtype)
+                block_b = self.block_backend.zeros([mult], a.dtype)
             blocks.append(func(block_a, block_b, **func_kwargs))
             block_inds.append(i)
 
         if len(blocks) == 0:
             block_inds = np.zeros((0, 2), int)
-            dtype = self.block_backend.block_dtype(
+            dtype = self.block_backend.get_dtype(
                 func(self.block_backend.ones_block([1], dtype=a.dtype),
                      self.block_backend.ones_block([1], dtype=b.dtype))
             )
         else:
             block_inds = np.repeat(np.array(block_inds)[:, None], 2, axis=1)
-            dtype = self.block_backend.block_dtype(blocks[0])
+            dtype = self.block_backend.get_dtype(blocks[0])
 
-        return AbelianBackendData(dtype=dtype, blocks=blocks, block_inds=block_inds, is_sorted=True)
+        return AbelianBackendData(dtype=dtype, device=a.data.device, blocks=blocks,
+                                  block_inds=block_inds, is_sorted=True)
 
     def diagonal_elementwise_unary(self, a: DiagonalTensor, func, func_kwargs, maps_zero_to_zero: bool
                                    ) -> DiagonalData:
@@ -738,49 +765,52 @@ class AbelianBackend(TensorBackend):
             for i, j in iter_common_noncommon_sorted_arrays(block_inds, a_block_inds):
                 if j is None:
                     # use that block_inds is just arange -> block_inds[i, 0] == i
-                    block = self.block_backend.zero_block([a.leg.multiplicities[i]], dtype=a.dtype)
+                    block = self.block_backend.zeros([a.leg.multiplicities[i]], dtype=a.dtype)
                 else:
                     block = a_blocks[j]
                 blocks.append(func(block, **func_kwargs))
         if len(blocks) == 0:
-            example_block = func(self.block_backend.zero_block([1], dtype=a.dtype))
-            dtype = self.block_backend.block_dtype(example_block)
+            example_block = func(self.block_backend.zeros([1], dtype=a.dtype))
+            dtype = self.block_backend.get_dtype(example_block)
         else:
-            dtype = self.block_backend.block_dtype(blocks[0])
-        return AbelianBackendData(dtype=dtype, blocks=blocks, block_inds=block_inds, is_sorted=True)
+            dtype = self.block_backend.get_dtype(blocks[0])
+        return AbelianBackendData(dtype=dtype, device=a.data.device, blocks=blocks,
+                                  block_inds=block_inds, is_sorted=True)
 
-    def diagonal_from_block(self, a: Block, co_domain: ProductSpace, tol: float) -> DiagonalData:
-        leg = co_domain.spaces[0]
-        dtype = self.block_backend.block_dtype(a)
+    def diagonal_from_block(self, a: Block, co_domain: TensorProduct, tol: float) -> DiagonalData:
+        leg = co_domain.factors[0]
+        dtype = self.block_backend.get_dtype(a)
         block_inds = np.repeat(np.arange(co_domain.num_sectors)[:, None], 2, axis=1)
         blocks = [a[slice(*leg.slices[i])] for i in block_inds[:, 0]]
-        return AbelianBackendData(dtype, blocks, block_inds, is_sorted=True)
+        device = self.block_backend.get_device(a)
+        return AbelianBackendData(dtype, device, blocks, block_inds, is_sorted=True)
 
-    def diagonal_from_sector_block_func(self, func, co_domain: ProductSpace) -> DiagonalData:
-        leg = co_domain.spaces[0]
+    def diagonal_from_sector_block_func(self, func, co_domain: TensorProduct) -> DiagonalData:
+        leg = co_domain.factors[0]
         block_inds = np.repeat(np.arange(leg.num_sectors)[:, None], 2, axis=1)
         blocks = [func((mult,), coupled)
-                  for coupled, mult in zip(leg.sectors, leg.multiplicities)]
+                  for coupled, mult in zip(leg.sector_decomposition, leg.multiplicities)]
         if len(blocks) == 0:
             sample_block = func((1,), co_domain.symmetry.trivial_sector)
         else:
             sample_block = blocks[0]
-        dtype = self.block_backend.block_dtype(sample_block)
-        return AbelianBackendData(dtype=dtype, blocks=blocks, block_inds=block_inds, is_sorted=True)
+        dtype = self.block_backend.get_dtype(sample_block)
+        device = self.block_backend.get_device(sample_block)
+        return AbelianBackendData(dtype=dtype, device=device, blocks=blocks, block_inds=block_inds, is_sorted=True)
 
     def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool) -> DiagonalData:
-        blocks = [self.block_backend.block_get_diagonal(block, check_offdiagonal)
+        blocks = [self.block_backend.get_diagonal(block, check_offdiagonal)
                   for block in a.data.blocks]
-        return AbelianBackendData(a.dtype, blocks, a.data.block_inds, is_sorted=True)
+        return AbelianBackendData(a.dtype, a.data.device, blocks, a.data.block_inds, is_sorted=True)
 
     def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
         total_sum = a.data.dtype.zero_scalar
         for block in a.data.blocks:
-            total_sum += self.block_backend.block_sum_all(block)
+            total_sum += self.block_backend.sum_all(block)
         return total_sum
 
     def diagonal_tensor_to_block(self, a: DiagonalTensor) -> Block:
-        res = self.block_backend.zero_block([a.leg.dim], a.dtype)
+        res = self.block_backend.zeros([a.leg.dim], a.dtype)
         for block, b_i_0 in zip(a.data.blocks, a.data.block_inds[:, 0]):
             res[slice(*a.leg.slices[b_i_0])] = block
         return res
@@ -800,10 +830,11 @@ class AbelianBackend(TensorBackend):
             #
             blocks.append(diag_block)
             large_leg_block_inds.append(bi)
-            sectors.append(large_leg.sectors[bi])
-            multiplicities.append(self.block_backend.block_sum_all(diag_block))
+            sectors.append(large_leg.defining_sectors[bi])
+            multiplicities.append(self.block_backend.sum_all(diag_block))
             if basis_perm is not None:
-                basis_perm_ranks.append(basis_perm[slice(*large_leg.slices[bi])][diag_block])
+                mask = self.block_backend.to_numpy(diag_block, bool)
+                basis_perm_ranks.append(basis_perm[slice(*large_leg.slices[bi])][mask])
 
         if len(blocks) == 0:
             sectors = tens.symmetry.empty_sector_array
@@ -818,61 +849,66 @@ class AbelianBackend(TensorBackend):
             block_inds = np.column_stack([np.arange(len(sectors)), large_leg_block_inds])
 
         data = AbelianBackendData(
-            dtype=Dtype.bool, blocks=blocks, block_inds=np.array(block_inds, int), is_sorted=True
+            dtype=Dtype.bool, device=tens.data.device, blocks=blocks,
+            block_inds=np.array(block_inds, int), is_sorted=True
         )
         small_leg = ElementarySpace(
-            symmetry=tens.symmetry, sectors=sectors, multiplicities=multiplicities,
+            symmetry=tens.symmetry, defining_sectors=sectors, multiplicities=multiplicities,
             is_dual=large_leg.is_dual, basis_perm=basis_perm
         )
         return data, small_leg
 
     def diagonal_transpose(self, tens: DiagonalTensor) -> tuple[Space, DiagonalData]:
-        dual_leg, perm = tens.leg._dual_space(return_perm=True)
-        data = AbelianBackendData(
-            tens.dtype, blocks=tens.data.blocks,
-            block_inds=inverse_permutation(perm)[tens.data.block_inds]
-        )
-        return dual_leg, data
+        # OPTIMIZE copy needed?
+        return tens.leg.dual, self.copy_data(tens)
 
-    def eigh(self, a: SymmetricTensor, sort: str = None) -> tuple[DiagonalData, Data]:
+    def eigh(self, a: SymmetricTensor, new_leg_dual: bool, sort: str = None
+             ) -> tuple[DiagonalData, Data, ElementarySpace]:
+        # in tensors.py, we do pre-processing such that the following holds:
+        assert a.num_codomain_legs == 1 == a.num_domain_legs
+        assert new_leg_dual == a.domain[0].is_dual  # such that we can use the same block_inds
+        
+        new_leg = a.domain.as_ElementarySpace(is_dual=new_leg_dual)
+        
         a_block_inds = a.data.block_inds
         # for missing blocks, i.e. a zero block, the eigenvalues are zero, so we can just skip
         # adding that block to the eigenvalues.
         # for the eigenvectors, we choose the computational basis vectors, i.e. the matrix
         # representation within that block is the identity matrix.
         # we initialize all blocks to eye and override those where `a` has blocks.
-        v_data = self.eye_data(a.domain, a.dtype)
+        v_data = self.eye_data(a.domain, a.dtype, device=a.data.device)
         w_blocks = []
         for block, bi in zip(a.data.blocks, a_block_inds):
-            vals, vects = self.block_backend.block_eigh(block, sort=sort)
+            vals, vects = self.block_backend.eigh(block, sort=sort)
             w_blocks.append(vals)
             v_data.blocks[bi[0]] = vects
-        w_data = AbelianBackendData(dtype=a.dtype.to_real, blocks=w_blocks, block_inds=a_block_inds,
-                                    is_sorted=True)
-        return w_data, v_data
+        w_data = AbelianBackendData(dtype=a.dtype.to_real, device=a.data.device, blocks=w_blocks,
+                                    block_inds=a_block_inds, is_sorted=True)
+        return w_data, v_data, new_leg
 
-    def eye_data(self, co_domain: ProductSpace, dtype: Dtype) -> Data:
+    def eye_data(self, co_domain: TensorProduct, dtype: Dtype, device: str) -> Data:
         # Note: the identity has the same matrix elements in all ONB, so ne need to consider
         #       the basis perms.
         # results[i1,...im,jm,...,j1] = delta_{i1,j1} ... delta{im,jm}
         # need exactly the "diagonal" blocks, where sector of i1 matches the one of j1 etc.
         # to guarantee sorting later, it is easier to generate the block inds of the domain
-        domain_dims = [leg.num_sectors for leg in reversed(co_domain.spaces)]
-        domain_block_inds = np.indices(domain_dims).T.reshape(-1, co_domain.num_spaces)
+        domain_dims = [leg.num_sectors for leg in reversed(co_domain.factors)]
+        domain_block_inds = np.indices(domain_dims).T.reshape(-1, co_domain.num_factors)
         block_inds = np.hstack([domain_block_inds[:, ::-1], domain_block_inds])
         # domain_block_inds is by construction np.lexsort( .T)-ed.
         # since the last co_domain.num_spaces columns of block_inds are already unique, the first
         # columns are not relevant to np.lexsort( .T)-ing, thus the block_inds above is sorted.
         blocks = []
         for b_i in block_inds:
-            shape = [leg.multiplicities[i] for leg, i in zip(co_domain.spaces, b_i)]
-            blocks.append(self.block_backend.eye_block(shape, dtype))
-        return AbelianBackendData(dtype, blocks, block_inds, is_sorted=True)
+            shape = [leg.multiplicities[i] for leg, i in zip(co_domain.factors, b_i)]
+            blocks.append(self.block_backend.eye_block(shape, dtype, device=device))
+        return AbelianBackendData(dtype, device, blocks, block_inds, is_sorted=True)
 
-    def from_dense_block(self, a: Block, codomain: ProductSpace, domain: ProductSpace, tol: float
+    def from_dense_block(self, a: Block, codomain: TensorProduct, domain: TensorProduct, tol: float
                          ) -> AbelianBackendData:
-        dtype = self.block_backend.block_dtype(a)
-        projected = self.block_backend.zero_block(self.block_backend.block_shape(a), dtype=dtype)
+        dtype = self.block_backend.get_dtype(a)
+        device = self.block_backend.get_device(a)
+        projected = self.block_backend.zeros(self.block_backend.get_shape(a), dtype=dtype)
         block_inds = _valid_block_inds(codomain, domain)
         blocks = []
         for b_i in block_inds:
@@ -882,53 +918,57 @@ class AbelianBackend(TensorBackend):
             blocks.append(block)
             projected[slices] = block
         if tol is not None:
-            if self.block_backend.block_norm(a - projected) > tol * self.block_backend.block_norm(a):
+            if self.block_backend.norm(a - projected) > tol * self.block_backend.norm(a):
                 raise ValueError('Block is not symmetric up to tolerance.')
-        return AbelianBackendData(dtype, blocks, block_inds, is_sorted=True)
+        return AbelianBackendData(dtype, device, blocks, block_inds, is_sorted=True)
 
     def from_dense_block_trivial_sector(self, block: Block, leg: Space) -> Data:
-        bi = leg.sectors_where(leg.symmetry.trivial_sector)
+        bi = leg.sector_decomposition_where(leg.symmetry.trivial_sector)
         return AbelianBackendData(
-            dtype=self.block_backend.block_dtype(block), blocks=[block],
-            block_inds=np.array([[bi]]),
-            is_sorted=True
+            dtype=self.block_backend.get_dtype(block),
+            device=self.block_backend.get_device(block),
+            blocks=[block], block_inds=np.array([[bi]]), is_sorted=True
         )
 
-    def from_random_normal(self, codomain: ProductSpace, domain: ProductSpace, sigma: float,
-                           dtype: Dtype) -> Data:
-        return self.from_sector_block_func(
-            func=lambda shape, coupled: self.block_backend.block_random_normal(shape, dtype, sigma),
-            codomain=codomain, domain=domain
-        )
+    def from_random_normal(self, codomain: TensorProduct, domain: TensorProduct, sigma: float,
+                           dtype: Dtype, device: str) -> Data:
+        def func(shape, coupled):
+            return self.block_backend.random_normal(shape, dtype, sigma, device=device)
+        
+        return self.from_sector_block_func(func, codomain=codomain, domain=domain)
 
-    def from_sector_block_func(self, func, codomain: ProductSpace, domain: ProductSpace) -> Data:
+    def from_sector_block_func(self, func, codomain: TensorProduct, domain: TensorProduct) -> Data:
         """Generate tensor data from a function ``func(shape: tuple[int], coupled: Sector) -> Block``."""
         block_inds = _valid_block_inds(codomain=codomain, domain=domain)
-        M = codomain.num_spaces
+        M = codomain.num_factors
         blocks = []
         for b_i in block_inds:
             shape = [leg.multiplicities[i]
                      for i, leg in zip(b_i, conventional_leg_order(codomain, domain))]
             coupled = codomain.symmetry.multiple_fusion(
-                *(leg.sectors[i] for i, leg in zip(b_i, codomain.spaces))
+                *(leg.sector_decomposition[i] for i, leg in zip(b_i, codomain.factors))
             )
             blocks.append(func(shape, coupled))
         if len(blocks) == 0:
-            sample_block = func((1,) * (M + domain.num_spaces), codomain.symmetry.trivial_sector)
+            sample_block = func((1,) * (M + domain.num_factors), codomain.symmetry.trivial_sector)
         else:
             sample_block = blocks[0]
-        dtype = self.block_backend.block_dtype(sample_block)
-        return AbelianBackendData(dtype=dtype, blocks=blocks, block_inds=block_inds, is_sorted=True)
+        dtype = self.block_backend.get_dtype(sample_block)
+        device = self.block_backend.get_device(sample_block)
+        return AbelianBackendData(dtype=dtype, device=device, blocks=blocks, block_inds=block_inds, is_sorted=True)
 
     def full_data_from_diagonal_tensor(self, a: DiagonalTensor) -> Data:
         blocks = [self.block_backend.block_from_diagonal(block) for block in a.data.blocks]
-        return AbelianBackendData(a.dtype, blocks, a.data.block_inds, is_sorted=True)
+        return AbelianBackendData(a.dtype, a.data.device, blocks, a.data.block_inds, is_sorted=True)
 
     def full_data_from_mask(self, a: Mask, dtype: Dtype) -> Data:
         blocks = [self.block_backend.block_from_mask(block, dtype) for block in a.data.blocks]
-        return AbelianBackendData(dtype, blocks, a.data.block_inds, is_sorted=True)
+        return AbelianBackendData(dtype, a.data.device, blocks, a.data.block_inds, is_sorted=True)
 
-    def get_dtype_from_data(self, a: Data) -> Dtype:
+    def get_device_from_data(self, a: AbelianBackendData) -> str:
+        return a.device
+
+    def get_dtype_from_data(self, a: AbelianBackendData) -> Dtype:
         return a.dtype
 
     def get_element(self, a: SymmetricTensor, idcs: list[int]) -> complex | float | bool:
@@ -972,19 +1012,20 @@ class AbelianBackend(TensorBackend):
             b_blocks = [b_blocks[i] for i in sort]
         res = 0.
         for i, j in iter_common_sorted(a_block_inds, b_block_inds):
-            res += self.block_backend.block_inner(a_blocks[i], b_blocks[j], do_dagger=do_dagger)
+            res += self.block_backend.inner(a_blocks[i], b_blocks[j], do_dagger=do_dagger)
         return res
 
     def inv_part_from_dense_block_single_sector(self, vector: Block, space: Space,
                                                 charge_leg: ElementarySpace) -> Data:
         assert charge_leg.num_sectors == 1
-        bi = space.sectors_where(charge_leg.sectors[0])
+        bi = space.sector_decomposition_where(charge_leg.sector_decomposition[0])
         assert bi is not None
-        assert self.block_backend.block_shape(vector) == (space.multiplicities[bi])
+        assert self.block_backend.get_shape(vector) == (space.multiplicities[bi])
         return AbelianBackendData(
-            dtype=self.block_backend.block_dtype(vector),
-            blocks=[self.block_backend.block_add_axis(vector, pos=1)],
-            block_inds=np.array([[bi, 0]])
+            dtype=self.block_backend.get_dtype(vector),
+            device=self.block_backend.get_device(vector),
+            blocks=[self.block_backend.add_axis(vector, pos=1)],
+            block_inds=np.array([[bi, 0]]), is_sorted=True
         )
 
     def inv_part_to_dense_block_single_sector(self, tensor: SymmetricTensor) -> Block:
@@ -992,9 +1033,9 @@ class AbelianBackend(TensorBackend):
         assert num_blocks <= 1
         if num_blocks == 1:
             return tensor.data.blocks[0][:, 0]
-        sector = tensor.domain[0].sectors[0]
+        sector = tensor.domain[0].sector_decomposition[0]
         dim = tensor.codomain[0].sector_multiplicity(sector)
-        return self.block_backend.zero_block([dim], dtype=tensor.data.dtype)
+        return self.block_backend.zeros([dim], dtype=tensor.data.dtype)
 
     def linear_combination(self, a, v: SymmetricTensor, b, w: SymmetricTensor) -> Data:
         v_blocks = v.data.blocks
@@ -1004,30 +1045,31 @@ class AbelianBackend(TensorBackend):
         # ensure common dtypes
         common_dtype = v.dtype.common(w.dtype)
         if v.data.dtype != common_dtype:
-            v_blocks = [self.block_backend.block_to_dtype(T, common_dtype) for T in v_blocks]
+            v_blocks = [self.block_backend.to_dtype(T, common_dtype) for T in v_blocks]
         if w.data.dtype != common_dtype:
-            w_blocks = [self.block_backend.block_to_dtype(T, common_dtype) for T in w_blocks]
+            w_blocks = [self.block_backend.to_dtype(T, common_dtype) for T in w_blocks]
         res_blocks = []
         res_block_inds = []
         for i, j in iter_common_noncommon_sorted_arrays(v_block_inds, w_block_inds):
             if j is None:
-                res_blocks.append(self.block_backend.block_mul(a, v_blocks[i]))
+                res_blocks.append(self.block_backend.mul(a, v_blocks[i]))
                 res_block_inds.append(v_block_inds[i])
             elif i is None:
-                res_blocks.append(self.block_backend.block_mul(b, w_blocks[j]))
+                res_blocks.append(self.block_backend.mul(b, w_blocks[j]))
                 res_block_inds.append(w_block_inds[j])
             else:
                 res_blocks.append(
-                    self.block_backend.block_linear_combination(a, v_blocks[i], b, w_blocks[j])
+                    self.block_backend.linear_combination(a, v_blocks[i], b, w_blocks[j])
                 )
                 res_block_inds.append(v_block_inds[i])
         if len(res_block_inds) > 0:
             res_block_inds = np.array(res_block_inds)
         else:
             res_block_inds = np.zeros((0, v.num_legs), int)
-        return AbelianBackendData(common_dtype, res_blocks, res_block_inds, is_sorted=True)
+        return AbelianBackendData(common_dtype, v.data.device, res_blocks, res_block_inds, is_sorted=True)
 
-    def lq(self, a: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
+    def lq(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
+        new_leg = new_co_domain[0]  # TODO
         assert a.num_codomain_legs == 1 == a.num_domain_legs  # since self.can_decompose_tensors is False
         l_blocks = []
         q_blocks = []
@@ -1037,10 +1079,23 @@ class AbelianBackend(TensorBackend):
         a_block_inds = a.data.block_inds
         #
         i = 0  # running index, indicating we have already processed a_blocks[:i]
-        for n, (j, k) in enumerate(iter_common_sorted_arrays(a.codomain.sectors, a.domain.sectors)):
+        for n, (j, k) in enumerate(iter_common_sorted_arrays(a.codomain.sector_decomposition,
+                                                             a.domain.sector_decomposition)):
             # due to the loop setup we have:
-            #   a.codomain.sectors[j] == new_leg.sectors[n]
-            #   a.domain.sectors[k] == new_leg.sectors[n]
+            #   a.codomain.sector_decomposition[j] == new_leg.sector_decomposition[n]
+            #   a.domain.sector_decomposition[k] == new_leg.sector_decomposition[n]
+            # but we still need the leg indices (which may differ depending on the sector_order)
+            sector = a.codomain.sector_decomposition[j]
+            if a.codomain[0].sector_order != 'sorted':
+                j = a.codomain[0].sector_decomposition_where(sector)
+            if a.domain[0].sector_order != 'sorted':
+                k = a.domain[0].sector_decomposition_where(sector)
+                # block_inds is lexsorted and in this case duplicate-free
+                # -> running index i is correct iff domain is correctly sorted
+                i = np.searchsorted(a_block_inds[:, 1], k)
+            if new_leg.sector_order != 'sorted':
+                n = new_leg.sector_decomposition_where(sector)
+
             if i < len(a_block_inds) and a_block_inds[i, 0] == j:
                 # we have a block for that sector -> decompose it
                 l, q = self.block_backend.matrix_lq(a_blocks[i], full=False)
@@ -1054,7 +1109,7 @@ class AbelianBackend(TensorBackend):
                 # can choose arbitrary blocks for q, as long as they are isometric
                 new_leg_dim = new_leg.multiplicities[n]
                 q_blocks.append(
-                    self.block_backend.eye_matrix(a.domain.multiplicities[k], a.dtype)[:new_leg_dim, :]
+                    self.block_backend.eye_matrix(a.domain[0].multiplicities[k], a.dtype)[:new_leg_dim, :]
                 )
             q_block_inds.append([n, k])
         if len(l_blocks) == 0:
@@ -1066,8 +1121,10 @@ class AbelianBackend(TensorBackend):
         else:
             q_block_inds = np.array(q_block_inds, int)
         #
-        l_data = AbelianBackendData(a.dtype, l_blocks, l_block_inds, is_sorted=True)
-        q_data = AbelianBackendData(a.dtype, q_blocks, q_block_inds, is_sorted=True)
+        l_sorted = new_leg.sector_order == 'sorted'
+        q_sorted = a.domain[0].sector_order == 'sorted'
+        l_data = AbelianBackendData(a.dtype, a.data.device, l_blocks, l_block_inds, is_sorted=l_sorted)
+        q_data = AbelianBackendData(a.dtype, a.data.device, q_blocks, q_block_inds, is_sorted=q_sorted)
         return l_data, q_data
 
     def mask_binary_operand(self, mask1: Mask, mask2: Mask, func) -> tuple[DiagonalData, ElementarySpace]:
@@ -1089,7 +1146,7 @@ class AbelianBackend(TensorBackend):
         i2 = 0
         b2_i2 = -1 if len(mask2_block_inds) == 0 else mask2_block_inds[i2, 1]
         #
-        for sector_idx, (sector, slc) in enumerate(zip(large_leg.sectors, large_leg.slices)):
+        for sector_idx, (sector, slc) in enumerate(zip(large_leg.defining_sectors, large_leg.slices)):
             if sector_idx == b1_i1:
                 block1 = mask1_blocks[i1]
                 i1 += 1
@@ -1098,7 +1155,7 @@ class AbelianBackend(TensorBackend):
                 else:
                     b1_i1 = mask1_block_inds[i1, 1]
             else:
-                block1 = self.block_backend.zero_block([large_leg.multiplicities[sector_idx]], Dtype.bool)
+                block1 = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
             if sector_idx == b2_i2:
                 block2 = mask2_blocks[i2]
                 i2 += 1
@@ -1107,9 +1164,9 @@ class AbelianBackend(TensorBackend):
                 else:
                     b2_i2 = mask1_block_inds[i2, 1]
             else:
-                block2 = self.block_backend.zero_block([large_leg.multiplicities[sector_idx]], Dtype.bool)
+                block2 = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
             new_block = func(block1, block2)
-            mult = self.block_backend.block_sum_all(new_block)
+            mult = self.block_backend.sum_all(new_block)
             if mult == 0:
                 continue
             blocks.append(new_block)
@@ -1117,12 +1174,13 @@ class AbelianBackend(TensorBackend):
             sectors.append(sector)
             multiplicities.append(mult)
             if basis_perm is not None:
-                basis_perm_ranks.append(basis_perm[slice(*slc)][new_block])
+                mask = self.block_backend.to_numpy(new_block)
+                basis_perm_ranks.append(basis_perm[slice(*slc)][mask])
         block_inds = np.column_stack([np.arange(len(sectors)), large_leg_block_inds])
         data = AbelianBackendData(
-            dtype=Dtype.bool, blocks=blocks, block_inds=block_inds, is_sorted=True
+            dtype=Dtype.bool, device=mask1.device, blocks=blocks, block_inds=block_inds, is_sorted=True
         )
-        if len(sector) == 0:
+        if len(sectors) == 0:
             sectors = mask1.symmetry.empty_sector_array
             multiplicities = np.zeros(0, int)
             basis_perm = None
@@ -1132,21 +1190,21 @@ class AbelianBackend(TensorBackend):
             if basis_perm is not None:
                 basis_perm = rank_data(np.concatenate(basis_perm_ranks))
         small_leg = ElementarySpace(
-            symmetry=mask1.symmetry, sectors=sectors, multiplicities=multiplicities,
+            symmetry=mask1.symmetry, defining_sectors=sectors, multiplicities=multiplicities,
             is_dual=large_leg.is_dual, basis_perm=basis_perm
         )
         return data, small_leg
 
     def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
-                                ) -> tuple[Data, ProductSpace, ProductSpace]:
+                                ) -> tuple[Data, TensorProduct, TensorProduct]:
         return self._mask_contract(tensor, mask, leg_idx, large_leg=True)
 
     def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
-                                ) -> tuple[Data, ProductSpace, ProductSpace]:
+                                ) -> tuple[Data, TensorProduct, TensorProduct]:
         return self._mask_contract(tensor, mask, leg_idx, large_leg=False)
 
     def _mask_contract(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int, large_leg: bool
-                       ) -> tuple[Data, ProductSpace, ProductSpace]:
+                       ) -> tuple[Data, TensorProduct, TensorProduct]:
         in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg_idx)
         if in_domain:
             assert mask.is_projection != large_leg
@@ -1180,9 +1238,9 @@ class AbelianBackend(TensorBackend):
         # need to iterate only over the "common" blocks. If either block is zero, so is the result
         for i, j in iter_common_sorted_arrays(tensor_block_inds_contr, mask_block_inds_contr, a_strict=False):
             if large_leg:
-                block = self.block_backend.block_apply_mask(tensor_blocks[i], mask_blocks[j], ax=leg_idx)
+                block = self.block_backend.apply_mask(tensor_blocks[i], mask_blocks[j], ax=leg_idx)
             else:
-                block = self.block_backend.block_enlarge_leg(tensor_blocks[i], mask_blocks[j], axis=leg_idx)
+                block = self.block_backend.enlarge_leg(tensor_blocks[i], mask_blocks[j], axis=leg_idx)
             block_inds = tensor_block_inds[i].copy()
             block_inds[leg_idx] = mask_block_inds[j, 1 - mask_contr]
             res_blocks.append(block)
@@ -1192,26 +1250,27 @@ class AbelianBackend(TensorBackend):
         else:
             res_block_inds = np.zeros((0, tensor.num_legs), int)
         # OPTIMIZE (JU) block_inds might actually be sorted but i am not sure right now
-        data = AbelianBackendData(tensor.dtype, res_blocks, res_block_inds, is_sorted=False)
+        data = AbelianBackendData(tensor.dtype, tensor.device, res_blocks, res_block_inds,
+                                  is_sorted=False)
         #
         if in_domain:
             codomain = tensor.codomain
-            spaces = tensor.domain.spaces[:]
+            spaces = tensor.domain.factors[:]
             spaces[co_domain_idx] = mask.small_leg if large_leg else mask.large_leg
-            domain = ProductSpace(spaces, symmetry=tensor.symmetry, backend=self)
+            domain = TensorProduct(spaces, symmetry=tensor.symmetry)
         else:
             domain = tensor.domain
-            spaces = tensor.codomain.spaces[:]
+            spaces = tensor.codomain.factors[:]
             spaces[co_domain_idx] = mask.small_leg if large_leg else mask.large_leg
-            codomain = ProductSpace(spaces, symmetry=tensor.symmetry, backend=self)
+            codomain = TensorProduct(spaces, symmetry=tensor.symmetry)
         return data, codomain, domain
 
     def mask_dagger(self, mask: Mask) -> MaskData:
         # the legs swap between domain and codomain. need to swap the two columns of block_inds.
         # since both columns are unique and ascending, the resulting block_inds are still sorted.
         block_inds = mask.data.block_inds[:, ::-1]
-        return AbelianBackendData(dtype=mask.dtype, blocks=mask.data.blocks, block_inds=block_inds,
-                                  is_sorted=True)
+        return AbelianBackendData(dtype=mask.dtype, device=mask.device, blocks=mask.data.blocks,
+                                  block_inds=block_inds, is_sorted=True)
 
     def mask_from_block(self, a: Block, large_leg: Space) -> tuple[MaskData, ElementarySpace]:
         basis_perm = large_leg._basis_perm
@@ -1220,9 +1279,9 @@ class AbelianBackend(TensorBackend):
         sectors = []
         multiplicities = []
         basis_perm_ranks = []
-        for bi_large, (slc, sector) in enumerate(zip(large_leg.slices, large_leg.sectors)):
+        for bi_large, (slc, sector) in enumerate(zip(large_leg.slices, large_leg.defining_sectors)):
             block = a[slice(*slc)]
-            mult = self.block_backend.block_sum_all(block)
+            mult = self.block_backend.sum_all(block)
             if mult == 0:
                 continue
             blocks.append(block)
@@ -1230,7 +1289,8 @@ class AbelianBackend(TensorBackend):
             sectors.append(sector)
             multiplicities.append(mult)
             if basis_perm is not None:
-                basis_perm_ranks.append(large_leg.basis_perm[slice(*slc)][block])
+                mask = self.block_backend.to_numpy(block)
+                basis_perm_ranks.append(large_leg.basis_perm[slice(*slc)][mask])
 
         if len(blocks) == 0:
             sectors = large_leg.symmetry.empty_sector_array
@@ -1244,17 +1304,17 @@ class AbelianBackend(TensorBackend):
                 basis_perm = rank_data(np.concatenate(basis_perm_ranks))
             block_inds = np.column_stack([np.arange(len(sectors)), large_leg_block_inds])
 
-        data = AbelianBackendData(dtype=Dtype.bool, blocks=blocks, block_inds=block_inds,
-                                  is_sorted=True)
+        data = AbelianBackendData(dtype=Dtype.bool, device=self.block_backend.get_device(a),
+                                  blocks=blocks, block_inds=block_inds, is_sorted=True)
         small_leg = ElementarySpace(
-            symmetry=large_leg.symmetry, sectors=sectors, multiplicities=multiplicities,
+            symmetry=large_leg.symmetry, defining_sectors=sectors, multiplicities=multiplicities,
             is_dual=large_leg.is_dual, basis_perm=basis_perm
         )
         return data, small_leg
 
     def mask_to_block(self, a: Mask) -> Block:
         large_leg = a.large_leg
-        res = self.block_backend.zero_block([large_leg.dim], Dtype.bool)
+        res = self.block_backend.zeros([large_leg.dim], Dtype.bool)
         for block, b_i in zip(a.data.blocks, a.data.block_inds):
             if a.is_projection:
                 bi_small, bi_large = b_i
@@ -1264,23 +1324,17 @@ class AbelianBackend(TensorBackend):
         return res
 
     def mask_to_diagonal(self, a: Mask, dtype: Dtype) -> DiagonalData:
-        blocks = [self.block_backend.block_to_dtype(b, dtype) for b in a.data.blocks]
+        blocks = [self.block_backend.to_dtype(b, dtype) for b in a.data.blocks]
         large_leg_bi = a.data.block_inds[:, 1] if a.is_projection else a.data.block_inds[:, 0]
         block_inds = np.repeat(large_leg_bi[:, None], 2, axis=1)
-        return AbelianBackendData(dtype=dtype, blocks=blocks, block_inds=block_inds)
+        return AbelianBackendData(dtype=dtype, device=a.data.device, blocks=blocks,
+                                  block_inds=block_inds)
 
     def mask_transpose(self, tens: Mask) -> tuple[Space, Space, MaskData]:
-        leg_in, perm1 = tens.codomain[0]._dual_space(return_perm=True)
-        leg_out, perm2 = tens.domain[0]._dual_space(return_perm=True)
-        # block_inds[:, 0] refers to tens.codomain[0]. Thus it should be permuted with perm1.
-        # It ends up being result.domain[0] -> second column of block_inds
-        block_inds = np.column_stack([
-            inverse_permutation(perm2)[tens.data.block_inds[:, 1]],
-            inverse_permutation(perm1)[tens.data.block_inds[:, 0]]
-        ])
-        data = AbelianBackendData(dtype=tens.dtype, blocks=tens.data.blocks, block_inds=block_inds,
-                                  is_sorted=False)
-        return leg_in, leg_out, data
+        block_inds = tens.data.block_inds[:, ::-1]
+        data = AbelianBackendData(dtype=tens.dtype, device=tens.data.device,
+                                  blocks=tens.data.blocks, block_inds=block_inds, is_sorted=False)
+        return tens.codomain[0].dual, tens.domain[0].dual, data
 
     def mask_unary_operand(self, mask: Mask, func) -> tuple[DiagonalData, ElementarySpace]:
         large_leg = mask.large_leg
@@ -1296,7 +1350,7 @@ class AbelianBackend(TensorBackend):
         #
         i = 0
         b_i = -1 if len(mask_blocks_inds) == 0 else mask_blocks_inds[i, 1]
-        for sector_idx, (sector, slc) in enumerate(zip(large_leg.sectors, large_leg.slices)):
+        for sector_idx, (sector, slc) in enumerate(zip(large_leg.defining_sectors, large_leg.slices)):
             if sector_idx == b_i:
                 block = mask_blocks[i]
                 i += 1
@@ -1305,9 +1359,9 @@ class AbelianBackend(TensorBackend):
                 else:
                     b_i = mask_blocks_inds[i, 1]
             else:
-                block = self.block_backend.zero_block([large_leg.multiplicities[sector_idx]], Dtype.bool)
+                block = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
             new_block = func(block)
-            mult = self.block_backend.block_sum_all(new_block)
+            mult = self.block_backend.sum_all(new_block)
             if mult == 0:
                 continue
             blocks.append(new_block)
@@ -1328,30 +1382,37 @@ class AbelianBackend(TensorBackend):
                 basis_perm = rank_data(np.concatenate(basis_perm_ranks))
             block_inds = np.column_stack([np.arange(len(sectors)), large_leg_block_inds])
         data = AbelianBackendData(
-            dtype=Dtype.bool, blocks=blocks, block_inds=block_inds, is_sorted=True
+            dtype=Dtype.bool, device=mask.data.device, blocks=blocks, block_inds=block_inds,
+            is_sorted=True
         )
         small_leg = ElementarySpace(
-            symmetry=mask.symmetry, sectors=sectors, multiplicities=multiplicities,
+            symmetry=mask.symmetry, defining_sectors=sectors, multiplicities=multiplicities,
             is_dual=large_leg.is_dual, basis_perm=basis_perm
         )
         return data, small_leg
 
+    def move_to_device(self, a: SymmetricTensor | DiagonalTensor | Mask, device: str) -> Data:
+        for i in range(len(a.data.blocks)):
+            a.data.blocks[i] = self.block_backend.as_block(a.data.blocks[i], device=device)
+        a.data.device = self.block_backend.as_device(device)
+        return a.data
+
     def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
         if a == 0.:
-            return self.zero_data(b.codomain, b.domain, b.dtype)
-        blocks = [self.block_backend.block_mul(a, T) for T in b.data.blocks]
+            return self.zero_data(b.codomain, b.domain, b.dtype, device=b.data.device)
+        blocks = [self.block_backend.mul(a, T) for T in b.data.blocks]
         if len(blocks) == 0:
             if isinstance(a, float):
                 dtype = b.data.dtype
             else:
                 dtype = b.data.dtype.to_complex
         else:
-            dtype = self.block_backend.block_dtype(blocks[0])
-        return AbelianBackendData(dtype, blocks, b.data.block_inds, is_sorted=True)
+            dtype = self.block_backend.get_dtype(blocks[0])
+        return AbelianBackendData(dtype, b.data.device, blocks, b.data.block_inds, is_sorted=True)
 
     def norm(self, a: SymmetricTensor | DiagonalTensor) -> float:
-        block_norms = [self.block_backend.block_norm(b, order=2) for b in a.data.blocks]
-        return np.linalg.norm(block_norms, ord=2)
+        block_norms = [self.block_backend.norm(b, order=2) for b in a.data.blocks]
+        return float(np.linalg.norm(block_norms, ord=2))
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         a_blocks = a.data.blocks
@@ -1364,25 +1425,25 @@ class AbelianBackend(TensorBackend):
         # convert to common dtype
         res_dtype = Dtype.common(a.dtype, b.dtype)
         if a.dtype != res_dtype:
-            a_blocks = [self.block_backend.block_to_dtype(T, res_dtype) for T in a_blocks]
+            a_blocks = [self.block_backend.to_dtype(T, res_dtype) for T in a_blocks]
         if b.dtype != res_dtype:
-            b_blocks = [self.block_backend.block_to_dtype(T, res_dtype) for T in b_blocks]
+            b_blocks = [self.block_backend.to_dtype(T, res_dtype) for T in b_blocks]
         #
-        grid = np.indices([l_a, l_b]).T.reshape(-1, 2)
-        # grid is lexsorted, with rows as all combinations of a/b block indices.
+        grid = make_grid([l_a, l_b], cstyle=False)
         #
         res_block_inds = np.empty((l_a * l_b, N_a + N_b), dtype=int)
-        res_block_inds[:, :K_a] =  a_block_inds[grid[:, 0], :K_a]
+        res_block_inds[:, :K_a] = a_block_inds[grid[:, 0], :K_a]
         res_block_inds[:, K_a:K_a+N_b] = b_block_inds[grid[:, 1]]
         res_block_inds[:, K_a+N_b:] = a_block_inds[grid[:, 0], K_a:]
-        res_blocks = [self.block_backend.block_tensor_outer(a_blocks[i], b_blocks[j], K_a)
+        res_blocks = [self.block_backend.tensor_outer(a_blocks[i], b_blocks[j], K_a)
                       for i, j in grid]
         # res_block_inds are in general not sorted.
         #
-        return AbelianBackendData(res_dtype, res_blocks, res_block_inds, is_sorted=False)
+        return AbelianBackendData(res_dtype, a.data.device, res_blocks, res_block_inds,
+                                  is_sorted=False)
 
     def partial_trace(self, tensor: SymmetricTensor, pairs: list[tuple[int, int]],
-                      levels: list[int] | None) -> tuple[Data, ProductSpace, ProductSpace]:
+                      levels: list[int] | None) -> tuple[Data, TensorProduct, TensorProduct]:
         N = tensor.num_legs
         K = tensor.num_codomain_legs
         idcs1 = []
@@ -1398,36 +1459,28 @@ class AbelianBackend(TensorBackend):
         block_inds_1 = tensor.data.block_inds[:, idcs1]
         block_inds_2 = tensor.data.block_inds[:, idcs2]
         block_inds_rem = tensor.data.block_inds[:, remaining]
-        #
-        # OPTIMIZE
-        #   - avoid python loops / function calls
-        #   - spaces could store (or cache!) the sector permutation between itself and its dual.
-        #     this permutation could be applied to the block_inds and then we can compare on block_inds
-        #     level again, without resorting to the sectors.
-        #
-        def on_diagonal(bi1, bi2):
-            # given bi1==block_inds_1[n] and bi2==block_inds_2[n], return if blocks[n] is on the
-            # diagonal and thus contributes to the trace, or not.
-            for n, (i1, i2) in enumerate(zip(bi1, bi2)):
-                if opposite_sides[n]:
-                    # legs are the same -> can compare block_inds
-                    if i1 != i2:
-                        return False
-                else:
-                    # legs have opposite duality. need to compare sectors explicitly
-                    sector1 = tensor.get_leg_co_domain(idcs1[n]).sectors[i1]
-                    sector2 = tensor.get_leg_co_domain(idcs2[n]).sectors[i2]
-                    if not np.all(sector1 == tensor.symmetry.dual_sector(sector2)):
-                        return False
-            return True
 
-        #
+        # only blocks "on the diagonal" of the trace contribute.
+        # figure out which blocks are on the diagonal.
+        on_diagonal = np.ones(len(blocks), bool)  # we do logical_and, so we start with all true
+        for n, opposite in enumerate(opposite_sides):
+            if opposite:
+                # legs are the same -> can compare the block_inds
+                on_diagonal &= (block_inds_1[:, n] == block_inds_2[:, n])
+            else:
+                # legs have opposite duality. need to compare sectors explicitly
+                # OPTIMIZE (JU) spaces could store (or cache!) the sector permutation between
+                #               itself and its dual, then we could compare on the level of block_inds
+                s1 = tensor.get_leg_co_domain(idcs1[n]).sector_decomposition[block_inds_1[:, n], :]
+                s2 = tensor.get_leg_co_domain(idcs2[n]).sector_decomposition[block_inds_2[:, n], :]
+                on_diagonal &= np.all(s1 == tensor.symmetry.dual_sectors(s2), axis=1)
+
         res_data = {}  # dictionary res_block_inds_row -> Block
-        for block, i1, i2, bi_rem in zip(blocks, block_inds_1, block_inds_2, block_inds_rem):
-            if not on_diagonal(i1, i2):
+        for block, contributes, bi_rem in zip(blocks, on_diagonal, block_inds_rem):
+            if not contributes:
                 continue
             bi_rem = tuple(bi_rem)
-            block = self.block_backend.block_trace_partial(block, idcs1, idcs2, remaining)
+            block = self.block_backend.trace_partial(block, idcs1, idcs2, remaining)
             add_block = res_data.get(bi_rem, None)
             if add_block is not None:
                 block = block + add_block
@@ -1439,73 +1492,54 @@ class AbelianBackend(TensorBackend):
             if len(res_blocks) == 0:
                 return tensor.dtype.zero_scalar, None, None
             elif len(res_blocks) == 1:
-                return self.block_backend.block_item(res_blocks[0]), None, None
+                return self.block_backend.item(res_blocks[0]), None, None
             raise RuntimeError  # by charge rule, should be impossible to get multiple blocks.
 
         if len(res_blocks) == 0:
             res_block_inds = np.zeros((0, len(remaining)), int)
         else:
             res_block_inds = np.array(list(res_data.keys()), int)
-        data = AbelianBackendData(tensor.dtype, res_blocks, res_block_inds, is_sorted=False)
-        codomain = ProductSpace(
+        data = AbelianBackendData(tensor.dtype, tensor.data.device, res_blocks, res_block_inds,
+                                  is_sorted=False)
+        codomain = TensorProduct(
             [leg for n, leg in enumerate(tensor.codomain) if n in remaining],
-            symmetry=tensor.symmetry, backend=self
+            symmetry=tensor.symmetry
         )
-        domain = ProductSpace(
+        domain = TensorProduct(
             [leg for n, leg in enumerate(tensor.domain) if N - 1 - n in remaining],
-            symmetry=tensor.symmetry, backend=self
+            symmetry=tensor.symmetry
         )
         return data, codomain, domain
 
-
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     levels: list[int] | None) -> tuple[Data | None, ProductSpace, ProductSpace]:
+                     levels: list[int] | None) -> tuple[Data | None, TensorProduct, TensorProduct]:
         codomain_legs = []
-        codomain_sector_perms = []
         for i in codomain_idcs:
             in_domain, co_domain_idx, _ = a._parse_leg_idx(i)
             if in_domain:
-                # leg.sectors == duals(old_leg.sectors)[perm]
-                # block with given sectors which had bi_old belonged to
-                # old_leg.sectors[bi_old]
-                # it now belongs to
-                # dual(old_leg.sectors[bi_old]) == dual(old_leg.sectors[perm[bi_new]]) == leg.sectors[bi_new]
-                #  -> bi_old == perm[bi_new]
-                leg, perm = a.domain[co_domain_idx]._dual_space(return_perm=True)
-                perm = inverse_permutation(perm)
+                codomain_legs.append(a.domain[co_domain_idx].dual)
             else:
-                leg = a.codomain[co_domain_idx]
-                perm = None
-            codomain_legs.append(leg)
-            codomain_sector_perms.append(perm)
-        codomain = ProductSpace(codomain_legs, symmetry=a.symmetry, backend=self)
+                codomain_legs.append(a.codomain[co_domain_idx])
+        codomain = TensorProduct(codomain_legs, symmetry=a.symmetry)
         #
         domain_legs = []
-        domain_sector_perms = []
         for i in domain_idcs:
             in_domain, co_domain_idx, _ = a._parse_leg_idx(i)
             if in_domain:
-                leg = a.domain[co_domain_idx]
-                perm = None
+                domain_legs.append(a.domain[co_domain_idx])
             else:
-                leg, perm = a.codomain[co_domain_idx]._dual_space(return_perm=True)
-                perm = inverse_permutation(perm)
-            domain_legs.append(leg)
-            domain_sector_perms.append(perm)
-        domain = ProductSpace(domain_legs, symmetry=a.symmetry, backend=self)
+                domain_legs.append(a.codomain[co_domain_idx].dual)
+        domain = TensorProduct(domain_legs, symmetry=a.symmetry)
         #
         axes_perm = [*codomain_idcs, *reversed(domain_idcs)]
-        sector_perms = [*codomain_sector_perms, *reversed(domain_sector_perms)]
-        blocks = [self.block_backend.block_permute_axes(block, axes_perm) for block in a.data.blocks]
+        blocks = [self.block_backend.permute_axes(block, axes_perm) for block in a.data.blocks]
         block_inds = a.data.block_inds[:, axes_perm]
-        for ax, sector_perm in enumerate(sector_perms):
-            if sector_perm is None:
-                continue
-            block_inds[:, ax] = sector_perm[block_inds[:, ax]]
-        data = AbelianBackendData(a.dtype, blocks=blocks, block_inds=block_inds, is_sorted=False)
+        data = AbelianBackendData(a.dtype, a.data.device, blocks=blocks, block_inds=block_inds,
+                                  is_sorted=False)
         return data, codomain, domain
 
-    def qr(self, a: SymmetricTensor, new_leg: ElementarySpace) -> tuple[Data, Data]:
+    def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
+        new_leg = new_co_domain[0]  # TODO check this
         assert a.num_codomain_legs == 1 == a.num_domain_legs  # since self.can_decompose_tensors is False
         q_blocks = []
         r_blocks = []
@@ -1515,10 +1549,23 @@ class AbelianBackend(TensorBackend):
         a_block_inds = a.data.block_inds
         #
         i = 0  # running index, indicating we have already processed a_blocks[:i]
-        for n, (j, k) in enumerate(iter_common_sorted_arrays(a.codomain.sectors, a.domain.sectors)):
+        for n, (j, k) in enumerate(iter_common_sorted_arrays(a.codomain.sector_decomposition,
+                                                             a.domain.sector_decomposition)):
             # due to the loop setup we have:
-            #   a.codomain.sectors[j] == new_leg.sectors[n]
-            #   a.domain.sectors[k] == new_leg.sectors[n]
+            #   a.codomain.sector_decomposition[j] == new_leg.sector_decomposition[n]
+            #   a.domain.sector_decomposition[k] == new_leg.sector_decomposition[n]
+            # but we still need the leg indices (which may differ depending on the sector_order)
+            sector = a.codomain.sector_decomposition[j]
+            if a.codomain[0].sector_order != 'sorted':
+                j = a.codomain[0].sector_decomposition_where(sector)
+            if a.domain[0].sector_order != 'sorted':
+                k = a.domain[0].sector_decomposition_where(sector)
+                # block_inds is lexsorted and in this case duplicate-free
+                # -> running index i is correct iff domain is correctly sorted
+                i = np.searchsorted(a_block_inds[:, 1], k)
+            if new_leg.sector_order != 'sorted':
+                n = new_leg.sector_decomposition_where(sector)
+
             if i < len(a_block_inds) and a_block_inds[i, 0] == j:
                 # we have a block for that sector -> decompose it
                 q, r = self.block_backend.matrix_qr(a_blocks[i], full=False)
@@ -1531,7 +1578,7 @@ class AbelianBackend(TensorBackend):
                 # => R_block == 0 and we dont even set it.
                 # can choose arbitrary blocks for q, as long as they are isometric
                 new_leg_dim = new_leg.multiplicities[n]
-                eye = self.block_backend.eye_matrix(a.codomain.multiplicities[j], a.dtype)
+                eye = self.block_backend.eye_matrix(a.codomain[0].multiplicities[j], a.dtype)
                 q_blocks.append(eye[:, :new_leg_dim])
             q_block_inds.append([j, n])
         #
@@ -1544,8 +1591,10 @@ class AbelianBackend(TensorBackend):
         else:
             r_block_inds = np.array(r_block_inds, int)
         #
-        q_data = AbelianBackendData(a.dtype, q_blocks, q_block_inds, is_sorted=True)
-        r_data = AbelianBackendData(a.dtype, r_blocks, r_block_inds, is_sorted=True)
+        q_sorted = new_leg.sector_order == 'sorted'
+        r_sorted = a.domain[0].sector_order == 'sorted'
+        q_data = AbelianBackendData(a.dtype, a.data.device, q_blocks, q_block_inds, is_sorted=q_sorted)
+        r_data = AbelianBackendData(a.dtype, a.data.device, r_blocks, r_block_inds, is_sorted=r_sorted)
         return q_data, r_data
 
     def reduce_DiagonalTensor(self, tensor: DiagonalTensor, block_func, func) -> float | complex:
@@ -1558,7 +1607,7 @@ class AbelianBackend(TensorBackend):
                 block = blocks[i]
                 i += 1
             else:
-                block = self.block_backend.zero_block(m, dtype=tensor.dtype)
+                block = self.block_backend.zeros(m, dtype=tensor.dtype)
             numbers.append(block_func(block))
         return func(numbers)
 
@@ -1580,9 +1629,9 @@ class AbelianBackend(TensorBackend):
         # ensure common dtype
         common_dtype = a.dtype.common(b.dtype)
         if a.data.dtype != common_dtype:
-            a_blocks = [self.block_backend.block_to_dtype(block, common_dtype) for block in a_blocks]
+            a_blocks = [self.block_backend.to_dtype(block, common_dtype) for block in a_blocks]
         if b.data.dtype != common_dtype:
-            b_blocks = [self.block_backend.block_to_dtype(block, common_dtype) for block in b_blocks]
+            b_blocks = [self.block_backend.to_dtype(block, common_dtype) for block in b_blocks]
         #
         # only need to iterate over common blocks, the non-common multiply to 0.
         # note: unlike the tdot implementation, we do not combine and reshape here.
@@ -1593,7 +1642,7 @@ class AbelianBackend(TensorBackend):
         res_blocks = []
         res_block_inds = []
         for i, j in iter_common_sorted_arrays(a_block_inds_cont, b_block_inds[:, :1], a_strict=False):
-            res_blocks.append(self.block_backend.block_scale_axis(a_blocks[i], b_blocks[j], axis=leg))
+            res_blocks.append(self.block_backend.scale_axis(a_blocks[i], b_blocks[j], axis=leg))
             res_block_inds.append(a_block_inds[i])
         #
         if len(res_block_inds) > 0:
@@ -1601,36 +1650,29 @@ class AbelianBackend(TensorBackend):
         else:
             res_block_inds = np.zeros((0, a.num_legs), int)
         #
-        return AbelianBackendData(common_dtype, res_blocks, res_block_inds, is_sorted=False)
+        return AbelianBackendData(common_dtype, a.data.device, res_blocks, res_block_inds,
+                                  is_sorted=False)
 
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
-                   domain_split: list[int], new_codomain: ProductSpace, new_domain: ProductSpace
+                   domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
                    ) -> Data:
-        # TODO (JH) below, we implement it by first generating the block_inds of the splitted tensor and
-        # then extract subblocks from the original one.
-        # Why not go the other way around and implement
-        # block_views = self.block_backend.block_split(block, block_sizes, axis) similar as np.array_split()
-        # and call that for each axis to be split for each block?
-        # we do a lot of numpy index tricks below, but does that really save time for splitting?
-        # block_split should just be views anyways, not data copies?
 
         if len(a.data.blocks) == 0:
-            return self.zero_data(new_codomain, new_domain, a.data.dtype)
+            return self.zero_data(new_codomain, new_domain, a.data.dtype, device=a.data.device)
 
         n_split = len(leg_idcs)
-        product_spaces = [a.get_leg_co_domain(i) for i in leg_idcs]
-        res_num_legs = new_codomain.num_spaces + new_domain.num_spaces
+        pipes = [a.get_leg_co_domain(i) for i in leg_idcs]
+        res_num_legs = new_codomain.num_factors + new_domain.num_factors
 
         old_blocks = a.data.blocks
         old_block_inds = a.data.block_inds
 
         map_slices_beg = np.zeros((len(old_blocks), n_split), int)
         map_slices_shape = np.zeros((len(old_blocks), n_split), int)  # = end - beg
-        for j, product_space in enumerate(product_spaces):
+        for j, pipe in enumerate(pipes):
             block_inds_j = old_block_inds[:, leg_idcs[j]]
-            block_ind_map_slices = product_space.get_metadata('_block_ind_map_slices', backend=self)
-            map_slices_beg[:, j] = block_ind_map_slices[block_inds_j]
-            sizes = block_ind_map_slices[1:] - block_ind_map_slices[:-1]
+            map_slices_beg[:, j] = pipe.block_ind_map_slices[block_inds_j]
+            sizes = pipe.block_ind_map_slices[1:] - pipe.block_ind_map_slices[:-1]
             map_slices_shape[:, j] = sizes[block_inds_j]
         new_data_blocks_per_old_block = np.prod(map_slices_shape, axis=1)
 
@@ -1646,24 +1688,28 @@ class AbelianBackend(TensorBackend):
         new_block_inds = np.empty((res_num_blocks, res_num_legs), dtype=int)
         old_block_beg = np.zeros((res_num_blocks, a.num_legs), dtype=int)
         old_block_shapes = np.empty((res_num_blocks, a.num_legs), dtype=int)
-        shift = 0  #  = i - k for indices below
-        j = 0  # index within product_spaces
+        # splitting pipes in F style is done by splitting them in C style and permuting the axes
+        axes_perm = list(range(res_num_legs))
+        shift = 0  # = i - k for indices below
+        j = 0  # index within pipes
         for i in range(a.num_legs):  # i = index in old tensor
             if i in leg_idcs:
                 in_domain = (i >= a.num_codomain_legs)
-                product_space = product_spaces[j]  # = a.legs[i]
+                pipe = pipes[j]  # = a.legs[i]
                 k = i + shift  # = index where split legs begin in new tensor
-                k2 = k + len(product_space.spaces)  # = until where spaces go in new tensor
-                _block_ind_map = product_space.get_metadata('_block_ind_map', backend=self)[map_rows[:, j], :]
+                k2 = k + pipe.num_legs  # = until where spaces go in new tensor
+                if pipe.combine_cstyle == in_domain:
+                    axes_perm[k:k2] = axes_perm[k:k2][::-1]
+                block_ind_map = pipe.block_ind_map[map_rows[:, j], :]
                 if in_domain:
                     # if the leg to be split is in the domain, the order of block_inds and of its
-                    # _block_ind_map are opposite -> need to reverse
-                    new_block_inds[:, k:k2] = _block_ind_map[:, -2:1:-1]
+                    # block_ind_map are opposite -> need to reverse
+                    new_block_inds[:, k:k2] = block_ind_map[:, -2:1:-1]
                 else:
-                    new_block_inds[:, k:k2] = _block_ind_map[:, 2:-1]
-                old_block_beg[:, i] = _block_ind_map[:, 0]
-                old_block_shapes[:, i] = _block_ind_map[:, 1] - _block_ind_map[:, 0]
-                shift += len(product_space.spaces) - 1
+                    new_block_inds[:, k:k2] = block_ind_map[:, 2:-1]
+                old_block_beg[:, i] = block_ind_map[:, 0]
+                old_block_shapes[:, i] = block_ind_map[:, 1] - block_ind_map[:, 0]
+                shift += pipe.num_legs - 1
                 j += 1
             else:
                 new_block_inds[:, i + shift] = nbi = old_block_inds[old_rows, i]
@@ -1679,26 +1725,40 @@ class AbelianBackend(TensorBackend):
             old_block = old_blocks[old_rows[i]]
             slices = tuple(slice(b, b + s) for b, s in zip(old_block_beg[i], old_block_shapes[i]))
             new_block = old_block[slices]
-            new_blocks.append(self.block_backend.block_reshape(new_block, new_block_shapes[i]))
+            new_blocks.append(self.block_backend.reshape(new_block, new_block_shapes[i]))
+        new_blocks = [self.block_backend.permute_axes(block, axes_perm) for block in new_blocks]
 
-        return AbelianBackendData(a.data.dtype, new_blocks, new_block_inds, is_sorted=False)
+        return AbelianBackendData(a.data.dtype, a.data.device, new_blocks, new_block_inds,
+                                  is_sorted=False)
 
     def squeeze_legs(self, a: SymmetricTensor, idcs: list[int]) -> Data:
         n_legs = a.num_legs
         if len(a.data.blocks) == 0:
             block_inds = np.zeros([0, n_legs - len(idcs)], dtype=int)
-            return AbelianBackendData(a.data.dtype, [], block_inds, is_sorted=True)
-        blocks = [self.block_backend.block_squeeze_legs(b, idcs) for b in a.data.blocks]
+            return AbelianBackendData(a.data.dtype, a.data.device, [], block_inds, is_sorted=True)
+        blocks = [self.block_backend.squeeze_axes(b, idcs) for b in a.data.blocks]
         keep = np.ones(n_legs, dtype=bool)
         keep[idcs] = False
         block_inds = a.data.block_inds[:, keep]
-        return AbelianBackendData(a.data.dtype, blocks, block_inds, is_sorted=True)
+        return AbelianBackendData(a.data.dtype, a.data.device, blocks, block_inds, is_sorted=True)
 
     def supports_symmetry(self, symmetry: Symmetry) -> bool:
         return symmetry.is_abelian and symmetry.braiding_style == BraidingStyle.bosonic
 
-    def svd(self, a: SymmetricTensor, new_leg: ElementarySpace, algorithm: str | None
+    def svd(self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None
             ) -> tuple[Data, DiagonalData, Data]:
+        # The issue here is that sector_decomposition of the (co)domain is sorted, but may be
+        # dual_sorted for the single leg in the (co)domain. The block_inds do contain the indices
+        # of the legs, i.e., either we (generically) cannot iterate over sorted arrays (= iterate
+        # over legs) or we iterate over sorted arrays (= iterate over (co)domain) and then need an
+        # additional step to find the correct indices.
+        # We do the latter, i.e., assuming that sector_decomposition_where is efficient.
+        # Additionally, the block_inds of u, s, vh are in general no longer lexsorted.
+
+        # In the special case in which the sector_decomposition of all legs is sorted, it reduces
+        # to the previous case, where we do not need to find any indices and the block_inds are
+        # constructed in a lexsorted way.
+        new_leg = new_co_domain[0]
         assert a.num_codomain_legs == 1 == a.num_domain_legs  # since self.can_decompose_tensors is False
         u_blocks = []
         s_blocks = []
@@ -1710,10 +1770,23 @@ class AbelianBackend(TensorBackend):
         a_block_inds = a.data.block_inds
         #
         i = 0  # running index, indicating we have already processed a_blocks[:i]
-        for n, (j, k) in enumerate(iter_common_sorted_arrays(a.codomain.sectors, a.domain.sectors)):
+        for n, (j, k) in enumerate(iter_common_sorted_arrays(a.codomain.sector_decomposition,
+                                                             a.domain.sector_decomposition)):
             # due to the loop setup we have:
-            #   a.codomain.sectors[j] == new_leg.sectors[n]
-            #   a.domain.sectors[k] == new_leg.sectors[n]
+            #   a.codomain.sector_decomposition[j] == new_leg.sector_decomposition[n]
+            #   a.domain.sector_decomposition[k] == new_leg.sector_decomposition[n]
+            # but we still need the leg indices (which may differ depending on the sector_order)
+            sector = a.codomain.sector_decomposition[j]
+            if a.codomain[0].sector_order != 'sorted':
+                j = a.codomain[0].sector_decomposition_where(sector)
+            if a.domain[0].sector_order != 'sorted':
+                k = a.domain[0].sector_decomposition_where(sector)
+                # block_inds is lexsorted and in this case duplicate-free
+                # -> running index i is correct iff domain is correctly sorted
+                i = np.searchsorted(a_block_inds[:, 1], k)
+            if new_leg.sector_order != 'sorted':
+                n = new_leg.sector_decomposition_where(sector)
+                
             if i < len(a_block_inds) and a_block_inds[i, 0] == j:
                 # we have a block for that sector -> decompose it
                 u, s, vh = self.block_backend.matrix_svd(a_blocks[i], algorithm=algorithm)
@@ -1727,9 +1800,9 @@ class AbelianBackend(TensorBackend):
                 #  => S_block == 0, dont even set it.
                 #  can choose arbitrary blocks for u and vh, as long as they are isometric / orthogonal
                 new_leg_dim = new_leg.multiplicities[n]
-                eye_u = self.block_backend.eye_matrix(a.codomain.multiplicities[j], a.dtype)
+                eye_u = self.block_backend.eye_matrix(a.codomain[0].multiplicities[j], a.dtype)
                 u_blocks.append(eye_u[:, :new_leg_dim])
-                eye_v = self.block_backend.eye_matrix(a.domain.multiplicities[k], a.dtype)
+                eye_v = self.block_backend.eye_matrix(a.domain[0].multiplicities[k], a.dtype)
                 vh_blocks.append(eye_v[:new_leg_dim, :])
             u_block_inds.append([j, n])
             vh_block_inds.append([n, k])
@@ -1746,18 +1819,23 @@ class AbelianBackend(TensorBackend):
             vh_block_inds = np.array(vh_block_inds, int)
 
         # for all block_inds, the last column is sorted and duplicate-free,
-        # thus the block_inds are np.lexsort( .T)-ed
-        u_data = AbelianBackendData(a.dtype, u_blocks, u_block_inds, is_sorted=True)
-        s_data = AbelianBackendData(a.dtype.to_real, s_blocks, s_block_inds, is_sorted=True)
-        vh_data = AbelianBackendData(a.dtype, vh_blocks, vh_block_inds, is_sorted=True)
+        # thus the block_inds are np.lexsort( .T)-ed if the sector_order of
+        # the corresponding leg is sorted
+        u_sorted = s_sorted = new_leg.sector_order == 'sorted'
+        vh_sorted = a.domain[0].sector_order == 'sorted'
+
+        u_data = AbelianBackendData(a.dtype, a.data.device, u_blocks, u_block_inds, is_sorted=u_sorted)
+        s_data = AbelianBackendData(a.dtype.to_real, a.data.device, s_blocks, s_block_inds,
+                                    is_sorted=s_sorted)
+        vh_data = AbelianBackendData(a.dtype, a.data.device, vh_blocks, vh_block_inds, is_sorted=vh_sorted)
         return u_data, s_data, vh_data
 
-    def state_tensor_product(self, state1: Block, state2: Block, prod_space: ProductSpace):
-        #TODO clearly define what this should do in tensors.py first!
+    def state_tensor_product(self, state1: Block, state2: Block, pipe: AbelianLegPipe):
+        # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
 
     def to_dense_block(self, a: SymmetricTensor) -> Block:
-        res = self.block_backend.zero_block(a.shape, a.data.dtype)
+        res = self.block_backend.zeros(a.shape, a.data.dtype)
         for block, b_i in zip(a.data.blocks, a.data.block_inds):
             slices = tuple(slice(*leg.slices[i]) for i, leg in zip(b_i, conventional_leg_order(a)))
             res[slices] = block
@@ -1770,13 +1848,13 @@ class AbelianBackend(TensorBackend):
             return tensor.data.blocks[0]
         elif num_blocks == 0:
             dim = tensor.legs[0]._non_dual_sector_multiplicity(tensor.symmetry.trivial_sector)
-            return self.block_backend.zero_block(shape=[dim], dtype=tensor.data.dtype)
+            return self.block_backend.zeros(shape=[dim], dtype=tensor.data.dtype)
         raise ValueError  # this should not happen for single-leg tensors
 
     def to_dtype(self, a: SymmetricTensor, dtype: Dtype) -> Data:
         # shallow copy if dtype stays same
-        blocks = [self.block_backend.block_to_dtype(block, dtype) for block in a.data.blocks]
-        return AbelianBackendData(dtype, blocks, a.data.block_inds, is_sorted=True)
+        blocks = [self.block_backend.to_dtype(block, dtype) for block in a.data.blocks]
+        return AbelianBackendData(dtype, a.data.device, blocks, a.data.block_inds, is_sorted=True)
 
     def trace_full(self, a: SymmetricTensor) -> float | complex:
         a_blocks = a.data.blocks
@@ -1787,11 +1865,11 @@ class AbelianBackend(TensorBackend):
             bi_cod = bi[:K]
             bi_dom = bi[K:]
             if np.all(bi_cod == bi_dom[::-1]):
-                res += self.block_backend.block_trace_full(block)
+                res += self.block_backend.trace_full(block)
             # else: block is entirely off-diagonal and does not contribute to the trace
         return res
 
-    def transpose(self, a: SymmetricTensor) -> tuple[Data, ProductSpace, ProductSpace]:
+    def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorProduct, TensorProduct]:
         return self.permute_legs(a,
                                  codomain_idcs=list(range(a.num_codomain_legs, a.num_legs)),
                                  domain_idcs=list(reversed(range(a.num_codomain_legs))),
@@ -1800,7 +1878,7 @@ class AbelianBackend(TensorBackend):
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
                                  degeneracy_tol: float, trunc_cut: float, svd_min: float
                                  ) -> tuple[MaskData, ElementarySpace, float, float]:
-        S_np = self.block_backend.block_to_numpy(self.diagonal_tensor_to_block(S))
+        S_np = self.block_backend.to_numpy(self.diagonal_tensor_to_block(S))
         keep, err, new_norm = self._truncate_singular_values_selection(
             S=S_np, qdims=None, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol,
             trunc_cut=trunc_cut, svd_min=svd_min
@@ -1809,178 +1887,40 @@ class AbelianBackend(TensorBackend):
         mask_data, small_leg = self.mask_from_block(keep, large_leg=S.leg)
         return mask_data, small_leg, err, new_norm
 
-    def zero_data(self, codomain: ProductSpace, domain: ProductSpace, dtype: Dtype
-                  ) -> AbelianBackendData:
-        block_inds = np.zeros((0, codomain.num_spaces + domain.num_spaces), dtype=int)
-        return AbelianBackendData(dtype, blocks=[], block_inds=block_inds, is_sorted=True)
+    def zero_data(self, codomain: TensorProduct, domain: TensorProduct, dtype: Dtype, device: str,
+                  all_blocks: bool = False) -> AbelianBackendData:
+        if not all_blocks:
+            block_inds = np.zeros((0, codomain.num_factors + domain.num_factors), dtype=int)
+            return AbelianBackendData(dtype, device, blocks=[], block_inds=block_inds, is_sorted=True)
 
-    def zero_diagonal_data(self, co_domain: ProductSpace, dtype: Dtype) -> DiagonalData:
-        return AbelianBackendData(dtype, blocks=[], block_inds=np.zeros((0, 2), dtype=int),
+        block_inds = _valid_block_inds(codomain=codomain, domain=domain)
+        zero_blocks = []
+        for idcs in block_inds:
+            shape = [leg.multiplicities[i]
+                     for i, leg in zip(idcs, conventional_leg_order(codomain, domain))]
+            zero_blocks.append(self.block_backend.zeros(shape, dtype=dtype))
+        return AbelianBackendData(dtype, device, zero_blocks, block_inds, is_sorted=True)
+
+    def zero_diagonal_data(self, co_domain: TensorProduct, dtype: Dtype, device: str
+                           ) -> DiagonalData:
+        return AbelianBackendData(dtype, device, blocks=[], block_inds=np.zeros((0, 2), dtype=int),
                                   is_sorted=True)
 
-    def zero_mask_data(self, large_leg: Space) -> MaskData:
-        return AbelianBackendData(Dtype.bool, blocks=[], block_inds=np.zeros((0, 2), dtype=int),
+    def zero_mask_data(self, large_leg: Space, device: str) -> MaskData:
+        return AbelianBackendData(Dtype.bool, device, blocks=[], block_inds=np.zeros((0, 2), dtype=int),
                                   is_sorted=True)
-
-    # OPTIONAL OVERRIDES
-
-    def _fuse_spaces(self, symmetry: Symmetry, spaces: list[Space]
-                     ) -> tuple[SectorArray, ndarray, dict]:
-        r"""
-        The abelian backend adds the following metadata:
-            _strides : 1D numpy array of int
-                F-style strides for the shape ``tuple(space.num_sectors for space in spaces)``.
-                This allows one-to-one mapping between multi-indices (one block_ind per space) to a single index.
-            _block_ind_map_slices : 1D numpy array of int
-                Slices for embedding the unique fused sectors in the sorted list of all fusion outcomes.
-                Shape is ``(K,)`` where ``K == product_space.num_sectors + 1``.
-                Fusing all sectors of all spaces and sorting the outcomes gives a list which
-                contains (in general) duplicates.
-                The slice ``_block_ind_map_slices[n]:_block_ind_map_slices[n + 1]`` within this
-                sorted list contains the same entry, namely ``product_space.sectors[n]``.
-            _block_ind_map : 2D numpy array of int
-                Map for the embedding of uncoupled to coupled indices, see notes below.
-                Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
-                i.e. ``M == prod(s.num_sectors for s in spaces)`` and ``N == 3 + len(spaces)``.
-
-        Notes
-        -----
-        For ``np.reshape``, taking, for example,  :math:`i,j,... \rightarrow k` amounted to
-        :math:`k = s_1*i + s_2*j + ...` for appropriate strides :math:`s_1,s_2`.
-
-        In the charged case, however, we want to block :math:`k` by charge, so we must
-        implicitly permute as well.  This reordering is encoded in `_block_ind_map` as follows.
-
-        Each block index combination :math:`(i_1, ..., i_{nlegs})` of the `nlegs=len(spaces)`
-        input `Space`s will end up getting placed in some slice :math:`a_j:a_{j+1}` of the
-        resulting `ProductSpace`. Within this slice, the data is simply reshaped in usual row-major
-        fashion ('C'-order), i.e., with strides :math:`s_1 > s_2 > ...` given by the block size.
-
-        It will be a subslice of a new total block in the `ProductSpace` labelled by block index
-        :math:`J`. We fuse charges according to the rule::
-
-            ProductSpace.sectors[J] = fusion_outcomes(*[l.sectors[i_l]
-                for l, i_l, l in zip(incoming_block_inds, spaces)])
-
-        Since many charge combinations can fuse to the same total charge,
-        in general there will be many tuples :math:`(i_1, ..., i_{nlegs})` belonging to the same
-        charge block :math:`J` in the `ProductSpace`.
-
-        The rows of `_block_ind_map` are precisely the collections of
-        ``[b_{J,k}, b_{J,k+1}, i_1, . . . , i_{nlegs}, J]``.
-        Here, :math:`b_k:b_{k+1}` denotes the slice of this block index combination *within*
-        the total block `J`, i.e., ``b_{J,k} = a_j - self.slices[J]``.
-
-        The rows of `_block_ind_map` are lex-sorted first by ``J``, then the ``i``.
-        Each ``J`` will have multiple rows, and the order in which they are stored in `block_inds`
-        is the order the data is stored in the actual tensor.
-        Thus, ``_block_ind_map`` might look like ::
-
-            [ ...,
-            [ b_{J,k},   b_{J,k+1},  i_1,    ..., i_{nlegs}   , J,   ],
-            [ b_{J,k+1}, b_{J,k+2},  i'_1,   ..., i'_{nlegs}  , J,   ],
-            [ 0,         b_{J,1},    i''_1,  ..., i''_{nlegs} , J + 1],
-            [ b_{J,1},   b_{J,2},    i'''_1, ..., i'''_{nlegs}, J + 1],
-            ...]
-
-        """
-
-        # this function heavily uses numpys advanced indexing, for details see
-        # http://docs.scipy.org/doc/numpy/reference/arrays.indexing.html
-
-        if len(spaces) == 0:
-            metadata = dict(
-                _strides=np.ones((0,), int),
-                fusion_outcomes_sort=np.array([0], dtype=int),
-                _block_ind_map_slices=np.array([0, 1], int),
-                _block_ind_map=np.ones((0, 3), int),
-            )
-            sectors = symmetry.trivial_sector[None, :]
-            multiplicities = [1]
-            return sectors, multiplicities, metadata
-
-        metadata = {}
-
-        num_spaces = len(spaces)
-        spaces_num_sectors = tuple(space.num_sectors for space in spaces)
-        metadata['_strides'] = make_stride(spaces_num_sectors, cstyle=False)
-        # (save strides for :meth:`product_space_map_incoming_block_inds`)
-
-        # create a grid to select the multi-index sector
-        grid = np.indices(spaces_num_sectors, np.intp)
-        # grid is an array with shape ``(num_spaces, *spaces_num_sectors)``,
-        # with grid[li, ...] = {np.arange(space_block_numbers[li]) increasing in li-th direction}
-        # collapse the different directions into one.
-        grid = grid.T.reshape(-1, num_spaces)  # *this* is the actual `reshaping`
-        # *rows* of grid are now all possible combinations of qindices.
-        # transpose before reshape ensures that grid.T is np.lexsort()-ed
-
-        nblocks = grid.shape[0]  # number of blocks in ProductSpace = np.product(spaces_num_sectors)
-        # this is different from num_sectors
-
-        # determine _block_ind_map -- it's essentially the grid.
-        _block_ind_map = np.zeros((nblocks, 3 + num_spaces), dtype=np.intp)
-        _block_ind_map[:, 2:-1] = grid  # possible combinations of indices
-
-        # the block size for given (i1, i2, ...) is the product of ``multiplicities[il]``
-        # advanced indexing:
-        # ``grid.T[li]`` is a 1D array containing the qindex `q_li` of leg ``li`` for all blocks
-        multiplicities = np.prod([space.multiplicities[gr] for space, gr in zip(spaces, grid.T)],
-                                 axis=0)
-        # _block_ind_map[:, :2] and [:, -1] is initialized after sort/bunch.
-
-        # calculate new non-dual sectors
-        sectors = symmetry.multiple_fusion_broadcast(
-            *(s.sectors[gr] for s, gr in zip(spaces, grid.T))
-        )
-
-        # sort (non-dual) charge sectors.
-        fusion_outcomes_sort = np.lexsort(sectors.T)
-        _block_ind_map = _block_ind_map[fusion_outcomes_sort]
-        sectors = sectors[fusion_outcomes_sort]
-        multiplicities = multiplicities[fusion_outcomes_sort]
-        metadata['fusion_outcomes_sort'] = fusion_outcomes_sort
-
-        slices = np.concatenate([[0], np.cumsum(multiplicities)], axis=0)
-        _block_ind_map[:, 0] = slices[:-1]  # start with 0
-        _block_ind_map[:, 1] = slices[1:]
-
-        # bunch sectors with equal charges together
-        diffs = find_row_differences(sectors, include_len=True)
-        metadata['_block_ind_map_slices'] = diffs
-        slices = slices[diffs]
-        multiplicities = slices[1:] - slices[:-1]
-        diffs = diffs[:-1]
-
-        sectors = sectors[diffs]
-
-        new_block_ind = np.zeros(len(_block_ind_map), dtype=np.intp) # = J
-        new_block_ind[diffs[1:]] = 1  # not for the first entry => np.cumsum starts with 0
-        _block_ind_map[:, -1] = new_block_ind = np.cumsum(new_block_ind)
-        # calculate the slices within blocks: subtract the start of each block
-        _block_ind_map[:, :2] -= slices[new_block_ind][:, np.newaxis]
-        metadata['_block_ind_map'] = _block_ind_map
-
-        return sectors, multiplicities, metadata
-
-    def get_leg_metadata(self, leg: Space) -> dict:
-        if isinstance(leg, ProductSpace):
-            # TODO / OPTIMIZE write a version that just calculates the metadata?
-            _, _, metadata = self._fuse_spaces(symmetry=leg.symmetry, spaces=leg.spaces)
-            return metadata
-        return {}
 
     # INTERNAL HELPERS
 
-    def product_space_map_incoming_block_inds(self, space: ProductSpace, incoming_block_inds):
-        """Map incoming block indices to indices of :attr:`_block_ind_map`.
+    def leg_pipe_map_incoming_block_inds(self, pipe: AbelianLegPipe, incoming_block_inds):
+        """Map incoming block indices to indices of :attr:`block_ind_map`.
 
         Needed for `combine_legs`.
 
         Parameters
         ----------
-        space : ProductSpace
-            The ProductSpace which indices are to be mapped
+        pipe : AbelianLegPipe
+            The pipe which indices are to be mapped
         incoming_block_inds : 2D array
             Rows are block indices :math:`(i_1, i_2, ... i_{nlegs})` for incoming legs.
 
@@ -1988,11 +1928,24 @@ class AbelianBackend(TensorBackend):
         -------
         block_inds: 1D array
             For each row j of `incoming_block_inds` an index `J` such that
-            ``space.metadata['_block_ind_map'][J, 2:-1] == block_inds[j]``.
+            ``pipe.block_ind_map[J, 2:-1] == block_inds[j]``.
         """
-        assert incoming_block_inds.shape[1] == len(space.spaces)
+        assert incoming_block_inds.shape[1] == pipe.num_legs
         # calculate indices of _block_ind_map by using the appropriate strides
-        strides = space.get_metadata('_strides', backend=self)
-        inds_before_perm = np.sum(incoming_block_inds * strides[np.newaxis, :], axis=1)
+        inds_before_perm = np.sum(incoming_block_inds * pipe.sector_strides[np.newaxis, :], axis=1)
         # now permute them to indices in _block_ind_map
-        return inverse_permutation(space.fusion_outcomes_sort)[inds_before_perm]
+        return inverse_permutation(pipe.fusion_outcomes_sort)[inds_before_perm]
+
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+
+        hdf5_saver.save(self.DataCls, subpath + 'DataCls')
+
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+
+        obj.DataCls = hdf5_loader.load(subpath + 'DataCls')
+
+        return obj

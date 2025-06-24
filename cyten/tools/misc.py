@@ -1,22 +1,9 @@
 """Miscellaneous tools, somewhat random mix yet often helpful."""
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
-import operator
 import numpy as np
-import os.path
 import warnings
 from typing import TypeVar, Sequence, Set
-
-
-__all__ = [
-    'UNSPECIFIED', 'duplicate_entries', 'to_iterable',
-    'argsort', 'combine_constraints', 'inverse_permutation', 'list_to_dict_list',
-    'find_subclass',
-    'rank_data',
-    'np_argsort', 'make_stride', 'find_row_differences', 'unstridify',
-    'iter_common_noncommon_sorted', 'iter_common_noncommon_sorted_arrays', 'iter_common_sorted',
-    'iter_common_sorted_arrays'
-]
 
 
 UNSPECIFIED = object()  # sentinel, also used elsewhere
@@ -30,7 +17,7 @@ def duplicate_entries(seq: Sequence[_T], ignore: Sequence[_T] = []) -> Set[_T]:
 
 def to_iterable(a):
     """If `a` is a not iterable or a string, return ``[a]``, else return ``a``."""
-    if type(a) == str:
+    if type(a) is str:
         return [a]
     try:
         iter(a)
@@ -40,9 +27,55 @@ def to_iterable(a):
         return a
 
 
+def to_valid_idx(idx: int, length: int) -> int:
+    """Convert to a valid non-negative index into the given `length`, if possible."""
+    if not -length <= idx < length:
+        raise IndexError(f'Index {idx} out of bounds for length {length}')
+    if idx < 0:
+        idx += length
+    return idx
+
+
+def as_immutable_array(a, dtype=None):
+    """Like :func:`numpy.asarray`, but also makes the resulting array immutable."""
+    a = np.asarray(a, dtype=dtype)
+    a.setflags(write=False)
+    return a
+
+
+def permutation_as_swaps(initial_perm: list, final_perm: list) -> list:
+    """Decompose a permutation as a sequence of pairwise swaps.
+
+    Given an initial and final permutation of the same numbers, return a list `swaps`
+    of indices such that exchanging the entries of the initial permutation as
+    `initial_perm[swaps[i]], initial_perm[swaps[i]+1] = initial_perm[swaps[i]+1],
+    initial_perm[swaps[i]]` leads to the final permutation. The swaps must be applied
+    starting from `swaps[0]`.
+    
+    Consistency of the input is not checked.
+    """
+    assert len(initial_perm) == len(final_perm), 'mismatched lengths'
+    unique_entries_initial = set(initial_perm)
+    unique_entries_final = set(final_perm)
+    assert unique_entries_initial == unique_entries_final, 'mismatched entries'
+    assert len(initial_perm) == len(unique_entries_initial), 'duplicated entries'
+
+    # TODO avoid infinite loop
+    # OPTIMIZE is this efficient??
+    swaps = []
+    while final_perm != initial_perm:
+        for i in range(len(final_perm)):
+            if final_perm[i] != initial_perm[i]:
+                ind = initial_perm.index(final_perm[i])
+                initial_perm[ind - 1:ind + 1] = initial_perm[ind - 1:ind + 1][::-1]
+                swaps.append(ind - 1)
+                break
+    return swaps
+    
+
 # TODO remove in favor of backend.block_argsort?
 def argsort(a, sort=None, **kwargs):
-    """wrapper around np.argsort to allow sorting ascending/descending and by magnitude.
+    """Wrapper around np.argsort to allow sorting ascending/descending and by magnitude.
 
     Parameters
     ----------
@@ -110,11 +143,10 @@ def combine_constraints(good1, good2, warn):
 
 
 def inverse_permutation(perm):
-    """reverse sorting indices.
+    """Reverse sorting indices.
 
-    Sort functions (as :meth:`LegCharge.sort`) return a (1D) permutation `perm` array,
-    such that ``sorted_array = old_array[perm]``.
-    This function inverts the permutation `perm`,
+    We sort arrays in various places, i.e. use a (1D) permutation array `perm`, such that e.g.
+    ``sorted_array = old_array[perm]``. This function inverts the permutation `perm`,
     such that ``old_array = sorted_array[inverse_permutation(perm)]``.
 
     Parameters
@@ -130,13 +162,14 @@ def inverse_permutation(perm):
 
     Notes
     -----
-    This is equivalent to ``numpy.argsort``, but has O(N) complexity instead of O(N log(N))
+    For permutations, this is equivalent to ``numpy.argsort``, but has ``O(N)`` complexity instead
+    of ``O(N log(N))``.
     """
     perm = np.asarray(perm, dtype=np.intp)
     inv_perm = np.empty_like(perm)
     inv_perm[perm] = np.arange(perm.shape[0], dtype=perm.dtype)
     return inv_perm
-     # equivalently: return np.argsort(perm) # would be O(N log(N))
+    # equivalently: return np.argsort(perm) # would be O(N log(N))
 
 
 def rank_data(a, stable=True):
@@ -170,6 +203,7 @@ def rank_data(a, stable=True):
     return ranks
 
 
+# np_argsort : depending on numpy version
 if int(np.version.version.split('.')[0]) >= 2:
     def np_argsort(a, stable=True):
         """Wrapper around np.argsort, using the ``stable`` kwarg if available"""
@@ -208,6 +242,59 @@ def make_stride(shape, cstyle=True):
     return res
 
 
+def make_grid(shape, cstyle=True) -> np.ndarray:
+    """Create a grid of all possible combinations of indices.
+
+    Parameters
+    ----------
+    shape : sequence of int
+    cstyle : bool
+        If the resulting grid should be in C-style order (varying the last index the fastest),
+        or in F-style order (varying the first index the fastest).
+
+    Returns
+    -------
+    grid : 2D array of int
+        All possible index combinations into the `shape`.
+        Shape is ``(M, N)`` where ``M == prod(shape)`` and ``N == len(shape)``.
+        Each combination ``(i_0, ..., i_{N-1})`` of indices, with ``0 <= i_n < shape[n]`` appears
+        exactly once as a row ``grid[m]``.
+        Is ``np.lexsorted(_.T)`` if ``cstyle=False``. Otherwise, ``grid[:, ::-1]`` is sorted.
+
+    Examples
+    --------
+    For C-style grid we have::
+
+        make_grid([4, 5, 2, 3], cstyle=True) == [
+            [0, 0, 0, 0],
+            [0, 0, 0, 1],
+            [0, 0, 0, 2],
+            [0, 1, 0, 0],
+            ...
+            [3, 4, 1, 1],
+            [3, 4, 1, 2]
+        ]
+
+    Or for F-style we have::
+
+        make_grid([4, 5, 2, 3], cstyle=False) == [
+            [0, 0, 0, 0],
+            [1, 0, 0, 0],
+            [2, 0, 0, 0],
+            [3, 0, 0, 0],
+            [0, 1, 0, 0],
+            ...
+            [2, 4, 1, 2],
+            [3, 4, 1, 2]
+        ]
+
+    """
+    if cstyle:
+        return np.indices(shape, int).reshape(len(shape), -1).T
+    else:
+        return np.indices(shape, int).T.reshape(-1, len(shape))
+
+
 def list_to_dict_list(l):
     """Given a list `l` of objects, construct a lookup table.
 
@@ -235,7 +322,7 @@ def list_to_dict_list(l):
     return d
 
 
-def find_row_differences(sectors, include_len: bool=False):
+def find_row_differences(sectors, include_len: bool = False):
     """Return indices where the rows of the 2D array `sectors` change.
 
     Parameters
@@ -256,29 +343,6 @@ def find_row_differences(sectors, include_len: bool=False):
     diff = np.ones(len_sectors + int(include_len), dtype=np.bool_)
     diff[1:len_sectors] = np.any(sectors[1:] != sectors[:-1], axis=1)
     return np.nonzero(diff)[0]  # get the indices of True-values
-
-
-def unstridify(x, strides):
-    """Undo applying strides to an index.
-
-    Parameters
-    ----------
-    x : (..., M) ndarray
-        1D array of non-negative integers. Broadcast over leading axis.
-    strides : (N,) ndarray
-        C-style strides, i.e. positive integers such that ``strides[i]`` is an integer multiple
-        of ``strides[i + 1]``.
-
-    Returns
-    -------
-    (..., M, N) ndarray
-        The unique ``ys`` such that ``x == np.sum(strides * ys, axis=-1)``.
-    """
-    y_list = []
-    for s in strides:
-        y, x = np.divmod(x, s)
-        y_list.append(y)
-    return np.stack(y_list, axis=-1)
 
 
 def iter_common_noncommon_sorted(a, b):

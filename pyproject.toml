@@ -60,7 +60,8 @@ dependencies = [
 
 [project.optional-dependencies]
 io = ["h5py", "pyyaml"]
-test = ["pytest>=6.0", "sympy", "h5py"]
+gpu = ["torch"]
+test = ["pytest>=6.0", "sympy", "cyten[io, gpu]"]
 extra = ["yapf==0.28.0", "docformatter==1.3.1"]
 docbuild = [
     "Sphinx",
@@ -93,8 +94,10 @@ filterwarnings = [
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "FusionTree: marks tests that use the FusionTreeBackend.",
+    "numpy: marks tests that use the numpy block backend.",
+    "torch: marks tests that use the torch block backend.",
     "example: marks tests as example (deselect with '-m \"not example\"')",
-    "deselect_invalid_ChargedTensor_cases: modifies collection. See nots in conftest.py",
+    "deselect_invalid_ChargedTensor_cases: modifies collection. See notes in conftest.py",
 ]
 log_level = "INFO"
 log_format = "%(asctime)s %(levelname)-8s %(filename)-16s%(lineno)4d: %(message)s"

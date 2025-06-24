@@ -15,7 +15,7 @@ Main changes  (TODO -> changelog)
 - sites have a backend. all operators on the site need to have that backend.
 
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 
 from __future__ import annotations
@@ -25,19 +25,16 @@ import copy
 from typing import TypeVar, Type
 from functools import partial, reduce
 
-from ..tensors import (Tensor, SymmetricTensor, SymmetricTensor, ChargedTensor,
-                              DiagonalTensor, almost_equal, angle, real_if_close, exp)
-from ..backends import TensorBackend, Block
+from ..tensors import (Tensor, SymmetricTensor, ChargedTensor, DiagonalTensor, almost_equal, angle,
+                       real_if_close, exp)
+from ..backends.abstract_backend import TensorBackend, Block
 from ..symmetries import (ProductSymmetry, Symmetry, SU2Symmetry, U1Symmetry, ZNSymmetry,
-                             no_symmetry, SectorArray)
-from ..spaces import Space, ElementarySpace, ProductSpace
+                          no_symmetry, SectorArray)
+from ..spaces import Space, ElementarySpace, LegPipe
 from ..tools.misc import find_subclass, make_stride
-#  from ..tools.hdf5_io import Hdf5Exportable  # TODO add import/export by making Site a subclass of HDF5Exportable again
 
-__all__ = ['Site', 'GroupedSite', 'group_sites', 'set_common_symmetry', 'as_valid_operator_name',
-           'split_charged_operator_symbol', 'ChargedOperator', 'SpinHalfSite', 'SpinSite',
-           'FermionSite', 'SpinHalfFermionSite', 'SpinHalfHoleSite', 'BosonSite', 'ClockSite',
-           'spin_half_species']
+# TODO add import/export by making Site a subclass of HDF5Exportable again
+#  from ..tools.hdf5_io import Hdf5Exportable
 
 
 _T = TypeVar('_T')
@@ -54,8 +51,9 @@ class Site:
 
     This class defines what the local basis states are via the :attr:`leg`, which defines the order
     of basis states (:attr:`ElementarySpace.basis_perm`) and how the symmetry acts on them
-    (by assigning them to :attr:`Space.sectors`). It also provides :attr:`state_labels` for the
-    basis. A `Site` instance therefore already determines which symmetry is explicitly used.
+    (by assigning them to a sector in the :attr:`Space.sector_decomposition`). It also provides
+    :attr:`state_labels` for the basis. A `Site` instance therefore already determines which
+    symmetry is explicitly used.
     Using the same "kind" of physical site (typically a particular subclass of `Site`),
     but using different symmetries requires *different* `Site` instances.
     
@@ -169,7 +167,7 @@ class Site:
                     are_equivalent = almost_equal(op_L, op)
                 if not are_equivalent:
                     msg = ('Charged operators and symmetric operators with the same name must '
-                            'be equal.')
+                           'be equal.')
                     raise ValueError(msg)
         # check self.charged_ops
         for name, op in self.charged_ops.items():
@@ -694,7 +692,6 @@ class GroupedSite(Site):
         # determine new legs
         if symmetry_combine == 'same':
             legs = [site.leg for site in sites]
-            res_symmetry = sites[0].leg.symmetry
         elif symmetry_combine == 'drop':
             legs = [s.leg.drop_symmetry() for s in sites]
         elif symmetry_combine == 'independent':
@@ -720,7 +717,11 @@ class GroupedSite(Site):
         # to use kroneckerproduct
         self.backend = backend = sites[0].backend
         assert all(s.backend == backend for s in sites)
-        self.leg = leg = ProductSpace(legs, backend=backend)
+
+        # TODO revise this. how do we get the right pipe depending on the backend? backend.make_pipe?
+        raise NotImplementedError
+
+        self.leg = leg = LegPipe(legs, backend=backend)
         # initialize Site
         JW_all = self.kroneckerproduct([s.JW for s in sites])
         Site.__init__(self, leg, backend=backend, state_labels=None, JW=JW_all)
@@ -732,9 +733,9 @@ class GroupedSite(Site):
             for states_labels in itertools.product(*[s.state_labels.items() for s in sites]):
                 # states_labels is a list of (label, index) pairs for every site
                 inds = np.array([i for _, i in states_labels])
-                prod_space_idx = np.sum(inds * strides)
+                pipe_idx = np.sum(inds * strides)
                 state_label = ' '.join(f'{lbl}_{site_lbl}' for (lbl, _), site_lbl in zip(states_labels, labels))
-                self.state_labels[state_label] = perm[prod_space_idx]
+                self.state_labels[state_label] = perm[pipe_idx]
         else:
             # TODO fusion is more than a permutation. labels like above make no sense.
             raise NotImplementedError
@@ -794,7 +795,7 @@ class GroupedSite(Site):
             op = op.outer(op_i, relabel2={'p': f'p{i}', 'p*': f'p{i}*'})
         return op.combine_legs([f'p{i}' for i in range(self.n_sites)],
                                [f'p{i}*' for i in range(self.n_sites)],
-                               product_spaces=[self.leg, self.leg.dual],
+                               pipes=[self.leg, self.leg.dual],
                                new_labels=['p', 'p*'])
 
     def __repr__(self):
@@ -892,9 +893,10 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
 
     if symmetry_combine == 'by_name':
         factors = []
-        sites_and_slices = []  # for every factor, a list of tuples (site_idx, sector_slc)
-                               # indicating that this factor appears on sites[site_idx] and its
-                               # sectors are embedded at sector_slc of that sites symmetry
+        # for every factor, a list of tuples (site_idx, sector_slc)
+        # indicating that this factor appears on sites[site_idx] and its
+        # sectors are embedded at sector_slc of that sites symmetry
+        sites_and_slices = []
         for i, site in enumerate(sites):
             if isinstance(site.leg.symmetry, ProductSymmetry):
                 new_factors = site.leg.symmetry.factors
@@ -919,8 +921,9 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
             new_symm_slices = [slice(new_symmetry.sector_slices[n], new_symmetry.sector_slices[n + 1])
                                for n in range(len(factors))]
         for i, site in enumerate(sites):
-            slice_tuples = []  # list of tuples (new_slice, old_slice) indicating that
-                               # for this site, new_sector[new_slice] = old_sector[old_slice]
+            # list of tuples (new_slice, old_slice) indicating that
+            # for this site, new_sector[new_slice] = old_sector[old_slice]
+            slice_tuples = []
             for n in range(len(factors)):
                 for j, slc in sites_and_slices[n]:
                     if i == j:
@@ -944,8 +947,9 @@ def set_common_symmetry(sites: list[Site], symmetry_combine: callable | str | li
 
     if symmetry_combine == 'independent':
         factors = []
-        ind_lens = []  # basically [site.leg.symmetry.sector_ind_len for site in sites]
-                       # but adjusted for the ignored no_symmetry s
+        # basically [site.leg.symmetry.sector_ind_len for site in sites]
+        # but adjusted for the ignored no_symmetry s
+        ind_lens = []
         for site in sites:
             site_symmetry = site.symmetry
             if isinstance(site_symmetry, ProductSymmetry):
@@ -1023,6 +1027,7 @@ def as_valid_operator_name(name) -> str:
 
 def split_charged_operator_symbol(name: str) -> tuple[str, bool]:
     """Helper function to parse charged operators ``"(O*_)"`` or ``"(_*O)"``.
+    
     Returns
     -------
     name : str
@@ -1159,14 +1164,15 @@ class SpinHalfSite(Site):
     backend : :class:`~cyten.backends.Backend`, optional
         The backend used to create the operators.
     """
+    
     def __init__(self, conserve: str = 'Sz', backend: TensorBackend = None):
         # make leg
         if conserve == 'Stot':
-            leg = ElementarySpace(symmetry=SU2Symmetry('Stot'), sectors=[[1]])
+            leg = ElementarySpace(symmetry=SU2Symmetry('Stot'), defining_sectors=[[1]])
         elif conserve == 'Sz':
-            leg = ElementarySpace.from_sectors(U1Symmetry('2*Sz'), [[1], [-1]])
+            leg = ElementarySpace.from_defining_sectors(U1Symmetry('2*Sz'), [[1], [-1]])
         elif conserve == 'parity':
-            leg = ElementarySpace.from_sectors(ZNSymmetry(2, 'parity_Sz'), [[1], [0]])
+            leg = ElementarySpace.from_defining_sectors(ZNSymmetry(2, 'parity_Sz'), [[1], [0]])
         elif conserve == 'None':
             leg = ElementarySpace.from_trivial_sector(2)
         else:
@@ -1180,7 +1186,7 @@ class SpinHalfSite(Site):
         # operators : Svec, Sz, Sigmaz, Sp, Sm
         if conserve == 'Stot':
             # vector transforms under spin-1 irrep -> sector == [2 * J] == [2]
-            dummy_leg = ElementarySpace(leg.symmetry, sectors=[[2]])
+            dummy_leg = ElementarySpace(leg.symmetry, defining_sectors=[[2]])
             Svec_inv = SymmetricTensor.from_block_func(
                 self.backend.ones_block, backend=self.backend, legs=[leg, leg.dual, dummy_leg],
                 labels=['p', 'p*', '!']
@@ -1276,9 +1282,9 @@ class SpinSite(Site):
         Sm = np.transpose(Sp)  # no need to conj, Sp is real
         # make leg
         if conserve == 'Stot':
-            leg = ElementarySpace(symmetry=SU2Symmetry('Stot'), sectors=[[d - 1]])
+            leg = ElementarySpace(symmetry=SU2Symmetry('Stot'), defining_sectors=[[d - 1]])
         elif conserve == 'Sz':
-            leg = ElementarySpace.from_sectors(U1Symmetry('2*Sz'), two_Sz[:, None])
+            leg = ElementarySpace.from_defining_sectors(U1Symmetry('2*Sz'), two_Sz[:, None])
         elif conserve == 'parity':
             leg = ElementarySpace.from_basis(ZNSymmetry(2, 'parity_Sz'), np.arange(d)[:, None] % 2)
         elif conserve == 'None':
@@ -1292,7 +1298,7 @@ class SpinSite(Site):
         self.state_labels['up'] = self.state_labels[names[-1]]
         # operators : Svec, Sz, Sp, Sm
         if conserve == 'Stot':
-            dummy_leg = ElementarySpace(leg.symmetry, sectors=[[2]])
+            dummy_leg = ElementarySpace(leg.symmetry, defining_sectors=[[2]])
             Svec_inv = SymmetricTensor.from_block_func(
                 self.backend.ones_block, legs=[leg, leg.dual, dummy_leg],
                 labels=['p', 'p*', '!']
@@ -1304,8 +1310,9 @@ class SpinSite(Site):
             self.add_any_operator('Sm', Sm, hc='Sp')
         # operators : Sx, Sy
         if conserve in ['Sz', 'parity']:
-            Sp_inv = self.charged_ops['Sp'].op_L.invariant_part
-            Sm_inv = self.charged_ops['Sm'].op_L.invariant_part
+            pass
+            # Sp_inv = self.charged_ops['Sp'].op_L.invariant_part
+            # Sm_inv = self.charged_ops['Sm'].op_L.invariant_part
             # Sx_inv = concatenate([.5 * Sp_inv, .5 * Sm_inv], leg=-1)
             # Sy_inv = concatenate([-.5j * Sp_inv, .5j * Sm_inv], leg=-1)
             # self.add_charged_operator('Sx', ChargedTensor(Sx_inv), hc='Sx')
@@ -1385,9 +1392,9 @@ class FermionSite(Site):
     def __init__(self, conserve: str = 'N', filling: float = 0.5, backend: TensorBackend = None):
         # make leg
         if conserve == 'N':
-            leg = ElementarySpace.from_sectors(U1Symmetry('N'), [[0], [1]])
+            leg = ElementarySpace.from_defining_sectors(U1Symmetry('N'), [[0], [1]])
         elif conserve == 'parity':
-            leg = ElementarySpace.from_sectors(ZNSymmetry(2, 'parity_N'), [[0], [1]])
+            leg = ElementarySpace.from_defining_sectors(ZNSymmetry(2, 'parity_N'), [[0], [1]])
         elif conserve == 'None':
             leg = ElementarySpace.from_trivial_sector(2)
         else:
@@ -1570,7 +1577,7 @@ class SpinHalfFermionSite(Site):
             sector = [2]  # spin 1
             if sym_N is not None:
                 sector.append(0)
-            dummy_leg = ElementarySpace(leg.symmetry, sectors=[sector])
+            dummy_leg = ElementarySpace(leg.symmetry, defining_sectors=[sector])
             # the only allowed blocks by charge rule for legs [p, p*, dummy] the sectors [1, 1, 2],
             # i.e. acting on the spin 1/2 doublet [up, down].
             # This means that the same construction as for the SpinHalfSite works here too.
@@ -1715,7 +1722,7 @@ class SpinHalfHoleSite(Site):
             sector = [2]  # spin 1
             if sym_N is not None:
                 sector.append(0)
-            dummy_leg = ElementarySpace(leg.symmetry, sectors=[sector])
+            dummy_leg = ElementarySpace(leg.symmetry, defining_sectors=[sector])
             # the only allowed blocks by charge rule for legs [p, p*, dummy] the sectors [1, 1, 2],
             # i.e. acting on the spin 1/2 doublet [up, down].
             # This means that the same construction as for the SpinHalfSite works here too.
@@ -1816,9 +1823,9 @@ class BosonSite(Site):
         N = np.arange(d)
         # build leg
         if conserve == 'N':
-            leg = ElementarySpace.from_sectors(U1Symmetry('N'), N[:, None])
+            leg = ElementarySpace.from_defining_sectors(U1Symmetry('N'), N[:, None])
         elif conserve == 'parity':
-            leg = ElementarySpace.from_sectors(ZNSymmetry(2, 'parity_N'), N[:, None] % 2)
+            leg = ElementarySpace.from_defining_sectors(ZNSymmetry(2, 'parity_N'), N[:, None] % 2)
         elif conserve == 'None':
             leg = ElementarySpace.from_trivial_sector(d)
         else:
@@ -1984,6 +1991,7 @@ class ClockSite(Site):
     backend : :class:`~cyten.backends.Backend`, optional
         The backend used to create the operators.
     """
+    
     def __init__(self, q: int, conserve: str = 'Z', backend: TensorBackend = None):
         if not (isinstance(q, int) and q > 1):
             raise ValueError(f'invalid q: {q}')

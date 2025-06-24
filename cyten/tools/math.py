@@ -2,7 +2,7 @@
 
 .. autodata:: LeviCivita3
 """
-# Copyright (C) TeNPy Developers, GNU GPLv3
+# Copyright (C) TeNPy Developers, Apache license
 
 import numpy as np
 import warnings
@@ -11,9 +11,6 @@ from .misc import argsort
 import scipy.linalg
 import scipy.sparse.linalg
 
-__all__ = [
-    'speigs', 'speigsh',
-]
 
 def speigs(A, k, *args, **kwargs):
     """Wrapper around :func:`scipy.sparse.linalg.eigs`, lifting the restriction ``k < rank(A)-1``.
@@ -49,7 +46,7 @@ def speigs(A, k, *args, **kwargs):
         if isinstance(A, np.ndarray):
             Amat = A
         else:
-            Amat = matvec_to_array(A)  # Constructs the matrix
+            raise TypeError
         ret_eigv = kwargs.get('return_eigenvectors', args[7] if len(args) > 7 else True)
         which = kwargs.get('which', args[2] if len(args) > 2 else 'LM')
         if ret_eigv:
@@ -96,7 +93,7 @@ def speigsh(A, k, *args, **kwargs):
         if isinstance(A, np.ndarray):
             Amat = A
         else:
-            Amat = matvec_to_array(A)  # Constructs the matrix
+            raise TypeError
         ret_eigv = kwargs.get('return_eigenvectors', args[7] if len(args) > 7 else True)
         which = kwargs.get('which', args[2] if len(args) > 2 else 'LM')
         if ret_eigv:
