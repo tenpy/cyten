@@ -13,6 +13,7 @@ dependencies:
   - boost
   - libboost
   - openblas
+  - cmake
   # alteratively use MKL instead of openblas
   # - mkl
   # - mkl-devel
