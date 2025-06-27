@@ -22,7 +22,7 @@ except (ImportError, AttributeError):
 
 class SymmetryError(Exception):
     """An exception that is raised whenever something is not possible or not allowed due to symmetry"""
-    
+
     pass
 
 
@@ -56,7 +56,7 @@ class FusionStyle(Enum):
     =================  =============================================================================
 
     """
-    
+
     single = 0  # only one resulting sector, a ⊗ b = c, e.g. abelian symmetry groups
     multiple_unique = 10  # every sector appears at most once in pairwise fusion, N^{ab}_c \in {0,1}
     general = 20  # no assumptions N^{ab}_c = 0, 1, 2, ...
@@ -193,7 +193,7 @@ class Symmetry(metaclass=ABCMeta):
     @abstractmethod
     def is_same_symmetry(self, other) -> bool:
         """Whether self and other describe the same mathematical structure.
-        
+
         descriptive_name is ignored.
         """
         ...
@@ -211,7 +211,7 @@ class Symmetry(metaclass=ABCMeta):
     @abstractmethod
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
         """Optimized version of self.n_symbol that assumes that c is a valid fusion outcome.
-        
+
         If it is not, the results may be nonsensical. We do this for optimization purposes
         """
         ...
@@ -689,7 +689,7 @@ class ProductSymmetry(Symmetry):
         nesting is flattened, i.e. ``[*others, psymm]`` is translated to
         ``[*others, *psymm.factors]`` for a :class:`ProductSymmetry` ``psymm``.
     """
-    
+
     can_be_dropped = None  # set by __init__
 
     def __init__(self, factors: list[Symmetry]):
@@ -1167,7 +1167,7 @@ class U1Symmetry(AbelianGroup):
     Allowed sectors are 1D arrays with a single integer entry.
     ..., `[-2]`, `[-1]`, `[0]`, `[1]`, `[2]`, ...
     """
-    
+
     def __init__(self, descriptive_name: str | None = None):
         AbelianGroup.__init__(self, trivial_sector=np.array([0], dtype=int), group_name='U(1)',
                               num_sectors=np.inf, descriptive_name=descriptive_name)
@@ -1208,7 +1208,7 @@ class ZNSymmetry(AbelianGroup):
     Allowed sectors are 1D arrays with a single integer entry between `0` and `N-1`.
     `[0]`, `[1]`, ..., `[N-1]`
     """
-    
+
     def __init__(self, N: int, descriptive_name: str | None = None):
         assert isinstance(N, int)
         if not isinstance(N, int) and N > 1:
@@ -1447,7 +1447,7 @@ class SUNSymmetry(GroupSymmetry):
 
     def dual_sector(self, a: Sector) -> Sector:
         """Finds the dual irrep for a given input irrep.
-        
+
         If the irrep is self dual, then the input irrep is returned.
         Dual irreps have the same highest weight and dimension.
 
@@ -1569,7 +1569,7 @@ class SUNSymmetry(GroupSymmetry):
 
     def dims_of_irreps(self, a: Sector, b: Sector) -> dict:
         """Returns a dictionary with irreps as keys and their dimension as values.
-        
+
         The irreps are the ones appearing in the decomposition of a x b
         Does not contain multiplicities!
         """
@@ -1675,7 +1675,7 @@ class SUNSymmetry(GroupSymmetry):
         """
         if Z_a or Z_b:
             raise NotImplementedError
-        
+
         hw = self.hweight_from_CG_hdf5()
 
         if a[0] > hw or b[0] > hw or c[0] > hw:
@@ -1962,25 +1962,119 @@ class SUNSymmetry(GroupSymmetry):
                     raise ValueError(f"Key exists but contains no data.")
 
 
+class FermionNumber(Symmetry):
+    """Conserves a fermionic particle number.
+
+    This is essentially U(1), but with a braid that encodes fermionic exchange statistics.
+    Allowed sectors are arrays with a single integer entry.
+    """
+
+    fusion_tensor_dtype = Dtype.float64
+
+    _one_2D = as_immutable_array(np.ones((1, 1), dtype=int))
+    _one_2D_float = as_immutable_array(np.ones((1, 1), dtype=float))
+    _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
+    _one_4D_float = as_immutable_array(np.ones((1, 1, 1, 1), dtype=float))
+
+    def __init__(self, descriptive_name: str = None):
+        super().__init__(fusion_style=FusionStyle.single, braiding_style=BraidingStyle.fermionic,
+                         trivial_sector=np.array([0], int), group_name='FermionNumber',
+                         num_sectors=np.inf, descriptive_name=descriptive_name)
+
+    def is_valid_sector(self, a: Sector) -> bool:
+        return getattr(a, 'shape', ()) == (1,)
+
+    def are_valid_sectors(self, sectors) -> bool:
+        shape = getattr(sectors, 'shape', ())
+        return len(shape) == 2 and shape[1] == 1
+
+    def fusion_outcomes(self, a: Sector, b: Sector) -> SectorArray:
+        return self.fusion_outcomes_broadcast(a[np.newaxis, :], b[np.newaxis, :])
+
+    def fusion_outcomes_broadcast(self, a: SectorArray, b: SectorArray) -> SectorArray:
+        return a + b
+
+    def _multiple_fusion_broadcast(self, *sectors: SectorArray) -> SectorArray:
+        return sum(sectors)
+
+    def sector_dim(self, a):
+        return 1
+
+    def batch_sector_dim(self, a: SectorArray) -> np.ndarray:
+        return np.ones((len(a),), int)
+
+    def batch_qdim(self, a: SectorArray) -> np.ndarray:
+        return np.ones((len(a),), int)
+
+    def is_same_symmetry(self, other):
+        return isinstance(other, FermionNumber)
+
+    def dual_sector(self, a: Sector) -> Sector:
+        return -a
+
+    def dual_sectors(self, sectors):
+        return -sectors
+
+    def _n_symbol(self, a, b, c):
+        return 1
+
+    def _f_symbol(self, a, b, c, d, e, f):
+        return self._one_4D
+
+    def frobenius_schur(self, a):
+        return 1
+
+    def qdim(self, a):
+        return 1
+
+    def sqrt_qdim(self, a):
+        return 1
+
+    def inv_sqrt_qdim(self, a):
+        return 1
+
+    def _b_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
+        # sqrt(d_b) [F^{a b dual(b)}_a]^{111}_{c,mu,nu} = sqrt(1) * 1 = 1
+        return self._one_2D
+
+    def _r_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
+        # if a and b are odd -1, otherwise +1
+        # in the first (second) case above, we have ``a * b`` equal to 1 (0).
+        return 1 - 2 * np.mod(a, 2) * np.mod(b, 2)
+
+    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
+        # F = 1  -->  C = R^{ec}_d conj(R)^{ca}_f
+        C = (1 - 2 * np.mod(e, 2) * np.mod(c, 2)) * (1 - 2 * np.mod(c, 2) * np.mod(a, 2))
+        return C[None, None, None, :]
+
+    def Z_iso(self, a):
+        return self._one_2D_float
+
+    def __repr__(self):
+        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
+        return f'FermionNumber({name_str})'
+
+
 class FermionParity(Symmetry):
     """Fermionic Parity.
 
     Allowed sectors are arrays with a single entry; either ``[0]`` (even) or ``1`` (odd).
     The parity is the number of fermions in a given state modulo 2.
     """
-    
+
     fusion_tensor_dtype = Dtype.float64
+    even = as_immutable_array(np.array([0], dtype=int))
+    odd = as_immutable_array(np.array([1], dtype=int))
+
     _one_2D = as_immutable_array(np.ones((1, 1), dtype=int))
     _one_2D_float = as_immutable_array(np.ones((1, 1), dtype=float))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
     _one_4D_float = as_immutable_array(np.ones((1, 1, 1, 1), dtype=float))
-    even = as_immutable_array(np.array([0], dtype=int))
-    odd = as_immutable_array(np.array([1], dtype=int))
 
-    def __init__(self):
+    def __init__(self, descriptive_name: str = None):
         Symmetry.__init__(self, fusion_style=FusionStyle.single, braiding_style=BraidingStyle.fermionic,
                           trivial_sector=np.array([0], dtype=int), group_name='FermionParity',
-                          num_sectors=2, descriptive_name=None)
+                          num_sectors=2, descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a < 2
@@ -2013,7 +2107,8 @@ class FermionParity(Symmetry):
         return 'even' if a[0] == 0 else 'odd'
 
     def __repr__(self):
-        return 'FermionParity()'
+        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
+        return f'FermionParity({name_str})'
 
     def is_same_symmetry(self, other) -> bool:
         return isinstance(other, FermionParity)
@@ -2065,7 +2160,7 @@ class FermionParity(Symmetry):
 
 class ZNAnyonCategory(Symmetry):
     r"""Abelian anyon category with fusion rules corresponding to the Z_N group;
-    
+
     also written as :math:`Z_N^{(n)}`.
 
     Allowed sectors are 1D arrays with a single integer entry between `0` and `N-1`.
@@ -2077,7 +2172,7 @@ class ZNAnyonCategory(Symmetry):
 
     The anyon category corresponding to opposite handedness is obtained for `N` and `N-n` (or `-n`).
     """
-    
+
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
@@ -2158,7 +2253,7 @@ class ZNAnyonCategory(Symmetry):
 
 class ZNAnyonCategory2(Symmetry):
     r"""Abelian anyon category with fusion rules corresponding to the Z_N group;
-    
+
     also written as :math:`Z_N^{(n+1/2)}`. `N` must be even.
 
     .. todo ::
@@ -2173,7 +2268,7 @@ class ZNAnyonCategory2(Symmetry):
 
     The anyon category corresponding to opposite handedness is obtained for `N` and `N-n` (or `-n`).
     """
-    
+
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
@@ -2264,7 +2359,7 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
 
     This is not a simple product of two `ZNAnyonCategory`s; there are nontrivial R-symbols.
     """
-    
+
     _one_2D = as_immutable_array(np.ones((1, 1), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 
@@ -2363,7 +2458,7 @@ class ToricCodeCategory(QuantumDoubleZNAnyonCategory):
     def __repr__(self):
         name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
         return f'ToricCodeCategory({name_str})'
-    
+
 
 class FibonacciAnyonCategory(Symmetry):
     """Category describing Fibonacci anyons.
@@ -2377,7 +2472,7 @@ class FibonacciAnyonCategory(Symmetry):
         Considering anyons of different handedness is necessary for doubled models like,
         e.g., the anyons realized in the Levin-Wen string-net models.
     """
-    
+
     _fusion_map = {  # key: number of tau in fusion input
         0: as_immutable_array(np.array([[0]])),  # 1 x 1 = 1
         1: as_immutable_array(np.array([[1]])),  # 1 x t = t = t x 1
@@ -2480,7 +2575,7 @@ class IsingAnyonCategory(Symmetry):
         anyon model. Different `nu` correspond to different topological twists of the Ising anyons.
         The Ising anyon model of opposite handedness is obtained for `-nu`.
     """
-    
+
     _fusion_map = {  # 1: vacuum, σ: Ising anyon, ψ: fermion
         0: as_immutable_array(np.array([[0]])),  # 1 x 1 = 1
         1: as_immutable_array(np.array([[1]])),  # 1 x σ = σ = σ x 1
@@ -2608,7 +2703,7 @@ class SU2_kAnyonCategory(Symmetry):
         Considering anyons of different handedness is necessary for doubled models like,
         e.g., the anyons realized in the Levin-Wen string-net models.
     """
-    
+
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
     spin_zero = as_immutable_array(np.array([0], dtype=int))
@@ -2786,7 +2881,7 @@ class SU3_3AnyonCategory(Symmetry):
     The notion of handedness does not make sense for this specific anyon model since it
     only exchanges the two fusion multiplicities of anyon `8`.
     """
-    
+
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
     _fusion_map = {  # notation: 10- = \bar{10}
@@ -2973,6 +3068,7 @@ z9_symmetry = ZNSymmetry(N=9)
 u1_symmetry = U1Symmetry()
 su2_symmetry = SU2Symmetry()
 # TODO SU(3) and SU(4) singletons?
+fermion_number = FermionNumber()
 fermion_parity = FermionParity()
 semion_category = ZNAnyonCategory2(2, 0)
 toric_code_category = ToricCodeCategory()
