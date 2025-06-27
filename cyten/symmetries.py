@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 from abc import abstractmethod, ABCMeta
-from enum import Enum
+from enum import IntEnum
 from functools import reduce, total_ordering
 from itertools import product
 
@@ -41,8 +41,7 @@ A 2D array of int with axis [s, q] and shape ``(num_sectors, sector_ind_len)``.
 _DO_FUSION_INPUT_CHECKS = True
 
 
-@total_ordering
-class FusionStyle(Enum):
+class FusionStyle(IntEnum):
     """Describes properties of fusion, i.e. of the tensor product.
 
     =================  =============================================================================
@@ -61,14 +60,8 @@ class FusionStyle(Enum):
     multiple_unique = 10  # every sector appears at most once in pairwise fusion, N^{ab}_c \in {0,1}
     general = 20  # no assumptions N^{ab}_c = 0, 1, 2, ...
 
-    def __lt__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value <= other.value
-        return NotImplemented
 
-
-@total_ordering
-class BraidingStyle(Enum):
+class BraidingStyle(IntEnum):
     """Describes properties of braiding.
 
     =============  ===========================================
@@ -88,11 +81,6 @@ class BraidingStyle(Enum):
     fermionic = 10  # symmetric braiding with non-trivial twist; v ⊗ w ↦ (-1)^p(v,w) w ⊗ v
     anyonic = 20  # non-symmetric braiding
     no_braiding = 30  # braiding is not defined
-
-    def __lt__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value <= other.value
-        return NotImplemented
 
 
 class Symmetry(metaclass=ABCMeta):
