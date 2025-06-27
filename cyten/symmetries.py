@@ -4,7 +4,7 @@
 from __future__ import annotations
 from abc import abstractmethod, ABCMeta
 from enum import IntEnum
-from functools import reduce, total_ordering
+from functools import reduce
 from itertools import product
 
 from numpy import typing as npt
