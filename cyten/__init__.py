@@ -6,12 +6,13 @@ Provides a tensor class with block-sparsity from symmetries with an exchangeable
 # Copyright (C) TeNPy Developers, Apache license
 
 from . import (dtypes, spaces, backends, symmetries, tensors, random_matrix, sparse, krylov_based,
-               trees, dummy_config, tools)
+               trees, models, dummy_config, tools)
 from . import testing  # should be pretty late
 from . import version
 
+# import pybind11 bindings from C++ code
 # TODO do explicit imports instead of *
-from ._core import *  # import pybind11 bindings from C++ code
+from ._core import *  # type: ignore
 
 
 # modules under cyten
@@ -41,10 +42,7 @@ from .version import full_version as __full_version__
 
 # subpackages
 from .backends import get_backend
-from .networks import (
-    group_sites, SpinHalfSite, SpinSite, FermionSite, SpinHalfFermionSite, SpinHalfHoleSite,
-    BosonSite, ClockSite
-)
+from .models import SpinSite, SpinHalfFermionSite
 # from .testing import
 # from .tools import
 
