@@ -6,6 +6,7 @@ from abc import abstractmethod, ABCMeta
 from enum import IntEnum
 from functools import reduce
 from itertools import product
+from typing import Literal
 
 from numpy import typing as npt
 import numpy as np
@@ -2476,7 +2477,7 @@ class FibonacciAnyonCategory(Symmetry):
     vacuum = as_immutable_array(np.array([0], dtype=int))
     tau = as_immutable_array(np.array([1], dtype=int))
 
-    def __init__(self, handedness: str = 'left'):
+    def __init__(self, handedness: Literal['left', 'right'] = 'left'):
         assert handedness in ['left', 'right']
         self.handedness = handedness
         if handedness == 'right':
@@ -2697,7 +2698,7 @@ class SU2_kAnyonCategory(Symmetry):
     spin_zero = as_immutable_array(np.array([0], dtype=int))
     spin_half = as_immutable_array(np.array([1], dtype=int))
 
-    def __init__(self, k: int, handedness: str = 'left'):
+    def __init__(self, k: int, handedness: Literal['left', 'right'] = 'left'):
         assert isinstance(k, int)
         assert k >= 1
         assert handedness in ['left', 'right']
