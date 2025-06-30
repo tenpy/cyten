@@ -446,6 +446,12 @@ class Space(metaclass=ABCMeta):
                         ) -> ElementarySpace:
         """Change the symmetry by specifying how the sectors change.
 
+        .. todo ::
+            This interface assumes that a single sector of the old symmetry is mapped to a single
+            sector of the new symmetry, i.e. that the functor that we realize here preserves
+            simple objects. This does e.g. not cover the case of relaxing SU(2) to its U(1)
+            subgroup.
+
         Parameters
         ----------
         symmetry : :class:`~cyten.groups.Symmetry`
@@ -455,7 +461,7 @@ class Space(metaclass=ABCMeta):
             The map is assumed to cooperate with duality, i.e. we assume without checking that
             ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as
             ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
-            TODO do we need to assume more, i.e. compatibility with fusion?
+            TODO do we need to assume more, i.e. compatibility with fusion? with braiding?
         injective: bool
             If ``True``, the `sector_map` is assumed to be injective, i.e. produce a list of
             unique outputs, if the inputs are unique.
