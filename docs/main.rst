@@ -16,7 +16,7 @@ Cyten main module
     dtypes
     dummy_config
     krylov_based
-    networks
+    models
     random_matrix
     spaces
     sparse

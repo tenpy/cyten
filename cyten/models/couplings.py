@@ -120,9 +120,9 @@ def spin_spin_coupling(sites: list[SpinfulSite],
     if xx is not None:
         h += xx * np.tensordot(s1[:, :, 0], s2[:, :, 0], (0, 0))
     if yy is not None:
-        h += yy * np.tensordot(s1[:, :, 0], s2[:, :, 0], (0, 0))
+        h += yy * np.tensordot(s1[:, :, 1], s2[:, :, 1], (0, 0))
     if zz is not None:
-        h += zz * np.tensordot(s1[:, :, 0], s2[:, :, 0], (0, 0))
+        h += zz * np.tensordot(s1[:, :, 2], s2[:, :, 2], (0, 0))
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
     h = np.transpose(h, [0, 2, 1, 3])

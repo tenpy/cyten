@@ -12,8 +12,9 @@ and the tenpy version in the filename.
 import numpy as np
 import os
 import types
-import cyten.networks
+import cyten
 from cyten import symmetries, spaces, backends, tensors
+
 
 try:
     from packaging.version import parse as parse_version  # part of setuptools
