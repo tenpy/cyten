@@ -351,6 +351,38 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
+    def from_grid(self, grid: list[list[SymmetricTensor | None]], new_codomain: TensorProduct,
+                  new_domain: TensorProduct, left_mult_slices: list[list[int]],
+                  right_mult_slices: list[list[int]], dtype: Dtype, device: str) -> Data:
+        """Data from a grid of tensors.
+
+        Parameters
+        ----------
+        grid: list[list[SymmetricTensor | None]]
+            Contains the tensors from which a single tensor is constructed. `None` entries are
+            interpreted as tensors with all blocks equal to zero.
+        new_codomain: TensorProduct
+            Codomain of the resulting tensor after stacking the tensors in the grid.
+        new_domain: TensorProduct
+            Domain of the resulting tensor after stacking the tensors in the grid.
+        left_mult_slices: list[list[int]]
+            Multiplicity slices for each sector for the stacking in the codomain. That is,
+            ``slice(left_mult_slices[sector_idx][i], left_mult_slices[sector_idx][i + 1])`` is the
+            slice that is contributed from the tensors in the `i`th column to the sector
+            ``new_codomain[0].sector_decomposition[sector_idx]`` of the leg ``new_codomain[0]``.
+        right_mult_slices: list[list[int]]
+            Multiplicity slices for each sector for the stacking in the domain. That is,
+            ``slice(right_mult_slices[sector_idx][i], right_mult_slices[sector_idx][i + 1])`` is
+            the slice that is contributed from the tensors in the `i`th row to the sector
+            ``new_domain[-1].sector_decomposition[sector_idx]`` of the leg ``new_domain[-1]``.
+        dtype: Dtype
+            The new dtype of the block.
+        device: str
+            The device for the block.
+        """
+        ...
+
+    @abstractmethod
     def from_random_normal(self, codomain: TensorProduct, domain: TensorProduct, sigma: float,
                            dtype: Dtype, device: str) -> Data:
         ...

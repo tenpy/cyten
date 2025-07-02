@@ -5087,6 +5087,110 @@ def svd_apply_mask(U: SymmetricTensor, S: DiagonalTensor, Vh: SymmetricTensor, m
     return U, S, Vh
 
 
+def tensor_from_grid(grid: list[list[SymmetricTensor | None]], backend: TensorBackend | None = None,
+                     labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                     dtype: Dtype = Dtype.complex128, device: str = None) -> SymmetricTensor:
+    """Convert a grid of tensors to a single SymmetricTensor.
+
+    The tensors are combined along the first leg in their codomain and the final leg in their
+    domain. All other legs must be identical across all tensors in the grid. For consistency,
+    tensors within the same row must have identical left spaces (first leg in the codomain),
+    and tensors within the same column must have identical right spaces (final leg in the
+    domain).
+
+    Parameters
+    ----------
+    grid: list[list[SymmetricTensor | None]]
+        Contains the tensors from which a single tensor is constructed. `None` entries are
+        interpreted as tensors with all blocks equal to zero.
+    backend, labels
+        Arguments, like for constructor of :class:`SymmetricTensor`.
+    dtype: Dtype
+        The dtype of the tensor.
+    device: str
+        The device of the tensor. If ``None``, use the :attr:`BlockBackend.default_device` of
+        the block backend.
+    """
+    # TODO assert all ops same device? backend? What do we care about?
+    # check input
+    identical_spaces = None
+    num_codom_legs = 0
+    num_dom_legs = 0
+    for row in grid:
+        for op in row:
+            if op is None:
+                continue
+            if identical_spaces is None:
+                identical_spaces = [op.codomain[1:], op.domain[:-1]]
+                num_codom_legs = op.num_codomain_legs
+                num_dom_legs = op.num_domain_legs
+            assert op.num_codomain_legs == num_codom_legs
+            assert op.num_domain_legs == num_dom_legs
+            assert op.codomain[1:] == identical_spaces[0]
+            assert op.domain[:-1] == identical_spaces[1]
+            # only ElementarySpaces have direct_sum
+            assert isinstance(op.codomain[0], ElementarySpace)
+            assert isinstance(op.domain[-1], ElementarySpace)
+
+    transposed_grid = list(map(list, zip(*grid)))
+    right_ops = grid[0]
+    for i, op in enumerate(right_ops):
+        if op is not None:
+            continue
+        # find op from same column
+        for new_op in transposed_grid[i]:
+            if new_op is None:
+                continue
+            right_ops[i] = new_op
+            break
+    right_spaces = [op.domain[-1] for op in right_ops]
+    if None in right_spaces:
+        raise ValueError('One column in the grid does not have nonzero entries.')
+    
+    left_ops = transposed_grid[0]
+    for i, op in enumerate(left_ops):
+        if op is not None:
+            continue
+        # find op from same row
+        for new_op in grid[i]:
+            if new_op is None:
+                continue
+            left_ops[i] = new_op
+            break
+    left_spaces = [op.codomain[0] for op in left_ops]
+    if None in left_spaces:
+        raise ValueError('One row in the grid does not have nonzero entries.')
+
+    # TODO direct sum automatically gets us some basis_perm. Does it have any effects?
+    left_space = left_spaces[0].direct_sum(*left_spaces[1:])
+    right_space = right_spaces[0].direct_sum(*right_spaces[1:])
+
+    # for each sector in the direct sum, find which multiplicities come from which space
+    left_mult_slices = []
+    for sector in left_space.sector_decomposition:
+        mults = []
+        for space in left_spaces:
+            idx = space.sector_decomposition_where(sector)
+            mult = 0 if idx is None else space.multiplicities[idx]
+            mults.append(mult)
+        left_mult_slices.append(np.concatenate([[0], np.cumsum(mults)], axis=0))
+    right_mult_slices = []
+    for sector in right_space.sector_decomposition:
+        mults = []
+        for space in right_spaces:
+            idx = space.sector_decomposition_where(sector)
+            mult = 0 if idx is None else space.multiplicities[idx]
+            mults.append(mult)
+        right_mult_slices.append(np.concatenate([[0], np.cumsum(mults)], axis=0))
+
+    codomain = TensorProduct([left_space, identical_spaces[0]])
+    domain = TensorProduct([identical_spaces[1], right_space])
+    data = backend.from_grid(grid=grid, new_codomain=codomain, new_domain=domain,
+                             left_mult_slices=left_mult_slices,
+                             right_mult_slices=right_mult_slices, dtype=dtype, device=device)
+    return SymmetricTensor(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
+
+
 def tdot(tensor1: Tensor, tensor2: Tensor,
          legs1: int | str | list[int | str], legs2: int | str | list[int | str],
          relabel1: dict[str, str] = None, relabel2: dict[str, str] = None):
