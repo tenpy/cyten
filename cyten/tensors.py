@@ -5087,9 +5087,9 @@ def svd_apply_mask(U: SymmetricTensor, S: DiagonalTensor, Vh: SymmetricTensor, m
     return U, S, Vh
 
 
-def tensor_from_grid(grid: list[list[SymmetricTensor | None]], backend: TensorBackend | None = None,
+def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
                      labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                     dtype: Dtype = Dtype.complex128, device: str = None) -> SymmetricTensor:
+                     dtype: Dtype = Dtype.complex128) -> SymmetricTensor:
     """Convert a grid of tensors to a single SymmetricTensor.
 
     The tensors are combined along the first leg in their codomain and the final leg in their
@@ -5103,34 +5103,23 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]], backend: TensorBa
     grid: list[list[SymmetricTensor | None]]
         Contains the tensors from which a single tensor is constructed. `None` entries are
         interpreted as tensors with all blocks equal to zero.
-    backend, labels
-        Arguments, like for constructor of :class:`SymmetricTensor`.
+    labels
+        Leg labels of the resulting tensor.
     dtype: Dtype
         The dtype of the tensor.
-    device: str
-        The device of the tensor. If ``None``, use the :attr:`BlockBackend.default_device` of
-        the block backend.
     """
-    # TODO assert all ops same device? backend? What do we care about?
+    op_list = [op for row in grid for op in row if op is not None]
+    backend = get_same_backend(*op_list)
+    device = get_same_device(*op_list)
     # check input
-    identical_spaces = None
-    num_codom_legs = 0
-    num_dom_legs = 0
-    for row in grid:
-        for op in row:
-            if op is None:
-                continue
-            if identical_spaces is None:
-                identical_spaces = [op.codomain[1:], op.domain[:-1]]
-                num_codom_legs = op.num_codomain_legs
-                num_dom_legs = op.num_domain_legs
-            assert op.num_codomain_legs == num_codom_legs
-            assert op.num_domain_legs == num_dom_legs
-            assert op.codomain[1:] == identical_spaces[0]
-            assert op.domain[:-1] == identical_spaces[1]
-            # only ElementarySpaces have direct_sum
-            assert isinstance(op.codomain[0], ElementarySpace)
-            assert isinstance(op.domain[-1], ElementarySpace)
+    for op in op_list:
+        assert op.num_codomain_legs == op_list[0].num_codomain_legs
+        assert op.num_domain_legs == op_list[0].num_codomain_legs
+        assert op.codomain[1:] == op_list[0].codomain[1:]
+        assert op.domain[:-1] == op_list[0].domain[:-1]
+        # only ElementarySpaces have direct_sum
+        assert isinstance(op.codomain[0], ElementarySpace)
+        assert isinstance(op.domain[-1], ElementarySpace)
 
     transposed_grid = list(map(list, zip(*grid)))
     right_ops = grid[0]
@@ -5183,8 +5172,8 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]], backend: TensorBa
             mults.append(mult)
         right_mult_slices.append(np.concatenate([[0], np.cumsum(mults)], axis=0))
 
-    codomain = TensorProduct([left_space, identical_spaces[0]])
-    domain = TensorProduct([identical_spaces[1], right_space])
+    codomain = TensorProduct([left_space, *op_list[0].codomain[1:]])
+    domain = TensorProduct([*op_list[0].domain[:-1], right_space])
     data = backend.from_grid(grid=grid, new_codomain=codomain, new_domain=domain,
                              left_mult_slices=left_mult_slices,
                              right_mult_slices=right_mult_slices, dtype=dtype, device=device)
