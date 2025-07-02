@@ -188,6 +188,24 @@ class NoSymmetryBackend(TensorBackend):
         # there are no other sectors, so this is just the unmodified block.
         assert self.block_backend.get_shape(block) == (leg.dim,)
 
+    def from_grid(self, grid: list[list[SymmetricTensor | None]], new_codomain: TensorProduct,
+                  new_domain: TensorProduct, left_mult_slices: list[list[int]],
+                  right_mult_slices: list[list[int]], dtype: Dtype, device: str) -> Data:
+        heights = left_mult_slices[0]
+        widths = right_mult_slices[0]
+        data = self.zero_data(codomain=new_codomain, domain=new_domain, dtype=dtype, device=device)
+        codom_slcs = [slice(None)] * (len(new_codomain) - 1)
+        dom_slcs = [slice(None)] * (len(new_domain) - 1)
+        for i, row in enumerate(grid):
+            for j, op in enumerate(row):
+                if op is None:
+                    continue
+                row_slc = slice(widths[j], widths[j + 1])
+                col_slc = slice(heights[i], heights[i + 1])
+                slcs = (col_slc, *codom_slcs, row_slc, *dom_slcs)
+                data[slcs] += op.data
+        return data
+
     def from_random_normal(self, codomain: TensorProduct, domain: TensorProduct, sigma: float,
                            dtype: Dtype, device: str) -> Data:
         shape = [leg.dim for leg in conventional_leg_order(codomain, domain)]
