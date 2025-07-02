@@ -930,6 +930,44 @@ class AbelianBackend(TensorBackend):
             blocks=[block], block_inds=np.array([[bi]]), is_sorted=True
         )
 
+    def from_grid(self, grid: list[list[SymmetricTensor | None]], new_codomain: TensorProduct,
+                  new_domain: TensorProduct, left_mult_slices: list[list[int]],
+                  right_mult_slices: list[list[int]], dtype: Dtype, device: str) -> Data:
+        blocks = []
+        block_inds = np.zeros((0, len(new_codomain) + len(new_domain)), dtype=int)
+        codom_slcs = [slice(None)] * (len(new_codomain) - 1)
+        dom_slcs = [slice(None)] * (len(new_domain) - 1)
+        for i, row in enumerate(grid):
+            for j, op in enumerate(row):
+                if op is None:
+                    continue
+                for op_bi, op_block in zip(op.data.block_inds, op.data.blocks):
+                    # all block inds apart from the ones for the row and col
+                    # must be identical to the ones of op
+                    left_sector = op.codomain[0].sector_decomposition[op_bi[0]]
+                    left_ind = new_codomain[0].sector_decomposition_where(left_sector)
+                    right_sector = op.domain[-1].sector_decomposition[op_bi[len(new_codomain)]]
+                    right_ind = new_domain[-1].sector_decomposition_where(right_sector)
+                    new_bi = [left_ind, *op_bi[1:len(new_codomain)], right_ind, *op_bi[len(new_codomain) + 1:]]
+                    new_bi = np.array(new_bi, dtype=int)
+
+                    # find block or create it if it does not exist yet
+                    block_idx = np.argwhere(np.all(block_inds == new_bi, axis=1))[:, 0]
+                    if len(block_idx) == 0:
+                        block_idx = len(blocks)
+                        block_inds = np.vstack((block_inds, new_bi))
+                        shape = [leg.multiplicities[i]
+                                 for i, leg in zip(new_bi, conventional_leg_order(new_codomain, new_domain))]
+                        blocks.append(self.block_backend.zeros(shape, dtype=dtype, device=device))
+                    else:
+                        block_idx = block_idx[0]
+
+                    row_slc = slice(right_mult_slices[right_ind][j], right_mult_slices[right_ind][j + 1])
+                    col_slc = slice(left_mult_slices[left_ind][i], left_mult_slices[left_ind][i + 1])
+                    block_slcs = (col_slc, *codom_slcs, row_slc, *dom_slcs)
+                    blocks[block_idx][block_slcs] += op_block
+        return AbelianBackendData(dtype=dtype, device=device, blocks=blocks, block_inds=block_inds, is_sorted=False)
+
     def from_random_normal(self, codomain: TensorProduct, domain: TensorProduct, sigma: float,
                            dtype: Dtype, device: str) -> Data:
         def func(shape, coupled):
@@ -1898,7 +1936,7 @@ class AbelianBackend(TensorBackend):
         for idcs in block_inds:
             shape = [leg.multiplicities[i]
                      for i, leg in zip(idcs, conventional_leg_order(codomain, domain))]
-            zero_blocks.append(self.block_backend.zeros(shape, dtype=dtype))
+            zero_blocks.append(self.block_backend.zeros(shape, dtype=dtype, device=device))
         return AbelianBackendData(dtype, device, zero_blocks, block_inds, is_sorted=True)
 
     def zero_diagonal_data(self, co_domain: TensorProduct, dtype: Dtype, device: str
