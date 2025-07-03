@@ -2730,22 +2730,23 @@ def test_tensor_from_grid(cod, dom, row, col, make_compatible_tensor, make_compa
     perm_dom = perm[idx:][::-1]
     levels = np_random.permutation(T.num_legs)
 
-    first_grid = tensors.tensor_from_grid(grid)
-    first_grid = tensors.permute_legs(first_grid, perm_codom, perm_dom, levels)
-    first_permuted = [[tensors.permute_legs(op, perm_codom, perm_dom, levels) for op in row] for row in grid]
-    first_permuted = tensors.tensor_from_grid(first_permuted)
-
-    assert first_grid.codomain == first_permuted.codomain
-    assert first_grid.domain == first_permuted.domain
-
-    if not T.symmetry.has_symmetric_braid:
-        # TODO there is some issue in the fusion_tree implementation...
-        pytest.xfail()
-
-    assert first_grid.backend.almost_equal(first_grid, first_permuted, rtol=1e-12, atol=1e-12)
-
+    res1 = tensors.tensor_from_grid(grid)
+    # check to_numpy
     if T.symmetry.can_be_dropped:
-        npt.assert_almost_equal(first_grid.to_numpy(), first_permuted.to_numpy())
+        res_np = [np.concatenate([op.to_numpy() for op in row], axis=T.num_codomain_legs) for row in grid]
+        res_np = np.concatenate(res_np, axis=0)
+        npt.assert_almost_equal(res1.to_numpy(), res_np)
+
+    # check permute_legs commutes with tensor_from_grid
+    res1 = tensors.permute_legs(res1, perm_codom, perm_dom, levels)
+    res2 = [[tensors.permute_legs(op, perm_codom, perm_dom, levels) for op in row] for row in grid]
+    res2 = tensors.tensor_from_grid(res2)
+
+    assert res1.codomain == res2.codomain
+    assert res1.domain == res2.domain
+    assert res1.backend.almost_equal(res1, res2, rtol=1e-12, atol=1e-12)
+    if T.symmetry.can_be_dropped:
+        npt.assert_almost_equal(res1.to_numpy(), res2.to_numpy())
 
 
 @pytest.mark.parametrize('cls, legs', [pytest.param(SymmetricTensor, 2, id='Sym-2'),

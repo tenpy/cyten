@@ -79,6 +79,7 @@ Visually, the blocks have the following structure::
 from __future__ import annotations
 from typing import TYPE_CHECKING, Callable, Iterator
 from math import prod
+from copy import deepcopy
 import numpy as np
 import warnings
 
@@ -2469,7 +2470,8 @@ class TreeMappingDict(dict):
         num_operations = []
         levels_None = (levels is None)
         if not levels_None:
-            levels = levels[:]
+            # a deep copy is needed
+            levels = deepcopy(levels)
 
         # exchanges such that the legs to be bent down are on the right in the codomain
         exchanges = []
