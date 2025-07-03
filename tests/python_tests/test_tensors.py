@@ -2693,6 +2693,61 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
     npt.assert_allclose(res_np, expect, atol=1.e-14)
 
 
+@pytest.mark.parametrize(
+    'cod, dom, row, col',
+    [pytest.param(1, 1, 3, 3, id='Tens-1-1-Grid-3-3'),
+     pytest.param(2, 1, 2, 3, id='Tens-2-1-Grid-2-3'),
+     pytest.param(2, 2, 2, 2, id='Tens-2-2-Grid-2-2'),
+     pytest.param(3, 1, 2, 2, id='Tens-3-1-Grid-2-2'),
+     pytest.param(1, 3, 2, 2, id='Tens-1-3-Grid-2-2')]
+)
+def test_tensor_from_grid(cod, dom, row, col, make_compatible_tensor, make_compatible_space, np_random):
+    # TODO use_pipes
+    # TODO more tests?
+    T: SymmetricTensor = make_compatible_tensor(cod, dom, cls=SymmetricTensor, use_pipes=False)
+    dual_codom = T.codomain[0].is_dual
+    dual_dom = T.domain[-1].is_dual
+
+    # build grid -> first finish first row and column, then fill in the rest
+    grid = [[T]]
+    for _ in range(col - 1):
+        space = make_compatible_space(is_dual=dual_dom)
+        grid[0].append(make_compatible_tensor(T.codomain, [*T.domain[:-1], space], cls=SymmetricTensor))
+    for _ in range(row - 1):
+        space = make_compatible_space(is_dual=dual_codom)
+        grid.append([make_compatible_tensor([space, *T.codomain[1:]], T.domain, cls=SymmetricTensor)])
+    for i in range(1, row):
+        for j in range(1, col):
+            grid[i].append(make_compatible_tensor(grid[i][0].codomain, grid[0][j].domain, cls=SymmetricTensor))
+
+    # permuting legs should commute with building the full tensor
+    # make sure codomain[0] and domain[-1] stay in their positions
+    perm = np_random.permutation(T.num_legs)
+    idx = np.where(perm == 0)[0][0]
+    perm[[0, idx]] = perm[[idx, 0]]
+    idx = np.where(perm == T.num_codomain_legs)[0][0]
+    perm_codom = perm[:idx]
+    perm_dom = perm[idx:][::-1]
+    levels = np_random.permutation(T.num_legs)
+
+    first_grid = tensors.tensor_from_grid(grid)
+    first_grid = tensors.permute_legs(first_grid, perm_codom, perm_dom, levels)
+    first_permuted = [[tensors.permute_legs(op, perm_codom, perm_dom, levels) for op in row] for row in grid]
+    first_permuted = tensors.tensor_from_grid(first_permuted)
+
+    assert first_grid.codomain == first_permuted.codomain
+    assert first_grid.domain == first_permuted.domain
+
+    if not T.symmetry.has_symmetric_braid:
+        # TODO there is some issue in the fusion_tree implementation...
+        pytest.xfail()
+
+    assert first_grid.backend.almost_equal(first_grid, first_permuted, rtol=1e-12, atol=1e-12)
+
+    if T.symmetry.can_be_dropped:
+        npt.assert_almost_equal(first_grid.to_numpy(), first_permuted.to_numpy())
+
+
 @pytest.mark.parametrize('cls, legs', [pytest.param(SymmetricTensor, 2, id='Sym-2'),
                                        pytest.param(SymmetricTensor, 1, id='Sym-1'),
                                        pytest.param(ChargedTensor, 2, id='Charged-2'),
