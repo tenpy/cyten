@@ -5089,28 +5089,33 @@ def svd_apply_mask(U: SymmetricTensor, S: DiagonalTensor, Vh: SymmetricTensor, m
 
 def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
                      labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                     dtype: Dtype = Dtype.complex128) -> SymmetricTensor:
-    """Convert a grid of tensors to a single SymmetricTensor.
+                     dtype: Dtype | None = None) -> SymmetricTensor:
+    """Stack a grid of tensors along existing legs.
 
-    The tensors are combined along the first leg in their codomain and the final leg in their
-    domain. All other legs must be identical across all tensors in the grid. For consistency,
-    tensors within the same row must have identical left spaces (first leg in the codomain),
-    and tensors within the same column must have identical right spaces (final leg in the
-    domain).
+    The tensors are stacked along the first leg in their codomain and the final leg in their
+    domain.
+    
+    TODO diagam
 
     Parameters
     ----------
     grid: list[list[SymmetricTensor | None]]
-        Contains the tensors from which a single tensor is constructed. `None` entries are
-        interpreted as tensors with all blocks equal to zero.
+        Contains the tensors from which a single tensor is constructed by stacking. `None` entries
+        are interpreted as tensors with all blocks equal to zero. All legs except the ones along
+        which the stacking happens must be identical across all tensors in the grid. For
+        consistency, tensors within the same row must have identical left spaces (first leg in the
+        codomain), and tensors within the same column must have identical right spaces (final leg
+        in the domain).
     labels
         Leg labels of the resulting tensor.
-    dtype: Dtype
-        The dtype of the tensor.
+    dtype: Dtype | None
+        The dtype of the tensor. Uses the common dtype across all tensors in the grid if `None`.
     """
     op_list = [op for row in grid for op in row if op is not None]
     backend = get_same_backend(*op_list)
     device = get_same_device(*op_list)
+    if dtype is None:
+        dtype = op_list[0].dtype.common(*[op_list[i].dtype for i in range(1, len(op_list))])
     # check input
     for op in op_list:
         assert op.num_codomain_legs == op_list[0].num_codomain_legs
@@ -5134,7 +5139,7 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
             break
     right_spaces = [op.domain[-1] for op in right_ops]
     if None in right_spaces:
-        raise ValueError('One column in the grid does not have nonzero entries.')
+        raise ValueError('Must have at least one nonzero entry in each column.')
     
     left_ops = transposed_grid[0]
     for i, op in enumerate(left_ops):
@@ -5148,9 +5153,8 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
             break
     left_spaces = [op.codomain[0] for op in left_ops]
     if None in left_spaces:
-        raise ValueError('One row in the grid does not have nonzero entries.')
+        raise ValueError('Must have at least one nonzero entry in each row.')
 
-    # TODO direct sum automatically gets us some basis_perm. Does it have any effects?
     left_space = left_spaces[0].direct_sum(*left_spaces[1:])
     right_space = right_spaces[0].direct_sum(*right_spaces[1:])
 
