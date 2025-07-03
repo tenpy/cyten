@@ -5114,7 +5114,7 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
     # check input
     for op in op_list:
         assert op.num_codomain_legs == op_list[0].num_codomain_legs
-        assert op.num_domain_legs == op_list[0].num_codomain_legs
+        assert op.num_domain_legs == op_list[0].num_domain_legs
         assert op.codomain[1:] == op_list[0].codomain[1:]
         assert op.domain[:-1] == op_list[0].domain[:-1]
         # only ElementarySpaces have direct_sum
