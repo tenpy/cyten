@@ -821,6 +821,27 @@ class ElementarySpace(Space, Leg):
         if not unique_sectors:
             mult_slices = np.concatenate([[0], np.cumsum(multiplicities)], axis=0)
             diffs = find_row_differences(defining_sectors, include_len=True)
+            # the convention is that for sectors with dim > 1, all copies of the first
+            # state appear, then all copies of the second state, etc. At this point,
+            # this order is not yet fully respected
+            if basis_perm is not None and not symmetry.is_abelian:
+                # updated basis_slices after sorting defining_sectors
+                num_states = symmetry.batch_sector_dim(defining_sectors) * multiplicities
+                basis_slices = np.concatenate([[0], np.cumsum(num_states)], axis=0)
+                for i in range(len(diffs) - 1):
+                    sector_dim = symmetry.sector_dim(defining_sectors[diffs[i]])
+                    if sector_dim == 1:
+                        continue
+                    mults = multiplicities[diffs[i]:diffs[i + 1]]
+                    offsets = np.concatenate([[0], np.cumsum(mults * sector_dim)])
+                    sector_basis_perm = basis_perm[basis_slices[diffs[i]]:basis_slices[diffs[i + 1]]]
+                    # take the basis_perm associated with the first states and make them contiguous,
+                    # then go to the second state, etc.
+                    new_perm = [sector_basis_perm[offsets[j] + k * mult:offsets[j] + (k + 1) * mult]
+                                for k in range(sector_dim) for j, mult in enumerate(mults)]
+                    new_perm = np.concatenate(new_perm)
+                    basis_perm[basis_slices[diffs[i]]:basis_slices[diffs[i + 1]]] = new_perm
+
             multiplicities = mult_slices[diffs[1:]] - mult_slices[diffs[:-1]]
             defining_sectors = defining_sectors[diffs[:-1]]  # [:-1] to exclude len
         res = cls(symmetry=symmetry, defining_sectors=defining_sectors,
