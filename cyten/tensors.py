@@ -5090,10 +5090,14 @@ def svd_apply_mask(U: SymmetricTensor, S: DiagonalTensor, Vh: SymmetricTensor, m
 def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
                      labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                      dtype: Dtype | None = None) -> SymmetricTensor:
-    """Stack a grid of tensors along existing legs.
+    r"""Stack a grid of tensors along existing legs.
 
     The tensors are stacked along the first leg in their codomain and the final leg in their
-    domain.
+    domain. The resulting legs are :math:`V = \bigoplus_i rowspaces[i]` and
+    :math:`W = \bigoplus_i colspaces[i]`, where `V` and `W` refer to the stacked legs in the
+    codomain and domain, respectively. `rowspaces` is a list containing the spaces in the codomain
+    that are stacked (identical along rows); `colspaces` is a list containing the spaces in the
+    domain that are stacked (identical along columns).
     
     TODO diagam
 

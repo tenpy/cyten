@@ -808,7 +808,8 @@ class FusionTreeBackend(TensorBackend):
                         op_block = op.data.blocks[op_coupled_idx][op_codom_slc, op_dom_slc]
                         op_block = self.block_backend.reshape(op_block, op_new_shape)
 
-                        block = data.blocks[block_idx][codom_slc, dom_slc]
+                        block = self.block_backend.copy_block(data.blocks[block_idx][codom_slc, dom_slc],
+                                                              device=device)
                         final_shape = self.block_backend.get_shape(block)
                         block = self.block_backend.reshape(block, new_shape)
                         block[:, codom_leg_slc, :, :, :, dom_leg_slc] += op_block
