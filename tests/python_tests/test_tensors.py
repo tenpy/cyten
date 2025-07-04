@@ -2702,9 +2702,9 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
      pytest.param(1, 3, 2, 2, id='Tens-1-3-Grid-2-2')]
 )
 def test_tensor_from_grid(cod, dom, row, col, make_compatible_tensor, make_compatible_space, np_random):
-    # TODO use_pipes
-    # TODO more tests?
-    T: SymmetricTensor = make_compatible_tensor(cod, dom, cls=SymmetricTensor, use_pipes=False)
+    codomain = [make_compatible_space()] + [None] * (cod - 1)
+    domain = [None] * (dom - 1) + [make_compatible_space()]
+    T: SymmetricTensor = make_compatible_tensor(codomain, domain, cls=SymmetricTensor)
     dual_codom = T.codomain[0].is_dual
     dual_dom = T.domain[-1].is_dual
 
@@ -2719,6 +2719,11 @@ def test_tensor_from_grid(cod, dom, row, col, make_compatible_tensor, make_compa
     for i in range(1, row):
         for j in range(1, col):
             grid[i].append(make_compatible_tensor(grid[i][0].codomain, grid[0][j].domain, cls=SymmetricTensor))
+
+    if isinstance(T.backend, backends.FusionTreeBackend) and T.has_pipes:
+        with pytest.raises(AttributeError):
+            _ = tensors.tensor_from_grid(grid)
+        pytest.xfail()
 
     # permuting legs should commute with building the full tensor
     # make sure codomain[0] and domain[-1] stay in their positions
