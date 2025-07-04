@@ -151,7 +151,7 @@ class Tensor(metaclass=ABCMeta):
     dtype : Dtype
         The dtype of tensor entries.
     """
-    
+
     _forbidden_dtypes = [Dtype.bool]
 
     def __init__(self,
@@ -301,7 +301,7 @@ class Tensor(metaclass=ABCMeta):
             |    i     h     g     f     e
             |    ^     v     ^     ^     v
             |   42   777    11     2     3
-        
+
         """
         text = {
             SymmetricTensor: 'Symm',
@@ -480,7 +480,7 @@ class Tensor(metaclass=ABCMeta):
         See :ref:`tensors_as_maps`.
         """
         return [*self.codomain.factors, *(sp.dual for sp in reversed(self.domain.factors))]
-    
+
     @abstractmethod
     def move_to_device(self, device: str):
         """Move tensor to a given device, *in place*."""
@@ -786,7 +786,7 @@ class SymmetricTensor(Tensor):
         Backend-specific data structure that contains the numerical data, i.e. the free parameters
         of tensors with the given symmetry.
     """
-    
+
     def __init__(self,
                  data,
                  codomain: TensorProduct | list[Space],
@@ -1043,7 +1043,7 @@ class SymmetricTensor(Tensor):
         data = backend.from_random_normal(codomain, domain, sigma=sigma, dtype=dtype, device=device)
         with_zero_mean = cls(data=data, codomain=codomain, domain=domain, backend=backend,
                              labels=labels)
-        
+
         if mean is not None:
             return mean + with_zero_mean
         return with_zero_mean
@@ -1359,7 +1359,7 @@ class DiagonalTensor(SymmetricTensor):
     TODO elaborate
          use examples: :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
     """
-    
+
     _forbidden_dtypes = []
 
     def __init__(self, data, leg: Space, backend: TensorBackend | None = None,
@@ -1934,7 +1934,7 @@ class Mask(Tensor):
     where the relative ordering of elements is preserved.
 
     In code, this means ::
-    
+
         ranks = self.large_leg.basis_perm[mask_in_internal_basis][self.small_leg.inverse_basis_perm]
 
     In particular, the basis permutation of the small leg is uniquely determined by the
@@ -1956,7 +1956,7 @@ class Mask(Tensor):
 
     Such that the result is ordered.
     """
-    
+
     _forbidden_dtypes = [Dtype.float32, Dtype.float64, Dtype.complex64, Dtype.complex128]
 
     def __init__(self, data, space_in: ElementarySpace, space_out: ElementarySpace,
@@ -2317,7 +2317,7 @@ class Mask(Tensor):
     def _binary_operand(self, other: bool | Mask, func, operand: str,
                         return_NotImplemented: bool = True) -> Mask:
         """Utility function for a shared implementation of binary functions.
-        
+
         Parameters
         ----------
         other
@@ -2528,7 +2528,7 @@ class ChargedTensor(Tensor):
     """
 
     _CHARGE_LEG_LABEL = '!'  # canonical label for the charge leg
-    
+
     def __init__(self, invariant_part: SymmetricTensor, charged_state: Block | None):
         assert invariant_part.domain.num_factors > 0, 'domain must contain at least the charge leg'
         self.charge_leg = invariant_part.domain.factors[0]
@@ -4064,7 +4064,7 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
         The Frobenius norm, induced by this inner product.
     """
     _ = get_same_device(A, B)
-    
+
     if do_dagger:
         _check_compatible_legs([A.codomain, A.domain], [B.codomain, B.domain])
     else:
@@ -4210,7 +4210,7 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
         raise NotImplementedError
     if isinstance(v, ChargedTensor) or isinstance(w, ChargedTensor):
         raise TypeError('Can not add ChargedTensor and non-charged tensor.')
-    
+
     # Remaining case: Mask, DiagonalTensor (but not both), SymmetricTensor
     if isinstance(v, (DiagonalTensor, Mask)) or isinstance(w, (DiagonalTensor, Mask)):
         msg = (f'Converting types ({type(v).__name__, type(w).__name__}) to '
@@ -4365,7 +4365,7 @@ def outer(tensor1: Tensor, tensor2: Tensor,
     """
     _ = get_same_device(tensor1, tensor2)
     assert tensor1.symmetry.is_same_symmetry(tensor2.symmetry)
-    
+
     if isinstance(tensor1, (Mask, DiagonalTensor)):
         msg = ('Converting to SymmetricTensor for outer. '
                'Use as_SymmetricTensor() explicitly to suppress the warning.')
@@ -4812,7 +4812,7 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
     dot, tdot, apply_mask
     """
     _ = get_same_device(tensor, diag)
-    
+
     # transpose if needed
     in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg)
     if in_domain:
@@ -5093,13 +5093,29 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
     r"""Stack a grid of tensors along existing legs.
 
     The tensors are stacked along the first leg in their codomain and the final leg in their
-    domain. The resulting legs are :math:`V = \bigoplus_i rowspaces[i]` and
-    :math:`W = \bigoplus_i colspaces[i]`, where `V` and `W` refer to the stacked legs in the
-    codomain and domain, respectively. `rowspaces` is a list containing the spaces in the codomain
-    that are stacked (identical along rows); `colspaces` is a list containing the spaces in the
-    domain that are stacked (identical along columns).
-    
-    TODO diagam
+    domain. The resulting legs are :math:`result.codomain[0] = V = \bigoplus_m V_m` and
+    :math:`result.domain[-1] = W = \bigoplus_n W_n`, where :math:`V_m` is the first codomain leg
+    of all tensors in the ``m``-th row ``grid[m]``, and :math:`W_n` is the last domain leg of all
+    tensors in the ``n``-th column, i.e. for the tensors ``[row[n] for row in grid]``.
+
+    Graphically::
+
+        |                                            V
+        |                                          ┏━┷━┓ │   │   │
+        |                                          ┃i_m┃ │   │   │
+        |        V                                 ┗━┯━┛ │   │   │
+        |        │   │   │   │                   V_m │   │   │   │
+        |       ┏┷━━━┷━━━┷━━━┷┓                     ┏┷━━━┷━━━┷━━━┷┓
+        |       ┃     res     ┃    ==   sum_{m,n}   ┃  grid[m][n] ┃
+        |       ┗━━┯━━━┯━━━┯━━┛                     ┗━━┯━━━┯━━━┯━━┛
+        |          │   │   │                           │   │   │ W_n
+        |                  W                           │   │ ┏━┷━┓
+        |                                              │   │ ┃p_n┃
+        |                                              │   │ ┗━┯━┛
+        |                                                      W
+
+    where :math:`p_n : W = \bigoplus_{n'} W_{n'} \to W_n` is the projection map of the direct sum
+    and :math:`i_m : V_m \to \bigoplus_{m'} V_{m'}` the inclusion.
 
     Parameters
     ----------
@@ -5144,7 +5160,7 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
     right_spaces = [op.domain[-1] for op in right_ops]
     if None in right_spaces:
         raise ValueError('Must have at least one nonzero entry in each column.')
-    
+
     left_ops = transposed_grid[0]
     for i, op in enumerate(left_ops):
         if op is not None:
@@ -5236,7 +5252,7 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
     compose, apply_mask, scale_axis
     """
     _ = get_same_device(tensor1, tensor2)
-    
+
     # parse legs to list[int] and check they are valid
     legs1 = tensor1.get_leg_idcs(to_iterable(legs1))
     legs2 = tensor2.get_leg_idcs(to_iterable(legs2))
