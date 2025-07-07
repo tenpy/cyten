@@ -77,7 +77,7 @@ Visually, the blocks have the following structure::
 """
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable, Iterator
+from typing import TYPE_CHECKING, Callable
 from math import prod
 from copy import deepcopy
 import numpy as np
@@ -110,11 +110,11 @@ def _tree_block_iter(a: SymmetricTensor):
         coupled = a.codomain.sector_decomposition[bi]
         i1_forest = 0  # start row index of the current forest block
         i2_forest = 0  # start column index of the current forest block
-        for b_sectors in a.domain.iter_uncoupled():
-            tree_block_width = a.domain.tree_block_size(b_sectors)
+        for b_sectors, b_mults in a.domain.iter_uncoupled():
+            tree_block_width = np.prod(b_mults)
             forest_block_width = 0
-            for a_sectors in a.codomain.iter_uncoupled():
-                tree_block_height = a.codomain.tree_block_size(a_sectors)
+            for a_sectors, a_mults in a.codomain.iter_uncoupled():
+                tree_block_height = np.prod(a_mults)
                 i1 = i1_forest  # start row index of the current tree block
                 i2 = i2_forest  # start column index of the current tree block
                 for alpha_tree in fusion_trees(sym, a_sectors, coupled, codomain_are_dual):
@@ -131,36 +131,6 @@ def _tree_block_iter(a: SymmetricTensor):
                 i1_forest += forest_block_height
             i1_forest = 0  # reset to the top of the block
             i2_forest += forest_block_width
-
-
-def _iter_sectors_mults_slices(spaces: list[Space], symmetry: Symmetry
-                               ) -> Iterator[tuple[SectorArray, list[int], list[slice]]]:
-    """Helper iterator over all combinations of sectors and respective mults and slices.
-
-    Yields
-    ------
-    uncoupled : list of 1D array of int
-        A combination ``[spaces[0].sector_decomposition[i0], spaces[1].sector_decomposition[i1], ...]``
-        of uncoupled sectors
-    mults : list of int
-        The corresponding ``[spaces[0].multiplicities[i0], spaces[1].multiplicities[i1], ...]``.
-    slices : list of slice
-        The corresponding ``[slice(*spaces[0].slices[i0]), slice(*spaces[1].slices[i1]), ...]``.
-    """
-    if len(spaces) == 0:
-        yield symmetry.empty_sector_array, [], []
-        return
-
-    if len(spaces) == 1:
-        for a, m, slc in zip(spaces[0].sector_decomposition, spaces[0].multiplicities, spaces[0].slices):
-            yield a[None, :], [m], [slice(*slc)]
-        return
-
-    # OPTIMIZE there is probably some itertools magic that does this better?
-    # OPTIMIZE or build a grid of indices?
-    for a_0, m_0, slc_0 in zip(spaces[0].sector_decomposition, spaces[0].multiplicities, spaces[0].slices):
-        for a_rest, m_rest, slc_rest in _iter_sectors_mults_slices(spaces[1:], symmetry):
-            yield np.concatenate([a_0[None, :], a_rest]), [m_0, *m_rest], [slice(*slc_0), *slc_rest]
 
 
 class FusionTreeData:
@@ -708,17 +678,17 @@ class FusionTreeBackend(TensorBackend):
             # iterate over uncoupled sectors / forest-blocks within the block
             i1 = 0  # start row index of the current forest block
             i2 = 0  # start column index of the current forest block
-            for b_sectors, n_dims, j2 in _iter_sectors_mults_slices(domain.factors, sym):
+            for b_sectors, n_dims, j2 in domain.iter_uncoupled(yield_slices=True):
                 b_dims = sym.batch_sector_dim(b_sectors)
                 tree_block_width = domain.tree_block_size(b_sectors)
-                for a_sectors, m_dims, j1 in _iter_sectors_mults_slices(codomain.factors, sym):
+                for a_sectors, m_dims, j1 in codomain.iter_uncoupled(yield_slices=True):
                     a_dims = sym.batch_sector_dim(a_sectors)
                     tree_block_height = codomain.tree_block_size(a_sectors)
                     entries = a[(*j1, *j2)]  # [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
                     # reshape to [a1,m1,...,aJ,mJ, b1,n1,...,bK,nK]
                     shape = [0] * (2 * num_legs)
                     shape[::2] = [*a_dims, *b_dims]
-                    shape[1::2] = m_dims + n_dims
+                    shape[1::2] = [*m_dims, *n_dims]
                     entries = self.block_backend.reshape(entries, shape)
                     # permute to [a1,...,aJ, b1,...,bK, m1,...,mJ, n1,...nK]
                     perm = [*range(0, 2 * num_legs, 2), *range(1, 2 * num_legs, 2)]
@@ -1526,12 +1496,10 @@ class FusionTreeBackend(TensorBackend):
         tr_idcs2 = [i for i, idx in enumerate(tr_idcs) if idx in idcs2]
         remain_idcs = [i for i, idx in enumerate(tr_idcs) if idx in remaining]
 
-        for codom_tree, codom_slc, ind in codom.iter_tree_blocks(coupled):
+        for codom_tree, codom_slc, codom_mults, ind in codom.iter_tree_blocks(coupled):
             on_diag, factor_codom = _partial_trace_helper(codom_tree, codom_tree_idcs)
             if not on_diag:
                 continue
-            codom_shape = [codom[i].sector_multiplicity(sec)
-                           for i, sec in enumerate(codom_tree.uncoupled)]
             new_codom_tree = FusionTree(
                 tensor.symmetry, codom_tree.uncoupled[codom_unc_idcs], codom_tree.coupled,
                 codom_tree.are_dual[codom_unc_idcs], codom_tree.inner_sectors[codom_inner_idcs],
@@ -1540,13 +1508,11 @@ class FusionTreeBackend(TensorBackend):
             new_codom_slc = new_codomain.tree_block_slice(new_codom_tree)
             old_ind = old_inds[ind]
             new_ind = new_inds[ind]
-            for dom_tree, dom_slc, _ in dom.iter_tree_blocks([codom_tree.coupled]):
+            for dom_tree, dom_slc, dom_mults, _ in dom.iter_tree_blocks([codom_tree.coupled]):
                 on_diag, factor_dom = _partial_trace_helper(dom_tree, dom_tree_idcs)
                 if not on_diag:
                     continue
-                dom_shape = [dom[i].sector_multiplicity(sec)
-                             for i, sec in enumerate(dom_tree.uncoupled)]
-                tmp_shape = tuple(codom_shape + dom_shape)
+                tmp_shape = (*codom_mults, *dom_mults)
                 new_dom_tree = FusionTree(
                     tensor.symmetry, dom_tree.uncoupled[dom_unc_idcs], dom_tree.coupled,
                     dom_tree.are_dual[dom_unc_idcs], dom_tree.inner_sectors[dom_inner_idcs],
@@ -1805,10 +1771,10 @@ class FusionTreeBackend(TensorBackend):
             coupled = a.codomain.sector_decomposition[bi_cod]
             i1 = 0  # start row index of the current forest block
             i2 = 0  # start column index of the current forest block
-            for b_sectors, n_dims, j2 in _iter_sectors_mults_slices(a.domain.factors, sym):
+            for b_sectors, n_dims, j2 in a.domain.iter_uncoupled(yield_slices=True):
                 b_dims = sym.batch_sector_dim(b_sectors)
                 tree_block_width = a.domain.tree_block_size(b_sectors)
-                for a_sectors, m_dims, j1 in _iter_sectors_mults_slices(a.codomain.factors, sym):
+                for a_sectors, m_dims, j1 in a.codomain.iter_uncoupled(yield_slices=True):
                     a_dims = sym.batch_sector_dim(a_sectors)
                     tree_block_height = a.codomain.tree_block_size(a_sectors)
                     entries, num_alpha_trees, num_beta_trees = self._get_forest_block_contribution(
@@ -2020,7 +1986,7 @@ class FusionTreeBackend(TensorBackend):
                 idx2 = slice(i2, i2 + tree_block_width)
                 degeneracy_data = block[idx1, idx2]  # [M, N]
                 # [M, N] -> [m1,...,mJ,n1,...,nK]
-                degeneracy_data = self.block_backend.reshape(degeneracy_data, m_dims + n_dims)
+                degeneracy_data = self.block_backend.reshape(degeneracy_data, [*m_dims, *n_dims])
                 entries += self.block_backend.outer(symmetry_data, degeneracy_data)  # [{aj} {bk} {mj} {nk}]
                 i2 += tree_block_width
             i2 = i2_init  # reset to the left of the current forest-block
@@ -2184,7 +2150,7 @@ class TreeMappingDict(dict):
         : {...}, ...}``.
         """
         new_mapping = TreeMappingDict()
-        for tree, _, _ in co_domain.iter_tree_blocks(coupled):
+        for tree, _, _, _ in co_domain.iter_tree_blocks(coupled):
             for key in self:
                 if not np.all(tree.coupled == key[0].coupled):
                     continue
@@ -2271,7 +2237,7 @@ class TreeMappingDict(dict):
         mapping = cls()
         new_coupled = []
         spaces = [codomain, domain]
-        for tree1, _, _ in spaces[bend_up].iter_tree_blocks(coupled):
+        for tree1, _, _, _ in spaces[bend_up].iter_tree_blocks(coupled):
             if tree1.uncoupled.shape[0] == 1:
                 new_trees_coupled = symmetry.trivial_sector
             else:
@@ -2291,7 +2257,7 @@ class TreeMappingDict(dict):
                 b_sym = b_sym * symmetry.frobenius_schur(tree1.uncoupled[-1])
             mu = tree1.multiplicities[-1] if tree1.multiplicities.shape[0] > 0 else 0
 
-            for tree2, _, _ in spaces[not bend_up].iter_tree_blocks([tree1.coupled]):
+            for tree2, _, _, _ in spaces[not bend_up].iter_tree_blocks([tree1.coupled]):
                 if len(tree2.uncoupled) == 0:
                     new_unc = np.array([symmetry.dual_sector(tree1.uncoupled[-1])])
                     new_dual = np.array([not tree1.are_dual[-1]])
@@ -2336,7 +2302,7 @@ class TreeMappingDict(dict):
             overbraid = not overbraid
 
         mapping = cls()
-        for tree, _, _ in co_domain.iter_tree_blocks(coupled):
+        for tree, _, _, _ in co_domain.iter_tree_blocks(coupled):
             unc, inn, mul = tree.uncoupled, tree.inner_sectors, tree.multiplicities
             if index == 0:
                 f = tree.coupled if len(inn) == 0 else inn[0]
@@ -2573,7 +2539,7 @@ class TreeMappingDict(dict):
         """
         symmetry = co_domain.symmetry
         mapping = cls()
-        for tree, _, _ in co_domain.iter_tree_blocks(coupled):
+        for tree, _, _, _ in co_domain.iter_tree_blocks(coupled):
             factor = symmetry.topological_twist(tree.coupled)
             if inverse:
                 factor = 1 / factor
@@ -2602,15 +2568,13 @@ class TreeMappingDict(dict):
         else:
             block_axes_permutation.append(len(block_axes_permutation))
 
-        for tree, slc, ind in iter_space.iter_tree_blocks(old_coupled):
-            modified_shape = [iter_space[i].sector_multiplicity(sec)
-                              for i, sec in enumerate(tree.uncoupled)]
+        for tree, slc, mults, ind in iter_space.iter_tree_blocks(old_coupled):
             if in_domain:
                 block_slice = ten.data.blocks[ind][:, slc]
-                modified_shape.insert(0, -1)
+                modified_shape = [-1, *mults]
             else:
                 block_slice = ten.data.blocks[ind][slc, :]
-                modified_shape.append(-1)
+                modified_shape = [*mults, -1]
 
             final_shape = backend.get_shape(block_slice)
 
