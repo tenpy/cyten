@@ -2099,7 +2099,10 @@ class Instruction(metaclass=ABCMeta):
     """An instruction represents an elementary operation on a tensor.
 
     This is e.g. a single NN-braid or a single leg bend, for which we have symbols (R, C, B)
-    that tell us exactly how the fusion trees within a tensor transform.
+    that tell us exactly how the fusion tree(-pair)s within a tensor transform.
+
+    Even though the base class currently does not do anything, we keep it around for type checking
+    etc. and may add functionality in the future.
 
     We can then build more general tensor operations from these instructions,
     see e.g. :meth:`FusionTreeBackend.permute_legs`.
@@ -2119,8 +2122,32 @@ class BraidInstruction(Instruction):
         Which leg of the (co-)domain braids.
         We braid ``(co)domain[idx]`` with ``(co)domain[idx + 1]``
     overbraid : bool
-        Specifies the chirality of the braid.
-        ``True`` if ``(co)domain[idx]`` goes over ``(co)domain[idx + 1]``
+        Specifies the chirality of the braid. We refer to the leg that *start* at `idx` and is
+        braided to ``idx + 1``, i.e. the one that is left on the input tensors and right on the
+        result. ``overbraid=True`` means that this leg goes over the other one.
+
+    Notes
+    -----
+    Examples for over-braids::
+
+        |    │    ╲ ╱    │                      │   │   │   │
+        |    │     ╱     │                     ┏┷━━━┷━━━┷━━━┷┓
+        |    │    ╱ ╲    │                     ┃             ┃
+        |   ┏┷━━━┷━━━┷━━━┷┓                    ┗━━┯━━━┯━━━┯━━┛
+        |   ┃             ┃         OR             ╲ ╱    │
+        |   ┗━━┯━━━┯━━━┯━━┛                         ╲     │
+        |      │   │   │                           ╱ ╲    │
+
+    Examples for under-braids::
+
+        |    │    ╲ ╱    │                      │   │   │   │
+        |    │     ╲     │                     ┏┷━━━┷━━━┷━━━┷┓
+        |    │    ╱ ╲    │                     ┃             ┃
+        |   ┏┷━━━┷━━━┷━━━┷┓                    ┗━━┯━━━┯━━━┯━━┛
+        |   ┃             ┃         OR             ╲ ╱    │
+        |   ┗━━┯━━━┯━━━┯━━┛                         ╱     │
+        |      │   │   │                           ╱ ╲    │
+
     """
     codomain: bool
     idx: int
