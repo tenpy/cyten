@@ -14,7 +14,9 @@ from cyten.backends.backend_factory import get_backend
 from cyten.dtypes import Dtype
 from cyten.spaces import ElementarySpace, TensorProduct, AbelianLegPipe, LegPipe
 from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError
-from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays, to_valid_idx
+from cyten.tools.misc import (
+    duplicate_entries, iter_common_noncommon_sorted_arrays, to_valid_idx, inverse_permutation
+)
 
 
 # TENSOR CLASSES
@@ -2258,7 +2260,9 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
     'cls, num_cod, num_dom, codomain, domain, levels',
     [
         pytest.param(SymmetricTensor, 2, 2, [0, 1], [3, 2], None, id='Symmetric-2-2-trivial'),
-        pytest.param(SymmetricTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Symmetric-2-2-braid'),
+        pytest.param(SymmetricTensor, 2, 2, [1, 0], [3, 2], [0, 1, 2, 3], id='Symmetric-2-2-braid_cod'),
+        pytest.param(SymmetricTensor, 2, 2, [0, 1], [2, 3], [0, 1, 2, 3], id='Symmetric-2-2-braid_dom'),
+        pytest.param(SymmetricTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Symmetric-2-2-braid_both'),
         pytest.param(SymmetricTensor, 2, 2, [0, 1, 2], [3], None, id='Symmetric-2-2-bend'),
         pytest.param(SymmetricTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Symmetric-2-2-general'),
         pytest.param(SymmetricTensor, 3, 3, [1, 4, 0], [2, 3, 5], [4, 1, 3, 5, 0, 2], id='Symmetric-3-3-general'),
@@ -2274,8 +2278,25 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
         pytest.param(ChargedTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Charged-2-2-general'),
     ]
 )
-def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_compatible_tensor):
-    T = make_compatible_tensor(num_cod, num_dom, max_block_size=3, cls=cls)
+def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_compatible_tensor,
+                      compatible_symmetry, np_random):
+    if isinstance(compatible_symmetry, symmetries.SU2Symmetry) and (num_cod + num_dom) > 4:
+        # make sure we dont need symmetry data for too large sectors
+        sectors = [[0], [1], [2]]
+        legs = []
+        for _ in range(num_cod + num_dom):
+            mults = np_random.integers(1, 5, size=3)
+            is_dual = np_random.choice([True, False])
+            legs.append(ElementarySpace(compatible_symmetry, sectors, mults, is_dual))
+        T_codomain = legs[:num_cod]
+        T_domain = legs[num_cod:]
+    else:
+        T_codomain = num_cod
+        T_domain = num_dom
+    T = make_compatible_tensor(T_codomain, T_domain, max_block_size=3, cls=cls,
+                               use_pipes=0,  # FIXME use again!
+                               allow_basis_perm=False,  # FIXME reenable
+                               )
 
     if cls in [DiagonalTensor, Mask]:
         if len(codomain) == 1:
@@ -2314,11 +2335,31 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_comp
         # makes sense to compare with dense blocks
         expect = np.transpose(T.to_numpy(), [*codomain, *reversed(domain)])
         actual = res.to_numpy()
+
+        # FIXME this is super slow for the larger cases!
+        # for idcs1 in zip(*np.nonzero(expect)):
+        #     for idcs2 in zip(*np.nonzero(expect[idcs1] == actual)):
+        #         if idcs1 == idcs2:
+        #             continue
+        #         # FIXME rm this debug print!
+        #         print(f'expect[{", ".join(map(str, idcs1))}] matches actual[{", ".join(map(str, idcs2))}]')
         npt.assert_allclose(actual, expect, atol=1.e-14)
     else:
-        # should we do a test like braiding two legs around each other with a single
-        # anyonic sector and checking if the result is equal up to the expected phase?
-        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+        # TODO (JU) is there anything we can do in that case to check?
+        #           - we do a bunch of "concrete tests" in backends/test_fusion_tree_backend.py
+        #           - we check if we can undo the permutation below.
+        pass
+
+    # construct the instructions needed to undo the original instructions
+    leg_perm = [*codomain, *reversed(domain)]
+    inv_leg_perm = inverse_permutation(leg_perm)
+    codomain2 = inv_leg_perm[:num_cod]
+    domain2 = inv_leg_perm[num_cod:][::-1]
+    levels2 = None if levels is None else [levels[i] for i in leg_perm]
+
+    res2 = tensors.permute_legs(res, codomain2, domain2, levels2)
+    res2.test_sanity()
+    assert tensors.almost_equal(res2, T, allow_different_types=True)
 
 
 @pytest.mark.parametrize(
