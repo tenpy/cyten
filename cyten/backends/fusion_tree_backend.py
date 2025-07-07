@@ -48,7 +48,7 @@ And we store the blocks as matrices, with combined multi-indices::
     |   │ │ T_c │         │         =   blocks[c_idx][M, N]
     |   └ └     ┘b1..bK,β ┘n1..nK
 
-where ``c = codomain.sector_decompositon[block_inds[c_idx, 0]]`` and
+where ``c = codomain.sector_decomposition[block_inds[c_idx, 0]]`` and
 ``M = stridify(a1, ..., aJ, 𝛼, m1, ..., mJ)``, i.e. such that ``mJ`` changes the fastest when
 ``M`` is increased, and analogously ``N = stridify(b1, ..., bK, β, n1, ..., nK)``.
 See the following methods for the respective slices / strides of the indices ``M, N``::
@@ -156,7 +156,7 @@ class FusionTreeData:
         ``np.lexsort(block_inds.T)``.
         If ``True``, we assume they are sorted *without* checking.
     """
-    
+
     def __init__(self, block_inds: np.ndarray, blocks: list[Block], dtype: Dtype, device: str,
                  is_sorted: bool = False):
         if not is_sorted:
@@ -2109,7 +2109,7 @@ class Instruction(metaclass=ABCMeta):
 
 @dataclass(frozen=True, slots=True)
 class BraidInstruction(Instruction):
-    """Instruction to braid two neighbouring legs.
+    """Instruction to braid two neighboring legs.
 
     Attributes
     ----------
@@ -2141,7 +2141,7 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
 
     Parameters
     ----------
-    num_codomain_legs, numd_domain_legs : int
+    num_codomain_legs, num_domain_legs : int
         Number of (co-)domain legs of the input tensor
     codomain_idcs, domain_idcs : list of int
         ``(co)domain_idcs[i] == j`` means that the leg ``tensor.legs[j]`` should end up at
@@ -2155,7 +2155,7 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
     ------
     instructions : Instruction
         A sequence of instructions, such that if applied to a tensor in this order,
-        the target permutation is realised
+        the target permutation is realized
     """
     num_legs = num_codomain_legs + num_domain_legs
     # we update levels in-place, to account for swaps.

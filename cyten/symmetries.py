@@ -23,11 +23,13 @@ except (ImportError, AttributeError):
 
 class SymmetryError(Exception):
     """An exception that is raised whenever something is not possible or not allowed due to symmetry"""
+
     pass
 
 
 class BraidChiralityUnspecifiedError(SymmetryError):
     """An exception that is raised whenever a braid chirality should be specified but wasnt."""
+
     pass
 
 
