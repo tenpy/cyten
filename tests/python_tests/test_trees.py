@@ -1,15 +1,62 @@
 """A collection of tests for cyten.trees."""
 # Copyright (C) TeNPy Developers, Apache license
+from typing import Callable
 
 import numpy as np
 import pytest
 
 from cyten import trees
-from cyten.symmetries import Symmetry, SymmetryError
+from cyten.symmetries import Symmetry, SymmetryError, SectorArray, Sector
 from cyten.spaces import ElementarySpace, TensorProduct
 from cyten.dtypes import Dtype
 from cyten.backends.backend_factory import get_backend
 from cyten.backends.abstract_backend import Block
+
+
+def random_fusion_tree(symmetry: Symmetry, num_uncoupled: int, sector_rng: Callable[[], Sector],
+                       np_random: np.random.Generator
+                       ) -> trees.FusionTree:
+    fusion_outcomes = []
+    multiplicities = []
+    left = sector_rng()
+    uncoupled = [left]
+    for _ in range(num_uncoupled - 1):
+        right = sector_rng()
+        uncoupled.append(right)
+        outcome = np_random.choice(symmetry.fusion_outcomes(left, right))
+        fusion_outcomes.append(outcome)
+        multiplicities.append(np_random.choice(symmetry.n_symbol(left, right, outcome)))
+        left = outcome
+    coupled = fusion_outcomes[-1]
+    are_dual = np_random.choice([True, False], size=num_uncoupled)
+    inner_sectors = fusion_outcomes[:-1]
+    res = trees.FusionTree(symmetry, uncoupled=uncoupled, coupled=coupled, are_dual=are_dual,
+                           inner_sectors=inner_sectors, multiplicities=multiplicities)
+    res.test_sanity()
+    return res
+
+
+def random_tree_pair(symmetry: Symmetry, num_uncoupled_in: int, num_uncoupled_out: SectorArray,
+                     sector_rng: Callable[[], Sector], np_random: np.random.Generator
+                     ) -> trees.FusionTree:
+    X = random_fusion_tree(symmetry, num_uncoupled_in, sector_rng, np_random)
+    root = X.coupled
+    uncoupled_out_reversed = []
+    multiplicities_reversed = []
+    inner_sectors_reversed = []
+    for _ in range(num_uncoupled_out - 1):
+        right = sector_rng()
+        uncoupled_out_reversed.append(right)
+        outcome = np_random.choice(symmetry.fusion_outcomes(root, symmetry.dual_sector(right)))
+        multiplicities_reversed.append(np_random.choice(symmetry.n_symbol(right, outcome, root)))
+        inner_sectors_reversed.append(outcome)
+        root = outcome
+    uncoupled_out_reversed.append(inner_sectors_reversed.pop(-1))
+    are_dual = np_random.choice([True, False], num_uncoupled_out)
+    Y = trees.FusionTree(symmetry, uncoupled_out_reversed[::-1], X.coupled, are_dual,
+                         inner_sectors_reversed[::-1], multiplicities_reversed[::-1])
+    Y.test_sanity()
+    return X, Y
 
 
 @pytest.mark.xfail(reason='Test not implemented yet')
@@ -249,8 +296,8 @@ def check_fusion_trees(it: trees.fusion_trees, expect_len: int = None):
         assert it.index(tree) == num_trees
         num_trees += 1
     assert num_trees == expect_len
-        
-    
+
+
 def test_fusion_trees(any_symmetry: Symmetry, make_any_sectors, np_random):
     """test the ``fusion_trees`` iterator"""
     some_sectors = make_any_sectors(20)  # generates unique sectors
@@ -259,7 +306,7 @@ def test_fusion_trees(any_symmetry: Symmetry, make_any_sectors, np_random):
 
     print('consistent fusion: [] -> i')
     check_fusion_trees(trees.fusion_trees(any_symmetry, [], i), expect_len=1)
-    
+
     print('consistent fusion: i -> i')
     check_fusion_trees(trees.fusion_trees(any_symmetry, [i], i, [False]), expect_len=1)
     check_fusion_trees(trees.fusion_trees(any_symmetry, [i], i, [True]), expect_len=1)
@@ -322,7 +369,7 @@ def check_to_block(symmetry, backend, uncoupled, np_random, dtype):
         with pytest.raises(SymmetryError, match='Can not convert to block for symmetry .*'):
             _ = all_trees[0].as_block(backend, dtype)
         return
-    
+
     coupled_dim = symmetry.sector_dim(all_trees[0].coupled)
     uncoupled_dims = symmetry.batch_sector_dim(uncoupled)
     all_blocks = [t.as_block(backend, dtype) for t in all_trees]
@@ -331,7 +378,7 @@ def check_to_block(symmetry, backend, uncoupled, np_random, dtype):
         expect_dtype = dtype.to_complex()
     else:
         expect_dtype = dtype
-        
+
     if backend is None:
         backend = get_backend()
     coupled_eye = backend.block_backend.eye_block([coupled_dim], dtype)
