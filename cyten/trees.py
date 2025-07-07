@@ -2,7 +2,7 @@
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from math import prod
-from typing import Iterator, TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable
 import numpy as np
 
 from .symmetries import Symmetry, Sector, SectorArray, FusionStyle, SymmetryError
@@ -108,15 +108,24 @@ class FusionTree:
         if self.num_uncoupled == 1:
             assert np.all(self.uncoupled[0] == self.coupled)
         # otherwise, check fusion rules at every vertex
-        for vertex in range(self.num_vertices):
-            # the two sectors below this vertex
-            a = self.uncoupled[0] if vertex == 0 else self.inner_sectors[vertex - 1]
-            b = self.uncoupled[vertex + 1]
-            # the sector above this vertex
-            c = self.inner_sectors[vertex] if vertex < self.num_inner_edges else self.coupled
+        for n in range(self.num_vertices):
+            a, b, mu, c = self.vertex_labels(n)
             N = self.symmetry.n_symbol(a, b, c)
             assert N > 0, 'inconsistent fusion'
-            assert 0 <= self.multiplicities[vertex] < N, 'invalid multiplicity label'
+            assert 0 <= mu < N, 'invalid multiplicity label'
+
+    @classmethod
+    def from_empty(cls, symmetry: Symmetry):
+        """The empty tree with no uncoupled sectors."""
+        return FusionTree(symmetry, uncoupled=symmetry.empty_sector_array,
+                          coupled=symmetry.trivial_sector, are_dual=[],
+                          inner_sectors=symmetry.empty_sector_array, multiplicities=[])
+
+    @classmethod
+    def from_sector(cls, symmetry: Symmetry, sector: Sector, is_dual: bool):
+        """A tree with a single uncoupled sector and no nodes."""
+        return FusionTree(symmetry, uncoupled=[sector], coupled=sector, are_dual=[is_dual],
+                          inner_sectors=symmetry.empty_sector_array, multiplicities=[])
 
     @property
     def pre_Z_uncoupled(self):
@@ -171,6 +180,57 @@ class FusionTree:
         after_Z = f'({", ".join(uncoupled_2)})'
         final = symmetry.sector_str(coupled)
         return f'{before_Z} -> {after_Z} -> {final}'
+
+    def vertex_labels(self, n: int) -> tuple[Sector, Sector, int, Sector]:
+        r"""For the ``n``-th fusion vertex, get the respective sectors.
+
+        We return ``a, b, mu, c``, from the ``n``-th vertex of the tree::
+
+            c
+            |
+            mu
+            | \
+            a  b
+        """
+        if n == 0:
+            a, b = self.uncoupled[:2]
+        else:
+            a = self.inner_sectors[n - 1]
+            b = self.uncoupled[n + 1]
+        if n == self.num_vertices - 1:
+            c = self.coupled
+        else:
+            c = self.inner_sectors[n]
+        return a, b, self.multiplicities[n], c
+
+    def modify_vertex_labels(self, n: int, a: Sector, b: Sector, mu: int, c: Sector,
+                             copy: bool = True) -> FusionTree:
+        """Update the multiplicity and three vertices around the ``n``-th vertex.
+
+        Parameters
+        ----------
+        n : int
+            The vertex
+        a, b, mu, c
+            Three sectors and a multiplicity, like the returns of :meth:`vertex_labels`.
+            ``None`` place-holders indicate to not update that value
+        copy : bool
+            If ``True``, we return a modified copy. If ``False``, we modify in place and return
+            the modified instance.
+        """
+        if copy:
+            return self.copy(deep=True).modify_vertex_labels(n, a=a, b=b, mu=mu, c=c, copy=False)
+        if n == 0:
+            self.uncoupled[0] = a
+        else:
+            self.inner_sectors[n - 1] = a
+        self.uncoupled[n + 1] = b
+        if n == self.num_vertices - 1:
+            self.coupled = c
+        else:
+            self.inner_sectors[n] = c
+        self.multiplicities[n] = mu
+        return self
 
     def __str__(self) -> str:
         signature = self._str_uncoupled_coupled(
@@ -251,6 +311,43 @@ class FusionTree:
                               self.are_dual.copy(), self.inner_sectors.copy(), self.multiplicities.copy())
         return FusionTree(self.symmetry, self.uncoupled, self.coupled, self.are_dual,
                           self.inner_sectors, self.multiplicities)
+
+    def extended(self, new_uncoupled: Sector, mu: int, new_coupled: Sector, is_dual: bool):
+        r"""A new tree, from adding a new fusion node on top, above the coupled sector.
+
+        Graphically::
+
+            |   new_coupled
+            |   |
+            |   mu--.
+            |   |    \
+            |   self  \
+            |   ||||   |
+            |          new_uncoupled
+
+        See Also
+        --------
+        insert
+            Can insert nodes "below"
+        split_topmost
+        """
+        if self.num_uncoupled == 0:
+            assert mu == 0
+            multiplicities = []
+        else:
+            multiplicities = np.append(self.multiplicities, mu)
+        if self.num_uncoupled < 2:
+            # result has one vertex, and thus no inner sectors
+            inner_sectors = self.inner_sectors
+        else:
+            inner_sectors = np.append(self.inner_sectors, self.coupled[None, :], axis=0)
+        return FusionTree(
+            self.symmetry,
+            uncoupled=np.append(self.uncoupled, new_uncoupled[None, :], axis=0),
+            coupled=new_coupled,
+            are_dual=np.append(self.are_dual, is_dual),
+            inner_sectors=inner_sectors, multiplicities=multiplicities,
+        )
 
     def insert(self, t2: FusionTree) -> FusionTree:
         """Insert a tree `t2` below the first uncoupled sector.
@@ -485,9 +582,57 @@ class FusionTree:
         )
         return t1, t2
 
+    def split_topmost(self) -> tuple[FusionTree, Sector, int, Sector]:
+        """Split off the topmost node.
 
-class fusion_trees:
-    """Iterator over all :class:`FusionTree`s with given uncoupled and coupled sectors.
+        Such that::
+
+            |   c                c
+            |   |                |
+            |   self_tree   =    mu----------.
+            |   | | | | |        |           |
+            |   a b   y z        rest_tree   |
+            |                    | | | | |   |
+            |                    a b   x y   z
+
+        where `rest_tree` might be empty if ``self.num_uncoupled == 1`` or consist of
+        only a single sector with no fusion nodes if ``self.num_uncoupled == 2``
+
+        Returns
+        -------
+        rest_tree : FusionTree
+            The remaining tree, with one fewer node
+        c : Sector
+            The old coupled sector
+        mu : int
+            The old top multiplicity label
+        z : Sector
+            The old last uncoupled sector
+
+        See Also
+        --------
+        extended
+        """
+        if self.num_uncoupled == 0:
+            raise ValueError('Cant split empty tree')
+        if self.num_uncoupled == 1:
+            return FusionTree.from_empty(self.symmetry), self.coupled, 0, self.coupled
+        if self.num_uncoupled == 2:
+            rest_tree = FusionTree.from_sector(self.symmetry, self.uncoupled[0], is_dual=self.are_dual[0])
+            return rest_tree, self.coupled, self.multiplicities[0], self.uncoupled[-1]
+        rest_tree = FusionTree(
+            self.symmetry,
+            uncoupled=self.uncoupled[:-1],
+            coupled=self.inner_sectors[-1],
+            are_dual=self.are_dual[:-1],
+            inner_sectors=self.inner_sectors[:-1],
+            multiplicities=self.multiplicities[:-1]
+        )
+        return rest_tree, self.coupled, self.multiplicities[-1], self.uncoupled[-1]
+
+
+class fusion_trees(Iterable[FusionTree]):
+    """Iterable over all :class:`FusionTree`s with given uncoupled and coupled sectors.
 
     This custom iterator has efficient implementations of ``len`` and :meth:`index`, which
     avoid generating all intermediate trees.
