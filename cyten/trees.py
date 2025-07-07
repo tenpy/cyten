@@ -15,48 +15,57 @@ if TYPE_CHECKING:
 class FusionTree:
     r"""A fusion tree, which represents the map from uncoupled to coupled sectors.
 
-    .. warning ::
-        Should think of FusionTrees as immutable.
-        Do not act on their attributes with inplace operations, unless you know *exactly* what you
-        are doing.
-
-    TODO expand docstring. maybe move drawing to module level docstring.
-
-    Example fusion tree with
-        uncoupled = [a, b, c, d]
-        are_dual = [False, True, True, False]
-        inner_sectors = [x, y]
-        multiplicities = [m0, m1, m2]
-
-    |    |
-    |    coupled
-    |    |
-    |    m2
-    |    |  \
-    |    y   \
-    |    |    \
-    |    m1    \
-    |    |  \   \
-    |    x   \   \
-    |    |    \   \
-    |    m0    \   \
-    |    |  \   \   \
-    |    a   b   c   d
-    |    |   |   |   |
-    |    |   Z   Z   |
-    |    |   |   |   |
-
+    Attributes
+    ----------
+    symmetry : Symmetry,
+    uncoupled : 2D array of int
+        N uncoupled sectors. These are the sectors *above* any Z isos.
+        I.e. the generalized tree, including the Zs maps from the :attr:`pre_Z_sectors` instead.
+    coupled : 1D array of int
+        The coupled sector at the top of the tree.
+    are_dual : 1D array of bool
+        N flags: is there a Z isomorphism below the uncoupled sector
+    inner_sectors : 2D array of int
+        N - 2 internal sectors, at the internal edges of the tree
+    multiplicities : 1D array of int
+        N - 1 multiplicity labels, at the fusion vertices of the tree.
 
     Notes
     -----
+    Consider the following example tree::
+
+        FusionTree(symmetry=symmetry, coupled=coupled,
+                   uncoupled=[a, b, c, d],
+                   are_dual = [False, True, True, False],
+                   inner_sectors = [x, y],
+                   multiplicities = [m0, m1, m2])
+
+    Graphically::
+
+        |    |
+        |    coupled
+        |    |
+        |    m2
+        |    |  \
+        |    y   \
+        |    |    \
+        |    m1    \
+        |    |  \   \
+        |    x   \   \
+        |    |    \   \
+        |    m0    \   \
+        |    |  \   \   \
+        |    a   b   c   d
+        |    |   |   |   |
+        |    |   Z   Z   |
+        |    |   |   |   |
+
     Consider the ``n``-th vertex (counting 0-based from bottom to top).
     It fuses :math:`a \otimes b \to c` with multiplicity label ``multiplicities[n]``.
 
         - ``a = uncoupled[0] if n == 0 else inner_sectors[n - 1]``
         - ``b = uncoupled[n + 1]``
         - ``c = coupled if (n == num_vertices - 1) else inner_sectors[n]``
-    
-
     """
 
     def __init__(self, symmetry: Symmetry,
@@ -86,12 +95,12 @@ class FusionTree:
         self.braiding_style = symmetry.braiding_style
 
     def test_sanity(self):
-        assert self.symmetry.are_valid_sectors(self.uncoupled)
-        assert self.symmetry.is_valid_sector(self.coupled)
-        assert len(self.are_dual) == self.num_uncoupled
-        assert len(self.inner_sectors) == self.num_inner_edges
-        assert self.symmetry.are_valid_sectors(self.inner_sectors)
-        assert len(self.multiplicities) == self.num_vertices
+        assert self.symmetry.are_valid_sectors(self.uncoupled), 'invalid uncoupled'
+        assert self.symmetry.is_valid_sector(self.coupled), 'invalid coupled'
+        assert len(self.are_dual) == self.num_uncoupled, 'wrong length of are_dual'
+        assert len(self.inner_sectors) == self.num_inner_edges, 'wrong length of inner_sectors'
+        assert self.symmetry.are_valid_sectors(self.inner_sectors), 'invalid inner sectors'
+        assert len(self.multiplicities) == self.num_vertices, 'invalid length of multiplicities'
 
         # special cases: no vertices
         if self.num_uncoupled == 0:
@@ -112,9 +121,7 @@ class FusionTree:
     @property
     def pre_Z_uncoupled(self):
         res = self.uncoupled.copy()
-        for i, dual in enumerate(self.are_dual):
-            if dual:
-                res[i, :] = self.symmetry.dual_sector(res[i, :])
+        res[self.are_dual, :] = self.symmetry.dual_sectors(res[self.are_dual, :])
         return res
 
     def __hash__(self) -> int:
@@ -180,8 +187,8 @@ class FusionTree:
     def __repr__(self) -> str:
         inner = str(self.inner_sectors).replace('\n', ',')
         uncoupled = str(self.uncoupled).replace('\n', ',')
-        return (f'FusionTree({self.symmetry}, {uncoupled}, {self.coupled}, {self.are_dual}, '
-                f'{inner}, {self.multiplicities})')
+        return (f'FusionTree({self.symmetry}, {uncoupled}, {self.are_dual}, coupled={self.coupled}, '
+                f'inner_sectors={inner}, multiplicities={self.multiplicities})')
 
     def as_block(self, backend: TensorBackend = None, dtype: Dtype = None) -> Block:
         """Get the matrix elements of the map as a backend Block.
@@ -237,7 +244,7 @@ class FusionTree:
             res = block_backend.tdot(res, X_block, [-1], [0])
         return res
 
-    def copy(self, deep=False) -> FusionTree:
+    def copy(self, deep=True) -> FusionTree:
         """Return a shallow (or deep) copy."""
         if deep:
             return FusionTree(self.symmetry, self.uncoupled.copy(), self.coupled.copy(),
@@ -262,14 +269,14 @@ class FusionTree:
             inner_sectors=np.concatenate([t2.inner_sectors, self.uncoupled[:1], self.inner_sectors]),
             multiplicities=np.concatenate([t2.multiplicities, self.multiplicities])
         )
-        
+
     def insert_at(self, n: int, t2: FusionTree, eps: float = 1.e-14) -> dict[FusionTree, complex]:
         r"""Insert a tree `t2` below the `n`-th uncoupled sector.
 
         The result is (in general) not a canonical tree::
 
             TODO draw
-        
+
         We transform it to canonical form via a series of F moves.
         This yields the result as a linear combination of canonical trees.
         We return a dictionary, with those trees as keys and the prefactors as values.
@@ -316,7 +323,7 @@ class FusionTree:
         if n == 0:
             # result is already a canonical tree -> no need to do F moves
             return {self.insert(t2): 1}
-        
+
         # should be more efficient than using recursion
         sym = self.symmetry
         coefficients = {}
@@ -392,14 +399,14 @@ class FusionTree:
 
         Parameters
         ----------
-        rigth_tree : FusionTree
+        right_tree : FusionTree
             Tree to be combined with at the coupled sector from the right.
         eps : float
             F symbols whose absolute values are smaller than this number are treated as zero.
 
         Returns
         -------
-        linar_combination : dict {FusionTree: complex}
+        linear_combination : dict {FusionTree: complex}
             Result expressed as linear combination of fusion trees in the canonical basis with the
             corresponding coefficients.
 
@@ -487,7 +494,7 @@ class fusion_trees:
 
     TODO elaborate on canonical order of trees -> reference in module level docstring.
     """
-    
+
     def __init__(self, symmetry: Symmetry, uncoupled: SectorArray | list[Sector], coupled: Sector,
                  are_dual=None):
         # DOC: coupled = None means trivial sector
@@ -503,24 +510,24 @@ class fusion_trees:
             are_dual = np.asarray(are_dual)
         self.are_dual = are_dual
 
-    def __iter__(self) -> Iterator[FusionTree]:
+    def __iter__(self):
         if self.num_uncoupled == 0:
             if np.all(self.coupled == self.symmetry.trivial_sector):
                 yield FusionTree(self.symmetry, self.uncoupled, self.coupled, [], [], [])
             return
-        
+
         if self.num_uncoupled == 1:
             if np.all(self.uncoupled[0] == self.coupled):
                 yield FusionTree(self.symmetry, self.uncoupled, self.coupled, self.are_dual, [], [])
             return
-        
+
         if self.num_uncoupled == 2:
             # OPTIMIZE does handling of multiplicities introduce significant overhead?
             #          could do a specialized version for multiplicity-free fusion
             for mu in range(self.symmetry.n_symbol(*self.uncoupled, self.coupled)):
                 yield FusionTree(self.symmetry, self.uncoupled, self.coupled, self.are_dual, [], [mu])
             return
-            
+
         a1 = self.uncoupled[0]
         a2 = self.uncoupled[1]
         for b in self.symmetry.fusion_outcomes(a1, a2):
@@ -596,7 +603,7 @@ class fusion_trees:
         idx = 0
         # product of all multiplicities to the left of left_sec in for loop below
         left_multi = 1
-        # upper limit for the values multiplities take at each vertex (of the tree)
+        # upper limit for the values multiplicities take at each vertex (of the tree)
         max_multis = []
         for i in range(self.num_uncoupled-2):
             # coupled sector is unique, no need to shift idx for target_sec == self.coupled

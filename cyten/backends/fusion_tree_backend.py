@@ -48,7 +48,7 @@ And we store the blocks as matrices, with combined multi-indices::
     |   │ │ T_c │         │         =   blocks[c_idx][M, N]
     |   └ └     ┘b1..bK,β ┘n1..nK
 
-where ``c = codomain.sector_decompositon[block_inds[c_idx, 0]]`` and
+where ``c = codomain.sector_decomposition[block_inds[c_idx, 0]]`` and
 ``M = stridify(a1, ..., aJ, 𝛼, m1, ..., mJ)``, i.e. such that ``mJ`` changes the fastest when
 ``M`` is increased, and analogously ``N = stridify(b1, ..., bK, β, n1, ..., nK)``.
 See the following methods for the respective slices / strides of the indices ``M, N``::
@@ -80,6 +80,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 from math import prod
 from copy import deepcopy
+
 import numpy as np
 import warnings
 
