@@ -1534,6 +1534,17 @@ class TensorProduct(Space):
         """Add a new factor at the left / beginning of the spaces"""
         return self.insert_multiply(other, 0)
 
+    def permuted(self, perm: Sequence[int]) -> TensorProduct:
+        """A product of the same :attr:`factors` in a different order."""
+        assert len(perm) == self.num_factors
+        assert set(perm) == set(range(self.num_factors))
+        return TensorProduct(
+            factors=[self.factors[i] for i in perm],
+            symmetry=self.symmetry,
+            _sector_decomposition=self.sector_decomposition,
+            _multiplicities=self.multiplicities
+        )
+
     def right_multiply(self, other: Space) -> TensorProduct:
         """Add a new factor at the right / end of the spaces"""
         return self.insert_multiply(other, -1)
