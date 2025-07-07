@@ -120,25 +120,26 @@ class FusionTree:
     def __hash__(self) -> int:
         if self.fusion_style == FusionStyle.single:
             # inner sectors are completely determined by uncoupled, all multiplicities are 0
-            unique_identifier = (self.are_dual, self.coupled, self.uncoupled)
+            unique_identifier = [self.are_dual, self.coupled, self.uncoupled]
         elif self.fusion_style == FusionStyle.multiple_unique:
             # all multiplicities are 0
-            unique_identifier = (self.are_dual, self.coupled, self.uncoupled, self.inner_sectors)
+            unique_identifier = [self.are_dual, self.coupled, self.uncoupled, self.inner_sectors]
         else:
-            unique_identifier = (self.are_dual, self.coupled, self.uncoupled, self.inner_sectors, self.multiplicities)
+            unique_identifier = [self.are_dual, self.coupled, self.uncoupled, self.inner_sectors, self.multiplicities]
 
-        unique_identifier = np.concatenate([a.flatten() for a in unique_identifier])
-        return hash(unique_identifier.tobytes())
+        return hash(tuple(
+            hash(tuple(arr.flatten().tolist()))
+            for arr in unique_identifier
+        ))
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, FusionTree):
             return False
-        return all([
-            np.all(self.coupled == other.coupled),
-            np.all(self.uncoupled == other.uncoupled),
-            np.all(self.inner_sectors == other.inner_sectors),
-            np.all(self.multiplicities == other.multiplicities),
-        ])
+        return np.all(self.are_dual == other.are_dual) \
+            and np.all(self.coupled == other.coupled) \
+            and np.all(self.uncoupled == other.uncoupled) \
+            and np.all(self.inner_sectors == other.inner_sectors) \
+            and np.all(self.multiplicities == other.multiplicities)
 
     @staticmethod
     def _str_uncoupled_coupled(symmetry, uncoupled, coupled, are_dual) -> str:
