@@ -725,7 +725,7 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorProduct, TensorProduct]:
         """Returns ``data, new_codomain, new_domain``.
-        
+
         Note that ``new_codomain == a.domain.dual`` and ``new_domain == a.codomain.dual``.
         """
         ...
@@ -1529,7 +1529,7 @@ class BlockBackend(metaclass=ABCMeta):
 
 
 def conventional_leg_order(tensor_or_codomain: SymmetricTensor | TensorProduct,
-                           domain: TensorProduct = None) -> Iterator[Space]:
+                           domain: TensorProduct = None) -> Generator[Space, None, None]:
     if domain is None:
         codomain = tensor_or_codomain.codomain
         domain = tensor_or_codomain.domain
