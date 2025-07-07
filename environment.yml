@@ -1,3 +1,6 @@
+# usage: conda env create -f environment.yml
+# then: pip install --no-build-isolation .
+
 # note: if you want to build docs as well, use docs/environment.yml instead
 name: cyten
 channels:
@@ -22,6 +25,11 @@ dependencies:
   - pytest>=6.0
   - sympy  # TODO: remove this dependency when no longer needed
 
+  # developer tools
+  - ipython
+  - flake8
+  - flake8-docstrings
+
   # building docs
   # - doxygen
   # - sphinx
@@ -29,9 +37,9 @@ dependencies:
   # - graphviz
   # - sphinx-copybutton
   # - pip:
-  #   - breathe  # conde-forge version seems incompatible
+  #   - breathe  # conda-forge version seems incompatible
 
   # I/O (to be added later...)
   # - hdf5
-  # - h5py
+  - h5py
   # - pyyaml
