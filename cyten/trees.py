@@ -181,6 +181,188 @@ class FusionTree:
         final = symmetry.sector_str(coupled)
         return f'{before_Z} -> {after_Z} -> {final}'
 
+    @staticmethod
+    def bend_leg(Y: FusionTree, X: FusionTree, bend_upward: bool, do_conj: bool = False,
+                 ) -> dict[tuple[FusionTree, FusionTree], float | complex]:
+        r"""Bend a leg on a tree-pair, return the resulting linear combination of tree-pairs.
+
+        Graphically::
+
+            |    bend_upward=True                      bend_upward=False
+            |
+            |   │   │   │   │    │                    │   │   │   ╭────╮
+            |   ┢━━━┷━━━┷━━━┷━┓  │                    ┢━━━┷━━━┷━━━┷━┓  │
+            |   ┡━━━━━━━━━━━━━┛  │                    ┡━━━━━━━━━━━━━┛  │
+            |   │                │                    │                │
+            |   ┢━━━━━━━━━━━━━┓  │                    ┢━━━━━━━━━━━━━┓  │
+            |   ┡━━━┯━━━┯━━━┯━┛  │                    ┡━━━┯━━━┯━━━┯━┛  │
+            |   │   │   │   ╰────╯                    │   │   │   │    │
+
+        Parameters
+        ----------
+        Y, X : FusionTree
+            The original tree pair, such that we modify ``hconj(Y) @ X``.
+            Note that `Y` is a fusion tree that represents the splitting tree ``hconj(Y)``.
+        bend_upward : bool
+            If we should do the B move to bend a leg upward or an inverse B move to bend downward.
+        do_conj : bool
+            If ``True``, return the conjugate of the coefficients instead.
+
+        Returns
+        -------
+        linear_combination : dict {FusionTree: complex}
+            The bent tree pair is a linear combination ``bent = sum_i a_i hconj(Y_i) @ X_i`` of tree
+            pairs (where ``Y_i`` is a fusion tree and thus ``hconj(Y_i)`` a splitting tree).
+            The returned dictionary has entries ``linear_combination[Y_i, X_i] = a_i`` for the
+            contributions to this linear combination (i.e. tree pairs for which the coefficient
+            vanishes may be omitted).
+        """
+        if not bend_upward:
+            # OPTIMIZE: do it explicitly instead?
+            # bend_down(dagger(Y) @ X)
+            # == dagger(dagger(bend_down(dagger(Y) @ X))
+            # == dagger(bend_up(dagger(dagger(Y) @ X))))
+            # == dagger(bend_up(dagger(X) @ Y))
+            # == dagger(sum_i b_i (dagger(Y_i) @ X_i))
+            # == sum_i conj(b_i) dagger(X_i) @ Y_i
+            # i.e. we need to swap the order of inputs and invert bend_upward,
+            # then for the result, swap the trees back and conj the coefficients (invert do_conj)
+            other = FusionTree.bend_leg(X, Y, bend_upward=True, do_conj=not do_conj)
+            return {(X_i, Y_i): b_i for (Y_i, X_i), b_i in other.items()}
+
+        # OPTIMIZE remove input checks?
+        assert X.symmetry == Y.symmetry
+        symmetry = X.symmetry
+        assert np.all(X.coupled == Y.coupled)
+        c = X.coupled
+
+        if X.num_uncoupled == 0:
+            raise ValueError('No leg to be bent.')
+
+        is_dual = X.are_dual[-1]
+
+        if X.num_uncoupled == 1:
+            X_i = FusionTree.from_empty(symmetry)
+            Y_i = Y.extended(new_uncoupled=symmetry.dual_sector(c), mu=0,
+                             new_coupled=symmetry.trivial_sector, is_dual=not is_dual)
+            b_i = symmetry.sqrt_qdim(c)
+            if is_dual:
+                b_i = b_i * symmetry.frobenius_schur(c)
+            return {(Y_i, X_i): b_i}
+
+        X_i, c, mu, z = X.split_topmost()
+
+        if Y.num_uncoupled == 0:
+            e = X_i.coupled
+            Y_i = FusionTree.from_sector(symmetry, e, is_dual=not is_dual)
+            b_i = symmetry.inv_sqrt_qdim(e)
+            if not is_dual:
+                b_i = b_i * symmetry.frobenius_schur(e)
+            return {(Y_i, X_i): b_i}
+
+        B = symmetry.b_symbol(X_i.coupled, z, c)
+        chi_z = symmetry.frobenius_schur(z)
+        zbar = symmetry.dual_sector(z)
+        res = {}
+        for nu in range(len(B)):
+            b_i = B[mu, nu]
+            Y_i = Y.extended(zbar, nu, X_i.coupled, not is_dual)
+            if is_dual:
+                b_i = b_i * chi_z
+            if do_conj:
+                b_i = np.conj(b_i)
+            res[Y_i, X_i] = b_i
+        return res
+
+    def braid(self, j: int, overbraid: bool, cutoff: float = 1e-16, do_conj: bool = False,
+              ) -> dict[FusionTree, float | complex]:
+        r"""Braid a leg on a fusion tree, return the resulting linear combination of trees.
+
+        Graphically::
+
+            |   overbraid:                  underbraid
+            |
+            |   │                           │
+            |   ┢━━━━━━━━━━━━━┓             ┢━━━━━━━━━━━━━┓
+            |   ┡━━━┯━━━┯━━━┯━┛             ┡━━━┯━━━┯━━━┯━┛
+            |   │   j  j+1  │               │   j  j+1  │
+            |   │    ╲ ╱    │               │    ╲ ╱    │
+            |   │     ╱     │               │     ╲     │
+            |   │    ╱ ╲    │               │    ╱ ╲    │
+            |   │   │   │   │               │   │   │   │
+
+        .. warning ::
+            When braiding splitting trees (daggers of fusion trees), consider the notes below.
+
+        Parameters
+        ----------
+        j : int
+            The index for the braid. We braid ``uncoupled[j]`` with ``uncoupled[j + 1]``.
+        overbraid : bool
+            If we apply an overbraid or an underbraid (see graphic above)
+        cutoff : float
+            We skip contributions with a prefactor below this.
+        do_conj : bool
+            If ``True``, return the conjugate of the coefficients instead.
+
+        Returns
+        -------
+        linear_combination : dict {FusionTree: complex}
+            The braided fusion tree is a linear combination ``braided_self = sum_i a_i X_i``.
+            The returned dictionary has entries ``linear_combination[X_i] = a_i`` for the
+            contributions to this linear combination (i.e. trees for which the coefficient vanishes
+            may be omitted).
+        """
+        assert 0 <= j < self.num_uncoupled - 1
+        if j == 0:  # R-move
+            a, b, mu, c = self.vertex_labels(0)
+            if overbraid:
+                a_i = self.symmetry.r_symbol(a, b, c)[mu]
+            else:
+                a_i = np.conj(self.symmetry.r_symbol(b, a, c)[mu])
+            if do_conj:
+                a_i = np.conj(a_i)
+            X_i = self.copy(deep=True)
+            X_i.uncoupled[0] = b
+            X_i.uncoupled[1] = a
+            X_i.are_dual[:2] = X_i.are_dual[1::-1]
+            return {X_i: a_i}
+
+        # C-move
+        res = {}
+        a, b, mu, e = self.vertex_labels(j - 1)
+        _e, c, nu, d = self.vertex_labels(j)
+        X_new = self.copy(deep=True)
+        X_new.uncoupled[j] = c
+        X_new.uncoupled[j + 1] = b
+        X_new.are_dual[j] = self.are_dual[j + 1]
+        X_new.are_dual[j + 1] = self.are_dual[j]
+        for f in self.symmetry.fusion_outcomes(a, c):
+            if not self.symmetry.can_fuse_to(f, b, d):
+                continue
+            if overbraid:
+                C_sym = self.symmetry.c_symbol(a, b, c, d, e, f)[mu, nu]
+            else:
+                # underbraid compared to overbraid:
+                #  - conj
+                #  - b <-> c  [in args of c_symbol(...)]
+                #  - e <-> f  [in args of c_symbol(...)]
+                #  - (mu,nu) <-> (kappa,lambda)  [by indexing c_symbol(...) differently]
+                C_sym = np.conj(self.symmetry.c_symbol(a, c, b, d, f, e)[:, :, mu, nu])
+            if do_conj:
+                C_sym = np.conj(C_sym)
+            for kappa, C_kappa in enumerate(C_sym):
+                for lambda_, a_i in enumerate(C_kappa):
+                    if abs(a_i) < cutoff:
+                        continue
+                    X_i = X_new.copy(deep=True)
+                    X_i.inner_sectors[j - 1] = f
+                    X_i.multiplicities[j - 1] = kappa
+                    X_i.multiplicities[j] = lambda_
+                    assert X_i not in res  # OPTIMIZE rm check
+                    res[X_i] = a_i
+        return res
+
     def vertex_labels(self, n: int) -> tuple[Sector, Sector, int, Sector]:
         r"""For the ``n``-th fusion vertex, get the respective sectors.
 
