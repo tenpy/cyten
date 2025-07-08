@@ -2527,8 +2527,8 @@ class TreePairMapping(TensorMapping):
                     # tree_block [m1, m2, ..., mJ, n1, n2, ..., nK]
                     block[idcs1, idcs2] = block_backend.permute_combined_matrix(
                         tree_block, old_mults[:J], tree_block_axes_1,
-                        reversed(old_mults[J:]), tree_block_axes_2
-                    )
+                        reversed(old_mults[J:]), tree_block_axes_2,
+                    )  # FIXME f-style vs c-style??
             if is_zero_block:
                 continue
             block_inds.append([i, j])
@@ -2579,7 +2579,6 @@ class SingleTreeMapping(TensorMapping):
         return cls(splitting_tree_mapping, fusion_tree_mapping)
 
     def pre_compose_braid_instruction(self, instruction: BraidInstruction):
-        print('\n\npre_compose_braid_instruction\n' + '=' * 60)  # FIXME why twice?
         braid_mapping = SparseMapping[FusionTree]()
         if instruction.codomain:
             # because this is a splitting tree, we need to do the opposite braid and do conj
@@ -2587,10 +2586,6 @@ class SingleTreeMapping(TensorMapping):
             for Y in self.splitting_tree_mapping.nonzero_rows():
                 braid_mapping[Y] = Y.braid(j=instruction.idx, overbraid=instruction.overbraid,
                                            do_conj=True)
-
-                # FIXME debugging
-                assert len(braid_mapping[Y]) == len(set(braid_mapping[Y].keys()))
-
             splitting_tree_mapping = self.splitting_tree_mapping.pre_compose(braid_mapping)
             fusion_tree_mapping = self.fusion_tree_mapping
         else:
@@ -2682,8 +2677,10 @@ class SingleTreeMapping(TensorMapping):
             if is_zero_row:
                 continue
             is_zero = False
+            # FIXME mults is wrong! it is in the new leg order but should be in the old!
+            mults_old_order = [mults[i] for i in inverse_permutation(tree_block_axes_1)]  # FIXME inv?
             zeros[idcs, :] = block_backend.permute_combined_idx(
-                tree_row, 0, mults, tree_block_axes_1
+                tree_row, 0, mults_old_order, tree_block_axes_1  # FIXME why cstyle...?
             )
 
         return zeros, is_zero
@@ -2713,12 +2710,14 @@ class SingleTreeMapping(TensorMapping):
             if is_zero_tree_col:
                 continue
             is_zero_block = False
+            mults_old_order = [mults[i] for i in inverse_permutation(tree_block_axes_2)]  # FIXME inv?
             zeros[:, idcs] = block_backend.permute_combined_idx(
-                tree_col, 1, mults, tree_block_axes_2
-            )
+                tree_col, 1, mults_old_order, tree_block_axes_2
+            )  # FIXME F style?
         return zeros, is_zero_block
 
 
+# FIXME rm!
 class TreeMappingDict(dict):
     """A description how trees need to be transformed after braiding and / or bending legs.
 

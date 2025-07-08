@@ -203,8 +203,8 @@ class NumpyBlockBackend(BlockBackend):
             lines = lines[:first] + [f'{indent}...'] + lines[-last:]
         return lines
 
-    def reshape(self, a: Block, shape: tuple[int]) -> Block:
-        return np.reshape(a, shape)
+    def reshape(self, a: Block, shape: tuple[int], cstyle: bool = True) -> Block:
+        return np.reshape(a, shape, order='C' if cstyle else 'F')
 
     def get_shape(self, a: Block) -> tuple[int]:
         return np.shape(a)

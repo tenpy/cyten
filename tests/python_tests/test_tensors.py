@@ -2334,13 +2334,17 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_comp
         expect = np.transpose(T.to_numpy(), [*codomain, *reversed(domain)])
         actual = res.to_numpy()
 
-        # FIXME this is super slow for the larger cases!
-        # for idcs1 in zip(*np.nonzero(expect)):
-        #     for idcs2 in zip(*np.nonzero(expect[idcs1] == actual)):
-        #         if idcs1 == idcs2:
-        #             continue
-        #         # FIXME rm this debug print!
-        #         print(f'expect[{", ".join(map(str, idcs1))}] matches actual[{", ".join(map(str, idcs2))}]')
+        # FIXME debugging
+        if np.prod(expect.shape) < 10_000:
+            for idcs1 in zip(*np.nonzero(expect)):
+                for idcs2 in zip(*np.nonzero(expect[idcs1] == actual)):
+                    if idcs1 == idcs2:
+                        continue
+                    print(f'expect[{", ".join(map(str, idcs1))}] matches actual[{", ".join(map(str, idcs2))}]')
+
+        # FIXME seems like we only get the issue when braiding in the domain?
+        #       is it because of the f-style vs c-style stuff??
+
         npt.assert_allclose(actual, expect, atol=1.e-14)
     else:
         # TODO (JU) is there anything we can do in that case to check?

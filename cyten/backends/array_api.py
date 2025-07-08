@@ -168,7 +168,9 @@ class ArrayApiBlockBackend(BlockBackend):
     def min(self, a: Block) -> float | complex:
         return self._api.min(a).item()
     
-    def reshape(self, a: Block, shape: tuple[int]) -> Block:
+    def reshape(self, a: Block, shape: tuple[int], cstyle: bool = True) -> Block:
+        if not cstyle:
+            raise NotImplementedError
         return self._api.reshape(a, shape)
 
     def matrix_dot(self, a: Block, b: Block) -> Block:

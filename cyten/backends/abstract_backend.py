@@ -1319,8 +1319,8 @@ class BlockBackend(metaclass=ABCMeta):
         N_new = prod(shape[len(idcs1):])
         return self.reshape(block, (M_new, N_new))
 
-    def permute_combined_idx(self, block: Block, axis: int, dims: Sequence[int], idcs: Sequence[int]
-                             ) -> Block:
+    def permute_combined_idx(self, block: Block, axis: int, dims: Sequence[int],
+                             idcs: Sequence[int]) -> Block:
         """For a matrix `a` with a single combined multi-index, permute sub-indices.
 
         Parameters
