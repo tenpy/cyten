@@ -313,8 +313,28 @@ class Tensor(metaclass=ABCMeta):
 
         DISTANCE = 5  # distance between legs in chars, i.e. number of '━' between the '┯'
         huge_dim = f'>1e{DISTANCE + 1}'  # for numbers that can not fit in DISTANCE digits
+        huge_dim_value = 10 ** (DISTANCE + 1)
         assert len(huge_dim) <= DISTANCE
         huge_dim = huge_dim.rjust(DISTANCE)
+        dims = []
+        for l in self.legs:
+            if len(str(l.dim)) <= DISTANCE:
+                dims.append(str(l.dim).rjust(DISTANCE))
+                continue
+            if l.dim >= huge_dim_value:
+                dims.append(huge_dim)
+                continue
+            s = f'{l.dim:.1f}'
+            if len(s) <= DISTANCE:
+                dims.append(s.rjust(DISTANCE))
+                continue
+            s = str(int(round(l.dim, 0)))
+            if len(s) <= DISTANCE:
+                dims.append(s.rjust(DISTANCE))
+                continue
+            raise RuntimeError  # this should not happen
+        codomain_dims = []
+        
         codomain_dims = [
             str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else huge_dim
             for l in self.codomain
