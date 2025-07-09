@@ -385,8 +385,44 @@ class Symmetry(metaclass=ABCMeta):
         return R1[None, :, None, None] * F * np.conj(R2)[None, None, :, None]
 
     def topological_twist(self, a: Sector) -> complex:
-        """Phase acquired when charges fully rotate around their own axis once."""
-        return self.frobenius_schur(a) * self._r_symbol(self.dual_sector(a), a, self.trivial_sector)[0].conj()
+        """The prefactor that relates the twist on a single sector to the identity.
+
+        Graphically::
+
+            |   │   ╭─╮                |
+            |    ╲ ╱  │                |
+            |     ╱   │   =   theta_a  |
+            |    ╱ ╲  │                |
+            |   │   ╰─╯                |
+            |   a                      a
+
+        Notes
+        -----
+        For a twist with opposite chirality, the prefactor is conjugated.
+
+            |   │   ╭─╮                      |
+            |    ╲ ╱  │                      |
+            |     ╲   │   =   conj(theta_a)  |
+            |    ╱ ╲  │                      |
+            |   │   ╰─╯                      |
+            |   a                            a
+
+        """
+        if self.braiding_style == BraidingStyle.bosonic:
+            return +1
+        # sum_b sum_mu d_b / d_a * [R^aa_b]^mu_mu
+        res = 0
+        for b in self.fusion_outcomes(a, a):
+            r = self._r_symbol(a, a, b)
+            res += self.qdim(b) * np.sum(r)
+        res /= self.qdim(a)
+        if self.braiding_style == BraidingStyle.fermionic:
+            # must be +1 or -1
+            res = np.real(res)
+            if res < 0:
+                return -1
+            return +1
+        return res.item()
 
     def s_matrix_element(self, a: Sector, b: Sector) -> complex:
         """Single matrix-element of the S-matrix. Only defined for modular tensor categories.
@@ -1034,6 +1070,9 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
 
     def batch_qdim(self, a: SectorArray) -> np.ndarray:
         return self.batch_sector_dim(a)
+
+    def topological_twist(self, a):
+        return 1
 
 
 class AbelianGroup(GroupSymmetry, metaclass=_ABCFactorSymmetryMeta):
@@ -1996,6 +2035,10 @@ class FermionNumber(Symmetry):
         C = (1 - 2 * np.mod(e, 2) * np.mod(c, 2)) * (1 - 2 * np.mod(c, 2) * np.mod(a, 2))
         return C[None, None, None, :]
 
+    def topological_twist(self, a):
+        # +1 for even parity, -1 for odd
+        return 1 - 2 * np.mod(a, 2).item()
+
     def Z_iso(self, a):
         return self._one_2D_float
 
@@ -2100,6 +2143,9 @@ class FermionParity(Symmetry):
         C = (1 - 2 * e * c) * (1 - 2 * c * a)
         return C[None, None, None, :]
 
+    def topological_twist(self, a):
+        return 1 - 2 * a.item()
+
     def all_sectors(self) -> SectorArray:
         return np.arange(2, dtype=int)[:, None]
 
@@ -2125,6 +2171,11 @@ class ModularTensorCategory(Symmetry, metaclass=_ABCFactorSymmetryMeta):
         >>> issubclass(type(s), ModularTensorCategory)
         False
     """
+
+    def topological_twist(self, a):
+        # Eq (2.61) in Parsa Bondersons thesis
+        R = self._r_symbol(self.dual_sector(a), a, self.trivial_sector)[0]
+        return self.frobenius_schur(a) * np.conj(R)
 
     def s_matrix_element(self, a: Sector, b: Sector) -> complex:
         """Single matrix-element of the S-matrix.
