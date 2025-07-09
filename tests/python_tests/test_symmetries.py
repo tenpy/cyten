@@ -1082,8 +1082,10 @@ def test_fermion_parity(np_random):
     print('checking equality')
     assert sym == sym
     assert sym == symmetries.fermion_parity
+    assert sym != symmetries.fermion_number
     assert sym != symmetries.no_symmetry
     assert sym != symmetries.SU2Symmetry()
+    assert sym != symmetries.fermion_parity * symmetries.z2_symmetry
 
     print('checking is_same_symmetry')
     assert sym.is_same_symmetry(sym)
@@ -1096,6 +1098,53 @@ def test_fermion_parity(np_random):
     print('checking dual_sectors')
     assert_array_equal(sym.dual_sectors(np.stack([odd, even, odd])),
                        np.stack([odd, even, odd]))
+
+
+def test_fermion_number(np_random):
+    sym = symmetries.FermionNumber()
+    example_sectors = np.array([0, 1, -1, 2, 42, -123])[:, None]
+    common_checks(sym, example_sectors=example_sectors,
+                  example_sectors_low_qdim=example_sectors, np_random=np_random)
+
+    print('instancecheck and is_abelian')
+    assert not isinstance(sym, symmetries.AbelianGroup)
+    assert not isinstance(sym, symmetries.GroupSymmetry)
+    assert sym.is_abelian
+
+    print('checking valid sectors')
+    assert sym.is_valid_sector(example_sectors[0])
+    assert sym.is_valid_sector(np.array([2]))
+    assert sym.is_valid_sector(np.array([-1]))
+    assert not sym.is_valid_sector(np.array([0, 0]))
+
+    print('checking fusion_outcomes')
+    assert_array_equal(sym.fusion_outcomes(np.array([1]), np.array([1])), np.array([[2]]))
+    assert_array_equal(sym.fusion_outcomes(np.array([1]), np.array([-1])), np.array([[0]]))
+
+    print('checking fusion_outcomes_broadcast')
+    assert_array_equal(
+        sym.fusion_outcomes_broadcast(example_sectors, 2 * example_sectors),
+        3 * example_sectors
+    )
+
+    print('checking equality')
+    assert sym == sym
+    assert sym == symmetries.fermion_number
+    assert sym != symmetries.fermion_parity
+    assert sym != symmetries.no_symmetry
+    assert sym != symmetries.SU2Symmetry()
+    assert sym != symmetries.fermion_number * symmetries.z2_symmetry
+
+    print('checking is_same_symmetry')
+    assert sym.is_same_symmetry(sym)
+    assert not sym.is_same_symmetry(symmetries.no_symmetry)
+    assert not sym.is_same_symmetry(symmetries.SU2Symmetry())
+
+    print('checking dual_sector')
+    assert_array_equal(sym.dual_sector(np.array([2])), np.array([-2]))
+
+    print('checking dual_sectors')
+    assert_array_equal(sym.dual_sectors(example_sectors), -example_sectors)
 
 
 @pytest.mark.parametrize('handedness', ['left', 'right'])
