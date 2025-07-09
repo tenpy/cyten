@@ -1390,6 +1390,7 @@ def apply_single_b_symbol(ten: SymmetricTensor, bend_up: bool
     implementation. This is of course inefficient usage of this implementation but a
     necessity in order to use the structure of the already implemented tests.
     """
+    raise NotImplementedError  # FIXME use new instruction framework!
     func = fusion_tree_backend.TreeMappingDict.from_b_or_c_symbol
     index = ten.num_codomain_legs - 1
     coupled = [ten.domain.sector_decomposition[ind[1]] for ind in ten.data.block_inds]
@@ -1415,6 +1416,7 @@ def apply_single_c_symbol(ten: SymmetricTensor, leg: int | str, levels: list[int
     implementations. This is of course inefficient usage of this implementation but a
     necessity in order to use the structure of the already implemented tests.
     """
+    raise NotImplementedError  # FIXME use new instruction framework!
     func = fusion_tree_backend.TreeMappingDict.from_b_or_c_symbol
     index = ten.get_leg_idcs(leg)[0]
     in_domain = index > ten.num_codomain_legs - 1
@@ -2064,6 +2066,7 @@ def cross_check_transpose(ten: SymmetricTensor
 
     This function implements the latter approach.
     """
+    raise NotImplementedError  # FIXME use new instruction framework!
     ftb_TMD = fusion_tree_backend.TreeMappingDict
     codomain_idcs = list(range(ten.num_codomain_legs, ten.num_legs))
     domain_idcs = list(reversed(range(ten.num_codomain_legs)))
