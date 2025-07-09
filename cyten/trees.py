@@ -810,6 +810,35 @@ class FusionTree:
         )
         return rest_tree, self.coupled, self.multiplicities[-1], self.uncoupled[-1]
 
+    def twist(self, j: int, overtwist: bool = False) -> complex:
+        """The prefactor obtained when twisting one of the uncoupled legs.
+
+        The prefactor is a complex phase.
+        Graphically (here for ``j=-1``, which is easiest to draw)::
+
+            |    │
+            |   ┏┷━━━━━━━━━━━━┓                       │
+            |   ┃    self     ┃                      ┏┷━━━━━━━━━━━━┓
+            |   ┗┯━━━┯━━━┯━━━┯┛  ╭─╮   =   twist  *  ┃    self     ┃
+            |    │   │   │    ╲ ╱  │                 ┗┯━━━┯━━━┯━━━┯┛
+            |    │   │   │     ╲   │                  │   │   │   │
+            |    │   │   │    ╱ ╲  │
+            |    │   │   │   │   ╰─╯
+
+        Parameters
+        ----------
+        j : int
+            The position of the twist, we twist below ``uncoupled[j]``
+        overtwist : bool
+            By default, we do an undertwist, as shown above.
+            Can also do an overtwist instead, which results in a conjugated prefactor.
+        """
+        # if there is a Z iso, it just slides along the twist
+        res = self.symmetry.topological_twist(self.uncoupled[j])
+        if overtwist:
+            res = np.conj(res)
+        return res
+
 
 class fusion_trees(Iterable[FusionTree]):
     """Iterable over all :class:`FusionTree`s with given uncoupled and coupled sectors.

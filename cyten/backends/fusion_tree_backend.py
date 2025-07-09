@@ -81,7 +81,7 @@ from typing import TYPE_CHECKING, Callable, Generator, Iterable
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from math import prod
-from copy import deepcopy
+from itertools import chain
 
 import numpy as np
 import warnings
@@ -91,12 +91,12 @@ from .abstract_backend import (
     conventional_leg_order
 )
 from ..dtypes import Dtype
-from ..symmetries import Sector, SectorArray, Symmetry, BraidChiralityUnspecifiedError
+from ..symmetries import Sector, Symmetry, BraidChiralityUnspecifiedError
 from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe
 from ..trees import FusionTree, fusion_trees
 from ..tools.misc import (
     inverse_permutation, iter_common_sorted_arrays, iter_common_noncommon_sorted,
-    iter_common_sorted, permutation_as_swaps, permutation_as_swaps2, rank_data
+    iter_common_sorted, permutation_as_swaps, rank_data
 )
 from ..tools.mappings import SparseMapping, IdentityMapping
 
@@ -1852,21 +1852,19 @@ class FusionTreeBackend(TensorBackend):
         codomain_idcs = list(range(a.num_codomain_legs, a.num_legs))
         domain_idcs = list(reversed(range(a.num_codomain_legs)))
         levels = list(reversed(range(a.num_legs)))
-        coupled = np.array([a.domain.sector_decomposition[i[1]] for i in a.data.block_inds])
-
-        raise NotImplementedError  # FIXME
-
-        # mapping_twists = TreeMappingDict.from_topological_twists(a.codomain, coupled)
-        # mapping_twists = mapping_twists.add_tensorproduct(a.domain, coupled, index=1)
-
-        # mapping_permute, codomain, domain = TreeMappingDict.from_permute_legs(
-        #     a=a, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels
-        # )
-        # full_mapping = mapping_twists.compose(mapping_permute)
-
-        # axes_perm = list(reversed(range(a.num_legs)))
-        # data = full_mapping.apply_to_tensor(a, codomain, domain, axes_perm, None)
-        # return data
+        twist_instructions = [
+            TwistInstruction(codomain=True, idx=i, overtwist=True)  # FIXME over or undertwist??
+            for i in range(a.num_codomain_legs)
+        ]
+        permute_instructions = permute_legs_instructions(
+            num_codomain_legs=a.num_codomain_legs, num_domain_legs=a.num_domain_legs,
+            codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels,
+            has_symmetric_braid=a.symmetry.has_symmetric_braid
+        )
+        instructions = chain(twist_instructions, permute_instructions)  # FIXME order??
+        return self.apply_instructions(a, instructions=instructions, codomain_idcs=codomain_idcs,
+                                       domain_idcs=domain_idcs, new_codomain=a.domain,
+                                       new_domain=a.codomain, mixes_codomain_domain=True)
 
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
                                  degeneracy_tol: float, trunc_cut: float, svd_min: float
@@ -2175,6 +2173,54 @@ class BendInstruction(Instruction):
     bend_up: bool
 
 
+@dataclass(frozen=True, slots=True)
+class TwistInstruction(Instruction):
+    """Instruction to apply a twist on one leg.
+
+    Attributes
+    ----------
+    codomain : bool
+        If the braid is in the codomain. Otherwise in the domain.
+    idx : int
+        Which leg of the (co-)domain is twisted; we twist ``(co)domain[idx]``.
+    overtwist : bool
+        Specifies the chirality of the twist. If the twist is on the right of the wire,
+        an overtwist is such that the free end goes over the end on the tensor, see notes below.
+
+    Notes
+    -----
+    Examples for over-twists::
+
+        |    │   │   │   │   ╭─╮             │   │   │   │
+        |    │   │   │    ╲ ╱  │            ┏┷━━━┷━━━┷━━━┷┓
+        |    │   │   │     ╲   │            ┃             ┃
+        |    │   │   │    ╱ ╲  │            ┗━━┯━━━┯━━━┯━━┛╭─╮
+        |   ┏┷━━━┷━━━┷━━━┷┓  ╰─╯               │   │    ╲ ╱  │
+        |   ┃             ┃         OR         │   │     ╱   │
+        |   ┗━━┯━━━┯━━━┯━━┛                    │   │    ╱ ╲  │
+        |      │   │   │                       │   │   │   ╰─╯
+
+    Examples for under-twists::
+
+        |    │   │   │   │   ╭─╮             │   │   │   │
+        |    │   │   │    ╲ ╱  │            ┏┷━━━┷━━━┷━━━┷┓
+        |    │   │   │     ╱   │            ┃             ┃
+        |    │   │   │    ╱ ╲  │            ┗━━┯━━━┯━━━┯━━┛╭─╮
+        |   ┏┷━━━┷━━━┷━━━┷┓  ╰─╯               │   │    ╲ ╱  │
+        |   ┃             ┃         OR         │   │     ╲   │
+        |   ┗━━┯━━━┯━━━┯━━┛                    │   │    ╱ ╲  │
+        |      │   │   │                       │   │   │   ╰─╯
+
+    Note how the map that appears depends not only on `overtwist`, but rather on
+    ``overtwist == codomain``, i.e. an overtwist in the codomain involves the same map
+    (:math:`theta` in the notes) as an undertwist in the domain and vice-versa.
+    """
+
+    codomain: bool
+    idx: int
+    overtwist: bool
+
+
 def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
                               codomain_idcs: list[int], domain_idcs: list[int],
                               levels: list[int] | None, has_symmetric_braid: bool,
@@ -2207,7 +2253,7 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
         # if they dont matter, just use arbitrary levels
         levels = list(range(num_legs))
     else:
-        levels = levels[:]  # copy, since we modify in-place.
+        levels = list(levels)  # copy, since we modify in-place.
 
     # 0) identify which legs need to be bent
     #   bend_up: legs that are in domain but go to codomain. Sorted by current position in tensor.legs
@@ -2340,6 +2386,8 @@ class TensorMapping(metaclass=ABCMeta):
             return self.pre_compose_bend_instruction(instruction)
         if isinstance(instruction, BraidInstruction):
             return self.pre_compose_braid_instruction(instruction)
+        if isinstance(instruction, TwistInstruction):
+            return self.pre_compose_twist_instruction(instruction)
         if isinstance(instruction, Instruction):
             raise NotImplementedError
         raise TypeError
@@ -2372,6 +2420,11 @@ class TensorMapping(metaclass=ABCMeta):
 
     @abstractmethod
     def pre_compose_braid_instruction(self, instruction: BraidInstruction) -> TensorMapping:
+        """Special case of :meth:`pre_compose_instruction`."""
+        ...
+
+    @abstractmethod
+    def pre_compose_twist_instruction(self, instruction: TwistInstruction) -> TensorMapping:
         """Special case of :meth:`pre_compose_instruction`."""
         ...
 
@@ -2472,6 +2525,20 @@ class TreePairMapping(TensorMapping):
             bend_mapping[Y, X] = FusionTree.bend_leg(Y, X, instruction.bend_up)
         mapping = self.mapping.pre_compose(bend_mapping)
         return TreePairMapping(mapping)
+
+    def pre_compose_twist_instruction(self, instruction: TwistInstruction) -> TensorMapping:
+        # OPTIMIZE skip the whole call if braiding_style <= fermionic, since then alll theta = 1
+        res = SparseMapping[tuple[FusionTree, FusionTree]]()
+        for i, self_i in self.mapping.items():
+            res[i] = res_i = {}
+            for (Y, X), a_ij in self_i.items():
+                if instruction.codomain:
+                    # FIXME make sure the conj is correct!
+                    theta = Y.twist(j=instruction.idx, overtwist=instruction.overtwist)
+                else:
+                    theta = X.twist(j=instruction.idx, overtwist=instruction.overtwist)
+                res_i[Y, X] = a_ij * theta
+        return TreePairMapping(res)
 
     def transform_tensor(self, data: FusionTreeData,
                          codomain: TensorProduct, domain: TensorProduct,
@@ -2599,6 +2666,28 @@ class SingleTreeMapping(TensorMapping):
 
     def pre_compose_bend_instruction(self, instruction):
         raise TypeError(f'{type(self).__name__} is incompatible with `{type(instruction).__name__}`.')
+
+    def pre_compose_twist_instruction(self, instruction: TwistInstruction) -> TensorMapping:
+        # OPTIMIZE skip the whole call if symmetry.braiding_style <= fermionic ?
+        #          then, all twists are 1.
+        if instruction.codomain:
+            splitting_tree_mapping = SparseMapping[FusionTree]()
+            for i, a_i in self.splitting_tree_mapping.items():
+                splitting_tree_mapping[i] = res_i = {}
+                for j, a_ij in a_i.items():
+                    # FIXME double check the conf
+                    theta = j.twist(j=instruction.idx, overtwist=instruction.overtwist)
+                    res_i[j] = a_ij * theta
+            fusion_tree_mapping = self.fusion_tree_mapping
+        else:
+            fusion_tree_mapping = SparseMapping[FusionTree]()
+            for i, a_i in self.fusion_tree_mapping.items():
+                fusion_tree_mapping[i] = res_i = {}
+                for j, a_ij in a_i.items():
+                    theta = j.twist(j=instruction.idx, overtwist=instruction.overtwist)
+                    res_i[j] = a_ij * theta
+            splitting_tree_mapping = self.splitting_tree_mapping
+        return SingleTreeMapping(splitting_tree_mapping, fusion_tree_mapping)
 
     def transform_tensor(self, data: FusionTreeData,
                          codomain: TensorProduct, domain: TensorProduct,

@@ -1390,23 +1390,25 @@ def apply_single_b_symbol(ten: SymmetricTensor, bend_up: bool
     implementation. This is of course inefficient usage of this implementation but a
     necessity in order to use the structure of the already implemented tests.
     """
-    raise NotImplementedError  # FIXME use new instruction framework!
-    func = fusion_tree_backend.TreeMappingDict.from_b_or_c_symbol
-    index = ten.num_codomain_legs - 1
-    coupled = [ten.domain.sector_decomposition[ind[1]] for ind in ten.data.block_inds]
-
+    instruction = fusion_tree_backend.BendInstruction(bend_up=bend_up)
+    mapping = fusion_tree_backend.TensorMapping.from_instructions(
+        [instruction], codomain=ten.codomain, domain=ten.domain
+    )
     if bend_up:
-        axes_perm = list(range(ten.num_codomain_legs)) + [ten.num_legs - 1]
-        axes_perm += [ten.num_codomain_legs + i for i in range(ten.num_domain_legs - 1)]
+        codomain_idcs = [*range(ten.num_codomain_legs + 1)]
+        domain_idcs = [*reversed(range(ten.num_codomain_legs + 1, ten.num_legs))]
+        codomain_factors = [*ten.codomain.factors, ten.domain[-1].dual]
+        domain_factors = ten.domain.factors[:-1]
     else:
-        axes_perm = list(range(ten.num_codomain_legs - 1))
-        axes_perm += [ten.num_codomain_legs + i for i in range(ten.num_domain_legs)]
-        axes_perm += [ten.num_codomain_legs - 1]
-
-    mapp, new_codomain, new_domain, _ = func(ten.codomain, ten.domain, index, coupled,
-                                             None, bend_up, ten.backend)
-    new_data = mapp.apply_to_tensor(ten, new_codomain, new_domain, axes_perm, in_domain=None)
-    return new_data, new_codomain, new_domain
+        codomain_idcs = [*range(ten.num_codomain_legs - 1)]
+        domain_idcs = [*reversed(range(ten.num_codomain_legs - 1, ten.num_legs))]
+        codomain_factors = ten.codomain.factors[:-1]
+        domain_factors = [*ten.domain.factors, ten.codomain.factors[-1].dual]
+    new_codomain = TensorProduct(codomain_factors)
+    new_domain = TensorProduct(domain_factors)
+    return mapping.transform_tensor(data=ten.data, codomain=ten.codomain, domain=ten.domain,
+                                    new_codomain=new_codomain, new_domain=new_domain,
+                                    codomain_idcs=codomain_idcs, domain_idcs=domain_idcs)
 
 
 def apply_single_c_symbol(ten: SymmetricTensor, leg: int | str, levels: list[int]
@@ -1416,25 +1418,32 @@ def apply_single_c_symbol(ten: SymmetricTensor, leg: int | str, levels: list[int
     implementations. This is of course inefficient usage of this implementation but a
     necessity in order to use the structure of the already implemented tests.
     """
-    raise NotImplementedError  # FIXME use new instruction framework!
-    func = fusion_tree_backend.TreeMappingDict.from_b_or_c_symbol
-    index = ten.get_leg_idcs(leg)[0]
-    in_domain = index > ten.num_codomain_legs - 1
-    overbraid = levels[index] > levels[index + 1]
-    coupled = [ten.domain.sector_decomposition[ind[1]] for ind in ten.data.block_inds]
-
-    if not in_domain:
-        axes_perm = list(range(ten.num_codomain_legs))
-        index_ = index
+    assert isinstance(ten.backend, fusion_tree_backend.FusionTreeBackend)
+    in_domain, idx, leg = ten._parse_leg_idx(leg)
+    instruction = fusion_tree_backend.BraidInstruction(
+        codomain=not in_domain, idx=idx, overbraid=levels[leg] > levels[leg + 1]
+    )
+    mapping = fusion_tree_backend.SingleTreeMapping.from_instructions(
+        [instruction], codomain=ten.codomain, domain=ten.domain, block_inds=ten.data.block_inds
+    )
+    if in_domain:
+        new_codomain = ten.codomain
+        factors = ten.domain.factors[:]
+        factors[idx - 1], factors[idx] = factors[idx], factors[idx - 1]
+        new_domain = TensorProduct(factors)
+        codomain_idcs = [*range(ten.num_codomain_legs)]
+        domain_idcs = [*reversed(range(ten.num_codomain_legs, ten.num_legs))]
+        domain_idcs[idx - 1], domain_idcs[idx] = domain_idcs[idx], domain_idcs[idx - 1]
     else:
-        axes_perm = list(range(ten.num_domain_legs))
-        index_ = ten.num_legs - 1 - (index + 1)
-    axes_perm[index_:index_ + 2] = axes_perm[index_:index_ + 2][::-1]
-
-    mapp, new_codomain, new_domain, _ = func(ten.codomain, ten.domain, index, coupled,
-                                             overbraid, None, ten.backend)
-    new_data = mapp.apply_to_tensor(ten, new_codomain, new_domain, axes_perm, in_domain)
-    return new_data, new_codomain, new_domain
+        factors = ten.codomain.factors[:]
+        factors[idx], factors[idx + 1] = factors[idx + 1], factors[idx]
+        new_codomain = TensorProduct(factors)
+        new_domain = ten.domain
+        codomain_idcs = [*range(idx), idx + 1, idx, *range(idx + 2, ten.num_codomain_legs)]
+        domain_idcs = [*reversed(range(ten.num_codomain_legs, ten.num_legs))]
+    return mapping.transform_tensor(ten.data, codomain=ten.codomain, domain=ten.domain,
+                                    new_codomain=new_codomain, new_domain=new_domain,
+                                    codomain_idcs=codomain_idcs, domain_idcs=domain_idcs)
 
 
 def assert_bending_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[Callable], eps: float):
