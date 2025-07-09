@@ -2974,6 +2974,46 @@ def _elementwise_function(block_func: str, func_kwargs={}, maps_zero_to_zero=Fal
     return decorator
 
 
+# HELPERS FOR TENSOR CREATION
+
+
+def eye(leg: ElementarySpace, backend: TensorBackend = None, labels: list[str | None] = None,
+        dtype: Dtype = Dtype.float64, device: str = None, diagonal: bool = True
+        ) -> DiagonalTensor | SymmetricTensor:
+    """The identity tensor on a given leg."""
+    res = DiagonalTensor.from_eye(leg=leg, backend=backend, labels=labels, dtype=dtype,
+                                  device=device)
+    if diagonal:
+        return res
+    return res.as_SymmetricTensor()
+
+
+def tensor(obj, codomain: Sequence[Leg], domain: Sequence[Leg] = None,
+           backend: TensorBackend = None,
+           labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+           dtype: Dtype = None, device: str = None) -> SymmetricTensor:
+    """Convert object to tensor if possible.
+
+    TODO elaborate
+    """
+    if isinstance(obj, Tensor):
+        if codomain != obj.codomain:
+            raise ValueError('Mismatching codomain')
+        if domain is not None and domain != obj.domain:
+            raise ValueError('Mismatching domain')
+        if backend is not None and backend != obj.backend:
+            raise ValueError('Mismatching backend')  # TODO or should we convert?
+        if labels is not None:
+            raise NotImplementedError  # TODO
+        if dtype is not None:
+            raise NotImplementedError  # TODO
+        if device is not None:
+            raise NotImplementedError  # TODO
+        return obj.as_SymmetricTensor()
+    return SymmetricTensor.from_dense_block(obj, codomain, domain, backend=backend, labels=labels,
+                                            dtype=dtype, device=device)
+
+
 # FUNCTIONS ON TENSORS
 
 
