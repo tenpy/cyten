@@ -293,8 +293,8 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
     SymCls = type(sym)
     if sym.can_be_dropped and SymCls.Z_iso is not symmetries.Symmetry.Z_iso:
         for a in example_sectors:
-            msg = 'Z_iso does not match fallback'
-            assert_array_almost_equal(sym.Z_iso(a), symmetries.Symmetry.Z_iso(sym, a)), msg
+            assert_array_almost_equal(sym.Z_iso(a), symmetries.Symmetry.Z_iso(sym, a),
+                                      err_msg='Z_iso does not match fallback')
     if SymCls.frobenius_schur is not symmetries.Symmetry.frobenius_schur:
         for a in example_sectors:
             msg = 'frobenius_schur does not match fallback'
@@ -302,7 +302,8 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
     if SymCls.qdim is not symmetries.Symmetry.qdim:
         for a in example_sectors:
             # need almost equal for non-integer qdim
-            assert_array_almost_equal(sym.qdim(a), symmetries.Symmetry.qdim(sym, a)), 'qdim does not match fallback'
+            assert_array_almost_equal(sym.qdim(a), symmetries.Symmetry.qdim(sym, a),
+                                      err_msg='qdim does not match fallback')
     if SymCls._b_symbol is not symmetries.Symmetry._b_symbol:
         for a, b, c in sector_triplets:
             assert_array_almost_equal(
@@ -317,6 +318,11 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
                 symmetries.Symmetry._c_symbol(sym, a, b, c, d, e, f),
                 err_msg='C symbol does not match fallback'
             )
+    if SymCls.topological_twist is not symmetries.Symmetry.topological_twist:
+        for a in example_sectors:
+            assert_array_almost_equal(sym.topological_twist(a),
+                                      symmetries.Symmetry.topological_twist(sym, a),
+                                      err_msg='topological_twist does not match fallback')
 
     # check braiding style
     for a in example_sectors:  # check topological twist
@@ -537,11 +543,9 @@ def check_F_symbols(sym: symmetries.Symmetry, sector_sextets, sector_unitarity_t
         res = np.zeros(shape, dtype=complex)
         for f in sym.fusion_outcomes(a, b):
             if sym.can_fuse_to(f, c, d):
-                print(a,b,c,d,e,f)
                 F1 = sym.f_symbol(a, b, c, d, e, f)
                 F2 = sym.f_symbol(a, b, c, d, g, f).conj()
                 res += np.tensordot(F1, F2, axes=[[2,3], [2,3]])
-                print(res)
         if np.array_equal(e, g):
             assert_array_almost_equal(res, np.eye(shape[0] * shape[1]).reshape(shape))
         else:
@@ -557,18 +561,9 @@ def check_R_symbols(sym: symmetries.Symmetry, sector_triplets, example_sectors_l
 
         assert R.shape == shape  # shape
         assert_array_almost_equal(np.abs(R), np.ones(shape))  # unitarity
-        # TODO is this general ???
-        assert_array_almost_equal(sym.topological_twist(a), sym.frobenius_schur(a) *
-                                  sym.r_symbol(sym.dual_sector(a), a, sym.trivial_sector)[0].conj())
 
         if np.any([np.array_equal(charge, sym.trivial_sector) for charge in [a, b]]):
             assert_array_almost_equal(R, np.ones_like(R))  # exchange with trivial sector
-
-    for a in example_sectors_low_qdim:  # consistency with topological twist
-        twist = 0
-        for c in sym.fusion_outcomes(a, a):
-            twist += sym.qdim(c) / sym.qdim(a) * np.sum(sym.r_symbol(a, a, c))
-        assert_array_almost_equal(twist, sym.topological_twist(a))
 
 
 def check_C_symbols(sym: symmetries.Symmetry, sector_sextets, sector_unitarity_test):
