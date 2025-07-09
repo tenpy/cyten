@@ -1400,9 +1400,6 @@ class SU2Symmetry(GroupSymmetry):
         return X
 
     def Z_iso(self, a: Sector) -> np.ndarray:
-        # TODO double check that the formula is correct!
-        # Claim : Z_a : <m| \mapsto (-1)^(j + m) |-m>
-        # Note to extend *linearly*, not anti-linearly.
         from . import _su2data
         return _su2data.Z_iso(a[0])
 
