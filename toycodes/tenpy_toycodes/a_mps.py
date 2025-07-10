@@ -28,6 +28,7 @@ class SimpleMPS:
     nbonds : int
         Number of (non-trivial) bonds: L-1 for 'finite' boundary conditions, L for 'infinite'.
     """
+
     def __init__(self, Bs: list[ct.SymmetricTensor], Ss: list[ct.DiagonalTensor], bc='finite'):
         assert bc in ['finite', 'infinite']
         self.Bs = Bs
@@ -124,11 +125,8 @@ def init_FM_MPS(L, d=2, bc='finite', backend='abelian'):
     p = ct.ElementarySpace.from_trivial_sector(d)
     v = ct.ElementarySpace.from_trivial_sector(1)
     B = np.array([1] + [0] * (d - 1), float)[None, :, None]
-    B = ct.tensor()
-    B = ct.SymmetricTensor.from_dense_block(B, [v, p, v], labels=['vL', 'p', 'vR'], backend=backend)
-    # TODO offer API function ``ct.tensor()``?
-    S = ct.DiagonalTensor.from_eye(p, backend=backend, labels=['vL', 'vR'])
-    # TODO offer API function ``ct.eye()``?
+    B = ct.tensor(B, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
+    S = ct.eye(p, backend=backend, labels=['vL', 'vR'])
     return SimpleMPS([B] * L, [S] * L, bc=bc)
 
 
