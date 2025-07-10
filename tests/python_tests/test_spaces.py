@@ -199,19 +199,18 @@ def test_ElementarySpace_from_defining_sectors(any_symmetry, make_any_sectors, n
 
 
 def test_take_slice(make_any_space, any_symmetry, np_random):
-    pytest.xfail()  # TODO
-    
     if not any_symmetry.can_be_dropped:
         space: spaces.ElementarySpace = make_any_space()
         with pytest.raises(SymmetryError, match='take_slice is meaningless for .*.'):
             _ = space.take_slice([True])
         return
-    
+
     if isinstance(any_symmetry, symmetries.SU2Symmetry):
         sectors = np.array([0, 1, 2, 4])[:, None]
         mults = np.array([3, 1, 2, 2])
         basis_perm = np.array([19, 20, 17, 2, 9, 16, 8, 3, 0, 4, 11, 13, 5, 15, 12, 14, 10, 7, 1, 18, 6])
-        space = spaces.ElementarySpace(any_symmetry, sectors, mults, basis_perm)
+        space = spaces.ElementarySpace(any_symmetry, defining_sectors=sectors, multiplicities=mults,
+                                       basis_perm=basis_perm)
 
         # build an allowed and an illegal mask in the internal basis order
         keep_states = []
