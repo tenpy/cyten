@@ -6,6 +6,7 @@ import numpy as np
 
 class TFIModel:
     """TFI: -J XX - g Z"""
+
     def __init__(self, L, J, g, bc='finite'):
         assert bc in ['finite', 'infinite']
         # TODO should we add subclasse for most important case Z2?
