@@ -403,14 +403,15 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
     assert np.all(pipe.basis_perm == np.array(expect_perm))
 
 
-def test_direct_sum(make_any_space, max_mult=5, max_sectors=5):
-    pytest.xfail()  # TODO
-    
-    a = make_any_space(max_mult=max_mult, max_sectors=max_sectors)
-    b = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=a.is_dual)
-    c = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=a.is_dual)
+@pytest.mark.parametrize('is_dual', [True, False])
+def test_direct_sum(is_dual, make_any_space, max_mult=5, max_sectors=5):
+    a = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
+    b = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
+    c = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
     assert a == spaces.ElementarySpace.direct_sum(a)
     d = spaces.ElementarySpace.direct_sum(a, b, c)
+    d.test_sanity()
+    assert d.is_dual == is_dual
     if a.symmetry.can_be_dropped:
         expect = np.concatenate([leg.sectors_of_basis for leg in [a, b, c]], axis=0)
         npt.assert_array_equal(d.sectors_of_basis, expect)
@@ -424,8 +425,12 @@ def test_direct_sum(make_any_space, max_mult=5, max_sectors=5):
     sort = np.lexsort(sectors.T)
     sectors = sectors[sort]
     mults = mults[sort]
-    assert np.all(d.sector_decomposition == sectors)
-    assert np.all(d.multiplicities == mults)
+    if is_dual:
+        expected_order = np.lexsort(d.sector_decomposition.T)
+    else:
+        expected_order = slice(None, None, None)
+    assert np.all(d.sector_decomposition[expected_order] == sectors)
+    assert np.all(d.multiplicities[expected_order] == mults)
 
 
 def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines=20):
