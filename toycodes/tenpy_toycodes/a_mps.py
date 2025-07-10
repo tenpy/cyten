@@ -124,6 +124,7 @@ def init_FM_MPS(L, d=2, bc='finite', backend='abelian'):
     p = ct.ElementarySpace.from_trivial_sector(d)
     v = ct.ElementarySpace.from_trivial_sector(1)
     B = np.array([1] + [0] * (d - 1), float)[None, :, None]
+    B = ct.tensor()
     B = ct.SymmetricTensor.from_dense_block(B, [v, p, v], labels=['vL', 'p', 'vR'], backend=backend)
     # TODO offer API function ``ct.tensor()``?
     S = ct.DiagonalTensor.from_eye(p, backend=backend, labels=['vL', 'vR'])
