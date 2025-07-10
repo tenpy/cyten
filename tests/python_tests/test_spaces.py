@@ -11,15 +11,11 @@ from .util import random_ElementarySpace
 
 def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
 
-    pytest.xfail()  # TODO
-    
     sectors = make_any_sectors(10)
     sectors = sectors[np.lexsort(sectors.T)]
     dual_sectors = any_symmetry.dual_sectors(sectors)
     dual_sectors_sort = np.lexsort(dual_sectors.T)
     mults = np_random.integers(1, 10, size=len(sectors))
-
-    # TODO (JU) test real (as in "not complex") vectorspaces
 
     s1 = spaces.ElementarySpace(symmetry=any_symmetry, defining_sectors=sectors, multiplicities=mults)
     s2 = spaces.ElementarySpace.from_trivial_sector(dim=8)
@@ -44,15 +40,11 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
     else:
         wrong_mults[0] += 1
     assert s1 != spaces.ElementarySpace(symmetry=any_symmetry, defining_sectors=sectors, multiplicities=wrong_mults)
-    npt.assert_array_equal(s1_dual.defining_sectors, dual_sectors[dual_sectors_sort])
-    npt.assert_array_equal(s1_dual.multiplicities, s1.multiplicities[dual_sectors_sort])
+    npt.assert_array_equal(s1_dual.defining_sectors, s1.defining_sectors)
+    npt.assert_array_equal(s1_dual.sector_decomposition, dual_sectors)
+    npt.assert_array_equal(s1_dual.multiplicities, s1.multiplicities)
     assert s1_dual.symmetry == s1.symmetry
     assert s1_dual.is_dual is True
-    #
-    s1_modified = spaces.ElementarySpace(s1.symmetry, defining_sectors=s1.sector_decomposition, multiplicities=s1.multiplicities,
-                                         is_dual=not s1.is_dual, basis_perm=s1._basis_perm)
-    assert s1 != s1_modified
-    assert s1_modified == s1.with_opposite_duality()
 
     print('checking is_trivial')
     assert not s1.is_trivial
@@ -81,7 +73,9 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
     fewer_sectors2 = spaces.ElementarySpace(symmetry=any_symmetry, defining_sectors=[sectors[i] for i in which2],
                                             multiplicities=[mults[i] for i in which2])
     assert s1.is_subspace_of(s1)
-    assert not s1.dual.is_subspace_of(s1)
+    expect_dual_is_subspace = np.all(s1.sector_decomposition == dual_sectors)
+    assert s1_dual.is_subspace_of(s1) == expect_dual_is_subspace
+
     assert same_sectors_less_mults.is_subspace_of(s1)
     assert not s1.is_subspace_of(same_sectors_less_mults)
     assert not same_sectors_different_mults.is_subspace_of(s1)
@@ -97,8 +91,6 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
         assert not s1.is_subspace_of(fewer_sectors1)
         assert not fewer_sectors1.is_subspace_of(fewer_sectors2)
         assert not fewer_sectors2.is_subspace_of(fewer_sectors1)
-
-    # TODO (JU) test num_parameters when ready
 
     print('check idx_to_sector and parse_idx')
     if any_symmetry.can_be_dropped:
@@ -127,7 +119,7 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
                 bad_sectors = np.array([0, 1, 1, 1, 2, 2, 2])[:, None]
                 # have three basis vectors for 2-dimensional spin-1/2
                 _ = spaces.ElementarySpace.from_basis(symmetry=any_symmetry, sectors_of_basis=bad_sectors)
-            
+
             # spins 0, 1/2 and 1, each two times
             #                         0  1  2  3  4  5  6  7  8  9  10 11
             sectors_of_basis = np.array([0, 2, 2, 1, 2, 1, 2, 2, 0, 2, 1, 1])[:, None]
