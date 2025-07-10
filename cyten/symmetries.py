@@ -408,6 +408,7 @@ class Symmetry(metaclass=ABCMeta):
             |   a                            a
 
         """
+        # OPTIMIZE implement concrete formulae for anyons? or just cache?
         if self.braiding_style == BraidingStyle.bosonic:
             return +1
         # sum_b sum_mu d_b / d_a * [R^aa_b]^mu_mu
@@ -425,13 +426,17 @@ class Symmetry(metaclass=ABCMeta):
         return res.item()
 
     def s_matrix_element(self, a: Sector, b: Sector) -> complex:
-        """Single matrix-element of the S-matrix. Only defined for modular tensor categories.
+        """Single matrix-element of the S-matrix.
 
         See Also
         --------
         s_matrix
         """
-        raise SymmetryError('S-matrix is only defined for modular tensor categories.')
+        S = 0
+        for c in self.fusion_outcomes(a, b):
+            S += self._n_symbol(a, b, c) * self.qdim(c) * self.topological_twist(c)
+        S /= self.topological_twist(a) * self.topological_twist(b) * self.total_qdim()
+        return np.real_if_close(S)
 
     def s_matrix(self) -> np.ndarray:
         """The modular S-matrix. Only defined for modular tensor categories.
@@ -440,7 +445,15 @@ class Symmetry(metaclass=ABCMeta):
         --------
         s_matrix_element
         """
-        raise SymmetryError('S-matrix is only defined for modular tensor categories.')
+        sectors = self.all_sectors()
+        S = np.zeros((self.num_sectors, self.num_sectors), dtype=complex)
+        normalization = np.array([1/self.topological_twist(a) for a in sectors])
+        normalization = np.outer(normalization, normalization) / self.total_qdim()
+        for a in range(sectors.shape[0]):
+            for b in range(sectors.shape[0]):
+                for c in self.fusion_outcomes(sectors[a], sectors[b]):
+                    S[a, b] += self._n_symbol(sectors[a], sectors[b], c) * self.qdim(c) * self.topological_twist(c)
+        return np.real_if_close(S * normalization)
 
     # CONCRETE IMPLEMENTATIONS
 
@@ -1007,16 +1020,6 @@ class ProductSymmetry(Symmetry):
             res = np.kron(res, i)
 
         return res
-
-    def s_matrix_element(self, a: Sector, b: Sector) -> complex:
-        if isinstance(self, ModularTensorCategory):
-            return ModularTensorCategory.s_matrix_element(self)
-        return Symmetry.s_matrix_element(self)
-
-    def s_matrix(self) -> np.ndarray:
-        if isinstance(self, ModularTensorCategory):
-            return ModularTensorCategory.s_matrix(self)
-        return Symmetry.s_matrix(self)
 
 
 class _ABCFactorSymmetryMeta(ABCMeta):
@@ -2150,62 +2153,7 @@ class FermionParity(Symmetry):
         return self._one_2D_float
 
 
-class ModularTensorCategory(Symmetry, metaclass=_ABCFactorSymmetryMeta):
-    """Base-class for modular tensor categories.
-
-    Notes
-    -----
-    A product of several modular tensor categories is also a modular tensor category, but
-    represented by a
-    ProductSymmetry, which is not a subclass of AbelianGroup.
-    We have adjusted instancechecks accordingly, i.e. we have
-
-    .. doctest ::
-
-        >>> s = ProductSymmetry([ZNAnyonCategory2(2, 0), ZNAnyonCategory2(2, 1)])
-        >>> isinstance(s, ModularTensorCategory)
-        True
-        >>> issubclass(type(s), ModularTensorCategory)
-        False
-    """
-
-    def topological_twist(self, a):
-        # Eq (2.61) in Parsa Bondersons thesis
-        R = self._r_symbol(self.dual_sector(a), a, self.trivial_sector)[0]
-        return self.frobenius_schur(a) * np.conj(R)
-
-    def s_matrix_element(self, a: Sector, b: Sector) -> complex:
-        """Single matrix-element of the S-matrix.
-
-        See Also
-        --------
-        s_matrix
-        """
-        S = 0
-        for c in self.fusion_outcomes(a, b):
-            S += self._n_symbol(a, b, c) * self.qdim(c) * self.topological_twist(c)
-        S /= self.topological_twist(a) * self.topological_twist(b) * self.total_qdim()
-        return np.real_if_close(S)
-
-    def s_matrix(self) -> np.ndarray:
-        """The modular S-matrix. Only defined for modular tensor categories.
-
-        See Also
-        --------
-        s_matrix_element
-        """
-        sectors = self.all_sectors()
-        S = np.zeros((self.num_sectors, self.num_sectors), dtype=complex)
-        normalization = np.array([1/self.topological_twist(a) for a in sectors])
-        normalization = np.outer(normalization, normalization) / self.total_qdim()
-        for a in range(sectors.shape[0]):
-            for b in range(sectors.shape[0]):
-                for c in self.fusion_outcomes(sectors[a], sectors[b]):
-                    S[a, b] += self._n_symbol(sectors[a], sectors[b], c) * self.qdim(c) * self.topological_twist(c)
-        return np.real_if_close(S * normalization)
-
-
-class ZNAnyonCategory(ModularTensorCategory):
+class ZNAnyonCategory(Symmetry):
     r"""Abelian anyon category with fusion rules corresponding to the Z_N group;
 
     also written as :math:`Z_N^{(n)}`.
@@ -2298,7 +2246,7 @@ class ZNAnyonCategory(ModularTensorCategory):
         return np.arange(self.N, dtype=int)[:, None]
 
 
-class ZNAnyonCategory2(ModularTensorCategory):
+class ZNAnyonCategory2(Symmetry):
     r"""Abelian anyon category with fusion rules corresponding to the Z_N group;
 
     also written as :math:`Z_N^{(n+1/2)}`. `N` must be even.
@@ -2395,7 +2343,7 @@ class ZNAnyonCategory2(ModularTensorCategory):
         return np.arange(self.N, dtype=int)[:, None]
 
 
-class QuantumDoubleZNAnyonCategory(ModularTensorCategory):
+class QuantumDoubleZNAnyonCategory(Symmetry):
     r"""Doubled abelian anyon category.
 
     The fusion rules corresponding to the :math:`Z_N \times Z_N` group.
@@ -2507,7 +2455,7 @@ class ToricCodeCategory(QuantumDoubleZNAnyonCategory):
         return f'ToricCodeCategory({name_str})'
 
 
-class FibonacciAnyonCategory(ModularTensorCategory):
+class FibonacciAnyonCategory(Symmetry):
     """Category describing Fibonacci anyons.
 
     Allowed sectors are 1D arrays with a single entry of either `0` ("vacuum") or `1` ("tau anyon").
@@ -2610,7 +2558,7 @@ class FibonacciAnyonCategory(ModularTensorCategory):
         return np.arange(2, dtype=int)[:, None]
 
 
-class IsingAnyonCategory(ModularTensorCategory):
+class IsingAnyonCategory(Symmetry):
     """Category describing Ising anyons.
 
     Allowed sectors are 1D arrays with a single entry of either `0` ("vacuum"), `1` ("Ising anyon")
@@ -2731,7 +2679,7 @@ class IsingAnyonCategory(ModularTensorCategory):
         return np.arange(3, dtype=int)[:, None]
 
 
-class SU2_kAnyonCategory(ModularTensorCategory):
+class SU2_kAnyonCategory(Symmetry):
     """:math:`SU(2)_k` anyon category.
 
     .. todo ::
@@ -2916,7 +2864,7 @@ class SU2_kAnyonCategory(ModularTensorCategory):
         return np.arange(self.k + 1, dtype=int)[:, None]
 
 
-class SU3_3AnyonCategory(ModularTensorCategory):
+class SU3_3AnyonCategory(Symmetry):
     r""":math:`SU(3)_3` anyon category
 
     Can be used as a good first check for categories with higher fusion multiplicities.
