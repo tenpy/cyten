@@ -30,9 +30,9 @@ from .symmetries import (
 from .tensors import (
     SymmetricTensor, DiagonalTensor, Mask, ChargedTensor, add_trivial_leg, angle, almost_equal,
     apply_mask, bend_legs, combine_legs, combine_to_matrix, complex_conj, dagger, compose, eigh,
-    enlarge_leg, entropy, exp, imag, inner, is_scalar, item, move_leg, norm, on_device, outer,
+    enlarge_leg, entropy, exp, eye, imag, inner, is_scalar, item, move_leg, norm, on_device, outer,
     partial_trace, permute_legs, pinv, qr, real, real_if_close, lq, scale_axis, split_legs, sqrt,
-    squeeze_legs, stable_log, svd, tdot, trace, transpose, truncated_svd, zero_like
+    squeeze_legs, stable_log, svd, tdot, tensor, trace, transpose, truncated_svd, zero_like
 )
 from .trees import FusionTree, fusion_trees
 from .version import version as __version__
