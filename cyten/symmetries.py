@@ -1808,54 +1808,6 @@ class SUNSymmetry(GroupSymmetry):
 
         return np.zeros((1,), dtype=complex)
 
-    def Z_iso(self, a: Sector) -> npt.NDArray:
-        """Returns the Z isomorphism which maps a sector to its dual sector"""
-        if self.N == 2:
-            d_a = self.sector_dim(a)
-            Z = np.zeros((d_a, d_a), dtype=float)
-
-            for k in range(d_a):
-                Z[k, d_a - 1 - k] = 1 - 2 * np.mod(a[0] - k, 2)
-
-            return Z
-
-        # elif self.N == 3:
-        #     d_a = self.sector_dim(a)
-        #     Z = np.zeros((d_a, d_a), dtype=float)
-        #     dia=[]
-        #     for n in range(d_a):
-        #         dia += [(-1)**(n)]
-        #     print(np.fliplr(np.diag(dia)))
-        #     return np.fliplr(np.diag(dia))
-
-        elif self.N == 3:
-            d_a = self.sector_dim(a)
-            # Z = np.zeros((d_a, d_a), dtype=float)
-            if d_a == 1:
-                return np.array([[1]])
-
-            Z = np.zeros((d_a, d_a), dtype=complex)
-            Z[0, d_a-1] = -1.j
-            Z[d_a-1, 0] = 1.j
-
-            for i in range(1, d_a-1):
-                Z[i, i] = 1
-
-            return Z
-        #
-        # elif self.N == 3:
-        #     d_a = self.sector_dim(a)
-        #     # Z = np.zeros((d_a, d_a), dtype=float)
-        #     if d_a==1:
-        #         return np.array([[1]])
-        #
-        #     dia=[-1.j]
-        #     for n in range(1,d_a-1):
-        #         dia += [1]
-        #     dia+=[1.j]
-        #     print(np.fliplr(np.diag(dia)))
-        #     return np.fliplr(np.diag(dia))
-
     def frobenius_schur(self, a: Sector) -> int:
         """Returns the Frobenius-Schur indicator for a given irrep"""
         if self.N == 2:
