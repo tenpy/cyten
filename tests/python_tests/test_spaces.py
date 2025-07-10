@@ -243,7 +243,7 @@ def test_take_slice(make_any_space, any_symmetry, np_random):
 def test_TensorProduct(any_symmetry, make_any_space, make_any_sectors, num_spaces):
     domain = spaces.TensorProduct([make_any_space() for _ in range(num_spaces)], symmetry=any_symmetry)
     domain.test_sanity()
-    
+
     for coupled in make_any_sectors(10):
         expect = sum(domain.forest_block_size(uncoupled, coupled) for uncoupled in domain.iter_uncoupled())
         res = domain.block_size(coupled)
@@ -353,7 +353,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
     # Misc properties of the pipe
     # =======================================
     assert pipe.is_isomorphic_to(spaces.TensorProduct([leg_1, leg_2]))
-    
+
     # check fusion_outcomes_sort
     # =======================================
     fusion_outcomes = [abelian_group_symmetry.fusion_outcomes(s_1, s_2)[0]
@@ -380,7 +380,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
                                             by_duals=pipe.is_dual)
 
     assert np.all(pipe._get_fusion_outcomes_perm(pipe.multiplicities) == fusion_outcomes_perm)
-    
+
     # check basis_perm
     # =======================================
     assert pipe.basis_perm.shape == (pipe.dim,)
@@ -388,7 +388,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
     public_basis_pipe = [(abelian_group_symmetry.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
                          for b_1, b_2 in iter_combinations(public_basis_1, public_basis_2)]
     internal_basis_pipe = [internal_fusion_outcomes[n] for n in fusion_outcomes_perm]
-    
+
     # want to do ``expect_perm = [public_basis_pipe.index(i) for i in internal_basis_pipe]``
     # but need to deal with array comparison
     expect_perm = []

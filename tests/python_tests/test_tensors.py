@@ -1195,9 +1195,6 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
     if not tensor.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
-    if isinstance(tensor.symmetry, SU2Symmetry):
-        pytest.xfail()  # TODO
-
     if isinstance(tensor.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
             with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
@@ -1629,9 +1626,6 @@ def test_eigh(cls, dom, new_leg_dual, make_compatible_tensor):
     T = T + T.hc
     T.set_labels(list('efghijk')[:2 * dom])
     T.test_sanity()
-
-    if isinstance(T.backend, backends.AbelianBackend) and cls is not DiagonalTensor and T.num_legs != 2:
-        pytest.xfail()
 
     W, V = tensors.eigh(T, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual)
     W.test_sanity()
@@ -2663,10 +2657,6 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
         if cls_B is not DiagonalTensor:
             levels_B = list(np_random.permutation(B.num_legs))
             domain_B = [i for i in range(B.num_legs) if not i in contr_B][::-1]
-            if any([isinstance(leg, LegPipe) for leg in B.legs]):
-                with pytest.raises(NotImplementedError):
-                    _ = tensors.permute_legs(B, codomain=contr_B, domain=domain_B, levels=levels_B)
-                pytest.xfail()
             if cls_B is Mask and len(domain_B) != 1:
                 catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
             else:
