@@ -1472,7 +1472,8 @@ class TensorProduct(Space):
         """
         # OPTIMIZE some users in FTBackend ignore the slc and i...
         if any(not isinstance(sp, ElementarySpace) for sp in self.factors):
-            raise NotImplementedError  # TODO what to do if there are pipes?
+            # if there are pipes, this should not be called.
+            raise RuntimeError('iter_tree_blocks can not deal with pipes')
         are_dual = [sp.is_dual for sp in self.factors]
         for i, c in enumerate(coupled):
             start = 0  # start index of the current tree block within the block
@@ -1513,11 +1514,16 @@ class TensorProduct(Space):
                 start += forest_block_width
 
     def iter_uncoupled(self) -> Iterator[SectorArray]:
-        """Iterate over all combinations of sectors
+        """Iterate over all combinations of sectors.
+
+        Assumes that all the :attr:`factors` are :class:`ElementarySpaces`, i.e. pipes
+        are not supported.
 
         For a TensorProduct of zero spaces, i.e. with ``num_space == 0``, we yield an empty
         array once.
         """
+        if not all(isinstance(f, ElementarySpace) for f in self.factors):
+            raise RuntimeError('iter_uncoupled can not deal with pipes.')
         if self.num_factors == 0:
             yield self.symmetry.empty_sector_array
             return
