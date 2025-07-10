@@ -1,3 +1,4 @@
+"""Testing if the toycodes can run."""
 import importlib.util
 import pytest
 import importlib
