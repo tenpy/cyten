@@ -90,6 +90,7 @@ from .tools.misc import (
 
 
 logger = logging.getLogger(__name__)
+_USE_PERMUTE_LEGS_ERR_MSG = 'Legs can not be permuted automatically. Explicitly use permute_legs()'
 
 
 # TENSOR CLASSES
@@ -4571,8 +4572,7 @@ def _permute_legs(tensor: Tensor,
             raise ValueError(f'Missing legs. By leg index: {", ".join(missing)}')
     # Default error message
     if err_msg is None:
-        err_msg = ('Legs can not be permuted automatically. '
-                   'Explicitly use permute_legs() with specified levels first.')
+        err_msg = _USE_PERMUTE_LEGS_ERR_MSG
     # Special case: if no legs move
     if codomain == list(range(tensor.num_codomain_legs)) \
             and domain == list(reversed(range(tensor.num_codomain_legs, tensor.num_legs))):
@@ -4658,7 +4658,7 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
         If two legs are crossed at some point, the one with the higher level goes over the other.
     """
     return _permute_legs(tensor, codomain=codomain, domain=domain, levels=levels,
-                         err_msg='The given permutation requires levels, but none were given.')
+                         err_msg=_USE_PERMUTE_LEGS_ERR_MSG)
 
 
 def pinv(tensor: Tensor, cutoff=1e-15) -> Tensor:
