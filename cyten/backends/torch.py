@@ -242,7 +242,9 @@ class TorchBlockBackend(BlockBackend):
             lines = lines[:first] + [f'{indent}...'] + lines[-last:]
         return lines
 
-    def reshape(self, a: Block, shape: tuple[int]) -> Block:
+    def reshape(self, a: Block, shape: tuple[int], cstyle: bool = True) -> Block:
+        if not cstyle:
+            raise NotImplementedError
         return torch_module.reshape(a, tuple(shape))
 
     def get_shape(self, a: Block) -> tuple[int]:

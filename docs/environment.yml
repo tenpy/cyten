@@ -2,7 +2,7 @@ name: cyten
 channels:
   - conda-forge
 dependencies:
-  - python>=3.9
+  - python>=3.10
   - pip
   - setuptools>=68.0.0
   - pybind11

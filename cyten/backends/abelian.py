@@ -1550,31 +1550,14 @@ class AbelianBackend(TensorBackend):
         return data, codomain, domain
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     levels: list[int] | None) -> tuple[Data | None, TensorProduct, TensorProduct]:
-        codomain_legs = []
-        for i in codomain_idcs:
-            in_domain, co_domain_idx, _ = a._parse_leg_idx(i)
-            if in_domain:
-                codomain_legs.append(a.domain[co_domain_idx].dual)
-            else:
-                codomain_legs.append(a.codomain[co_domain_idx])
-        codomain = TensorProduct(codomain_legs, symmetry=a.symmetry)
-        #
-        domain_legs = []
-        for i in domain_idcs:
-            in_domain, co_domain_idx, _ = a._parse_leg_idx(i)
-            if in_domain:
-                domain_legs.append(a.domain[co_domain_idx])
-            else:
-                domain_legs.append(a.codomain[co_domain_idx].dual)
-        domain = TensorProduct(domain_legs, symmetry=a.symmetry)
-        #
+                     new_codomain: TensorProduct, new_domain: TensorProduct,
+                     mixes_codomain_domain: bool, levels: list[int] | None) -> AbelianBackendData:
         axes_perm = [*codomain_idcs, *reversed(domain_idcs)]
         blocks = [self.block_backend.permute_axes(block, axes_perm) for block in a.data.blocks]
         block_inds = a.data.block_inds[:, axes_perm]
         data = AbelianBackendData(a.dtype, a.data.device, blocks=blocks, block_inds=block_inds,
                                   is_sorted=False)
-        return data, codomain, domain
+        return data
 
     def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
         new_leg = new_co_domain[0]  # TODO check this
@@ -1907,11 +1890,12 @@ class AbelianBackend(TensorBackend):
             # else: block is entirely off-diagonal and does not contribute to the trace
         return res
 
-    def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorProduct, TensorProduct]:
+    def transpose(self, a: SymmetricTensor) -> AbelianBackendData:
         return self.permute_legs(a,
                                  codomain_idcs=list(range(a.num_codomain_legs, a.num_legs)),
                                  domain_idcs=list(reversed(range(a.num_codomain_legs))),
-                                 levels=None)
+                                 new_codomain=a.domain, new_domain=a.codomain,
+                                 mixes_codomain_domain=True, levels=None)
 
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
                                  degeneracy_tol: float, trunc_cut: float, svd_min: float
