@@ -24,7 +24,8 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     backend = get_backend('fusion_tree', block_backend)
     funcs = [cross_check_single_c_symbol_tree_blocks,
              cross_check_single_c_symbol_tree_cols,
-             apply_single_c_symbol]
+             apply_single_c_symbol
+             ]
     zero_block = backend.block_backend.zeros
     eps = 1.e-14
     sym = fibonacci_anyon_category
@@ -91,8 +92,9 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     expect_block_1[:, 3] *= R_1
     expect_block_1[:, [2, 4]] *= R_tau
     expect_data = backends.FusionTreeData(block_inds, [expect_block_0, expect_block_1],
-                                        Dtype.complex128,
-                                        device=backend.block_backend.default_device)
+                                          Dtype.complex128,
+                                          device=backend.block_backend.default_device)
+
     expect_domain = TensorProduct([s1, s2, s2])
     expect_tens = SymmetricTensor(expect_data, codomain, expect_domain, backend=backend)
 
@@ -1174,6 +1176,9 @@ def test_nonabelian_transpose(symmetry: Symmetry, block_backend: str,
     assert_tensors_almost_equal(tens1, tens2, rtol=1e-13, atol=1e-13)
 
 
+# FIXME API function for twist, test it for some concrete anyons, make transpose use it directly?
+
+
 def test_permute_legs_instructions():
     codomain = 6
     domain = 6
@@ -1420,8 +1425,13 @@ def apply_single_c_symbol(ten: SymmetricTensor, leg: int | str, levels: list[int
     """
     assert isinstance(ten.backend, fusion_tree_backend.FusionTreeBackend)
     in_domain, idx, leg = ten._parse_leg_idx(leg)
+    if in_domain:
+        idx -= 1
+        overbraid = levels[leg] < levels[leg + 1]
+    else:
+        overbraid = levels[leg] > levels[leg + 1]
     instruction = fusion_tree_backend.BraidInstruction(
-        codomain=not in_domain, idx=idx, overbraid=levels[leg] > levels[leg + 1]
+        codomain=not in_domain, idx=idx, overbraid=overbraid
     )
     mapping = fusion_tree_backend.SingleTreeMapping.from_instructions(
         [instruction], codomain=ten.codomain, domain=ten.domain, block_inds=ten.data.block_inds
@@ -1429,11 +1439,11 @@ def apply_single_c_symbol(ten: SymmetricTensor, leg: int | str, levels: list[int
     if in_domain:
         new_codomain = ten.codomain
         factors = ten.domain.factors[:]
-        factors[idx - 1], factors[idx] = factors[idx], factors[idx - 1]
+        factors[idx], factors[idx + 1] = factors[idx + 1], factors[idx]
         new_domain = TensorProduct(factors)
         codomain_idcs = [*range(ten.num_codomain_legs)]
         domain_idcs = [*reversed(range(ten.num_codomain_legs, ten.num_legs))]
-        domain_idcs[idx - 1], domain_idcs[idx] = domain_idcs[idx], domain_idcs[idx - 1]
+        domain_idcs[idx], domain_idcs[idx + 1] = domain_idcs[idx + 1], domain_idcs[idx]
     else:
         factors = ten.codomain.factors[:]
         factors[idx], factors[idx + 1] = factors[idx + 1], factors[idx]
@@ -1441,9 +1451,11 @@ def apply_single_c_symbol(ten: SymmetricTensor, leg: int | str, levels: list[int
         new_domain = ten.domain
         codomain_idcs = [*range(idx), idx + 1, idx, *range(idx + 2, ten.num_codomain_legs)]
         domain_idcs = [*reversed(range(ten.num_codomain_legs, ten.num_legs))]
-    return mapping.transform_tensor(ten.data, codomain=ten.codomain, domain=ten.domain,
+    data = mapping.transform_tensor(ten.data, codomain=ten.codomain, domain=ten.domain,
                                     new_codomain=new_codomain, new_domain=new_domain,
-                                    codomain_idcs=codomain_idcs, domain_idcs=domain_idcs)
+                                    codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
+                                    block_backend=ten.backend.block_backend)
+    return data, new_codomain, new_domain
 
 
 def assert_bending_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[Callable], eps: float):

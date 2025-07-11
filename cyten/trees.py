@@ -347,12 +347,12 @@ class FusionTree:
                 C_sym = np.conj(self.symmetry.c_symbol(a, c, b, d, f, e)[:, :, mu, nu])
             else:
                 C_sym = self.symmetry.c_symbol(a, b, c, d, e, f)[mu, nu]
+            if do_conj:
+                C_sym = np.conj(C_sym)
             for kappa, C_kappa in enumerate(C_sym):
                 for lambda_, a_i in enumerate(C_kappa):
                     if abs(a_i) < cutoff:
                         continue
-                    if do_conj:
-                        a_i = np.conj(a_i)
                     X_i = X_new.copy(deep=True)
                     X_i.inner_sectors[j - 1] = f
                     X_i.multiplicities[j - 1] = kappa

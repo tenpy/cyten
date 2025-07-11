@@ -334,16 +334,8 @@ class Tensor(metaclass=ABCMeta):
                 dims.append(s.rjust(DISTANCE))
                 continue
             raise RuntimeError  # this should not happen
-        codomain_dims = []
-        
-        codomain_dims = [
-            str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else huge_dim
-            for l in self.codomain
-        ]
-        domain_dims = [
-            str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else huge_dim
-            for l in self.domain
-        ]
+        codomain_dims = dims[:self.num_codomain_legs]
+        domain_dims = dims[self.num_codomain_legs:][::-1]
         codomain_arrows = [l.ascii_arrow.rjust(DISTANCE) for l in self.codomain]
         domain_arrows = [l.ascii_arrow.rjust(DISTANCE) for l in self.domain]
         codomain_labels = [

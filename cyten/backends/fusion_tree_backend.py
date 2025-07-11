@@ -77,11 +77,10 @@ Visually, the blocks have the following structure::
 """
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable, Generator, Iterable
+from typing import TYPE_CHECKING, Callable, Iterable
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from math import prod
-from itertools import chain
 
 import numpy as np
 import warnings
@@ -1861,7 +1860,7 @@ class FusionTreeBackend(TensorBackend):
             codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels,
             has_symmetric_braid=a.symmetry.has_symmetric_braid
         )
-        instructions = chain(twist_instructions, permute_instructions)  # FIXME order??
+        instructions = [*twist_instructions, *permute_instructions]  # FIXME order??
         return self.apply_instructions(a, instructions=instructions, codomain_idcs=codomain_idcs,
                                        domain_idcs=domain_idcs, new_codomain=a.domain,
                                        new_domain=a.codomain, mixes_codomain_domain=True)
@@ -2224,7 +2223,7 @@ class TwistInstruction(Instruction):
 def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
                               codomain_idcs: list[int], domain_idcs: list[int],
                               levels: list[int] | None, has_symmetric_braid: bool,
-                              ) -> Generator[Instruction, None, None]:
+                              ) -> list[Instruction]:
     """Helper to decompose a ``permute_legs`` call into elementary instructions.
 
     Parameters
@@ -2239,12 +2238,13 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
     has_symmetric_braid : bool
         If the symmetry has a symmetric braid, i.e. if the `levels` are irrelevant.
 
-    Yields
-    ------
-    instructions : Instruction
+    Returns
+    -------
+    instructions : list of Instruction
         A sequence of instructions, such that if applied to a tensor in this order,
         the target permutation is realized
     """
+    instructions = []
     num_legs = num_codomain_legs + num_domain_legs
     # we update levels in-place, to account for swaps.
     if levels is None:
@@ -2274,13 +2274,15 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
     #       then second rightmost and so on
     for i, leg in enumerate(reversed(bend_down)):  # reverse: go from right to left
         for j in range(leg, num_codomain_legs - 1 - i):
-            yield BraidInstruction(codomain=True, idx=j, overbraid=levels[j] > levels[j + 1])
+            instructions.append(
+                BraidInstruction(codomain=True, idx=j, overbraid=levels[j] > levels[j + 1])
+            )
             levels[j], levels[j + 1] = levels[j + 1], levels[j]
     # TODO put the stay_up into the correct places already at this point?
 
     # 2) bend them down
     for j in range(num_bend_down):
-        yield BendInstruction(bend_up=False)
+        instructions.append(BendInstruction(bend_up=False))
     num_codomain_legs -= num_bend_down
     num_domain_legs += num_bend_down
 
@@ -2308,12 +2310,12 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
         # should swap j_domain with j_domain + 1, i.e. j_leg_idx with j_leg_idx - 1
         j_leg_idx = num_legs - 1 - j_domain
         overbraid = levels[j_leg_idx] > levels[j_leg_idx - 1]
-        yield BraidInstruction(codomain=False, idx=j_domain, overbraid=overbraid)
+        instructions.append(BraidInstruction(codomain=False, idx=j_domain, overbraid=overbraid))
         levels[j_leg_idx], levels[j_leg_idx - 1] = levels[j_leg_idx - 1], levels[j_leg_idx]
 
     # 4) Bend up
     for j in range(num_bend_up):
-        yield BendInstruction(bend_up=True)
+        instructions.append(BendInstruction(bend_up=True))
     num_codomain_legs += num_bend_up
     num_domain_legs -= num_bend_up
     assert num_codomain_legs == len(codomain_idcs)
@@ -2331,11 +2333,12 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
             codomain_perm.append(stay_up_lookup[original_leg_idx])
     # 5b) now do this permutation
     for j in permutation_as_swaps(codomain_perm):
-        yield BraidInstruction(codomain=True, idx=j, overbraid=levels[j] > levels[j + 1])
+        instructions.append(
+            BraidInstruction(codomain=True, idx=j, overbraid=levels[j] > levels[j + 1])
+        )
         levels[j], levels[j + 1] = levels[j + 1], levels[j]
 
-    # done
-    return
+    return instructions
 
 
 class TensorMapping(metaclass=ABCMeta):
@@ -2675,7 +2678,7 @@ class SingleTreeMapping(TensorMapping):
             for i, a_i in self.splitting_tree_mapping.items():
                 splitting_tree_mapping[i] = res_i = {}
                 for j, a_ij in a_i.items():
-                    # FIXME double check the conf
+                    # FIXME double check the conj!
                     theta = j.twist(j=instruction.idx, overtwist=instruction.overtwist)
                     res_i[j] = a_ij * theta
             fusion_tree_mapping = self.fusion_tree_mapping
@@ -2740,14 +2743,14 @@ class SingleTreeMapping(TensorMapping):
             block_inds = np.array(block_inds, int)
         return FusionTreeData(block_inds, blocks, dtype=dtype, device=data.device, is_sorted=True)
 
-    def _transform_splitting_trees(self, old_block: Block, zeros: Block, coupled: Sector,
+    def _transform_splitting_trees(self, old_block: Block, out: Block, coupled: Sector,
                                    codomain: TensorProduct, new_codomain: TensorProduct,
                                    tree_block_axes_1: list[int], block_backend: BlockBackend
                                    ) -> tuple[Block, bool]:
         """Helper for :meth:`transform_tensor`:
 
         Apply :attr:`splitting_tree_mapping` to a single block.
-        Take `zeros` of the correct shape, expect zeros, modifying it in-place.
+        Write results to `out`, modifying it in-place. Usually, we pass a zero block.
         Return ``new_block, is_zero``.
         """
         if isinstance(self.splitting_tree_mapping, IdentityMapping):
@@ -2769,20 +2772,20 @@ class SingleTreeMapping(TensorMapping):
                 continue
             is_zero = False
             mults_old_order = [mults[i] for i in inverse_permutation(tree_block_axes_1)]
-            zeros[idcs, :] = block_backend.permute_combined_idx(
+            out[idcs, :] = block_backend.permute_combined_idx(
                 tree_row, 0, mults_old_order, tree_block_axes_1
             )
 
-        return zeros, is_zero
+        return out, is_zero
 
-    def _transform_fusion_trees(self, old_block: Block, zeros: Block, coupled: Sector,
+    def _transform_fusion_trees(self, old_block: Block, out: Block, coupled: Sector,
                                 domain: TensorProduct, new_domain: TensorProduct,
                                 tree_block_axes_2: list[int], block_backend: BlockBackend
                                 ) -> tuple[Block, bool]:
         """Helper for :meth:`transform_tensor`:
 
         Apply :attr:`fusion_tree_mapping` to a single block.
-        Take `zeros` of the correct shape, expect zeros, modifying it in-place.
+        Write results to `out`, modifying it in-place. Usually, we pass a zero block.
         Return ``new_block, is_zero``.
         """
         if isinstance(self.fusion_tree_mapping, IdentityMapping):
@@ -2800,11 +2803,12 @@ class SingleTreeMapping(TensorMapping):
             if is_zero_tree_col:
                 continue
             is_zero_block = False
-            mults_old_order = [mults[i] for i in inverse_permutation(tree_block_axes_2)]
-            zeros[:, idcs] = block_backend.permute_combined_idx(
+            # FIXME double check reverse of tree_block_axes2 ! explain why
+            mults_old_order = [mults[i] for i in inverse_permutation(tree_block_axes_2[::-1])]
+            out[:, idcs] = block_backend.permute_combined_idx(
                 tree_col, 1, mults_old_order, tree_block_axes_2
             )
-        return zeros, is_zero_block
+        return out, is_zero_block
 
 
 def _partial_trace_helper(tree: FusionTree, idcs: list[int]) -> tuple[bool, float | complex]:
