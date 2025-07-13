@@ -47,6 +47,7 @@ class Site:
     --------
     TODO
     """
+
     def __init__(self, leg: ElementarySpace, state_labels: dict[str, int] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None,
                  backend: TensorBackend = None, default_device: str = None):
@@ -157,6 +158,7 @@ class SpinfulSite(Site):
         A slice such that the entries ``leg.sector_decomposition[:, slc]`` correspond to the
         :attr:`spin_symmetry`.
     """
+
     def __init__(self,
                  leg: ElementarySpace,
                  double_total_spin: int,
@@ -272,6 +274,7 @@ class FermionicSite(Site):
         Do not think about JW strings yet...
         That is also the reason why NoSymmetry is not an option here
     """
+
     creators: np.ndarray  # [p, p*, i] where i are different species ;  == [Cd0, Cd1, ...]
     annihilators: np.ndarray  # [p, p*, i] ;  == [C0, C1, ...]
     occupation_symmetry: FermionNumber | FermionParity  # TODO allow multiple
@@ -287,6 +290,7 @@ class BosonicSite(Site):
         - total parity (sum_i N_i) % 2
 
     """
+
     creators: np.ndarray  # [p, p*, i] where i are different species ;  == [Bd0, Bd1, ...]
     annihilators: np.ndarray  # [p, p*, i] ;  == [B0, B1, ...]
     occupation_symmetry: ProductSymmetry | U1Symmetry | ZNSymmetry | NoSymmetry
@@ -294,6 +298,7 @@ class BosonicSite(Site):
 
 class SpinSite(SpinfulSite):
     """TODO elaborate"""
+
     def __init__(self, S: float = .5, conserve: Literal['SU(2)', 'Sz', 'parity', 'None'] = None):
         self.S = S = float(S)
         two_S = int(round(2 * S, 0))
@@ -347,6 +352,7 @@ class SpinHalfFermionSite(SpinfulSite, FermionicSite):
 
 class GoldenSite(Site):
     """TODO elaborate"""
+
     def __init__(self, handedness: Literal['left', 'right']):
         symmetry = FibonacciAnyonCategory(handedness=handedness)
         leg = ElementarySpace.from_basis(symmetry, [symmetry.vacuum, symmetry.tau])
