@@ -1,4 +1,4 @@
-"""This should probably live in tenpy long-term.
+"""Should probably live in tenpy long-term.
 
 For now, while this is the only tenpy module that we already think about modifying for v2,
 it is easier to have it live in the cyten repo...
@@ -18,6 +18,7 @@ from .couplings import Coupling, spin_spin_coupling, gold_coupling
 
 class CouplingFactory(Protocol):
     """Defines a type (protocol) for functions that create couplings."""
+
     def __call__(self, sites: list[Site], backend: TensorBackend = None, device: str = None,
                  name: str | None = ...):
         ...
@@ -141,6 +142,7 @@ class TFIModel(CouplingModel):
 
 
 class GoldenModel(CouplingModel):
+    """TODO"""
 
     def init_sites(self, model_params):
         return GoldenSite(handedness=model_params.get('handedness', 'left', str))
@@ -153,6 +155,8 @@ class GoldenModel(CouplingModel):
 
 
 class GoldenChain(GoldenModel):
+    """TODO"""
+
     default_lattice = 'Chain'
     force_default_lattice = True
 
