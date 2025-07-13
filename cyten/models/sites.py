@@ -1,6 +1,6 @@
 """Defines a class describing the local physical Hilbert space.
 
-The :class:`Site` is the prototype, read it's docstring.
+The :class:`Site` is the prototype, read its docstring.
 """
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
@@ -20,7 +20,7 @@ from ..symmetries import (
 class Site:
     """Collects necessary information about a single local site of a lattice model.
 
-    A site defines the the local Hilbert space in terms of its :attr:`leg`.
+    A site defines the local Hilbert space in terms of its :attr:`leg`.
     This involves a choice for the local basis.
     Moreover, it exposes the symmetric single-site operators.
     Multi-site operators, on the other hand, are represented by :class:`Coupling` s.
@@ -34,7 +34,7 @@ class Site:
     Attributes
     ----------
     leg : ElementarySpace
-        The local physical Hilbert space
+        The local physical Hilbert space.
     state_labels : {str: int}
         Optional labels for the local basis states. Any state may have multiple labels, or none.
     onsite_operators : {str: SymmetricTensor}
@@ -139,7 +139,7 @@ class SpinfulSite(Site):
         Twice the :attr:`total_spin`. We store this, because it is an integer.
     spin_vector : 3D array
         The vector of spin operators as a numpy array with axes ``[p, p*, i]`` and shape
-        ``(dim, dim, 3)``. These operators include the factor of the total spin, i.e. the largest
+        ``(dim, dim, 3)``. These operators include the factor of the total spin, i.e., the largest
         eigenvalue of any of the ``spin_vector[:, :, i]`` is :attr:`total_spin`.
         E.g., for spin-1/2, these are ``.5`` times the pauli matrices.
     spin_symmetry : SU2Symmetry | U1Symmetry | ZNSymmetry | NoSymmetry
@@ -179,7 +179,7 @@ class SpinfulSite(Site):
             # make sure every Sz sector appears the same number of times.
             expect = leg.num_sectors // (double_total_spin + 1)
             for m in range(-double_total_spin, double_total_spin + 2, 2):
-                num_sectors = np.sum(leg.sector_decomposition[:, slc] == double_total_spin)
+                num_sectors = np.sum(leg.sector_decomposition[:, slc] == m)
                 assert num_sectors == expect
         elif isinstance(spin_symmetry, ZNSymmetry):
             assert spin_symmetry.N == 2
@@ -195,7 +195,14 @@ class SpinfulSite(Site):
         else:
             raise TypeError('Invalid spin_symmetry')
         if isinstance(leg.symmetry, ProductSymmetry):
-            assert any(factor == spin_symmetry for factor in leg.symmetry.factors)
+            # spin_symmetry_sector_slice tells us which factor in the symmetry is spin_symmetry
+            start = 0 if slc.start is None else slc.start
+            stop = leg.symmetry.sector_slices[-1] if slc.stop is None else slc.stop
+            factor_idx = np.searchsorted(leg.symmetry.sector_slices, start)
+            msg = f'Inconsistent spin_symmetry_sector_slice: {slc}'
+            assert start == leg.symmetry.sector_slices[factor_idx], msg
+            assert stop == leg.symmetry.sector_slices[factor_idx + 1], msg
+            assert leg.symmetry.factors[factor_idx] == spin_symmetry
         else:
             # TODO is this a reason to say that we should always work with ProductSymmetries?
             #      like tenpy v1, we always have a list of qmod, even if there is only 1
@@ -219,7 +226,7 @@ class SpinfulSite(Site):
         # TODO check compatibility of the operators with the spin_symmetry, i.e. eigenvalues
         #      match with charge sectors
         S_sq = np.tensordot(self.spin_vector, self.spin_vector, ([-1, 1], [-1, 0]))
-        eigenvalue = self.double_total_spin * (self.double_total_spin + 2) // 4
+        eigenvalue = self.double_total_spin * (self.double_total_spin + 2) / 4
         assert np.allclose(S_sq, eigenvalue * np.eye(self.double_total_spin + 1))
 
     @property
@@ -227,14 +234,14 @@ class SpinfulSite(Site):
         return self.double_total_spin / 2
 
     @staticmethod
-    def _spin_vector_from_Sp(Sz, Sp):
+    def _spin_vector_from_Sp(Sz: np.ndarray, Sp: np.ndarray) -> np.ndarray:
         """Build the spin_vector from ``Sz`` and ``Sp = Sx + i Sy``"""
         dim = Sz.shape[0]
         assert Sz.shape == (dim, dim)
         assert Sp.shape == (dim, dim)
         Sm = Sp.T.conj()
-        Sx = .5 + (Sp + Sm)
-        Sy = .5 * (Sm - Sp)
+        Sx = .5 * (Sp + Sm)
+        Sy = .5j * (Sm - Sp)
         return np.stack([Sx, Sy, Sz], axis=-1)
 
 
@@ -291,9 +298,9 @@ class SpinSite(SpinfulSite):
         self.S = S = float(S)
         two_S = int(round(2 * S, 0))
         dim = two_S + 1
-        if two_S >= 0:
+        if two_S < 0:
             raise ValueError('Negative spin.')
-        if np.allclose(two_S / 2, S):
+        if not np.allclose(two_S / 2, S):
             raise ValueError('total_spin must be half integer: 0, 1/2, 1, 3/2, ...')
 
         # build spin vector
@@ -308,7 +315,7 @@ class SpinSite(SpinfulSite):
         # build leg
         if conserve in ['SU(2)', 'SU2']:
             sym = SU2Symmetry('spin')
-            leg = ElementarySpace.from_basis(sym, [[two_S]])
+            leg = ElementarySpace.from_defining_sectors(sym, [[two_S]])
         elif conserve in ['Sz', 'U(1)', 'U1']:
             sym = U1Symmetry('2*Sz')
             leg = ElementarySpace.from_basis(sym, np.arange(-two_S, two_S + 2, 2))
