@@ -26,9 +26,9 @@ class Coupling:
         The sites that the operators act on.
     factorization : list of :class:`SymmetricTensor`
         A list of tensors that, if contracted, give the operator that is represented.
-        Each tensor ``factorization[i]`` has legs ``[vL, p, vR, p*]``, where ``p`` and ``p*`` are
+        Each tensor ``factorization[i]`` has legs ``[wL, p, wR, p*]``, where ``p`` and ``p*`` are
         the physical :attr:`Site.leg` of the corresponding ``sites[i]``, and where contracting
-        the ``vL`` and ``vR`` legs in an MPO-like geometry gives the multi-site operator.
+        the ``wL`` and ``wR`` legs in an MPO-like geometry gives the multi-site operator.
         TODO should we rename vL/vR to wL/wR to match tenpy MPO convention?
     name : str, optional
         A descriptive name that can be used when pretty-printing, to identify the coupling.
@@ -49,37 +49,64 @@ class Coupling:
             W.test_sanity()
             assert W.num_codomain_legs == 2
             assert W.num_domain_legs == 2
-            assert W.labels == ['vL', 'p', 'vR', 'p*']
+            assert W.labels == ['wL', 'p', 'wR', 'p*']
             assert W.get_leg_co_domain('p') == s.leg
             assert W.get_leg_co_domain('p*') == s.leg
-        assert self.factorization[0].get_leg('vL').is_trivial()
+        assert self.factorization[0].get_leg('wL').is_trivial()
         for W1, W2 in zip(self.factorization[:-1], self.factorization[1:]):
-            assert W1.get_leg_co_domain('vR') == W2.get_leg_co_domain('vL')
-        assert self.factorization[-1].get_leg('vR').is_trivial()
+            assert W1.get_leg_co_domain('wR') == W2.get_leg_co_domain('wL')
+        assert self.factorization[-1].get_leg('wR').is_trivial()
 
     @classmethod
     def from_dense_block(cls, operator: Block, sites: list[Site], name: str = None,
                          backend: TensorBackend = None, device: str = None,
-                         dtype: Dtype = None):
-        """TODO elaborate. expect leg order [p0, p1, ..., p0*, p1*, ...]"""
+                         dtype: Dtype = None) -> Coupling:
+        """Convert a dense block to a :class:`Coupling`.
+
+        Parameters
+        ----------
+        block : Block
+            The data to be converted to a Coupling as a backend-specific block or some data that
+            can be converted using :meth:`BlockBackend.as_block`. The order of axes must match the
+            `sites`, that is, the axes correspond to ``[p0, p1, ..., p1*, p0*]`` (codomain legs
+            ascending, domain legs descending), where ``pi`` corresponds to site ``sites[i]``.
+            The block should be given in the "public" basis order of the sites, i.e.,
+            according to `sites[i].sectors_of_basis`.
+        sites : list of :class:`Site`
+            The sites that the operators act on.
+        name : str, optional
+            A descriptive name that can be used when pretty-printing, to identify the coupling.
+        backend : :class:`TensorBackend`, optional
+            If given, the backend of the tensors in the factorization. Per default, the default
+            backend compatible with the symmetry.
+        device : str, optional
+            If given, the block is moved to that device. Per default, try to use the device of
+            the `block`, if it is a backend-specific block, or fall back to the backends default
+            device.
+        dtype : :class:`Dtype`, optional
+            If given, the block is converted to that dtype and the resulting tensors in the
+            factorization will have that dtype. By default, we detect the dtype from the block.
+        """
         co_domain = [s.leg for s in sites]
         p_labels = [f'p{i}' for i in range(len(sites))]
-        labels = [p_labels, [f'{pi}*' for pi in p_labels]]
+        labels = [*p_labels, *[f'{pi}*' for pi in p_labels][::-1]]
         op = SymmetricTensor.from_dense_block(operator, co_domain, co_domain, backend=backend,
                                               labels=labels, dtype=dtype, device=device)
         return cls.from_tensor(op, sites=sites, name=name)
 
     @classmethod
-    def from_tensor(cls, operator: SymmetricTensor, sites: list[Site], name: str = None):
+    def from_tensor(cls, operator: SymmetricTensor, sites: list[Site], name: str = None
+                    ) -> Coupling | OnSiteOperator:
         if len(sites) == 1:
             return OnSiteOperator.from_tensor(operator, sites, name=name)
         raise NotImplementedError  # TODO
 
     def to_tensor(self) -> SymmetricTensor:
-        res = squeeze_legs(self.factorization[0], 'vL')
+        res = squeeze_legs(self.factorization[0], 'wL')
         for W in self.factorization[1:]:
-            res = tdot(res, W, 'vR', 'vL')
-        res = squeeze_legs(res, 'vR')
+            res = tdot(res, W, 'wR', 'wL')
+        res = squeeze_legs(res, 'wR')
+        # permute!
         return res
 
     def to_numpy(self) -> np.ndarray:
@@ -87,15 +114,40 @@ class Coupling:
 
 
 class OnSiteOperator(Coupling):
+    """A (usually hermitian) on-site operator acting on a single :class:`Site`.
+
+    Similar to :class:`Coupling`, but must act on one :class:`Site`.
+
+    TODO examples
+
+    Attributes
+    ----------
+    operator : :class:`SymmetricTensor`
+        Tensor representing the on-site operator with legs ``[p, p*]``, where ``p`` and ``p*`` are
+        the physical space :attr:`sites[0].leg`.
+    sites : list of :class:`Site`
+        Contains the single site that `operator` acts on.
+    factorization : list of :class:`SymmetricTensor`
+        Contains a single tensor corresponding to `operator` with added trivial legs for `wL` and
+        `wR`.
+    name : str, optional
+        A descriptive name that can be used when pretty-printing, to identify the coupling.
+        For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
+
+    See Also
+    --------
+    :class:`Coupling`
+    """
 
     def __init__(self, site: Site, operator: SymmetricTensor, name: str = None):
         self.operator = operator
-        W = add_trivial_leg(operator, domain_pos=0, label='vL')
-        W = add_trivial_leg(W, codomain_pos=1, label='vR')
+        W = add_trivial_leg(operator, domain_pos=0, label='wL')
+        W = add_trivial_leg(W, codomain_pos=1, label='wR')
         Coupling.__init__(self, sites=[site], factorization=[W], name=name)
 
     @classmethod
-    def from_tensor(cls, operator: SymmetricTensor, sites: list[Site], name: str = None):
+    def from_tensor(cls, operator: SymmetricTensor, sites: list[Site], name: str = None
+                    ) -> OnSiteOperator:
         assert len(sites) == 1
         return cls(site=sites[0], operator=operator, name=name)
 
@@ -115,7 +167,7 @@ def spin_spin_coupling(sites: list[SpinfulSite],
     # TODO test that this builds what we expect
     assert len(sites) == 2
     s1 = sites[0].spin_vector
-    s2 = sites[0].spin_vector
+    s2 = sites[1].spin_vector
     h = 0  # build in leg order [p0, p0*, p1, p1*] and transpose only once before returning
     if xx is not None:
         h += xx * np.tensordot(s1[:, :, 0], s2[:, :, 0], (0, 0))
