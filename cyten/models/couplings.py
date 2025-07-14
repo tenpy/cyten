@@ -11,7 +11,9 @@ import numpy as np
 from ..dtypes import Dtype
 from ..backends import TensorBackend
 from ..backends.abstract_backend import Block
-from ..tensors import SymmetricTensor, squeeze_legs, tdot, add_trivial_leg
+from ..tensors import (
+    SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, svd, scale_axis
+)
 from .sites import Site, SpinfulSite, GoldenSite
 
 
@@ -97,19 +99,86 @@ class Coupling:
     @classmethod
     def from_tensor(cls, operator: SymmetricTensor, sites: list[Site], name: str = None
                     ) -> Coupling | OnSiteOperator:
+        """Convert an operator / tensor to a :class:Coupling.
+        
+        Decompose a (in general multi-site) operator into factors using SVD such that contracting
+        the factors again reproduces the operator.
+
+        .. note ::
+            For symmetries with non-symmetric braids, the decomposition depends on the levels of
+            the legs that determine whether over-braids or under-braids occur when exchanging legs.
+            The convention here is to assign higher levels to legs "further to the right", i.e.,
+            the legs corresponding to the labels `p2` and `p2*` have higher levels than `p1` and
+            `p1*`, and lower levels than `p3` and `p3*`.
+
+        Parameters
+        ----------
+        operator : :class:`SymmetricTensor`
+            Operator to be converted to a coupling.
+        sites : list of :class:`Site`
+            The sites that the operator acts on.
+        name : str, optional
+            A descriptive name that can be used when pretty-printing, to identify the coupling.
+            For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
+        """
+        assert operator.codomain.factors == sites == operator.domain.factors
+
         if len(sites) == 1:
             return OnSiteOperator.from_tensor(operator, sites, name=name)
-        raise NotImplementedError  # TODO
+
+        # decompose from right to left using SVD
+        # convention for levels: legs to the right have higher levels
+        factorization = []
+        n = operator.num_codomain_legs
+        levels = [2 * i for i in range(n)]
+        levels.extend([2 * i + 1 for i in range(n)][::-1])
+
+        U = permute_legs(operator, domain=[n, n - 1], levels=levels)
+        U, S, V = svd(U, ['wR', 'wL'])
+        U = scale_axis(U, S, leg='wR')
+        V = permute_legs(V, codomain=[0, 1])
+        V = add_trivial_leg(V, domain_pos=1, label='wR')
+        factorization.append(V)
+
+        for n in range(operator.num_codomain_legs - 1, 1, -1):
+            levels = [2 * i for i in range(n)]
+            levels.extend([2 * i + 1 for i in range(n)][::-1])
+            # for the leg connecting to the previous operator that is already in factorization
+            levels.append(2 * n)
+            U = permute_legs(U, domain=[n, -1, n - 1], levels=levels)
+            # the legs are now [p0, p1, ..., p{n-2}, p{n-2}*, p1*, p0*, p{n-1}, wR, p{n-1}*]
+            U, S, V = svd(U, ['wR', 'wL'])
+            U = scale_axis(U, S, leg='wR')
+            V = permute_legs(V, codomain=[0, 1])
+            factorization.append(V)
+
+        U = permute_legs(U, domain=[1, 2], levels=[0, 1, 2])
+        U = add_trivial_leg(U, codomain_pos=0, label='wL')
+        factorization.append(U)
+        factorization = factorization[::-1]
+        return Coupling(sites=sites, factorization=factorization, name=name)
 
     def to_tensor(self) -> SymmetricTensor:
+        """Convert to a tensor."""
+        # the convention for the decomposition is that legs to the right have
+        # higher levels -> this must now also hold
         res = squeeze_legs(self.factorization[0], 'wL')
-        for W in self.factorization[1:]:
+        for n, W in enumerate(self.factorization[1:]):
+            levels = list(range(2 * n + 1))
+            levels.extend([2 * n + 2, 2 * n + 1])
+            # legs are (before permute) [p0, p0*, p1, p1*, ..., pn, wR, pn*]
+            res = permute_legs(res, domain=['wR'], levels=levels)
             res = tdot(res, W, 'wR', 'wL')
         res = squeeze_legs(res, 'wR')
-        # permute!
+        codom_labels = [f'p{i}' for i in range(len(self.sites))]
+        dom_labels = [l + '*' for l in codom_labels]
+        # legs are now [p0, p0*, p1, p1*, ...]
+        res = permute_legs(res, codomain=codom_labels, domain=dom_labels,
+                           levels=list(range(2 * len(self.sites))))
         return res
 
     def to_numpy(self) -> np.ndarray:
+        """Convert to a numpy array."""
         return self.to_tensor().to_numpy()
 
 
