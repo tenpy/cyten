@@ -17,7 +17,7 @@ from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError
 from cyten.tools.misc import (
     duplicate_entries, iter_common_noncommon_sorted_arrays, to_valid_idx, inverse_permutation
 )
-from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays, to_valid_idx
+from cyten.testing import assert_tensors_almost_equal
 
 
 # TENSOR CLASSES
@@ -2871,8 +2871,10 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     assert res.domain == tensor.codomain.dual
     assert res.labels == [*labels[cod:], *labels[:cod]]
 
-    if not tensor.symmetry.can_be_dropped:
-        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+    double_transpose = tensors.transpose(res)
+    double_transpose.test_sanity()
+    assert_tensors_almost_equal(double_transpose, tensor)
 
-    expect = np.transpose(tensor.to_numpy(), [*range(cod, cod + dom), *range(cod)])
-    npt.assert_almost_equal(res.to_numpy(), expect)
+    if tensor.symmetry.can_be_dropped:
+        expect = np.transpose(tensor.to_numpy(), [*range(cod, cod + dom), *range(cod)])
+        npt.assert_almost_equal(res.to_numpy(), expect)
