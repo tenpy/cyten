@@ -4546,6 +4546,8 @@ def partial_trace(tensor: Tensor,
         return ChargedTensor(invariant_part, tensor.charged_state)
     if not isinstance(tensor, SymmetricTensor):
         raise TypeError(f'Unexpected tensor type: {type(tensor).__name__}')
+    if levels is not None:
+        levels = list(levels)  # ensure copy
     data, codomain, domain = tensor.backend.partial_trace(tensor, pairs, levels)
     if tensor.num_legs == len(traced_idcs):
         # should be a scalar
@@ -4619,6 +4621,7 @@ def _permute_legs(tensor: Tensor,
         return ChargedTensor(inv_part, charged_state=tensor.charged_state)
     # Remaining case: SymmetricTensor
     if levels is not None:
+        levels = list(levels)  # ensure copy
         if duplicate_entries(levels):
             raise ValueError('Levels must be unique.')
         if any(l < 0 for l in levels):
