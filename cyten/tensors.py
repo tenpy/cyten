@@ -5548,6 +5548,9 @@ def transpose(tensor: Tensor) -> Tensor:
         return SymmetricTensor(data=data, codomain=new_codomain, domain=new_domain,
                                backend=tensor.backend, labels=labels)
     if isinstance(tensor, ChargedTensor):
+        # TODO this current definition does not guarantee that that transposing twice reproduces
+        #      the input for fermions!
+        raise NotImplementedError('ChargedTensor transpose not done.')
         inv_part = transpose(tensor.invariant_part)
         inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0)
         return ChargedTensor(inv_part, tensor.charged_state)

@@ -2853,6 +2853,11 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     labels = list('abcdefghi')[:cod + dom]
     tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
 
+    if isinstance(tensor, ChargedTensor):
+        with pytest.raises(NotImplementedError, match='ChargedTensor transpose not done.'):
+            _ = tensor.T
+        pytest.xfail('ChargedTensor transpose not done')
+
     if isinstance(tensor.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
             with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
