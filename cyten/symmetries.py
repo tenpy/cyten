@@ -2512,7 +2512,7 @@ class FibonacciAnyonCategory(Symmetry):
         return self._fusion_map[a[0] + b[0]]
 
     def sector_str(self, a: Sector) -> str:
-        return 'vac' if a[0] == 0 else 'tau'
+        return 'vacuum' if a[0] == 0 else 'tau'
 
     def __repr__(self):
         return f'FibonacciAnyonCategory(handedness={self.handedness})'
@@ -2627,7 +2627,7 @@ class IsingAnyonCategory(Symmetry):
     def sector_str(self, a: Sector) -> str:
         if a[0] == 1:
             return 'sigma'
-        return 'vac' if a[0] == 0 else 'psi'
+        return 'vacuum' if a[0] == 0 else 'psi'
 
     def __repr__(self):
         return f'IsingAnyonCategory(nu={self.nu})'
@@ -2877,6 +2877,11 @@ class SU3_3AnyonCategory(Symmetry):
     only exchanges the two fusion multiplicities of anyon `8`.
     """
 
+    one_irrep = as_immutable_array([0])
+    eight_irrep = as_immutable_array([1])
+    ten_irrep = as_immutable_array([2])
+    ten_bar_irrep = as_immutable_array([3])
+
     _one_1D = as_immutable_array(np.ones((1,), dtype=int))
     _one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
     _fusion_map = {  # notation: 10- = \bar{10}
@@ -3000,10 +3005,10 @@ class SU3_3AnyonCategory(Symmetry):
 
     def sector_str(self, a: Sector) -> str:
         if a[0] == 1:
-            return '8'
+            return 'eight'
         elif a[0] == 2:
-            return '10'
-        return 'vac' if a[0] == 0 else '10-'
+            return 'ten'
+        return 'one' if a[0] == 0 else 'ten_bar'
 
     def __repr__(self):
         return f'SU3_3AnyonCategory()'
