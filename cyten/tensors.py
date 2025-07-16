@@ -79,7 +79,7 @@ import logging
 
 from .dummy_config import printoptions
 from .symmetries import SymmetryError, Symmetry, BraidingStyle
-from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
+from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe, AbelianLegPipe
 from .trees import FusionTree
 from .backends.backend_factory import get_backend
 from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order
@@ -532,6 +532,21 @@ class Tensor(metaclass=ABCMeta):
         return self.domain.num_factors
 
     @property
+    def num_codomain_flat_legs(self) -> int:
+        """Number of flat legs in the codomain."""
+        return len(self.codomain.flat_legs)
+
+    @property
+    def num_domain_flat_legs(self) -> int:
+        """Number of flat legs in the domain."""
+        return len(self.domain.flat_legs)
+
+    @property
+    def num_flat_legs(self) -> int:
+        """Total number of flat legs of self."""
+        return self.num_domain_flat_legs + self.num_codomain_flat_legs
+
+    @property
     def num_parameters(self) -> int:
         """The number of free parameters for the given legs.
 
@@ -791,6 +806,20 @@ class Tensor(metaclass=ABCMeta):
         block = self.to_dense_block(leg_order=leg_order, understood_braiding=understood_braiding)
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
+    def flip_leg_duality(self, leg_indices: list[int]):
+        """Flips the duality of a given Tensor leg.
+
+        The leg can also be a leg pipe in which case also the combinestyle is flipped
+        """
+        for i in leg_indices:
+            if isinstance(self.legs[i], AbelianLegPipe):
+                self.legs[i] = AbelianLegPipe.with_opposite_duality_and_combinestyle(self.legs[i])
+
+            elif isinstance(self.legs[i], LegPipe) and not isinstance(self.legs[i], AbelianLegPipe):
+                self.legs[i] = LegPipe.with_opposite_duality(self.legs[i])
+
+            else:
+                self.legs[i] = self.legs[i].dual
 
 class SymmetricTensor(Tensor):
     """A tensor that is symmetric, i.e. invariant under the symmetry.
