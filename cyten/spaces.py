@@ -130,6 +130,10 @@ class LegPipe(Leg):
     def dual(self) -> LegPipe:
         return LegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual)
 
+
+    def with_opposite_duality(self) -> LegPipe:
+        return LegPipe(self.legs, is_dual=not self.is_dual)
+
     @property
     def is_trivial(self) -> bool:
         return all(l.is_trivial for l in self.legs)
@@ -1364,6 +1368,11 @@ class TensorProduct(Space):
         return TensorProduct([sp.dual for sp in reversed(self.factors)], symmetry=self.symmetry,
                              _sector_decomposition=sectors, _multiplicities=mults)
 
+
+    @property
+    def flat_legs(self) -> list[ElementarySpace]:
+        return _make_flat_legs(self.factors)
+
     # METHODS
 
     def block_size(self, coupled: Sector | int) -> int:
@@ -1411,9 +1420,9 @@ class TensorProduct(Space):
             _sector_decomposition=sectors, _multiplicities=multiplicities
         )
 
-    def flat_legs(self) -> list[Space]:
-        """Flatten any pipes in the :attr:`factors`, recursively."""
-        return _flatten_leg_pipes(self.factors)
+    # def flat_legs(self) -> list[Space]:
+    #     """Flatten any pipes in the :attr:`factors`, recursively."""
+    #     return _flatten_leg_pipes(self.factors)
 
     def flat_leg_idcs(self, i: int) -> list[int]:
         """All indices into the :meth:`flat_legs` that the leg ``factors[i]`` flattens to."""
@@ -1527,7 +1536,7 @@ class TensorProduct(Space):
         if self.num_factors == 0:
             yield self.symmetry.empty_sector_array
             return
-        for unc in it.product(*(s.sector_decomposition for s in self.factors)):
+        for unc in it.product(*(s.sector_decomposition for s in self.flat_legs)):
             yield np.array(unc, int)
 
     def left_multiply(self, other: Space) -> TensorProduct:
@@ -1541,7 +1550,7 @@ class TensorProduct(Space):
     def tree_block_size(space: TensorProduct, uncoupled: tuple[Sector]) -> int:
         """The size of a tree-block"""
         # OPTIMIZE ?
-        return prod(s.sector_multiplicity(a) for s, a in zip(space.factors, uncoupled))
+        return prod(s.sector_multiplicity(a) for s, a in zip(_make_flat_legs(space.factors), uncoupled))
 
     def tree_block_slice(self, tree: FusionTree) -> slice:
         """The range of indices of a tree-block within its block, as a slice."""
@@ -1638,6 +1647,7 @@ class TensorProduct(Space):
         # TODO (JU) FTBackend: when a tensor is built, we often iterate over fusion-trees, which
         #           effectively already computes the fusion here. avoid this double computation
 
+        factors=_make_flat_legs(factors)
         if len(factors) == 0:
             return self.symmetry.trivial_sector[None, :], np.ones([1], int)
 
@@ -1944,6 +1954,11 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     def with_opposite_duality(self):
         return AbelianLegPipe(legs=self.legs, is_dual=not self.is_dual,
                               combine_cstyle=self.combine_cstyle)
+
+    def with_opposite_duality_and_combinestyle(self):
+        return AbelianLegPipe(legs=self.legs, is_dual=not self.is_dual,
+                              combine_cstyle=not self.combine_cstyle)
+
 
     def __eq__(self, other):
         res = LegPipe.__eq__(self, other)
@@ -2285,3 +2300,17 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
             remaining_symmetry = ProductSymmetry(factors)
 
     return which, remaining_symmetry
+
+def _make_flat_legs(factors: list[Leg]) -> list[ElementarySpace]:
+
+    res = []
+    for f in factors:
+        if isinstance(f, Space):
+            res.append(f)
+        elif isinstance(f, LegPipe):
+            res.extend(_make_flat_legs(f.legs))
+
+        else:
+            # this should not happen, all Leg subclasses should be Space or LegPipe (or subclasses thereof)
+            raise RuntimeError
+    return res

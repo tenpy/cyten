@@ -1559,7 +1559,7 @@ class SUNSymmetry(GroupSymmetry):
         if (key not in self.CGfile) or len(self.CGfile[key]) == 0:
             key = N + b + a
 
-        if not any(self.CGfile[key][:] == c):
+        if c not in self.CGfile[key]:
             return 0
 
         return self.CGfile[key][c].attrs['Outer Multiplicity']
