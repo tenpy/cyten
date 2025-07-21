@@ -17,16 +17,16 @@ class FusionTree:
 
     Attributes
     ----------
-    symmetry : Symmetry,
+    symmetry : Symmetry
     uncoupled : 2D array of int
         N uncoupled sectors. These are the sectors *above* any Z isos.
-        I.e. the generalized tree, including the Zs maps from the :attr:`pre_Z_sectors` instead.
+        I.e. the generalized tree, including the Zs, maps from the :attr:`pre_Z_sectors` instead.
     coupled : 1D array of int
         The coupled sector at the top of the tree.
     are_dual : 1D array of bool
-        N flags: is there a Z isomorphism below the uncoupled sector
+        N flags: is there a Z isomorphism below the uncoupled sector.
     inner_sectors : 2D array of int
-        N - 2 internal sectors, at the internal edges of the tree
+        N - 2 internal sectors, at the internal edges of the tree.
     multiplicities : 1D array of int
         N - 1 multiplicity labels, at the fusion vertices of the tree.
 
@@ -204,7 +204,8 @@ class FusionTree:
             The original tree pair, such that we modify ``hconj(Y) @ X``.
             Note that `Y` is a fusion tree that represents the splitting tree ``hconj(Y)``.
         bend_upward : bool
-            If we should do the B move to bend a leg upward or an inverse B move to bend downward.
+            Whether the rightmost leg of `X` is bent up (``bend_upward == True``) or the rightmost
+            leg of ``hconj(Y)`` is bent down (``bend_upward == False``).
         do_conj : bool
             If ``True``, return the conjugate of the coefficients instead.
 
@@ -215,7 +216,7 @@ class FusionTree:
             pairs (where ``Y_i`` is a fusion tree and thus ``hconj(Y_i)`` a splitting tree).
             The returned dictionary has entries ``linear_combination[Y_i, X_i] = a_i`` for the
             contributions to this linear combination (i.e. tree pairs for which the coefficient
-            vanishes may be omitted).
+            vanishes are omitted).
         """
         if not bend_upward:
             # OPTIMIZE: do it explicitly instead?
@@ -223,8 +224,8 @@ class FusionTree:
             # == dagger(dagger(bend_down(dagger(Y) @ X))
             # == dagger(bend_up(dagger(dagger(Y) @ X))))
             # == dagger(bend_up(dagger(X) @ Y))
-            # == dagger(sum_i b_i (dagger(Y_i) @ X_i))
-            # == sum_i conj(b_i) dagger(X_i) @ Y_i
+            # == dagger(sum_i b_i (dagger(X_i) @ Y_i))
+            # == sum_i conj(b_i) dagger(Y_i) @ X_i
             # i.e. we need to swap the order of inputs and invert bend_upward,
             # then for the result, swap the trees back and conj the coefficients (invert do_conj)
             other = FusionTree.bend_leg(X, Y, bend_upward=True, do_conj=not do_conj)
@@ -299,7 +300,7 @@ class FusionTree:
         j : int
             The index for the braid. We braid ``uncoupled[j]`` with ``uncoupled[j + 1]``.
         overbraid : bool
-            If we apply an overbraid or an underbraid (see graphic above)
+            If we apply an overbraid or an underbraid (see graphic above).
         cutoff : float
             We skip contributions with a prefactor below this.
         do_conj : bool
@@ -387,15 +388,15 @@ class FusionTree:
 
     def modify_vertex_labels(self, n: int, a: Sector, b: Sector, mu: int, c: Sector,
                              copy: bool = True) -> FusionTree:
-        """Update the multiplicity and three vertices around the ``n``-th vertex.
+        """Update the multiplicity and the three sectors around the ``n``-th vertex.
 
         Parameters
         ----------
         n : int
-            The vertex
+            The vertex.
         a, b, mu, c
             Three sectors and a multiplicity, like the returns of :meth:`vertex_labels`.
-            ``None`` place-holders indicate to not update that value
+            ``None`` place-holders indicate to not update that value.
         copy : bool
             If ``True``, we return a modified copy. If ``False``, we modify in place and return
             the modified instance.
@@ -778,18 +779,18 @@ class FusionTree:
             |                    a b   x y   z
 
         where `rest_tree` might be empty if ``self.num_uncoupled == 1`` or consist of
-        only a single sector with no fusion nodes if ``self.num_uncoupled == 2``
+        only a single sector with no fusion nodes if ``self.num_uncoupled == 2``.
 
         Returns
         -------
         rest_tree : FusionTree
-            The remaining tree, with one fewer node
+            The remaining tree, with one fewer node.
         c : Sector
-            The old coupled sector
+            The old coupled sector.
         mu : int
-            The old top multiplicity label
+            The old top multiplicity label.
         z : Sector
-            The old last uncoupled sector
+            The old last uncoupled sector.
 
         See Also
         --------

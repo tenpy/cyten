@@ -5548,7 +5548,7 @@ def transpose(tensor: Tensor) -> Tensor:
         return SymmetricTensor(data=data, codomain=new_codomain, domain=new_domain,
                                backend=tensor.backend, labels=labels)
     if isinstance(tensor, ChargedTensor):
-        # TODO this current definition does not guarantee that that transposing twice reproduces
+        # TODO this current definition does not guarantee that transposing twice reproduces
         #      the input for fermions!
         raise NotImplementedError('ChargedTensor transpose not done.')
         inv_part = transpose(tensor.invariant_part)

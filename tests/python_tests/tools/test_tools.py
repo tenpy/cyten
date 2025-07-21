@@ -136,7 +136,7 @@ def test_permutation_as_swaps(N, which_perm, np_random):
             if N > 1 and np.all(perm == np.arange(N)):
                 perm = np_random.permutation(N)
                 continue
-            # make sure the permutation is
+            # make sure the permutation is not made up of independent / non-overlapping swaps
             if N > 2 and np.all(perm[perm] == np.arange(N)):
                 perm = np_random.permutation(N)
                 continue

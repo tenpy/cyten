@@ -614,14 +614,14 @@ class TensorBackend(metaclass=ABCMeta):
         Parameters
         ----------
         a : SymmetricTensor
-            The tensor to act on
+            The tensor to act on.
         codomain_idcs, domain_idcs:
             Which of the legs should end up in the (co-)domain.
-            All are leg indices (``0 <= i < a.num_legs``)
+            All are leg indices (``0 <= i < a.num_legs``).
         new_codomain, new_domain : TensorProduct
             The (co)domain of the result.
         mixes_codomain_domain : bool
-            If any leg move from codomain to domain or vv during the permutation.
+            If any leg moves from the codomain to the domain or vv during the permutation.
         levels:
             The levels. Can assume they are unique, support comparison and are non-negative.
             ``None`` means unspecified.
@@ -1295,7 +1295,7 @@ class BlockBackend(metaclass=ABCMeta):
             multi-index of the result.
         dims2 : list or 1D array of int
             The dimensions of the subindices ``[n1, n2, ..., nK]``.
-        idcs2 : list of 1D array of int
+        idcs2 : list or 1D array of int
             Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the second
             multi-index of the result.
 
@@ -1304,7 +1304,7 @@ class BlockBackend(metaclass=ABCMeta):
         2D block
             A matrix with the same entries as `a`, but rearranged to the new axis order,
             e.g. ``[M, N]``, where ``M == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs1])``
-            and ``N == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs2])``
+            and ``N == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs2])``.
             The reshaped tree block, with same entries as `a`, but rearranged.
             The axis order is ``[*axes[codomain_idcs] ; *axes[domain_idcs]]``, then reshaped
             to a matrix with ``;`` as the divider.

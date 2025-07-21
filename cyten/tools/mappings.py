@@ -58,7 +58,7 @@ class SparseMapping(Generic[_KT], dict[_KT, dict[_KT, _Scalar]]):
         return set(self.keys())
 
     def prune(self, tol: float) -> SparseMapping[_KT]:
-        """Remove small contributions with ``abs(coefficient) < tol`` in-place."""
+        """Remove small contributions with ``abs(coefficient) <= tol`` in-place."""
         for j in self.keys():
             self[j] = {i: a for i, a in self[j].items() if abs(a) > tol}
         return self

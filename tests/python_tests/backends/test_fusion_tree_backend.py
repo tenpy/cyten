@@ -68,8 +68,8 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     expect_block_1[[6, 8, 10], :] *= R_1
     expect_block_1[[5, 7, 9, 11, 12], :] *= R_tau
     expect_data = backends.FusionTreeData(block_inds, [expect_block_0, expect_block_1],
-                                        Dtype.complex128,
-                                        device=backend.block_backend.default_device)
+                                          Dtype.complex128,
+                                          device=backend.block_backend.default_device)
     expect_codomain = TensorProduct([s1, s2, s2, s2])
     expect_tens = SymmetricTensor(expect_data, expect_codomain, domain, backend=backend)
 
@@ -1605,7 +1605,7 @@ def assert_clockwise_counterclockwise_trivial_long_range(a: SymmetricTensor, eps
 
     new_a = permute_legs(a, permutation[:num_codomain], permutation[num_codomain:][::-1], levels)
     new_a = permute_legs(new_a, inv_permutation[:a.num_codomain_legs],
-                            inv_permutation[a.num_codomain_legs:][::-1], inv_levels)
+                         inv_permutation[a.num_codomain_legs:][::-1], inv_levels)
     assert_tensors_almost_equal(new_a, a, eps, eps)
 
 

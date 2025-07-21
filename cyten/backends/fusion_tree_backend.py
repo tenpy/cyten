@@ -2199,15 +2199,14 @@ class TwistInstruction(Instruction):
     For simplicity, we always show ``idcs=[-1]``.
     Example for over-twists::
 
-        |    │   │   │   │   ╭─╮             │   │   │   │          │   │   │   │
-        |    │   │   │    ╲ ╱  │            ┏┷━━━┷━━━┷━━━┷┓        ┏┷━━━┷━━━┷━━━┷┓
-        |    │   │   │     ╱   │            ┃             ┃        ┃             ┃
-        |    │   │   │    ╱ ╲  │            ┗━━┯━━━┯━━━┯━━┛╭─╮     ┗━━┯━━━┯━━━━━┯┛
-        |   ┏┷━━━┷━━━┷━━━┷┓  ╰─╯               │   │    ╲ ╱  │        │   │     │
-        |   ┃             ┃         OR         │   │     ╱   │        │   │     │
-        |   ┗━━┯━━━┯━━━┯━━┛                    │   │    ╱ ╲  │        │   │     │
-        |      │   │   │                       │   │   │   ╰─╯        │   │     │
-        |                                                             │   │     │
+        |    │   │   │   │   ╭─╮             │   │   │   │
+        |    │   │   │    ╲ ╱  │            ┏┷━━━┷━━━┷━━━┷┓
+        |    │   │   │     ╱   │            ┃             ┃
+        |    │   │   │    ╱ ╲  │            ┗━━┯━━━┯━━━┯━━┛╭─╮
+        |   ┏┷━━━┷━━━┷━━━┷┓  ╰─╯               │   │    ╲ ╱  │
+        |   ┃             ┃         OR         │   │     ╱   │
+        |   ┗━━┯━━━┯━━━┯━━┛                    │   │    ╱ ╲  │
+        |      │   │   │                       │   │   │   ╰─╯
 
     Examples for under-twists::
 
@@ -2252,10 +2251,10 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
     Parameters
     ----------
     num_codomain_legs, num_domain_legs : int
-        Number of (co-)domain legs of the input tensor
+        Number of (co-)domain legs of the input tensor.
     codomain_idcs, domain_idcs : list of int
         ``(co)domain_idcs[i] == j`` means that the leg ``tensor.legs[j]`` should end up at
-        ``result.(co)domain[i]``
+        ``result.(co)domain[i]``.
     levels : list of int | None
         The levels that specify braid chirality.
     has_symmetric_braid : bool
@@ -2265,7 +2264,7 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
     -------
     instructions : list of Instruction
         A sequence of instructions, such that if applied to a tensor in this order,
-        the target permutation is realized
+        the target permutation is realized.
     """
     instructions = []
     num_legs = num_codomain_legs + num_domain_legs
@@ -2385,7 +2384,7 @@ class TensorMapping(metaclass=ABCMeta):
 
         f(T) = \sum_{Im} T_{Im} f(Y_I @ X_I)
              = \sum_{Im} T_{Im} \sum_J f_{JI} Y_J @ X_J
-             = \sum_J ( \sum_I f_{JI} T_{Im} ) J
+             = \sum_J ( \sum_I f_{JI} T_{Im} ) Y_J @ X_J
 
     where ``f_{JI} = <Y_J @ X_J | f(Y_I @ X_I)>`` are the coefficients of ``f`` in the basis of
     tree pairs. This means the blocks of the result are given by
@@ -2476,6 +2475,8 @@ class TensorMapping(metaclass=ABCMeta):
         ----------
         data : FusionTreeData
             The data of the input tensor.
+        codomain, domain : TensorProduct
+            The (co)domain of the input tensor.
         new_codomain, new_domain : TensorProduct
             The (co)domain of the output tensor.
         codomain_idcs, domain_idcs : list of int
@@ -2490,8 +2491,7 @@ class TreePairMapping(TensorMapping):
 
     We store the component ``f_{JI} = <Y_J @ X_J | f(Y_I @ X_I)>``,
     which represents ``Y_I @ X_I \mapsto f_{JI} Y_J @ X_J`` as ``mapping[I][J] = f_{JI}``.
-    In practice, the keys are ``I = (Y_I, X_I)`` tuples of two FusionTrees
-
+    In practice, the keys are ``I = (Y_I, X_I)`` tuples of two FusionTrees.
     """
 
     def __init__(self, mapping: SparseMapping[tuple[FusionTree, FusionTree]]):
@@ -2680,9 +2680,6 @@ class TreePairMapping(TensorMapping):
                         i1 = codomain.tree_block_slice(Y_I)  # OPTIMIZE cache these?
                         i2 = domain.tree_block_slice(X_I)
                         tree_block += self_I[Y, X] * old_block[i1, i2]
-                        # TODO debugging print
-                        # print(f'  block[{idcs1.start}:{idcs1.stop}, {idcs2.start}:{idcs2.stop}] '
-                        #       f' += {self_I[Y, X]} * old_block[{i1.start}:{i1.stop}, {i2.start}:{i2.stop}]')
                     if is_zero_tree_block:
                         continue
                     is_zero_block = False

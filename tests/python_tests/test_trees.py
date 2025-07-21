@@ -36,9 +36,9 @@ def random_fusion_tree(symmetry: Symmetry, num_uncoupled: int, sector_rng: Calla
     return res
 
 
-def random_tree_pair(symmetry: Symmetry, num_uncoupled_in: int, num_uncoupled_out: SectorArray,
+def random_tree_pair(symmetry: Symmetry, num_uncoupled_in: int, num_uncoupled_out: int,
                      sector_rng: Callable[[], Sector], np_random: np.random.Generator
-                     ) -> trees.FusionTree:
+                     ) -> tuple[trees.FusionTree, trees.FusionTree]:
     X = random_fusion_tree(symmetry, num_uncoupled_in, sector_rng, np_random)
     root = X.coupled
     uncoupled_out_reversed = []
