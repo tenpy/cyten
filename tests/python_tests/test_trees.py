@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from cyten import trees
-from cyten.symmetries import Symmetry, SymmetryError, SectorArray, Sector
+from cyten.symmetries import Symmetry, SymmetryError, Sector
 from cyten.spaces import ElementarySpace, TensorProduct
 from cyten.dtypes import Dtype
 from cyten.backends.backend_factory import get_backend
