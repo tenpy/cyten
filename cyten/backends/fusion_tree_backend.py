@@ -1616,7 +1616,7 @@ class FusionTreeBackend(TensorBackend):
         new_domain_idcs = []
 
         # mapping to flat indices for TreeMappingDict.from_permute_legs
-        leg_comb = codomain_pipe_inds + list(reversed(domain_pipe_inds))
+        leg_comb = codomain_pipe_inds + domain_pipe_inds
         for i, l in enumerate(leg_comb):
             if i in codomain_idcs:
                 new_codomain_idcs.extend(l)
