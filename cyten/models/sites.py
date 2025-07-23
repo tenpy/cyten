@@ -196,19 +196,8 @@ class SpinfulSite(Site):
             pass
         else:
             raise TypeError('Invalid spin_symmetry')
-        if isinstance(leg.symmetry, ProductSymmetry):
-            # spin_symmetry_sector_slice tells us which factor in the symmetry is spin_symmetry
-            start = 0 if slc.start is None else slc.start
-            stop = leg.symmetry.sector_slices[-1] if slc.stop is None else slc.stop
-            factor_idx = np.searchsorted(leg.symmetry.sector_slices, start)
-            msg = f'Inconsistent spin_symmetry_sector_slice: {slc}'
-            assert start == leg.symmetry.sector_slices[factor_idx], msg
-            assert stop == leg.symmetry.sector_slices[factor_idx + 1], msg
-            assert leg.symmetry.factors[factor_idx] == spin_symmetry
-        else:
-            # TODO is this a reason to say that we should always work with ProductSymmetries?
-            #      like tenpy v1, we always have a list of qmod, even if there is only 1
-            assert leg.symmetry == spin_symmetry
+        # TODO do we want specific error messages when the slice is inconsistent?
+        assert consistent_leg_symmetry(leg, spin_symmetry, slc)
         self.spin_symmetry = spin_symmetry
 
         Site.__init__(self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators)
@@ -323,10 +312,10 @@ class SpinSite(SpinfulSite):
             leg = ElementarySpace.from_defining_sectors(sym, [[two_S]])
         elif conserve in ['Sz', 'U(1)', 'U1']:
             sym = U1Symmetry('2*Sz')
-            leg = ElementarySpace.from_basis(sym, np.arange(-two_S, two_S + 2, 2))
+            leg = ElementarySpace.from_basis(sym, np.arange(-two_S, two_S + 2, 2)[:, None])
         elif conserve in ['parity', 'Z_2', 'Z2']:
             sym = ZNSymmetry(2, 'Sz_parity')
-            leg = ElementarySpace.from_basis(sym, np.arange(dim) % 2)
+            leg = ElementarySpace.from_basis(sym, np.arange(dim)[:, None] % 2)
         elif conserve in ['None', 'none', None]:
             sym = NoSymmetry()
             leg = ElementarySpace.from_trivial_sector(dim=dim, symmetry=sym)
@@ -350,6 +339,121 @@ class SpinHalfFermionSite(SpinfulSite, FermionicSite):
     """TODO similar to SpinSite..."""
 
 
+class ClockSite(Site):
+    """Common base class for sites that have a quantum clock degree of freedom.
+
+    TODO onsite operators
+
+    Attributes
+    ----------
+    q : int
+        Number of states per site.
+    clock_operators : 3D array
+        The vector of clock operators ``X`` and ``Z`` as a numpy array with axes ``[p, p*, i]``
+        and shape ``(dim, dim, 2)``.
+    clock_symmetry : ZNSymmetry | NoSymmetry
+        The symmetry of the clock degree of freedom that is enforced.
+        We can conserve::
+
+            - Z_q, with sector label ``i`` corresponding to the states with eigenvalue
+                ``exp(i * 2.j * pi / q)`` w.r.t. the diagonal on-site operator ``Z``.
+            - nothing
+
+        The full :attr:`symmetry` must either coincide with the `clock_symmetry`, or it must be
+        a :class:`ProductSymmetry` with `clock_symmetry` as a factor.
+    clock_symmetry_sector_slice : slice
+        A slice such that the entries ``leg.sector_decomposition[:, slc]`` correspond to the
+        :attr:`clock_symmetry`.
+
+    TODO we may want to rename this class; 'ClockSite' should probably be the analogue to
+         'SpinSite', so this should have an analogous name to 'SpinfulSite'
+    """
+
+    def __init__(self,
+                 leg: ElementarySpace,
+                 q: int,
+                 clock_operators: np.ndarray,
+                 clock_symmetry: ZNSymmetry | NoSymmetry,
+                 clock_symmetry_sector_slice: slice,
+                 state_labels: dict[str, int] = None,
+                 onsite_operators: dict[str, SymmetricTensor] = None):
+        self.q = q
+        assert clock_operators.shape == (leg.dim, leg.dim, 2)
+        self.clock_operators = clock_operators
+
+        # check the clock_symmetry, and that the sectors of the leg come in correct multiplets
+        self.clock_symmetry_sector_slice = slc = clock_symmetry_sector_slice
+        assert leg.dim % q == 0
+        if isinstance(clock_symmetry, ZNSymmetry):
+            assert clock_symmetry.N == q
+            expect = leg.num_sectors // q
+            for i in range(q):
+                assert np.sum(leg.sector_decomposition[:, slc] == i) == expect
+        elif isinstance(clock_symmetry, NoSymmetry):
+            pass
+        else:
+            raise TypeError('Invalid clock_symmetry')
+        assert consistent_leg_symmetry(leg, clock_symmetry, slc)
+        self.clock_symmetry = clock_symmetry
+
+        Site.__init__(self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators)
+        X, Z = [clock_operators[:, :, i] for i in range(2)]
+        Xhc, Zhc = [np.conj(clock_operators[:, :, i].T) for i in range(2)]
+        self.add_onsite_operator('Z', Z)
+        self.add_onsite_operator('Zhc', Zhc)
+        self.add_onsite_operator('Zphc', Z + Zhc)
+        if isinstance(clock_symmetry, NoSymmetry):
+            # TODO I (NK) am confused why Zphc was excluded from the Z_q symmetric operators in TeNPy v1?
+            self.add_onsite_operator('X', X)
+            self.add_onsite_operator('Xhc', Xhc)
+            self.add_onsite_operator('Xphc', X + Xhc)
+
+    def test_sanity(self):
+        super().test_sanity()
+        # check commutation relations
+        X, Z = [self.clock_operators[:, :, i] for i in range(2)]
+        Xhc, Zhc = [np.conj(self.clock_operators[:, :, i].T) for i in range(2)]
+        assert np.allclose(X @ Z, np.exp(2.j * np.pi / self.q) * Z @ X)
+
+        identity = np.eye(self.leg.num_sectors)
+        assert np.allclose(np.linalg.matrix_power(X, self.q), identity)
+        assert np.allclose(np.linalg.matrix_power(Z, self.q), identity)
+        assert np.allclose(X @ Xhc, identity)
+        assert np.allclose(Z @ Zhc, identity)
+
+        # TODO check compatibility of the operators with the symmetry, i.e. eigenvalues
+        #      match with charge sectors
+
+    @classmethod
+    def pure_clock_site(cls, q: int, conserve: Literal['Z_N', 'None'] = None):
+        # TODO docs
+        #      do we want to keep it like this? This has a different structure than for spins
+        #      (SpinfulSite and SpinSite) and does not have a self.conserve, which SpinSite has
+
+        # build clock operators
+        X = np.eye(q, k=1) + np.eye(q, k=1 - q)
+        Z = np.diag(np.exp(2.j * np.pi * np.arange(q, dtype=np.complex128) / q))
+        clock_operators = np.stack([X, Z], axis=2)
+
+        # build leg
+        if conserve in ['Z_N', 'ZN', 'Z_q', 'Zq']:
+            sym = ZNSymmetry(q, 'q')
+            leg = ElementarySpace.from_basis(sym, np.arange(q)[:, None])
+        elif conserve in ['None', 'none', None]:
+            sym = NoSymmetry()
+            leg = ElementarySpace.from_trivial_sector(dim=q, symmetry=sym)
+        else:
+            raise ValueError(f'Invalid `conserve`: {conserve}')
+
+        state_labels = {str(n): n for n in range(q)}
+        state_labels['up'] = 0
+        if q % 2 == 0:
+            state_labels['down'] = q // 2
+
+        return ClockSite(leg=leg, q=q, clock_operators=clock_operators, clock_symmetry=sym,
+                         clock_symmetry_sector_slice=slice(None, None), state_labels=state_labels)
+
+
 class GoldenSite(Site):
     """TODO elaborate"""
 
@@ -360,12 +464,40 @@ class GoldenSite(Site):
         Site.__init__(self, leg=leg, onsite_operators={'N': tau_occupation})
 
 
+def consistent_leg_symmetry(leg: ElementarySpace, symmetry_factor: Symmetry,
+                            symmetry_sector_slice: slice) -> bool:
+    """Test whether the symmetry of a leg contains a certain factor at a given slice.
+
+    Parameters
+    ----------
+    leg : ElementarySpace
+        The leg whose symmetry is tested.
+    symmetry_factor : Symmetry
+        The symmetry that should be contained in `leg.symmetry`. If `leg.symmetry` is not
+        a `ProductSymmetry`, it is tested whether ``leg.symmetry == symmetry_factor``.
+    symmetry_sector_slice : slice
+        A slice such that the entries ``leg.sector_decomposition[:, slc]`` correspond to
+        `symmetry_factor`.
+    """
+    if isinstance(leg.symmetry, ProductSymmetry):
+        # symmetry_sector_slice tells us which factor in the leg symmetry is symmetry_factor
+        slc = symmetry_sector_slice
+        start = 0 if slc.start is None else slc.start
+        stop = leg.symmetry.sector_slices[-1] if slc.stop is None else slc.stop
+        factor_idx = np.searchsorted(leg.symmetry.sector_slices, start)
+        return all([start == leg.symmetry.sector_slices[factor_idx],
+                    stop == leg.symmetry.sector_slices[factor_idx + 1],
+                    leg.symmetry.factors[factor_idx] == symmetry_factor])
+    # TODO is this a reason to say that we should always work with ProductSymmetries?
+    #      like tenpy v1, we always have a list of qmod, even if there is only 1
+    return leg.symmetry == symmetry_factor
+
+
 # TODO more sites:
 #  - FermionSite (maybe name it SpinlessFermionSite for clarity?)
 #  - SpinHalfFermionSite (or if its easy just do general spin?)
 #  - SpinHalfHoleSite (i dont think this should inherit from FermionicSite, but not sure)
 #  - BosonSite (maybe name it SpinlessBosonSite?)
 #  - bosons with spin?
-#  - ClockSite
 #  - what are relevant anyonic sites? already have Golden, but do some more
 #  - remember to update cyten/__init__.py and cyten/models/__init__.py accordingly!
