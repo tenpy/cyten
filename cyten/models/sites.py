@@ -174,6 +174,10 @@ class SpinfulSite(Site):
         # check the spin_symmetry, and that the sectors of the leg come in correct multiplets
         self.spin_symmetry_sector_slice = slc = spin_symmetry_sector_slice
         assert leg.dim % (double_total_spin + 1) == 0
+        # TODO do we want specific error messages when the slice is inconsistent?
+        assert consistent_leg_symmetry(leg, spin_symmetry, slc)
+        self.spin_symmetry = spin_symmetry
+
         if isinstance(spin_symmetry, SU2Symmetry):
             # all must be in the same single spin sector
             assert np.all(leg.sector_decomposition[:, slc] == double_total_spin)
@@ -196,9 +200,6 @@ class SpinfulSite(Site):
             pass
         else:
             raise TypeError('Invalid spin_symmetry')
-        # TODO do we want specific error messages when the slice is inconsistent?
-        assert consistent_leg_symmetry(leg, spin_symmetry, slc)
-        self.spin_symmetry = spin_symmetry
 
         Site.__init__(self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators)
         if not isinstance(spin_symmetry, SU2Symmetry):
@@ -277,12 +278,204 @@ class BosonicSite(Site):
         - TODO should we allow weirder combinations like ``N_1 + N_2`` and ``N_3`` ?
         - total particle number sum_i N_i
         - total parity (sum_i N_i) % 2
+        - nothing
 
+    TODO do we want to add an average filling as in TeNPy v1? Or is that only for BosonSite?
+    TODO do we want to treat individual symmetries as below?
+         more complicated symmetries like ``N_1 + N_2`` and ``N_3`` should maybe be done as custom
+         classes when needed or maybe we add indices indicating which factor in occupation_symmetry
+         corresponds to which species, e.g.,
+         ``occupation_symmetry.factors = [U1Symmetry, U1Symmetry]`` and ``sym_idcs = [[1, 2], [3]]``?
+
+    Attributes
+    ----------
+    num_species : int
+        Number of boson species.
+    Nmax : 1D array of int
+        Cutoff defining the maximum number of bosons per species and site. ``Nmax[i]`` corresponds
+        to the cutoff for the `i`th species; a value of ``Nmax[i] = 1`` describes hard-core bosons.
+    creators : 3D array
+        The vector of creation operators as a numpy array with shape ``(dim, dim, num_species)``
+        and axes ``[p, p*, i]``, where `i` corresponds to the different species of bosons (i.e.,
+        ``[Bd0, Bd1`, ...]`` stacked along axis 2).
+    annihilators : 3D array
+        The vector of annihilation operators as a numpy array with shape ``(dim, dim, num_species)``
+        and axes ``[p, p*, i]``, where `i` corresponds to the different species of bosons (i.e.,
+        ``[B0, B1`, ...]`` stacked along axis 2).
+    occupation_symmetry : ProductSymmetry | U1Symmetry | ZNSymmetry | NoSymmetry
+        The symmetry of the bosons that is enforced.
+        We can conserve::
+
+            - total particle number sum_i N_i.
+            - individual particle numbers N_i.
+            - total parity (sum_i N_i) % 2.
+            - individual parities N_i % 2.
+            - nothing.
+
+        Must be a :class:`ProductSymmetry` when conserving individual particle numbers or parities
+        where ``occupation_symmetry.factors[i]`` corresponds to the symmetry of the `i`th boson
+        species. The full :attr:`symmetry` must either coincide with the `occupation_symmetry`, or
+        it must be a :class:`ProductSymmetry` with `occupation_symmetry` as a factor.
+        If `occupation_symmetry` is itself a :class:`ProductSymmetry`, all its factors must appear
+        in :attr:`symmetry` in the same order.
+    occupation_symmetry_sector_slice : slice
+        A slice such that the entries ``leg.sector_decomposition[:, slc]`` correspond to the
+        :attr:`occupation_symmetry`. In particular, if :attr:`occupation_symmetry` is a
+        :class:`ProductSymmetry`, this slice contains all factors of the symmetry.
     """
 
-    creators: np.ndarray  # [p, p*, i] where i are different species ;  == [Bd0, Bd1, ...]
-    annihilators: np.ndarray  # [p, p*, i] ;  == [B0, B1, ...]
-    occupation_symmetry: ProductSymmetry | U1Symmetry | ZNSymmetry | NoSymmetry
+    def __init__(self,
+                 leg: ElementarySpace,
+                 creators: np.ndarray,
+                 annihilators: np.ndarray,
+                 occupation_symmetry: ProductSymmetry | U1Symmetry | ZNSymmetry | NoSymmetry,
+                 occupation_symmetry_sector_slice: slice,
+                 state_labels: dict[str, int] = None,
+                 onsite_operators: dict[str, SymmetricTensor] = None):
+        assert creators.shape[:2] == (leg.dim, leg.dim)
+        assert creators.shape == annihilators.shape
+        self.creators = creators
+        self.annihilators = annihilators
+        self.num_species = num_species = creators.shape[2]
+
+        # check the occupation_symmetry, and that the sectors of the leg come in correct multiplets
+        # also get the occupation number cutoffs
+        Nmax = []
+        N_is = []  # these are used later for the on-site operators
+        self.occupation_symmetry_sector_slice = slc = occupation_symmetry_sector_slice
+        for i in range(num_species):
+            N_i = creators[:, :, i] @ annihilators[:, :, i]
+            N_i_max_ = np.max(np.diag(N_i))
+            N_i_max = round(N_i_max_, 0)
+            assert np.allclose(N_i_max, N_i_max_)
+            assert leg.dim % (N_i_max + 1) == 0
+            N_is.append(N_i)
+            Nmax.append(N_i_max)
+        Nmax = np.asarray(Nmax, dtype=int)
+        self.Nmax = Nmax
+
+        assert consistent_leg_symmetry(leg, occupation_symmetry, slc)
+        self.occupation_symmetry = occupation_symmetry
+        
+        if isinstance(occupation_symmetry, U1Symmetry):
+            Nmax_tot = np.sum(Nmax, dtype=int)
+            expect_secs = leg.num_sectors // (Nmax_tot + 1)
+            mult = leg.dim // np.prod(1 + Nmax, dtype=int)
+            for n in range(Nmax_tot + 1):
+                sector_mask = leg.sector_decomposition[:, slc] == n
+                assert np.sum(sector_mask) == expect_secs
+                mults = leg.multiplicities[sector_mask.flatten()]
+                expect_mult = mult * self._states_with_occupation(n, Nmax)
+                assert np.all(mults == np.ones(expect_secs, dtype=int) * expect_mult)
+        elif isinstance(occupation_symmetry, ZNSymmetry):
+            assert occupation_symmetry.N == 2
+            sum_even_odd = [0, 0]
+            for n in range(np.sum(Nmax, dtype=int) + 1):
+                sum_even_odd[n % 2] += self._states_with_occupation(n, Nmax)
+            expect_secs = leg.num_sectors // 2
+            mask_even = leg.sector_decomposition[:, slc] == 0
+            mask_odd = leg.sector_decomposition[:, slc] == 1
+            assert np.sum(mask_even) == expect_secs
+            assert np.sum(mask_odd) == expect_secs
+            Nmax_prod1 = np.prod(1 + Nmax, dtype=int)
+            expect_even = (leg.dim * sum_even_odd[0]) // Nmax_prod1 // expect_secs
+            expect_odd = (leg.dim * sum_even_odd[1]) // Nmax_prod1 // expect_secs
+            mults_even = leg.multiplicities[mask_even.flatten()]
+            mults_odd = leg.multiplicities[mask_odd.flatten()]
+            assert np.all(mults_even == np.ones(expect_secs, dtype=int) * expect_even)
+            assert np.all(mults_odd == np.ones(expect_secs, dtype=int) * expect_odd)
+        elif isinstance(occupation_symmetry, NoSymmetry):
+            pass
+        elif isinstance(occupation_symmetry, ProductSymmetry):
+            # check every factor
+            slc_offset = 0 if slc.start is None else slc.start
+            for i, factor in enumerate(occupation_symmetry.factors):
+                # slice of the factor within the full
+                factor_slc = slice(slc_offset + occupation_symmetry.sector_slices[i],
+                                   slc_offset + occupation_symmetry.sector_slices[i + 1])
+                if isinstance(factor, U1Symmetry):
+                    expect_secs = leg.num_sectors // (Nmax[i] + 1)
+                    expect_mult = leg.dim // leg.num_sectors
+                    for n in range(Nmax[i] + 1):
+                        sector_mask = leg.sector_decomposition[:, factor_slc] == n
+                        assert np.sum(sector_mask) == expect_secs
+                        mults = leg.multiplicities[sector_mask.flatten()]
+                        assert np.all(mults == np.ones(expect_secs, dtype=int) * expect_mult)
+                elif isinstance(factor, ZNSymmetry):
+                    assert factor.N == 2
+                    expect_secs = leg.num_sectors // 2
+                    mask_even = leg.sector_decomposition[:, factor_slc] == 0
+                    mask_odd = leg.sector_decomposition[:, factor_slc] == 1
+                    assert np.sum(mask_even) == expect_secs
+                    assert np.sum(mask_odd) == expect_secs
+                    num_even = (Nmax[i] + 2) // 2
+                    num_odd = (Nmax[i] + 1) // 2
+                    expect_even = (leg.dim * num_even) // (Nmax[i] + 1) // expect_secs
+                    expect_odd = (leg.dim * num_odd) // (Nmax[i] + 1) // expect_secs
+                    mults_even = leg.multiplicities[mask_even.flatten()]
+                    mults_odd = leg.multiplicities[mask_odd.flatten()]
+                    assert np.all(mults_even == np.ones(expect_secs, dtype=int) * expect_even)
+                    assert np.all(mults_odd == np.ones(expect_secs, dtype=int) * expect_odd)
+                elif isinstance(factor, NoSymmetry):
+                    pass
+                else:
+                    raise TypeError('Invalid occupation_symmetry')
+        else:
+            raise TypeError('Invalid occupation_symmetry')
+
+        Site.__init__(self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators)
+        if num_species > 1:
+            # operator names include a number for the species or 'tot' for total
+            N_iN_is = []
+            P_is = []
+            for i in range(num_species):
+                self.add_onsite_operator(f'N{i}', N_is[i])
+                N_iN_i = np.diag(np.diag(N_is[i])**2)
+                self.add_onsite_operator(f'N{i}N{i}', N_iN_i)
+                N_iN_is.append(N_iN_i)
+                P_i = np.diag(1. - 2. * np.mod(np.diag(N_is[i]), 2))
+                self.add_onsite_operator(f'P{i}', P_i)
+                P_is.append(P_i)
+            self.add_onsite_operator('Ntot', np.sum(N_is, axis=0))
+            self.add_onsite_operator('NtotNtot', np.sum(N_iN_is, axis=0))
+            self.add_onsite_operator('Ptot', np.sum(P_is, axis=0))
+        else:
+            self.add_onsite_operator('N', N_is[0])
+            NN = np.diag(np.diag(N_is[0])**2)
+            self.add_onsite_operator('NN', NN)
+            P = np.diag(1. - 2. * np.mod(np.diag(N_is[0]), 2))
+            self.add_onsite_operator('P', P)
+
+    def test_sanity(self):
+        super().test_sanity()
+        for i in range(self.num_species):
+            N_i = self.creators[:, :, i] @ self.annihilators[:, :, i]
+            # check commutation relations
+            # BBd is 0 when going over the maximum occupation -> set this manually here
+            BBd = self.annihilators[:, :, i] @ self.creators[:, :, i]
+            mask = np.isclose(np.diag(BBd), 0)
+            BBd[mask, mask] += self.Nmax[i] + 1
+            assert np.allclose(BBd - N_i, np.eye(self.leg.dim))
+            # N_i has integer eigenvalues and is diagonal
+            N_i_rounded = np.around(N_i, 0)
+            assert np.allclose(N_i_rounded, N_i)
+            assert np.allclose(np.diag(np.diag(N_i)), N_i)
+            assert np.min(N_i_rounded) == 0
+            assert np.max(N_i_rounded) == self.Nmax[i]
+
+    @staticmethod
+    def _states_with_occupation(n: int, Nmax: list[int] | np.ndarray) -> int:
+        """Number of states with a given total boson number for given maximum occupations."""
+        if len(Nmax) == 1:
+            if n <= Nmax[0]:
+                return 1
+            return 0
+        # lower and upper bounds on the first species occuption such that n can still be reached
+        lower_bound = max([0, n - sum(Nmax[1:])])
+        upper_bound = max([0, n - Nmax[0]])
+        num_states = np.sum([BosonicSite._states_with_occupation(n_1, Nmax[1:])
+                             for n_1 in range(upper_bound, n + 1 - lower_bound)])
+        return num_states
 
 
 class SpinSite(SpinfulSite):
@@ -384,6 +577,9 @@ class ClockSite(Site):
         # check the clock_symmetry, and that the sectors of the leg come in correct multiplets
         self.clock_symmetry_sector_slice = slc = clock_symmetry_sector_slice
         assert leg.dim % q == 0
+        assert consistent_leg_symmetry(leg, clock_symmetry, slc)
+        self.clock_symmetry = clock_symmetry
+
         if isinstance(clock_symmetry, ZNSymmetry):
             assert clock_symmetry.N == q
             expect = leg.num_sectors // q
@@ -393,8 +589,6 @@ class ClockSite(Site):
             pass
         else:
             raise TypeError('Invalid clock_symmetry')
-        assert consistent_leg_symmetry(leg, clock_symmetry, slc)
-        self.clock_symmetry = clock_symmetry
 
         Site.__init__(self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators)
         X, Z = [clock_operators[:, :, i] for i in range(2)]
@@ -479,18 +673,36 @@ def consistent_leg_symmetry(leg: ElementarySpace, symmetry_factor: Symmetry,
         A slice such that the entries ``leg.sector_decomposition[:, slc]`` correspond to
         `symmetry_factor`.
     """
+    slc = symmetry_sector_slice
+    slc_start = 0 if slc.start is None else slc.start
+    if isinstance(symmetry_factor, ProductSymmetry):
+        if not isinstance(leg.symmetry, ProductSymmetry):
+            return False
+        slc_stop = leg.symmetry.sector_slices[-1] if slc.stop is None else slc.stop
+        if len(leg.symmetry.factors) == len(symmetry_factor.factors):
+            # factors equal and slice over full symmetry
+            return (leg.symmetry.is_same_symmetry(symmetry_factor) and
+                    slc_start == 0 and slc_stop == leg.symmetry.sector_slices[-1])
+        factor_idx = np.searchsorted(leg.symmetry.sector_slices, slc_start)
+        slc_bounds = slc_start + symmetry_factor.sector_slices
+        leg_slc_bounds = leg.symmetry.sector_slices[factor_idx:factor_idx + len(symmetry_factor.factors)]
+        return (all(leg_slc_bounds == slc_bounds) and
+                all([leg.symmetry.factors[factor_idx + i] == factor
+                     for i, factor in enumerate(symmetry_factor.factors)]))
+
+    # remaining part: symmetry_factor is not a ProductSymmetry
     if isinstance(leg.symmetry, ProductSymmetry):
         # symmetry_sector_slice tells us which factor in the leg symmetry is symmetry_factor
-        slc = symmetry_sector_slice
-        start = 0 if slc.start is None else slc.start
-        stop = leg.symmetry.sector_slices[-1] if slc.stop is None else slc.stop
-        factor_idx = np.searchsorted(leg.symmetry.sector_slices, start)
-        return all([start == leg.symmetry.sector_slices[factor_idx],
-                    stop == leg.symmetry.sector_slices[factor_idx + 1],
+        slc_stop = leg.symmetry.sector_slices[-1] if slc.stop is None else slc.stop
+        factor_idx = np.searchsorted(leg.symmetry.sector_slices, slc_start)
+        return all([slc_start == leg.symmetry.sector_slices[factor_idx],
+                    slc_stop == leg.symmetry.sector_slices[factor_idx + 1],
                     leg.symmetry.factors[factor_idx] == symmetry_factor])
     # TODO is this a reason to say that we should always work with ProductSymmetries?
     #      like tenpy v1, we always have a list of qmod, even if there is only 1
-    return leg.symmetry == symmetry_factor
+    # leg symmetry is not a ProductSymmetry; slc must still match sector_ind_len
+    slc_stop = leg.symmetry.sector_ind_len if slc.stop is None else slc.stop
+    return leg.symmetry == symmetry_factor and slc_start == 0 and slc_stop == leg.symmetry.sector_ind_len
 
 
 # TODO more sites:
