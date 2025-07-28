@@ -2,11 +2,12 @@
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from math import prod
-from typing import TYPE_CHECKING, Iterable
+from typing import TYPE_CHECKING, Iterable, Sequence
 import numpy as np
 
 from .symmetries import Symmetry, Sector, SectorArray, FusionStyle, SymmetryError
 from .dtypes import Dtype
+from .tools import to_valid_idx
 
 if TYPE_CHECKING:
     from .backends.abstract_backend import TensorBackend, Block
@@ -812,6 +813,102 @@ class FusionTree:
             multiplicities=self.multiplicities[:-1]
         )
         return rest_tree, self.coupled, self.multiplicities[-1], self.uncoupled[-1]
+
+    def twist(self, idcs: Sequence[int], overtwist: bool) -> dict[FusionTree, float | complex]:
+        """Twist some legs below a tree, return the resulting linear combination of trees.
+
+        Parameters
+        ----------
+        idcs : list of int
+            Which uncoupled legs to twist
+        overtwist : bool
+            The chirality of the twist. If the loop is to the right of the wires, an overtwist is
+            such that the free end is on top. See notes below.
+
+        Returns
+        -------
+        linear_combination : dict {FusionTree: complex}
+            The composite object of tree and twist is a linear combination
+            ``twisted_self = sum_i a_i X_i``. The returned dictionary has entries
+            ``linear_combination[X_i] = a_i`` for the contributions to this linear combination
+            (i.e. trees for which the coefficient vanishes may be omitted).
+
+        Notes
+        -----
+        See the following graphical examples for braid chiralities::
+
+            |   idcs = [-1]                    idcs = [-1]
+            |   overtwist = True               overtwist = False
+            |
+            |   │                              │
+            |   ┢━━━━━━━━━━━━━┓                ┢━━━━━━━━━━━━━┓
+            |   ┡━━━┯━━━┯━━━┯━┛ ╭─╮            ┡━━━┯━━━┯━━━┯━┛ ╭─╮
+            |   │   │   │    ╲ ╱  │            │   │   │    ╲ ╱  │
+            |   │   │   │     ╱   │            │   │   │     ╲   │
+            |   │   │   │    ╱ ╲  │            │   │   │    ╱ ╲  │
+            |   │   │   │   │   ╰─╯            │   │   │   │   ╰─╯
+            |   │   │   │   │                  │   │   │   │
+
+        For multiple legs (``len(idcs) > 1``), we twist the together, e.g. here for
+        ``idcs=[-2, -1]`` and ``overtwist=True``::
+
+            |   │
+            |   ┢━━━━━━━━━━━━━┓
+            |   ┡━━━┯━━━┯━━━┯━┛ ╭──────╮
+            |   │   │    ╲   ╲ ╱       │
+            |   │   │     ╲   ╱   ╭─╮  │
+            |   │   │      ╲ ╱ ╲ ╱  │  │
+            |   │   │       ╱   ╱   │  │
+            |   │   │      ╱ ╲ ╱ ╲  │  │
+            |   │   │     ╱   ╱   ╰─╯  │
+            |   │   │    ╱   ╱ ╲       │
+            |   │   │   │   │   ╰──────╯
+        """
+        if self.symmetry.has_symmetric_braid:
+            # twists are trivial
+            return {self: 1}
+
+        if len(idcs) == 0:
+            return {self: 1}
+
+        if len(idcs) == 1:
+            # single wire twist
+            i = to_valid_idx(idcs[0], self.num_uncoupled)
+            theta = self.symmetry.topological_twist(self.uncoupled[i])
+            if not overtwist:
+                theta = np.conj(theta)
+            return {self: theta}
+
+        idcs = sorted([to_valid_idx(i, self.num_uncoupled) for i in idcs])
+        assert all(i2 > i1 for i2, i1 in zip(idcs[1:], idcs[:-1])), 'duplicate idcs'
+
+        if len(idcs) == self.num_uncoupled:
+            # we can just slide the whole tree through the twist and end up with a twist of the
+            # coupled sector
+            theta = self.symmetry.topological_twist(self.coupled)
+            if not overtwist:
+                theta = np.conj(theta)
+            return {self: theta}
+
+        if idcs == [*range(len(idcs))]:
+            # we can slide a subtree through the twist and get a twist on an inner sector
+            a = self.inner_sectors[idcs[-1] - 1]
+            # note: have already excluded the special cases where this index would be out of bounds
+            theta = self.symmetry.topological_twist(a)
+            if not overtwist:
+                theta = np.conj(theta)
+            return {self: theta}
+
+        # Not sure what the best strategy is in the general case.
+        # Option A: we could do the twist on range(i, j) as:
+        #           - twist on range(j)
+        #           - inverse twist on range(i)
+        #           - some extra braiding
+        # Option B: break it down recursively
+        #           - twist range(i, mid)
+        #           - twist range(mid, j)
+        #           - braid twice
+        raise NotImplementedError
 
 
 class fusion_trees(Iterable[FusionTree]):

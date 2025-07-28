@@ -95,7 +95,7 @@ from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe
 from ..trees import FusionTree, fusion_trees
 from ..tools.misc import (
     inverse_permutation, iter_common_sorted_arrays, iter_common_noncommon_sorted,
-    iter_common_sorted, permutation_as_swaps, rank_data, to_valid_idx
+    iter_common_sorted, permutation_as_swaps, rank_data
 )
 from ..tools.mappings import SparseMapping, IdentityMapping
 
@@ -2552,8 +2552,8 @@ class TreePairMapping(TensorMapping):
                 assert np.all(X_j.coupled == Y_j.coupled)
 
     def pre_compose_braid_instruction(self, instruction: BraidInstruction):
+        braid_mapping = SparseMapping[FusionTree]()
         if instruction.codomain:
-            to_braid = set(Y for Y, X in self.mapping.nonzero_rows())
             # the splitting tree in the codomain is represented by a FusionTree and::
             # res_fusion_tree = dagger(res_splitting_tree)
             #                 = dagger(braid(splitting_tree))
@@ -2561,27 +2561,14 @@ class TreePairMapping(TensorMapping):
             #                 = opposite_braid(fusion_tree)
             # additionally, since we represent t = dagger(t_fusion), coefficients get a conj
             #   a t + b t2 = dagger(conj(a) t_fusion + conj(b) t2_fusion)
-            over_braid_fusion_tree = not instruction.overbraid
-            do_conj = True
+            for Y in set(Y for Y, X in self.mapping.nonzero_rows()):
+                braid_mapping[Y] = Y.braid(j=instruction.idx, overbraid=not instruction.overbraid,
+                                           do_conj=True)
+            return self.pre_compose_splitting_tree_mapping(braid_mapping)
         else:
-            to_braid = set(X for Y, X in self.mapping.nonzero_rows())
-            over_braid_fusion_tree = instruction.overbraid
-            do_conj = False
-
-        braid_mapping = SparseMapping[FusionTree]()
-        for t in to_braid:
-            braid_mapping[t] = t.braid(j=instruction.idx, overbraid=over_braid_fusion_tree,
-                                       do_conj=do_conj)
-        # essentially do pre-compose, but we know that the braid mapping depends only on one of the trees
-        mapping = SparseMapping[tuple[FusionTree, FusionTree]]()
-        for k, self_k in self.mapping.items():
-            mapping[k] = res_k = {}
-            for (Y_j, X_j), self_jk in self_k.items():
-                t_j = Y_j if instruction.codomain else X_j
-                for t_i, other_ij in braid_mapping[t_j].items():
-                    i = (t_i, X_j) if instruction.codomain else (Y_j, t_i)  # other tree is unchanged
-                    res_k[i] = res_k.get(i, 0) + other_ij * self_jk
-        return TreePairMapping(mapping)
+            for X in set(X for Y, X in self.mapping.nonzero_rows()):
+                braid_mapping[X] = X.braid(j=instruction.idx, overbraid=instruction.overbraid)
+            return self.pre_compose_fusion_tree_mapping(braid_mapping)
 
     def pre_compose_bend_instruction(self, instruction: BendInstruction):
         bend_mapping = SparseMapping[tuple[FusionTree, FusionTree]]()
@@ -2592,62 +2579,41 @@ class TreePairMapping(TensorMapping):
         mapping = self.mapping.pre_compose(bend_mapping)
         return TreePairMapping(mapping)
 
+    def pre_compose_fusion_tree_mapping(self, mapping: SparseMapping[FusionTree]) -> TreePairMapping:
+        """Pre-compose with a mapping that acts only on the fusion-trees."""
+        res = SparseMapping[tuple[FusionTree, FusionTree]]()
+        for k, self_k in self.mapping.items():
+            res[k] = res_k = {}
+            for (Y, X_j), self_jk in self_k.items():
+                for X_i, other_ij in mapping[X_j].items():
+                    i = (Y, X_i)
+                    res_k[i] = res_k.get(i, 0) + other_ij * self_jk
+        return TreePairMapping(res)
+
+    def pre_compose_splitting_tree_mapping(self, mapping: SparseMapping[FusionTree]) -> TreePairMapping:
+        """Pre-compose with a mapping that acts only on the fusion-trees."""
+        res = SparseMapping[tuple[FusionTree, FusionTree]]()
+        for k, self_k in self.mapping.items():
+            res[k] = res_k = {}
+            for (Y_j, X), self_jk in self_k.items():
+                for Y_i, other_ij in mapping[Y_j].items():
+                    i = (Y_i, X)
+                    res_k[i] = res_k.get(i, 0) + other_ij * self_jk
+        return TreePairMapping(res)
+
     def pre_compose_twist_instruction(self, instruction: TwistInstruction) -> TensorMapping:
-        # OPTIMIZE skip the whole call if braiding_style <= fermionic, since then all theta = 1
-        Y, X = next(iter(self.mapping.keys()))
-        num_codomain = Y.num_uncoupled
-        num_domain = X.num_uncoupled
-        idcs = [to_valid_idx(j, num_codomain if instruction.codomain else num_domain)
-                for j in instruction.idcs]
-
-        if len(idcs) == 0:
-            return self
-
-        if len(idcs) == 1:
-            # single wire twist
-            res = SparseMapping[tuple[FusionTree, FusionTree]]()
-            for i, self_i in self.mapping.items():
-                res[i] = res_i = {}
-                for (Y, X), a_ij in self_i.items():
-                    if instruction.codomain:
-                        theta = Y.symmetry.topological_twist(Y.uncoupled[idcs[0]])
-                    else:
-                        theta = X.symmetry.topological_twist(X.uncoupled[idcs[0]])
-                    if not instruction.overtwist:
-                        theta = np.conj(theta)
-                    res_i[Y, X] = a_ij * theta
-            return TreePairMapping(res)
-
-        twist_whole_codomain = instruction.codomain and len(instruction.idcs) == num_codomain
-        twist_whole_domain = (not instruction.codomain) and len(instruction.idcs) == num_domain
-        if twist_whole_codomain or twist_whole_domain:
-            # we can just slide a whole tree through the twist and end up with a twist of the
-            # coupled sector
-            res = SparseMapping[tuple[FusionTree, FusionTree]]()
-            for i, self_i in self.mapping.items():
-                res[i] = res_i = {}
-                for (Y, X), a_ij in self_i.items():
-                    theta = Y.symmetry.topological_twist(Y.coupled)
-                    if not instruction.overtwist:
-                        theta = np.conj(theta)
-                    res_i[Y, X] = a_ij * theta
-            return TreePairMapping(res)
-
-        if idcs == [*range(len(idcs))]:
-            # in this case, we can slide a subtree through the twist and get a twist on an inner
-            # sector
-            raise NotImplementedError
-
-        # Not sure what the best strategy is in general.
-        # Option A: we could do the twist on range(i, j) as:
-        #           - twist on range(j)
-        #           - inverse twist on range(i)
-        #           - some extra braiding
-        # Option B: break it down recursively
-        #           - twist range(i, mid)
-        #           - twist range(mid, j)
-        #           - braid twice
-        raise NotImplementedError
+        twist_mapping = SparseMapping[FusionTree]()
+        if instruction.codomain:
+            # because this is a splitting tree, we need to do the opposite twist to its
+            # fusiontree representative, giving us one conj.
+            # then, we need to conj the resulting coefficient, cancelling that conj again.
+            for Y in set(Y for Y, X in self.mapping.nonzero_rows()):
+                twist_mapping[Y] = Y.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
+            return self.pre_compose_splitting_tree_mapping(twist_mapping)
+        else:
+            for X in set(X for Y, X in self.mapping.nonzero_rows()):
+                twist_mapping[X] = X.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
+            return self.pre_compose_fusion_tree_mapping(twist_mapping)
 
     def prune(self, tol: float = 1e-15) -> TreePairMapping:
         self.mapping.prune(tol=tol)
@@ -2792,68 +2758,21 @@ class FactorizedTreeMapping(TensorMapping):
         raise TypeError(f'{type(self).__name__} is incompatible with `{type(instruction).__name__}`.')
 
     def pre_compose_twist_instruction(self, instruction: TwistInstruction) -> TensorMapping:
-        # OPTIMIZE skip the whole call if symmetry.braiding_style <= fermionic ?
-        #          then, all twists are 1.
-        num_codomain = next(iter(self.splitting_tree_mapping.keys())).num_uncoupled
-        num_domain = next(iter(self.fusion_tree_mapping.keys())).num_uncoupled
-        idcs = [to_valid_idx(j, num_codomain if instruction.codomain else num_domain)
-                for j in instruction.idcs]
-
-        if len(idcs) == 0:
-            raise ValueError('Nothing to twist')
-
-        if len(idcs) == 1 and instruction.codomain:
-            splitting_tree_mapping = SparseMapping[FusionTree]()
-            for i, a_i in self.splitting_tree_mapping.items():
-                splitting_tree_mapping[i] = res_i = {}
-                for j, a_ij in a_i.items():
-                    theta = j.symmetry.topological_twist(j.uncoupled[idcs[0]])
-                    if not instruction.overtwist:
-                        theta = np.conj(theta)
-                    res_i[j] = a_ij * theta
-            return FactorizedTreeMapping(splitting_tree_mapping, self.fusion_tree_mapping)
-
-        if len(idcs) == 1 and (not instruction.codomain):
-            fusion_tree_mapping = SparseMapping[FusionTree]()
-            for i, a_i in self.fusion_tree_mapping.items():
-                fusion_tree_mapping[i] = res_i = {}
-                for j, a_ij in a_i.items():
-                    theta = j.symmetry.topological_twist(j.uncoupled[idcs[0]])
-                    if not instruction.overtwist:
-                        theta = np.conj(theta)
-                    res_i[j] = a_ij * theta
-            return FactorizedTreeMapping(self.splitting_tree_mapping, fusion_tree_mapping)
-
-        if instruction.codomain and len(idcs) == num_codomain:
-            # twisting the whole codomain
-            splitting_tree_mapping = SparseMapping[FusionTree]()
-            for i, a_i in self.splitting_tree_mapping.items():
-                splitting_tree_mapping[i] = res_i = {}
-                for j, a_ij in a_i.items():
-                    theta = j.symmetry.topological_twist(j.coupled)
-                    if not instruction.overtwist:
-                        theta = np.conj(theta)
-                    res_i[j] = a_ij * theta
-            return FactorizedTreeMapping(splitting_tree_mapping, self.fusion_tree_mapping)
-
-        if (not instruction.codomain) and len(idcs) == num_domain:
-            # twisting the whole domain
-            fusion_tree_mapping = SparseMapping[FusionTree]()
-            for i, a_i in self.fusion_tree_mapping.items():
-                fusion_tree_mapping[i] = res_i = {}
-                for j, a_ij in a_i.items():
-                    theta = j.symmetry.topological_twist(j.coupled)
-                    if not instruction.overtwist:
-                        theta = np.conj(theta)
-                    res_i[j] = a_ij * theta
-            return FactorizedTreeMapping(self.splitting_tree_mapping, fusion_tree_mapping)
-
-        if idcs == [*range(len(idcs))]:
-            # in this case, we can slide a subtree through the twist and get a twist on an inner
-            # sector
-            raise NotImplementedError
-
-        raise NotImplementedError
+        twist_mapping = SparseMapping[FusionTree]()
+        if instruction.codomain:
+            # because this is a splitting tree, we need to do the opposite twist to its
+            # fusiontree representative, giving us one conj.
+            # then, we need to conj the resulting coefficient, cancelling that conj again.
+            for Y in self.splitting_tree_mapping.nonzero_rows():
+                twist_mapping[Y] = Y.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
+            splitting_tree_mapping = self.splitting_tree_mapping.pre_compose(twist_mapping)
+            fusion_tree_mapping = self.fusion_tree_mapping
+        else:
+            for X in self.fusion_tree_mapping.nonzero_rows():
+                twist_mapping[X] = X.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
+            splitting_tree_mapping = self.splitting_tree_mapping
+            fusion_tree_mapping = self.fusion_tree_mapping.pre_compose(twist_mapping)
+        return FactorizedTreeMapping(splitting_tree_mapping, fusion_tree_mapping)
 
     def prune(self, tol: float = 1e-15) -> FactorizedTreeMapping:
         self.splitting_tree_mapping.prune(tol=tol)
