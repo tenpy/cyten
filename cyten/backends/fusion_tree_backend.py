@@ -169,8 +169,23 @@ class FusionTreeData:
         self.dtype = dtype
         self.device = device
 
+    def block_ind_from_coupled(self, coupled: Sector, domain: TensorProduct) -> int | None:
+        """Return `ind` such that ``blocks[ind]`` is associated with the `coupled` sector.
+
+        This is such that ``domain.sector_decomposition[block_inds[res][1]] == coupled``.
+
+        Note: we use the domain (and not the codomain), since only the :attr:`block_inds[:, 1]``
+        are sorted.
+        """
+        domain_sector_ind = domain.sector_decomposition_where(coupled)
+        return self.block_ind_from_domain_sector_ind(domain_sector_ind)
+
     def block_ind_from_domain_sector_ind(self, domain_sector_ind: int) -> int | None:
-        """Return `ind` such that ``block_inds[ind][1] == domain_sector_ind``"""
+        """Return `ind` such that ``block_inds[ind, 1] == domain_sector_ind``
+
+        Note: we use the domain (and not the codomain), since only the :attr:`block_inds[:, 1]``
+        are sorted.
+        """
         ind = np.searchsorted(self.block_inds[:, 1], domain_sector_ind)
         if ind >= len(self.block_inds) or self.block_inds[ind, 1] != domain_sector_ind:
             return None
@@ -784,8 +799,7 @@ class FusionTreeBackend(TensorBackend):
                 op_coupled = [op.domain.sector_decomposition[bi[1]] for bi in op.data.block_inds]
                 for codom_unc, op_codom_slc, op_coupled_idx in op.codomain.iter_forest_blocks(op_coupled):
                     coupled = op_coupled[op_coupled_idx]
-                    block_idx = new_domain.sector_decomposition_where(coupled)
-                    block_idx = data.block_ind_from_domain_sector_ind(block_idx)
+                    block_idx = data.block_ind_from_coupled(coupled, new_domain)
 
                     # goal: reshape co_domain part such that it has 3 axes:
                     # for the trees, for the multiplicity of codomain[0] / domain[-1], for all other multiplicities
@@ -1343,8 +1357,7 @@ class FusionTreeBackend(TensorBackend):
                     b_i = mask_block_inds[i, 1]
             elif not is_sorted:
                 dual_sec = large_leg.sector_decomposition[sector_idx]
-                dom_idx = mask.domain.sector_decomposition_where(dual_sec)
-                i = mask.data.block_ind_from_domain_sector_ind(dom_idx)
+                i = mask.data.block_ind_from_coupled(dual_sec, mask.domain)
                 if i is not None:
                     block_found = True
                     block = mask_blocks[i]
@@ -1430,8 +1443,7 @@ class FusionTreeBackend(TensorBackend):
                 new_dom_trees = a_dom_tree.outer(b_dom_tree)
                 for new_dom_tree, dom_amp in new_dom_trees.items():
                     dom_slc = new_domain.tree_block_slice(new_dom_tree)
-                    block_idx = new_domain.sector_decomposition_where(new_dom_tree.coupled)
-                    block_idx = new_data.block_ind_from_domain_sector_ind(block_idx)
+                    block_idx = new_data.block_ind_from_coupled(new_dom_tree.coupled, new_domain)
                     for new_codom_tree, codom_amp in new_codom_trees.items():
                         if not all(new_codom_tree.coupled == new_dom_tree.coupled):
                             continue
@@ -1525,10 +1537,8 @@ class FusionTreeBackend(TensorBackend):
         new_data = self.zero_data(new_codomain, new_domain, tensor.dtype, tensor.device,
                                   all_blocks=True)
         # block indices
-        old_inds = [data.block_ind_from_domain_sector_ind(dom.sector_decomposition_where(c))
-                    for c in coupled]
-        new_inds = [new_data.block_ind_from_domain_sector_ind(new_domain.sector_decomposition_where(c))
-                    for c in coupled]
+        old_inds = [data.block_ind_from_coupled(c, dom) for c in coupled]
+        new_inds = [new_data.block_ind_from_coupled(c, new_domain) for c in coupled]
 
         # step 2: compute new entries: iterate over all trees in the untraced
         # spaces and construct the consistent trees in the traced spaces
@@ -1705,9 +1715,7 @@ class FusionTreeBackend(TensorBackend):
         ind_mapping = {}  # mapping between index in coupled sectors and index in blocks
         for uncoupled, slc, coupled_ind in iter_space.iter_forest_blocks(coupled_sectors):
             ind = a_block_inds[coupled_ind, 1]
-            ind_b = b.data.block_ind_from_domain_sector_ind(
-                b.domain.sector_decomposition_where(uncoupled[co_domain_idx])
-            )
+            ind_b = b.data.block_ind_from_coupled(uncoupled[co_domain_idx], b.domain)
             if ind_b is None:  # zero block
                 continue
 
@@ -2691,13 +2699,11 @@ class TreePairMapping(TensorMapping):
                     for (Y_I, X_I), self_I in self.mapping.items():
                         if (Y, X) not in self_I:
                             continue
-                        old_bi = codomain.sector_decomposition_where(Y_I.coupled)
-                        idcs = np.nonzero(data.block_inds[:, 0] == old_bi)[0]
-                        if len(idcs) == 0:
+                        which_block = data.block_ind_from_coupled(Y_I.coupled, domain)
+                        if which_block is None:
                             # ie old block is not set / is zero
                             continue
-                        assert len(idcs) == 1  # OPTIMIZE rm check?
-                        old_block = data.blocks[idcs[0]]
+                        old_block = data.blocks[which_block]
                         is_zero_tree_block = False
                         i1 = codomain.tree_block_slice(Y_I)  # OPTIMIZE cache these?
                         i2 = domain.tree_block_slice(X_I)
@@ -2891,12 +2897,10 @@ class FactorizedTreeMapping(TensorMapping):
                                               new_domain.sector_decomposition):
             coupled = new_codomain.sector_decomposition[i]
             #
-            bi = codomain.sector_decomposition_where(coupled)
-            which_block = np.nonzero(data.block_inds[:, 0] == bi)[0]
-            if len(which_block) == 0:
+            which_block = data.block_ind_from_coupled(coupled, domain)
+            if which_block is None:
                 continue
-            assert len(which_block) == 1  # OPTIMIZE rm check?
-            old_block = data.blocks[which_block[0]]
+            old_block = data.blocks[which_block]
             shape = (new_codomain.multiplicities[i], new_domain.multiplicities[j])
             #
             tmp_block = block_backend.zeros(shape, data.dtype, device=data.device)
