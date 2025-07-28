@@ -328,6 +328,27 @@ class FusionTreeBackend(TensorBackend):
                            codomain_idcs: list[int], domain_idcs: list[int],
                            new_codomain: TensorProduct, new_domain: TensorProduct,
                            mixes_codomain_domain: bool) -> FusionTreeData:
+        """Apply a sequence of :class:`Instruction` s to a tensor.
+
+        Parameters
+        ----------
+        tensor : SymmetricTensor
+            The tensor to act on.
+        instruction : list of :class:`Instruction`
+            A list of instructions to apply.
+        codomain_idcs, domain_idcs : list of int
+            The permutation of legs induced by the instructions.
+            ``(co)domain_idcs[i] == j`` means that the leg ``tensor.legs[j]`` ends up at
+            ``result.(co)domain[i]``
+        new_codomain, new_domain : :class:`TensorProduct`
+            The (co)domain of the result.
+        mixes_codomain_domain : bool
+            If any leg moves from codomain to domain or vv during the permutation.
+
+        Returns
+        -------
+        The :class:`FusionTreeData` for the result of applying the `instructions` to `tensor`.
+        """
         cls = TreePairMapping if mixes_codomain_domain else FactorizedTreeMapping
         mapping = cls.from_instructions(instructions=instructions, codomain=tensor.codomain,
                                         domain=tensor.domain, block_inds=tensor.data.block_inds)
@@ -2649,6 +2670,7 @@ class TreePairMapping(TensorMapping):
         N = J + K
         tree_block_axes_1 = [i if i < J else (N - 1) + (J - i) for i in codomain_idcs]
         tree_block_axes_2 = [i if i < J else (N - 1) + (J - i) for i in domain_idcs]
+        inv_leg_perm = inverse_permutation([*codomain_idcs, *reversed(domain_idcs)])
         #
         dtype = data.dtype  # TODO what if blocks are real but coefficients complex???
         block_inds = []
@@ -2687,8 +2709,7 @@ class TreePairMapping(TensorMapping):
                     # from the iterator, we get mults1, mults2 in the new axis order, but wee need
                     # them in the old order. OPTIMIZE can we do better than this??
                     leg_mults = [*mults1, *reversed(mults2)]
-                    inv_perm = inverse_permutation([*codomain_idcs, *reversed(domain_idcs)])
-                    old_mults = [leg_mults[i] for i in inv_perm]
+                    old_mults = [leg_mults[i] for i in inv_leg_perm]
                     #              0   1      J-1  J   J+1      J+K-1
                     # tree_block [m1, m2, ..., mJ, n1, n2, ..., nK]
                     block[idcs1, idcs2] = block_backend.permute_combined_matrix(

@@ -164,7 +164,7 @@ def test_FusionTree_bend_leg(bend_up, any_symmetry, make_any_sectors, np_random)
     if any_symmetry.can_be_dropped:
         # bending leg does nothing in this case
         expect = np.tensordot(Y.as_block().conj(), X.as_block(), (-1, -1))
-        res_np = sum(a_i * np.tensordot(Y_i.as_block().conj(), X_i.as_block().conj(), (-1, -1))
+        res_np = sum(a_i * np.tensordot(Y_i.as_block().conj(), X_i.as_block(), (-1, -1))
                      for (Y_i, X_i), a_i in res)
         assert np.allclose(res_np, expect)
 

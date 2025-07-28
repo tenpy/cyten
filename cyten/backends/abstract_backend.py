@@ -629,7 +629,8 @@ class TensorBackend(metaclass=ABCMeta):
         Returns
         -------
         data:
-            The data for the permuted tensor, of ``None`` if `levels` are required were not specified.
+            The data for the permuted tensor, or ``None`` if `levels` are required but were not
+            specified.
         codomain, domain
             The (co-)domain of the new tensor.
         """
@@ -1305,9 +1306,6 @@ class BlockBackend(metaclass=ABCMeta):
             A matrix with the same entries as `a`, but rearranged to the new axis order,
             e.g. ``[M, N]``, where ``M == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs1])``
             and ``N == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs2])``.
-            The reshaped tree block, with same entries as `a`, but rearranged.
-            The axis order is ``[*axes[codomain_idcs] ; *axes[domain_idcs]]``, then reshaped
-            to a matrix with ``;`` as the divider.
 
         See Also
         --------

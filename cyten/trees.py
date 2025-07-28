@@ -265,7 +265,7 @@ class FusionTree:
         chi_z = symmetry.frobenius_schur(z)
         zbar = symmetry.dual_sector(z)
         res = {}
-        for nu in range(len(B)):
+        for nu in range(B.shape[1]):
             b_i = B[mu, nu]
             Y_i = Y.extended(zbar, nu, X_i.coupled, not is_dual)
             if is_dual:

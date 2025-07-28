@@ -2292,10 +2292,7 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_comp
     else:
         T_codomain = num_cod
         T_domain = num_dom
-    T = make_compatible_tensor(T_codomain, T_domain, max_block_size=3, cls=cls,
-                               use_pipes=0.3,
-                               allow_basis_perm=True,
-                               )
+    T = make_compatible_tensor(T_codomain, T_domain, max_block_size=3, cls=cls)
 
     if cls in [DiagonalTensor, Mask]:
         if len(codomain) == 1:
