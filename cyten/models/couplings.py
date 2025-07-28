@@ -32,6 +32,9 @@ class Coupling:
         the physical :attr:`Site.leg` of the corresponding ``sites[i]``, and where contracting
         the ``wL`` and ``wR`` legs in an MPO-like geometry gives the multi-site operator.
         TODO should we rename vL/vR to wL/wR to match tenpy MPO convention?
+        TODO do we want to keep the convention ``[wL, p, wR, p*]`` or maybe change it to
+             ``[wL, pi, wR, pi*]``? Then it would be consistent with the labels of the input
+             tensors in `from_tensor`.
     name : str, optional
         A descriptive name that can be used when pretty-printing, to identify the coupling.
         For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
@@ -54,10 +57,10 @@ class Coupling:
             assert W.labels == ['wL', 'p', 'wR', 'p*']
             assert W.get_leg_co_domain('p') == s.leg
             assert W.get_leg_co_domain('p*') == s.leg
-        assert self.factorization[0].get_leg('wL').is_trivial()
+        assert self.factorization[0].get_leg('wL').is_trivial
         for W1, W2 in zip(self.factorization[:-1], self.factorization[1:]):
             assert W1.get_leg_co_domain('wR') == W2.get_leg_co_domain('wL')
-        assert self.factorization[-1].get_leg('wR').is_trivial()
+        assert self.factorization[-1].get_leg('wR').is_trivial
 
     @classmethod
     def from_dense_block(cls, operator: Block, sites: list[Site], name: str = None,
@@ -114,14 +117,17 @@ class Coupling:
         Parameters
         ----------
         operator : :class:`SymmetricTensor`
-            Operator to be converted to a coupling.
+            Operator to be converted to a coupling. The legs should be ordered as
+            ``[p0, p1, ..., p1*, p0*]``, where ``pi`` and ``pi*`` correspond to the legs associated
+            with site ``sites[i]``.
         sites : list of :class:`Site`
             The sites that the operator acts on.
         name : str, optional
             A descriptive name that can be used when pretty-printing, to identify the coupling.
             For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
         """
-        assert operator.codomain.factors == sites == operator.domain.factors
+        assert operator.codomain.factors == [site.leg for site in sites]
+        assert operator.domain.factors == operator.codomain.factors
 
         if len(sites) == 1:
             return OnSiteOperator.from_tensor(operator, sites, name=name)
@@ -156,6 +162,8 @@ class Coupling:
         U = add_trivial_leg(U, codomain_pos=0, label='wL')
         factorization.append(U)
         factorization = factorization[::-1]
+        for i, tens in enumerate(factorization):
+            tens.relabel({f'p{i}': 'p', f'p{i}*': 'p*'})
         return Coupling(sites=sites, factorization=factorization, name=name)
 
     def to_tensor(self) -> SymmetricTensor:
@@ -239,14 +247,14 @@ def spin_spin_coupling(sites: list[SpinfulSite],
     s2 = sites[1].spin_vector
     h = 0  # build in leg order [p0, p0*, p1, p1*] and transpose only once before returning
     if xx is not None:
-        h += xx * np.tensordot(s1[:, :, 0], s2[:, :, 0], (0, 0))
+        h += xx * np.tensordot(s1[:, :, 0], s2[:, :, 0], axes=0)
     if yy is not None:
-        h += yy * np.tensordot(s1[:, :, 1], s2[:, :, 1], (0, 0))
+        h += yy * np.tensordot(s1[:, :, 1], s2[:, :, 1], axes=0)
     if zz is not None:
-        h += zz * np.tensordot(s1[:, :, 2], s2[:, :, 2], (0, 0))
+        h += zz * np.tensordot(s1[:, :, 2], s2[:, :, 2], axes=0)
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
-    h = np.transpose(h, [0, 2, 1, 3])
+    h = np.transpose(h, [0, 2, 3, 1])
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
@@ -261,11 +269,11 @@ def chiral_3spin_coupling(sites: list[SpinfulSite], backend: TensorBackend = Non
                           device: str = None, name: str = 'S.SxS') -> Coupling:
     # TODO test that this builds what we expect
     assert len(sites) == 3
-    SxS = np.cross(sites[1].spin_vector[:, None, :, None],
-                   sites[2].spin_vector[None, :, None, :],
-                   axis=4)  # [p1, p2, p1*, p2*, i]
-    h = np.dot(sites[0].spin_vector, SxS, (0, 0))  # [p0, p0*, p1, p2, p1*, p2*]
-    h = np.transpose(h, [0, 2, 3, 1, 4, 5])
+    SxS = np.cross(sites[1].spin_vector[:, None, None, :, :],
+                   sites[2].spin_vector[None, :, :, None, :],
+                   axis=4)  # [p1, p2, p2*, p1*, i]
+    h = np.tensordot(sites[0].spin_vector, SxS, (-1, -1))  # [p0, p0*, p1, p2, p2*, p1*]
+    h = np.transpose(h, [0, 2, 3, 4, 5, 1])
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
