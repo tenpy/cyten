@@ -1584,14 +1584,13 @@ class TensorProduct(Space):
         # OPTIMIZE ?
         start = 0
         for unc, mults in self.iter_uncoupled():
+            tree_block_size = np.prod(mults)
             if all(np.all(a == b) for a, b in zip(unc, tree.uncoupled)):
                 break
-            tree_block_size = np.prod(mults)
             num_trees = len(fusion_trees(self.symmetry, unc, tree.coupled))
             start += num_trees * tree_block_size
         else:  # no break occurred
             raise ValueError('Uncoupled sectors incompatible')
-        tree_block_size = self.tree_block_size(tree.uncoupled)
         tree_idx = fusion_trees(self.symmetry, tree.uncoupled, tree.coupled, tree.are_dual).index(tree)
         start += tree_block_size * tree_idx
         return slice(start, start + tree_block_size)
