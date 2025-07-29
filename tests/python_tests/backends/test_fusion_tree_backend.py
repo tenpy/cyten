@@ -1189,13 +1189,14 @@ def test_permute_legs_instructions():
     num_legs = codomain + domain
     original_codomain_idcs = np.arange(codomain)
     original_domain_idcs = num_legs - 1 - np.arange(domain)
+    unspecified_levels = [None] * (codomain + domain)
 
     # =============================================
     # 0) do nothing
     # =============================================
     instructions0 = fusion_tree_backend.permute_legs_instructions(
         codomain, domain, codomain_idcs=original_codomain_idcs, domain_idcs=original_domain_idcs,
-        levels=None, has_symmetric_braid=False
+        levels=unspecified_levels, has_symmetric_braid=False
     )
     assert list(instructions0) == []
 
@@ -1257,7 +1258,7 @@ def test_permute_legs_instructions():
     instructions4 = fusion_tree_backend.permute_legs_instructions(
         codomain, domain,
         codomain_idcs=[*range(6 + num)], domain_idcs=[*reversed(range(6 + num, num_legs))],
-        levels=None, has_symmetric_braid=False
+        levels=unspecified_levels, has_symmetric_braid=False
     )
     assert list(instructions4) == [fusion_tree_backend.BendInstruction(bend_up=True)] * num
 
@@ -1670,7 +1671,7 @@ def cross_check_partial_trace(ten: SymmetricTensor, pairs: list[tuple[int, int]]
     tr_idcs1 = [i for i, idx in enumerate(idcs) if idx in idcs1]
     tr_idcs2 = [i for i, idx in enumerate(idcs) if idx in idcs2]
     new_pairs = list(zip(tr_idcs1, tr_idcs2))
-    return ten.backend.partial_trace(ten, pairs=new_pairs, levels=None)
+    return ten.backend.partial_trace(ten, pairs=new_pairs, levels=[None] * ten.num_legs)
 
 
 def cross_check_single_c_symbol_tree_blocks(ten: SymmetricTensor, leg: int | str, levels: list[int]
