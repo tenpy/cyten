@@ -1454,7 +1454,7 @@ class FusionTreeBackend(TensorBackend):
         return new_data
 
     def partial_trace(self, tensor: SymmetricTensor, pairs: list[tuple[int, int]],
-                      levels: list[int] | None) -> tuple[Data, TensorProduct, TensorProduct]:
+                      levels: list[int | None]) -> tuple[Data, TensorProduct, TensorProduct]:
         # step 1: permute legs such that the paired legs are next to each other
         # it does not matter which leg is moved; the partial trace implies that
         # the fusion channel of each pair is trivial. It is however crucial that
@@ -1496,8 +1496,12 @@ class FusionTreeBackend(TensorBackend):
             # TODO do we only want to check the levels that are actually needed for the braids?
             if levels is not None:
                 for pair in pairs:
+                    if levels[pair[0]] is None or levels[pair[1]] is None:
+                        continue
                     for i, level in enumerate(levels):
                         if i in pair:
+                            continue
+                        if level is None:
                             continue
                         if (level < levels[pair[0]]) != (level < levels[pair[1]]):
                             msg = ('inconsistent levels: there should not be a leg with a level '
@@ -1604,7 +1608,7 @@ class FusionTreeBackend(TensorBackend):
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      new_codomain: TensorProduct, new_domain: TensorProduct,
-                     mixes_codomain_domain: bool, levels: list[int] | None) -> FusionTreeData:
+                     mixes_codomain_domain: bool, levels: list[int | None]) -> FusionTreeData:
         instructions = permute_legs_instructions(
             num_codomain_legs=a.num_codomain_legs, num_domain_legs=a.num_domain_legs,
             codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels,
@@ -2273,7 +2277,7 @@ class TwistInstruction(Instruction):
 
 def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
                               codomain_idcs: list[int], domain_idcs: list[int],
-                              levels: list[int] | None, has_symmetric_braid: bool,
+                              levels: list[int | None], has_symmetric_braid: bool,
                               ) -> list[Instruction]:
     """Helper to decompose a ``permute_legs`` call into elementary instructions.
 
@@ -2284,7 +2288,7 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
     codomain_idcs, domain_idcs : list of int
         ``(co)domain_idcs[i] == j`` means that the leg ``tensor.legs[j]`` should end up at
         ``result.(co)domain[i]``.
-    levels : list of int | None
+    levels : list of {int | None}
         The levels that specify braid chirality.
     has_symmetric_braid : bool
         If the symmetry has a symmetric braid, i.e. if the `levels` are irrelevant.
@@ -2297,14 +2301,8 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
     """
     instructions = []
     num_legs = num_codomain_legs + num_domain_legs
-    # we update levels in-place, to account for swaps.
-    if levels is None:
-        needs_braids = ([*codomain_idcs, *reversed(domain_idcs)] != list(range(num_legs)))
-        assert not needs_braids or has_symmetric_braid  # should have been caught in tensors.py
-        # if they dont matter, just use arbitrary levels
-        levels = list(range(num_legs))
-    else:
-        levels = list(levels)  # copy, since we modify in-place.
+    # we update levels in-place, to account for swaps: guarantee copy
+    levels = list(levels)
 
     # 0) identify which legs need to be bent
     #   bend_up: legs that are in domain but go to codomain. Sorted by current position in tensor.legs
@@ -2325,9 +2323,8 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
     #       then second rightmost and so on
     for i, leg in enumerate(reversed(bend_down)):  # reverse: go from right to left
         for j in range(leg, num_codomain_legs - 1 - i):
-            instructions.append(
-                BraidInstruction(codomain=True, idx=j, overbraid=levels[j] > levels[j + 1])
-            )
+            overbraid = compare_levels(levels[j], levels[j + 1], has_symmetric_braid)
+            instructions.append(BraidInstruction(codomain=True, idx=j, overbraid=overbraid))
             levels[j], levels[j + 1] = levels[j + 1], levels[j]
     # TODO put the stay_up into the correct places already at this point?
 
@@ -2360,7 +2357,7 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
     for j_domain in permutation_as_swaps(domain_perm):
         # should swap j_domain with j_domain + 1, i.e. j_leg_idx with j_leg_idx - 1
         j_leg_idx = num_legs - 1 - j_domain
-        overbraid = levels[j_leg_idx - 1] > levels[j_leg_idx]
+        overbraid = compare_levels(levels[j_leg_idx - 1], levels[j_leg_idx], has_symmetric_braid)
         instructions.append(BraidInstruction(codomain=False, idx=j_domain, overbraid=overbraid))
         levels[j_leg_idx], levels[j_leg_idx - 1] = levels[j_leg_idx - 1], levels[j_leg_idx]
 
@@ -2384,9 +2381,8 @@ def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
             codomain_perm.append(stay_up_lookup[original_leg_idx])
     # 5b) now do this permutation
     for j in permutation_as_swaps(codomain_perm):
-        instructions.append(
-            BraidInstruction(codomain=True, idx=j, overbraid=levels[j] > levels[j + 1])
-        )
+        overbraid = compare_levels(levels[j], levels[j + 1], has_symmetric_braid)
+        instructions.append(BraidInstruction(codomain=True, idx=j, overbraid=overbraid))
         levels[j], levels[j + 1] = levels[j + 1], levels[j]
 
     return instructions
@@ -2951,3 +2947,14 @@ def _partial_trace_helper(tree: FusionTree, idcs: list[int]) -> tuple[bool, floa
         if tree.are_dual[idx]:
             b_symbols *= sym.frobenius_schur(tree.uncoupled[idx])
     return True, b_symbols
+
+
+def compare_levels(level_1: int | None, level_2: int | None, has_symmetric_braid: bool) -> bool:
+    """Compare levels, essentially ``level_1 > level_2``, but with edge-cases."""
+    if has_symmetric_braid:
+        return True
+    if level_1 is None or level_2 is None:
+        raise BraidChiralityUnspecifiedError('Legs that braid must have specified levels.')
+    if level_1 == level_2:
+        raise BraidChiralityUnspecifiedError('Legs that braid can not have the same level.')
+    return level_1 > level_2

@@ -3351,10 +3351,9 @@ def bend_legs(tensor: Tensor, num_codomain_legs: int = None, num_domain_legs: in
         num_codomain_legs = tensor.num_legs - num_domain_legs
     else:
         assert num_codomain_legs + num_domain_legs == tensor.num_legs
-    return _permute_legs(tensor,
-                         codomain=range(num_codomain_legs),
-                         domain=reversed(range(num_codomain_legs, tensor.num_legs)),
-                         err_msg='This should never raise.')
+    return permute_legs(tensor,
+                        codomain=range(num_codomain_legs),
+                        domain=reversed(range(num_codomain_legs, tensor.num_legs)))
 
 
 def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | None:
@@ -3639,7 +3638,7 @@ def combine_to_matrix(tensor: Tensor,
         Combine an arbitrary number of legs. Since the number of groups is arbitrary, this
         does not have the interpretation of the matrix, with one group each in domain and codomain.
     """
-    res = _permute_legs(tensor, codomain=codomain, domain=domain, levels=levels)
+    res = permute_legs(tensor, codomain=codomain, domain=domain, levels=levels)
     return combine_legs(res, range(res.num_codomain_legs), range(res.num_codomain_legs, res.num_legs))
 
 
@@ -4538,7 +4537,9 @@ def partial_trace(tensor: Tensor,
         return ChargedTensor(invariant_part, tensor.charged_state)
     if not isinstance(tensor, SymmetricTensor):
         raise TypeError(f'Unexpected tensor type: {type(tensor).__name__}')
-    if levels is not None:
+    if levels is None:
+        levels = [None] * tensor.num_legs
+    else:
         levels = list(levels)  # ensure copy
     data, codomain, domain = tensor.backend.partial_trace(tensor, pairs, levels)
     if tensor.num_legs == len(traced_idcs):
@@ -4548,100 +4549,6 @@ def partial_trace(tensor: Tensor,
     return SymmetricTensor(
         data=data, codomain=codomain, domain=domain, backend=tensor.backend, labels=labels
     )
-
-
-def _permute_legs(tensor: Tensor,
-                  codomain: list[int | str] | None = None,
-                  domain: list[int | str] | None = None,
-                  levels: list[int] | dict[str | int, int] | None = None,
-                  err_msg: str = None
-                  ) -> Tensor:
-    """Internal implementation of :func:`permute_legs` that allows to specify the error msg.
-
-    Except for the additional `err_msg` arg, this has the same in-/outputs as :func:`permute_legs`.
-    If the `levels` are needed, but not given, an error with the specified message is raised.
-    This allows easier error handling when using ``_permute_legs`` as part of other functions.
-
-    The default error message is appropriate to *other* contexts, other than :func:`permute_legs`.
-    """
-    # Parse domain and codomain to list[int]. Get rid of duplicates.
-    if codomain is None and domain is None:
-        raise ValueError('Need to specify either domain or codomain.')
-    elif codomain is None:
-        domain = tensor.get_leg_idcs(domain)
-        codomain = [n for n in range(tensor.num_legs) if n not in domain]
-    elif domain is None:
-        codomain = tensor.get_leg_idcs(codomain)
-        # to preserve order of Tensor.legs, need to put domain legs in descending order of their leg_idx
-        domain = [n for n in reversed(range(tensor.num_legs)) if n not in codomain]
-    else:
-        domain = tensor.get_leg_idcs(domain)
-        codomain = tensor.get_leg_idcs(codomain)
-        specified_legs = [*domain, *codomain]
-        duplicates = duplicate_entries(specified_legs)
-        missing = [n for n in range(tensor.num_legs) if n not in specified_legs]
-        if duplicates:
-            raise ValueError(f'Duplicate entries. By leg index: {", ".join(duplicates)}')
-        if missing:
-            raise ValueError(f'Missing legs. By leg index: {", ".join(missing)}')
-    # Default error message
-    if err_msg is None:
-        err_msg = _USE_PERMUTE_LEGS_ERR_MSG
-    # Special case: if no legs move
-    if codomain == list(range(tensor.num_codomain_legs)) \
-            and domain == list(reversed(range(tensor.num_codomain_legs, tensor.num_legs))):
-        return tensor
-
-    # Deal with other tensor types
-    if isinstance(tensor, (DiagonalTensor, Mask)):
-        if codomain == [0] and domain == [1]:
-            return tensor
-        if codomain == [1] and domain == [0]:
-            return transpose(tensor)
-        # other cases involve two legs either in the domain or codomain.
-        # Cant be done with Mask / DiagonalTensor
-        msg = ('Converting to SymmetricTensor for permuting legs. '
-               'Use as_SymmetricTensor() explicitly to suppress the warning.')
-        tensor = tensor.as_SymmetricTensor(warning=msg)
-    if isinstance(tensor, ChargedTensor):
-        if levels is not None:
-            # assign the highest level to the charge leg. since it does not move, it should not matter.
-            highest = max(levels) + 1
-            levels = [*levels, highest]
-        inv_part = _permute_legs(tensor.invariant_part, codomain=codomain, domain=[-1, *domain],
-                                 levels=levels, err_msg=err_msg)
-        return ChargedTensor(inv_part, charged_state=tensor.charged_state)
-    # Remaining case: SymmetricTensor
-    if levels is None:
-        needs_braids = ([*codomain, *reversed(domain)] != list(range(tensor.num_legs)))
-        if needs_braids and not tensor.symmetry.has_symmetric_braid:
-            raise BraidChiralityUnspecifiedError(err_msg)
-    else:
-        levels = list(levels)
-        if len(levels) != tensor.num_legs:
-            raise ValueError('Wrong length of levels')
-        if duplicate_entries(levels):
-            raise ValueError('Levels must be unique.')
-        if any(l < 0 for l in levels):
-            raise ValueError('Levels must be non-negative.')
-    # Build new codomain and domain
-    mixes_codomain_domain = any(i >= tensor.num_codomain_legs for i in codomain) \
-        or any(i < tensor.num_codomain_legs for i in domain)
-    if mixes_codomain_domain:
-        new_codomain = TensorProduct([tensor._as_codomain_leg(i) for i in codomain],
-                                     symmetry=tensor.symmetry)
-        new_domain = TensorProduct([tensor._as_domain_leg(i) for i in domain],
-                                   symmetry=tensor.symmetry)
-    else:
-        # (co)domain has the same factor as before, only permuted -> can re-use sectors!
-        new_codomain = tensor.codomain.permuted(codomain)
-        new_domain = tensor.domain.permuted([tensor.num_legs - 1 - i for i in domain])
-    data = tensor.backend.permute_legs(
-        tensor, codomain_idcs=codomain, domain_idcs=domain, new_codomain=new_codomain,
-        new_domain=new_domain, mixes_codomain_domain=mixes_codomain_domain, levels=levels
-    )
-    labels = [[tensor._labels[n] for n in codomain], [tensor._labels[n] for n in domain]]
-    return SymmetricTensor(data, new_codomain, new_domain, backend=tensor.backend, labels=labels)
 
 
 def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[int | str] = None,
@@ -4689,8 +4596,82 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
         Either as a list ``levels[leg_num]`` or as a dictionary ``levels[leg_num_or_label]``.
         If two legs are crossed at some point, the one with the higher level goes over the other.
     """
-    return _permute_legs(tensor, codomain=codomain, domain=domain, levels=levels,
-                         err_msg=_USE_PERMUTE_LEGS_ERR_MSG)
+    # Parse domain and codomain to list[int]. Get rid of duplicates.
+    if codomain is None and domain is None:
+        raise ValueError('Need to specify either domain or codomain.')
+    elif codomain is None:
+        domain = tensor.get_leg_idcs(domain)
+        codomain = [n for n in range(tensor.num_legs) if n not in domain]
+    elif domain is None:
+        codomain = tensor.get_leg_idcs(codomain)
+        # to preserve order of Tensor.legs, need to put domain legs in descending order of their leg_idx
+        domain = [n for n in reversed(range(tensor.num_legs)) if n not in codomain]
+    else:
+        domain = tensor.get_leg_idcs(domain)
+        codomain = tensor.get_leg_idcs(codomain)
+        specified_legs = [*domain, *codomain]
+        duplicates = duplicate_entries(specified_legs)
+        missing = [n for n in range(tensor.num_legs) if n not in specified_legs]
+        if duplicates:
+            raise ValueError(f'Duplicate entries. By leg index: {", ".join(duplicates)}')
+        if missing:
+            raise ValueError(f'Missing legs. By leg index: {", ".join(missing)}')
+    # Special case: if no legs move
+    if codomain == list(range(tensor.num_codomain_legs)) \
+            and domain == list(reversed(range(tensor.num_codomain_legs, tensor.num_legs))):
+        return tensor
+
+    # parse levels to format list[int | None]
+    if levels is None:
+        levels = [None] * tensor.num_legs
+    elif isinstance(levels, dict):
+        levels = [None] * tensor.num_legs
+        for leg, level in levels.items():
+            idx = tensor.get_leg_idcs(leg)[0]
+            if levels[idx] is not None:
+                raise ValueError(f'Level for leg {leg} defined multiple times.')
+            levels[idx] = level
+    else:
+        levels = list(levels)
+        assert len(levels) == tensor.num_legs
+
+    # Deal with other tensor types
+    if isinstance(tensor, (DiagonalTensor, Mask)):
+        if codomain == [0] and domain == [1]:
+            return tensor
+        if codomain == [1] and domain == [0]:
+            return transpose(tensor)
+        # other cases involve two legs either in the domain or codomain.
+        # Cant be done with Mask / DiagonalTensor
+        msg = ('Converting to SymmetricTensor for permuting legs. '
+               'Use as_SymmetricTensor() explicitly to suppress the warning.')
+        tensor = tensor.as_SymmetricTensor(warning=msg)
+    if isinstance(tensor, ChargedTensor):
+        # assign level `None` to the charge leg. it does not braid, so we dont need to define it.
+        inv_part = permute_legs(tensor.invariant_part, codomain=codomain, domain=[-1, *domain],
+                                levels=[*levels, None])
+        return ChargedTensor(inv_part, charged_state=tensor.charged_state)
+
+    # Build new codomain and domain
+    mixes_codomain_domain = any(i >= tensor.num_codomain_legs for i in codomain) \
+        or any(i < tensor.num_codomain_legs for i in domain)
+    if mixes_codomain_domain:
+        new_codomain = TensorProduct([tensor._as_codomain_leg(i) for i in codomain],
+                                     symmetry=tensor.symmetry)
+        new_domain = TensorProduct([tensor._as_domain_leg(i) for i in domain],
+                                   symmetry=tensor.symmetry)
+    else:
+        # (co)domain has the same factor as before, only permuted -> can re-use sectors!
+        new_codomain = tensor.codomain.permuted(codomain)
+        new_domain = tensor.domain.permuted([tensor.num_legs - 1 - i for i in domain])
+
+    data = tensor.backend.permute_legs(
+        tensor, codomain_idcs=codomain, domain_idcs=domain, new_codomain=new_codomain,
+        new_domain=new_domain, mixes_codomain_domain=mixes_codomain_domain, levels=levels
+    )
+
+    labels = [[tensor._labels[n] for n in codomain], [tensor._labels[n] for n in domain]]
+    return SymmetricTensor(data, new_codomain, new_domain, backend=tensor.backend, labels=labels)
 
 
 def pinv(tensor: Tensor, cutoff=1e-15) -> Tensor:
@@ -5379,7 +5360,10 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
                 res = _compose_with_Mask(tensor1, tensor2, legs1[0])
             res.set_label(legs1[0], tensor2.labels[1 - legs2[0]])
             # move legs to tdot convention
-            return permute_legs(res, domain=legs2)
+            try:
+                return permute_legs(res, domain=legs2)
+            except BraidChiralityUnspecifiedError:
+                raise BraidChiralityUnspecifiedError(_USE_PERMUTE_LEGS_ERR_MSG) from None
         if num_contr == 2:
             # contract the large leg first
             which_is_large = legs2.index(1 if tensor2.is_projection else 0)
@@ -5403,7 +5387,10 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
         if num_contr == 1:
             res = scale_axis(tensor2, tensor1, legs2[0])
             res.set_label(legs2[0], tensor1.labels[1 - legs1[0]])
-            return permute_legs(res, codomain=legs1)
+            try:
+                return permute_legs(res, codomain=legs1)
+            except BraidChiralityUnspecifiedError:
+                raise BraidChiralityUnspecifiedError(_USE_PERMUTE_LEGS_ERR_MSG) from None
         if num_contr == 2:
             res = scale_axis(tensor2, tensor1, legs2[0])
             res = partial_trace(res, legs2)
@@ -5416,7 +5403,10 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
         if num_contr == 1:
             res = scale_axis(tensor1, tensor2, legs1[0])
             res.set_label(legs1[0], tensor2.labels[1 - legs2[0]])
-            return permute_legs(res, domain=legs1)
+            try:
+                return permute_legs(res, domain=legs1)
+            except BraidChiralityUnspecifiedError:
+                raise BraidChiralityUnspecifiedError(_USE_PERMUTE_LEGS_ERR_MSG) from None
         if num_contr == 2:
             res = scale_axis(tensor1, tensor2, legs1[0])
             res = partial_trace(res, legs1)
@@ -5454,8 +5444,11 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
 
     # OPTIMIZE actually, we only need to permute legs to *any* matching order.
     #          could use ``legs1[perm]`` and ``legs2[perm]`` instead, if that means fewer braids.
-    tensor1 = _permute_legs(tensor1, domain=legs1)
-    tensor2 = _permute_legs(tensor2, codomain=legs2)
+    try:
+        tensor1 = permute_legs(tensor1, domain=legs1)
+        tensor2 = permute_legs(tensor2, codomain=legs2)
+    except BraidChiralityUnspecifiedError:
+        raise BraidChiralityUnspecifiedError(_USE_PERMUTE_LEGS_ERR_MSG) from None
     return _compose_SymmetricTensors(tensor1, tensor2, relabel1=relabel1, relabel2=relabel2)
 
 
@@ -5869,7 +5862,7 @@ def _split_all_pipes(a: SymmetricTensor | ChargedTensor) -> tuple[SymmetricTenso
     split : SymmetricTensor | ChargedTensor
         The result of repeatedly applying :func:`split_legs` to `a`.
     combine_list : list of list of int
-        Which legs of `split` would need to be combined to recontruct `a` from `split`, except for
+        Which legs of `split` would need to be combined to reconstruct `a` from `split`, except for
         nesting of pipes.
     """
     split = a.copy(deep=False).set_labels(None)
