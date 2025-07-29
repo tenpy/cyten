@@ -14,7 +14,10 @@ from cyten.backends.backend_factory import get_backend
 from cyten.dtypes import Dtype
 from cyten.spaces import ElementarySpace, TensorProduct, AbelianLegPipe, LegPipe
 from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError
-from cyten.tools.misc import duplicate_entries, iter_common_noncommon_sorted_arrays, to_valid_idx
+from cyten.tools.misc import (
+    duplicate_entries, iter_common_noncommon_sorted_arrays, to_valid_idx, inverse_permutation
+)
+from cyten.testing import assert_tensors_almost_equal
 
 
 # TENSOR CLASSES
@@ -1490,6 +1493,12 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
     T_labels = list('abcdefghi')[:cod + dom]
     T: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=T_labels)
 
+    if cls is ChargedTensor and not T.symmetry.has_symmetric_braid:
+        # TODO : should be ok to just choose levels, as long as charge leg is very top or very bot
+        with pytest.raises(symmetries.BraidChiralityUnspecifiedError):
+            _ = tensors.dagger(T)
+        pytest.xfail()
+
     if isinstance(T.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in T.legs]) and cls is ChargedTensor:
             with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
@@ -2249,24 +2258,41 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
 @pytest.mark.parametrize(
     'cls, num_cod, num_dom, codomain, domain, levels',
     [
-        pytest.param(SymmetricTensor, 2, 2, [0, 1], [3, 2], None, id='Symmetric-2<2-trivial'),
-        pytest.param(SymmetricTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Symmetric-2<2-braid'),
-        pytest.param(SymmetricTensor, 2, 2, [0, 1, 2], [3], None, id='Symmetric-2<2-bend'),
-        pytest.param(SymmetricTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Symmetric-2<2-general'),
+        pytest.param(SymmetricTensor, 2, 2, [0, 1], [3, 2], None, id='Symmetric-2-2-trivial'),
+        pytest.param(SymmetricTensor, 2, 2, [1, 0], [3, 2], [0, 1, 2, 3], id='Symmetric-2-2-braid_cod'),
+        pytest.param(SymmetricTensor, 2, 2, [0, 1], [2, 3], [0, 1, 2, 3], id='Symmetric-2-2-braid_dom'),
+        pytest.param(SymmetricTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Symmetric-2-2-braid_both'),
+        pytest.param(SymmetricTensor, 2, 2, [0, 1, 2], [3], None, id='Symmetric-2-2-bend'),
+        pytest.param(SymmetricTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Symmetric-2-2-general'),
+        pytest.param(SymmetricTensor, 3, 3, [1, 4, 0], [2, 3, 5], [4, 1, 3, 5, 0, 2], id='Symmetric-3-3-general'),
         pytest.param(DiagonalTensor, 1, 1, [0], [1], [0, 1], id='Diagonal-trivial'),
         pytest.param(DiagonalTensor, 1, 1, [1], [0], [0, 1], id='Diagonal-swap'),
         pytest.param(DiagonalTensor, 1, 1, [1, 0], [], [0, 1], id='Diagonal-general'),
         pytest.param(Mask, 1, 1, [0], [1], [0, 1], id='Mask-trivial'),
         pytest.param(Mask, 1, 1, [1], [0], [0, 1], id='Mask-swap'),
         pytest.param(Mask, 1, 1, [1, 0], [], [0, 1], id='Mask-general'),
-        pytest.param(ChargedTensor, 2, 2, [0, 1], [3, 2], None, id='Symmetric-2<2-trivial'),
-        pytest.param(ChargedTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Symmetric-2<2-braid'),
-        pytest.param(ChargedTensor, 2, 2, [0, 1, 2], [3], None, id='Symmetric-2<2-bend'),
-        pytest.param(ChargedTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Symmetric-2<2-general'),
+        pytest.param(ChargedTensor, 2, 2, [0, 1], [3, 2], None, id='Charged-2-2-trivial'),
+        pytest.param(ChargedTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], id='Charged-2-2-braid'),
+        pytest.param(ChargedTensor, 2, 2, [0, 1, 2], [3], None, id='Charged-2-2-bend'),
+        pytest.param(ChargedTensor, 2, 2, [0, 3], [1, 2], [0, 1, 2, 3], id='Charged-2-2-general'),
     ]
 )
-def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_compatible_tensor):
-    T = make_compatible_tensor(num_cod, num_dom, max_block_size=3, cls=cls)
+def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_compatible_tensor,
+                      compatible_symmetry, np_random):
+    if isinstance(compatible_symmetry, symmetries.SU2Symmetry) and (num_cod + num_dom) > 4:
+        # make sure we dont need symmetry data for too large sectors
+        sectors = [[0], [1], [2]]
+        legs = []
+        for _ in range(num_cod + num_dom):
+            mults = np_random.integers(1, 5, size=3)
+            is_dual = np_random.choice([True, False])
+            legs.append(ElementarySpace(compatible_symmetry, sectors, mults, is_dual))
+        T_codomain = legs[:num_cod]
+        T_domain = legs[num_cod:]
+    else:
+        T_codomain = num_cod
+        T_domain = num_dom
+    T = make_compatible_tensor(T_codomain, T_domain, max_block_size=3, cls=cls)
 
     if cls in [DiagonalTensor, Mask]:
         if len(codomain) == 1:
@@ -2307,9 +2333,21 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, make_comp
         actual = res.to_numpy()
         npt.assert_allclose(actual, expect, atol=1.e-14)
     else:
-        # should we do a test like braiding two legs around each other with a single
-        # anyonic sector and checking if the result is equal up to the expected phase?
-        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+        # TODO (JU) is there anything we can do in that case to check?
+        #           - we do a bunch of "concrete tests" in backends/test_fusion_tree_backend.py
+        #           - we check if we can undo the permutation below.
+        pass
+
+    # construct the instructions needed to undo the original instructions
+    leg_perm = [*codomain, *reversed(domain)]
+    inv_leg_perm = inverse_permutation(leg_perm)
+    codomain2 = inv_leg_perm[:num_cod]
+    domain2 = inv_leg_perm[num_cod:][::-1]
+    levels2 = None if levels is None else [levels[i] for i in leg_perm]
+
+    res2 = tensors.permute_legs(res, codomain2, domain2, levels2)
+    res2.test_sanity()
+    assert tensors.almost_equal(res2, T, allow_different_types=True)
 
 
 @pytest.mark.parametrize(
@@ -2812,6 +2850,11 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     labels = list('abcdefghi')[:cod + dom]
     tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
 
+    if isinstance(tensor, ChargedTensor):
+        with pytest.raises(NotImplementedError, match='ChargedTensor transpose not done.'):
+            _ = tensor.T
+        pytest.xfail('ChargedTensor transpose not done')
+
     if isinstance(tensor.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
             with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
@@ -2830,8 +2873,10 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     assert res.domain == tensor.codomain.dual
     assert res.labels == [*labels[cod:], *labels[:cod]]
 
-    if not tensor.symmetry.can_be_dropped:
-        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+    double_transpose = tensors.transpose(res)
+    double_transpose.test_sanity()
+    assert_tensors_almost_equal(double_transpose, tensor)
 
-    expect = np.transpose(tensor.to_numpy(), [*range(cod, cod + dom), *range(cod)])
-    npt.assert_almost_equal(res.to_numpy(), expect)
+    if tensor.symmetry.can_be_dropped:
+        expect = np.transpose(tensor.to_numpy(), [*range(cod, cod + dom), *range(cod)])
+        npt.assert_almost_equal(res.to_numpy(), expect)

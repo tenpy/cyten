@@ -6,7 +6,7 @@ Also contains some private utility function used by multiple backend modules.
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
-from typing import TypeVar, TYPE_CHECKING, Callable, Iterator
+from typing import TypeVar, TYPE_CHECKING, Callable, Generator, Sequence
 from math import prod
 import numpy as np
 
@@ -607,12 +607,21 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     levels: list[int] | None) -> tuple[Data | None, TensorProduct, TensorProduct]:
+                     new_codomain: TensorProduct, new_domain: TensorProduct,
+                     mixes_codomain_domain: bool, levels: list[int] | None) -> Data:
         """Permute legs on the tensors.
 
+        Parameters
+        ----------
+        a : SymmetricTensor
+            The tensor to act on.
         codomain_idcs, domain_idcs:
             Which of the legs should end up in the (co-)domain.
-            All are leg indices (``0 <= i < a.num_legs``)
+            All are leg indices (``0 <= i < a.num_legs``).
+        new_codomain, new_domain : TensorProduct
+            The (co)domain of the result.
+        mixes_codomain_domain : bool
+            If any leg moves from the codomain to the domain or vv during the permutation.
         levels:
             The levels. Can assume they are unique, support comparison and are non-negative.
             ``None`` means unspecified.
@@ -620,7 +629,8 @@ class TensorBackend(metaclass=ABCMeta):
         Returns
         -------
         data:
-            The data for the permuted tensor, of ``None`` if `levels` are required were not specified.
+            The data for the permuted tensor, or ``None`` if `levels` are required but were not
+            specified.
         codomain, domain
             The (co-)domain of the new tensor.
         """
@@ -723,9 +733,10 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorProduct, TensorProduct]:
-        """Returns ``data, new_codomain, new_domain``.
-        
+    def transpose(self, a: SymmetricTensor, new_codomain: TensorProduct, new_domain: TensorProduct
+                  ) -> Data:
+        """The transpose.
+
         Note that ``new_codomain == a.domain.dual`` and ``new_domain == a.codomain.dual``.
         """
         ...
@@ -1269,6 +1280,85 @@ class BlockBackend(metaclass=ABCMeta):
     def permute_axes(self, a: Block, permutation: list[int]) -> Block:
         ...
 
+    def permute_combined_matrix(self, block: Block,
+                                dims1: Sequence[int], idcs1: Sequence[int],
+                                dims2: Sequence[int], idcs2: Sequence[int]) -> Block:
+        """For a matrix `a` with two combined multi-indices, permute the sub-indices.
+
+        Parameters
+        ----------
+        a : 2D Block
+            A matrix with combined axes ``[(m1.m2...mJ), (n1.n2...nK)]``.
+        dims1 : list or 1D array of int
+            The dimensions of the subindices ``[m1, m2, ..., mJ]``.
+        idcs1 : list or 1D array of int
+            Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the first
+            multi-index of the result.
+        dims2 : list or 1D array of int
+            The dimensions of the subindices ``[n1, n2, ..., nK]``.
+        idcs2 : list or 1D array of int
+            Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the second
+            multi-index of the result.
+
+        Returns
+        -------
+        2D block
+            A matrix with the same entries as `a`, but rearranged to the new axis order,
+            e.g. ``[M, N]``, where ``M == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs1])``
+            and ``N == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs2])``.
+
+        See Also
+        --------
+        permute_combined_idx
+        """
+        block = self.reshape(block, [*dims1, *dims2])
+        block = self.permute_axes(block, [*idcs1, *idcs2])
+        shape = self.get_shape(block)
+        M_new = prod(shape[:len(idcs1)])
+        N_new = prod(shape[len(idcs1):])
+        return self.reshape(block, (M_new, N_new))
+
+    def permute_combined_idx(self, block: Block, axis: int, dims: Sequence[int],
+                             idcs: Sequence[int]) -> Block:
+        """For a matrix `a` with a single combined multi-index, permute sub-indices.
+
+        Parameters
+        ----------
+        a : 2D Block
+            A matrix with axes ``[M, N]``, where either ``M = (m1.m2...mJ)`` or ``N = (n1.n2...nK)``
+            is a multi-index *but not both*.
+        axis : int
+            Which of the two axes has the multi-indices
+        dims : list or 1D array of int
+            The dimensions of the sub-indices, e.g. ``[m1, m2, ..., mJ]``.
+        idcs : list of 1D array of int
+            The order of the sub-indices in the results, such that the result has
+            axes ``[[m1, m2, ..., mJ][i] for i in idcs]``.
+
+        Returns
+        -------
+        2D Block
+            A matrix with the same entries as `a`, but rearranged to the new axis order,
+            i.e. ``[M_new, N_new]`` where e.g. ``M_new = combined([m1, m2, ..., mJ][idcs])``.
+
+        See Also
+        --------
+        permute_combined_matrix
+        """
+        M, N = self.get_shape(block)
+        assert -2 <= axis < 2
+        if axis < 0:
+            axis = axis + 2
+        if axis == 0:
+            block = self.reshape(block, [*dims, N])
+            block = self.permute_axes(block, [*idcs, len(idcs)])
+            return self.reshape(block, (M, N))
+        if axis == 1:
+            block = self.reshape(block, [M, *dims])
+            block = self.permute_axes(block, [0, *(1 + i for i in idcs)])
+            return self.reshape(block, (M, N))
+        raise RuntimeError
+
     @abstractmethod
     def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
                       ) -> Block:
@@ -1529,7 +1619,7 @@ class BlockBackend(metaclass=ABCMeta):
 
 
 def conventional_leg_order(tensor_or_codomain: SymmetricTensor | TensorProduct,
-                           domain: TensorProduct = None) -> Iterator[Space]:
+                           domain: TensorProduct = None) -> Generator[Space, None, None]:
     if domain is None:
         codomain = tensor_or_codomain.codomain
         domain = tensor_or_codomain.domain
