@@ -760,8 +760,8 @@ class ProductSymmetry(Symmetry):
         self.sector_slices = np.cumsum([0] + [f.sector_ind_len for f in flat_factors])
         Symmetry.__init__(
             self,
-            fusion_style=max((f.fusion_style for f in flat_factors), key=lambda style: style.value),
-            braiding_style=max((f.braiding_style for f in flat_factors), key=lambda style: style.value),
+            fusion_style=max(f.fusion_style for f in flat_factors),
+            braiding_style=max(f.braiding_style for f in flat_factors),
             trivial_sector=np.concatenate([f.trivial_sector for f in flat_factors]),
             group_name=' ⨉ '.join(f.group_name for f in flat_factors),
             num_sectors=math.prod([symm.num_sectors for symm in flat_factors]),
@@ -777,9 +777,9 @@ class ProductSymmetry(Symmetry):
     def is_valid_sector(self, a: Sector) -> bool:
         if getattr(a, 'shape', ()) != (self.sector_ind_len,):
             return False
-        for i, f_i in enumerate(self.factors):
+        for i, factor_i in enumerate(self.factors):
             a_i = a[self.sector_slices[i]:self.sector_slices[i + 1]]
-            if not f_i.is_valid_sector(a_i):
+            if not factor_i.is_valid_sector(a_i):
                 return False
         return True
 
@@ -787,9 +787,9 @@ class ProductSymmetry(Symmetry):
         shape = getattr(sectors, 'shape', ())
         if len(shape) != 2 or shape[1] != self.sector_ind_len:
             return False
-        for i, f_i in enumerate(self.factors):
+        for i, factor_i in enumerate(self.factors):
             sectors_i = sectors[:, self.sector_slices[i]:self.sector_slices[i + 1]]
-            if not f_i.are_valid_sectors(sectors_i):
+            if not factor_i.are_valid_sectors(sectors_i):
                 return False
         return True
 
@@ -797,10 +797,10 @@ class ProductSymmetry(Symmetry):
         colon = slice(None, None, None)
         all_outcomes = []
         num_possibilities = []
-        for i, f_i in enumerate(self.factors):
+        for i, factor_i in enumerate(self.factors):
             a_i = a[self.sector_slices[i]:self.sector_slices[i + 1]]
             b_i = b[self.sector_slices[i]:self.sector_slices[i + 1]]
-            c_i = f_i.fusion_outcomes(a_i, b_i)
+            c_i = factor_i.fusion_outcomes(a_i, b_i)
             all_outcomes.append(c_i)
             num_possibilities.append(c_i.shape[0])
 
@@ -828,10 +828,10 @@ class ProductSymmetry(Symmetry):
     def fusion_outcomes_broadcast(self, a: SectorArray, b: SectorArray) -> SectorArray:
         assert self.fusion_style == FusionStyle.single
         components = []
-        for i, f_i in enumerate(self.factors):
+        for i, factor_i in enumerate(self.factors):
             a_i = a[:, self.sector_slices[i]:self.sector_slices[i + 1]]
             b_i = b[:, self.sector_slices[i]:self.sector_slices[i + 1]]
-            c_i = f_i.fusion_outcomes_broadcast(a_i, b_i)
+            c_i = factor_i.fusion_outcomes_broadcast(a_i, b_i)
             components.append(c_i)
         # the c_i have the same first axis as a and b.
         # it remains to concatenate them along the last axis
@@ -839,45 +839,44 @@ class ProductSymmetry(Symmetry):
 
     def _multiple_fusion_broadcast(self, *sectors: SectorArray) -> SectorArray:
         components = []
-        for i, f_i in enumerate(self.factors):
+        for i, factor_i in enumerate(self.factors):
             sectors_i = tuple(s[:, self.sector_slices[i]:self.sector_slices[i + 1]] for s in sectors)
-            c_i = f_i.multiple_fusion_broadcast(*sectors_i)
+            c_i = factor_i.multiple_fusion_broadcast(*sectors_i)
             components.append(c_i)
         return np.concatenate(components, axis=-1)
 
     def sector_dim(self, a: Sector) -> int:
         if self.is_abelian:
             return 1
-
-        dims = []
-        for i, f_i in enumerate(self.factors):
+        dim = 1
+        for i, factor_i in enumerate(self.factors):
             a_i = a[self.sector_slices[i]:self.sector_slices[i + 1]]
-            dims.append(f_i.sector_dim(a_i))
-        return np.prod(dims)
+            dim *= factor_i.sector_dim(a_i)
+        return dim
 
     def batch_sector_dim(self, a: SectorArray) -> npt.NDArray[np.int_]:
         if self.is_abelian:
             return np.ones([a.shape[0]], dtype=int)
-        dims = []
-        for i, f_i in enumerate(self.factors):
+        dims = np.ones(len(a))
+        for i, factor_i in enumerate(self.factors):
             a_i = a[:, self.sector_slices[i]:self.sector_slices[i + 1]]
-            dims.append(f_i.batch_sector_dim(a_i))
-        return np.prod(dims, axis=0)
+            dims *= factor_i.batch_sector_dim(a_i)
+        return dims
 
     def batch_qdim(self, a: SectorArray) -> npt.NDArray[np.int_]:
         if self.is_abelian:
             return np.ones([a.shape[0]], dtype=int)
-        dims = []
-        for i, f_i in enumerate(self.factors):
+        dims = np.ones(len(a))
+        for i, factor_i in enumerate(self.factors):
             a_i = a[:, self.sector_slices[i]:self.sector_slices[i + 1]]
-            dims.append(f_i.batch_qdim(a_i))
-        return np.prod(dims, axis=0)
+            dims *= factor_i.batch_qdim(a_i)
+        return dims
 
     def sector_str(self, a: Sector) -> str:
         strs = []
-        for i, f_i in enumerate(self.factors):
+        for i, factor_i in enumerate(self.factors):
             a_i = a[self.sector_slices[i]:self.sector_slices[i + 1]]
-            strs.append(f_i.sector_str(a_i))
+            strs.append(factor_i.sector_str(a_i))
         return f'[{", ".join(strs)}]'
 
     def __repr__(self):
@@ -911,30 +910,30 @@ class ProductSymmetry(Symmetry):
         return all(f1.is_same_symmetry(f2) for f1, f2 in zip(self.factors, other.factors))
 
     def dual_sector(self, a: Sector) -> Sector:
-        components = []
-        for i, f_i in enumerate(self.factors):
+        res = np.empty_like(a)
+        for i, factor_i in enumerate(self.factors):
             a_i = a[self.sector_slices[i]:self.sector_slices[i + 1]]
-            components.append(f_i.dual_sector(a_i))
-        return np.concatenate(components)
+            res[self.sector_slices[i]:self.sector_slices[i + 1]] = factor_i.dual_sector(a_i)
+        return res
 
     def dual_sectors(self, sectors: SectorArray) -> SectorArray:
-        components = []
-        for i, f_i in enumerate(self.factors):
+        res = np.empty_like(sectors)
+        for i, factor_i in enumerate(self.factors):
             sectors_i = sectors[:, self.sector_slices[i]:self.sector_slices[i + 1]]
-            components.append(f_i.dual_sectors(sectors_i))
-        return np.concatenate(components, axis=-1)
+            res[:, self.sector_slices[i]:self.sector_slices[i + 1]] = factor_i.dual_sectors(sectors_i)
+        return res
 
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
         if self.fusion_style in [FusionStyle.single, FusionStyle.multiple_unique]:
             return 1
 
-        contributions = []
-        for i, f_i in enumerate(self.factors):
+        res = 1
+        for i, factor_i in enumerate(self.factors):
             a_i = a[self.sector_slices[i]:self.sector_slices[i + 1]]
             b_i = b[self.sector_slices[i]:self.sector_slices[i + 1]]
             c_i = c[self.sector_slices[i]:self.sector_slices[i + 1]]
-            contributions.append(f_i._n_symbol(a_i, b_i, c_i))
-        return np.prod(contributions)
+            res *= factor_i._n_symbol(a_i, b_i, c_i)
+        return res
 
     def all_sectors(self) -> SectorArray:
         if self.num_sectors == np.inf:
@@ -945,16 +944,16 @@ class ProductSymmetry(Symmetry):
         colon = slice(None, None, None)
         results_shape = [f.num_sectors for f in self.factors] + [self.sector_ind_len]
         results = np.zeros(results_shape, dtype=self.trivial_sector.dtype)
-        for i, f_i in enumerate(self.factors):
+        for i, factor_i in enumerate(self.factors):
             lhs_idx = (colon,) * len(self.factors) + (slice(self.sector_slices[i], self.sector_slices[i + 1], None),)
             rhs_idx = (None,) * i + (colon,) + (None,) * (len(self.factors) - i - 1) + (colon,)
-            results[lhs_idx] = f_i.all_sectors()[rhs_idx]
+            results[lhs_idx] = factor_i.all_sectors()[rhs_idx]
         return np.reshape(results, (np.prod(results_shape[:-1]), results_shape[-1]))
 
     def factor_where(self, descriptive_name: str) -> int:
         """Return the index of the first factor with that name. Raises if not found."""
-        for i, factor in enumerate(self.factors):
-            if factor.descriptive_name == descriptive_name:
+        for i, factor_i in enumerate(self.factors):
+            if factor_i.descriptive_name == descriptive_name:
                 return i
         raise ValueError(f'Name not found: {descriptive_name}')
 
@@ -962,78 +961,52 @@ class ProductSymmetry(Symmetry):
         if self.is_abelian:
             return 1
 
-        dims = []
-        for i, f_i in enumerate(self.factors):
+        dim = 1
+        for i, factor_i in enumerate(self.factors):
             a_i = a[self.sector_slices[i]:self.sector_slices[i + 1]]
-            dims.append(f_i.qdim(a_i))
-        return np.prod(dims)
+            dim *= factor_i.qdim(a_i)
+        return dim
 
     def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector ) -> np.ndarray:
-        contributions = []
-        for i, f_i in enumerate(self.factors):
-
-            a_k = a[self.sector_slices[i]:self.sector_slices[i + 1]]
-            b_k = b[self.sector_slices[i]:self.sector_slices[i + 1]]
-            c_k = c[self.sector_slices[i]:self.sector_slices[i + 1]]
-            d_k = d[self.sector_slices[i]:self.sector_slices[i + 1]]
-            e_k = e[self.sector_slices[i]:self.sector_slices[i + 1]]
-            f_k = f[self.sector_slices[i]:self.sector_slices[i + 1]]
-
-            contributions.append(f_i._f_symbol(a_k, b_k, c_k, d_k, e_k, f_k))  # [μ,ν,κ,λ]
-
-        Fs = np.multiply(contributions[0], contributions[1])
-        for i in contributions[2:]:
-            Fs = np.kron(Fs, i)
-
-        return Fs
+        res = np.ones((1, 1, 1, 1))
+        for i, factor_i in enumerate(self.factors):
+            a_i = a[self.sector_slices[i]:self.sector_slices[i + 1]]
+            b_i = b[self.sector_slices[i]:self.sector_slices[i + 1]]
+            c_i = c[self.sector_slices[i]:self.sector_slices[i + 1]]
+            d_i = d[self.sector_slices[i]:self.sector_slices[i + 1]]
+            e_i = e[self.sector_slices[i]:self.sector_slices[i + 1]]
+            f_i = f[self.sector_slices[i]:self.sector_slices[i + 1]]
+            res = np.kron(res, factor_i._f_symbol(a_i, b_i, c_i, d_i, e_i, f_i))
+        return res
 
     def _r_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
-
-        contributions = []
-        for i, f_i in enumerate(self.factors):
-            a_k = a[self.sector_slices[i]:self.sector_slices[i + 1]]
-            b_k = b[self.sector_slices[i]:self.sector_slices[i + 1]]
-            c_k = c[self.sector_slices[i]:self.sector_slices[i + 1]]
-
-            contributions.append(f_i._r_symbol(a_k, b_k, c_k))
-
-        rsym = np.kron(contributions[0], contributions[1])
-        for i in contributions[2:]:
-            rsym = np.kron(rsym, i)
-
-        return rsym
+        res = np.ones((1,))
+        for i, factor_i in enumerate(self.factors):
+            a_i = a[self.sector_slices[i]:self.sector_slices[i + 1]]
+            b_i = b[self.sector_slices[i]:self.sector_slices[i + 1]]
+            c_i = c[self.sector_slices[i]:self.sector_slices[i + 1]]
+            res = np.kron(res, factor_i._r_symbol(a_i, b_i, c_i))
+        return res
 
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool = False, Z_b: bool = False
                        ) -> np.ndarray:
         if not self.can_be_dropped:
             raise SymmetryError(f'fusion tensor can not be written as array for {self}')
-
-        contributions = []
-        for i, f_i in enumerate(self.factors):
-            a_k = a[self.sector_slices[i]:self.sector_slices[i + 1]]
-            b_k = b[self.sector_slices[i]:self.sector_slices[i + 1]]
-            c_k = c[self.sector_slices[i]:self.sector_slices[i + 1]]
-            contributions.append(f_i._fusion_tensor(a_k, b_k, c_k, Z_a, Z_b))
-
-        ftensor = np.kron(contributions[0], contributions[1])
-        for i in contributions[2:]:
-            ftensor = np.kron(ftensor, i)
-
-        return ftensor
+        res = np.ones((1, 1, 1, 1))
+        for i, factor_i in enumerate(self.factors):
+            a_i = a[self.sector_slices[i]:self.sector_slices[i + 1]]
+            b_i = b[self.sector_slices[i]:self.sector_slices[i + 1]]
+            c_i = c[self.sector_slices[i]:self.sector_slices[i + 1]]
+            res = np.kron(res, factor_i._fusion_tensor(a_i, b_i, c_i, Z_a, Z_b))
+        return res
 
     def Z_iso(self, a: Sector) -> np.ndarray:
         if not self.can_be_dropped:
             raise SymmetryError(f'Z iso can not be written as array for {self}')
-
-        contributions = []
-        for i, f_i in enumerate(self.factors):
-            a_k = a[self.sector_slices[i]:self.sector_slices[i + 1]]
-            contributions.append(f_i.Z_iso(a_k))
-
-        res = np.kron(contributions[0], contributions[1])
-        for i in contributions[2:]:
-            res = np.kron(res, i)
-
+        res = np.ones((1, 1))
+        for i, factor_i in enumerate(self.factors):
+            a_i = a[self.sector_slices[i]:self.sector_slices[i + 1]]
+            res = np.kron(res, factor_i.Z_iso(a_i))
         return res
 
 
