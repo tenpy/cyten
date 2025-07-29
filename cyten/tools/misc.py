@@ -73,36 +73,6 @@ def permutation_as_swaps(permutation: list[int]) -> Generator[int, None, None]:
     return
 
 
-def permutation_as_swaps2(initial_perm: list, final_perm: list) -> list:
-    """Decompose a permutation as a sequence of pairwise swaps.
-
-    Given an initial and final permutation of the same numbers, return a list `swaps`
-    of indices such that exchanging the entries of the initial permutation as
-    `initial_perm[swaps[i]], initial_perm[swaps[i]+1] = initial_perm[swaps[i]+1],
-    initial_perm[swaps[i]]` leads to the final permutation. The swaps must be applied
-    starting from `swaps[0]`.
-
-    Consistency of the input is not checked.
-    """
-    assert len(initial_perm) == len(final_perm), 'mismatched lengths'
-    unique_entries_initial = set(initial_perm)
-    unique_entries_final = set(final_perm)
-    assert unique_entries_initial == unique_entries_final, 'mismatched entries'
-    assert len(initial_perm) == len(unique_entries_initial), 'duplicated entries'
-
-    # TODO avoid infinite loop
-    # OPTIMIZE is this efficient??
-    swaps = []
-    while final_perm != initial_perm:
-        for i in range(len(final_perm)):
-            if final_perm[i] != initial_perm[i]:
-                ind = initial_perm.index(final_perm[i])
-                initial_perm[ind - 1:ind + 1] = initial_perm[ind - 1:ind + 1][::-1]
-                swaps.append(ind - 1)
-                break
-    return swaps
-
-
 # TODO remove in favor of backend.block_argsort?
 def argsort(a, sort=None, **kwargs):
     """Wrapper around np.argsort to allow sorting ascending/descending and by magnitude.
