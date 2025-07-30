@@ -13,7 +13,7 @@ from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor, 
 from cyten.backends.backend_factory import get_backend
 from cyten.dtypes import Dtype
 from cyten.spaces import ElementarySpace, TensorProduct, AbelianLegPipe, LegPipe
-from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError
+from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError, BraidingStyle
 from cyten.tools.misc import (
     duplicate_entries, iter_common_noncommon_sorted_arrays, to_valid_idx, inverse_permutation
 )
@@ -2850,10 +2850,10 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     labels = list('abcdefghi')[:cod + dom]
     tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
 
-    if isinstance(tensor, ChargedTensor):
-        with pytest.raises(NotImplementedError, match='ChargedTensor transpose not done.'):
+    if isinstance(tensor, ChargedTensor) and tensor.symmetry.braiding_style > BraidingStyle.bosonic:
+        with pytest.raises(SymmetryError, match='not defined'):
             _ = tensor.T
-        pytest.xfail('ChargedTensor transpose not done')
+        return
 
     if isinstance(tensor.backend, backends.FusionTreeBackend):
         if any([isinstance(leg, LegPipe) for leg in tensor.legs]):

@@ -78,7 +78,7 @@ import functools
 import logging
 
 from .dummy_config import printoptions
-from .symmetries import SymmetryError, BraidChiralityUnspecifiedError, Symmetry
+from .symmetries import SymmetryError, BraidChiralityUnspecifiedError, Symmetry, BraidingStyle
 from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
 from .backends.backend_factory import get_backend
 from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order
@@ -5541,9 +5541,12 @@ def transpose(tensor: Tensor) -> Tensor:
         return SymmetricTensor(data=data, codomain=new_codomain, domain=new_domain,
                                backend=tensor.backend, labels=labels)
     if isinstance(tensor, ChargedTensor):
-        # TODO this current definition does not guarantee that transposing twice reproduces
-        #      the input for fermions!
-        raise NotImplementedError('ChargedTensor transpose not done.')
+        if tensor.symmetry.braiding_style > BraidingStyle.bosonic:
+            msg = (f'transpose is not defined for ChargedTensors with fermionic symmetries. '
+                   f'This is because there is no way to recover the ChargedTensor format in such a '
+                   f'way that transposing twice gives back the original tensor. '
+                   f'Use permute_legs instead')
+            raise SymmetryError(msg)
         inv_part = transpose(tensor.invariant_part)
         inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0)
         return ChargedTensor(inv_part, tensor.charged_state)
