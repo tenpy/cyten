@@ -13,7 +13,7 @@ from ..spaces import ElementarySpace
 from ..tensors import SymmetricTensor
 from ..symmetries import (
     Symmetry, SU2Symmetry, U1Symmetry, ZNSymmetry, NoSymmetry, FibonacciAnyonCategory,
-    ProductSymmetry, BraidingStyle, FermionNumber, FermionParity
+    ProductSymmetry, BraidingStyle, FermionNumber, FermionParity, SU2_kAnyonCategory
 )
 
 
@@ -656,6 +656,63 @@ class GoldenSite(Site):
         leg = ElementarySpace.from_basis(symmetry, [symmetry.vacuum, symmetry.tau])
         tau_occupation = SymmetricTensor.from_sector_projection([leg], symmetry.tau)
         Site.__init__(self, leg=leg, onsite_operators={'N': tau_occupation})
+
+
+class RepresentationSite(Site):
+    """A general site which is a direct sum of multiple simple objects in some fusion category.
+
+    Parameters
+    ----------
+    symmetry : Symmetry
+        The symmetry whose irreducible representations constitute the site.
+    simples : list
+        The simples appearing in the decomposition of the site.
+    multiplicities : slice
+        The multiplicities with which the simple objects in simples shall appear in the decomposition.
+    """
+
+    def __init__(self, symmetry: Symmetry, simples: list[Symmetry], multiplicities: list[int] = None):
+
+        if len(simples) == 0:
+            raise ValueError('Representation should contain at least one simple object.')
+        if multiplicities is None:
+            multiplicities = [1] * len(simples)
+        if len(multiplicities) != len(simples):
+            raise ValueError('List of multiplicities should have the same length as the list of simples.')
+
+        reps = []
+        for i in range(len(multiplicities)):
+            reps += [simples[i]]*i
+
+        assert symmetry.are_valid_sectors(np.array(simples))
+
+        leg = ElementarySpace.from_basis(symmetry, reps)
+
+        onsite_op_dict = {sector: sector_proj_onsite(symmetry, leg, sector) for sector in simples}
+        Site.__init__(self, leg=leg, onsite_operators=onsite_op_dict)
+
+
+class GoldenChainSite(RepresentationSite):
+    """Base class for the golden chain model where the local Hilbert space is the tau sector"""
+
+    def __init__(self, handedness: Literal['left', 'right']):
+        symmetry = FibonacciAnyonCategory(handedness=handedness)
+        RepresentationSite.__init__(self, symmetry, [symmetry.tau], [1])
+
+
+class SU2kSite(RepresentationSite):
+    """Base class for SU2_k sites where each site is a direct sum of simple objects of SU2_k with multiplicities."""
+
+    def __init__(self, k, handedness, simples: list, multiplicities: list):
+
+        symmetry = SU2_kAnyonCategory(k, handedness=handedness)
+        RepresentationSite.__init__(self, symmetry, simples, multiplicities)
+
+
+def sector_proj_onsite(symmetry: Symmetry, leg, sector):
+    """Helper function to create onsite projectors onto sectors"""
+    assert Symmetry.is_valid_sector(symmetry, sector)
+    return SymmetricTensor.from_sector_projection([leg], sector)
 
 
 def consistent_leg_symmetry(leg: ElementarySpace, symmetry_factor: Symmetry,
