@@ -14,7 +14,8 @@ from ..backends.abstract_backend import Block
 from ..tensors import (
     SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, svd, scale_axis
 )
-from .sites import Site, SpinfulSite, ClockSite, GoldenSite
+from .degrees_of_freedom import DegreeOfFreedom, SpinDOF, ClockDOF
+from .sites import GoldenSite
 
 
 class Coupling:
@@ -40,7 +41,7 @@ class Coupling:
         For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
     """
 
-    def __init__(self, sites: list[Site], factorization: list[SymmetricTensor],
+    def __init__(self, sites: list[DegreeOfFreedom], factorization: list[SymmetricTensor],
                  name: str = None):
         self.sites = sites
         assert len(factorization) == len(sites)
@@ -63,7 +64,7 @@ class Coupling:
         assert self.factorization[-1].get_leg('wR').is_trivial
 
     @classmethod
-    def from_dense_block(cls, operator: Block, sites: list[Site], name: str = None,
+    def from_dense_block(cls, operator: Block, sites: list[DegreeOfFreedom], name: str = None,
                          backend: TensorBackend = None, device: str = None,
                          dtype: Dtype = None) -> Coupling:
         """Convert a dense block to a :class:`Coupling`.
@@ -100,7 +101,7 @@ class Coupling:
         return cls.from_tensor(op, sites=sites, name=name)
 
     @classmethod
-    def from_tensor(cls, operator: SymmetricTensor, sites: list[Site], name: str = None
+    def from_tensor(cls, operator: SymmetricTensor, sites: list[DegreeOfFreedom], name: str = None
                     ) -> Coupling | OnSiteOperator:
         """Convert an operator / tensor to a :class:Coupling.
         
@@ -216,20 +217,20 @@ class OnSiteOperator(Coupling):
     :class:`Coupling`
     """
 
-    def __init__(self, site: Site, operator: SymmetricTensor, name: str = None):
+    def __init__(self, site: DegreeOfFreedom, operator: SymmetricTensor, name: str = None):
         self.operator = operator
         W = add_trivial_leg(operator, domain_pos=0, label='wL')
         W = add_trivial_leg(W, codomain_pos=1, label='wR')
         Coupling.__init__(self, sites=[site], factorization=[W], name=name)
 
     @classmethod
-    def from_tensor(cls, operator: SymmetricTensor, sites: list[Site], name: str = None
+    def from_tensor(cls, operator: SymmetricTensor, sites: list[DegreeOfFreedom], name: str = None
                     ) -> OnSiteOperator:
         assert len(sites) == 1
         return cls(site=sites[0], operator=operator, name=name)
 
 
-def spin_spin_coupling(sites: list[SpinfulSite],
+def spin_spin_coupling(sites: list[SpinDOF],
                        xx: float = None, yy: float = None, zz: float = None,
                        backend: TensorBackend = None, device: str = None, name: str = 'spin-spin'
                        ) -> Coupling:
@@ -258,14 +259,14 @@ def spin_spin_coupling(sites: list[SpinfulSite],
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
-def heisenberg_coupling(sites: list[SpinfulSite], backend: TensorBackend = None, device: str = None,
+def heisenberg_coupling(sites: list[SpinDOF], backend: TensorBackend = None, device: str = None,
                         name: str = 'S.S') -> Coupling:
     # TODO test that this builds what we expect
     return spin_spin_coupling(sites=sites, xx=1, yy=1, zz=1, backend=backend, device=device,
                               name=name)
 
 
-def chiral_3spin_coupling(sites: list[SpinfulSite], backend: TensorBackend = None,
+def chiral_3spin_coupling(sites: list[SpinDOF], backend: TensorBackend = None,
                           device: str = None, name: str = 'S.SxS') -> Coupling:
     # TODO test that this builds what we expect
     assert len(sites) == 3
@@ -277,7 +278,7 @@ def chiral_3spin_coupling(sites: list[SpinfulSite], backend: TensorBackend = Non
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
-def clock_coupling(sites: list[ClockSite], J: float = None, g_l: float = None, g_r: float = None,
+def clock_coupling(sites: list[ClockDOF], J: float = None, g_l: float = None, g_r: float = None,
                    backend: TensorBackend = None, device: str = None, name: str = 'clock-clock'
                    ) -> Coupling:
     r"""Coupling between two clock sites.
