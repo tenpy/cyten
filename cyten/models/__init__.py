@@ -7,5 +7,6 @@ from .sites import (
     ClockSite, GoldenSite
 )
 from .couplings import (
-    Coupling, OnSiteOperator, heisenberg_coupling, chiral_3spin_coupling, gold_coupling
+    Coupling, OnSiteOperator, heisenberg_coupling, chiral_3spin_coupling, clock_coupling,
+    gold_coupling
 )
