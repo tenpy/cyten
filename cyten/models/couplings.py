@@ -14,7 +14,7 @@ from ..backends.abstract_backend import Block
 from ..tensors import (
     SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, svd, scale_axis
 )
-from .sites import Site, SpinfulSite, GoldenSite
+from .sites import Site, SpinfulSite, ClockSite, GoldenSite
 
 
 class Coupling:
@@ -274,6 +274,39 @@ def chiral_3spin_coupling(sites: list[SpinfulSite], backend: TensorBackend = Non
                    axis=4)  # [p1, p2, p2*, p1*, i]
     h = np.tensordot(sites[0].spin_vector, SxS, (-1, -1))  # [p0, p0*, p1, p2, p2*, p1*]
     h = np.transpose(h, [0, 2, 3, 4, 5, 1])
+    return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
+
+
+def clock_coupling(sites: list[ClockSite], J: float = None, g_l: float = None, g_r: float = None,
+                   backend: TensorBackend = None, device: str = None, name: str = 'clock-clock'
+                   ) -> Coupling:
+    r"""Coupling between two clock sites.
+
+    Parameters
+    ----------
+    J, g_l, g_r : float, optional
+        If given, add the corresponding terms, ``J * (X_i X_j^\dagger + \mathrm{ h.c.})`` and
+        ``g * (Z_i + \mathrm{ h.c.})``, with the values as prefactor. For the latter (on-site)
+        term, ``g = g_l`` is used as prefactor for the 'left' site ``sites[0]``, and ``g = g_r``
+        is used as prefactor for the 'right' site ``sites[1]``.
+    """
+    # TODO test that this builds what we expect
+    assert len(sites) == 2
+    clock1 = sites[0].clock_operators
+    clock2 = sites[1].clock_operators
+    h = 0
+    if J is not None:
+        h += J * np.tensordot(clock1[:, :, 0], np.conj(clock2[:, :, 0].T), axes=0)
+        h += J * np.tensordot(np.conj(clock1[:, :, 0].T), clock2[:, :, 0], axes=0)
+    if g_l is not None:
+        Zphc = clock1[:, :, 1] + np.conj(clock1[:, :, 1].T)
+        h += g_l * np.tensordot(Zphc, np.eye(clock2.shape[0]), axes=0)
+    if g_r is not None:
+        Zphc = clock2[:, :, 1] + np.conj(clock2[:, :, 1].T)
+        h += g_r * np.tensordot(np.eye(clock1.shape[0]), Zphc, axes=0)
+    if np.ndim(h) == 0:
+        raise ValueError('Must have at least one non-zero prefactor.')
+    h = np.transpose(h, [0, 2, 3, 1])
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
