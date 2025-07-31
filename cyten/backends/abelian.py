@@ -39,6 +39,7 @@ from .abstract_backend import (
 from ..dtypes import Dtype
 from ..symmetries import BraidingStyle, Symmetry
 from ..spaces import Space, ElementarySpace, LegPipe, AbelianLegPipe, TensorProduct, Leg
+from ..trees import FusionTree
 from ..tools.misc import (
     inverse_permutation, list_to_dict_list, rank_data, iter_common_noncommon_sorted_arrays,
     iter_common_sorted, iter_common_sorted_arrays, make_stride, find_row_differences, make_grid
@@ -994,6 +995,42 @@ class AbelianBackend(TensorBackend):
         dtype = self.block_backend.get_dtype(sample_block)
         device = self.block_backend.get_device(sample_block)
         return AbelianBackendData(dtype=dtype, device=device, blocks=blocks, block_inds=block_inds, is_sorted=True)
+
+    def from_tree_pairs(self, trees: dict[tuple[FusionTree, FusionTree], Block], codomain: TensorProduct,
+                        domain: TensorProduct, dtype: Dtype, device: str) -> Data:
+        block_inds = []
+        blocks = []
+        pairs_done = set()
+        for bi in _valid_block_inds(codomain, domain):
+            Y = FusionTree.from_abelian_symmetry(
+                symmetry=codomain.symmetry,
+                uncoupled=[f.sector_decomposition[bi[n]] for n, f in enumerate(codomain)],
+                are_dual=[f.is_dual for f in codomain],
+            )
+            X = FusionTree.from_abelian_symmetry(
+                symmetry=domain.symmetry,
+                uncoupled=[f.sector_decomposition[bi[-1 - n]] for n, f in enumerate(domain)],
+                are_dual=[f.is_dual for f in domain],
+            )
+            pair = (Y, X)
+            pairs_done.add(pair)
+            block = trees.get(pair, None)
+            if block is None:
+                continue
+            block_inds.append(bi)
+            blocks.append(block)
+        if len(block_inds) == 0:
+            block_inds = np.zeros((0, codomain.num_factors + domain.num_factors), int)
+        else:
+            block_inds = np.array(block_inds)
+        # check if we covered all keys in the dict
+        for pair in trees.keys():
+            if pair not in pairs_done:
+                # SymmetricTensor.from_tree_pairs should have done enough input checks to prevent this
+                # OPTIMIZE if the code works, we could remove this check
+                raise RuntimeError
+        return AbelianBackendData(dtype=dtype, device=device, blocks=blocks, block_inds=block_inds,
+                                  is_sorted=False)
 
     def full_data_from_diagonal_tensor(self, a: DiagonalTensor) -> Data:
         blocks = [self.block_backend.block_from_diagonal(block) for block in a.data.blocks]
