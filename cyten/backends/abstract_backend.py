@@ -12,6 +12,7 @@ import numpy as np
 
 from ..symmetries import Symmetry
 from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe, Leg
+from ..trees import FusionTree
 from ..dtypes import Dtype
 from ..tools.misc import combine_constraints, to_iterable
 
@@ -394,6 +395,13 @@ class TensorBackend(metaclass=ABCMeta):
         Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
         Assumes all generated blocks are on the same device.
         """
+        ...
+
+    @abstractmethod
+    def from_tree_pairs(self, trees: dict[tuple[FusionTree, FusionTree], Block],
+                        codomain: TensorProduct, domain: TensorProduct, dtype: Dtype, device: str
+                        ) -> Data:
+        """Compute the data for :meth:`SymmetricTensor.from_tree_pairs`."""
         ...
 
     @abstractmethod

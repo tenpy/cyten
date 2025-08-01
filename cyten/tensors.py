@@ -80,6 +80,7 @@ import logging
 from .dummy_config import printoptions
 from .symmetries import SymmetryError, BraidChiralityUnspecifiedError, Symmetry, BraidingStyle
 from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
+from .trees import FusionTree
 from .backends.backend_factory import get_backend
 from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order
 from .dtypes import Dtype
@@ -1191,6 +1192,68 @@ class SymmetricTensor(Tensor):
         res = cls(data, codomain=co_domain, domain=co_domain, backend=backend, labels=labels)
         res.test_sanity()
         return res
+
+    @classmethod
+    def from_tree_pairs(cls, trees: dict[tuple[FusionTree, FusionTree], Block],
+                        codomain: TensorProduct | list[Space],
+                        domain: TensorProduct | list[Space] | None = None,
+                        backend: TensorBackend | None = None,
+                        labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                        dtype: Dtype = None,
+                        device: str = None,
+                        ):
+        """Create a tensor from a linear combination of fusion-tree splitting-tree pairs.
+
+        Parameters
+        ----------
+        trees : {(FusionTree, FusionTree): (J+K)-D Block}
+            Specifies the linear combination that defines the resulting tensor.
+            Each entry of the dict, ``{(Y, X): coeffs}`` represents several contributions to the
+            linear combination, one per entry of the block ``coeffs``.
+            The contribution with prefactor ``coeffs[n1, ..., nJ, mK, ..., m1]`` (note the axis order!)
+            consists of the following steps as a map from domain to codomain::
+
+                1. Project each leg ``k`` of the domain to a single sector, where the sector is
+                   given by ``X.uncoupled[k]`` and the degeneracy index by ``mk`` (an index to
+                   the array ``coeffs``).
+
+                2. Apply the fusion tree ``X``.
+
+                3. Apply the splitting tree ``Y``.
+
+                4. Apply inclusions on each leg ``j`` of the codomain, where the sector is given by
+                   ``Y.uncoupled[j]`` and the degeneracy index by ``nj`` (an index to the array
+                   ``coeffs``).
+        codomain, domain, backend, labels
+            Arguments, like for constructor of :class:`SymmetricTensor`.
+        """
+        if len(trees) == 0:
+            if dtype is None:
+                raise ValueError('Can not infer Dtype')
+            if device is None:
+                raise ValueError('Can not infer device')
+            return cls.from_zero(codomain=codomain, domain=domain, backend=backend, labels=labels,
+                                 dtype=dtype, device=device)
+        codomain, domain, backend, symmetry = cls._init_parse_args(
+            codomain=codomain, domain=domain, backend=backend
+        )
+        if device is None:
+            some_block = backend.block_backend.as_block(next(iter(trees.values())))
+            device = backend.block_backend.get_device(some_block)
+        Y_are_dual = np.array([l.is_dual for l in codomain], bool)
+        X_are_dual = np.array([l.is_dual for l in domain])
+        for Y, X in trees.keys():
+            assert np.all(Y.coupled == X.coupled)
+            assert np.all(Y.are_dual == Y_are_dual)
+            assert np.all(X.are_dual == X_are_dual)
+            block = trees[Y, X]
+            block = backend.block_backend.as_block(block, dtype=dtype, device=device)
+            assert backend.block_backend.get_device(block) == device
+            trees[Y, X] = block
+        if dtype is None:
+            dtype = Dtype.common(*(backend.block_backend.get_dtype(b) for b in trees.values()))
+        data = backend.from_tree_pairs(trees, codomain=codomain, domain=domain, dtype=dtype, device=device)
+        return cls(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
 
     @classmethod
     def from_zero(cls, codomain: TensorProduct | list[Space],

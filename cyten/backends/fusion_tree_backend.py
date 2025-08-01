@@ -865,6 +865,49 @@ class FusionTreeBackend(TensorBackend):
         device = self.block_backend.get_device(sample_block)
         return FusionTreeData(block_inds, blocks, dtype, device)
 
+    def from_tree_pairs(self, trees: dict[tuple[FusionTree, FusionTree], Block], codomain: TensorProduct,
+                        domain: TensorProduct, dtype: Dtype, device: str) -> Data:
+        J = codomain.num_factors
+        K = domain.num_factors
+        block_inds = []
+        blocks = []
+        pairs_done = set()
+        for i, j in iter_common_sorted_arrays(codomain.sector_decomposition, domain.sector_decomposition):
+            coupled = codomain.sector_decomposition[i]
+            shape = codomain.multiplicities[i], domain.multiplicities[j]
+            block = self.block_backend.zeros(shape, dtype, device)
+            is_zero_block = True
+            for Y, i1, mults1, _ in codomain.iter_tree_blocks([coupled]):
+                for X, i2, mults2, _ in domain.iter_tree_blocks([coupled]):
+                    pair = (Y, X)
+                    tree_block = trees.get(pair, None)
+                    if tree_block is None:
+                        continue
+                    expect_shape = *mults1, *reversed(mults2)
+                    assert self.block_backend.get_shape(tree_block) == expect_shape
+                    # [m1,...,mJ,nK,...,n1] -> [m1,...,mJ,n1,...,nK]
+                    tree_block = self.block_backend.permute_axes(tree_block, [*range(J), *reversed(range(J, J + K))])
+                    # [m1,...,mJ,n1,...,nK] -> [M, N]
+                    tree_block = self.block_backend.reshape(tree_block, (np.prod(mults1), np.prod(mults2)))
+                    block[i1, i2] = tree_block
+                    is_zero_block = False
+                    pairs_done.add(pair)
+            if is_zero_block:
+                continue
+            block_inds.append([i, j])
+            blocks.append(block)
+        if len(block_inds) == 0:
+            block_inds = np.zeros((0, 2), int)
+        else:
+            block_inds = np.array(block_inds)
+        # check if we covered all keys in the dict
+        for pair in trees.keys():
+            if pair not in pairs_done:
+                # OPTIMIZE if the code works, we could remove this check
+                raise RuntimeError
+        return FusionTreeData(block_inds=block_inds, blocks=blocks, dtype=dtype, device=device,
+                              is_sorted=True)
+
     def full_data_from_diagonal_tensor(self, a: DiagonalTensor) -> Data:
         blocks = [self.block_backend.block_from_diagonal(block) for block in a.data.blocks]
         return FusionTreeData(a.data.block_inds, blocks, dtype=a.dtype, device=a.data.device)

@@ -10,7 +10,9 @@ from contextlib import nullcontext
 
 from cyten import backends, tensors, symmetries
 from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor, Tensor
+from cyten.backends.abstract_backend import conventional_leg_order
 from cyten.backends.backend_factory import get_backend
+from cyten.backends.numpy import NumpyBlockBackend
 from cyten.dtypes import Dtype
 from cyten.spaces import ElementarySpace, TensorProduct, AbelianLegPipe, LegPipe
 from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError, BraidingStyle
@@ -136,6 +138,7 @@ def test_base_Tensor(make_compatible_space, compatible_backend):
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)],
                          ids=['1->1', '1->2', '0->3', '3->0'])
 def test_SymmetricTensor(make_compatible_tensor, leg_nums, np_random):
+    numpy_block_backend = NumpyBlockBackend()
     T: SymmetricTensor = make_compatible_tensor(*leg_nums)
     backend = T.backend
 
@@ -258,7 +261,7 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums, np_random):
             assert samples[samples.imag < -0.998].size > 0
             assert samples[samples.real > 0.998].size > 0
             assert samples[samples.imag > 0.998].size > 0
-            
+
     print('checking from_random_normal')
     # TODO do we want to test nontrivial means?
     dtype = np_random.choice([Dtype.float64, Dtype.complex128])
@@ -286,6 +289,61 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums, np_random):
             # absolute values are Rayleigh distributed
             npt.assert_allclose(np.mean(np.abs(samples)), np.sqrt(np.pi / 4) * sigma, atol=tol)
             npt.assert_allclose(np.var(np.abs(samples)), (4 - np.pi) / 4 * true_var, rtol=tol)
+
+    print('checking from_tree_pairs')
+    # build two valid dicts
+    trees1 = {}
+    trees2 = {}
+    for coupled in T.codomain.sector_decomposition:
+        for Y, _, mults1, _ in T.codomain.iter_tree_blocks([coupled]):
+            for X, _, mults2, _ in T.domain.iter_tree_blocks([coupled]):
+                shape = [*mults1, *reversed(mults2)]
+                if len(trees1) == 0 or np_random.choice([True, False]):
+                    trees1[Y, X] = np_random.uniform(size=shape) + 1j * np_random.uniform(size=shape)
+                if len(trees2) == 0 or np_random.choice([True, False]):
+                    trees2[Y, X] = np_random.uniform(size=shape) + 1j * np_random.uniform(size=shape)
+    # build the dict for the linear combination T3 = a * T1 + b * T2
+    a = 1.3
+    b = -3 + 4.7j
+    trees3 = {}
+    for pair, block in trees1.items():
+        trees3[pair] = a * block
+    for pair, block in trees2.items():
+        trees3[pair] = trees3.get(pair, 0) + b * block
+
+    T_from_trees1 = SymmetricTensor.from_tree_pairs(trees1, T.codomain, T.domain, backend=backend)
+    T_from_trees1.test_sanity()
+    T_from_trees2 = SymmetricTensor.from_tree_pairs(trees2, T.codomain, T.domain, backend=backend)
+    T_from_trees2.test_sanity()
+    T_from_trees3 = SymmetricTensor.from_tree_pairs(trees3, T.codomain, T.domain, backend=backend)
+    T_from_trees3.test_sanity()
+
+    assert tensors.almost_equal(T_from_trees3, a * T_from_trees1 + b * T_from_trees2)
+
+    # compare to numpy
+    if T.symmetry.can_be_dropped:
+        for T_res, trees_dict in zip([T_from_trees1, T_from_trees2, T_from_trees3],
+                                     [trees1, trees2, trees3]):
+            T_np = T_res.to_numpy()
+            expect = np.zeros_like(T_np)
+            for (Y, X), block in trees_dict.items():
+                # [a1...aJ,b1...bK]
+                symmetry_data = np.tensordot(Y.as_block().conj(), X.as_block(), (-1, -1))
+                # [a1...aJ,b1...bK] & [a1...aJ,bK...b1]
+                symmetry_data = np.transpose(
+                    symmetry_data,
+                    [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]
+                )
+                contribution = np.kron(block, symmetry_data)
+                codom_idcs = [slice(*l.slices[l.sector_decomposition_where(a)])
+                              for l, a in zip(T.codomain, Y.uncoupled)]
+                dom_idcs = [slice(*l.slices[l.sector_decomposition_where(b)])
+                            for l, b in zip(T.domain, X.uncoupled)]
+                expect[(*codom_idcs, *reversed(dom_idcs))] += contribution
+            expect = numpy_block_backend.apply_basis_perm(
+                expect, conventional_leg_order(T_res), inv=True
+            )
+            npt.assert_array_almost_equal(T_np, expect)
 
     # TODO test to_dense_block_trivial_sector
     # def OLD_test_Tensor_tofrom_dense_block_trivial_sector(make_compatible_tensor):

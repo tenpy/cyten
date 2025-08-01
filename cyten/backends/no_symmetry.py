@@ -9,6 +9,7 @@ from .abstract_backend import (TensorBackend, BlockBackend, Data, DiagonalData, 
 from ..dtypes import Dtype
 from ..symmetries import no_symmetry, Symmetry
 from ..spaces import Space, ElementarySpace, TensorProduct, Leg, LegPipe, AbelianLegPipe
+from ..trees import FusionTree
 from ..tools.misc import rank_data
 
 
@@ -216,6 +217,14 @@ class NoSymmetryBackend(TensorBackend):
         coupled = codomain.symmetry.trivial_sector
         shape = tuple(l.dim for l in conventional_leg_order(codomain, domain))
         return func(shape, coupled)
+
+    def from_tree_pairs(self, trees: dict[tuple[FusionTree, FusionTree], Block], codomain: TensorProduct,
+                        domain: TensorProduct, dtype: Dtype, device: str) -> Data:
+        assert len(trees) == 1
+        block, = trees.values()
+        expect_shape = tuple(l.dim for l in conventional_leg_order(codomain, domain))
+        assert self.block_backend.get_shape(block) == expect_shape
+        return block
 
     def full_data_from_diagonal_tensor(self, a: DiagonalTensor) -> Data:
         return self.block_backend.block_from_diagonal(a.data)

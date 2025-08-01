@@ -116,6 +116,29 @@ class FusionTree:
             assert 0 <= mu < N, 'invalid multiplicity label'
 
     @classmethod
+    def from_abelian_symmetry(cls, symmetry: Symmetry, uncoupled: Sequence[Sector],
+                              are_dual: Sequence[bool]) -> FusionTree:
+        """Assume an abelian symmetry and build the unique tree with the given `uncoupled`.
+
+        For an abelian symmetry, two sectors fuse to a single other sector, such that the entire
+        tree is determined by the uncoupled sectors alone.
+        """
+        assert symmetry.is_abelian
+        if len(uncoupled) == 0:
+            return cls.from_empty(symmetry=symmetry)
+        if len(uncoupled) == 1:
+            return cls.from_sector(symmetry=symmetry, sector=uncoupled[0], is_dual=are_dual[0])
+        fusion_outcomes = []
+        last_sector = uncoupled[0]
+        for a in uncoupled[1:]:
+            f = symmetry.fusion_outcomes(last_sector, a)[0]
+            fusion_outcomes.append(f)
+            last_sector = f
+        return FusionTree(symmetry=symmetry, uncoupled=uncoupled, coupled=fusion_outcomes[-1],
+                          are_dual=are_dual, inner_sectors=fusion_outcomes[:-1],
+                          multiplicities=None)
+
+    @classmethod
     def from_empty(cls, symmetry: Symmetry):
         """The empty tree with no uncoupled sectors."""
         return FusionTree(symmetry, uncoupled=symmetry.empty_sector_array,
