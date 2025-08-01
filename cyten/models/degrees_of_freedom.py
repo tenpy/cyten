@@ -7,6 +7,7 @@ All other classes are base classes from which sites are derived.
 from __future__ import annotations
 import numpy as np
 from typing import Sequence
+from functools import reduce
 
 from ..backends import TensorBackend, get_backend
 from ..backends.abstract_backend import Block
@@ -56,14 +57,14 @@ class DegreeOfFreedom:
         if state_labels is None:
             state_labels = {}
         self.state_labels = state_labels
-        self.onsite_operators: dict[str, SymmetricTensor] = {}
-        if onsite_operators is not None:
-            for name, op in onsite_operators.items():
-                self.add_op(name, op)
         if backend is None:
             backend = get_backend(symmetry=leg.symmetry)
         self.backend = backend
         self.default_device = default_device
+        self.onsite_operators: dict[str, SymmetricTensor] = {}
+        if onsite_operators is not None:
+            for name, op in onsite_operators.items():
+                self.add_onsite_operator(name, op)
 
     def test_sanity(self):
         self.leg.test_sanity()
@@ -307,6 +308,8 @@ class BosonicDOF(DegreeOfFreedom):
             N_is.append(N_i)
             Nmax.append(N_i_max)
         Nmax = np.asarray(Nmax, dtype=int)
+        assert np.min(Nmax) > 0, (f'Invalid Nmax: {Nmax}; each boson species must have a max. '
+                                   'occupation number of at least 1')
         self.Nmax = Nmax
 
         assert consistent_leg_symmetry(leg, occupation_symmetry, slc)
@@ -321,7 +324,7 @@ class BosonicDOF(DegreeOfFreedom):
                 assert np.sum(sector_mask) == expect_secs
                 mults = leg.multiplicities[sector_mask.flatten()]
                 expect_mult = mult * self._states_with_occupation(n, Nmax)
-                assert np.all(mults == np.ones(expect_secs, dtype=int) * expect_mult)
+                assert np.sum(mults) == expect_mult * expect_secs
         elif isinstance(occupation_symmetry, ZNSymmetry):
             assert occupation_symmetry.N == 2
             sum_even_odd = [0, 0]
@@ -333,12 +336,12 @@ class BosonicDOF(DegreeOfFreedom):
             assert np.sum(mask_even) == expect_secs
             assert np.sum(mask_odd) == expect_secs
             Nmax_prod1 = np.prod(1 + Nmax, dtype=int)
-            expect_even = (leg.dim * sum_even_odd[0]) // Nmax_prod1 // expect_secs
-            expect_odd = (leg.dim * sum_even_odd[1]) // Nmax_prod1 // expect_secs
+            expect_even = (leg.dim * sum_even_odd[0]) // Nmax_prod1
+            expect_odd = (leg.dim * sum_even_odd[1]) // Nmax_prod1
             mults_even = leg.multiplicities[mask_even.flatten()]
             mults_odd = leg.multiplicities[mask_odd.flatten()]
-            assert np.all(mults_even == np.ones(expect_secs, dtype=int) * expect_even)
-            assert np.all(mults_odd == np.ones(expect_secs, dtype=int) * expect_odd)
+            assert np.sum(mults_even) == expect_even
+            assert np.sum(mults_odd) == expect_odd
         elif isinstance(occupation_symmetry, NoSymmetry):
             pass
         elif isinstance(occupation_symmetry, ProductSymmetry):
@@ -350,12 +353,12 @@ class BosonicDOF(DegreeOfFreedom):
                                    slc_offset + occupation_symmetry.sector_slices[i + 1])
                 if isinstance(factor, U1Symmetry):
                     expect_secs = leg.num_sectors // (Nmax[i] + 1)
-                    expect_mult = leg.dim // leg.num_sectors
+                    expect_mult = leg.dim // (Nmax[i] + 1)
                     for n in range(Nmax[i] + 1):
                         sector_mask = leg.sector_decomposition[:, factor_slc] == n
                         assert np.sum(sector_mask) == expect_secs
                         mults = leg.multiplicities[sector_mask.flatten()]
-                        assert np.all(mults == np.ones(expect_secs, dtype=int) * expect_mult)
+                        assert np.sum(mults) == expect_mult
                 elif isinstance(factor, ZNSymmetry):
                     assert factor.N == 2
                     expect_secs = leg.num_sectors // 2
@@ -365,12 +368,12 @@ class BosonicDOF(DegreeOfFreedom):
                     assert np.sum(mask_odd) == expect_secs
                     num_even = (Nmax[i] + 2) // 2
                     num_odd = (Nmax[i] + 1) // 2
-                    expect_even = (leg.dim * num_even) // (Nmax[i] + 1) // expect_secs
-                    expect_odd = (leg.dim * num_odd) // (Nmax[i] + 1) // expect_secs
+                    expect_even = (leg.dim * num_even) // (Nmax[i] + 1)
+                    expect_odd = (leg.dim * num_odd) // (Nmax[i] + 1)
                     mults_even = leg.multiplicities[mask_even.flatten()]
                     mults_odd = leg.multiplicities[mask_odd.flatten()]
-                    assert np.all(mults_even == np.ones(expect_secs, dtype=int) * expect_even)
-                    assert np.all(mults_odd == np.ones(expect_secs, dtype=int) * expect_odd)
+                    assert np.sum(mults_even) == expect_even
+                    assert np.sum(mults_odd) == expect_odd
                 elif isinstance(factor, NoSymmetry):
                     pass
                 else:
@@ -431,6 +434,39 @@ class BosonicDOF(DegreeOfFreedom):
         num_states = np.sum([BosonicDOF._states_with_occupation(n_1, Nmax[1:])
                              for n_1 in range(upper_bound, n + 1 - lower_bound)])
         return num_states
+
+    @staticmethod
+    def _creation_annihilation_op_from_single_Nmax(Nmax: int) -> tuple[np.ndarray, np.ndarray]:
+        """Construct the creation and annihilation operators for a single boson."""
+        assert isinstance(Nmax, (int, np.integer))
+        assert Nmax > 0, f'Invalid Nmax: {Nmax}; bosons must have a max. occupation number of at least 1'
+        dim = Nmax + 1
+        B = np.zeros([dim, dim], dtype=np.float64)
+        for n in range(1, dim):
+            B[n - 1, n] = np.sqrt(n)
+        return np.transpose(B), B
+
+    @staticmethod
+    def _creation_annihilation_ops_from_Nmax(Nmax: list[int] | np.ndarray[int]
+                                             ) -> tuple[np.ndarray, np.ndarray]:
+        """Construct the creation and annihilation operators for multiple boson species."""
+        Nmax_ = np.asarray(Nmax, dtype=int)
+        assert np.allclose(Nmax_, Nmax), f'Invalid `Nmax`: {Nmax}'
+        creators_i = []
+        annihilators_i = []
+        for N in Nmax_:
+            Bd_i, B_i = BosonicDOF._creation_annihilation_op_from_single_Nmax(N)
+            creators_i.append(Bd_i)
+            annihilators_i.append(B_i)
+        ids_i = [np.eye(N + 1) for N in Nmax_]
+        creators = []
+        annihilators = []
+        for i in range(len(Nmax_)):
+            creators.append(reduce(np.kron, [*ids_i[:i], creators_i[i], *ids_i[i + 1:]]))
+            annihilators.append(reduce(np.kron, [*ids_i[:i], annihilators_i[i], *ids_i[i + 1:]]))
+        creators = np.stack(creators, axis=2)
+        annihilators = np.stack(annihilators, axis=2)
+        return creators, annihilators
 
 
 class FermionicDOF(DegreeOfFreedom):
