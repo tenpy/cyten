@@ -1529,7 +1529,7 @@ class FusionTreeBackend(TensorBackend):
                                  mixes_codomain_domain=mixes_codomain_domain, levels=levels)
 
         # only consider coupled sectors in data that are consistent with co(domain) after tracing
-        coupled = []
+        coupled_sectors = []
         for _, i in data.block_inds:
             # OPTIMIZE use sorted properties to speed this up.
             sector = dom.sector_decomposition[i]
@@ -1537,12 +1537,12 @@ class FusionTreeBackend(TensorBackend):
                 continue
             if new_codomain.sector_decomposition_where(sector) is None:
                 continue
-            coupled.append(sector)
+            coupled_sectors.append(sector)
         new_data = self.zero_data(new_codomain, new_domain, tensor.dtype, tensor.device,
                                   all_blocks=True)
         # block indices
-        old_inds = [data.block_ind_from_coupled(c, dom) for c in coupled]
-        new_inds = [new_data.block_ind_from_coupled(c, new_domain) for c in coupled]
+        old_inds = [data.block_ind_from_coupled(c, dom) for c in coupled_sectors]
+        new_inds = [new_data.block_ind_from_coupled(c, new_domain) for c in coupled_sectors]
 
         # step 2: compute new entries: iterate over all trees in the untraced
         # spaces and construct the consistent trees in the traced spaces
@@ -1565,7 +1565,7 @@ class FusionTreeBackend(TensorBackend):
         tr_idcs2 = [i for i, idx in enumerate(tr_idcs) if idx in idcs2]
         remain_idcs = [i for i, idx in enumerate(tr_idcs) if idx in remaining]
 
-        for codom_tree, codom_slc, codom_mults, ind in codom.iter_tree_blocks(coupled):
+        for codom_tree, codom_slc, codom_mults, ind in codom.iter_tree_blocks(coupled_sectors):
             on_diag, factor_codom = _partial_trace_helper(codom_tree, codom_tree_idcs)
             if not on_diag:
                 continue
