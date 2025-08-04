@@ -309,7 +309,7 @@ class BosonicDOF(DegreeOfFreedom):
             Nmax.append(N_i_max)
         Nmax = np.asarray(Nmax, dtype=int)
         assert np.min(Nmax) > 0, (f'Invalid Nmax: {Nmax}; each boson species must have a max. '
-                                   'occupation number of at least 1')
+                                  'occupation number of at least 1')
         self.Nmax = Nmax
 
         assert consistent_leg_symmetry(leg, occupation_symmetry, slc)

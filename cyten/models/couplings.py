@@ -230,6 +230,8 @@ class OnSiteOperator(Coupling):
         return cls(site=sites[0], operator=operator, name=name)
 
 
+# SPIN COUPLINGS
+
 def spin_spin_coupling(sites: list[SpinDOF],
                        xx: float = None, yy: float = None, zz: float = None,
                        backend: TensorBackend = None, device: str = None, name: str = 'spin-spin'
@@ -259,6 +261,31 @@ def spin_spin_coupling(sites: list[SpinDOF],
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
+def aklt_coupling(sites: list[SpinDOF], backend: TensorBackend = None,
+                  device: str = None, name: str = 'AKLT') -> Coupling:
+    r"""AKLT coupling between two spin-1 sites.
+    
+    Construct the AKLT coupling between S=1 spins as originally defined by
+    Affleck, Kennedy, Lieb, Tasaki in :cite:`affleck1987`, but drop the
+    constant part of 1/3 per bond and rescale with a factor of 2.
+
+    .. math ::
+        2 * P^{S=2}_{i,i+1} + const
+        = \vec{S}_i \cdot \vec{S}_{i+1}
+          + \frac{1}{3} (\vec{S}_i \cdot \vec{S}_{i+1})^2
+    """
+    # TODO test that this builds what we expect
+    assert len(sites) == 2
+    assert sites[0].double_total_spin == 2 == sites[1].double_total_spin
+    s1 = sites[0].spin_vector
+    s2 = sites[1].spin_vector
+    S_dot_S = np.tensordot(s1, s2, axes=[2, 2])
+    S_dot_S = np.transpose(S_dot_S, [0, 2, 3, 1])
+    S_dot_S_square = np.tensordot(S_dot_S, S_dot_S, axes=[[3, 2], [0, 1]])
+    h = S_dot_S + S_dot_S_square / 3.
+    return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
+
+
 def heisenberg_coupling(sites: list[SpinDOF], backend: TensorBackend = None, device: str = None,
                         name: str = 'S.S') -> Coupling:
     # TODO test that this builds what we expect
@@ -277,6 +304,8 @@ def chiral_3spin_coupling(sites: list[SpinDOF], backend: TensorBackend = None,
     h = np.transpose(h, [0, 2, 3, 4, 5, 1])
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
+
+# CLOCK COUPLINGS
 
 def clock_coupling(sites: list[ClockDOF], J: float = None, g_l: float = None, g_r: float = None,
                    backend: TensorBackend = None, device: str = None, name: str = 'clock-clock'
@@ -310,6 +339,8 @@ def clock_coupling(sites: list[ClockDOF], J: float = None, g_l: float = None, g_
     h = np.transpose(h, [0, 2, 3, 1])
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
+
+# ANYONIC COUPLINGS
 
 def gold_coupling(sites: list[GoldenSite], backend: TensorBackend = None,
                   device: str = None, name: str = 'P_tau') -> Coupling:
