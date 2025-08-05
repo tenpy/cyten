@@ -293,6 +293,36 @@ def heisenberg_coupling(sites: list[SpinDOF], backend: TensorBackend = None, dev
                               name=name)
 
 
+def TFI_coupling(sites: list[SpinDOF], J: float = None, g_l: float = None, g_r: float = None,
+                 backend: TensorBackend = None, device: str = None, name: str = 'TFI') -> Coupling:
+    """Transverse field Ising coupling between two spins.
+    
+    Parameters
+    ----------
+    J, g_l, g_r : float, optional
+        If given, add the corresponding terms, ``J * S^x_i S^x_j`` and
+        ``g * S^z_i``, with the values as prefactor. For the latter (on-site)
+        term, ``g = g_l`` is used as prefactor for the 'left' site ``sites[0]``,
+        and ``g = g_r`` is used as prefactor for the 'right' site ``sites[1]``.
+        Note that the spin operators are used rather than, e.g., Pauli matrices.
+    """
+    # TODO test that this builds what we expect
+    assert len(sites) == 2
+    s1 = sites[0].spin_vector
+    s2 = sites[1].spin_vector
+    h = 0
+    if J is not None:
+        h += J * np.tensordot(s1[:, :, 0], s2[:, :, 0], axes=0)
+    if g_l is not None:
+        h += g_l * np.tensordot(s1[:, :, 2], np.eye(s2.shape[0]), axes=0)
+    if g_r is not None:
+        h += g_r * np.tensordot(np.eye(s1.shape[0]), s2[:, :, 2], axes=0)
+    if np.ndim(h) == 0:
+        raise ValueError('Must have at least one non-zero prefactor.')
+    h = np.transpose(h, [0, 2, 3, 1])
+    return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
+
+
 def chiral_3spin_coupling(sites: list[SpinDOF], backend: TensorBackend = None,
                           device: str = None, name: str = 'S.SxS') -> Coupling:
     # TODO test that this builds what we expect
