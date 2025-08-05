@@ -1941,6 +1941,16 @@ class SUNSymmetry(GroupSymmetry):
 class FermionNumber(Symmetry):
     """Conserves a fermionic particle number.
 
+    .. warning ::
+        A symmetry that conserves the individual particle numbers of multiple fermion species
+        is *not* given by a product of :class:`FermionNumber` symmetries!
+        This is because it would not reproduce the physically relevant braiding, as the different
+        species would then behave as mutual *bosons* (i.e. braiding an A-type fermion with a B-type
+        fermion would not give a sign).
+        Instead, you should form a product symmetry where each particle number is covered by a
+        :class:`U1Symmetry` factor (one per species with conserved particle number), while the
+        fermionic statistics is covered by an extra factor of :class:`FermionParity`.
+
     This is essentially U(1), but with a braid that encodes fermionic exchange statistics.
     Allowed sectors are arrays with a single integer entry.
     """
@@ -2037,6 +2047,16 @@ class FermionNumber(Symmetry):
 
 class FermionParity(Symmetry):
     """Fermionic Parity.
+
+    .. warning ::
+        A symmetry that conserves the individual particle number parities of multiple fermion
+        species is *not* given by a product of :class:`FermionParity` symmetries!
+        This is because it would not reproduce the physically relevant braiding, as the different
+        species would then behave as mutual *bosons* (i.e. braiding an A-type fermion with a B-type
+        fermion would not give a sign).
+        Instead, you should form a product symmetry where each particle number parity is covered by
+        a :class:`ZNSymmetry` factor (one per species with individually conserved parity), while the
+        fermionic statistics is covered by an extra factor of :class:`FermionParity`.
 
     Allowed sectors are arrays with a single entry; either ``[0]`` (even) or ``1`` (odd).
     The parity is the number of fermions in a given state modulo 2.
