@@ -185,19 +185,29 @@ class SpinDOF(DegreeOfFreedom):
             assert np.all(leg.sector_decomposition[:, slc] == double_total_spin)
         elif isinstance(spin_symmetry, U1Symmetry):
             # make sure every Sz sector appears the same number of times.
-            expect = leg.num_sectors // (double_total_spin + 1)
+            expect_num_sectors = leg.num_sectors // (double_total_spin + 1)
+            expect_mult = leg.dim // (double_total_spin + 1)
             for m in range(-double_total_spin, double_total_spin + 2, 2):
-                num_sectors = np.sum(leg.sector_decomposition[:, slc] == m)
-                assert num_sectors == expect
+                sector_mask = leg.sector_decomposition[:, slc] == m
+                assert np.sum(sector_mask) == expect_num_sectors
+                mults = leg.multiplicities[sector_mask.flatten()]
+                assert np.sum(mults) == expect_mult
         elif isinstance(spin_symmetry, ZNSymmetry):
             assert spin_symmetry.N == 2
             num_m = double_total_spin + 1
             num_even_m = (num_m + 1) // 2
             num_odd_m = num_m // 2
-            expect_even = (leg.num_sectors * num_even_m) // num_m
-            expect_odd = (leg.num_sectors * num_odd_m) // num_m
-            assert np.sum(leg.sector_decomposition[:, slc] == 0) == expect_even
-            assert np.sum(leg.sector_decomposition[:, slc] == 1) == expect_odd
+            expect_num_sectors = leg.num_sectors // 2
+            mask_even = leg.sector_decomposition[:, slc] == 0
+            mask_odd = leg.sector_decomposition[:, slc] == 1
+            assert np.sum(mask_even) == expect_num_sectors
+            assert np.sum(mask_odd) == expect_num_sectors
+            expect_mult_even = (leg.dim * num_even_m) // num_m
+            expect_mult_odd = (leg.dim * num_odd_m) // num_m
+            mults_even = leg.multiplicities[mask_even.flatten()]
+            mults_odd = leg.multiplicities[mask_odd.flatten()]
+            assert np.sum(mults_even) == expect_mult_even
+            assert np.sum(mults_odd) == expect_mult_odd
         elif isinstance(spin_symmetry, NoSymmetry):
             pass
         else:
@@ -550,8 +560,12 @@ class ClockDOF(DegreeOfFreedom):
         if isinstance(clock_symmetry, ZNSymmetry):
             assert clock_symmetry.N == q
             expect = leg.num_sectors // q
+            expect_mult = leg.dim // q
             for i in range(q):
-                assert np.sum(leg.sector_decomposition[:, slc] == i) == expect
+                sector_mask = leg.sector_decomposition[:, slc] == i
+                assert np.sum(sector_mask) == expect
+                mults = leg.multiplicities[sector_mask.flatten()]
+                assert np.sum(mults) == expect_mult
         elif isinstance(clock_symmetry, NoSymmetry):
             pass
         else:
