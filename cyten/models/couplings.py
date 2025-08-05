@@ -261,6 +261,32 @@ def spin_spin_coupling(sites: list[SpinDOF],
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
+def spin_field_coupling(sites: list[SpinDOF], hx: float = None, hy: float = None, hz: float = None,
+                        backend: TensorBackend = None, device: str = None, name: str = 'spin-field'
+                        ) -> Coupling:
+    """Coupling between a spins and a (magnetic) field.
+
+    Parameters
+    ----------
+    hx, hy, hz : float, optional
+        If given, adds a corresponding terms ``hx * S_i^x``, ``hy * S_i^y``, ``hz * S_i^z`` with
+        the value as prefactor.
+    """
+    # TODO test that this builds what we expect
+    assert len(sites) == 1
+    s = sites[0].spin_vector
+    h = 0
+    if hx is not None:
+        h += hx * s[:, :, 0]
+    if hy is not None:
+        h += hy * s[:, :, 1]
+    if hz is not None:
+        h += hz * s[:, :, 2]
+    if np.ndim(h) == 0:
+        raise ValueError('Must have at least one non-zero prefactor.')
+    return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
+
+
 def aklt_coupling(sites: list[SpinDOF], backend: TensorBackend = None,
                   device: str = None, name: str = 'AKLT') -> Coupling:
     r"""AKLT coupling between two spin-1 sites.
@@ -293,36 +319,6 @@ def heisenberg_coupling(sites: list[SpinDOF], backend: TensorBackend = None, dev
                               name=name)
 
 
-def TFI_coupling(sites: list[SpinDOF], J: float = None, g_l: float = None, g_r: float = None,
-                 backend: TensorBackend = None, device: str = None, name: str = 'TFI') -> Coupling:
-    """Transverse field Ising coupling between two spins.
-    
-    Parameters
-    ----------
-    J, g_l, g_r : float, optional
-        If given, add the corresponding terms, ``J * S^x_i S^x_j`` and
-        ``g * S^z_i``, with the values as prefactor. For the latter (on-site)
-        term, ``g = g_l`` is used as prefactor for the 'left' site ``sites[0]``,
-        and ``g = g_r`` is used as prefactor for the 'right' site ``sites[1]``.
-        Note that the spin operators are used rather than, e.g., Pauli matrices.
-    """
-    # TODO test that this builds what we expect
-    assert len(sites) == 2
-    s1 = sites[0].spin_vector
-    s2 = sites[1].spin_vector
-    h = 0
-    if J is not None:
-        h += J * np.tensordot(s1[:, :, 0], s2[:, :, 0], axes=0)
-    if g_l is not None:
-        h += g_l * np.tensordot(s1[:, :, 2], np.eye(s2.shape[0]), axes=0)
-    if g_r is not None:
-        h += g_r * np.tensordot(np.eye(s1.shape[0]), s2[:, :, 2], axes=0)
-    if np.ndim(h) == 0:
-        raise ValueError('Must have at least one non-zero prefactor.')
-    h = np.transpose(h, [0, 2, 3, 1])
-    return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
-
-
 def chiral_3spin_coupling(sites: list[SpinDOF], backend: TensorBackend = None,
                           device: str = None, name: str = 'S.SxS') -> Coupling:
     # TODO test that this builds what we expect
@@ -337,36 +333,57 @@ def chiral_3spin_coupling(sites: list[SpinDOF], backend: TensorBackend = None,
 
 # CLOCK COUPLINGS
 
-def clock_coupling(sites: list[ClockDOF], J: float = None, g_l: float = None, g_r: float = None,
-                   backend: TensorBackend = None, device: str = None, name: str = 'clock-clock'
-                   ) -> Coupling:
+def clock_clock_coupling(sites: list[ClockDOF], xx: float = None, zz: float = None,
+                         backend: TensorBackend = None, device: str = None,
+                         name: str = 'clock-clock') -> Coupling:
     r"""Coupling between two clock sites.
 
     Parameters
     ----------
-    J, g_l, g_r : float, optional
-        If given, add the corresponding terms, ``J * (X_i X_j^\dagger + \mathrm{ h.c.})`` and
-        ``g * (Z_i + \mathrm{ h.c.})``, with the values as prefactor. For the latter (on-site)
-        term, ``g = g_l`` is used as prefactor for the 'left' site ``sites[0]``, and ``g = g_r``
-        is used as prefactor for the 'right' site ``sites[1]``.
+    xx, zz : float, optional
+        If given, adds the corresponding term, ``xx * (X_i X_j^\dagger + \mathrm{ h.c.})``, and
+        ``zz * (Z_i Z_j^\dagger + \mathrm{ h.c.})``, with the value as prefactor.
     """
     # TODO test that this builds what we expect
     assert len(sites) == 2
     clock1 = sites[0].clock_operators
     clock2 = sites[1].clock_operators
     h = 0
-    if J is not None:
-        h += J * np.tensordot(clock1[:, :, 0], np.conj(clock2[:, :, 0].T), axes=0)
-        h += J * np.tensordot(np.conj(clock1[:, :, 0].T), clock2[:, :, 0], axes=0)
-    if g_l is not None:
-        Zphc = clock1[:, :, 1] + np.conj(clock1[:, :, 1].T)
-        h += g_l * np.tensordot(Zphc, np.eye(clock2.shape[0]), axes=0)
-    if g_r is not None:
-        Zphc = clock2[:, :, 1] + np.conj(clock2[:, :, 1].T)
-        h += g_r * np.tensordot(np.eye(clock1.shape[0]), Zphc, axes=0)
+    if xx is not None:
+        h += xx * np.tensordot(clock1[:, :, 0], np.conj(clock2[:, :, 0].T), axes=0)
+        h += xx * np.tensordot(np.conj(clock1[:, :, 0].T), clock2[:, :, 0], axes=0)
+    if zz is not None:
+        h += zz * np.tensordot(clock1[:, :, 1], np.conj(clock2[:, :, 1].T), axes=0)
+        h += zz * np.tensordot(np.conj(clock1[:, :, 1].T), clock2[:, :, 1], axes=0)
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
     h = np.transpose(h, [0, 2, 3, 1])
+    return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
+
+
+def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = None,
+                         backend: TensorBackend = None, device: str = None,
+                         name: str = 'clock-field') -> Coupling:
+    r"""Coupling between a clock site and a (magnetic) field.
+
+    Parameters
+    ----------
+    hx, hz: float, optional
+        If given, adds the corresponding term, ``hx * (X_i + \mathrm{ h.c.})``, and
+        ``hz * (Z_i + \mathrm{ h.c.})``, with the value as prefactor.
+    """
+    # TODO test that this builds what we expect
+    assert len(sites) == 1
+    clock = sites[0].clock_operators
+    h = 0
+    if hx is not None:
+        Xphc = clock[:, :, 0] + np.conj(clock[:, :, 0].T)
+        h += hx * Xphc
+    if hz is not None:
+        Zphc = clock[:, :, 1] + np.conj(clock[:, :, 1].T)
+        h += hz * Zphc
+    if np.ndim(h) == 0:
+        raise ValueError('Must have at least one non-zero prefactor.')
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
