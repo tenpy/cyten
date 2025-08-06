@@ -8,7 +8,7 @@ from itertools import product as itproduct
 from ..spaces import ElementarySpace
 from ..symmetries import (
     ProductSymmetry, SU2Symmetry, U1Symmetry, ZNSymmetry, NoSymmetry, FibonacciAnyonCategory,
-    SU2_kAnyonCategory
+    SU2_kAnyonCategory, FermionParity
 )
 from .degrees_of_freedom import (
     SpinDOF, FermionicDOF, BosonicDOF, ClockDOF, RepresentationDOF
@@ -242,7 +242,132 @@ class SpinlessBosonSite(BosonicDOF):
 
 
 class SpinlessFermionSite(FermionicDOF):
-    """TODO elaborate"""
+    """Site for (possibly multiple) spinless fermions.
+
+    TODO describe onsite operators
+
+    .. todo ::
+        For now, assume that the symmetry needs to capture the fermionic statistics.
+        Do not think about JW strings yet...
+        That is also the reason why NoSymmetry is not an option here
+
+    Parameters
+    ----------
+    num_species : int
+        Number of fermion species.
+    conserve : Literal['N', 'parity'] | list[Literal['N', 'parity', 'None']]
+        The symmetry to be conserved. We can conserve::
+
+            - total fermion number sum_i N_i (``conserve == 'N'``).
+            - individual fermion numbers N_i (``conserve[i] == 'N'``).
+            - total fermion parity (sum_i N_i) % 2 (``conserve == 'parity'``).
+            - individual fermion parities N_i % 2 (``conserve[i] == 'parity'``).
+            - nothing for an individual fermion (``conserve[i] == 'None'``); .
+
+        A `Literal` corresponds to symmetries involving all fermion species, such as the total
+        fermion number (``conserve == 'N'``) or the total fermion parity
+        (``conserve == 'parity'``). For a list, the entry ``conserve[i]`` corresponds to the
+        symmetry of fermion species `i`, such that, e.g., ``conserve[i] == 'N'`` signifies that
+        its fermion number is conserved.
+
+        Note that the total fermion parity is always conserved. It is thus always part of the
+        symmetry. Hence, ``conserve == 'None'`` is not a valid value. On the other hand,
+        ``conserve = ['None']`` is interpreted as valid and the resulting symmetry conserves the
+        fermionic parity.
+
+        Conserves total fermion parity by default.
+    filling : float | None | list[float | None] | np.ndarray[float | None]
+        Average filling for each species. Used to define the on-site operators ``dN`` and ``dNdN``
+        if ``filling is not None`` or ``filling[i] is not None``. A `float` or `None` is by default
+        applied to every fermion species.
+
+    Attributes
+    ----------
+    num_species : int
+        Number of fermion species.
+    conserve : Literal['N', 'parity'] | list[Literal['N', 'parity', 'None']]
+        The conserved symmetry, see above.
+    filling : np.ndarray[float | None]
+        Average filling for each species.
+    creators, annihilators : see :class:`FermionicDOF`
+    """
+
+    def __init__(self, num_species: int,
+                 conserve: Literal['N', 'parity'] | list[Literal['N', 'parity', 'None']] = 'parity',
+                 filling: float | None | list[float | None] | np.ndarray[float | None] = None):
+        assert isinstance(num_species, int)
+        assert num_species > 0, 'Must have at least a single fermion species'
+        if isinstance(conserve, (list, np.ndarray)):
+            msg = f'Invalid number of entries in `conserve`: {len(conserve)} != {num_species}'
+            assert len(conserve) == num_species, msg
+        if isinstance(filling, (list, np.ndarray)):
+            msg = f'Invalid number of entries in `filling`: {len(filling)} != {num_species}'
+            assert len(filling) == num_species, msg
+        else:
+            filling = [filling] * num_species
+        self.filling = np.asarray(filling)
+
+        if isinstance(conserve, (list, np.ndarray)):
+            sym_factors = []
+            no_sym_idcs = []
+            parity_sym_idcs = []
+            for i, conserve_i in enumerate(conserve):
+                if conserve_i in ['N', 'Ni', 'N_i']:
+                    sym_factors.append(U1Symmetry(f'species{i}_fermion_occupation'))
+                elif conserve_i in ['parity', 'P', 'Pi', 'P_i']:
+                    sym_factors.append(ZNSymmetry(2, f'species{i}_fermion_parity'))
+                    parity_sym_idcs.append(i)
+                elif conserve_i in ['None', 'none', None]:
+                    sym_factors.append(NoSymmetry())
+                    no_sym_idcs.append(i)
+                else:
+                    raise ValueError(f'Invalid entry in `conserve`: {conserve_i}')
+
+            if len(no_sym_idcs) == num_species:
+                sym = FermionParity('total_fermion_parity')
+            else:
+                sym = ProductSymmetry([*sym_factors, FermionParity('total_fermion_parity')])
+                sectors = []
+                for occupations in itproduct([0, 1], repeat=num_species):
+                    sector = np.asarray(occupations, dtype=int)
+                    sector = np.append(sector, np.sum(sector) % 2)
+                    sector[no_sym_idcs] = 0
+                    sector[parity_sym_idcs] = np.mod(sector[parity_sym_idcs], 2)
+                    sectors.append(sector)
+                leg = ElementarySpace.from_defining_sectors(sym, np.asarray(sectors, dtype=int))
+        else:
+            if conserve in ['N', 'Ntot', 'N_tot']:
+                sym = ProductSymmetry([U1Symmetry('total_fermion_occupation'),
+                                       FermionParity('total_fermion_parity')])
+                sectors = []
+                mults = []
+                for fermion_number in range(num_species + 1):
+                    sectors.append([fermion_number, fermion_number % 2])
+                    mults.append(FermionicDOF._states_with_occupation(fermion_number, num_species))
+                leg = ElementarySpace.from_defining_sectors(sym, sectors, mults,
+                                                            unique_sectors=True)
+            elif conserve in ['parity', 'P', 'Ptot', 'P_tot']:
+                sym = FermionParity('total_fermion_parity')
+            else:
+                raise ValueError(f'Invalid `conserve`: {conserve}')
+
+        # conserve == 'parity' and conserve == ['None', ..., 'None'] are the same
+        if isinstance(sym, FermionParity):
+            sectors = np.asarray([[0], [1]], dtype=int)
+            mults = np.asarray([2 ** (num_species - 1)] * 2, dtype=int)
+            leg = ElementarySpace(sym, sectors, mults)
+        self.conserve = conserve
+
+        creators, annihilators = FermionicDOF._creation_annihilation_ops(num_species=num_species)
+
+        # construct occupation operators, total occupation op, total parity op,
+        # and ops relative to filling for each entry that is not None
+        # must be done as SymmetricTensor since basis_perm is ill-defined
+        ops = {}
+        # TODO
+
+        FermionicDOF.__init__(self, leg=leg, creators=creators, annihilators=annihilators,
+                              state_labels=None, onsite_operators=ops)
 
 
 class SpinHalfFermionSite(SpinDOF, FermionicDOF):
