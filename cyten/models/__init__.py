@@ -10,6 +10,7 @@ from .sites import (
     SpinSite, SpinlessBosonSite, SpinlessFermionSite, SpinHalfFermionSite, ClockSite, GoldenSite
 )
 from .couplings import (
-    Coupling, OnSiteOperator, aklt_coupling, heisenberg_coupling, TFI_coupling,
-    chiral_3spin_coupling, clock_coupling, gold_coupling
+    Coupling, OnSiteOperator, spin_spin_coupling, spin_field_coupling, aklt_coupling,
+    heisenberg_coupling, chiral_3spin_coupling, clock_clock_coupling, clock_field_coupling,
+    gold_coupling
 )
