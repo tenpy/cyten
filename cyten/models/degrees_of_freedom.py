@@ -14,8 +14,7 @@ from ..backends.abstract_backend import Block
 from ..spaces import ElementarySpace
 from ..tensors import SymmetricTensor
 from ..symmetries import (
-    Symmetry, SU2Symmetry, U1Symmetry, ZNSymmetry, NoSymmetry, ProductSymmetry, BraidingStyle,
-    FermionNumber, FermionParity
+    Symmetry, ProductSymmetry, BraidingStyle
 )
 
 
@@ -134,92 +133,24 @@ class DegreeOfFreedom:
 class SpinDOF(DegreeOfFreedom):
     """Common base class for sites that have a spin degree of freedom.
 
-    TODO find a good format to doc the onsite operators that exist in a site
-
     Attributes
     ----------
-    double_total_spin : int
-        Twice the :attr:`total_spin`. We store this, because it is an integer.
     spin_vector : 3D array
         The vector of spin operators as a numpy array with axes ``[p, p*, i]`` and shape
         ``(dim, dim, 3)``. These operators include the factor of the total spin, i.e., the largest
         eigenvalue of any of the ``spin_vector[:, :, i]`` is :attr:`total_spin`.
         E.g., for spin-1/2, these are ``.5`` times the pauli matrices.
-    spin_symmetry : SU2Symmetry | U1Symmetry | ZNSymmetry | NoSymmetry
-        The symmetry of the spin degree of freedom that is enforced.
-        We can conserve::
-
-            - SU(2), the full spin rotation symmetry
-            - U(1), with sector labels corresponding to ``2 * Sz``
-            - Z_2, with sector labels corresponding to ``(Sz + S_tot) % 2``.
-            - nothing
-
-        The full :attr:`symmetry` must either coincide with the `spin_symmetry`, or it must be
-        a :class:`ProductSymmetry` with the `spin_symmetry` as a factor.
-    spin_symmetry_sector_slice : slice
-        A slice such that the entries ``leg.sector_decomposition[:, slc]`` correspond to the
-        :attr:`spin_symmetry`.
     """
 
     def __init__(self,
                  leg: ElementarySpace,
-                 double_total_spin: int,
                  spin_vector: np.ndarray,
-                 spin_symmetry: SU2Symmetry | U1Symmetry | ZNSymmetry | NoSymmetry,
-                 spin_symmetry_sector_slice: slice,
                  state_labels: dict[str, int] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None):
-        self.double_total_spin = double_total_spin
         assert spin_vector.shape == (leg.dim, leg.dim, 3)
         self.spin_vector = spin_vector
-
-        # check the spin_symmetry, and that the sectors of the leg come in correct multiplets
-        self.spin_symmetry_sector_slice = slc = spin_symmetry_sector_slice
-        assert leg.dim % (double_total_spin + 1) == 0
-        # TODO do we want specific error messages when the slice is inconsistent?
-        assert consistent_leg_symmetry(leg, spin_symmetry, slc)
-        self.spin_symmetry = spin_symmetry
-
-        if isinstance(spin_symmetry, SU2Symmetry):
-            # all must be in the same single spin sector
-            assert np.all(leg.sector_decomposition[:, slc] == double_total_spin)
-        elif isinstance(spin_symmetry, U1Symmetry):
-            # make sure every Sz sector appears the same number of times.
-            expect_num_sectors = leg.num_sectors // (double_total_spin + 1)
-            expect_mult = leg.dim // (double_total_spin + 1)
-            for m in range(-double_total_spin, double_total_spin + 2, 2):
-                sector_mask = leg.sector_decomposition[:, slc] == m
-                assert np.sum(sector_mask) == expect_num_sectors
-                mults = leg.multiplicities[sector_mask.flatten()]
-                assert np.sum(mults) == expect_mult
-        elif isinstance(spin_symmetry, ZNSymmetry):
-            assert spin_symmetry.N == 2
-            num_m = double_total_spin + 1
-            num_even_m = (num_m + 1) // 2
-            num_odd_m = num_m // 2
-            expect_num_sectors = leg.num_sectors // 2
-            mask_even = leg.sector_decomposition[:, slc] == 0
-            mask_odd = leg.sector_decomposition[:, slc] == 1
-            assert np.sum(mask_even) == expect_num_sectors
-            assert np.sum(mask_odd) == expect_num_sectors
-            expect_mult_even = (leg.dim * num_even_m) // num_m
-            expect_mult_odd = (leg.dim * num_odd_m) // num_m
-            mults_even = leg.multiplicities[mask_even.flatten()]
-            mults_odd = leg.multiplicities[mask_odd.flatten()]
-            assert np.sum(mults_even) == expect_mult_even
-            assert np.sum(mults_odd) == expect_mult_odd
-        elif isinstance(spin_symmetry, NoSymmetry):
-            pass
-        else:
-            raise TypeError('Invalid spin_symmetry')
-
         DegreeOfFreedom.__init__(self, leg=leg, state_labels=state_labels,
                                  onsite_operators=onsite_operators)
-        if not isinstance(spin_symmetry, SU2Symmetry):
-            self.add_onsite_operator('Sz', spin_vector[:, :, 2])
-        if isinstance(spin_symmetry, NoSymmetry):
-            self.add_onsite_operator('Sx', spin_symmetry[:, :, 0])
-            self.add_onsite_operator('Sy', spin_symmetry[:, :, 1])
 
     def test_sanity(self):
         super().test_sanity()
@@ -228,15 +159,6 @@ class SpinDOF(DegreeOfFreedom):
         assert np.allclose(Sx @ Sy - Sy @ Sx, 1j * Sz)
         assert np.allclose(Sy @ Sz - Sz @ Sy, 1j * Sx)
         assert np.allclose(Sz @ Sx - Sx @ Sz, 1j * Sy)
-        # TODO check compatibility of the operators with the spin_symmetry, i.e. eigenvalues
-        #      match with charge sectors
-        S_sq = np.tensordot(self.spin_vector, self.spin_vector, ([-1, 1], [-1, 0]))
-        eigenvalue = self.double_total_spin * (self.double_total_spin + 2) / 4
-        assert np.allclose(S_sq, eigenvalue * np.eye(self.double_total_spin + 1))
-
-    @property
-    def total_spin(self) -> float:
-        return self.double_total_spin / 2
 
     @staticmethod
     def _spin_vector_from_Sp(Sz: np.ndarray, Sp: np.ndarray) -> np.ndarray:
@@ -251,7 +173,9 @@ class SpinDOF(DegreeOfFreedom):
 
 
 class BosonicDOF(DegreeOfFreedom):
-    """TODO similar to FermionicDOF, but with bosons.
+    """Common base class for sites that have a bosonic degree of freedom.
+
+    TODO find a good format to doc the onsite operators that exist in a site
 
     Attributes
     ----------
@@ -268,34 +192,12 @@ class BosonicDOF(DegreeOfFreedom):
         The vector of annihilation operators as a numpy array with shape ``(dim, dim, num_species)``
         and axes ``[p, p*, i]``, where `i` corresponds to the different species of bosons (i.e.,
         ``[B0, B1`, ...]`` stacked along axis 2).
-    occupation_symmetry : ProductSymmetry | U1Symmetry | ZNSymmetry | NoSymmetry
-        The symmetry of the bosons that is enforced.
-        We can conserve::
-
-            - total particle number sum_i N_i.
-            - individual particle numbers N_i.
-            - total parity (sum_i N_i) % 2.
-            - individual parities N_i % 2.
-            - nothing.
-
-        Must be a :class:`ProductSymmetry` when conserving individual particle numbers or parities
-        where ``occupation_symmetry.factors[i]`` corresponds to the symmetry of the `i`th boson
-        species. The full :attr:`symmetry` must either coincide with the `occupation_symmetry`, or
-        it must be a :class:`ProductSymmetry` with `occupation_symmetry` as a factor.
-        If `occupation_symmetry` is itself a :class:`ProductSymmetry`, all its factors must appear
-        in :attr:`symmetry` in the same order.
-    occupation_symmetry_sector_slice : slice
-        A slice such that the entries ``leg.sector_decomposition[:, slc]`` correspond to the
-        :attr:`occupation_symmetry`. In particular, if :attr:`occupation_symmetry` is a
-        :class:`ProductSymmetry`, this slice contains all factors of the symmetry.
     """
 
     def __init__(self,
                  leg: ElementarySpace,
                  creators: np.ndarray,
                  annihilators: np.ndarray,
-                 occupation_symmetry: ProductSymmetry | U1Symmetry | ZNSymmetry | NoSymmetry,
-                 occupation_symmetry_sector_slice: slice,
                  state_labels: dict[str, int] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None):
         assert creators.shape[:2] == (leg.dim, leg.dim)
@@ -304,11 +206,8 @@ class BosonicDOF(DegreeOfFreedom):
         self.annihilators = annihilators
         self.num_species = num_species = creators.shape[2]
 
-        # check the occupation_symmetry, and that the sectors of the leg come in correct multiplets
-        # also get the occupation number cutoffs
         Nmax = []
         N_is = []  # these are used later for the on-site operators
-        self.occupation_symmetry_sector_slice = slc = occupation_symmetry_sector_slice
         for i in range(num_species):
             N_i = creators[:, :, i] @ annihilators[:, :, i]
             N_i_max_ = np.max(np.diag(N_i))
@@ -322,76 +221,9 @@ class BosonicDOF(DegreeOfFreedom):
                                   'occupation number of at least 1')
         self.Nmax = Nmax
 
-        assert consistent_leg_symmetry(leg, occupation_symmetry, slc)
-        self.occupation_symmetry = occupation_symmetry
-        
-        if isinstance(occupation_symmetry, U1Symmetry):
-            Nmax_tot = np.sum(Nmax, dtype=int)
-            expect_secs = leg.num_sectors // (Nmax_tot + 1)
-            mult = leg.dim // np.prod(1 + Nmax, dtype=int)
-            for n in range(Nmax_tot + 1):
-                sector_mask = leg.sector_decomposition[:, slc] == n
-                assert np.sum(sector_mask) == expect_secs
-                mults = leg.multiplicities[sector_mask.flatten()]
-                expect_mult = mult * self._states_with_occupation(n, Nmax)
-                assert np.sum(mults) == expect_mult * expect_secs
-        elif isinstance(occupation_symmetry, ZNSymmetry):
-            assert occupation_symmetry.N == 2
-            sum_even_odd = [0, 0]
-            for n in range(np.sum(Nmax, dtype=int) + 1):
-                sum_even_odd[n % 2] += self._states_with_occupation(n, Nmax)
-            expect_secs = leg.num_sectors // 2
-            mask_even = leg.sector_decomposition[:, slc] == 0
-            mask_odd = leg.sector_decomposition[:, slc] == 1
-            assert np.sum(mask_even) == expect_secs
-            assert np.sum(mask_odd) == expect_secs
-            Nmax_prod1 = np.prod(1 + Nmax, dtype=int)
-            expect_even = (leg.dim * sum_even_odd[0]) // Nmax_prod1
-            expect_odd = (leg.dim * sum_even_odd[1]) // Nmax_prod1
-            mults_even = leg.multiplicities[mask_even.flatten()]
-            mults_odd = leg.multiplicities[mask_odd.flatten()]
-            assert np.sum(mults_even) == expect_even
-            assert np.sum(mults_odd) == expect_odd
-        elif isinstance(occupation_symmetry, NoSymmetry):
-            pass
-        elif isinstance(occupation_symmetry, ProductSymmetry):
-            # check every factor
-            slc_offset = 0 if slc.start is None else slc.start
-            for i, factor in enumerate(occupation_symmetry.factors):
-                # slice of the factor within the full
-                factor_slc = slice(slc_offset + occupation_symmetry.sector_slices[i],
-                                   slc_offset + occupation_symmetry.sector_slices[i + 1])
-                if isinstance(factor, U1Symmetry):
-                    expect_secs = leg.num_sectors // (Nmax[i] + 1)
-                    expect_mult = leg.dim // (Nmax[i] + 1)
-                    for n in range(Nmax[i] + 1):
-                        sector_mask = leg.sector_decomposition[:, factor_slc] == n
-                        assert np.sum(sector_mask) == expect_secs
-                        mults = leg.multiplicities[sector_mask.flatten()]
-                        assert np.sum(mults) == expect_mult
-                elif isinstance(factor, ZNSymmetry):
-                    assert factor.N == 2
-                    expect_secs = leg.num_sectors // 2
-                    mask_even = leg.sector_decomposition[:, factor_slc] == 0
-                    mask_odd = leg.sector_decomposition[:, factor_slc] == 1
-                    assert np.sum(mask_even) == expect_secs
-                    assert np.sum(mask_odd) == expect_secs
-                    num_even = (Nmax[i] + 2) // 2
-                    num_odd = (Nmax[i] + 1) // 2
-                    expect_even = (leg.dim * num_even) // (Nmax[i] + 1)
-                    expect_odd = (leg.dim * num_odd) // (Nmax[i] + 1)
-                    mults_even = leg.multiplicities[mask_even.flatten()]
-                    mults_odd = leg.multiplicities[mask_odd.flatten()]
-                    assert np.sum(mults_even) == expect_even
-                    assert np.sum(mults_odd) == expect_odd
-                elif isinstance(factor, NoSymmetry):
-                    pass
-                else:
-                    raise TypeError('Invalid occupation_symmetry')
-        else:
-            raise TypeError('Invalid occupation_symmetry')
-
         DegreeOfFreedom.__init__(self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators)
+
+        # TODO this should work for any symmetry
         if num_species > 1:
             # operator names include a number for the species or 'tot' for total
             N_iN_is = []
@@ -509,7 +341,6 @@ class FermionicDOF(DegreeOfFreedom):
 
     creators: np.ndarray  # [p, p*, i] where i are different species ;  == [Cd0, Cd1, ...]
     annihilators: np.ndarray  # [p, p*, i] ;  == [C0, C1, ...]
-    occupation_symmetry: FermionNumber | FermionParity  # TODO allow multiple
 
 
 class ClockDOF(DegreeOfFreedom):
@@ -524,63 +355,27 @@ class ClockDOF(DegreeOfFreedom):
     clock_operators : 3D array
         The vector of clock operators ``X`` and ``Z`` as a numpy array with axes ``[p, p*, i]``
         and shape ``(dim, dim, 2)``.
-    clock_symmetry : ZNSymmetry | NoSymmetry
-        The symmetry of the clock degree of freedom that is enforced.
-        We can conserve::
-
-            - Z_q, with sector label ``i`` corresponding to the states with eigenvalue
-                ``exp(i * 2.j * pi / q)`` w.r.t. the diagonal on-site operator ``Z``.
-            - nothing
-
-        The full :attr:`symmetry` must either coincide with the `clock_symmetry`, or it must be
-        a :class:`ProductSymmetry` with `clock_symmetry` as a factor.
-    clock_symmetry_sector_slice : slice
-        A slice such that the entries ``leg.sector_decomposition[:, slc]`` correspond to the
-        :attr:`clock_symmetry`.
     """
 
     def __init__(self,
                  leg: ElementarySpace,
                  q: int,
                  clock_operators: np.ndarray,
-                 clock_symmetry: ZNSymmetry | NoSymmetry,
-                 clock_symmetry_sector_slice: slice,
                  state_labels: dict[str, int] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None):
         self.q = q
         assert clock_operators.shape == (leg.dim, leg.dim, 2)
+        assert leg.dim % q == 0
         self.clock_operators = clock_operators
 
-        # check the clock_symmetry, and that the sectors of the leg come in correct multiplets
-        self.clock_symmetry_sector_slice = slc = clock_symmetry_sector_slice
-        assert leg.dim % q == 0
-        assert consistent_leg_symmetry(leg, clock_symmetry, slc)
-        self.clock_symmetry = clock_symmetry
-
-        if isinstance(clock_symmetry, ZNSymmetry):
-            assert clock_symmetry.N == q
-            expect = leg.num_sectors // q
-            expect_mult = leg.dim // q
-            for i in range(q):
-                sector_mask = leg.sector_decomposition[:, slc] == i
-                assert np.sum(sector_mask) == expect
-                mults = leg.multiplicities[sector_mask.flatten()]
-                assert np.sum(mults) == expect_mult
-        elif isinstance(clock_symmetry, NoSymmetry):
-            pass
-        else:
-            raise TypeError('Invalid clock_symmetry')
-
         DegreeOfFreedom.__init__(self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators)
-        X, Z = [clock_operators[:, :, i] for i in range(2)]
-        Xhc, Zhc = [np.conj(clock_operators[:, :, i].T) for i in range(2)]
+
+        # TODO this should work for any symmetry
+        Z = clock_operators[:, :, 1]
+        Zhc = np.conj(clock_operators[:, :, 1].T)
         self.add_onsite_operator('Z', Z)
         self.add_onsite_operator('Zhc', Zhc)
         self.add_onsite_operator('Zphc', Z + Zhc)
-        if isinstance(clock_symmetry, NoSymmetry):
-            self.add_onsite_operator('X', X)
-            self.add_onsite_operator('Xhc', Xhc)
-            self.add_onsite_operator('Xphc', X + Xhc)
 
     def test_sanity(self):
         super().test_sanity()
@@ -594,8 +389,6 @@ class ClockDOF(DegreeOfFreedom):
         assert np.allclose(np.linalg.matrix_power(Z, self.q), identity)
         assert np.allclose(X @ Xhc, identity)
         assert np.allclose(Z @ Zhc, identity)
-        # TODO check compatibility of the operators with the symmetry, i.e. eigenvalues
-        #      match with charge sectors
 
 
 class RepresentationDOF(DegreeOfFreedom):
@@ -635,6 +428,8 @@ class RepresentationDOF(DegreeOfFreedom):
 def consistent_leg_symmetry(leg: ElementarySpace, symmetry_factor: Symmetry,
                             symmetry_sector_slice: slice) -> bool:
     """Test whether the symmetry of a leg contains a certain factor at a given slice.
+
+    TODO do we still need this?
 
     Parameters
     ----------

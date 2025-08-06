@@ -16,11 +16,29 @@ from .degrees_of_freedom import (
 
 
 class SpinSite(SpinDOF):
-    """TODO elaborate"""
+    """Class for sites that have a single spin degree of freedom.
+
+    TODO find a good format to doc the onsite operators that exist in a site
+
+    Attributes
+    ----------
+    S : float
+        The total spin.
+    double_total_spin : int
+        Twice the :attr:`S`. We store this in addition because it is an integer.
+    conserve : Literal['SU(2)', 'Sz', 'parity', 'None']
+        The symmetry to be conserved. We can conserve::
+
+            - SU(2), the full spin rotation symmetry.
+            - Sz (= U(1) symmetry), with sector labels corresponding to ``2 * Sz``.
+            - Sz parity (= Z_2 symmetry), with sector labels corresponding to ``(Sz + S_tot) % 2``.
+            - nothing.
+    """
 
     def __init__(self, S: float = .5, conserve: Literal['SU(2)', 'Sz', 'parity', 'None'] = None):
         self.S = S = float(S)
         two_S = int(round(2 * S, 0))
+        self.double_total_spin = two_S
         dim = two_S + 1
         if two_S < 0:
             raise ValueError('Negative spin.')
@@ -57,9 +75,19 @@ class SpinSite(SpinDOF):
         state_labels['down'] = 0
         state_labels['up'] = dim - 1
 
-        SpinDOF.__init__(self, leg=leg, double_total_spin=two_S, spin_vector=spin_vector,
-                         spin_symmetry=sym, spin_symmetry_sector_slice=slice(None, None),
-                         state_labels=state_labels)
+        SpinDOF.__init__(self, leg=leg, spin_vector=spin_vector, state_labels=state_labels)
+
+        if not isinstance(sym, SU2Symmetry):
+            self.add_onsite_operator('Sz', spin_vector[:, :, 2])
+        if isinstance(sym, NoSymmetry):
+            self.add_onsite_operator('Sx', spin_vector[:, :, 0])
+            self.add_onsite_operator('Sy', spin_vector[:, :, 1])
+
+    def test_sanity(self):
+        super().test_sanity()
+        S_sq = np.tensordot(self.spin_vector, self.spin_vector, ([-1, 1], [-1, 0]))
+        eigenvalue = self.double_total_spin * (self.double_total_spin + 2) / 4
+        assert np.allclose(S_sq, eigenvalue * np.eye(self.double_total_spin + 1))
 
     def __repr__(self):
         return f'SpinSite(S={self.S}, conserve={self.conserve})'
@@ -101,8 +129,7 @@ class SpinlessBosonSite(BosonicDOF):
         The conserved symmetry, see above.
     filling : np.ndarray[float | None]
         Average filling for each species.
-    num_species, Nmax, creators, annihilators, occupation_symmetry,
-    occupation_symmetry_sector_slice : see :class:`BosonicDOF`
+    num_species, Nmax, creators, annihilators : see :class:`BosonicDOF`
     """
 
     def __init__(self, Nmax: int | list[int] | np.ndarray[int],
@@ -208,7 +235,6 @@ class SpinlessBosonSite(BosonicDOF):
                 ops[f'dN{i}dN{i}'] = dNdN_i
 
         BosonicDOF.__init__(self, leg=leg, creators=creators, annihilators=annihilators,
-                            occupation_symmetry=sym, occupation_symmetry_sector_slice=slice(None, None),
                             state_labels=state_labels, onsite_operators=ops)
 
     def __repr__(self):
@@ -224,7 +250,26 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
 
 
 class ClockSite(ClockDOF):
-    """TODO elaborate"""
+    """Class for sites that have a single quantum clock degree of freedom.
+
+    TODO describe onsite operators
+
+    Parameters
+    ----------
+    q : int
+        Number of states per site.
+    conserve : Literal['Z_N', 'None']
+        The symmetry to be conserved. We can conserve::
+
+            - Z_N symmetry.
+            - nothing.
+
+    Attributes
+    ----------
+    conserve : Literal['Z_N', 'None']
+        The conserved symmetry, see above.
+    q, clock_operators : see :class:`ClockDOF`
+    """
 
     def __init__(self, q: int, conserve: Literal['Z_N', 'None'] = None):
         assert isinstance(q, int)
@@ -250,8 +295,14 @@ class ClockSite(ClockDOF):
         if q % 2 == 0:
             state_labels['down'] = q // 2
 
-        ClockDOF.__init__(self, leg=leg, q=q, clock_operators=clock_operators, clock_symmetry=sym,
-                          clock_symmetry_sector_slice=slice(None, None), state_labels=state_labels)
+        ClockDOF.__init__(self, leg=leg, q=q, clock_operators=clock_operators,
+                          state_labels=state_labels)
+
+        Xhc = np.conj(clock_operators[:, :, 0].T)
+        if isinstance(sym, NoSymmetry):
+            self.add_onsite_operator('X', X)
+            self.add_onsite_operator('Xhc', Xhc)
+            self.add_onsite_operator('Xphc', X + Xhc)
 
     def __repr__(self):
         return f'ClockSite(q={self.q}, conserve={self.conserve})'
