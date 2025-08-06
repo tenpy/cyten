@@ -8,6 +8,7 @@ from __future__ import annotations
 import numpy as np
 from typing import Sequence
 from functools import reduce
+from math import comb
 
 from ..backends import TensorBackend, get_backend
 from ..backends.abstract_backend import Block
@@ -263,6 +264,18 @@ class BosonicDOF(DegreeOfFreedom):
             assert np.min(N_i_rounded) == 0
             assert np.max(N_i_rounded) == self.Nmax[i]
 
+            # check commutation relations among different species
+            for j in range(i):
+                BiBdj = self.annihilators[:, :, i] @ self.creators[:, :, j]
+                BdjBi = self.creators[:, :, j] @ self.annihilators[:, :, i]
+                assert np.allclose(BiBdj, BdjBi)
+                BiBj = self.annihilators[:, :, i] @ self.annihilators[:, :, j]
+                BjBi = self.annihilators[:, :, j] @ self.annihilators[:, :, i]
+                assert np.allclose(BiBj, BjBi)
+                BdiBdj = self.creators[:, :, i] @ self.creators[:, :, j]
+                BdjBdi = self.creators[:, :, j] @ self.creators[:, :, i]
+                assert np.allclose(BdiBdj, BdjBdi)
+
     @staticmethod
     def _states_with_occupation(n: int, Nmax: list[int] | np.ndarray) -> int:
         """Number of states with a given total boson number for given maximum occupations."""
@@ -312,35 +325,90 @@ class BosonicDOF(DegreeOfFreedom):
 
 
 class FermionicDOF(DegreeOfFreedom):
-    """TODO similar structure and role as SpinDOF
+    """Common base class for sites that have a fermionic degree of freedom.
 
-    Mutually exclusive with BosonicDOF, but compatible with SpinDOF
+    TODO onsite operators
 
-    TODO how do we build
-
-    Can conserve:
-        - total fermion number sum_i N_i
-        - fermion parity (sum_i N_i) % 2
-        - TODO: how do we build a symmetry that conserves e.g. all N_i individually, but does the
-                braiding w.r.t the parity of sum_i N_i.
-                This is basically a fermionic special case of ProductSymmetry, no?
-                (This means it might make sense to nest a fermionic product inside a ProductSymmetry
-                 and currently ProductSymmetry assumes that there is no nesting...)
-                The braiding depends on all fermionic particle numbers, so a single factor can
-                not capture it alone!
-        - TODO should we allow arbitrary combinations? e.g. we could conserve (N_1 + N_2, N_3),
-               and we can mix conserving the particle number or just its parity, e.g. could do
-               (N_1, N_2 % 2, N_3 + N_4, (N_5 + N_6) % 2) ...
-               do we need that? how complicated/hard is it to do it this general?
-
-    .. todo ::
-        For now, assume that the symmetry needs to capture the fermionic statistics.
-        Do not think about JW strings yet...
-        That is also the reason why NoSymmetry is not an option here
+    Attributes
+    ----------
+    num_species : int
+        Number of fermion species.
+    creators : 3D array
+        The vector of creation operators as a numpy array with shape ``(dim, dim, num_species)``
+        and axes ``[p, p*, i]``, where `i` corresponds to the different species of fermions (i.e.,
+        ``[Cd0, Cd1`, ...]`` stacked along axis 2).
+    annihilators : 3D array
+        The vector of annihilation operators as a numpy array with shape ``(dim, dim, num_species)``
+        and axes ``[p, p*, i]``, where `i` corresponds to the different species of fermions (i.e.,
+        ``[C0, C1`, ...]`` stacked along axis 2).
     """
 
     creators: np.ndarray  # [p, p*, i] where i are different species ;  == [Cd0, Cd1, ...]
     annihilators: np.ndarray  # [p, p*, i] ;  == [C0, C1, ...]
+
+    def __init__(self,
+                 leg: ElementarySpace,
+                 creators: np.ndarray,
+                 annihilators: np.ndarray,
+                 state_labels: dict[str, int] = None,
+                 onsite_operators: dict[str, SymmetricTensor] = None):
+        assert creators.shape[:2] == (leg.dim, leg.dim)
+        assert creators.shape == annihilators.shape
+        self.creators = creators
+        self.annihilators = annihilators
+        self.num_species = num_species = creators.shape[2]
+        assert leg.dim % (2 ** num_species) == 0
+
+        for i in range(num_species):
+            N_i = creators[:, :, i] @ annihilators[:, :, i]
+            N_i_max_ = np.max(np.diag(N_i))
+            N_i_max = round(N_i_max_, 0)
+            assert np.allclose(N_i_max, N_i_max_)
+            assert N_i_max == 1
+
+        DegreeOfFreedom.__init__(self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators)
+
+    def test_sanity(self):
+        super().test_sanity()
+        for i in range(self.num_species):
+            N_i = self.creators[:, :, i] @ self.annihilators[:, :, i]
+            # check anticommutation relations
+            CCd = self.annihilators[:, :, i] @ self.creators[:, :, i]
+            assert np.allclose(CCd + N_i, np.eye(self.leg.dim))
+            CC = self.annihilators[:, :, i] @ self.annihilators[:, :, i]
+            assert np.allclose(CC, np.zeros_like(CC))
+            CdCd = self.creators[:, :, i] @ self.creators[:, :, i]
+            assert np.allclose(CdCd, np.zeros_like(CdCd))
+            # N_i has integer eigenvalues and is diagonal
+            N_i_rounded = np.around(N_i, 0)
+            assert np.allclose(N_i_rounded, N_i)
+            assert np.allclose(np.diag(np.diag(N_i)), N_i)
+            assert np.min(N_i_rounded) == 0
+            assert np.max(N_i_rounded) == 1
+
+            # check anticommutation relations among different species
+            for j in range(i):
+                # on this level, JW strings are necessary to make the operators anticommuting
+                # -> check commutation instead
+                CiCdj = self.annihilators[:, :, i] @ self.creators[:, :, j]
+                CdjCi = self.creators[:, :, j] @ self.annihilators[:, :, i]
+                assert np.allclose(CiCdj, CdjCi)
+                CiCj = self.annihilators[:, :, i] @ self.annihilators[:, :, j]
+                CjCi = self.annihilators[:, :, j] @ self.annihilators[:, :, i]
+                assert np.allclose(CiCj, CjCi)
+                CdiCdj = self.creators[:, :, i] @ self.creators[:, :, j]
+                CdjCdi = self.creators[:, :, j] @ self.creators[:, :, i]
+                assert np.allclose(CdiCdj, CdjCdi)
+
+    @staticmethod
+    def _states_with_occupation(n: int, num_species: int) -> int:
+        """Number of states with a given total fermion number for given number of species."""
+        return comb(num_species, n)
+
+    @staticmethod
+    def _creation_annihilation_ops(num_species: int) -> tuple[np.ndarray, np.ndarray]:
+        """Construct the creation and annihilation operators for multiple fermion species."""
+        return BosonicDOF._creation_annihilation_ops_from_Nmax([1] * num_species)
 
 
 class ClockDOF(DegreeOfFreedom):
