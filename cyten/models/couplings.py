@@ -12,7 +12,8 @@ from ..dtypes import Dtype
 from ..backends import TensorBackend
 from ..backends.abstract_backend import Block
 from ..tensors import (
-    SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, svd, scale_axis
+    SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, svd, scale_axis, compose,
+    outer
 )
 from .degrees_of_freedom import DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF
 from .sites import GoldenSite
@@ -367,6 +368,37 @@ def chemical_potential(sites: list[BosonicDOF | FermionicDOF], mu: float | list[
         h = -1 * mu * site.onsite_operators[op_name]
     if h is None:
         raise ValueError('Must have at least one non-zero prefactor.')
+    return Coupling.from_tensor(h, sites=sites, name=name)
+
+
+def onsite_interaction(sites: list[BosonicDOF | FermionicDOF], name: str = 'onsite interaction'
+                       ) -> Coupling:
+    """Onsite interactions for bosons or fermions.
+
+    Corresponds to ``n_i**2 / 2``, where `n_i` is the total onsite particle
+    number (including all particle species).
+    """
+    # TODO test that this builds what we expect
+    assert len(sites) == 1
+    op_name = 'N' if sites[0].num_species == 1 else 'Ntot'
+    h = sites[0].onsite_operators[op_name]
+    h = compose(h, h) / 2
+    return Coupling.from_tensor(h, sites=sites, name=name)
+
+
+def nearest_neighbor_interaction(sites: list[BosonicDOF | FermionicDOF],
+                                 name: str = 'NN interaction') -> Coupling:
+    """Nearest neighbor interactions for bosons or fermions.
+
+    Corresponds to ``n_i n_j``, where `n_i` and `n_j` are the total onsite
+    particle numbers (including all particle species) of the two neighboring
+    sites.
+    """
+    # TODO test that this builds what we expect
+    assert len(sites) == 2
+    op_names = ['N' if site.num_species == 1 else 'Ntot' for site in sites]
+    ops = [site.onsite_operators[op_name] for site, op_name in zip(sites, op_names)]
+    h = outer(ops[0], ops[1], relabel1={'p': 'p0', 'p*': 'p0*'}, relabel2={'p': 'p1', 'p*': 'p1*'})
     return Coupling.from_tensor(h, sites=sites, name=name)
 
 
