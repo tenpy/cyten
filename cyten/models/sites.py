@@ -382,6 +382,7 @@ class SpinlessFermionSite(FermionicDOF):
             idx_map[sector] = np.append(idx_map.get(sector, np.asarray([], dtype=int)), idx)
 
         ops = {}
+        leg_labels = ['p', 'p*']
         co_domain = TensorProduct(
             factors=[leg], symmetry=sym, _sector_decomposition=leg.sector_decomposition,
             _multiplicities=leg.multiplicities
@@ -392,30 +393,35 @@ class SpinlessFermionSite(FermionicDOF):
             # TODO device and backend?
             N_i_diag = np.diag(creators[:, :, i] @ annihilators[:, :, i])
             N_is.append(N_i_diag)
-            N_i = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain,
-                                                         func_kwargs={'M': N_i_diag})
+            N_i = SymmetricTensor.from_sector_block_func(
+                func, co_domain, co_domain, func_kwargs={'M': N_i_diag}, labels=leg_labels
+            )
             op_name = 'N' if num_species == 1 else f'N{i}'
             ops[op_name] = N_i
 
             if filling_i is None:
                 continue
             dN_i_diag = N_i_diag - filling_i * np.ones(2**num_species)
-            dN_i = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain,
-                                                          func_kwargs={'M': dN_i_diag})
+            dN_i = SymmetricTensor.from_sector_block_func(
+                func, co_domain, co_domain, func_kwargs={'M': dN_i_diag}, labels=leg_labels
+            )
             op_name = 'dN' if num_species == 1 else f'dN{i}'
             ops[op_name] = dN_i
-            dNdN_i = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain,
-                                                            func_kwargs={'M': dN_i_diag**2})
+            dNdN_i = SymmetricTensor.from_sector_block_func(
+                func, co_domain, co_domain, func_kwargs={'M': dN_i_diag**2}, labels=leg_labels
+            )
             op_name = 'dNdN' if num_species == 1 else f'dN{i}dN{i}'
             ops[op_name] = dNdN_i
 
         if num_species > 1:
             N_tot = np.sum(N_is, axis=0)
-            ops['Ntot'] = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain,
-                                                                 func_kwargs={'M': N_tot})
+            ops['Ntot'] = SymmetricTensor.from_sector_block_func(
+                func, co_domain, co_domain, func_kwargs={'M': N_tot}, labels=leg_labels
+            )
             # fermion parity is always the final entry in the sectors
             func = lambda shape, sector: sector[-1] * np.eye(*shape)
-            ops['Ptot'] = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain)
+            ops['Ptot'] = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain,
+                                                                 labels=leg_labels)
 
         FermionicDOF.__init__(self, leg=leg, creators=creators, annihilators=annihilators,
                               state_labels=None, onsite_operators=ops)
