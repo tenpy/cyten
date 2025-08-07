@@ -14,7 +14,7 @@ from ..backends.abstract_backend import Block
 from ..tensors import (
     SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, svd, scale_axis
 )
-from .degrees_of_freedom import DegreeOfFreedom, SpinDOF, ClockDOF
+from .degrees_of_freedom import DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF
 from .sites import GoldenSite
 
 
@@ -219,8 +219,8 @@ class OnSiteOperator(Coupling):
 
     def __init__(self, site: DegreeOfFreedom, operator: SymmetricTensor, name: str = None):
         self.operator = operator
-        W = add_trivial_leg(operator, domain_pos=0, label='wL')
-        W = add_trivial_leg(W, codomain_pos=1, label='wR')
+        W = add_trivial_leg(operator, codomain_pos=0, label='wL')
+        W = add_trivial_leg(W, domain_pos=1, label='wR')
         Coupling.__init__(self, sites=[site], factorization=[W], name=name)
 
     @classmethod
@@ -269,7 +269,7 @@ def spin_field_coupling(sites: list[SpinDOF], hx: float = None, hy: float = None
     Parameters
     ----------
     hx, hy, hz : float, optional
-        If given, adds a corresponding terms ``hx * S_i^x``, ``hy * S_i^y``, ``hz * S_i^z`` with
+        If given, adds a corresponding term ``hx * S_i^x``, ``hy * S_i^y``, ``hz * S_i^z`` with
         the value as prefactor.
     """
     # TODO test that this builds what we expect
@@ -329,6 +329,45 @@ def chiral_3spin_coupling(sites: list[SpinDOF], backend: TensorBackend = None,
     h = np.tensordot(sites[0].spin_vector, SxS, (-1, -1))  # [p0, p0*, p1, p2, p2*, p1*]
     h = np.transpose(h, [0, 2, 3, 4, 5, 1])
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
+
+
+# BOSON AND FERMION COUPLINGS
+
+def chemical_potential(sites: list[BosonicDOF | FermionicDOF], mu: float | list[float | None] = None,
+                       name: str = 'chem. pot.') -> Coupling:
+    """Chemical potential for bosons or fermions.
+
+    Parameters
+    ----------
+    mu: float | list[float | None]
+        If given, adds the corresponding term ``-1 * mu[j] n_i(j)`` with the value as prefactor,
+        where `j` refers to the boson or fermion species. If there are multiple species and `mu`
+        is a `float`, it is applied as chemical potential to all particle species.
+    """
+    # TODO test that this builds what we expect
+    # TODO this function does not have `backend` and `device`. Should we add it and check the ops?
+    assert len(sites) == 1
+    site = sites[0]
+    h = None
+    if isinstance(mu, (list, np.ndarray)):
+        msg = f'Invalid number of entries in `mu`: {len(mu)} != {site.num_species}'
+        assert len(mu) == site.num_species, msg
+        first_contri = True
+        for i, mu_i in enumerate(mu):
+            if mu_i is None:
+                continue
+            op_name = 'N' if site.num_species == 1 else f'N{i}'
+            if first_contri:
+                first_contri = False
+                h = -1 * mu_i * site.onsite_operators[op_name]
+                continue
+            h -= mu_i * site.onsite_operators[op_name]
+    else:
+        op_name = 'N' if site.num_species == 1 else 'Ntot'
+        h = -1 * mu * site.onsite_operators[op_name]
+    if h is None:
+        raise ValueError('Must have at least one non-zero prefactor.')
+    return Coupling.from_tensor(h, sites=sites, name=name)
 
 
 # CLOCK COUPLINGS

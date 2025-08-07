@@ -11,6 +11,6 @@ from .sites import (
 )
 from .couplings import (
     Coupling, OnSiteOperator, spin_spin_coupling, spin_field_coupling, aklt_coupling,
-    heisenberg_coupling, chiral_3spin_coupling, clock_clock_coupling, clock_field_coupling,
-    gold_coupling
+    heisenberg_coupling, chiral_3spin_coupling, chemical_potential, clock_clock_coupling,
+    clock_field_coupling, gold_coupling
 )
