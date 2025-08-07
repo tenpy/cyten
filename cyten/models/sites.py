@@ -5,7 +5,8 @@ import numpy as np
 from typing import Literal
 from itertools import product as itproduct
 
-from ..spaces import ElementarySpace
+from ..spaces import ElementarySpace, TensorProduct
+from ..tensors import SymmetricTensor
 from ..symmetries import (
     ProductSymmetry, SU2Symmetry, U1Symmetry, ZNSymmetry, NoSymmetry, FibonacciAnyonCategory,
     SU2_kAnyonCategory, FermionParity
@@ -228,8 +229,8 @@ class SpinlessBosonSite(BosonicDOF):
             dN_i = np.diag(N_i_diag - filling_i * np.ones(total_dim))
             dNdN_i = np.diag((N_i_diag - filling_i * np.ones(total_dim)) ** 2)
             if num_species == 1:
-                ops[f'dN'] = dN_i
-                ops[f'dNdN'] = dNdN_i
+                ops['dN'] = dN_i
+                ops['dNdN'] = dNdN_i
             else:
                 ops[f'dN{i}'] = dN_i
                 ops[f'dN{i}dN{i}'] = dNdN_i
@@ -361,10 +362,60 @@ class SpinlessFermionSite(FermionicDOF):
         creators, annihilators = FermionicDOF._creation_annihilation_ops(num_species=num_species)
 
         # construct occupation operators, total occupation op, total parity op,
-        # and ops relative to filling for each entry that is not None
+        # and occupation ops relative to filling
         # must be done as SymmetricTensor since basis_perm is ill-defined
+        # -> first construct a mapping from sectors to indices
+        idx_map = {}
+        for idx, occupations in enumerate(itproduct([0, 1], repeat=num_species)):
+            sector = np.asarray(occupations, dtype=int)
+            n_tot = np.sum(sector)
+            parity = n_tot % 2
+            if isinstance(sym, FermionParity):
+                sector = (parity, )
+            elif isinstance(conserve, (list, np.ndarray)):
+                sector[no_sym_idcs] = 0
+                sector[parity_sym_idcs] = np.mod(sector[parity_sym_idcs], 2)
+                sector = (*sector, parity)
+            else:
+                # remaining: total fermion number
+                sector = (n_tot, parity)
+            idx_map[sector] = np.append(idx_map.get(sector, np.asarray([], dtype=int)), idx)
+
         ops = {}
-        # TODO
+        co_domain = TensorProduct(
+            factors=[leg], symmetry=sym, _sector_decomposition=leg.sector_decomposition,
+            _multiplicities=leg.multiplicities
+        )
+        N_is = []
+        func = lambda shape, sector, M: np.diag(M[idx_map[tuple(sector)]])
+        for i, filling_i in enumerate(self.filling):
+            # TODO device and backend?
+            N_i_diag = np.diag(creators[:, :, i] @ annihilators[:, :, i])
+            N_is.append(N_i_diag)
+            N_i = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain,
+                                                         func_kwargs={'M': N_i_diag})
+            op_name = 'N' if num_species == 1 else f'N{i}'
+            ops[op_name] = N_i
+
+            if filling_i is None:
+                continue
+            dN_i_diag = N_i_diag - filling_i * np.ones(2**num_species)
+            dN_i = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain,
+                                                          func_kwargs={'M': dN_i_diag})
+            op_name = 'dN' if num_species == 1 else f'dN{i}'
+            ops[op_name] = dN_i
+            dNdN_i = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain,
+                                                            func_kwargs={'M': dN_i_diag**2})
+            op_name = 'dNdN' if num_species == 1 else f'dN{i}dN{i}'
+            ops[op_name] = dNdN_i
+
+        if num_species > 1:
+            N_tot = np.sum(N_is, axis=0)
+            ops['Ntot'] = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain,
+                                                                 func_kwargs={'M': N_tot})
+            # fermion parity is always the final entry in the sectors
+            func = lambda shape, sector: sector[-1] * np.eye(*shape)
+            ops['Ptot'] = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain)
 
         FermionicDOF.__init__(self, leg=leg, creators=creators, annihilators=annihilators,
                               state_labels=None, onsite_operators=ops)
