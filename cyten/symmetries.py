@@ -7,6 +7,7 @@ from enum import IntEnum
 from functools import reduce
 from itertools import product
 from typing import Literal
+import warnings
 
 from numpy import typing as npt
 import numpy as np
@@ -757,6 +758,16 @@ class ProductSymmetry(Symmetry):
             descriptive_name = None
         else:
             descriptive_name = ', '.join(f.descriptive_name or '-' for f in flat_factors)
+
+        # sanity check: multiple fermion symmetries probably dont do what you expect
+        num_fermionic_factors = sum(
+            isinstance(f, (FermionNumber, FermionParity)) for f in flat_factors
+        )
+        if num_fermionic_factors > 1:
+            msg = ('ProductSymmetry with multiple fermionic factors probably does not do what you '
+                   'expect. See docstring of FermionParity for details.')
+            warnings.warn(msg, stacklevel=2)
+
         self.sector_slices = np.cumsum([0] + [f.sector_ind_len for f in flat_factors])
         Symmetry.__init__(
             self,
