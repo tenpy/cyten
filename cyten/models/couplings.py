@@ -15,7 +15,10 @@ from ..tensors import (
     SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, svd, scale_axis, compose,
     outer
 )
-from .degrees_of_freedom import DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF
+from .degrees_of_freedom import (
+    DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, get_same_DOF_backend,
+    get_same_DOF_device
+)
 from .sites import GoldenSite
 
 
@@ -50,10 +53,19 @@ class Coupling:
         self.name = name
         self.test_sanity()  # OPTIMIZE
 
+# test by default (always) that backend and device fit together similar to get_same_backend
+# use backend and device from sites
+
+# PR 89, rebase auf sites, TFI from couplings -> DMRG toy code
+
     def test_sanity(self):
+        backend = get_same_DOF_backend(self.sites)
+        device = get_same_DOF_device(self.sites)
         for s, W in zip(self.sites, self.factorization):
             s.test_sanity()
             W.test_sanity()
+            assert W.backend == backend
+            assert W.device == device
             assert W.num_codomain_legs == 2
             assert W.num_domain_legs == 2
             assert W.labels == ['wL', 'p', 'wR', 'p*']
@@ -66,7 +78,6 @@ class Coupling:
 
     @classmethod
     def from_dense_block(cls, operator: Block, sites: list[DegreeOfFreedom], name: str = None,
-                         backend: TensorBackend = None, device: str = None,
                          dtype: Dtype = None) -> Coupling:
         """Convert a dense block to a :class:`Coupling`.
 
@@ -94,6 +105,8 @@ class Coupling:
             If given, the block is converted to that dtype and the resulting tensors in the
             factorization will have that dtype. By default, we detect the dtype from the block.
         """
+        backend = get_same_DOF_backend(sites)
+        device = get_same_DOF_device(sites)
         co_domain = [s.leg for s in sites]
         p_labels = [f'p{i}' for i in range(len(sites))]
         labels = [*p_labels, *[f'{pi}*' for pi in p_labels][::-1]]
@@ -128,6 +141,8 @@ class Coupling:
             A descriptive name that can be used when pretty-printing, to identify the coupling.
             For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
         """
+        assert operator.backend == get_same_DOF_backend(sites)
+        assert operator.device == get_same_DOF_device(sites)
         assert operator.codomain.factors == [site.leg for site in sites]
         assert operator.domain.factors == operator.codomain.factors
 
@@ -233,10 +248,8 @@ class OnSiteOperator(Coupling):
 
 # SPIN COUPLINGS
 
-def spin_spin_coupling(sites: list[SpinDOF],
-                       xx: float = None, yy: float = None, zz: float = None,
-                       backend: TensorBackend = None, device: str = None, name: str = 'spin-spin'
-                       ) -> Coupling:
+def spin_spin_coupling(sites: list[SpinDOF], xx: float = None, yy: float = None,
+                       zz: float = None, name: str = 'spin-spin') -> Coupling:
     """Coupling between two spins.
 
     Parameters
@@ -259,12 +272,13 @@ def spin_spin_coupling(sites: list[SpinDOF],
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
     h = np.transpose(h, [0, 2, 3, 1])
+    backend = get_same_DOF_backend(sites)
+    device = get_same_DOF_device(sites)
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
-def spin_field_coupling(sites: list[SpinDOF], hx: float = None, hy: float = None, hz: float = None,
-                        backend: TensorBackend = None, device: str = None, name: str = 'spin-field'
-                        ) -> Coupling:
+def spin_field_coupling(sites: list[SpinDOF], hx: float = None, hy: float = None,
+                        hz: float = None, name: str = 'spin-field') -> Coupling:
     """Coupling between a spins and a (magnetic) field.
 
     Parameters
@@ -285,11 +299,12 @@ def spin_field_coupling(sites: list[SpinDOF], hx: float = None, hy: float = None
         h += hz * s[:, :, 2]
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
+    backend = get_same_DOF_backend(sites)
+    device = get_same_DOF_device(sites)
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
-def aklt_coupling(sites: list[SpinDOF], backend: TensorBackend = None,
-                  device: str = None, name: str = 'AKLT') -> Coupling:
+def aklt_coupling(sites: list[SpinDOF], name: str = 'AKLT') -> Coupling:
     r"""AKLT coupling between two spin-1 sites.
     
     Construct the AKLT coupling between S=1 spins as originally defined by
@@ -310,18 +325,17 @@ def aklt_coupling(sites: list[SpinDOF], backend: TensorBackend = None,
     S_dot_S = np.transpose(S_dot_S, [0, 2, 3, 1])
     S_dot_S_square = np.tensordot(S_dot_S, S_dot_S, axes=[[3, 2], [0, 1]])
     h = S_dot_S + S_dot_S_square / 3.
+    backend = get_same_DOF_backend(sites)
+    device = get_same_DOF_device(sites)
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
-def heisenberg_coupling(sites: list[SpinDOF], backend: TensorBackend = None, device: str = None,
-                        name: str = 'S.S') -> Coupling:
+def heisenberg_coupling(sites: list[SpinDOF], name: str = 'S.S') -> Coupling:
     # TODO test that this builds what we expect
-    return spin_spin_coupling(sites=sites, xx=1, yy=1, zz=1, backend=backend, device=device,
-                              name=name)
+    return spin_spin_coupling(sites=sites, xx=1, yy=1, zz=1, name=name)
 
 
-def chiral_3spin_coupling(sites: list[SpinDOF], backend: TensorBackend = None,
-                          device: str = None, name: str = 'S.SxS') -> Coupling:
+def chiral_3spin_coupling(sites: list[SpinDOF], name: str = 'S.SxS') -> Coupling:
     # TODO test that this builds what we expect
     assert len(sites) == 3
     SxS = np.cross(sites[1].spin_vector[:, None, None, :, :],
@@ -329,6 +343,8 @@ def chiral_3spin_coupling(sites: list[SpinDOF], backend: TensorBackend = None,
                    axis=4)  # [p1, p2, p2*, p1*, i]
     h = np.tensordot(sites[0].spin_vector, SxS, (-1, -1))  # [p0, p0*, p1, p2, p2*, p1*]
     h = np.transpose(h, [0, 2, 3, 4, 5, 1])
+    backend = get_same_DOF_backend(sites)
+    device = get_same_DOF_device(sites)
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
@@ -346,7 +362,6 @@ def chemical_potential(sites: list[BosonicDOF | FermionicDOF], mu: float | list[
         is a `float`, it is applied as chemical potential to all particle species.
     """
     # TODO test that this builds what we expect
-    # TODO this function does not have `backend` and `device`. Should we add it and check the ops?
     assert len(sites) == 1
     site = sites[0]
     h = None
@@ -405,7 +420,6 @@ def nearest_neighbor_interaction(sites: list[BosonicDOF | FermionicDOF],
 # CLOCK COUPLINGS
 
 def clock_clock_coupling(sites: list[ClockDOF], xx: float = None, zz: float = None,
-                         backend: TensorBackend = None, device: str = None,
                          name: str = 'clock-clock') -> Coupling:
     r"""Coupling between two clock sites.
 
@@ -429,11 +443,12 @@ def clock_clock_coupling(sites: list[ClockDOF], xx: float = None, zz: float = No
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
     h = np.transpose(h, [0, 2, 3, 1])
+    backend = get_same_DOF_backend(sites)
+    device = get_same_DOF_device(sites)
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
 def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = None,
-                         backend: TensorBackend = None, device: str = None,
                          name: str = 'clock-field') -> Coupling:
     r"""Coupling between a clock site and a (magnetic) field.
 
@@ -455,14 +470,17 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
         h += hz * Zphc
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
+    backend = get_same_DOF_backend(sites)
+    device = get_same_DOF_device(sites)
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
 # ANYONIC COUPLINGS
 
-def gold_coupling(sites: list[GoldenSite], backend: TensorBackend = None,
-                  device: str = None, name: str = 'P_tau') -> Coupling:
+def gold_coupling(sites: list[GoldenSite], name: str = 'P_tau') -> Coupling:
     assert len(sites) == 2  # TODO or should we allow this to generalize???
+    backend = get_same_DOF_backend(sites)
+    device = get_same_DOF_device(sites)
     tau = [1]
     p_labels = [f'p{i}' for i in range(len(sites))]
     labels = [p_labels, [f'{pi}*' for pi in p_labels]]
