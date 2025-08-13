@@ -53,11 +53,6 @@ class Coupling:
         self.name = name
         self.test_sanity()  # OPTIMIZE
 
-# test by default (always) that backend and device fit together similar to get_same_backend
-# use backend and device from sites
-
-# PR 89, rebase auf sites, TFI from couplings -> DMRG toy code
-
     def test_sanity(self):
         backend = get_same_DOF_backend(self.sites)
         device = get_same_DOF_device(self.sites)
