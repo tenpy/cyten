@@ -121,7 +121,7 @@ class TorchBlockBackend(BlockBackend):
         res = torch_module.zeros(shape, dtype=block.dtype, device=block.device)
         idcs = [slice(None, None, None)] * len(shape)
         idcs[axis] = mask
-        res[idcs] = block
+        res[tuple(idcs)] = block
         return res
     
     def exp(self, a: Block) -> Block:
@@ -253,7 +253,7 @@ class TorchBlockBackend(BlockBackend):
 
     def squeeze_axes(self, a: Block, idcs: list[int]) -> Block:
         # TODO (JU) this is ugly... but torch.squeeze squeezes all axes of dim 1, cant control which
-        idx = [0 if ax in idcs else slice(None, None, None) for ax in range(len(a.shape))]
+        idx = tuple(0 if ax in idcs else slice(None, None, None) for ax in range(len(a.shape)))
         return a[idx]
 
     def stable_log(self, block: Block, cutoff: float) -> Block:
