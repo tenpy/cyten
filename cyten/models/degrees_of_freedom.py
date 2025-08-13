@@ -15,7 +15,7 @@ from ..backends.abstract_backend import Block
 from ..spaces import ElementarySpace
 from ..tensors import SymmetricTensor
 from ..symmetries import (
-    Symmetry, ProductSymmetry, BraidingStyle
+    FermionNumber, FermionParity, Symmetry, ProductSymmetry, BraidingStyle
 )
 
 
@@ -147,11 +147,15 @@ class SpinDOF(DegreeOfFreedom):
                  leg: ElementarySpace,
                  spin_vector: np.ndarray,
                  state_labels: dict[str, int] = None,
-                 onsite_operators: dict[str, SymmetricTensor] = None):
+                 onsite_operators: dict[str, SymmetricTensor] = None,
+                 backend: TensorBackend = None,
+                 default_device: str = None):
         assert spin_vector.shape == (leg.dim, leg.dim, 3)
         self.spin_vector = spin_vector
-        DegreeOfFreedom.__init__(self, leg=leg, state_labels=state_labels,
-                                 onsite_operators=onsite_operators)
+        DegreeOfFreedom.__init__(
+            self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
+            backend=backend, default_device=default_device
+        )
 
     def test_sanity(self):
         super().test_sanity()
@@ -200,7 +204,9 @@ class BosonicDOF(DegreeOfFreedom):
                  creators: np.ndarray,
                  annihilators: np.ndarray,
                  state_labels: dict[str, int] = None,
-                 onsite_operators: dict[str, SymmetricTensor] = None):
+                 onsite_operators: dict[str, SymmetricTensor] = None,
+                 backend: TensorBackend = None,
+                 default_device: str = None):
         assert creators.shape[:2] == (leg.dim, leg.dim)
         assert creators.shape == annihilators.shape
         self.creators = creators
@@ -222,7 +228,10 @@ class BosonicDOF(DegreeOfFreedom):
                                   'occupation number of at least 1')
         self.Nmax = Nmax
 
-        DegreeOfFreedom.__init__(self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators)
+        DegreeOfFreedom.__init__(
+            self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
+            backend=backend, default_device=default_device
+        )
 
         # TODO this should work for any symmetry
         if num_species > 1:
@@ -351,7 +360,14 @@ class FermionicDOF(DegreeOfFreedom):
                  creators: np.ndarray,
                  annihilators: np.ndarray,
                  state_labels: dict[str, int] = None,
-                 onsite_operators: dict[str, SymmetricTensor] = None):
+                 onsite_operators: dict[str, SymmetricTensor] = None,
+                 backend: TensorBackend = None,
+                 default_device: str = None):
+        if isinstance(leg.symmetry, ProductSymmetry):
+            # there should only be a single fermionic symmetry
+            assert sum([isinstance(factor, (FermionParity, FermionNumber)) for factor in leg.symmetry.factors]) == 1
+        else:
+            assert isinstance(leg.symmetry, (FermionParity, FermionNumber))
         assert creators.shape[:2] == (leg.dim, leg.dim)
         assert creators.shape == annihilators.shape
         self.creators = creators
@@ -366,7 +382,10 @@ class FermionicDOF(DegreeOfFreedom):
             assert np.allclose(N_i_max, N_i_max_)
             assert N_i_max == 1
 
-        DegreeOfFreedom.__init__(self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators)
+        DegreeOfFreedom.__init__(
+            self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
+            backend=backend, default_device=default_device
+        )
 
     def test_sanity(self):
         super().test_sanity()
@@ -430,13 +449,18 @@ class ClockDOF(DegreeOfFreedom):
                  q: int,
                  clock_operators: np.ndarray,
                  state_labels: dict[str, int] = None,
-                 onsite_operators: dict[str, SymmetricTensor] = None):
+                 onsite_operators: dict[str, SymmetricTensor] = None,
+                 backend: TensorBackend = None,
+                 default_device: str = None):
         self.q = q
         assert clock_operators.shape == (leg.dim, leg.dim, 2)
         assert leg.dim % q == 0
         self.clock_operators = clock_operators
 
-        DegreeOfFreedom.__init__(self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators)
+        DegreeOfFreedom.__init__(
+            self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
+            backend=backend, default_device=default_device
+        )
 
         # TODO this should work for any symmetry
         Z = clock_operators[:, :, 1]
@@ -472,7 +496,8 @@ class RepresentationDOF(DegreeOfFreedom):
         The multiplicities with which the simple objects in simples shall appear in the decomposition.
     """
 
-    def __init__(self, symmetry: Symmetry, simples: list[Symmetry], multiplicities: list[int] = None):
+    def __init__(self, symmetry: Symmetry, simples: list[Symmetry], multiplicities: list[int] = None,
+                 backend: TensorBackend = None, default_device: str = None):
 
         if len(simples) == 0:
             raise ValueError('Representation should contain at least one simple object.')
@@ -490,7 +515,9 @@ class RepresentationDOF(DegreeOfFreedom):
         leg = ElementarySpace.from_basis(symmetry, reps)
 
         onsite_op_dict = {sector: sector_proj_onsite(symmetry, leg, sector) for sector in simples}
-        DegreeOfFreedom.__init__(self, leg=leg, onsite_operators=onsite_op_dict)
+        DegreeOfFreedom.__init__(
+            self, leg=leg, onsite_operators=onsite_op_dict, backend=backend, default_device=default_device
+        )
 
 
 def consistent_leg_symmetry(leg: ElementarySpace, symmetry_factor: Symmetry,
