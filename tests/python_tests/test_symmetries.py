@@ -248,12 +248,10 @@ def common_checks(sym: symmetries.Symmetry, example_sectors, example_sectors_low
     # check fusion tensors, if available
     if skip_fusion_tensor:
         pass
-    elif sym.can_be_dropped:
+    elif sym.has_trivial_braid:
+        # only for trivial braiding can we do the computation in numpy
         check_fusion_tensor(sym, example_sectors, np_random)
         check_symbols_via_fusion_tensors(sym, sector_triplets, sector_sextets, np_random)
-    else:
-        with pytest.raises(symmetries.SymmetryError, match='fusion tensor can not be written as array'):
-            _ = sym.fusion_tensor(sym.trivial_sector, sym.trivial_sector, sym.trivial_sector)
 
     # check N symbol
     for a in example_sectors:
