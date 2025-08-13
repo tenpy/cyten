@@ -569,6 +569,26 @@ def consistent_leg_symmetry(leg: ElementarySpace, symmetry_factor: Symmetry,
     return leg.symmetry == symmetry_factor and slc_start == 0 and slc_stop == leg.symmetry.sector_ind_len
 
 
+def get_same_DOF_backend(*dofs: DegreeOfFreedom, error_msg: str = 'Incompatible backends.') -> TensorBackend:
+    """If the given tensors have the same backend, return it. Raise otherwise."""
+    if len(dofs) == 0:
+        raise ValueError('Need at least one tensor')
+    backend = dofs[0].backend
+    if not all(dof.backend == backend for dof in dofs[1:]):
+        raise ValueError(error_msg)
+    return backend
+
+
+def get_same_DOF_device(*dofs: DegreeOfFreedom, error_msg: str = 'Incompatible devices.') -> str:
+    """If the given tensors have the same device, return it. Raise otherwise."""
+    if len(dofs) == 0:
+        raise ValueError('Need at least one tensor')
+    device = dofs[0].default_device
+    if not all(dof.default_device == device for dof in dofs[1:]):
+        raise ValueError(error_msg)
+    return device
+
+
 def sector_proj_onsite(symmetry: Symmetry, leg, sector):
     """Helper function to create onsite projectors onto sectors"""
     assert Symmetry.is_valid_sector(symmetry, sector)
