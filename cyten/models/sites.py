@@ -5,6 +5,7 @@ import numpy as np
 from typing import Literal
 from itertools import product as itproduct
 
+from ..backends import TensorBackend
 from ..spaces import ElementarySpace, TensorProduct
 from ..tensors import SymmetricTensor
 from ..symmetries import (
@@ -36,7 +37,8 @@ class SpinSite(SpinDOF):
             - nothing.
     """
 
-    def __init__(self, S: float = .5, conserve: Literal['SU(2)', 'Sz', 'parity', 'None'] = None):
+    def __init__(self, S: float = .5, conserve: Literal['SU(2)', 'Sz', 'parity', 'None'] = None,
+                 backend: TensorBackend = None, default_device: str = None):
         self.S = S = float(S)
         two_S = int(round(2 * S, 0))
         self.double_total_spin = two_S
@@ -76,7 +78,10 @@ class SpinSite(SpinDOF):
         state_labels['down'] = 0
         state_labels['up'] = dim - 1
 
-        SpinDOF.__init__(self, leg=leg, spin_vector=spin_vector, state_labels=state_labels)
+        SpinDOF.__init__(
+            self, leg=leg, spin_vector=spin_vector, state_labels=state_labels,
+            backend=backend, default_device=default_device
+        )
 
         if not isinstance(sym, SU2Symmetry):
             self.add_onsite_operator('Sz', spin_vector[:, :, 2])
@@ -135,7 +140,8 @@ class SpinlessBosonSite(BosonicDOF):
 
     def __init__(self, Nmax: int | list[int] | np.ndarray[int],
                  conserve: Literal['N', 'parity', 'None'] | list[Literal['N', 'parity', 'None']] = None,
-                 filling: float | None | list[float | None] | np.ndarray[float | None] = None):
+                 filling: float | None | list[float | None] | np.ndarray[float | None] = None,
+                 backend: TensorBackend = None, default_device: str = None):
         Nmax = np.atleast_1d(np.asarray(Nmax, dtype=int))
         # need to manually throw an error for non-integers in Nmax
         assert np.allclose(Nmax, np.asarray(Nmax)), f'Invalid `Nmax`: {Nmax}'
@@ -235,8 +241,10 @@ class SpinlessBosonSite(BosonicDOF):
                 ops[f'dN{i}'] = dN_i
                 ops[f'dN{i}dN{i}'] = dNdN_i
 
-        BosonicDOF.__init__(self, leg=leg, creators=creators, annihilators=annihilators,
-                            state_labels=state_labels, onsite_operators=ops)
+        BosonicDOF.__init__(
+            self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
+            onsite_operators=ops, backend=backend, default_device=default_device
+        )
 
     def __repr__(self):
         return f'SpinlessBosonSite(Nmax={self.Nmax}, conserve={self.conserve}, filling={self.filling})'
@@ -295,7 +303,8 @@ class SpinlessFermionSite(FermionicDOF):
 
     def __init__(self, num_species: int,
                  conserve: Literal['N', 'parity'] | list[Literal['N', 'parity', 'None']] = 'parity',
-                 filling: float | None | list[float | None] | np.ndarray[float | None] = None):
+                 filling: float | None | list[float | None] | np.ndarray[float | None] = None,
+                 backend: TensorBackend = None, default_device: str = None):
         assert isinstance(num_species, int)
         assert num_species > 0, 'Must have at least a single fermion species'
         if isinstance(conserve, (list, np.ndarray)):
@@ -423,8 +432,10 @@ class SpinlessFermionSite(FermionicDOF):
             ops['Ptot'] = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain,
                                                                  labels=leg_labels)
 
-        FermionicDOF.__init__(self, leg=leg, creators=creators, annihilators=annihilators,
-                              state_labels=None, onsite_operators=ops)
+        FermionicDOF.__init__(
+            self, leg=leg, creators=creators, annihilators=annihilators, state_labels=None,
+            onsite_operators=ops, backend=backend, default_device=default_device
+        )
 
 
 class SpinHalfFermionSite(SpinDOF, FermionicDOF):
@@ -453,7 +464,8 @@ class ClockSite(ClockDOF):
     q, clock_operators : see :class:`ClockDOF`
     """
 
-    def __init__(self, q: int, conserve: Literal['Z_N', 'None'] = None):
+    def __init__(self, q: int, conserve: Literal['Z_N', 'None'] = None,
+                 backend: TensorBackend = None, default_device: str = None):
         assert isinstance(q, int)
 
         # build clock operators
@@ -477,8 +489,10 @@ class ClockSite(ClockDOF):
         if q % 2 == 0:
             state_labels['down'] = q // 2
 
-        ClockDOF.__init__(self, leg=leg, q=q, clock_operators=clock_operators,
-                          state_labels=state_labels)
+        ClockDOF.__init__(
+            self, leg=leg, q=q, clock_operators=clock_operators, state_labels=state_labels,
+            backend=backend, default_device=default_device
+        )
 
         Xhc = np.conj(clock_operators[:, :, 0].T)
         if isinstance(sym, NoSymmetry):
@@ -493,18 +507,24 @@ class ClockSite(ClockDOF):
 class GoldenSite(RepresentationDOF):
     """Base class for the golden chain model where the local Hilbert space is the tau sector"""
 
-    def __init__(self, handedness: Literal['left', 'right']):
+    def __init__(self, handedness: Literal['left', 'right'],
+                 backend: TensorBackend = None, default_device: str = None):
         symmetry = FibonacciAnyonCategory(handedness=handedness)
-        RepresentationDOF.__init__(self, symmetry, [symmetry.tau], [1])
+        RepresentationDOF.__init__(
+            self, symmetry, [symmetry.tau], [1], backend=backend, default_device=default_device
+        )
 
 
 class SU2kSite(RepresentationDOF):
     """Base class for SU2_k sites where each site is a direct sum of simple objects of SU2_k with multiplicities."""
 
-    def __init__(self, k, handedness, simples: list, multiplicities: list):
+    def __init__(self, k, handedness, simples: list, multiplicities: list,
+                 backend: TensorBackend = None, default_device: str = None):
 
         symmetry = SU2_kAnyonCategory(k, handedness=handedness)
-        RepresentationDOF.__init__(self, symmetry, simples, multiplicities)
+        RepresentationDOF.__init__(
+            self, symmetry, simples, multiplicities, backend=backend, default_device=default_device
+        )
 
 
 # TODO more sites:
