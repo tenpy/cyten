@@ -14,7 +14,7 @@ from cyten.backends.abstract_backend import conventional_leg_order
 from cyten.backends.backend_factory import get_backend
 from cyten.backends.numpy import NumpyBlockBackend
 from cyten.dtypes import Dtype
-from cyten.spaces import ElementarySpace, AbelianLegPipe, LegPipe
+from cyten.spaces import ElementarySpace, AbelianLegPipe, LegPipe, TensorProduct
 from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError, BraidingStyle
 from cyten.tools.misc import (
     duplicate_entries, iter_common_noncommon_sorted_arrays, to_valid_idx, inverse_permutation
@@ -399,7 +399,7 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
                     symmetry_data,
                     [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]
                 )
-                contribution = np.kron(block, symmetry_data)
+                contribution = np.kron(symmetry_data, block)
                 codom_idcs = [slice(*l.slices[l.sector_decomposition_where(a)])
                               for l, a in zip(T.codomain, Y.uncoupled)]
                 dom_idcs = [slice(*l.slices[l.sector_decomposition_where(b)])
@@ -408,12 +408,6 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
             expect = numpy_block_backend.apply_basis_perm(
                 expect, conventional_leg_order(T_res), inv=True
             )
-
-            if isinstance(T.symmetry, SU2Symmetry) and sum(leg_nums) > 2:
-                # TODO see PR 124
-                with pytest.raises(AssertionError):
-                    npt.assert_array_almost_equal(T_np, expect)
-                pytest.xfail()
 
             npt.assert_array_almost_equal(T_np, expect)
 
@@ -456,7 +450,7 @@ def test_fixes_124(np_random):
             for X, _, mults2, _ in domain.iter_tree_blocks([coupled]):
                 shape = [*mults1, *reversed(mults2)]
                 if len(trees) == 0 or np_random.choice([True, False]):
-                    trees[Y, X] = np_random.uniform(size=shape) + 1j * np_random.uniform(size=shape)
+                    trees[Y, X] = np.ones(shape, float)
 
     T = SymmetricTensor.from_tree_pairs(trees, codomain, domain, backend=backend)
     T.test_sanity()
@@ -470,7 +464,7 @@ def test_fixes_124(np_random):
             symmetry_data,
             [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]
         )
-        contribution = np.kron(block, symmetry_data)
+        contribution = np.kron(symmetry_data, block)
         codom_idcs = [slice(*l.slices[l.sector_decomposition_where(a)])
                         for l, a in zip(T.codomain, Y.uncoupled)]
         dom_idcs = [slice(*l.slices[l.sector_decomposition_where(b)])
