@@ -158,8 +158,6 @@ class Symmetry(metaclass=ABCMeta):
     sense in exactly these cases.
     """
 
-    can_be_dropped: bool = False  # set to False by default. must override for ``True``.
-
     fusion_tensor_dtype = None
     """The dtype of fusion tensors, if available. Set to ``None`` otherwise."""
 
@@ -233,8 +231,21 @@ class Symmetry(metaclass=ABCMeta):
         ...
 
     @property
+    def can_be_dropped(self) -> bool:
+        """If the symmetry supports converting tensors to/from numpy."""
+        # trivial braid -> can be dropped, clearly
+        # symmetry braid -> we choose to allow it, but converting to/from numpy loses the braid
+        #                   and makes swap gates necessary
+        # general braid would break compatibility even with the tensor product, so we dont allow it
+        return self.braiding_style.has_symmetric_braid
+
+    @property
     def has_symmetric_braid(self) -> bool:
         return self.braiding_style.has_symmetric_braid
+
+    @property
+    def has_trivial_braid(self) -> bool:
+        return self.braiding_style == BraidingStyle.bosonic
 
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
         """Internal implementation of :meth:`fusion_tensor`. Can assume that inputs are valid."""
@@ -742,8 +753,6 @@ class ProductSymmetry(Symmetry):
         ``[*others, *psymm.factors]`` for a :class:`ProductSymmetry` ``psymm``.
     """
 
-    can_be_dropped = None  # set by __init__
-
     def __init__(self, factors: list[Symmetry]):
         flat_factors = []
         for f in factors:
@@ -778,7 +787,6 @@ class ProductSymmetry(Symmetry):
             num_sectors=math.prod([symm.num_sectors for symm in flat_factors]),
             descriptive_name=descriptive_name
         )
-        self.can_be_dropped = all(f.can_be_dropped for f in flat_factors)
         dtypes = [f.fusion_tensor_dtype for f in flat_factors]
         if None in dtypes:
             self.fusion_tensor_dtype = None
@@ -1053,8 +1061,6 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
     be used to check if a given `ProductSymmetry` *instance* is a group-symmetry.
     See examples in docstring of :class:`AbelianGroup`.
     """
-
-    can_be_dropped = True
 
     def __init__(self, fusion_style: FusionStyle, trivial_sector: Sector, group_name: str,
                  num_sectors: int | float, descriptive_name: str | None = None):
@@ -2044,6 +2050,9 @@ class FermionNumber(Symmetry):
         C = (1 - 2 * np.mod(e, 2) * np.mod(c, 2)) * (1 - 2 * np.mod(c, 2) * np.mod(a, 2))
         return C[None, None, None, :]
 
+    def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
+        return self._one_4D_float
+
     def topological_twist(self, a):
         # +1 for even parity, -1 for odd
         return 1 - 2 * np.mod(a, 2).item()
@@ -2161,6 +2170,9 @@ class FermionParity(Symmetry):
         # R^{ec}_d conj(R)^{ca}_f
         C = (1 - 2 * e * c) * (1 - 2 * c * a)
         return C[None, None, None, :]
+
+    def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
+        return self._one_4D_float
 
     def topological_twist(self, a):
         return 1 - 2 * a.item()

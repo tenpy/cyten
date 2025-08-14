@@ -418,7 +418,8 @@ class Tensor(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
+    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None,
+                       understood_braiding: bool = False) -> Block:
         """Convert to a dense block of the backend, if possible.
 
         This corresponds to "forgetting" the symmetry structure and is only possible if the
@@ -433,6 +434,14 @@ class Tensor(metaclass=ABCMeta):
         dtype: Dtype, optional
             If given, the result is converted to this dtype. Per default it has the :attr:`dtype`
             of the tensor.
+        understood_braiding : bool
+            For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the resulting
+            dense block does no longer capture the braiding statistics correctly. This means that
+            :func:`permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on
+            the dense block representation. Permuting its legs would require e.g. explicit swap
+            gates. When using the result, special care needs to be taken regarding the leg order.
+            To avoid this pitfall, we raise an error by default. Set this flag to ``True`` to
+            disable the error. It is then your responsibility to take care of leg orders and braids.
         """
         ...
 
@@ -764,9 +773,10 @@ class Tensor(metaclass=ABCMeta):
         self._labelmap = {label: legnum for legnum, label in enumerate(labels) if label is not None}
         return self
 
-    def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None) -> np.ndarray:
+    def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None,
+                 understood_braiding: bool = False) -> np.ndarray:
         """Convert to a numpy array"""
-        block = self.to_dense_block(leg_order=leg_order)
+        block = self.to_dense_block(leg_order=leg_order, understood_braiding=understood_braiding)
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
 
@@ -901,7 +911,8 @@ class SymmetricTensor(Tensor):
                          labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                          dtype: Dtype = None,
                          device: str = None,
-                         tol: float = 1e-6):
+                         tol: float = 1e-6,
+                         understood_braiding: bool = False):
         """Convert a dense block of the backend to a Tensor.
 
         Parameters
@@ -923,10 +934,27 @@ class SymmetricTensor(Tensor):
             If given, the block is moved to that device. Per default, try to use the device of
             the `block`, if it is a backend-specific block, or fall back to the backends default
             device.
+        understood_braiding : bool
+            For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the input
+            dense block does not capture the braiding statistics correctly. This means e.g. that
+            :func:`permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on
+            the dense block representation. This means that the input dense block needs to be
+            constructed in the correct leg order. To avoid this pitfall, we raise an error by
+            default. Set this flag to ``True`` to disable the error. It is then your responsibility
+            to take care of leg orders and braids.
         """
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
+        if not symmetry.can_be_dropped:
+            msg = f'Dense block representation is not supported for symmetry {symmetry}'
+            raise SymmetryError(msg)
+        if not symmetry.has_trivial_braid and not understood_braiding:
+            msg = ('If the symmetry has non-trivial braids, dense block representations do not '
+                   'consistently reproduce the braiding statistics. Make sure you understand what '
+                   'that means (read the docstring of from_dense_block). Then you can disable '
+                   'this error by setting ``understood_braiding=True``.')
+            raise SymmetryError(msg)
         block = backend.block_backend.as_block(block, dtype=dtype, device=device)
         assert len(backend.block_backend.get_shape(block)) == codomain.num_factors + domain.num_factors
         block = backend.block_backend.apply_basis_perm(block, conventional_leg_order(codomain, domain))
@@ -1316,7 +1344,17 @@ class SymmetricTensor(Tensor):
         self.data = self.backend.move_to_device(self, device=device)
         self.device = self.backend.block_backend.as_device(device)
 
-    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
+    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None,
+                       understood_braiding: bool = False) -> Block:
+        if not self.symmetry.can_be_dropped:
+            msg = f'Dense block representation is not supported for symmetry {self.symmetry}'
+            raise SymmetryError(msg)
+        if not self.symmetry.has_trivial_braid and not understood_braiding:
+            msg = ('If the symmetry has non-trivial braids, dense block representations do not '
+                   'consistently reproduce the braiding statistics. Make sure you understand what '
+                   'that means (read the docstring of to_dense_block). Then you can disable '
+                   'this error by setting ``understood_braiding=True``.')
+            raise SymmetryError(msg)
         block = self.backend.to_dense_block(self)
         block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self), inv=True)
         if dtype is not None:
@@ -1482,7 +1520,17 @@ class DiagonalTensor(SymmetricTensor):
     @classmethod
     def from_dense_block(cls, block: Block, leg: Space, backend: TensorBackend | None = None,
                          labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                         dtype: Dtype = None, tol: float = 1e-6, device: str = None):
+                         dtype: Dtype = None, tol: float = 1e-6, device: str = None,
+                         understood_braiding: bool = False):
+        if not leg.symmetry.can_be_dropped:
+            msg = f'Dense block representation is not supported for symmetry {leg.symmetry}'
+            raise SymmetryError(msg)
+        if not leg.symmetry.has_symmetric_braid and not understood_braiding:
+            msg = ('If the symmetry has non-trivial braids, dense block representations do not '
+                   'consistently reproduce the braiding statistics. Make sure you understand what '
+                   'that means (read the docstring of from_dense_block). Then you can disable '
+                   'this error by setting ``understood_braiding=True``.')
+            raise SymmetryError(msg)
         if backend is None:
             backend = get_backend(symmetry=leg.symmetry)
         block = backend.block_backend.as_block(block, dtype=dtype, device=device)
@@ -1928,7 +1976,17 @@ class DiagonalTensor(SymmetricTensor):
         self.data = self.backend.move_to_device(self, device=device)
         self.device = self.backend.block_backend.as_device(device)
 
-    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
+    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None,
+                       understood_braiding: bool = False) -> Block:
+        if not self.symmetry.can_be_dropped:
+            msg = f'Dense block representation is not supported for symmetry {self.symmetry}'
+            raise SymmetryError(msg)
+        if not self.symmetry.has_trivial_braid and not understood_braiding:
+            msg = ('If the symmetry has non-trivial braids, dense block representations do not '
+                   'consistently reproduce the braiding statistics. Make sure you understand what '
+                   'that means (read the docstring of to_dense_block). Then you can disable '
+                   'this error by setting ``understood_braiding=True``.')
+            raise SymmetryError(msg)
         diag = self.diagonal_as_block(dtype=dtype)
         res = self.backend.block_backend.block_from_diagonal(diag)
         if leg_order is not None:
@@ -2460,13 +2518,33 @@ class Mask(Tensor):
         """The "opposite" Mask, that keeps exactly what self discards and vv."""
         return self._unary_operand(operator.invert)
 
-    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
+    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None,
+                       understood_braiding: bool = False) -> Block:
+        if not self.symmetry.can_be_dropped:
+            msg = f'Dense block representation is not supported for symmetry {self.symmetry}'
+            raise SymmetryError(msg)
+        if not self.symmetry.has_trivial_braid and not understood_braiding:
+            msg = ('If the symmetry has non-trivial braids, dense block representations do not '
+                   'consistently reproduce the braiding statistics. Make sure you understand what '
+                   'that means (read the docstring of to_dense_block). Then you can disable '
+                   'this error by setting ``understood_braiding=True``.')
+            raise SymmetryError(msg)
         # for Mask, defining via numpy is actually easier, to use numpy indexing
         numpy_dtype = None if dtype is None else dtype.to_numpy_dtype()
         as_numpy = self.to_numpy(leg_order=leg_order, numpy_dtype=numpy_dtype)
         return self.backend.block_backend.as_block(as_numpy, dtype=dtype)
 
-    def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None) -> np.ndarray:
+    def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None,
+                 understood_braiding: bool = False) -> np.ndarray:
+        if not self.symmetry.can_be_dropped:
+            msg = f'Dense block representation is not supported for symmetry {self.symmetry}'
+            raise SymmetryError(msg)
+        if not self.symmetry.has_trivial_braid and not understood_braiding:
+            msg = ('If the symmetry has non-trivial braids, dense block representations do not '
+                   'consistently reproduce the braiding statistics. Make sure you understand what '
+                   'that means (read the docstring of to_dense_block). Then you can disable '
+                   'this error by setting ``understood_braiding=True``.')
+            raise SymmetryError(msg)
         assert self.symmetry.can_be_dropped
         mask = self.as_numpy_mask()
         res = np.zeros(self.shape, numpy_dtype or bool)
@@ -2728,7 +2806,8 @@ class ChargedTensor(Tensor):
                          labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                          dtype: Dtype = None,
                          device: str = None,
-                         tol: float = 1e-6
+                         tol: float = 1e-6,
+                         understood_braiding: bool = False,
                          ):
         """Convert a dense block of to a ChargedTensor, if possible.
 
@@ -2747,6 +2826,8 @@ class ChargedTensor(Tensor):
         dtype: Dtype, optional
             If given, the block is converted to that dtype and the resulting tensor will have that
             dtype. By default, we detect the dtype from the block.
+        understood_braiding : bool
+            See the same argument in :meth:`SymmetricTensor.from_dense_block`.
         """
         codomain, domain, backend, symmetry = cls._init_parse_args(codomain, domain, backend)
         labels, inv_labels = cls._parse_inv_labels(labels, codomain, domain)
@@ -2761,7 +2842,7 @@ class ChargedTensor(Tensor):
         inv_part = SymmetricTensor.from_dense_block(
             block=backend.block_backend.add_axis(block, -1),
             codomain=codomain, domain=inv_domain, backend=backend, labels=inv_labels,
-            tol=tol
+            tol=tol, understood_braiding=understood_braiding
         )
         return cls(inv_part, charged_state=[1])
 
@@ -2874,7 +2955,8 @@ class ChargedTensor(Tensor):
             raise ValueError('Can not convert to SymmetricTensor. charged_state is not defined.')
         state = SymmetricTensor.from_dense_block(
             self.charged_state, codomain=[self.charged_state.dual], backend=self.backend,
-            labels=[_dual_leg_label(self._CHARGE_LEG_LABEL)], dtype=self.dtype
+            labels=[_dual_leg_label(self._CHARGE_LEG_LABEL)], dtype=self.dtype,
+            understood_braiding=True
         )
         res = tdot(state, self.invariant_part, 0, -1)
         return bend_legs(res, num_codomain_legs=self.num_codomain_legs)
@@ -2931,10 +3013,12 @@ class ChargedTensor(Tensor):
         self.invariant_part.set_labels([*self._labels, *self._CHARGE_LEG_LABEL])
         return self
 
-    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
+    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None,
+                       understood_braiding: bool = False) -> Block:
         if self.charged_state is None:
             raise ValueError('charged_state not specified.')
-        inv_block = self.invariant_part.to_dense_block(leg_order=None, dtype=dtype)
+        inv_block = self.invariant_part.to_dense_block(leg_order=None, dtype=dtype,
+                                                       understood_braiding=understood_braiding)
         block = self.backend.block_backend.tdot(inv_block, self.charged_state, [-1], [0])
         if dtype is not None:
             block = self.backend.block_backend.to_dtype(block, dtype)
@@ -3068,7 +3152,8 @@ def eye(leg: ElementarySpace, backend: TensorBackend = None, labels: list[str | 
 def tensor(obj, codomain: Sequence[Leg], domain: Sequence[Leg] = None,
            backend: TensorBackend = None,
            labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-           dtype: Dtype = None, device: str = None) -> SymmetricTensor:
+           dtype: Dtype = None, device: str = None,
+           understood_braiding: bool = False) -> SymmetricTensor:
     """Convert object to tensor if possible.
 
     TODO elaborate
@@ -3088,7 +3173,8 @@ def tensor(obj, codomain: Sequence[Leg], domain: Sequence[Leg] = None,
             raise NotImplementedError  # TODO
         return obj.as_SymmetricTensor()
     return SymmetricTensor.from_dense_block(obj, codomain, domain, backend=backend, labels=labels,
-                                            dtype=dtype, device=device)
+                                            dtype=dtype, device=device,
+                                            understood_braiding=understood_braiding)
 
 
 # FUNCTIONS ON TENSORS
@@ -4210,18 +4296,20 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
                 bend_legs(B.invariant_part, num_domain_legs=1)  # [*b_legs] <- ['!']
             )  # ['!*', '!']
             # OPTIMIZE: like GEMM, should we offer an interface where dagger is implicitly done during tdot?
+            inv_block = inv_part.to_dense_block(understood_braiding=True)
             res = backend.block_backend.tdot(
                 backend.block_backend.conj(A.charged_state),
-                backend.block_backend.tdot(inv_part.to_dense_block(), B.charged_state, [1], [0]),
+                backend.block_backend.tdot(inv_block, B.charged_state, [1], [0]),
                 [0], [0]
             )
         else:
             inv_part = tdot(A.invariant_part,
                             B.invariant_part,
                             [*range(A.num_legs)], [*reversed(range(A.num_legs))])  # ['?1', '?2']
+            inv_block = inv_part.to_dense_block(understood_braiding=True)
             res = backend.block_backend.tdot(
                 A.charged_state,
-                backend.block_backend.tdot(inv_part.to_dense_block(), B.charged_state, [1], [0]),
+                backend.block_backend.tdot(inv_block, B.charged_state, [1], [0]),
                 [0], [0]
             )
         return backend.block_backend.item(res)
@@ -4291,7 +4379,7 @@ def item(tensor: Tensor) -> float | complex | bool:
     if isinstance(tensor, ChargedTensor):
         if tensor.charged_state is None:
             raise ValueError('Can not compute .item of ChargedTensor with unspecified charged_state.')
-        inv_block = tensor.invariant_part.to_dense_block()
+        inv_block = tensor.invariant_part.to_dense_block(understood_braiding=True)
         res = tensor.backend.block_backend.tdot(tensor.charged_state, inv_block, 0, -1)
         return tensor.backend.block_backend.item(res)
     raise TypeError
@@ -4425,7 +4513,8 @@ def norm(tensor: Tensor) -> float:
         else:
             # OPTIMIZE
             warnings.warn('Converting ChargedTensor to dense block for `norm`', stacklevel=2)
-            return tensor.backend.block_backend.norm(tensor.to_dense_block(), order=2)
+            block = tensor.to_dense_block(understood_braiding=True)
+            return tensor.backend.block_backend.norm(block, order=2)
     raise TypeError
 
 
@@ -4593,9 +4682,8 @@ def partial_trace(tensor: Tensor,
             # scalar result
             if tensor.charged_state is None:
                 raise ValueError('Need to specify charged_state for full trace of ChargedTensor')
-            res = tensor.backend.block_backend.tdot(
-                invariant_part.to_dense_block(), tensor.charged_state, [0], [0]
-            )
+            inv_block = invariant_part.to_dense_block(understood_braiding=True)
+            res = tensor.backend.block_backend.tdot(inv_block, tensor.charged_state, [0], [0])
             return tensor.backend.block_backend.item(res)
         return ChargedTensor(invariant_part, tensor.charged_state)
     if not isinstance(tensor, SymmetricTensor):
@@ -5553,7 +5641,8 @@ def trace(tensor: Tensor):
         # OPTIMIZE can project to trivial sector on charge leg first
         N = tensor.num_legs
         pairs = [[n, N-1-n] for n in range(tensor.num_codomain_legs)]
-        inv_block = partial_trace(tensor.invariant_part, *pairs).to_dense_block()
+        inv_block = partial_trace(tensor.invariant_part, *pairs)
+        inv_block = inv_block.to_dense_block(understood_braiding=True)
         res = tensor.backend.block_backend.tdot(inv_block, tensor.charged_state, [0], [0])
         return tensor.backend.block_backend.item(res)
     return tensor.backend.trace_full(tensor)
