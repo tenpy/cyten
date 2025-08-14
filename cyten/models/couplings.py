@@ -9,7 +9,6 @@ from __future__ import annotations
 import numpy as np
 
 from ..dtypes import Dtype
-from ..backends import TensorBackend
 from ..backends.abstract_backend import Block
 from ..tensors import (
     SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, svd, scale_axis, compose,
@@ -54,8 +53,8 @@ class Coupling:
         self.test_sanity()  # OPTIMIZE
 
     def test_sanity(self):
-        backend = get_same_DOF_backend(self.sites)
-        device = get_same_DOF_device(self.sites)
+        backend = get_same_DOF_backend(*self.sites)
+        device = get_same_DOF_device(*self.sites)
         for s, W in zip(self.sites, self.factorization):
             s.test_sanity()
             W.test_sanity()
@@ -100,8 +99,8 @@ class Coupling:
             If given, the block is converted to that dtype and the resulting tensors in the
             factorization will have that dtype. By default, we detect the dtype from the block.
         """
-        backend = get_same_DOF_backend(sites)
-        device = get_same_DOF_device(sites)
+        backend = get_same_DOF_backend(*sites)
+        device = get_same_DOF_device(*sites)
         co_domain = [s.leg for s in sites]
         p_labels = [f'p{i}' for i in range(len(sites))]
         labels = [*p_labels, *[f'{pi}*' for pi in p_labels][::-1]]
@@ -136,8 +135,8 @@ class Coupling:
             A descriptive name that can be used when pretty-printing, to identify the coupling.
             For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
         """
-        assert operator.backend == get_same_DOF_backend(sites)
-        assert operator.device == get_same_DOF_device(sites)
+        assert operator.backend == get_same_DOF_backend(*sites)
+        assert operator.device == get_same_DOF_device(*sites)
         assert operator.codomain.factors == [site.leg for site in sites]
         assert operator.domain.factors == operator.codomain.factors
 
@@ -267,8 +266,8 @@ def spin_spin_coupling(sites: list[SpinDOF], xx: float = None, yy: float = None,
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
     h = np.transpose(h, [0, 2, 3, 1])
-    backend = get_same_DOF_backend(sites)
-    device = get_same_DOF_device(sites)
+    backend = get_same_DOF_backend(*sites)
+    device = get_same_DOF_device(*sites)
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
@@ -294,8 +293,8 @@ def spin_field_coupling(sites: list[SpinDOF], hx: float = None, hy: float = None
         h += hz * s[:, :, 2]
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
-    backend = get_same_DOF_backend(sites)
-    device = get_same_DOF_device(sites)
+    backend = get_same_DOF_backend(*sites)
+    device = get_same_DOF_device(*sites)
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
@@ -320,8 +319,8 @@ def aklt_coupling(sites: list[SpinDOF], name: str = 'AKLT') -> Coupling:
     S_dot_S = np.transpose(S_dot_S, [0, 2, 3, 1])
     S_dot_S_square = np.tensordot(S_dot_S, S_dot_S, axes=[[3, 2], [0, 1]])
     h = S_dot_S + S_dot_S_square / 3.
-    backend = get_same_DOF_backend(sites)
-    device = get_same_DOF_device(sites)
+    backend = get_same_DOF_backend(*sites)
+    device = get_same_DOF_device(*sites)
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
@@ -338,8 +337,8 @@ def chiral_3spin_coupling(sites: list[SpinDOF], name: str = 'S.SxS') -> Coupling
                    axis=4)  # [p1, p2, p2*, p1*, i]
     h = np.tensordot(sites[0].spin_vector, SxS, (-1, -1))  # [p0, p0*, p1, p2, p2*, p1*]
     h = np.transpose(h, [0, 2, 3, 4, 5, 1])
-    backend = get_same_DOF_backend(sites)
-    device = get_same_DOF_device(sites)
+    backend = get_same_DOF_backend(*sites)
+    device = get_same_DOF_device(*sites)
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
@@ -438,8 +437,8 @@ def clock_clock_coupling(sites: list[ClockDOF], xx: float = None, zz: float = No
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
     h = np.transpose(h, [0, 2, 3, 1])
-    backend = get_same_DOF_backend(sites)
-    device = get_same_DOF_device(sites)
+    backend = get_same_DOF_backend(*sites)
+    device = get_same_DOF_device(*sites)
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
@@ -465,8 +464,8 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
         h += hz * Zphc
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
-    backend = get_same_DOF_backend(sites)
-    device = get_same_DOF_device(sites)
+    backend = get_same_DOF_backend(*sites)
+    device = get_same_DOF_device(*sites)
     return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
 
 
@@ -474,8 +473,8 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
 
 def gold_coupling(sites: list[GoldenSite], name: str = 'P_tau') -> Coupling:
     assert len(sites) == 2  # TODO or should we allow this to generalize???
-    backend = get_same_DOF_backend(sites)
-    device = get_same_DOF_device(sites)
+    backend = get_same_DOF_backend(*sites)
+    device = get_same_DOF_device(*sites)
     tau = [1]
     p_labels = [f'p{i}' for i in range(len(sites))]
     labels = [p_labels, [f'{pi}*' for pi in p_labels]]

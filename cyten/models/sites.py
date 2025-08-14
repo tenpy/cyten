@@ -6,8 +6,7 @@ from typing import Literal
 from itertools import product as itproduct
 
 from ..backends import TensorBackend
-from ..spaces import ElementarySpace, TensorProduct
-from ..tensors import SymmetricTensor
+from ..spaces import ElementarySpace
 from ..symmetries import (
     ProductSymmetry, SU2Symmetry, U1Symmetry, ZNSymmetry, NoSymmetry, FibonacciAnyonCategory,
     SU2_kAnyonCategory, FermionParity
@@ -344,18 +343,16 @@ class SpinlessFermionSite(FermionicDOF):
                     sector[no_sym_idcs] = 0
                     sector[parity_sym_idcs] = np.mod(sector[parity_sym_idcs], 2)
                     sectors.append(sector)
-                leg = ElementarySpace.from_defining_sectors(sym, np.asarray(sectors, dtype=int))
+                leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int))
         else:
             if conserve in ['N', 'Ntot', 'N_tot']:
                 sym = ProductSymmetry([U1Symmetry('total_fermion_occupation'),
                                        FermionParity('total_fermion_parity')])
                 sectors = []
-                mults = []
-                for fermion_number in range(num_species + 1):
+                for occupations in itproduct([0, 1], repeat=num_species):
+                    fermion_number = np.sum(occupations)
                     sectors.append([fermion_number, fermion_number % 2])
-                    mults.append(FermionicDOF._states_with_occupation(fermion_number, num_species))
-                leg = ElementarySpace.from_defining_sectors(sym, sectors, mults,
-                                                            unique_sectors=True)
+                leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int))
             elif conserve in ['parity', 'P', 'Ptot', 'P_tot']:
                 sym = FermionParity('total_fermion_parity')
             else:
@@ -363,79 +360,48 @@ class SpinlessFermionSite(FermionicDOF):
 
         # conserve == 'parity' and conserve == ['None', ..., 'None'] are the same
         if isinstance(sym, FermionParity):
-            sectors = np.asarray([[0], [1]], dtype=int)
-            mults = np.asarray([2 ** (num_species - 1)] * 2, dtype=int)
-            leg = ElementarySpace(sym, sectors, mults)
+            sectors = []
+            for occupations in itproduct([0, 1], repeat=num_species):
+                sectors.append(np.sum(occupations) % 2)
+            leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int)[:, None])
         self.conserve = conserve
+
+        # state labels have the form '(n0, n1, ...)' with n0, n1, ... corresponding to the
+        # occupations for the species. For a single species, this is changed to 'n0', i.e.,
+        # the brackets and comma from the tuple are omitted.
+        state_labels = {}
+        for occupations in itproduct([0, 1], repeat=num_species):
+            label = str(occupations)
+            if num_species == 1:
+                label = label[1:-2]
+            state_labels[label] = int("".join(str(n_i) for n_i in occupations), 2)
+        # vacuum == no fermions
+        state_labels['vac'] = 0
 
         creators, annihilators = FermionicDOF._creation_annihilation_ops(num_species=num_species)
 
-        # construct occupation operators, total occupation op, total parity op,
-        # and occupation ops relative to filling
-        # must be done as SymmetricTensor since basis_perm is ill-defined
-        # -> first construct a mapping from sectors to indices
-        idx_map = {}
-        for idx, occupations in enumerate(itproduct([0, 1], repeat=num_species)):
-            sector = np.asarray(occupations, dtype=int)
-            n_tot = np.sum(sector)
-            parity = n_tot % 2
-            if isinstance(sym, FermionParity):
-                sector = (parity, )
-            elif isinstance(conserve, (list, np.ndarray)):
-                sector[no_sym_idcs] = 0
-                sector[parity_sym_idcs] = np.mod(sector[parity_sym_idcs], 2)
-                sector = (*sector, parity)
-            else:
-                # remaining: total fermion number
-                sector = (n_tot, parity)
-            idx_map[sector] = np.append(idx_map.get(sector, np.asarray([], dtype=int)), idx)
-
-        ops = {}
-        leg_labels = ['p', 'p*']
-        co_domain = TensorProduct(
-            factors=[leg], symmetry=sym, _sector_decomposition=leg.sector_decomposition,
-            _multiplicities=leg.multiplicities
+        FermionicDOF.__init__(
+            self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
+            onsite_operators=None, backend=backend, default_device=default_device
         )
-        N_is = []
-        func = lambda shape, sector, M: np.diag(M[idx_map[tuple(sector)]])
-        for i, filling_i in enumerate(self.filling):
-            # TODO device and backend?
-            N_i_diag = np.diag(creators[:, :, i] @ annihilators[:, :, i])
-            N_is.append(N_i_diag)
-            N_i = SymmetricTensor.from_sector_block_func(
-                func, co_domain, co_domain, func_kwargs={'M': N_i_diag}, labels=leg_labels
-            )
-            op_name = 'N' if num_species == 1 else f'N{i}'
-            ops[op_name] = N_i
 
+        # construct operators relative to filling for each entry that is not None
+        ops = {}
+        for i, filling_i in enumerate(self.filling):
             if filling_i is None:
                 continue
-            dN_i_diag = N_i_diag - filling_i * np.ones(2**num_species)
-            dN_i = SymmetricTensor.from_sector_block_func(
-                func, co_domain, co_domain, func_kwargs={'M': dN_i_diag}, labels=leg_labels
-            )
-            op_name = 'dN' if num_species == 1 else f'dN{i}'
-            ops[op_name] = dN_i
-            dNdN_i = SymmetricTensor.from_sector_block_func(
-                func, co_domain, co_domain, func_kwargs={'M': dN_i_diag**2}, labels=leg_labels
-            )
-            op_name = 'dNdN' if num_species == 1 else f'dN{i}dN{i}'
-            ops[op_name] = dNdN_i
+            N_i_diag = np.diag(creators[:, :, i] @ annihilators[:, :, i])
+            dN_i = np.diag(N_i_diag - filling_i * np.ones(2 ** num_species))
+            dNdN_i = np.diag((N_i_diag - filling_i * np.ones(2 ** num_species)) ** 2)
+            if num_species == 1:
+                ops['dN'] = dN_i
+                ops['dNdN'] = dNdN_i
+            else:
+                ops[f'dN{i}'] = dN_i
+                ops[f'dN{i}dN{i}'] = dNdN_i
 
-        if num_species > 1:
-            N_tot = np.sum(N_is, axis=0)
-            ops['Ntot'] = SymmetricTensor.from_sector_block_func(
-                func, co_domain, co_domain, func_kwargs={'M': N_tot}, labels=leg_labels
-            )
-            # fermion parity is always the final entry in the sectors
-            func = lambda shape, sector: sector[-1] * np.eye(*shape)
-            ops['Ptot'] = SymmetricTensor.from_sector_block_func(func, co_domain, co_domain,
-                                                                 labels=leg_labels)
-
-        FermionicDOF.__init__(
-            self, leg=leg, creators=creators, annihilators=annihilators, state_labels=None,
-            onsite_operators=ops, backend=backend, default_device=default_device
-        )
+        for name, op in ops.items():
+            self.add_onsite_operator(name, op, understood_braiding=True)
 
 
 class SpinHalfFermionSite(SpinDOF, FermionicDOF):
