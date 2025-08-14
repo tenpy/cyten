@@ -60,10 +60,14 @@ class DegreeOfFreedom:
         if backend is None:
             backend = get_backend(symmetry=leg.symmetry)
         self.backend = backend
+        if default_device is None:
+            default_device = 'cpu'
         self.default_device = default_device
         self.onsite_operators: dict[str, SymmetricTensor] = {}
         if onsite_operators is not None:
             for name, op in onsite_operators.items():
+                # TODO calling it like this does not allow fermionic operators to be constructed
+                # -> must be constructed with add_onsite_operator outside the __init__
                 self.add_onsite_operator(name, op)
 
     def test_sanity(self):
@@ -91,7 +95,8 @@ class DegreeOfFreedom:
     def dim(self) -> int | float:
         return self.leg.dim
 
-    def add_onsite_operator(self, name: str, op: SymmetricTensor | Block | Sequence[Sequence[float]]):
+    def add_onsite_operator(self, name: str, op: SymmetricTensor | Block | Sequence[Sequence[float]],
+                            understood_braiding: bool = False):
         """Add an operator to the :attr:`onsite_operators`."""
         if name in self.onsite_operators:
             return  # TODO warn? error?
@@ -105,7 +110,7 @@ class DegreeOfFreedom:
         else:
             op = SymmetricTensor.from_dense_block(
                 block=op, codomain=[self.leg], domain=[self.leg], backend=self.backend,
-                labels=['p', 'p*'], device=self.default_device
+                labels=['p', 'p*'], device=self.default_device, understood_braiding=understood_braiding
             )
         self.onsite_operators[name] = op
 
@@ -240,18 +245,20 @@ class BosonicDOF(DegreeOfFreedom):
             P_is = []
             for i in range(num_species):
                 self.add_onsite_operator(f'N{i}', N_is[i])
-                N_iN_i = np.diag(np.diag(N_is[i])**2)
+                N_iN_i = np.diag(np.diag(N_is[i]) ** 2)
                 self.add_onsite_operator(f'N{i}N{i}', N_iN_i)
                 N_iN_is.append(N_iN_i)
                 P_i = np.diag(1. - 2. * np.mod(np.diag(N_is[i]), 2))
                 self.add_onsite_operator(f'P{i}', P_i)
                 P_is.append(P_i)
-            self.add_onsite_operator('Ntot', np.sum(N_is, axis=0))
-            self.add_onsite_operator('NtotNtot', np.sum(N_iN_is, axis=0))
-            self.add_onsite_operator('Ptot', np.sum(P_is, axis=0))
+            N_tot = np.sum(N_is, axis=0)
+            self.add_onsite_operator('Ntot', N_tot)
+            self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2))
+            P_tot = np.diag(1. - 2. * np.mod(np.diag(N_tot), 2))
+            self.add_onsite_operator('Ptot', P_tot)
         else:
             self.add_onsite_operator('N', N_is[0])
-            NN = np.diag(np.diag(N_is[0])**2)
+            NN = np.diag(np.diag(N_is[0]) ** 2)
             self.add_onsite_operator('NN', NN)
             P = np.diag(1. - 2. * np.mod(np.diag(N_is[0]), 2))
             self.add_onsite_operator('P', P)
@@ -375,17 +382,33 @@ class FermionicDOF(DegreeOfFreedom):
         self.num_species = num_species = creators.shape[2]
         assert leg.dim % (2 ** num_species) == 0
 
+        N_is = []  # these are used later for the on-site operators
         for i in range(num_species):
             N_i = creators[:, :, i] @ annihilators[:, :, i]
             N_i_max_ = np.max(np.diag(N_i))
             N_i_max = round(N_i_max_, 0)
             assert np.allclose(N_i_max, N_i_max_)
             assert N_i_max == 1
+            N_is.append(N_i)
 
         DegreeOfFreedom.__init__(
             self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
             backend=backend, default_device=default_device
         )
+
+        # TODO this should work for any symmetry
+        if num_species > 1:
+            # operator names include a number for the species or 'tot' for total
+            for i in range(num_species):
+                self.add_onsite_operator(f'N{i}', N_is[i], understood_braiding=True)
+            N_tot = np.sum(N_is, axis=0)
+            self.add_onsite_operator('Ntot', N_tot, understood_braiding=True)
+            self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2), understood_braiding=True)
+            P_tot = np.diag(np.mod(np.diag(N_tot), 2))
+            self.add_onsite_operator('Ptot', P_tot, understood_braiding=True)
+        else:
+            # no parity here since parity == occupation for a single species
+            self.add_onsite_operator('N', N_is[0], understood_braiding=True)
 
     def test_sanity(self):
         super().test_sanity()
