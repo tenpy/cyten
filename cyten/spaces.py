@@ -1651,8 +1651,8 @@ class TensorProduct(Space):
                 one_line_items.extend(new_items)
                 lines.extend(indent + i + ',' for i in new_items)
             if summarized_sectors:
-                one_line_items.extend(f'num_sectors={self.num_sectors}')
-                lines.extend(f'{indent}num_sectors={self.num_sectors},')
+                one_line_items.append(f'num_sectors={self.num_sectors}')
+                lines.append(f'{indent}num_sectors={self.num_sectors},')
             lines.append(')')
 
             # try one line
