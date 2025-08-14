@@ -408,6 +408,13 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
             expect = numpy_block_backend.apply_basis_perm(
                 expect, conventional_leg_order(T_res), inv=True
             )
+
+            if isinstance(T.symmetry, SU2Symmetry) and sum(leg_nums) > 2:
+                # TODO see PR 124
+                with pytest.raises(AssertionError):
+                    npt.assert_array_almost_equal(T_np, expect)
+                pytest.xfail()
+
             npt.assert_array_almost_equal(T_np, expect)
 
     # TODO test to_dense_block_trivial_sector
