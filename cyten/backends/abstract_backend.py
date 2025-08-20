@@ -616,7 +616,8 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      new_codomain: TensorProduct, new_domain: TensorProduct,
-                     mixes_codomain_domain: bool, levels: list[int] | None) -> Data:
+                     mixes_codomain_domain: bool, levels: list[int | None],
+                     bend_right: list[bool | None]) -> Data:
         """Permute legs on the tensors.
 
         Parameters
@@ -631,8 +632,11 @@ class TensorBackend(metaclass=ABCMeta):
         mixes_codomain_domain : bool
             If any leg moves from the codomain to the domain or vv during the permutation.
         levels:
-            The levels. Can assume they are unique, support comparison and are non-negative.
-            ``None`` means unspecified.
+            The levels. Must support comparison with ``<`` or be ``None``, meaning unspecified.
+        bend_right:
+            For each leg, whether it bends to the left or right of the tensor.
+            ``None`` is allowed as a placeholder, only if that leg does not bend at all.
+            Note that non-bending legs do not necessarily have a ``None`` entry, however.
 
         Returns
         -------
@@ -738,15 +742,6 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def trace_full(self, a: SymmetricTensor, idcs1: list[int], idcs2: list[int]) -> float | complex:
-        ...
-
-    @abstractmethod
-    def transpose(self, a: SymmetricTensor, new_codomain: TensorProduct, new_domain: TensorProduct
-                  ) -> Data:
-        """The transpose.
-
-        Note that ``new_codomain == a.domain.dual`` and ``new_domain == a.codomain.dual``.
-        """
         ...
 
     @abstractmethod

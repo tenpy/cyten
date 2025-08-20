@@ -1588,7 +1588,8 @@ class AbelianBackend(TensorBackend):
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      new_codomain: TensorProduct, new_domain: TensorProduct,
-                     mixes_codomain_domain: bool, levels: list[int] | None) -> AbelianBackendData:
+                     mixes_codomain_domain: bool, levels: list[int] | None,
+                     bend_right: list[bool | None]) -> AbelianBackendData:
         axes_perm = [*codomain_idcs, *reversed(domain_idcs)]
         blocks = [self.block_backend.permute_axes(block, axes_perm) for block in a.data.blocks]
         block_inds = a.data.block_inds[:, axes_perm]
@@ -1926,14 +1927,6 @@ class AbelianBackend(TensorBackend):
                 res += self.block_backend.trace_full(block)
             # else: block is entirely off-diagonal and does not contribute to the trace
         return res
-
-    def transpose(self, a: SymmetricTensor, new_codomain: TensorProduct, new_domain: TensorProduct
-                  ) -> AbelianBackendData:
-        return self.permute_legs(a,
-                                 codomain_idcs=list(range(a.num_codomain_legs, a.num_legs)),
-                                 domain_idcs=list(reversed(range(a.num_codomain_legs))),
-                                 new_codomain=new_codomain, new_domain=new_domain,
-                                 mixes_codomain_domain=True, levels=None)
 
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
                                  degeneracy_tol: float, trunc_cut: float, svd_min: float

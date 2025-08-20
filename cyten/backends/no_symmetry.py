@@ -395,7 +395,8 @@ class NoSymmetryBackend(TensorBackend):
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      new_codomain: TensorProduct, new_domain: TensorProduct,
-                     mixes_codomain_domain: bool, levels: list[int] | None) -> Data:
+                     mixes_codomain_domain: bool, levels: list[int] | None,
+                     bend_right: list[bool | None]) -> Data:
         return self.block_backend.permute_axes(a.data, [*codomain_idcs, *reversed(domain_idcs)])
 
     def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
@@ -462,12 +463,6 @@ class NoSymmetryBackend(TensorBackend):
 
     def trace_full(self, a: SymmetricTensor) -> float | complex:
         return self.block_backend.trace_full(a.data)
-
-    def transpose(self, a: SymmetricTensor, new_codomain: TensorProduct, new_domain: TensorProduct
-                  ) -> Data:
-        perm = [*range(a.num_codomain_legs, a.num_legs), *range(a.num_codomain_legs)]
-        data = self.block_backend.permute_axes(a.data, perm)
-        return data
 
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
                                  degeneracy_tol: float, trunc_cut: float, svd_min: float

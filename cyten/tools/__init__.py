@@ -4,7 +4,7 @@
 from . import math, misc, string, mappings
 from .math import speigs, speigsh
 from .misc import (
-    duplicate_entries, to_iterable, to_valid_idx, as_immutable_array, permutation_as_swaps,
+    duplicate_entries, is_iterable, to_iterable, to_valid_idx, as_immutable_array, permutation_as_swaps,
     argsort, combine_constraints, inverse_permutation, rank_data, np_argsort, make_stride,
     make_grid, list_to_dict_list, find_row_differences, iter_common_noncommon_sorted,
     iter_common_sorted, iter_common_sorted_arrays, iter_common_noncommon_sorted_arrays,
