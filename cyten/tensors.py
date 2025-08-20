@@ -78,7 +78,7 @@ import functools
 import logging
 
 from .dummy_config import printoptions
-from .symmetries import SymmetryError, BraidChiralityUnspecifiedError, Symmetry, BraidingStyle
+from .symmetries import SymmetryError, Symmetry, BraidingStyle
 from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
 from .trees import FusionTree
 from .backends.backend_factory import get_backend
@@ -86,7 +86,7 @@ from .backends.abstract_backend import Block, TensorBackend, conventional_leg_or
 from .dtypes import Dtype
 from .tools.misc import (
     to_iterable, rank_data, inverse_permutation, duplicate_entries, iter_common_sorted_arrays,
-    to_valid_idx
+    to_valid_idx, is_iterable
 )
 
 
@@ -3463,6 +3463,9 @@ def apply_mask_DiagonalTensor(tensor: DiagonalTensor, mask: Mask) -> DiagonalTen
 def bend_legs(tensor: Tensor, num_codomain_legs: int = None, num_domain_legs: int = None) -> Tensor:
     """Move legs between codomain and domain without changing the order of ``tensor.legs``.
 
+    Note that legs are always bent to the right side of the tensor.
+    For more general manipulations involving bends to the left side, use :func:`permute_legs`.
+
     For example::
 
         |        │   ╭───────────╮
@@ -3478,14 +3481,14 @@ def bend_legs(tensor: Tensor, num_codomain_legs: int = None, num_domain_legs: in
         |       ┏┷━━━┷━━━┷┓  │
         |       ┃    T    ┃  │        ==    bend_legs(T, num_codomain_legs=4)
         |       ┗┯━━━┯━━━┯┛  │
-        |        │   │   ╰───╯        ==    bend_legs(T, num_codomain_legs=2)
+        |        │   │   ╰───╯        ==    bend_legs(T, num_domain_legs=2)
 
     Parameters
     ----------
     tensor:
         The tensor to modify
     num_codomain_legs, num_domain_legs: int, optional
-        The desired number of legs in the (co-)domain. Only one is required.
+        The desired number of legs in the (co-)domain after the bending. Only one is required.
 
     See Also
     --------
@@ -3502,7 +3505,8 @@ def bend_legs(tensor: Tensor, num_codomain_legs: int = None, num_domain_legs: in
         assert num_codomain_legs + num_domain_legs == tensor.num_legs
     return permute_legs(tensor,
                         codomain=range(num_codomain_legs),
-                        domain=reversed(range(num_codomain_legs, tensor.num_legs)))
+                        domain=reversed(range(num_codomain_legs, tensor.num_legs)),
+                        bend_right=True)
 
 
 def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | None:
@@ -4433,7 +4437,8 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
 
 
 def move_leg(tensor: Tensor, which_leg: int | str, codomain_pos: int | None = None, *,
-             domain_pos: int | None = None, levels: list[int] | dict[str | int, int] | None = None
+             domain_pos: int | None = None, levels: list[int] | dict[str | int, int] | None = None,
+             bend_right: bool = None,
              ) -> Tensor:
     """Move one leg of a tensor to a specified position.
 
@@ -4449,7 +4454,7 @@ def move_leg(tensor: Tensor, which_leg: int | str, codomain_pos: int | None = No
 
         |        │   │   ╭───│───╮
         |       ┏┷━━━┷━━━┷━━━┷┓  │
-        |       ┃      T      ┃  │    ==    move_leg(T, 2, domain_pos=1)
+        |       ┃      T      ┃  │    ==    move_leg(T, 2, domain_pos=1, bend_right=True)
         |       ┗┯━━━┯━━━┯━━━┯┛  │
         |        │ ╭─│───│───│───╯
 
@@ -4466,6 +4471,10 @@ def move_leg(tensor: Tensor, which_leg: int | str, codomain_pos: int | None = No
     levels: optional
         Is ignored if the symmetry has symmetric braids. Otherwise, these levels specify the
         chirality of any possible braids induced by permuting the legs. See :func:`permute_legs`.
+    bend_right: bool
+        If the moving leg should bend to the right of the tensor (as shown above) or to the left.
+        If either the leg does not bend at all or if the symmetry has symmetric braids, the argument
+        is ignored since it either does not apply or both options are equivalent anyway.
     """
     from_domain, _, leg_idx = tensor._parse_leg_idx(which_leg)
     if from_domain:
@@ -4487,7 +4496,7 @@ def move_leg(tensor: Tensor, which_leg: int | str, codomain_pos: int | None = No
     else:
         raise ValueError('Need to specify either codomain_pos or domain_pos.')
     #
-    return permute_legs(tensor, new_codomain, new_domain, levels=levels)
+    return permute_legs(tensor, new_codomain, new_domain, levels=levels, bend_right=bend_right)
 
 
 def norm(tensor: Tensor) -> float:
@@ -4642,6 +4651,8 @@ def partial_trace(tensor: Tensor,
     *pairs:
         A number of pairs, each describing two legs via index or via label.
         Each pair is connected, realizing a partial trace.
+        By definition, we create loops between legs on opposite sides to the right side of the
+        tensor (this is not necessarily equivalent to a left closing, if there are braids).
         Must be compatible ``tensor.get_leg(pair[0]) == tensor.get_leg(pair[1]).dual``.
     levels:
         The connectivity of the partial trace may induce braids.
@@ -4692,7 +4703,12 @@ def partial_trace(tensor: Tensor,
         levels = [None] * tensor.num_legs
     else:
         levels = list(levels)  # ensure copy
-    data, codomain, domain = tensor.backend.partial_trace(tensor, pairs, levels)
+
+    try:
+        data, codomain, domain = tensor.backend.partial_trace(tensor, pairs, levels)
+    except SymmetryError:
+        raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from None
+
     if tensor.num_legs == len(traced_idcs):
         # should be a scalar
         return data
@@ -4703,8 +4719,11 @@ def partial_trace(tensor: Tensor,
 
 
 def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[int | str] = None,
-                 levels: list[int] | dict[str | int, int] = None):
+                 levels: list[int] | dict[str | int, int] = None,
+                 bend_right: bool | Sequence[bool | None] | dict[str | int, bool] = None):
     """Permute the legs of a tensor by braiding legs and bending lines.
+
+    Graphically (note that we ignore the `levels` graphically and do not draw braid chiralities)::
 
     |       ╭───│───────│─────╮ │
     |       │   │   ╭───│───╮ │ │
@@ -4715,6 +4734,16 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
     |         6   5   4     │ │ │
     |         ╰───│───│─────│─│─╯
     |             │ ╭─│─────╯ │
+
+    |      │ ╭─────╮   │       │
+    |      │ │ ╭───│───│───╮   │
+    |      │ │ │   0   1   2   3
+    |      │ │ │  ┏┷━━━┷━━━┷━━━┷┓
+    |      │ │ │  ┃      T      ┃   =   permute_legs(T, [6, 1, 3], [0, 5, 2, 4], bend_right=False)
+    |      │ │ │  ┗━━┯━━━┯━━━┯━━┛
+    |      │ │ │     6   5   4
+    |      ╰─│─│─────╯   │   │
+    |        │ ╰─────────│─╮ │
 
     .. note ::
         We expect that there are only two cases where you should do explicit leg permutations:
@@ -4746,6 +4775,16 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
         or under-crossing. It assigns a "level" or height to each leg.
         Either as a list ``levels[leg_num]`` or as a dictionary ``levels[leg_num_or_label]``.
         If two legs are crossed at some point, the one with the higher level goes over the other.
+    bend_right
+        For each leg that bends up or down, whether it bends to right of the tensor (as shown
+        above) or to the left. If the symmetry has a symmetric braid (e.g. group symmetries or
+        fermions), this makes no difference and this argument is ignored. For anyonic symmetries,
+        the two options are not equivalent and an explicit choice is required for all legs that
+        do bend. Allowed formats are::
+            - A single boolean is applied to all legs.
+            - A list of bools specifies for each leg by leg index.
+              ``None`` is allowed as a placeholder for legs that do not bend.
+            - A dictionary with keys that are either leg indices or leg labels, and bool values.
     """
     # Parse domain and codomain to list[int]. Get rid of duplicates.
     if codomain is None and domain is None:
@@ -4776,15 +4815,41 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
     if levels is None:
         levels = [None] * tensor.num_legs
     elif isinstance(levels, dict):
-        levels = [None] * tensor.num_legs
+        tmp = [None] * tensor.num_legs
         for leg, level in levels.items():
             idx = tensor.get_leg_idcs(leg)[0]
-            if levels[idx] is not None:
+            if tmp[idx] is not None:
                 raise ValueError(f'Level for leg {leg} defined multiple times.')
-            levels[idx] = level
+            tmp[idx] = level
+        levels = tmp
     else:
         levels = list(levels)
         assert len(levels) == tensor.num_legs
+
+    # parse bend_right to format list[bool | None]
+    legs_bending_down = [i for i in domain if i < tensor.num_codomain_legs]
+    legs_bending_up = [i for i in codomain if i >= tensor.num_codomain_legs]
+    bending_legs = legs_bending_down + legs_bending_up
+    if isinstance(bend_right, dict):
+        tmp = [None] * tensor.num_legs
+        for leg, b in bend_right.items():
+            tmp[tensor.get_leg_idcs(leg)[0]] = b
+        bend_right = tmp
+    elif is_iterable(bend_right):
+        assert len(bend_right) == tensor.num_legs
+    elif bend_right is None:  # default -> all undefined
+        bend_right = [None] * tensor.num_legs
+    elif bend_right in [True, False]:  # single bool applies to all legs
+        bend_right = [bend_right] * tensor.num_legs
+    else:
+        raise ValueError
+    # check if those that need to be specified are
+    if tensor.symmetry.has_symmetric_braid:
+        # it doesnt matter which way. choose all right
+        bend_right = [True] * tensor.num_legs
+    else:
+        if any(bend_right[l] is None for l in bending_legs):
+            raise SymmetryError('Need to specify bend_right!')
 
     # Deal with other tensor types
     if isinstance(tensor, (DiagonalTensor, Mask)):
@@ -4804,9 +4869,7 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
         return ChargedTensor(inv_part, charged_state=tensor.charged_state)
 
     # Build new codomain and domain
-    mixes_codomain_domain = any(i >= tensor.num_codomain_legs for i in codomain) \
-        or any(i < tensor.num_codomain_legs for i in domain)
-    if mixes_codomain_domain:
+    if len(bending_legs) > 0:
         new_codomain = TensorProduct([tensor._as_codomain_leg(i) for i in codomain],
                                      symmetry=tensor.symmetry)
         new_domain = TensorProduct([tensor._as_domain_leg(i) for i in domain],
@@ -4818,7 +4881,8 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
 
     data = tensor.backend.permute_legs(
         tensor, codomain_idcs=codomain, domain_idcs=domain, new_codomain=new_codomain,
-        new_domain=new_domain, mixes_codomain_domain=mixes_codomain_domain, levels=levels
+        new_domain=new_domain, mixes_codomain_domain=len(bending_legs) > 0, levels=levels,
+        bend_right=bend_right,
     )
 
     labels = [[tensor._labels[n] for n in codomain], [tensor._labels[n] for n in domain]]
@@ -5512,9 +5576,9 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
             res.set_label(legs1[0], tensor2.labels[1 - legs2[0]])
             # move legs to tdot convention
             try:
-                return permute_legs(res, domain=legs2)
-            except BraidChiralityUnspecifiedError:
-                raise BraidChiralityUnspecifiedError(_USE_PERMUTE_LEGS_ERR_MSG) from None
+                return permute_legs(res, domain=legs2, bend_right=None)
+            except SymmetryError:
+                raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from None
         if num_contr == 2:
             # contract the large leg first
             which_is_large = legs2.index(1 if tensor2.is_projection else 0)
@@ -5540,8 +5604,8 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
             res.set_label(legs2[0], tensor1.labels[1 - legs1[0]])
             try:
                 return permute_legs(res, codomain=legs1)
-            except BraidChiralityUnspecifiedError:
-                raise BraidChiralityUnspecifiedError(_USE_PERMUTE_LEGS_ERR_MSG) from None
+            except SymmetryError:
+                raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from None
         if num_contr == 2:
             res = scale_axis(tensor2, tensor1, legs2[0])
             res = partial_trace(res, legs2)
@@ -5556,8 +5620,8 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
             res.set_label(legs1[0], tensor2.labels[1 - legs2[0]])
             try:
                 return permute_legs(res, domain=legs1)
-            except BraidChiralityUnspecifiedError:
-                raise BraidChiralityUnspecifiedError(_USE_PERMUTE_LEGS_ERR_MSG) from None
+            except SymmetryError:
+                raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from None
         if num_contr == 2:
             res = scale_axis(tensor1, tensor2, legs1[0])
             res = partial_trace(res, legs1)
@@ -5596,10 +5660,10 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
     # OPTIMIZE actually, we only need to permute legs to *any* matching order.
     #          could use ``legs1[perm]`` and ``legs2[perm]`` instead, if that means fewer braids.
     try:
-        tensor1 = permute_legs(tensor1, domain=legs1)
-        tensor2 = permute_legs(tensor2, codomain=legs2)
-    except BraidChiralityUnspecifiedError:
-        raise BraidChiralityUnspecifiedError(_USE_PERMUTE_LEGS_ERR_MSG) from None
+        tensor1 = permute_legs(tensor1, domain=legs1, bend_right=None)
+        tensor2 = permute_legs(tensor2, codomain=legs2, bend_right=None)
+    except SymmetryError:
+        raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from None
     return _compose_SymmetricTensors(tensor1, tensor2, relabel1=relabel1, relabel2=relabel2)
 
 
@@ -5668,9 +5732,9 @@ def transpose(tensor: Tensor) -> Tensor:
     -------
     The transposed tensor. Its legs and labels fulfill e.g.::
 
-        transpose(A).codomain == A.domain.dual == [V2.dual, V1.dual]  # if A.codomain == [V1, V2]
-        transpose(A).domain == A.codomain.dual == [W2.dual, W1.dual]  # if A.domain == [W1, W2]
-        transpose(A).legs == [V2.dual, V1.dual, W1, W2]  # compared to A.legs == [V1, V2, W2.dual, W1.dual]
+        transpose(A).codomain == A.domain.dual == [W2.dual, W1.dual]  # if A.domain == [W1, W2]
+        transpose(A).domain == A.codomain.dual == [V2.dual, V1.dual]  # if A.codomain == [V1, V2]
+        transpose(A).legs == [W2.dual, W1.dual, V1, V2]  # compared to A.legs == [V1, V2, W2.dual, W1.dual]
         transpose(A).labels == [*reversed(A.domain_labels), *A.codomain_labels]
 
     Note that the resulting :attr:`Tensor.legs` depend not only on the input :attr:`Tensor.legs`,
@@ -5687,11 +5751,12 @@ def transpose(tensor: Tensor) -> Tensor:
         dual_leg, data = tensor.backend.diagonal_transpose(tensor)
         return DiagonalTensor(data=data, leg=dual_leg, backend=tensor.backend, labels=labels)
     if isinstance(tensor, SymmetricTensor):
-        new_codomain = tensor.domain.dual
-        new_domain = tensor.codomain.dual
-        data = tensor.backend.transpose(tensor, new_codomain=new_codomain, new_domain=new_domain)
-        return SymmetricTensor(data=data, codomain=new_codomain, domain=new_domain,
-                               backend=tensor.backend, labels=labels)
+        return permute_legs(
+            tensor,
+            codomain=[*range(tensor.num_codomain_legs, tensor.num_legs)],
+            domain=[*reversed(range(tensor.num_codomain_legs))],
+            bend_right=[False] * tensor.num_codomain_legs + [True] * tensor.num_domain_legs,
+        )
     if isinstance(tensor, ChargedTensor):
         if tensor.symmetry.braiding_style > BraidingStyle.bosonic:
             msg = (f'transpose is not defined for ChargedTensors with fermionic symmetries. '

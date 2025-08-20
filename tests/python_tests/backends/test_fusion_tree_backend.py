@@ -79,7 +79,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [1, 0, 2, 3], [6, 5, 4], levels)
+    new_tens = permute_legs(tens, [1, 0, 2, 3], [6, 5, 4], levels, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # Exchange legs 5 and 6 (in domain)
@@ -102,7 +102,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 1, 2, 3], [5, 6, 4], levels)
+    new_tens = permute_legs(tens, [0, 1, 2, 3], [5, 6, 4], levels, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # Exchange legs 2 and 3 (in codomain)
@@ -141,7 +141,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 1, 3, 2], [6, 5, 4], levels)
+    new_tens = permute_legs(tens, [0, 1, 3, 2], [6, 5, 4], levels, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # Exchange legs 4 and 5 (in domain)
@@ -168,7 +168,7 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 1, 2, 3], [6, 4, 5], levels)
+    new_tens = permute_legs(tens, [0, 1, 2, 3], [6, 4, 5], levels, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # more checks
@@ -249,7 +249,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [1, 0, 2], [5, 4, 3], levels)
+    new_tens = permute_legs(tens, [1, 0, 2], [5, 4, 3], levels, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # exchange legs 4 and 5 (in domain)
@@ -291,7 +291,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 1, 2], [4, 5, 3], levels)
+    new_tens = permute_legs(tens, [0, 1, 2], [4, 5, 3], levels, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # exchange legs 3 and 4 (in domain)
@@ -354,7 +354,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 1, 2], [5, 3, 4], levels)
+    new_tens = permute_legs(tens, [0, 1, 2], [5, 3, 4], levels, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # braid 10 times == trivial
@@ -423,7 +423,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [1, 0, 2], [5, 4, 3], levels)
+    new_tens = permute_legs(tens, [1, 0, 2], [5, 4, 3], levels, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # exchange legs 4 and 5 (in domain)
@@ -452,7 +452,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 1, 2], [4, 5, 3], levels)
+    new_tens = permute_legs(tens, [0, 1, 2], [4, 5, 3], levels, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # exchange legs 1 and 2 (in codomain)
@@ -523,7 +523,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 2, 1], [5, 4, 3], levels)
+    new_tens = permute_legs(tens, [0, 2, 1], [5, 4, 3], levels, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # exchange legs 3 and 4 (in domain)
@@ -570,7 +570,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 1, 2], [5, 3, 4], levels)
+    new_tens = permute_legs(tens, [0, 1, 2], [5, 3, 4], levels, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # braid 4 times == trivial
@@ -618,7 +618,7 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [], [0], None)
+    new_tens = permute_legs(tens, [], [0], None, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # tensor with single leg in domain; bend up
@@ -643,7 +643,7 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0], [], None)
+    new_tens = permute_legs(tens, [0], [], None, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # more complicated tensor
@@ -696,7 +696,7 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 1, 2, 3], [5, 4], None)
+    new_tens = permute_legs(tens, [0, 1, 2, 3], [5, 4], None, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # bend down
@@ -737,7 +737,7 @@ def test_b_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 1], [5, 4, 3, 2], None)
+    new_tens = permute_legs(tens, [0, 1], [5, 4, 3, 2], None, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     spaces = [TensorProduct([], symmetry=sym), TensorProduct([s2]), TensorProduct([s3]),
@@ -791,7 +791,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0], [1], None)
+    new_tens = permute_legs(tens, [0], [1], None, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # tensor with two legs in codomain, two leg in domain; bend down
@@ -860,7 +860,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0], [3, 2, 1], None)
+    new_tens = permute_legs(tens, [0], [3, 2, 1], None, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # similar tensor, replace one sector with its dual (Frobenius-Schur is now relevant); bend up
@@ -932,7 +932,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 1, 2], [3], None)
+    new_tens = permute_legs(tens, [0, 1, 2], [3], None, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     spaces = [TensorProduct([], symmetry=sym), TensorProduct([s2]), TensorProduct([s3.dual]),
@@ -988,7 +988,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0], [1], None)
+    new_tens = permute_legs(tens, [0], [1], None, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # tensor with two legs in codomain, one leg in domain; bend down
@@ -1022,7 +1022,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0], [2, 1], None)
+    new_tens = permute_legs(tens, [0], [2, 1], None, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # same tensor, bend up
@@ -1046,7 +1046,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 1, 2], [], None)
+    new_tens = permute_legs(tens, [0, 1, 2], [], None, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     # more complicated tensor, bend down
@@ -1143,7 +1143,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
         new_tens = SymmetricTensor(new_data, new_codomain, new_domain, backend=backend)
         assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
-    new_tens = permute_legs(tens, [0, 1], [4, 3, 2], None)
+    new_tens = permute_legs(tens, [0, 1], [4, 3, 2], None, bend_right=True)
     assert_tensors_almost_equal(new_tens, expect_tens, eps, eps)
 
     spaces = [TensorProduct([], symmetry=sym), TensorProduct([s2]), TensorProduct([s3.dual]),
@@ -1160,7 +1160,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
      SU2_kAnyonCategory(5) * u1_symmetry, SU2Symmetry() * ising_anyon_category,
      SU3_3AnyonCategory() * u1_symmetry, fibonacci_anyon_category * z5_symmetry]
 )
-def test_nonabelian_transpose(symmetry: Symmetry, block_backend: str,
+def test_ftb_transpose(symmetry: Symmetry, block_backend: str,
                               np_random: np.random.Generator):
     backend = get_backend('fusion_tree', block_backend)
     num_codom_legs, num_dom_legs = np_random.integers(low=2, high=4, size=2)
@@ -1183,6 +1183,18 @@ def test_nonabelian_transpose(symmetry: Symmetry, block_backend: str,
 
 
 def test_permute_legs_instructions():
+    # Note that there is no single unique correct sequence of instructions.
+    # Depending on the implementation of the algorithm that comes up with instructions,
+    # the instructions might change.
+    # In this test, we guaranteed that the expected instruction lists that are hard coded
+    # are correct (by manually verifying).
+    # If there is a mismatch in the future, this does not necessarily mean that either one
+    # is incorrect!
+
+    # Note that we also verify that the legs are permuted to the correct places
+    # during `permute_legs_instructions`, but not if braid chiralities are correct.
+    # That we verify manually only.
+
     codomain = 6
     domain = 6
 
@@ -1194,9 +1206,9 @@ def test_permute_legs_instructions():
     # =============================================
     # 0) do nothing
     # =============================================
-    instructions0 = fusion_tree_backend.permute_legs_instructions(
+    instructions0 = permute_legs_instructions(
         codomain, domain, codomain_idcs=original_codomain_idcs, domain_idcs=original_domain_idcs,
-        levels=unspecified_levels, has_symmetric_braid=False
+        levels=unspecified_levels, has_symmetric_braid=False, bend_right=[True] * (codomain + domain)
     )
     assert list(instructions0) == []
 
@@ -1206,9 +1218,9 @@ def test_permute_legs_instructions():
     codomain_idcs1 = np.array([1, 0, 4, 3, 5, 2])
     levels1 = [1, 0, 3, 2, 5, 4, *range(codomain, num_legs)]
     #
-    instructions1 = fusion_tree_backend.permute_legs_instructions(
+    instructions1 = permute_legs_instructions(
         codomain, domain, codomain_idcs=codomain_idcs1, domain_idcs=original_domain_idcs,
-        levels=levels1, has_symmetric_braid=False
+        levels=levels1, has_symmetric_braid=False, bend_right=[True] * (codomain + domain)
     )
     instructions1 = list(instructions1)
     # to derive the expected braids, you need to draw the braiding and derive them manually
@@ -1226,15 +1238,15 @@ def test_permute_legs_instructions():
     domain_idcs2 = [10, 8, 9, 11, 7, 6]
     levels2 = [*range(6), 7, 9, 8, 6, 10, 11]
     #
-    instructions2 = fusion_tree_backend.permute_legs_instructions(
+    instructions2 = permute_legs_instructions(
         codomain, domain, codomain_idcs=original_codomain_idcs, domain_idcs=domain_idcs2,
-        levels=levels2, has_symmetric_braid=False
+        levels=levels2, has_symmetric_braid=False, bend_right=[True] * (codomain + domain)
     )
     instructions2 = list(instructions2)
     #
     expect_instructions2 = [
         fusion_tree_backend.BraidInstruction(codomain=False, idx=j, overbraid=overbraid)
-        for j, overbraid in [(0, False), (2, True), (1, False), (2, False)]
+        for j, overbraid in [(0, False), (1, False), (2, False), (1, True)]
     ]
     assert instructions2 == expect_instructions2
 
@@ -1243,9 +1255,9 @@ def test_permute_legs_instructions():
     # =============================================
     # just do the braids of the two cases above
     levels3 = levels1[:6] + levels2[6:]
-    instructions3 = fusion_tree_backend.permute_legs_instructions(
+    instructions3 = permute_legs_instructions(
         codomain, domain, codomain_idcs=codomain_idcs1, domain_idcs=domain_idcs2,
-        levels=levels3, has_symmetric_braid=False
+        levels=levels3, has_symmetric_braid=False, bend_right=[True] * (codomain + domain)
     )
     instructions3 = list(instructions3)
     expect_instructions3 = expect_instructions2 + expect_instructions1
@@ -1255,10 +1267,11 @@ def test_permute_legs_instructions():
     # 4) up bends only (levels=None)
     # =============================================
     num = 3
-    instructions4 = fusion_tree_backend.permute_legs_instructions(
+    instructions4 = permute_legs_instructions(
         codomain, domain,
         codomain_idcs=[*range(6 + num)], domain_idcs=[*reversed(range(6 + num, num_legs))],
-        levels=unspecified_levels, has_symmetric_braid=False
+        levels=unspecified_levels, has_symmetric_braid=False,
+        bend_right=[True] * (codomain + domain)
     )
     assert list(instructions4) == [fusion_tree_backend.BendInstruction(bend_up=True)] * num
 
@@ -1266,20 +1279,21 @@ def test_permute_legs_instructions():
     # 5) down bends only
     # =============================================
     num = 2
-    instructions5 = fusion_tree_backend.permute_legs_instructions(
+    instructions5 = permute_legs_instructions(
         codomain, domain,
         codomain_idcs=[*range(6 - num)], domain_idcs=[*reversed(range(6 - num, num_legs))],
-        levels=[*range(12)], has_symmetric_braid=False
+        levels=[*range(12)], has_symmetric_braid=False, bend_right=[True] * (codomain + domain)
     )
     assert list(instructions5) == [fusion_tree_backend.BendInstruction(bend_up=False)] * num
 
     # =============================================
     # 6) codomain perm and bends
     # =============================================
-    instructions6 = fusion_tree_backend.permute_legs_instructions(
+    instructions6 = permute_legs_instructions(
         codomain, domain,
         codomain_idcs=[6, 0, 1, 5, 3, 7, 4, 2], domain_idcs=[11, 10, 9, 8],
-        levels=[8, 2, 11, 7, 1, 4, 6, 9, 0, 5, 10, 3], has_symmetric_braid=False
+        levels=[8, 2, 11, 7, 1, 4, 6, 9, 0, 5, 10, 3], has_symmetric_braid=False,
+        bend_right=[True] * (codomain + domain)
     )
     expect_instructions6 = [fusion_tree_backend.BendInstruction(bend_up=True)] * 2
     expect_instructions6 += [
@@ -1293,27 +1307,29 @@ def test_permute_legs_instructions():
     # =============================================
     # domain perm and bends
     # =============================================
-    instructions7 = fusion_tree_backend.permute_legs_instructions(
+    instructions7 = permute_legs_instructions(
         codomain, domain,
         codomain_idcs=[0, 1, 2, 3], domain_idcs=[7, 9, 5, 11, 10, 4, 8, 6],
-        levels=[5, 8, 7, 6, 4, 3, 0, 1, 2, 10, 9, 11], has_symmetric_braid=False
+        levels=[5, 8, 7, 6, 4, 3, 0, 1, 2, 10, 9, 11], has_symmetric_braid=False,
+        bend_right=[True] * (codomain + domain)
     )
     instructions7 = list(instructions7)
     expect_instructions7 = [fusion_tree_backend.BendInstruction(bend_up=False)] * 2
     expect_instructions7 += [
         fusion_tree_backend.BraidInstruction(codomain=False, idx=j, overbraid=overbraid)
-        for j, overbraid in zip([3, 2, 1, 0, 2, 1, 5, 4, 3, 2, 6, 5],
-                                [False, False, False, False, True, False, True, True, False, False,
-                                 True, True])]
+        for j, overbraid in zip([5, 6, 3, 4, 5, 1, 2, 3, 0, 1, 2, 0],
+                                [True, True, False, True, True, True, False, False, False,
+                                 False, False, False])]
     assert list(instructions7) == expect_instructions7
 
     # =============================================
-    # general case
+    # general case with right bends
     # =============================================
-    instructions8 = fusion_tree_backend.permute_legs_instructions(
+    instructions8 = permute_legs_instructions(
         codomain, domain,
         codomain_idcs=[6, 3, 9, 5, 10, 4, 2], domain_idcs=[8, 7, 1, 0, 11],
-        levels=[1, 2, 0, 4, 10, 3, 8, 11, 5, 7, 6, 9], has_symmetric_braid=False
+        levels=[1, 2, 0, 4, 10, 3, 8, 11, 5, 7, 6, 9], has_symmetric_braid=False,
+        bend_right=[True] * (codomain + domain)
     )
     instructions8 = list(instructions8)
     expect_instructions8 = [
@@ -1324,9 +1340,9 @@ def test_permute_legs_instructions():
     expect_instructions8 += [fusion_tree_backend.BendInstruction(bend_up=False)] * 2
     expect_instructions8 += [
         fusion_tree_backend.BraidInstruction(codomain=False, idx=j, overbraid=overbraid)
-        for j, overbraid in zip([2, 1, 0, 3, 2, 1, 5, 4, 3, 2, 6, 5, 4, 3],
-                                [False, False, False, True, True, True, False, False, False, False,
-                                 False, False, False, False])
+        for j, overbraid in zip([5, 6, 2, 3, 4, 5, 1, 2, 3, 4, 0, 1, 2, 3],
+                                [False, False, False, True, False, False, False, True, False, False,
+                                 False, True, False, False])
     ]
     expect_instructions8 += [fusion_tree_backend.BendInstruction(bend_up=True)] * 3
     expect_instructions8 += [
@@ -1337,8 +1353,49 @@ def test_permute_legs_instructions():
     ]
     assert instructions8 == expect_instructions8
 
+    # =============================================
+    # general case with left and right bends
+    # =============================================
+    instructions9 = permute_legs_instructions(
+        codomain, domain,
+        codomain_idcs=[6, 3, 9, 5, 10, 4, 2], domain_idcs=[8, 7, 1, 0, 11],
+        levels=[1, 2, 0, 4, 10, 3, 8, 11, 5, 7, 6, 9], has_symmetric_braid=False,
+        bend_right=[True, False, None, None, None, None, True, None, None, False, True, None]
+    )
+    instructions9 = list(instructions9)
+    expect_instructions9 = [
+        fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
+        for j, overbraid in zip([0, 1, 2, 3, 4], [False, True, False, False, False])
+    ]
+    expect_instructions9 += [fusion_tree_backend.BendInstruction(bend_up=False)]
+    expect_instructions9 += [fusion_tree_backend.TwistInstruction(codomain=True, idcs=[0], overtwist=True)]
+    expect_instructions9 += [
+        fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
+        for j, overbraid in zip([0, 1, 2, 3], [True, True, True, True])
+    ]
+    expect_instructions9 += [fusion_tree_backend.BendInstruction(bend_up=False)]
+    expect_instructions9 += [
+        fusion_tree_backend.BraidInstruction(codomain=False, idx=j, overbraid=overbraid)
+        for j, overbraid in zip([6, 5, 4, 3, 2, 1, 0, 6, 2, 3, 4, 5, 1, 2, 3, 4, 0, 1, 2],
+                                [True, True, True, True, True, True, True, False, True, False, True,
+                                 False, False, False, True, False, True, True, True])
+    ]
+    expect_instructions9 += [fusion_tree_backend.BendInstruction(bend_up=True)] * 2
+    expect_instructions9 += [fusion_tree_backend.TwistInstruction(codomain=False, idcs=[0], overtwist=False)]
+    expect_instructions9 += [
+        fusion_tree_backend.BraidInstruction(codomain=False, idx=j, overbraid=overbraid)
+        for j, overbraid in zip([0, 1, 2, 3, 4], [False] * 5)
+    ]
+    expect_instructions9 += [fusion_tree_backend.BendInstruction(bend_up=True)]
+    expect_instructions9 += [
+        fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
+        for j, overbraid in zip([5, 4, 3, 2, 1, 0, 4, 3, 2, 1, 0, 2, 1, 4, 3, 5, 4, 5],
+                                [False, False, False, False, False, False, False, True, False,
+                                 False, False, False, True, True, False, True, False, False])
+    ]
+    assert instructions9 == expect_instructions9
 
-# TODO add symmetry with off-diagonal entries in b symbols to test below
+
 # TODO make sure that there is a case that fails when not complex conjugating
 # the b symbols for domain trees
 # (all tests currently seem to pass irrespective of complex conjugation)
@@ -1347,7 +1404,7 @@ def test_permute_legs_instructions():
      SU2_kAnyonCategory(5) * u1_symmetry, SU2Symmetry() * ising_anyon_category,
      SU3_3AnyonCategory() * u1_symmetry, fibonacci_anyon_category * z5_symmetry]
 )
-def test_nonabelian_partial_trace(symmetry: Symmetry, block_backend: str,
+def test_ftb_partial_trace(symmetry: Symmetry, block_backend: str,
                                   np_random: np.random.Generator):
     backend = get_backend('fusion_tree', block_backend)
     num_codom_legs, num_dom_legs = np_random.integers(low=2, high=4, size=2)
@@ -1391,6 +1448,21 @@ def test_nonabelian_partial_trace(symmetry: Symmetry, block_backend: str,
 
 
 # HELPER FUNCTIONS FOR THE TESTS
+
+def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
+                              codomain_idcs: list[int], domain_idcs: list[int],
+                              levels: list[int | None], bend_right: list[bool | None],
+                              has_symmetric_braid: bool,
+                              ) -> list[fusion_tree_backend.Instruction]:
+    h = fusion_tree_backend.PermuteLegsInstructionEngine(
+        num_codomain_legs=num_codomain_legs, num_domain_legs=num_domain_legs,
+        codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels, bend_right=bend_right,
+        has_symmetric_braid=has_symmetric_braid
+    )
+    instructions = h.evaluate_instructions()
+    h.verify(num_codomain_legs, num_domain_legs, codomain_idcs, domain_idcs)
+    return instructions
+
 
 def apply_single_b_symbol(ten: SymmetricTensor, bend_up: bool
                           ) -> tuple[fusion_tree_backend.FusionTreeData, TensorProduct, TensorProduct]:
@@ -1604,9 +1676,10 @@ def assert_clockwise_counterclockwise_trivial_long_range(a: SymmetricTensor, eps
     inv_levels = [levels[i] for i in permutation]
     num_codomain = np.random.randint(a.num_legs + 1)
 
-    new_a = permute_legs(a, permutation[:num_codomain], permutation[num_codomain:][::-1], levels)
+    new_a = permute_legs(a, permutation[:num_codomain], permutation[num_codomain:][::-1], levels,
+                         bend_right=True)
     new_a = permute_legs(new_a, inv_permutation[:a.num_codomain_legs],
-                         inv_permutation[a.num_codomain_legs:][::-1], inv_levels)
+                         inv_permutation[a.num_codomain_legs:][::-1], inv_levels, bend_right=True)
     assert_tensors_almost_equal(new_a, a, eps, eps)
 
 
@@ -1667,7 +1740,7 @@ def cross_check_partial_trace(ten: SymmetricTensor, pairs: list[tuple[int, int]]
             num_codom_legs -= 1  # leg at pair[0] is bent down
 
     ten = permute_legs(ten, codomain=idcs[:num_codom_legs], domain=idcs[num_codom_legs:][::-1],
-                       levels=levels)
+                       levels=levels, bend_right=True)
     tr_idcs1 = [i for i, idx in enumerate(idcs) if idx in idcs1]
     tr_idcs2 = [i for i, idx in enumerate(idcs) if idx in idcs2]
     new_pairs = list(zip(tr_idcs1, tr_idcs2))
@@ -2137,10 +2210,11 @@ def cross_check_transpose(ten: SymmetricTensor, over: bool, twist_codomain: bool
     )
     codomain_idcs = list(range(ten.num_codomain_legs, ten.num_legs))
     domain_idcs = list(reversed(range(ten.num_codomain_legs)))
-    permute_instructions = fusion_tree_backend.permute_legs_instructions(
+    # we take care of the twist manually here, so we use only right bends in the permute_legs part
+    permute_instructions = permute_legs_instructions(
         num_codomain_legs=ten.num_codomain_legs, num_domain_legs=ten.num_domain_legs,
         codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels,
-        has_symmetric_braid=ten.symmetry.has_symmetric_braid
+        has_symmetric_braid=ten.symmetry.has_symmetric_braid, bend_right=[True] * ten.num_legs
     )
     instructions = [twist_instruction, *permute_instructions]
     new_codomain = ten.domain.dual

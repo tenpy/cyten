@@ -15,16 +15,21 @@ def duplicate_entries(seq: Sequence[_T], ignore: Sequence[_T] = []) -> Set[_T]:
     return set(ele for idx, ele in enumerate(seq) if ele in seq[idx + 1:] and ele not in ignore)
 
 
+def is_iterable(a):
+    try:
+        iter(a)
+    except TypeError:
+        return False
+    return True
+
+
 def to_iterable(a):
     """If `a` is a not iterable or a string, return ``[a]``, else return ``a``."""
     if type(a) is str:
         return [a]
-    try:
-        iter(a)
-    except TypeError:
-        return [a]
-    else:
+    if is_iterable(a):
         return a
+    return [a]
 
 
 def to_valid_idx(idx: int, length: int) -> int:

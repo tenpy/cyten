@@ -77,7 +77,7 @@ Visually, the blocks have the following structure::
 """
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable, Iterable
+from typing import TYPE_CHECKING, Callable, Iterable, Literal
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from math import prod
@@ -95,7 +95,7 @@ from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe
 from ..trees import FusionTree, fusion_trees
 from ..tools.misc import (
     inverse_permutation, iter_common_sorted_arrays, iter_common_noncommon_sorted,
-    iter_common_sorted, permutation_as_swaps, rank_data
+    iter_common_sorted, permutation_as_swaps, rank_data, to_valid_idx
 )
 from ..tools.mappings import SparseMapping, IdentityMapping
 
@@ -664,7 +664,7 @@ class FusionTreeBackend(TensorBackend):
         # with coupled sector dual(c).
         # since the TensorProduct.sector_decomposition is always sorted, those corresponding
         # sectors do not appear in the same order.
-        
+
         # OPTIMIZE doing this sorting is duplicate work between here and forming tens.leg.dual
         perm = np.lexsort(tens.symmetry.dual_sectors(tens.domain.sector_decomposition).T)
         data = FusionTreeData(block_inds=inverse_permutation(perm)[tens.data.block_inds],
@@ -844,7 +844,7 @@ class FusionTreeBackend(TensorBackend):
                            dtype: Dtype, device: str) -> Data:
         def func(shape, coupled):
             return self.block_backend.random_normal(shape, dtype, sigma, device=device)
-        
+
         return self.from_sector_block_func(func, codomain=codomain, domain=domain)
 
     def from_sector_block_func(self, func, codomain: TensorProduct, domain: TensorProduct) -> FusionTreeData:
@@ -1231,7 +1231,7 @@ class FusionTreeBackend(TensorBackend):
                 # -> the corresponding shape has a zero entry -> remove later using discard_zero_blocks
                 if backend.get_shape(block)[in_domain_int] > 0:
                     res_block_inds[i, in_domain_int] = target_space.sector_decomposition_where(c)
-        
+
         for uncoupled, slc, i in iter_space.iter_forest_blocks(coupled):
             dom_idx_mask = mask.domain.sector_decomposition_where(uncoupled[co_domain_idx])
             if dom_idx_mask is None:
@@ -1531,25 +1531,19 @@ class FusionTreeBackend(TensorBackend):
                 num_codom_legs += 1  # leg at pair[1] is bent up
         num_dom_legs = tensor.num_legs - num_codom_legs
 
-        if not np.all(idcs == np.arange(tensor.num_legs, dtype=int)):
-            if tensor.symmetry.braiding_style.value >= 20 and levels is None:
-                msg = 'need to specify levels when (implicitly) permuting legs \
-                       with non-abelian braiding'
-                raise BraidChiralityUnspecifiedError(msg)
-            # TODO do we only want to check the levels that are actually needed for the braids?
-            if levels is not None:
-                for pair in pairs:
-                    if levels[pair[0]] is None or levels[pair[1]] is None:
+        if levels is not None:
+            for pair in pairs:
+                if levels[pair[0]] is None or levels[pair[1]] is None:
+                    continue
+                for i, level in enumerate(levels):
+                    if i in pair:
                         continue
-                    for i, level in enumerate(levels):
-                        if i in pair:
-                            continue
-                        if level is None:
-                            continue
-                        if (level < levels[pair[0]]) != (level < levels[pair[1]]):
-                            msg = ('inconsistent levels: there should not be a leg with a level '
-                                   'between the levels of a pair of legs that is traced over')
-                            raise BraidChiralityUnspecifiedError(msg)
+                    if level is None:
+                        continue
+                    if (level < levels[pair[0]]) != (level < levels[pair[1]]):
+                        msg = ('Inconsistent levels: there should not be a leg with a level '
+                               'between the levels of a pair of legs that is traced over')
+                        raise ValueError(msg)
 
         # Build new codomain and domain
         # TODO (JU) this is duplicate code with tensors._permute_legs, but we cant import that
@@ -1567,9 +1561,12 @@ class FusionTreeBackend(TensorBackend):
             # (co)domain has the same factor as before, only permuted -> can re-use sectors!
             codom = tensor.codomain.permuted(codomain_idcs)
             dom = tensor.domain.permuted([tensor.num_legs - 1 - i for i in domain_idcs])
+
+        # note: we bend to the right *by definition*
         data = self.permute_legs(tensor, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
                                  new_codomain=codom, new_domain=dom,
-                                 mixes_codomain_domain=mixes_codomain_domain, levels=levels)
+                                 mixes_codomain_domain=mixes_codomain_domain, levels=levels,
+                                 bend_right=[True] * tensor.num_legs)
 
         # only consider coupled sectors in data that are consistent with co(domain) after tracing
         coupled_sectors = []
@@ -1651,12 +1648,17 @@ class FusionTreeBackend(TensorBackend):
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
                      new_codomain: TensorProduct, new_domain: TensorProduct,
-                     mixes_codomain_domain: bool, levels: list[int | None]) -> FusionTreeData:
-        instructions = permute_legs_instructions(
+                     mixes_codomain_domain: bool, levels: list[int | None],
+                     bend_right: list[bool | None]) -> FusionTreeData:
+        h = PermuteLegsInstructionEngine(
             num_codomain_legs=a.num_codomain_legs, num_domain_legs=a.num_domain_legs,
             codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels,
+            bend_right=bend_right,
             has_symmetric_braid=a.symmetry.has_symmetric_braid
         )
+        instructions = h.evaluate_instructions()
+        h.verify(a.num_codomain_legs, a.num_domain_legs, codomain_idcs, domain_idcs)  # OPTIMIZE rm check?
+
         return self.apply_instructions(
             a, instructions, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
             new_codomain=new_codomain, new_domain=new_domain,
@@ -1921,33 +1923,6 @@ class FusionTreeBackend(TensorBackend):
             a.dtype.zero_scalar
         )
 
-    def transpose(self, a: SymmetricTensor, new_codomain: TensorProduct, new_domain: TensorProduct
-                  ) -> Data:
-        #                │            ╭─╮     │
-        #    ╭─────╮     │            ╰─│─────│──╮     <- at both crossings, vertical │ is on top
-        #    │  ┏━━┷━━┓  │           ┏━━┷━━┓  │  │
-        #    │  ┃  Y  ┃  │           ┃  Y  ┃  │  │
-        #    │  ┗━━┯━━┛  │           ┗━━┯━━┛  │  │
-        #    │     │     │     =        │     │  │
-        #    │  ┏━━┷━━┓  │           ┏━━┷━━┓  │  │
-        #    │  ┃  X  ┃  │           ┃  X  ┃  │  │
-        #    │  ┗━━┯━━┛  │           ┗━━┯━━┛  │  │
-        #    │     ╰─────╯              ╰─────╯  │
-        twist_instruction = TwistInstruction(codomain=True, idcs=[*range(a.num_codomain_legs)],
-                                             overtwist=False)
-        codomain_idcs = list(range(a.num_codomain_legs, a.num_legs))
-        domain_idcs = list(reversed(range(a.num_codomain_legs)))
-        levels = list(range(a.num_legs))  # codomain under domain
-        permute_instructions = permute_legs_instructions(
-            num_codomain_legs=a.num_codomain_legs, num_domain_legs=a.num_domain_legs,
-            codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels,
-            has_symmetric_braid=a.symmetry.has_symmetric_braid
-        )
-        instructions = [twist_instruction, *permute_instructions]
-        return self.apply_instructions(a, instructions=instructions, codomain_idcs=codomain_idcs,
-                                       domain_idcs=domain_idcs, new_codomain=new_codomain,
-                                       new_domain=new_domain, mixes_codomain_domain=True)
-
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
                                  degeneracy_tol: float, trunc_cut: float, svd_min: float
                                  ) -> tuple[MaskData, ElementarySpace, float, float]:
@@ -1982,7 +1957,7 @@ class FusionTreeBackend(TensorBackend):
             # TODO not sure how to deal with the basis perm here...
             #      but ideally the new leg of an SVD has no basis_perm anyway
             raise NotImplementedError
-        
+
         large_leg_block_inds = []
         mask_blocks = []
         small_leg_sectors = []
@@ -2008,13 +1983,13 @@ class FusionTreeBackend(TensorBackend):
         small_leg._basis_perm = None  # OPTIMIZE avoid computing it, if we reset it anyway
         small_leg._inverse_basis_perm = None
         return mask_data, small_leg, err, new_norm
-        
+
     def zero_data(self, codomain: TensorProduct, domain: TensorProduct, dtype: Dtype, device: str,
                   all_blocks: bool = False) -> FusionTreeData:
         if not all_blocks:
             return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype,
                                   device=device)
-            
+
         block_shapes = []
         block_inds = []
         for j, coupled in enumerate(domain.sector_decomposition):
@@ -2028,7 +2003,7 @@ class FusionTreeBackend(TensorBackend):
         if len(block_inds) == 0:
             return FusionTreeData(block_inds=np.zeros((0, 2), int), blocks=[], dtype=dtype,
                                   device=device)
-        
+
         block_inds = np.array(block_inds)
         zero_blocks = [self.block_backend.zeros(block_shape, dtype=dtype)
                        for block_shape in block_shapes]
@@ -2318,117 +2293,334 @@ class TwistInstruction(Instruction):
     overtwist: bool
 
 
-def permute_legs_instructions(num_codomain_legs: int, num_domain_legs: int,
-                              codomain_idcs: list[int], domain_idcs: list[int],
-                              levels: list[int | None], has_symmetric_braid: bool,
-                              ) -> list[Instruction]:
-    """Helper to decompose a ``permute_legs`` call into elementary instructions.
+class PermuteLegsInstructionEngine:
+    """Helper class to build the basic instructions that realized a leg permutation.
 
-    Parameters
-    ----------
-    num_codomain_legs, num_domain_legs : int
-        Number of (co-)domain legs of the input tensor.
-    codomain_idcs, domain_idcs : list of int
-        ``(co)domain_idcs[i] == j`` means that the leg ``tensor.legs[j]`` should end up at
-        ``result.(co)domain[i]``.
-    levels : list of {int | None}
-        The levels that specify braid chirality.
-    has_symmetric_braid : bool
-        If the symmetry has a symmetric braid, i.e. if the `levels` are irrelevant.
+    The strategy is to have a stateful instance of this class that represents a list
+    of :attr:`instructions` that have already been deduced, as well as attributes that encode
+    what needs to be done still.
 
-    Returns
-    -------
-    instructions : list of Instruction
-        A sequence of instructions, such that if applied to a tensor in this order,
-        the target permutation is realized.
+    Typical usage is to call :meth:`evaluate_instructions` once and consider the rest of the
+    methods as internals.
     """
-    instructions = []
-    num_legs = num_codomain_legs + num_domain_legs
-    # we update levels in-place, to account for swaps: guarantee copy
-    levels = list(levels)
 
-    # 0) identify which legs need to be bent
-    #   bend_up: legs that are in domain but go to codomain. Sorted by current position in tensor.legs
-    bend_up = sorted([i for i in codomain_idcs if i >= num_codomain_legs])
-    num_bend_up = len(bend_up)
-    stay_up = sorted([i for i in codomain_idcs if i < num_codomain_legs])
-    num_stay_up = len(stay_up)
-    #   bend_down: are in codomain but go to domain. Sorted by current position in tensor.legs
-    bend_down = sorted([i for i in domain_idcs if i < num_codomain_legs])
-    num_bend_down = len(bend_down)
-    # define lookup tables for those lists, since we want ``bend_up.index(i)`` etc multiple times
-    bend_up_lookup = {v: idx for idx, v in enumerate(bend_up)}
-    stay_up_lookup = {v: idx for idx, v in enumerate(stay_up)}
-    bend_down_lookup = {v: idx for idx, v in enumerate(bend_down)}
+    def __init__(self, num_codomain_legs: int, num_domain_legs: int, codomain_idcs: list[int],
+                 domain_idcs: list[int], levels: list[int | None], bend_right: list[bool | None],
+                 has_symmetric_braid: bool):
+        self.num_legs = num_legs = num_codomain_legs + num_domain_legs
+        self.has_symmetric_braid = has_symmetric_braid
 
-    # 1) swap the `bend_down` legs to the very right of the codomain, preserving their order
-    #       start with the rightmost of them and move it to the very right
-    #       then second rightmost and so on
-    for i, leg in enumerate(reversed(bend_down)):  # reverse: go from right to left
-        for j in range(leg, num_codomain_legs - 1 - i):
-            overbraid = compare_levels(levels[j], levels[j + 1], has_symmetric_braid)
-            instructions.append(BraidInstruction(codomain=True, idx=j, overbraid=overbraid))
-            levels[j], levels[j + 1] = levels[j + 1], levels[j]
-    # TODO put the stay_up into the correct places already at this point?
+        target_positions = [None] * num_legs
+        should_bend: list[None | Literal['right', 'left']] = [None] * num_legs
+        for new_codom_idx, old_idx in enumerate(codomain_idcs):
+            target_positions[old_idx] = new_codom_idx
+            if old_idx >= num_codomain_legs:
+                assert bend_right[old_idx] is not None  # should have raised in tensors.py already
+                should_bend[old_idx] = 'right' if bend_right[old_idx] else 'left'
+        for new_dom_idx, old_idx in enumerate(domain_idcs):
+            target_positions[old_idx] = num_legs - 1 - new_dom_idx
+            if old_idx < num_codomain_legs:
+                assert bend_right[old_idx] is not None  # should have raised in tensors.py already
+                should_bend[old_idx] = 'right' if bend_right[old_idx] else 'left'
 
-    # 2) bend them down
-    for j in range(num_bend_down):
-        instructions.append(BendInstruction(bend_up=False))
-    num_codomain_legs -= num_bend_down
-    num_domain_legs += num_bend_down
+        # stateful attributes (need to be kept up to date!):
+        self.num_codomain_legs = num_codomain_legs
+        self.num_domain_legs = num_domain_legs
+        self.target_positions = target_positions
+        self.should_bend = should_bend
+        self.levels = list(levels)
+        self.instructions: list[Instruction] = []
 
-    # 3) permute legs in the domain:
-    #       move the `bend_down` leg to the very right, preserving their order
-    #       move the other legs of the domain to their target positions
-    # 3a) first, construct the permutation that we need to do on the domain.
-    domain_perm = []
-    for original_leg_idx in domain_idcs:
-        if original_leg_idx in bend_down:
-            # bend_down[0] got bent down to the very end of the current domain, i.e. -1
-            # bend_down[1] to -2, and so on
-            curr_domain_idx = num_domain_legs - 1 - bend_down_lookup[original_leg_idx]
+    def evaluate_instructions(self) -> list[Instruction]:
+        assert len(self.instructions) == 0, 'This should only be run on a fresh instance'
+
+        # 5 main steps:
+        nums_bend_codomain = self.do_initial_codomain_permutation()
+        self.do_codomain_bends(*nums_bend_codomain)
+        nums_bend_domain = self.do_domain_permutation()
+        self.do_domain_bends(*nums_bend_domain)
+        self.do_final_codomain_permutation()
+
+        # make sure we are actually done
+        assert self.target_positions == [*range(self.num_legs)]
+        assert self.should_bend == [None] * self.num_legs
+
+        # OPTIMIZE can we apply some simple rules to simplify instructions? e.g.
+        #          detect if a braid is undone by a different braid?
+        #          this can happen if there are left bends
+        return self.instructions
+
+    def verify(self, num_codomain_legs: int, num_domain_legs: int,
+               codomain_idcs: list[int], domain_idcs: list[int]):
+        """Verify that the :attr:`instructions` reproduce the target leg permutation.
+
+        Note: we only check if the legs end up where they are supposed to, we do not verify
+        braid chiralities.
+        TODO should we?
+
+        Parameters
+        ----------
+        num_codomain_legs, num_domain_legs
+            The leg numbers of the original non-permuted tensor
+        codomain_idcs, domain_idcs
+            The target permutations.
+
+        Raises
+        ------
+        AssertionError
+            If an instruction can not be applied or if the target permutation is not reproduced.
+        """
+        codomain = [*range(num_codomain_legs)]
+        domain = [*reversed(range(num_codomain_legs, num_codomain_legs + num_domain_legs))]
+        for i in self.instructions:
+            if isinstance(i, BraidInstruction):
+                if i.codomain:
+                    assert 0 <= i.idx < i.idx + 1 < len(codomain)
+                    codomain[i.idx], codomain[i.idx + 1] = codomain[i.idx + 1], codomain[i.idx]
+                else:
+                    assert 0 <= i.idx < i.idx + 1 < len(domain)
+                    domain[i.idx], domain[i.idx + 1] = domain[i.idx + 1], domain[i.idx]
+            elif isinstance(i, BendInstruction):
+                if i.bend_up:
+                    assert len(domain) > 0
+                    codomain.append(domain.pop(-1))
+                else:
+                    assert len(codomain) > 0
+                    domain.append(codomain.pop(-1))
+            elif isinstance(i, TwistInstruction):
+                if i.codomain:
+                    assert 0 <= min(i.idcs) <= max(i.idcs) < len(codomain)
+                else:
+                    assert 0 <= min(i.idcs) <= max(i.idcs) < len(domain)
+            else:
+                raise TypeError
+        assert codomain == list(codomain_idcs)
+        assert domain == list(domain_idcs)
+
+    def compare_levels(self, idx_1: int, idx_2: int) -> bool:
+        """Essentially ``level1 > level2`` with edge case checks"""
+        if self.has_symmetric_braid:
+            return True
+        level_1 = self.levels[idx_1]
+        level_2 = self.levels[idx_2]
+        if level_1 is None or level_2 is None:
+            raise BraidChiralityUnspecifiedError('Legs that braid must have specified levels.')
+        if level_1 == level_2:
+            raise BraidChiralityUnspecifiedError('Legs that braid can not have the same level.')
+        return level_1 > level_2
+
+    def do_initial_codomain_permutation(self):
+        """Initial permutation of the codomain.
+
+        Assumptions: None
+        Goals: Legs in the codomain that need to be bent are on the outside; those that need
+               to bend right (left) are at the very right (left).
+
+        Returns
+        -------
+        num_left_bends, num_right_bends : int
+            Number of legs that need to be bent down to the left/right side.
+        """
+        num_left_bends = 0
+        for leg in range(self.num_codomain_legs):
+            if self.should_bend[leg] == 'left':
+                self.move_leg(leg, num_left_bends)
+                num_left_bends += 1
+        num_right_bends = 0
+        # note: reversed is to keep relative order
+        for leg in reversed(range(self.num_codomain_legs)):
+            if self.should_bend[leg] == 'right':
+                self.move_leg(leg, self.num_codomain_legs - 1 - num_right_bends)
+                num_right_bends += 1
+
+        # check goal
+        J = self.num_codomain_legs
+        assert all(b == 'left' for b in self.should_bend[:num_left_bends])
+        assert all(b is None for b in self.should_bend[num_left_bends:J - num_right_bends])
+        assert all(b == 'right' for b in self.should_bend[J - num_right_bends:J])
+
+        return num_left_bends, num_right_bends
+
+    def do_codomain_bends(self, num_left_bends: int, num_right_bends: int):
+        """Bends from the codomain down.
+
+        Assumptions: Legs to bend left are on the left, legs to bend right are on the right.
+        Goal: All legs that need to go to the domain are in the domain
+        """
+        for n in range(num_right_bends):
+            self.bend(bend_up=False)
+
+        # to understand whats going on, draw the following:
+        # on a tensor, twist the N leftmost domain legs *together*, then overbraid them to the right
+        # together, bend them all down, then overbraid them to the very left together.
+        # this is equivalent to left-bending them all, by coherence.
+        if num_left_bends > 0:
+            self.instructions.append(
+                TwistInstruction(codomain=True, idcs=[*range(num_left_bends)], overtwist=True)
+            )
+        # OPTIMIZE have arbitrarily chosen a chirality, i.e. we twist over the other legs
+        #          to do the left bend. there are situations where one choice is better than the
+        #          other for the subsequent permutation after bending
+        for n in reversed(range(num_left_bends)):
+            # note: we always overbraid, no matter the levels, to match the overtwist we did.
+            self.move_leg(n, self.num_codomain_legs - 1, over=True)
+            self.bend(bend_up=False)
+            self.move_leg(self.num_codomain_legs, n - num_left_bends, over=True)
+            # OPTIMIZE possibly this is moving the leg "to far", but we cant simply stop earlier,
+            #          because we might need to move it left over the others but back under the others!
+
+        # check goal
+        assert all(b is None for b in self.should_bend[:self.num_codomain_legs])
+
+    def do_domain_permutation(self):
+        """Permutation of the domain
+
+        Assumptions: All legs that need to go to the domain are in the domain
+        Goal: A) The legs that need to be bent upward are on the outside; those that need
+                 to bend right (left) are at the very right (left).
+              B) The legs that stay in the domain are in correct relative order.
+
+        Returns
+        -------
+        num_left_bends, num_right_bends : int
+            Number of legs that need to be bent down to the left/right side.
+        """
+        # 1) build perm (in terms of leg idcs)
+        # 1a) codomain (unchanged)
+        perm = [*range(self.num_codomain_legs)]
+        # 1b) right bending
+        num_right_bends = 0
+        for i, b in enumerate(self.should_bend):
+            if b == 'right':
+                perm.append(i)
+                num_right_bends += 1
+        # 1c) non bending (but put in correct order)
+        remain_in_domain = [i for i in range(self.num_codomain_legs, self.num_legs)
+                            if self.should_bend[i] is None]
+        order = np.argsort([self.target_positions[i] for i in remain_in_domain])
+        for n in order:
+            perm.append(remain_in_domain[n])
+        # 1d) left bending
+        num_left_bends = 0
+        for i, b in enumerate(self.should_bend):
+            if b == 'left':
+                perm.append(i)
+                num_left_bends += 1
+
+        for i in permutation_as_swaps(perm):
+            self.swap(i)
+
+        return num_left_bends, num_right_bends
+
+    def do_domain_bends(self, num_left_bends: int, num_right_bends: int):
+        """Bends from the domain up.
+
+        Assumptions: Legs to bend left are on the left, legs to bend right are on the right.
+        Goal: All legs that need to go to the codomain are in the codomain
+        """
+        for n in range(num_right_bends):
+            self.bend(bend_up=True)
+
+        # see notes in :meth:`do_codomain_bends`. we also go over the other legs.
+        if num_left_bends > 0:
+            self.instructions.append(
+                TwistInstruction(codomain=False, idcs=[*range(num_left_bends)], overtwist=False)
+            )
+        for n in reversed(range(num_left_bends)):
+            # note: we always overbraid, no matter the levels, to match the twist we did.
+            self.move_leg(-1 - n, self.num_codomain_legs, over=True)
+            self.bend(bend_up=True)
+            self.move_leg(self.num_codomain_legs - 1, num_left_bends - 1 - n, over=True)
+
+        # check goal
+        assert all(b is None for b in self.should_bend[self.num_codomain_legs:])
+
+    def do_final_codomain_permutation(self):
+        """Final permutation of the codomain.
+
+        Assumptions: All legs that should go to the codomain are in the codomain, and only those.
+        Goal: Move them to the correct order
+        """
+        perm = inverse_permutation(
+            [self.target_positions[j] for j in range(self.num_codomain_legs)]
+        )
+        for j in permutation_as_swaps(perm):
+            self.swap(j)
+
+    def bend(self, bend_up: bool):
+        self.instructions.append(BendInstruction(bend_up=bend_up))
+        if bend_up:
+            assert self.should_bend[self.num_codomain_legs] is not None
+            self.should_bend[self.num_codomain_legs] = None
+            self.num_codomain_legs += 1
+            self.num_domain_legs -= 1
         else:
-            # so far, we only bend some legs down, to the end of the domain.
-            # for these legs, that already were in the domain to begin with, their domain idx is still valid
-            curr_domain_idx = num_legs - 1 - original_leg_idx
-        domain_perm.append(curr_domain_idx)
-    # remaining: those legs that are not in domain_idcs, i.e. exactly the `bend_up`.
-    # we permute them to the end of the domain, in order of their appearance in the current domain
-    domain_perm.extend(i for i in range(num_domain_legs) if i not in domain_perm)
+            assert self.should_bend[self.num_codomain_legs - 1] is not None
+            self.should_bend[self.num_codomain_legs - 1] = None
+            self.num_codomain_legs -= 1
+            self.num_domain_legs += 1
 
-    # 3b) Now, do this permutation
-    for j_domain in permutation_as_swaps(domain_perm):
-        # should swap j_domain with j_domain + 1, i.e. j_leg_idx with j_leg_idx - 1
-        j_leg_idx = num_legs - 1 - j_domain
-        overbraid = compare_levels(levels[j_leg_idx - 1], levels[j_leg_idx], has_symmetric_braid)
-        instructions.append(BraidInstruction(codomain=False, idx=j_domain, overbraid=overbraid))
-        levels[j_leg_idx], levels[j_leg_idx - 1] = levels[j_leg_idx - 1], levels[j_leg_idx]
+    def move_leg(self, start: int, goal: int, over: bool | None = None):
+        """Move a leg. May not involve bends!
 
-    # 4) Bend up
-    for j in range(num_bend_up):
-        instructions.append(BendInstruction(bend_up=True))
-    num_codomain_legs += num_bend_up
-    num_domain_legs -= num_bend_up
-    assert num_codomain_legs == len(codomain_idcs)
-    assert num_domain_legs == len(domain_idcs)
+        Parameters
+        ----------
+        start, goal : int
+            Initial and final leg index.
+        over : None or bool
+            If ``None``(default) figure out braid chiralities from :attr:`levels`.
+            If given, override levels and make the moving leg always go over (``True``) or under.
+        """
+        start = to_valid_idx(start, self.num_legs)
+        goal = to_valid_idx(goal, self.num_legs)
+        assert (start < self.num_codomain_legs) == (goal < self.num_codomain_legs)
 
-    # 5) permute the legs in the codomain
-    # 5a) first build the permutation
-    codomain_perm = []
-    for original_leg_idx in codomain_idcs:
-        if original_leg_idx in bend_up:
-            # bend_up[-1] is now the last leg in the codomain
-            # bend_up[0] is at position num_stay_up
-            codomain_perm.append(num_stay_up + bend_up_lookup[original_leg_idx])
+        # figure out swaps st. we should exchange legs[j] with legs[j + 1] for j in swaps in order
+        if start < goal:
+            swaps = range(start, goal)
+        elif start > goal:
+            swaps = reversed(range(goal, start))
+            if over is not None:
+                # the leg that `over` refers to is always `j + 1` in these swaps.
+                over = not over
         else:
-            codomain_perm.append(stay_up_lookup[original_leg_idx])
-    # 5b) now do this permutation
-    for j in permutation_as_swaps(codomain_perm):
-        overbraid = compare_levels(levels[j], levels[j + 1], has_symmetric_braid)
-        instructions.append(BraidInstruction(codomain=True, idx=j, overbraid=overbraid))
-        levels[j], levels[j + 1] = levels[j + 1], levels[j]
+            return  # nothing to do
 
-    return instructions
+        for j in swaps:
+            self.swap(j, over=over)
+
+    def swap(self, idx: int, over: bool | None = None):
+        """Swap two legs.
+
+        Parameters
+        ----------
+        idx : int
+            Indicates to swap legs ``idx`` and ``idx + 1``. Must either both be in the codomain
+            or both in the domain.
+        over : None or bool
+            If ``None``(default) figure out braid chiralities from :attr:`levels`.
+            If given, override levels and make the leg originally at ``idx`` go over (``True``)
+            or under.
+            Note: in the domain this is not the same definition as ``BraidInstruction.overbraid``!
+        """
+        idx = to_valid_idx(idx, self.num_legs)
+        if over is None:
+            over = self.compare_levels(idx, idx + 1)
+        if idx < self.num_codomain_legs:
+            assert idx + 1 < self.num_codomain_legs
+            instruction = BraidInstruction(codomain=True, idx=idx, overbraid=over)
+        else:
+            # note: ``-2`` because leg idcs [idx, idx + 1] map to dom idcs [N - 1 - idx, N - 2 - idx]
+            instruction = BraidInstruction(codomain=False, idx=self.num_legs - 2 - idx, overbraid=over)
+        self.instructions.append(instruction)
+        # need to reflect the swap in the stateful attributes (meaning of leg indices has changed)
+        i1 = slice(idx, idx + 2)
+        self.levels[i1] = self.levels[i1][::-1]
+        self.target_positions[i1] = self.target_positions[i1][::-1]
+        self.should_bend[i1] = self.should_bend[i1][::-1]
+        assert len(self.levels) == self.num_legs
+        assert len(self.target_positions) == self.num_legs
+        assert len(self.should_bend) == self.num_legs
 
 
 class TensorMapping(metaclass=ABCMeta):
@@ -2990,14 +3182,3 @@ def _partial_trace_helper(tree: FusionTree, idcs: list[int]) -> tuple[bool, floa
         if tree.are_dual[idx]:
             b_symbols *= sym.frobenius_schur(tree.uncoupled[idx])
     return True, b_symbols
-
-
-def compare_levels(level_1: int | None, level_2: int | None, has_symmetric_braid: bool) -> bool:
-    """Compare levels, essentially ``level_1 > level_2``, but with edge-cases."""
-    if has_symmetric_braid:
-        return True
-    if level_1 is None or level_2 is None:
-        raise BraidChiralityUnspecifiedError('Legs that braid must have specified levels.')
-    if level_1 == level_2:
-        raise BraidChiralityUnspecifiedError('Legs that braid can not have the same level.')
-    return level_1 > level_2
