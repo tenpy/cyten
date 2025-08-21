@@ -20,7 +20,19 @@ rm_files() {
 	done
 }
 
-# TODO expand
+# remove compiled package
+rm_dir "build"
+
+# remove testing caches
+rm_dir ".pytest_cache"
+rm_dir "tests/.pytest_cache"
+rm_dir "tests/python_tests/.pytest_cache"
+
+# remove built documentation
+rm_dir "doc/examples"
+rm_dir "doc/toycode_stubs"
+rm_dir "doc/reference"
+rm_dir "doc/sphinx_build"
 
 # remove python cached files. They might give problems if you modified some files and the date of the file wasn't updated.
 find . -name "*.pyc" -delete
