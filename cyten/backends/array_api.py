@@ -11,9 +11,6 @@ from ..dtypes import Dtype
 import numpy as np
 
 
-# TODO provide an example...
-
-
 class ArrayApiBlockBackend(BlockBackend):
     """A block-backend based on a generic Array API compliant library"""
 
@@ -40,7 +37,7 @@ class ArrayApiBlockBackend(BlockBackend):
             None: None,
         }
         super().__init__(default_device=default_device)
-        
+
     def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
                  ) -> Block:
         if device is None and not hasattr(a, 'device'):
@@ -62,7 +59,7 @@ class ArrayApiBlockBackend(BlockBackend):
 
     def block_all(self, a) -> bool:
         return self._api.all(a)
-        
+
     def block_any(self, a) -> bool:
         return self._api.any(a)
 
@@ -76,9 +73,9 @@ class ArrayApiBlockBackend(BlockBackend):
         return shape
 
     def item(self, a: Block) -> float | complex:
-        # TODO this is not part of the API spec and may fail...
-        #  note that a lot of methods here depend on this...
-        return a.item()
+        if self.is_real(a):
+            return float(a)
+        return complex(a)
 
     def get_dtype(self, a: Block) -> Dtype:
         return self.cyten_dtype_map[a.dtype]
@@ -90,7 +87,6 @@ class ArrayApiBlockBackend(BlockBackend):
         return self._api.asarray(a, copy=True, device=device)
 
     def _block_repr_lines(self, a: Block, indent: str, max_width: int, max_lines: int) -> list[str]:
-        # TODO i like julia style much better actually, especially for many legs
         lines = [f'{indent}{line}' for line in str(a).split('\n')]
         if len(lines) > max_lines:
             first = (max_lines - 1) // 2
@@ -123,16 +119,16 @@ class ArrayApiBlockBackend(BlockBackend):
         return self._api.conj(a)
 
     def angle(self, a: Block) -> Block:
-        raise NotImplementedError  # TODO
+        raise NotImplementedError
 
     def real(self, a: Block) -> Block:
         return self._api.real(a)
 
     def real_if_close(self, a: Block, tol: float) -> Block:
-        raise NotImplementedError  # TODO
-    
+        raise NotImplementedError
+
     def sqrt(self, a: Block) -> Block:
-        raise NotImplementedError  # TODO
+        raise NotImplementedError
 
     def imag(self, a: Block) -> Block:
         return self._api.imag(a)
@@ -160,14 +156,14 @@ class ArrayApiBlockBackend(BlockBackend):
         return res
 
     def max(self, a: Block) -> float | complex:
-        return self._api.max(a).item()
-    
+        return self.item(self._api.max(a))
+
     def max_abs(self, a: Block) -> float:
-        return self._api.max(self._api.abs(a)).item()
+        return self.item(self._api.max(self._api.abs(a)))
 
     def min(self, a: Block) -> float | complex:
-        return self._api.min(a).item()
-    
+        return self.item(self._api.min(a))
+
     def reshape(self, a: Block, shape: tuple[int]) -> Block:
         return self._api.reshape(a, shape)
 
@@ -181,7 +177,7 @@ class ArrayApiBlockBackend(BlockBackend):
 
         if algorithm != 'default':
             raise ValueError(f'SVD algorithm not supported: {algorithm}')
-        
+
         self._api.linalg.svd(a, full_matrices=False)
 
     def matrix_qr(self, a: Block, full: bool) -> tuple[Block, Block]:
@@ -220,34 +216,35 @@ class ArrayApiBlockBackend(BlockBackend):
         return self._api.eye(dim, dtype=self.backend_dtype_map[dtype], device=device)
 
     def kron(self, a: Block, b: Block) -> Block:
-        raise NotImplementedError  # TODO not in API...?
+        # is this really not in the API...?
+        # should be able to do this via mul and reshape?
+        raise NotImplementedError
 
     def get_block_element(self, a: Block, idcs: list[int]) -> complex | float | bool:
-        return a[tuple(idcs)].item()
+        return self.item(a[tuple(idcs)])
 
     def get_device(self, a: Block) -> str:
         return a.device
 
     def get_diagonal(self, a: Block, tol: float | None) -> Block:
-        raise NotImplementedError  # TODO
-        # res = np.diagonal(a)
-        # if check_offdiagonal:
-        #     if not np.allclose(a, np.diag(res)):
-        #         raise ValueError('Not a diagonal block.')
-        # return res
+        assert a.ndim == 2
+        res = self._api.diagonal(a)
+        if tol is not None:
+            if not self.allclose(a, self.block_from_diagonal(res), rtol=0, atol=tol):
+                raise ValueError('Not a diagonal block.')
+        return res
 
     def block_from_diagonal(self, diag: Block) -> Block:
-        raise NotImplementedError  # TODO
-        # return np.diag(diag)
+        raise NotImplementedError
 
     def block_from_mask(self, mask: Block, dtype: Dtype) -> Block:
-        raise NotImplementedError  # TODO
+        raise NotImplementedError
 
     def sum(self, a: Block, ax: int) -> Block:
         return self._api.sum(a, axis=ax)
 
     def sum_all(self, a: Block) -> float | complex:
-        return self._api.sum(a).item()
+        return self.item(self._api.sum(a))
 
     def eigh(self, block: Block, sort: str = None) -> tuple[Block, Block]:
         w, v = self._api.linalg.eigh(block)
@@ -263,7 +260,7 @@ class ArrayApiBlockBackend(BlockBackend):
             perm = self.argsort(w, sort)
             w = w[perm]
         return w
-            
+
     def abs_argmax(self, block: Block) -> list[int]:
         flat_idx = self._api.argmax(self._api.abs(block))
         # OPTIMIZE numpy has np.unravel_indices. no analogue here?
