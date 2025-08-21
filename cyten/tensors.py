@@ -401,7 +401,19 @@ class Tensor(metaclass=ABCMeta):
                           ' ' * domain_extra + ' '.join(domain_dims)])
 
     @abstractmethod
-    def as_SymmetricTensor(self) -> SymmetricTensor:
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
+                           ) -> SymmetricTensor:
+        """Convert to a :class:`SymmetricTensor`, if possible.
+
+        Parameters
+        ----------
+        guarantee_copy : bool
+            If already a SymmetricTensor, we do *not* make a copy by default.
+            Set this flag to ``True`` to guarantee a copy.
+        warning : str, optional
+            If given, and if the conversion is non-trivial (i.e. if it was not already a
+            SymmetricTensor to begin with), a warning with this text is issued.
+        """
         ...
 
     @abstractmethod
@@ -1312,10 +1324,11 @@ class SymmetricTensor(Tensor):
             codomain=codomain, domain=domain, backend=backend, labels=labels
         )
 
-    def as_SymmetricTensor(self, warning: str = None) -> SymmetricTensor:
-        # warning is simply ignored.
-        # TODO do we need a copy...?
-        return self.copy()
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
+                           ) -> SymmetricTensor:
+        if guarantee_copy:
+            return self.copy()
+        return self
 
     def copy(self, deep=True, device: str = None) -> SymmetricTensor:
         if deep:
@@ -1831,7 +1844,8 @@ class DiagonalTensor(SymmetricTensor):
             raise ValueError(f'all is not defined for dtype {self.dtype}')
         return self.backend.diagonal_any(self)
 
-    def as_SymmetricTensor(self, warning: str = None) -> SymmetricTensor:
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
+                           ) -> SymmetricTensor:
         if warning is not None:
             warnings.warn(warning, UserWarning, stacklevel=2)
         return SymmetricTensor(
@@ -2439,7 +2453,8 @@ class Mask(Tensor):
         return DiagonalTensor(data=self.backend.mask_to_diagonal(self, dtype=dtype),
                               leg=self.large_leg, backend=self.backend, labels=self.labels)
 
-    def as_SymmetricTensor(self, dtype=Dtype.complex128, warning: str = None) -> SymmetricTensor:
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None,
+                           dtype=Dtype.complex128) -> SymmetricTensor:
         if warning is not None:
             warnings.warn(warning, UserWarning, stacklevel=2)
         if not self.is_projection:
@@ -2942,8 +2957,11 @@ class ChargedTensor(Tensor):
         """If the :class:`ChargedTensor` concept is well defined for the `symmetry`."""
         return symmetry.has_symmetric_braid
 
-    def as_SymmetricTensor(self) -> SymmetricTensor:
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
+                           ) -> SymmetricTensor:
         """Convert to symmetric tensor, if possible."""
+        if warning is not None:
+            warnings.warn(warning, UserWarning, stacklevel=2)
         if not np.all(self.charge_leg.sector_decomposition == self.symmetry.trivial_sector[None, :]):
             raise SymmetryError('Not a symmetric tensor')
         if self.charge_leg.dim == 1:
