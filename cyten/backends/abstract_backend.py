@@ -259,7 +259,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
        
     @abstractmethod
-    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool
+    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, tol: float | None = 1e-12
                                          ) -> DiagonalData:
         """Get the DiagonalData corresponding to a tensor with two legs.
 
@@ -1175,7 +1175,7 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def get_diagonal(self, a: Block, check_offdiagonal: bool) -> Block:
+    def get_diagonal(self, a: Block, tol: float | None) -> Block:
         """Get the diagonal of a 2D block as a 1D block"""
         ...
 

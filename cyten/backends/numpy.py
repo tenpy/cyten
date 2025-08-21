@@ -120,10 +120,10 @@ class NumpyBlockBackend(BlockBackend):
     def get_device(self, a: Block) -> str:
         return self.default_device
     
-    def get_diagonal(self, a: Block, check_offdiagonal: bool) -> Block:
+    def get_diagonal(self, a: Block, tol: float | None) -> Block:
         res = np.diagonal(a)
-        if check_offdiagonal:
-            if not np.allclose(a, np.diag(res)):
+        if tol is not None:
+            if not np.allclose(a, np.diag(res), atol=tol):
                 raise ValueError('Not a diagonal block.')
         return res
 

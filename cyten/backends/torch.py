@@ -147,10 +147,10 @@ class TorchBlockBackend(BlockBackend):
             res = torch_module.device(res.type, index=0)
         return str(res)
 
-    def get_diagonal(self, a: Block, check_offdiagonal: bool) -> Block:
+    def get_diagonal(self, a: Block, tol: float | None) -> Block:
         res = torch_module.diagonal(a)
-        if check_offdiagonal:
-            if not torch_module.allclose(res, torch_module.diag(a)):
+        if tol is not None:
+            if not torch_module.allclose(res, torch_module.diag(a), atol=tol):
                 raise ValueError('Not a diagonal block.')
         return res
 

@@ -1547,7 +1547,7 @@ class DiagonalTensor(SymmetricTensor):
         if backend is None:
             backend = get_backend(symmetry=leg.symmetry)
         block = backend.block_backend.as_block(block, dtype=dtype, device=device)
-        diag = backend.block_backend.get_diagonal(block, check_offdiagonal=True)
+        diag = backend.block_backend.get_diagonal(block, tol=1e-10)
         return cls.from_diag_block(diag, leg=leg, backend=backend, labels=labels, dtype=dtype,
                                    tol=tol)
 
@@ -1619,8 +1619,6 @@ class DiagonalTensor(SymmetricTensor):
             p(T) \propto \mathrm{exp}\left[
                 \frac{1}{2 \sigma^2} \mathrm{Tr} (T - \mathtt{mean}) (T - \mathtt{mean})^\dagger
             \right]
-
-        TODO make sure we actually generate from that distribution in the non-abelian or anyonic case!
 
         Parameters
         ----------
@@ -1727,25 +1725,21 @@ class DiagonalTensor(SymmetricTensor):
         return res
 
     @classmethod
-    def from_tensor(cls, tens: SymmetricTensor, check_offdiagonal: bool = True) -> DiagonalTensor:
+    def from_tensor(cls, tens: SymmetricTensor, tol: float | None = 1e-12) -> DiagonalTensor:
         """Create DiagonalTensor from a Tensor.
 
         Parameters
         ----------
         tens : :class:`Tensor`
-            Must have two legs. Its diagonal entries ``tens[i, i]`` are used.
-        check_offdiagonal : bool
-            If the off-diagonal entries of `tens` should be checked.
-
-        Raises
-        ------
-        ValueError
-            If `check_offdiagonal` and any off-diagonal element is non-zero.
-            TODO should there be a tolerance?
+            Must have exactly two legs. Its diagonal entries ``tens[i, i]`` are used.
+        tol : float | None
+            Tolerance for checking if the `tens` is actually diagonal, in the sense that any
+            "off-diagonal" free parameters that should vanish are smaller than this by magnitude.
+            Set to ``None`` to disable the check.
         """
         assert tens.num_legs == 2
         assert tens.domain == tens.codomain
-        data = tens.backend.diagonal_tensor_from_full_tensor(tens, check_offdiagonal=check_offdiagonal)
+        data = tens.backend.diagonal_tensor_from_full_tensor(tens, tol=tol)
         return cls(data=data, leg=tens.codomain.factors[0], backend=tens.backend, labels=tens.labels)
 
     @classmethod

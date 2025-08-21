@@ -139,8 +139,9 @@ class NoSymmetryBackend(TensorBackend):
         shape = (co_domain.dim,)
         return func(shape, coupled)
 
-    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool) -> DiagonalData:
-        return self.block_backend.get_diagonal(a.data, check_offdiagonal=check_offdiagonal)
+    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, tol: float | None
+                                         ) -> DiagonalData:
+        return self.block_backend.get_diagonal(a.data, tol=tol)
 
     def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
         return self.block_backend.sum_all(a.data)

@@ -228,7 +228,7 @@ class ArrayApiBlockBackend(BlockBackend):
     def get_device(self, a: Block) -> str:
         return a.device
 
-    def get_diagonal(self, a: Block, check_offdiagonal: bool) -> Block:
+    def get_diagonal(self, a: Block, tol: float | None) -> Block:
         raise NotImplementedError  # TODO
         # res = np.diagonal(a)
         # if check_offdiagonal:

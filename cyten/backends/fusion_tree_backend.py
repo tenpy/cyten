@@ -570,9 +570,8 @@ class FusionTreeBackend(TensorBackend):
         device = self.block_backend.get_device(sample_block)
         return FusionTreeData(block_inds, blocks, dtype, device)
 
-    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool
-                                         ) -> DiagonalData:
-        blocks = [self.block_backend.get_diagonal(block, check_offdiagonal)
+    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, tol: float | None) -> DiagonalData:
+        blocks = [self.block_backend.get_diagonal(block, tol)
                   for block in a.data.blocks]
         return FusionTreeData(a.data.block_inds, blocks, a.dtype, a.data.device, is_sorted=True)
 
