@@ -746,7 +746,8 @@ class TensorBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
-                                 degeneracy_tol: float, trunc_cut: float, svd_min: float
+                                 degeneracy_tol: float, trunc_cut: float, svd_min: float,
+                                 minimize_error: bool = True,
                                  ) -> tuple[MaskData, ElementarySpace, float, float]:
         """Implementation of :func:`cyten.tensors.truncate_singular_values`.
 
@@ -765,7 +766,8 @@ class TensorBackend(metaclass=ABCMeta):
 
     def _truncate_singular_values_selection(self, S: np.ndarray, qdims: np.ndarray | None,
                                             chi_max: int | None, chi_min: int,
-                                            degeneracy_tol: float, trunc_cut: float, svd_min: float
+                                            degeneracy_tol: float, trunc_cut: float, svd_min: float,
+                                            minimize_error: bool = True,
                                             ) -> tuple[np.ndarray, float, float]:
         """Helper function for :meth:`truncate_singular_values`.
 
@@ -775,7 +777,7 @@ class TensorBackend(metaclass=ABCMeta):
             A numpy array of singular values S[i]
         qdims : 1D numpy array of float
             A numpy array of the quantum dimensions. ``None`` means all qdims are one.
-        chi_max, chi_min, degeneracy_tol, trunc_cut, svd_min
+        chi_max, chi_min, degeneracy_tol, trunc_cut, svd_min, minimize_error
             Constraints for truncation. See :func:`cyten.tensors.truncate_singular_values`.
 
         Returns
@@ -838,7 +840,10 @@ class TensorBackend(metaclass=ABCMeta):
             good2 = (np.cumsum(marginal_errs) > trunc_cut * trunc_cut)
             good = combine_constraints(good, good2, "trunc_cut")
 
-        cut = np.nonzero(good)[0][0]  # smallest cut for which good[cut] is True
+        if minimize_error:
+            cut = np.nonzero(good)[0][0]  # smallest cut for which good[cut] is True
+        else:
+            cut = np.nonzero(good)[0][-1]  # largest cut for which good[cut] is True
         err = np.sum(marginal_errs[:cut])
         new_norm = np.sum(marginal_errs[cut:])
         # build mask in the original order, before sorting

@@ -5784,16 +5784,9 @@ def transpose(tensor: Tensor) -> Tensor:
 
 def truncate_singular_values(S: DiagonalTensor, chi_max: int = None, chi_min: int = 1,
                              degeneracy_tol: float = 0, trunc_cut: float = 0,
-                             svd_min: float = 0, mask_labels: list[str] = None
-                             ) -> tuple[Mask, float, float]:
+                             svd_min: float = 0, minimize_error: bool = True,
+                             mask_labels: list[str] = None) -> tuple[Mask, float, float]:
     r"""Given *normalized* singular values, determine which to keep.
-
-    Several constraints can be specified as keyword arguments.
-    If there are multiple choices that fulfill these constraints, the truncation with
-    the lowest resulting error is chosen, meaning roughly that as many singular values as
-    possible are kept.
-
-    TODO should we offer an option to instead keep as few as necessary?
 
     Parameters
     ----------
@@ -5819,6 +5812,9 @@ def truncate_singular_values(S: DiagonalTensor, chi_max: int = None, chi_min: in
         This is intended to exclude singular values that can not be distinguished from zero at the
         given precision. It does *not* have a direct implication on the resulting truncation error.
         Use `trunc_cut` instead for setting a tolerable error. See notes below for details.
+    minimize_error : bool
+        If we should minimize the resulting truncation error by keeping as many singular values
+        as allowed by the other constraints. Otherwise we keep as few as possible.
     mask_labels : list of str, optional
         The labels for the `mask`. Either a list of two string labels or ``None`` (default).
         By default, the `mask` has labels ``[S.labels[0], dual_label(S.labels[0])]``.
@@ -5859,7 +5855,7 @@ def truncate_singular_values(S: DiagonalTensor, chi_max: int = None, chi_min: in
     assert S.dtype.is_real
     mask_data, new_leg, err, new_norm = S.backend.truncate_singular_values(
         S, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol, trunc_cut=trunc_cut,
-        svd_min=svd_min
+        svd_min=svd_min, minimize_error=minimize_error
     )
     if mask_labels is None:
         mask_labels = [S.labels[0], _dual_leg_label(S.labels[0])]

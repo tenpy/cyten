@@ -1923,7 +1923,8 @@ class FusionTreeBackend(TensorBackend):
         )
 
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
-                                 degeneracy_tol: float, trunc_cut: float, svd_min: float
+                                 degeneracy_tol: float, trunc_cut: float, svd_min: float,
+                                 minimize_error: bool = True,
                                  ) -> tuple[MaskData, ElementarySpace, float, float]:
         # build a numpy array of the singular values and a numpy array of the qdims
         num_singular_values = np.sum(S.leg.multiplicities)
@@ -1948,7 +1949,7 @@ class FusionTreeBackend(TensorBackend):
         # select which to keep
         keep, err, new_norm = self._truncate_singular_values_selection(
             S=S_np, qdims=qdims, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol,
-            trunc_cut=trunc_cut, svd_min=svd_min
+            trunc_cut=trunc_cut, svd_min=svd_min, minimize_error=minimize_error
         )
 
         # build the Mask
