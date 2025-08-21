@@ -82,7 +82,6 @@ class Dtype(Enum):
         elif dtype.is_real:
             if isinstance(value, (int, float)):
                 return float(value)
-            # TODO what should we do for complex values?
         else:
             if isinstance(value, Number):
                 return complex(value)

@@ -2,9 +2,6 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 
-# TODO this whole module is a dummy
-
-
 class printoptions:
     """A collection of global config options. The class is used as a namespace"""
     

@@ -186,7 +186,7 @@ def rank_data(a, stable=True):
     Parameters
     ----------
     a : 1D array-like
-        The data to rank. TODO support multi-dimensional data?
+        The data to rank.
     stable: bool
         If ``True`` (default), the ranks of equal values are guaranteed increasing by order of
         appearance in `a`. If ``False``, the relative rank of equal elements is arbitrary, which

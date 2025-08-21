@@ -1390,8 +1390,6 @@ class SymmetricTensor(Tensor):
     def to_dense_block_trivial_sector(self) -> Block:
         """Assumes self is a single-leg tensor and returns its components in the trivial sector.
 
-        TODO better name?
-
         See Also
         --------
         from_dense_block_trivial_sector
@@ -1484,8 +1482,10 @@ class DiagonalTensor(SymmetricTensor):
 
     Elementwise Functions
     ---------------------
-    TODO elaborate
-         use examples: :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
+    A bunch of "elementwise" functions can be defined for diagonal tensors.
+    If a function can be defined as a power series in ``D`` and ``D.hc``, its action can be achieved
+    by applying that power series to the diagonal elements individually.
+    E.g. :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
     """
 
     _forbidden_dtypes = []
@@ -3166,23 +3166,24 @@ def tensor(obj, codomain: Sequence[Leg], domain: Sequence[Leg] = None,
            labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
            dtype: Dtype = None, device: str = None,
            understood_braiding: bool = False) -> SymmetricTensor:
-    """Convert object to tensor if possible.
-
-    TODO elaborate
-    """
+    """Convert object to tensor if possible."""
     if isinstance(obj, Tensor):
+        copied = False
         if codomain != obj.codomain:
             raise ValueError('Mismatching codomain')
         if domain is not None and domain != obj.domain:
             raise ValueError('Mismatching domain')
         if backend is not None and backend != obj.backend:
-            raise ValueError('Mismatching backend')  # TODO or should we convert?
-        if labels is not None:
-            raise NotImplementedError  # TODO
+            raise ValueError('Mismatching backend')
+        if labels is not None and labels != obj._labels:
+            if not copied:
+                obj = obj.copy()
+                copied = True
+            obj.labels = labels
         if dtype is not None:
-            raise NotImplementedError  # TODO
+            raise ValueError('Mismatching dtype')
         if device is not None:
-            raise NotImplementedError  # TODO
+            raise ValueError('Mismatching device')
         return obj.as_SymmetricTensor()
     return SymmetricTensor.from_dense_block(obj, codomain, domain, backend=backend, labels=labels,
                                             dtype=dtype, device=device,

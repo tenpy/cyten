@@ -933,8 +933,6 @@ class BlockBackend(metaclass=ABCMeta):
         If `a` is already a block of correct dtype on the correct device, it may be returned
         un-modified.
 
-        TODO make sure to emit warning on complex -> float!
-
         Returns
         -------
         block: Block
@@ -953,16 +951,15 @@ class BlockBackend(metaclass=ABCMeta):
         """
         ...
 
+    @abstractmethod
     def as_device(self, device: str | None) -> str:
         """Convert input string to unambiguous device name.
 
         In particular, this should map any possible aliases to one unique name, e.g.
         for PyTorch, map ``'cuda'`` to ``'cuda:0'``.
+        Also checks if that device is valid and available.
         """
-        if device is None:
-            return self.default_device
-        # TODO should we check if it is available here?
-        return device
+        ...
 
     @abstractmethod
     def abs_argmax(self, block: Block) -> list[int]:
@@ -1069,7 +1066,6 @@ class BlockBackend(metaclass=ABCMeta):
         for group, cstyle in zip(leg_idcs_combine, cstyles):
             start = group[0]
             stop = group[-1] + 1
-            assert list(group) == list(range(start, stop))  # TODO rm check
             new_shape.extend(old_shape[last_stop:start])  # all leg *not* to be combined
             new_shape.append(np.prod(old_shape[start:stop]))
             if not cstyle:
@@ -1146,7 +1142,7 @@ class BlockBackend(metaclass=ABCMeta):
         shape[axis] = self.get_shape(mask)[0]
         res = self.zeros(shape, dtype=self.get_dtype(block))
         idcs = (slice(None, None, None),) * axis + (mask,)
-        res[idcs] = block  # TODO mutability?
+        res[idcs] = self.copy_block(block)  # OPTIMIZE copy needed?
         return res
 
     @abstractmethod
@@ -1199,7 +1195,7 @@ class BlockBackend(metaclass=ABCMeta):
             a = self.conj(a)
         else:
             a = self.permute_axes(a, list(reversed(range(a.ndim))))
-        return self.sum_all(a * b)  # TODO or do tensordot?
+        return self.sum_all(a * b)
 
     def is_real(self, a: Block) -> bool:
         """If the block is comprised of real numbers.
@@ -1560,7 +1556,6 @@ class BlockBackend(metaclass=ABCMeta):
     @abstractmethod
     def matrix_dot(self, a: Block, b: Block) -> Block:
         """As in numpy.dot, both a and b might be matrix or vector."""
-        # TODO can probably remove this? was only used in an old version of tdot.
         ...
 
     @abstractmethod

@@ -755,7 +755,7 @@ class FusionTreeBackend(TensorBackend):
                 i1 = 0  # reset to the top of the block
                 i2 += forest_block_width  # move right by one forest-block
             block_norm = self.block_backend.norm(block, order=2)
-            if block_norm <= 0.:  # TODO small finite tolerance instead?
+            if block_norm <= 1e-14:
                 continue
             block_inds.append([i, j])
             blocks.append(block)
@@ -1501,7 +1501,8 @@ class FusionTreeBackend(TensorBackend):
         # it does not matter which leg is moved; the partial trace implies that
         # the fusion channel of each pair is trivial. It is however crucial that
         # we keep the ordering within each pair.
-        # TODO decide if we want to optimize: There is in principle no need to
+
+        # OPTIMIZE decide if we want to optimize: There is in principle no need to
         # braid when tracing out two pairs of the form [1, 4] and [2, 3]
         pairs = sorted([pair if pair[0] < pair[1] else (pair[1], pair[0]) for pair in pairs])
         idcs1 = []
@@ -2062,7 +2063,6 @@ class FusionTreeBackend(TensorBackend):
         # OPTIMIZE do one loop per vertex in the tree instead.
         i1 = i1_init  # i1: start row index of the current tree block within the block
         i2 = i2_init  # i2: start column index of the current tree block within the block
-        # TODO should probably replace (co)domain.factors with a flat list of ElementarySpace !!
         alpha_tree_iter = fusion_trees(sym, a_sectors, coupled, [sp.is_dual for sp in codomain.factors])
         beta_tree_iter = fusion_trees(sym, b_sectors, coupled, [sp.is_dual for sp in domain.factors])
         entries = self.block_backend.zeros([*a_dims, *b_dims, *m_dims, *n_dims], dtype)
@@ -3166,11 +3166,12 @@ def _partial_trace_helper(tree: FusionTree, idcs: list[int]) -> tuple[bool, floa
     for idx in idcs:
         if not np.all(tree.uncoupled[idx] == sym.dual_sector(tree.uncoupled[idx + 1])):
             return False, 0.
-        left_sec = [sym.trivial_sector, tree.uncoupled[0]]
-        left_sec = left_sec[idx] if idx < 2 else tree.inner_sectors[idx - 2]
+        if idx == 0:
+            left_sec = sym.trivial_sector
+        else:
+            left_sec = tree.uncoupled[0] if idx == 1 else tree.inner_sectors[idx - 2]
         center_sec = tree.uncoupled[0] if idx == 0 else tree.inner_sectors[idx - 1]
         right_sec = tree.inner_sectors[idx] if idx < tree.num_inner_edges else tree.coupled
-        # TODO use tree.vertex_labels(idx)
         if not np.all(left_sec == right_sec):
             return False, 0.
         if idx == 0 and not np.all(tree.multiplicities[:2] == [0, 0]):

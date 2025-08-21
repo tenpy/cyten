@@ -1826,8 +1826,8 @@ class SUNSymmetry(GroupSymmetry):
         Y1 = self.fusion_tensor(b, a, c).conj()  # [b,a,c,mu]
 
         if not X1.any() or not Y1.any():
-            # TODO (JU) does this case ever happen?
-            #           X/Y should always be non-zero for valic fusion channels
+            # OPTIMIZE (JU) I think this case is impossible (should never be called this way)
+            #               and can be removed?
             mult = self.fusion_multiplicity(a, b, c)
             return np.zeros((mult), dtype=complex)
 
@@ -2266,9 +2266,6 @@ class ZNAnyonCategory2(Symmetry):
 
     also written as :math:`Z_N^{(n+1/2)}`. `N` must be even.
 
-    .. todo ::
-        include in `ZNAnyonCategory`?
-
     Allowed sectors are 1D arrays with a single integer entry between `0` and `N-1`.
     `[0]`, `[1]`, ..., `[N-1]`
 
@@ -2687,22 +2684,26 @@ class IsingAnyonCategory(Symmetry):
 class SU2_kAnyonCategory(Symmetry):
     """:math:`SU(2)_k` anyon category.
 
-    .. todo ::
-        We probably want to introduce the option to save and load R-symbols, F-symbols, etc.
-        Otherwise, for "large" k, constructing the data takes too much time
-
     The anyons can be associated with the spins `0`, `1/2`, `1`, ..., `k/2`.
     Unlike regular SU(2), there is a cutoff at `k/2`.
 
     Allowed sectors are 1D arrays ``[jj]`` of positive integers `jj` = `0`, `1`, `2`, ..., `k`
     corresponding to `jj/2` listed above.
 
-    `handedness`: ``'left' | 'right'``
+    Parameters
+    ----------
+    k : int
+        The "level" of the category. ``k/2`` is the largest spin.
+    handedness: ``'left' | 'right'``
         Specifies the chirality / handedness of the anyons. Changing the handedness corresponds to
         complex conjugating the R-symbols, which also affects, e.g., the braid-symbols.
         Considering anyons of different handedness is necessary for doubled models like,
         e.g., the anyons realized in the Levin-Wen string-net models.
     """
+
+    # OPTIMIZE : We should introduce caching for the R, F symbols etc.
+    #            Probably a simple LRU cache will improve things substantially.
+    #            It is unclear if we need to pre-compute, like for SU(N), or if thats overkill
 
     spin_zero = as_immutable_array(np.array([0], dtype=int))
     spin_half = as_immutable_array(np.array([1], dtype=int))
@@ -3068,7 +3069,6 @@ z8_symmetry = ZNSymmetry(N=8)
 z9_symmetry = ZNSymmetry(N=9)
 u1_symmetry = U1Symmetry()
 su2_symmetry = SU2Symmetry()
-# TODO SU(3) and SU(4) singletons?
 fermion_number = FermionNumber()
 fermion_parity = FermionParity()
 semion_category = ZNAnyonCategory2(2, 0)

@@ -54,7 +54,7 @@ class ArrayApiBlockBackend(BlockBackend):
         if device is None:
             device = self.default_device
         # need to do this hack, since the API does not provide a unified way to instantiate
-        # device objects
+        # device objects. making this block also guarantees that device is valid and available.
         return str(self.ones_block([1], device=device).device)
 
     def block_all(self, a) -> bool:
@@ -279,7 +279,7 @@ class ArrayApiBlockBackend(BlockBackend):
         res = self._api.zeros(shape, dtype=block.dtype)
         idcs = [slice(None, None, None)] * len(shape)
         idcs[axis] = mask
-        res[idcs] = block
+        res[idcs] = self.copy_block(block)  # OPTIMIZE copy needed?
         return res
 
     def stable_log(self, block: Block, cutoff: float) -> Block:

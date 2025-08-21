@@ -24,12 +24,12 @@ _tensor_backend_classes = dict(  # values: (cls, kwargs)
 _block_backends = dict(  # values: (cls, kwargs)
     numpy=(NumpyBlockBackend, {}),
     torch=(TorchBlockBackend, {}),
-    tensorflow=None,  # TODO
-    jax=None,  # TODO
+    tensorflow=None,
+    jax=None,
     cpu=(NumpyBlockBackend, {}),
     gpu=(TorchBlockBackend, dict(default_device='cuda')),
     apple_silicon=(TorchBlockBackend, dict(default_device='mps')),
-    tpu=None,  # TODO
+    tpu=None,
 )
 _instantiated_backends = {}  # keys: (tensor_backend: str, block_backend: str)
 
