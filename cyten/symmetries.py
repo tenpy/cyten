@@ -15,6 +15,7 @@ import math
 
 from .dtypes import Dtype
 from .tools.misc import as_immutable_array
+from .dummy_config import config
 try:
     import h5py
     h5py_version = h5py.version.version_tuple
@@ -42,11 +43,6 @@ SectorArray = npt.NDArray[np.int_]
 
 A 2D array of int with axis [s, q] and shape ``(num_sectors, sector_ind_len)``.
 """
-
-
-# TODO eventually decide if we want to do them or not or optionally.
-#      but we should definitely have these checks while developing.
-_DO_FUSION_INPUT_CHECKS = True
 
 
 class FusionStyle(IntEnum):
@@ -549,7 +545,7 @@ class Symmetry(metaclass=ABCMeta):
         F : 4D array
             The F symbol as an array of the multiplicity indices [μ,ν,κ,λ]
         """
-        if _DO_FUSION_INPUT_CHECKS:
+        if config.do_fusion_input_checks:
             is_correct = all([
                 self.can_fuse_to(b, c, e),
                 self.can_fuse_to(a, e, d),
@@ -586,7 +582,7 @@ class Symmetry(metaclass=ABCMeta):
         B : 2D array
             The B symbol as an array of the multiplicity indices [μ,ν]
         """
-        if _DO_FUSION_INPUT_CHECKS:
+        if config.do_fusion_input_checks:
             is_correct = self.can_fuse_to(a, b, c)
             if not is_correct:
                 raise SymmetryError('Sectors are not consistent with fusion rules.')
@@ -622,7 +618,7 @@ class Symmetry(metaclass=ABCMeta):
         R : 1D array
             The diagonal entries of the R symbol as an array of the multiplicity index [μ].
         """
-        if _DO_FUSION_INPUT_CHECKS:
+        if config.do_fusion_input_checks:
             is_correct = self.can_fuse_to(a, b, c)
             if not is_correct:
                 raise SymmetryError('Sectors are not consistent with fusion rules.')
@@ -651,7 +647,7 @@ class Symmetry(metaclass=ABCMeta):
         C : 4D array
             The C symbol as an array of the multiplicity indices [μ,ν,κ,λ]
         """
-        if _DO_FUSION_INPUT_CHECKS:
+        if config.do_fusion_input_checks:
             is_correct = all([
                 self.can_fuse_to(a, b, e),
                 self.can_fuse_to(e, c, d),
@@ -687,7 +683,7 @@ class Symmetry(metaclass=ABCMeta):
             Axis [μ, m_a, m_b, m_c] where μ is the multiplicity index of the fusion tensor and
             m_a goes over a basis for sector a, etc.
         """
-        if _DO_FUSION_INPUT_CHECKS:
+        if config.do_fusion_input_checks:
             is_correct = self.can_fuse_to(a, b, c)
             if not is_correct:
                 raise SymmetryError('Sectors are not consistent with fusion rules.')

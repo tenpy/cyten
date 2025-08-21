@@ -1317,8 +1317,6 @@ class TensorProduct(Space):
             raise SymmetryError('Incompatible symmetries.')
         self.symmetry = symmetry  # need to set this early, for use in _calc_sectors
         self.factors = factors[:]
-        # TODO add an attr spaces: list[Space] that contains a flat list, where all nesting into
-        #      pipes of factors in flattened??
         if _sector_decomposition is None or _multiplicities is None:
             if _sector_decomposition is not None or _multiplicities is not None:
                 msg = 'Need both _sectors and _multiplicities to skip recomputation. Got just one.'
@@ -1671,9 +1669,6 @@ class TensorProduct(Space):
 
     def _calc_sectors(self, factors: list[Space | Leg]) -> tuple[SectorArray, ndarray]:
         """Helper function for :meth:`__init__`"""
-        # TODO (JU) FTBackend: when a tensor is built, we often iterate over fusion-trees, which
-        #           effectively already computes the fusion here. avoid this double computation
-
         if len(factors) == 0:
             return self.symmetry.trivial_sector[None, :], np.ones([1], int)
 
