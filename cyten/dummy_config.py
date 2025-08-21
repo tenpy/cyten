@@ -23,3 +23,5 @@ class config:
     strict_labels = True
     printoptions = printoptions
     do_fusion_input_checks = True  # If the Symmetry methods should check their inputs are valid
+    default_symmetry_backend = 'abelian'
+    default_block_backend = 'numpy'

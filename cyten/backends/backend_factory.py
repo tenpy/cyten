@@ -11,6 +11,7 @@ from .fusion_tree_backend import FusionTreeBackend
 from .numpy import NumpyBlockBackend
 from .torch import TorchBlockBackend
 from ..symmetries import Symmetry, no_symmetry, AbelianGroup
+from ..dummy_config import config
 
 
 logger = logging.getLogger(__name__)
@@ -47,12 +48,10 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
     block_backend : {None, 'numpy', 'torch', 'tensorflow', 'jax', 'cpu', 'gpu', 'tpu'}
         Specify which block backend to use.
     """
-    # TODO these are a dummies, in the future we should have some mechanism to store the default
-    # values in some state-ful global config of cyten
     if symmetry is None:
-        symmetry = 'abelian'
+        symmetry = config.default_symmetry_backend
     if block_backend is None:
-        block_backend = 'numpy'
+        block_backend = config.default_block_backend
 
     if isinstance(symmetry, Symmetry):
         # figure out minimal symmetry_backend that supports that symmetry
@@ -79,12 +78,3 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
     _instantiated_backends[key] = backend
     return backend
-
-
-def todo_get_backend():
-    """Temporary tool during development. Allows to get a backend.
-
-    TODO revisit usages and decide if backends should be passed around through inits or a
-    global state of cyten
-    """
-    return get_backend(block_backend='numpy', symmetry_backend='abelian')
