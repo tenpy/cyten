@@ -1182,11 +1182,11 @@ def test_apply_mask_DiagonalTensor(make_compatible_tensor):
 def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_tensor):
     tensor: Tensor = make_compatible_tensor(codomain, domain, cls=cls)
 
-    if isinstance(tensor.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in tensor.legs]) and codomain != num_codomain_legs:
-            with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
-                _ = tensors.bend_legs(tensor, num_codomain_legs)
-            pytest.xfail(reason='FTbackend cant deal with pipes yet')
+    #if isinstance(tensor.backend, backends.FusionTreeBackend):
+        # if any([isinstance(leg, LegPipe) for leg in tensor.legs]) and codomain != num_codomain_legs:
+        #     with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
+        #         _ = tensors.bend_legs(tensor, num_codomain_legs)
+        #     pytest.xfail(reason='FTbackend cant deal with pipes yet')
 
     res = tensors.bend_legs(tensor, num_codomain_legs)
     res.test_sanity()
@@ -1195,11 +1195,11 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
     if not tensor.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
-    if isinstance(tensor.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
-            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
-                _ = tensor.to_numpy()
-            pytest.xfail()
+    # isinstance(tensor.backend, backends.FusionTreeBackend):
+        #if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
+            #with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
+                #_ = tensor.to_numpy()
+            #pytest.xfail()
 
     tensor_np = tensor.to_numpy()
     npt.assert_array_almost_equal_nulp(res.to_numpy(), tensor_np, 100)
@@ -2812,11 +2812,11 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     labels = list('abcdefghi')[:cod + dom]
     tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
 
-    if isinstance(tensor.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
-            with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
-                _ = tensor.T
-            pytest.xfail(reason='FTbackend cant deal with pipes yet')
+    # if isinstance(tensor.backend, backends.FusionTreeBackend):
+    #     if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
+    #         with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
+    #             _ = tensor.T
+    #         pytest.xfail(reason='FTbackend cant deal with pipes yet')
 
     how_to_call = np_random.choice(['transpose()', '.T'])
     print(how_to_call)
@@ -2826,12 +2826,17 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
         res = tensor.T
     res.test_sanity()
 
+    print(res.codomain)
+    print(tensor.domain.dual)
+
+    print(res.codomain.factors)
+    print(res.domain.dual.factors)
     assert res.codomain == tensor.domain.dual
     assert res.domain == tensor.codomain.dual
     assert res.labels == [*labels[cod:], *labels[:cod]]
 
-    if not tensor.symmetry.can_be_dropped:
-        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+    #if not tensor.symmetry.can_be_dropped:
+        #return   #  Need to re-design checks, cant use .to_numpy() etc
 
     expect = np.transpose(tensor.to_numpy(), [*range(cod, cod + dom), *range(cod)])
     npt.assert_almost_equal(res.to_numpy(), expect)
