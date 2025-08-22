@@ -1979,7 +1979,7 @@ class FusionTreeBackend(TensorBackend):
         codomain_idcs = list(range(a.num_codomain_legs, a.num_legs))
         domain_idcs = list(reversed(range(a.num_codomain_legs)))
         levels = list(reversed(range(a.num_flat_legs)))
-        coupled = np.array([a.domain.sector_decomposition[i[1]] for i in a.data.block_inds])
+        coupled = np.array([flat_domain_prod.sector_decomposition[i[1]] for i in a.data.block_inds])
 
         leg_comb = codomain_pipe_inds + domain_pipe_inds
         for i, l in enumerate(leg_comb):
@@ -2665,7 +2665,7 @@ class TreeMappingDict(dict):
         exchanges = []
         for i in range(len(bend_up)):
             for j in range(a.num_flat_legs - bend_up[i] - 1, a.num_domain_flat_legs + num_bend_down - 1 - i):
-                exchanges.append(a.num_legs - 2 - j)
+                exchanges.append(a.num_flat_legs - 2 - j)
         all_exchanges += exchanges
         all_bend_ups += [None] * len(exchanges)
         num_operations.append(len(exchanges))
@@ -2701,8 +2701,8 @@ class TreeMappingDict(dict):
             # returning None as Data leads to a SymmetryError anyway.
             return None, a.codomain, a.domain
 
-        codomain = TensorProduct(a.codomain.flat_legs)
-        domain = TensorProduct(a.domain.flat_legs)
+        #codomain = TensorProduct(a.codomain.flat_legs.copy())
+        #domain = TensorProduct(a.domain.flat_legs.copy())
         coupled = np.array([domain.sector_decomposition[i[1]] for i in a.data.block_inds])
         mappings = []
         offset = [0] + list(np.cumsum(num_operations))

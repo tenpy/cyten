@@ -1048,6 +1048,7 @@ class BlockBackend(metaclass=ABCMeta):
         new_shape = []
         last_stop = 0
         for group, cstyle in zip(leg_idcs_combine, cstyles):
+            group=sorted(group)
             start = group[0]
             stop = group[-1] + 1
             assert list(group) == list(range(start, stop))  # TODO rm check
