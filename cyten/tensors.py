@@ -597,7 +597,9 @@ class Tensor(metaclass=ABCMeta):
             msg = f'Expected {self.num_legs} indices (one per leg). Got {len(idx)}'
             raise IndexError(msg)
         try:
+            print(idx)
             idx = [int(i) for i in idx]
+            print(idx)
         except TypeError:
             raise IndexError('Indices must be integers.') from None
         idx = [to_valid_idx(i, d) for i, d in zip(idx, self.shape)]
@@ -804,6 +806,7 @@ class Tensor(metaclass=ABCMeta):
                  understood_braiding: bool = False) -> np.ndarray:
         """Convert to a numpy array"""
         block = self.to_dense_block(leg_order=leg_order, understood_braiding=understood_braiding)
+        #block = self._to_dense_block_by_splitting_pipes()  # FIXME use this?
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
     def flip_leg_duality(self, leg_indices: list[int]):
@@ -1398,7 +1401,9 @@ class SymmetricTensor(Tensor):
                    'this error by setting ``understood_braiding=True``.')
             raise SymmetryError(msg)
         block = self.backend.to_dense_block(self)
-        block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self), inv=True)
+        self_split, combines = _split_all_pipes(self)
+        block = self_split.backend.block_backend.apply_basis_perm(self_split, conventional_leg_order(self_split), inv=True)
+        block=self.backend.block_backend.combine_legs(block, combines)
         if dtype is not None:
             block = self.backend.block_backend.to_dtype(block, dtype)
         if leg_order is not None:

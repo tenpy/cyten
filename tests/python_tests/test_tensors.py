@@ -1353,11 +1353,11 @@ def test_apply_mask_DiagonalTensor(make_compatible_tensor):
 def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_tensor):
     tensor: Tensor = make_compatible_tensor(codomain, domain, cls=cls)
 
-    if isinstance(tensor.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in tensor.legs]) and codomain != num_codomain_legs:
-            with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
-                _ = tensors.bend_legs(tensor, num_codomain_legs)
-            pytest.xfail(reason='FTbackend cant deal with pipes yet')
+    #if isinstance(tensor.backend, backends.FusionTreeBackend):
+        # if any([isinstance(leg, LegPipe) for leg in tensor.legs]) and codomain != num_codomain_legs:
+        #     with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
+        #         _ = tensors.bend_legs(tensor, num_codomain_legs)
+        #     pytest.xfail(reason='FTbackend cant deal with pipes yet')
 
     res = tensors.bend_legs(tensor, num_codomain_legs)
     res.test_sanity()
@@ -1365,12 +1365,6 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
 
     if not tensor.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
-
-    if isinstance(tensor.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
-            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
-                _ = tensor.to_numpy(understood_braiding=True)
-            pytest.xfail()
 
     tensor_np = tensor.to_numpy()
     npt.assert_array_almost_equal_nulp(res.to_numpy(), tensor_np, 100)
@@ -3032,17 +3026,6 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     labels = list('abcdefghi')[:cod + dom]
     tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
 
-    if isinstance(tensor, ChargedTensor) and tensor.symmetry.braiding_style > BraidingStyle.bosonic:
-        with pytest.raises(SymmetryError, match='not defined'):
-            _ = tensor.T
-        return
-
-    if isinstance(tensor.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
-            with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
-                _ = tensor.T
-            pytest.xfail(reason='FTbackend cant deal with pipes yet')
-
     how_to_call = np_random.choice(['transpose()', '.T'])
     print(how_to_call)
     if how_to_call == 'transpose()':
@@ -3051,12 +3034,38 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
         res = tensor.T
     res.test_sanity()
 
+    print(res.codomain)
+    print(tensor.domain.dual)
+
+    print(res.codomain.factors)
+    print(res.domain.dual.factors)
     assert res.codomain == tensor.domain.dual
     assert res.domain == tensor.codomain.dual
     assert res.labels == [*labels[cod:], *labels[:cod]]
 
-    if not tensor.symmetry.can_be_dropped:
-        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+    double_transpose = tensors.transpose(res)
+    double_transpose.test_sanity()
+    assert_tensors_almost_equal(double_transpose, tensor)
+
+    # make sure the res agrees with both equivalent definitions of the transpose
+    # note that for SymmetricTensors, the left_transpose is a copy of the implementation,
+    #      but for DiagonalTensor and Mask checking vs left_transpose is not trivial.
+    left_transpose = tensors.permute_legs(
+        tensor, [*range(cod, cod + dom)], [*reversed(range(cod))],
+        bend_right=[False] * cod + [True] * dom
+    )
+    right_transpose = tensors.permute_legs(
+        tensor, [*range(cod, cod + dom)], [*reversed(range(cod))],
+        bend_right=[True] * cod + [False] * dom
+    )
+    assert_tensors_almost_equal(res, left_transpose)
+    assert_tensors_almost_equal(res, right_transpose)
+
+    if tensor.symmetry.can_be_dropped:
+        res_np = res.to_numpy(understood_braiding=True)
+        tensor_np = tensor.to_numpy(understood_braiding=True)
+        expect = np.transpose(tensor_np, [*range(cod, cod + dom), *range(cod)])
+        npt.assert_almost_equal(res_np, expect)
 
     
     double_transpose = tensors.transpose(res)
