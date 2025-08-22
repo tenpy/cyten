@@ -577,10 +577,7 @@ class FusionTree:
     def insert_at(self, n: int, t2: FusionTree, eps: float = 1.e-14) -> dict[FusionTree, complex]:
         r"""Insert a tree `t2` below the `n`-th uncoupled sector.
 
-        The result is (in general) not a canonical tree::
-
-            TODO draw
-
+        The result is (in general) not a canonical tree.
         We transform it to canonical form via a series of F moves.
         This yields the result as a linear combination of canonical trees.
         We return a dictionary, with those trees as keys and the prefactors as values.
@@ -598,7 +595,7 @@ class FusionTree:
         Returns
         -------
         coefficients : dict
-            Trees and coefficients that form the above map as a linear combination.
+            Trees and coefficients that form the composite map as a linear combination.
             Abusing notation (``FusionTree`` instances can not actually be scaled or added),
             this means ``map = sum(c * t for t, c in coefficient.items())``.
 
@@ -746,8 +743,6 @@ class FusionTree:
 
     def split(self, n: int) -> tuple[FusionTree, FusionTree]:
         """Split into two separate fusion trees.
-
-        TODO cartoon?
 
         Parameters
         ----------

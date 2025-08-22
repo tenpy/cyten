@@ -2,9 +2,6 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 
-# TODO this whole module is a dummy
-
-
 class printoptions:
     """A collection of global config options. The class is used as a namespace"""
     
@@ -22,3 +19,6 @@ class config:
     
     strict_labels = True
     printoptions = printoptions
+    do_fusion_input_checks = True  # If the Symmetry methods should check their inputs are valid
+    default_symmetry_backend = 'abelian'
+    default_block_backend = 'numpy'

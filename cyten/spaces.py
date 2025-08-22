@@ -446,7 +446,7 @@ class Space(metaclass=ABCMeta):
                         ) -> ElementarySpace:
         """Change the symmetry by specifying how the sectors change.
 
-        .. todo ::
+        .. note ::
             This interface assumes that a single sector of the old symmetry is mapped to a single
             sector of the new symmetry, i.e. that the functor that we realize here preserves
             simple objects. This does e.g. not cover the case of relaxing SU(2) to its U(1)
@@ -461,7 +461,6 @@ class Space(metaclass=ABCMeta):
             The map is assumed to cooperate with duality, i.e. we assume without checking that
             ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as
             ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
-            TODO do we need to assume more, i.e. compatibility with fusion? with braiding?
         injective: bool
             If ``True``, the `sector_map` is assumed to be injective, i.e. produce a list of
             unique outputs, if the inputs are unique.
@@ -667,10 +666,6 @@ class ElementarySpace(Space, Leg):
                                     ) -> ElementarySpace:
         """Create an ElementarySpace with multiple independent symmetries.
 
-        TODO this interface is more general than it needs to be. The use case in GroupedSite
-        would allow us to specialize, if that is easier. A given state is in the trivial sector
-        for all but one of the independent_descriptions
-
         Parameters
         ----------
         independent_descriptions : list of :class:`ElementarySpace`
@@ -692,8 +687,11 @@ class ElementarySpace(Space, Leg):
         )
         if not symmetry.can_be_dropped:
             msg = f'from_independent_symmetries is not supported for {symmetry}.'
-            # TODO is there a way to define this?
-            #      the straight-forward picture works only if we have a vector space and can identify states.
+            # TODO is there a way to define this? the straight-forward picture works only if we have
+            #      a vector space and can identify states.
+            #      note: this interface is more general than it needs to be. The use case in
+            #            GroupedSite would allow us to specialize, if that is easier. A given state
+            #            is in the trivial sector for all but one of the independent_descriptions.
             raise SymmetryError(msg)
         sectors_of_basis = np.concatenate([s.sectors_of_basis for s in independent_descriptions],
                                           axis=1)
@@ -1240,7 +1238,7 @@ class ElementarySpace(Space, Leg):
     def with_is_dual(self, is_dual: bool) -> ElementarySpace:
         """A space isomorphic to self with given ``is_dual`` attribute."""
         if is_dual == self.is_dual:
-            return self  # TODO copy?
+            return self
         return self.with_opposite_duality()
 
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
@@ -1317,8 +1315,6 @@ class TensorProduct(Space):
             raise SymmetryError('Incompatible symmetries.')
         self.symmetry = symmetry  # need to set this early, for use in _calc_sectors
         self.factors = factors[:]
-        # TODO add an attr spaces: list[Space] that contains a flat list, where all nesting into
-        #      pipes of factors in flattened??
         if _sector_decomposition is None or _multiplicities is None:
             if _sector_decomposition is not None or _multiplicities is not None:
                 msg = 'Need both _sectors and _multiplicities to skip recomputation. Got just one.'
@@ -1671,9 +1667,6 @@ class TensorProduct(Space):
 
     def _calc_sectors(self, factors: list[Space | Leg]) -> tuple[SectorArray, ndarray]:
         """Helper function for :meth:`__init__`"""
-        # TODO (JU) FTBackend: when a tensor is built, we often iterate over fusion-trees, which
-        #           effectively already computes the fusion here. avoid this double computation
-
         if len(factors) == 0:
             return self.symmetry.trivial_sector[None, :], np.ones([1], int)
 

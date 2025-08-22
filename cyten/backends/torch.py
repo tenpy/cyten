@@ -121,7 +121,7 @@ class TorchBlockBackend(BlockBackend):
         res = torch_module.zeros(shape, dtype=block.dtype, device=block.device)
         idcs = [slice(None, None, None)] * len(shape)
         idcs[axis] = mask
-        res[tuple(idcs)] = block
+        res[tuple(idcs)] = self.copy_block(block)  # OPTIMIZE copy needed?
         return res
     
     def exp(self, a: Block) -> Block:
@@ -147,10 +147,10 @@ class TorchBlockBackend(BlockBackend):
             res = torch_module.device(res.type, index=0)
         return str(res)
 
-    def get_diagonal(self, a: Block, check_offdiagonal: bool) -> Block:
+    def get_diagonal(self, a: Block, tol: float | None) -> Block:
         res = torch_module.diagonal(a)
-        if check_offdiagonal:
-            if not torch_module.allclose(res, torch_module.diag(a)):
+        if tol is not None:
+            if not torch_module.allclose(res, torch_module.diag(a), atol=tol):
                 raise ValueError('Not a diagonal block.')
         return res
 
@@ -200,7 +200,10 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.tensordot(a, b, ([], []))
 
     def permute_axes(self, a: Block, permutation: list[int]) -> Block:
-        return torch_module.permute(a, permutation)  # TODO: this is documented as a view. is that a problem?
+        res = torch_module.permute(a, permutation)
+        # OPTIMIZE copy needed? permute says its a view...
+        res = self.copy_block(res)
+        return res
 
     def random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
         # rand samples between 0 and 1; we want to sample between -1 and 1
@@ -212,7 +215,7 @@ class TorchBlockBackend(BlockBackend):
 
     def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
                       ) -> Block:
-        # TODO Note that if device is CUDA, this function synchronizes the device with the CPU
+        # OPTIMIZE Note that if device is CUDA, this function synchronizes the device with the CPU
         mean = torch_module.zeros(size=dims, dtype=self.backend_dtype_map[dtype],
                                   device=self.as_device(device))
         # avoid complex dtype in std (leads to error in torch_module.normal)
@@ -252,7 +255,6 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.sqrt(a)
 
     def squeeze_axes(self, a: Block, idcs: list[int]) -> Block:
-        # TODO (JU) this is ugly... but torch.squeeze squeezes all axes of dim 1, cant control which
         idx = tuple(0 if ax in idcs else slice(None, None, None) for ax in range(len(a.shape)))
         return a[idx]
 
@@ -297,10 +299,10 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.matmul(a, b)
 
     def matrix_exp(self, matrix: Block) -> Block:
-        raise NotImplementedError  # TODO: could not find a torch implementation via their docs...?
+        raise NotImplementedError
 
     def matrix_log(self, matrix: Block) -> Block:
-        raise NotImplementedError  # TODO: could not find a torch implementation via their docs...?
+        raise NotImplementedError
 
     def matrix_qr(self, a: Block, full: bool) -> tuple[Block, Block]:
         return torch_module.linalg.qr(a, mode='complete' if full else 'reduced')
@@ -336,7 +338,8 @@ class TorchBlockBackend(BlockBackend):
 
     def synchronize(self):
         """Wait for asynchronous processes (if any) to finish"""
-        raise NotImplementedError  # TODO unclear which device to synchronize
+        # how do we know which devices to synchronize??
+        raise NotImplementedError
 
     def zeros(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
         return torch_module.zeros(list(shape), dtype=self.backend_dtype_map[dtype],

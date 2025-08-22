@@ -139,8 +139,9 @@ class NoSymmetryBackend(TensorBackend):
         shape = (co_domain.dim,)
         return func(shape, coupled)
 
-    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool) -> DiagonalData:
-        return self.block_backend.get_diagonal(a.data, check_offdiagonal=check_offdiagonal)
+    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, tol: float | None
+                                         ) -> DiagonalData:
+        return self.block_backend.get_diagonal(a.data, tol=tol)
 
     def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
         return self.block_backend.sum_all(a.data)
@@ -465,12 +466,13 @@ class NoSymmetryBackend(TensorBackend):
         return self.block_backend.trace_full(a.data)
 
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
-                                 degeneracy_tol: float, trunc_cut: float, svd_min: float
+                                 degeneracy_tol: float, trunc_cut: float, svd_min: float,
+                                 minimize_error: bool = True,
                                  ) -> tuple[MaskData, ElementarySpace, float, float]:
         S_np = self.block_backend.to_numpy(S.data)
         keep, err, new_norm = self._truncate_singular_values_selection(
             S=S_np, qdims=None, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol,
-            trunc_cut=trunc_cut, svd_min=svd_min
+            trunc_cut=trunc_cut, svd_min=svd_min, minimize_error=minimize_error
         )
         mask_data = self.block_backend.block_from_numpy(keep, dtype=Dtype.bool)
         if isinstance(S.leg, ElementarySpace):

@@ -23,7 +23,7 @@ dependencies:
   # - libblas=*=*mkl  # pin BLAS to use MKL
   # Testing
   - pytest>=6.0
-  - sympy  # TODO: remove this dependency when no longer needed
+  - sympy
 
   # developer tools
   - ipython

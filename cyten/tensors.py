@@ -401,7 +401,19 @@ class Tensor(metaclass=ABCMeta):
                           ' ' * domain_extra + ' '.join(domain_dims)])
 
     @abstractmethod
-    def as_SymmetricTensor(self) -> SymmetricTensor:
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
+                           ) -> SymmetricTensor:
+        """Convert to a :class:`SymmetricTensor`, if possible.
+
+        Parameters
+        ----------
+        guarantee_copy : bool
+            If already a SymmetricTensor, we do *not* make a copy by default.
+            Set this flag to ``True`` to guarantee a copy.
+        warning : str, optional
+            If given, and if the conversion is non-trivial (i.e. if it was not already a
+            SymmetricTensor to begin with), a warning with this text is issued.
+        """
         ...
 
     @abstractmethod
@@ -1312,10 +1324,11 @@ class SymmetricTensor(Tensor):
             codomain=codomain, domain=domain, backend=backend, labels=labels
         )
 
-    def as_SymmetricTensor(self, warning: str = None) -> SymmetricTensor:
-        # warning is simply ignored.
-        # TODO do we need a copy...?
-        return self.copy()
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
+                           ) -> SymmetricTensor:
+        if guarantee_copy:
+            return self.copy()
+        return self
 
     def copy(self, deep=True, device: str = None) -> SymmetricTensor:
         if deep:
@@ -1376,8 +1389,6 @@ class SymmetricTensor(Tensor):
 
     def to_dense_block_trivial_sector(self) -> Block:
         """Assumes self is a single-leg tensor and returns its components in the trivial sector.
-
-        TODO better name?
 
         See Also
         --------
@@ -1471,8 +1482,10 @@ class DiagonalTensor(SymmetricTensor):
 
     Elementwise Functions
     ---------------------
-    TODO elaborate
-         use examples: :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
+    A bunch of "elementwise" functions can be defined for diagonal tensors.
+    If a function can be defined as a power series in ``D`` and ``D.hc``, its action can be achieved
+    by applying that power series to the diagonal elements individually.
+    E.g. :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
     """
 
     _forbidden_dtypes = []
@@ -1534,7 +1547,7 @@ class DiagonalTensor(SymmetricTensor):
         if backend is None:
             backend = get_backend(symmetry=leg.symmetry)
         block = backend.block_backend.as_block(block, dtype=dtype, device=device)
-        diag = backend.block_backend.get_diagonal(block, check_offdiagonal=True)
+        diag = backend.block_backend.get_diagonal(block, tol=1e-10)
         return cls.from_diag_block(diag, leg=leg, backend=backend, labels=labels, dtype=dtype,
                                    tol=tol)
 
@@ -1606,8 +1619,6 @@ class DiagonalTensor(SymmetricTensor):
             p(T) \propto \mathrm{exp}\left[
                 \frac{1}{2 \sigma^2} \mathrm{Tr} (T - \mathtt{mean}) (T - \mathtt{mean})^\dagger
             \right]
-
-        TODO make sure we actually generate from that distribution in the non-abelian or anyonic case!
 
         Parameters
         ----------
@@ -1714,25 +1725,21 @@ class DiagonalTensor(SymmetricTensor):
         return res
 
     @classmethod
-    def from_tensor(cls, tens: SymmetricTensor, check_offdiagonal: bool = True) -> DiagonalTensor:
+    def from_tensor(cls, tens: SymmetricTensor, tol: float | None = 1e-12) -> DiagonalTensor:
         """Create DiagonalTensor from a Tensor.
 
         Parameters
         ----------
         tens : :class:`Tensor`
-            Must have two legs. Its diagonal entries ``tens[i, i]`` are used.
-        check_offdiagonal : bool
-            If the off-diagonal entries of `tens` should be checked.
-
-        Raises
-        ------
-        ValueError
-            If `check_offdiagonal` and any off-diagonal element is non-zero.
-            TODO should there be a tolerance?
+            Must have exactly two legs. Its diagonal entries ``tens[i, i]`` are used.
+        tol : float | None
+            Tolerance for checking if the `tens` is actually diagonal, in the sense that any
+            "off-diagonal" free parameters that should vanish are smaller than this by magnitude.
+            Set to ``None`` to disable the check.
         """
         assert tens.num_legs == 2
         assert tens.domain == tens.codomain
-        data = tens.backend.diagonal_tensor_from_full_tensor(tens, check_offdiagonal=check_offdiagonal)
+        data = tens.backend.diagonal_tensor_from_full_tensor(tens, tol=tol)
         return cls(data=data, leg=tens.codomain.factors[0], backend=tens.backend, labels=tens.labels)
 
     @classmethod
@@ -1831,7 +1838,8 @@ class DiagonalTensor(SymmetricTensor):
             raise ValueError(f'all is not defined for dtype {self.dtype}')
         return self.backend.diagonal_any(self)
 
-    def as_SymmetricTensor(self, warning: str = None) -> SymmetricTensor:
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
+                           ) -> SymmetricTensor:
         if warning is not None:
             warnings.warn(warning, UserWarning, stacklevel=2)
         return SymmetricTensor(
@@ -2439,7 +2447,8 @@ class Mask(Tensor):
         return DiagonalTensor(data=self.backend.mask_to_diagonal(self, dtype=dtype),
                               leg=self.large_leg, backend=self.backend, labels=self.labels)
 
-    def as_SymmetricTensor(self, dtype=Dtype.complex128, warning: str = None) -> SymmetricTensor:
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None,
+                           dtype=Dtype.complex128) -> SymmetricTensor:
         if warning is not None:
             warnings.warn(warning, UserWarning, stacklevel=2)
         if not self.is_projection:
@@ -2942,8 +2951,11 @@ class ChargedTensor(Tensor):
         """If the :class:`ChargedTensor` concept is well defined for the `symmetry`."""
         return symmetry.has_symmetric_braid
 
-    def as_SymmetricTensor(self) -> SymmetricTensor:
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
+                           ) -> SymmetricTensor:
         """Convert to symmetric tensor, if possible."""
+        if warning is not None:
+            warnings.warn(warning, UserWarning, stacklevel=2)
         if not np.all(self.charge_leg.sector_decomposition == self.symmetry.trivial_sector[None, :]):
             raise SymmetryError('Not a symmetric tensor')
         if self.charge_leg.dim == 1:
@@ -3154,23 +3166,24 @@ def tensor(obj, codomain: Sequence[Leg], domain: Sequence[Leg] = None,
            labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
            dtype: Dtype = None, device: str = None,
            understood_braiding: bool = False) -> SymmetricTensor:
-    """Convert object to tensor if possible.
-
-    TODO elaborate
-    """
+    """Convert object to tensor if possible."""
     if isinstance(obj, Tensor):
+        copied = False
         if codomain != obj.codomain:
             raise ValueError('Mismatching codomain')
         if domain is not None and domain != obj.domain:
             raise ValueError('Mismatching domain')
         if backend is not None and backend != obj.backend:
-            raise ValueError('Mismatching backend')  # TODO or should we convert?
-        if labels is not None:
-            raise NotImplementedError  # TODO
+            raise ValueError('Mismatching backend')
+        if labels is not None and labels != obj._labels:
+            if not copied:
+                obj = obj.copy()
+                copied = True
+            obj.labels = labels
         if dtype is not None:
-            raise NotImplementedError  # TODO
+            raise ValueError('Mismatching dtype')
         if device is not None:
-            raise NotImplementedError  # TODO
+            raise ValueError('Mismatching device')
         return obj.as_SymmetricTensor()
     return SymmetricTensor.from_dense_block(obj, codomain, domain, backend=backend, labels=labels,
                                             dtype=dtype, device=device,
@@ -5772,16 +5785,9 @@ def transpose(tensor: Tensor) -> Tensor:
 
 def truncate_singular_values(S: DiagonalTensor, chi_max: int = None, chi_min: int = 1,
                              degeneracy_tol: float = 0, trunc_cut: float = 0,
-                             svd_min: float = 0, mask_labels: list[str] = None
-                             ) -> tuple[Mask, float, float]:
+                             svd_min: float = 0, minimize_error: bool = True,
+                             mask_labels: list[str] = None) -> tuple[Mask, float, float]:
     r"""Given *normalized* singular values, determine which to keep.
-
-    Several constraints can be specified as keyword arguments.
-    If there are multiple choices that fulfill these constraints, the truncation with
-    the lowest resulting error is chosen, meaning roughly that as many singular values as
-    possible are kept.
-
-    TODO should we offer an option to instead keep as few as necessary?
 
     Parameters
     ----------
@@ -5807,6 +5813,9 @@ def truncate_singular_values(S: DiagonalTensor, chi_max: int = None, chi_min: in
         This is intended to exclude singular values that can not be distinguished from zero at the
         given precision. It does *not* have a direct implication on the resulting truncation error.
         Use `trunc_cut` instead for setting a tolerable error. See notes below for details.
+    minimize_error : bool
+        If we should minimize the resulting truncation error by keeping as many singular values
+        as allowed by the other constraints. Otherwise we keep as few as possible.
     mask_labels : list of str, optional
         The labels for the `mask`. Either a list of two string labels or ``None`` (default).
         By default, the `mask` has labels ``[S.labels[0], dual_label(S.labels[0])]``.
@@ -5847,7 +5856,7 @@ def truncate_singular_values(S: DiagonalTensor, chi_max: int = None, chi_min: in
     assert S.dtype.is_real
     mask_data, new_leg, err, new_norm = S.backend.truncate_singular_values(
         S, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol, trunc_cut=trunc_cut,
-        svd_min=svd_min
+        svd_min=svd_min, minimize_error=minimize_error
     )
     if mask_labels is None:
         mask_labels = [S.labels[0], _dual_leg_label(S.labels[0])]
