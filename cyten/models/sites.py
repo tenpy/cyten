@@ -63,7 +63,7 @@ class SpinSite(SpinDOF):
         elif conserve in ['Sz', 'U(1)', 'U1']:
             sym = U1Symmetry('2*Sz')
             leg = ElementarySpace.from_basis(sym, np.arange(-two_S, two_S + 2, 2)[:, None])
-        elif conserve in ['parity', 'Z_2', 'Z2']:
+        elif conserve in ['parity', 'Sz_parity', 'Z_2', 'Z2']:
             sym = ZNSymmetry(2, 'Sz_parity')
             leg = ElementarySpace.from_basis(sym, np.arange(dim)[:, None] % 2)
         elif conserve in ['None', 'none', None]:
