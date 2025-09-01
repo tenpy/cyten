@@ -33,8 +33,8 @@ class Coupling:
         The sites that the operators act on.
     factorization : list of :class:`SymmetricTensor`
         A list of tensors that, if contracted, give the operator that is represented.
-        Each tensor ``factorization[i]`` has legs ``[wL, p, wR, p*]``, where ``p`` and ``p*`` are
-        the physical :attr:`Site.leg` of the corresponding ``sites[i]``, and where contracting
+        Each tensor ``factorization[i]`` has legs ``[wL, pi, wR, pi*]``, where ``pi`` and ``pi*``
+        are the physical :attr:`Site.leg` of the corresponding ``sites[i]``, and where contracting
         the ``wL`` and ``wR`` legs in an MPO-like geometry gives the multi-site operator.
         TODO should we rename vL/vR to wL/wR to match tenpy MPO convention?
         TODO do we want to keep the convention ``[wL, p, wR, p*]`` or maybe change it to
@@ -56,16 +56,16 @@ class Coupling:
     def test_sanity(self):
         backend = get_same_DOF_backend(*self.sites)
         device = get_same_DOF_device(*self.sites)
-        for s, W in zip(self.sites, self.factorization):
+        for i, (s, W) in enumerate(zip(self.sites, self.factorization)):
             s.test_sanity()
             W.test_sanity()
             assert W.backend == backend
             assert W.device == device
             assert W.num_codomain_legs == 2
             assert W.num_domain_legs == 2
-            assert W.labels == ['wL', 'p', 'wR', 'p*']
-            assert W.get_leg_co_domain('p') == s.leg
-            assert W.get_leg_co_domain('p*') == s.leg
+            assert W.labels == ['wL', f'p{i}', 'wR', f'p{i}*']
+            assert W.get_leg_co_domain(f'p{i}') == s.leg
+            assert W.get_leg_co_domain(f'p{i}*') == s.leg
         assert self.factorization[0].get_leg('wL').is_trivial
         for W1, W2 in zip(self.factorization[:-1], self.factorization[1:]):
             assert W1.get_leg_co_domain('wR') == W2.get_leg_co_domain('wL')
@@ -174,8 +174,6 @@ class Coupling:
         U = add_trivial_leg(U, codomain_pos=0, label='wL')
         factorization.append(U)
         factorization = factorization[::-1]
-        for i, tens in enumerate(factorization):
-            tens.relabel({f'p{i}': 'p', f'p{i}*': 'p*'})
         return Coupling(sites=sites, factorization=factorization, name=name)
 
     def to_tensor(self) -> SymmetricTensor:
@@ -268,9 +266,7 @@ def spin_spin_coupling(sites: list[SpinDOF], xx: float = None, yy: float = None,
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
     h = np.transpose(h, [0, 2, 3, 1])
-    backend = get_same_DOF_backend(*sites)
-    device = get_same_DOF_device(*sites)
-    return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
+    return Coupling.from_dense_block(h, sites, name=name)
 
 
 def spin_field_coupling(sites: list[SpinDOF], hx: float = None, hy: float = None,
@@ -295,9 +291,7 @@ def spin_field_coupling(sites: list[SpinDOF], hx: float = None, hy: float = None
         h += hz * s[:, :, 2]
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
-    backend = get_same_DOF_backend(*sites)
-    device = get_same_DOF_device(*sites)
-    return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
+    return Coupling.from_dense_block(h, sites, name=name)
 
 
 def aklt_coupling(sites: list[SpinDOF], name: str = 'AKLT') -> Coupling:
@@ -321,9 +315,7 @@ def aklt_coupling(sites: list[SpinDOF], name: str = 'AKLT') -> Coupling:
     S_dot_S = np.transpose(S_dot_S, [0, 2, 3, 1])
     S_dot_S_square = np.tensordot(S_dot_S, S_dot_S, axes=[[3, 2], [0, 1]])
     h = S_dot_S + S_dot_S_square / 3.
-    backend = get_same_DOF_backend(*sites)
-    device = get_same_DOF_device(*sites)
-    return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
+    return Coupling.from_dense_block(h, sites, name=name)
 
 
 def heisenberg_coupling(sites: list[SpinDOF], name: str = 'S.S') -> Coupling:
@@ -339,9 +331,7 @@ def chiral_3spin_coupling(sites: list[SpinDOF], name: str = 'S.SxS') -> Coupling
                    axis=4)  # [p1, p2, p2*, p1*, i]
     h = np.tensordot(sites[0].spin_vector, SxS, (-1, -1))  # [p0, p0*, p1, p2, p2*, p1*]
     h = np.transpose(h, [0, 2, 3, 4, 5, 1])
-    backend = get_same_DOF_backend(*sites)
-    device = get_same_DOF_device(*sites)
-    return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
+    return Coupling.from_dense_block(h, sites, name=name)
 
 
 # BOSON AND FERMION COUPLINGS
@@ -439,9 +429,7 @@ def clock_clock_coupling(sites: list[ClockDOF], xx: float = None, zz: float = No
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
     h = np.transpose(h, [0, 2, 3, 1])
-    backend = get_same_DOF_backend(*sites)
-    device = get_same_DOF_device(*sites)
-    return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
+    return Coupling.from_dense_block(h, sites, name=name)
 
 
 def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = None,
@@ -466,9 +454,7 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
         h += hz * Zphc
     if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
-    backend = get_same_DOF_backend(*sites)
-    device = get_same_DOF_device(*sites)
-    return Coupling.from_dense_block(h, sites, name=name, backend=backend, device=device)
+    return Coupling.from_dense_block(h, sites, name=name)
 
 
 # ANYONIC COUPLINGS

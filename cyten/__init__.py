@@ -29,11 +29,12 @@ from .symmetries import (
     fibonacci_anyon_category, ising_anyon_category
 )
 from .tensors import (
-    SymmetricTensor, DiagonalTensor, Mask, ChargedTensor, add_trivial_leg, angle, almost_equal,
-    apply_mask, bend_legs, combine_legs, combine_to_matrix, complex_conj, dagger, compose, eigh,
-    enlarge_leg, entropy, exp, eye, imag, inner, is_scalar, item, move_leg, norm, on_device, outer,
-    partial_trace, permute_legs, pinv, qr, real, real_if_close, lq, scale_axis, split_legs, sqrt,
-    squeeze_legs, stable_log, svd, tdot, tensor, trace, transpose, truncated_svd, zero_like
+    Tensor, SymmetricTensor, DiagonalTensor, Mask, ChargedTensor, add_trivial_leg, angle,
+    almost_equal, apply_mask, bend_legs, combine_legs, combine_to_matrix, complex_conj, dagger,
+    compose, eigh, enlarge_leg, entropy, exp, eye, imag, inner, is_scalar, item, move_leg, norm,
+    on_device, outer, partial_trace, permute_legs, pinv, qr, real, real_if_close, lq, scale_axis,
+    split_legs, sqrt, squeeze_legs, stable_log, svd, tdot, tensor, trace, transpose, truncated_svd,
+    zero_like
 )
 from .trees import FusionTree, fusion_trees
 from .version import version as __version__
@@ -42,7 +43,12 @@ from .version import full_version as __full_version__
 
 # subpackages
 from .backends import get_backend
-from .models import SpinSite, SpinHalfFermionSite
+from .models import (
+    SpinSite, SpinlessBosonSite, SpinlessFermionSite, SpinHalfFermionSite, ClockSite, GoldenSite,
+    Coupling, OnSiteOperator, spin_spin_coupling, spin_field_coupling, aklt_coupling,
+    heisenberg_coupling, chiral_3spin_coupling, chemical_potential, onsite_interaction,
+    nearest_neighbor_interaction, clock_clock_coupling, clock_field_coupling, gold_coupling
+)
 # from .testing import
 # from .tools import
 
