@@ -5452,9 +5452,9 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
                 continue
             right_ops[i] = new_op
             break
-    right_spaces = [op.domain[-1] for op in right_ops]
-    if None in right_spaces:
+    if any(op is None for op in right_ops):
         raise ValueError('Must have at least one nonzero entry in each column.')
+    right_spaces = [op.domain[-1] for op in right_ops]
 
     left_ops = transposed_grid[0]
     for i, op in enumerate(left_ops):
@@ -5466,9 +5466,9 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
                 continue
             left_ops[i] = new_op
             break
-    left_spaces = [op.codomain[0] for op in left_ops]
-    if None in left_spaces:
+    if any(op is None for op in left_ops):
         raise ValueError('Must have at least one nonzero entry in each row.')
+    left_spaces = [op.codomain[0] for op in left_ops]
 
     left_space = left_spaces[0].direct_sum(*left_spaces[1:])
     right_space = right_spaces[0].direct_sum(*right_spaces[1:])
