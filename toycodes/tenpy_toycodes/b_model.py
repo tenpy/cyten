@@ -2,16 +2,19 @@
 # Copyright (C) TeNPy Developers, Apache license
 import cyten as ct
 import numpy as np
+import scipy.sparse as scisp
+from scipy.sparse.linalg import eigsh
 
 
 class TFIModel:
     """TFI: -J XX - g Z"""
 
-    def __init__(self, L, J, g, bc='finite'):
+    def __init__(self, L: int, J: float, g: float, bc: str = 'finite',
+                 conserve: str = 'none', backend: ct.backends.TensorBackend | None = None):
         assert bc in ['finite', 'infinite']
-        # TODO should we add subclasse for most important case Z2?
-        self.symmetry = sym = ct.ZNSymmetry(2, 'Sz_parity')
-        self.phys_leg = ct.ElementarySpace(sym, [[0], [1]])  # basis : [down, up]
+        self.phys_leg = ct.SpinSite(S=0.5, conserve=conserve, backend=backend)
+        self.backend = backend
+        self.symmetry = self.phys_leg.symmetry
         self.L = L
         self.bc = bc
         self.J = J
@@ -26,13 +29,16 @@ class TFIModel:
         """
         nbonds = self.L - 1 if self.bc == 'finite' else self.L
         p = self.phys_leg
-        sx = np.array([[0, 1], [1, 0]], float)
-        XX = ct.SymmetricTensor.from_dense_block(sx[:, None, None, :] * sx[None, :, :, None], [p, p], [p, p],
-                                                 labels=['p0', 'p1', 'p1*', 'p0*'])
-        Z = ct.SymmetricTensor.from_dense_block([[1, 0], [0, -1]], [p], [p], labels=['p', 'p*'])
-        I = ct.SymmetricTensor.from_eye([p], labels=['p'])
-        IZ = ct.outer(I, Z, {'p': 'p0', 'p*': 'p0*'}, {'p': 'p1', 'p*': 'p1*'})
-        ZI = ct.outer(I, Z, {'p': 'p0', 'p*': 'p0*'}, {'p': 'p1', 'p*': 'p1*'})
+
+        # this currently constructs the tensors, splits them for the coupling
+        # and then recomputes the tensor again in order to form a superposition...
+        # factors 2 and 4 due to difference between spin and Pauli matrices
+        XX = ct.spin_spin_coupling(sites=[p, p], xx=4).to_tensor()
+        Z = ct.spin_field_coupling(sites=[p], hz=2).to_tensor()
+        I = ct.SymmetricTensor.from_eye([p.leg], labels=['p'], backend=self.backend)
+        IZ = ct.outer(I, Z, {'p': 'p0', 'p*': 'p0*'}, {'p0': 'p1', 'p0*': 'p1*'})
+        ZI = ct.outer(Z, I, None, {'p': 'p1', 'p*': 'p1*'})
+
         H_list = []
         for i in range(nbonds):
             gL = gR = 0.5 * self.g
@@ -51,19 +57,50 @@ class TFIModel:
         Called by __init__().
         """
         p = self.phys_leg
-        v = ct.ElementarySpace.from_basis(self.symmetry, [[0], [1], [0]])  # basis [IdL A IdR]
-        w_list = []
-        sx = np.array([[0, 1], [1, 0]], float)
-        sz = np.array([[1, 0], [0, -1]], float)
-        for i in range(self.L):
-            w = np.zeros((3, 3, self.d, self.d), dtype=float)
-            w[0, 0] = w[2, 2] = np.eye(2)
-            w[0, 1] = sx
-            w[0, 2] = -self.g * sz
-            w[1, 2] = -self.J * sx
-            w = ct.SymmetricTensor.from_dense_block(w, [v, p], [p, v], labels=['vL', 'p', 'vR', 'p*'])
-            w_list.append(w)
-        self.H_mpo = w_list
+        XX = ct.spin_spin_coupling(sites=[p, p], xx=4)
+        Z = ct.spin_field_coupling(sites=[p], hz=2)
+        I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
+        I = ct.Coupling.from_tensor(I, [p])
+        
+        grid = [[I.factorization[0], -self.J * XX.factorization[0], -self.g * Z.factorization[0]],
+                [None, None, XX.factorization[1]],
+                [None, None, I.factorization[0]]]
+        W = ct.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
+        self.H_mpo = [W] * self.L
+
+
+def tfi_finite_gs_energy(L: int, J: float, g: float):
+    """For comparison: obtain ground state energy from exact diagonalization.
+
+    Exponentially expensive in L, only works for small enough `L` <~ 20.
+    """
+    # get single site operaors
+    sx = scisp.csr_matrix(np.array([[0., 1.], [1., 0.]]))
+    sz = scisp.csr_matrix(np.array([[1., 0.], [0., -1.]]))
+    id = scisp.csr_matrix(np.eye(2))
+    sx_list = []  # sx_list[i] = kron([id, id, ..., id, sx, id, .... id])
+    sz_list = []
+    for i_site in range(L):
+        x_ops = [id] * L
+        z_ops = [id] * L
+        x_ops[i_site] = sx
+        z_ops[i_site] = sz
+        X = x_ops[0]
+        Z = z_ops[0]
+        for j in range(1, L):
+            X = scisp.kron(X, x_ops[j], 'csr')
+            Z = scisp.kron(Z, z_ops[j], 'csr')
+        sx_list.append(X)
+        sz_list.append(Z)
+    H_xx = scisp.csr_matrix((2**L, 2**L))
+    H_z = scisp.csr_matrix((2**L, 2**L))
+    for i in range(L - 1):
+        H_xx = H_xx + sx_list[i] * sx_list[(i + 1) % L]
+    for i in range(L):
+        H_z = H_z + sz_list[i]
+    H = -J * H_xx - g * H_z
+    E, V = eigsh(H, k=1, which='SA', return_eigenvectors=True, ncv=20)
+    return E[0]
 
 
 def main():
