@@ -106,7 +106,7 @@ def tfi_finite_gs_energy(L: int, J: float, g: float):
 def main():
     print('Running this example module just initilizes the TFI model.')
     _ = TFIModel(L=10, J=1, g=0.8, bc='finite')
-    _ = TFIModel(L=10, J=1, g=0.8, bc='infinite')
+    _ = TFIModel(L=10, J=1, g=0.8, bc='infinite', conserve='Z2')
 
 
 if __name__ == '__main__':
