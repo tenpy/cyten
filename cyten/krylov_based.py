@@ -4,7 +4,7 @@ from abc import ABCMeta, abstractmethod
 import numpy as np
 import logging
 
-from .tensors import Tensor
+from .tensors import Tensor, inner, norm, scalar_multiply
 from .sparse import LinearOperator, ShiftedLinearOperator, ProjectedLinearOperator
 from .tools.misc import argsort  # TODO replace this?
 
@@ -167,14 +167,14 @@ class KrylovBased(metaclass=ABCMeta):
 
         self._rebuild_krylov_for_result_full(psif, N - len_cache - 1)
 
-        psif_norm = psif.norm()
+        psif_norm = norm(psif)
         if abs(1. - psif_norm) > 1.e-5:
             # One reason can be that `H` is not Hermitian
             # Otherwise, the matrix (even if small) might be ill conditioned.
             # If you get this warning, you can try to set the parameters
             # `reortho`=True and `N_cache` >= `N_max`
             logger.warning("poorly conditioned H matrix in KrylovBased! |psi_0| = %f", psif_norm)
-        return psif.multiply_scalar(1. / psif_norm)
+        return scalar_multiply(1. / psif_norm, psif)
 
     def _to_cache(self, psi):
         """Add psi to cache, keep at most self.N_cache."""
@@ -240,18 +240,18 @@ class Arnoldi(KrylovBased):
         """
         h = self._h_krylov
         w = self.psi0  # initialize
-        norm = w.norm()
-        self.psi0 = w / norm
+        w_norm = norm(w)
+        self.psi0 = w / w_norm
         for k in range(self.N_max):
-            w = w.multiply_scalar(1. / norm)
+            w = scalar_multiply(1. / w_norm, w)
             self._to_cache(w)
             w = self.H.matvec(w)
             for i, v_i in enumerate(self._cache):
-                h[i, k] = ov = v_i.inner(w)
+                h[i, k] = ov = inner(v_i, w)
                 w += -ov * v_i
-            h[k + 1, k] = norm = w.norm()
+            h[k + 1, k] = w_norm = norm(w)
             self._calc_result_krylov(k)
-            if norm < self._cutoff or (k + 1 >= self.N_min and self._converged(k)):
+            if w_norm < self._cutoff or (k + 1 >= self.N_min and self._converged(k)):
                 break
         return k + 1
 
@@ -289,14 +289,14 @@ class Arnoldi(KrylovBased):
             for k in range(1, N):
                 psi += vf[k] * krylov_basis[k]
 
-            psi_norm = psi.norm()
+            psi_norm = norm(psi)
             if abs(1. - psi_norm) > 1.e-5:
                 # One reason can be that `H` is not Hermitian
                 # Otherwise, the matrix (even if small) might be ill conditioned.
                 # If you get this warning, you can try to set the parameters
                 # `reortho`=True and `N_cache` >= `N_max`
                 logger.warning("poorly conditioned H matrix in Arnoldi! |psi| = %f", psi_norm)
-            psis.append(psi._mul_scalar(1. / psi_norm))
+            psis.append(scalar_multiply(1. / psi_norm, psi))
         return psis
 
     def _to_cache(self, psi):
@@ -341,8 +341,8 @@ class LanczosGroundState(KrylovBased):
 
     def __init__(self, H, psi0: Tensor, options):
         super().__init__(H=H, psi0=psi0, options=options)
-        self.E_tol = self.options.get('E_tol', np.inf)
-        self.N_cache = self.options.get('N_cache', self.N_max)
+        self.E_tol = options.get('E_tol', np.inf)
+        self.N_cache = options.get('N_cache', self.N_max)
         if self.N_cache < 2:
             raise ValueError("Need to cache at least two vectors.")
 
@@ -379,25 +379,25 @@ class LanczosGroundState(KrylovBased):
         """
         h = self._h_krylov
         w = self.psi0  # initialize
-        beta = w.norm()
+        beta = norm(w)
         self.psi0 = w / beta
         if self._psi0_norm is None:
             # this is only needed for normalization in LanczosEvolution
             self._psi0_norm = beta
         for k in range(self.N_max):
-            w = w._mul_scalar(1. / beta)
+            w = scalar_multiply(1. / beta, w)
             self._to_cache(w)
             w = self.H.matvec(w)
-            alpha = w.inner(self._cache[-1]).real
+            alpha = inner(w, self._cache[-1]).real
             h[k, k] = alpha
             self._calc_result_krylov(k)
             w -= alpha * self._cache[-1]
             if self.reortho:
                 for c in self._cache[:-1]:
-                    w -= c.inner(w) * c
+                    w -= inner(c, w) * c
             elif k > 0:
                 w -= beta * self._cache[-2]
-            beta = w.norm()
+            beta = norm(w)
             h[k, k + 1] = h[k + 1, k] = beta  # needed for the next step and convergence criteria
             if abs(beta) < self._cutoff or (k + 1 >= self.N_min and self._converged(k)):
                 break
@@ -423,7 +423,7 @@ class LanczosGroundState(KrylovBased):
             w -= alpha * self._cache[-1]
             if self.reortho:
                 for c in self._cache[:-1]:
-                    w -= c.inner(w) * c
+                    w -= inner(c, w) * c
             elif k > 0:
                 w -= beta * self._cache[-2]  # noqa: F821
             beta = h[k, k + 1]  # = norm(w)
