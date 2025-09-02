@@ -35,6 +35,7 @@ class SimpleMPS:
         self.Ss = Ss
         self.bc = bc
         self.L = len(Bs)
+        self.backend = ct.tensors.get_same_backend(*Bs, *Ss)
         self.nbonds = self.L - 1 if self.bc == 'finite' else self.L
 
     def copy(self):
@@ -118,31 +119,61 @@ class SimpleMPS:
         return ct.item(C)
 
 
-def init_FM_MPS(L, d=2, bc='finite', backend='abelian'):
+def init_FM_MPS(L, d=2, bc='finite', backend='abelian', conserve='none'):
     """Return a ferromagnetic MPS (= product state with all spins up)"""
     if backend in ['no_symmetry', 'abelian', 'fusion_tree']:
         backend = ct.get_backend(backend, 'numpy')
-    p = ct.ElementarySpace.from_trivial_sector(d)
-    v = ct.ElementarySpace.from_trivial_sector(1)
     B = np.array([1] + [0] * (d - 1), float)[None, :, None]
-    B = ct.tensor(B, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
-    S = ct.eye(p, backend=backend, labels=['vL', 'vR'])
+    if conserve == 'none':
+        p = ct.ElementarySpace.from_trivial_sector(d)
+        v = ct.ElementarySpace.from_trivial_sector(1)
+        B = ct.tensor(B, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
+        S = ct.eye(v, backend=backend, labels=['vL', 'vR'])
+    elif conserve == 'Z2':
+        sym = ct.symmetries.ZNSymmetry(2, 'Sz_parity')
+        p = ct.ElementarySpace.from_basis(sym, np.arange(d)[:, None] % 2)
+        v = ct.ElementarySpace.from_trivial_sector(1, sym)
+        B = ct.SymmetricTensor.from_dense_block(B, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
+        S = ct.eye(v, backend=backend, labels=['vL', 'vR'])
+    else:
+        raise ValueError
     return SimpleMPS([B] * L, [S] * L, bc=bc)
 
 
-def init_Neel_MPS(L, d=2, bc='finite', backend='abelian'):
+def init_Neel_MPS(L, d=2, bc='finite', backend='abelian', conserve='none'):
     """Return a Neel state MPS (= product state with alternating spins up  down up down... )"""
     assert bc == 'finite' or L % 2 == 0
     if backend in ['no_symmetry', 'abelian', 'fusion_tree']:
         backend = ct.get_backend(backend, 'numpy')
-    p = ct.ElementarySpace.from_trivial_sector(d)
-    v = ct.ElementarySpace.from_trivial_sector(1)
     B1 = np.array([1] + [0] * (d - 1), float)[None, :, None]
-    B1 = ct.SymmetricTensor.from_dense_block(B1, [v, p, v], labels=['vL', 'p', 'vR'], backend=backend)
     B2 = np.array([0] * (d - 1) + [1], float)[None, :, None]
-    B2 = ct.SymmetricTensor.from_dense_block(B2, [v, p, v], labels=['vL', 'p', 'vR'], backend=backend)
-    S = ct.DiagonalTensor.from_eye(p, backend=backend, labels=['vL', 'vR'])
-    return SimpleMPS([B1, B2] * (L // 2) + [B1] * (L % 2), [S] * L, bc=bc)
+    if conserve == 'none':
+        p = ct.ElementarySpace.from_trivial_sector(d)
+        v = ct.ElementarySpace.from_trivial_sector(1)
+        B1 = ct.SymmetricTensor.from_dense_block(B1, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
+        B2 = ct.SymmetricTensor.from_dense_block(B2, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
+        S = ct.DiagonalTensor.from_eye(v, backend=backend, labels=['vL', 'vR'])
+        B_list = [B1, B2] * (L // 2) + [B1] * (L % 2)
+        S_list = [S] * L
+    elif conserve == 'Z2':
+        sym = ct.symmetries.ZNSymmetry(2, 'Sz_parity')
+        p = ct.ElementarySpace.from_basis(sym, np.arange(d)[:, None] % 2)
+        v1 = ct.ElementarySpace.from_trivial_sector(1, sym)
+        v2 = ct.ElementarySpace.from_defining_sectors(sym, [[1]])
+        v2.test_sanity()
+        B11 = ct.SymmetricTensor.from_dense_block(B1, [v1, p], [v1], labels=['vL', 'p', 'vR'], backend=backend)
+        B12 = ct.SymmetricTensor.from_dense_block(B1, [v2, p], [v2], labels=['vL', 'p', 'vR'], backend=backend)
+        B21 = ct.SymmetricTensor.from_dense_block(B2, [v1, p], [v2], labels=['vL', 'p', 'vR'], backend=backend)
+        B22 = ct.SymmetricTensor.from_dense_block(B2, [v2, p], [v1], labels=['vL', 'p', 'vR'], backend=backend)
+        S1 = ct.DiagonalTensor.from_eye(v1, backend=backend, labels=['vL', 'vR'])
+        S2 = ct.DiagonalTensor.from_eye(v2, backend=backend, labels=['vL', 'vR'])
+        B_list = [B11, B21, B12, B22]
+        B_list = B_list * (L // 4) + B_list[:L % 4]
+        S_list = [S1, S1, S2, S2]
+        S_list = S_list * (L // 4) + S_list[:L % 4]
+    else:
+        raise ValueError
+    return SimpleMPS(B_list, S_list, bc=bc)
 
 
 def split_truncate_theta(theta, chi_max, eps):
@@ -173,8 +204,10 @@ def split_truncate_theta(theta, chi_max, eps):
     B : SymmetricTensor
         Right-canonical matrix on site j, with legs ``vL, p, vR``
     """
-    ct.svd()
     A, S, B, _, _ = ct.truncated_svd(theta, ['vR', 'vL'], chi_max=chi_max, svd_min=eps)
+    B = ct.permute_legs(B, codomain=['vL', 'p1'], bend_right=True)
+    A.relabel({'p0': 'p'})
+    B.relabel({'p1': 'p'})
     return A, S, B
 
 
