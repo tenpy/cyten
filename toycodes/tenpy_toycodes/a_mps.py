@@ -59,7 +59,7 @@ class SimpleMPS:
 
     def get_chi(self):
         """Return bond dimensions."""
-        return [self.Bs[i].get_leg_co_domain('vR').dim for i in range(self.nbonds)]
+        return [sum(self.Bs[i].get_leg_co_domain('vR').multiplicities) for i in range(self.nbonds)]
 
     def site_expectation_value(self, op: ct.Tensor):
         """Calculate expectation values of a local operator at each site.
@@ -174,6 +174,24 @@ def init_Neel_MPS(L, d=2, bc='finite', backend='abelian', conserve='none'):
     else:
         raise ValueError
     return SimpleMPS(B_list, S_list, bc=bc)
+
+
+def init_SU2_sym_MPS(L, d=2, bc='finite', backend=None):
+    """Return the simplest SU(2) symmetric MPS (neighboring spins form singlets)"""
+    assert L % 2 == 0
+    if backend is None:
+        backend = ct.get_backend('fusion_tree', 'numpy')
+    sym = ct.symmetries.SU2Symmetry('spin')
+    p = ct.ElementarySpace.from_defining_sectors(sym, [[d - 1]])
+    v1 = ct.ElementarySpace.from_trivial_sector(1, sym)
+    v2 = p
+    B1 = ct.SymmetricTensor.from_block_func(lambda x: np.ones(x), [v1, p], [v2],
+                                            labels=['vL', 'p', 'vR'], backend=backend)
+    B2 = ct.SymmetricTensor.from_block_func(lambda x: np.ones(x), [v2, p], [v1],
+                                            labels=['vL', 'p', 'vR'], backend=backend)
+    S1 = ct.DiagonalTensor.from_eye(v1, backend=backend, labels=['vL', 'vR'])
+    S2 = ct.DiagonalTensor.from_eye(v2, backend=backend, labels=['vL', 'vR'])
+    return SimpleMPS([B1, B2] * (L // 2), [S1, S2] * (L // 2), bc=bc)
 
 
 def split_truncate_theta(theta, chi_max, eps):

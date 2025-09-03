@@ -91,6 +91,7 @@ class DMRGEngine(object):
         self.chi_max = chi_max
         self.eps = eps
         self.max_E_err = max_E_err
+        self.n_sweeps = 0
         self.energies = []
         # initialize left and right environment
         self.LPs[0] = self.init_LP()
@@ -144,6 +145,7 @@ class DMRGEngine(object):
         # sweep from right to left
         for i in range(self.psi.nbonds - 1, 0, -1):
             self.update_bond(i)
+        self.n_sweeps += 1
 
     def update_bond(self, i):
         j = i + 1
