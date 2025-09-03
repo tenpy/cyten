@@ -5442,7 +5442,7 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
         assert isinstance(op.domain[-1], ElementarySpace)
 
     transposed_grid = list(map(list, zip(*grid)))
-    right_ops = grid[0]
+    right_ops = grid[0][:]
     for i, op in enumerate(right_ops):
         if op is not None:
             continue
