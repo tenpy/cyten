@@ -69,7 +69,49 @@ class TFIModel:
         self.H_mpo = [W] * self.L
 
 
-def tfi_finite_gs_energy(L: int, J: float, g: float):
+class HeisenbergModel:
+    """J (XX + YY + ZZ)"""
+
+    def __init__(self, L: int, J: float, bc: str = 'finite',
+                 conserve: str = 'none', backend: ct.backends.TensorBackend | None = None):
+        assert bc in ['finite', 'infinite']
+        self.phys_leg = ct.SpinSite(S=0.5, conserve=conserve, backend=backend)
+        self.backend = backend
+        self.symmetry = self.phys_leg.symmetry
+        self.L = L
+        self.bc = bc
+        self.J = J
+        self.init_H_bonds()
+        self.init_H_mpo()
+
+    def init_H_bonds(self):
+        """Initialize `H_bonds` hamiltonian.
+
+        Called by __init__().
+        """
+        nbonds = self.L - 1 if self.bc == 'finite' else self.L
+        p = self.phys_leg
+        SdotS = ct.spin_spin_coupling(sites=[p, p], xx=4, yy=4, zz=4).to_tensor()
+        self.H_bonds = [self.J * SdotS] * nbonds
+
+    # (note: not required for TEBD)
+    def init_H_mpo(self):
+        """Initialize `H_mpo` Hamiltonian.
+
+        Called by __init__().
+        """
+        p = self.phys_leg
+        SdotS = ct.spin_spin_coupling(sites=[p, p], xx=4, yy=4, zz=4)
+        I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
+        I = ct.Coupling.from_tensor(I, [p])
+        grid = [[I.factorization[0], self.J * SdotS.factorization[0], None],
+                [None, None, SdotS.factorization[1]],
+                [None, None, I.factorization[0]]]
+        W = ct.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
+        self.H_mpo = [W] * self.L
+
+
+def tfi_finite_gs_energy(L: int, J: float, g: float) -> float:
     """For comparison: obtain ground state energy from exact diagonalization.
 
     Exponentially expensive in L, only works for small enough `L` <~ 20.
@@ -99,6 +141,46 @@ def tfi_finite_gs_energy(L: int, J: float, g: float):
     for i in range(L):
         H_z = H_z + sz_list[i]
     H = -J * H_xx - g * H_z
+    E, V = eigsh(H, k=1, which='SA', return_eigenvectors=True, ncv=20)
+    return E[0]
+
+
+def heisenberg_finite_gs_energy(L: int, J: float) -> float:
+    """For comparison: obtain ground state energy from exact diagonalization.
+
+    Exponentially expensive in L, only works for small enough `L` <~ 20.
+    """
+    # get single site operaors
+    sx = scisp.csr_matrix(np.array([[0., 1.], [1., 0.]]))
+    sy = scisp.csr_matrix(np.array([[0., -1.j], [1.j, 0.]]))
+    sz = scisp.csr_matrix(np.array([[1., 0.], [0., -1.]]))
+    id = scisp.csr_matrix(np.eye(2))
+    sx_list = []  # sx_list[i] = kron([id, id, ..., id, sx, id, .... id])
+    sy_list = []
+    sz_list = []
+    for i_site in range(L):
+        x_ops = [id] * L
+        y_ops = [id] * L
+        z_ops = [id] * L
+        x_ops[i_site] = sx
+        y_ops[i_site] = sy
+        z_ops[i_site] = sz
+        X = x_ops[0]
+        Y = y_ops[0]
+        Z = z_ops[0]
+        for j in range(1, L):
+            X = scisp.kron(X, x_ops[j], 'csr')
+            Y = scisp.kron(Y, y_ops[j], 'csr')
+            Z = scisp.kron(Z, z_ops[j], 'csr')
+        sx_list.append(X)
+        sy_list.append(Y)
+        sz_list.append(Z)
+    H = scisp.csr_matrix((2**L, 2**L))
+    for i in range(L - 1):
+        H += sx_list[i] * sx_list[(i + 1) % L]
+        H += sy_list[i] * sy_list[(i + 1) % L]
+        H += sz_list[i] * sz_list[(i + 1) % L]
+    H *= J
     E, V = eigsh(H, k=1, which='SA', return_eigenvectors=True, ncv=20)
     return E[0]
 

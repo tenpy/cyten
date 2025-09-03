@@ -8,8 +8,10 @@ import os
 import sys
 
 import cyten as ct
-from toycodes.tenpy_toycodes.a_mps import init_FM_MPS
-from toycodes.tenpy_toycodes.b_model import TFIModel, tfi_finite_gs_energy
+from toycodes.tenpy_toycodes.a_mps import init_FM_MPS, init_Neel_MPS, init_SU2_sym_MPS
+from toycodes.tenpy_toycodes.b_model import (
+    HeisenbergModel, TFIModel, heisenberg_finite_gs_energy, tfi_finite_gs_energy
+)
 from toycodes.tenpy_toycodes.d_dmrg import DMRGEngine
 
 
@@ -19,6 +21,21 @@ tenpy_toycodes = repo_root.joinpath('toycodes').joinpath('tenpy_toycodes')
 tenpy_toycode_modules = [str(tenpy_toycodes.joinpath(f))
                          for f in os.listdir(tenpy_toycodes)
                          if f.endswith('.py')]
+
+
+def test_dmrg_heisenberg():
+    backend = ct.backends.FusionTreeBackend(ct.backends.NumpyBlockBackend())
+    L = 8
+    e_exact = heisenberg_finite_gs_energy(L, J=1)
+    for conserve in ['none', 'Z2', 'SU2']:
+        if conserve == 'SU2':
+            psi = init_SU2_sym_MPS(L, backend=backend)
+        else:
+            psi = init_Neel_MPS(L, backend=backend, conserve=conserve)
+        model = HeisenbergModel(L, J=1, backend=backend, conserve=conserve)
+        dmrg = DMRGEngine(psi, model)
+        e = dmrg.run()
+        assert abs(e - e_exact) < 1e-10
 
 
 def test_dmrg_tfi(np_random):
