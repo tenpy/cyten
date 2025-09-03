@@ -15,7 +15,7 @@ from toycodes.tenpy_toycodes.b_model import (
 from toycodes.tenpy_toycodes.d_dmrg import DMRGEngine
 
 
-repo_root = Path(__file__).parent.parent
+repo_root = Path(__file__).parent.parent.parent
 assert repo_root.joinpath('pyproject.toml').exists()  # make sure this is the root!
 tenpy_toycodes = repo_root.joinpath('toycodes').joinpath('tenpy_toycodes')
 tenpy_toycode_modules = [str(tenpy_toycodes.joinpath(f))
