@@ -1240,7 +1240,7 @@ class SymmetricTensor(Tensor):
 
         def func(shape: tuple[int, ...], coupled: Sector):
             if np.all(coupled == sector):
-                return backend.block_backend.eye_block([*shape[:co_domain.num_factors]],
+                return backend.block_backend.eye_block([*shape[:len(shape) // 2]],
                                                        dtype=dtype, device=device)
             return backend.block_backend.zeros(shape, dtype=dtype, device=device)
 
