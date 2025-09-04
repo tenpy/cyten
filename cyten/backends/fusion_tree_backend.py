@@ -1664,9 +1664,9 @@ class FusionTreeBackend(TensorBackend):
         # flat_domain_prod = TensorProduct(flat_domain)
         # flat_codomain_prod = TensorProduct(flat_codomain)
 
-        # #print(flat_codomain_prod)
-        # #print(flat_domain_prod)
-        # flat_legs = TensorProduct(flat_codomain + flat_domain)
+        #print(flat_codomain_prod)
+        #print(flat_domain_prod)
+        # flat_legs = TensorProduct(flat_codomain + flat_domain[::-1])  # FIXME double check domain order
 
 
         # # Create two lists to keep track of pipe indices in flattened out domain and codomain

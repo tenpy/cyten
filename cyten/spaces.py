@@ -1532,25 +1532,9 @@ class TensorProduct(Space):
         Assumes that all the :attr:`factors` are :class:`ElementarySpaces`, i.e. pipes
         are not supported.
 
-        Yields
-        ------
-        uncoupled : 2D array of int
-            A combination of uncoupled sectors, where
-            ``uncoupled[i] == self.factors[i].sector_decomposition[some_idx]``.
-        multiplicities : 1D array of int
-            The corresponding multiplicities
-            ``multiplicities[i] == self.factors[i].multiplicities[some_idx]``.
-        slices : list of slice, optional
-            Only if ``yield_slices``, the corresponding entry of :attr:`Space.slices`, as a slice.
-            I.e. ``slices[i] == slice(*self.factors[i].slices[some_idx])``.
-
-        Note
-        ----
-        For a TensorProduct of zero spaces, i.e. with ``num_factors == 0``,
-        we *do* yield once, where the yielded arrays are empty (e.g. ``len(uncoupled) == 0``).
+        For a TensorProduct of zero spaces, i.e. with ``num_space == 0``, we yield an empty
+        array once.
         """
-        if not all(isinstance(f, ElementarySpace) for f in self.factors):
-            raise RuntimeError('iter_uncoupled can not deal with pipes.')
         for idcs in it.product(*(range(s.num_sectors) for s in self.flat_legs)):
             a = np.array([self.factors[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
             m = np.array([self.factors[n].multiplicities[i] for n, i in enumerate(idcs)], int)
