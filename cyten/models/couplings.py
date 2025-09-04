@@ -8,6 +8,7 @@ two sites that have a spin degree of freedom.
 from __future__ import annotations
 import numpy as np
 
+from ..symmetries import FibonacciAnyonCategory, Sector
 from ..dtypes import Dtype
 from ..backends.abstract_backend import Block
 from ..tensors import (
@@ -150,10 +151,10 @@ class Coupling:
         levels = [2 * i for i in range(n)]
         levels.extend([2 * i + 1 for i in range(n)][::-1])
 
-        U = permute_legs(operator, domain=[n, n - 1], levels=levels)
+        U = permute_legs(operator, domain=[n, n - 1], levels=levels, bend_right=True)
         U, S, V = svd(U, ['wR', 'wL'])
         U = scale_axis(U, S, leg='wR')
-        V = permute_legs(V, codomain=[0, 1])
+        V = permute_legs(V, codomain=[0, 1], bend_right=True)
         V = add_trivial_leg(V, domain_pos=1, label='wR')
         factorization.append(V)
 
@@ -162,14 +163,14 @@ class Coupling:
             levels.extend([2 * i + 1 for i in range(n)][::-1])
             # for the leg connecting to the previous operator that is already in factorization
             levels.append(2 * n)
-            U = permute_legs(U, domain=[n, -1, n - 1], levels=levels)
+            U = permute_legs(U, domain=[n, -1, n - 1], levels=levels, bend_right=True)
             # the legs are now [p0, p1, ..., p{n-2}, p{n-2}*, p1*, p0*, p{n-1}, wR, p{n-1}*]
             U, S, V = svd(U, ['wR', 'wL'])
             U = scale_axis(U, S, leg='wR')
-            V = permute_legs(V, codomain=[0, 1])
+            V = permute_legs(V, codomain=[0, 1], bend_right=True)
             factorization.append(V)
 
-        U = permute_legs(U, domain=[1, 2], levels=[0, 1, 2])
+        U = permute_legs(U, domain=[1, 2], levels=[0, 1, 2], bend_right=True)
         U = add_trivial_leg(U, codomain_pos=0, label='wL')
         factorization.append(U)
         factorization = factorization[::-1]
@@ -186,14 +187,15 @@ class Coupling:
             levels = list(range(2 * n + 1))
             levels.extend([2 * n + 2, 2 * n + 1])
             # legs are (before permute) [p0, p0*, p1, p1*, ..., pn, wR, pn*]
-            res = permute_legs(res, domain=['wR'], levels=levels)
-            res = tdot(res, W, 'wR', 'wL')
+            res = permute_legs(res, domain=['wR'], levels=levels, bend_right=True)
+            W_ = permute_legs(W, codomain=['wL'], bend_right=True)
+            res = tdot(res, W_, 'wR', 'wL')
         res = squeeze_legs(res, 'wR')
         codom_labels = [f'p{i}' for i in range(len(self.sites))]
         dom_labels = [l + '*' for l in codom_labels]
         # legs are now [p0, p0*, p1, p1*, ...]
         res = permute_legs(res, codomain=codom_labels, domain=dom_labels,
-                           levels=list(range(2 * len(self.sites))))
+                           levels=list(range(2 * len(self.sites))), bend_right=True)
         return res
 
     def to_numpy(self) -> np.ndarray:
@@ -471,18 +473,24 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
 
 # ANYONIC COUPLINGS
 
-def gold_coupling(sites: list[GoldenSite], name: str = 'P_tau') -> Coupling:
-    assert len(sites) == 2  # TODO or should we allow this to generalize???
+def two_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
+    """Coupling between two sites that corresponds to a projector onto a common sector."""
+    assert len(sites) == 2
     backend = get_same_DOF_backend(*sites)
     device = get_same_DOF_device(*sites)
-    tau = [1]
-    p_labels = [f'p{i}' for i in range(len(sites))]
-    labels = [p_labels, [f'{pi}*' for pi in p_labels]]
-    tau_projector = SymmetricTensor.from_sector_projection(
-        co_domain=[s.leg for s in sites], sector=tau, backend=backend, labels=labels, device=device
+    labels = ['p0', 'p1', 'p1*', 'p0*']
+    projector = SymmetricTensor.from_sector_projection(
+        [s.leg for s in sites], sector=sector, backend=backend, labels=labels, device=device
     )
-    return Coupling.from_tensor(tau_projector, sites=sites, name=name)
+    return Coupling.from_tensor(projector, sites=sites, name=name)
 
+
+def gold_coupling(sites: list[GoldenSite], name: str = 'P_vac') -> Coupling:
+    """Coupling between two Fibonacci anyons projecting onto their trivial channel."""
+    for site in sites:
+        assert isinstance(site.symmetry, FibonacciAnyonCategory)
+        assert site.leg.sector_decomposition_where(np.array([1])) is not None
+    return two_site_projector(sites, sector=np.array([0]), name=name)
 
 # TODO implement more of these functions that generate couplings. at least cover everything
 #      that occurs as a coupling in tenpy v1. also cover some anyon models.
