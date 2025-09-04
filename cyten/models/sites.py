@@ -2,14 +2,14 @@
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 import numpy as np
-from typing import Literal
+from typing import Literal, Sequence
 from itertools import product as itproduct
 
 from ..backends import TensorBackend
 from ..spaces import ElementarySpace
 from ..symmetries import (
-    ProductSymmetry, SU2Symmetry, U1Symmetry, ZNSymmetry, NoSymmetry, FibonacciAnyonCategory,
-    SU2_kAnyonCategory, FermionParity
+    Symmetry, ProductSymmetry, SU2Symmetry, U1Symmetry, ZNSymmetry, NoSymmetry,
+    FibonacciAnyonCategory, IsingAnyonCategory, SU2_kAnyonCategory, FermionParity, SectorArray
 )
 from .degrees_of_freedom import (
     SpinDOF, FermionicDOF, BosonicDOF, ClockDOF, RepresentationDOF
@@ -470,34 +470,143 @@ class ClockSite(ClockDOF):
         return f'ClockSite(q={self.q}, conserve={self.conserve})'
 
 
-class GoldenSite(RepresentationDOF):
-    """Base class for the golden chain model where the local Hilbert space is the tau sector"""
+class GeneralAnyonSite(RepresentationDOF):
+    """Class for general anyon models where the local Hilbert space is still to be specified.
 
-    def __init__(self, handedness: Literal['left', 'right'],
-                 backend: TensorBackend = None, default_device: str = None):
-        symmetry = FibonacciAnyonCategory(handedness=handedness)
+    This is in particular intended for symmetries that do not allow basis permutations.
+    
+    Parameters
+    ----------
+    symmetry : Symmetry
+        The symmetry describing the anyons.
+    sectors : SectorArray
+        The sectors on the site.
+    multiplicities: sequence of int
+        The multiplicities of each of the sectors (default: 1).
+    sector_names : sequence of str or None
+        The sector names that appear in the onsite projection operators. The `i`th operator is
+        called `f'P_{sector_names[i]}'` and projects onto the `i`th sector in
+        `leg.sector_decomposition`. For `None` entries (default), no projection operators are
+        constructed.
+    """
+
+    def __init__(self, symmetry: Symmetry,
+                 sectors: SectorArray,
+                 multiplicities: Sequence[int] = None,
+                 sector_names: Sequence[str | None] = None,
+                 backend: TensorBackend = None,
+                 default_device: str = None):
+        leg = ElementarySpace.from_defining_sectors(symmetry, sectors, multiplicities)
         RepresentationDOF.__init__(
-            self, symmetry, [symmetry.tau], [1], backend=backend, default_device=default_device
+            self, leg=leg, sector_names=sector_names, backend=backend, default_device=default_device
         )
 
 
-class SU2kSite(RepresentationDOF):
-    """Base class for SU2_k sites where each site is a direct sum of simple objects of SU2_k with multiplicities."""
+class AnyonSite(GeneralAnyonSite):
+    """Class for anyon models where the local Hilbert space contains all sectors once.
 
-    def __init__(self, k, handedness, simples: list, multiplicities: list,
+    This is in particular intended for symmetries that do not allow basis permutations.
+    
+    Parameters
+    ----------
+    symmetry : Symmetry
+        The symmetry describing the anyons.
+    sector_names : sequence of str or None
+        The sector names that appear in the onsite projection operators. The `i`th operator is
+        called `f'P_{sector_names[i]}'` and projects onto the `i`th sector in
+        `leg.sector_decomposition`. For `None` entries (default), no projection operators are
+        constructed.
+    """
+
+    def __init__(self, symmetry: Symmetry,
+                 sector_names: Sequence[str | None] = None,
+                 backend: TensorBackend = None,
+                 default_device: str = None):
+        GeneralAnyonSite.__init__(
+            self, symmetry=symmetry, sectors=symmetry.all_sectors(), sector_names=sector_names,
+            backend=backend, default_device=default_device
+        )
+
+
+class FibonacciAnyonSite(AnyonSite):
+    """Class for sites containing the trivial and the Fibonacci / tau sectors.
+
+    Projectors onto the onsite vacuum and tau sectors are automatically constructed
+    and are named `'P_vac'` and `'P_tau'`, respectively.
+    
+    Parameters
+    ----------
+    handedness: Literal['left', 'right']
+        The handedness of the anyons.
+    """
+
+    def __init__(self, handedness: Literal['left', 'right'] = 'left',
                  backend: TensorBackend = None, default_device: str = None):
+        sym = FibonacciAnyonCategory(handedness=handedness)
+        AnyonSite.__init__(self, sym, sector_names=['vac', 'tau'],
+                           backend=backend, default_device=default_device)
 
-        symmetry = SU2_kAnyonCategory(k, handedness=handedness)
-        RepresentationDOF.__init__(
-            self, symmetry, simples, multiplicities, backend=backend, default_device=default_device
+
+class IsingAnyonSite(AnyonSite):
+    """Class for sites containing the trivial, the Ising / sigma, and the fermion / psi sectors.
+
+    Projectors onto the onsite vacuum, sigma and psi sectors are automatically constructed and are
+    named `'P_vac'`, `'P_sigma'`, and `'P_psi'`, respectively.
+    
+    Parameters
+    ----------
+    `nu`: odd int
+        Specifies the Ising anyons as different `nu` correspond to different topological twists.
+    """
+
+    def __init__(self, nu: int = 1, backend: TensorBackend = None, default_device: str = None):
+        sym = IsingAnyonCategory(nu=nu)
+        AnyonSite.__init__(self, sym, sector_names=['vac', 'sigma', 'psi'],
+                           backend=backend, default_device=default_device)
+
+
+class GoldenSite(GeneralAnyonSite):
+    """Class for Fibonacci anyon models where the local Hilbert space only contains the tau sector.
+    
+    Parameters
+    ----------
+    handedness: Literal['left', 'right']
+        The handedness of the anyons.
+    """
+
+    def __init__(self, handedness: Literal['left', 'right'] = 'left',
+                 backend: TensorBackend = None, default_device: str = None):
+        sym = FibonacciAnyonCategory(handedness=handedness)
+        # no onsite projection operators necessary
+        GeneralAnyonSite.__init__(
+            self, symmetry=sym, sectors=[[1]], backend=backend, default_device=default_device
+        )
+
+
+class SU2kSpin1Site(GeneralAnyonSite):
+    """Class for SU(2)_k anyon models where the local Hilbert space only contains the spin-1 sector.
+    
+    Parameters
+    ----------
+    k : int
+        Level of the SU(2)_k anyon model / symmetry.
+    handedness: Literal['left', 'right']
+        The handedness of the anyons.
+    """
+
+    def __init__(self, k: int, handedness: Literal['left', 'right'] = 'left',
+                 backend: TensorBackend = None, default_device: str = None):
+        assert k >= 2
+        sym = SU2_kAnyonCategory(k, handedness=handedness)
+        # no onsite projection operators necessary
+        GeneralAnyonSite.__init__(
+            self, symmetry=sym, sectors=[[2]], backend=backend, default_device=default_device
         )
 
 
 # TODO more sites:
-#  - FermionSite (maybe name it SpinlessFermionSite for clarity?)
 #  - SpinHalfFermionSite (or if its easy just do general spin?)
 #  - SpinHalfHoleSite (i dont think this should inherit from FermionicSite, but not sure)
-#  - BosonSite (maybe name it SpinlessBosonSite?)
 #  - bosons with spin?
-#  - what are relevant anyonic sites? already have Golden, but do some more
+#  - more anyon sites? are the class names ok?
 #  - remember to update cyten/__init__.py and cyten/models/__init__.py accordingly!

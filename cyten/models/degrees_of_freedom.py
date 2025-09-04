@@ -15,7 +15,7 @@ from ..backends.abstract_backend import Block
 from ..spaces import ElementarySpace
 from ..tensors import SymmetricTensor
 from ..symmetries import (
-    FermionNumber, FermionParity, Symmetry, ProductSymmetry, BraidingStyle
+    FermionNumber, FermionParity, Sector, Symmetry, ProductSymmetry, BraidingStyle
 )
 
 
@@ -507,39 +507,38 @@ class ClockDOF(DegreeOfFreedom):
 
 
 class RepresentationDOF(DegreeOfFreedom):
-    """A degree of freedom that is a direct sum of multiple simple objects in some fusion category.
+    """Common base class for sites that have a degree of freedom described by a category.
+
+    TODO onsite operators
 
     Parameters
     ----------
-    symmetry : Symmetry
-        The symmetry whose irreducible representations constitute the site.
-    simples : list
-        The simples appearing in the decomposition of the site.
-    multiplicities : slice
-        The multiplicities with which the simple objects in simples shall appear in the decomposition.
+    sector_names : sequence of str or None
+        The sector names that appear in the onsite projection operators. The `i`th operator is
+        called `f'P_{sector_names[i]}'` and projects onto the `i`th sector in
+        `leg.sector_decomposition`. For `None` entries (default), no projection operators are
+        constructed.
     """
 
-    def __init__(self, symmetry: Symmetry, simples: list[Symmetry], multiplicities: list[int] = None,
+    def __init__(self, leg: ElementarySpace, state_labels: dict[str, int] = None,
+                 sector_names: Sequence[str | None] = None,
+                 onsite_operators: dict[str, SymmetricTensor] = None,
                  backend: TensorBackend = None, default_device: str = None):
-
-        if len(simples) == 0:
-            raise ValueError('Representation should contain at least one simple object.')
-        if multiplicities is None:
-            multiplicities = [1] * len(simples)
-        if len(multiplicities) != len(simples):
-            raise ValueError('List of multiplicities should have the same length as the list of simples.')
-
-        reps = []
-        for i in range(len(multiplicities)):
-            reps += [simples[i]]*i
-
-        assert symmetry.are_valid_sectors(np.array(simples))
-
-        leg = ElementarySpace.from_basis(symmetry, reps)
-
-        onsite_op_dict = {sector: sector_proj_onsite(symmetry, leg, sector) for sector in simples}
+        if sector_names is None:
+            sector_names = [None] * leg.num_sectors
+        assert len(sector_names) == leg.num_sectors
+        if onsite_operators is None:
+            onsite_operators = {}
+        self.sector_names = sector_names
+        for sector, sector_name in zip(leg.sector_decomposition, sector_names):
+            if sector_name is None:
+                continue
+            P_sec = sector_proj_onsite(leg.symmetry, leg, sector,
+                                       backend=backend, device=default_device)
+            onsite_operators[f'P_{sector_name}'] = P_sec
         DegreeOfFreedom.__init__(
-            self, leg=leg, onsite_operators=onsite_op_dict, backend=backend, default_device=default_device
+            self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
+            backend=backend, default_device=default_device
         )
 
 
@@ -612,7 +611,9 @@ def get_same_DOF_device(*dofs: DegreeOfFreedom, error_msg: str = 'Incompatible d
     return device
 
 
-def sector_proj_onsite(symmetry: Symmetry, leg, sector):
+def sector_proj_onsite(symmetry: Symmetry, leg: ElementarySpace, sector: Sector,
+                       backend: TensorBackend = None, device: str = None):
     """Helper function to create onsite projectors onto sectors"""
-    assert Symmetry.is_valid_sector(symmetry, sector)
-    return SymmetricTensor.from_sector_projection([leg], sector)
+    assert symmetry.is_valid_sector(sector)
+    return SymmetricTensor.from_sector_projection([leg], sector, labels=['p', 'p*'],
+                                                  backend=backend, device=device)
