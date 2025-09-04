@@ -1531,8 +1531,8 @@ class TensorProduct(Space):
         For a TensorProduct of zero spaces, i.e. with ``num_space == 0``, we yield an empty
         array once.
         """
-        if not all(isinstance(f, ElementarySpace) for f in self.factors):
-            raise RuntimeError('iter_uncoupled can not deal with pipes.')
+        # if not all(isinstance(f, ElementarySpace) for f in self.factors):
+        #     raise RuntimeError('iter_uncoupled can not deal with pipes.')
         if self.num_factors == 0:
             yield self.symmetry.empty_sector_array
             return
