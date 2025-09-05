@@ -224,13 +224,3 @@ def heisenberg_finite_gs_energy(L: int, J: float) -> float:
     H *= J
     E, V = eigsh(H, k=1, which='SA', return_eigenvectors=True, ncv=20)
     return E[0]
-
-
-def main():
-    print('Running this example module just initilizes the TFI model.')
-    _ = TFIModel(L=10, J=1, g=0.8, bc='finite')
-    _ = TFIModel(L=10, J=1, g=0.8, bc='infinite', conserve='Z2')
-
-
-if __name__ == '__main__':
-    main()

@@ -242,17 +242,3 @@ def split_truncate_theta(theta, chi_max, eps):
     A.relabel({'p0': 'p'})
     B.relabel({'p1': 'p'})
     return A, S, B
-
-
-def main():
-    print('Running this example module just initilizes some MPS without doing anything further.')
-    _ = init_FM_MPS(L=10, d=2, bc='finite')
-    _ = init_FM_MPS(L=10, d=2, bc='infinite', conserve='Z2')
-    _ = init_FM_MPS(L=10, d=2, bc='finite', backend='fusion_tree', conserve='Z2')
-    _ = init_FM_MPS(L=10, d=2, bc='finite', backend='no_symmetry')
-    _ = init_Neel_MPS(L=10)
-    _ = init_Neel_MPS(L=10, conserve='Z2')
-
-
-if __name__ == '__main__':
-    main()
