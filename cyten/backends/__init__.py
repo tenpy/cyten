@@ -7,7 +7,7 @@ from . import abelian, abstract_backend, backend_factory, no_symmetry, fusion_tr
 from .abelian import AbelianBackend, AbelianBackendData
 from .abstract_backend import TensorBackend, BlockBackend
 from .array_api import ArrayApiBlockBackend
-from .backend_factory import get_backend, todo_get_backend
+from .backend_factory import get_backend
 from .fusion_tree_backend import FusionTreeData, FusionTreeBackend
 from .no_symmetry import NoSymmetryBackend
 from .numpy import NumpyBlockBackend

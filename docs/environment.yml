@@ -2,7 +2,7 @@ name: cyten
 channels:
   - conda-forge
 dependencies:
-  - python>=3.9
+  - python>=3.10
   - pip
   - setuptools>=68.0.0
   - pybind11
@@ -18,7 +18,7 @@ dependencies:
   # - libblas=*=*mkl  # pin BLAS to use MKL
   # Testing
   - pytest>=6.0
-  - sympy  # TODO: remove this dependency when no longer needed
+  - sympy
 
   # building docs
   - doxygen

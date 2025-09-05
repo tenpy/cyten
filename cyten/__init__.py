@@ -55,3 +55,11 @@ def show_config():
     The information printed is :attr:`cyten.version.version_summary`.
     """
     print(version.version_summary)
+
+
+# expose Dtypes directly
+bool = Dtype.bool
+float32 = Dtype.float32
+complex64 = Dtype.complex64
+float64 = Dtype.float64
+complex128 = Dtype.complex128

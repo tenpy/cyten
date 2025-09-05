@@ -8,10 +8,11 @@ Changes compared to old np_conserved:
 - relabeling:
     - `Array.qdata`, "qind" and "qindices" to `AbelianBackendData.block_inds` and "block indices"
     - `LegPipe.qmap` to `AbelianLegPipe.block_ind_map` (with changed column order, and no longer lexsorted!!!)
-    - `LegPipe` now forms the sector combinations in C-style (no longer F-style) order.
-    - `LegPipe._perm` to `AbelianLegPipe.perm_block_inds_map`  TODO (JU) this is outdated np?
+    - `LegPipe` now forms the sector combinations in either C-style or F-style order
+       depending on `AbelianLegPipe.combine_cstyle`. Before it was F-style always.
+    - `LegPipe._perm` now is roughly covered by `AbelianLegPipe.fusion_outcomes_sort`
+    - `AbelianLegPipe` now has a consistent `basis_perm`.
     - `LegCharge.get_block_sizes()` is just `Space.multiplicities`
-- TODO point towards Space attributes
 - keep spaces "sorted" and "bunched",
   i.e. do not support legs with smaller blocks to effectively allow block-sparse tensors with
   smaller blocks than dictated by symmetries (which we actually have in H_MPO on the virtual legs...)
@@ -39,6 +40,7 @@ from .abstract_backend import (
 from ..dtypes import Dtype
 from ..symmetries import BraidingStyle, Symmetry
 from ..spaces import Space, ElementarySpace, LegPipe, AbelianLegPipe, TensorProduct, Leg
+from ..trees import FusionTree
 from ..tools.misc import (
     inverse_permutation, list_to_dict_list, rank_data, iter_common_noncommon_sorted_arrays,
     iter_common_sorted, iter_common_sorted_arrays, make_stride, find_row_differences, make_grid
@@ -655,7 +657,6 @@ class AbelianBackend(TensorBackend):
 
         # Since the grid was in F-style, and the a_block_inds, b_block_inds are sorted,
         # the res_block_inds are sorted.
-        assert np.all(np.lexsort(res_block_inds.T) == np.arange(len(res_block_inds)))  # TODO remove check
         return AbelianBackendData(res_dtype, a.data.device, res_blocks, res_block_inds,
                                   is_sorted=True)
 
@@ -798,8 +799,9 @@ class AbelianBackend(TensorBackend):
         device = self.block_backend.get_device(sample_block)
         return AbelianBackendData(dtype=dtype, device=device, blocks=blocks, block_inds=block_inds, is_sorted=True)
 
-    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool) -> DiagonalData:
-        blocks = [self.block_backend.get_diagonal(block, check_offdiagonal)
+    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, tol: float | None
+                                         ) -> DiagonalData:
+        blocks = [self.block_backend.get_diagonal(block, tol)
                   for block in a.data.blocks]
         return AbelianBackendData(a.dtype, a.data.device, blocks, a.data.block_inds, is_sorted=True)
 
@@ -995,6 +997,42 @@ class AbelianBackend(TensorBackend):
         device = self.block_backend.get_device(sample_block)
         return AbelianBackendData(dtype=dtype, device=device, blocks=blocks, block_inds=block_inds, is_sorted=True)
 
+    def from_tree_pairs(self, trees: dict[tuple[FusionTree, FusionTree], Block], codomain: TensorProduct,
+                        domain: TensorProduct, dtype: Dtype, device: str) -> Data:
+        block_inds = []
+        blocks = []
+        pairs_done = set()
+        for bi in _valid_block_inds(codomain, domain):
+            Y = FusionTree.from_abelian_symmetry(
+                symmetry=codomain.symmetry,
+                uncoupled=[f.sector_decomposition[bi[n]] for n, f in enumerate(codomain)],
+                are_dual=[f.is_dual for f in codomain],
+            )
+            X = FusionTree.from_abelian_symmetry(
+                symmetry=domain.symmetry,
+                uncoupled=[f.sector_decomposition[bi[-1 - n]] for n, f in enumerate(domain)],
+                are_dual=[f.is_dual for f in domain],
+            )
+            pair = (Y, X)
+            pairs_done.add(pair)
+            block = trees.get(pair, None)
+            if block is None:
+                continue
+            block_inds.append(bi)
+            blocks.append(block)
+        if len(block_inds) == 0:
+            block_inds = np.zeros((0, codomain.num_factors + domain.num_factors), int)
+        else:
+            block_inds = np.array(block_inds)
+        # check if we covered all keys in the dict
+        for pair in trees.keys():
+            if pair not in pairs_done:
+                # SymmetricTensor.from_tree_pairs should have done enough input checks to prevent this
+                # OPTIMIZE if the code works, we could remove this check
+                raise RuntimeError
+        return AbelianBackendData(dtype=dtype, device=device, blocks=blocks, block_inds=block_inds,
+                                  is_sorted=False)
+
     def full_data_from_diagonal_tensor(self, a: DiagonalTensor) -> Data:
         blocks = [self.block_backend.block_from_diagonal(block) for block in a.data.blocks]
         return AbelianBackendData(a.dtype, a.data.device, blocks, a.data.block_inds, is_sorted=True)
@@ -1107,7 +1145,7 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(common_dtype, v.data.device, res_blocks, res_block_inds, is_sorted=True)
 
     def lq(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
-        new_leg = new_co_domain[0]  # TODO
+        new_leg = new_co_domain[0]
         assert a.num_codomain_legs == 1 == a.num_domain_legs  # since self.can_decompose_tensors is False
         l_blocks = []
         q_blocks = []
@@ -1550,34 +1588,18 @@ class AbelianBackend(TensorBackend):
         return data, codomain, domain
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     levels: list[int] | None) -> tuple[Data | None, TensorProduct, TensorProduct]:
-        codomain_legs = []
-        for i in codomain_idcs:
-            in_domain, co_domain_idx, _ = a._parse_leg_idx(i)
-            if in_domain:
-                codomain_legs.append(a.domain[co_domain_idx].dual)
-            else:
-                codomain_legs.append(a.codomain[co_domain_idx])
-        codomain = TensorProduct(codomain_legs, symmetry=a.symmetry)
-        #
-        domain_legs = []
-        for i in domain_idcs:
-            in_domain, co_domain_idx, _ = a._parse_leg_idx(i)
-            if in_domain:
-                domain_legs.append(a.domain[co_domain_idx])
-            else:
-                domain_legs.append(a.codomain[co_domain_idx].dual)
-        domain = TensorProduct(domain_legs, symmetry=a.symmetry)
-        #
+                     new_codomain: TensorProduct, new_domain: TensorProduct,
+                     mixes_codomain_domain: bool, levels: list[int] | None,
+                     bend_right: list[bool | None]) -> AbelianBackendData:
         axes_perm = [*codomain_idcs, *reversed(domain_idcs)]
         blocks = [self.block_backend.permute_axes(block, axes_perm) for block in a.data.blocks]
         block_inds = a.data.block_inds[:, axes_perm]
         data = AbelianBackendData(a.dtype, a.data.device, blocks=blocks, block_inds=block_inds,
                                   is_sorted=False)
-        return data, codomain, domain
+        return data
 
     def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
-        new_leg = new_co_domain[0]  # TODO check this
+        new_leg = new_co_domain[0]
         assert a.num_codomain_legs == 1 == a.num_domain_legs  # since self.can_decompose_tensors is False
         q_blocks = []
         r_blocks = []
@@ -1846,7 +1868,6 @@ class AbelianBackend(TensorBackend):
             vh_block_inds.append([n, k])
 
         if len(s_blocks) == 0:
-            # TODO warn or error??
             s_block_inds = np.zeros([0, 2], int)
         else:
             s_block_inds = np.repeat(np.array(s_block_inds, int)[:, None], 2, axis=1)
@@ -1869,7 +1890,7 @@ class AbelianBackend(TensorBackend):
         return u_data, s_data, vh_data
 
     def state_tensor_product(self, state1: Block, state2: Block, pipe: AbelianLegPipe):
-        # TODO clearly define what this should do in tensors.py first!
+        # clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
 
     def to_dense_block(self, a: SymmetricTensor) -> Block:
@@ -1907,19 +1928,14 @@ class AbelianBackend(TensorBackend):
             # else: block is entirely off-diagonal and does not contribute to the trace
         return res
 
-    def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorProduct, TensorProduct]:
-        return self.permute_legs(a,
-                                 codomain_idcs=list(range(a.num_codomain_legs, a.num_legs)),
-                                 domain_idcs=list(reversed(range(a.num_codomain_legs))),
-                                 levels=None)
-
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
-                                 degeneracy_tol: float, trunc_cut: float, svd_min: float
+                                 degeneracy_tol: float, trunc_cut: float, svd_min: float,
+                                 minimize_error: bool = True,
                                  ) -> tuple[MaskData, ElementarySpace, float, float]:
         S_np = self.block_backend.to_numpy(self.diagonal_tensor_to_block(S))
         keep, err, new_norm = self._truncate_singular_values_selection(
             S=S_np, qdims=None, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol,
-            trunc_cut=trunc_cut, svd_min=svd_min
+            trunc_cut=trunc_cut, svd_min=svd_min, minimize_error=minimize_error
         )
         keep = self.block_backend.as_block(keep, Dtype.bool)
         mask_data, small_leg = self.mask_from_block(keep, large_leg=S.leg)

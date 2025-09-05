@@ -12,8 +12,7 @@ except Exception:
     sympy_S = sympy_cg = sympy_racah = None
 
 
-# TODO / OPTIMIZE : think about caching, pre-computing, ...
-#                 : this is a quick and stupid implementation
+# OPTIMIZE : think about caching, pre-computing, this is a quick and stupid implementation
 CACHE_SIZE = 10_000
 
 
