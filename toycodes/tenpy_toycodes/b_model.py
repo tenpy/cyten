@@ -30,7 +30,7 @@ class TFIModel:
         nbonds = self.L - 1 if self.bc == 'finite' else self.L
         p = self.phys_leg
 
-        # this currently constructs the tensors, splits them for the coupling
+        # OPTIMIZE this currently constructs the tensors, splits them for the coupling
         # and then recomputes the tensor again in order to form a superposition...
         # factors 2 and 4 due to difference between spin and Pauli matrices
         XX = ct.spin_spin_coupling(sites=[p, p], xx=4).to_tensor()
@@ -106,6 +106,47 @@ class HeisenbergModel:
         I = ct.Coupling.from_tensor(I, [p])
         grid = [[I.factorization[0], self.J * SdotS.factorization[0], None],
                 [None, None, SdotS.factorization[1]],
+                [None, None, I.factorization[0]]]
+        W = ct.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
+        self.H_mpo = [W] * self.L
+
+
+class GoldenChainModel:
+    r"""-J P^{\tau \tau}_1 (projector of two neighboring Fibonacci anyons onto their trivial fusion channel)"""
+
+    def __init__(self, L: int, J: float, bc: str = 'finite',
+                 backend: ct.backends.TensorBackend | None = None):
+        assert bc in ['finite', 'infinite']
+        self.phys_leg = ct.GoldenSite('left', backend=backend)
+        self.backend = backend
+        self.symmetry = self.phys_leg.symmetry
+        self.L = L
+        self.bc = bc
+        self.J = J
+        self.init_H_bonds()
+        self.init_H_mpo()
+
+    def init_H_bonds(self):
+        """Initialize `H_bonds` hamiltonian.
+
+        Called by __init__().
+        """
+        nbonds = self.L - 1 if self.bc == 'finite' else self.L
+        p = self.phys_leg
+        P1 = ct.gold_coupling([p, p]).to_tensor()
+        self.H_bonds = [-self.J * P1] * nbonds
+
+    def init_H_mpo(self):
+        """Initialize `H_mpo` Hamiltonian.
+
+        Called by __init__().
+        """
+        p = self.phys_leg
+        P1 = ct.gold_coupling([p, p])
+        I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
+        I = ct.Coupling.from_tensor(I, [p])
+        grid = [[I.factorization[0], -self.J * P1.factorization[0], None],
+                [None, None, P1.factorization[1]],
                 [None, None, I.factorization[0]]]
         W = ct.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
         self.H_mpo = [W] * self.L
