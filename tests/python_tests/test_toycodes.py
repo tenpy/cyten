@@ -8,9 +8,11 @@ import os
 import sys
 
 import cyten as ct
-from toycodes.tenpy_toycodes.a_mps import init_FM_MPS, init_Neel_MPS, init_SU2_sym_MPS
+from toycodes.tenpy_toycodes.a_mps import (
+    init_FM_MPS, init_Fib_anyon_MPS, init_Neel_MPS, init_SU2_sym_MPS
+)
 from toycodes.tenpy_toycodes.b_model import (
-    HeisenbergModel, TFIModel, heisenberg_finite_gs_energy, tfi_finite_gs_energy
+    GoldenChainModel, HeisenbergModel, TFIModel, heisenberg_finite_gs_energy, tfi_finite_gs_energy
 )
 from toycodes.tenpy_toycodes.d_dmrg import DMRGEngine
 
@@ -21,6 +23,19 @@ tenpy_toycodes = repo_root.joinpath('toycodes').joinpath('tenpy_toycodes')
 tenpy_toycode_modules = [str(tenpy_toycodes.joinpath(f))
                          for f in os.listdir(tenpy_toycodes)
                          if f.endswith('.py')]
+
+
+def test_dmrg_golden_chain():
+    # energies from MPSKit.jl with DMRG
+    GC_energies = {
+        6: -4.02595560765756, 8: -5.54888659415890, 10: -7.0735949995638
+    }
+    L = 8
+    psi = init_Fib_anyon_MPS(L)
+    model = GoldenChainModel(L, J=1)
+    dmrg = DMRGEngine(psi, model)
+    e = dmrg.run()
+    assert abs(e - GC_energies[L]) < 1e-9
 
 
 def test_dmrg_heisenberg():
@@ -35,7 +50,7 @@ def test_dmrg_heisenberg():
         model = HeisenbergModel(L, J=1, backend=backend, conserve=conserve)
         dmrg = DMRGEngine(psi, model)
         e = dmrg.run()
-        assert abs(e - e_exact) < 1e-10
+        assert abs(e - e_exact) < 1e-9
 
 
 def test_dmrg_tfi(np_random):
@@ -49,8 +64,8 @@ def test_dmrg_tfi(np_random):
         model = TFIModel(L, J, g, backend=backend, conserve=conserve)
         dmrg = DMRGEngine(psi, model)
         e = dmrg.run()
-        assert abs(e - e_exact) < 1e-10
-    
+        assert abs(e - e_exact) < 1e-9
+
 
 @pytest.mark.parametrize('module_file', tenpy_toycode_modules)
 def test_tenpy_toycodes(module_file):

@@ -24,7 +24,7 @@ class HEffective(ct.sparse.LinearOperator):
         # bend such that we can directly compose it with theta
         self.LP = ct.permute_legs(LP, ['vL', 'wL*'], ['vL*'], bend_right=True)  # vL wL* vL*
         self.RP = ct.permute_legs(RP, ['vR*', 'wR*'], ['vR'],
-                                  bend_right=[False, False, True])  # vR vR* wR* -> vR* wR* vR
+                                  bend_right=[True, False, False])  # vR vR* wR* -> vR* wR* vR
         self.W1 = ct.permute_legs(W1, ['p', 'wR'], ['wL', 'p*'],
                                   bend_right=[False, None, True, None])  # wL i wC i* -> i wC i* wL
         self.W1.relabel({'p': 'p0', 'p*': 'p0*', 'wR': 'wC'})
@@ -116,8 +116,12 @@ class DMRGEngine(object):
             block[:, 0, :] += np.eye(shape[0], shape[2])
             codom_tree = ct.FusionTree.from_sector(sym, tree.uncoupled[0], tree.are_dual[0])
             tree_pairs[(codom_tree, tree)] = block
-        return ct.SymmetricTensor.from_tree_pairs(tree_pairs, left_codom, left_dom,
-                                                  self.psi.backend, labels=['vL', 'wL*', 'vL*'])
+        # TODO do this automatically in tensors
+        dtype = None if self.psi.symmetry.has_symmetric_braid else ct.Dtype.complex128
+        return ct.SymmetricTensor.from_tree_pairs(
+            tree_pairs, left_codom, left_dom, self.psi.backend, labels=['vL', 'wL*', 'vL*'],
+            dtype=dtype
+        )
 
     def init_RP(self):
         MPS_right_leg = self.psi.Bs[-1].domain[0].dual
@@ -135,8 +139,12 @@ class DMRGEngine(object):
             block[:, :, -1] += np.eye(*shape[:-1])
             codom_tree = ct.FusionTree.from_sector(sym, tree.uncoupled[1], tree.are_dual[1])
             tree_pairs[(codom_tree, tree)] = block
-        return ct.SymmetricTensor.from_tree_pairs(tree_pairs, right_codom, right_dom,
-                                                  self.psi.backend, labels=['vR', 'vR*', 'wR*'])
+        # TODO do this automatically in tensors
+        dtype = None if self.psi.symmetry.has_symmetric_braid else ct.Dtype.complex128
+        return ct.SymmetricTensor.from_tree_pairs(
+            tree_pairs, right_codom, right_dom, self.psi.backend, labels=['vR', 'vR*', 'wR*'],
+            dtype=dtype
+        )
 
     def sweep(self):
         # sweep from left to right
