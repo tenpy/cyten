@@ -7,7 +7,8 @@ from .degrees_of_freedom import (
     consistent_leg_symmetry, sector_proj_onsite
 )
 from .sites import (
-    SpinSite, SpinlessBosonSite, SpinlessFermionSite, SpinHalfFermionSite, ClockSite, GoldenSite
+    SpinSite, SpinlessBosonSite, SpinlessFermionSite, SpinHalfFermionSite, ClockSite,
+    GeneralAnyonSite, AnyonSite, FibonacciAnyonSite, IsingAnyonSite, GoldenSite, SU2kSpin1Site
 )
 from .couplings import (
     Coupling, OnSiteOperator, spin_spin_coupling, spin_field_coupling, aklt_coupling,
