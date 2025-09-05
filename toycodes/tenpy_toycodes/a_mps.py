@@ -31,6 +31,7 @@ class SimpleMPS:
 
     def __init__(self, Bs: list[ct.SymmetricTensor], Ss: list[ct.DiagonalTensor], bc='finite'):
         assert bc in ['finite', 'infinite']
+        self.symmetry = Bs[0].symmetry
         self.Bs = Bs
         self.Ss = Ss
         self.bc = bc
@@ -54,7 +55,8 @@ class SimpleMPS:
         The returned array has legs ``vL, i, j, vR``.
         """
         j = (i + 1) % self.L
-        return ct.tdot(self.get_theta1(i), self.Bs[j], 'vR', 'vL',
+        Bj = ct.permute_legs(self.Bs[j], codomain=['vL'], bend_right=True)
+        return ct.tdot(self.get_theta1(i), Bj, 'vR', 'vL',
                        relabel1=dict(p='p0'), relabel2=dict(p='p1'))
 
     def get_chi(self):
@@ -192,6 +194,19 @@ def init_SU2_sym_MPS(L, d=2, bc='finite', backend=None):
     S1 = ct.DiagonalTensor.from_eye(v1, backend=backend, labels=['vL', 'vR'])
     S2 = ct.DiagonalTensor.from_eye(v2, backend=backend, labels=['vL', 'vR'])
     return SimpleMPS([B1, B2] * (L // 2), [S1, S2] * (L // 2), bc=bc)
+
+
+def init_Fib_anyon_MPS(L, bc='finite', backend=None):
+    """Return the Fib anyon symmetric MPS with tau charges on all bonds."""
+    if backend is None:
+        backend = ct.get_backend('fusion_tree', 'numpy')
+    sym = ct.fibonacci_anyon_category
+    p = ct.ElementarySpace.from_defining_sectors(sym, [[1]])
+    v = p
+    B = ct.SymmetricTensor.from_block_func(lambda x: np.ones(x, dtype=complex), [v, p], [v],
+                                           labels=['vL', 'p', 'vR'], backend=backend)
+    S = ct.DiagonalTensor.from_eye(v, backend=backend, labels=['vL', 'vR'])
+    return SimpleMPS([B] * L, [S] * L, bc=bc)
 
 
 def split_truncate_theta(theta, chi_max, eps):
