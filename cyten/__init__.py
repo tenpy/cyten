@@ -44,7 +44,8 @@ from .version import full_version as __full_version__
 # subpackages
 from .backends import get_backend
 from .models import (
-    SpinSite, SpinlessBosonSite, SpinlessFermionSite, SpinHalfFermionSite, ClockSite, GoldenSite,
+    SpinSite, SpinlessBosonSite, SpinlessFermionSite, SpinHalfFermionSite, ClockSite,
+    GeneralAnyonSite, AnyonSite, FibonacciAnyonSite, IsingAnyonSite, GoldenSite, SU2kSpin1Site,
     Coupling, OnSiteOperator, spin_spin_coupling, spin_field_coupling, aklt_coupling,
     heisenberg_coupling, chiral_3spin_coupling, chemical_potential, onsite_interaction,
     nearest_neighbor_interaction, clock_clock_coupling, clock_field_coupling, gold_coupling
