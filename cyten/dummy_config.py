@@ -16,8 +16,6 @@ class printoptions:
 
 class config:
     """A collection of global config options. The class is used as a namespace"""
-    
-    strict_labels = True
     printoptions = printoptions
     do_fusion_input_checks = True  # If the Symmetry methods should check their inputs are valid
     default_symmetry_backend = 'abelian'
