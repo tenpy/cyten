@@ -12,9 +12,9 @@ class TFIModel:
     def __init__(self, L: int, J: float, g: float, bc: str = 'finite',
                  conserve: str = 'none', backend: ct.backends.TensorBackend | None = None):
         assert bc in ['finite', 'infinite']
-        self.phys_leg = ct.SpinSite(S=0.5, conserve=conserve, backend=backend)
+        self.site = ct.SpinSite(S=0.5, conserve=conserve, backend=backend)
         self.backend = backend
-        self.symmetry = self.phys_leg.symmetry
+        self.symmetry = self.site.symmetry
         self.L = L
         self.bc = bc
         self.J = J
@@ -28,7 +28,7 @@ class TFIModel:
         Called by __init__().
         """
         nbonds = self.L - 1 if self.bc == 'finite' else self.L
-        p = self.phys_leg
+        p = self.site
 
         # OPTIMIZE this currently constructs the tensors, splits them for the coupling
         # and then recomputes the tensor again in order to form a superposition...
@@ -56,7 +56,7 @@ class TFIModel:
 
         Called by __init__().
         """
-        p = self.phys_leg
+        p = self.site
         XX = ct.spin_spin_coupling(sites=[p, p], xx=4)
         Z = ct.spin_field_coupling(sites=[p], hz=2)
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
@@ -75,9 +75,9 @@ class HeisenbergModel:
     def __init__(self, L: int, J: float, bc: str = 'finite',
                  conserve: str = 'none', backend: ct.backends.TensorBackend | None = None):
         assert bc in ['finite', 'infinite']
-        self.phys_leg = ct.SpinSite(S=0.5, conserve=conserve, backend=backend)
+        self.site = ct.SpinSite(S=0.5, conserve=conserve, backend=backend)
         self.backend = backend
-        self.symmetry = self.phys_leg.symmetry
+        self.symmetry = self.site.symmetry
         self.L = L
         self.bc = bc
         self.J = J
@@ -90,7 +90,7 @@ class HeisenbergModel:
         Called by __init__().
         """
         nbonds = self.L - 1 if self.bc == 'finite' else self.L
-        p = self.phys_leg
+        p = self.site
         SdotS = ct.spin_spin_coupling(sites=[p, p], xx=4, yy=4, zz=4).to_tensor()
         self.H_bonds = [self.J * SdotS] * nbonds
 
@@ -100,7 +100,7 @@ class HeisenbergModel:
 
         Called by __init__().
         """
-        p = self.phys_leg
+        p = self.site
         SdotS = ct.spin_spin_coupling(sites=[p, p], xx=4, yy=4, zz=4)
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
         I = ct.Coupling.from_tensor(I, [p])
@@ -117,9 +117,9 @@ class GoldenChainModel:
     def __init__(self, L: int, J: float, bc: str = 'finite',
                  backend: ct.backends.TensorBackend | None = None):
         assert bc in ['finite', 'infinite']
-        self.phys_leg = ct.GoldenSite('left', backend=backend)
+        self.site = ct.GoldenSite('left', backend=backend)
         self.backend = backend
-        self.symmetry = self.phys_leg.symmetry
+        self.symmetry = self.site.symmetry
         self.L = L
         self.bc = bc
         self.J = J
@@ -132,7 +132,7 @@ class GoldenChainModel:
         Called by __init__().
         """
         nbonds = self.L - 1 if self.bc == 'finite' else self.L
-        p = self.phys_leg
+        p = self.site
         P1 = ct.gold_coupling([p, p]).to_tensor()
         self.H_bonds = [-self.J * P1] * nbonds
 
@@ -141,7 +141,7 @@ class GoldenChainModel:
 
         Called by __init__().
         """
-        p = self.phys_leg
+        p = self.site
         P1 = ct.gold_coupling([p, p])
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
         I = ct.Coupling.from_tensor(I, [p])

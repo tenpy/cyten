@@ -18,6 +18,30 @@ class HEffective(ct.sparse.LinearOperator):
         |       |     |       |
         |       i*    j*      |
         .--vL*           vR*--.
+
+    Parameters
+    ----------
+    LP : ct.SymmetricTensor
+        Left environment with legs `'vL', 'wL*', 'vL*'`, where `'wL*'` is contrated with the MPO
+        tensors and `'vL*'` with the MPS tensors. The leg `'vL'` is expected to be in the codomain,
+        `'wL*', 'vL*'` in the domain.
+    RP : ct.SymmetricTensor
+        Right environment with legs `'vR', 'wR*', 'vR*'`, where `'wR*'` is contrated with the MPO
+        tensors and `'vR*'` with the MPS tensors. The leg `'vR'` is expected to be in the codomain,
+        `'wR*', 'vR*'` in the domain.
+    W1, W2 : ct.SymmetricTensor
+        MPO tensors of the two-site effective Hamiltonian, each with legs ``'wL', 'p', 'wR', 'p*'``
+        with the codomain and domain consisting of `'wL', 'p'` and `'wR', 'p*'`, respectively.
+
+    Attributes
+    ----------
+        LP, RP, W1, W2: same as parameters, but with the following changed legs in the (co)domain:
+        LP : codomain: `'vL', 'wL*'`, domain: `'vL*'`.
+        RP : codomain: `'vR*', 'wR*'`, domain: `'vR'`.
+        W1 : codomain: `'p0', 'wC'`, domain: 'wL', 'p0*'
+            (with renaming `'p', 'p*', 'wR'` to `'p0', 'p0*', 'wC'`)
+        W2 : codomain: `'p1', 'wR'`, domain: 'wC', 'p1*'
+            (with renaming `'p', 'p*', 'wL'` to `'p1', 'p1*', 'wC'`)
     """
 
     def __init__(self, LP, RP, W1, W2):
@@ -101,13 +125,13 @@ class DMRGEngine(object):
             self.update_RP(i)
 
     def init_LP(self):
-        MPS_left_leg = self.psi.Bs[0].codomain[0]
-        MPO_left_leg = self.H_mpo[0].codomain[0]
-        sym = MPS_left_leg.symmetry
-        left_codom = ct.TensorProduct([MPS_left_leg], sym)
-        left_dom = ct.TensorProduct([MPS_left_leg, MPO_left_leg], sym)
+        mps_left_leg = self.psi.Bs[0].codomain[0]
+        mpo_left_leg = self.H_mpo[0].codomain[0]
+        sym = mps_left_leg.symmetry
+        left_codom = ct.TensorProduct([mps_left_leg], sym)
+        left_dom = ct.TensorProduct([mps_left_leg, mpo_left_leg], sym)
         tree_pairs = {}
-        for tree, _, mults, _ in left_dom.iter_tree_blocks(MPS_left_leg.sector_decomposition):
+        for tree, _, mults, _ in left_dom.iter_tree_blocks(mps_left_leg.sector_decomposition):
             if not np.all(tree.uncoupled[1] == sym.trivial_sector):
                 continue
             # add the second MPS leg
@@ -116,7 +140,7 @@ class DMRGEngine(object):
             block[:, 0, :] += np.eye(shape[0], shape[2])
             codom_tree = ct.FusionTree.from_sector(sym, tree.uncoupled[0], tree.are_dual[0])
             tree_pairs[(codom_tree, tree)] = block
-        # TODO do this automatically in tensors
+        # TODO do this automatically in tensors and delete the line below
         dtype = None if self.psi.symmetry.has_symmetric_braid else ct.Dtype.complex128
         return ct.SymmetricTensor.from_tree_pairs(
             tree_pairs, left_codom, left_dom, self.psi.backend, labels=['vL', 'wL*', 'vL*'],
@@ -124,13 +148,13 @@ class DMRGEngine(object):
         )
 
     def init_RP(self):
-        MPS_right_leg = self.psi.Bs[-1].domain[0].dual
-        MPO_right_leg = self.H_mpo[-1].domain[1].dual
-        sym = MPS_right_leg.symmetry
-        right_codom = ct.TensorProduct([MPS_right_leg], sym)
-        right_dom = ct.TensorProduct([MPO_right_leg, MPS_right_leg], sym)
+        mps_right_leg = self.psi.Bs[-1].domain[0].dual
+        mpo_right_leg = self.H_mpo[-1].domain[1].dual
+        sym = mps_right_leg.symmetry
+        right_codom = ct.TensorProduct([mps_right_leg], sym)
+        right_dom = ct.TensorProduct([mpo_right_leg, mps_right_leg], sym)
         tree_pairs = {}
-        for tree, _, mults, _ in right_dom.iter_tree_blocks(MPS_right_leg.sector_decomposition):
+        for tree, _, mults, _ in right_dom.iter_tree_blocks(mps_right_leg.sector_decomposition):
             if not np.all(tree.uncoupled[0] == sym.trivial_sector):
                 continue
             # add the second MPS leg
@@ -139,7 +163,7 @@ class DMRGEngine(object):
             block[:, :, -1] += np.eye(*shape[:-1])
             codom_tree = ct.FusionTree.from_sector(sym, tree.uncoupled[1], tree.are_dual[1])
             tree_pairs[(codom_tree, tree)] = block
-        # TODO do this automatically in tensors
+        # TODO do this automatically in tensors and delete the line below
         dtype = None if self.psi.symmetry.has_symmetric_braid else ct.Dtype.complex128
         return ct.SymmetricTensor.from_tree_pairs(
             tree_pairs, right_codom, right_dom, self.psi.backend, labels=['vR', 'vR*', 'wR*'],
