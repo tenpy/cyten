@@ -466,7 +466,7 @@ def two_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) 
     device = get_same_DOF_device(*sites)
     labels = ['p0', 'p1', 'p1*', 'p0*']
     # TODO complex dtype is needed here for anyonic symmetries;
-    # we should maybe automatically do this in the tensor class
+    # we should maybe automatically do this in the tensor class and not fix it here
     projector = SymmetricTensor.from_sector_projection(
         [s.leg for s in sites], sector=sector, backend=backend, labels=labels, device=device,
         dtype=Dtype.complex128
