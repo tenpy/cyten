@@ -70,6 +70,10 @@ class NumpyBlockBackend(BlockBackend):
         _ = self.as_device(device)  # for input check only
         return np.copy(a)
 
+    def cutoff_inverse(self, a: Block, cutoff: float) -> Block:
+        """The elementwise cutoff-inverse: ``1 / a`` where ``abs(a) >= cutoff``, otherwise ``0``."""
+        return 1 / np.where(np.abs(a) < cutoff, np.inf, a)
+
     def get_dtype(self, a: Block) -> Dtype:
         return self.cyten_dtype_map[a.dtype]
 

@@ -7,6 +7,7 @@ from typing import Type
 import pytest
 import operator
 from contextlib import nullcontext
+from functools import partial
 
 from cyten import backends, tensors, symmetries
 from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor, Tensor
@@ -1712,6 +1713,8 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
      pytest.param(tensors.real, np.real, Dtype.float64, {}, id='real()-real'),
      pytest.param(tensors.complex_conj, np.conj, Dtype.float64, {}, id='conj()-real'),
      pytest.param(tensors.complex_conj, np.conj, Dtype.complex128, {}, id='conj()-complex'),
+     pytest.param(tensors.cutoff_inverse, None, Dtype.float64, dict(cutoff=1e-16), id='cutoff_inverse())-real'),
+     pytest.param(tensors.cutoff_inverse, None, Dtype.complex128, dict(cutoff=.3), id='cutoff_inverse())-complex'),
     ]
     # TODO more functions? exp, log
 )
@@ -1734,6 +1737,13 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
 
     if not D.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+
+    if cyten_func is tensors.cutoff_inverse:
+        numpy_func = partial(NumpyBlockBackend().cutoff_inverse, **kwargs)
+        npt.assert_almost_equal(numpy_func(1), 1)
+        npt.assert_almost_equal(numpy_func(0), 0)
+        npt.assert_almost_equal(numpy_func(2 * kwargs['cutoff']), .5 / kwargs['cutoff'])
+        npt.assert_almost_equal(numpy_func(.5 * kwargs['cutoff']), 0)
 
     res_np = res.diagonal_as_numpy()
     expect = numpy_func(D.diagonal_as_numpy())
