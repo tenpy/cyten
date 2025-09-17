@@ -190,9 +190,7 @@ class DMRGEngine(object):
         # split and truncate
         Ai, Sj, Bj = split_truncate_theta(theta, self.chi_max, self.eps)
         # put back into MPS
-        Gi = ct.scale_axis(
-            Ai, self.psi.Ss[i]._elementwise_unary(lambda x: x**-1, maps_zero_to_zero=True), leg='vL'
-        )
+        Gi = ct.scale_axis(Ai, ct.pinv(self.psi.Ss[i], cutoff=self.eps), leg='vL')
         Bi = ct.scale_axis(Gi, Sj, leg='vR')
         self.psi.Bs[i] = Bi
         self.psi.Ss[j] = Sj
@@ -229,9 +227,7 @@ class DMRGEngine(object):
         j = i + 1
         LP = self.LPs[i]  # vL wL* vL*
         B = self.psi.Bs[i]  # vL p vR
-        G = ct.scale_axis(
-            B, self.psi.Ss[j]._elementwise_unary(lambda x: x**-1, maps_zero_to_zero=True), leg='vR'
-        )
+        G = ct.scale_axis(B, ct.pinv(self.psi.Ss[j], cutoff=self.eps), leg='vR')
         A = ct.scale_axis(G, self.psi.Ss[i], leg='vL')
         Ac = A.hc
         W = self.H_mpo[i]  # wL p wR p*
