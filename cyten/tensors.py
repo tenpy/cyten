@@ -4947,7 +4947,7 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
 def pinv(tensor: Tensor, cutoff=1e-15) -> Tensor:
     """The Moore-Penrose pseudo-inverse of a tensor."""
     if isinstance(tensor, DiagonalTensor):
-        return cutoff_inverse(tensor)
+        return cutoff_inverse(tensor, cutoff=cutoff)
     U, S, Vh = truncated_svd(tensor, options=dict(svd_min=cutoff))
     return dagger(U @ cutoff_inverse(S, cutoff=cutoff) @ Vh)
 
