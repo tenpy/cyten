@@ -231,6 +231,8 @@ class OnSiteOperator(Coupling):
         self.operator = operator
         W = add_trivial_leg(operator, codomain_pos=0, label='wL')
         W = add_trivial_leg(W, domain_pos=1, label='wR')
+        # TODO do this for now; discuss how we actually want to do it
+        W.relabel({'p': 'p0', 'p*': 'p0*'})
         Coupling.__init__(self, sites=[site], factorization=[W], name=name)
 
     @classmethod
@@ -271,7 +273,7 @@ def spin_spin_coupling(sites: list[SpinDOF], xx: float = None, yy: float = None,
 
 def spin_field_coupling(sites: list[SpinDOF], hx: float = None, hy: float = None,
                         hz: float = None, name: str = 'spin-field') -> Coupling:
-    """Coupling between a spins and a (magnetic) field.
+    """Coupling between a (single) spin and a (magnetic) field.
 
     Parameters
     ----------
@@ -338,7 +340,7 @@ def chiral_3spin_coupling(sites: list[SpinDOF], name: str = 'S.SxS') -> Coupling
 
 def chemical_potential(sites: list[BosonicDOF | FermionicDOF], mu: float | list[float | None] = None,
                        name: str = 'chem. pot.') -> Coupling:
-    """Chemical potential for bosons or fermions.
+    """Chemical potential for bosons or fermions on a single site.
 
     Parameters
     ----------
@@ -387,6 +389,31 @@ def onsite_interaction(sites: list[BosonicDOF | FermionicDOF], name: str = 'onsi
     return Coupling.from_tensor(h, sites=sites, name=name)
 
 
+def long_range_interaction(sites: list[BosonicDOF | FermionicDOF], distance: int,
+                           name: str = 'long-range interaction') -> Coupling:
+    """Long-range density-density interactions for bosons or fermions.
+
+    Corresponds to ``n_i n_j``, where `n_i` and `n_j` are the total onsite
+    particle numbers (including all particle species) of the sites `i` and `j`
+    with a given distance between them, that is, `j == i + distance`.
+    """
+    # TODO test that this builds what we expect
+    assert isinstance(distance, int)
+    # TODO should distance == 0 give the onsite case?
+    assert distance > 0, 'distance between the sites must be positive'
+    assert len(sites) == distance + 1
+    sites_ij = [sites[0], sites[-1]]
+    op_names = ['N' if site.num_species == 1 else 'Ntot' for site in sites_ij]
+    ops = [site.onsite_operators[op_name] for site, op_name in zip(sites_ij, op_names)]
+    h = ops[0]
+    for i in range(1, distance):
+        identity = SymmetricTensor.from_eye([sites[i].leg], labels=[f'p{i}', f'p{i}*'])
+        h = outer(h, identity)
+    h = outer(h, ops[1], relabel1={'p': 'p0', 'p*': 'p0*'},
+              relabel2={'p': f'p{distance}', 'p*': f'p{distance}*'})
+    return Coupling.from_tensor(h, sites=sites, name=name)
+
+
 def nearest_neighbor_interaction(sites: list[BosonicDOF | FermionicDOF],
                                  name: str = 'NN interaction') -> Coupling:
     """Nearest neighbor interactions for bosons or fermions.
@@ -396,11 +423,19 @@ def nearest_neighbor_interaction(sites: list[BosonicDOF | FermionicDOF],
     sites.
     """
     # TODO test that this builds what we expect
-    assert len(sites) == 2
-    op_names = ['N' if site.num_species == 1 else 'Ntot' for site in sites]
-    ops = [site.onsite_operators[op_name] for site, op_name in zip(sites, op_names)]
-    h = outer(ops[0], ops[1], relabel1={'p': 'p0', 'p*': 'p0*'}, relabel2={'p': 'p1', 'p*': 'p1*'})
-    return Coupling.from_tensor(h, sites=sites, name=name)
+    return long_range_interaction(sites=sites, distance=1, name=name)
+
+
+def next_nearest_neighbor_interaction(sites: list[BosonicDOF | FermionicDOF],
+                                      name: str = 'NNN interaction') -> Coupling:
+    """Next nearest neighbor interactions for bosons or fermions.
+
+    Corresponds to ``n_i n_j``, where `n_i` and `n_j` are the total onsite
+    particle numbers (including all particle species) of the two next nearest
+    neighboring sites.
+    """
+    # TODO test that this builds what we expect
+    return long_range_interaction(sites=sites, distance=2, name=name)
 
 
 # CLOCK COUPLINGS
