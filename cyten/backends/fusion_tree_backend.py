@@ -2761,6 +2761,13 @@ class TreePairMapping(TensorMapping):
 
     @property
     def has_complex_coefficients(self) -> bool:
+        # coefficients must be real if fusion tensor is real and braids are symmetric
+        for trees in self.mapping.keys():
+            sym = trees[0].symmetry
+            if sym.fusion_tensor_dtype is not None:
+                if sym.fusion_tensor_dtype.is_real and sym.has_symmetric_braid:
+                    return False
+            break
         for val in self.mapping.values():
             for num in val.values():
                 if isinstance(num, complex):
@@ -2964,6 +2971,12 @@ class FactorizedTreeMapping(TensorMapping):
 
     @property
     def has_complex_coefficients(self) -> bool:
+        for tree in self.fusion_tree_mapping.keys():
+            sym = tree.symmetry
+            if sym.fusion_tensor_dtype is not None:
+                if sym.fusion_tensor_dtype.is_real and sym.has_symmetric_braid:
+                    return False
+            break
         for val in self.fusion_tree_mapping.values():
             for num in val.values():
                 if isinstance(num, complex):
