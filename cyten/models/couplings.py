@@ -494,7 +494,7 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
 
 # ANYONIC COUPLINGS
 
-def n_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
+def multi_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
     """Coupling between multiple sites that corresponds to a projector onto a common sector."""
     backend = get_same_DOF_backend(*sites)
     device = get_same_DOF_device(*sites)
@@ -512,13 +512,13 @@ def n_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) ->
 def two_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
     """Coupling between two sites that corresponds to a projector onto a common sector."""
     assert len(sites) == 2
-    return n_site_projector(sites=sites, sector=sector, name=name)
+    return multi_site_projector(sites=sites, sector=sector, name=name)
 
 
 def three_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
     """Coupling between three sites that corresponds to a projector onto a common sector."""
     assert len(sites) == 3
-    return n_site_projector(sites=sites, sector=sector, name=name)
+    return multi_site_projector(sites=sites, sector=sector, name=name)
 
 
 def gold_coupling(sites: list[GoldenSite], name: str = 'P_vac') -> Coupling:
