@@ -494,12 +494,12 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
 
 # ANYONIC COUPLINGS
 
-def two_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
-    """Coupling between two sites that corresponds to a projector onto a common sector."""
-    assert len(sites) == 2
+def n_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
+    """Coupling between multiple sites that corresponds to a projector onto a common sector."""
     backend = get_same_DOF_backend(*sites)
     device = get_same_DOF_device(*sites)
-    labels = ['p0', 'p1', 'p1*', 'p0*']
+    labels = [f'p{i}' for i in range(len(sites))]
+    labels = [*labels, *[f'{l}*' for l in reversed(labels)]]
     # TODO complex dtype is needed here for anyonic symmetries;
     # we should maybe automatically do this in the tensor class and not fix it here
     projector = SymmetricTensor.from_sector_projection(
@@ -507,6 +507,18 @@ def two_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) 
         dtype=Dtype.complex128
     )
     return Coupling.from_tensor(projector, sites=sites, name=name)
+
+
+def two_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
+    """Coupling between two sites that corresponds to a projector onto a common sector."""
+    assert len(sites) == 2
+    return n_site_projector(sites=sites, sector=sector, name=name)
+
+
+def three_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
+    """Coupling between three sites that corresponds to a projector onto a common sector."""
+    assert len(sites) == 3
+    return n_site_projector(sites=sites, sector=sector, name=name)
 
 
 def gold_coupling(sites: list[GoldenSite], name: str = 'P_vac') -> Coupling:
