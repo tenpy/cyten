@@ -1224,7 +1224,7 @@ class SymmetricTensor(Tensor):
 
         def func(shape: tuple[int, ...], coupled: Sector):
             if np.all(coupled == sector):
-                return backend.block_backend.eye_block([*shape[:co_domain.num_factors]],
+                return backend.block_backend.eye_block([*shape[:len(shape) // 2]],
                                                        dtype=dtype, device=device)
             return backend.block_backend.zeros(shape, dtype=dtype, device=device)
 
@@ -4916,7 +4916,7 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
 def pinv(tensor: Tensor, cutoff=1e-15) -> Tensor:
     """The Moore-Penrose pseudo-inverse of a tensor."""
     if isinstance(tensor, DiagonalTensor):
-        return cutoff_inverse(tensor)
+        return cutoff_inverse(tensor, cutoff=cutoff)
     U, S, Vh = truncated_svd(tensor, options=dict(svd_min=cutoff))
     return dagger(U @ cutoff_inverse(S, cutoff=cutoff) @ Vh)
 
@@ -5442,7 +5442,7 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
         assert isinstance(op.domain[-1], ElementarySpace)
 
     transposed_grid = list(map(list, zip(*grid)))
-    right_ops = grid[0]
+    right_ops = grid[0][:]
     for i, op in enumerate(right_ops):
         if op is not None:
             continue
@@ -5452,9 +5452,9 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
                 continue
             right_ops[i] = new_op
             break
-    right_spaces = [op.domain[-1] for op in right_ops]
-    if None in right_spaces:
+    if any(op is None for op in right_ops):
         raise ValueError('Must have at least one nonzero entry in each column.')
+    right_spaces = [op.domain[-1] for op in right_ops]
 
     left_ops = transposed_grid[0]
     for i, op in enumerate(left_ops):
@@ -5466,9 +5466,9 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
                 continue
             left_ops[i] = new_op
             break
-    left_spaces = [op.codomain[0] for op in left_ops]
-    if None in left_spaces:
+    if any(op is None for op in left_ops):
         raise ValueError('Must have at least one nonzero entry in each row.')
+    left_spaces = [op.codomain[0] for op in left_ops]
 
     left_space = left_spaces[0].direct_sum(*left_spaces[1:])
     right_space = right_spaces[0].direct_sum(*right_spaces[1:])
