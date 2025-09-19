@@ -1007,10 +1007,10 @@ class SymmetricTensor(Tensor):
             dom_dualities = [k.is_dual for k in domain if isinstance(k, LegPipe)]
             codom_dualities = [k.is_dual for k in codomain if isinstance(k, LegPipe)]
 
-            all_legs= codomain.factors+domain.factors[::-1]
+            all_legs = codomain.factors + domain.factors[::-1]
 
-            flat_codomain = TensorProduct(codomain.flat_legs, symmetry= symmetry)
-            flat_domain= TensorProduct(domain.flat_legs, symmetry= symmetry)
+            flat_codomain = TensorProduct(codomain.flat_legs, symmetry=symmetry)
+            flat_domain = TensorProduct(domain.flat_legs, symmetry=symmetry)
 
             flat_codomain_dims = [leg.dim for leg in flat_codomain_legs]
             flat_domain_dims = [leg.dim for leg in flat_domain_legs]
@@ -1021,7 +1021,7 @@ class SymmetricTensor(Tensor):
             assert len(backend.block_backend.get_shape(block)) == len(flat_codomain_legs) + len(flat_domain_legs)
 
             data = backend.from_dense_block(block, codomain=flat_codomain, domain=flat_domain, tol=tol)
-            tens= cls(data, codomain=flat_codomain, domain=flat_domain, backend=backend)
+            tens = cls(data, codomain=flat_codomain, domain=flat_domain, backend=backend)
 
             codomain_pipe_inds = []
             domain_pipe_inds = []
@@ -1043,12 +1043,11 @@ class SymmetricTensor(Tensor):
 
                     flat_index += 1
 
-            combines=[i for i in codomain_pipe_inds if len(i)>1] + [i for i in domain_pipe_inds if len(i)>1]
+            combines = [i for i in codomain_pipe_inds if len(i) > 1] + [i for i in domain_pipe_inds if len(i) > 1]
 
-            tens=combine_legs(tens, *combines,pipe_dualities=codom_dualities+dom_dualities)
+            tens = combine_legs(tens, *combines, pipe_dualities=codom_dualities + dom_dualities)
             tens.set_labels(labels)
             return tens
-
         block = backend.block_backend.as_block(block, dtype=dtype, device=device)
         assert len(backend.block_backend.get_shape(block)) == codomain.num_factors + domain.num_factors
 
@@ -1451,14 +1450,13 @@ class SymmetricTensor(Tensor):
                    'that means (read the docstring of to_dense_block). Then you can disable '
                    'this error by setting ``understood_braiding=True``.')
             raise SymmetryError(msg)
-        block = self.backend.to_dense_block(self)
 
-        if self.has_pipes == True:
-            # self_split, combines = _split_all_pipes(self)
-            # block = self_split.backend.block_backend.apply_basis_perm(self_split, conventional_leg_order(self_split), inv=True)
-            # block=self.backend.block_backend.combine_legs(block, combines)
-            block=self._to_dense_block_by_splitting_pipes()
-
+        if self.has_pipes:
+            block = self._to_dense_block_by_splitting_pipes()
+            # FIXME make sure this considers basis_perm
+        else:
+            block = self.backend.to_dense_block(self)
+            block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self), inv=True)
         if dtype is not None:
             block = self.backend.block_backend.to_dtype(block, dtype)
         if leg_order is not None:

@@ -1340,12 +1340,6 @@ def test_apply_mask_DiagonalTensor(make_compatible_tensor):
 def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_tensor):
     tensor: Tensor = make_compatible_tensor(codomain, domain, cls=cls)
 
-    #if isinstance(tensor.backend, backends.FusionTreeBackend):
-        # if any([isinstance(leg, LegPipe) for leg in tensor.legs]) and codomain != num_codomain_legs:
-        #     with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
-        #         _ = tensors.bend_legs(tensor, num_codomain_legs)
-        #     pytest.xfail(reason='FTbackend cant deal with pipes yet')
-
     res = tensors.bend_legs(tensor, num_codomain_legs)
     res.test_sanity()
     assert res.legs == tensor.legs
@@ -3005,6 +2999,68 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     expect = np.transpose(tensor.to_numpy(), [*range(cod, cod + dom), *range(cod)])
     npt.assert_almost_equal(res.to_numpy(), expect)
 
+
+def test_leg_dualities(make_compatible_tensor):
+    """
+    Tests the equivalence of tensor leg transformations involving pipe dualities.
+
+    Checks consistency of duality transformations and bendings applied to the tensors legs
+    such that the leg duality labels for the following diagram commute:
+
+            ┏─────────────────────────────────────────┓
+            ▼                                         ▼
+          A    B               A    B               A    B
+          ^    ^               ^    ^               ^    ^
+        ┏━┷━━━━┷━┓           ┏━┷━━━━┷━┓           ┏━┷━━━━┷━┓
+        ┃ tens_lu┃   ◀────▶  ┃  tens  ┃   ◀────▶  ┃ tens_ru┃
+        ┗━━━━┯━━━┛           ┗━┯━━━━┯━┛           ┗━━━━┯━━━┛
+             ▼                 ^    ^                  ▲
+        (V* ⊗ W*)              W    V               (W ⊗ V)
+             ▲                   ▲                     ▲
+             │                   │                     │
+             ▼                   ▼                     ▼
+          A B (V* ⊗ W*)        A B V W              A B (W ⊗ V)
+          ^ ^  ▲               ^ ^ ^ ^              ^ ^  ▼
+        ┏━┷━┷━━┷━┓           ┏━┷━┷━┷━┷┓           ┏━┷━┷━━┷━┓
+        ┃ tens_ld┃   ◀────▶  ┃ tens_md┃   ◀────▶  ┃ tens_rd┃
+        ┗━━━━━━━━┛           ┗━━━━━━━━┛           ┗━━━━━━━━┛
+            ▲                                         ▲
+            ┗─────────────────────────────────────────┛
+    Parameters:
+    ----------
+    tens : tensors.Tensor
+        The input tensor whose leg dualities are being tested.
+    """
+
+    tens: SymmetricTensor = make_compatible_tensor(2, 2, cls=SymmetricTensor)
+
+    lcd = len(tens.codomain)
+    k = lcd
+    kn = k + 1
+
+    tens_lu = tensors.combine_legs(tens, [k, kn], pipe_dualities=[False])
+    tens_ld = tensors.bend_legs(tens_lu, lcd + 1)
+
+    tens_md = tensors.bend_legs(tens, lcd + 2)
+    tens_ld_p = tensors.combine_legs(tens_md, [k, kn], pipe_dualities=[False])
+
+    assert tensors.almost_equal(tens_ld, tens_ld_p)
+    assert tens_ld.legs.__eq__(tens_ld_p.legs)
+
+    tens_ru = tensors.combine_legs(tens, [k, kn], pipe_dualities=[True])
+    tens_rd = tensors.bend_legs(tens_ru, lcd + 1)
+
+    tens_md = tensors.bend_legs(tens, lcd + 2)
+    tens_rd_p = tensors.combine_legs(tens_md, [k, kn], pipe_dualities=[True])
+
+    assert tensors.almost_equal(tens_rd, tens_rd_p)
+    assert tens_rd.legs.__eq__(tens_rd_p.legs)
+
+    tens_ld.flip_leg_duality([k])
+    assert tens_rd.legs.__eq__(tens_ld.legs)
+
+    tens_lu.flip_leg_duality([k])
+    assert tens_ru.legs.__eq__(tens_lu.legs)
 
 def test_leg_dualities(make_compatible_tensor):
     """
