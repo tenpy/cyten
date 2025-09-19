@@ -1407,9 +1407,13 @@ class TensorProduct(Space):
             _sector_decomposition=sectors, _multiplicities=multiplicities
         )
 
-    def flat_legs(self) -> list[Space]:
-        """Flatten any pipes in the :attr:`factors`, recursively."""
-        return _flatten_leg_pipes(self.factors)
+    # def flat_legs(self) -> list[Space]:
+    #     """Flatten any pipes in the :attr:`factors`, recursively."""
+    #     return _flatten_leg_pipes(self.factors)
+
+    @property
+    def flat_legs(self) -> list[ElementarySpace]:
+        return _make_flat_legs(self.factors)
 
     def flat_leg_idcs(self, i: int) -> list[int]:
         """All indices into the :meth:`flat_legs` that the leg ``factors[i]`` flattens to."""
@@ -1471,9 +1475,9 @@ class TensorProduct(Space):
         """
         # OPTIMIZE some users in FTBackend ignore some of the yielded values.
         #          is that ok performance wise or should we have special case iterators?
-        if any(not isinstance(sp, ElementarySpace) for sp in self.factors):
+        #if any(not isinstance(sp, ElementarySpace) for sp in self.factors):
             # if there are pipes, this should not be called.
-            raise RuntimeError('iter_tree_blocks can not deal with pipes')
+            #raise RuntimeError('iter_tree_blocks can not deal with pipes')
         are_dual = [sp.is_dual for sp in self.factors]
         for i, c in enumerate(coupled):
             start = 0  # start index of the current tree block within the block
@@ -1540,13 +1544,13 @@ class TensorProduct(Space):
         For a TensorProduct of zero spaces, i.e. with ``num_factors == 0``,
         we *do* yield once, where the yielded arrays are empty (e.g. ``len(uncoupled) == 0``).
         """
-        if not all(isinstance(f, ElementarySpace) for f in self.factors):
-            raise RuntimeError('iter_uncoupled can not deal with pipes.')
-        for idcs in it.product(*(range(s.num_sectors) for s in self.factors)):
-            a = np.array([self.factors[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
-            m = np.array([self.factors[n].multiplicities[i] for n, i in enumerate(idcs)], int)
+        #if not all(isinstance(f, ElementarySpace) for f in self.factors):
+            #raise RuntimeError('iter_uncoupled can not deal with pipes.')
+        for idcs in it.product(*(range(s.num_sectors) for s in self.flat_legs)):
+            a = np.array([self.flat_legs[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
+            m = np.array([self.flat_legs[n].multiplicities[i] for n, i in enumerate(idcs)], int)
             if yield_slices:
-                slcs = [slice(*self.factors[n].slices[i]) for n, i in enumerate(idcs)]
+                slcs = [slice(*self.flat_legs[n].slices[i]) for n, i in enumerate(idcs)]
                 yield a, m, slcs
             else:
                 yield a, m
@@ -2314,3 +2318,18 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
             remaining_symmetry = ProductSymmetry(factors)
 
     return which, remaining_symmetry
+
+
+def _make_flat_legs(factors: list[Leg]) -> list[ElementarySpace]:
+
+    res = []
+    for f in factors:
+        if isinstance(f, Space):
+            res.append(f)
+        elif isinstance(f, LegPipe):
+            res.extend(_make_flat_legs(f.legs))
+
+        else:
+            # this should not happen, all Leg subclasses should be Space or LegPipe (or subclasses thereof)
+            raise RuntimeError
+    return res
