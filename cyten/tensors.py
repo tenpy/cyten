@@ -3863,6 +3863,17 @@ def combine_to_matrix(tensor: Tensor,
     return combine_legs(res, range(res.num_codomain_legs), range(res.num_codomain_legs, res.num_legs))
 
 
+@_elementwise_function(block_func='cutoff_inverse', maps_zero_to_zero=True)
+def cutoff_inverse(x: _ElementwiseType, cutoff: float = 1e-15) -> _ElementwiseType:
+    """The :ref:`elementwise <diagonal_elementwise>` cutoff inverse.
+
+    The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, otherwise ``0``.
+    """
+    if abs(x) < cutoff:
+        return 0
+    return 1. / x
+
+
 @_elementwise_function(block_func='conj', maps_zero_to_zero=True)
 def complex_conj(x: _ElementwiseType) -> _ElementwiseType:
     """Complex conjugation, :ref:`elementwise <diagonal_elementwise>`."""
@@ -4959,8 +4970,10 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
 
 def pinv(tensor: Tensor, cutoff=1e-15) -> Tensor:
     """The Moore-Penrose pseudo-inverse of a tensor."""
+    if isinstance(tensor, DiagonalTensor):
+        return cutoff_inverse(tensor)
     U, S, Vh = truncated_svd(tensor, options=dict(svd_min=cutoff))
-    return dagger(U @ (1. / S) @ Vh)
+    return dagger(U @ cutoff_inverse(S, cutoff=cutoff) @ Vh)
 
 
 def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = False

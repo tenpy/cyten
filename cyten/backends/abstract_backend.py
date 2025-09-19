@@ -1098,6 +1098,12 @@ class BlockBackend(metaclass=ABCMeta):
         """
         ...
 
+    def cutoff_inverse(self, a: Block, cutoff: float) -> Block:
+        """The elementwise cutoff-inverse: ``1 / a`` where ``abs(a) >= cutoff``, otherwise ``0``."""
+        res = 1. * self.copy_block(a)
+        res[abs(a) < cutoff] = float('inf')
+        return 1 / res
+
     def dagger(self, a: Block) -> Block:
         """Permute axes to reverse order and elementwise conj."""
         num_legs = len(self.get_shape(a))
