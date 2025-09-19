@@ -1473,7 +1473,8 @@ class FusionTreeBackend(TensorBackend):
         # OPTIMIZE new_codomain and new_domain are already computed in tensors.py -> reuse here
         new_codomain = TensorProduct.from_partial_products(a.codomain, b.codomain)
         new_domain = TensorProduct.from_partial_products(a.domain, b.domain)
-        new_data = self.zero_data(new_codomain, new_domain, a.dtype, a.device, all_blocks=True)
+        dtype = Dtype.common(a.dtype, b.dtype)
+        new_data = self.zero_data(new_codomain, new_domain, dtype, a.device, all_blocks=True)
         for a_codom_tree, a_dom_tree, a_tree_block in _tree_block_iter(a):
             for b_codom_tree, b_dom_tree, b_tree_block in _tree_block_iter(b):
                 # axes of new_tree_block after outer: (a.codomain, a.domain, b.codomain, b.domain)
@@ -1578,7 +1579,7 @@ class FusionTreeBackend(TensorBackend):
             if new_codomain.sector_decomposition_where(sector) is None:
                 continue
             coupled_sectors.append(sector)
-        new_data = self.zero_data(new_codomain, new_domain, tensor.dtype, tensor.device,
+        new_data = self.zero_data(new_codomain, new_domain, data.dtype, tensor.device,
                                   all_blocks=True)
         # block indices
         old_inds = [data.block_ind_from_coupled(c, dom) for c in coupled_sectors]
@@ -1722,6 +1723,7 @@ class FusionTreeBackend(TensorBackend):
         return func(numbers)
 
     def scale_axis(self, a: SymmetricTensor, b: DiagonalTensor, leg: int) -> Data:
+        dtype = Dtype.common(a.dtype, b.dtype)
         in_domain, co_domain_idx, leg_idx = a._parse_leg_idx(leg)
         ax_a = int(in_domain)  # 1 if in_domain, 0 else
 
@@ -1746,7 +1748,7 @@ class FusionTreeBackend(TensorBackend):
                 block_inds = np.zeros((0, 2), int)
             else:
                 block_inds = np.array(block_inds, int)
-            return FusionTreeData(block_inds, blocks, a.dtype, a.data.device)
+            return FusionTreeData(block_inds, blocks, dtype, a.data.device)
 
         iter_space = a.domain if in_domain else a.codomain
         if a.has_pipes:
@@ -1772,7 +1774,7 @@ class FusionTreeBackend(TensorBackend):
                 ind_mapping[coupled_ind] = len(blocks)
                 block_inds = np.append(block_inds, np.array([[a_block_inds[coupled_ind, 0], ind]]), axis=0)
                 shape = self.block_backend.get_shape(a_blocks[coupled_ind])
-                blocks.append(self.block_backend.zeros(shape, a.dtype))
+                blocks.append(self.block_backend.zeros(shape, dtype))
 
             reshape = [iter_space[i].sector_multiplicity(sec) for i, sec in enumerate(uncoupled)]
             if in_domain:
@@ -1791,7 +1793,7 @@ class FusionTreeBackend(TensorBackend):
             forest = self.block_backend.scale_axis(forest, b_blocks[ind_b], axis=ax_a + co_domain_idx + 1)
             forest = self.block_backend.reshape(forest, initial_shape)
             blocks[ind_mapping[coupled_ind]][slcs[0], slcs[1]] = forest
-        return FusionTreeData(block_inds, blocks, a.dtype, a.data.device)
+        return FusionTreeData(block_inds, blocks, dtype, a.data.device)
 
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
                    domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
@@ -2757,6 +2759,14 @@ class TreePairMapping(TensorMapping):
     def __init__(self, mapping: SparseMapping[tuple[FusionTree, FusionTree]]):
         self.mapping: SparseMapping[tuple[FusionTree, FusionTree]] = mapping
 
+    @property
+    def has_complex_coefficients(self) -> bool:
+        for val in self.mapping.values():
+            for num in val.values():
+                if isinstance(num, complex):
+                    return True
+        return False
+
     @classmethod
     def from_identity(cls, codomain: TensorProduct, domain: TensorProduct,
                       block_inds: np.ndarray | None = None):
@@ -2877,7 +2887,9 @@ class TreePairMapping(TensorMapping):
         tree_block_axes_2 = [i if i < J else (N - 1) + (J - i) for i in domain_idcs]
         inv_leg_perm = inverse_permutation([*codomain_idcs, *reversed(domain_idcs)])
         #
-        dtype = data.dtype  # TODO what if blocks are real but coefficients complex???
+        dtype = data.dtype
+        if dtype.is_real and self.has_complex_coefficients:
+            dtype = dtype.to_complex
         block_inds = []
         blocks = []
         #
@@ -2885,7 +2897,7 @@ class TreePairMapping(TensorMapping):
                                               new_domain.sector_decomposition):
             coupled = new_codomain.sector_decomposition[i]
             shape = (new_codomain.block_size(i), new_domain.block_size(j))
-            block = block_backend.zeros(shape, data.dtype, device=data.device)
+            block = block_backend.zeros(shape, dtype, device=data.device)
             is_zero_block = True
             for Y, idcs1, mults1, _ in new_codomain.iter_tree_blocks([coupled]):
                 for X, idcs2, mults2, _ in new_domain.iter_tree_blocks([coupled]):
@@ -2949,6 +2961,18 @@ class FactorizedTreeMapping(TensorMapping):
                  fusion_tree_mapping: SparseMapping[FusionTree] | IdentityMapping[FusionTree]):
         self.splitting_tree_mapping = splitting_tree_mapping
         self.fusion_tree_mapping = fusion_tree_mapping
+
+    @property
+    def has_complex_coefficients(self) -> bool:
+        for val in self.fusion_tree_mapping.values():
+            for num in val.values():
+                if isinstance(num, complex):
+                    return True
+        for val in self.splitting_tree_mapping.values():
+            for num in val.values():
+                if isinstance(num, complex):
+                    return True
+        return False
 
     @classmethod
     def from_identity(cls, codomain: TensorProduct, domain: TensorProduct,
@@ -3039,7 +3063,9 @@ class FactorizedTreeMapping(TensorMapping):
         K = domain.num_factors
         N = J + K
         #
-        dtype = data.dtype  # TODO what if blocks are real but coefficients complex???
+        dtype = data.dtype
+        if dtype.is_real and self.has_complex_coefficients:
+            dtype = dtype.to_complex
         block_inds = []
         blocks = []
         #
@@ -3053,7 +3079,7 @@ class FactorizedTreeMapping(TensorMapping):
             old_block = data.blocks[which_block]
             shape = (new_codomain.multiplicities[i], new_domain.multiplicities[j])
             #
-            tmp_block = block_backend.zeros(shape, data.dtype, device=data.device)
+            tmp_block = block_backend.zeros(shape, dtype, device=data.device)
             tmp_block, is_zero_block = self._transform_splitting_trees(
                 old_block, tmp_block, coupled=coupled, codomain=codomain, new_codomain=new_codomain,
                 tree_block_axes_1=codomain_idcs, block_backend=block_backend
@@ -3061,7 +3087,7 @@ class FactorizedTreeMapping(TensorMapping):
             if is_zero_block:
                 continue
             #
-            block = block_backend.zeros(shape, data.dtype, device=data.device)
+            block = block_backend.zeros(shape, dtype, device=data.device)
             block, is_zero_block = self._transform_fusion_trees(
                 tmp_block, block, coupled=coupled, domain=domain, new_domain=new_domain,
                 tree_block_axes_2=[(N - 1) - i for i in domain_idcs], block_backend=block_backend
