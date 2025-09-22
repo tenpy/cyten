@@ -70,6 +70,10 @@ class NumpyBlockBackend(BlockBackend):
         _ = self.as_device(device)  # for input check only
         return np.copy(a)
 
+    def cutoff_inverse(self, a: Block, cutoff: float) -> Block:
+        """The elementwise cutoff-inverse: ``1 / a`` where ``abs(a) >= cutoff``, otherwise ``0``."""
+        return 1 / np.where(np.abs(a) < cutoff, np.inf, a)
+
     def get_dtype(self, a: Block) -> Dtype:
         return self.cyten_dtype_map[a.dtype]
 
@@ -95,7 +99,7 @@ class NumpyBlockBackend(BlockBackend):
         res = np.zeros(shape, dtype=block.dtype)
         idcs = [slice(None, None, None)] * len(shape)
         idcs[axis] = mask
-        res[tuple(idcs)] = block  # TODO should we worry about mutability?
+        res[tuple(idcs)] = block.copy()  # OPTIMIZE is the copy needed
         return res
 
     def exp(self, a: Block) -> Block:
@@ -120,10 +124,10 @@ class NumpyBlockBackend(BlockBackend):
     def get_device(self, a: Block) -> str:
         return self.default_device
     
-    def get_diagonal(self, a: Block, check_offdiagonal: bool) -> Block:
+    def get_diagonal(self, a: Block, tol: float | None) -> Block:
         res = np.diagonal(a)
-        if check_offdiagonal:
-            if not np.allclose(a, np.diag(res)):
+        if tol is not None:
+            if not np.allclose(a, np.diag(res), atol=tol):
                 raise ValueError('Not a diagonal block.')
         return res
 
@@ -131,7 +135,7 @@ class NumpyBlockBackend(BlockBackend):
         return np.imag(a)
 
     def inner(self, a: Block, b: Block, do_dagger: bool) -> float | complex:
-        # TODO use np.sum(a * b) instead?
+        # OPTIMIZE use np.sum(a * b) instead?
         if do_dagger:
             return np.tensordot(np.conj(a), b, a.ndim).item()
         return np.tensordot(a, b, [list(range(a.ndim)), list(reversed(range(a.ndim)))]).item()
@@ -194,7 +198,6 @@ class NumpyBlockBackend(BlockBackend):
         return np.tile(a, repeats)
 
     def _block_repr_lines(self, a: Block, indent: str, max_width: int, max_lines: int) -> list[str]:
-        # TODO i like julia style much better actually, especially for many legs
         with np.printoptions(linewidth=max_width - len(indent)):
             lines = [f'{indent}{line}' for line in str(a).split('\n')]
         if len(lines) > max_lines:
@@ -275,7 +278,7 @@ class NumpyBlockBackend(BlockBackend):
                 return scipy.linalg.svd(a, full_matrices=False)
             except np.linalg.LinAlgError:
                 if not silent:
-                    raise NotImplementedError  # TODO log warning
+                    raise NotImplementedError  # log warning
             return _svd_gesvd(a)
 
         elif algorithm == 'gesvd':
@@ -294,4 +297,4 @@ class NumpyBlockBackend(BlockBackend):
 
 
 def _svd_gesvd(a):
-    raise NotImplementedError  # TODO
+    raise NotImplementedError

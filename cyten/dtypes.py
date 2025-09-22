@@ -9,8 +9,7 @@ import numpy as np
 
 class Dtype(Enum):
     """The dtype of (entries in) a tensor."""
-    
-    # TODO expose those in some high-level init, maybe even as cyten.float32 ?
+
     # value = num_bytes * 2 + int(not is_real)
     bool = 2
     float32 = 8
@@ -83,7 +82,6 @@ class Dtype(Enum):
         elif dtype.is_real:
             if isinstance(value, (int, float)):
                 return float(value)
-            # TODO what should we do for complex values?
         else:
             if isinstance(value, Number):
                 return complex(value)

@@ -78,18 +78,20 @@ import functools
 import logging
 
 from .dummy_config import printoptions
-from .symmetries import SymmetryError, Symmetry
+from .symmetries import SymmetryError, Symmetry, BraidingStyle
 from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
+from .trees import FusionTree
 from .backends.backend_factory import get_backend
 from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order
 from .dtypes import Dtype
 from .tools.misc import (
     to_iterable, rank_data, inverse_permutation, duplicate_entries, iter_common_sorted_arrays,
-    to_valid_idx
+    to_valid_idx, is_iterable
 )
 
 
 logger = logging.getLogger(__name__)
+_USE_PERMUTE_LEGS_ERR_MSG = 'Legs can not be permuted automatically. Explicitly use permute_legs()'
 
 
 # TENSOR CLASSES
@@ -151,7 +153,7 @@ class Tensor(metaclass=ABCMeta):
     dtype : Dtype
         The dtype of tensor entries.
     """
-    
+
     _forbidden_dtypes = [Dtype.bool]
 
     def __init__(self,
@@ -301,7 +303,7 @@ class Tensor(metaclass=ABCMeta):
             |    i     h     g     f     e
             |    ^     v     ^     ^     v
             |   42   777    11     2     3
-        
+
         """
         text = {
             SymmetricTensor: 'Symm',
@@ -313,16 +315,28 @@ class Tensor(metaclass=ABCMeta):
 
         DISTANCE = 5  # distance between legs in chars, i.e. number of '━' between the '┯'
         huge_dim = f'>1e{DISTANCE + 1}'  # for numbers that can not fit in DISTANCE digits
+        huge_dim_value = 10 ** (DISTANCE + 1)
         assert len(huge_dim) <= DISTANCE
         huge_dim = huge_dim.rjust(DISTANCE)
-        codomain_dims = [
-            str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else huge_dim
-            for l in self.codomain
-        ]
-        domain_dims = [
-            str(l.dim).rjust(DISTANCE) if len(str(l.dim)) <= DISTANCE else huge_dim
-            for l in self.domain
-        ]
+        dims = []
+        for l in self.legs:
+            if len(str(l.dim)) <= DISTANCE:
+                dims.append(str(l.dim).rjust(DISTANCE))
+                continue
+            if l.dim >= huge_dim_value:
+                dims.append(huge_dim)
+                continue
+            s = f'{l.dim:.1f}'
+            if len(s) <= DISTANCE:
+                dims.append(s.rjust(DISTANCE))
+                continue
+            s = str(int(round(l.dim, 0)))
+            if len(s) <= DISTANCE:
+                dims.append(s.rjust(DISTANCE))
+                continue
+            raise RuntimeError  # this should not happen
+        codomain_dims = dims[:self.num_codomain_legs]
+        domain_dims = dims[self.num_codomain_legs:][::-1]
         codomain_arrows = [l.ascii_arrow.rjust(DISTANCE) for l in self.codomain]
         domain_arrows = [l.ascii_arrow.rjust(DISTANCE) for l in self.domain]
         codomain_labels = [
@@ -387,7 +401,19 @@ class Tensor(metaclass=ABCMeta):
                           ' ' * domain_extra + ' '.join(domain_dims)])
 
     @abstractmethod
-    def as_SymmetricTensor(self) -> SymmetricTensor:
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
+                           ) -> SymmetricTensor:
+        """Convert to a :class:`SymmetricTensor`, if possible.
+
+        Parameters
+        ----------
+        guarantee_copy : bool
+            If already a SymmetricTensor, we do *not* make a copy by default.
+            Set this flag to ``True`` to guarantee a copy.
+        warning : str, optional
+            If given, and if the conversion is non-trivial (i.e. if it was not already a
+            SymmetricTensor to begin with), a warning with this text is issued.
+        """
         ...
 
     @abstractmethod
@@ -404,7 +430,8 @@ class Tensor(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
+    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None,
+                       understood_braiding: bool = False) -> Block:
         """Convert to a dense block of the backend, if possible.
 
         This corresponds to "forgetting" the symmetry structure and is only possible if the
@@ -419,6 +446,14 @@ class Tensor(metaclass=ABCMeta):
         dtype: Dtype, optional
             If given, the result is converted to this dtype. Per default it has the :attr:`dtype`
             of the tensor.
+        understood_braiding : bool
+            For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the resulting
+            dense block does no longer capture the braiding statistics correctly. This means that
+            :func:`permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on
+            the dense block representation. Permuting its legs would require e.g. explicit swap
+            gates. When using the result, special care needs to be taken regarding the leg order.
+            To avoid this pitfall, we raise an error by default. Set this flag to ``True`` to
+            disable the error. It is then your responsibility to take care of leg orders and braids.
         """
         ...
 
@@ -480,7 +515,7 @@ class Tensor(metaclass=ABCMeta):
         See :ref:`tensors_as_maps`.
         """
         return [*self.codomain.factors, *(sp.dual for sp in reversed(self.domain.factors))]
-    
+
     @abstractmethod
     def move_to_device(self, device: str):
         """Move tensor to a given device, *in place*."""
@@ -750,9 +785,10 @@ class Tensor(metaclass=ABCMeta):
         self._labelmap = {label: legnum for legnum, label in enumerate(labels) if label is not None}
         return self
 
-    def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None) -> np.ndarray:
+    def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None,
+                 understood_braiding: bool = False) -> np.ndarray:
         """Convert to a numpy array"""
-        block = self.to_dense_block(leg_order=leg_order)
+        block = self.to_dense_block(leg_order=leg_order, understood_braiding=understood_braiding)
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
 
@@ -786,7 +822,7 @@ class SymmetricTensor(Tensor):
         Backend-specific data structure that contains the numerical data, i.e. the free parameters
         of tensors with the given symmetry.
     """
-    
+
     def __init__(self,
                  data,
                  codomain: TensorProduct | list[Space],
@@ -887,7 +923,8 @@ class SymmetricTensor(Tensor):
                          labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                          dtype: Dtype = None,
                          device: str = None,
-                         tol: float = 1e-6):
+                         tol: float = 1e-6,
+                         understood_braiding: bool = False):
         """Convert a dense block of the backend to a Tensor.
 
         Parameters
@@ -909,11 +946,29 @@ class SymmetricTensor(Tensor):
             If given, the block is moved to that device. Per default, try to use the device of
             the `block`, if it is a backend-specific block, or fall back to the backends default
             device.
+        understood_braiding : bool
+            For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the input
+            dense block does not capture the braiding statistics correctly. This means e.g. that
+            :func:`permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on
+            the dense block representation. This means that the input dense block needs to be
+            constructed in the correct leg order. To avoid this pitfall, we raise an error by
+            default. Set this flag to ``True`` to disable the error. It is then your responsibility
+            to take care of leg orders and braids.
         """
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
+        if not symmetry.can_be_dropped:
+            msg = f'Dense block representation is not supported for symmetry {symmetry}'
+            raise SymmetryError(msg)
+        if not symmetry.has_trivial_braid and not understood_braiding:
+            msg = ('If the symmetry has non-trivial braids, dense block representations do not '
+                   'consistently reproduce the braiding statistics. Make sure you understand what '
+                   'that means (read the docstring of from_dense_block). Then you can disable '
+                   'this error by setting ``understood_braiding=True``.')
+            raise SymmetryError(msg)
         block = backend.block_backend.as_block(block, dtype=dtype, device=device)
+        assert len(backend.block_backend.get_shape(block)) == codomain.num_factors + domain.num_factors
         block = backend.block_backend.apply_basis_perm(block, conventional_leg_order(codomain, domain))
         data = backend.from_dense_block(block, codomain=codomain, domain=domain, tol=tol)
         return cls(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
@@ -1043,7 +1098,7 @@ class SymmetricTensor(Tensor):
         data = backend.from_random_normal(codomain, domain, sigma=sigma, dtype=dtype, device=device)
         with_zero_mean = cls(data=data, codomain=codomain, domain=domain, backend=backend,
                              labels=labels)
-        
+
         if mean is not None:
             return mean + with_zero_mean
         return with_zero_mean
@@ -1179,6 +1234,68 @@ class SymmetricTensor(Tensor):
         return res
 
     @classmethod
+    def from_tree_pairs(cls, trees: dict[tuple[FusionTree, FusionTree], Block],
+                        codomain: TensorProduct | list[Space],
+                        domain: TensorProduct | list[Space] | None = None,
+                        backend: TensorBackend | None = None,
+                        labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                        dtype: Dtype = None,
+                        device: str = None,
+                        ):
+        """Create a tensor from a linear combination of fusion-tree splitting-tree pairs.
+
+        Parameters
+        ----------
+        trees : {(FusionTree, FusionTree): (J+K)-D Block}
+            Specifies the linear combination that defines the resulting tensor.
+            Each entry of the dict, ``{(Y, X): coeffs}`` represents several contributions to the
+            linear combination, one per entry of the block ``coeffs``.
+            The contribution with prefactor ``coeffs[n1, ..., nJ, mK, ..., m1]`` (note the axis order!)
+            consists of the following steps as a map from domain to codomain::
+
+                1. Project each leg ``k`` of the domain to a single sector, where the sector is
+                   given by ``X.uncoupled[k]`` and the degeneracy index by ``mk`` (an index to
+                   the array ``coeffs``).
+
+                2. Apply the fusion tree ``X``.
+
+                3. Apply the splitting tree ``Y``.
+
+                4. Apply inclusions on each leg ``j`` of the codomain, where the sector is given by
+                   ``Y.uncoupled[j]`` and the degeneracy index by ``nj`` (an index to the array
+                   ``coeffs``).
+        codomain, domain, backend, labels
+            Arguments, like for constructor of :class:`SymmetricTensor`.
+        """
+        if len(trees) == 0:
+            if dtype is None:
+                raise ValueError('Can not infer Dtype')
+            if device is None:
+                raise ValueError('Can not infer device')
+            return cls.from_zero(codomain=codomain, domain=domain, backend=backend, labels=labels,
+                                 dtype=dtype, device=device)
+        codomain, domain, backend, symmetry = cls._init_parse_args(
+            codomain=codomain, domain=domain, backend=backend
+        )
+        if device is None:
+            some_block = backend.block_backend.as_block(next(iter(trees.values())))
+            device = backend.block_backend.get_device(some_block)
+        Y_are_dual = np.array([l.is_dual for l in codomain], bool)
+        X_are_dual = np.array([l.is_dual for l in domain])
+        for Y, X in trees.keys():
+            assert np.all(Y.coupled == X.coupled)
+            assert np.all(Y.are_dual == Y_are_dual)
+            assert np.all(X.are_dual == X_are_dual)
+            block = trees[Y, X]
+            block = backend.block_backend.as_block(block, dtype=dtype, device=device)
+            assert backend.block_backend.get_device(block) == device
+            trees[Y, X] = block
+        if dtype is None:
+            dtype = Dtype.common(*(backend.block_backend.get_dtype(b) for b in trees.values()))
+        data = backend.from_tree_pairs(trees, codomain=codomain, domain=domain, dtype=dtype, device=device)
+        return cls(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
+
+    @classmethod
     def from_zero(cls, codomain: TensorProduct | list[Space],
                   domain: TensorProduct | list[Space] | None = None,
                   backend: TensorBackend | None = None,
@@ -1207,10 +1324,11 @@ class SymmetricTensor(Tensor):
             codomain=codomain, domain=domain, backend=backend, labels=labels
         )
 
-    def as_SymmetricTensor(self, warning: str = None) -> SymmetricTensor:
-        # warning is simply ignored.
-        # TODO do we need a copy...?
-        return self.copy()
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
+                           ) -> SymmetricTensor:
+        if guarantee_copy:
+            return self.copy()
+        return self
 
     def copy(self, deep=True, device: str = None) -> SymmetricTensor:
         if deep:
@@ -1239,7 +1357,17 @@ class SymmetricTensor(Tensor):
         self.data = self.backend.move_to_device(self, device=device)
         self.device = self.backend.block_backend.as_device(device)
 
-    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
+    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None,
+                       understood_braiding: bool = False) -> Block:
+        if not self.symmetry.can_be_dropped:
+            msg = f'Dense block representation is not supported for symmetry {self.symmetry}'
+            raise SymmetryError(msg)
+        if not self.symmetry.has_trivial_braid and not understood_braiding:
+            msg = ('If the symmetry has non-trivial braids, dense block representations do not '
+                   'consistently reproduce the braiding statistics. Make sure you understand what '
+                   'that means (read the docstring of to_dense_block). Then you can disable '
+                   'this error by setting ``understood_braiding=True``.')
+            raise SymmetryError(msg)
         block = self.backend.to_dense_block(self)
         block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self), inv=True)
         if dtype is not None:
@@ -1261,8 +1389,6 @@ class SymmetricTensor(Tensor):
 
     def to_dense_block_trivial_sector(self) -> Block:
         """Assumes self is a single-leg tensor and returns its components in the trivial sector.
-
-        TODO better name?
 
         See Also
         --------
@@ -1356,10 +1482,12 @@ class DiagonalTensor(SymmetricTensor):
 
     Elementwise Functions
     ---------------------
-    TODO elaborate
-         use examples: :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
+    A bunch of "elementwise" functions can be defined for diagonal tensors.
+    If a function can be defined as a power series in ``D`` and ``D.hc``, its action can be achieved
+    by applying that power series to the diagonal elements individually.
+    E.g. :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
     """
-    
+
     _forbidden_dtypes = []
 
     def __init__(self, data, leg: Space, backend: TensorBackend | None = None,
@@ -1405,11 +1533,21 @@ class DiagonalTensor(SymmetricTensor):
     @classmethod
     def from_dense_block(cls, block: Block, leg: Space, backend: TensorBackend | None = None,
                          labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
-                         dtype: Dtype = None, tol: float = 1e-6, device: str = None):
+                         dtype: Dtype = None, tol: float = 1e-6, device: str = None,
+                         understood_braiding: bool = False):
+        if not leg.symmetry.can_be_dropped:
+            msg = f'Dense block representation is not supported for symmetry {leg.symmetry}'
+            raise SymmetryError(msg)
+        if not leg.symmetry.has_symmetric_braid and not understood_braiding:
+            msg = ('If the symmetry has non-trivial braids, dense block representations do not '
+                   'consistently reproduce the braiding statistics. Make sure you understand what '
+                   'that means (read the docstring of from_dense_block). Then you can disable '
+                   'this error by setting ``understood_braiding=True``.')
+            raise SymmetryError(msg)
         if backend is None:
             backend = get_backend(symmetry=leg.symmetry)
         block = backend.block_backend.as_block(block, dtype=dtype, device=device)
-        diag = backend.block_backend.get_diagonal(block, check_offdiagonal=True)
+        diag = backend.block_backend.get_diagonal(block, tol=1e-10)
         return cls.from_diag_block(diag, leg=leg, backend=backend, labels=labels, dtype=dtype,
                                    tol=tol)
 
@@ -1481,8 +1619,6 @@ class DiagonalTensor(SymmetricTensor):
             p(T) \propto \mathrm{exp}\left[
                 \frac{1}{2 \sigma^2} \mathrm{Tr} (T - \mathtt{mean}) (T - \mathtt{mean})^\dagger
             \right]
-
-        TODO make sure we actually generate from that distribution in the non-abelian or anyonic case!
 
         Parameters
         ----------
@@ -1589,25 +1725,21 @@ class DiagonalTensor(SymmetricTensor):
         return res
 
     @classmethod
-    def from_tensor(cls, tens: SymmetricTensor, check_offdiagonal: bool = True) -> DiagonalTensor:
+    def from_tensor(cls, tens: SymmetricTensor, tol: float | None = 1e-12) -> DiagonalTensor:
         """Create DiagonalTensor from a Tensor.
 
         Parameters
         ----------
         tens : :class:`Tensor`
-            Must have two legs. Its diagonal entries ``tens[i, i]`` are used.
-        check_offdiagonal : bool
-            If the off-diagonal entries of `tens` should be checked.
-
-        Raises
-        ------
-        ValueError
-            If `check_offdiagonal` and any off-diagonal element is non-zero.
-            TODO should there be a tolerance?
+            Must have exactly two legs. Its diagonal entries ``tens[i, i]`` are used.
+        tol : float | None
+            Tolerance for checking if the `tens` is actually diagonal, in the sense that any
+            "off-diagonal" free parameters that should vanish are smaller than this by magnitude.
+            Set to ``None`` to disable the check.
         """
         assert tens.num_legs == 2
         assert tens.domain == tens.codomain
-        data = tens.backend.diagonal_tensor_from_full_tensor(tens, check_offdiagonal=check_offdiagonal)
+        data = tens.backend.diagonal_tensor_from_full_tensor(tens, tol=tol)
         return cls(data=data, leg=tens.codomain.factors[0], backend=tens.backend, labels=tens.labels)
 
     @classmethod
@@ -1706,7 +1838,8 @@ class DiagonalTensor(SymmetricTensor):
             raise ValueError(f'all is not defined for dtype {self.dtype}')
         return self.backend.diagonal_any(self)
 
-    def as_SymmetricTensor(self, warning: str = None) -> SymmetricTensor:
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
+                           ) -> SymmetricTensor:
         if warning is not None:
             warnings.warn(warning, UserWarning, stacklevel=2)
         return SymmetricTensor(
@@ -1851,7 +1984,17 @@ class DiagonalTensor(SymmetricTensor):
         self.data = self.backend.move_to_device(self, device=device)
         self.device = self.backend.block_backend.as_device(device)
 
-    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
+    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None,
+                       understood_braiding: bool = False) -> Block:
+        if not self.symmetry.can_be_dropped:
+            msg = f'Dense block representation is not supported for symmetry {self.symmetry}'
+            raise SymmetryError(msg)
+        if not self.symmetry.has_trivial_braid and not understood_braiding:
+            msg = ('If the symmetry has non-trivial braids, dense block representations do not '
+                   'consistently reproduce the braiding statistics. Make sure you understand what '
+                   'that means (read the docstring of to_dense_block). Then you can disable '
+                   'this error by setting ``understood_braiding=True``.')
+            raise SymmetryError(msg)
         diag = self.diagonal_as_block(dtype=dtype)
         res = self.backend.block_backend.block_from_diagonal(diag)
         if leg_order is not None:
@@ -1934,7 +2077,7 @@ class Mask(Tensor):
     where the relative ordering of elements is preserved.
 
     In code, this means ::
-    
+
         ranks = self.large_leg.basis_perm[mask_in_internal_basis][self.small_leg.inverse_basis_perm]
 
     In particular, the basis permutation of the small leg is uniquely determined by the
@@ -1956,7 +2099,7 @@ class Mask(Tensor):
 
     Such that the result is ordered.
     """
-    
+
     _forbidden_dtypes = [Dtype.float32, Dtype.float64, Dtype.complex64, Dtype.complex128]
 
     def __init__(self, data, space_in: ElementarySpace, space_out: ElementarySpace,
@@ -2304,7 +2447,8 @@ class Mask(Tensor):
         return DiagonalTensor(data=self.backend.mask_to_diagonal(self, dtype=dtype),
                               leg=self.large_leg, backend=self.backend, labels=self.labels)
 
-    def as_SymmetricTensor(self, dtype=Dtype.complex128, warning: str = None) -> SymmetricTensor:
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None,
+                           dtype=Dtype.complex128) -> SymmetricTensor:
         if warning is not None:
             warnings.warn(warning, UserWarning, stacklevel=2)
         if not self.is_projection:
@@ -2317,7 +2461,7 @@ class Mask(Tensor):
     def _binary_operand(self, other: bool | Mask, func, operand: str,
                         return_NotImplemented: bool = True) -> Mask:
         """Utility function for a shared implementation of binary functions.
-        
+
         Parameters
         ----------
         other
@@ -2383,13 +2527,33 @@ class Mask(Tensor):
         """The "opposite" Mask, that keeps exactly what self discards and vv."""
         return self._unary_operand(operator.invert)
 
-    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
+    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None,
+                       understood_braiding: bool = False) -> Block:
+        if not self.symmetry.can_be_dropped:
+            msg = f'Dense block representation is not supported for symmetry {self.symmetry}'
+            raise SymmetryError(msg)
+        if not self.symmetry.has_trivial_braid and not understood_braiding:
+            msg = ('If the symmetry has non-trivial braids, dense block representations do not '
+                   'consistently reproduce the braiding statistics. Make sure you understand what '
+                   'that means (read the docstring of to_dense_block). Then you can disable '
+                   'this error by setting ``understood_braiding=True``.')
+            raise SymmetryError(msg)
         # for Mask, defining via numpy is actually easier, to use numpy indexing
         numpy_dtype = None if dtype is None else dtype.to_numpy_dtype()
         as_numpy = self.to_numpy(leg_order=leg_order, numpy_dtype=numpy_dtype)
         return self.backend.block_backend.as_block(as_numpy, dtype=dtype)
 
-    def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None) -> np.ndarray:
+    def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None,
+                 understood_braiding: bool = False) -> np.ndarray:
+        if not self.symmetry.can_be_dropped:
+            msg = f'Dense block representation is not supported for symmetry {self.symmetry}'
+            raise SymmetryError(msg)
+        if not self.symmetry.has_trivial_braid and not understood_braiding:
+            msg = ('If the symmetry has non-trivial braids, dense block representations do not '
+                   'consistently reproduce the braiding statistics. Make sure you understand what '
+                   'that means (read the docstring of to_dense_block). Then you can disable '
+                   'this error by setting ``understood_braiding=True``.')
+            raise SymmetryError(msg)
         assert self.symmetry.can_be_dropped
         mask = self.as_numpy_mask()
         res = np.zeros(self.shape, numpy_dtype or bool)
@@ -2528,7 +2692,7 @@ class ChargedTensor(Tensor):
     """
 
     _CHARGE_LEG_LABEL = '!'  # canonical label for the charge leg
-    
+
     def __init__(self, invariant_part: SymmetricTensor, charged_state: Block | None):
         assert invariant_part.domain.num_factors > 0, 'domain must contain at least the charge leg'
         self.charge_leg = invariant_part.domain.factors[0]
@@ -2651,7 +2815,8 @@ class ChargedTensor(Tensor):
                          labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
                          dtype: Dtype = None,
                          device: str = None,
-                         tol: float = 1e-6
+                         tol: float = 1e-6,
+                         understood_braiding: bool = False,
                          ):
         """Convert a dense block of to a ChargedTensor, if possible.
 
@@ -2670,6 +2835,8 @@ class ChargedTensor(Tensor):
         dtype: Dtype, optional
             If given, the block is converted to that dtype and the resulting tensor will have that
             dtype. By default, we detect the dtype from the block.
+        understood_braiding : bool
+            See the same argument in :meth:`SymmetricTensor.from_dense_block`.
         """
         codomain, domain, backend, symmetry = cls._init_parse_args(codomain, domain, backend)
         labels, inv_labels = cls._parse_inv_labels(labels, codomain, domain)
@@ -2684,7 +2851,7 @@ class ChargedTensor(Tensor):
         inv_part = SymmetricTensor.from_dense_block(
             block=backend.block_backend.add_axis(block, -1),
             codomain=codomain, domain=inv_domain, backend=backend, labels=inv_labels,
-            tol=tol
+            tol=tol, understood_braiding=understood_braiding
         )
         return cls(inv_part, charged_state=[1])
 
@@ -2784,8 +2951,11 @@ class ChargedTensor(Tensor):
         """If the :class:`ChargedTensor` concept is well defined for the `symmetry`."""
         return symmetry.has_symmetric_braid
 
-    def as_SymmetricTensor(self) -> SymmetricTensor:
+    def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
+                           ) -> SymmetricTensor:
         """Convert to symmetric tensor, if possible."""
+        if warning is not None:
+            warnings.warn(warning, UserWarning, stacklevel=2)
         if not np.all(self.charge_leg.sector_decomposition == self.symmetry.trivial_sector[None, :]):
             raise SymmetryError('Not a symmetric tensor')
         if self.charge_leg.dim == 1:
@@ -2797,7 +2967,8 @@ class ChargedTensor(Tensor):
             raise ValueError('Can not convert to SymmetricTensor. charged_state is not defined.')
         state = SymmetricTensor.from_dense_block(
             self.charged_state, codomain=[self.charged_state.dual], backend=self.backend,
-            labels=[_dual_leg_label(self._CHARGE_LEG_LABEL)], dtype=self.dtype
+            labels=[_dual_leg_label(self._CHARGE_LEG_LABEL)], dtype=self.dtype,
+            understood_braiding=True
         )
         res = tdot(state, self.invariant_part, 0, -1)
         return bend_legs(res, num_codomain_legs=self.num_codomain_legs)
@@ -2854,10 +3025,12 @@ class ChargedTensor(Tensor):
         self.invariant_part.set_labels([*self._labels, *self._CHARGE_LEG_LABEL])
         return self
 
-    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None) -> Block:
+    def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None,
+                       understood_braiding: bool = False) -> Block:
         if self.charged_state is None:
             raise ValueError('charged_state not specified.')
-        inv_block = self.invariant_part.to_dense_block(leg_order=None, dtype=dtype)
+        inv_block = self.invariant_part.to_dense_block(leg_order=None, dtype=dtype,
+                                                       understood_braiding=understood_braiding)
         block = self.backend.block_backend.tdot(inv_block, self.charged_state, [-1], [0])
         if dtype is not None:
             block = self.backend.block_backend.to_dtype(block, dtype)
@@ -2972,6 +3145,49 @@ def _elementwise_function(block_func: str, func_kwargs={}, maps_zero_to_zero=Fal
             raise TypeError(f'Expected DiagonalTensor or scalar. Got {type(x)}')
         return wrapped
     return decorator
+
+
+# HELPERS FOR TENSOR CREATION
+
+
+def eye(leg: ElementarySpace, backend: TensorBackend = None, labels: list[str | None] = None,
+        dtype: Dtype = Dtype.float64, device: str = None, diagonal: bool = True
+        ) -> DiagonalTensor | SymmetricTensor:
+    """The identity tensor on a given leg."""
+    res = DiagonalTensor.from_eye(leg=leg, backend=backend, labels=labels, dtype=dtype,
+                                  device=device)
+    if diagonal:
+        return res
+    return res.as_SymmetricTensor()
+
+
+def tensor(obj, codomain: Sequence[Leg], domain: Sequence[Leg] = None,
+           backend: TensorBackend = None,
+           labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+           dtype: Dtype = None, device: str = None,
+           understood_braiding: bool = False) -> SymmetricTensor:
+    """Convert object to tensor if possible."""
+    if isinstance(obj, Tensor):
+        copied = False
+        if codomain != obj.codomain:
+            raise ValueError('Mismatching codomain')
+        if domain is not None and domain != obj.domain:
+            raise ValueError('Mismatching domain')
+        if backend is not None and backend != obj.backend:
+            raise ValueError('Mismatching backend')
+        if labels is not None and labels != obj._labels:
+            if not copied:
+                obj = obj.copy()
+                copied = True
+            obj.labels = labels
+        if dtype is not None:
+            raise ValueError('Mismatching dtype')
+        if device is not None:
+            raise ValueError('Mismatching device')
+        return obj.as_SymmetricTensor()
+    return SymmetricTensor.from_dense_block(obj, codomain, domain, backend=backend, labels=labels,
+                                            dtype=dtype, device=device,
+                                            understood_braiding=understood_braiding)
 
 
 # FUNCTIONS ON TENSORS
@@ -3260,6 +3476,9 @@ def apply_mask_DiagonalTensor(tensor: DiagonalTensor, mask: Mask) -> DiagonalTen
 def bend_legs(tensor: Tensor, num_codomain_legs: int = None, num_domain_legs: int = None) -> Tensor:
     """Move legs between codomain and domain without changing the order of ``tensor.legs``.
 
+    Note that legs are always bent to the right side of the tensor.
+    For more general manipulations involving bends to the left side, use :func:`permute_legs`.
+
     For example::
 
         |        │   ╭───────────╮
@@ -3275,14 +3494,14 @@ def bend_legs(tensor: Tensor, num_codomain_legs: int = None, num_domain_legs: in
         |       ┏┷━━━┷━━━┷┓  │
         |       ┃    T    ┃  │        ==    bend_legs(T, num_codomain_legs=4)
         |       ┗┯━━━┯━━━┯┛  │
-        |        │   │   ╰───╯        ==    bend_legs(T, num_codomain_legs=2)
+        |        │   │   ╰───╯        ==    bend_legs(T, num_domain_legs=2)
 
     Parameters
     ----------
     tensor:
         The tensor to modify
     num_codomain_legs, num_domain_legs: int, optional
-        The desired number of legs in the (co-)domain. Only one is required.
+        The desired number of legs in the (co-)domain after the bending. Only one is required.
 
     See Also
     --------
@@ -3297,10 +3516,10 @@ def bend_legs(tensor: Tensor, num_codomain_legs: int = None, num_domain_legs: in
         num_codomain_legs = tensor.num_legs - num_domain_legs
     else:
         assert num_codomain_legs + num_domain_legs == tensor.num_legs
-    return _permute_legs(tensor,
-                         codomain=range(num_codomain_legs),
-                         domain=reversed(range(num_codomain_legs, tensor.num_legs)),
-                         err_msg='This should never raise.')
+    return permute_legs(tensor,
+                        codomain=range(num_codomain_legs),
+                        domain=reversed(range(num_codomain_legs, tensor.num_legs)),
+                        bend_right=True)
 
 
 def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | None:
@@ -3585,8 +3804,19 @@ def combine_to_matrix(tensor: Tensor,
         Combine an arbitrary number of legs. Since the number of groups is arbitrary, this
         does not have the interpretation of the matrix, with one group each in domain and codomain.
     """
-    res = _permute_legs(tensor, codomain=codomain, domain=domain, levels=levels)
+    res = permute_legs(tensor, codomain=codomain, domain=domain, levels=levels)
     return combine_legs(res, range(res.num_codomain_legs), range(res.num_codomain_legs, res.num_legs))
+
+
+@_elementwise_function(block_func='cutoff_inverse', maps_zero_to_zero=True)
+def cutoff_inverse(x: _ElementwiseType, cutoff: float = 1e-15) -> _ElementwiseType:
+    """The :ref:`elementwise <diagonal_elementwise>` cutoff inverse.
+
+    The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, otherwise ``0``.
+    """
+    if abs(x) < cutoff:
+        return 0
+    return 1. / x
 
 
 @_elementwise_function(block_func='conj', maps_zero_to_zero=True)
@@ -4064,7 +4294,7 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
         The Frobenius norm, induced by this inner product.
     """
     _ = get_same_device(A, B)
-    
+
     if do_dagger:
         _check_compatible_legs([A.codomain, A.domain], [B.codomain, B.domain])
     else:
@@ -4094,18 +4324,20 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
                 bend_legs(B.invariant_part, num_domain_legs=1)  # [*b_legs] <- ['!']
             )  # ['!*', '!']
             # OPTIMIZE: like GEMM, should we offer an interface where dagger is implicitly done during tdot?
+            inv_block = inv_part.to_dense_block(understood_braiding=True)
             res = backend.block_backend.tdot(
                 backend.block_backend.conj(A.charged_state),
-                backend.block_backend.tdot(inv_part.to_dense_block(), B.charged_state, [1], [0]),
+                backend.block_backend.tdot(inv_block, B.charged_state, [1], [0]),
                 [0], [0]
             )
         else:
             inv_part = tdot(A.invariant_part,
                             B.invariant_part,
                             [*range(A.num_legs)], [*reversed(range(A.num_legs))])  # ['?1', '?2']
+            inv_block = inv_part.to_dense_block(understood_braiding=True)
             res = backend.block_backend.tdot(
                 A.charged_state,
-                backend.block_backend.tdot(inv_part.to_dense_block(), B.charged_state, [1], [0]),
+                backend.block_backend.tdot(inv_block, B.charged_state, [1], [0]),
                 [0], [0]
             )
         return backend.block_backend.item(res)
@@ -4175,7 +4407,7 @@ def item(tensor: Tensor) -> float | complex | bool:
     if isinstance(tensor, ChargedTensor):
         if tensor.charged_state is None:
             raise ValueError('Can not compute .item of ChargedTensor with unspecified charged_state.')
-        inv_block = tensor.invariant_part.to_dense_block()
+        inv_block = tensor.invariant_part.to_dense_block(understood_braiding=True)
         res = tensor.backend.block_backend.tdot(tensor.charged_state, inv_block, 0, -1)
         return tensor.backend.block_backend.item(res)
     raise TypeError
@@ -4210,7 +4442,7 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
         raise NotImplementedError
     if isinstance(v, ChargedTensor) or isinstance(w, ChargedTensor):
         raise TypeError('Can not add ChargedTensor and non-charged tensor.')
-    
+
     # Remaining case: Mask, DiagonalTensor (but not both), SymmetricTensor
     if isinstance(v, (DiagonalTensor, Mask)) or isinstance(w, (DiagonalTensor, Mask)):
         msg = (f'Converting types ({type(v).__name__, type(w).__name__}) to '
@@ -4229,7 +4461,8 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
 
 
 def move_leg(tensor: Tensor, which_leg: int | str, codomain_pos: int | None = None, *,
-             domain_pos: int | None = None, levels: list[int] | dict[str | int, int] | None = None
+             domain_pos: int | None = None, levels: list[int] | dict[str | int, int] | None = None,
+             bend_right: bool = None,
              ) -> Tensor:
     """Move one leg of a tensor to a specified position.
 
@@ -4245,7 +4478,7 @@ def move_leg(tensor: Tensor, which_leg: int | str, codomain_pos: int | None = No
 
         |        │   │   ╭───│───╮
         |       ┏┷━━━┷━━━┷━━━┷┓  │
-        |       ┃      T      ┃  │    ==    move_leg(T, 2, domain_pos=1)
+        |       ┃      T      ┃  │    ==    move_leg(T, 2, domain_pos=1, bend_right=True)
         |       ┗┯━━━┯━━━┯━━━┯┛  │
         |        │ ╭─│───│───│───╯
 
@@ -4262,6 +4495,10 @@ def move_leg(tensor: Tensor, which_leg: int | str, codomain_pos: int | None = No
     levels: optional
         Is ignored if the symmetry has symmetric braids. Otherwise, these levels specify the
         chirality of any possible braids induced by permuting the legs. See :func:`permute_legs`.
+    bend_right: bool
+        If the moving leg should bend to the right of the tensor (as shown above) or to the left.
+        If either the leg does not bend at all or if the symmetry has symmetric braids, the argument
+        is ignored since it either does not apply or both options are equivalent anyway.
     """
     from_domain, _, leg_idx = tensor._parse_leg_idx(which_leg)
     if from_domain:
@@ -4283,7 +4520,7 @@ def move_leg(tensor: Tensor, which_leg: int | str, codomain_pos: int | None = No
     else:
         raise ValueError('Need to specify either codomain_pos or domain_pos.')
     #
-    return permute_legs(tensor, new_codomain, new_domain, levels=levels)
+    return permute_legs(tensor, new_codomain, new_domain, levels=levels, bend_right=bend_right)
 
 
 def norm(tensor: Tensor) -> float:
@@ -4309,7 +4546,8 @@ def norm(tensor: Tensor) -> float:
         else:
             # OPTIMIZE
             warnings.warn('Converting ChargedTensor to dense block for `norm`', stacklevel=2)
-            return tensor.backend.block_backend.norm(tensor.to_dense_block(), order=2)
+            block = tensor.to_dense_block(understood_braiding=True)
+            return tensor.backend.block_backend.norm(block, order=2)
     raise TypeError
 
 
@@ -4365,7 +4603,7 @@ def outer(tensor1: Tensor, tensor2: Tensor,
     """
     _ = get_same_device(tensor1, tensor2)
     assert tensor1.symmetry.is_same_symmetry(tensor2.symmetry)
-    
+
     if isinstance(tensor1, (Mask, DiagonalTensor)):
         msg = ('Converting to SymmetricTensor for outer. '
                'Use as_SymmetricTensor() explicitly to suppress the warning.')
@@ -4437,6 +4675,8 @@ def partial_trace(tensor: Tensor,
     *pairs:
         A number of pairs, each describing two legs via index or via label.
         Each pair is connected, realizing a partial trace.
+        By definition, we create loops between legs on opposite sides to the right side of the
+        tensor (this is not necessarily equivalent to a left closing, if there are braids).
         Must be compatible ``tensor.get_leg(pair[0]) == tensor.get_leg(pair[1]).dual``.
     levels:
         The connectivity of the partial trace may induce braids.
@@ -4477,14 +4717,22 @@ def partial_trace(tensor: Tensor,
             # scalar result
             if tensor.charged_state is None:
                 raise ValueError('Need to specify charged_state for full trace of ChargedTensor')
-            res = tensor.backend.block_backend.tdot(
-                invariant_part.to_dense_block(), tensor.charged_state, [0], [0]
-            )
+            inv_block = invariant_part.to_dense_block(understood_braiding=True)
+            res = tensor.backend.block_backend.tdot(inv_block, tensor.charged_state, [0], [0])
             return tensor.backend.block_backend.item(res)
         return ChargedTensor(invariant_part, tensor.charged_state)
     if not isinstance(tensor, SymmetricTensor):
         raise TypeError(f'Unexpected tensor type: {type(tensor).__name__}')
-    data, codomain, domain = tensor.backend.partial_trace(tensor, pairs, levels)
+    if levels is None:
+        levels = [None] * tensor.num_legs
+    else:
+        levels = list(levels)  # ensure copy
+
+    try:
+        data, codomain, domain = tensor.backend.partial_trace(tensor, pairs, levels)
+    except SymmetryError:
+        raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from None
+
     if tensor.num_legs == len(traced_idcs):
         # should be a scalar
         return data
@@ -4494,86 +4742,12 @@ def partial_trace(tensor: Tensor,
     )
 
 
-def _permute_legs(tensor: Tensor,
-                  codomain: list[int | str] | None = None,
-                  domain: list[int | str] | None = None,
-                  levels: list[int] | dict[str | int, int] | None = None,
-                  err_msg: str = None
-                  ) -> Tensor:
-    """Internal implementation of :func:`permute_legs` that allows to specify the error msg.
-
-    Except for the additional `err_msg` arg, this has the same in-/outputs as :func:`permute_legs`.
-    If the `levels` are needed, but not given, an error with the specified message is raised.
-    This allows easier error handling when using ``_permute_legs`` as part of other functions.
-
-    The default error message is appropriate to *other* contexts, other than :func:`permute_legs`.
-    """
-    # Parse domain and codomain to list[int]. Get rid of duplicates.
-    if codomain is None and domain is None:
-        raise ValueError('Need to specify either domain or codomain.')
-    elif codomain is None:
-        domain = tensor.get_leg_idcs(domain)
-        codomain = [n for n in range(tensor.num_legs) if n not in domain]
-    elif domain is None:
-        codomain = tensor.get_leg_idcs(codomain)
-        # to preserve order of Tensor.legs, need to put domain legs in descending order of their leg_idx
-        domain = [n for n in reversed(range(tensor.num_legs)) if n not in codomain]
-    else:
-        domain = tensor.get_leg_idcs(domain)
-        codomain = tensor.get_leg_idcs(codomain)
-        specified_legs = [*domain, *codomain]
-        duplicates = duplicate_entries(specified_legs)
-        missing = [n for n in range(tensor.num_legs) if n not in specified_legs]
-        if duplicates:
-            raise ValueError(f'Duplicate entries. By leg index: {", ".join(duplicates)}')
-        if missing:
-            raise ValueError(f'Missing legs. By leg index: {", ".join(missing)}')
-    # Default error message
-    if err_msg is None:
-        err_msg = ('Legs can not be permuted automatically. '
-                   'Explicitly use permute_legs() with specified levels first.')
-    # Special case: if no legs move
-    if codomain == list(range(tensor.num_codomain_legs)) \
-            and domain == list(reversed(range(tensor.num_codomain_legs, tensor.num_legs))):
-        return tensor
-
-    # Deal with other tensor types
-    if isinstance(tensor, (DiagonalTensor, Mask)):
-        if codomain == [0] and domain == [1]:
-            return tensor
-        if codomain == [1] and domain == [0]:
-            return transpose(tensor)
-        # other cases involve two legs either in the domain or codomain.
-        # Cant be done with Mask / DiagonalTensor
-        msg = ('Converting to SymmetricTensor for permuting legs. '
-               'Use as_SymmetricTensor() explicitly to suppress the warning.')
-        tensor = tensor.as_SymmetricTensor(warning=msg)
-    if isinstance(tensor, ChargedTensor):
-        if levels is not None:
-            # assign the highest level to the charge leg. since it does not move, it should not matter.
-            highest = max(levels) + 1
-            levels = [*levels, highest]
-        inv_part = _permute_legs(tensor.invariant_part, codomain=codomain, domain=[-1, *domain],
-                                 levels=levels, err_msg=err_msg)
-        return ChargedTensor(inv_part, charged_state=tensor.charged_state)
-    # Remaining case: SymmetricTensor
-    if levels is not None:
-        if duplicate_entries(levels):
-            raise ValueError('Levels must be unique.')
-        if any(l < 0 for l in levels):
-            raise ValueError('Levels must be non-negative.')
-    data, new_codomain, new_domain = tensor.backend.permute_legs(
-        tensor, codomain_idcs=codomain, domain_idcs=domain, levels=levels
-    )
-    if data is None:
-        raise SymmetryError(err_msg)
-    labels = [[tensor._labels[n] for n in codomain], [tensor._labels[n] for n in domain]]
-    return SymmetricTensor(data, new_codomain, new_domain, backend=tensor.backend, labels=labels)
-
-
 def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[int | str] = None,
-                 levels: list[int] | dict[str | int, int] = None):
+                 levels: list[int] | dict[str | int, int] = None,
+                 bend_right: bool | Sequence[bool | None] | dict[str | int, bool] = None):
     """Permute the legs of a tensor by braiding legs and bending lines.
+
+    Graphically (note that we ignore the `levels` graphically and do not draw braid chiralities)::
 
     |       ╭───│───────│─────╮ │
     |       │   │   ╭───│───╮ │ │
@@ -4584,6 +4758,16 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
     |         6   5   4     │ │ │
     |         ╰───│───│─────│─│─╯
     |             │ ╭─│─────╯ │
+
+    |      │ ╭─────╮   │       │
+    |      │ │ ╭───│───│───╮   │
+    |      │ │ │   0   1   2   3
+    |      │ │ │  ┏┷━━━┷━━━┷━━━┷┓
+    |      │ │ │  ┃      T      ┃   =   permute_legs(T, [6, 1, 3], [0, 5, 2, 4], bend_right=False)
+    |      │ │ │  ┗━━┯━━━┯━━━┯━━┛
+    |      │ │ │     6   5   4
+    |      ╰─│─│─────╯   │   │
+    |        │ ╰─────────│─╮ │
 
     .. note ::
         We expect that there are only two cases where you should do explicit leg permutations:
@@ -4615,15 +4799,126 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
         or under-crossing. It assigns a "level" or height to each leg.
         Either as a list ``levels[leg_num]`` or as a dictionary ``levels[leg_num_or_label]``.
         If two legs are crossed at some point, the one with the higher level goes over the other.
+    bend_right
+        For each leg that bends up or down, whether it bends to right of the tensor (as shown
+        above) or to the left. If the symmetry has a symmetric braid (e.g. group symmetries or
+        fermions), this makes no difference and this argument is ignored. For anyonic symmetries,
+        the two options are not equivalent and an explicit choice is required for all legs that
+        do bend. Allowed formats are::
+            - A single boolean is applied to all legs.
+            - A list of bools specifies for each leg by leg index.
+              ``None`` is allowed as a placeholder for legs that do not bend.
+            - A dictionary with keys that are either leg indices or leg labels, and bool values.
     """
-    return _permute_legs(tensor, codomain=codomain, domain=domain, levels=levels,
-                         err_msg='The given permutation requires levels, but none were given.')
+    # Parse domain and codomain to list[int]. Get rid of duplicates.
+    if codomain is None and domain is None:
+        raise ValueError('Need to specify either domain or codomain.')
+    elif codomain is None:
+        domain = tensor.get_leg_idcs(domain)
+        codomain = [n for n in range(tensor.num_legs) if n not in domain]
+    elif domain is None:
+        codomain = tensor.get_leg_idcs(codomain)
+        # to preserve order of Tensor.legs, need to put domain legs in descending order of their leg_idx
+        domain = [n for n in reversed(range(tensor.num_legs)) if n not in codomain]
+    else:
+        domain = tensor.get_leg_idcs(domain)
+        codomain = tensor.get_leg_idcs(codomain)
+        specified_legs = [*domain, *codomain]
+        duplicates = duplicate_entries(specified_legs)
+        missing = [n for n in range(tensor.num_legs) if n not in specified_legs]
+        if duplicates:
+            raise ValueError(f'Duplicate entries. By leg index: {", ".join(duplicates)}')
+        if missing:
+            raise ValueError(f'Missing legs. By leg index: {", ".join(missing)}')
+    # Special case: if no legs move
+    if codomain == list(range(tensor.num_codomain_legs)) \
+            and domain == list(reversed(range(tensor.num_codomain_legs, tensor.num_legs))):
+        return tensor
+
+    # parse levels to format list[int | None]
+    if levels is None:
+        levels = [None] * tensor.num_legs
+    elif isinstance(levels, dict):
+        tmp = [None] * tensor.num_legs
+        for leg, level in levels.items():
+            idx = tensor.get_leg_idcs(leg)[0]
+            if tmp[idx] is not None:
+                raise ValueError(f'Level for leg {leg} defined multiple times.')
+            tmp[idx] = level
+        levels = tmp
+    else:
+        levels = list(levels)
+        assert len(levels) == tensor.num_legs
+
+    # parse bend_right to format list[bool | None]
+    legs_bending_down = [i for i in domain if i < tensor.num_codomain_legs]
+    legs_bending_up = [i for i in codomain if i >= tensor.num_codomain_legs]
+    bending_legs = legs_bending_down + legs_bending_up
+    if isinstance(bend_right, dict):
+        tmp = [None] * tensor.num_legs
+        for leg, b in bend_right.items():
+            tmp[tensor.get_leg_idcs(leg)[0]] = b
+        bend_right = tmp
+    elif is_iterable(bend_right):
+        assert len(bend_right) == tensor.num_legs
+    elif bend_right is None:  # default -> all undefined
+        bend_right = [None] * tensor.num_legs
+    elif bend_right in [True, False]:  # single bool applies to all legs
+        bend_right = [bend_right] * tensor.num_legs
+    else:
+        raise ValueError
+    # check if those that need to be specified are
+    if tensor.symmetry.has_symmetric_braid:
+        # it doesnt matter which way. choose all right
+        bend_right = [True] * tensor.num_legs
+    else:
+        if any(bend_right[l] is None for l in bending_legs):
+            raise SymmetryError('Need to specify bend_right!')
+
+    # Deal with other tensor types
+    if isinstance(tensor, (DiagonalTensor, Mask)):
+        if codomain == [0] and domain == [1]:
+            return tensor
+        if codomain == [1] and domain == [0]:
+            return transpose(tensor)
+        # other cases involve two legs either in the domain or codomain.
+        # Cant be done with Mask / DiagonalTensor
+        msg = ('Converting to SymmetricTensor for permuting legs. '
+               'Use as_SymmetricTensor() explicitly to suppress the warning.')
+        tensor = tensor.as_SymmetricTensor(warning=msg)
+    if isinstance(tensor, ChargedTensor):
+        # assign level `None` to the charge leg. it does not braid, so we dont need to define it.
+        inv_part = permute_legs(tensor.invariant_part, codomain=codomain, domain=[-1, *domain],
+                                levels=[*levels, None])
+        return ChargedTensor(inv_part, charged_state=tensor.charged_state)
+
+    # Build new codomain and domain
+    if len(bending_legs) > 0:
+        new_codomain = TensorProduct([tensor._as_codomain_leg(i) for i in codomain],
+                                     symmetry=tensor.symmetry)
+        new_domain = TensorProduct([tensor._as_domain_leg(i) for i in domain],
+                                   symmetry=tensor.symmetry)
+    else:
+        # (co)domain has the same factor as before, only permuted -> can re-use sectors!
+        new_codomain = tensor.codomain.permuted(codomain)
+        new_domain = tensor.domain.permuted([tensor.num_legs - 1 - i for i in domain])
+
+    data = tensor.backend.permute_legs(
+        tensor, codomain_idcs=codomain, domain_idcs=domain, new_codomain=new_codomain,
+        new_domain=new_domain, mixes_codomain_domain=len(bending_legs) > 0, levels=levels,
+        bend_right=bend_right,
+    )
+
+    labels = [[tensor._labels[n] for n in codomain], [tensor._labels[n] for n in domain]]
+    return SymmetricTensor(data, new_codomain, new_domain, backend=tensor.backend, labels=labels)
 
 
 def pinv(tensor: Tensor, cutoff=1e-15) -> Tensor:
     """The Moore-Penrose pseudo-inverse of a tensor."""
+    if isinstance(tensor, DiagonalTensor):
+        return cutoff_inverse(tensor)
     U, S, Vh = truncated_svd(tensor, options=dict(svd_min=cutoff))
-    return dagger(U @ (1. / S) @ Vh)
+    return dagger(U @ cutoff_inverse(S, cutoff=cutoff) @ Vh)
 
 
 def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = False
@@ -4812,7 +5107,7 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
     dot, tdot, apply_mask
     """
     _ = get_same_device(tensor, diag)
-    
+
     # transpose if needed
     in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg)
     if in_domain:
@@ -5087,6 +5382,123 @@ def svd_apply_mask(U: SymmetricTensor, S: DiagonalTensor, Vh: SymmetricTensor, m
     return U, S, Vh
 
 
+def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
+                     labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+                     dtype: Dtype | None = None) -> SymmetricTensor:
+    r"""Stack a grid of tensors along existing legs.
+
+    The tensors are stacked along the first leg in their codomain and the final leg in their
+    domain. The resulting legs are :math:`result.codomain[0] = V = \bigoplus_m V_m` and
+    :math:`result.domain[-1] = W = \bigoplus_n W_n`, where :math:`V_m` is the first codomain leg
+    of all tensors in the ``m``-th row ``grid[m]``, and :math:`W_n` is the last domain leg of all
+    tensors in the ``n``-th column, i.e. for the tensors ``[row[n] for row in grid]``.
+
+    Graphically::
+
+        |                                            V
+        |                                          ┏━┷━┓ │   │   │
+        |                                          ┃i_m┃ │   │   │
+        |        V                                 ┗━┯━┛ │   │   │
+        |        │   │   │   │                   V_m │   │   │   │
+        |       ┏┷━━━┷━━━┷━━━┷┓                     ┏┷━━━┷━━━┷━━━┷┓
+        |       ┃     res     ┃    ==   sum_{m,n}   ┃  grid[m][n] ┃
+        |       ┗━━┯━━━┯━━━┯━━┛                     ┗━━┯━━━┯━━━┯━━┛
+        |          │   │   │                           │   │   │ W_n
+        |                  W                           │   │ ┏━┷━┓
+        |                                              │   │ ┃p_n┃
+        |                                              │   │ ┗━┯━┛
+        |                                                      W
+
+    where :math:`p_n : W = \bigoplus_{n'} W_{n'} \to W_n` is the projection map of the direct sum
+    and :math:`i_m : V_m \to \bigoplus_{m'} V_{m'}` the inclusion.
+
+    Parameters
+    ----------
+    grid: list[list[SymmetricTensor | None]]
+        Contains the tensors from which a single tensor is constructed by stacking. `None` entries
+        are interpreted as tensors with all blocks equal to zero. All legs except the ones along
+        which the stacking happens must be identical across all tensors in the grid. For
+        consistency, tensors within the same row must have identical left spaces (first leg in the
+        codomain), and tensors within the same column must have identical right spaces (final leg
+        in the domain).
+    labels
+        Leg labels of the resulting tensor.
+    dtype: Dtype | None
+        The dtype of the tensor. Uses the common dtype across all tensors in the grid if `None`.
+    """
+    op_list = [op for row in grid for op in row if op is not None]
+    backend = get_same_backend(*op_list)
+    device = get_same_device(*op_list)
+    if dtype is None:
+        dtype = op_list[0].dtype.common(*[op_list[i].dtype for i in range(1, len(op_list))])
+    # check input
+    for op in op_list:
+        assert op.num_codomain_legs == op_list[0].num_codomain_legs
+        assert op.num_domain_legs == op_list[0].num_domain_legs
+        assert op.codomain[1:] == op_list[0].codomain[1:]
+        assert op.domain[:-1] == op_list[0].domain[:-1]
+        # only ElementarySpaces have direct_sum
+        assert isinstance(op.codomain[0], ElementarySpace)
+        assert isinstance(op.domain[-1], ElementarySpace)
+
+    transposed_grid = list(map(list, zip(*grid)))
+    right_ops = grid[0]
+    for i, op in enumerate(right_ops):
+        if op is not None:
+            continue
+        # find op from same column
+        for new_op in transposed_grid[i]:
+            if new_op is None:
+                continue
+            right_ops[i] = new_op
+            break
+    right_spaces = [op.domain[-1] for op in right_ops]
+    if None in right_spaces:
+        raise ValueError('Must have at least one nonzero entry in each column.')
+
+    left_ops = transposed_grid[0]
+    for i, op in enumerate(left_ops):
+        if op is not None:
+            continue
+        # find op from same row
+        for new_op in grid[i]:
+            if new_op is None:
+                continue
+            left_ops[i] = new_op
+            break
+    left_spaces = [op.codomain[0] for op in left_ops]
+    if None in left_spaces:
+        raise ValueError('Must have at least one nonzero entry in each row.')
+
+    left_space = left_spaces[0].direct_sum(*left_spaces[1:])
+    right_space = right_spaces[0].direct_sum(*right_spaces[1:])
+
+    # for each sector in the direct sum, find which multiplicities come from which space
+    left_mult_slices = []
+    for sector in left_space.sector_decomposition:
+        mults = []
+        for space in left_spaces:
+            idx = space.sector_decomposition_where(sector)
+            mult = 0 if idx is None else space.multiplicities[idx]
+            mults.append(mult)
+        left_mult_slices.append(np.concatenate([[0], np.cumsum(mults)], axis=0))
+    right_mult_slices = []
+    for sector in right_space.sector_decomposition:
+        mults = []
+        for space in right_spaces:
+            idx = space.sector_decomposition_where(sector)
+            mult = 0 if idx is None else space.multiplicities[idx]
+            mults.append(mult)
+        right_mult_slices.append(np.concatenate([[0], np.cumsum(mults)], axis=0))
+
+    codomain = TensorProduct([left_space, *op_list[0].codomain[1:]])
+    domain = TensorProduct([*op_list[0].domain[:-1], right_space])
+    data = backend.from_grid(grid=grid, new_codomain=codomain, new_domain=domain,
+                             left_mult_slices=left_mult_slices,
+                             right_mult_slices=right_mult_slices, dtype=dtype, device=device)
+    return SymmetricTensor(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
+
+
 def tdot(tensor1: Tensor, tensor2: Tensor,
          legs1: int | str | list[int | str], legs2: int | str | list[int | str],
          relabel1: dict[str, str] = None, relabel2: dict[str, str] = None):
@@ -5135,7 +5547,7 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
     compose, apply_mask, scale_axis
     """
     _ = get_same_device(tensor1, tensor2)
-    
+
     # parse legs to list[int] and check they are valid
     legs1 = tensor1.get_leg_idcs(to_iterable(legs1))
     legs2 = tensor2.get_leg_idcs(to_iterable(legs2))
@@ -5189,7 +5601,10 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
                 res = _compose_with_Mask(tensor1, tensor2, legs1[0])
             res.set_label(legs1[0], tensor2.labels[1 - legs2[0]])
             # move legs to tdot convention
-            return permute_legs(res, domain=legs2)
+            try:
+                return permute_legs(res, domain=legs2, bend_right=None)
+            except SymmetryError:
+                raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from None
         if num_contr == 2:
             # contract the large leg first
             which_is_large = legs2.index(1 if tensor2.is_projection else 0)
@@ -5213,7 +5628,10 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
         if num_contr == 1:
             res = scale_axis(tensor2, tensor1, legs2[0])
             res.set_label(legs2[0], tensor1.labels[1 - legs1[0]])
-            return permute_legs(res, codomain=legs1)
+            try:
+                return permute_legs(res, codomain=legs1)
+            except SymmetryError:
+                raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from None
         if num_contr == 2:
             res = scale_axis(tensor2, tensor1, legs2[0])
             res = partial_trace(res, legs2)
@@ -5226,7 +5644,10 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
         if num_contr == 1:
             res = scale_axis(tensor1, tensor2, legs1[0])
             res.set_label(legs1[0], tensor2.labels[1 - legs2[0]])
-            return permute_legs(res, domain=legs1)
+            try:
+                return permute_legs(res, domain=legs1)
+            except SymmetryError:
+                raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from None
         if num_contr == 2:
             res = scale_axis(tensor1, tensor2, legs1[0])
             res = partial_trace(res, legs1)
@@ -5264,8 +5685,11 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
 
     # OPTIMIZE actually, we only need to permute legs to *any* matching order.
     #          could use ``legs1[perm]`` and ``legs2[perm]`` instead, if that means fewer braids.
-    tensor1 = _permute_legs(tensor1, domain=legs1)
-    tensor2 = _permute_legs(tensor2, codomain=legs2)
+    try:
+        tensor1 = permute_legs(tensor1, domain=legs1, bend_right=None)
+        tensor2 = permute_legs(tensor2, codomain=legs2, bend_right=None)
+    except SymmetryError:
+        raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from None
     return _compose_SymmetricTensors(tensor1, tensor2, relabel1=relabel1, relabel2=relabel2)
 
 
@@ -5307,7 +5731,8 @@ def trace(tensor: Tensor):
         # OPTIMIZE can project to trivial sector on charge leg first
         N = tensor.num_legs
         pairs = [[n, N-1-n] for n in range(tensor.num_codomain_legs)]
-        inv_block = partial_trace(tensor.invariant_part, *pairs).to_dense_block()
+        inv_block = partial_trace(tensor.invariant_part, *pairs)
+        inv_block = inv_block.to_dense_block(understood_braiding=True)
         res = tensor.backend.block_backend.tdot(inv_block, tensor.charged_state, [0], [0])
         return tensor.backend.block_backend.item(res)
     return tensor.backend.trace_full(tensor)
@@ -5333,9 +5758,9 @@ def transpose(tensor: Tensor) -> Tensor:
     -------
     The transposed tensor. Its legs and labels fulfill e.g.::
 
-        transpose(A).codomain == A.domain.dual == [V2.dual, V1.dual]  # if A.codomain == [V1, V2]
-        transpose(A).domain == A.codomain.dual == [W2.dual, W1.dual]  # if A.domain == [W1, W2]
-        transpose(A).legs == [V2.dual, V1.dual, W1, W2]  # compared to A.legs == [V1, V2, W2.dual, W1.dual]
+        transpose(A).codomain == A.domain.dual == [W2.dual, W1.dual]  # if A.domain == [W1, W2]
+        transpose(A).domain == A.codomain.dual == [V2.dual, V1.dual]  # if A.codomain == [V1, V2]
+        transpose(A).legs == [W2.dual, W1.dual, V1, V2]  # compared to A.legs == [V1, V2, W2.dual, W1.dual]
         transpose(A).labels == [*reversed(A.domain_labels), *A.codomain_labels]
 
     Note that the resulting :attr:`Tensor.legs` depend not only on the input :attr:`Tensor.legs`,
@@ -5352,10 +5777,19 @@ def transpose(tensor: Tensor) -> Tensor:
         dual_leg, data = tensor.backend.diagonal_transpose(tensor)
         return DiagonalTensor(data=data, leg=dual_leg, backend=tensor.backend, labels=labels)
     if isinstance(tensor, SymmetricTensor):
-        data, codomain, domain = tensor.backend.transpose(tensor)
-        return SymmetricTensor(data=data, codomain=codomain, domain=domain, backend=tensor.backend,
-                               labels=labels)
+        return permute_legs(
+            tensor,
+            codomain=[*range(tensor.num_codomain_legs, tensor.num_legs)],
+            domain=[*reversed(range(tensor.num_codomain_legs))],
+            bend_right=[False] * tensor.num_codomain_legs + [True] * tensor.num_domain_legs,
+        )
     if isinstance(tensor, ChargedTensor):
+        if tensor.symmetry.braiding_style > BraidingStyle.bosonic:
+            msg = (f'transpose is not defined for ChargedTensors with fermionic symmetries. '
+                   f'This is because there is no way to recover the ChargedTensor format in such a '
+                   f'way that transposing twice gives back the original tensor. '
+                   f'Use permute_legs instead')
+            raise SymmetryError(msg)
         inv_part = transpose(tensor.invariant_part)
         inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0)
         return ChargedTensor(inv_part, tensor.charged_state)
@@ -5364,16 +5798,9 @@ def transpose(tensor: Tensor) -> Tensor:
 
 def truncate_singular_values(S: DiagonalTensor, chi_max: int = None, chi_min: int = 1,
                              degeneracy_tol: float = 0, trunc_cut: float = 0,
-                             svd_min: float = 0, mask_labels: list[str] = None
-                             ) -> tuple[Mask, float, float]:
+                             svd_min: float = 0, minimize_error: bool = True,
+                             mask_labels: list[str] = None) -> tuple[Mask, float, float]:
     r"""Given *normalized* singular values, determine which to keep.
-
-    Several constraints can be specified as keyword arguments.
-    If there are multiple choices that fulfill these constraints, the truncation with
-    the lowest resulting error is chosen, meaning roughly that as many singular values as
-    possible are kept.
-
-    TODO should we offer an option to instead keep as few as necessary?
 
     Parameters
     ----------
@@ -5399,6 +5826,9 @@ def truncate_singular_values(S: DiagonalTensor, chi_max: int = None, chi_min: in
         This is intended to exclude singular values that can not be distinguished from zero at the
         given precision. It does *not* have a direct implication on the resulting truncation error.
         Use `trunc_cut` instead for setting a tolerable error. See notes below for details.
+    minimize_error : bool
+        If we should minimize the resulting truncation error by keeping as many singular values
+        as allowed by the other constraints. Otherwise we keep as few as possible.
     mask_labels : list of str, optional
         The labels for the `mask`. Either a list of two string labels or ``None`` (default).
         By default, the `mask` has labels ``[S.labels[0], dual_label(S.labels[0])]``.
@@ -5439,7 +5869,7 @@ def truncate_singular_values(S: DiagonalTensor, chi_max: int = None, chi_min: in
     assert S.dtype.is_real
     mask_data, new_leg, err, new_norm = S.backend.truncate_singular_values(
         S, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol, trunc_cut=trunc_cut,
-        svd_min=svd_min
+        svd_min=svd_min, minimize_error=minimize_error
     )
     if mask_labels is None:
         mask_labels = [S.labels[0], _dual_leg_label(S.labels[0])]
@@ -5674,7 +6104,7 @@ def _split_all_pipes(a: SymmetricTensor | ChargedTensor) -> tuple[SymmetricTenso
     split : SymmetricTensor | ChargedTensor
         The result of repeatedly applying :func:`split_legs` to `a`.
     combine_list : list of list of int
-        Which legs of `split` would need to be combined to recontruct `a` from `split`, except for
+        Which legs of `split` would need to be combined to reconstruct `a` from `split`, except for
         nesting of pipes.
     """
     split = a.copy(deep=False).set_labels(None)

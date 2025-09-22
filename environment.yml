@@ -1,9 +1,12 @@
+# usage: conda env create -f environment.yml
+# then: pip install --no-build-isolation .
+
 # note: if you want to build docs as well, use docs/environment.yml instead
 name: cyten
 channels:
   - conda-forge
 dependencies:
-  - python>=3.9
+  - python>=3.10
   - pip
   - setuptools>=68.0.0
   - pybind11
@@ -13,13 +16,19 @@ dependencies:
   - boost
   - libboost
   - openblas
+  - cmake
   # alteratively use MKL instead of openblas
   # - mkl
   # - mkl-devel
   # - libblas=*=*mkl  # pin BLAS to use MKL
   # Testing
   - pytest>=6.0
-  - sympy  # TODO: remove this dependency when no longer needed
+  - sympy
+
+  # developer tools
+  - ipython
+  - flake8
+  - flake8-docstrings
 
   # building docs
   # - doxygen
@@ -28,9 +37,9 @@ dependencies:
   # - graphviz
   # - sphinx-copybutton
   # - pip:
-  #   - breathe  # conde-forge version seems incompatible
+  #   - breathe  # conda-forge version seems incompatible
 
   # I/O (to be added later...)
   # - hdf5
-  # - h5py
+  - h5py
   # - pyyaml

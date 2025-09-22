@@ -5,3 +5,4 @@ from .random_generation import (
     random_block, random_symmetry_sectors, random_ElementarySpace, random_LegPipe, random_leg,
     randomly_drop_blocks, random_tensor
 )
+from .asserting import assert_tensors_almost_equal

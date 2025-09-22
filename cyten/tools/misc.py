@@ -3,7 +3,7 @@
 
 import numpy as np
 import warnings
-from typing import TypeVar, Sequence, Set
+from typing import TypeVar, Sequence, Set, Generator
 
 
 UNSPECIFIED = object()  # sentinel, also used elsewhere
@@ -15,16 +15,21 @@ def duplicate_entries(seq: Sequence[_T], ignore: Sequence[_T] = []) -> Set[_T]:
     return set(ele for idx, ele in enumerate(seq) if ele in seq[idx + 1:] and ele not in ignore)
 
 
+def is_iterable(a):
+    try:
+        iter(a)
+    except TypeError:
+        return False
+    return True
+
+
 def to_iterable(a):
     """If `a` is a not iterable or a string, return ``[a]``, else return ``a``."""
     if type(a) is str:
         return [a]
-    try:
-        iter(a)
-    except TypeError:
-        return [a]
-    else:
+    if is_iterable(a):
         return a
+    return [a]
 
 
 def to_valid_idx(idx: int, length: int) -> int:
@@ -43,35 +48,35 @@ def as_immutable_array(a, dtype=None):
     return a
 
 
-def permutation_as_swaps(initial_perm: list, final_perm: list) -> list:
-    """Decompose a permutation as a sequence of pairwise swaps.
+def permutation_as_swaps(permutation: list[int]) -> Generator[int, None, None]:
+    """Decompose an arbitrary permutation into a sequence of swaps.
 
-    Given an initial and final permutation of the same numbers, return a list `swaps`
-    of indices such that exchanging the entries of the initial permutation as
-    `initial_perm[swaps[i]], initial_perm[swaps[i]+1] = initial_perm[swaps[i]+1],
-    initial_perm[swaps[i]]` leads to the final permutation. The swaps must be applied
-    starting from `swaps[0]`.
-    
-    Consistency of the input is not checked.
+    Parameters
+    ----------
+    permutation : list of int
+        A permutation. The goal is to move ``permutation[j]`` to position ``j`` via the sequence of
+        swaps.
+
+    Yields
+    ------
+    j : int
+        Represents a swap of ``j <-> j + 1``, i.e. the permutation
+        ``[*range(j), j + 1, j, *range(j + 2, len(permutation))]``.
     """
-    assert len(initial_perm) == len(final_perm), 'mismatched lengths'
-    unique_entries_initial = set(initial_perm)
-    unique_entries_final = set(final_perm)
-    assert unique_entries_initial == unique_entries_final, 'mismatched entries'
-    assert len(initial_perm) == len(unique_entries_initial), 'duplicated entries'
+    N = len(permutation)
+    if set(permutation) != set(range(N)):
+        raise ValueError('Not a permutation')
+    current_positions = np.arange(N)
+    for target_pos, original_pos in enumerate(permutation[:-1]):
+        current_pos = current_positions[original_pos]
+        # due to the set-up we always have target_pos <= current_pos
+        yield from reversed(range(target_pos, current_pos))
+        # update current positions: build the permutation we just yielded as swaps
+        perm = np.arange(N)
+        perm[target_pos:current_pos + 1] = np.roll(perm[target_pos:current_pos + 1], -1)
+        current_positions = perm[current_positions]
+    return
 
-    # TODO avoid infinite loop
-    # OPTIMIZE is this efficient??
-    swaps = []
-    while final_perm != initial_perm:
-        for i in range(len(final_perm)):
-            if final_perm[i] != initial_perm[i]:
-                ind = initial_perm.index(final_perm[i])
-                initial_perm[ind - 1:ind + 1] = initial_perm[ind - 1:ind + 1][::-1]
-                swaps.append(ind - 1)
-                break
-    return swaps
-    
 
 # TODO remove in favor of backend.block_argsort?
 def argsort(a, sort=None, **kwargs):
@@ -181,7 +186,7 @@ def rank_data(a, stable=True):
     Parameters
     ----------
     a : 1D array-like
-        The data to rank. TODO support multi-dimensional data?
+        The data to rank.
     stable: bool
         If ``True`` (default), the ranks of equal values are guaranteed increasing by order of
         appearance in `a`. If ``False``, the relative rank of equal elements is arbitrary, which

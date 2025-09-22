@@ -9,6 +9,7 @@ from .abstract_backend import (TensorBackend, BlockBackend, Data, DiagonalData, 
 from ..dtypes import Dtype
 from ..symmetries import no_symmetry, Symmetry
 from ..spaces import Space, ElementarySpace, TensorProduct, Leg, LegPipe, AbelianLegPipe
+from ..trees import FusionTree
 from ..tools.misc import rank_data
 
 
@@ -138,8 +139,9 @@ class NoSymmetryBackend(TensorBackend):
         shape = (co_domain.dim,)
         return func(shape, coupled)
 
-    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, check_offdiagonal: bool) -> DiagonalData:
-        return self.block_backend.get_diagonal(a.data, check_offdiagonal=check_offdiagonal)
+    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, tol: float | None
+                                         ) -> DiagonalData:
+        return self.block_backend.get_diagonal(a.data, tol=tol)
 
     def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
         return self.block_backend.sum_all(a.data)
@@ -188,6 +190,24 @@ class NoSymmetryBackend(TensorBackend):
         # there are no other sectors, so this is just the unmodified block.
         assert self.block_backend.get_shape(block) == (leg.dim,)
 
+    def from_grid(self, grid: list[list[SymmetricTensor | None]], new_codomain: TensorProduct,
+                  new_domain: TensorProduct, left_mult_slices: list[list[int]],
+                  right_mult_slices: list[list[int]], dtype: Dtype, device: str) -> Data:
+        heights = left_mult_slices[0]
+        widths = right_mult_slices[0]
+        data = self.zero_data(codomain=new_codomain, domain=new_domain, dtype=dtype, device=device)
+        codom_slcs = [slice(None)] * (len(new_codomain) - 1)
+        dom_slcs = [slice(None)] * (len(new_domain) - 1)
+        for i, row in enumerate(grid):
+            for j, op in enumerate(row):
+                if op is None:
+                    continue
+                row_slc = slice(widths[j], widths[j + 1])
+                col_slc = slice(heights[i], heights[i + 1])
+                slcs = (col_slc, *codom_slcs, row_slc, *dom_slcs)
+                data[slcs] += op.data
+        return data
+
     def from_random_normal(self, codomain: TensorProduct, domain: TensorProduct, sigma: float,
                            dtype: Dtype, device: str) -> Data:
         shape = [leg.dim for leg in conventional_leg_order(codomain, domain)]
@@ -198,6 +218,14 @@ class NoSymmetryBackend(TensorBackend):
         coupled = codomain.symmetry.trivial_sector
         shape = tuple(l.dim for l in conventional_leg_order(codomain, domain))
         return func(shape, coupled)
+
+    def from_tree_pairs(self, trees: dict[tuple[FusionTree, FusionTree], Block], codomain: TensorProduct,
+                        domain: TensorProduct, dtype: Dtype, device: str) -> Data:
+        assert len(trees) == 1
+        block, = trees.values()
+        expect_shape = tuple(l.dim for l in conventional_leg_order(codomain, domain))
+        assert self.block_backend.get_shape(block) == expect_shape
+        return block
 
     def full_data_from_diagonal_tensor(self, a: DiagonalTensor) -> Data:
         return self.block_backend.block_from_diagonal(a.data)
@@ -367,13 +395,10 @@ class NoSymmetryBackend(TensorBackend):
         return data, codomain, domain
 
     def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     levels: list[int] | None) -> tuple[Data | None, TensorProduct, TensorProduct]:
-        codomain = TensorProduct([a._as_codomain_leg(i) for i in codomain_idcs],
-                                 symmetry=a.symmetry)
-        domain = TensorProduct([a._as_domain_leg(i) for i in domain_idcs],
-                               symmetry=a.symmetry)
-        data = self.block_backend.permute_axes(a.data, [*codomain_idcs, *reversed(domain_idcs)])
-        return data, codomain, domain
+                     new_codomain: TensorProduct, new_domain: TensorProduct,
+                     mixes_codomain_domain: bool, levels: list[int] | None,
+                     bend_right: list[bool | None]) -> Data:
+        return self.block_backend.permute_axes(a.data, [*codomain_idcs, *reversed(domain_idcs)])
 
     def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
         q_dims = a.shape[:a.num_codomain_legs]
@@ -440,20 +465,14 @@ class NoSymmetryBackend(TensorBackend):
     def trace_full(self, a: SymmetricTensor) -> float | complex:
         return self.block_backend.trace_full(a.data)
 
-    def transpose(self, a: SymmetricTensor) -> tuple[Data, TensorProduct, TensorProduct]:
-        perm = [*range(a.num_codomain_legs, a.num_legs), *range(a.num_codomain_legs)]
-        data = self.block_backend.permute_axes(a.data, perm)
-        codomain = a.domain.dual
-        domain = a.codomain.dual
-        return data, codomain, domain
-
     def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
-                                 degeneracy_tol: float, trunc_cut: float, svd_min: float
+                                 degeneracy_tol: float, trunc_cut: float, svd_min: float,
+                                 minimize_error: bool = True,
                                  ) -> tuple[MaskData, ElementarySpace, float, float]:
         S_np = self.block_backend.to_numpy(S.data)
         keep, err, new_norm = self._truncate_singular_values_selection(
             S=S_np, qdims=None, chi_max=chi_max, chi_min=chi_min, degeneracy_tol=degeneracy_tol,
-            trunc_cut=trunc_cut, svd_min=svd_min
+            trunc_cut=trunc_cut, svd_min=svd_min, minimize_error=minimize_error
         )
         mask_data = self.block_backend.block_from_numpy(keep, dtype=Dtype.bool)
         if isinstance(S.leg, ElementarySpace):

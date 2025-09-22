@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 from numpy import testing as npt
 
-from cyten import spaces, symmetries, SymmetryError
+from cyten import spaces, symmetries, trees, SymmetryError
 from .util import random_ElementarySpace
 
 # TODO test all cases of Space.as_ElementarySpace
@@ -11,15 +11,11 @@ from .util import random_ElementarySpace
 
 def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
 
-    pytest.xfail()  # TODO
-    
     sectors = make_any_sectors(10)
     sectors = sectors[np.lexsort(sectors.T)]
     dual_sectors = any_symmetry.dual_sectors(sectors)
     dual_sectors_sort = np.lexsort(dual_sectors.T)
     mults = np_random.integers(1, 10, size=len(sectors))
-
-    # TODO (JU) test real (as in "not complex") vectorspaces
 
     s1 = spaces.ElementarySpace(symmetry=any_symmetry, defining_sectors=sectors, multiplicities=mults)
     s2 = spaces.ElementarySpace.from_trivial_sector(dim=8)
@@ -44,15 +40,11 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
     else:
         wrong_mults[0] += 1
     assert s1 != spaces.ElementarySpace(symmetry=any_symmetry, defining_sectors=sectors, multiplicities=wrong_mults)
-    npt.assert_array_equal(s1_dual.defining_sectors, dual_sectors[dual_sectors_sort])
-    npt.assert_array_equal(s1_dual.multiplicities, s1.multiplicities[dual_sectors_sort])
+    npt.assert_array_equal(s1_dual.defining_sectors, s1.defining_sectors)
+    npt.assert_array_equal(s1_dual.sector_decomposition, dual_sectors)
+    npt.assert_array_equal(s1_dual.multiplicities, s1.multiplicities)
     assert s1_dual.symmetry == s1.symmetry
     assert s1_dual.is_dual is True
-    #
-    s1_modified = spaces.ElementarySpace(s1.symmetry, defining_sectors=s1.sector_decomposition, multiplicities=s1.multiplicities,
-                                         is_dual=not s1.is_dual, basis_perm=s1._basis_perm)
-    assert s1 != s1_modified
-    assert s1_modified == s1.with_opposite_duality()
 
     print('checking is_trivial')
     assert not s1.is_trivial
@@ -81,7 +73,9 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
     fewer_sectors2 = spaces.ElementarySpace(symmetry=any_symmetry, defining_sectors=[sectors[i] for i in which2],
                                             multiplicities=[mults[i] for i in which2])
     assert s1.is_subspace_of(s1)
-    assert not s1.dual.is_subspace_of(s1)
+    expect_dual_is_subspace = np.all(s1.sector_decomposition == dual_sectors)
+    assert s1_dual.is_subspace_of(s1) == expect_dual_is_subspace
+
     assert same_sectors_less_mults.is_subspace_of(s1)
     assert not s1.is_subspace_of(same_sectors_less_mults)
     assert not same_sectors_different_mults.is_subspace_of(s1)
@@ -97,8 +91,6 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
         assert not s1.is_subspace_of(fewer_sectors1)
         assert not fewer_sectors1.is_subspace_of(fewer_sectors2)
         assert not fewer_sectors2.is_subspace_of(fewer_sectors1)
-
-    # TODO (JU) test num_parameters when ready
 
     print('check idx_to_sector and parse_idx')
     if any_symmetry.can_be_dropped:
@@ -127,7 +119,7 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
                 bad_sectors = np.array([0, 1, 1, 1, 2, 2, 2])[:, None]
                 # have three basis vectors for 2-dimensional spin-1/2
                 _ = spaces.ElementarySpace.from_basis(symmetry=any_symmetry, sectors_of_basis=bad_sectors)
-            
+
             # spins 0, 1/2 and 1, each two times
             #                         0  1  2  3  4  5  6  7  8  9  10 11
             sectors_of_basis = np.array([0, 2, 2, 1, 2, 1, 2, 2, 0, 2, 1, 1])[:, None]
@@ -207,19 +199,18 @@ def test_ElementarySpace_from_defining_sectors(any_symmetry, make_any_sectors, n
 
 
 def test_take_slice(make_any_space, any_symmetry, np_random):
-    pytest.xfail()  # TODO
-    
     if not any_symmetry.can_be_dropped:
         space: spaces.ElementarySpace = make_any_space()
         with pytest.raises(SymmetryError, match='take_slice is meaningless for .*.'):
             _ = space.take_slice([True])
         return
-    
+
     if isinstance(any_symmetry, symmetries.SU2Symmetry):
         sectors = np.array([0, 1, 2, 4])[:, None]
         mults = np.array([3, 1, 2, 2])
         basis_perm = np.array([19, 20, 17, 2, 9, 16, 8, 3, 0, 4, 11, 13, 5, 15, 12, 14, 10, 7, 1, 18, 6])
-        space = spaces.ElementarySpace(any_symmetry, sectors, mults, basis_perm)
+        space = spaces.ElementarySpace(any_symmetry, defining_sectors=sectors, multiplicities=mults,
+                                       basis_perm=basis_perm)
 
         # build an allowed and an illegal mask in the internal basis order
         keep_states = []
@@ -252,11 +243,14 @@ def test_take_slice(make_any_space, any_symmetry, np_random):
 def test_TensorProduct(any_symmetry, make_any_space, make_any_sectors, num_spaces):
     domain = spaces.TensorProduct([make_any_space() for _ in range(num_spaces)], symmetry=any_symmetry)
     domain.test_sanity()
-    
+
     for coupled in make_any_sectors(10):
-        expect = sum(domain.forest_block_size(uncoupled, coupled) for uncoupled in domain.iter_uncoupled())
+        expect1 = sum(len(trees.fusion_trees(any_symmetry, uncoupled, coupled)) * np.prod(mults)
+                      for uncoupled, mults in domain.iter_uncoupled())
+        expect2 = sum(domain.forest_block_size(uncoupled, coupled) for uncoupled, _ in domain.iter_uncoupled())
         res = domain.block_size(coupled)
-        assert res == expect
+        assert res == expect1
+        assert res == expect2
 
 
 def test_TensorProduct_SU2():
@@ -362,7 +356,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
     # Misc properties of the pipe
     # =======================================
     assert pipe.is_isomorphic_to(spaces.TensorProduct([leg_1, leg_2]))
-    
+
     # check fusion_outcomes_sort
     # =======================================
     fusion_outcomes = [abelian_group_symmetry.fusion_outcomes(s_1, s_2)[0]
@@ -389,7 +383,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
                                             by_duals=pipe.is_dual)
 
     assert np.all(pipe._get_fusion_outcomes_perm(pipe.multiplicities) == fusion_outcomes_perm)
-    
+
     # check basis_perm
     # =======================================
     assert pipe.basis_perm.shape == (pipe.dim,)
@@ -397,7 +391,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
     public_basis_pipe = [(abelian_group_symmetry.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
                          for b_1, b_2 in iter_combinations(public_basis_1, public_basis_2)]
     internal_basis_pipe = [internal_fusion_outcomes[n] for n in fusion_outcomes_perm]
-    
+
     # want to do ``expect_perm = [public_basis_pipe.index(i) for i in internal_basis_pipe]``
     # but need to deal with array comparison
     expect_perm = []
@@ -412,14 +406,15 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
     assert np.all(pipe.basis_perm == np.array(expect_perm))
 
 
-def test_direct_sum(make_any_space, max_mult=5, max_sectors=5):
-    pytest.xfail()  # TODO
-    
-    a = make_any_space(max_mult=max_mult, max_sectors=max_sectors)
-    b = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=a.is_dual)
-    c = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=a.is_dual)
+@pytest.mark.parametrize('is_dual', [True, False])
+def test_direct_sum(is_dual, make_any_space, max_mult=5, max_sectors=5):
+    a = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
+    b = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
+    c = make_any_space(max_mult=max_mult, max_sectors=max_sectors, is_dual=is_dual)
     assert a == spaces.ElementarySpace.direct_sum(a)
     d = spaces.ElementarySpace.direct_sum(a, b, c)
+    d.test_sanity()
+    assert d.is_dual == is_dual
     if a.symmetry.can_be_dropped:
         expect = np.concatenate([leg.sectors_of_basis for leg in [a, b, c]], axis=0)
         npt.assert_array_equal(d.sectors_of_basis, expect)
@@ -433,8 +428,12 @@ def test_direct_sum(make_any_space, max_mult=5, max_sectors=5):
     sort = np.lexsort(sectors.T)
     sectors = sectors[sort]
     mults = mults[sort]
-    assert np.all(d.sector_decomposition == sectors)
-    assert np.all(d.multiplicities == mults)
+    if is_dual:
+        expected_order = np.lexsort(d.sector_decomposition.T)
+    else:
+        expected_order = slice(None, None, None)
+    assert np.all(d.sector_decomposition[expected_order] == sectors)
+    assert np.all(d.multiplicities[expected_order] == mults)
 
 
 def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines=20):
