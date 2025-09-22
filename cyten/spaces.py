@@ -2240,7 +2240,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         return perm
 
 
-# FIXME this still needed?
+# FIXME this still needed? duplicate of _make_flat_legs
 def _flatten_leg_pipes(legs: list[Leg]) -> list[ElementarySpace]:
     res = legs[:]
     for _ in range(1000):  # loop should end via break, this is just a failsafe vs infinite loop
