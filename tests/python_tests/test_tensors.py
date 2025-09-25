@@ -248,6 +248,12 @@ def test_SymmetricTensor_from_random_uniform(leg_nums, dtype, make_compatible_te
     # but may also only be 5e2 samples for a single leg in codomain and domain
     T: SymmetricTensor = make_compatible_tensor(*leg_nums, max_block_size=80)
 
+    if T.symmetry.has_complex_topological_data and dtype.is_real:
+        with pytest.raises(ValueError, match='must have complex dtype'):
+            _ = SymmetricTensor.from_random_uniform(codomain=T.codomain, domain=T.domain,
+                                                    backend=T.backend, dtype=dtype)
+        return
+
     rand_tens = SymmetricTensor.from_random_uniform(codomain=T.codomain, domain=T.domain,
                                                     backend=T.backend, dtype=dtype)
     rand_tens.test_sanity()
@@ -306,6 +312,13 @@ def test_SymmetricTensor_from_random_normal(leg_nums, dtype, make_compatible_ten
     T: SymmetricTensor = make_compatible_tensor(*leg_nums, max_block_size=80)
     # TODO do we want to test nontrivial means?
     sigma = np_random.uniform(high=3.)
+
+    if T.symmetry.has_complex_topological_data and dtype.is_real:
+        with pytest.raises(ValueError, match='must have complex dtype'):
+            _ = SymmetricTensor.from_random_normal(codomain=T.codomain, domain=T.domain,
+                                                   sigma=sigma, backend=T.backend, dtype=dtype)
+        return
+
     rand_tens = SymmetricTensor.from_random_normal(codomain=T.codomain, domain=T.domain,
                                                    sigma=sigma, backend=T.backend, dtype=dtype)
     rand_tens.test_sanity()
@@ -648,7 +661,7 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
     assert not M_zero.any()
 
     print('checking to_numpy vs as_SymmetricTensor')
-    M_SymmetricTensor = M_projection.as_SymmetricTensor(dtype=Dtype.float64)
+    M_SymmetricTensor = M_projection.as_SymmetricTensor()
     assert M_SymmetricTensor.shape == M_projection.shape
     M_SymmetricTensor.test_sanity()
     if symmetry.can_be_dropped:
@@ -656,7 +669,7 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
         res_direct = M_projection.to_numpy(understood_braiding=True)
         npt.assert_allclose(res_via_Symmetric, res_direct)
     print('   also for inclusion Mask')
-    M_SymmetricTensor = M_inclusion.as_SymmetricTensor(dtype=Dtype.float64)
+    M_SymmetricTensor = M_inclusion.as_SymmetricTensor()
     assert M_SymmetricTensor.shape == M_inclusion.shape
     M_SymmetricTensor.test_sanity()
     if symmetry.can_be_dropped:
