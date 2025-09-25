@@ -837,12 +837,16 @@ class SymmetricTensor(Tensor):
                         device=backend.get_device_from_data(data))
         assert isinstance(data, self.backend.DataCls)
         self.data = data
+        if self.symmetry.has_complex_topological_data and self.dtype.is_real:
+            raise ValueError('SymmetricTensor with {self.symmetry} must have complex dtype')
 
     def test_sanity(self):
         super().test_sanity()
         assert self.dtype == self.backend.get_dtype_from_data(self.data)
         assert self.device == self.backend.get_device_from_data(self.data)
         self.backend.test_tensor_sanity(self, is_diagonal=isinstance(self, DiagonalTensor))
+        if self.symmetry.has_complex_topological_data:
+            assert self.dtype.is_complex
 
     @classmethod
     def from_block_func(cls, func,
