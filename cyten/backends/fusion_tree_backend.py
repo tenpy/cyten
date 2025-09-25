@@ -2635,6 +2635,11 @@ class TensorMapping(metaclass=ABCMeta):
     This is a base class that defines the common interface.
     See :class:`TreePairMapping` and :class:`IndividualTreeMapping` for the concrete classes.
 
+    Attributes
+    ----------
+    is_real : bool
+        If the coefficients are guaranteed real.
+
     Notes
     -----
     Let indices ``I, J, ...`` each label a pair (X_I, Y_I) of a fusion tree X_I and a compatible
@@ -2656,26 +2661,30 @@ class TensorMapping(metaclass=ABCMeta):
     i.e. are linear combinations of the blocks of T according to the transposed coefficients.
     """
 
+    def __init__(self, is_real: bool):
+        self.is_real = is_real
+
     @classmethod
     def from_instructions(cls, instructions: Iterable[Instruction], codomain: TensorProduct,
                           domain: TensorProduct, block_inds: np.ndarray | None = None
                           ) -> TensorMapping:
         res = cls.from_identity(codomain=codomain, domain=domain, block_inds=block_inds)
+        is_real = not codomain.symmetry.has_complex_topological_data
         for i in instructions:
-            res = res.pre_compose_instruction(i)
+            res = res.pre_compose_instruction(i, is_real=is_real)
         return res
 
     # METHODS
 
-    def pre_compose_instruction(self, instruction: Instruction, prune_tol: float | None = 1e-15
-                                ) -> TensorMapping:
+    def pre_compose_instruction(self, instruction: Instruction, is_real: bool,
+                                prune_tol: float | None = 1e-15) -> TensorMapping:
         """Include the action of an instruction, acting as a last step."""
         if isinstance(instruction, BendInstruction):
-            res = self.pre_compose_bend_instruction(instruction)
+            res = self.pre_compose_bend_instruction(instruction, is_real=is_real)
         elif isinstance(instruction, BraidInstruction):
-            res = self.pre_compose_braid_instruction(instruction)
+            res = self.pre_compose_braid_instruction(instruction, is_real=is_real)
         elif isinstance(instruction, TwistInstruction):
-            res = self.pre_compose_twist_instruction(instruction)
+            res = self.pre_compose_twist_instruction(instruction, is_real=is_real)
         elif isinstance(instruction, Instruction):
             raise NotImplementedError
         else:
@@ -2706,17 +2715,20 @@ class TensorMapping(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def pre_compose_bend_instruction(self, instruction: BendInstruction) -> TensorMapping:
+    def pre_compose_bend_instruction(self, instruction: BendInstruction, is_real: bool
+                                     ) -> TensorMapping:
         """Special case of :meth:`pre_compose_instruction`."""
         ...
 
     @abstractmethod
-    def pre_compose_braid_instruction(self, instruction: BraidInstruction) -> TensorMapping:
+    def pre_compose_braid_instruction(self, instruction: BraidInstruction, is_real: bool
+                                      ) -> TensorMapping:
         """Special case of :meth:`pre_compose_instruction`."""
         ...
 
     @abstractmethod
-    def pre_compose_twist_instruction(self, instruction: TwistInstruction) -> TensorMapping:
+    def pre_compose_twist_instruction(self, instruction: TwistInstruction, is_real: bool
+                                      ) -> TensorMapping:
         """Special case of :meth:`pre_compose_instruction`."""
         ...
 
@@ -2756,23 +2768,10 @@ class TreePairMapping(TensorMapping):
     In practice, the keys are ``I = (Y_I, X_I)`` tuples of two FusionTrees.
     """
 
-    def __init__(self, mapping: SparseMapping[tuple[FusionTree, FusionTree]]):
+    def __init__(self, mapping: SparseMapping[tuple[FusionTree, FusionTree]],
+                 is_real: bool):
         self.mapping: SparseMapping[tuple[FusionTree, FusionTree]] = mapping
-
-    @property
-    def has_complex_coefficients(self) -> bool:
-        # coefficients must be real if fusion tensor is real and braids are symmetric
-        for trees in self.mapping.keys():
-            sym = trees[0].symmetry
-            if sym.fusion_tensor_dtype is not None:
-                if sym.fusion_tensor_dtype.is_real and sym.has_symmetric_braid:
-                    return False
-            break
-        for val in self.mapping.values():
-            for num in val.values():
-                if isinstance(num, complex):
-                    return True
-        return False
+        TensorMapping.__init__(self, is_real=is_real)
 
     @classmethod
     def from_identity(cls, codomain: TensorProduct, domain: TensorProduct,
@@ -2787,7 +2786,7 @@ class TreePairMapping(TensorMapping):
                 for X, *_ in domain.iter_tree_blocks([coupled]):
                     keys.append((Y, X))
         mapping = SparseMapping[tuple[FusionTree, FusionTree]].from_identity(keys)
-        return cls(mapping)
+        return cls(mapping, is_real=True)
 
     def test_sanity(self):
         for (Y_i, X_i), self_i in self.mapping.items():
@@ -2799,7 +2798,7 @@ class TreePairMapping(TensorMapping):
                 X_j.test_sanity()
                 assert np.all(X_j.coupled == Y_j.coupled)
 
-    def pre_compose_braid_instruction(self, instruction: BraidInstruction):
+    def pre_compose_braid_instruction(self, instruction: BraidInstruction, is_real: bool):
         braid_mapping = SparseMapping[FusionTree]()
         if instruction.codomain:
             # the splitting tree in the codomain is represented by a FusionTree and::
@@ -2812,22 +2811,23 @@ class TreePairMapping(TensorMapping):
             for Y in set(Y for Y, X in self.mapping.nonzero_rows()):
                 braid_mapping[Y] = Y.braid(j=instruction.idx, overbraid=not instruction.overbraid,
                                            do_conj=True)
-            return self.pre_compose_splitting_tree_mapping(braid_mapping)
+            return self.pre_compose_splitting_tree_mapping(braid_mapping, is_real=is_real)
         else:
             for X in set(X for Y, X in self.mapping.nonzero_rows()):
                 braid_mapping[X] = X.braid(j=instruction.idx, overbraid=instruction.overbraid)
-            return self.pre_compose_fusion_tree_mapping(braid_mapping)
+            return self.pre_compose_fusion_tree_mapping(braid_mapping, is_real=is_real)
 
-    def pre_compose_bend_instruction(self, instruction: BendInstruction):
+    def pre_compose_bend_instruction(self, instruction: BendInstruction, is_real: bool):
         bend_mapping = SparseMapping[tuple[FusionTree, FusionTree]]()
         # to pre-compose the bend_mapping, we only need to compute the ``bend_mapping[j][i]``
         # for those ``j`` for which an entry ``self.mapping[k][j]`` exists.
         for Y, X in self.mapping.nonzero_rows():
             bend_mapping[Y, X] = FusionTree.bend_leg(Y, X, instruction.bend_up)
         mapping = self.mapping.pre_compose(bend_mapping)
-        return TreePairMapping(mapping)
+        return TreePairMapping(mapping, is_real=self.is_real and is_real)
 
-    def pre_compose_fusion_tree_mapping(self, mapping: SparseMapping[FusionTree]) -> TreePairMapping:
+    def pre_compose_fusion_tree_mapping(self, mapping: SparseMapping[FusionTree], is_real: bool
+                                        ) -> TreePairMapping:
         """Pre-compose with a mapping that acts only on the fusion-trees."""
         res = SparseMapping[tuple[FusionTree, FusionTree]]()
         for k, self_k in self.mapping.items():
@@ -2836,9 +2836,10 @@ class TreePairMapping(TensorMapping):
                 for X_i, other_ij in mapping[X_j].items():
                     i = (Y, X_i)
                     res_k[i] = res_k.get(i, 0) + other_ij * self_jk
-        return TreePairMapping(res)
+        return TreePairMapping(res, is_real=self.is_real and is_real)
 
-    def pre_compose_splitting_tree_mapping(self, mapping: SparseMapping[FusionTree]) -> TreePairMapping:
+    def pre_compose_splitting_tree_mapping(self, mapping: SparseMapping[FusionTree], is_real: bool
+                                           ) -> TreePairMapping:
         """Pre-compose with a mapping that acts only on the fusion-trees."""
         res = SparseMapping[tuple[FusionTree, FusionTree]]()
         for k, self_k in self.mapping.items():
@@ -2847,9 +2848,10 @@ class TreePairMapping(TensorMapping):
                 for Y_i, other_ij in mapping[Y_j].items():
                     i = (Y_i, X)
                     res_k[i] = res_k.get(i, 0) + other_ij * self_jk
-        return TreePairMapping(res)
+        return TreePairMapping(res, is_real=self.is_real and is_real)
 
-    def pre_compose_twist_instruction(self, instruction: TwistInstruction) -> TensorMapping:
+    def pre_compose_twist_instruction(self, instruction: TwistInstruction, is_real: bool
+                                      ) -> TensorMapping:
         twist_mapping = SparseMapping[FusionTree]()
         if instruction.codomain:
             # because this is a splitting tree, we need to do the opposite twist to its
@@ -2857,11 +2859,11 @@ class TreePairMapping(TensorMapping):
             # then, we need to conj the resulting coefficient, cancelling that conj again.
             for Y in set(Y for Y, X in self.mapping.nonzero_rows()):
                 twist_mapping[Y] = Y.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
-            return self.pre_compose_splitting_tree_mapping(twist_mapping)
+            return self.pre_compose_splitting_tree_mapping(twist_mapping, is_real=self.is_real and is_real)
         else:
             for X in set(X for Y, X in self.mapping.nonzero_rows()):
                 twist_mapping[X] = X.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
-            return self.pre_compose_fusion_tree_mapping(twist_mapping)
+            return self.pre_compose_fusion_tree_mapping(twist_mapping, is_real=self.is_real and is_real)
 
     def prune(self, tol: float = 1e-15) -> TreePairMapping:
         self.mapping.prune(tol=tol)
@@ -2895,7 +2897,7 @@ class TreePairMapping(TensorMapping):
         inv_leg_perm = inverse_permutation([*codomain_idcs, *reversed(domain_idcs)])
         #
         dtype = data.dtype
-        if dtype.is_real and self.has_complex_coefficients:
+        if dtype.is_real and not self.is_real:
             dtype = dtype.to_complex
         block_inds = []
         blocks = []
@@ -2965,27 +2967,11 @@ class FactorizedTreeMapping(TensorMapping):
 
     def __init__(self,
                  splitting_tree_mapping: SparseMapping[FusionTree] | IdentityMapping[FusionTree],
-                 fusion_tree_mapping: SparseMapping[FusionTree] | IdentityMapping[FusionTree]):
+                 fusion_tree_mapping: SparseMapping[FusionTree] | IdentityMapping[FusionTree],
+                 is_real: bool):
         self.splitting_tree_mapping = splitting_tree_mapping
         self.fusion_tree_mapping = fusion_tree_mapping
-
-    @property
-    def has_complex_coefficients(self) -> bool:
-        for tree in self.fusion_tree_mapping.keys():
-            sym = tree.symmetry
-            if sym.fusion_tensor_dtype is not None:
-                if sym.fusion_tensor_dtype.is_real and sym.has_symmetric_braid:
-                    return False
-            break
-        for val in self.fusion_tree_mapping.values():
-            for num in val.values():
-                if isinstance(num, complex):
-                    return True
-        for val in self.splitting_tree_mapping.values():
-            for num in val.values():
-                if isinstance(num, complex):
-                    return True
-        return False
+        TensorMapping.__init__(self, is_real=is_real)
 
     @classmethod
     def from_identity(cls, codomain: TensorProduct, domain: TensorProduct,
@@ -3003,9 +2989,9 @@ class FactorizedTreeMapping(TensorMapping):
                 fusion_trees.append(X)
         splitting_tree_mapping = IdentityMapping[FusionTree](splitting_trees)
         fusion_tree_mapping = IdentityMapping[FusionTree](fusion_trees)
-        return cls(splitting_tree_mapping, fusion_tree_mapping)
+        return cls(splitting_tree_mapping, fusion_tree_mapping, is_real=True)
 
-    def pre_compose_braid_instruction(self, instruction: BraidInstruction):
+    def pre_compose_braid_instruction(self, instruction: BraidInstruction, is_real: bool):
         braid_mapping = SparseMapping[FusionTree]()
         if instruction.codomain:
             # because this is a splitting tree, we need to do the opposite braid and do conj
@@ -3020,12 +3006,14 @@ class FactorizedTreeMapping(TensorMapping):
                 braid_mapping[X] = X.braid(j=instruction.idx, overbraid=instruction.overbraid)
             splitting_tree_mapping = self.splitting_tree_mapping
             fusion_tree_mapping = self.fusion_tree_mapping.pre_compose(braid_mapping)
-        return FactorizedTreeMapping(splitting_tree_mapping, fusion_tree_mapping)
+        return FactorizedTreeMapping(splitting_tree_mapping, fusion_tree_mapping,
+                                     is_real=self.is_real and is_real)
 
-    def pre_compose_bend_instruction(self, instruction):
+    def pre_compose_bend_instruction(self, instruction, is_real: bool):
         raise TypeError(f'{type(self).__name__} is incompatible with `{type(instruction).__name__}`.')
 
-    def pre_compose_twist_instruction(self, instruction: TwistInstruction) -> TensorMapping:
+    def pre_compose_twist_instruction(self, instruction: TwistInstruction, is_real: bool
+                                      ) -> TensorMapping:
         twist_mapping = SparseMapping[FusionTree]()
         if instruction.codomain:
             # because this is a splitting tree, we need to do the opposite twist to its
@@ -3040,7 +3028,8 @@ class FactorizedTreeMapping(TensorMapping):
                 twist_mapping[X] = X.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
             splitting_tree_mapping = self.splitting_tree_mapping
             fusion_tree_mapping = self.fusion_tree_mapping.pre_compose(twist_mapping)
-        return FactorizedTreeMapping(splitting_tree_mapping, fusion_tree_mapping)
+        return FactorizedTreeMapping(splitting_tree_mapping, fusion_tree_mapping,
+                                     is_real=self.is_real and is_real)
 
     def prune(self, tol: float = 1e-15) -> FactorizedTreeMapping:
         self.splitting_tree_mapping.prune(tol=tol)
@@ -3077,7 +3066,7 @@ class FactorizedTreeMapping(TensorMapping):
         N = J + K
         #
         dtype = data.dtype
-        if dtype.is_real and self.has_complex_coefficients:
+        if dtype.is_real and not self.is_real:
             dtype = dtype.to_complex
         block_inds = []
         blocks = []
