@@ -529,6 +529,9 @@ def check_F_symbols(sym: symmetries.Symmetry, sector_sextets, sector_unitarity_t
                  sym.n_symbol(a, b, f), sym.n_symbol(f, c, d))
         F = sym.f_symbol(a, b, c, d, e, f)
 
+        if not sym.has_complex_topological_data:
+            assert np.allclose(F, np.real(F))
+
         assert F.shape == shape  # shape
         if np.any([np.array_equal(charge, sym.trivial_sector) for charge in [a, b, c]]):
             assert_array_almost_equal(F, np.eye(shape[0] * shape[1]).reshape(shape))  # for trivial sector
@@ -557,6 +560,9 @@ def check_R_symbols(sym: symmetries.Symmetry, sector_triplets, example_sectors_l
         shape = (sym.n_symbol(a, b, c),)
         R = sym.r_symbol(a, b, c)
 
+        if not sym.has_complex_topological_data:
+            assert np.allclose(R, np.real(R))
+
         assert R.shape == shape  # shape
         assert_array_almost_equal(np.abs(R), np.ones(shape))  # unitarity
 
@@ -571,6 +577,9 @@ def check_C_symbols(sym: symmetries.Symmetry, sector_sextets, sector_unitarity_t
         shape = (sym.n_symbol(a, b, e), sym.n_symbol(e, c, d),
                  sym.n_symbol(a, c, f), sym.n_symbol(f, b, d))
         C = sym.c_symbol(a, b, c, d, e, f)
+
+        if not sym.has_complex_topological_data:
+            assert np.allclose(C, np.real(C))
 
         assert C.shape == shape  # shape
         if np.any([np.array_equal(charge, sym.trivial_sector) for charge in [b, c]]):
@@ -599,6 +608,9 @@ def check_B_symbols(sym: symmetries.Symmetry, sector_triplets):
         a, b, c = charges
         shape = (sym.n_symbol(a, b, c), sym.n_symbol(a, b, c))
         B = sym.b_symbol(a, b, c)
+
+        if not sym.has_complex_topological_data:
+            assert np.allclose(B, np.real(B))
 
         assert B.shape == shape  # shape
 
