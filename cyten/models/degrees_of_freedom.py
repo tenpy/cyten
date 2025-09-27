@@ -185,6 +185,9 @@ class SpinDOF(DegreeOfFreedom):
 class BosonicDOF(DegreeOfFreedom):
     """Common base class for sites that have a bosonic degree of freedom.
 
+    Mutually exclusive with :class:`FermionicDOF`. Sites containing both bosonic and fermionic
+    degrees of freedom can be realized by grouping of a bosonic site with a fermionic one.
+
     TODO find a good format to doc the onsite operators that exist in a site
 
     Attributes
@@ -342,6 +345,9 @@ class BosonicDOF(DegreeOfFreedom):
 
 class FermionicDOF(DegreeOfFreedom):
     """Common base class for sites that have a fermionic degree of freedom.
+
+    Mutually exclusive with :class:`BosonicDOF`. Sites containing both bosonic and fermionic
+    degrees of freedom can be realized by grouping of a bosonic site with a fermionic one.
 
     TODO onsite operators
 
