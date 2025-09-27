@@ -73,7 +73,7 @@ class Coupling:
 
     @classmethod
     def from_dense_block(cls, operator: Block, sites: list[DegreeOfFreedom], name: str = None,
-                         dtype: Dtype = None) -> Coupling:
+                         dtype: Dtype = None, understood_braiding: bool = False) -> Coupling:
         """Convert a dense block to a :class:`Coupling`.
 
         Parameters
@@ -106,7 +106,8 @@ class Coupling:
         p_labels = [f'p{i}' for i in range(len(sites))]
         labels = [*p_labels, *[f'{pi}*' for pi in p_labels][::-1]]
         op = SymmetricTensor.from_dense_block(operator, co_domain, co_domain, backend=backend,
-                                              labels=labels, dtype=dtype, device=device)
+                                              labels=labels, dtype=dtype, device=device,
+                                              understood_braiding=understood_braiding)
         return cls.from_tensor(op, sites=sites, name=name)
 
     @classmethod
@@ -338,16 +339,18 @@ def chiral_3spin_coupling(sites: list[SpinDOF], name: str = 'S.SxS') -> Coupling
 
 # BOSON AND FERMION COUPLINGS
 
-def chemical_potential(sites: list[BosonicDOF | FermionicDOF], mu: float | list[float | None] = None,
+def chemical_potential(sites: list[BosonicDOF | FermionicDOF], mu: float | list[float | None] = 1.,
                        name: str = 'chem. pot.') -> Coupling:
     """Chemical potential for bosons or fermions on a single site.
 
     Parameters
     ----------
-    mu: float | list[float | None]
-        If given, adds the corresponding term ``-1 * mu[j] n_i(j)`` with the value as prefactor,
-        where `j` refers to the boson or fermion species. If there are multiple species and `mu`
-        is a `float`, it is applied as chemical potential to all particle species.
+    mu : float | list[float | None]
+        Chemical potential. Add the corresponding term ``-1 * mu[j] n_i(j)``
+        with the value as prefactor, where `j` refers to the boson or fermion
+        species. If there are multiple species and `mu` is a `float`, it is
+        applied as chemical potential to all particle species.
+        `None` entries correspond to no chemical potential.
     """
     # TODO test that this builds what we expect
     assert len(sites) == 1
@@ -389,23 +392,22 @@ def onsite_interaction(sites: list[BosonicDOF | FermionicDOF], name: str = 'onsi
     return Coupling.from_tensor(h, sites=sites, name=name)
 
 
-def long_range_interaction(sites: list[BosonicDOF | FermionicDOF], distance: int,
+def long_range_interaction(sites: list[BosonicDOF | FermionicDOF],
                            name: str = 'long-range interaction') -> Coupling:
     """Long-range density-density interactions for bosons or fermions.
 
     Corresponds to ``n_i n_j``, where `n_i` and `n_j` are the total onsite
-    particle numbers (including all particle species) of the sites `i` and `j`
-    with a given distance between them, that is, `j == i + distance`.
+    particle numbers (including all particle species) of the sites `i` and `j`.
+    Sites `i` and `j` are assumed to be the first and the last entry in
+    `sites`, respectively.
     """
     # TODO test that this builds what we expect
-    assert isinstance(distance, int)
-    # TODO should distance == 0 give the onsite case?
-    assert distance > 0, 'distance between the sites must be positive'
-    assert len(sites) == distance + 1
+    assert len(sites) > 1, 'distance between the sites must be positive'
     sites_ij = [sites[0], sites[-1]]
     op_names = ['N' if site.num_species == 1 else 'Ntot' for site in sites_ij]
     ops = [site.onsite_operators[op_name] for site, op_name in zip(sites_ij, op_names)]
     h = ops[0]
+    distance = len(sites) - 1
     for i in range(1, distance):
         identity = SymmetricTensor.from_eye([sites[i].leg], labels=[f'p{i}', f'p{i}*'])
         h = outer(h, identity)
@@ -423,7 +425,8 @@ def nearest_neighbor_interaction(sites: list[BosonicDOF | FermionicDOF],
     sites.
     """
     # TODO test that this builds what we expect
-    return long_range_interaction(sites=sites, distance=1, name=name)
+    assert len(sites) == 2
+    return long_range_interaction(sites=sites, name=name)
 
 
 def next_nearest_neighbor_interaction(sites: list[BosonicDOF | FermionicDOF],
@@ -435,7 +438,123 @@ def next_nearest_neighbor_interaction(sites: list[BosonicDOF | FermionicDOF],
     neighboring sites.
     """
     # TODO test that this builds what we expect
-    return long_range_interaction(sites=sites, distance=2, name=name)
+    assert len(sites) == 3
+    return long_range_interaction(sites=sites, name=name)
+
+
+def long_range_hopping(sites: list[BosonicDOF | FermionicDOF],
+                       t: float | list[float | None] = 1.,
+                       name: str = 'long-range hopping') -> Coupling:
+    r"""Long-range hopping process for bosons or fermions.
+
+    Corresponds to ``-1 * t[k] a_i^\dagger(k) a_j(k) + h.c.``, where `a_i^\dagger(k)`
+    and `a_j(k)` are the creation and annihilation operators on sites `i` and `j`,
+    respectively. Sites `i` and `j` are assumed to be the first and the last entry in
+    `sites`, respectively. `k` denotes the boson / fermion species. Note the convention
+    for the order of the operators (with ``j > i``). This is in particular important
+    for fermions due to their anticommutation relations.
+
+    Parameters
+    ----------
+    t : float | list[float | None]
+        Hopping amplitudes. Add the corresponding hopping ``-1 * t[k] a_i^\dagger(k) a_j(k) + h.c.``
+        with the value as prefactor, where `k` refers to the boson or fermion species.
+        If there are multiple species and `t` is a `float`, it is applied as hopping
+        amplitude to all particle species.
+        `None` entries correspond to no hopping processes.
+    """
+    # TODO test that this builds what we expect
+    assert len(sites) > 1, 'distance between the sites must be positive'
+    sites_ij = [sites[0], sites[-1]]
+    assert sites_ij[0].num_species == sites_ij[1].num_species
+    if not isinstance(t, (list, np.ndarray)):
+        t = [t] * sites[0].num_species
+    else:
+        assert len(t) == sites[0].num_species
+    h = None
+    first_contri = True
+    for k, t_k in enumerate(t):
+        if t_k is None:
+            continue
+        a_ik = sites_ij[0].creators[:, :, k]
+        a_jk = sites_ij[1].annihilators[:, :, k]
+        for n, site in enumerate(sites[:-1]):
+            if isinstance(site, FermionicDOF):
+                op_name = 'N' if site.num_species == 1 else f'Ntot'
+                jw_n = site.onsite_operators[op_name].to_numpy(understood_braiding=True)
+                jw_n = np.diag(np.power(-1, np.diag(jw_n)))
+            else:
+                jw_n = np.diag(np.ones(site.annihilators.shape[0]))
+            if n == 0:
+                # JW acts on same site as a_i(k)
+                h_k = a_ik @ jw_n
+            else:
+                h_k = np.tensordot(h_k, jw_n, axes=0)
+        h_k = np.tensordot(h_k, a_jk, axes=0)
+        if first_contri:
+            first_contri = False
+            h = -1 * t_k * h_k
+            continue
+        h -= t_k * h_k
+    if h is None:
+        raise ValueError('Must have at least one non-zero prefactor.')
+    # h has legs p0, p0*, p1, ..., but already has to correct signs for the correct leg order
+    axes_perm = [2 * i for i in range(len(sites))]
+    axes_perm.extend([i + 1 for i in reversed(axes_perm)])
+    h = np.transpose(h, axes=axes_perm)
+    # add hc for a_j^\dagger a_i
+    h += np.conj(np.transpose(h, list(reversed(range(2 * len(sites))))))
+    return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
+
+
+def nearest_neighbor_hopping(sites: list[BosonicDOF | FermionicDOF],
+                             t: float | list[float | None] = 1.,
+                             name: str = 'NN hopping') -> Coupling:
+    r"""Nearest neighbor hopping for bosons or fermions.
+
+    Corresponds to ``-1 * t[k] a_i^\dagger(k) a_j(k) + h.c.``, where `a_i^\dagger(k)`
+    and `a_j(k)` are the creation and annihilation operators on two nearest neighboring
+    sites `i` and `j == i + 1`, respectively. `k` denotes the boson / fermion species.
+    Note the convention for the order of the operators (with ``j > i``). This is in
+    particular important for fermions due to their anticommutation relations.
+
+    Parameters
+    ----------
+    t : float | list[float | None]
+        Hopping amplitudes. Add the corresponding hopping ``-1 * t[k] a_i^\dagger(k) a_j(k) + h.c.``
+        with the value as prefactor, where `k` refers to the boson or fermion species.
+        If there are multiple species and `t` is a `float`, it is applied as hopping
+        amplitude to all particle species.
+        `None` entries correspond to no hopping processes.
+    """
+    # TODO test that this builds what we expect
+    assert len(sites) == 2
+    return long_range_hopping(sites=sites, t=t, name=name)
+
+
+def next_nearest_neighbor_hopping(sites: list[BosonicDOF | FermionicDOF],
+                                  t: float | list[float | None] = 1.,
+                                  name: str = 'NNN hopping') -> Coupling:
+    r"""Next-nearest neighbor hopping for bosons or fermions.
+
+    Corresponds to ``-1 * t[k] a_i^\dagger(k) a_j(k) + h.c.``, where `a_i^\dagger(k)`
+    and `a_j(k)` are the creation and annihilation operators on two next-nearest
+    neighboring sites `i` and `j == i + 2`, respectively. `k` denotes the boson / fermion
+    species. Note the convention for the order of the operators (with ``j > i``). This is
+    in particular important for fermions due to their anticommutation relations.
+
+    Parameters
+    ----------
+    t : float | list[float | None]
+        Hopping amplitudes. Add the corresponding hopping ``-1 * t[k] a_i^\dagger(k) a_j(k) + h.c.``
+        with the value as prefactor, where `k` refers to the boson or fermion species.
+        If there are multiple species and `t` is a `float`, it is applied as hopping
+        amplitude to all particle species.
+        `None` entries correspond to no hopping processes.
+    """
+    # TODO test that this builds what we expect
+    assert len(sites) == 3
+    return long_range_hopping(sites=sites, t=t, name=name)
 
 
 # CLOCK COUPLINGS
