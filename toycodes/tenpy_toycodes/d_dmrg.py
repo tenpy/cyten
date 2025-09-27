@@ -140,11 +140,8 @@ class DMRGEngine(object):
             block[:, 0, :] += np.eye(shape[0], shape[2])
             codom_tree = ct.FusionTree.from_sector(sym, tree.uncoupled[0], tree.are_dual[0])
             tree_pairs[(codom_tree, tree)] = block
-        # TODO do this automatically in tensors and delete the line below
-        dtype = None if self.psi.symmetry.has_symmetric_braid else ct.Dtype.complex128
         return ct.SymmetricTensor.from_tree_pairs(
-            tree_pairs, left_codom, left_dom, self.psi.backend, labels=['vL', 'wL*', 'vL*'],
-            dtype=dtype
+            tree_pairs, left_codom, left_dom, self.psi.backend, labels=['vL', 'wL*', 'vL*']
         )
 
     def init_RP(self):
@@ -163,11 +160,8 @@ class DMRGEngine(object):
             block[:, :, -1] += np.eye(*shape[:-1])
             codom_tree = ct.FusionTree.from_sector(sym, tree.uncoupled[1], tree.are_dual[1])
             tree_pairs[(codom_tree, tree)] = block
-        # TODO do this automatically in tensors and delete the line below
-        dtype = None if self.psi.symmetry.has_symmetric_braid else ct.Dtype.complex128
         return ct.SymmetricTensor.from_tree_pairs(
-            tree_pairs, right_codom, right_dom, self.psi.backend, labels=['vR', 'vR*', 'wR*'],
-            dtype=dtype
+            tree_pairs, right_codom, right_dom, self.psi.backend, labels=['vR', 'vR*', 'wR*']
         )
 
     def sweep(self):
