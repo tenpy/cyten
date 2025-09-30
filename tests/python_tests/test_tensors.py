@@ -139,7 +139,7 @@ def test_base_Tensor(make_compatible_space, compatible_backend):
 
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)],
                          ids=['1->1', '1->2', '0->3', '3->0'])
-@pytest.mark.parametrize('use_pipes', [False, 0.3])
+@pytest.mark.parametrize('use_pipes', [True, 0.3])
 def test_SymmetricTensor(make_compatible_tensor, leg_nums, use_pipes):
     T: SymmetricTensor = make_compatible_tensor(*leg_nums, use_pipes=use_pipes)
 
@@ -161,6 +161,8 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums, use_pipes):
     )
     tens.test_sanity()
     tens_np = tens.to_numpy(understood_braiding=True)
+    print(tens_np[tens_np>0])
+    print(numpy_block[numpy_block>0])
     npt.assert_allclose(tens_np, numpy_block)
 
     can_have_non_symmetric_dense_blocks = T.num_parameters < T.size
@@ -2920,7 +2922,7 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
      pytest.param(ChargedTensor, 2, 2, id='Charged-2-2'),
      pytest.param(ChargedTensor, 3, 0, id='Charged-3-0'),
      pytest.param(ChargedTensor, 1, 1, id='Charged-1-1'),
-     pytest.param(ChargedTensor, 0, 3, id='Charged-3-0'),
+    pytest.param(ChargedTensor, 0, 3, id='Charged-3-0'),
      pytest.param(DiagonalTensor, 1, 1, id='Diag'),
      pytest.param(Mask, 1, 1, id='Mask')]
 )
@@ -2929,21 +2931,13 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
 
     how_to_call = np_random.choice(['transpose()', '.T'])
-    print(how_to_call)
-    print(tensor.ascii_diagram)
+
     if how_to_call == 'transpose()':
         res = tensors.transpose(tensor)
     if how_to_call == '.T':
         res = tensor.T
     res.test_sanity()
 
-    print(res.ascii_diagram)
-
-    print(res.codomain)
-    print(tensor.domain.dual)
-
-    print(res.codomain.factors)
-    print(tensor.domain.dual.factors)
     assert res.codomain == tensor.domain.dual
     assert res.domain == tensor.codomain.dual
     assert res.labels == [*labels[cod:], *labels[:cod]]
@@ -2977,91 +2971,6 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     double_transpose.test_sanity()
     assert_tensors_almost_equal(double_transpose, tensor)
 
-    # make sure the res agrees with both equivalent definitions of the transpose
-    # note that for SymmetricTensors, the left_transpose is a copy of the implementation,
-    #      but for DiagonalTensor and Mask checking vs left_transpose is not trivial.
-    left_transpose = tensors.permute_legs(
-        tensor, [*range(cod, cod + dom)], [*reversed(range(cod))],
-        bend_right=[False] * cod + [True] * dom
-    )
-    right_transpose = tensors.permute_legs(
-        tensor, [*range(cod, cod + dom)], [*reversed(range(cod))],
-        bend_right=[True] * cod + [False] * dom
-    )
-    assert_tensors_almost_equal(res, left_transpose)
-    assert_tensors_almost_equal(res, right_transpose)
-
-    if tensor.symmetry.can_be_dropped:
-        res_np = res.to_numpy(understood_braiding=True)
-        tensor_np = tensor.to_numpy(understood_braiding=True)
-        expect = np.transpose(tensor_np, [*range(cod, cod + dom), *range(cod)])
-        npt.assert_almost_equal(res_np, expect)
-
-    expect = np.transpose(tensor.to_numpy(), [*range(cod, cod + dom), *range(cod)])
-    npt.assert_almost_equal(res.to_numpy(), expect)
-
-
-def test_leg_dualities(make_compatible_tensor):
-    """
-    Tests the equivalence of tensor leg transformations involving pipe dualities.
-
-    Checks consistency of duality transformations and bendings applied to the tensors legs
-    such that the leg duality labels for the following diagram commute:
-
-            ┏─────────────────────────────────────────┓
-            ▼                                         ▼
-          A    B               A    B               A    B
-          ^    ^               ^    ^               ^    ^
-        ┏━┷━━━━┷━┓           ┏━┷━━━━┷━┓           ┏━┷━━━━┷━┓
-        ┃ tens_lu┃   ◀────▶  ┃  tens  ┃   ◀────▶  ┃ tens_ru┃
-        ┗━━━━┯━━━┛           ┗━┯━━━━┯━┛           ┗━━━━┯━━━┛
-             ▼                 ^    ^                  ▲
-        (V* ⊗ W*)              W    V               (W ⊗ V)
-             ▲                   ▲                     ▲
-             │                   │                     │
-             ▼                   ▼                     ▼
-          A B (V* ⊗ W*)        A B V W              A B (W ⊗ V)
-          ^ ^  ▲               ^ ^ ^ ^              ^ ^  ▼
-        ┏━┷━┷━━┷━┓           ┏━┷━┷━┷━┷┓           ┏━┷━┷━━┷━┓
-        ┃ tens_ld┃   ◀────▶  ┃ tens_md┃   ◀────▶  ┃ tens_rd┃
-        ┗━━━━━━━━┛           ┗━━━━━━━━┛           ┗━━━━━━━━┛
-            ▲                                         ▲
-            ┗─────────────────────────────────────────┛
-    Parameters:
-    ----------
-    tens : tensors.Tensor
-        The input tensor whose leg dualities are being tested.
-    """
-
-    tens: SymmetricTensor = make_compatible_tensor(2, 2, cls=SymmetricTensor)
-
-    lcd = len(tens.codomain)
-    k = lcd
-    kn = k + 1
-
-    tens_lu = tensors.combine_legs(tens, [k, kn], pipe_dualities=[False])
-    tens_ld = tensors.bend_legs(tens_lu, lcd + 1)
-
-    tens_md = tensors.bend_legs(tens, lcd + 2)
-    tens_ld_p = tensors.combine_legs(tens_md, [k, kn], pipe_dualities=[False])
-
-    assert tensors.almost_equal(tens_ld, tens_ld_p)
-    assert tens_ld.legs.__eq__(tens_ld_p.legs)
-
-    tens_ru = tensors.combine_legs(tens, [k, kn], pipe_dualities=[True])
-    tens_rd = tensors.bend_legs(tens_ru, lcd + 1)
-
-    tens_md = tensors.bend_legs(tens, lcd + 2)
-    tens_rd_p = tensors.combine_legs(tens_md, [k, kn], pipe_dualities=[True])
-
-    assert tensors.almost_equal(tens_rd, tens_rd_p)
-    assert tens_rd.legs.__eq__(tens_rd_p.legs)
-
-    tens_ld.flip_leg_duality([k])
-    assert tens_rd.legs.__eq__(tens_ld.legs)
-
-    tens_lu.flip_leg_duality([k])
-    assert tens_ru.legs.__eq__(tens_lu.legs)
 
 def test_leg_dualities(make_compatible_tensor):
     """

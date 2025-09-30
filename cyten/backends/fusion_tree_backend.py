@@ -372,8 +372,9 @@ class FusionTreeBackend(TensorBackend):
         # FIXME make sure mapping.codomain can deal with pipes
         #       prbly need to swap .factors for .flat_legs a few times
         data = mapping.transform_tensor(
-            tensor.data, codomain=tensor.codomain, domain=tensor.domain, new_codomain=new_codomain,
-            new_domain=new_domain, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
+            tensor.data, codomain=TensorProduct(tensor.codomain.flat_legs, symmetry=tensor.symmetry), domain=TensorProduct(tensor.domain.flat_legs, symmetry=tensor.symmetry),
+            new_codomain=TensorProduct(new_codomain.flat_legs,symmetry=tensor.symmetry),
+            new_domain=TensorProduct(new_domain.flat_legs, symmetry=tensor.symmetry), codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
             block_backend=self.block_backend
         )
         return data
@@ -1695,14 +1696,18 @@ class FusionTreeBackend(TensorBackend):
             else:
                 raise ValueError
 
+
+        new_domain_idcs=new_domain_idcs[::-1]
+
         h = PermuteLegsInstructionEngine(
             num_codomain_legs=num_codomain_flat_legs, num_domain_legs=num_domain_flat_legs,
-            codomain_idcs=new_codomain_idcs, domain_idcs=new_codomain_idcs, levels=levels,
-            bend_right=bend_right,
+            codomain_idcs=new_codomain_idcs, domain_idcs=new_domain_idcs, levels=flat_levels,
+            bend_right=flat_bend_right,
             has_symmetric_braid=a.symmetry.has_symmetric_braid
         )
         instructions = h.evaluate_instructions()
-        h.verify(num_codomain_flat_legs, num_domain_flat_legs, new_codomain_idcs, new_domain_idcs)  # OPTIMIZE rm check?
+
+        h.verify(len(a.codomain.flat_legs), len(a.domain.flat_legs), new_codomain_idcs, new_domain_idcs)  # OPTIMIZE rm check?
 
         return self.apply_instructions(
             a, instructions, codomain_idcs=new_codomain_idcs, domain_idcs=new_domain_idcs,
@@ -2703,7 +2708,7 @@ class TensorMapping(metaclass=ABCMeta):
     def from_instructions(cls, instructions: Iterable[Instruction], codomain: TensorProduct,
                           domain: TensorProduct, block_inds: np.ndarray | None = None
                           ) -> TensorMapping:
-        res = cls.from_identity(codomain=codomain, domain=domain, block_inds=block_inds)
+        res = cls.from_identity(codomain=TensorProduct(codomain.flat_legs, symmetry=codomain.symmetry), domain=TensorProduct(domain.flat_legs, symmetry=domain.symmetry), block_inds=block_inds)
         for i in instructions:
             res = res.pre_compose_instruction(i)
         return res
@@ -2915,8 +2920,8 @@ class TreePairMapping(TensorMapping):
                          block_backend: BlockBackend,
                          ) -> FusionTreeData:
         # f(T)_{Jm} = sum_I f_{JI} T_{Im} = sum_I mapping[I][J] T_{Im}
-        J = codomain.num_factors
-        K = domain.num_factors
+        J = len(codomain.flat_legs)
+        K = len(domain.flat_legs)
         N = J + K
         tree_block_axes_1 = [i if i < J else (N - 1) + (J - i) for i in codomain_idcs]
         tree_block_axes_2 = [i if i < J else (N - 1) + (J - i) for i in domain_idcs]
