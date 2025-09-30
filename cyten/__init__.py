@@ -48,7 +48,10 @@ from .models import (
     GeneralAnyonSite, AnyonSite, FibonacciAnyonSite, IsingAnyonSite, GoldenSite, SU2kSpin1Site,
     Coupling, OnSiteOperator, spin_spin_coupling, spin_field_coupling, aklt_coupling,
     heisenberg_coupling, chiral_3spin_coupling, chemical_potential, onsite_interaction,
-    nearest_neighbor_interaction, clock_clock_coupling, clock_field_coupling, gold_coupling
+    long_range_interaction, nearest_neighbor_interaction, next_nearest_neighbor_interaction,
+    long_range_quadratic_coupling, nearest_neighbor_hopping, next_nearest_neighbor_hopping,
+    onsite_sc_pairing, nearest_neighbor_sc_pairing, clock_clock_coupling, clock_field_coupling,
+    gold_coupling
 )
 # from .testing import
 # from .tools import

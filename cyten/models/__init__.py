@@ -14,6 +14,7 @@ from .couplings import (
     Coupling, OnSiteOperator, spin_spin_coupling, spin_field_coupling, aklt_coupling,
     heisenberg_coupling, chiral_3spin_coupling, chemical_potential, onsite_interaction,
     long_range_interaction, nearest_neighbor_interaction, next_nearest_neighbor_interaction,
-    clock_clock_coupling, clock_field_coupling, multi_site_projector, two_site_projector,
-    three_site_projector, gold_coupling
+    long_range_quadratic_coupling, nearest_neighbor_hopping, next_nearest_neighbor_hopping,
+    onsite_sc_pairing, nearest_neighbor_sc_pairing, clock_clock_coupling, clock_field_coupling,
+    multi_site_projector, two_site_projector, three_site_projector, gold_coupling
 )

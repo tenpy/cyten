@@ -355,7 +355,7 @@ def chemical_potential(sites: list[BosonicDOF | FermionicDOF], mu: float | list[
     # TODO test that this builds what we expect
     assert len(sites) == 1
     site = sites[0]
-    h = None
+    h = 0
     if isinstance(mu, (list, np.ndarray)):
         msg = f'Invalid number of entries in `mu`: {len(mu)} != {site.num_species}'
         assert len(mu) == site.num_species, msg
@@ -364,15 +364,11 @@ def chemical_potential(sites: list[BosonicDOF | FermionicDOF], mu: float | list[
             if mu_i is None:
                 continue
             op_name = 'N' if site.num_species == 1 else f'N{i}'
-            if first_contri:
-                first_contri = False
-                h = -1 * mu_i * site.onsite_operators[op_name]
-                continue
             h -= mu_i * site.onsite_operators[op_name]
     else:
         op_name = 'N' if site.num_species == 1 else 'Ntot'
         h = -1 * mu * site.onsite_operators[op_name]
-    if h is None:
+    if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
     return Coupling.from_tensor(h, sites=sites, name=name)
 
@@ -442,26 +438,35 @@ def next_nearest_neighbor_interaction(sites: list[BosonicDOF | FermionicDOF],
     return long_range_interaction(sites=sites, name=name)
 
 
-def long_range_hopping(sites: list[BosonicDOF | FermionicDOF],
-                       t: float | list[float | None] = 1.,
-                       name: str = 'long-range hopping') -> Coupling:
-    r"""Long-range hopping process for bosons or fermions.
+def long_range_quadratic_coupling(sites: list[BosonicDOF | FermionicDOF],
+                                  t: float | list[float | None] = 1.,
+                                  delta: float | list[float | None] = None,
+                                  name: str = 'long-range quad coupling') -> Coupling:
+    r"""Long-range quadratic coupling (hopping and pairing) for bosons or fermions.
 
-    Corresponds to ``-1 * t[k] a_i^\dagger(k) a_j(k) + h.c.``, where `a_i^\dagger(k)`
-    and `a_j(k)` are the creation and annihilation operators on sites `i` and `j`,
-    respectively. Sites `i` and `j` are assumed to be the first and the last entry in
-    `sites`, respectively. `k` denotes the boson / fermion species. Note the convention
-    for the order of the operators (with ``j > i``). This is in particular important
-    for fermions due to their anticommutation relations.
+    Quadratic couplings generally take the form
+    ``\sum_k -1 * t[k] a_i^\dagger(k) a_j(k) + delta[k] a_i^\dagger(k) a_j^\dagger(k) + h.c.``,
+    where the first term corresponds to hopping processes and the second term to superconducting
+    pairings. Here `a_i^\dagger(k)` and `a_j(k)` denote the creation and annihilation operators on
+    sites `i` and `j`, respectively. Sites `i` and `j` are assumed to be the first and the last
+    entry in `sites`, respectively. `k` denotes the boson / fermion species. Note the convention
+    for the order of the operators (with ``j > i``). This is in particular important for fermions
+    due to their anticommutation relations.
 
     Parameters
     ----------
     t : float | list[float | None]
-        Hopping amplitudes. Add the corresponding hopping ``-1 * t[k] a_i^\dagger(k) a_j(k) + h.c.``
-        with the value as prefactor, where `k` refers to the boson or fermion species.
-        If there are multiple species and `t` is a `float`, it is applied as hopping
-        amplitude to all particle species.
+        Hopping amplitudes. Add the corresponding hopping
+        ``\sum_k -1 * t[k] a_i^\dagger(k) a_j(k) + h.c.`` with the value as prefactor, where `k`
+        refers to the boson or fermion species. If there are multiple species and `t` is a `float`,
+        it is applied as hopping amplitude to all particle species.
         `None` entries correspond to no hopping processes.
+    delta : float | list[float | None]
+        Superconducting pairing amplitudes. Add the corresponding pairing
+        ``\sum_k delta[k] a_i^\dagger(k) a_j^\dagger(k) + h.c.`` with the value as prefactor, where
+        `k` refers to the boson or fermion species. If there are multiple species and `delta` is a
+        `float`, it is applied as pairing amplitude to all particle species.
+        `None` entries correspond to no pairing processes.
     """
     # TODO test that this builds what we expect
     assert len(sites) > 1, 'distance between the sites must be positive'
@@ -471,32 +476,44 @@ def long_range_hopping(sites: list[BosonicDOF | FermionicDOF],
         t = [t] * sites[0].num_species
     else:
         assert len(t) == sites[0].num_species
-    h = None
-    first_contri = True
-    for k, t_k in enumerate(t):
-        if t_k is None:
+    if not isinstance(delta, (list, np.ndarray)):
+        delta = [delta] * sites[0].num_species
+    else:
+        assert len(delta) == sites[0].num_species
+    h = 0
+    for k, (t_k, delta_k) in enumerate(zip(t, delta)):
+        if t_k is None and delta_k is None:
             continue
-        a_ik = sites_ij[0].creators[:, :, k]
+        a_idk = sites_ij[0].creators[:, :, k]
         a_jk = sites_ij[1].annihilators[:, :, k]
-        for n, site in enumerate(sites[:-1]):
+        a_jdk = sites_ij[1].creators[:, :, k]
+        for n, site in enumerate(sites):
             if isinstance(site, FermionicDOF):
-                op_name = 'N' if site.num_species == 1 else f'Ntot'
-                jw_n = site.onsite_operators[op_name].to_numpy(understood_braiding=True)
+                if n == 0:
+                    jw_n = np.tensordot(site.creators[:, :, k:], site.annihilators[:, :, k:],
+                                        axes=[[2, 1], [2, 0]])
+                elif n == len(sites) - 1:
+                    jw_n = np.tensordot(site.creators[:, :, :k], site.annihilators[:, :, :k],
+                                        axes=[[2, 1], [2, 0]])
+                else:
+                    op_name = 'N' if site.num_species == 1 else f'Ntot'
+                    jw_n = site.onsite_operators[op_name].to_numpy(understood_braiding=True)
                 jw_n = np.diag(np.power(-1, np.diag(jw_n)))
             else:
-                jw_n = np.diag(np.ones(site.annihilators.shape[0]))
+                jw_n = np.diag(np.ones(a_idk.shape[0]))
             if n == 0:
                 # JW acts on same site as a_i(k)
-                h_k = a_ik @ jw_n
+                h_k = a_idk @ jw_n
+            elif n == len(sites) - 1:
+                # multiply in the next step after the for loop
+                pass
             else:
                 h_k = np.tensordot(h_k, jw_n, axes=0)
-        h_k = np.tensordot(h_k, a_jk, axes=0)
-        if first_contri:
-            first_contri = False
-            h = -1 * t_k * h_k
-            continue
-        h -= t_k * h_k
-    if h is None:
+        if t_k is not None:
+            h -= t_k * np.tensordot(h_k, jw_n @ a_jk, axes=0)
+        if delta_k is not None:
+            h += delta_k * np.tensordot(h_k, jw_n @ a_jdk, axes=0)
+    if np.ndim(h) == 0:
         raise ValueError('Must have at least one non-zero prefactor.')
     # h has legs p0, p0*, p1, ..., but already has to correct signs for the correct leg order
     axes_perm = [2 * i for i in range(len(sites))]
@@ -529,7 +546,7 @@ def nearest_neighbor_hopping(sites: list[BosonicDOF | FermionicDOF],
     """
     # TODO test that this builds what we expect
     assert len(sites) == 2
-    return long_range_hopping(sites=sites, t=t, name=name)
+    return long_range_quadratic_coupling(sites=sites, t=t, delta=None, name=name)
 
 
 def next_nearest_neighbor_hopping(sites: list[BosonicDOF | FermionicDOF],
@@ -554,7 +571,97 @@ def next_nearest_neighbor_hopping(sites: list[BosonicDOF | FermionicDOF],
     """
     # TODO test that this builds what we expect
     assert len(sites) == 3
-    return long_range_hopping(sites=sites, t=t, name=name)
+    return long_range_quadratic_coupling(sites=sites, t=t, delta=None, name=name)
+
+
+def onsite_sc_pairing(sites: list[BosonicDOF | FermionicDOF],
+                      delta: float | list[list[float | None]] = 1.,
+                      name: str = 'onsite SC pairing') -> Coupling:
+    r"""Onsite superconducting pairing for bosons or fermions.
+
+    Corresponds to ``\sum_{j,k} delta[j][k] a_i^\dagger(j) a_i^\dagger(k) + h.c.``,
+    where `a_i^\dagger(j)` and `a_i^\dagger(k)` denote the onsite creation
+    operators for boson / fermion species `j` and `k`, respectively. Note the
+    convention for the order of the operators. This is in particular important
+    for fermions due to their anticommutation relations.
+
+    Parameters
+    ----------
+    delta : float | list[list[float | None]]
+        Superconducting pairing amplitudes. Add the corresponding pairing
+        ```\sum_{j,k} delta[j][k] a_i^\dagger(j) a_i^\dagger(k) + h.c.`` with
+        the value as prefactor, where `j` and `k` refers to the boson or fermion
+        species. Can in general be chosen to be a upper or lower triangular
+        matrix (but this is not required). If there are multiple species and
+        `delta` is a `float`, it is applied as pairing amplitude to all particle
+        species.
+        `None` entries correspond to no pairing processes.
+    """
+    # TODO test that this builds what we expect
+    assert len(sites) == 1
+    if not isinstance(delta, (list, np.ndarray)):
+        delta = delta * np.ones((sites[0].num_species, sites[0].num_species))
+    else:
+        delta = np.asarray(delta)
+        assert delta.shape == (sites[0].num_species, sites[0].num_species)
+    commute = -1 if isinstance(sites[0], FermionicDOF) else 1
+    h = 0
+    for k in range(sites[0].num_species):
+        for j in range(k + 1):
+            # combine contributions with the same operators
+            if j == k:
+                if delta[j, k] is None or isinstance(sites[0], FermionicDOF):
+                    continue
+                factor = delta[j, k]
+            else:
+                if delta[j, k] is None:
+                    if delta[k, j] is None:
+                        continue
+                    factor = commute * delta[k, j]
+                else:
+                    factor = delta[j, k]
+                    if delta[k, j] is not None:
+                        factor += commute * delta[k, j]
+            h_jk = np.copy(sites[0].creators[:, :, j])
+            a_kd = sites[0].creators[:, :, k]
+            if isinstance(sites[0], FermionicDOF):
+                # onsite JW: product of species occupations from species 0 to species j - 1 / k - 1
+                jw = np.tensordot(sites[0].creators[:, :, j:k], sites[0].annihilators[:, :, j:k],
+                                  axes=[[2, 1], [2, 0]])
+                jw = np.diag(np.power(-1, np.diag(jw)))
+                h_jk = h_jk @ jw
+            h += factor * h_jk @ a_kd
+    if np.ndim(h) == 0:
+        raise ValueError('Must have at least one non-zero prefactor.')
+    h += np.conj(np.transpose(h, [1, 0]))
+    return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
+            
+
+def nearest_neighbor_sc_pairing(sites: list[BosonicDOF | FermionicDOF],
+                                delta: float | list[float | None] = 1.,
+                                name: str = 'NN SC pairing') -> Coupling:
+    r"""Nearest neighbor superconducting pairing for bosons or fermions.
+
+    Corresponds to ``\sum_k delta[k] a_i^\dagger(k) a_j^\dagger(k) + h.c.``,
+    where `a_i^\dagger(k)` and `a_j(k)^\dagger` denote the creation operators
+    on two nearest neighboring sites `i` and `j == i + 1`, respectively. `k`
+    denotes the boson / fermion species. Note the convention for the order of
+    the operators (with ``j > i``). This is in particular important for fermions
+    due to their anticommutation relations.
+
+    Parameters
+    ----------
+    delta : float | list[float | None]
+        Superconducting pairing amplitudes. Add the corresponding pairing
+        ``\sum_k delta[k] a_i^\dagger(k) a_j^\dagger(k) + h.c.`` with the value
+        as prefactor, where `k` refers to the boson or fermion species. If
+        there are multiple species and `delta` is a `float`, it is applied as
+        pairing amplitude to all particle species.
+        `None` entries correspond to no pairing processes.
+    """
+    # TODO test that this builds what we expect
+    assert len(sites) == 2
+    return long_range_quadratic_coupling(sites=sites, t=None, delta=delta, name=name)
 
 
 # CLOCK COUPLINGS
