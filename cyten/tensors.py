@@ -805,8 +805,8 @@ class Tensor(metaclass=ABCMeta):
     def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None,
                  understood_braiding: bool = False) -> np.ndarray:
         """Convert to a numpy array"""
-        block = self.to_dense_block(leg_order=leg_order, understood_braiding=understood_braiding)
-        #block = self._to_dense_block_by_splitting_pipes()  # FIXME use this?
+        #block = self.to_dense_block(leg_order=leg_order, understood_braiding=understood_braiding)
+        block = self._to_dense_block_by_splitting_pipes()  # FIXME use this?
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
     def flip_leg_duality(self, leg_indices: list[int]):
@@ -1472,6 +1472,7 @@ class SymmetricTensor(Tensor):
         """
         self_split, combines = _split_all_pipes(self)
         block = self.backend.to_dense_block(self_split)
+        block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self_split), inv=True)
         return self.backend.block_backend.combine_legs(block, combines)
 
     def to_dense_block_trivial_sector(self) -> Block:
@@ -6211,7 +6212,7 @@ def _split_all_pipes(a: SymmetricTensor | ChargedTensor) -> tuple[SymmetricTenso
         grp = [split.num_legs - 1 - n for n in grp]
         combine_list.append(grp)
 
-    return split, combine_list
+    return split, combine_list[::-1]
 
 
 def _split_leg_label(label: str | None, num: int = None) -> list[str | None]:

@@ -2403,8 +2403,8 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, bend_righ
 
     if T.symmetry.can_be_dropped:
         # makes sense to compare with dense blocks
-        expect = np.transpose(T.to_numpy(), [*codomain, *reversed(domain)])
-        actual = res.to_numpy()
+        expect = np.transpose(T.to_numpy(understood_braiding=True), [*codomain, *reversed(domain)])
+        actual = res.to_numpy(understood_braiding=True)
         npt.assert_allclose(actual, expect, atol=1.e-14)
     else:
         # TODO (JU) is there anything we can do in that case to check?

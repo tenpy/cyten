@@ -1063,6 +1063,10 @@ class BlockBackend(metaclass=ABCMeta):
         axes_perm = list(range(len(old_shape)))
         new_shape = []
         last_stop = 0
+
+        leg_idcs_combine = [sorted(i) for i in leg_idcs_combine]
+        leg_idcs_combine = sorted(leg_idcs_combine, key=lambda x: x[0])
+
         for group, cstyle in zip(leg_idcs_combine, cstyles):
             group=sorted(group)
             start = group[0]
