@@ -34,6 +34,8 @@ class SpinSite(SpinDOF):
             - Sz (= U(1) symmetry), with sector labels corresponding to ``2 * Sz``.
             - Sz parity (= Z_2 symmetry), with sector labels corresponding to ``(Sz + S_tot) % 2``.
             - nothing.
+
+        Conserves nothing by default.
     """
 
     def __init__(self, S: float = .5, conserve: Literal['SU(2)', 'Sz', 'parity', 'None'] = None,
@@ -135,8 +137,7 @@ class SpinlessBosonSite(BosonicDOF):
 
     def __init__(self, Nmax: int | list[int] | np.ndarray[int],
                  conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']] = None,
-                 filling: float | None | Sequence[float | None] = None,
-                 backend: TensorBackend = None, default_device: str = None):
+                 filling: float | None = None, backend: TensorBackend = None, default_device: str = None):
         Nmax = np.atleast_1d(np.asarray(Nmax, dtype=int))
         # need to manually throw an error for non-integers in Nmax
         assert np.allclose(Nmax, np.asarray(Nmax)), f'Invalid `Nmax`: {Nmax}'
@@ -280,8 +281,7 @@ class SpinlessFermionSite(FermionicDOF):
 
     def __init__(self, num_species: int,
                  conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']] = 'parity',
-                 filling: float | None | Sequence[float | None] = None,
-                 backend: TensorBackend = None, default_device: str = None):
+                 filling: float | None = None, backend: TensorBackend = None, default_device: str = None):
         assert isinstance(num_species, int)
         assert num_species > 0, 'Must have at least a single fermion species'
         if not isinstance(conserve, str):
@@ -367,7 +367,157 @@ class SpinlessFermionSite(FermionicDOF):
 
 
 class SpinHalfFermionSite(SpinDOF, FermionicDOF):
-    """TODO similar to SpinSite..."""
+    """Site for spin-1/2 fermions.
+
+    TODO describe onsite operators
+
+    .. note ::
+        There may be some combinations of `conserve_N` and `conserve_S` that lead to the same
+        conservation laws. Conserving the number of spin up fermions and the number of spin down
+        fermions is equivalent to conserving the number of spin up fermions and the total spin
+        Sz component.
+
+    Parameters
+    ----------
+    conserve_N : Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']]
+        The fermion symmetry to be conserved. We can conserve::
+
+            - total fermion number N_up + N_down (``conserve == 'N'``).
+            - individual fermion numbers N_up / N_down (``conserve[i] == 'N'``).
+            - total fermion parity (N_up + N_down) % 2 (``conserve == 'parity'``).
+            - individual fermion parities N_up % 2 / N_down % 2 (``conserve[i] == 'parity'``).
+            - nothing for an individual fermion (``conserve[i] == 'None'``); .
+
+        A `Literal` corresponds to symmetries involving both spin up and spin down fermions, such
+        as the total fermion number (``conserve == 'N'``) or the total fermion parity
+        (``conserve == 'parity'``). For a sequence (with ``len(conserve_N) == 2``), the entry
+        ``conserve[0]`` corresponds to the symmetry of spin up fermions, such that, e.g.,
+        ``conserve[0] == 'N'`` signifies that the total spin up fermion number is conserved.
+        ``conserve[1]`` corresponds to the symmetry of spin down fermions.
+
+        Note that the total fermion parity is always conserved. It is thus always part of the
+        symmetry. Hence, ``conserve == 'None'`` is not a valid value. On the other hand,
+        ``conserve = ['None', 'None]`` is interpreted as valid and the resulting symmetry conserves the
+        fermionic parity.
+
+        Conserves total fermion parity by default.
+    conserve_S : Literal['SU(2)', 'Sz', 'parity', 'None']
+        The spin symmetry to be conserved. We can conserve::
+
+            - SU(2), the full spin rotation symmetry.
+            - Sz (= U(1) symmetry), with sector labels corresponding to ``2 * Sz``.
+            - Sz parity (= Z_2 symmetry), with sector labels corresponding to ``(Sz + S_tot) % 2``.
+            - nothing.
+
+        Conserves nothing by default.
+    filling : float | None
+        Average total filling (that is, filling of spin up and spin down fermions together). Used
+        to define the on-site operators ``dN`` and ``dNdN`` if ``filling is not None``.
+
+    Attributes
+    ----------
+    conserve_N : Literal['N', 'parity'] | list[Literal['N', 'parity', 'None']]
+        The conserved symmetry, see above.
+    conserve_S : Literal['SU(2)', 'Sz', 'parity', 'None']
+        The conserved spin symmetry, see above.
+    filling : np.ndarray[float | None]
+        Average total filling.
+    creators, annihilators : see :class:`FermionicDOF`
+    spin_vector : see :class:`SpinDOF`
+    """
+
+    def __init__(self,
+                 conserve_N: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']] = 'parity',
+                 conserve_S: Literal['SU(2)', 'Sz', 'parity', 'None'] = None,
+                 filling: float | None = None,
+                 backend: TensorBackend = None, default_device: str = None):
+        if not isinstance(conserve_N, str):
+            msg = ('Invalid `conserve_N`: Need to specify conservation law '
+                   'for both spin up and spin down fermions.')
+            assert len(conserve_N) == 2, msg
+        self.filling = filling
+
+        sym_N = FermionicDOF.conservation_law_to_symmetry(conserve_N)
+        if not isinstance(conserve_N, str):
+            sym_N.factors[0].descriptive_name = sym_N.factors[0].descriptive_name.replace('species0', 'spin_up')
+            sym_N.factors[1].descriptive_name = sym_N.factors[1].descriptive_name.replace('species1', 'spin_down')
+            sym_N.descriptive_name = sym_N.descriptive_name.replace('species0', 'spin_up')
+            sym_N.descriptive_name = sym_N.descriptive_name.replace('species1', 'spin_down')
+
+        # construct sectors (including spin as U(1)) as: [spin, fermion syms, fermion parity]
+        if isinstance(sym_N, FermionParity):
+            sectors = np.asarray([[0, 0], [-1, 1], [1, 1], [0, 0]], dtype=int)
+        elif not isinstance(conserve_N, str):
+            # species occupation == species parity
+            sectors = np.asarray([[0, 0, 0, 0], [-1, 0, 1, 1], [1, 1, 0, 1], [0, 1, 1, 0]], dtype=int)
+            no_sym_idcs = []
+            for i, sym_factor_i in enumerate(sym_N.factors[:-1]):
+                if isinstance(sym_factor_i, NoSymmetry):
+                    no_sym_idcs.append(i)
+            for idx in no_sym_idcs:
+                sectors[:, idx] = np.zeros_like(sectors[:, idx])
+        elif isinstance(sym_N.factors[0], U1Symmetry):
+            sectors = np.asarray([[0, 0, 0], [-1, 1, 1], [1, 1, 1], [0, 2, 0]], dtype=int)
+        else:
+            raise ValueError(f'`conserve_N` invalid for `SpinHalfFermionSite`: {conserve_N}')
+
+        sym_S = SpinDOF.conservation_law_to_symmetry(conserve_S)
+        if isinstance(sym_S, U1Symmetry):
+            pass  # sectors already correct
+        elif isinstance(sym_S, ZNSymmetry):
+            sectors[:, 0] = np.mod(sectors[:, 0], 2)
+        elif isinstance(sym_S, SU2Symmetry):
+            sectors[1, 0] = 1
+        elif isinstance(sym_S, NoSymmetry):
+            sectors = sectors[:, 1:]
+        else:
+            raise ValueError(f'`conserve_S` invalid for `SpinHalfFermionSite`: {conserve_S}')
+
+        if isinstance(sym_S, NoSymmetry):
+            sym = sym_N
+        else:
+            sym = [sym_S, *sym_N.factors] if isinstance(sym_N, ProductSymmetry) else [sym_S, sym_N]
+            sym = ProductSymmetry(sym)
+        leg = ElementarySpace.from_basis(sym, sectors)
+        self.conserve_N = conserve_N
+        self.conserve_S = conserve_S
+
+        # build spin vector and creation / annihilation ops
+        Sz = np.diag([0, -0.5, 0.5, 0])
+        Sp = np.zeros((4, 4))
+        Sp[2, 1] = 1
+        spin_vector = self._spin_vector_from_Sp(Sz=Sz, Sp=Sp)
+        creators, annihilators = FermionicDOF._creation_annihilation_ops(num_species=2)
+
+        state_labels = {'(0, 0)': 0, '(0, 1)': 1, '(1, 0)': 2, '(1, 1)': 3,
+                        'empty': 0, 'down': 1, 'up': 2, 'full': 3}
+
+        SpinDOF.__init__(
+            self, leg=leg, spin_vector=spin_vector, state_labels=state_labels,
+            onsite_operators=None, backend=backend, default_device=default_device
+        )
+        FermionicDOF.__init__(
+            self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
+            onsite_operators=None, backend=backend, default_device=default_device
+        )
+
+        if not isinstance(sym_S, SU2Symmetry):
+            self.add_individual_occupation_ops()
+            self.onsite_operators.update({'Nup': self.onsite_operators.pop('N0')})
+            self.onsite_operators.update({'Ndown': self.onsite_operators.pop('N1')})
+        self.add_total_occupation_ops()
+
+        # construct operators relative to filling
+        ops = {}
+        if filling is not None:
+            dN_diag = np.diag(np.tensordot(creators, annihilators, axes=[[1, 2], [0, 2]]))
+            dN_diag = dN_diag - filling * np.ones(4)
+            dN = np.diag(dN_diag)
+            dNdN = np.diag(dN_diag**2)
+            ops['dN'] = dN
+            ops['dNdN'] = dNdN
+        for name, op in ops.items():
+            self.add_onsite_operator(name, op, understood_braiding=True)
 
 
 class ClockSite(ClockDOF):
