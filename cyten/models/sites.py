@@ -120,17 +120,16 @@ class SpinlessBosonSite(BosonicDOF):
         such that, e.g., ``conserve[i] == 'N'`` signifies that its particle number is conserved.
 
         Conserves nothing by default.
-    filling : float | None | Sequence[float | None]
-        Average filling for each species. Used to define the on-site operators ``dN`` and ``dNdN``
-        if ``filling is not None`` or ``filling[i] is not None``. A `float` or `None` is by default
-        applied to every boson species
+    filling : float | None
+        Average total filling (that is, filling of all species together). Used to define the
+        on-site operators ``dN`` and ``dNdN`` if ``filling is not None``.
 
     Attributes
     ----------
     conserve : Literal['N', 'parity', 'None'] | list[Literal['N', 'parity', 'None']]
         The conserved symmetry, see above.
-    filling : np.ndarray[float | None]
-        Average filling for each species.
+    filling : float | None
+        Average total filling.
     num_species, Nmax, creators, annihilators : see :class:`BosonicDOF`
     """
 
@@ -146,12 +145,7 @@ class SpinlessBosonSite(BosonicDOF):
             # strings are sequences, so test for strings
             msg = f'Invalid number of entries in `conserve`: {len(conserve)} != {num_species}'
             assert len(conserve) == num_species, msg
-        if isinstance(filling, Sequence):
-            msg = f'Invalid number of entries in `filling`: {len(filling)} != {num_species}'
-            assert len(filling) == num_species, msg
-        else:
-            filling = [filling] * num_species
-        self.filling = np.asarray(filling)
+        self.filling = filling
 
         # states for each species
         states = [list(range(n + 1)) for n in Nmax]
@@ -212,20 +206,15 @@ class SpinlessBosonSite(BosonicDOF):
 
         creators, annihilators = BosonicDOF._creation_annihilation_ops_from_Nmax(Nmax=Nmax)
 
-        # construct operators relative to filling for each entry that is not None
+        # construct operators relative to filling
         ops = {}
-        for i, filling_i in enumerate(self.filling):
-            if filling_i is None:
-                continue
-            N_i_diag = np.diag(creators[:, :, i] @ annihilators[:, :, i])
-            dN_i = np.diag(N_i_diag - filling_i * np.ones(total_dim))
-            dNdN_i = np.diag((N_i_diag - filling_i * np.ones(total_dim)) ** 2)
-            if num_species == 1:
-                ops['dN'] = dN_i
-                ops['dNdN'] = dNdN_i
-            else:
-                ops[f'dN{i}'] = dN_i
-                ops[f'dN{i}dN{i}'] = dNdN_i
+        if filling is not None:
+            dN_diag = np.diag(np.tensordot(creators, annihilators, axes=[[1, 2], [0, 2]]))
+            dN_diag = dN_diag - filling * np.ones(total_dim)
+            dN = np.diag(dN_diag)
+            dNdN = np.diag(dN_diag**2)
+            ops['dN'] = dN
+            ops['dNdN'] = dNdN
 
         BosonicDOF.__init__(
             self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
@@ -274,10 +263,9 @@ class SpinlessFermionSite(FermionicDOF):
         fermionic parity.
 
         Conserves total fermion parity by default.
-    filling : float | None | Sequence[float | None]
-        Average filling for each species. Used to define the on-site operators ``dN`` and ``dNdN``
-        if ``filling is not None`` or ``filling[i] is not None``. A `float` or `None` is by default
-        applied to every fermion species.
+    filling : float | None
+        Average total filling (that is, filling of all species together). Used to define the
+        on-site operators ``dN`` and ``dNdN`` if ``filling is not None``.
 
     Attributes
     ----------
@@ -286,7 +274,7 @@ class SpinlessFermionSite(FermionicDOF):
     conserve : Literal['N', 'parity'] | list[Literal['N', 'parity', 'None']]
         The conserved symmetry, see above.
     filling : np.ndarray[float | None]
-        Average filling for each species.
+        Average total filling.
     creators, annihilators : see :class:`FermionicDOF`
     """
 
@@ -299,12 +287,7 @@ class SpinlessFermionSite(FermionicDOF):
         if not isinstance(conserve, str):
             msg = f'Invalid number of entries in `conserve`: {len(conserve)} != {num_species}'
             assert len(conserve) == num_species, msg
-        if isinstance(filling, Sequence):
-            msg = f'Invalid number of entries in `filling`: {len(filling)} != {num_species}'
-            assert len(filling) == num_species, msg
-        else:
-            filling = [filling] * num_species
-        self.filling = np.asarray(filling)
+        self.filling = filling
 
         sym = FermionicDOF.conservation_law_to_symmetry(conserve)
         if isinstance(sym, FermionParity):
@@ -370,21 +353,15 @@ class SpinlessFermionSite(FermionicDOF):
         if num_species > 1:
             self.add_total_occupation_ops()
 
-        # construct operators relative to filling for each entry that is not None
+        # construct operators relative to filling
         ops = {}
-        for i, filling_i in enumerate(self.filling):
-            if filling_i is None:
-                continue
-            N_i_diag = np.diag(creators[:, :, i] @ annihilators[:, :, i])
-            dN_i = np.diag(N_i_diag - filling_i * np.ones(2 ** num_species))
-            dNdN_i = np.diag((N_i_diag - filling_i * np.ones(2 ** num_species)) ** 2)
-            if num_species == 1:
-                ops['dN'] = dN_i
-                ops['dNdN'] = dNdN_i
-            else:
-                ops[f'dN{i}'] = dN_i
-                ops[f'dN{i}dN{i}'] = dNdN_i
-
+        if filling is not None:
+            dN_diag = np.diag(np.tensordot(creators, annihilators, axes=[[1, 2], [0, 2]]))
+            dN_diag = dN_diag - filling * np.ones(2**num_species)
+            dN = np.diag(dN_diag)
+            dNdN = np.diag(dN_diag**2)
+            ops['dN'] = dN
+            ops['dNdN'] = dNdN
         for name, op in ops.items():
             self.add_onsite_operator(name, op, understood_braiding=True)
 
