@@ -891,7 +891,7 @@ class ProductSymmetry(Symmetry):
     def batch_sector_dim(self, a: SectorArray) -> npt.NDArray[np.int_]:
         if self.is_abelian:
             return np.ones([a.shape[0]], dtype=int)
-        dims = np.ones(len(a))
+        dims = np.ones(len(a), dtype=int)
         for i, factor_i in enumerate(self.factors):
             a_i = a[:, self.sector_slices[i]:self.sector_slices[i + 1]]
             dims *= factor_i.batch_sector_dim(a_i)
