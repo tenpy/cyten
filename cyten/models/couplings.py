@@ -359,7 +359,6 @@ def chemical_potential(sites: list[BosonicDOF | FermionicDOF], mu: float | list[
     if isinstance(mu, (list, np.ndarray)):
         msg = f'Invalid number of entries in `mu`: {len(mu)} != {site.num_species}'
         assert len(mu) == site.num_species, msg
-        first_contri = True
         for i, mu_i in enumerate(mu):
             if mu_i is None:
                 continue

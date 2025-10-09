@@ -6,7 +6,7 @@ All other classes are base classes from which sites are derived.
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 import numpy as np
-from typing import Sequence
+from typing import Literal, Sequence
 from functools import reduce
 from math import comb
 
@@ -15,7 +15,8 @@ from ..backends.abstract_backend import Block
 from ..spaces import ElementarySpace
 from ..tensors import SymmetricTensor
 from ..symmetries import (
-    FermionNumber, FermionParity, Sector, Symmetry, ProductSymmetry, BraidingStyle
+    FermionNumber, FermionParity, U1Symmetry, ZNSymmetry, SU2Symmetry, Sector, Symmetry,
+    NoSymmetry, ProductSymmetry, BraidingStyle
 )
 
 
@@ -171,6 +172,23 @@ class SpinDOF(DegreeOfFreedom):
         assert np.allclose(Sz @ Sx - Sx @ Sz, 1j * Sy)
 
     @staticmethod
+    def conservation_law_to_symmetry(conserve: Literal['SU(2)', 'Sz', 'parity', 'None']
+                                     ) -> Symmetry:
+        """Translate conservation law for a spin to a symmetry."""
+        # TODO add Z2 x Z2
+        if conserve in ['SU(2)', 'SU2']:
+            sym = SU2Symmetry('spin')
+        elif conserve in ['Sz', 'U(1)', 'U1']:
+            sym = U1Symmetry('2*Sz')
+        elif conserve in ['parity', 'Sz_parity', 'Z_2', 'Z2']:
+            sym = ZNSymmetry(2, 'Sz_parity')
+        elif conserve in ['None', 'none', None]:
+            sym = NoSymmetry()
+        else:
+            raise ValueError(f'Invalid `conserve`: {conserve}')
+        return sym
+
+    @staticmethod
     def _spin_vector_from_Sp(Sz: np.ndarray, Sp: np.ndarray) -> np.ndarray:
         """Build the spin_vector from ``Sz`` and ``Sp = Sx + i Sy``"""
         dim = Sz.shape[0]
@@ -222,14 +240,12 @@ class BosonicDOF(DegreeOfFreedom):
         self.num_species = num_species = creators.shape[2]
 
         Nmax = []
-        N_is = []  # these are used later for the on-site operators
         for i in range(num_species):
             N_i = creators[:, :, i] @ annihilators[:, :, i]
             N_i_max_ = np.max(np.diag(N_i))
             N_i_max = round(N_i_max_, 0)
             assert np.allclose(N_i_max, N_i_max_)
             assert leg.dim % (N_i_max + 1) == 0
-            N_is.append(N_i)
             Nmax.append(N_i_max)
         Nmax = np.asarray(Nmax, dtype=int)
         assert np.min(Nmax) > 0, (f'Invalid Nmax: {Nmax}; each boson species must have a max. '
@@ -240,31 +256,6 @@ class BosonicDOF(DegreeOfFreedom):
             self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
             backend=backend, default_device=default_device
         )
-
-        # TODO this should work for any symmetry
-        if num_species > 1:
-            # operator names include a number for the species or 'tot' for total
-            N_iN_is = []
-            P_is = []
-            for i in range(num_species):
-                self.add_onsite_operator(f'N{i}', N_is[i])
-                N_iN_i = np.diag(np.diag(N_is[i]) ** 2)
-                self.add_onsite_operator(f'N{i}N{i}', N_iN_i)
-                N_iN_is.append(N_iN_i)
-                P_i = np.diag(1. - 2. * np.mod(np.diag(N_is[i]), 2))
-                self.add_onsite_operator(f'P{i}', P_i)
-                P_is.append(P_i)
-            N_tot = np.sum(N_is, axis=0)
-            self.add_onsite_operator('Ntot', N_tot)
-            self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2))
-            P_tot = np.diag(1. - 2. * np.mod(np.diag(N_tot), 2))
-            self.add_onsite_operator('Ptot', P_tot)
-        else:
-            self.add_onsite_operator('N', N_is[0])
-            NN = np.diag(np.diag(N_is[0]) ** 2)
-            self.add_onsite_operator('NN', NN)
-            P = np.diag(1. - 2. * np.mod(np.diag(N_is[0]), 2))
-            self.add_onsite_operator('P', P)
 
     def test_sanity(self):
         super().test_sanity()
@@ -294,6 +285,74 @@ class BosonicDOF(DegreeOfFreedom):
                 BdiBdj = self.creators[:, :, i] @ self.creators[:, :, j]
                 BdjBdi = self.creators[:, :, j] @ self.creators[:, :, i]
                 assert np.allclose(BdiBdj, BdjBdi)
+
+    def add_individual_occupation_ops(self):
+        """Add occupation and parity operators for each species as symmetric onsite operators.
+        
+        The added operators include::
+            - occupation operators for each boson species `Ni` for species `i`
+                / `N` for a single species
+            - parity operators for each boson species `Pi` for species `i`
+                / `P` for a single species
+            - squared occupation operators for each boson species `NiNi` for species `i`
+                / `NN` for a single species
+        """
+        for i in range(self.num_species):
+            op_names = ['N', 'NN', 'P'] if self.num_species == 1 else [f'N{i}', f'N{i}N{i}', f'P{i}']
+            N_i = self.creators[:, :, i] @ self.annihilators[:, :, i]
+            self.add_onsite_operator(op_names[0], N_i)
+            N_iN_i = np.diag(np.diag(N_i) ** 2)
+            self.add_onsite_operator(op_names[1], N_iN_i)
+            P_i = np.diag(1. - 2. * np.mod(np.diag(N_i), 2))
+            self.add_onsite_operator(op_names[2], P_i)
+
+    def add_total_occupation_ops(self):
+        """Add total occupation and parity operators as symmetric onsite operators.
+        
+        The added operators include:
+        - total occupation operator `Ntot`
+        - total parity operator `Ptot`
+        - squared total occupation operator `NtotNtot`
+        """
+        N_tot = np.tensordot(self.creators, self.annihilators, axes=[[1, 2], [0, 2]])
+        self.add_onsite_operator('Ntot', N_tot)
+        self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2))
+        P_tot = np.diag(1. - 2. * np.mod(np.diag(N_tot), 2))
+        self.add_onsite_operator('Ptot', P_tot)
+
+    @staticmethod
+    def conservation_law_to_symmetry(conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']]
+                                     ) -> Symmetry | ProductSymmetry:
+        """Translate conservation law for individual / all bosons to a symmetry."""
+        if isinstance(conserve, str) or conserve is None:
+            if conserve in ['N', 'Ntot', 'N_tot', 'U(1)', 'U1']:
+                sym = U1Symmetry('total_occupation')
+            elif conserve in ['parity', 'P', 'Ptot', 'P_tot', 'Z_2', 'Z2']:
+                sym = ZNSymmetry(2, 'total_occupation_parity')
+            elif conserve in ['None', 'none', None]:
+                sym = NoSymmetry()
+            else:
+                raise ValueError(f'Invalid `conserve`: {conserve}')
+        elif isinstance(conserve, Sequence):
+            sym_factors = []
+            num_no_sym = 0
+            for i, conserve_i in enumerate(conserve):
+                if conserve_i in ['N', 'Ni', 'N_i', 'U(1)', 'U1']:
+                    sym_factors.append(U1Symmetry(f'species{i}_occupation'))
+                elif conserve_i in ['parity', 'P', 'Pi', 'P_i', 'Z_2', 'Z2']:
+                    sym_factors.append(ZNSymmetry(2, f'species{i}_occupation_parity'))
+                elif conserve_i in ['None', 'none', None]:
+                    sym_factors.append(NoSymmetry())
+                    num_no_sym += 1
+                else:
+                    raise ValueError(f'Invalid entry in `conserve`: {conserve_i}')
+            if num_no_sym == len(conserve):
+                sym = NoSymmetry()
+            else:
+                sym = ProductSymmetry(sym_factors)
+        else:
+            raise ValueError(f'Invalid `conserve`: {conserve}')
+        return sym
 
     @staticmethod
     def _states_with_occupation(n: int, Nmax: list[int] | np.ndarray) -> int:
@@ -388,33 +447,17 @@ class FermionicDOF(DegreeOfFreedom):
         self.num_species = num_species = creators.shape[2]
         assert leg.dim % (2 ** num_species) == 0
 
-        N_is = []  # these are used later for the on-site operators
         for i in range(num_species):
             N_i = creators[:, :, i] @ annihilators[:, :, i]
             N_i_max_ = np.max(np.diag(N_i))
             N_i_max = round(N_i_max_, 0)
             assert np.allclose(N_i_max, N_i_max_)
             assert N_i_max == 1
-            N_is.append(N_i)
 
         DegreeOfFreedom.__init__(
             self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
             backend=backend, default_device=default_device
         )
-
-        # TODO this should work for any symmetry
-        if num_species > 1:
-            # operator names include a number for the species or 'tot' for total
-            for i in range(num_species):
-                self.add_onsite_operator(f'N{i}', N_is[i], understood_braiding=True)
-            N_tot = np.sum(N_is, axis=0)
-            self.add_onsite_operator('Ntot', N_tot, understood_braiding=True)
-            self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2), understood_braiding=True)
-            P_tot = np.diag(np.mod(np.diag(N_tot), 2))
-            self.add_onsite_operator('Ptot', P_tot, understood_braiding=True)
-        else:
-            # no parity here since parity == occupation for a single species
-            self.add_onsite_operator('N', N_is[0], understood_braiding=True)
 
     def test_sanity(self):
         super().test_sanity()
@@ -447,6 +490,65 @@ class FermionicDOF(DegreeOfFreedom):
                 CdiCdj = self.creators[:, :, i] @ self.creators[:, :, j]
                 CdjCdi = self.creators[:, :, j] @ self.creators[:, :, i]
                 assert np.allclose(CdiCdj, CdjCdi)
+    
+    def add_individual_occupation_ops(self):
+        """Add occupation operators for each species as symmetric onsite operators.
+        
+        The added operators include::
+            - occupation operators for each fermion species `Ni` for species `i`
+                / `N` for a single species
+        """
+        for i in range(self.num_species):
+            op_name = 'N' if self.num_species == 1 else f'N{i}'
+            N_i = self.creators[:, :, i] @ self.annihilators[:, :, i]
+            self.add_onsite_operator(op_name, N_i, understood_braiding=True)
+
+    def add_total_occupation_ops(self):
+        """Add total occupation and parity operators as symmetric onsite operators.
+        
+        The added operators include:
+        - total occupation operator `Ntot`
+        - total parity operator `Ptot`
+        - squared total occupation operator `NtotNtot`
+        """
+        N_tot = np.tensordot(self.creators, self.annihilators, axes=[[1, 2], [0, 2]])
+        self.add_onsite_operator('Ntot', N_tot, understood_braiding=True)
+        self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2), understood_braiding=True)
+        P_tot = np.diag(1. - 2. * np.mod(np.diag(N_tot), 2))
+        self.add_onsite_operator('Ptot', P_tot, understood_braiding=True)
+
+    @staticmethod
+    def conservation_law_to_symmetry(conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']]
+                                     ) -> Symmetry | ProductSymmetry:
+        """Translate conservation law for individual / all fermions to a symmetry."""
+        if isinstance(conserve, str):
+            if conserve in ['N', 'Ntot', 'N_tot']:
+                sym = ProductSymmetry([U1Symmetry('total_fermion_occupation'),
+                                       FermionParity('total_fermion_parity')])
+            elif conserve in ['parity', 'P', 'Ptot', 'P_tot']:
+                sym = FermionParity('total_fermion_parity')
+            else:
+                raise ValueError(f'Invalid `conserve`: {conserve}')
+        elif isinstance(conserve, Sequence):
+            sym_factors = []
+            num_no_sym = 0
+            for i, conserve_i in enumerate(conserve):
+                if conserve_i in ['N', 'Ni', 'N_i']:
+                    sym_factors.append(U1Symmetry(f'species{i}_fermion_occupation'))
+                elif conserve_i in ['parity', 'P', 'Pi', 'P_i']:
+                    sym_factors.append(ZNSymmetry(2, f'species{i}_fermion_parity'))
+                elif conserve_i in ['None', 'none', None]:
+                    sym_factors.append(NoSymmetry())
+                    num_no_sym += 1
+                else:
+                    raise ValueError(f'Invalid entry in `conserve`: {conserve_i}')
+            if num_no_sym == len(conserve):
+                sym = FermionParity('total_fermion_parity')
+            else:
+                sym = ProductSymmetry([*sym_factors, FermionParity('total_fermion_parity')])
+        else:
+            raise ValueError(f'Invalid `conserve`: {conserve}')
+        return sym
 
     @staticmethod
     def _states_with_occupation(n: int, num_species: int) -> int:

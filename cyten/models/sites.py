@@ -56,21 +56,18 @@ class SpinSite(SpinDOF):
             Sp[n + 1, n] = np.sqrt((S * (S + 1) - m * (m + 1)))
         spin_vector = self._spin_vector_from_Sp(Sz=Sz, Sp=Sp)
 
+        sym = SpinDOF.conservation_law_to_symmetry(conserve)
         # build leg
-        if conserve in ['SU(2)', 'SU2']:
-            sym = SU2Symmetry('spin')
+        if isinstance(sym, SU2Symmetry):
             leg = ElementarySpace.from_defining_sectors(sym, [[two_S]])
-        elif conserve in ['Sz', 'U(1)', 'U1']:
-            sym = U1Symmetry('2*Sz')
+        elif isinstance(sym, U1Symmetry):
             leg = ElementarySpace.from_basis(sym, np.arange(-two_S, two_S + 2, 2)[:, None])
-        elif conserve in ['parity', 'Sz_parity', 'Z_2', 'Z2']:
-            sym = ZNSymmetry(2, 'Sz_parity')
+        elif isinstance(sym, ZNSymmetry):
             leg = ElementarySpace.from_basis(sym, np.arange(dim)[:, None] % 2)
-        elif conserve in ['None', 'none', None]:
-            sym = NoSymmetry()
+        elif isinstance(sym, NoSymmetry):
             leg = ElementarySpace.from_trivial_sector(dim=dim, symmetry=sym)
         else:
-            raise ValueError(f'Invalid `conserve`: {conserve}')
+            raise ValueError(f'`conserve` invalid for `SpinSite`: {conserve}')
         self.conserve = conserve
 
         state_labels = {str(n - S): n for n in range(dim)}
@@ -105,10 +102,10 @@ class SpinlessBosonSite(BosonicDOF):
 
     Parameters
     ----------
-    Nmax : int | list[int] | np.ndarray[int]
+    Nmax : int | Sequence[int]
         The maximum occupation of each of the boson species. An `int` corresponds to a single boson
         species. Otherwise, the number of boson species corresponds to `len(Nmax)`.
-    conserve : Literal['N', 'parity', 'None'] | list[Literal['N', 'parity', 'None']]
+    conserve : Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']]
         The symmetry to be conserved. We can conserve::
 
             - total particle number sum_i N_i (``conserve == 'N'``).
@@ -119,11 +116,11 @@ class SpinlessBosonSite(BosonicDOF):
 
         A `Literal` corresponds to symmetries involving all boson species, such as the total
         particle number (``conserve == 'N'``) or the total parity (``conserve == 'parity'``).
-        For a list, the entry ``conserve[i]`` corresponds to the symmetry of boson species `i`,
+        For a sequence, the entry ``conserve[i]`` corresponds to the symmetry of boson species `i`,
         such that, e.g., ``conserve[i] == 'N'`` signifies that its particle number is conserved.
 
         Conserves nothing by default.
-    filling : float | None | list[float | None] | np.ndarray[float | None]
+    filling : float | None | Sequence[float | None]
         Average filling for each species. Used to define the on-site operators ``dN`` and ``dNdN``
         if ``filling is not None`` or ``filling[i] is not None``. A `float` or `None` is by default
         applied to every boson species
@@ -138,17 +135,18 @@ class SpinlessBosonSite(BosonicDOF):
     """
 
     def __init__(self, Nmax: int | list[int] | np.ndarray[int],
-                 conserve: Literal['N', 'parity', 'None'] | list[Literal['N', 'parity', 'None']] = None,
-                 filling: float | None | list[float | None] | np.ndarray[float | None] = None,
+                 conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']] = None,
+                 filling: float | None | Sequence[float | None] = None,
                  backend: TensorBackend = None, default_device: str = None):
         Nmax = np.atleast_1d(np.asarray(Nmax, dtype=int))
         # need to manually throw an error for non-integers in Nmax
         assert np.allclose(Nmax, np.asarray(Nmax)), f'Invalid `Nmax`: {Nmax}'
         num_species = len(Nmax)
-        if isinstance(conserve, (list, np.ndarray)):
+        if not isinstance(conserve, str) and conserve is not None:
+            # strings are sequences, so test for strings
             msg = f'Invalid number of entries in `conserve`: {len(conserve)} != {num_species}'
             assert len(conserve) == num_species, msg
-        if isinstance(filling, (list, np.ndarray)):
+        if isinstance(filling, Sequence):
             msg = f'Invalid number of entries in `filling`: {len(filling)} != {num_species}'
             assert len(filling) == num_species, msg
         else:
@@ -160,54 +158,43 @@ class SpinlessBosonSite(BosonicDOF):
         dims = np.ones_like(Nmax) + Nmax
         total_dim = np.prod(dims, dtype=int)
 
-        if isinstance(conserve, (list, np.ndarray)):
-            sym_factors = []
+        sym = BosonicDOF.conservation_law_to_symmetry(conserve)
+        if isinstance(sym, ProductSymmetry):
+            assert len(conserve) == len(sym.factors)  # TODO delete
             no_sym_idcs = []
             parity_sym_idcs = []
-            for i, conserve_i in enumerate(conserve):
-                if conserve_i in ['N', 'Ni', 'N_i', 'U(1)', 'U1']:
-                    sym_factors.append(U1Symmetry(f'species{i}_occupation'))
-                elif conserve_i in ['parity', 'P', 'Pi', 'P_i', 'Z_2', 'Z2']:
-                    sym_factors.append(ZNSymmetry(2, f'species{i}_occupation_parity'))
-                    parity_sym_idcs.append(i)
-                elif conserve_i in ['None', 'none', None]:
-                    sym_factors.append(NoSymmetry())
+            for i, sym_factor_i in enumerate(sym.factors):
+                if isinstance(sym_factor_i, NoSymmetry):
                     no_sym_idcs.append(i)
+                elif isinstance(sym_factor_i, ZNSymmetry):
+                    parity_sym_idcs.append(i)
+                elif isinstance(sym_factor_i, U1Symmetry):
+                    pass
                 else:
-                    raise ValueError(f'Invalid entry in `conserve`: {conserve_i}')
-
-            if len(no_sym_idcs) == num_species:
-                sym = NoSymmetry()
-                leg = ElementarySpace.from_trivial_sector(dim=total_dim, symmetry=sym)
-            else:
-                sym = ProductSymmetry(sym_factors)
-                sectors = []
-                for occupations in itproduct(*states):
-                    sector = np.asarray(occupations, dtype=int)
-                    sector[no_sym_idcs] = 0
-                    sector[parity_sym_idcs] = np.mod(sector[parity_sym_idcs], 2)
-                    sectors.append(sector)
-                leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int))
+                    msg = f'Entry in `conserve` invalid for `SpinlessBosonSite`: {conserve[i]}'
+                    raise ValueError(msg)
+            sectors = []
+            for occupations in itproduct(*states):
+                sector = np.asarray(occupations, dtype=int)
+                sector[no_sym_idcs] = 0
+                sector[parity_sym_idcs] = np.mod(sector[parity_sym_idcs], 2)
+                sectors.append(sector)
+            leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int))
         else:
-            # for U(1) and Z_2, iterate over all states in the correct order to
-            # get the correct basis_perm in ElementarySpace.from_basis
-            if conserve in ['N', 'Ntot', 'N_tot', 'U(1)', 'U1']:
-                sym = U1Symmetry('total_occupation')
+            if isinstance(sym, (U1Symmetry, ZNSymmetry)):
+                # for U(1) and Z_2, iterate over all states in the correct order to
+                # get the correct basis_perm in ElementarySpace.from_basis
                 sectors = []
                 for occupations in itproduct(*states):
                     sectors.append(np.sum(occupations))
-                leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int)[:, None])
-            elif conserve in ['parity', 'P', 'Ptot', 'P_tot', 'Z_2', 'Z2']:
-                sym = ZNSymmetry(2, 'total_occupation_parity')
-                sectors = []
-                for occupations in itproduct(*states):
-                    sectors.append(np.sum(occupations) % 2)
-                leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int)[:, None])
-            elif conserve in ['None', 'none', None]:
-                sym = NoSymmetry()
+                sectors = np.asarray(sectors, dtype=int)[:, None]
+                if isinstance(sym, ZNSymmetry):
+                    sectors = np.mod(sectors, 2)
+                leg = ElementarySpace.from_basis(sym, sectors)
+            elif isinstance(sym, NoSymmetry):
                 leg = ElementarySpace.from_trivial_sector(dim=total_dim, symmetry=sym)
             else:
-                raise ValueError(f'Invalid `conserve`: {conserve}')
+                raise ValueError(f'`conserve` invalid for `SpinlessBosonSite`: {conserve}')
         self.conserve = conserve
 
         # state labels have the form '(n0, n1, ...)' with n0, n1, ... corresponding to the
@@ -244,6 +231,9 @@ class SpinlessBosonSite(BosonicDOF):
             self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
             onsite_operators=ops, backend=backend, default_device=default_device
         )
+        self.add_individual_occupation_ops()
+        if num_species > 1:
+            self.add_total_occupation_ops()
 
     def __repr__(self):
         return f'SpinlessBosonSite(Nmax={self.Nmax}, conserve={self.conserve}, filling={self.filling})'
@@ -263,7 +253,7 @@ class SpinlessFermionSite(FermionicDOF):
     ----------
     num_species : int
         Number of fermion species.
-    conserve : Literal['N', 'parity'] | list[Literal['N', 'parity', 'None']]
+    conserve : Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']]
         The symmetry to be conserved. We can conserve::
 
             - total fermion number sum_i N_i (``conserve == 'N'``).
@@ -274,7 +264,7 @@ class SpinlessFermionSite(FermionicDOF):
 
         A `Literal` corresponds to symmetries involving all fermion species, such as the total
         fermion number (``conserve == 'N'``) or the total fermion parity
-        (``conserve == 'parity'``). For a list, the entry ``conserve[i]`` corresponds to the
+        (``conserve == 'parity'``). For a sequence, the entry ``conserve[i]`` corresponds to the
         symmetry of fermion species `i`, such that, e.g., ``conserve[i] == 'N'`` signifies that
         its fermion number is conserved.
 
@@ -284,7 +274,7 @@ class SpinlessFermionSite(FermionicDOF):
         fermionic parity.
 
         Conserves total fermion parity by default.
-    filling : float | None | list[float | None] | np.ndarray[float | None]
+    filling : float | None | Sequence[float | None]
         Average filling for each species. Used to define the on-site operators ``dN`` and ``dNdN``
         if ``filling is not None`` or ``filling[i] is not None``. A `float` or `None` is by default
         applied to every fermion species.
@@ -301,69 +291,61 @@ class SpinlessFermionSite(FermionicDOF):
     """
 
     def __init__(self, num_species: int,
-                 conserve: Literal['N', 'parity'] | list[Literal['N', 'parity', 'None']] = 'parity',
-                 filling: float | None | list[float | None] | np.ndarray[float | None] = None,
+                 conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']] = 'parity',
+                 filling: float | None | Sequence[float | None] = None,
                  backend: TensorBackend = None, default_device: str = None):
         assert isinstance(num_species, int)
         assert num_species > 0, 'Must have at least a single fermion species'
-        if isinstance(conserve, (list, np.ndarray)):
+        if not isinstance(conserve, str):
             msg = f'Invalid number of entries in `conserve`: {len(conserve)} != {num_species}'
             assert len(conserve) == num_species, msg
-        if isinstance(filling, (list, np.ndarray)):
+        if isinstance(filling, Sequence):
             msg = f'Invalid number of entries in `filling`: {len(filling)} != {num_species}'
             assert len(filling) == num_species, msg
         else:
             filling = [filling] * num_species
         self.filling = np.asarray(filling)
 
-        if isinstance(conserve, (list, np.ndarray)):
-            sym_factors = []
-            no_sym_idcs = []
-            parity_sym_idcs = []
-            for i, conserve_i in enumerate(conserve):
-                if conserve_i in ['N', 'Ni', 'N_i']:
-                    sym_factors.append(U1Symmetry(f'species{i}_fermion_occupation'))
-                elif conserve_i in ['parity', 'P', 'Pi', 'P_i']:
-                    sym_factors.append(ZNSymmetry(2, f'species{i}_fermion_parity'))
-                    parity_sym_idcs.append(i)
-                elif conserve_i in ['None', 'none', None]:
-                    sym_factors.append(NoSymmetry())
-                    no_sym_idcs.append(i)
-                else:
-                    raise ValueError(f'Invalid entry in `conserve`: {conserve_i}')
-
-            if len(no_sym_idcs) == num_species:
-                sym = FermionParity('total_fermion_parity')
-            else:
-                sym = ProductSymmetry([*sym_factors, FermionParity('total_fermion_parity')])
-                sectors = []
-                for occupations in itproduct([0, 1], repeat=num_species):
-                    sector = np.asarray(occupations, dtype=int)
-                    sector = np.append(sector, np.sum(sector) % 2)
-                    sector[no_sym_idcs] = 0
-                    sector[parity_sym_idcs] = np.mod(sector[parity_sym_idcs], 2)
-                    sectors.append(sector)
-                leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int))
-        else:
-            if conserve in ['N', 'Ntot', 'N_tot']:
-                sym = ProductSymmetry([U1Symmetry('total_fermion_occupation'),
-                                       FermionParity('total_fermion_parity')])
-                sectors = []
-                for occupations in itproduct([0, 1], repeat=num_species):
-                    fermion_number = np.sum(occupations)
-                    sectors.append([fermion_number, fermion_number % 2])
-                leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int))
-            elif conserve in ['parity', 'P', 'Ptot', 'P_tot']:
-                sym = FermionParity('total_fermion_parity')
-            else:
-                raise ValueError(f'Invalid `conserve`: {conserve}')
-
-        # conserve == 'parity' and conserve == ['None', ..., 'None'] are the same
+        sym = FermionicDOF.conservation_law_to_symmetry(conserve)
         if isinstance(sym, FermionParity):
             sectors = []
             for occupations in itproduct([0, 1], repeat=num_species):
                 sectors.append(np.sum(occupations) % 2)
             leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int)[:, None])
+        elif not isinstance(conserve, str):
+            assert len(conserve) + 1 == len(sym.factors)  # TODO delete
+            no_sym_idcs = []
+            parity_sym_idcs = []
+            # no need to iterate over the final fermion parity
+            for i, sym_factor_i in enumerate(sym.factors[:-1]):
+                if isinstance(sym_factor_i, NoSymmetry):
+                    no_sym_idcs.append(i)
+                elif isinstance(sym_factor_i, ZNSymmetry):
+                    parity_sym_idcs.append(i)
+                elif isinstance(sym_factor_i, U1Symmetry):
+                    pass
+                else:
+                    msg = f'Entry in `conserve` invalid for `SpinlessFermionSite`: {conserve[i]}'
+                    raise ValueError(msg)
+            sectors = []
+            for occupations in itproduct([0, 1], repeat=num_species):
+                sector = np.asarray(occupations, dtype=int)
+                sector = np.append(sector, np.sum(sector) % 2)
+                sector[no_sym_idcs] = 0
+                # TODO remove; occupation for a species is 0 or 1
+                sector[parity_sym_idcs] = np.mod(sector[parity_sym_idcs], 2)
+                sectors.append(sector)
+            leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int))
+        elif isinstance(sym.factors[0], U1Symmetry):
+            # remaining case: conserve total particle number
+            assert len(sym.factors) == 2  # TODO delete
+            sectors = []
+            for occupations in itproduct([0, 1], repeat=num_species):
+                fermion_number = np.sum(occupations)
+                sectors.append([fermion_number, fermion_number % 2])
+            leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int))
+        else:
+            raise ValueError(f'`conserve` invalid for `SpinlessFermionSite`: {conserve}')
         self.conserve = conserve
 
         # state labels have the form '(n0, n1, ...)' with n0, n1, ... corresponding to the
@@ -384,6 +366,9 @@ class SpinlessFermionSite(FermionicDOF):
             self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
             onsite_operators=None, backend=backend, default_device=default_device
         )
+        self.add_individual_occupation_ops()
+        if num_species > 1:
+            self.add_total_occupation_ops()
 
         # construct operators relative to filling for each entry that is not None
         ops = {}
