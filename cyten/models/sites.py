@@ -371,35 +371,16 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
 
     TODO describe onsite operators
 
-    .. note ::
-        There may be some combinations of `conserve_N` and `conserve_S` that lead to the same
-        conservation laws. Conserving the number of spin up fermions and the number of spin down
-        fermions is equivalent to conserving the number of spin up fermions and the total spin
-        Sz component.
-
     Parameters
     ----------
-    conserve_N : Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']]
+    conserve_N : Literal['N', 'parity']
         The fermion symmetry to be conserved. We can conserve::
 
             - total fermion number N_up + N_down (``conserve == 'N'``).
-            - individual fermion numbers N_up / N_down (``conserve[i] == 'N'``).
             - total fermion parity (N_up + N_down) % 2 (``conserve == 'parity'``).
-            - individual fermion parities N_up % 2 / N_down % 2 (``conserve[i] == 'parity'``).
-            - nothing for an individual fermion (``conserve[i] == 'None'``); .
 
-        A `Literal` corresponds to symmetries involving both spin up and spin down fermions, such
-        as the total fermion number (``conserve == 'N'``) or the total fermion parity
-        (``conserve == 'parity'``). For a sequence (with ``len(conserve_N) == 2``), the entry
-        ``conserve[0]`` corresponds to the symmetry of spin up fermions, such that, e.g.,
-        ``conserve[0] == 'N'`` signifies that the total spin up fermion number is conserved.
-        ``conserve[1]`` corresponds to the symmetry of spin down fermions.
-
-        Note that the total fermion parity is always conserved. It is thus always part of the
-        symmetry. Hence, ``conserve == 'None'`` is not a valid value. On the other hand,
-        ``conserve = ['None', 'None]`` is interpreted as valid and the resulting symmetry conserves the
-        fermionic parity.
-
+        Note that the total fermion parity is always conserved and is thus always part of the
+        total symmetry. Hence, ``conserve == 'None'`` is not a valid choice.
         Conserves total fermion parity by default.
     conserve_S : Literal['SU(2)', 'Sz', 'parity', 'None']
         The spin symmetry to be conserved. We can conserve::
@@ -416,7 +397,7 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
 
     Attributes
     ----------
-    conserve_N : Literal['N', 'parity'] | list[Literal['N', 'parity', 'None']]
+    conserve_N : Literal['N', 'parity']
         The conserved symmetry, see above.
     conserve_S : Literal['SU(2)', 'Sz', 'parity', 'None']
         The conserved spin symmetry, see above.
@@ -427,14 +408,11 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
     """
 
     def __init__(self,
-                 conserve_N: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']] = 'parity',
+                 conserve_N: Literal['N', 'parity'] = 'parity',
                  conserve_S: Literal['SU(2)', 'Sz', 'parity', 'None'] = None,
-                 filling: float | None = None,
-                 backend: TensorBackend = None, default_device: str = None):
-        if not isinstance(conserve_N, str):
-            msg = ('Invalid `conserve_N`: Need to specify conservation law '
-                   'for both spin up and spin down fermions.')
-            assert len(conserve_N) == 2, msg
+                 filling: float | None = None, backend: TensorBackend = None,
+                 default_device: str = None):
+        assert isinstance(conserve_N, str), f'Invalid `conserve_N`: {conserve_N}'
         self.filling = filling
 
         sym_N = FermionicDOF.conservation_law_to_symmetry(conserve_N)
@@ -444,18 +422,9 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
             sym_N.descriptive_name = sym_N.descriptive_name.replace('species0', 'spin_up')
             sym_N.descriptive_name = sym_N.descriptive_name.replace('species1', 'spin_down')
 
-        # construct sectors (including spin as U(1)) as: [spin, fermion syms, fermion parity]
+        # construct sectors (including spin as U(1)) as: [spin, fermion U(1), fermion parity]
         if isinstance(sym_N, FermionParity):
             sectors = np.asarray([[0, 0], [-1, 1], [1, 1], [0, 0]], dtype=int)
-        elif not isinstance(conserve_N, str):
-            # species occupation == species parity
-            sectors = np.asarray([[0, 0, 0, 0], [-1, 0, 1, 1], [1, 1, 0, 1], [0, 1, 1, 0]], dtype=int)
-            no_sym_idcs = []
-            for i, sym_factor_i in enumerate(sym_N.factors[:-1]):
-                if isinstance(sym_factor_i, NoSymmetry):
-                    no_sym_idcs.append(i)
-            for idx in no_sym_idcs:
-                sectors[:, idx] = np.zeros_like(sectors[:, idx])
         elif isinstance(sym_N.factors[0], U1Symmetry):
             sectors = np.asarray([[0, 0, 0], [-1, 1, 1], [1, 1, 1], [0, 2, 0]], dtype=int)
         else:
