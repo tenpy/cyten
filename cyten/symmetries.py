@@ -135,6 +135,12 @@ class Symmetry(metaclass=ABCMeta):
         If the symmetry is abelian.  An abelian symmetry is characterized by ``FusionStyle.single``,
         which implies that all sectors are one-dimensional.
         Note that this does *not* imply that it is a group, as the braiding may not be bosonic!
+    has_complex_topological_data : bool
+        If any of the topological data (F, R, C, B symbols, twist) for any sectors is complex.
+        If so, tensors with that symmetry must have a complex dtype (except DiagonalTensor or Mask),
+        since real blocks become complex under leg manipulations.
+        Note: for a group (and for fermions), the topo data must be real if the fusion tensors
+        are real. This is because the associator, the braid, and the cup are all real for groups.
 
     Notes
     -----
@@ -163,10 +169,11 @@ class Symmetry(metaclass=ABCMeta):
     """
 
     fusion_tensor_dtype = None
-    """The dtype of fusion tensors, if available. Set to ``None`` otherwise."""
+    """The dtype of fusion tensors, or ``None`` no fusion tensors defined."""
 
     def __init__(self, fusion_style: FusionStyle, braiding_style: BraidingStyle, trivial_sector: Sector,
-                 group_name: str, num_sectors: int | float, descriptive_name: str | None = None):
+                 group_name: str, num_sectors: int | float, has_complex_topological_data: bool,
+                 descriptive_name: str | None = None):
         self.fusion_style = fusion_style
         self.braiding_style = braiding_style
         self.trivial_sector = as_immutable_array(trivial_sector)
@@ -175,6 +182,7 @@ class Symmetry(metaclass=ABCMeta):
         self.descriptive_name = descriptive_name
         self.sector_ind_len = sector_ind_len = len(trivial_sector)
         self.empty_sector_array = as_immutable_array(np.zeros((0, sector_ind_len), dtype=int))
+        self.has_complex_topological_data = has_complex_topological_data
         self.is_abelian = (fusion_style == FusionStyle.single)
 
     # ABSTRACT METHODS
@@ -707,6 +715,7 @@ class Symmetry(metaclass=ABCMeta):
         hdf5_saver.save(self.sector_ind_len, subpath + 'sector_ind_len')
         h5gr.attrs['descriptive_name'] = self.descriptive_name.__str__()
         h5gr.attrs['is_abelian'] = bool(self.is_abelian)
+        h5gr.attrs['has_complex_topological_data'] = bool(self.has_complex_topological_data)
 
     @classmethod
     def from_hdf5(cls, hdf5_loader, h5gr, subpath):
@@ -725,6 +734,7 @@ class Symmetry(metaclass=ABCMeta):
         obj.sector_ind_len = hdf5_loader.load(subpath + 'sector_ind_len')
         obj.descriptive_name = hdf5_loader.get_attr(h5gr, 'descriptive_name')
         obj.is_abelian = hdf5_loader.get_attr(h5gr, 'is_abelian')
+        obj.has_complex_topological_data = hdf5_loader.get_attr(h5gr, 'has_complex_topological_data')
 
         return obj
 
@@ -789,6 +799,7 @@ class ProductSymmetry(Symmetry):
             trivial_sector=np.concatenate([f.trivial_sector for f in flat_factors]),
             group_name=' ⨉ '.join(f.group_name for f in flat_factors),
             num_sectors=math.prod([symm.num_sectors for symm in flat_factors]),
+            has_complex_topological_data=any(f.has_complex_topological_data for f in flat_factors),
             descriptive_name=descriptive_name
         )
         dtypes = [f.fusion_tensor_dtype for f in flat_factors]
@@ -880,7 +891,7 @@ class ProductSymmetry(Symmetry):
     def batch_sector_dim(self, a: SectorArray) -> npt.NDArray[np.int_]:
         if self.is_abelian:
             return np.ones([a.shape[0]], dtype=int)
-        dims = np.ones(len(a))
+        dims = np.ones(len(a), dtype=int)
         for i, factor_i in enumerate(self.factors):
             a_i = a[:, self.sector_slices[i]:self.sector_slices[i + 1]]
             dims *= factor_i.batch_sector_dim(a_i)
@@ -1067,9 +1078,11 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
     """
 
     def __init__(self, fusion_style: FusionStyle, trivial_sector: Sector, group_name: str,
-                 num_sectors: int | float, descriptive_name: str | None = None):
+                 num_sectors: int | float, has_complex_topological_data: bool,
+                 descriptive_name: str | None = None):
         Symmetry.__init__(self, fusion_style=fusion_style, braiding_style=BraidingStyle.bosonic,
                           trivial_sector=trivial_sector, group_name=group_name, num_sectors=num_sectors,
+                          has_complex_topological_data=has_complex_topological_data,
                           descriptive_name=descriptive_name)
 
     @abstractmethod
@@ -1110,7 +1123,8 @@ class AbelianGroup(GroupSymmetry, metaclass=_ABCFactorSymmetryMeta):
     def __init__(self, trivial_sector: Sector, group_name: str, num_sectors: int | float,
                  descriptive_name: str | None = None):
         GroupSymmetry.__init__(self, fusion_style=FusionStyle.single, trivial_sector=trivial_sector,
-                               group_name=group_name, num_sectors=num_sectors, descriptive_name=descriptive_name)
+                               group_name=group_name, num_sectors=num_sectors,
+                               has_complex_topological_data=False, descriptive_name=descriptive_name)
 
     def sector_str(self, a: Sector) -> str:
         # we know sectors are labelled by a single number
@@ -1311,7 +1325,8 @@ class SU2Symmetry(GroupSymmetry):
 
     def __init__(self, descriptive_name: str | None = None):
         GroupSymmetry.__init__(self, fusion_style=FusionStyle.multiple_unique, trivial_sector=np.array([0], dtype=int),
-                               group_name='SU(2)', num_sectors=np.inf, descriptive_name=descriptive_name)
+                               group_name='SU(2)', num_sectors=np.inf,
+                               has_complex_topological_data=False, descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and (a >= 0)
@@ -1449,6 +1464,7 @@ class SUNSymmetry(GroupSymmetry):
                                trivial_sector=np.array([0]*N, dtype=int),
                                group_name=f'SU({N})',
                                num_sectors=np.inf,
+                               has_complex_topological_data=False,
                                descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
@@ -1974,7 +1990,8 @@ class FermionNumber(Symmetry):
     def __init__(self, descriptive_name: str = None):
         super().__init__(fusion_style=FusionStyle.single, braiding_style=BraidingStyle.fermionic,
                          trivial_sector=np.array([0], int), group_name='FermionNumber',
-                         num_sectors=np.inf, descriptive_name=descriptive_name)
+                         num_sectors=np.inf, has_complex_topological_data=False,
+                         descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,)
@@ -2081,7 +2098,8 @@ class FermionParity(Symmetry):
     def __init__(self, descriptive_name: str = None):
         Symmetry.__init__(self, fusion_style=FusionStyle.single, braiding_style=BraidingStyle.fermionic,
                           trivial_sector=np.array([0], dtype=int), group_name='FermionParity',
-                          num_sectors=2, descriptive_name=descriptive_name)
+                          num_sectors=2, has_complex_topological_data=False,
+                          descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a < 2
@@ -2191,14 +2209,16 @@ class ZNAnyonCategory(Symmetry):
         assert N > 1
         assert isinstance(n, int)
         self.N = N
-        self.n = n % N
-        self._phase = np.exp(2j * np.pi * self.n / self.N)
+        self.n = n = n % N
+        self._phase = np.exp(2j * np.pi * n / N)
         Symmetry.__init__(self,
                           fusion_style=FusionStyle.single,
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
                           group_name=f'ℤ_{N}^{n} anyon category',
-                          num_sectors=N, descriptive_name=descriptive_name)
+                          num_sectors=N,
+                          has_complex_topological_data=n > 0,
+                          descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a[0] < self.N
@@ -2289,7 +2309,9 @@ class ZNAnyonCategory2(Symmetry):
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
                           group_name=f'ℤ_{N}^({n}+1/2) anyon category',
-                          num_sectors=N, descriptive_name=descriptive_name)
+                          num_sectors=N,
+                          has_complex_topological_data=True,
+                          descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a < self.N
@@ -2374,6 +2396,7 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0, 0], dtype=int),
                           group_name=f'D(ℤ_{N})',
+                          has_complex_topological_data=N > 2,
                           num_sectors=N**2, descriptive_name=descriptive_name)
 
     def is_valid_sector(self, a: Sector) -> bool:
@@ -2503,6 +2526,7 @@ class FibonacciAnyonCategory(Symmetry):
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
                           group_name='FibonacciAnyonCategory',
+                          has_complex_topological_data=True,
                           num_sectors=2, descriptive_name=None)
 
     def is_valid_sector(self, a: Sector) -> bool:
@@ -2614,6 +2638,7 @@ class IsingAnyonCategory(Symmetry):
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
                           group_name='IsingAnyonCategory',
+                          has_complex_topological_data=True,
                           num_sectors=3, descriptive_name=None)
 
     def is_valid_sector(self, a: Sector) -> bool:
@@ -2723,7 +2748,9 @@ class SU2_kAnyonCategory(Symmetry):
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
                           group_name='SU2_kAnyonCategory',
-                          num_sectors=self.k+1, descriptive_name=None)
+                          num_sectors=self.k+1,
+                          has_complex_topological_data=True,
+                          descriptive_name=None)
 
         self._r = {}
         for jj1, jj2, jj in product(range(self.k + 1), repeat=3):
@@ -2925,7 +2952,9 @@ class SU3_3AnyonCategory(Symmetry):
                           braiding_style=BraidingStyle.anyonic,
                           trivial_sector=np.array([0], dtype=int),
                           group_name='SU3_3AnyonCategory',
-                          num_sectors=4, descriptive_name=None)
+                          num_sectors=4,
+                          has_complex_topological_data=True,
+                          descriptive_name=None)
 
         for charges in product(range(4), repeat=6):
             a, b, c, d, e, f = [np.array([i]) for i in charges]

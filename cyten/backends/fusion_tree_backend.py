@@ -1476,7 +1476,8 @@ class FusionTreeBackend(TensorBackend):
         # OPTIMIZE new_codomain and new_domain are already computed in tensors.py -> reuse here
         new_codomain = TensorProduct.from_partial_products(a.codomain, b.codomain)
         new_domain = TensorProduct.from_partial_products(a.domain, b.domain)
-        new_data = self.zero_data(new_codomain, new_domain, a.dtype, a.device, all_blocks=True)
+        dtype = Dtype.common(a.dtype, b.dtype)
+        new_data = self.zero_data(new_codomain, new_domain, dtype, a.device, all_blocks=True)
         for a_codom_tree, a_dom_tree, a_tree_block in _tree_block_iter(a):
             for b_codom_tree, b_dom_tree, b_tree_block in _tree_block_iter(b):
                 # axes of new_tree_block after outer: (a.codomain, a.domain, b.codomain, b.domain)
@@ -1581,7 +1582,7 @@ class FusionTreeBackend(TensorBackend):
             if new_codomain.sector_decomposition_where(sector) is None:
                 continue
             coupled_sectors.append(sector)
-        new_data = self.zero_data(new_codomain, new_domain, tensor.dtype, tensor.device,
+        new_data = self.zero_data(new_codomain, new_domain, data.dtype, tensor.device,
                                   all_blocks=True)
         # block indices
         old_inds = [data.block_ind_from_coupled(c, dom) for c in coupled_sectors]
@@ -1764,6 +1765,7 @@ class FusionTreeBackend(TensorBackend):
         return func(numbers)
 
     def scale_axis(self, a: SymmetricTensor, b: DiagonalTensor, leg: int) -> Data:
+        dtype = Dtype.common(a.dtype, b.dtype)
         in_domain, co_domain_idx, leg_idx = a._parse_leg_idx(leg)
         ax_a = int(in_domain)  # 1 if in_domain, 0 else
 
@@ -1788,7 +1790,7 @@ class FusionTreeBackend(TensorBackend):
                 block_inds = np.zeros((0, 2), int)
             else:
                 block_inds = np.array(block_inds, int)
-            return FusionTreeData(block_inds, blocks, a.dtype, a.data.device)
+            return FusionTreeData(block_inds, blocks, dtype, a.data.device)
 
         iter_space = a.domain if in_domain else a.codomain
         if a.has_pipes:
@@ -1814,7 +1816,7 @@ class FusionTreeBackend(TensorBackend):
                 ind_mapping[coupled_ind] = len(blocks)
                 block_inds = np.append(block_inds, np.array([[a_block_inds[coupled_ind, 0], ind]]), axis=0)
                 shape = self.block_backend.get_shape(a_blocks[coupled_ind])
-                blocks.append(self.block_backend.zeros(shape, a.dtype))
+                blocks.append(self.block_backend.zeros(shape, dtype))
 
             reshape = [iter_space[i].sector_multiplicity(sec) for i, sec in enumerate(uncoupled)]
             if in_domain:
@@ -1833,7 +1835,7 @@ class FusionTreeBackend(TensorBackend):
             forest = self.block_backend.scale_axis(forest, b_blocks[ind_b], axis=ax_a + co_domain_idx + 1)
             forest = self.block_backend.reshape(forest, initial_shape)
             blocks[ind_mapping[coupled_ind]][slcs[0], slcs[1]] = forest
-        return FusionTreeData(block_inds, blocks, a.dtype, a.data.device)
+        return FusionTreeData(block_inds, blocks, dtype, a.data.device)
 
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
                    domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
@@ -2675,6 +2677,11 @@ class TensorMapping(metaclass=ABCMeta):
     This is a base class that defines the common interface.
     See :class:`TreePairMapping` and :class:`IndividualTreeMapping` for the concrete classes.
 
+    Attributes
+    ----------
+    is_real : bool
+        If the coefficients are guaranteed real.
+
     Notes
     -----
     Let indices ``I, J, ...`` each label a pair (X_I, Y_I) of a fusion tree X_I and a compatible
@@ -2696,26 +2703,30 @@ class TensorMapping(metaclass=ABCMeta):
     i.e. are linear combinations of the blocks of T according to the transposed coefficients.
     """
 
+    def __init__(self, is_real: bool):
+        self.is_real = is_real
+
     @classmethod
     def from_instructions(cls, instructions: Iterable[Instruction], codomain: TensorProduct,
                           domain: TensorProduct, block_inds: np.ndarray | None = None
                           ) -> TensorMapping:
         res = cls.from_identity(codomain=TensorProduct(codomain.flat_legs, symmetry=codomain.symmetry), domain=TensorProduct(domain.flat_legs, symmetry=domain.symmetry), block_inds=block_inds)
+        is_real = not codomain.symmetry.has_complex_topological_data
         for i in instructions:
-            res = res.pre_compose_instruction(i)
+            res = res.pre_compose_instruction(i, is_real=is_real)
         return res
 
     # METHODS
 
-    def pre_compose_instruction(self, instruction: Instruction, prune_tol: float | None = 1e-15
-                                ) -> TensorMapping:
+    def pre_compose_instruction(self, instruction: Instruction, is_real: bool,
+                                prune_tol: float | None = 1e-15) -> TensorMapping:
         """Include the action of an instruction, acting as a last step."""
         if isinstance(instruction, BendInstruction):
-            res = self.pre_compose_bend_instruction(instruction)
+            res = self.pre_compose_bend_instruction(instruction, is_real=is_real)
         elif isinstance(instruction, BraidInstruction):
-            res = self.pre_compose_braid_instruction(instruction)
+            res = self.pre_compose_braid_instruction(instruction, is_real=is_real)
         elif isinstance(instruction, TwistInstruction):
-            res = self.pre_compose_twist_instruction(instruction)
+            res = self.pre_compose_twist_instruction(instruction, is_real=is_real)
         elif isinstance(instruction, Instruction):
             raise NotImplementedError
         else:
@@ -2746,17 +2757,20 @@ class TensorMapping(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def pre_compose_bend_instruction(self, instruction: BendInstruction) -> TensorMapping:
+    def pre_compose_bend_instruction(self, instruction: BendInstruction, is_real: bool
+                                     ) -> TensorMapping:
         """Special case of :meth:`pre_compose_instruction`."""
         ...
 
     @abstractmethod
-    def pre_compose_braid_instruction(self, instruction: BraidInstruction) -> TensorMapping:
+    def pre_compose_braid_instruction(self, instruction: BraidInstruction, is_real: bool
+                                      ) -> TensorMapping:
         """Special case of :meth:`pre_compose_instruction`."""
         ...
 
     @abstractmethod
-    def pre_compose_twist_instruction(self, instruction: TwistInstruction) -> TensorMapping:
+    def pre_compose_twist_instruction(self, instruction: TwistInstruction, is_real: bool
+                                      ) -> TensorMapping:
         """Special case of :meth:`pre_compose_instruction`."""
         ...
 
@@ -2796,8 +2810,10 @@ class TreePairMapping(TensorMapping):
     In practice, the keys are ``I = (Y_I, X_I)`` tuples of two FusionTrees.
     """
 
-    def __init__(self, mapping: SparseMapping[tuple[FusionTree, FusionTree]]):
+    def __init__(self, mapping: SparseMapping[tuple[FusionTree, FusionTree]],
+                 is_real: bool):
         self.mapping: SparseMapping[tuple[FusionTree, FusionTree]] = mapping
+        TensorMapping.__init__(self, is_real=is_real)
 
     @classmethod
     def from_identity(cls, codomain: TensorProduct, domain: TensorProduct,
@@ -2812,7 +2828,7 @@ class TreePairMapping(TensorMapping):
                 for X, *_ in domain.iter_tree_blocks([coupled]):
                     keys.append((Y, X))
         mapping = SparseMapping[tuple[FusionTree, FusionTree]].from_identity(keys)
-        return cls(mapping)
+        return cls(mapping, is_real=True)
 
     def test_sanity(self):
         for (Y_i, X_i), self_i in self.mapping.items():
@@ -2824,7 +2840,7 @@ class TreePairMapping(TensorMapping):
                 X_j.test_sanity()
                 assert np.all(X_j.coupled == Y_j.coupled)
 
-    def pre_compose_braid_instruction(self, instruction: BraidInstruction):
+    def pre_compose_braid_instruction(self, instruction: BraidInstruction, is_real: bool):
         braid_mapping = SparseMapping[FusionTree]()
         if instruction.codomain:
             # the splitting tree in the codomain is represented by a FusionTree and::
@@ -2837,22 +2853,23 @@ class TreePairMapping(TensorMapping):
             for Y in set(Y for Y, X in self.mapping.nonzero_rows()):
                 braid_mapping[Y] = Y.braid(j=instruction.idx, overbraid=not instruction.overbraid,
                                            do_conj=True)
-            return self.pre_compose_splitting_tree_mapping(braid_mapping)
+            return self.pre_compose_splitting_tree_mapping(braid_mapping, is_real=is_real)
         else:
             for X in set(X for Y, X in self.mapping.nonzero_rows()):
                 braid_mapping[X] = X.braid(j=instruction.idx, overbraid=instruction.overbraid)
-            return self.pre_compose_fusion_tree_mapping(braid_mapping)
+            return self.pre_compose_fusion_tree_mapping(braid_mapping, is_real=is_real)
 
-    def pre_compose_bend_instruction(self, instruction: BendInstruction):
+    def pre_compose_bend_instruction(self, instruction: BendInstruction, is_real: bool):
         bend_mapping = SparseMapping[tuple[FusionTree, FusionTree]]()
         # to pre-compose the bend_mapping, we only need to compute the ``bend_mapping[j][i]``
         # for those ``j`` for which an entry ``self.mapping[k][j]`` exists.
         for Y, X in self.mapping.nonzero_rows():
             bend_mapping[Y, X] = FusionTree.bend_leg(Y, X, instruction.bend_up)
         mapping = self.mapping.pre_compose(bend_mapping)
-        return TreePairMapping(mapping)
+        return TreePairMapping(mapping, is_real=self.is_real and is_real)
 
-    def pre_compose_fusion_tree_mapping(self, mapping: SparseMapping[FusionTree]) -> TreePairMapping:
+    def pre_compose_fusion_tree_mapping(self, mapping: SparseMapping[FusionTree], is_real: bool
+                                        ) -> TreePairMapping:
         """Pre-compose with a mapping that acts only on the fusion-trees."""
         res = SparseMapping[tuple[FusionTree, FusionTree]]()
         for k, self_k in self.mapping.items():
@@ -2861,9 +2878,10 @@ class TreePairMapping(TensorMapping):
                 for X_i, other_ij in mapping[X_j].items():
                     i = (Y, X_i)
                     res_k[i] = res_k.get(i, 0) + other_ij * self_jk
-        return TreePairMapping(res)
+        return TreePairMapping(res, is_real=self.is_real and is_real)
 
-    def pre_compose_splitting_tree_mapping(self, mapping: SparseMapping[FusionTree]) -> TreePairMapping:
+    def pre_compose_splitting_tree_mapping(self, mapping: SparseMapping[FusionTree], is_real: bool
+                                           ) -> TreePairMapping:
         """Pre-compose with a mapping that acts only on the fusion-trees."""
         res = SparseMapping[tuple[FusionTree, FusionTree]]()
         for k, self_k in self.mapping.items():
@@ -2872,9 +2890,10 @@ class TreePairMapping(TensorMapping):
                 for Y_i, other_ij in mapping[Y_j].items():
                     i = (Y_i, X)
                     res_k[i] = res_k.get(i, 0) + other_ij * self_jk
-        return TreePairMapping(res)
+        return TreePairMapping(res, is_real=self.is_real and is_real)
 
-    def pre_compose_twist_instruction(self, instruction: TwistInstruction) -> TensorMapping:
+    def pre_compose_twist_instruction(self, instruction: TwistInstruction, is_real: bool
+                                      ) -> TensorMapping:
         twist_mapping = SparseMapping[FusionTree]()
         if instruction.codomain:
             # because this is a splitting tree, we need to do the opposite twist to its
@@ -2882,11 +2901,11 @@ class TreePairMapping(TensorMapping):
             # then, we need to conj the resulting coefficient, cancelling that conj again.
             for Y in set(Y for Y, X in self.mapping.nonzero_rows()):
                 twist_mapping[Y] = Y.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
-            return self.pre_compose_splitting_tree_mapping(twist_mapping)
+            return self.pre_compose_splitting_tree_mapping(twist_mapping, is_real=self.is_real and is_real)
         else:
             for X in set(X for Y, X in self.mapping.nonzero_rows()):
                 twist_mapping[X] = X.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
-            return self.pre_compose_fusion_tree_mapping(twist_mapping)
+            return self.pre_compose_fusion_tree_mapping(twist_mapping, is_real=self.is_real and is_real)
 
     def prune(self, tol: float = 1e-15) -> TreePairMapping:
         self.mapping.prune(tol=tol)
@@ -2919,7 +2938,9 @@ class TreePairMapping(TensorMapping):
         tree_block_axes_2 = [i if i < J else (N - 1) + (J - i) for i in domain_idcs]
         inv_leg_perm = inverse_permutation([*codomain_idcs, *reversed(domain_idcs)])
         #
-        dtype = data.dtype  # TODO what if blocks are real but coefficients complex???
+        dtype = data.dtype
+        if dtype.is_real and not self.is_real:
+            dtype = dtype.to_complex
         block_inds = []
         blocks = []
         #
@@ -2927,7 +2948,7 @@ class TreePairMapping(TensorMapping):
                                               new_domain.sector_decomposition):
             coupled = new_codomain.sector_decomposition[i]
             shape = (new_codomain.block_size(i), new_domain.block_size(j))
-            block = block_backend.zeros(shape, data.dtype, device=data.device)
+            block = block_backend.zeros(shape, dtype, device=data.device)
             is_zero_block = True
             for Y, idcs1, mults1, _ in new_codomain.iter_tree_blocks([coupled]):
                 for X, idcs2, mults2, _ in new_domain.iter_tree_blocks([coupled]):
@@ -2988,9 +3009,11 @@ class FactorizedTreeMapping(TensorMapping):
 
     def __init__(self,
                  splitting_tree_mapping: SparseMapping[FusionTree] | IdentityMapping[FusionTree],
-                 fusion_tree_mapping: SparseMapping[FusionTree] | IdentityMapping[FusionTree]):
+                 fusion_tree_mapping: SparseMapping[FusionTree] | IdentityMapping[FusionTree],
+                 is_real: bool):
         self.splitting_tree_mapping = splitting_tree_mapping
         self.fusion_tree_mapping = fusion_tree_mapping
+        TensorMapping.__init__(self, is_real=is_real)
 
     @classmethod
     def from_identity(cls, codomain: TensorProduct, domain: TensorProduct,
@@ -3008,9 +3031,9 @@ class FactorizedTreeMapping(TensorMapping):
                 fusion_trees.append(X)
         splitting_tree_mapping = IdentityMapping[FusionTree](splitting_trees)
         fusion_tree_mapping = IdentityMapping[FusionTree](fusion_trees)
-        return cls(splitting_tree_mapping, fusion_tree_mapping)
+        return cls(splitting_tree_mapping, fusion_tree_mapping, is_real=True)
 
-    def pre_compose_braid_instruction(self, instruction: BraidInstruction):
+    def pre_compose_braid_instruction(self, instruction: BraidInstruction, is_real: bool):
         braid_mapping = SparseMapping[FusionTree]()
         if instruction.codomain:
             # because this is a splitting tree, we need to do the opposite braid and do conj
@@ -3025,12 +3048,14 @@ class FactorizedTreeMapping(TensorMapping):
                 braid_mapping[X] = X.braid(j=instruction.idx, overbraid=instruction.overbraid)
             splitting_tree_mapping = self.splitting_tree_mapping
             fusion_tree_mapping = self.fusion_tree_mapping.pre_compose(braid_mapping)
-        return FactorizedTreeMapping(splitting_tree_mapping, fusion_tree_mapping)
+        return FactorizedTreeMapping(splitting_tree_mapping, fusion_tree_mapping,
+                                     is_real=self.is_real and is_real)
 
-    def pre_compose_bend_instruction(self, instruction):
+    def pre_compose_bend_instruction(self, instruction, is_real: bool):
         raise TypeError(f'{type(self).__name__} is incompatible with `{type(instruction).__name__}`.')
 
-    def pre_compose_twist_instruction(self, instruction: TwistInstruction) -> TensorMapping:
+    def pre_compose_twist_instruction(self, instruction: TwistInstruction, is_real: bool
+                                      ) -> TensorMapping:
         twist_mapping = SparseMapping[FusionTree]()
         if instruction.codomain:
             # because this is a splitting tree, we need to do the opposite twist to its
@@ -3045,7 +3070,8 @@ class FactorizedTreeMapping(TensorMapping):
                 twist_mapping[X] = X.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
             splitting_tree_mapping = self.splitting_tree_mapping
             fusion_tree_mapping = self.fusion_tree_mapping.pre_compose(twist_mapping)
-        return FactorizedTreeMapping(splitting_tree_mapping, fusion_tree_mapping)
+        return FactorizedTreeMapping(splitting_tree_mapping, fusion_tree_mapping,
+                                     is_real=self.is_real and is_real)
 
     def prune(self, tol: float = 1e-15) -> FactorizedTreeMapping:
         self.splitting_tree_mapping.prune(tol=tol)
@@ -3081,7 +3107,9 @@ class FactorizedTreeMapping(TensorMapping):
         K = domain.num_factors
         N = J + K
         #
-        dtype = data.dtype  # TODO what if blocks are real but coefficients complex???
+        dtype = data.dtype
+        if dtype.is_real and not self.is_real:
+            dtype = dtype.to_complex
         block_inds = []
         blocks = []
         #
@@ -3095,7 +3123,7 @@ class FactorizedTreeMapping(TensorMapping):
             old_block = data.blocks[which_block]
             shape = (new_codomain.multiplicities[i], new_domain.multiplicities[j])
             #
-            tmp_block = block_backend.zeros(shape, data.dtype, device=data.device)
+            tmp_block = block_backend.zeros(shape, dtype, device=data.device)
             tmp_block, is_zero_block = self._transform_splitting_trees(
                 old_block, tmp_block, coupled=coupled, codomain=codomain, new_codomain=new_codomain,
                 tree_block_axes_1=codomain_idcs, block_backend=block_backend
@@ -3103,7 +3131,7 @@ class FactorizedTreeMapping(TensorMapping):
             if is_zero_block:
                 continue
             #
-            block = block_backend.zeros(shape, data.dtype, device=data.device)
+            block = block_backend.zeros(shape, dtype, device=data.device)
             block, is_zero_block = self._transform_fusion_trees(
                 tmp_block, block, coupled=coupled, domain=domain, new_domain=new_domain,
                 tree_block_axes_2=[(N - 1) - i for i in domain_idcs], block_backend=block_backend

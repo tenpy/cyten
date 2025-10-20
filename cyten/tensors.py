@@ -869,12 +869,18 @@ class SymmetricTensor(Tensor):
                         device=backend.get_device_from_data(data))
         assert isinstance(data, self.backend.DataCls)
         self.data = data
+        self.verify_dtype()
 
     def test_sanity(self):
         super().test_sanity()
         assert self.dtype == self.backend.get_dtype_from_data(self.data)
         assert self.device == self.backend.get_device_from_data(self.data)
         self.backend.test_tensor_sanity(self, is_diagonal=isinstance(self, DiagonalTensor))
+        self.verify_dtype()
+
+    def verify_dtype(self):
+        if self.symmetry.has_complex_topological_data and self.dtype.is_real:
+            raise ValueError(f'SymmetricTensor with {self.symmetry} must have complex dtype')
 
     @classmethod
     def from_block_func(cls, func,
@@ -928,6 +934,7 @@ class SymmetricTensor(Tensor):
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
+        dtype = cls._parse_default_dtype(dtype, symmetry=symmetry)
 
         # wrap func to consider func_kwargs, shape_kw, dtype, device
         if func_kwargs is None:
@@ -990,6 +997,7 @@ class SymmetricTensor(Tensor):
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
+        dtype = cls._parse_default_dtype(dtype, symmetry=symmetry)
         if not symmetry.can_be_dropped:
             msg = f'Dense block representation is not supported for symmetry {symmetry}'
             raise SymmetryError(msg)
@@ -1097,9 +1105,10 @@ class SymmetricTensor(Tensor):
             The device of the tensor. If ``None``, use the :attr:`BlockBackend.default_device` of
             the block backend.
         """
-        co_domain, _, backend, _ = cls._init_parse_args(
+        co_domain, _, backend, symmetry = cls._init_parse_args(
             codomain=co_domain, domain=co_domain, backend=backend
         )
+        dtype = cls._parse_default_dtype(dtype, symmetry=symmetry)
         labels = cls._init_parse_labels(labels, codomain=co_domain, domain=co_domain,
                                         is_endomorphism=True)
         device = backend.block_backend.as_device(device)
@@ -1164,12 +1173,15 @@ class SymmetricTensor(Tensor):
                 dtype = mean.dtype
             else:
                 assert mean.dtype == dtype
+            symmetry = mean.symmetry
         else:
             if codomain is None:
                 raise ValueError('Must specify the codomain if mean is not given.')
-            codomain, domain, backend, _ = cls._init_parse_args(
+            codomain, domain, backend, symmetry = cls._init_parse_args(
                 codomain=codomain, domain=domain, backend=backend
             )
+
+        dtype = cls._parse_default_dtype(dtype, symmetry=symmetry)
 
         if device is None:
             if mean is None:
@@ -1213,6 +1225,7 @@ class SymmetricTensor(Tensor):
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
+        dtype = cls._parse_default_dtype(dtype, symmetry=symmetry)
         return cls.from_block_func(
             func=backend.block_backend.random_uniform,
             codomain=codomain, domain=domain, backend=backend, labels=labels,
@@ -1273,6 +1286,8 @@ class SymmetricTensor(Tensor):
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
+        dtype = cls._parse_default_dtype(dtype, symmetry=symmetry)
+
         # wrap func to consider func_kwargs and dtype
         if func_kwargs is None:
             func_kwargs = {}
@@ -1303,6 +1318,7 @@ class SymmetricTensor(Tensor):
             warnings.warn('Sector does not appear. from_sector_projection yields zero')
         if backend is None:
             backend = get_backend(symmetry=co_domain.symmetry)
+        dtype = cls._parse_default_dtype(dtype, symmetry=co_domain.symmetry)
 
         def func(shape: tuple[int, ...], coupled: Sector):
             if np.all(coupled == sector):
@@ -1359,6 +1375,7 @@ class SymmetricTensor(Tensor):
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
+        dtype = cls._parse_default_dtype(dtype, symmetry=symmetry)
         if device is None:
             some_block = backend.block_backend.as_block(next(iter(trees.values())))
             device = backend.block_backend.get_device(some_block)
@@ -1400,11 +1417,21 @@ class SymmetricTensor(Tensor):
         codomain, domain, backend, symmetry = cls._init_parse_args(
             codomain=codomain, domain=domain, backend=backend
         )
+        dtype = cls._parse_default_dtype(dtype, symmetry=symmetry)
         device = backend.block_backend.as_device(device)
         return cls(
             data=backend.zero_data(codomain=codomain, domain=domain, dtype=dtype, device=device),
             codomain=codomain, domain=domain, backend=backend, labels=labels
         )
+
+    @staticmethod
+    def _parse_default_dtype(dtype: Dtype | None, symmetry: Symmetry):
+        if symmetry.has_complex_topological_data:
+            if dtype is None:
+                dtype = Dtype.complex128
+            if dtype.is_real:
+                raise ValueError(f'SymmetricTensor with {symmetry} must have complex dtype')
+        return dtype
 
     def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None
                            ) -> SymmetricTensor:
@@ -1589,6 +1616,10 @@ class DiagonalTensor(SymmetricTensor):
         super().test_sanity()
         assert self.domain == self.codomain
         assert self.domain.num_factors == 1
+
+    def verify_dtype(self):
+        # for diagonal tensors, we always allow real dtypes
+        pass
 
     @classmethod
     def from_block_func(cls, func, leg: Space, backend: TensorBackend | None = None,
