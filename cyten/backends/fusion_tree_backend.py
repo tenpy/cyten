@@ -1663,9 +1663,6 @@ class FusionTreeBackend(TensorBackend):
         codomain_pipe_inds = []
         domain_pipe_inds = []
 
-        flat_domain = a.domain.flat_legs
-        flat_codomain = a.codomain.flat_legs
-
         flat_index = 0
         for i, leg in enumerate(a.legs):
             is_codomain = i < a.num_codomain_legs
@@ -1691,18 +1688,10 @@ class FusionTreeBackend(TensorBackend):
         # mapping to flat indices for TreeMappingDict.from_permute_legs
         new_codomain_idcs = []
         new_domain_idcs = []
+        leg_comb = codomain_pipe_inds + domain_pipe_inds
 
-        leg_comb = codomain_pipe_inds + domain_pipe_inds[::-1]
-        # leg_comb = [sorted(i) for i in leg_comb]
-        # leg_comb = sorted(leg_comb, key=lambda x: x[0])
-
-        for i, l in enumerate(leg_comb):
-            if i in codomain_idcs:
-                new_codomain_idcs.extend(l)
-            elif i in domain_idcs:
-                new_domain_idcs.extend(l)
-            else:
-                raise ValueError
+        new_domain_idcs= [k for ks in [leg_comb[i][::-1] for i in domain_idcs] for k in ks]
+        new_codomain_idcs = [k for ks in [leg_comb[i] for i in codomain_idcs] for k in ks]
 
         h = PermuteLegsInstructionEngine(
             num_codomain_legs=num_codomain_flat_legs, num_domain_legs=num_domain_flat_legs,
@@ -3246,7 +3235,7 @@ def _count_flat_legs(leg) -> int:
         Parameters
         ----------
         leg : Leg of a Tensor
-        
+
         Returns
         -------
         total : int
