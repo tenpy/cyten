@@ -1685,8 +1685,6 @@ class FusionTreeBackend(TensorBackend):
                 flat_bend_right.append(bend_right[i])
 
         # mapping to flat indices for TreeMappingDict.from_permute_legs
-        new_codomain_idcs = []
-        new_domain_idcs = []
         leg_comb = codomain_pipe_inds + domain_pipe_inds
 
         new_domain_idcs= [k for ks in [leg_comb[i][::-1] for i in domain_idcs] for k in ks]
