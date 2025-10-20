@@ -369,8 +369,6 @@ class FusionTreeBackend(TensorBackend):
         cls = TreePairMapping if mixes_codomain_domain else FactorizedTreeMapping
         mapping = cls.from_instructions(instructions=instructions, codomain=tensor.codomain,
                                         domain=tensor.domain, block_inds=tensor.data.block_inds)
-        # FIXME make sure mapping.codomain can deal with pipes
-        #       prbly need to swap .factors for .flat_legs a few times
         data = mapping.transform_tensor(
             tensor.data, codomain=TensorProduct(tensor.codomain.flat_legs, symmetry=tensor.symmetry), domain=TensorProduct(tensor.domain.flat_legs, symmetry=tensor.symmetry),
             new_codomain=TensorProduct(new_codomain.flat_legs,symmetry=tensor.symmetry),
