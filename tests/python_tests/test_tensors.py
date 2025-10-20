@@ -139,8 +139,9 @@ def test_base_Tensor(make_compatible_space, compatible_backend):
 
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)],
                          ids=['1->1', '1->2', '0->3', '3->0'])
-def test_SymmetricTensor(make_compatible_tensor, leg_nums):
-    T: SymmetricTensor = make_compatible_tensor(*leg_nums)
+@pytest.mark.parametrize('use_pipes', [True, 0.3])
+def test_SymmetricTensor(make_compatible_tensor, leg_nums, use_pipes):
+    T: SymmetricTensor = make_compatible_tensor(*leg_nums, use_pipes=use_pipes)
 
     T.test_sanity()
     assert T.num_codomain_legs == leg_nums[0]
@@ -148,13 +149,6 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
 
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
-
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in T.legs]):
-            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
-                _ = T.to_numpy(understood_braiding=True)
-            # continue without pipes
-            T = make_compatible_tensor(*leg_nums, use_pipes=False)
 
     print('checking to_numpy')
     numpy_block = T.to_numpy(understood_braiding=True)
@@ -167,6 +161,8 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums):
     )
     tens.test_sanity()
     tens_np = tens.to_numpy(understood_braiding=True)
+    print(tens_np[tens_np>0])
+    print(numpy_block[numpy_block>0])
     npt.assert_allclose(tens_np, numpy_block)
 
     can_have_non_symmetric_dense_blocks = T.num_parameters < T.size
@@ -1218,12 +1214,6 @@ def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor,
     if not tens.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
-    if isinstance(tens.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in tens.legs]):
-            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
-                _ = tens.to_numpy(understood_braiding=True)
-            pytest.xfail()
-
     if cls in [DiagonalTensor, Mask]:
         catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
     else:
@@ -1366,24 +1356,12 @@ def test_apply_mask_DiagonalTensor(make_compatible_tensor):
 def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_tensor):
     tensor: Tensor = make_compatible_tensor(codomain, domain, cls=cls)
 
-    if isinstance(tensor.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in tensor.legs]) and codomain != num_codomain_legs:
-            with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
-                _ = tensors.bend_legs(tensor, num_codomain_legs)
-            pytest.xfail(reason='FTbackend cant deal with pipes yet')
-
     res = tensors.bend_legs(tensor, num_codomain_legs)
     res.test_sanity()
     assert res.legs == tensor.legs
 
     if not tensor.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
-
-    if isinstance(tensor.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
-            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
-                _ = tensor.to_numpy(understood_braiding=True)
-            pytest.xfail()
 
     tensor_np = tensor.to_numpy()
     npt.assert_array_almost_equal_nulp(res.to_numpy(), tensor_np, 100)
@@ -1399,10 +1377,7 @@ def test_combine_split(use_pipes, make_compatible_tensor):
     T: SymmetricTensor = make_compatible_tensor(['a', 'b'], ['d', 'c'], use_pipes=use_pipes)
     assert T.labels == ['a', 'b', 'c', 'd']
 
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        with pytest.raises(NotImplementedError, match='FusionTreeBackend.combine_legs not implemented'):
-            _ = tensors.combine_legs(T, [0, 1])
-        pytest.xfail(reason='FTbackend cant deal with pipes yet')
+
 
     # 1) combine in codomain
     combined1 = tensors.combine_legs(T, [0, 1])
@@ -1638,12 +1613,6 @@ def test_compose(cls_A, cls_B, cod_A, shared, dom_B, make_compatible_tensor):
             expect_labels.append('y')
         assert res.labels == expect_labels
 
-        if isinstance(res.backend, backends.FusionTreeBackend):
-            if any([isinstance(leg, LegPipe) for leg in res.legs]):
-                with pytest.raises(NotImplementedError, match="FusionTreeBackend.split_legs not implemented"):
-                    _ = res.to_numpy(understood_braiding=True)
-                pytest.xfail()
-
         res_np = res.to_numpy()
 
     axes = [list(range(cod_A, cod_A + shared)), list(reversed(range(shared)))]
@@ -1669,18 +1638,6 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
     T_labels = list('abcdefghi')[:cod + dom]
     T: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=T_labels)
 
-    if cls is ChargedTensor and not T.symmetry.has_symmetric_braid:
-        # TODO : should be ok to just choose levels, as long as charge leg is very top or very bot
-        with pytest.raises(symmetries.BraidChiralityUnspecifiedError):
-            _ = tensors.dagger(T)
-        pytest.xfail()
-
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in T.legs]) and cls is ChargedTensor:
-            with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
-                _ = tensors.dagger(T)
-            pytest.xfail(reason='FTbackend cant deal with pipes yet')
-
     how_to_call = np_random.choice(['dagger()', '.hc', '.dagger'])
     print(how_to_call)
     if how_to_call == 'dagger()':
@@ -1695,17 +1652,11 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
     assert res.domain == T.codomain
     assert res.labels == [f'{l}*' for l in reversed(T_labels)]
 
-    if T.symmetry.has_trivial_braid:
-        if isinstance(T.backend, backends.FusionTreeBackend):
-            if any([isinstance(leg, LegPipe) for leg in T.legs]):
-                with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
-                    _ = T.to_numpy()
-                pytest.xfail()
-
-        expect = np.conj(np.transpose(T.to_numpy(), list(reversed(range(cod + dom)))))
-        npt.assert_almost_equal(res.to_numpy(), expect)
-    else:
+    if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+
+    expect = np.conj(np.transpose(T.to_numpy(), list(reversed(range(cod + dom)))))
+    npt.assert_almost_equal(res.to_numpy(), expect)
 
 
 @pytest.mark.parametrize(
@@ -1868,15 +1819,15 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
 
     T: Tensor = make_compatible_tensor(codomain=T_codomain, domain=T_domain, labels=labels, cls=cls)
 
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        if which_leg < T.num_codomain_legs:
-            expect_err = any([isinstance(l, LegPipe) for l in T.codomain])
-        else:
-            expect_err = any([isinstance(l, LegPipe) for l in T.domain])
-        if expect_err:
-            with pytest.raises(RuntimeError, match='iter_uncoupled can not deal with pipes.'):
-                _ = tensors.enlarge_leg(T, M, which_leg)
-            pytest.xfail()
+    # if isinstance(T.backend, backends.FusionTreeBackend):
+    #     if which_leg < T.num_codomain_legs:
+    #         expect_err = any([isinstance(l, LegPipe) for l in T.codomain])
+    #     else:
+    #         expect_err = any([isinstance(l, LegPipe) for l in T.domain])
+    #     if expect_err:
+    #         with pytest.raises(RuntimeError, match='iter_uncoupled can not deal with pipes.'):
+    #             _ = tensors.enlarge_leg(T, M, which_leg)
+    #         pytest.xfail()
 
     if cls is Mask:
         with pytest.raises(NotImplementedError, match='tensors._compose_with_Mask not implemented for Mask'):
@@ -1899,12 +1850,6 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
 
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
-
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        if T.has_pipes:
-            with pytest.raises(NotImplementedError,  match='FusionTreeBackend.split_legs not implemented'):
-                _ = T.to_numpy(understood_braiding=True)
-            pytest.xfail()
 
     T_np = T.to_numpy(understood_braiding=True)
     mask_np = M.as_numpy_mask()
@@ -1958,12 +1903,6 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
         with pytest.raises(SymmetryError, match='Can not access elements'):
             _ = T[(0,) * (cod + dom)]
         return
-
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in T.legs]):
-            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
-                _ = T.to_numpy(understood_braiding=True)
-            pytest.xfail()
 
     if (cls is SymmetricTensor or cls is ChargedTensor) and isinstance(T.backend, backends.FusionTreeBackend):
         catch_warnings = pytest.warns(UserWarning, match='Accessing individual entries')
@@ -2048,31 +1987,24 @@ def test_inner(cls, cod, dom, do_dagger, allow_basis_perm, make_compatible_tenso
         # but the, we can not compute inner.
         return
 
-    if isinstance(A.backend, backends.FusionTreeBackend):
-        cond = any([isinstance(leg, LegPipe) for leg in A.legs]) or any([isinstance(leg, LegPipe) for leg in B.legs])
-        if cls is ChargedTensor and dom == 2 and cond:
-            with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
-                _ = tensors.inner(A, B, do_dagger=do_dagger)
-            pytest.xfail(reason='FTbackend cant deal with pipes yet')
+    # if isinstance(A.backend, backends.FusionTreeBackend):
+    #     cond = any([isinstance(leg, LegPipe) for leg in A.legs]) or any([isinstance(leg, LegPipe) for leg in B.legs])
+    #     if cls is ChargedTensor and dom == 2 and cond:
+    #         with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
+    #             _ = tensors.inner(A, B, do_dagger=do_dagger)
+    #         pytest.xfail(reason='FTbackend cant deal with pipes yet')
 
     res = tensors.inner(A, B, do_dagger=do_dagger)
     assert isinstance(res, (float, complex))
 
-    if A.symmetry.has_trivial_braid:
-        if isinstance(A.backend, backends.FusionTreeBackend):
-            if any([isinstance(leg, LegPipe) for leg in A.legs]) or any([isinstance(leg, LegPipe) for leg in B.legs]):
-                with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
-                    _ = A.to_numpy()
-                    _ = B.to_numpy()
-                pytest.xfail()
+    if not A.symmetry.can_be_dropped:
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
-        if do_dagger:
-            expect = np.sum(np.conj(A.to_numpy()) * B.to_numpy())
-        else:
-            expect = np.sum(np.transpose(A.to_numpy(), [*reversed(range(A.num_legs))]) * B.to_numpy())
-        npt.assert_almost_equal(res, expect)
+    if do_dagger:
+        expect = np.sum(np.conj(A.to_numpy()) * B.to_numpy())
     else:
-        pass  # TODO need to check some other way
+        expect = np.sum(np.transpose(A.to_numpy(), [*reversed(range(A.num_legs))]) * B.to_numpy())
+    npt.assert_almost_equal(res, expect)
 
 
 def test_is_scalar():
@@ -2155,12 +2087,6 @@ def test_linear_combination(cls, make_compatible_tensor):
             _ = tensors.linear_combination(42, v, 43j, w)
         return
 
-    if isinstance(v.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in v.legs]):
-            with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
-                _ = v.to_numpy(understood_braiding=True)
-            pytest.xfail()
-
     v_np = v.to_numpy(understood_braiding=True)
     w_np = w.to_numpy(understood_braiding=True)
     for valid_scalar in [0, 1., 2. + 3.j, -42]:
@@ -2222,17 +2148,6 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
     perm = [*codomain_perm, *reversed(domain_perm)]
     bend_right = np_random.choice([True, False])
 
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        if domain_pos is None:
-            move = leg != codomain_pos
-        else:
-            move = leg != T.num_legs - 1 - domain_pos
-        if any([isinstance(leg, LegPipe) for leg in T.legs]) and move:
-            with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
-                _ = tensors.move_leg(T, leg, codomain_pos=codomain_pos, domain_pos=domain_pos,
-                                     levels=levels, bend_right=bend_right)
-            pytest.xfail(reason='FTbackend cant deal with pipes yet')
-
     with catch_warnings:
         res = tensors.move_leg(T, leg, codomain_pos=codomain_pos, domain_pos=domain_pos,
                                levels=levels, bend_right=bend_right)
@@ -2275,15 +2190,11 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
     res = tensors.norm(T)
     assert isinstance(res, (float, complex))
 
-    if T.symmetry.can_be_dropped:
-        if isinstance(T.backend, backends.FusionTreeBackend):
-            if any([isinstance(leg, LegPipe) for leg in T.legs]):
-                with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
-                    _ = T.to_numpy(understood_braiding=True)
-                pytest.xfail()
+    if not T.symmetry.can_be_dropped:
+        return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
-        expect = np.linalg.norm(T.to_numpy(understood_braiding=True))
-        npt.assert_almost_equal(res, expect)
+    expect = np.linalg.norm(T.to_numpy(understood_braiding=True))
+    npt.assert_almost_equal(res, expect)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases(
@@ -2492,13 +2403,6 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, bend_righ
     else:
         catch_warnings = nullcontext()
 
-    if isinstance(T.backend, backends.FusionTreeBackend):
-        trivial = codomain == list(range(num_cod)) and domain == list(range(num_cod, num_cod + num_dom))[::-1]
-        if any([isinstance(leg, LegPipe) for leg in T.legs]) and not trivial:
-            with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
-                _ = tensors.permute_legs(T, codomain, domain, levels, bend_right=bend_right)
-            pytest.xfail(reason='FTbackend cant deal with pipes yet')
-
     with catch_warnings:
         res = tensors.permute_legs(T, codomain, domain, levels, bend_right=bend_right)
     res.test_sanity()
@@ -2510,19 +2414,10 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, bend_righ
     assert res.codomain_labels == [T.labels[n] for n in codomain]
     assert res.domain_labels == [T.labels[n] for n in domain]
 
-    if T.symmetry.has_trivial_braid:
-        # if the braid is trivial, we can compare to braiding the to_numpy() representations
-        # for a symmetric braid, we can do to_numpy(), but the numpy rep loses the braiding information
-        # for general braids, we cant even to to_numpy()
-        if isinstance(T.backend, backends.FusionTreeBackend):
-            if any([isinstance(leg, LegPipe) for leg in T.legs]):
-                with pytest.raises(NotImplementedError, match='FusionTreeBackend.split_legs not implemented'):
-                    _ = T.to_numpy()
-                pytest.xfail()
-
+    if T.symmetry.can_be_dropped:
         # makes sense to compare with dense blocks
-        expect = np.transpose(T.to_numpy(), [*codomain, *reversed(domain)])
-        actual = res.to_numpy()
+        expect = np.transpose(T.to_numpy(understood_braiding=True), [*codomain, *reversed(domain)])
+        actual = res.to_numpy(understood_braiding=True)
         npt.assert_allclose(actual, expect, atol=1.e-14)
     else:
         # TODO (JU) is there anything we can do in that case to check?
@@ -3040,7 +2935,7 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
      pytest.param(ChargedTensor, 2, 2, id='Charged-2-2'),
      pytest.param(ChargedTensor, 3, 0, id='Charged-3-0'),
      pytest.param(ChargedTensor, 1, 1, id='Charged-1-1'),
-     pytest.param(ChargedTensor, 0, 3, id='Charged-3-0'),
+    pytest.param(ChargedTensor, 0, 3, id='Charged-3-0'),
      pytest.param(DiagonalTensor, 1, 1, id='Diag'),
      pytest.param(Mask, 1, 1, id='Mask')]
 )
@@ -3048,19 +2943,8 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     labels = list('abcdefghi')[:cod + dom]
     tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
 
-    if isinstance(tensor, ChargedTensor) and tensor.symmetry.braiding_style > BraidingStyle.bosonic:
-        with pytest.raises(SymmetryError, match='not defined'):
-            _ = tensor.T
-        return
-
-    if isinstance(tensor.backend, backends.FusionTreeBackend):
-        if any([isinstance(leg, LegPipe) for leg in tensor.legs]):
-            with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
-                _ = tensor.T
-            pytest.xfail(reason='FTbackend cant deal with pipes yet')
-
     how_to_call = np_random.choice(['transpose()', '.T'])
-    print(how_to_call)
+
     if how_to_call == 'transpose()':
         res = tensors.transpose(tensor)
     if how_to_call == '.T':
@@ -3094,3 +2978,71 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
         tensor_np = tensor.to_numpy(understood_braiding=True)
         expect = np.transpose(tensor_np, [*range(cod, cod + dom), *range(cod)])
         npt.assert_almost_equal(res_np, expect)
+
+    
+    double_transpose = tensors.transpose(res)
+    double_transpose.test_sanity()
+    assert_tensors_almost_equal(double_transpose, tensor)
+
+
+def test_leg_dualities(make_compatible_tensor):
+    """
+    Tests the equivalence of tensor leg transformations involving pipe dualities.
+
+    Checks consistency of duality transformations and bendings applied to the tensors legs
+    such that the leg duality labels for the following diagram commute:
+
+            ┏─────────────────────────────────────────┓
+            ▼                                         ▼
+          A    B               A    B               A    B
+          ^    ^               ^    ^               ^    ^
+        ┏━┷━━━━┷━┓           ┏━┷━━━━┷━┓           ┏━┷━━━━┷━┓
+        ┃ tens_lu┃   ◀────▶  ┃  tens  ┃   ◀────▶  ┃ tens_ru┃
+        ┗━━━━┯━━━┛           ┗━┯━━━━┯━┛           ┗━━━━┯━━━┛
+             ▼                 ^    ^                  ▲
+        (V* ⊗ W*)              W    V               (W ⊗ V)
+             ▲                   ▲                     ▲
+             │                   │                     │
+             ▼                   ▼                     ▼
+          A B (V* ⊗ W*)        A B V W              A B (W ⊗ V)
+          ^ ^  ▲               ^ ^ ^ ^              ^ ^  ▼
+        ┏━┷━┷━━┷━┓           ┏━┷━┷━┷━┷┓           ┏━┷━┷━━┷━┓
+        ┃ tens_ld┃   ◀────▶  ┃ tens_md┃   ◀────▶  ┃ tens_rd┃
+        ┗━━━━━━━━┛           ┗━━━━━━━━┛           ┗━━━━━━━━┛
+            ▲                                         ▲
+            ┗─────────────────────────────────────────┛
+    Parameters:
+    ----------
+    tens : tensors.Tensor
+        The input tensor whose leg dualities are being tested.
+    """
+
+    tens: SymmetricTensor = make_compatible_tensor(2, 2, cls=SymmetricTensor)
+
+    lcd = len(tens.codomain)
+    k = lcd
+    kn = k + 1
+
+    tens_lu = tensors.combine_legs(tens, [k, kn], pipe_dualities=[False])
+    tens_ld = tensors.bend_legs(tens_lu, lcd + 1)
+
+    tens_md = tensors.bend_legs(tens, lcd + 2)
+    tens_ld_p = tensors.combine_legs(tens_md, [k, kn], pipe_dualities=[False])
+
+    assert tensors.almost_equal(tens_ld, tens_ld_p)
+    assert tens_ld.legs.__eq__(tens_ld_p.legs)
+
+    tens_ru = tensors.combine_legs(tens, [k, kn], pipe_dualities=[True])
+    tens_rd = tensors.bend_legs(tens_ru, lcd + 1)
+
+    tens_md = tensors.bend_legs(tens, lcd + 2)
+    tens_rd_p = tensors.combine_legs(tens_md, [k, kn], pipe_dualities=[True])
+
+    assert tensors.almost_equal(tens_rd, tens_rd_p)
+    assert tens_rd.legs.__eq__(tens_rd_p.legs)
+
+    tens_ld.flip_leg_duality([k])
+    assert tens_rd.legs.__eq__(tens_ld.legs)
+
+    tens_lu.flip_leg_duality([k])
+    assert tens_ru.legs.__eq__(tens_lu.legs)

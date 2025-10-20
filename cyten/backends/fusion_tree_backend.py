@@ -107,16 +107,18 @@ if TYPE_CHECKING:
 
 def _tree_block_iter(a: SymmetricTensor):
     sym = a.symmetry
-    domain_are_dual = [sp.is_dual for sp in a.domain.factors]
-    codomain_are_dual = [sp.is_dual for sp in a.codomain.factors]
+    domain_are_dual = [sp.is_dual for sp in a.domain.flat_legs]
+    codomain_are_dual = [sp.is_dual for sp in a.codomain.flat_legs]
     for (bi, _), block in zip(a.data.block_inds, a.data.blocks):
-        coupled = a.codomain.sector_decomposition[bi]
+        coupled = TensorProduct(a.codomain.flat_legs).sector_decomposition[bi]
         i1_forest = 0  # start row index of the current forest block
         i2_forest = 0  # start column index of the current forest block
-        for b_sectors, b_mults in a.domain.iter_uncoupled():
+        for b_sectors, b_mults in TensorProduct(a.domain.flat_legs).iter_uncoupled():
+            # FIXME change iter_uncoupled() instead of making a new TensorProduct?
+            #        -> ``in a.domain.iter_uncoupled()``
             tree_block_width = np.prod(b_mults)
             forest_block_width = 0
-            for a_sectors, a_mults in a.codomain.iter_uncoupled():
+            for a_sectors, a_mults in TensorProduct(a.codomain.flat_legs).iter_uncoupled():
                 tree_block_height = np.prod(a_mults)
                 i1 = i1_forest  # start row index of the current tree block
                 i2 = i2_forest  # start column index of the current tree block
@@ -368,8 +370,9 @@ class FusionTreeBackend(TensorBackend):
         mapping = cls.from_instructions(instructions=instructions, codomain=tensor.codomain,
                                         domain=tensor.domain, block_inds=tensor.data.block_inds)
         data = mapping.transform_tensor(
-            tensor.data, codomain=tensor.codomain, domain=tensor.domain, new_codomain=new_codomain,
-            new_domain=new_domain, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
+            tensor.data, codomain=TensorProduct(tensor.codomain.flat_legs, symmetry=tensor.symmetry), domain=TensorProduct(tensor.domain.flat_legs, symmetry=tensor.symmetry),
+            new_codomain=TensorProduct(new_codomain.flat_legs,symmetry=tensor.symmetry),
+            new_domain=TensorProduct(new_domain.flat_legs, symmetry=tensor.symmetry), codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
             block_backend=self.block_backend
         )
         return data
@@ -400,7 +403,7 @@ class FusionTreeBackend(TensorBackend):
                      new_codomain: TensorProduct,
                      new_domain: TensorProduct,
                      ) -> Data:
-        raise NotImplementedError('FusionTreeBackend.combine_legs not implemented')
+        return FusionTreeData(block_inds=tensor.data.block_inds, blocks= tensor.data.blocks, dtype= tensor.dtype, device=tensor.device)
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         res_dtype = Dtype.common(a.dtype, b.dtype)
@@ -866,8 +869,8 @@ class FusionTreeBackend(TensorBackend):
 
     def from_tree_pairs(self, trees: dict[tuple[FusionTree, FusionTree], Block], codomain: TensorProduct,
                         domain: TensorProduct, dtype: Dtype, device: str) -> Data:
-        J = codomain.num_factors
-        K = domain.num_factors
+        J = len(codomain.flat_legs)
+        K = len(domain.flat_legs)
         block_inds = []
         blocks = []
         pairs_done = set()
@@ -928,10 +931,10 @@ class FusionTreeBackend(TensorBackend):
                'to use to_numpy() first and then access the entries of the tensor.')
         warnings.warn(msg, UserWarning, stacklevel=2)
 
-        num_cod_legs = a.num_codomain_legs
-        num_legs = a.num_legs
+        num_cod_legs = len(a.codomain.flat_legs)
+        num_legs = a.num_flat_legs
         # reverse domain idcs -> work in the non-conventional leg order [i1,...,iJ,j1,...,jK]
-        a_legs = [*a.codomain.factors, *a.domain.factors]
+        a_legs = [*a.codomain.flat_legs, *a.domain.flat_legs]
         idcs = idcs[:num_cod_legs] + idcs[num_cod_legs:][::-1]
         pos = np.array([l.parse_index(idx) for l, idx in zip(a_legs, idcs)])
         sector_idcs = pos[:, 0]
@@ -1651,20 +1654,57 @@ class FusionTreeBackend(TensorBackend):
                      new_codomain: TensorProduct, new_domain: TensorProduct,
                      mixes_codomain_domain: bool, levels: list[int | None],
                      bend_right: list[bool | None]) -> FusionTreeData:
+        num_codomain_flat_legs = a.num_codomain_flat_legs
+        num_domain_flat_legs = a.num_domain_flat_legs
+
+        flat_levels = []
+        flat_bend_right = []
+        codomain_pipe_inds = []
+        domain_pipe_inds = []
+
+        flat_index = 0
+        for i, leg in enumerate(a.legs):
+            is_codomain = i < a.num_codomain_legs
+            if isinstance(leg, LegPipe):
+                num = _count_flat_legs(leg)
+                indices = list(range(flat_index, flat_index + num))
+                if is_codomain:
+                    codomain_pipe_inds.append(indices)
+                else:
+                    domain_pipe_inds.append(indices)
+                flat_index += num
+                flat_levels.extend([levels[i]] * num)
+                flat_bend_right.extend([bend_right[i]] * num)
+            else:
+                if is_codomain:
+                    codomain_pipe_inds.append([flat_index])
+                else:
+                    domain_pipe_inds.append([flat_index])
+                flat_index += 1
+                flat_levels.append(levels[i])
+                flat_bend_right.append(bend_right[i])
+
+        # mapping to flat indices for TreeMappingDict.from_permute_legs
+        leg_comb = codomain_pipe_inds + domain_pipe_inds
+
+        new_domain_idcs= [k for ks in [leg_comb[i][::-1] for i in domain_idcs] for k in ks]
+        new_codomain_idcs = [k for ks in [leg_comb[i] for i in codomain_idcs] for k in ks]
+
         h = PermuteLegsInstructionEngine(
-            num_codomain_legs=a.num_codomain_legs, num_domain_legs=a.num_domain_legs,
-            codomain_idcs=codomain_idcs, domain_idcs=domain_idcs, levels=levels,
-            bend_right=bend_right,
+            num_codomain_legs=num_codomain_flat_legs, num_domain_legs=num_domain_flat_legs,
+            codomain_idcs=new_codomain_idcs, domain_idcs=new_domain_idcs, levels=flat_levels,
+            bend_right=flat_bend_right,
             has_symmetric_braid=a.symmetry.has_symmetric_braid
         )
         instructions = h.evaluate_instructions()
-        h.verify(a.num_codomain_legs, a.num_domain_legs, codomain_idcs, domain_idcs)  # OPTIMIZE rm check?
+
+        h.verify(len(a.codomain.flat_legs), len(a.domain.flat_legs), new_codomain_idcs, new_domain_idcs)  # OPTIMIZE rm check?
 
         return self.apply_instructions(
-            a, instructions, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
-            new_codomain=new_codomain, new_domain=new_domain,
-            mixes_codomain_domain=mixes_codomain_domain
-        )
+                a, instructions, codomain_idcs=new_codomain_idcs, domain_idcs=new_domain_idcs,
+                new_codomain=new_codomain, new_domain=new_domain,
+                mixes_codomain_domain=mixes_codomain_domain
+            )
 
     def qr(self, a: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
         a_blocks = a.data.blocks
@@ -1732,7 +1772,7 @@ class FusionTreeBackend(TensorBackend):
         a_block_inds = a.data.block_inds
         b_block_inds = b.data.block_inds
 
-        if (in_domain and a.domain.num_factors == 1) or (not in_domain and a.codomain.num_factors == 1):
+        if (in_domain and len(a.domain.flat_legs) == 1) or (not in_domain and len(a.codomain.flat_legs) == 1):
             # special case where it is essentially compose.
             blocks = []
             block_inds = []
@@ -1798,7 +1838,7 @@ class FusionTreeBackend(TensorBackend):
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
                    domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
                    ) -> Data:
-        raise NotImplementedError('FusionTreeBackend.split_legs not implemented')
+        return FusionTreeData(block_inds=a.data.block_inds, blocks=a.data.blocks, dtype=a.dtype, device=a.device)
 
     def squeeze_legs(self, a: SymmetricTensor, idcs: list[int]) -> Data:
         return a.data
@@ -2668,7 +2708,7 @@ class TensorMapping(metaclass=ABCMeta):
     def from_instructions(cls, instructions: Iterable[Instruction], codomain: TensorProduct,
                           domain: TensorProduct, block_inds: np.ndarray | None = None
                           ) -> TensorMapping:
-        res = cls.from_identity(codomain=codomain, domain=domain, block_inds=block_inds)
+        res = cls.from_identity(codomain=TensorProduct(codomain.flat_legs, symmetry=codomain.symmetry), domain=TensorProduct(domain.flat_legs, symmetry=domain.symmetry), block_inds=block_inds)
         is_real = not codomain.symmetry.has_complex_topological_data
         for i in instructions:
             res = res.pre_compose_instruction(i, is_real=is_real)
@@ -2889,8 +2929,8 @@ class TreePairMapping(TensorMapping):
                          block_backend: BlockBackend,
                          ) -> FusionTreeData:
         # f(T)_{Jm} = sum_I f_{JI} T_{Im} = sum_I mapping[I][J] T_{Im}
-        J = codomain.num_factors
-        K = domain.num_factors
+        J = len(codomain.flat_legs)
+        K = len(domain.flat_legs)
         N = J + K
         tree_block_axes_1 = [i if i < J else (N - 1) + (J - i) for i in codomain_idcs]
         tree_block_axes_2 = [i if i < J else (N - 1) + (J - i) for i in domain_idcs]
@@ -3211,3 +3251,23 @@ def _partial_trace_helper(tree: FusionTree, idcs: list[int]) -> tuple[bool, floa
         if tree.are_dual[idx]:
             b_symbols *= sym.frobenius_schur(tree.uncoupled[idx])
     return True, b_symbols
+
+
+def _count_flat_legs(leg) -> int:
+    """Helper for :meth:`FusionTreeBackend.permute_legs`.
+
+        Parameters
+        ----------
+        leg : Leg of a Tensor
+
+        Returns
+        -------
+        total : int
+            The total number of flat legs in the (possibly nested) pipe. Returns 1 of the input leg is flat.
+        """
+    if not isinstance(leg, LegPipe):
+        return 1
+    total = 0
+    for c in leg.legs:
+        total += _count_flat_legs(c)
+    return total
