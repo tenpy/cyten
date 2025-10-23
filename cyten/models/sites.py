@@ -365,6 +365,10 @@ class SpinlessFermionSite(FermionicDOF):
         for name, op in ops.items():
             self.add_onsite_operator(name, op, understood_braiding=True)
 
+    def __repr__(self):
+        return (f'SpinlessFermionSite(num_species={self.num_species}, '
+                f'conserve={self.conserve}, filling={self.filling})')
+
 
 class SpinHalfFermionSite(SpinDOF, FermionicDOF):
     """Site for spin-1/2 fermions.
@@ -488,6 +492,10 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         for name, op in ops.items():
             self.add_onsite_operator(name, op, understood_braiding=True)
 
+    def __repr__(self):
+        return (f'SpinHalfFermionSite(conserve_N={self.conserve_N}, '
+                f'conserve_S={self.conserve_S}, filling={self.filling})')
+
 
 class ClockSite(ClockDOF):
     """Class for sites that have a single quantum clock degree of freedom.
@@ -582,6 +590,10 @@ class GeneralAnyonSite(RepresentationDOF):
             self, leg=leg, sector_names=sector_names, backend=backend, default_device=default_device
         )
 
+    def __repr__(self):
+        return (f'GeneralAnyonSite(symmetry={self.symmetry}, sectors={self.leg.sector_decomposition}, '
+                f'multiplicities={self.leg.multiplicities}, sector_names={self.sector_names})')
+
 
 class AnyonSite(GeneralAnyonSite):
     """Class for anyon models where the local Hilbert space contains all sectors once.
@@ -608,6 +620,9 @@ class AnyonSite(GeneralAnyonSite):
             backend=backend, default_device=default_device
         )
 
+    def __repr__(self):
+        return f'AnyonSite(symmetry={self.symmetry}, sector_names={self.sector_names})'
+
 
 class FibonacciAnyonSite(AnyonSite):
     """Class for sites containing the trivial and the Fibonacci / tau sectors.
@@ -627,6 +642,9 @@ class FibonacciAnyonSite(AnyonSite):
         AnyonSite.__init__(self, sym, sector_names=['vac', 'tau'],
                            backend=backend, default_device=default_device)
 
+    def __repr__(self):
+        return f'FibonacciAnyonSite(handedness={self.symmetry.handedness})'
+
 
 class IsingAnyonSite(AnyonSite):
     """Class for sites containing the trivial, the Ising / sigma, and the fermion / psi sectors.
@@ -645,6 +663,9 @@ class IsingAnyonSite(AnyonSite):
         AnyonSite.__init__(self, sym, sector_names=['vac', 'sigma', 'psi'],
                            backend=backend, default_device=default_device)
 
+    def __repr__(self):
+        return f'IsingAnyonSite(nu={self.symmetry.nu})'
+
 
 class GoldenSite(GeneralAnyonSite):
     """Class for Fibonacci anyon models where the local Hilbert space only contains the tau sector.
@@ -662,6 +683,9 @@ class GoldenSite(GeneralAnyonSite):
         GeneralAnyonSite.__init__(
             self, symmetry=sym, sectors=[[1]], backend=backend, default_device=default_device
         )
+
+    def __repr__(self):
+        return f'GoldenSite(handedness={self.symmetry.handedness})'
 
 
 class SU2kSpin1Site(GeneralAnyonSite):
@@ -684,9 +708,12 @@ class SU2kSpin1Site(GeneralAnyonSite):
             self, symmetry=sym, sectors=[[2]], backend=backend, default_device=default_device
         )
 
+    def __repr__(self):
+        return f'SU2kSpin1Site(k={self.symmetry.k}, handedness={self.symmetry.handedness})'
+
 
 # TODO more sites:
-#  - SpinHalfFermionSite (or if its easy just do general spin?)
+#  - fermions with general spin?
 #  - SpinHalfHoleSite (i dont think this should inherit from FermionicSite, but not sure)
 #  - bosons with spin?
 #  - more anyon sites? are the class names ok?
