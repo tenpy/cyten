@@ -13,7 +13,7 @@ from math import comb
 from ..backends import TensorBackend, get_backend
 from ..backends.abstract_backend import Block
 from ..spaces import ElementarySpace
-from ..tensors import SymmetricTensor
+from ..tensors import DiagonalTensor, SymmetricTensor
 from ..symmetries import (
     FermionNumber, FermionParity, U1Symmetry, ZNSymmetry, SU2Symmetry, Sector, Symmetry,
     NoSymmetry, ProductSymmetry, BraidingStyle
@@ -97,22 +97,29 @@ class DegreeOfFreedom:
         return self.leg.dim
 
     def add_onsite_operator(self, name: str, op: SymmetricTensor | Block | Sequence[Sequence[float]],
-                            understood_braiding: bool = False):
+                            is_diagonal: bool = False, understood_braiding: bool = False):
         """Add an operator to the :attr:`onsite_operators`."""
         if name in self.onsite_operators:
             return  # TODO warn? error?
         #
         if isinstance(op, SymmetricTensor):
+            assert isinstance(op, DiagonalTensor) == is_diagonal
             assert op.codomain.factors == [self.leg]
             assert op.domain.factors == [self.leg]
             if op.labels != ['p', 'p*']:
                 op = op.copy(deep=False)
                 op.labels = ['p', 'p*']
         else:
-            op = SymmetricTensor.from_dense_block(
-                block=op, codomain=[self.leg], domain=[self.leg], backend=self.backend,
-                labels=['p', 'p*'], device=self.default_device, understood_braiding=understood_braiding
-            )
+            if is_diagonal:
+                op = DiagonalTensor.from_dense_block(
+                    block=op, leg=self.leg, backend=self.backend, labels=['p', 'p*'],
+                    device=self.default_device, understood_braiding=understood_braiding
+                )
+            else:
+                op = SymmetricTensor.from_dense_block(
+                    block=op, codomain=[self.leg], domain=[self.leg], backend=self.backend,
+                    labels=['p', 'p*'], device=self.default_device, understood_braiding=understood_braiding
+                )
         self.onsite_operators[name] = op
 
     def state_index(self, label: str | int) -> int:
@@ -286,7 +293,7 @@ class BosonicDOF(DegreeOfFreedom):
                 BdjBdi = self.creators[:, :, j] @ self.creators[:, :, i]
                 assert np.allclose(BdiBdj, BdjBdi)
 
-    def add_individual_occupation_ops(self):
+    def add_individual_occupation_ops(self, are_diagonal: bool = True):
         """Add occupation and parity operators for each species as symmetric onsite operators.
         
         The added operators include::
@@ -296,29 +303,41 @@ class BosonicDOF(DegreeOfFreedom):
                 / `P` for a single species
             - squared occupation operators for each boson species `NiNi` for species `i`
                 / `NN` for a single species
+
+        Parameters
+        ----------
+        are_diagonal : bool
+            Whether or not the constructed operators are diagonal, such that they can be
+            represented as :class:`DiagonalTensor`.
         """
         for i in range(self.num_species):
             op_names = ['N', 'NN', 'P'] if self.num_species == 1 else [f'N{i}', f'N{i}N{i}', f'P{i}']
             N_i = self.creators[:, :, i] @ self.annihilators[:, :, i]
-            self.add_onsite_operator(op_names[0], N_i)
+            self.add_onsite_operator(op_names[0], N_i, is_diagonal=are_diagonal)
             N_iN_i = np.diag(np.diag(N_i) ** 2)
-            self.add_onsite_operator(op_names[1], N_iN_i)
+            self.add_onsite_operator(op_names[1], N_iN_i, is_diagonal=are_diagonal)
             P_i = np.diag(1. - 2. * np.mod(np.diag(N_i), 2))
-            self.add_onsite_operator(op_names[2], P_i)
+            self.add_onsite_operator(op_names[2], P_i, is_diagonal=are_diagonal)
 
-    def add_total_occupation_ops(self):
+    def add_total_occupation_ops(self, are_diagonal: bool = True):
         """Add total occupation and parity operators as symmetric onsite operators.
         
         The added operators include:
         - total occupation operator `Ntot`
         - total parity operator `Ptot`
         - squared total occupation operator `NtotNtot`
+
+        Parameters
+        ----------
+        are_diagonal : bool
+            Whether or not the constructed operators are diagonal, such that they can be
+            represented as :class:`DiagonalTensor`.
         """
         N_tot = np.tensordot(self.creators, self.annihilators, axes=[[1, 2], [0, 2]])
-        self.add_onsite_operator('Ntot', N_tot)
-        self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2))
+        self.add_onsite_operator('Ntot', N_tot, is_diagonal=are_diagonal)
+        self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2), is_diagonal=are_diagonal)
         P_tot = np.diag(1. - 2. * np.mod(np.diag(N_tot), 2))
-        self.add_onsite_operator('Ptot', P_tot)
+        self.add_onsite_operator('Ptot', P_tot, is_diagonal=are_diagonal)
 
     @staticmethod
     def conservation_law_to_symmetry(conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']]
@@ -491,31 +510,44 @@ class FermionicDOF(DegreeOfFreedom):
                 CdjCdi = self.creators[:, :, j] @ self.creators[:, :, i]
                 assert np.allclose(CdiCdj, CdjCdi)
     
-    def add_individual_occupation_ops(self):
+    def add_individual_occupation_ops(self, are_diagonal: bool = True):
         """Add occupation operators for each species as symmetric onsite operators.
         
         The added operators include::
             - occupation operators for each fermion species `Ni` for species `i`
                 / `N` for a single species
+
+        Parameters
+        ----------
+        are_diagonal : bool
+            Whether or not the constructed operators are diagonal, such that they can be
+            represented as :class:`DiagonalTensor`.
         """
         for i in range(self.num_species):
             op_name = 'N' if self.num_species == 1 else f'N{i}'
             N_i = self.creators[:, :, i] @ self.annihilators[:, :, i]
-            self.add_onsite_operator(op_name, N_i, understood_braiding=True)
+            self.add_onsite_operator(op_name, N_i, are_diagonal, understood_braiding=True)
 
-    def add_total_occupation_ops(self):
+    def add_total_occupation_ops(self, are_diagonal: bool = True):
         """Add total occupation and parity operators as symmetric onsite operators.
         
         The added operators include:
         - total occupation operator `Ntot`
         - total parity operator `Ptot`
         - squared total occupation operator `NtotNtot`
+
+        Parameters
+        ----------
+        are_diagonal : bool
+            Whether or not the constructed operators are diagonal, such that they can be
+            represented as :class:`DiagonalTensor`.
         """
         N_tot = np.tensordot(self.creators, self.annihilators, axes=[[1, 2], [0, 2]])
-        self.add_onsite_operator('Ntot', N_tot, understood_braiding=True)
-        self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2), understood_braiding=True)
+        self.add_onsite_operator('Ntot', N_tot, are_diagonal, understood_braiding=True)
+        self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2),
+                                 are_diagonal, understood_braiding=True)
         P_tot = np.diag(1. - 2. * np.mod(np.diag(N_tot), 2))
-        self.add_onsite_operator('Ptot', P_tot, understood_braiding=True)
+        self.add_onsite_operator('Ptot', P_tot, are_diagonal, understood_braiding=True)
 
     @staticmethod
     def conservation_law_to_symmetry(conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']]
@@ -596,9 +628,9 @@ class ClockDOF(DegreeOfFreedom):
         # TODO this should work for any symmetry
         Z = clock_operators[:, :, 1]
         Zhc = np.conj(clock_operators[:, :, 1].T)
-        self.add_onsite_operator('Z', Z)
-        self.add_onsite_operator('Zhc', Zhc)
-        self.add_onsite_operator('Zphc', Z + Zhc)
+        self.add_onsite_operator('Z', Z, is_diagonal=True)
+        self.add_onsite_operator('Zhc', Zhc, is_diagonal=True)
+        self.add_onsite_operator('Zphc', Z + Zhc, is_diagonal=True)
 
     def test_sanity(self):
         super().test_sanity()

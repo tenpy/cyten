@@ -82,7 +82,7 @@ class SpinSite(SpinDOF):
         )
 
         if not isinstance(sym, SU2Symmetry):
-            self.add_onsite_operator('Sz', spin_vector[:, :, 2])
+            self.add_onsite_operator('Sz', spin_vector[:, :, 2], is_diagonal=True)
         if isinstance(sym, NoSymmetry):
             self.add_onsite_operator('Sx', spin_vector[:, :, 0])
             self.add_onsite_operator('Sy', spin_vector[:, :, 1])
@@ -219,11 +219,13 @@ class SpinlessBosonSite(BosonicDOF):
 
         BosonicDOF.__init__(
             self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
-            onsite_operators=ops, backend=backend, default_device=default_device
+            onsite_operators=None, backend=backend, default_device=default_device
         )
-        self.add_individual_occupation_ops()
+        self.add_individual_occupation_ops(are_diagonal=True)
         if num_species > 1:
-            self.add_total_occupation_ops()
+            self.add_total_occupation_ops(are_diagonal=True)
+        for name, op in ops.items():
+            self.add_onsite_operator(name, op, is_diagonal=True)
 
     def __repr__(self):
         return f'SpinlessBosonSite(Nmax={self.Nmax}, conserve={self.conserve}, filling={self.filling})'
@@ -349,9 +351,9 @@ class SpinlessFermionSite(FermionicDOF):
             self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
             onsite_operators=None, backend=backend, default_device=default_device
         )
-        self.add_individual_occupation_ops()
+        self.add_individual_occupation_ops(are_diagonal=True)
         if num_species > 1:
-            self.add_total_occupation_ops()
+            self.add_total_occupation_ops(are_diagonal=True)
 
         # construct operators relative to filling
         ops = {}
@@ -363,7 +365,7 @@ class SpinlessFermionSite(FermionicDOF):
             ops['dN'] = dN
             ops['dNdN'] = dNdN
         for name, op in ops.items():
-            self.add_onsite_operator(name, op, understood_braiding=True)
+            self.add_onsite_operator(name, op, is_diagonal=True, understood_braiding=True)
 
     def __repr__(self):
         return (f'SpinlessFermionSite(num_species={self.num_species}, '
@@ -475,10 +477,10 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         )
 
         if not isinstance(sym_S, SU2Symmetry):
-            self.add_individual_occupation_ops()
+            self.add_individual_occupation_ops(are_diagonal=True)
             self.onsite_operators.update({'Nup': self.onsite_operators.pop('N0')})
             self.onsite_operators.update({'Ndown': self.onsite_operators.pop('N1')})
-        self.add_total_occupation_ops()
+        self.add_total_occupation_ops(are_diagonal=True)
 
         # construct operators relative to filling
         ops = {}
@@ -490,7 +492,7 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
             ops['dN'] = dN
             ops['dNdN'] = dNdN
         for name, op in ops.items():
-            self.add_onsite_operator(name, op, understood_braiding=True)
+            self.add_onsite_operator(name, op, is_diagonal=True, understood_braiding=True)
 
     def __repr__(self):
         return (f'SpinHalfFermionSite(conserve_N={self.conserve_N}, '
