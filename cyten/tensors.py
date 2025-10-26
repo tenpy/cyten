@@ -4850,9 +4850,9 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
         duplicates = duplicate_entries(specified_legs)
         missing = [n for n in range(tensor.num_legs) if n not in specified_legs]
         if duplicates:
-            raise ValueError(f'Duplicate entries. By leg index: {", ".join(duplicates)}')
+            raise ValueError(f'Duplicate entries. By leg index: {", ".join(map(str, duplicates))}')
         if missing:
-            raise ValueError(f'Missing legs. By leg index: {", ".join(missing)}')
+            raise ValueError(f'Missing legs. By leg index: {", ".join(map(str, missing))}')
     # Special case: if no legs move
     if codomain == list(range(tensor.num_codomain_legs)) \
             and domain == list(reversed(range(tensor.num_codomain_legs, tensor.num_legs))):
