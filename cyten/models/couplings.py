@@ -23,9 +23,9 @@ from .sites import GoldenSite
 
 
 class Coupling:
-    """A coupling is a (usually hermitian) operator on a few :class:`Site` s.
+    """A coupling is an operator on a few :class:`Site` s, factorized as one tensor per site.
 
-    TODO elaborate, use case, examples, maybe look at the docs in tenpy v1 of terms or add_coupling
+    The intended use case is to build tensor network representations (e.g. MPOs) of Hamiltonians.
 
     Attributes
     ----------
@@ -36,10 +36,6 @@ class Coupling:
         Each tensor ``factorization[i]`` has legs ``[wL, pi, wR, pi*]``, where ``pi`` and ``pi*``
         are the physical :attr:`Site.leg` of the corresponding ``sites[i]``, and where contracting
         the ``wL`` and ``wR`` legs in an MPO-like geometry gives the multi-site operator.
-        TODO should we rename vL/vR to wL/wR to match tenpy MPO convention?
-        TODO do we want to keep the convention ``[wL, p, wR, p*]`` or maybe change it to
-             ``[wL, pi, wR, pi*]``? Then it would be consistent with the labels of the input
-             tensors in `from_tensor`.
     name : str, optional
         A descriptive name that can be used when pretty-printing, to identify the coupling.
         For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
