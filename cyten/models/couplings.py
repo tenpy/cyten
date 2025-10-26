@@ -15,9 +15,7 @@ from ..tensors import (
     SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, svd, scale_axis, compose,
     outer
 )
-from .degrees_of_freedom import (
-    DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, get_same_DOF_device
-)
+from .degrees_of_freedom import DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF
 from .sites import GoldenSite
 
 
@@ -50,12 +48,10 @@ class Coupling:
 
     def test_sanity(self):
         backend = get_same_backend(*self.sites)
-        device = get_same_DOF_device(*self.sites)
         for i, (s, W) in enumerate(zip(self.sites, self.factorization)):
             s.test_sanity()
             W.test_sanity()
             assert W.backend == backend
-            assert W.device == device
             assert W.num_codomain_legs == 2
             assert W.num_domain_legs == 2
             assert W.labels == ['wL', f'p{i}', 'wR', f'p{i}*']
@@ -84,19 +80,13 @@ class Coupling:
             The sites that the operators act on.
         name : str, optional
             A descriptive name that can be used when pretty-printing, to identify the coupling.
-        backend : :class:`TensorBackend`, optional
-            If given, the backend of the tensors in the factorization. Per default, the default
-            backend compatible with the symmetry.
-        device : str, optional
-            If given, the block is moved to that device. Per default, try to use the device of
-            the `operator`, if it is a backend-specific block, or fall back to the backends default
-            device.
         dtype : :class:`Dtype`, optional
             If given, the block is converted to that dtype and the resulting tensors in the
             factorization will have that dtype. By default, we detect the dtype from the block.
         """
         backend = get_same_backend(*sites)
-        device = get_same_DOF_device(*sites)
+        device = sites[0].default_device
+        assert all(s.default_device == device for s in sites[1:])
         co_domain = [s.leg for s in sites]
         p_labels = [f'p{i}' for i in range(len(sites))]
         labels = [*p_labels, *[f'{pi}*' for pi in p_labels][::-1]]
@@ -133,7 +123,6 @@ class Coupling:
             For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
         """
         assert operator.backend == get_same_backend(*sites)
-        assert operator.device == get_same_DOF_device(*sites)
         assert operator.codomain.factors == [site.leg for site in sites]
         assert operator.domain.factors == operator.codomain.factors
 
@@ -713,7 +702,8 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
 def multi_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
     """Coupling between multiple sites that corresponds to a projector onto a common sector."""
     backend = get_same_backend(*sites)
-    device = get_same_DOF_device(*sites)
+    device = sites[0].default_device
+    assert all(s.default_device == device for s in sites[1:])
     labels = [f'p{i}' for i in range(len(sites))]
     labels = [*labels, *[f'{l}*' for l in reversed(labels)]]
     projector = SymmetricTensor.from_sector_projection(
