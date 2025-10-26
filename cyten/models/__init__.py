@@ -1,10 +1,8 @@
 """Sites and couplings that can be used to define lattice models."""
 # Copyright (C) TeNPy Developers, Apache license
 
-# TODO update this!
 from .degrees_of_freedom import (
-    DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, RepresentationDOF,
-    consistent_leg_symmetry, sector_proj_onsite
+    DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, RepresentationDOF
 )
 from .sites import (
     SpinSite, SpinlessBosonSite, SpinlessFermionSite, SpinHalfFermionSite, ClockSite,
