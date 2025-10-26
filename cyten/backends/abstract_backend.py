@@ -6,7 +6,7 @@ Also contains some private utility function used by multiple backend modules.
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 from abc import ABCMeta, abstractmethod
-from typing import TypeVar, TYPE_CHECKING, Callable, Generator, Sequence
+from typing import TypeVar, TYPE_CHECKING, Callable, Generator, Sequence, Protocol
 from math import prod
 import numpy as np
 
@@ -1636,3 +1636,17 @@ def conventional_leg_order(tensor_or_codomain: SymmetricTensor | TensorProduct,
         codomain = tensor_or_codomain
     yield from codomain.factors
     yield from reversed(domain.factors)
+
+
+class HasBackend(Protocol):  # noqa D101
+    backend: TensorBackend
+
+
+def get_same_backend(*objs: HasBackend, error_msg: str = 'Incompatible backends.') -> TensorBackend:
+    """If the given object have the same backend, return it. Raise otherwise."""
+    if len(objs) == 0:
+        raise ValueError('Need at least one tensor')
+    backend = objs[0].backend
+    if not all(o.backend == backend for o in objs[1:]):
+        raise ValueError(error_msg)
+    return backend

@@ -10,14 +10,13 @@ import numpy as np
 
 from ..symmetries import FibonacciAnyonCategory, Sector
 from ..dtypes import Dtype
-from ..backends.abstract_backend import Block
+from ..backends.abstract_backend import Block, get_same_backend
 from ..tensors import (
     SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, svd, scale_axis, compose,
     outer
 )
 from .degrees_of_freedom import (
-    DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, get_same_DOF_backend,
-    get_same_DOF_device
+    DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, get_same_DOF_device
 )
 from .sites import GoldenSite
 
@@ -50,7 +49,7 @@ class Coupling:
         self.test_sanity()  # OPTIMIZE
 
     def test_sanity(self):
-        backend = get_same_DOF_backend(*self.sites)
+        backend = get_same_backend(*self.sites)
         device = get_same_DOF_device(*self.sites)
         for i, (s, W) in enumerate(zip(self.sites, self.factorization)):
             s.test_sanity()
@@ -96,7 +95,7 @@ class Coupling:
             If given, the block is converted to that dtype and the resulting tensors in the
             factorization will have that dtype. By default, we detect the dtype from the block.
         """
-        backend = get_same_DOF_backend(*sites)
+        backend = get_same_backend(*sites)
         device = get_same_DOF_device(*sites)
         co_domain = [s.leg for s in sites]
         p_labels = [f'p{i}' for i in range(len(sites))]
@@ -133,7 +132,7 @@ class Coupling:
             A descriptive name that can be used when pretty-printing, to identify the coupling.
             For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
         """
-        assert operator.backend == get_same_DOF_backend(*sites)
+        assert operator.backend == get_same_backend(*sites)
         assert operator.device == get_same_DOF_device(*sites)
         assert operator.codomain.factors == [site.leg for site in sites]
         assert operator.domain.factors == operator.codomain.factors
@@ -713,7 +712,7 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
 
 def multi_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
     """Coupling between multiple sites that corresponds to a projector onto a common sector."""
-    backend = get_same_DOF_backend(*sites)
+    backend = get_same_backend(*sites)
     device = get_same_DOF_device(*sites)
     labels = [f'p{i}' for i in range(len(sites))]
     labels = [*labels, *[f'{l}*' for l in reversed(labels)]]

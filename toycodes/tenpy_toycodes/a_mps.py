@@ -36,7 +36,7 @@ class SimpleMPS:
         self.Ss = Ss
         self.bc = bc
         self.L = len(Bs)
-        self.backend = ct.tensors.get_same_backend(*Bs, *Ss)
+        self.backend = ct.backends.get_same_backend(*Bs, *Ss)
         self.nbonds = self.L - 1 if self.bc == 'finite' else self.L
 
     def copy(self):

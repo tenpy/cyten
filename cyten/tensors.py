@@ -82,7 +82,9 @@ from .symmetries import SymmetryError, Symmetry, BraidingStyle
 from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
 from .trees import FusionTree
 from .backends.backend_factory import get_backend
-from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order
+from .backends.abstract_backend import (
+    Block, TensorBackend, conventional_leg_order, get_same_backend
+)
 from .dtypes import Dtype
 from .tools.misc import (
     to_iterable, rank_data, inverse_permutation, duplicate_entries, iter_common_sorted_arrays,
@@ -4261,16 +4263,6 @@ def exp(obj: Tensor | complex | float) -> Tensor | complex | float:
     if isinstance(obj, Tensor):
         raise NotImplementedError  # should have considered all tensor types above
     return math_exp(obj)
-
-
-def get_same_backend(*tensors: Tensor, error_msg: str = 'Incompatible backends.') -> TensorBackend:
-    """If the given tensors have the same backend, return it. Raise otherwise."""
-    if len(tensors) == 0:
-        raise ValueError('Need at least one tensor')
-    backend = tensors[0].backend
-    if not all(tens.backend == backend for tens in tensors[1:]):
-        raise ValueError(error_msg)
-    return backend
 
 
 def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') -> str:
