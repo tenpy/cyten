@@ -74,13 +74,13 @@ class Coupling:
 
         Parameters
         ----------
-        block : Block
+        operator : Block
             The data to be converted to a Coupling as a backend-specific block or some data that
             can be converted using :meth:`BlockBackend.as_block`. The order of axes must match the
             `sites`, that is, the axes correspond to ``[p0, p1, ..., p1*, p0*]`` (codomain legs
             ascending, domain legs descending), where ``pi`` corresponds to site ``sites[i]``.
             The block should be given in the "public" basis order of the sites, i.e.,
-            according to `sites[i].sectors_of_basis`.
+            according to ``sites[i].sectors_of_basis``.
         sites : list of :class:`Site`
             The sites that the operators act on.
         name : str, optional
@@ -90,7 +90,7 @@ class Coupling:
             backend compatible with the symmetry.
         device : str, optional
             If given, the block is moved to that device. Per default, try to use the device of
-            the `block`, if it is a backend-specific block, or fall back to the backends default
+            the `operator`, if it is a backend-specific block, or fall back to the backends default
             device.
         dtype : :class:`Dtype`, optional
             If given, the block is converted to that dtype and the resulting tensors in the
@@ -118,8 +118,8 @@ class Coupling:
             For symmetries with non-symmetric braids, the decomposition depends on the levels of
             the legs that determine whether over-braids or under-braids occur when exchanging legs.
             The convention here is to assign higher levels to legs "further to the right", i.e.,
-            the legs corresponding to the labels `p2` and `p2*` have higher levels than `p1` and
-            `p1*`, and lower levels than `p3` and `p3*`.
+            the legs corresponding to the labels ``p2`` and ``p2*`` have higher levels than ``p1``
+            and ``p1*``, and lower levels than ``p3`` and ``p3*``.
 
         Parameters
         ----------
@@ -209,19 +209,15 @@ class OnSiteOperator(Coupling):
     ----------
     operator : :class:`SymmetricTensor`
         Tensor representing the on-site operator with legs ``[p, p*]``, where ``p`` and ``p*`` are
-        the physical space :attr:`sites[0].leg`.
+        the physical space ``self.sites[0].leg``.
     sites : list of :class:`Site`
-        Contains the single site that `operator` acts on.
+        Contains the single site that :attr:`operator` acts on.
     factorization : list of :class:`SymmetricTensor`
-        Contains a single tensor corresponding to `operator` with added trivial legs for `wL` and
-        `wR`.
+        Contains a single tensor corresponding to :attr:`operator` with added trivial legs for
+        ``wL`` and ``wR``.
     name : str, optional
         A descriptive name that can be used when pretty-printing, to identify the coupling.
         For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
-
-    See Also
-    --------
-    :class:`Coupling`
     """
 
     def __init__(self, site: DegreeOfFreedom, operator: SymmetricTensor, name: str = None):
