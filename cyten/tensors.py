@@ -4275,6 +4275,100 @@ def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') 
     return device
 
 
+def horizontal_factorization(tensor: Tensor, codomain_cut: int, domain_cut: int,
+                             new_labels: str | Sequence[str] = None,
+                             cutoff_singular_values: float = None) -> tuple[Tensor, Tensor]:
+    """Factorize a tensor into left and right parts.
+
+    Graphically, here with ``codomain_cut=3, domain_cut=1``::
+
+        |    │   │   │   │           │   │   │         │           │   │   │    ╭────╮   │
+        |   ┏┷━━━┷━━━┷━━━┷┓         ┏┷━━━┷━━━┷┓   ┏━━━━┷┓         ┏┷━━━┷━━━┷┓   │   ┏┷━━━┷┓
+        |   ┃   tensor    ┃    =    ┃    A    ┠───┨  B  ┃   :=    ┃    A    ┃   │   ┃  B  ┃
+        |   ┗━━┯━━━┯━━━┯━━┛         ┗━━┯━━━━━━┛   ┗┯━━━┯┛         ┗━━┯━━━┯━━┛   │   ┗┯━━━┯┛
+        |      │   │   │               │           │   │             │   ╰──────╯    │   │
+
+    Parameters
+    ----------
+    tensor: Tensor
+        The tensor to factorize
+    codomain_cut: int
+        The first `codomain_cut` legs from the codomain end up in the codomain of `A`, the rest
+        of the codomain ends up in the codomain of `B`.
+    domain_cut: int
+        The first `domain_cut` legs from the domain end up in the domain of `A`, the rest
+        of the domain ends up in the domain of `B`.
+    new_labels: (list of) str
+        The labels for the new legs.
+        Two entries ``[a, b]`` result in ``A.labels[-1 - domain_cut] == a`` and ``B.labels[0] == b``
+        and a single entry ``a`` is equivalent to ``[a, a*]``.
+    cutoff_singular_values: float, optional
+        If ``None`` (default), we factorize using :func:`qr` without truncation. If given, we use a
+        truncated SVD and truncate by discarding singular values below this threshold.
+
+    Returns
+    -------
+    A, B: Tensor
+        A factorization of the `tensor`, such that ``tdot(A, B, -1 - domain_cut, 1)`` reproduces
+        the `tensor`, up to bending and possibly up to truncation if `cutoff_singular_values` is
+        given.
+
+    Notes
+    -----
+    This is achieved by bending legs such that we can do the factorization as a QR or SVD,
+    then bend back, that is for the example case depicted above::
+
+        |                                             ╭──╮   │   │   │  │       │   │   │ │
+        |             ╭──╮  │   │   │         │       │ ┏┷━━━┷━━━┷━━━┷┓ │      ┏┷━━━┷━━━┷┓│
+        |             │  │  │   │   │   ╭──╮  │       │ ┃      A'     ┃ │      ┃    A    ┃│
+        |             │  │ ┏┷━━━┷━━━┷━━━┷┓ │  │       │ ┗━━━━━━┯━━━━━━┛ │      ┗━━┯━━━┯━━┛│
+        |   LHS   =   │  │ ┃   tensor    ┃ │  │   =   │        │        │   =     │   │   │   =  RHS
+        |             │  │ ┗━━┯━━━┯━━━┯━━┛ │  │       │ ┏━━━━━━┷━━━━━━┓ │         │  ┏┷━━━┷┓
+        |             │  ╰────╯   │   │    │  │       │ ┃      B'     ┃ │         │  ┃  B  ┃
+        |             │           │   │    ╰──╯       │ ┗━━┯━━━┯━━━┯━━┛ │         │  ┗┯━━━┯┛
+        |                                             │    │   │   ╰────╯         │   │   │
+
+    Note how we bend some legs to the left, to avoid any braids, such that the operation does not
+    need to specify any braid chiralities.
+    """
+    # OPTIMIZE for fusion tree backend, can probably work something better out with explicit trees?
+    assert 0 <= codomain_cut <= tensor.num_codomain_legs
+    assert 0 <= domain_cut <= tensor.num_domain_legs
+    if codomain_cut == 0 and domain_cut == 0:
+        raise ValueError('Nothing to do')
+    if codomain_cut == tensor.num_codomain_legs and domain_cut == tensor.num_domain_legs:
+        raise ValueError('Nothing to do')
+
+    J = tensor.num_codomain_legs
+    J1 = codomain_cut
+    J2 = J - J1
+    K = tensor.num_domain_legs
+    K1 = domain_cut
+    K2 = K - K1
+
+    to_decompose = permute_legs(tensor,
+                                codomain=[*range(J + K2, J + K), *range(J1)],
+                                domain=[*reversed(range(J1, J + K2))],
+                                bend_right=[True] * J + [False] * K)
+
+    if cutoff_singular_values is None:
+        A, B = qr(to_decompose, new_labels=new_labels)
+    else:
+        A, S, Vh, _, _ = truncated_svd(to_decompose, new_labels=new_labels,
+                                       svd_min=cutoff_singular_values)
+        B = compose(S, Vh)
+
+    A = permute_legs(A,
+                     codomain=[*range(K1, K1 + J1)],
+                     domain=[*reversed(range(K1)), -1],
+                     bend_right=False)
+    B = permute_legs(B,
+                     codomain=[*range(1 + J2)],
+                     domain=[*reversed(range(1 + J2, 1 + J2 + K2))],
+                     bend_right=True)
+    return A, B
+
+
 @_elementwise_function(block_func='imag', maps_zero_to_zero=True)
 def imag(x: _ElementwiseType) -> _ElementwiseType:
     """The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""

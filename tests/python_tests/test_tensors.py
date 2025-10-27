@@ -2005,6 +2005,51 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
         assert_same(entry, T_np[zero_idx])
 
 
+@pytest.mark.parametrize('trunc', [None, 1e-10])
+def test_horizontal_factorization(trunc, make_compatible_tensor):
+    cod = 4
+    cod_cut = 2
+    dom = 3
+    dom_cut = 1
+    T_labels = list('efghijklmn')[:dom + cod]
+    T: Tensor = make_compatible_tensor(cod, dom, labels=T_labels, cls=SymmetricTensor,
+                                       use_pipes=False, max_blocks=3, max_block_size=3)
+
+    A, B = tensors.horizontal_factorization(T, codomain_cut=cod_cut, domain_cut=dom_cut,
+                                            new_labels=['a', 'b'], cutoff_singular_values=trunc)
+    A.test_sanity()
+    B.test_sanity()
+    assert A.num_codomain_legs == cod_cut
+    assert A.num_domain_legs == dom_cut + 1
+    assert A.labels == T.labels[:cod_cut] + ['a'] + T.labels[-dom_cut:]
+    assert B.num_codomain_legs == 1 + (cod - cod_cut)
+    assert B.num_domain_legs == dom - dom_cut
+    assert B.labels == ['b'] + T.labels[cod_cut:-dom_cut]
+
+    if T.symmetry.can_be_dropped:
+        A_np = A.to_numpy(understood_braiding=True)  # [*J1, a, *K1_rev]
+        B_np = B.to_numpy(understood_braiding=True)  # [b, *J2, *K2_rev]
+        T2_np = np.tensordot(A_np, B_np, (cod_cut, 0))  # [*J1, *K1_rev, *J2, *K2_rev]
+        T2_np = np.transpose(T2_np, [*range(cod_cut), *range(cod_cut + dom_cut, cod + dom),
+                                     *range(cod_cut, cod_cut + dom_cut)])
+        # [*J1, *J2, *J2_rev, *K1_rev] = [*J, *J_rev]
+        T_np = T.to_numpy(understood_braiding=True)
+        npt.assert_array_almost_equal(T2_np, T_np)
+
+    A_bent = tensors.permute_legs(
+        A, [*range(cod_cut + 1, A.num_legs), *range(cod_cut)], [cod_cut], bend_right=False
+    )
+    B_bent = tensors.permute_legs(
+        B, [0], [*reversed(range(1, B.num_legs))], bend_right=True
+    )
+    T2 = tensors.compose(A_bent, B_bent)
+    T2 = tensors.permute_legs(
+        T2, T.codomain_labels, T.domain_labels,
+        bend_right=[False] * T2.num_codomain_legs + [True] * T2.num_domain_legs
+    )
+    assert tensors.almost_equal(T2, T), 'input tensor not reproduced'
+
+
 @pytest.mark.parametrize('trunc', [False, None, 1e-100, 1e-10])
 def test_fixes_scale_axis_bug(trunc):
     # there was a bug in scale_axis that this test isolated
