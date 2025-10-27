@@ -565,10 +565,10 @@ def sector_projection_coupling(sites: list[Site], J: float, sector: Sector, name
     projector = SymmetricTensor.from_sector_projection(
         [s.leg for s in sites], sector=sector, backend=backend, labels=labels, device=device
     )
-    return Coupling.from_tensor(projector, sites=sites, name=name)
+    return Coupling.from_tensor(J * projector, sites=sites, name=name)
 
 
-def gold_coupling(sites: list[GoldenSite], J: float = 0, name: str = 'P_vac') -> Coupling:
+def gold_coupling(sites: list[GoldenSite], J: float = 1, name: str = 'P_vac') -> Coupling:
     r"""Two-site coupling of Fibonacci anyons that energy splits fusion to vacuum or tau.
 
     .. math ::
@@ -586,4 +586,4 @@ def gold_coupling(sites: list[GoldenSite], J: float = 0, name: str = 'P_vac') ->
     for site in sites:
         assert isinstance(site.symmetry, FibonacciAnyonCategory)
         assert site.leg.sector_decomposition_where(FibonacciAnyonCategory.tau) is not None
-    return sector_projection_coupling(sites, sector=FibonacciAnyonCategory.vacuum, name=name)
+    return sector_projection_coupling(sites, J=-J, sector=FibonacciAnyonCategory.vacuum, name=name)
