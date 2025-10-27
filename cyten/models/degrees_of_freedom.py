@@ -67,8 +67,7 @@ class Site:
         self.onsite_operators: dict[str, SymmetricTensor] = {}
         if onsite_operators is not None:
             for name, op in onsite_operators.items():
-                # TODO calling it like this does not allow fermionic operators to be constructed
-                # -> must be constructed with add_onsite_operator outside the __init__
+                # we add them one-by-one instead to perform the input checks and conversions
                 self.add_onsite_operator(name, op)
 
     def test_sanity(self):

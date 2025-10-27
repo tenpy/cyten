@@ -297,7 +297,7 @@ class SpinlessFermionSite(FermionicDOF):
                 sectors.append(np.sum(occupations) % 2)
             leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int)[:, None])
         elif not isinstance(conserve, str):
-            assert len(conserve) + 1 == len(sym.factors)  # TODO delete
+            assert len(conserve) + 1 == len(sym.factors)
             no_sym_idcs = []
             parity_sym_idcs = []
             # no need to iterate over the final fermion parity
@@ -316,13 +316,11 @@ class SpinlessFermionSite(FermionicDOF):
                 sector = np.asarray(occupations, dtype=int)
                 sector = np.append(sector, np.sum(sector) % 2)
                 sector[no_sym_idcs] = 0
-                # TODO remove; occupation for a species is 0 or 1
-                sector[parity_sym_idcs] = np.mod(sector[parity_sym_idcs], 2)
                 sectors.append(sector)
             leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int))
         elif isinstance(sym.factors[0], U1Symmetry):
             # remaining case: conserve total particle number
-            assert len(sym.factors) == 2  # TODO delete
+            assert len(sym.factors) == 2
             sectors = []
             for occupations in itproduct([0, 1], repeat=num_species):
                 fermion_number = np.sum(occupations)
@@ -668,11 +666,3 @@ class SU2kSpin1Site(AnyonDOF):
 
     def __repr__(self):
         return f'SU2kSpin1Site(k={self.symmetry.k}, handedness={self.symmetry.handedness})'
-
-
-# TODO more sites:
-#  - fermions with general spin?
-#  - SpinHalfHoleSite (i dont think this should inherit from FermionicSite, but not sure)
-#  - bosons with spin?
-#  - more anyon sites? are the class names ok?
-#  - remember to update cyten/__init__.py and cyten/models/__init__.py accordingly!
