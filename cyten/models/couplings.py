@@ -15,7 +15,7 @@ from ..tensors import (
     SymmetricTensor, squeeze_legs, add_trivial_leg, permute_legs, compose, horizontal_factorization
 )
 from .degrees_of_freedom import (
-    DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, ALL_SPECIES
+    Site, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, ALL_SPECIES
 )
 from .sites import GoldenSite
 
@@ -39,7 +39,7 @@ class Coupling:
         For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
     """
 
-    def __init__(self, sites: list[DegreeOfFreedom], factorization: list[SymmetricTensor],
+    def __init__(self, sites: list[Site], factorization: list[SymmetricTensor],
                  name: str = None):
         self.sites = sites
         assert len(factorization) == len(sites)
@@ -64,7 +64,7 @@ class Coupling:
         assert self.factorization[-1].get_leg('wR').is_trivial
 
     @classmethod
-    def from_dense_block(cls, operator: Block, sites: list[DegreeOfFreedom], name: str = None,
+    def from_dense_block(cls, operator: Block, sites: list[Site], name: str = None,
                          dtype: Dtype = None, understood_braiding: bool = False) -> Coupling:
         """Convert a dense block to a :class:`Coupling`.
 
@@ -97,7 +97,7 @@ class Coupling:
         return cls.from_tensor(op, sites=sites, name=name)
 
     @classmethod
-    def from_tensor(cls, operator: SymmetricTensor, sites: list[DegreeOfFreedom], name: str = None,
+    def from_tensor(cls, operator: SymmetricTensor, sites: list[Site], name: str = None,
                     cutoff_singular_values: float = None,
                     ) -> Coupling:
         """Convert an operator / tensor to a :class:Coupling.
@@ -507,7 +507,7 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
 # ANYONIC COUPLINGS
 
 
-def sector_projection_coupling(sites: list[DegreeOfFreedom], J: float, sector: Sector, name: str
+def sector_projection_coupling(sites: list[Site], J: float, sector: Sector, name: str
                                ) -> Coupling:
     """Coupling that is given by the projector onto a single sector.
 

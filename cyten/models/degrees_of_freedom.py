@@ -26,10 +26,10 @@ ALL_SPECIES = object()
 """Singleton object used to indicate to sum over all species in fermion/boson couplings."""
 
 
-class DegreeOfFreedom:
-    """Collects necessary information about a local degree of freedom of a lattice model.
+class Site:
+    """Collects necessary information about a local site of a lattice model.
 
-    A degree of freedom defines the local Hilbert space in terms of its :attr:`leg`.
+    A site defines the local Hilbert space in terms of its :attr:`leg`.
     This involves a choice for the local basis.
     Moreover, it exposes the symmetric single-site operators.
     Multi-site operators, on the other hand, are represented by :class:`Coupling` s.
@@ -144,7 +144,7 @@ class DegreeOfFreedom:
         return f'<{type(self).__name__}, dim={self.dim}, symmetry={self.symmetry}>'
 
 
-class SpinDOF(DegreeOfFreedom):
+class SpinDOF(Site):
     """Common base class for sites that have a spin degree of freedom.
 
     Attributes
@@ -205,7 +205,7 @@ class SpinDOF(DegreeOfFreedom):
         return np.stack([Sx, Sy, Sz], axis=-1)
 
 
-class OccupationDOF(DegreeOfFreedom, metaclass=ABCMeta):
+class OccupationDOF(Site, metaclass=ABCMeta):
     """Common base class for sites that have a bosonic or fermionic degree of freedom.
 
     Requires that the local basis is such that the :attr:`number_operators` of all species
@@ -629,7 +629,7 @@ class FermionicDOF(OccupationDOF):
         return BosonicDOF._creation_annihilation_ops_from_Nmax([1] * num_species)
 
 
-class ClockDOF(DegreeOfFreedom):
+class ClockDOF(Site):
     """Common base class for sites that have a quantum clock degree of freedom.
 
     Attributes
@@ -679,7 +679,7 @@ class ClockDOF(DegreeOfFreedom):
         assert np.allclose(Z @ Zhc, identity)
 
 
-class AnyonDOF(DegreeOfFreedom):
+class AnyonDOF(Site):
     """Common base class for sites that have an anyonic degree of freedom.
 
     Parameters

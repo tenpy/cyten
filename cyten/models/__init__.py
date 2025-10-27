@@ -2,7 +2,7 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 from .degrees_of_freedom import (
-    DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, AnyonDOF
+    Site, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, AnyonDOF
 )
 from .sites import (
     SpinSite, SpinlessBosonSite, SpinlessFermionSite, SpinHalfFermionSite, ClockSite,
