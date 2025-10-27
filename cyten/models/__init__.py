@@ -2,11 +2,11 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 from .degrees_of_freedom import (
-    DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, RepresentationDOF
+    DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, AnyonDOF
 )
 from .sites import (
     SpinSite, SpinlessBosonSite, SpinlessFermionSite, SpinHalfFermionSite, ClockSite,
-    GeneralAnyonSite, AnyonSite, FibonacciAnyonSite, IsingAnyonSite, GoldenSite, SU2kSpin1Site
+    AnyonSite, FibonacciAnyonSite, IsingAnyonSite, GoldenSite, SU2kSpin1Site
 )
 from .couplings import (
     Coupling, spin_spin_coupling, spin_field_coupling, aklt_coupling, heisenberg_coupling,

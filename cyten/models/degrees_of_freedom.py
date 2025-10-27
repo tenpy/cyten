@@ -676,7 +676,7 @@ class ClockDOF(DegreeOfFreedom):
     Attributes
     ----------
     q : int
-        Number of states per site.
+        Number of clock states. A quantum clock reduces to a spin-1/2 if ``q == 2``.
     clock_operators : 3D array
         The vector of clock operators ``X`` and ``Z`` as a numpy array with axes ``[p, p*, i]``
         and shape ``(dim, dim, 2)``.
@@ -720,8 +720,8 @@ class ClockDOF(DegreeOfFreedom):
         assert np.allclose(Z @ Zhc, identity)
 
 
-class RepresentationDOF(DegreeOfFreedom):
-    """Common base class for sites that have a degree of freedom described by a category.
+class AnyonDOF(DegreeOfFreedom):
+    """Common base class for sites that have an anyonic degree of freedom.
 
     Parameters
     ----------
