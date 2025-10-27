@@ -18,7 +18,7 @@ from ..symmetries import (
     FermionNumber, FermionParity, U1Symmetry, ZNSymmetry, SU2Symmetry, Sector, Symmetry,
     NoSymmetry, ProductSymmetry, BraidingStyle, SymmetryError
 )
-from ..tools import to_iterable
+from ..tools import to_iterable, is_iterable
 
 
 ALL_SPECIES = object()
@@ -385,7 +385,7 @@ class BosonicDOF(DegreeOfFreedom):
                 sym = NoSymmetry()
             else:
                 raise ValueError(f'Invalid `conserve`: {conserve}')
-        elif isinstance(conserve, Sequence):
+        elif is_iterable(conserve):
             sym_factors = []
             num_no_sym = 0
             for i, conserve_i in enumerate(conserve):
@@ -638,7 +638,7 @@ class FermionicDOF(DegreeOfFreedom):
                 sym = FermionParity('total_fermion_parity')
             else:
                 raise ValueError(f'Invalid `conserve`: {conserve}')
-        elif isinstance(conserve, Sequence):
+        elif is_iterable(conserve):
             sym_factors = []
             num_no_sym = 0
             for i, conserve_i in enumerate(conserve):
