@@ -12,8 +12,8 @@ from ..symmetries import FibonacciAnyonCategory, Sector
 from ..dtypes import Dtype
 from ..backends.abstract_backend import Block, get_same_backend
 from ..tensors import (
-    SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, svd, scale_axis, compose,
-    outer
+    SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, compose, outer,
+    horizontal_factorization
 )
 from .degrees_of_freedom import DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF
 from .sites import GoldenSite
@@ -96,19 +96,13 @@ class Coupling:
         return cls.from_tensor(op, sites=sites, name=name)
 
     @classmethod
-    def from_tensor(cls, operator: SymmetricTensor, sites: list[DegreeOfFreedom], name: str = None
+    def from_tensor(cls, operator: SymmetricTensor, sites: list[DegreeOfFreedom], name: str = None,
+                    cutoff_singular_values: float = None,
                     ) -> Coupling | OnSiteOperator:
         """Convert an operator / tensor to a :class:Coupling.
-        
-        Decompose a (in general multi-site) operator into factors using SVD such that contracting
-        the factors again reproduces the operator.
 
-        .. note ::
-            For symmetries with non-symmetric braids, the decomposition depends on the levels of
-            the legs that determine whether over-braids or under-braids occur when exchanging legs.
-            The convention here is to assign higher levels to legs "further to the right", i.e.,
-            the legs corresponding to the labels ``p2`` and ``p2*`` have higher levels than ``p1``
-            and ``p1*``, and lower levels than ``p3`` and ``p3*``.
+        Decomposes an operator into factors using :func:`cyten.horizontal_factorization` to
+        obtain the :attr:`factorization` of the coupling.
 
         Parameters
         ----------
@@ -121,6 +115,9 @@ class Coupling:
         name : str, optional
             A descriptive name that can be used when pretty-printing, to identify the coupling.
             For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
+        cutoff_singular_values : float, optional
+            If given, truncate singular values (see :func:`cyten.horizontal_factorization`)
+            below this threshold.
         """
         assert operator.backend == get_same_backend(*sites)
         assert operator.codomain.factors == [site.leg for site in sites]
@@ -129,36 +126,15 @@ class Coupling:
         if len(sites) == 1:
             return OnSiteOperator.from_tensor(operator, sites, name=name)
 
-        # decompose from right to left using SVD
-        # convention for levels: legs to the right have higher levels
-        factorization = []
-        n = operator.num_codomain_legs
-        levels = [2 * i for i in range(n)]
-        levels.extend([2 * i + 1 for i in range(n)][::-1])
-
-        U = permute_legs(operator, domain=[n, n - 1], levels=levels, bend_right=True)
-        U, S, V = svd(U, ['wR', 'wL'])
-        U = scale_axis(U, S, leg='wR')
-        V = permute_legs(V, codomain=[0, 1], bend_right=True)
-        V = add_trivial_leg(V, domain_pos=1, label='wR')
-        factorization.append(V)
-
-        for n in range(operator.num_codomain_legs - 1, 1, -1):
-            levels = [2 * i for i in range(n)]
-            levels.extend([2 * i + 1 for i in range(n)][::-1])
-            # for the leg connecting to the previous operator that is already in factorization
-            levels.append(2 * n)
-            U = permute_legs(U, domain=[n, -1, n - 1], levels=levels, bend_right=True)
-            # the legs are now [p0, p1, ..., p{n-2}, p{n-2}*, p1*, p0*, p{n-1}, wR, p{n-1}*]
-            U, S, V = svd(U, ['wR', 'wL'])
-            U = scale_axis(U, S, leg='wR')
-            V = permute_legs(V, codomain=[0, 1], bend_right=True)
-            factorization.append(V)
-
-        U = permute_legs(U, domain=[1, 2], levels=[0, 1, 2], bend_right=True)
-        U = add_trivial_leg(U, codomain_pos=0, label='wL')
-        factorization.append(U)
-        factorization = factorization[::-1]
+        W, rest = horizontal_factorization(operator, 1, 1, new_labels=['wR', 'wL'],
+                                           cutoff_singular_values=cutoff_singular_values)
+        factorization = [add_trivial_leg(W, codomain_pos=0, label='wL')]
+        for n in range(len(sites) - 2):
+            W, rest = horizontal_factorization(rest, 1, 1, new_labels=['wL', 'wR'],
+                                               cutoff_singular_values=cutoff_singular_values)
+            factorization.append(W)
+        assert (rest.num_codomain_legs, rest.num_domain_legs) == (2, 1)
+        factorization.append(add_trivial_leg(rest, domain_pos=1, label='wR'))
         return Coupling(sites=sites, factorization=factorization, name=name)
 
     def to_tensor(self) -> SymmetricTensor:
