@@ -150,9 +150,8 @@ class SpinDOF(DegreeOfFreedom):
     ----------
     spin_vector : 3D array
         The vector of spin operators as a numpy array with axes ``[p, p*, i]`` and shape
-        ``(dim, dim, 3)``. These operators include the factor of the total spin, i.e., the largest
-        eigenvalue of any of the ``spin_vector[:, :, i]`` is :attr:`total_spin`.
-        E.g., for spin-1/2, these are ``.5`` times the pauli matrices.
+        ``(dim, dim, 3)``. These operators include the factor of the total spin,
+        e.g. for spin-1/2, these are ``.5`` times the pauli matrices.
     """
 
     def __init__(self,
