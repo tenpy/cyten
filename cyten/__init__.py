@@ -43,7 +43,7 @@ from .version import full_version as __full_version__
 
 # subpackages
 from .backends import get_backend
-from .models import couplings, sites
+from .models import Coupling, couplings, sites
 # from .testing import
 # from .tools import
 

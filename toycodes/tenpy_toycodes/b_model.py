@@ -12,7 +12,7 @@ class TFIModel:
     def __init__(self, L: int, J: float, g: float, bc: str = 'finite',
                  conserve: str = 'none', backend: ct.backends.TensorBackend | None = None):
         assert bc in ['finite', 'infinite']
-        self.site = ct.SpinSite(S=0.5, conserve=conserve, backend=backend)
+        self.site = ct.sites.SpinSite(S=0.5, conserve=conserve, backend=backend)
         self.backend = backend
         self.symmetry = self.site.symmetry
         self.L = L
@@ -33,8 +33,8 @@ class TFIModel:
         # OPTIMIZE this currently constructs the tensors, splits them for the coupling
         # and then recomputes the tensor again in order to form a superposition...
         # factors 2 and 4 due to difference between spin and Pauli matrices
-        XX = ct.spin_spin_coupling(sites=[p, p], Jx=4).to_tensor()
-        Z = ct.spin_field_coupling(sites=[p], hz=2).to_tensor()
+        XX = ct.couplings.spin_spin_coupling(sites=[p, p], Jx=4).to_tensor()
+        Z = ct.couplings.spin_field_coupling(sites=[p], hz=2).to_tensor()
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p'], backend=self.backend)
         IZ = ct.outer(I, Z, {'p': 'p0', 'p*': 'p0*'}, {'p0': 'p1', 'p0*': 'p1*'})
         ZI = ct.outer(Z, I, None, {'p': 'p1', 'p*': 'p1*'})
@@ -57,8 +57,8 @@ class TFIModel:
         Called by __init__().
         """
         p = self.site
-        XX = ct.spin_spin_coupling(sites=[p, p], Jx=4)
-        Z = ct.spin_field_coupling(sites=[p], hz=2)
+        XX = ct.couplings.spin_spin_coupling(sites=[p, p], Jx=4)
+        Z = ct.couplings.spin_field_coupling(sites=[p], hz=2)
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
         I = ct.Coupling.from_tensor(I, [p])
         
@@ -75,7 +75,7 @@ class HeisenbergModel:
     def __init__(self, L: int, J: float, bc: str = 'finite',
                  conserve: str = 'none', backend: ct.backends.TensorBackend | None = None):
         assert bc in ['finite', 'infinite']
-        self.site = ct.SpinSite(S=0.5, conserve=conserve, backend=backend)
+        self.site = ct.sites.SpinSite(S=0.5, conserve=conserve, backend=backend)
         self.backend = backend
         self.symmetry = self.site.symmetry
         self.L = L
@@ -91,7 +91,7 @@ class HeisenbergModel:
         """
         nbonds = self.L - 1 if self.bc == 'finite' else self.L
         p = self.site
-        SdotS = ct.spin_spin_coupling(sites=[p, p], Jx=4, Jy=4, Jz=4).to_tensor()
+        SdotS = ct.couplings.spin_spin_coupling(sites=[p, p], Jx=4, Jy=4, Jz=4).to_tensor()
         self.H_bonds = [self.J * SdotS] * nbonds
 
     # (note: not required for TEBD)
@@ -101,7 +101,7 @@ class HeisenbergModel:
         Called by __init__().
         """
         p = self.site
-        SdotS = ct.spin_spin_coupling(sites=[p, p], Jx=4, Jy=4, Jz=4)
+        SdotS = ct.couplings.spin_spin_coupling(sites=[p, p], Jx=4, Jy=4, Jz=4)
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
         I = ct.Coupling.from_tensor(I, [p])
         grid = [[I.factorization[0], self.J * SdotS.factorization[0], None],
@@ -117,7 +117,7 @@ class GoldenChainModel:
     def __init__(self, L: int, J: float, bc: str = 'finite',
                  backend: ct.backends.TensorBackend | None = None):
         assert bc in ['finite', 'infinite']
-        self.site = ct.GoldenSite('left', backend=backend)
+        self.site = ct.sites.GoldenSite('left', backend=backend)
         self.backend = backend
         self.symmetry = self.site.symmetry
         self.L = L
@@ -133,7 +133,7 @@ class GoldenChainModel:
         """
         nbonds = self.L - 1 if self.bc == 'finite' else self.L
         p = self.site
-        P1 = ct.gold_coupling([p, p]).to_tensor()
+        P1 = ct.couplings.gold_coupling([p, p]).to_tensor()
         self.H_bonds = [-self.J * P1] * nbonds
 
     def init_H_mpo(self):
@@ -142,7 +142,7 @@ class GoldenChainModel:
         Called by __init__().
         """
         p = self.site
-        P1 = ct.gold_coupling([p, p])
+        P1 = ct.couplings.gold_coupling([p, p])
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
         I = ct.Coupling.from_tensor(I, [p])
         grid = [[I.factorization[0], -self.J * P1.factorization[0], None],
