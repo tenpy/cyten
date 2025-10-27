@@ -110,16 +110,16 @@ class SpinlessBosonSite(BosonicDOF):
     conserve : Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']]
         The symmetry to be conserved. We can conserve::
 
-            - total particle number sum_i N_i (``conserve == 'N'``).
-            - individual particle numbers N_i (``conserve[i] == 'N'``).
-            - total parity (sum_i N_i) % 2 (``conserve == 'parity'``).
-            - individual parities N_i % 2 (``conserve[i] == 'parity'``).
+            - total particle number sum_k N_k (``conserve == 'N'``).
+            - individual particle numbers N_k (``conserve[i] == 'N'``).
+            - total parity (sum_i N_k) % 2 (``conserve == 'parity'``).
+            - individual parities N_k % 2 (``conserve[i] == 'parity'``).
             - nothing (``conserve == 'None'`` or ``conserve[i] == 'None'``).
 
         A `Literal` corresponds to symmetries involving all boson species, such as the total
         particle number (``conserve == 'N'``) or the total parity (``conserve == 'parity'``).
-        For a sequence, the entry ``conserve[i]`` corresponds to the symmetry of boson species `i`,
-        such that, e.g., ``conserve[i] == 'N'`` signifies that its particle number is conserved.
+        For a sequence, the entry ``conserve[i]`` corresponds to the symmetry of boson species `k`,
+        such that, e.g., ``conserve[k] == 'N'`` signifies that its particle number is conserved.
 
         Conserves nothing by default.
     filling : float | None
@@ -247,16 +247,16 @@ class SpinlessFermionSite(FermionicDOF):
     conserve : Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']]
         The symmetry to be conserved. We can conserve::
 
-            - total fermion number sum_i N_i (``conserve == 'N'``).
-            - individual fermion numbers N_i (``conserve[i] == 'N'``).
-            - total fermion parity (sum_i N_i) % 2 (``conserve == 'parity'``).
-            - individual fermion parities N_i % 2 (``conserve[i] == 'parity'``).
+            - total fermion number sum_i N_k (``conserve == 'N'``).
+            - individual fermion numbers N_k (``conserve[i] == 'N'``).
+            - total fermion parity (sum_i N_k) % 2 (``conserve == 'parity'``).
+            - individual fermion parities N_k % 2 (``conserve[i] == 'parity'``).
             - nothing for an individual fermion (``conserve[i] == 'None'``); .
 
         A `Literal` corresponds to symmetries involving all fermion species, such as the total
         fermion number (``conserve == 'N'``) or the total fermion parity
-        (``conserve == 'parity'``). For a sequence, the entry ``conserve[i]`` corresponds to the
-        symmetry of fermion species `i`, such that, e.g., ``conserve[i] == 'N'`` signifies that
+        (``conserve == 'parity'``). For a sequence, the entry ``conserve[k]`` corresponds to the
+        symmetry of fermion species `k`, such that, e.g., ``conserve[k] == 'N'`` signifies that
         its fermion number is conserved.
 
         Note that the total fermion parity is always conserved. It is thus always part of the

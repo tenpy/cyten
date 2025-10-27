@@ -263,31 +263,31 @@ class OccupationDOF(Site, metaclass=ABCMeta):
 
     def test_sanity(self):
         super().test_sanity()
-        for i in range(self.num_species):
-            N_i = self.number_operators[:, :, i]
-            assert np.allclose(self.creators[:, :, i] @ self.annihilators[:, :, i], N_i)
+        for k in range(self.num_species):
+            n_k = self.number_operators[:, :, k]
+            assert np.allclose(self.creators[:, :, k] @ self.annihilators[:, :, k], n_k)
 
-            assert np.allclose(np.diag(np.diag(N_i)), N_i), 'expected diagonal N_i'
-            assert np.allclose(np.around(N_i, 0), N_i), 'expected integer entries for N_i'
-            assert np.all(N_i >= 0), 'expected non-negative entries for N_i'
+            assert np.allclose(np.diag(np.diag(n_k)), n_k), 'expected diagonal N_k'
+            assert np.allclose(np.around(n_k, 0), n_k), 'expected integer entries for N_'
+            assert np.all(n_k >= 0), 'expected non-negative entries for N_k'
 
             # check (anti-)commutation with same species
-            BBd = self.annihilators[:, :, i] @ self.creators[:, :, i]
-            assert np.allclose(BBd + self.anti_commute_sign * N_i, np.eye(self.leg.dim))
+            BBd = self.annihilators[:, :, k] @ self.creators[:, :, k]
+            assert np.allclose(BBd + self.anti_commute_sign * n_k, np.eye(self.leg.dim))
 
             # check commutation relations among different species
             # note: even for fermions, these numpy representations without explicit JW commute
             #       instead of anti-commuting.
-            for j in range(i):
-                BiBdj = self.annihilators[:, :, i] @ self.creators[:, :, j]
-                BdjBi = self.creators[:, :, j] @ self.annihilators[:, :, i]
-                assert np.allclose(BiBdj, BdjBi)
-                BiBj = self.annihilators[:, :, i] @ self.annihilators[:, :, j]
-                BjBi = self.annihilators[:, :, j] @ self.annihilators[:, :, i]
-                assert np.allclose(BiBj, BjBi)
-                BdiBdj = self.creators[:, :, i] @ self.creators[:, :, j]
-                BdjBdi = self.creators[:, :, j] @ self.creators[:, :, i]
-                assert np.allclose(BdiBdj, BdjBdi)
+            for j in range(k):
+                Bk_Bdj = self.annihilators[:, :, k] @ self.creators[:, :, j]
+                Bdj_Bk = self.creators[:, :, j] @ self.annihilators[:, :, k]
+                assert np.allclose(Bk_Bdj, Bdj_Bk)
+                Bk_Bj = self.annihilators[:, :, k] @ self.annihilators[:, :, j]
+                Bj_Bk = self.annihilators[:, :, j] @ self.annihilators[:, :, k]
+                assert np.allclose(Bk_Bj, Bj_Bk)
+                Bdk_Bdj = self.creators[:, :, k] @ self.creators[:, :, j]
+                Bdj_Bdk = self.creators[:, :, j] @ self.creators[:, :, k]
+                assert np.allclose(Bdk_Bdj, Bdj_Bdk)
 
     def add_individual_occupation_ops(self):
         """Add occupation and parity operators for each species as symmetric onsite operators.
@@ -298,9 +298,9 @@ class OccupationDOF(Site, metaclass=ABCMeta):
 
         If there is only a single species, also the aliases ``N`` for ``N0`` and ``P`` for ``P0``.
         """
-        for i in range(self.num_species):
-            N_i = self.number_operators[:, :, i]
-            self.add_onsite_operator(f'N{i}', N_i, is_diagonal=True)
+        for k in range(self.num_species):
+            N_k = self.number_operators[:, :, k]
+            self.add_onsite_operator(f'N{k}', N_k, is_diagonal=True)
         if self.num_species == 1:
             self.add_onsite_operator('N', self.onsite_operators['N0'])
 
@@ -385,13 +385,13 @@ class BosonicDOF(OccupationDOF):
         )
 
         Nmax = []
-        for i in range(self.num_species):
-            N_i = self.n_ops[:, :, i]
-            N_i_max_ = np.max(np.diag(N_i))
-            N_i_max = round(N_i_max_, 0)
-            assert np.allclose(N_i_max, N_i_max_)
-            assert leg.dim % (N_i_max + 1) == 0
-            Nmax.append(N_i_max)
+        for k in range(self.num_species):
+            N_k = self.n_ops[:, :, k]
+            N_k_max_ = np.max(np.diag(N_k))
+            N_k_max = round(N_k_max_, 0)
+            assert np.allclose(N_k_max, N_k_max_)
+            assert leg.dim % (N_k_max + 1) == 0
+            Nmax.append(N_k_max)
         Nmax = np.asarray(Nmax, dtype=int)
         assert np.min(Nmax) > 0, (f'Invalid Nmax: {Nmax}; each boson species must have a max. '
                                   'occupation number of at least 1')
@@ -399,28 +399,28 @@ class BosonicDOF(OccupationDOF):
 
     def test_sanity(self):
         super().test_sanity()
-        for i in range(self.num_species):
-            N_i = self.number_operators[:, :, i]
+        for k in range(self.num_species):
+            N_k = self.number_operators[:, :, k]
             # check commutation relations
             # BBd is 0 when going over the maximum occupation -> set this manually here
-            BBd = self.annihilators[:, :, i] @ self.creators[:, :, i]
+            BBd = self.annihilators[:, :, k] @ self.creators[:, :, k]
             mask = np.isclose(np.diag(BBd), 0)
-            BBd[mask, mask] += self.Nmax[i] + 1
-            assert np.allclose(BBd - N_i, np.eye(self.leg.dim))
-            # N_i has integer eigenvalues and is diagonal
-            N_i_rounded = np.around(N_i, 0)
-            assert np.allclose(N_i_rounded, N_i)
-            assert np.allclose(np.diag(np.diag(N_i)), N_i)
-            assert np.min(N_i_rounded) == 0
-            assert np.max(N_i_rounded) == self.Nmax[i]
+            BBd[mask, mask] += self.Nmax[k] + 1
+            assert np.allclose(BBd - N_k, np.eye(self.leg.dim))
+            # N_k has integer eigenvalues and is diagonal
+            N_k_rounded = np.around(N_k, 0)
+            assert np.allclose(N_k_rounded, N_k)
+            assert np.allclose(np.diag(np.diag(N_k)), N_k)
+            assert np.min(N_k_rounded) == 0
+            assert np.max(N_k_rounded) == self.Nmax[k]
 
     def add_individual_occupation_ops(self):
         OccupationDOF.add_individual_occupation_ops(self)
-        for i in range(self.num_species):
-            N_i = self.number_operators[:, :, i]
-            P_i = np.diag(1. - 2. * np.mod(np.diag(N_i), 2))
-            self.add_onsite_operator(f'N{i}N{i}', N_i @ N_i, is_diagonal=True)
-            self.add_onsite_operator(f'P{i}', P_i, is_diagonal=True)
+        for k in range(self.num_species):
+            N_k = self.number_operators[:, :, k]
+            P_k = np.diag(1. - 2. * np.mod(np.diag(N_k), 2))
+            self.add_onsite_operator(f'N{k}N{k}', N_k @ N_k, is_diagonal=True)
+            self.add_onsite_operator(f'P{k}', P_k, is_diagonal=True)
         if self.num_species == 1:
             self.add_onsite_operator('NN', self.onsite_operators['N0N0'])
             self.add_onsite_operator('P', self.onsite_operators['P0'])
@@ -447,16 +447,16 @@ class BosonicDOF(OccupationDOF):
         elif is_iterable(conserve):
             sym_factors = []
             num_no_sym = 0
-            for i, conserve_i in enumerate(conserve):
-                if conserve_i in ['N', 'Ni', 'N_i', 'U(1)', 'U1']:
-                    sym_factors.append(U1Symmetry(f'species{i}_occupation'))
-                elif conserve_i in ['parity', 'P', 'Pi', 'P_i', 'Z_2', 'Z2']:
-                    sym_factors.append(ZNSymmetry(2, f'species{i}_occupation_parity'))
-                elif conserve_i in ['None', 'none', None]:
+            for k, conserve_k in enumerate(conserve):
+                if conserve_k in ['N', 'Nk', 'N_k', 'U(1)', 'U1']:
+                    sym_factors.append(U1Symmetry(f'species{k}_occupation'))
+                elif conserve_k in ['parity', 'P', 'Pi', 'P_i', 'Z_2', 'Z2']:
+                    sym_factors.append(ZNSymmetry(2, f'species{k}_occupation_parity'))
+                elif conserve_k in ['None', 'none', None]:
                     sym_factors.append(NoSymmetry())
                     num_no_sym += 1
                 else:
-                    raise ValueError(f'Invalid entry in `conserve`: {conserve_i}')
+                    raise ValueError(f'Invalid entry in `conserve`: {conserve_k}')
             if num_no_sym == len(conserve):
                 sym = NoSymmetry()
             else:
@@ -560,15 +560,15 @@ class FermionicDOF(OccupationDOF):
 
     def test_sanity(self):
         super().test_sanity()
-        for i in range(self.num_species):
-            N_i = self.number_operators[:, :, i]
+        for k in range(self.num_species):
+            N_k = self.number_operators[:, :, k]
             # check fermions square to zero
-            CC = self.annihilators[:, :, i] @ self.annihilators[:, :, i]
+            CC = self.annihilators[:, :, k] @ self.annihilators[:, :, k]
             assert np.allclose(CC, np.zeros_like(CC))
-            CdCd = self.creators[:, :, i] @ self.creators[:, :, i]
+            CdCd = self.creators[:, :, k] @ self.creators[:, :, k]
             assert np.allclose(CdCd, np.zeros_like(CdCd))
             # check Pauli exclusion
-            assert np.max(N_i) <= 1, 'expect entries <= 1 for N_i'
+            assert np.max(N_k) <= 1, 'expect entries <= 1 for N_k'
 
     def get_annihilator_numpy(self, species: int, include_JW: bool = False):
         species = self.get_species_idx(species)
@@ -599,16 +599,16 @@ class FermionicDOF(OccupationDOF):
         elif is_iterable(conserve):
             sym_factors = []
             num_no_sym = 0
-            for i, conserve_i in enumerate(conserve):
-                if conserve_i in ['N', 'Ni', 'N_i']:
-                    sym_factors.append(U1Symmetry(f'species{i}_fermion_occupation'))
-                elif conserve_i in ['parity', 'P', 'Pi', 'P_i']:
-                    sym_factors.append(ZNSymmetry(2, f'species{i}_fermion_parity'))
-                elif conserve_i in ['None', 'none', None]:
+            for k, conserve_k in enumerate(conserve):
+                if conserve_k in ['N', 'Nk', 'N_k']:
+                    sym_factors.append(U1Symmetry(f'species{k}_fermion_occupation'))
+                elif conserve_k in ['parity', 'P', 'Pi', 'P_i']:
+                    sym_factors.append(ZNSymmetry(2, f'species{k}_fermion_parity'))
+                elif conserve_k in ['None', 'none', None]:
                     sym_factors.append(NoSymmetry())
                     num_no_sym += 1
                 else:
-                    raise ValueError(f'Invalid entry in `conserve`: {conserve_i}')
+                    raise ValueError(f'Invalid entry in `conserve`: {conserve_k}')
             if num_no_sym == len(conserve):
                 sym = FermionParity('total_fermion_parity')
             else:
