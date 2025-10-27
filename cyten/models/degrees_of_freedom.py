@@ -432,7 +432,7 @@ class BosonicDOF(DegreeOfFreedom):
         return np.transpose(B), B
 
     @staticmethod
-    def _creation_annihilation_ops_from_Nmax(Nmax: list[int] | np.ndarray[int]
+    def _creation_annihilation_ops_from_Nmax(Nmax: list[int] | np.ndarray
                                              ) -> tuple[np.ndarray, np.ndarray]:
         """Construct the creation and annihilation operators for multiple boson species."""
         Nmax_ = np.asarray(Nmax, dtype=int)

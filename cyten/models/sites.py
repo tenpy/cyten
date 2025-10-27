@@ -135,7 +135,7 @@ class SpinlessBosonSite(BosonicDOF):
     num_species, Nmax, creators, annihilators : see :class:`BosonicDOF`
     """
 
-    def __init__(self, Nmax: int | list[int] | np.ndarray[int],
+    def __init__(self, Nmax: int | list[int] | np.ndarray,
                  conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']] = None,
                  filling: float | None = None, backend: TensorBackend = None, default_device: str = None):
         Nmax = np.atleast_1d(np.asarray(Nmax, dtype=int))
@@ -276,7 +276,7 @@ class SpinlessFermionSite(FermionicDOF):
         Number of fermion species.
     conserve : Literal['N', 'parity'] | list[Literal['N', 'parity', 'None']]
         The conserved symmetry, see above.
-    filling : np.ndarray[float | None]
+    filling : float, optional
         Average total filling.
     creators, annihilators : see :class:`FermionicDOF`
     """
@@ -407,7 +407,7 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         The conserved symmetry, see above.
     conserve_S : Literal['SU(2)', 'Sz', 'parity', 'None']
         The conserved spin symmetry, see above.
-    filling : np.ndarray[float | None]
+    filling : float, optional
         Average total filling.
     creators, annihilators : see :class:`FermionicDOF`
     spin_vector : see :class:`SpinDOF`
