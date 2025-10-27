@@ -164,8 +164,8 @@ class SpinDOF(DegreeOfFreedom):
                  default_device: str = None):
         assert spin_vector.shape == (leg.dim, leg.dim, 3)
         self.spin_vector = spin_vector
-        DegreeOfFreedom.__init__(
-            self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
+        super().__init__(
+            leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
             backend=backend, default_device=default_device
         )
 
@@ -266,8 +266,8 @@ class BosonicDOF(DegreeOfFreedom):
                                   'occupation number of at least 1')
         self.Nmax = Nmax
 
-        DegreeOfFreedom.__init__(
-            self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
+        super().__init__(
+            leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
             backend=backend, default_device=default_device
         )
 
@@ -518,8 +518,8 @@ class FermionicDOF(DegreeOfFreedom):
             assert np.allclose(N_k_max, N_k_max_)
             assert N_k_max == 1
 
-        DegreeOfFreedom.__init__(
-            self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
+        super().__init__(
+            leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
             backend=backend, default_device=default_device
         )
 
@@ -693,8 +693,8 @@ class ClockDOF(DegreeOfFreedom):
         assert leg.dim % q == 0
         self.clock_operators = clock_operators
 
-        DegreeOfFreedom.__init__(
-            self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
+        super().__init__(
+            leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
             backend=backend, default_device=default_device
         )
 
@@ -746,8 +746,8 @@ class RepresentationDOF(DegreeOfFreedom):
             P_sec = sector_proj_onsite(leg.symmetry, leg, sector,
                                        backend=backend, device=default_device)
             onsite_operators[f'P_{sector_name}'] = P_sec
-        DegreeOfFreedom.__init__(
-            self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
+        super().__init__(
+            leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
             backend=backend, default_device=default_device
         )
 
