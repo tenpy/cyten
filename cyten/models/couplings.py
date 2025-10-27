@@ -98,7 +98,7 @@ class Coupling:
     @classmethod
     def from_tensor(cls, operator: SymmetricTensor, sites: list[DegreeOfFreedom], name: str = None,
                     cutoff_singular_values: float = None,
-                    ) -> Coupling | OnSiteOperator:
+                    ) -> Coupling:
         """Convert an operator / tensor to a :class:Coupling.
 
         Decomposes an operator into factors using :func:`cyten.horizontal_factorization` to
@@ -122,9 +122,6 @@ class Coupling:
         assert operator.backend == get_same_backend(*sites)
         assert operator.codomain.factors == [site.leg for site in sites]
         assert operator.domain.factors == operator.codomain.factors
-
-        if len(sites) == 1:
-            return OnSiteOperator.from_tensor(operator, sites, name=name)
 
         W, rest = horizontal_factorization(operator, 1, 1, new_labels=['wR', 'wL'],
                                            cutoff_singular_values=cutoff_singular_values)
@@ -161,43 +158,6 @@ class Coupling:
     def to_numpy(self) -> np.ndarray:
         """Convert to a numpy array."""
         return self.to_tensor().to_numpy()
-
-
-class OnSiteOperator(Coupling):
-    """A (usually hermitian) on-site operator acting on a single :class:`Site`.
-
-    Similar to :class:`Coupling`, but must act on one :class:`Site`.
-
-    TODO examples
-
-    Attributes
-    ----------
-    operator : :class:`SymmetricTensor`
-        Tensor representing the on-site operator with legs ``[p, p*]``, where ``p`` and ``p*`` are
-        the physical space ``self.sites[0].leg``.
-    sites : list of :class:`Site`
-        Contains the single site that :attr:`operator` acts on.
-    factorization : list of :class:`SymmetricTensor`
-        Contains a single tensor corresponding to :attr:`operator` with added trivial legs for
-        ``wL`` and ``wR``.
-    name : str, optional
-        A descriptive name that can be used when pretty-printing, to identify the coupling.
-        For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
-    """
-
-    def __init__(self, site: DegreeOfFreedom, operator: SymmetricTensor, name: str = None):
-        self.operator = operator
-        W = add_trivial_leg(operator, codomain_pos=0, label='wL')
-        W = add_trivial_leg(W, domain_pos=1, label='wR')
-        # TODO do this for now; discuss how we actually want to do it
-        W.relabel({'p': 'p0', 'p*': 'p0*'})
-        Coupling.__init__(self, sites=[site], factorization=[W], name=name)
-
-    @classmethod
-    def from_tensor(cls, operator: SymmetricTensor, sites: list[DegreeOfFreedom], name: str = None
-                    ) -> OnSiteOperator:
-        assert len(sites) == 1
-        return cls(site=sites[0], operator=operator, name=name)
 
 
 # SPIN COUPLINGS
