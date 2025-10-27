@@ -2005,6 +2005,48 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
         assert_same(entry, T_np[zero_idx])
 
 
+@pytest.mark.parametrize('trunc', [False, None, 1e-100, 1e-10])
+def test_fixes_scale_axis_bug(trunc):
+    # there was a bug in scale_axis that this test isolated
+    s = symmetries.u1_symmetry * symmetries.z3_symmetry
+    backend = backends.get_backend('fusion_tree')
+    codomain = TensorProduct([
+        ElementarySpace.from_defining_sectors(s, [[-1, 0], [-2, 2]], [2, 3], is_dual=True),
+        ElementarySpace.from_defining_sectors(s, [[1, 1], [-3, 2], [0, 2]], [3, 1, 1], is_dual=True),
+        ElementarySpace.from_defining_sectors(s, [[-2, 0], [0, 0], [123, 1]], [3, 1, 2], is_dual=True),
+    ])
+    domain = TensorProduct([
+        ElementarySpace.from_defining_sectors(s, [[-2, 0]], [3]),
+        ElementarySpace.from_defining_sectors(s, [[-124, 0], [-1, 1], [1, 1]], [3, 3, 3]),
+        ElementarySpace.from_defining_sectors(s, [[2, 0]], [3]),
+        ElementarySpace.from_defining_sectors(s, [[-2, 0], [1, 1], [123, 1]], [1, 1, 3]),
+    ])
+    T = SymmetricTensor.from_random_normal(codomain, domain, backend=backend)
+    T.test_sanity()
+
+    if trunc is False:
+        U, S, Vh = tensors.svd(T)
+    else:
+        U, S, Vh, _, _ = tensors.truncated_svd(T, svd_min=trunc)
+    U.test_sanity()
+    S.test_sanity()
+    Vh.test_sanity()
+
+    S_Vh = tensors.compose(S, Vh)
+    S_Vh.test_sanity()
+
+    U_S = tensors.compose(U, S)
+    U_S.test_sanity()
+
+    T2 = tensors.compose(U, S_Vh)
+    T2.test_sanity()
+    assert tensors.almost_equal(T, T2)
+
+    T3 = tensors.compose(U_S, Vh)
+    T3.test_sanity()
+    assert tensors.almost_equal(T, T3)
+
+
 @pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, cod, dom, do_dagger, allow_basis_perm',

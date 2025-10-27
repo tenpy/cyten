@@ -5155,8 +5155,9 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
         inv_part = scale_axis(tensor.invariant_part, diag, leg_idx)
         return ChargedTensor(inv_part, tensor.charged_state)
     backend = get_same_backend(tensor, diag)
-    return SymmetricTensor(backend.scale_axis(tensor, diag, leg_idx), codomain=tensor.codomain,
-                           domain=tensor.domain, backend=backend, labels=tensor._labels)
+    data = backend.scale_axis(tensor, diag, leg_idx)
+    return SymmetricTensor(data, codomain=tensor.codomain, domain=tensor.domain, backend=backend,
+                           labels=tensor._labels)
 
 
 def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
