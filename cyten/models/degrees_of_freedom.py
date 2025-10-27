@@ -19,7 +19,7 @@ from ..symmetries import (
     FermionNumber, FermionParity, U1Symmetry, ZNSymmetry, SU2Symmetry, Sector, Symmetry,
     NoSymmetry, ProductSymmetry, BraidingStyle, SymmetryError
 )
-from ..tools import to_iterable, is_iterable, to_valid_idx
+from ..tools import to_iterable, is_iterable, to_valid_idx, as_immutable_array
 
 
 ALL_SPECIES = object()
@@ -163,7 +163,7 @@ class SpinDOF(Site):
                  backend: TensorBackend = None,
                  default_device: str = None):
         assert spin_vector.shape == (leg.dim, leg.dim, 3)
-        self.spin_vector = spin_vector
+        self.spin_vector = as_immutable_array(spin_vector)
         super().__init__(
             leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
             backend=backend, default_device=default_device
@@ -245,8 +245,8 @@ class OccupationDOF(Site, metaclass=ABCMeta):
                  default_device: str = None):
         self.num_species = num_species = creators.shape[2]
         assert creators.shape == annihilators.shape == (leg.dim, leg.dim, num_species)
-        self.creators = creators
-        self.annihilators = annihilators
+        self.creators = as_immutable_array(creators)
+        self.annihilators = as_immutable_array(annihilators)
         self.anti_commute_sign = anti_commute_sign
         if species_names is None:
             species_names = [None] * num_species
@@ -256,9 +256,8 @@ class OccupationDOF(Site, metaclass=ABCMeta):
         self._species_name_to_idx = {name: idx for idx, name in enumerate(species_names)}
 
         # [p, (p*), k] @ [(p), p*, k] -> [p, p*, k]
-        self.number_operators = n_ops = np.tensordot(creators, annihilators, (1, 0))
-        self.n_tot = n_tot = np.sum(n_ops, axis=2)
-        self._JW = np.diag(anti_commute_sign ** np.diag(n_tot))
+        self.number_operators = n_ops = as_immutable_array(np.tensordot(creators, annihilators, (1, 0)))
+        self.n_tot = as_immutable_array(np.sum(n_ops, axis=2))
         super().__init__(leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
                          backend=backend, default_device=default_device)
 
@@ -550,8 +549,8 @@ class FermionicDOF(OccupationDOF):
         n_before = np.cumsum(n_diag, axis=1)  # \sum_{q < k} n_k
         partial_JW = np.zeros((self.dim, self.dim, self.num_species))
         partial_JW[np.arange(self.dim), np.arange(self.dim), :] = (-1) ** n_before
-        self._partial_JWs = partial_JW
-        self._JW = np.diag((-1) ** np.diag(self.n_tot))
+        self._partial_JWs = as_immutable_array(partial_JW)
+        self._JW = as_immutable_array(np.diag((-1) ** np.diag(self.n_tot)))
 
         for k in range(self.num_species):
             N_k_max_ = np.max(np.diag(self.number_operators[:, :, k]))
@@ -652,7 +651,7 @@ class ClockDOF(Site):
         self.q = q
         assert clock_operators.shape == (leg.dim, leg.dim, 2)
         assert leg.dim % q == 0
-        self.clock_operators = clock_operators
+        self.clock_operators = as_immutable_array(clock_operators)
 
         super().__init__(
             leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
