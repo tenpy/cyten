@@ -16,7 +16,7 @@ from ..backends.abstract_backend import Block
 from ..spaces import ElementarySpace
 from ..tensors import DiagonalTensor, SymmetricTensor
 from ..symmetries import (
-    FermionNumber, FermionParity, U1Symmetry, ZNSymmetry, SU2Symmetry, Sector, Symmetry,
+    FermionNumber, FermionParity, U1Symmetry, ZNSymmetry, SU2Symmetry, Symmetry,
     NoSymmetry, ProductSymmetry, BraidingStyle, SymmetryError
 )
 from ..tools import to_iterable, is_iterable, to_valid_idx, as_immutable_array
@@ -702,63 +702,11 @@ class AnyonDOF(Site):
         for sector, sector_name in zip(leg.sector_decomposition, sector_names):
             if sector_name is None:
                 continue
-            P_sec = sector_proj_onsite(leg.symmetry, leg, sector,
-                                       backend=backend, device=default_device)
+            P_sec = SymmetricTensor.from_sector_projection(
+                [leg], sector, labels=['p', 'p*'], backend=backend, device=default_device
+            )
             onsite_operators[f'P_{sector_name}'] = P_sec
         super().__init__(
             leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
             backend=backend, default_device=default_device
         )
-
-
-def consistent_leg_symmetry(leg: ElementarySpace, symmetry_factor: Symmetry,
-                            symmetry_sector_slice: slice) -> bool:
-    """Test whether the symmetry of a leg contains a certain factor at a given slice.
-
-    Parameters
-    ----------
-    leg : ElementarySpace
-        The leg whose symmetry is tested.
-    symmetry_factor : Symmetry
-        The symmetry that should be contained in `leg.symmetry`. If `leg.symmetry` is not
-        a `ProductSymmetry`, it is tested whether ``leg.symmetry == symmetry_factor``.
-    symmetry_sector_slice : slice
-        A slice such that the entries ``leg.sector_decomposition[:, slc]`` correspond to
-        `symmetry_factor`.
-    """
-    slc = symmetry_sector_slice
-    slc_start = 0 if slc.start is None else slc.start
-    if isinstance(symmetry_factor, ProductSymmetry):
-        if not isinstance(leg.symmetry, ProductSymmetry):
-            return False
-        slc_stop = leg.symmetry.sector_slices[-1] if slc.stop is None else slc.stop
-        if len(leg.symmetry.factors) == len(symmetry_factor.factors):
-            # factors equal and slice over full symmetry
-            return (leg.symmetry.is_same_symmetry(symmetry_factor) and
-                    slc_start == 0 and slc_stop == leg.symmetry.sector_slices[-1])
-        factor_idx = np.searchsorted(leg.symmetry.sector_slices, slc_start)
-        slc_bounds = slc_start + symmetry_factor.sector_slices
-        leg_slc_bounds = leg.symmetry.sector_slices[factor_idx:factor_idx + len(symmetry_factor.factors)]
-        return (all(leg_slc_bounds == slc_bounds) and
-                all([leg.symmetry.factors[factor_idx + i] == factor
-                     for i, factor in enumerate(symmetry_factor.factors)]))
-
-    # remaining part: symmetry_factor is not a ProductSymmetry
-    if isinstance(leg.symmetry, ProductSymmetry):
-        # symmetry_sector_slice tells us which factor in the leg symmetry is symmetry_factor
-        slc_stop = leg.symmetry.sector_slices[-1] if slc.stop is None else slc.stop
-        factor_idx = np.searchsorted(leg.symmetry.sector_slices, slc_start)
-        return all([slc_start == leg.symmetry.sector_slices[factor_idx],
-                    slc_stop == leg.symmetry.sector_slices[factor_idx + 1],
-                    leg.symmetry.factors[factor_idx] == symmetry_factor])
-    # leg symmetry is not a ProductSymmetry; slc must still match sector_ind_len
-    slc_stop = leg.symmetry.sector_ind_len if slc.stop is None else slc.stop
-    return leg.symmetry == symmetry_factor and slc_start == 0 and slc_stop == leg.symmetry.sector_ind_len
-
-
-def sector_proj_onsite(symmetry: Symmetry, leg: ElementarySpace, sector: Sector,
-                       backend: TensorBackend = None, device: str = None):
-    """Helper function to create onsite projectors onto sectors"""
-    assert symmetry.is_valid_sector(sector)
-    return SymmetricTensor.from_sector_projection([leg], sector, labels=['p', 'p*'],
-                                                  backend=backend, device=device)
