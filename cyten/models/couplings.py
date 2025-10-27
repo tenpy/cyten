@@ -12,10 +12,11 @@ from ..symmetries import FibonacciAnyonCategory, Sector
 from ..dtypes import Dtype
 from ..backends.abstract_backend import Block, get_same_backend
 from ..tensors import (
-    SymmetricTensor, squeeze_legs, add_trivial_leg, permute_legs, compose, outer,
-    horizontal_factorization
+    SymmetricTensor, squeeze_legs, add_trivial_leg, permute_legs, compose, horizontal_factorization
 )
-from .degrees_of_freedom import DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF
+from .degrees_of_freedom import (
+    DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, ALL_SPECIES
+)
 from .sites import GoldenSite
 
 
@@ -162,482 +163,357 @@ class Coupling:
 
 # SPIN COUPLINGS
 
-def spin_spin_coupling(sites: list[SpinDOF], xx: float = None, yy: float = None,
-                       zz: float = None, name: str = 'spin-spin') -> Coupling:
-    """Coupling between two spins.
+
+def spin_spin_coupling(sites: list[SpinDOF], Jx: float = 0, Jy: float = 0, Jz: float = 0,
+                       name: str = 'spin-spin') -> Coupling:
+    r"""Two-site coupling between spins.
+
+    .. math ::
+        h_{ij} = \mathtt{Jx} S_i^x S_j^x + \mathtt{Jy} S_i^y S_j^y + \mathtt{Jz} S_i^z S_j^z
 
     Parameters
     ----------
-    xx, yy, zz : float, optional
-        If given, adds a corresponding term, e.g. ``xx * S_i^x S_j^x`` with the value as prefactor.
-    TODO do we need mixed combinations, like S_i^x S_j^y ?
+    Jx, Jy, Jz: float
+        Prefactor, as given above. By default, all prefactors vanish.
     """
-    # TODO test that this builds what we expect
     assert len(sites) == 2
     s1 = sites[0].spin_vector
     s2 = sites[1].spin_vector
     h = 0  # build in leg order [p0, p0*, p1, p1*] and transpose only once before returning
-    if xx is not None:
-        h += xx * np.tensordot(s1[:, :, 0], s2[:, :, 0], axes=0)
-    if yy is not None:
-        h += yy * np.tensordot(s1[:, :, 1], s2[:, :, 1], axes=0)
-    if zz is not None:
-        h += zz * np.tensordot(s1[:, :, 2], s2[:, :, 2], axes=0)
-    if np.ndim(h) == 0:
-        raise ValueError('Must have at least one non-zero prefactor.')
+    h += Jx * np.tensordot(s1[:, :, 0], s2[:, :, 0], axes=0)
+    h += Jy * np.tensordot(s1[:, :, 1], s2[:, :, 1], axes=0)
+    h += Jz * np.tensordot(s1[:, :, 2], s2[:, :, 2], axes=0)
     h = np.transpose(h, [0, 2, 3, 1])
     return Coupling.from_dense_block(h, sites, name=name)
 
 
-def spin_field_coupling(sites: list[SpinDOF], hx: float = None, hy: float = None,
-                        hz: float = None, name: str = 'spin-field') -> Coupling:
-    """Coupling between a (single) spin and a (magnetic) field.
+def spin_field_coupling(sites: list[SpinDOF], hx: float = 0, hy: float = 0, hz: float = 0,
+                        name: str = 'spin-field') -> Coupling:
+    r"""Single-site coupling of a spin to an external field.
+
+    .. math ::
+        h_i = \mathtt{hx} S_i^x + \mathtt{hy} S_i^y + \mathtt{hz} S_i^z
 
     Parameters
     ----------
-    hx, hy, hz : float, optional
-        If given, adds a corresponding term ``hx * S_i^x``, ``hy * S_i^y``, ``hz * S_i^z`` with
-        the value as prefactor.
+    hx, hy, hz: float
+        Prefactor, as given above. By default, all prefactors vanish.
     """
-    # TODO test that this builds what we expect
     assert len(sites) == 1
     s = sites[0].spin_vector
-    h = 0
-    if hx is not None:
-        h += hx * s[:, :, 0]
-    if hy is not None:
-        h += hy * s[:, :, 1]
-    if hz is not None:
-        h += hz * s[:, :, 2]
-    if np.ndim(h) == 0:
-        raise ValueError('Must have at least one non-zero prefactor.')
+    h = hx * s[:, :, 0] + hy * s[:, :, 1] + hz * s[:, :, 2]
     return Coupling.from_dense_block(h, sites, name=name)
 
 
-def aklt_coupling(sites: list[SpinDOF], name: str = 'AKLT') -> Coupling:
-    r"""AKLT coupling between two spin-1 sites.
-    
-    Construct the AKLT coupling between S=1 spins as originally defined by
-    Affleck, Kennedy, Lieb, Tasaki in :cite:`affleck1987`, but drop the
-    constant part of 1/3 per bond and rescale with a factor of 2.
+def aklt_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'AKLT') -> Coupling:
+    r"""Two-site AKLT coupling between spins.
 
     .. math ::
-        2 * P^{S=2}_{i,i+1} + const
-        = \vec{S}_i \cdot \vec{S}_{i+1}
-          + \frac{1}{3} (\vec{S}_i \cdot \vec{S}_{i+1})^2
+        h_{ij} = \mathtt{J} [\vec{S}_i \cdot \vec{S}_j + \frac{1}{3} (\vec{S}_i \cdot \vec{S}_j)^2]
+
+    This is the coupling originally defined by Affleck, Kennedy, Lieb, Tasaki
+    in :cite:`affleck1987`, except we drop the constant part of 1/3 per bond and rescale with a
+    factor of 2, i.e. :math:`h_{ij} = 2 P^{S=2}_{i, j} + const.`.
+
+    It was defined for spin-1 degrees of freedom in the original work, but we allow any site
+    with a spin DOF. Note that the coupling simplifies to a Heisenberg coupling for spin-1/2.
+
+    Parameters
+    ----------
+    J: float
+        Prefactor, as given above. By default use ``1``.
     """
-    # TODO test that this builds what we expect
     assert len(sites) == 2
-    assert sites[0].double_total_spin == 2 == sites[1].double_total_spin
     s1 = sites[0].spin_vector
     s2 = sites[1].spin_vector
     S_dot_S = np.tensordot(s1, s2, axes=[2, 2])
     S_dot_S = np.transpose(S_dot_S, [0, 2, 3, 1])
     S_dot_S_square = np.tensordot(S_dot_S, S_dot_S, axes=[[3, 2], [0, 1]])
-    h = S_dot_S + S_dot_S_square / 3.
+    h = J * (S_dot_S + S_dot_S_square / 3.)
     return Coupling.from_dense_block(h, sites, name=name)
 
 
-def heisenberg_coupling(sites: list[SpinDOF], name: str = 'S.S') -> Coupling:
-    # TODO test that this builds what we expect
-    return spin_spin_coupling(sites=sites, xx=1, yy=1, zz=1, name=name)
+def heisenberg_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'S.S') -> Coupling:
+    r"""Two-site Heisenberg coupling between spins.
+
+    .. math ::
+        h_{ij} = \mathtt{J} \vec{S}_i \cdot \vec{S}_j
+
+    Parameters
+    ----------
+    J: float
+        Prefactor, as given above. By default use ``1``, i.e. an anti-ferromagnetic coupling.
+    """
+    return spin_spin_coupling(sites=sites, Jx=J, Jy=J, Jz=J, name=name)
 
 
-def chiral_3spin_coupling(sites: list[SpinDOF], name: str = 'S.SxS') -> Coupling:
-    # TODO test that this builds what we expect
+def chiral_3spin_coupling(sites: list[SpinDOF], chi: float = 1, name: str = 'S.SxS') -> Coupling:
+    r"""Chiral coupling of three spins.
+
+    .. math ::
+        h_{ijk} = \mathtt{chi} \vec{S}_i \cdot ( \vec{S}_j \times \vec{S}_k )
+
+    Parameters
+    ----------
+    chi: float
+        Prefactor, as given above. By default use ``1``.
+    """
     assert len(sites) == 3
     SxS = np.cross(sites[1].spin_vector[:, None, None, :, :],
                    sites[2].spin_vector[None, :, :, None, :],
                    axis=4)  # [p1, p2, p2*, p1*, i]
-    h = np.tensordot(sites[0].spin_vector, SxS, (-1, -1))  # [p0, p0*, p1, p2, p2*, p1*]
+    h = chi * np.tensordot(sites[0].spin_vector, SxS, (-1, -1))  # [p0, p0*, p1, p2, p2*, p1*]
     h = np.transpose(h, [0, 2, 3, 4, 5, 1])
     return Coupling.from_dense_block(h, sites, name=name)
 
 
 # BOSON AND FERMION COUPLINGS
 
-def chemical_potential(sites: list[BosonicDOF | FermionicDOF], mu: float | list[float | None] = 1.,
-                       name: str = 'chem. pot.') -> Coupling:
-    """Chemical potential for bosons or fermions on a single site.
 
-    Parameters
-    ----------
-    mu : float | list[float | None]
-        Chemical potential. Add the corresponding term ``-1 * mu[j] n_i(j)``
-        with the value as prefactor, where `j` refers to the boson or fermion
-        species. If there are multiple species and `mu` is a `float`, it is
-        applied as chemical potential to all particle species.
-        `None` entries correspond to no chemical potential.
-    """
-    # TODO test that this builds what we expect
-    assert len(sites) == 1
-    site = sites[0]
-    h = 0
-    if isinstance(mu, (list, np.ndarray)):
-        msg = f'Invalid number of entries in `mu`: {len(mu)} != {site.num_species}'
-        assert len(mu) == site.num_species, msg
-        for i, mu_i in enumerate(mu):
-            if mu_i is None:
-                continue
-            op_name = 'N' if site.num_species == 1 else f'N{i}'
-            h -= mu_i * site.onsite_operators[op_name]
-    else:
-        op_name = 'N' if site.num_species == 1 else 'Ntot'
-        h = -1 * mu * site.onsite_operators[op_name]
-    if np.ndim(h) == 0:
-        raise ValueError('Must have at least one non-zero prefactor.')
-    return Coupling.from_tensor(h, sites=sites, name=name)
-
-
-def onsite_interaction(sites: list[BosonicDOF | FermionicDOF], name: str = 'onsite interaction'
+def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float = 1.,
+                       species: int | list[int] = ALL_SPECIES, name: str = 'chem. pot.'
                        ) -> Coupling:
-    """Onsite interactions for bosons or fermions.
+    r"""Chemical potential for bosons or fermions. Single-site coupling.
 
-    Corresponds to ``n_i**2 / 2``, where `n_i` is the total onsite particle
-    number (including all particle species).
-    """
-    # TODO test that this builds what we expect
-    assert len(sites) == 1
-    op_name = 'N' if sites[0].num_species == 1 else 'Ntot'
-    h = sites[0].onsite_operators[op_name]
-    h = compose(h, h) / 2
-    return Coupling.from_tensor(h, sites=sites, name=name)
+    .. math ::
+        h_i = -\mathtt{mu} \sum_{k \in \mathtt{species} n_{i, k}
 
-
-def long_range_interaction(sites: list[BosonicDOF | FermionicDOF],
-                           name: str = 'long-range interaction') -> Coupling:
-    """Long-range density-density interactions for bosons or fermions.
-
-    Corresponds to ``n_i n_j``, where `n_i` and `n_j` are the total onsite
-    particle numbers (including all particle species) of the sites `i` and `j`.
-    Sites `i` and `j` are assumed to be the first and the last entry in
-    `sites`, respectively.
-    """
-    # TODO test that this builds what we expect
-    assert len(sites) > 1, 'distance between the sites must be positive'
-    sites_ij = [sites[0], sites[-1]]
-    op_names = ['N' if site.num_species == 1 else 'Ntot' for site in sites_ij]
-    ops = [site.onsite_operators[op_name] for site, op_name in zip(sites_ij, op_names)]
-    h = ops[0]
-    distance = len(sites) - 1
-    for i in range(1, distance):
-        identity = SymmetricTensor.from_eye([sites[i].leg], labels=[f'p{i}', f'p{i}*'])
-        h = outer(h, identity)
-    h = outer(h, ops[1], relabel1={'p': 'p0', 'p*': 'p0*'},
-              relabel2={'p': f'p{distance}', 'p*': f'p{distance}*'})
-    return Coupling.from_tensor(h, sites=sites, name=name)
-
-
-def nearest_neighbor_interaction(sites: list[BosonicDOF | FermionicDOF],
-                                 name: str = 'NN interaction') -> Coupling:
-    """Nearest neighbor interactions for bosons or fermions.
-
-    Corresponds to ``n_i n_j``, where `n_i` and `n_j` are the total onsite
-    particle numbers (including all particle species) of the two neighboring
-    sites.
-    """
-    # TODO test that this builds what we expect
-    assert len(sites) == 2
-    return long_range_interaction(sites=sites, name=name)
-
-
-def next_nearest_neighbor_interaction(sites: list[BosonicDOF | FermionicDOF],
-                                      name: str = 'NNN interaction') -> Coupling:
-    """Next nearest neighbor interactions for bosons or fermions.
-
-    Corresponds to ``n_i n_j``, where `n_i` and `n_j` are the total onsite
-    particle numbers (including all particle species) of the two next nearest
-    neighboring sites.
-    """
-    # TODO test that this builds what we expect
-    assert len(sites) == 3
-    return long_range_interaction(sites=sites, name=name)
-
-
-def long_range_quadratic_coupling(sites: list[BosonicDOF | FermionicDOF],
-                                  t: float | list[float | None] = 1.,
-                                  delta: float | list[float | None] = None,
-                                  name: str = 'long-range quad coupling') -> Coupling:
-    r"""Long-range quadratic coupling (hopping and pairing) for bosons or fermions.
-
-    Quadratic couplings generally take the form
-    ``\sum_k -1 * t[k] a_i^\dagger(k) a_j(k) + delta[k] a_i^\dagger(k) a_j^\dagger(k) + h.c.``,
-    where the first term corresponds to hopping processes and the second term to superconducting
-    pairings. Here `a_i^\dagger(k)` and `a_j(k)` denote the creation and annihilation operators on
-    sites `i` and `j`, respectively. Sites `i` and `j` are assumed to be the first and the last
-    entry in `sites`, respectively. `k` denotes the boson / fermion species. Note the convention
-    for the order of the operators (with ``j > i``). This is in particular important for fermions
-    due to their anticommutation relations.
+    where :math:`n_{i, k}` is the occupation number of species :math:`k` on site :math:`i`.
 
     Parameters
     ----------
-    t : float | list[float | None]
-        Hopping amplitudes. Add the corresponding hopping
-        ``\sum_k -1 * t[k] a_i^\dagger(k) a_j(k) + h.c.`` with the value as prefactor, where `k`
-        refers to the boson or fermion species. If there are multiple species and `t` is a `float`,
-        it is applied as hopping amplitude to all particle species.
-        `None` entries correspond to no hopping processes.
-    delta : float | list[float | None]
-        Superconducting pairing amplitudes. Add the corresponding pairing
-        ``\sum_k delta[k] a_i^\dagger(k) a_j^\dagger(k) + h.c.`` with the value as prefactor, where
-        `k` refers to the boson or fermion species. If there are multiple species and `delta` is a
-        `float`, it is applied as pairing amplitude to all particle species.
-        `None` entries correspond to no pairing processes.
+    mu: float
+        Chemical potential, as defined above. By default, use ``1``.
+    species: (list of) int, optional
+        If given, the chemical potential only couples to the occupation of this species.
+        By default, it couples to the total occupation of all species.
     """
-    # TODO test that this builds what we expect
-    assert len(sites) > 1, 'distance between the sites must be positive'
-    sites_ij = [sites[0], sites[-1]]
-    assert sites_ij[0].num_species == sites_ij[1].num_species
-    if not isinstance(t, (list, np.ndarray)):
-        t = [t] * sites[0].num_species
-    else:
-        assert len(t) == sites[0].num_species
-    if not isinstance(delta, (list, np.ndarray)):
-        delta = [delta] * sites[0].num_species
-    else:
-        assert len(delta) == sites[0].num_species
-    h = 0
-    for k, (t_k, delta_k) in enumerate(zip(t, delta)):
-        if t_k is None and delta_k is None:
-            continue
-        a_idk = sites_ij[0].creators[:, :, k]
-        a_jk = sites_ij[1].annihilators[:, :, k]
-        a_jdk = sites_ij[1].creators[:, :, k]
-        for n, site in enumerate(sites):
-            if isinstance(site, FermionicDOF):
-                if n == 0:
-                    jw_n = np.tensordot(site.creators[:, :, k:], site.annihilators[:, :, k:],
-                                        axes=[[2, 1], [2, 0]])
-                elif n == len(sites) - 1:
-                    jw_n = np.tensordot(site.creators[:, :, :k], site.annihilators[:, :, :k],
-                                        axes=[[2, 1], [2, 0]])
-                else:
-                    op_name = 'N' if site.num_species == 1 else f'Ntot'
-                    jw_n = site.onsite_operators[op_name].to_numpy(understood_braiding=True)
-                jw_n = np.diag(np.power(-1, np.diag(jw_n)))
-            else:
-                jw_n = np.diag(np.ones(a_idk.shape[0]))
-            if n == 0:
-                # JW acts on same site as a_i(k)
-                h_k = a_idk @ jw_n
-            elif n == len(sites) - 1:
-                # multiply in the next step after the for loop
-                pass
-            else:
-                h_k = np.tensordot(h_k, jw_n, axes=0)
-        if t_k is not None:
-            h -= t_k * np.tensordot(h_k, jw_n @ a_jk, axes=0)
-        if delta_k is not None:
-            h += delta_k * np.tensordot(h_k, jw_n @ a_jdk, axes=0)
-    if np.ndim(h) == 0:
-        raise ValueError('Must have at least one non-zero prefactor.')
-    # h has legs p0, p0*, p1, ..., but already has to correct signs for the correct leg order
-    axes_perm = [2 * i for i in range(len(sites))]
-    axes_perm.extend([i + 1 for i in reversed(axes_perm)])
-    h = np.transpose(h, axes=axes_perm)
-    # add hc for a_j^\dagger a_i
-    h += np.conj(np.transpose(h, list(reversed(range(2 * len(sites))))))
+    assert len(sites) == 1
+    h = -mu * sites[0].get_occupation_numpy(species=species)
+    return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
+
+
+def onsite_interaction(sites: list[BosonicDOF] | list[FermionicDOF], U: float = 1,
+                       species: int = ALL_SPECIES, name: str = 'onsite interaction') -> Coupling:
+    r"""Onsite interaction for bosons or fermions. Single-site coupling.
+
+    .. math ::
+        h_i = \frac{U}{2} n_i^2
+
+    where :math:`n_i` is the total occupation number, or the occupation of a single `species`.
+
+    Parameters
+    ----------
+    U: float
+        Prefactor, as defined above. By default, use ``1``, i.e. a repulsive interaction.
+    species: int, optional
+        If given, we use only the occupation of this one species as the density :math:`n_i`.
+        By default, we use the total occupation of all species.
+    """
+    assert len(sites) == 1
+    n_i = sites[0].get_occupation_numpy(species=species)
+    h = .5 * U * n_i @ n_i
+    return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
+
+
+def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V: float = 1,
+                                species_i: int = ALL_SPECIES, species_j: int = ALL_SPECIES,
+                                name: str = 'density-density') -> Coupling:
+    r"""Density-density interaction. Two-site coupling.
+
+    .. math ::
+        h_{ij} = \mathtt{V} n_i n_j
+
+    where :math:`n_i` is the total occupation number.
+
+    Parameters
+    ----------
+    V: float
+        Prefactor, as defined above. By default, use ``1``, i.e. a repulsive interaction.
+    species_i, species_j: int, optional
+        If given, we use only the occupation of this one species as the density :math:`n_{i/j}`.
+        By default, we use the total occupation of all species.
+        Note that if the two species are different, this coupling alone is not hermitian!
+    """
+    assert len(sites) == 2
+    n_i = sites[0].get_occupation_numpy(species=species_i)
+    n_j = sites[1].get_occupation_numpy(species=species_j)
+    h = V * n_i[:, None, None, :] * n_j[None, :, :, None]  # [p0, p1, p1*, p0*]
     return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
-def nearest_neighbor_hopping(sites: list[BosonicDOF | FermionicDOF],
-                             t: float | list[float | None] = 1.,
-                             name: str = 'NN hopping') -> Coupling:
-    r"""Nearest neighbor hopping for bosons or fermions.
-
-    Corresponds to ``-1 * t[k] a_i^\dagger(k) a_j(k) + h.c.``, where `a_i^\dagger(k)`
-    and `a_j(k)` are the creation and annihilation operators on two nearest neighboring
-    sites `i` and `j == i + 1`, respectively. `k` denotes the boson / fermion species.
-    Note the convention for the order of the operators (with ``j > i``). This is in
-    particular important for fermions due to their anticommutation relations.
-
-    Parameters
-    ----------
-    t : float | list[float | None]
-        Hopping amplitudes. Add the corresponding hopping ``-1 * t[k] a_i^\dagger(k) a_j(k) + h.c.``
-        with the value as prefactor, where `k` refers to the boson or fermion species.
-        If there are multiple species and `t` is a `float`, it is applied as hopping
-        amplitude to all particle species.
-        `None` entries correspond to no hopping processes.
-    """
-    # TODO test that this builds what we expect
-    assert len(sites) == 2
-    return long_range_quadratic_coupling(sites=sites, t=t, delta=None, name=name)
-
-
-def next_nearest_neighbor_hopping(sites: list[BosonicDOF | FermionicDOF],
-                                  t: float | list[float | None] = 1.,
-                                  name: str = 'NNN hopping') -> Coupling:
-    r"""Next-nearest neighbor hopping for bosons or fermions.
-
-    Corresponds to ``-1 * t[k] a_i^\dagger(k) a_j(k) + h.c.``, where `a_i^\dagger(k)`
-    and `a_j(k)` are the creation and annihilation operators on two next-nearest
-    neighboring sites `i` and `j == i + 2`, respectively. `k` denotes the boson / fermion
-    species. Note the convention for the order of the operators (with ``j > i``). This is
-    in particular important for fermions due to their anticommutation relations.
-
-    Parameters
-    ----------
-    t : float | list[float | None]
-        Hopping amplitudes. Add the corresponding hopping ``-1 * t[k] a_i^\dagger(k) a_j(k) + h.c.``
-        with the value as prefactor, where `k` refers to the boson or fermion species.
-        If there are multiple species and `t` is a `float`, it is applied as hopping
-        amplitude to all particle species.
-        `None` entries correspond to no hopping processes.
-    """
-    # TODO test that this builds what we expect
-    assert len(sites) == 3
-    return long_range_quadratic_coupling(sites=sites, t=t, delta=None, name=name)
-
-
-def onsite_sc_pairing(sites: list[BosonicDOF | FermionicDOF],
-                      delta: float | list[list[float | None]] = 1.,
-                      name: str = 'onsite SC pairing') -> Coupling:
-    r"""Onsite superconducting pairing for bosons or fermions.
-
-    Corresponds to ``\sum_{j,k} delta[j][k] a_i^\dagger(j) a_i^\dagger(k) + h.c.``,
-    where `a_i^\dagger(j)` and `a_i^\dagger(k)` denote the onsite creation
-    operators for boson / fermion species `j` and `k`, respectively. Note the
-    convention for the order of the operators. This is in particular important
-    for fermions due to their anticommutation relations.
-
-    Parameters
-    ----------
-    delta : float | list[list[float | None]]
-        Superconducting pairing amplitudes. Add the corresponding pairing
-        ```\sum_{j,k} delta[j][k] a_i^\dagger(j) a_i^\dagger(k) + h.c.`` with
-        the value as prefactor, where `j` and `k` refers to the boson or fermion
-        species. Can in general be chosen to be a upper or lower triangular
-        matrix (but this is not required). If there are multiple species and
-        `delta` is a `float`, it is applied as pairing amplitude to all particle
-        species.
-        `None` entries correspond to no pairing processes.
-    """
-    # TODO test that this builds what we expect
-    assert len(sites) == 1
-    if not isinstance(delta, (list, np.ndarray)):
-        delta = delta * np.ones((sites[0].num_species, sites[0].num_species))
-    else:
-        delta = np.asarray(delta)
-        assert delta.shape == (sites[0].num_species, sites[0].num_species)
-    commute = -1 if isinstance(sites[0], FermionicDOF) else 1
+def _quadratic_coupling_numpy(sites: list[BosonicDOF] | list[FermionicDOF], is_pairing: bool,
+                              species) -> np.ndarray:
+    """Create the numpy representation for both :func:`hopping` and :func:`pairing`."""
+    site_i, site_j = sites
+    species_i, species_j = species
+    if species_i is ALL_SPECIES:
+        species_i = [*range(site_i.num_species)]
+    if species_j is ALL_SPECIES:
+        species_j = [*range(site_j.num_species)]
     h = 0
-    for k in range(sites[0].num_species):
-        for j in range(k + 1):
-            # combine contributions with the same operators
-            if j == k:
-                if delta[j, k] is None or isinstance(sites[0], FermionicDOF):
-                    continue
-                factor = delta[j, k]
-            else:
-                if delta[j, k] is None:
-                    if delta[k, j] is None:
-                        continue
-                    factor = commute * delta[k, j]
-                else:
-                    factor = delta[j, k]
-                    if delta[k, j] is not None:
-                        factor += commute * delta[k, j]
-            h_jk = np.copy(sites[0].creators[:, :, j])
-            a_kd = sites[0].creators[:, :, k]
-            if isinstance(sites[0], FermionicDOF):
-                # onsite JW: product of species occupations from species 0 to species j - 1 / k - 1
-                jw = np.tensordot(sites[0].creators[:, :, j:k], sites[0].annihilators[:, :, j:k],
-                                  axes=[[2, 1], [2, 0]])
-                jw = np.diag(np.power(-1, np.diag(jw)))
-                h_jk = h_jk @ jw
-            h += factor * h_jk @ a_kd
-    if np.ndim(h) == 0:
-        raise ValueError('Must have at least one non-zero prefactor.')
-    h += np.conj(np.transpose(h, [1, 0]))
-    return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
-            
+    for k_i, k_j in zip(species_i, species_j):
+        # since we work with numpy representations here, we need to consider JW strings.
+        # visually (where columns represent different species)
+        # |  site i   |  site j  |       |  site i   |  site j  |
+        # | J J J O   |          |   =   |  op_i     |          |
+        # | J J J J J | J J J O  |       |  JW_i     |  op_j    |
+        op_i = site_i.get_creator_numpy(species=k_i, include_JW=True)
 
-def nearest_neighbor_sc_pairing(sites: list[BosonicDOF | FermionicDOF],
-                                delta: float | list[float | None] = 1.,
-                                name: str = 'NN SC pairing') -> Coupling:
-    r"""Nearest neighbor superconducting pairing for bosons or fermions.
+        # OPTIMIZE rm check?
+        sign = -1 if isinstance(site_i, FermionicDOF) else +1
+        assert np.allclose(op_i @ site_i.JW, sign * site_i.JW @ op_i)
 
-    Corresponds to ``\sum_k delta[k] a_i^\dagger(k) a_j^\dagger(k) + h.c.``,
-    where `a_i^\dagger(k)` and `a_j(k)^\dagger` denote the creation operators
-    on two nearest neighboring sites `i` and `j == i + 1`, respectively. `k`
-    denotes the boson / fermion species. Note the convention for the order of
-    the operators (with ``j > i``). This is in particular important for fermions
-    due to their anticommutation relations.
+        if is_pairing:
+            op_j = site_i.get_creator_numpy(species=k_j, include_JW=True)
+        else:
+            op_j = site_i.get_annihilator_numpy(species=k_j, include_JW=True)
+        h += (op_i @ site_i.JW)[:, None, None, :] * op_j[None, :, :, None]  # [p0, p1, p1*, p0*]
+    return h + np.transpose(h.conj(), [3, 2, 1, 0])
+
+
+def hopping(sites: list[BosonicDOF] | list[FermionicDOF], t: float = 1,
+            species: tuple[list[int], list[int]] = (ALL_SPECIES, ALL_SPECIES),
+            name: str = 'hopping') -> Coupling:
+    r"""Hopping of fermions or bosons. Two-site coupling.
+
+    .. math ::
+        h_{ij} = -\mathtt{t} \sum_{k \in \mathtt{species}} a_{i, k_i}^\dagger a_{j, k_j} + h.c.
 
     Parameters
     ----------
-    delta : float | list[float | None]
-        Superconducting pairing amplitudes. Add the corresponding pairing
-        ``\sum_k delta[k] a_i^\dagger(k) a_j^\dagger(k) + h.c.`` with the value
-        as prefactor, where `k` refers to the boson or fermion species. If
-        there are multiple species and `delta` is a `float`, it is applied as
-        pairing amplitude to all particle species.
-        `None` entries correspond to no pairing processes.
+    t : float
+        Prefactor, as given above. By default ``1``.
+    species : tuple of list of int, optional
+        Which species should participate (the sum above goes over ``k_i, k_j in zip(*species)``).
+        By default, we let :math:`k_i = k_j` go over all species, i.e. include all
+        "species preserving" hoppings.
     """
-    # TODO test that this builds what we expect
-    assert len(sites) == 2
-    return long_range_quadratic_coupling(sites=sites, t=None, delta=delta, name=name)
+    h = -t * _quadratic_coupling_numpy(sites, is_pairing=False, species=species)
+    return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
+
+
+def pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
+            species: tuple[list[int], list[int]] = (ALL_SPECIES, ALL_SPECIES),
+            name: str = 'pairing') -> Coupling:
+    r"""Superconducting pairing of fermions or bosons. Two-site coupling.
+
+    .. math ::
+        h_{ij} = \mathtt{Delta} \sum_{k\in\mathtt{species}} a_{i, k_i}^\dagger a_{j, k_j}^\dagger + h.c.
+
+    .. note ::
+        This coupling assumes distinct sites :math:`i \neq j`.
+        Use :func:`onsite_pairing` for :math:`i = j`.
+
+    Parameters
+    ----------
+    Delta : float
+        Prefactor, as given above. By default ``1``.
+    species : tuple of list of int, optional
+        Which species should participate (the sum above goes over ``k_i, k_j in zip(*species)``).
+        By default, we let :math:`k_i = k_j` go over all species, i.e. include all "same-species"
+        pairings.
+
+    See Also
+    --------
+    onsite_pairing
+    """
+    h = Delta * _quadratic_coupling_numpy(sites, is_pairing=True, species=species)
+    return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
+
+
+def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
+                   species: tuple[list[int], list[int]] = (ALL_SPECIES, ALL_SPECIES),
+                   name: str = 'onsite pairing') -> Coupling:
+    r"""Superconducting pairing of fermions or bosons. Single-site coupling.
+
+    .. math ::
+        h_i = \mathtt{Delta} \sum_{k\in\mathtt{species}} a_{i, k_1}^\dagger a_{i, k_2}^\dagger + h.c.
+
+    Parameters
+    ----------
+    Delta : float
+        Prefactor, as given above. By default ``1``.
+    species : tuple of list of int, optional
+        Which species should participate (the sum above goes over ``k_1, k_2 in zip(*species)``).
+        By default, we let :math:`k_1 = k_2` go over all species, i.e. include all "same-species"
+        pairings.
+
+    See Also
+    --------
+    pairing
+    """
+    site, = sites
+    species_1, species_2 = species
+    if species_1 is ALL_SPECIES:
+        species_1 = [*range(site.num_species)]
+    if species_2 is ALL_SPECIES:
+        species_2 = [*range(site.num_species)]
+    h = 0
+    for k_1, k_2 in zip(species_1, species_2, strict=True):
+        a_i_hc = site.get_creator_numpy(species=k_1, include_JW=True)
+        a_j_hc = site.get_creator_numpy(species=k_2, include_JW=True)
+        h += Delta * a_i_hc @ a_j_hc
+    h + np.transpose(h.conj(), [3, 2, 1, 0])
+    return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
 
 # CLOCK COUPLINGS
 
-def clock_clock_coupling(sites: list[ClockDOF], xx: float = None, zz: float = None,
+def clock_clock_coupling(sites: list[ClockDOF], Jx: float = 0, Jz: float = 0,
                          name: str = 'clock-clock') -> Coupling:
-    r"""Coupling between two clock sites.
+    r"""Two-site coupling between quantum clocks.
+
+    .. math ::
+        h_{ij} = \mathtt{Jx} X_i X_j^\dagger + \mathtt{Jz} Z_i Z_j^\dagger + h.c.
 
     Parameters
     ----------
-    xx, zz : float, optional
-        If given, adds the corresponding term, ``xx * (X_i X_j^\dagger + \mathrm{ h.c.})``, and
-        ``zz * (Z_i Z_j^\dagger + \mathrm{ h.c.})``, with the value as prefactor.
+    Jx, Jz: float
+        Prefactor, as given above. By default, all prefactors vanish.
     """
-    # TODO test that this builds what we expect
     assert len(sites) == 2
-    clock1 = sites[0].clock_operators
-    clock2 = sites[1].clock_operators
-    h = 0
-    if xx is not None:
-        h += xx * np.tensordot(clock1[:, :, 0], np.conj(clock2[:, :, 0].T), axes=0)
-        h += xx * np.tensordot(np.conj(clock1[:, :, 0].T), clock2[:, :, 0], axes=0)
-    if zz is not None:
-        h += zz * np.tensordot(clock1[:, :, 1], np.conj(clock2[:, :, 1].T), axes=0)
-        h += zz * np.tensordot(np.conj(clock1[:, :, 1].T), clock2[:, :, 1], axes=0)
-    if np.ndim(h) == 0:
-        raise ValueError('Must have at least one non-zero prefactor.')
-    h = np.transpose(h, [0, 2, 3, 1])
+    X_i = sites[0].clock_operators[:, :, 0]
+    Z_i = sites[0].clock_operators[:, :, 1]
+    X_j = sites[1].clock_operators[:, :, 0]
+    Z_j = sites[1].clock_operators[:, :, 1]
+    h = Jx * X_i[:, None, None, :] * X_j.T.conj()[None, :, :, None]  # [p0, p1, p1*, p0*]
+    h += Jz * Z_i[:, None, None, :] * Z_j.T.conj()[None, :, :, None]
+    h = h + np.transpose(h.conj(), [3, 2, 1, 0])
     return Coupling.from_dense_block(h, sites, name=name)
 
 
 def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = None,
                          name: str = 'clock-field') -> Coupling:
-    r"""Coupling between a clock site and a (magnetic) field.
+    r"""Single-site coupling of a quantum clock to an external field.
+
+    .. math ::
+        h_i = \mathtt{hx} X_i + \mathtt{hz} Z_i + h.c.
 
     Parameters
     ----------
-    hx, hz: float, optional
-        If given, adds the corresponding term, ``hx * (X_i + \mathrm{ h.c.})``, and
-        ``hz * (Z_i + \mathrm{ h.c.})``, with the value as prefactor.
+    hx, hz: float
+        Prefactor, as given above. By default, all prefactors vanish.
     """
-    # TODO test that this builds what we expect
     assert len(sites) == 1
-    clock = sites[0].clock_operators
-    h = 0
-    if hx is not None:
-        Xphc = clock[:, :, 0] + np.conj(clock[:, :, 0].T)
-        h += hx * Xphc
-    if hz is not None:
-        Zphc = clock[:, :, 1] + np.conj(clock[:, :, 1].T)
-        h += hz * Zphc
-    if np.ndim(h) == 0:
-        raise ValueError('Must have at least one non-zero prefactor.')
+    X = sites[0].clock_operators[:, :, 0]
+    Z = sites[0].clock_operators[:, :, 1]
+    h = hx * (X + X.T.conj()) + hz * (Z + Z.T.conj())
     return Coupling.from_dense_block(h, sites, name=name)
 
 
 # ANYONIC COUPLINGS
 
-def multi_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
-    """Coupling between multiple sites that corresponds to a projector onto a common sector."""
+
+def sector_projection_coupling(sites: list[DegreeOfFreedom], J: float, sector: Sector, name: str
+                               ) -> Coupling:
+    """Coupling that is given by the projector onto a single sector.
+
+    The number of sites is arbitrary and the operator :math:`h_{ij...}` is given
+    by :meth:`cyten.SymmetricTensor.from_sector_projection`, with prefactor `J`.
+    Note that positive `J` mean that states that fuse to the given `sector` are energetically
+    *disfavored*.
+    """
     backend = get_same_backend(*sites)
     device = sites[0].default_device
     assert all(s.default_device == device for s in sites[1:])
@@ -649,24 +525,24 @@ def multi_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str
     return Coupling.from_tensor(projector, sites=sites, name=name)
 
 
-def two_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
-    """Coupling between two sites that corresponds to a projector onto a common sector."""
+def gold_coupling(sites: list[GoldenSite], J: float = 0, name: str = 'P_vac') -> Coupling:
+    r"""Two-site coupling of Fibonacci anyons that energy splits fusion to vacuum or tau.
+
+    .. math ::
+        h_{ij} = -J P^\text{vac}_{i, j}
+
+    Parameters
+    ----------
+    J: float
+        Prefactor, as given above. By default ``1``. Positive `J` energetically favor the
+        trivial fusion channel, i.e. they are the "antiferromagnetic" analog.
+    """
     assert len(sites) == 2
-    return multi_site_projector(sites=sites, sector=sector, name=name)
-
-
-def three_site_projector(sites: list[DegreeOfFreedom], sector: Sector, name: str) -> Coupling:
-    """Coupling between three sites that corresponds to a projector onto a common sector."""
-    assert len(sites) == 3
-    return multi_site_projector(sites=sites, sector=sector, name=name)
-
-
-def gold_coupling(sites: list[GoldenSite], name: str = 'P_vac') -> Coupling:
-    """Coupling between two Fibonacci anyons projecting onto their trivial channel."""
     for site in sites:
         assert isinstance(site.symmetry, FibonacciAnyonCategory)
-        assert site.leg.sector_decomposition_where(np.array([1])) is not None
-    return two_site_projector(sites, sector=np.array([0]), name=name)
+        assert site.leg.sector_decomposition_where(FibonacciAnyonCategory.tau) is not None
+    return sector_projection_coupling(sites, sector=FibonacciAnyonCategory.vacuum, name=name)
+
 
 # TODO implement more of these functions that generate couplings. at least cover everything
 #      that occurs as a coupling in tenpy v1. also cover some anyon models.

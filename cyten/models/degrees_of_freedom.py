@@ -18,6 +18,11 @@ from ..symmetries import (
     FermionNumber, FermionParity, U1Symmetry, ZNSymmetry, SU2Symmetry, Sector, Symmetry,
     NoSymmetry, ProductSymmetry, BraidingStyle
 )
+from ..tools import to_iterable
+
+
+ALL_SPECIES = object()
+"""Singleton object used to indicate to sum over all species in fermion/boson couplings."""
 
 
 class DegreeOfFreedom:
@@ -230,6 +235,13 @@ class BosonicDOF(DegreeOfFreedom):
         The vector of annihilation operators as a numpy array with shape ``(dim, dim, num_species)``
         and axes ``[p, p*, i]``, where `i` corresponds to the different species of bosons (i.e.,
         ``[B0, B1`, ...]`` stacked along axis 2).
+    number_operators : 3D array
+        The vector of occupation number operators with shape ``(dim, dim, num_species)``.
+    n_tot : 2D array
+        The total occupation number operator with shape ``(dim, dim)``.
+    JW : 2D array
+        An identity with shape ``(dim, dim)``. Exists for convenience, so we have the same
+        interface as :class:`FermionicDOF`.
     """
 
     def __init__(self,
@@ -244,11 +256,15 @@ class BosonicDOF(DegreeOfFreedom):
         assert creators.shape == annihilators.shape
         self.creators = creators
         self.annihilators = annihilators
+        # [p, (p*), k] @ [(p), p*, k] -> [p, p*, k]
+        self.number_operators = n_ops = np.tensordot(creators, annihilators, (1, 0))
+        self.n_tot = np.sum(n_ops, axis=2)
+        self.JW = np.eye(leg.dim)
         self.num_species = num_species = creators.shape[2]
 
         Nmax = []
         for i in range(num_species):
-            N_i = creators[:, :, i] @ annihilators[:, :, i]
+            N_i = n_ops[:, :, i]
             N_i_max_ = np.max(np.diag(N_i))
             N_i_max = round(N_i_max_, 0)
             assert np.allclose(N_i_max, N_i_max_)
@@ -267,7 +283,8 @@ class BosonicDOF(DegreeOfFreedom):
     def test_sanity(self):
         super().test_sanity()
         for i in range(self.num_species):
-            N_i = self.creators[:, :, i] @ self.annihilators[:, :, i]
+            N_i = self.number_operators[:, :, i]
+            assert np.allclose(self.creators[:, :, i] @ self.annihilators[:, :, i], N_i)
             # check commutation relations
             # BBd is 0 when going over the maximum occupation -> set this manually here
             BBd = self.annihilators[:, :, i] @ self.creators[:, :, i]
@@ -338,6 +355,28 @@ class BosonicDOF(DegreeOfFreedom):
         self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2), is_diagonal=are_diagonal)
         P_tot = np.diag(1. - 2. * np.mod(np.diag(N_tot), 2))
         self.add_onsite_operator('Ptot', P_tot, is_diagonal=are_diagonal)
+
+    def get_annihilator_numpy(self, species: int, include_JW: bool = False):
+        """Wrapper around ``annihilators[:, :, species]``.
+
+        Exists only for compatibility with :class:`FermionicDOF`, where `include_JW` matters.
+        """
+        return self.annihilators[:, :, species]
+
+    def get_creator_numpy(self, species: int, include_JW: bool = False):
+        """Wrapper around ``creators[:, :, species]``.
+
+        Exists only for compatibility with :class:`FermionicDOF`, where `include_JW` matters.
+        """
+        return self.creators[:, :, species]
+
+    def get_occupation_numpy(self, species: int | Sequence[int] = ALL_SPECIES):
+        """Get the occupation number operator as a numpy array."""
+        if species is ALL_SPECIES:
+            species = [*range(self.num_species)]
+        else:
+            species = to_iterable(species)
+        return np.sum(self.number_operators[:, :, species], axis=2)
 
     @staticmethod
     def conservation_law_to_symmetry(conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']]
@@ -441,6 +480,12 @@ class FermionicDOF(DegreeOfFreedom):
         The vector of annihilation operators as a numpy array with shape ``(dim, dim, num_species)``
         and axes ``[p, p*, i]``, where `i` corresponds to the different species of fermions (i.e.,
         ``[C0, C1`, ...]`` stacked along axis 2).
+    number_operators : 3D array
+        The vector of occupation number operators with shape ``(dim, dim, num_species)``.
+    n_tot : 2D array
+        The total occupation number operator with shape ``(dim, dim)``.
+    JW : 2D array
+        The local Jordan-Wigner operator ``(-1) ** n_tot``.
     """
 
     creators: np.ndarray  # [p, p*, i] where i are different species ;  == [Cd0, Cd1, ...]
@@ -464,14 +509,25 @@ class FermionicDOF(DegreeOfFreedom):
         self.creators = creators
         self.annihilators = annihilators
         self.num_species = num_species = creators.shape[2]
+        # [p, (p*), k] @ [(p), p*, k] -> [p, p*, k]
+        self.number_operators = n_ops = np.tensordot(creators, annihilators, (1, 0))
+        _per_species_JW = []
+        for k in range(num_species):
+            n_k_diag = np.diag(n_ops[:, :, k])
+            assert np.allclose(n_ops[:, :, k], np.diag(n_k_diag))
+            _per_species_JW.append(np.diag((-1) ** n_k_diag))
+        self._per_species_JW = np.stack(_per_species_JW, axis=-1)
+        self.n_tot = n_tot = np.sum(n_ops, axis=2)
+        n_tot_diag = np.diag(n_tot)
+        assert np.allclose(n_tot, np.diag(n_tot_diag))
+        self.JW = np.diag((-1) ** n_tot_diag)
         assert leg.dim % (2 ** num_species) == 0
 
-        for i in range(num_species):
-            N_i = creators[:, :, i] @ annihilators[:, :, i]
-            N_i_max_ = np.max(np.diag(N_i))
-            N_i_max = round(N_i_max_, 0)
-            assert np.allclose(N_i_max, N_i_max_)
-            assert N_i_max == 1
+        for k in range(num_species):
+            N_k_max_ = np.max(np.diag(n_ops[:, :, k]))
+            N_k_max = round(N_k_max_, 0)
+            assert np.allclose(N_k_max, N_k_max_)
+            assert N_k_max == 1
 
         DegreeOfFreedom.__init__(
             self, leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
@@ -481,7 +537,8 @@ class FermionicDOF(DegreeOfFreedom):
     def test_sanity(self):
         super().test_sanity()
         for i in range(self.num_species):
-            N_i = self.creators[:, :, i] @ self.annihilators[:, :, i]
+            N_i = self.number_operators[:, :, i]
+            assert np.allclose(self.creators[:, :, i] @ self.annihilators[:, :, i], N_i)
             # check anticommutation relations
             CCd = self.annihilators[:, :, i] @ self.creators[:, :, i]
             assert np.allclose(CCd + N_i, np.eye(self.leg.dim))
@@ -548,6 +605,35 @@ class FermionicDOF(DegreeOfFreedom):
                                  are_diagonal, understood_braiding=True)
         P_tot = np.diag(1. - 2. * np.mod(np.diag(N_tot), 2))
         self.add_onsite_operator('Ptot', P_tot, are_diagonal, understood_braiding=True)
+
+    def get_annihilator_numpy(self, species: int, include_JW: bool = False):
+        """Wrapper around ``annihilators[:, :, species]``, optionally including JW strings.
+
+        If `include_JW`, we include the ``(-1) ** n_k`` from all ``k < species``.
+        """
+        res = self.annihilators[:, :, species]
+        for k in range(species):
+            # OPTIMIZE : instead store the products, such that we need no loop here?
+            res = res @ self._per_species_JW[:, :, k]
+        return res
+
+    def get_creator_numpy(self, species: int, include_JW: bool = False):
+        """Wrapper around ``creators[:, :, species]``, optionally including JW strings.
+
+        If `include_JW`, we include the ``(-1) ** n_k`` from all ``k < species``.
+        """
+        res = self.creators[:, :, species]
+        for k in range(species):
+            res = res @ self._per_species_JW[:, :, k]
+        return res
+
+    def get_occupation_numpy(self, species: int | Sequence[int] = ALL_SPECIES):
+        """Get the occupation number operator as a numpy array."""
+        if species is ALL_SPECIES:
+            species = [*range(self.num_species)]
+        else:
+            species = to_iterable(species)
+        return np.sum(self.number_operators[:, :, species], axis=2)
 
     @staticmethod
     def conservation_law_to_symmetry(conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']]

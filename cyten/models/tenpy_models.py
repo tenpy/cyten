@@ -123,7 +123,7 @@ class TFIModel(CouplingModel):
             #           less flexible, since you need the sites. this is easy here, since all
             #           sites are the same.
             site = self.lat.unit_cell[0]
-            interaction = spin_spin_coupling([site, site], xx=1)
+            interaction = spin_spin_coupling([site, site], Jx=1)
         else:
             # option B: make a CouplingFactory
             interaction = partial(spin_spin_coupling, xx=1, yy=None, zz=None)

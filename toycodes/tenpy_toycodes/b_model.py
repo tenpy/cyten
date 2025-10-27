@@ -33,7 +33,7 @@ class TFIModel:
         # OPTIMIZE this currently constructs the tensors, splits them for the coupling
         # and then recomputes the tensor again in order to form a superposition...
         # factors 2 and 4 due to difference between spin and Pauli matrices
-        XX = ct.spin_spin_coupling(sites=[p, p], xx=4).to_tensor()
+        XX = ct.spin_spin_coupling(sites=[p, p], Jx=4).to_tensor()
         Z = ct.spin_field_coupling(sites=[p], hz=2).to_tensor()
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p'], backend=self.backend)
         IZ = ct.outer(I, Z, {'p': 'p0', 'p*': 'p0*'}, {'p0': 'p1', 'p0*': 'p1*'})
@@ -57,7 +57,7 @@ class TFIModel:
         Called by __init__().
         """
         p = self.site
-        XX = ct.spin_spin_coupling(sites=[p, p], xx=4)
+        XX = ct.spin_spin_coupling(sites=[p, p], Jx=4)
         Z = ct.spin_field_coupling(sites=[p], hz=2)
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
         I = ct.Coupling.from_tensor(I, [p])
@@ -91,7 +91,7 @@ class HeisenbergModel:
         """
         nbonds = self.L - 1 if self.bc == 'finite' else self.L
         p = self.site
-        SdotS = ct.spin_spin_coupling(sites=[p, p], xx=4, yy=4, zz=4).to_tensor()
+        SdotS = ct.spin_spin_coupling(sites=[p, p], Jx=4, Jy=4, Jz=4).to_tensor()
         self.H_bonds = [self.J * SdotS] * nbonds
 
     # (note: not required for TEBD)
@@ -101,7 +101,7 @@ class HeisenbergModel:
         Called by __init__().
         """
         p = self.site
-        SdotS = ct.spin_spin_coupling(sites=[p, p], xx=4, yy=4, zz=4)
+        SdotS = ct.spin_spin_coupling(sites=[p, p], Jx=4, Jy=4, Jz=4)
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
         I = ct.Coupling.from_tensor(I, [p])
         grid = [[I.factorization[0], self.J * SdotS.factorization[0], None],
