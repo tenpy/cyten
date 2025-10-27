@@ -320,13 +320,16 @@ class BosonicDOF(DegreeOfFreedom):
             represented as :class:`DiagonalTensor`.
         """
         for i in range(self.num_species):
-            op_names = ['N', 'NN', 'P'] if self.num_species == 1 else [f'N{i}', f'N{i}N{i}', f'P{i}']
             N_i = self.creators[:, :, i] @ self.annihilators[:, :, i]
-            self.add_onsite_operator(op_names[0], N_i, is_diagonal=are_diagonal)
+            self.add_onsite_operator(f'N{i}', N_i, is_diagonal=are_diagonal)
             N_iN_i = np.diag(np.diag(N_i) ** 2)
-            self.add_onsite_operator(op_names[1], N_iN_i, is_diagonal=are_diagonal)
+            self.add_onsite_operator(f'N{i}N{i}', N_iN_i, is_diagonal=are_diagonal)
             P_i = np.diag(1. - 2. * np.mod(np.diag(N_i), 2))
-            self.add_onsite_operator(op_names[2], P_i, is_diagonal=are_diagonal)
+            self.add_onsite_operator(f'P{i}', P_i, is_diagonal=are_diagonal)
+        if self.num_species == 1:
+            self.add_onsite_operator('N', self.onsite_operators['N0'])
+            self.add_onsite_operator('NN', self.onsite_operators['N0N0'])
+            self.add_onsite_operator('P', self.onsite_operators['P0'])
 
     def add_total_occupation_ops(self, are_diagonal: bool = True):
         """Add total occupation and parity operators as symmetric onsite operators.
@@ -342,10 +345,9 @@ class BosonicDOF(DegreeOfFreedom):
             Whether or not the constructed operators are diagonal, such that they can be
             represented as :class:`DiagonalTensor`.
         """
-        N_tot = np.tensordot(self.creators, self.annihilators, axes=[[1, 2], [0, 2]])
-        self.add_onsite_operator('Ntot', N_tot, is_diagonal=are_diagonal)
-        self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2), is_diagonal=are_diagonal)
-        P_tot = np.diag(1. - 2. * np.mod(np.diag(N_tot), 2))
+        self.add_onsite_operator('Ntot', self.n_tot, is_diagonal=are_diagonal)
+        self.add_onsite_operator('NtotNtot', self.n_tot @ self.n_tot, is_diagonal=are_diagonal)
+        P_tot = np.diag(1. - 2. * np.mod(np.diag(self.n_tot), 2))
         self.add_onsite_operator('Ptot', P_tot, is_diagonal=are_diagonal)
 
     def get_annihilator_numpy(self, species: int, include_JW: bool = False):
@@ -570,9 +572,10 @@ class FermionicDOF(DegreeOfFreedom):
             represented as :class:`DiagonalTensor`.
         """
         for i in range(self.num_species):
-            op_name = 'N' if self.num_species == 1 else f'N{i}'
-            N_i = self.creators[:, :, i] @ self.annihilators[:, :, i]
-            self.add_onsite_operator(op_name, N_i, are_diagonal, understood_braiding=True)
+            self.add_onsite_operator(f'N{i}', self.number_operators[:, :, i], is_diagonal=True,
+                                     understood_braiding=True)
+        if self.num_species == 1:
+            self.add_onsite_operator('N', self.onsite_operators['N0'])
 
     def add_total_occupation_ops(self, are_diagonal: bool = True):
         """Add total occupation and parity operators as symmetric onsite operators.
@@ -588,11 +591,10 @@ class FermionicDOF(DegreeOfFreedom):
             Whether or not the constructed operators are diagonal, such that they can be
             represented as :class:`DiagonalTensor`.
         """
-        N_tot = np.tensordot(self.creators, self.annihilators, axes=[[1, 2], [0, 2]])
-        self.add_onsite_operator('Ntot', N_tot, are_diagonal, understood_braiding=True)
-        self.add_onsite_operator('NtotNtot', np.diag(np.diag(N_tot) ** 2),
+        self.add_onsite_operator('Ntot', self.n_tot, are_diagonal, understood_braiding=True)
+        self.add_onsite_operator('NtotNtot', self.n_tot @ self.n_tot,
                                  are_diagonal, understood_braiding=True)
-        P_tot = np.diag(1. - 2. * np.mod(np.diag(N_tot), 2))
+        P_tot = np.diag(1. - 2. * np.mod(np.diag(self.n_tot), 2))
         self.add_onsite_operator('Ptot', P_tot, are_diagonal, understood_braiding=True)
 
     def get_annihilator_numpy(self, species: int, include_JW: bool = False):
