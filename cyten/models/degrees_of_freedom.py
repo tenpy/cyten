@@ -16,7 +16,7 @@ from ..spaces import ElementarySpace
 from ..tensors import DiagonalTensor, SymmetricTensor
 from ..symmetries import (
     FermionNumber, FermionParity, U1Symmetry, ZNSymmetry, SU2Symmetry, Sector, Symmetry,
-    NoSymmetry, ProductSymmetry, BraidingStyle
+    NoSymmetry, ProductSymmetry, BraidingStyle, SymmetryError
 )
 from ..tools import to_iterable
 
@@ -242,6 +242,8 @@ class BosonicDOF(DegreeOfFreedom):
                  onsite_operators: dict[str, SymmetricTensor] = None,
                  backend: TensorBackend = None,
                  default_device: str = None):
+        if isinstance(self, FermionicDOF):
+            raise SymmetryError('FermionicDOF and BosonicDOF are incompatible.')
         assert creators.shape[:2] == (leg.dim, leg.dim)
         assert creators.shape == annihilators.shape
         self.creators = creators
@@ -492,6 +494,8 @@ class FermionicDOF(DegreeOfFreedom):
             assert sum([isinstance(factor, (FermionParity, FermionNumber)) for factor in leg.symmetry.factors]) == 1
         else:
             assert isinstance(leg.symmetry, (FermionParity, FermionNumber))
+        if isinstance(self, BosonicDOF):
+            raise SymmetryError('FermionicDOF and BosonicDOF are incompatible.')
         assert creators.shape[:2] == (leg.dim, leg.dim)
         assert creators.shape == annihilators.shape
         self.creators = creators
