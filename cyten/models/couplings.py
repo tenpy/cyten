@@ -271,7 +271,7 @@ def chiral_3spin_coupling(sites: list[SpinDOF], chi: float = 1, name: str = 'S.S
 
 
 def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float,
-                       species: int | list[int] = ALL_SPECIES, name: str = 'chem. pot.'
+                       species: int | str | list[int | str] = ALL_SPECIES, name: str = 'chem. pot.'
                        ) -> Coupling:
     r"""Chemical potential for bosons or fermions. Single-site coupling.
 
@@ -284,7 +284,7 @@ def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float,
     ----------
     mu: float
         Chemical potential, as defined above.
-    species: (list of) int, optional
+    species: (list of) int | str, optional
         If given, the chemical potential only couples to the occupation of this species.
         By default, it couples to the total occupation of all species.
     """
@@ -294,7 +294,8 @@ def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float,
 
 
 def onsite_interaction(sites: list[BosonicDOF] | list[FermionicDOF], U: float = 1,
-                       species: int = ALL_SPECIES, name: str = 'onsite interaction') -> Coupling:
+                       species: int | str = ALL_SPECIES, name: str = 'onsite interaction'
+                       ) -> Coupling:
     r"""Onsite interaction for bosons or fermions. Single-site coupling.
 
     .. math ::
@@ -306,7 +307,7 @@ def onsite_interaction(sites: list[BosonicDOF] | list[FermionicDOF], U: float = 
     ----------
     U: float
         Prefactor, as defined above. By default, use ``1``, i.e. a repulsive interaction.
-    species: int, optional
+    species: int | str, optional
         If given, we use only the occupation of this one species as the density :math:`n_i`.
         By default, we use the total occupation of all species.
     """
@@ -317,7 +318,8 @@ def onsite_interaction(sites: list[BosonicDOF] | list[FermionicDOF], U: float = 
 
 
 def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V: float = 1,
-                                species_i: int = ALL_SPECIES, species_j: int = ALL_SPECIES,
+                                species_i: int | str = ALL_SPECIES,
+                                species_j: int | str = ALL_SPECIES,
                                 name: str = 'density-density') -> Coupling:
     r"""Density-density interaction. Two-site coupling.
 
@@ -330,7 +332,7 @@ def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V:
     ----------
     V: float
         Prefactor, as defined above. By default, use ``1``, i.e. a repulsive interaction.
-    species_i, species_j: int, optional
+    species_i, species_j: int | str, optional
         If given, we use only the occupation of this one species as the density :math:`n_{i/j}`.
         By default, we use the total occupation of all species.
         Note that if the two species are different, this coupling alone is not hermitian!
@@ -373,7 +375,7 @@ def _quadratic_coupling_numpy(sites: list[BosonicDOF] | list[FermionicDOF], is_p
 
 
 def hopping(sites: list[BosonicDOF] | list[FermionicDOF], t: float = 1,
-            species: tuple[list[int], list[int]] = (ALL_SPECIES, ALL_SPECIES),
+            species: tuple[list[int | str], list[int | str]] = (ALL_SPECIES, ALL_SPECIES),
             name: str = 'hopping') -> Coupling:
     r"""Hopping of fermions or bosons. Two-site coupling.
 
@@ -384,7 +386,7 @@ def hopping(sites: list[BosonicDOF] | list[FermionicDOF], t: float = 1,
     ----------
     t : float
         Prefactor, as given above. By default ``1``.
-    species : tuple of list of int, optional
+    species : tuple of list of (int | str), optional
         Which species should participate (the sum above goes over ``k_i, k_j in zip(*species)``).
         By default, we let :math:`k_i = k_j` go over all species, i.e. include all
         "species preserving" hoppings.
@@ -394,7 +396,7 @@ def hopping(sites: list[BosonicDOF] | list[FermionicDOF], t: float = 1,
 
 
 def pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
-            species: tuple[list[int], list[int]] = (ALL_SPECIES, ALL_SPECIES),
+            species: tuple[list[int | str], list[int | str]] = (ALL_SPECIES, ALL_SPECIES),
             name: str = 'pairing') -> Coupling:
     r"""Superconducting pairing of fermions or bosons. Two-site coupling.
 
@@ -409,7 +411,7 @@ def pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
     ----------
     Delta : float
         Prefactor, as given above. By default ``1``.
-    species : tuple of list of int, optional
+    species : tuple of list of (int | str), optional
         Which species should participate (the sum above goes over ``k_i, k_j in zip(*species)``).
         By default, we let :math:`k_i = k_j` go over all species, i.e. include all "same-species"
         pairings.
@@ -423,7 +425,7 @@ def pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
 
 
 def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
-                   species: tuple[list[int], list[int]] = (ALL_SPECIES, ALL_SPECIES),
+                   species: tuple[list[int | str], list[int | str]] = (ALL_SPECIES, ALL_SPECIES),
                    name: str = 'onsite pairing') -> Coupling:
     r"""Superconducting pairing of fermions or bosons. Single-site coupling.
 
@@ -434,7 +436,7 @@ def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 
     ----------
     Delta : float
         Prefactor, as given above. By default ``1``.
-    species : tuple of list of int, optional
+    species : tuple of list of (int | str), optional
         Which species should participate (the sum above goes over ``k_1, k_2 in zip(*species)``).
         By default, we let :math:`k_1 = k_2` go over all species, i.e. include all "same-species"
         pairings.

@@ -19,7 +19,7 @@ from ..symmetries import (
     FermionNumber, FermionParity, U1Symmetry, ZNSymmetry, SU2Symmetry, Sector, Symmetry,
     NoSymmetry, ProductSymmetry, BraidingStyle, SymmetryError
 )
-from ..tools import to_iterable, is_iterable
+from ..tools import to_iterable, is_iterable, to_valid_idx
 
 
 ALL_SPECIES = object()
@@ -225,6 +225,8 @@ class OccupationDOF(DegreeOfFreedom, metaclass=ABCMeta):
         ``[B0, B1`, ...]`` stacked along axis 2).
     anti_commute_sign : float
         ``+1`` for bosons, ``-1`` for fermions.
+    species_names : list of (str | None)
+        Names for each of the species.
     number_operators : 3D array
         The vector of occupation number operators with shape ``(dim, dim, num_species)``.
     n_tot : 2D array
@@ -236,6 +238,7 @@ class OccupationDOF(DegreeOfFreedom, metaclass=ABCMeta):
                  creators: np.ndarray,
                  annihilators: np.ndarray,
                  anti_commute_sign: Literal[+1, -1],
+                 species_names: Sequence[str | None] = None,
                  state_labels: dict[str, int] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None,
                  backend: TensorBackend = None,
@@ -245,6 +248,12 @@ class OccupationDOF(DegreeOfFreedom, metaclass=ABCMeta):
         self.creators = creators
         self.annihilators = annihilators
         self.anti_commute_sign = anti_commute_sign
+        if species_names is None:
+            species_names = [None] * num_species
+        else:
+            assert len(species_names) == num_species
+        self.species_names = species_names
+        self._species_name_to_idx = {name: idx for idx, name in enumerate(species_names)}
 
         # [p, (p*), k] @ [(p), p*, k] -> [p, p*, k]
         self.number_operators = n_ops = np.tensordot(creators, annihilators, (1, 0))
@@ -310,7 +319,7 @@ class OccupationDOF(DegreeOfFreedom, metaclass=ABCMeta):
         self.add_onsite_operator('Ptot', P_tot, is_diagonal=True)
 
     @abstractmethod
-    def get_annihilator_numpy(self, species: int, include_JW: bool = False):
+    def get_annihilator_numpy(self, species: int | str, include_JW: bool = False):
         """Wrapper around ``annihilators[:, :, species]``, optionally including JW strings.
 
         If `include_JW`, we include the ``(-1) ** n_k`` from all ``k < species``.
@@ -318,20 +327,29 @@ class OccupationDOF(DegreeOfFreedom, metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def get_creator_numpy(self, species: int, include_JW: bool = False):
+    def get_creator_numpy(self, species: int | str, include_JW: bool = False):
         """Wrapper around ``creators[:, :, species]``, optionally including JW strings.
 
         If `include_JW`, we include the ``(-1) ** n_k`` from all ``k < species``.
         """
         ...
 
-    def get_occupation_numpy(self, species: int | Sequence[int] = ALL_SPECIES):
+    def get_occupation_numpy(self, species: int | str | Sequence[int | str] = ALL_SPECIES):
         """Get the occupation number operator for some or multiple species as a numpy array."""
         if species is ALL_SPECIES:
             species = [*range(self.num_species)]
         else:
-            species = to_iterable(species)
+            species = [self.get_species_idx(s) for s in to_iterable(species)]
         return np.sum(self.number_operators[:, :, species], axis=2)
+
+    def get_species_idx(self, species: int | str | None) -> int:
+        if isinstance(species, str):
+            species = self._species_name_to_idx[species]
+        if species is None:
+            if self.num_species > 1:
+                raise ValueError('Need to specify the species')
+            species = 0
+        return to_valid_idx(species, self.num_species)
 
 
 class BosonicDOF(OccupationDOF):
@@ -354,6 +372,7 @@ class BosonicDOF(OccupationDOF):
                  leg: ElementarySpace,
                  creators: np.ndarray,
                  annihilators: np.ndarray,
+                 species_names: Sequence[str | None] = None,
                  state_labels: dict[str, int] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None,
                  backend: TensorBackend = None,
@@ -362,8 +381,8 @@ class BosonicDOF(OccupationDOF):
             raise SymmetryError('FermionicDOF and BosonicDOF are incompatible.')
         OccupationDOF.__init__(
             self, leg, creators=creators, annihilators=annihilators, anti_commute_sign=+1,
-            state_labels=state_labels, onsite_operators=onsite_operators, backend=backend,
-            default_device=default_device
+            species_names=species_names, state_labels=state_labels,
+            onsite_operators=onsite_operators, backend=backend, default_device=default_device
         )
 
         Nmax = []
@@ -408,10 +427,10 @@ class BosonicDOF(OccupationDOF):
             self.add_onsite_operator('P', self.onsite_operators['P0'])
 
     def get_annihilator_numpy(self, species, include_JW=False):
-        return self.annihilators[:, :, species]
+        return self.annihilators[:, :, self.get_species_idx(species)]
 
     def get_creator_numpy(self, species, include_JW=False):
-        return self.creators[:, :, species]
+        return self.creators[:, :, self.get_species_idx(species)]
 
     @staticmethod
     def conservation_law_to_symmetry(conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']]
@@ -509,6 +528,7 @@ class FermionicDOF(OccupationDOF):
                  leg: ElementarySpace,
                  creators: np.ndarray,
                  annihilators: np.ndarray,
+                 species_names: Sequence[str | None] = None,
                  state_labels: dict[str, int] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None,
                  backend: TensorBackend = None,
@@ -522,8 +542,8 @@ class FermionicDOF(OccupationDOF):
             raise SymmetryError('FermionicDOF and BosonicDOF are incompatible.')
         OccupationDOF.__init__(
             self, leg=leg, creators=creators, annihilators=annihilators, anti_commute_sign=-1,
-            state_labels=state_labels, onsite_operators=onsite_operators, backend=backend,
-            default_device=default_device
+            species_names=species_names, state_labels=state_labels,
+            onsite_operators=onsite_operators, backend=backend, default_device=default_device
         )
 
         n_diag = self.number_operators[np.arange(self.dim), np.arange(self.dim), :]  # [p, k]
@@ -552,12 +572,14 @@ class FermionicDOF(OccupationDOF):
             assert np.max(N_i) <= 1, 'expect entries <= 1 for N_i'
 
     def get_annihilator_numpy(self, species: int, include_JW: bool = False):
+        species = self.get_species_idx(species)
         res = self.annihilators[:, :, species]
         if include_JW:
             res = res @ self._partial_JWs[:, :, species]
         return res
 
     def get_creator_numpy(self, species: int, include_JW: bool = False):
+        species = self.get_species_idx(species)
         res = self.creators[:, :, species]
         if include_JW:
             res = res @ self._partial_JWs[:, :, species]

@@ -471,7 +471,8 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         )
         FermionicDOF.__init__(
             self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
-            onsite_operators=None, backend=backend, default_device=default_device
+            onsite_operators=None, backend=backend, default_device=default_device,
+            species_names=['up', 'down']
         )
 
         if not isinstance(sym_S, SU2Symmetry):
