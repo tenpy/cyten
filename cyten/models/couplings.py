@@ -12,7 +12,7 @@ from ..symmetries import FibonacciAnyonCategory, Sector
 from ..dtypes import Dtype
 from ..backends.abstract_backend import Block, get_same_backend
 from ..tensors import (
-    SymmetricTensor, squeeze_legs, tdot, add_trivial_leg, permute_legs, compose, outer,
+    SymmetricTensor, squeeze_legs, add_trivial_leg, permute_legs, compose, outer,
     horizontal_factorization
 )
 from .degrees_of_freedom import DegreeOfFreedom, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF
@@ -137,24 +137,25 @@ class Coupling:
         factorization.append(add_trivial_leg(rest, domain_pos=1, label='wR'))
         return Coupling(sites=sites, factorization=factorization, name=name)
 
+    @property
+    def num_sites(self):
+        return len(self.sites)
+
     def to_tensor(self) -> SymmetricTensor:
         """Convert to a tensor."""
-        # the convention for the decomposition is that legs to the right have
-        # higher levels -> this must now also hold
+        # TODO : this would be a great use case for a planar diagram as well...
         res = squeeze_legs(self.factorization[0], 'wL')
-        for n, W in enumerate(self.factorization[1:]):
-            levels = list(range(2 * n + 1))
-            levels.extend([2 * n + 2, 2 * n + 1])
-            # legs are (before permute) [p0, p0*, p1, p1*, ..., pn, wR, pn*]
-            res = permute_legs(res, domain=['wR'], levels=levels, bend_right=True)
-            W_ = permute_legs(W, codomain=['wL'], bend_right=True)
-            res = tdot(res, W_, 'wR', 'wL')
+        res = permute_legs(res, [-1, 0], [1], bend_right=False)
+        for n in range(1, self.num_sites):
+            W = permute_legs(self.factorization[n], ['wL'], [f'p{n}*', 'wR', f'p{n}'],
+                             bend_right=True)
+            res = compose(res, W)
+            res = permute_legs(res, [-1, *range(2 * n), 2 * n], [-2],
+                               bend_right={-1: False, -3: True})
         res = squeeze_legs(res, 'wR')
         codom_labels = [f'p{i}' for i in range(len(self.sites))]
         dom_labels = [l + '*' for l in codom_labels]
-        # legs are now [p0, p0*, p1, p1*, ...]
-        res = permute_legs(res, codomain=codom_labels, domain=dom_labels,
-                           levels=list(range(2 * len(self.sites))), bend_right=True)
+        res = permute_legs(res, codom_labels, dom_labels, bend_right=False)
         return res
 
     def to_numpy(self) -> np.ndarray:
