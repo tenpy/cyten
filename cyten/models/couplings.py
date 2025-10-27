@@ -270,7 +270,7 @@ def chiral_3spin_coupling(sites: list[SpinDOF], chi: float = 1, name: str = 'S.S
 # BOSON AND FERMION COUPLINGS
 
 
-def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float = 1.,
+def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float,
                        species: int | list[int] = ALL_SPECIES, name: str = 'chem. pot.'
                        ) -> Coupling:
     r"""Chemical potential for bosons or fermions. Single-site coupling.
@@ -283,7 +283,7 @@ def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float =
     Parameters
     ----------
     mu: float
-        Chemical potential, as defined above. By default, use ``1``.
+        Chemical potential, as defined above.
     species: (list of) int, optional
         If given, the chemical potential only couples to the occupation of this species.
         By default, it couples to the total occupation of all species.
