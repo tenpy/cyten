@@ -221,9 +221,8 @@ class SpinlessBosonSite(BosonicDOF):
             self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
             onsite_operators=None, backend=backend, default_device=default_device
         )
-        self.add_individual_occupation_ops(are_diagonal=True)
-        if num_species > 1:
-            self.add_total_occupation_ops(are_diagonal=True)
+        self.add_individual_occupation_ops()
+        self.add_total_occupation_ops()
         for name, op in ops.items():
             self.add_onsite_operator(name, op, is_diagonal=True)
 
@@ -351,9 +350,8 @@ class SpinlessFermionSite(FermionicDOF):
             self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
             onsite_operators=None, backend=backend, default_device=default_device
         )
-        self.add_individual_occupation_ops(are_diagonal=True)
-        if num_species > 1:
-            self.add_total_occupation_ops(are_diagonal=True)
+        self.add_individual_occupation_ops()
+        self.add_total_occupation_ops()
 
         # construct operators relative to filling
         ops = {}
@@ -477,10 +475,10 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         )
 
         if not isinstance(sym_S, SU2Symmetry):
-            self.add_individual_occupation_ops(are_diagonal=True)
+            self.add_individual_occupation_ops()
             self.onsite_operators.update({'Nup': self.onsite_operators.pop('N0')})
             self.onsite_operators.update({'Ndown': self.onsite_operators.pop('N1')})
-        self.add_total_occupation_ops(are_diagonal=True)
+        self.add_total_occupation_ops()
 
         # construct operators relative to filling
         ops = {}

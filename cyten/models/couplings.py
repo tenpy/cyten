@@ -362,13 +362,13 @@ def _quadratic_coupling_numpy(sites: list[BosonicDOF] | list[FermionicDOF], is_p
 
         # OPTIMIZE rm check?
         sign = -1 if isinstance(site_i, FermionicDOF) else +1
-        assert np.allclose(op_i @ site_i.JW, sign * site_i.JW @ op_i)
+        assert np.allclose(op_i @ site_i._JW, sign * site_i._JW @ op_i)
 
         if is_pairing:
             op_j = site_i.get_creator_numpy(species=k_j, include_JW=True)
         else:
             op_j = site_i.get_annihilator_numpy(species=k_j, include_JW=True)
-        h += (op_i @ site_i.JW)[:, None, None, :] * op_j[None, :, :, None]  # [p0, p1, p1*, p0*]
+        h += (op_i @ site_i._JW)[:, None, None, :] * op_j[None, :, :, None]  # [p0, p1, p1*, p0*]
     return h + np.transpose(h.conj(), [3, 2, 1, 0])
 
 
