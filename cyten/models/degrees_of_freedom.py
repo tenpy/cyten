@@ -478,9 +478,6 @@ class FermionicDOF(DegreeOfFreedom):
         The local Jordan-Wigner operator ``(-1) ** n_tot``.
     """
 
-    creators: np.ndarray  # [p, p*, i] where i are different species ;  == [Cd0, Cd1, ...]
-    annihilators: np.ndarray  # [p, p*, i] ;  == [C0, C1, ...]
-
     def __init__(self,
                  leg: ElementarySpace,
                  creators: np.ndarray,
