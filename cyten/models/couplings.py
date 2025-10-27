@@ -542,10 +542,3 @@ def gold_coupling(sites: list[GoldenSite], J: float = 0, name: str = 'P_vac') ->
         assert isinstance(site.symmetry, FibonacciAnyonCategory)
         assert site.leg.sector_decomposition_where(FibonacciAnyonCategory.tau) is not None
     return sector_projection_coupling(sites, sector=FibonacciAnyonCategory.vacuum, name=name)
-
-
-# TODO implement more of these functions that generate couplings. at least cover everything
-#      that occurs as a coupling in tenpy v1. also cover some anyon models.
-#      if it is a "common" coupling, put it in cyten, if it is "obscure" or very specific,
-#      put it in tenpy (for now, we keep a tenpy_models mockup in cyten)
-# TODO update cyten/__init__.py and cyten/models/__init__.py accordingly!

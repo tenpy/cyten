@@ -33,12 +33,6 @@ class DegreeOfFreedom:
     Moreover, it exposes the symmetric single-site operators.
     Multi-site operators, on the other hand, are represented by :class:`Coupling` s.
 
-    .. todo ::
-        How to handle JW strings?
-
-    .. todo ::
-        Mechanism to change the symmetry
-
     Attributes
     ----------
     leg : ElementarySpace
@@ -105,7 +99,7 @@ class DegreeOfFreedom:
                             is_diagonal: bool = False, understood_braiding: bool = False):
         """Add an operator to the :attr:`onsite_operators`."""
         if name in self.onsite_operators:
-            return  # TODO warn? error?
+            raise ValueError(f'Operator with {name=} already exists.')
         #
         if isinstance(op, SymmetricTensor):
             assert isinstance(op, DiagonalTensor) == is_diagonal
@@ -187,7 +181,6 @@ class SpinDOF(DegreeOfFreedom):
     def conservation_law_to_symmetry(conserve: Literal['SU(2)', 'Sz', 'parity', 'None']
                                      ) -> Symmetry:
         """Translate conservation law for a spin to a symmetry."""
-        # TODO add Z2 x Z2
         if conserve in ['SU(2)', 'SU2']:
             sym = SU2Symmetry('spin')
         elif conserve in ['Sz', 'U(1)', 'U1']:
@@ -217,8 +210,6 @@ class BosonicDOF(DegreeOfFreedom):
 
     Mutually exclusive with :class:`FermionicDOF`. Sites containing both bosonic and fermionic
     degrees of freedom can be realized by grouping of a bosonic site with a fermionic one.
-
-    TODO find a good format to doc the onsite operators that exist in a site
 
     Attributes
     ----------
@@ -466,8 +457,6 @@ class FermionicDOF(DegreeOfFreedom):
     Mutually exclusive with :class:`BosonicDOF`. Sites containing both bosonic and fermionic
     degrees of freedom can be realized by grouping of a bosonic site with a fermionic one.
 
-    TODO onsite operators
-
     Attributes
     ----------
     num_species : int
@@ -514,7 +503,7 @@ class FermionicDOF(DegreeOfFreedom):
         _per_species_JW = []
         for k in range(num_species):
             n_k_diag = np.diag(n_ops[:, :, k])
-            assert np.allclose(n_ops[:, :, k], np.diag(n_k_diag))
+            assert np.allclose(n_ops[:, :, k], np.diag(n_k_diag))  # JW construction assumes diag
             _per_species_JW.append(np.diag((-1) ** n_k_diag))
         self._per_species_JW = np.stack(_per_species_JW, axis=-1)
         self.n_tot = n_tot = np.sum(n_ops, axis=2)
@@ -682,8 +671,6 @@ class FermionicDOF(DegreeOfFreedom):
 class ClockDOF(DegreeOfFreedom):
     """Common base class for sites that have a quantum clock degree of freedom.
 
-    TODO onsite operators
-
     Attributes
     ----------
     q : int
@@ -711,7 +698,6 @@ class ClockDOF(DegreeOfFreedom):
             backend=backend, default_device=default_device
         )
 
-        # TODO this should work for any symmetry
         Z = clock_operators[:, :, 1]
         Zhc = np.conj(clock_operators[:, :, 1].T)
         self.add_onsite_operator('Z', Z, is_diagonal=True)
@@ -734,8 +720,6 @@ class ClockDOF(DegreeOfFreedom):
 
 class RepresentationDOF(DegreeOfFreedom):
     """Common base class for sites that have a degree of freedom described by a category.
-
-    TODO onsite operators
 
     Parameters
     ----------
@@ -771,8 +755,6 @@ class RepresentationDOF(DegreeOfFreedom):
 def consistent_leg_symmetry(leg: ElementarySpace, symmetry_factor: Symmetry,
                             symmetry_sector_slice: slice) -> bool:
     """Test whether the symmetry of a leg contains a certain factor at a given slice.
-
-    TODO do we still need this?
 
     Parameters
     ----------
@@ -810,8 +792,6 @@ def consistent_leg_symmetry(leg: ElementarySpace, symmetry_factor: Symmetry,
         return all([slc_start == leg.symmetry.sector_slices[factor_idx],
                     slc_stop == leg.symmetry.sector_slices[factor_idx + 1],
                     leg.symmetry.factors[factor_idx] == symmetry_factor])
-    # TODO is this a reason to say that we should always work with ProductSymmetries?
-    #      like tenpy v1, we always have a list of qmod, even if there is only 1
     # leg symmetry is not a ProductSymmetry; slc must still match sector_ind_len
     slc_stop = leg.symmetry.sector_ind_len if slc.stop is None else slc.stop
     return leg.symmetry == symmetry_factor and slc_start == 0 and slc_stop == leg.symmetry.sector_ind_len
