@@ -23,6 +23,16 @@ from .sites import GoldenSite
 class Coupling:
     """A coupling is an operator on a few :class:`Site` s, factorized as one tensor per site.
 
+    A coupling represents an operator of the following form::
+
+        |        p0   p1   ..   pN
+        |        │    │    │    │
+        |       ┏┷━━━━┷━━━━┷━━━━┷┓
+        |       ┃       h        ┃
+        |       ┗┯━━━━┯━━━━┯━━━━┯┛
+        |        │    │    │    │
+        |        p0*  p1*  ..  pN*
+
     The intended use case is to build tensor network representations (e.g. MPOs) of Hamiltonians.
 
     Attributes
@@ -173,6 +183,8 @@ def spin_spin_coupling(sites: list[SpinDOF], Jx: float = 0, Jy: float = 0, Jz: f
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     Jx, Jy, Jz: float
         Prefactor, as given above. By default, all prefactors vanish.
     """
@@ -196,6 +208,8 @@ def spin_field_coupling(sites: list[SpinDOF], hx: float = 0, hy: float = 0, hz: 
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     hx, hy, hz: float
         Prefactor, as given above. By default, all prefactors vanish.
     """
@@ -220,6 +234,8 @@ def aklt_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'AKLT') -> Cou
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     J: float
         Prefactor, as given above. By default use ``1``.
     """
@@ -241,6 +257,8 @@ def heisenberg_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'S.S') -
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     J: float
         Prefactor, as given above. By default use ``1``, i.e. an anti-ferromagnetic coupling.
     """
@@ -255,6 +273,8 @@ def chiral_3spin_coupling(sites: list[SpinDOF], chi: float = 1, name: str = 'S.S
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     chi: float
         Prefactor, as given above. By default use ``1``.
     """
@@ -282,6 +302,8 @@ def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float,
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     mu: float
         Chemical potential, as defined above.
     species: (list of) int | str, optional
@@ -305,6 +327,8 @@ def onsite_interaction(sites: list[BosonicDOF] | list[FermionicDOF], U: float = 
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     U: float
         Prefactor, as defined above. By default, use ``1``, i.e. a repulsive interaction.
     species: int | str, optional
@@ -330,6 +354,8 @@ def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V:
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     V: float
         Prefactor, as defined above. By default, use ``1``, i.e. a repulsive interaction.
     species_i, species_j: int | str, optional
@@ -384,6 +410,8 @@ def hopping(sites: list[BosonicDOF] | list[FermionicDOF], t: float = 1,
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     t : float
         Prefactor, as given above. By default ``1``.
     species : tuple of list of (int | str), optional
@@ -409,6 +437,8 @@ def pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     Delta : float
         Prefactor, as given above. By default ``1``.
     species : tuple of list of (int | str), optional
@@ -434,6 +464,8 @@ def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     Delta : float
         Prefactor, as given above. By default ``1``.
     species : tuple of list of (int | str), optional
@@ -471,6 +503,8 @@ def clock_clock_coupling(sites: list[ClockDOF], Jx: float = 0, Jz: float = 0,
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     Jx, Jz: float
         Prefactor, as given above. By default, all prefactors vanish.
     """
@@ -494,6 +528,8 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     hx, hz: float
         Prefactor, as given above. By default, all prefactors vanish.
     """
@@ -535,6 +571,8 @@ def gold_coupling(sites: list[GoldenSite], J: float = 0, name: str = 'P_vac') ->
 
     Parameters
     ----------
+    sites: list of Site
+        The sites that the coupling acts on. Note that the order matters for the final leg order.
     J: float
         Prefactor, as given above. By default ``1``. Positive `J` energetically favor the
         trivial fusion channel, i.e. they are the "antiferromagnetic" analog.
