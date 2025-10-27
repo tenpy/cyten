@@ -134,15 +134,20 @@ class Coupling:
         assert operator.codomain.factors == [site.leg for site in sites]
         assert operator.domain.factors == operator.codomain.factors
 
-        W, rest = horizontal_factorization(operator, 1, 1, new_labels=['wR', 'wL'],
-                                           cutoff_singular_values=cutoff_singular_values)
-        factorization = [add_trivial_leg(W, codomain_pos=0, label='wL')]
-        for n in range(len(sites) - 2):
-            W, rest = horizontal_factorization(rest, 1, 1, new_labels=['wL', 'wR'],
+        if len(sites) == 1:
+            W = add_trivial_leg(operator, codomain_pos=0, label='wL')
+            W = add_trivial_leg(W, domain_pos=1, label='wR')
+            factorization = [W]
+        else:
+            W, rest = horizontal_factorization(operator, 1, 1, new_labels=['wR', 'wL'],
                                                cutoff_singular_values=cutoff_singular_values)
-            factorization.append(W)
-        assert (rest.num_codomain_legs, rest.num_domain_legs) == (2, 1)
-        factorization.append(add_trivial_leg(rest, domain_pos=1, label='wR'))
+            factorization = [add_trivial_leg(W, codomain_pos=0, label='wL')]
+            for n in range(len(sites) - 2):
+                W, rest = horizontal_factorization(rest, 1, 1, new_labels=['wL', 'wR'],
+                                                   cutoff_singular_values=cutoff_singular_values)
+                factorization.append(W)
+            assert (rest.num_codomain_legs, rest.num_domain_legs) == (2, 1)
+            factorization.append(add_trivial_leg(rest, domain_pos=1, label='wR'))
         return Coupling(sites=sites, factorization=factorization, name=name)
 
     @property
