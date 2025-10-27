@@ -95,30 +95,30 @@ class DegreeOfFreedom:
     def dim(self) -> int | float:
         return self.leg.dim
 
-    def add_onsite_operator(self, name: str, op: SymmetricTensor | Block | Sequence[Sequence[float]],
-                            is_diagonal: bool = False, understood_braiding: bool = False):
+    def add_onsite_operator(self, name: str, op: SymmetricTensor | Block,
+                            is_diagonal: bool = None, understood_braiding: bool = False):
         """Add an operator to the :attr:`onsite_operators`."""
         if name in self.onsite_operators:
             raise ValueError(f'Operator with {name=} already exists.')
         #
         if isinstance(op, SymmetricTensor):
-            assert isinstance(op, DiagonalTensor) == is_diagonal
+            if is_diagonal is not None:
+                assert isinstance(op, DiagonalTensor) == bool(is_diagonal)
             assert op.codomain.factors == [self.leg]
             assert op.domain.factors == [self.leg]
             if op.labels != ['p', 'p*']:
                 op = op.copy(deep=False)
                 op.labels = ['p', 'p*']
+        elif is_diagonal is True:
+            op = DiagonalTensor.from_dense_block(
+                block=op, leg=self.leg, backend=self.backend, labels=['p', 'p*'],
+                device=self.default_device, understood_braiding=understood_braiding
+            )
         else:
-            if is_diagonal:
-                op = DiagonalTensor.from_dense_block(
-                    block=op, leg=self.leg, backend=self.backend, labels=['p', 'p*'],
-                    device=self.default_device, understood_braiding=understood_braiding
-                )
-            else:
-                op = SymmetricTensor.from_dense_block(
-                    block=op, codomain=[self.leg], domain=[self.leg], backend=self.backend,
-                    labels=['p', 'p*'], device=self.default_device, understood_braiding=understood_braiding
-                )
+            op = SymmetricTensor.from_dense_block(
+                block=op, codomain=[self.leg], domain=[self.leg], backend=self.backend,
+                labels=['p', 'p*'], device=self.default_device, understood_braiding=understood_braiding
+            )
         self.onsite_operators[name] = op
 
     def state_index(self, label: str | int) -> int:
