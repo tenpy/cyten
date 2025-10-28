@@ -4,7 +4,7 @@ import numpy as np
 from numpy import testing as npt
 
 from cyten import spaces, symmetries, trees, SymmetryError
-from .util import random_ElementarySpace
+from cyten.testing import random_ElementarySpace
 
 # TODO test all cases of Space.as_ElementarySpace
 

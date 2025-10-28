@@ -3,10 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-try:
-    import pytest
-except Exception:
-    pytest = None
 
 from .. import symmetries, spaces, tensors, backends, dtypes, tools
 
@@ -41,11 +37,7 @@ def random_symmetry_sectors(symmetry: symmetries.Symmetry, num: int, sort: bool 
             combs = np_random.choice(combs, replace=False, size=num)
         res = np.hstack([fs[i] for fs, i in zip(factor_sectors, combs.T)])
     else:
-        msg = "don't know how to get symmetry sectors"
-        if pytest is None:
-            raise ValueError(msg)
-        else:
-            pytest.skip(msg)
+        raise NotImplementedError("don't know how to get symmetry sectors")
     if sort:
         order = np.lexsort(res.T)
         res = res[order]
@@ -431,10 +423,6 @@ def random_tensor(symmetry: symmetries.Symmetry,
                                                max_multiplicity=max_multiplicity, is_dual=small_leg.is_dual,
                                                allow_basis_perm=allow_basis_perm, np_random=np_random)
                 large_leg = small_leg.direct_sum(extra)
-
-        if isinstance(backend, backends.FusionTreeBackend):
-            if pytest is None:
-                raise ValueError('Cant generate masks yet')
 
         if small_leg is not None and small_leg.dim > large_leg.dim:
             res = tensors.Mask.from_random(large_leg=small_leg, small_leg=large_leg,

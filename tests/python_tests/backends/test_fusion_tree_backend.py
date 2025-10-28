@@ -16,8 +16,7 @@ from cyten.symmetries import (
     ising_anyon_category, SU2_kAnyonCategory, z5_symmetry, u1_symmetry
 )
 from cyten.dtypes import Dtype
-from cyten.testing import assert_tensors_almost_equal
-from ..util import random_tensor, random_ElementarySpace
+from cyten.testing import assert_tensors_almost_equal, random_tensor, random_ElementarySpace
 
 
 def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Generator):
