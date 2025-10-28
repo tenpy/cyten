@@ -1730,20 +1730,27 @@ class FusionTreeBackend(TensorBackend):
         a_blocks = a.data.blocks
         b_blocks = b.data.blocks
         a_block_inds = a.data.block_inds
-        b_block_inds = b.data.block_inds
+        b_block_inds_col = b.data.block_inds[:, 0]  # [:, 1] must be equal
 
         if (in_domain and a.domain.num_factors == 1) or (not in_domain and a.codomain.num_factors == 1):
+            if in_domain:
+                a_block_inds_contr = a_block_inds[:, 1]
+                a_block_inds_open = a_block_inds[:, 0]
+            else:
+                a_block_inds_contr = a_block_inds[:, 0]
+                a_block_inds_open = a_block_inds[:, 1]
+
             # special case where it is essentially compose.
             blocks = []
             block_inds = []
 
-            if len(a_block_inds) > 0 and len(b_block_inds) > 0:
-                for n_a, n_b in iter_common_sorted(a_block_inds[:, ax_a], b_block_inds[:, 1 - ax_a]):
+            if len(a_block_inds) > 0 and len(b_block_inds_col) > 0:
+                for n_a, n_b in iter_common_sorted(a_block_inds_contr, b_block_inds_col):
                     blocks.append(self.block_backend.scale_axis(a_blocks[n_a], b_blocks[n_b], axis=ax_a))
                     if in_domain:
-                        block_inds.append([a_block_inds[n_a, 0], b_block_inds[n_b, 1]])
+                        block_inds.append([a_block_inds_open[n_a], b_block_inds_col[n_b]])
                     else:
-                        block_inds.append([b_block_inds[n_b, 0], a_block_inds[n_a, 0]])
+                        block_inds.append([b_block_inds_col[n_b], a_block_inds_open[n_a]])
             if len(block_inds) == 0:
                 block_inds = np.zeros((0, 2), int)
             else:

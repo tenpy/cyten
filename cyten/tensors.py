@@ -82,7 +82,9 @@ from .symmetries import SymmetryError, Symmetry, BraidingStyle
 from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
 from .trees import FusionTree
 from .backends.backend_factory import get_backend
-from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order
+from .backends.abstract_backend import (
+    Block, TensorBackend, conventional_leg_order, get_same_backend
+)
 from .dtypes import Dtype
 from .tools.misc import (
     to_iterable, rank_data, inverse_permutation, duplicate_entries, iter_common_sorted_arrays,
@@ -1240,7 +1242,7 @@ class SymmetricTensor(Tensor):
 
         def func(shape: tuple[int, ...], coupled: Sector):
             if np.all(coupled == sector):
-                return backend.block_backend.eye_block([*shape[:co_domain.num_factors]],
+                return backend.block_backend.eye_block([*shape[:len(shape) // 2]],
                                                        dtype=dtype, device=device)
             return backend.block_backend.zeros(shape, dtype=dtype, device=device)
 
@@ -4263,16 +4265,6 @@ def exp(obj: Tensor | complex | float) -> Tensor | complex | float:
     return math_exp(obj)
 
 
-def get_same_backend(*tensors: Tensor, error_msg: str = 'Incompatible backends.') -> TensorBackend:
-    """If the given tensors have the same backend, return it. Raise otherwise."""
-    if len(tensors) == 0:
-        raise ValueError('Need at least one tensor')
-    backend = tensors[0].backend
-    if not all(tens.backend == backend for tens in tensors[1:]):
-        raise ValueError(error_msg)
-    return backend
-
-
 def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') -> str:
     """If the given tensors have the same device, return it. Raise otherwise."""
     if len(tensors) == 0:
@@ -4281,6 +4273,100 @@ def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') 
     if not all(tens.device == device for tens in tensors[1:]):
         raise ValueError(error_msg)
     return device
+
+
+def horizontal_factorization(tensor: Tensor, codomain_cut: int, domain_cut: int,
+                             new_labels: str | Sequence[str] = None,
+                             cutoff_singular_values: float = None) -> tuple[Tensor, Tensor]:
+    """Factorize a tensor into left and right parts.
+
+    Graphically, here with ``codomain_cut=3, domain_cut=1``::
+
+        |    │   │   │   │           │   │   │         │           │   │   │    ╭────╮   │
+        |   ┏┷━━━┷━━━┷━━━┷┓         ┏┷━━━┷━━━┷┓   ┏━━━━┷┓         ┏┷━━━┷━━━┷┓   │   ┏┷━━━┷┓
+        |   ┃   tensor    ┃    =    ┃    A    ┠───┨  B  ┃   :=    ┃    A    ┃   │   ┃  B  ┃
+        |   ┗━━┯━━━┯━━━┯━━┛         ┗━━┯━━━━━━┛   ┗┯━━━┯┛         ┗━━┯━━━┯━━┛   │   ┗┯━━━┯┛
+        |      │   │   │               │           │   │             │   ╰──────╯    │   │
+
+    Parameters
+    ----------
+    tensor: Tensor
+        The tensor to factorize
+    codomain_cut: int
+        The first `codomain_cut` legs from the codomain end up in the codomain of `A`, the rest
+        of the codomain ends up in the codomain of `B`.
+    domain_cut: int
+        The first `domain_cut` legs from the domain end up in the domain of `A`, the rest
+        of the domain ends up in the domain of `B`.
+    new_labels: (list of) str
+        The labels for the new legs.
+        Two entries ``[a, b]`` result in ``A.labels[-1 - domain_cut] == a`` and ``B.labels[0] == b``
+        and a single entry ``a`` is equivalent to ``[a, a*]``.
+    cutoff_singular_values: float, optional
+        If ``None`` (default), we factorize using :func:`qr` without truncation. If given, we use a
+        truncated SVD and truncate by discarding singular values below this threshold.
+
+    Returns
+    -------
+    A, B: Tensor
+        A factorization of the `tensor`, such that ``tdot(A, B, -1 - domain_cut, 1)`` reproduces
+        the `tensor`, up to bending and possibly up to truncation if `cutoff_singular_values` is
+        given.
+
+    Notes
+    -----
+    This is achieved by bending legs such that we can do the factorization as a QR or SVD,
+    then bend back, that is for the example case depicted above::
+
+        |                                             ╭──╮   │   │   │  │       │   │   │ │
+        |             ╭──╮  │   │   │         │       │ ┏┷━━━┷━━━┷━━━┷┓ │      ┏┷━━━┷━━━┷┓│
+        |             │  │  │   │   │   ╭──╮  │       │ ┃      A'     ┃ │      ┃    A    ┃│
+        |             │  │ ┏┷━━━┷━━━┷━━━┷┓ │  │       │ ┗━━━━━━┯━━━━━━┛ │      ┗━━┯━━━┯━━┛│
+        |   LHS   =   │  │ ┃   tensor    ┃ │  │   =   │        │        │   =     │   │   │   =  RHS
+        |             │  │ ┗━━┯━━━┯━━━┯━━┛ │  │       │ ┏━━━━━━┷━━━━━━┓ │         │  ┏┷━━━┷┓
+        |             │  ╰────╯   │   │    │  │       │ ┃      B'     ┃ │         │  ┃  B  ┃
+        |             │           │   │    ╰──╯       │ ┗━━┯━━━┯━━━┯━━┛ │         │  ┗┯━━━┯┛
+        |                                             │    │   │   ╰────╯         │   │   │
+
+    Note how we bend some legs to the left, to avoid any braids, such that the operation does not
+    need to specify any braid chiralities.
+    """
+    # OPTIMIZE for fusion tree backend, can probably work something better out with explicit trees?
+    assert 0 <= codomain_cut <= tensor.num_codomain_legs
+    assert 0 <= domain_cut <= tensor.num_domain_legs
+    if codomain_cut == 0 and domain_cut == 0:
+        raise ValueError('Nothing to do')
+    if codomain_cut == tensor.num_codomain_legs and domain_cut == tensor.num_domain_legs:
+        raise ValueError('Nothing to do')
+
+    J = tensor.num_codomain_legs
+    J1 = codomain_cut
+    J2 = J - J1
+    K = tensor.num_domain_legs
+    K1 = domain_cut
+    K2 = K - K1
+
+    to_decompose = permute_legs(tensor,
+                                codomain=[*range(J + K2, J + K), *range(J1)],
+                                domain=[*reversed(range(J1, J + K2))],
+                                bend_right=[True] * J + [False] * K)
+
+    if cutoff_singular_values is None:
+        A, B = qr(to_decompose, new_labels=new_labels)
+    else:
+        A, S, Vh, _, _ = truncated_svd(to_decompose, new_labels=new_labels,
+                                       svd_min=cutoff_singular_values)
+        B = compose(S, Vh)
+
+    A = permute_legs(A,
+                     codomain=[*range(K1, K1 + J1)],
+                     domain=[*reversed(range(K1)), -1],
+                     bend_right=False)
+    B = permute_legs(B,
+                     codomain=[*range(1 + J2)],
+                     domain=[*reversed(range(1 + J2, 1 + J2 + K2))],
+                     bend_right=True)
+    return A, B
 
 
 @_elementwise_function(block_func='imag', maps_zero_to_zero=True)
@@ -4858,9 +4944,9 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
         duplicates = duplicate_entries(specified_legs)
         missing = [n for n in range(tensor.num_legs) if n not in specified_legs]
         if duplicates:
-            raise ValueError(f'Duplicate entries. By leg index: {", ".join(duplicates)}')
+            raise ValueError(f'Duplicate entries. By leg index: {", ".join(map(str, duplicates))}')
         if missing:
-            raise ValueError(f'Missing legs. By leg index: {", ".join(missing)}')
+            raise ValueError(f'Missing legs. By leg index: {", ".join(map(str, missing))}')
     # Special case: if no legs move
     if codomain == list(range(tensor.num_codomain_legs)) \
             and domain == list(reversed(range(tensor.num_codomain_legs, tensor.num_legs))):
@@ -4947,7 +5033,7 @@ def permute_legs(tensor: Tensor, codomain: list[int | str] = None, domain: list[
 def pinv(tensor: Tensor, cutoff=1e-15) -> Tensor:
     """The Moore-Penrose pseudo-inverse of a tensor."""
     if isinstance(tensor, DiagonalTensor):
-        return cutoff_inverse(tensor)
+        return cutoff_inverse(tensor, cutoff=cutoff)
     U, S, Vh = truncated_svd(tensor, options=dict(svd_min=cutoff))
     return dagger(U @ cutoff_inverse(S, cutoff=cutoff) @ Vh)
 
@@ -5163,8 +5249,9 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
         inv_part = scale_axis(tensor.invariant_part, diag, leg_idx)
         return ChargedTensor(inv_part, tensor.charged_state)
     backend = get_same_backend(tensor, diag)
-    return SymmetricTensor(backend.scale_axis(tensor, diag, leg_idx), codomain=tensor.codomain,
-                           domain=tensor.domain, backend=backend, labels=tensor._labels)
+    data = backend.scale_axis(tensor, diag, leg_idx)
+    return SymmetricTensor(data, codomain=tensor.codomain, domain=tensor.domain, backend=backend,
+                           labels=tensor._labels)
 
 
 def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
@@ -5473,7 +5560,7 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
         assert isinstance(op.domain[-1], ElementarySpace)
 
     transposed_grid = list(map(list, zip(*grid)))
-    right_ops = grid[0]
+    right_ops = grid[0][:]
     for i, op in enumerate(right_ops):
         if op is not None:
             continue
@@ -5483,9 +5570,9 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
                 continue
             right_ops[i] = new_op
             break
-    right_spaces = [op.domain[-1] for op in right_ops]
-    if None in right_spaces:
+    if any(op is None for op in right_ops):
         raise ValueError('Must have at least one nonzero entry in each column.')
+    right_spaces = [op.domain[-1] for op in right_ops]
 
     left_ops = transposed_grid[0]
     for i, op in enumerate(left_ops):
@@ -5497,9 +5584,9 @@ def tensor_from_grid(grid: list[list[SymmetricTensor | None]],
                 continue
             left_ops[i] = new_op
             break
-    left_spaces = [op.codomain[0] for op in left_ops]
-    if None in left_spaces:
+    if any(op is None for op in left_ops):
         raise ValueError('Must have at least one nonzero entry in each row.')
+    left_spaces = [op.codomain[0] for op in left_ops]
 
     left_space = left_spaces[0].direct_sum(*left_spaces[1:])
     right_space = right_spaces[0].direct_sum(*right_spaces[1:])

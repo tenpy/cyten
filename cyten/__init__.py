@@ -6,12 +6,13 @@ Provides a tensor class with block-sparsity from symmetries with an exchangeable
 # Copyright (C) TeNPy Developers, Apache license
 
 from . import (dtypes, spaces, backends, symmetries, tensors, random_matrix, sparse, krylov_based,
-               trees, dummy_config, tools)
+               trees, models, dummy_config, tools)
 from . import testing  # should be pretty late
 from . import version
 
+# import pybind11 bindings from C++ code
 # TODO do explicit imports instead of *
-from ._core import *  # import pybind11 bindings from C++ code
+from ._core import *  # type: ignore
 
 
 # modules under cyten
@@ -28,11 +29,12 @@ from .symmetries import (
     fibonacci_anyon_category, ising_anyon_category
 )
 from .tensors import (
-    SymmetricTensor, DiagonalTensor, Mask, ChargedTensor, add_trivial_leg, angle, almost_equal,
-    apply_mask, bend_legs, combine_legs, combine_to_matrix, complex_conj, dagger, compose, eigh,
-    enlarge_leg, entropy, exp, eye, imag, inner, is_scalar, item, move_leg, norm, on_device, outer,
-    partial_trace, permute_legs, pinv, qr, real, real_if_close, lq, scale_axis, split_legs, sqrt,
-    squeeze_legs, stable_log, svd, tdot, tensor, trace, transpose, truncated_svd, zero_like
+    Tensor, SymmetricTensor, DiagonalTensor, Mask, ChargedTensor, add_trivial_leg, angle,
+    almost_equal, apply_mask, bend_legs, combine_legs, combine_to_matrix, complex_conj, dagger,
+    compose, eigh, enlarge_leg, entropy, exp, eye, imag, inner, is_scalar, item, move_leg, norm,
+    on_device, outer, partial_trace, permute_legs, pinv, qr, real, real_if_close, lq, scale_axis,
+    split_legs, sqrt, squeeze_legs, stable_log, svd, tdot, tensor, trace, transpose, truncated_svd,
+    zero_like
 )
 from .trees import FusionTree, fusion_trees
 from .version import version as __version__
@@ -41,10 +43,7 @@ from .version import full_version as __full_version__
 
 # subpackages
 from .backends import get_backend
-from .networks import (
-    group_sites, SpinHalfSite, SpinSite, FermionSite, SpinHalfFermionSite, SpinHalfHoleSite,
-    BosonSite, ClockSite
-)
+from .models import Coupling, couplings, sites
 # from .testing import
 # from .tools import
 
