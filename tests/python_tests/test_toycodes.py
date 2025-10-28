@@ -37,7 +37,7 @@ def test_dmrg_golden_chain():
     }
     L = 8
     psi = init_Fib_anyon_MPS(L)
-    model = GoldenChainModel(L, J=-1)
+    model = GoldenChainModel(L, J=1)
     dmrg = DMRGEngine(psi, model)
     e = dmrg.run()
     assert abs(e - GC_energies[L]) < 1e-9

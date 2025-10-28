@@ -134,7 +134,7 @@ class GoldenChainModel:
         nbonds = self.L - 1 if self.bc == 'finite' else self.L
         p = self.site
         P1 = ct.couplings.gold_coupling([p, p]).to_tensor()
-        self.H_bonds = [-self.J * P1] * nbonds
+        self.H_bonds = [self.J * P1] * nbonds
 
     def init_H_mpo(self):
         """Initialize `H_mpo` Hamiltonian.
@@ -145,7 +145,7 @@ class GoldenChainModel:
         P1 = ct.couplings.gold_coupling([p, p])
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
         I = ct.Coupling.from_tensor(I, [p])
-        grid = [[I.factorization[0], -self.J * P1.factorization[0], None],
+        grid = [[I.factorization[0], self.J * P1.factorization[0], None],
                 [None, None, P1.factorization[1]],
                 [None, None, I.factorization[0]]]
         W = ct.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])

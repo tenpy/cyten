@@ -557,7 +557,7 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
 
 def sector_projection_coupling(sites: list[Site], J: float, sector: Sector, name: str
                                ) -> Coupling:
-    """Coupling that is given by the projector onto a single sector.
+    """Coupling that is given by the projector onto a single sector
 
     The number of sites is arbitrary and the operator :math:`h_{ij...}` is given
     by :meth:`cyten.SymmetricTensor.from_sector_projection`, with prefactor `J`.
@@ -575,7 +575,7 @@ def sector_projection_coupling(sites: list[Site], J: float, sector: Sector, name
     return Coupling.from_tensor(J * projector, sites=sites, name=name)
 
 
-def gold_coupling(sites: list[GoldenSite], J: float = 1, name: str = 'P_vac') -> Coupling:
+def gold_coupling(sites: list[GoldenSite], J: float = 1, name: str = 'gold') -> Coupling:
     r"""Two-site coupling of Fibonacci anyons that energy splits fusion to vacuum or tau.
 
     .. math ::
