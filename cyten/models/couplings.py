@@ -41,7 +41,7 @@ class Coupling:
         The sites that the operators act on.
     factorization : list of :class:`SymmetricTensor`
         A list of tensors that, if contracted, give the operator that is represented.
-        Each tensor ``factorization[i]`` has legs ``[wL, pi, wR, pi*]``, where ``pi`` and ``pi*``
+        Each tensor ``factorization[i]`` has legs ``[wL, p, wR, p*]``, where ``p`` and ``p*``
         are the physical :attr:`Site.leg` of the corresponding ``sites[i]``, and where contracting
         the ``wL`` and ``wR`` legs in an MPO-like geometry gives the multi-site operator.
     name : str, optional
@@ -65,9 +65,9 @@ class Coupling:
             assert W.backend == backend
             assert W.num_codomain_legs == 2
             assert W.num_domain_legs == 2
-            assert W.labels == ['wL', f'p{i}', 'wR', f'p{i}*']
-            assert W.get_leg_co_domain(f'p{i}') == s.leg
-            assert W.get_leg_co_domain(f'p{i}*') == s.leg
+            assert W.labels == ['wL', 'p', 'wR', 'p*']
+            assert W.get_leg_co_domain('p') == s.leg
+            assert W.get_leg_co_domain('p*') == s.leg
         assert self.factorization[0].get_leg('wL').is_trivial
         for W1, W2 in zip(self.factorization[:-1], self.factorization[1:]):
             assert W1.get_leg_co_domain('wR') == W2.get_leg_co_domain('wL')
@@ -133,20 +133,26 @@ class Coupling:
         assert operator.backend == get_same_backend(*sites)
         assert operator.codomain.factors == [site.leg for site in sites]
         assert operator.domain.factors == operator.codomain.factors
+        p_labels = [f'p{i}' for i in range(len(sites))]
+        assert operator.labels == [*p_labels, *[f'{pi}*' for pi in p_labels][::-1]]
 
         if len(sites) == 1:
             W = add_trivial_leg(operator, codomain_pos=0, label='wL')
             W = add_trivial_leg(W, domain_pos=1, label='wR')
+            W.relabel({'p0': 'p', 'p0*': 'p*'})
             factorization = [W]
         else:
             W, rest = horizontal_factorization(operator, 1, 1, new_labels=['wR', 'wL'],
                                                cutoff_singular_values=cutoff_singular_values)
+            W.relabel({'p0': 'p', 'p0*': 'p*'})
             factorization = [add_trivial_leg(W, codomain_pos=0, label='wL')]
-            for n in range(len(sites) - 2):
+            for i in range(1, len(sites) - 1):
                 W, rest = horizontal_factorization(rest, 1, 1, new_labels=['wL', 'wR'],
                                                    cutoff_singular_values=cutoff_singular_values)
+                W.relabel({f'p{i}': 'p', f'p{i}*': 'p*'})
                 factorization.append(W)
             assert (rest.num_codomain_legs, rest.num_domain_legs) == (2, 1)
+            rest.relabel({f'p{len(sites) - 1}': 'p', f'p{len(sites) - 1}*': 'p*'})
             factorization.append(add_trivial_leg(rest, domain_pos=1, label='wR'))
         return Coupling(sites=sites, factorization=factorization, name=name)
 
@@ -159,11 +165,12 @@ class Coupling:
         # TODO : this would be a great use case for a planar diagram as well...
         res = squeeze_legs(self.factorization[0], 'wL')
         res = permute_legs(res, [-1, 0], [1], bend_right=False)
-        for n in range(1, self.num_sites):
-            W = permute_legs(self.factorization[n], ['wL'], [f'p{n}*', 'wR', f'p{n}'],
+        res.relabel({'p': 'p0', 'p*': 'p0*'})
+        for i in range(1, self.num_sites):
+            W = permute_legs(self.factorization[i], ['wL'], ['p*', 'wR', 'p'],
                              bend_right=True)
-            res = compose(res, W)
-            res = permute_legs(res, [-1, *range(2 * n), 2 * n], [-2],
+            res = compose(res, W, relabel2={'p': f'p{i}', 'p*': f'p{i}*'})
+            res = permute_legs(res, [-1, *range(2 * i), 2 * i], [-2],
                                bend_right={-1: False, -3: True})
         res = squeeze_legs(res, 'wR')
         codom_labels = [f'p{i}' for i in range(len(self.sites))]
