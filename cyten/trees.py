@@ -29,16 +29,16 @@ class FusionTree:
         |                coupled
         |                │
         |           ╭────k─────╮
-        |         y │          │
+        |          y│          │
         |       ╭───j────╮     │
-        |     x │        │     │
+        |      x│        │     │
         |    ╭──i──╮     │     │
-        |    │     │     │     │
-        |  a │   b │   c │   d │     <- uncoupled
+        |    a     b     c     d     <- uncoupled
         |    ^     ^     ^     ^
         |    │     Z     Z     │
         |    ^     v     v     ^
-        |    a     b'    c'    d     <- pre_Z_uncoupled
+        |    a     b     c     d     <- isomorphic to pre_Z_uncoupled
+        |                               e.g. dual(b) iso to pre_Z_uncoupled[1]
 
     Attributes
     ----------
@@ -557,7 +557,7 @@ class FusionTree:
 
     def __str__(self) -> str:
         ascii = self._ascii_diagram(dagger=False)
-        res = f'<FusionTree symmetry: {self.symmetry!s}>'
+        res = f'<FusionTree   symmetry: {self.symmetry!s}>'
         for row in ascii.T:
             res = res + '\n    |   ' + ''.join(row)
         return res

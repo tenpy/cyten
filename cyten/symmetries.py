@@ -499,7 +499,7 @@ class Symmetry(metaclass=ABCMeta):
     def __str__(self):
         res = self.group_name
         if self.descriptive_name is not None:
-            res = res + f'("{self.descriptive_name}")'
+            res = res + f' ("{self.descriptive_name}")'
         return res
 
     def __mul__(self, other):
