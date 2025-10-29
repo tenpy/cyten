@@ -678,6 +678,15 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
+    def shift_sectors(self, a: SymmetricTensor, sector_mapping: callable
+                      ) -> tuple[Data, TensorProduct, TensorProduct]:
+        """Implementation of :func:`cyten.tensors.shift_tensors`.
+
+        Returns ``data, codmain, domain``.
+        """
+        ...
+
+    @abstractmethod
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
                    domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
                    ) -> Data:

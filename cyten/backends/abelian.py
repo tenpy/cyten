@@ -1713,6 +1713,10 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(common_dtype, a.data.device, res_blocks, res_block_inds,
                                   is_sorted=False)
 
+    def shift_sectors(self, a: SymmetricTensor, sector_mapping: callable
+                      ) -> tuple[Data, TensorProduct, TensorProduct]:
+        raise NotImplementedError  # FIXME
+
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
                    domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
                    ) -> Data:
