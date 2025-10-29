@@ -6,16 +6,23 @@ import numpy as np
 import pytest
 
 from cyten import trees
-from cyten.symmetries import Symmetry, SymmetryError, Sector
+from cyten.symmetries import Symmetry, SymmetryError, Sector, u1_symmetry, z3_symmetry
 from cyten.spaces import ElementarySpace, TensorProduct
 from cyten.dtypes import Dtype
 from cyten.backends.backend_factory import get_backend
 from cyten.backends.abstract_backend import Block
+from cyten.testing import random_symmetry_sectors
 
 
 def random_fusion_tree(symmetry: Symmetry, num_uncoupled: int, sector_rng: Callable[[], Sector],
                        np_random: np.random.Generator
                        ) -> trees.FusionTree:
+    if num_uncoupled == 0:
+        return trees.FusionTree.from_empty(symmetry=symmetry)
+    if num_uncoupled == 1:
+        sector = sector_rng()
+        is_dual = np_random.choice([True, False])
+        return trees.FusionTree.from_sector(symmetry, sector, is_dual=is_dual)
     fusion_outcomes = []
     multiplicities = []
     left = sector_rng()
@@ -521,3 +528,32 @@ def test_to_block_no_backend(any_symmetry, make_any_sectors, np_random, dtype):
     # need two test_* functions to generate the cases, implement actual test in check_to_block
     coupled = make_any_sectors(4)
     check_to_block(any_symmetry, None, coupled, np_random, dtype)
+
+
+@pytest.mark.parametrize('num_uncoupled', [0, 1, 2, 5])
+@pytest.mark.parametrize('symmetry', [u1_symmetry, u1_symmetry * z3_symmetry])
+def test_FusionTree_ascii_diagram(symmetry, num_uncoupled, np_random):
+    # run e.g. ``pytest -rP -k test_FusionTree_ascii_diagram`` to see the output
+    X = random_fusion_tree(
+        symmetry=symmetry, num_uncoupled=num_uncoupled,
+        sector_rng=lambda: random_symmetry_sectors(symmetry, 1, np_random=np_random)[0],
+        np_random=np_random
+    )
+    print('>>> X.ascii_diagram(dagger=True)')
+    print(X.ascii_diagram(dagger=True))
+    print()
+    print('>>> X.ascii_diagram()')
+    print(X.ascii_diagram())
+
+
+@pytest.mark.parametrize('num_uncoupled', [0, 1, 2, 5])
+@pytest.mark.parametrize('symmetry', [u1_symmetry, u1_symmetry * z3_symmetry])
+def test_FusionTree_str(symmetry, num_uncoupled, np_random):
+    # run e.g. ``pytest -rP -k test_FusionTree_str`` to see the output
+    X = random_fusion_tree(
+        symmetry=symmetry, num_uncoupled=num_uncoupled,
+        sector_rng=lambda: random_symmetry_sectors(symmetry, 1, np_random=np_random)[0],
+        np_random=np_random
+    )
+    print('>>> str(X)')
+    print(str(X))
