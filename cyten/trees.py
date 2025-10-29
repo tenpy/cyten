@@ -16,6 +16,30 @@ if TYPE_CHECKING:
 class FusionTree:
     r"""A fusion tree, which represents the map from uncoupled to coupled sectors.
 
+    Consider the following example tree::
+
+        FusionTree(symmetry=symmetry, coupled=coupled,
+                   uncoupled=[a, b, c, d],
+                   are_dual = [False, True, True, False],
+                   inner_sectors = [x, y],
+                   multiplicities = [m0, m1, m2])
+
+    Graphically::
+
+        |                coupled
+        |                │
+        |           ╭────k─────╮
+        |         y │          │
+        |       ╭───j────╮     │
+        |     x │        │     │
+        |    ╭──i──╮     │     │
+        |    │     │     │     │
+        |  a │   b │   c │   d │     <- uncoupled
+        |    ^     ^     ^     ^
+        |    │     Z     Z     │
+        |    ^     v     v     ^
+        |    a     b'    c'    d     <- pre_Z_uncoupled
+
     Attributes
     ----------
     symmetry : Symmetry
@@ -33,40 +57,12 @@ class FusionTree:
 
     Notes
     -----
-    Consider the following example tree::
-
-        FusionTree(symmetry=symmetry, coupled=coupled,
-                   uncoupled=[a, b, c, d],
-                   are_dual = [False, True, True, False],
-                   inner_sectors = [x, y],
-                   multiplicities = [m0, m1, m2])
-
-    Graphically::
-
-        |    |
-        |    coupled
-        |    |
-        |    m2
-        |    |  \
-        |    y   \
-        |    |    \
-        |    m1    \
-        |    |  \   \
-        |    x   \   \
-        |    |    \   \
-        |    m0    \   \
-        |    |  \   \   \
-        |    a   b   c   d
-        |    |   |   |   |
-        |    |   Z   Z   |
-        |    |   |   |   |
-
     Consider the ``n``-th vertex (counting 0-based from bottom to top).
-    It fuses :math:`a \otimes b \to c` with multiplicity label ``multiplicities[n]``.
+    It fuses :math:`e \otimes f \to g` with multiplicity label ``multiplicities[n]``.
 
-        - ``a = uncoupled[0] if n == 0 else inner_sectors[n - 1]``
-        - ``b = uncoupled[n + 1]``
-        - ``c = coupled if (n == num_vertices - 1) else inner_sectors[n]``
+        - ``e = uncoupled[0] if n == 0 else inner_sectors[n - 1]``
+        - ``f = uncoupled[n + 1]``
+        - ``g = coupled if (n == num_vertices - 1) else inner_sectors[n]``
     """
 
     def __init__(self, symmetry: Symmetry,
@@ -180,6 +176,126 @@ class FusionTree:
             and np.all(self.uncoupled == other.uncoupled) \
             and np.all(self.inner_sectors == other.inner_sectors) \
             and np.all(self.multiplicities == other.multiplicities)
+
+    def _ascii_diagram(self, dagger: bool, uncoupled_padding=2, inner_sector_padding=0
+                       ) -> np.ndarray:
+        """The :meth:`ascii_diagram` as a 2D array of single characters."""
+        # Note: for dagger=True, we simply vertically mirror the line characters and
+        #       at the very end their positions
+
+        assert uncoupled_padding > 0
+        assert inner_sector_padding >= 0
+
+        uncoupled_strs = [self.symmetry.sector_str(a) for a in self.uncoupled]
+        pre_Z_uncoupled_strs = [self.symmetry.sector_str(a) for a in self.pre_Z_uncoupled]
+
+        # single-letter sectors dont work with the design choice of attaching wires to the
+        # second character of a sector -> make them at least 2 characters
+        uncoupled_strs = [s.rjust(2) for s in uncoupled_strs]
+        pre_Z_uncoupled_strs = [s.rjust(2) for s in pre_Z_uncoupled_strs]
+
+        # pad the uncoupled sectors in a single column to a consistent width
+        uncoupled_widths = [max(len(s), len(s2))
+                            for s, s2 in zip(uncoupled_strs, pre_Z_uncoupled_strs)]
+        uncoupled_strs = [s.ljust(w) for w, s in zip(uncoupled_widths, uncoupled_strs)]
+        pre_Z_uncoupled_strs = [s.ljust(w) for w, s in zip(uncoupled_widths, pre_Z_uncoupled_strs)]
+
+        # special cases with no fusion vertices
+        if self.num_uncoupled == 0:
+            return np.array(list('empty FusionTree'), dtype=str)[:, None]
+        if self.num_uncoupled == 1:
+            ascii = np.full((uncoupled_widths[0], 5), ' ', dtype=str)
+            ascii[:, 0] = list(uncoupled_strs[0])
+            # for dagger, we would need to explicitly mirror the arrows -> simply dont mirror back
+            ascii[1, [1, 2, 3]] = ['^', 'Z', 'v'] if self.are_dual[0] else ['^', '│', '^']
+            ascii[:, 4] = list(pre_Z_uncoupled_strs[0])
+            if dagger:
+                ascii = ascii[:, ::-1]
+            return ascii
+
+        coupled_str = self.symmetry.sector_str(self.coupled)
+        inner_sector_strs = [self.symmetry.sector_str(s) for s in self.inner_sectors]
+
+        # step 1: build just the bare tree without inner sectors or multiplicity labels
+        #         only remember where they would go
+        vertex_positions = []  # positions of the ┴
+        num_rows_uncoupled = 5
+        num_rows_coupled = 1
+        num_rows = num_rows_uncoupled + 2 * self.num_vertices + num_rows_coupled
+        uncoupled_pos = [sum(uncoupled_widths[:i]) + i * uncoupled_padding
+                         for i in range(self.num_uncoupled)]
+        num_cols = sum(uncoupled_widths) + self.num_uncoupled * uncoupled_padding
+        ascii = np.full((num_cols, num_rows), ' ', dtype=str)
+        # last line: pre_Z_uncoupled
+        for pos, s in zip(uncoupled_pos, uncoupled_strs):
+            ascii[pos: pos + len(s), -1] = list(s)
+        # line -2: Z or vertical wires
+        for pos, has_Z in zip(uncoupled_pos, self.are_dual):
+            # for dagger, we would need to explicitly mirror the arrows -> simply dont mirror back
+            ascii[pos + 1, [-4, -3, -2]] = ['^', 'Z', 'v'] if has_Z else ['^', '│', '^']
+        # line -3: uncoupled
+        for pos, s in zip(uncoupled_pos, pre_Z_uncoupled_strs):
+            ascii[pos: pos + len(s), -5] = list(s)
+        # fusion vertices
+        row = num_rows - 1 - num_rows_uncoupled
+        left_wire = uncoupled_pos[0] + 1
+        for n in range(self.num_vertices):
+            right_wire = uncoupled_pos[n + 1] + 1
+            ascii[right_wire, row + 1: -num_rows_uncoupled] = '│'
+            vertex = (left_wire + right_wire) // 2
+            ascii[left_wire, row] = '╰' if dagger else '╭'
+            ascii[left_wire + 1: vertex, row] = '─'
+            ascii[vertex, row] = '┬' if dagger else '┴'
+            vertex_positions.append((vertex, row))
+            ascii[vertex + 1: right_wire, row] = '─'
+            ascii[right_wire, row] = '╯' if dagger else '╮'
+            ascii[vertex, row - 1] = '│'
+            # for next iteration:
+            left_wire = vertex
+            row = row - 2
+        assert row == 0
+        coupled_pos = left_wire - 1
+        ascii[coupled_pos: coupled_pos + len(coupled_str), 0] = list(coupled_str)
+
+        left_overhangs = {}  # {row: extra_str}
+        for (x, y), s in zip(vertex_positions[:-1], inner_sector_strs):
+            row = y - 1  # one above the vertex
+            start = x - len(s)
+            if start < 0:
+                left_overhangs[row] = s[:abs(start)]
+                ascii[:x, row] = list(s[abs(start):])
+            else:
+                ascii[start: x, row] = list(s)
+        if len(left_overhangs) > 0:
+            extra_left = np.full((max(len(s) for s in left_overhangs.values()), num_rows), ' ', str)
+            for row, extra_s in left_overhangs.items():
+                extra_left[-len(extra_s):, row] = list(extra_s)
+        else:
+            extra_left = np.zeros((0, num_rows), str)
+
+        if self.symmetry.fusion_style > FusionStyle.multiple_unique:
+            # need to print multiplicities
+            for (x, y), mult in zip(vertex_positions, self.multiplicities):
+                mult = str(mult)
+                if len(mult) == 1:
+                    ascii[x, y] = mult
+                elif len(mult) == 2:
+                    ascii[x: x+2, y] = list(mult)
+                elif len(mult) == 3:
+                    ascii[x-1: x+2, y] = list(mult)
+                else:
+                    raise NotImplementedError('Multiplicity with >3 digits not supported.')
+
+        # finialize
+        ascii = np.concatenate([extra_left, ascii], axis=0)
+        if dagger:
+            ascii = ascii[:, ::-1]
+
+        return ascii
+
+    def ascii_diagram(self, dagger=False) -> str:
+        ascii = self._ascii_diagram(dagger=dagger)
+        return '\n'.join(''.join(row) for row in ascii.T)
 
     @staticmethod
     def _str_uncoupled_coupled(symmetry, uncoupled, coupled, are_dual) -> str:
@@ -440,16 +556,11 @@ class FusionTree:
         return self
 
     def __str__(self) -> str:
-        signature = self._str_uncoupled_coupled(
-            self.symmetry, self.uncoupled, self.coupled, self.are_dual
-        )
-        entries = [signature]
-        if self.fusion_style in [FusionStyle.multiple_unique, FusionStyle.general]:
-            inner_sectors_str = ', '.join(self.symmetry.sector_str(x) for x in self.inner_sectors)
-            entries.append(f'({inner_sectors_str})')
-        if self.fusion_style == FusionStyle.general:
-            entries.append(str(self.multiplicities))
-        return f'FusionTree[{str(self.symmetry)}]({", ".join(entries)})'
+        ascii = self._ascii_diagram(dagger=False)
+        res = f'<FusionTree symmetry: {self.symmetry!s}>'
+        for row in ascii.T:
+            res = res + '\n    |   ' + ''.join(row)
+        return res
 
     def __repr__(self) -> str:
         inner = str(self.inner_sectors).replace('\n', ',')
