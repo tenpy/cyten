@@ -1802,6 +1802,14 @@ class FusionTreeBackend(TensorBackend):
             blocks[ind_mapping[coupled_ind]][slcs[0], slcs[1]] = forest
         return FusionTreeData(block_inds, blocks, dtype, a.data.device)
 
+    def shift_sectors(self, a: SymmetricTensor, sector_mapping: callable
+                      ) -> tuple[Data, TensorProduct, TensorProduct]:
+        blocks = []
+        block_inds = []
+        for (bi_cod, bi_dom), block
+        
+        raise NotImplementedError  # FIXME
+
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
                    domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
                    ) -> Data:

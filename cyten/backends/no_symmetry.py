@@ -416,6 +416,10 @@ class NoSymmetryBackend(TensorBackend):
     def scale_axis(self, a: SymmetricTensor, b: DiagonalTensor, leg: int) -> Data:
         return self.block_backend.scale_axis(a.data, b.data, leg)
 
+    def shift_sectors(self, a: SymmetricTensor, sector_mapping: callable
+                      ) -> tuple[Data, TensorProduct, TensorProduct]:
+        raise NotImplementedError  # FIXME
+
     def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
                    domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
                    ) -> Data:

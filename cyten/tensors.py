@@ -78,7 +78,7 @@ import functools
 import logging
 
 from .dummy_config import printoptions
-from .symmetries import SymmetryError, Symmetry, BraidingStyle
+from .symmetries import SymmetryError, Symmetry, BraidingStyle, SectorArray
 from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
 from .trees import FusionTree
 from .backends.backend_factory import get_backend
@@ -5253,6 +5253,78 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
     return SymmetricTensor(data, codomain=tensor.codomain, domain=tensor.domain, backend=backend,
                            labels=tensor._labels)
 
+
+def shift_sectors(tensor: Tensor, sector_mapping: callable[[SectorArray], SectorArray]):
+    r"""Map a tensor by mapping the symmetry sectors but keeping the numerical entries the same.
+
+    For a formal definition in terms of a functor, see notes below.
+    Informally, we apply a *bijective* mapping :math:`F` to all charge sectors.
+    It maps a sector :math:`q` to another sector :math:`q \mapsto F(q)` in such a way that for any
+    combination of sectors where the charge rule holds, it also holds after the mapping.
+    We keep the underlying numerical data unchanged, such that e.g. :meth:`Tensor.to_numpy()`
+    (if applicable to the symmetry) remains unchanged.
+
+    Parameters
+    ----------
+    tensor : Tensor
+        The tensor to map
+    sector_mapping : function 2D array -> 2D array
+        The batched sector mapping :math:`F`, acting on an array of sectors.
+        Note the requirements of the mapping, which are assumed without explicit checking.
+        If the requirements are not met, this function may either error or silently produce
+        nonsense!
+
+    Returns
+    -------
+    The mapped tensors, where legs are mapped versions of the legs of `tensor`, in particular with
+    the same duality and the same numerical entries, such that e.g. the :meth:`Tensor.to_numpy()`
+    (if applicable to the symmetry) remains unchanged.
+
+    Examples
+    --------
+    TODO elaborate
+    - particle number conservation with U(1), "shifting the zero-point"
+    - dipole conservation with U(1) (or Z_N)
+    - non-Abelian examples are rare, since the assumptions typically restrict :math:`F` heavily.
+      in particular, it must map to a sector of the same dimension, such that for SU(2) only the
+      trivial mapping is allowed. for SU(3) one could swap 3 <-> 3bar etc, I assume.
+
+    Notes
+    -----
+    For a formal definition, we assume a tensor functor :math:`F`, that is a functor that
+    - is monoidal (up to supressed isomorophism)
+    - is linear (up to supressed isomorophism)
+    - preserves daggers (up to supressed isomorophism)
+    - commutes with the transpose/duality functor (up to supressed isomorophism)
+    and we further require
+    - it preserves simple objects, i.e. :math:`F(a)` is simple if :math:`a` is simple
+    - it is bijective on sector equivalence classes, meaning :math:`a \cong b <=> F(a) \cong F(b)`.
+    - it preserves fusion tensors up to supressed isomorphism,
+      meaning :math:`F( X^{ab}_{c,\mu} ) \cong X^{F(a)F(b)}_{F(c), \mu}`
+      where we laxly wrote :math:`F(a)` for the *sector* isomorphic to the simple object :math:`F(a)`.
+
+    As a result we have for the action on a tensor::
+
+        F(T) = sum_{bk nk} sum_{aj mj} sum_{c 𝛼β} T_c^{aj 𝛼 mj}_{bk β nk} F(X^{aj 𝛼}_c @ Y^{bk β}_c)
+             = sums T_c^{aj 𝛼 mj}_{bk β nk} X^{F(aj) F(𝛼)}_{F(c)} @ Y^{F(bk) F(β)}_{F(c)})
+
+    Note that since F is bijective on sectors, the e.g. F(c) run over all sectors during the sum.
+    We can read off that the new tree blocks with mapped indices are the same as the old tree blocks
+    with "bare" indices::
+
+        |   ┌ ┌             ┐F(a1)..F(aJ),F(𝛼) ┐m1..mJ       ┌ ┌     ┐a1..aJ,𝛼 ┐m1..mJ
+        |   │ │ F(T)_{F(c)} │                  │         =   │ │ T_c │         │
+        |   └ └             ┘F(b1)..F(bK),F(β) ┘n1..nK       └ └     ┘b1..bK,β ┘n1..nK
+
+    In this sense, it keeps the numerical entries the same.
+    """
+    if isinstance(tensor, SymmetricTensor):
+        data, codomain, domain = tensor.backend.shift_sectors(sector_mapping)
+        return SymmetricTensor(data, codomain=codomain, domain=domain, backend=tensor.backend,
+                               labels=tensor.labels)
+    else:
+        raise NotImplementedError  # TODO
+    # FIXME tests
 
 def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     """Split legs that were previously combined using :func:`combine_legs`.
