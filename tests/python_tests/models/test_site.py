@@ -83,3 +83,40 @@ def test_site(np_random, block_backend, symmetry_backend, use_sym):
     #     site_op = site.onsite_operators[name].to_numpy()
     #     site2_op = site2.onsite_operators[name].to_numpy()
     #     npt.assert_equal(site_op, site2_op)
+
+
+@pytest.mark.parametrize('spin', [0.5, 1, 1.5, 2, 5])
+def test_spin_site(any_backend, spin):
+    if isinstance(any_backend, backends.NoSymmetryBackend):
+        all_conserve = ['None']
+    elif isinstance(any_backend, backends.AbelianBackend):
+        all_conserve = ['Sz', 'parity', 'None']
+    elif isinstance(any_backend, backends.FusionTreeBackend):
+        all_conserve = ['SU(2)', 'Sz', 'parity', 'None']
+    else:
+        raise ValueError
+    site_list = []
+    for conserve in all_conserve:
+        print("conserve = ", conserve)
+        site = sites.SpinSite(spin, conserve, backend=any_backend)
+        site.test_sanity()
+
+        sz = site.spin_vector[:, :, 2]
+        down = site.state_labels['down']
+        up = site.state_labels['up']
+        assert np.allclose(sz[down, down], -1 * spin)
+        assert np.allclose(sz[up, up], spin)
+
+        expect_ops = {}
+        if conserve in ['Sz', 'parity', 'None']:
+            expect_ops.update(Sz=True)
+            if site.double_total_spin == 1:
+                expect_ops.update(Sigmaz=True)
+        if conserve in ['None']:
+            expect_ops.update(Sx=False, Sy=False, Sp=False, Sm=False)
+            if site.double_total_spin == 1:
+                expect_ops.update(Sigmax=False, Sigmay=False)
+        check_operator_availability(site, expect_ops)
+
+        site_list.append(site)
+    check_same_operators(site_list)
