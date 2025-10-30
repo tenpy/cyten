@@ -120,3 +120,67 @@ def test_spin_site(any_backend, spin):
 
         site_list.append(site)
     check_same_operators(site_list)
+
+
+@pytest.mark.parametrize('Nmax', [1, 2, 5, 8])
+def test_spinless_boson_site(any_backend, np_random, Nmax):
+    if isinstance(any_backend, backends.NoSymmetryBackend):
+        all_conserve = ['None']
+    elif isinstance(any_backend, (backends.AbelianBackend, backends.FusionTreeBackend)):
+        all_conserve = ['N', 'parity', 'None']
+    else:
+        raise ValueError
+    filling = np_random.choice([None, np_random.random()])
+    site_list = []
+    for conserve in all_conserve:
+        print("conserve = ", conserve)
+        site = sites.SpinlessBosonSite(Nmax, conserve=conserve, backend=any_backend, filling=filling)
+        site.test_sanity()
+
+        vac = site.state_labels['vac']
+        assert np.allclose(site.n_tot[vac, vac], 0)
+        for i in range(Nmax):
+            state = site.state_labels[str(i)]
+            assert np.allclose(site.n_tot[state, state], i)
+
+        expect_ops = dict(N0=True, N=True, Ntot=True)
+        expect_ops.update(N0N0=True, NN=True, NtotNtot=True)
+        expect_ops.update(P0=True, P=True, Ptot=True)
+        if filling is not None:
+            expect_ops.update(dN=True, dNdN=True)
+        check_operator_availability(site, expect_ops)
+
+        site_list.append(site)
+    check_same_operators(site_list)
+
+    # now do the same tests for two species
+    Nmax2 = np_random.choice(5)
+    if isinstance(any_backend, backends.NoSymmetryBackend):
+        all_conserve = ['None']
+    else:
+        all_conserve = ['N', 'parity', 'None', ['N', 'N'], ['N', 'parity'], ['N', 'None'],
+                        ['parity', 'N'], ['parity', 'parity'], ['parity', 'None'],
+                        ['None', 'N'], ['None', 'parity'], ['None', 'None']]
+    filling = np_random.choice([None, np_random.random()])
+    site_list = []
+    for conserve in all_conserve:
+        site = sites.SpinlessBosonSite([Nmax, Nmax2], conserve=conserve, backend=any_backend, filling=filling)
+        site.test_sanity()
+
+        vac = site.state_labels['vac']
+        assert np.allclose(site.n_tot[vac, vac], 0)
+        for i in range(Nmax):
+            for j in range(Nmax2):
+                state = site.state_labels[f'({i}, {j})']
+                assert np.allclose(site.number_operators[state, state, 0], i)
+                assert np.allclose(site.number_operators[state, state, 1], j)
+
+        expect_ops = dict(N0=True, N1=True, Ntot=True)
+        expect_ops.update(N0N0=True, N1N1=True, NtotNtot=True)
+        expect_ops.update(P0=True, P1=True, Ptot=True)
+        if filling is not None:
+            expect_ops.update(dN=True, dNdN=True)
+        check_operator_availability(site, expect_ops)
+
+        site_list.append(site)
+    check_same_operators(site_list)
