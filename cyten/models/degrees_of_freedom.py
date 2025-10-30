@@ -180,7 +180,7 @@ class SpinDOF(Site):
     def conservation_law_to_symmetry(conserve: Literal['SU(2)', 'Sz', 'parity', 'None']
                                      ) -> Symmetry:
         """Translate conservation law for a spin to a symmetry."""
-        if conserve in ['SU(2)', 'SU2']:
+        if conserve in ['SU(2)', 'SU2', 'Stot']:
             sym = SU2Symmetry('spin')
         elif conserve in ['Sz', 'U(1)', 'U1']:
             sym = U1Symmetry('2*Sz')
@@ -255,7 +255,8 @@ class OccupationDOF(Site, metaclass=ABCMeta):
         self._species_name_to_idx = {name: idx for idx, name in enumerate(species_names)}
 
         # [p, (p*), k] @ [(p), p*, k] -> [p, p*, k]
-        self.number_operators = n_ops = as_immutable_array(np.tensordot(creators, annihilators, (1, 0)))
+        n_ops = np.diagonal(np.tensordot(creators, annihilators, (1, 0)), axis1=1, axis2=3)
+        self.number_operators = n_ops = as_immutable_array(n_ops)
         self.n_tot = as_immutable_array(np.sum(n_ops, axis=2))
         super().__init__(leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
                          backend=backend, default_device=default_device)
@@ -272,7 +273,11 @@ class OccupationDOF(Site, metaclass=ABCMeta):
 
             # check (anti-)commutation with same species
             BBd = self.annihilators[:, :, k] @ self.creators[:, :, k]
-            assert np.allclose(BBd + self.anti_commute_sign * n_k, np.eye(self.leg.dim))
+            if self.anti_commute_sign == 1:
+                # BBd is 0 when going over the maximum occupation -> set this manually here
+                mask = np.isclose(np.diag(BBd), 0)
+                BBd[mask, mask] += np.max(BBd) + 1
+            assert np.allclose(BBd - self.anti_commute_sign * n_k, np.eye(self.leg.dim))
 
             # check commutation relations among different species
             # note: even for fermions, these numpy representations without explicit JW commute
@@ -385,7 +390,7 @@ class BosonicDOF(OccupationDOF):
 
         Nmax = []
         for k in range(self.num_species):
-            N_k = self.n_ops[:, :, k]
+            N_k = self.number_operators[:, :, k]
             N_k_max_ = np.max(np.diag(N_k))
             N_k_max = round(N_k_max_, 0)
             assert np.allclose(N_k_max, N_k_max_)
@@ -400,12 +405,6 @@ class BosonicDOF(OccupationDOF):
         super().test_sanity()
         for k in range(self.num_species):
             N_k = self.number_operators[:, :, k]
-            # check commutation relations
-            # BBd is 0 when going over the maximum occupation -> set this manually here
-            BBd = self.annihilators[:, :, k] @ self.creators[:, :, k]
-            mask = np.isclose(np.diag(BBd), 0)
-            BBd[mask, mask] += self.Nmax[k] + 1
-            assert np.allclose(BBd - N_k, np.eye(self.leg.dim))
             # N_k has integer eigenvalues and is diagonal
             N_k_rounded = np.around(N_k, 0)
             assert np.allclose(N_k_rounded, N_k)
