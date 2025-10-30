@@ -226,3 +226,75 @@ def test_spinless_fermion_site(np_random, num_species):
     for backend in [backends.get_backend('no_symmetry'), backends.get_backend('abelian')]:
         with pytest.raises(AssertionError):
             _ = sites.SpinlessFermionSite(num_species, all_conserve[0], backend=backend)
+            
+
+def test_spin_half_fermion_site(np_random):
+    backend = backends.get_backend('fusion_tree')
+    all_conserve_N = ['N', 'parity']
+    all_conserve_S = ['SU(2)', 'Sz', 'parity', 'None']
+    filling = np_random.choice([None, np_random.random()])
+    site_list = []
+    for conserve_N, conserve_S in it.product(all_conserve_N, all_conserve_S):
+        print(f'{conserve_N=}, {conserve_S=}')
+        site = sites.SpinHalfFermionSite(conserve_N, conserve_S, backend=backend, filling=filling)
+        site.test_sanity()
+
+        assert site.state_labels['empty'] == site.state_labels['(0, 0)'] == site.state_labels['vac']
+        assert site.state_labels['up'] == site.state_labels['(1, 0)']
+        assert site.state_labels['down'] == site.state_labels['(0, 1)']
+        assert site.state_labels['full'] == site.state_labels['(1, 1)']
+        for occupations in it.product([0, 1], repeat=2):
+            state = site.state_labels[str(occupations)]
+            assert np.allclose(site.number_operators[state, state, 0], occupations[0])  # spin up
+            assert np.allclose(site.number_operators[state, state, 1], occupations[1])  # spin down
+            assert np.allclose(site.spin_vector[state, state, 2], .5 * (occupations[0] - occupations[1]))
+
+        expect_ops = dict(Ntot=True, Ptot=True, NtotNtot=True)
+        if conserve_S in ['Sz', 'parity', 'None']:
+            expect_ops.update(Nup=True, Ndown=True)
+            expect_ops.update(Sz=True, Sigmaz=True)
+        if conserve_S in ['None']:
+            expect_ops.update(Sx=False, Sy=False, Sp=False, Sm=False, Sigmax=False, Sigmay=False)
+        if filling is not None:
+            expect_ops.update(dN=True, dNdN=True)
+        check_operator_availability(site, expect_ops)
+
+        site_list.append(site)
+    check_same_operators(site_list)
+
+    for backend in [backends.get_backend('no_symmetry'), backends.get_backend('abelian')]:
+        with pytest.raises(AssertionError):
+            _ = sites.SpinHalfFermionSite(all_conserve_N[0], all_conserve_S[0], backend=backend)
+
+
+@pytest.mark.parametrize('q', [2, 3, 4, 5, 10])
+def test_clock_site(any_backend, q):
+    if isinstance(any_backend, backends.NoSymmetryBackend):
+        all_conserve = ['None']
+    elif isinstance(any_backend, (backends.AbelianBackend, backends.FusionTreeBackend)):
+        all_conserve = ['Z_q', 'None']
+    else:
+        raise ValueError
+
+    site_list = []
+    for conserve in all_conserve:
+        print("conserve = ", conserve)
+        site = sites.ClockSite(q=q, conserve=conserve, backend=any_backend)
+        site.test_sanity()
+
+        z = site.clock_operators[:, :, 1]
+        up = site.state_labels['up']
+        assert np.allclose(z[up, up], 1)
+        if q % 2 == 0:
+            down = site.state_labels['down']
+            assert np.allclose(z[down, down], -1)
+        else:
+            assert 'down' not in site.state_labels
+
+        expect_ops = dict(Z=True, Zhc=True, Zphc=True)
+        if conserve == 'None':
+            expect_ops.update(X=False, Xhc=False, Xphc=False)
+        check_operator_availability(site, expect_ops)
+
+        site_list.append(site)
+    check_same_operators(site_list)
