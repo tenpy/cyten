@@ -160,12 +160,13 @@ class SpinDOF(Site):
                  state_labels: dict[str, int] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None,
                  backend: TensorBackend = None,
-                 default_device: str = None):
+                 default_device: str = None,
+                 **kwargs):
         assert spin_vector.shape == (leg.dim, leg.dim, 3)
         self.spin_vector = as_immutable_array(spin_vector)
         super().__init__(
             leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
-            backend=backend, default_device=default_device
+            backend=backend, default_device=default_device, **kwargs
         )
 
     def test_sanity(self):
@@ -241,7 +242,8 @@ class OccupationDOF(Site, metaclass=ABCMeta):
                  state_labels: dict[str, int] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None,
                  backend: TensorBackend = None,
-                 default_device: str = None):
+                 default_device: str = None,
+                 **kwargs):
         self.num_species = num_species = creators.shape[2]
         assert creators.shape == annihilators.shape == (leg.dim, leg.dim, num_species)
         self.creators = as_immutable_array(creators)
@@ -259,7 +261,7 @@ class OccupationDOF(Site, metaclass=ABCMeta):
         self.number_operators = n_ops = as_immutable_array(n_ops)
         self.n_tot = as_immutable_array(np.sum(n_ops, axis=2))
         super().__init__(leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
-                         backend=backend, default_device=default_device)
+                         backend=backend, default_device=default_device, **kwargs)
 
     def test_sanity(self):
         super().test_sanity()
@@ -379,13 +381,15 @@ class BosonicDOF(OccupationDOF):
                  state_labels: dict[str, int] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None,
                  backend: TensorBackend = None,
-                 default_device: str = None):
+                 default_device: str = None,
+                 **kwargs):
         if isinstance(self, FermionicDOF):
             raise SymmetryError('FermionicDOF and BosonicDOF are incompatible.')
         OccupationDOF.__init__(
             self, leg, creators=creators, annihilators=annihilators, anti_commute_sign=+1,
             species_names=species_names, state_labels=state_labels,
-            onsite_operators=onsite_operators, backend=backend, default_device=default_device
+            onsite_operators=onsite_operators, backend=backend, default_device=default_device,
+            **kwargs
         )
 
         Nmax = []
@@ -529,7 +533,8 @@ class FermionicDOF(OccupationDOF):
                  state_labels: dict[str, int] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None,
                  backend: TensorBackend = None,
-                 default_device: str = None):
+                 default_device: str = None,
+                 **kwargs):
         if isinstance(leg.symmetry, ProductSymmetry):
             # there should only be a single fermionic symmetry
             assert sum([isinstance(factor, (FermionParity, FermionNumber)) for factor in leg.symmetry.factors]) == 1
@@ -540,7 +545,8 @@ class FermionicDOF(OccupationDOF):
         OccupationDOF.__init__(
             self, leg=leg, creators=creators, annihilators=annihilators, anti_commute_sign=-1,
             species_names=species_names, state_labels=state_labels,
-            onsite_operators=onsite_operators, backend=backend, default_device=default_device
+            onsite_operators=onsite_operators, backend=backend, default_device=default_device,
+            **kwargs
         )
 
         n_diag = self.number_operators[np.arange(self.dim), np.arange(self.dim), :]  # [p, k]
@@ -645,7 +651,8 @@ class ClockDOF(Site):
                  state_labels: dict[str, int] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None,
                  backend: TensorBackend = None,
-                 default_device: str = None):
+                 default_device: str = None,
+                 **kwargs):
         self.q = q
         assert clock_operators.shape == (leg.dim, leg.dim, 2)
         assert leg.dim % q == 0
@@ -653,7 +660,7 @@ class ClockDOF(Site):
 
         super().__init__(
             leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
-            backend=backend, default_device=default_device
+            backend=backend, default_device=default_device, **kwargs
         )
 
         Z = clock_operators[:, :, 1]
@@ -691,7 +698,8 @@ class AnyonDOF(Site):
     def __init__(self, leg: ElementarySpace, state_labels: dict[str, int] = None,
                  sector_names: Sequence[str | None] = None,
                  onsite_operators: dict[str, SymmetricTensor] = None,
-                 backend: TensorBackend = None, default_device: str = None):
+                 backend: TensorBackend = None, default_device: str = None,
+                 **kwargs):
         if sector_names is None:
             sector_names = [None] * leg.num_sectors
         assert len(sector_names) == leg.num_sectors
@@ -707,5 +715,5 @@ class AnyonDOF(Site):
             onsite_operators[f'P_{sector_name}'] = P_sec
         super().__init__(
             leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
-            backend=backend, default_device=default_device
+            backend=backend, default_device=default_device, **kwargs
         )

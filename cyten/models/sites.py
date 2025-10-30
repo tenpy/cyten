@@ -467,15 +467,12 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         state_labels = {'(0, 0)': 0, '(0, 1)': 1, '(1, 0)': 2, '(1, 1)': 3,
                         'empty': 0, 'vac': 0, 'down': 1, 'up': 2, 'full': 3}
 
-        SpinDOF.__init__(
-            self, leg=leg, spin_vector=spin_vector, state_labels=state_labels,
-            onsite_operators=None, backend=backend, default_device=default_device
+        init_kwargs = dict(
+            leg=leg, spin_vector=spin_vector, creators=creators, annihilators=annihilators,
+            state_labels=state_labels, onsite_operators=None, backend=backend,
+            default_device=default_device, species_names=['up', 'down']
         )
-        FermionicDOF.__init__(
-            self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
-            onsite_operators=None, backend=backend, default_device=default_device,
-            species_names=['up', 'down']
-        )
+        super().__init__(**init_kwargs)
 
         if not isinstance(sym_S, SU2Symmetry):
             self.add_individual_occupation_ops()
