@@ -83,9 +83,16 @@ class SpinSite(SpinDOF):
 
         if not isinstance(sym, SU2Symmetry):
             self.add_onsite_operator('Sz', spin_vector[:, :, 2], is_diagonal=True)
+            if two_S == 1:
+                self.add_onsite_operator('Sigmaz', 2. * spin_vector[:, :, 2], is_diagonal=True)
         if isinstance(sym, NoSymmetry):
             self.add_onsite_operator('Sx', spin_vector[:, :, 0])
             self.add_onsite_operator('Sy', spin_vector[:, :, 1])
+            self.add_onsite_operator('Sp', spin_vector[:, :, 0] + 1.j * spin_vector[:, :, 1])
+            self.add_onsite_operator('Sm', spin_vector[:, :, 0] - 1.j * spin_vector[:, :, 1])
+            if two_S == 1:
+                self.add_onsite_operator('Sigmax', 2. * spin_vector[:, :, 0])
+                self.add_onsite_operator('Sigmay', 2. * spin_vector[:, :, 1])
 
     def test_sanity(self):
         super().test_sanity()
