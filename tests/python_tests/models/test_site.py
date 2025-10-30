@@ -184,3 +184,45 @@ def test_spinless_boson_site(any_backend, np_random, Nmax):
 
         site_list.append(site)
     check_same_operators(site_list)
+
+
+@pytest.mark.parametrize('num_species', [1, 2, 3])
+def test_spinless_fermion_site(np_random, num_species):
+    backend = backends.get_backend('fusion_tree')
+    all_conserve = ['N', 'parity']
+    individual_conserve = ['N', 'parity', 'None']
+    all_conserve.extend(it.product(individual_conserve, repeat=num_species))
+    filling = np_random.choice([None, np_random.random()])
+    site_list = []
+    for conserve in all_conserve:
+        print("conserve = ", conserve)
+        site = sites.SpinlessFermionSite(num_species=num_species, conserve=conserve,
+                                         backend=backend, filling=filling)
+        site.test_sanity()
+
+        vac = site.state_labels['vac']
+        assert np.allclose(site.n_tot[vac, vac], 0)
+        if num_species == 1:
+            assert site.state_labels['0'] == vac
+            state = site.state_labels['1']
+            assert np.allclose(site.n_tot[state, state], 1)
+        else:
+            for occupations in it.product([0, 1], repeat=num_species):
+                state = site.state_labels[str(occupations)]
+                for k in range(num_species):
+                    assert np.allclose(site.number_operators[state, state, k], occupations[k])
+
+        expect_ops = {f'N{k}': True for k in range(num_species)}
+        expect_ops.update(Ntot=True, Ptot=True, NtotNtot=True)
+        if num_species == 1:
+            expect_ops.update(N=True)
+        if filling is not None:
+            expect_ops.update(dN=True, dNdN=True)
+        check_operator_availability(site, expect_ops)
+
+        site_list.append(site)
+    check_same_operators(site_list)
+
+    for backend in [backends.get_backend('no_symmetry'), backends.get_backend('abelian')]:
+        with pytest.raises(AssertionError):
+            _ = sites.SpinlessFermionSite(num_species, all_conserve[0], backend=backend)
