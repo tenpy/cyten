@@ -207,22 +207,20 @@ class SpinlessBosonSite(BosonicDOF):
 
         creators, annihilators = BosonicDOF._creation_annihilation_ops_from_Nmax(Nmax=Nmax)
 
-        # construct operators relative to filling
-        ops = {}
-        if filling is not None:
-            dN_diag = np.diag(np.tensordot(creators, annihilators, axes=[[1, 2], [0, 2]]))
-            dN_diag = dN_diag - filling * np.ones(total_dim)
-            dN = np.diag(dN_diag)
-            dNdN = np.diag(dN_diag**2)
-            ops['dN'] = dN
-            ops['dNdN'] = dNdN
-
         BosonicDOF.__init__(
             self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
             onsite_operators=None, backend=backend, default_device=default_device
         )
         self.add_individual_occupation_ops()
         self.add_total_occupation_ops()
+        # construct operators relative to filling
+        ops = {}
+        if filling is not None:
+            dN_diag = np.diag(self.n_tot) - filling * np.ones(total_dim)
+            dN = np.diag(dN_diag)
+            dNdN = np.diag(dN_diag**2)
+            ops['dN'] = dN
+            ops['dNdN'] = dNdN
         for name, op in ops.items():
             self.add_onsite_operator(name, op, is_diagonal=True)
 
@@ -354,8 +352,7 @@ class SpinlessFermionSite(FermionicDOF):
         # construct operators relative to filling
         ops = {}
         if filling is not None:
-            dN_diag = np.diag(np.tensordot(creators, annihilators, axes=[[1, 2], [0, 2]]))
-            dN_diag = dN_diag - filling * np.ones(2**num_species)
+            dN_diag = np.diag(self.n_tot) - filling * np.ones(2**num_species)
             dN = np.diag(dN_diag)
             dNdN = np.diag(dN_diag**2)
             ops['dN'] = dN
@@ -482,8 +479,7 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         # construct operators relative to filling
         ops = {}
         if filling is not None:
-            dN_diag = np.diag(np.tensordot(creators, annihilators, axes=[[1, 2], [0, 2]]))
-            dN_diag = dN_diag - filling * np.ones(4)
+            dN_diag = np.diag(self.n_tot) - filling * np.ones(4)
             dN = np.diag(dN_diag)
             dNdN = np.diag(dN_diag**2)
             ops['dN'] = dN
