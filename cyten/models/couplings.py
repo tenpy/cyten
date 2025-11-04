@@ -59,7 +59,7 @@ class Coupling:
 
     def test_sanity(self):
         backend = get_same_backend(*self.sites)
-        for i, (s, W) in enumerate(zip(self.sites, self.factorization)):
+        for s, W in zip(self.sites, self.factorization):
             s.test_sanity()
             W.test_sanity()
             assert W.backend == backend
@@ -178,9 +178,10 @@ class Coupling:
         res = permute_legs(res, codom_labels, dom_labels, bend_right=False)
         return res
 
-    def to_numpy(self) -> np.ndarray:
+    def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None,
+                 understood_braiding: bool = False) -> np.ndarray:
         """Convert to a numpy array."""
-        return self.to_tensor().to_numpy()
+        return self.to_tensor().to_numpy(leg_order, numpy_dtype, understood_braiding)
 
 
 # SPIN COUPLINGS
@@ -208,7 +209,7 @@ def spin_spin_coupling(sites: list[SpinDOF], Jx: float = 0, Jy: float = 0, Jz: f
     h += Jy * np.tensordot(s1[:, :, 1], s2[:, :, 1], axes=0)
     h += Jz * np.tensordot(s1[:, :, 2], s2[:, :, 2], axes=0)
     h = np.transpose(h, [0, 2, 3, 1])
-    return Coupling.from_dense_block(h, sites, name=name)
+    return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
 def spin_field_coupling(sites: list[SpinDOF], hx: float = 0, hy: float = 0, hz: float = 0,
@@ -228,7 +229,7 @@ def spin_field_coupling(sites: list[SpinDOF], hx: float = 0, hy: float = 0, hz: 
     assert len(sites) == 1
     s = sites[0].spin_vector
     h = hx * s[:, :, 0] + hy * s[:, :, 1] + hz * s[:, :, 2]
-    return Coupling.from_dense_block(h, sites, name=name)
+    return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
 def aklt_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'AKLT') -> Coupling:
@@ -258,7 +259,7 @@ def aklt_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'AKLT') -> Cou
     S_dot_S = np.transpose(S_dot_S, [0, 2, 3, 1])
     S_dot_S_square = np.tensordot(S_dot_S, S_dot_S, axes=[[3, 2], [0, 1]])
     h = J * (S_dot_S + S_dot_S_square / 3.)
-    return Coupling.from_dense_block(h, sites, name=name)
+    return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
 def heisenberg_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'S.S') -> Coupling:
@@ -296,7 +297,7 @@ def chiral_3spin_coupling(sites: list[SpinDOF], chi: float = 1, name: str = 'S.S
                    axis=4)  # [p1, p2, p2*, p1*, i]
     h = chi * np.tensordot(sites[0].spin_vector, SxS, (-1, -1))  # [p0, p0*, p1, p2, p2*, p1*]
     h = np.transpose(h, [0, 2, 3, 4, 5, 1])
-    return Coupling.from_dense_block(h, sites, name=name)
+    return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
 # BOSON AND FERMION COUPLINGS
@@ -503,6 +504,7 @@ def onsite_pairing(sites: list[OccupationDOF], Delta: float = 1.,
 
 
 # CLOCK COUPLINGS
+
 
 def clock_clock_coupling(sites: list[ClockDOF], Jx: float = 0, Jz: float = 0,
                          name: str = 'clock-clock') -> Coupling:
