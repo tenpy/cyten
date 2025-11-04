@@ -8,14 +8,14 @@ two sites that have a spin degree of freedom.
 from __future__ import annotations
 import numpy as np
 
-from ..symmetries import FibonacciAnyonCategory, Sector
+from ..symmetries import FibonacciAnyonCategory, Sector, SymmetryError
 from ..dtypes import Dtype
 from ..backends.abstract_backend import Block, get_same_backend
 from ..tensors import (
     SymmetricTensor, squeeze_legs, add_trivial_leg, permute_legs, compose, horizontal_factorization
 )
 from .degrees_of_freedom import (
-    Site, SpinDOF, OccupationDOF, FermionicDOF, ClockDOF, ALL_SPECIES
+    Site, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, ALL_SPECIES
 )
 from .sites import GoldenSite
 
@@ -303,7 +303,7 @@ def chiral_3spin_coupling(sites: list[SpinDOF], chi: float = 1, name: str = 'S.S
 # BOSON AND FERMION COUPLINGS
 
 
-def chemical_potential(sites: list[OccupationDOF], mu: float,
+def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float,
                        species: int | str | list[int | str] = ALL_SPECIES, name: str = 'chem. pot.'
                        ) -> Coupling:
     r"""Chemical potential for bosons or fermions. Single-site coupling.
@@ -328,8 +328,9 @@ def chemical_potential(sites: list[OccupationDOF], mu: float,
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
 
-def onsite_interaction(sites: list[OccupationDOF], U: float = 1, species: int | str = ALL_SPECIES,
-                       name: str = 'onsite interaction') -> Coupling:
+def onsite_interaction(sites: list[BosonicDOF] | list[FermionicDOF], U: float = 1,
+                       species: int | str = ALL_SPECIES, name: str = 'onsite interaction'
+                       ) -> Coupling:
     r"""Onsite interaction for bosons or fermions. Single-site coupling.
 
     .. math ::
@@ -353,7 +354,7 @@ def onsite_interaction(sites: list[OccupationDOF], U: float = 1, species: int | 
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
 
-def density_density_interaction(sites: list[OccupationDOF], V: float = 1,
+def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V: float = 1,
                                 species_i: int | str = ALL_SPECIES,
                                 species_j: int | str = ALL_SPECIES,
                                 name: str = 'density-density') -> Coupling:
@@ -376,14 +377,26 @@ def density_density_interaction(sites: list[OccupationDOF], V: float = 1,
         Note that if the two species are different, this coupling alone is not hermitian!
     """
     assert len(sites) == 2
+    is_bosonic = [isinstance(site, BosonicDOF) for site in sites]
+    if all(is_bosonic) != any(is_bosonic):
+        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
+               'combined for constructing couplings.')
+        raise SymmetryError(msg)
     n_i = sites[0].get_occupation_numpy(species=species_i)
     n_j = sites[1].get_occupation_numpy(species=species_j)
     h = V * n_i[:, None, None, :] * n_j[None, :, :, None]  # [p0, p1, p1*, p0*]
     return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
-def _quadratic_coupling_numpy(sites: list[OccupationDOF], is_pairing: bool, species) -> np.ndarray:
+def _quadratic_coupling_numpy(sites: list[BosonicDOF] | list[FermionicDOF], is_pairing: bool,
+                              species) -> np.ndarray:
     """Create the numpy representation for both :func:`hopping` and :func:`pairing`."""
+    assert len(sites) == 2
+    is_bosonic = [isinstance(site, BosonicDOF) for site in sites]
+    if all(is_bosonic) != any(is_bosonic):
+        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
+               'combined for constructing couplings.')
+        raise SymmetryError(msg)
     site_i, site_j = sites
     species_i, species_j = species
     if species_i is ALL_SPECIES:
@@ -411,7 +424,7 @@ def _quadratic_coupling_numpy(sites: list[OccupationDOF], is_pairing: bool, spec
     return h + np.transpose(h.conj(), [3, 2, 1, 0])
 
 
-def hopping(sites: list[OccupationDOF], t: float = 1,
+def hopping(sites: list[BosonicDOF] | list[FermionicDOF], t: float = 1,
             species: tuple[list[int | str], list[int | str]] = (ALL_SPECIES, ALL_SPECIES),
             name: str = 'hopping') -> Coupling:
     r"""Hopping of fermions or bosons. Two-site coupling.
@@ -434,7 +447,7 @@ def hopping(sites: list[OccupationDOF], t: float = 1,
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
 
-def pairing(sites: list[OccupationDOF], Delta: float = 1.,
+def pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
             species: tuple[list[int | str], list[int | str]] = (ALL_SPECIES, ALL_SPECIES),
             name: str = 'pairing') -> Coupling:
     r"""Superconducting pairing of fermions or bosons. Two-site coupling.
@@ -465,7 +478,7 @@ def pairing(sites: list[OccupationDOF], Delta: float = 1.,
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
 
-def onsite_pairing(sites: list[OccupationDOF], Delta: float = 1.,
+def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
                    species: tuple[list[int | str], list[int | str]] = (ALL_SPECIES, ALL_SPECIES),
                    name: str = 'onsite pairing') -> Coupling:
     r"""Superconducting pairing of fermions or bosons. Single-site coupling.
@@ -488,6 +501,7 @@ def onsite_pairing(sites: list[OccupationDOF], Delta: float = 1.,
     --------
     pairing
     """
+    assert len(sites) == 1
     site, = sites
     species_1, species_2 = species
     if species_1 is ALL_SPECIES:
