@@ -483,11 +483,11 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         # spin operators
         ops = {}
         if not isinstance(sym_S, SU2Symmetry):
-            ops['Sz'] = spin_vector[:, :, 2]
+            ops['Sz'] = spin_vector[:, :, 2].copy()
             ops['Sigmaz'] = 2. * spin_vector[:, :, 2]
         if isinstance(sym_S, NoSymmetry):
-            self.add_onsite_operator('Sx', spin_vector[:, :, 0], understood_braiding=True)
-            self.add_onsite_operator('Sy', spin_vector[:, :, 1], understood_braiding=True)
+            self.add_onsite_operator('Sx', spin_vector[:, :, 0].copy(), understood_braiding=True)
+            self.add_onsite_operator('Sy', spin_vector[:, :, 1].copy(), understood_braiding=True)
             self.add_onsite_operator('Sp', spin_vector[:, :, 0] + 1.j * spin_vector[:, :, 1], understood_braiding=True)
             self.add_onsite_operator('Sm', spin_vector[:, :, 0] - 1.j * spin_vector[:, :, 1], understood_braiding=True)
             self.add_onsite_operator('Sigmax', 2. * spin_vector[:, :, 0], understood_braiding=True)

@@ -1,4 +1,4 @@
-"""A collection of tests for :mod:`cyten.networks.site`."""
+"""A collection of tests for :mod:`cyten.models.sites`."""
 # Copyright (C) TeNPy Developers, Apache license
 
 
@@ -187,8 +187,8 @@ def test_spinless_boson_site(any_backend, np_random, Nmax):
 
 
 @pytest.mark.parametrize('num_species', [1, 2, 3])
-def test_spinless_fermion_site(np_random, num_species):
-    backend = backends.get_backend('fusion_tree')
+def test_spinless_fermion_site(block_backend, np_random, num_species):
+    backend = backends.get_backend('fusion_tree', block_backend=block_backend)
     all_conserve = ['N', 'parity']
     individual_conserve = ['N', 'parity', 'None']
     all_conserve.extend(it.product(individual_conserve, repeat=num_species))
@@ -228,8 +228,8 @@ def test_spinless_fermion_site(np_random, num_species):
             _ = sites.SpinlessFermionSite(num_species, all_conserve[0], backend=backend)
             
 
-def test_spin_half_fermion_site(np_random):
-    backend = backends.get_backend('fusion_tree')
+def test_spin_half_fermion_site(block_backend, np_random):
+    backend = backends.get_backend('fusion_tree', block_backend=block_backend)
     all_conserve_N = ['N', 'parity']
     all_conserve_S = ['SU(2)', 'Sz', 'parity', 'None']
     filling = np_random.choice([None, np_random.random()])
