@@ -142,12 +142,12 @@ class Coupling:
             W.relabel({'p0': 'p', 'p0*': 'p*'})
             factorization = [W]
         else:
-            W, rest = horizontal_factorization(operator, 2, 1, new_labels=['wL', 'wR'],
+            W, rest = horizontal_factorization(operator, 1, 1, new_labels=['wR', 'wL'],
                                                cutoff_singular_values=cutoff_singular_values)
             W.relabel({'p0': 'p', 'p0*': 'p*'})
             factorization = [add_trivial_leg(W, codomain_pos=0, label='wL')]
             for i in range(1, len(sites) - 1):
-                W, rest = horizontal_factorization(rest, 1, 1, new_labels=['wL', 'wR'],
+                W, rest = horizontal_factorization(rest, 2, 1, new_labels=['wR', 'wL'],
                                                    cutoff_singular_values=cutoff_singular_values)
                 W.relabel({f'p{i}': 'p', f'p{i}*': 'p*'})
                 factorization.append(W)
