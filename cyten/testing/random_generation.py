@@ -237,7 +237,7 @@ def random_tensor(symmetry: symmetries.Symmetry,
     co_domain is specified using a `TensorProduct`.
     """
     if backend is None:
-        backend = backends.get_backend()
+        backend = backends.get_backend(symmetry=symmetry)
     assert isinstance(backend, backends.TensorBackend)
     
     if like is not None:
