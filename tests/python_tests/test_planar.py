@@ -18,7 +18,6 @@ def test_PlanarDiagram(symmetry, np_random):
                    'W_hc:p @ theta_hc:p0*, W_hc:p* -> p*, W_hc:wR* @ mixL:wL*',
         dims=dict(chi=['vR', 'vL', 'vR*', 'vL*'], w=['wL', 'wR', 'wL*', 'wR*'],
                   d=['p', 'p*', 'p0', 'p0*', 'p1', 'p1*']),
-        order='definition',
     )
     r"""Planar diagram arising when mixing the left site
 

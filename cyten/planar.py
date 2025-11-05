@@ -122,7 +122,7 @@ class PlanarDiagram:
                  tensors: str | dict[str, TensorPlaceholder],
                  definition: str | list[tuple[str, str, str | None, str]],
                  dims: dict[str, Sequence[str]] = None,
-                 order: str | NestedContainer_str | ContractionTree = 'greedy'):
+                 order: str | NestedContainer_str | ContractionTree = 'definition'):
         self.tensors = self.parse_tensors(tensors, dims)
         self.definition = self.parse_definition(definition)
         self.order = self.parse_order(order)
@@ -136,7 +136,7 @@ class PlanarDiagram:
                    tensor: str | dict[str, TensorPlaceholder],
                    extra_definition: str | list[tuple[str, str, None, str]],
                    extra_dims: dict[str, Sequence[str]] = None,
-                   order: str | NestedContainer_str | ContractionTree = 'greedy',
+                   order: str | NestedContainer_str | ContractionTree = 'definition',
                    ) -> PlanarDiagram:
         """Create a new diagram with an additional tensor.
 
@@ -220,6 +220,9 @@ class PlanarDiagram:
         TODO allow relations like ``d < w < chi``, or ``d^2 < chi`` to simplify the polynomials.
         TODO support cost as polynomials or with concrete numbers
         """
+        if strategy == 'greedy':
+            # falling back on order "by definition" as a very greedy optimization as a temp solution
+            return self.parse_order('definition')
         raise NotImplementedError('Optimization of contraction order is not supported yet')
 
     @staticmethod
