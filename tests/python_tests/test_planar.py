@@ -55,7 +55,7 @@ def test_PlanarDiagram(symmetry, np_random):
     assert res.num_codomain_legs == 2, 'if this fails, just need to redesign tests'
 
     # ===========================================
-    # compare to manual, using planar routines
+    # compare to manual contraction, using planar routines
     # ===========================================
     expect1 = ct.planar.planar_contraction(theta, theta.hc, ['p1', 'vR'], ['p1*', 'vR*'])
     expect1 = ct.planar.planar_contraction(expect1, Lp, 'vL', 'vR')
@@ -70,7 +70,7 @@ def test_PlanarDiagram(symmetry, np_random):
     assert ct.almost_equal(res, expect1)
 
     # ===========================================
-    # compare to manual, using general (not planar) routines
+    # compare to manual contraction, using general (not planar) routines
     # ===========================================
     assert theta.codomain_labels == ['vL', 'p0']
     assert theta.domain_labels == ['vR', 'p1']
@@ -126,3 +126,98 @@ def test_parse_leg_bipartition(legs, num_legs, is_planar, shuffle, np_random):
                for n1, n2 in zip(a[:-1], a[1:]))
     assert all(n2 == n1 + 1 or (n2, n1) == (0, num_legs - 1)
                for n1, n2 in zip(b[:-1], b[1:]))
+
+
+@pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
+def test_PlanarLinearOperator(symmetry):
+
+    # ===========================================
+    # define an operator
+    # ===========================================
+
+    class TwoSiteEffectiveH(ct.planar.PlanarLinearOperator):
+        r"""Effective Hamiltonian during Two-site DMRG
+
+        The operator is given by the following network::
+
+            |        .---       ---.
+            |        |    |   |    |
+            |       LP----W0--W1---RP
+            |        |    |   |    |
+            |        .---       ---.
+
+        and acts on two-site wavefunctions ``theta`` as::
+
+            |        .---       ---.
+            |        |    |   |    |
+            |       LP----W0--W1---RP
+            |        |    |   |    |
+            |        .--- theta ---.
+        """
+
+        op_diagram = ct.PlanarDiagram(
+            tensors='Lp[vR*, wR, vR], W0[wL, p, wR, p*], W1[wL, p, wR, p*], Rp[vL*, vL, wL]',
+            definition='Lp:vR* -> vL, Lp:wR @ W0:wL, Lp:vR -> vL*, '
+                       'W0:p -> p0, W0:wR @ W1:wL, W0:p* -> p0*, '
+                       'W1:p -> p1, W1:wR @ Rp:wL, W1:p* -> p1*, '
+                       'Rp:vL* -> vR, Rp:vL -> vR*',
+            dims=dict(chi=['vR', 'vR*', 'vL', 'vL*'], w=['wL', 'wR'], d=['p', 'p*']),
+        )
+        matvec_diagram = op_diagram.add_tensor(
+            tensor='theta[vL, p0, p1, vR]',
+            extra_definition='theta:vL @ Lp:vR, theta:p0 @ W0:p*, theta:p1 @ W1:p*, theta:vR @ Rp:vL',
+            extra_dims=dict(chi=['vL', 'vR'], d=['p0', 'p1'])
+        )
+
+        def __init__(self, Lp, W0, W1, Rp):
+            ct.planar.PlanarLinearOperator.__init__(
+                self, op_diagram=self.op_diagram, matvec_diagram=self.matvec_diagram,
+                op_tensors=dict(Lp=Lp, W0=W0, W1=W1, Rp=Rp), vec_name='theta'
+            )
+
+    # ===========================================
+    # create example tensors
+    # ===========================================
+
+    theta = ct.testing.random_tensor(symmetry, 4, labels=['vL', 'p0', 'p1', 'vR'])
+    vL, p0, p1, vR = theta.legs
+    Lp = ct.testing.random_tensor(symmetry, [vL, None, vL.dual],
+                                  labels=['vR*', 'wR', 'vR'])
+    W0 = ct.testing.random_tensor(symmetry, [p0, None, p0.dual, Lp.get_leg('wR').dual],
+                                  labels=['p', 'wR', 'p*', 'wL'])
+    W1 = ct.testing.random_tensor(symmetry, [p1, None, p1.dual, W0.get_leg('wR').dual],
+                                  labels=['p', 'wR', 'p*', 'wL'])
+    Rp = ct.testing.random_tensor(symmetry, [vR, vR.dual, W1.get_leg('wR').dual],
+                                  labels=['vL*', 'vL', 'wL'])
+
+    # ===========================================
+    # create an op instance, call to_tensor and matvec
+    # ===========================================
+
+    H = TwoSiteEffectiveH(Lp=Lp, W0=W0, W1=W1, Rp=Rp)
+
+    op = H.to_tensor()
+    op.test_sanity()
+    assert op.codomain_labels == ['vL', 'p0', 'p1', 'vR']
+    assert op.domain_labels == ['vL*', 'p0*', 'p1*', 'vR*']
+
+    H_theta = H.matvec(theta)
+    H_theta.test_sanity()
+    assert H_theta.codomain_labels == ['vL', 'p0', 'p1', 'vR']
+    assert H_theta.domain_labels == []
+
+    # ===========================================
+    # compare to manual contraction, using planar routines
+    # ===========================================
+    op_1 = ct.planar.planar_contraction(Lp, W0, 'wL', 'wR')
+    op_1 = ct.planar.planar_contraction(op_1, W1, 'wL', 'wR')
+    op_1 = ct.planar.planar_contraction(op_1, Rp, 'wL', 'wR')
+    assert ct.almost_equal(op_1, op)
+
+    H_theta_1 = ct.compose(op_1, theta)
+    assert ct.almost_equal(H_theta_1, H_theta)
+
+    # ===========================================
+    # compare to manual contraction, using general (not planar) routines
+    # ===========================================
+    # TODO
