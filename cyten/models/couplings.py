@@ -403,8 +403,10 @@ def _quadratic_coupling_numpy(sites: list[BosonicDOF] | list[FermionicDOF], is_p
         species_i = [*range(site_i.num_species)]
     if species_j is ALL_SPECIES:
         species_j = [*range(site_j.num_species)]
+    if len(species_i) == 0 or len(species_j) == 0:
+        return np.zeros([site_i.dim, site_j.dim, site_j.dim, site_i.dim])
     h = 0
-    for k_i, k_j in zip(species_i, species_j):
+    for k_i, k_j in zip(species_i, species_j, strict=True):
         # since we work with numpy representations here, we need to consider JW strings.
         # visually (where columns represent different species)
         # |  site i   |  site j  |       |  site i   |  site j  |
@@ -513,7 +515,7 @@ def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 
         a_i_hc = site.get_creator_numpy(species=k_1, include_JW=True)
         a_j_hc = site.get_creator_numpy(species=k_2, include_JW=True)
         h += Delta * a_i_hc @ a_j_hc
-    h + np.transpose(h.conj(), [3, 2, 1, 0])
+    h += np.transpose(h.conj())
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
 

@@ -392,6 +392,8 @@ class BosonicDOF(OccupationDOF):
             **kwargs
         )
 
+        self._JW = as_immutable_array(np.diag(np.ones(self.dim)))
+
         Nmax = []
         for k in range(self.num_species):
             N_k = self.number_operators[:, :, k]
