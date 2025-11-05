@@ -32,6 +32,51 @@ def generate_spin_dofs(backend: backends.TensorBackend) -> list[degrees_of_freed
     return site_list
 
 
+def generate_bosonic_dofs(backend: backends.TensorBackend,
+                          conserve: Sequence[Literal['N', 'parity', 'None']] = ['N', 'parity', 'None']
+                          ) -> list[degrees_of_freedom.BosonicDOF]:
+    """Return a list of `BosonicDOF` sites whose symmetries are consistent with `backend`."""
+    site_list = []
+    for Nmax in [[3], [3, 2]]:
+        if isinstance(backend, backends.NoSymmetryBackend):
+            all_conserve = ['None']
+        else:
+            all_conserve = conserve[:]
+            if len(Nmax) > 1:
+                all_conserve.extend(it.product(all_conserve, repeat=len(Nmax)))
+        for cons in all_conserve:
+            site_list.append(sites.SpinlessBosonSite(Nmax, cons, backend=backend))
+    return site_list
+
+
+def generate_fermionic_dofs(backend: backends.TensorBackend,
+                            conserve: Sequence[Literal['N', 'parity']] = ['N', 'parity']
+                            ) -> list[degrees_of_freedom.FermionicDOF]:
+    """Return a list of `FermionicDOF` sites whose symmetries are consistent with `backend`."""
+    site_list = []
+    if isinstance(backend, (backends.NoSymmetryBackend, backends.AbelianBackend)):
+        # fermionic exchange cannot be encoded
+        # do it like this (rather than fixing the backend from the start) such that
+        # a potential extension of the ablian backend to fermions automatically works
+        with pytest.raises(AssertionError):
+            _ = sites.SpinlessFermionSite(num_species=1, backend=backend)
+        return site_list
+    for num_species in [1, 2]:
+        all_conserve = conserve[:]
+        individual_conserve = conserve + ['None']
+        if num_species > 1:
+            all_conserve.extend(it.product(individual_conserve, repeat=num_species))
+        for cons in all_conserve:
+            site_list.append(sites.SpinlessFermionSite(num_species, cons, backend=backend))
+    all_conserve_N = conserve
+    all_conserve_S = ['Sz', 'parity', 'None']
+    if isinstance(backend, backends.FusionTreeBackend):
+        all_conserve_S.append('SU(2)')
+    for conserve_N, conserve_S in it.product(all_conserve_N, all_conserve_S):
+        site_list.append(sites.SpinHalfFermionSite(conserve_N, conserve_S, backend=backend))
+    return site_list
+
+
 @pytest.mark.parametrize('codom', [1, 2, 3])
 def test_coupling(codom, make_compatible_space):
     legs = [make_compatible_space(max_sectors=3, max_mult=3) for _ in range(codom)]
@@ -180,3 +225,256 @@ def test_chiral_3spin_coupling(any_backend, np_random):
         _ = couplings.chiral_3spin_coupling([site_list[0]])
     with pytest.raises(AssertionError):
         _ = couplings.chiral_3spin_coupling([site_list[0]] * 2)
+
+
+# TEST BOSON AND FERMION COUPLINGS
+
+
+def test_chemical_potential(any_backend, np_random):
+    check_dense_blocks = np_random.choice([True, False])
+    bosonic_sites = generate_bosonic_dofs(any_backend)
+    num_sites = min(3, len(bosonic_sites))
+    bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
+    fermionic_sites = generate_fermionic_dofs(any_backend)
+    num_sites = min(3, len(fermionic_sites))
+    fermionic_sites = np_random.choice(fermionic_sites, size=num_sites, replace=False)
+    all_sites = [*bosonic_sites, *fermionic_sites]
+
+    for site in all_sites:
+        mu = np_random.random()
+        species = np_random.integers(1, site.num_species + 1)
+        species = np_random.choice(range(site.num_species), size=species, replace=False)
+        if isinstance(site, sites.SpinHalfFermionSite):
+            if site.conserve_S in ['SU(2)'] and len(species) == 1:
+                species = np.append(species, 1 - species[0])
+        coupling = couplings.chemical_potential([site], mu=mu, species=species)
+        coupling.test_sanity()
+        if check_dense_blocks:
+            expect = -mu * site.get_occupation_numpy(species)
+            assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
+
+    # test correct number of sites
+    with pytest.raises(AssertionError):
+        _ = couplings.chemical_potential([all_sites[0]] * 2, mu=1)
+
+
+def test_onsite_interaction(any_backend, np_random):
+    check_dense_blocks = np_random.choice([True, False])
+    bosonic_sites = generate_bosonic_dofs(any_backend)
+    num_sites = min(3, len(bosonic_sites))
+    bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
+    fermionic_sites = generate_fermionic_dofs(any_backend)
+    num_sites = min(3, len(fermionic_sites))
+    fermionic_sites = np_random.choice(fermionic_sites, size=num_sites, replace=False)
+    all_sites = [*bosonic_sites, *fermionic_sites]
+
+    for site in all_sites:
+        U = np_random.random()
+        species = np_random.integers(1, site.num_species + 1)
+        species = np_random.choice(range(site.num_species), size=species, replace=False)
+        if isinstance(site, sites.SpinHalfFermionSite):
+            if site.conserve_S in ['SU(2)'] and len(species) == 1:
+                species = np.append(species, 1 - species[0])
+        coupling = couplings.onsite_interaction([site], U=U, species=species)
+        coupling.test_sanity()
+        if check_dense_blocks:
+            expect = site.get_occupation_numpy(species)
+            expect = expect @ expect * U / 2.
+            assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
+
+    # test correct number of sites
+    with pytest.raises(AssertionError):
+        _ = couplings.onsite_interaction([all_sites[0]] * 2)
+
+
+def test_density_density_interactionn(any_backend, np_random):
+    check_dense_blocks = np_random.choice([True, False])
+    bosonic_sites = generate_bosonic_dofs(any_backend)
+    num_sites = min(3, len(bosonic_sites))
+    bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
+    fermionic_sites = generate_fermionic_dofs(any_backend)
+    num_sites = min(3, len(fermionic_sites))
+    fermionic_sites = np_random.choice(fermionic_sites, size=num_sites, replace=False)
+    all_sites = [*bosonic_sites, *fermionic_sites]
+
+    for site in all_sites:
+        V = np_random.random()
+        species1 = np_random.integers(1, site.num_species + 1)
+        species1 = np_random.choice(range(site.num_species), size=species1, replace=False)
+        species2 = np_random.integers(1, site.num_species + 1)
+        species2 = np_random.choice(range(site.num_species), size=species2, replace=False)
+        if isinstance(site, sites.SpinHalfFermionSite) and site.conserve_S in ['SU(2)']:
+            species1 = species2 = [0, 1]
+        coupling = couplings.density_density_interaction([site] * 2, V, species1, species2)
+        coupling.test_sanity()
+        if check_dense_blocks:
+            n = site.get_occupation_numpy(species1)
+            expect = V * n[:, None, None, :] * n[None, :, :, None]
+            assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
+
+    # test correct number of sites
+    with pytest.raises(AssertionError):
+        _ = couplings.density_density_interaction([all_sites[0]])
+    with pytest.raises(AssertionError):
+        _ = couplings.density_density_interaction([all_sites[0]] * 3)
+    # test mixing of bosons and fermions
+    if len(fermionic_sites) > 0:
+        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
+               'combined for constructing couplings.')
+        with pytest.raises(SymmetryError, match=msg):
+            _ = couplings.density_density_interaction([bosonic_sites[0], fermionic_sites[0]])
+
+
+def test_hopping(any_backend, np_random):
+    check_dense_blocks = np_random.choice([True, False])
+    bosonic_sites = generate_bosonic_dofs(any_backend)
+    num_sites = min(3, len(bosonic_sites))
+    bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
+    fermionic_sites = generate_fermionic_dofs(any_backend)
+    num_sites = min(3, len(fermionic_sites))
+    fermionic_sites = np_random.choice(fermionic_sites, size=num_sites, replace=False)
+    all_sites = [*bosonic_sites, *fermionic_sites]
+
+    for site in all_sites:
+        t = np_random.random()
+        species1 = np_random.integers(1, site.num_species + 1)
+        species1 = np_random.choice(range(site.num_species), size=species1, replace=False)
+        species2 = np_random.integers(1, site.num_species + 1)
+        species2 = np_random.choice(range(site.num_species), size=species2, replace=False)
+        if len(species1) != len(species2):
+            limit = min(len(species1), len(species2))
+            species1 = species1[:limit]
+            species2 = species2[:limit]
+
+        if isinstance(site, (sites.SpinlessBosonSite, sites.SpinlessFermionSite)):
+            if not isinstance(site.conserve, str):
+                # easiest way to deal with symmetries on the individual species
+                species2 = species1
+        if isinstance(site, sites.SpinHalfFermionSite):
+            if site.conserve_S in ['Sz']:
+                species2 = species1
+            elif site.conserve_S in ['SU(2)']:
+                species1 = species2 = degrees_of_freedom.ALL_SPECIES
+
+        coupling = couplings.hopping([site] * 2, t, species=(species1, species2))
+        coupling.test_sanity()
+        if check_dense_blocks:
+            expect = couplings._quadratic_coupling_numpy([site] * 2, is_pairing=False,
+                                                         species=(species1, species2))
+            assert np.allclose(coupling.to_numpy(understood_braiding=True), -t * expect)
+
+    # test correct number of sites
+    with pytest.raises(AssertionError):
+        _ = couplings.hopping([all_sites[0]])
+    with pytest.raises(AssertionError):
+        _ = couplings.hopping([all_sites[0]] * 3)
+    # test mixing of bosons and fermions
+    if len(fermionic_sites) > 0:
+        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
+               'combined for constructing couplings.')
+        with pytest.raises(SymmetryError, match=msg):
+            _ = couplings.hopping([bosonic_sites[0], fermionic_sites[0]])
+
+
+def test_pairing(any_backend, np_random):
+    check_dense_blocks = np_random.choice([True, False])
+    bosonic_sites = generate_bosonic_dofs(any_backend, conserve=['parity', 'None'])
+    num_sites = min(3, len(bosonic_sites))
+    bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
+    fermionic_sites = generate_fermionic_dofs(any_backend, conserve=['parity'])
+    num_sites = min(3, len(fermionic_sites))
+    fermionic_sites = np_random.choice(fermionic_sites, size=num_sites, replace=False)
+    all_sites = [*bosonic_sites, *fermionic_sites]
+
+    for site in all_sites:
+        Delta = np_random.random()
+        species1 = np_random.integers(1, site.num_species + 1)
+        species1 = np_random.choice(range(site.num_species), size=species1, replace=False)
+        species2 = np_random.integers(1, site.num_species + 1)
+        species2 = np_random.choice(range(site.num_species), size=species2, replace=False)
+        if len(species1) != len(species2):
+            limit = min(len(species1), len(species2))
+            species1 = species1[:limit]
+            species2 = species2[:limit]
+
+        if isinstance(site, (sites.SpinlessBosonSite, sites.SpinlessFermionSite)):
+            if not isinstance(site.conserve, str):
+                # easiest way to deal with symmetries on the individual species
+                species2 = species1
+        if isinstance(site, sites.SpinHalfFermionSite):
+            if site.conserve_S in ['Sz']:
+                for i, k in enumerate(species1):
+                    species2[i] = 1 - k
+            elif site.conserve_S in ['SU(2)']:
+                species1 = species2 = []
+
+        coupling = couplings.pairing([site] * 2, Delta, species=(species1, species2))
+        coupling.test_sanity()
+        if check_dense_blocks:
+            expect = couplings._quadratic_coupling_numpy([site] * 2, is_pairing=True,
+                                                         species=(species1, species2))
+            assert np.allclose(coupling.to_numpy(understood_braiding=True), Delta * expect)
+
+    # test correct number of sites
+    with pytest.raises(AssertionError):
+        _ = couplings.pairing([all_sites[0]])
+    with pytest.raises(AssertionError):
+        _ = couplings.pairing([all_sites[0]] * 3)
+    # test mixing of bosons and fermions
+    if len(fermionic_sites) > 0:
+        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
+               'combined for constructing couplings.')
+        with pytest.raises(SymmetryError, match=msg):
+            _ = couplings.pairing([bosonic_sites[0], fermionic_sites[0]])
+
+
+def test_onsite_pairing(any_backend, np_random):
+    check_dense_blocks = np_random.choice([True, False])
+    bosonic_sites = generate_bosonic_dofs(any_backend, conserve=['parity', 'None'])
+    num_sites = min(3, len(bosonic_sites))
+    bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
+    fermionic_sites = generate_fermionic_dofs(any_backend, conserve=['parity'])
+    num_sites = min(3, len(fermionic_sites))
+    fermionic_sites = np_random.choice(fermionic_sites, size=num_sites, replace=False)
+    all_sites = [*bosonic_sites, *fermionic_sites]
+
+    for site in all_sites:
+        Delta = np_random.random()
+        species1 = np_random.integers(1, site.num_species + 1)
+        species1 = np_random.choice(range(site.num_species), size=species1, replace=False)
+        species2 = np_random.integers(1, site.num_species + 1)
+        species2 = np_random.choice(range(site.num_species), size=species2, replace=False)
+        if len(species1) != len(species2):
+            limit = min(len(species1), len(species2))
+            species1 = species1[:limit]
+            species2 = species2[:limit]
+
+        if isinstance(site, (sites.SpinlessBosonSite, sites.SpinlessFermionSite)):
+            if not isinstance(site.conserve, str):
+                # easiest way to deal with symmetries on the individual species
+                species2 = species1
+        if isinstance(site, sites.SpinHalfFermionSite):
+            if site.conserve_S in ['Sz', 'SU(2)']:
+                species1 = [0]
+                species2 = [1]
+
+        coupling = couplings.onsite_pairing([site], Delta, species=(species1, species2))
+        coupling.test_sanity()
+        if check_dense_blocks:
+            expect = 0
+            for k1, k2 in zip(species1, species2):
+                a_i_hc = site.get_creator_numpy(k1, include_JW=True)
+                a_j_hc = site.get_creator_numpy(k2, include_JW=True)
+                expect += a_i_hc @ a_j_hc
+            expect = Delta * expect + np.transpose(np.conj(Delta * expect))
+            assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
+
+        if isinstance(site, degrees_of_freedom.FermionicDOF):
+            # default case is trivial for fermions
+            coupling = couplings.onsite_pairing([site], Delta=1)
+            coupling.test_sanity()
+            assert np.allclose(tensors.norm(coupling.to_tensor()), 0)
+
+    # test correct number of sites
+    with pytest.raises(AssertionError):
+        _ = couplings.onsite_pairing([all_sites[0]] * 2)
