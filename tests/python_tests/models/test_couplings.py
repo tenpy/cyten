@@ -87,6 +87,18 @@ def generate_clock_dofs(backend: backends.TensorBackend) -> list[degrees_of_free
     return site_list
 
 
+def generate_anyon_dofs(block_backend: backends.BlockBackend) -> list[degrees_of_freedom.AnyonDOF]:
+    """Return a list of `AnyonDOF` sites."""
+    backend = backends.get_backend('fusion_tree', block_backend=block_backend)
+    site_list = [sites.FibonacciAnyonSite(backend=backend),
+                 sites.IsingAnyonSite(nu=1, backend=backend),
+                 sites.IsingAnyonSite(nu=3, backend=backend),
+                 sites.GoldenSite(backend=backend),
+                 sites.SU2kSpin1Site(k=4, backend=backend),
+                 sites.SU2kSpin1Site(k=5, backend=backend)]
+    return site_list
+
+
 @pytest.mark.parametrize('codom', [1, 2, 3])
 def test_coupling(codom, make_compatible_space):
     legs = [make_compatible_space(max_sectors=3, max_mult=3) for _ in range(codom)]
@@ -533,3 +545,46 @@ def test_clock_field_coupling(any_backend, np_random):
     # test correct number of sites
     with pytest.raises(AssertionError):
         _ = couplings.clock_field_coupling([site_list[0]] * 2, hx=1., hz=1.)
+
+
+# TEST ANYONIC COUPLINGS
+
+
+def test_sector_projection_coupling(block_backend, np_random):
+    check_tensor = np_random.choice([True, False])
+    site_list = generate_anyon_dofs(block_backend)
+    num_sites = [3, 2, 3, 3, 2, 1]
+    sectors = np.asarray([[1], [2], [1], [0], [2], [2]], dtype=int)
+    for site, num, sector in zip(site_list, num_sites, sectors):
+        coupling = couplings.sector_projection_coupling([site] * num, J=1., sector=sector, name='')
+        coupling.test_sanity()
+        if check_tensor:
+            expect = cyten.SymmetricTensor.from_sector_projection(
+                [site.leg] * num, sector=sector, backend=site.backend, device=site.default_device
+            )
+            assert tensors.almost_equal(coupling.to_tensor(), expect)
+
+
+def test_gold_coupling(block_backend, np_random):
+    check_tensor = np_random.choice([True, False])
+    backend = backends.get_backend('fusion_tree', block_backend=block_backend)
+    site_list = [sites.GoldenSite(backend=backend), sites.FibonacciAnyonSite(backend=backend)]
+    for site in site_list:
+        site: sites.GoldenSite
+        coupling = couplings.gold_coupling([site] * 2, J=1.)
+        coupling.test_sanity()
+        if check_tensor:
+            sector = np.array([0], dtype=int)
+            expect = tensors.SymmetricTensor.from_sector_projection(
+                [site.leg] * 2, sector=sector, backend=site.backend, device=site.default_device
+            )
+            assert tensors.almost_equal(coupling.to_tensor(), -1 * expect)
+
+    coupling = couplings.gold_coupling(site_list, J=1.)
+    coupling.test_sanity()
+
+    # test correct number of sites
+    with pytest.raises(AssertionError):
+        _ = couplings.gold_coupling([site_list[0]])
+    with pytest.raises(AssertionError):
+        _ = couplings.gold_coupling([site_list[0]] * 3)
