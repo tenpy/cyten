@@ -95,11 +95,101 @@ from .tools.misc import (
 logger = logging.getLogger(__name__)
 _USE_PERMUTE_LEGS_ERR_MSG = 'Legs can not be permuted automatically. Explicitly use permute_legs()'
 
+FORBIDDEN_LEG_LABEL_CHARS = [
+    ' ', '\t', '\n',  # whitespace
+]
+"""List of characters that are forbidden in leg labels"""
+
 
 # TENSOR CLASSES
 
 
-class Tensor(metaclass=ABCMeta):
+class LabelledLegs:
+    """Base class that implements handling of labelled legs."""
+
+    def __init__(self, labels: list[str | None]):
+        dup = duplicate_entries(labels, ignore=[None])
+        if len(dup) > 0:
+            raise ValueError(f'Duplicate leg labels: {", ".join(dup)}')
+        self._labels = labels
+        self.num_legs = len(labels)
+        self._labelmap = {label: legnum
+                          for legnum, label in enumerate(labels)
+                          if label is not None}
+
+    def test_sanity(self):
+        assert all(is_valid_leg_label(l) for l in self._labels)
+        assert not duplicate_entries(self._labels, ignore=[None])
+        assert not duplicate_entries(list(self._labelmap.values()))
+
+    @property
+    def is_fully_labelled(self) -> bool:
+        return (None not in self._labels)
+
+    @property
+    def labels(self) -> list[str | None]:
+        """The labels that refer to the :attr:`legs`.
+
+        Thus, ``labels[:K]`` are the ``codomain_labels`` and ``labels[K:][::-1]`` are the
+        ``domain_labels`` where ``K == num_codomain_legs``.
+        """
+        return self._labels[:]
+
+    @labels.setter
+    def labels(self, labels):
+        self.set_labels(labels)
+
+    def get_leg_idcs(self, idcs: int | str | Sequence[int | str]) -> list[int]:
+        """Parse leg-idcs of leg-labels to leg-idcs (i.e. indices of :attr:`legs`)."""
+        res = []
+        for idx in to_iterable(idcs):
+            if isinstance(idx, str):
+                try:
+                    idx = self._labelmap[idx]
+                except KeyError:
+                    msg = f'No leg with label {idx}. Labels are {self._labels}'
+                    raise ValueError(msg) from None
+            else:
+                idx = to_valid_idx(idx, self.num_legs)
+            res.append(idx)
+        return res
+
+    def has_label(self, label: str, *more: str) -> bool:
+        return (label in self._labels) and all(l in self._labels for l in more)
+
+    def labels_are(self, *labels: str) -> bool:
+        """If the given labels and the :attr:`labels` are the same, up to permutation."""
+        if not self.is_fully_labelled:
+            return False
+        if len(labels) != self.num_legs:
+            return False
+        # have checked same length, so comparing the unique labels via set is enough.
+        return set(labels) == set(self._labels)
+
+    def relabel(self, mapping: dict[str, str]) -> None:
+        """Apply mapping to labels. In-place."""
+        self.set_labels([mapping.get(l, l) for l in self._labels])
+        return self
+
+    def set_label(self, pos: int, label: str | None):
+        """Set a single label at given position, in-place. Return the modified instance."""
+        if label in self._labels[:pos] or label in self._labels[pos + 1:]:
+            raise ValueError('Duplicate label')
+        self._labelmap.pop(self._labels[pos], None)
+        self._labels[pos] = label
+        self._labelmap[label] = pos
+        return self
+
+    def set_labels(self, labels: list[str | None]):
+        """Set the given labels, in-place. Return the modified instance."""
+        assert not duplicate_entries(labels, ignore=[None])
+        assert len(labels) == self.num_legs
+        self._labels = labels
+        self._labelmap = {label: legnum for legnum, label in enumerate(labels) if label is not None}
+        return self
+
+
+class Tensor(LabelledLegs, metaclass=ABCMeta):
     """Common base class for tensors.
 
     TODO elaborate
@@ -174,17 +264,12 @@ class Tensor(metaclass=ABCMeta):
         self.domain = domain
         self.backend = backend
         self.symmetry = symmetry
-        codomain_num_legs = codomain.num_factors
-        domain_num_legs = domain.num_factors
-        self.num_legs = num_legs = codomain_num_legs + domain_num_legs
         self.dtype = dtype
         self.device = device
         self.shape = tuple(sp.dim for sp in codomain.factors) + tuple(sp.dim for sp in reversed(domain.factors))
-        self._labels = labels = self._init_parse_labels(labels, codomain=codomain, domain=domain)
-        assert len(labels) == num_legs
-        self._labelmap = {label: legnum
-                          for legnum, label in enumerate(labels)
-                          if label is not None}
+        labels = self._init_parse_labels(labels, codomain=codomain, domain=domain)
+        assert len(labels) == codomain.num_factors + domain.num_factors
+        LabelledLegs.__init__(self, labels=labels)
 
     @staticmethod
     def _init_parse_args(codomain: TensorProduct | list[Space],
@@ -277,14 +362,12 @@ class Tensor(metaclass=ABCMeta):
         return labels[:]
 
     def test_sanity(self):
-        assert all(is_valid_leg_label(l) for l in self._labels)
-        assert not duplicate_entries(self._labels, ignore=[None])
-        assert not duplicate_entries(list(self._labelmap.values()))
         self.domain.test_sanity()  # this checks all legs, and recursively through pipes
         self.codomain.test_sanity()  # this checks all legs, and recursively through pipes
         assert self.dtype not in self._forbidden_dtypes
         assert all(isinstance(leg, Leg) for leg in self.domain.factors)
         assert all(isinstance(leg, Leg) for leg in self.codomain.factors)
+        super().test_sanity()
 
     @property
     def ascii_diagram(self) -> str:
@@ -486,23 +569,6 @@ class Tensor(metaclass=ABCMeta):
     def hc(self) -> Tensor:
         """The :func:`dagger`"""
         return dagger(self)
-
-    @property
-    def is_fully_labelled(self) -> bool:
-        return (None not in self._labels)
-
-    @property
-    def labels(self) -> list[str | None]:
-        """The labels that refer to the :attr:`legs`.
-
-        Thus, ``labels[:K]`` are the ``codomain_labels`` and ``labels[K:][::-1]`` are the
-        ``domain_labels`` where ``K == num_codomain_legs``.
-        """
-        return self._labels[:]
-
-    @labels.setter
-    def labels(self, labels):
-        self.set_labels(labels)
 
     @functools.cached_property
     def legs(self) -> list[Space]:
@@ -741,51 +807,10 @@ class Tensor(metaclass=ABCMeta):
             return self.domain.factors[co_domain_idx]
         return self.codomain.factors[co_domain_idx]
 
-    def get_leg_idcs(self, idcs: int | str | Sequence[int | str]) -> list[int]:
-        """Parse leg-idcs of leg-labels to leg-idcs (i.e. indices of :attr:`legs`)."""
-        res = []
-        for idx in to_iterable(idcs):
-            if isinstance(idx, str):
-                idx = self._labelmap.get(idx, None)
-                if idx is None:
-                    msg = f'No leg with label {idx}. Labels are {self._labels}'
-                    raise ValueError(msg)
-            else:
-                idx = to_valid_idx(idx, self.num_legs)
-            res.append(idx)
-        return res
-
-    def has_label(self, label: str, *more: str) -> bool:
-        return (label in self._labels) and all(l in self._labels for l in more)
-
-    def labels_are(self, *labels: str) -> bool:
-        """If the given labels and the :attr:`labels` are the same, up to permutation."""
-        if not self.is_fully_labelled:
-            return False
-        if len(labels) != self.num_legs:
-            return False
-        # have checked same length, so comparing the unique labels via set is enough.
-        return set(labels) == set(self._labels)
-
-    def relabel(self, mapping: dict[str, str]) -> None:
-        """Apply mapping to labels. In-place."""
-        self.set_labels([mapping.get(l, l) for l in self._labels])
-
-    def set_label(self, pos: int, label: str | None):
-        """Set a single label at given position, in-place. Return the modified instance."""
-        if label in self._labels[:pos] or label in self._labels[pos + 1:]:
-            raise ValueError('Duplicate label')
-        self._labels[pos] = label
-        return self
-
     def set_labels(self, labels: Sequence[list[str | None] | None] | list[str | None] | None):
         """Set the given labels, in-place. Return the modified instance."""
         labels = self._init_parse_labels(labels, codomain=self.codomain, domain=self.domain)
-        assert not duplicate_entries(labels, ignore=[None])
-        assert len(labels) == self.num_legs
-        self._labels = labels
-        self._labelmap = {label: legnum for legnum, label in enumerate(labels) if label is not None}
-        return self
+        return LabelledLegs.set_labels(self, labels)
 
     def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None,
                  understood_braiding: bool = False) -> np.ndarray:
@@ -1367,7 +1392,7 @@ class SymmetricTensor(Tensor):
         else:
             data = self.data
         return SymmetricTensor(data=data, codomain=self.codomain, domain=self.domain,
-                               backend=self.backend, labels=self.labels)
+                               backend=self.backend, labels=self.labels[:])
 
     def diagonal(self, check_offdiagonal=False) -> DiagonalTensor:
         """The diagonal part as a :class:`DiagonalTensor`.
@@ -2939,6 +2964,8 @@ class ChargedTensor(Tensor):
     def from_two_charge_legs(cls, invariant_part: SymmetricTensor, state1: Block | None,
                              state2: Block | None) -> ChargedTensor | complex:
         """Create a charged tensor from an invariant part with two charged legs."""
+        assert invariant_part._labels[-1].startswith(ChargedTensor._CHARGE_LEG_LABEL)
+        assert invariant_part._labels[-2].startswith(ChargedTensor._CHARGE_LEG_LABEL)
         inv_part = combine_legs(invariant_part, [-2, -1])
         inv_part.set_label(-1, cls._CHARGE_LEG_LABEL)
         if state1 is None and state2 is None:
@@ -4042,12 +4069,19 @@ def _compose_SymmetricTensors(tensor1: SymmetricTensor, tensor2: SymmetricTensor
     else:
         labels_domain = [relabel2.get(l, l) for l in tensor2.domain_labels]
 
+    # drop duplicate labels
+    labels = [*labels_codomain, *reversed(labels_domain)]
+    dup_counter = 0
+    duplicates = duplicate_entries(labels, ignore=[None])
+    for n in range(len(labels)):
+        if labels[n] in duplicates:
+            labels[n] = f'?{dup_counter}'
+            dup_counter += 1
+
     backend = get_same_backend(tensor1, tensor2)
-    return SymmetricTensor(
-        data=backend.compose(tensor1, tensor2),
-        codomain=tensor1.codomain, domain=tensor2.domain, backend=backend,
-        labels=[labels_codomain, labels_domain]
-    )
+    data = backend.compose(tensor1, tensor2)
+    return SymmetricTensor(data=data, codomain=tensor1.codomain, domain=tensor2.domain,
+                           backend=backend, labels=labels)
 
 
 def eigh(tensor: Tensor, new_labels: str | list[str] | None, new_leg_dual: bool, sort=None,
@@ -4450,7 +4484,8 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
         else:
             inv_part = tdot(A.invariant_part,
                             B.invariant_part,
-                            [*range(A.num_legs)], [*reversed(range(A.num_legs))])  # ['?1', '?2']
+                            [*range(A.num_legs)], [*reversed(range(A.num_legs))]
+                            )  # ['?1', '?2']
             inv_block = inv_part.to_dense_block(understood_braiding=True)
             res = backend.block_backend.tdot(
                 A.charged_state,
@@ -4731,9 +4766,11 @@ def outer(tensor1: Tensor, tensor2: Tensor,
         tensor2 = tensor2.as_SymmetricTensor(warning=msg)
     if isinstance(tensor1, ChargedTensor):
         if isinstance(tensor2, ChargedTensor):
+            bang = ChargedTensor._CHARGE_LEG_LABEL
             inv_part = outer(tensor1.invariant_part, tensor2.invariant_part,
-                             relabel1=relabel1, relabel2=relabel2)
-            inv_part = move_leg(inv_part, tensor1.num_codomain_legs + tensor2.num_legs, domain_pos=1)
+                             relabel1={**relabel1, bang: f'{bang}1'},
+                             relabel2={**relabel2, bang: f'{bang}2'})
+            inv_part = move_leg(inv_part, f'{bang}2', domain_pos=1)
             return ChargedTensor.from_two_charge_legs(inv_part,
                                                       tensor1.charged_state,
                                                       tensor2.charged_state)
@@ -5667,8 +5704,8 @@ def tdot(tensor1: Tensor, tensor2: Tensor,
     _ = get_same_device(tensor1, tensor2)
 
     # parse legs to list[int] and check they are valid
-    legs1 = tensor1.get_leg_idcs(to_iterable(legs1))
-    legs2 = tensor2.get_leg_idcs(to_iterable(legs2))
+    legs1 = tensor1.get_leg_idcs(legs1)
+    legs2 = tensor2.get_leg_idcs(legs2)
     if duplicate_entries(legs1) or duplicate_entries(legs2):
         raise ValueError(f'Duplicate leg entries.')
     num_contr = len(legs1)
@@ -6079,7 +6116,9 @@ def zero_like(tensor: Tensor) -> Tensor:
 T = TypeVar('T')
 
 
-def _check_compatible_legs(legs1: Sequence[Leg], legs2: Sequence[Leg], expect_equal: bool = True):
+def _check_compatible_legs(legs1: Sequence[Leg], legs2: Sequence[Leg],
+                           expect_equal: bool = True,
+                           label1: str = None, label2: str = None):
     """Check if legs are compatible (equal if `expect_equal`, otherwise mutually dual)."""
     if len(legs1) != len(legs2):
         raise ValueError('Different number of legs')
@@ -6183,7 +6222,14 @@ def _get_matching_labels(labels1: list[str | None], labels2: list[str | None],
 
 
 def is_valid_leg_label(label) -> bool:
-    return label is None or isinstance(label, str)
+    if label is None:
+        return True
+    if not isinstance(label, str):
+        return False
+    # TODO extend: check for valid syntax of combined / conjugated labels?
+    if any(f in label for f in FORBIDDEN_LEG_LABEL_CHARS):
+        return False
+    return True
 
 
 def _parse_idcs(idcs: T | Sequence[T], length: int, fill: T = slice(None, None, None)
