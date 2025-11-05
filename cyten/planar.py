@@ -149,20 +149,50 @@ class PlanarDiagram:
             Same as the parameter to :class:`PlanarDiagram`, but expect only a single tensor,
             to be added to the diagram
         extra_definition : str (or list of (str, str, str | None, str))
-            Same as the parameter to :class:`PlanarDiagram`. Is appended to the existing
-            :attr:`definition`.
-        dims : {str: list of str}, optional
+            Same as the parameter to :class:`PlanarDiagram`.
+            Should define what each leg of the new tensor does; either contracted or open.
+            The new :attr:`definition` is given by this extra definition together with the old
+            definition, except for entries that correspond to legs that were open in the original
+            diagram and are now contracted with the new tensor.
+        extra_dims : {str: list of str}, optional
             Same as the parameter to :class:`PlanarDiagram`, but applies only to the new `tensor`.
         order : 'greedy' | 'optimal' | 'definition' | str | nested tuples of str
             Same as the parameter to :class:`PlanarDiagram`, applies to the entire new diagram.
         """
-        new_tensor = self.parse_tensors(tensor, extra_dims)
-        assert len(new_tensor) == 1
-        assert all(key not in self.tensors for key in new_tensor)
+        extra_tensors = self.parse_tensors(tensor, extra_dims)
+        assert len(extra_tensors) == 1
+        new_name = next(iter(extra_tensors))
+        if new_name in self.tensors:
+            raise ValueError('There already is a tensor with that name')
         tensors = self.tensors.copy()
-        tensors.update(new_tensor)
+        tensors.update(extra_tensors)
+
+        outdated = []  # collect indices of the old_definitions that are outdated in the new
         extra_definition = self.parse_definition(extra_definition)
-        definition = [*self.definition, *extra_definition]
+        for t1, l1, t2, l2 in extra_definition:
+            if t2 is None:
+                continue  # new open leg: nothing to do
+            if t1 == new_name and t2 == new_name:
+                continue  # trace on the new tensor: nothing to do
+            if t1 == new_name:
+                new_tens_leg = l1
+                other_tens = t2
+                other_tens_leg = l2
+            elif t2 == new_name:
+                new_tens_leg = l2
+                other_tens = t1
+                other_tens_leg = l1
+            else:
+                raise ValueError('Invalid extra_definition. Must reference the new tensor!')
+            n = self._find_open_leg_definition(other_tens, other_tens_leg)
+            if n is None:
+                msg = (f'Invalid extra_definition. Attempted to contract '
+                       f'{new_name}:{new_tens_leg} @ {other_tens}:{other_tens_leg}, but the latter '
+                       f'is not an open leg of the existing diagram')
+                raise ValueError(msg)
+            outdated.append(n)
+        definition = [d for n, d in enumerate(self.definition) if n not in outdated] \
+            + extra_definition
         return PlanarDiagram(tensors=tensors, definition=definition, dims=None, order=order)
 
     @overload
@@ -516,6 +546,20 @@ class PlanarDiagram:
         l2 = _as_valid_name(right)
         return t1, l1, None, l2
 
+    def _find_open_leg_definition(self, name: str, leg: str) -> int | None:
+        """Find an open leg in the :attr:`definition`.
+
+        Returns
+        -------
+        idx : int | None
+            If there is an entry ``(name, leg, None, any_new_label)`` in :attr:`definition`,
+            return its index, or ``None`` if there is no such entry.
+        """
+        for n, (t1, l1, t2, _) in enumerate(self.definition):
+            if t2 is None and t1 == name and l1 == leg:
+                return n
+        return None
+
 
 def _as_valid_name(name: str) -> str:
     """Strip whitespace and check the name is valid as a tensor name or leg label"""
@@ -777,6 +821,47 @@ class ContractionTree:
 
     def __str__(self):
         return '\n'.join(self.root._str_lines())
+
+
+class PlanarLinearOperator(LinearOperator):
+    r"""Base class for :class:`LinearOperator`\ s defined in terms of :class:`PlanarDiagram`\ s.
+
+    .. warning ::
+        Instantiating :class:`PlanarDiagram`\ s may be expensive (if the order is optimized).
+        Make sure to either hard-code the order, or make the diagram instance as early as possible,
+        e.g. as a *class* variable of the parent class instead of during its ``__init__``.
+
+    Parameters
+    ----------
+    op_diagram : PlanarDiagram
+        The diagram that defines the operator (without a vector).
+    matvec_diagram : PlanarDiagram
+        The diagram that defines the action of the operator on a vector.
+        Must have the same tensor names as the `op_diagram` in addition to a single tensor
+        with `vec_name`
+    op_tensors : {str : Tensor}
+        The concrete tensors that define the operator, see `op_diagram`.
+    vec_name : str
+        The name of the "vector", i.e. the tensor that the linear operator acts on in the
+        `matvec_diagram`.
+    """
+
+    def __init__(self, op_diagram: PlanarDiagram, matvec_diagram: PlanarDiagram,
+                 op_tensors: dict[str, Tensor], vec_name: str):
+        self.op_diagram = op_diagram
+        self.matvec_diagram = matvec_diagram
+        self.op_tensors = op_tensors
+        self.vec_name = vec_name
+        if {*matvec_diagram.tensor_names} != {*op_diagram.tensor_names, vec_name}:
+            msg = (f'Inconsistent tensor names. The matvec_diagram must have the tensor names from '
+                   f'the op_diagram, in addition to the single name {vec_name} of the vector.')
+            raise ValueError(msg)
+
+    def matvec(self, vec):
+        return self.matvec_diagram.evaluate(tensors={**self.op_tensors, self.vec_name: vec})
+
+    def to_tensor(self, **kw):
+        return self.op_diagram.evaluate(tensors=self.op_tensors)
 
 
 @overload
