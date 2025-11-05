@@ -95,8 +95,19 @@ from .tools.misc import (
 logger = logging.getLogger(__name__)
 _USE_PERMUTE_LEGS_ERR_MSG = 'Legs can not be permuted automatically. Explicitly use permute_legs()'
 
+
+CONTRACT_SYMBOL = '@'
+"""Reserved character to indicate contractions in :mod:`~cyten.planar` diagrams."""
+
+LEG_SELECT_SYMBOL = ':'
+"""Reserved character to select a leg of a tensor in :mod:`~cyten.planar` diagrams."""
+
+OPEN_LEG_SYMBOL = '->'
+"""Reserved character to indicate an open leg in :mod:`~cyten.planar` diagrams."""
+
 FORBIDDEN_LEG_LABEL_CHARS = [
     ' ', '\t', '\n',  # whitespace
+    CONTRACT_SYMBOL, LEG_SELECT_SYMBOL, *OPEN_LEG_SYMBOL,
 ]
 """List of characters that are forbidden in leg labels"""
 

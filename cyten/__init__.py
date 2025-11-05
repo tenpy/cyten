@@ -5,8 +5,8 @@ Provides a tensor class with block-sparsity from symmetries with an exchangeable
 """
 # Copyright (C) TeNPy Developers, Apache license
 
-from . import (dtypes, spaces, backends, symmetries, tensors, random_matrix, sparse, krylov_based,
-               trees, models, dummy_config, tools)
+from . import (dtypes, spaces, backends, symmetries, tensors, planar, random_matrix, sparse,
+               krylov_based, trees, models, dummy_config, tools)
 from . import testing  # should be pretty late
 from . import version
 
@@ -36,6 +36,7 @@ from .tensors import (
     split_legs, sqrt, squeeze_legs, stable_log, svd, tdot, tensor, trace, transpose, truncated_svd,
     zero_like
 )
+from .planar import PlanarDiagram
 from .trees import FusionTree, fusion_trees
 from .version import version as __version__
 from .version import full_version as __full_version__
