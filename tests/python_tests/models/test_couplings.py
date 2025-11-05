@@ -77,6 +77,16 @@ def generate_fermionic_dofs(backend: backends.TensorBackend,
     return site_list
 
 
+def generate_clock_dofs(backend: backends.TensorBackend) -> list[degrees_of_freedom.ClockDOF]:
+    """Return a list of `ClockDOF` sites whose symmetries are consistent with `backend`."""
+    site_list = []
+    for q in [2, 3, 4]:
+        site_list.append(sites.ClockSite(q, conserve='None', backend=backend))
+        if not isinstance(backend, backends.NoSymmetryBackend):
+            site_list.append(sites.ClockSite(q, conserve='Z_N', backend=backend))
+    return site_list
+
+
 @pytest.mark.parametrize('codom', [1, 2, 3])
 def test_coupling(codom, make_compatible_space):
     legs = [make_compatible_space(max_sectors=3, max_mult=3) for _ in range(codom)]
@@ -478,3 +488,48 @@ def test_onsite_pairing(any_backend, np_random):
     # test correct number of sites
     with pytest.raises(AssertionError):
         _ = couplings.onsite_pairing([all_sites[0]] * 2)
+
+
+# TEST CLOCK COUPLINGS
+
+
+def test_clock_clock_coupling(any_backend, np_random):
+    check_dense_blocks = np_random.choice([True, False])
+    site_list = generate_clock_dofs(any_backend)
+    for site in site_list:
+        Jx, Jz = np_random.random(2)
+        coupling = couplings.clock_clock_coupling([site] * 2, Jx=Jx, Jz=Jz)
+        coupling.test_sanity()
+        if check_dense_blocks:
+            X, Z = site.clock_operators[:, :, 0], site.clock_operators[:, :, 1]
+            expect = Jx * X[:, None, None, :] * X.T.conj()[None, :, :, None]
+            expect += Jx * X.T.conj()[:, None, None, :] * X[None, :, :, None]
+            expect += Jz * Z[:, None, None, :] * Z.T.conj()[None, :, :, None]
+            expect += Jz * Z.T.conj()[:, None, None, :] * Z[None, :, :, None]
+            assert np.allclose(coupling.to_numpy(), expect)
+
+    # test correct number of sites
+    with pytest.raises(AssertionError):
+        _ = couplings.clock_clock_coupling([site_list[0]], Jx=1., Jz=1.)
+    with pytest.raises(AssertionError):
+        _ = couplings.clock_clock_coupling([site_list[0]] * 3, Jx=1., Jz=1.)
+
+
+def test_clock_field_coupling(any_backend, np_random):
+    check_dense_blocks = np_random.choice([True, False])
+    site_list = generate_clock_dofs(any_backend)
+    for site in site_list:
+        hx, hz = np_random.random(2)
+        if isinstance(site.leg.symmetry, cyten.symmetries.ZNSymmetry):
+            hx = 0
+        coupling = couplings.clock_field_coupling([site], hx=hx, hz=hz)
+        coupling.test_sanity()
+        if check_dense_blocks:
+            X, Z = site.clock_operators[:, :, 0], site.clock_operators[:, :, 1]
+            expect = hx * X + hx * X.T.conj()
+            expect += hz * Z + hz * Z.T.conj()
+            assert np.allclose(coupling.to_numpy(), expect)
+
+    # test correct number of sites
+    with pytest.raises(AssertionError):
+        _ = couplings.clock_field_coupling([site_list[0]] * 2, hx=1., hz=1.)
