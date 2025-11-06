@@ -31,7 +31,6 @@ def check_coupling(coupling_cls, site_num: int, invalid_site_nums: list[int],
             _ = coupling_cls(site_list, **kwargs)
 
 
-
 def generate_spin_dofs(backend: backends.TensorBackend) -> list[degrees_of_freedom.SpinDOF]:
     """Return a list of `SpinDOF` sites whose symmetries are consistent with `backend`."""
     site_list = []
@@ -143,17 +142,19 @@ def test_coupling(codom, make_compatible_space):
 
 
 def test_spin_spin_coupling(any_backend, np_random):
-    check_dense_blocks = np_random.choice([True, False])
     site_list = generate_spin_dofs(any_backend)
     num_sites = min(5, len(site_list))
     site_list = np_random.choice(site_list, size=num_sites, replace=False)
     for i, site1 in enumerate(site_list):
+        check_evs = False
         Jx, Jy, Jz = np_random.random(3)
         # either SpinSite or SpinHalfFermionSite
         conserve = site1.conserve if isinstance(site1, sites.SpinSite) else site1.conserve_S
         if conserve in ['Sz']:
+            check_evs = True
             Jx = Jy = 0
         elif conserve in ['SU(2)']:
+            check_evs = True
             Jx = Jy = Jz
 
         # test different site combinations
@@ -164,21 +165,47 @@ def test_spin_spin_coupling(any_backend, np_random):
                 continue
             coupling = couplings.spin_spin_coupling([site1, site2], Jx=Jx, Jy=Jy, Jz=Jz)
             coupling.test_sanity()
-            if check_dense_blocks:
-                expect = site1.spin_vector.copy()
-                expect[:, :, 0] *= Jx
-                expect[:, :, 1] *= Jy
-                expect[:, :, 2] *= Jz
-                expect = np.tensordot(expect, site2.spin_vector, axes=[2, 2])
-                expect = np.transpose(expect, [0, 2, 3, 1])
-                assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
+            tensor = coupling.to_tensor()
+            # hermiticity
+            assert tensors.almost_equal(tensor.hc, tensor)
+            # trace is zero
+            assert np.allclose(tensors.trace(tensor), 0)
+            if site1 == site2:
+                # commutation relation
+                tensor_commuted = tensors.permute_legs(tensor, codomain=[1, 0], domain=[2, 3])
+                tensor_commuted.relabel({'p0': 'p1', 'p1': 'p0', 'p0*': 'p1*', 'p1*': 'p0*'})
+                assert tensors.almost_equal(tensor_commuted, tensor)
+            
+            # check eigenvalues of special cases
+            if check_evs:
+                if conserve in ['Sz']:
+                    if isinstance(site1, sites.SpinSite):
+                        expect_evs = np.arange(-site1.S, site1.S + 1)[:, None]
+                        expect_evs = expect_evs @ np.arange(-site2.S, site2.S + 1)[None, :]
+                        expect_evs = expect_evs.flatten()
+                    else:
+                        # spin-1/2 fermions
+                        expect_evs = np.array([0] * 12 + [-.25, .25] * 2)
+                elif conserve in ['SU(2)']:
+                    if isinstance(site1, sites.SpinSite):
+                        double_spin = site1.double_total_spin + site2.double_total_spin
+                        lower_limit = abs(site1.double_total_spin - site2.double_total_spin)
+                        spin_tots = site1.S * (site1.S + 1) + site2.S * (site2.S + 1)
+                        expect_evs = [[s * (s + 2) / 4] * (s + 1)
+                                      for s in range(double_spin, lower_limit - 1, -2)]
+                        expect_evs = (np.concatenate(expect_evs) - spin_tots) / 2.
+                    else:
+                        expect_evs = np.array([0] * 12 + [.25] * 3 + [-.75])
+                evs = tensor.to_numpy(leg_order=[0, 1, 3, 2], understood_braiding=True)
+                evs = np.reshape(evs, (np.prod(evs.shape[:2]), -1))
+                evs = np.sort(np.linalg.eigvalsh(evs))
+                assert np.allclose(evs, np.sort(Jz * expect_evs))
 
     check_coupling(couplings.spin_spin_coupling, site_num=2, invalid_site_nums=[1, 3],
                    boson_fermion_mixing=False)
 
 
 def test_spin_field_coupling(any_backend, np_random):
-    check_dense_blocks = np_random.choice([True, False])
     site_list = generate_spin_dofs(any_backend)
     num_sites = min(5, len(site_list))
     site_list = np_random.choice(site_list, size=num_sites, replace=False)
@@ -193,17 +220,27 @@ def test_spin_field_coupling(any_backend, np_random):
             continue
         coupling = couplings.spin_field_coupling([site], hx=hx, hy=hy, hz=hz)
         coupling.test_sanity()
-        if check_dense_blocks:
-            expect = site.spin_vector
-            expect = hx * expect[:, :, 0] + hy * expect[:, :, 1] + hz * expect[:, :, 2]
-            assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
+        tensor = coupling.to_tensor()
+        # hermiticity
+        assert tensors.almost_equal(tensor.hc, tensor)
+        # trace is zero
+        assert np.allclose(tensors.trace(tensor), 0)
+        # check eigenvalues
+        h = np.sqrt(hx**2 + hy**2 + hz**2)
+        if isinstance(site, sites.SpinSite):
+            expect_evs = np.arange(-site.S, site.S + 1)
+        else:
+            # spin-1/2 fermions
+            expect_evs = np.array([0, 0, -.5, .5])
+        evs = tensor.to_numpy(understood_braiding=True)
+        evs = np.sort(np.linalg.eigvalsh(evs))
+        assert np.allclose(evs, np.sort(h * expect_evs))
 
     check_coupling(couplings.spin_field_coupling, site_num=1, invalid_site_nums=[2],
                    boson_fermion_mixing=False)
 
 
 def test_aklt_coupling(any_backend, np_random):
-    check_dense_blocks = np_random.choice([True, False])
     site_list = generate_spin_dofs(any_backend)
     num_sites = min(5, len(site_list))
     site_list = np_random.choice(site_list, size=num_sites, replace=False)
@@ -215,18 +252,38 @@ def test_aklt_coupling(any_backend, np_random):
                 continue
             coupling = couplings.aklt_coupling([site1, site2], J=J)
             coupling.test_sanity()
-            if check_dense_blocks:
-                expect = np.tensordot(site1.spin_vector, site2.spin_vector, axes=[2, 2])
-                expect = np.transpose(expect, [0, 2, 3, 1])
-                expect += np.tensordot(expect, expect, axes=[[2, 3], [1, 0]]) / 3.
-                assert np.allclose(coupling.to_numpy(understood_braiding=True), J * expect)
+            tensor = coupling.to_tensor()
+            # hermiticity
+            assert tensors.almost_equal(tensor.hc, tensor)
+            if site1 == site2:
+                # commutation relation
+                tensor_commuted = tensors.permute_legs(tensor, codomain=[1, 0], domain=[2, 3])
+                tensor_commuted.relabel({'p0': 'p1', 'p1': 'p0', 'p0*': 'p1*', 'p1*': 'p0*'})
+                assert tensors.almost_equal(tensor_commuted, tensor)
+
+            if isinstance(site1, sites.SpinSite):
+                double_spin = site1.double_total_spin + site2.double_total_spin
+                lower_limit = abs(site1.double_total_spin - site2.double_total_spin)
+                spin_tots = site1.S * (site1.S + 1) + site2.S * (site2.S + 1)
+                expect_evs = [[s * (s + 2) / 4] * (s + 1) for s in range(double_spin, lower_limit - 1, -2)]
+                expect_evs = (np.concatenate(expect_evs) - spin_tots) / 2.
+            else:
+                expect_evs = np.array([0] * 12 + [.25] * 3 + [-.75])
+            expect_evs += expect_evs**2 / 3.
+            evs = tensor.to_numpy(leg_order=[0, 1, 3, 2], understood_braiding=True)
+            evs = np.reshape(evs, (np.prod(evs.shape[:2]), -1))
+            evs = np.sort(np.linalg.eigvalsh(evs))
+            assert np.allclose(evs, np.sort(J * expect_evs))
+            if site1 == site2 and isinstance(site1, sites.SpinSite) and site1.double_total_spin == 2:
+                # actual AKLT case
+                assert np.allclose(evs, J * np.array([-2. / 3.] * 4 + [4. / 3.] * 5))
 
     check_coupling(couplings.aklt_coupling, site_num=2, invalid_site_nums=[1, 3],
                    boson_fermion_mixing=False)
 
 
+@pytest.mark.slow  # TODO can we speed it up?
 def test_chiral_3spin_coupling(any_backend, np_random):
-    check_dense_blocks = np_random.choice([True, False])
     site_list = generate_spin_dofs(any_backend)
     num_sites = min(3, len(site_list))
     site_list = np_random.choice(site_list, size=num_sites, replace=False)
@@ -239,19 +296,17 @@ def test_chiral_3spin_coupling(any_backend, np_random):
             site3 = np_random.choice([site1, site2])
             coupling = couplings.chiral_3spin_coupling([site1, site2, site3], chi=chi)
             coupling.test_sanity()
-            if check_dense_blocks:
-                s1, s2, s3 = site1.spin_vector, site2.spin_vector, site3.spin_vector
-                expect = 0
-                for i in range(3):
-                    j = (i + 1) % 3
-                    k = (i + 2) % 3
-                    expect += (s1[:, None, None, None, None, :, i]
-                               * s2[None, :, None, None, :, None, j]
-                               * s3[None, None, :, :, None, None, k])
-                    expect -= (s1[:, None, None, None, None, :, i]
-                               * s2[None, :, None, None, :, None, k]
-                               * s3[None, None, :, :, None, None, j])
-                assert np.allclose(coupling.to_numpy(understood_braiding=True), chi * expect)
+            tensor = coupling.to_tensor()
+            # hermiticity
+            assert tensors.almost_equal(tensor.hc, tensor)
+            # trace is zero
+            assert np.allclose(tensors.trace(tensor), 0)
+            if site1 == site2:
+                # cyclic commutation relation
+                tensor_commuted = tensors.permute_legs(tensor, codomain=[2, 0, 1], domain=[3, 5, 4])
+                relabel = {'p2': 'p0', 'p1': 'p2', 'p0': 'p1', 'p2*': 'p0*', 'p1*': 'p2*', 'p0*': 'p1*'}
+                tensor_commuted.relabel(relabel)
+                assert tensors.almost_equal(tensor_commuted, tensor)
 
     check_coupling(couplings.chiral_3spin_coupling, site_num=3, invalid_site_nums=[1, 2],
                    boson_fermion_mixing=False)
