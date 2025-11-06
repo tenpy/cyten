@@ -294,11 +294,11 @@ class PlanarDiagram:
             unused = [l for l in defined if l not in all_leg_labels]
             if len(undefined) > 0:
                 msg = (f'If dims are specified, all must be specified. '
-                       f'Missing: {', '.join(undefined)}')
+                       f'Missing: {", ".join(undefined)}')
                 raise ValueError(msg)
             if any(l not in defined for l in all_leg_labels):
                 msg = (f'The following leg labels were given in dims, but do not exist: '
-                       f'{', '.join(unused)}')
+                       f'{", ".join(unused)}')
                 warnings.warn(msg, UserWarning, stacklevel=3)
         res = {}
         for name, legs in tensors.items():
