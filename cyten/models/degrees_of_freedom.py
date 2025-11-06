@@ -552,6 +552,9 @@ class FermionicDOF(OccupationDOF):
         )
 
         n_diag = self.number_operators[np.arange(self.dim), np.arange(self.dim), :]  # [p, k]
+        # need to shift, otherwise we have \sum_{q <= k} n_k
+        n_diag[:, 1:] = n_diag[:, :-1]
+        n_diag[:, 0] = 0
         n_before = np.cumsum(n_diag, axis=1)  # \sum_{q < k} n_k
         partial_JW = np.zeros((self.dim, self.dim, self.num_species))
         partial_JW[np.arange(self.dim), np.arange(self.dim), :] = (-1) ** n_before
