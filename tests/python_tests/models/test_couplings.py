@@ -14,6 +14,24 @@ from cyten.models import degrees_of_freedom, sites, couplings
 from cyten.symmetries import SymmetryError
 
 
+def check_coupling(coupling_cls, site_num: int, invalid_site_nums: list[int],
+                   boson_fermion_mixing: bool, **kwargs):
+    """Perform common checks that make sense for any coupling"""
+    # it does not matter what site we use since the number of sites is checked first
+    site = sites.SpinlessBosonSite([1])
+    for n in invalid_site_nums:
+        with pytest.raises(AssertionError):
+            _ = coupling_cls([site] * n, **kwargs)
+    if boson_fermion_mixing:
+        site_list = [site, sites.SpinlessFermionSite(1)]
+        site_list.extend([site] * (site_num - 2))
+        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
+               'combined for constructing couplings.')
+        with pytest.raises(SymmetryError, match=msg):
+            _ = coupling_cls(site_list, **kwargs)
+
+
+
 def generate_spin_dofs(backend: backends.TensorBackend) -> list[degrees_of_freedom.SpinDOF]:
     """Return a list of `SpinDOF` sites whose symmetries are consistent with `backend`."""
     site_list = []
@@ -155,11 +173,8 @@ def test_spin_spin_coupling(any_backend, np_random):
                 expect = np.transpose(expect, [0, 2, 3, 1])
                 assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.spin_spin_coupling([site_list[0]], Jx=1., Jy=1., Jz=1.)
-    with pytest.raises(AssertionError):
-        _ = couplings.spin_spin_coupling([site_list[0]] * 3, Jx=1., Jy=1., Jz=1.)
+    check_coupling(couplings.spin_spin_coupling, site_num=2, invalid_site_nums=[1, 3],
+                   boson_fermion_mixing=False)
 
 
 def test_spin_field_coupling(any_backend, np_random):
@@ -183,9 +198,8 @@ def test_spin_field_coupling(any_backend, np_random):
             expect = hx * expect[:, :, 0] + hy * expect[:, :, 1] + hz * expect[:, :, 2]
             assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.spin_field_coupling([site_list[0]] * 2, hx=1.)
+    check_coupling(couplings.spin_field_coupling, site_num=1, invalid_site_nums=[2],
+                   boson_fermion_mixing=False)
 
 
 def test_aklt_coupling(any_backend, np_random):
@@ -207,11 +221,8 @@ def test_aklt_coupling(any_backend, np_random):
                 expect += np.tensordot(expect, expect, axes=[[2, 3], [1, 0]]) / 3.
                 assert np.allclose(coupling.to_numpy(understood_braiding=True), J * expect)
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.spin_spin_coupling([site_list[0]])
-    with pytest.raises(AssertionError):
-        _ = couplings.spin_spin_coupling([site_list[0]] * 3)
+    check_coupling(couplings.aklt_coupling, site_num=2, invalid_site_nums=[1, 3],
+                   boson_fermion_mixing=False)
 
 
 def test_chiral_3spin_coupling(any_backend, np_random):
@@ -242,11 +253,8 @@ def test_chiral_3spin_coupling(any_backend, np_random):
                                * s3[None, None, :, :, None, None, j])
                 assert np.allclose(coupling.to_numpy(understood_braiding=True), chi * expect)
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.chiral_3spin_coupling([site_list[0]])
-    with pytest.raises(AssertionError):
-        _ = couplings.chiral_3spin_coupling([site_list[0]] * 2)
+    check_coupling(couplings.chiral_3spin_coupling, site_num=3, invalid_site_nums=[1, 2],
+                   boson_fermion_mixing=False)
 
 
 # TEST BOSON AND FERMION COUPLINGS
@@ -275,9 +283,8 @@ def test_chemical_potential(any_backend, np_random):
             expect = -mu * site.get_occupation_numpy(species)
             assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.chemical_potential([all_sites[0]] * 2, mu=1)
+    check_coupling(couplings.chemical_potential, site_num=1, invalid_site_nums=[2],
+                   boson_fermion_mixing=False, mu=1.)
 
 
 def test_onsite_interaction(any_backend, np_random):
@@ -304,9 +311,8 @@ def test_onsite_interaction(any_backend, np_random):
             expect = expect @ expect * U / 2.
             assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.onsite_interaction([all_sites[0]] * 2)
+    check_coupling(couplings.onsite_interaction, site_num=1, invalid_site_nums=[2],
+                   boson_fermion_mixing=False)
 
 
 def test_density_density_interactionn(any_backend, np_random):
@@ -334,17 +340,8 @@ def test_density_density_interactionn(any_backend, np_random):
             expect = V * n[:, None, None, :] * n[None, :, :, None]
             assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.density_density_interaction([all_sites[0]])
-    with pytest.raises(AssertionError):
-        _ = couplings.density_density_interaction([all_sites[0]] * 3)
-    # test mixing of bosons and fermions
-    if len(fermionic_sites) > 0:
-        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
-               'combined for constructing couplings.')
-        with pytest.raises(SymmetryError, match=msg):
-            _ = couplings.density_density_interaction([bosonic_sites[0], fermionic_sites[0]])
+    check_coupling(couplings.density_density_interaction, site_num=2, invalid_site_nums=[1, 3],
+                   boson_fermion_mixing=True)
 
 
 def test_hopping(any_backend, np_random):
@@ -385,17 +382,8 @@ def test_hopping(any_backend, np_random):
                                                          species=(species1, species2))
             assert np.allclose(coupling.to_numpy(understood_braiding=True), -t * expect)
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.hopping([all_sites[0]])
-    with pytest.raises(AssertionError):
-        _ = couplings.hopping([all_sites[0]] * 3)
-    # test mixing of bosons and fermions
-    if len(fermionic_sites) > 0:
-        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
-               'combined for constructing couplings.')
-        with pytest.raises(SymmetryError, match=msg):
-            _ = couplings.hopping([bosonic_sites[0], fermionic_sites[0]])
+    check_coupling(couplings.hopping, site_num=2, invalid_site_nums=[1, 3],
+                   boson_fermion_mixing=True)
 
 
 def test_pairing(any_backend, np_random):
@@ -437,17 +425,8 @@ def test_pairing(any_backend, np_random):
                                                          species=(species1, species2))
             assert np.allclose(coupling.to_numpy(understood_braiding=True), Delta * expect)
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.pairing([all_sites[0]])
-    with pytest.raises(AssertionError):
-        _ = couplings.pairing([all_sites[0]] * 3)
-    # test mixing of bosons and fermions
-    if len(fermionic_sites) > 0:
-        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
-               'combined for constructing couplings.')
-        with pytest.raises(SymmetryError, match=msg):
-            _ = couplings.pairing([bosonic_sites[0], fermionic_sites[0]])
+    check_coupling(couplings.pairing, site_num=2, invalid_site_nums=[1, 3],
+                   boson_fermion_mixing=True)
 
 
 def test_onsite_pairing(any_backend, np_random):
@@ -497,9 +476,8 @@ def test_onsite_pairing(any_backend, np_random):
             coupling.test_sanity()
             assert np.allclose(tensors.norm(coupling.to_tensor()), 0)
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.onsite_pairing([all_sites[0]] * 2)
+    check_coupling(couplings.onsite_pairing, site_num=1, invalid_site_nums=[2],
+                   boson_fermion_mixing=False)
 
 
 # TEST CLOCK COUPLINGS
@@ -520,11 +498,8 @@ def test_clock_clock_coupling(any_backend, np_random):
             expect += Jz * Z.T.conj()[:, None, None, :] * Z[None, :, :, None]
             assert np.allclose(coupling.to_numpy(), expect)
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.clock_clock_coupling([site_list[0]], Jx=1., Jz=1.)
-    with pytest.raises(AssertionError):
-        _ = couplings.clock_clock_coupling([site_list[0]] * 3, Jx=1., Jz=1.)
+    check_coupling(couplings.clock_clock_coupling, site_num=2, invalid_site_nums=[1, 3],
+                   boson_fermion_mixing=False)
 
 
 def test_clock_field_coupling(any_backend, np_random):
@@ -542,9 +517,8 @@ def test_clock_field_coupling(any_backend, np_random):
             expect += hz * Z + hz * Z.T.conj()
             assert np.allclose(coupling.to_numpy(), expect)
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.clock_field_coupling([site_list[0]] * 2, hx=1., hz=1.)
+    check_coupling(couplings.clock_field_coupling, site_num=1, invalid_site_nums=[2],
+                   boson_fermion_mixing=False)
 
 
 # TEST ANYONIC COUPLINGS
@@ -583,8 +557,5 @@ def test_gold_coupling(block_backend, np_random):
     coupling = couplings.gold_coupling(site_list, J=1.)
     coupling.test_sanity()
 
-    # test correct number of sites
-    with pytest.raises(AssertionError):
-        _ = couplings.gold_coupling([site_list[0]])
-    with pytest.raises(AssertionError):
-        _ = couplings.gold_coupling([site_list[0]] * 3)
+    check_coupling(couplings.gold_coupling, site_num=2, invalid_site_nums=[1, 3],
+                   boson_fermion_mixing=False)
