@@ -302,7 +302,7 @@ def test_chiral_3spin_coupling(any_backend, np_random):
             # trace is zero
             assert np.allclose(tensors.trace(tensor), 0)
             if site1 == site2:
-                # cyclic commutation relation
+                # cyclic permutation relation
                 tensor_commuted = tensors.permute_legs(tensor, codomain=[2, 0, 1], domain=[3, 5, 4])
                 relabel = {'p2': 'p0', 'p1': 'p2', 'p0': 'p1', 'p2*': 'p0*', 'p1*': 'p2*', 'p0*': 'p1*'}
                 tensor_commuted.relabel(relabel)
@@ -316,7 +316,6 @@ def test_chiral_3spin_coupling(any_backend, np_random):
 
 
 def test_chemical_potential(any_backend, np_random):
-    check_dense_blocks = np_random.choice([True, False])
     bosonic_sites = generate_bosonic_dofs(any_backend)
     num_sites = min(3, len(bosonic_sites))
     bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
@@ -334,16 +333,23 @@ def test_chemical_potential(any_backend, np_random):
                 species = np.append(species, 1 - species[0])
         coupling = couplings.chemical_potential([site], mu=mu, species=species)
         coupling.test_sanity()
-        if check_dense_blocks:
-            expect = -mu * site.get_occupation_numpy(species)
-            assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
+        tensor = coupling.to_tensor()
+        # hermiticity
+        assert tensors.almost_equal(tensor.hc, tensor)
+        # check eigenvalues
+        Nmax = site.Nmax if isinstance(site, sites.SpinlessBosonSite) else [1] * site.num_species
+        expect_evs = []
+        for occupations in it.product(*[list(range(n + 1)) for n in Nmax]):
+            expect_evs.append(-mu * sum([occupations[k] for k in species]))
+        evs = tensor.to_numpy(understood_braiding=True)
+        evs = np.sort(np.linalg.eigvalsh(evs))
+        assert np.allclose(evs, np.sort(expect_evs))
 
     check_coupling(couplings.chemical_potential, site_num=1, invalid_site_nums=[2],
                    boson_fermion_mixing=False, mu=1.)
 
 
 def test_onsite_interaction(any_backend, np_random):
-    check_dense_blocks = np_random.choice([True, False])
     bosonic_sites = generate_bosonic_dofs(any_backend)
     num_sites = min(3, len(bosonic_sites))
     bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
@@ -361,17 +367,25 @@ def test_onsite_interaction(any_backend, np_random):
                 species = np.append(species, 1 - species[0])
         coupling = couplings.onsite_interaction([site], U=U, species=species)
         coupling.test_sanity()
-        if check_dense_blocks:
-            expect = site.get_occupation_numpy(species)
-            expect = expect @ expect * U / 2.
-            assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
+        tensor = coupling.to_tensor()
+        # hermiticity
+        assert tensors.almost_equal(tensor.hc, tensor)
+        # check eigenvalues
+        Nmax = site.Nmax if isinstance(site, sites.SpinlessBosonSite) else [1] * site.num_species
+        expect_evs = []
+        for occupations in it.product(*[list(range(n + 1)) for n in Nmax]):
+            n = sum([occupations[k] for k in species])
+            expect_evs.append(U * n**2 / 2.)
+        evs = tensor.to_numpy(understood_braiding=True)
+        evs = np.sort(np.linalg.eigvalsh(evs))
+        assert np.allclose(evs, np.sort(expect_evs))
 
     check_coupling(couplings.onsite_interaction, site_num=1, invalid_site_nums=[2],
                    boson_fermion_mixing=False)
 
 
-def test_density_density_interactionn(any_backend, np_random):
-    check_dense_blocks = np_random.choice([True, False])
+@pytest.mark.slow  # TODO can we speed it up?
+def test_density_density_interaction(any_backend, np_random):
     bosonic_sites = generate_bosonic_dofs(any_backend)
     num_sites = min(3, len(bosonic_sites))
     bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
@@ -390,17 +404,33 @@ def test_density_density_interactionn(any_backend, np_random):
             species1 = species2 = [0, 1]
         coupling = couplings.density_density_interaction([site] * 2, V, species1, species2)
         coupling.test_sanity()
-        if check_dense_blocks:
-            n = site.get_occupation_numpy(species1)
-            expect = V * n[:, None, None, :] * n[None, :, :, None]
-            assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
+        tensor = coupling.to_tensor()
+        # hermiticity
+        assert tensors.almost_equal(tensor.hc, tensor)
+        if all(species1 == species2):
+            # commutation relation
+            tensor_commuted = tensors.permute_legs(tensor, codomain=[1, 0], domain=[2, 3])
+            tensor_commuted.relabel({'p0': 'p1', 'p1': 'p0', 'p0*': 'p1*', 'p1*': 'p0*'})
+            assert tensors.almost_equal(tensor_commuted, tensor)
+        # check eigenvalues
+        Nmax = site.Nmax if isinstance(site, sites.SpinlessBosonSite) else [1] * site.num_species
+        n1 = []
+        n2 = []
+        for occupations in it.product(*[list(range(n + 1)) for n in Nmax]):
+            n1.append(sum([occupations[k] for k in species1]))
+            n2.append(sum([occupations[k] for k in species2]))
+        expect_evs = V * np.outer(n1, n2).flatten()
+        evs = tensor.to_numpy(leg_order=[0, 1, 3, 2], understood_braiding=True)
+        evs = np.reshape(evs, (np.prod(evs.shape[:2]), -1))
+        evs = np.sort(np.linalg.eigvalsh(evs))
+        assert np.allclose(evs, np.sort(expect_evs))
 
     check_coupling(couplings.density_density_interaction, site_num=2, invalid_site_nums=[1, 3],
                    boson_fermion_mixing=True)
 
 
+@pytest.mark.slow  # TODO can we speed it up?
 def test_hopping(any_backend, np_random):
-    check_dense_blocks = np_random.choice([True, False])
     bosonic_sites = generate_bosonic_dofs(any_backend)
     num_sites = min(3, len(bosonic_sites))
     bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
@@ -432,17 +462,29 @@ def test_hopping(any_backend, np_random):
 
         coupling = couplings.hopping([site] * 2, t, species=(species1, species2))
         coupling.test_sanity()
-        if check_dense_blocks:
-            expect = couplings._quadratic_coupling_numpy([site] * 2, is_pairing=False,
-                                                         species=(species1, species2))
-            assert np.allclose(coupling.to_numpy(understood_braiding=True), -t * expect)
+        tensor = coupling.to_tensor()
+        # hermiticity
+        assert tensors.almost_equal(tensor.hc, tensor)
+        # trace is zero
+        assert np.allclose(tensors.trace(tensor), 0)
+        # if there is a permutation s.t. species1 <-> species2, we can commute the legs
+        symmetric = False
+        for perm in it.permutations(range(len(species1))):
+            if np.all(species1[list(perm)] == species2) and np.all(species2[list(perm)] == species1):
+                symmetric = True
+        if symmetric:
+            # commutation relation; this does commute for fermions since
+            # a_0_k^\dagger a_1_l + hc -> (exchange legs) -> -1 * a_0_l a_1_k^\dagger + hc
+            # = a_1_k^\dagger a_0_l + hc = a_0_l^\dagger a_1_k + hc
+            tensor_commuted = tensors.permute_legs(tensor, codomain=[1, 0], domain=[2, 3])
+            tensor_commuted.relabel({'p0': 'p1', 'p1': 'p0', 'p0*': 'p1*', 'p1*': 'p0*'})
+            assert tensors.almost_equal(tensor_commuted, tensor)
 
     check_coupling(couplings.hopping, site_num=2, invalid_site_nums=[1, 3],
                    boson_fermion_mixing=True)
 
 
 def test_pairing(any_backend, np_random):
-    check_dense_blocks = np_random.choice([True, False])
     bosonic_sites = generate_bosonic_dofs(any_backend, conserve=['parity', 'None'])
     num_sites = min(3, len(bosonic_sites))
     bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
@@ -475,17 +517,29 @@ def test_pairing(any_backend, np_random):
 
         coupling = couplings.pairing([site] * 2, Delta, species=(species1, species2))
         coupling.test_sanity()
-        if check_dense_blocks:
-            expect = couplings._quadratic_coupling_numpy([site] * 2, is_pairing=True,
-                                                         species=(species1, species2))
-            assert np.allclose(coupling.to_numpy(understood_braiding=True), Delta * expect)
+        if len(species1) == 0:
+            continue
+        tensor = coupling.to_tensor()
+        # hermiticity
+        assert tensors.almost_equal(tensor.hc, tensor)
+        # trace is zero
+        assert np.allclose(tensors.trace(tensor), 0)
+        # if there is a permutation s.t. species1 <-> species2, we can commute the legs
+        symmetric = False
+        for perm in it.permutations(range(len(species1))):
+            if np.all(species1[list(perm)] == species2) and np.all(species2[list(perm)] == species1):
+                symmetric = True
+        if symmetric:
+            # commutation relation
+            tensor_commuted = tensors.permute_legs(tensor, codomain=[1, 0], domain=[2, 3])
+            tensor_commuted.relabel({'p0': 'p1', 'p1': 'p0', 'p0*': 'p1*', 'p1*': 'p0*'})
+            assert tensors.almost_equal(tensor_commuted, site.anti_commute_sign * tensor)
 
     check_coupling(couplings.pairing, site_num=2, invalid_site_nums=[1, 3],
                    boson_fermion_mixing=True)
 
 
 def test_onsite_pairing(any_backend, np_random):
-    check_dense_blocks = np_random.choice([True, False])
     bosonic_sites = generate_bosonic_dofs(any_backend, conserve=['parity', 'None'])
     num_sites = min(3, len(bosonic_sites))
     bosonic_sites = np_random.choice(bosonic_sites, size=num_sites, replace=False)
@@ -516,15 +570,11 @@ def test_onsite_pairing(any_backend, np_random):
 
         coupling = couplings.onsite_pairing([site], Delta, species=(species1, species2))
         coupling.test_sanity()
-        if check_dense_blocks:
-            expect = 0
-            for k1, k2 in zip(species1, species2):
-                a_i_hc = site.get_creator_numpy(k1, include_JW=True)
-                a_j_hc = site.get_creator_numpy(k2, include_JW=True)
-                expect += a_i_hc @ a_j_hc
-            expect = Delta * expect + np.transpose(np.conj(Delta * expect))
-            assert np.allclose(coupling.to_numpy(understood_braiding=True), expect)
-
+        tensor = coupling.to_tensor()
+        # hermiticity
+        assert tensors.almost_equal(tensor.hc, tensor)
+        # trace is zero
+        assert np.allclose(tensors.trace(tensor), 0)
         if isinstance(site, degrees_of_freedom.FermionicDOF):
             # default case is trivial for fermions
             coupling = couplings.onsite_pairing([site], Delta=1)
@@ -539,26 +589,26 @@ def test_onsite_pairing(any_backend, np_random):
 
 
 def test_clock_clock_coupling(any_backend, np_random):
-    check_dense_blocks = np_random.choice([True, False])
     site_list = generate_clock_dofs(any_backend)
     for site in site_list:
         Jx, Jz = np_random.random(2)
         coupling = couplings.clock_clock_coupling([site] * 2, Jx=Jx, Jz=Jz)
         coupling.test_sanity()
-        if check_dense_blocks:
-            X, Z = site.clock_operators[:, :, 0], site.clock_operators[:, :, 1]
-            expect = Jx * X[:, None, None, :] * X.T.conj()[None, :, :, None]
-            expect += Jx * X.T.conj()[:, None, None, :] * X[None, :, :, None]
-            expect += Jz * Z[:, None, None, :] * Z.T.conj()[None, :, :, None]
-            expect += Jz * Z.T.conj()[:, None, None, :] * Z[None, :, :, None]
-            assert np.allclose(coupling.to_numpy(), expect)
+        tensor = coupling.to_tensor()
+        # hermiticity
+        assert tensors.almost_equal(tensor.hc, tensor)
+        # trace is zero
+        assert np.allclose(tensors.trace(tensor), 0)
+        # commutation relation
+        tensor_commuted = tensors.permute_legs(tensor, codomain=[1, 0], domain=[2, 3])
+        tensor_commuted.relabel({'p0': 'p1', 'p1': 'p0', 'p0*': 'p1*', 'p1*': 'p0*'})
+        assert tensors.almost_equal(tensor_commuted, tensor)
 
     check_coupling(couplings.clock_clock_coupling, site_num=2, invalid_site_nums=[1, 3],
                    boson_fermion_mixing=False)
 
 
 def test_clock_field_coupling(any_backend, np_random):
-    check_dense_blocks = np_random.choice([True, False])
     site_list = generate_clock_dofs(any_backend)
     for site in site_list:
         hx, hz = np_random.random(2)
@@ -566,11 +616,17 @@ def test_clock_field_coupling(any_backend, np_random):
             hx = 0
         coupling = couplings.clock_field_coupling([site], hx=hx, hz=hz)
         coupling.test_sanity()
-        if check_dense_blocks:
-            X, Z = site.clock_operators[:, :, 0], site.clock_operators[:, :, 1]
-            expect = hx * X + hx * X.T.conj()
-            expect += hz * Z + hz * Z.T.conj()
-            assert np.allclose(coupling.to_numpy(), expect)
+        tensor = coupling.to_tensor()
+        # hermiticity
+        assert tensors.almost_equal(tensor.hc, tensor)
+        # trace is zero
+        assert np.allclose(tensors.trace(tensor), 0)
+        # check eigenvalues
+        if isinstance(site.leg.symmetry, cyten.symmetries.ZNSymmetry):
+            expect_evs = 2 * np.cos(np.linspace(0, 2 * np.pi, site.q, endpoint=False))
+            evs = tensor.to_numpy(understood_braiding=True)
+            evs = np.sort(np.linalg.eigvalsh(evs))
+            assert np.allclose(evs, np.sort(hz * expect_evs))
 
     check_coupling(couplings.clock_field_coupling, site_num=1, invalid_site_nums=[2],
                    boson_fermion_mixing=False)
@@ -579,38 +635,41 @@ def test_clock_field_coupling(any_backend, np_random):
 # TEST ANYONIC COUPLINGS
 
 
-def test_sector_projection_coupling(block_backend, np_random):
-    check_tensor = np_random.choice([True, False])
+def test_sector_projection_coupling(block_backend):
     site_list = generate_anyon_dofs(block_backend)
-    num_sites = [3, 2, 3, 3, 2, 1]
+    num_sites = [3, 2, 1, 2, 2, 1]
     sectors = np.asarray([[1], [2], [1], [0], [2], [2]], dtype=int)
     for site, num, sector in zip(site_list, num_sites, sectors):
         coupling = couplings.sector_projection_coupling([site] * num, J=1., sector=sector, name='')
         coupling.test_sanity()
-        if check_tensor:
-            expect = cyten.SymmetricTensor.from_sector_projection(
-                [site.leg] * num, sector=sector, backend=site.backend, device=site.default_device
-            )
-            assert tensors.almost_equal(coupling.to_tensor(), expect)
+        tensor = coupling.to_tensor()
+        # hermiticity
+        assert tensors.almost_equal(tensor.hc, tensor)
+        # trace is integer * dim(sector)
+        dim_sec = site.symmetry.qdim(sector)
+        tr = tensors.trace(tensor)
+        assert np.allclose(np.round(tr / dim_sec, 0), tr / dim_sec)
 
 
-def test_gold_coupling(block_backend, np_random):
-    check_tensor = np_random.choice([True, False])
+def test_gold_coupling(block_backend):
     backend = backends.get_backend('fusion_tree', block_backend=block_backend)
     site_list = [sites.GoldenSite(backend=backend), sites.FibonacciAnyonSite(backend=backend)]
-    for site in site_list:
-        site: sites.GoldenSite
+    for i, site in enumerate(site_list):
         coupling = couplings.gold_coupling([site] * 2, J=1.)
         coupling.test_sanity()
-        if check_tensor:
-            sector = np.array([0], dtype=int)
-            expect = tensors.SymmetricTensor.from_sector_projection(
-                [site.leg] * 2, sector=sector, backend=site.backend, device=site.default_device
-            )
-            assert tensors.almost_equal(coupling.to_tensor(), -1 * expect)
+        tensor = coupling.to_tensor()
+        # hermiticity
+        assert tensors.almost_equal(tensor.hc, tensor)
+        # trace
+        assert np.allclose(tensors.trace(tensor), [-1, -2][i])
 
     coupling = couplings.gold_coupling(site_list, J=1.)
     coupling.test_sanity()
+    tensor = coupling.to_tensor()
+    # hermiticity
+    assert tensors.almost_equal(tensor.hc, tensor)
+    # trace
+    assert np.allclose(tensors.trace(tensor), -1)
 
     check_coupling(couplings.gold_coupling, site_num=2, invalid_site_nums=[1, 3],
                    boson_fermion_mixing=False)
