@@ -82,12 +82,12 @@ class SpinSite(SpinDOF):
         )
 
         if not isinstance(sym, SU2Symmetry):
-            self.add_onsite_operator('Sz', spin_vector[:, :, 2].copy(), is_diagonal=True)
+            self.add_onsite_operator('Sz', spin_vector[:, :, 2], is_diagonal=True)
             if two_S == 1:
                 self.add_onsite_operator('Sigmaz', 2. * spin_vector[:, :, 2], is_diagonal=True)
         if isinstance(sym, NoSymmetry):
-            self.add_onsite_operator('Sx', spin_vector[:, :, 0].copy())
-            self.add_onsite_operator('Sy', spin_vector[:, :, 1].copy())
+            self.add_onsite_operator('Sx', spin_vector[:, :, 0])
+            self.add_onsite_operator('Sy', spin_vector[:, :, 1])
             self.add_onsite_operator('Sp', spin_vector[:, :, 0] + 1.j * spin_vector[:, :, 1])
             self.add_onsite_operator('Sm', spin_vector[:, :, 0] - 1.j * spin_vector[:, :, 1])
             if two_S == 1:
@@ -467,7 +467,8 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         state_labels = {'(0, 0)': 0, '(0, 1)': 1, '(1, 0)': 2, '(1, 1)': 3,
                         'empty': 0, 'vac': 0, 'down': 1, 'up': 2, 'full': 3}
 
-        super().__init__(leg=leg, spin_vector=spin_vector, creators=creators, annihilators=annihilators,
+        super().__init__(
+            leg=leg, spin_vector=spin_vector, creators=creators, annihilators=annihilators,
             state_labels=state_labels, onsite_operators=None, backend=backend,
             default_device=default_device, species_names=['up', 'down']
         )
@@ -481,11 +482,11 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         # spin operators
         ops = {}
         if not isinstance(sym_S, SU2Symmetry):
-            ops['Sz'] = spin_vector[:, :, 2].copy()
+            ops['Sz'] = spin_vector[:, :, 2]
             ops['Sigmaz'] = 2. * spin_vector[:, :, 2]
         if isinstance(sym_S, NoSymmetry):
-            self.add_onsite_operator('Sx', spin_vector[:, :, 0].copy(), understood_braiding=True)
-            self.add_onsite_operator('Sy', spin_vector[:, :, 1].copy(), understood_braiding=True)
+            self.add_onsite_operator('Sx', spin_vector[:, :, 0], understood_braiding=True)
+            self.add_onsite_operator('Sy', spin_vector[:, :, 1], understood_braiding=True)
             self.add_onsite_operator('Sp', spin_vector[:, :, 0] + 1.j * spin_vector[:, :, 1], understood_braiding=True)
             self.add_onsite_operator('Sm', spin_vector[:, :, 0] - 1.j * spin_vector[:, :, 1], understood_braiding=True)
             self.add_onsite_operator('Sigmax', 2. * spin_vector[:, :, 0], understood_braiding=True)

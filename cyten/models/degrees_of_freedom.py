@@ -111,12 +111,12 @@ class Site:
                 op.labels = ['p', 'p*']
         elif is_diagonal is True:
             op = DiagonalTensor.from_dense_block(
-                block=op, leg=self.leg, backend=self.backend, labels=['p', 'p*'],
+                block=op.copy(), leg=self.leg, backend=self.backend, labels=['p', 'p*'],
                 device=self.default_device, understood_braiding=understood_braiding
             )
         else:
             op = SymmetricTensor.from_dense_block(
-                block=op, codomain=[self.leg], domain=[self.leg], backend=self.backend,
+                block=op.copy(), codomain=[self.leg], domain=[self.leg], backend=self.backend,
                 labels=['p', 'p*'], device=self.default_device, understood_braiding=understood_braiding
             )
         self.onsite_operators[name] = op
@@ -305,7 +305,7 @@ class OccupationDOF(Site, metaclass=ABCMeta):
         If there is only a single species, also the aliases ``N`` for ``N0`` and ``P`` for ``P0``.
         """
         for k in range(self.num_species):
-            N_k = self.number_operators[:, :, k].copy()
+            N_k = self.number_operators[:, :, k]
             self.add_onsite_operator(f'N{k}', N_k, is_diagonal=True)
         if self.num_species == 1:
             self.add_onsite_operator('N', self.onsite_operators['N0'])
@@ -318,7 +318,7 @@ class OccupationDOF(Site, metaclass=ABCMeta):
         - total parity operator `Ptot`
         - squared total occupation operator `NtotNtot`
         """
-        self.add_onsite_operator('Ntot', self.n_tot.copy(), is_diagonal=True)
+        self.add_onsite_operator('Ntot', self.n_tot, is_diagonal=True)
         self.add_onsite_operator('NtotNtot', self.n_tot @ self.n_tot, is_diagonal=True)
         P_tot = np.diag(1. - 2. * np.mod(np.diag(self.n_tot), 2))
         self.add_onsite_operator('Ptot', P_tot, is_diagonal=True)
@@ -667,7 +667,7 @@ class ClockDOF(Site):
 
         Z = clock_operators[:, :, 1]
         Zhc = np.conj(clock_operators[:, :, 1].T)
-        self.add_onsite_operator('Z', Z.copy(), is_diagonal=True)
+        self.add_onsite_operator('Z', Z, is_diagonal=True)
         self.add_onsite_operator('Zhc', Zhc, is_diagonal=True)
         self.add_onsite_operator('Zphc', Z + Zhc, is_diagonal=True)
 
