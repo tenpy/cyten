@@ -75,7 +75,8 @@ class Coupling:
 
     @classmethod
     def from_dense_block(cls, operator: Block, sites: list[Site], name: str = None,
-                         dtype: Dtype = None, understood_braiding: bool = False) -> Coupling:
+                         dtype: Dtype = None, understood_braiding: bool = False,
+                         cutoff_singular_values: float = None) -> Coupling:
         """Convert a dense block to a :class:`Coupling`.
 
         Parameters
@@ -94,6 +95,9 @@ class Coupling:
         dtype : :class:`Dtype`, optional
             If given, the block is converted to that dtype and the resulting tensors in the
             factorization will have that dtype. By default, we detect the dtype from the block.
+        cutoff_singular_values : float, optional
+            If given, truncate singular values (see :func:`cyten.horizontal_factorization`)
+            below this threshold.
         """
         backend = get_same_backend(*sites)
         device = sites[0].default_device
@@ -104,7 +108,8 @@ class Coupling:
         op = SymmetricTensor.from_dense_block(operator, co_domain, co_domain, backend=backend,
                                               labels=labels, dtype=dtype, device=device,
                                               understood_braiding=understood_braiding)
-        return cls.from_tensor(op, sites=sites, name=name)
+        return cls.from_tensor(op, sites=sites, name=name,
+                               cutoff_singular_values=cutoff_singular_values)
 
     @classmethod
     def from_tensor(cls, operator: SymmetricTensor, sites: list[Site], name: str = None,
