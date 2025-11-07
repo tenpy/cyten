@@ -1110,6 +1110,7 @@ class BlockBackend(metaclass=ABCMeta):
         new_shape = []
         last_stop = 0
         for group, cstyle in zip(leg_idcs_combine, cstyles):
+            group = sorted(group)
             start = group[0]
             stop = group[-1] + 1
             new_shape.extend(old_shape[last_stop:start])  # all leg *not* to be combined

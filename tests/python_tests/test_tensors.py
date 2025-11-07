@@ -2602,7 +2602,7 @@ def test_permute_legs(
         and compatible_symmetry.is_same_symmetry(
             symmetries.ProductSymmetry([symmetries.fibonacci_anyon_category, symmetries.u1_symmetry])
         )
-        and bend_right is False
+        and not bend_right
     ):
         pytest.xfail('Unresolved almost_equal errors')  # TODO Resolve almost_equal errors
 

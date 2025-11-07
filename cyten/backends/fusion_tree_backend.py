@@ -388,10 +388,10 @@ class FusionTreeBackend(TensorBackend):
         )
         data = mapping.transform_tensor(
             tensor.data,
-            codomain=tensor.codomain,
-            domain=tensor.domain,
-            new_codomain=new_codomain,
-            new_domain=new_domain,
+            codomain=TensorProduct(tensor.codomain.flat_legs, symmetry=tensor.symmetry),
+            domain=TensorProduct(tensor.domain.flat_legs, symmetry=tensor.symmetry),
+            new_codomain=TensorProduct(new_codomain.flat_legs, symmetry=tensor.symmetry),
+            new_domain=TensorProduct(new_domain.flat_legs, symmetry=tensor.symmetry),
             codomain_idcs=codomain_idcs,
             domain_idcs=domain_idcs,
             block_backend=self.block_backend,
