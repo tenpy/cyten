@@ -79,7 +79,7 @@ import logging
 
 from .dummy_config import printoptions
 from .symmetries import SymmetryError, Symmetry, BraidingStyle
-from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
+from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe, AbelianLegPipe
 from .trees import FusionTree
 from .backends.backend_factory import get_backend
 from .backends.abstract_backend import (
@@ -808,7 +808,7 @@ class Tensor(metaclass=ABCMeta):
         if self.has_pipes:
             block = self._to_dense_block_by_splitting_pipes()
         else:
-            block = self.to_dense_block(leg_order,numpy_dtype, understood_braiding)
+            block = self.to_dense_block(leg_order, numpy_dtype, understood_braiding)
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
     def flip_leg_duality(self, leg_indices: list[int]):
@@ -825,6 +825,7 @@ class Tensor(metaclass=ABCMeta):
 
             else:
                 self.legs[i] = self.legs[i].dual
+
 
 class SymmetricTensor(Tensor):
     """A tensor that is symmetric, i.e. invariant under the symmetry.

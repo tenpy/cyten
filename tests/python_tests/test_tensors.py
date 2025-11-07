@@ -153,8 +153,6 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums, use_pipes):
     if T.has_pipes:
         pytest.xfail('Pipes not working yet.')
 
-
-
     print('checking to_numpy')
     numpy_block = T.to_numpy(understood_braiding=True)
     dense_block = T.backend.block_backend.block_from_numpy(numpy_block)
@@ -2526,27 +2524,26 @@ def test_permute_legs(cls, num_cod, num_dom, codomain, domain, levels, bend_righ
     if T.has_pipes:
         pytest.xfail('Unresolved indexing errors')
 
-    if T.has_pipes and isinstance(T.backend, backends.AbelianBackend): #TODO Resolve indexing errors
+    if T.has_pipes and isinstance(T.backend, backends.AbelianBackend): # TODO Resolve indexing errors
         pytest.xfail('Unresolved indexing errors')
 
     if isinstance(T.backend, backends.FusionTreeBackend) and\
-            isinstance(compatible_symmetry, symmetries.FermionParity): #TODO Resolve almost_equal errors
+            isinstance(compatible_symmetry, symmetries.FermionParity): # TODO Resolve almost_equal errors
         pytest.xfail('Unresolved almost_equal errors')
 
     if T.has_pipes and isinstance(T.backend, backends.FusionTreeBackend) and \
             isinstance(compatible_symmetry, symmetries.FibonacciAnyonCategory) and bend_right is False:
-        pytest.xfail('Unresolved almost_equal errors')  #TODO Resolve almost_equal errors
+        pytest.xfail('Unresolved almost_equal errors')  # TODO Resolve almost_equal errors
 
     if T.has_pipes and isinstance(T.backend, backends.FusionTreeBackend) and \
             isinstance(compatible_symmetry, symmetries.IsingAnyonCategory) and bend_right is False:
-        pytest.xfail('Unresolved almost_equal errors')  #TODO Resolve almost_equal errors
+        pytest.xfail('Unresolved almost_equal errors')  # TODO Resolve almost_equal errors
 
     if T.has_pipes and isinstance(T.backend, backends.FusionTreeBackend) and \
       compatible_symmetry.is_same_symmetry(
                        symmetries.ProductSymmetry([symmetries.fibonacci_anyon_category,symmetries.u1_symmetry])) \
-            and bend_right == False:
-        pytest.xfail('Unresolved almost_equal errors')  #TODO Resolve almost_equal errors
-
+            and not bend_right:
+        pytest.xfail('Unresolved almost_equal errors')  # TODO Resolve almost_equal errors
 
     if cls is ChargedTensor:
         pytest.xfail('Charged tensors are not supported yet.')

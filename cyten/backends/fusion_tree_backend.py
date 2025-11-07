@@ -370,9 +370,11 @@ class FusionTreeBackend(TensorBackend):
         mapping = cls.from_instructions(instructions=instructions, codomain=tensor.codomain,
                                         domain=tensor.domain, block_inds=tensor.data.block_inds)
         data = mapping.transform_tensor(
-            tensor.data, codomain=TensorProduct(tensor.codomain.flat_legs, symmetry=tensor.symmetry), domain=TensorProduct(tensor.domain.flat_legs, symmetry=tensor.symmetry),
-            new_codomain=TensorProduct(new_codomain.flat_legs,symmetry=tensor.symmetry),
-            new_domain=TensorProduct(new_domain.flat_legs, symmetry=tensor.symmetry), codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
+            tensor.data, codomain=TensorProduct(tensor.codomain.flat_legs, symmetry=tensor.symmetry),
+            domain=TensorProduct(tensor.domain.flat_legs, symmetry=tensor.symmetry),
+            new_codomain=TensorProduct(new_codomain.flat_legs, symmetry=tensor.symmetry),
+            new_domain=TensorProduct(new_domain.flat_legs, symmetry=tensor.symmetry),
+            codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
             block_backend=self.block_backend
         )
         return data
@@ -403,8 +405,8 @@ class FusionTreeBackend(TensorBackend):
                      new_codomain: TensorProduct,
                      new_domain: TensorProduct,
                      ) -> Data:
-        return FusionTreeData(block_inds=tensor.data.block_inds, blocks= tensor.data.blocks,
-                              dtype= tensor.dtype, device=tensor.device)
+        return FusionTreeData(block_inds=tensor.data.block_inds, blocks=tensor.data.blocks,
+                              dtype=tensor.dtype, device=tensor.device)
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         res_dtype = Dtype.common(a.dtype, b.dtype)
@@ -3262,19 +3264,18 @@ def _partial_trace_helper(tree: FusionTree, idcs: list[int]) -> tuple[bool, floa
     return True, b_symbols
 
 
-
 def _count_flat_legs(leg) -> int:
     """Helper for :meth:`FusionTreeBackend.permute_legs`.
 
-        Parameters
-        ----------
-        leg : Leg of a Tensor
+    Parameters
+    ----------
+    leg : Leg of a Tensor
 
-        Returns
-        -------
-        total : int
-            The total number of flat legs in the (possibly nested) pipe. Returns 1 of the input leg is flat.
-        """
+    Returns
+    -------
+    total : int
+        The total number of flat legs in the (possibly nested) pipe. Returns 1 of the input leg is flat.
+    """
     if not isinstance(leg, LegPipe):
         return 1
     total = 0
