@@ -130,6 +130,10 @@ class LegPipe(Leg):
     def dual(self) -> LegPipe:
         return LegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual)
 
+
+    def with_opposite_duality(self) -> LegPipe:
+        return LegPipe(self.legs, is_dual=not self.is_dual)
+
     @property
     def is_trivial(self) -> bool:
         return all(l.is_trivial for l in self.legs)
@@ -1412,6 +1416,10 @@ class TensorProduct(Space):
             _sector_decomposition=sectors, _multiplicities=multiplicities
         )
 
+    @property
+    def flat_legs(self) -> list[ElementarySpace]:
+        return _make_flat_legs(self.factors)
+
     def flat_leg_idcs(self, i: int) -> list[int]:
         """All indices into the :meth:`flat_legs` that the leg ``factors[i]`` flattens to."""
         # OPTIMIZE could just add the lengths without building the actual lists...
@@ -1547,7 +1555,7 @@ class TensorProduct(Space):
             a = np.array([self.flat_legs[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
             m = np.array([self.flat_legs[n].multiplicities[i] for n, i in enumerate(idcs)], int)
             if yield_slices:
-                slcs = [slice(*self.factors[n].slices[i]) for n, i in enumerate(idcs)]
+                slcs = [slice(*self.flat_legs[n].slices[i]) for n, i in enumerate(idcs)]
                 yield a, m, slcs
             else:
                 yield a, m
@@ -1574,7 +1582,7 @@ class TensorProduct(Space):
     def tree_block_size(space: TensorProduct, uncoupled: tuple[Sector]) -> int:
         """The size of a tree-block"""
         # OPTIMIZE ?
-        return prod(s.sector_multiplicity(a) for s, a in zip(space.factors, uncoupled))
+        return prod(s.sector_multiplicity(a) for s, a in zip(_make_flat_legs(space.factors), uncoupled))
 
     def tree_block_slice(self, tree: FusionTree) -> slice:
         """The range of indices of a tree-block within its block, as a slice."""
@@ -1668,6 +1676,7 @@ class TensorProduct(Space):
 
     def _calc_sectors(self, factors: list[Space | Leg]) -> tuple[SectorArray, ndarray]:
         """Helper function for :meth:`__init__`"""
+        factors=_make_flat_legs(factors)
         if len(factors) == 0:
             return self.symmetry.trivial_sector[None, :], np.ones([1], int)
 
@@ -1974,6 +1983,11 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     def with_opposite_duality(self):
         return AbelianLegPipe(legs=self.legs, is_dual=not self.is_dual,
                               combine_cstyle=self.combine_cstyle)
+
+    def with_opposite_duality_and_combinestyle(self):
+        return AbelianLegPipe(legs=self.legs, is_dual=not self.is_dual,
+                              combine_cstyle=not self.combine_cstyle)
+
 
     def __eq__(self, other):
         res = LegPipe.__eq__(self, other)

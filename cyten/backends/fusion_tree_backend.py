@@ -107,16 +107,18 @@ if TYPE_CHECKING:
 
 def _tree_block_iter(a: SymmetricTensor):
     sym = a.symmetry
-    domain_are_dual = [sp.is_dual for sp in a.domain.factors]
-    codomain_are_dual = [sp.is_dual for sp in a.codomain.factors]
+    domain_are_dual = [sp.is_dual for sp in a.domain.flat_legs]
+    codomain_are_dual = [sp.is_dual for sp in a.codomain.flat_legs]
     for (bi, _), block in zip(a.data.block_inds, a.data.blocks):
-        coupled = a.codomain.sector_decomposition[bi]
+        coupled = TensorProduct(a.codomain.flat_legs).sector_decomposition[bi]
         i1_forest = 0  # start row index of the current forest block
         i2_forest = 0  # start column index of the current forest block
-        for b_sectors, b_mults in a.domain.iter_uncoupled():
+        for b_sectors, b_mults in TensorProduct(a.domain.flat_legs).iter_uncoupled():
+            # FIXME change iter_uncoupled() instead of making a new TensorProduct?
+            #        -> ``in a.domain.iter_uncoupled()``
             tree_block_width = np.prod(b_mults)
             forest_block_width = 0
-            for a_sectors, a_mults in a.codomain.iter_uncoupled():
+            for a_sectors, a_mults in TensorProduct(a.codomain.flat_legs).iter_uncoupled():
                 tree_block_height = np.prod(a_mults)
                 i1 = i1_forest  # start row index of the current tree block
                 i2 = i2_forest  # start column index of the current tree block
@@ -368,8 +370,9 @@ class FusionTreeBackend(TensorBackend):
         mapping = cls.from_instructions(instructions=instructions, codomain=tensor.codomain,
                                         domain=tensor.domain, block_inds=tensor.data.block_inds)
         data = mapping.transform_tensor(
-            tensor.data, codomain=tensor.codomain, domain=tensor.domain, new_codomain=new_codomain,
-            new_domain=new_domain, codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
+            tensor.data, codomain=TensorProduct(tensor.codomain.flat_legs, symmetry=tensor.symmetry), domain=TensorProduct(tensor.domain.flat_legs, symmetry=tensor.symmetry),
+            new_codomain=TensorProduct(new_codomain.flat_legs,symmetry=tensor.symmetry),
+            new_domain=TensorProduct(new_domain.flat_legs, symmetry=tensor.symmetry), codomain_idcs=codomain_idcs, domain_idcs=domain_idcs,
             block_backend=self.block_backend
         )
         return data
@@ -867,8 +870,8 @@ class FusionTreeBackend(TensorBackend):
 
     def from_tree_pairs(self, trees: dict[tuple[FusionTree, FusionTree], Block], codomain: TensorProduct,
                         domain: TensorProduct, dtype: Dtype, device: str) -> Data:
-        J = codomain.num_factors
-        K = domain.num_factors
+        J = len(codomain.flat_legs)
+        K = len(domain.flat_legs)
         block_inds = []
         blocks = []
         pairs_done = set()
@@ -929,10 +932,10 @@ class FusionTreeBackend(TensorBackend):
                'to use to_numpy() first and then access the entries of the tensor.')
         warnings.warn(msg, UserWarning, stacklevel=2)
 
-        num_cod_legs = a.num_codomain_legs
-        num_legs = a.num_legs
+        num_cod_legs = len(a.codomain.flat_legs)
+        num_legs = a.num_flat_legs
         # reverse domain idcs -> work in the non-conventional leg order [i1,...,iJ,j1,...,jK]
-        a_legs = [*a.codomain.factors, *a.domain.factors]
+        a_legs = [*a.codomain.flat_legs, *a.domain.flat_legs]
         idcs = idcs[:num_cod_legs] + idcs[num_cod_legs:][::-1]
         pos = np.array([l.parse_index(idx) for l, idx in zip(a_legs, idcs)])
         sector_idcs = pos[:, 0]

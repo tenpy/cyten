@@ -139,8 +139,9 @@ def test_base_Tensor(make_compatible_space, compatible_backend):
 
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)],
                          ids=['1->1', '1->2', '0->3', '3->0'])
-def test_SymmetricTensor(make_compatible_tensor, leg_nums):
-    T: SymmetricTensor = make_compatible_tensor(*leg_nums)
+@pytest.mark.parametrize('use_pipes', [True, 0.3])
+def test_SymmetricTensor(make_compatible_tensor, leg_nums, use_pipes):
+    T: SymmetricTensor = make_compatible_tensor(*leg_nums, use_pipes=use_pipes)
 
     T.test_sanity()
     assert T.num_codomain_legs == leg_nums[0]
@@ -1275,7 +1276,6 @@ def test_apply_mask(cls, codomain, domain, which_leg, make_compatible_tensor, co
     if isinstance(compatible_backend, backends.FusionTreeBackend):
         # TODO instead of disabling, can we generate pipes on the *other* legs, not to be masked?
         kwargs['use_pipes'] = False
-
     M: Mask = make_compatible_tensor(cls=Mask)
     num_legs = domain + codomain
     which_leg = to_valid_idx(which_leg, num_legs)
