@@ -20,7 +20,7 @@ def check_coupling(coupling_cls, site_num: int, invalid_site_nums: list[int],
     # it does not matter what site we use since the number of sites is checked first
     site = sites.SpinlessBosonSite([1])
     for n in invalid_site_nums:
-        with pytest.raises(AssertionError):
+        with pytest.raises(ValueError, match='Invalid number of sites.'):
             _ = coupling_cls([site] * n, **kwargs)
     if boson_fermion_mixing:
         site_list = [site, sites.SpinlessFermionSite(1)]

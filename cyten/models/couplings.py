@@ -206,7 +206,8 @@ def spin_spin_coupling(sites: list[SpinDOF], Jx: float = 0, Jy: float = 0, Jz: f
     Jx, Jy, Jz: float
         Prefactor, as given above. By default, all prefactors vanish.
     """
-    assert len(sites) == 2
+    if len(sites) != 2:
+        raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     s1 = sites[0].spin_vector
     s2 = sites[1].spin_vector
     h = 0  # build in leg order [p0, p0*, p1, p1*] and transpose only once before returning
@@ -231,7 +232,8 @@ def spin_field_coupling(sites: list[SpinDOF], hx: float = 0, hy: float = 0, hz: 
     hx, hy, hz: float
         Prefactor, as given above. By default, all prefactors vanish.
     """
-    assert len(sites) == 1
+    if len(sites) != 1:
+        raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
     s = sites[0].spin_vector
     h = hx * s[:, :, 0] + hy * s[:, :, 1] + hz * s[:, :, 2]
     return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
@@ -257,7 +259,8 @@ def aklt_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'AKLT') -> Cou
     J: float
         Prefactor, as given above. By default use ``1``.
     """
-    assert len(sites) == 2
+    if len(sites) != 2:
+        raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     s1 = sites[0].spin_vector
     s2 = sites[1].spin_vector
     S_dot_S = np.tensordot(s1, s2, axes=[2, 2])
@@ -296,7 +299,8 @@ def chiral_3spin_coupling(sites: list[SpinDOF], chi: float = 1, name: str = 'S.S
     chi: float
         Prefactor, as given above. By default use ``1``.
     """
-    assert len(sites) == 3
+    if len(sites) != 3:
+        raise ValueError(f'Invalid number of sites. Expected 3, got {len(sites)}')
     SxS = np.cross(sites[1].spin_vector[:, None, None, :, :],
                    sites[2].spin_vector[None, :, :, None, :],
                    axis=4)  # [p1, p2, p2*, p1*, i]
@@ -328,7 +332,8 @@ def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float,
         If given, the chemical potential only couples to the occupation of this species.
         By default, it couples to the total occupation of all species.
     """
-    assert len(sites) == 1
+    if len(sites) != 1:
+        raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
     h = -mu * sites[0].get_occupation_numpy(species=species)
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
@@ -353,7 +358,8 @@ def onsite_interaction(sites: list[BosonicDOF] | list[FermionicDOF], U: float = 
         If given, we use only the occupation of this one species as the density :math:`n_i`.
         By default, we use the total occupation of all species.
     """
-    assert len(sites) == 1
+    if len(sites) != 1:
+        raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
     n_i = sites[0].get_occupation_numpy(species=species)
     h = .5 * U * n_i @ n_i
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
@@ -381,7 +387,8 @@ def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V:
         By default, we use the total occupation of all species.
         Note that if the two species are different, this coupling alone is not hermitian!
     """
-    assert len(sites) == 2
+    if len(sites) != 2:
+        raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     is_bosonic = [isinstance(site, BosonicDOF) for site in sites]
     if all(is_bosonic) != any(is_bosonic):
         msg = ('Bosonic and fermionic sites are incompatible and cannot be '
@@ -396,7 +403,8 @@ def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V:
 def _quadratic_coupling_numpy(sites: list[BosonicDOF] | list[FermionicDOF], is_pairing: bool,
                               species) -> np.ndarray:
     """Create the numpy representation for both :func:`hopping` and :func:`pairing`."""
-    assert len(sites) == 2
+    if len(sites) != 2:
+        raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     is_bosonic = [isinstance(site, BosonicDOF) for site in sites]
     if all(is_bosonic) != any(is_bosonic):
         msg = ('Bosonic and fermionic sites are incompatible and cannot be '
@@ -508,7 +516,8 @@ def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 
     --------
     pairing
     """
-    assert len(sites) == 1
+    if len(sites) != 1:
+        raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
     site, = sites
     species_1, species_2 = species
     if species_1 is ALL_SPECIES:
@@ -541,7 +550,8 @@ def clock_clock_coupling(sites: list[ClockDOF], Jx: float = 0, Jz: float = 0,
     Jx, Jz: float
         Prefactor, as given above. By default, all prefactors vanish.
     """
-    assert len(sites) == 2
+    if len(sites) != 2:
+        raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     X_i = sites[0].clock_operators[:, :, 0]
     Z_i = sites[0].clock_operators[:, :, 1]
     X_j = sites[1].clock_operators[:, :, 0]
@@ -566,7 +576,8 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
     hx, hz: float
         Prefactor, as given above. By default, all prefactors vanish.
     """
-    assert len(sites) == 1
+    if len(sites) != 1:
+        raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
     X = sites[0].clock_operators[:, :, 0]
     Z = sites[0].clock_operators[:, :, 1]
     h = hx * (X + X.T.conj()) + hz * (Z + Z.T.conj())
@@ -610,7 +621,8 @@ def gold_coupling(sites: list[GoldenSite], J: float = 1, name: str = 'gold') -> 
         Prefactor, as given above. By default ``1``. Positive `J` energetically favor the
         trivial fusion channel, i.e. they are the "antiferromagnetic" analog.
     """
-    assert len(sites) == 2
+    if len(sites) != 2:
+        raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     for site in sites:
         assert isinstance(site.symmetry, FibonacciAnyonCategory)
         assert site.leg.sector_decomposition_where(FibonacciAnyonCategory.tau) is not None
