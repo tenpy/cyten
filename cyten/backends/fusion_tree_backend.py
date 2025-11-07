@@ -424,7 +424,9 @@ class FusionTreeBackend(TensorBackend):
         new_codomain: TensorProduct,
         new_domain: TensorProduct,
     ) -> Data:
-        raise NotImplementedError('FusionTreeBackend.combine_legs not implemented')
+        return FusionTreeData(
+            block_inds=tensor.data.block_inds, blocks=tensor.data.blocks, dtype=tensor.dtype, device=tensor.device
+        )
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         res_dtype = Dtype.common(a.dtype, b.dtype)
@@ -1753,23 +1755,62 @@ class FusionTreeBackend(TensorBackend):
         levels: list[int | None],
         bend_right: list[bool | None],
     ) -> FusionTreeData:
+        num_codomain_flat_legs = a.num_codomain_flat_legs
+        num_domain_flat_legs = a.num_domain_flat_legs
+
+        flat_levels = []
+        flat_bend_right = []
+        codomain_pipe_inds = []
+        domain_pipe_inds = []
+
+        flat_index = 0
+        for i, leg in enumerate(a.legs):
+            is_codomain = i < a.num_codomain_legs
+            if isinstance(leg, LegPipe):
+                num = _count_flat_legs(leg)
+                indices = list(range(flat_index, flat_index + num))
+                if is_codomain:
+                    codomain_pipe_inds.append(indices)
+                else:
+                    domain_pipe_inds.append(indices)
+                flat_index += num
+                flat_levels.extend([levels[i]] * num)
+                flat_bend_right.extend([bend_right[i]] * num)
+            else:
+                if is_codomain:
+                    codomain_pipe_inds.append([flat_index])
+                else:
+                    domain_pipe_inds.append([flat_index])
+                flat_index += 1
+                flat_levels.append(levels[i])
+                flat_bend_right.append(bend_right[i])
+
+        # mapping to flat indices for TreeMappingDict.from_permute_legs
+        leg_comb = codomain_pipe_inds + domain_pipe_inds
+
+        new_domain_idcs = [k for ks in [leg_comb[i][::-1] for i in domain_idcs] for k in ks]
+        new_codomain_idcs = [k for ks in [leg_comb[i] for i in codomain_idcs] for k in ks]
+
         h = PermuteLegsInstructionEngine(
-            num_codomain_legs=a.num_codomain_legs,
-            num_domain_legs=a.num_domain_legs,
-            codomain_idcs=codomain_idcs,
-            domain_idcs=domain_idcs,
-            levels=levels,
-            bend_right=bend_right,
+            num_codomain_legs=num_codomain_flat_legs,
+            num_domain_legs=num_domain_flat_legs,
+            codomain_idcs=new_codomain_idcs,
+            domain_idcs=new_domain_idcs,
+            levels=flat_levels,
+            bend_right=flat_bend_right,
             has_symmetric_braid=a.symmetry.has_symmetric_braid,
         )
         instructions = h.evaluate_instructions()
-        h.verify(a.num_codomain_legs, a.num_domain_legs, codomain_idcs, domain_idcs)  # OPTIMIZE rm check?
+
+        h.verify(
+            len(a.codomain.flat_legs), len(a.domain.flat_legs), new_codomain_idcs, new_domain_idcs
+        )  # OPTIMIZE rm check?
 
         return self.apply_instructions(
             a,
             instructions,
-            codomain_idcs=codomain_idcs,
-            domain_idcs=domain_idcs,
+            codomain_idcs=new_codomain_idcs,
+            domain_idcs=new_domain_idcs,
             new_codomain=new_codomain,
             new_domain=new_domain,
             mixes_codomain_domain=mixes_codomain_domain,
@@ -1920,7 +1961,7 @@ class FusionTreeBackend(TensorBackend):
         new_codomain: TensorProduct,
         new_domain: TensorProduct,
     ) -> Data:
-        raise NotImplementedError('FusionTreeBackend.split_legs not implemented')
+        return FusionTreeData(block_inds=a.data.block_inds, blocks=a.data.blocks, dtype=a.dtype, device=a.device)
 
     def squeeze_legs(self, a: SymmetricTensor, idcs: list[int]) -> Data:
         return a.data
@@ -3428,3 +3469,24 @@ def _partial_trace_helper(tree: FusionTree, idcs: list[int]) -> tuple[bool, floa
         if tree.are_dual[idx]:
             b_symbols *= sym.frobenius_schur(tree.uncoupled[idx])
     return True, b_symbols
+
+
+def _count_flat_legs(leg) -> int:
+    """Helper for :meth:`FusionTreeBackend.permute_legs`.
+
+    Parameters
+    ----------
+    leg : Leg of a Tensor
+
+    Returns
+    -------
+    total : int
+        The total number of flat legs in the (possibly nested) pipe. Returns 1 of the input leg is flat.
+
+    """
+    if not isinstance(leg, LegPipe):
+        return 1
+    total = 0
+    for c in leg.legs:
+        total += _count_flat_legs(c)
+    return total

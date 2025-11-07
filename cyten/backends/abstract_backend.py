@@ -1483,6 +1483,7 @@ class BlockBackend(metaclass=ABCMeta):
             start = i + 1
         new_shape.extend(old_shape[start:])
         axes_perm.extend(list(range(len(axes_perm), len(axes_perm) + len(old_shape) - start)))
+
         return self.permute_axes(self.reshape(a, tuple(new_shape)), axes_perm)
 
     @abstractmethod

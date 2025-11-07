@@ -625,6 +625,21 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return self.domain.num_factors
 
     @property
+    def num_codomain_flat_legs(self) -> int:
+        """Number of flat legs in the codomain."""
+        return len(self.codomain.flat_legs)
+
+    @property
+    def num_domain_flat_legs(self) -> int:
+        """Number of flat legs in the domain."""
+        return len(self.domain.flat_legs)
+
+    @property
+    def num_flat_legs(self) -> int:
+        """Total number of flat legs of self."""
+        return self.num_domain_flat_legs + self.num_codomain_flat_legs
+
+    @property
     def num_parameters(self) -> int:
         """The number of free parameters for the given legs.
 
@@ -842,7 +857,10 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         self, leg_order: list[int | str] = None, numpy_dtype=None, understood_braiding: bool = False
     ) -> np.ndarray:
         """Convert to a numpy array"""
-        block = self.to_dense_block(leg_order=leg_order, understood_braiding=understood_braiding)
+        if self.has_pipes:
+            block = self._to_dense_block_by_splitting_pipes()
+        else:
+            block = self.to_dense_block(leg_order, numpy_dtype, understood_braiding)
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
 
@@ -1485,8 +1503,15 @@ class SymmetricTensor(Tensor):
                 'this error by setting ``understood_braiding=True``.'
             )
             raise SymmetryError(msg)
-        block = self.backend.to_dense_block(self)
-        block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self), inv=True)
+
+        if self.has_pipes:
+            block = self._to_dense_block_by_splitting_pipes()
+        else:
+            block = self.backend.to_dense_block(self)
+            block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self), inv=True)
+
+        # block = self.backend.to_dense_block(self)
+        # block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self), inv=True)
         if dtype is not None:
             block = self.backend.block_backend.to_dtype(block, dtype)
         if leg_order is not None:
