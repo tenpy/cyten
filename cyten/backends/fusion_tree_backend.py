@@ -110,15 +110,15 @@ def _tree_block_iter(a: SymmetricTensor):
     domain_are_dual = [sp.is_dual for sp in a.domain.flat_legs]
     codomain_are_dual = [sp.is_dual for sp in a.codomain.flat_legs]
     for (bi, _), block in zip(a.data.block_inds, a.data.blocks):
-        coupled = TensorProduct(a.codomain.flat_legs).sector_decomposition[bi]
+        coupled = TensorProduct(a.codomain.flat_legs, symmetry=sym).sector_decomposition[bi]
         i1_forest = 0  # start row index of the current forest block
         i2_forest = 0  # start column index of the current forest block
-        for b_sectors, b_mults in TensorProduct(a.domain.flat_legs).iter_uncoupled():
+        for b_sectors, b_mults in TensorProduct(a.domain.flat_legs, symmetry=sym).iter_uncoupled():
             # FIXME change iter_uncoupled() instead of making a new TensorProduct?
             #        -> ``in a.domain.iter_uncoupled()``
             tree_block_width = np.prod(b_mults)
             forest_block_width = 0
-            for a_sectors, a_mults in TensorProduct(a.codomain.flat_legs).iter_uncoupled():
+            for a_sectors, a_mults in TensorProduct(a.codomain.flat_legs, symmetry=sym).iter_uncoupled():
                 tree_block_height = np.prod(a_mults)
                 i1 = i1_forest  # start row index of the current tree block
                 i2 = i2_forest  # start column index of the current tree block
