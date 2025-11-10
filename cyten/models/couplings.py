@@ -8,7 +8,7 @@ two sites that have a spin degree of freedom.
 from __future__ import annotations
 import numpy as np
 
-from ..symmetries import FibonacciAnyonCategory, Sector
+from ..symmetries import FibonacciAnyonCategory, Sector, SymmetryError
 from ..dtypes import Dtype
 from ..backends.abstract_backend import Block, get_same_backend
 from ..tensors import (
@@ -59,7 +59,7 @@ class Coupling:
 
     def test_sanity(self):
         backend = get_same_backend(*self.sites)
-        for i, (s, W) in enumerate(zip(self.sites, self.factorization)):
+        for s, W in zip(self.sites, self.factorization):
             s.test_sanity()
             W.test_sanity()
             assert W.backend == backend
@@ -75,7 +75,8 @@ class Coupling:
 
     @classmethod
     def from_dense_block(cls, operator: Block, sites: list[Site], name: str = None,
-                         dtype: Dtype = None, understood_braiding: bool = False) -> Coupling:
+                         dtype: Dtype = None, understood_braiding: bool = False,
+                         cutoff_singular_values: float = None) -> Coupling:
         """Convert a dense block to a :class:`Coupling`.
 
         Parameters
@@ -94,6 +95,9 @@ class Coupling:
         dtype : :class:`Dtype`, optional
             If given, the block is converted to that dtype and the resulting tensors in the
             factorization will have that dtype. By default, we detect the dtype from the block.
+        cutoff_singular_values : float, optional
+            If given, truncate singular values (see :func:`cyten.horizontal_factorization`)
+            below this threshold.
         """
         backend = get_same_backend(*sites)
         device = sites[0].default_device
@@ -104,7 +108,8 @@ class Coupling:
         op = SymmetricTensor.from_dense_block(operator, co_domain, co_domain, backend=backend,
                                               labels=labels, dtype=dtype, device=device,
                                               understood_braiding=understood_braiding)
-        return cls.from_tensor(op, sites=sites, name=name)
+        return cls.from_tensor(op, sites=sites, name=name,
+                               cutoff_singular_values=cutoff_singular_values)
 
     @classmethod
     def from_tensor(cls, operator: SymmetricTensor, sites: list[Site], name: str = None,
@@ -147,7 +152,7 @@ class Coupling:
             W.relabel({'p0': 'p', 'p0*': 'p*'})
             factorization = [add_trivial_leg(W, codomain_pos=0, label='wL')]
             for i in range(1, len(sites) - 1):
-                W, rest = horizontal_factorization(rest, 1, 1, new_labels=['wL', 'wR'],
+                W, rest = horizontal_factorization(rest, 2, 1, new_labels=['wR', 'wL'],
                                                    cutoff_singular_values=cutoff_singular_values)
                 W.relabel({f'p{i}': 'p', f'p{i}*': 'p*'})
                 factorization.append(W)
@@ -178,9 +183,10 @@ class Coupling:
         res = permute_legs(res, codom_labels, dom_labels, bend_right=False)
         return res
 
-    def to_numpy(self) -> np.ndarray:
+    def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None,
+                 understood_braiding: bool = False) -> np.ndarray:
         """Convert to a numpy array."""
-        return self.to_tensor().to_numpy()
+        return self.to_tensor().to_numpy(leg_order, numpy_dtype, understood_braiding)
 
 
 # SPIN COUPLINGS
@@ -200,7 +206,8 @@ def spin_spin_coupling(sites: list[SpinDOF], Jx: float = 0, Jy: float = 0, Jz: f
     Jx, Jy, Jz: float
         Prefactor, as given above. By default, all prefactors vanish.
     """
-    assert len(sites) == 2
+    if len(sites) != 2:
+        raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     s1 = sites[0].spin_vector
     s2 = sites[1].spin_vector
     h = 0  # build in leg order [p0, p0*, p1, p1*] and transpose only once before returning
@@ -208,7 +215,7 @@ def spin_spin_coupling(sites: list[SpinDOF], Jx: float = 0, Jy: float = 0, Jz: f
     h += Jy * np.tensordot(s1[:, :, 1], s2[:, :, 1], axes=0)
     h += Jz * np.tensordot(s1[:, :, 2], s2[:, :, 2], axes=0)
     h = np.transpose(h, [0, 2, 3, 1])
-    return Coupling.from_dense_block(h, sites, name=name)
+    return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
 def spin_field_coupling(sites: list[SpinDOF], hx: float = 0, hy: float = 0, hz: float = 0,
@@ -225,10 +232,11 @@ def spin_field_coupling(sites: list[SpinDOF], hx: float = 0, hy: float = 0, hz: 
     hx, hy, hz: float
         Prefactor, as given above. By default, all prefactors vanish.
     """
-    assert len(sites) == 1
+    if len(sites) != 1:
+        raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
     s = sites[0].spin_vector
     h = hx * s[:, :, 0] + hy * s[:, :, 1] + hz * s[:, :, 2]
-    return Coupling.from_dense_block(h, sites, name=name)
+    return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
 def aklt_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'AKLT') -> Coupling:
@@ -251,14 +259,15 @@ def aklt_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'AKLT') -> Cou
     J: float
         Prefactor, as given above. By default use ``1``.
     """
-    assert len(sites) == 2
+    if len(sites) != 2:
+        raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     s1 = sites[0].spin_vector
     s2 = sites[1].spin_vector
     S_dot_S = np.tensordot(s1, s2, axes=[2, 2])
     S_dot_S = np.transpose(S_dot_S, [0, 2, 3, 1])
     S_dot_S_square = np.tensordot(S_dot_S, S_dot_S, axes=[[3, 2], [0, 1]])
     h = J * (S_dot_S + S_dot_S_square / 3.)
-    return Coupling.from_dense_block(h, sites, name=name)
+    return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
 def heisenberg_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'S.S') -> Coupling:
@@ -290,13 +299,14 @@ def chiral_3spin_coupling(sites: list[SpinDOF], chi: float = 1, name: str = 'S.S
     chi: float
         Prefactor, as given above. By default use ``1``.
     """
-    assert len(sites) == 3
+    if len(sites) != 3:
+        raise ValueError(f'Invalid number of sites. Expected 3, got {len(sites)}')
     SxS = np.cross(sites[1].spin_vector[:, None, None, :, :],
                    sites[2].spin_vector[None, :, :, None, :],
                    axis=4)  # [p1, p2, p2*, p1*, i]
     h = chi * np.tensordot(sites[0].spin_vector, SxS, (-1, -1))  # [p0, p0*, p1, p2, p2*, p1*]
     h = np.transpose(h, [0, 2, 3, 4, 5, 1])
-    return Coupling.from_dense_block(h, sites, name=name)
+    return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
 # BOSON AND FERMION COUPLINGS
@@ -322,7 +332,8 @@ def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float,
         If given, the chemical potential only couples to the occupation of this species.
         By default, it couples to the total occupation of all species.
     """
-    assert len(sites) == 1
+    if len(sites) != 1:
+        raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
     h = -mu * sites[0].get_occupation_numpy(species=species)
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
@@ -347,7 +358,8 @@ def onsite_interaction(sites: list[BosonicDOF] | list[FermionicDOF], U: float = 
         If given, we use only the occupation of this one species as the density :math:`n_i`.
         By default, we use the total occupation of all species.
     """
-    assert len(sites) == 1
+    if len(sites) != 1:
+        raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
     n_i = sites[0].get_occupation_numpy(species=species)
     h = .5 * U * n_i @ n_i
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
@@ -375,7 +387,13 @@ def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V:
         By default, we use the total occupation of all species.
         Note that if the two species are different, this coupling alone is not hermitian!
     """
-    assert len(sites) == 2
+    if len(sites) != 2:
+        raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
+    is_bosonic = [isinstance(site, BosonicDOF) for site in sites]
+    if all(is_bosonic) != any(is_bosonic):
+        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
+               'combined for constructing couplings.')
+        raise SymmetryError(msg)
     n_i = sites[0].get_occupation_numpy(species=species_i)
     n_j = sites[1].get_occupation_numpy(species=species_j)
     h = V * n_i[:, None, None, :] * n_j[None, :, :, None]  # [p0, p1, p1*, p0*]
@@ -385,14 +403,23 @@ def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V:
 def _quadratic_coupling_numpy(sites: list[BosonicDOF] | list[FermionicDOF], is_pairing: bool,
                               species) -> np.ndarray:
     """Create the numpy representation for both :func:`hopping` and :func:`pairing`."""
+    if len(sites) != 2:
+        raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
+    is_bosonic = [isinstance(site, BosonicDOF) for site in sites]
+    if all(is_bosonic) != any(is_bosonic):
+        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
+               'combined for constructing couplings.')
+        raise SymmetryError(msg)
     site_i, site_j = sites
     species_i, species_j = species
     if species_i is ALL_SPECIES:
         species_i = [*range(site_i.num_species)]
     if species_j is ALL_SPECIES:
         species_j = [*range(site_j.num_species)]
+    if len(species_i) == 0 or len(species_j) == 0:
+        return np.zeros([site_i.dim, site_j.dim, site_j.dim, site_i.dim])
     h = 0
-    for k_i, k_j in zip(species_i, species_j):
+    for k_i, k_j in zip(species_i, species_j, strict=True):
         # since we work with numpy representations here, we need to consider JW strings.
         # visually (where columns represent different species)
         # |  site i   |  site j  |       |  site i   |  site j  |
@@ -489,6 +516,8 @@ def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 
     --------
     pairing
     """
+    if len(sites) != 1:
+        raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
     site, = sites
     species_1, species_2 = species
     if species_1 is ALL_SPECIES:
@@ -500,11 +529,12 @@ def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 
         a_i_hc = site.get_creator_numpy(species=k_1, include_JW=True)
         a_j_hc = site.get_creator_numpy(species=k_2, include_JW=True)
         h += Delta * a_i_hc @ a_j_hc
-    h + np.transpose(h.conj(), [3, 2, 1, 0])
+    h += np.transpose(h.conj())
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
 
 # CLOCK COUPLINGS
+
 
 def clock_clock_coupling(sites: list[ClockDOF], Jx: float = 0, Jz: float = 0,
                          name: str = 'clock-clock') -> Coupling:
@@ -520,7 +550,8 @@ def clock_clock_coupling(sites: list[ClockDOF], Jx: float = 0, Jz: float = 0,
     Jx, Jz: float
         Prefactor, as given above. By default, all prefactors vanish.
     """
-    assert len(sites) == 2
+    if len(sites) != 2:
+        raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     X_i = sites[0].clock_operators[:, :, 0]
     Z_i = sites[0].clock_operators[:, :, 1]
     X_j = sites[1].clock_operators[:, :, 0]
@@ -545,7 +576,8 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
     hx, hz: float
         Prefactor, as given above. By default, all prefactors vanish.
     """
-    assert len(sites) == 1
+    if len(sites) != 1:
+        raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
     X = sites[0].clock_operators[:, :, 0]
     Z = sites[0].clock_operators[:, :, 1]
     h = hx * (X + X.T.conj()) + hz * (Z + Z.T.conj())
@@ -589,7 +621,8 @@ def gold_coupling(sites: list[GoldenSite], J: float = 1, name: str = 'gold') -> 
         Prefactor, as given above. By default ``1``. Positive `J` energetically favor the
         trivial fusion channel, i.e. they are the "antiferromagnetic" analog.
     """
-    assert len(sites) == 2
+    if len(sites) != 2:
+        raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     for site in sites:
         assert isinstance(site.symmetry, FibonacciAnyonCategory)
         assert site.leg.sector_decomposition_where(FibonacciAnyonCategory.tau) is not None

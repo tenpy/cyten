@@ -83,9 +83,16 @@ class SpinSite(SpinDOF):
 
         if not isinstance(sym, SU2Symmetry):
             self.add_onsite_operator('Sz', spin_vector[:, :, 2], is_diagonal=True)
+            if two_S == 1:
+                self.add_onsite_operator('Sigmaz', 2. * spin_vector[:, :, 2], is_diagonal=True)
         if isinstance(sym, NoSymmetry):
             self.add_onsite_operator('Sx', spin_vector[:, :, 0])
             self.add_onsite_operator('Sy', spin_vector[:, :, 1])
+            self.add_onsite_operator('Sp', spin_vector[:, :, 0] + 1.j * spin_vector[:, :, 1])
+            self.add_onsite_operator('Sm', spin_vector[:, :, 0] - 1.j * spin_vector[:, :, 1])
+            if two_S == 1:
+                self.add_onsite_operator('Sigmax', 2. * spin_vector[:, :, 0])
+                self.add_onsite_operator('Sigmay', 2. * spin_vector[:, :, 1])
 
     def test_sanity(self):
         super().test_sanity()
@@ -207,22 +214,20 @@ class SpinlessBosonSite(BosonicDOF):
 
         creators, annihilators = BosonicDOF._creation_annihilation_ops_from_Nmax(Nmax=Nmax)
 
-        # construct operators relative to filling
-        ops = {}
-        if filling is not None:
-            dN_diag = np.diag(np.tensordot(creators, annihilators, axes=[[1, 2], [0, 2]]))
-            dN_diag = dN_diag - filling * np.ones(total_dim)
-            dN = np.diag(dN_diag)
-            dNdN = np.diag(dN_diag**2)
-            ops['dN'] = dN
-            ops['dNdN'] = dNdN
-
         BosonicDOF.__init__(
             self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
             onsite_operators=None, backend=backend, default_device=default_device
         )
         self.add_individual_occupation_ops()
         self.add_total_occupation_ops()
+        # construct operators relative to filling
+        ops = {}
+        if filling is not None:
+            dN_diag = np.diag(self.n_tot) - filling * np.ones(total_dim)
+            dN = np.diag(dN_diag)
+            dNdN = np.diag(dN_diag**2)
+            ops['dN'] = dN
+            ops['dNdN'] = dNdN
         for name, op in ops.items():
             self.add_onsite_operator(name, op, is_diagonal=True)
 
@@ -354,8 +359,7 @@ class SpinlessFermionSite(FermionicDOF):
         # construct operators relative to filling
         ops = {}
         if filling is not None:
-            dN_diag = np.diag(np.tensordot(creators, annihilators, axes=[[1, 2], [0, 2]]))
-            dN_diag = dN_diag - filling * np.ones(2**num_species)
+            dN_diag = np.diag(self.n_tot) - filling * np.ones(2**num_species)
             dN = np.diag(dN_diag)
             dNdN = np.diag(dN_diag**2)
             ops['dN'] = dN
@@ -461,16 +465,12 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         creators, annihilators = FermionicDOF._creation_annihilation_ops(num_species=2)
 
         state_labels = {'(0, 0)': 0, '(0, 1)': 1, '(1, 0)': 2, '(1, 1)': 3,
-                        'empty': 0, 'down': 1, 'up': 2, 'full': 3}
+                        'empty': 0, 'vac': 0, 'down': 1, 'up': 2, 'full': 3}
 
-        SpinDOF.__init__(
-            self, leg=leg, spin_vector=spin_vector, state_labels=state_labels,
-            onsite_operators=None, backend=backend, default_device=default_device
-        )
-        FermionicDOF.__init__(
-            self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
-            onsite_operators=None, backend=backend, default_device=default_device,
-            species_names=['up', 'down']
+        super().__init__(
+            leg=leg, spin_vector=spin_vector, creators=creators, annihilators=annihilators,
+            state_labels=state_labels, onsite_operators=None, backend=backend,
+            default_device=default_device, species_names=['up', 'down']
         )
 
         if not isinstance(sym_S, SU2Symmetry):
@@ -479,11 +479,22 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
             self.onsite_operators.update({'Ndown': self.onsite_operators.pop('N1')})
         self.add_total_occupation_ops()
 
-        # construct operators relative to filling
+        # spin operators
         ops = {}
+        if not isinstance(sym_S, SU2Symmetry):
+            ops['Sz'] = spin_vector[:, :, 2]
+            ops['Sigmaz'] = 2. * spin_vector[:, :, 2]
+        if isinstance(sym_S, NoSymmetry):
+            self.add_onsite_operator('Sx', spin_vector[:, :, 0], understood_braiding=True)
+            self.add_onsite_operator('Sy', spin_vector[:, :, 1], understood_braiding=True)
+            self.add_onsite_operator('Sp', spin_vector[:, :, 0] + 1.j * spin_vector[:, :, 1], understood_braiding=True)
+            self.add_onsite_operator('Sm', spin_vector[:, :, 0] - 1.j * spin_vector[:, :, 1], understood_braiding=True)
+            self.add_onsite_operator('Sigmax', 2. * spin_vector[:, :, 0], understood_braiding=True)
+            self.add_onsite_operator('Sigmay', 2. * spin_vector[:, :, 1], understood_braiding=True)
+
+        # construct operators relative to filling
         if filling is not None:
-            dN_diag = np.diag(np.tensordot(creators, annihilators, axes=[[1, 2], [0, 2]]))
-            dN_diag = dN_diag - filling * np.ones(4)
+            dN_diag = np.diag(self.n_tot) - filling * np.ones(4)
             dN = np.diag(dN_diag)
             dNdN = np.diag(dN_diag**2)
             ops['dN'] = dN
