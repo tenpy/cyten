@@ -874,8 +874,7 @@ def planar_contraction(tensor1: Tensor, tensor2: Tensor,
 
 @overload
 def planar_contraction(tensor1: TensorPlaceholder, tensor2: TensorPlaceholder,
-                       legs1: int | str | list[int, str], legs2: int | str | list[int, str],
-                       relabel1: dict[str, str] = {}, relabel2: dict[str, str] = {}
+                       legs1: int | str | list[int, str], legs2: int | str | list[int, str]
                        ) -> TensorPlaceholder:
     ...  # this stub exists for type hints only, definition is below
 
@@ -912,6 +911,8 @@ def planar_contraction(tensor1: Tensor, tensor2: Tensor,
             raise ValueError('Not a planar contraction')
 
     if isinstance(tensor1, TensorPlaceholder) or isinstance(tensor2, TensorPlaceholder):
+        if len(relabel1) > 0 or len(relabel2) > 0:
+            raise NotImplementedError
         assert isinstance(tensor1, TensorPlaceholder) and isinstance(tensor2, TensorPlaceholder)
         labels = [tensor1.labels[n] for n in open1] + [tensor2.labels[n] for n in open2]
         dims = [tensor1.dims[n] for n in open1] + [tensor2.dims[n] for n in open2]
@@ -920,9 +921,31 @@ def planar_contraction(tensor1: Tensor, tensor2: Tensor,
         cost = tensor1.cost_to_make + tensor2.cost_to_make + BigOPolynomial.prod(*dims, contr_dims)
         return TensorPlaceholder(labels, dims, cost_to_make=cost)
 
-    tensor1 = planar_permute_legs(tensor1, codomain=open1, domain=contr1)
-    tensor2 = planar_permute_legs(tensor2, codomain=contr2, domain=open2)
-    return compose(tensor1, tensor2)
+    # choose if we do ``compose(tensor1, tensor2)`` or ``compose(tensor2, tensor1)``:
+    if all(l < tensor1.num_codomain_legs for l in contr1):
+        # all contr1 are already in tensor1 codomain -> compose(tensor2, tensor1) is best
+        flip_order = True
+    elif all(l >= tensor1.num_codomain_legs for l in contr1):
+        # all contr1 are already in tensor1 domain -> compose(tensor1, tensor2) is best
+        flip_order = False
+    elif all(l < tensor2.num_codomain_legs for l in contr2):
+        # all contr2 are already in tensor2 codomain -> compose(tensor1, tensor2) is best
+        flip_order = False
+    elif all(l >= tensor2.num_codomain_legs for l in contr2):
+        # all contr2 are already in tensor2 domain -> compose(tensor2, tensor1) is best
+        flip_order = True
+    else:
+        # remaining cases: choose arbitrarily
+        flip_order = False
+
+    if flip_order:
+        tensor1 = planar_permute_legs(tensor1, codomain=contr1, domain=open1)
+        tensor2 = planar_permute_legs(tensor2, codomain=open2, domain=contr2)
+        return compose(tensor2, tensor1, relabel2, relabel1)
+    else:
+        tensor1 = planar_permute_legs(tensor1, codomain=open1, domain=contr1)
+        tensor2 = planar_permute_legs(tensor2, codomain=contr2, domain=open2)
+        return compose(tensor1, tensor2, relabel1, relabel2)
 
 
 @overload
@@ -989,6 +1012,8 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None,
                         domain: list[int | str] = None):
     """Planar special case of :func:`~cyten.permute_legs`, without braids.
 
+    It permutes teh :attr:`Tensor.legs` only cyclically, and bends them to the proper codomain / domain
+
     A planar permutation consists only of leg bends, either to the left or right of the tensor.
     It leaves the :attr:`cyten.Tensor.legs` unchanged up to cyclical permutation.
     It is fully specified by assigning each leg to either the new codomain or the new domain.
@@ -1020,6 +1045,50 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None,
         # they swap places completely -> choose to go counterclockwise
         bend_right = [True] * T.num_codomain_legs + [False] * T.num_domain_legs
 
+    elif len(codomain_staying) == T.num_codomain_legs or len(domain_staying) == T.num_domain_legs:
+        # nothing to do
+        assert len(codomain_staying) == T.num_codomain_legs
+        assert len(domain_staying) == T.num_domain_legs
+        return T
+
+    elif T.num_domain_legs == 0:
+        codomain_staying, codomain_bend_down = parse_leg_bipartition(codomain_staying, T.num_legs)
+
+        if 0 in codomain_staying and T.num_legs - 1 in codomain_staying:
+            # special case where the group of legs that stay in the codomain "wraps around",
+            # i.e. surrounds the ones that should go to the domain on both sides
+            # three groups: stay, bend down, bend twice ("around")
+            # this is an arbitrary choice of orientation "clockwise"
+            # note: none of the groups can be empty (would have triggered an earlier if/else branch)
+            dont_bend = codomain_staying[-1] + 1
+            bend_down = len(codomain_bend_down)
+            bend_twice = T.num_codomain_legs - codomain_staying[0]
+            assert dont_bend + bend_down + bend_twice == T.num_legs
+            # OPTIMIZE achieve it in a single backend function? also in a similar branch below
+            res = permute_legs(T,
+                               codomain=range(dont_bend),
+                               domain=reversed(range(dont_bend, T.num_legs)),
+                               bend_right=True)
+            res = permute_legs(res,
+                               codomain=[*range(dont_bend + bend_down, T.num_legs), *range(dont_bend)],
+                               domain=reversed(range(dont_bend, T.num_legs - bend_twice)),
+                               bend_right=False)
+            return res
+
+        # split into three groups: bending down left, staying, bending down right
+        # note that one of the outer groups (but not both) may be empty
+        if 0 in codomain_bend_down:
+            left_bending = codomain_bend_down[-1] + 1
+        else:
+            left_bending = 0
+        dont_bend = len(codomain_staying)
+        if T.num_legs - 1 in codomain_bend_down:
+            right_bending = T.num_codomain_legs - codomain_bend_down[0]
+        else:
+            right_bending = 0
+        assert left_bending + dont_bend + right_bending == T.num_legs
+        bend_right = [False] + left_bending + [None] * dont_bend + [True] * right_bending
+
     elif len(codomain_staying) == 0:
         # codomain goes down as a whole, either right or left
         domain_bend_left = domain_staying[0]
@@ -1035,6 +1104,44 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None,
                 + [False] * domain_bend_left
         else:
             raise RuntimeError('Not planar, but that should have been detected earlier?')
+
+    elif T.num_codomain_legs == 0:
+        domain_staying, domain_bend_up = parse_leg_bipartition(domain_staying, T.num_legs)
+
+        if 0 in domain_staying and T.num_legs - 1 in domain_staying:
+            # special case where the group of legs that stay in the domain "wraps around",
+            # i.e. surrounds the ones that should go to the codomain on both sides
+            # three groups (in leg order): stay, bend up, bend twice ("around")
+            # this is an arbitrary choice of orientation "clockwise"
+            # note: none of the groups can be empty (would have triggered an earlier if/else branch)
+            dont_bend = domain_staying[-1] + 1
+            bend_up = len(domain_bend_up)
+            bend_twice = T.num_domain_legs - domain_staying[0]
+            assert bend_twice + bend_up + dont_bend == T.num_legs
+            res = permute_legs(T,
+                               codomain=range(dont_bend, T.num_legs),
+                               domain=reversed(range(dont_bend)),
+                               bend_right=False)
+            res = permute_legs(res,
+                               codomain=range(bend_up),
+                               domain=reversed([*range(bend_up, bend_up + bend_twice),
+                                                *range(bend_up + bend_twice, T.num_legs)]),
+                               bend_right=True)
+            return res
+
+        # split into three groups: bending up right, staying, bending up left
+        # note that one of the outer groups (but not both) may be empty
+        if 0 in domain_bend_up:
+            right_bending = domain_bend_up[-1] + 1
+        else:
+            right_bending = 0
+        dont_bend = len(domain_staying)
+        if T.num_legs - 1 in domain_bend_up:
+            left_bending = T.num_domain_legs - domain_bend_up[0]
+        else:
+            left_bending = 0
+        assert left_bending + dont_bend + right_bending == T.num_legs
+        bend_right = [True] + right_bending + [None] * dont_bend + [False] * left_bending
 
     elif len(domain_staying) == 0:
         # domain goes up as a while, either right or left

@@ -1,5 +1,106 @@
 import pytest
+import numpy as np
+import numpy.testing as npt
 import cyten as ct
+
+
+def is_cyclical_perm(seq: list[int]) -> bool:
+    if len(seq) == 0:
+        return True
+    n = seq[0]
+    N = len(seq)
+    return list(seq) == [*range(n, N), *range(n)]
+
+
+@pytest.mark.parametrize('legs, num_legs, is_planar',
+                         [([1, 2, 3], 7, True), ([1, 2, 5, 6], 10, False), ([], 0, True),
+                          ([], 6, True), ([0, 1, 2, 3], 4, True), ([0, 1, 7, 8], 9, True),
+                          ([0, 1, 5, 6], 10, False)])
+@pytest.mark.parametrize('shuffle', [True, False])
+def test_parse_leg_bipartition(legs, num_legs, is_planar, shuffle, np_random):
+    if shuffle:
+        np_random.shuffle(legs)
+
+    if not is_planar:
+        with pytest.raises(ValueError, match='Not a planar bipartition'):
+            _ = ct.planar.parse_leg_bipartition(legs, num_legs)
+        return
+
+    a, b = ct.planar.parse_leg_bipartition(legs, num_legs)
+
+    assert len(a) == len(legs)
+    assert len(b) == num_legs - len(a)
+    assert len(set(a) & set(b)) == 0, 'not a bipartition (duplicates)!'
+    assert {*a, *b} == {*range(num_legs)}, 'not a bipartition (missing)!'
+    assert all(n2 == n1 + 1 or (n2, n1) == (0, num_legs - 1)
+               for n1, n2 in zip(a[:-1], a[1:]))
+    assert all(n2 == n1 + 1 or (n2, n1) == (0, num_legs - 1)
+               for n1, n2 in zip(b[:-1], b[1:]))
+
+
+planar_permute_legs_cases = {
+    'trivial': (3, 2, None, [0, 1, 2]),
+    # same basic case with different input possibilities
+    'basic-idcs': (3, 2, None, [3, 4, 0]),
+    'basic-labels': (3, 2, None, ['a', 'd', 'e']),
+    'basic-codomain': (3, 2, [2, 1], None),
+    # empty codomain/domain
+    'empty-codomain': (2, 2, [], None),
+    'empty-domain': (2, 2, [0, 1, 2, 3], None),
+    # input has no codomain
+    'J0-empty-domain': (0, 3, None, []),
+    'J0': (0, 3, None, [1]),
+    'J0-empty-codomain': (0, 3, None, [0, 1, 2]),
+    # input has no domain
+    'K0-empty-domain': (3, 0, None, []),
+    'K0': (3, 0, None, [1]),
+    'K0-empty-codomain': (3, 0, [0, 1, 2], None),
+}
+
+
+@pytest.mark.parametrize('J, K, codomain, domain',
+                         planar_permute_legs_cases.values(),
+                         ids=planar_permute_legs_cases.keys())
+@pytest.mark.parametrize('symmetry, backend', [(ct.no_symmetry, 'no_symmetry'),
+                                               (ct.u1_symmetry, 'abelian'),
+                                               (ct.u1_symmetry, 'fusion_tree'),
+                                               (ct.fermion_parity, 'fusion_tree'),
+                                               (ct.fibonacci_anyon_category, 'fusion_tree')])
+def test_planar_permute_legs(J, K, codomain, domain, symmetry, backend, np_random):
+    backend = ct.get_backend(backend, 'numpy')
+    T_labels = list('abcdefghijk')[:J + K]
+    T: ct.SymmetricTensor = ct.testing.random_tensor(symmetry, J, K, labels=T_labels, np_random=np_random)
+
+    res = ct.planar.planar_permute_legs(T, codomain=codomain, domain=domain)
+    res.test_sanity()
+
+    if codomain is None:
+        sorted_domain, sorted_codomain = ct.planar.parse_leg_bipartition(T.get_leg_idcs(domain), J + K)
+    else:
+        sorted_codomain, sorted_domain = ct.planar.parse_leg_bipartition(T.get_leg_idcs(codomain), J + K)
+    leg_perm = [*sorted_codomain, *sorted_domain]
+    assert is_cyclical_perm(leg_perm)
+    assert res.labels == [T.labels[n] for n in leg_perm]
+    assert res.legs == [T.get_leg(n) for n in leg_perm]
+
+    if symmetry.can_be_dropped:
+        T_np = T.to_numpy(understood_braiding=True)
+        res_np = res.to_numpy(understood_braiding=True)
+        expect = np.transpose(T_np, leg_perm)
+        if symmetry.has_trivial_braid:
+            npt.assert_almost_equal(res_np, expect)
+        else:
+            # the expect is missing some signs from twists in the diagram.
+            # I dont know how to figure them out right now, so we just ignore signs here...
+            npt.assert_almost_equal(np.abs(res_np), np.abs(expect))
+
+    permuted_back1 = ct.planar.planar_permute_legs(res, codomain=T.codomain_labels)
+    permuted_back1.test_sanity()
+    assert ct.almost_equal(permuted_back1, T)
+
+    permuted_back2 = ct.planar.planar_permute_legs(res, domain=T.domain_labels)
+    permuted_back2.test_sanity()
+    assert ct.almost_equal(permuted_back1, T)
 
 
 @pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
@@ -100,32 +201,6 @@ def test_PlanarDiagram(symmetry, np_random):
     expect2 = ct.permute_legs(expect2, ['p*', 'vL*'], ['p', 'vL'], bend_right=[False, False, None, True])
     expect2.test_sanity()
     assert ct.almost_equal(res, expect2)
-
-
-@pytest.mark.parametrize('legs, num_legs, is_planar',
-                         [([1, 2, 3], 7, True), ([1, 2, 5, 6], 10, False), ([], 0, True),
-                          ([], 6, True), ([0, 1, 2, 3], 4, True), ([0, 1, 7, 8], 9, True),
-                          ([0, 1, 5, 6], 10, False)])
-@pytest.mark.parametrize('shuffle', [True, False])
-def test_parse_leg_bipartition(legs, num_legs, is_planar, shuffle, np_random):
-    if shuffle:
-        np_random.shuffle(legs)
-
-    if not is_planar:
-        with pytest.raises(ValueError, match='Not a planar bipartition'):
-            _ = ct.planar.parse_leg_bipartition(legs, num_legs)
-        return
-
-    a, b = ct.planar.parse_leg_bipartition(legs, num_legs)
-
-    assert len(a) == len(legs)
-    assert len(b) == num_legs - len(a)
-    assert len(set(a) & set(b)) == 0, 'not a bipartition (duplicates)!'
-    assert {*a, *b} == {*range(num_legs)}, 'not a bipartition (missing)!'
-    assert all(n2 == n1 + 1 or (n2, n1) == (0, num_legs - 1)
-               for n1, n2 in zip(a[:-1], a[1:]))
-    assert all(n2 == n1 + 1 or (n2, n1) == (0, num_legs - 1)
-               for n1, n2 in zip(b[:-1], b[1:]))
 
 
 @pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
