@@ -4,6 +4,27 @@ import numpy.testing as npt
 import cyten as ct
 
 
+def cyclically_permute_tensor(T: ct.Tensor, labels: list[str]) -> ct.Tensor:
+    if T.labels == labels:
+        return T
+    for num_bends in range(1, T.num_legs):
+        if T.labels[num_bends:] + T.labels[:num_bends] == labels:
+            break
+    if T.num_codomain_legs == 0:
+        print('Ö')
+        num_bends = T.num_legs - num_bends
+        T = ct.permute_legs(T, codomain=list(range(T.num_legs - num_bends, T.num_legs)),
+                            bend_right=False)
+        T = ct.permute_legs(T, domain=list(reversed(range(T.num_legs))), bend_right=True)
+    elif T.num_domain_legs == 0:
+        print('Ä')
+        T = ct.permute_legs(T, domain=list(reversed(range(num_bends))), bend_right=False)
+        T = ct.permute_legs(T, codomain=list(range(T.num_legs)), bend_right=True)
+    else:
+        raise RuntimeError('An earlier error should have been occured.')
+    return T
+
+
 def is_cyclical_perm(seq: list[int]) -> bool:
     if len(seq) == 0:
         return True
@@ -96,11 +117,13 @@ def test_planar_permute_legs(J, K, codomain, domain, symmetry, backend, np_rando
 
     permuted_back1 = ct.planar.planar_permute_legs(res, codomain=T.codomain_labels)
     permuted_back1.test_sanity()
+    permuted_back1 = cyclically_permute_tensor(permuted_back1, T.labels)
     assert ct.almost_equal(permuted_back1, T)
 
     permuted_back2 = ct.planar.planar_permute_legs(res, domain=T.domain_labels)
     permuted_back2.test_sanity()
-    assert ct.almost_equal(permuted_back1, T)
+    permuted_back2 = cyclically_permute_tensor(permuted_back2, T.labels)
+    assert ct.almost_equal(permuted_back2, T)
 
 
 @pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
