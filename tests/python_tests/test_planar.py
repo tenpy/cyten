@@ -11,13 +11,11 @@ def cyclically_permute_tensor(T: ct.Tensor, labels: list[str]) -> ct.Tensor:
         if T.labels[num_bends:] + T.labels[:num_bends] == labels:
             break
     if T.num_codomain_legs == 0:
-        print('Ö')
         num_bends = T.num_legs - num_bends
         T = ct.permute_legs(T, codomain=list(range(T.num_legs - num_bends, T.num_legs)),
                             bend_right=False)
         T = ct.permute_legs(T, domain=list(reversed(range(T.num_legs))), bend_right=True)
     elif T.num_domain_legs == 0:
-        print('Ä')
         T = ct.permute_legs(T, domain=list(reversed(range(num_bends))), bend_right=False)
         T = ct.permute_legs(T, codomain=list(range(T.num_legs)), bend_right=True)
     else:
@@ -296,6 +294,8 @@ def test_PlanarLinearOperator(symmetry):
 
     op = H.to_tensor()
     op.test_sanity()
+    # get to the correct cyclic permutation
+    op = ct.planar.planar_permute_legs(op, codomain=['vL', 'p0', 'p1', 'vR'])
     assert op.codomain_labels == ['vL', 'p0', 'p1', 'vR']
     assert op.domain_labels == ['vL*', 'p0*', 'p1*', 'vR*']
 
@@ -307,9 +307,12 @@ def test_PlanarLinearOperator(symmetry):
     # ===========================================
     # compare to manual contraction, using planar routines
     # ===========================================
-    op_1 = ct.planar.planar_contraction(Lp, W0, 'wL', 'wR')
-    op_1 = ct.planar.planar_contraction(op_1, W1, 'wL', 'wR')
-    op_1 = ct.planar.planar_contraction(op_1, Rp, 'wL', 'wR')
+    op_1 = ct.planar.planar_contraction(
+        Lp, W0, 'wR', 'wL', relabel1={'vR*': 'vL', 'vR': 'vL*'}, relabel2={'p': 'p0', 'p*': 'p0*'}
+    )
+    op_1 = ct.planar.planar_contraction(op_1, W1, 'wR', 'wL', relabel2={'p': 'p1', 'p*': 'p1*'})
+    op_1 = ct.planar.planar_contraction(op_1, Rp, 'wR', 'wL', relabel2={'vL*': 'vR', 'vL': 'vR*'})
+    op_1 = ct.planar.planar_permute_legs(op_1, codomain=['vL', 'p0', 'p1', 'vR'])
     assert ct.almost_equal(op_1, op)
 
     H_theta_1 = ct.compose(op_1, theta)
