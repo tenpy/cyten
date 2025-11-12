@@ -275,14 +275,15 @@ def test_PlanarLinearOperator(symmetry):
     # create example tensors
     # ===========================================
 
-    theta = ct.testing.random_tensor(symmetry, 4, labels=['vL', 'p0', 'p1', 'vR'])
+    theta = ct.testing.random_tensor(symmetry, 4, labels=['vL', 'p0', 'p1', 'vR'],
+                                     max_multiplicity=3)
     vL, p0, p1, vR = theta.legs
     Lp = ct.testing.random_tensor(symmetry, [vL, None, vL.dual],
-                                  labels=['vR*', 'wR', 'vR'])
+                                  labels=['vR*', 'wR', 'vR'], max_multiplicity=3)
     W0 = ct.testing.random_tensor(symmetry, [p0, None, p0.dual, Lp.get_leg('wR').dual],
-                                  labels=['p', 'wR', 'p*', 'wL'])
+                                  labels=['p', 'wR', 'p*', 'wL'], max_multiplicity=3)
     W1 = ct.testing.random_tensor(symmetry, [p1, None, p1.dual, W0.get_leg('wR').dual],
-                                  labels=['p', 'wR', 'p*', 'wL'])
+                                  labels=['p', 'wR', 'p*', 'wL'], max_multiplicity=3)
     Rp = ct.testing.random_tensor(symmetry, [vR, vR.dual, W1.get_leg('wR').dual],
                                   labels=['vL*', 'vL', 'wL'])
 
@@ -321,4 +322,28 @@ def test_PlanarLinearOperator(symmetry):
     # ===========================================
     # compare to manual contraction, using general (not planar) routines
     # ===========================================
-    # TODO
+    op_2 = ct.compose(
+        ct.permute_legs(Rp, ['vL*', 'vL'], ['wL'], bend_right=[None, None, True]),
+        ct.permute_legs(W1, ['wR'], ['p', 'wL', 'p*'], bend_right=[False, None, True, True]),
+        relabel1={'vL*': 'vR', 'vL': 'vR*'},
+        relabel2={'p': 'p1', 'p*': 'p1*'}
+    )
+    op_2 = ct.compose(
+        ct.permute_legs(op_2, ['p1', 'vR', 'vR*', 'p1*'], ['wL'], bend_right=[None, None, True, None, False]),
+        ct.permute_legs(W0, ['wR'], ['p', 'wL', 'p*'], bend_right=[False, None, True, True]),
+        relabel2={'p': 'p0', 'p*': 'p0*'}
+    )
+    bend_right = [None] * 4 + [True, None, False]
+    op_2 = ct.compose(
+        ct.permute_legs(op_2, ['p0', 'p1', 'vR', 'vR*', 'p1*', 'p0*'], ['wL'], bend_right=bend_right),
+        ct.permute_legs(Lp, ['wR'], ['vR*', 'vR'], bend_right=[False, None, True]),
+        relabel2={'vR*': 'vL', 'vR': 'vL*'}
+    )
+    bend_right = [None] * 3 + [True] * 3 + [None, False]
+    op_2 = ct.permute_legs(
+        op_2, ['vL', 'p0', 'p1', 'vR'], ['vL*', 'p0*', 'p1*', 'vR*'], bend_right=bend_right
+    )
+    assert ct.almost_equal(op_2, op)
+
+    H_theta_2 = ct.compose(op_2, theta)
+    assert ct.almost_equal(H_theta_2, H_theta)
