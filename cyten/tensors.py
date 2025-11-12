@@ -6128,8 +6128,7 @@ T = TypeVar('T')
 
 
 def _check_compatible_legs(legs1: Sequence[Leg], legs2: Sequence[Leg],
-                           expect_equal: bool = True,
-                           label1: str = None, label2: str = None):
+                           expect_equal: bool = True):
     """Check if legs are compatible (equal if `expect_equal`, otherwise mutually dual)."""
     if len(legs1) != len(legs2):
         raise ValueError('Different number of legs')

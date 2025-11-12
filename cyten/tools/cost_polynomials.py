@@ -153,7 +153,6 @@ class BigOPolynomial:
                 return False
         for t2 in other.terms:
             if not any(t == t2 for t in other.terms):
-                breakpoint()
                 return False
         return True
 
