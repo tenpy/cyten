@@ -112,8 +112,8 @@ if TYPE_CHECKING:
 
 def _tree_block_iter(a: SymmetricTensor):
     sym = a.symmetry
-    domain_are_dual = [sp.is_dual for sp in a.domain.factors]
-    codomain_are_dual = [sp.is_dual for sp in a.codomain.factors]
+    domain_are_dual = [sp.is_dual for sp in a.domain.flat_legs]
+    codomain_are_dual = [sp.is_dual for sp in a.codomain.flat_legs]
     for (bi, _), block in zip(a.data.block_inds, a.data.blocks):
         coupled = a.codomain.sector_decomposition[bi]
         i1_forest = 0  # start row index of the current forest block
@@ -927,8 +927,8 @@ class FusionTreeBackend(TensorBackend):
         dtype: Dtype,
         device: str,
     ) -> Data:
-        J = codomain.num_factors
-        K = domain.num_factors
+        J = len(codomain.flat_legs)
+        K = len(domain.flat_legs)
         block_inds = []
         blocks = []
         pairs_done = set()
@@ -991,10 +991,10 @@ class FusionTreeBackend(TensorBackend):
         )
         warnings.warn(msg, UserWarning, stacklevel=2)
 
-        num_cod_legs = a.num_codomain_legs
-        num_legs = a.num_legs
+        num_cod_legs = len(a.codomain.flat_legs)
+        num_legs = a.num_flat_legs
         # reverse domain idcs -> work in the non-conventional leg order [i1,...,iJ,j1,...,jK]
-        a_legs = [*a.codomain.factors, *a.domain.factors]
+        a_legs = [*a.codomain.flat_legs, *a.domain.flat_legs]
         idcs = idcs[:num_cod_legs] + idcs[num_cod_legs:][::-1]
         pos = np.array([l.parse_index(idx) for l, idx in zip(a_legs, idcs)])
         sector_idcs = pos[:, 0]
