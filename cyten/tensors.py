@@ -77,8 +77,8 @@ from typing import TypeVar
 
 import numpy as np
 
-from .backends import TensorBackend, get_backend, get_same_backend
-from .backends.abstract_backend import Block, conventional_leg_order
+from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order, get_same_backend
+from .backends.backend_factory import get_backend
 from .dtypes import Dtype
 from .dummy_config import printoptions
 from .spaces import ElementarySpace, Leg, LegPipe, Sector, Space, TensorProduct
