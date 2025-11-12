@@ -332,7 +332,7 @@ class PlanarDiagram:
                 warnings.warn(msg, UserWarning, stacklevel=3)
         res = {}
         for name, legs in tensors.items():
-            t = TensorPlaceholder(legs, [leg_label_to_dim.get(l, 'x') for l in legs])
+            t = TensorPlaceholder(legs, [leg_label_to_dim.get(l, '?') for l in legs])
             res[name] = t
         return res
 
@@ -646,7 +646,7 @@ class ContractionTreeNode:
     def get_leaves(self) -> tuple[list[str], int]:
         """Returns ``leaves, num_nodes_below``"""
         if self.is_leaf:
-            return [self.value]
+            return [self.value], 0
         leaves_L, num_L = self.left_child.get_leaves()
         leaves_R, num_R = self.right_child.get_leaves()
         return [*leaves_L, *leaves_R], 2 + num_L + num_R
@@ -980,7 +980,7 @@ def planar_partial_trace(tensor: Tensor, *pairs: Sequence[int, str]) -> Tensor:
             if l in traced_legs:
                 # must connect to another leg *in the same half*, otherwise there are braids
                 other_ls = [a for a, b in pairs if b == l] + [b for a, b in pairs if a == l]
-                assert len(other_ls) == 0
+                assert len(other_ls) == 1
                 if not (l1 < other_ls[0] < l2):
                     raise ValueError('Not a planar trace')
             else:
@@ -989,7 +989,7 @@ def planar_partial_trace(tensor: Tensor, *pairs: Sequence[int, str]) -> Tensor:
             if l in traced_legs:
                 # must connect to another leg *in the same half*, otherwise there are braids
                 other_ls = [a for a, b in pairs if b == l] + [b for a, b in pairs if a == l]
-                assert len(other_ls) == 0
+                assert len(other_ls) == 1
                 if (l1 < other_ls[0] < l2):
                     raise ValueError('Not a planar trace')
             else:
