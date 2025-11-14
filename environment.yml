@@ -29,7 +29,7 @@ dependencies:
   - ipython
   - ruff
   - flake8
-  - flake8-docstrings
+  - flake8-rst-docstrings
 
   # building docs
   # - doxygen

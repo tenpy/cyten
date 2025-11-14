@@ -1,22 +1,25 @@
 [flake8]
-exclude = 
-    .git,
-    __pycache__,
-    build,
-    dist,
-    doc,
-    playground,
-max-complexity = 10
-ignore =
-    F541,E741,C901,E114,W293,E713,W504,E226,E201,E202,
-    D102,D103,D105,D107
-    D401,D400,
-show-source = False
-statistics = True
-count = True
-per-file-ignores =
-    __init__.py:F401,F403,D100
-    tests/*:F403,W503,F841,E501,E261,E241,E231,E124,E201,E126,E127,E128,D100,D403,D205,D101,D104
-    docs/*:D100
-max-line-length = 120
-docstring-convention = numpy
+require-plugins = flake8-rst-docstrings
+; Code linting is mainly done with ruff.
+; We only lint the RST syntax in docstrings in .py files using flake8, since ruff cant do it.
+select = RST
+ignore = RST210,RST213,RST306
+; RST210,  ; **kwargs gives false positives
+; RST213,  ; *args gives false positives
+; RST306,  ; link targets (they are not available in the pure rst, sphinx has to build them)
+
+rst-roles =
+    class,mod,meth,func,attr,data
+    py:func,
+    arxiv,cite,doi,
+    doc,ref,
+    cfg:option,cfg:option,cfg:config,cfg:configoptions,
+rst-directives =
+    autodata,autosummary,
+    todo,versionchanged,deprecated,
+    plot,
+    doctest,testsetup,
+    cfg:option,cfg:option,cfg:config,cfg:configoptions,
+exclude =
+    tests,
+    toycodes,
