@@ -114,6 +114,7 @@ class TensorBackend(metaclass=ABCMeta):
         dtype_map : function or None
             Specify how the result dtype depends on the input dtype. ``None`` means unchanged.
             This is needed in abelian and fusion-tree backends, in case there are 0 blocks.
+
         """
         ...
 
@@ -165,6 +166,7 @@ class TensorBackend(metaclass=ABCMeta):
             ``tensor.legs[n]`` !
         new_codomain, new_domain: TensorProduct
             The codomain and domain of the resulting tensor
+
         """
         ...
 
@@ -195,6 +197,7 @@ class TensorBackend(metaclass=ABCMeta):
         See Also
         --------
         move_to_device
+
         """
         ...
 
@@ -321,6 +324,7 @@ class TensorBackend(metaclass=ABCMeta):
             Data for the :class:`Tensor` of eigenvectors
         new_leg
             The new leg.
+
         """
         ...
 
@@ -382,6 +386,7 @@ class TensorBackend(metaclass=ABCMeta):
             The new dtype of the block.
         device: str
             The device for the block.
+
         """
         ...
 
@@ -436,6 +441,7 @@ class TensorBackend(metaclass=ABCMeta):
             The indices. Checks have already been performed, i.e. we may assume that
             - len(idcs) == a.num_legs
             - 0 <= idx < leg.dim
+
         """
         ...
 
@@ -450,6 +456,7 @@ class TensorBackend(metaclass=ABCMeta):
         idx
             The index for both legs. Checks have already been performed, i.e. we may assume that
             ``0 <= idx < leg.dim``
+
         """
         ...
 
@@ -465,6 +472,7 @@ class TensorBackend(metaclass=ABCMeta):
             The indices. Checks have already been performed, i.e. we may assume that
             - len(idcs) == a.num_legs == 2
             - 0 <= idx < leg.dim
+
         """
         ...
 
@@ -587,6 +595,7 @@ class TensorBackend(metaclass=ABCMeta):
         See Also
         --------
         copy_data
+
         """
 
     @abstractmethod
@@ -647,6 +656,7 @@ class TensorBackend(metaclass=ABCMeta):
             specified.
         codomain, domain
             The (co-)domain of the new tensor.
+
         """
         ...
 
@@ -695,6 +705,7 @@ class TensorBackend(metaclass=ABCMeta):
             (co)domain.
         new_codomain, new_domain
             The new (co-)domain, after splitting. Has same sectors and multiplicities.
+
         """
         ...
 
@@ -763,6 +774,7 @@ class TensorBackend(metaclass=ABCMeta):
             The truncation error ``norm(S_discard) == norm(S - S_keep)``.
         new_norm
             The norm ``norm(S_keep)`` of the approximation.
+
         """
         ...
 
@@ -790,6 +802,7 @@ class TensorBackend(metaclass=ABCMeta):
             The truncation error ``norm(S_discard) == norm(S - S_keep)``.
         new_norm
             The norm ``norm(S_keep)`` of the approximation.
+
         """
         # contributions ``err[i] = d[i] * S[i] ** 2`` to the error, if S[i] would be truncated.
         if qdims is None:
@@ -864,6 +877,7 @@ class TensorBackend(metaclass=ABCMeta):
             Some specific backends can omit zero blocks ("sparsity").
             By default (``False``), omit them if possible.
             If ``True``, force all blocks to be created, with zero entries.
+
         """
         ...
 
@@ -950,6 +964,7 @@ class BlockBackend(metaclass=ABCMeta):
         --------
         block_copy
             Guarantees an independent copy.
+
         """
         ...
 
@@ -983,7 +998,7 @@ class BlockBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def angle(self, a: Block) -> Block:
-        """The angle of a complex number such that ``a == exp(1.j * angle(a))``. Elementwise."""
+        """The angle of a complex number such that ``a == exp(1.j * angle)``. Elementwise."""
         ...
 
     @abstractmethod
@@ -1029,6 +1044,7 @@ class BlockBackend(metaclass=ABCMeta):
         -------
         1D block of int
             The indices that would sort the block
+
         """
         if sort == 'm<' or sort == 'SM':
             block = np.abs(block)
@@ -1096,6 +1112,7 @@ class BlockBackend(metaclass=ABCMeta):
         --------
         as_block
             Function to guarantee dtype and device, without forcing copies.
+
         """
         ...
 
@@ -1127,6 +1144,7 @@ class BlockBackend(metaclass=ABCMeta):
             The block to decompose
         sort : {'m>', 'm<', '>', '<'}
             How the eigenvalues are sorted
+
         """
         ...
 
@@ -1142,6 +1160,7 @@ class BlockBackend(metaclass=ABCMeta):
             The block to decompose
         sort : {'m>', 'm<', '>', '<'}
             How the eigenvalues are sorted
+
         """
         ...
 
@@ -1235,6 +1254,7 @@ class BlockBackend(metaclass=ABCMeta):
             kt = it * st + jt,  t = 0,...,N
 
         (Taken from numpy docs)
+
         """
         ...
 
@@ -1277,6 +1297,7 @@ class BlockBackend(metaclass=ABCMeta):
         axis : int | None
             ``axis=None`` means "all axes", i.e. norm of the flattened block.
             An integer means to broadcast the norm over all other axes.
+
         """
         ...
 
@@ -1322,6 +1343,7 @@ class BlockBackend(metaclass=ABCMeta):
         See Also
         --------
         permute_combined_idx
+
         """
         block = self.reshape(block, [*dims1, *dims2])
         block = self.permute_axes(block, [*idcs1, *idcs2])
@@ -1356,6 +1378,7 @@ class BlockBackend(metaclass=ABCMeta):
         See Also
         --------
         permute_combined_matrix
+
         """
         M, N = self.get_shape(block)
         assert -2 <= axis < 2
@@ -1551,6 +1574,7 @@ class BlockBackend(metaclass=ABCMeta):
             Number of `True` entries in the block, i.e., ``sum_block == self.sum_all(a)``. Agrees
             with the sector multiplicity of the small leg.
             (Only important if the sector dimension is larger than 1.)
+
         """
         offset = (large_leg_idx // self.get_shape(a)[0]) * sum_block
         large_leg_idx = large_leg_idx % self.get_shape(a)[0]
@@ -1631,6 +1655,7 @@ class BlockBackend(metaclass=ABCMeta):
 
 def conventional_leg_order(tensor_or_codomain: SymmetricTensor | TensorProduct,
                            domain: TensorProduct = None) -> Generator[Space, None, None]:
+    """The conventional order of legs."""
     if domain is None:
         codomain = tensor_or_codomain.codomain
         domain = tensor_or_codomain.domain

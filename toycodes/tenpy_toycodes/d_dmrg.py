@@ -43,6 +43,7 @@ class HEffective(ct.sparse.LinearOperator):
             (with renaming `'p', 'p*', 'wR'` to `'p0', 'p0*', 'wC'`)
         W2 : codomain: `'p1', 'wR'`, domain: 'wC', 'p1*'
             (with renaming `'p', 'p*', 'wL'` to `'p1', 'p1*', 'wC'`)
+
     """
 
     def __init__(self, LP, RP, W1, W2):
@@ -103,6 +104,7 @@ class DMRGEngine:
         Convergence criterion for the energy difference between two consecutive sweeps.
     energies : list of float
         Energies after every update.
+
     """
 
     def __init__(self, psi: SimpleMPS, model: TFIModel, chi_max: int = 100,

@@ -58,7 +58,8 @@ class Site:
 
     Examples
     --------
-    TODO
+    TODO put some
+
     """
 
     def __init__(self, leg: ElementarySpace, state_labels: dict[str, int] = None,
@@ -81,6 +82,7 @@ class Site:
                 self.add_onsite_operator(name, op)
 
     def test_sanity(self):
+        """Perform sanity checks."""
         self.leg.test_sanity()
 
         # state labels
@@ -162,6 +164,7 @@ class SpinDOF(Site):
         The vector of spin operators as a numpy array with axes ``[p, p*, i]`` and shape
         ``(dim, dim, 3)``. These operators include the factor of the total spin,
         e.g. for spin-1/2, these are ``.5`` times the pauli matrices.
+
     """
 
     def __init__(self,
@@ -180,6 +183,7 @@ class SpinDOF(Site):
         )
 
     def test_sanity(self):
+        """Perform sanity checks."""
         super().test_sanity()
         # check commutation relations
         Sx, Sy, Sz = [self.spin_vector[:, :, i] for i in range(3)]
@@ -241,6 +245,7 @@ class OccupationDOF(Site, metaclass=ABCMeta):
         The vector of occupation number operators with shape ``(dim, dim, num_species)``.
     n_tot : 2D array
         The total occupation number operator with shape ``(dim, dim)``.
+
     """
 
     def __init__(self,
@@ -274,6 +279,7 @@ class OccupationDOF(Site, metaclass=ABCMeta):
                          backend=backend, default_device=default_device, **kwargs)
 
     def test_sanity(self):
+        """Perform sanity checks."""
         super().test_sanity()
         for k in range(self.num_species):
             n_k = self.number_operators[:, :, k]
@@ -381,6 +387,7 @@ class BosonicDOF(OccupationDOF):
     Nmax : 1D array of int
         Cutoff defining the maximum number of bosons per species and site. ``Nmax[i]`` corresponds
         to the cutoff for the `i`th species; a value of ``Nmax[i] = 1`` describes hard-core bosons.
+
     """
 
     def __init__(self,
@@ -418,6 +425,7 @@ class BosonicDOF(OccupationDOF):
         self.Nmax = Nmax
 
     def test_sanity(self):
+        """Perform sanity checks."""
         super().test_sanity()
         for k in range(self.num_species):
             N_k = self.number_operators[:, :, k]
@@ -578,6 +586,7 @@ class FermionicDOF(OccupationDOF):
             assert N_k_max == 1
 
     def test_sanity(self):
+        """Perform sanity checks."""
         super().test_sanity()
         for k in range(self.num_species):
             N_k = self.number_operators[:, :, k]
@@ -657,6 +666,7 @@ class ClockDOF(Site):
     clock_operators : 3D array
         The vector of clock operators ``X`` and ``Z`` as a numpy array with axes ``[p, p*, i]``
         and shape ``(dim, dim, 2)``.
+
     """
 
     def __init__(self,
@@ -685,6 +695,7 @@ class ClockDOF(Site):
         self.add_onsite_operator('Zphc', Z + Zhc, is_diagonal=True)
 
     def test_sanity(self):
+        """Perform sanity checks."""
         super().test_sanity()
         # check commutation relations
         X, Z = [self.clock_operators[:, :, i] for i in range(2)]
@@ -708,6 +719,7 @@ class AnyonDOF(Site):
         called `f'P_{sector_names[i]}'` and projects onto the `i`th sector in
         `leg.sector_decomposition`. For `None` entries (default), no projection operators are
         constructed.
+
     """
 
     def __init__(self, leg: ElementarySpace, state_labels: dict[str, int] = None,

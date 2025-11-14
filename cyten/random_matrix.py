@@ -57,6 +57,7 @@ def GOE(size):
     H : ndarray
         Real, symmetric numpy matrix drawn from the GOE, i.e.
         :math:`p(H) = 1/Z exp(-n/4 tr(H^2))`
+
     """
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
     A = np.random.standard_normal(size)
@@ -76,6 +77,7 @@ def GUE(size):
     H : ndarray
         Hermitian (complex) numpy matrix drawn from the GUE, i.e.
         :math:`p(H) = 1/Z exp(-n/4 tr(H^2))`.
+
     """
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
     A = standard_normal_complex(size)
@@ -94,6 +96,7 @@ def CRE(size):
     -------
     U : ndarray
         Orthogonal matrix drawn from the CRE (=Haar measure on O(n)).
+
     """
     # almost same code as for CUE
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
@@ -118,6 +121,7 @@ def COE(size):
     -------
     U : ndarray
         Unitary, symmetric (complex) matrix drawn from the COE (=Haar measure on this space).
+
     """
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
     U = CUE(size)
@@ -136,6 +140,7 @@ def CUE(size):
     -------
     U : ndarray
         Unitary matrix drawn from the CUE (=Haar measure on U(n)).
+
     """
     # almost same code as for CRE
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
@@ -164,6 +169,7 @@ def O_close_1(size, a=0.01):
     -------
     O : ndarray
         Orthogonal matrix close to the identity (for small `a`).
+
     """
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
     n, m = size
@@ -191,6 +197,7 @@ def U_close_1(size, a=0.01):
     U : ndarray
         Unitary matrix close to the identity (for small `a`).
         Eigenvalues are chosen i.i.d. as ``exp(1.j*a*x)`` with `x` uniform in [-1, 1].
+
     """
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
     n, m = size

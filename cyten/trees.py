@@ -66,6 +66,7 @@ class FusionTree:
         - ``e = uncoupled[0] if n == 0 else inner_sectors[n - 1]``
         - ``f = uncoupled[n + 1]``
         - ``g = coupled if (n == num_vertices - 1) else inner_sectors[n]``
+
     """
 
     def __init__(self, symmetry: Symmetry,
@@ -95,6 +96,7 @@ class FusionTree:
         self.braiding_style = symmetry.braiding_style
 
     def test_sanity(self):
+        """Perform sanity checks."""
         assert self.symmetry.are_valid_sectors(self.uncoupled), 'invalid uncoupled'
         assert self.symmetry.is_valid_sector(self.coupled), 'invalid coupled'
         assert len(self.are_dual) == self.num_uncoupled, 'wrong length of are_dual'
@@ -152,6 +154,7 @@ class FusionTree:
 
     @property
     def pre_Z_uncoupled(self):
+        """The uncoupled sectors *below* any Z isomorphisms."""
         res = self.uncoupled.copy()
         res[self.are_dual, :] = self.symmetry.dual_sectors(res[self.are_dual, :])
         return res
@@ -297,6 +300,7 @@ class FusionTree:
         return ascii
 
     def ascii_diagram(self, dagger=False) -> str:
+        """Visual representation of the tree as ASCII art."""
         ascii = self._ascii_diagram(dagger=dagger)
         return '\n'.join(''.join(row) for row in ascii.T)
 
@@ -360,6 +364,7 @@ class FusionTree:
             The returned dictionary has entries ``linear_combination[Y_i, X_i] = a_i`` for the
             contributions to this linear combination (i.e. tree pairs for which the coefficient
             vanishes are omitted).
+
         """
         if not bend_upward:
             # OPTIMIZE: do it explicitly instead?
@@ -456,6 +461,7 @@ class FusionTree:
             The returned dictionary has entries ``linear_combination[X_i] = a_i`` for the
             contributions to this linear combination (i.e. trees for which the coefficient vanishes
             may be omitted).
+
         """
         assert 0 <= j < self.num_uncoupled - 1
         if j == 0:  # R-move
@@ -543,6 +549,7 @@ class FusionTree:
         copy : bool
             If ``True``, we return a modified copy. If ``False``, we modify in place and return
             the modified instance.
+
         """
         if copy:
             return self.copy(deep=True).modify_vertex_labels(n, a=a, b=b, mu=mu, c=c, copy=False)
@@ -579,6 +586,7 @@ class FusionTree:
         Returns
         -------
         The matrix elements with axes ``[m_a1, m_a2, ..., m_aJ, m_c]``.
+
         """
         if not self.symmetry.can_be_dropped:
             raise SymmetryError(f'Can not convert to block for symmetry {self.symmetry}')
@@ -651,6 +659,7 @@ class FusionTree:
         insert
             Can insert nodes "below"
         split_topmost
+
         """
         if self.num_uncoupled == 0:
             assert mu == 0
@@ -678,6 +687,7 @@ class FusionTree:
         insert_at
             Inserting at general position
         split
+
         """
         return FusionTree(
             symmetry=self.symmetry,
@@ -718,6 +728,7 @@ class FusionTree:
         insert
             The same insertion, but restricted to ``n=0``, and returns that tree directly, no dict.
         split
+
         """
         assert self.symmetry == t2.symmetry
         assert np.all(self.uncoupled[n] == t2.coupled)
@@ -830,6 +841,7 @@ class FusionTree:
         insert_at
             Similar insertion, but the tree is inserted on top of an uncoupled sector rather than
             fused with the coupled sector.
+
         """
         # trivial cases
         if self.num_uncoupled == 0:
@@ -874,6 +886,7 @@ class FusionTree:
         See Also
         --------
         insert
+
         """
         if n < 2:
             raise ValueError('Left tree has no vertices (n < 2)')
@@ -928,6 +941,7 @@ class FusionTree:
         See Also
         --------
         extended
+
         """
         if self.num_uncoupled == 0:
             raise ValueError('Cant split empty tree')
@@ -995,6 +1009,7 @@ class FusionTree:
             |   │   │     ╱   ╱   ╰─╯  │
             |   │   │    ╱   ╱ ╲       │
             |   │   │   │   │   ╰──────╯
+
         """
         if self.symmetry.has_symmetric_braid:
             # twists are trivial
@@ -1138,6 +1153,7 @@ class fusion_trees(Iterable[FusionTree]):
         return f'fusion_trees({self.symmetry}, {uncoupled}, {self.coupled}, {self.are_dual})'
 
     def index(self, tree: FusionTree) -> int:
+        """The index of a given tree in the iterator."""
         # check compatibility first (same symmetry, same uncoupled, same coupled, same are_dual)
         if not self.symmetry.is_same_symmetry(tree.symmetry):
             raise ValueError(f'Inconsistent symmetries, {self.symmetry} != {tree.symmetry}')

@@ -46,6 +46,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
         or as the minimal version which supports the given symmetry.
     block_backend : {None, 'numpy', 'torch', 'tensorflow', 'jax', 'cpu', 'gpu', 'tpu'}
         Specify which block backend to use.
+
     """
     if symmetry is None:
         symmetry = config.default_symmetry_backend

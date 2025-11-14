@@ -44,6 +44,7 @@ class Coupling:
     name : str, optional
         A descriptive name that can be used when pretty-printing, to identify the coupling.
         For example, a Heisenberg coupling is usually initialized with name ``'S.S'``.
+
     """
 
     def __init__(self, sites: list[Site], factorization: list[SymmetricTensor],
@@ -55,6 +56,7 @@ class Coupling:
         self.test_sanity()  # OPTIMIZE
 
     def test_sanity(self):
+        """Perform sanity checks."""
         backend = get_same_backend(*self.sites)
         for s, W in zip(self.sites, self.factorization):
             s.test_sanity()
@@ -95,6 +97,7 @@ class Coupling:
         cutoff_singular_values : float, optional
             If given, truncate singular values (see :func:`cyten.horizontal_factorization`)
             below this threshold.
+
         """
         backend = get_same_backend(*sites)
         device = sites[0].default_device
@@ -131,6 +134,7 @@ class Coupling:
         cutoff_singular_values : float, optional
             If given, truncate singular values (see :func:`cyten.horizontal_factorization`)
             below this threshold.
+
         """
         assert operator.backend == get_same_backend(*sites)
         assert operator.codomain.factors == [site.leg for site in sites]
@@ -202,6 +206,7 @@ def spin_spin_coupling(sites: list[SpinDOF], Jx: float = 0, Jy: float = 0, Jz: f
         The sites that the coupling acts on. Note that the order matters for the final leg order.
     Jx, Jy, Jz: float
         Prefactor, as given above. By default, all prefactors vanish.
+
     """
     if len(sites) != 2:
         raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
@@ -228,6 +233,7 @@ def spin_field_coupling(sites: list[SpinDOF], hx: float = 0, hy: float = 0, hz: 
         The sites that the coupling acts on. Note that the order matters for the final leg order.
     hx, hy, hz: float
         Prefactor, as given above. By default, all prefactors vanish.
+
     """
     if len(sites) != 1:
         raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
@@ -255,6 +261,7 @@ def aklt_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'AKLT') -> Cou
         The sites that the coupling acts on. Note that the order matters for the final leg order.
     J: float
         Prefactor, as given above. By default use ``1``.
+
     """
     if len(sites) != 2:
         raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
@@ -279,6 +286,7 @@ def heisenberg_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'S.S') -
         The sites that the coupling acts on. Note that the order matters for the final leg order.
     J: float
         Prefactor, as given above. By default use ``1``, i.e. an anti-ferromagnetic coupling.
+
     """
     return spin_spin_coupling(sites=sites, Jx=J, Jy=J, Jz=J, name=name)
 
@@ -295,6 +303,7 @@ def chiral_3spin_coupling(sites: list[SpinDOF], chi: float = 1, name: str = 'S.S
         The sites that the coupling acts on. Note that the order matters for the final leg order.
     chi: float
         Prefactor, as given above. By default use ``1``.
+
     """
     if len(sites) != 3:
         raise ValueError(f'Invalid number of sites. Expected 3, got {len(sites)}')
@@ -328,6 +337,7 @@ def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float,
     species: (list of) int | str, optional
         If given, the chemical potential only couples to the occupation of this species.
         By default, it couples to the total occupation of all species.
+
     """
     if len(sites) != 1:
         raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
@@ -354,6 +364,7 @@ def onsite_interaction(sites: list[BosonicDOF] | list[FermionicDOF], U: float = 
     species: int | str, optional
         If given, we use only the occupation of this one species as the density :math:`n_i`.
         By default, we use the total occupation of all species.
+
     """
     if len(sites) != 1:
         raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
@@ -383,6 +394,7 @@ def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V:
         If given, we use only the occupation of this one species as the density :math:`n_{i/j}`.
         By default, we use the total occupation of all species.
         Note that if the two species are different, this coupling alone is not hermitian!
+
     """
     if len(sites) != 2:
         raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
@@ -454,6 +466,7 @@ def hopping(sites: list[BosonicDOF] | list[FermionicDOF], t: float = 1,
         Which species should participate (the sum above goes over ``k_i, k_j in zip(*species)``).
         By default, we let :math:`k_i = k_j` go over all species, i.e. include all
         "species preserving" hoppings.
+
     """
     h = -t * _quadratic_coupling_numpy(sites, is_pairing=False, species=species)
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
@@ -485,6 +498,7 @@ def pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
     See Also
     --------
     onsite_pairing
+
     """
     h = Delta * _quadratic_coupling_numpy(sites, is_pairing=True, species=species)
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
@@ -512,6 +526,7 @@ def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 
     See Also
     --------
     pairing
+
     """
     if len(sites) != 1:
         raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
@@ -546,6 +561,7 @@ def clock_clock_coupling(sites: list[ClockDOF], Jx: float = 0, Jz: float = 0,
         The sites that the coupling acts on. Note that the order matters for the final leg order.
     Jx, Jz: float
         Prefactor, as given above. By default, all prefactors vanish.
+
     """
     if len(sites) != 2:
         raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
@@ -572,6 +588,7 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
         The sites that the coupling acts on. Note that the order matters for the final leg order.
     hx, hz: float
         Prefactor, as given above. By default, all prefactors vanish.
+
     """
     if len(sites) != 1:
         raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
@@ -617,6 +634,7 @@ def gold_coupling(sites: list[GoldenSite], J: float = 1, name: str = 'gold') -> 
     J: float
         Prefactor, as given above. By default ``1``. Positive `J` energetically favor the
         trivial fusion channel, i.e. they are the "antiferromagnetic" analog.
+
     """
     if len(sites) != 2:
         raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')

@@ -35,6 +35,7 @@ class TensorPlaceholder(LabelledLegs):
         clockwise around the shape, any starting point can be chosen for the labels.
     dims : list of (str | None)
         For each of the legs, an optional symbol to represent its dimension.
+
     """
 
     def __init__(self, labels: list[str], dims: list[str] = None,
@@ -124,6 +125,7 @@ class PlanarDiagram:
     Examples
     --------
     TODO
+
     """
 
     def __init__(self,
@@ -166,6 +168,7 @@ class PlanarDiagram:
             Same as the parameter to :class:`PlanarDiagram`, but applies only to the new `tensor`.
         order : 'greedy' | 'optimal' | 'definition' | str | nested tuples of str
             Same as the parameter to :class:`PlanarDiagram`, applies to the entire new diagram.
+
         """
         extra_tensors = self.parse_tensors(tensor, extra_dims)
         assert len(extra_tensors) == 1
@@ -359,6 +362,7 @@ class PlanarDiagram:
             Same format as the `definition` parameter to :class:`PlanarDiagram`.
         order : 'greedy' | 'optimal' | 'definition' | str | nested tuples of str
             Same as the parameter to :class:`PlanarDiagram`, applies to the entire new diagram.
+
         """
         if name not in self.tensors:
             raise ValueError(f'Tensor does not exist: {name}')
@@ -397,6 +401,7 @@ class PlanarDiagram:
             The leg labels of a result of :meth:`evaluate`.
         cost : BigOPolynomial
             The cost to contract the diagram, as a polynomial in terms of the dims.
+
         """
         for t1, l1, t2, l2 in self.definition:
             assert t1 in self.tensors, f'No tensor with name {t1}'
@@ -447,6 +452,7 @@ class PlanarDiagram:
             multiple times if multiple legs between them are connected.
         order : ContractionTree
             The contraction order. Is explicitly copied before we modify in-place.
+
         """
         order = order.copy()
         while len(tensors) > 1:
@@ -503,6 +509,7 @@ class PlanarDiagram:
         traces : list of (str, str, str)
             List of ``(name, l1, l2)`` indicating that ``l1`` should be connected with ``l2`` on
             tensor ``name``. Note that a ``name`` may appear multiple times!
+
         """
         traces = {}  # {name: [(l1, l2), ...]}
         for name, l1, l2 in traces:
@@ -562,6 +569,7 @@ class PlanarDiagram:
         idx : int | None
             If there is an entry ``(name, leg, None, any_new_label)`` in :attr:`definition`,
             return its index, or ``None`` if there is no such entry.
+
         """
         for n, (t1, l1, t2, _) in enumerate(self.definition):
             if t2 is None and t1 == name and l1 == leg:
@@ -627,6 +635,7 @@ class ContractionTreeNode:
             raise ValueError('Must have either none or two child nodes')
 
     def test_sanity(self):
+        """Perform sanity checks."""
         if self.left_child is None and self.right_child is None:
             pass
         elif self.left_child is not None and self.right_child is not None:
@@ -712,6 +721,7 @@ class ContractionTree:
         self.root = root
 
     def test_sanity(self):
+        """Perform sanity checks."""
         self.root.test_sanity()
 
     @property
@@ -822,6 +832,7 @@ class ContractionTree:
             The values of the leaf nodes that are removed
         new_value : str
             The value of the new leaf, conventionally ``'a @ b'``.
+
         """
         res = self.root.pop_contraction()
         self.root.test_sanity()  # OPTIMIZE rm
@@ -852,6 +863,7 @@ class PlanarLinearOperator(LinearOperator):
     vec_name : str
         The name of the "vector", i.e. the tensor that the linear operator acts on in the
         `matvec_diagram`.
+
     """
 
     def __init__(self, op_diagram: PlanarDiagram, matvec_diagram: PlanarDiagram,
@@ -1031,6 +1043,7 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None,
     codomain, domain : list of {str | int}
         The legs that should be in the new (co)domain, in any order.
         Only one of `codomain`, `domain` is required, the other can be inferred.
+
     """
     if codomain is None and domain is None:
         raise ValueError('Need to specify either codomain or domain')
@@ -1228,6 +1241,7 @@ def parse_leg_bipartition(legs: Sequence[int], num_legs: int) -> tuple[list[int]
     other_legs
         The complementary subset, sorted in order around the circle.
         Note that this may include a jump, e.g. ``[7, 8, 0, 1, 2]`` is sorted if ``num_legs=9``.
+
     """
     assert not duplicate_entries(legs)
     assert all(0 <= l < num_legs for l in legs)

@@ -8,6 +8,7 @@ from .. import backends, dtypes, spaces, symmetries, tensors, tools
 
 
 def random_block(block_backend, size, real=False, np_random=np.random.default_rng(0)):
+    """Generate a random backend-specific block."""
     block = np_random.normal(size=size)
     if not real:
         block = block + 1.j * np_random.normal(size=size)
@@ -46,6 +47,7 @@ def random_symmetry_sectors(symmetry: symmetries.Symmetry, num: int, sort: bool 
 
 def random_ElementarySpace(symmetry, max_sectors=5, max_multiplicity=5, is_dual=None,
                            allow_basis_perm=True, np_random=None):
+    """Make a random ElementarySpace."""
     if np_random is None:
         np_random = np.random.default_rng()
     num_sectors = np_random.integers(1, max_sectors, endpoint=True)
@@ -55,6 +57,7 @@ def random_ElementarySpace(symmetry, max_sectors=5, max_multiplicity=5, is_dual=
 
 def random_LegPipe(symmetry, backend, in_domain, max_sectors=5, max_multiplicity=5,
                    is_dual=None, allow_basis_perm=True, num_legs=2, np_random=None):
+    """Make a random backend-specific leg pipe."""
     if np_random is None:
         np_random = np.random.default_rng()
     if is_dual is None:
@@ -91,6 +94,7 @@ def random_LegPipe(symmetry, backend, in_domain, max_sectors=5, max_multiplicity
 def random_leg(symmetry, backend, in_domain, max_sectors=5, max_multiplicity=5,
                is_dual=None, allow_basis_perm=True, use_pipes=False,
                np_random=np.random.default_rng()):
+    """Generate a random leg (either ElementarySpace or a pipe)"""
     if np_random.random() < use_pipes:
         return random_LegPipe(
             symmetry=symmetry, backend=backend, in_domain=in_domain, max_sectors=max_sectors,
@@ -105,7 +109,7 @@ def random_leg(symmetry, backend, in_domain, max_sectors=5, max_multiplicity=5,
 
 def randomly_drop_blocks(res: tensors.SymmetricTensor | tensors.DiagonalTensor,
                          max_blocks: int | None, empty_ok: bool, np_random=np.random.default_rng()):
-
+    """Randomly drop some blocks, in-place."""
     if isinstance(res.backend, backends.NoSymmetryBackend):
         # nothing to do
         return res
@@ -176,6 +180,7 @@ def find_last_leg(same: spaces.TensorProduct, opposite: spaces.TensorProduct,
         Whether or not the leg is in the domain
     extra_sectors
         If given, extra sectors to mix in
+
     """
     assert same.num_sectors > 0
     assert opposite.num_sectors > 0

@@ -160,6 +160,7 @@ class FusionTreeData:
         If ``False`` (default), we permute `blocks` and `block_inds` according to
         ``np.lexsort(block_inds.T)``.
         If ``True``, we assume they are sorted *without* checking.
+
     """
 
     def __init__(self, block_inds: np.ndarray, blocks: list[Block], dtype: Dtype, device: str,
@@ -367,6 +368,7 @@ class FusionTreeBackend(TensorBackend):
         Returns
         -------
         The :class:`FusionTreeData` for the result of applying the `instructions` to `tensor`.
+
         """
         cls = TreePairMapping if mixes_codomain_domain else FactorizedTreeMapping
         mapping = cls.from_instructions(instructions=instructions, codomain=tensor.codomain,
@@ -2072,6 +2074,7 @@ class FusionTreeBackend(TensorBackend):
             The number of fusion trees from ``a_sectors`` to ``coupled``
         num_beta_trees:
             The number of fusion trees from ``b_sectors`` to ``coupled``
+
         """
         # OPTIMIZE do one loop per vertex in the tree instead.
         i1 = i1_init  # i1: start row index of the current tree block within the block
@@ -2135,6 +2138,7 @@ class FusionTreeBackend(TensorBackend):
             The number of fusion trees from ``a_sectors`` to ``coupled``
         num_beta_trees :
             The number of fusion trees from ``b_sectors`` to ``coupled``
+
         """
         # OPTIMIZE do one loop per vertex in the tree instead.
         i1 = i1_init  # i1: start row index of the current tree block within the block
@@ -2299,6 +2303,7 @@ class TwistInstruction(Instruction):
         |   ┃             ┃
         |   ┗━━┯━━━┯━━━┯━━┛
         |      │   │   │
+
     """
 
     codomain: bool
@@ -2382,6 +2387,7 @@ class PermuteLegsInstructionEngine:
         ------
         AssertionError
             If an instruction can not be applied or if the target permutation is not reproduced.
+
         """
         codomain = [*range(num_codomain_legs)]
         domain = [*reversed(range(num_codomain_legs, num_codomain_legs + num_domain_legs))]
@@ -2433,6 +2439,7 @@ class PermuteLegsInstructionEngine:
         -------
         num_left_bends, num_right_bends : int
             Number of legs that need to be bent down to the left/right side.
+
         """
         num_left_bends = 0
         for leg in range(self.num_codomain_legs):
@@ -2497,6 +2504,7 @@ class PermuteLegsInstructionEngine:
         -------
         num_left_bends, num_right_bends : int
             Number of legs that need to be bent down to the left/right side.
+
         """
         # 1) build perm (in terms of leg idcs)
         # 1a) codomain (unchanged)
@@ -2583,6 +2591,7 @@ class PermuteLegsInstructionEngine:
         over : None or bool
             If ``None``(default) figure out braid chiralities from :attr:`levels`.
             If given, override levels and make the moving leg always go over (``True``) or under.
+
         """
         start = to_valid_idx(start, self.num_legs)
         goal = to_valid_idx(goal, self.num_legs)
@@ -2615,6 +2624,7 @@ class PermuteLegsInstructionEngine:
             If given, override levels and make the leg originally at ``idx`` go over (``True``)
             or under.
             Note: in the domain this is not the same definition as ``BraidInstruction.overbraid``!
+
         """
         idx = to_valid_idx(idx, self.num_legs)
         if over is None:
@@ -2670,6 +2680,7 @@ class TensorMapping(metaclass=ABCMeta):
         f(T)_{Jm} = \sum_I f_{JI} T_{Im}
 
     i.e. are linear combinations of the blocks of T according to the transposed coefficients.
+
     """
 
     def __init__(self, is_real: bool):
@@ -2722,6 +2733,7 @@ class TensorMapping(metaclass=ABCMeta):
             If given, we only initialize those components ``Y_I @ X_I -> Y_I @ X_I``
             where the coupled sector of the tree-pair is pointed to by a row in the `block_inds`,
             i.e. if we have ``coupled == codomain.sector_decomposition[block_inds[some_idx, 0]]``.
+
         """
         raise NotImplementedError
 
@@ -2767,6 +2779,7 @@ class TensorMapping(metaclass=ABCMeta):
         codomain_idcs, domain_idcs : list of int
             The permutations such that ``new_(co)domain[i] = old_legs[(co)domain_idcs[i]]``.
             This permutation acts on the uncoupled multiplicity indices.
+
         """
         ...
 
@@ -2800,6 +2813,7 @@ class TreePairMapping(TensorMapping):
         return cls(mapping, is_real=True)
 
     def test_sanity(self):
+        """Perform sanity checks."""
         for (Y_i, X_i), self_i in self.mapping.items():
             Y_i.test_sanity()
             X_i.test_sanity()
@@ -3199,6 +3213,7 @@ def _partial_trace_helper(tree: FusionTree, idcs: list[int]) -> tuple[bool, floa
         "on the diagonal" of this trace.
     b_symbol : float | complex
         The resulting B symbol.
+
     """
     sym = tree.symmetry
     b_symbols = 1.

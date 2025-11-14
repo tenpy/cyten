@@ -34,6 +34,7 @@ def speigs(A, k, *args, **kwargs):
     v : ndarray
         array of min(`k`, A.shape[0]) eigenvectors, ``v[:, i]`` is the `i`-th eigenvector.
         Only returned if ``kwargs['return_eigenvectors'] == True``.
+
     """
     d = A.shape[0]
     if A.shape != (d, d):
@@ -81,6 +82,7 @@ def speigsh(A, k, *args, **kwargs):
     v : ndarray
         Array of min(`k`, A.shape[0]) eigenvectors, ``v[:, i]`` is the `i`-th eigenvector.
         Only returned if ``kwargs['return_eigenvectors'] == True``.
+
     """
     d = A.shape[0]
     if A.shape != (d, d):

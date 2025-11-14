@@ -105,6 +105,7 @@ class KrylovBased(metaclass=ABCMeta):
     http://web.eecs.utk.edu/~dongarra/etemplates/node103.html#estimate_residual.
     Given the gap, the Ritz residual gives a bound on the error in the wavefunction,
     ``err < (RitzRes/gap)**2``. The gap is estimated from the full Lanczos spectrum.
+
     """
 
     _dtype_h_krylov = np.complex128
@@ -223,6 +224,7 @@ class Arnoldi(KrylovBased):
             Corresponding best eigenvectors (estimates).
         N : int
             Used dimension of the Krylov space, i.e., how many iterations where performed.
+
         """
         assert self.N_cache >= self.N_max
         N = self._build_krylov()
@@ -357,6 +359,7 @@ class LanczosGroundState(KrylovBased):
             Ground state vector (estimate).
         N : int
             Used dimension of the Krylov space, i.e., how many iterations where performed.
+
         """
         N = self._build_krylov()
         E0 = self.Es[N - 1, 0]
@@ -475,6 +478,7 @@ class LanczosEvolution(LanczosGroundState):
         Prefactor of H in the exponential.
     _result_norm : float
         Norm of the resulting vector.
+
     """
 
     def __init__(self, H, psi0, options):
@@ -502,6 +506,7 @@ class LanczosEvolution(LanczosGroundState):
             ``expm(delta (H + E_shift)).dot(psi)``.
         N : int
             Krylov space dimension used.
+
         """
         self.delta = delta
         N = self._build_krylov()
@@ -562,6 +567,7 @@ def lanczos(H, psi, options={}):
     -------
     E0, psi0, N :
         See :meth:`LanczosGroundState.run`.
+
     """
     return LanczosGroundState(H, psi, options).run()
 
@@ -590,6 +596,7 @@ def lanczos_arpack(H, psi, options={}):
         Ground state energy.
     psi0 : :class:`~cyten.tensors.Tensor`
         Ground state vector.
+
     """
     #  options = asConfig(options, "Lanczos")
     raise NotImplementedError  # TODO need to implement DenseArrayLinearOperator (f.k.a. FlatLinearOperator)

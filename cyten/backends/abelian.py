@@ -124,6 +124,7 @@ class AbelianBackendData:
         If ``False`` (default), we permute `blocks` and `block_inds` according to
         ``np.lexsort(block_inds.T)``.
         If ``True``, we assume they are sorted *without* checking.
+
     """
 
     def __init__(self, dtype: Dtype, device: str, blocks: list[Block], block_inds: ndarray,
@@ -500,6 +501,7 @@ class AbelianBackend(TensorBackend):
         How many multiplications :math:`A_{i,k} B_{k,j}` we actually have to perform
         depends on the sparseness. If ``k`` comes from a single leg, it is completely sorted
         by charges, so the 'sum' over ``k`` will contain at most one term!
+
         """
         if a.num_codomain_legs == 0 and b.num_domain_legs == 0:
             return self.inner(a, b, do_dagger=False)
@@ -1989,6 +1991,7 @@ class AbelianBackend(TensorBackend):
         block_inds: 1D array
             For each row j of `incoming_block_inds` an index `J` such that
             ``pipe.block_ind_map[J, 2:-1] == block_inds[j]``.
+
         """
         assert incoming_block_inds.shape[1] == pipe.num_legs
         # calculate indices of _block_ind_map by using the appropriate strides

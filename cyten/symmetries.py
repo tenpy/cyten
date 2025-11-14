@@ -168,6 +168,7 @@ class Symmetry(metaclass=ABCMeta):
     property does it make sense to between symmetric tensors and e.g. numpy arrays, which we can
     think of as tensors with :class:`NoSymmetry`. Additionally, the concept of a basis only makes
     sense in exactly these cases.
+
     """
 
     fusion_tensor_dtype = None
@@ -290,6 +291,7 @@ class Symmetry(metaclass=ABCMeta):
         Returns
         -------
         The matrix elements as a [d_a, d_a] numpy array.
+
         """
         if not self.can_be_dropped:
             raise SymmetryError(f'Z iso can not be written as array for {self}')
@@ -472,6 +474,7 @@ class Symmetry(metaclass=ABCMeta):
         See Also
         --------
         s_matrix
+
         """
         S = 0
         for c in self.fusion_outcomes(a, b):
@@ -485,6 +488,7 @@ class Symmetry(metaclass=ABCMeta):
         See Also
         --------
         s_matrix_element
+
         """
         sectors = self.all_sectors()
         S = np.zeros((self.num_sectors, self.num_sectors), dtype=complex)
@@ -562,6 +566,7 @@ class Symmetry(metaclass=ABCMeta):
         -------
         F : 4D array
             The F symbol as an array of the multiplicity indices [μ,ν,κ,λ]
+
         """
         if config.do_fusion_input_checks:
             is_correct = all([
@@ -599,6 +604,7 @@ class Symmetry(metaclass=ABCMeta):
         -------
         B : 2D array
             The B symbol as an array of the multiplicity indices [μ,ν]
+
         """
         if config.do_fusion_input_checks:
             is_correct = self.can_fuse_to(a, b, c)
@@ -635,6 +641,7 @@ class Symmetry(metaclass=ABCMeta):
         -------
         R : 1D array
             The diagonal entries of the R symbol as an array of the multiplicity index [μ].
+
         """
         if config.do_fusion_input_checks:
             is_correct = self.can_fuse_to(a, b, c)
@@ -664,6 +671,7 @@ class Symmetry(metaclass=ABCMeta):
         -------
         C : 4D array
             The C symbol as an array of the multiplicity indices [μ,ν,κ,λ]
+
         """
         if config.do_fusion_input_checks:
             is_correct = all([
@@ -700,6 +708,7 @@ class Symmetry(metaclass=ABCMeta):
         X : 4D ndarray
             Axis [μ, m_a, m_b, m_c] where μ is the multiplicity index of the fusion tensor and
             m_a goes over a basis for sector a, etc.
+
         """
         if config.do_fusion_input_checks:
             is_correct = self.can_fuse_to(a, b, c)
@@ -767,6 +776,7 @@ class ProductSymmetry(Symmetry):
         The factors that comprise this symmetry. If any are :class:`ProductSymmetry`s, the
         nesting is flattened, i.e. ``[*others, psymm]`` is translated to
         ``[*others, *psymm.factors]`` for a :class:`ProductSymmetry` ``psymm``.
+
     """
 
     def __init__(self, factors: list[Symmetry]):
@@ -1077,6 +1087,7 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
     class, which is not a sub- or superclass of `GroupSymmetry`. Nevertheless, instancechecks can
     be used to check if a given `ProductSymmetry` *instance* is a group-symmetry.
     See examples in docstring of :class:`AbelianGroup`.
+
     """
 
     def __init__(self, fusion_style: FusionStyle, trivial_sector: Sector, group_name: str,
@@ -1118,6 +1129,7 @@ class AbelianGroup(GroupSymmetry, metaclass=_ABCFactorSymmetryMeta):
         True
         >>> issubclass(type(s), AbelianGroup)
         False
+
     """
 
     fusion_tensor_dtype = Dtype.float64
@@ -1511,6 +1523,7 @@ class SUNSymmetry(GroupSymmetry):
         ----------
         a: Sector
             Irrep i.e. first row of a GT pattern
+
         """
         b = np.array(a) - int(max(a))
         return np.abs(b)[::-1].astype(int)
@@ -1531,6 +1544,7 @@ class SUNSymmetry(GroupSymmetry):
         ----------
         a,b,c: Sector
          Labeling an irrep i.e. first row of GT pattern.
+
         """
         hmax = self.hweight_from_CG_hdf5()
         if a[0] > hmax or b[0] > hmax:
@@ -1566,6 +1580,7 @@ class SUNSymmetry(GroupSymmetry):
         ----------
         a, b, c: Sector
          Labeling an irrep i.e. first row of GT pattern.
+
         """
         N = '/N_' + str(self.N) + '/'
 
@@ -1686,6 +1701,7 @@ class SUNSymmetry(GroupSymmetry):
         Returns
         -------
         The CG coefficient for the given input
+
         """
         hw = self.hweight_from_CG_hdf5()
 
@@ -1728,6 +1744,7 @@ class SUNSymmetry(GroupSymmetry):
         ----------
         a, b, c:   Sector
         Irreps specifying the CG coefficient.
+
         """
         if Z_a or Z_b:
             raise NotImplementedError
@@ -1809,6 +1826,7 @@ class SUNSymmetry(GroupSymmetry):
         ----------
         a, b, c, d, e, f:   Sector
             Irreps specifying the CG coefficient.
+
         """
         hmax = self.hweight_from_F_hdf5()
 
@@ -1834,6 +1852,7 @@ class SUNSymmetry(GroupSymmetry):
         ----------
         a, b, c:   Sector
             Irreps specifying the R symbol.
+
         """
         hw = self.hweight_from_CG_hdf5()
 
@@ -1862,6 +1881,7 @@ class SUNSymmetry(GroupSymmetry):
         ----------
         a, b, c:   Sector
             Irreps specifying the R symbol.
+
         """
         hmax = self.hweight_from_R_hdf5()
 
@@ -2726,6 +2746,7 @@ class SU2_kAnyonCategory(Symmetry):
         complex conjugating the R-symbols, which also affects, e.g., the braid-symbols.
         Considering anyons of different handedness is necessary for doubled models like,
         e.g., the anyons realized in the Levin-Wen string-net models.
+
     """
 
     # OPTIMIZE : We should introduce caching for the R, F symbols etc.

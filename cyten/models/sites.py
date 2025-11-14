@@ -45,6 +45,7 @@ class SpinSite(SpinDOF):
             - nothing.
 
         Conserves nothing by default.
+
     """
 
     def __init__(self, S: float = .5, conserve: Literal['SU(2)', 'Sz', 'parity', 'None'] = None,
@@ -104,6 +105,7 @@ class SpinSite(SpinDOF):
                 self.add_onsite_operator('Sigmay', 2. * spin_vector[:, :, 1])
 
     def test_sanity(self):
+        """Perform sanity checks."""
         super().test_sanity()
         S_sq = np.tensordot(self.spin_vector, self.spin_vector, ([-1, 1], [-1, 0]))
         eigenvalue = self.double_total_spin * (self.double_total_spin + 2) / 4
@@ -149,6 +151,7 @@ class SpinlessBosonSite(BosonicDOF):
     filling : float | None
         Average total filling.
     num_species, Nmax, creators, annihilators : see :class:`BosonicDOF`
+
     """
 
     def __init__(self, Nmax: int | list[int] | np.ndarray,
@@ -292,6 +295,7 @@ class SpinlessFermionSite(FermionicDOF):
     filling : float, optional
         Average total filling.
     creators, annihilators : see :class:`FermionicDOF`
+
     """
 
     def __init__(self, num_species: int,
@@ -420,6 +424,7 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         Average total filling.
     creators, annihilators : see :class:`FermionicDOF`
     spin_vector : see :class:`SpinDOF`
+
     """
 
     def __init__(self,
@@ -536,6 +541,7 @@ class ClockSite(ClockDOF):
     conserve : Literal['Z_N', 'None']
         The conserved symmetry, see above.
     q, clock_operators : see :class:`ClockDOF`
+
     """
 
     def __init__(self, q: int, conserve: Literal['Z_N', 'None'] = None,
@@ -590,6 +596,7 @@ class AnyonSite(AnyonDOF):
         called `f'P_{sector_names[i]}'` and projects onto the `i`th sector in
         `leg.sector_decomposition`. For `None` entries (default), no projection operators are
         constructed.
+
     """
 
     def __init__(self, symmetry: Symmetry,
@@ -614,6 +621,7 @@ class FibonacciAnyonSite(AnyonSite):
     ----------
     handedness: Literal['left', 'right']
         The handedness of the anyons.
+
     """
 
     def __init__(self, handedness: Literal['left', 'right'] = 'left',
@@ -636,6 +644,7 @@ class IsingAnyonSite(AnyonSite):
     ----------
     `nu`: odd int
         Specifies the Ising anyons as different `nu` correspond to different topological twists.
+
     """
 
     def __init__(self, nu: int = 1, backend: TensorBackend = None, default_device: str = None):
@@ -654,6 +663,7 @@ class GoldenSite(AnyonDOF):
     ----------
     handedness: Literal['left', 'right']
         The handedness of the anyons.
+
     """
 
     def __init__(self, handedness: Literal['left', 'right'] = 'left',
@@ -675,6 +685,7 @@ class SU2kSpin1Site(AnyonDOF):
         Level of the SU(2)_k anyon model / symmetry.
     handedness: Literal['left', 'right']
         The handedness of the anyons.
+
     """
 
     def __init__(self, k: int, handedness: Literal['left', 'right'] = 'left',

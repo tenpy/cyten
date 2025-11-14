@@ -28,6 +28,7 @@ class SimpleMPS:
         Number of sites (in the unit-cell for an infinite MPS).
     nbonds : int
         Number of (non-trivial) bonds: L-1 for 'finite' boundary conditions, L for 'infinite'.
+
     """
 
     def __init__(self, Bs: list[ct.SymmetricTensor], Ss: list[ct.DiagonalTensor], bc='finite'):
@@ -237,6 +238,7 @@ def split_truncate_theta(theta, chi_max, eps):
         Singular/Schmidt values with legs ``vL, vR``.
     B : SymmetricTensor
         Right-canonical matrix on site j, with legs ``vL, p, vR``
+
     """
     A, S, B, _, _ = ct.truncated_svd(theta, ['vR', 'vL'], chi_max=chi_max, svd_min=eps)
     B = ct.permute_legs(B, codomain=['vL', 'p1'], bend_right=True)

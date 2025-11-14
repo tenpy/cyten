@@ -130,6 +130,7 @@ def save(data, filename, mode='w'):
         File mode for opening the file. ``'w'`` for write (discard existing file),
         ``'a'`` for append (add data to existing file).
         See :py:func:`open` for more details.
+
     """
     filename = str(filename)
     if filename.endswith('.pkl'):
@@ -159,6 +160,7 @@ def load(filename):
     -------
     data : obj
         The object loaded from the file.
+
     """
     filename = str(filename)
     if filename.endswith('.pkl'):
@@ -184,6 +186,7 @@ def find_global(module, qualified_name):
         Name of the module containing the object. The module gets imported.
     qualified_name : str
         Name of the object to be retrieved. May contain dots if the object is part of a class etc.
+
     """
     mod = importlib.import_module(module)
     obj = mod
@@ -316,6 +319,7 @@ class Hdf5Exportable:
             HDF5 group which is supposed to represent `self`.
         subpath : str
             The `name` of `h5gr` with a ``'/'`` in the end.
+
         """
         # for new implementations, use:
         #   hdf5_saver.save(data, subpath + "key")  # for big content/data
@@ -344,6 +348,7 @@ class Hdf5Exportable:
         -------
         obj : cls
             Newly generated class instance containing the required data.
+
         """
         # for new implementations, use:
         #   obj = cls.__new__(cls)                     # create class instance, no __init__() call
@@ -376,6 +381,7 @@ class Hdf5Ignored:
     ----------
     name : str
         See above.
+
     """
 
     def __init__(self, name='unknown'):
@@ -424,6 +430,7 @@ class Hdf5Saver:
         This dictionary allows to set a output format selection for user-defined
         :meth:`Hdf5Exportable.save_hdf5` implementations.
         For example, :class:`~tenpy.linalg.LegCharge` checks it for the key ``"LegCharge"``.
+
     """
 
     def __init__(self, h5group, format_selection=None):
@@ -449,6 +456,7 @@ class Hdf5Saver:
         -------
         h5gr : :class:`Group` | :class:`Dataset`
             The h5py group or dataset in which `obj` was saved.
+
         """
         obj_id = id(obj)
         in_memo = self.memo_save.get(obj_id)  # default=None
@@ -530,6 +538,7 @@ class Hdf5Saver:
         Raises
         ------
         ValueError : if `self.h5group[path]`` already existed and `path` is not ``'/'``.
+
         """
         if path == '/':
             gr = self.h5group[path]
@@ -554,6 +563,7 @@ class Hdf5Saver:
             The h5py group or dataset in which `obj` was saved.
         obj : :class:`object`
             The object saved.
+
         """
         obj_id = id(obj)
         assert obj_id not in self.memo_save
@@ -665,6 +675,7 @@ class Hdf5Saver:
             h5py Group under which the keys and values of `obj` should be saved.
         subpath : str
             Name of h5gr with ``'/'`` in the end.
+
         """
         h5gr.attrs[ATTR_LEN] = len(obj)
         for i, elem in enumerate(obj):
@@ -701,6 +712,7 @@ class Hdf5Saver:
         type_repr : REPR_DICT_SIMPLE | REPR_DICT_GENERAL
             Indicates whether the data was saved in the format for a dictionary with simple keys
             or general keys, see comment above.
+
         """
         # check if we have only simple keys, which we can use in `path`
         simple_keys = True
@@ -831,6 +843,7 @@ class Hdf5Loader:
         A dictionary to remember all the objects which we already loaded from :attr:`h5group`.
         The dictionary key is a h5py group- or dataset ``id``;
         the value is the loaded object. See :meth:`memorize_load`.
+
     """
 
     def __init__(self, h5group, ignore_unknown=True, exclude=None):
@@ -862,6 +875,7 @@ class Hdf5Loader:
         -------
         obj : object
             The Python object loaded from `h5group` (specified by `path`).
+
         """
         # get dataset to be loaded
         if path is None:
@@ -928,6 +942,7 @@ class Hdf5Loader:
         ------
         :class:`Hdf5ImportError`
             If the attribute does not exist.
+
         """
         res = h5gr.attrs.get(attr_name)
         if res is None:
@@ -1214,6 +1229,7 @@ def save_to_hdf5(h5group, obj, path='/'):
     -------
     h5obj : :class:`Group` | :class:`Dataset`
         The h5py group or dataset under which `obj` was saved.
+
     """
     return Hdf5Saver(h5group).save(obj, path)
 
@@ -1247,5 +1263,6 @@ def load_from_hdf5(h5group, path=None, ignore_unknown=True, exclude=None):
     -------
     obj : object
         The Python object loaded from `h5group` (specified by `path`).
+
     """
     return Hdf5Loader(h5group, ignore_unknown, exclude).load(path)

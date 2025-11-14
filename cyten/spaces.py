@@ -47,6 +47,7 @@ class Leg(metaclass=ABCMeta):
     is_dual : bool
         A boolean flag that changes when the :attr:`dual` is taken. May or may not have additional
         meaning and implications, depending on the concrete subclass of :class:`Leg`.
+
     """
 
     def __init__(self, symmetry: Symmetry, dim: int | float, is_dual: bool):
@@ -55,6 +56,7 @@ class Leg(metaclass=ABCMeta):
         self.is_dual = is_dual
 
     def test_sanity(self):
+        """Perform sanity checks."""
         pass
 
     @abstractmethod
@@ -117,6 +119,7 @@ class LegPipe(Leg):
     See Also
     --------
     TensorProduct
+
     """
 
     def __init__(self, legs: Sequence[Leg], is_dual: bool = False):
@@ -127,6 +130,7 @@ class LegPipe(Leg):
                      is_dual=is_dual)
 
     def test_sanity(self):
+        """Perform sanity checks."""
         assert all(l.symmetry == self.symmetry for l in self.legs)
         for l in self.legs:
             l.test_sanity()
@@ -251,6 +255,7 @@ class Space(metaclass=ABCMeta):
         ``slices[n, 1]`` of indices (in the *internal* basis order) that belong to this sector.
         Conversely, ``basis_perm[slices[n, 0]:slices[n, 1]]`` are the elements of the public
         basis that live in ``sector_decomposition[n]``. Only available if ``symmetry.can_be_dropped``.
+
     """
 
     def __init__(self, symmetry: Symmetry, sector_decomposition: SectorArray | Sequence[Sequence[int]],
@@ -285,6 +290,7 @@ class Space(metaclass=ABCMeta):
             self.dim = np.sum(sector_qdims * multiplicities).item()
 
     def test_sanity(self):
+        """Perform sanity checks."""
         assert self.dim >= 0
         # sectors
         if self.sector_decomposition.shape != (self.num_sectors, self.symmetry.sector_ind_len):
@@ -401,6 +407,7 @@ class Space(metaclass=ABCMeta):
         See Also
         --------
         ElementarySpace.from_largest_common_subspace
+
         """
         if not self.symmetry.is_same_symmetry(other.symmetry):
             return False
@@ -478,6 +485,7 @@ class Space(metaclass=ABCMeta):
         -------
         A space with the new symmetry. The order of the basis is preserved, but every
         basis element lives in a new sector, according to `sector_map`.
+
         """
         ...
 
@@ -491,6 +499,7 @@ class Space(metaclass=ABCMeta):
             If ``None`` (default) the entire symmetry is dropped and the result has ``no_symmetry``.
             An integer or list of integers assume that ``self.symmetry`` is a ``ProductSymmetry``
             and indicates which of its factors to drop.
+
         """
         ...
 
@@ -507,6 +516,7 @@ class Space(metaclass=ABCMeta):
         idx : int | None
             If the `sector` is found the :attr:`sector_decomposition`, its index there such
             that ``sector_decomposition[idx] == sector``. Otherwise ``None``.
+
         """
         # OPTIMIZE : if sector_order allows it, use that sectors are sorted to speed up the lookup
         where = np.where(np.all(self.sector_decomposition == sector, axis=1))[0]
@@ -567,6 +577,7 @@ class ElementarySpace(Space, Leg):
         Is ``np.lexsort( .T)``-ed.
         The :attr:`sector_decomposition` is equal for ket spaces (``is_dual=False``) or given by
         the respective :meth:`~cyten.symmetries.Symmetry.dual_sectors` for bra spaces.
+
     """
 
     def __init__(self, symmetry: Symmetry, defining_sectors: SectorArray,
@@ -594,6 +605,7 @@ class ElementarySpace(Space, Leg):
             self._inverse_basis_perm = inverse_permutation(basis_perm)
 
     def test_sanity(self):
+        """Perform sanity checks."""
         if not self.symmetry.can_be_dropped:
             assert self._basis_perm is None
         if self._basis_perm is None:
@@ -649,6 +661,7 @@ class ElementarySpace(Space, Leg):
         :attr:`sectors_of_basis`
             Reproduces the `sectors_of_basis` parameter.
         from_defining_sectors
+
         """
         if not symmetry.can_be_dropped:
             msg = f'from_basis is meaningless for {symmetry}.'
@@ -680,6 +693,7 @@ class ElementarySpace(Space, Leg):
         independent_descriptions : list of :class:`ElementarySpace`
             Each entry describes the resulting :class:`ElementarySpace` in terms of *one* of
             the independent symmetries. Spaces with a :class:`NoSymmetry` are ignored.
+
         """
         # OPTIMIZE this can be implemented better. if many consecutive basis elements have the same
         #          resulting sector, we can skip over all of them.
@@ -717,6 +731,7 @@ class ElementarySpace(Space, Leg):
         See Also
         --------
         is_subspace_of
+
         """
         if len(spaces) == 0:
             raise ValueError('Need at least one space')
@@ -800,6 +815,7 @@ class ElementarySpace(Space, Leg):
         space: ElementarySpace
         sector_sort: 1D array, optional
             Only ``if return_sorting_perm``. The permutation that sorts the `defining_sectors`.
+
         """
         defining_sectors = np.asarray(defining_sectors, dtype=int)
         assert defining_sectors.ndim == 2 and defining_sectors.shape[1] == symmetry.sector_ind_len
@@ -886,6 +902,7 @@ class ElementarySpace(Space, Leg):
         See Also
         --------
         from_defining_sectors
+
         """
         sector_decomposition = np.asarray(sector_decomposition, int)
         assert sector_decomposition.ndim == 2 and sector_decomposition.shape[1] == symmetry.sector_ind_len
@@ -910,6 +927,7 @@ class ElementarySpace(Space, Leg):
             The symmetry of the space.
         is_dual : bool
             If the space should be bra or a ket space.
+
         """
         if dim == 0:
             return cls.from_null_space(symmetry=symmetry, is_dual=is_dual)
@@ -1064,6 +1082,7 @@ class ElementarySpace(Space, Leg):
         pre_compose : bool
             If we should pre-compose instead, i.e. form ``basis_perm[arr]``.
             Note that in that case, `axis` is ignored.
+
         """
         # this implementation assumes _basis_perm. AbelianLegPipe overrides this method.
         perm = self._inverse_basis_perm if inverse else self._basis_perm
@@ -1165,6 +1184,7 @@ class ElementarySpace(Space, Leg):
             indicating that the `idx`-th basis element lives in ``self.sector_decomposition[sector_idx]``.
         multiplicity_idx : int
             The index "within the sector", in ``range(sector_dim * self.multiplicities[sector_index])``.
+
         """
         if not self.symmetry.can_be_dropped:
             msg = f'parse_index is meaningless for {self.symmetry}.'
@@ -1186,6 +1206,7 @@ class ElementarySpace(Space, Leg):
         blockmask : 1D array-like of bool
             For every basis state of self, in the public basis order,
             if it should be kept (``True``) or discarded (``False``).
+
         """
         if not self.symmetry.can_be_dropped:
             msg = f'take_slice is meaningless for {self.symmetry}.'
@@ -1311,6 +1332,7 @@ class TensorProduct(Space):
         :class:`TensorProduct`s are :class:`Space`s, while :class:`LegPipe`s are not.
         Secondly, we only keep track of duality with an explicit flag for :class:`Leg`s, to have
         arrows on our tensor legs. A :class:`TensorProduct` has no ``is_dual`` attribute.
+
     """
 
     def __init__(self, factors: list[Space | LegPipe], symmetry: Symmetry = None,
@@ -1333,6 +1355,7 @@ class TensorProduct(Space):
                        multiplicities=_multiplicities, sector_order='sorted')
 
     def test_sanity(self):
+        """Perform sanity checks."""
         assert len(self.factors) == self.num_factors
         for sp in self.factors:
             sp.test_sanity()
@@ -1380,6 +1403,7 @@ class TensorProduct(Space):
             Specify the coupled sector, either directly as a sector or as an integer, which
             is interpreted as an index, i.e. is equivalent to the sector
             ``self.sector_decomposition[coupled]``.
+
         """
         if isinstance(coupled, int):
             return self.multiplicities[coupled]
@@ -1477,6 +1501,7 @@ class TensorProduct(Space):
         --------
         iter_forest_blocks
         iter_uncoupled
+
         """
         # OPTIMIZE some users in FTBackend ignore some of the yielded values.
         #          is that ok performance wise or should we have special case iterators?
@@ -1511,6 +1536,7 @@ class TensorProduct(Space):
         --------
         iter_tree_blocks
         iter_uncoupled
+
         """
         for i, c in enumerate(coupled):
             start = 0
@@ -1532,7 +1558,7 @@ class TensorProduct(Space):
         Assumes that all the :attr:`factors` are :class:`ElementarySpaces`, i.e. pipes
         are not supported.
 
-        Yields
+        Yields:
         ------
         uncoupled : 2D array of int
             A combination of uncoupled sectors, where
@@ -1544,10 +1570,11 @@ class TensorProduct(Space):
             Only if ``yield_slices``, the corresponding entry of :attr:`Space.slices`, as a slice.
             I.e. ``slices[i] == slice(*self.factors[i].slices[some_idx])``.
 
-        Note
+        Note:
         ----
         For a TensorProduct of zero spaces, i.e. with ``num_factors == 0``,
         we *do* yield once, where the yielded arrays are empty (e.g. ``len(uncoupled) == 0``).
+
         """
         if not all(isinstance(f, ElementarySpace) for f in self.factors):
             raise RuntimeError('iter_uncoupled can not deal with pipes.')
@@ -1866,6 +1893,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     sorted by F-style, such that the whole :attr:`block_ind_map` is ``np.lexsort( .T)``ed.
     This also affects the :attr:`basis_perm`, since we need to use F-style combinations when arguing
     about the order of public or internal basis of the pipe.
+
     """
 
     def __init__(self, legs: Sequence[ElementarySpace], is_dual: bool = False,
@@ -1879,6 +1907,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
                                  multiplicities=mults, is_dual=is_dual, basis_perm=basis_perm)
 
     def test_sanity(self):
+        """Perform sanity checks."""
         for l in self.legs:
             assert isinstance(l, ElementarySpace)
             if isinstance(l, LegPipe):
@@ -2267,6 +2296,7 @@ def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicitie
         `unsorted_multiplicities` which correspond to the given sector
     perm
         The permutation that sorts the input, i.e. ``np.lexsort(unsorted_sectors.T)``.
+
     """
     sectors, multiplicities, perm = _sort_sectors(unsorted_sectors, unsorted_multiplicities)
     slices = np.concatenate([[0], np.cumsum(multiplicities)], axis=0)
@@ -2293,6 +2323,7 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
         ``None`` indicates to drop all.
     remaining_symmetry : Symmetry
         The symmetry that remains.
+
     """
     if which is None or which == []:
         pass

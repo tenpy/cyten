@@ -13,10 +13,12 @@ _MAX_INT = np.iinfo(int).max
 
 
 def duplicate_entries(seq: Sequence[_T], ignore: Sequence[_T] = []) -> set[_T]:
+    """The duplicate entries in a sequence, with exceptions from `ignore`."""
     return set(ele for idx, ele in enumerate(seq) if ele in seq[idx + 1:] and ele not in ignore)
 
 
 def is_iterable(a):
+    """If the given object is iterable."""
     try:
         iter(a)
     except TypeError:
@@ -63,6 +65,7 @@ def permutation_as_swaps(permutation: list[int]) -> Generator[int, None, None]:
     j : int
         Represents a swap of ``j <-> j + 1``, i.e. the permutation
         ``[*range(j), j + 1, j, *range(j + 2, len(permutation))]``.
+
     """
     N = len(permutation)
     if set(permutation) != set(range(N)):
@@ -115,6 +118,7 @@ def argsort(a, sort=None, **kwargs):
     -------
     index_array : ndarray, int
         Same shape as `a`, such that ``a[index_array]`` is sorted in the specified way.
+
     """
     if sort is not None:
         if sort == 'm<' or sort == 'SM':
@@ -170,6 +174,7 @@ def inverse_permutation(perm):
     -----
     For permutations, this is equivalent to ``numpy.argsort``, but has ``O(N)`` complexity instead
     of ``O(N log(N))``.
+
     """
     perm = np.asarray(perm, dtype=np.intp)
     inv_perm = np.empty_like(perm)
@@ -200,6 +205,7 @@ def rank_data(a, stable=True):
         For equal elements ``a[i] == a[j]``, and only if `stable`, we have ``ranks[i] > ranks[j]``
         iff ``i > j``. Otherwise the relative ranks are arbitrary.
         The result is a permutation of ``range(len(a))``.
+
     """
     # basically np.argsort(np.argsort(a)),
     # but use same trick as inverse_permutation for the outer argsort call
@@ -217,6 +223,7 @@ if int(np.version.version.split('.')[0]) >= 2:
 
 else:
     def np_argsort(a, stable=True):
+        """Wrapper around np.argsort, using the ``stable`` kwarg if available"""
         if stable:
             return np.argsort(a, kind='stable')
         return np.argsort(a)
@@ -317,6 +324,7 @@ def list_to_dict_list(l):
         A dictionary with (key, value) pairs ``(key):[i1,i2,...]``
         where ``i1, i2, ...`` are the indices where `key` is found in `l`:
         i.e. ``key == tuple(l[i1]) == tuple(l[i2]) == ...``
+
     """
     d = {}
     for i, r in enumerate(l):
@@ -343,6 +351,7 @@ def find_row_differences(sectors, include_len: bool = False):
     diffs: 1D array
         The indices where rows change, including the first and last. Equivalent to:
         ``[0] + [i for i in range(1, len(sectors)) if np.any(sectors[i-1] != sectors[i])]``
+
     """
     # note: by default remove last entry [len(sectors)] compared to old.charges
     len_sectors = len(sectors)
@@ -495,6 +504,7 @@ def find_subclass(base_class, subclass_name):
     Raises
     ------
     ValueError: When no or multiple subclasses of `base_class` exists with that `subclass_name`.
+
     """
     if not isinstance(subclass_name, str):
         subclass = subclass_name

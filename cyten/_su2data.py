@@ -39,6 +39,7 @@ def f_symbol(a: int, b: int, c: int, d: int, e: int, f: int) -> np.ndarray:
     -------
     F : 4D array
         The F symbol as an array of the multiplicity indices [μ,ν,κ,λ]
+
     """
     # We define the F symbol as
     #  < ((j1 j2) J12, j3) J | (j1, (j2 j3) J23) J >

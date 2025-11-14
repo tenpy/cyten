@@ -39,6 +39,7 @@ class LinearOperator(metaclass=ABCMeta):
         The dtype of a full representation of the operator
     acts_on : list of str
         Labels of the state on which the operator can act. NB: Class attribute.
+
     """
 
     acts_on = None  # Derived classes should set this as a class attribute
@@ -66,6 +67,7 @@ class LinearOperator(metaclass=ABCMeta):
         A tensor `t` with ``2 * N`` legs ``[a1, a2, ..., aN, aN*, ..., a2*, a1*]``, where
         ``[a1, a2, ..., aN]`` are the legs of the vectors this operator acts on.
         S.t. ``self.matvec(vec)`` is equivalent to ``tdot(t, vec, [N, ..., 2*N-1], [N-1,...,0])``.
+
         """
         ...
 
@@ -144,6 +146,7 @@ class LinearOperatorWrapper(LinearOperator):
     ----------
     original_operator : :class:`LinearOperator`
         The original operator implementing the `matvec`.
+
     """
 
     def __init__(self, original_operator: LinearOperator):
@@ -254,6 +257,7 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
         and ``H + penalty * (1 - P)`` is represented instead.
     penalty : complex, optional
         See summary above. Defaults to ``None``, which is equivalent to ``0.``.
+
     """
 
     def __init__(self, original_operator: LinearOperator, ortho_vecs: list[Tensor],
@@ -373,6 +377,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         The symmetry of all involved spaces
     shape : (int, int)
         The shape of self as an operator on 1D numpy arrays
+
     """
 
     def __init__(self, cyten_matvec, legs: TensorProduct | list[Space], backend: TensorBackend, dtype,
@@ -420,6 +425,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             If given, only the specified charge sector is considered.
             If ``'trivial'`` is given, the trivial sector of the symmetry is used.
             ``None`` stands for *all* sectors.
+
         """
         idcs1 = tensor.get_leg_idcs(legs1)
         tensor_contr_legs = [tensor.legs[idx] for idx in idcs1]
@@ -475,6 +481,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             The resulting operator
         vec_flat : 1D ndarray
             Flat numpy vector representing `vector` within its charge sector.
+
         """
         if isinstance(vector, ChargedTensor):
             assert vector.dummy_leg.num_sectors == 1 and vector.dummy_leg.multiplicities[0] == 1
@@ -524,6 +531,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         -------
         matvec_vec : 1D ndarray
             The result of the linear operation as a length ``N`` vector
+
         """
         vec = np.asarray(vec)
         if vec.ndim != 1:  # convert Nx1 matrix to vector
@@ -622,6 +630,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             The eigenvalues, sorted according to `which`.
         w : list of :class:`~cyten.tensors.Tensor` or :class:`~cyten.tensors.ChargedTensor`
             The corresponding eigenvectors as tensors.
+
         """
         if max_num_ev is None:
             max_num_ev = num_ev + 2
@@ -685,6 +694,7 @@ def gram_schmidt(vecs: list[Tensor], rcond=1.e-14) -> list[Tensor]:
     -------
     list of :class:`~cyten.tensors.Tensor`
         A list of orthonormal vectors which span the same space as `vecs`.
+
     """
     res = []
     for vec in vecs:
