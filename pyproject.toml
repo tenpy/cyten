@@ -1,10 +1,8 @@
-[tool.scikit-build.cmake.define]
-BUILD_DOC = {env="BUILD_DOC", default="OFF"}
-
 
 [build-system]
 requires = ["scikit-build-core", "pybind11", "numpy>=2.0"]
 build-backend = "scikit_build_core.build"
+
 
 [tool.scikit-build]
 cmake.version = ">=3.15"
@@ -13,6 +11,9 @@ cmake.build-type = "Debug"  # TODO: for now setup debug builds - update this onc
 # Select the editable mode to use. Can be "redirect" (default) or "inplace".
 # editable.mode = "inplace"
 wheel.packages = ["cyten"]
+
+[tool.scikit-build.cmake.define]
+BUILD_DOC = {env="BUILD_DOC", default="OFF"}
 
 
 [project]
