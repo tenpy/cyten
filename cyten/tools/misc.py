@@ -263,6 +263,7 @@ def make_grid(shape, cstyle=True) -> np.ndarray:
     Parameters
     ----------
     shape : sequence of int
+        The shape of a tensor or the maximum values for the individual indices.
     cstyle : bool
         If the resulting grid should be in C-style order (varying the last index the fastest),
         or in F-style order (varying the first index the fastest).

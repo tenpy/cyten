@@ -153,6 +153,7 @@ class FusionTreeData:
     blocks : list of 2D Block
         The nonzero blocks, ``blocks[n]`` corresponding to ``coupled_sectors[n]``.
     dtype : Dtype
+        The dtype of the tensor (and of the `blocks`).
     device : str
         The device on which the blocks are currently stored.
         We currently only support tensors which have all blocks on a single device.
@@ -2599,8 +2600,9 @@ class PermuteLegsInstructionEngine:
         """Initial permutation of the codomain.
 
         Assumptions: None
+
         Goals: Legs in the codomain that need to be bent are on the outside; those that need
-               to bend right (left) are at the very right (left).
+        to bend right (left) are at the very right (left).
 
         Returns
         -------
@@ -2661,9 +2663,11 @@ class PermuteLegsInstructionEngine:
         """Permutation of the domain
 
         Assumptions: All legs that need to go to the domain are in the domain
-        Goal: A) The legs that need to be bent upward are on the outside; those that need
-                 to bend right (left) are at the very right (left).
-              B) The legs that stay in the domain are in correct relative order.
+        Goals::
+
+            A) The legs that need to be bent upward are on the outside; those that need
+               to bend right (left) are at the very right (left).
+            B) The legs that stay in the domain are in correct relative order.
 
         Returns
         -------
@@ -3389,6 +3393,7 @@ def _partial_trace_helper(tree: FusionTree, idcs: list[int]) -> tuple[bool, floa
     Parameters
     ----------
     tree : FusionTree
+        The current tree.
     idcs : list of int
         Indicates which of the legs are traced: ``idcs[i]`` with ``idcs[i] + 1`` and so on.
 

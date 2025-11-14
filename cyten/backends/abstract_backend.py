@@ -311,6 +311,7 @@ class TensorBackend(metaclass=ABCMeta):
         Parameters
         ----------
         a
+            The input tensor. Assumed to be hermitian without checking!
         new_leg_dual : bool
             If the new leg should be dual or not.
         sort : {'m>', 'm<', '>', '<'}
@@ -719,6 +720,7 @@ class TensorBackend(metaclass=ABCMeta):
         Parameters
         ----------
         a
+            The tensor to split legs on.
         leg_idcs:
             List of leg-indices, fulfilling ``0 <= i < a.num_legs``, to split.
         codomain_split, domain_split

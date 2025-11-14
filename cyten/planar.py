@@ -62,15 +62,16 @@ class TensorPlaceholder(LabelledLegs):
 class PlanarDiagram:
     """Abstract representation for the contraction of multiple tensors without any braids.
 
-    Random notes (TODO elaborate)
-    - abstract representation of the connectivity in terms of string labels
-    - Use :meth:`evaluate`, or directly call the diagram (``__call__``) to actually do contractions
-    - we only care about the order of legs around a tensor (counter-clockwise),
-      with arbitrary starting point. I.e. no need to care about codomain / domain
-    - Intended use: make instances in a module, such that they are instantiated at import-time.
-    - Optimization of contraction order can be expensive in some cases.
-      Intended workflow: run optimizing once during development and hard-code it.
-      Fallback: run greedy optimization when the diagram is instantiated
+    Random notes (TODO elaborate)::
+
+        - abstract representation of the connectivity in terms of string labels
+        - Use :meth:`evaluate`, or directly call the diagram (``__call__``) to actually do contractions
+        - we only care about the order of legs around a tensor (counter-clockwise),
+        with arbitrary starting point. I.e. no need to care about codomain / domain
+        - Intended use: make instances in a module, such that they are instantiated at import-time.
+        - Optimization of contraction order can be expensive in some cases.
+        Intended workflow: run optimizing once during development and hard-code it.
+        Fallback: run greedy optimization when the diagram is instantiated
 
     Parameters
     ----------

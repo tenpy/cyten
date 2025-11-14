@@ -160,7 +160,8 @@ class SpinlessBosonSite(BosonicDOF):
         The conserved symmetry, see above.
     filling : float | None
         Average total filling.
-    num_species, Nmax, creators, annihilators : see :class:`BosonicDOF`
+    num_species, Nmax, creators, annihilators
+        see :class:`BosonicDOF`
 
     """
 
@@ -315,7 +316,8 @@ class SpinlessFermionSite(FermionicDOF):
         The conserved symmetry, see above.
     filling : float, optional
         Average total filling.
-    creators, annihilators : see :class:`FermionicDOF`
+    creators, annihilators
+        see :class:`FermionicDOF`
 
     """
 
@@ -453,8 +455,10 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         The conserved spin symmetry, see above.
     filling : float, optional
         Average total filling.
-    creators, annihilators : see :class:`FermionicDOF`
-    spin_vector : see :class:`SpinDOF`
+    creators, annihilators
+        see :class:`FermionicDOF`
+    spin_vector
+        see :class:`SpinDOF`
 
     """
 
@@ -590,7 +594,8 @@ class ClockSite(ClockDOF):
     ----------
     conserve : Literal['Z_N', 'None']
         The conserved symmetry, see above.
-    q, clock_operators : see :class:`ClockDOF`
+    q, clock_operators
+        see :class:`ClockDOF`
 
     """
 

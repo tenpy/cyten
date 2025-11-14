@@ -24,7 +24,7 @@ np_random                      -                       A numpy random Generator.
 -----------------------------  ----------------------  -------------------------------------------
 block_backend                  Generates ~2 cases      Goes over all block backends, as str
                                                        descriptions, valid for ``get_backend``.
-=============================  ======================  ===========================================
+-----------------------------  ----------------------  -------------------------------------------
 any_symmetry_backend           Generates 3 cases       Goes over all symmetry backends, as str
                                                        descriptions, valid for ``get_backend``.
 -----------------------------  ----------------------  -------------------------------------------
@@ -42,7 +42,7 @@ make_any_space                 any_symmetry            RNG for spaces with ``any
 -----------------------------  ----------------------  -------------------------------------------
 make_any_block                 any_backend             RNG for blocks of ``any_backend``.
                                                        ``make(size, real=False)``
-=============================  ======================  ===========================================
+-----------------------------  ----------------------  -------------------------------------------
 compatible_pairs               Generates ~20 cases     Not a public fixture, only generates
                                                        the cases. Compatible pairs are built like
                                                        combinations of ``any_symmetry_backend``

@@ -25,7 +25,7 @@ Similarly, we can view any tensor, i.e. elements of tensor product spaces as lin
 TODO elaborate.
 
 
-.. _conj_and_transpose
+.. _conj_and_transpose:
 
 Conjugation and Transposition
 -----------------------------
@@ -53,7 +53,7 @@ The dagger ``dagger(A)`` has legs signature ``[W] -> [V]`` and legs ``[V, W.dual
 it can be directly contracted with ``A``.
 
 
-.. _decompositions
+.. _decompositions:
 
 Tensor Decompositions
 ---------------------
@@ -396,8 +396,8 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
 
         It shows they type, leg labels, leg dimensions and leg arrows.
 
-        Example:
-        -------
+        Examples
+        --------
         Consider the following example::
 
             |     123   123   132   123
@@ -4197,7 +4197,7 @@ def dagger(tensor: Tensor) -> Tensor:
     Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
     on their bipartition into domain and codomain.
     For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
-    then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*'].
+    then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*']``.
 
     """
     if isinstance(tensor, Mask):
@@ -5270,6 +5270,7 @@ def permute_legs(
         fermions), this makes no difference and this argument is ignored. For anyonic symmetries,
         the two options are not equivalent and an explicit choice is required for all legs that
         do bend. Allowed formats are::
+
             - A single boolean is applied to all legs.
             - A list of bools specifies for each leg by leg index.
               ``None`` is allowed as a placeholder for legs that do not bend.
@@ -5622,7 +5623,7 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
 
 
 def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
-    """Split legs that were previously combined using :func:`combine_legs`.
+    r"""Split legs that were previously combined using :func:`combine_legs`.
 
     |       │   │   │   │   │   │
     |       ╰╥──┴───╯   │   ╰╥──╯
@@ -5639,7 +5640,7 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     tensor
         The tensor to act on.
     legs: list of int | str
-        Which legs to split. If ``None`` (default), all those legs that are :class:`LegPipe`s
+        Which legs to split. If ``None`` (default), all those legs that are :class:`LegPipe`\ s
         are split.
 
     """

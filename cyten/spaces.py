@@ -677,6 +677,7 @@ class ElementarySpace(Space, Leg):
         :attr:`sectors_of_basis`
             Reproduces the `sectors_of_basis` parameter.
         from_defining_sectors
+            Similar to the constructor, but with fewer requirements.
 
         """
         if not symmetry.can_be_dropped:
@@ -841,6 +842,7 @@ class ElementarySpace(Space, Leg):
         Returns
         -------
         space: ElementarySpace
+            The new space
         sector_sort: 1D array, optional
             Only ``if return_sorting_perm``. The permutation that sorts the `defining_sectors`.
 
@@ -1370,7 +1372,7 @@ class ElementarySpace(Space, Leg):
 
 
 class TensorProduct(Space):
-    """Represents a tensor product of :class:`Spaces`s, e.g. the (co-)domain of a tensor.
+    r"""Represents a tensor product of :class:`Spaces`\ s, e.g. the (co-)domain of a tensor.
 
     Attributes
     ----------
@@ -1640,7 +1642,7 @@ class TensorProduct(Space):
         Assumes that all the :attr:`factors` are :class:`ElementarySpaces`, i.e. pipes
         are not supported.
 
-        Yields:
+        Yields
         ------
         uncoupled : 2D array of int
             A combination of uncoupled sectors, where
@@ -1652,8 +1654,8 @@ class TensorProduct(Space):
             Only if ``yield_slices``, the corresponding entry of :attr:`Space.slices`, as a slice.
             I.e. ``slices[i] == slice(*self.factors[i].slices[some_idx])``.
 
-        Note:
-        ----
+        Notes
+        -----
         For a TensorProduct of zero spaces, i.e. with ``num_factors == 0``,
         we *do* yield once, where the yielded arrays are empty (e.g. ``len(uncoupled) == 0``).
 
@@ -1973,7 +1975,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     For reshaping the actual data, this has no effect, since data is relative to the
     ``tensor.legs`` and unaffected by this reversed leg order. For the sector combinations, however,
     we now take F-style combinations, such that e.g. the ``i`` in :attr:`block_ind_map` are
-    sorted by F-style, such that the whole :attr:`block_ind_map` is ``np.lexsort( .T)``ed.
+    sorted by F-style, such that the whole :attr:`block_ind_map` is ``np.lexsort( .T)``\ -ed.
     This also affects the :attr:`basis_perm`, since we need to use F-style combinations when arguing
     about the order of public or internal basis of the pipe.
 

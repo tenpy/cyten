@@ -335,7 +335,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
     Parameters
     ----------
     cyten_matvec : callable
-        Function with signature ``cyten_matvec(vec: Tensor) -> Tensor`.
+        Function with signature ``cyten_matvec(vec: Tensor) -> Tensor``.
         Has to return a tensor with the same legs and has to be linear.
         Unless `labels` are given, the leg order of the output must be the same as for the input.
     legs : list of :class:`~cyten.spaces.ElementarySpace`
@@ -354,7 +354,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
     Attributes
     ----------
     cyten_matvec : callable
-        Function with signature ``cyten_matvec(vec: Tensor) -> Tensor`.
+        Function with signature ``cyten_matvec(vec: Tensor) -> Tensor``.
     legs : list of :class:`~cyten.spaces.Space`
         The legs of a Tensor that `cyten_matvec` can act on.
     backend : :class:`~cyten.backends.abstract_backend.Backend`
@@ -482,7 +482,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         Parameters
         ----------
         cyten_matvec : callable
-            Function with signature ``cyten_matvec(vec: Tensor) -> Tensor`.
+            Function with signature ``cyten_matvec(vec: Tensor) -> Tensor``.
             Has to return a tensor with the same leg and has to be linear.
         vector : :class:`~cyten.tensors.Tensor` | :class:`~cyten.tensors.ChargedTensor`
             A tensor that `cyten_matvec` can act on.

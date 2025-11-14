@@ -498,7 +498,7 @@ class AbelianBackend(TensorBackend):
         Second, if the ``i`` and ``j`` are not compatible with the new total charge,
         we know that ``C_{i,j}`` will be zero.
         Third, given ``i`` and ``j``, the sum over ``k`` runs only over
-        ``k1`` with nonzero :math:`A_{i,k1}`, and ``k2` with nonzero :math:`B_{k2,j}`.
+        ``k1`` with nonzero :math:`A_{i,k1}`, and ``k2`` with nonzero :math:`B_{k2,j}`.
 
         How many multiplications :math:`A_{i,k} B_{k,j}` we actually have to perform
         depends on the sparseness. If ``k`` comes from a single leg, it is completely sorted

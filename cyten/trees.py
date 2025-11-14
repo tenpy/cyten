@@ -50,6 +50,7 @@ class FusionTree:
     Attributes
     ----------
     symmetry : Symmetry
+        The symmetry.
     uncoupled : 2D array of int
         N uncoupled sectors. These are the sectors *above* any Z isos.
         I.e. the generalized tree, including the Zs, maps from the :attr:`pre_Z_sectors` instead.
@@ -696,6 +697,7 @@ class FusionTree:
         insert
             Can insert nodes "below"
         split_topmost
+            Split off the topmost node.
 
         """
         if self.num_uncoupled == 0:
@@ -725,6 +727,7 @@ class FusionTree:
         insert_at
             Inserting at general position
         split
+            Split into two separate fusion trees.
 
         """
         return FusionTree(
@@ -766,6 +769,7 @@ class FusionTree:
         insert
             The same insertion, but restricted to ``n=0``, and returns that tree directly, no dict.
         split
+            Split into two separate fusion trees.
 
         """
         assert self.symmetry == t2.symmetry
@@ -1103,7 +1107,7 @@ class FusionTree:
 
 
 class fusion_trees(Iterable[FusionTree]):
-    """Iterable over all :class:`FusionTree`s with given uncoupled and coupled sectors.
+    r"""Iterable over all :class:`FusionTree`\ s with given uncoupled and coupled sectors.
 
     This custom iterator has efficient implementations of ``len`` and :meth:`index`, which
     avoid generating all intermediate trees.

@@ -112,8 +112,6 @@ class Symmetry(metaclass=ABCMeta):
 
     Attributes
     ----------
-    fusion_style: :class:`FusionStyle`
-    braiding_style: :class:`BraidingStyle`
     can_be_dropped: bool
         If the symmetry could be dropped to :class:`NoSymmetry` while preserving the structure.
         This is e.g. the case for :class:`GroupSymmetry` subclasses.
@@ -284,6 +282,7 @@ class Symmetry(metaclass=ABCMeta):
         The Z isomorphism :math:`Z_a : a^* \to \bar{a}` is that isomorphism.
 
         We return the matrix elements
+
         .. math ::
             (Z_{\bar{a}})_{mn} = \langle m \vert Z_{\bar{a}}(\langle n \vert)
 
@@ -758,7 +757,7 @@ class Symmetry(metaclass=ABCMeta):
 
 
 class ProductSymmetry(Symmetry):
-    """Multiple symmetries.
+    r"""Multiple symmetries.
 
     The allowed sectors are "stacks" (using e.g. :func:`numpy.concatenate`) of sectors for the
     individual symmetries. For recovering the individual sectors see :attr:`sector_slices`.
@@ -771,7 +770,7 @@ class ProductSymmetry(Symmetry):
     ----------
     factors : list of :class:`Symmetry`
         The individual symmetries. We do not allow nesting, i.e. the `factors` can not
-        be :class:`ProductSymmetry`s themselves.
+        be :class:`ProductSymmetry`\ s themselves.
     sector_slices : 1D ndarray
         Describes how the sectors of the `factors` are embedded in a sector of the product.
         Indicates that the slice ``sector_slices[i]:sector_slices[i + 1]`` of a sector of the
@@ -2471,7 +2470,7 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
     Allowed sectors are 1D arrays with two integers between ``0`` and ``N-1``.
     ``[0, 0]``, ``[0, 1]``, ..., ``[N-1, N-1]``.
 
-    This is not a simple product of two `ZNAnyonCategory`s; there are nontrivial R-symbols.
+    This is not a simple product of two :class:`ZNAnyonCategory`\ s; there are nontrivial R-symbols.
     """
 
     def __init__(self, N: int, descriptive_name: str | None = None):
