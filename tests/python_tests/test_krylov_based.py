@@ -205,7 +205,7 @@ def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
 
     (E0,), (psi0,), N = engine.run()
     print("full spectrum:", E_np)
-    print("E0 = {E0:.14f} vs exact {E0_flat:.14f}".format(E0=E0, E0_flat=E0_np))
+    print(f"E0 = {E0:.14f} vs exact {E0_np:.14f}")
     print("|E0-E0_np| / |E0_np| =", abs((E0 - E0_np) / E0_np))
     assert abs((E0 - E0_np) / E0_np) < tol
     psi0_H_psi0 = psi0.inner(H.tdot(psi0))

@@ -2,8 +2,9 @@
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
+from collections.abc import Sequence
 from itertools import product as itproduct
-from typing import Literal, Sequence
+from typing import Literal
 
 import numpy as np
 
@@ -63,7 +64,7 @@ class SpinSite(SpinDOF):
         for n in range(dim - 1):
             # Sp |m> = sqrt( S(S+1) - m(m+1) ) |m+1>
             m = n - S
-            Sp[n + 1, n] = np.sqrt((S * (S + 1) - m * (m + 1)))
+            Sp[n + 1, n] = np.sqrt(S * (S + 1) - m * (m + 1))
         spin_vector = self._spin_vector_from_Sp(Sz=Sz, Sp=Sp)
 
         sym = SpinDOF.conservation_law_to_symmetry(conserve)

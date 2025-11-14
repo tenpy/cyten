@@ -7,9 +7,10 @@ All other classes are base classes from which sites are derived.
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
+from collections.abc import Sequence
 from functools import reduce
 from math import comb
-from typing import Literal, Sequence
+from typing import Literal
 
 import numpy as np
 

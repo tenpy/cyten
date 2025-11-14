@@ -1,6 +1,6 @@
 """A collection of tests for cyten.trees."""
 # Copyright (C) TeNPy Developers, Apache license
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 import pytest

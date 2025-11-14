@@ -1795,7 +1795,7 @@ class SUNSymmetry(GroupSymmetry):
 
         F[np.abs(F) < (10 ** -12)] = 0
 
-        return F / ((self.sector_dim(d) + 0.j))
+        return F / (self.sector_dim(d) + 0.j)
 
     def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector
                   ) -> np.ndarray:
@@ -1851,7 +1851,7 @@ class SUNSymmetry(GroupSymmetry):
 
         R = np.tensordot(X1, Y1, axes=[[0, 1, 2], [1, 0, 2]])  # [[a],(b),{c}, nu] , [(b),[a],{c},mu] --> [nu,mu]
 
-        R = R.transpose([1, 0]) / ((self.sector_dim(c) + 0.j))
+        R = R.transpose([1, 0]) / (self.sector_dim(c) + 0.j)
 
         return np.diag(R)
 

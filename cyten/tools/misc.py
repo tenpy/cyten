@@ -2,7 +2,8 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 import warnings
-from typing import Generator, Sequence, Set, TypeVar
+from collections.abc import Generator, Sequence
+from typing import TypeVar
 
 import numpy as np
 
@@ -11,7 +12,7 @@ _T = TypeVar('_T')  # used in typing some functions
 _MAX_INT = np.iinfo(int).max
 
 
-def duplicate_entries(seq: Sequence[_T], ignore: Sequence[_T] = []) -> Set[_T]:
+def duplicate_entries(seq: Sequence[_T], ignore: Sequence[_T] = []) -> set[_T]:
     return set(ele for idx, ele in enumerate(seq) if ele in seq[idx + 1:] and ele not in ignore)
 
 

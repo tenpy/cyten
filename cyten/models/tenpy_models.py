@@ -5,8 +5,9 @@ it is easier to have it live in the cyten repo...
 
 """
 # Copyright (C) TeNPy Developers, Apache license
+from collections.abc import Sequence
 from functools import partial
-from typing import Protocol, Sequence, TypeAlias
+from typing import Protocol, TypeAlias
 
 import numpy as np
 

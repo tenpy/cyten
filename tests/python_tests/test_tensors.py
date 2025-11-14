@@ -5,7 +5,6 @@ from __future__ import annotations
 import operator
 from contextlib import nullcontext
 from functools import partial
-from typing import Type
 
 import numpy as np
 import numpy.testing as npt
@@ -2888,7 +2887,7 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
      #
      pytest.param(Mask, Mask, [['a'], ['b']], [['c'], ['d']], [], [], id='Mask@Mask-2-0-2')]
 )
-def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
+def test_tdot(cls_A: type[tensors.Tensor], cls_B: type[tensors.Tensor],
               labels_A: list[list[str]], labels_B: list[list[str]],
               contr_A: list[int], contr_B: list[int],
               make_compatible_tensor, np_random):

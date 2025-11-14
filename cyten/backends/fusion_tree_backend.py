@@ -80,9 +80,10 @@ from __future__ import annotations
 
 import warnings
 from abc import ABCMeta, abstractmethod
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from math import prod
-from typing import TYPE_CHECKING, Callable, Iterable, Literal
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 

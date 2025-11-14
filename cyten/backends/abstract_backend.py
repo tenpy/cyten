@@ -7,8 +7,9 @@ Also contains some private utility function used by multiple backend modules.
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
+from collections.abc import Callable, Generator, Sequence
 from math import prod
-from typing import TYPE_CHECKING, Callable, Generator, Protocol, Sequence, TypeVar
+from typing import TYPE_CHECKING, Protocol, TypeVar
 
 import numpy as np
 

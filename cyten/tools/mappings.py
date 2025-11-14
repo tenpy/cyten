@@ -3,7 +3,8 @@
 
 from __future__ import annotations
 
-from typing import Generic, Iterable, Sequence, TypeAlias, TypeVar
+from collections.abc import Iterable, Sequence
+from typing import Generic, TypeAlias, TypeVar
 
 __all__ = ['SparseMapping', 'IdentityMapping']
 

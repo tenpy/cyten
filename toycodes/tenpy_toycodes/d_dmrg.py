@@ -78,7 +78,7 @@ class HEffective(ct.sparse.LinearOperator):
         raise NotImplementedError
 
 
-class DMRGEngine(object):
+class DMRGEngine:
     """DMRG algorithm, implemented as class holding the necessary data.
 
     Parameters

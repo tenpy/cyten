@@ -30,7 +30,8 @@ TODO link to this section from appropriate places
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy import ndarray

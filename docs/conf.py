@@ -179,7 +179,7 @@ def linkcode_resolve(domain, info):
         lineno = None
 
     if lineno:
-        linespec = "#L%d-L%d" % (lineno, lineno + len(source) - 1)
+        linespec = f"#L{lineno}-L{lineno + len(source) - 1}"
     else:
         linespec = ""
     fn = os.path.relpath(fn, start=os.path.dirname(cyten.__file__))
@@ -187,6 +187,6 @@ def linkcode_resolve(domain, info):
         return None
 
     if cyten.__version__ == cyten.__full_version__:
-        return "%s/blob/v%s/cyten/%s%s" % (GITHUBBASE, cyten.__version__, fn, linespec)
+        return f"{GITHUBBASE}/blob/v{cyten.__version__}/cyten/{fn}{linespec}"
     else:
-        return "%s/blob/main/cyten/%s%s" % (GITHUBBASE, fn, linespec)
+        return f"{GITHUBBASE}/blob/main/cyten/{fn}{linespec}"

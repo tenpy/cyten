@@ -2,8 +2,9 @@
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
+from collections.abc import Callable
 from math import prod
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from ..dtypes import Dtype
 from ..spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct

@@ -6,8 +6,9 @@ import bisect
 import itertools as it
 import warnings
 from abc import ABCMeta, abstractmethod
+from collections.abc import Generator, Sequence
 from math import prod
-from typing import TYPE_CHECKING, Generator, Literal, Sequence, Union
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from numpy import ndarray
@@ -1524,8 +1525,8 @@ class TensorProduct(Space):
                 start += forest_block_width
 
     def iter_uncoupled(self, yield_slices: bool = False
-                       ) -> Union[Generator[tuple[SectorArray, np.ndarray], None, None],
-                                  Generator[tuple[SectorArray, np.ndarray, list[slice]], None, None]]:
+                       ) -> Generator[tuple[SectorArray, np.ndarray] | tuple[SectorArray, np.ndarray, list[slice]],
+                                      None, None]:
         """Iterate over all combinations of sectors from the :attr:`factors`.
 
         Assumes that all the :attr:`factors` are :class:`ElementarySpaces`, i.e. pipes

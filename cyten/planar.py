@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import warnings
-from typing import Literal, Sequence, TypeVar, overload
+from collections.abc import Sequence
+from typing import Literal, TypeVar, overload
 
 import numpy as np
 

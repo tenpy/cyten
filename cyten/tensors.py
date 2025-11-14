@@ -73,9 +73,10 @@ import logging
 import operator
 import warnings
 from abc import ABCMeta, abstractmethod
+from collections.abc import Sequence
 from math import exp as math_exp
 from numbers import Integral, Number
-from typing import Sequence, TypeVar
+from typing import TypeVar
 
 import numpy as np
 
