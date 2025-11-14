@@ -38,7 +38,12 @@ jobs:
     - name: Lint python code
       # uses options from pyproject.toml
       run: |
-        ruff check 
+        ruff check
+
+    - name: Run autoformatter
+      # uses options from pyproject.toml
+      run: |
+        ruff format --diff 
     
     - name: Run custom linting script
       run: |

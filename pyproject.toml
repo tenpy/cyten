@@ -167,3 +167,7 @@ ignore = [
     "INP001",  # is part of an implicit namespace package
     "D102",  # missing docstrings
 ]
+
+[tool.ruff.format]
+quote-style = "single"
+docstring-code-format = true
