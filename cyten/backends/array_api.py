@@ -2,6 +2,7 @@
 
 The API standard is documented at https://data-apis.org/array-api/latest/purpose_and_scope.html
 """
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
@@ -38,14 +39,13 @@ class ArrayApiBlockBackend(BlockBackend):
         }
         super().__init__(default_device=default_device)
 
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
-                 ) -> Block:
+    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None) -> Block:
         if device is None and not hasattr(a, 'device'):
             device = self.default_device
         block = self._api.asarray(a, dtype=self.backend_dtype_map[dtype], device=device)
         if dtype != Dtype.bool:
             # force float or complex dtype without multiplying
-            block = 1. * block
+            block = 1.0 * block
         if return_dtype:
             return block, self.cyten_dtype_map[block.dtype]
         return block
@@ -111,7 +111,7 @@ class ArrayApiBlockBackend(BlockBackend):
 
     def trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining: list[int]) -> Block:
         a = self._api.permute_dims(a, remaining + idcs1 + idcs2)
-        trace_dim = np.prod(a.shape[len(remaining):len(remaining)+len(idcs1)])
+        trace_dim = np.prod(a.shape[len(remaining) : len(remaining) + len(idcs1)])
         a = self._api.reshape(a, (-1, trace_dim, trace_dim))
         return self._api.linalg.trace(a)
 
@@ -193,14 +193,13 @@ class ArrayApiBlockBackend(BlockBackend):
         # API does not specify random generation, so we generate in numpy and convert
         res = np.random.uniform(-1, 1, size=dims)
         if not dtype.is_real:
-            res += 1.j * np.random.uniform(-1, 1, size=dims)
+            res += 1.0j * np.random.uniform(-1, 1, size=dims)
         return self._api.asarray(res, device=device)
 
-    def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
-                      ) -> Block:
+    def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None) -> Block:
         res = np.random.normal(loc=0, scale=sigma, size=dims)
         if not dtype.is_real:
-            res += 1.j * np.random.normal(loc=0, scale=sigma, size=dims)
+            res += 1.0j * np.random.normal(loc=0, scale=sigma, size=dims)
         return self._api.asarray(res, device=device)
 
     def block_from_numpy(self, a: np.ndarray, dtype: Dtype = None, device: str = None) -> Block:
@@ -283,4 +282,4 @@ class ArrayApiBlockBackend(BlockBackend):
         return res
 
     def stable_log(self, block: Block, cutoff: float) -> Block:
-        return self._api.where(block > cutoff, self._api.log(block), 0.)
+        return self._api.where(block > cutoff, self._api.log(block), 0.0)

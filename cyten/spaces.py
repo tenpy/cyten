@@ -1,4 +1,5 @@
 """The spaces, i.e. the legs of a tensor."""
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
@@ -77,8 +78,7 @@ class Leg(metaclass=ABCMeta):
 
     @property
     @abstractmethod
-    def is_trivial(self) -> bool:
-        ...
+    def is_trivial(self) -> bool: ...
 
     @property
     def ascii_arrow(self) -> str:
@@ -98,8 +98,7 @@ class Leg(metaclass=ABCMeta):
         return '║'
 
     @abstractmethod
-    def __eq__(self, other):
-        ...
+    def __eq__(self, other): ...
 
 
 class LegPipe(Leg):
@@ -126,8 +125,7 @@ class LegPipe(Leg):
         self.legs = legs[:]
         self.num_legs = num_legs = len(legs)
         assert num_legs > 0
-        Leg.__init__(self, symmetry=legs[0].symmetry, dim=prod(l.dim for l in legs),
-                     is_dual=is_dual)
+        Leg.__init__(self, symmetry=legs[0].symmetry, dim=prod(l.dim for l in legs), is_dual=is_dual)
 
     def test_sanity(self):
         """Perform sanity checks."""
@@ -258,15 +256,18 @@ class Space(metaclass=ABCMeta):
 
     """
 
-    def __init__(self, symmetry: Symmetry, sector_decomposition: SectorArray | Sequence[Sequence[int]],
-                 multiplicities: Sequence[int] | None = None,
-                 sector_order: Literal['sorted'] | Literal['dual_sorted'] | None = None):
+    def __init__(
+        self,
+        symmetry: Symmetry,
+        sector_decomposition: SectorArray | Sequence[Sequence[int]],
+        multiplicities: Sequence[int] | None = None,
+        sector_order: Literal['sorted'] | Literal['dual_sorted'] | None = None,
+    ):
         self.symmetry = symmetry
         self.sector_decomposition = sector_decomposition = np.asarray(sector_decomposition, dtype=int)
         self.sector_order = sector_order
         if sector_decomposition.ndim != 2 or sector_decomposition.shape[1] != symmetry.sector_ind_len:
-            msg = (f'Wrong sectors.shape: Expected (*, {symmetry.sector_ind_len}), '
-                   f'got {sector_decomposition.shape}.')
+            msg = f'Wrong sectors.shape: Expected (*, {symmetry.sector_ind_len}), got {sector_decomposition.shape}.'
             raise ValueError(msg)
         assert sector_decomposition.ndim == 2 and sector_decomposition.shape[1] == symmetry.sector_ind_len
         self.num_sectors = num_sectors = len(sector_decomposition)
@@ -352,8 +353,7 @@ class Space(metaclass=ABCMeta):
 
     @abstractmethod
     def __eq__(self, other):
-        msg = (f'{self.__class__.__name__} does not support "==" comparison. '
-               f'Use `is_isomorphic_to` instead.')
+        msg = f'{self.__class__.__name__} does not support "==" comparison. Use `is_isomorphic_to` instead.'
         raise TypeError(msg)
 
     def is_isomorphic_to(self, other: Space) -> bool:
@@ -445,21 +445,28 @@ class Space(metaclass=ABCMeta):
         """Convert to an isomorphic :class:`ElementarySpace`."""
         if is_dual:
             defining_sectors = self.symmetry.dual_sectors(self.sector_decomposition)
-            is_sorted = (self.sector_order == 'dual_sorted')
+            is_sorted = self.sector_order == 'dual_sorted'
         else:
             defining_sectors = self.sector_decomposition
-            is_sorted = (self.sector_order == 'sorted')
+            is_sorted = self.sector_order == 'sorted'
 
         if is_sorted:
-            return ElementarySpace(symmetry=self.symmetry, defining_sectors=defining_sectors,
-                                   multiplicities=self.multiplicities, is_dual=is_dual)
-        return ElementarySpace.from_defining_sectors(symmetry=self.symmetry, defining_sectors=defining_sectors,
-                                                     multiplicities=self.multiplicities, is_dual=is_dual,
-                                                     unique_sectors=True)
+            return ElementarySpace(
+                symmetry=self.symmetry,
+                defining_sectors=defining_sectors,
+                multiplicities=self.multiplicities,
+                is_dual=is_dual,
+            )
+        return ElementarySpace.from_defining_sectors(
+            symmetry=self.symmetry,
+            defining_sectors=defining_sectors,
+            multiplicities=self.multiplicities,
+            is_dual=is_dual,
+            unique_sectors=True,
+        )
 
     @abstractmethod
-    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, injective: bool = False
-                        ) -> ElementarySpace:
+    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, injective: bool = False) -> ElementarySpace:
         """Change the symmetry by specifying how the sectors change.
 
         .. note ::
@@ -580,9 +587,14 @@ class ElementarySpace(Space, Leg):
 
     """
 
-    def __init__(self, symmetry: Symmetry, defining_sectors: SectorArray,
-                 multiplicities: ndarray = None, is_dual: bool = False,
-                 basis_perm: ndarray | None = None):
+    def __init__(
+        self,
+        symmetry: Symmetry,
+        defining_sectors: SectorArray,
+        multiplicities: ndarray = None,
+        is_dual: bool = False,
+        basis_perm: ndarray | None = None,
+    ):
         defining_sectors = np.asarray(defining_sectors, dtype=int)
         assert symmetry.are_valid_sectors(defining_sectors), 'invalid sectors'
         if is_dual:
@@ -591,8 +603,13 @@ class ElementarySpace(Space, Leg):
         else:
             sector_decomposition = defining_sectors
             sector_order = 'sorted'
-        Space.__init__(self, symmetry=symmetry, sector_decomposition=sector_decomposition,
-                       multiplicities=multiplicities, sector_order=sector_order)
+        Space.__init__(
+            self,
+            symmetry=symmetry,
+            sector_decomposition=sector_decomposition,
+            multiplicities=multiplicities,
+            sector_order=sector_order,
+        )
         Leg.__init__(self, symmetry=symmetry, dim=self.dim, is_dual=is_dual)
         self.defining_sectors = defining_sectors
         if basis_perm is None:
@@ -625,8 +642,7 @@ class ElementarySpace(Space, Leg):
         Leg.test_sanity(self)
 
     @classmethod
-    def from_basis(cls, symmetry: Symmetry, sectors_of_basis: Sequence[Sequence[int]]
-                   ) -> ElementarySpace:
+    def from_basis(cls, symmetry: Symmetry, sectors_of_basis: Sequence[Sequence[int]]) -> ElementarySpace:
         """Create an ElementarySpace by specifying the sector of every basis element.
 
         This requires that the symmetry :attr:`~cyten.symmetries.Symmetry.can_be_dropped`, such
@@ -677,15 +693,21 @@ class ElementarySpace(Space, Leg):
         num_occurrences = diffs[1:] - diffs[:-1]  # how often each appears in the input sectors_of_basis
         multiplicities, remainders = np.divmod(num_occurrences, dims)
         if np.any(remainders > 0):
-            msg = ('Sectors must appear in whole multiplets, i.e. a number of times that is an '
-                   'integer multiple of their dimension.')
+            msg = (
+                'Sectors must appear in whole multiplets, i.e. a number of times that is an '
+                'integer multiple of their dimension.'
+            )
             raise ValueError(msg)
-        return cls(symmetry=symmetry, defining_sectors=sectors, multiplicities=multiplicities,
-                   is_dual=False, basis_perm=basis_perm)
+        return cls(
+            symmetry=symmetry,
+            defining_sectors=sectors,
+            multiplicities=multiplicities,
+            is_dual=False,
+            basis_perm=basis_perm,
+        )
 
     @classmethod
-    def from_independent_symmetries(cls, independent_descriptions: list[ElementarySpace]
-                                    ) -> ElementarySpace:
+    def from_independent_symmetries(cls, independent_descriptions: list[ElementarySpace]) -> ElementarySpace:
         """Create an ElementarySpace with multiple independent symmetries.
 
         Parameters
@@ -705,9 +727,7 @@ class ElementarySpace(Space, Leg):
         if len(independent_descriptions) == 0:
             # all descriptions had no_symmetry
             return cls.from_trivial_sector(dim=dim)
-        symmetry = ProductSymmetry.from_nested_factors(
-            [s.symmetry for s in independent_descriptions]
-        )
+        symmetry = ProductSymmetry.from_nested_factors([s.symmetry for s in independent_descriptions])
         if not symmetry.can_be_dropped:
             msg = f'from_independent_symmetries is not supported for {symmetry}.'
             # TODO is there a way to define this? the straight-forward picture works only if we have
@@ -716,8 +736,7 @@ class ElementarySpace(Space, Leg):
             #            GroupedSite would allow us to specialize, if that is easier. A given state
             #            is in the trivial sector for all but one of the independent_descriptions.
             raise SymmetryError(msg)
-        sectors_of_basis = np.concatenate([s.sectors_of_basis for s in independent_descriptions],
-                                          axis=1)
+        sectors_of_basis = np.concatenate([s.sectors_of_basis for s in independent_descriptions], axis=1)
         return cls.from_basis(symmetry, sectors_of_basis)
 
     @classmethod
@@ -770,15 +789,24 @@ class ElementarySpace(Space, Leg):
     @classmethod
     def from_null_space(cls, symmetry: Symmetry, is_dual: bool = False) -> ElementarySpace:
         """The zero-dimensional space, i.e. the span of the empty set."""
-        return cls(symmetry=symmetry, defining_sectors=symmetry.empty_sector_array,
-                   multiplicities=np.zeros(0, int), is_dual=is_dual)
+        return cls(
+            symmetry=symmetry,
+            defining_sectors=symmetry.empty_sector_array,
+            multiplicities=np.zeros(0, int),
+            is_dual=is_dual,
+        )
 
     @classmethod
-    def from_defining_sectors(cls, symmetry: Symmetry, defining_sectors: SectorArray,
-                              multiplicities: Sequence[int] = None, is_dual: bool = False,
-                              basis_perm: ndarray = None, unique_sectors: bool = False,
-                              return_sorting_perm: bool = False
-                              ) -> ElementarySpace | tuple[ElementarySpace, ndarray]:
+    def from_defining_sectors(
+        cls,
+        symmetry: Symmetry,
+        defining_sectors: SectorArray,
+        multiplicities: Sequence[int] = None,
+        is_dual: bool = False,
+        basis_perm: ndarray = None,
+        unique_sectors: bool = False,
+        return_sorting_perm: bool = False,
+    ) -> ElementarySpace | tuple[ElementarySpace, ndarray]:
         """Similar to the constructor, but with fewer requirements.
 
         .. note ::
@@ -835,8 +863,7 @@ class ElementarySpace(Space, Leg):
             else:
                 if basis_perm is None:
                     basis_perm = np.arange(np.sum(num_states))
-                basis_perm = np.concatenate([basis_perm[basis_slices[i]: basis_slices[i + 1]]
-                                            for i in sort])
+                basis_perm = np.concatenate([basis_perm[basis_slices[i] : basis_slices[i + 1]] for i in sort])
         else:
             defining_sectors, multiplicities, sort = _sort_sectors(defining_sectors, multiplicities)
             assert basis_perm is None
@@ -855,29 +882,42 @@ class ElementarySpace(Space, Leg):
                     sector_dim = symmetry.sector_dim(defining_sectors[diffs[i]])
                     if sector_dim == 1:
                         continue
-                    mults = multiplicities[diffs[i]:diffs[i + 1]]
+                    mults = multiplicities[diffs[i] : diffs[i + 1]]
                     offsets = np.concatenate([[0], np.cumsum(mults * sector_dim)])
-                    sector_basis_perm = basis_perm[basis_slices[diffs[i]]:basis_slices[diffs[i + 1]]]
+                    sector_basis_perm = basis_perm[basis_slices[diffs[i]] : basis_slices[diffs[i + 1]]]
                     # take the basis_perm associated with the first states and make them contiguous,
                     # then go to the second state, etc.
-                    new_perm = [sector_basis_perm[offsets[j] + k * mult:offsets[j] + (k + 1) * mult]
-                                for k in range(sector_dim) for j, mult in enumerate(mults)]
+                    new_perm = [
+                        sector_basis_perm[offsets[j] + k * mult : offsets[j] + (k + 1) * mult]
+                        for k in range(sector_dim)
+                        for j, mult in enumerate(mults)
+                    ]
                     new_perm = np.concatenate(new_perm)
-                    basis_perm[basis_slices[diffs[i]]:basis_slices[diffs[i + 1]]] = new_perm
+                    basis_perm[basis_slices[diffs[i]] : basis_slices[diffs[i + 1]]] = new_perm
 
             multiplicities = mult_slices[diffs[1:]] - mult_slices[diffs[:-1]]
             defining_sectors = defining_sectors[diffs[:-1]]  # [:-1] to exclude len
-        res = cls(symmetry=symmetry, defining_sectors=defining_sectors,
-                  multiplicities=multiplicities, is_dual=is_dual, basis_perm=basis_perm)
+        res = cls(
+            symmetry=symmetry,
+            defining_sectors=defining_sectors,
+            multiplicities=multiplicities,
+            is_dual=is_dual,
+            basis_perm=basis_perm,
+        )
         if return_sorting_perm:
             return res, sort
         return res
 
     @classmethod
-    def from_sector_decomposition(cls, symmetry: Symmetry, sector_decomposition: SectorArray,
-                                  multiplicities: Sequence[int] = None, is_dual: bool = False,
-                                  basis_perm: ndarray = None, unique_sectors: bool = False
-                                  ) -> ElementarySpace:
+    def from_sector_decomposition(
+        cls,
+        symmetry: Symmetry,
+        sector_decomposition: SectorArray,
+        multiplicities: Sequence[int] = None,
+        is_dual: bool = False,
+        basis_perm: ndarray = None,
+        unique_sectors: bool = False,
+    ) -> ElementarySpace:
         """Create a :class:`ElementarySpace` that has a given :attr:`sector_decomposition`.
 
         Parameters
@@ -910,13 +950,19 @@ class ElementarySpace(Space, Leg):
             defining_sectors = symmetry.dual_sectors(sector_decomposition)
         else:
             defining_sectors = sector_decomposition
-        return cls.from_defining_sectors(symmetry=symmetry, defining_sectors=defining_sectors,
-                                         multiplicities=multiplicities, is_dual=is_dual,
-                                         basis_perm=basis_perm, unique_sectors=unique_sectors)
+        return cls.from_defining_sectors(
+            symmetry=symmetry,
+            defining_sectors=defining_sectors,
+            multiplicities=multiplicities,
+            is_dual=is_dual,
+            basis_perm=basis_perm,
+            unique_sectors=unique_sectors,
+        )
 
     @classmethod
-    def from_trivial_sector(cls, dim: int = 1, symmetry: Symmetry = no_symmetry,
-                            is_dual: bool = False, basis_perm: ndarray = None) -> ElementarySpace:
+    def from_trivial_sector(
+        cls, dim: int = 1, symmetry: Symmetry = no_symmetry, is_dual: bool = False, basis_perm: ndarray = None
+    ) -> ElementarySpace:
         """Create an ElementarySpace that lives in the trivial sector (i.e. it is symmetric).
 
         Parameters
@@ -931,8 +977,13 @@ class ElementarySpace(Space, Leg):
         """
         if dim == 0:
             return cls.from_null_space(symmetry=symmetry, is_dual=is_dual)
-        return cls(symmetry=symmetry, defining_sectors=symmetry.trivial_sector[None, :],
-                   multiplicities=[dim], is_dual=is_dual, basis_perm=basis_perm)
+        return cls(
+            symmetry=symmetry,
+            defining_sectors=symmetry.trivial_sector[None, :],
+            multiplicities=[dim],
+            is_dual=is_dual,
+            basis_perm=basis_perm,
+        )
 
     @property
     def basis_perm(self) -> ndarray:
@@ -1004,10 +1055,12 @@ class ElementarySpace(Space, Leg):
         indent = printoptions.indent * ' '
 
         # try to show everything, then less and less
-        for full_sectors, summarized_sectors, symmetry in [(True, False, show_symmetry),
-                                                           (False, True, show_symmetry),
-                                                           (False, False, show_symmetry),
-                                                           (False, False, False)]:
+        for full_sectors, summarized_sectors, symmetry in [
+            (True, False, show_symmetry),
+            (False, True, show_symmetry),
+            (False, False, show_symmetry),
+            (False, False, False),
+        ]:
             if full_sectors and (3 * self.defining_sectors.size > printoptions.linewidth):
                 # there is no chance to print all sectors in one line
                 continue
@@ -1111,12 +1164,14 @@ class ElementarySpace(Space, Leg):
             return self
         return self.with_opposite_duality()
 
-    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, injective: bool = False
-                        ) -> ElementarySpace:
+    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, injective: bool = False) -> ElementarySpace:
         return ElementarySpace.from_defining_sectors(
-            symmetry=symmetry, defining_sectors=sector_map(self.defining_sectors),
-            multiplicities=self.multiplicities, is_dual=self.is_dual, basis_perm=self._basis_perm,
-            unique_sectors=injective
+            symmetry=symmetry,
+            defining_sectors=sector_map(self.defining_sectors),
+            multiplicities=self.multiplicities,
+            is_dual=self.is_dual,
+            basis_perm=self._basis_perm,
+            unique_sectors=injective,
         )
 
     def direct_sum(self, *others: ElementarySpace) -> ElementarySpace:
@@ -1135,38 +1190,37 @@ class ElementarySpace(Space, Leg):
         assert all(o.is_dual == self.is_dual for o in others)
         if self.symmetry.can_be_dropped:
             offsets = np.cumsum([self.dim, *(o.dim for o in others)])
-            basis_perm = np.concatenate(
-                [self.basis_perm] + [o.basis_perm + n for o, n in zip(others, offsets)]
-            )
+            basis_perm = np.concatenate([self.basis_perm] + [o.basis_perm + n for o, n in zip(others, offsets)])
         else:
             basis_perm = None
         return ElementarySpace.from_defining_sectors(
             symmetry=self.symmetry,
             defining_sectors=np.concatenate([self.defining_sectors, *(o.defining_sectors for o in others)]),
             multiplicities=np.concatenate([self.multiplicities, *(o.multiplicities for o in others)]),
-            is_dual=self.is_dual, basis_perm=basis_perm
+            is_dual=self.is_dual,
+            basis_perm=basis_perm,
         )
 
     def drop_symmetry(self, which: int | list[int] = None):
         which, remaining_symmetry = _parse_inputs_drop_symmetry(which, self.symmetry)
         if which is None:
             return ElementarySpace.from_trivial_sector(
-                dim=self.dim, symmetry=remaining_symmetry, is_dual=self.is_dual,
-                basis_perm=self._basis_perm
+                dim=self.dim, symmetry=remaining_symmetry, is_dual=self.is_dual, basis_perm=self._basis_perm
             )
         mask = np.ones((self.symmetry.sector_ind_len,), dtype=bool)
         for i in which:
-            start, stop = self.symmetry.sector_slices[i:i + 2]
+            start, stop = self.symmetry.sector_slices[i : i + 2]
             mask[start:stop] = False
-        return self.change_symmetry(symmetry=remaining_symmetry,
-                                    sector_map=lambda sectors: sectors[:, mask])
+        return self.change_symmetry(symmetry=remaining_symmetry, sector_map=lambda sectors: sectors[:, mask])
 
     @property
     def dual(self) -> ElementarySpace:
         return ElementarySpace(
-            self.symmetry, defining_sectors=self.defining_sectors,
-            multiplicities=self.multiplicities, is_dual=not self.is_dual,
-            basis_perm=self._basis_perm
+            self.symmetry,
+            defining_sectors=self.defining_sectors,
+            multiplicities=self.multiplicities,
+            is_dual=not self.is_dual,
+            basis_perm=self._basis_perm,
         )
 
     def parse_index(self, idx: int) -> tuple[int, int]:
@@ -1248,8 +1302,13 @@ class ElementarySpace(Space, Leg):
         #
         # note blockmask is in the private basis order.
         basis_perm = rank_data(self.basis_perm[blockmask])
-        return ElementarySpace(symmetry=self.symmetry, defining_sectors=sectors, multiplicities=mults,
-                               is_dual=self.is_dual, basis_perm=basis_perm)
+        return ElementarySpace(
+            symmetry=self.symmetry,
+            defining_sectors=sectors,
+            multiplicities=mults,
+            is_dual=self.is_dual,
+            basis_perm=basis_perm,
+        )
 
     def with_opposite_duality(self):
         """A space isomorphic to self with opposite ``is_dual`` attribute."""
@@ -1260,9 +1319,12 @@ class ElementarySpace(Space, Leg):
             dual_defining_sectors = self.symmetry.dual_sectors(self.defining_sectors)
         # note: dual_defining_sectors are not sorted, but they are unique.
         return ElementarySpace.from_defining_sectors(
-            symmetry=self.symmetry, defining_sectors=dual_defining_sectors,
-            multiplicities=self.multiplicities, is_dual=not self.is_dual,
-            basis_perm=self._basis_perm, unique_sectors=True
+            symmetry=self.symmetry,
+            defining_sectors=dual_defining_sectors,
+            multiplicities=self.multiplicities,
+            is_dual=not self.is_dual,
+            basis_perm=self._basis_perm,
+            unique_sectors=True,
         )
 
     def with_is_dual(self, is_dual: bool) -> ElementarySpace:
@@ -1272,7 +1334,6 @@ class ElementarySpace(Space, Leg):
         return self.with_opposite_duality()
 
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
-
         hdf5_saver.save(self.defining_sectors, subpath + 'defining_sectors')
         hdf5_saver.save(self.sector_decomposition, subpath + 'sector_decomposition')
         hdf5_saver.save(self.sector_order, subpath + 'sector_order')
@@ -1289,7 +1350,6 @@ class ElementarySpace(Space, Leg):
 
     @classmethod
     def from_hdf5(cls, hdf5_loader, h5gr, subpath):
-
         obj = cls.__new__(cls)
         hdf5_loader.memorize_load(h5gr, obj)
 
@@ -1335,8 +1395,13 @@ class TensorProduct(Space):
 
     """
 
-    def __init__(self, factors: list[Space | LegPipe], symmetry: Symmetry = None,
-                 _sector_decomposition: SectorArray = None, _multiplicities: SectorArray = None):
+    def __init__(
+        self,
+        factors: list[Space | LegPipe],
+        symmetry: Symmetry = None,
+        _sector_decomposition: SectorArray = None,
+        _multiplicities: SectorArray = None,
+    ):
         self.num_factors = num_factors = len(factors)
         if symmetry is None:
             if num_factors == 0:
@@ -1351,8 +1416,13 @@ class TensorProduct(Space):
                 msg = 'Need both _sectors and _multiplicities to skip recomputation. Got just one.'
                 warnings.warn(msg)
             _sector_decomposition, _multiplicities = self._calc_sectors(factors)
-        Space.__init__(self, symmetry=symmetry, sector_decomposition=_sector_decomposition,
-                       multiplicities=_multiplicities, sector_order='sorted')
+        Space.__init__(
+            self,
+            symmetry=symmetry,
+            sector_decomposition=_sector_decomposition,
+            multiplicities=_multiplicities,
+            sector_order='sorted',
+        )
 
     def test_sanity(self):
         """Perform sanity checks."""
@@ -1379,9 +1449,12 @@ class TensorProduct(Space):
         isomorphic = TensorProduct(factors=factors, symmetry=symmetry)
         # forming isomorphic performs the fusion more efficiently, since it uses the partially
         # fused [f.sectors for f in factors] instead of the flat [s.factors for f in factors for s in f.factors]
-        return TensorProduct(factors=spaces, symmetry=symmetry,
-                             _sector_decomposition=isomorphic.sector_decomposition,
-                             _multiplicities=isomorphic.multiplicities)
+        return TensorProduct(
+            factors=spaces,
+            symmetry=symmetry,
+            _sector_decomposition=isomorphic.sector_decomposition,
+            _multiplicities=isomorphic.multiplicities,
+        )
 
     # PROPERTIES
 
@@ -1389,8 +1462,12 @@ class TensorProduct(Space):
     def dual(self):
         sectors = self.symmetry.dual_sectors(self.sector_decomposition)
         sectors, mults, _ = _sort_sectors(sectors, self.multiplicities)
-        return TensorProduct([sp.dual for sp in reversed(self.factors)], symmetry=self.symmetry,
-                             _sector_decomposition=sectors, _multiplicities=mults)
+        return TensorProduct(
+            [sp.dual for sp in reversed(self.factors)],
+            symmetry=self.symmetry,
+            _sector_decomposition=sectors,
+            _multiplicities=mults,
+        )
 
     # METHODS
 
@@ -1417,9 +1494,10 @@ class TensorProduct(Space):
         else:
             sectors, multiplicities, _ = _sort_sectors(sectors, multiplicities)
         return TensorProduct(
-            [space.change_symmetry(symmetry, sector_map, injective)
-             for space in self.factors],
-            symmetry=self.symmetry, _sector_decomposition=sectors, _multiplicities=multiplicities
+            [space.change_symmetry(symmetry, sector_map, injective) for space in self.factors],
+            symmetry=self.symmetry,
+            _sector_decomposition=sectors,
+            _multiplicities=multiplicities,
         )
 
     def drop_symmetry(self, which=None):
@@ -1430,14 +1508,16 @@ class TensorProduct(Space):
         else:
             mask = np.ones((self.symmetry.sector_ind_len,), dtype=bool)
             for i in which:
-                start, stop = self.symmetry.sector_slices[i:i + 2]
+                start, stop = self.symmetry.sector_slices[i : i + 2]
                 mask[start:stop] = False
             sectors = self.sector_decomposition[mask, :]
             multiplicities = self.multiplicities
             sectors, multiplicities, _ = _unique_sorted_sectors(sectors, multiplicities)
         return TensorProduct(
-            [space.drop_symmetry(which) for space in self.factors], symmetry=remaining_symmetry,
-            _sector_decomposition=sectors, _multiplicities=multiplicities
+            [space.drop_symmetry(which) for space in self.factors],
+            symmetry=remaining_symmetry,
+            _sector_decomposition=sectors,
+            _multiplicities=multiplicities,
         )
 
     def flat_legs(self) -> list[Space]:
@@ -1448,7 +1528,7 @@ class TensorProduct(Space):
         """All indices into the :meth:`flat_legs` that the leg ``factors[i]`` flattens to."""
         # OPTIMIZE could just add the lengths without building the actual lists...
         start = len(_flatten_leg_pipes(self.factors[:i]))
-        num = len(_flatten_leg_pipes(self.factors[i:i+1]))
+        num = len(_flatten_leg_pipes(self.factors[i : i + 1]))
         return list(range(start, start + num))
 
     def forest_block_size(self, uncoupled: tuple[Sector], coupled: Sector) -> int:
@@ -1474,13 +1554,16 @@ class TensorProduct(Space):
     def insert_multiply(self, other: Space, pos: int) -> TensorProduct:
         """Insert a new space into the product at position `pos`."""
         isomorphic = TensorProduct([self, other])
-        return TensorProduct(self.factors[:pos] + [other] + self.factors[pos:],
-                             symmetry=self.symmetry,
-                             _sector_decomposition=isomorphic.sector_decomposition,
-                             _multiplicities=isomorphic.multiplicities)
+        return TensorProduct(
+            self.factors[:pos] + [other] + self.factors[pos:],
+            symmetry=self.symmetry,
+            _sector_decomposition=isomorphic.sector_decomposition,
+            _multiplicities=isomorphic.multiplicities,
+        )
 
-    def iter_tree_blocks(self, coupled: Sequence[Sector]
-                         ) -> Generator[tuple[FusionTree, slice, np.ndarray, int], None, None]:
+    def iter_tree_blocks(
+        self, coupled: Sequence[Sector]
+    ) -> Generator[tuple[FusionTree, slice, np.ndarray, int], None, None]:
         """Iterate over tree blocks. Helper function for :class:`FusionTreeBackend`.
 
         See :ref:`fusion_tree_backend__blocks` for definitions of blocks and tree blocks.
@@ -1517,8 +1600,7 @@ class TensorProduct(Space):
                     yield tree, slice(start, start + tree_block_size), mults, i
                     start += tree_block_size
 
-    def iter_forest_blocks(self, coupled: Sequence[Sector]
-                           ) -> Generator[tuple[tuple[Sector], slice, int], None, None]:
+    def iter_forest_blocks(self, coupled: Sequence[Sector]) -> Generator[tuple[tuple[Sector], slice, int], None, None]:
         """Iterate over forest blocks. Helper function for :class:`FusionTreeBackend`.
 
         See :ref:`fusion_tree_backend__blocks` for definitions of blocks and forest blocks.
@@ -1550,9 +1632,9 @@ class TensorProduct(Space):
                 yield uncoupled, slc, i
                 start += forest_block_width
 
-    def iter_uncoupled(self, yield_slices: bool = False
-                       ) -> Generator[tuple[SectorArray, np.ndarray] | tuple[SectorArray, np.ndarray, list[slice]],
-                                      None, None]:
+    def iter_uncoupled(
+        self, yield_slices: bool = False
+    ) -> Generator[tuple[SectorArray, np.ndarray] | tuple[SectorArray, np.ndarray, list[slice]], None, None]:
         """Iterate over all combinations of sectors from the :attr:`factors`.
 
         Assumes that all the :attr:`factors` are :class:`ElementarySpaces`, i.e. pipes
@@ -1599,7 +1681,7 @@ class TensorProduct(Space):
             factors=[self.factors[i] for i in perm],
             symmetry=self.symmetry,
             _sector_decomposition=self.sector_decomposition,
-            _multiplicities=self.multiplicities
+            _multiplicities=self.multiplicities,
         )
 
     def right_multiply(self, other: Space) -> TensorProduct:
@@ -1651,9 +1733,14 @@ class TensorProduct(Space):
         ClsName = type(self).__name__
         indent = printoptions.indent * ' '
 
-        for mode in [(True, False, True, show_symmetry), (False, True, True, show_symmetry),
-                     (True, False, False, show_symmetry), (False, True, False, show_symmetry),
-                     (False, False, False, show_symmetry), (False, False, False, False)]:
+        for mode in [
+            (True, False, True, show_symmetry),
+            (False, True, True, show_symmetry),
+            (True, False, False, show_symmetry),
+            (False, True, False, show_symmetry),
+            (False, False, False, show_symmetry),
+            (False, False, False, False),
+        ]:
             full_sectors, summarized_sectors, show_all_factors, symmetry = mode
 
             if full_sectors and (3 * self.sector_decomposition.size > printoptions.linewidth):
@@ -1678,8 +1765,10 @@ class TensorProduct(Space):
                 lines.append(f'{indent}num_factors={self.num_factors},')
             if full_sectors:
                 sector_strs = [self.symmetry.sector_str(a) for a in self.sector_decomposition]
-                new_items = [f'sector_decomposition={format_like_list(sector_strs)}',
-                             f'multiplicities={format_like_list(self.multiplicities)}']
+                new_items = [
+                    f'sector_decomposition={format_like_list(sector_strs)}',
+                    f'multiplicities={format_like_list(self.multiplicities)}',
+                ]
                 one_line_items.extend(new_items)
                 lines.extend(indent + i + ',' for i in new_items)
             if summarized_sectors:
@@ -1723,10 +1812,7 @@ class TensorProduct(Space):
             sectors = self.symmetry.multiple_fusion_broadcast(
                 *(sp.sector_decomposition[gr] for sp, gr in zip(factors, grid.T))
             )
-            multiplicities = np.prod(
-                [space.multiplicities[gr] for space, gr in zip(factors, grid.T)],
-                axis=0
-            )
+            multiplicities = np.prod([space.multiplicities[gr] for space, gr in zip(factors, grid.T)], axis=0)
             sectors, multiplicities, _ = _unique_sorted_sectors(sectors, multiplicities)
             return sectors, multiplicities
 
@@ -1745,13 +1831,11 @@ class TensorProduct(Space):
                     new_mults = m1 * m2 * np.array([self.symmetry._n_symbol(s1, s2, c) for c in new_sects], dtype=int)
                 mult_arrays.append(new_mults)
         sectors, multiplicities, _ = _unique_sorted_sectors(
-            np.concatenate(sector_arrays, axis=0),
-            np.concatenate(mult_arrays, axis=0)
+            np.concatenate(sector_arrays, axis=0), np.concatenate(mult_arrays, axis=0)
         )
         return sectors, multiplicities
 
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
-
         hdf5_saver.save(self.factors, subpath + 'factors')
         hdf5_saver.save(self.slices, subpath + 'slices')
         hdf5_saver.save(self.symmetry, subpath + 'symmetry')
@@ -1765,7 +1849,6 @@ class TensorProduct(Space):
 
     @classmethod
     def from_hdf5(cls, hdf5_loader, h5gr, subpath):
-
         obj = cls.__new__(cls)
 
         hdf5_loader.memorize_load(h5gr, obj)
@@ -1896,15 +1979,20 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
     """
 
-    def __init__(self, legs: Sequence[ElementarySpace], is_dual: bool = False,
-                 combine_cstyle: bool = True):
+    def __init__(self, legs: Sequence[ElementarySpace], is_dual: bool = False, combine_cstyle: bool = True):
         LegPipe.__init__(self, legs=legs, is_dual=is_dual)
         assert self.symmetry.is_abelian and self.symmetry.can_be_dropped
         self.combine_cstyle = combine_cstyle
         sectors, mults = self._calc_sectors()  # also sets some attributes
         basis_perm = self._calc_basis_perm(mults)
-        ElementarySpace.__init__(self, symmetry=self.symmetry, defining_sectors=sectors,
-                                 multiplicities=mults, is_dual=is_dual, basis_perm=basis_perm)
+        ElementarySpace.__init__(
+            self,
+            symmetry=self.symmetry,
+            defining_sectors=sectors,
+            multiplicities=mults,
+            is_dual=is_dual,
+            basis_perm=basis_perm,
+        )
 
     def test_sanity(self):
         """Perform sanity checks."""
@@ -1954,8 +2042,9 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
     @property
     def dual(self) -> AbelianLegPipe:
-        return AbelianLegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual,
-                              combine_cstyle=not self.combine_cstyle)
+        return AbelianLegPipe(
+            [l.dual for l in reversed(self.legs)], is_dual=not self.is_dual, combine_cstyle=not self.combine_cstyle
+        )
 
     @property
     def is_trivial(self) -> bool:
@@ -1973,8 +2062,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         num_legs = independent_descriptions[0].num_legs
         assert all(i.num_legs == num_legs for i in independent_descriptions[1:])
         legs = [
-            i_legs[0].from_independent_symmetries(i_legs)
-            for i_legs in zip(*(i.legs for i in independent_descriptions))
+            i_legs[0].from_independent_symmetries(i_legs) for i_legs in zip(*(i.legs for i in independent_descriptions))
         ]
         return cls(legs, is_dual=is_dual)
 
@@ -2009,8 +2097,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         return self.as_ElementarySpace(is_dual=self.is_dual).take_slice(blockmask)
 
     def with_opposite_duality(self):
-        return AbelianLegPipe(legs=self.legs, is_dual=not self.is_dual,
-                              combine_cstyle=self.combine_cstyle)
+        return AbelianLegPipe(legs=self.legs, is_dual=not self.is_dual, combine_cstyle=self.combine_cstyle)
 
     def __eq__(self, other):
         res = LegPipe.__eq__(self, other)
@@ -2026,10 +2113,15 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         ClsName = type(self).__name__
         indent = printoptions.indent * ' '
 
-        for mode in [(0, 0, False, show_symmetry), (0, 0, True, show_symmetry),
-                     (0, 1, True, show_symmetry), (0, 2, True, show_symmetry),
-                     (1, 2, True, show_symmetry), (2, 2, True, show_symmetry),
-                     (2, 2, True, False)]:
+        for mode in [
+            (0, 0, False, show_symmetry),
+            (0, 0, True, show_symmetry),
+            (0, 1, True, show_symmetry),
+            (0, 2, True, show_symmetry),
+            (1, 2, True, show_symmetry),
+            (2, 2, True, show_symmetry),
+            (2, 2, True, False),
+        ]:
             sector_mode, child_mode, summarize_basis_perm, symmetry = mode
             # sector_mode:  0=show full arrays , 1=show only nums, 2=dont show
             # child_mode: 0=show full , 1=force one-line each, 2=show only num
@@ -2064,9 +2156,11 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             if sector_mode == 0:
                 sector_dec_strs = [self.symmetry.sector_str(a) for a in self.sector_decomposition]
                 def_sector_strs = [self.symmetry.sector_str(a) for a in self.defining_sectors]
-                new_items = [f'sector_decomposition={format_like_list(sector_dec_strs)}',
-                             f'defining_sectors={format_like_list(def_sector_strs)}',
-                             f'multiplicities={format_like_list(self.multiplicities)}']
+                new_items = [
+                    f'sector_decomposition={format_like_list(sector_dec_strs)}',
+                    f'defining_sectors={format_like_list(def_sector_strs)}',
+                    f'multiplicities={format_like_list(self.multiplicities)}',
+                ]
                 one_line_items.extend(new_items)
                 lines.extend(indent + i + ',' for i in new_items)
             elif sector_mode == 1:
@@ -2125,8 +2219,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         # the multiplicity for given (i1, i2, ...) is the product of ``multiplicities[il]``
         # advanced indexing:
         # ``grid.T[li]`` is a 1D array containing the block_indices `b_li` of leg ``li`` for all blocks
-        multiplicities = np.prod([space.multiplicities[gr] for space, gr in zip(self.legs, grid.T)],
-                                 axis=0)
+        multiplicities = np.prod([space.multiplicities[gr] for space, gr in zip(self.legs, grid.T)], axis=0)
 
         # calculate new defining_sectors
         # at this point, they have duplicates and are not sorted
@@ -2243,8 +2336,9 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
             # multiplicity_grid :: each row stands for a combination of uncoupled basis elements.
             #                      they are the indices of that basis element *within* the sector.
-            multiplicity_grid = make_grid([leg.multiplicities[idx] for leg, idx in zip(self.legs, idcs)],
-                                          cstyle=self.combine_cstyle)
+            multiplicity_grid = make_grid(
+                [leg.multiplicities[idx] for leg, idx in zip(self.legs, idcs)], cstyle=self.combine_cstyle
+            )
 
             # sector_starts[n] is the index of the first basis vector for legs[n] that is in the
             # current sector, namely legs[n].sector_decomposition[idcs[n]]
@@ -2272,7 +2366,7 @@ def _flatten_leg_pipes(legs: list[Leg]) -> list[ElementarySpace]:
             # go in reverse so we dont change indices of earlier factors when flattening
             f = res[i]
             if isinstance(f, LegPipe):
-                res[i:i+1] = f.legs
+                res[i : i + 1] = f.legs
                 seen_pipes = True
         if not seen_pipes:
             break
@@ -2312,8 +2406,7 @@ def _sort_sectors(sectors: SectorArray, multiplicities: np.ndarray):
     return sectors[perm], multiplicities[perm], perm
 
 
-def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetry
-                                ) -> tuple[list[int] | None, Symmetry]:
+def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetry) -> tuple[list[int] | None, Symmetry]:
     """Input parsing for :meth:`Space.drop_symmetry`.
 
     Returns

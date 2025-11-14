@@ -1,4 +1,5 @@
 """A block backend using numpy."""
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
@@ -21,8 +22,7 @@ class NumpyBlockBackend(BlockBackend):
     def __init__(self):
         super().__init__(default_device='cpu')
 
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
-                 ) -> Block:
+    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None) -> Block:
         _ = self.as_device(device)  # for input check only
         block = np.asarray(a, dtype=self.backend_dtype_map[dtype])
         if np.issubdtype(block.dtype, np.integer):
@@ -109,7 +109,7 @@ class NumpyBlockBackend(BlockBackend):
         return np.diag(diag)
 
     def block_from_mask(self, mask: Block, dtype: Dtype) -> Block:
-        M, = mask.shape
+        (M,) = mask.shape
         N = np.sum(mask)
         res = np.zeros((N, M), dtype=self.backend_dtype_map[dtype])
         res[np.arange(N), mask] = 1
@@ -169,8 +169,7 @@ class NumpyBlockBackend(BlockBackend):
     def permute_axes(self, a: Block, permutation: list[int]) -> Block:
         return np.transpose(a, permutation)
 
-    def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
-                      ) -> Block:
+    def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None) -> Block:
         # if sigma is standard deviation for complex numbers, need to divide by sqrt(2)
         # to get standard deviation in real and imag parts
         if not dtype.is_real:
@@ -178,14 +177,14 @@ class NumpyBlockBackend(BlockBackend):
         _ = self.as_device(device)  # for input check only
         res = np.random.normal(loc=0, scale=sigma, size=dims)
         if not dtype.is_real:
-            res = res + 1.j * np.random.normal(loc=0, scale=sigma, size=dims)
+            res = res + 1.0j * np.random.normal(loc=0, scale=sigma, size=dims)
         return res
 
     def random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
         _ = self.as_device(device)  # for input check only
         res = np.random.uniform(-1, 1, size=dims)
         if not dtype.is_real:
-            res = res + 1.j * np.random.uniform(-1, 1, size=dims)
+            res = res + 1.0j * np.random.uniform(-1, 1, size=dims)
         return res
 
     def real(self, a: Block) -> Block:
@@ -219,7 +218,7 @@ class NumpyBlockBackend(BlockBackend):
         return np.squeeze(a, tuple(idcs))
 
     def stable_log(self, block: Block, cutoff: float) -> Block:
-        return np.where(block > cutoff, np.log(block), 0.)
+        return np.where(block > cutoff, np.log(block), 0.0)
 
     def sum(self, a: Block, ax: int) -> Block:
         return np.sum(a, axis=ax)
@@ -242,8 +241,8 @@ class NumpyBlockBackend(BlockBackend):
 
     def trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining: list[int]) -> Block:
         a = np.transpose(a, remaining + idcs1 + idcs2)
-        trace_dim = np.prod(a.shape[len(remaining):len(remaining)+len(idcs1)], dtype=int)
-        a = np.reshape(a, a.shape[:len(remaining)] + (trace_dim, trace_dim))
+        trace_dim = np.prod(a.shape[len(remaining) : len(remaining) + len(idcs1)], dtype=int)
+        a = np.reshape(a, a.shape[: len(remaining)] + (trace_dim, trace_dim))
         return np.trace(a, axis1=-2, axis2=-1)
 
     def eye_matrix(self, dim: int, dtype: Dtype, device: str = None) -> Block:

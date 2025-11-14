@@ -1,4 +1,5 @@
 """Tools for expressing algorithmic costs as polynomials."""
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
@@ -110,8 +111,7 @@ class BigOPolynomial:
         self.terms = self.simplify_terms(terms)
 
     @staticmethod
-    def simplify_terms(terms: list[BigOMonomial],
-                       relations: list[tuple[BigOMonomial, BigOMonomial]] = None):
+    def simplify_terms(terms: list[BigOMonomial], relations: list[tuple[BigOMonomial, BigOMonomial]] = None):
         """Simplify a list of terms by dropping negligible terms."""
         non_negligible = []
         for t in terms:

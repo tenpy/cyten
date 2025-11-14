@@ -1,4 +1,5 @@
 """Toy code implementing a matrix product state."""
+
 # Copyright (C) TeNPy Developers, Apache license
 import numpy as np
 
@@ -58,8 +59,7 @@ class SimpleMPS:
         """
         j = (i + 1) % self.L
         Bj = ct.permute_legs(self.Bs[j], codomain=['vL'], bend_right=True)
-        return ct.tdot(self.get_theta1(i), Bj, 'vR', 'vL',
-                       relabel1=dict(p='p0'), relabel2=dict(p='p1'))
+        return ct.tdot(self.get_theta1(i), Bj, 'vR', 'vL', relabel1=dict(p='p0'), relabel2=dict(p='p1'))
 
     def get_chi(self):
         """Return bond dimensions."""
@@ -172,9 +172,9 @@ def init_Neel_MPS(L, d=2, bc='finite', backend='abelian', conserve='none'):
         S1 = ct.DiagonalTensor.from_eye(v1, backend=backend, labels=['vL', 'vR'])
         S2 = ct.DiagonalTensor.from_eye(v2, backend=backend, labels=['vL', 'vR'])
         B_list = [B11, B21, B12, B22]
-        B_list = B_list * (L // 4) + B_list[:L % 4]
+        B_list = B_list * (L // 4) + B_list[: L % 4]
         S_list = [S1, S1, S2, S2]
-        S_list = S_list * (L // 4) + S_list[:L % 4]
+        S_list = S_list * (L // 4) + S_list[: L % 4]
     else:
         raise ValueError
     return SimpleMPS(B_list, S_list, bc=bc)
@@ -189,10 +189,12 @@ def init_SU2_sym_MPS(L, d=2, bc='finite', backend=None):
     p = ct.ElementarySpace.from_defining_sectors(sym, [[d - 1]])
     v1 = ct.ElementarySpace.from_trivial_sector(1, sym)
     v2 = p
-    B1 = ct.SymmetricTensor.from_block_func(lambda x: np.ones(x), [v1, p], [v2],
-                                            labels=['vL', 'p', 'vR'], backend=backend)
-    B2 = ct.SymmetricTensor.from_block_func(lambda x: np.ones(x), [v2, p], [v1],
-                                            labels=['vL', 'p', 'vR'], backend=backend)
+    B1 = ct.SymmetricTensor.from_block_func(
+        lambda x: np.ones(x), [v1, p], [v2], labels=['vL', 'p', 'vR'], backend=backend
+    )
+    B2 = ct.SymmetricTensor.from_block_func(
+        lambda x: np.ones(x), [v2, p], [v1], labels=['vL', 'p', 'vR'], backend=backend
+    )
     S1 = ct.DiagonalTensor.from_eye(v1, backend=backend, labels=['vL', 'vR'])
     S2 = ct.DiagonalTensor.from_eye(v2, backend=backend, labels=['vL', 'vR'])
     return SimpleMPS([B1, B2] * (L // 2), [S1, S2] * (L // 2), bc=bc)
@@ -205,8 +207,9 @@ def init_Fib_anyon_MPS(L, bc='finite', backend=None):
     sym = ct.fibonacci_anyon_category
     p = ct.ElementarySpace.from_defining_sectors(sym, [[1]])
     v = p
-    B = ct.SymmetricTensor.from_block_func(lambda x: np.ones(x, dtype=complex), [v, p], [v],
-                                           labels=['vL', 'p', 'vR'], backend=backend)
+    B = ct.SymmetricTensor.from_block_func(
+        lambda x: np.ones(x, dtype=complex), [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend
+    )
     S = ct.DiagonalTensor.from_eye(v, backend=backend, labels=['vL', 'vR'])
     return SimpleMPS([B] * L, [S] * L, bc=bc)
 

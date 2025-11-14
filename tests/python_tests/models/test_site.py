@@ -1,7 +1,6 @@
 """A collection of tests for :mod:`cyten.models.sites`."""
 # Copyright (C) TeNPy Developers, Apache license
 
-
 import itertools as it
 
 import numpy as np
@@ -30,8 +29,7 @@ def check_same_operators(sites: list[degrees_of_freedom.Site]):
                 ops[name] = op
 
 
-def check_operator_availability(site: degrees_of_freedom.Site,
-                                expect_onsite_ops: dict[str, bool]):
+def check_operator_availability(site: degrees_of_freedom.Site, expect_onsite_ops: dict[str, bool]):
     """Check if the operators on a site are as expected.
 
     We check if the operators exist and whether they are `DiagonalTensor`s.
@@ -41,8 +39,9 @@ def check_operator_availability(site: degrees_of_freedom.Site,
         assert isinstance(site.onsite_operators[name], cyten.DiagonalTensor) == is_diag
 
 
-@pytest.mark.parametrize('symmetry_backend, use_sym',
-                         [('abelian', True), ('fusion_tree', True), ('abelian', False), ('no_symmetry', False)])
+@pytest.mark.parametrize(
+    'symmetry_backend, use_sym', [('abelian', True), ('fusion_tree', True), ('abelian', False), ('no_symmetry', False)]
+)
 def test_site(np_random, block_backend, symmetry_backend, use_sym):
     backend = cyten.get_backend(block_backend=block_backend, symmetry=symmetry_backend)
     if use_sym:
@@ -98,7 +97,7 @@ def test_spin_site(any_backend, spin):
         raise ValueError
     site_list = []
     for conserve in all_conserve:
-        print("conserve = ", conserve)
+        print('conserve = ', conserve)
         site = sites.SpinSite(spin, conserve, backend=any_backend)
         site.test_sanity()
 
@@ -134,7 +133,7 @@ def test_spinless_boson_site(any_backend, np_random, Nmax):
     filling = np_random.choice([None, np_random.random()])
     site_list = []
     for conserve in all_conserve:
-        print("conserve = ", conserve)
+        print('conserve = ', conserve)
         site = sites.SpinlessBosonSite(Nmax, conserve=conserve, backend=any_backend, filling=filling)
         site.test_sanity()
 
@@ -159,9 +158,20 @@ def test_spinless_boson_site(any_backend, np_random, Nmax):
     if isinstance(any_backend, backends.NoSymmetryBackend):
         all_conserve = ['None']
     else:
-        all_conserve = ['N', 'parity', 'None', ['N', 'N'], ['N', 'parity'], ['N', 'None'],
-                        ['parity', 'N'], ['parity', 'parity'], ['parity', 'None'],
-                        ['None', 'N'], ['None', 'parity'], ['None', 'None']]
+        all_conserve = [
+            'N',
+            'parity',
+            'None',
+            ['N', 'N'],
+            ['N', 'parity'],
+            ['N', 'None'],
+            ['parity', 'N'],
+            ['parity', 'parity'],
+            ['parity', 'None'],
+            ['None', 'N'],
+            ['None', 'parity'],
+            ['None', 'None'],
+        ]
     filling = np_random.choice([None, np_random.random()])
     site_list = []
     for conserve in all_conserve:
@@ -196,9 +206,8 @@ def test_spinless_fermion_site(block_backend, np_random, num_species):
     filling = np_random.choice([None, np_random.random()])
     site_list = []
     for conserve in all_conserve:
-        print("conserve = ", conserve)
-        site = sites.SpinlessFermionSite(num_species=num_species, conserve=conserve,
-                                         backend=backend, filling=filling)
+        print('conserve = ', conserve)
+        site = sites.SpinlessFermionSite(num_species=num_species, conserve=conserve, backend=backend, filling=filling)
         site.test_sanity()
 
         vac = site.state_labels['vac']
@@ -248,7 +257,7 @@ def test_spin_half_fermion_site(block_backend, np_random):
             state = site.state_labels[str(occupations)]
             assert np.allclose(site.number_operators[state, state, 0], occupations[0])  # spin up
             assert np.allclose(site.number_operators[state, state, 1], occupations[1])  # spin down
-            assert np.allclose(site.spin_vector[state, state, 2], .5 * (occupations[0] - occupations[1]))
+            assert np.allclose(site.spin_vector[state, state, 2], 0.5 * (occupations[0] - occupations[1]))
 
         expect_ops = dict(Ntot=True, Ptot=True, NtotNtot=True)
         if conserve_S in ['Sz', 'parity', 'None']:
@@ -279,7 +288,7 @@ def test_clock_site(any_backend, q):
 
     site_list = []
     for conserve in all_conserve:
-        print("conserve = ", conserve)
+        print('conserve = ', conserve)
         site = sites.ClockSite(q=q, conserve=conserve, backend=any_backend)
         site.test_sanity()
 

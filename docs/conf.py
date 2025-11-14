@@ -18,7 +18,7 @@ copyright = '2024, Cyten developer team'
 author = 'Cyten developer team'
 release = '0.1'
 
-GITHUBBASE = "https://github.com/tenpy/cyten"
+GITHUBBASE = 'https://github.com/tenpy/cyten'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -58,28 +58,28 @@ pygments_style = 'sphinx'  # syntax highlighting style
 
 html_theme = 'sphinx_rtd_theme'
 
-html_logo = "images/cyten_logo.png"
+html_logo = 'images/cyten_logo.png'
 #  html_favicon = "images/logo.ico"
 html_static_path = ['sphinx/static']
 html_last_updated_fmt = '%b %d, %Y'
 
 html_css_files = [
-    "custom.css",  # to highlight targets
+    'custom.css',  # to highlight targets
 ]
 
 html_context = {
-    "display_github": True,  # Integrate GitHub
-    "github_user": "tenpy",  # Username
-    "github_repo": "cyten",  # Repo name
-    "github_version": "main",  # Version
-    "conf_py_path": "/docs/",  # Path in the checkout to the docs root
+    'display_github': True,  # Integrate GitHub
+    'github_user': 'tenpy',  # Username
+    'github_repo': 'cyten',  # Repo name
+    'github_version': 'main',  # Version
+    'conf_py_path': '/docs/',  # Path in the checkout to the docs root
 }
 
 # -- breathe (including doxygen docs) -------------------------------------
 
-breathe_projects = {"cyten": "build_docs/doxy_xml"}
+breathe_projects = {'cyten': 'build_docs/doxy_xml'}
 
-breathe_default_project = "cyten"
+breathe_default_project = 'cyten'
 
 # -- sphinx.ext.autodoc ---------------------------------------------------
 
@@ -116,7 +116,7 @@ napoleon_custom_sections = ['Options']
 # -- sphinx.ext.inheritance_diagram ---------------------------------------
 
 inheritance_graph_attrs = {
-    'rankdir': "TB",  # top-to-bottom
+    'rankdir': 'TB',  # top-to-bottom
     'fontsize': 14,
     'ratio': 'compress',
 }
@@ -180,14 +180,14 @@ def linkcode_resolve(domain, info):
         lineno = None
 
     if lineno:
-        linespec = f"#L{lineno}-L{lineno + len(source) - 1}"
+        linespec = f'#L{lineno}-L{lineno + len(source) - 1}'
     else:
-        linespec = ""
+        linespec = ''
     fn = os.path.relpath(fn, start=os.path.dirname(cyten.__file__))
     if fn.startswith('..'):
         return None
 
     if cyten.__version__ == cyten.__full_version__:
-        return f"{GITHUBBASE}/blob/v{cyten.__version__}/cyten/{fn}{linespec}"
+        return f'{GITHUBBASE}/blob/v{cyten.__version__}/cyten/{fn}{linespec}'
     else:
-        return f"{GITHUBBASE}/blob/main/cyten/{fn}{linespec}"
+        return f'{GITHUBBASE}/blob/main/cyten/{fn}{linespec}'

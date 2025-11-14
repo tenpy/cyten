@@ -1,4 +1,5 @@
 """Testing if the toycodes can run."""
+
 # Copyright (C) TeNPy Developers, Apache license
 import cyten as ct
 from toycodes.tenpy_toycodes.a_mps import init_Fib_anyon_MPS, init_FM_MPS, init_Neel_MPS, init_SU2_sym_MPS
@@ -34,9 +35,7 @@ def test_toy_models():
 
 def test_dmrg_golden_chain():
     # energies from MPSKit.jl with DMRG
-    GC_energies = {
-        6: -4.02595560765756, 8: -5.54888659415890, 10: -7.0735949995638
-    }
+    GC_energies = {6: -4.02595560765756, 8: -5.54888659415890, 10: -7.0735949995638}
     L = 8
     psi = init_Fib_anyon_MPS(L)
     model = GoldenChainModel(L, J=1)

@@ -51,15 +51,15 @@ def test_rank_data(stable, N=10):
 
 
 def test_argsort():
-    x = [1., -1., 1.5, -1.5, 2.j, -2.j]
+    x = [1.0, -1.0, 1.5, -1.5, 2.0j, -2.0j]
     npt.assert_equal(tools.misc.argsort(x, 'LM', kind='stable'), [4, 5, 2, 3, 0, 1])
     npt.assert_equal(tools.misc.argsort(x, 'SM', kind='stable'), [0, 1, 2, 3, 4, 5])
     npt.assert_equal(tools.misc.argsort(x, 'LR', kind='stable'), [2, 0, 4, 5, 1, 3])
 
 
 def test_speigs():
-    x = np.array([1., -1.2, 1.5, -1.8, 2.j, -2.2j])
-    tol_NULP = len(x)**3
+    x = np.array([1.0, -1.2, 1.5, -1.8, 2.0j, -2.2j])
+    tol_NULP = len(x) ** 3
     x_LM = x[tools.misc.argsort(x, 'm>')]
     x_SM = x[tools.misc.argsort(x, 'SM')]
     A = np.diag(x)
@@ -78,7 +78,6 @@ def test_speigs():
 
 
 def test_find_subclass():
-
     # artificial case
 
     class Foo:
@@ -125,7 +124,7 @@ def test_make_grid(cstyle, shape):
 
 
 @pytest.mark.parametrize('N', [0, 1, 2, 3, 5, 10])
-@pytest.mark.parametrize('which_perm', ["random", "trivial", "single_swap"])
+@pytest.mark.parametrize('which_perm', ['random', 'trivial', 'single_swap'])
 def test_permutation_as_swaps(N, which_perm, np_random):
     data = list('abcdefghijklmnopqrstuvwxyz')[:N]
 

@@ -1,4 +1,5 @@
 """Defines classes that describe the sites of a lattice."""
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
@@ -48,8 +49,13 @@ class SpinSite(SpinDOF):
 
     """
 
-    def __init__(self, S: float = .5, conserve: Literal['SU(2)', 'Sz', 'parity', 'None'] = None,
-                 backend: TensorBackend = None, default_device: str = None):
+    def __init__(
+        self,
+        S: float = 0.5,
+        conserve: Literal['SU(2)', 'Sz', 'parity', 'None'] = None,
+        backend: TensorBackend = None,
+        default_device: str = None,
+    ):
         self.S = S = float(S)
         two_S = int(round(2 * S, 0))
         self.double_total_spin = two_S
@@ -87,22 +93,26 @@ class SpinSite(SpinDOF):
         state_labels['up'] = dim - 1
 
         SpinDOF.__init__(
-            self, leg=leg, spin_vector=spin_vector, state_labels=state_labels,
-            backend=backend, default_device=default_device
+            self,
+            leg=leg,
+            spin_vector=spin_vector,
+            state_labels=state_labels,
+            backend=backend,
+            default_device=default_device,
         )
 
         if not isinstance(sym, SU2Symmetry):
             self.add_onsite_operator('Sz', spin_vector[:, :, 2], is_diagonal=True)
             if two_S == 1:
-                self.add_onsite_operator('Sigmaz', 2. * spin_vector[:, :, 2], is_diagonal=True)
+                self.add_onsite_operator('Sigmaz', 2.0 * spin_vector[:, :, 2], is_diagonal=True)
         if isinstance(sym, NoSymmetry):
             self.add_onsite_operator('Sx', spin_vector[:, :, 0])
             self.add_onsite_operator('Sy', spin_vector[:, :, 1])
-            self.add_onsite_operator('Sp', spin_vector[:, :, 0] + 1.j * spin_vector[:, :, 1])
-            self.add_onsite_operator('Sm', spin_vector[:, :, 0] - 1.j * spin_vector[:, :, 1])
+            self.add_onsite_operator('Sp', spin_vector[:, :, 0] + 1.0j * spin_vector[:, :, 1])
+            self.add_onsite_operator('Sm', spin_vector[:, :, 0] - 1.0j * spin_vector[:, :, 1])
             if two_S == 1:
-                self.add_onsite_operator('Sigmax', 2. * spin_vector[:, :, 0])
-                self.add_onsite_operator('Sigmay', 2. * spin_vector[:, :, 1])
+                self.add_onsite_operator('Sigmax', 2.0 * spin_vector[:, :, 0])
+                self.add_onsite_operator('Sigmay', 2.0 * spin_vector[:, :, 1])
 
     def test_sanity(self):
         """Perform sanity checks."""
@@ -154,9 +164,14 @@ class SpinlessBosonSite(BosonicDOF):
 
     """
 
-    def __init__(self, Nmax: int | list[int] | np.ndarray,
-                 conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']] = None,
-                 filling: float | None = None, backend: TensorBackend = None, default_device: str = None):
+    def __init__(
+        self,
+        Nmax: int | list[int] | np.ndarray,
+        conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']] = None,
+        filling: float | None = None,
+        backend: TensorBackend = None,
+        default_device: str = None,
+    ):
         Nmax = np.atleast_1d(np.asarray(Nmax, dtype=int))
         # need to manually throw an error for non-integers in Nmax
         assert np.allclose(Nmax, np.asarray(Nmax)), f'Invalid `Nmax`: {Nmax}'
@@ -215,7 +230,7 @@ class SpinlessBosonSite(BosonicDOF):
         # occupations for the species. For a single species, this is changed to 'n0', i.e.,
         # the brackets and comma from the tuple are omitted.
         state_labels = {}
-        dim_prod = np.asarray([np.prod(dims[i + 1:]) for i in range(num_species)], dtype=int)
+        dim_prod = np.asarray([np.prod(dims[i + 1 :]) for i in range(num_species)], dtype=int)
         for occupations in itproduct(*states):
             label = str(occupations)
             if num_species == 1:
@@ -227,8 +242,14 @@ class SpinlessBosonSite(BosonicDOF):
         creators, annihilators = BosonicDOF._creation_annihilation_ops_from_Nmax(Nmax=Nmax)
 
         BosonicDOF.__init__(
-            self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
-            onsite_operators=None, backend=backend, default_device=default_device
+            self,
+            leg=leg,
+            creators=creators,
+            annihilators=annihilators,
+            state_labels=state_labels,
+            onsite_operators=None,
+            backend=backend,
+            default_device=default_device,
         )
         self.add_individual_occupation_ops()
         self.add_total_occupation_ops()
@@ -298,9 +319,14 @@ class SpinlessFermionSite(FermionicDOF):
 
     """
 
-    def __init__(self, num_species: int,
-                 conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']] = 'parity',
-                 filling: float | None = None, backend: TensorBackend = None, default_device: str = None):
+    def __init__(
+        self,
+        num_species: int,
+        conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']] = 'parity',
+        filling: float | None = None,
+        backend: TensorBackend = None,
+        default_device: str = None,
+    ):
         assert isinstance(num_species, int)
         assert num_species > 0, 'Must have at least a single fermion species'
         if not isinstance(conserve, str):
@@ -356,15 +382,21 @@ class SpinlessFermionSite(FermionicDOF):
             label = str(occupations)
             if num_species == 1:
                 label = label[1:-2]
-            state_labels[label] = int("".join(str(n_i) for n_i in occupations), 2)
+            state_labels[label] = int(''.join(str(n_i) for n_i in occupations), 2)
         # vacuum == no fermions
         state_labels['vac'] = 0
 
         creators, annihilators = FermionicDOF._creation_annihilation_ops(num_species=num_species)
 
         FermionicDOF.__init__(
-            self, leg=leg, creators=creators, annihilators=annihilators, state_labels=state_labels,
-            onsite_operators=None, backend=backend, default_device=default_device
+            self,
+            leg=leg,
+            creators=creators,
+            annihilators=annihilators,
+            state_labels=state_labels,
+            onsite_operators=None,
+            backend=backend,
+            default_device=default_device,
         )
         self.add_individual_occupation_ops()
         self.add_total_occupation_ops()
@@ -381,8 +413,7 @@ class SpinlessFermionSite(FermionicDOF):
             self.add_onsite_operator(name, op, is_diagonal=True, understood_braiding=True)
 
     def __repr__(self):
-        return (f'SpinlessFermionSite(num_species={self.num_species}, '
-                f'conserve={self.conserve}, filling={self.filling})')
+        return f'SpinlessFermionSite(num_species={self.num_species}, conserve={self.conserve}, filling={self.filling})'
 
 
 class SpinHalfFermionSite(SpinDOF, FermionicDOF):
@@ -427,11 +458,14 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
 
     """
 
-    def __init__(self,
-                 conserve_N: Literal['N', 'parity'] = 'parity',
-                 conserve_S: Literal['SU(2)', 'Sz', 'parity', 'None'] = None,
-                 filling: float | None = None, backend: TensorBackend = None,
-                 default_device: str = None):
+    def __init__(
+        self,
+        conserve_N: Literal['N', 'parity'] = 'parity',
+        conserve_S: Literal['SU(2)', 'Sz', 'parity', 'None'] = None,
+        filling: float | None = None,
+        backend: TensorBackend = None,
+        default_device: str = None,
+    ):
         assert isinstance(conserve_N, str), f'Invalid `conserve_N`: {conserve_N}'
         self.filling = filling
 
@@ -478,13 +512,28 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         spin_vector = self._spin_vector_from_Sp(Sz=Sz, Sp=Sp)
         creators, annihilators = FermionicDOF._creation_annihilation_ops(num_species=2)
 
-        state_labels = {'(0, 0)': 0, '(0, 1)': 1, '(1, 0)': 2, '(1, 1)': 3,
-                        'empty': 0, 'vac': 0, 'down': 1, 'up': 2, 'full': 3}
+        state_labels = {
+            '(0, 0)': 0,
+            '(0, 1)': 1,
+            '(1, 0)': 2,
+            '(1, 1)': 3,
+            'empty': 0,
+            'vac': 0,
+            'down': 1,
+            'up': 2,
+            'full': 3,
+        }
 
         super().__init__(
-            leg=leg, spin_vector=spin_vector, creators=creators, annihilators=annihilators,
-            state_labels=state_labels, onsite_operators=None, backend=backend,
-            default_device=default_device, species_names=['up', 'down']
+            leg=leg,
+            spin_vector=spin_vector,
+            creators=creators,
+            annihilators=annihilators,
+            state_labels=state_labels,
+            onsite_operators=None,
+            backend=backend,
+            default_device=default_device,
+            species_names=['up', 'down'],
         )
 
         if not isinstance(sym_S, SU2Symmetry):
@@ -497,14 +546,14 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         ops = {}
         if not isinstance(sym_S, SU2Symmetry):
             ops['Sz'] = spin_vector[:, :, 2]
-            ops['Sigmaz'] = 2. * spin_vector[:, :, 2]
+            ops['Sigmaz'] = 2.0 * spin_vector[:, :, 2]
         if isinstance(sym_S, NoSymmetry):
             self.add_onsite_operator('Sx', spin_vector[:, :, 0], understood_braiding=True)
             self.add_onsite_operator('Sy', spin_vector[:, :, 1], understood_braiding=True)
-            self.add_onsite_operator('Sp', spin_vector[:, :, 0] + 1.j * spin_vector[:, :, 1], understood_braiding=True)
-            self.add_onsite_operator('Sm', spin_vector[:, :, 0] - 1.j * spin_vector[:, :, 1], understood_braiding=True)
-            self.add_onsite_operator('Sigmax', 2. * spin_vector[:, :, 0], understood_braiding=True)
-            self.add_onsite_operator('Sigmay', 2. * spin_vector[:, :, 1], understood_braiding=True)
+            self.add_onsite_operator('Sp', spin_vector[:, :, 0] + 1.0j * spin_vector[:, :, 1], understood_braiding=True)
+            self.add_onsite_operator('Sm', spin_vector[:, :, 0] - 1.0j * spin_vector[:, :, 1], understood_braiding=True)
+            self.add_onsite_operator('Sigmax', 2.0 * spin_vector[:, :, 0], understood_braiding=True)
+            self.add_onsite_operator('Sigmay', 2.0 * spin_vector[:, :, 1], understood_braiding=True)
 
         # construct operators relative to filling
         if filling is not None:
@@ -517,8 +566,9 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
             self.add_onsite_operator(name, op, is_diagonal=True, understood_braiding=True)
 
     def __repr__(self):
-        return (f'SpinHalfFermionSite(conserve_N={self.conserve_N}, '
-                f'conserve_S={self.conserve_S}, filling={self.filling})')
+        return (
+            f'SpinHalfFermionSite(conserve_N={self.conserve_N}, conserve_S={self.conserve_S}, filling={self.filling})'
+        )
 
 
 class ClockSite(ClockDOF):
@@ -544,13 +594,14 @@ class ClockSite(ClockDOF):
 
     """
 
-    def __init__(self, q: int, conserve: Literal['Z_N', 'None'] = None,
-                 backend: TensorBackend = None, default_device: str = None):
+    def __init__(
+        self, q: int, conserve: Literal['Z_N', 'None'] = None, backend: TensorBackend = None, default_device: str = None
+    ):
         assert isinstance(q, int)
 
         # build clock operators
         X = np.eye(q, k=1) + np.eye(q, k=1 - q)
-        Z = np.diag(np.exp(2.j * np.pi * np.arange(q, dtype=np.complex128) / q))
+        Z = np.diag(np.exp(2.0j * np.pi * np.arange(q, dtype=np.complex128) / q))
         clock_operators = np.stack([X, Z], axis=2)
 
         # build leg
@@ -570,8 +621,13 @@ class ClockSite(ClockDOF):
             state_labels['down'] = q // 2
 
         ClockDOF.__init__(
-            self, leg=leg, q=q, clock_operators=clock_operators, state_labels=state_labels,
-            backend=backend, default_device=default_device
+            self,
+            leg=leg,
+            q=q,
+            clock_operators=clock_operators,
+            state_labels=state_labels,
+            backend=backend,
+            default_device=default_device,
         )
 
         Xhc = np.conj(clock_operators[:, :, 0].T)
@@ -599,13 +655,15 @@ class AnyonSite(AnyonDOF):
 
     """
 
-    def __init__(self, symmetry: Symmetry,
-                 sector_names: Sequence[str | None] = None,
-                 backend: TensorBackend = None,
-                 default_device: str = None):
+    def __init__(
+        self,
+        symmetry: Symmetry,
+        sector_names: Sequence[str | None] = None,
+        backend: TensorBackend = None,
+        default_device: str = None,
+    ):
         leg = ElementarySpace.from_defining_sectors(symmetry, symmetry.all_sectors())
-        AnyonDOF.__init__(self, leg=leg, sector_names=sector_names, backend=backend,
-                          default_device=default_device)
+        AnyonDOF.__init__(self, leg=leg, sector_names=sector_names, backend=backend, default_device=default_device)
 
     def __repr__(self):
         return f'AnyonSite(symmetry={self.symmetry}, sector_names={self.sector_names})'
@@ -624,11 +682,11 @@ class FibonacciAnyonSite(AnyonSite):
 
     """
 
-    def __init__(self, handedness: Literal['left', 'right'] = 'left',
-                 backend: TensorBackend = None, default_device: str = None):
+    def __init__(
+        self, handedness: Literal['left', 'right'] = 'left', backend: TensorBackend = None, default_device: str = None
+    ):
         sym = FibonacciAnyonCategory(handedness=handedness)
-        AnyonSite.__init__(self, sym, sector_names=['vac', 'tau'],
-                           backend=backend, default_device=default_device)
+        AnyonSite.__init__(self, sym, sector_names=['vac', 'tau'], backend=backend, default_device=default_device)
 
     def __repr__(self):
         return f'FibonacciAnyonSite(handedness={self.symmetry.handedness})'
@@ -649,8 +707,9 @@ class IsingAnyonSite(AnyonSite):
 
     def __init__(self, nu: int = 1, backend: TensorBackend = None, default_device: str = None):
         sym = IsingAnyonCategory(nu=nu)
-        AnyonSite.__init__(self, sym, sector_names=['vac', 'sigma', 'psi'],
-                           backend=backend, default_device=default_device)
+        AnyonSite.__init__(
+            self, sym, sector_names=['vac', 'sigma', 'psi'], backend=backend, default_device=default_device
+        )
 
     def __repr__(self):
         return f'IsingAnyonSite(nu={self.symmetry.nu})'
@@ -666,8 +725,9 @@ class GoldenSite(AnyonDOF):
 
     """
 
-    def __init__(self, handedness: Literal['left', 'right'] = 'left',
-                 backend: TensorBackend = None, default_device: str = None):
+    def __init__(
+        self, handedness: Literal['left', 'right'] = 'left', backend: TensorBackend = None, default_device: str = None
+    ):
         sym = FibonacciAnyonCategory(handedness=handedness)
         leg = ElementarySpace.from_defining_sectors(sym, [sym.tau])
         AnyonDOF.__init__(self, leg=leg, backend=backend, default_device=default_device)
@@ -688,8 +748,13 @@ class SU2kSpin1Site(AnyonDOF):
 
     """
 
-    def __init__(self, k: int, handedness: Literal['left', 'right'] = 'left',
-                 backend: TensorBackend = None, default_device: str = None):
+    def __init__(
+        self,
+        k: int,
+        handedness: Literal['left', 'right'] = 'left',
+        backend: TensorBackend = None,
+        default_device: str = None,
+    ):
         assert k >= 2
         sym = SU2_kAnyonCategory(k, handedness=handedness)
         leg = ElementarySpace.from_defining_sectors(sym, [sym.spin_one])

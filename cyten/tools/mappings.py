@@ -30,8 +30,7 @@ class SparseMapping(Generic[_KT], dict[_KT, dict[_KT, _Scalar]]):
             res[i] = {i: 1}
         return res
 
-    def pre_compose(self, other: SparseMapping[_KT] | dict[_KT, dict[_KT, _Scalar]]
-                    ) -> SparseMapping[_KT]:
+    def pre_compose(self, other: SparseMapping[_KT] | dict[_KT, dict[_KT, _Scalar]]) -> SparseMapping[_KT]:
         r"""The composite ``res_{ik} = \sum_j other_{ij} self{jk}``, such that self acts first.
 
         I.e. we pre-compose self with other, i.e. compose other with self, i.e.::
@@ -72,8 +71,7 @@ class IdentityMapping(Generic[_KT]):
     def __init__(self, keys: Sequence[_KT]):
         self.keys = set(keys)
 
-    def pre_compose(self, other: SparseMapping[_KT] | dict[_KT, dict[_KT, _Scalar]]
-                    ) -> SparseMapping[_KT]:
+    def pre_compose(self, other: SparseMapping[_KT] | dict[_KT, dict[_KT, _Scalar]]) -> SparseMapping[_KT]:
         r"""The composite ``res_{ik} = \sum_j other_{ij} self{jk}``, such that self acts first.
 
         I.e. we pre-compose self with other, i.e. compose other with self, i.e.::

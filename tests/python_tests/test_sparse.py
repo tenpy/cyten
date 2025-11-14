@@ -1,4 +1,5 @@
 """A collection of tests for cyten.sparse"""
+
 # Copyright (C) TeNPy Developers, Apache license
 import numpy as np
 import numpy.testing as npt
@@ -9,7 +10,7 @@ from cyten import backends, sparse, tensors
 from cyten.backends.backend_factory import get_backend
 from cyten.tensors import Dtype, SymmetricTensor, Tensor, almost_equal
 
-pytest.skip("sparse not yet revised", allow_module_level=True)  # TODO
+pytest.skip('sparse not yet revised', allow_module_level=True)  # TODO
 
 
 # define a few simple operators to test the wrappers:
@@ -115,7 +116,7 @@ def test_ShiftedLinearOperator(make_compatible_tensor):
     vec = make_compatible_tensor(labels=['a', 'b'])
     factor = 3.2
     op1 = ScalingDummyOperator(factor=factor, vector_shape=vec.shape)
-    shift = 5.j
+    shift = 5.0j
 
     op = sparse.ShiftedLinearOperator(op1, shift)
     assert almost_equal(op.matvec(vec), (factor + shift) * vec)
@@ -130,7 +131,7 @@ def test_ShiftedLinearOperator(make_compatible_tensor):
     check_to_tensor(op, vec)
 
 
-@pytest.mark.parametrize(['penalty', 'project_operator'], [(None, True), (2.-.3j, True), (-4, False)])
+@pytest.mark.parametrize(['penalty', 'project_operator'], [(None, True), (2.0 - 0.3j, True), (-4, False)])
 def test_ProjectedLinearOperator(make_compatible_tensor, penalty, project_operator):
     vec = make_compatible_tensor(labels=['a', 'b'])
     a, b = vec.legs
@@ -150,11 +151,13 @@ def test_ProjectedLinearOperator(make_compatible_tensor, penalty, project_operat
     factor = 3.2
     original_op = ScalingDummyOperator(factor=factor, vector_shape=o1.shape)
 
-    projected_op = sparse.ProjectedLinearOperator(original_op, [o1, o2], project_operator=project_operator, penalty=penalty)
+    projected_op = sparse.ProjectedLinearOperator(
+        original_op, [o1, o2], project_operator=project_operator, penalty=penalty
+    )
 
     print('check vector in ortho_vecs subspace')
     if project_operator:
-        expect = 0. * o1
+        expect = 0.0 * o1
     else:
         expect = original_op.matvec(o1)
     if penalty is not None:
@@ -172,8 +175,7 @@ def test_ProjectedLinearOperator(make_compatible_tensor, penalty, project_operat
 
 
 @pytest.mark.parametrize('use_hermitian', [True, False])
-def test_NumpyArrayLinearOperator_sector(make_compatible_space, make_compatible_tensor,
-                                         use_hermitian, k=5, tol=1e-14):
+def test_NumpyArrayLinearOperator_sector(make_compatible_space, make_compatible_tensor, use_hermitian, k=5, tol=1e-14):
     a = make_compatible_space()
     b = make_compatible_space()
     H = make_compatible_tensor(legs=[a, b.dual, a.dual, b], labels=['a', 'b*', 'a*', 'b'])
@@ -192,8 +194,7 @@ def test_NumpyArrayLinearOperator_sector(make_compatible_space, make_compatible_
     print(f'full spectrum: {E_np}')
     #
     sectors = tensors.detect_sectors_from_block(
-        psi0_np.reshape([a.dim, b.dim]), legs=[a, b],
-        backend=get_backend(symmetry=a.symmetry, block_backend='numpy')
+        psi0_np.reshape([a.dim, b.dim]), legs=[a, b], backend=get_backend(symmetry=a.symmetry, block_backend='numpy')
     )
     sector = a.symmetry.fusion_outcomes(*sectors)[0, :]
     #
@@ -205,15 +206,14 @@ def test_NumpyArrayLinearOperator_sector(make_compatible_space, make_compatible_
         H_op = sparse.NumpyArrayLinearOperator.from_Tensor(
             H, legs1=['a*', 'b*'], legs2=['a', 'b'], charge_sector=sector
         )
-    psi_init = tensors.ChargedTensor.random_uniform(legs=[a, b], charge=sector, labels=['a', 'b'],
-                                                    charged_state=[1])
+    psi_init = tensors.ChargedTensor.random_uniform(legs=[a, b], charge=sector, labels=['a', 'b'], charged_state=[1])
     psi_init_np = H_op.tensor_to_flat_array(psi_init)
     #
     E, psi = scipy.sparse.linalg.eigsh(H_op, k, v0=psi_init_np, which='SA')
     E0, psi0 = E[0], psi[:, 0]
     assert abs((E0 - E0_np) / E0_np) < tol
     psi0_H_psi0 = np.inner(psi0.conj(), H_op.matvec(psi0)).item()
-    assert abs(psi0_H_psi0 / E0 - 1.) < tol
+    assert abs(psi0_H_psi0 / E0 - 1.0) < tol
 
 
 @pytest.mark.parametrize('num_legs', [1, 2])

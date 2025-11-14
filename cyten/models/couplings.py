@@ -4,6 +4,7 @@ This module defines a base class for couplings, which are given in a MPO-like fa
 as well as functions that create common couplings such as e.g. a Heisenberg couplings between
 two sites that have a spin degree of freedom.
 """
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
@@ -47,8 +48,7 @@ class Coupling:
 
     """
 
-    def __init__(self, sites: list[Site], factorization: list[SymmetricTensor],
-                 name: str = None):
+    def __init__(self, sites: list[Site], factorization: list[SymmetricTensor], name: str = None):
         self.sites = sites
         assert len(factorization) == len(sites)
         self.factorization = factorization
@@ -73,9 +73,15 @@ class Coupling:
         assert self.factorization[-1].get_leg('wR').is_trivial
 
     @classmethod
-    def from_dense_block(cls, operator: Block, sites: list[Site], name: str = None,
-                         dtype: Dtype = None, understood_braiding: bool = False,
-                         cutoff_singular_values: float = None) -> Coupling:
+    def from_dense_block(
+        cls,
+        operator: Block,
+        sites: list[Site],
+        name: str = None,
+        dtype: Dtype = None,
+        understood_braiding: bool = False,
+        cutoff_singular_values: float = None,
+    ) -> Coupling:
         """Convert a dense block to a :class:`Coupling`.
 
         Parameters
@@ -105,16 +111,26 @@ class Coupling:
         co_domain = [s.leg for s in sites]
         p_labels = [f'p{i}' for i in range(len(sites))]
         labels = [*p_labels, *[f'{pi}*' for pi in p_labels][::-1]]
-        op = SymmetricTensor.from_dense_block(operator, co_domain, co_domain, backend=backend,
-                                              labels=labels, dtype=dtype, device=device,
-                                              understood_braiding=understood_braiding)
-        return cls.from_tensor(op, sites=sites, name=name,
-                               cutoff_singular_values=cutoff_singular_values)
+        op = SymmetricTensor.from_dense_block(
+            operator,
+            co_domain,
+            co_domain,
+            backend=backend,
+            labels=labels,
+            dtype=dtype,
+            device=device,
+            understood_braiding=understood_braiding,
+        )
+        return cls.from_tensor(op, sites=sites, name=name, cutoff_singular_values=cutoff_singular_values)
 
     @classmethod
-    def from_tensor(cls, operator: SymmetricTensor, sites: list[Site], name: str = None,
-                    cutoff_singular_values: float = None,
-                    ) -> Coupling:
+    def from_tensor(
+        cls,
+        operator: SymmetricTensor,
+        sites: list[Site],
+        name: str = None,
+        cutoff_singular_values: float = None,
+    ) -> Coupling:
         """Convert an operator / tensor to a :class:Coupling.
 
         Decomposes an operator into factors using :func:`cyten.horizontal_factorization` to
@@ -148,13 +164,15 @@ class Coupling:
             W.relabel({'p0': 'p', 'p0*': 'p*'})
             factorization = [W]
         else:
-            W, rest = horizontal_factorization(operator, 1, 1, new_labels=['wR', 'wL'],
-                                               cutoff_singular_values=cutoff_singular_values)
+            W, rest = horizontal_factorization(
+                operator, 1, 1, new_labels=['wR', 'wL'], cutoff_singular_values=cutoff_singular_values
+            )
             W.relabel({'p0': 'p', 'p0*': 'p*'})
             factorization = [add_trivial_leg(W, codomain_pos=0, label='wL')]
             for i in range(1, len(sites) - 1):
-                W, rest = horizontal_factorization(rest, 2, 1, new_labels=['wR', 'wL'],
-                                                   cutoff_singular_values=cutoff_singular_values)
+                W, rest = horizontal_factorization(
+                    rest, 2, 1, new_labels=['wR', 'wL'], cutoff_singular_values=cutoff_singular_values
+                )
                 W.relabel({f'p{i}': 'p', f'p{i}*': 'p*'})
                 factorization.append(W)
             assert (rest.num_codomain_legs, rest.num_domain_legs) == (2, 1)
@@ -173,19 +191,18 @@ class Coupling:
         res = permute_legs(res, [-1, 0], [1], bend_right=False)
         res.relabel({'p': 'p0', 'p*': 'p0*'})
         for i in range(1, self.num_sites):
-            W = permute_legs(self.factorization[i], ['wL'], ['p*', 'wR', 'p'],
-                             bend_right=True)
+            W = permute_legs(self.factorization[i], ['wL'], ['p*', 'wR', 'p'], bend_right=True)
             res = compose(res, W, relabel2={'p': f'p{i}', 'p*': f'p{i}*'})
-            res = permute_legs(res, [-1, *range(2 * i), 2 * i], [-2],
-                               bend_right={-1: False, -3: True})
+            res = permute_legs(res, [-1, *range(2 * i), 2 * i], [-2], bend_right={-1: False, -3: True})
         res = squeeze_legs(res, 'wR')
         codom_labels = [f'p{i}' for i in range(len(self.sites))]
         dom_labels = [l + '*' for l in codom_labels]
         res = permute_legs(res, codom_labels, dom_labels, bend_right=False)
         return res
 
-    def to_numpy(self, leg_order: list[int | str] = None, numpy_dtype=None,
-                 understood_braiding: bool = False) -> np.ndarray:
+    def to_numpy(
+        self, leg_order: list[int | str] = None, numpy_dtype=None, understood_braiding: bool = False
+    ) -> np.ndarray:
         """Convert to a numpy array."""
         return self.to_tensor().to_numpy(leg_order, numpy_dtype, understood_braiding)
 
@@ -193,8 +210,9 @@ class Coupling:
 # SPIN COUPLINGS
 
 
-def spin_spin_coupling(sites: list[SpinDOF], Jx: float = 0, Jy: float = 0, Jz: float = 0,
-                       name: str = 'spin-spin') -> Coupling:
+def spin_spin_coupling(
+    sites: list[SpinDOF], Jx: float = 0, Jy: float = 0, Jz: float = 0, name: str = 'spin-spin'
+) -> Coupling:
     r"""Two-site coupling between spins.
 
     .. math ::
@@ -220,8 +238,9 @@ def spin_spin_coupling(sites: list[SpinDOF], Jx: float = 0, Jy: float = 0, Jz: f
     return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
-def spin_field_coupling(sites: list[SpinDOF], hx: float = 0, hy: float = 0, hz: float = 0,
-                        name: str = 'spin-field') -> Coupling:
+def spin_field_coupling(
+    sites: list[SpinDOF], hx: float = 0, hy: float = 0, hz: float = 0, name: str = 'spin-field'
+) -> Coupling:
     r"""Single-site coupling of a spin to an external field.
 
     .. math ::
@@ -270,7 +289,7 @@ def aklt_coupling(sites: list[SpinDOF], J: float = 1, name: str = 'AKLT') -> Cou
     S_dot_S = np.tensordot(s1, s2, axes=[2, 2])
     S_dot_S = np.transpose(S_dot_S, [0, 2, 3, 1])
     S_dot_S_square = np.tensordot(S_dot_S, S_dot_S, axes=[[3, 2], [0, 1]])
-    h = J * (S_dot_S + S_dot_S_square / 3.)
+    h = J * (S_dot_S + S_dot_S_square / 3.0)
     return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
@@ -307,9 +326,9 @@ def chiral_3spin_coupling(sites: list[SpinDOF], chi: float = 1, name: str = 'S.S
     """
     if len(sites) != 3:
         raise ValueError(f'Invalid number of sites. Expected 3, got {len(sites)}')
-    SxS = np.cross(sites[1].spin_vector[:, None, None, :, :],
-                   sites[2].spin_vector[None, :, :, None, :],
-                   axis=4)  # [p1, p2, p2*, p1*, i]
+    SxS = np.cross(
+        sites[1].spin_vector[:, None, None, :, :], sites[2].spin_vector[None, :, :, None, :], axis=4
+    )  # [p1, p2, p2*, p1*, i]
     h = chi * np.tensordot(sites[0].spin_vector, SxS, (-1, -1))  # [p0, p0*, p1, p2, p2*, p1*]
     h = np.transpose(h, [0, 2, 3, 4, 5, 1])
     return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
@@ -318,9 +337,12 @@ def chiral_3spin_coupling(sites: list[SpinDOF], chi: float = 1, name: str = 'S.S
 # BOSON AND FERMION COUPLINGS
 
 
-def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float,
-                       species: int | str | list[int | str] = ALL_SPECIES, name: str = 'chem. pot.'
-                       ) -> Coupling:
+def chemical_potential(
+    sites: list[BosonicDOF] | list[FermionicDOF],
+    mu: float,
+    species: int | str | list[int | str] = ALL_SPECIES,
+    name: str = 'chem. pot.',
+) -> Coupling:
     r"""Chemical potential for bosons or fermions. Single-site coupling.
 
     .. math ::
@@ -345,9 +367,12 @@ def chemical_potential(sites: list[BosonicDOF] | list[FermionicDOF], mu: float,
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
 
-def onsite_interaction(sites: list[BosonicDOF] | list[FermionicDOF], U: float = 1,
-                       species: int | str = ALL_SPECIES, name: str = 'onsite interaction'
-                       ) -> Coupling:
+def onsite_interaction(
+    sites: list[BosonicDOF] | list[FermionicDOF],
+    U: float = 1,
+    species: int | str = ALL_SPECIES,
+    name: str = 'onsite interaction',
+) -> Coupling:
     r"""Onsite interaction for bosons or fermions. Single-site coupling.
 
     .. math ::
@@ -369,14 +394,17 @@ def onsite_interaction(sites: list[BosonicDOF] | list[FermionicDOF], U: float = 
     if len(sites) != 1:
         raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
     n_i = sites[0].get_occupation_numpy(species=species)
-    h = .5 * U * n_i @ n_i
+    h = 0.5 * U * n_i @ n_i
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
 
-def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V: float = 1,
-                                species_i: int | str = ALL_SPECIES,
-                                species_j: int | str = ALL_SPECIES,
-                                name: str = 'density-density') -> Coupling:
+def density_density_interaction(
+    sites: list[BosonicDOF] | list[FermionicDOF],
+    V: float = 1,
+    species_i: int | str = ALL_SPECIES,
+    species_j: int | str = ALL_SPECIES,
+    name: str = 'density-density',
+) -> Coupling:
     r"""Density-density interaction. Two-site coupling.
 
     .. math ::
@@ -400,8 +428,7 @@ def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V:
         raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     is_bosonic = [isinstance(site, BosonicDOF) for site in sites]
     if all(is_bosonic) != any(is_bosonic):
-        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
-               'combined for constructing couplings.')
+        msg = 'Bosonic and fermionic sites are incompatible and cannot be combined for constructing couplings.'
         raise SymmetryError(msg)
     n_i = sites[0].get_occupation_numpy(species=species_i)
     n_j = sites[1].get_occupation_numpy(species=species_j)
@@ -409,15 +436,13 @@ def density_density_interaction(sites: list[BosonicDOF] | list[FermionicDOF], V:
     return Coupling.from_dense_block(h, sites, name=name, understood_braiding=True)
 
 
-def _quadratic_coupling_numpy(sites: list[BosonicDOF] | list[FermionicDOF], is_pairing: bool,
-                              species) -> np.ndarray:
+def _quadratic_coupling_numpy(sites: list[BosonicDOF] | list[FermionicDOF], is_pairing: bool, species) -> np.ndarray:
     """Create the numpy representation for both :func:`hopping` and :func:`pairing`."""
     if len(sites) != 2:
         raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     is_bosonic = [isinstance(site, BosonicDOF) for site in sites]
     if all(is_bosonic) != any(is_bosonic):
-        msg = ('Bosonic and fermionic sites are incompatible and cannot be '
-               'combined for constructing couplings.')
+        msg = 'Bosonic and fermionic sites are incompatible and cannot be combined for constructing couplings.'
         raise SymmetryError(msg)
     site_i, site_j = sites
     species_i, species_j = species
@@ -448,9 +473,12 @@ def _quadratic_coupling_numpy(sites: list[BosonicDOF] | list[FermionicDOF], is_p
     return h + np.transpose(h.conj(), [3, 2, 1, 0])
 
 
-def hopping(sites: list[BosonicDOF] | list[FermionicDOF], t: float = 1,
-            species: tuple[list[int | str], list[int | str]] = (ALL_SPECIES, ALL_SPECIES),
-            name: str = 'hopping') -> Coupling:
+def hopping(
+    sites: list[BosonicDOF] | list[FermionicDOF],
+    t: float = 1,
+    species: tuple[list[int | str], list[int | str]] = (ALL_SPECIES, ALL_SPECIES),
+    name: str = 'hopping',
+) -> Coupling:
     r"""Hopping of fermions or bosons. Two-site coupling.
 
     .. math ::
@@ -472,9 +500,12 @@ def hopping(sites: list[BosonicDOF] | list[FermionicDOF], t: float = 1,
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
 
-def pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
-            species: tuple[list[int | str], list[int | str]] = (ALL_SPECIES, ALL_SPECIES),
-            name: str = 'pairing') -> Coupling:
+def pairing(
+    sites: list[BosonicDOF] | list[FermionicDOF],
+    Delta: float = 1.0,
+    species: tuple[list[int | str], list[int | str]] = (ALL_SPECIES, ALL_SPECIES),
+    name: str = 'pairing',
+) -> Coupling:
     r"""Superconducting pairing of fermions or bosons. Two-site coupling.
 
     .. math ::
@@ -504,9 +535,12 @@ def pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
     return Coupling.from_dense_block(h, sites=sites, name=name, understood_braiding=True)
 
 
-def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 1.,
-                   species: tuple[list[int | str], list[int | str]] = (ALL_SPECIES, ALL_SPECIES),
-                   name: str = 'onsite pairing') -> Coupling:
+def onsite_pairing(
+    sites: list[BosonicDOF] | list[FermionicDOF],
+    Delta: float = 1.0,
+    species: tuple[list[int | str], list[int | str]] = (ALL_SPECIES, ALL_SPECIES),
+    name: str = 'onsite pairing',
+) -> Coupling:
     r"""Superconducting pairing of fermions or bosons. Single-site coupling.
 
     .. math ::
@@ -530,7 +564,7 @@ def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 
     """
     if len(sites) != 1:
         raise ValueError(f'Invalid number of sites. Expected 1, got {len(sites)}')
-    site, = sites
+    (site,) = sites
     species_1, species_2 = species
     if species_1 is ALL_SPECIES:
         species_1 = [*range(site.num_species)]
@@ -548,8 +582,7 @@ def onsite_pairing(sites: list[BosonicDOF] | list[FermionicDOF], Delta: float = 
 # CLOCK COUPLINGS
 
 
-def clock_clock_coupling(sites: list[ClockDOF], Jx: float = 0, Jz: float = 0,
-                         name: str = 'clock-clock') -> Coupling:
+def clock_clock_coupling(sites: list[ClockDOF], Jx: float = 0, Jz: float = 0, name: str = 'clock-clock') -> Coupling:
     r"""Two-site coupling between quantum clocks.
 
     .. math ::
@@ -575,8 +608,9 @@ def clock_clock_coupling(sites: list[ClockDOF], Jx: float = 0, Jz: float = 0,
     return Coupling.from_dense_block(h, sites, name=name)
 
 
-def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = None,
-                         name: str = 'clock-field') -> Coupling:
+def clock_field_coupling(
+    sites: list[ClockDOF], hx: float = None, hz: float = None, name: str = 'clock-field'
+) -> Coupling:
     r"""Single-site coupling of a quantum clock to an external field.
 
     .. math ::
@@ -601,8 +635,7 @@ def clock_field_coupling(sites: list[ClockDOF], hx: float = None, hz: float = No
 # ANYONIC COUPLINGS
 
 
-def sector_projection_coupling(sites: list[Site], J: float, sector: Sector, name: str
-                               ) -> Coupling:
+def sector_projection_coupling(sites: list[Site], J: float, sector: Sector, name: str) -> Coupling:
     """Coupling that is given by the projector onto a single sector
 
     The number of sites is arbitrary and the operator :math:`h_{ij...}` is given

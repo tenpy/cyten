@@ -1,4 +1,5 @@
 """Krylov-based algorithms for tensors"""
+
 # Copyright (C) TeNPy Developers, Apache license
 import logging
 from abc import ABCMeta, abstractmethod
@@ -119,18 +120,16 @@ class KrylovBased(metaclass=ABCMeta):
         self.N_min = options.get('N_min', 2)
         self.N_max = options.get('N_max', 20)
         self.N_cache = self.N_max
-        self.P_tol = options.get('P_tol', 1.e-14)
-        self.min_gap = options.get('min_gap', 1.e-12)
+        self.P_tol = options.get('P_tol', 1.0e-14)
+        self.min_gap = options.get('min_gap', 1.0e-12)
         self.reortho = options.get('reortho', False)
         self.E_shift = options.get('E_shift', None)
         if self.N_min < 2:
-            raise ValueError("Should perform at least 2 steps.")
+            raise ValueError('Should perform at least 2 steps.')
         self._cutoff = options.get('cutoff', psi0.dtype.eps * 100)
         if self.E_shift is not None:
             if isinstance(self.H, ProjectedLinearOperator):
-                self.H.original_operator = ShiftedLinearOperator(
-                    self.H.original_operator, self.E_shift
-                )
+                self.H.original_operator = ShiftedLinearOperator(self.H.original_operator, self.E_shift)
             else:
                 self.H = ShiftedLinearOperator(self.H, self.E_shift)
         self._cache = []
@@ -138,16 +137,13 @@ class KrylovBased(metaclass=ABCMeta):
         self._h_krylov = np.zeros([self.N_max + 1, self.N_max + 1], dtype=self._dtype_h_krylov)
 
     @abstractmethod
-    def run(self):
-        ...
+    def run(self): ...
 
     @abstractmethod
-    def _build_krylov(self):
-        ...
+    def _build_krylov(self): ...
 
     @abstractmethod
-    def _calc_result_krylov(self, k):
-        ...
+    def _calc_result_krylov(self, k): ...
 
     def _calc_result_full(self, N: int) -> Tensor:
         """Transform the :attr:`_result_krylov` from the Krylov ONB to the original basis.
@@ -169,13 +165,13 @@ class KrylovBased(metaclass=ABCMeta):
         self._rebuild_krylov_for_result_full(psif, N - len_cache - 1)
 
         psif_norm = norm(psif)
-        if abs(1. - psif_norm) > 1.e-5:
+        if abs(1.0 - psif_norm) > 1.0e-5:
             # One reason can be that `H` is not Hermitian
             # Otherwise, the matrix (even if small) might be ill conditioned.
             # If you get this warning, you can try to set the parameters
             # `reortho`=True and `N_cache` >= `N_max`
-            logger.warning("poorly conditioned H matrix in KrylovBased! |psi_0| = %f", psif_norm)
-        return scalar_multiply(1. / psif_norm, psif)
+            logger.warning('poorly conditioned H matrix in KrylovBased! |psi_0| = %f', psif_norm)
+        return scalar_multiply(1.0 / psif_norm, psif)
 
     def _to_cache(self, psi):
         """Add psi to cache, keep at most self.N_cache."""
@@ -228,7 +224,7 @@ class Arnoldi(KrylovBased):
         """
         assert self.N_cache >= self.N_max
         N = self._build_krylov()
-        E0 = self.Es[N - 1, :self.num_ev]
+        E0 = self.Es[N - 1, : self.num_ev]
         if self.E_shift is not None:
             E0 = E0 - self.E_shift
         if N == 1:
@@ -245,7 +241,7 @@ class Arnoldi(KrylovBased):
         w_norm = norm(w)
         self.psi0 = w / w_norm
         for k in range(self.N_max):
-            w = scalar_multiply(1. / w_norm, w)
+            w = scalar_multiply(1.0 / w_norm, w)
             self._to_cache(w)
             w = self.H.matvec(w)
             for i, v_i in enumerate(self._cache):
@@ -265,9 +261,9 @@ class Arnoldi(KrylovBased):
             self._result_krylov = np.ones([1, 1], self._dtype_h_krylov)
         else:
             # Diagonalize h
-            E_kr, v_kr = np.linalg.eig(h[:k + 1, :k + 1])  # not hermitian!
+            E_kr, v_kr = np.linalg.eig(h[: k + 1, : k + 1])  # not hermitian!
             sort = argsort(E_kr, self.which)
-            self.Es[k, :k + 1] = E_kr[sort]
+            self.Es[k, : k + 1] = E_kr[sort]
             self._result_krylov = v_kr[:, sort]  # ground state of _h_krylov
 
     def _calc_result_full(self, N: int) -> Tensor:
@@ -292,13 +288,13 @@ class Arnoldi(KrylovBased):
                 psi += vf[k] * krylov_basis[k]
 
             psi_norm = norm(psi)
-            if abs(1. - psi_norm) > 1.e-5:
+            if abs(1.0 - psi_norm) > 1.0e-5:
                 # One reason can be that `H` is not Hermitian
                 # Otherwise, the matrix (even if small) might be ill conditioned.
                 # If you get this warning, you can try to set the parameters
                 # `reortho`=True and `N_cache` >= `N_max`
-                logger.warning("poorly conditioned H matrix in Arnoldi! |psi| = %f", psi_norm)
-            psis.append(scalar_multiply(1. / psi_norm, psi))
+                logger.warning('poorly conditioned H matrix in Arnoldi! |psi| = %f', psi_norm)
+            psis.append(scalar_multiply(1.0 / psi_norm, psi))
         return psis
 
     def _to_cache(self, psi):
@@ -311,8 +307,8 @@ class Arnoldi(KrylovBased):
         v0 = self._result_krylov[:, 0]
         E = self.Es[k, :]  # current energies
         RitzRes = abs(v0[k]) * self._h_krylov[k + 1, k]
-        gap = max(min([np.min(np.abs(E[i+1:] - E[i])) for i in range(self.num_ev)]), self.min_gap)
-        P_err = (RitzRes / gap)**2
+        gap = max(min([np.min(np.abs(E[i + 1 :] - E[i])) for i in range(self.num_ev)]), self.min_gap)
+        P_err = (RitzRes / gap) ** 2
         Delta_E0 = self.Es[k - 1, 0] - E[0]
         return P_err < self.P_tol and Delta_E0 < self.E_tol
 
@@ -346,7 +342,7 @@ class LanczosGroundState(KrylovBased):
         self.E_tol = options.get('E_tol', np.inf)
         self.N_cache = options.get('N_cache', self.N_max)
         if self.N_cache < 2:
-            raise ValueError("Need to cache at least two vectors.")
+            raise ValueError('Need to cache at least two vectors.')
 
     def run(self):
         """Find the ground state of H.
@@ -364,11 +360,15 @@ class LanczosGroundState(KrylovBased):
         N = self._build_krylov()
         E0 = self.Es[N - 1, 0]
         if N > 1:
-            logger.debug("Lanczos N=%d, gap=%.3e, DeltaE0=%.3e, _result_krylov[-1]=%.3e", N,
-                         self.Es[N - 1, 1] - E0, self.Es[N - 2, 0] - E0, self._result_krylov[-1])
+            logger.debug(
+                'Lanczos N=%d, gap=%.3e, DeltaE0=%.3e, _result_krylov[-1]=%.3e',
+                N,
+                self.Es[N - 1, 1] - E0,
+                self.Es[N - 2, 0] - E0,
+                self._result_krylov[-1],
+            )
         else:
-            logger.debug("Lanczos N=%d, first alpha=%.3e, beta=%.3e", N, self._h_krylov[0, 0],
-                         self._h_krylov[0, 1])
+            logger.debug('Lanczos N=%d, first alpha=%.3e, beta=%.3e', N, self._h_krylov[0, 0], self._h_krylov[0, 1])
         if self.E_shift is not None:
             E0 -= self.E_shift
         if N == 1:
@@ -388,7 +388,7 @@ class LanczosGroundState(KrylovBased):
             # this is only needed for normalization in LanczosEvolution
             self._psi0_norm = beta
         for k in range(self.N_max):
-            w = scalar_multiply(1. / beta, w)
+            w = scalar_multiply(1.0 / beta, w)
             self._to_cache(w)
             w = self.H.matvec(w)
             alpha = inner(w, self._cache[-1]).real
@@ -411,7 +411,7 @@ class LanczosGroundState(KrylovBased):
         E = self.Es[k, :]  # current energies
         RitzRes = abs(v0[k]) * self._h_krylov[k, k + 1]
         gap = max(E[1] - E[0], self.min_gap)
-        P_err = (RitzRes / gap)**2
+        P_err = (RitzRes / gap) ** 2
         Delta_E0 = self.Es[k - 1, 0] - E[0]
         return P_err < self.P_tol and Delta_E0 < self.E_tol
 
@@ -430,7 +430,7 @@ class LanczosGroundState(KrylovBased):
             elif k > 0:
                 w -= beta * self._cache[-2]  # noqa: F821
             beta = h[k, k + 1]  # = norm(w)
-            w = w._mul_scalar(1. / beta)
+            w = w._mul_scalar(1.0 / beta)
             psif += vf[k + 1] * w
         # continue in _calc_result_full
 
@@ -442,8 +442,8 @@ class LanczosGroundState(KrylovBased):
             self._result_krylov = np.ones(1, np.float64)
         else:
             # Diagonalize h
-            E_kr, v_kr = np.linalg.eigh(h[:k + 1, :k + 1])
-            self.Es[k, :k + 1] = E_kr
+            E_kr, v_kr = np.linalg.eigh(h[: k + 1, : k + 1])
+            self.Es[k, : k + 1] = E_kr
             self._result_krylov = v_kr[:, 0]  # ground state of _h_krylov
 
 
@@ -483,7 +483,7 @@ class LanczosEvolution(LanczosGroundState):
 
     def __init__(self, H, psi0, options):
         super().__init__(H, psi0, options)
-        self._result_norm = 1.
+        self._result_norm = 1.0
         self.delta = None  # set in run()
 
     def run(self, delta, normalize=None):
@@ -511,17 +511,16 @@ class LanczosEvolution(LanczosGroundState):
         self.delta = delta
         N = self._build_krylov()
         if N > 1:
-            logger.debug("Lanczos N=%d, |result_krylov[-1]|=%.3e", N, abs(self._result_krylov[-1]))
+            logger.debug('Lanczos N=%d, |result_krylov[-1]|=%.3e', N, abs(self._result_krylov[-1]))
         else:
-            logger.debug("Lanczos N=%d, first alpha=%.3e, beta=%.3e", N, self._h_krylov[0, 0],
-                         self._h_krylov[0, 1])
+            logger.debug('Lanczos N=%d, first alpha=%.3e, beta=%.3e', N, self._h_krylov[0, 0], self._h_krylov[0, 1])
         if N == 1:
             result_full = self._result_krylov[0] * self.psi0  # _result_krylov[0] is only a phase
         else:
             result_full = self._calc_result_full(N)
         # result_full is normalized at this point
         if normalize is None:
-            normalize = np.real(delta) == 0.
+            normalize = np.real(delta) == 0.0
         if normalize:
             return result_full, N
         # else:
@@ -545,7 +544,7 @@ class LanczosEvolution(LanczosGroundState):
             # given that h is hermitian, this is easy:
             # H V = V diag(E)  -> H  = V E V^D
             # exp(H*delta) e_0 = V diag(exp(E*delta)) V^D e_0
-            E_kr, v_kr = np.linalg.eigh(h[:k + 1, :k + 1])
+            E_kr, v_kr = np.linalg.eigh(h[: k + 1, : k + 1])
             exp_dH_e0 = np.dot(v_kr, np.exp(E_kr * delta) * np.conj(v_kr[0, :]))
 
             self._result_norm = np.linalg.norm(exp_dH_e0)

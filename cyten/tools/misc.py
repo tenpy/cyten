@@ -14,7 +14,7 @@ _MAX_INT = np.iinfo(int).max
 
 def duplicate_entries(seq: Sequence[_T], ignore: Sequence[_T] = []) -> set[_T]:
     """The duplicate entries in a sequence, with exceptions from `ignore`."""
-    return set(ele for idx, ele in enumerate(seq) if ele in seq[idx + 1:] and ele not in ignore)
+    return set(ele for idx, ele in enumerate(seq) if ele in seq[idx + 1 :] and ele not in ignore)
 
 
 def is_iterable(a):
@@ -77,7 +77,7 @@ def permutation_as_swaps(permutation: list[int]) -> Generator[int, None, None]:
         yield from reversed(range(target_pos, current_pos))
         # update current positions: build the permutation we just yielded as swaps
         perm = np.arange(N)
-        perm[target_pos:current_pos + 1] = np.roll(perm[target_pos:current_pos + 1], -1)
+        perm[target_pos : current_pos + 1] = np.roll(perm[target_pos : current_pos + 1], -1)
         current_positions = perm[current_positions]
     return
 
@@ -134,7 +134,7 @@ def argsort(a, sort=None, **kwargs):
         elif sort == 'LI':
             a = -np.imag(a)
         else:
-            raise ValueError("unknown sort option " + repr(sort))
+            raise ValueError('unknown sort option ' + repr(sort))
     return np.argsort(a, **kwargs)
 
 
@@ -217,11 +217,13 @@ def rank_data(a, stable=True):
 
 # np_argsort : depending on numpy version
 if int(np.version.version.split('.')[0]) >= 2:
+
     def np_argsort(a, stable=True):
         """Wrapper around np.argsort, using the ``stable`` kwarg if available"""
         return np.argsort(a, stable=stable)
 
 else:
+
     def np_argsort(a, stable=True):
         """Wrapper around np.argsort, using the ``stable`` kwarg if available"""
         if stable:
@@ -283,9 +285,8 @@ def make_grid(shape, cstyle=True) -> np.ndarray:
             [0, 0, 0, 1],
             [0, 0, 0, 2],
             [0, 1, 0, 0],
-            ...
-            [3, 4, 1, 1],
-            [3, 4, 1, 2]
+            ...[3, 4, 1, 1],
+            [3, 4, 1, 2],
         ]
 
     Or for F-style we have::
@@ -296,9 +297,8 @@ def make_grid(shape, cstyle=True) -> np.ndarray:
             [2, 0, 0, 0],
             [3, 0, 0, 0],
             [0, 1, 0, 0],
-            ...
-            [2, 4, 1, 2],
-            [3, 4, 1, 2]
+            ...[2, 4, 1, 2],
+            [3, 4, 1, 2],
         ]
 
     """
@@ -509,23 +509,25 @@ def find_subclass(base_class, subclass_name):
     if not isinstance(subclass_name, str):
         subclass = subclass_name
         if not isinstance(subclass, type):
-            raise TypeError("expect a str or class for `subclass_name`, got " + repr(subclass))
+            raise TypeError('expect a str or class for `subclass_name`, got ' + repr(subclass))
         if not issubclass(subclass, base_class):
             # still allow it: might intend duck-typing. However, a warning should be raised!
-            warnings.warn(f"find_subclass: {subclass!r} is not subclass of {base_class!r}")
+            warnings.warn(f'find_subclass: {subclass!r} is not subclass of {base_class!r}')
         return subclass
     found = set()
     _find_subclass_recursion(base_class, subclass_name, found, set())
     if len(found) == 0:
-        raise ValueError(f"No subclass of {base_class.__name__} called {subclass_name!r} defined. "
-                         "Maybe missing an import of a file with a custom class definition?")
+        raise ValueError(
+            f'No subclass of {base_class.__name__} called {subclass_name!r} defined. '
+            'Maybe missing an import of a file with a custom class definition?'
+        )
     elif len(found) == 1:
         return found.pop()
     else:
         found_not_deprecated = [c for c in found if not getattr(c, 'deprecated', False)]
         if len(found_not_deprecated) == 1:
             return found_not_deprecated[0]
-        msg = f"There exist multiple subclasses of {base_class!r} with name {subclass_name!r}:"
+        msg = f'There exist multiple subclasses of {base_class!r} with name {subclass_name!r}:'
         raise ValueError('\n'.join([msg] + [repr(c) for c in found]))
 
 

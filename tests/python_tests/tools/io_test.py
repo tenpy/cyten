@@ -29,9 +29,7 @@ except ImportError:
         return version_str.split('.')
 
 
-__all__ = [
-    'datadir', 'datadir_files', 'gen_example_data', 'assert_equal_data', 'get_datadir_filename'
-]
+__all__ = ['datadir', 'datadir_files', 'gen_example_data', 'assert_equal_data', 'get_datadir_filename']
 
 datadir = os.path.join(os.path.dirname(__file__), 'data')
 datadir_files = []
@@ -68,45 +66,25 @@ def gen_example_data(version=cyten.version.full_version):
     testrand.test_sanity()
     testdiag.test_sanity()
 
-    data = {
-        'TestU1': testU1,
-        'TestSU2': testSU2,
-        'Testrand': testrand,
-        'Testdiag': testdiag
-    }
+    data = {'TestU1': testU1, 'TestSU2': testSU2, 'Testrand': testrand, 'Testdiag': testdiag}
     if parse_version(version) >= parse_version('0.5.0.dev25'):
-
-        data.update({
-            'version':
-            version,
-            'None':
-            None,
-            'scalars': [0, np.int64(1), 2., np.float64(3.), 4.j, 'five'],
-            'arrays': [np.array([6, 66]), np.array([]),
-                       np.zeros([])],
-            'iterables': [[], [11, 12],
-                          tuple([]),
-                          tuple([1, 2, 3]),
-                          set([]),
-                          set([1, 2, 3])],
-            'recursive': [0, None, 2, [3, None, 5]],
-            'dict_complicated': {
-                0: 1,
-                'asdf': 2,
-                (1, 2): '3'
-            },
-            'exportable':
-            cyten.tools.hdf5_io.Hdf5Exportable(),
-            'range':
-            range(2, 8, 3),
-            'dtypes': [np.dtype("int64"),
-                       np.dtype([('a', np.int32, 8), ('b', np.float64, 5)])],
-            'psi':
-                ()
-
-        })
+        data.update(
+            {
+                'version': version,
+                'None': None,
+                'scalars': [0, np.int64(1), 2.0, np.float64(3.0), 4.0j, 'five'],
+                'arrays': [np.array([6, 66]), np.array([]), np.zeros([])],
+                'iterables': [[], [11, 12], tuple([]), tuple([1, 2, 3]), set([]), set([1, 2, 3])],
+                'recursive': [0, None, 2, [3, None, 5]],
+                'dict_complicated': {0: 1, 'asdf': 2, (1, 2): '3'},
+                'exportable': cyten.tools.hdf5_io.Hdf5Exportable(),
+                'range': range(2, 8, 3),
+                'dtypes': [np.dtype('int64'), np.dtype([('a', np.int32, 8), ('b', np.float64, 5)])],
+                'psi': (),
+            }
+        )
         data['recursive'][3][1] = data['recursive'][1] = data['recursive']
-        data['exportable'].some_attr = "something"
+        data['exportable'].some_attr = 'something'
 
     return data
 
@@ -116,16 +94,20 @@ def SU2_sym_test_tensor():
     spin_half = spaces.ElementarySpace(sym, np.array([[1]]))
     backend = backends.backend_factory.get_backend(sym, 'numpy')
 
-    sx = .5 * np.array([[0., 1.], [1., 0.]], dtype=complex)
-    sy = .5 * np.array([[0., -1.j], [1.j, 0]], dtype=complex)
-    sz = .5 * np.array([[1., 0.], [0., -1.]], dtype=complex)
+    sx = 0.5 * np.array([[0.0, 1.0], [1.0, 0.0]], dtype=complex)
+    sy = 0.5 * np.array([[0.0, -1.0j], [1.0j, 0]], dtype=complex)
+    sz = 0.5 * np.array([[1.0, 0.0], [0.0, -1.0]], dtype=complex)
 
     heisenberg_4 = sum(si[:, :, None, None] * si[None, None, :, :] for si in [sx, sy, sz])  # [p1, p1*, p2, p2*]
     heisenberg_4 = np.transpose(heisenberg_4, [0, 2, 3, 1])  # [p1, p2, p2*, p1*]
 
     tens = tensors.SymmetricTensor.from_dense_block(
-        heisenberg_4, codomain=[spin_half, spin_half], domain=[spin_half, spin_half],
-        backend=backend, labels=[['p1', 'p2'], ['p1*', 'p2*']], tol=10**-8
+        heisenberg_4,
+        codomain=[spin_half, spin_half],
+        domain=[spin_half, spin_half],
+        backend=backend,
+        labels=[['p1', 'p2'], ['p1*', 'p2*']],
+        tol=10**-8,
     )
 
     return tens
@@ -136,16 +118,20 @@ def U1_sym_test_tensor():
     spin_half = spaces.ElementarySpace(sym, np.array([[1]]))
     backend = backends.backend_factory.get_backend(sym, 'numpy')
 
-    sx = .5 * np.array([[0., 1.], [1., 0.]], dtype=complex)
-    sy = .5 * np.array([[0., -1.j], [1.j, 0]], dtype=complex)
-    sz = .5 * np.array([[1., 0.], [0., -1.]], dtype=complex)
+    sx = 0.5 * np.array([[0.0, 1.0], [1.0, 0.0]], dtype=complex)
+    sy = 0.5 * np.array([[0.0, -1.0j], [1.0j, 0]], dtype=complex)
+    sz = 0.5 * np.array([[1.0, 0.0], [0.0, -1.0]], dtype=complex)
 
     heisenberg_4 = sum(si[:, :, None, None] * si[None, None, :, :] for si in [sx, sy, sz])  # [p1, p1*, p2, p2*]
     heisenberg_4 = np.transpose(heisenberg_4, [0, 2, 3, 1])  # [p1, p2, p2*, p1*]
 
     tens = tensors.SymmetricTensor.from_dense_block(
-        heisenberg_4, codomain=[spin_half, spin_half], domain=[spin_half, spin_half],
-        backend=backend, labels=[['p1', 'p2'], ['p1*', 'p2*']], tol=10**-8
+        heisenberg_4,
+        codomain=[spin_half, spin_half],
+        domain=[spin_half, spin_half],
+        backend=backend,
+        labels=[['p1', 'p2'], ['p1*', 'p2*']],
+        tol=10**-8,
     )
 
     return tens
@@ -156,12 +142,13 @@ def create_test_random_symmetric_tensor():
     sec = np.random.choice(int(1.3 * 3), replace=False, size=(3, 1))
 
     x1 = spaces.ElementarySpace.from_defining_sectors(sym, sec)
-    xp1 = spaces.TensorProduct([x1]*4)
-    xp2 = spaces.TensorProduct([x1]*2)
+    xp1 = spaces.TensorProduct([x1] * 4)
+    xp2 = spaces.TensorProduct([x1] * 2)
     dat = np.random.normal(size=(11, 11, 11, 11, 11, 11))
 
-    tens = tensors.SymmetricTensor.from_dense_block(dat, xp1, xp2, tol=10**20, labels=[['p1', 'p2', 'p3', 'p4'],
-                                                                                       ['p1*', 'p2*']])
+    tens = tensors.SymmetricTensor.from_dense_block(
+        dat, xp1, xp2, tol=10**20, labels=[['p1', 'p2', 'p3', 'p4'], ['p1*', 'p2*']]
+    )
     return tens
 
 
@@ -207,7 +194,7 @@ def assert_equal_data(data_imported, data_expected, max_recursion_depth=10):
             for vi, ve in zip(data_imported, data_expected):
                 assert_equal_data(vi, ve, max_recursion_depth - 1)
     elif isinstance(data_expected, np.ndarray):
-        assert np.linalg.norm(data_imported - data_expected) == 0.  # should be exactly equal!
+        assert np.linalg.norm(data_imported - data_expected) == 0.0  # should be exactly equal!
     elif isinstance(data_expected, np.ndarray):
         np.testing.assert_array_equal(data_imported, data_expected)
     elif isinstance(data_expected, (int, float, np.int64, np.float64, complex, str)):
@@ -217,7 +204,7 @@ def assert_equal_data(data_imported, data_expected, max_recursion_depth=10):
         assert data_imported is data_expected
 
 
-def get_datadir_filename(template="pickled_from_tenpy_{0}.pkl"):
+def get_datadir_filename(template='pickled_from_tenpy_{0}.pkl'):
     """Determine filename for export to `datadir`."""
     if not os.path.isdir(datadir):
         os.mkdir(datadir)
@@ -225,6 +212,6 @@ def get_datadir_filename(template="pickled_from_tenpy_{0}.pkl"):
     fn = template.format(version)
     filename = os.path.join(datadir, fn)
     if os.path.exists(filename):
-        raise ValueError("File already exists: " + filename)
-    print("export to datadir: ", fn)
+        raise ValueError('File already exists: ' + filename)
+    print('export to datadir: ', fn)
     return filename

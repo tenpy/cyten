@@ -3,6 +3,7 @@
 The :class:`DegreeOfFreedom` is the prototype, read its docstring.
 All other classes are base classes from which sites are derived.
 """
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
@@ -62,9 +63,14 @@ class Site:
 
     """
 
-    def __init__(self, leg: ElementarySpace, state_labels: dict[str, int] = None,
-                 onsite_operators: dict[str, SymmetricTensor] = None,
-                 backend: TensorBackend = None, default_device: str = None):
+    def __init__(
+        self,
+        leg: ElementarySpace,
+        state_labels: dict[str, int] = None,
+        onsite_operators: dict[str, SymmetricTensor] = None,
+        backend: TensorBackend = None,
+        default_device: str = None,
+    ):
         self.leg = leg
         if state_labels is None:
             state_labels = {}
@@ -107,8 +113,9 @@ class Site:
     def dim(self) -> int | float:
         return self.leg.dim
 
-    def add_onsite_operator(self, name: str, op: SymmetricTensor | Block,
-                            is_diagonal: bool = None, understood_braiding: bool = False):
+    def add_onsite_operator(
+        self, name: str, op: SymmetricTensor | Block, is_diagonal: bool = None, understood_braiding: bool = False
+    ):
         """Add an operator to the :attr:`onsite_operators`."""
         if name in self.onsite_operators:
             raise ValueError(f'Operator with {name=} already exists.')
@@ -123,13 +130,22 @@ class Site:
                 op.labels = ['p', 'p*']
         elif is_diagonal is True:
             op = DiagonalTensor.from_dense_block(
-                block=op.copy(), leg=self.leg, backend=self.backend, labels=['p', 'p*'],
-                device=self.default_device, understood_braiding=understood_braiding
+                block=op.copy(),
+                leg=self.leg,
+                backend=self.backend,
+                labels=['p', 'p*'],
+                device=self.default_device,
+                understood_braiding=understood_braiding,
             )
         else:
             op = SymmetricTensor.from_dense_block(
-                block=op.copy(), codomain=[self.leg], domain=[self.leg], backend=self.backend,
-                labels=['p', 'p*'], device=self.default_device, understood_braiding=understood_braiding
+                block=op.copy(),
+                codomain=[self.leg],
+                domain=[self.leg],
+                backend=self.backend,
+                labels=['p', 'p*'],
+                device=self.default_device,
+                understood_braiding=understood_braiding,
             )
         self.onsite_operators[name] = op
 
@@ -167,19 +183,25 @@ class SpinDOF(Site):
 
     """
 
-    def __init__(self,
-                 leg: ElementarySpace,
-                 spin_vector: np.ndarray,
-                 state_labels: dict[str, int] = None,
-                 onsite_operators: dict[str, SymmetricTensor] = None,
-                 backend: TensorBackend = None,
-                 default_device: str = None,
-                 **kwargs):
+    def __init__(
+        self,
+        leg: ElementarySpace,
+        spin_vector: np.ndarray,
+        state_labels: dict[str, int] = None,
+        onsite_operators: dict[str, SymmetricTensor] = None,
+        backend: TensorBackend = None,
+        default_device: str = None,
+        **kwargs,
+    ):
         assert spin_vector.shape == (leg.dim, leg.dim, 3)
         self.spin_vector = as_immutable_array(spin_vector)
         super().__init__(
-            leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
-            backend=backend, default_device=default_device, **kwargs
+            leg=leg,
+            state_labels=state_labels,
+            onsite_operators=onsite_operators,
+            backend=backend,
+            default_device=default_device,
+            **kwargs,
         )
 
     def test_sanity(self):
@@ -192,8 +214,7 @@ class SpinDOF(Site):
         assert np.allclose(Sz @ Sx - Sx @ Sz, 1j * Sy)
 
     @staticmethod
-    def conservation_law_to_symmetry(conserve: Literal['SU(2)', 'Sz', 'parity', 'None']
-                                     ) -> Symmetry:
+    def conservation_law_to_symmetry(conserve: Literal['SU(2)', 'Sz', 'parity', 'None']) -> Symmetry:
         """Translate conservation law for a spin to a symmetry."""
         if conserve in ['SU(2)', 'SU2', 'Stot']:
             sym = SU2Symmetry('spin')
@@ -214,8 +235,8 @@ class SpinDOF(Site):
         assert Sz.shape == (dim, dim)
         assert Sp.shape == (dim, dim)
         Sm = Sp.T.conj()
-        Sx = .5 * (Sp + Sm)
-        Sy = .5j * (Sm - Sp)
+        Sx = 0.5 * (Sp + Sm)
+        Sy = 0.5j * (Sm - Sp)
         return np.stack([Sx, Sy, Sz], axis=-1)
 
 
@@ -248,17 +269,19 @@ class OccupationDOF(Site, metaclass=ABCMeta):
 
     """
 
-    def __init__(self,
-                 leg: ElementarySpace,
-                 creators: np.ndarray,
-                 annihilators: np.ndarray,
-                 anti_commute_sign: Literal[+1, -1],
-                 species_names: Sequence[str | None] = None,
-                 state_labels: dict[str, int] = None,
-                 onsite_operators: dict[str, SymmetricTensor] = None,
-                 backend: TensorBackend = None,
-                 default_device: str = None,
-                 **kwargs):
+    def __init__(
+        self,
+        leg: ElementarySpace,
+        creators: np.ndarray,
+        annihilators: np.ndarray,
+        anti_commute_sign: Literal[+1, -1],
+        species_names: Sequence[str | None] = None,
+        state_labels: dict[str, int] = None,
+        onsite_operators: dict[str, SymmetricTensor] = None,
+        backend: TensorBackend = None,
+        default_device: str = None,
+        **kwargs,
+    ):
         self.num_species = num_species = creators.shape[2]
         assert creators.shape == annihilators.shape == (leg.dim, leg.dim, num_species)
         self.creators = as_immutable_array(creators)
@@ -275,8 +298,14 @@ class OccupationDOF(Site, metaclass=ABCMeta):
         n_ops = np.diagonal(np.tensordot(creators, annihilators, (1, 0)), axis1=1, axis2=3)
         self.number_operators = n_ops = as_immutable_array(n_ops)
         self.n_tot = as_immutable_array(np.sum(n_ops, axis=2))
-        super().__init__(leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
-                         backend=backend, default_device=default_device, **kwargs)
+        super().__init__(
+            leg=leg,
+            state_labels=state_labels,
+            onsite_operators=onsite_operators,
+            backend=backend,
+            default_device=default_device,
+            **kwargs,
+        )
 
     def test_sanity(self):
         """Perform sanity checks."""
@@ -336,7 +365,7 @@ class OccupationDOF(Site, metaclass=ABCMeta):
         """
         self.add_onsite_operator('Ntot', self.n_tot, is_diagonal=True)
         self.add_onsite_operator('NtotNtot', self.n_tot @ self.n_tot, is_diagonal=True)
-        P_tot = np.diag(1. - 2. * np.mod(np.diag(self.n_tot), 2))
+        P_tot = np.diag(1.0 - 2.0 * np.mod(np.diag(self.n_tot), 2))
         self.add_onsite_operator('Ptot', P_tot, is_diagonal=True)
 
     @abstractmethod
@@ -390,23 +419,32 @@ class BosonicDOF(OccupationDOF):
 
     """
 
-    def __init__(self,
-                 leg: ElementarySpace,
-                 creators: np.ndarray,
-                 annihilators: np.ndarray,
-                 species_names: Sequence[str | None] = None,
-                 state_labels: dict[str, int] = None,
-                 onsite_operators: dict[str, SymmetricTensor] = None,
-                 backend: TensorBackend = None,
-                 default_device: str = None,
-                 **kwargs):
+    def __init__(
+        self,
+        leg: ElementarySpace,
+        creators: np.ndarray,
+        annihilators: np.ndarray,
+        species_names: Sequence[str | None] = None,
+        state_labels: dict[str, int] = None,
+        onsite_operators: dict[str, SymmetricTensor] = None,
+        backend: TensorBackend = None,
+        default_device: str = None,
+        **kwargs,
+    ):
         if isinstance(self, FermionicDOF):
             raise SymmetryError('FermionicDOF and BosonicDOF are incompatible.')
         OccupationDOF.__init__(
-            self, leg, creators=creators, annihilators=annihilators, anti_commute_sign=+1,
-            species_names=species_names, state_labels=state_labels,
-            onsite_operators=onsite_operators, backend=backend, default_device=default_device,
-            **kwargs
+            self,
+            leg,
+            creators=creators,
+            annihilators=annihilators,
+            anti_commute_sign=+1,
+            species_names=species_names,
+            state_labels=state_labels,
+            onsite_operators=onsite_operators,
+            backend=backend,
+            default_device=default_device,
+            **kwargs,
         )
 
         self._JW = as_immutable_array(np.diag(np.ones(self.dim)))
@@ -420,8 +458,9 @@ class BosonicDOF(OccupationDOF):
             assert leg.dim % (N_k_max + 1) == 0
             Nmax.append(N_k_max)
         Nmax = np.asarray(Nmax, dtype=int)
-        assert np.min(Nmax) > 0, (f'Invalid Nmax: {Nmax}; each boson species must have a max. '
-                                  'occupation number of at least 1')
+        assert np.min(Nmax) > 0, (
+            f'Invalid Nmax: {Nmax}; each boson species must have a max. occupation number of at least 1'
+        )
         self.Nmax = Nmax
 
     def test_sanity(self):
@@ -440,7 +479,7 @@ class BosonicDOF(OccupationDOF):
         OccupationDOF.add_individual_occupation_ops(self)
         for k in range(self.num_species):
             N_k = self.number_operators[:, :, k]
-            P_k = np.diag(1. - 2. * np.mod(np.diag(N_k), 2))
+            P_k = np.diag(1.0 - 2.0 * np.mod(np.diag(N_k), 2))
             self.add_onsite_operator(f'N{k}N{k}', N_k @ N_k, is_diagonal=True)
             self.add_onsite_operator(f'P{k}', P_k, is_diagonal=True)
         if self.num_species == 1:
@@ -454,8 +493,9 @@ class BosonicDOF(OccupationDOF):
         return self.creators[:, :, self.get_species_idx(species)]
 
     @staticmethod
-    def conservation_law_to_symmetry(conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']]
-                                     ) -> Symmetry | ProductSymmetry:
+    def conservation_law_to_symmetry(
+        conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']],
+    ) -> Symmetry | ProductSymmetry:
         """Translate conservation law for individual / all bosons to a symmetry."""
         if isinstance(conserve, str) or conserve is None:
             if conserve in ['N', 'Ntot', 'N_tot', 'U(1)', 'U1']:
@@ -497,8 +537,9 @@ class BosonicDOF(OccupationDOF):
         # lower and upper bounds on the first species occupation such that n can still be reached
         lower_bound = max([0, n - sum(Nmax[1:])])
         upper_bound = max([0, n - Nmax[0]])
-        num_states = np.sum([BosonicDOF._states_with_occupation(n_1, Nmax[1:])
-                             for n_1 in range(upper_bound, n + 1 - lower_bound)])
+        num_states = np.sum(
+            [BosonicDOF._states_with_occupation(n_1, Nmax[1:]) for n_1 in range(upper_bound, n + 1 - lower_bound)]
+        )
         return num_states
 
     @staticmethod
@@ -513,8 +554,7 @@ class BosonicDOF(OccupationDOF):
         return np.transpose(B), B
 
     @staticmethod
-    def _creation_annihilation_ops_from_Nmax(Nmax: list[int] | np.ndarray
-                                             ) -> tuple[np.ndarray, np.ndarray]:
+    def _creation_annihilation_ops_from_Nmax(Nmax: list[int] | np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Construct the creation and annihilation operators for multiple boson species."""
         Nmax_ = np.asarray(Nmax, dtype=int)
         assert np.allclose(Nmax_, Nmax), f'Invalid `Nmax`: {Nmax}'
@@ -528,8 +568,8 @@ class BosonicDOF(OccupationDOF):
         creators = []
         annihilators = []
         for i in range(len(Nmax_)):
-            creators.append(reduce(np.kron, [*ids_i[:i], creators_i[i], *ids_i[i + 1:]]))
-            annihilators.append(reduce(np.kron, [*ids_i[:i], annihilators_i[i], *ids_i[i + 1:]]))
+            creators.append(reduce(np.kron, [*ids_i[:i], creators_i[i], *ids_i[i + 1 :]]))
+            annihilators.append(reduce(np.kron, [*ids_i[:i], annihilators_i[i], *ids_i[i + 1 :]]))
         creators = np.stack(creators, axis=2)
         annihilators = np.stack(annihilators, axis=2)
         return creators, annihilators
@@ -545,16 +585,18 @@ class FermionicDOF(OccupationDOF):
     degrees of freedom can be realized by grouping of a bosonic site with a fermionic one.
     """
 
-    def __init__(self,
-                 leg: ElementarySpace,
-                 creators: np.ndarray,
-                 annihilators: np.ndarray,
-                 species_names: Sequence[str | None] = None,
-                 state_labels: dict[str, int] = None,
-                 onsite_operators: dict[str, SymmetricTensor] = None,
-                 backend: TensorBackend = None,
-                 default_device: str = None,
-                 **kwargs):
+    def __init__(
+        self,
+        leg: ElementarySpace,
+        creators: np.ndarray,
+        annihilators: np.ndarray,
+        species_names: Sequence[str | None] = None,
+        state_labels: dict[str, int] = None,
+        onsite_operators: dict[str, SymmetricTensor] = None,
+        backend: TensorBackend = None,
+        default_device: str = None,
+        **kwargs,
+    ):
         if isinstance(leg.symmetry, ProductSymmetry):
             # there should only be a single fermionic symmetry
             assert sum([isinstance(factor, (FermionParity, FermionNumber)) for factor in leg.symmetry.factors]) == 1
@@ -563,10 +605,17 @@ class FermionicDOF(OccupationDOF):
         if isinstance(self, BosonicDOF):
             raise SymmetryError('FermionicDOF and BosonicDOF are incompatible.')
         OccupationDOF.__init__(
-            self, leg=leg, creators=creators, annihilators=annihilators, anti_commute_sign=-1,
-            species_names=species_names, state_labels=state_labels,
-            onsite_operators=onsite_operators, backend=backend, default_device=default_device,
-            **kwargs
+            self,
+            leg=leg,
+            creators=creators,
+            annihilators=annihilators,
+            anti_commute_sign=-1,
+            species_names=species_names,
+            state_labels=state_labels,
+            onsite_operators=onsite_operators,
+            backend=backend,
+            default_device=default_device,
+            **kwargs,
         )
 
         n_diag = self.number_operators[np.arange(self.dim), np.arange(self.dim), :]  # [p, k]
@@ -613,13 +662,13 @@ class FermionicDOF(OccupationDOF):
         return res
 
     @staticmethod
-    def conservation_law_to_symmetry(conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']]
-                                     ) -> Symmetry | ProductSymmetry:
+    def conservation_law_to_symmetry(
+        conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']],
+    ) -> Symmetry | ProductSymmetry:
         """Translate conservation law for individual / all fermions to a symmetry."""
         if isinstance(conserve, str):
             if conserve in ['N', 'Ntot', 'N_tot']:
-                sym = ProductSymmetry([U1Symmetry('total_fermion_occupation'),
-                                       FermionParity('total_fermion_parity')])
+                sym = ProductSymmetry([U1Symmetry('total_fermion_occupation'), FermionParity('total_fermion_parity')])
             elif conserve in ['parity', 'P', 'Ptot', 'P_tot']:
                 sym = FermionParity('total_fermion_parity')
             else:
@@ -669,23 +718,29 @@ class ClockDOF(Site):
 
     """
 
-    def __init__(self,
-                 leg: ElementarySpace,
-                 q: int,
-                 clock_operators: np.ndarray,
-                 state_labels: dict[str, int] = None,
-                 onsite_operators: dict[str, SymmetricTensor] = None,
-                 backend: TensorBackend = None,
-                 default_device: str = None,
-                 **kwargs):
+    def __init__(
+        self,
+        leg: ElementarySpace,
+        q: int,
+        clock_operators: np.ndarray,
+        state_labels: dict[str, int] = None,
+        onsite_operators: dict[str, SymmetricTensor] = None,
+        backend: TensorBackend = None,
+        default_device: str = None,
+        **kwargs,
+    ):
         self.q = q
         assert clock_operators.shape == (leg.dim, leg.dim, 2)
         assert leg.dim % q == 0
         self.clock_operators = as_immutable_array(clock_operators)
 
         super().__init__(
-            leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
-            backend=backend, default_device=default_device, **kwargs
+            leg=leg,
+            state_labels=state_labels,
+            onsite_operators=onsite_operators,
+            backend=backend,
+            default_device=default_device,
+            **kwargs,
         )
 
         Z = clock_operators[:, :, 1]
@@ -700,7 +755,7 @@ class ClockDOF(Site):
         # check commutation relations
         X, Z = [self.clock_operators[:, :, i] for i in range(2)]
         Xhc, Zhc = [np.conj(self.clock_operators[:, :, i].T) for i in range(2)]
-        assert np.allclose(X @ Z, np.exp(2.j * np.pi / self.q) * Z @ X)
+        assert np.allclose(X @ Z, np.exp(2.0j * np.pi / self.q) * Z @ X)
 
         identity = np.eye(X.shape[0])
         assert np.allclose(np.linalg.matrix_power(X, self.q), identity)
@@ -722,11 +777,16 @@ class AnyonDOF(Site):
 
     """
 
-    def __init__(self, leg: ElementarySpace, state_labels: dict[str, int] = None,
-                 sector_names: Sequence[str | None] = None,
-                 onsite_operators: dict[str, SymmetricTensor] = None,
-                 backend: TensorBackend = None, default_device: str = None,
-                 **kwargs):
+    def __init__(
+        self,
+        leg: ElementarySpace,
+        state_labels: dict[str, int] = None,
+        sector_names: Sequence[str | None] = None,
+        onsite_operators: dict[str, SymmetricTensor] = None,
+        backend: TensorBackend = None,
+        default_device: str = None,
+        **kwargs,
+    ):
         if sector_names is None:
             sector_names = [None] * leg.num_sectors
         assert len(sector_names) == leg.num_sectors
@@ -741,6 +801,10 @@ class AnyonDOF(Site):
             )
             onsite_operators[f'P_{sector_name}'] = P_sec
         super().__init__(
-            leg=leg, state_labels=state_labels, onsite_operators=onsite_operators,
-            backend=backend, default_device=default_device, **kwargs
+            leg=leg,
+            state_labels=state_labels,
+            onsite_operators=onsite_operators,
+            backend=backend,
+            default_device=default_device,
+            **kwargs,
         )

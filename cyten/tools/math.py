@@ -38,12 +38,12 @@ def speigs(A, k, *args, **kwargs):
     """
     d = A.shape[0]
     if A.shape != (d, d):
-        raise ValueError("A.shape not a square matrix: " + str(A.shape))
+        raise ValueError('A.shape not a square matrix: ' + str(A.shape))
     if k < d - 1:
         return scipy.sparse.linalg.eigs(A, k, *args, **kwargs)
     else:
         if k > d:
-            warnings.warn("trimming speigs k to smaller matrix dimension d", stacklevel=2)
+            warnings.warn('trimming speigs k to smaller matrix dimension d', stacklevel=2)
             k = d
         if isinstance(A, np.ndarray):
             Amat = A
@@ -86,12 +86,12 @@ def speigsh(A, k, *args, **kwargs):
     """
     d = A.shape[0]
     if A.shape != (d, d):
-        raise ValueError("A.shape not a square matrix: " + str(A.shape))
+        raise ValueError('A.shape not a square matrix: ' + str(A.shape))
     if k < d - 1:
         return scipy.sparse.linalg.eigsh(A, k, *args, **kwargs)
     else:
         if k > d:
-            warnings.warn("trimming speigsh k to smaller matrix dimension d", stacklevel=2)
+            warnings.warn('trimming speigsh k to smaller matrix dimension d', stacklevel=2)
             k = d
         if isinstance(A, np.ndarray):
             Amat = A

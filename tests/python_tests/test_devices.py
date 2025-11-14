@@ -3,6 +3,7 @@
 It is nice to have this in a dedicated module, since depending on hardware, we may have
 a lot of expected skips.
 """
+
 import pytest
 
 from cyten import Dtype, tensors

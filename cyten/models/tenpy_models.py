@@ -4,6 +4,7 @@ For now, while this is the only tenpy module that we already think about modifyi
 it is easier to have it live in the cyten repo...
 
 """
+
 # Copyright (C) TeNPy Developers, Apache license
 from collections.abc import Sequence
 from functools import partial
@@ -20,9 +21,9 @@ from .sites import GoldenSite, Site, SpinSite
 class CouplingFactory(Protocol):
     """Defines a type (protocol) for functions that create couplings."""
 
-    def __call__(self, sites: list[Site], backend: TensorBackend = None, device: str = None,
-                 name: str | None = ...):
-        ...
+    def __call__(
+        self, sites: list[Site], backend: TensorBackend = None, device: str = None, name: str | None = ...
+    ): ...
 
 
 CouplingLike: TypeAlias = SymmetricTensor | Coupling | CouplingFactory
@@ -45,12 +46,13 @@ class CouplingModel:
     # TODO be very clear about the role of Coupling.name and if it is the same role or different
     #      from keys in name_couplings
 
-    def add_coupling(self,
-                     prefactor: float | complex | Sequence[float | complex],
-                     coupling: str | CouplingLike,
-                     positions: Sequence[tuple[list[int], int]],  # one (dx, u) for each site
-                     name: str = None,
-                     ):
+    def add_coupling(
+        self,
+        prefactor: float | complex | Sequence[float | complex],
+        coupling: str | CouplingLike,
+        positions: Sequence[tuple[list[int], int]],  # one (dx, u) for each site
+        name: str = None,
+    ):
         """Similar role as add_coupling *and* add_multi_coupling in tenpy v1.
 
         The sum over lattice unit cells is implied.
@@ -63,11 +65,12 @@ class CouplingModel:
 
     # TODO exponential couplings?
 
-    def get_coupling(self,
-                     coupling: str | CouplingLike,
-                     sites: list[Site],
-                     name: str = None,
-                     ) -> Coupling:
+    def get_coupling(
+        self,
+        coupling: str | CouplingLike,
+        sites: list[Site],
+        name: str = None,
+    ) -> Coupling:
         # TODO caching?
         backend = device = None  # TODO dummy: where should we set those?
 
@@ -102,6 +105,7 @@ class CouplingModel:
 # should be enough to override init_sites and init_terms, like in tenpy v1.
 # add_coupling should be all we need. may
 
+
 class TFIModel(CouplingModel):
     """spin-1/2 TFI model"""
 
@@ -114,7 +118,7 @@ class TFIModel(CouplingModel):
             pass
         else:
             raise ValueError
-        site = SpinSite(S=.5, conserve=conserve)
+        site = SpinSite(S=0.5, conserve=conserve)
         return site
 
     def init_terms(self, model_params):
@@ -129,8 +133,8 @@ class TFIModel(CouplingModel):
             # option B: make a CouplingFactory
             interaction = partial(spin_spin_coupling, xx=1, yy=None, zz=None)
 
-        J = np.asarray(model_params.get('J', 1., 'real_or_array'))
-        g = np.asarray(model_params.get('g', 1., 'real_or_array'))
+        J = np.asarray(model_params.get('J', 1.0, 'real_or_array'))
+        g = np.asarray(model_params.get('g', 1.0, 'real_or_array'))
         # TODO idea: let Lattice.groups take role of pairs, but with any # of sites
         # TODO but maybe we should have attrs instead of dict entries?
         #       i.e. ``lat.all_sites`` and ``lat.nearest_neighbors`` ?
@@ -138,7 +142,7 @@ class TFIModel(CouplingModel):
         for positions in self.lat.groups['all_sites']:
             self.add_coupling(-5 * g, 'Sz', positions)  # sigma_z = .5 * Sz
         for positions in self.lat.groups['nearest_neighbors']:
-            self.add_coupling(-.25 * J, interaction, positions)  # sigma_x = .5 * Sx
+            self.add_coupling(-0.25 * J, interaction, positions)  # sigma_x = .5 * Sx
         return
 
 
@@ -149,7 +153,7 @@ class GoldenModel(CouplingModel):
         return GoldenSite(handedness=model_params.get('handedness', 'left', str))
 
     def init_terms(self, model_params):
-        J = np.asarray(model_params.get('J', 1., 'real_or_array'))
+        J = np.asarray(model_params.get('J', 1.0, 'real_or_array'))
         for positions in self.lat.groups['nearest_neighbors']:
             self.add_coupling(J, gold_coupling, positions)
         return

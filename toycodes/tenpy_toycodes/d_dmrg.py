@@ -1,4 +1,5 @@
 """Toy code implementing the 2-site DMRG algorithm."""
+
 # Copyright (C) TeNPy Developers, Apache license
 import numpy as np
 
@@ -49,13 +50,16 @@ class HEffective(ct.sparse.LinearOperator):
     def __init__(self, LP, RP, W1, W2):
         # bend such that we can directly compose it with theta
         self.LP = ct.permute_legs(LP, ['vL', 'wL*'], ['vL*'], bend_right=True)  # vL wL* vL*
-        self.RP = ct.permute_legs(RP, ['vR*', 'wR*'], ['vR'],
-                                  bend_right=[True, False, False])  # vR vR* wR* -> vR* wR* vR
-        self.W1 = ct.permute_legs(W1, ['p', 'wR'], ['wL', 'p*'],
-                                  bend_right=[False, None, True, None])  # wL i wC i* -> i wC i* wL
+        self.RP = ct.permute_legs(
+            RP, ['vR*', 'wR*'], ['vR'], bend_right=[True, False, False]
+        )  # vR vR* wR* -> vR* wR* vR
+        self.W1 = ct.permute_legs(
+            W1, ['p', 'wR'], ['wL', 'p*'], bend_right=[False, None, True, None]
+        )  # wL i wC i* -> i wC i* wL
         self.W1.relabel({'p': 'p0', 'p*': 'p0*', 'wR': 'wC'})
-        self.W2 = ct.permute_legs(W2, ['p', 'wR'], ['wL', 'p*'],
-                                  bend_right=[False, None, True, None])  # wC j wR j* -> j wR j* wC
+        self.W2 = ct.permute_legs(
+            W2, ['p', 'wR'], ['wL', 'p*'], bend_right=[False, None, True, None]
+        )  # wC j wR j* -> j wR j* wC
         self.W2.relabel({'p': 'p1', 'p*': 'p1*', 'wL': 'wC'})
 
     def matvec(self, theta: ct.Tensor) -> ct.Tensor:
@@ -63,14 +67,17 @@ class HEffective(ct.sparse.LinearOperator):
         # get_theta2(i) has 2 legs in codomain and 2 legs domain
         x = ct.permute_legs(theta, ['vL'], ['vR', 'p1', 'p0'], bend_right=True)  # vL p0 p1 vR
         x = ct.compose(self.LP, x)  # vL wL* p0 p1 vR
-        x = ct.permute_legs(x, ['wL*', 'p0'], ['vL', 'vR', 'p1'],
-                            bend_right=[False, None, True, None, None])  # wL* p0 p1 vR vL
+        x = ct.permute_legs(
+            x, ['wL*', 'p0'], ['vL', 'vR', 'p1'], bend_right=[False, None, True, None, None]
+        )  # wL* p0 p1 vR vL
         x = ct.compose(self.W1, x)  # p0 wC p1 vR vL
-        x = ct.permute_legs(x, ['wC', 'p1'], ['p0', 'vL', 'vR'],
-                            bend_right=[False, None, True, None, None])  # wC p1 vR vL p0
+        x = ct.permute_legs(
+            x, ['wC', 'p1'], ['p0', 'vL', 'vR'], bend_right=[False, None, True, None, None]
+        )  # wC p1 vR vL p0
         x = ct.compose(self.W2, x)  # p1 wR vR vL p0
-        x = ct.permute_legs(x, ['vL', 'p0', 'p1'], ['vR', 'wR'],
-                            bend_right=[None, True, None, False, False])  # vL p0 p1 wR vR
+        x = ct.permute_legs(
+            x, ['vL', 'p0', 'p1'], ['vR', 'wR'], bend_right=[None, True, None, False, False]
+        )  # vL p0 p1 wR vR
         x = ct.compose(x, self.RP)  # vL p0 p1 vR
         x = ct.permute_legs(x, domain=['vR', 'p1'], bend_right=True)  # vL p0 p1 vR
         return x
@@ -107,8 +114,9 @@ class DMRGEngine:
 
     """
 
-    def __init__(self, psi: SimpleMPS, model: TFIModel, chi_max: int = 100,
-                 max_E_err: float = 1.e-12, eps: float = 1.e-12):
+    def __init__(
+        self, psi: SimpleMPS, model: TFIModel, chi_max: int = 100, max_E_err: float = 1.0e-12, eps: float = 1.0e-12
+    ):
         assert psi.L == model.L  # ensure compatibility
         assert psi.bc == model.bc
         self.H_mpo = model.H_mpo
@@ -203,16 +211,12 @@ class DMRGEngine:
         Bc = B.hc  # vR* p* vL*
         W = self.H_mpo[i]  # wL p wR p*
 
-        Bc = ct.permute_legs(Bc, ['p*', 'vL*'], ['vR*'],
-                             bend_right=[True, False, False])  # p* vL* vR*
+        Bc = ct.permute_legs(Bc, ['p*', 'vL*'], ['vR*'], bend_right=[True, False, False])  # p* vL* vR*
         RP = ct.compose(Bc, RP)  # p* vL* vR* wR*
-        RP = ct.permute_legs(RP, ['vL*', 'vR*'], ['p*', 'wR*'],
-                             bend_right=[False, None, True, None])  # vL* vR* wR* p*
-        W_ = ct.permute_legs(W, ['p', 'wR'], ['wL', 'p*'],
-                             bend_right=[False, None, True, None])  # p wR p* wL
+        RP = ct.permute_legs(RP, ['vL*', 'vR*'], ['p*', 'wR*'], bend_right=[False, None, True, None])  # vL* vR* wR* p*
+        W_ = ct.permute_legs(W, ['p', 'wR'], ['wL', 'p*'], bend_right=[False, None, True, None])  # p wR p* wL
         RP = ct.compose(RP, W_)  # vL* vR* p* wL
-        RP = ct.permute_legs(RP, ['wL', 'vL*'], ['p*', 'vR*'],
-                             bend_right=[None, True, None, False])  # wL vL* vR* p*
+        RP = ct.permute_legs(RP, ['wL', 'vL*'], ['p*', 'vR*'], bend_right=[None, True, None, False])  # wL vL* vR* p*
         B_ = ct.permute_legs(B, ['p', 'vR'], ['vL'], bend_right=[False, None, True])  # p vR vL
         RP = ct.compose(RP, B_, relabel1={'vL*': 'vR', 'wL': 'wR*'}, relabel2={'vL': 'vR*'})
         # wL vL* vL == wR* vR vR*
@@ -231,11 +235,9 @@ class DMRGEngine:
 
         Ac = ct.permute_legs(Ac, codomain=['vR*', 'p*'], bend_right=True)
         LP = ct.compose(Ac, LP)  # vR* p* wL* vL*
-        LP = ct.permute_legs(LP, ['vL*', 'vR*'], ['wL*', 'p*'],
-                             bend_right=[None, True, None, False])  # vL* vR* p* wL*
+        LP = ct.permute_legs(LP, ['vL*', 'vR*'], ['wL*', 'p*'], bend_right=[None, True, None, False])  # vL* vR* p* wL*
         LP = ct.compose(LP, W)  # vL* vR* wR p*
-        LP = ct.permute_legs(LP, ['vR*', 'wR'], ['vL*', 'p*'],
-                             bend_right=[False, None, True, None])  # vR* wR* p* vL*
+        LP = ct.permute_legs(LP, ['vR*', 'wR'], ['vL*', 'p*'], bend_right=[False, None, True, None])  # vR* wR* p* vL*
         # vR* wR vR == vL wL* vL*
         LP = ct.compose(LP, A, relabel1={'vR*': 'vL', 'wR': 'wL*'}, relabel2={'vR': 'vL*'})
         LP = ct.permute_legs(LP, domain=['vL*', 'wL*'], bend_right=True)

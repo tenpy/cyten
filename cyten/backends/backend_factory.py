@@ -1,4 +1,5 @@
 """Utility functions to access backend instances."""
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
@@ -16,9 +17,7 @@ from .torch import TorchBlockBackend
 logger = logging.getLogger(__name__)
 
 _tensor_backend_classes = dict(  # values: (cls, kwargs)
-    no_symmetry=(NoSymmetryBackend, {}),
-    abelian=(AbelianBackend, {}),
-    fusion_tree=(FusionTreeBackend, {})
+    no_symmetry=(NoSymmetryBackend, {}), abelian=(AbelianBackend, {}), fusion_tree=(FusionTreeBackend, {})
 )
 _block_backends = dict(  # values: (cls, kwargs)
     numpy=(NumpyBlockBackend, {}),

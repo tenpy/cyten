@@ -1,4 +1,5 @@
 """TODO"""
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
@@ -38,8 +39,7 @@ class TensorPlaceholder(LabelledLegs):
 
     """
 
-    def __init__(self, labels: list[str], dims: list[str] = None,
-                 cost_to_make: BigOPolynomial = None):
+    def __init__(self, labels: list[str], dims: list[str] = None, cost_to_make: BigOPolynomial = None):
         assert None not in labels
         if dims is None:
             dims = [None] * len(labels)
@@ -128,11 +128,13 @@ class PlanarDiagram:
 
     """
 
-    def __init__(self,
-                 tensors: str | dict[str, TensorPlaceholder],
-                 definition: str | list[tuple[str, str, str | None, str]],
-                 dims: dict[str, Sequence[str]] = None,
-                 order: str | NestedContainer_str | ContractionTree = 'definition'):
+    def __init__(
+        self,
+        tensors: str | dict[str, TensorPlaceholder],
+        definition: str | list[tuple[str, str, str | None, str]],
+        dims: dict[str, Sequence[str]] = None,
+        order: str | NestedContainer_str | ContractionTree = 'definition',
+    ):
         self.tensors = self.parse_tensors(tensors, dims)
         self.definition = self.parse_definition(definition)
         self.order = self.parse_order(order)
@@ -142,12 +144,13 @@ class PlanarDiagram:
     def tensor_names(self) -> list[str]:
         return list(self.tensors.keys())
 
-    def add_tensor(self,
-                   tensor: str | dict[str, TensorPlaceholder],
-                   extra_definition: str | list[tuple[str, str, None, str]],
-                   extra_dims: dict[str, Sequence[str]] = None,
-                   order: str | NestedContainer_str | ContractionTree = 'definition',
-                   ) -> PlanarDiagram:
+    def add_tensor(
+        self,
+        tensor: str | dict[str, TensorPlaceholder],
+        extra_definition: str | list[tuple[str, str, None, str]],
+        extra_dims: dict[str, Sequence[str]] = None,
+        order: str | NestedContainer_str | ContractionTree = 'definition',
+    ) -> PlanarDiagram:
         """Create a new diagram with an additional tensor.
 
         TODO should we allow to reference the existing diagram as a whole, instead of its
@@ -197,22 +200,25 @@ class PlanarDiagram:
                 raise ValueError('Invalid extra_definition. Must reference the new tensor!')
             n = self._find_open_leg_definition(other_tens, other_tens_leg)
             if n is None:
-                msg = (f'Invalid extra_definition. Attempted to contract '
-                       f'{new_name}:{new_tens_leg} @ {other_tens}:{other_tens_leg}, but the latter '
-                       f'is not an open leg of the existing diagram')
+                msg = (
+                    f'Invalid extra_definition. Attempted to contract '
+                    f'{new_name}:{new_tens_leg} @ {other_tens}:{other_tens_leg}, but the latter '
+                    f'is not an open leg of the existing diagram'
+                )
                 raise ValueError(msg)
             outdated.append(n)
-        definition = [d for n, d in enumerate(self.definition) if n not in outdated] \
-            + extra_definition
+        definition = [d for n, d in enumerate(self.definition) if n not in outdated] + extra_definition
         return PlanarDiagram(tensors=tensors, definition=definition, dims=None, order=order)
 
     @overload
-    def evaluate(self, tensors: dict[str, Tensor]) -> Tensor:
-        ...  # this stub exists for type hints only, definition is below
+    def evaluate(
+        self, tensors: dict[str, Tensor]
+    ) -> Tensor: ...  # this stub exists for type hints only, definition is below
 
     @overload
-    def evaluate(self, tensors: dict[str, TensorPlaceholder]) -> TensorPlaceholder:
-        ...  # this stub exists for type hints only, definition is below
+    def evaluate(
+        self, tensors: dict[str, TensorPlaceholder]
+    ) -> TensorPlaceholder: ...  # this stub exists for type hints only, definition is below
 
     def evaluate(self, tensors: dict[str, Tensor]) -> Tensor:
         """Do the contractions defined by the diagram for given concrete `tensors`."""
@@ -222,21 +228,16 @@ class PlanarDiagram:
             try:
                 roll = ph.labels.index(t.labels[0])
             except ValueError:
-                msg = (f'Mismatching labels on "{name}". Expected {ph.labels} up to cyclical '
-                       f'permutation. Got {t.labels}')
+                msg = f'Mismatching labels on "{name}". Expected {ph.labels} up to cyclical permutation. Got {t.labels}'
                 raise ValueError(msg) from None
             expect_labels = [*ph.labels[roll:], *ph.labels[:roll]]
             if t.labels != expect_labels:
-                msg = (f'Mismatching labels on "{name}". Expected {expect_labels}. '
-                       f'Got {t.labels}')
+                msg = f'Mismatching labels on "{name}". Expected {expect_labels}. Got {t.labels}'
                 raise ValueError(msg)
 
         # relabel such that labels are globally unique
         # (prepend the name of the tensor it was originally on)
-        tensors = {
-            name: t.copy().relabel({l: f'{name}:{l}' for l in t.labels})
-            for name, t in tensors.items()
-        }
+        tensors = {name: t.copy().relabel({l: f'{name}:{l}' for l in t.labels}) for name, t in tensors.items()}
         traces = []
         contractions = []
         open_legs = []
@@ -267,8 +268,9 @@ class PlanarDiagram:
         raise NotImplementedError('Optimization of contraction order is not supported yet')
 
     @staticmethod
-    def parse_definition(definition: str | list[tuple[str, str, str | None, str]]
-                         ) -> list[tuple[str, str, str | None, str]]:
+    def parse_definition(
+        definition: str | list[tuple[str, str, str | None, str]],
+    ) -> list[tuple[str, str, str | None, str]]:
         if not isinstance(definition, str):
             for x in definition:
                 assert len(x) == 4
@@ -307,9 +309,9 @@ class PlanarDiagram:
         return ContractionTree.from_nested_containers(order)
 
     @staticmethod
-    def parse_tensors(tensors: str | dict[str, TensorPlaceholder],
-                      dims: dict[str, Sequence[str]] | None
-                      ) -> dict[str, TensorPlaceholder]:
+    def parse_tensors(
+        tensors: str | dict[str, TensorPlaceholder], dims: dict[str, Sequence[str]] | None
+    ) -> dict[str, TensorPlaceholder]:
         """Parse the input format for the ``tensors`` arg to :class:`PlanarDiagram`."""
         if isinstance(tensors, dict):
             assert all(isinstance(key, str) for key in tensors.keys())
@@ -334,12 +336,10 @@ class PlanarDiagram:
             undefined = [l for l in all_leg_labels if l not in defined]
             unused = [l for l in defined if l not in all_leg_labels]
             if len(undefined) > 0:
-                msg = (f'If dims are specified, all must be specified. '
-                       f'Missing: {", ".join(undefined)}')
+                msg = f'If dims are specified, all must be specified. Missing: {", ".join(undefined)}'
                 raise ValueError(msg)
             if any(l not in defined for l in all_leg_labels):
-                msg = (f'The following leg labels were given in dims, but do not exist: '
-                       f'{", ".join(unused)}')
+                msg = f'The following leg labels were given in dims, but do not exist: {", ".join(unused)}'
                 warnings.warn(msg, UserWarning, stacklevel=3)
         res = {}
         for name, legs in tensors.items():
@@ -347,10 +347,12 @@ class PlanarDiagram:
             res[name] = t
         return res
 
-    def remove_tensor(self, name: str,
-                      extra_definition: str | list[tuple[str, str, None, str]] = [],
-                      order: str | NestedContainer_str | ContractionTree = 'greedy',
-                      ) -> PlanarDiagram:
+    def remove_tensor(
+        self,
+        name: str,
+        extra_definition: str | list[tuple[str, str, None, str]] = [],
+        order: str | NestedContainer_str | ContractionTree = 'greedy',
+    ) -> PlanarDiagram:
         """Create a new diagram, with one tensor removed.
 
         Parameters
@@ -385,8 +387,9 @@ class PlanarDiagram:
                 new_open_legs.remove((t1, l1))
                 definition.append((t1, l1, t2, l2))
             else:
-                raise ValueError('extra_definition may only refer to legs previously contracted '
-                                 'with the removed tensor.')
+                raise ValueError(
+                    'extra_definition may only refer to legs previously contracted with the removed tensor.'
+                )
         for t1, l1 in new_open_legs:
             # unspecified open legs, just keep their label
             definition.append((t1, l1, None, l1))
@@ -424,20 +427,20 @@ class PlanarDiagram:
 
     @overload
     @staticmethod
-    def _do_contractions(tensors: dict[str, Tensor], contractions: list[tuple[str, str, str, str]],
-                         order: ContractionTree) -> dict[str, Tensor]:
-        ...  # this stub exists for type hints only, definition is below
+    def _do_contractions(
+        tensors: dict[str, Tensor], contractions: list[tuple[str, str, str, str]], order: ContractionTree
+    ) -> dict[str, Tensor]: ...  # this stub exists for type hints only, definition is below
 
     @overload
     @staticmethod
-    def _do_contractions(tensors: dict[str, TensorPlaceholder],
-                         contractions: list[tuple[str, str, str, str]],
-                         order: ContractionTree) -> dict[str, TensorPlaceholder]:
-        ...  # this stub exists for type hints only, definition is below
+    def _do_contractions(
+        tensors: dict[str, TensorPlaceholder], contractions: list[tuple[str, str, str, str]], order: ContractionTree
+    ) -> dict[str, TensorPlaceholder]: ...  # this stub exists for type hints only, definition is below
 
     @staticmethod
-    def _do_contractions(tensors: dict[str, Tensor], contractions: list[tuple[str, str, str, str]],
-                         order: ContractionTree) -> dict[str, Tensor]:
+    def _do_contractions(
+        tensors: dict[str, Tensor], contractions: list[tuple[str, str, str, str]], order: ContractionTree
+    ) -> dict[str, Tensor]:
         """Helper for :meth:`evaluate`. Do pairwise contractions.
 
         Parameters
@@ -477,28 +480,26 @@ class PlanarDiagram:
             # remove the used contractions
             contractions = [i for n, i in enumerate(contractions) if n not in contractions_done]
             # contractions involving t_a, t_b now need to reference res_name instead
-            contractions = [(res_name if t1 in [t_a, t_b] else t1,
-                             l1,
-                             res_name if t2 in [t_a, t_b] else t2,
-                             l2)
-                            for t1, l1, t2, l2 in contractions]
+            contractions = [
+                (res_name if t1 in [t_a, t_b] else t1, l1, res_name if t2 in [t_a, t_b] else t2, l2)
+                for t1, l1, t2, l2 in contractions
+            ]
         return tensors
 
     @overload
     @staticmethod
-    def _do_traces(tensors: dict[str, Tensor], traces: list[tuple[str, str, str]]
-                   ) -> dict[str, Tensor]:
-        ...  # this stub exists for type hints only, definition is below
+    def _do_traces(
+        tensors: dict[str, Tensor], traces: list[tuple[str, str, str]]
+    ) -> dict[str, Tensor]: ...  # this stub exists for type hints only, definition is below
 
     @overload
     @staticmethod
-    def _do_traces(tensors: dict[str, TensorPlaceholder], traces: list[tuple[str, str, str]]
-                   ) -> dict[str, TensorPlaceholder]:
-        ...  # this stub exists for type hints only, definition is below
+    def _do_traces(
+        tensors: dict[str, TensorPlaceholder], traces: list[tuple[str, str, str]]
+    ) -> dict[str, TensorPlaceholder]: ...  # this stub exists for type hints only, definition is below
 
     @staticmethod
-    def _do_traces(tensors: dict[str, Tensor], traces: list[tuple[str, str, str]]
-                   ) -> dict[str, Tensor]:
+    def _do_traces(tensors: dict[str, Tensor], traces: list[tuple[str, str, str]]) -> dict[str, Tensor]:
         """Helper for :meth:`evaluate`. Do partial traces on single tensors.
 
         Parameters
@@ -520,14 +521,15 @@ class PlanarDiagram:
 
     @overload
     @staticmethod
-    def _extract_result(tensors: dict[str, Tensor], open_legs: list[tuple[str, str]]) -> Tensor:
-        ...  # this stub exists for type hints only, definition is below
+    def _extract_result(
+        tensors: dict[str, Tensor], open_legs: list[tuple[str, str]]
+    ) -> Tensor: ...  # this stub exists for type hints only, definition is below
 
     @overload
     @staticmethod
-    def _extract_result(tensors: dict[str, TensorPlaceholder], open_legs: list[tuple[str, str]]
-                        ) -> TensorPlaceholder:
-        ...  # this stub exists for type hints only, definition is below
+    def _extract_result(
+        tensors: dict[str, TensorPlaceholder], open_legs: list[tuple[str, str]]
+    ) -> TensorPlaceholder: ...  # this stub exists for type hints only, definition is below
 
     @staticmethod
     def _extract_result(tensors: dict[str, Tensor], open_legs: list[tuple[str, str]]) -> Tensor:
@@ -606,15 +608,15 @@ def _split_tensor_text(text: str) -> list[tuple[str, list[str]]]:
             raise ValueError('Invalid syntax')
         if j == -1:
             raise ValueError('Bracket opened but not closed.')
-        tensor_name = _as_valid_name(text[done + 1: i].strip())
-        legs = [_as_valid_name(l) for l in text[i + 1:j].split(',')]
+        tensor_name = _as_valid_name(text[done + 1 : i].strip())
+        legs = [_as_valid_name(l) for l in text[i + 1 : j].split(',')]
         res.append((tensor_name, legs))
         next_comma = text.find(',', j + 1)
         if next_comma == -1:
             done = j
             break
         done = next_comma
-    if len(text[done + 1:].strip()) > 0:
+    if len(text[done + 1 :].strip()) > 0:
         raise ValueError('Invalid syntax')
     return res
 
@@ -622,11 +624,13 @@ def _split_tensor_text(text: str) -> list[tuple[str, list[str]]]:
 class ContractionTreeNode:
     """Node in a :class:`ContractionTree`."""
 
-    def __init__(self,
-                 parent: ContractionTreeNode | None,
-                 left_child: ContractionTreeNode | None,
-                 right_child: ContractionTreeNode | None,
-                 value: str | None):
+    def __init__(
+        self,
+        parent: ContractionTreeNode | None,
+        left_child: ContractionTreeNode | None,
+        right_child: ContractionTreeNode | None,
+        value: str | None,
+    ):
         self.parent = parent
         self.left_child = left_child
         self.right_child = right_child
@@ -696,9 +700,11 @@ class ContractionTreeNode:
     def _str_lines(self, prefix_0: str = '', prefix: str = '') -> list[str]:
         if self.is_leaf:
             return [prefix_0 + str(self.value)]
-        return [prefix_0 + '┓' if self.value is None else str(self.value),
-                *self.left_child._str_lines(prefix_0=prefix + '┣━', prefix=prefix + '┃ '),
-                *self.right_child._str_lines(prefix_0=prefix + '┗━', prefix=prefix + '  ')]
+        return [
+            prefix_0 + '┓' if self.value is None else str(self.value),
+            *self.left_child._str_lines(prefix_0=prefix + '┣━', prefix=prefix + '┃ '),
+            *self.right_child._str_lines(prefix_0=prefix + '┗━', prefix=prefix + '  '),
+        ]
 
     def show_whole_tree(self):
         root = self
@@ -866,15 +872,18 @@ class PlanarLinearOperator(LinearOperator):
 
     """
 
-    def __init__(self, op_diagram: PlanarDiagram, matvec_diagram: PlanarDiagram,
-                 op_tensors: dict[str, Tensor], vec_name: str):
+    def __init__(
+        self, op_diagram: PlanarDiagram, matvec_diagram: PlanarDiagram, op_tensors: dict[str, Tensor], vec_name: str
+    ):
         self.op_diagram = op_diagram
         self.matvec_diagram = matvec_diagram
         self.op_tensors = op_tensors
         self.vec_name = vec_name
         if {*matvec_diagram.tensor_names} != {*op_diagram.tensor_names, vec_name}:
-            msg = (f'Inconsistent tensor names. The matvec_diagram must have the tensor names from '
-                   f'the op_diagram, in addition to the single name {vec_name} of the vector.')
+            msg = (
+                f'Inconsistent tensor names. The matvec_diagram must have the tensor names from '
+                f'the op_diagram, in addition to the single name {vec_name} of the vector.'
+            )
             raise ValueError(msg)
 
     def matvec(self, vec):
@@ -885,24 +894,33 @@ class PlanarLinearOperator(LinearOperator):
 
 
 @overload
-def planar_contraction(tensor1: Tensor, tensor2: Tensor,
-                       legs1: int | str | list[int, str], legs2: int | str | list[int, str],
-                       relabel1: dict[str, str] = {}, relabel2: dict[str, str] = {}
-                       ) -> Tensor:
-    ...  # this stub exists for type hints only, definition is below
+def planar_contraction(
+    tensor1: Tensor,
+    tensor2: Tensor,
+    legs1: int | str | list[int, str],
+    legs2: int | str | list[int, str],
+    relabel1: dict[str, str] = {},
+    relabel2: dict[str, str] = {},
+) -> Tensor: ...  # this stub exists for type hints only, definition is below
 
 
 @overload
-def planar_contraction(tensor1: TensorPlaceholder, tensor2: TensorPlaceholder,
-                       legs1: int | str | list[int, str], legs2: int | str | list[int, str]
-                       ) -> TensorPlaceholder:
-    ...  # this stub exists for type hints only, definition is below
+def planar_contraction(
+    tensor1: TensorPlaceholder,
+    tensor2: TensorPlaceholder,
+    legs1: int | str | list[int, str],
+    legs2: int | str | list[int, str],
+) -> TensorPlaceholder: ...  # this stub exists for type hints only, definition is below
 
 
-def planar_contraction(tensor1: Tensor, tensor2: Tensor,
-                       legs1: int | str | list[int, str], legs2: int | str | list[int, str],
-                       relabel1: dict[str, str] = {}, relabel2: dict[str, str] = {}
-                       ) -> Tensor:
+def planar_contraction(
+    tensor1: Tensor,
+    tensor2: Tensor,
+    legs1: int | str | list[int, str],
+    legs2: int | str | list[int, str],
+    relabel1: dict[str, str] = {},
+    relabel2: dict[str, str] = {},
+) -> Tensor:
     """Planar version of :func:`~cyten.tensors.tdot`.
 
     Here, planar means that the contraction diagram can be drawn in a plane without any braids.
@@ -969,14 +987,15 @@ def planar_contraction(tensor1: Tensor, tensor2: Tensor,
 
 
 @overload
-def planar_partial_trace(tensor: Tensor, *pairs: Sequence[int, str]) -> Tensor:
-    ...  # this stub exists for type hints only, definition is below
+def planar_partial_trace(
+    tensor: Tensor, *pairs: Sequence[int, str]
+) -> Tensor: ...  # this stub exists for type hints only, definition is below
 
 
 @overload
-def planar_partial_trace(tensor: TensorPlaceholder, *pairs: Sequence[int, str]
-                         ) -> TensorPlaceholder:
-    ...  # this stub exists for type hints only, definition is below
+def planar_partial_trace(
+    tensor: TensorPlaceholder, *pairs: Sequence[int, str]
+) -> TensorPlaceholder: ...  # this stub exists for type hints only, definition is below
 
 
 def planar_partial_trace(tensor: Tensor, *pairs: Sequence[int, str]) -> Tensor:
@@ -1010,7 +1029,7 @@ def planar_partial_trace(tensor: Tensor, *pairs: Sequence[int, str]) -> Tensor:
                 # must connect to another leg *in the same half*, otherwise there are braids
                 other_ls = [a for a, b in pairs if b == l] + [b for a, b in pairs if a == l]
                 assert len(other_ls) == 1
-                if (l1 < other_ls[0] < l2):
+                if l1 < other_ls[0] < l2:
                     raise ValueError('Not a planar trace')
             else:
                 second_half_only_traces = False
@@ -1028,8 +1047,7 @@ def planar_partial_trace(tensor: Tensor, *pairs: Sequence[int, str]) -> Tensor:
     return partial_trace(tensor, *pairs)
 
 
-def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None,
-                        domain: list[int | str] = None):
+def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None, domain: list[int | str] = None):
     """Planar special case of :func:`~cyten.permute_legs`, without braids.
 
     It permutes the :attr:`Tensor.legs` only cyclically, and bends them to the proper codomain / domain
@@ -1092,14 +1110,13 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None,
         bend_twice = T.num_codomain_legs - codomain_staying[0]
         assert dont_bend + bend_down + bend_twice == T.num_codomain_legs
         # OPTIMIZE achieve it in a single backend function? also in a similar branch below
-        res = permute_legs(T,
-                           codomain=range(dont_bend),
-                           domain=reversed(range(dont_bend, T.num_legs)),
-                           bend_right=True)
-        res = permute_legs(res,
-                           codomain=[*range(dont_bend + bend_down, T.num_legs), *range(dont_bend)],
-                           domain=reversed(range(dont_bend, T.num_codomain_legs - bend_twice)),
-                           bend_right=False)
+        res = permute_legs(T, codomain=range(dont_bend), domain=reversed(range(dont_bend, T.num_legs)), bend_right=True)
+        res = permute_legs(
+            res,
+            codomain=[*range(dont_bend + bend_down, T.num_legs), *range(dont_bend)],
+            domain=reversed(range(dont_bend, T.num_codomain_legs - bend_twice)),
+            bend_right=False,
+        )
         return res
 
     elif domain_winding:
@@ -1112,15 +1129,15 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None,
         bend_up = len(domain_bend_up)
         bend_twice = T.num_domain_legs - domain_staying[0]
         assert bend_twice + bend_up + dont_bend == T.num_domain_legs
-        res = permute_legs(T,
-                           codomain=range(dont_bend, T.num_legs),
-                           domain=reversed(range(dont_bend)),
-                           bend_right=False)
-        res = permute_legs(res,
-                           codomain=range(bend_up),
-                           domain=reversed([*range(bend_up, bend_up + bend_twice),
-                                            *range(bend_up + bend_twice, T.num_legs)]),
-                           bend_right=True)
+        res = permute_legs(
+            T, codomain=range(dont_bend, T.num_legs), domain=reversed(range(dont_bend)), bend_right=False
+        )
+        res = permute_legs(
+            res,
+            codomain=range(bend_up),
+            domain=reversed([*range(bend_up, bend_up + bend_twice), *range(bend_up + bend_twice, T.num_legs)]),
+            bend_right=True,
+        )
         return res
 
     elif len(codomain_staying) == T.num_codomain_legs and len(domain_staying) == T.num_domain_legs:
@@ -1171,16 +1188,15 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None,
         if len(domain_staying) == T.num_domain_legs:
             # domain stays, codomain is divided and bent right and left
             num_bend_left = domain.index(T.num_legs - 1)
-            bend_right = [False] * num_bend_left + [True] * (T.num_codomain_legs - num_bend_left) \
-                + [None] * T.num_domain_legs
+            bend_right = (
+                [False] * num_bend_left + [True] * (T.num_codomain_legs - num_bend_left) + [None] * T.num_domain_legs
+            )
         elif domain_bend_left == 0:
             # bend the codomain down to the left
-            bend_right = [False] * T.num_codomain_legs + [True] * domain_bend_right \
-                + [None] * len(domain_staying)
+            bend_right = [False] * T.num_codomain_legs + [True] * domain_bend_right + [None] * len(domain_staying)
         elif domain_bend_right == 0:
             # bend the codomain down to the right
-            bend_right = [True] * T.num_codomain_legs + [None] * len(domain_staying) \
-                + [False] * domain_bend_left
+            bend_right = [True] * T.num_codomain_legs + [None] * len(domain_staying) + [False] * domain_bend_left
         else:
             raise RuntimeError('Not planar, but that should have been detected earlier?')
 
@@ -1191,16 +1207,15 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None,
         assert codomain_bend_left + len(codomain_staying) + codomain_bend_right == T.num_codomain_legs
         if len(codomain_staying) == T.num_codomain_legs:
             num_bend_left = codomain.index(0)
-            bend_right = [None] * T.num_codomain_legs + [True] * (T.num_domain_legs - num_bend_left) \
-                + [False] * num_bend_left
+            bend_right = (
+                [None] * T.num_codomain_legs + [True] * (T.num_domain_legs - num_bend_left) + [False] * num_bend_left
+            )
         elif codomain_bend_left == 0:
             # bend the domain up to the left
-            bend_right = [None] * len(codomain_staying) + [True] * codomain_bend_right \
-                + [False] * T.num_domain_legs
+            bend_right = [None] * len(codomain_staying) + [True] * codomain_bend_right + [False] * T.num_domain_legs
         elif codomain_bend_right == 0:
             # bend the domain up to the right
-            bend_right = [False] * codomain_bend_left + [None] * len(codomain_staying) \
-                + [True] * T.num_domain_legs
+            bend_right = [False] * codomain_bend_left + [None] * len(codomain_staying) + [True] * T.num_domain_legs
         else:
             raise RuntimeError('Not planar, but that should have been detected earlier?')
 
@@ -1211,9 +1226,14 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None,
         domain_bend_right = T.num_domain_legs - 1 - domain_staying[-1]
         assert codomain_bend_left == 0 or domain_bend_left == 0
         assert codomain_bend_right == 0 or domain_bend_right == 0
-        bend_right = [False] * codomain_bend_left + [None] * len(codomain_staying) \
-            + [True] * codomain_bend_right + [True] * domain_bend_right \
-            + [None] * len(domain_staying) + [False] * domain_bend_left
+        bend_right = (
+            [False] * codomain_bend_left
+            + [None] * len(codomain_staying)
+            + [True] * codomain_bend_right
+            + [True] * domain_bend_right
+            + [None] * len(domain_staying)
+            + [False] * domain_bend_left
+        )
 
     return permute_legs(T, codomain=codomain, domain=domain, levels=None, bend_right=bend_right)
 

@@ -1,4 +1,5 @@
 """Toy code implementing the transverse-field ising model."""
+
 # Copyright (C) TeNPy Developers, Apache license
 import numpy as np
 import scipy.sparse as scisp
@@ -10,8 +11,15 @@ import cyten as ct
 class TFIModel:
     """TFI: -J XX - g Z"""
 
-    def __init__(self, L: int, J: float, g: float, bc: str = 'finite',
-                 conserve: str = 'none', backend: ct.backends.TensorBackend | None = None):
+    def __init__(
+        self,
+        L: int,
+        J: float,
+        g: float,
+        bc: str = 'finite',
+        conserve: str = 'none',
+        backend: ct.backends.TensorBackend | None = None,
+    ):
         assert bc in ['finite', 'infinite']
         self.site = ct.sites.SpinSite(S=0.5, conserve=conserve, backend=backend)
         self.backend = backend
@@ -63,9 +71,11 @@ class TFIModel:
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
         I = ct.Coupling.from_tensor(I, [p])
 
-        grid = [[I.factorization[0], -self.J * XX.factorization[0], -self.g * Z.factorization[0]],
-                [None, None, XX.factorization[1]],
-                [None, None, I.factorization[0]]]
+        grid = [
+            [I.factorization[0], -self.J * XX.factorization[0], -self.g * Z.factorization[0]],
+            [None, None, XX.factorization[1]],
+            [None, None, I.factorization[0]],
+        ]
         W = ct.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
         self.H_mpo = [W] * self.L
 
@@ -73,8 +83,14 @@ class TFIModel:
 class HeisenbergModel:
     """J (XX + YY + ZZ)"""
 
-    def __init__(self, L: int, J: float, bc: str = 'finite',
-                 conserve: str = 'none', backend: ct.backends.TensorBackend | None = None):
+    def __init__(
+        self,
+        L: int,
+        J: float,
+        bc: str = 'finite',
+        conserve: str = 'none',
+        backend: ct.backends.TensorBackend | None = None,
+    ):
         assert bc in ['finite', 'infinite']
         self.site = ct.sites.SpinSite(S=0.5, conserve=conserve, backend=backend)
         self.backend = backend
@@ -105,9 +121,11 @@ class HeisenbergModel:
         SdotS = ct.couplings.spin_spin_coupling(sites=[p, p], Jx=4, Jy=4, Jz=4)
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
         I = ct.Coupling.from_tensor(I, [p])
-        grid = [[I.factorization[0], self.J * SdotS.factorization[0], None],
-                [None, None, SdotS.factorization[1]],
-                [None, None, I.factorization[0]]]
+        grid = [
+            [I.factorization[0], self.J * SdotS.factorization[0], None],
+            [None, None, SdotS.factorization[1]],
+            [None, None, I.factorization[0]],
+        ]
         W = ct.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
         self.H_mpo = [W] * self.L
 
@@ -115,8 +133,7 @@ class HeisenbergModel:
 class GoldenChainModel:
     r"""-J P^{\tau \tau}_1 (projector of two neighboring Fibonacci anyons onto their trivial fusion channel)"""
 
-    def __init__(self, L: int, J: float, bc: str = 'finite',
-                 backend: ct.backends.TensorBackend | None = None):
+    def __init__(self, L: int, J: float, bc: str = 'finite', backend: ct.backends.TensorBackend | None = None):
         assert bc in ['finite', 'infinite']
         self.site = ct.sites.GoldenSite('left', backend=backend)
         self.backend = backend
@@ -146,9 +163,11 @@ class GoldenChainModel:
         P1 = ct.couplings.gold_coupling([p, p])
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
         I = ct.Coupling.from_tensor(I, [p])
-        grid = [[I.factorization[0], self.J * P1.factorization[0], None],
-                [None, None, P1.factorization[1]],
-                [None, None, I.factorization[0]]]
+        grid = [
+            [I.factorization[0], self.J * P1.factorization[0], None],
+            [None, None, P1.factorization[1]],
+            [None, None, I.factorization[0]],
+        ]
         W = ct.tensors.tensor_from_grid(grid, labels=['wL', 'p', 'wR', 'p*'])
         self.H_mpo = [W] * self.L
 
@@ -159,8 +178,8 @@ def tfi_finite_gs_energy(L: int, J: float, g: float) -> float:
     Exponentially expensive in L, only works for small enough `L` <~ 20.
     """
     # get single site operaors
-    sx = scisp.csr_matrix(np.array([[0., 1.], [1., 0.]]))
-    sz = scisp.csr_matrix(np.array([[1., 0.], [0., -1.]]))
+    sx = scisp.csr_matrix(np.array([[0.0, 1.0], [1.0, 0.0]]))
+    sz = scisp.csr_matrix(np.array([[1.0, 0.0], [0.0, -1.0]]))
     id = scisp.csr_matrix(np.eye(2))
     sx_list = []  # sx_list[i] = kron([id, id, ..., id, sx, id, .... id])
     sz_list = []
@@ -193,9 +212,9 @@ def heisenberg_finite_gs_energy(L: int, J: float) -> float:
     Exponentially expensive in L, only works for small enough `L` <~ 20.
     """
     # get single site operaors
-    sx = scisp.csr_matrix(np.array([[0., 1.], [1., 0.]]))
-    sy = scisp.csr_matrix(np.array([[0., -1.j], [1.j, 0.]]))
-    sz = scisp.csr_matrix(np.array([[1., 0.], [0., -1.]]))
+    sx = scisp.csr_matrix(np.array([[0.0, 1.0], [1.0, 0.0]]))
+    sy = scisp.csr_matrix(np.array([[0.0, -1.0j], [1.0j, 0.0]]))
+    sz = scisp.csr_matrix(np.array([[1.0, 0.0], [0.0, -1.0]]))
     id = scisp.csr_matrix(np.eye(2))
     sx_list = []  # sx_list[i] = kron([id, id, ..., id, sx, id, .... id])
     sy_list = []

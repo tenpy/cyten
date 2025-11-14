@@ -1,4 +1,5 @@
 """Utility function concerning dtypes and in particular the Dtype class."""
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
@@ -61,9 +62,9 @@ class Dtype(Enum):
             raise ValueError(f'{dtype} is not inexact')
         n_bits = 8 * (dtype.value // 2)
         if n_bits == 32:
-            return 2 ** -52
+            return 2**-52
         if n_bits == 64:
-            return 2 ** -23
+            return 2**-23
         raise NotImplementedError(f'Dtype.eps not implemented for n_bits={n_bits}')
 
     def __repr__(self) -> str:
