@@ -1,6 +1,6 @@
 # Cyten documentation
 
-C++ functions are documented with [doxygen](https://doxygen.nl), 
+C++ functions are documented with [doxygen](https://doxygen.nl),
 python parts with [sphinx](https://www.sphinx-doc.org).
 
 ## Building the docs
@@ -10,4 +10,3 @@ python parts with [sphinx](https://www.sphinx-doc.org).
 - run sphinx by calling `make html` or `sphinx-build -M html . build_docs` from the `docs/` folder.
 
 You can then find the sphinx docs (including the doxygen C++ API reference) in `docs/html/`.
-

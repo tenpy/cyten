@@ -29,5 +29,3 @@ tests
 build
     This folder is not distributed with the code, but is generated during compilation.
     It can be ignored (and even removed) without loosing functionality.
-
-

@@ -4,7 +4,7 @@ The name Cyten is pronounced like sci-ten, and refers to scientific tensor netwo
 
 ## About: combining forces of the TeNPy and Cytnx team
 This repo originates from a collaboration between the [Cytnx](https://github.com/cytnx-dev/cytnx) and [TeNPy](https://github.com/tenpy/tenpy) developers.
-Cytnx is a C++ library for Tensors with Abelian symmetries with pybind11 bindings to Python. 
+Cytnx is a C++ library for Tensors with Abelian symmetries with pybind11 bindings to Python.
 The goal is to use that as a basis to translate the refactoring and implementation of non-Abelian symmetries from the `v2_alpha` branch in the tenpy repository (currenlty in pure Python) into C++, thereby extending the capabilities of the cytnx library, and providing a backend for TeNpy which will then focus on the higher-levels (defining MPS and algorithms like DMRG  etc).
 At the same time, the code from cytnx to be included will be refactored and cleaned a bit.
 
@@ -80,10 +80,9 @@ Please follow these guidelines when contributing code
 - During development, you might introduce ``# TODO`` comments.
   Please use exactly this format, to make searching for them easier, and include your initials or name.
   Try to remove/resolve them as soon as possible.
-  If you're not 100% sure that you will remove it soon, please add a doc-string with a 
+  If you're not 100% sure that you will remove it soon, please add a doc-string with a
   ``.. todo ::`` block, such that we can keep track of it.
-  
+
   Unfinished functions should ``raise NotImplementedError()``.
- 
+
 - We may start keeping a changelog in the future, so far we do not.
- 
