@@ -27,6 +27,7 @@ dependencies:
 
   # developer tools
   - ipython
+  - ruff
   - flake8
   - flake8-docstrings
 

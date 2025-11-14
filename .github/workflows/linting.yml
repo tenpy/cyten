@@ -36,10 +36,10 @@ jobs:
         python -m build .
         python -m pip install .
     
-    - name: Run linter
-      # uses options from .flake8 config file
+    - name: Lint python code
+      # uses options from pyproject.toml
       run: |
-        flake8 .
+        ruff check 
     
     - name: Run custom linting script
       run: |
