@@ -66,7 +66,7 @@ io = ["h5py", "pyyaml"]
 gpu = ["torch"]
 # dev:
 test = ["pytest>=6.0", "sympy", "cyten[io]"]
-lint = ["ruff", "flake8", "flake8-rst-docstrings"]
+lint = ["ruff", "flake8", "flake8-rst-docstrings", "sphinx-lint"]
 docbuild = [
     "Sphinx",
     "sphinx-rtd-theme",

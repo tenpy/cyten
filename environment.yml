@@ -30,6 +30,7 @@ dependencies:
   - ruff
   - flake8
   - flake8-rst-docstrings
+  - sphinx-lint
 
   # building docs
   # - doxygen
