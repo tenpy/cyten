@@ -1,9 +1,9 @@
 # Copyright (C) TeNPy Developers, Apache license
-import pytest
 import numpy as np
+import pytest
 from numpy import testing as npt
 
-from cyten import spaces, symmetries, trees, SymmetryError
+from cyten import SymmetryError, spaces, symmetries, trees
 from cyten.testing import random_ElementarySpace
 
 # TODO test all cases of Space.as_ElementarySpace

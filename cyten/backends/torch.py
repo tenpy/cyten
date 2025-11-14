@@ -1,11 +1,12 @@
 """Implements a BlockBackend using PyTorch."""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-from numpy import prod
-import numpy
 
-from .abstract_backend import BlockBackend, Block
+import numpy
+from numpy import prod
+
 from ..dtypes import Dtype
+from .abstract_backend import Block, BlockBackend
 
 
 class TorchBlockBackend(BlockBackend):

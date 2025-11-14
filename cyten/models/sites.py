@@ -1,19 +1,27 @@
 """Defines classes that describe the sites of a lattice."""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-import numpy as np
-from typing import Literal, Sequence
+
 from itertools import product as itproduct
+from typing import Literal, Sequence
+
+import numpy as np
 
 from ..backends import TensorBackend
 from ..spaces import ElementarySpace
 from ..symmetries import (
-    Symmetry, ProductSymmetry, SU2Symmetry, U1Symmetry, ZNSymmetry, NoSymmetry,
-    FibonacciAnyonCategory, IsingAnyonCategory, SU2_kAnyonCategory, FermionParity
+    FermionParity,
+    FibonacciAnyonCategory,
+    IsingAnyonCategory,
+    NoSymmetry,
+    ProductSymmetry,
+    SU2_kAnyonCategory,
+    SU2Symmetry,
+    Symmetry,
+    U1Symmetry,
+    ZNSymmetry,
 )
-from .degrees_of_freedom import (
-    SpinDOF, FermionicDOF, BosonicDOF, ClockDOF, AnyonDOF
-)
+from .degrees_of_freedom import AnyonDOF, BosonicDOF, ClockDOF, FermionicDOF, SpinDOF
 
 
 class SpinSite(SpinDOF):

@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import scipy
 
-from .abstract_backend import BlockBackend, Block
-from ..dtypes import Dtype, _numpy_dtype_to_cyten, _cyten_dtype_to_numpy
+from ..dtypes import Dtype, _cyten_dtype_to_numpy, _numpy_dtype_to_cyten
+from .abstract_backend import Block, BlockBackend
 
 
 class NumpyBlockBackend(BlockBackend):

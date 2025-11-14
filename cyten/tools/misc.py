@@ -1,10 +1,10 @@
 """Miscellaneous tools, somewhat random mix yet often helpful."""
 # Copyright (C) TeNPy Developers, Apache license
 
-import numpy as np
 import warnings
-from typing import TypeVar, Sequence, Set, Generator
+from typing import Generator, Sequence, Set, TypeVar
 
+import numpy as np
 
 UNSPECIFIED = object()  # sentinel, also used elsewhere
 _T = TypeVar('_T')  # used in typing some functions

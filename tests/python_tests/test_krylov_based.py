@@ -1,13 +1,12 @@
 """A collection of tests for cyten.krylov_based."""
 # Copyright (C) TeNPy Developers, Apache license
+import numpy as np
 import pytest
 from numpy import testing as npt
-import numpy as np
 from scipy.linalg import expm
 
 import cyten
-from cyten import krylov_based, sparse, tensors, random_matrix
-
+from cyten import krylov_based, random_matrix, sparse, tensors
 
 pytest.skip("krylov_based not yet revised", allow_module_level=True)  # TODO
 

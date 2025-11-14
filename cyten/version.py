@@ -13,10 +13,9 @@ The version is provided in the standard python format ``major.minor.revision`` a
 # Copyright (C) TeNPy Developers, Apache license
 
 
-import sys
-import subprocess
 import os
-
+import subprocess
+import sys
 
 # hard-coded version for people without git...
 #: current release version as a string

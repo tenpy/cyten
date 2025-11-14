@@ -2,8 +2,8 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
-from typing import TypeVar, TypeAlias, Generic, Iterable, Sequence
 
+from typing import Generic, Iterable, Sequence, TypeAlias, TypeVar
 
 __all__ = ['SparseMapping', 'IdentityMapping']
 

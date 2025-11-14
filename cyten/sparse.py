@@ -10,17 +10,20 @@ to convert flat numpy arrays to and from cyten tensors.
 # Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
+
+import warnings
 from abc import ABCMeta, abstractmethod
 from numbers import Number
-import warnings
 from typing import Literal
-import numpy as np
-from scipy.sparse.linalg import LinearOperator as ScipyLinearOperator, ArpackNoConvergence
 
-from .spaces import Space, TensorProduct, Sector
-from .tensors import Tensor, SymmetricTensor, ChargedTensor, combine_legs
+import numpy as np
+from scipy.sparse.linalg import ArpackNoConvergence
+from scipy.sparse.linalg import LinearOperator as ScipyLinearOperator
+
 from .backends.abstract_backend import TensorBackend
 from .dtypes import Dtype
+from .spaces import Sector, Space, TensorProduct
+from .tensors import ChargedTensor, SymmetricTensor, Tensor, combine_legs
 from .tools.math import speigs, speigsh
 from .tools.misc import argsort
 

@@ -1,18 +1,25 @@
 """TODO"""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-from typing import Literal, Sequence, TypeVar, overload
+
 import warnings
+from typing import Literal, Sequence, TypeVar, overload
 
 import numpy as np
 
-from .tensors import (
-    Tensor, LabelledLegs, partial_trace, is_valid_leg_label, permute_legs, compose,
-    CONTRACT_SYMBOL, LEG_SELECT_SYMBOL, OPEN_LEG_SYMBOL
-)
 from .sparse import LinearOperator
-from .tools import duplicate_entries, BigOPolynomial
-
+from .tensors import (
+    CONTRACT_SYMBOL,
+    LEG_SELECT_SYMBOL,
+    OPEN_LEG_SYMBOL,
+    LabelledLegs,
+    Tensor,
+    compose,
+    is_valid_leg_label,
+    partial_trace,
+    permute_legs,
+)
+from .tools import BigOPolynomial, duplicate_entries
 
 NestedContainer_str = TypeVar('NestedContainer_str')
 

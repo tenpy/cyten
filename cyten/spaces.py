@@ -1,20 +1,28 @@
 """The spaces, i.e. the legs of a tensor."""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-from abc import ABCMeta, abstractmethod
-import numpy as np
-from numpy import ndarray
+
 import bisect
 import itertools as it
-from math import prod
-from typing import TYPE_CHECKING, Sequence, Literal, Generator, Union
 import warnings
+from abc import ABCMeta, abstractmethod
+from math import prod
+from typing import TYPE_CHECKING, Generator, Literal, Sequence, Union
+
+import numpy as np
+from numpy import ndarray
 
 from .dummy_config import printoptions
-from .symmetries import (Sector, SectorArray, Symmetry, ProductSymmetry, no_symmetry, FusionStyle,
-                         SymmetryError)
-from .tools.misc import (inverse_permutation, rank_data, to_iterable, make_stride, make_grid,
-                         find_row_differences, iter_common_sorted_arrays)
+from .symmetries import FusionStyle, ProductSymmetry, Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
+from .tools.misc import (
+    find_row_differences,
+    inverse_permutation,
+    iter_common_sorted_arrays,
+    make_grid,
+    make_stride,
+    rank_data,
+    to_iterable,
+)
 from .tools.string import format_like_list
 from .trees import FusionTree, fusion_trees
 

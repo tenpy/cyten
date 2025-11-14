@@ -1,22 +1,21 @@
 """Implements a 'dummy' tensor backend that does not exploit symmetries."""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable
+
 from math import prod
+from typing import TYPE_CHECKING, Callable
 
-from .abstract_backend import (TensorBackend, BlockBackend, Data, DiagonalData, MaskData, Block,
-                               conventional_leg_order)
 from ..dtypes import Dtype
-from ..symmetries import no_symmetry, Symmetry
-from ..spaces import Space, ElementarySpace, TensorProduct, Leg, LegPipe, AbelianLegPipe
-from ..trees import FusionTree
+from ..spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct
+from ..symmetries import Symmetry, no_symmetry
 from ..tools.misc import rank_data
-
+from ..trees import FusionTree
+from .abstract_backend import Block, BlockBackend, Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
     # this clause allows mypy etc to evaluate the type-hints anyway
-    from ..tensors import SymmetricTensor, DiagonalTensor, Mask
+    from ..tensors import DiagonalTensor, Mask, SymmetricTensor
 
 
 class NoSymmetryBackend(TensorBackend):

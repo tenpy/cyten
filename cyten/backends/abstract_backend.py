@@ -5,22 +5,23 @@ Also contains some private utility function used by multiple backend modules.
 
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
-from typing import TypeVar, TYPE_CHECKING, Callable, Generator, Sequence, Protocol
 from math import prod
+from typing import TYPE_CHECKING, Callable, Generator, Protocol, Sequence, TypeVar
+
 import numpy as np
 
-from ..symmetries import Symmetry
-from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe, Leg
-from ..trees import FusionTree
 from ..dtypes import Dtype
+from ..spaces import ElementarySpace, Leg, LegPipe, Space, TensorProduct
+from ..symmetries import Symmetry
 from ..tools.misc import combine_constraints, to_iterable
-
+from ..trees import FusionTree
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
     # this clause allows mypy etc to evaluate the type-hints anyway
-    from ..tensors import SymmetricTensor, DiagonalTensor, Mask
+    from ..tensors import DiagonalTensor, Mask, SymmetricTensor
 
 # placeholder for a backend-specific type that holds all data of a tensor
 #  (except the symmetry data stored in its legs)

@@ -1,13 +1,13 @@
 """Krylov-based algorithms for tensors"""
 # Copyright (C) TeNPy Developers, Apache license
-from abc import ABCMeta, abstractmethod
-import numpy as np
 import logging
+from abc import ABCMeta, abstractmethod
 
+import numpy as np
+
+from .sparse import LinearOperator, ProjectedLinearOperator, ShiftedLinearOperator
 from .tensors import Tensor, inner, norm, scalar_multiply
-from .sparse import LinearOperator, ShiftedLinearOperator, ProjectedLinearOperator
 from .tools.misc import argsort  # TODO replace this?
-
 
 logger = logging.getLogger(__name__)
 

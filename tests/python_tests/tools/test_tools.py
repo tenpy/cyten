@@ -1,12 +1,13 @@
 """A collection of tests for teh tools submodules."""
 # Copyright (C) TeNPy Developers, Apache license
 
+import warnings
+
 import numpy as np
 import numpy.testing as npt
-from cyten import tools, sparse
-import warnings
 import pytest
 
+from cyten import sparse, tools
 
 # TODO use fixtures, e.g. np_random
 

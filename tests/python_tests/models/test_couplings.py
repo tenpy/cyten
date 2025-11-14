@@ -2,15 +2,15 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 
-import numpy as np
-from typing import Literal, Sequence
 import itertools as it
+from typing import Literal, Sequence
+
+import numpy as np
 import pytest
 
 import cyten
-from cyten import backends
-from cyten import tensors
-from cyten.models import degrees_of_freedom, sites, couplings
+from cyten import backends, tensors
+from cyten.models import couplings, degrees_of_freedom, sites
 from cyten.symmetries import SymmetryError
 
 

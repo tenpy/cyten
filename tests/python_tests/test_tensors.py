@@ -1,27 +1,26 @@
 """A collection of tests for cyten.tensors."""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-import numpy as np
-import numpy.testing as npt
-from typing import Type
-import pytest
+
 import operator
 from contextlib import nullcontext
 from functools import partial
+from typing import Type
 
-from cyten import backends, tensors, symmetries
-from cyten.tensors import DiagonalTensor, SymmetricTensor, Mask, ChargedTensor, Tensor
+import numpy as np
+import numpy.testing as npt
+import pytest
+
+from cyten import backends, symmetries, tensors
 from cyten.backends.abstract_backend import conventional_leg_order
 from cyten.backends.backend_factory import get_backend
 from cyten.backends.numpy import NumpyBlockBackend
 from cyten.dtypes import Dtype
-from cyten.spaces import ElementarySpace, AbelianLegPipe, LegPipe, TensorProduct
-from cyten.symmetries import z4_symmetry, SU2Symmetry, SymmetryError, BraidingStyle
-from cyten.tools.misc import (
-    duplicate_entries, iter_common_noncommon_sorted_arrays, to_valid_idx, inverse_permutation
-)
+from cyten.spaces import AbelianLegPipe, ElementarySpace, LegPipe, TensorProduct
+from cyten.symmetries import BraidingStyle, SU2Symmetry, SymmetryError, z4_symmetry
+from cyten.tensors import ChargedTensor, DiagonalTensor, Mask, SymmetricTensor, Tensor
 from cyten.testing import assert_tensors_almost_equal
-
+from cyten.tools.misc import duplicate_entries, inverse_permutation, iter_common_noncommon_sorted_arrays, to_valid_idx
 
 # TENSOR CLASSES
 

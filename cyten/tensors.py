@@ -67,30 +67,34 @@ I.e. viewing tensors as linear maps, combining legs or not, mention :func:`combi
 # Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
-from abc import ABCMeta, abstractmethod
-import operator
-from typing import TypeVar, Sequence
-from numbers import Number, Integral
-from math import exp as math_exp
-import numpy as np
-import warnings
+
 import functools
 import logging
+import operator
+import warnings
+from abc import ABCMeta, abstractmethod
+from math import exp as math_exp
+from numbers import Integral, Number
+from typing import Sequence, TypeVar
 
-from .dummy_config import printoptions
-from .symmetries import SymmetryError, Symmetry, BraidingStyle
-from .spaces import Space, ElementarySpace, Sector, TensorProduct, Leg, LegPipe
-from .trees import FusionTree
+import numpy as np
+
+from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order, get_same_backend
 from .backends.backend_factory import get_backend
-from .backends.abstract_backend import (
-    Block, TensorBackend, conventional_leg_order, get_same_backend
-)
 from .dtypes import Dtype
+from .dummy_config import printoptions
+from .spaces import ElementarySpace, Leg, LegPipe, Sector, Space, TensorProduct
+from .symmetries import BraidingStyle, Symmetry, SymmetryError
 from .tools.misc import (
-    to_iterable, rank_data, inverse_permutation, duplicate_entries, iter_common_sorted_arrays,
-    to_valid_idx, is_iterable
+    duplicate_entries,
+    inverse_permutation,
+    is_iterable,
+    iter_common_sorted_arrays,
+    rank_data,
+    to_iterable,
+    to_valid_idx,
 )
-
+from .trees import FusionTree
 
 logger = logging.getLogger(__name__)
 _USE_PERMUTE_LEGS_ERR_MSG = 'Legs can not be permuted automatically. Explicitly use permute_legs()'

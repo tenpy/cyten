@@ -144,10 +144,11 @@ and the tensor cls comes from a parametrize with argname ``cls``.
 """
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
+
 import numpy as np
 import pytest
 
-from cyten import backends, spaces, symmetries, tensors, Dtype
+from cyten import Dtype, backends, spaces, symmetries, tensors
 from cyten.testing import random_block, random_ElementarySpace, random_symmetry_sectors, random_tensor
 
 

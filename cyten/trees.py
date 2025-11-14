@@ -1,16 +1,18 @@
 """TODO module docstring"""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
+
 from math import prod
 from typing import TYPE_CHECKING, Iterable, Sequence
+
 import numpy as np
 
-from .symmetries import Symmetry, Sector, SectorArray, FusionStyle, SymmetryError
 from .dtypes import Dtype
+from .symmetries import FusionStyle, Sector, SectorArray, Symmetry, SymmetryError
 from .tools import to_valid_idx
 
 if TYPE_CHECKING:
-    from .backends.abstract_backend import TensorBackend, Block
+    from .backends.abstract_backend import Block, TensorBackend
 
 
 class FusionTree:

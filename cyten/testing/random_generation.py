@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .. import symmetries, spaces, tensors, backends, dtypes, tools
+from .. import backends, dtypes, spaces, symmetries, tensors, tools
 
 
 def random_block(block_backend, size, real=False, np_random=np.random.default_rng(0)):

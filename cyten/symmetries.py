@@ -2,20 +2,22 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
-from abc import abstractmethod, ABCMeta
+
+import math
+import warnings
+from abc import ABCMeta, abstractmethod
 from enum import IntEnum
 from functools import reduce
 from itertools import product
 from typing import Literal
-import warnings
 
-from numpy import typing as npt
 import numpy as np
-import math
+from numpy import typing as npt
 
 from .dtypes import Dtype
-from .tools.misc import as_immutable_array
 from .dummy_config import config
+from .tools.misc import as_immutable_array
+
 try:
     import h5py
     h5py_version = h5py.version.version_tuple

@@ -6,11 +6,11 @@ import numpy as np
 import pytest
 
 from cyten import trees
-from cyten.symmetries import Symmetry, SymmetryError, Sector, u1_symmetry, z3_symmetry
-from cyten.spaces import ElementarySpace, TensorProduct
-from cyten.dtypes import Dtype
-from cyten.backends.backend_factory import get_backend
 from cyten.backends.abstract_backend import Block
+from cyten.backends.backend_factory import get_backend
+from cyten.dtypes import Dtype
+from cyten.spaces import ElementarySpace, TensorProduct
+from cyten.symmetries import Sector, Symmetry, SymmetryError, u1_symmetry, z3_symmetry
 from cyten.testing import random_symmetry_sectors
 
 

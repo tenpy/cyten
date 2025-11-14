@@ -1,9 +1,10 @@
 """Toy code implementing the transverse-field ising model."""
 # Copyright (C) TeNPy Developers, Apache license
-import cyten as ct
 import numpy as np
 import scipy.sparse as scisp
 from scipy.sparse.linalg import eigsh
+
+import cyten as ct
 
 
 class TFIModel:

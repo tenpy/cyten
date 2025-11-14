@@ -9,12 +9,13 @@ and the tenpy version in the filename.
 """
 # Copyright (C) TeNPy Developers, Apache license
 
-import numpy as np
 import os
 import types
-import cyten
-from cyten import symmetries, spaces, backends, tensors
 
+import numpy as np
+
+import cyten
+from cyten import backends, spaces, symmetries, tensors
 
 try:
     from packaging.version import parse as parse_version  # part of setuptools

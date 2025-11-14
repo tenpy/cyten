@@ -1,11 +1,13 @@
 """Testing if the toycodes can run."""
 # Copyright (C) TeNPy Developers, Apache license
 import cyten as ct
-from toycodes.tenpy_toycodes.a_mps import (
-    init_FM_MPS, init_Fib_anyon_MPS, init_Neel_MPS, init_SU2_sym_MPS
-)
+from toycodes.tenpy_toycodes.a_mps import init_Fib_anyon_MPS, init_FM_MPS, init_Neel_MPS, init_SU2_sym_MPS
 from toycodes.tenpy_toycodes.b_model import (
-    GoldenChainModel, HeisenbergModel, TFIModel, heisenberg_finite_gs_energy, tfi_finite_gs_energy
+    GoldenChainModel,
+    HeisenbergModel,
+    TFIModel,
+    heisenberg_finite_gs_energy,
+    tfi_finite_gs_energy,
 )
 from toycodes.tenpy_toycodes.d_dmrg import DMRGEngine
 

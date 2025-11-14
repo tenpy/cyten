@@ -5,46 +5,117 @@ Provides a tensor class with block-sparsity from symmetries with an exchangeable
 """
 # Copyright (C) TeNPy Developers, Apache license
 
-from . import (dtypes, spaces, backends, symmetries, tensors, planar, random_matrix, sparse,
-               krylov_based, trees, models, dummy_config, tools)
-from . import testing  # should be pretty late
-from . import version
+from . import (
+    backends,
+    dtypes,
+    dummy_config,
+    krylov_based,
+    models,
+    planar,
+    random_matrix,
+    spaces,
+    sparse,
+    symmetries,
+    tensors,
+    testing,  # should be pretty late
+    tools,
+    trees,
+    version,
+)
 
 # import pybind11 bindings from C++ code
 # TODO do explicit imports instead of *
 from ._core import *  # type: ignore
 
+# subpackages
+from .backends import get_backend
 
 # modules under cyten
 from .dtypes import Dtype
+from .models import Coupling, couplings, sites
+from .planar import PlanarDiagram
+
 # from .dummy_config import
 # from .krylov_based import
 # from .random_matrix import
 from .spaces import ElementarySpace, TensorProduct
+
 # from .sparse import
 from .symmetries import (
-    SymmetryError, FusionStyle, BraidingStyle, no_symmetry, z2_symmetry, z3_symmetry, z4_symmetry,
-    z5_symmetry, z6_symmetry, z7_symmetry, z8_symmetry, z9_symmetry, u1_symmetry, su2_symmetry,
-    fermion_parity, semion_category, toric_code_category, double_semion_category,
-    fibonacci_anyon_category, ising_anyon_category
+    BraidingStyle,
+    FusionStyle,
+    SymmetryError,
+    double_semion_category,
+    fermion_parity,
+    fibonacci_anyon_category,
+    ising_anyon_category,
+    no_symmetry,
+    semion_category,
+    su2_symmetry,
+    toric_code_category,
+    u1_symmetry,
+    z2_symmetry,
+    z3_symmetry,
+    z4_symmetry,
+    z5_symmetry,
+    z6_symmetry,
+    z7_symmetry,
+    z8_symmetry,
+    z9_symmetry,
 )
 from .tensors import (
-    Tensor, SymmetricTensor, DiagonalTensor, Mask, ChargedTensor, add_trivial_leg, angle,
-    almost_equal, apply_mask, bend_legs, combine_legs, combine_to_matrix, complex_conj, dagger,
-    compose, eigh, enlarge_leg, entropy, exp, eye, imag, inner, is_scalar, item, move_leg, norm,
-    on_device, outer, partial_trace, permute_legs, pinv, qr, real, real_if_close, lq, scale_axis,
-    split_legs, sqrt, squeeze_legs, stable_log, svd, tdot, tensor, trace, transpose, truncated_svd,
-    zero_like
+    ChargedTensor,
+    DiagonalTensor,
+    Mask,
+    SymmetricTensor,
+    Tensor,
+    add_trivial_leg,
+    almost_equal,
+    angle,
+    apply_mask,
+    bend_legs,
+    combine_legs,
+    combine_to_matrix,
+    complex_conj,
+    compose,
+    dagger,
+    eigh,
+    enlarge_leg,
+    entropy,
+    exp,
+    eye,
+    imag,
+    inner,
+    is_scalar,
+    item,
+    lq,
+    move_leg,
+    norm,
+    on_device,
+    outer,
+    partial_trace,
+    permute_legs,
+    pinv,
+    qr,
+    real,
+    real_if_close,
+    scale_axis,
+    split_legs,
+    sqrt,
+    squeeze_legs,
+    stable_log,
+    svd,
+    tdot,
+    tensor,
+    trace,
+    transpose,
+    truncated_svd,
+    zero_like,
 )
-from .planar import PlanarDiagram
 from .trees import FusionTree, fusion_trees
-from .version import version as __version__
 from .version import full_version as __full_version__
+from .version import version as __version__
 
-
-# subpackages
-from .backends import get_backend
-from .models import Coupling, couplings, sites
 # from .testing import
 # from .tools import
 

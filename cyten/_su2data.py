@@ -2,12 +2,15 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
-import numpy as np
+
 from functools import lru_cache
+
+import numpy as np
 
 try:
     from sympy import S as sympy_S
-    from sympy.physics.wigner import clebsch_gordan as sympy_cg, racah as sympy_racah
+    from sympy.physics.wigner import clebsch_gordan as sympy_cg
+    from sympy.physics.wigner import racah as sympy_racah
 except Exception:
     sympy_S = sympy_cg = sympy_racah = None
 

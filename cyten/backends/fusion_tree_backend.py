@@ -77,32 +77,35 @@ Visually, the blocks have the following structure::
 """
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-from typing import TYPE_CHECKING, Callable, Iterable, Literal
+
+import warnings
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from math import prod
+from typing import TYPE_CHECKING, Callable, Iterable, Literal
 
 import numpy as np
-import warnings
 
-from .abstract_backend import (
-    TensorBackend, BlockBackend, Block, Data, DiagonalData, MaskData,
-    conventional_leg_order
-)
 from ..dtypes import Dtype
-from ..symmetries import Sector, Symmetry, BraidChiralityUnspecifiedError
-from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe
-from ..trees import FusionTree, fusion_trees
+from ..spaces import ElementarySpace, LegPipe, Space, TensorProduct
+from ..symmetries import BraidChiralityUnspecifiedError, Sector, Symmetry
+from ..tools.mappings import IdentityMapping, SparseMapping
 from ..tools.misc import (
-    inverse_permutation, iter_common_sorted_arrays, iter_common_noncommon_sorted,
-    iter_common_sorted, permutation_as_swaps, rank_data, to_valid_idx
+    inverse_permutation,
+    iter_common_noncommon_sorted,
+    iter_common_sorted,
+    iter_common_sorted_arrays,
+    permutation_as_swaps,
+    rank_data,
+    to_valid_idx,
 )
-from ..tools.mappings import SparseMapping, IdentityMapping
+from ..trees import FusionTree, fusion_trees
+from .abstract_backend import Block, BlockBackend, Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
     # this clause allows mypy etc to evaluate the type-hints anyway
-    from ..tensors import SymmetricTensor, DiagonalTensor, Mask
+    from ..tensors import DiagonalTensor, Mask, SymmetricTensor
 
 
 def _tree_block_iter(a: SymmetricTensor):

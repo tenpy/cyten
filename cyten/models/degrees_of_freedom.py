@@ -5,22 +5,31 @@ All other classes are base classes from which sites are derived.
 """
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-import numpy as np
-from typing import Literal, Sequence
+
+from abc import ABCMeta, abstractmethod
 from functools import reduce
 from math import comb
-from abc import abstractmethod, ABCMeta
+from typing import Literal, Sequence
+
+import numpy as np
 
 from ..backends import TensorBackend, get_backend
 from ..backends.abstract_backend import Block
 from ..spaces import ElementarySpace
-from ..tensors import DiagonalTensor, SymmetricTensor
 from ..symmetries import (
-    FermionNumber, FermionParity, U1Symmetry, ZNSymmetry, SU2Symmetry, Symmetry,
-    NoSymmetry, ProductSymmetry, BraidingStyle, SymmetryError
+    BraidingStyle,
+    FermionNumber,
+    FermionParity,
+    NoSymmetry,
+    ProductSymmetry,
+    SU2Symmetry,
+    Symmetry,
+    SymmetryError,
+    U1Symmetry,
+    ZNSymmetry,
 )
-from ..tools import to_iterable, is_iterable, to_valid_idx, as_immutable_array
-
+from ..tensors import DiagonalTensor, SymmetricTensor
+from ..tools import as_immutable_array, is_iterable, to_iterable, to_valid_idx
 
 ALL_SPECIES = object()
 """Singleton object used to indicate to sum over all species in fermion/boson couplings."""

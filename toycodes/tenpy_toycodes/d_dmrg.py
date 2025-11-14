@@ -1,6 +1,7 @@
 """Toy code implementing the 2-site DMRG algorithm."""
 # Copyright (C) TeNPy Developers, Apache license
 import numpy as np
+
 import cyten as ct
 from toycodes.tenpy_toycodes.a_mps import SimpleMPS, split_truncate_theta
 from toycodes.tenpy_toycodes.b_model import TFIModel

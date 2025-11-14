@@ -31,26 +31,31 @@ TODO link to this section from appropriate places
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable
+
 import numpy as np
 from numpy import ndarray
 
-from .abstract_backend import (
-    TensorBackend, Data, DiagonalData, MaskData, Block, conventional_leg_order
-)
 from ..dtypes import Dtype
+from ..spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct
 from ..symmetries import BraidingStyle, Symmetry
-from ..spaces import Space, ElementarySpace, LegPipe, AbelianLegPipe, TensorProduct, Leg
-from ..trees import FusionTree
 from ..tools.misc import (
-    inverse_permutation, list_to_dict_list, rank_data, iter_common_noncommon_sorted_arrays,
-    iter_common_sorted, iter_common_sorted_arrays, make_stride, find_row_differences, make_grid
+    find_row_differences,
+    inverse_permutation,
+    iter_common_noncommon_sorted_arrays,
+    iter_common_sorted,
+    iter_common_sorted_arrays,
+    list_to_dict_list,
+    make_grid,
+    make_stride,
+    rank_data,
 )
-
+from ..trees import FusionTree
+from .abstract_backend import Block, Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
     # this clause allows mypy etc to evaluate the type-hints anyway
-    from ..tensors import SymmetricTensor, DiagonalTensor, Mask
+    from ..tensors import DiagonalTensor, Mask, SymmetricTensor
 
 
 def _valid_block_inds(codomain: TensorProduct, domain: TensorProduct):

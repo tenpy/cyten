@@ -5,10 +5,10 @@ The API standard is documented at https://data-apis.org/array-api/latest/purpose
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
-from .abstract_backend import BlockBackend, Block
-from ..dtypes import Dtype
-
 import numpy as np
+
+from ..dtypes import Dtype
+from .abstract_backend import Block, BlockBackend
 
 
 class ArrayApiBlockBackend(BlockBackend):

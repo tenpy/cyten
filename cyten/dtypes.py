@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from enum import Enum
 from numbers import Number
+
 import numpy as np
 
 

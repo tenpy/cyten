@@ -5,15 +5,15 @@ it is easier to have it live in the cyten repo...
 
 """
 # Copyright (C) TeNPy Developers, Apache license
-from typing import Protocol, Sequence, TypeAlias
 from functools import partial
+from typing import Protocol, Sequence, TypeAlias
 
 import numpy as np
 
 from ..backends import TensorBackend
 from ..tensors import SymmetricTensor
-from .sites import Site, SpinSite, GoldenSite
-from .couplings import Coupling, spin_spin_coupling, gold_coupling
+from .couplings import Coupling, gold_coupling, spin_spin_coupling
+from .sites import GoldenSite, Site, SpinSite
 
 
 class CouplingFactory(Protocol):

@@ -2,9 +2,10 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 
+import itertools as it
+
 import numpy as np
 import numpy.testing as npt
-import itertools as it
 import pytest
 
 import cyten

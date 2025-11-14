@@ -1,22 +1,31 @@
 """A collection of tests for cyten.backends.fusion_tree_backend"""
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-from typing import Callable
-import pytest
-import numpy as np
-from math import prod
 
-from cyten.backends import fusion_tree_backend, get_backend
-from cyten.trees import FusionTree
-from cyten.spaces import ElementarySpace, TensorProduct
+from math import prod
+from typing import Callable
+
+import numpy as np
+import pytest
+
 from cyten import backends
-from cyten.tensors import DiagonalTensor, SymmetricTensor, permute_legs, transpose
-from cyten.symmetries import (
-    ProductSymmetry, Symmetry, fibonacci_anyon_category, SU2Symmetry, SU3_3AnyonCategory,
-    ising_anyon_category, SU2_kAnyonCategory, z5_symmetry, u1_symmetry
-)
+from cyten.backends import fusion_tree_backend, get_backend
 from cyten.dtypes import Dtype
-from cyten.testing import assert_tensors_almost_equal, random_tensor, random_ElementarySpace
+from cyten.spaces import ElementarySpace, TensorProduct
+from cyten.symmetries import (
+    ProductSymmetry,
+    SU2_kAnyonCategory,
+    SU2Symmetry,
+    SU3_3AnyonCategory,
+    Symmetry,
+    fibonacci_anyon_category,
+    ising_anyon_category,
+    u1_symmetry,
+    z5_symmetry,
+)
+from cyten.tensors import DiagonalTensor, SymmetricTensor, permute_legs, transpose
+from cyten.testing import assert_tensors_almost_equal, random_ElementarySpace, random_tensor
+from cyten.trees import FusionTree
 
 
 def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Generator):

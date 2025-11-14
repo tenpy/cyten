@@ -6,11 +6,11 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-import cyten
-
 import inspect
-import sys
 import os
+import sys
+
+import cyten
 
 project = 'Cyten'
 copyright = '2024, Cyten developer team'

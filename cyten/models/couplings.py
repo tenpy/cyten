@@ -6,17 +6,14 @@ two sites that have a spin degree of freedom.
 """
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
+
 import numpy as np
 
-from ..symmetries import FibonacciAnyonCategory, Sector, SymmetryError
-from ..dtypes import Dtype
 from ..backends.abstract_backend import Block, get_same_backend
-from ..tensors import (
-    SymmetricTensor, squeeze_legs, add_trivial_leg, permute_legs, compose, horizontal_factorization
-)
-from .degrees_of_freedom import (
-    Site, SpinDOF, BosonicDOF, FermionicDOF, ClockDOF, ALL_SPECIES
-)
+from ..dtypes import Dtype
+from ..symmetries import FibonacciAnyonCategory, Sector, SymmetryError
+from ..tensors import SymmetricTensor, add_trivial_leg, compose, horizontal_factorization, permute_legs, squeeze_legs
+from .degrees_of_freedom import ALL_SPECIES, BosonicDOF, ClockDOF, FermionicDOF, Site, SpinDOF
 from .sites import GoldenSite
 
 

@@ -4,12 +4,13 @@
 """
 # Copyright (C) TeNPy Developers, Apache license
 
-import numpy as np
 import warnings
-from .misc import argsort
 
+import numpy as np
 import scipy.linalg
 import scipy.sparse.linalg
+
+from .misc import argsort
 
 
 def speigs(A, k, *args, **kwargs):
