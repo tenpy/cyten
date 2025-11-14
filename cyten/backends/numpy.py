@@ -11,16 +11,16 @@ from ..dtypes import Dtype, _numpy_dtype_to_cyten, _cyten_dtype_to_numpy
 
 class NumpyBlockBackend(BlockBackend):
     """A block backend using numpy."""
-    
+
     BlockCls = np.ndarray
     svd_algorithms = ['gesdd', 'gesvd', 'robust', 'robust_silent']
-    
+
     cyten_dtype_map = _numpy_dtype_to_cyten
     backend_dtype_map = _cyten_dtype_to_numpy
 
     def __init__(self):
         super().__init__(default_device='cpu')
-    
+
     def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
                  ) -> Block:
         _ = self.as_device(device)  # for input check only
@@ -47,7 +47,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def block_all(self, a) -> bool:
         return np.all(a)
-        
+
     def allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
         return np.allclose(a, b, rtol=rtol, atol=atol)
 
@@ -123,7 +123,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def get_device(self, a: Block) -> str:
         return self.default_device
-    
+
     def get_diagonal(self, a: Block, tol: float | None) -> Block:
         res = np.diagonal(a)
         if tol is not None:
@@ -139,7 +139,7 @@ class NumpyBlockBackend(BlockBackend):
         if do_dagger:
             return np.tensordot(np.conj(a), b, a.ndim).item()
         return np.tensordot(a, b, [list(range(a.ndim)), list(reversed(range(a.ndim)))]).item()
-        
+
     def item(self, a: Block) -> float | complex:
         return a.item()
 
@@ -157,7 +157,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def min(self, a: Block) -> float | complex:
         return np.min(a).item()
-    
+
     def norm(self, a: Block, order: int | float = 2, axis: int | None = None) -> float:
         if axis is None:
             return np.linalg.norm(a.ravel(), ord=order).item()
@@ -220,7 +220,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def stable_log(self, block: Block, cutoff: float) -> Block:
         return np.where(block > cutoff, np.log(block), 0.)
-    
+
     def sum(self, a: Block, ax: int) -> Block:
         return np.sum(a, axis=ax)
 
@@ -255,7 +255,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def matrix_dot(self, a: Block, b: Block) -> Block:
         return np.dot(a, b)
-    
+
     def matrix_exp(self, matrix: Block) -> Block:
         return scipy.linalg.expm(matrix)
 

@@ -70,7 +70,7 @@ def test_site(np_random, block_backend, symmetry_backend, use_sym):
     site.add_onsite_operator('op3', op3_dense, is_diagonal=True)
     assert isinstance(site.onsite_operators['op3'], cyten.DiagonalTensor)
     npt.assert_equal(site.onsite_operators['op3'].to_numpy(), op3_dense)
-    
+
     # if use_sym:
     #     leg2 = leg.drop_symmetry(1)
     #     leg2 = leg2.change_symmetry(symmetry=cyten.z3_symmetry, sector_map=lambda s: s % 3)
@@ -226,7 +226,7 @@ def test_spinless_fermion_site(block_backend, np_random, num_species):
     for backend in [backends.get_backend('no_symmetry'), backends.get_backend('abelian')]:
         with pytest.raises(AssertionError):
             _ = sites.SpinlessFermionSite(num_species, all_conserve[0], backend=backend)
-            
+
 
 def test_spin_half_fermion_site(block_backend, np_random):
     backend = backends.get_backend('fusion_tree', block_backend=block_backend)

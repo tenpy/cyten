@@ -101,7 +101,7 @@ def random_leg(symmetry, backend, in_domain, max_sectors=5, max_multiplicity=5,
         symmetry=symmetry, max_sectors=max_sectors, max_multiplicity=max_multiplicity, is_dual=is_dual,
         allow_basis_perm=allow_basis_perm, np_random=np_random
     )
-    
+
 
 def randomly_drop_blocks(res: tensors.SymmetricTensor | tensors.DiagonalTensor,
                          max_blocks: int | None, empty_ok: bool, np_random=np.random.default_rng()):
@@ -239,7 +239,7 @@ def random_tensor(symmetry: symmetries.Symmetry,
     if backend is None:
         backend = backends.get_backend(symmetry=symmetry)
     assert isinstance(backend, backends.TensorBackend)
-    
+
     if like is not None:
         assert like.backend is backend
         assert like.symmetry is symmetry
@@ -253,7 +253,7 @@ def random_tensor(symmetry: symmetries.Symmetry,
                                  max_multiplicity=max_multiplicity, cls=type(like), np_random=np_random)
         else:
             raise TypeError(f'like must be a Tensor. Got {type(like)}')
-    
+
     if isinstance(codomain, list):
         codomain = codomain[:]  # we do inplace operations below.
     if isinstance(domain, list):

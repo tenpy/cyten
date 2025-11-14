@@ -2922,9 +2922,9 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
         assert A._as_domain_leg(ia) == B._as_codomain_leg(ib), f'{ia} / {A.labels[ia]} incompatible with {ib} / {B.labels[ib]}'
 
     expect_codomain = [A._as_codomain_leg(n) for n in range(A.num_legs) if n not in contr_A]
-    expect_domain = [B._as_domain_leg(n) for n in range(B.num_legs) if not n in contr_B][::-1]
-    expect_legs = [A.get_leg(n) for n in range(A.num_legs) if n not in contr_A] + [B.get_leg(n) for n in range(B.num_legs) if not n in contr_B]
-    expect_labels = [A._labels[n] for n in range(A.num_legs) if n not in contr_A] + [B._labels[n] for n in range(B.num_legs) if not n in contr_B]
+    expect_domain = [B._as_domain_leg(n) for n in range(B.num_legs) if n not in contr_B][::-1]
+    expect_legs = [A.get_leg(n) for n in range(A.num_legs) if n not in contr_A] + [B.get_leg(n) for n in range(B.num_legs) if n not in contr_B]
+    expect_labels = [A._labels[n] for n in range(A.num_legs) if n not in contr_A] + [B._labels[n] for n in range(B.num_legs) if n not in contr_B]
 
     if (cls_A is Mask and cls_B is Mask) and num_contr > 0:
         with pytest.raises(NotImplementedError, match='tensors._compose_with_Mask not implemented for Mask'):
@@ -2951,7 +2951,7 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
     if isinstance(A.backend, backends.FusionTreeBackend) and A.symmetry.braiding_style.value >= 20:
         if cls_A is not DiagonalTensor:
             levels_A = list(np_random.permutation(A.num_legs))
-            codomain_A = [i for i in range(A.num_legs) if not i in contr_A]
+            codomain_A = [i for i in range(A.num_legs) if i not in contr_A]
             if any([isinstance(leg, LegPipe) for leg in A.legs]):
                 with pytest.raises(RuntimeError, match='iter_tree_blocks can not deal with pipes'):
                     _ = tensors.permute_legs(A, codomain=codomain_A, domain=contr_A, levels=levels_A)
@@ -2966,7 +2966,7 @@ def test_tdot(cls_A: Type[tensors.Tensor], cls_B: Type[tensors.Tensor],
             contr_A = [A.num_legs - 1 - i for i in range(num_contr)]
         if cls_B is not DiagonalTensor:
             levels_B = list(np_random.permutation(B.num_legs))
-            domain_B = [i for i in range(B.num_legs) if not i in contr_B][::-1]
+            domain_B = [i for i in range(B.num_legs) if i not in contr_B][::-1]
             if cls_B is Mask and len(domain_B) != 1:
                 catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
             else:

@@ -1777,7 +1777,7 @@ class FusionTreeBackend(TensorBackend):
             if ind_b is None:  # zero block
                 continue
 
-            if not ind in block_inds[:, 1]:
+            if ind not in block_inds[:, 1]:
                 ind_mapping[coupled_ind] = len(blocks)
                 block_inds = np.append(block_inds, np.array([[a_block_inds[coupled_ind, 0], ind]]), axis=0)
                 shape = self.block_backend.get_shape(a_blocks[coupled_ind])

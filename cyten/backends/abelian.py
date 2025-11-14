@@ -119,7 +119,7 @@ class AbelianBackendData:
         ``np.lexsort(block_inds.T)``.
         If ``True``, we assume they are sorted *without* checking.
     """
-    
+
     def __init__(self, dtype: Dtype, device: str, blocks: list[Block], block_inds: ndarray,
                  is_sorted: bool = False):
         if not is_sorted:
@@ -196,7 +196,7 @@ class AbelianBackend(TensorBackend):
             the usual order. Note that the position of the larger leg depends on ``Mask.is_projection``!
 
     """
-    
+
     DataCls = AbelianBackendData
 
     def test_tensor_sanity(self, a: SymmetricTensor | DiagonalTensor, is_diagonal: bool):
@@ -634,7 +634,7 @@ class AbelianBackend(TensorBackend):
 
     def _compose_no_contraction(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         """Special case of :meth:`compose` where no legs are actually contracted.
-        
+
         Note that this is not the same as :meth:`outer`, the resulting leg order is different.
         """
         res_dtype = a.data.dtype.common(b.data.dtype)
@@ -869,9 +869,9 @@ class AbelianBackend(TensorBackend):
         # in tensors.py, we do pre-processing such that the following holds:
         assert a.num_codomain_legs == 1 == a.num_domain_legs
         assert new_leg_dual == a.domain[0].is_dual  # such that we can use the same block_inds
-        
+
         new_leg = a.domain.as_ElementarySpace(is_dual=new_leg_dual)
-        
+
         a_block_inds = a.data.block_inds
         # for missing blocks, i.e. a zero block, the eigenvalues are zero, so we can just skip
         # adding that block to the eigenvalues.
@@ -974,7 +974,7 @@ class AbelianBackend(TensorBackend):
                            dtype: Dtype, device: str) -> Data:
         def func(shape, coupled):
             return self.block_backend.random_normal(shape, dtype, sigma, device=device)
-        
+
         return self.from_sector_block_func(func, codomain=codomain, domain=domain)
 
     def from_sector_block_func(self, func, codomain: TensorProduct, domain: TensorProduct) -> Data:
@@ -1846,7 +1846,7 @@ class AbelianBackend(TensorBackend):
                 i = np.searchsorted(a_block_inds[:, 1], k)
             if new_leg.sector_order != 'sorted':
                 n = new_leg.sector_decomposition_where(sector)
-                
+
             if i < len(a_block_inds) and a_block_inds[i, 0] == j:
                 # we have a block for that sector -> decompose it
                 u, s, vh = self.block_backend.matrix_svd(a_blocks[i], algorithm=algorithm)

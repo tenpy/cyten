@@ -204,7 +204,7 @@ class Arnoldi(KrylovBased):
             Number of eigenvectors to look for/return in `run`.
 
     """
-    
+
     def __init__(self, H, psi0, options):
         super().__init__(H, psi0, options)
         self.E_tol = self.options.get('E_tol', np.inf, 'real')
@@ -476,7 +476,7 @@ class LanczosEvolution(LanczosGroundState):
     _result_norm : float
         Norm of the resulting vector.
     """
-    
+
     def __init__(self, H, psi0, options):
         super().__init__(H, psi0, options)
         self._result_norm = 1.

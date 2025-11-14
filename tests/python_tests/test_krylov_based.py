@@ -15,11 +15,11 @@ pytest.skip("krylov_based not yet revised", allow_module_level=True)  # TODO
 @pytest.mark.parametrize(['N_cache', 'tol'], [(10, 5.e-13), (20, 5.e-14)])
 def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
     # TODO revise this. purge the "dummy" language, its now "charged"
-    
+
     # generate hermitian test array
     leg = make_compatible_space()
     backend = compatible_backend
-    
+
     if isinstance(compatible_backend, cyten.backends.FusionTreeBackend):
         # TODO need to be more careful with from func.
         # shapes of the blocks depend on num_domain_legs!
@@ -28,7 +28,7 @@ def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
         with pytest.raises(AssertionError, match='not a square matrix shape'):
             H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
         return
-    
+
     H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
 
     if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(leg.symmetry, cyten.symmetries.ProductSymmetry):
@@ -112,7 +112,7 @@ def test_lanczos_arpack():
 def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol):
     backend = compatible_backend
     leg = make_compatible_space()
-    
+
     if isinstance(compatible_backend, cyten.backends.FusionTreeBackend):
         # TODO need to be more careful with from func.
         # shapes of the blocks depend on num_domain_legs!
@@ -121,7 +121,7 @@ def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol)
         with pytest.raises(AssertionError, match='not a square matrix shape'):
             H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
         return
-    
+
     H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
     H_op = sparse.TensorLinearOperator(H, which_leg=1)
 
@@ -130,13 +130,13 @@ def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol)
         with pytest.raises(NotImplementedError, match='fusion_tensor is not implemented'):
             _ = H.to_numpy()
         return
-    
+
     if isinstance(H.backend, cyten.backends.FusionTreeBackend):
         # TODO
         with pytest.raises(AssertionError, match='norm not preserved'):
             _ = H.to_numpy()
         return
-    
+
     H_np = H.to_numpy()
     npt.assert_allclose(H_np, H_np.conj().transpose())  # make sure we generated a hermitian operator
 
@@ -173,7 +173,7 @@ def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
         with pytest.raises(AssertionError, match='not a square matrix shape'):
             H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
         return
-    
+
     H = tensors.SymmetricTensor.from_numpy_func(func, legs=[leg, leg.dual], backend=backend)
     H_op = sparse.TensorLinearOperator(H, which_leg=1)
 
@@ -182,7 +182,7 @@ def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
         with pytest.raises(NotImplementedError, match='should be implemented by subclass'):
             _ = H.to_numpy()
         return
-    
+
     H_np = H.to_numpy()
     E_np, psi_np = np.linalg.eig(H_np)
     if which == 'LM':
@@ -203,7 +203,7 @@ def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
         with pytest.raises(NotImplementedError, match='tdot not implemented'):
             _ = engine.run()
         return
-    
+
     (E0,), (psi0,), N = engine.run()
     print("full spectrum:", E_np)
     print("E0 = {E0:.14f} vs exact {E0_flat:.14f}".format(E0=E0, E0_flat=E0_np))

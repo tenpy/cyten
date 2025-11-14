@@ -175,7 +175,7 @@ def test_spin_spin_coupling(any_backend, np_random):
                 tensor_commuted = tensors.permute_legs(tensor, codomain=[1, 0], domain=[2, 3])
                 tensor_commuted.relabel({'p0': 'p1', 'p1': 'p0', 'p0*': 'p1*', 'p1*': 'p0*'})
                 assert tensors.almost_equal(tensor_commuted, tensor)
-            
+
             # check eigenvalues of special cases
             if check_evs:
                 if conserve in ['Sz']:

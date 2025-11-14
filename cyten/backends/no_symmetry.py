@@ -37,7 +37,7 @@ class NoSymmetryBackend(TensorBackend):
             The bool values indicate which indices of the large leg are kept for the small leg.
 
     """
-    
+
     DataCls = "Block of BlockBackend"  # is dynamically set by __init__
     can_decompose_tensors = True
 
@@ -232,7 +232,7 @@ class NoSymmetryBackend(TensorBackend):
 
     def full_data_from_mask(self, a: Mask, dtype: Dtype) -> Data:
         return self.block_backend.block_from_mask(a.data, dtype=dtype)
-    
+
     def get_device_from_data(self, a: Data) -> str:
         return self.block_backend.get_device(a)
 

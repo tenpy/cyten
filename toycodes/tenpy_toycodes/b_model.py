@@ -61,7 +61,7 @@ class TFIModel:
         Z = ct.couplings.spin_field_coupling(sites=[p], hz=2)
         I = ct.SymmetricTensor.from_eye([p.leg], labels=['p0'], backend=self.backend)
         I = ct.Coupling.from_tensor(I, [p])
-        
+
         grid = [[I.factorization[0], -self.J * XX.factorization[0], -self.g * Z.factorization[0]],
                 [None, None, XX.factorization[1]],
                 [None, None, I.factorization[0]]]

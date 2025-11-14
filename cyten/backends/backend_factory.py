@@ -39,7 +39,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
     Backends are instantiated only once and then cached. If a suitable backend instance is in
     the cache, that same instance is returned.
-    
+
     Parameters
     ----------
     symmetry : {'no_symmetry', 'abelian', 'fusion_tree'} | Symmetry

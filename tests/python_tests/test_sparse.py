@@ -83,7 +83,7 @@ def test_SumLinearOperator(make_compatible_tensor):
     # print('single operator')
     # op = sparse.SumLinearOperator(op1)
     # # check matvec correct
-    
+
     # assert almost_equal(op.matvec(vec), factor1 *  vec)
     # # check access to attributes of original_operator
     # assert op.some_weird_attribute == 'arbitrary value'
@@ -93,7 +93,7 @@ def test_SumLinearOperator(make_compatible_tensor):
     #     with pytest.raises(NotImplementedError, match='permute_legs not implemented|combine_legs not implemented'):
     #         check_to_tensor(op, vec)
     #     return  # TODO
-    
+
     # check_to_tensor(op, vec)
 
     # print('two operators')
@@ -126,7 +126,7 @@ def test_ShiftedLinearOperator(make_compatible_tensor):
         with pytest.raises(NotImplementedError, match='combine_legs not implemented'):
             check_to_tensor(op, vec)
         return  # TODO
-    
+
     check_to_tensor(op, vec)
 
 
@@ -143,7 +143,7 @@ def test_ProjectedLinearOperator(make_compatible_tensor, penalty, project_operat
         with pytest.raises(NotImplementedError, match='inner not implemented'):
             o2 = o2 - o1.inner(o2) * o1
         return  # TODO
-    
+
     o2 = o2 - o1.inner(o2) * o1
     assert (o2_norm := o2.norm()) > 0
     o2 = o2 / o2_norm
@@ -182,7 +182,7 @@ def test_NumpyArrayLinearOperator_sector(make_compatible_space, make_compatible_
         with pytest.raises(NotImplementedError, match='conj not implemented'):
             H = H + H.conj()
         return  # TODO
-    
+
     H = H + H.conj()
     #
     H_np = H.to_numpy(leg_order=['a', 'b*', 'a*', 'b'])
@@ -227,7 +227,7 @@ def test_gram_schmidt(make_compatible_tensor, num_legs, num_vecs=5, tol=1e-15):
         with pytest.raises(NotImplementedError, match='inner not implemented'):
             vecs_new = sparse.gram_schmidt(vecs_old)
         return  # TODO
-    
+
     vecs_new = sparse.gram_schmidt(vecs_old)  # rtol=tol is too small for some random spaces
     assert len(vecs_new) <= len(vecs_old)
     ovs = np.zeros((len(vecs_new), len(vecs_new)), dtype=np.complex128)

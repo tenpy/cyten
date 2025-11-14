@@ -1641,7 +1641,7 @@ def assert_braiding_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[C
             new_a2.data = new_a2.backend.scale_axis(new_a2, diag_right, leg)
 
             assert_tensors_almost_equal(new_a, new_a2, eps, eps)
-            
+
 
 def assert_clockwise_counterclockwise_trivial(a: SymmetricTensor, funcs: list[Callable],
                                               levels: list[int], eps: float):
@@ -1710,7 +1710,7 @@ def cross_check_partial_trace(ten: SymmetricTensor, pairs: list[tuple[int, int]]
     choice is implemented in `partial_trace` in the `FusionTreeBackend` by
     choosing a certain way of braiding the paired legs such that they are
     adjacent to each other.
-    
+
     Here we choose a different way to achieve this adjacency before performing
     the partial trace itself (which is again done by calling this very method
     `partial_trace`).

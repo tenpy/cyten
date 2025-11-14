@@ -39,7 +39,7 @@ class Leg(metaclass=ABCMeta):
         A boolean flag that changes when the :attr:`dual` is taken. May or may not have additional
         meaning and implications, depending on the concrete subclass of :class:`Leg`.
     """
-    
+
     def __init__(self, symmetry: Symmetry, dim: int | float, is_dual: bool):
         self.symmetry = symmetry
         self.dim = dim
@@ -1303,7 +1303,7 @@ class TensorProduct(Space):
         Secondly, we only keep track of duality with an explicit flag for :class:`Leg`s, to have
         arrows on our tensor legs. A :class:`TensorProduct` has no ``is_dual`` attribute.
     """
-    
+
     def __init__(self, factors: list[Space | LegPipe], symmetry: Symmetry = None,
                  _sector_decomposition: SectorArray = None, _multiplicities: SectorArray = None):
         self.num_factors = num_factors = len(factors)
@@ -1987,7 +1987,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
         indent = printoptions.indent * ' '
-        
+
         for mode in [(0, 0, False, show_symmetry), (0, 0, True, show_symmetry),
                      (0, 1, True, show_symmetry), (0, 2, True, show_symmetry),
                      (1, 2, True, show_symmetry), (2, 2, True, show_symmetry),
@@ -2068,7 +2068,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
     def _calc_sectors(self):
         """Helper function for :meth:`__init__`. Assumes ``LegPipe.__init__`` was called.
-        
+
         Returns the defining_sectors and related multiplicities. Also sets the some attributes.
         """
         legs_num_sectors = tuple(l.num_sectors for l in self.legs)

@@ -45,9 +45,9 @@ class TensorBackend(metaclass=ABCMeta):
     to operate on blocks. This allows the tensor backend to be agnostic of the details of these
     blocks.
     """
-    
+
     DataCls = None  # to be set by subclasses
-    
+
     can_decompose_tensors = False
     """If the decompositions (SVD, QR, EIGH, ...) can operate on many-leg tensors,
     or require legs to be combined first."""
@@ -67,7 +67,7 @@ class TensorBackend(metaclass=ABCMeta):
         Assumes that tensor is a scalar (i.e. has only one entry).
         """
         return self.data_item(a.data)
-    
+
     def test_tensor_sanity(self, a: SymmetricTensor | DiagonalTensor, is_diagonal: bool):
         """Called as part of :meth:`cyten.Tensor.test_sanity`.
 
@@ -94,7 +94,7 @@ class TensorBackend(metaclass=ABCMeta):
         return LegPipe(legs, is_dual=is_dual)
 
     # ABSTRACT METHODS
-    
+
     @abstractmethod
     def act_block_diagonal_square_matrix(self, a: SymmetricTensor,
                                          block_method: Callable[[Block], Block],
@@ -140,7 +140,7 @@ class TensorBackend(metaclass=ABCMeta):
         """Implementation of :func:`cyten.tensors.combine_legs`.
 
         Assumptions:
-        
+
         - Legs have been permuted, such that each group of legs to be combined appears contiguously
           and either entirely in the codomain or entirely in the domain
 
@@ -169,7 +169,7 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         """Assumes ``a.domain == b.codomain`` and performs contraction over those legs.
-        
+
         Assumes there is at least one open leg, i.e. the codomain of `a` and the domain of `b` are
         not both empty. Assumes both input tensors are on the same device.
         """
@@ -203,7 +203,7 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def data_item(self, a: Data | DiagonalData | MaskData) -> float | complex:
         """Assumes that data is a scalar (as defined in tensors.is_scalar).
-        
+
         Return that scalar as python float or complex
         """
         ...
@@ -257,7 +257,7 @@ class TensorBackend(metaclass=ABCMeta):
         Assumes all generated blocks are on the same device.
         """
         ...
-       
+
     @abstractmethod
     def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, tol: float | None = 1e-12
                                          ) -> DiagonalData:
@@ -274,7 +274,7 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def diagonal_tensor_to_block(self, a: DiagonalTensor) -> Block:
         """Forget about symmetry structure and convert to a single 1D block.
-        
+
         This is the diagonal of the respective non-symmetric 2D tensor.
         In the *internal* basis order of the leg.
         """
@@ -337,7 +337,7 @@ class TensorBackend(metaclass=ABCMeta):
 
         Block is in the *internal* basis order of the respective legs and the leg order is
         ``[*codomain, *reversed(domain)]``.
-        
+
         If the block is not symmetric, measured by ``allclose(a, projected, atol, rtol)``,
         where ``projected`` is `a` projected to the space of symmetric tensors, raise a ``ValueError``.
         """
@@ -427,7 +427,7 @@ class TensorBackend(metaclass=ABCMeta):
         """Get a single scalar element from a tensor.
 
         Should be equivalent to ``a.to_numpy()[tuple(idcs)].item()``.
-        
+
         Parameters
         ----------
         idcs
@@ -508,7 +508,7 @@ class TensorBackend(metaclass=ABCMeta):
         and that the large legs match.
 
         Assumes that `mask1` and `mask2` are on the same device.
-        
+
         returns ``mask_data, new_small_leg``
         """
         ...
@@ -529,7 +529,7 @@ class TensorBackend(metaclass=ABCMeta):
     def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
                                 ) -> tuple[Data, TensorProduct, TensorProduct]:
         """Contraction with the small leg of a Mask.
-        
+
         Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
         the small leg of the mask is contracted.
         Note that the mask may be an inclusion to be applied to the codomain or a projection
@@ -586,7 +586,7 @@ class TensorBackend(metaclass=ABCMeta):
         --------
         copy_data
         """
-        
+
     @abstractmethod
     def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
         ...
@@ -608,7 +608,7 @@ class TensorBackend(metaclass=ABCMeta):
     def partial_trace(self, tensor: SymmetricTensor, pairs: list[tuple[int, int]],
                       levels: list[int] | None) -> tuple[Data, TensorProduct, TensorProduct]:
         """Perform an arbitrary number of traces. Pairs are converted to leg idcs.
-        
+
         Returns ``data, codomain, domain``.
         """
         ...
@@ -721,7 +721,7 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         """Forget about symmetry structure and convert to a single block.
-        
+
         Return a block in the *internal* basis order of the respective legs,
         with leg order ``[*codomain, *reversed(domain)]``.
         """
@@ -897,7 +897,7 @@ class TensorBackend(metaclass=ABCMeta):
 
 class BlockBackend(metaclass=ABCMeta):
     """Abstract base class that defines the operation on dense blocks."""
-    
+
     svd_algorithms: list[str]  # first is default
     BlockCls = None  # to be set by subclass
 
@@ -974,7 +974,7 @@ class BlockBackend(metaclass=ABCMeta):
     def block_all(self, a) -> bool:
         """Require a boolean block. If all of its entries are True"""
         ...
-        
+
     @abstractmethod
     def allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
         ...
@@ -988,7 +988,7 @@ class BlockBackend(metaclass=ABCMeta):
     def block_any(self, a) -> bool:
         """Require a boolean block. If any of its entries are True"""
         ...
-    
+
     def apply_mask(self, block: Block, mask: Block, ax: int) -> Block:
         """Apply a mask (1D boolean block) to a block, slicing/projecting that axis"""
         idx = (slice(None, None, None),) * ax + (mask,)
@@ -1118,7 +1118,7 @@ class BlockBackend(metaclass=ABCMeta):
         """Eigenvalue decomposition of a 2D hermitian block.
 
         Return a 1D block of eigenvalues and a 2D block of eigenvectors
-        
+
         Parameters
         ----------
         block : Block
@@ -1133,7 +1133,7 @@ class BlockBackend(metaclass=ABCMeta):
         """Eigenvalues of a 2D hermitian block.
 
         Return a 1D block of eigenvalues
-        
+
         Parameters
         ----------
         block : Block
@@ -1205,7 +1205,7 @@ class BlockBackend(metaclass=ABCMeta):
 
     def is_real(self, a: Block) -> bool:
         """If the block is comprised of real numbers.
-        
+
         Complex numbers with small or zero imaginary part still cause a `False` return.
         """
         return self.cyten_dtype_map[self.get_dtype(a)].is_real
@@ -1258,7 +1258,7 @@ class BlockBackend(metaclass=ABCMeta):
     @abstractmethod
     def min(self, a: Block) -> float:
         ...
-        
+
     def mul(self, a: float | complex, b: Block) -> Block:
         return a * b
 
@@ -1406,7 +1406,7 @@ class BlockBackend(metaclass=ABCMeta):
 
     def scale_axis(self, block: Block, factors: Block, axis: int) -> Block:
         """Multiply block with the factors (a 1D block), along a given axis.
-        
+
         E.g. if block is 4D and ``axis==2`` with numpy-like broadcasting, this is would be
         ``block * factors[None, None, :, None]``.
         """
@@ -1468,7 +1468,7 @@ class BlockBackend(metaclass=ABCMeta):
     @abstractmethod
     def sum_all(self, a: Block) -> float | complex:
         """The sum of all entries of the block.
-        
+
         If the block contains boolean values, this should return the number of ``True`` entries.
         """
         ...
@@ -1535,7 +1535,7 @@ class BlockBackend(metaclass=ABCMeta):
     def get_block_mask_element(self, a: Block, large_leg_idx: int, small_leg_idx: int,
                                sum_block: int = 0) -> bool:
         """Get an element of a mask.
-        
+
         Mask elements are `True` if the entry `a[large_leg_idx]` is the `small_leg_idx`-th `True`
         in the block.
 
@@ -1575,7 +1575,7 @@ class BlockBackend(metaclass=ABCMeta):
     def matrix_lq(self, a: Block, full: bool) -> tuple[Block, Block]:
         q, r = self.matrix_qr(self.permute_axes(a, [1, 0]), full=full)
         return self.permute_axes(r, [1, 0]), self.permute_axes(q, [1, 0])
-    
+
     @abstractmethod
     def matrix_qr(self, a: Block, full: bool) -> tuple[Block, Block]:
         """QR decomposition of a 2D block"""

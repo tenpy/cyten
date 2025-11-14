@@ -38,7 +38,7 @@ class TorchBlockBackend(BlockBackend):
         }
         self.BlockCls = torch.Tensor
         super().__init__(default_device=default_device)
-    
+
     def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
                  ) -> Block:
         # TODO good error handling if a device does not support a given dtype
@@ -72,7 +72,7 @@ class TorchBlockBackend(BlockBackend):
 
     def block_all(self, a) -> bool:
         return torch_module.all(a)
-        
+
     def allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
         a = torch_module.as_tensor(a)
         b = torch_module.as_tensor(b)
@@ -114,7 +114,7 @@ class TorchBlockBackend(BlockBackend):
             perm = self.argsort(w, sort)
             w = w[perm]
         return w
-    
+
     def enlarge_leg(self, block: Block, mask: Block, axis: int) -> Block:
         shape = list(block.shape)
         shape[axis] = len(mask)
@@ -123,7 +123,7 @@ class TorchBlockBackend(BlockBackend):
         idcs[axis] = mask
         res[tuple(idcs)] = self.copy_block(block)  # OPTIMIZE copy needed?
         return res
-    
+
     def exp(self, a: Block) -> Block:
         return torch_module.exp(a)
 
@@ -182,7 +182,7 @@ class TorchBlockBackend(BlockBackend):
 
     def max(self, a: Block) -> float | complex:
         return self.item(torch_module.max(a))
-    
+
     def max_abs(self, a: Block) -> float:
         return self.item(torch_module.max(torch_module.abs(a)))
 
@@ -194,7 +194,7 @@ class TorchBlockBackend(BlockBackend):
         if axis is None:
             res = self.item(res)
         return res
-    
+
     def outer(self, a: Block, b: Block) -> Block:
         a, b = self.to_same_dtype(a, b, at_least=torch_module.float16)
         return torch_module.tensordot(a, b, ([], []))
