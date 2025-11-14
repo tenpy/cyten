@@ -6,8 +6,9 @@ We therefore consider them part of a linting routine and do *not* call them from
 """
 # Copyright (C) TeNPy Developers, Apache license
 
-import cyten
 import os
+
+import cyten
 
 
 def main():

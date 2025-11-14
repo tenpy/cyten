@@ -1,21 +1,24 @@
 """Miscellaneous tools, somewhat random mix yet often helpful."""
 # Copyright (C) TeNPy Developers, Apache license
 
-import numpy as np
 import warnings
-from typing import TypeVar, Sequence, Set, Generator
+from collections.abc import Generator, Sequence
+from typing import TypeVar
 
+import numpy as np
 
 UNSPECIFIED = object()  # sentinel, also used elsewhere
 _T = TypeVar('_T')  # used in typing some functions
 _MAX_INT = np.iinfo(int).max
 
 
-def duplicate_entries(seq: Sequence[_T], ignore: Sequence[_T] = []) -> Set[_T]:
-    return set(ele for idx, ele in enumerate(seq) if ele in seq[idx + 1:] and ele not in ignore)
+def duplicate_entries(seq: Sequence[_T], ignore: Sequence[_T] = []) -> set[_T]:
+    """The duplicate entries in a sequence, with exceptions from `ignore`."""
+    return set(ele for idx, ele in enumerate(seq) if ele in seq[idx + 1 :] and ele not in ignore)
 
 
 def is_iterable(a):
+    """If the given object is iterable."""
     try:
         iter(a)
     except TypeError:
@@ -62,6 +65,7 @@ def permutation_as_swaps(permutation: list[int]) -> Generator[int, None, None]:
     j : int
         Represents a swap of ``j <-> j + 1``, i.e. the permutation
         ``[*range(j), j + 1, j, *range(j + 2, len(permutation))]``.
+
     """
     N = len(permutation)
     if set(permutation) != set(range(N)):
@@ -73,7 +77,7 @@ def permutation_as_swaps(permutation: list[int]) -> Generator[int, None, None]:
         yield from reversed(range(target_pos, current_pos))
         # update current positions: build the permutation we just yielded as swaps
         perm = np.arange(N)
-        perm[target_pos:current_pos + 1] = np.roll(perm[target_pos:current_pos + 1], -1)
+        perm[target_pos : current_pos + 1] = np.roll(perm[target_pos : current_pos + 1], -1)
         current_positions = perm[current_positions]
     return
 
@@ -114,6 +118,7 @@ def argsort(a, sort=None, **kwargs):
     -------
     index_array : ndarray, int
         Same shape as `a`, such that ``a[index_array]`` is sorted in the specified way.
+
     """
     if sort is not None:
         if sort == 'm<' or sort == 'SM':
@@ -129,7 +134,7 @@ def argsort(a, sort=None, **kwargs):
         elif sort == 'LI':
             a = -np.imag(a)
         else:
-            raise ValueError("unknown sort option " + repr(sort))
+            raise ValueError('unknown sort option ' + repr(sort))
     return np.argsort(a, **kwargs)
 
 
@@ -169,6 +174,7 @@ def inverse_permutation(perm):
     -----
     For permutations, this is equivalent to ``numpy.argsort``, but has ``O(N)`` complexity instead
     of ``O(N log(N))``.
+
     """
     perm = np.asarray(perm, dtype=np.intp)
     inv_perm = np.empty_like(perm)
@@ -199,6 +205,7 @@ def rank_data(a, stable=True):
         For equal elements ``a[i] == a[j]``, and only if `stable`, we have ``ranks[i] > ranks[j]``
         iff ``i > j``. Otherwise the relative ranks are arbitrary.
         The result is a permutation of ``range(len(a))``.
+
     """
     # basically np.argsort(np.argsort(a)),
     # but use same trick as inverse_permutation for the outer argsort call
@@ -210,12 +217,15 @@ def rank_data(a, stable=True):
 
 # np_argsort : depending on numpy version
 if int(np.version.version.split('.')[0]) >= 2:
+
     def np_argsort(a, stable=True):
         """Wrapper around np.argsort, using the ``stable`` kwarg if available"""
         return np.argsort(a, stable=stable)
 
 else:
+
     def np_argsort(a, stable=True):
+        """Wrapper around np.argsort, using the ``stable`` kwarg if available"""
         if stable:
             return np.argsort(a, kind='stable')
         return np.argsort(a)
@@ -253,6 +263,7 @@ def make_grid(shape, cstyle=True) -> np.ndarray:
     Parameters
     ----------
     shape : sequence of int
+        The shape of a tensor or the maximum values for the individual indices.
     cstyle : bool
         If the resulting grid should be in C-style order (varying the last index the fastest),
         or in F-style order (varying the first index the fastest).
@@ -275,9 +286,8 @@ def make_grid(shape, cstyle=True) -> np.ndarray:
             [0, 0, 0, 1],
             [0, 0, 0, 2],
             [0, 1, 0, 0],
-            ...
-            [3, 4, 1, 1],
-            [3, 4, 1, 2]
+            ...[3, 4, 1, 1],
+            [3, 4, 1, 2],
         ]
 
     Or for F-style we have::
@@ -288,9 +298,8 @@ def make_grid(shape, cstyle=True) -> np.ndarray:
             [2, 0, 0, 0],
             [3, 0, 0, 0],
             [0, 1, 0, 0],
-            ...
-            [2, 4, 1, 2],
-            [3, 4, 1, 2]
+            ...[2, 4, 1, 2],
+            [3, 4, 1, 2],
         ]
 
     """
@@ -316,6 +325,7 @@ def list_to_dict_list(l):
         A dictionary with (key, value) pairs ``(key):[i1,i2,...]``
         where ``i1, i2, ...`` are the indices where `key` is found in `l`:
         i.e. ``key == tuple(l[i1]) == tuple(l[i2]) == ...``
+
     """
     d = {}
     for i, r in enumerate(l):
@@ -342,6 +352,7 @@ def find_row_differences(sectors, include_len: bool = False):
     diffs: 1D array
         The indices where rows change, including the first and last. Equivalent to:
         ``[0] + [i for i in range(1, len(sectors)) if np.any(sectors[i-1] != sectors[i])]``
+
     """
     # note: by default remove last entry [len(sectors)] compared to old.charges
     len_sectors = len(sectors)
@@ -494,27 +505,30 @@ def find_subclass(base_class, subclass_name):
     Raises
     ------
     ValueError: When no or multiple subclasses of `base_class` exists with that `subclass_name`.
+
     """
     if not isinstance(subclass_name, str):
         subclass = subclass_name
         if not isinstance(subclass, type):
-            raise TypeError("expect a str or class for `subclass_name`, got " + repr(subclass))
+            raise TypeError('expect a str or class for `subclass_name`, got ' + repr(subclass))
         if not issubclass(subclass, base_class):
             # still allow it: might intend duck-typing. However, a warning should be raised!
-            warnings.warn(f"find_subclass: {subclass!r} is not subclass of {base_class!r}")
+            warnings.warn(f'find_subclass: {subclass!r} is not subclass of {base_class!r}')
         return subclass
     found = set()
     _find_subclass_recursion(base_class, subclass_name, found, set())
     if len(found) == 0:
-        raise ValueError(f"No subclass of {base_class.__name__} called {subclass_name!r} defined. "
-                         "Maybe missing an import of a file with a custom class definition?")
+        raise ValueError(
+            f'No subclass of {base_class.__name__} called {subclass_name!r} defined. '
+            'Maybe missing an import of a file with a custom class definition?'
+        )
     elif len(found) == 1:
         return found.pop()
     else:
         found_not_deprecated = [c for c in found if not getattr(c, 'deprecated', False)]
         if len(found_not_deprecated) == 1:
             return found_not_deprecated[0]
-        msg = f"There exist multiple subclasses of {base_class!r} with name {subclass_name!r}:"
+        msg = f'There exist multiple subclasses of {base_class!r} with name {subclass_name!r}:'
         raise ValueError('\n'.join([msg] + [repr(c) for c in found]))
 
 

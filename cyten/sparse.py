@@ -10,17 +10,20 @@ to convert flat numpy arrays to and from cyten tensors.
 # Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
+
+import warnings
 from abc import ABCMeta, abstractmethod
 from numbers import Number
-import warnings
 from typing import Literal
-import numpy as np
-from scipy.sparse.linalg import LinearOperator as ScipyLinearOperator, ArpackNoConvergence
 
-from .spaces import Space, TensorProduct, Sector
-from .tensors import Tensor, SymmetricTensor, ChargedTensor, combine_legs
+import numpy as np
+from scipy.sparse.linalg import ArpackNoConvergence
+from scipy.sparse.linalg import LinearOperator as ScipyLinearOperator
+
 from .backends.abstract_backend import TensorBackend
 from .dtypes import Dtype
+from .spaces import Sector, Space, TensorProduct
+from .tensors import ChargedTensor, SymmetricTensor, Tensor, combine_legs
 from .tools.math import speigs, speigsh
 from .tools.misc import argsort
 
@@ -36,10 +39,11 @@ class LinearOperator(metaclass=ABCMeta):
         The dtype of a full representation of the operator
     acts_on : list of str
         Labels of the state on which the operator can act. NB: Class attribute.
+
     """
-    
+
     acts_on = None  # Derived classes should set this as a class attribute
-    
+
     def __init__(self, vector_shape, dtype: Dtype):  # TODO Shape removed
         self.vector_shape = vector_shape
         self.dtype = dtype
@@ -57,12 +61,13 @@ class LinearOperator(metaclass=ABCMeta):
     @abstractmethod
     def to_tensor(self, **kw) -> Tensor:
         """Compute a full tensor representation of the linear operator.
-        
+
         Returns
         -------
         A tensor `t` with ``2 * N`` legs ``[a1, a2, ..., aN, aN*, ..., a2*, a1*]``, where
         ``[a1, a2, ..., aN]`` are the legs of the vectors this operator acts on.
         S.t. ``self.matvec(vec)`` is equivalent to ``tdot(t, vec, [N, ..., 2*N-1], [N-1,...,0])``.
+
         """
         ...
 
@@ -78,7 +83,7 @@ class LinearOperator(metaclass=ABCMeta):
         If `self` is hermitian, subclasses *can* choose to implement this to define
         the adjoint operator of `self` to be `self`.
         """
-        raise NotImplementedError("No adjoint defined")
+        raise NotImplementedError('No adjoint defined')
 
 
 class TensorLinearOperator(LinearOperator):
@@ -95,7 +100,7 @@ class TensorLinearOperator(LinearOperator):
     which_legs : int or str
         Which leg of `tensor` is to be contracted on matvec.
     """
-    
+
     def __init__(self, tensor: SymmetricTensor, which_leg: int | str = -1):
         if tensor.num_legs > 2:
             raise ValueError('Expected a two-leg tensor')
@@ -141,8 +146,9 @@ class LinearOperatorWrapper(LinearOperator):
     ----------
     original_operator : :class:`LinearOperator`
         The original operator implementing the `matvec`.
+
     """
-    
+
     def __init__(self, original_operator: LinearOperator):
         self.original_operator = original_operator
         # TODO (JU) should we call LinearOperator.__init__ or super().__init__ here?
@@ -173,7 +179,7 @@ class LinearOperatorWrapper(LinearOperator):
 
 class SumLinearOperator(LinearOperatorWrapper):
     """The sum of multiple operators"""
-    
+
     def __init__(self, original_operator: LinearOperator, *more_operators: LinearOperator):
         super().__init__(original_operator=original_operator)
         assert all(op.vector_shape == original_operator.vector_shape for op in more_operators)
@@ -184,12 +190,10 @@ class SumLinearOperator(LinearOperatorWrapper):
         return sum((op.matvec(vec) for op in self.more_operators), self.original_operator.matvec(vec))
 
     def to_tensor(self, **kw) -> Tensor:
-        return sum((op.to_tensor(**kw) for op in self.more_operators),
-                   self.original_operator.to_tensor(**kw))
+        return sum((op.to_tensor(**kw) for op in self.more_operators), self.original_operator.to_tensor(**kw))
 
     def adjoint(self) -> LinearOperator:
-        return SumLinearOperator(self.original_operator.adjoint(),
-                                 *(op.adjoint() for op in self.more_operators))
+        return SumLinearOperator(self.original_operator.adjoint(), *(op.adjoint() for op in self.more_operators))
 
 
 class ShiftedLinearOperator(LinearOperatorWrapper):
@@ -197,9 +201,9 @@ class ShiftedLinearOperator(LinearOperatorWrapper):
 
     This can be useful e.g. for better Lanczos convergence.
     """
-    
+
     def __init__(self, original_operator: LinearOperator, shift: Number):
-        if shift in [0, 0.]:
+        if shift in [0, 0.0]:
             warnings.warn('shift=0: no need for ShiftedLinearOperator', stacklevel=2)
         super().__init__(original_operator=original_operator)
         self.shift = shift
@@ -214,8 +218,7 @@ class ShiftedLinearOperator(LinearOperatorWrapper):
     #     return res + self.shift * eye_like(res)
 
     def adjoint(self):
-        return ShiftedLinearOperator(original_operator=self.original_operator.adjoint(),
-                                     shift=np.conj(self.shift))
+        return ShiftedLinearOperator(original_operator=self.original_operator.adjoint(), shift=np.conj(self.shift))
 
 
 class ProjectedLinearOperator(LinearOperatorWrapper):
@@ -223,11 +226,11 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
 
     The projector ``P = 1 - sum_o |o> <o|`` is given in terms of a set :attr:`ortho_vecs` of vectors
     ``|o>``.
-    
+
     The result is that all vectors from the subspace spanned by the :attr:`ortho_vecs` are eigenvectors
     with eigenvalue `penalty`, while the eigensystem in the "rest" (i.e. in the orthogonal complement
     to that subspace) remains unchanged.
-    
+
     This can be used to exclude the :attr:`ortho_vecs` from extremal eigensolvers, i.e. to find
     the extremal eigenvectors among those that are orthogonal to the :attr:`ortho_vecs`.
     In previous versions of tenpy, this behavior was achieved by an argument called `orthogonal_to`.
@@ -251,15 +254,20 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
         and ``H + penalty * (1 - P)`` is represented instead.
     penalty : complex, optional
         See summary above. Defaults to ``None``, which is equivalent to ``0.``.
+
     """
-    
-    def __init__(self, original_operator: LinearOperator, ortho_vecs: list[Tensor],
-                 project_operator: bool = True, penalty: Number = None):
+
+    def __init__(
+        self,
+        original_operator: LinearOperator,
+        ortho_vecs: list[Tensor],
+        project_operator: bool = True,
+        penalty: Number = None,
+    ):
         if len(ortho_vecs) == 0:
             warnings.warn('empty ortho_vecs: no need for ProjectedLinearOperator', stacklevel=2)
         if not project_operator and penalty is None:
-            warnings.warn('project_operator=False and penalty=None means '
-                          'ProjectedLinearOperator does not do anything')
+            warnings.warn('project_operator=False and penalty=None means ProjectedLinearOperator does not do anything')
         super().__init__(original_operator=original_operator)
         assert all(v.shape == original_operator.vector_shape for v in ortho_vecs)
         self.ortho_vecs = gram_schmidt(ortho_vecs)
@@ -310,12 +318,12 @@ class ProjectedLinearOperator(LinearOperatorWrapper):
         # if self.penalty is not None:
         #     res = res + self.penalty * P_ortho
         # return res
-        
+
     def adjoint(self) -> LinearOperator:
         return ProjectedLinearOperator(
             original_operator=self.original_operator.adjoint(),
             ortho_vecs=self.ortho_vecs,  # hc(|o> <o|) = |o> <o|  ->  can use same ortho_vecs
-            penalty=None if self.penalty is None else np.conj(self.penalty)
+            penalty=None if self.penalty is None else np.conj(self.penalty),
         )
 
 
@@ -327,7 +335,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
     Parameters
     ----------
     cyten_matvec : callable
-        Function with signature ``cyten_matvec(vec: Tensor) -> Tensor`.
+        Function with signature ``cyten_matvec(vec: Tensor) -> Tensor``.
         Has to return a tensor with the same legs and has to be linear.
         Unless `labels` are given, the leg order of the output must be the same as for the input.
     legs : list of :class:`~cyten.spaces.ElementarySpace`
@@ -346,7 +354,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
     Attributes
     ----------
     cyten_matvec : callable
-        Function with signature ``cyten_matvec(vec: Tensor) -> Tensor`.
+        Function with signature ``cyten_matvec(vec: Tensor) -> Tensor``.
     legs : list of :class:`~cyten.spaces.Space`
         The legs of a Tensor that `cyten_matvec` can act on.
     backend : :class:`~cyten.backends.abstract_backend.Backend`
@@ -370,11 +378,18 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         The symmetry of all involved spaces
     shape : (int, int)
         The shape of self as an operator on 1D numpy arrays
+
     """
-    
-    def __init__(self, cyten_matvec, legs: TensorProduct | list[Space], backend: TensorBackend, dtype,
-                 labels: list[str] = None,
-                 charge_sector: None | Sector | Literal['trivial'] = 'trivial'):
+
+    def __init__(
+        self,
+        cyten_matvec,
+        legs: TensorProduct | list[Space],
+        backend: TensorBackend,
+        dtype,
+        labels: list[str] = None,
+        charge_sector: None | Sector | Literal['trivial'] = 'trivial',
+    ):
         self.cyten_matvec = cyten_matvec
         self.legs = legs
         self.backend = backend
@@ -398,9 +413,13 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         ScipyLinearOperator.__init__(self, dtype=dtype, shape=self.shape)
 
     @classmethod
-    def from_Tensor(cls, tensor: SymmetricTensor, legs1: list[int | str], legs2: list[int | str],
-                    charge_sector: None | Sector | Literal['trivial'] = 'trivial'
-                    ) -> NumpyArrayLinearOperator:
+    def from_Tensor(
+        cls,
+        tensor: SymmetricTensor,
+        legs1: list[int | str],
+        legs2: list[int | str],
+        charge_sector: None | Sector | Literal['trivial'] = 'trivial',
+    ) -> NumpyArrayLinearOperator:
         """Create a :class:`NumpyArrayLinearOperator` from a tensor that acts via contraction (`tdot`).
 
         The `cyten_matvec` acting on ``vec`` is given by ``tdot(tensor, vec, legs1, legs2)``.
@@ -417,6 +436,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             If given, only the specified charge sector is considered.
             If ``'trivial'`` is given, the trivial sector of the symmetry is used.
             ``None`` stands for *all* sectors.
+
         """
         idcs1 = tensor.get_leg_idcs(legs1)
         tensor_contr_legs = [tensor.legs[idx] for idx in idcs1]
@@ -438,13 +458,19 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         def cyten_matvec(vec):
             return tensor.tdot(vec, legs1, legs2)
 
-        return cls(cyten_matvec, legs=vec_contr_legs, backend=tensor.backend,
-                   dtype=tensor.dtype.to_numpy_dtype(), labels=res_labels,
-                   charge_sector=charge_sector)
+        return cls(
+            cyten_matvec,
+            legs=vec_contr_legs,
+            backend=tensor.backend,
+            dtype=tensor.dtype.to_numpy_dtype(),
+            labels=res_labels,
+            charge_sector=charge_sector,
+        )
 
     @classmethod
-    def from_matvec_and_vector(cls, cyten_matvec, vector: Tensor, dtype=None
-                               ) -> tuple[NumpyArrayLinearOperator, np.ndarray]:
+    def from_matvec_and_vector(
+        cls, cyten_matvec, vector: Tensor, dtype=None
+    ) -> tuple[NumpyArrayLinearOperator, np.ndarray]:
         """Create a :class:`NumpyArrayLinearOperator` from a matvec and a vector that it can act on.
 
         This is a convenience wrapper around the constructor where arguments are inferred
@@ -456,7 +482,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         Parameters
         ----------
         cyten_matvec : callable
-            Function with signature ``cyten_matvec(vec: Tensor) -> Tensor`.
+            Function with signature ``cyten_matvec(vec: Tensor) -> Tensor``.
             Has to return a tensor with the same leg and has to be linear.
         vector : :class:`~cyten.tensors.Tensor` | :class:`~cyten.tensors.ChargedTensor`
             A tensor that `cyten_matvec` can act on.
@@ -472,6 +498,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             The resulting operator
         vec_flat : 1D ndarray
             Flat numpy vector representing `vector` within its charge sector.
+
         """
         if isinstance(vector, ChargedTensor):
             assert vector.dummy_leg.num_sectors == 1 and vector.dummy_leg.multiplicities[0] == 1
@@ -483,7 +510,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         op = cls(cyten_matvec, legs=vector.legs, backend=vector.backend, dtype=dtype, charge_sector=sector)
         vec_flat = op.tensor_to_flat_array(vector)
         return op, vec_flat
-        
+
     @property
     def charge_sector(self):
         return self._charge_sector
@@ -521,6 +548,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         -------
         matvec_vec : 1D ndarray
             The result of the linear operation as a length ``N`` vector
+
         """
         vec = np.asarray(vec)
         if vec.ndim != 1:  # convert Nx1 matrix to vector
@@ -551,8 +579,10 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             res = tens.split_legs(0)
         else:
             tens = ChargedTensor.from_dense_block_single_sector(
-                leg=self.domain, block=self.backend.block_from_numpy(vec), sector=self._charge_sector,
-                backend=self.backend
+                leg=self.domain,
+                block=self.backend.block_from_numpy(vec),
+                sector=self._charge_sector,
+                backend=self.backend,
             )
             res = tens.split_legs(0)
         if self.labels is not None:
@@ -577,9 +607,18 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
         assert res.shape == (self.shape[0],)
         return res
 
-    def eigenvectors(self, num_ev: int = 1, max_num_ev: int = None, max_tol: float = 1.e-12,
-                     which: str = 'LM', v0_np: np.ndarray = None, v0_tensor: Tensor = None,
-                     cutoff: float = 1.e-10, hermitian: bool = False, **kwargs):
+    def eigenvectors(
+        self,
+        num_ev: int = 1,
+        max_num_ev: int = None,
+        max_tol: float = 1.0e-12,
+        which: str = 'LM',
+        v0_np: np.ndarray = None,
+        v0_tensor: Tensor = None,
+        cutoff: float = 1.0e-10,
+        hermitian: bool = False,
+        **kwargs,
+    ):
         """Find the (dominant) eigenvector(s) of self using :func:`scipy.sparse.linalg.eigs`.
 
         If a charge_sector was specified, these are the dominant eigenvectors *within that sector*.
@@ -619,6 +658,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             The eigenvalues, sorted according to `which`.
         w : list of :class:`~cyten.tensors.Tensor` or :class:`~cyten.tensors.ChargedTensor`
             The corresponding eigenvectors as tensors.
+
         """
         if max_num_ev is None:
             max_num_ev = num_ev + 2
@@ -627,7 +667,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
             v0_np = self.tensor_to_flat_array(v0_tensor)
         if v0_np is not None:
             kwargs['v0'] = v0_np
-            
+
         for k in range(num_ev, max_num_ev + 1):
             if k > num_ev:
                 warnings.warn(f'Increasing `num_ev` to {k}')
@@ -641,7 +681,7 @@ class NumpyArrayLinearOperator(ScipyLinearOperator):
                 if k == max_num_ev:
                     raise
             kwargs['tol'] = max(max_tol, kwargs.get('tol', 0))
-        cutoff = max(cutoff, 10 * kwargs.get('tol', 1.e-16))
+        cutoff = max(cutoff, 10 * kwargs.get('tol', 1.0e-16))
         A = np.real_if_close(A)
 
         if self._charge_sector is not None:
@@ -659,16 +699,16 @@ class HermitianNumpyArrayLinearOperator(NumpyArrayLinearOperator):
 
     Note that we don't check hermicity of :meth:`matvec`.
     """
-    
+
     def _adjoint(self):
         return self
 
     def eigenvectors(self, *args, **kwargs):
         kwargs['hermitian'] = True
         return NumpyArrayLinearOperator.eigenvectors(self, *args, **kwargs)
-        
-        
-def gram_schmidt(vecs: list[Tensor], rcond=1.e-14) -> list[Tensor]:
+
+
+def gram_schmidt(vecs: list[Tensor], rcond=1.0e-14) -> list[Tensor]:
     """Gram-Schmidt orthonormalization of a list of tensors.
 
     Parameters
@@ -682,6 +722,7 @@ def gram_schmidt(vecs: list[Tensor], rcond=1.e-14) -> list[Tensor]:
     -------
     list of :class:`~cyten.tensors.Tensor`
         A list of orthonormal vectors which span the same space as `vecs`.
+
     """
     res = []
     for vec in vecs:
@@ -690,5 +731,5 @@ def gram_schmidt(vecs: list[Tensor], rcond=1.e-14) -> list[Tensor]:
             vec = vec - ov * other
         n = vec.norm()
         if n > rcond:
-            res.append(vec.multiply_scalar(1. / n))
+            res.append(vec.multiply_scalar(1.0 / n))
     return res

@@ -24,7 +24,7 @@ np_random                      -                       A numpy random Generator.
 -----------------------------  ----------------------  -------------------------------------------
 block_backend                  Generates ~2 cases      Goes over all block backends, as str
                                                        descriptions, valid for ``get_backend``.
-=============================  ======================  ===========================================
+-----------------------------  ----------------------  -------------------------------------------
 any_symmetry_backend           Generates 3 cases       Goes over all symmetry backends, as str
                                                        descriptions, valid for ``get_backend``.
 -----------------------------  ----------------------  -------------------------------------------
@@ -42,7 +42,7 @@ make_any_space                 any_symmetry            RNG for spaces with ``any
 -----------------------------  ----------------------  -------------------------------------------
 make_any_block                 any_backend             RNG for blocks of ``any_backend``.
                                                        ``make(size, real=False)``
-=============================  ======================  ===========================================
+-----------------------------  ----------------------  -------------------------------------------
 compatible_pairs               Generates ~20 cases     Not a public fixture, only generates
                                                        the cases. Compatible pairs are built like
                                                        combinations of ``any_symmetry_backend``
@@ -142,30 +142,25 @@ where the symmetry is determined by the fixtures (e.g. because ``make_compatible
 and the tensor cls comes from a parametrize with argname ``cls``.
 
 """
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
+
 import numpy as np
 import pytest
 
-from cyten import backends, spaces, symmetries, tensors, Dtype
+from cyten import Dtype, backends, spaces, symmetries, tensors
 from cyten.testing import random_block, random_ElementarySpace, random_symmetry_sectors, random_tensor
-
 
 # OVERRIDE pytest routines
 
+
 def pytest_addoption(parser):
-    parser.addoption(
-        '--block-backends', action='store', default='numpy',
-        help=f'Comma separated block-backend names'
-    )
-    parser.addoption(
-        '--rng-seed', action='store', default=12345, type=int,
-        help=f'The rng seed'
-    )
+    parser.addoption('--block-backends', action='store', default='numpy', help=f'Comma separated block-backend names')
+    parser.addoption('--rng-seed', action='store', default=12345, type=int, help=f'The rng seed')
 
 
 def pytest_collection_modifyitems(config, items):
-
     # deselection logic:
     removed = []
     kept = []
@@ -202,7 +197,7 @@ _symmetries = {
     # groups:
     'NoSymm': symmetries.no_symmetry,
     'U1': symmetries.u1_symmetry,
-    'Z4_named': symmetries.ZNSymmetry(4, "My_Z4_symmetry"),
+    'Z4_named': symmetries.ZNSymmetry(4, 'My_Z4_symmetry'),
     'U1xZ3': symmetries.ProductSymmetry([symmetries.u1_symmetry, symmetries.z3_symmetry]),
     'SU2': symmetries.SU2Symmetry(),
     # anyons:
@@ -214,6 +209,7 @@ _symmetries = {
 
 
 # "UNCONSTRAINED" FIXTURES  ->  independent (mostly) of the other features. no compatibility guarantees.
+
 
 @pytest.fixture
 def np_random(request) -> np.random.Generator:
@@ -237,14 +233,18 @@ def any_backend(block_backend, any_symmetry_backend) -> backends.TensorBackend:
     return backends.backend_factory.get_backend(any_symmetry_backend, block_backend)
 
 
-@pytest.fixture(params=[s for s in _symmetries.values() if isinstance(s, symmetries.AbelianGroup)],
-                ids=[k for k, s in _symmetries.items() if isinstance(s, symmetries.AbelianGroup)])
+@pytest.fixture(
+    params=[s for s in _symmetries.values() if isinstance(s, symmetries.AbelianGroup)],
+    ids=[k for k, s in _symmetries.items() if isinstance(s, symmetries.AbelianGroup)],
+)
 def abelian_group_symmetry(request) -> symmetries.Symmetry:
     return request.param
 
 
-@pytest.fixture(params=[s for s in _symmetries.values() if s.can_be_dropped],
-                ids=[k for k, s in _symmetries.items() if s.can_be_dropped])
+@pytest.fixture(
+    params=[s for s in _symmetries.values() if s.can_be_dropped],
+    ids=[k for k, s in _symmetries.items() if s.can_be_dropped],
+)
 def any_symmetry_that_can_be_dropped(request) -> symmetries.Symmetry:
     return request.param
 
@@ -260,6 +260,7 @@ def make_any_sectors(any_symmetry, np_random):
     def make(num: int, sort: bool = False) -> symmetries.SectorArray:
         # return SectorArray
         return random_symmetry_sectors(any_symmetry, num, sort, np_random=np_random)
+
     return make
 
 
@@ -268,6 +269,7 @@ def make_any_space(any_symmetry, np_random):
     def make(max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None) -> spaces.ElementarySpace:
         # return ElementarySpace
         return random_ElementarySpace(any_symmetry, max_sectors, max_mult, is_dual, np_random=np_random)
+
     return make
 
 
@@ -276,6 +278,7 @@ def make_any_block(any_backend, np_random):
     def make(size: tuple[int, ...], real=False) -> backends.Block:
         # return Block
         return random_block(any_backend.block_backend, size, real=real, np_random=np_random)
+
     return make
 
 
@@ -323,16 +326,20 @@ def make_compatible_sectors(compatible_symmetry, np_random):
     def make(num: int, sort: bool = False) -> symmetries.SectorArray:
         # returns SectorArray
         return random_symmetry_sectors(compatible_symmetry, num, sort, np_random=np_random)
+
     return make
 
 
 @pytest.fixture
 def make_compatible_space(compatible_symmetry, np_random):
-    def make(max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None,
-             allow_basis_perm: bool = True) -> spaces.ElementarySpace:
+    def make(
+        max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None, allow_basis_perm: bool = True
+    ) -> spaces.ElementarySpace:
         # returns ElementarySpace
-        return random_ElementarySpace(compatible_symmetry, max_sectors, max_mult, is_dual,
-                                      allow_basis_perm=allow_basis_perm, np_random=np_random)
+        return random_ElementarySpace(
+            compatible_symmetry, max_sectors, max_mult, is_dual, allow_basis_perm=allow_basis_perm, np_random=np_random
+        )
+
     return make
 
 
@@ -341,23 +348,47 @@ def make_compatible_block(compatible_backend, np_random):
     def make(size: tuple[int, ...], real: bool = False) -> backends.Block:
         # returns Block
         return random_block(compatible_backend.block_backend, size, real=real, np_random=np_random)
+
     return make
 
 
 @pytest.fixture
 def make_compatible_tensor(compatible_backend, compatible_symmetry, np_random):
     """Tensor RNG."""
-    def make(codomain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
-             domain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
-             labels: list[str | None] = None, dtype: Dtype = None, device: str = None,
-             *,
-             like: tensors.Tensor = None, max_blocks=5, max_block_size=5, empty_ok=False,
-             all_blocks=False, cls=tensors.SymmetricTensor, allow_basis_perm: bool = True,
-             use_pipes: bool | float = 0.3):
+
+    def make(
+        codomain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
+        domain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
+        labels: list[str | None] = None,
+        dtype: Dtype = None,
+        device: str = None,
+        *,
+        like: tensors.Tensor = None,
+        max_blocks=5,
+        max_block_size=5,
+        empty_ok=False,
+        all_blocks=False,
+        cls=tensors.SymmetricTensor,
+        allow_basis_perm: bool = True,
+        use_pipes: bool | float = 0.3,
+    ):
         return random_tensor(
-            symmetry=compatible_symmetry, codomain=codomain, domain=domain, labels=labels,
-            dtype=dtype, backend=compatible_backend, device=device, like=like, max_blocks=max_blocks,
-            max_multiplicity=max_block_size, empty_ok=empty_ok, all_blocks=all_blocks, cls=cls,
-            allow_basis_perm=allow_basis_perm, use_pipes=use_pipes, np_random=np_random
+            symmetry=compatible_symmetry,
+            codomain=codomain,
+            domain=domain,
+            labels=labels,
+            dtype=dtype,
+            backend=compatible_backend,
+            device=device,
+            like=like,
+            max_blocks=max_blocks,
+            max_multiplicity=max_block_size,
+            empty_ok=empty_ok,
+            all_blocks=all_blocks,
+            cls=cls,
+            allow_basis_perm=allow_basis_perm,
+            use_pipes=use_pipes,
+            np_random=np_random,
         )
+
     return make

@@ -16,7 +16,7 @@ If you don't have conda, but you have `pip <https://pip.pypa.io>`_, you can::
 Building from source
 ++++++++++++++++++++
 
-To build cyten locally on your machine, install the following requirements 
+To build cyten locally on your machine, install the following requirements
 (currently only tested on standard linux distros like ubuntu - no Windows support yet, use WSL):
 
 - C++ compiler with at least C++17 standard  (can be installed manually with `conda install -c conda-forge compilers` if needed)
@@ -43,4 +43,3 @@ For a debug build, you can even enable automatic rebuild upon python import:
 ```
 pip install -v --no-build-isolation -C editable.rebuild=true -e .
 ```
-

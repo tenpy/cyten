@@ -1,16 +1,15 @@
 # Copyright (C) TeNPy Developers, Apache license
-import pytest
 import numpy as np
+import pytest
 from numpy import testing as npt
 
-from cyten import spaces, symmetries, trees, SymmetryError
+from cyten import SymmetryError, spaces, symmetries, trees
 from cyten.testing import random_ElementarySpace
 
 # TODO test all cases of Space.as_ElementarySpace
 
 
 def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
-
     sectors = make_any_sectors(10)
     sectors = sectors[np.lexsort(sectors.T)]
     dual_sectors = any_symmetry.dual_sectors(sectors)
@@ -50,15 +49,18 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
     assert not s1.is_trivial
     assert not s2.is_trivial
     assert spaces.ElementarySpace.from_trivial_sector(dim=1).is_trivial
-    assert spaces.ElementarySpace(symmetry=any_symmetry, defining_sectors=any_symmetry.trivial_sector[np.newaxis, :]).is_trivial
+    assert spaces.ElementarySpace(
+        symmetry=any_symmetry, defining_sectors=any_symmetry.trivial_sector[np.newaxis, :]
+    ).is_trivial
 
     print('checking is_subspace_of')
     same_sectors_less_mults = spaces.ElementarySpace(
         symmetry=any_symmetry, defining_sectors=sectors, multiplicities=[max(1, m - 1) for m in mults]
     )
     same_sectors_different_mults = spaces.ElementarySpace(
-        symmetry=any_symmetry, defining_sectors=sectors,
-        multiplicities=[max(1, m + (+1 if i % 2 == 0 else -1)) for i, m in enumerate(mults)]
+        symmetry=any_symmetry,
+        defining_sectors=sectors,
+        multiplicities=[max(1, m + (+1 if i % 2 == 0 else -1)) for i, m in enumerate(mults)],
     )  # but at least one mult is larger than for s1
     if len(sectors) > 2:
         which1 = [0, -1]
@@ -68,10 +70,12 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
         # both of which have multiple entries
         which1 = [0]
         which2 = [-1]
-    fewer_sectors1 = spaces.ElementarySpace(symmetry=any_symmetry, defining_sectors=[sectors[i] for i in which1],
-                                            multiplicities=[mults[i] for i in which1])
-    fewer_sectors2 = spaces.ElementarySpace(symmetry=any_symmetry, defining_sectors=[sectors[i] for i in which2],
-                                            multiplicities=[mults[i] for i in which2])
+    fewer_sectors1 = spaces.ElementarySpace(
+        symmetry=any_symmetry, defining_sectors=[sectors[i] for i in which1], multiplicities=[mults[i] for i in which1]
+    )
+    fewer_sectors2 = spaces.ElementarySpace(
+        symmetry=any_symmetry, defining_sectors=[sectors[i] for i in which2], multiplicities=[mults[i] for i in which2]
+    )
     assert s1.is_subspace_of(s1)
     expect_dual_is_subspace = np.all(s1.sector_decomposition == dual_sectors)
     assert s1_dual.is_subspace_of(s1) == expect_dual_is_subspace
@@ -163,17 +167,16 @@ def test_ElementarySpace_from_defining_sectors(any_symmetry, make_any_sectors, n
         basis_perm = None
     #
     # call from_defining_sectors
-    res = spaces.ElementarySpace.from_defining_sectors(symmetry=any_symmetry, defining_sectors=sectors,
-                                                       multiplicities=multiplicities, basis_perm=basis_perm)
+    res = spaces.ElementarySpace.from_defining_sectors(
+        symmetry=any_symmetry, defining_sectors=sectors, multiplicities=multiplicities, basis_perm=basis_perm
+    )
     res.test_sanity()
     #
     # check sectors and multiplicities
     expect_sectors = np.unique(sectors, axis=0)
     expect_sectors = expect_sectors[np.lexsort(expect_sectors.T)]
     mult_contributions = np.where(
-        np.all(sectors[None, :, :] == expect_sectors[:, None, :], axis=2),
-        multiplicities[None, :],
-        0
+        np.all(sectors[None, :, :] == expect_sectors[:, None, :], axis=2), multiplicities[None, :], 0
     )
     expect_mults = np.sum(mult_contributions, axis=1)
     assert np.all(res.sector_decomposition == expect_sectors)
@@ -209,8 +212,9 @@ def test_take_slice(make_any_space, any_symmetry, np_random):
         sectors = np.array([0, 1, 2, 4])[:, None]
         mults = np.array([3, 1, 2, 2])
         basis_perm = np.array([19, 20, 17, 2, 9, 16, 8, 3, 0, 4, 11, 13, 5, 15, 12, 14, 10, 7, 1, 18, 6])
-        space = spaces.ElementarySpace(any_symmetry, defining_sectors=sectors, multiplicities=mults,
-                                       basis_perm=basis_perm)
+        space = spaces.ElementarySpace(
+            any_symmetry, defining_sectors=sectors, multiplicities=mults, basis_perm=basis_perm
+        )
 
         # build an allowed and an illegal mask in the internal basis order
         keep_states = []
@@ -245,8 +249,10 @@ def test_TensorProduct(any_symmetry, make_any_space, make_any_sectors, num_space
     domain.test_sanity()
 
     for coupled in make_any_sectors(10):
-        expect1 = sum(len(trees.fusion_trees(any_symmetry, uncoupled, coupled)) * np.prod(mults)
-                      for uncoupled, mults in domain.iter_uncoupled())
+        expect1 = sum(
+            len(trees.fusion_trees(any_symmetry, uncoupled, coupled)) * np.prod(mults)
+            for uncoupled, mults in domain.iter_uncoupled()
+        )
         expect2 = sum(domain.forest_block_size(uncoupled, coupled) for uncoupled, _ in domain.iter_uncoupled())
         res = domain.block_size(coupled)
         assert res == expect1
@@ -307,9 +313,19 @@ def test_TensorProduct_SU2():
     # 7/2   0   18*3                                       54
     # 7/2 3/2   18*1                       18        18        18        18
     # 7/2 1/2   18*2                                 36        36
-    expect_mults = [96+38, 144+39+78+51, 48+96+117+38+76+18, 39+78+114+51+102+24,
-                    48+38+76+153+18+36+18, 39+51+102+54+24+48, 38+18+36+72+18+36, 51+24+48+54,
-                    18+18+36, 24, 18]
+    expect_mults = [
+        96 + 38,
+        144 + 39 + 78 + 51,
+        48 + 96 + 117 + 38 + 76 + 18,
+        39 + 78 + 114 + 51 + 102 + 24,
+        48 + 38 + 76 + 153 + 18 + 36 + 18,
+        39 + 51 + 102 + 54 + 24 + 48,
+        38 + 18 + 36 + 72 + 18 + 36,
+        51 + 24 + 48 + 54,
+        18 + 18 + 36,
+        24,
+        18,
+    ]
     npt.assert_array_equal(abc.sector_decomposition, np.arange(11)[:, None])
     npt.assert_array_equal(abc.multiplicities, np.array(expect_mults))
 
@@ -317,7 +333,6 @@ def test_TensorProduct_SU2():
 @pytest.mark.parametrize('combine_cstyle', [True, False])
 @pytest.mark.parametrize('pipe_dual', [False, True])
 def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_random):
-
     def iter_combinations(s1, s2):
         # iterate combinations in either C-style or F-style
         if combine_cstyle:
@@ -348,7 +363,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
     # make sure we built them correctly
     start = 0
     for sector, mult in zip(leg_1.sector_decomposition, leg_1.multiplicities):
-        for b in internal_basis_1[start: start + mult]:
+        for b in internal_basis_1[start : start + mult]:
             assert np.all(b[0] == sector)
         start = start + mult
     assert start == leg_1.dim
@@ -359,8 +374,10 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
 
     # check fusion_outcomes_sort
     # =======================================
-    fusion_outcomes = [abelian_group_symmetry.fusion_outcomes(s_1, s_2)[0]
-                       for s_1, s_2 in iter_combinations(leg_1.sector_decomposition, leg_2.sector_decomposition)]
+    fusion_outcomes = [
+        abelian_group_symmetry.fusion_outcomes(s_1, s_2)[0]
+        for s_1, s_2 in iter_combinations(leg_1.sector_decomposition, leg_2.sector_decomposition)
+    ]
     fusion_outcomes_sorted, expect = _sort_sectors(fusion_outcomes, abelian_group_symmetry, by_duals=pipe.is_dual)
     assert np.all(pipe.fusion_outcomes_sort == expect)
 
@@ -377,10 +394,13 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
 
     # check _get_fusion_outcomes_perm()
     # =======================================
-    internal_fusion_outcomes = [(abelian_group_symmetry.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
-                                for b_1, b_2 in iter_combinations(internal_basis_1, internal_basis_2)]
-    _, fusion_outcomes_perm = _sort_sectors([b[0] for b in internal_fusion_outcomes], abelian_group_symmetry,
-                                            by_duals=pipe.is_dual)
+    internal_fusion_outcomes = [
+        (abelian_group_symmetry.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
+        for b_1, b_2 in iter_combinations(internal_basis_1, internal_basis_2)
+    ]
+    _, fusion_outcomes_perm = _sort_sectors(
+        [b[0] for b in internal_fusion_outcomes], abelian_group_symmetry, by_duals=pipe.is_dual
+    )
 
     assert np.all(pipe._get_fusion_outcomes_perm(pipe.multiplicities) == fusion_outcomes_perm)
 
@@ -388,8 +408,10 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
     # =======================================
     assert pipe.basis_perm.shape == (pipe.dim,)
     assert np.all(np.sort(pipe.basis_perm) == np.arange(pipe.dim))
-    public_basis_pipe = [(abelian_group_symmetry.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
-                         for b_1, b_2 in iter_combinations(public_basis_1, public_basis_2)]
+    public_basis_pipe = [
+        (abelian_group_symmetry.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
+        for b_1, b_2 in iter_combinations(public_basis_1, public_basis_2)
+    ]
     internal_basis_pipe = [internal_fusion_outcomes[n] for n in fusion_outcomes_perm]
 
     # want to do ``expect_perm = [public_basis_pipe.index(i) for i in internal_basis_pipe]``
@@ -453,7 +475,9 @@ def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines
         'LegPipe (1)': spaces.LegPipe([make_any_space(max_sectors=5)]),
         'LegPipe (3)': spaces.LegPipe([make_any_space(max_sectors=5) for _ in range(3)], is_dual=True),
         'LegPipe (5)': spaces.LegPipe([make_any_space(max_sectors=3) for _ in range(5)]),
-        'TensorProduct (1)': spaces.TensorProduct([make_any_space(max_sectors=5)], ),
+        'TensorProduct (1)': spaces.TensorProduct(
+            [make_any_space(max_sectors=5)],
+        ),
         'TensorProduct (3)': spaces.TensorProduct([make_any_space(max_sectors=5) for _ in range(3)]),
         'TensorProduct (5)': spaces.TensorProduct([make_any_space(max_sectors=3) for _ in range(5)]),
     }
@@ -461,8 +485,12 @@ def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines
         more = {
             'AbelianLegPipe (1)': spaces.AbelianLegPipe([make_any_space(max_sectors=5)]),
             'AbelianLegPipe (1F)': spaces.AbelianLegPipe([make_any_space(max_sectors=5)], combine_cstyle=False),
-            'AbelianLegPipe (3)': spaces.AbelianLegPipe([make_any_space(max_sectors=5) for _ in range(3)], is_dual=True),
-            'AbelianLegPipe (5)': spaces.AbelianLegPipe([make_any_space(max_sectors=3) for _ in range(5)],),
+            'AbelianLegPipe (3)': spaces.AbelianLegPipe(
+                [make_any_space(max_sectors=5) for _ in range(3)], is_dual=True
+            ),
+            'AbelianLegPipe (5)': spaces.AbelianLegPipe(
+                [make_any_space(max_sectors=3) for _ in range(5)],
+            ),
         }
         instances.update(more)
 

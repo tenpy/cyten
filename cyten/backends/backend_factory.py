@@ -1,25 +1,23 @@
 """Utility functions to access backend instances."""
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
 import logging
 
-from .abstract_backend import TensorBackend
-from .no_symmetry import NoSymmetryBackend
+from ..dummy_config import config
+from ..symmetries import AbelianGroup, Symmetry, no_symmetry
 from .abelian import AbelianBackend
+from .abstract_backend import TensorBackend
 from .fusion_tree_backend import FusionTreeBackend
+from .no_symmetry import NoSymmetryBackend
 from .numpy import NumpyBlockBackend
 from .torch import TorchBlockBackend
-from ..symmetries import Symmetry, no_symmetry, AbelianGroup
-from ..dummy_config import config
-
 
 logger = logging.getLogger(__name__)
 
 _tensor_backend_classes = dict(  # values: (cls, kwargs)
-    no_symmetry=(NoSymmetryBackend, {}),
-    abelian=(AbelianBackend, {}),
-    fusion_tree=(FusionTreeBackend, {})
+    no_symmetry=(NoSymmetryBackend, {}), abelian=(AbelianBackend, {}), fusion_tree=(FusionTreeBackend, {})
 )
 _block_backends = dict(  # values: (cls, kwargs)
     numpy=(NumpyBlockBackend, {}),
@@ -39,7 +37,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
     Backends are instantiated only once and then cached. If a suitable backend instance is in
     the cache, that same instance is returned.
-    
+
     Parameters
     ----------
     symmetry : {'no_symmetry', 'abelian', 'fusion_tree'} | Symmetry
@@ -47,6 +45,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
         or as the minimal version which supports the given symmetry.
     block_backend : {None, 'numpy', 'torch', 'tensorflow', 'jax', 'cpu', 'gpu', 'tpu'}
         Specify which block backend to use.
+
     """
     if symmetry is None:
         symmetry = config.default_symmetry_backend

@@ -1,11 +1,13 @@
 """Implements a BlockBackend using PyTorch."""
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
-from numpy import prod
-import numpy
 
-from .abstract_backend import BlockBackend, Block
+import numpy
+from numpy import prod
+
 from ..dtypes import Dtype
+from .abstract_backend import Block, BlockBackend
 
 
 class TorchBlockBackend(BlockBackend):
@@ -38,14 +40,12 @@ class TorchBlockBackend(BlockBackend):
         }
         self.BlockCls = torch.Tensor
         super().__init__(default_device=default_device)
-    
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
-                 ) -> Block:
+
+    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None) -> Block:
         # TODO good error handling if a device does not support a given dtype
-        block = torch_module.as_tensor(a, dtype=self.backend_dtype_map[dtype],
-                                       device=self.as_device(device))
+        block = torch_module.as_tensor(a, dtype=self.backend_dtype_map[dtype], device=self.as_device(device))
         if dtype != Dtype.bool:
-            block = 1. * block  # force int to float.
+            block = 1.0 * block  # force int to float.
         if return_dtype:
             return block, self.cyten_dtype_map[block.dtype]
         return block
@@ -72,7 +72,7 @@ class TorchBlockBackend(BlockBackend):
 
     def block_all(self, a) -> bool:
         return torch_module.all(a)
-        
+
     def allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
         a = torch_module.as_tensor(a)
         b = torch_module.as_tensor(b)
@@ -114,7 +114,7 @@ class TorchBlockBackend(BlockBackend):
             perm = self.argsort(w, sort)
             w = w[perm]
         return w
-    
+
     def enlarge_leg(self, block: Block, mask: Block, axis: int) -> Block:
         shape = list(block.shape)
         shape[axis] = len(mask)
@@ -123,7 +123,7 @@ class TorchBlockBackend(BlockBackend):
         idcs[axis] = mask
         res[tuple(idcs)] = self.copy_block(block)  # OPTIMIZE copy needed?
         return res
-    
+
     def exp(self, a: Block) -> Block:
         return torch_module.exp(a)
 
@@ -131,15 +131,14 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.diag(diag)
 
     def block_from_mask(self, mask: Block, dtype: Dtype) -> Block:
-        M, = mask.shape
+        (M,) = mask.shape
         N = torch_module.sum(mask)
         res = torch_module.zeros((N, M), dtype=self.backend_dtype_map[dtype])
         res[torch_module.arange(N), mask] = 1
         return res
 
     def block_from_numpy(self, a: numpy.ndarray, dtype: Dtype = None, device: str = None) -> Block:
-        return torch_module.tensor(a, device=self.as_device(device),
-                                   dtype=self.backend_dtype_map[dtype])
+        return torch_module.tensor(a, device=self.as_device(device), dtype=self.backend_dtype_map[dtype])
 
     def get_device(self, a: Block) -> str:
         res = a.device
@@ -182,7 +181,7 @@ class TorchBlockBackend(BlockBackend):
 
     def max(self, a: Block) -> float | complex:
         return self.item(torch_module.max(a))
-    
+
     def max_abs(self, a: Block) -> float:
         return self.item(torch_module.max(torch_module.abs(a)))
 
@@ -194,7 +193,7 @@ class TorchBlockBackend(BlockBackend):
         if axis is None:
             res = self.item(res)
         return res
-    
+
     def outer(self, a: Block, b: Block) -> Block:
         a, b = self.to_same_dtype(a, b, at_least=torch_module.float16)
         return torch_module.tensordot(a, b, ([], []))
@@ -210,14 +209,11 @@ class TorchBlockBackend(BlockBackend):
         offset = -1
         if dtype.is_complex:
             offset -= 1j
-        return offset + 2 * torch_module.rand(*dims, dtype=self.backend_dtype_map[dtype],
-                                              device=self.as_device(device))
+        return offset + 2 * torch_module.rand(*dims, dtype=self.backend_dtype_map[dtype], device=self.as_device(device))
 
-    def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
-                      ) -> Block:
+    def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None) -> Block:
         # OPTIMIZE Note that if device is CUDA, this function synchronizes the device with the CPU
-        mean = torch_module.zeros(size=dims, dtype=self.backend_dtype_map[dtype],
-                                  device=self.as_device(device))
+        mean = torch_module.zeros(size=dims, dtype=self.backend_dtype_map[dtype], device=self.as_device(device))
         # avoid complex dtype in std (leads to error in torch_module.normal)
         # dtype of result == dtype of mean
         std = sigma * torch_module.ones_like(mean, device=device, dtype=torch_module.float64)
@@ -259,7 +255,7 @@ class TorchBlockBackend(BlockBackend):
         return a[idx]
 
     def stable_log(self, block: Block, cutoff: float) -> Block:
-        return torch_module.where(block > cutoff, torch_module.log(block), 0.)
+        return torch_module.where(block > cutoff, torch_module.log(block), 0.0)
 
     def sum(self, a: Block, ax: int) -> Block:
         return torch_module.sum(a, ax)
@@ -283,13 +279,12 @@ class TorchBlockBackend(BlockBackend):
 
     def trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining: list[int]) -> Block:
         a = torch_module.permute(a, remaining + idcs1 + idcs2)
-        trace_dim = int(prod(a.shape[len(remaining):len(remaining)+len(idcs1)]))
-        a = torch_module.reshape(a, a.shape[:len(remaining)] + (trace_dim, trace_dim))
+        trace_dim = int(prod(a.shape[len(remaining) : len(remaining) + len(idcs1)]))
+        a = torch_module.reshape(a, a.shape[: len(remaining)] + (trace_dim, trace_dim))
         return a.diagonal(offset=0, dim1=-1, dim2=-2).sum(-1)
 
     def eye_matrix(self, dim: int, dtype: Dtype, device: str = None) -> Block:
-        return torch_module.eye(dim, dtype=self.backend_dtype_map[dtype],
-                                device=self.as_device(device))
+        return torch_module.eye(dim, dtype=self.backend_dtype_map[dtype], device=self.as_device(device))
 
     def get_block_element(self, a: Block, idcs: list[int]) -> complex | float | bool:
         return self.item(a[tuple(idcs)])
@@ -322,8 +317,7 @@ class TorchBlockBackend(BlockBackend):
         return U, S, V
 
     def ones_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
-        return torch_module.ones(list(shape), dtype=self.backend_dtype_map[dtype],
-                                 device=self.as_device(device))
+        return torch_module.ones(list(shape), dtype=self.backend_dtype_map[dtype], device=self.as_device(device))
 
     def to_same_dtype(self, a: Block, b: Block, at_least=None) -> tuple[Block, ...]:
         # OPTIMIZE is there something built in to torch?
@@ -342,5 +336,4 @@ class TorchBlockBackend(BlockBackend):
         raise NotImplementedError
 
     def zeros(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
-        return torch_module.zeros(list(shape), dtype=self.backend_dtype_map[dtype],
-                                  device=self.as_device(device))
+        return torch_module.zeros(list(shape), dtype=self.backend_dtype_map[dtype], device=self.as_device(device))

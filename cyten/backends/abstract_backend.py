@@ -5,22 +5,24 @@ Also contains some private utility function used by multiple backend modules.
 
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
-from typing import TypeVar, TYPE_CHECKING, Callable, Generator, Sequence, Protocol
+from collections.abc import Callable, Generator, Sequence
 from math import prod
+from typing import TYPE_CHECKING, Protocol, TypeVar
+
 import numpy as np
 
-from ..symmetries import Symmetry
-from ..spaces import Space, ElementarySpace, TensorProduct, LegPipe, Leg
-from ..trees import FusionTree
 from ..dtypes import Dtype
+from ..spaces import ElementarySpace, Leg, LegPipe, Space, TensorProduct
+from ..symmetries import Symmetry
 from ..tools.misc import combine_constraints, to_iterable
-
+from ..trees import FusionTree
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
     # this clause allows mypy etc to evaluate the type-hints anyway
-    from ..tensors import SymmetricTensor, DiagonalTensor, Mask
+    from ..tensors import DiagonalTensor, Mask, SymmetricTensor
 
 # placeholder for a backend-specific type that holds all data of a tensor
 #  (except the symmetry data stored in its legs)
@@ -45,9 +47,9 @@ class TensorBackend(metaclass=ABCMeta):
     to operate on blocks. This allows the tensor backend to be agnostic of the details of these
     blocks.
     """
-    
+
     DataCls = None  # to be set by subclasses
-    
+
     can_decompose_tensors = False
     """If the decompositions (SVD, QR, EIGH, ...) can operate on many-leg tensors,
     or require legs to be combined first."""
@@ -67,7 +69,7 @@ class TensorBackend(metaclass=ABCMeta):
         Assumes that tensor is a scalar (i.e. has only one entry).
         """
         return self.data_item(a.data)
-    
+
     def test_tensor_sanity(self, a: SymmetricTensor | DiagonalTensor, is_diagonal: bool):
         """Called as part of :meth:`cyten.Tensor.test_sanity`.
 
@@ -81,8 +83,7 @@ class TensorBackend(metaclass=ABCMeta):
         # subclasses will typically call super().test_mask_sanity(a)
         assert isinstance(a.data, self.DataCls), str(type(a.data))
 
-    def make_pipe(self, legs: list[Leg], is_dual: bool, in_domain: bool, pipe: LegPipe | None = None
-                  ) -> LegPipe:
+    def make_pipe(self, legs: list[Leg], is_dual: bool, in_domain: bool, pipe: LegPipe | None = None) -> LegPipe:
         """Make a pipe *of the appropriate type* for :meth:`combine_legs`.
 
         If `pipe` is given, try to return it if suitable.
@@ -94,11 +95,11 @@ class TensorBackend(metaclass=ABCMeta):
         return LegPipe(legs, is_dual=is_dual)
 
     # ABSTRACT METHODS
-    
+
     @abstractmethod
-    def act_block_diagonal_square_matrix(self, a: SymmetricTensor,
-                                         block_method: Callable[[Block], Block],
-                                         dtype_map: Callable[[Dtype], Dtype] | None) -> Data:
+    def act_block_diagonal_square_matrix(
+        self, a: SymmetricTensor, block_method: Callable[[Block], Block], dtype_map: Callable[[Dtype], Dtype] | None
+    ) -> Data:
         """Apply functions like exp() and log() on a (square) block-diagonal `a`.
 
         Assumes the block_method returns blocks on the same device.
@@ -112,35 +113,40 @@ class TensorBackend(metaclass=ABCMeta):
         dtype_map : function or None
             Specify how the result dtype depends on the input dtype. ``None`` means unchanged.
             This is needed in abelian and fusion-tree backends, in case there are 0 blocks.
+
         """
         ...
 
     @abstractmethod
-    def add_trivial_leg(self, a: SymmetricTensor, legs_pos: int, add_to_domain: bool,
-                        co_domain_pos: int, new_codomain: TensorProduct, new_domain: TensorProduct
-                        ) -> Data:
-        ...
+    def add_trivial_leg(
+        self,
+        a: SymmetricTensor,
+        legs_pos: int,
+        add_to_domain: bool,
+        co_domain_pos: int,
+        new_codomain: TensorProduct,
+        new_domain: TensorProduct,
+    ) -> Data: ...
 
     @abstractmethod
-    def almost_equal(self, a: SymmetricTensor, b: SymmetricTensor, rtol: float, atol: float) -> bool:
-        ...
+    def almost_equal(self, a: SymmetricTensor, b: SymmetricTensor, rtol: float, atol: float) -> bool: ...
 
     @abstractmethod
-    def apply_mask_to_DiagonalTensor(self, tensor: DiagonalTensor, mask: Mask) -> DiagonalData:
-        ...
+    def apply_mask_to_DiagonalTensor(self, tensor: DiagonalTensor, mask: Mask) -> DiagonalData: ...
 
     @abstractmethod
-    def combine_legs(self,
-                     tensor: SymmetricTensor,
-                     leg_idcs_combine: list[list[int]],
-                     pipes: list[LegPipe],
-                     new_codomain: TensorProduct,
-                     new_domain: TensorProduct,
-                     ) -> Data:
+    def combine_legs(
+        self,
+        tensor: SymmetricTensor,
+        leg_idcs_combine: list[list[int]],
+        pipes: list[LegPipe],
+        new_codomain: TensorProduct,
+        new_domain: TensorProduct,
+    ) -> Data:
         """Implementation of :func:`cyten.tensors.combine_legs`.
 
         Assumptions:
-        
+
         - Legs have been permuted, such that each group of legs to be combined appears contiguously
           and either entirely in the codomain or entirely in the domain
 
@@ -163,21 +169,23 @@ class TensorBackend(metaclass=ABCMeta):
             ``tensor.legs[n]`` !
         new_codomain, new_domain: TensorProduct
             The codomain and domain of the resulting tensor
+
         """
         ...
 
     @abstractmethod
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         """Assumes ``a.domain == b.codomain`` and performs contraction over those legs.
-        
+
         Assumes there is at least one open leg, i.e. the codomain of `a` and the domain of `b` are
         not both empty. Assumes both input tensors are on the same device.
         """
         ...
 
     @abstractmethod
-    def copy_data(self, a: SymmetricTensor | DiagonalTensor | MaskData, device: str = None
-                  ) -> Data | DiagonalData | MaskData:
+    def copy_data(
+        self, a: SymmetricTensor | DiagonalTensor | MaskData, device: str = None
+    ) -> Data | DiagonalData | MaskData:
         """Return a copy.
 
         The main requirement is that future in-place operations on the output data do not affect
@@ -193,17 +201,17 @@ class TensorBackend(metaclass=ABCMeta):
         See Also
         --------
         move_to_device
+
         """
         ...
 
     @abstractmethod
-    def dagger(self, a: SymmetricTensor) -> Data:
-        ...
+    def dagger(self, a: SymmetricTensor) -> Data: ...
 
     @abstractmethod
     def data_item(self, a: Data | DiagonalData | MaskData) -> float | complex:
         """Assumes that data is a scalar (as defined in tensors.is_scalar).
-        
+
         Return that scalar as python float or complex
         """
         ...
@@ -219,9 +227,9 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def diagonal_elementwise_binary(self, a: DiagonalTensor, b: DiagonalTensor, func,
-                                    func_kwargs, partial_zero_is_zero: bool
-                                    ) -> DiagonalData:
+    def diagonal_elementwise_binary(
+        self, a: DiagonalTensor, b: DiagonalTensor, func, func_kwargs, partial_zero_is_zero: bool
+    ) -> DiagonalData:
         """Return a modified copy of the data, resulting from applying an elementwise function.
 
         Apply a function ``func(a_block: Block, b_block: Block, **kwargs) -> Block`` to all
@@ -235,8 +243,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def diagonal_elementwise_unary(self, a: DiagonalTensor, func, func_kwargs, maps_zero_to_zero: bool
-                                   ) -> DiagonalData:
+    def diagonal_elementwise_unary(self, a: DiagonalTensor, func, func_kwargs, maps_zero_to_zero: bool) -> DiagonalData:
         """Return a modified copy of the data, resulting from applying an elementwise function.
 
         Apply ``func(block: Block, **kwargs) -> Block`` to all elements of a diagonal tensor.
@@ -257,10 +264,9 @@ class TensorBackend(metaclass=ABCMeta):
         Assumes all generated blocks are on the same device.
         """
         ...
-       
+
     @abstractmethod
-    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, tol: float | None = 1e-12
-                                         ) -> DiagonalData:
+    def diagonal_tensor_from_full_tensor(self, a: SymmetricTensor, tol: float | None = 1e-12) -> DiagonalData:
         """Get the DiagonalData corresponding to a tensor with two legs.
 
         Can assume that domain and codomain consist of the same single leg.
@@ -268,13 +274,12 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
-        ...
+    def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex: ...
 
     @abstractmethod
     def diagonal_tensor_to_block(self, a: DiagonalTensor) -> Block:
         """Forget about symmetry structure and convert to a single 1D block.
-        
+
         This is the diagonal of the respective non-symmetric 2D tensor.
         In the *internal* basis order of the leg.
         """
@@ -295,8 +300,9 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def eigh(self, a: SymmetricTensor, new_leg_dual: bool, sort: str = None
-             ) -> tuple[DiagonalData, Data, ElementarySpace]:
+    def eigh(
+        self, a: SymmetricTensor, new_leg_dual: bool, sort: str = None
+    ) -> tuple[DiagonalData, Data, ElementarySpace]:
         """Eigenvalue decomposition of a hermitian tensor
 
         Note that this does *not* guarantee to return the duality given by `new_leg_dual`.
@@ -305,6 +311,7 @@ class TensorBackend(metaclass=ABCMeta):
         Parameters
         ----------
         a
+            The input tensor. Assumed to be hermitian without checking!
         new_leg_dual : bool
             If the new leg should be dual or not.
         sort : {'m>', 'm<', '>', '<'}
@@ -319,6 +326,7 @@ class TensorBackend(metaclass=ABCMeta):
             Data for the :class:`Tensor` of eigenvectors
         new_leg
             The new leg.
+
         """
         ...
 
@@ -331,13 +339,12 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def from_dense_block(self, a: Block, codomain: TensorProduct, domain: TensorProduct, tol: float
-                         ) -> Data:
+    def from_dense_block(self, a: Block, codomain: TensorProduct, domain: TensorProduct, tol: float) -> Data:
         """Convert a dense block to the data for a symmetric tensor.
 
         Block is in the *internal* basis order of the respective legs and the leg order is
         ``[*codomain, *reversed(domain)]``.
-        
+
         If the block is not symmetric, measured by ``allclose(a, projected, atol, rtol)``,
         where ``projected`` is `a` projected to the space of symmetric tensors, raise a ``ValueError``.
         """
@@ -352,9 +359,16 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def from_grid(self, grid: list[list[SymmetricTensor | None]], new_codomain: TensorProduct,
-                  new_domain: TensorProduct, left_mult_slices: list[list[int]],
-                  right_mult_slices: list[list[int]], dtype: Dtype, device: str) -> Data:
+    def from_grid(
+        self,
+        grid: list[list[SymmetricTensor | None]],
+        new_codomain: TensorProduct,
+        new_domain: TensorProduct,
+        left_mult_slices: list[list[int]],
+        right_mult_slices: list[list[int]],
+        dtype: Dtype,
+        device: str,
+    ) -> Data:
         """Data from a grid of tensors.
 
         Parameters
@@ -380,13 +394,14 @@ class TensorBackend(metaclass=ABCMeta):
             The new dtype of the block.
         device: str
             The device for the block.
+
         """
         ...
 
     @abstractmethod
-    def from_random_normal(self, codomain: TensorProduct, domain: TensorProduct, sigma: float,
-                           dtype: Dtype, device: str) -> Data:
-        ...
+    def from_random_normal(
+        self, codomain: TensorProduct, domain: TensorProduct, sigma: float, dtype: Dtype, device: str
+    ) -> Data: ...
 
     @abstractmethod
     def from_sector_block_func(self, func, codomain: TensorProduct, domain: TensorProduct) -> Data:
@@ -398,15 +413,19 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def from_tree_pairs(self, trees: dict[tuple[FusionTree, FusionTree], Block],
-                        codomain: TensorProduct, domain: TensorProduct, dtype: Dtype, device: str
-                        ) -> Data:
+    def from_tree_pairs(
+        self,
+        trees: dict[tuple[FusionTree, FusionTree], Block],
+        codomain: TensorProduct,
+        domain: TensorProduct,
+        dtype: Dtype,
+        device: str,
+    ) -> Data:
         """Compute the data for :meth:`SymmetricTensor.from_tree_pairs`."""
         ...
 
     @abstractmethod
-    def full_data_from_diagonal_tensor(self, a: DiagonalTensor) -> Data:
-        ...
+    def full_data_from_diagonal_tensor(self, a: DiagonalTensor) -> Data: ...
 
     @abstractmethod
     def full_data_from_mask(self, a: Mask, dtype: Dtype) -> Data:
@@ -419,21 +438,21 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def get_dtype_from_data(self, a: Data) -> Dtype:
-        ...
+    def get_dtype_from_data(self, a: Data) -> Dtype: ...
 
     @abstractmethod
     def get_element(self, a: SymmetricTensor, idcs: list[int]) -> complex | float | bool:
         """Get a single scalar element from a tensor.
 
         Should be equivalent to ``a.to_numpy()[tuple(idcs)].item()``.
-        
+
         Parameters
         ----------
         idcs
             The indices. Checks have already been performed, i.e. we may assume that
             - len(idcs) == a.num_legs
             - 0 <= idx < leg.dim
+
         """
         ...
 
@@ -448,6 +467,7 @@ class TensorBackend(metaclass=ABCMeta):
         idx
             The index for both legs. Checks have already been performed, i.e. we may assume that
             ``0 <= idx < leg.dim``
+
         """
         ...
 
@@ -463,6 +483,7 @@ class TensorBackend(metaclass=ABCMeta):
             The indices. Checks have already been performed, i.e. we may assume that
             - len(idcs) == a.num_legs == 2
             - 0 <= idx < leg.dim
+
         """
         ...
 
@@ -472,8 +493,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def inv_part_from_dense_block_single_sector(self, vector: Block, space: Space,
-                                                charge_leg: ElementarySpace) -> Data:
+    def inv_part_from_dense_block_single_sector(self, vector: Block, space: Space, charge_leg: ElementarySpace) -> Data:
         """Data for the invariant part used in ChargedTensor.from_dense_block_single_sector
 
         The vector is given in the *internal* basis order of `spaces`.
@@ -497,8 +517,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def lq(self, tensor: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]:
-        ...
+    def lq(self, tensor: SymmetricTensor, new_co_domain: TensorProduct) -> tuple[Data, Data]: ...
 
     @abstractmethod
     def mask_binary_operand(self, mask1: Mask, mask2: Mask, func) -> tuple[MaskData, ElementarySpace]:
@@ -508,14 +527,15 @@ class TensorBackend(metaclass=ABCMeta):
         and that the large legs match.
 
         Assumes that `mask1` and `mask2` are on the same device.
-        
+
         returns ``mask_data, new_small_leg``
         """
         ...
 
     @abstractmethod
-    def mask_contract_large_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
-                                ) -> tuple[Data, TensorProduct, TensorProduct]:
+    def mask_contract_large_leg(
+        self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
+    ) -> tuple[Data, TensorProduct, TensorProduct]:
         """Contraction with the large leg of a Mask.
 
         Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
@@ -526,10 +546,11 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def mask_contract_small_leg(self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
-                                ) -> tuple[Data, TensorProduct, TensorProduct]:
+    def mask_contract_small_leg(
+        self, tensor: SymmetricTensor, mask: Mask, leg_idx: int
+    ) -> tuple[Data, TensorProduct, TensorProduct]:
         """Contraction with the small leg of a Mask.
-        
+
         Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
         the small leg of the mask is contracted.
         Note that the mask may be an inclusion to be applied to the codomain or a projection
@@ -538,8 +559,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def mask_dagger(self, mask: Mask) -> MaskData:
-        ...
+    def mask_dagger(self, mask: Mask) -> MaskData: ...
 
     @abstractmethod
     def mask_from_block(self, a: Block, large_leg: Space) -> tuple[MaskData, ElementarySpace]:
@@ -555,8 +575,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def mask_to_diagonal(self, a: Mask, dtype: Dtype) -> MaskData:
-        ...
+    def mask_to_diagonal(self, a: Mask, dtype: Dtype) -> MaskData: ...
 
     @abstractmethod
     def mask_transpose(self, tens: Mask) -> tuple[Space, Space, MaskData]:
@@ -585,11 +604,11 @@ class TensorBackend(metaclass=ABCMeta):
         See Also
         --------
         copy_data
+
         """
-        
+
     @abstractmethod
-    def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
-        ...
+    def mul(self, a: float | complex, b: SymmetricTensor) -> Data: ...
 
     @abstractmethod
     def norm(self, a: SymmetricTensor | DiagonalTensor) -> float:
@@ -605,19 +624,27 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def partial_trace(self, tensor: SymmetricTensor, pairs: list[tuple[int, int]],
-                      levels: list[int] | None) -> tuple[Data, TensorProduct, TensorProduct]:
+    def partial_trace(
+        self, tensor: SymmetricTensor, pairs: list[tuple[int, int]], levels: list[int] | None
+    ) -> tuple[Data, TensorProduct, TensorProduct]:
         """Perform an arbitrary number of traces. Pairs are converted to leg idcs.
-        
+
         Returns ``data, codomain, domain``.
         """
         ...
 
     @abstractmethod
-    def permute_legs(self, a: SymmetricTensor, codomain_idcs: list[int], domain_idcs: list[int],
-                     new_codomain: TensorProduct, new_domain: TensorProduct,
-                     mixes_codomain_domain: bool, levels: list[int | None],
-                     bend_right: list[bool | None]) -> Data:
+    def permute_legs(
+        self,
+        a: SymmetricTensor,
+        codomain_idcs: list[int],
+        domain_idcs: list[int],
+        new_codomain: TensorProduct,
+        new_domain: TensorProduct,
+        mixes_codomain_domain: bool,
+        levels: list[int | None],
+        bend_right: list[bool | None],
+    ) -> Data:
         """Permute legs on the tensors.
 
         Parameters
@@ -645,6 +672,7 @@ class TensorBackend(metaclass=ABCMeta):
             specified.
         codomain, domain
             The (co-)domain of the new tensor.
+
         """
         ...
 
@@ -678,14 +706,21 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def split_legs(self, a: SymmetricTensor, leg_idcs: list[int], codomain_split: list[int],
-                   domain_split: list[int], new_codomain: TensorProduct, new_domain: TensorProduct
-                   ) -> Data:
+    def split_legs(
+        self,
+        a: SymmetricTensor,
+        leg_idcs: list[int],
+        codomain_split: list[int],
+        domain_split: list[int],
+        new_codomain: TensorProduct,
+        new_domain: TensorProduct,
+    ) -> Data:
         """Split (multiple) product space legs.
 
         Parameters
         ----------
         a
+            The tensor to split legs on.
         leg_idcs:
             List of leg-indices, fulfilling ``0 <= i < a.num_legs``, to split.
         codomain_split, domain_split
@@ -693,6 +728,7 @@ class TensorBackend(metaclass=ABCMeta):
             (co)domain.
         new_codomain, new_domain
             The new (co-)domain, after splitting. Has same sectors and multiplicities.
+
         """
         ...
 
@@ -702,13 +738,12 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def supports_symmetry(self, symmetry: Symmetry) -> bool:
-        ...
+    def supports_symmetry(self, symmetry: Symmetry) -> bool: ...
 
     @abstractmethod
-    def svd(self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None
-            ) -> tuple[Data, DiagonalData, Data]:
-        ...
+    def svd(
+        self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None
+    ) -> tuple[Data, DiagonalData, Data]: ...
 
     @abstractmethod
     def state_tensor_product(self, state1: Block, state2: Block, pipe: LegPipe):
@@ -721,7 +756,7 @@ class TensorBackend(metaclass=ABCMeta):
     @abstractmethod
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         """Forget about symmetry structure and convert to a single block.
-        
+
         Return a block in the *internal* basis order of the respective legs,
         with leg order ``[*codomain, *reversed(domain)]``.
         """
@@ -741,14 +776,19 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def trace_full(self, a: SymmetricTensor, idcs1: list[int], idcs2: list[int]) -> float | complex:
-        ...
+    def trace_full(self, a: SymmetricTensor, idcs1: list[int], idcs2: list[int]) -> float | complex: ...
 
     @abstractmethod
-    def truncate_singular_values(self, S: DiagonalTensor, chi_max: int | None, chi_min: int,
-                                 degeneracy_tol: float, trunc_cut: float, svd_min: float,
-                                 minimize_error: bool = True,
-                                 ) -> tuple[MaskData, ElementarySpace, float, float]:
+    def truncate_singular_values(
+        self,
+        S: DiagonalTensor,
+        chi_max: int | None,
+        chi_min: int,
+        degeneracy_tol: float,
+        trunc_cut: float,
+        svd_min: float,
+        minimize_error: bool = True,
+    ) -> tuple[MaskData, ElementarySpace, float, float]:
         """Implementation of :func:`cyten.tensors.truncate_singular_values`.
 
         Returns
@@ -761,14 +801,21 @@ class TensorBackend(metaclass=ABCMeta):
             The truncation error ``norm(S_discard) == norm(S - S_keep)``.
         new_norm
             The norm ``norm(S_keep)`` of the approximation.
+
         """
         ...
 
-    def _truncate_singular_values_selection(self, S: np.ndarray, qdims: np.ndarray | None,
-                                            chi_max: int | None, chi_min: int,
-                                            degeneracy_tol: float, trunc_cut: float, svd_min: float,
-                                            minimize_error: bool = True,
-                                            ) -> tuple[np.ndarray, float, float]:
+    def _truncate_singular_values_selection(
+        self,
+        S: np.ndarray,
+        qdims: np.ndarray | None,
+        chi_max: int | None,
+        chi_min: int,
+        degeneracy_tol: float,
+        trunc_cut: float,
+        svd_min: float,
+        minimize_error: bool = True,
+    ) -> tuple[np.ndarray, float, float]:
         """Helper function for :meth:`truncate_singular_values`.
 
         Parameters
@@ -788,12 +835,13 @@ class TensorBackend(metaclass=ABCMeta):
             The truncation error ``norm(S_discard) == norm(S - S_keep)``.
         new_norm
             The norm ``norm(S_keep)`` of the approximation.
+
         """
         # contributions ``err[i] = d[i] * S[i] ** 2`` to the error, if S[i] would be truncated.
         if qdims is None:
-            marginal_errs = S ** 2
+            marginal_errs = S**2
         else:
-            marginal_errs = qdims * (S ** 2)
+            marginal_errs = qdims * (S**2)
 
         # sort *ascending* by marginal errors (smallest first, should be truncated first)
         piv = np.argsort(marginal_errs)
@@ -803,7 +851,7 @@ class TensorBackend(metaclass=ABCMeta):
 
         # take safe logarithm, clipping small values to log(1e-100).
         # this is only used for degeneracy tol.
-        logS = np.log(np.choose(S <= 1.e-100, [S, 1.e-100 * np.ones(len(S))]))
+        logS = np.log(np.choose(S <= 1.0e-100, [S, 1.0e-100 * np.ones(len(S))]))
 
         # goal: find an index 'cut' such that we keep piv[cut:], i.e. cut between `cut-1` and `cut`.
         # build an array good, where ``good[cut] = (is `cut` an allowed choice)``.
@@ -814,13 +862,13 @@ class TensorBackend(metaclass=ABCMeta):
             # keep at most chi_max values
             good2 = np.zeros(len(piv), dtype=np.bool_)
             good2[-chi_max:] = True
-            good = combine_constraints(good, good2, "chi_max")
+            good = combine_constraints(good, good2, 'chi_max')
 
         if (chi_min is not None) and (chi_min > 1):
             # keep at least chi_min values
             good2 = np.ones(len(piv), dtype=np.bool_)
-            good2[-chi_min + 1:] = False
-            good = combine_constraints(good, good2, "chi_min")
+            good2[-chi_min + 1 :] = False
+            good = combine_constraints(good, good2, 'chi_min')
 
         if (degeneracy_tol is not None) and (degeneracy_tol > 0):
             # don't cut between values (cut-1, cut) with ``log(S[cut]/S[cut-1]) < deg_tol``
@@ -829,16 +877,16 @@ class TensorBackend(metaclass=ABCMeta):
             good2 = np.empty(len(piv), np.bool_)
             good2[0] = True
             good2[1:] = np.greater_equal(logS[1:] - logS[:-1], degeneracy_tol)
-            good = combine_constraints(good, good2, "degeneracy_tol")
+            good = combine_constraints(good, good2, 'degeneracy_tol')
 
-        if (svd_min is not None):
+        if svd_min is not None:
             # keep only values S[i] >= svd_min
             good2 = np.greater_equal(S, svd_min)
-            good = combine_constraints(good, good2, "svd_min")
+            good = combine_constraints(good, good2, 'svd_min')
 
-        if (trunc_cut is not None):
-            good2 = (np.cumsum(marginal_errs) > trunc_cut * trunc_cut)
-            good = combine_constraints(good, good2, "trunc_cut")
+        if trunc_cut is not None:
+            good2 = np.cumsum(marginal_errs) > trunc_cut * trunc_cut
+            good = combine_constraints(good, good2, 'trunc_cut')
 
         if minimize_error:
             cut = np.nonzero(good)[0][0]  # smallest cut for which good[cut] is True
@@ -852,8 +900,9 @@ class TensorBackend(metaclass=ABCMeta):
         return mask, err, new_norm
 
     @abstractmethod
-    def zero_data(self, codomain: TensorProduct, domain: TensorProduct, dtype: Dtype, device: str,
-                  all_blocks: bool = False) -> Data:
+    def zero_data(
+        self, codomain: TensorProduct, domain: TensorProduct, dtype: Dtype, device: str, all_blocks: bool = False
+    ) -> Data:
         """Data for a zero tensor.
 
         Parameters
@@ -862,17 +911,15 @@ class TensorBackend(metaclass=ABCMeta):
             Some specific backends can omit zero blocks ("sparsity").
             By default (``False``), omit them if possible.
             If ``True``, force all blocks to be created, with zero entries.
+
         """
         ...
 
     @abstractmethod
-    def zero_diagonal_data(self, co_domain: TensorProduct, dtype: Dtype, device: str
-                           ) -> DiagonalData:
-        ...
+    def zero_diagonal_data(self, co_domain: TensorProduct, dtype: Dtype, device: str) -> DiagonalData: ...
 
     @abstractmethod
-    def zero_mask_data(self, large_leg: Space, device: str) -> MaskData:
-        ...
+    def zero_mask_data(self, large_leg: Space, device: str) -> MaskData: ...
 
     def is_real(self, a: SymmetricTensor) -> bool:
         """If the Tensor is comprised of real numbers.
@@ -883,12 +930,10 @@ class TensorBackend(metaclass=ABCMeta):
         return a.dtype.is_real
 
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
-
         hdf5_saver.save(self.block_backend, subpath + 'block_backend')
 
     @classmethod
     def from_hdf5(cls, hdf5_loader, h5gr, subpath):
-
         obj = cls.__new__(cls)
         hdf5_loader.memorize_load(h5gr, obj)
 
@@ -897,7 +942,7 @@ class TensorBackend(metaclass=ABCMeta):
 
 class BlockBackend(metaclass=ABCMeta):
     """Abstract base class that defines the operation on dense blocks."""
-    
+
     svd_algorithms: list[str]  # first is default
     BlockCls = None  # to be set by subclass
 
@@ -925,8 +970,9 @@ class BlockBackend(metaclass=ABCMeta):
         return block[np.ix_(*perms)]
 
     @abstractmethod
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
-                 ) -> Block | tuple[Block, Dtype]:
+    def as_block(
+        self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
+    ) -> Block | tuple[Block, Dtype]:
         """Convert objects to blocks.
 
         Should support blocks, numpy arrays, nested python containers. May support more.
@@ -948,6 +994,7 @@ class BlockBackend(metaclass=ABCMeta):
         --------
         block_copy
             Guarantees an independent copy.
+
         """
         ...
 
@@ -967,28 +1014,26 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def add_axis(self, a: Block, pos: int) -> Block:
-        ...
+    def add_axis(self, a: Block, pos: int) -> Block: ...
 
     @abstractmethod
     def block_all(self, a) -> bool:
         """Require a boolean block. If all of its entries are True"""
         ...
-        
+
     @abstractmethod
-    def allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
-        ...
+    def allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool: ...
 
     @abstractmethod
     def angle(self, a: Block) -> Block:
-        """The angle of a complex number such that ``a == exp(1.j * angle(a))``. Elementwise."""
+        """The angle of a complex number such that ``a == exp(1.j * angle)``. Elementwise."""
         ...
 
     @abstractmethod
     def block_any(self, a) -> bool:
         """Require a boolean block. If any of its entries are True"""
         ...
-    
+
     def apply_mask(self, block: Block, mask: Block, ax: int) -> Block:
         """Apply a mask (1D boolean block) to a block, slicing/projecting that axis"""
         idx = (slice(None, None, None),) * ax + (mask,)
@@ -1027,6 +1072,7 @@ class BlockBackend(metaclass=ABCMeta):
         -------
         1D block of int
             The indices that would sort the block
+
         """
         if sort == 'm<' or sort == 'SM':
             block = np.abs(block)
@@ -1041,7 +1087,7 @@ class BlockBackend(metaclass=ABCMeta):
         elif sort == 'LI':
             block = -np.imag(block)
         else:
-            raise ValueError("unknown sort option " + repr(sort))
+            raise ValueError('unknown sort option ' + repr(sort))
         return self._argsort(block, axis=axis)
 
     @abstractmethod
@@ -1094,12 +1140,13 @@ class BlockBackend(metaclass=ABCMeta):
         --------
         as_block
             Function to guarantee dtype and device, without forcing copies.
+
         """
         ...
 
     def cutoff_inverse(self, a: Block, cutoff: float) -> Block:
         """The elementwise cutoff-inverse: ``1 / a`` where ``abs(a) >= cutoff``, otherwise ``0``."""
-        res = 1. * self.copy_block(a)
+        res = 1.0 * self.copy_block(a)
         res[abs(a) < cutoff] = float('inf')
         return 1 / res
 
@@ -1110,21 +1157,21 @@ class BlockBackend(metaclass=ABCMeta):
         return self.conj(res)
 
     @abstractmethod
-    def get_dtype(self, a: Block) -> Dtype:
-        ...
+    def get_dtype(self, a: Block) -> Dtype: ...
 
     @abstractmethod
     def eigh(self, block: Block, sort: str = None) -> tuple[Block, Block]:
         """Eigenvalue decomposition of a 2D hermitian block.
 
         Return a 1D block of eigenvalues and a 2D block of eigenvectors
-        
+
         Parameters
         ----------
         block : Block
             The block to decompose
         sort : {'m>', 'm<', '>', '<'}
             How the eigenvalues are sorted
+
         """
         ...
 
@@ -1133,13 +1180,14 @@ class BlockBackend(metaclass=ABCMeta):
         """Eigenvalues of a 2D hermitian block.
 
         Return a 1D block of eigenvalues
-        
+
         Parameters
         ----------
         block : Block
             The block to decompose
         sort : {'m>', 'm<', '>', '<'}
             How the eigenvalues are sorted
+
         """
         ...
 
@@ -1174,12 +1222,10 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def block_from_numpy(self, a: np.ndarray, dtype: Dtype = None, device: str = None) -> Block:
-        ...
+    def block_from_numpy(self, a: np.ndarray, dtype: Dtype = None, device: str = None) -> Block: ...
 
     @abstractmethod
-    def get_device(self, a: Block) -> str:
-        ...
+    def get_device(self, a: Block) -> str: ...
 
     @abstractmethod
     def get_diagonal(self, a: Block, tol: float | None) -> Block:
@@ -1205,7 +1251,7 @@ class BlockBackend(metaclass=ABCMeta):
 
     def is_real(self, a: Block) -> bool:
         """If the block is comprised of real numbers.
-        
+
         Complex numbers with small or zero imaginary part still cause a `False` return.
         """
         return self.cyten_dtype_map[self.get_dtype(a)].is_real
@@ -1227,12 +1273,13 @@ class BlockBackend(metaclass=ABCMeta):
         Notes
         -----
         The elements are products of elements from `a` and `b`::
-            kron(a,b)[k0,k1,...,kN] = a[i0,i1,...,iN] * b[j0,j1,...,jN]
+            kron(a, b)[k0, k1, ..., kN] = a[i0, i1, ..., iN] * b[j0, j1, ..., jN]
 
         where::
             kt = it * st + jt,  t = 0,...,N
 
         (Taken from numpy docs)
+
         """
         ...
 
@@ -1248,17 +1295,14 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def max(self, a: Block) -> float:
-        ...
+    def max(self, a: Block) -> float: ...
 
     @abstractmethod
-    def max_abs(self, a: Block) -> float:
-        ...
+    def max_abs(self, a: Block) -> float: ...
 
     @abstractmethod
-    def min(self, a: Block) -> float:
-        ...
-        
+    def min(self, a: Block) -> float: ...
+
     def mul(self, a: float | complex, b: Block) -> Block:
         return a * b
 
@@ -1275,6 +1319,7 @@ class BlockBackend(metaclass=ABCMeta):
         axis : int | None
             ``axis=None`` means "all axes", i.e. norm of the flattened block.
             An integer means to broadcast the norm over all other axes.
+
         """
         ...
 
@@ -1287,12 +1332,11 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def permute_axes(self, a: Block, permutation: list[int]) -> Block:
-        ...
+    def permute_axes(self, a: Block, permutation: list[int]) -> Block: ...
 
-    def permute_combined_matrix(self, block: Block,
-                                dims1: Sequence[int], idcs1: Sequence[int],
-                                dims2: Sequence[int], idcs2: Sequence[int]) -> Block:
+    def permute_combined_matrix(
+        self, block: Block, dims1: Sequence[int], idcs1: Sequence[int], dims2: Sequence[int], idcs2: Sequence[int]
+    ) -> Block:
         """For a matrix `a` with two combined multi-indices, permute the sub-indices.
 
         Parameters
@@ -1320,16 +1364,16 @@ class BlockBackend(metaclass=ABCMeta):
         See Also
         --------
         permute_combined_idx
+
         """
         block = self.reshape(block, [*dims1, *dims2])
         block = self.permute_axes(block, [*idcs1, *idcs2])
         shape = self.get_shape(block)
-        M_new = prod(shape[:len(idcs1)])
-        N_new = prod(shape[len(idcs1):])
+        M_new = prod(shape[: len(idcs1)])
+        N_new = prod(shape[len(idcs1) :])
         return self.reshape(block, (M_new, N_new))
 
-    def permute_combined_idx(self, block: Block, axis: int, dims: Sequence[int],
-                             idcs: Sequence[int]) -> Block:
+    def permute_combined_idx(self, block: Block, axis: int, dims: Sequence[int], idcs: Sequence[int]) -> Block:
         """For a matrix `a` with a single combined multi-index, permute sub-indices.
 
         Parameters
@@ -1354,6 +1398,7 @@ class BlockBackend(metaclass=ABCMeta):
         See Also
         --------
         permute_combined_matrix
+
         """
         M, N = self.get_shape(block)
         assert -2 <= axis < 2
@@ -1370,13 +1415,10 @@ class BlockBackend(metaclass=ABCMeta):
         raise RuntimeError
 
     @abstractmethod
-    def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
-                      ) -> Block:
-        ...
+    def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None) -> Block: ...
 
     @abstractmethod
-    def random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
-        ...
+    def random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block: ...
 
     @abstractmethod
     def real(self, a: Block) -> Block:
@@ -1397,16 +1439,14 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def _block_repr_lines(self, a: Block, indent: str, max_width: int, max_lines: int) -> list[str]:
-        ...
+    def _block_repr_lines(self, a: Block, indent: str, max_width: int, max_lines: int) -> list[str]: ...
 
     @abstractmethod
-    def reshape(self, a: Block, shape: tuple[int]) -> Block:
-        ...
+    def reshape(self, a: Block, shape: tuple[int]) -> Block: ...
 
     def scale_axis(self, block: Block, factors: Block, axis: int) -> Block:
         """Multiply block with the factors (a 1D block), along a given axis.
-        
+
         E.g. if block is 4D and ``axis==2`` with numpy-like broadcasting, this is would be
         ``block * factors[None, None, :, None]``.
         """
@@ -1415,8 +1455,7 @@ class BlockBackend(metaclass=ABCMeta):
         return block * factors[tuple(idx)]
 
     @abstractmethod
-    def get_shape(self, a: Block) -> tuple[int]:
-        ...
+    def get_shape(self, a: Block) -> tuple[int]: ...
 
     def split_legs(self, a: Block, idcs: list[int], dims: list[list[int]], cstyles: bool | list[bool] = True) -> Block:
         """Split legs into groups of legs with specified dimensions.
@@ -1452,8 +1491,7 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def squeeze_axes(self, a: Block, idcs: list[int]) -> Block:
-        ...
+    def squeeze_axes(self, a: Block, idcs: list[int]) -> Block: ...
 
     @abstractmethod
     def stable_log(self, block: Block, cutoff: float) -> Block:
@@ -1468,14 +1506,13 @@ class BlockBackend(metaclass=ABCMeta):
     @abstractmethod
     def sum_all(self, a: Block) -> float | complex:
         """The sum of all entries of the block.
-        
+
         If the block contains boolean values, this should return the number of ``True`` entries.
         """
         ...
 
     @abstractmethod
-    def tdot(self, a: Block, b: Block, idcs_a: list[int], idcs_b: list[int]) -> Block:
-        ...
+    def tdot(self, a: Block, b: Block, idcs_a: list[int], idcs_b: list[int]) -> Block: ...
 
     def tensor_outer(self, a: Block, b: Block, K: int) -> Block:
         """Version of ``tensors.outer`` on blocks.
@@ -1492,20 +1529,17 @@ class BlockBackend(metaclass=ABCMeta):
         return self.permute_axes(res, [*range(K), *range(N, N + M), *range(K, N)])
 
     @abstractmethod
-    def to_dtype(self, a: Block, dtype: Dtype) -> Block:
-        ...
+    def to_dtype(self, a: Block, dtype: Dtype) -> Block: ...
 
     def to_numpy(self, a: Block, numpy_dtype=None) -> np.ndarray:
         # BlockBackends may override, if this implementation is not valid
         return np.asarray(a, dtype=numpy_dtype)
 
     @abstractmethod
-    def trace_full(self, a: Block) -> float | complex:
-        ...
+    def trace_full(self, a: Block) -> float | complex: ...
 
     @abstractmethod
-    def trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining_idcs: list[int]) -> Block:
-        ...
+    def trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining_idcs: list[int]) -> Block: ...
 
     def eye_block(self, legs: list[int], dtype: Dtype, device: str = None) -> Data:
         """The identity matrix, reshaped to a block.
@@ -1529,13 +1563,11 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def get_block_element(self, a: Block, idcs: list[int]) -> complex | float | bool:
-        ...
+    def get_block_element(self, a: Block, idcs: list[int]) -> complex | float | bool: ...
 
-    def get_block_mask_element(self, a: Block, large_leg_idx: int, small_leg_idx: int,
-                               sum_block: int = 0) -> bool:
+    def get_block_mask_element(self, a: Block, large_leg_idx: int, small_leg_idx: int, sum_block: int = 0) -> bool:
         """Get an element of a mask.
-        
+
         Mask elements are `True` if the entry `a[large_leg_idx]` is the `small_leg_idx`-th `True`
         in the block.
 
@@ -1549,6 +1581,7 @@ class BlockBackend(metaclass=ABCMeta):
             Number of `True` entries in the block, i.e., ``sum_block == self.sum_all(a)``. Agrees
             with the sector multiplicity of the small leg.
             (Only important if the sector dimension is larger than 1.)
+
         """
         offset = (large_leg_idx // self.get_shape(a)[0]) * sum_block
         large_leg_idx = large_leg_idx % self.get_shape(a)[0]
@@ -1565,17 +1598,15 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def matrix_exp(self, matrix: Block) -> Block:
-        ...
+    def matrix_exp(self, matrix: Block) -> Block: ...
 
     @abstractmethod
-    def matrix_log(self, matrix: Block) -> Block:
-        ...
+    def matrix_log(self, matrix: Block) -> Block: ...
 
     def matrix_lq(self, a: Block, full: bool) -> tuple[Block, Block]:
         q, r = self.matrix_qr(self.permute_axes(a, [1, 0]), full=full)
         return self.permute_axes(r, [1, 0]), self.permute_axes(q, [1, 0])
-    
+
     @abstractmethod
     def matrix_qr(self, a: Block, full: bool) -> tuple[Block, Block]:
         """QR decomposition of a 2D block"""
@@ -1587,15 +1618,19 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def ones_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
-        ...
+    def ones_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block: ...
 
     def synchronize(self):
         """Wait for asynchronous processes (if any) to finish"""
         pass
 
-    def test_block_sanity(self, block, expect_shape: tuple[int, ...] | None = None,
-                          expect_dtype: Dtype | None = None, expect_device: str | None = None):
+    def test_block_sanity(
+        self,
+        block,
+        expect_shape: tuple[int, ...] | None = None,
+        expect_dtype: Dtype | None = None,
+        expect_device: str | None = None,
+    ):
         assert isinstance(block, self.BlockCls), 'wrong block type'
         if expect_shape is not None:
             if self.get_shape(block) != expect_shape:
@@ -1607,17 +1642,14 @@ class BlockBackend(metaclass=ABCMeta):
             assert self.get_device(block) == expect_device, 'wrong block device'
 
     @abstractmethod
-    def zeros(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
-        ...
+    def zeros(self, shape: list[int], dtype: Dtype, device: str = None) -> Block: ...
 
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
-
         hdf5_saver.save(self.BlockCls, subpath + 'BlockCls')
         hdf5_saver.save(self.svd_algorithms, subpath + 'svd_algorithms')
 
     @classmethod
     def from_hdf5(cls, hdf5_loader, h5gr, subpath):
-
         obj = cls.__new__(cls)
         hdf5_loader.memorize_load(h5gr, obj)
 
@@ -1627,8 +1659,10 @@ class BlockBackend(metaclass=ABCMeta):
         return obj
 
 
-def conventional_leg_order(tensor_or_codomain: SymmetricTensor | TensorProduct,
-                           domain: TensorProduct = None) -> Generator[Space, None, None]:
+def conventional_leg_order(
+    tensor_or_codomain: SymmetricTensor | TensorProduct, domain: TensorProduct = None
+) -> Generator[Space, None, None]:
+    """The conventional order of legs."""
     if domain is None:
         codomain = tensor_or_codomain.codomain
         domain = tensor_or_codomain.domain

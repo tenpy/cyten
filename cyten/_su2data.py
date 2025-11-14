@@ -2,12 +2,15 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
-import numpy as np
+
 from functools import lru_cache
+
+import numpy as np
 
 try:
     from sympy import S as sympy_S
-    from sympy.physics.wigner import clebsch_gordan as sympy_cg, racah as sympy_racah
+    from sympy.physics.wigner import clebsch_gordan as sympy_cg
+    from sympy.physics.wigner import racah as sympy_racah
 except Exception:
     sympy_S = sympy_cg = sympy_racah = None
 
@@ -36,6 +39,7 @@ def f_symbol(a: int, b: int, c: int, d: int, e: int, f: int) -> np.ndarray:
     -------
     F : 4D array
         The F symbol as an array of the multiplicity indices [μ,ν,κ,λ]
+
     """
     # We define the F symbol as
     #  < ((j1 j2) J12, j3) J | (j1, (j2 j3) J23) J >
@@ -71,7 +75,7 @@ def Z_iso(a: int) -> np.ndarray:
     #       the matrix elements of Z in (A.19). The natural matrix representation is
     #       Z_{m,n} = A_{n,m} i.e. the *transpose* of the given matrix.
     # Z[0, -1] = -1, and then alternating [-1, +1, -1, ...] along anti-diagonal
-    Z[i, -1-i] = 1 - 2 * np.mod(i, 2)
+    Z[i, -1 - i] = 1 - 2 * np.mod(i, 2)
     return Z
 
 

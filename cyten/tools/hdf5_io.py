@@ -67,13 +67,15 @@ Names for the ``ATTR_TYPE`` attribute:
 """
 # Copyright (C) TeNPy Developers, Apache license
 
-import pickle
 import gzip
-import types
-import numpy as np
 import importlib
-import warnings
+import pickle
 import sys
+import types
+import warnings
+
+import numpy as np
+
 try:
     from packaging.version import parse as parse_version
 except (ImportError, AttributeError):
@@ -87,20 +89,58 @@ except (ImportError, AttributeError):
 
 try:
     import h5py
+
     h5py_version = h5py.version.version_tuple
 except (ImportError, AttributeError):
     h5py_version = (0, 0)
 
 __all__ = [
-    'save', 'load', 'find_global', 'valid_hdf5_path_component', 'Hdf5FormatError',
-    'Hdf5ExportError', 'Hdf5ImportError', 'Hdf5Exportable', 'Hdf5Ignored', 'Hdf5Saver',
-    'Hdf5Loader', 'save_to_hdf5', 'load_from_hdf5', 'REPR_IGNORED', 'REPR_HDF5EXPORTABLE',
-    'REPR_REDUCE', 'REPR_ARRAY', 'REPR_INT', 'REPR_INT_AS_STR', 'REPR_FLOAT', 'REPR_STR',
-    'REPR_COMPLEX', 'REPR_INT64', 'REPR_FLOAT64', 'REPR_COMPLEX128', 'REPR_INT32', 'REPR_FLOAT32',
-    'REPR_COMPLEX64', 'REPR_BOOL', 'REPR_NONE', 'REPR_RANGE', 'REPR_LIST', 'REPR_TUPLE',
-    'REPR_SET', 'REPR_DICT_GENERAL', 'REPR_DICT_SIMPLE', 'REPR_DTYPE', 'REPR_FUNCTION',
-    'REPR_CLASS', 'REPR_GLOBAL', 'TYPES_FOR_HDF5_DATASETS', 'ATTR_TYPE', 'ATTR_CLASS',
-    'ATTR_MODULE', 'ATTR_LEN', 'ATTR_FORMAT'
+    'save',
+    'load',
+    'find_global',
+    'valid_hdf5_path_component',
+    'Hdf5FormatError',
+    'Hdf5ExportError',
+    'Hdf5ImportError',
+    'Hdf5Exportable',
+    'Hdf5Ignored',
+    'Hdf5Saver',
+    'Hdf5Loader',
+    'save_to_hdf5',
+    'load_from_hdf5',
+    'REPR_IGNORED',
+    'REPR_HDF5EXPORTABLE',
+    'REPR_REDUCE',
+    'REPR_ARRAY',
+    'REPR_INT',
+    'REPR_INT_AS_STR',
+    'REPR_FLOAT',
+    'REPR_STR',
+    'REPR_COMPLEX',
+    'REPR_INT64',
+    'REPR_FLOAT64',
+    'REPR_COMPLEX128',
+    'REPR_INT32',
+    'REPR_FLOAT32',
+    'REPR_COMPLEX64',
+    'REPR_BOOL',
+    'REPR_NONE',
+    'REPR_RANGE',
+    'REPR_LIST',
+    'REPR_TUPLE',
+    'REPR_SET',
+    'REPR_DICT_GENERAL',
+    'REPR_DICT_SIMPLE',
+    'REPR_DTYPE',
+    'REPR_FUNCTION',
+    'REPR_CLASS',
+    'REPR_GLOBAL',
+    'TYPES_FOR_HDF5_DATASETS',
+    'ATTR_TYPE',
+    'ATTR_CLASS',
+    'ATTR_MODULE',
+    'ATTR_LEN',
+    'ATTR_FORMAT',
 ]
 
 
@@ -128,6 +168,7 @@ def save(data, filename, mode='w'):
         File mode for opening the file. ``'w'`` for write (discard existing file),
         ``'a'`` for append (add data to existing file).
         See :py:func:`open` for more details.
+
     """
     filename = str(filename)
     if filename.endswith('.pkl'):
@@ -157,6 +198,7 @@ def load(filename):
     -------
     data : obj
         The object loaded from the file.
+
     """
     filename = str(filename)
     if filename.endswith('.pkl'):
@@ -182,6 +224,7 @@ def find_global(module, qualified_name):
         Name of the module containing the object. The module gets imported.
     qualified_name : str
         Name of the object to be retrieved. May contain dots if the object is part of a class etc.
+
     """
     mod = importlib.import_module(module)
     obj = mod
@@ -194,65 +237,67 @@ def find_global(module, qualified_name):
 # everything below is for our export/import with our self-defined HDF5 format.
 # =================================================================================
 
-REPR_IGNORED = "ignore"  #: ignore the object/dataset during loading and saving
+REPR_IGNORED = 'ignore'  #: ignore the object/dataset during loading and saving
 
 #: saved object is instance of a user-defined class following the :class:`Hdf5Exportable` style.
-REPR_HDF5EXPORTABLE = "instance"
+REPR_HDF5EXPORTABLE = 'instance'
 
-REPR_REDUCE = "reduce"  #: saved object had a __reduce__ method according to pickle protocol
+REPR_REDUCE = 'reduce'  #: saved object had a __reduce__ method according to pickle protocol
 
-REPR_ARRAY = "array"  #: saved object represents a (numpy) array
-REPR_MASKED_ARRAY = "masked_array"  #: saved object represents a masked (numpy) array
-REPR_INT = "int"  #: saved object represents a (python) int
-REPR_INT_AS_STR = "int_as_str"  #: saved object represents int > 2^64 as (base-10) string
-REPR_FLOAT = "float"  #: saved object represents a (python) float
-REPR_STR = "str"  #: saved object represents a (python unicode) string
-REPR_BYTES = "bytes"  #: saved object represents a string of bytes without any encoding
-REPR_COMPLEX = "complex"  #: saved object represents a complex number
-REPR_INT64 = "np.int64"  #: saved object represents a np.int64
-REPR_FLOAT64 = "np.float64"  #: saved object represents a np.float64
-REPR_COMPLEX128 = "np.complex128"  #: saved object represents a np.complex128
-REPR_INT32 = "np.int32"  #: saved object represents a np.int32
-REPR_FLOAT32 = "np.float32"  #: saved object represents a np.float32
-REPR_COMPLEX64 = "np.complex64"  #: saved object represents a np.complex64
-REPR_BOOL = "bool"  #: saved object represents a boolean
+REPR_ARRAY = 'array'  #: saved object represents a (numpy) array
+REPR_MASKED_ARRAY = 'masked_array'  #: saved object represents a masked (numpy) array
+REPR_INT = 'int'  #: saved object represents a (python) int
+REPR_INT_AS_STR = 'int_as_str'  #: saved object represents int > 2^64 as (base-10) string
+REPR_FLOAT = 'float'  #: saved object represents a (python) float
+REPR_STR = 'str'  #: saved object represents a (python unicode) string
+REPR_BYTES = 'bytes'  #: saved object represents a string of bytes without any encoding
+REPR_COMPLEX = 'complex'  #: saved object represents a complex number
+REPR_INT64 = 'np.int64'  #: saved object represents a np.int64
+REPR_FLOAT64 = 'np.float64'  #: saved object represents a np.float64
+REPR_COMPLEX128 = 'np.complex128'  #: saved object represents a np.complex128
+REPR_INT32 = 'np.int32'  #: saved object represents a np.int32
+REPR_FLOAT32 = 'np.float32'  #: saved object represents a np.float32
+REPR_COMPLEX64 = 'np.complex64'  #: saved object represents a np.complex64
+REPR_BOOL = 'bool'  #: saved object represents a boolean
 
-REPR_NONE = "None"  #: saved object is ``None``
-REPR_RANGE = "range"  #: saved object is a range
-REPR_LIST = "list"  #: saved object represents a list
-REPR_TUPLE = "tuple"  #: saved object represents a tuple
-REPR_SET = "set"  #: saved object represents a set
-REPR_DICT_GENERAL = "dict"  #: saved object represents a dict with complicated keys
-REPR_DICT_SIMPLE = "simple_dict"  #: saved object represents a dict with simple keys
-REPR_DTYPE = "dtype"  #: saved object represents a np.dtype
+REPR_NONE = 'None'  #: saved object is ``None``
+REPR_RANGE = 'range'  #: saved object is a range
+REPR_LIST = 'list'  #: saved object represents a list
+REPR_TUPLE = 'tuple'  #: saved object represents a tuple
+REPR_SET = 'set'  #: saved object represents a set
+REPR_DICT_GENERAL = 'dict'  #: saved object represents a dict with complicated keys
+REPR_DICT_SIMPLE = 'simple_dict'  #: saved object represents a dict with simple keys
+REPR_DTYPE = 'dtype'  #: saved object represents a np.dtype
 
-REPR_FUNCTION = "function"  #: saved object represents a (global) function
-REPR_CLASS = "class"  #: saved object is a (global) class
-REPR_GLOBAL = "global"  #: saved object is a global variable (like a class or function)
+REPR_FUNCTION = 'function'  #: saved object represents a (global) function
+REPR_CLASS = 'class'  #: saved object is a (global) class
+REPR_GLOBAL = 'global'  #: saved object is a global variable (like a class or function)
 
 #: tuple of (type, type_repr) which h5py can save as datasets; one entry for each type.
-TYPES_FOR_HDF5_DATASETS = tuple([
-    (np.ndarray, REPR_ARRAY),
-    (int, REPR_INT),
-    (float, REPR_FLOAT),
-    (str, REPR_STR),
-    (bytes, REPR_BYTES),
-    (complex, REPR_COMPLEX),
-    (np.int64, REPR_INT64),
-    (np.float64, REPR_FLOAT64),
-    (np.complex128, REPR_COMPLEX128),
-    (np.int32, REPR_INT32),
-    (np.float32, REPR_FLOAT32),
-    (np.complex64, REPR_COMPLEX64),
-    (np.bool_, REPR_BOOL),
-    (bool, REPR_BOOL),
-])
+TYPES_FOR_HDF5_DATASETS = tuple(
+    [
+        (np.ndarray, REPR_ARRAY),
+        (int, REPR_INT),
+        (float, REPR_FLOAT),
+        (str, REPR_STR),
+        (bytes, REPR_BYTES),
+        (complex, REPR_COMPLEX),
+        (np.int64, REPR_INT64),
+        (np.float64, REPR_FLOAT64),
+        (np.complex128, REPR_COMPLEX128),
+        (np.int32, REPR_INT32),
+        (np.float32, REPR_FLOAT32),
+        (np.complex64, REPR_COMPLEX64),
+        (np.bool_, REPR_BOOL),
+        (bool, REPR_BOOL),
+    ]
+)
 
-ATTR_TYPE = "type"  #: Attribute name for type of the saved object, should be one of the ``REPR_*``
-ATTR_CLASS = "class"  #: Attribute name for the class name of an HDF5Exportable
-ATTR_MODULE = "module"  #: Attribute name for the module where ATTR_CLASS can be retrieved
-ATTR_LEN = "len"  #: Attribute name for the length of iterables, e.g, list, tuple
-ATTR_FORMAT = "format"  #: indicates the `ATTR_TYPE` format used by :class:`Hdf5Exportable`
+ATTR_TYPE = 'type'  #: Attribute name for type of the saved object, should be one of the ``REPR_*``
+ATTR_CLASS = 'class'  #: Attribute name for the class name of an HDF5Exportable
+ATTR_MODULE = 'module'  #: Attribute name for the module where ATTR_CLASS can be retrieved
+ATTR_LEN = 'len'  #: Attribute name for the length of iterables, e.g, list, tuple
+ATTR_FORMAT = 'format'  #: indicates the `ATTR_TYPE` format used by :class:`Hdf5Exportable`
 
 
 def valid_hdf5_path_component(name):
@@ -314,6 +359,7 @@ class Hdf5Exportable:
             HDF5 group which is supposed to represent `self`.
         subpath : str
             The `name` of `h5gr` with a ``'/'`` in the end.
+
         """
         # for new implementations, use:
         #   hdf5_saver.save(data, subpath + "key")  # for big content/data
@@ -342,6 +388,7 @@ class Hdf5Exportable:
         -------
         obj : cls
             Newly generated class instance containing the required data.
+
         """
         # for new implementations, use:
         #   obj = cls.__new__(cls)                     # create class instance, no __init__() call
@@ -374,6 +421,7 @@ class Hdf5Ignored:
     ----------
     name : str
         See above.
+
     """
 
     def __init__(self, name='unknown'):
@@ -422,6 +470,7 @@ class Hdf5Saver:
         This dictionary allows to set a output format selection for user-defined
         :meth:`Hdf5Exportable.save_hdf5` implementations.
         For example, :class:`~tenpy.linalg.LegCharge` checks it for the key ``"LegCharge"``.
+
     """
 
     def __init__(self, h5group, format_selection=None):
@@ -447,6 +496,7 @@ class Hdf5Saver:
         -------
         h5gr : :class:`Group` | :class:`Dataset`
             The h5py group or dataset in which `obj` was saved.
+
         """
         obj_id = id(obj)
         in_memo = self.memo_save.get(obj_id)  # default=None
@@ -482,24 +532,24 @@ class Hdf5Saver:
             return h5gr
 
         warnings.warn(
-            "Hdf5Saver: object of type {t!r} without explicit HDF5 format; "
-            "fall back to pickle protocol".format(t=type(obj)), UserWarning)
+            f'Hdf5Saver: object of type {type(obj)!r} without explicit HDF5 format; fall back to pickle protocol',
+            UserWarning,
+        )
 
-        obj_reduce = getattr(obj, "__reduce__", None)
+        obj_reduce = getattr(obj, '__reduce__', None)
         if obj_reduce is not None:
-
             rv = obj_reduce()
             if isinstance(rv, str):
                 h5gr = self.save_global(obj, REPR_GLOBAL)
                 return h5gr
             if not isinstance(rv, tuple) or not 2 <= len(rv) < 7:
-                raise Hdf5ExportError("Wrong return value of {0!r}".format(obj_reduce))
+                raise Hdf5ExportError(f'Wrong return value of {obj_reduce!r}')
 
             h5gr = self.save_reduce(*rv, obj=obj, path=path)
             return h5gr
 
         # unknown case
-        msg = "Don't know how to save object of type {0!r}:\n{1!r}".format(type(obj), obj)
+        msg = f"Don't know how to save object of type {type(obj)!r}:\n{obj!r}"
         raise Hdf5ExportError(msg)
 
     def create_group_for_obj(self, path, obj):
@@ -528,6 +578,7 @@ class Hdf5Saver:
         Raises
         ------
         ValueError : if `self.h5group[path]`` already existed and `path` is not ``'/'``.
+
         """
         if path == '/':
             gr = self.h5group[path]
@@ -552,20 +603,15 @@ class Hdf5Saver:
             The h5py group or dataset in which `obj` was saved.
         obj : :class:`object`
             The object saved.
+
         """
         obj_id = id(obj)
         assert obj_id not in self.memo_save
         self.memo_save[obj_id] = (h5gr, obj)
 
-    def save_reduce(self,
-                    func,
-                    args,
-                    state=None,
-                    listitems=None,
-                    dictitems=None,
-                    state_setter=None,
-                    obj=None,
-                    path=None):
+    def save_reduce(
+        self, func, args, state=None, listitems=None, dictitems=None, state_setter=None, obj=None, path=None
+    ):
         """Save the return values of ``obj.__reduce__`` following the pickle protocol."""
         h5gr, subpath = self.create_group_for_obj(path, obj)
         h5gr.attrs[ATTR_TYPE] = REPR_REDUCE
@@ -603,7 +649,7 @@ class Hdf5Saver:
             self.h5group[path] = obj  # save as dataset
         except TypeError as e:
             # special handling for ints > 2**64
-            if type_repr != REPR_INT or "no native HDF5 equivalent" not in e.args[0]:
+            if type_repr != REPR_INT or 'no native HDF5 equivalent' not in e.args[0]:
                 raise
             # convert int to str that can easily be saved
             obj = str(obj)
@@ -663,6 +709,7 @@ class Hdf5Saver:
             h5py Group under which the keys and values of `obj` should be saved.
         subpath : str
             Name of h5gr with ``'/'`` in the end.
+
         """
         h5gr.attrs[ATTR_LEN] = len(obj)
         for i, elem in enumerate(obj):
@@ -699,6 +746,7 @@ class Hdf5Saver:
         type_repr : REPR_DICT_SIMPLE | REPR_DICT_GENERAL
             Indicates whether the data was saved in the format for a dictionary with simple keys
             or general keys, see comment above.
+
         """
         # check if we have only simple keys, which we can use in `path`
         simple_keys = True
@@ -714,8 +762,8 @@ class Hdf5Saver:
         else:
             keys = obj.keys()
             values = obj.values()
-            self.save_iterable(keys, subpath + "keys", REPR_LIST)
-            self.save_iterable(values, subpath + "values", REPR_LIST)
+            self.save_iterable(keys, subpath + 'keys', REPR_LIST)
+            self.save_iterable(values, subpath + 'values', REPR_LIST)
             return REPR_DICT_GENERAL
 
     def save_range(self, obj, path, type_repr):
@@ -733,8 +781,8 @@ class Hdf5Saver:
         """Save a :class:`~numpy.dtype` object; in dispatch table."""
         h5gr, subpath = self.create_group_for_obj(path, obj)
         h5gr.attrs[ATTR_TYPE] = REPR_DTYPE
-        name = getattr(obj, "name", "void")
-        h5gr.attrs["name"] = name
+        name = getattr(obj, 'name', 'void')
+        h5gr.attrs['name'] = name
         self.save(obj.descr, subpath + 'descr')
         return h5gr
 
@@ -763,14 +811,13 @@ class Hdf5Saver:
         try:
             obj2 = find_global(module, qualname)
         except (ImportError, KeyError, AttributeError):
-            raise Hdf5ExportError(
-                "Can't export `{0!r}`: it's not found as {1} in module {2}".format(
-                    obj, qualname, module)) from None
+            raise Hdf5ExportError(f"Can't export `{obj!r}`: it's not found as {qualname} in module {module}") from None
         else:
             if obj2 is not obj:
-                raise Hdf5ExportError("Can't export `{0!r}`: it's not the same object"
-                                      "as {1} in module {2}".format(obj, qualname, module))
-        full_name = qualname + " in " + module
+                raise Hdf5ExportError(
+                    f"Can't export `{obj!r}`: it's not the same objectas {qualname} in module {module}"
+                )
+        full_name = qualname + ' in ' + module
         self.h5group[path] = full_name  # save as string dataset
         h5gr = self.h5group[path]
         h5gr.attrs[ATTR_TYPE] = type_repr
@@ -830,6 +877,7 @@ class Hdf5Loader:
         A dictionary to remember all the objects which we already loaded from :attr:`h5group`.
         The dictionary key is a h5py group- or dataset ``id``;
         the value is the loaded object. See :meth:`memorize_load`.
+
     """
 
     def __init__(self, h5group, ignore_unknown=True, exclude=None):
@@ -841,8 +889,7 @@ class Hdf5Loader:
                 try:
                     data = self.h5group[path]
                 except KeyError:
-                    warnings.warn(
-                        "can't exclude {0!r} from loading: not existent in h5group".format(path))
+                    warnings.warn(f"can't exclude {path!r} from loading: not existent in h5group")
                     continue
                 self.memorize_load(data, Hdf5Ignored(path))
 
@@ -861,6 +908,7 @@ class Hdf5Loader:
         -------
         obj : object
             The Python object loaded from `h5group` (specified by `path`).
+
         """
         # get dataset to be loaded
         if path is None:
@@ -878,7 +926,7 @@ class Hdf5Loader:
         type_repr = self.get_attr(h5gr, ATTR_TYPE)
         disp = self.dispatch_load.get(type_repr)
         if disp is None:
-            msg = "Unknown type {0!r} while loading hdf5 dataset {1!s}"
+            msg = 'Unknown type {0!r} while loading hdf5 dataset {1!s}'
             raise Hdf5ImportError(msg.format(type_repr, h5gr.name))
         f, type_info = disp
         # `f` is a dispatcher function, which should do the following
@@ -927,10 +975,11 @@ class Hdf5Loader:
         ------
         :class:`Hdf5ImportError`
             If the attribute does not exist.
+
         """
         res = h5gr.attrs.get(attr_name)
         if res is None:
-            msg = "missing attribute {0!r} for dataset {1!s}"
+            msg = 'missing attribute {0!r} for dataset {1!s}'
             raise Hdf5ImportError(msg.format(attr_name, h5gr.name))
         if isinstance(res, bytes):
             res = res.decode()
@@ -1051,7 +1100,7 @@ class Hdf5Loader:
             return self.load_general_dict(h5gr, type_info, subpath)
         elif type_info == REPR_DICT_SIMPLE:
             return self.load_simple_dict(h5gr, type_info, subpath)
-        raise ValueError("can't interpret type_info {0!r}".format(type_info))
+        raise ValueError(f"can't interpret type_info {type_info!r}")
 
     def load_general_dict(self, h5gr, type_info, subpath):
         """Load a dictionary with general keys."""
@@ -1088,8 +1137,8 @@ class Hdf5Loader:
 
     def load_dtype(self, h5gr, type_info, subpath):
         """Load a :class:`numpy.dtype`."""
-        name = self.get_attr(h5gr, "name")
-        if name.startswith("void"):
+        name = self.get_attr(h5gr, 'name')
+        if name.startswith('void'):
             descr = self.load(subpath + 'descr')
             obj = np.dtype(descr)
         else:
@@ -1106,7 +1155,7 @@ class Hdf5Loader:
         try:
             cls = find_global(module_name, class_name)
         except (ImportError, AttributeError):
-            msg = "Can't import class {0!s} from {1!s}".format(class_name, module_name)
+            msg = f"Can't import class {class_name!s} from {module_name!s}"
             if self.ignore_unknown:
                 warnings.warn(msg, UserWarning)
                 return Hdf5Ignored(msg)
@@ -1129,7 +1178,7 @@ class Hdf5Loader:
         try:
             obj = find_global(module_name, class_name)
         except (ImportError, AttributeError):
-            msg = "Can't import global {0!s} from {1!s}".format(class_name, module_name)
+            msg = f"Can't import global {class_name!s} from {module_name!s}"
             if self.ignore_unknown:
                 warnings.warn(msg, UserWarning)
                 return Hdf5Ignored(msg)
@@ -1213,6 +1262,7 @@ def save_to_hdf5(h5group, obj, path='/'):
     -------
     h5obj : :class:`Group` | :class:`Dataset`
         The h5py group or dataset under which `obj` was saved.
+
     """
     return Hdf5Saver(h5group).save(obj, path)
 
@@ -1246,5 +1296,6 @@ def load_from_hdf5(h5group, path=None, ignore_unknown=True, exclude=None):
     -------
     obj : object
         The Python object loaded from `h5group` (specified by `path`).
+
     """
     return Hdf5Loader(h5group, ignore_unknown, exclude).load(path)

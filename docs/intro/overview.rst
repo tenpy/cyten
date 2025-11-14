@@ -13,9 +13,9 @@ cyten
     Consequently, other subfolders of the git repo should not include a ``__init__.py`` file.)
 include
     C++ header files
-src 
+src
     C++ source files
-pybind 
+pybind
     Python bindings from the C++ source code via pybind11.
 examples
     Some example files demonstrating the usage and API of the library.
@@ -29,5 +29,3 @@ tests
 build
     This folder is not distributed with the code, but is generated during compilation.
     It can be ignored (and even removed) without loosing functionality.
-
-

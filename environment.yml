@@ -27,8 +27,10 @@ dependencies:
 
   # developer tools
   - ipython
+  - ruff
   - flake8
-  - flake8-docstrings
+  - flake8-rst-docstrings
+  - sphinx-lint
 
   # building docs
   # - doxygen

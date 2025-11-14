@@ -2,8 +2,9 @@
 # Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
-from typing import TypeVar, TypeAlias, Generic, Iterable, Sequence
 
+from collections.abc import Iterable, Sequence
+from typing import Generic, TypeAlias, TypeVar
 
 __all__ = ['SparseMapping', 'IdentityMapping']
 
@@ -23,13 +24,13 @@ class SparseMapping(Generic[_KT], dict[_KT, dict[_KT, _Scalar]]):
 
     @classmethod
     def from_identity(cls, keys: Iterable[_KT]):
+        """The identity mapping ``e_j -> e_j`` on the given keys"""
         res = cls()
         for i in keys:
             res[i] = {i: 1}
         return res
 
-    def pre_compose(self, other: SparseMapping[_KT] | dict[_KT, dict[_KT, _Scalar]]
-                    ) -> SparseMapping[_KT]:
+    def pre_compose(self, other: SparseMapping[_KT] | dict[_KT, dict[_KT, _Scalar]]) -> SparseMapping[_KT]:
         r"""The composite ``res_{ik} = \sum_j other_{ij} self{jk}``, such that self acts first.
 
         I.e. we pre-compose self with other, i.e. compose other with self, i.e.::
@@ -70,8 +71,13 @@ class IdentityMapping(Generic[_KT]):
     def __init__(self, keys: Sequence[_KT]):
         self.keys = set(keys)
 
-    def pre_compose(self, other: SparseMapping[_KT] | dict[_KT, dict[_KT, _Scalar]]
-                    ) -> SparseMapping[_KT]:
+    def pre_compose(self, other: SparseMapping[_KT] | dict[_KT, dict[_KT, _Scalar]]) -> SparseMapping[_KT]:
+        r"""The composite ``res_{ik} = \sum_j other_{ij} self{jk}``, such that self acts first.
+
+        I.e. we pre-compose self with other, i.e. compose other with self, i.e.::
+
+            pre_compose(self, other) : x ↦ other(self(x)) = (other ∘ self)(x)
+        """
         # res_{ik} = \sum_j other_{ij} self_{jk} = delta_{k in self} other_{ik}
         res = SparseMapping()
         for k in self.keys:
@@ -81,9 +87,11 @@ class IdentityMapping(Generic[_KT]):
         return res
 
     def nonzero_rows(self) -> set[_KT]:
+        """The idcs ``i`` for which there are entries ``self_{ij} = self[j][i]`` set."""
         return self.keys
 
     def nonzero_cols(self) -> set[_KT]:
+        """The idcs ``j`` for which there are entries ``self_{ij} = self[j][i]`` set."""
         return self.keys
 
     def prune(self, tol: float):

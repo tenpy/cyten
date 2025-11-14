@@ -1,4 +1,5 @@
 """Tools for expressing algorithmic costs as polynomials."""
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ class BigOMonomial:
     ----------
     factors : dict {str: int}
         The factor, where an entry ``{'x': n}`` represents the symbol factor ``x^n``.
+
     """
 
     def __init__(self, factors: dict[str, int]):
@@ -21,6 +23,7 @@ class BigOMonomial:
 
     @classmethod
     def from_str(cls, mono: str):
+        """Initialize from a string representation like ``'x^2 y^3'``."""
         if isinstance(mono, BigOMonomial):
             return mono
         mono = str(mono).strip()
@@ -99,6 +102,7 @@ class BigOPolynomial:
     ----------
     terms : list of BigOMonomial
         The terms such that the polynomial is their sum.
+
     """
 
     def __init__(self, terms: list[BigOMonomial] = None):
@@ -107,8 +111,7 @@ class BigOPolynomial:
         self.terms = self.simplify_terms(terms)
 
     @staticmethod
-    def simplify_terms(terms: list[BigOMonomial],
-                       relations: list[tuple[BigOMonomial, BigOMonomial]] = None):
+    def simplify_terms(terms: list[BigOMonomial], relations: list[tuple[BigOMonomial, BigOMonomial]] = None):
         """Simplify a list of terms by dropping negligible terms."""
         non_negligible = []
         for t in terms:
@@ -118,6 +121,7 @@ class BigOPolynomial:
 
     @classmethod
     def from_str(cls, poly: str):
+        """Initialize from a string representation like ``'x^2 y^3 + x^4'``."""
         if isinstance(poly, BigOPolynomial):
             return poly
         if isinstance(poly, BigOMonomial):

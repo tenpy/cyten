@@ -1,28 +1,28 @@
 """A block backend using numpy."""
+
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
 import numpy as np
 import scipy
 
-from .abstract_backend import BlockBackend, Block
-from ..dtypes import Dtype, _numpy_dtype_to_cyten, _cyten_dtype_to_numpy
+from ..dtypes import Dtype, _cyten_dtype_to_numpy, _numpy_dtype_to_cyten
+from .abstract_backend import Block, BlockBackend
 
 
 class NumpyBlockBackend(BlockBackend):
     """A block backend using numpy."""
-    
+
     BlockCls = np.ndarray
     svd_algorithms = ['gesdd', 'gesvd', 'robust', 'robust_silent']
-    
+
     cyten_dtype_map = _numpy_dtype_to_cyten
     backend_dtype_map = _cyten_dtype_to_numpy
 
     def __init__(self):
         super().__init__(default_device='cpu')
-    
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
-                 ) -> Block:
+
+    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None) -> Block:
         _ = self.as_device(device)  # for input check only
         block = np.asarray(a, dtype=self.backend_dtype_map[dtype])
         if np.issubdtype(block.dtype, np.integer):
@@ -47,7 +47,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def block_all(self, a) -> bool:
         return np.all(a)
-        
+
     def allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
         return np.allclose(a, b, rtol=rtol, atol=atol)
 
@@ -109,7 +109,7 @@ class NumpyBlockBackend(BlockBackend):
         return np.diag(diag)
 
     def block_from_mask(self, mask: Block, dtype: Dtype) -> Block:
-        M, = mask.shape
+        (M,) = mask.shape
         N = np.sum(mask)
         res = np.zeros((N, M), dtype=self.backend_dtype_map[dtype])
         res[np.arange(N), mask] = 1
@@ -123,7 +123,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def get_device(self, a: Block) -> str:
         return self.default_device
-    
+
     def get_diagonal(self, a: Block, tol: float | None) -> Block:
         res = np.diagonal(a)
         if tol is not None:
@@ -139,7 +139,7 @@ class NumpyBlockBackend(BlockBackend):
         if do_dagger:
             return np.tensordot(np.conj(a), b, a.ndim).item()
         return np.tensordot(a, b, [list(range(a.ndim)), list(reversed(range(a.ndim)))]).item()
-        
+
     def item(self, a: Block) -> float | complex:
         return a.item()
 
@@ -157,7 +157,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def min(self, a: Block) -> float | complex:
         return np.min(a).item()
-    
+
     def norm(self, a: Block, order: int | float = 2, axis: int | None = None) -> float:
         if axis is None:
             return np.linalg.norm(a.ravel(), ord=order).item()
@@ -169,8 +169,7 @@ class NumpyBlockBackend(BlockBackend):
     def permute_axes(self, a: Block, permutation: list[int]) -> Block:
         return np.transpose(a, permutation)
 
-    def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None
-                      ) -> Block:
+    def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None) -> Block:
         # if sigma is standard deviation for complex numbers, need to divide by sqrt(2)
         # to get standard deviation in real and imag parts
         if not dtype.is_real:
@@ -178,14 +177,14 @@ class NumpyBlockBackend(BlockBackend):
         _ = self.as_device(device)  # for input check only
         res = np.random.normal(loc=0, scale=sigma, size=dims)
         if not dtype.is_real:
-            res = res + 1.j * np.random.normal(loc=0, scale=sigma, size=dims)
+            res = res + 1.0j * np.random.normal(loc=0, scale=sigma, size=dims)
         return res
 
     def random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
         _ = self.as_device(device)  # for input check only
         res = np.random.uniform(-1, 1, size=dims)
         if not dtype.is_real:
-            res = res + 1.j * np.random.uniform(-1, 1, size=dims)
+            res = res + 1.0j * np.random.uniform(-1, 1, size=dims)
         return res
 
     def real(self, a: Block) -> Block:
@@ -219,8 +218,8 @@ class NumpyBlockBackend(BlockBackend):
         return np.squeeze(a, tuple(idcs))
 
     def stable_log(self, block: Block, cutoff: float) -> Block:
-        return np.where(block > cutoff, np.log(block), 0.)
-    
+        return np.where(block > cutoff, np.log(block), 0.0)
+
     def sum(self, a: Block, ax: int) -> Block:
         return np.sum(a, axis=ax)
 
@@ -242,8 +241,8 @@ class NumpyBlockBackend(BlockBackend):
 
     def trace_partial(self, a: Block, idcs1: list[int], idcs2: list[int], remaining: list[int]) -> Block:
         a = np.transpose(a, remaining + idcs1 + idcs2)
-        trace_dim = np.prod(a.shape[len(remaining):len(remaining)+len(idcs1)], dtype=int)
-        a = np.reshape(a, a.shape[:len(remaining)] + (trace_dim, trace_dim))
+        trace_dim = np.prod(a.shape[len(remaining) : len(remaining) + len(idcs1)], dtype=int)
+        a = np.reshape(a, a.shape[: len(remaining)] + (trace_dim, trace_dim))
         return np.trace(a, axis1=-2, axis2=-1)
 
     def eye_matrix(self, dim: int, dtype: Dtype, device: str = None) -> Block:
@@ -255,7 +254,7 @@ class NumpyBlockBackend(BlockBackend):
 
     def matrix_dot(self, a: Block, b: Block) -> Block:
         return np.dot(a, b)
-    
+
     def matrix_exp(self, matrix: Block) -> Block:
         return scipy.linalg.expm(matrix)
 

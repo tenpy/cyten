@@ -34,14 +34,14 @@ corresponding ensemble, for example::
 import numpy as np
 
 
-def box(size, W=1.):
+def box(size, W=1.0):
     """Generate random number uniform in (-W, W]."""
-    return (0.5 - np.random.random(size)) * (2. * W)
+    return (0.5 - np.random.random(size)) * (2.0 * W)
 
 
 def standard_normal_complex(size):
     """Generate ``(R + 1.j*I)`` for independent `R` and `I` from np.random.standard_normal."""
-    return np.random.standard_normal(size) + 1.j * np.random.standard_normal(size)
+    return np.random.standard_normal(size) + 1.0j * np.random.standard_normal(size)
 
 
 def GOE(size):
@@ -57,6 +57,7 @@ def GOE(size):
     H : ndarray
         Real, symmetric numpy matrix drawn from the GOE, i.e.
         :math:`p(H) = 1/Z exp(-n/4 tr(H^2))`
+
     """
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
     A = np.random.standard_normal(size)
@@ -76,6 +77,7 @@ def GUE(size):
     H : ndarray
         Hermitian (complex) numpy matrix drawn from the GUE, i.e.
         :math:`p(H) = 1/Z exp(-n/4 tr(H^2))`.
+
     """
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
     A = standard_normal_complex(size)
@@ -94,6 +96,7 @@ def CRE(size):
     -------
     U : ndarray
         Orthogonal matrix drawn from the CRE (=Haar measure on O(n)).
+
     """
     # almost same code as for CUE
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
@@ -118,6 +121,7 @@ def COE(size):
     -------
     U : ndarray
         Unitary, symmetric (complex) matrix drawn from the COE (=Haar measure on this space).
+
     """
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
     U = CUE(size)
@@ -136,6 +140,7 @@ def CUE(size):
     -------
     U : ndarray
         Unitary matrix drawn from the CUE (=Haar measure on U(n)).
+
     """
     # almost same code as for CRE
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
@@ -144,7 +149,7 @@ def CUE(size):
     # Q-R is not unique; to make it unique ensure that the diagonal of R is positive
     # Q' = Q*L; R' = L^{-1} *R, where L = diag(phase(diagonal(R)))
     L = np.diagonal(R).copy()
-    L[np.abs(L) < 1.e-15] = 1.
+    L[np.abs(L) < 1.0e-15] = 1.0
     Q *= L / np.abs(L)
     return Q
 
@@ -164,10 +169,11 @@ def O_close_1(size, a=0.01):
     -------
     O : ndarray
         Orthogonal matrix close to the identity (for small `a`).
+
     """
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
     n, m = size
-    A = GOE(size) / (2. * n)**0.5  # scale such that eigenvalues are in [-1, 1]
+    A = GOE(size) / (2.0 * n) ** 0.5  # scale such that eigenvalues are in [-1, 1]
     E = np.eye(size[0])
     Q, R = np.linalg.qr(E + a * A)
     L = np.diagonal(R)  # make QR decomposition unique & ensure Q is close to one for small `a`
@@ -191,9 +197,10 @@ def U_close_1(size, a=0.01):
     U : ndarray
         Unitary matrix close to the identity (for small `a`).
         Eigenvalues are chosen i.i.d. as ``exp(1.j*a*x)`` with `x` uniform in [-1, 1].
+
     """
     assert len(size) == 2 and size[0] == size[1], f'not a square matrix shape: {size}'
     n, m = size
     U = CUE(size)  # random unitary
-    E = np.exp(1.j * a * (np.random.rand(n) * 2. - 1.))
+    E = np.exp(1.0j * a * (np.random.rand(n) * 2.0 - 1.0))
     return np.dot(U * E, U.T.conj())
