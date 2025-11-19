@@ -33,31 +33,30 @@ class FusionTree:
 
     Graphically::
 
-        |                coupled
-        |                │
-        |           ╭────k─────╮
-        |          y│          │
-        |       ╭───j────╮     │
-        |      x│        │     │
-        |    ╭──i──╮     │     │
-        |    a     b     c     d     <- uncoupled
-        |    ^     ^     ^     ^
-        |    │     Z     Z     │
-        |    ^     v     v     ^
         |    a     b     c     d     <- isomorphic to pre_Z_uncoupled
-        |                               e.g. dual(b) iso to pre_Z_uncoupled[1]
+        |    v     ^     ^     v        e.g. dual(b) iso to pre_Z_uncoupled[1]
+        |    │     Z     Z     │
+        |    v     v     v     v
+        |    a     b     c     d     <- uncoupled
+        |    ╰──i──╯     │     │
+        |      x│        │     │
+        |       ╰───j────╯     │
+        |          y│          │
+        |           ╰────k─────╯
+        |                │
+        |                coupled
 
     Attributes
     ----------
     symmetry : Symmetry
         The symmetry.
     uncoupled : 2D array of int
-        N uncoupled sectors. These are the sectors *above* any Z isos.
+        N uncoupled sectors. These are the sectors *below* any Z isos.
         I.e. the generalized tree, including the Zs, maps from the :attr:`pre_Z_sectors` instead.
     coupled : 1D array of int
-        The coupled sector at the top of the tree.
+        The coupled sector at the bottom of the tree.
     are_dual : 1D array of bool
-        N flags: is there a Z isomorphism below the uncoupled sector.
+        N flags: is there a Z isomorphism above the uncoupled sector.
     inner_sectors : 2D array of int
         N - 2 internal sectors, at the internal edges of the tree.
     multiplicities : 1D array of int
@@ -65,7 +64,7 @@ class FusionTree:
 
     Notes
     -----
-    Consider the ``n``-th vertex (counting 0-based from bottom to top).
+    Consider the ``n``-th vertex (counting 0-based from top to bottom).
     It fuses :math:`e \otimes f \to g` with multiplicity label ``multiplicities[n]``.
 
         - ``e = uncoupled[0] if n == 0 else inner_sectors[n - 1]``
@@ -79,7 +78,7 @@ class FusionTree:
         symmetry: Symmetry,
         uncoupled: SectorArray | list[Sector],  # N uncoupled sectors
         coupled: Sector,
-        are_dual: np.ndarray | list[bool],  # N flags: is there a Z isomorphism below the uncoupled sector
+        are_dual: np.ndarray | list[bool],  # N flags: is there a Z isomorphism above the uncoupled sector
         inner_sectors: SectorArray | list[Sector],  # N - 2 internal sectors
         multiplicities: np.ndarray | list[int] = None,  # N - 1 multiplicity labels; all 0 per default
     ):
@@ -178,7 +177,7 @@ class FusionTree:
 
     @property
     def pre_Z_uncoupled(self):
-        """The uncoupled sectors *below* any Z isomorphisms."""
+        """The uncoupled sectors *above* any Z isomorphisms."""
         res = self.uncoupled.copy()
         res[self.are_dual, :] = self.symmetry.dual_sectors(res[self.are_dual, :])
         return res
@@ -208,8 +207,7 @@ class FusionTree:
 
     def _ascii_diagram(self, dagger: bool, uncoupled_padding=2, inner_sector_padding=0) -> np.ndarray:
         """The :meth:`ascii_diagram` as a 2D array of single characters."""
-        # Note: for dagger=True, we simply vertically mirror the line characters and
-        #       at the very end their positions
+        # We build a splitting tree (dagger=True), and if dagger=False, we mirror it at the end
 
         assert uncoupled_padding > 0
         assert inner_sector_padding >= 0
@@ -233,10 +231,10 @@ class FusionTree:
         if self.num_uncoupled == 1:
             ascii = np.full((uncoupled_widths[0], 5), ' ', dtype=str)
             ascii[:, 0] = list(uncoupled_strs[0])
-            # for dagger, we would need to explicitly mirror the arrows -> simply dont mirror back
-            ascii[1, [1, 2, 3]] = ['^', 'Z', 'v'] if self.are_dual[0] else ['^', '│', '^']
+            # note: arrows are the same no matter if dagger or not
+            ascii[1, [1, 2, 3]] = ['v', 'Z', '^'] if self.are_dual[0] else ['v', '│', 'v']
             ascii[:, 4] = list(pre_Z_uncoupled_strs[0])
-            if dagger:
+            if not dagger:
                 ascii = ascii[:, ::-1]
             return ascii
 
@@ -257,8 +255,8 @@ class FusionTree:
             ascii[pos : pos + len(s), -1] = list(s)
         # line -2: Z or vertical wires
         for pos, has_Z in zip(uncoupled_pos, self.are_dual):
-            # for dagger, we would need to explicitly mirror the arrows -> simply dont mirror back
-            ascii[pos + 1, [-4, -3, -2]] = ['^', 'Z', 'v'] if has_Z else ['^', '│', '^']
+            # note: arrows are the same no matter if dagger or not
+            ascii[pos + 1, [-4, -3, -2]] = ['v', 'Z', '^'] if has_Z else ['v', '│', 'v']
         # line -3: uncoupled
         for pos, s in zip(uncoupled_pos, pre_Z_uncoupled_strs):
             ascii[pos : pos + len(s), -5] = list(s)
@@ -269,12 +267,12 @@ class FusionTree:
             right_wire = uncoupled_pos[n + 1] + 1
             ascii[right_wire, row + 1 : -num_rows_uncoupled] = '│'
             vertex = (left_wire + right_wire) // 2
-            ascii[left_wire, row] = '╰' if dagger else '╭'
+            ascii[left_wire, row] = '╭' if dagger else '╰'
             ascii[left_wire + 1 : vertex, row] = '─'
-            ascii[vertex, row] = '┬' if dagger else '┴'
+            ascii[vertex, row] = '┴' if dagger else '┬'
             vertex_positions.append((vertex, row))
             ascii[vertex + 1 : right_wire, row] = '─'
-            ascii[right_wire, row] = '╯' if dagger else '╮'
+            ascii[right_wire, row] = '╮' if dagger else '╯'
             ascii[vertex, row - 1] = '│'
             # for next iteration:
             left_wire = vertex
@@ -312,9 +310,9 @@ class FusionTree:
                 else:
                     raise NotImplementedError('Multiplicity with >3 digits not supported.')
 
-        # finialize
+        # finalize
         ascii = np.concatenate([extra_left, ascii], axis=0)
-        if dagger:
+        if not dagger:
             ascii = ascii[:, ::-1]
 
         return ascii
@@ -350,33 +348,33 @@ class FusionTree:
 
     @staticmethod
     def bend_leg(
-        Y: FusionTree,
         X: FusionTree,
-        bend_upward: bool,
+        Y: FusionTree,
+        bend_downward: bool,
         do_conj: bool = False,
     ) -> dict[tuple[FusionTree, FusionTree], float | complex]:
         r"""Bend a leg on a tree-pair, return the resulting linear combination of tree-pairs.
 
         Graphically::
 
-            |    bend_upward=True                      bend_upward=False
+            |    bend_downward=True                    bend_downward=False
             |
-            |   │   │   │   │    │                    │   │   │   ╭────╮
+            |   │   │   │   ╭────╮                    │   │   │   │    │
             |   ┢━━━┷━━━┷━━━┷━┓  │                    ┢━━━┷━━━┷━━━┷━┓  │
             |   ┡━━━━━━━━━━━━━┛  │                    ┡━━━━━━━━━━━━━┛  │
             |   │                │                    │                │
             |   ┢━━━━━━━━━━━━━┓  │                    ┢━━━━━━━━━━━━━┓  │
             |   ┡━━━┯━━━┯━━━┯━┛  │                    ┡━━━┯━━━┯━━━┯━┛  │
-            |   │   │   │   ╰────╯                    │   │   │   │    │
+            |   │   │   │   │    │                    │   │   │   ╰────╯
 
         Parameters
         ----------
-        Y, X : FusionTree
-            The original tree pair, such that we modify ``hconj(Y) @ X``.
-            Note that `Y` is a fusion tree that represents the splitting tree ``hconj(Y)``.
-        bend_upward : bool
-            Whether the rightmost leg of `X` is bent up (``bend_upward == True``) or the rightmost
-            leg of ``hconj(Y)`` is bent down (``bend_upward == False``).
+        X, Y : FusionTree
+            The original tree pair, such that we modify ``hconj(X) @ Y``.
+            Note that `X` is a fusion tree that represents the splitting tree ``hconj(X)``.
+        bend_downward : bool
+            Whether the rightmost leg of `Y` is bent down (``bend_downward == True``) or the rightmost
+            leg of ``hconj(X)`` is bent up (``bend_downward == False``).
         do_conj : bool
             If ``True``, return the conjugate of the coefficients instead.
 
@@ -390,33 +388,33 @@ class FusionTree:
             vanishes are omitted).
 
         """
-        if not bend_upward:
+        if not bend_downward:
             # OPTIMIZE: do it explicitly instead?
-            # bend_down(dagger(Y) @ X)
-            # == dagger(dagger(bend_down(dagger(Y) @ X))
-            # == dagger(bend_up(dagger(dagger(Y) @ X))))
-            # == dagger(bend_up(dagger(X) @ Y))
+            # bend_up(dagger(Y) @ X)
+            # == dagger(dagger(bend_up(dagger(Y) @ X))
+            # == dagger(bend_down(dagger(dagger(Y) @ X))))
+            # == dagger(bend_down(dagger(X) @ Y))
             # == dagger(sum_i b_i (dagger(X_i) @ Y_i))
             # == sum_i conj(b_i) dagger(Y_i) @ X_i
-            # i.e. we need to swap the order of inputs and invert bend_upward,
+            # i.e. we need to swap the order of inputs and invert bend_downward,
             # then for the result, swap the trees back and conj the coefficients (invert do_conj)
-            other = FusionTree.bend_leg(X, Y, bend_upward=True, do_conj=not do_conj)
-            return {(X_i, Y_i): b_i for (Y_i, X_i), b_i in other.items()}
+            other = FusionTree.bend_leg(Y, X, bend_downward=True, do_conj=not do_conj)
+            return {(Y_i, X_i): b_i for (X_i, Y_i), b_i in other.items()}
 
         # OPTIMIZE remove input checks?
-        assert X.symmetry == Y.symmetry
-        symmetry = X.symmetry
-        assert np.all(X.coupled == Y.coupled)
-        c = X.coupled
+        assert Y.symmetry == X.symmetry
+        symmetry = Y.symmetry
+        assert np.all(Y.coupled == X.coupled)
+        c = Y.coupled
 
-        if X.num_uncoupled == 0:
+        if Y.num_uncoupled == 0:
             raise ValueError('No leg to be bent.')
 
-        is_dual = X.are_dual[-1]
+        is_dual = Y.are_dual[-1]
 
-        if X.num_uncoupled == 1:
+        if Y.num_uncoupled == 1:
             X_i = FusionTree.from_empty(symmetry)
-            Y_i = Y.extended(
+            Y_i = X.extended(
                 new_uncoupled=symmetry.dual_sector(c), mu=0, new_coupled=symmetry.trivial_sector, is_dual=not is_dual
             )
             b_i = symmetry.sqrt_qdim(c)
@@ -424,9 +422,9 @@ class FusionTree:
                 b_i = b_i * symmetry.frobenius_schur(c)
             return {(Y_i, X_i): b_i}
 
-        X_i, c, mu, z = X.split_topmost()
+        X_i, c, mu, z = Y.split_bottom_vertex()
 
-        if Y.num_uncoupled == 0:
+        if X.num_uncoupled == 0:
             e = X_i.coupled
             Y_i = FusionTree.from_sector(symmetry, e, is_dual=not is_dual)
             b_i = symmetry.inv_sqrt_qdim(e)
@@ -440,7 +438,7 @@ class FusionTree:
         res = {}
         for nu in range(B.shape[1]):
             b_i = B[mu, nu]
-            Y_i = Y.extended(zbar, nu, X_i.coupled, not is_dual)
+            Y_i = X.extended(zbar, nu, X_i.coupled, not is_dual)
             if is_dual:
                 b_i = b_i * chi_z
             if do_conj:
@@ -461,14 +459,14 @@ class FusionTree:
 
             |   overbraid:                  underbraid
             |
-            |   │                           │
-            |   ┢━━━━━━━━━━━━━┓             ┢━━━━━━━━━━━━━┓
-            |   ┡━━━┯━━━┯━━━┯━┛             ┡━━━┯━━━┯━━━┯━┛
-            |   │   j  j+1  │               │   j  j+1  │
+            |   │   │   │   │               │   │   │   │
             |   │    ╲ ╱    │               │    ╲ ╱    │
             |   │     ╱     │               │     ╲     │
             |   │    ╱ ╲    │               │    ╱ ╲    │
-            |   │   │   │   │               │   │   │   │
+            |   │   j  j+1  │               │   j  j+1  │
+            |   ┢━━━┷━━━┷━━━┷━┓             ┢━━━┷━━━┷━━━┷━┓
+            |   ┡━━━━━━━━━━━━━┛             ┡━━━━━━━━━━━━━┛
+            |   │                           │
 
         .. warning ::
             When braiding splitting trees (daggers of fusion trees), consider the notes below.
@@ -546,13 +544,19 @@ class FusionTree:
     def vertex_labels(self, n: int) -> tuple[Sector, Sector, int, Sector]:
         r"""For the ``n``-th fusion vertex, get the respective sectors.
 
-        We return ``a, b, mu, c``, from the ``n``-th vertex of the tree::
+        Returns
+        -------
+        a, b, mu, c
+            The sectors and multiplicity label around the ``n``-th vertex of the tree::
 
-            c
-            |
-            mu
-            | \
-            a  b
+                |   (n-1 higher vertices)      │
+                |                      │       │
+                |                      a       b
+                |                      ╰───µ───╯
+                |                          c
+                |                          │
+                |                          (possibly lower vertices)
+
         """
         if n == 0:
             a, b = self.uncoupled[:2]
@@ -680,22 +684,23 @@ class FusionTree:
         )
 
     def extended(self, new_uncoupled: Sector, mu: int, new_coupled: Sector, is_dual: bool):
-        r"""A new tree, from adding a new fusion node on top, above the coupled sector.
+        r"""A new tree, from adding a new fusion node at the bottom, below the coupled sector.
 
         Graphically::
 
-            |   new_coupled
-            |   |
-            |   mu--.
-            |   |    \
-            |   self  \
-            |   ||||   |
-            |          new_uncoupled
+            |               │
+            |              (Z)
+            |               v
+            |   (self)     new_uncoupled
+            |       │       │
+            |       ╰───µ───╯
+            |           │
+            |          new_coupled
 
         See Also
         --------
         insert
-            Can insert nodes "below"
+            Can insert nodes "above"
         split_topmost
             Split off the topmost node.
 
@@ -720,7 +725,7 @@ class FusionTree:
         )
 
     def insert(self, t2: FusionTree) -> FusionTree:
-        """Insert a tree `t2` below the first uncoupled sector.
+        """Insert a tree `t2` above the first uncoupled sector.
 
         See Also
         --------
@@ -740,7 +745,7 @@ class FusionTree:
         )
 
     def insert_at(self, n: int, t2: FusionTree, eps: float = 1.0e-14) -> dict[FusionTree, complex]:
-        r"""Insert a tree `t2` below the `n`-th uncoupled sector.
+        r"""Insert a tree `t2` above the `n`-th uncoupled sector.
 
         The result is (in general) not a canonical tree.
         We transform it to canonical form via a series of F moves.
@@ -750,7 +755,7 @@ class FusionTree:
         Parameters
         ----------
         n : int
-            The position to insert at. `t2` is inserted below ``t1.uncoupled[n]``.
+            The position to insert at. `t2` is inserted above ``t1.uncoupled[n]``.
             We must have have ``self.are_dual[n] is False``, as we can not have a Z between trees.
         t2 : :class:`FusionTree`
             The fusion tree to insert
@@ -842,29 +847,6 @@ class FusionTree:
         Fuse with `right_tree` at the coupled sector (-> new coupled sectors are all sectors that
         are allowed fusion channels of the coupled sectors).
 
-        Graphically::
-
-            |    self                  right_tree                       self.outer(right_tree)
-            |
-            |    |                     |                                |
-            |    coupled               coupled_r                        new_coupled
-            |    |                     |                                |   \
-            |    m1                    m0_r                             |    \
-            |    |  \                  |   \                            |     \
-            |    i1  \                 d    e                           |      \
-            |    |    \                |    |                           |       \
-            |    m0    \                                                |        \
-            |    |  \   \                                               coupled   coupled_r
-            |    a   b   c                               ->             |         |
-            |    |   |   |                                              m1        m0_r
-            |                                                           |  \      |   \
-            |                                                           i1  \     d    e
-            |                                                           |    \    |    |
-            |                                                           m0    \
-            |                                                           |  \   \
-            |                                                           a   b   c
-            |                                                           |   |   |
-
         Parameters
         ----------
         right_tree : FusionTree
@@ -881,7 +863,7 @@ class FusionTree:
         See Also
         --------
         insert_at
-            Similar insertion, but the tree is inserted on top of an uncoupled sector rather than
+            Similar insertion, but the tree is inserted above of an uncoupled sector rather than
             fused with the coupled sector.
 
         """
@@ -959,30 +941,30 @@ class FusionTree:
         )
         return t1, t2
 
-    def split_topmost(self) -> tuple[FusionTree, Sector, int, Sector]:
-        """Split off the topmost node.
+    def split_bottom_vertex(self) -> tuple[FusionTree, Sector, int, Sector]:
+        """Split off the bottom vertex.
 
-        Such that::
+        Graphically::
 
-            |   c                c
-            |   |                |
-            |   self_tree   =    mu----------.
-            |   | | | | |        |           |
-            |   a b   y z        rest_tree   |
-            |                    | | | | |   |
-            |                    a b   x y   z
+            |   a b x y z           a  b  x  y     z
+            |   │ │ │ │ │           │  │  │  │     │
+            |   (self_tree)    =    (rest_tree)    │
+            |       │                    │         │
+            |       c                    ╰────µ────╯
+            |                                 │
+            |                                 c
 
         where `rest_tree` might be empty if ``self.num_uncoupled == 1`` or consist of
-        only a single sector with no fusion nodes if ``self.num_uncoupled == 2``.
+        only a single sector with no fusion vertex if ``self.num_uncoupled == 2``.
 
         Returns
         -------
         rest_tree : FusionTree
-            The remaining tree, with one fewer node.
+            The remaining tree, with one fewer vertex.
         c : Sector
             The old coupled sector.
         mu : int
-            The old top multiplicity label.
+            The old bottom multiplicity label.
         z : Sector
             The old last uncoupled sector.
 
@@ -1009,7 +991,7 @@ class FusionTree:
         return rest_tree, self.coupled, self.multiplicities[-1], self.uncoupled[-1]
 
     def twist(self, idcs: Sequence[int], overtwist: bool) -> dict[FusionTree, float | complex]:
-        """Twist some legs below a tree, return the resulting linear combination of trees.
+        """Twist some legs above a tree, return the resulting linear combination of trees.
 
         Parameters
         ----------
@@ -1034,21 +1016,19 @@ class FusionTree:
             |   idcs = [-1]                    idcs = [-1]
             |   overtwist = True               overtwist = False
             |
-            |   │                              │
-            |   ┢━━━━━━━━━━━━━┓                ┢━━━━━━━━━━━━━┓
-            |   ┡━━━┯━━━┯━━━┯━┛ ╭─╮            ┡━━━┯━━━┯━━━┯━┛ ╭─╮
+            |   │   │   │   │                  │   │   │   │
+            |   │   │   │   │   ╭─╮            │   │   │   │   ╭─╮
             |   │   │   │    ╲ ╱  │            │   │   │    ╲ ╱  │
             |   │   │   │     ╱   │            │   │   │     ╲   │
             |   │   │   │    ╱ ╲  │            │   │   │    ╱ ╲  │
-            |   │   │   │   │   ╰─╯            │   │   │   │   ╰─╯
-            |   │   │   │   │                  │   │   │   │
+            |   ┢━━━┷━━━┷━━━┷━┓ ╰─╯            ┢━━━┷━━━┷━━━┷━┓ ╰─╯
+            |   ┡━━━━━━━━━━━━━┛                ┡━━━━━━━━━━━━━┛
+            |   │                              │
 
         For multiple legs (``len(idcs) > 1``), we twist the together, e.g. here for
         ``idcs=[-2, -1]`` and ``overtwist=True``::
 
-            |   │
-            |   ┢━━━━━━━━━━━━━┓
-            |   ┡━━━┯━━━┯━━━┯━┛ ╭──────╮
+            |   │   │   │   │   ╭──────╮
             |   │   │    ╲   ╲ ╱       │
             |   │   │     ╲   ╱   ╭─╮  │
             |   │   │      ╲ ╱ ╲ ╱  │  │
@@ -1056,7 +1036,9 @@ class FusionTree:
             |   │   │      ╱ ╲ ╱ ╲  │  │
             |   │   │     ╱   ╱   ╰─╯  │
             |   │   │    ╱   ╱ ╲       │
-            |   │   │   │   │   ╰──────╯
+            |   ┢━━━┷━━━┷━━━┷━┓ ╰──────╯
+            |   ┡━━━━━━━━━━━━━┛
+            |   │
 
         """
         if self.symmetry.has_symmetric_braid:

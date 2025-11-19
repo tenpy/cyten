@@ -89,13 +89,14 @@ class Leg(metaclass=ABCMeta):
         is_pipe = isinstance(self, LegPipe)
         if isinstance(self, ElementarySpace):
             return {
-                (False, False): '^',
-                (False, True): '▲',
-                (True, False): 'v',
-                (True, True): '▼',
+                (False, False): 'v',
+                (False, True): '▼',
+                (True, False): '^',
+                (True, True): '▲',
             }[self.is_dual, is_pipe]
-        assert is_pipe
-        return '║'
+        if is_pipe:
+            return '║'
+        raise RuntimeError  # should have already covered all cases
 
     @abstractmethod
     def __eq__(self, other): ...

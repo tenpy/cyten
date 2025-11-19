@@ -7,7 +7,7 @@ Blocks
 A block :math:`T_c` of a symmetric tensor is associated with a coupled sector :math:`c` and is a
 matrix. It has the following indices
 
-    [ [ T_c ]^{a_1, ..., a_J, 𝛼}_{b_1, ..., b_K, β} ]^{m_1, ..., m_J}_{n_1, ..., n_K}
+    [ [ T_c ]_{a_1, ..., a_J, 𝛼}^{b_1, ..., b_K, β} ]_{m_1, ..., m_J}^{n_1, ..., n_K}
 
 Where :math:`a_j` is an uncoupled sector ``a_j = codomain[j].sector_decomposition[i_j]`` of the
 a space in the codomain, and ``0 <= m_j < codomain[j].multiplicities[i_j]`` is an associated
@@ -16,37 +16,37 @@ Similarly, :math:`b_k` are uncoupled sectors ``b_k = domain[k].sector_decomposit
 ``0 <= n_k < domain[k].multiplicities[i_k]`` is a multiplicity index and :math:`β` labels
 a fusion tree ``(b_1, ..., b_K) -> c``.
 
-We call ``T_c`` a *block* and  ``[ T_c ]^{a_1, ..., a_J, 𝛼}_{b_1, ..., b_K, β}`` a *tree block*.
+We call ``T_c`` a *block* and  ``[ T_c ]_{a_1, ..., a_J, 𝛼}^{b_1, ..., b_K, β}`` a *tree block*.
 We group the tree blocks with the same uncoupled sectors to a *forest block*
-``[ T_c ]^{a_1, ..., a_J}_{b_1, ..., b_K}``.
+``[ T_c ]_{a_1, ..., a_J}^{b_1, ..., b_K}``.
 
 The blocks parametrize a tensor as::
 
-    |                                                                        V1         VK
-    |                                                                         │    │    │
-    |                                                                      m1 ▽    ▽    ▽ mJ
-    |                                                                      a1 ↑    ↓    ↑ aJ
-    |                                                                         │    Z    │
-    |   V1     VJ                                                          a1 ↑    ↑    ↑ aJ
-    |    ↑  ↓  ↑                                                             ┏┷━━━━┷━━━━┷┓
-    |    │  │  │                                                             ┃     𝛼     ┃
-    |   ┏┷━━┷━━┷┓                              ┌ ┌     ┐a1..aJ,𝛼 ┐m1..mJ     ┗━━━━━┯━━━━━┛
-    |   ┃   T   ┃   =   sum     sum     sum    │ │ T_c │         │                 │ c
-    |   ┗┯━━┯━━┯┛      b1..bK  a1..aJ    c     └ └     ┘b1..bK,β ┘n1..nK     ┏━━━━━┷━━━━━┓
-    |    │  │  │       n1..nK  m1..mJ   𝛼 β                                  ┃     β     ┃
-    |    ↓  ↓  ↑                                                             ┗┯━━━━┯━━━━┯┛
-    |   W1     WK                                                          b1 ↑    ↑    ↑ bK
-    |                                                                         Z    Z    │
-    |                                                                 bar(b1) ↓    ↓    ↑ bK
-    |                                                                      n1 △    △    △ nK
-    |                                                                         │    │    │
     |                                                                        W1         WK
+    |                                                                         │    │    │
+    |                                                                      n1 ▽    ▽    ▽ nK
+    |                                                                      b1 ↑    ↓    ↑ bK
+    |                                                                         │    Z    │
+    |   W1     WK                                                          b1 ↑    ↑    ↑ bK
+    |    ↑  ↓  ↑                                                             ┏┷━━━━┷━━━━┷┓
+    |    │  │  │                                                             ┃     β     ┃
+    |   ┏┷━━┷━━┷┓                              ┌ ┌     ┐b1..bK,β ┐n1..nK     ┗━━━━━┯━━━━━┛
+    |   ┃   T   ┃   =   sum     sum     sum    │ │ T_c │         │                 │ c
+    |   ┗┯━━┯━━┯┛      b1..bK  a1..aJ    c     └ └     ┘a1..aJ,𝛼 ┘m1..mJ     ┏━━━━━┷━━━━━┓
+    |    │  │  │       n1..nK  m1..mJ   𝛼 β                                  ┃     𝛼     ┃
+    |    ↓  ↓  ↑                                                             ┗┯━━━━┯━━━━┯┛
+    |   V1     VJ                                                          a1 ↑    ↑    ↑ aJ
+    |                                                                         Z    Z    │
+    |                                                                 bar(a1) ↓    ↓    ↑ aJ
+    |                                                                      m1 △    △    △ mK
+    |                                                                         │    │    │
+    |                                                                        V1         VJ
 
 And we store the blocks as matrices, with combined multi-indices::
 
-    |   ┌ ┌     ┐a1..aJ,𝛼 ┐m1..mJ
+    |   ┌ ┌     ┐b1..bK,β ┐n1..nK
     |   │ │ T_c │         │         =   blocks[c_idx][M, N]
-    |   └ └     ┘b1..bK,β ┘n1..nK
+    |   └ └     ┘a1..aJ,𝛼 ┘m1..mJ
 
 where ``c = codomain.sector_decomposition[block_inds[c_idx, 0]]`` and
 ``M = stridify(a1, ..., aJ, 𝛼, m1, ..., mJ)``, i.e. such that ``mJ`` changes the fastest when
@@ -935,9 +935,9 @@ class FusionTreeBackend(TensorBackend):
             shape = codomain.multiplicities[i], domain.multiplicities[j]
             block = self.block_backend.zeros(shape, dtype, device)
             is_zero_block = True
-            for Y, i1, mults1, _ in codomain.iter_tree_blocks([coupled]):
-                for X, i2, mults2, _ in domain.iter_tree_blocks([coupled]):
-                    pair = (Y, X)
+            for X, i1, mults1, _ in codomain.iter_tree_blocks([coupled]):
+                for Y, i2, mults2, _ in domain.iter_tree_blocks([coupled]):
+                    pair = (X, Y)
                     tree_block = trees.get(pair, None)
                     if tree_block is None:
                         continue
@@ -2232,10 +2232,12 @@ class FusionTreeBackend(TensorBackend):
         beta_tree_iter = fusion_trees(sym, b_sectors, coupled, [sp.is_dual for sp in domain.factors])
         entries = self.block_backend.zeros([*a_dims, *b_dims, *m_dims, *n_dims], dtype)
         for alpha_tree in alpha_tree_iter:
-            Y = self.block_backend.conj(alpha_tree.as_block(backend=self))  # [a1,...,aJ,c]
+            splitting_tree = self.block_backend.conj(alpha_tree.as_block(backend=self))  # [a1,...,aJ,c]
             for beta_tree in beta_tree_iter:
-                X = beta_tree.as_block(backend=self)  # [b1,...,bK,c]
-                symmetry_data = self.block_backend.tdot(Y, X, [-1], [-1])  # [a1,...,aJ,b1,...,bK]
+                fusion_tree = beta_tree.as_block(backend=self)  # [b1,...,bK,c]
+                symmetry_data = self.block_backend.tdot(
+                    splitting_tree, fusion_tree, [-1], [-1]
+                )  # [a1,...,aJ,b1,...,bK]
                 idx1 = slice(i1, i1 + tree_block_height)
                 idx2 = slice(i2, i2 + tree_block_width)
                 degeneracy_data = block[idx1, idx2]  # [M, N]
@@ -2315,14 +2317,14 @@ class FusionTreeBackend(TensorBackend):
         alpha_tree_iter = fusion_trees(sym, a_sectors, coupled, codomain_are_dual)
         beta_tree_iter = fusion_trees(sym, b_sectors, coupled, domain_are_dual)
         for alpha_tree in alpha_tree_iter:
-            X = alpha_tree.as_block(backend=self)
+            Y = alpha_tree.as_block(backend=self)
             # entries: [a1,...,aJ,b1,...,bK,m1,...,mJ,n1,...,nK]
-            X_projected = self.block_backend.tdot(entries, X, range_J, range_J)  # [{bk}, {mj}, {nk}, c]
+            Y_projected = self.block_backend.tdot(entries, Y, range_J, range_J)  # [{bk}, {mj}, {nk}, c]
             for beta_tree in beta_tree_iter:
-                Y = self.block_backend.conj(beta_tree.as_block(backend=self))
-                XY_projected = self.block_backend.tdot(X_projected, Y, range_K, range_K)  # [{mj}, {nk}, c, c']
+                X = self.block_backend.conj(beta_tree.as_block(backend=self))
+                YX_projected = self.block_backend.tdot(Y_projected, X, range_K, range_K)  # [{mj}, {nk}, c, c']
                 # projected onto the identity on [c, c']
-                tree_block = self.block_backend.trace_partial(XY_projected, [-2], [-1], range_JK) / dim_c
+                tree_block = self.block_backend.trace_partial(YX_projected, [-2], [-1], range_JK) / dim_c
                 # [m1,...,mJ,n1,...,nK] -> [M, N]
                 ms_ns = self.block_backend.get_shape(tree_block)
                 shape = (prod(ms_ns[:J]), prod(ms_ns[J:]))
@@ -2405,7 +2407,7 @@ class BraidInstruction(Instruction):
 class BendInstruction(Instruction):
     """Instruction to bend the rightmost leg of the codomain down (of the domain up)."""
 
-    bend_up: bool
+    bend_down: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -2568,7 +2570,7 @@ class PermuteLegsInstructionEngine:
                     assert 0 <= i.idx < i.idx + 1 < len(domain)
                     domain[i.idx], domain[i.idx + 1] = domain[i.idx + 1], domain[i.idx]
             elif isinstance(i, BendInstruction):
-                if i.bend_up:
+                if i.bend_down:
                     assert len(domain) > 0
                     codomain.append(domain.pop(-1))
                 else:
@@ -2637,7 +2639,7 @@ class PermuteLegsInstructionEngine:
         Goal: All legs that need to go to the domain are in the domain
         """
         for n in range(num_right_bends):
-            self.bend(bend_up=False)
+            self.bend(bend_down=False)
 
         # to understand whats going on, draw the following:
         # on a tensor, twist the N leftmost domain legs *together*, then overbraid them to the right
@@ -2651,7 +2653,7 @@ class PermuteLegsInstructionEngine:
         for n in reversed(range(num_left_bends)):
             # note: we always overbraid, no matter the levels, to match the overtwist we did.
             self.move_leg(n, self.num_codomain_legs - 1, over=True)
-            self.bend(bend_up=False)
+            self.bend(bend_down=False)
             self.move_leg(self.num_codomain_legs, n - num_left_bends, over=True)
             # OPTIMIZE possibly this is moving the leg "to far", but we cant simply stop earlier,
             #          because we might need to move it left over the others but back under the others!
@@ -2665,7 +2667,7 @@ class PermuteLegsInstructionEngine:
         Assumptions: All legs that need to go to the domain are in the domain
         Goals::
 
-            A) The legs that need to be bent upward are on the outside; those that need
+            A) The legs that need to be bent downward are on the outside; those that need
                to bend right (left) are at the very right (left).
             B) The legs that stay in the domain are in correct relative order.
 
@@ -2708,7 +2710,7 @@ class PermuteLegsInstructionEngine:
         Goal: All legs that need to go to the codomain are in the codomain
         """
         for n in range(num_right_bends):
-            self.bend(bend_up=True)
+            self.bend(bend_down=True)
 
         # see notes in :meth:`do_codomain_bends`. we also go over the other legs.
         if num_left_bends > 0:
@@ -2716,7 +2718,7 @@ class PermuteLegsInstructionEngine:
         for n in reversed(range(num_left_bends)):
             # note: we always overbraid, no matter the levels, to match the twist we did.
             self.move_leg(-1 - n, self.num_codomain_legs, over=True)
-            self.bend(bend_up=True)
+            self.bend(bend_down=True)
             self.move_leg(self.num_codomain_legs - 1, num_left_bends - 1 - n, over=True)
 
         # check goal
@@ -2732,9 +2734,9 @@ class PermuteLegsInstructionEngine:
         for j in permutation_as_swaps(perm):
             self.swap(j)
 
-    def bend(self, bend_up: bool):
-        self.instructions.append(BendInstruction(bend_up=bend_up))
-        if bend_up:
+    def bend(self, bend_down: bool):
+        self.instructions.append(BendInstruction(bend_down=bend_down))
+        if bend_down:
             assert self.should_bend[self.num_codomain_legs] is not None
             self.should_bend[self.num_codomain_legs] = None
             self.num_codomain_legs += 1
@@ -2827,18 +2829,18 @@ class TensorMapping(metaclass=ABCMeta):
 
     Notes
     -----
-    Let indices ``I, J, ...`` each label a pair (X_I, Y_I) of a fusion tree X_I and a compatible
-    splitting tree Y_I, i.e. it fixes uncoupled sectors, all internal labels of both trees and the
+    Let indices ``I, J, ...`` each label a pair (Y_I, X_I) of a fusion tree Y_I and a compatible
+    splitting tree X_I, i.e. it fixes uncoupled sectors, all internal labels of both trees and the
     coupled sector, i.e. it labels a tree block.
     Then with indices ``m`` for the uncoupled multiplicities (labelling entries within a tree block),
-    we have the decomposition of tensors as ``T = \sum_{Im} T_{Im} Y_I @ X_I``.
+    we have the decomposition of tensors as ``T = \sum_{Im} T_{Im} X_I @ Y_I``.
     Now if we apply a linear operation ``f`` (e.g. a braid), we find::
 
-        f(T) = \sum_{Im} T_{Im} f(Y_I @ X_I)
-             = \sum_{Im} T_{Im} \sum_J f_{JI} Y_J @ X_J
-             = \sum_J ( \sum_I f_{JI} T_{Im} ) Y_J @ X_J
+        f(T) = \sum_{Im} T_{Im} f(X_I @ Y_I)
+             = \sum_{Im} T_{Im} \sum_J f_{JI} X_J @ Y_J
+             = \sum_J ( \sum_I f_{JI} T_{Im} ) X_J @ Y_J
 
-    where ``f_{JI} = <Y_J @ X_J | f(Y_I @ X_I)>`` are the coefficients of ``f`` in the basis of
+    where ``f_{JI} = <X_J @ Y_J | f(X_I @ Y_I)>`` are the coefficients of ``f`` in the basis of
     tree pairs. This means the blocks of the result are given by
 
         f(T)_{Jm} = \sum_I f_{JI} T_{Im}
@@ -2899,7 +2901,7 @@ class TensorMapping(metaclass=ABCMeta):
             The codomain and domain that determine the possible fusion and splitting trees.
         block_inds : 2D array
             Same format and meaning as the :attr:`FusionTreeData.block_inds`.
-            If given, we only initialize those components ``Y_I @ X_I -> Y_I @ X_I``
+            If given, we only initialize those components ``X_I @ Y_I -> X_I @ Y_I``
             where the coupled sector of the tree-pair is pointed to by a row in the `block_inds`,
             i.e. if we have ``coupled == codomain.sector_decomposition[block_inds[some_idx, 0]]``.
 
@@ -2959,9 +2961,9 @@ class TensorMapping(metaclass=ABCMeta):
 class TreePairMapping(TensorMapping):
     r"""A :class:`TensorMapping`, defined at the level of tree-pairs, i.e. the general case.
 
-    We store the component ``f_{JI} = <Y_J @ X_J | f(Y_I @ X_I)>``,
-    which represents ``Y_I @ X_I \mapsto f_{JI} Y_J @ X_J`` as ``mapping[I][J] = f_{JI}``.
-    In practice, the keys are ``I = (Y_I, X_I)`` tuples of two FusionTrees.
+    We store the component ``f_{JI} = <X_J @ Y_J | f(X_I @ Y_I)>``,
+    which represents ``X_I @ Y_I \mapsto f_{JI} X_J @ Y_J`` as ``mapping[I][J] = f_{JI}``.
+    In practice, the keys are ``I = (X_I, Y_I)`` tuples of two FusionTrees.
     """
 
     def __init__(self, mapping: SparseMapping[tuple[FusionTree, FusionTree]], is_real: bool):
@@ -2975,22 +2977,22 @@ class TreePairMapping(TensorMapping):
         keys = []
         for i, _ in block_inds:
             coupled = codomain.sector_decomposition[i]
-            for Y, *_ in codomain.iter_tree_blocks([coupled]):
-                for X, *_ in domain.iter_tree_blocks([coupled]):
-                    keys.append((Y, X))
+            for X, *_ in codomain.iter_tree_blocks([coupled]):
+                for Y, *_ in domain.iter_tree_blocks([coupled]):
+                    keys.append((X, Y))
         mapping = SparseMapping[tuple[FusionTree, FusionTree]].from_identity(keys)
         return cls(mapping, is_real=True)
 
     def test_sanity(self):
         """Perform sanity checks."""
-        for (Y_i, X_i), self_i in self.mapping.items():
-            Y_i.test_sanity()
+        for (X_i, Y_i), self_i in self.mapping.items():
             X_i.test_sanity()
-            assert np.all(X_i.coupled == Y_i.coupled)
-            for Y_j, X_j in self_i.keys():
-                Y_j.test_sanity()
+            Y_i.test_sanity()
+            assert np.all(Y_i.coupled == X_i.coupled)
+            for X_j, Y_j in self_i.keys():
                 X_j.test_sanity()
-                assert np.all(X_j.coupled == Y_j.coupled)
+                Y_j.test_sanity()
+                assert np.all(Y_j.coupled == X_j.coupled)
 
     def pre_compose_braid_instruction(self, instruction: BraidInstruction, is_real: bool):
         braid_mapping = SparseMapping[FusionTree]()
@@ -3002,20 +3004,20 @@ class TreePairMapping(TensorMapping):
             #                 = opposite_braid(fusion_tree)
             # additionally, since we represent t = dagger(t_fusion), coefficients get a conj
             #   a t + b t2 = dagger(conj(a) t_fusion + conj(b) t2_fusion)
-            for Y in set(Y for Y, X in self.mapping.nonzero_rows()):
+            for Y in set(X for X, _ in self.mapping.nonzero_rows()):
                 braid_mapping[Y] = Y.braid(j=instruction.idx, overbraid=not instruction.overbraid, do_conj=True)
             return self.pre_compose_splitting_tree_mapping(braid_mapping, is_real=is_real)
         else:
-            for X in set(X for Y, X in self.mapping.nonzero_rows()):
-                braid_mapping[X] = X.braid(j=instruction.idx, overbraid=instruction.overbraid)
+            for Y in set(Y for _, Y in self.mapping.nonzero_rows()):
+                braid_mapping[Y] = Y.braid(j=instruction.idx, overbraid=instruction.overbraid)
             return self.pre_compose_fusion_tree_mapping(braid_mapping, is_real=is_real)
 
     def pre_compose_bend_instruction(self, instruction: BendInstruction, is_real: bool):
         bend_mapping = SparseMapping[tuple[FusionTree, FusionTree]]()
         # to pre-compose the bend_mapping, we only need to compute the ``bend_mapping[j][i]``
         # for those ``j`` for which an entry ``self.mapping[k][j]`` exists.
-        for Y, X in self.mapping.nonzero_rows():
-            bend_mapping[Y, X] = FusionTree.bend_leg(Y, X, instruction.bend_up)
+        for X, Y in self.mapping.nonzero_rows():
+            bend_mapping[X, Y] = FusionTree.bend_leg(X, Y, instruction.bend_down)
         mapping = self.mapping.pre_compose(bend_mapping)
         return TreePairMapping(mapping, is_real=self.is_real and is_real)
 
@@ -3024,9 +3026,9 @@ class TreePairMapping(TensorMapping):
         res = SparseMapping[tuple[FusionTree, FusionTree]]()
         for k, self_k in self.mapping.items():
             res[k] = res_k = {}
-            for (Y, X_j), self_jk in self_k.items():
-                for X_i, other_ij in mapping[X_j].items():
-                    i = (Y, X_i)
+            for (X, Y_j), self_jk in self_k.items():
+                for Y_i, other_ij in mapping[Y_j].items():
+                    i = (X, Y_i)
                     res_k[i] = res_k.get(i, 0) + other_ij * self_jk
         return TreePairMapping(res, is_real=self.is_real and is_real)
 
@@ -3035,9 +3037,9 @@ class TreePairMapping(TensorMapping):
         res = SparseMapping[tuple[FusionTree, FusionTree]]()
         for k, self_k in self.mapping.items():
             res[k] = res_k = {}
-            for (Y_j, X), self_jk in self_k.items():
-                for Y_i, other_ij in mapping[Y_j].items():
-                    i = (Y_i, X)
+            for (X_j, Y), self_jk in self_k.items():
+                for X_i, other_ij in mapping[X_j].items():
+                    i = (X_i, Y)
                     res_k[i] = res_k.get(i, 0) + other_ij * self_jk
         return TreePairMapping(res, is_real=self.is_real and is_real)
 
@@ -3047,24 +3049,24 @@ class TreePairMapping(TensorMapping):
             # because this is a splitting tree, we need to do the opposite twist to its
             # fusiontree representative, giving us one conj.
             # then, we need to conj the resulting coefficient, cancelling that conj again.
-            for Y in set(Y for Y, X in self.mapping.nonzero_rows()):
+            for Y in set(X for X, _ in self.mapping.nonzero_rows()):
                 twist_mapping[Y] = Y.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
             return self.pre_compose_splitting_tree_mapping(twist_mapping, is_real=self.is_real and is_real)
         else:
-            for X in set(X for Y, X in self.mapping.nonzero_rows()):
-                twist_mapping[X] = X.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
+            for Y in set(Y for _, Y in self.mapping.nonzero_rows()):
+                twist_mapping[Y] = Y.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
             return self.pre_compose_fusion_tree_mapping(twist_mapping, is_real=self.is_real and is_real)
 
     def prune(self, tol: float = 1e-15) -> TreePairMapping:
         self.mapping.prune(tol=tol)
 
     def show(self, do_print=True, return_res=False):
-        res = f'{type(self).__name__}: ( Y @ X )\n'
+        res = f'{type(self).__name__}: ( X @ Y )\n'
         indent = '    '
-        for (Yi, Xi), val in self.mapping.items():
-            res += f'{indent}{Yi!s}\n{indent} @ {Xi!s}\n'
-            for (Yf, Xf), coeff in val.items():
-                res += f'{2 * indent}{coeff:.5f}\n{2 * indent} * {Yf!s}\n{2 * indent} @ {Xf!s}\n'
+        for (Xi, Yi), val in self.mapping.items():
+            res += f'{indent}{Xi!s}\n{indent} @ {Yi!s}\n'
+            for (Xf, Yf), coeff in val.items():
+                res += f'{2 * indent}{coeff:.5f}\n{2 * indent} * {Xf!s}\n{2 * indent} @ {Yf!s}\n'
             res += '\n'
         res.removesuffix('\n')
         if do_print:
@@ -3102,24 +3104,24 @@ class TreePairMapping(TensorMapping):
             shape = (new_codomain.block_size(i), new_domain.block_size(j))
             block = block_backend.zeros(shape, dtype, device=data.device)
             is_zero_block = True
-            for Y, idcs1, mults1, _ in new_codomain.iter_tree_blocks([coupled]):
-                for X, idcs2, mults2, _ in new_domain.iter_tree_blocks([coupled]):
+            for X, idcs1, mults1, _ in new_codomain.iter_tree_blocks([coupled]):
+                for Y, idcs2, mults2, _ in new_domain.iter_tree_blocks([coupled]):
                     tree_block = 0
                     is_zero_tree_block = True
                     # note: we first add all contributions to the new tree block, and do the axes
                     #       permutation only once to the result
-                    for (Y_I, X_I), self_I in self.mapping.items():
-                        if (Y, X) not in self_I:
+                    for (X_I, Y_I), self_I in self.mapping.items():
+                        if (X, Y) not in self_I:
                             continue
-                        which_block = data.block_ind_from_coupled(Y_I.coupled, domain)
+                        which_block = data.block_ind_from_coupled(X_I.coupled, domain)
                         if which_block is None:
                             # ie old block is not set / is zero
                             continue
                         old_block = data.blocks[which_block]
                         is_zero_tree_block = False
-                        i1 = codomain.tree_block_slice(Y_I)  # OPTIMIZE cache these?
-                        i2 = domain.tree_block_slice(X_I)
-                        tree_block += self_I[Y, X] * old_block[i1, i2]
+                        i1 = codomain.tree_block_slice(X_I)  # OPTIMIZE cache these?
+                        i2 = domain.tree_block_slice(Y_I)
+                        tree_block += self_I[X, Y] * old_block[i1, i2]
                     if is_zero_tree_block:
                         continue
                     is_zero_block = False
@@ -3153,11 +3155,11 @@ class FactorizedTreeMapping(TensorMapping):
 
     In particular, the action of the mapping on a tree pair factorizes as::
 
-        f(Y @ X) = g(Y) @ h(X)
+        f(X @ Y) = g(X) @ h(Y)
 
-    and we store the component ``Y \mapsto g_{Y2, Y} Y2`` as
-    ``g_{Y2, Y} = splitting_tree_mapping[Y2][Y] = <Y2 | Y>`` and similarly
-    ``h_{X2, X} = fusion_tree_mapping[X2][X] = <X2 | X>`` for ``X \mapsto h_{X2, X} X2``.
+    and we store the component ``X \mapsto g_{X2, X} X2`` as
+    ``g_{X2, X} = splitting_tree_mapping[X2][X] = <X2 | X>`` and similarly
+    ``h_{Y2, Y} = fusion_tree_mapping[Y2][Y] = <Y2 | Y>`` for ``Y \mapsto h_{Y2, Y} Y2``.
     Note that ``g`` contains the coefficients in a linear combination of splitting trees,
     which are conjugated compared to the analogous linear combination of fusion trees.
     """
@@ -3180,10 +3182,10 @@ class FactorizedTreeMapping(TensorMapping):
         fusion_trees = []
         for i, _ in block_inds:
             coupled = codomain.sector_decomposition[i]
-            for Y, *_ in codomain.iter_tree_blocks([coupled]):
-                splitting_trees.append(Y)
-            for X, *_ in domain.iter_tree_blocks([coupled]):
-                fusion_trees.append(X)
+            for X, *_ in codomain.iter_tree_blocks([coupled]):
+                splitting_trees.append(X)
+            for Y, *_ in domain.iter_tree_blocks([coupled]):
+                fusion_trees.append(Y)
         splitting_tree_mapping = IdentityMapping[FusionTree](splitting_trees)
         fusion_tree_mapping = IdentityMapping[FusionTree](fusion_trees)
         return cls(splitting_tree_mapping, fusion_tree_mapping, is_real=True)
@@ -3193,13 +3195,13 @@ class FactorizedTreeMapping(TensorMapping):
         if instruction.codomain:
             # because this is a splitting tree, we need to do the opposite braid and do conj
             #   (see notes in TreePairMapping.pre_compose_braid_instruction)
-            for Y in self.splitting_tree_mapping.nonzero_rows():
-                braid_mapping[Y] = Y.braid(j=instruction.idx, overbraid=not instruction.overbraid, do_conj=True)
+            for X in self.splitting_tree_mapping.nonzero_rows():
+                braid_mapping[X] = X.braid(j=instruction.idx, overbraid=not instruction.overbraid, do_conj=True)
             splitting_tree_mapping = self.splitting_tree_mapping.pre_compose(braid_mapping)
             fusion_tree_mapping = self.fusion_tree_mapping
         else:
-            for X in self.fusion_tree_mapping.nonzero_rows():
-                braid_mapping[X] = X.braid(j=instruction.idx, overbraid=instruction.overbraid)
+            for Y in self.fusion_tree_mapping.nonzero_rows():
+                braid_mapping[Y] = Y.braid(j=instruction.idx, overbraid=instruction.overbraid)
             splitting_tree_mapping = self.splitting_tree_mapping
             fusion_tree_mapping = self.fusion_tree_mapping.pre_compose(braid_mapping)
         return FactorizedTreeMapping(splitting_tree_mapping, fusion_tree_mapping, is_real=self.is_real and is_real)
@@ -3213,13 +3215,13 @@ class FactorizedTreeMapping(TensorMapping):
             # because this is a splitting tree, we need to do the opposite twist to its
             # fusiontree representative, giving us one conj.
             # then, we need to conj the resulting coefficient, cancelling that conj again.
-            for Y in self.splitting_tree_mapping.nonzero_rows():
-                twist_mapping[Y] = Y.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
+            for X in self.splitting_tree_mapping.nonzero_rows():
+                twist_mapping[X] = X.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
             splitting_tree_mapping = self.splitting_tree_mapping.pre_compose(twist_mapping)
             fusion_tree_mapping = self.fusion_tree_mapping
         else:
-            for X in self.fusion_tree_mapping.nonzero_rows():
-                twist_mapping[X] = X.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
+            for Y in self.fusion_tree_mapping.nonzero_rows():
+                twist_mapping[Y] = Y.twist(idcs=instruction.idcs, overtwist=instruction.overtwist)
             splitting_tree_mapping = self.splitting_tree_mapping
             fusion_tree_mapping = self.fusion_tree_mapping.pre_compose(twist_mapping)
         return FactorizedTreeMapping(splitting_tree_mapping, fusion_tree_mapping, is_real=self.is_real and is_real)
@@ -3232,15 +3234,15 @@ class FactorizedTreeMapping(TensorMapping):
         res = f'{type(self).__name__}:\n'
         indent = '    '
         res += f'{indent}splitting_tree_mapping:\n'
-        for Xi, val in self.splitting_tree_mapping.items():
-            res += f'{2 * indent}{Xi!s}\n'
-            for Xf, coeff in val.items():
-                res += f'{3 * indent}{coeff:.5f}\n{3 * indent} * {Xf!s}\n'
+        for Yi, val in self.splitting_tree_mapping.items():
+            res += f'{2 * indent}{Yi!s}\n'
+            for Yf, coeff in val.items():
+                res += f'{3 * indent}{coeff:.5f}\n{3 * indent} * {Yf!s}\n'
         res += f'{indent}fusion_tree_mapping:\n'
-        for Xi, val in self.fusion_tree_mapping.items():
-            res += f'{2 * indent}{Xi!s}\n'
-            for Xf, coeff in val.items():
-                res += f'{3 * indent}{coeff:.5f}\n{3 * indent} * {Xf!s}\n'
+        for Yi, val in self.fusion_tree_mapping.items():
+            res += f'{2 * indent}{Yi!s}\n'
+            for Yf, coeff in val.items():
+                res += f'{3 * indent}{coeff:.5f}\n{3 * indent} * {Yf!s}\n'
         res.removesuffix('\n')
         if do_print:
             print(res)
@@ -3332,17 +3334,17 @@ class FactorizedTreeMapping(TensorMapping):
             return old_block, False
 
         is_zero = True
-        for Y2, idcs, mults, _ in new_codomain.iter_tree_blocks([coupled]):
+        for X2, idcs, mults, _ in new_codomain.iter_tree_blocks([coupled]):
             tree_row = 0
             is_zero_row = True
             # note: we first add all contributions to the new rows, and then do the
             #       axes permutation only once to the result.
-            for Y, self_Y in self.splitting_tree_mapping.items():
-                if Y2 not in self_Y:
+            for X, self_X in self.splitting_tree_mapping.items():
+                if X2 not in self_X:
                     continue
                 is_zero_row = False
-                i1 = codomain.tree_block_slice(Y)
-                tree_row += self_Y[Y2] * old_block[i1, :]
+                i1 = codomain.tree_block_slice(X)
+                tree_row += self_X[X2] * old_block[i1, :]
             if is_zero_row:
                 continue
             is_zero = False
@@ -3370,15 +3372,15 @@ class FactorizedTreeMapping(TensorMapping):
         if isinstance(self.fusion_tree_mapping, IdentityMapping):
             return old_block, False
         is_zero_block = True
-        for X2, idcs, mults, _ in new_domain.iter_tree_blocks([coupled]):
+        for Y2, idcs, mults, _ in new_domain.iter_tree_blocks([coupled]):
             tree_col = 0
             is_zero_tree_col = True
-            for X, self_X in self.fusion_tree_mapping.items():
-                if X2 not in self_X:
+            for Y, self_Y in self.fusion_tree_mapping.items():
+                if Y2 not in self_Y:
                     continue
                 is_zero_tree_col = False
-                i2 = domain.tree_block_slice(X)
-                tree_col += self_X[X2] * old_block[:, i2]
+                i2 = domain.tree_block_slice(Y)
+                tree_col += self_Y[Y2] * old_block[:, i2]
             if is_zero_tree_col:
                 continue
             is_zero_block = False
