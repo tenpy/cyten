@@ -219,11 +219,11 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
     ``W`` leg in the codomain, while indices ``3`` and ``-2`` both refer to the ``X`` leg in the
     domain. Graphically, the leg indices are arranged as follows::
 
-    |       0   1   2   3   4   5
+    |      11  10   9   8   7   6
     |      ┏┷━━━┷━━━┷━━━┷━━━┷━━━┷┓
     |      ┃          T          ┃
     |      ┗┯━━━┯━━━┯━━━┯━━━┯━━━┯┛
-    |      11  10   9   8   7   6
+    |       0   1   2   3   4   5
 
     A similar graphical representation is available as :attr:`Tensor.ascii_diagram` and can be
     printed to stdout using :meth:`Tensor.dbg`.
@@ -394,7 +394,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
     def ascii_diagram(self) -> str:
         """An ascii representation of the tensor.
 
-        It shows they type, leg labels, leg dimensions and leg arrows.
+        It shows the type, leg labels, leg dimensions and leg arrows.
 
         Examples
         --------
@@ -417,10 +417,14 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         #
 
         DISTANCE = 5  # distance between legs in chars, i.e. number of '━' between the '┯'
+
         huge_dim = f'>1e{DISTANCE + 1}'  # for numbers that can not fit in DISTANCE digits
-        huge_dim_value = 10 ** (DISTANCE + 1)
         assert len(huge_dim) <= DISTANCE
         huge_dim = huge_dim.rjust(DISTANCE)
+        huge_dim_value = 10**DISTANCE
+        assert len(str(huge_dim_value)) > DISTANCE
+        assert len(str(huge_dim_value - 1)) <= DISTANCE
+
         dims = []
         for l in self.legs:
             if len(str(l.dim)) <= DISTANCE:
@@ -462,48 +466,51 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
             # make room for the text
             codomain_extra += 3
             domain_extra += 3
-        #
-        if self.num_codomain_legs > 0:
+        # top border:
+        if self.num_domain_legs > 0:
             top_border = ''.join(
                 [
                     start,
                     '┏',
-                    '━' * codomain_extra,
-                    (DISTANCE * '━').join(['┷'] * self.num_codomain_legs),
-                    '━' * codomain_extra,
+                    '━' * domain_extra,
+                    (DISTANCE * '━').join(['┷'] * self.num_domain_legs),
+                    '━' * domain_extra,
                     '┓',
                 ]
             )
         else:
-            top_border = ''.join([start, '┏', '━' * ((DISTANCE + 1) * (self.num_domain_legs - 1) + 1), '┓'])
+            top_border = ''.join([start, '┏', '━' * ((DISTANCE + 1) * (self.num_codomain_legs - 1) + 1), '┓'])
+        # body:
         chars_in_box = len(top_border) - len(start) - 2
         front_pad = ' ' * ((chars_in_box - len(text)) // 2)
         back_pad = ' ' * (chars_in_box - len(text) - len(front_pad))
         body = ''.join([start, '┃', front_pad, text, back_pad, '┃'])
-        if self.num_domain_legs > 0:
+        # bottom border:
+        if self.num_codomain_legs > 0:
             bottom_border = ''.join(
                 [
                     start,
                     '┗',
-                    '━' * domain_extra,
-                    (DISTANCE * '━').join(['┯'] * self.num_domain_legs),
-                    '━' * domain_extra,
+                    '━' * codomain_extra,
+                    (DISTANCE * '━').join(['┯'] * self.num_codomain_legs),
+                    '━' * codomain_extra,
                     '┛',
                 ]
             )
         else:
-            bottom_border = ''.join([start, '┗', '━' * ((DISTANCE + 1) * (self.num_codomain_legs - 1) + 1), '┛'])
+            bottom_border = ''.join([start, '┗', '━' * ((DISTANCE + 1) * (self.num_domain_legs - 1) + 1), '┛'])
+        # stitch together
         return '\n'.join(
             [
-                ' ' * codomain_extra + ' '.join(codomain_dims),
-                ' ' * codomain_extra + ' '.join(codomain_arrows),
-                ' ' * codomain_extra + ' '.join(codomain_labels),
+                ' ' * domain_extra + ' '.join(domain_dims),
+                ' ' * domain_extra + ' '.join(domain_arrows),
+                ' ' * domain_extra + ' '.join(domain_labels),
                 top_border,
                 body,
                 bottom_border,
-                ' ' * domain_extra + ' '.join(domain_labels),
-                ' ' * domain_extra + ' '.join(domain_arrows),
-                ' ' * domain_extra + ' '.join(domain_dims),
+                ' ' * codomain_extra + ' '.join(codomain_labels),
+                ' ' * codomain_extra + ' '.join(codomain_arrows),
+                ' ' * codomain_extra + ' '.join(codomain_dims),
             ]
         )
 
@@ -1346,21 +1353,21 @@ class SymmetricTensor(Tensor):
         ----------
         trees : {(FusionTree, FusionTree): (J+K)-D Block}
             Specifies the linear combination that defines the resulting tensor.
-            Each entry of the dict, ``{(Y, X): coeffs}`` represents several contributions to the
+            Each entry of the dict, ``{(X, Y): coeffs}`` represents several contributions to the
             linear combination, one per entry of the block ``coeffs``.
             The contribution with prefactor ``coeffs[n1, ..., nJ, mK, ..., m1]`` (note the axis order!)
             consists of the following steps as a map from domain to codomain::
 
                 1. Project each leg ``k`` of the domain to a single sector, where the sector is
-                   given by ``X.uncoupled[k]`` and the degeneracy index by ``mk`` (an index to
+                   given by ``Y.uncoupled[k]`` and the degeneracy index by ``mk`` (an index to
                    the array ``coeffs``).
 
-                2. Apply the fusion tree ``X``.
+                2. Apply the fusion tree ``Y``.
 
-                3. Apply the splitting tree ``Y``.
+                3. Apply the splitting tree ``X``.
 
                 4. Apply inclusions on each leg ``j`` of the codomain, where the sector is given by
-                   ``Y.uncoupled[j]`` and the degeneracy index by ``nj`` (an index to the array
+                   ``X.uncoupled[j]`` and the degeneracy index by ``nj`` (an index to the array
                    ``coeffs``).
         codomain, domain, backend, labels
             Arguments, like for constructor of :class:`SymmetricTensor`.
@@ -2203,11 +2210,11 @@ class Mask(Tensor):
     codomain. An inclusion Mask is the dagger of this projection Mask and maps from the small leg
     in the domain to the large leg in the codomain::
 
-        |         │                 ║
+        |         ║                 │
         |      ┏━━┷━━┓           ┏━━┷━━┓
         |      ┃ M_p ┃    OR     ┃ M_i ┃
         |      ┗━━┯━━┛           ┗━━┯━━┛
-        |         ║                 │
+        |         │                 ║
 
     A Mask places restrictions on the basis order of the respective legs. For a projection Mask,
     the kept basis elements from the large leg need to appear in their original order in the small
@@ -2908,13 +2915,13 @@ class ChargedTensor(Tensor):
     Such that in the above examples we have ``invariant_part1.legs == [V1, V2, V3, C.dual]``
     and ``invariant_part2.legs == [V1, V2, V4.dual, V3.dual, C.dual]``::
 
-    |       0   1   2   3
+    |      ┏━┓
+    |      ┗┯┛
+    |      C┆   6   5   4
     |      ┏┷━━━┷━━━┷━━━┷┓
     |      ┃  invariant  ┃
     |      ┗┯━━━┯━━━┯━━━┯┛
-    |      C┆   6   5   4
-    |      ┏┷┓
-    |      ┗━┛
+    |       0   1   2   3
 
     If the symmetry :attr:`Symmetry.can_be_dropped`, a specific state on the charge leg can be
     specified as a dense block. For example, consider an SU(2) symmetry and a charge leg :math:`C`,
@@ -3715,18 +3722,18 @@ def almost_equal(
 def apply_mask(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
     """Apply a projection Mask to one leg of a tensor, *projecting* it to a smaller leg.
 
-    The mask must be a projection, i.e. its large leg is in its domain, at the bottom.
+    The mask must be a projection, i.e. its large leg is in its domain, at the top.
     We apply the mask via map composition::
 
+        |                                │   │   ╭───╮   │
+        |      │   │   │                 │   │  ┏┷┓  │   │           │ ┏━┷━┓ │
+        |     ┏┷━━━┷━━━┷┓                │   │  ┃M┃  │   │           │ ┃M.T┃ │
+        |     ┃ tensor  ┃                │   │  ┗┯┛  │   │           │ ┗━┯━┛ │
+        |     ┗┯━━━┯━━━┯┛       OR       │   ╰───╯   │   │    ==    ┏┷━━━┷━━━┷┓
+        |      │   │  ┏┷┓               ┏┷━━━━━━━━━━━┷━━━┷┓         ┃ tensor  ┃
+        |      │   │  ┃M┃               ┃ tensor          ┃         ┗┯━━━┯━━━┯┛
+        |      │   │  ┗┯┛               ┗┯━━━┯━━━┯━━━┯━━━┯┛          │   │   │
         |                                │   │   │   │   │
-        |      │   │  ┏┷┓               ┏┷━━━┷━━━┷━━━┷━━━┷┓          │   │   │
-        |      │   │  ┃M┃               ┃ tensor          ┃         ┏┷━━━┷━━━┷┓
-        |      │   │  ┗┯┛               ┗┯━━━┯━━━━━━━━━━━┯┛         ┃ tensor  ┃
-        |     ┏┷━━━┷━━━┷┓       OR       │   │   ╭───╮   │    ==    ┗┯━━━┯━━━┯┛
-        |     ┃ tensor  ┃                │   │  ┏┷┓  │   │           │ ┏━┷━┓ │
-        |     ┗┯━━━┯━━━┯┛                │   │  ┃M┃  │   │           │ ┃M.T┃ │
-        |      │   │   │                 │   │  ┗┯┛  │   │           │ ┗━┯━┛ │
-        |                                │   ╰───╯   │   │
 
     where ``M.T == transpose(M)``.
 
@@ -3762,17 +3769,17 @@ def apply_mask(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
 def apply_mask_DiagonalTensor(tensor: DiagonalTensor, mask: Mask) -> DiagonalTensor:
     """Apply a mask to *both* legs of a diagonal tensor.
 
-    The mask must be a projection, i.e. its large leg is in the domain, at the bottom.
+    The mask must be a projection, i.e. its large leg is in the domain, at the top.
     we apply the mask via map composition::
 
         |     ┏━━┷━━┓
-        |     ┃  M  ┃
+        |     ┃ M.hc┃
         |     ┗━━┯━━┛
         |     ┏━━┷━━┓
         |     ┃  D  ┃
         |     ┗━━┯━━┛
         |     ┏━━┷━━┓
-        |     ┃ M.hc┃
+        |     ┃  M  ┃
         |     ┗━━┯━━┛
 
     where ``M.hc == dagger(M)``
@@ -3816,9 +3823,9 @@ def bend_legs(tensor: Tensor, num_codomain_legs: int = None, num_domain_legs: in
     For example::
 
         |        │   ╭───────────╮
-        |        │   │   ╭───╮   │    ==    bend_legs(T, num_codomain_legs=1)
+        |        │   │   ╭───╮   │    ==    bend_legs(T, num_domain_legs=1)
         |       ┏┷━━━┷━━━┷┓  │   │
-        |       ┃    T    ┃  │   │    ==    bend_legs(T, num_domain_legs=5)
+        |       ┃    T    ┃  │   │    ==    bend_legs(T, num_codomain_legs=5)
         |       ┗┯━━━┯━━━┯┛  │   │
         |        │   │   │   │   │
 
@@ -3826,9 +3833,9 @@ def bend_legs(tensor: Tensor, num_codomain_legs: int = None, num_domain_legs: in
 
         |        │   │   │   │
         |       ┏┷━━━┷━━━┷┓  │
-        |       ┃    T    ┃  │        ==    bend_legs(T, num_codomain_legs=4)
+        |       ┃    T    ┃  │        ==    bend_legs(T, num_domain_legs=4)
         |       ┗┯━━━┯━━━┯┛  │
-        |        │   │   ╰───╯        ==    bend_legs(T, num_domain_legs=2)
+        |        │   │   ╰───╯        ==    bend_legs(T, num_codomain_legs=2)
 
     Parameters
     ----------
@@ -3900,15 +3907,15 @@ def combine_legs(
     If the legs to be combined are contiguous to begin with (and ordered within each group),
     the combine is just a grouping of the legs::
 
-        |        ║          │    ║
-        |       ╭╨──┬───╮   │   ╭╨──╮
-        |       0   1   2   3   4   5
+        |       │   │          ║    │
+        |       │   │   ╭───┬──╨╮   │
+        |      11  10   9   8   7   6
         |      ┏┷━━━┷━━━┷━━━┷━━━┷━━━┷┓
         |      ┃          T          ┃    ==   combine_legs(T, [0, 1, 2], [4, 5], [7, 8, 9])
         |      ┗┯━━━┯━━━┯━━━┯━━━┯━━━┯┛
-        |      11  10   9   8   7   6
-        |       │   │   ╰───┴──╥╯   │
-        |       │   │          ║    │
+        |       0   1   2   3   4   5
+        |       ╰╥──┴───╯   │   ╰╥──╯
+        |        ║          │    ║
 
     Note that the conventional leg order in the domain goes right to left, such that the first
     element in the group, ``7``, is the *right*-most leg in the product, but we still have
@@ -3930,18 +3937,18 @@ def combine_legs(
     If the symmetry does not have symmetric braids, the `levels` are required to specify the
     chirality of the braids, like in :func:`permute_legs`. For example::
 
-        |             │      ║    │     │     │
-        |             │     ╭╨┬─╮ │     │     │
-        |             │     │ ╰─│─│─────│─────│───╮
-        |       ╭─────│─────│───╯ │     │     │   │
-        |       0     1     2     3     4     5   │
+        |       │           │          ║
+        |       │           │     ╭──┬─╨╮
+        |       │     ╭─────│─────│──╯  │     ╭───╮
+        |      11    10     9     8     7     6   │
         |      ┏┷━━━━━┷━━━━━┷━━━━━┷━━━━━┷━━━━━┷┓  │
         |      ┃               T               ┃  │    ==   combine_legs(T, [2, 6, 0], [7, 10, 8])
         |      ┗┯━━━━━┯━━━━━┯━━━━━┯━━━━━┯━━━━━┯┛  │
-        |      11    10     9     8     7     6   │
-        |       │     ╰─────│─────│──╮  │     ╰───╯
-        |       │           │     ╰──┴─╥╯
-        |       │           │          ║
+        |       0     1     2     3     4     5   │
+        |       ╰─────│─────│───╮ │     │     │   │
+        |             │     │ ╭─│─│─────│─────│───╯
+        |             │     ╰╥┴─╯ │     │     │
+        |             │      ║    │     │     │
 
     Parameters
     ----------
@@ -4110,19 +4117,21 @@ def combine_to_matrix(
 
     The resulting tensor can be interpreted as a matrix, i.e. has two legs::
 
-    |              ║
-    |           ╭──╨────┬───────╮
-    |       ╭───│───────│─────╮ │
-    |       │   │   ╭───│───╮ │ │
-    |       0   1   2   3   │ │ │
-    |      ┏┷━━━┷━━━┷━━━┷┓  │ │ │
-    |      ┃      T      ┃  │ │ │   =    combine_to_matrix(T, [1, 3, -1], [5, 2, 4, 0])
-    |      ┗━━┯━━━┯━━━┯━━┛  │ │ │
-    |         6   5   4     │ │ │
-    |         ╰───│───│─────│─│─╯
-    |             │ ╭─│─────╯ │
-    |             ╰─┴─┴──╥────╯
+
+
     |                    ║
+    |             ╭─┬─┬──╨────╮
+    |             │ ╰─│─────╮ │
+    |         ╭───│───│─────│─│─╮
+    |         6   5   4     │ │ │
+    |      ┏━━┷━━━┷━━━┷━━┓  │ │ │
+    |      ┃      T      ┃  │ │ │   =    combine_to_matrix(T, [1, 3, -1], [5, 2, 4, 0])
+    |      ┗┯━━━┯━━━┯━━━┯┛  │ │ │
+    |       0   1   2   3   │ │ │
+    |       │   │   ╰───│───╯ │ │
+    |       ╰───│───────│─────╯ │
+    |           ╰──╥────┴───────╯
+    |              ║
 
     Parameters
     ----------
@@ -4172,16 +4181,16 @@ def dagger(tensor: Tensor) -> Tensor:
 
     For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
     the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
-    For a tensor ``A: X -> Y`` the dagger is a map ``dagger(A): Y -> X``.
+    For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
     Graphically::
 
-        |        a   b   c             e   d
-        |        │   │   │             │   │
-        |       ┏┷━━━┷━━━┷┓         ┏━━┷━━━┷━━┓
-        |       ┃    A    ┃         ┃dagger(A)┃
-        |       ┗━━┯━━━┯━━┛         ┗┯━━━┯━━━┯┛
-        |          │   │             │   │   │
         |          e   d             a   b   c
+        |          │   │             │   │   │
+        |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
+        |       ┃    A    ┃         ┃dagger(A)┃
+        |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
+        |        │   │   │             │   │
+        |        a   b   c             e   d
 
     Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
 
@@ -4245,11 +4254,11 @@ def compose(
 
         |        │   │   │   │
         |       ┏┷━━━┷━━━┷━━━┷┓
-        |       ┃   tensor1   ┃
+        |       ┃   tensor2   ┃
         |       ┗━━━━┯━━━┯━━━━┛
         |            │   │
         |       ┏━━━━┷━━━┷━━━━┓
-        |       ┃   tensor2   ┃
+        |       ┃   tensor1   ┃
         |       ┗━━┯━━━┯━━━┯━━┛
         |          │   │   │
 
@@ -4307,13 +4316,13 @@ def _compose_with_Mask(tensor: Tensor, mask: Mask, leg_idx: int) -> Tensor:
 
     That is we have::
 
-        |      │   │  ┏┷┓          │   │   │
-        |      │   │  ┃M┃         ┏┷━━━┷━━━┷┓
-        |      │   │  ┗┯┛         ┃ tensor  ┃
-        |     ┏┷━━━┷━━━┷┓   OR    ┗┯━━━┯━━━┯┛
-        |     ┃ tensor  ┃          │  ┏┷┓  │
-        |     ┗┯━━━┯━━━┯┛          │  ┃M┃  │
-        |      │   │   │           │  ┗┯┛  │
+        |      │   │   │            │   │  ┏┷┓
+        |     ┏┷━━━┷━━━┷┓           │   │  ┃M┃
+        |     ┃ tensor  ┃           │   │  ┗┯┛
+        |     ┗┯━━━┯━━━┯┛   OR     ┏┷━━━┷━━━┷┓
+        |      │  ┏┷┓  │           ┃ tensor  ┃
+        |      │  ┃M┃  │           ┗┯━━━┯━━━┯┛
+        |      │  ┗┯┛  │            │   │   │
 
     Note that the resulting leg may be smaller than before (for a projection mask in the codomain
     or an inclusion mask in the domain) or larger (otherwise).
@@ -4394,13 +4403,13 @@ def eigh(
 
         |                                 │   │   │   │
         |                                ┏┷━━━┷━━━┷━━━┷┓
-        |                                ┃      V      ┃
+        |                                ┃  dagger(V)  ┃
         |        │   │   │   │           ┗━━━━━━┯━━━━━━┛
         |       ┏┷━━━┷━━━┷━━━┷┓               ┏━┷━┓
         |       ┃   tensor    ┃    ==         ┃ W ┃
         |       ┗┯━━━┯━━━┯━━━┯┛               ┗━┯━┛
         |        │   │   │   │           ┏━━━━━━┷━━━━━━┓
-        |                                ┃  dagger(V)  ┃
+        |                                ┃      V      ┃
         |                                ┗┯━━━┯━━━┯━━━┯┛
         |                                 │   │   │   │
 
@@ -4489,15 +4498,15 @@ def enlarge_leg(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
     The mask must be an inclusion, i.e. its large leg is in its codomain, at the top.
     We apply the mask via map composition::
 
+        |                                │   │   ╭───╮   │
+        |      │   │   │                 │   │  ┏┷┓  │   │           │ ┏━┷━┓ │
+        |     ┏┷━━━┷━━━┷┓                │   │  ┃M┃  │   │           │ ┃M.T┃ │
+        |     ┃ tensor  ┃                │   │  ┗┯┛  │   │           │ ┗━┯━┛ │
+        |     ┗┯━━━┯━━━┯┛       OR       │   ╰───╯   │   │    ==    ┏┷━━━┷━━━┷┓
+        |      │   │  ┏┷┓               ┏┷━━━━━━━━━━━┷━━━┷┓         ┃ tensor  ┃
+        |      │   │  ┃M┃               ┃ tensor          ┃         ┗┯━━━┯━━━┯┛
+        |      │   │  ┗┯┛               ┗┯━━━┯━━━┯━━━┯━━━┯┛          │   │   │
         |                                │   │   │   │   │
-        |      │   │  ┏┷┓               ┏┷━━━┷━━━┷━━━┷━━━┷┓          │   │   │
-        |      │   │  ┃M┃               ┃ tensor          ┃         ┏┷━━━┷━━━┷┓
-        |      │   │  ┗┯┛               ┗┯━━━┯━━━━━━━━━━━┯┛         ┃ tensor  ┃
-        |     ┏┷━━━┷━━━┷┓       OR       │   │   ╭───╮   │    ==    ┗┯━━━┯━━━┯┛
-        |     ┃ tensor  ┃                │   │  ┏┷┓  │   │           │ ┏━┷━┓ │
-        |     ┗┯━━━┯━━━┯┛                │   │  ┃M┃  │   │           │ ┃M.T┃ │
-        |      │   │   │                 │   │  ┗┯┛  │   │           │ ┗━┯━┛ │
-        |                                │   ╰───╯   │   │
 
     where ``M.T == transpose(M)``.
 
@@ -4619,11 +4628,11 @@ def horizontal_factorization(
 
     Graphically, here with ``codomain_cut=3, domain_cut=1``::
 
-        |    │   │   │   │           │   │   │         │           │   │   │    ╭────╮   │
-        |   ┏┷━━━┷━━━┷━━━┷┓         ┏┷━━━┷━━━┷┓   ┏━━━━┷┓         ┏┷━━━┷━━━┷┓   │   ┏┷━━━┷┓
+        |      │   │   │               │           │   │             │   ╭──────╮    │   │
+        |   ┏━━┷━━━┷━━━┷━━┓         ┏━━┷━━━━━━┓   ┏┷━━━┷┓         ┏━━┷━━━┷━━┓   │   ┏┷━━━┷┓
         |   ┃   tensor    ┃    =    ┃    A    ┠───┨  B  ┃   :=    ┃    A    ┃   │   ┃  B  ┃
-        |   ┗━━┯━━━┯━━━┯━━┛         ┗━━┯━━━━━━┛   ┗┯━━━┯┛         ┗━━┯━━━┯━━┛   │   ┗┯━━━┯┛
-        |      │   │   │               │           │   │             │   ╰──────╯    │   │
+        |   ┗┯━━━┯━━━┯━━━┯┛         ┗┯━━━┯━━━┯┛   ┗━━━━┯┛         ┗┯━━━┯━━━┯┛   │   ┗┯━━━┯┛
+        |    │   │   │   │           │   │   │         │           │   │   │    ╰────╯   │
 
     Parameters
     ----------
@@ -4655,15 +4664,16 @@ def horizontal_factorization(
     This is achieved by bending legs such that we can do the factorization as a QR or SVD,
     then bend back, that is for the example case depicted above::
 
-        |                                             ╭──╮   │   │   │  │       │   │   │ │
-        |             ╭──╮  │   │   │         │       │ ┏┷━━━┷━━━┷━━━┷┓ │      ┏┷━━━┷━━━┷┓│
-        |             │  │  │   │   │   ╭──╮  │       │ ┃      A'     ┃ │      ┃    A    ┃│
-        |             │  │ ┏┷━━━┷━━━┷━━━┷┓ │  │       │ ┗━━━━━━┯━━━━━━┛ │      ┗━━┯━━━┯━━┛│
+        |                                             │    │   │   ╭────╮         │   │   │
+        |             │           │   │    ╭──╮       │ ┏━━┷━━━┷━━━┷━━┓ │         │  ┏┷━━━┷┓
+        |             │  ╭────╮   │   │    │  │       │ ┃      B'     ┃ │         │  ┃  B  ┃
+        |             │  │ ┏━━┷━━━┷━━━┷━━┓ │  │       │ ┗━━━━━━┯━━━━━━┛ │         │  ┗┯━━━┯┛
         |   LHS   =   │  │ ┃   tensor    ┃ │  │   =   │        │        │   =     │   │   │   =  RHS
-        |             │  │ ┗━━┯━━━┯━━━┯━━┛ │  │       │ ┏━━━━━━┷━━━━━━┓ │         │  ┏┷━━━┷┓
-        |             │  ╰────╯   │   │    │  │       │ ┃      B'     ┃ │         │  ┃  B  ┃
-        |             │           │   │    ╰──╯       │ ┗━━┯━━━┯━━━┯━━┛ │         │  ┗┯━━━┯┛
-        |                                             │    │   │   ╰────╯         │   │   │
+        |             │  │ ┗┯━━━┯━━━┯━━━┯┛ │  │       │ ┏━━━━━━┷━━━━━━┓ │      ┏━━┷━━━┷━━┓│
+        |             │  │  │   │   │   ╰──╯  │       │ ┃      A'     ┃ │      ┃    A    ┃│
+        |             ╰──╯  │   │   │         │       │ ┗┯━━━┯━━━┯━━━┯┛ │      ┗┯━━━┯━━━┯┛│
+        |                                             ╰──╯   │   │   │  │       │   │   │ │
+
 
     Note how we bend some legs to the left, to avoid any braids, such that the operation does not
     need to specify any braid chiralities.
@@ -4927,7 +4937,7 @@ def move_leg(
 
         |        │   ╭───│─╯ │
         |       ┏┷━━━┷━━━┷━━━┷┓
-        |       ┃      T      ┃       ==    move_leg(T, 1, codomain_pos=-2)
+        |       ┃      T      ┃       ==    move_leg(T, 6, domain_pos=-2)
         |       ┗┯━━━┯━━━┯━━━┯┛
         |        │   │   │   │
 
@@ -4935,7 +4945,7 @@ def move_leg(
 
         |        │   │   ╭───│───╮
         |       ┏┷━━━┷━━━┷━━━┷┓  │
-        |       ┃      T      ┃  │    ==    move_leg(T, 2, domain_pos=1, bend_right=True)
+        |       ┃      T      ┃  │    ==    move_leg(T, 5, codomain_pos=1, bend_right=True)
         |       ┗┯━━━┯━━━┯━━━┯┛  │
         |        │ ╭─│───│───│───╯
 
@@ -5118,14 +5128,15 @@ def partial_trace(
 
     An arbitrary number of pairs can be traced over::
 
-        |    ╭───│───╮   ╭───╮
-        |    0   1   2   3   │
+        |    │       ╭───────╮
+        |    │   ╭───│───╮   │
+        |    7   6   5   4   │
         |   ┏┷━━━┷━━━┷━━━┷┓  │
         |   ┃      A      ┃  │    ==   trace(A, (0, 2), (3, 5), (-2, 4))
         |   ┗┯━━━┯━━━┯━━━┯┛  │
-        |    7   6   5   4   │
-        |    │   ╰───│───╯   │
-        |    │       ╰───────╯
+        |    0   1   2   3   │
+        |    ╰───│───╯   ╰───╯
+
 
     Note that despite its name, a "full" trace with a scalar result *can* be realized.
 
@@ -5214,25 +5225,27 @@ def permute_legs(
 
     Graphically (note that we ignore the `levels` graphically and do not draw braid chiralities)::
 
-    |       ╭───│───────│─────╮ │
-    |       │   │   ╭───│───╮ │ │
-    |       0   1   2   3   │ │ │
-    |      ┏┷━━━┷━━━┷━━━┷┓  │ │ │
-    |      ┃      T      ┃  │ │ │   =    permute_legs(T, [1, 3, -1], [5, 2, 4, 0])
-    |      ┗━━┯━━━┯━━━┯━━┛  │ │ │
-    |         6   5   4     │ │ │
-    |         ╰───│───│─────│─│─╯
-    |             │ ╭─│─────╯ │
 
-    |      │ ╭─────╮   │       │
-    |      │ │ ╭───│───│───╮   │
-    |      │ │ │   0   1   2   3
-    |      │ │ │  ┏┷━━━┷━━━┷━━━┷┓
-    |      │ │ │  ┃      T      ┃   =   permute_legs(T, [6, 1, 3], [0, 5, 2, 4], bend_right=False)
-    |      │ │ │  ┗━━┯━━━┯━━━┯━━┛
+    |             │ ╰─│─────╮ │
+    |         ╭───│───│─────│─│─╮
+    |         6   5   4     │ │ │
+    |      ┏━━┷━━━┷━━━┷━━┓  │ │ │
+    |      ┃      T      ┃  │ │ │   =    permute_legs(T, [1, 3, -1], [5, 2, 4, 0])
+    |      ┗┯━━━┯━━━┯━━━┯┛  │ │ │
+    |       0   1   2   3   │ │ │
+    |       │   │   ╰───│───╯ │ │
+    |       ╰───│───────│─────╯
+
+
+    |        │ ╭─────────│─╯ │
+    |      ╭─│─│─────╮   │   │
     |      │ │ │     6   5   4
-    |      ╰─│─│─────╯   │   │
-    |        │ ╰─────────│─╮ │
+    |      │ │ │  ┏━━┷━━━┷━━━┷━━┓
+    |      │ │ │  ┃      T      ┃   =   permute_legs(T, [6, 1, 3], [0, 5, 2, 4], bend_right=False)
+    |      │ │ │  ┗┯━━━┯━━━┯━━━┯┛
+    |      │ │ │   0   1   2   3
+    |      │ │ ╰───│───│───╯   │
+    |      │ ╰─────╯   │       │
 
     .. note ::
         We expect that there are only two cases where you should do explicit leg permutations:
@@ -5406,11 +5419,11 @@ def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
 
         |                                 │   │   │   │
         |                                ┏┷━━━┷━━━┷━━━┷┓
-        |        │   │   │   │           ┃      Q      ┃
+        |        │   │   │   │           ┃      R      ┃
         |       ┏┷━━━┷━━━┷━━━┷┓          ┗━━━━━━┯━━━━━━┛
         |       ┃   tensor    ┃    ==           │
         |       ┗━━┯━━━┯━━━┯━━┛          ┏━━━━━━┷━━━━━━┓
-        |          │   │   │             ┃      R      ┃
+        |          │   │   │             ┃      Q      ┃
         |                                ┗━━┯━━━┯━━━┯━━┛
         |                                   │   │   │
 
@@ -5487,11 +5500,11 @@ def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
 
         |                                 │   │   │   │
         |                                ┏┷━━━┷━━━┷━━━┷┓
-        |        │   │   │   │           ┃      L      ┃
+        |        │   │   │   │           ┃      Q      ┃
         |       ┏┷━━━┷━━━┷━━━┷┓          ┗━━━━━━┯━━━━━━┛
         |       ┃   tensor    ┃    ==           │
         |       ┗━━┯━━━┯━━━┯━━┛          ┏━━━━━━┷━━━━━━┓
-        |          │   │   │             ┃      Q      ┃
+        |          │   │   │             ┃      L      ┃
         |                                ┗━━┯━━━┯━━━┯━━┛
         |                                   │   │   │
 
@@ -5626,11 +5639,11 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     r"""Split legs that were previously combined using :func:`combine_legs`.
 
     |       │   │   │   │   │   │
-    |       ╰╥──┴───╯   │   ╰╥──╯
-    |      ┏━┷━━━━━━━━━━┷━━━━┷━━━┓
-    |      ┃          T          ┃    ==    split_legs(T, [0, 2, 5])
-    |      ┗┯━━━┯━━━━━━━━━━┯━━━━┯┛
-    |       │   │   ╭───┬──╨╮   │
+    |       ╰──┴───╥╯   │   ╰──╥╯
+    |      ┏━━━━━━━┷━━━━┷━━━━━━┷━┓
+    |      ┃          T          ┃    ==    split_legs(T, [2, 4, 6])
+    |      ┗┯━━━┯━━━━┯━━━━━━━━━━┯┛
+    |       │   │   ╭╨───┬──╮   │
     |       │   │   │   │   │   │
 
     This is the inverse of :func:`combine_legs`, up to a possible :func:`permute_legs`.
@@ -5809,13 +5822,13 @@ def svd(
 
         |                                 │   │   │   │
         |                                ┏┷━━━┷━━━┷━━━┷┓
-        |                                ┃      U      ┃
+        |                                ┃      Vh     ┃
         |        │   │   │   │           ┗━━━━━━┯━━━━━━┛
         |       ┏┷━━━┷━━━┷━━━┷┓               ┏━┷━┓
         |       ┃   tensor    ┃    ==         ┃ S ┃
         |       ┗━━┯━━━┯━━━┯━━┛               ┗━┯━┛
         |          │   │   │             ┏━━━━━━┷━━━━━━┓
-        |                                ┃      Vh     ┃
+        |                                ┃      U      ┃
         |                                ┗━━┯━━━┯━━━┯━━┛
         |                                   │   │   │
 
@@ -5903,19 +5916,19 @@ def tensor_from_grid(
 
     Graphically::
 
-        |                                            V
-        |                                          ┏━┷━┓ │   │   │
-        |                                          ┃i_m┃ │   │   │
-        |        V                                 ┗━┯━┛ │   │   │
-        |        │   │   │   │                   V_m │   │   │   │
-        |       ┏┷━━━┷━━━┷━━━┷┓                     ┏┷━━━┷━━━┷━━━┷┓
-        |       ┃     res     ┃    ==   sum_{m,n}   ┃  grid[m][n] ┃
-        |       ┗━━┯━━━┯━━━┯━━┛                     ┗━━┯━━━┯━━━┯━━┛
-        |          │   │   │                           │   │   │ W_n
-        |                  W                           │   │ ┏━┷━┓
-        |                                              │   │ ┃p_n┃
-        |                                              │   │ ┗━┯━┛
         |                                                      W
+        |                                              │   │ ┏━┷━┓
+        |                                              │   │ ┃p_n┃
+        |                  W                           │   │ ┗━┯━┛
+        |          │   │   │                           │   │   │ W_n
+        |       ┏━━┷━━━┷━━━┷━━┓                     ┏━━┷━━━┷━━━┷━━┓
+        |       ┃     res     ┃    ==   sum_{m,n}   ┃  grid[m][n] ┃
+        |       ┗┯━━━┯━━━┯━━━┯┛                     ┗┯━━━┯━━━┯━━━┯┛
+        |        │   │   │   │                   V_m │   │   │   │
+        |        V                                 ┏━┷━┓ │   │   │
+        |                                          ┃i_m┃ │   │   │
+        |                                          ┗━┯━┛ │   │   │
+        |
 
     where :math:`p_n : W = \bigoplus_{n'} W_{n'} \to W_n` is the projection map of the direct sum
     and :math:`i_m : V_m \to \bigoplus_{m'} V_{m'}` the inclusion.
@@ -6026,20 +6039,20 @@ def tdot(
 
     For example::
 
-        |        │   ╭───│───│──╮
-        |        0   1   2   │  │
+        |    ╭───╮   ╭───│───│──╮
+        |    │   4   3   2   │  │
+        |    │  ┏┷━━━┷━━━┷┓  │  │
+        |    │  ┃    B    ┃  │  │
+        |    │  ┗━━┯━━━┯━━┛  │  │
+        |    │     0   1     │  │
+        |    │     │   ╰─────╯  │    ==    tdot(A, B, [1, 4, 5], [3, 0, 4])
+        |    ╰───╮ ╰─╮   ╭───╮  │
+        |        5   4   3   │  │
         |       ┏┷━━━┷━━━┷┓  │  │
         |       ┃    A    ┃  │  │
         |       ┗┯━━━┯━━━┯┛  │  │
-        |        5   4   3   │  │
-        |    ╭───╯ ╭─╯   ╰───╯  │
-        |    │     │   ╭─────╮  │    ==    tdot(A, B, [1, 4, 5], [3, 0, 4])
-        |    │     0   1     │  │
-        |    │  ┏━━┷━━━┷━━┓  │  │
-        |    │  ┃    B    ┃  │  │
-        |    │  ┗┯━━━┯━━━┯┛  │  │
-        |    │   4   3   2   │  │
-        |    ╰───╯   ╰───│───│──╯
+        |        0   1   2   │  │
+        |        │   ╰───│───│──╯
 
     Parameters
     ----------

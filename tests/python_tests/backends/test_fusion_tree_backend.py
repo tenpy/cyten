@@ -1365,7 +1365,7 @@ def test_permute_legs_instructions():
         has_symmetric_braid=False,
         bend_right=[True] * (codomain + domain),
     )
-    assert list(instructions4) == [fusion_tree_backend.BendInstruction(bend_up=True)] * num
+    assert list(instructions4) == [fusion_tree_backend.BendInstruction(bend_down=True)] * num
 
     # =============================================
     # 5) down bends only
@@ -1380,7 +1380,7 @@ def test_permute_legs_instructions():
         has_symmetric_braid=False,
         bend_right=[True] * (codomain + domain),
     )
-    assert list(instructions5) == [fusion_tree_backend.BendInstruction(bend_up=False)] * num
+    assert list(instructions5) == [fusion_tree_backend.BendInstruction(bend_down=False)] * num
 
     # =============================================
     # 6) codomain perm and bends
@@ -1394,7 +1394,7 @@ def test_permute_legs_instructions():
         has_symmetric_braid=False,
         bend_right=[True] * (codomain + domain),
     )
-    expect_instructions6 = [fusion_tree_backend.BendInstruction(bend_up=True)] * 2
+    expect_instructions6 = [fusion_tree_backend.BendInstruction(bend_down=True)] * 2
     expect_instructions6 += [
         fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
         for j, overbraid in [
@@ -1428,7 +1428,7 @@ def test_permute_legs_instructions():
         bend_right=[True] * (codomain + domain),
     )
     instructions7 = list(instructions7)
-    expect_instructions7 = [fusion_tree_backend.BendInstruction(bend_up=False)] * 2
+    expect_instructions7 = [fusion_tree_backend.BendInstruction(bend_down=False)] * 2
     expect_instructions7 += [
         fusion_tree_backend.BraidInstruction(codomain=False, idx=j, overbraid=overbraid)
         for j, overbraid in zip(
@@ -1455,7 +1455,7 @@ def test_permute_legs_instructions():
         fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
         for j, overbraid in zip([1, 2, 3, 4, 0, 1, 2, 3], [True, False, False, False, True, False, False, False])
     ]
-    expect_instructions8 += [fusion_tree_backend.BendInstruction(bend_up=False)] * 2
+    expect_instructions8 += [fusion_tree_backend.BendInstruction(bend_down=False)] * 2
     expect_instructions8 += [
         fusion_tree_backend.BraidInstruction(codomain=False, idx=j, overbraid=overbraid)
         for j, overbraid in zip(
@@ -1463,7 +1463,7 @@ def test_permute_legs_instructions():
             [False, False, False, True, False, False, False, True, False, False, False, True, False, False],
         )
     ]
-    expect_instructions8 += [fusion_tree_backend.BendInstruction(bend_up=True)] * 3
+    expect_instructions8 += [fusion_tree_backend.BendInstruction(bend_down=True)] * 3
     expect_instructions8 += [
         fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
         for j, overbraid in zip(
@@ -1490,13 +1490,13 @@ def test_permute_legs_instructions():
         fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
         for j, overbraid in zip([0, 1, 2, 3, 4], [False, True, False, False, False])
     ]
-    expect_instructions9 += [fusion_tree_backend.BendInstruction(bend_up=False)]
+    expect_instructions9 += [fusion_tree_backend.BendInstruction(bend_down=False)]
     expect_instructions9 += [fusion_tree_backend.TwistInstruction(codomain=True, idcs=[0], overtwist=True)]
     expect_instructions9 += [
         fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
         for j, overbraid in zip([0, 1, 2, 3], [True, True, True, True])
     ]
-    expect_instructions9 += [fusion_tree_backend.BendInstruction(bend_up=False)]
+    expect_instructions9 += [fusion_tree_backend.BendInstruction(bend_down=False)]
     expect_instructions9 += [
         fusion_tree_backend.BraidInstruction(codomain=False, idx=j, overbraid=overbraid)
         for j, overbraid in zip(
@@ -1524,13 +1524,13 @@ def test_permute_legs_instructions():
             ],
         )
     ]
-    expect_instructions9 += [fusion_tree_backend.BendInstruction(bend_up=True)] * 2
+    expect_instructions9 += [fusion_tree_backend.BendInstruction(bend_down=True)] * 2
     expect_instructions9 += [fusion_tree_backend.TwistInstruction(codomain=False, idcs=[0], overtwist=False)]
     expect_instructions9 += [
         fusion_tree_backend.BraidInstruction(codomain=False, idx=j, overbraid=overbraid)
         for j, overbraid in zip([0, 1, 2, 3, 4], [False] * 5)
     ]
-    expect_instructions9 += [fusion_tree_backend.BendInstruction(bend_up=True)]
+    expect_instructions9 += [fusion_tree_backend.BendInstruction(bend_down=True)]
     expect_instructions9 += [
         fusion_tree_backend.BraidInstruction(codomain=True, idx=j, overbraid=overbraid)
         for j, overbraid in zip(
@@ -1649,18 +1649,18 @@ def permute_legs_instructions(
 
 
 def apply_single_b_symbol(
-    ten: SymmetricTensor, bend_up: bool
+    ten: SymmetricTensor, bend_down: bool
 ) -> tuple[fusion_tree_backend.FusionTreeData, TensorProduct, TensorProduct]:
     """Use the implementation of b symbols using `TreeMappingDicts` to return the action
     of a single b symbol in the same format (input and output) as the cross check
     implementation. This is of course inefficient usage of this implementation but a
     necessity in order to use the structure of the already implemented tests.
     """
-    instruction = fusion_tree_backend.BendInstruction(bend_up=bend_up)
+    instruction = fusion_tree_backend.BendInstruction(bend_down=bend_down)
     mapping = fusion_tree_backend.TreePairMapping.from_instructions(
         [instruction], codomain=ten.codomain, domain=ten.domain
     )
-    if bend_up:
+    if bend_down:
         codomain_idcs = [*range(ten.num_codomain_legs + 1)]
         domain_idcs = [*reversed(range(ten.num_codomain_legs + 1, ten.num_legs))]
         codomain_factors = [*ten.codomain.factors, ten.domain[-1].dual]
@@ -1737,14 +1737,14 @@ def assert_bending_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[Ca
     this function is tested elsewhere.
     """
     bends = [True, False]
-    for bend_up in bends:
-        if a.num_codomain_legs == 0 and not bend_up:
+    for bend_down in bends:
+        if a.num_codomain_legs == 0 and not bend_down:
             continue
-        elif a.num_domain_legs == 0 and bend_up:
+        elif a.num_domain_legs == 0 and bend_down:
             continue
 
         for func in funcs:
-            if bend_up:
+            if bend_down:
                 num_leg = a.num_codomain_legs - 1
                 leg = a.legs[num_leg]
             else:
@@ -1757,11 +1757,11 @@ def assert_bending_and_scale_axis_commutation(a: SymmetricTensor, funcs: list[Ca
 
             # apply scale_axis first
             new_a.data = new_a.backend.scale_axis(new_a, diag, num_leg)
-            new_data, new_codomain, new_domain = func(new_a, bend_up)
+            new_data, new_codomain, new_domain = func(new_a, bend_down)
             new_a = SymmetricTensor(new_data, new_codomain, new_domain, backend=new_a.backend)
 
             # bend first
-            new_data, new_codomain, new_domain = func(new_a2, bend_up)
+            new_data, new_codomain, new_domain = func(new_a2, bend_down)
             new_a2 = SymmetricTensor(new_data, new_codomain, new_domain, backend=new_a2.backend)
             new_a2.data = new_a2.backend.scale_axis(new_a2, diag, num_leg)
 
@@ -2263,11 +2263,11 @@ def cross_check_single_c_symbol_tree_cols(
 
 
 def cross_check_single_b_symbol(
-    ten: SymmetricTensor, bend_up: bool
+    ten: SymmetricTensor, bend_down: bool
 ) -> tuple[fusion_tree_backend.FusionTreeData, TensorProduct, TensorProduct]:
     """Naive implementation of a single B symbol for test purposes.
-    If `bend_up == True`, the right-most leg in the domain is bent up,
-    otherwise the right-most leg in the codomain is bent down.
+    If `bend_down == True`, the right-most leg in the domain is bent down,
+    otherwise the right-most leg in the codomain is bent up.
 
     NOTE this function may be deleted at a later stage
     """
@@ -2277,19 +2277,19 @@ def cross_check_single_b_symbol(
     symmetry = ten.symmetry
 
     # NOTE do these checks in permute_legs for the actual (efficient) function
-    if bend_up:
+    if bend_down:
         assert ten.num_domain_legs > 0, 'There is no leg to bend in the domain!'
     else:
         assert ten.num_codomain_legs > 0, 'There is no leg to bend in the codomain!'
     assert len(ten.data.blocks) > 0, 'The given tensor has no blocks to act on!'
 
     spaces = [ten.codomain, ten.domain]
-    space1, space2 = spaces[bend_up], spaces[not bend_up]
+    space1, space2 = spaces[bend_down], spaces[not bend_down]
     new_space1 = TensorProduct(space1.factors[:-1], symmetry=symmetry)
     new_space2 = TensorProduct(space2.factors + [space1.factors[-1].dual], symmetry=symmetry)
 
-    new_codomain = [new_space1, new_space2][bend_up]
-    new_domain = [new_space1, new_space2][not bend_up]
+    new_codomain = [new_space1, new_space2][bend_down]
+    new_domain = [new_space1, new_space2][not bend_down]
 
     new_data = ten.backend.zero_data(
         new_codomain, new_domain, dtype=Dtype.complex128, device=ten.data.device, all_blocks=True
@@ -2299,7 +2299,7 @@ def cross_check_single_b_symbol(
         modified_shape = [ten.codomain[i].sector_multiplicity(sec) for i, sec in enumerate(alpha_tree.uncoupled)]
         modified_shape += [ten.domain[i].sector_multiplicity(sec) for i, sec in enumerate(beta_tree.uncoupled)]
 
-        if bend_up:
+        if bend_down:
             if beta_tree.uncoupled.shape[0] == 1:
                 coupled = symmetry.trivial_sector
             else:
@@ -2341,7 +2341,7 @@ def cross_check_single_b_symbol(
         tree_block = block_backend.reshape(tree_block, final_shape)
 
         trees = [alpha_tree, beta_tree]
-        tree1, tree2 = trees[bend_up], trees[not bend_up]
+        tree1, tree2 = trees[bend_down], trees[not bend_down]
 
         if tree1.uncoupled.shape[0] == 1:
             tree1_in_1 = symmetry.trivial_sector
@@ -2366,7 +2366,7 @@ def cross_check_single_b_symbol(
         )
 
         b_sym = symmetry._b_symbol(tree1_in_1, tree1.uncoupled[-1], tree1.coupled)
-        if not bend_up:
+        if not bend_down:
             b_sym = b_sym.conj()
         if tree1.are_dual[-1]:
             b_sym *= symmetry.frobenius_schur(tree1.uncoupled[-1])
@@ -2376,7 +2376,7 @@ def cross_check_single_b_symbol(
                 continue
             new_tree2.multiplicities[-1] = nu
 
-            if bend_up:
+            if bend_down:
                 alpha_slice = new_codomain.tree_block_slice(new_tree2)
                 if new_tree1.uncoupled.shape[0] == 0:
                     beta_slice = slice(0, 1)

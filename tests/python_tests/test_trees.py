@@ -164,47 +164,47 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
         assert np.allclose(a_lhs, a_rhs)
 
 
-@pytest.mark.parametrize('bend_up', [True, False])
-def test_FusionTree_bend_leg(bend_up, any_symmetry, make_any_sectors, np_random):
-    Y, X = random_tree_pair(
+@pytest.mark.parametrize('bend_down', [True, False])
+def test_FusionTree_bend_leg(bend_down, any_symmetry, make_any_sectors, np_random):
+    X, Y = random_tree_pair(
         symmetry=any_symmetry,
         num_uncoupled_in=4,
         num_uncoupled_out=4,
         sector_rng=lambda: make_any_sectors(1)[0],
         np_random=np_random,
     )
-    Y.test_sanity()
     X.test_sanity()
-    res = list(trees.FusionTree.bend_leg(Y, X, bend_up).items())
+    Y.test_sanity()
+    res = list(trees.FusionTree.bend_leg(X, Y, bend_down).items())
 
-    for (Y_i, X_i), _ in res:
-        Y_i.test_sanity()
+    for (X_i, Y_i), _ in res:
         X_i.test_sanity()
-        assert np.all(Y_i.coupled == X_i.coupled)
-        if bend_up:
-            assert np.all(Y_i.uncoupled[:-1] == Y.uncoupled)
-            assert np.all(X_i.uncoupled == X.uncoupled[:-1])
-            assert np.all(Y_i.uncoupled[-1] == any_symmetry.dual_sector(X.uncoupled[-1]))
-        else:
-            assert np.all(Y_i.uncoupled == Y.uncoupled[:-1])
+        Y_i.test_sanity()
+        assert np.all(X_i.coupled == Y_i.coupled)
+        if bend_down:
             assert np.all(X_i.uncoupled[:-1] == X.uncoupled)
+            assert np.all(Y_i.uncoupled == Y.uncoupled[:-1])
             assert np.all(X_i.uncoupled[-1] == any_symmetry.dual_sector(Y.uncoupled[-1]))
+        else:
+            assert np.all(X_i.uncoupled == X.uncoupled[:-1])
+            assert np.all(Y_i.uncoupled[:-1] == Y.uncoupled)
+            assert np.all(Y_i.uncoupled[-1] == any_symmetry.dual_sector(X.uncoupled[-1]))
 
     # compare to matrix representation
     if any_symmetry.can_be_dropped:
         # bending leg does nothing in this case
-        expect = np.tensordot(Y.as_block().conj(), X.as_block(), (-1, -1))
+        expect = np.tensordot(X.as_block().conj(), Y.as_block(), (-1, -1))
         res_np = sum(a_i * np.tensordot(Y_i.as_block().conj(), X_i.as_block(), (-1, -1)) for (Y_i, X_i), a_i in res)
         assert np.allclose(res_np, expect)
 
     # check that bending back gives back the same tree
     res2 = {}
-    for (Y_i, X_i), a_i in res:
-        for (Y2_i, X2_i), b_i in trees.FusionTree.bend_leg(Y_i, X_i, not bend_up).items():
+    for (X_i, Y_i), a_i in res:
+        for (Y2_i, X2_i), b_i in trees.FusionTree.bend_leg(X_i, Y_i, not bend_down).items():
             res2[Y2_i, X2_i] = res2.get((Y2_i, X2_i), 0) + a_i * b_i
-    assert (Y, X) in res2
+    assert (X, Y) in res2
     for pair, a in res2.items():
-        assert np.allclose(a, 1 if pair == (Y, X) else 0)
+        assert np.allclose(a, 1 if pair == (X, Y) else 0)
 
     # TODO is there anything else we can check at this level...?
 

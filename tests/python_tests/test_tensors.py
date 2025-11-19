@@ -1127,11 +1127,7 @@ def test_Tensor_ascii_diagram(codomain_dims, domain_dims, labels, abelian_pipe, 
     """
     You may find useful (see comments in :func:`test_Tensor_str_repr`)::
 
-        pytest -rP -k test_Tensor_ascii_diagram > playground/test_Tensor_ascii_diagram.txt && code playground/test_Tensor_ascii_diagram.txt
-
-    or for vim::
-
-        pytest -rP -k test_Tensor_ascii_diagram > playground/test_Tensor_ascii_diagram.txt && vim playground/test_Tensor_ascii_diagram.txt
+        pytest -rP -k test_Tensor_ascii_diagram | less
 
     """
     codomain = []
@@ -1152,6 +1148,8 @@ def test_Tensor_ascii_diagram(codomain_dims, domain_dims, labels, abelian_pipe, 
                     pipe = LegPipe(pipe_legs, is_dual=np_random.choice([True, False]))
                 co_domain.append(pipe)
     T = DummyTensor(codomain, domain, backend=get_backend(), labels=labels, dtype=Dtype.complex128)
+    print(f'domain dualities: {", ".join(str(getattr(l, "is_dual", None)) for l in T.domain)}')
+    print(f'codomain dualities: {", ".join(str(getattr(l, "is_dual", None)) for l in T.codomain)}')
     print(T.ascii_diagram)
 
 
@@ -1186,6 +1184,11 @@ def test_Tensor_str_repr(cls, codomain, domain, make_compatible_tensor, str_max_
         pytest -rP -k test_Tensor_str_repr > playground/test_Tensor_str_repr.txt && vim playground/test_Tensor_str_repr.txt
 
     Assumes your cwd is the repository root, such that the file is generated in playground and therefore gitignored.
+
+    Or without creating a file::
+
+        pytest -rP -k test_Tensor_str_repr | less
+
     """
     terminal_width = 80
     T = make_compatible_tensor(codomain=codomain, domain=domain, cls=cls)
