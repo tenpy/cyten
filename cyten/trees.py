@@ -28,7 +28,7 @@ class FusionTree:
             uncoupled=[a, b, c, d],
             are_dual=[False, True, True, False],
             inner_sectors=[x, y],
-            multiplicities=[m0, m1, m2],
+            multiplicities=[i, j, k],
         )
 
     Graphically::
