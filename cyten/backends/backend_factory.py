@@ -53,9 +53,9 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
     if isinstance(symmetry, Symmetry):
         # figure out minimal symmetry_backend that supports that symmetry
-        if symmetry == no_symmetry:
+        if symmetry.is_trivial:
             tensor_backend = 'no_symmetry'
-        elif isinstance(symmetry, AbelianGroup):
+        elif symmetry.is_abelian_group:
             tensor_backend = 'abelian'
         else:
             tensor_backend = 'fusion_tree'

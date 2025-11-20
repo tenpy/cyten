@@ -15,7 +15,7 @@ import numpy as np
 from numpy import ndarray
 
 from .dummy_config import printoptions
-from .symmetries import FusionStyle, ProductSymmetry, Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
+from .symmetries import FusionStyle, Symmetry, Sector, SectorArray, SymmetryError, no_symmetry
 from .tools.misc import (
     find_row_differences,
     inverse_permutation,
@@ -478,7 +478,7 @@ class Space(metaclass=ABCMeta):
 
         Parameters
         ----------
-        symmetry : :class:`~cyten.groups.Symmetry`
+        symmetry : :class:`~cyten.symmetries.Symmetry`
             The symmetry of the new space
         sector_map : function (SectorArray,) -> (SectorArray,)
             A map of sectors (2D int arrays), such that ``new_sectors = sector_map(old_sectors)``.
@@ -505,7 +505,7 @@ class Space(metaclass=ABCMeta):
         ----------
         which : None | (list of) int
             If ``None`` (default) the entire symmetry is dropped and the result has ``no_symmetry``.
-            An integer or list of integers assume that ``self.symmetry`` is a ``ProductSymmetry``
+            An integer or list of integers assume that ``self.symmetry`` is a ``Symmetry``
             and indicates which of its factors to drop.
 
         """
@@ -729,7 +729,7 @@ class ElementarySpace(Space, Leg):
         if len(independent_descriptions) == 0:
             # all descriptions had no_symmetry
             return cls.from_trivial_sector(dim=dim)
-        symmetry = ProductSymmetry.from_nested_factors([s.symmetry for s in independent_descriptions])
+        symmetry = Symmetry.from_nested_factors([s.symmetry for s in independent_descriptions])
         if not symmetry.can_be_dropped:
             msg = f'from_independent_symmetries is not supported for {symmetry}.'
             # TODO is there a way to define this? the straight-forward picture works only if we have
@@ -972,7 +972,7 @@ class ElementarySpace(Space, Leg):
         ----------
         dim : int
             The dimension of the space.
-        symmetry : :class:`~cyten.groups.Symmetry`
+        symmetry : :class:`~cyten.symmetries.Symmetry`
             The symmetry of the space.
         is_dual : bool
             If the space should be bra or a ket space.
@@ -2423,7 +2423,7 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
     """
     if which is None or which == []:
         pass
-    elif isinstance(symmetry, ProductSymmetry):
+    elif isinstance(symmetry, Symmetry):
         which = to_iterable(which)
         num_factors = len(symmetry.factors)
         # normalize negative indices to be in range(num_factors)
@@ -2437,7 +2437,7 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
     elif which == 0 or which == [0]:
         which = None
     else:
-        msg = f'Can not drop which={which} for a single (non-ProductSymmetry) symmetry.'
+        msg = f'Can not drop which={which} for a single (non-Symmetry) symmetry.'
         raise ValueError(msg)
 
     if which is None:
@@ -2447,6 +2447,6 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
         if len(factors) == 1:
             remaining_symmetry = factors[0]
         else:
-            remaining_symmetry = ProductSymmetry(factors)
+            remaining_symmetry = Symmetry(factors)
 
     return which, remaining_symmetry

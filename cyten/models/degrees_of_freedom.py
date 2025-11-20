@@ -23,9 +23,8 @@ from ..symmetries import (
     FermionNumber,
     FermionParity,
     NoSymmetry,
-    ProductSymmetry,
-    SU2Symmetry,
     Symmetry,
+    SU2Symmetry,
     SymmetryError,
     U1Symmetry,
     ZNSymmetry,
@@ -495,7 +494,7 @@ class BosonicDOF(OccupationDOF):
     @staticmethod
     def conservation_law_to_symmetry(
         conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']],
-    ) -> Symmetry | ProductSymmetry:
+    ) -> Symmetry:
         """Translate conservation law for individual / all bosons to a symmetry."""
         if isinstance(conserve, str) or conserve is None:
             if conserve in ['N', 'Ntot', 'N_tot', 'U(1)', 'U1']:
@@ -522,7 +521,7 @@ class BosonicDOF(OccupationDOF):
             if num_no_sym == len(conserve):
                 sym = NoSymmetry()
             else:
-                sym = ProductSymmetry(sym_factors)
+                sym = Symmetry(sym_factors)
         else:
             raise ValueError(f'Invalid `conserve`: {conserve}')
         return sym
@@ -597,7 +596,7 @@ class FermionicDOF(OccupationDOF):
         default_device: str = None,
         **kwargs,
     ):
-        if isinstance(leg.symmetry, ProductSymmetry):
+        if isinstance(leg.symmetry, Symmetry):
             # there should only be a single fermionic symmetry
             assert sum([isinstance(factor, (FermionParity, FermionNumber)) for factor in leg.symmetry.factors]) == 1
         else:
@@ -664,11 +663,11 @@ class FermionicDOF(OccupationDOF):
     @staticmethod
     def conservation_law_to_symmetry(
         conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']],
-    ) -> Symmetry | ProductSymmetry:
+    ) -> Symmetry:
         """Translate conservation law for individual / all fermions to a symmetry."""
         if isinstance(conserve, str):
             if conserve in ['N', 'Ntot', 'N_tot']:
-                sym = ProductSymmetry([U1Symmetry('total_fermion_occupation'), FermionParity('total_fermion_parity')])
+                sym = Symmetry([U1Symmetry('total_fermion_occupation'), FermionParity('total_fermion_parity')])
             elif conserve in ['parity', 'P', 'Ptot', 'P_tot']:
                 sym = FermionParity('total_fermion_parity')
             else:
@@ -689,7 +688,7 @@ class FermionicDOF(OccupationDOF):
             if num_no_sym == len(conserve):
                 sym = FermionParity('total_fermion_parity')
             else:
-                sym = ProductSymmetry([*sym_factors, FermionParity('total_fermion_parity')])
+                sym = Symmetry([*sym_factors, FermionParity('total_fermion_parity')])
         else:
             raise ValueError(f'Invalid `conserve`: {conserve}')
         return sym

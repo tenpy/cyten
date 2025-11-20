@@ -743,7 +743,7 @@ def test_no_symmetry(np_random):
 
 # @pytest.mark.xfail(reason='Topological data not implemented.')
 def test_product_symmetry(np_random):
-    doubleFibo = symmetries.ProductSymmetry(
+    doubleFibo = symmetries.Symmetry(
         [symmetries.FibonacciAnyonCategory('left'), symmetries.FibonacciAnyonCategory('right')]
     )
     common_checks(
@@ -759,7 +759,7 @@ def test_product_symmetry(np_random):
     )
 
     for k in range(1, 16, 2):
-        doubleIsing = symmetries.ProductSymmetry([symmetries.IsingAnyonCategory(k), symmetries.IsingAnyonCategory(-k)])
+        doubleIsing = symmetries.Symmetry([symmetries.IsingAnyonCategory(k), symmetries.IsingAnyonCategory(-k)])
         common_checks(
             doubleIsing,
             example_sectors=np.array([[0, 0], [0, 1], [1, 0], [1, 1], [2, 1], [1, 2], [2, 2], [0, 2], [2, 0]]),
@@ -770,8 +770,8 @@ def test_product_symmetry(np_random):
         assert np.isclose(doubleIsing._r_symbol([1, 1], [2, 2], [1, 1]), 1)
         assert np.isclose(doubleIsing._r_symbol([2, 2], [1, 1], [1, 1]), 1)
 
-    sym = symmetries.ProductSymmetry([symmetries.SU2Symmetry(), symmetries.U1Symmetry(), symmetries.FermionParity()])
-    sym_with_name = symmetries.ProductSymmetry(
+    sym = symmetries.Symmetry([symmetries.SU2Symmetry(), symmetries.U1Symmetry(), symmetries.FermionParity()])
+    sym_with_name = symmetries.Symmetry(
         [symmetries.SU2Symmetry('foo'), symmetries.U1Symmetry('bar'), symmetries.FermionParity()]
     )
     s1 = np.array([5, 3, 1])  # e.g. spin 5/2 , 3 particles , odd parity ("fermionic")
@@ -1404,7 +1404,7 @@ def test_QuantumDoubleZNAnyonCategory(N, np_random):
         symmetries.QuantumDoubleZNAnyonCategory(N),
         symmetries.QuantumDoubleZNAnyonCategory(N + 1),
         symmetries.ZNAnyonCategory(N, 1),
-        symmetries.ProductSymmetry([symmetries.ZNAnyonCategory(N, 1), symmetries.ZNAnyonCategory(N, 1)]),
+        symmetries.Symmetry([symmetries.ZNAnyonCategory(N, 1), symmetries.ZNAnyonCategory(N, 1)]),
     ]
     assert sym == sym
     assert sym == other[0]

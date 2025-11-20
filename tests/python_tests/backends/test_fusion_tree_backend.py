@@ -14,7 +14,6 @@ from cyten.backends import fusion_tree_backend, get_backend
 from cyten.dtypes import Dtype
 from cyten.spaces import ElementarySpace, TensorProduct
 from cyten.symmetries import (
-    ProductSymmetry,
     SU2_kAnyonCategory,
     SU2Symmetry,
     SU3_3AnyonCategory,
@@ -196,7 +195,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     funcs = [cross_check_single_c_symbol_tree_blocks, cross_check_single_c_symbol_tree_cols, apply_single_c_symbol]
     zero_block = backend.block_backend.zeros
     eps = 1.0e-14
-    sym = ProductSymmetry([fibonacci_anyon_category, SU2Symmetry()])
+    sym = Symmetry([fibonacci_anyon_category, SU2Symmetry()])
     s1 = ElementarySpace(sym, [[1, 1]], [2])  # only (tau, spin-1/2)
     s2 = ElementarySpace(sym, [[0, 0], [1, 1]], [1, 2])  # (1, spin-0) and (tau, spin-1/2)
     codomain = TensorProduct([s2, s2, s2])
@@ -803,7 +802,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     reshape = backend.block_backend.reshape
     zero_block = backend.block_backend.zeros
     eps = 1.0e-14
-    sym = ProductSymmetry([fibonacci_anyon_category, SU2Symmetry()])
+    sym = Symmetry([fibonacci_anyon_category, SU2Symmetry()])
     s1 = ElementarySpace(sym, [[1, 1]], [1])  # only (tau, spin-1/2)
     s2 = ElementarySpace(sym, [[0, 0], [1, 1]], [1, 2])  # (1, spin-0) and (tau, spin-1/2)
     s3 = ElementarySpace(sym, [[0, 0], [1, 1], [1, 2]], [1, 2, 2])  # (1, spin-0), (tau, spin-1/2) and (tau, spin-1)

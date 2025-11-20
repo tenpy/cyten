@@ -475,7 +475,7 @@ class NoSymmetryBackend(TensorBackend):
         return self.block_backend.squeeze_axes(a.data, idcs)
 
     def supports_symmetry(self, symmetry: Symmetry) -> bool:
-        return symmetry == no_symmetry
+        return symmetry.is_trivial
 
     def svd(
         self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None

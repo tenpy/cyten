@@ -20,31 +20,38 @@ def random_symmetry_sectors(
     symmetry: symmetries.Symmetry, num: int, sort: bool = False, np_random=np.random.default_rng()
 ) -> symmetries.SectorArray:
     """Random unique symmetry sectors, optionally sorted."""
-    if isinstance(symmetry, symmetries.SU2Symmetry):
-        res = np_random.choice(int(1.3 * num), replace=False, size=(num, 1))
-    elif isinstance(symmetry, symmetries.U1Symmetry):
-        vals = list(range(-num, num)) + [123]
-        res = np_random.choice(vals, replace=False, size=(num, 1))
-    elif symmetry.num_sectors < np.inf:
-        if symmetry.num_sectors <= num:
-            res = np_random.permutation(symmetry.all_sectors())
-        else:
-            which = np_random.choice(symmetry.num_sectors, replace=False, size=num)
-            res = symmetry.all_sectors()[which, :]
-    elif isinstance(symmetry, symmetries.ProductSymmetry):
-        factor_len = max(3, num // len(symmetry.factors))
-        factor_sectors = [
-            random_symmetry_sectors(factor, factor_len, np_random=np_random) for factor in symmetry.factors
-        ]
-        combs = np.indices([len(s) for s in factor_sectors]).T.reshape((-1, len(factor_sectors)))
-        if len(combs) > num:
-            combs = np_random.choice(combs, replace=False, size=num)
-        res = np.hstack([fs[i] for fs, i in zip(factor_sectors, combs.T)])
-    else:
-        raise NotImplementedError("don't know how to get symmetry sectors")
+    assert isinstance(symmetry, symmetries.Symmetry)
+    factor_len = max(3, num // len(symmetry.factors))
+    factor_sectors = [
+        random_factor_sectors(factor, factor_len, np_random=np_random) for factor in symmetry.factors
+    ]
+    combs = np.indices([len(s) for s in factor_sectors]).T.reshape((-1, len(factor_sectors)))
+    if len(combs) > num:
+        combs = np_random.choice(combs, replace=False, size=num)
+    res = np.hstack([fs[i] for fs, i in zip(factor_sectors, combs.T)])
+
     if sort:
         order = np.lexsort(res.T)
         res = res[order]
+    return res
+
+
+def random_factor_sectors(factor: symmetries.FactorSymmetry, num: int,
+                          np_random=np.random.default_rng()) -> symmetries.SectorArray:
+    assert isinstance(factor, symmetries.FactorSymmetry)
+    if isinstance(factor, symmetries.SU2Symmetry):
+        res = np_random.choice(int(1.3 * num), replace=False, size=(num, 1))
+    elif isinstance(factor, symmetries.U1Symmetry):
+        vals = list(range(-num, num)) + [123]
+        res = np_random.choice(vals, replace=False, size=(num, 1))
+    elif factor.num_sectors < np.inf:
+        if factor.num_sectors <= num:
+            res = np_random.permutation(factor.all_sectors())
+        else:
+            which = np_random.choice(factor.num_sectors, replace=False, size=num)
+            res = factor.all_sectors()[which, :]
+    else:
+        raise NotImplementedError(f'Sector sampling not yet implemented for {type(factor).__name__}')
     return res
 
 

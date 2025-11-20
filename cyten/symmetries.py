@@ -107,13 +107,13 @@ class BraidingStyle(IntEnum):
         return NotImplemented
 
 
-class Symmetry(metaclass=ABCMeta):
-    r"""Base class for symmetries that impose a block-structure on tensors
+class SymmetryInterface(metaclass=ABCMeta):
+    r"""Interface with the methods that both :class:`Symmetry` and :class:`FactorSymmetry` have.
 
     Attributes
     ----------
     can_be_dropped: bool
-        If the symmetry could be dropped to :class:`NoSymmetry` while preserving the structure.
+        If the symmetry could be dropped to a trivial symmetry while preserving the structure.
         This is e.g. the case for :class:`GroupSymmetry` subclasses.
         This means that there is a well-defined notion of a basis of graded vector spaces and of
         dense array representations of symmetric Tensor. See notes below.
@@ -124,7 +124,7 @@ class Symmetry(metaclass=ABCMeta):
     group_name: str
         A readable name for the symmetry, purely as a mathematical structure, e.g. ``'U(1)'``.
     descriptive_name: str | None
-        Optionally, an additional name for the group, indicating e.g. how it arises.
+        Optionally, an additional name for the symmetry, indicating e.g. how it arises.
         Could be e.g. ``'Sz'`` for the U(1) symmetry that conserves magnetization.
     num_sectors: int | float
         The number of sectors of the symmetry. An integer if finite, otherwise ``float('inf')``.
@@ -142,31 +142,6 @@ class Symmetry(metaclass=ABCMeta):
         since real blocks become complex under leg manipulations.
         Note: for a group (and for fermions), the topo data must be real if the fusion tensors
         are real. This is because the associator, the braid, and the cup are all real for groups.
-
-    Notes
-    -----
-    Some symmetries, can in principle be dropped to :class:`NoSymmetry`.
-    We call this property :attr:`can_be_dropped`. Currently, only :class:`GroupSymmetry` subclasses
-    and their products have this property.
-    It implies that all operations that may be carried out on symmetric objects have a corresponding
-    operation on a non-symmetric counterpart. For example, a symmetric space :math:`A` has a
-    corresponding space :math:`\mathbb{C}^n_A`, without further structure.
-    It "corresponds" to :math:`A` in the sense that it has the same properties, e.g. same dimension,
-    and that there are compatible operations (tensor product, direct sum, ...) such that::
-
-        symmetric :math:`A`  -------- (operation) --->   symmetric :math:`B`
-                |                                                 |
-             (drop symm)                                       (drop symm)
-                |                                                 |
-                v                                                 v
-        :math:`\mathbb{C}^{n_A}`  --- (operation) --->   :math:`\mathbb{C}^{n_B}`
-
-    commutes.
-    The same goes for tensors, i.e. for symmetric tensors there are corresponding non-symmetric
-    tensors which we may manipulate instead. This means that if *and only if* the symmetry has this
-    property does it make sense to between symmetric tensors and e.g. numpy arrays, which we can
-    think of as tensors with :class:`NoSymmetry`. Additionally, the concept of a basis only makes
-    sense in exactly these cases.
 
     """
 
@@ -266,6 +241,9 @@ class Symmetry(metaclass=ABCMeta):
     @property
     def has_trivial_braid(self) -> bool:
         return self.braiding_style == BraidingStyle.bosonic
+
+    def as_Symmetry(self) -> Symmetry:
+        return Symmetry([self])
 
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
         """Internal implementation of :meth:`fusion_tensor`. Can assume that inputs are valid."""
@@ -515,24 +493,24 @@ class Symmetry(metaclass=ABCMeta):
         return res
 
     def __mul__(self, other):
-        if isinstance(self, ProductSymmetry):
+        if isinstance(self, Symmetry):
             factors = self.factors
-        elif isinstance(self, Symmetry):
+        elif isinstance(self, FactorSymmetry):
             factors = [self]
         else:
             return NotImplemented
 
-        if isinstance(other, ProductSymmetry):
+        if isinstance(other, Symmetry):
             factors = factors + other.factors
-        elif isinstance(other, Symmetry):
+        elif isinstance(other, FactorSymmetry):
             factors = factors + [other]
         else:
             return NotImplemented
 
-        return ProductSymmetry(factors=factors)
+        return Symmetry(factors=factors)
 
     def __eq__(self, other):
-        if not isinstance(other, Symmetry):
+        if not isinstance(other, FactorSymmetry):
             return False
 
         if self.descriptive_name != other.descriptive_name:
@@ -756,21 +734,22 @@ class Symmetry(metaclass=ABCMeta):
         return obj
 
 
-class ProductSymmetry(Symmetry):
-    r"""Multiple symmetries.
+class FactorSymmetry(SymmetryInterface):
+    """Common base class for symmetries that can appear in :attr:`Symmetry.factors`."""
+    pass
+
+
+class Symmetry(SymmetryInterface):
+    r"""Symmetry that constrains symmetric tensors.
 
     The allowed sectors are "stacks" (using e.g. :func:`numpy.concatenate`) of sectors for the
     individual symmetries. For recovering the individual sectors see :attr:`sector_slices`.
 
-    If all factors are :class:`AbelianGroup` instances, instances of this class will masquerade as
-    instances of :class:`AbelianGroup` too, meaning they fulfill ``isinstance(s, AbelianGroup)``.
-    Same for :class:`GroupSymmetry`.
-
     Attributes
     ----------
-    factors : list of :class:`Symmetry`
+    factors : list of :class:`FactorSymmetry`
         The individual symmetries. We do not allow nesting, i.e. the `factors` can not
-        be :class:`ProductSymmetry`\ s themselves.
+        be :class:`Symmetry`\ s themselves.
     sector_slices : 1D ndarray
         Describes how the sectors of the `factors` are embedded in a sector of the product.
         Indicates that the slice ``sector_slices[i]:sector_slices[i + 1]`` of a sector of the
@@ -778,23 +757,50 @@ class ProductSymmetry(Symmetry):
 
     Parameters
     ----------
-    factors : list of :class:`Symmetry`
-        The factors that comprise this symmetry. If any are :class:`ProductSymmetry`s, the
+    factors : list of :class:`FactorSymmetry` or :class:`Symmetry`
+        The factors that comprise this symmetry. If any are :class:`Symmetry`\ s, the
         nesting is flattened, i.e. ``[*others, psymm]`` is translated to
-        ``[*others, *psymm.factors]`` for a :class:`ProductSymmetry` ``psymm``.
+        ``[*others, *psymm.factors]`` for a :class:`Symmetry` ``psymm``.
+
+    Notes
+    -----
+    Some symmetries, can in principle be dropped to a trivial ``Symmetry([])``.
+    We call this property :attr:`can_be_dropped`. Currently, we require an abelian symmetry with
+    a symmetric braid, i.e. an abelian group or fermionic grading or combinations of those.
+    It implies that all operations that may be carried out on symmetric objects have a corresponding
+    operation on a non-symmetric counterpart. For example, a symmetric space :math:`A` has a
+    corresponding space :math:`\mathbb{C}^n_A`, without further structure.
+    It "corresponds" to :math:`A` in the sense that it has the same properties, e.g. same dimension,
+    and that there are compatible operations (tensor product, direct sum, ...) such that::
+
+        symmetric :math:`A`  -------- (operation) --->   symmetric :math:`B`
+                |                                                 |
+             (drop symm)                                       (drop symm)
+                |                                                 |
+                v                                                 v
+        :math:`\mathbb{C}^{n_A}`  --- (operation) --->   :math:`\mathbb{C}^{n_B}`
+
+    commutes.
+    The same goes for tensors, i.e. for symmetric tensors there are corresponding non-symmetric
+    tensors which we may manipulate instead. For symmetries with non-trivial braid (fermions),
+    this comes with the caveat that braids need explicit swap gates at the non-symmetric level.
+    This means that if *and only if* the symmetry has this property does it make sense to convert
+    back-and-forth between symmetric tensors and e.g. numpy arrays, which we can think of as
+    tensors with a trivial ``Symmetry([])``.
+    Additionally, the concept of a basis only makes sense in exactly these cases.
 
     """
 
-    def __init__(self, factors: list[Symmetry]):
+    def __init__(self, factors: list[FactorSymmetry]):
         flat_factors = []
         for f in factors:
-            if isinstance(f, ProductSymmetry):
+            if isinstance(f, Symmetry):
                 flat_factors.extend(f.factors)
             else:
                 flat_factors.append(f)
         self.factors = flat_factors
         for f in flat_factors:
-            assert not isinstance(f, ProductSymmetry)  # avoid unnecessary nesting
+            assert not isinstance(f, Symmetry)  # avoid unnecessary nesting
         if all(f.descriptive_name is None for f in flat_factors):
             descriptive_name = None
         else:
@@ -804,27 +810,44 @@ class ProductSymmetry(Symmetry):
         num_fermionic_factors = sum(isinstance(f, (FermionNumber, FermionParity)) for f in flat_factors)
         if num_fermionic_factors > 1:
             msg = (
-                'ProductSymmetry with multiple fermionic factors probably does not do what you '
+                'Symmetry with multiple fermionic factors probably does not do what you '
                 'expect. See docstring of FermionParity for details.'
             )
             warnings.warn(msg, stacklevel=2)
 
         self.sector_slices = np.cumsum([0] + [f.sector_ind_len for f in flat_factors])
-        Symmetry.__init__(
-            self,
-            fusion_style=max(f.fusion_style for f in flat_factors),
-            braiding_style=max(f.braiding_style for f in flat_factors),
-            trivial_sector=np.concatenate([f.trivial_sector for f in flat_factors]),
-            group_name=' ⨉ '.join(f.group_name for f in flat_factors),
-            num_sectors=math.prod([symm.num_sectors for symm in flat_factors]),
-            has_complex_topological_data=any(f.has_complex_topological_data for f in flat_factors),
-            descriptive_name=descriptive_name,
+        self.num_sectors = math.prod([symm.num_sectors for symm in flat_factors])
+
+        self.fusion_style = max(f.fusion_style for f in flat_factors)
+        self.braiding_style = max(f.braiding_style for f in flat_factors)
+        self.has_complex_topological_data = any(f.has_complex_topological_data for f in flat_factors)
+
+        self.trivial_sector = trivial_sector = as_immutable_array(
+            np.concatenate([f.trivial_sector for f in flat_factors])
         )
+        self.sector_ind_len = sector_ind_len = len(trivial_sector)
+        self.empty_sector_array = as_immutable_array(np.zeros((0, sector_ind_len), dtype=int))
+
+        self.group_name = ' ⨉ '.join(f.group_name for f in flat_factors)
+        self.descriptive_name = descriptive_name
         dtypes = [f.fusion_tensor_dtype for f in flat_factors]
         if None in dtypes:
             self.fusion_tensor_dtype = None
         else:
             self.fusion_tensor_dtype = Dtype.common(*dtypes)
+
+    @property
+    def is_abelian(self) -> bool:
+        return self.fusion_style == FusionStyle.single
+
+    @property
+    def is_abelian_group(self) -> bool:
+        return self.is_abelian and self.is_group  # FIXME impl these
+
+    @property
+    def is_trivial(self) -> bool:
+        """FIXME"""
+        return all(isinstance(f, NoSymmetry) for f in self.factors)
 
     def is_valid_sector(self, a: Sector) -> bool:
         if getattr(a, 'shape', ()) != (self.sector_ind_len,):
@@ -933,20 +956,20 @@ class ProductSymmetry(Symmetry):
 
     def __repr__(self):
         if len(self.factors) == 0:
-            return f'ProductSymmetry([])'
+            return f'Symmetry([])'
         if len(self.factors) == 1:
-            return f'ProductSymmetry({self.factors[0]!r})'
+            return f'Symmetry({self.factors[0]!r})'
         return ' * '.join(repr(f) for f in self.factors)
 
     def __str__(self):
         if len(self.factors) == 0:
-            return f'ProductSymmetry([])'
+            return f'Symmetry([])'
         if len(self.factors) == 1:
-            return f'ProductSymmetry({self.factors[0]!s})'
+            return f'Symmetry({self.factors[0]!s})'
         return ' ⨉ '.join(str(f) for f in self.factors)
 
     def __eq__(self, other):
-        if not isinstance(other, ProductSymmetry):
+        if not isinstance(other, Symmetry):
             return False
 
         if len(self.factors) != len(other.factors):
@@ -954,8 +977,11 @@ class ProductSymmetry(Symmetry):
 
         return all(f1 == f2 for f1, f2 in zip(self.factors, other.factors))
 
+    def __mul__(self, other) -> Symmetry:
+        ...  # FIXME
+
     def is_same_symmetry(self, other) -> bool:
-        if not isinstance(other, ProductSymmetry):
+        if not isinstance(other, Symmetry):
             return False
         if len(self.factors) != len(other.factors):
             return False
@@ -1061,25 +1087,27 @@ class ProductSymmetry(Symmetry):
         return res
 
 
+# FIXME remove this business?
+#       ass is_group, is_abelian instead??
 class _ABCFactorSymmetryMeta(ABCMeta):
-    """Metaclass for the AbstractBaseClasses which can be factors of a ProductSymmetry.
+    """Metaclass for the AbstractBaseClasses which can be factors of a Symmetry.
 
     For concreteness let FactorSymmetry be such a class.
     This metaclass, in addition to having the same effects as making the class an AbstractBaseClass
     modifies instancecheck, such that products of FactorSymmetry instances, which are instances
-    of ProductSymmetry, not of FactorSymmetry, do appear like instances of FactorSymmetry
+    of Symmetry, not of FactorSymmetry, do appear like instances of FactorSymmetry
 
-    E.g. a ProductSymmetry instance whose factors are all instances of AbelianGroup
+    E.g. a Symmetry instance whose factors are all instances of AbelianGroup
     then appears to also be an instance of AbelianGroup
     """
 
     def __instancecheck__(cls, instance) -> bool:
-        if (cls == GroupSymmetry or cls == AbelianGroup) and type.__instancecheck__(ProductSymmetry, instance):
+        if (cls == GroupSymmetry or cls == AbelianGroup) and type.__instancecheck__(Symmetry, instance):
             return all(type.__instancecheck__(cls, factor) for factor in instance.factors)
         return type.__instancecheck__(cls, instance)
 
 
-class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
+class GroupSymmetry(FactorSymmetry, metaclass=_ABCFactorSymmetryMeta):
     """Base-class for symmetries that are described by a group.
 
     The symmetry is given via a faithful representation on the Hilbert space.
@@ -1087,9 +1115,9 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
 
     Notes
     -----
-    Products of :class:`GroupSymmetry`s are instances described by the :class:`ProductSymmetry`
+    Products of :class:`GroupSymmetry`s are instances described by the :class:`Symmetry`
     class, which is not a sub- or superclass of `GroupSymmetry`. Nevertheless, instancechecks can
-    be used to check if a given `ProductSymmetry` *instance* is a group-symmetry.
+    be used to check if a given `Symmetry` *instance* is a group-symmetry.
     See examples in docstring of :class:`AbelianGroup`.
 
     """
@@ -1103,7 +1131,7 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
         has_complex_topological_data: bool,
         descriptive_name: str | None = None,
     ):
-        Symmetry.__init__(
+        FactorSymmetry.__init__(
             self,
             fusion_style=fusion_style,
             braiding_style=BraidingStyle.bosonic,
@@ -1135,12 +1163,12 @@ class AbelianGroup(GroupSymmetry, metaclass=_ABCFactorSymmetryMeta):
     Notes
     -----
     A product of several abelian groups is also an abelian group, but represented by a
-    ProductSymmetry, which is not a subclass of AbelianGroup.
+    Symmetry, which is not a subclass of AbelianGroup.
     We have adjusted instancechecks accordingly, i.e. we have
 
     .. doctest ::
 
-        >>> s = ProductSymmetry([z3_symmetry, z5_symmetry])  # product of abelian groups
+        >>> s = Symmetry([z3_symmetry, z5_symmetry])  # product of abelian groups
         >>> isinstance(s, AbelianGroup)
         True
         >>> issubclass(type(s), AbelianGroup)
@@ -2042,7 +2070,7 @@ class SUNSymmetry(GroupSymmetry):
                     raise ValueError(f'Key exists but contains no data.')
 
 
-class FermionNumber(Symmetry):
+class FermionNumber(FactorSymmetry):
     """Conserves a fermionic particle number.
 
     .. warning ::
@@ -2153,7 +2181,7 @@ class FermionNumber(Symmetry):
         return f'FermionNumber({name_str})'
 
 
-class FermionParity(Symmetry):
+class FermionParity(FactorSymmetry):
     """Fermionic Parity.
 
     .. warning ::
@@ -2175,7 +2203,7 @@ class FermionParity(Symmetry):
     odd = as_immutable_array(np.array([1], dtype=int))
 
     def __init__(self, descriptive_name: str = None):
-        Symmetry.__init__(
+        FactorSymmetry.__init__(
             self,
             fusion_style=FusionStyle.single,
             braiding_style=BraidingStyle.fermionic,
@@ -2274,7 +2302,7 @@ class FermionParity(Symmetry):
         return one_2D_float
 
 
-class ZNAnyonCategory(Symmetry):
+class ZNAnyonCategory(FactorSymmetry):
     r"""Abelian anyon category with fusion rules corresponding to the Z_N group;
 
     also written as :math:`Z_N^{(n)}`.
@@ -2296,7 +2324,7 @@ class ZNAnyonCategory(Symmetry):
         self.N = N
         self.n = n = n % N
         self._phase = np.exp(2j * np.pi * n / N)
-        Symmetry.__init__(
+        FactorSymmetry.__init__(
             self,
             fusion_style=FusionStyle.single,
             braiding_style=BraidingStyle.anyonic,
@@ -2367,7 +2395,7 @@ class ZNAnyonCategory(Symmetry):
         return np.arange(self.N, dtype=int)[:, None]
 
 
-class ZNAnyonCategory2(Symmetry):
+class ZNAnyonCategory2(FactorSymmetry):
     r"""Abelian anyon category with fusion rules corresponding to the Z_N group;
 
     also written as :math:`Z_N^{(n+1/2)}`. `N` must be even.
@@ -2390,7 +2418,7 @@ class ZNAnyonCategory2(Symmetry):
         self.N = N
         self.n = n % N
         self._phase = np.exp(2j * np.pi * (self.n + 0.5) / self.N)
-        Symmetry.__init__(
+        FactorSymmetry.__init__(
             self,
             fusion_style=FusionStyle.single,
             braiding_style=BraidingStyle.anyonic,
@@ -2461,7 +2489,7 @@ class ZNAnyonCategory2(Symmetry):
         return np.arange(self.N, dtype=int)[:, None]
 
 
-class QuantumDoubleZNAnyonCategory(Symmetry):
+class QuantumDoubleZNAnyonCategory(FactorSymmetry):
     r"""Doubled abelian anyon category.
 
     The fusion rules corresponding to the :math:`Z_N \times Z_N` group.
@@ -2478,7 +2506,7 @@ class QuantumDoubleZNAnyonCategory(Symmetry):
         assert N > 1
         self.N = N
         self._phase = np.exp(2j * np.pi / self.N)
-        Symmetry.__init__(
+        FactorSymmetry.__init__(
             self,
             fusion_style=FusionStyle.single,
             braiding_style=BraidingStyle.anyonic,
@@ -2573,7 +2601,7 @@ class ToricCodeCategory(QuantumDoubleZNAnyonCategory):
         return f'ToricCodeCategory({name_str})'
 
 
-class FibonacciAnyonCategory(Symmetry):
+class FibonacciAnyonCategory(FactorSymmetry):
     """Category describing Fibonacci anyons.
 
     Allowed sectors are 1D arrays with a single entry of either `0` ("vacuum") or `1` ("tau anyon").
@@ -2616,7 +2644,7 @@ class FibonacciAnyonCategory(Symmetry):
             super()._c_symbol([1], [1], [1], [1], [1], [0]),
             super()._c_symbol([1], [1], [1], [1], [1], [1]),
         ]
-        Symmetry.__init__(
+        FactorSymmetry.__init__(
             self,
             fusion_style=FusionStyle.multiple_unique,
             braiding_style=BraidingStyle.anyonic,
@@ -2683,7 +2711,7 @@ class FibonacciAnyonCategory(Symmetry):
         return np.arange(2, dtype=int)[:, None]
 
 
-class IsingAnyonCategory(Symmetry):
+class IsingAnyonCategory(FactorSymmetry):
     """Category describing Ising anyons.
 
     Allowed sectors are 1D arrays with a single entry of either `0` ("vacuum"), `1` ("Ising anyon")
@@ -2742,7 +2770,7 @@ class IsingAnyonCategory(Symmetry):
             super()._c_symbol([2], [1], [1], [2], [1], [1]),
             -1 * one_4D,
         ]
-        Symmetry.__init__(
+        FactorSymmetry.__init__(
             self,
             fusion_style=FusionStyle.multiple_unique,
             braiding_style=BraidingStyle.anyonic,
@@ -2819,7 +2847,7 @@ class IsingAnyonCategory(Symmetry):
         return np.arange(3, dtype=int)[:, None]
 
 
-class SU2_kAnyonCategory(Symmetry):
+class SU2_kAnyonCategory(FactorSymmetry):
     """:math:`SU(2)_k` anyon category.
 
     The anyons can be associated with the spins `0`, `1/2`, `1`, ..., `k/2`.
@@ -2857,7 +2885,7 @@ class SU2_kAnyonCategory(Symmetry):
         self.handedness = handedness
         self._q = np.exp(2j * np.pi / (k + 2))
 
-        Symmetry.__init__(
+        FactorSymmetry.__init__(
             self,
             fusion_style=FusionStyle.multiple_unique,
             braiding_style=BraidingStyle.anyonic,
@@ -3015,7 +3043,7 @@ class SU2_kAnyonCategory(Symmetry):
         return np.arange(self.k + 1, dtype=int)[:, None]
 
 
-class SU3_3AnyonCategory(Symmetry):
+class SU3_3AnyonCategory(FactorSymmetry):
     r""":math:`SU(3)_3` anyon category
 
     Can be used as a good first check for categories with higher fusion multiplicities.
@@ -3069,7 +3097,7 @@ class SU3_3AnyonCategory(Symmetry):
 
     def __init__(self):
         self._c = {}
-        Symmetry.__init__(
+        FactorSymmetry.__init__(
             self,
             fusion_style=FusionStyle.general,
             braiding_style=BraidingStyle.anyonic,
@@ -3213,21 +3241,21 @@ class SU3_3AnyonCategory(Symmetry):
 
 
 # Note : some symmetries have expensive __init__ ! Do not initialize those.
-no_symmetry = NoSymmetry()
-z2_symmetry = ZNSymmetry(N=2)
-z3_symmetry = ZNSymmetry(N=3)
-z4_symmetry = ZNSymmetry(N=4)
-z5_symmetry = ZNSymmetry(N=5)
-z6_symmetry = ZNSymmetry(N=6)
-z7_symmetry = ZNSymmetry(N=7)
-z8_symmetry = ZNSymmetry(N=8)
-z9_symmetry = ZNSymmetry(N=9)
-u1_symmetry = U1Symmetry()
-su2_symmetry = SU2Symmetry()
-fermion_number = FermionNumber()
-fermion_parity = FermionParity()
-semion_category = ZNAnyonCategory2(2, 0)
-toric_code_category = ToricCodeCategory()
-double_semion_category = ProductSymmetry([ZNAnyonCategory2(2, 0), ZNAnyonCategory2(2, 1)])
-fibonacci_anyon_category = FibonacciAnyonCategory(handedness='left')
-ising_anyon_category = IsingAnyonCategory(nu=1)
+no_symmetry = Symmetry([])
+z2_symmetry = ZNSymmetry(N=2).as_Symmetry()
+z3_symmetry = ZNSymmetry(N=3).as_Symmetry()
+z4_symmetry = ZNSymmetry(N=4).as_Symmetry()
+z5_symmetry = ZNSymmetry(N=5).as_Symmetry()
+z6_symmetry = ZNSymmetry(N=6).as_Symmetry()
+z7_symmetry = ZNSymmetry(N=7).as_Symmetry()
+z8_symmetry = ZNSymmetry(N=8).as_Symmetry()
+z9_symmetry = ZNSymmetry(N=9).as_Symmetry()
+u1_symmetry = U1Symmetry().as_Symmetry()
+su2_symmetry = SU2Symmetry().as_Symmetry()
+fermion_number = FermionNumber().as_Symmetry()
+fermion_parity = FermionParity().as_Symmetry()
+semion_category = ZNAnyonCategory2(2, 0).as_Symmetry()
+toric_code_category = ToricCodeCategory().as_Symmetry()
+double_semion_category = ZNAnyonCategory2(2, 0) * ZNAnyonCategory2(2, 1)
+fibonacci_anyon_category = FibonacciAnyonCategory(handedness='left').as_Symmetry()
+ising_anyon_category = IsingAnyonCategory(nu=1).as_Symmetry()
