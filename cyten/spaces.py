@@ -29,7 +29,7 @@ from .tools.string import format_like_list
 from .trees import FusionTree, fusion_trees
 
 if TYPE_CHECKING:
-    from .backends.abstract_backend import Block
+    from .block_backends import Block
 
 
 class Leg(metaclass=ABCMeta):

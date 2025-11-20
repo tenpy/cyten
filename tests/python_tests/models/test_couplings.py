@@ -102,7 +102,7 @@ def generate_clock_dofs(backend: backends.TensorBackend) -> list[degrees_of_free
     return site_list
 
 
-def generate_anyon_dofs(block_backend: backends.BlockBackend) -> list[degrees_of_freedom.AnyonDOF]:
+def generate_anyon_dofs(block_backend: cyten.block_backends.BlockBackend) -> list[degrees_of_freedom.AnyonDOF]:
     """Return a list of `AnyonDOF` sites."""
     backend = backends.get_backend('fusion_tree', block_backend=block_backend)
     site_list = [

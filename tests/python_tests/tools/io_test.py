@@ -15,7 +15,7 @@ import types
 import numpy as np
 
 import cyten
-from cyten import backends, spaces, symmetries, tensors
+from cyten import spaces, symmetries, tensors
 
 try:
     from packaging.version import parse as parse_version  # part of setuptools
@@ -92,7 +92,7 @@ def gen_example_data(version=cyten.version.full_version):
 def SU2_sym_test_tensor():
     sym = symmetries.SU2Symmetry()
     spin_half = spaces.ElementarySpace(sym, np.array([[1]]))
-    backend = backends.backend_factory.get_backend(sym, 'numpy')
+    backend = cyten.get_backend(sym, 'numpy')
 
     sx = 0.5 * np.array([[0.0, 1.0], [1.0, 0.0]], dtype=complex)
     sy = 0.5 * np.array([[0.0, -1.0j], [1.0j, 0]], dtype=complex)
@@ -116,7 +116,7 @@ def SU2_sym_test_tensor():
 def U1_sym_test_tensor():
     sym = symmetries.U1Symmetry()
     spin_half = spaces.ElementarySpace(sym, np.array([[1]]))
-    backend = backends.backend_factory.get_backend(sym, 'numpy')
+    backend = cyten.get_backend(sym, 'numpy')
 
     sx = 0.5 * np.array([[0.0, 1.0], [1.0, 0.0]], dtype=complex)
     sy = 0.5 * np.array([[0.0, -1.0j], [1.0j, 0]], dtype=complex)

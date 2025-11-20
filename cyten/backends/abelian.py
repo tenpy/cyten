@@ -37,6 +37,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy import ndarray
 
+from ..block_backends import Block
 from ..dtypes import Dtype
 from ..spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct
 from ..symmetries import BraidingStyle, Symmetry
@@ -52,7 +53,7 @@ from ..tools.misc import (
     rank_data,
 )
 from ..trees import FusionTree
-from .abstract_backend import Block, Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
+from ._backend import Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import

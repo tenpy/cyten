@@ -16,7 +16,7 @@ from typing import Literal
 import numpy as np
 
 from ..backends import TensorBackend, get_backend
-from ..backends.abstract_backend import Block
+from ..block_backends import Block
 from ..spaces import ElementarySpace
 from ..symmetries import (
     BraidingStyle,

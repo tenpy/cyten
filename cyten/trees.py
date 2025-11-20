@@ -9,12 +9,13 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from .block_backends import Block, NumpyBlockBackend
 from .dtypes import Dtype
 from .symmetries import FusionStyle, Sector, SectorArray, Symmetry, SymmetryError
 from .tools import to_valid_idx
 
 if TYPE_CHECKING:
-    from .backends.abstract_backend import Block, TensorBackend
+    from .backends import TensorBackend
 
 
 class FusionTree:
@@ -626,8 +627,6 @@ class FusionTree:
         if not self.symmetry.can_be_dropped:
             raise SymmetryError(f'Can not convert to block for symmetry {self.symmetry}')
         if backend is None:
-            from .backends.numpy import NumpyBlockBackend
-
             block_backend = NumpyBlockBackend()
         else:
             block_backend = backend.block_backend

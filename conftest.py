@@ -149,7 +149,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cyten import Dtype, backends, spaces, symmetries, tensors
+from cyten import Dtype, backends, block_backends, spaces, symmetries, tensors
 from cyten.testing import random_block, random_ElementarySpace, random_symmetry_sectors, random_tensor
 
 # OVERRIDE pytest routines
@@ -275,7 +275,7 @@ def make_any_space(any_symmetry, np_random):
 
 @pytest.fixture
 def make_any_block(any_backend, np_random):
-    def make(size: tuple[int, ...], real=False) -> backends.Block:
+    def make(size: tuple[int, ...], real=False) -> block_backends.Block:
         # return Block
         return random_block(any_backend.block_backend, size, real=real, np_random=np_random)
 
@@ -345,7 +345,7 @@ def make_compatible_space(compatible_symmetry, np_random):
 
 @pytest.fixture
 def make_compatible_block(compatible_backend, np_random):
-    def make(size: tuple[int, ...], real: bool = False) -> backends.Block:
+    def make(size: tuple[int, ...], real: bool = False) -> block_backends.Block:
         # returns Block
         return random_block(compatible_backend.block_backend, size, real=real, np_random=np_random)
 

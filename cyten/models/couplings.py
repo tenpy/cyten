@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..backends.abstract_backend import Block, get_same_backend
+from ..backends import get_same_backend
+from ..block_backends import Block
 from ..dtypes import Dtype
 from ..symmetries import FibonacciAnyonCategory, Sector, SymmetryError
 from ..tensors import SymmetricTensor, add_trivial_leg, compose, horizontal_factorization, permute_legs, squeeze_legs

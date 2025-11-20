@@ -5,8 +5,10 @@ Provides a tensor class with block-sparsity from symmetries with an exchangeable
 """
 # Copyright (C) TeNPy Developers, Apache license
 
+# note: order matters!
 from . import (
     backends,
+    block_backends,
     dtypes,
     dummy_config,
     krylov_based,
@@ -17,7 +19,7 @@ from . import (
     sparse,
     symmetries,
     tensors,
-    testing,  # should be pretty late
+    testing,
     tools,
     trees,
     version,

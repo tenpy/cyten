@@ -7,7 +7,7 @@ import numpy as np
 import scipy
 
 from ..dtypes import Dtype, _cyten_dtype_to_numpy, _numpy_dtype_to_cyten
-from .abstract_backend import Block, BlockBackend
+from ._block_backend import Block, BlockBackend
 
 
 class NumpyBlockBackend(BlockBackend):

@@ -7,7 +7,7 @@ import numpy
 from numpy import prod
 
 from ..dtypes import Dtype
-from .abstract_backend import Block, BlockBackend
+from ._block_backend import Block, BlockBackend
 
 
 class TorchBlockBackend(BlockBackend):

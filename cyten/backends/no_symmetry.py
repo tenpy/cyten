@@ -7,12 +7,13 @@ from collections.abc import Callable
 from math import prod
 from typing import TYPE_CHECKING
 
+from ..block_backends import Block, BlockBackend
 from ..dtypes import Dtype
 from ..spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct
 from ..symmetries import Symmetry, no_symmetry
 from ..tools.misc import rank_data
 from ..trees import FusionTree
-from .abstract_backend import Block, BlockBackend, Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
+from ._backend import Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
