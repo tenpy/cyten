@@ -234,7 +234,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         The domain and codomain of the tensor. See also :attr:`legs` and :ref:`tensors_as_maps`.
     backend : TensorBackend
         The backend of the tensor.
-    symmetry : Symmetry
+    symmetry : ProductSymmetry
         The symmetry of the tensor.
     num_legs : int
         The total number of legs in the domain and codomain.
@@ -301,7 +301,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
             The codomain and domain, converted to :class:`TensorProduct` if needed.
         backend: TensorBackend
             The given backend, or the default backend compatible with `symmetry`.
-        symmetry: Symmetry
+        symmetry: ProductSymmetry
             The symmetry of the domain and codomain
 
         """
@@ -551,7 +551,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         """Convert to a dense block of the backend, if possible.
 
         This corresponds to "forgetting" the symmetry structure and is only possible if the
-        symmetry :attr:`Symmetry.can_be_dropped`.
+        symmetry :attr:`ProductSymmetry.can_be_dropped`.
         The result is a backend-specific block, e.g. a numpy array if the block backend is a
         :class:`NumpyBlockBackend` or a torch Tensor if the backend is a :class:`TorchBlockBackend`.
 
@@ -798,7 +798,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         lines = [
             f'{indent}* Device: {self.device}',
             f'{indent}* Backend: {self.backend!s}',
-            f'{indent}* Symmetry: {self.symmetry!s}',
+            f'{indent}* ProductSymmetry: {self.symmetry!s}',
             f'{indent}* Labels: {labels_str}',
         ]
         if self.symmetry.can_be_dropped:
@@ -2923,7 +2923,7 @@ class ChargedTensor(Tensor):
     |      ┗┯━━━┯━━━┯━━━┯┛
     |       0   1   2   3
 
-    If the symmetry :attr:`Symmetry.can_be_dropped`, a specific state on the charge leg can be
+    If the symmetry :attr:`ProductSymmetry.can_be_dropped`, a specific state on the charge leg can be
     specified as a dense block. For example, consider an SU(2) symmetry and a charge leg :math:`C`,
     which is a spin-1 space. Then, a block of length ``(3,)`` can be specified selecting a state
     from the three-dimensional space. The contraction with the :attr:`charged_state` (which is not
@@ -4558,7 +4558,7 @@ def entropy(p: DiagonalTensor | Sequence[float], n=1):
     and :math:`\sum_a d_a \rho_a = 1`. The entropy is then obtained as
     :math:`S_\text{vN} = \sum_a d_a \rho_a \mathrm{log} \rho_a` or
     :math:`S_n = \frac{1}{1 - n} \mathrm{log} \sum_a d_a \rho_a^n` where :math:`d_a`
-    is the quantum dimension of sector :math:`a`. (See :meth:`Symmetry.qdim`.)
+    is the quantum dimension of sector :math:`a`. (See :meth:`ProductSymmetry.qdim`.)
 
     """
     if isinstance(p, DiagonalTensor):
@@ -5272,7 +5272,7 @@ def permute_legs(
         duplicates.
     levels
         If the symmetry has symmetric braiding (e.g. for group symmetries, or fermions, see
-        :attr:`Symmetry.braiding_style`), this argument is ignored.
+        :attr:`ProductSymmetry.braiding_style`), this argument is ignored.
         For non-symmetric braiding, this argument specifies if a crossing of legs is an over-
         or under-crossing. It assigns a "level" or height to each leg.
         Either as a list ``levels[leg_num]`` or as a dictionary ``levels[leg_num_or_label]``.

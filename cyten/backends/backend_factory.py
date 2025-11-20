@@ -40,7 +40,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
     Parameters
     ----------
-    symmetry : {'no_symmetry', 'abelian', 'fusion_tree'} | Symmetry
+    symmetry : {'no_symmetry', 'abelian', 'fusion_tree'} | ProductSymmetry
         Specifies which subclass of :class:`TensorBackend` to use, either directly via string,
         or as the minimal version which supports the given symmetry.
     block_backend : {None, 'numpy', 'torch', 'tensorflow', 'jax', 'cpu', 'gpu', 'tpu'}
@@ -53,6 +53,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
         block_backend = config.default_block_backend
 
     if isinstance(symmetry, Symmetry):
+        # FIXME
         # figure out minimal symmetry_backend that supports that symmetry
         if symmetry == no_symmetry:
             tensor_backend = 'no_symmetry'

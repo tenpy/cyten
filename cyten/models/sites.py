@@ -16,7 +16,7 @@ from ..symmetries import (
     FibonacciAnyonCategory,
     IsingAnyonCategory,
     NoSymmetry,
-    ProductSymmetry,
+    Symmetry,
     SU2_kAnyonCategory,
     SU2Symmetry,
     Symmetry,
@@ -189,7 +189,7 @@ class SpinlessBosonSite(BosonicDOF):
         total_dim = np.prod(dims, dtype=int)
 
         sym = BosonicDOF.conservation_law_to_symmetry(conserve)
-        if isinstance(sym, ProductSymmetry):
+        if isinstance(sym, Symmetry):
             assert len(conserve) == len(sym.factors)  # TODO delete
             no_sym_idcs = []
             parity_sym_idcs = []
@@ -503,8 +503,8 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         if isinstance(sym_S, NoSymmetry):
             sym = sym_N
         else:
-            sym = [sym_S, *sym_N.factors] if isinstance(sym_N, ProductSymmetry) else [sym_S, sym_N]
-            sym = ProductSymmetry(sym)
+            sym = [sym_S, *sym_N.factors] if isinstance(sym_N, Symmetry) else [sym_S, sym_N]
+            sym = Symmetry(sym)
         leg = ElementarySpace.from_basis(sym, sectors)
         self.conserve_N = conserve_N
         self.conserve_S = conserve_S
@@ -650,7 +650,7 @@ class AnyonSite(AnyonDOF):
 
     Parameters
     ----------
-    symmetry : Symmetry
+    symmetry : ProductSymmetry
         The symmetry describing the anyons.
     sector_names : sequence of str or None
         The sector names that appear in the onsite projection operators. The `i`th operator is

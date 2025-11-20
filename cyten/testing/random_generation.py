@@ -20,6 +20,7 @@ def random_symmetry_sectors(
     symmetry: symmetries.Symmetry, num: int, sort: bool = False, np_random=np.random.default_rng()
 ) -> symmetries.SectorArray:
     """Random unique symmetry sectors, optionally sorted."""
+    # FIXME
     if isinstance(symmetry, symmetries.SU2Symmetry):
         res = np_random.choice(int(1.3 * num), replace=False, size=(num, 1))
     elif isinstance(symmetry, symmetries.U1Symmetry):
@@ -31,7 +32,7 @@ def random_symmetry_sectors(
         else:
             which = np_random.choice(symmetry.num_sectors, replace=False, size=num)
             res = symmetry.all_sectors()[which, :]
-    elif isinstance(symmetry, symmetries.ProductSymmetry):
+    elif isinstance(symmetry, symmetries.Symmetry):
         factor_len = max(3, num // len(symmetry.factors))
         factor_sectors = [
             random_symmetry_sectors(factor, factor_len, np_random=np_random) for factor in symmetry.factors

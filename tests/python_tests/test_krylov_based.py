@@ -32,7 +32,7 @@ def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
     H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
 
     if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(
-        leg.symmetry, cyten.symmetries.ProductSymmetry
+        leg.symmetry, cyten.symmetries.Symmetry
     ):
         # TODO
         with pytest.raises(NotImplementedError, match='fusion_tensor is not implemented'):
@@ -128,7 +128,7 @@ def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol)
     H_op = sparse.TensorLinearOperator(H, which_leg=1)
 
     if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(
-        leg.symmetry, cyten.symmetries.ProductSymmetry
+        leg.symmetry, cyten.symmetries.Symmetry
     ):
         # TODO
         with pytest.raises(NotImplementedError, match='fusion_tensor is not implemented'):
