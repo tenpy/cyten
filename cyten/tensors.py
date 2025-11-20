@@ -79,9 +79,10 @@ import numpy as np
 
 from .backends.abstract_backend import Block, TensorBackend, conventional_leg_order, get_same_backend
 from .backends.backend_factory import get_backend
+from .backends import FusionTreeBackend
 from .dtypes import Dtype
 from .dummy_config import printoptions
-from .spaces import ElementarySpace, Leg, LegPipe, Sector, Space, TensorProduct
+from .spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Sector, Space, TensorProduct
 from .symmetries import BraidingStyle, Symmetry, SymmetryError
 from .tools.misc import (
     duplicate_entries,
@@ -632,6 +633,21 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return self.domain.num_factors
 
     @property
+    def num_codomain_flat_legs(self) -> int:
+        """Number of flat legs in the codomain."""
+        return len(self.codomain.flat_legs)
+
+    @property
+    def num_domain_flat_legs(self) -> int:
+        """Number of flat legs in the domain."""
+        return len(self.domain.flat_legs)
+
+    @property
+    def num_flat_legs(self) -> int:
+        """Total number of flat legs of self."""
+        return self.num_domain_flat_legs + self.num_codomain_flat_legs
+
+    @property
     def num_parameters(self) -> int:
         """The number of free parameters for the given legs.
 
@@ -849,8 +865,26 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         self, leg_order: list[int | str] = None, numpy_dtype=None, understood_braiding: bool = False
     ) -> np.ndarray:
         """Convert to a numpy array"""
-        block = self.to_dense_block(leg_order=leg_order, understood_braiding=understood_braiding)
+        if isinstance(self.backend, FusionTreeBackend) and self.has_pipes:
+            block = self._to_dense_block_by_splitting_pipes()
+        else:
+            block = self.to_dense_block(leg_order, numpy_dtype, understood_braiding)
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
+
+    def flip_leg_duality(self, leg_indices: list[int]):
+        """Flips the duality of a given Tensor leg.
+
+        The leg can also be a leg pipe in which case also the combinestyle is flipped
+        """
+        for i in leg_indices:
+            if isinstance(self.legs[i], AbelianLegPipe):
+                self.legs[i] = AbelianLegPipe.with_opposite_duality_and_combinestyle(self.legs[i])
+
+            elif isinstance(self.legs[i], LegPipe) and not isinstance(self.legs[i], AbelianLegPipe):
+                self.legs[i] = LegPipe.with_opposite_duality(self.legs[i])
+
+            else:
+                self.legs[i] = self.legs[i].dual
 
 
 class SymmetricTensor(Tensor):
@@ -1049,8 +1083,70 @@ class SymmetricTensor(Tensor):
                 'this error by setting ``understood_braiding=True``.'
             )
             raise SymmetryError(msg)
+
+        if isinstance(backend, FusionTreeBackend) and \
+                (any([isinstance(leg, LegPipe) for leg in codomain]) or any([isinstance(leg, LegPipe) for leg in domain])):
+
+            flat_codomain_legs = codomain.flat_legs
+            flat_domain_legs = domain.flat_legs
+
+            dom_dualities = [k.is_dual for k in domain if isinstance(k, LegPipe)]
+            codom_dualities = [k.is_dual for k in codomain if isinstance(k, LegPipe)]
+
+            all_legs = codomain.factors + domain.factors[::-1]
+
+            flat_codomain = TensorProduct(codomain.flat_legs, symmetry=symmetry)
+            flat_domain = TensorProduct(domain.flat_legs, symmetry=symmetry)
+
+            flat_codomain_dims = [leg.dim for leg in flat_codomain_legs]
+            flat_domain_dims = [leg.dim for leg in flat_domain_legs]
+
+            flat_block = block.reshape(tuple(flat_codomain_dims + flat_domain_dims[::-1]))
+
+            block = backend.block_backend.as_block(flat_block, dtype=dtype, device=device)
+            assert len(backend.block_backend.get_shape(block)) == len(flat_codomain_legs) + len(flat_domain_legs)
+
+           # print('Tensors Block',block)
+
+            data = backend.from_dense_block(block, codomain=flat_codomain, domain=flat_domain, tol=tol)
+            tens = cls(data, codomain=flat_codomain, domain=flat_domain, backend=backend)
+
+            print('Labels',tens.labels)
+
+            codomain_pipe_inds = []
+            domain_pipe_inds = []
+            flat_index = 0
+            for i, leg in enumerate(all_legs):
+                is_codomain = i < codomain.num_factors
+                if isinstance(leg, LegPipe):
+                    num = _count_flat_legs(leg)
+                    indices = list(range(flat_index, flat_index + num))
+                    if is_codomain:
+                        codomain_pipe_inds.append(indices)
+                    else:
+                        domain_pipe_inds.append(indices)
+                    flat_index += num
+
+                else:
+                    if is_codomain:
+                        codomain_pipe_inds.append([flat_index])
+                    else:
+                        domain_pipe_inds.append([flat_index])
+                    flat_index += 1
+
+            print('codomain_pipe inds', codomain_pipe_inds)
+            print('domain_pipe_inds', domain_pipe_inds)
+
+            combines = [i for i in codomain_pipe_inds if len(i) > 1] + [i for i in domain_pipe_inds if len(i)>1]
+
+            print('combines',combines)
+
+            tens = combine_legs(tens, *combines, pipe_dualities=codom_dualities + dom_dualities[::-1])
+            tens.set_labels(labels)
+            return tens
         block = backend.block_backend.as_block(block, dtype=dtype, device=device)
         assert len(backend.block_backend.get_shape(block)) == codomain.num_factors + domain.num_factors
+
         block = backend.block_backend.apply_basis_perm(block, conventional_leg_order(codomain, domain))
         data = backend.from_dense_block(block, codomain=codomain, domain=domain, tol=tol)
         return cls(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
@@ -1492,8 +1588,14 @@ class SymmetricTensor(Tensor):
                 'this error by setting ``understood_braiding=True``.'
             )
             raise SymmetryError(msg)
-        block = self.backend.to_dense_block(self)
-        block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self), inv=True)
+
+        print('leg_order',leg_order)
+
+        if isinstance(self.backend, FusionTreeBackend ) and self.has_pipes:
+            block = self._to_dense_block_by_splitting_pipes()
+        else:
+            block = self.backend.to_dense_block(self)
+            block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self), inv=True)
         if dtype is not None:
             block = self.backend.block_backend.to_dtype(block, dtype)
         if leg_order is not None:
@@ -1509,6 +1611,9 @@ class SymmetricTensor(Tensor):
         """
         self_split, combines = _split_all_pipes(self)
         block = self.backend.to_dense_block(self_split)
+        block = self.backend.block_backend.apply_basis_perm(block, conventional_leg_order(self_split), inv=True)
+        #block = self.backend.block_backend.permute_axes(block, self_split.get_leg_idcs(leg_order))
+
         return self.backend.block_backend.combine_legs(block, combines)
 
     def to_dense_block_trivial_sector(self) -> Block:
@@ -6740,3 +6845,23 @@ def _svd_new_labels(new_labels: str | Sequence[str]) -> tuple[str, str, str, str
             raise ValueError(f'Expected 1, 2 or 4 new_labels. Got {len(new_labels)}')
         assert (b is None) or b != c
     return a, b, c, d
+
+def _count_flat_legs(leg) -> int:
+    """Helper for :meth:`FusionTreeBackend.permute_legs`.
+
+    Parameters
+    ----------
+    leg : Leg of a Tensor
+
+    Returns
+    -------
+    total : int
+        The total number of flat legs in the (possibly nested) pipe. Returns 1 of the input leg is flat.
+
+    """
+    if not isinstance(leg, LegPipe):
+        return 1
+    total = 0
+    for c in leg.legs:
+        total += _count_flat_legs(c)
+    return total
