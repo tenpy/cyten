@@ -45,7 +45,7 @@ def test_dmrg_golden_chain():
 
 
 def test_dmrg_heisenberg():
-    backend = ct.backends.FusionTreeBackend(ct.backends.NumpyBlockBackend())
+    backend = ct.get_backend('fusion_tree', 'numpy')
     L = 8
     e_exact = heisenberg_finite_gs_energy(L, J=1)
     for conserve in ['none', 'Z2', 'SU2']:
@@ -60,7 +60,7 @@ def test_dmrg_heisenberg():
 
 
 def test_dmrg_tfi(np_random):
-    backend = ct.backends.AbelianBackend(ct.backends.NumpyBlockBackend())
+    backend = ct.get_backend('abelian', 'numpy')
     L = 16
     J, g = np_random.random(2)
     e_exact = tfi_finite_gs_energy(L, J, g)

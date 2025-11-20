@@ -88,6 +88,7 @@ from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
+from ..block_backends import Block, BlockBackend
 from ..dtypes import Dtype
 from ..spaces import ElementarySpace, LegPipe, Space, TensorProduct
 from ..symmetries import BraidChiralityUnspecifiedError, Sector, Symmetry
@@ -102,7 +103,7 @@ from ..tools.misc import (
     to_valid_idx,
 )
 from ..trees import FusionTree, fusion_trees
-from .abstract_backend import Block, BlockBackend, Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
+from ._backend import Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import

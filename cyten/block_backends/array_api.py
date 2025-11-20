@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..dtypes import Dtype
-from .abstract_backend import Block, BlockBackend
+from ._block_backend import Block, BlockBackend
 
 
 class ArrayApiBlockBackend(BlockBackend):

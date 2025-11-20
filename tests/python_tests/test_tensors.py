@@ -12,9 +12,8 @@ import numpy.testing as npt
 import pytest
 
 from cyten import backends, symmetries, tensors
-from cyten.backends.abstract_backend import conventional_leg_order
-from cyten.backends.backend_factory import get_backend
-from cyten.backends.numpy import NumpyBlockBackend
+from cyten.backends import conventional_leg_order, get_backend
+from cyten.block_backends import NumpyBlockBackend
 from cyten.dtypes import Dtype
 from cyten.spaces import AbelianLegPipe, ElementarySpace, LegPipe, TensorProduct
 from cyten.symmetries import BraidingStyle, SU2Symmetry, SymmetryError, z4_symmetry

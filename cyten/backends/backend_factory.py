@@ -5,14 +5,13 @@ from __future__ import annotations
 
 import logging
 
+from ..block_backends import NumpyBlockBackend, TorchBlockBackend
 from ..dummy_config import config
 from ..symmetries import AbelianGroup, Symmetry, no_symmetry
+from ._backend import TensorBackend
 from .abelian import AbelianBackend
-from .abstract_backend import TensorBackend
 from .fusion_tree_backend import FusionTreeBackend
 from .no_symmetry import NoSymmetryBackend
-from .numpy import NumpyBlockBackend
-from .torch import TorchBlockBackend
 
 logger = logging.getLogger(__name__)
 
