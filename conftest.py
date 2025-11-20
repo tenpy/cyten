@@ -197,9 +197,9 @@ _symmetries = {
     # groups:
     'NoSymm': symmetries.no_symmetry,
     'U1': symmetries.u1_symmetry,
-    'Z4_named': symmetries.ZNSymmetry(4, 'My_Z4_symmetry'),
-    'U1xZ3': symmetries.Symmetry([symmetries.u1_symmetry, symmetries.z3_symmetry]),
-    'SU2': symmetries.SU2Symmetry(),
+    'Z4_named': symmetries.ZNSymmetry(4, 'My_Z4_symmetry').as_Symmetry(),
+    'U1xZ3': symmetries.u1_symmetry * symmetries.z3_symmetry,
+    'SU2': symmetries.SU2Symmetry().as_Symmetry(),
     # anyons:
     'fermion': symmetries.fermion_parity,
     'FibonacciAnyon': symmetries.fibonacci_anyon_category,
@@ -238,7 +238,6 @@ def any_backend(block_backend, any_symmetry_backend) -> backends.TensorBackend:
     ids=[k for k, s in _symmetries.items() if isinstance(s, symmetries.AbelianGroup)],
 )
 def abelian_group_symmetry(request) -> symmetries.Symmetry:
-    # FIXME double check
     return request.param
 
 
@@ -247,13 +246,11 @@ def abelian_group_symmetry(request) -> symmetries.Symmetry:
     ids=[k for k, s in _symmetries.items() if s.can_be_dropped],
 )
 def any_symmetry_that_can_be_dropped(request) -> symmetries.Symmetry:
-    # FIXME double check
     return request.param
 
 
 @pytest.fixture(params=list(_symmetries.values()), ids=list(_symmetries.keys()))
 def any_symmetry(request) -> symmetries.Symmetry:
-    # FIXME double check
     return request.param
 
 
@@ -290,7 +287,7 @@ def make_any_block(any_backend, np_random):
 # build the compatible pairs
 _compatible_pairs = {'NoSymmetry': ('no_symmetry', symmetries.no_symmetry)}  # {id: param}
 for _sym_name, _sym in _symmetries.items():
-    if isinstance(_sym, symmetries.AbelianGroup):
+    if _sym.is_abelian_group:
         _compatible_pairs[f'AbelianBackend-{_sym_name}'] = ('abelian', _sym)
     _compatible_pairs[f'FusionTreeBackend-{_sym_name}'] = pytest.param(
         ('fusion_tree', _sym), marks=pytest.mark.FusionTree
@@ -301,9 +298,8 @@ for _sym_name, _sym in _symmetries.items():
 def _compatible_backend_symm_pairs(request) -> tuple[str, symmetries.Symmetry]:
     """Helper fixture that allows us to generate the *compatible* fixtures.
 
-    Values are pairs (symmetry_backend: str, symmetry: ProductSymmetry)
+    Values are pairs (symmetry_backend: str, symmetry: Symmetry)
     """
-    # FIXME double check
     return request.param
 
 

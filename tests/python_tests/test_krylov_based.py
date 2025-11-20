@@ -181,7 +181,7 @@ def test_arnoldi(compatible_backend, make_compatible_space, which, N_max=20):
     H = tensors.SymmetricTensor.from_numpy_func(func, legs=[leg, leg.dual], backend=backend)
     H_op = sparse.TensorLinearOperator(H, which_leg=1)
 
-    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(leg.symmetry, cyten.ProductSymmetry):
+    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(leg.symmetry, cyten.Symmetry):
         # TODO
         with pytest.raises(NotImplementedError, match='should be implemented by subclass'):
             _ = H.to_numpy()

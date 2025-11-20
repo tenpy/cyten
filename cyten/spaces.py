@@ -40,7 +40,7 @@ class Leg(metaclass=ABCMeta):
 
     Attributes
     ----------
-    symmetry : ProductSymmetry
+    symmetry : Symmetry
         The symmetry associated with this leg.
     dim : int or float
         The (quantum-)dimension of this leg.
@@ -219,7 +219,7 @@ class Space(metaclass=ABCMeta):
 
     Attributes
     ----------
-    symmetry: ProductSymmetry
+    symmetry: Symmetry
         The symmetry associated with this space.
     sector_decomposition : 2D numpy array of int
         The unique sectors that appear in the sector decomposition. A 2D array of integers with
@@ -332,7 +332,7 @@ class Space(metaclass=ABCMeta):
         """The dual space of the same type.
 
         A dual space necessarily has a :attr:`sector_decomposition` which consists of the
-        :meth:`ProductSymmetry.dual_sectors` of the original (though not necessarily in order).
+        :meth:`Symmetry.dual_sectors` of the original (though not necessarily in order).
 
         Strictly speaking, this only guarantees to give one possible choice for a dual space and
         might differ from *the* dual space by an irrelevant isomorphism.
@@ -478,7 +478,7 @@ class Space(metaclass=ABCMeta):
 
         Parameters
         ----------
-        symmetry : :class:`~cyten.symmetries.ProductSymmetry`
+        symmetry : :class:`~cyten.symmetries.Symmetry`
             The symmetry of the new space
         sector_map : function (SectorArray,) -> (SectorArray,)
             A map of sectors (2D int arrays), such that ``new_sectors = sector_map(old_sectors)``.
@@ -505,7 +505,7 @@ class Space(metaclass=ABCMeta):
         ----------
         which : None | (list of) int
             If ``None`` (default) the entire symmetry is dropped and the result has ``no_symmetry``.
-            An integer or list of integers assume that ``self.symmetry`` is a ``ProductSymmetry``
+            An integer or list of integers assume that ``self.symmetry`` is a ``Symmetry``
             and indicates which of its factors to drop.
 
         """
@@ -561,7 +561,7 @@ class ElementarySpace(Space, Leg):
     This in turn means that the :attr:`sector_order` is ``'sorted'`` for ket spaces and
     ``'dual_sorted'`` for bra spaces.
 
-    If the symmetry :attr:`ProductSymmetry.can_be_dropped`, there is a notion of a basis for the
+    If the symmetry :attr:`Symmetry.can_be_dropped`, there is a notion of a basis for the
     spaces. We demand the basis to be compatible with the symmetry, i.e. each basis vector
     needs to lie in one of the sectors of the symmetry. The *internal* basis order that results
     from demanding that the sectors are contiguous and sorted may, however, not be the desired
@@ -584,7 +584,7 @@ class ElementarySpace(Space, Leg):
         The defining sectors, see class docstring of :class:`ElementarySpace`.
         Is ``np.lexsort( .T)``-ed.
         The :attr:`sector_decomposition` is equal for ket spaces (``is_dual=False``) or given by
-        the respective :meth:`~cyten.symmetries.ProductSymmetry.dual_sectors` for bra spaces.
+        the respective :meth:`~cyten.symmetries.Symmetry.dual_sectors` for bra spaces.
 
     """
 
@@ -646,7 +646,7 @@ class ElementarySpace(Space, Leg):
     def from_basis(cls, symmetry: Symmetry, sectors_of_basis: Sequence[Sequence[int]]) -> ElementarySpace:
         """Create an ElementarySpace by specifying the sector of every basis element.
 
-        This requires that the symmetry :attr:`~cyten.symmetries.ProductSymmetry.can_be_dropped`, such
+        This requires that the symmetry :attr:`~cyten.symmetries.Symmetry.can_be_dropped`, such
         that there is a useful notion of a basis.
 
         .. note ::
@@ -664,7 +664,7 @@ class ElementarySpace(Space, Leg):
 
         Parameters
         ----------
-        symmetry: ProductSymmetry
+        symmetry: Symmetry
             The symmetry associated with this space.
         sectors_of_basis : iterable of iterable of int
             Specifies the basis. ``sectors_of_basis[n]`` is the sector of the ``n``-th basis element.
@@ -820,7 +820,7 @@ class ElementarySpace(Space, Leg):
 
         Parameters
         ----------
-        symmetry: ProductSymmetry
+        symmetry: Symmetry
             The symmetry associated with this space.
         defining_sectors: 2D array_like of int
             Like the :attr:`defining_sectors` attribute, but can be in any order and may contain
@@ -925,7 +925,7 @@ class ElementarySpace(Space, Leg):
 
         Parameters
         ----------
-        symmetry: ProductSymmetry
+        symmetry: Symmetry
             The symmetry associated with this space.
         sector_decomposition: 2D array_like of int
             Like the :attr:`sector_decomposition` attribute, but can be in any order and may contain
@@ -972,7 +972,7 @@ class ElementarySpace(Space, Leg):
         ----------
         dim : int
             The dimension of the space.
-        symmetry : :class:`~cyten.symmetries.ProductSymmetry`
+        symmetry : :class:`~cyten.symmetries.Symmetry`
             The symmetry of the space.
         is_dual : bool
             If the space should be bra or a ket space.
@@ -2286,7 +2286,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
         Here, ``fusion`` stands for first forming combinations, either in C-style or F-style order,
         depending on :attr:`combine_cstyle`, then performing the fusion of sectors, e.g. via
-        :meth:`ProductSymmetry.fusion_outcomes_broadcast` of the :attr:`sector_decomposition`.
+        :meth:`Symmetry.fusion_outcomes_broadcast` of the :attr:`sector_decomposition`.
         ``sort`` on the other hand stands for stable-sorting the resulting basis elements by sector.
         Depending on :attr:`is_dual`, we either sort by ``np.lexsort(_.T)`` (if ``is_dual=False``)
         or by ``np.lexsort(dual_sectors(_).T)`` (if ``is_dual=True``), i.e. such that the resulting
@@ -2417,7 +2417,7 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
     which : None | list of int
         Which symmetries to drop, as integers in ``range(len(symmetries.factors))``.
         ``None`` indicates to drop all.
-    remaining_symmetry : ProductSymmetry
+    remaining_symmetry : Symmetry
         The symmetry that remains.
 
     """
@@ -2437,7 +2437,7 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
     elif which == 0 or which == [0]:
         which = None
     else:
-        msg = f'Can not drop which={which} for a single (non-ProductSymmetry) symmetry.'
+        msg = f'Can not drop which={which} for a single (non-Symmetry) symmetry.'
         raise ValueError(msg)
 
     if which is None:

@@ -48,7 +48,7 @@ class FusionTree:
 
     Attributes
     ----------
-    symmetry : ProductSymmetry
+    symmetry : Symmetry
         The symmetry.
     uncoupled : 2D array of int
         N uncoupled sectors. These are the sectors *below* any Z isos.

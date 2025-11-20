@@ -650,7 +650,7 @@ class AnyonSite(AnyonDOF):
 
     Parameters
     ----------
-    symmetry : ProductSymmetry
+    symmetry : Symmetry
         The symmetry describing the anyons.
     sector_names : sequence of str or None
         The sector names that appear in the onsite projection operators. The `i`th operator is
