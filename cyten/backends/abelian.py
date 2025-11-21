@@ -1032,17 +1032,17 @@ class AbelianBackend(TensorBackend):
         blocks = []
         pairs_done = set()
         for bi in _valid_block_inds(codomain, domain):
-            Y = FusionTree.from_abelian_symmetry(
+            X = FusionTree.from_abelian_symmetry(
                 symmetry=codomain.symmetry,
                 uncoupled=[f.sector_decomposition[bi[n]] for n, f in enumerate(codomain)],
                 are_dual=[f.is_dual for f in codomain],
             )
-            X = FusionTree.from_abelian_symmetry(
+            Y = FusionTree.from_abelian_symmetry(
                 symmetry=domain.symmetry,
                 uncoupled=[f.sector_decomposition[bi[-1 - n]] for n, f in enumerate(domain)],
                 are_dual=[f.is_dual for f in domain],
             )
-            pair = (Y, X)
+            pair = (X, Y)
             pairs_done.add(pair)
             block = trees.get(pair, None)
             if block is None:

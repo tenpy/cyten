@@ -1386,16 +1386,16 @@ class SymmetricTensor(Tensor):
         if device is None:
             some_block = backend.block_backend.as_block(next(iter(trees.values())))
             device = backend.block_backend.get_device(some_block)
-        Y_are_dual = np.array([l.is_dual for l in codomain], bool)
-        X_are_dual = np.array([l.is_dual for l in domain])
-        for Y, X in trees.keys():
-            assert np.all(Y.coupled == X.coupled)
-            assert np.all(Y.are_dual == Y_are_dual)
+        X_are_dual = np.array([l.is_dual for l in codomain], bool)
+        Y_are_dual = np.array([l.is_dual for l in domain])
+        for X, Y in trees.keys():
+            assert np.all(X.coupled == Y.coupled)
             assert np.all(X.are_dual == X_are_dual)
-            block = trees[Y, X]
+            assert np.all(Y.are_dual == Y_are_dual)
+            block = trees[X, Y]
             block = backend.block_backend.as_block(block, dtype=dtype, device=device)
             assert backend.block_backend.get_device(block) == device
-            trees[Y, X] = block
+            trees[X, Y] = block
         if dtype is None:
             dtype = Dtype.common(*(backend.block_backend.get_dtype(b) for b in trees.values()))
         data = backend.from_tree_pairs(trees, codomain=codomain, domain=domain, dtype=dtype, device=device)
