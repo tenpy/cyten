@@ -425,7 +425,7 @@ class FusionTreeBackend(TensorBackend):
         new_codomain: TensorProduct,
         new_domain: TensorProduct,
     ) -> Data:
-        raise NotImplementedError('FusionTreeBackend.combine_legs not implemented')
+        return tensor.data
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         res_dtype = Dtype.common(a.dtype, b.dtype)
@@ -1921,7 +1921,7 @@ class FusionTreeBackend(TensorBackend):
         new_codomain: TensorProduct,
         new_domain: TensorProduct,
     ) -> Data:
-        raise NotImplementedError('FusionTreeBackend.split_legs not implemented')
+        return a.data
 
     def squeeze_legs(self, a: SymmetricTensor, idcs: list[int]) -> Data:
         return a.data
