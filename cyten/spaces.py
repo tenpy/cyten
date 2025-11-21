@@ -1669,10 +1669,7 @@ class TensorProduct(Space):
         """
         # OPTIMIZE some users in FTBackend ignore some of the yielded values.
         #          is that ok performance wise or should we have special case iterators?
-        if any(not isinstance(sp, ElementarySpace) for sp in self.factors):
-            # if there are pipes, this should not be called.
-            raise RuntimeError('iter_tree_blocks can not deal with pipes')
-        are_dual = [sp.is_dual for sp in self.factors]
+        are_dual = [sp.is_dual for sp in self.flat_legs]
         for i, c in enumerate(coupled):
             start = 0  # start index of the current tree block within the block
             for uncoupled, mults in self.iter_uncoupled():
@@ -1716,22 +1713,19 @@ class TensorProduct(Space):
     def iter_uncoupled(
         self, yield_slices: bool = False
     ) -> Generator[tuple[SectorArray, np.ndarray] | tuple[SectorArray, np.ndarray, list[slice]], None, None]:
-        """Iterate over all combinations of sectors from the :attr:`factors`.
-
-        Assumes that all the :attr:`factors` are :class:`ElementarySpaces`, i.e. pipes
-        are not supported.
+        """Iterate over all combinations of sectors from the :attr:`flat_legs`.
 
         Yields
         ------
         uncoupled : 2D array of int
             A combination of uncoupled sectors, where
-            ``uncoupled[i] == self.factors[i].sector_decomposition[some_idx]``.
+            ``uncoupled[i] == self.flat_legs[i].sector_decomposition[some_idx]``.
         multiplicities : 1D array of int
             The corresponding multiplicities
-            ``multiplicities[i] == self.factors[i].multiplicities[some_idx]``.
+            ``multiplicities[i] == self.flat_legs[i].multiplicities[some_idx]``.
         slices : list of slice, optional
             Only if ``yield_slices``, the corresponding entry of :attr:`Space.slices`, as a slice.
-            I.e. ``slices[i] == slice(*self.factors[i].slices[some_idx])``.
+            I.e. ``slices[i] == slice(*self.flat_legs[i].slices[some_idx])``.
 
         Notes
         -----
@@ -1739,13 +1733,12 @@ class TensorProduct(Space):
         we *do* yield once, where the yielded arrays are empty (e.g. ``len(uncoupled) == 0``).
 
         """
-        if not all(isinstance(f, ElementarySpace) for f in self.factors):
-            raise RuntimeError('iter_uncoupled can not deal with pipes.')
-        for idcs in it.product(*(range(s.num_sectors) for s in self.factors)):
-            a = np.array([self.factors[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
-            m = np.array([self.factors[n].multiplicities[i] for n, i in enumerate(idcs)], int)
+        flat_legs = self.flat_legs
+        for idcs in it.product(*(range(s.num_sectors) for s in flat_legs)):
+            a = np.array([flat_legs[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
+            m = np.array([flat_legs[n].multiplicities[i] for n, i in enumerate(idcs)], int)
             if yield_slices:
-                slcs = [slice(*self.factors[n].slices[i]) for n, i in enumerate(idcs)]
+                slcs = [slice(*flat_legs[n].slices[i]) for n, i in enumerate(idcs)]
                 yield a, m, slcs
             else:
                 yield a, m
@@ -1772,7 +1765,7 @@ class TensorProduct(Space):
     def tree_block_size(space: TensorProduct, uncoupled: tuple[Sector]) -> int:
         """The size of a tree-block"""
         # OPTIMIZE ?
-        return prod(s.sector_multiplicity(a) for s, a in zip(space.factors, uncoupled))
+        return prod(s.sector_multiplicity(a) for s, a in zip(space.flat_legs, uncoupled))
 
     def tree_block_slice(self, tree: FusionTree) -> slice:
         """The range of indices of a tree-block within its block, as a slice."""
@@ -1873,6 +1866,8 @@ class TensorProduct(Space):
 
     def _calc_sectors(self, factors: list[Space | Leg]) -> tuple[SectorArray, ndarray]:
         """Helper function for :meth:`__init__`"""
+        # LegPipes do not have sectors -> flatten them for the purpose of calculating sectors
+        factors = list(it.chain.from_iterable(l.flat_spaces for l in factors))
         if len(factors) == 0:
             return self.symmetry.trivial_sector[None, :], np.ones([1], int)
 
