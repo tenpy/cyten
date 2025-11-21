@@ -364,13 +364,13 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
     trees1 = {}
     trees2 = {}
     for coupled in T.codomain.sector_decomposition:
-        for Y, _, mults1, _ in T.codomain.iter_tree_blocks([coupled]):
-            for X, _, mults2, _ in T.domain.iter_tree_blocks([coupled]):
+        for X, _, mults1, _ in T.codomain.iter_tree_blocks([coupled]):
+            for Y, _, mults2, _ in T.domain.iter_tree_blocks([coupled]):
                 shape = [*mults1, *reversed(mults2)]
                 if len(trees1) == 0 or np_random.choice([True, False]):
-                    trees1[Y, X] = np_random.uniform(size=shape) + 1j * np_random.uniform(size=shape)
+                    trees1[X, Y] = np_random.uniform(size=shape) + 1j * np_random.uniform(size=shape)
                 if len(trees2) == 0 or np_random.choice([True, False]):
-                    trees2[Y, X] = np_random.uniform(size=shape) + 1j * np_random.uniform(size=shape)
+                    trees2[X, Y] = np_random.uniform(size=shape) + 1j * np_random.uniform(size=shape)
     # build the dict for the linear combination T3 = a * T1 + b * T2
     a = 1.3
     b = -3 + 4.7j
@@ -394,18 +394,18 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
         for T_res, trees_dict in zip([T_from_trees1, T_from_trees2, T_from_trees3], [trees1, trees2, trees3]):
             T_np = T_res.to_numpy(understood_braiding=True)
             expect = np.zeros_like(T_np)
-            for (Y, X), block in trees_dict.items():
+            for (X, Y), block in trees_dict.items():
                 # [a1...aJ,b1...bK]
-                symmetry_data = np.tensordot(Y.as_block().conj(), X.as_block(), (-1, -1))
+                symmetry_data = np.tensordot(X.as_block().conj(), Y.as_block(), (-1, -1))
                 # [a1...aJ,b1...bK] & [a1...aJ,bK...b1]
                 symmetry_data = np.transpose(
                     symmetry_data, [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]
                 )
                 contribution = np.kron(symmetry_data, block)
                 codom_idcs = [
-                    slice(*l.slices[l.sector_decomposition_where(a)]) for l, a in zip(T.codomain, Y.uncoupled)
+                    slice(*l.slices[l.sector_decomposition_where(a)]) for l, a in zip(T.codomain, X.uncoupled)
                 ]
-                dom_idcs = [slice(*l.slices[l.sector_decomposition_where(b)]) for l, b in zip(T.domain, X.uncoupled)]
+                dom_idcs = [slice(*l.slices[l.sector_decomposition_where(b)]) for l, b in zip(T.domain, Y.uncoupled)]
                 expect[(*codom_idcs, *reversed(dom_idcs))] += contribution
             expect = numpy_block_backend.apply_basis_perm(expect, conventional_leg_order(T_res), inv=True)
 
@@ -446,26 +446,26 @@ def test_fixes_124(np_random):
 
     trees = {}
     for coupled in codomain.sector_decomposition:
-        for Y, _, mults1, _ in codomain.iter_tree_blocks([coupled]):
-            for X, _, mults2, _ in domain.iter_tree_blocks([coupled]):
+        for X, _, mults1, _ in codomain.iter_tree_blocks([coupled]):
+            for Y, _, mults2, _ in domain.iter_tree_blocks([coupled]):
                 shape = [*mults1, *reversed(mults2)]
                 if len(trees) == 0 or np_random.choice([True, False]):
-                    trees[Y, X] = np.ones(shape, float)
+                    trees[X, Y] = np.ones(shape, float)
 
     T = SymmetricTensor.from_tree_pairs(trees, codomain, domain, backend=backend)
     T.test_sanity()
 
     T_np = T.to_numpy()
     expect = np.zeros_like(T_np)
-    for (Y, X), block in trees.items():
-        symmetry_data = np.tensordot(Y.as_block().conj(), X.as_block(), (-1, -1))
+    for (X, Y), block in trees.items():
+        symmetry_data = np.tensordot(X.as_block().conj(), Y.as_block(), (-1, -1))
         # [a1...aJ,b1...bK] & [a1...aJ,bK...b1]
         symmetry_data = np.transpose(
             symmetry_data, [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]
         )
         contribution = np.kron(symmetry_data, block)
-        codom_idcs = [slice(*l.slices[l.sector_decomposition_where(a)]) for l, a in zip(T.codomain, Y.uncoupled)]
-        dom_idcs = [slice(*l.slices[l.sector_decomposition_where(b)]) for l, b in zip(T.domain, X.uncoupled)]
+        codom_idcs = [slice(*l.slices[l.sector_decomposition_where(a)]) for l, a in zip(T.codomain, X.uncoupled)]
+        dom_idcs = [slice(*l.slices[l.sector_decomposition_where(b)]) for l, b in zip(T.domain, Y.uncoupled)]
         expect[(*codom_idcs, *reversed(dom_idcs))] += contribution
     expect = backend.block_backend.apply_basis_perm(expect, conventional_leg_order(T), inv=True)
     npt.assert_array_almost_equal(T_np, expect)
