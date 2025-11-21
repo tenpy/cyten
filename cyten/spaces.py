@@ -24,6 +24,7 @@ from .tools.misc import (
     make_stride,
     rank_data,
     to_iterable,
+    to_valid_idx,
 )
 from .tools.string import format_like_list
 from .trees import FusionTree, fusion_trees
@@ -79,6 +80,33 @@ class Leg(metaclass=ABCMeta):
     @property
     @abstractmethod
     def is_trivial(self) -> bool: ...
+
+    @property
+    def flat_legs(self) -> list[ElementarySpace]:
+        """Flatten until there are no more pipes.
+
+        See Also
+        --------
+        flat_spaces : Keeps :class:`AbelianLegPipes` nested.
+
+        """
+        return [self]
+
+    @property
+    def flat_spaces(self) -> list[ElementarySpace]:
+        """Flatten until we get spaces.
+
+        See Also
+        --------
+        flat_legs : Also flattens :class:`AbelianLegPipes`.
+
+        """
+        return [self]
+
+    @property
+    def num_flat_legs(self) -> int:
+        """The number of :attr:`flat_legs`."""
+        return 1
 
     @property
     def ascii_arrow(self) -> str:
@@ -145,6 +173,18 @@ class LegPipe(Leg):
     @property
     def is_trivial(self) -> bool:
         return all(l.is_trivial for l in self.legs)
+
+    @property
+    def flat_legs(self) -> list[ElementarySpace]:
+        return list(it.chain.from_iterable(l.flat_legs for l in self.legs))
+
+    @property
+    def flat_spaces(self) -> list[ElementarySpace]:
+        return list(it.chain.from_iterable(l.flat_spaces for l in self.legs))
+
+    @property
+    def num_flat_legs(self) -> int:
+        return sum(l.num_flat_legs for l in self.legs)
 
     def __eq__(self, other):
         if not isinstance(other, LegPipe):
@@ -1523,15 +1563,53 @@ class TensorProduct(Space):
             _multiplicities=multiplicities,
         )
 
-    def flat_legs(self) -> list[Space]:
-        """Flatten any pipes in the :attr:`factors`, recursively."""
-        return _flatten_leg_pipes(self.factors)
+    @property
+    def has_pipes(self) -> bool:
+        """Is any of the :attr:`factors` a pipe?"""
+        return any(isinstance(l, LegPipe) for l in self.factors)
+
+    @property
+    def flat_legs(self) -> list[ElementarySpace]:
+        """Flatten until there are no more pipes.
+
+        See Also
+        --------
+        flat_spaces : Keeps :class:`AbelianLegPipes` nested.
+
+        """
+        return list(it.chain.from_iterable(l.flat_legs for l in self.factors))
+
+    @property
+    def flat_spaces(self) -> list[ElementarySpace]:
+        """Flatten until we get spaces.
+
+        See Also
+        --------
+        flat_legs : Also flattens :class:`AbelianLegPipes`.
+
+        """
+        return list(it.chain.from_iterable(l.flat_spaces for l in self.factors))
+
+    @property
+    def num_flat_legs(self) -> int:
+        """The number of :attr:`flat_legs`."""
+        return sum(l.num_flat_legs for l in self.factors)
+
+    def flat_legs_nesting(self) -> list[list[int]]:
+        """The indices into :attr:`flat_legs`, that combine to each :attr:`factor`."""
+        i = 0
+        res = []
+        for l in self.factors:
+            num = l.num_flat_legs
+            res.append([*range(i, i + num)])
+            i += num
+        return res
 
     def flat_leg_idcs(self, i: int) -> list[int]:
         """All indices into the :meth:`flat_legs` that the leg ``factors[i]`` flattens to."""
-        # OPTIMIZE could just add the lengths without building the actual lists...
-        start = len(_flatten_leg_pipes(self.factors[:i]))
-        num = len(_flatten_leg_pipes(self.factors[i : i + 1]))
+        i = to_valid_idx(i, self.num_factors)
+        start = sum(l.num_flat_legs for l in self.factors[:i])
+        num = self.factors[i].num_flat_legs
         return list(range(start, start + num))
 
     def forest_block_size(self, uncoupled: tuple[Sector], coupled: Sector) -> int:
@@ -2053,6 +2131,12 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     def is_trivial(self) -> bool:
         return ElementarySpace.is_trivial.fget(self)
 
+    @property
+    def flat_spaces(self) -> list[ElementarySpace]:
+        # Unlike the plain LegPipe, we do not need to flatten AbelianLegPipes, if we just
+        # want to flatten until we get spaces
+        return [self]
+
     @classmethod
     def from_basis(cls, *a, **kw):
         raise TypeError('from_basis is not supported for AbelianLegPipe')
@@ -2359,23 +2443,6 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             perm[start:stop] = np.sum(basis_grid * dim_strides, axis=1)
 
         return perm
-
-
-def _flatten_leg_pipes(legs: list[Leg]) -> list[ElementarySpace]:
-    res = legs[:]
-    for _ in range(1000):  # loop should end via break, this is just a failsafe vs infinite loop
-        seen_pipes = False  # if we do a sweep without seeing any pipes, we know we can stop.
-        for i in reversed(range(len(res))):
-            # go in reverse so we dont change indices of earlier factors when flattening
-            f = res[i]
-            if isinstance(f, LegPipe):
-                res[i : i + 1] = f.legs
-                seen_pipes = True
-        if not seen_pipes:
-            break
-    else:  # else triggers if no break occurred
-        raise RuntimeError('Either LegPipes are nested too deep or there is a bug.')
-    return res
 
 
 def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicities: np.ndarray):

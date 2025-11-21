@@ -632,6 +632,21 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return self.domain.num_factors
 
     @property
+    def num_codomain_flat_legs(self) -> int:
+        """Number of flat legs in the codomain."""
+        return self.codomain.num_flat_legs
+
+    @property
+    def num_domain_flat_legs(self) -> int:
+        """Number of flat legs in the domain."""
+        return self.domain.num_flat_legs
+
+    @property
+    def num_flat_legs(self) -> int:
+        """Total number of flat legs of self."""
+        return self.num_domain_flat_legs + self.num_codomain_flat_legs
+
+    @property
     def num_parameters(self) -> int:
         """The number of free parameters for the given legs.
 
