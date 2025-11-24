@@ -852,10 +852,14 @@ class FusionTreeBackend(TensorBackend):
         # contiguous except in the case where contributions to the same forest block comes from
         # different operators -> reshape such that the legs along which we stack are isolated
         data = self.zero_data(new_codomain, new_domain, dtype=dtype, device=device, all_blocks=True)
+        new_codomain_legs = new_codomain.flat_legs
+        new_domain_legs = new_domain.flat_legs
         for i, row in enumerate(grid):
             for j, op in enumerate(row):
                 if op is None:
                     continue
+                op_codomain_legs = op.codomain.flat_legs
+                op_domain_legs = op.domain.flat_legs
                 op_coupled = [op.domain.sector_decomposition[bi[1]] for bi in op.data.block_inds]
                 for codom_unc, op_codom_slc, op_coupled_idx in op.codomain.iter_forest_blocks(op_coupled):
                     coupled = op_coupled[op_coupled_idx]
@@ -863,28 +867,28 @@ class FusionTreeBackend(TensorBackend):
 
                     # goal: reshape co_domain part such that it has 3 axes:
                     # for the trees, for the multiplicity of codomain[0] / domain[-1], for all other multiplicities
-                    op_codom_shape = [op.codomain[l].sector_multiplicity(sec) for l, sec in enumerate(codom_unc)]
+                    op_codom_shape = [op_codomain_legs[l].sector_multiplicity(sec) for l, sec in enumerate(codom_unc)]
                     op_codom_shape = [op_codom_shape[0], prod(op_codom_shape[1:])]
                     op_num_codom_trees = int((op_codom_slc.stop - op_codom_slc.start) / prod(op_codom_shape))
 
                     # only the first space is different
-                    codom_shape = [new_codomain[0].sector_multiplicity(codom_unc[0])] + op_codom_shape[1:]
+                    codom_shape = [new_codomain_legs[0].sector_multiplicity(codom_unc[0])] + op_codom_shape[1:]
                     codom_slc = new_codomain.forest_block_slice(codom_unc, coupled)
                     num_codom_trees = int((codom_slc.stop - codom_slc.start) / prod(codom_shape))
-                    codom_leg_idx = new_codomain[0].sector_decomposition_where(codom_unc[0])
+                    codom_leg_idx = new_codomain_legs[0].sector_decomposition_where(codom_unc[0])
                     codom_leg_slc = slice(left_mult_slices[codom_leg_idx][i], left_mult_slices[codom_leg_idx][i + 1])
                     for dom_unc, op_dom_slc, _ in op.domain.iter_forest_blocks([coupled]):
-                        op_dom_shape = [op.domain[l].sector_multiplicity(sec) for l, sec in enumerate(dom_unc)]
+                        op_dom_shape = [op_domain_legs[l].sector_multiplicity(sec) for l, sec in enumerate(dom_unc)]
                         op_dom_shape = [prod(op_dom_shape[:-1]), op_dom_shape[-1]]
                         op_num_dom_trees = int((op_dom_slc.stop - op_dom_slc.start) / prod(op_dom_shape))
                         op_new_shape = (op_num_codom_trees, *op_codom_shape, op_num_dom_trees, *op_dom_shape)
 
                         # only the last space is different
-                        dom_shape = op_dom_shape[:1] + [new_domain[-1].sector_multiplicity(dom_unc[-1])]
+                        dom_shape = op_dom_shape[:1] + [new_domain_legs[-1].sector_multiplicity(dom_unc[-1])]
                         dom_slc = new_domain.forest_block_slice(dom_unc, coupled)
                         num_dom_trees = int((dom_slc.stop - dom_slc.start) / prod(dom_shape))
                         new_shape = (num_codom_trees, *codom_shape, num_dom_trees, *dom_shape)
-                        dom_leg_idx = new_domain[-1].sector_decomposition_where(dom_unc[-1])
+                        dom_leg_idx = new_domain_legs[-1].sector_decomposition_where(dom_unc[-1])
                         dom_leg_slc = slice(right_mult_slices[dom_leg_idx][j], right_mult_slices[dom_leg_idx][j + 1])
 
                         op_block = op.data.blocks[op_coupled_idx][op_codom_slc, op_dom_slc]
