@@ -1001,12 +1001,17 @@ class FusionTreeBackend(TensorBackend):
         )
         warnings.warn(msg, UserWarning, stacklevel=2)
 
+        flat_idcs = []
+        for l, i in zip(a.legs, idcs):
+            dims = [leg.dim for leg in l.flat_legs]
+            flat_idcs.extend(np.unravel_index(i, dims))
+
         num_cod_legs = a.num_codomain_flat_legs
         num_legs = a.num_flat_legs
         # reverse domain idcs -> work in the non-conventional leg order [i1,...,iJ,j1,...,jK]
         a_legs = [*a.codomain.flat_legs, *a.domain.flat_legs]
-        idcs = idcs[:num_cod_legs] + idcs[num_cod_legs:][::-1]
-        pos = np.array([l.parse_index(idx) for l, idx in zip(a_legs, idcs)])
+        flat_idcs = flat_idcs[:num_cod_legs] + flat_idcs[num_cod_legs:][::-1]
+        pos = np.array([l.parse_index(idx) for l, idx in zip(a_legs, flat_idcs, strict=True)])
         sector_idcs = pos[:, 0]
 
         uncoupled = np.array([l.sector_decomposition[sector_idcs[i]] for i, l in enumerate(a_legs)])
