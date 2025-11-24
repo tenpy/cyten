@@ -3904,7 +3904,7 @@ def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | Non
 def combine_legs(
     tensor: Tensor,
     *which_legs: list[int | str],
-    pipe_dualities: list[bool] = None,
+    pipe_dualities: bool | list[bool] = False,
     pipes: list[LegPipe | None] = None,
     levels: list[int] | dict[str | int, int] = None,
 ) -> Tensor:
@@ -4054,8 +4054,10 @@ def combine_legs(
     # ==============================================================================================
     if pipes is None:
         pipes = [None] * len(which_legs)
-    if pipe_dualities is None:
-        pipe_dualities = [False] * len(which_legs)
+    if is_iterable(pipe_dualities):
+        assert len(pipe_dualities) == len(which_legs)
+    else:
+        pipe_dualities = [pipe_dualities] * len(which_legs)
     codomain_spaces = []
     codomain_labels = []
     domain_labels_reversed = []
