@@ -17,6 +17,7 @@ from numpy import ndarray
 from .dummy_config import printoptions
 from .symmetries import FusionStyle, ProductSymmetry, Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
 from .tools.misc import (
+    combine_permutations,
     find_row_differences,
     inverse_permutation,
     iter_common_sorted_arrays,
@@ -185,6 +186,16 @@ class LegPipe(Leg):
     @property
     def num_flat_legs(self) -> int:
         return sum(l.num_flat_legs for l in self.legs)
+
+    @property
+    def basis_perm(self) -> np.ndarray:
+        assert self.symmetry.can_be_dropped
+        return combine_permutations([l.basis_perm for l in self.legs])
+
+    @property
+    def inverse_basis_perm(self) -> np.ndarray:
+        assert self.symmetry.can_be_dropped
+        return combine_permutations([l.inverse_basis_perm for l in self.legs])
 
     def __eq__(self, other):
         if not isinstance(other, LegPipe):
@@ -2115,6 +2126,16 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
     def as_ElementarySpace(self, is_dual: bool = False):
         return self.with_is_dual(is_dual=is_dual)
+
+    @property
+    def basis_perm(self):
+        # make sure we use the implementation from ElementarySpace, not LegPipe
+        return ElementarySpace.basis_perm.fget(self)
+
+    @property
+    def inverse_basis_perm(self):
+        # make sure we use the implementation from ElementarySpace, not LegPipe
+        return ElementarySpace.inverse_basis_perm.fget(self)
 
     @property
     def dual(self) -> AbelianLegPipe:

@@ -152,6 +152,23 @@ def combine_constraints(good1, good2, warn):
     return good1
 
 
+def combine_permutations(perms: Sequence[Sequence[int]], cstyle=True) -> Sequence[int]:
+    """Given permutations on individual axes, get the permutation on a combined axis.
+
+    This is such that::
+
+        a[np.ix_(*perms)].reshape(-1) == a.reshape(-1)[result]
+    """
+    assert all(is_permutation(p) for p in perms)
+    strides = make_stride([len(p) for p in perms], cstyle=cstyle)
+    return sum(p * s for p, s in zip(np.ix_(*perms), strides)).reshape(-1, order='C' if cstyle else 'F')
+
+
+def is_permutation(perm: Sequence[int]) -> bool:
+    """Is `perm` a permutation of ``range(len(perm))``?"""
+    return sorted(perm) == [*range(len(perm))]
+
+
 def inverse_permutation(perm):
     """Reverse sorting indices.
 
