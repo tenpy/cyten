@@ -331,7 +331,7 @@ def test_SymmetricTensor_from_random_normal(leg_nums, dtype, make_compatible_ten
 
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)], ids=['1->1', '1->2', '0->3', '3->0'])
 def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_random):
-    T: SymmetricTensor = make_compatible_tensor(*leg_nums)
+    T: SymmetricTensor = make_compatible_tensor(*leg_nums, use_pipes=False)
 
     numpy_block_backend = NumpyBlockBackend()
     # build two valid dicts

@@ -1397,6 +1397,8 @@ class SymmetricTensor(Tensor):
                 codomain=codomain, domain=domain, backend=backend, labels=labels, dtype=dtype, device=device
             )
         codomain, domain, backend, symmetry = cls._init_parse_args(codomain=codomain, domain=domain, backend=backend)
+        if codomain.has_pipes or domain.has_pipes:
+            raise NotImplementedError('from_tree_pairs does not support pipes (yet?)')
         dtype = cls._parse_default_dtype(dtype, symmetry=symmetry)
         if device is None:
             some_block = backend.block_backend.as_block(next(iter(trees.values())))
