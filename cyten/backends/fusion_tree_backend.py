@@ -1331,7 +1331,7 @@ class FusionTreeBackend(TensorBackend):
             if j is None:
                 continue  # uncoupled sector not in mask
 
-            intermediate_shape = [iter_space[i].sector_multiplicity(sec) for i, sec in enumerate(uncoupled)]
+            intermediate_shape = [iter_space.flat_legs[i].sector_multiplicity(sec) for i, sec in enumerate(uncoupled)]
             if in_domain:
                 block_slice = tensor_blocks[i][:, slc]
                 intermediate_shape.insert(0, -1)
@@ -1568,8 +1568,6 @@ class FusionTreeBackend(TensorBackend):
         return np.sqrt(norm_sq).item()
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
-        if a.has_pipes or b.has_pipes:
-            raise NotImplementedError("'outer' can not deal with 'LegPipe's")
         # idea: get the fusion trees in the combined (co)domain by inserting an identity
         # = summing over all fusion products of the coupled sectors of tensors a and b
         # OPTIMIZE new_codomain and new_domain are already computed in tensors.py -> reuse here
@@ -1926,7 +1924,7 @@ class FusionTreeBackend(TensorBackend):
             for i in range(co_domain_idx):
                 co_domain_idx += len(iter_space.flat_leg_idcs(i)) - 1
             iter_space = TensorProduct(
-                factors=iter_space.flat_legs(),
+                factors=iter_space.flat_legs,
                 symmetry=iter_space.symmetry,
                 _sector_decomposition=iter_space.sector_decomposition,
                 _multiplicities=iter_space.multiplicities,
@@ -2039,7 +2037,7 @@ class FusionTreeBackend(TensorBackend):
 
     def state_tensor_product(self, state1: Block, state2: Block, pipe: LegPipe):
         # TODO clearly define what this should do in tensors.py first!
-        raise NotImplementedError
+        raise NotImplementedError('state_tensor_product not implemented')
 
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         # first build it with the flattened legs, and if there are pipes, combine at the very end
