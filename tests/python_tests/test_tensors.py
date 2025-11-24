@@ -1866,6 +1866,10 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
         with pytest.raises(NotImplementedError, match='tensors._compose_with_Mask not implemented for Mask'):
             _ = tensors.enlarge_leg(T, M, which_leg)
         pytest.xfail('apply_mask(Mask, Mask) not yet supported')
+    if isinstance(T.backend, backends.FusionTreeBackend) and T.has_pipes:
+        with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
+            _ = tensors.enlarge_leg(T, M, which_leg)
+        pytest.xfail('FTB mask application with pipes is not supported yet.')
     elif cls is DiagonalTensor:
         catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
     else:
@@ -2757,6 +2761,11 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
     assert tensors.almost_equal(U.hc @ U, eye, allow_different_types=True)
     assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
+
+    if isinstance(T.backend, backends.FusionTreeBackend) and T.has_pipes:
+        with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
+            _ = tensors.truncated_svd(T)
+        pytest.xfail('_mask_contract does not support pipes yet')
 
     print('Truncated SVD')
     for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:

@@ -1287,6 +1287,9 @@ class FusionTreeBackend(TensorBackend):
     def _mask_contract(
         self, tensor: SymmetricTensor, mask: Mask, leg_idx: int, large_leg: bool
     ) -> tuple[Data, TensorProduct, TensorProduct]:
+        if tensor.has_pipes:
+            raise NotImplementedError('_mask_contract does not support pipes yet')
+
         backend = self.block_backend
         in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg_idx)
         in_domain_int = int(in_domain)
