@@ -1517,17 +1517,6 @@ class SymmetricTensor(Tensor):
             block = self.backend.block_backend.permute_axes(block, self.get_leg_idcs(leg_order))
         return block
 
-    def _to_dense_block_by_splitting_pipes(self) -> Block:
-        """Helper for :meth:`to_dense_block` if the backend cant deal with pipes directly.
-
-        This method can replace ``backend.to_dense_block``.
-        It first splits the legs of the tensors, does ``backend.to_dense_block``,
-        then re-combines on the result
-        """
-        self_split, combines = _split_all_pipes(self)
-        block = self.backend.to_dense_block(self_split)
-        return self.backend.block_backend.combine_legs(block, combines)
-
     def to_dense_block_trivial_sector(self) -> Block:
         """Assumes self is a single-leg tensor and returns its components in the trivial sector.
 

@@ -743,11 +743,18 @@ class FusionTreeBackend(TensorBackend):
         return FusionTreeData(block_inds, blocks, dtype, device)
 
     def from_dense_block(self, a: Block, codomain: TensorProduct, domain: TensorProduct, tol: float) -> FusionTreeData:
+        if codomain.has_pipes or domain.has_pipes:
+            num_piped_legs = codomain.num_factors + domain.num_factors
+            codomain_split_dims = [[flat.dim for flat in l.flat_legs] for l in codomain]
+            domain_split_dims = [[flat.dim for flat in l.flat_legs] for l in domain]
+            split_dims = codomain_split_dims + [dims[::-1] for dims in reversed(domain_split_dims)]
+            a = self.block_backend.split_legs(a, idcs=[*range(num_piped_legs)], dims=split_dims)
+
         sym = codomain.symmetry
         assert sym.can_be_dropped
         # convert to internal basis order, where the sectors are sorted and contiguous
-        J = codomain.num_factors
-        K = domain.num_factors
+        J = codomain.num_flat_legs
+        K = domain.num_flat_legs
         num_legs = J + K
         # [i1,...,iJ,jK,...,j1] -> [i1,...,iJ,j1,...,jK]
         a = self.block_backend.permute_axes(a, [*range(J), *reversed(range(J, num_legs))])
@@ -1987,18 +1994,18 @@ class FusionTreeBackend(TensorBackend):
         raise NotImplementedError
 
     def to_dense_block(self, a: SymmetricTensor) -> Block:
+        # first build it with the flattened legs, and if there are pipes, combine at the very end
+
         assert a.symmetry.can_be_dropped
-        if a.has_pipes:
-            return a._to_dense_block_by_splitting_pipes()
-        J = len(a.codomain.factors)
-        K = len(a.domain.factors)
+        J = a.codomain.num_flat_legs
+        K = a.domain.num_flat_legs
         num_legs = J + K
         dtype = Dtype.common(a.data.dtype, a.symmetry.fusion_tensor_dtype)
         sym = a.symmetry
         # build in internal basis order, is converted to public basis order in SymmetricTensor.to_dense_block
         # build in codomain/domain leg order first, then permute legs in the end
         # [i1,...,iJ,j1,...,jK]
-        shape = [leg.dim for leg in a.codomain.factors] + [leg.dim for leg in a.domain.factors]
+        shape = [leg.dim for leg in a.codomain.flat_legs] + [leg.dim for leg in a.domain.flat_legs]
         res = self.block_backend.zeros(shape, dtype)
         for bi_cod, block in zip(a.data.block_inds[:, 0], a.data.blocks):
             coupled = a.codomain.sector_decomposition[bi_cod]
@@ -2045,6 +2052,13 @@ class FusionTreeBackend(TensorBackend):
                 i2 += forest_b_width  # move right by one forest-block
         # permute leg order [i1,...,iJ,j1,...,jK] -> [i1,...,iJ,jK,...,j1]
         res = self.block_backend.permute_axes(res, [*range(J), *reversed(range(J, J + K))])
+
+        if a.has_pipes:
+            combine_axes = a.codomain.flat_legs_nesting() + [
+                [J + K - 1 - leg_idx for leg_idx in reversed(group)] for group in reversed(a.domain.flat_legs_nesting())
+            ]
+            res = self.block_backend.combine_legs(res, combine_axes)
+
         return res
 
     def to_dense_block_trivial_sector(self, tensor: SymmetricTensor) -> Block:
@@ -2229,8 +2243,8 @@ class FusionTreeBackend(TensorBackend):
         # OPTIMIZE do one loop per vertex in the tree instead.
         i1 = i1_init  # i1: start row index of the current tree block within the block
         i2 = i2_init  # i2: start column index of the current tree block within the block
-        alpha_tree_iter = fusion_trees(sym, a_sectors, coupled, [sp.is_dual for sp in codomain.factors])
-        beta_tree_iter = fusion_trees(sym, b_sectors, coupled, [sp.is_dual for sp in domain.factors])
+        alpha_tree_iter = fusion_trees(sym, a_sectors, coupled, [sp.is_dual for sp in codomain.flat_legs])
+        beta_tree_iter = fusion_trees(sym, b_sectors, coupled, [sp.is_dual for sp in domain.flat_legs])
         entries = self.block_backend.zeros([*a_dims, *b_dims, *m_dims, *n_dims], dtype)
         for alpha_tree in alpha_tree_iter:
             splitting_tree = self.block_backend.conj(alpha_tree.as_block(backend=self))  # [a1,...,aJ,c]
@@ -2308,10 +2322,10 @@ class FusionTreeBackend(TensorBackend):
         # OPTIMIZE do one loop per vertex in the tree instead.
         i1 = i1_init  # i1: start row index of the current tree block within the block
         i2 = i2_init  # i2: start column index of the current tree block within the block
-        domain_are_dual = [sp.is_dual for sp in domain.factors]
-        codomain_are_dual = [sp.is_dual for sp in codomain.factors]
-        J = codomain.num_factors
-        K = domain.num_factors
+        domain_are_dual = [sp.is_dual for sp in domain.flat_legs]
+        codomain_are_dual = [sp.is_dual for sp in codomain.flat_legs]
+        J = codomain.num_flat_legs
+        K = domain.num_flat_legs
         range_J = list(range(J))  # used in tdot calls below
         range_K = list(range(K))  # used in tdot calls below
         range_JK = list(range(J + K))
