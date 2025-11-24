@@ -1770,23 +1770,62 @@ class FusionTreeBackend(TensorBackend):
         levels: list[int | None],
         bend_right: list[bool | None],
     ) -> FusionTreeData:
+        num_codomain_flat_legs = a.num_codomain_flat_legs
+        num_domain_flat_legs = a.num_domain_flat_legs
+
+        flat_levels = []
+        flat_bend_right = []
+        codomain_pipe_inds = []
+        domain_pipe_inds = []
+
+        flat_index = 0
+        for i, leg in enumerate(a.legs):
+            is_codomain = i < a.num_codomain_legs
+            if isinstance(leg, LegPipe):
+                num = leg.num_flat_legs
+                indices = list(range(flat_index, flat_index + num))
+                if is_codomain:
+                    codomain_pipe_inds.append(indices)
+                else:
+                    domain_pipe_inds.append(indices)
+                flat_index += num
+                flat_levels.extend([levels[i]] * num)
+                flat_bend_right.extend([bend_right[i]] * num)
+            else:
+                if is_codomain:
+                    codomain_pipe_inds.append([flat_index])
+                else:
+                    domain_pipe_inds.append([flat_index])
+                flat_index += 1
+                flat_levels.append(levels[i])
+                flat_bend_right.append(bend_right[i])
+
+        # mapping to flat indices for TreeMappingDict.from_permute_legs
+        leg_comb = codomain_pipe_inds + domain_pipe_inds
+
+        new_domain_idcs = [k for ks in [leg_comb[i][::-1] for i in domain_idcs] for k in ks]
+        new_codomain_idcs = [k for ks in [leg_comb[i] for i in codomain_idcs] for k in ks]
+
         h = PermuteLegsInstructionEngine(
-            num_codomain_legs=a.num_codomain_legs,
-            num_domain_legs=a.num_domain_legs,
-            codomain_idcs=codomain_idcs,
-            domain_idcs=domain_idcs,
-            levels=levels,
-            bend_right=bend_right,
+            num_codomain_legs=num_codomain_flat_legs,
+            num_domain_legs=num_domain_flat_legs,
+            codomain_idcs=new_codomain_idcs,
+            domain_idcs=new_domain_idcs,
+            levels=flat_levels,
+            bend_right=flat_bend_right,
             has_symmetric_braid=a.symmetry.has_symmetric_braid,
         )
         instructions = h.evaluate_instructions()
-        h.verify(a.num_codomain_legs, a.num_domain_legs, codomain_idcs, domain_idcs)  # OPTIMIZE rm check?
+
+        h.verify(
+            len(a.codomain.flat_legs), len(a.domain.flat_legs), new_codomain_idcs, new_domain_idcs
+        )  # OPTIMIZE rm check?
 
         return self.apply_instructions(
             a,
             instructions,
-            codomain_idcs=codomain_idcs,
-            domain_idcs=domain_idcs,
+            codomain_idcs=new_codomain_idcs,
+            domain_idcs=new_domain_idcs,
             new_codomain=new_codomain,
             new_domain=new_domain,
             mixes_codomain_domain=mixes_codomain_domain,
@@ -3110,8 +3149,8 @@ class TreePairMapping(TensorMapping):
         block_backend: BlockBackend,
     ) -> FusionTreeData:
         # f(T)_{Jm} = sum_I f_{JI} T_{Im} = sum_I mapping[I][J] T_{Im}
-        J = codomain.num_factors
-        K = domain.num_factors
+        J = codomain.num_flat_legs
+        K = domain.num_flat_legs
         N = J + K
         tree_block_axes_1 = [i if i < J else (N - 1) + (J - i) for i in codomain_idcs]
         tree_block_axes_2 = [i if i < J else (N - 1) + (J - i) for i in domain_idcs]
@@ -3285,8 +3324,8 @@ class FactorizedTreeMapping(TensorMapping):
         block_backend: BlockBackend,
     ) -> FusionTreeData:
         #
-        J = codomain.num_factors
-        K = domain.num_factors
+        J = codomain.num_flat_legs
+        K = domain.num_flat_legs
         N = J + K
         #
         dtype = data.dtype
