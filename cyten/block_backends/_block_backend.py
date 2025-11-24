@@ -192,6 +192,10 @@ class BlockBackend(metaclass=ABCMeta):
         for group, cstyle in zip(leg_idcs_combine, cstyles):
             start = group[0]
             stop = group[-1] + 1
+            if group != [*range(start, stop)]:
+                raise ValueError('Each group in leg_idcs_combine must be contiguous and ascending')
+            if start < last_stop:
+                raise ValueError('The groups in leg_idcs_combine must not overlap')
             new_shape.extend(old_shape[last_stop:start])  # all leg *not* to be combined
             new_shape.append(np.prod(old_shape[start:stop]))
             if not cstyle:
