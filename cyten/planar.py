@@ -1083,7 +1083,8 @@ def planar_partial_trace(tensor: Tensor, *pairs: Sequence[int, str]) -> Tensor:
             tensor = planar_permute_legs(tensor, codomain=codomain, domain=domain)
             # update pairs
             pairs = [[(idx + num_left_traces) % tensor.num_legs for idx in pair] for pair in pairs]
-        # give the traced legs levels in case they are not next to each other and one leg needs to braid with another leg pair
+        # give the traced legs levels in case they are not next to each other
+        # and one leg needs to braid with another leg pair
         for i, pair in enumerate(pairs):
             levels[pair[0]] = i
             levels[pair[1]] = i
