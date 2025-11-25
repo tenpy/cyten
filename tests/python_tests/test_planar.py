@@ -5,24 +5,6 @@ import pytest
 import cyten as ct
 
 
-def cyclically_permute_tensor(T: ct.Tensor, labels: list[str]) -> ct.Tensor:
-    if T.labels == labels:
-        return T
-    for num_bends in range(1, T.num_legs):
-        if T.labels[num_bends:] + T.labels[:num_bends] == labels:
-            break
-    if T.num_codomain_legs == 0:
-        num_bends = T.num_legs - num_bends
-        T = ct.permute_legs(T, codomain=list(range(T.num_legs - num_bends, T.num_legs)), bend_right=False)
-        T = ct.permute_legs(T, domain=list(reversed(range(T.num_legs))), bend_right=True)
-    elif T.num_domain_legs == 0:
-        T = ct.permute_legs(T, domain=list(reversed(range(num_bends))), bend_right=False)
-        T = ct.permute_legs(T, codomain=list(range(T.num_legs)), bend_right=True)
-    else:
-        raise RuntimeError('An earlier error should have been occured.')
-    return T
-
-
 def is_cyclical_perm(seq: list[int]) -> bool:
     if len(seq) == 0:
         return True
@@ -64,20 +46,20 @@ def test_parse_leg_bipartition(legs, num_legs, is_planar, shuffle, np_random):
 
 
 planar_permute_legs_cases = {
-    'trivial': (3, 2, None, [0, 1, 2]),
+    'trivial': (3, 2, None, [0, 1, 2][::-1]),
     # same basic case with different input possibilities
-    'basic-idcs': (3, 2, None, [3, 4, 0]),
-    'basic-labels': (3, 2, None, ['a', 'd', 'e']),
-    'basic-codomain': (3, 2, [2, 1], None),
+    'basic-idcs': (3, 2, None, [3, 4, 0][::-1]),
+    'basic-labels': (3, 2, None, ['a', 'e', 'd']),
+    'basic-codomain': (3, 2, [1, 2], None),
     # empty codomain/domain
-    'empty-codomain': (2, 2, [], None),
+    'empty-codomain': (2, 2, [], [1, 0, 3, 2]),
     'empty-domain': (2, 2, [0, 1, 2, 3], None),
     # input has no codomain
-    'J0-empty-domain': (0, 3, None, []),
+    'J0-empty-domain': (0, 3, [2, 0, 1], []),
     'J0': (0, 3, None, [1]),
-    'J0-empty-codomain': (0, 3, None, [0, 1, 2]),
+    'J0-empty-codomain': (0, 3, None, [0, 1, 2][::-1]),
     # input has no domain
-    'K0-empty-domain': (3, 0, None, []),
+    'K0-empty-domain': (3, 0, [1, 2, 0], []),
     'K0': (3, 0, None, [1]),
     'K0-empty-codomain': (3, 0, [0, 1, 2], None),
 }
@@ -104,11 +86,16 @@ def test_planar_permute_legs(J, K, codomain, domain, symmetry, backend, np_rando
     res = ct.planar.planar_permute_legs(T, codomain=codomain, domain=domain)
     res.test_sanity()
 
-    if codomain is None:
-        sorted_domain, sorted_codomain = ct.planar.parse_leg_bipartition(T.get_leg_idcs(domain), J + K)
+    if codomain is None or len(codomain) == 0:
+        domain = T.get_leg_idcs(domain)
+        num_codom_legs = T.num_legs - len(domain)
+        codomain = [i % T.num_legs for i in range(domain[0] + 1, domain[0] + 1 + num_codom_legs)]
+        rev_domain = domain[::-1]
     else:
-        sorted_codomain, sorted_domain = ct.planar.parse_leg_bipartition(T.get_leg_idcs(codomain), J + K)
-    leg_perm = [*sorted_codomain, *sorted_domain]
+        codomain = T.get_leg_idcs(codomain)
+        num_dom_legs = T.num_legs - len(codomain)
+        rev_domain = [i % T.num_legs for i in range(codomain[-1] + 1, codomain[-1] + 1 + num_dom_legs)]
+    leg_perm = [*codomain, *rev_domain]
     assert is_cyclical_perm(leg_perm)
     assert res.labels == [T.labels[n] for n in leg_perm]
     assert res.legs == [T.get_leg(n) for n in leg_perm]
@@ -124,15 +111,15 @@ def test_planar_permute_legs(J, K, codomain, domain, symmetry, backend, np_rando
             # I dont know how to figure them out right now, so we just ignore signs here...
             npt.assert_almost_equal(np.abs(res_np), np.abs(expect))
 
-    permuted_back1 = ct.planar.planar_permute_legs(res, codomain=T.codomain_labels)
-    permuted_back1.test_sanity()
-    permuted_back1 = cyclically_permute_tensor(permuted_back1, T.labels)
-    assert ct.almost_equal(permuted_back1, T)
+    if len(T.codomain_labels) > 0:
+        permuted_back1 = ct.planar.planar_permute_legs(res, codomain=T.codomain_labels)
+        permuted_back1.test_sanity()
+        assert ct.almost_equal(permuted_back1, T)
 
-    permuted_back2 = ct.planar.planar_permute_legs(res, domain=T.domain_labels)
-    permuted_back2.test_sanity()
-    permuted_back2 = cyclically_permute_tensor(permuted_back2, T.labels)
-    assert ct.almost_equal(permuted_back2, T)
+    if len(T.domain_labels) > 0:
+        permuted_back2 = ct.planar.planar_permute_legs(res, domain=T.domain_labels)
+        permuted_back2.test_sanity()
+        assert ct.almost_equal(permuted_back2, T)
 
 
 @pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
