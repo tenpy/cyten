@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from ..block_backends import Block, BlockBackend
 from ..dtypes import Dtype
-from ..spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct
+from ..spaces import ElementarySpace, LegPipe, Space, TensorProduct
 from ..symmetries import Symmetry, no_symmetry
 from ..tools.misc import rank_data
 from ..trees import FusionTree
@@ -65,15 +65,6 @@ class NoSymmetryBackend(TensorBackend):
             a.data, expect_shape=(a.large_leg.dim,), expect_dtype=Dtype.bool, expect_device=a.device
         )
         assert self.block_backend.sum_all(a.data) == a.small_leg.dim
-
-    def make_pipe(self, legs: list[Leg], is_dual: bool, in_domain: bool, pipe: LegPipe | None = None) -> LegPipe:
-        assert all(isinstance(l, ElementarySpace) for l in legs)  # OPTIMIZE rm check
-        if isinstance(pipe, AbelianLegPipe):
-            assert pipe.combine_cstyle == (not is_dual)
-            assert pipe.is_dual == is_dual
-            assert pipe.legs == legs
-            return pipe
-        return AbelianLegPipe(legs, is_dual=is_dual, combine_cstyle=not is_dual)
 
     # ABSTRACT METHODS:
 
@@ -262,7 +253,8 @@ class NoSymmetryBackend(TensorBackend):
         return self.block_backend.get_dtype(a)
 
     def get_element(self, a: SymmetricTensor, idcs: list[int]) -> complex | float | bool:
-        idcs = [l.parse_index(idx)[1] for l, idx in zip(conventional_leg_order(a), idcs)]
+        # OPTIMIZE : skip if perm is trivial?
+        idcs = [l.inverse_basis_perm[idx] for l, idx in zip(conventional_leg_order(a), idcs)]
         return self.block_backend.get_block_element(a.data, idcs)
 
     def get_element_diagonal(self, a: DiagonalTensor, idx: int) -> complex | float | bool:
