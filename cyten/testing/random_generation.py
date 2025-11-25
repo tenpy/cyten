@@ -20,31 +20,38 @@ def random_symmetry_sectors(
     symmetry: symmetries.Symmetry, num: int, sort: bool = False, np_random=np.random.default_rng()
 ) -> symmetries.SectorArray:
     """Random unique symmetry sectors, optionally sorted."""
-    if isinstance(symmetry, symmetries.SU2Symmetry):
-        res = np_random.choice(int(1.3 * num), replace=False, size=(num, 1))
-    elif isinstance(symmetry, symmetries.U1Symmetry):
-        vals = list(range(-num, num)) + [123]
-        res = np_random.choice(vals, replace=False, size=(num, 1))
-    elif symmetry.num_sectors < np.inf:
-        if symmetry.num_sectors <= num:
-            res = np_random.permutation(symmetry.all_sectors())
-        else:
-            which = np_random.choice(symmetry.num_sectors, replace=False, size=num)
-            res = symmetry.all_sectors()[which, :]
-    elif isinstance(symmetry, symmetries.ProductSymmetry):
-        factor_len = max(3, num // len(symmetry.factors))
-        factor_sectors = [
-            random_symmetry_sectors(factor, factor_len, np_random=np_random) for factor in symmetry.factors
-        ]
-        combs = np.indices([len(s) for s in factor_sectors]).T.reshape((-1, len(factor_sectors)))
-        if len(combs) > num:
-            combs = np_random.choice(combs, replace=False, size=num)
-        res = np.hstack([fs[i] for fs, i in zip(factor_sectors, combs.T)])
-    else:
-        raise NotImplementedError("don't know how to get symmetry sectors")
+    assert isinstance(symmetry, symmetries.Symmetry)
+    factor_len = max(3, num // len(symmetry))
+    factor_sectors = [random_factor_sectors(factor, factor_len, np_random=np_random) for factor in symmetry]
+    combs = np.indices([len(s) for s in factor_sectors]).T.reshape((-1, len(factor_sectors)))
+    if len(combs) > num:
+        combs = np_random.choice(combs, replace=False, size=num)
+    res = np.hstack([fs[i] for fs, i in zip(factor_sectors, combs.T)])
+
     if sort:
         order = np.lexsort(res.T)
         res = res[order]
+    return res
+
+
+def random_factor_sectors(
+    factor: symmetries.FactorSymmetry, num: int, np_random=np.random.default_rng()
+) -> symmetries.SectorArray:
+    """Random unique sectors for a single FactorSymmetry, optionally sorted."""
+    assert isinstance(factor, symmetries.FactorSymmetry)
+    if isinstance(factor, symmetries.SU2):
+        res = np_random.choice(int(1.3 * num), replace=False, size=(num, 1))
+    elif isinstance(factor, symmetries.U1):
+        vals = list(range(-num, num)) + [123]
+        res = np_random.choice(vals, replace=False, size=(num, 1))
+    elif factor.num_sectors < np.inf:
+        if factor.num_sectors <= num:
+            res = np_random.permutation(factor.all_sectors())
+        else:
+            which = np_random.choice(factor.num_sectors, replace=False, size=num)
+            res = factor.all_sectors()[which, :]
+    else:
+        raise NotImplementedError(f'Sector sampling not yet implemented for {type(factor).__name__}')
     return res
 
 
@@ -427,8 +434,10 @@ def random_tensor(
             use_pipes=use_pipes,
             np_random=np_random,
         )
-
-        charged_state = [1] if inv_part.symmetry.can_be_dropped else None
+        if symmetry.has_trivial_braid:
+            charged_state = random_block(backend.block_backend, [charge_leg.dim], np_random=np_random)
+        else:
+            charged_state = None
         res = tensors.ChargedTensor(inv_part, charged_state=charged_state)
         res.test_sanity()
         return res
@@ -684,7 +693,7 @@ def _factorize_limit(limit: int, num_components: int):
 def _random_ElementarySpace(symmetry, num_sectors, max_multiplicity, is_dual, allow_basis_perm, np_random):
     """Similar to `random_ElementarySpace`, but with fixed number of sectors."""
     sectors = random_symmetry_sectors(symmetry, num_sectors, sort=True, np_random=np_random)
-    # if there are very few sectors, e.g. for symmetry==NoSymmetry(), dont let them be one-dimensional
+    # if there are very few sectors, e.g. for no_symmetry, dont let them be one-dimensional
     min_mult = min(max_multiplicity, max(4 - len(sectors), 1))
     mults = np_random.integers(min_mult, max_multiplicity, size=(len(sectors),), endpoint=True)
     if symmetry.can_be_dropped and allow_basis_perm:

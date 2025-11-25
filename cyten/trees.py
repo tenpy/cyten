@@ -298,7 +298,7 @@ class FusionTree:
         else:
             extra_left = np.zeros((0, num_rows), str)
 
-        if self.symmetry.fusion_style > FusionStyle.multiple_unique:
+        if not self.symmetry.has_unique_fusion:
             # need to print multiplicities
             for (x, y), mult in zip(vertex_positions, self.multiplicities):
                 mult = str(mult)
