@@ -144,6 +144,14 @@ class LegPipe(Leg):
     ----------
     legs
         The legs that were grouped, and that this pipe can be split into.
+    combine_cstyle : bool
+        The leg pipe defines an order in which multi-indices (one per leg) are combined into
+        a single index. This can either be C-style (where the index for the last leg is varied the
+        fastest) or F-style (where the first index is varied the fastest). For compatibility with
+        the default behavior of ``np.reshape``, we favor C-style. However, if the `legs` were in
+        the domain (at the top) of a tensor before combining, the conventional leg order implies
+        a reversal of their order in ``Tensor.legs``. Thus, pipes in the domain should have F-style
+        combine. Consistent with this expectation, the style is flipped on taking the :attr:`dual`
 
     See Also
     --------
@@ -151,10 +159,11 @@ class LegPipe(Leg):
 
     """
 
-    def __init__(self, legs: Sequence[Leg], is_dual: bool = False):
+    def __init__(self, legs: Sequence[Leg], is_dual: bool = False, combine_cstyle: bool = True):
         self.legs = legs[:]
         self.num_legs = num_legs = len(legs)
         assert num_legs > 0
+        self.combine_cstyle = combine_cstyle
         Leg.__init__(self, symmetry=legs[0].symmetry, dim=prod(l.dim for l in legs), is_dual=is_dual)
 
     def test_sanity(self):
@@ -169,7 +178,9 @@ class LegPipe(Leg):
 
     @property
     def dual(self) -> LegPipe:
-        return LegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual)
+        return LegPipe(
+            [l.dual for l in reversed(self.legs)], is_dual=not self.is_dual, combine_cstyle=not self.combine_cstyle
+        )
 
     @property
     def is_trivial(self) -> bool:
@@ -190,12 +201,12 @@ class LegPipe(Leg):
     @property
     def basis_perm(self) -> np.ndarray:
         assert self.symmetry.can_be_dropped
-        return combine_permutations([l.basis_perm for l in self.legs])
+        return combine_permutations([l.basis_perm for l in self.legs], cstyle=self.combine_cstyle)
 
     @property
     def inverse_basis_perm(self) -> np.ndarray:
         assert self.symmetry.can_be_dropped
-        return combine_permutations([l.inverse_basis_perm for l in self.legs])
+        return combine_permutations([l.inverse_basis_perm for l in self.legs], cstyle=self.combine_cstyle)
 
     def __eq__(self, other):
         if not isinstance(other, LegPipe):
@@ -203,6 +214,8 @@ class LegPipe(Leg):
         if isinstance(self, AbelianLegPipe) != isinstance(other, AbelianLegPipe):
             return False
         if self.is_dual != other.is_dual:
+            return False
+        if self.combine_cstyle != other.combine_cstyle:
             return False
         if self.num_legs != other.num_legs:
             return False
@@ -224,12 +237,17 @@ class LegPipe(Leg):
 
         if one_line:
             if show_symmetry:
-                res = f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual}, symmetry={self.symmetry!r})'
+                res = (
+                    f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual}, '
+                    f'symmetry={self.symmetry!r}, combine_cstyle={self.combine_cstyle})'
+                )
                 if len(res) <= printoptions.linewidth:
                     return res
                 return self.__repr__(show_symmetry=False, one_line=True)
             else:
-                res = f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual})'
+                res = (
+                    f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual}, combine_cstyle={self.combine_cstyle})'
+                )
                 if len(res) <= printoptions.linewidth:
                     return res
                 raise RuntimeError  # the above should always fit in linewidth ...
@@ -1972,14 +1990,6 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         The individual legs that form this pipe, and that the pipe can be split into.
         In particular, these are such that the pipe, as an :class:`ElementarySpace`, is isomorphic
         to their tensor product ``TensorProduct(legs)``, i.e. has the same :attr:`sector_decomposition`.
-    combine_cstyle : bool
-        The leg pipe defines an order in which multi-indices (one per leg) are combined into
-        a single index. This can either be C-style (where the index for the last leg is varied the
-        fastest) or F-style (where the first index is varied the fastest). For compatibility with
-        the default behavior of ``np.reshape``, we favor C-style. However, if the `legs` were in
-        the domain (at the bottom) of a tensor before combining, the conventional leg order implies
-        a reversal of their order in ``Tensor.legs``. Thus, pipes in the domain should have F-style
-        combine. Consistent with this expectation, the style is flipped on taking the :attr:`dual`
     sector_strides : 1D numpy array of int
         Strides for the shape ``[leg.num_sectors for leg in self.legs]``. Is either C-style or
         F-style, depending on `combine_cstyle`. This allows one-to-one mapping between multi-indices
@@ -2067,9 +2077,8 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     """
 
     def __init__(self, legs: Sequence[ElementarySpace], is_dual: bool = False, combine_cstyle: bool = True):
-        LegPipe.__init__(self, legs=legs, is_dual=is_dual)
+        LegPipe.__init__(self, legs=legs, is_dual=is_dual, combine_cstyle=combine_cstyle)
         assert self.symmetry.is_abelian and self.symmetry.can_be_dropped
-        self.combine_cstyle = combine_cstyle
         sectors, mults = self._calc_sectors()  # also sets some attributes
         basis_perm = self._calc_basis_perm(mults)
         ElementarySpace.__init__(

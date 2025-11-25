@@ -85,11 +85,12 @@ class TensorBackend(metaclass=ABCMeta):
 
         If `pipe` is given, try to return it if suitable.
         """
-        if pipe is not None:
-            assert pipe.legs == legs
+        if isinstance(pipe, LegPipe):
+            assert pipe.combine_cstyle == (not is_dual)
             assert pipe.is_dual == is_dual
+            assert pipe.legs == legs
             return pipe
-        return LegPipe(legs, is_dual=is_dual)
+        return LegPipe(legs, is_dual=is_dual, combine_cstyle=not is_dual)
 
     # ABSTRACT METHODS
 
