@@ -17,6 +17,7 @@ from numpy import ndarray
 from .dummy_config import printoptions
 from .symmetries import FusionStyle, ProductSymmetry, Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
 from .tools.misc import (
+    combine_permutations,
     find_row_differences,
     inverse_permutation,
     iter_common_sorted_arrays,
@@ -24,6 +25,7 @@ from .tools.misc import (
     make_stride,
     rank_data,
     to_iterable,
+    to_valid_idx,
 )
 from .tools.string import format_like_list
 from .trees import FusionTree, fusion_trees
@@ -81,6 +83,33 @@ class Leg(metaclass=ABCMeta):
     def is_trivial(self) -> bool: ...
 
     @property
+    def flat_legs(self) -> list[ElementarySpace]:
+        """Flatten until there are no more pipes.
+
+        See Also
+        --------
+        flat_spaces : Keeps :class:`AbelianLegPipes` nested.
+
+        """
+        return [self]
+
+    @property
+    def flat_spaces(self) -> list[ElementarySpace]:
+        """Flatten until we get spaces.
+
+        See Also
+        --------
+        flat_legs : Also flattens :class:`AbelianLegPipes`.
+
+        """
+        return [self]
+
+    @property
+    def num_flat_legs(self) -> int:
+        """The number of :attr:`flat_legs`."""
+        return 1
+
+    @property
     def ascii_arrow(self) -> str:
         """A single character arrow, for use in tensor diagrams
 
@@ -115,6 +144,14 @@ class LegPipe(Leg):
     ----------
     legs
         The legs that were grouped, and that this pipe can be split into.
+    combine_cstyle : bool
+        The leg pipe defines an order in which multi-indices (one per leg) are combined into
+        a single index. This can either be C-style (where the index for the last leg is varied the
+        fastest) or F-style (where the first index is varied the fastest). For compatibility with
+        the default behavior of ``np.reshape``, we favor C-style. However, if the `legs` were in
+        the domain (at the top) of a tensor before combining, the conventional leg order implies
+        a reversal of their order in ``Tensor.legs``. Thus, pipes in the domain should have F-style
+        combine. Consistent with this expectation, the style is flipped on taking the :attr:`dual`
 
     See Also
     --------
@@ -122,10 +159,11 @@ class LegPipe(Leg):
 
     """
 
-    def __init__(self, legs: Sequence[Leg], is_dual: bool = False):
+    def __init__(self, legs: Sequence[Leg], is_dual: bool = False, combine_cstyle: bool = True):
         self.legs = legs[:]
         self.num_legs = num_legs = len(legs)
         assert num_legs > 0
+        self.combine_cstyle = combine_cstyle
         Leg.__init__(self, symmetry=legs[0].symmetry, dim=prod(l.dim for l in legs), is_dual=is_dual)
 
     def test_sanity(self):
@@ -140,11 +178,35 @@ class LegPipe(Leg):
 
     @property
     def dual(self) -> LegPipe:
-        return LegPipe([l.dual for l in reversed(self.legs)], is_dual=not self.is_dual)
+        return LegPipe(
+            [l.dual for l in reversed(self.legs)], is_dual=not self.is_dual, combine_cstyle=not self.combine_cstyle
+        )
 
     @property
     def is_trivial(self) -> bool:
         return all(l.is_trivial for l in self.legs)
+
+    @property
+    def flat_legs(self) -> list[ElementarySpace]:
+        return list(it.chain.from_iterable(l.flat_legs for l in self.legs))
+
+    @property
+    def flat_spaces(self) -> list[ElementarySpace]:
+        return list(it.chain.from_iterable(l.flat_spaces for l in self.legs))
+
+    @property
+    def num_flat_legs(self) -> int:
+        return sum(l.num_flat_legs for l in self.legs)
+
+    @property
+    def basis_perm(self) -> np.ndarray:
+        assert self.symmetry.can_be_dropped
+        return combine_permutations([l.basis_perm for l in self.legs], cstyle=self.combine_cstyle)
+
+    @property
+    def inverse_basis_perm(self) -> np.ndarray:
+        assert self.symmetry.can_be_dropped
+        return combine_permutations([l.inverse_basis_perm for l in self.legs], cstyle=self.combine_cstyle)
 
     def __eq__(self, other):
         if not isinstance(other, LegPipe):
@@ -152,6 +214,8 @@ class LegPipe(Leg):
         if isinstance(self, AbelianLegPipe) != isinstance(other, AbelianLegPipe):
             return False
         if self.is_dual != other.is_dual:
+            return False
+        if self.combine_cstyle != other.combine_cstyle:
             return False
         if self.num_legs != other.num_legs:
             return False
@@ -173,12 +237,17 @@ class LegPipe(Leg):
 
         if one_line:
             if show_symmetry:
-                res = f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual}, symmetry={self.symmetry!r})'
+                res = (
+                    f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual}, '
+                    f'symmetry={self.symmetry!r}, combine_cstyle={self.combine_cstyle})'
+                )
                 if len(res) <= printoptions.linewidth:
                     return res
                 return self.__repr__(show_symmetry=False, one_line=True)
             else:
-                res = f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual})'
+                res = (
+                    f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual}, combine_cstyle={self.combine_cstyle})'
+                )
                 if len(res) <= printoptions.linewidth:
                     return res
                 raise RuntimeError  # the above should always fit in linewidth ...
@@ -1523,15 +1592,53 @@ class TensorProduct(Space):
             _multiplicities=multiplicities,
         )
 
-    def flat_legs(self) -> list[Space]:
-        """Flatten any pipes in the :attr:`factors`, recursively."""
-        return _flatten_leg_pipes(self.factors)
+    @property
+    def has_pipes(self) -> bool:
+        """Is any of the :attr:`factors` a pipe?"""
+        return any(isinstance(l, LegPipe) for l in self.factors)
+
+    @property
+    def flat_legs(self) -> list[ElementarySpace]:
+        """Flatten until there are no more pipes.
+
+        See Also
+        --------
+        flat_spaces : Keeps :class:`AbelianLegPipes` nested.
+
+        """
+        return list(it.chain.from_iterable(l.flat_legs for l in self.factors))
+
+    @property
+    def flat_spaces(self) -> list[ElementarySpace]:
+        """Flatten until we get spaces.
+
+        See Also
+        --------
+        flat_legs : Also flattens :class:`AbelianLegPipes`.
+
+        """
+        return list(it.chain.from_iterable(l.flat_spaces for l in self.factors))
+
+    @property
+    def num_flat_legs(self) -> int:
+        """The number of :attr:`flat_legs`."""
+        return sum(l.num_flat_legs for l in self.factors)
+
+    def flat_legs_nesting(self) -> list[list[int]]:
+        """The indices into :attr:`flat_legs`, that combine to each :attr:`factor`."""
+        i = 0
+        res = []
+        for l in self.factors:
+            num = l.num_flat_legs
+            res.append([*range(i, i + num)])
+            i += num
+        return res
 
     def flat_leg_idcs(self, i: int) -> list[int]:
         """All indices into the :meth:`flat_legs` that the leg ``factors[i]`` flattens to."""
-        # OPTIMIZE could just add the lengths without building the actual lists...
-        start = len(_flatten_leg_pipes(self.factors[:i]))
-        num = len(_flatten_leg_pipes(self.factors[i : i + 1]))
+        i = to_valid_idx(i, self.num_factors)
+        start = sum(l.num_flat_legs for l in self.factors[:i])
+        num = self.factors[i].num_flat_legs
         return list(range(start, start + num))
 
     def forest_block_size(self, uncoupled: tuple[Sector], coupled: Sector) -> int:
@@ -1591,10 +1698,7 @@ class TensorProduct(Space):
         """
         # OPTIMIZE some users in FTBackend ignore some of the yielded values.
         #          is that ok performance wise or should we have special case iterators?
-        if any(not isinstance(sp, ElementarySpace) for sp in self.factors):
-            # if there are pipes, this should not be called.
-            raise RuntimeError('iter_tree_blocks can not deal with pipes')
-        are_dual = [sp.is_dual for sp in self.factors]
+        are_dual = [sp.is_dual for sp in self.flat_legs]
         for i, c in enumerate(coupled):
             start = 0  # start index of the current tree block within the block
             for uncoupled, mults in self.iter_uncoupled():
@@ -1638,22 +1742,19 @@ class TensorProduct(Space):
     def iter_uncoupled(
         self, yield_slices: bool = False
     ) -> Generator[tuple[SectorArray, np.ndarray] | tuple[SectorArray, np.ndarray, list[slice]], None, None]:
-        """Iterate over all combinations of sectors from the :attr:`factors`.
-
-        Assumes that all the :attr:`factors` are :class:`ElementarySpaces`, i.e. pipes
-        are not supported.
+        """Iterate over all combinations of sectors from the :attr:`flat_legs`.
 
         Yields
         ------
         uncoupled : 2D array of int
             A combination of uncoupled sectors, where
-            ``uncoupled[i] == self.factors[i].sector_decomposition[some_idx]``.
+            ``uncoupled[i] == self.flat_legs[i].sector_decomposition[some_idx]``.
         multiplicities : 1D array of int
             The corresponding multiplicities
-            ``multiplicities[i] == self.factors[i].multiplicities[some_idx]``.
+            ``multiplicities[i] == self.flat_legs[i].multiplicities[some_idx]``.
         slices : list of slice, optional
             Only if ``yield_slices``, the corresponding entry of :attr:`Space.slices`, as a slice.
-            I.e. ``slices[i] == slice(*self.factors[i].slices[some_idx])``.
+            I.e. ``slices[i] == slice(*self.flat_legs[i].slices[some_idx])``.
 
         Notes
         -----
@@ -1661,13 +1762,12 @@ class TensorProduct(Space):
         we *do* yield once, where the yielded arrays are empty (e.g. ``len(uncoupled) == 0``).
 
         """
-        if not all(isinstance(f, ElementarySpace) for f in self.factors):
-            raise RuntimeError('iter_uncoupled can not deal with pipes.')
-        for idcs in it.product(*(range(s.num_sectors) for s in self.factors)):
-            a = np.array([self.factors[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
-            m = np.array([self.factors[n].multiplicities[i] for n, i in enumerate(idcs)], int)
+        flat_legs = self.flat_legs
+        for idcs in it.product(*(range(s.num_sectors) for s in flat_legs)):
+            a = np.array([flat_legs[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
+            m = np.array([flat_legs[n].multiplicities[i] for n, i in enumerate(idcs)], int)
             if yield_slices:
-                slcs = [slice(*self.factors[n].slices[i]) for n, i in enumerate(idcs)]
+                slcs = [slice(*flat_legs[n].slices[i]) for n, i in enumerate(idcs)]
                 yield a, m, slcs
             else:
                 yield a, m
@@ -1694,7 +1794,7 @@ class TensorProduct(Space):
     def tree_block_size(space: TensorProduct, uncoupled: tuple[Sector]) -> int:
         """The size of a tree-block"""
         # OPTIMIZE ?
-        return prod(s.sector_multiplicity(a) for s, a in zip(space.factors, uncoupled))
+        return prod(s.sector_multiplicity(a) for s, a in zip(space.flat_legs, uncoupled))
 
     def tree_block_slice(self, tree: FusionTree) -> slice:
         """The range of indices of a tree-block within its block, as a slice."""
@@ -1795,6 +1895,8 @@ class TensorProduct(Space):
 
     def _calc_sectors(self, factors: list[Space | Leg]) -> tuple[SectorArray, ndarray]:
         """Helper function for :meth:`__init__`"""
+        # LegPipes do not have sectors -> flatten them for the purpose of calculating sectors
+        factors = list(it.chain.from_iterable(l.flat_spaces for l in factors))
         if len(factors) == 0:
             return self.symmetry.trivial_sector[None, :], np.ones([1], int)
 
@@ -1888,14 +1990,6 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         The individual legs that form this pipe, and that the pipe can be split into.
         In particular, these are such that the pipe, as an :class:`ElementarySpace`, is isomorphic
         to their tensor product ``TensorProduct(legs)``, i.e. has the same :attr:`sector_decomposition`.
-    combine_cstyle : bool
-        The leg pipe defines an order in which multi-indices (one per leg) are combined into
-        a single index. This can either be C-style (where the index for the last leg is varied the
-        fastest) or F-style (where the first index is varied the fastest). For compatibility with
-        the default behavior of ``np.reshape``, we favor C-style. However, if the `legs` were in
-        the domain (at the bottom) of a tensor before combining, the conventional leg order implies
-        a reversal of their order in ``Tensor.legs``. Thus, pipes in the domain should have F-style
-        combine. Consistent with this expectation, the style is flipped on taking the :attr:`dual`
     sector_strides : 1D numpy array of int
         Strides for the shape ``[leg.num_sectors for leg in self.legs]``. Is either C-style or
         F-style, depending on `combine_cstyle`. This allows one-to-one mapping between multi-indices
@@ -1983,9 +2077,8 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     """
 
     def __init__(self, legs: Sequence[ElementarySpace], is_dual: bool = False, combine_cstyle: bool = True):
-        LegPipe.__init__(self, legs=legs, is_dual=is_dual)
+        LegPipe.__init__(self, legs=legs, is_dual=is_dual, combine_cstyle=combine_cstyle)
         assert self.symmetry.is_abelian and self.symmetry.can_be_dropped
-        self.combine_cstyle = combine_cstyle
         sectors, mults = self._calc_sectors()  # also sets some attributes
         basis_perm = self._calc_basis_perm(mults)
         ElementarySpace.__init__(
@@ -2044,6 +2137,16 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         return self.with_is_dual(is_dual=is_dual)
 
     @property
+    def basis_perm(self):
+        # make sure we use the implementation from ElementarySpace, not LegPipe
+        return ElementarySpace.basis_perm.fget(self)
+
+    @property
+    def inverse_basis_perm(self):
+        # make sure we use the implementation from ElementarySpace, not LegPipe
+        return ElementarySpace.inverse_basis_perm.fget(self)
+
+    @property
     def dual(self) -> AbelianLegPipe:
         return AbelianLegPipe(
             [l.dual for l in reversed(self.legs)], is_dual=not self.is_dual, combine_cstyle=not self.combine_cstyle
@@ -2052,6 +2155,12 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     @property
     def is_trivial(self) -> bool:
         return ElementarySpace.is_trivial.fget(self)
+
+    @property
+    def flat_spaces(self) -> list[ElementarySpace]:
+        # Unlike the plain LegPipe, we do not need to flatten AbelianLegPipes, if we just
+        # want to flatten until we get spaces
+        return [self]
 
     @classmethod
     def from_basis(cls, *a, **kw):
@@ -2359,23 +2468,6 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             perm[start:stop] = np.sum(basis_grid * dim_strides, axis=1)
 
         return perm
-
-
-def _flatten_leg_pipes(legs: list[Leg]) -> list[ElementarySpace]:
-    res = legs[:]
-    for _ in range(1000):  # loop should end via break, this is just a failsafe vs infinite loop
-        seen_pipes = False  # if we do a sweep without seeing any pipes, we know we can stop.
-        for i in reversed(range(len(res))):
-            # go in reverse so we dont change indices of earlier factors when flattening
-            f = res[i]
-            if isinstance(f, LegPipe):
-                res[i : i + 1] = f.legs
-                seen_pipes = True
-        if not seen_pipes:
-            break
-    else:  # else triggers if no break occurred
-        raise RuntimeError('Either LegPipes are nested too deep or there is a bug.')
-    return res
 
 
 def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicities: np.ndarray):

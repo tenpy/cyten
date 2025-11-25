@@ -632,6 +632,21 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return self.domain.num_factors
 
     @property
+    def num_codomain_flat_legs(self) -> int:
+        """Number of flat legs in the codomain."""
+        return self.codomain.num_flat_legs
+
+    @property
+    def num_domain_flat_legs(self) -> int:
+        """Number of flat legs in the domain."""
+        return self.domain.num_flat_legs
+
+    @property
+    def num_flat_legs(self) -> int:
+        """Total number of flat legs of self."""
+        return self.num_domain_flat_legs + self.num_codomain_flat_legs
+
+    @property
     def num_parameters(self) -> int:
         """The number of free parameters for the given legs.
 
@@ -1382,6 +1397,8 @@ class SymmetricTensor(Tensor):
                 codomain=codomain, domain=domain, backend=backend, labels=labels, dtype=dtype, device=device
             )
         codomain, domain, backend, symmetry = cls._init_parse_args(codomain=codomain, domain=domain, backend=backend)
+        if codomain.has_pipes or domain.has_pipes:
+            raise NotImplementedError('from_tree_pairs does not support pipes (yet?)')
         dtype = cls._parse_default_dtype(dtype, symmetry=symmetry)
         if device is None:
             some_block = backend.block_backend.as_block(next(iter(trees.values())))
@@ -1499,17 +1516,6 @@ class SymmetricTensor(Tensor):
         if leg_order is not None:
             block = self.backend.block_backend.permute_axes(block, self.get_leg_idcs(leg_order))
         return block
-
-    def _to_dense_block_by_splitting_pipes(self) -> Block:
-        """Helper for :meth:`to_dense_block` if the backend cant deal with pipes directly.
-
-        This method can replace ``backend.to_dense_block``.
-        It first splits the legs of the tensors, does ``backend.to_dense_block``,
-        then re-combines on the result
-        """
-        self_split, combines = _split_all_pipes(self)
-        block = self.backend.to_dense_block(self_split)
-        return self.backend.block_backend.combine_legs(block, combines)
 
     def to_dense_block_trivial_sector(self) -> Block:
         """Assumes self is a single-leg tensor and returns its components in the trivial sector.
@@ -3156,6 +3162,7 @@ class ChargedTensor(Tensor):
         to_dense_block_single_sector
 
         """
+        raise NotImplementedError
         if backend is None:
             backend = get_backend(symmetry=space.symmetry)
         if space.symmetry.sector_dim(sector) > 1:
@@ -3185,7 +3192,7 @@ class ChargedTensor(Tensor):
             if charged_state is None:
                 raise ValueError('Can not instantiate ChargedTensor with no legs and unspecified charged_states.')
             # OPTIMIZE ?
-            inv_block = invariant_part.to_dense_block()
+            inv_block = invariant_part.to_dense_block(understood_braiding=True)
             return invariant_part.backend.block_backend.inner(inv_block, charged_state, do_dagger=False)
         return cls(invariant_part, charged_state)
 
@@ -3898,7 +3905,7 @@ def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | Non
 def combine_legs(
     tensor: Tensor,
     *which_legs: list[int | str],
-    pipe_dualities: list[bool] = None,
+    pipe_dualities: bool | list[bool] = False,
     pipes: list[LegPipe | None] = None,
     levels: list[int] | dict[str | int, int] = None,
 ) -> Tensor:
@@ -4048,8 +4055,10 @@ def combine_legs(
     # ==============================================================================================
     if pipes is None:
         pipes = [None] * len(which_legs)
-    if pipe_dualities is None:
-        pipe_dualities = [False] * len(which_legs)
+    if is_iterable(pipe_dualities):
+        assert len(pipe_dualities) == len(which_legs)
+    else:
+        pipe_dualities = [pipe_dualities] * len(which_legs)
     codomain_spaces = []
     codomain_labels = []
     domain_labels_reversed = []
@@ -4237,7 +4246,7 @@ def dagger(tensor: Tensor) -> Tensor:
     if isinstance(tensor, ChargedTensor):
         inv_part = dagger(tensor.invariant_part)  # charge_leg ends up as codomain[0] and is dual.
         inv_part.set_label(0, ChargedTensor._CHARGE_LEG_LABEL)
-        inv_part = move_leg(inv_part, 0, domain_pos=0)
+        inv_part = move_leg(inv_part, 0, domain_pos=0, bend_right=True)
         charged_state = tensor.charged_state
         if charged_state is not None:
             charged_state = tensor.backend.block_backend.conj(charged_state)
@@ -4736,7 +4745,7 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
 
     Assumes that the two tensors have the same (co-)domains.
     The inner product is defined as :math:`\mathrm{Tr}[ A^\dagger \circ B]`.
-    It is thus equivalent to, but more efficient than ``trace(dot(A, B))``.
+    It is thus equivalent to, but more efficient than ``trace(dot(A.hc, B))``.
 
     Parameters
     ----------
@@ -4793,13 +4802,17 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
                 [0],
             )
         else:
-            inv_part = tdot(
-                A.invariant_part, B.invariant_part, [*range(A.num_legs)], [*reversed(range(A.num_legs))]
-            )  # ['?1', '?2']
-            inv_block = inv_part.to_dense_block(understood_braiding=True)
-            res = backend.block_backend.tdot(
-                A.charged_state, backend.block_backend.tdot(inv_block, B.charged_state, [1], [0]), [0], [0]
+            A_inv = permute_legs(
+                A.invariant_part, [-1], [*reversed(range(A.num_legs))], bend_right=[True] * A.num_legs + [False]
             )
+            B_inv = permute_legs(B.invariant_part, [*range(A.num_legs)], [-1], bend_right=True)
+            inv_part = _compose_SymmetricTensors(A_inv, B_inv, relabel1={'!': '!A'}, relabel2={'!': '!B'})
+            assert inv_part.labels == ['!A', '!B']
+            inv_block = inv_part.to_dense_block(understood_braiding=True)
+            # [!A, !B] @ [!B*] -> [!A]
+            res = backend.block_backend.tdot(inv_block, B.charged_state, [1], [0])
+            # [!A] @ [!A*] -> []
+            res = backend.block_backend.tdot(A.charged_state, res, [0], [0])
         return backend.block_backend.item(res)
 
     if isinstance(A, ChargedTensor):  # and B is a SymmetricTensor
@@ -5349,7 +5362,7 @@ def permute_legs(
     else:
         raise ValueError
     # check if those that need to be specified are
-    if tensor.symmetry.has_symmetric_braid:
+    if tensor.symmetry.has_trivial_braid:
         # it doesnt matter which way. choose all right
         bend_right = [True] * tensor.num_legs
     else:
@@ -5371,7 +5384,13 @@ def permute_legs(
         tensor = tensor.as_SymmetricTensor(warning=msg)
     if isinstance(tensor, ChargedTensor):
         # assign level `None` to the charge leg. it does not braid, so we dont need to define it.
-        inv_part = permute_legs(tensor.invariant_part, codomain=codomain, domain=[-1, *domain], levels=[*levels, None])
+        inv_part = permute_legs(
+            tensor.invariant_part,
+            codomain=codomain,
+            domain=[-1, *domain],
+            levels=[*levels, None],
+            bend_right=[*bend_right, None],
+        )
         return ChargedTensor(inv_part, charged_state=tensor.charged_state)
 
     # Build new codomain and domain
@@ -6228,8 +6247,8 @@ def tdot(
     try:
         tensor1 = permute_legs(tensor1, domain=legs1, bend_right=None)
         tensor2 = permute_legs(tensor2, codomain=legs2, bend_right=None)
-    except SymmetryError:
-        raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from None
+    except SymmetryError as e:
+        raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from e
     return _compose_SymmetricTensors(tensor1, tensor2, relabel1=relabel1, relabel2=relabel2)
 
 
@@ -6675,38 +6694,6 @@ def _parse_idcs(idcs: T | Sequence[T], length: int, fill: T = slice(None, None, 
         if num_fill < 0:
             raise IndexError(f'Too many indices. Expected {length}. Got {len(idcs)}.')
         return idcs + [fill] * num_fill
-
-
-def _split_all_pipes(a: SymmetricTensor | ChargedTensor) -> tuple[SymmetricTensor, list[list[int]]]:
-    """Split all pipes on a tensor, including nested pipes.
-
-    Returns
-    -------
-    split : SymmetricTensor | ChargedTensor
-        The result of repeatedly applying :func:`split_legs` to `a`.
-    combine_list : list of list of int
-        Which legs of `split` would need to be combined to reconstruct `a` from `split`, except for
-        nesting of pipes.
-
-    """
-    split = a.copy(deep=False).set_labels(None)
-    while split.has_pipes:
-        split = split_legs(split)
-
-    combine_list = []
-    for i in range(a.num_codomain_legs):
-        grp = a.codomain.flat_leg_idcs(i)
-        if len(grp) == 1:
-            continue  # no need to combine anything
-        combine_list.append(grp)
-    for i in range(a.num_domain_legs):
-        grp = a.domain.flat_leg_idcs(i)
-        if len(grp) == 1:
-            continue  # no need to combine anything
-        grp = [split.num_legs - 1 - n for n in grp]
-        combine_list.append(grp)
-
-    return split, combine_list
 
 
 def _split_leg_label(label: str | None, num: int = None) -> list[str | None]:

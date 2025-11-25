@@ -16,10 +16,12 @@ jobs:
     if: github.event.pull_request.draft == false
 
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     env:
       # make pytest output in color
       PY_COLORS: 1
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
@@ -48,4 +50,4 @@ jobs:
       # Note: This runs in the repo root directory, which contains the cyten source folder.
       #       To use the version we just installed, it is important to run `pytest`
       #       instead of `python -m pytest`.
-      run: pytest --block-backends "numpy"
+      run: pytest --block-backends "numpy" -vv

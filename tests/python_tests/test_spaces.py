@@ -4,7 +4,9 @@ import pytest
 from numpy import testing as npt
 
 from cyten import SymmetryError, spaces, symmetries, trees
+from cyten.block_backends import NumpyBlockBackend
 from cyten.testing import random_ElementarySpace
+from cyten.tools import is_permutation
 
 # TODO test all cases of Space.as_ElementarySpace
 
@@ -241,6 +243,58 @@ def test_take_slice(make_any_space, any_symmetry, np_random):
     internal_mask = mask[space.basis_perm]
     x = np.arange(space.dim)
     npt.assert_array_equal(x[mask][small.basis_perm], x[space.basis_perm][internal_mask])
+
+
+def check_basis_perm(perm, inv_perm=None):
+    """Check that `perm` is a valid permutation, and optionally that `inv_perm` is its inverse."""
+    perm = np.asarray(perm)
+    assert perm.ndim == 1
+    assert is_permutation(perm)
+
+    if inv_perm is not None:
+        check_basis_perm(perm=inv_perm, inv_perm=None)
+        npt.assert_array_equal(perm[inv_perm], np.arange(len(perm)))
+        npt.assert_array_equal(inv_perm[perm], np.arange(len(perm)))
+
+
+def test_LegPipe_basis_perm(np_random):
+    block_backend = NumpyBlockBackend()
+    a = spaces.ElementarySpace.from_trivial_sector(dim=5, is_dual=True, basis_perm=np_random.permutation(5))
+    b = spaces.ElementarySpace.from_trivial_sector(dim=6, is_dual=False, basis_perm=np_random.permutation(6))
+    c = spaces.ElementarySpace.from_trivial_sector(dim=7, is_dual=True, basis_perm=np_random.permutation(7))
+    d = spaces.ElementarySpace.from_trivial_sector(dim=8, is_dual=False, basis_perm=np_random.permutation(8))
+
+    data = np.arange(a.dim * b.dim * c.dim * d.dim).reshape([a.dim, b.dim, c.dim, d.dim])
+
+    pipe_ab = spaces.LegPipe([a, b])
+    check_basis_perm(pipe_ab.basis_perm, pipe_ab.inverse_basis_perm)
+    data1 = block_backend.apply_leg_permutations(
+        data, [a.basis_perm, b.basis_perm, c.basis_perm, d.basis_perm]
+    ).reshape((a.dim * b.dim, c.dim, d.dim))
+    data2 = block_backend.apply_leg_permutations(
+        data.reshape((a.dim * b.dim, c.dim, d.dim)), [pipe_ab.basis_perm, c.basis_perm, d.basis_perm]
+    )
+    npt.assert_array_equal(data1, data2)
+
+    pipe_abc = spaces.LegPipe([a, b, c])
+    check_basis_perm(pipe_abc.basis_perm, pipe_abc.inverse_basis_perm)
+    data1 = block_backend.apply_leg_permutations(
+        data, [a.basis_perm, b.basis_perm, c.basis_perm, d.basis_perm]
+    ).reshape((a.dim * b.dim * c.dim, d.dim))
+    data2 = block_backend.apply_leg_permutations(
+        data.reshape((a.dim * b.dim * c.dim, d.dim)), [pipe_abc.basis_perm, d.basis_perm]
+    )
+    npt.assert_array_equal(data1, data2)
+
+    pipe_nested = spaces.LegPipe([pipe_ab, c])
+    check_basis_perm(pipe_nested.basis_perm, pipe_nested.inverse_basis_perm)
+    data1 = block_backend.apply_leg_permutations(
+        data, [a.basis_perm, b.basis_perm, c.basis_perm, d.basis_perm]
+    ).reshape((a.dim * b.dim * c.dim, d.dim))
+    data2 = block_backend.apply_leg_permutations(
+        data.reshape((a.dim * b.dim * c.dim, d.dim)), [pipe_nested.basis_perm, d.basis_perm]
+    )
+    npt.assert_array_equal(data1, data2)
 
 
 @pytest.mark.parametrize('num_spaces', [3, 4, 5])
