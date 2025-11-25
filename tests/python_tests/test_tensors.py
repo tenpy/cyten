@@ -1517,13 +1517,7 @@ def test_combine_split(use_pipes, make_compatible_tensor):
 
         expect2 = np.reshape(T_np, (a, b, c * d))
         combined2_np = combined2.to_numpy(understood_braiding=True)
-        if isinstance(T.backend, backends.FusionTreeBackend):
-            # TODO!! seems like something is wrong if the pipe is in the domain.
-            #        maybe this is c-style / f-style ? or some other effect of the reversed leg-order?
-            #        maybe FusionTreeBackend.to_dense_block messes up these orders somewhere?
-            pass
-        else:
-            assert np.allclose(combined2_np, expect2)
+        assert np.allclose(combined2_np, expect2)
 
         expect3 = np.reshape(np.transpose(T_np, [1, 0, 2, 3]), (a * b, c, d))
         combined3_np = combined3.to_numpy(understood_braiding=True)
