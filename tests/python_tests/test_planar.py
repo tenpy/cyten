@@ -221,6 +221,90 @@ def test_PlanarDiagram(symmetry, np_random):
 
 
 @pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
+def test_PlanarDiagram_add_remove_tensor(symmetry, np_random):
+    # ===========================================
+    # define a diagram
+    # ===========================================
+    partial_diagram = ct.PlanarDiagram(
+        tensors='T1[vL, vR], T2[vL, vR], T3[vL, w, vR]',
+        definition=[
+            ('T1', 'vL', 'T2', 'vR'),
+            ('T1', 'vR', None, 'vR'),
+            ('T2', 'vL', 'T3', 'vL'),
+            ('T3', 'vR', None, 'vL'),
+            ('T3', 'w', None, 'w1'),
+        ],
+        dims=dict(chi=['vR', 'vL'], w=['w']),
+    )
+    full_diagram = ct.PlanarDiagram(
+        tensors='T1[vL, vR], T2[vL, vR], T3[vL, w, vR], T4[vL, w, vR]',
+        definition='T1:vL @ T2:vR, T1:vR @ T4:vR, T2:vL @ T3:vL, T3:vR @ T4:vL, T3:w -> w1, T4:w -> w2',
+        dims=dict(chi=['vR', 'vL'], w=['w']),
+    )
+    r"""Random planar diagram; T4 is used to test adding and removal
+
+        |   .--T1--.
+        |   |      |
+        |  T2      T4-
+        |   |      |
+        |   .--T3--.
+        |      |
+    """
+
+    # ===========================================
+    # create example tensors
+    # ===========================================
+    T1 = ct.testing.random_tensor(symmetry, codomain=2, labels=['vL', 'vR'], np_random=np_random)
+    T1vL = T1.get_leg('vL')
+    T1vR = T1.get_leg('vR')
+    T2 = ct.testing.random_tensor(symmetry, codomain=[None, T1vL.dual], labels=['vL', 'vR'], np_random=np_random)
+    T2vL = T2.get_leg('vL')
+    T3 = ct.testing.random_tensor(
+        symmetry, codomain=[T2vL.dual, None, None], labels=['vL', 'w', 'vR'], np_random=np_random
+    )
+    T3vR = T3.get_leg('vR')
+    T4 = ct.testing.random_tensor(
+        symmetry, codomain=[T1vR.dual, T3vR.dual, None], labels=['vR', 'vL', 'w'], np_random=np_random
+    )
+
+    # ===========================================
+    # evaluate the diagrams
+    # ===========================================
+    partial_res = partial_diagram(T1=T1, T2=T2, T3=T3)
+    partial_res.test_sanity()
+    assert partial_res.labels == ['w1', 'vL', 'vR']
+    assert partial_res.num_codomain_legs == 2
+
+    full_res = full_diagram(T1=T1, T2=T2, T3=T3, T4=T4)
+    full_res.test_sanity()
+    assert full_res.labels == ['w2', 'w1']
+    assert full_res.num_codomain_legs == 1
+
+    # ===========================================
+    # transform between the diagrams
+    # ===========================================
+    full_diagram2 = partial_diagram.add_tensor(
+        tensor={'T4': ct.planar.TensorPlaceholder(['vR', 'vL', 'w'], ['chi', 'chi', 'w'])},
+        extra_definition=[('T4', 'vL', 'T3', 'vR'), ('T1', 'vR', 'T4', 'vR'), ('T4', 'w', None, 'w2')],
+    )
+    full_res2 = full_diagram2(T1=T1, T2=T2, T3=T3, T4=T4)
+    full_res2.test_sanity()
+    full_res2 = ct.planar.planar_permute_legs(full_res2, codomain=['w2'])
+    assert full_res2.labels == ['w2', 'w1']
+    assert full_res2.num_codomain_legs == 1
+    assert ct.almost_equal(full_res, full_res2)
+
+    partial_diagram2 = full_diagram.remove_tensor(
+        'T4', extra_definition=[('T3', 'vR', None, 'vL'), ('T1', 'vR', None, 'vR')]
+    )
+    partial_res2 = partial_diagram2(T1=T1, T2=T2, T3=T3)
+    partial_res2.test_sanity()
+    assert partial_res2.labels == ['w1', 'vL', 'vR']
+    assert partial_res2.num_codomain_legs == 2
+    assert ct.almost_equal(partial_res, partial_res2)
+
+
+@pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
 def test_PlanarDiagram_with_traces(symmetry, np_random):
     # ===========================================
     # define a diagram

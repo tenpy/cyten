@@ -378,7 +378,8 @@ class PlanarDiagram:
         definition = []
         new_open_legs = []
         for t1, l1, t2, l2 in self.definition:
-            if t1 == name and t2 == name:
+            if (t1 == name and t2 == name) or (t1 == name and t2 is None):
+                # partial trace or open leg of removed tensor
                 pass
             elif t1 == name:
                 new_open_legs.append((t2, l2))
@@ -1116,8 +1117,13 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None, domain: 
     elif (codomain is None and len(domain) == 0) or (domain is None and len(codomain) == 0):
         raise ValueError('Specified codomain or domain is empty')
 
-    if domain is not None and len(domain) > 0:
+    # do this for both before potentially comparing (avoid comparing to labels)
+    if domain is not None:
         domain = T.get_leg_idcs(domain)
+    if codomain is not None:
+        codomain = T.get_leg_idcs(codomain)
+
+    if domain is not None and len(domain) > 0:
         expect = [(domain[-1] + i) % T.num_legs for i in range(len(domain))][::-1]
         if domain != expect:
             raise ValueError('The given domain is a non-planar permutation')
@@ -1129,7 +1135,6 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None, domain: 
             if codomain != codomain2:
                 raise ValueError('The given codomain and domain are inconsistent!')
     if codomain is not None and len(codomain) > 0:
-        codomain = T.get_leg_idcs(codomain)
         expect = [(codomain[0] + i) % T.num_legs for i in range(len(codomain))]
         if codomain != expect:
             raise ValueError('The given codomain is a non-planar permutation')
