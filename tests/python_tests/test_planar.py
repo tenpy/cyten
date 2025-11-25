@@ -221,6 +221,103 @@ def test_PlanarDiagram(symmetry, np_random):
 
 
 @pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
+def test_PlanarDiagram_with_traces(symmetry, np_random):
+    # ===========================================
+    # define a diagram
+    # ===========================================
+    diagram = ct.PlanarDiagram(
+        tensors='T1[vL, vR], T2[w, vL, vR, w*], T3[vR, w1, w1*, w2, w2*, vL], T4[vL, w1, w2, w2*, w1*, vR]',
+        definition='T1:vL @ T2:vR, T1:vR @ T3:vL, '
+        'T2:w @ T2:w*, T2:vL @ T4:vL,'
+        'T3:w1 @ T3:w1*, T3:w2 @ T3:w2*, T3:vR @ T4:vR, '
+        'T4:w1 @ T4:w1*, T4:w2* @ T4:w2',
+        dims=dict(chi=['vR', 'vL'], w=['w', 'w1', 'w2', 'w*', 'w1*', 'w2*']),
+    )
+    r"""Random planar diagram with multiple partial traces
+
+        |    .---T1---.
+        | .  |        |  .
+        | |\ |        | /|
+        | | T2        T3-.
+        | |/ |        ||\
+        | .  |        |.-.
+        |    .---T4---.
+        |       //\\
+        |      /.--.\
+        |     .------.
+    """
+
+    # ===========================================
+    # create example tensors
+    # ===========================================
+    T1 = ct.testing.random_tensor(symmetry, codomain=2, labels=['vL', 'vR'], np_random=np_random)
+    T1vL = T1.get_leg('vL')
+    T1vR = T1.get_leg('vR')
+    traced_legs = [ct.testing.random_ElementarySpace(symmetry, np_random=np_random) for _ in range(5)]
+    T2 = ct.testing.random_tensor(
+        symmetry,
+        codomain=[traced_legs[0], None, T1vL.dual, traced_legs[0].dual],
+        labels=['w', 'vL', 'vR', 'w*'],
+        np_random=np_random,
+    )
+    T3 = ct.testing.random_tensor(
+        symmetry,
+        codomain=[None, traced_legs[1].dual, traced_legs[1], traced_legs[2]],
+        domain=[T1vR, traced_legs[2]],
+        labels=['vR', 'w1', 'w1*', 'w2', 'w2*', 'vL'],
+        np_random=np_random,
+    )
+    T4vL = T2.get_leg('vL').dual
+    T4vR = T3.get_leg('vR')
+    T4 = ct.testing.random_tensor(
+        symmetry,
+        codomain=[T4vL, traced_legs[3], traced_legs[4], traced_legs[4].dual],
+        domain=[T4vR, traced_legs[3]],
+        labels=['vL', 'w1', 'w2', 'w2*', 'w1*', 'vR'],
+        np_random=np_random,
+    )
+
+    # ===========================================
+    # evaluate the diagram
+    # ===========================================
+    res = diagram(T1=T1, T2=T2, T3=T3, T4=T4)
+    assert isinstance(res, (float, complex))
+
+    # ===========================================
+    # compare to manual contraction, using planar routines
+    # ===========================================
+    T2_traced = ct.planar.planar_partial_trace(T2, ['w', 'w*'])
+    T3_traced = ct.planar.planar_partial_trace(T3, ['w1', 'w1*'], ['w2', 'w2*'])
+    T4_traced = ct.planar.planar_partial_trace(T4, ['w1', 'w1*'], ['w2', 'w2*'])
+
+    expect1 = ct.planar.planar_contraction(T1, T2_traced, ['vL'], ['vR'])
+    expect1 = ct.planar.planar_contraction(expect1, T3_traced, ['vR'], ['vL'])
+    expect1 = ct.planar.planar_contraction(expect1, T4_traced, ['vL', 'vR'], ['vL', 'vR'])
+    assert isinstance(expect1, (float, complex))
+    assert np.allclose(expect1, res)
+
+    # ===========================================
+    # compare to manual contraction, using general (not planar) routines
+    # ===========================================
+    T2_traced_ = ct.planar.partial_trace(T2, ['w', 'w*'], levels=[3, 1, 2, 3])
+    T3_traced_ = ct.planar.partial_trace(T3, ['w1', 'w1*'], ['w2', 'w2*'])
+    T4_traced_ = ct.planar.partial_trace(T4, ['w1', 'w1*'], ['w2', 'w2*'], levels=[None, 1, 2, 2, 1, None])
+    assert ct.almost_equal(T2_traced, T2_traced_)
+    assert ct.almost_equal(T3_traced, T3_traced_)
+    assert ct.almost_equal(T4_traced, T4_traced_)
+
+    expect2 = ct.permute_legs(T1, codomain=['vL'], domain=['vR'], bend_right=True)
+    expect2 = ct.compose(ct.permute_legs(T2_traced_, codomain=['vL'], domain=['vR'], bend_right=True), expect2)
+    expect2 = ct.compose(expect2, ct.permute_legs(T3_traced_, codomain=['vL'], domain=['vR'], bend_right=[True, False]))
+    expect2 = ct.compose(
+        ct.permute_legs(expect2, domain=['vL', 'vR'], bend_right=False),
+        ct.permute_legs(T4_traced_, codomain=['vL', 'vR'], bend_right=True),
+    )
+    assert isinstance(expect2, (float, complex))
+    assert np.allclose(expect2, res)
+
+
+@pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
 def test_PlanarLinearOperator(symmetry):
     # ===========================================
     # define an operator
