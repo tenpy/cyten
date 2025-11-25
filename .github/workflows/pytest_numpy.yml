@@ -50,4 +50,4 @@ jobs:
       # Note: This runs in the repo root directory, which contains the cyten source folder.
       #       To use the version we just installed, it is important to run `pytest`
       #       instead of `python -m pytest`.
-      run: pytest --block-backends "numpy"
+      run: pytest --block-backends "numpy" -vv
