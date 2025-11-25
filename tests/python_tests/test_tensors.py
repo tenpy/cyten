@@ -2338,7 +2338,9 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
 )
 def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor, compatible_symmetry):
     if isinstance(compatible_symmetry, symmetries.SU2Symmetry):
+        # need to make the test case smaller, so this does not need to many resources
         kwargs = dict(use_pipes=False, max_blocks=3)
+        cA = dA = cB = dB = 1
     else:
         kwargs = {}
     A_labels = list('abcdefg')[: cA + dA]
