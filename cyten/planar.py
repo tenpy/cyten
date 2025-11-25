@@ -295,8 +295,10 @@ class PlanarDiagram:
         return res
 
     def parse_order(self, order: str | NestedContainer_str | ContractionTree):
+        # need to remove the partial traces
+        # TODO need to do something for the other cases?
         if order == 'definition':
-            order = [(t1, t2) for t1, l1, t2, l2 in self.definition if t2 is not None]
+            order = [(t1, t2) for t1, l1, t2, l2 in self.definition if t2 is not None and t1 != t2]
             return ContractionTree.from_contraction_order(order)
         if order in ['greedy', 'optimal']:
             return self.optimize_order(strategy=order)
@@ -306,7 +308,9 @@ class PlanarDiagram:
                 parts = i.split(CONTRACT_SYMBOL)
                 if len(parts) != 2:
                     raise ValueError(f'Invalid syntax for order: {i}')
-                contraction_order.append((_as_valid_name(parts[0]), _as_valid_name(parts[1])))
+                t1l1, t2l2 = _as_valid_name(parts[0]), _as_valid_name(parts[1])
+                if t1l1.split(':')[0] != t2l2.split(':')[0]:
+                    contraction_order.append((t1l1, t2l2))
             return ContractionTree.from_contraction_order(contraction_order)
         return ContractionTree.from_nested_containers(order)
 
@@ -538,6 +542,10 @@ class PlanarDiagram:
         """Helper for :meth:`evaluate`. Extract result from single-entry dict and relabel."""
         assert len(tensors) == 1
         tens = next(iter(tensors.values()))
+        if len(open_legs) == 0:
+            # result is a number
+            # TODO this may change, see Issue 13 on Github
+            return tens
         assert tens.labels_are(*(old for old, _ in open_legs))
         return tens.relabel({old: new for old, new in open_legs})
 
@@ -979,12 +987,13 @@ def planar_contraction(
         flip_order = False
 
     if flip_order:
-        tensor1 = planar_permute_legs(tensor1, codomain=contr1, domain=open1)
+        # planar_permute_legs takes the ordered legs; order of contr2 is reversed
+        tensor1 = planar_permute_legs(tensor1, codomain=contr1, domain=open1[::-1])
         tensor2 = planar_permute_legs(tensor2, codomain=open2, domain=contr2)
         return compose(tensor2, tensor1, relabel2, relabel1)
     else:
-        tensor1 = planar_permute_legs(tensor1, codomain=open1, domain=contr1)
-        tensor2 = planar_permute_legs(tensor2, codomain=contr2, domain=open2)
+        tensor1 = planar_permute_legs(tensor1, codomain=open1, domain=contr1[::-1])
+        tensor2 = planar_permute_legs(tensor2, codomain=contr2[::-1], domain=open2[::-1])
         return compose(tensor1, tensor2, relabel1, relabel2)
 
 
