@@ -1,4 +1,4 @@
-name: Run Pytest
+name: Run Pytest (numpy)
 # Run the test suite using pytest
 
 on:
@@ -41,11 +41,11 @@ jobs:
       # also installs extra dependencies defined in pyproject.toml
       run: |
         python -m build .
-        python -m pip install -e ".[test, gpu]"
+        python -m pip install -e ".[test]"
 
     - name: Run pytest
       # configuration in pyproject.toml
       # Note: This runs in the repo root directory, which contains the cyten source folder.
       #       To use the version we just installed, it is important to run `pytest`
       #       instead of `python -m pytest`.
-      run: pytest --block-backends "numpy,torch"
+      run: pytest --block-backends "numpy"
