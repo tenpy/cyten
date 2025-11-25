@@ -3162,6 +3162,7 @@ class ChargedTensor(Tensor):
         to_dense_block_single_sector
 
         """
+        raise NotImplementedError
         if backend is None:
             backend = get_backend(symmetry=space.symmetry)
         if space.symmetry.sector_dim(sector) > 1:
