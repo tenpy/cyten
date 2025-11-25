@@ -1117,6 +1117,9 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None, domain: 
 
     if domain is not None and len(domain) > 0:
         domain = T.get_leg_idcs(domain)
+        expect = [(domain[-1] + i) % T.num_legs for i in range(len(domain))][::-1]
+        if domain != expect:
+            raise ValueError('The given domain is a non-planar permutation')
         num_codom_legs = T.num_legs - len(domain)
         codomain2 = [i % T.num_legs for i in range(domain[0] + 1, domain[0] + 1 + num_codom_legs)]
         if codomain is None:
@@ -1126,6 +1129,9 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None, domain: 
                 raise ValueError('The given codomain and domain are inconsistent!')
     if codomain is not None and len(codomain) > 0:
         codomain = T.get_leg_idcs(codomain)
+        expect = [(codomain[0] + i) % T.num_legs for i in range(len(codomain))]
+        if codomain != expect:
+            raise ValueError('The given codomain is a non-planar permutation')
         num_dom_legs = T.num_legs - len(codomain)
         reverse_domain = [i % T.num_legs for i in range(codomain[-1] + 1, codomain[-1] + 1 + num_dom_legs)]
         domain2 = reverse_domain[::-1]
