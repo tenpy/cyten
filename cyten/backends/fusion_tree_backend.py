@@ -1609,7 +1609,7 @@ class FusionTreeBackend(TensorBackend):
 
         # OPTIMIZE decide if we want to optimize: There is in principle no need to
         # braid when tracing out two pairs of the form [1, 4] and [2, 3]
-        pairs = sorted([pair if pair[0] < pair[1] else (pair[1], pair[0]) for pair in pairs])
+        pairs = sorted([tuple(pair) if pair[0] < pair[1] else (pair[1], pair[0]) for pair in pairs])
         idcs1 = []
         idcs2 = []
         for i1, i2 in pairs:
