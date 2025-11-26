@@ -211,6 +211,10 @@ def test_planar_permute_legs(J, K, codomain, domain, symmetry, backend, np_rando
     res = ct.planar.planar_permute_legs(T, codomain=codomain, domain=domain)
     res.test_sanity()
 
+    # test planar_almost_equal; test both ways
+    assert ct.planar.planar_almost_equal(res, T)
+    assert ct.planar.planar_almost_equal(T, res)
+
     if codomain is None or len(codomain) == 0:
         domain = T.get_leg_idcs(domain)
         num_codom_legs = T.num_legs - len(domain)
