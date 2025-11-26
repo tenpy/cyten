@@ -17,6 +17,7 @@ from ._tensors import (
     OPEN_LEG_SYMBOL,
     LabelledLegs,
     Tensor,
+    almost_equal,
     compose,
     is_valid_leg_label,
     partial_trace,
@@ -900,6 +901,39 @@ class PlanarLinearOperator(LinearOperator):
 
     def to_tensor(self, **kw):
         return self.op_diagram.evaluate(tensors=self.op_tensors)
+
+
+def planar_almost_equal(tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol=1e-8) -> bool:
+    """Checks if two tensors are equal up to numerical tolerance and planar permutation.
+
+    We first permute the legs of `tensor_1` to the configuration of `tensor_2` and then
+    compare the blocks, i.e. the free parameters of the tensors.
+    The tensors count as almost equal if all block-entries, i.e. all their free parameters
+    individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
+    Note that this is a basis-dependent and backend-dependent notion of distance, which does
+    not come from a norm in the strict mathematical sense.
+
+    Parameters
+    ----------
+    tensor_1, tensor_2
+        The tensors to compare
+    atol, rtol
+        Absolute and relative tolerance, see above.
+
+    Notes
+    -----
+    Unlike `almost_equal`, this function does not have the argument `allow_different_types`
+    since permuting legs may change the tensor type.
+
+    """
+    if None in tensor_1.labels or None in tensor_2.labels:
+        raise ValueError('Can only compare tensors for which each leg has a label')
+    if set(tensor_1.labels) != set(tensor_2.labels):
+        raise ValueError('Both tensors need to have the same leg labels')
+    codomain = tensor_2.labels[: tensor_2.num_codomain_legs]
+    domain = tensor_2.labels[tensor_2.num_codomain_legs :][::-1]
+    tensor_1 = planar_permute_legs(tensor_1, codomain=codomain, domain=domain)
+    return almost_equal(tensor_1, tensor_2, rtol, atol, allow_different_types=True)
 
 
 @overload
