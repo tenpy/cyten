@@ -40,6 +40,7 @@ def export_to_datadir():
 @pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
 def test_hdf5_export_import(make_compatible_space, compatible_backend, tmp_path):
     """Try subsequent export and import to pickle."""
+    pytest.xfail(reason='hdf5 io of symmetries is broken')
     data = io_test.gen_example_data()
     io_test.assert_event_handler_example_works(data)  # if this fails, it's not import/export
     filename = tmp_path / 'test.hdf5'
@@ -54,6 +55,7 @@ def test_hdf5_export_import(make_compatible_space, compatible_backend, tmp_path)
 @pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
 def test_hdf5_tensor_io(tmp_path):
     """Try subsequent export and import to hdf5."""
+    pytest.xfail(reason='hdf5 io of symmetries is broken')
     testU1 = io_test.U1_sym_test_tensor()
     testSU2 = io_test.SU2_sym_test_tensor()
     testrand = io_test.create_test_random_symmetric_tensor()

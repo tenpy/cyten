@@ -120,7 +120,7 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
 
     print('check from_basis')
     if any_symmetry.can_be_dropped:
-        if isinstance(any_symmetry, symmetries.SU2Symmetry):
+        if any(isinstance(f, symmetries.SU2) for f in any_symmetry.factors):
             with pytest.raises(ValueError, match='Sectors must appear in whole multiplets'):
                 bad_sectors = np.array([0, 1, 1, 1, 2, 2, 2])[:, None]
                 # have three basis vectors for 2-dimensional spin-1/2
@@ -210,7 +210,7 @@ def test_take_slice(make_any_space, any_symmetry, np_random):
             _ = space.take_slice([True])
         return
 
-    if isinstance(any_symmetry, symmetries.SU2Symmetry):
+    if any(isinstance(f, symmetries.SU2) for f in any_symmetry.factors):
         sectors = np.array([0, 1, 2, 4])[:, None]
         mults = np.array([3, 1, 2, 2])
         basis_perm = np.array([19, 20, 17, 2, 9, 16, 8, 3, 0, 4, 11, 13, 5, 15, 12, 14, 10, 7, 1, 18, 6])
@@ -314,7 +314,7 @@ def test_TensorProduct(any_symmetry, make_any_space, make_any_sectors, num_space
 
 
 def test_TensorProduct_SU2():
-    sym = symmetries.SU2Symmetry()
+    sym = symmetries.SU2().as_Symmetry()
     a = spaces.ElementarySpace(sym, [[0], [3], [2]], [2, 3, 4])
     b = spaces.ElementarySpace(sym, [[1], [4]], [5, 6])
     c = spaces.ElementarySpace(sym, [[0], [3], [1]], [3, 1, 2])
