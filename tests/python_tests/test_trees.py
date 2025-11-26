@@ -6,12 +6,19 @@ from collections.abc import Callable
 import numpy as np
 import pytest
 
-from cyten import trees
 from cyten.backends import get_backend
 from cyten.block_backends import Block
-from cyten.dtypes import Dtype
-from cyten.spaces import ElementarySpace, TensorProduct
-from cyten.symmetries import Sector, Symmetry, SymmetryError, u1_symmetry, z3_symmetry
+from cyten.block_backends.dtypes import Dtype
+from cyten.symmetries import (
+    ElementarySpace,
+    Sector,
+    Symmetry,
+    SymmetryError,
+    TensorProduct,
+    trees,
+    u1_symmetry,
+    z3_symmetry,
+)
 from cyten.testing import random_symmetry_sectors
 
 

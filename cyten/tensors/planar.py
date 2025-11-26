@@ -9,9 +9,9 @@ from typing import Literal, TypeVar, overload
 
 import numpy as np
 
-from .backends.fusion_tree_backend import FusionTreeBackend
-from .sparse import LinearOperator
-from .tensors import (
+from ..backends import FusionTreeBackend
+from ..tools import BigOPolynomial, duplicate_entries
+from ._tensors import (
     CONTRACT_SYMBOL,
     LEG_SELECT_SYMBOL,
     OPEN_LEG_SYMBOL,
@@ -22,7 +22,7 @@ from .tensors import (
     partial_trace,
     permute_legs,
 )
-from .tools import BigOPolynomial, duplicate_entries
+from .sparse import LinearOperator
 
 NestedContainer_str = TypeVar('NestedContainer_str')
 

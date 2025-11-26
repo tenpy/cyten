@@ -15,7 +15,8 @@ import types
 import numpy as np
 
 import cyten
-from cyten import spaces, symmetries, tensors
+from cyten import tensors
+from cyten.symmetries import _symmetries, spaces
 
 try:
     from packaging.version import parse as parse_version  # part of setuptools
@@ -90,7 +91,7 @@ def gen_example_data(version=cyten.version.full_version):
 
 
 def SU2_sym_test_tensor():
-    sym = symmetries.SU2Symmetry()
+    sym = _symmetries.SU2Symmetry()
     spin_half = spaces.ElementarySpace(sym, np.array([[1]]))
     backend = cyten.get_backend(sym, 'numpy')
 
@@ -114,7 +115,7 @@ def SU2_sym_test_tensor():
 
 
 def U1_sym_test_tensor():
-    sym = symmetries.U1Symmetry()
+    sym = _symmetries.U1Symmetry()
     spin_half = spaces.ElementarySpace(sym, np.array([[1]]))
     backend = cyten.get_backend(sym, 'numpy')
 
@@ -138,7 +139,7 @@ def U1_sym_test_tensor():
 
 
 def create_test_random_symmetric_tensor():
-    sym = symmetries.SU2Symmetry()
+    sym = _symmetries.SU2Symmetry()
     sec = np.random.choice(int(1.3 * 3), replace=False, size=(3, 1))
 
     x1 = spaces.ElementarySpace.from_defining_sectors(sym, sec)
@@ -153,7 +154,7 @@ def create_test_random_symmetric_tensor():
 
 
 def create_test_random_diagonal_tensor():
-    sym = symmetries.SU2Symmetry()
+    sym = _symmetries.SU2Symmetry()
     sec = np.random.choice(int(1.3 * 3), replace=False, size=(3, 1))
 
     x1 = spaces.ElementarySpace.from_defining_sectors(sym, sec)

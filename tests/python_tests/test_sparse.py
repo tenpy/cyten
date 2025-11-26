@@ -6,9 +6,8 @@ import numpy.testing as npt
 import pytest
 import scipy
 
-from cyten import backends, sparse, tensors
-from cyten.backends.backend_factory import get_backend
-from cyten.tensors import Dtype, SymmetricTensor, Tensor, almost_equal
+from cyten import Dtype, backends, get_backend, sparse, tensors
+from cyten.tensors import SymmetricTensor, Tensor, almost_equal
 
 pytest.skip('sparse not yet revised', allow_module_level=True)  # TODO
 

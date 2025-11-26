@@ -10,14 +10,14 @@ from typing import TYPE_CHECKING, TypeVar
 
 import numpy as np
 
-from ..dtypes import Dtype
 from ..tools.misc import to_iterable
+from .dtypes import Dtype
 
 # placeholder for a backend-specific type that represents the blocks of symmetric tensors
 Block = TypeVar('Block')
 
 if TYPE_CHECKING:
-    from ..spaces import Space
+    from ..symmetries.spaces import Space
 
 
 class BlockBackend(metaclass=ABCMeta):

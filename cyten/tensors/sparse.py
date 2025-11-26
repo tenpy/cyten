@@ -20,12 +20,12 @@ import numpy as np
 from scipy.sparse.linalg import ArpackNoConvergence
 from scipy.sparse.linalg import LinearOperator as ScipyLinearOperator
 
-from .backends import TensorBackend
-from .dtypes import Dtype
-from .spaces import Sector, Space, TensorProduct
-from .tensors import ChargedTensor, SymmetricTensor, Tensor, combine_legs
-from .tools.math import speigs, speigsh
-from .tools.misc import argsort
+from ..backends import TensorBackend
+from ..block_backends import Dtype
+from ..symmetries import Sector, Space, TensorProduct
+from ..tools.math import speigs, speigsh
+from ..tools.misc import argsort
+from ._tensors import ChargedTensor, SymmetricTensor, Tensor, combine_legs
 
 
 class LinearOperator(metaclass=ABCMeta):

@@ -7,7 +7,8 @@ from numpy import testing as npt
 from scipy.linalg import expm
 
 import cyten
-from cyten import krylov_based, random_matrix, sparse, tensors
+from cyten import krylov_based, sparse, tensors
+from cyten.tools import random_matrix
 
 pytest.skip('krylov_based not yet revised', allow_module_level=True)  # TODO
 
@@ -31,9 +32,7 @@ def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
 
     H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
 
-    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(
-        leg.symmetry, cyten.symmetries.ProductSymmetry
-    ):
+    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(leg.symmetry, cyten.ProductSymmetry):
         # TODO
         with pytest.raises(NotImplementedError, match='fusion_tensor is not implemented'):
             _ = H.to_numpy()
@@ -127,9 +126,7 @@ def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol)
     H = tensors.SymmetricTensor.from_numpy_func(random_matrix.GUE, legs=[leg, leg.dual], backend=backend)
     H_op = sparse.TensorLinearOperator(H, which_leg=1)
 
-    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(
-        leg.symmetry, cyten.symmetries.ProductSymmetry
-    ):
+    if isinstance(H.backend, cyten.backends.FusionTreeBackend) and isinstance(leg.symmetry, cyten.ProductSymmetry):
         # TODO
         with pytest.raises(NotImplementedError, match='fusion_tensor is not implemented'):
             _ = H.to_numpy()

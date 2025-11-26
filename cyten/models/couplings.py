@@ -11,8 +11,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..backends import get_same_backend
-from ..block_backends import Block
-from ..dtypes import Dtype
+from ..block_backends import Block, Dtype
 from ..symmetries import FibonacciAnyonCategory, Sector, SymmetryError
 from ..tensors import SymmetricTensor, add_trivial_leg, compose, horizontal_factorization, permute_legs, squeeze_legs
 from .degrees_of_freedom import ALL_SPECIES, BosonicDOF, ClockDOF, FermionicDOF, Site, SpinDOF

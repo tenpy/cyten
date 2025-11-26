@@ -11,12 +11,22 @@ import numpy as np
 import numpy.testing as npt
 import pytest
 
-from cyten import backends, symmetries, tensors
+from cyten import BraidChiralityUnspecifiedError, backends, tensors
 from cyten.backends import conventional_leg_order, get_backend
 from cyten.block_backends import NumpyBlockBackend
-from cyten.dtypes import Dtype
-from cyten.spaces import AbelianLegPipe, ElementarySpace, LegPipe, TensorProduct
-from cyten.symmetries import BraidingStyle, SU2Symmetry, SymmetryError, z4_symmetry
+from cyten.block_backends.dtypes import Dtype
+from cyten.symmetries import (
+    AbelianLegPipe,
+    BraidingStyle,
+    ElementarySpace,
+    LegPipe,
+    SU2Symmetry,
+    SymmetryError,
+    TensorProduct,
+    u1_symmetry,
+    z3_symmetry,
+    z4_symmetry,
+)
 from cyten.tensors import ChargedTensor, DiagonalTensor, Mask, SymmetricTensor, Tensor
 from cyten.testing import assert_tensors_almost_equal
 from cyten.tools.misc import duplicate_entries, inverse_permutation, iter_common_noncommon_sorted_arrays, to_valid_idx
@@ -1560,7 +1570,7 @@ def test_combine_split(use_pipes, make_compatible_tensor):
 def test_combine_split_pr_16():
     """Check if the bug addressed in PR :pull:`16` is fixed"""
     backend = get_backend('abelian', 'numpy')
-    symmetry = symmetries.u1_symmetry * symmetries.z3_symmetry
+    symmetry = u1_symmetry * z3_symmetry
 
     a = ElementarySpace(
         symmetry,
@@ -1672,7 +1682,7 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
 
     if cls is ChargedTensor and not T.symmetry.has_symmetric_braid:
         # TODO : should be ok to just choose levels, as long as charge leg is very top or very bot
-        with pytest.raises(symmetries.BraidChiralityUnspecifiedError):
+        with pytest.raises(BraidChiralityUnspecifiedError):
             _ = tensors.dagger(T)
         return
 
@@ -2028,7 +2038,7 @@ def test_horizontal_factorization(trunc, make_compatible_tensor):
 @pytest.mark.parametrize('trunc', [False, None, 1e-100, 1e-10])
 def test_fixes_scale_axis_bug(trunc):
     # there was a bug in scale_axis that this test isolated
-    s = symmetries.u1_symmetry * symmetries.z3_symmetry
+    s = u1_symmetry * z3_symmetry
     backend = backends.get_backend('fusion_tree')
     codomain = TensorProduct(
         [
@@ -2337,7 +2347,7 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
     ],
 )
 def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor, compatible_symmetry):
-    if isinstance(compatible_symmetry, symmetries.SU2Symmetry):
+    if isinstance(compatible_symmetry, SU2Symmetry):
         # need to make the test case smaller, so this does not need to many resources
         kwargs = dict(use_pipes=False, max_blocks=3)
         cA = dA = cB = dB = 1
@@ -2507,7 +2517,7 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
 def test_permute_legs(
     cls, num_cod, num_dom, codomain, domain, levels, bend_right, make_compatible_tensor, compatible_symmetry, np_random
 ):
-    if isinstance(compatible_symmetry, symmetries.SU2Symmetry) and (num_cod + num_dom) > 4:
+    if isinstance(compatible_symmetry, SU2Symmetry) and (num_cod + num_dom) > 4:
         # make sure we dont need symmetry data for too large sectors
         sectors = [[0], [1], [2]]
         legs = []

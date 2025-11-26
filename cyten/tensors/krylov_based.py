@@ -6,9 +6,9 @@ from abc import ABCMeta, abstractmethod
 
 import numpy as np
 
+from ..tools.misc import argsort  # TODO replace this?
+from ._tensors import Tensor, inner, norm, scalar_multiply
 from .sparse import LinearOperator, ProjectedLinearOperator, ShiftedLinearOperator
-from .tensors import Tensor, inner, norm, scalar_multiply
-from .tools.misc import argsort  # TODO replace this?
 
 logger = logging.getLogger(__name__)
 

@@ -11,14 +11,16 @@ import pytest
 
 from cyten import backends
 from cyten.backends import fusion_tree_backend, get_backend
-from cyten.dtypes import Dtype
-from cyten.spaces import ElementarySpace, TensorProduct
+from cyten.block_backends.dtypes import Dtype
 from cyten.symmetries import (
+    ElementarySpace,
+    FusionTree,
     ProductSymmetry,
     SU2_kAnyonCategory,
     SU2Symmetry,
     SU3_3AnyonCategory,
     Symmetry,
+    TensorProduct,
     fibonacci_anyon_category,
     ising_anyon_category,
     u1_symmetry,
@@ -26,7 +28,6 @@ from cyten.symmetries import (
 )
 from cyten.tensors import DiagonalTensor, SymmetricTensor, permute_legs, transpose
 from cyten.testing import assert_tensors_almost_equal, random_ElementarySpace, random_tensor
-from cyten.trees import FusionTree
 
 
 def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Generator):

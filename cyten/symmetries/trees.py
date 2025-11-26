@@ -9,13 +9,13 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .block_backends import Block, NumpyBlockBackend
-from .dtypes import Dtype
-from .symmetries import FusionStyle, Sector, SectorArray, Symmetry, SymmetryError
-from .tools import to_valid_idx
+from ..block_backends import Block, NumpyBlockBackend
+from ..block_backends.dtypes import Dtype
+from ..tools import to_valid_idx
+from ._symmetries import FusionStyle, Sector, SectorArray, Symmetry, SymmetryError
 
 if TYPE_CHECKING:
-    from .backends import TensorBackend
+    from ..backends import TensorBackend
 
 
 class FusionTree:

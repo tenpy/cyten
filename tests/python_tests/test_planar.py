@@ -532,9 +532,8 @@ def test_PlanarLinearOperator(symmetry):
     # define an operator
     # ===========================================
 
-    class TwoSiteEffectiveH(ct.planar.PlanarLinearOperator):
-        r"""Effective Hamiltonian during Two-site DMRG
-
+    class TwoSiteEffectiveH(ct.PlanarLinearOperator):
+        r"""Effective Hamiltonian during Two-site
         The operator is given by the following network::
 
             |        .---       ---.
