@@ -193,8 +193,15 @@ def test_FusionTree_bend_leg(bend_down, any_symmetry, make_any_sectors, np_rando
     # compare to matrix representation
     if any_symmetry.can_be_dropped:
         # bending leg does nothing in this case
-        expect = np.tensordot(X.as_block().conj(), Y.as_block(), (-1, -1))
-        res_np = sum(a_i * np.tensordot(X_i.as_block().conj(), Y_i.as_block(), (-1, -1)) for (X_i, Y_i), a_i in res)
+        X_np = X.as_block().conj()  # [a1, a2, a3, a4, c]
+        Y_np = np.transpose(Y.as_block(), [4, 3, 2, 1, 0])  # [c, b4, b3, b2, b1]
+        expect = np.tensordot(X_np, Y_np, (-1, 0))  # [a1, a2, a3, a4, b4, b3, b2, b1]
+
+        res_np = 0
+        tr = [3, 2, 1, 0] if bend_down else [5, 4, 3, 2, 1, 0]
+        res_np = sum(
+            a_i * np.tensordot(X_i.as_block().conj(), Y_i.as_block().transpose(tr), (-1, 0)) for (X_i, Y_i), a_i in res
+        )
         assert np.allclose(res_np, expect)
 
     # check that bending back gives back the same tree

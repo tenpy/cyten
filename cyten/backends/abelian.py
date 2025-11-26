@@ -2,8 +2,8 @@
 
 Changes compared to old np_conserved:
 
-- replace `ChargeInfo` by subclasses of `AbelianGroup` (or `Symmetry`)
-- replace `LegCharge` by `ElementarySpace` and `LegPipe` by `AbelianLegPipe`. Changed class hierarchy!
+- replace `ChargeInfo` with `Symmetry`
+- replace `LegCharge` with `ElementarySpace` and `LegPipe` with `AbelianLegPipe`. Changed class hierarchy!
 - standard `Tensor` have qtotal=0, only ChargedTensor can have non-zero qtotal
 - relabeling:
     - `Array.qdata`, "qind" and "qindices" to `AbelianBackendData.block_inds` and "block indices"
