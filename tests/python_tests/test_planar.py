@@ -45,6 +45,127 @@ def test_parse_leg_bipartition(legs, num_legs, is_planar, shuffle, np_random):
     assert all(n2 == n1 + 1 or (n2, n1) == (0, num_legs - 1) for n1, n2 in zip(b[:-1], b[1:]))
 
 
+planar_partial_trace_cases = {
+    # traces in codomain
+    'codomain-aab': (['a', 'a', 'b'], []),
+    'codomain-aabbc': (['a', 'a', 'b', 'b', 'c'], []),
+    'codomain-abba-c': (['a', 'b', 'b', 'a'], ['c']),
+    # traces in domain
+    'domain-b-aa': (['b'], ['a', 'a']),
+    'domain-c-aabb': (['c'], ['a', 'a', 'b', 'b']),
+    'domain-c-abba': (['c'], ['a', 'b', 'b', 'a']),
+    # traces in both codomain and domain
+    'co_domain-aac-bb': (['a', 'a', 'c'], ['b', 'b']),
+    # left and right
+    'co_domain-acb-ab': (['a', 'c', 'b'], ['a', 'b']),
+    # two left
+    'co_domain-abc-ab': (['a', 'b', 'c'], ['a', 'b']),
+    # two right
+    'co_domain-cab-ab': (['c', 'a', 'b'], ['a', 'b']),
+    # winding
+    'codomain-aba': (['a', 'b', 'a'], []),
+    'codomain-abcbaa': (['a', 'b', 'c', 'b', 'a'], []),
+    'domain--aba': ([], ['a', 'b', 'a']),
+    'domain--abcbaa': ([], ['a', 'b', 'c', 'b', 'a']),
+    'co_domain-abcb-a': (['a', 'b', 'c', 'b'], ['a']),
+    'co_domain-acab-b': (['a', 'c', 'a', 'b'], ['b']),
+}
+
+
+@pytest.mark.parametrize('codomain, domain', planar_partial_trace_cases.values(), ids=planar_partial_trace_cases.keys())
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (ct.no_symmetry, 'no_symmetry'),
+        (ct.u1_symmetry, 'abelian'),
+        (ct.u1_symmetry, 'fusion_tree'),
+        (ct.fermion_parity, 'fusion_tree'),
+        (ct.fibonacci_anyon_category, 'fusion_tree'),
+    ],
+)
+# TODO activate
+def _test_planar_partial_trace(codomain, domain, symmetry, backend, np_random):
+    # TODO rm
+    max_mults = 2
+
+    # same construction as in test_partial_trace in test_tensors.py
+    backend = ct.get_backend(backend, 'numpy')
+    trace_legs = {
+        l: ct.testing.random_leg(symmetry, backend, False, np_random=np_random, max_multiplicity=max_mults)
+        for l in ct.tools.misc.duplicate_entries([*codomain, *domain])
+    }
+    seen_labels = []
+    codomain_spaces = []
+    codomain_labels = []
+    for l in codomain:
+        if l in seen_labels:
+            codomain_spaces.append(trace_legs[l].dual)
+            codomain_labels.append(f'{l}*')
+        elif l in trace_legs:
+            codomain_spaces.append(trace_legs[l])
+            seen_labels.append(l)
+            codomain_labels.append(l)
+        else:
+            codomain_spaces.append(ct.testing.random_leg(symmetry, backend, False, np_random=np_random, max_multiplicity=max_mults))
+            codomain_labels.append(l)
+    domain_spaces = []
+    domain_labels = []
+    for l in domain:
+        if l in seen_labels:
+            domain_spaces.append(trace_legs[l])
+            domain_labels.append(f'{l}*')
+        elif l in trace_legs:
+            domain_spaces.append(trace_legs[l].dual)
+            domain_labels.append(l)
+            seen_labels.append(l)
+        else:
+            domain_spaces.append(ct.testing.random_leg(symmetry, backend, False, np_random=np_random, max_multiplicity=max_mults))
+            domain_labels.append(l)
+
+    T: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain_spaces,
+        domain_spaces,
+        labels=[*codomain_labels, *reversed(domain_labels)],
+        backend=backend,
+        np_random=np_random,
+    )
+
+    pairs = [(T.labels.index(l), T.labels.index(f'{l}*')) for l in trace_legs]
+    res = ct.planar.planar_partial_trace(T, *pairs)
+    res.test_sanity()
+    assert res.labels == [l for l in T.labels if l[0] not in trace_legs]
+    assert res.legs == [T.get_leg(l) for l in T.labels if l[0] not in trace_legs]
+
+    if T.symmetry.has_trivial_braid:
+        T_np = T.to_numpy()
+        idcs1 = [p[0] for p in pairs]
+        idcs2 = [p[1] for p in pairs]
+        remaining = [n for n in range(T.num_legs) if n not in idcs1 and n not in idcs2]
+        expect = T.backend.block_backend.trace_partial(T_np, idcs1, idcs2, remaining)
+        expect = T.backend.block_backend.to_numpy(expect)
+        res_np = res.to_numpy()
+        npt.assert_almost_equal(res_np, expect)
+
+    levels = None
+    if not T.symmetry.has_symmetric_braid:
+        flat_pairs = [p for pair in pairs for p in pair]
+        # may need to braid with open legs since we do not trace over the left side
+        levels = [flat_pairs.index(n) if n in flat_pairs else 10 for n in range(T.num_legs)]
+
+    expect = ct.tensors.partial_trace(T, *pairs, levels=levels)
+    assert expect.labels == res.labels
+    assert expect.legs == res.legs
+    # TODO rm
+    if isinstance(T.symmetry, ct.symmetries.FermionParity):
+        print(res.labels, expect.labels, res.num_codomain_legs, expect.num_codomain_legs)
+        print(res.data.block_inds)
+        print(expect.data.block_inds)
+        print(res.data.blocks)
+        print(expect.data.blocks)
+    assert ct.almost_equal(res, expect)
+
+
 planar_permute_legs_cases = {
     'trivial': (3, 2, None, [0, 1, 2][::-1]),
     # same basic case with different input possibilities
