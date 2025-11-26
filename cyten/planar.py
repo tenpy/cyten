@@ -1061,7 +1061,9 @@ def planar_partial_trace(tensor: Tensor, *pairs: Sequence[int, str]) -> Tensor:
     # OPTIMIZE
     # fusion tree backend requires legs that are traced over to be next to each other
     if isinstance(tensor.backend, FusionTreeBackend):
-        num_left_traces = 0
+        # check how many legs need to be bent up or down and choose the way with the lower number
+        num_up_bends = 0
+        num_down_bends = 0
         for pair in pairs:
             pair = sorted(pair)
             legs_between = list(range(pair[0] + 1, pair[1]))
@@ -1069,21 +1071,37 @@ def planar_partial_trace(tensor: Tensor, *pairs: Sequence[int, str]) -> Tensor:
             if all(leg in traced_legs for leg in legs_between):
                 continue
             # remaining case: must trace over the left side
-            num_left_traces += 1
+            num_up_bends = max(num_up_bends, pair[0] + 1)
+            num_down_bends = max(num_down_bends, tensor.num_legs - pair[1])
 
-        if num_left_traces > 0:
+        if num_down_bends == 0:
+            assert num_up_bends == 0
+        elif num_up_bends > num_down_bends:
+            # bend legs down
             # number of legs to be bent twice
-            if tensor.num_domain_legs > num_left_traces:
+            if tensor.num_domain_legs > num_down_bends:
                 num_legs_in_codom = 0
             else:
-                num_legs_in_codom = num_left_traces - tensor.num_domain_legs
-            codomain = list(range(tensor.num_legs - num_left_traces, tensor.num_legs)) + list(
+                num_legs_in_codom = num_down_bends - tensor.num_domain_legs
+            codomain = list(range(tensor.num_legs - num_down_bends, tensor.num_legs)) + list(
                 range(tensor.num_codomain_legs - num_legs_in_codom)
             )
-            domain = list(reversed(range(tensor.num_codomain_legs, tensor.num_legs - num_left_traces)))
+            domain = list(reversed(range(tensor.num_codomain_legs, tensor.num_legs - num_down_bends)))
             tensor = planar_permute_legs(tensor, codomain=codomain, domain=domain)
             # update pairs
-            pairs = [[(idx + num_left_traces) % tensor.num_legs for idx in pair] for pair in pairs]
+            pairs = [[(idx + num_down_bends) % tensor.num_legs for idx in pair] for pair in pairs]
+        else:
+            # bend legs up
+            if tensor.num_codomain_legs > num_up_bends:
+                num_legs_in_dom = 0
+            else:
+                num_legs_in_dom = num_up_bends - tensor.num_codomain_legs
+            codomain = list(range(num_up_bends, tensor.num_codomain_legs))
+            domain = list(reversed(range(num_up_bends))) + list(reversed(range(tensor.num_codomain_legs + num_legs_in_dom, tensor.num_legs)))
+            tensor = planar_permute_legs(tensor, codomain=codomain, domain=domain)
+            # update pairs
+            pairs = [[(idx - num_up_bends) % tensor.num_legs for idx in pair] for pair in pairs]
+
         # give the traced legs levels in case they are not next to each other
         # and one leg needs to braid with another leg pair
         for i, pair in enumerate(pairs):
