@@ -313,6 +313,9 @@ class LegPipe(Leg):
             [l.dual for l in reversed(self.legs)], is_dual=not self.is_dual, combine_cstyle=not self.combine_cstyle
         )
 
+    def with_opposite_duality(self) -> LegPipe:
+        return LegPipe(self.legs, is_dual=not self.is_dual)
+
     @property
     def is_trivial(self) -> bool:
         return all(l.is_trivial for l in self.legs)
@@ -2233,6 +2236,9 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
     def with_opposite_duality(self):
         return AbelianLegPipe(legs=self.legs, is_dual=not self.is_dual, combine_cstyle=self.combine_cstyle)
+
+    def with_opposite_duality_and_combinestyle(self):
+        return AbelianLegPipe(legs=self.legs, is_dual=not self.is_dual, combine_cstyle=not self.combine_cstyle)
 
     def __eq__(self, other):
         res = LegPipe.__eq__(self, other)

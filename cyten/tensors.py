@@ -81,7 +81,7 @@ from .backends import TensorBackend, conventional_leg_order, get_backend, get_sa
 from .block_backends import Block
 from .dtypes import Dtype
 from .dummy_config import printoptions
-from .spaces import ElementarySpace, Leg, LegPipe, Sector, Space, TensorProduct
+from .spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Sector, Space, TensorProduct
 from .symmetries import BraidingStyle, Symmetry, SymmetryError
 from .tools.misc import (
     duplicate_entries,
@@ -866,6 +866,21 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         """Convert to a numpy array"""
         block = self.to_dense_block(leg_order=leg_order, understood_braiding=understood_braiding)
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
+
+    def flip_leg_duality(self, leg_indices: list[int]):
+        """Flips the duality of a given Tensor leg.
+
+        The leg can also be a leg pipe in which case also the combinestyle is flipped
+        """
+        for i in leg_indices:
+            if isinstance(self.legs[i], AbelianLegPipe):
+                self.legs[i] = AbelianLegPipe.with_opposite_duality_and_combinestyle(self.legs[i])
+
+            elif isinstance(self.legs[i], LegPipe) and not isinstance(self.legs[i], AbelianLegPipe):
+                self.legs[i] = LegPipe.with_opposite_duality(self.legs[i])
+
+            else:
+                self.legs[i] = self.legs[i].dual
 
 
 class SymmetricTensor(Tensor):
