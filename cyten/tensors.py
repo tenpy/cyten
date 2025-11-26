@@ -82,7 +82,7 @@ from .block_backends import Block
 from .dtypes import Dtype
 from .dummy_config import printoptions
 from .spaces import ElementarySpace, Leg, LegPipe, Sector, Space, TensorProduct
-from .symmetries import BraidingStyle, Symmetry, SymmetryError
+from .symmetries import Symmetry, SymmetryError
 from .tools.misc import (
     duplicate_entries,
     inverse_permutation,
@@ -3363,7 +3363,7 @@ class ChargedTensor(Tensor):
         if self.charge_leg.num_sectors != 1 or self.charge_leg.multiplicities[0] != 1:
             raise ValueError('Not a single sector.')
         if self.charge_leg.sector_dims[0] > 1:
-            raise NotImplementedError
+            raise NotImplementedError('Higher-dimensional charge leg not supported')
         block = self.backend.inv_part_to_dense_block_single_sector(self.invariant_part)
         return self.backend.block_backend.item(self.charged_state) * block
 
@@ -3720,6 +3720,12 @@ def almost_equal(
                     rtol=rtol,
                     atol=atol,
                 )
+            if tensor_1.charge_leg.dim == tensor_2.charge_leg.dim:
+                same_charged_state = tensor_1.backend.block_backend.allclose(
+                    tensor_1.charged_state, tensor_2.charged_state
+                )
+                if same_charged_state:
+                    return almost_equal(tensor_1.invariant_part, tensor_2.invariant_part, rtol=rtol, atol=atol)
             raise NotImplementedError
 
     msg = f'Incompatible types: {tensor_1.__class__.__name__} and {tensor_2.__class__.__name__}'
@@ -4910,7 +4916,7 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
             factor = v.backend.block_backend.item(w.charged_state) / v.backend.block_backend.item(v.charged_state)
             inv_part = linear_combination(a, v.invariant_part, factor * b, w.invariant_part)
             return ChargedTensor(inv_part, v.charged_state)
-        raise NotImplementedError
+        raise NotImplementedError('linear_combination of ChargedTensor does not support higher-dim charge legs yet.')
     if isinstance(v, ChargedTensor) or isinstance(w, ChargedTensor):
         raise TypeError('Can not add ChargedTensor and non-charged tensor.')
 
@@ -6350,9 +6356,9 @@ def transpose(tensor: Tensor) -> Tensor:
             bend_right=[False] * tensor.num_codomain_legs + [True] * tensor.num_domain_legs,
         )
     if isinstance(tensor, ChargedTensor):
-        if tensor.symmetry.braiding_style > BraidingStyle.bosonic:
+        if not tensor.symmetry.has_trivial_braid:
             msg = (
-                f'transpose is not defined for ChargedTensors with fermionic symmetries. '
+                f'transpose is not defined for ChargedTensors with symmetries with non-trivial braids. '
                 f'This is because there is no way to recover the ChargedTensor format in such a '
                 f'way that transposing twice gives back the original tensor. '
                 f'Use permute_legs instead'

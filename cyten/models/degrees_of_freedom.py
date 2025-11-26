@@ -19,16 +19,15 @@ from ..backends import TensorBackend, get_backend
 from ..block_backends import Block
 from ..spaces import ElementarySpace
 from ..symmetries import (
-    BraidingStyle,
+    SU2,
+    U1,
+    ZN,
     FermionNumber,
     FermionParity,
-    NoSymmetry,
-    ProductSymmetry,
-    SU2Symmetry,
     Symmetry,
     SymmetryError,
-    U1Symmetry,
-    ZNSymmetry,
+    TrivialFactor,
+    FactorSymmetry,
 )
 from ..tensors import DiagonalTensor, SymmetricTensor
 from ..tools import as_immutable_array, is_iterable, to_iterable, to_valid_idx
@@ -90,7 +89,7 @@ class Site:
         self.leg.test_sanity()
 
         # state labels
-        if self.symmetry.braiding_style >= BraidingStyle.anyonic:
+        if not self.symmetry.can_be_dropped:
             # can not have state labels, since we dont have basis states in the strict sense
             assert len(self.state_labels) == 0
         for label, idx in self.state_labels.items():
@@ -212,16 +211,32 @@ class SpinDOF(Site):
         assert np.allclose(Sz @ Sx - Sx @ Sz, 1j * Sy)
 
     @staticmethod
+    def parse_symmetry(symmetry: str) -> FactorSymmetry:
+        """FIXME doc the options"""
+        if symmetry in ['SU(2)', 'SU2', 'Stot']:
+            sym = SU2('spin')
+        elif symmetry in ['Sz', 'U(1)', 'U1']:
+            sym = U1('2*Sz')
+        elif symmetry in ['parity', 'Sz_parity', 'Z_2', 'Z2']:
+            sym = ZN(2, 'Sz_parity')
+        elif symmetry in ['None', 'none', None]:
+            sym = TrivialFactor()
+        else:
+            raise ValueError(f'Invalid `symmetry`: {symmetry}')
+        return sym
+
+    # FIXME rm
+    @staticmethod
     def conservation_law_to_symmetry(conserve: Literal['SU(2)', 'Sz', 'parity', 'None']) -> Symmetry:
         """Translate conservation law for a spin to a symmetry."""
         if conserve in ['SU(2)', 'SU2', 'Stot']:
-            sym = SU2Symmetry('spin')
+            sym = SU2('spin')
         elif conserve in ['Sz', 'U(1)', 'U1']:
-            sym = U1Symmetry('2*Sz')
+            sym = U1('2*Sz')
         elif conserve in ['parity', 'Sz_parity', 'Z_2', 'Z2']:
-            sym = ZNSymmetry(2, 'Sz_parity')
+            sym = ZN(2, 'Sz_parity')
         elif conserve in ['None', 'none', None]:
-            sym = NoSymmetry()
+            sym = TrivialFactor()
         else:
             raise ValueError(f'Invalid `conserve`: {conserve}')
         return sym
@@ -493,15 +508,15 @@ class BosonicDOF(OccupationDOF):
     @staticmethod
     def conservation_law_to_symmetry(
         conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']],
-    ) -> Symmetry | ProductSymmetry:
+    ) -> Symmetry:
         """Translate conservation law for individual / all bosons to a symmetry."""
         if isinstance(conserve, str) or conserve is None:
             if conserve in ['N', 'Ntot', 'N_tot', 'U(1)', 'U1']:
-                sym = U1Symmetry('total_occupation')
+                sym = U1('total_occupation')
             elif conserve in ['parity', 'P', 'Ptot', 'P_tot', 'Z_2', 'Z2']:
-                sym = ZNSymmetry(2, 'total_occupation_parity')
+                sym = ZN(2, 'total_occupation_parity')
             elif conserve in ['None', 'none', None]:
-                sym = NoSymmetry()
+                sym = TrivialFactor()
             else:
                 raise ValueError(f'Invalid `conserve`: {conserve}')
         elif is_iterable(conserve):
@@ -509,18 +524,18 @@ class BosonicDOF(OccupationDOF):
             num_no_sym = 0
             for k, conserve_k in enumerate(conserve):
                 if conserve_k in ['N', 'Nk', 'N_k', 'U(1)', 'U1']:
-                    sym_factors.append(U1Symmetry(f'species{k}_occupation'))
+                    sym_factors.append(U1(f'species{k}_occupation'))
                 elif conserve_k in ['parity', 'P', 'Pi', 'P_i', 'Z_2', 'Z2']:
-                    sym_factors.append(ZNSymmetry(2, f'species{k}_occupation_parity'))
+                    sym_factors.append(ZN(2, f'species{k}_occupation_parity'))
                 elif conserve_k in ['None', 'none', None]:
-                    sym_factors.append(NoSymmetry())
+                    sym_factors.append(TrivialFactor())
                     num_no_sym += 1
                 else:
                     raise ValueError(f'Invalid entry in `conserve`: {conserve_k}')
             if num_no_sym == len(conserve):
-                sym = NoSymmetry()
+                sym = TrivialFactor()
             else:
-                sym = ProductSymmetry(sym_factors)
+                sym = Symmetry(sym_factors)
         else:
             raise ValueError(f'Invalid `conserve`: {conserve}')
         return sym
@@ -595,9 +610,9 @@ class FermionicDOF(OccupationDOF):
         default_device: str = None,
         **kwargs,
     ):
-        if isinstance(leg.symmetry, ProductSymmetry):
+        if isinstance(leg.symmetry, Symmetry):
             # there should only be a single fermionic symmetry
-            assert sum([isinstance(factor, (FermionParity, FermionNumber)) for factor in leg.symmetry.factors]) == 1
+            assert sum([isinstance(factor, (FermionParity, FermionNumber)) for factor in leg.symmetry]) == 1
         else:
             assert isinstance(leg.symmetry, (FermionParity, FermionNumber))
         if isinstance(self, BosonicDOF):
@@ -662,11 +677,11 @@ class FermionicDOF(OccupationDOF):
     @staticmethod
     def conservation_law_to_symmetry(
         conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']],
-    ) -> Symmetry | ProductSymmetry:
+    ) -> Symmetry:
         """Translate conservation law for individual / all fermions to a symmetry."""
         if isinstance(conserve, str):
             if conserve in ['N', 'Ntot', 'N_tot']:
-                sym = ProductSymmetry([U1Symmetry('total_fermion_occupation'), FermionParity('total_fermion_parity')])
+                sym = Symmetry([U1('total_fermion_occupation'), FermionParity('total_fermion_parity')])
             elif conserve in ['parity', 'P', 'Ptot', 'P_tot']:
                 sym = FermionParity('total_fermion_parity')
             else:
@@ -676,18 +691,18 @@ class FermionicDOF(OccupationDOF):
             num_no_sym = 0
             for k, conserve_k in enumerate(conserve):
                 if conserve_k in ['N', 'Nk', 'N_k']:
-                    sym_factors.append(U1Symmetry(f'species{k}_fermion_occupation'))
+                    sym_factors.append(U1(f'species{k}_fermion_occupation'))
                 elif conserve_k in ['parity', 'P', 'Pi', 'P_i']:
-                    sym_factors.append(ZNSymmetry(2, f'species{k}_fermion_parity'))
+                    sym_factors.append(ZN(2, f'species{k}_fermion_parity'))
                 elif conserve_k in ['None', 'none', None]:
-                    sym_factors.append(NoSymmetry())
+                    sym_factors.append(TrivialFactor())
                     num_no_sym += 1
                 else:
                     raise ValueError(f'Invalid entry in `conserve`: {conserve_k}')
             if num_no_sym == len(conserve):
                 sym = FermionParity('total_fermion_parity')
             else:
-                sym = ProductSymmetry([*sym_factors, FermionParity('total_fermion_parity')])
+                sym = Symmetry([*sym_factors, FermionParity('total_fermion_parity')])
         else:
             raise ValueError(f'Invalid `conserve`: {conserve}')
         return sym

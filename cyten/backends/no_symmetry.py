@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from ..block_backends import Block, BlockBackend
 from ..dtypes import Dtype
 from ..spaces import ElementarySpace, LegPipe, Space, TensorProduct
-from ..symmetries import Symmetry, no_symmetry
+from ..symmetries import Symmetry
 from ..tools.misc import rank_data
 from ..trees import FusionTree
 from ._backend import Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
@@ -467,7 +467,7 @@ class NoSymmetryBackend(TensorBackend):
         return self.block_backend.squeeze_axes(a.data, idcs)
 
     def supports_symmetry(self, symmetry: Symmetry) -> bool:
-        return symmetry == no_symmetry
+        return symmetry.is_trivial
 
     def svd(
         self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None

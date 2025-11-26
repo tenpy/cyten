@@ -110,7 +110,7 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
         t.test_sanity()
 
     # for groups: check versus explicit matrix representations
-    if any_symmetry.can_be_dropped:
+    if any_symmetry.has_trivial_braid:
         tree_np = tree.as_block()
         expect = np.swapaxes(tree_np, j, j + 1)
         res = sum(a * t.as_block() for t, a in braided1)
@@ -194,7 +194,7 @@ def test_FusionTree_bend_leg(bend_down, any_symmetry, make_any_sectors, np_rando
     if any_symmetry.can_be_dropped:
         # bending leg does nothing in this case
         expect = np.tensordot(X.as_block().conj(), Y.as_block(), (-1, -1))
-        res_np = sum(a_i * np.tensordot(Y_i.as_block().conj(), X_i.as_block(), (-1, -1)) for (Y_i, X_i), a_i in res)
+        res_np = sum(a_i * np.tensordot(X_i.as_block().conj(), Y_i.as_block(), (-1, -1)) for (X_i, Y_i), a_i in res)
         assert np.allclose(res_np, expect)
 
     # check that bending back gives back the same tree

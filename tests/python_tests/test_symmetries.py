@@ -201,6 +201,8 @@ def common_checks(
           To make things more efficient, we should check for consistency only once, i.e., when we check,
           e.g., the unitarity of the F-moves, we can use the same consistency check as for the C symbols
     """
+    sym = sym.as_Symmetry()
+
     example_sectors = np.unique(example_sectors, axis=0)
     example_sectors_low_qdim = np.unique(example_sectors_low_qdim, axis=0)
 
@@ -331,22 +333,21 @@ def common_checks(
 
     # check braiding style
     for a in example_sectors:  # check topological twist
-        if sym.braiding_style == symmetries.BraidingStyle.bosonic:
+        if sym.has_trivial_braid:
             assert_array_almost_equal(sym.topological_twist(a), 1)
-        elif sym.braiding_style == symmetries.BraidingStyle.fermionic:
+        elif sym.has_symmetric_braid:
             assert_array_almost_equal(sym.topological_twist(a) ** 2, 1)
 
-    if sym.braiding_style.value <= symmetries.BraidingStyle.fermionic.value:  # check R symbols
+    if sym.has_symmetric_braid:  # check R symbols
         for a, b, c in sector_triplets:
             assert_array_almost_equal(sym.r_symbol(a, b, c) ** 2, np.ones(sym.n_symbol(a, b, c)))
 
     # check fusion style
-    if sym.fusion_style == symmetries.FusionStyle.single:
+    if sym.is_abelian:
         for a in example_sectors:
             for b in example_sectors:
                 assert len(sym.fusion_outcomes(a, b)) == 1
-
-    if sym.fusion_style.value <= symmetries.FusionStyle.multiple_unique.value:
+    if sym.has_unique_fusion:
         for a, b, c in sector_triplets:
             # we check `== 1` and not `in [0, 1]` here since we iterate over sector_triplets
             assert sym.n_symbol(a, b, c) == 1
@@ -698,52 +699,8 @@ def check_hexagon_equation(sym: symmetries.Symmetry, sector_sextets, check_both_
             assert_array_almost_equal(lhs, rhs)
 
 
-def test_no_symmetry(np_random):
-    sym = symmetries.NoSymmetry()
-    s = np.array([0])
-    common_checks(sym, example_sectors=s[np.newaxis, :], example_sectors_low_qdim=s[np.newaxis, :], np_random=np_random)
-
-    print('instancecheck and is_abelian')
-    assert isinstance(sym, symmetries.AbelianGroup)
-    assert isinstance(sym, symmetries.GroupSymmetry)
-    assert sym.is_abelian
-
-    print('checking valid sectors')
-    assert sym.is_valid_sector(s)
-    assert not sym.is_valid_sector(np.array([1]))
-    assert not sym.is_valid_sector(np.array([0, 0]))
-
-    print('checking fusion_outcomes')
-    assert_array_equal(sym.fusion_outcomes(s, s), np.array([[0]]))
-
-    print('checking fusion_outcomes_broadcast')
-    many_s = np.stack([s, s, s])
-    assert_array_equal(sym.fusion_outcomes_broadcast(many_s, many_s), many_s)
-
-    # print('checking sector dimensions')
-    # nothing to do, the dimension of the only sector (trivial) is checked in common_checks
-
-    print('checking equality')
-    assert sym == sym
-    assert sym == symmetries.no_symmetry
-    assert sym != symmetries.u1_symmetry
-    assert sym != symmetries.SU2Symmetry() * symmetries.u1_symmetry
-
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(symmetries.no_symmetry)
-    assert not sym.is_same_symmetry(symmetries.u1_symmetry)
-    assert not sym.is_same_symmetry(symmetries.SU2Symmetry() * symmetries.u1_symmetry)
-
-    print('checking dual_sector')
-    assert_array_equal(sym.dual_sector(s), s)
-
-    print('checking dual_sectors')
-    assert_array_equal(sym.dual_sectors(many_s), many_s)
-
-
-# @pytest.mark.xfail(reason='Topological data not implemented.')
-def test_product_symmetry(np_random):
-    doubleFibo = symmetries.ProductSymmetry(
+def test_Symmetry(np_random):
+    doubleFibo = symmetries.Symmetry(
         [symmetries.FibonacciAnyonCategory('left'), symmetries.FibonacciAnyonCategory('right')]
     )
     common_checks(
@@ -759,7 +716,7 @@ def test_product_symmetry(np_random):
     )
 
     for k in range(1, 16, 2):
-        doubleIsing = symmetries.ProductSymmetry([symmetries.IsingAnyonCategory(k), symmetries.IsingAnyonCategory(-k)])
+        doubleIsing = symmetries.Symmetry([symmetries.IsingAnyonCategory(k), symmetries.IsingAnyonCategory(-k)])
         common_checks(
             doubleIsing,
             example_sectors=np.array([[0, 0], [0, 1], [1, 0], [1, 1], [2, 1], [1, 2], [2, 2], [0, 2], [2, 0]]),
@@ -770,10 +727,8 @@ def test_product_symmetry(np_random):
         assert np.isclose(doubleIsing._r_symbol([1, 1], [2, 2], [1, 1]), 1)
         assert np.isclose(doubleIsing._r_symbol([2, 2], [1, 1], [1, 1]), 1)
 
-    sym = symmetries.ProductSymmetry([symmetries.SU2Symmetry(), symmetries.U1Symmetry(), symmetries.FermionParity()])
-    sym_with_name = symmetries.ProductSymmetry(
-        [symmetries.SU2Symmetry('foo'), symmetries.U1Symmetry('bar'), symmetries.FermionParity()]
-    )
+    sym = symmetries.Symmetry([symmetries.SU2(), symmetries.U1(), symmetries.FermionParity()])
+    sym_with_name = symmetries.Symmetry([symmetries.SU2('foo'), symmetries.U1('bar'), symmetries.FermionParity()])
     s1 = np.array([5, 3, 1])  # e.g. spin 5/2 , 3 particles , odd parity ("fermionic")
     s2 = np.array([3, 2, 0])  # e.g. spin 3/2 , 2 particles , even parity ("bosonic")
     sectors = np.array([s1, s2])
@@ -790,16 +745,18 @@ def test_product_symmetry(np_random):
         skip_fusion_tensor=False,
     )
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
+    print('check properties')
     assert not sym.is_abelian
-    assert isinstance(u1_z3, symmetries.AbelianGroup)
-    assert isinstance(u1_z3, symmetries.GroupSymmetry)
+    assert sym.has_symmetric_braid
+    assert not sym.has_trivial_braid
+    assert sym.has_unique_fusion
     assert u1_z3.is_abelian
+    assert u1_z3.has_symmetric_braid
+    assert u1_z3.has_trivial_braid
+    assert u1_z3.has_unique_fusion
 
     print('checking creation via __mul__')
-    sym2 = symmetries.SU2Symmetry() * symmetries.u1_symmetry * symmetries.fermion_parity
+    sym2 = symmetries.SU2() * symmetries.u1_symmetry * symmetries.fermion_parity
     assert sym2 == sym
 
     print('checking valid sectors')
@@ -829,13 +786,13 @@ def test_product_symmetry(np_random):
     print('checking equality')
     assert sym == sym
     assert sym != sym_with_name
-    assert sym != symmetries.SU2Symmetry() * symmetries.u1_symmetry
+    assert sym != symmetries.SU2() * symmetries.u1_symmetry
     assert sym != symmetries.no_symmetry
 
     print('checking is_same_symmetry')
     assert sym.is_same_symmetry(sym)
     assert sym.is_same_symmetry(sym_with_name)
-    assert not sym.is_same_symmetry(symmetries.SU2Symmetry() * symmetries.u1_symmetry)
+    assert not sym.is_same_symmetry(symmetries.SU2() * symmetries.u1_symmetry)
     assert not sym.is_same_symmetry(symmetries.no_symmetry)
 
     print('checking dual_sector')
@@ -846,128 +803,178 @@ def test_product_symmetry(np_random):
     assert_array_equal(sym.dual_sectors(np.stack([s1, s2])), np.array([[5, -3, 1], [3, -2, 0]]))
 
 
-def test_u1_symmetry(np_random):
-    sym = symmetries.U1Symmetry()
-    sym_with_name = symmetries.U1Symmetry('foo')
+def test_TrivialFactor(np_random):
+    factor = symmetries.TrivialFactor()
+    s = np.array([0])
+    common_checks(
+        factor.as_Symmetry(),
+        example_sectors=s[np.newaxis, :],
+        example_sectors_low_qdim=s[np.newaxis, :],
+        np_random=np_random,
+    )
+
+    print('check properties')
+    assert factor.is_abelian
+    assert factor.has_symmetric_braid
+    assert factor.has_trivial_braid
+    assert factor.has_unique_fusion
+
+    print('checking valid sectors')
+    assert factor.is_valid_sector(s)
+    assert not factor.is_valid_sector(np.array([1]))
+    assert not factor.is_valid_sector(np.array([0, 0]))
+
+    print('checking fusion_outcomes')
+    assert_array_equal(factor.fusion_outcomes(s, s), s[None, :])
+
+    print('checking fusion_outcomes_broadcast')
+    many_s = np.stack([s, s, s])
+    assert_array_equal(factor.fusion_outcomes_broadcast(many_s, many_s), many_s)
+
+    print('checking sector dimensions')
+    # nothing to do, the dimension of the only sector (trivial) is checked in common_checks
+
+    print('checking equality to other factor symmetry')
+    assert factor == factor
+    assert factor == symmetries.TrivialFactor()
+    assert factor != symmetries.U1()
+    assert factor != symmetries.SU2()
+
+    print('checking equality to symmetries')
+    assert factor != symmetries.no_symmetry
+    assert factor != symmetries.u1_symmetry
+
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor)
+    assert not factor.is_same_factor(symmetries.U1())
+
+    print('checking dual_sector')
+    assert_array_equal(factor.dual_sector(s), s)
+
+    print('checking dual_sectors')
+    assert_array_equal(factor.dual_sectors(many_s), many_s)
+
+
+def test_U1(np_random):
+    factor = symmetries.U1()
+    sym_with_name = symmetries.U1('foo')
     s_0 = np.array([0])
     s_1 = np.array([1])
     s_neg1 = np.array([-1])
     s_2 = np.array([2])
     s_42 = np.array([42])
     sectors = np.array([s_0, s_1, s_neg1, s_2, s_42])
-    common_checks(sym, example_sectors=sectors, example_sectors_low_qdim=sectors, np_random=np_random)
+    common_checks(factor.as_Symmetry(), example_sectors=sectors, example_sectors_low_qdim=sectors, np_random=np_random)
 
-    print('instancecheck and is_abelian')
-    assert isinstance(sym, symmetries.AbelianGroup)
-    assert isinstance(sym, symmetries.GroupSymmetry)
-    assert sym.is_abelian
+    print('check properties')
+    assert factor.is_abelian
+    assert factor.has_symmetric_braid
+    assert factor.has_trivial_braid
+    assert factor.has_unique_fusion
 
     print('checking valid sectors')
     for s in [s_0, s_1, s_neg1, s_2, s_42]:
-        assert sym.is_valid_sector(s)
-    assert not sym.is_valid_sector(np.array([0, 0]))
+        assert factor.is_valid_sector(s)
+    assert not factor.is_valid_sector(np.array([0, 0]))
 
     print('checking fusion_outcomes')
-    assert_array_equal(sym.fusion_outcomes(s_1, s_1), s_2[None, :])
-    assert_array_equal(sym.fusion_outcomes(s_neg1, s_1), s_0[None, :])
+    assert_array_equal(factor.fusion_outcomes(s_1, s_1), s_2[None, :])
+    assert_array_equal(factor.fusion_outcomes(s_neg1, s_1), s_0[None, :])
 
     print('checking fusion_outcomes_broadcast')
-    outcomes = sym.fusion_outcomes_broadcast(np.stack([s_0, s_1, s_0]), np.stack([s_neg1, s_1, s_2]))
+    outcomes = factor.fusion_outcomes_broadcast(np.stack([s_0, s_1, s_0]), np.stack([s_neg1, s_1, s_2]))
     assert_array_equal(outcomes, np.stack([s_neg1, s_2, s_2]))
 
     print('checking sector dimensions')
     for s in [s_0, s_1, s_neg1, s_2, s_42]:
-        assert sym.sector_dim(s) == 1
+        assert factor.sector_dim(s) == 1
 
     print('checking equality')
-    assert sym == sym
-    assert sym != sym_with_name
-    assert sym == symmetries.u1_symmetry
-    assert sym != symmetries.no_symmetry
-    assert sym != symmetries.SU2Symmetry() * symmetries.u1_symmetry
+    assert factor == factor, 'same instance'
+    assert factor != sym_with_name, 'same cls, other name'
+    assert factor == symmetries.U1(), 'same cls, other instance'
+    assert factor != symmetries.TrivialFactor(), 'other cls'
+    assert factor != symmetries.SU2(), 'other cls'
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert sym.is_same_symmetry(sym_with_name)
-    assert sym.is_same_symmetry(symmetries.u1_symmetry)
-    assert not sym.is_same_symmetry(symmetries.no_symmetry)
-    assert not sym.is_same_symmetry(symmetries.SU2Symmetry() * symmetries.u1_symmetry)
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor), 'same instance'
+    assert factor.is_same_factor(sym_with_name), 'same cls, other name'
+    assert factor.is_same_factor(symmetries.U1()), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.TrivialFactor()), 'other cls'
+    assert not factor.is_same_factor(symmetries.SU2()), 'other cls'
 
     print('checking dual_sector')
-    assert_array_equal(sym.dual_sector(s_1), s_neg1)
+    assert_array_equal(factor.dual_sector(s_1), s_neg1)
 
     print('checking dual_sectors')
-    assert_array_equal(sym.dual_sectors(np.stack([s_0, s_1, s_42, s_2])), np.array([0, -1, -42, -2])[:, None])
+    assert_array_equal(factor.dual_sectors(np.stack([s_0, s_1, s_42, s_2])), np.array([0, -1, -42, -2])[:, None])
 
 
 @pytest.mark.parametrize('N', [2, 3, 4, 42])
-def test_ZN_symmetry(N, np_random):
-    sym = symmetries.ZNSymmetry(N=N)
-    sym_with_name = symmetries.ZNSymmetry(N, descriptive_name='foo')
+def test_ZN(N, np_random):
+    factor = symmetries.ZN(N=N)
+    sym_with_name = symmetries.ZN(N, descriptive_name='foo')
     sectors_a = np.array([0, 1, 2, 10])[:, None] % N
     sectors_b = np.array([0, 1, 3, 11])[:, None] % N
-    common_checks(sym, example_sectors=sectors_a, example_sectors_low_qdim=sectors_a, np_random=np_random)
+    common_checks(
+        factor.as_Symmetry(), example_sectors=sectors_a, example_sectors_low_qdim=sectors_a, np_random=np_random
+    )
 
-    print('instancecheck and is_abelian')
-    assert isinstance(sym, symmetries.AbelianGroup)
-    assert isinstance(sym, symmetries.GroupSymmetry)
-    assert sym.is_abelian
+    print('check properties')
+    assert factor.is_abelian
+    assert factor.has_symmetric_braid
+    assert factor.has_trivial_braid
+    assert factor.has_unique_fusion
 
     print('checking valid sectors')
     for s in sectors_a:
-        assert sym.is_valid_sector(s)
-    assert not sym.is_valid_sector(np.array([0, 0]))
-    assert not sym.is_valid_sector(np.array([N]))
-    assert not sym.is_valid_sector(np.array([-1]))
+        assert factor.is_valid_sector(s)
+    assert not factor.is_valid_sector(np.array([0, 0]))
+    assert not factor.is_valid_sector(np.array([N]))
+    assert not factor.is_valid_sector(np.array([-1]))
 
     print('checking fusion_outcomes')
     for a in sectors_a:
         for b in sectors_b:
             expect = (a + b)[None, :] % N
-            assert_array_equal(sym.fusion_outcomes(a, b), expect)
+            assert_array_equal(factor.fusion_outcomes(a, b), expect)
 
     print('checking fusion_outcomes_broadcast')
     expect = (sectors_a + sectors_b) % N
-    assert_array_equal(sym.fusion_outcomes_broadcast(sectors_a, sectors_b), expect)
+    assert_array_equal(factor.fusion_outcomes_broadcast(sectors_a, sectors_b), expect)
 
     print('checking sector dimensions')
     for s in sectors_a:
-        assert sym.sector_dim(s) == 1
+        assert factor.sector_dim(s) == 1
 
     print('checking equality')
-    other = {
-        2: symmetries.z2_symmetry,
-        3: symmetries.z3_symmetry,
-        4: symmetries.z4_symmetry,
-        5: symmetries.z5_symmetry,
-        42: symmetries.ZNSymmetry(42),
-        43: symmetries.ZNSymmetry(43),
-    }
-    assert sym == sym
-    assert sym != sym_with_name
-    assert sym == other[N]
-    assert sym != other[N + 1]
-    assert sym != symmetries.u1_symmetry
+    assert factor == factor, 'same instance'
+    assert factor != sym_with_name, 'same cls, other name'
+    assert factor == symmetries.ZN(N), 'same cls, other instance'
+    assert factor != symmetries.ZN(N + 1), 'same cls, other instance'
+    assert factor != symmetries.TrivialFactor(), 'other cls'
+    assert factor != symmetries.SU2(), 'other cls'
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert sym.is_same_symmetry(sym_with_name)
-    assert sym.is_same_symmetry(other[N])
-    assert not sym.is_same_symmetry(other[N + 1])
-    assert not sym.is_same_symmetry(symmetries.u1_symmetry)
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor), 'same instance'
+    assert factor.is_same_factor(sym_with_name), 'same cls, other name'
+    assert factor.is_same_factor(symmetries.ZN(N)), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.ZN(N + 1)), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.TrivialFactor()), 'other cls'
+    assert not factor.is_same_factor(symmetries.SU2()), 'other cls'
 
     print('checking dual_sector')
     for s in sectors_a:
-        assert_array_equal(sym.dual_sector(s), (-s) % N)
+        assert_array_equal(factor.dual_sector(s), (-s) % N)
 
     print('checking dual_sectors')
-    assert_array_equal(sym.dual_sectors(sectors_a), (-sectors_a) % N)
+    assert_array_equal(factor.dual_sectors(sectors_a), (-sectors_a) % N)
 
 
-def test_su2_symmetry(np_random):
-    sym = symmetries.SU2Symmetry()
+def test_SU2(np_random):
+    factor = symmetries.SU2()
     common_checks(
-        sym,
+        factor.as_Symmetry(),
         example_sectors=np.array([[0], [3], [5], [2], [1], [23]]),
         example_sectors_low_qdim=np.array([[0], [2], [5], [3], [4]]),
         np_random=np_random,
@@ -975,51 +982,60 @@ def test_su2_symmetry(np_random):
 
     spin_1 = np.array([2])
     spin_3_half = np.array([3])
-    sym_with_name = symmetries.SU2Symmetry('foo')
+    sym_with_name = symmetries.SU2('foo')
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert isinstance(sym, symmetries.GroupSymmetry)
-    assert not sym.is_abelian
+    print('check properties')
+    assert not factor.is_abelian
+    assert factor.has_symmetric_braid
+    assert factor.has_trivial_braid
+    assert factor.has_unique_fusion
 
     print('checking valid sectors')
     for valid in [[0], [1], [2], [42]]:
-        assert sym.is_valid_sector(np.array(valid))
+        assert factor.is_valid_sector(np.array(valid))
     for invalid in [[-1], [0, 0]]:
-        assert not sym.is_valid_sector(np.array(invalid))
+        assert not factor.is_valid_sector(np.array(invalid))
 
     print('checking fusion_outcomes')
     # 1 x 3/2 = 1/2 + 3/2 + 5/2
-    assert_array_equal(sym.fusion_outcomes(spin_1, spin_3_half), np.array([[1], [3], [5]]))
+    assert_array_equal(factor.fusion_outcomes(spin_1, spin_3_half), np.array([[1], [3], [5]]))
 
     print('checking fusion_outcomes_broadcast')
     with pytest.raises(AssertionError):
         # sym does not have FusionStyle.single, so this should raise
-        _ = sym.fusion_outcomes_broadcast(spin_1[None, :], spin_3_half[None, :])
+        _ = factor.fusion_outcomes_broadcast(spin_1[None, :], spin_3_half[None, :])
 
     print('checking sector dimensions')
-    assert sym.sector_dim(spin_1) == 3
-    assert sym.sector_dim(spin_3_half) == 4
+    assert factor.sector_dim(spin_1) == 3
+    assert factor.sector_dim(spin_3_half) == 4
 
     print('checking equality')
-    assert sym == sym
-    assert sym != sym_with_name
-    assert sym == symmetries.SU2Symmetry()
-    assert sym != symmetries.fermion_parity
+    assert factor == factor, 'same instance'
+    assert factor != sym_with_name, 'same cls, other name'
+    assert factor == symmetries.SU2(), 'same cls, other instance'
+    assert factor != symmetries.TrivialFactor(), 'other cls'
+    assert factor != symmetries.U1(), 'other cls'
+
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor), 'same instance'
+    assert factor.is_same_factor(sym_with_name), 'same cls, other name'
+    assert factor.is_same_factor(symmetries.SU2()), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.TrivialFactor()), 'other cls'
+    assert not factor.is_same_factor(symmetries.U1()), 'other cls'
 
     print('checking dual_sector')
-    assert_array_equal(sym.dual_sector(spin_1), spin_1)
-    assert_array_equal(sym.dual_sector(spin_3_half), spin_3_half)
+    assert_array_equal(factor.dual_sector(spin_1), spin_1)
+    assert_array_equal(factor.dual_sector(spin_3_half), spin_3_half)
 
     print('checking dual_sectors')
-    assert_array_equal(sym.dual_sectors(np.stack([spin_1, spin_3_half])), np.stack([spin_1, spin_3_half]))
+    assert_array_equal(factor.dual_sectors(np.stack([spin_1, spin_3_half])), np.stack([spin_1, spin_3_half]))
 
 
 @pytest.mark.parametrize('N', [3])
 @pytest.mark.parametrize('CGfile', ['Test_N_3_HWeight_7.hdf5'])
 @pytest.mark.parametrize('Ffile', ['Test_Fsymb_3_HWeight_4.hdf5'])
 @pytest.mark.parametrize('Rfile', ['Test_Rsymb_3_HWeight_4.hdf5'])
-def test_suN_symmetry(N, CGfile, Ffile, Rfile, np_random):
+def test_SU_N(N, CGfile, Ffile, Rfile, np_random):
     if not all([os.path.exists(f) for f in [CGfile, Ffile, Rfile]]):
         pytest.skip('Need to provide files for SU(N) data!')
 
@@ -1038,216 +1054,244 @@ def test_suN_symmetry(N, CGfile, Ffile, Rfile, np_random):
     CGfile = h5py.File(CGfile, 'r')
     Ffile = h5py.File(Ffile, 'r')
     Rfile = h5py.File(Rfile, 'r')
-    sym = symmetries.SUNSymmetry(N, CGfile, Ffile, Rfile)
-    sym_with_name = symmetries.SUNSymmetry(N, CGfile, Ffile, Rfile, 'Some SU(N)')
+    factor = symmetries.SU_N(N, CGfile, Ffile, Rfile)
+    sym_with_name = symmetries.SU_N(N, CGfile, Ffile, Rfile, 'Some SU(N)')
     exsectors = np.array(gen_irrepsTEST(N, 2))
     common_checks(
-        sym,
+        factor.as_Symmetry(),
         example_sectors=exsectors,
         example_sectors_low_qdim=np.array([[0] * N, [1] + [0] * (N - 1), [2] + [0] * (N - 1)]),
         np_random=np_random,
     )
 
-    # spin_1 = np.array([2])
-    # spin_3_half = np.array([3])
-    # sym_with_name = symmetries.SU2Symmetry('foo')
-
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert isinstance(sym, symmetries.GroupSymmetry)
-    assert not sym.is_abelian
+    print('check properties')
+    assert not factor.is_abelian
+    assert factor.has_symmetric_braid
+    assert factor.has_trivial_braid
+    assert not factor.has_unique_fusion
 
     print('checking valid sectors')
     for valid in gen_irrepsTEST(N, 2):
-        assert sym.is_valid_sector(np.array(valid))
+        assert factor.is_valid_sector(np.array(valid))
     for invalid in [[-1], [-1, 0], [1, 2]]:
-        assert not sym.is_valid_sector(np.array(invalid))
+        assert not factor.is_valid_sector(np.array(invalid))
 
     print('checking sector dimensions')
-    assert sym.sector_dim([0] * N) == 1
+    assert factor.sector_dim([0] * N) == 1
 
     print('checking equality')
-    assert sym == sym
-    assert sym != sym_with_name
-    assert sym != symmetries.SU2Symmetry()
-    assert sym != symmetries.fermion_parity
+    assert factor == factor, 'same instance'
+    assert factor != sym_with_name, 'same cls, other name'
+    assert factor == symmetries.SU_N(N=N), 'same cls, other instance'
+    assert factor != symmetries.TrivialFactor(), 'other cls'
+    assert factor != symmetries.SU2(), 'other cls'
+
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor), 'same instance'
+    assert factor.is_same_factor(sym_with_name), 'same cls, other name'
+    assert factor.is_same_factor(symmetries.SU_N(N=N)), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.TrivialFactor()), 'other cls'
+    assert not factor.is_same_factor(symmetries.SU2()), 'other cls'
 
 
-def test_fermion_parity(np_random):
-    sym = symmetries.FermionParity()
+def test_FermionParity(np_random):
+    factor = symmetries.FermionParity()
     even = np.array([0])
     odd = np.array([1])
     common_checks(
-        sym, example_sectors=np.array([even, odd]), example_sectors_low_qdim=np.array([even, odd]), np_random=np_random
+        factor.as_Symmetry(),
+        example_sectors=np.array([even, odd]),
+        example_sectors_low_qdim=np.array([even, odd]),
+        np_random=np_random,
     )
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
-    assert sym.is_abelian
+    print('check properties')
+    assert factor.is_abelian
+    assert factor.has_symmetric_braid
+    assert not factor.has_trivial_braid
+    assert factor.has_unique_fusion
 
     print('checking valid sectors')
-    assert sym.is_valid_sector(odd)
-    assert not sym.is_valid_sector(np.array([2]))
-    assert not sym.is_valid_sector(np.array([-1]))
-    assert not sym.is_valid_sector(np.array([0, 0]))
+    assert factor.is_valid_sector(odd)
+    assert not factor.is_valid_sector(np.array([2]))
+    assert not factor.is_valid_sector(np.array([-1]))
+    assert not factor.is_valid_sector(np.array([0, 0]))
 
     print('checking fusion_outcomes')
-    assert_array_equal(sym.fusion_outcomes(odd, odd), even[None, :])
-    assert_array_equal(sym.fusion_outcomes(odd, even), odd[None, :])
+    assert_array_equal(factor.fusion_outcomes(odd, odd), even[None, :])
+    assert_array_equal(factor.fusion_outcomes(odd, even), odd[None, :])
 
     print('checking fusion_outcomes_broadcast')
     assert_array_equal(
-        sym.fusion_outcomes_broadcast(np.stack([even, even, odd]), np.stack([even, odd, odd])),
+        factor.fusion_outcomes_broadcast(np.stack([even, even, odd]), np.stack([even, odd, odd])),
         np.stack([even, odd, even]),
     )
 
     print('checking equality')
-    assert sym == sym
-    assert sym == symmetries.fermion_parity
-    assert sym != symmetries.fermion_number
-    assert sym != symmetries.no_symmetry
-    assert sym != symmetries.SU2Symmetry()
-    assert sym != symmetries.fermion_parity * symmetries.z2_symmetry
+    assert factor == factor, 'same instance'
+    assert factor == symmetries.FermionParity(), 'same cls, other instance'
+    assert factor != symmetries.TrivialFactor(), 'other cls'
+    assert factor != symmetries.SU2(), 'other cls'
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert not sym.is_same_symmetry(symmetries.no_symmetry)
-    assert not sym.is_same_symmetry(symmetries.SU2Symmetry())
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor), 'same instance'
+    assert factor.is_same_factor(symmetries.FermionParity()), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.TrivialFactor()), 'other cls'
+    assert not factor.is_same_factor(symmetries.SU2()), 'other cls'
 
     print('checking dual_sector')
-    assert_array_equal(sym.dual_sector(odd), odd)
+    assert_array_equal(factor.dual_sector(odd), odd)
 
     print('checking dual_sectors')
-    assert_array_equal(sym.dual_sectors(np.stack([odd, even, odd])), np.stack([odd, even, odd]))
+    assert_array_equal(factor.dual_sectors(np.stack([odd, even, odd])), np.stack([odd, even, odd]))
 
 
-def test_fermion_number(np_random):
-    sym = symmetries.FermionNumber()
+def test_FermionNumber(np_random):
+    factor = symmetries.FermionNumber()
     example_sectors = np.array([0, 1, -1, 2, 42, -123])[:, None]
-    common_checks(sym, example_sectors=example_sectors, example_sectors_low_qdim=example_sectors, np_random=np_random)
+    common_checks(
+        factor.as_Symmetry(),
+        example_sectors=example_sectors,
+        example_sectors_low_qdim=example_sectors,
+        np_random=np_random,
+    )
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
-    assert sym.is_abelian
+    print('check properties')
+    assert factor.is_abelian
+    assert factor.has_symmetric_braid
+    assert not factor.has_trivial_braid
+    assert factor.has_unique_fusion
 
     print('checking valid sectors')
-    assert sym.is_valid_sector(example_sectors[0])
-    assert sym.is_valid_sector(np.array([2]))
-    assert sym.is_valid_sector(np.array([-1]))
-    assert not sym.is_valid_sector(np.array([0, 0]))
+    assert factor.is_valid_sector(example_sectors[0])
+    assert factor.is_valid_sector(np.array([2]))
+    assert factor.is_valid_sector(np.array([-1]))
+    assert not factor.is_valid_sector(np.array([0, 0]))
 
     print('checking fusion_outcomes')
-    assert_array_equal(sym.fusion_outcomes(np.array([1]), np.array([1])), np.array([[2]]))
-    assert_array_equal(sym.fusion_outcomes(np.array([1]), np.array([-1])), np.array([[0]]))
+    assert_array_equal(factor.fusion_outcomes(np.array([1]), np.array([1])), np.array([[2]]))
+    assert_array_equal(factor.fusion_outcomes(np.array([1]), np.array([-1])), np.array([[0]]))
 
     print('checking fusion_outcomes_broadcast')
-    assert_array_equal(sym.fusion_outcomes_broadcast(example_sectors, 2 * example_sectors), 3 * example_sectors)
+    assert_array_equal(factor.fusion_outcomes_broadcast(example_sectors, 2 * example_sectors), 3 * example_sectors)
 
     print('checking equality')
-    assert sym == sym
-    assert sym == symmetries.fermion_number
-    assert sym != symmetries.fermion_parity
-    assert sym != symmetries.no_symmetry
-    assert sym != symmetries.SU2Symmetry()
-    assert sym != symmetries.fermion_number * symmetries.z2_symmetry
+    assert factor == factor, 'same instance'
+    assert factor == symmetries.FermionNumber(), 'same cls, other instance'
+    assert factor != symmetries.TrivialFactor(), 'other cls'
+    assert factor != symmetries.SU2(), 'other cls'
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert not sym.is_same_symmetry(symmetries.no_symmetry)
-    assert not sym.is_same_symmetry(symmetries.SU2Symmetry())
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor), 'same instance'
+    assert factor.is_same_factor(symmetries.FermionNumber()), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.TrivialFactor()), 'other cls'
+    assert not factor.is_same_factor(symmetries.SU2()), 'other cls'
 
     print('checking dual_sector')
-    assert_array_equal(sym.dual_sector(np.array([2])), np.array([-2]))
+    assert_array_equal(factor.dual_sector(np.array([2])), np.array([-2]))
 
     print('checking dual_sectors')
-    assert_array_equal(sym.dual_sectors(example_sectors), -example_sectors)
+    assert_array_equal(factor.dual_sectors(example_sectors), -example_sectors)
 
 
 @pytest.mark.parametrize('handedness', ['left', 'right'])
-def test_fibonacci_grading(handedness, np_random):
-    sym = symmetries.FibonacciAnyonCategory(handedness)
+def test_FibonacciAnyonCategory(handedness, np_random):
+    other_handedness = {'left': 'right', 'right': 'left'}[handedness]
+    factor = symmetries.FibonacciAnyonCategory(handedness)
     vac = np.array([0])
     tau = np.array([1])
     common_checks(
-        sym, example_sectors=sym.all_sectors(), example_sectors_low_qdim=sym.all_sectors(), np_random=np_random
+        factor.as_Symmetry(),
+        example_sectors=factor.all_sectors(),
+        example_sectors_low_qdim=factor.all_sectors(),
+        np_random=np_random,
     )
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
-    assert not sym.is_abelian
+    print('check properties')
+    assert not factor.is_abelian
+    assert not factor.has_symmetric_braid
+    assert not factor.has_trivial_braid
+    assert factor.has_unique_fusion
 
     print('checking valid sectors')
-    assert sym.is_valid_sector(tau)
-    assert not sym.is_valid_sector(np.array([3]))
-    assert not sym.is_valid_sector(np.array([-1]))
-    assert not sym.is_valid_sector(np.array([0, 0]))
+    assert factor.is_valid_sector(tau)
+    assert not factor.is_valid_sector(np.array([3]))
+    assert not factor.is_valid_sector(np.array([-1]))
+    assert not factor.is_valid_sector(np.array([0, 0]))
 
     print('checking fusion rules')
-    assert_array_equal(sym.fusion_outcomes(vac, tau), tau[None, :])
-    assert_array_equal(sym.fusion_outcomes(tau, tau), np.stack([vac, tau]))
+    assert_array_equal(factor.fusion_outcomes(vac, tau), tau[None, :])
+    assert_array_equal(factor.fusion_outcomes(tau, tau), np.stack([vac, tau]))
 
     print('checking equality')
-    assert sym == sym
-    assert (sym == symmetries.fibonacci_anyon_category) == (handedness == 'left')
-    assert sym != symmetries.no_symmetry
-    assert sym != symmetries.SU2Symmetry()
+    assert factor == factor, 'same instance'
+    assert factor == symmetries.FibonacciAnyonCategory(handedness), 'same cls, other instance'
+    assert factor != symmetries.FibonacciAnyonCategory(other_handedness), 'same cls, other instance'
+    assert factor != symmetries.TrivialFactor(), 'other cls'
+    assert factor != symmetries.SU2(), 'other cls'
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert sym.is_same_symmetry(symmetries.fibonacci_anyon_category) == (handedness == 'left')
-    assert not sym.is_same_symmetry(symmetries.no_symmetry)
-    assert not sym.is_same_symmetry(symmetries.SU2Symmetry())
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor), 'same instance'
+    assert factor.is_same_factor(symmetries.FibonacciAnyonCategory(handedness)), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.FibonacciAnyonCategory(other_handedness)), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.TrivialFactor()), 'other cls'
+    assert not factor.is_same_factor(symmetries.SU2()), 'other cls'
 
     print('checking dual_sector')
-    assert_array_equal(sym.dual_sector(tau), tau)
+    assert_array_equal(factor.dual_sector(tau), tau)
 
 
 @pytest.mark.parametrize('nu', [*range(1, 16, 2)])
-def test_ising_grading(nu, np_random):
-    sym = symmetries.IsingAnyonCategory(nu)
+def test_IsingAnyonCategory(nu, np_random):
+    factor = symmetries.IsingAnyonCategory(nu)
     vac = np.array([0])
     anyon = np.array([1])
     fermion = np.array([2])
     common_checks(
-        sym, example_sectors=sym.all_sectors(), example_sectors_low_qdim=sym.all_sectors(), np_random=np_random
+        factor.as_Symmetry(),
+        example_sectors=factor.all_sectors(),
+        example_sectors_low_qdim=factor.all_sectors(),
+        np_random=np_random,
     )
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
-    assert not sym.is_abelian
+    print('check properties')
+    assert not factor.is_abelian
+    assert not factor.has_symmetric_braid
+    assert not factor.has_trivial_braid
+    assert factor.has_unique_fusion
 
     print('checking valid sectors')
-    assert sym.is_valid_sector(anyon)
-    assert sym.is_valid_sector(fermion)
-    assert not sym.is_valid_sector(np.array([3]))
-    assert not sym.is_valid_sector(np.array([-1]))
-    assert not sym.is_valid_sector(np.array([0, 0]))
+    assert factor.is_valid_sector(anyon)
+    assert factor.is_valid_sector(fermion)
+    assert not factor.is_valid_sector(np.array([3]))
+    assert not factor.is_valid_sector(np.array([-1]))
+    assert not factor.is_valid_sector(np.array([0, 0]))
 
     print('checking fusion rules')
-    assert_array_equal(sym.fusion_outcomes(vac, anyon), anyon[None, :])
-    assert_array_equal(sym.fusion_outcomes(vac, fermion), fermion[None, :])
-    assert_array_equal(sym.fusion_outcomes(anyon, fermion), anyon[None, :])
-    assert_array_equal(sym.fusion_outcomes(anyon, anyon), np.stack([vac, fermion]))
+    assert_array_equal(factor.fusion_outcomes(vac, anyon), anyon[None, :])
+    assert_array_equal(factor.fusion_outcomes(vac, fermion), fermion[None, :])
+    assert_array_equal(factor.fusion_outcomes(anyon, fermion), anyon[None, :])
+    assert_array_equal(factor.fusion_outcomes(anyon, anyon), np.stack([vac, fermion]))
 
     print('checking equality')
-    assert sym == sym
-    assert (sym == symmetries.ising_anyon_category) == (nu == 1)
-    assert sym != symmetries.no_symmetry
-    assert sym != symmetries.SU2Symmetry()
+    assert factor == factor, 'same instance'
+    assert factor == symmetries.IsingAnyonCategory(nu), 'same cls, other instance'
+    assert factor == symmetries.IsingAnyonCategory(nu + 16), 'same cls, other instance'
+    assert factor != symmetries.IsingAnyonCategory(nu + 2), 'same cls, other instance'
+    assert factor != symmetries.TrivialFactor(), 'other cls'
+    assert factor != symmetries.SU2(), 'other cls'
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert sym.is_same_symmetry(symmetries.ising_anyon_category) == (nu == 1)
-    assert not sym.is_same_symmetry(symmetries.no_symmetry)
-    assert not sym.is_same_symmetry(symmetries.SU2Symmetry())
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor), 'same instance'
+    assert factor.is_same_factor(symmetries.IsingAnyonCategory(nu)), 'same cls, other instance'
+    assert factor.is_same_factor(symmetries.IsingAnyonCategory(nu + 16)), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.IsingAnyonCategory(nu + 2)), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.TrivialFactor()), 'other cls'
+    assert not factor.is_same_factor(symmetries.SU2()), 'other cls'
 
     print('checking dual_sector')
-    assert_array_equal(sym.dual_sector(anyon), anyon)
-    assert_array_equal(sym.dual_sector(fermion), fermion)
+    assert_array_equal(factor.dual_sector(anyon), anyon)
+    assert_array_equal(factor.dual_sector(fermion), fermion)
 
 
 def test_SU3_3AnyonCategory(np_random):
@@ -1255,219 +1299,240 @@ def test_SU3_3AnyonCategory(np_random):
     b = np.array([1])
     c = np.array([2])
     d = np.array([3])
-    sym = symmetries.SU3_3AnyonCategory()
+    factor = symmetries.SU3_3AnyonCategory()
     common_checks(
-        sym, example_sectors=sym.all_sectors(), example_sectors_low_qdim=sym.all_sectors(), np_random=np_random
+        factor.as_Symmetry(),
+        example_sectors=factor.all_sectors(),
+        example_sectors_low_qdim=factor.all_sectors(),
+        np_random=np_random,
     )
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
-    assert not sym.is_abelian
+    print('check properties')
+    assert not factor.is_abelian
+    assert not factor.has_symmetric_braid
+    assert not factor.has_trivial_braid
+    assert not factor.has_unique_fusion
 
     print('checking valid sectors')
     for valid in [a, b, c, d]:
-        assert sym.is_valid_sector(valid)
+        assert factor.is_valid_sector(valid)
     for invalid in [[-1], [4], [0, 0]]:
-        assert not sym.is_valid_sector(np.array(invalid))
+        assert not factor.is_valid_sector(np.array(invalid))
 
     print('checking fusion_outcomes')
-    assert_array_equal(sym.fusion_outcomes(b, b), np.stack([a, b, c, d]))
-    assert_array_equal(sym.fusion_outcomes(b, c), b[None, :])
-    assert_array_equal(sym.fusion_outcomes(b, d), b[None, :])
-    assert_array_equal(sym.fusion_outcomes(c, c), d[None, :])
-    assert_array_equal(sym.fusion_outcomes(c, d), a[None, :])
-    assert_array_equal(sym.fusion_outcomes(d, d), c[None, :])
+    assert_array_equal(factor.fusion_outcomes(b, b), np.stack([a, b, c, d]))
+    assert_array_equal(factor.fusion_outcomes(b, c), b[None, :])
+    assert_array_equal(factor.fusion_outcomes(b, d), b[None, :])
+    assert_array_equal(factor.fusion_outcomes(c, c), d[None, :])
+    assert_array_equal(factor.fusion_outcomes(c, d), a[None, :])
+    assert_array_equal(factor.fusion_outcomes(d, d), c[None, :])
 
     print('checking equality')
-    assert sym == sym
-    assert sym != symmetries.no_symmetry
-    assert sym != symmetries.SU2Symmetry()
+    assert factor == factor, 'same instance'
+    assert factor == symmetries.SU3_3AnyonCategory(), 'same cls, other instance'
+    assert factor != symmetries.TrivialFactor(), 'other cls'
+    assert factor != symmetries.SU2(), 'other cls'
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert not sym.is_same_symmetry(symmetries.no_symmetry)
-    assert not sym.is_same_symmetry(symmetries.SU2Symmetry())
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor), 'same instance'
+    assert factor.is_same_factor(symmetries.SU3_3AnyonCategory()), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.TrivialFactor()), 'other cls'
+    assert not factor.is_same_factor(symmetries.SU2()), 'other cls'
 
     print('checking dual_sector')
-    assert_array_equal(sym.dual_sector(b), b)
-    assert_array_equal(sym.dual_sector(c), d)
-    assert_array_equal(sym.dual_sector(d), c)
+    assert_array_equal(factor.dual_sector(b), b)
+    assert_array_equal(factor.dual_sector(c), d)
+    assert_array_equal(factor.dual_sector(d), c)
 
     print('checking dual_sectors')
-    assert_array_equal(sym.dual_sectors(np.stack([a, b, c, d])), np.stack([a, b, d, c]))
+    assert_array_equal(factor.dual_sectors(np.stack([a, b, c, d])), np.stack([a, b, d, c]))
 
 
-@pytest.mark.parametrize('N', [4, 7, 36])
+@pytest.mark.parametrize(
+    'cls, N',
+    [
+        (symmetries.ZNAnyonCategory, 4),
+        (symmetries.ZNAnyonCategory, 7),
+        (symmetries.ZNAnyonCategory, 36),
+        (symmetries.ZNAnyonCategory2, 4),
+        (symmetries.ZNAnyonCategory2, 36),
+    ],
+)
 @pytest.mark.parametrize('n', [1, 3, 4])
-def test_ZNAnyonCategories(N, n, np_random):
-    syms = [symmetries.ZNAnyonCategory(N, n)]
-    if N % 2 == 0:
-        syms.append(symmetries.ZNAnyonCategory2(N, n))
+def test_ZNAnyonCategory(cls, N, n, np_random):
+    factor = cls(N=N, n=n)
 
-    for sym in syms:
-        sectors_a = np.array([0, 1, 2, 10])[:, None] % N
-        sectors_b = np.array([0, 1, 3, 11])[:, None] % N
-        common_checks(sym, example_sectors=sectors_a, example_sectors_low_qdim=sectors_a, np_random=np_random)
+    sectors_a = np.array([0, 1, 2, 10])[:, None] % N
+    sectors_b = np.array([0, 1, 3, 11])[:, None] % N
+    common_checks(
+        factor.as_Symmetry(), example_sectors=sectors_a, example_sectors_low_qdim=sectors_a, np_random=np_random
+    )
 
-        print('instancecheck and is_abelian')
-        assert not isinstance(sym, symmetries.AbelianGroup)
-        assert not isinstance(sym, symmetries.GroupSymmetry)
-        assert sym.is_abelian
-
-        print('checking valid sectors')
-        for s in sectors_a:
-            assert sym.is_valid_sector(s)
-        assert not sym.is_valid_sector(np.array([0, 0]))
-        assert not sym.is_valid_sector(np.array([N]))
-        assert not sym.is_valid_sector(np.array([-1]))
-
-        print('checking fusion_outcomes')
-        for a in sectors_a:
-            for b in sectors_b:
-                expect = (a + b)[None, :] % N
-                assert_array_equal(sym.fusion_outcomes(a, b), expect)
-
-        print('checking fusion_outcomes_broadcast')
-        expect = (sectors_a + sectors_b) % N
-        assert_array_equal(sym.fusion_outcomes_broadcast(sectors_a, sectors_b), expect)
-
-        print('checking sector dimensions')
-        for s in sectors_a:
-            assert sym.sector_dim(s) == 1
-
-        print('checking equality')
-        cls = sym.__class__
-        other = [cls(N, n), cls(N, n + N), cls(N, n - 1), cls(N, n + 1), cls(N + 2, n)]
-        assert sym == sym
-        assert sym == other[0]
-        assert sym == other[1]
-        for i in range(2, 5):
-            assert sym != other[i]
-        assert sym != symmetries.u1_symmetry
-        if N % 2 == 0:
-            assert (cls == symmetries.ZNAnyonCategory) == (sym == symmetries.ZNAnyonCategory(N, n))
-            assert (cls == symmetries.ZNAnyonCategory2) == (sym == symmetries.ZNAnyonCategory2(N, n))
-
-        print('checking is_same_symmetry')
-        assert sym.is_same_symmetry(sym)
-        assert sym.is_same_symmetry(other[0])
-        assert sym.is_same_symmetry(other[1])
-        for i in range(2, 5):
-            assert not sym.is_same_symmetry(other[i])
-        assert not sym.is_same_symmetry(symmetries.u1_symmetry)
-
-        print('checking dual_sector')
-        for s in sectors_a:
-            assert_array_equal(sym.dual_sector(s), (-s) % N)
-
-        print('checking dual_sectors')
-        assert_array_equal(sym.dual_sectors(sectors_a), (-sectors_a) % N)
-
-
-@pytest.mark.parametrize('N', [3, 8, 31])
-def test_QuantumDoubleZNAnyonCategory(N, np_random):
-    sym = symmetries.QuantumDoubleZNAnyonCategory(N)
-    sectors_a = np.array([[0, 0], [1, 2], [2, 1], [10, 21]]) % N
-    sectors_b = np.array([[0, 2], [1, 1], [3, 8], [11, 4]]) % N
-    common_checks(sym, example_sectors=sectors_a, example_sectors_low_qdim=sectors_a, np_random=np_random)
-
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
-    assert sym.is_abelian
+    print('check properties')
+    assert factor.is_abelian
+    assert not factor.has_symmetric_braid
+    assert not factor.has_trivial_braid
+    assert factor.has_unique_fusion
 
     print('checking valid sectors')
-    for s in np.append(sectors_a, sectors_b, axis=0):
-        assert sym.is_valid_sector(s)
-    assert not sym.is_valid_sector(np.array([0, 0, 0]))
-    assert not sym.is_valid_sector(np.array([0]))
-    assert not sym.is_valid_sector(np.array([N, 0]))
-    assert not sym.is_valid_sector(np.array([0, N]))
+    for s in sectors_a:
+        assert factor.is_valid_sector(s)
+    assert not factor.is_valid_sector(np.array([0, 0]))
+    assert not factor.is_valid_sector(np.array([N]))
+    assert not factor.is_valid_sector(np.array([-1]))
 
     print('checking fusion_outcomes')
     for a in sectors_a:
         for b in sectors_b:
             expect = (a + b)[None, :] % N
-            assert_array_equal(sym.fusion_outcomes(a, b), expect)
+            assert_array_equal(factor.fusion_outcomes(a, b), expect)
 
     print('checking fusion_outcomes_broadcast')
     expect = (sectors_a + sectors_b) % N
-    assert_array_equal(sym.fusion_outcomes_broadcast(sectors_a, sectors_b), expect)
+    assert_array_equal(factor.fusion_outcomes_broadcast(sectors_a, sectors_b), expect)
 
     print('checking sector dimensions')
     for s in sectors_a:
-        assert sym.sector_dim(s) == 1
+        assert factor.sector_dim(s) == 1
 
     print('checking equality')
-    other = [
-        symmetries.QuantumDoubleZNAnyonCategory(N),
-        symmetries.QuantumDoubleZNAnyonCategory(N + 1),
-        symmetries.ZNAnyonCategory(N, 1),
-        symmetries.ProductSymmetry([symmetries.ZNAnyonCategory(N, 1), symmetries.ZNAnyonCategory(N, 1)]),
-    ]
-    assert sym == sym
-    assert sym == other[0]
-    assert sym != other[1]
-    assert sym != other[2]
-    assert sym != other[3]
-    assert sym != symmetries.no_symmetry
+    assert factor == factor, 'same instance'
+    assert factor == cls(N=N, n=n), 'same cls, other instance'
+    assert factor == cls(N=N, n=n + N), 'same cls, other instance'
+    assert factor != cls(N=N, n=n + 1), 'same cls, other instance'
+    assert factor != symmetries.TrivialFactor(), 'other cls'
+    assert factor != symmetries.SU2(), 'other cls'
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert sym.is_same_symmetry(other[0])
-    for i in range(1, 4):
-        assert not sym.is_same_symmetry(other[i])
-    assert not sym.is_same_symmetry(symmetries.u1_symmetry)
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor), 'same instance'
+    assert factor.is_same_factor(cls(N=N, n=n)), 'same cls, other instance'
+    assert factor.is_same_factor(cls(N=N, n=n + N)), 'same cls, other instance'
+    assert not factor.is_same_factor(cls(N=N, n=n + 1)), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.TrivialFactor()), 'other cls'
+    assert not factor.is_same_factor(symmetries.SU2()), 'other cls'
 
     print('checking dual_sector')
     for s in sectors_a:
-        assert_array_equal(sym.dual_sector(s), (-s) % N)
+        assert_array_equal(factor.dual_sector(s), (-s) % N)
 
     print('checking dual_sectors')
-    assert_array_equal(sym.dual_sectors(sectors_a), (-sectors_a) % N)
+    assert_array_equal(factor.dual_sectors(sectors_a), (-sectors_a) % N)
+
+
+@pytest.mark.parametrize('N', [3, 8, 31])
+def test_QuantumDoubleZNAnyonCategory(N, np_random):
+    factor = symmetries.QuantumDoubleZNAnyonCategory(N)
+    sectors_a = np.array([[0, 0], [1, 2], [2, 1], [10, 21]]) % N
+    sectors_b = np.array([[0, 2], [1, 1], [3, 8], [11, 4]]) % N
+    common_checks(
+        factor.as_Symmetry(), example_sectors=sectors_a, example_sectors_low_qdim=sectors_a, np_random=np_random
+    )
+
+    print('check properties')
+    assert factor.is_abelian
+    assert not factor.has_symmetric_braid
+    assert not factor.has_trivial_braid
+    assert factor.has_unique_fusion
+
+    print('checking valid sectors')
+    for s in np.append(sectors_a, sectors_b, axis=0):
+        assert factor.is_valid_sector(s)
+    assert not factor.is_valid_sector(np.array([0, 0, 0]))
+    assert not factor.is_valid_sector(np.array([0]))
+    assert not factor.is_valid_sector(np.array([N, 0]))
+    assert not factor.is_valid_sector(np.array([0, N]))
+
+    print('checking fusion_outcomes')
+    for a in sectors_a:
+        for b in sectors_b:
+            expect = (a + b)[None, :] % N
+            assert_array_equal(factor.fusion_outcomes(a, b), expect)
+
+    print('checking fusion_outcomes_broadcast')
+    expect = (sectors_a + sectors_b) % N
+    assert_array_equal(factor.fusion_outcomes_broadcast(sectors_a, sectors_b), expect)
+
+    print('checking sector dimensions')
+    for s in sectors_a:
+        assert factor.sector_dim(s) == 1
+
+    print('checking equality')
+    assert factor == factor, 'same instance'
+    assert factor == symmetries.QuantumDoubleZNAnyonCategory(N=N), 'same cls, other instance'
+    assert factor != symmetries.QuantumDoubleZNAnyonCategory(N=N + 1), 'same cls, other instance'
+    assert factor != symmetries.TrivialFactor(), 'other cls'
+    assert factor != symmetries.SU2(), 'other cls'
+
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor), 'same instance'
+    assert factor.is_same_factor(symmetries.QuantumDoubleZNAnyonCategory(N=N)), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.QuantumDoubleZNAnyonCategory(N=N + 1)), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.TrivialFactor()), 'other cls'
+    assert not factor.is_same_factor(symmetries.SU2()), 'other cls'
+
+    print('checking dual_sector')
+    for s in sectors_a:
+        assert_array_equal(factor.dual_sector(s), (-s) % N)
+
+    print('checking dual_sectors')
+    assert_array_equal(factor.dual_sectors(sectors_a), (-sectors_a) % N)
 
 
 @pytest.mark.parametrize('k', [3, 4, 6])
 @pytest.mark.parametrize('handedness', ['left', 'right'])
 def test_SU2_kAnyonCategory(k, handedness, np_random):
-    sym = symmetries.SU2_kAnyonCategory(k, handedness)
+    other_handedness = {'left': 'right', 'right': 'left'}[handedness]
+
+    factor = symmetries.SU2_kAnyonCategory(k, handedness)
     sectors_a = np.array([[i] for i in range(min(k + 1, 10))])
     sectors_b = np.array([[i] for i in range(min(k + 1, 5))])
-    common_checks(sym, example_sectors=sectors_a, example_sectors_low_qdim=sectors_b, np_random=np_random)
+    common_checks(
+        factor.as_Symmetry(), example_sectors=sectors_a, example_sectors_low_qdim=sectors_b, np_random=np_random
+    )
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
-    assert not sym.is_abelian
+    print('check properties')
+    assert not factor.is_abelian
+    assert not factor.has_symmetric_braid
+    assert not factor.has_trivial_braid
+    assert factor.has_unique_fusion
 
     print('checking valid sectors')
     for valid in [[0], [1], [k]]:
-        assert sym.is_valid_sector(np.array(valid))
+        assert factor.is_valid_sector(np.array(valid))
     for invalid in [[-1], [0, 0], [k + 1]]:
-        assert not sym.is_valid_sector(np.array(invalid))
+        assert not factor.is_valid_sector(np.array(invalid))
 
     print('checking fusion_outcomes')
-    assert_array_equal(sym.fusion_outcomes(sectors_a[-1], sectors_a[-1]), sectors_a[0][None, :])
-    assert_array_equal(sym.fusion_outcomes(sectors_a[-1], sectors_a[-2]), sectors_a[1][None, :])
-    assert_array_equal(sym.fusion_outcomes(sectors_a[-2], sectors_a[-2]), sectors_a[0:4:2])
+    assert_array_equal(factor.fusion_outcomes(sectors_a[-1], sectors_a[-1]), sectors_a[0][None, :])
+    assert_array_equal(factor.fusion_outcomes(sectors_a[-1], sectors_a[-2]), sectors_a[1][None, :])
+    assert_array_equal(factor.fusion_outcomes(sectors_a[-2], sectors_a[-2]), sectors_a[0:4:2])
     a, b = sectors_a[2][0], sectors_a[-3][0]
     limit = min(a + b, 2 * k - a - b)
-    assert_array_equal(sym.fusion_outcomes(sectors_a[2], sectors_a[-3]), sectors_a[abs(a - b) : limit + 2 : 2])
+    assert_array_equal(factor.fusion_outcomes(sectors_a[2], sectors_a[-3]), sectors_a[abs(a - b) : limit + 2 : 2])
 
     print('checking equality')
-    assert sym == sym
-    assert (sym == symmetries.SU2_kAnyonCategory(k, 'right')) == (handedness == 'right')
-    assert sym != symmetries.SU2_kAnyonCategory(k + 1, handedness)
-    assert sym != symmetries.SU2Symmetry()
+    assert factor == factor, 'same instance'
+    assert factor == symmetries.SU2_kAnyonCategory(k=k, handedness=handedness), 'same cls, other instance'
+    assert factor != symmetries.SU2_kAnyonCategory(k=k + 1, handedness=handedness), 'same cls, other instance'
+    assert factor != symmetries.SU2_kAnyonCategory(k=k, handedness=other_handedness), 'same cls, other instance'
+    assert factor != symmetries.TrivialFactor(), 'other cls'
+    assert factor != symmetries.SU2(), 'other cls'
+
+    print('checking is_same_factor')
+    assert factor.is_same_factor(factor), 'same instance'
+    assert factor.is_same_factor(symmetries.SU2_kAnyonCategory(k=k, handedness=handedness)), 'same cls, other instance'
+    assert not factor.is_same_factor(symmetries.SU2_kAnyonCategory(k=k + 1, handedness=handedness)), (
+        'same cls, other instance'
+    )
+    assert not factor.is_same_factor(symmetries.SU2_kAnyonCategory(k=k, handedness=other_handedness)), (
+        'same cls, other instance'
+    )
+    assert not factor.is_same_factor(symmetries.TrivialFactor()), 'other cls'
+    assert not factor.is_same_factor(symmetries.SU2()), 'other cls'
 
     print('checking dual_sector')
-    assert_array_equal(sym.dual_sector(sectors_a[-1]), sectors_a[-1])
-    assert_array_equal(sym.dual_sector(sectors_b[-1]), sectors_b[-1])
+    assert_array_equal(factor.dual_sector(sectors_a[-1]), sectors_a[-1])
+    assert_array_equal(factor.dual_sector(sectors_b[-1]), sectors_b[-1])
 
     print('checking dual_sectors')
-    assert_array_equal(sym.dual_sectors(sectors_a), sectors_a)
-
-
-# test_suN_symmetry(3,'/space/ge36xeh/TenpyV2a/Test_N_3_HWeight_7.hdf5', '/space/ge36xeh/TenpyV2a/Test_Fsymb_3_HWeight_3.hdf5', '/space/ge36xeh/TenpyV2a/Test_Rsymb_3_HWeight_4.hdf5', default_rng)
-# test_suN_symmetry(2,'/space/ge36xeh/TenpyV2a/Test_N_2_HWeight_20.hdf5', '/space/ge36xeh/TenpyV2a/Test_Fsymb_2_HWeight_6.hdf5', '/space/ge36xeh/TenpyV2a/Test_Rsymb_2_HWeight_6.hdf5', default_rng)
+    assert_array_equal(factor.dual_sectors(sectors_a), sectors_a)

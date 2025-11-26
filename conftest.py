@@ -197,9 +197,9 @@ _symmetries = {
     # groups:
     'NoSymm': symmetries.no_symmetry,
     'U1': symmetries.u1_symmetry,
-    'Z4_named': symmetries.ZNSymmetry(4, 'My_Z4_symmetry'),
-    'U1xZ3': symmetries.ProductSymmetry([symmetries.u1_symmetry, symmetries.z3_symmetry]),
-    'SU2': symmetries.SU2Symmetry(),
+    'Z4_named': symmetries.ZN(4, 'My_Z4_symmetry').as_Symmetry(),
+    'U1xZ3': symmetries.u1_symmetry * symmetries.z3_symmetry,
+    'SU2': symmetries.SU2().as_Symmetry(),
     # anyons:
     'fermion': symmetries.fermion_parity,
     'FibonacciAnyon': symmetries.fibonacci_anyon_category,
@@ -287,7 +287,7 @@ def make_any_block(any_backend, np_random):
 # build the compatible pairs
 _compatible_pairs = {'NoSymmetry': ('no_symmetry', symmetries.no_symmetry)}  # {id: param}
 for _sym_name, _sym in _symmetries.items():
-    if isinstance(_sym, symmetries.AbelianGroup):
+    if _sym.is_abelian and _sym.has_trivial_braid:
         _compatible_pairs[f'AbelianBackend-{_sym_name}'] = ('abelian', _sym)
     _compatible_pairs[f'FusionTreeBackend-{_sym_name}'] = pytest.param(
         ('fusion_tree', _sym), marks=pytest.mark.FusionTree

@@ -16,7 +16,7 @@ from cyten.backends import conventional_leg_order, get_backend
 from cyten.block_backends import NumpyBlockBackend
 from cyten.dtypes import Dtype
 from cyten.spaces import AbelianLegPipe, ElementarySpace, LegPipe, TensorProduct
-from cyten.symmetries import BraidingStyle, SU2Symmetry, SymmetryError, z4_symmetry
+from cyten.symmetries import SU2, SymmetryError, z4_symmetry
 from cyten.tensors import ChargedTensor, DiagonalTensor, Mask, SymmetricTensor, Tensor
 from cyten.testing import assert_tensors_almost_equal
 from cyten.tools.misc import duplicate_entries, inverse_permutation, iter_common_noncommon_sorted_arrays, to_valid_idx
@@ -410,7 +410,7 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
 
 def test_fixes_124(np_random):
     """Check if the bug discussed in PR #124 is fixed"""
-    symm = SU2Symmetry()
+    symm = SU2().as_Symmetry()
     backend = get_backend(symm, 'numpy')
     a = ElementarySpace(symm, [[1]], [1])
     b = ElementarySpace(symm, [[1]], [1])
@@ -447,8 +447,8 @@ def test_fixes_124(np_random):
 
 def test_fixes_23():
     # See PR #23
-    sym = SU2Symmetry()
-    site = ElementarySpace(sym, sym.spin_half[None, :])
+    sym = SU2().as_Symmetry()
+    site = ElementarySpace(sym, SU2.spin_half[None, :])
     block = np.zeros((2,) * 6, float)
     tens = SymmetricTensor.from_dense_block(block, codomain=[site] * 3, domain=[site] * 3)
     tens.test_sanity()
@@ -665,17 +665,32 @@ def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatib
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
+    if isinstance(T.backend, backends.FusionTreeBackend) and T.has_pipes and T.charged_state is None:
+        with pytest.raises(ValueError, match='charged_state not specified.'):
+            _ = T.to_numpy(understood_braiding=True)
+
     print('checking to_numpy')
-    numpy_block = T.to_numpy(understood_braiding=True)
-    assert T.shape == numpy_block.shape
+    if T.charged_state is None:
+        with pytest.raises(ValueError, match='charged_state not specified.'):
+            _ = T.to_numpy(understood_braiding=True)
+        # error is expected behavior
+    else:
+        numpy_block = T.to_numpy(understood_braiding=True)
+        assert T.shape == numpy_block.shape
 
     print('checking from_zero')
     zero_tens = ChargedTensor.from_zero(
         codomain=T.codomain, domain=T.domain, charge=T.charge_leg, charged_state=T.charged_state, backend=backend
     )
     zero_tens.test_sanity()
-    zero_tens_np = zero_tens.to_numpy(understood_braiding=True)
-    npt.assert_array_almost_equal_nulp(zero_tens_np, np.zeros(T.shape), 10)
+
+    if T.charged_state is None:
+        with pytest.raises(ValueError, match='charged_state not specified.'):
+            _ = zero_tens.to_numpy(understood_braiding=True)
+        # error is expected behavior
+    else:
+        zero_tens_np = zero_tens.to_numpy(understood_braiding=True)
+        npt.assert_array_almost_equal_nulp(zero_tens_np, np.zeros(T.shape), 10)
 
     print('checking repr and str')
     _ = str(T)
@@ -689,6 +704,11 @@ def test_ChargedTensor(make_compatible_tensor, make_compatible_sectors, compatib
     inv_part = make_compatible_tensor(codomain=1, domain=[charge_leg], labels=[None, '!'])
     tens = ChargedTensor(inv_part, charged_state=[1])
     leg = tens.codomain[0]
+
+    if tens.charge_leg.dim > 1:
+        with pytest.raises(NotImplementedError, match='Higher-dimensional charge leg not supported'):
+            _ = tens.to_dense_block_single_sector()
+        pytest.xfail('Higher-dimensional charge leg not supported')
 
     if isinstance(backend, backends.FusionTreeBackend):
         with pytest.raises(NotImplementedError, match='inv_part_to_dense_block_single_sector not implemented'):
@@ -1043,7 +1063,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
 @pytest.mark.parametrize('symmetry_backend', [pytest.param('fusion_tree', marks=pytest.mark.FusionTree)])
 def test_from_block_su2_symm(symmetry_backend, block_backend):
     backend = get_backend(symmetry_backend, block_backend)
-    sym = SU2Symmetry()
+    sym = SU2().as_Symmetry()
     spin_half = ElementarySpace(sym, [[1]])
 
     # basis order: [down, up]  ->  might look unusual
@@ -1205,6 +1225,11 @@ def test_add_trivial_leg(cls, domain, codomain, is_dual, make_compatible_tensor,
     if not tens.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
+    if cls is ChargedTensor and tens.charged_state is None:
+        with pytest.raises(ValueError, match='charged_state not specified.'):
+            _ = tens.to_numpy(understood_braiding=True)
+        pytest.xfail()  # TODO what can we still test instead?
+
     if cls in [DiagonalTensor, Mask]:
         catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
     else:
@@ -1253,6 +1278,12 @@ def test_almost_equal(cls, make_compatible_tensor):
         T_diff = ChargedTensor(T_diff_inv, T.charged_state)
     else:
         T_diff: Tensor = make_compatible_tensor(domain=T.domain, codomain=T.codomain, cls=cls)
+
+    if cls is ChargedTensor and T.charge_leg.dim > 1:
+        match = 'linear_combination of ChargedTensor does not support higher-dim charge legs yet.'
+        with pytest.raises(NotImplementedError, match=match):
+            _ = T + 1e-7 * T_diff
+        pytest.xfail(match)
 
     T2 = T + 1e-7 * T_diff
     assert tensors.almost_equal(T, T2, rtol=1e-5, atol=1e-5)
@@ -1317,6 +1348,12 @@ def test_apply_mask(cls, codomain, domain, which_leg, make_compatible_tensor, co
 
     if not T.symmetry.can_be_dropped:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
+
+    if cls is ChargedTensor and T.charged_state is None:
+        with pytest.raises(ValueError, match='charged_state not specified.'):
+            _ = T.to_numpy(understood_braiding=True)
+        # cant do to_numpy either -> need to check some other way
+        return
 
     T_np = T.to_numpy(understood_braiding=True)
     mask_np = M.as_numpy_mask()
@@ -1885,7 +1922,14 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
     assert res.legs == expect_legs
     assert res.labels == T.labels
 
-    if T.symmetry.can_be_dropped:
+    compare_numpy = T.symmetry.can_be_dropped
+
+    if cls is ChargedTensor and T.charged_state is None:
+        with pytest.raises(ValueError, match='charged_state not specified.'):
+            _ = T.to_numpy(understood_braiding=True)
+        compare_numpy = False
+
+    if compare_numpy:
         T_np = T.to_numpy(understood_braiding=True)
         mask_np = M.as_numpy_mask()
         idcs = (slice(None, None, None),) * leg_idx + (mask_np,)
@@ -1941,6 +1985,11 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
         with pytest.raises(SymmetryError, match='Can not access elements'):
             _ = T[(0,) * (cod + dom)]
         return
+
+    if cls is ChargedTensor and T.charged_state is None:
+        with pytest.raises(ValueError, match='charged_state not specified'):
+            _ = T.to_numpy(understood_braiding=True)
+        pytest.xfail()
 
     if (cls is SymmetricTensor or cls is ChargedTensor) and isinstance(T.backend, backends.FusionTreeBackend):
         catch_warnings = pytest.warns(UserWarning, match='Accessing individual entries')
@@ -2110,10 +2159,10 @@ def test_inner(cls, cod, dom, do_dagger, allow_basis_perm, make_compatible_tenso
             _ = tensors.inner(A, B, do_dagger=do_dagger)
         pytest.xfail('apply_mask(Mask, Mask) not yet supported')
 
-    if not A.symmetry.can_be_dropped and cls is ChargedTensor:
-        assert A.charged_state is None
-        # for anyonic symmetry, can not specify charge state.
-        # but the, we can not compute inner.
+    if cls is ChargedTensor and (A.charged_state is None or B.charged_state is None):
+        with pytest.raises(ValueError, match='charged_state must be specified for inner()'):
+            _ = tensors.inner(A, B, do_dagger=do_dagger)
+        # error is expected behavior. nothing else to test
         return
 
     res = tensors.inner(A, B, do_dagger=do_dagger)
@@ -2207,6 +2256,10 @@ def test_linear_combination(cls, make_compatible_tensor):
         #       Could e.g. check versus inner product, if <x| av + bw> = a <x|v> + b <x|w>
         with catch_warnings:
             _ = tensors.linear_combination(42, v, 43j, w)
+        return
+
+    if cls is ChargedTensor and (v.charged_state is None or w.charged_state is None):
+        # TODO need to redesing: cant do to_numpy()
         return
 
     v_np = v.to_numpy(understood_braiding=True)
@@ -2309,11 +2362,19 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
 def test_norm(cls, cod, dom, make_compatible_tensor):
     T: Tensor = make_compatible_tensor(cod, dom, cls=cls)
 
-    if not T.symmetry.can_be_dropped and cls is ChargedTensor:
-        assert T.charged_state is None  # can not have a charged state for anyons -> can not compute norm
+    if cls is ChargedTensor and T.charged_state is None:
+        with pytest.raises(ValueError, match='norm of a ChargedTensor with unspecified charged_state is ambiguous'):
+            _ = tensors.norm(T)
+        # error is expected behavior. nothing else to do
         return
 
-    res = tensors.norm(T)
+    if cls is ChargedTensor and T.charge_leg.dim != 1:
+        catch_warnings = pytest.warns(UserWarning, match='Converting ChargedTensor to dense block for `norm`')
+    else:
+        catch_warnings = nullcontext()
+
+    with catch_warnings:
+        res = tensors.norm(T)
     assert isinstance(res, (float, complex))
 
     if T.symmetry.can_be_dropped:
@@ -2337,7 +2398,7 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
     ],
 )
 def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor, compatible_symmetry):
-    if isinstance(compatible_symmetry, symmetries.SU2Symmetry):
+    if compatible_symmetry.has_factor(symmetries.SU2):
         # need to make the test case smaller, so this does not need to many resources
         kwargs = dict(use_pipes=False, max_blocks=3)
         cA = dA = cB = dB = 1
@@ -2348,7 +2409,7 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor, compatible_
     A: Tensor = make_compatible_tensor(cA, dA, cls=cls_A, labels=A_labels, **kwargs)
     B: Tensor = make_compatible_tensor(cB, dB, cls=cls_B, labels=B_labels, **kwargs)
 
-    if cls_A is ChargedTensor and cls_B is ChargedTensor:
+    if cls_A is ChargedTensor and cls_B is ChargedTensor and A.charged_state is not None and B.charged_state is not None:
         msg = reason = 'state_tensor_product not implemented'
         with pytest.raises(NotImplementedError, match=msg):
             _ = tensors.outer(A, B, relabel1={'a': 'x'}, relabel2={'h': 'y'})
@@ -2361,7 +2422,13 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor, compatible_
     B_relabelled = ['y', *B_labels[1:]]
     assert res.labels == [*A_relabelled[:cA], *B_relabelled, *A_relabelled[cA:]]
 
-    if A.symmetry.can_be_dropped:
+    compare_numpy = A.symmetry.can_be_dropped
+    if cls_A is ChargedTensor and A.charged_state is None:
+        compare_numpy = False
+    if cls_B is ChargedTensor and B.charged_state is None:
+        compare_numpy = False
+
+    if compare_numpy:
         perm = [*range(cA), *range(cA + dA, cA + cB + dB + dA), *range(cA, cA + dA)]
         A_np = A.to_numpy(understood_braiding=True)
         B_np = B.to_numpy(understood_braiding=True)
@@ -2442,13 +2509,14 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
             level = levels[idcs1[idx]]
             levels = [l + 1 if l > level else l for l in levels]
             levels.insert(idcs2[idx], level + 1)
-    if cls is ChargedTensor and not T.symmetry.can_be_dropped and len(pairs) * 2 == T.num_legs:
+
+    if cls is ChargedTensor and len(pairs) * 2 == T.num_legs and T.charged_state is None:
         # trace over all legs except charge_leg -> charged_state != None must be fulfilled
-        # -> symmetry.can_be_dropped == True must be fulfilled
-        # with the current deselection of ChargedTensors in the tests, we catch FermionParity
-        # with id='Charged-ab-ba' here
+        with pytest.raises(ValueError, match='Need to specify charged_state for full trace of ChargedTensor'):
+            _ = tensors.partial_trace(T, *pairs, levels=levels)
+        # error is expected behavior. nothing else to do
         return
-    #
+
     res = tensors.partial_trace(T, *pairs, levels=levels)
     #
     # 3) Test the result
@@ -2507,7 +2575,7 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
 def test_permute_legs(
     cls, num_cod, num_dom, codomain, domain, levels, bend_right, make_compatible_tensor, compatible_symmetry, np_random
 ):
-    if isinstance(compatible_symmetry, symmetries.SU2Symmetry) and (num_cod + num_dom) > 4:
+    if isinstance(compatible_symmetry, symmetries.SU2) and (num_cod + num_dom) > 4:
         # make sure we dont need symmetry data for too large sectors
         sectors = [[0], [1], [2]]
         legs = []
@@ -2614,14 +2682,19 @@ def test_scalar_multiply(cls, make_compatible_tensor):
     else:
         catch_warnings = nullcontext()
 
-    if T.symmetry.can_be_dropped:
+    compare_numpy = T.symmetry.can_be_dropped
+    if compare_numpy and cls is ChargedTensor and T.charged_state is None:
+        with pytest.raises(ValueError, match='charged_state not specified.'):
+            _ = T.to_numpy(understood_braiding=True)
+        compare_numpy = False
+    if compare_numpy:
         T_np = T.to_numpy(understood_braiding=True)
 
     for valid_scalar in [0, 1.0, 2.0 + 3.0j, -42]:
         with catch_warnings:
             res = tensors.scalar_multiply(valid_scalar, T)
         res.test_sanity()
-        if T.symmetry.can_be_dropped:
+        if compare_numpy:
             npt.assert_allclose(res.to_numpy(understood_braiding=True), valid_scalar * T_np)
     for invalid_scalar in [None, (1, 2), T, 'abc']:
         with pytest.raises(TypeError, match='unsupported scalar type'):
@@ -2683,7 +2756,14 @@ def test_scale_axis(cls, codom, dom, which_leg, make_compatible_tensor, np_rando
     assert res.labels == T_labels
 
     # 4) compare to numpy
-    if T.symmetry.can_be_dropped:
+    compare_numpy = T.symmetry.can_be_dropped
+
+    if compare_numpy and cls is ChargedTensor and T.charged_state is None:
+        with pytest.raises(ValueError, match='charged_state not specified.'):
+            _ = T.to_numpy(understood_braiding=True)
+        compare_numpy = False
+
+    if compare_numpy:
         T_np = T.to_numpy(understood_braiding=True)
         expect = np.swapaxes(T_np, which_leg, -1)  # swap axis to be scaled to the back
         expect = expect * D.diagonal_as_numpy()  # broadcasts to last axis of expect
@@ -3152,7 +3232,7 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     labels = list('abcdefghi')[: cod + dom]
     tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
 
-    if isinstance(tensor, ChargedTensor) and tensor.symmetry.braiding_style > BraidingStyle.bosonic:
+    if isinstance(tensor, ChargedTensor) and not tensor.symmetry.has_trivial_braid:
         with pytest.raises(SymmetryError, match='not defined'):
             _ = tensor.T
         return

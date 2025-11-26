@@ -15,7 +15,7 @@ import numpy as np
 from numpy import ndarray
 
 from .dummy_config import printoptions
-from .symmetries import FusionStyle, ProductSymmetry, Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
+from .symmetries import Sector, SectorArray, Symmetry, FactorSymmetry, SymmetryError, no_symmetry
 from .tools.misc import (
     combine_permutations,
     find_row_differences,
@@ -53,8 +53,8 @@ class Leg(metaclass=ABCMeta):
 
     """
 
-    def __init__(self, symmetry: Symmetry, dim: int | float, is_dual: bool):
-        self.symmetry = symmetry
+    def __init__(self, symmetry: Symmetry | FactorSymmetry, dim: int | float, is_dual: bool):
+        self.symmetry = symmetry.as_Symmetry()
         self.dim = dim
         self.is_dual = is_dual
 
@@ -328,12 +328,12 @@ class Space(metaclass=ABCMeta):
 
     def __init__(
         self,
-        symmetry: Symmetry,
+        symmetry: Symmetry | FactorSymmetry,
         sector_decomposition: SectorArray | Sequence[Sequence[int]],
         multiplicities: Sequence[int] | None = None,
         sector_order: Literal['sorted'] | Literal['dual_sorted'] | None = None,
     ):
-        self.symmetry = symmetry
+        self.symmetry = symmetry = symmetry.as_Symmetry()
         self.sector_decomposition = sector_decomposition = np.asarray(sector_decomposition, dtype=int)
         self.sector_order = sector_order
         if sector_decomposition.ndim != 2 or sector_decomposition.shape[1] != symmetry.sector_ind_len:
@@ -547,7 +547,7 @@ class Space(metaclass=ABCMeta):
 
         Parameters
         ----------
-        symmetry : :class:`~cyten.groups.Symmetry`
+        symmetry : :class:`~cyten.symmetries.Symmetry`
             The symmetry of the new space
         sector_map : function (SectorArray,) -> (SectorArray,)
             A map of sectors (2D int arrays), such that ``new_sectors = sector_map(old_sectors)``.
@@ -574,7 +574,7 @@ class Space(metaclass=ABCMeta):
         ----------
         which : None | (list of) int
             If ``None`` (default) the entire symmetry is dropped and the result has ``no_symmetry``.
-            An integer or list of integers assume that ``self.symmetry`` is a ``ProductSymmetry``
+            An integer or list of integers assume that ``self.symmetry`` is a ``Symmetry``
             and indicates which of its factors to drop.
 
         """
@@ -659,12 +659,13 @@ class ElementarySpace(Space, Leg):
 
     def __init__(
         self,
-        symmetry: Symmetry,
+        symmetry: Symmetry | FactorSymmetry,
         defining_sectors: SectorArray,
         multiplicities: ndarray = None,
         is_dual: bool = False,
         basis_perm: ndarray | None = None,
     ):
+        symmetry = symmetry.as_Symmetry()
         defining_sectors = np.asarray(defining_sectors, dtype=int)
         assert symmetry.are_valid_sectors(defining_sectors), 'invalid sectors'
         if is_dual:
@@ -785,7 +786,7 @@ class ElementarySpace(Space, Leg):
         ----------
         independent_descriptions : list of :class:`ElementarySpace`
             Each entry describes the resulting :class:`ElementarySpace` in terms of *one* of
-            the independent symmetries. Spaces with a :class:`NoSymmetry` are ignored.
+            the independent symmetries. Spaces with a trivial are ignored.
 
         """
         # OPTIMIZE this can be implemented better. if many consecutive basis elements have the same
@@ -798,7 +799,7 @@ class ElementarySpace(Space, Leg):
         if len(independent_descriptions) == 0:
             # all descriptions had no_symmetry
             return cls.from_trivial_sector(dim=dim)
-        symmetry = ProductSymmetry.from_nested_factors([s.symmetry for s in independent_descriptions])
+        symmetry = Symmetry.from_nested_factors([s.symmetry for s in independent_descriptions])
         if not symmetry.can_be_dropped:
             msg = f'from_independent_symmetries is not supported for {symmetry}.'
             # TODO is there a way to define this? the straight-forward picture works only if we have
@@ -1041,7 +1042,7 @@ class ElementarySpace(Space, Leg):
         ----------
         dim : int
             The dimension of the space.
-        symmetry : :class:`~cyten.groups.Symmetry`
+        symmetry : :class:`~cyten.symmetries.Symmetry`
             The symmetry of the space.
         is_dual : bool
             If the space should be bra or a ket space.
@@ -1470,7 +1471,7 @@ class TensorProduct(Space):
     def __init__(
         self,
         factors: list[Space | LegPipe],
-        symmetry: Symmetry = None,
+        symmetry: Symmetry | FactorSymmetry = None,
         _sector_decomposition: SectorArray = None,
         _multiplicities: SectorArray = None,
     ):
@@ -1479,6 +1480,8 @@ class TensorProduct(Space):
             if num_factors == 0:
                 raise ValueError('If spaces is empty, the symmetry arg is required.')
             symmetry = factors[0].symmetry
+        else:
+            symmetry = symmetry.as_Symmetry()
         if not all(sp.symmetry == symmetry for sp in factors):
             raise SymmetryError('Incompatible symmetries.')
         self.symmetry = symmetry  # need to set this early, for use in _calc_sectors
@@ -1764,7 +1767,10 @@ class TensorProduct(Space):
         """
         flat_legs = self.flat_legs
         for idcs in it.product(*(range(s.num_sectors) for s in flat_legs)):
-            a = np.array([flat_legs[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
+            if len(idcs) == 0:
+                a = self.symmetry.empty_sector_array
+            else:
+                a = np.array([flat_legs[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
             m = np.array([flat_legs[n].multiplicities[i] for n, i in enumerate(idcs)], int)
             if yield_slices:
                 slcs = [slice(*flat_legs[n].slices[i]) for n, i in enumerate(idcs)]
@@ -1929,7 +1935,7 @@ class TensorProduct(Space):
             for s1, m1 in zip(sectors, mults):
                 new_sects = self.symmetry.fusion_outcomes(s1, s2)
                 sector_arrays.append(new_sects)
-                if self.symmetry.fusion_style <= FusionStyle.multiple_unique:
+                if self.symmetry.has_unique_fusion:
                     new_mults = m1 * m2 * np.ones(len(new_sects), dtype=int)
                 else:
                     # OPTIMIZE support batched N symbol?
@@ -2507,7 +2513,7 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
     Returns
     -------
     which : None | list of int
-        Which symmetries to drop, as integers in ``range(len(symmetries.factors))``.
+        Which symmetries to drop, as integers in ``range(len(symmetry))``.
         ``None`` indicates to drop all.
     remaining_symmetry : Symmetry
         The symmetry that remains.
@@ -2515,9 +2521,9 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
     """
     if which is None or which == []:
         pass
-    elif isinstance(symmetry, ProductSymmetry):
+    elif isinstance(symmetry, Symmetry):
         which = to_iterable(which)
-        num_factors = len(symmetry.factors)
+        num_factors = len(symmetry)
         # normalize negative indices to be in range(num_factors)
         for i, w in enumerate(which):
             if not -num_factors <= w < num_factors:
@@ -2529,16 +2535,12 @@ def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetr
     elif which == 0 or which == [0]:
         which = None
     else:
-        msg = f'Can not drop which={which} for a single (non-ProductSymmetry) symmetry.'
+        msg = f'Can not drop which={which} for a single (non-Symmetry) symmetry.'
         raise ValueError(msg)
 
     if which is None:
         remaining_symmetry = no_symmetry
     else:
-        factors = [f for i, f in enumerate(symmetry.factors) if i not in which]
-        if len(factors) == 1:
-            remaining_symmetry = factors[0]
-        else:
-            remaining_symmetry = ProductSymmetry(factors)
+        remaining_symmetry = Symmetry([f for i, f in enumerate(symmetry) if i not in which])
 
     return which, remaining_symmetry
