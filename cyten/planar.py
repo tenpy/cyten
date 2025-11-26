@@ -295,10 +295,8 @@ class PlanarDiagram:
         return res
 
     def parse_order(self, order: str | NestedContainer_str | ContractionTree):
-        # need to remove the partial traces
-        # TODO need to do something for the other cases?
         if order == 'definition':
-            order = [(t1, t2) for t1, l1, t2, l2 in self.definition if t2 is not None and t1 != t2]
+            order = [(t1, t2) for t1, l1, t2, l2 in self.definition if t2 is not None]
             return ContractionTree.from_contraction_order(order)
         if order in ['greedy', 'optimal']:
             return self.optimize_order(strategy=order)
@@ -308,9 +306,7 @@ class PlanarDiagram:
                 parts = i.split(CONTRACT_SYMBOL)
                 if len(parts) != 2:
                     raise ValueError(f'Invalid syntax for order: {i}')
-                t1l1, t2l2 = _as_valid_name(parts[0]), _as_valid_name(parts[1])
-                if t1l1.split(':')[0] != t2l2.split(':')[0]:
-                    contraction_order.append((t1l1, t2l2))
+                contraction_order.append((_as_valid_name(parts[0]), _as_valid_name(parts[1])))
             return ContractionTree.from_contraction_order(contraction_order)
         return ContractionTree.from_nested_containers(order)
 
@@ -766,7 +762,9 @@ class ContractionTree:
             raise ValueError('Can not be empty')
         contracted = []  # [(nested_tup, flat_list)]
         for t1, t2 in order:
-            assert t1 != t2
+            if t1 == t2:
+                # partial trace
+                continue
             t1_matches = [n for n, (_, lst) in enumerate(contracted) if t1 in lst]
             t2_matches = [n for n, (_, lst) in enumerate(contracted) if t2 in lst]
             if len(t1_matches) > 1 or len(t2_matches) > 1:
