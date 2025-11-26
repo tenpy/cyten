@@ -69,7 +69,7 @@ class Site:
         state_labels: dict[str, int] = None,
         onsite_operators: dict[str, SymmetricTensor] = None,
         backend: TensorBackend = None,
-        default_device: str = None,
+        default_device: str = 'cpu',
     ):
         self.leg = leg
         if state_labels is None:
@@ -78,8 +78,6 @@ class Site:
         if backend is None:
             backend = get_backend(symmetry=leg.symmetry)
         self.backend = backend
-        if default_device is None:
-            default_device = 'cpu'
         self.default_device = default_device
         self.onsite_operators: dict[str, SymmetricTensor] = {}
         if onsite_operators is not None:
