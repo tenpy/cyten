@@ -253,8 +253,9 @@ class NoSymmetryBackend(TensorBackend):
         return self.block_backend.get_dtype(a)
 
     def get_element(self, a: SymmetricTensor, idcs: list[int]) -> complex | float | bool:
-        # OPTIMIZE : skip if perm is trivial?
-        idcs = [l.inverse_basis_perm[idx] for l, idx in zip(conventional_leg_order(a), idcs)]
+        idcs = [
+            l.apply_basis_perm(idx, inverse=True, pre_compose=True) for l, idx in zip(conventional_leg_order(a), idcs)
+        ]
         return self.block_backend.get_block_element(a.data, idcs)
 
     def get_element_diagonal(self, a: DiagonalTensor, idx: int) -> complex | float | bool:
