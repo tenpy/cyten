@@ -85,19 +85,22 @@ class FusionTree:
     ):
         # OPTIMIZE demand SectorArray / ndarray (not list) and skip conversions?
         self.symmetry = symmetry
-        self.uncoupled = np.asarray(uncoupled)
-        self.num_uncoupled = len(uncoupled)
+        self.uncoupled = np.asarray(uncoupled, int)
+        self.num_uncoupled = N = len(uncoupled)
         self.num_vertices = num_vertices = max(len(uncoupled) - 1, 0)
         self.num_inner_edges = max(len(uncoupled) - 2, 0)
-        self.coupled = coupled
-        self.are_dual = np.asarray(are_dual, dtype=bool)
+        self.coupled = np.asarray(coupled, int)
+        self.are_dual = are_dual = np.asarray(are_dual, dtype=bool)
+        assert are_dual.shape == (N,)
         if len(inner_sectors) == 0:
             inner_sectors = symmetry.empty_sector_array
         # empty lists are by default converted to arrays with dtype=float, which leads to issues in __hash__
-        self.inner_sectors = np.asarray(inner_sectors, dtype=int)
+        self.inner_sectors = inner_sectors = np.asarray(inner_sectors, dtype=int)
+        assert inner_sectors.shape == (max(0, N - 2), symmetry.sector_ind_len)
         if multiplicities is None:
             multiplicities = np.zeros((num_vertices,), dtype=int)
-        self.multiplicities = np.asarray(multiplicities, dtype=int)
+        self.multiplicities = multiplicities = np.asarray(multiplicities, dtype=int)
+        assert multiplicities.shape == (max(0, N - 1),)
         self.fusion_style = symmetry.fusion_style
         self.is_abelian = symmetry.is_abelian
         self.braiding_style = symmetry.braiding_style
@@ -362,9 +365,11 @@ class FusionTree:
             |
             |   │   │   │   ╭────╮                    │   │   │   │    │
             |   ┢━━━┷━━━┷━━━┷━┓  │                    ┢━━━┷━━━┷━━━┷━┓  │
+            |   ┃     Y       ┃  │                    ┃     Y       ┃  │
             |   ┡━━━━━━━━━━━━━┛  │                    ┡━━━━━━━━━━━━━┛  │
             |   │                │                    │                │
             |   ┢━━━━━━━━━━━━━┓  │                    ┢━━━━━━━━━━━━━┓  │
+            |   ┃  hconj(X)   ┃  │                    ┃  hconj(X)   ┃  │
             |   ┡━━━┯━━━┯━━━┯━┛  │                    ┡━━━┯━━━┯━━━┯━┛  │
             |   │   │   │   │    │                    │   │   │   ╰────╯
 
@@ -382,11 +387,12 @@ class FusionTree:
         Returns
         -------
         linear_combination : dict {FusionTree: complex}
-            The bent tree pair is a linear combination ``bent = sum_i a_i hconj(Y_i) @ X_i`` of tree
-            pairs (where ``Y_i`` is a fusion tree and thus ``hconj(Y_i)`` a splitting tree).
+            The bent tree pair is a linear combination ``bent = sum_i a_i hconj(X_i) @ Y_i`` of tree
+            pairs (where ``X_i`` is a fusion tree and thus ``hconj(X_i)`` a splitting tree).
             The returned dictionary has entries ``linear_combination[Y_i, X_i] = a_i`` for the
             contributions to this linear combination (i.e. tree pairs for which the coefficient
             vanishes are omitted).
+            FIXME check convention here!
 
         """
         if not bend_downward:
@@ -614,6 +620,12 @@ class FusionTree:
             f'inner_sectors={inner}, multiplicities={self.multiplicities})'
         )
 
+    # FIXME check usages first! (would this mess up FTB to_dense_block ?)
+    # FIXME update s.t. leg order matches conventional leg order!
+    # FIXME add hc flag to optionally reverse that.
+    # FIXME Use in test_trees. also other places?
+    # FIXME should we implement __array__ ? then we can shove trees into numpy functions directly!
+    # FIXME take only the block_backend, not the whole backend!
     def as_block(self, backend: TensorBackend = None, dtype: Dtype = None) -> Block:
         """Get the matrix elements of the map as a backend Block.
 
