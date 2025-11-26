@@ -3596,7 +3596,7 @@ def almost_equal(
 
     Parameters
     ----------
-    t1, t2
+    tensor_1, tensor_2
         The tensors to compare
     atol, rtol
         Absolute and relative tolerance, see above.
@@ -3606,7 +3606,7 @@ def almost_equal(
 
     Notes
     -----
-    Unlike numpy, our definition is symmetric under exchanging
+    Unlike numpy, our definition is symmetric under exchanging.
 
     """
     check_same_legs(tensor_1, tensor_2)
