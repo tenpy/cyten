@@ -17,6 +17,7 @@ from numpy import ndarray
 from .dummy_config import printoptions
 from .symmetries import FusionStyle, ProductSymmetry, Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
 from .tools.misc import (
+    UNSPECIFIED,
     combine_permutations,
     find_row_differences,
     inverse_permutation,
@@ -53,14 +54,31 @@ class Leg(metaclass=ABCMeta):
 
     """
 
-    def __init__(self, symmetry: Symmetry, dim: int | float, is_dual: bool):
+    def __init__(self, symmetry: Symmetry, dim: int | float, is_dual: bool, basis_perm: ndarray | None):
         self.symmetry = symmetry
         self.dim = dim
         self.is_dual = is_dual
+        if basis_perm is None:
+            self._basis_perm = self._inverse_basis_perm = None
+        else:
+            if not symmetry.can_be_dropped:
+                msg = f'basis_perm is meaningless for {symmetry}.'
+                raise SymmetryError(msg)
+            self._basis_perm = basis_perm = np.asarray(basis_perm, dtype=int)
+            self._inverse_basis_perm = inverse_permutation(basis_perm)
 
     def test_sanity(self):
         """Perform sanity checks."""
-        pass
+        if not self.symmetry.can_be_dropped:
+            assert self._basis_perm is None
+        if self._basis_perm is None:
+            assert self._inverse_basis_perm is None
+        else:
+            assert self._inverse_basis_perm is not None
+            assert self._basis_perm.shape == self._inverse_basis_perm.shape == (self.dim,)
+            assert len(np.unique(self._basis_perm)) == self.dim  # is a permutation
+            assert len(np.unique(self._inverse_basis_perm)) == self.dim  # is a permutation
+            assert np.all(self._basis_perm[self._inverse_basis_perm] == np.arange(self.dim))
 
     @abstractmethod
     def as_Space(self) -> Space:
@@ -83,6 +101,35 @@ class Leg(metaclass=ABCMeta):
     def is_trivial(self) -> bool: ...
 
     @property
+    def basis_perm(self) -> ndarray:
+        """Permutation that translates between public and internal basis order.
+
+        For the inverse permutation, see :attr:`inverse_basis_perm`.
+
+        The tensor manipulations of ``cyten`` benefit from choosing a canonical order for the
+        basis of vector spaces. This attribute translates between the "public" order of the basis,
+        in which e.g. the inputs to :meth:`from_dense_block` are interpreted to this internal order,
+        such that ``public_basis[basis_perm] == internal_basis``.
+        The internal order is such that the basis vectors are grouped and sorted by sector.
+        We can translate indices as ``public_idx == basis_perm[internal_idx]``.
+        Only available if ``symmetry.can_be_dropped``, as otherwise there is no well-defined
+        notion of a basis.
+
+        ``_basis_perm`` is the internal version which may be ``None`` if the permutation is trivial.
+        See also :meth:`apply_basis_perm`.
+        """
+        if not self.symmetry.can_be_dropped:
+            msg = f'basis_perm is meaningless for {self.symmetry}.'
+            raise SymmetryError(msg)
+        if self._basis_perm is None:
+            return np.arange(self.dim)
+        return self._basis_perm
+
+    @basis_perm.setter
+    def basis_perm(self, basis_perm):
+        self.set_basis_perm(basis_perm=basis_perm)
+
+    @property
     def flat_legs(self) -> list[ElementarySpace]:
         """Flatten until there are no more pipes.
 
@@ -103,6 +150,20 @@ class Leg(metaclass=ABCMeta):
 
         """
         return [self]
+
+    @property
+    def inverse_basis_perm(self) -> ndarray:
+        """Inverse permutation of :attr:`basis_perm`."""
+        if not self.symmetry.can_be_dropped:
+            msg = f'basis_perm is meaningless for {self.symmetry}.'
+            raise SymmetryError(msg)
+        if self._inverse_basis_perm is None:
+            return np.arange(self.dim)
+        return self._inverse_basis_perm
+
+    @inverse_basis_perm.setter
+    def inverse_basis_perm(self, inverse_basis_perm):
+        self.set_basis_perm(inverse_basis_perm=inverse_basis_perm)
 
     @property
     def num_flat_legs(self) -> int:
@@ -129,6 +190,69 @@ class Leg(metaclass=ABCMeta):
 
     @abstractmethod
     def __eq__(self, other): ...
+
+    def apply_basis_perm(self, arr, axis: int = 0, inverse: bool = False, pre_compose: bool = False):
+        """Apply the basis_perm, i.e. form ``arr[self.basis_perm]``.
+
+        This is the preferred method of accessing the permutation, since we may skip applying
+        trivial permutations.
+
+        Parameters
+        ----------
+        arr : numpy array
+            The data to act on.
+        axis : int
+            Which axis of ``arr`` to act on. We use ``numpy.take(arr, perm, axis)``.
+        inverse : bool
+            If we should apply the inverse permutation :attr:`inverse_basis_perm` instead.
+        pre_compose : bool
+            If we should pre-compose instead, i.e. form ``basis_perm[arr]``.
+            Note that in that case, `axis` is ignored.
+
+        """
+        # this implementation assumes _basis_perm. AbelianLegPipe overrides this method.
+        perm = self._inverse_basis_perm if inverse else self._basis_perm
+        if perm is None:
+            # perm is identity permutation
+            return arr
+        if pre_compose:
+            assert axis == 0
+            return perm[arr]
+        return np.take(arr, perm, axis=axis)
+
+    def set_basis_perm(
+        self, basis_perm: Sequence[int] | None = UNSPECIFIED, inverse_basis_perm: Sequence[int] | None = UNSPECIFIED
+    ):
+        """Common setter for :attr:`basis_perm` and :attr:`inverse_basis_perm`."""
+        if basis_perm is UNSPECIFIED and inverse_basis_perm is UNSPECIFIED:
+            raise ValueError('Must specify at least one of the arguments')
+        if basis_perm is UNSPECIFIED:
+            if inverse_basis_perm is None:
+                basis_perm = None
+            else:
+                inverse_basis_perm = np.asarray(inverse_basis_perm, int)
+                assert inverse_basis_perm.shape == (self.dim,)
+                basis_perm = inverse_permutation(inverse_basis_perm)
+        elif inverse_basis_perm is UNSPECIFIED:
+            if basis_perm is None:
+                inverse_basis_perm = None
+            else:
+                basis_perm = np.asarray(basis_perm, int)
+                assert basis_perm.shape == (self.dim,)
+                inverse_basis_perm = inverse_permutation(basis_perm)
+        elif basis_perm is None and inverse_basis_perm is None:
+            pass
+        elif basis_perm is None or inverse_basis_perm is None:
+            raise ValueError('Can not mix None with an explicit permutation')
+        else:
+            basis_perm = np.asarray(basis_perm, int)
+            assert basis_perm.shape == (self.dim,)
+            inverse_basis_perm = np.asarray(inverse_basis_perm, int)
+            assert inverse_basis_perm.shape == (self.dim,)
+            if not np.all(basis_perm[inverse_basis_perm] == np.arange(self.dim)):
+                raise ValueError('The given permutations are not mutually inverse!')
+        self._basis_perm = basis_perm
+        self._inverse_basis_perm = inverse_basis_perm
 
 
 class LegPipe(Leg):
@@ -164,7 +288,14 @@ class LegPipe(Leg):
         self.num_legs = num_legs = len(legs)
         assert num_legs > 0
         self.combine_cstyle = combine_cstyle
-        Leg.__init__(self, symmetry=legs[0].symmetry, dim=prod(l.dim for l in legs), is_dual=is_dual)
+
+        if all(l._basis_perm is None for l in legs):
+            basis_perm = None
+        else:
+            basis_perm = combine_permutations([l.basis_perm for l in self.legs], cstyle=combine_cstyle)
+        Leg.__init__(
+            self, symmetry=legs[0].symmetry, dim=prod(l.dim for l in legs), is_dual=is_dual, basis_perm=basis_perm
+        )
 
     def test_sanity(self):
         """Perform sanity checks."""
@@ -198,15 +329,11 @@ class LegPipe(Leg):
     def num_flat_legs(self) -> int:
         return sum(l.num_flat_legs for l in self.legs)
 
-    @property
-    def basis_perm(self) -> np.ndarray:
-        assert self.symmetry.can_be_dropped
-        return combine_permutations([l.basis_perm for l in self.legs], cstyle=self.combine_cstyle)
-
-    @property
-    def inverse_basis_perm(self) -> np.ndarray:
-        assert self.symmetry.can_be_dropped
-        return combine_permutations([l.inverse_basis_perm for l in self.legs], cstyle=self.combine_cstyle)
+    def set_basis_perm(
+        self, basis_perm: Sequence[int] | None = UNSPECIFIED, inverse_basis_perm: Sequence[int] | None = UNSPECIFIED
+    ):
+        msg = f'Can not set basis_perm for {type(self).__name__}.'
+        raise TypeError(msg)
 
     def __eq__(self, other):
         if not isinstance(other, LegPipe):
@@ -680,29 +807,11 @@ class ElementarySpace(Space, Leg):
             multiplicities=multiplicities,
             sector_order=sector_order,
         )
-        Leg.__init__(self, symmetry=symmetry, dim=self.dim, is_dual=is_dual)
+        Leg.__init__(self, symmetry=symmetry, dim=self.dim, is_dual=is_dual, basis_perm=basis_perm)
         self.defining_sectors = defining_sectors
-        if basis_perm is None:
-            self._basis_perm = self._inverse_basis_perm = None
-        else:
-            if not symmetry.can_be_dropped:
-                msg = f'basis_perm is meaningless for {symmetry}.'
-                raise SymmetryError(msg)
-            self._basis_perm = basis_perm = np.asarray(basis_perm, dtype=int)
-            self._inverse_basis_perm = inverse_permutation(basis_perm)
 
     def test_sanity(self):
         """Perform sanity checks."""
-        if not self.symmetry.can_be_dropped:
-            assert self._basis_perm is None
-        if self._basis_perm is None:
-            assert self._inverse_basis_perm is None
-        else:
-            assert self._inverse_basis_perm is not None
-            assert self._basis_perm.shape == self._inverse_basis_perm.shape == (self.dim,)
-            assert len(np.unique(self._basis_perm)) == self.dim  # is a permutation
-            assert len(np.unique(self._inverse_basis_perm)) == self.dim  # is a permutation
-            assert np.all(self._basis_perm[self._inverse_basis_perm] == np.arange(self.dim))
         assert self.defining_sectors.shape == (self.num_sectors, self.symmetry.sector_ind_len)
         if self.is_dual:
             assert self.sector_order == 'dual_sorted'
@@ -1058,59 +1167,6 @@ class ElementarySpace(Space, Leg):
         )
 
     @property
-    def basis_perm(self) -> ndarray:
-        """Permutation that translates between public and internal basis order.
-
-        For the inverse permutation, see :attr:`inverse_basis_perm`.
-
-        The tensor manipulations of ``cyten`` benefit from choosing a canonical order for the
-        basis of vector spaces. This attribute translates between the "public" order of the basis,
-        in which e.g. the inputs to :meth:`from_dense_block` are interpreted to this internal order,
-        such that ``public_basis[basis_perm] == internal_basis``.
-        The internal order is such that the basis vectors are grouped and sorted by sector.
-        We can translate indices as ``public_idx == basis_perm[internal_idx]``.
-        Only available if ``symmetry.can_be_dropped``, as otherwise there is no well-defined
-        notion of a basis.
-
-        ``_basis_perm`` is the internal version which may be ``None`` if the permutation is trivial.
-        See also :meth:`apply_basis_perm`.
-        """
-        if not self.symmetry.can_be_dropped:
-            msg = f'basis_perm is meaningless for {self.symmetry}.'
-            raise SymmetryError(msg)
-        if self._basis_perm is None:
-            return np.arange(self.dim)
-        return self._basis_perm
-
-    @basis_perm.setter
-    def basis_perm(self, basis_perm):
-        if basis_perm is None:
-            self._basis_perm = None
-            self._inverse_basis_perm = None
-        else:
-            self._basis_perm = basis_perm
-            self._inverse_basis_perm = inverse_permutation(basis_perm)
-
-    @property
-    def inverse_basis_perm(self) -> ndarray:
-        """Inverse permutation of :attr:`basis_perm`."""
-        if not self.symmetry.can_be_dropped:
-            msg = f'basis_perm is meaningless for {self.symmetry}.'
-            raise SymmetryError(msg)
-        if self._inverse_basis_perm is None:
-            return np.arange(self.dim)
-        return self._inverse_basis_perm
-
-    @inverse_basis_perm.setter
-    def inverse_basis_perm(self, inverse_basis_perm):
-        if inverse_basis_perm is None:
-            self._basis_perm = None
-            self._inverse_basis_perm = None
-        else:
-            self._basis_perm = inverse_permutation(inverse_basis_perm)
-            self._inverse_basis_perm = inverse_basis_perm
-
-    @property
     def sectors_of_basis(self):
         """The sector (from the :attr:`sector_decomposition`) of each basis vector."""
         if not self.symmetry.can_be_dropped:
@@ -1189,35 +1245,6 @@ class ElementarySpace(Space, Leg):
         else:
             pass  # both permutations are trivial, thus equal
         return True
-
-    def apply_basis_perm(self, arr, axis: int = 0, inverse: bool = False, pre_compose: bool = False):
-        """Apply the basis_perm, i.e. form ``arr[self.basis_perm]``.
-
-        This is the preferred method of accessing the permutation, since we may skip applying
-        trivial permutations.
-
-        Parameters
-        ----------
-        arr : numpy array
-            The data to act on.
-        axis : int
-            Which axis of ``arr`` to act on. We use ``numpy.take(arr, perm, axis)``.
-        inverse : bool
-            If we should apply the inverse permutation :attr:`inverse_basis_perm` instead.
-        pre_compose : bool
-            If we should pre-compose instead, i.e. form ``basis_perm[arr]``.
-            Note that in that case, `axis` is ignored.
-
-        """
-        # this implementation assumes _basis_perm. AbelianLegPipe overrides this method.
-        perm = self._inverse_basis_perm if inverse else self._basis_perm
-        if perm is None:
-            # perm is identity permutation
-            return arr
-        if pre_compose:
-            assert axis == 0
-            return perm[arr]
-        return np.take(arr, perm, axis=axis)
 
     def as_ElementarySpace(self, is_dual: bool = False) -> ElementarySpace:
         if bool(is_dual) == self.is_dual:
@@ -2137,16 +2164,6 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         return self.with_is_dual(is_dual=is_dual)
 
     @property
-    def basis_perm(self):
-        # make sure we use the implementation from ElementarySpace, not LegPipe
-        return ElementarySpace.basis_perm.fget(self)
-
-    @property
-    def inverse_basis_perm(self):
-        # make sure we use the implementation from ElementarySpace, not LegPipe
-        return ElementarySpace.inverse_basis_perm.fget(self)
-
-    @property
     def dual(self) -> AbelianLegPipe:
         return AbelianLegPipe(
             [l.dual for l in reversed(self.legs)], is_dual=not self.is_dual, combine_cstyle=not self.combine_cstyle
@@ -2198,6 +2215,12 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         # OPTIMIZE can we avoid recomputation of fusion?
         legs = [l.drop_symmetry(which) for l in self.legs]
         return AbelianLegPipe(legs, is_dual=self.is_dual, combine_cstyle=self.combine_cstyle)
+
+    def set_basis_perm(
+        self, basis_perm: Sequence[int] | None = UNSPECIFIED, inverse_basis_perm: Sequence[int] | None = UNSPECIFIED
+    ):
+        msg = f'Can not set basis_perm for {type(self).__name__}.'
+        raise TypeError(msg)
 
     def take_slice(self, blockmask):
         msg = (
