@@ -9,7 +9,7 @@ message(STATUS "")
 # #####################################################################
 cmake_minimum_required(VERSION 3.20...3.27)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -30,6 +30,7 @@ endif()
 # ## COMMAND LINE OPTIONS
 # #####################################################################
 option(BUILD_DOC "Build API documentation" OFF)
+option(BUILD_TESTING "Build ctest tests" ON)
 
 
 # #####################################################################
@@ -45,6 +46,21 @@ include(CMakePrintHelpers)
 cmake_print_variables(PROJECT_SOURCE_DIR)
 cmake_print_variables(CMAKE_CXX_STANDARD)
 
+# #####################################################################
+# ## find python
+# #####################################################################
+
+set(Python_FIND_VIRTUALENV ONLY)
+set(Python_FIND_STRATEGY LOCATION)
+find_package(Python REQUIRED COMPONENTS Interpreter Development.Module Development.Embed)
+
+find_package(pybind11 CONFIG REQUIRED)
+# Find the module development requirements (requires FindPython from 3.17 or
+# scikit-build-core's built-in backport)
+cmake_print_variables(Python_VERSION)
+cmake_print_variables(Python_INCLUDE_DIRS)
+cmake_print_variables(Python_NumPy_VERSION)
+cmake_print_variables(Python_NumPy_INCLUDE_DIRS)
 
 # #####################################################################
 # ## C++ LIBRARY
@@ -62,23 +78,13 @@ target_include_directories(cyten
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 )
 add_subdirectory(src)
+target_compile_options(cyten PUBLIC -fPIC)
 
+target_link_libraries(cyten PUBLIC pybind11::pybind11)
 
 # #####################################################################
 # ## PYTHON BINDINGS
 # #####################################################################
-
-set(Python_FIND_VIRTUALENV ONLY)
-set(Python_FIND_STRATEGY LOCATION)
-find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
-
-find_package(pybind11 CONFIG REQUIRED)
-# Find the module development requirements (requires FindPython from 3.17 or
-# scikit-build-core's built-in backport)
-cmake_print_variables(Python_VERSION)
-cmake_print_variables(Python_INCLUDE_DIRS)
-# cmake_print_variables(Python_NumPy_VERSION)
-# cmake_print_variables(Python_NumPy_INCLUDE_DIRS)
 
 pybind11_add_module(_core pybind/core.cpp)
 
@@ -97,8 +103,8 @@ install(TARGETS _core LIBRARY DESTINATION cyten)
 # #####################################################################
 # ## DOCUMENTATION
 # #####################################################################
-IF(BUILD_DOC)
-  FIND_PACKAGE(Doxygen REQUIRED)
+if(BUILD_DOC)
+  find_package(Doxygen REQUIRED)
 
   if(DOXYGEN_FOUND)
     configure_file(cyten_Doxyfile.in cytenDoxyfile)
@@ -123,6 +129,12 @@ if(DOXYGEN_FOUND)
 endif()
 
 
+# #####################################################################
+# ## CTest
+# #####################################################################
 
-# enable_testing()
-# add_test(NAME import_check COMMAND python -c "import cyten")
+include(CTest)
+if(BUILD_TESTING)
+  enable_testing()
+  add_subdirectory(tests/ctest)
+endif()
