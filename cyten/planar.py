@@ -1097,7 +1097,9 @@ def planar_partial_trace(tensor: Tensor, *pairs: Sequence[int, str]) -> Tensor:
             else:
                 num_legs_in_dom = num_up_bends - tensor.num_codomain_legs
             codomain = list(range(num_up_bends, tensor.num_codomain_legs))
-            domain = list(reversed(range(num_up_bends))) + list(reversed(range(tensor.num_codomain_legs + num_legs_in_dom, tensor.num_legs)))
+            domain = list(reversed(range(num_up_bends))) + list(
+                reversed(range(tensor.num_codomain_legs + num_legs_in_dom, tensor.num_legs))
+            )
             tensor = planar_permute_legs(tensor, codomain=codomain, domain=domain)
             # update pairs
             pairs = [[(idx - num_up_bends) % tensor.num_legs for idx in pair] for pair in pairs]

@@ -106,7 +106,9 @@ def _test_planar_partial_trace(codomain, domain, symmetry, backend, np_random):
             seen_labels.append(l)
             codomain_labels.append(l)
         else:
-            codomain_spaces.append(ct.testing.random_leg(symmetry, backend, False, np_random=np_random, max_multiplicity=max_mults))
+            codomain_spaces.append(
+                ct.testing.random_leg(symmetry, backend, False, np_random=np_random, max_multiplicity=max_mults)
+            )
             codomain_labels.append(l)
     domain_spaces = []
     domain_labels = []
@@ -119,7 +121,9 @@ def _test_planar_partial_trace(codomain, domain, symmetry, backend, np_random):
             domain_labels.append(l)
             seen_labels.append(l)
         else:
-            domain_spaces.append(ct.testing.random_leg(symmetry, backend, False, np_random=np_random, max_multiplicity=max_mults))
+            domain_spaces.append(
+                ct.testing.random_leg(symmetry, backend, False, np_random=np_random, max_multiplicity=max_mults)
+            )
             domain_labels.append(l)
 
     T: ct.SymmetricTensor = ct.testing.random_tensor(
