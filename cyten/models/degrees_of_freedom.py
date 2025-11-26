@@ -17,9 +17,9 @@ import numpy as np
 
 from ..backends import TensorBackend, get_backend
 from ..block_backends import Block
-from ..spaces import ElementarySpace
 from ..symmetries import (
     BraidingStyle,
+    ElementarySpace,
     FermionNumber,
     FermionParity,
     NoSymmetry,

@@ -1,66 +1,4 @@
-r""".. _tensor_leg_labels:
-
-Leg Labels
-----------
-
-TODO elaborate
-
-The following characters have special meaning in labels and should be avoided for "single" labels:
-`(`, `.`, `)`, `?`, `!` and `*`.
-
-See :func:`is_valid_leg_label`.
-
-
-.. _tensors_as_maps:
-
-Tensors as Maps
----------------
-
-We can view :math:`m \times n` matrices either as linear maps
-:math:`\mathbb{C}^n \to \mathbb{C}^m` or as elements of the space
-:math:`\mathbb{C}^n \otimes \mathbb{C}^m^*`, which is known in the context of mixed state
-density matrices as "vectorization".
-
-Similarly, we can view any tensor, i.e. elements of tensor product spaces as linear maps.
-TODO elaborate.
-
-
-.. _conj_and_transpose:
-
-Conjugation and Transposition
------------------------------
-
-TODO should this be here or in the docstrings of the respective functions?
-
-TODO elaborate on the differences between dagger and conj etc.
-
-Note that only dagger is independent of partition of the legs into (co)domain.
-
-    ==============  ====================  ====================  ============================
-    tensor          domain                codomain              legs
-    ==============  ====================  ====================  ============================
-    A               [V1, V2]              [W1, W2]              [W1, W2, V2.dual, V1.dual]
-    --------------  --------------------  --------------------  ----------------------------
-    dagger(A)       [W1, W2]              [V1, V2]              [V1, V2, W2.dual, W1.dual]
-    --------------  --------------------  --------------------  ----------------------------
-    transpose(A)    [W2.dual, W1.dual]    [V2.dual, V1.dual]    [V2.dual, V1.dual, W1, W2]
-    --------------  --------------------  --------------------  ----------------------------
-    conj(A)         [V2.dual, V1.dual]    [W2.dual, W1.dual]    [W2.dual, W1.dual, V1, V2]
-    ==============  ====================  ====================  ============================
-
-Consider now a matrix ``A`` with signature ``[V] -> [W]``, i.e. with legs ``[W, V.dual]``.
-The dagger ``dagger(A)`` has legs signature ``[W] -> [V]`` and legs ``[V, W.dual]``, i.e.
-it can be directly contracted with ``A``.
-
-
-.. _decompositions:
-
-Tensor Decompositions
----------------------
-TODO elaborate on the details of decompositions (svd, eig, qr, ...) that they have in common.
-I.e. viewing tensors as linear maps, combining legs or not, mention :func:`combine_to_matrix`.
-
-"""
+"""See :mod:`cyten.tensors`."""
 # Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
@@ -77,13 +15,22 @@ from typing import TypeVar
 
 import numpy as np
 
-from .backends import TensorBackend, conventional_leg_order, get_backend, get_same_backend
-from .block_backends import Block
-from .dtypes import Dtype
-from .dummy_config import printoptions
-from .spaces import ElementarySpace, Leg, LegPipe, Sector, Space, TensorProduct
-from .symmetries import BraidingStyle, Symmetry, SymmetryError
-from .tools.misc import (
+from ..backends import TensorBackend, conventional_leg_order, get_backend, get_same_backend
+from ..block_backends import Block, Dtype
+from ..dummy_config import printoptions
+from ..symmetries import (
+    BraidingStyle,
+    ElementarySpace,
+    FusionTree,
+    Leg,
+    LegPipe,
+    Sector,
+    Space,
+    Symmetry,
+    SymmetryError,
+    TensorProduct,
+)
+from ..tools.misc import (
     duplicate_entries,
     inverse_permutation,
     is_iterable,
@@ -92,7 +39,6 @@ from .tools.misc import (
     to_iterable,
     to_valid_idx,
 )
-from .trees import FusionTree
 
 logger = logging.getLogger(__name__)
 _USE_PERMUTE_LEGS_ERR_MSG = 'Legs can not be permuted automatically. Explicitly use permute_legs()'

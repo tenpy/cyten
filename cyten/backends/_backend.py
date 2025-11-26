@@ -13,11 +13,9 @@ from typing import TYPE_CHECKING, Protocol, TypeVar
 import numpy as np
 
 from ..block_backends import Block, BlockBackend
-from ..dtypes import Dtype
-from ..spaces import ElementarySpace, Leg, LegPipe, Space, TensorProduct
-from ..symmetries import Symmetry
+from ..block_backends.dtypes import Dtype
+from ..symmetries import ElementarySpace, FusionTree, Leg, LegPipe, Space, Symmetry, TensorProduct
 from ..tools.misc import combine_constraints
-from ..trees import FusionTree
 
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import

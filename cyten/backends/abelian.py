@@ -38,9 +38,18 @@ import numpy as np
 from numpy import ndarray
 
 from ..block_backends import Block
-from ..dtypes import Dtype
-from ..spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct
-from ..symmetries import BraidingStyle, Symmetry
+from ..block_backends.dtypes import Dtype
+from ..symmetries import (
+    AbelianLegPipe,
+    BraidingStyle,
+    ElementarySpace,
+    FusionTree,
+    Leg,
+    LegPipe,
+    Space,
+    Symmetry,
+    TensorProduct,
+)
 from ..tools.misc import (
     find_row_differences,
     inverse_permutation,
@@ -52,7 +61,6 @@ from ..tools.misc import (
     make_stride,
     rank_data,
 )
-from ..trees import FusionTree
 from ._backend import Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
 
 if TYPE_CHECKING:

@@ -3,5 +3,6 @@
 
 from ._block_backend import Block, BlockBackend
 from .array_api import ArrayApiBlockBackend
+from .dtypes import Dtype
 from .numpy import NumpyBlockBackend
 from .torch import TorchBlockBackend

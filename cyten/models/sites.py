@@ -10,8 +10,8 @@ from typing import Literal
 import numpy as np
 
 from ..backends import TensorBackend
-from ..spaces import ElementarySpace
 from ..symmetries import (
+    ElementarySpace,
     FermionParity,
     FibonacciAnyonCategory,
     IsingAnyonCategory,

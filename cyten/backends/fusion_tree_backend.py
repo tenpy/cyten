@@ -89,9 +89,18 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 
 from ..block_backends import Block, BlockBackend
-from ..dtypes import Dtype
-from ..spaces import ElementarySpace, LegPipe, Space, TensorProduct
-from ..symmetries import BraidChiralityUnspecifiedError, Sector, Symmetry
+from ..block_backends.dtypes import Dtype
+from ..symmetries import (
+    BraidChiralityUnspecifiedError,
+    ElementarySpace,
+    FusionTree,
+    LegPipe,
+    Sector,
+    Space,
+    Symmetry,
+    TensorProduct,
+    fusion_trees,
+)
 from ..tools.mappings import IdentityMapping, SparseMapping
 from ..tools.misc import (
     inverse_permutation,
@@ -102,7 +111,6 @@ from ..tools.misc import (
     rank_data,
     to_valid_idx,
 )
-from ..trees import FusionTree, fusion_trees
 from ._backend import Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
 
 if TYPE_CHECKING:

@@ -149,7 +149,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cyten import Dtype, backends, block_backends, spaces, symmetries, tensors
+import cyten as ct
+from cyten import Dtype, backends, block_backends, tensors
 from cyten.testing import random_block, random_ElementarySpace, random_symmetry_sectors, random_tensor
 
 # OVERRIDE pytest routines
@@ -195,16 +196,16 @@ _block_backend_params = dict(
 )
 _symmetries = {
     # groups:
-    'NoSymm': symmetries.no_symmetry,
-    'U1': symmetries.u1_symmetry,
-    'Z4_named': symmetries.ZNSymmetry(4, 'My_Z4_symmetry'),
-    'U1xZ3': symmetries.ProductSymmetry([symmetries.u1_symmetry, symmetries.z3_symmetry]),
-    'SU2': symmetries.SU2Symmetry(),
+    'NoSymm': ct.no_symmetry,
+    'U1': ct.u1_symmetry,
+    'Z4_named': ct.ZNSymmetry(4, 'My_Z4_symmetry'),
+    'U1xZ3': ct.ProductSymmetry([ct.u1_symmetry, ct.z3_symmetry]),
+    'SU2': ct.SU2Symmetry(),
     # anyons:
-    'fermion': symmetries.fermion_parity,
-    'FibonacciAnyon': symmetries.fibonacci_anyon_category,
-    'IsingAnyon': symmetries.ising_anyon_category,
-    'Fib_U1': symmetries.fibonacci_anyon_category * symmetries.u1_symmetry,
+    'fermion': ct.fermion_parity,
+    'FibonacciAnyon': ct.fibonacci_anyon_category,
+    'IsingAnyon': ct.ising_anyon_category,
+    'Fib_U1': ct.fibonacci_anyon_category * ct.u1_symmetry,
 }
 
 
@@ -234,10 +235,10 @@ def any_backend(block_backend, any_symmetry_backend) -> backends.TensorBackend:
 
 
 @pytest.fixture(
-    params=[s for s in _symmetries.values() if isinstance(s, symmetries.AbelianGroup)],
-    ids=[k for k, s in _symmetries.items() if isinstance(s, symmetries.AbelianGroup)],
+    params=[s for s in _symmetries.values() if isinstance(s, ct.AbelianGroup)],
+    ids=[k for k, s in _symmetries.items() if isinstance(s, ct.AbelianGroup)],
 )
-def abelian_group_symmetry(request) -> symmetries.Symmetry:
+def abelian_group_symmetry(request) -> ct.Symmetry:
     return request.param
 
 
@@ -245,19 +246,19 @@ def abelian_group_symmetry(request) -> symmetries.Symmetry:
     params=[s for s in _symmetries.values() if s.can_be_dropped],
     ids=[k for k, s in _symmetries.items() if s.can_be_dropped],
 )
-def any_symmetry_that_can_be_dropped(request) -> symmetries.Symmetry:
+def any_symmetry_that_can_be_dropped(request) -> ct.Symmetry:
     return request.param
 
 
 @pytest.fixture(params=list(_symmetries.values()), ids=list(_symmetries.keys()))
-def any_symmetry(request) -> symmetries.Symmetry:
+def any_symmetry(request) -> ct.Symmetry:
     return request.param
 
 
 @pytest.fixture
 def make_any_sectors(any_symmetry, np_random):
     # if the symmetry does not have enough sectors, we return fewer!
-    def make(num: int, sort: bool = False) -> symmetries.SectorArray:
+    def make(num: int, sort: bool = False) -> ct.SectorArray:
         # return SectorArray
         return random_symmetry_sectors(any_symmetry, num, sort, np_random=np_random)
 
@@ -266,7 +267,7 @@ def make_any_sectors(any_symmetry, np_random):
 
 @pytest.fixture
 def make_any_space(any_symmetry, np_random):
-    def make(max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None) -> spaces.ElementarySpace:
+    def make(max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None) -> ct.ElementarySpace:
         # return ElementarySpace
         return random_ElementarySpace(any_symmetry, max_sectors, max_mult, is_dual, np_random=np_random)
 
@@ -285,9 +286,9 @@ def make_any_block(any_backend, np_random):
 # "COMPATIBLE" FIXTURES  ->  only go over those pairings of backend and symmetry that are compatible
 
 # build the compatible pairs
-_compatible_pairs = {'NoSymmetry': ('no_symmetry', symmetries.no_symmetry)}  # {id: param}
+_compatible_pairs = {'NoSymmetry': ('no_symmetry', ct.no_symmetry)}  # {id: param}
 for _sym_name, _sym in _symmetries.items():
-    if isinstance(_sym, symmetries.AbelianGroup):
+    if isinstance(_sym, ct.AbelianGroup):
         _compatible_pairs[f'AbelianBackend-{_sym_name}'] = ('abelian', _sym)
     _compatible_pairs[f'FusionTreeBackend-{_sym_name}'] = pytest.param(
         ('fusion_tree', _sym), marks=pytest.mark.FusionTree
@@ -295,7 +296,7 @@ for _sym_name, _sym in _symmetries.items():
 
 
 @pytest.fixture(params=list(_compatible_pairs.values()), ids=list(_compatible_pairs.keys()))
-def _compatible_backend_symm_pairs(request) -> tuple[str, symmetries.Symmetry]:
+def _compatible_backend_symm_pairs(request) -> tuple[str, ct.Symmetry]:
     """Helper fixture that allows us to generate the *compatible* fixtures.
 
     Values are pairs (symmetry_backend: str, symmetry: Symmetry)
@@ -315,7 +316,7 @@ def compatible_backend(compatible_symmetry_backend, block_backend) -> backends.T
 
 
 @pytest.fixture
-def compatible_symmetry(_compatible_backend_symm_pairs) -> symmetries.Symmetry:
+def compatible_symmetry(_compatible_backend_symm_pairs) -> ct.Symmetry:
     symmetry_backend, symmetry = _compatible_backend_symm_pairs
     return symmetry
 
@@ -323,7 +324,7 @@ def compatible_symmetry(_compatible_backend_symm_pairs) -> symmetries.Symmetry:
 @pytest.fixture
 def make_compatible_sectors(compatible_symmetry, np_random):
     # if the symmetry does not have enough sectors, we return fewer!
-    def make(num: int, sort: bool = False) -> symmetries.SectorArray:
+    def make(num: int, sort: bool = False) -> ct.SectorArray:
         # returns SectorArray
         return random_symmetry_sectors(compatible_symmetry, num, sort, np_random=np_random)
 
@@ -334,7 +335,7 @@ def make_compatible_sectors(compatible_symmetry, np_random):
 def make_compatible_space(compatible_symmetry, np_random):
     def make(
         max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None, allow_basis_perm: bool = True
-    ) -> spaces.ElementarySpace:
+    ) -> ct.ElementarySpace:
         # returns ElementarySpace
         return random_ElementarySpace(
             compatible_symmetry, max_sectors, max_mult, is_dual, allow_basis_perm=allow_basis_perm, np_random=np_random
@@ -357,8 +358,8 @@ def make_compatible_tensor(compatible_backend, compatible_symmetry, np_random):
     """Tensor RNG."""
 
     def make(
-        codomain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
-        domain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
+        codomain: list[ct.Space | str | None] | ct.TensorProduct | int = None,
+        domain: list[ct.Space | str | None] | ct.TensorProduct | int = None,
         labels: list[str | None] = None,
         dtype: Dtype = None,
         device: str = None,

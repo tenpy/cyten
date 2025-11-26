@@ -14,9 +14,8 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from numpy import ndarray
 
-from .dummy_config import printoptions
-from .symmetries import FusionStyle, ProductSymmetry, Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
-from .tools.misc import (
+from ..dummy_config import printoptions
+from ..tools.misc import (
     UNSPECIFIED,
     combine_permutations,
     find_row_differences,
@@ -28,11 +27,12 @@ from .tools.misc import (
     to_iterable,
     to_valid_idx,
 )
-from .tools.string import format_like_list
+from ..tools.string import format_like_list
+from ._symmetries import FusionStyle, ProductSymmetry, Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
 from .trees import FusionTree, fusion_trees
 
 if TYPE_CHECKING:
-    from .block_backends import Block
+    from ..block_backends import Block
 
 
 class Leg(metaclass=ABCMeta):

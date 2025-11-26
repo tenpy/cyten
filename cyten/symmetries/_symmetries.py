@@ -1,4 +1,4 @@
-"""Classes and functions related to the possible symmetries"""
+"""See :mod:`cyten.symmetries`"""
 # Copyright (C) TeNPy Developers, Apache license
 
 from __future__ import annotations
@@ -14,9 +14,9 @@ from typing import Literal
 import numpy as np
 from numpy import typing as npt
 
-from .dtypes import Dtype
-from .dummy_config import config
-from .tools.misc import as_immutable_array
+from ..block_backends.dtypes import Dtype
+from ..dummy_config import config
+from ..tools.misc import as_immutable_array
 
 try:
     import h5py

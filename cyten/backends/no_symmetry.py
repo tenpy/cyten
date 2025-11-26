@@ -8,11 +8,9 @@ from math import prod
 from typing import TYPE_CHECKING
 
 from ..block_backends import Block, BlockBackend
-from ..dtypes import Dtype
-from ..spaces import ElementarySpace, LegPipe, Space, TensorProduct
-from ..symmetries import Symmetry, no_symmetry
+from ..block_backends.dtypes import Dtype
+from ..symmetries import ElementarySpace, FusionTree, LegPipe, Space, Symmetry, TensorProduct, no_symmetry
 from ..tools.misc import rank_data
-from ..trees import FusionTree
 from ._backend import Data, DiagonalData, MaskData, TensorBackend, conventional_leg_order
 
 if TYPE_CHECKING:
