@@ -74,6 +74,8 @@ class PlanarDiagram:
         - Optimization of contraction order can be expensive in some cases.
         Intended workflow: run optimizing once during development and hard-code it.
         Fallback: run greedy optimization when the diagram is instantiated
+        - Diagrams must be connected, i.e., contractible to a single tensor; disconnected tensors must be
+        combined with outer before adding them to a diagram
 
     Parameters
     ----------
@@ -141,6 +143,8 @@ class PlanarDiagram:
         self.tensors = self.parse_tensors(tensors, dims)
         self.definition = self.parse_definition(definition)
         self.order = self.parse_order(order)
+        if self.order.num_leaves != len(self.tensors):
+            raise ValueError('The planar diagram is disconnected')
         self.open_legs, self.contraction_cost = self.verify_diagram()
 
     @property
@@ -296,6 +300,8 @@ class PlanarDiagram:
         return res
 
     def parse_order(self, order: str | NestedContainer_str | ContractionTree):
+        if len(self.tensors) == 1:
+            return ContractionTree.from_single_node(next(iter(self.tensors.keys())))
         if order == 'definition':
             order = [(t1, t2) for t1, l1, t2, l2 in self.definition if t2 is not None]
             return ContractionTree.from_contraction_order(order)
@@ -410,14 +416,19 @@ class PlanarDiagram:
             The cost to contract the diagram, as a polynomial in terms of the dims.
 
         """
+        num_legs = 0
         for t1, l1, t2, l2 in self.definition:
             assert t1 in self.tensors, f'No tensor with name {t1}'
             assert l1 in self.tensors[t1].labels, f'Tensor {t1} has no leg {l1}'
+            num_legs += 1
             if t2 is None:
                 assert is_valid_leg_label(l2), f'Invalid leg label {l2}'
             else:
                 assert t2 in self.tensors, f'No tensor with name {t2}'
                 assert l2 in self.tensors[t2].labels, f'Tensor {t2} has no leg {l2}'
+                num_legs += 1
+        if sum(tensor.num_legs for tensor in self.tensors.values()) != num_legs:
+            raise ValueError('Number of contracted and open legs does not match the total number of legs')
 
         # run the contraction with placeholders.
         # - verifies if the contractions actually are planar
@@ -544,7 +555,10 @@ class PlanarDiagram:
             # result is a number
             # TODO this may change, see Issue 13 on Github
             return tens
-        assert tens.labels_are(*(old for old, _ in open_legs))
+        if len(open_legs) != len(tens.labels):
+            raise ValueError('Number of expected open legs inconsistent with planar diagram')
+        if not tens.labels_are(*(old for old, _ in open_legs)):
+            raise ValueError('Inconsistent open legs')
         return tens.relabel({old: new for old, new in open_legs})
 
     @staticmethod
@@ -789,7 +803,8 @@ class ContractionTree:
                 tup2, lst2 = contracted[n2]
                 contracted[n1] = ((tup1, tup2), [*lst1, *lst2])
                 contracted.pop(n2)
-        assert len(contracted) == 1
+        if len(contracted) != 1:
+            raise ValueError('The planar diagram is disconnected')
         tup, _ = contracted[0]
         return cls.from_nested_containers(tup)
 
@@ -1383,7 +1398,7 @@ def parse_leg_bipartition(legs: Sequence[int], num_legs: int) -> tuple[list[int]
         Note that this may include a jump, e.g. ``[7, 8, 0, 1, 2]`` is sorted if ``num_legs=9``.
 
     """
-    assert not duplicate_entries(legs)
+    assert not duplicate_entries(legs), 'duplicate legs'
     assert all(0 <= l < num_legs for l in legs)
     # special cases
     if len(legs) == 0:
