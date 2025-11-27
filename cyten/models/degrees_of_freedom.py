@@ -18,7 +18,6 @@ import numpy as np
 from ..backends import TensorBackend, get_backend
 from ..block_backends import Block
 from ..symmetries import (
-    BraidingStyle,
     ElementarySpace,
     FermionNumber,
     FermionParity,
@@ -92,7 +91,7 @@ class Site:
         self.leg.test_sanity()
 
         # state labels
-        if self.symmetry.braiding_style >= BraidingStyle.anyonic:
+        if not self.symmetry.can_be_dropped:
             # can not have state labels, since we dont have basis states in the strict sense
             assert len(self.state_labels) == 0
         for label, idx in self.state_labels.items():

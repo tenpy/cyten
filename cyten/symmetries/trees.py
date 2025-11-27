@@ -12,7 +12,7 @@ import numpy as np
 from ..block_backends import Block, NumpyBlockBackend
 from ..block_backends.dtypes import Dtype
 from ..tools import to_valid_idx
-from ._symmetries import FusionStyle, Sector, SectorArray, Symmetry, SymmetryError
+from ._symmetries import Sector, SectorArray, Symmetry, SymmetryError
 
 if TYPE_CHECKING:
     from ..backends import TensorBackend
@@ -184,10 +184,10 @@ class FusionTree:
         return res
 
     def __hash__(self) -> int:
-        if self.fusion_style == FusionStyle.single:
+        if self.symmetry.is_abelian:
             # inner sectors are completely determined by uncoupled, all multiplicities are 0
             unique_identifier = [self.are_dual, self.coupled, self.uncoupled]
-        elif self.fusion_style == FusionStyle.multiple_unique:
+        elif self.symmetry.has_unique_fusion:
             # all multiplicities are 0
             unique_identifier = [self.are_dual, self.coupled, self.uncoupled, self.inner_sectors]
         else:
@@ -298,7 +298,7 @@ class FusionTree:
         else:
             extra_left = np.zeros((0, num_rows), str)
 
-        if self.symmetry.fusion_style > FusionStyle.multiple_unique:
+        if not self.symmetry.has_unique_fusion:
             # need to print multiplicities
             for (x, y), mult in zip(vertex_positions, self.multiplicities):
                 mult = str(mult)

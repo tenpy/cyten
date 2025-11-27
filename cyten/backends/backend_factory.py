@@ -55,7 +55,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
         # figure out minimal symmetry_backend that supports that symmetry
         if symmetry == no_symmetry:
             tensor_backend = 'no_symmetry'
-        elif isinstance(symmetry, AbelianGroup):
+        elif symmetry.is_abelian and symmetry.has_trivial_braid:
             tensor_backend = 'abelian'
         else:
             tensor_backend = 'fusion_tree'
