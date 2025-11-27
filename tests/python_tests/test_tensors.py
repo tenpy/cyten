@@ -17,7 +17,6 @@ from cyten.block_backends import NumpyBlockBackend
 from cyten.block_backends.dtypes import Dtype
 from cyten.symmetries import (
     AbelianLegPipe,
-    BraidingStyle,
     ElementarySpace,
     LegPipe,
     SU2Symmetry,
@@ -3409,7 +3408,7 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     labels = list('abcdefghi')[: cod + dom]
     tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
 
-    if isinstance(tensor, ChargedTensor) and tensor.symmetry.braiding_style > BraidingStyle.bosonic:
+    if isinstance(tensor, ChargedTensor) and not tensor.symmetry.has_trivial_braid:
         with pytest.raises(SymmetryError, match='not defined'):
             _ = tensor.T
         return

@@ -71,9 +71,9 @@ class FusionStyle(IntEnum):
 
     """
 
-    single = 0  # only one resulting sector, a ⊗ b = c, e.g. abelian symmetry groups
-    multiple_unique = 10  # every sector appears at most once in pairwise fusion, N^{ab}_c \in {0,1}
-    general = 20  # no assumptions N^{ab}_c = 0, 1, 2, ...
+    single = 0
+    multiple_unique = 10
+    general = 20
 
 
 class BraidingStyle(IntEnum):
@@ -92,19 +92,10 @@ class BraidingStyle(IntEnum):
     =============  ===========================================
     """
 
-    bosonic = 0  # symmetric braiding with trivial twist; v ⊗ w ↦ w ⊗ v
-    fermionic = 10  # symmetric braiding with non-trivial twist; v ⊗ w ↦ (-1)^p(v,w) w ⊗ v
-    anyonic = 20  # non-symmetric braiding
-    no_braiding = 30  # braiding is not defined
-
-    @property
-    def has_symmetric_braid(self):
-        return self < BraidingStyle.anyonic
-
-    def __lt__(self, other):
-        if self.__class__ is other.__class__:
-            return self.value < other.value
-        return NotImplemented
+    bosonic = 0
+    fermionic = 10
+    anyonic = 20
+    no_braiding = 30
 
 
 class Symmetry(metaclass=ABCMeta):
@@ -132,10 +123,6 @@ class Symmetry(metaclass=ABCMeta):
         Valid sectors are numpy arrays with shape ``(sector_ind_len,)``.
     empty_sector_array : 2D ndarray
         A SectorArray with no sectors, shape ``(0, sector_ind_len)``.
-    is_abelian : bool
-        If the symmetry is abelian.  An abelian symmetry is characterized by ``FusionStyle.single``,
-        which implies that all sectors are one-dimensional.
-        Note that this does *not* imply that it is a group, as the braiding may not be bosonic!
     has_complex_topological_data : bool
         If any of the topological data (F, R, C, B symbols, twist) for any sectors is complex.
         If so, tensors with that symmetry must have a complex dtype (except DiagonalTensor or Mask),
@@ -192,7 +179,6 @@ class Symmetry(metaclass=ABCMeta):
         self.sector_ind_len = sector_ind_len = len(trivial_sector)
         self.empty_sector_array = as_immutable_array(np.zeros((0, sector_ind_len), dtype=int))
         self.has_complex_topological_data = has_complex_topological_data
-        self.is_abelian = fusion_style == FusionStyle.single
 
     # ABSTRACT METHODS
 
@@ -257,15 +243,30 @@ class Symmetry(metaclass=ABCMeta):
         # symmetry braid -> we choose to allow it, but converting to/from numpy loses the braid
         #                   and makes swap gates necessary
         # general braid would break compatibility even with the tensor product, so we dont allow it
-        return self.braiding_style.has_symmetric_braid
+        return self.has_symmetric_braid
 
     @property
     def has_symmetric_braid(self) -> bool:
-        return self.braiding_style.has_symmetric_braid
+        return self.braiding_style <= BraidingStyle.fermionic
 
     @property
     def has_trivial_braid(self) -> bool:
         return self.braiding_style == BraidingStyle.bosonic
+
+    @property
+    def is_abelian(self) -> bool:
+        """If the symmetry is Abelian.
+
+        An Abelian symmetry is characterized by ``FusionStyle.single``, which implies that all
+        sectors are one-dimensional.
+        Note that this does *not* imply that it is a group, as the braiding may not be bosonic!
+        """
+        return self.fusion_style == FusionStyle.single
+
+    @property
+    def has_unique_fusion(self) -> bool:
+        """If the symmetry always has unique fusion channels, i.e. if N symbols are 0 or 1."""
+        return self.fusion_style <= FusionStyle.multiple_unique
 
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
         """Internal implementation of :meth:`fusion_tensor`. Can assume that inputs are valid."""
@@ -458,7 +459,7 @@ class Symmetry(metaclass=ABCMeta):
 
         """
         # OPTIMIZE implement concrete formulae for anyons? or just cache?
-        if self.braiding_style == BraidingStyle.bosonic:
+        if self.has_trivial_braid:
             return +1
         # sum_b sum_mu d_b / d_a * [R^aa_b]^mu_mu
         res = 0
@@ -466,7 +467,7 @@ class Symmetry(metaclass=ABCMeta):
             r = self._r_symbol(a, a, b)
             res += self.qdim(b) * np.sum(r)
         res /= self.qdim(a)
-        if self.braiding_style == BraidingStyle.fermionic:
+        if self.has_symmetric_braid:
             # must be +1 or -1
             res = np.real(res)
             if res < 0:
@@ -732,7 +733,6 @@ class Symmetry(metaclass=ABCMeta):
         hdf5_saver.save(self.num_sectors, subpath + 'num_sectors')
         hdf5_saver.save(self.sector_ind_len, subpath + 'sector_ind_len')
         h5gr.attrs['descriptive_name'] = self.descriptive_name.__str__()
-        h5gr.attrs['is_abelian'] = bool(self.is_abelian)
         h5gr.attrs['has_complex_topological_data'] = bool(self.has_complex_topological_data)
 
     @classmethod
@@ -750,7 +750,6 @@ class Symmetry(metaclass=ABCMeta):
         obj.num_sectors = hdf5_loader.load(subpath + 'num_sectors')
         obj.sector_ind_len = hdf5_loader.load(subpath + 'sector_ind_len')
         obj.descriptive_name = hdf5_loader.get_attr(h5gr, 'descriptive_name')
-        obj.is_abelian = hdf5_loader.get_attr(h5gr, 'is_abelian')
         obj.has_complex_topological_data = hdf5_loader.get_attr(h5gr, 'has_complex_topological_data')
 
         return obj
@@ -878,7 +877,7 @@ class ProductSymmetry(Symmetry):
         return result
 
     def fusion_outcomes_broadcast(self, a: SectorArray, b: SectorArray) -> SectorArray:
-        assert self.fusion_style == FusionStyle.single
+        assert self.is_abelian
         components = []
         for i, factor_i in enumerate(self.factors):
             a_i = a[:, self.sector_slices[i] : self.sector_slices[i + 1]]
@@ -976,7 +975,7 @@ class ProductSymmetry(Symmetry):
         return res
 
     def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
-        if self.fusion_style in [FusionStyle.single, FusionStyle.multiple_unique]:
+        if self.has_unique_fusion:
             return 1
 
         res = 1

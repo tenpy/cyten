@@ -341,12 +341,12 @@ def common_checks(
             assert_array_almost_equal(sym.r_symbol(a, b, c) ** 2, np.ones(sym.n_symbol(a, b, c)))
 
     # check fusion style
-    if sym.fusion_style == _symmetries.FusionStyle.single:
+    if sym.is_abelian:
         for a in example_sectors:
             for b in example_sectors:
                 assert len(sym.fusion_outcomes(a, b)) == 1
 
-    if sym.fusion_style.value <= _symmetries.FusionStyle.multiple_unique.value:
+    if sym.has_unique_fusion:
         for a, b, c in sector_triplets:
             # we check `== 1` and not `in [0, 1]` here since we iterate over sector_triplets
             assert sym.n_symbol(a, b, c) == 1
@@ -998,7 +998,7 @@ def test_su2_symmetry(np_random):
 
     print('checking fusion_outcomes_broadcast')
     with pytest.raises(AssertionError):
-        # sym does not have FusionStyle.single, so this should raise
+        # sym is not abelian, so this should raise
         _ = sym.fusion_outcomes_broadcast(spin_1[None, :], spin_3_half[None, :])
 
     print('checking sector dimensions')

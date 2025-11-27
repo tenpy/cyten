@@ -41,7 +41,6 @@ from ..block_backends import Block
 from ..block_backends.dtypes import Dtype
 from ..symmetries import (
     AbelianLegPipe,
-    BraidingStyle,
     ElementarySpace,
     FusionTree,
     Leg,
@@ -1923,7 +1922,7 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(a.data.dtype, a.data.device, blocks, block_inds, is_sorted=True)
 
     def supports_symmetry(self, symmetry: Symmetry) -> bool:
-        return symmetry.is_abelian and symmetry.braiding_style == BraidingStyle.bosonic
+        return symmetry.is_abelian and symmetry.has_trivial_braid
 
     def svd(
         self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None

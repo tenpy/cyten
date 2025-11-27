@@ -7,7 +7,7 @@ import logging
 
 from ..block_backends import NumpyBlockBackend, TorchBlockBackend
 from ..dummy_config import config
-from ..symmetries import AbelianGroup, Symmetry, no_symmetry
+from ..symmetries import Symmetry, no_symmetry
 from ._backend import TensorBackend
 from .abelian import AbelianBackend
 from .fusion_tree_backend import FusionTreeBackend
@@ -55,7 +55,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
         # figure out minimal symmetry_backend that supports that symmetry
         if symmetry == no_symmetry:
             tensor_backend = 'no_symmetry'
-        elif isinstance(symmetry, AbelianGroup):
+        elif symmetry.is_abelian and symmetry.has_trivial_braid:
             tensor_backend = 'abelian'
         else:
             tensor_backend = 'fusion_tree'
