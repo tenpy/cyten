@@ -530,6 +530,111 @@ def test_PlanarDiagram_with_traces(symmetry, np_random):
     assert np.allclose(expect2, res)
 
 
+def test_PlanarDiagram_verify_diagram():
+    # only a single tensor
+    _ = ct.PlanarDiagram(
+        tensors='T1[l1, l2, l3]',
+        definition='T1:l2 @ T1:l1, T1:l3 -> l3',
+        dims=dict(chi=['l1', 'l2', 'l3']),
+    )
+    with pytest.raises(ValueError):
+        _.remove_tensor('T1')
+
+    # disconnected tensors
+    with pytest.raises(ValueError, match='The planar diagram is disconnected'):
+        _ = ct.PlanarDiagram(
+            tensors='T1[l1, l2, l3], T2[l1, l2], T3[l1, l2]',
+            definition='T1:l1 @ T2:l1, T1:l2 -> l2, T1:l3 @ T2:l2, T3:l1 @ T3:l2',
+            dims=dict(chi=['l1', 'l2', 'l3']),
+        )
+    with pytest.raises(ValueError, match='The planar diagram is disconnected'):
+        _ = ct.PlanarDiagram(
+            tensors='T1[l1, l2, l3], T2[l1, l2]',
+            definition='T1:l1 @ T1:l3, T1:l2 -> l2, T2:l1 @ T2:l2',
+            dims=dict(chi=['l1', 'l2', 'l3']),
+        )
+
+    # add a disconnected tensor
+    diagram = ct.PlanarDiagram(
+        tensors='T1[l1, l2, l3]',
+        definition='T1:l2 @ T1:l1, T1:l3 -> l3',
+        dims=dict(chi=['l1', 'l2', 'l3']),
+    )
+    with pytest.raises(ValueError, match='The planar diagram is disconnected'):
+        _ = diagram.add_tensor('T2[l1, l2]', 'T2:l1 -> l1, T2:l2 -> l2')
+
+    # remove a tensor to make the diagram disconnected
+    diagram = ct.PlanarDiagram(
+        tensors='T1[l1, l2], T2[l1, l2, l3], T3[l1, l2]',
+        definition='T1:l1 -> l1, T1:l2 @ T2:l1, T2:l2 @ T3:l1, T2:l3 -> l3, T3:l2 -> l2',
+        dims=dict(chi=['l1', 'l2', 'l3']),
+    )
+    with pytest.raises(ValueError):
+        _ = diagram.remove_tensor('T2')
+
+    # open leg = contracted leg
+    with pytest.raises(ValueError, match='Number of contracted and open legs does not match the total number of legs'):
+        _ = ct.PlanarDiagram(
+            tensors='T1[l1, l2, l3], T2[l1, l2]',
+            definition='T1:l1 @ T2:l1, T1:l2 -> l2, T1:l3 @ T2:l2, T1:l1 -> l1',
+            dims=dict(chi=['l1', 'l2', 'l3']),
+        )
+    with pytest.raises(ValueError, match='Inconsistent open legs'):
+        _ = ct.PlanarDiagram(
+            tensors='T1[l1, l2, l3], T2[l1, l2]',
+            definition='T1:l1 @ T2:l1, T1:l3 @ T2:l2, T1:l1 -> l1',
+            dims=dict(chi=['l1', 'l2', 'l3']),
+        )
+
+    # contract leg twice
+    with pytest.raises(AssertionError, match='duplicate legs'):
+        _ = ct.PlanarDiagram(
+            tensors='T1[l1, l2, l3], T2[l1, l2]',
+            definition='T1:l1 -> l1, T1:l2 @ T2:l2, T1:l3 @ T2:l2',
+            dims=dict(chi=['l1', 'l2', 'l3']),
+        )
+
+    # unspecified action on leg
+    with pytest.raises(ValueError, match='Number of contracted and open legs does not match the total number of legs'):
+        _ = ct.PlanarDiagram(
+            tensors='T1[l1, l2, l3], T2[l1, l2]',
+            definition='T1:l1 @ T2:l1, T1:l3 @ T2:l2',
+            dims=dict(chi=['l1', 'l2', 'l3']),
+        )
+
+    # unknown tensor
+    with pytest.raises(AssertionError, match='No tensor with name T2'):
+        _ = ct.PlanarDiagram(
+            tensors='T1[l1, l2, l3]',
+            definition='T1:l2 @ T2:l1, T1:l1 -> l1, T1:l3 -> l3',
+            dims=dict(chi=['l1', 'l2', 'l3']),
+        )
+
+    # unknown label
+    with pytest.raises(AssertionError, match='Tensor T1 has no leg l4'):
+        _ = ct.PlanarDiagram(
+            tensors='T1[l1, l2, l3], T2[l1, l2]',
+            definition='T1:l1 @ T2:l1, T1:l3 @ T2:l2, T1:l4 -> l4, T1:l3 -> l3',
+            dims=dict(chi=['l1', 'l2', 'l3']),
+        )
+
+    # non-planar due to partial trace
+    with pytest.raises(ValueError, match='Not a planar trace'):
+        _ = ct.PlanarDiagram(
+            tensors='T1[l1, l2, l3, l4], T2[l1, l2]',
+            definition='T1:l2 @ T1:l4, T1:l1 @ T2:l1, T1:l3 -> l3, T2:l2 -> l2',
+            dims=dict(chi=['l1', 'l2', 'l3', 'l4']),
+        )
+
+    # non-planar due to contractions
+    with pytest.raises(ValueError, match='Not a planar bipartition'):
+        _ = ct.PlanarDiagram(
+            tensors='T1[l1, l2, l3, l4], T2[l1, l2]',
+            definition='T1:l1 @ T2:l1, T1:l3 @ T2:l2, T1:l3 -> l3, T1:l4 -> l4',
+            dims=dict(chi=['l1', 'l2', 'l3', 'l4']),
+        )
+
+
 @pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
 def test_PlanarLinearOperator(symmetry):
     # ===========================================
