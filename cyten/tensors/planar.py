@@ -1013,6 +1013,7 @@ def planar_contraction(
         labels = [tensor1.labels[n] for n in open1] + [tensor2.labels[n] for n in open2]
         dims = [tensor1.dims[n] for n in open1] + [tensor2.dims[n] for n in open2]
         contr_dims = BigOPolynomial.prod(*(tensor1.dims[n] for n in contr1))
+        # TODO this may actually happen when forgetting to specify the dims for one tensor...
         assert contr_dims == BigOPolynomial.prod(*(tensor2.dims[n] for n in contr2))
         cost = tensor1.cost_to_make + tensor2.cost_to_make + BigOPolynomial.prod(*dims, contr_dims)
         return TensorPlaceholder(labels, dims, cost_to_make=cost)

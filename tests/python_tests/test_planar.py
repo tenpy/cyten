@@ -434,6 +434,120 @@ def test_PlanarDiagram_add_remove_tensor(symmetry, np_random):
 
 
 @pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
+def test_PlanarDiagram_contraction_orders(symmetry, np_random):
+    # ===========================================
+    # define a diagram
+    # ===========================================
+    diagram1 = ct.PlanarDiagram(
+        tensors='T1[vL, vR], T2[vL, vR], T3[vL, w, vR], T4[vL, w, vR]',
+        definition=[
+            ('T1', 'vL', 'T2', 'vR'),
+            ('T1', 'vR', 'T4', 'vR'),
+            ('T2', 'vL', 'T3', 'vL'),
+            ('T3', 'vR', 'T4', 'vL'),
+            ('T3', 'w', None, 'w1'),
+            ('T4', 'w', None, 'w2'),
+        ],
+        dims=dict(chi=['vR', 'vL'], w=['w']),
+    )
+    tensors = {
+        'T1': ct.planar.TensorPlaceholder(['vL', 'vR'], ['chi', 'chi']),
+        'T2': ct.planar.TensorPlaceholder(['vR', 'vL'], ['chi', 'chi']),
+        'T3': ct.planar.TensorPlaceholder(['vL', 'w', 'vR'], ['chi', 'w', 'chi']),
+        'T4': ct.planar.TensorPlaceholder(['vR', 'vL', 'w'], ['chi', 'chi', 'w']),
+    }
+    diagram2 = ct.PlanarDiagram(
+        tensors=tensors,
+        definition='T1:vL @ T2:vR, T1:vR @ T4:vR, T2:vL @ T3:vL, T3:vR @ T4:vL, T3:w -> w1, T4:w -> w2',
+    )
+    r"""Same diagram as for test_PlanarDiagram_add_remove_tensor;
+    also test adding and removing tensors in the different ways
+
+        |   .--T1--.
+        |   |      |
+        |  T2      T4-
+        |   |      |
+        |   .--T3--.
+        |      |
+    """
+
+    # ===========================================
+    # create example tensors
+    # ===========================================
+    T1 = ct.testing.random_tensor(symmetry, codomain=2, labels=['vL', 'vR'], np_random=np_random)
+    T1vL = T1.get_leg('vL')
+    T1vR = T1.get_leg('vR')
+    T2 = ct.testing.random_tensor(symmetry, codomain=[None, T1vL.dual], labels=['vL', 'vR'], np_random=np_random)
+    T2vL = T2.get_leg('vL')
+    T3 = ct.testing.random_tensor(
+        symmetry, codomain=[T2vL.dual, None, None], labels=['vL', 'w', 'vR'], np_random=np_random
+    )
+    T3vR = T3.get_leg('vR')
+    T4 = ct.testing.random_tensor(
+        symmetry, codomain=[T1vR.dual, T3vR.dual, None], labels=['vR', 'vL', 'w'], np_random=np_random
+    )
+
+    # ===========================================
+    # evaluate the diagrams
+    # ===========================================
+    res1 = diagram1(T1=T1, T2=T2, T3=T3, T4=T4)
+    res1.test_sanity()
+    assert res1.labels == ['w2', 'w1']
+    assert res1.num_codomain_legs == 1
+
+    res2 = diagram2(T1=T1, T2=T2, T3=T3, T4=T4)
+    res2.test_sanity()
+    assert res2.labels == ['w2', 'w1']
+    assert res2.num_codomain_legs == 1
+
+    assert ct.almost_equal(res1, res2)
+
+    # ===========================================
+    # remove T4
+    # ===========================================
+    partial_diagram1 = diagram1.remove_tensor('T4', extra_definition='T3:vR -> vL, T1:vR -> vR')
+    partial_diagram2 = diagram2.remove_tensor(
+        'T4', extra_definition=[('T3', 'vR', None, 'vL'), ('T1', 'vR', None, 'vR')]
+    )
+    partial_res1 = partial_diagram1(T1=T1, T2=T2, T3=T3)
+    partial_res1.test_sanity()
+    assert partial_res1.labels == ['w1', 'vL', 'vR']
+    assert partial_res1.num_codomain_legs == 2
+
+    partial_res2 = partial_diagram2(T1=T1, T2=T2, T3=T3)
+    partial_res2.test_sanity()
+    assert partial_res2.labels == ['w1', 'vL', 'vR']
+    assert partial_res2.num_codomain_legs == 2
+
+    assert ct.almost_equal(partial_res1, partial_res2)
+
+    # ===========================================
+    # add T4 again
+    # ===========================================
+    diagram1_ = partial_diagram1.add_tensor(
+        tensor={'T4': tensors['T4']},
+        extra_definition='T4:vL @ T3:vR, T1:vR @ T4:vR, T4:w -> w2',
+    )
+    diagram2_ = partial_diagram2.add_tensor(
+        tensor='T4[vL, w, vR]',
+        extra_definition=[('T4', 'vL', 'T3', 'vR'), ('T1', 'vR', 'T4', 'vR'), ('T4', 'w', None, 'w2')],
+        extra_dims=dict(chi=['vR', 'vL'], w=['w']),
+    )
+    res1_ = diagram1_(T1=T1, T2=T2, T3=T3, T4=T4)
+    res1_.test_sanity()
+    assert res1_.labels == ['w1', 'w2']
+    assert res1_.num_codomain_legs == 1
+
+    res2_ = diagram2_(T1=T1, T2=T2, T3=T3, T4=T4)
+    res2_.test_sanity()
+    assert res2_.labels == ['w1', 'w2']
+    assert res2_.num_codomain_legs == 1
+
+    assert ct.almost_equal(res1_, res2_)
+    assert ct.planar.planar_almost_equal(res1_, res1)
+
+
+@pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
 def test_PlanarDiagram_with_traces(symmetry, np_random):
     # ===========================================
     # define a diagram
