@@ -17,6 +17,7 @@ from ._tensors import (
     OPEN_LEG_SYMBOL,
     LabelledLegs,
     Tensor,
+    almost_equal,
     compose,
     is_valid_leg_label,
     partial_trace,
@@ -73,6 +74,8 @@ class PlanarDiagram:
         - Optimization of contraction order can be expensive in some cases.
         Intended workflow: run optimizing once during development and hard-code it.
         Fallback: run greedy optimization when the diagram is instantiated
+        - Diagrams must be connected, i.e., contractible to a single tensor; disconnected tensors must be
+        combined with outer before adding them to a diagram
 
     Parameters
     ----------
@@ -140,6 +143,8 @@ class PlanarDiagram:
         self.tensors = self.parse_tensors(tensors, dims)
         self.definition = self.parse_definition(definition)
         self.order = self.parse_order(order)
+        if self.order.num_leaves != len(self.tensors):
+            raise ValueError('The planar diagram is disconnected')
         self.open_legs, self.contraction_cost = self.verify_diagram()
 
     @property
@@ -295,6 +300,8 @@ class PlanarDiagram:
         return res
 
     def parse_order(self, order: str | NestedContainer_str | ContractionTree):
+        if len(self.tensors) == 1:
+            return ContractionTree.from_single_node(next(iter(self.tensors.keys())))
         if order == 'definition':
             order = [(t1, t2) for t1, l1, t2, l2 in self.definition if t2 is not None]
             return ContractionTree.from_contraction_order(order)
@@ -409,14 +416,19 @@ class PlanarDiagram:
             The cost to contract the diagram, as a polynomial in terms of the dims.
 
         """
+        num_legs = 0
         for t1, l1, t2, l2 in self.definition:
             assert t1 in self.tensors, f'No tensor with name {t1}'
             assert l1 in self.tensors[t1].labels, f'Tensor {t1} has no leg {l1}'
+            num_legs += 1
             if t2 is None:
                 assert is_valid_leg_label(l2), f'Invalid leg label {l2}'
             else:
                 assert t2 in self.tensors, f'No tensor with name {t2}'
                 assert l2 in self.tensors[t2].labels, f'Tensor {t2} has no leg {l2}'
+                num_legs += 1
+        if sum(tensor.num_legs for tensor in self.tensors.values()) != num_legs:
+            raise ValueError('Number of contracted and open legs does not match the total number of legs')
 
         # run the contraction with placeholders.
         # - verifies if the contractions actually are planar
@@ -543,7 +555,10 @@ class PlanarDiagram:
             # result is a number
             # TODO this may change, see Issue 13 on Github
             return tens
-        assert tens.labels_are(*(old for old, _ in open_legs))
+        if len(open_legs) != len(tens.labels):
+            raise ValueError('Number of expected open legs inconsistent with planar diagram')
+        if not tens.labels_are(*(old for old, _ in open_legs)):
+            raise ValueError('Inconsistent open legs')
         return tens.relabel({old: new for old, new in open_legs})
 
     @staticmethod
@@ -788,7 +803,8 @@ class ContractionTree:
                 tup2, lst2 = contracted[n2]
                 contracted[n1] = ((tup1, tup2), [*lst1, *lst2])
                 contracted.pop(n2)
-        assert len(contracted) == 1
+        if len(contracted) != 1:
+            raise ValueError('The planar diagram is disconnected')
         tup, _ = contracted[0]
         return cls.from_nested_containers(tup)
 
@@ -902,6 +918,39 @@ class PlanarLinearOperator(LinearOperator):
         return self.op_diagram.evaluate(tensors=self.op_tensors)
 
 
+def planar_almost_equal(tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol=1e-8) -> bool:
+    """Checks if two tensors are equal up to numerical tolerance and planar permutation.
+
+    We first permute the legs of `tensor_1` to the configuration of `tensor_2` and then
+    compare the blocks, i.e. the free parameters of the tensors.
+    The tensors count as almost equal if all block-entries, i.e. all their free parameters
+    individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
+    Note that this is a basis-dependent and backend-dependent notion of distance, which does
+    not come from a norm in the strict mathematical sense.
+
+    Parameters
+    ----------
+    tensor_1, tensor_2
+        The tensors to compare
+    atol, rtol
+        Absolute and relative tolerance, see above.
+
+    Notes
+    -----
+    Unlike `almost_equal`, this function does not have the argument `allow_different_types`
+    since permuting legs may change the tensor type.
+
+    """
+    if None in tensor_1.labels or None in tensor_2.labels:
+        raise ValueError('Can only compare tensors for which each leg has a label')
+    if set(tensor_1.labels) != set(tensor_2.labels):
+        raise ValueError('Both tensors need to have the same leg labels')
+    codomain = tensor_2.labels[: tensor_2.num_codomain_legs]
+    domain = tensor_2.labels[tensor_2.num_codomain_legs :][::-1]
+    tensor_1 = planar_permute_legs(tensor_1, codomain=codomain, domain=domain)
+    return almost_equal(tensor_1, tensor_2, rtol, atol, allow_different_types=True)
+
+
 @overload
 def planar_contraction(
     tensor1: Tensor,
@@ -964,6 +1013,7 @@ def planar_contraction(
         labels = [tensor1.labels[n] for n in open1] + [tensor2.labels[n] for n in open2]
         dims = [tensor1.dims[n] for n in open1] + [tensor2.dims[n] for n in open2]
         contr_dims = BigOPolynomial.prod(*(tensor1.dims[n] for n in contr1))
+        # TODO this may actually happen when forgetting to specify the dims for one tensor...
         assert contr_dims == BigOPolynomial.prod(*(tensor2.dims[n] for n in contr2))
         cost = tensor1.cost_to_make + tensor2.cost_to_make + BigOPolynomial.prod(*dims, contr_dims)
         return TensorPlaceholder(labels, dims, cost_to_make=cost)
@@ -1349,7 +1399,7 @@ def parse_leg_bipartition(legs: Sequence[int], num_legs: int) -> tuple[list[int]
         Note that this may include a jump, e.g. ``[7, 8, 0, 1, 2]`` is sorted if ``num_legs=9``.
 
     """
-    assert not duplicate_entries(legs)
+    assert not duplicate_entries(legs), 'duplicate legs'
     assert all(0 <= l < num_legs for l in legs)
     # special cases
     if len(legs) == 0:
