@@ -64,9 +64,9 @@ planar_partial_trace_cases = {
     'co_domain-cab-ab': (['c', 'a', 'b'], ['a', 'b']),
     # winding
     'codomain-aba': (['a', 'b', 'a'], []),
-    'codomain-abcbaa': (['a', 'b', 'c', 'b', 'a'], []),
+    'codomain-abcba': (['a', 'b', 'c', 'b', 'a'], []),
     'domain--aba': ([], ['a', 'b', 'a']),
-    'domain--abcbaa': ([], ['a', 'b', 'c', 'b', 'a']),
+    'domain--abcba': ([], ['a', 'b', 'c', 'b', 'a']),
     'co_domain-abcb-a': (['a', 'b', 'c', 'b'], ['a']),
     'co_domain-acab-b': (['a', 'c', 'a', 'b'], ['b']),
 }
@@ -83,15 +83,11 @@ planar_partial_trace_cases = {
         (ct.fibonacci_anyon_category, 'fusion_tree'),
     ],
 )
-# TODO activate
-def _test_planar_partial_trace(codomain, domain, symmetry, backend, np_random):
-    # TODO rm
-    max_mults = 2
-
+def test_planar_partial_trace(codomain, domain, symmetry, backend, np_random):
     # same construction as in test_partial_trace in test_tensors.py
     backend = ct.get_backend(backend, 'numpy')
     trace_legs = {
-        l: ct.testing.random_leg(symmetry, backend, False, np_random=np_random, max_multiplicity=max_mults)
+        l: ct.testing.random_leg(symmetry, backend, False, np_random=np_random)
         for l in ct.tools.misc.duplicate_entries([*codomain, *domain])
     }
     seen_labels = []
@@ -107,7 +103,7 @@ def _test_planar_partial_trace(codomain, domain, symmetry, backend, np_random):
             codomain_labels.append(l)
         else:
             codomain_spaces.append(
-                ct.testing.random_leg(symmetry, backend, False, np_random=np_random, max_multiplicity=max_mults)
+                ct.testing.random_leg(symmetry, backend, False, np_random=np_random)
             )
             codomain_labels.append(l)
     domain_spaces = []
@@ -122,7 +118,7 @@ def _test_planar_partial_trace(codomain, domain, symmetry, backend, np_random):
             seen_labels.append(l)
         else:
             domain_spaces.append(
-                ct.testing.random_leg(symmetry, backend, False, np_random=np_random, max_multiplicity=max_mults)
+                ct.testing.random_leg(symmetry, backend, False, np_random=np_random)
             )
             domain_labels.append(l)
 
@@ -160,13 +156,6 @@ def _test_planar_partial_trace(codomain, domain, symmetry, backend, np_random):
     expect = ct.tensors.partial_trace(T, *pairs, levels=levels)
     assert expect.labels == res.labels
     assert expect.legs == res.legs
-    # TODO rm
-    if isinstance(T.symmetry, ct.symmetries.FermionParity):
-        print(res.labels, expect.labels, res.num_codomain_legs, expect.num_codomain_legs)
-        print(res.data.block_inds)
-        print(expect.data.block_inds)
-        print(res.data.blocks)
-        print(expect.data.blocks)
     assert ct.almost_equal(res, expect)
 
 
