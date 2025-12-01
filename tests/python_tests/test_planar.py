@@ -45,6 +45,86 @@ def test_parse_leg_bipartition(legs, num_legs, is_planar, shuffle, np_random):
     assert all(n2 == n1 + 1 or (n2, n1) == (0, num_legs - 1) for n1, n2 in zip(b[:-1], b[1:]))
 
 
+planar_contraction_cases = {
+    '2-0-2-right': ([['a'], ['b']], [['c', 'd'], []], [], [], None, None, True),
+    '2-1-2-right': ([['a'], ['b']], [['b', 'c'], []], [1], [0], None, None, True),
+    '2-1-2-left': ([['a'], ['b']], [['c', 'b'], []], [1], [1], None, None, False),
+    '2-2-2-right': ([['a'], ['b']], [[], ['a', 'b']], [1, 0], [0, 1], None, None, True),
+    '3-1-3-right': ([['a'], ['c', 'b']], [['c', 'd'], ['e']], [2], [0], None, None, True),
+    '3-1-3-left': ([['a'], ['b', 'c']], [['d', 'c'], ['e']], [1], [1], [2, 0], [0, 2], False),
+    '3-2-3-left': ([['b', 'a'], ['c']], [['c'], ['b', 'd']], [0, 2], [2, 0], [1], [1], False),
+    '3-3-3-right': ([['a', 'b'], ['c']], [['c'], ['a', 'b']], [2, 1, 0], [0, 1, 2], None, None, True),
+    '4-2-3-left': ([['a', 'b', 'c'], ['d']], [['d'], ['a', 'e']], [0, 3], [2, 0], None, None, False),
+    '4-3-3-right': ([['a', 'b', 'c', 'd'], []], [['d'], ['b', 'c']], [3, 2, 1], [0, 1, 2], None, None, True),
+}
+
+
+@pytest.mark.parametrize(
+    'labels_A, labels_B, contr_A, contr_B, A_codomain, B_domain, bend_right',
+    planar_contraction_cases.values(),
+    ids=planar_contraction_cases.keys(),
+)
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (ct.no_symmetry, 'no_symmetry'),
+        (ct.u1_symmetry, 'abelian'),
+        (ct.u1_symmetry, 'fusion_tree'),
+        (ct.fermion_parity, 'fusion_tree'),
+        (ct.fibonacci_anyon_category, 'fusion_tree'),
+    ],
+)
+def test_planar_contraction(
+    labels_A: list[list[str]],
+    labels_B: list[list[str]],
+    contr_A: list[int],
+    contr_B: list[int],
+    A_codomain,
+    B_domain,
+    bend_right: bool,
+    symmetry,
+    backend,
+    np_random,
+):
+    backend = ct.get_backend(backend, 'numpy')
+    # same construction as in test_tdot in test_tensors.py
+    A: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=len(labels_A[0]),
+        domain=len(labels_A[1]),
+        labels=[*labels_A[0], *reversed(labels_A[1])],
+        backend=backend,
+        np_random=np_random,
+    )
+
+    B: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=[A._as_domain_leg(l) if A.has_label(l) else None for l in labels_B[0]],
+        domain=[A._as_codomain_leg(l) if A.has_label(l) else None for l in labels_B[1]],
+        labels=[*labels_B[0], *reversed(labels_B[1])],
+        backend=backend,
+        np_random=np_random,
+    )
+
+    # make sure we defined compatible legs
+    for ia, ib in zip(contr_A, contr_B):
+        assert A._as_domain_leg(ia) == B._as_codomain_leg(ib)
+
+    res = ct.planar.planar_contraction(A, B, contr_A, contr_B)
+
+    A_permuted = ct.permute_legs(A, codomain=A_codomain, domain=contr_A, bend_right=bend_right)
+    B_permuted = ct.permute_legs(B, codomain=contr_B, domain=B_domain, bend_right=bend_right)
+    contr_A = list(reversed(range(A_permuted.num_codomain_legs, A_permuted.num_legs)))
+    contr_B = list(range(B_permuted.num_codomain_legs))
+    expect = ct.tdot(A_permuted, B_permuted, contr_A, contr_B)
+
+    if isinstance(res, ct.Tensor):
+        assert ct.planar.planar_almost_equal(res, expect)
+    else:
+        assert len(contr_A) == A.num_legs and len(contr_B) == B.num_legs
+        assert np.allclose(res, expect)
+
+
 planar_partial_trace_cases = {
     # traces in codomain
     'codomain-aab': (['a', 'a', 'b'], []),
@@ -102,9 +182,7 @@ def test_planar_partial_trace(codomain, domain, symmetry, backend, np_random):
             seen_labels.append(l)
             codomain_labels.append(l)
         else:
-            codomain_spaces.append(
-                ct.testing.random_leg(symmetry, backend, False, np_random=np_random)
-            )
+            codomain_spaces.append(ct.testing.random_leg(symmetry, backend, False, np_random=np_random))
             codomain_labels.append(l)
     domain_spaces = []
     domain_labels = []
@@ -117,9 +195,7 @@ def test_planar_partial_trace(codomain, domain, symmetry, backend, np_random):
             domain_labels.append(l)
             seen_labels.append(l)
         else:
-            domain_spaces.append(
-                ct.testing.random_leg(symmetry, backend, False, np_random=np_random)
-            )
+            domain_spaces.append(ct.testing.random_leg(symmetry, backend, False, np_random=np_random))
             domain_labels.append(l)
 
     T: ct.SymmetricTensor = ct.testing.random_tensor(
