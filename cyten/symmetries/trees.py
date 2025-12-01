@@ -1041,7 +1041,7 @@ class FusionTree:
             |   │
 
         """
-        if self.symmetry.has_symmetric_braid:
+        if self.symmetry.has_trivial_braid:
             # twists are trivial
             return {self: 1}
 
