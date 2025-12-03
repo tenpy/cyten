@@ -151,7 +151,8 @@ class TensorBackend(metaclass=ABCMeta):
         tensor: SymmetricTensor
             The tensor to modify
         leg_idcs_combine: list of list of int
-            A list of groups. Each group a list of integer leg indices, to be combined.
+            A list of groups. Each group a list of integer leg indices, to be combined. Must be in
+            ascending order.
         pipes: list of LegPipe
             The resulting pipes. Same length and order as `leg_idcs_combine`.
             In the domain, this is the product space as it will appear in the domain, not in legs.
@@ -722,8 +723,6 @@ class TensorBackend(metaclass=ABCMeta):
         self,
         a: SymmetricTensor,
         leg_idcs: list[int],
-        codomain_split: list[int],
-        domain_split: list[int],
         new_codomain: TensorProduct,
         new_domain: TensorProduct,
     ) -> Data:
@@ -734,10 +733,8 @@ class TensorBackend(metaclass=ABCMeta):
         a
             The tensor to split legs on.
         leg_idcs:
-            List of leg-indices, fulfilling ``0 <= i < a.num_legs``, to split.
-        codomain_split, domain_split
-            Contains the same information as `leg_idcs`. Which legs to split is indices for the
-            (co)domain.
+            List of leg-indices, fulfilling ``0 <= i < a.num_legs``, to split. Must be in
+            ascending order.
         new_codomain, new_domain
             The new (co-)domain, after splitting. Has same sectors and multiplicities.
 
