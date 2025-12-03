@@ -45,6 +45,129 @@ def test_parse_leg_bipartition(legs, num_legs, is_planar, shuffle, np_random):
     assert all(n2 == n1 + 1 or (n2, n1) == (0, num_legs - 1) for n1, n2 in zip(b[:-1], b[1:]))
 
 
+planar_combine_cases = {
+    'trivial': ([['a', 'b'], ['c', 'd']], [['a'], ['c']], ['a', 'b'], ['c', 'd'], None),
+    # without bending
+    'codomain-1': ([['a', 'b', 'c'], ['d']], [['a', 'b']], ['a', 'b', 'c'], ['d'], None),
+    'codomain-2': ([['a', 'b', 'c', 'd'], ['e']], [['a', 'b'], ['d', 'c']], ['a', 'b', 'c', 'd'], ['e'], None),
+    'domain-1': ([['a'], ['b', 'c', 'd']], [['b', 'c']], ['a'], ['b', 'c', 'd'], None),
+    'domain-2': ([['a'], ['b', 'c', 'd', 'e']], [['c', 'b'], ['d', 'e']], ['a'], ['b', 'c', 'd', 'e'], None),
+    # bending right
+    'bend-right-down-1': ([['a', 'b'], ['c']], [['b', 'c']], ['a', 'b', 'c'], [], True),
+    'bend-right-down-2': ([['a', 'b'], ['c', 'd']], [['b', 'd', 'c']], ['a', 'b', 'd', 'c'], [], True),
+    'bend-right-up-1': ([['a', 'b'], ['c']], [['c', 'b']], ['a'], ['c', 'b'], True),
+    'bend-right-up-2': ([['a', 'b', 'c'], ['d', 'e']], [['e', 'd', 'b', 'c']], ['a'], ['d', 'e', 'c', 'b'], True),
+    # bending left
+    'bend-left-down-1': ([['a', 'b'], ['c']], [['a', 'c']], ['c', 'a', 'b'], [], False),
+    'bend-left-down-2': ([['a', 'b'], ['c', 'd']], [['a', 'd', 'c']], ['d', 'c', 'a', 'b'], [], False),
+    'bend-left-up-1': ([['a', 'b'], ['c']], [['c', 'a']], ['b'], ['a', 'c'], False),
+    'bend-left-up-2': ([['a', 'b', 'c'], ['d', 'e']], [['e', 'd', 'b', 'a']], ['c'], ['b', 'a', 'd', 'e'], False),
+    # bending left and right
+    'bend-down-down': (
+        [['a', 'b'], ['c', 'd', 'e']],
+        [['a', 'c'], ['b', 'e']],
+        ['c', 'a', 'b', 'e'],
+        ['d'],
+        [None, None, True, None, False],
+    ),
+    'bend-down-up': (
+        [['a', 'b'], ['c', 'd', 'e']],
+        [['a', 'c'], ['e', 'b']],
+        ['c', 'a'],
+        ['d', 'e', 'b'],
+        [None, True, None, None, False],
+    ),
+    'bend-up-down': (
+        [['a', 'b', 'c'], ['d', 'e', 'f']],
+        [['d', 'a'], ['c', 'f', 'e'], ['b']],
+        ['b', 'c', 'f', 'e'],
+        ['a', 'd'],
+        [False, None, None, True, True, None],
+    ),
+    'bend-up-up': (
+        [['a', 'b', 'c'], ['d', 'e', 'f']],
+        [['d', 'e', 'a'], ['f', 'c'], ['b']],
+        ['b'],
+        ['a', 'd', 'e', 'f', 'c'],
+        [False, None, True, None, None, None],
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    'labels, which_legs, new_codomain, new_domain, bend_right',
+    planar_combine_cases.values(),
+    ids=planar_combine_cases.keys(),
+)
+@pytest.mark.parametrize(
+    'symmetry, backend',
+    [
+        (ct.no_symmetry, 'no_symmetry'),
+        (ct.u1_symmetry, 'abelian'),
+        (ct.u1_symmetry, 'fusion_tree'),
+        (ct.fermion_parity, 'fusion_tree'),
+        (ct.fibonacci_anyon_category, 'fusion_tree'),
+    ],
+)
+def test_planar_combine_legs(
+    labels,
+    which_legs,
+    new_codomain,
+    new_domain,
+    bend_right,
+    symmetry,
+    backend,
+    np_random,
+):
+    backend = ct.get_backend(backend, 'numpy')
+    T: ct.SymmetricTensor = ct.testing.random_tensor(
+        symmetry,
+        codomain=len(labels[0]),
+        domain=len(labels[1]),
+        labels=[*labels[0], *reversed(labels[1])],
+        backend=backend,
+        np_random=np_random,
+    )
+    pipe_dualities = np_random.choice([True, False], size=len(which_legs))
+    # TODO fix
+    pipe_dualities = None
+
+    num_codomain_legs = T.num_codomain_legs
+    num_codomain_flat_legs = T.num_codomain_flat_legs
+    num_domain_legs = T.num_domain_legs
+    num_domain_flat_legs = T.num_domain_flat_legs
+    for group in which_legs:
+        leg0 = T.get_leg_idcs(group[0])[0]
+        for i, leg in enumerate(T.get_leg_idcs(group)):
+            if i == 0:
+                continue
+            if leg < T.num_codomain_legs:
+                num_codomain_legs -= 1
+            else:
+                num_domain_legs -= 1
+            flat_num = len(T.get_leg(leg)) if isinstance(T.get_leg(leg), ct.LegPipe) else 1
+            if leg0 < T.num_codomain_legs and leg >= T.num_codomain_legs:
+                num_codomain_flat_legs += flat_num
+                num_domain_flat_legs -= flat_num
+            elif leg0 >= T.num_codomain_legs and leg < T.num_codomain_legs:
+                num_codomain_flat_legs -= flat_num
+                num_domain_flat_legs += flat_num
+
+    T_combined = ct.planar.planar_combine_legs(T, *which_legs, pipe_dualities=pipe_dualities)
+    assert T_combined.num_codomain_legs == num_codomain_legs
+    assert T_combined.num_codomain_flat_legs == num_codomain_flat_legs
+    assert T_combined.num_domain_legs == num_domain_legs
+    assert T_combined.num_domain_flat_legs == num_domain_flat_legs
+    assert ct.planar.planar_almost_equal(T, ct.split_legs(T_combined))
+
+    # compare to nonplanar function
+    T_combined2 = ct.permute_legs(T, codomain=new_codomain, domain=new_domain, bend_right=bend_right)
+    # make sure which_legs is sorted to avoid braids
+    which_legs = [sorted(T_combined2.get_leg_idcs(group)) for group in which_legs]
+    T_combined2 = ct.combine_legs(T_combined2, *which_legs, pipe_dualities=pipe_dualities)
+    assert ct.almost_equal(T_combined, T_combined2)
+
+
 planar_contraction_cases = {
     '2-0-2-right': ([['a'], ['b']], [['c', 'd'], []], [], [], None, None, True),
     '2-1-2-right': ([['a'], ['b']], [['b', 'c'], []], [1], [0], None, None, True),
