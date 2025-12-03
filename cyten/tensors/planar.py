@@ -10,6 +10,7 @@ from typing import Literal, TypeVar, overload
 import numpy as np
 
 from ..backends import FusionTreeBackend
+from ..symmetries.spaces import LegPipe
 from ..tools import BigOPolynomial, duplicate_entries
 from ._tensors import (
     CONTRACT_SYMBOL,
@@ -18,6 +19,7 @@ from ._tensors import (
     LabelledLegs,
     Tensor,
     almost_equal,
+    combine_legs,
     compose,
     is_valid_leg_label,
     partial_trace,
@@ -949,6 +951,89 @@ def planar_almost_equal(tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, 
     domain = tensor_2.labels[tensor_2.num_codomain_legs :][::-1]
     tensor_1 = planar_permute_legs(tensor_1, codomain=codomain, domain=domain)
     return almost_equal(tensor_1, tensor_2, rtol, atol, allow_different_types=True)
+
+
+def planar_combine_legs(
+    T: Tensor,
+    *which_legs: list[int | str],
+    pipe_dualities: bool | list[bool] = False,
+    pipes: list[LegPipe | None] = None,
+) -> Tensor:
+    """Planar special case of :func:`~cyten.combine_legs`, without braids.
+
+    The legs to be combined must be contiguous, but they do not need to be ordered within each of
+    the groups. In the general case, the legs are bent up / down before combining. The combined leg
+    is the codomain (domain) if the first leg of the group is in the codomain (domain).
+
+    TODO give example where the order in which_legs makes the difference between codomain and domain
+
+    Parameters
+    ----------
+    T:
+        The tensor whose legs should be combined.
+    *which_legs : list of {int | str}
+        One or more groups of legs to combine.
+    pipe_dualities : list of bool, optional
+        Can optionally specify the :attr:`LegPipe.is_dual` attribute of each resulting pipe.
+        This is an arbitrary choice for each pipe.
+        The pipes are formed such that ``result.legs.[pipe_idx].is_dual == pipe_dualities[i]``.
+        Defaults to all ``False``.
+    pipes: list of {LegPipe | None}, optional
+        For each ``group = which_legs[i]`` of legs, the resulting pipe can be passed to
+        avoid recomputation. If we group to the codomain (``group[0] < tensor.num_codomain_legs``),
+        we expect ``LegPipe([tensor._as_codomain_leg(i) for i in group])``.
+        Otherwise we expect ``LegPipe([tensor._as_domain_leg(i) for i in reversed(group)])``.
+        Note the reverse order in the latter case!
+        In the intended use case, when another tensor with the same legs has already been combined,
+        obtain those pipes simply via :meth:`Tensor.get_leg_co_domain`.
+        It is possible to pass only some of the pipes, use ``None`` as filler.
+
+    """
+    which_legs = [T.get_leg_idcs(group) for group in which_legs]
+    # identify if is there is a group on the left / right with legs that need
+    # to be bent and where to combine them
+    right_group_idx = None
+    left_group_idx = None
+    for idx, group in enumerate(which_legs):
+        if T.num_codomain_legs - 1 in group and T.num_codomain_legs in group:
+            right_group_idx = idx
+            right_group_in_domain = group[0] >= T.num_codomain_legs
+        elif 0 in group and T.num_legs - 1 in group:
+            left_group_idx = idx
+            left_group_in_domain = group[0] >= T.num_codomain_legs
+
+    which_legs = [parse_leg_bipartition(group, T.num_legs)[0] for group in which_legs]
+
+    # get new codomain and domain for planar_permute_legs, update which_legs for left bends
+    new_codomain = list(range(T.num_codomain_legs))
+    new_domain = list(reversed(range(T.num_codomain_legs, T.num_legs)))
+    if right_group_idx is not None:
+        right_group = which_legs[right_group_idx]
+        # number group legs in codomain
+        num = right_group.index(T.num_codomain_legs - 1) + 1
+        if right_group_in_domain:
+            new_domain.extend(new_codomain[-num:][::-1])
+            new_codomain = new_codomain[:-num]
+        else:
+            num = len(right_group) - num
+            new_codomain.extend(new_domain[-num:][::-1])
+            new_domain = new_domain[:-num]
+    if left_group_idx is not None:
+        left_group = which_legs[left_group_idx]
+        # number group legs in domain
+        num = left_group.index(T.num_legs - 1) + 1
+        if left_group_in_domain:
+            num = len(left_group) - num
+            new_domain[:0] = new_codomain[:num][::-1]
+            new_codomain = new_codomain[num:]
+            which_legs = [[(leg - num) % T.num_legs for leg in group] for group in which_legs]
+        else:
+            new_codomain[:0] = new_domain[:num][::-1]
+            new_domain = new_domain[num:]
+            which_legs = [[(leg + num) % T.num_legs for leg in group] for group in which_legs]
+
+    T = planar_permute_legs(T, codomain=new_codomain, domain=new_domain)
+    return combine_legs(T, *which_legs, pipe_dualities=pipe_dualities, pipes=pipes)
 
 
 @overload
