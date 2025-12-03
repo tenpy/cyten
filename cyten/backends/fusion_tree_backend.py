@@ -2102,8 +2102,6 @@ class FusionTreeBackend(TensorBackend):
         self,
         a: SymmetricTensor,
         leg_idcs: list[int],
-        codomain_split: list[int],
-        domain_split: list[int],
         new_codomain: TensorProduct,
         new_domain: TensorProduct,
     ) -> Data:

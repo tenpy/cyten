@@ -4032,6 +4032,7 @@ def combine_legs(
             pipes[i] = combined
             domain_spaces_reversed.append(combined)
             domain_labels_reversed.append(_combine_leg_labels(tensor.labels[group[0] : group[-1] + 1]))
+            i += 1
         elif n in to_combine:
             # n is part of a group, but not the *first* of its group
             pass
@@ -4048,6 +4049,7 @@ def combine_legs(
     #
     # 4) Build the data / finish up
     # ==============================================================================================
+    which_legs = sorted(which_legs)
     data = tensor.backend.combine_legs(
         tensor, leg_idcs_combine=which_legs, pipes=pipes, new_codomain=codomain, new_domain=domain
     )
@@ -5841,7 +5843,8 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
         else:
             labels.append(l)
     #
-    data = tensor.backend.split_legs(tensor, leg_idcs, codomain_split, domain_split, codomain, domain)
+    leg_idcs = sorted(leg_idcs)
+    data = tensor.backend.split_legs(tensor, leg_idcs, codomain, domain)
     return SymmetricTensor(data, codomain, domain, backend=tensor.backend, labels=labels)
 
 
