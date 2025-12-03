@@ -390,7 +390,11 @@ class AbelianBackend(TensorBackend):
             j += num_uncombined
             # current combined group
             in_domain = group[0] >= tensor.num_codomain_legs
-            cstyles.append(pipe.combine_cstyle != in_domain)
+            if pipe.is_dual != in_domain:
+                # duality of pipe reverses leg order
+                cstyles.append(pipe.combine_cstyle == in_domain)
+            else:
+                cstyles.append(pipe.combine_cstyle != in_domain)
             block_inds = tensor.data.block_inds[:, group[0] : group[-1] + 1]
             if in_domain:
                 # product space in the domain has opposite order of its spaces compared to the
@@ -1876,7 +1880,9 @@ class AbelianBackend(TensorBackend):
                 pipe = pipes[j]  # = a.legs[i]
                 k = i + shift  # = index where split legs begin in new tensor
                 k2 = k + pipe.num_legs  # = until where spaces go in new tensor
-                if pipe.combine_cstyle == in_domain:
+                # reverse axes if pipe.combine_cstyle == in_domain XOR a.legs[i].is_dual
+                # (if both consitions are fulfilled, the axes are reversed twice, i.e., no change)
+                if (pipe.combine_cstyle == in_domain) != a.legs[i].is_dual:
                     axes_perm[k:k2] = axes_perm[k:k2][::-1]
                 block_ind_map = pipe.block_ind_map[map_rows[:, j], :]
                 if in_domain:
