@@ -740,38 +740,8 @@ def test_ChargedTensor_to_dense_block_single_sector(
             tens.backend.block_backend.to_numpy(block), tens.backend.block_backend.to_numpy(block2), 100
         )
 
-    # TODO test to_dense_block_single_sector
 
-    # def OLD_test_ChargedTensor_tofrom_dense_block_single_sector(compatible_symmetry, make_compatible_sectors,
-    #                                                     make_compatible_tensor):
-    #     pytest.xfail(reason='unclear')  # TODO
-    #     # TODO revise this. purge the "dummy" language, its now "charged"
-    #     # TODO move to ChargedTensor test?
-    #     sector = make_compatible_sectors(1)[0]
-    #     dummy_leg = Space(compatible_symmetry, sector[None, :]).dual
-    #     inv_part = make_compatible_tensor(legs=[None, dummy_leg])
-    #     tens = ChargedTensor(invariant_part=inv_part)
-    #     leg = tens.legs[0]
-    #     block_size = leg.sector_multiplicity(sector)
-    #     #
-    #     block = tens.to_flat_block_single_sector()
-    #     assert tens.backend.block_shape(block) == (block_size,)
-    #     tens2 = ChargedTensor.from_flat_block_single_sector(
-    #         leg=leg, block=block, sector=sector, backend=tens.backend
-    #     )
-    #     tens2.test_sanity()
-    #     assert tens2.dummy_leg == tens.dummy_leg
-    #     assert tensors.almost_equal(tens, tens2)
-    #     block2 = tens2.to_flat_block_single_sector()
-    #     npt.assert_array_almost_equal_nulp(tens.backend.block_to_numpy(block),
-    #                                     tens.backend.block_to_numpy(block2),
-    #                                     100)
-    #     # check detect_sectors_from_block while we are at it
-    #     dense_block = tens.to_dense_block()
-    #     detected, = tensors.detect_sectors_from_block(block=dense_block, legs=[leg], backend=tens.backend)
-    #     npt.assert_array_equal(detected, sector)
-
-
+# fmt: off
 @pytest.mark.parametrize('symmetry_backend', ['abelian', pytest.param('fusion_tree', marks=pytest.mark.FusionTree)])
 def test_explicit_blocks(symmetry_backend, block_backend):
     """Do detailed tests with concrete examples.
@@ -793,17 +763,13 @@ def test_explicit_blocks(symmetry_backend, block_backend):
     print(f'\n\nBOTH LEGS IN CODOMAIN:\n')
 
     #             s2 : 2,  0,  1,  2,  3,  0,  1     s1
-    data = np.array(
-        [
-            [0, 0, 1, 0, 0, 0, 2],  # 3
-            [0, 0, 3, 0, 0, 0, 4],  # 3
-            [5, 0, 0, 6, 0, 0, 0],  # 2
-            [0, 7, 0, 0, 0, 8, 0],  # 0
-            [0, 0, 9, 0, 0, 0, 10],  # 3
-            [11, 0, 0, 12, 0, 0, 0],
-        ],  # 2
-        dtype=float,
-    )
+    data = np.array([[ 0,  0,  1,  0,  0,  0,  2],  # 3
+                     [ 0,  0,  3,  0,  0,  0,  4],  # 3
+                     [ 5,  0,  0,  6,  0,  0,  0],  # 2
+                     [ 0,  7,  0,  0,  0,  8,  0],  # 0
+                     [ 0,  0,  9,  0,  0,  0, 10],  # 3
+                     [11,  0,  0, 12,  0,  0,  0],],  # 2
+                    dtype=float)
 
     print('after applying basis perm:')
     print(data[np.ix_(s1.basis_perm, s2.basis_perm)])
@@ -868,17 +834,13 @@ def test_explicit_blocks(symmetry_backend, block_backend):
     # note that this setup changes the charge rule! different entries are now allowed than before
 
     #             s2 : 2,  0,  1,  2,  3,  0,  1     s1
-    data = np.array(
-        [
-            [0, 0, 0, 0, -1, 0, 0],  # 3
-            [0, 0, 0, 0, -2, 0, 0],  # 3
-            [5, 0, 0, 6, 0, 0, 0],  # 2
-            [0, 7, 0, 0, 0, 8, 0],  # 0
-            [0, 0, 0, 0, -3, 0, 0],  # 3
-            [11, 0, 0, 12, 0, 0, 0],
-        ],  # 2
-        dtype=float,
-    )
+    data = np.array([[ 0,  0,  0,  0, -1,  0,  0],  # 3
+                     [ 0,  0,  0,  0, -2,  0,  0],  # 3
+                     [ 5,  0,  0,  6,  0,  0,  0],  # 2
+                     [ 0,  7,  0,  0,  0,  8,  0],  # 0
+                     [ 0,  0,  0,  0, -3,  0,  0],  # 3
+                     [11,  0,  0, 12,  0,  0,  0],],  # 2
+                    dtype=float,)
 
     print('after applying basis perm:')
     print(data[np.ix_(s1.basis_perm, s2.basis_perm)])
@@ -1025,38 +987,22 @@ def test_explicit_blocks(symmetry_backend, block_backend):
         # note: when setting the data we listed the uncoupled sectors of the domain
 
         #      dom uncoupled:  (0, 0)  ;  (2, 2)  |  codom uncoupled:
-        block_0 = np.asarray(
-            [
-                [1, 2],  # (0, 0)
-                [3, 4],
-            ],  # (2, 2)
-            dtype=float,
-        )
+        block_0 = np.asarray([[    1,         2],  #   (0, 0)
+                              [    3,         4],],  # (2, 2)
+                             dtype=float,)
         #      dom uncoupled:  (0, 1)  ;  (1, 0)  |  codom uncoupled:
-        block_1 = np.asarray(
-            [
-                [0, 0],  # (0, 1)
-                [5, 6],
-            ],  # (1, 0)
-            dtype=float,
-        )
+        block_1 = np.asarray([[    0,         0],  #  (0, 1)
+                              [    5,         6]],  # (1, 0)
+                             dtype=float,)
         #      dom uncoupled:  (0, 2)  ;  (1, 1)  ;  (2, 0)  |  codom uncoupled:
-        block_2 = np.asarray(
-            [
-                [0, 9, 10],  # (0, 2)
-                [0, 7, 8],  # (1, 1)
-                [0, 0, 0],
-            ],  # (2, 0)
-            dtype=float,
-        )
+        block_2 = np.asarray([[    0,         9,        10],  #  (0, 2)
+                              [    0,         7,         8],  #  (1, 1)
+                              [    0,         0,         0]],  # (2, 0)
+                             dtype=float)
         #      dom uncoupled:  (1, 2)  ;  (2, 1)  |  codom uncoupled:
-        block_3 = np.asarray(
-            [
-                [12, 11],  # (1, 2)
-                [14, 13],
-            ],  # (2, 1)
-            dtype=float,
-        )
+        block_3 = np.asarray([[   12,        11],  # (1, 2)
+                              [   14,        13]],  # (2, 1)
+                             dtype=float)
         expect_blocks = [block_0, block_1, block_2, block_3]
         assert len(expect_blocks) == len(t.data.blocks)
         for i, (actual, expect) in enumerate(zip(t.data.blocks, expect_blocks)):
@@ -1065,6 +1011,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
 
     else:
         raise RuntimeError
+# fmt: on
 
 
 @pytest.mark.parametrize('symmetry_backend', [pytest.param('fusion_tree', marks=pytest.mark.FusionTree)])
