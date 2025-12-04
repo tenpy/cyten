@@ -483,9 +483,6 @@ class NoSymmetryBackend(TensorBackend):
             else:
                 dims.append([s.dim for s in a.codomain[co_domain_idx].legs])
                 cstyles.append(a.codomain[co_domain_idx].combine_cstyle)
-            if a.legs[n].is_dual:
-                # duality reverses the order
-                dims[-1] = dims[-1][::-1]
         return self.block_backend.split_legs(a.data, leg_idcs, dims, cstyles)
 
     def squeeze_legs(self, a: SymmetricTensor, idcs: list[int]) -> Data:
