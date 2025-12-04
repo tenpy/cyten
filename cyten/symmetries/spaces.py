@@ -1790,6 +1790,16 @@ class TensorProduct(Space):
 
         """
         flat_legs = self.flat_legs
+
+        if len(flat_legs) == 0:
+            a = self.symmetry.empty_sector_array
+            m = np.zeros(0, int)
+            if yield_slices:
+                yield a, m, []
+            else:
+                yield a, m
+            return
+
         for idcs in it.product(*(range(s.num_sectors) for s in flat_legs)):
             a = np.array([flat_legs[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
             m = np.array([flat_legs[n].multiplicities[i] for n, i in enumerate(idcs)], int)
