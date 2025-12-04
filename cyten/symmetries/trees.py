@@ -12,7 +12,7 @@ import numpy as np
 from ..block_backends import Block, NumpyBlockBackend
 from ..block_backends.dtypes import Dtype
 from ..tools import to_valid_idx
-from ._symmetries import Sector, SectorArray, Symmetry, SymmetryError
+from ._symmetries import ProductSymmetry, Sector, SectorArray, SymmetryError
 
 if TYPE_CHECKING:
     from ..backends import TensorBackend
@@ -49,7 +49,7 @@ class FusionTree:
 
     Attributes
     ----------
-    symmetry : Symmetry
+    symmetry : ProductSymmetry
         The symmetry.
     uncoupled : 2D array of int
         N uncoupled sectors. These are the sectors *below* any Z isos.
@@ -76,7 +76,7 @@ class FusionTree:
 
     def __init__(
         self,
-        symmetry: Symmetry,
+        symmetry: ProductSymmetry,
         uncoupled: SectorArray | list[Sector],  # N uncoupled sectors
         coupled: Sector,
         are_dual: np.ndarray | list[bool],  # N flags: is there a Z isomorphism above the uncoupled sector
@@ -84,6 +84,7 @@ class FusionTree:
         multiplicities: np.ndarray | list[int] = None,  # N - 1 multiplicity labels; all 0 per default
     ):
         # OPTIMIZE demand SectorArray / ndarray (not list) and skip conversions?
+        assert isinstance(symmetry, ProductSymmetry)
         self.symmetry = symmetry
         self.uncoupled = np.asarray(uncoupled)
         self.num_uncoupled = len(uncoupled)
@@ -125,7 +126,7 @@ class FusionTree:
 
     @classmethod
     def from_abelian_symmetry(
-        cls, symmetry: Symmetry, uncoupled: Sequence[Sector], are_dual: Sequence[bool]
+        cls, symmetry: ProductSymmetry, uncoupled: Sequence[Sector], are_dual: Sequence[bool]
     ) -> FusionTree:
         """Assume an abelian symmetry and build the unique tree with the given `uncoupled`.
 
@@ -153,7 +154,7 @@ class FusionTree:
         )
 
     @classmethod
-    def from_empty(cls, symmetry: Symmetry):
+    def from_empty(cls, symmetry: ProductSymmetry):
         """The empty tree with no uncoupled sectors."""
         return FusionTree(
             symmetry,
@@ -165,7 +166,7 @@ class FusionTree:
         )
 
     @classmethod
-    def from_sector(cls, symmetry: Symmetry, sector: Sector, is_dual: bool):
+    def from_sector(cls, symmetry: ProductSymmetry, sector: Sector, is_dual: bool):
         """A tree with a single uncoupled sector and no nodes."""
         return FusionTree(
             symmetry,
@@ -1096,9 +1097,12 @@ class fusion_trees(Iterable[FusionTree]):
     TODO elaborate on canonical order of trees -> reference in module level docstring.
     """
 
-    def __init__(self, symmetry: Symmetry, uncoupled: SectorArray | list[Sector], coupled: Sector, are_dual=None):
+    def __init__(
+        self, symmetry: ProductSymmetry, uncoupled: SectorArray | list[Sector], coupled: Sector, are_dual=None
+    ):
         # DOC: coupled = None means trivial sector
         self.symmetry = symmetry
+        assert isinstance(symmetry, ProductSymmetry)
         if len(uncoupled) == 0:
             uncoupled = symmetry.empty_sector_array
         self.uncoupled = np.asarray(uncoupled)  # OPTIMIZE demand SectorArray (not list) and skip?

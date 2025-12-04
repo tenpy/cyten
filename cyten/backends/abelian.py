@@ -45,8 +45,8 @@ from ..symmetries import (
     FusionTree,
     Leg,
     LegPipe,
+    ProductSymmetry,
     Space,
-    Symmetry,
     TensorProduct,
 )
 from ..tools.misc import (
@@ -1856,8 +1856,8 @@ class AbelianBackend(TensorBackend):
         block_inds = a.data.block_inds[:, keep]
         return AbelianBackendData(a.data.dtype, a.data.device, blocks, block_inds, is_sorted=True)
 
-    def supports_symmetry(self, symmetry: Symmetry) -> bool:
-        return symmetry.is_abelian and symmetry.has_symmetric_braid
+    def supports_symmetry(self, symmetry: ProductSymmetry) -> bool:
+        return symmetry.is_abelian and symmetry.has_trivial_braid
 
     def svd(
         self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None

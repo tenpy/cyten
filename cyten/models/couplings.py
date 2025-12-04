@@ -672,6 +672,8 @@ def gold_coupling(sites: list[GoldenSite], J: float = 1, name: str = 'gold') -> 
     if len(sites) != 2:
         raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     for site in sites:
-        assert isinstance(site.symmetry, FibonacciAnyonCategory)
+        # FIXME use has_factor or even same_symmetry?
+        assert len(site.symmetry.factors) == 1
+        assert isinstance(site.symmetry.factors[0], FibonacciAnyonCategory)
         assert site.leg.sector_decomposition_where(FibonacciAnyonCategory.tau) is not None
     return sector_projection_coupling(sites, J=-J, sector=FibonacciAnyonCategory.vacuum, name=name)
