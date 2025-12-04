@@ -10,6 +10,7 @@ from typing import Literal, TypeVar, overload
 import numpy as np
 
 from ..backends import FusionTreeBackend
+from ..symmetries.spaces import LegPipe
 from ..tools import BigOPolynomial, duplicate_entries
 from ._tensors import (
     CONTRACT_SYMBOL,
@@ -17,6 +18,8 @@ from ._tensors import (
     OPEN_LEG_SYMBOL,
     LabelledLegs,
     Tensor,
+    almost_equal,
+    combine_legs,
     compose,
     is_valid_leg_label,
     partial_trace,
@@ -73,6 +76,8 @@ class PlanarDiagram:
         - Optimization of contraction order can be expensive in some cases.
         Intended workflow: run optimizing once during development and hard-code it.
         Fallback: run greedy optimization when the diagram is instantiated
+        - Diagrams must be connected, i.e., contractible to a single tensor; disconnected tensors must be
+        combined with outer before adding them to a diagram
 
     Parameters
     ----------
@@ -140,6 +145,8 @@ class PlanarDiagram:
         self.tensors = self.parse_tensors(tensors, dims)
         self.definition = self.parse_definition(definition)
         self.order = self.parse_order(order)
+        if self.order.num_leaves != len(self.tensors):
+            raise ValueError('The planar diagram is disconnected')
         self.open_legs, self.contraction_cost = self.verify_diagram()
 
     @property
@@ -295,6 +302,8 @@ class PlanarDiagram:
         return res
 
     def parse_order(self, order: str | NestedContainer_str | ContractionTree):
+        if len(self.tensors) == 1:
+            return ContractionTree.from_single_node(next(iter(self.tensors.keys())))
         if order == 'definition':
             order = [(t1, t2) for t1, l1, t2, l2 in self.definition if t2 is not None]
             return ContractionTree.from_contraction_order(order)
@@ -409,14 +418,19 @@ class PlanarDiagram:
             The cost to contract the diagram, as a polynomial in terms of the dims.
 
         """
+        num_legs = 0
         for t1, l1, t2, l2 in self.definition:
             assert t1 in self.tensors, f'No tensor with name {t1}'
             assert l1 in self.tensors[t1].labels, f'Tensor {t1} has no leg {l1}'
+            num_legs += 1
             if t2 is None:
                 assert is_valid_leg_label(l2), f'Invalid leg label {l2}'
             else:
                 assert t2 in self.tensors, f'No tensor with name {t2}'
                 assert l2 in self.tensors[t2].labels, f'Tensor {t2} has no leg {l2}'
+                num_legs += 1
+        if sum(tensor.num_legs for tensor in self.tensors.values()) != num_legs:
+            raise ValueError('Number of contracted and open legs does not match the total number of legs')
 
         # run the contraction with placeholders.
         # - verifies if the contractions actually are planar
@@ -543,7 +557,10 @@ class PlanarDiagram:
             # result is a number
             # TODO this may change, see Issue 13 on Github
             return tens
-        assert tens.labels_are(*(old for old, _ in open_legs))
+        if len(open_legs) != len(tens.labels):
+            raise ValueError('Number of expected open legs inconsistent with planar diagram')
+        if not tens.labels_are(*(old for old, _ in open_legs)):
+            raise ValueError('Inconsistent open legs')
         return tens.relabel({old: new for old, new in open_legs})
 
     @staticmethod
@@ -788,7 +805,8 @@ class ContractionTree:
                 tup2, lst2 = contracted[n2]
                 contracted[n1] = ((tup1, tup2), [*lst1, *lst2])
                 contracted.pop(n2)
-        assert len(contracted) == 1
+        if len(contracted) != 1:
+            raise ValueError('The planar diagram is disconnected')
         tup, _ = contracted[0]
         return cls.from_nested_containers(tup)
 
@@ -902,6 +920,122 @@ class PlanarLinearOperator(LinearOperator):
         return self.op_diagram.evaluate(tensors=self.op_tensors)
 
 
+def planar_almost_equal(tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol=1e-8) -> bool:
+    """Checks if two tensors are equal up to numerical tolerance and planar permutation.
+
+    We first permute the legs of `tensor_1` to the configuration of `tensor_2` and then
+    compare the blocks, i.e. the free parameters of the tensors.
+    The tensors count as almost equal if all block-entries, i.e. all their free parameters
+    individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
+    Note that this is a basis-dependent and backend-dependent notion of distance, which does
+    not come from a norm in the strict mathematical sense.
+
+    Parameters
+    ----------
+    tensor_1, tensor_2
+        The tensors to compare
+    atol, rtol
+        Absolute and relative tolerance, see above.
+
+    Notes
+    -----
+    Unlike `almost_equal`, this function does not have the argument `allow_different_types`
+    since permuting legs may change the tensor type.
+
+    """
+    if None in tensor_1.labels or None in tensor_2.labels:
+        raise ValueError('Can only compare tensors for which each leg has a label')
+    if set(tensor_1.labels) != set(tensor_2.labels):
+        raise ValueError('Both tensors need to have the same leg labels')
+    codomain = tensor_2.labels[: tensor_2.num_codomain_legs]
+    domain = tensor_2.labels[tensor_2.num_codomain_legs :][::-1]
+    tensor_1 = planar_permute_legs(tensor_1, codomain=codomain, domain=domain)
+    return almost_equal(tensor_1, tensor_2, rtol, atol, allow_different_types=True)
+
+
+def planar_combine_legs(
+    T: Tensor,
+    *which_legs: list[int | str],
+    pipe_dualities: bool | list[bool] = False,
+    pipes: list[LegPipe | None] = None,
+) -> Tensor:
+    """Planar special case of :func:`~cyten.combine_legs`, without braids.
+
+    The legs to be combined must be contiguous, but they do not need to be ordered within each of
+    the groups. In the general case, the legs are bent up / down before combining. The combined leg
+    is the codomain (domain) if the first leg of the group is in the codomain (domain).
+
+    TODO give example where the order in which_legs makes the difference between codomain and domain
+
+    Parameters
+    ----------
+    T:
+        The tensor whose legs should be combined.
+    *which_legs : list of {int | str}
+        One or more groups of legs to combine.
+    pipe_dualities : list of bool, optional
+        Can optionally specify the :attr:`LegPipe.is_dual` attribute of each resulting pipe.
+        This is an arbitrary choice for each pipe.
+        The pipes are formed such that ``result.legs.[pipe_idx].is_dual == pipe_dualities[i]``.
+        Defaults to all ``False``.
+    pipes: list of {LegPipe | None}, optional
+        For each ``group = which_legs[i]`` of legs, the resulting pipe can be passed to
+        avoid recomputation. If we group to the codomain (``group[0] < tensor.num_codomain_legs``),
+        we expect ``LegPipe([tensor._as_codomain_leg(i) for i in group])``.
+        Otherwise we expect ``LegPipe([tensor._as_domain_leg(i) for i in reversed(group)])``.
+        Note the reverse order in the latter case!
+        In the intended use case, when another tensor with the same legs has already been combined,
+        obtain those pipes simply via :meth:`Tensor.get_leg_co_domain`.
+        It is possible to pass only some of the pipes, use ``None`` as filler.
+
+    """
+    which_legs = [T.get_leg_idcs(group) for group in which_legs]
+    # identify if is there is a group on the left / right with legs that need
+    # to be bent and where to combine them
+    right_group_idx = None
+    left_group_idx = None
+    for idx, group in enumerate(which_legs):
+        if T.num_codomain_legs - 1 in group and T.num_codomain_legs in group:
+            right_group_idx = idx
+            right_group_in_domain = group[0] >= T.num_codomain_legs
+        elif 0 in group and T.num_legs - 1 in group:
+            left_group_idx = idx
+            left_group_in_domain = group[0] >= T.num_codomain_legs
+
+    which_legs = [parse_leg_bipartition(group, T.num_legs)[0] for group in which_legs]
+
+    # get new codomain and domain for planar_permute_legs, update which_legs for left bends
+    new_codomain = list(range(T.num_codomain_legs))
+    new_domain = list(reversed(range(T.num_codomain_legs, T.num_legs)))
+    if right_group_idx is not None:
+        right_group = which_legs[right_group_idx]
+        # number group legs in codomain
+        num = right_group.index(T.num_codomain_legs - 1) + 1
+        if right_group_in_domain:
+            new_domain.extend(new_codomain[-num:][::-1])
+            new_codomain = new_codomain[:-num]
+        else:
+            num = len(right_group) - num
+            new_codomain.extend(new_domain[-num:][::-1])
+            new_domain = new_domain[:-num]
+    if left_group_idx is not None:
+        left_group = which_legs[left_group_idx]
+        # number group legs in domain
+        num = left_group.index(T.num_legs - 1) + 1
+        if left_group_in_domain:
+            num = len(left_group) - num
+            new_domain[:0] = new_codomain[:num][::-1]
+            new_codomain = new_codomain[num:]
+            which_legs = [[(leg - num) % T.num_legs for leg in group] for group in which_legs]
+        else:
+            new_codomain[:0] = new_domain[:num][::-1]
+            new_domain = new_domain[num:]
+            which_legs = [[(leg + num) % T.num_legs for leg in group] for group in which_legs]
+
+    T = planar_permute_legs(T, codomain=new_codomain, domain=new_domain)
+    return combine_legs(T, *which_legs, pipe_dualities=pipe_dualities, pipes=pipes)
+
+
 @overload
 def planar_contraction(
     tensor1: Tensor,
@@ -964,6 +1098,7 @@ def planar_contraction(
         labels = [tensor1.labels[n] for n in open1] + [tensor2.labels[n] for n in open2]
         dims = [tensor1.dims[n] for n in open1] + [tensor2.dims[n] for n in open2]
         contr_dims = BigOPolynomial.prod(*(tensor1.dims[n] for n in contr1))
+        # TODO this may actually happen when forgetting to specify the dims for one tensor...
         assert contr_dims == BigOPolynomial.prod(*(tensor2.dims[n] for n in contr2))
         cost = tensor1.cost_to_make + tensor2.cost_to_make + BigOPolynomial.prod(*dims, contr_dims)
         return TensorPlaceholder(labels, dims, cost_to_make=cost)
@@ -1239,7 +1374,8 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None, domain: 
     elif T.num_codomain_legs == 0:
         # split into three groups: bending down right, staying, bending down left
         # note that one of the outer groups (but not both) may be empty
-        if T.num_legs - 1 in codomain:
+        if T.num_legs - 1 in codomain and not T.num_legs == 1:
+            # for a one-leg tensor, bend right
             left_bending = codomain.index(T.num_legs - 1) + 1
         else:
             left_bending = 0
@@ -1254,7 +1390,8 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None, domain: 
     elif T.num_domain_legs == 0:
         # split into three groups: bending up left, staying, bending up right
         # note that one of the outer groups (but not both) may be empty
-        if 0 in domain:
+        if 0 in domain and not T.num_legs == 1:
+            # for a one-leg tensor, bend right
             left_bending = domain.index(0) + 1
         else:
             left_bending = 0
@@ -1349,7 +1486,7 @@ def parse_leg_bipartition(legs: Sequence[int], num_legs: int) -> tuple[list[int]
         Note that this may include a jump, e.g. ``[7, 8, 0, 1, 2]`` is sorted if ``num_legs=9``.
 
     """
-    assert not duplicate_entries(legs)
+    assert not duplicate_entries(legs), 'duplicate legs'
     assert all(0 <= l < num_legs for l in legs)
     # special cases
     if len(legs) == 0:
