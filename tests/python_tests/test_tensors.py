@@ -1543,6 +1543,44 @@ def test_combine_split(use_pipes, make_compatible_tensor):
     assert tensors.almost_equal(contracted_individual, contracted_via_pipes)
 
 
+@pytest.mark.parametrize(
+    'use_pipes, in_domain',
+    [
+        pytest.param(True, False, id='codomain pipes'),
+        pytest.param(False, False, id='codomain no pipes'),
+        pytest.param(True, True, id='domain pipes'),
+        pytest.param(False, True, id='domain no pipes'),
+    ],
+)
+def test_combine_split_with_dualities(use_pipes, in_domain, make_compatible_tensor):
+    pytest.xfail('Activate this test and fix the bugs')
+    if in_domain:
+        T: SymmetricTensor = make_compatible_tensor([], ['d', 'c', 'b', 'a'], use_pipes=use_pipes)
+    else:
+        T: SymmetricTensor = make_compatible_tensor(['a', 'b', 'c', 'd'], [], use_pipes=use_pipes)
+    assert T.labels == ['a', 'b', 'c', 'd']
+
+    for dual in [True, False]:
+        combined = tensors.combine_legs(T, [0, 1], pipe_dualities=[dual])
+        combined.test_sanity()
+        split = tensors.split_legs(combined)
+        split.test_sanity()
+        assert tensors.almost_equal(split, T)
+
+        combined = tensors.combine_legs(T, [2, 3], pipe_dualities=[dual])
+        combined.test_sanity()
+        split = tensors.split_legs(combined)
+        split.test_sanity()
+        assert tensors.almost_equal(split, T)
+
+    for dual in [[True, True], [True, False], [False, True], [False, False]]:
+        combined = tensors.combine_legs(T, [0, 1], [2, 3], pipe_dualities=dual)
+        combined.test_sanity()
+        split = tensors.split_legs(combined)
+        split.test_sanity()
+        assert tensors.almost_equal(split, T)
+
+
 def test_combine_split_pr_16():
     """Check if the bug addressed in PR :pull:`16` is fixed"""
     backend = get_backend('abelian', 'numpy')
