@@ -18,7 +18,6 @@ import numpy as np
 from ..backends import TensorBackend, get_backend
 from ..block_backends import Block
 from ..symmetries import (
-    BraidingStyle,
     ElementarySpace,
     FermionNumber,
     FermionParity,
@@ -92,7 +91,7 @@ class Site:
         self.leg.test_sanity()
 
         # state labels
-        if self.symmetry.braiding_style >= BraidingStyle.anyonic:
+        if not self.symmetry.can_be_dropped:
             # can not have state labels, since we dont have basis states in the strict sense
             assert len(self.state_labels) == 0
         for label, idx in self.state_labels.items():
@@ -106,7 +105,7 @@ class Site:
             op.test_sanity()
 
     @property
-    def symmetry(self) -> Symmetry:
+    def symmetry(self) -> ProductSymmetry:
         return self.leg.symmetry
 
     @property
@@ -495,7 +494,7 @@ class BosonicDOF(OccupationDOF):
     @staticmethod
     def conservation_law_to_symmetry(
         conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']],
-    ) -> Symmetry | ProductSymmetry:
+    ) -> Symmetry:
         """Translate conservation law for individual / all bosons to a symmetry."""
         if isinstance(conserve, str) or conserve is None:
             if conserve in ['N', 'Ntot', 'N_tot', 'U(1)', 'U1']:
@@ -664,11 +663,12 @@ class FermionicDOF(OccupationDOF):
     @staticmethod
     def conservation_law_to_symmetry(
         conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']],
-    ) -> Symmetry | ProductSymmetry:
+    ) -> Symmetry:
         """Translate conservation law for individual / all fermions to a symmetry."""
         if isinstance(conserve, str):
             if conserve in ['N', 'Ntot', 'N_tot']:
-                sym = ProductSymmetry([U1Symmetry('total_fermion_occupation'), FermionParity('total_fermion_parity')])
+                # TODO why not FermionNumber?
+                sym = U1Symmetry('total_fermion_occupation') * FermionParity('total_fermion_parity')
             elif conserve in ['parity', 'P', 'Ptot', 'P_tot']:
                 sym = FermionParity('total_fermion_parity')
             else:

@@ -185,7 +185,7 @@ def init_SU2_sym_MPS(L, d=2, bc='finite', backend=None):
     assert L % 2 == 0
     if backend is None:
         backend = ct.get_backend('fusion_tree', 'numpy')
-    sym = ct.SU2Symmetry('spin')
+    sym = ct.SU2Symmetry('spin').as_ProductSymmetry()
     p = ct.ElementarySpace.from_defining_sectors(sym, [[d - 1]])
     v1 = ct.ElementarySpace.from_trivial_sector(1, sym)
     v2 = p

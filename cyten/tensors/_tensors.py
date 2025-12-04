@@ -19,14 +19,13 @@ from ..backends import TensorBackend, conventional_leg_order, get_backend, get_s
 from ..block_backends import Block, Dtype
 from ..dummy_config import printoptions
 from ..symmetries import (
-    BraidingStyle,
     ElementarySpace,
     FusionTree,
     Leg,
     LegPipe,
+    ProductSymmetry,
     Sector,
     Space,
-    Symmetry,
     SymmetryError,
     TensorProduct,
 )
@@ -180,7 +179,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         The domain and codomain of the tensor. See also :attr:`legs` and :ref:`tensors_as_maps`.
     backend : TensorBackend
         The backend of the tensor.
-    symmetry : Symmetry
+    symmetry : ProductSymmetry
         The symmetry of the tensor.
     num_legs : int
         The total number of legs in the domain and codomain.
@@ -247,7 +246,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
             The codomain and domain, converted to :class:`TensorProduct` if needed.
         backend: TensorBackend
             The given backend, or the default backend compatible with `symmetry`.
-        symmetry: Symmetry
+        symmetry: ProductSymmetry
             The symmetry of the domain and codomain
 
         """
@@ -266,8 +265,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         # Make sure backend is compatible with symmetry
         if backend is None:
             backend = get_backend(symmetry=symmetry)
-        else:
-            assert backend.supports_symmetry(symmetry)
+        assert backend.supports_symmetry(symmetry)
 
         # Bring (co-)domain to TensorProduct form
         if not isinstance(codomain, TensorProduct):
@@ -759,7 +757,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         lines = [
             f'{indent}* Device: {self.device}',
             f'{indent}* Backend: {self.backend!s}',
-            f'{indent}* Symmetry: {self.symmetry!s}',
+            f'{indent}* Symmetry: {self.symmetry!r}',
             f'{indent}* Labels: {labels_str}',
         ]
         if self.symmetry.can_be_dropped:
@@ -1399,7 +1397,7 @@ class SymmetricTensor(Tensor):
         )
 
     @staticmethod
-    def _parse_default_dtype(dtype: Dtype | None, symmetry: Symmetry):
+    def _parse_default_dtype(dtype: Dtype | None, symmetry: ProductSymmetry):
         if symmetry.has_complex_topological_data:
             if dtype is None:
                 dtype = Dtype.complex128
@@ -3194,7 +3192,7 @@ class ChargedTensor(Tensor):
         return ChargedTensor(inv_part, charged_state)
 
     @classmethod
-    def supports_symmetry(cls, symmetry: Symmetry) -> bool:
+    def supports_symmetry(cls, symmetry: ProductSymmetry) -> bool:
         """If the :class:`ChargedTensor` concept is well defined for the `symmetry`."""
         return symmetry.has_symmetric_braid
 
@@ -3309,7 +3307,7 @@ class ChargedTensor(Tensor):
         if self.charge_leg.num_sectors != 1 or self.charge_leg.multiplicities[0] != 1:
             raise ValueError('Not a single sector.')
         if self.charge_leg.sector_dims[0] > 1:
-            raise NotImplementedError
+            raise NotImplementedError('inv_part_to_dense_block_single_sector does not support higher-dim sectors')
         block = self.backend.inv_part_to_dense_block_single_sector(self.invariant_part)
         return self.backend.block_backend.item(self.charged_state) * block
 
@@ -6296,7 +6294,7 @@ def transpose(tensor: Tensor) -> Tensor:
             bend_right=[False] * tensor.num_codomain_legs + [True] * tensor.num_domain_legs,
         )
     if isinstance(tensor, ChargedTensor):
-        if tensor.symmetry.braiding_style > BraidingStyle.bosonic:
+        if not tensor.symmetry.has_trivial_braid:
             msg = (
                 f'transpose is not defined for ChargedTensors with fermionic symmetries. '
                 f'This is because there is no way to recover the ChargedTensor format in such a '
