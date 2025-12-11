@@ -5080,6 +5080,96 @@ def outer(tensor1: Tensor, tensor2: Tensor, relabel1: dict[str, str] = None, rel
     return SymmetricTensor(data, codomain, domain, backend, [codomain_labels, domain_labels])
 
 
+def partial_compose(
+    tensor1: Tensor,
+    tensor2: Tensor,
+    tensor1_first_leg: str | int,
+    relabel1: dict[str, str] = None,
+    relabel2: dict[str, str] = None,
+) -> Tensor:
+    r"""Tensor contraction involving only a part of the full (co)domain.
+
+    TODO finish docstring
+    TODO draw diagram
+
+
+    Returns
+    -------
+    .
+
+    See Also
+    --------
+    compose, tdot, apply_mask, scale_axis
+
+    """
+    _ = get_same_device(tensor1, tensor2)
+    tensor1_first_leg = tensor1.get_leg_idcs(tensor1_first_leg)[0]
+
+    if relabel1 is None:
+        codomain_labels = tensor1.codomain_labels
+        domain_labels = tensor1.domain_labels
+    else:
+        codomain_labels = [relabel1.get(l, l) for l in tensor1.codomain_labels]
+        domain_labels = [relabel1.get(l, l) for l in tensor1.domain_labels]
+
+    leg_msg = 'Not all legs to be contracted are in the (co)domain'
+    compose_msg = 'Use compose for contracting the full (co)domain'
+    if tensor1_first_leg < tensor1.num_codomain_legs:
+        num_legs = tensor2.num_domain_legs
+        tensor1_last_leg = tensor1_first_leg + num_legs - 1
+        assert tensor1_last_leg < tensor1.num_codomain_legs, leg_msg
+        assert num_legs < tensor1.num_codomain_legs, compose_msg
+        _check_compatible_legs(
+            tensor1.codomain.factors[tensor1_first_leg : tensor1_last_leg + 1], tensor2.domain.factors
+        )
+        if relabel2 is None:
+            tensor2_labels = tensor2.codomain_labels
+        else:
+            tensor2_labels = [relabel2.get(l, l) for l in tensor2.codomain_labels]
+        codomain_labels[tensor1_first_leg : tensor1_last_leg + 1] = tensor2_labels
+
+        new_codomain = tensor1.codomain.factors[:]
+        new_codomain[tensor1_first_leg : tensor1_last_leg + 1] = tensor2.codomain
+        new_codomain = TensorProduct(new_codomain, tensor1.symmetry)
+        new_domain = tensor1.domain
+    else:
+        num_legs = tensor2.num_codomain_legs
+        tensor1_last_leg = tensor1_first_leg + num_legs - 1
+        assert tensor1_last_leg < tensor1.num_legs, leg_msg
+        assert num_legs < tensor1.num_domain_legs, compose_msg
+        domain_first_leg = tensor1.num_legs - 1 - tensor1_last_leg
+        domain_last_leg = tensor1.num_legs - 1 - tensor1_first_leg
+        _check_compatible_legs(tensor1.domain.factors[domain_first_leg : domain_last_leg + 1], tensor2.codomain.factors)
+        if relabel2 is None:
+            tensor2_labels = tensor2.domain_labels
+        else:
+            tensor2_labels = [relabel2.get(l, l) for l in tensor2.domain_labels]
+        domain_labels[domain_first_leg : domain_last_leg + 1] = tensor2_labels
+
+        new_codomain = tensor1.codomain
+        new_domain = tensor1.domain[:]
+        new_domain[domain_first_leg : domain_last_leg + 1] = tensor2.domain
+        new_domain = TensorProduct(new_domain, tensor1.symmetry)
+
+    res_labels = [*codomain_labels, *reversed(domain_labels)]
+    assert not duplicate_entries(res_labels, ignore=[None]), 'duplicate labels'
+
+    # tensor1 cannot be Mask or DiagonalTensor due to num_legs constraint
+    if isinstance(tensor2, Mask):
+        return _compose_with_Mask(tensor1, tensor2, tensor1_first_leg).set_labels(res_labels)
+
+    if isinstance(tensor2, DiagonalTensor):
+        return scale_axis(tensor1, tensor2, tensor1_first_leg).set_labels(res_labels)
+
+    if isinstance(tensor1, ChargedTensor) or isinstance(tensor2, ChargedTensor):
+        # TODO
+        raise NotImplementedError('partial_compose not implemented for ChargedTensor')
+
+    backend = get_same_backend(tensor1, tensor2)
+    data = backend.partial_compose(tensor1, tensor2, tensor1_first_leg, new_codomain, new_domain)
+    return SymmetricTensor(data=data, codomain=new_codomain, domain=new_domain, backend=backend, labels=res_labels)
+
+
 def partial_trace(
     tensor: Tensor, *pairs: Sequence[int | str], levels: list[int] | dict[str | int, int] | None = None
 ) -> Tensor:
