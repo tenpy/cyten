@@ -459,7 +459,21 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(tensor.dtype, tensor.data.device, res_blocks, res_block_inds, is_sorted=True)
 
     def compose(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
-        """See parent docstring.
+        if a.num_codomain_legs == 0 and b.num_domain_legs == 0:
+            return self.inner(a, b, do_dagger=False)
+        if a.num_domain_legs == 0:
+            return self._compose_no_contraction(a, b)
+        return self._compose_worker(a.data, b.data, a.codomain, b.codomain, b.domain)
+
+    def _compose_worker(
+        self,
+        a_data: Data,
+        b_data: Data,
+        new_codomain: TensorProduct,
+        contr_spaces: list[Space] | TensorProduct,
+        new_domain: TensorProduct,
+    ) -> Data:
+        """See compose docstring.
 
         Notes
         -----
@@ -514,30 +528,29 @@ class AbelianBackend(TensorBackend):
         by charges, so the 'sum' over ``k`` will contain at most one term!
 
         """
-        if a.num_codomain_legs == 0 and b.num_domain_legs == 0:
-            return self.inner(a, b, do_dagger=False)
-        if a.num_domain_legs == 0:
-            return self._compose_no_contraction(a, b)
-        res_dtype = Dtype.common(a.dtype, b.dtype)
-
-        if len(a.data.blocks) == 0 or len(b.data.blocks) == 0:
+        symmetry = new_codomain.symmetry
+        a_dtype = self.get_dtype_from_data(a_data)
+        b_dtype = self.get_dtype_from_data(b_data)
+        res_dtype = Dtype.common(a_dtype, b_dtype)
+        if len(a_data.blocks) == 0 or len(b_data.blocks) == 0:
             # if there are no actual blocks to contract, we can directly return 0
-            return self.zero_data(a.codomain, b.domain, res_dtype, device=a.data.device)
+            return self.zero_data(new_codomain, new_domain, res_dtype, device=a_data.device)
 
         # convert blocks to common dtype
-        a_blocks = a.data.blocks
-        if a.dtype != res_dtype:
+        a_blocks = a_data.blocks
+        if a_dtype != res_dtype:
             a_blocks = [self.block_backend.to_dtype(B, res_dtype) for B in a_blocks]
-        b_blocks = b.data.blocks
-        if b.dtype != res_dtype:
+        b_blocks = b_data.blocks
+        if b_dtype != res_dtype:
             b_blocks = [self.block_backend.to_dtype(B, res_dtype) for B in b_blocks]
 
         # need to contract the domain legs of a with the codomain legs of b.
         # due to the leg ordering
 
         # Deal with the columns of the block inds that are kept/contracted separately
-        a_block_inds_keep, a_block_inds_contr = np.hsplit(a.data.block_inds, [a.num_codomain_legs])
-        b_block_inds_contr, b_block_inds_keep = np.hsplit(b.data.block_inds, [b.num_codomain_legs])
+        num_contr = len(contr_spaces)
+        a_block_inds_keep, a_block_inds_contr = np.hsplit(a_data.block_inds, [new_codomain.num_factors])
+        b_block_inds_contr, b_block_inds_keep = np.hsplit(b_data.block_inds, [num_contr])
         # Merge the block_inds on the contracted legs to a single column, using strides.
         # Note: The order in a.data.block_inds is opposite from the order in b.data.block_inds!
         #       I.e. a.data.block_inds[-1-n] and b.data.block_inds[n] describe one leg to contract
@@ -545,7 +558,7 @@ class AbelianBackend(TensorBackend):
         # This guarantees that the b.data.block_inds sorting is preserved.
         # We do not care about the sorting of the a.data.block_inds, since we need to re-sort anyway,
         # to group by a_block_inds_keep.
-        strides = make_stride([l.num_sectors for l in b.codomain], cstyle=False)
+        strides = make_stride([l.num_sectors for l in contr_spaces], cstyle=False)
         a_block_inds_contr = np.sum(a_block_inds_contr * strides[::-1], axis=1)  # 1D array
         b_block_inds_contr = np.sum(b_block_inds_contr * strides, axis=1)  # 1D array
 
@@ -572,9 +585,9 @@ class AbelianBackend(TensorBackend):
         #         One of the a_blocks may be contracted with many different b_blocks, and require
         #         the same reshape every time. Instead, we do it once at this point.
         # All blocks in a_blocks[n] have the same kept legs -> same kept shape
-        a_shape_keep = [self.block_backend.get_shape(blocks[0])[: a.num_codomain_legs] for blocks in a_blocks]
-        b_shape_keep = [self.block_backend.get_shape(blocks[0])[b.num_codomain_legs :] for blocks in b_blocks]
-        if a.num_codomain_legs == 0:
+        a_shape_keep = [self.block_backend.get_shape(blocks[0])[: new_codomain.num_factors] for blocks in a_blocks]
+        b_shape_keep = [self.block_backend.get_shape(blocks[0])[num_contr:] for blocks in b_blocks]
+        if new_codomain.num_factors == 0:
             # special case: reshape to vector.
             a_blocks = [[self.block_backend.reshape(B, (-1,)) for B in blocks] for blocks in a_blocks]
         else:
@@ -585,15 +598,15 @@ class AbelianBackend(TensorBackend):
         # need to permute the leg order of one group of permuted legs.
         # OPTIMIZE does it matter, which?
         # choose to permute the legs of the b-blocks
-        if b.num_domain_legs == 0:
+        if new_domain.num_factors == 0:
             # special case: reshape to vector
-            perm = list(reversed(range(b.num_legs)))
+            perm = list(reversed(range(new_domain.num_factors + num_contr)))
             b_blocks = [
                 [self.block_backend.reshape(self.block_backend.permute_axes(B, perm), (-1,)) for B in blocks]
                 for blocks in b_blocks
             ]
         else:
-            perm = [*reversed(range(b.num_codomain_legs)), *range(b.num_codomain_legs, b.num_legs)]
+            perm = [*reversed(range(num_contr)), *range(num_contr, new_domain.num_factors + num_contr)]
             b_blocks = [
                 [
                     self.block_backend.reshape(self.block_backend.permute_axes(B, perm), (-1, np.prod(shape_keep)))
@@ -603,18 +616,18 @@ class AbelianBackend(TensorBackend):
             ]
 
         # compute coupled sectors for all rows of the block inds // for all blocks
-        if a.num_codomain_legs > 0:
-            a_charges = a.symmetry.multiple_fusion_broadcast(
-                *(leg.sector_decomposition[bi] for leg, bi in zip(a.codomain, a_block_inds_keep.T))
+        if new_codomain.num_factors > 0:
+            a_charges = symmetry.multiple_fusion_broadcast(
+                *(leg.sector_decomposition[bi] for leg, bi in zip(new_codomain, a_block_inds_keep.T))
             )
         else:
-            a_charges = np.repeat(a.symmetry.trivial_sector[None, :], len(a_block_inds_keep), axis=1)
-        if b.num_domain_legs > 0:
-            b_charges = a.symmetry.multiple_fusion_broadcast(
-                *(leg.sector_decomposition[bi] for leg, bi in zip(b.domain, b_block_inds_keep[:, ::-1].T))
+            a_charges = np.repeat(symmetry.trivial_sector[None, :], len(a_block_inds_keep), axis=1)
+        if new_domain.num_factors > 0:
+            b_charges = symmetry.multiple_fusion_broadcast(
+                *(leg.sector_decomposition[bi] for leg, bi in zip(new_domain, b_block_inds_keep[:, ::-1].T))
             )
         else:
-            b_charges = np.repeat(a.symmetry.trivial_sector[None, :], len(b_block_inds_keep), axis=1)
+            b_charges = np.repeat(symmetry.trivial_sector[None, :], len(b_block_inds_keep), axis=1)
         a_charge_lookup = list_to_dict_list(a_charges)  # lookup table ``tuple(sector) -> idcs_in_a_charges``
 
         # rows_a changes faster than cols_b, such that the resulting block_inds are lex-sorted
@@ -643,10 +656,10 @@ class AbelianBackend(TensorBackend):
 
         # finish up:
         if len(res_blocks) == 0:
-            block_inds = np.zeros((0, a.num_codomain_legs + b.num_domain_legs), dtype=int)
+            block_inds = np.zeros((0, new_codomain.num_factors + new_domain.num_factors), dtype=int)
         else:
             block_inds = np.hstack((res_block_inds_a, res_block_inds_b))
-        return AbelianBackendData(res_dtype, a.data.device, blocks=res_blocks, block_inds=block_inds, is_sorted=True)
+        return AbelianBackendData(res_dtype, a_data.device, blocks=res_blocks, block_inds=block_inds, is_sorted=True)
 
     def _compose_no_contraction(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         """Special case of :meth:`compose` where no legs are actually contracted.
@@ -1564,6 +1577,58 @@ class AbelianBackend(TensorBackend):
         # res_block_inds are in general not sorted.
         #
         return AbelianBackendData(res_dtype, a.data.device, res_blocks, res_block_inds, is_sorted=False)
+
+    def partial_compose(
+        self,
+        a: SymmetricTensor,
+        b: SymmetricTensor,
+        a_first_leg: int,
+        new_codomain: TensorProduct,
+        new_domain: TensorProduct,
+    ) -> Data:
+        # construct new data and spaces with the legs to be contracted at the end of a and the beginning of b
+        if a_first_leg < a.num_codomain_legs:
+            num_contr_legs = b.num_domain_legs
+            num_add_legs = b.num_codomain_legs
+            perm_b = list(range(b.num_codomain_legs, b.num_legs)) + list(range(b.num_codomain_legs))
+            b_blocks = [self.block_backend.permute_axes(block, perm_b) for block in b.data.blocks]
+            b_data = AbelianBackendData(
+                b.data.dtype, b.data.device, b_blocks, b.data.block_inds[:, perm_b], is_sorted=False
+            )
+        else:
+            num_contr_legs = b.num_codomain_legs
+            num_add_legs = b.num_domain_legs
+            perm_b = list(range(b.num_legs))
+            b_data = b.data
+
+        perm_a = (
+            list(range(a_first_leg))
+            + list(range(a_first_leg + num_contr_legs, a.num_legs))
+            + list(range(a_first_leg, a_first_leg + num_contr_legs))
+        )
+        a_blocks = [self.block_backend.permute_axes(block, perm_a) for block in a.data.blocks]
+        a_data = AbelianBackendData(
+            a.data.dtype, a.data.device, a_blocks, a.data.block_inds[:, perm_a], is_sorted=False
+        )
+
+        # the computation of these modified tensorproducts cannot be avoided
+        # since they may differ from the ones computed in _tensors.py by bending
+        mod_codomain = [a._as_codomain_leg(idx) for i, idx in enumerate(perm_a) if i < a.num_legs - num_contr_legs]
+        mod_codomain = TensorProduct(mod_codomain, a.symmetry)
+        mod_domain = [b._as_domain_leg(idx) for i, idx in enumerate(perm_b) if i >= num_contr_legs][::-1]
+        mod_domain = TensorProduct(mod_domain)
+        contr_spaces = [b.get_leg_co_domain(idx) for i, idx in enumerate(perm_b) if i < num_contr_legs]
+
+        res_data = self._compose_worker(a_data, b_data, mod_codomain, contr_spaces, mod_domain)
+        perm_res = (
+            list(range(a_first_leg))
+            + list(range(a.num_legs - num_contr_legs, a.num_legs - num_contr_legs + num_add_legs))
+            + list(range(a_first_leg, a.num_legs - num_contr_legs))
+        )
+        res_blocks = [self.block_backend.permute_axes(block, perm_res) for block in res_data.blocks]
+        return AbelianBackendData(
+            res_data.dtype, res_data.device, res_blocks, res_data.block_inds[:, perm_res], is_sorted=False
+        )
 
     def partial_trace(
         self, tensor: SymmetricTensor, pairs: list[tuple[int, int]], levels: list[int] | None
