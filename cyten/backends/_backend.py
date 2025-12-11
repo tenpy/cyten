@@ -620,6 +620,22 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
+    def partial_compose(
+        self,
+        a: SymmetricTensor,
+        b: SymmetricTensor,
+        a_first_leg: int,
+        new_codomain: TensorProduct,
+        new_domain: TensorProduct,
+    ) -> Data:
+        """Contract the codomain (domain) of `b` with the a part of the domain (codomain) of `a`.
+
+        Assumes that there is at least one open leg in the domain (codomain) of the resulting
+        tensor. Assumes both input tensors are on the same device.
+        """
+        ...
+
+    @abstractmethod
     def partial_trace(
         self, tensor: SymmetricTensor, pairs: list[tuple[int, int]], levels: list[int] | None
     ) -> tuple[Data, TensorProduct, TensorProduct]:

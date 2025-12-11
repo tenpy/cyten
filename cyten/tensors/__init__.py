@@ -101,6 +101,7 @@ from ._tensors import (
     norm,
     on_device,
     outer,
+    partial_compose,
     partial_trace,
     permute_legs,
     pinv,
