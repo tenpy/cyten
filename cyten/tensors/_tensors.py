@@ -5087,15 +5087,53 @@ def partial_compose(
     relabel1: dict[str, str] = None,
     relabel2: dict[str, str] = None,
 ) -> Tensor:
-    r"""Tensor contraction involving only a part of the full (co)domain.
+    r"""Tensor contraction / composition involving only a part of the full (co)domain.
 
-    TODO finish docstring
-    TODO draw diagram
+    Requires that all codomain (domain) legs of `tensor2` are consistent with the respective domain
+    (codomain) legs of `tensor1`; all legs to be contracted must be either in the codomain or in
+    the domain and `tensor1` must have at least one leg in the domain (codomain) that is not
+    contracted.
 
+    Graphically::
+
+        |        │   │   │   │
+        |       ┏┷━━━┷━━━┷━━━┷┓
+        |       ┃      A      ┃ == partial_compose(A, B, 2)
+        |       ┗┯━━━┯━━━┯━━━┯┛
+        |        │   │  ┏┷━━━┷┓
+        |        │   │  ┃  B  ┃
+        |        │   │  ┗┯━━━┯┛
+
+    Or::
+
+        |        │   │  ┏┷━━━┷┓
+        |        │   │  ┃  B  ┃
+        |        │   │  ┗┯━━━┯┛
+        |       ┏┷━━━┷━━━┷━━━┷┓
+        |       ┃      A      ┃ == partial_compose(A, B, 4)
+        |       ┗┯━━━┯━━━┯━━━┯┛
+        |        │   │   │   │
+
+    Parameters
+    ----------
+    tensor1, tensor2: Tensor
+        The two tensors to partially compose.
+    tensor1_first_leg: str | int
+        Which leg of `tensor1` is the first to be contracted with the first leg of `tensor2`.
+        In particular, if ``tensor1_first_leg < tensor1.num_codomain_legs``, part of the codomain
+        of `tensor1` is contracted with the full domain of `tensor2`, where
+        ``tensor1.codomain[tensor1_first_leg] == tensor2.domain[0]``.
+        Otherwise (``tensor1_first_leg >= tensor1.num_codomain_legs``), part of the domain of
+        `tensor1` is contracted with the full codomain of `tensor2`, where
+        ``tensor1.domain[tensor1.num_legs - 1 - tensor1_first_leg] == tensor2.codomain[-1]``.
+    relabel1, relabel2: dict[str, str], optional
+        A mapping of labels for each of the tensors. The result has labels as if the input tensors
+        were relabelled accordingly before contraction.
 
     Returns
     -------
-    .
+    The partially composed tensor. The resulting legs correspond to the legs of `tensor1` after
+    replacing the legs to be contracted by the open legs of `tensor2`.
 
     See Also
     --------
@@ -6112,7 +6150,7 @@ def tdot(
     Parameters
     ----------
     tensor1, tensor2: Tensor
-        The two tensor to contract
+        The two tensors to contract.
     legs1, legs2
         Which legs to contract: ``legs1[n]`` on `tensor1` is contracted with ``legs2[n]`` on
         `tensor2`.
