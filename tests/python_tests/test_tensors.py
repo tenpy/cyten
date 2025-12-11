@@ -2444,10 +2444,10 @@ def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compati
         with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
             _ = tensors.partial_compose(A, B, A_contr_leg, relabel1=relabel1, relabel2=relabel2)
         pytest.xfail('_mask_contract does not support pipes yet')
-    if (isinstance(A, ChargedTensor) or isinstance(B, ChargedTensor)) and not isinstance(B, (Mask, DiagonalTensor)):
-        with pytest.raises(NotImplementedError, match='partial_compose not implemented for ChargedTensor'):
+    if (isinstance(A, ChargedTensor) and isinstance(B, ChargedTensor)):
+        with pytest.raises(NotImplementedError, match='state_tensor_product not implemented'):
             _ = tensors.partial_compose(A, B, A_contr_leg, relabel1=relabel1, relabel2=relabel2)
-        pytest.xfail(reason='partial_compose not implemented for ChargedTensor')
+        pytest.xfail(reason='state_tensor_product not implemented')
 
     res = tensors.partial_compose(A, B, A_contr_leg, relabel1=relabel1, relabel2=relabel2)
     res.test_sanity()
@@ -2462,17 +2462,26 @@ def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compati
         expect.relabel({A.labels[A_contr_leg]: B.labels[int(A_contr_leg >= A.num_codomain_legs)]})
         expect.relabel(relabel1)
         expect.relabel(relabel2)
-    elif isinstance(B, SymmetricTensor):
+    else:
+        # we can treat the invariant part of ChargedTensor in the same way, but need to take some extra care for the charge leg
+        A_ = A.invariant_part if isinstance(A, ChargedTensor) else A
+        B_ = B.invariant_part if isinstance(B, ChargedTensor) else B
+        c = ChargedTensor._CHARGE_LEG_LABEL
+        if isinstance(B, ChargedTensor):
+            relabel2 = {**relabel2, c: f'{c}B'}
+
         # compare to compose (bend legs accordingly before and after composing)
         A_last_leg = A_contr_leg + num_contr_legs - 1
-        if A_contr_leg < A.num_codomain_legs:
+        if A_contr_leg < A_.num_codomain_legs:
+            if isinstance(B, ChargedTensor):
+                B_ = tensors.move_leg(B_, c, codomain_pos=B_.num_codomain_legs - 1, bend_right=True)
             inter_codom = list(range(A_contr_leg, A_last_leg + 1))
-            inter_dom = list(reversed(range(A_contr_leg))) + list(reversed(range(A_last_leg + 1, A.num_legs)))
-            num_bend_right = A.num_codomain_legs - 1 - A_last_leg
-            inter_bend_right = [False] * A_contr_leg + [True] * (A.num_legs - A_contr_leg)
+            inter_dom = list(reversed(range(A_contr_leg))) + list(reversed(range(A_last_leg + 1, A_.num_legs)))
+            num_bend_right = A_.num_codomain_legs - 1 - A_last_leg
+            inter_bend_right = [False] * A_contr_leg + [True] * (A_.num_legs - A_contr_leg)
             expect = tensors.compose(
-                B,
-                tensors.permute_legs(A, inter_codom, inter_dom, bend_right=inter_bend_right),
+                B_,
+                tensors.permute_legs(A_, inter_codom, inter_dom, bend_right=inter_bend_right),
                 relabel1=relabel2,
                 relabel2=relabel1,
             )
@@ -2483,14 +2492,14 @@ def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compati
             final_bend_right = [True] * (expect.num_legs - A_contr_leg) + [False] * A_contr_leg
             expect = tensors.permute_legs(expect, final_codom, final_dom, bend_right=final_bend_right)
         else:
-            inter_codom = list(range(A_last_leg + 1, A.num_legs)) + list(range(A_contr_leg))
+            inter_codom = list(range(A_last_leg + 1, A_.num_legs)) + list(range(A_contr_leg))
             inter_dom = list(reversed(range(A_contr_leg, A_last_leg + 1)))
-            num_bend_left = A.num_legs - 1 - A_last_leg
+            num_bend_left = A_.num_legs - 1 - A_last_leg
             num_bend_right = A_contr_leg - A.num_codomain_legs
-            inter_bend_right = [True] * A_contr_leg + [False] * (A.num_legs - A_contr_leg)
+            inter_bend_right = [True] * A_contr_leg + [False] * (A_.num_legs - A_contr_leg)
             expect = tensors.compose(
-                tensors.permute_legs(A, inter_codom, inter_dom, bend_right=inter_bend_right),
-                B,
+                tensors.permute_legs(A_, inter_codom, inter_dom, bend_right=inter_bend_right),
+                B_,
                 relabel1=relabel1,
                 relabel2=relabel2,
             )
@@ -2500,6 +2509,15 @@ def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compati
             )
             final_bend_right = [False] * num_bend_left + [True] * (expect.num_legs - num_bend_left)
             expect = tensors.permute_legs(expect, final_codom, final_dom, bend_right=final_bend_right)
+
+        if isinstance(A, ChargedTensor) and isinstance(B, ChargedTensor):
+            expect = tensors.move_leg(expect, f'{c}B', domain_pos=1, bend_right=True)
+            expect = ChargedTensor.from_two_charge_legs(expect, state1=A.charged_state, state2=B.charged_state)
+        elif isinstance(A, ChargedTensor):
+            expect = ChargedTensor.from_invariant_part(expect, A.charged_state)
+        elif isinstance(B, ChargedTensor):
+            expect = tensors.move_leg(expect, f'{c}B', domain_pos=0, bend_right=True).relabel({f'{c}B': c})
+            expect = ChargedTensor.from_invariant_part(expect, B.charged_state)
 
     assert res.labels == expect.labels
     assert tensors.almost_equal(res, expect)

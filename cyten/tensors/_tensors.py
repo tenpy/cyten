@@ -3708,7 +3708,7 @@ def apply_mask(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
 
     See Also
     --------
-    enlarge_leg, compose, tdot, scale_axis, apply_mask_DiagonalTensor
+    enlarge_leg, compose, partial_compose, tdot, scale_axis, apply_mask_DiagonalTensor
 
     """
     _ = get_same_device(tensor, mask)
@@ -4223,7 +4223,7 @@ def compose(
 
     See Also
     --------
-    tdot, apply_mask, scale_axis
+    partial_compose, tdot, apply_mask, scale_axis
 
     """
     _ = get_same_device(tensor1, tensor2)
@@ -5199,9 +5199,33 @@ def partial_compose(
     if isinstance(tensor2, DiagonalTensor):
         return scale_axis(tensor1, tensor2, tensor1_first_leg).set_labels(res_labels)
 
-    if isinstance(tensor1, ChargedTensor) or isinstance(tensor2, ChargedTensor):
-        # TODO
-        raise NotImplementedError('partial_compose not implemented for ChargedTensor')
+    if isinstance(tensor1, ChargedTensor) and isinstance(tensor2, ChargedTensor):
+        if (tensor1.charged_state is None) != (tensor2.charged_state is None):
+            raise ValueError('Mismatched: specified and unspecified ChargedTensor.charged_state')
+        c = ChargedTensor._CHARGE_LEG_LABEL
+        c1 = c + '1'
+        c2 = c + '2'
+        relabel1 = {c: c1} if relabel1 is None else {**relabel1, c: c1}
+        relabel2 = {c: c2} if relabel2 is None else {**relabel2, c: c2}
+        inv_part = tensor2.invariant_part
+        if tensor1_first_leg < tensor1.num_codomain_legs:
+            # need to bend down charge leg first
+            inv_part = move_leg(inv_part, c, codomain_pos=tensor2.num_codomain_legs - 1, bend_right=True)
+        inv_part = partial_compose(tensor1.invariant_part, inv_part, tensor1_first_leg, relabel1, relabel2)
+        # domain_pos 1 since domain_pos 0 would mean braiding with c1
+        inv_part = move_leg(inv_part, c2, domain_pos=1, bend_right=True)
+        return ChargedTensor.from_two_charge_legs(inv_part, state1=tensor1.charged_state, state2=tensor2.charged_state)
+    if isinstance(tensor1, ChargedTensor):
+        inv_part = partial_compose(tensor1.invariant_part, tensor2, tensor1_first_leg, relabel1, relabel2)
+        return ChargedTensor.from_invariant_part(inv_part, tensor1.charged_state)
+    if isinstance(tensor2, ChargedTensor):
+        inv_part = tensor2.invariant_part
+        if tensor1_first_leg < tensor1.num_codomain_legs:
+            # need to bend down charge leg first
+            inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, codomain_pos=tensor2.num_codomain_legs - 1, bend_right=True)
+        inv_part = partial_compose(tensor1, inv_part, tensor1_first_leg, relabel1, relabel2)
+        inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0, bend_right=True)
+        return ChargedTensor.from_invariant_part(inv_part, tensor2.charged_state)
 
     backend = get_same_backend(tensor1, tensor2)
     data = backend.partial_compose(tensor1, tensor2, tensor1_first_leg, new_codomain, new_domain)
@@ -5695,7 +5719,7 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
 
     See Also
     --------
-    dot, tdot, apply_mask
+    dot, tdot, apply_mask, partial_compose
 
     """
     _ = get_same_device(tensor, diag)
@@ -6170,7 +6194,7 @@ def tdot(
 
     See Also
     --------
-    compose, apply_mask, scale_axis
+    compose, partial_compose, apply_mask, scale_axis
 
     """
     _ = get_same_device(tensor1, tensor2)
