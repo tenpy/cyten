@@ -2380,6 +2380,131 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor, compatible_
         npt.assert_almost_equal(res_np, expect)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases(
+    get_cls=lambda kw: ChargedTensor if ChargedTensor in [kw['cls_A'], kw['cls_B']] else None
+)
+@pytest.mark.parametrize(
+    'cls_A, cls_B, legs_A, legs_B, A_contr_leg',
+    [
+        pytest.param(SymmetricTensor, SymmetricTensor, [2, 2], [1, 1], 1, id='Sym@Sym-2-2-1-1-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [2, 2], 1, id='Sym@Sym-3-1-2-2-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [1, 2], 1, id='Sym@Sym-3-1-1-2-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [3, 0], [2, 2], 1, id='Sym@Sym-3-0-2-2-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [2, 2], [1, 1], 2, id='Sym@Sym-2-2-1-1-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [1, 3], [2, 2], 2, id='Sym@Sym-1-3-2-2-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [1, 3], [2, 1], 2, id='Sym@Sym-1-3-2-1-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [0, 3], [2, 2], 0, id='Sym@Sym-0-3-2-2-dom'),
+        pytest.param(SymmetricTensor, Mask, [2, 2], [1, 1], 1, id='Sym@Mask-2-2-1-1-codom'),
+        pytest.param(SymmetricTensor, Mask, [2, 2], [1, 1], 2, id='Sym@Mask-2-2-1-1-dom'),
+        pytest.param(SymmetricTensor, DiagonalTensor, [2, 2], [1, 1], 1, id='Sym@Diag-2-2-1-1-codom'),
+        pytest.param(SymmetricTensor, DiagonalTensor, [2, 2], [1, 1], 2, id='Sym@Diag-2-2-1-1-dom'),
+        pytest.param(SymmetricTensor, ChargedTensor, [3, 1], [1, 2], 1, id='Sym@Charged-3-1-1-2-codom'),
+        pytest.param(SymmetricTensor, ChargedTensor, [1, 3], [2, 1], 2, id='Sym@Charged-1-3-2-1-dom'),
+        pytest.param(ChargedTensor, SymmetricTensor, [3, 1], [1, 2], 1, id='Charged@Sym-3-1-1-2-codom'),
+        pytest.param(ChargedTensor, SymmetricTensor, [1, 3], [2, 1], 2, id='Charged@Sym-1-3-2-1-dom'),
+        pytest.param(ChargedTensor, Mask, [2, 2], [1, 1], 1, id='Charged@Mask-2-2-1-1-codom'),
+        pytest.param(ChargedTensor, Mask, [2, 2], [1, 1], 2, id='Charged@Mask-2-2-1-1-dom'),
+        pytest.param(ChargedTensor, DiagonalTensor, [2, 2], [1, 1], 1, id='Charged@Diag-2-2-1-1-codom'),
+        pytest.param(ChargedTensor, DiagonalTensor, [2, 2], [1, 1], 2, id='Charged@Diag-2-2-1-1-dom'),
+        pytest.param(ChargedTensor, ChargedTensor, [3, 1], [1, 2], 1, id='Charged@Charged-3-1-1-2-codom'),
+        pytest.param(ChargedTensor, ChargedTensor, [1, 3], [2, 1], 2, id='Charged@Charged-1-3-2-1-dom'),
+    ],
+)
+def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compatible_tensor):
+    labels_A = [*list('abcde')[: legs_A[0]], *list('fghij')[: legs_A[1]][::-1]]
+    labels_B = [*list('klmno')[: legs_B[0]], *list('pqrst')[: legs_B[1]][::-1]]
+    A: Tensor = make_compatible_tensor(codomain=legs_A[0], domain=legs_A[1], labels=labels_A, cls=cls_A)
+
+    if (A.has_pipes and cls_B is Mask) or (isinstance(A.get_leg(A_contr_leg), LegPipe) and cls_B is DiagonalTensor):
+        # need to design such that the diagonal one doesnt need pipes
+        pytest.xfail()
+
+    if A_contr_leg < A.num_codomain_legs:
+        codom_B = legs_B[0]
+        dom_B = A.codomain[A_contr_leg : A_contr_leg + legs_B[1]]
+        relabel1 = {'e': 'x'}
+        relabel2 = {'i': 'y'}
+        num_contr_legs = legs_B[1]
+    else:
+        domain_idx = A.num_legs - A_contr_leg - legs_B[0]
+        codom_B = A.domain[domain_idx : domain_idx + legs_B[0]]
+        dom_B = legs_B[1]
+        relabel1 = {'a': 'x'}
+        relabel2 = {'p': 'y'}
+        num_contr_legs = legs_B[0]
+
+    if cls_B is Mask and A_contr_leg >= A.num_codomain_legs:
+        with pytest.raises(NotImplementedError, match='Mask generation broken'):
+            _ = make_compatible_tensor(codomain=codom_B, domain=dom_B, labels=labels_B, cls=cls_B)
+        pytest.xfail(reason='Mask generation broken')
+
+    B: Tensor = make_compatible_tensor(codomain=codom_B, domain=dom_B, labels=labels_B, cls=cls_B)
+
+    if isinstance(A.backend, backends.FusionTreeBackend) and A.has_pipes and cls_B is Mask:
+        with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
+            _ = tensors.partial_compose(A, B, A_contr_leg, relabel1=relabel1, relabel2=relabel2)
+        pytest.xfail('_mask_contract does not support pipes yet')
+    if (isinstance(A, ChargedTensor) or isinstance(B, ChargedTensor)) and not isinstance(B, (Mask, DiagonalTensor)):
+        with pytest.raises(NotImplementedError, match='partial_compose not implemented for ChargedTensor'):
+            _ = tensors.partial_compose(A, B, A_contr_leg, relabel1=relabel1, relabel2=relabel2)
+        pytest.xfail(reason='partial_compose not implemented for ChargedTensor')
+
+    res = tensors.partial_compose(A, B, A_contr_leg, relabel1=relabel1, relabel2=relabel2)
+    res.test_sanity()
+
+    if isinstance(B, Mask):
+        expect = tensors.apply_mask(A, B, A_contr_leg)
+        expect.relabel({A.labels[A_contr_leg]: B.labels[int(A_contr_leg >= A.num_codomain_legs)]})
+        expect.relabel(relabel1)
+        expect.relabel(relabel2)
+    elif isinstance(B, DiagonalTensor):
+        expect = tensors.scale_axis(A, B, A_contr_leg)
+        expect.relabel({A.labels[A_contr_leg]: B.labels[int(A_contr_leg >= A.num_codomain_legs)]})
+        expect.relabel(relabel1)
+        expect.relabel(relabel2)
+    elif isinstance(B, SymmetricTensor):
+        # compare to compose (bend legs accordingly before and after composing)
+        A_last_leg = A_contr_leg + num_contr_legs - 1
+        if A_contr_leg < A.num_codomain_legs:
+            inter_codom = list(range(A_contr_leg, A_last_leg + 1))
+            inter_dom = list(reversed(range(A_contr_leg))) + list(reversed(range(A_last_leg + 1, A.num_legs)))
+            num_bend_right = A.num_codomain_legs - 1 - A_last_leg
+            inter_bend_right = [False] * A_contr_leg + [True] * (A.num_legs - A_contr_leg)
+            expect = tensors.compose(
+                B,
+                tensors.permute_legs(A, inter_codom, inter_dom, bend_right=inter_bend_right),
+                relabel1=relabel2,
+                relabel2=relabel1,
+            )
+            final_codom = list(range(expect.num_legs - A_contr_leg, expect.num_legs)) + list(
+                range(expect.num_codomain_legs + num_bend_right)
+            )
+            final_dom = list(reversed(range(expect.num_codomain_legs + num_bend_right, expect.num_legs - A_contr_leg)))
+            final_bend_right = [True] * (expect.num_legs - A_contr_leg) + [False] * A_contr_leg
+            expect = tensors.permute_legs(expect, final_codom, final_dom, bend_right=final_bend_right)
+        else:
+            inter_codom = list(range(A_last_leg + 1, A.num_legs)) + list(range(A_contr_leg))
+            inter_dom = list(reversed(range(A_contr_leg, A_last_leg + 1)))
+            num_bend_left = A.num_legs - 1 - A_last_leg
+            num_bend_right = A_contr_leg - A.num_codomain_legs
+            inter_bend_right = [True] * A_contr_leg + [False] * (A.num_legs - A_contr_leg)
+            expect = tensors.compose(
+                tensors.permute_legs(A, inter_codom, inter_dom, bend_right=inter_bend_right),
+                B,
+                relabel1=relabel1,
+                relabel2=relabel2,
+            )
+            final_codom = list(range(num_bend_left, expect.num_codomain_legs - num_bend_right))
+            final_dom = list(reversed(range(num_bend_left))) + list(
+                reversed(range(expect.num_codomain_legs - num_bend_right, expect.num_legs))
+            )
+            final_bend_right = [False] * num_bend_left + [True] * (expect.num_legs - num_bend_left)
+            expect = tensors.permute_legs(expect, final_codom, final_dom, bend_right=final_bend_right)
+
+    assert res.labels == expect.labels
+    assert tensors.almost_equal(res, expect)
+
+
 @pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, codom, dom',
