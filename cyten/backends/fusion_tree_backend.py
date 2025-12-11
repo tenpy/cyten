@@ -1568,7 +1568,7 @@ class FusionTreeBackend(TensorBackend):
             if isinstance(a, float):
                 dtype = b.data.dtype
             else:
-                dtype = b.data.dtype.to_complex()
+                dtype = b.data.dtype.to_complex
         else:
             dtype = self.block_backend.get_dtype(blocks[0])
         return FusionTreeData(b.data.block_inds, blocks, dtype, b.data.device)
