@@ -2444,7 +2444,7 @@ def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compati
         with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
             _ = tensors.partial_compose(A, B, A_contr_leg, relabel1=relabel1, relabel2=relabel2)
         pytest.xfail('_mask_contract does not support pipes yet')
-    if (isinstance(A, ChargedTensor) and isinstance(B, ChargedTensor)):
+    if isinstance(A, ChargedTensor) and isinstance(B, ChargedTensor):
         with pytest.raises(NotImplementedError, match='state_tensor_product not implemented'):
             _ = tensors.partial_compose(A, B, A_contr_leg, relabel1=relabel1, relabel2=relabel2)
         pytest.xfail(reason='state_tensor_product not implemented')

@@ -5222,7 +5222,9 @@ def partial_compose(
         inv_part = tensor2.invariant_part
         if tensor1_first_leg < tensor1.num_codomain_legs:
             # need to bend down charge leg first
-            inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, codomain_pos=tensor2.num_codomain_legs - 1, bend_right=True)
+            inv_part = move_leg(
+                inv_part, ChargedTensor._CHARGE_LEG_LABEL, codomain_pos=tensor2.num_codomain_legs - 1, bend_right=True
+            )
         inv_part = partial_compose(tensor1, inv_part, tensor1_first_leg, relabel1, relabel2)
         inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0, bend_right=True)
         return ChargedTensor.from_invariant_part(inv_part, tensor2.charged_state)
