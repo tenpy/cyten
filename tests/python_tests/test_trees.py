@@ -529,7 +529,7 @@ def check_to_block(symmetry, backend, uncoupled, np_random, dtype):
     all_blocks = [t.as_block(backend, dtype) for t in all_trees]
     axes = list(range(len(uncoupled)))
     if symmetry.fusion_tensor_dtype.is_complex:
-        expect_dtype = dtype.to_complex()
+        expect_dtype = dtype.to_complex
     else:
         expect_dtype = dtype
 
