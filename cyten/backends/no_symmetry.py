@@ -391,6 +391,31 @@ class NoSymmetryBackend(TensorBackend):
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         return self.block_backend.tensor_outer(a.data, b.data, K=a.num_codomain_legs)
 
+    def partial_compose(
+        self,
+        a: SymmetricTensor,
+        b: SymmetricTensor,
+        a_first_leg: int,
+        new_codomain: TensorProduct,
+        new_domain: TensorProduct,
+    ) -> Data:
+        if a_first_leg < a.num_codomain_legs:
+            num_contr_legs = b.num_domain_legs
+            num_add_legs = b.num_codomain_legs
+            idcs_b = list(reversed(range(b.num_codomain_legs, b.num_legs)))
+        else:
+            num_contr_legs = b.num_codomain_legs
+            num_add_legs = b.num_domain_legs
+            idcs_b = list(reversed(range(b.num_codomain_legs)))
+        idcs_a = list(range(a_first_leg, a_first_leg + num_contr_legs))
+        res = self.block_backend.tdot(a.data, b.data, idcs_a, idcs_b)
+        perm = (
+            list(range(a_first_leg))
+            + list(range(a.num_legs - num_contr_legs, a.num_legs - num_contr_legs + num_add_legs))
+            + list(range(a_first_leg, a.num_legs - num_contr_legs))
+        )
+        return self.block_backend.permute_axes(res, perm)
+
     def partial_trace(
         self, tensor: SymmetricTensor, pairs: list[tuple[int, int]], levels: list[int] | None
     ) -> tuple[Data, TensorProduct, TensorProduct]:
