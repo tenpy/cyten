@@ -193,6 +193,8 @@ class FusionTreeData:
         are sorted.
         """
         domain_sector_ind = domain.sector_decomposition_where(coupled)
+        if domain_sector_ind is None:
+            return None
         return self.block_ind_from_domain_sector_ind(domain_sector_ind)
 
     def block_ind_from_domain_sector_ind(self, domain_sector_ind: int) -> int | None:
@@ -1607,6 +1609,123 @@ class FusionTreeBackend(TensorBackend):
         new_data.discard_zero_blocks(self.block_backend, self.eps)
         return new_data
 
+    def partial_compose(
+        self,
+        a: SymmetricTensor,
+        b: SymmetricTensor,
+        a_first_leg: int,
+        new_codomain: TensorProduct,
+        new_domain: TensorProduct,
+    ) -> Data:
+        # OPTIMIZE ?
+        # space used to iterate over dummy fusion trees containing the
+        # relevant coupled sectors for the legs that are contracted
+        eff_space = ElementarySpace.from_defining_sectors(
+            b.symmetry, [b.domain.sector_decomposition[j] for _, j in b.data.block_inds]
+        )
+        if a_first_leg < a.num_codomain_legs:
+            in_domain = False
+            num_contr_legs = b.num_domain_legs
+            leg_idx = a_first_leg
+            old_space = a.codomain
+            new_space = new_codomain
+            iter_space = TensorProduct(a.codomain[:leg_idx] + [eff_space] + a.codomain[leg_idx + num_contr_legs :])
+        else:
+            in_domain = True
+            num_contr_legs = b.num_codomain_legs
+            leg_idx = a.num_legs - a_first_leg - num_contr_legs
+            old_space = a.domain
+            new_space = new_domain
+            iter_space = TensorProduct(a.domain[:leg_idx] + [eff_space] + a.domain[leg_idx + num_contr_legs :])
+
+        dtype = Dtype.common(a.dtype, b.dtype)
+        new_block_inds = []
+        new_blocks = []
+
+        # we do not want to recompute the transformations for the fusion trees, so cache them here
+        tree_transformations = dict()
+        for block_ind, (i, _) in enumerate(a.data.block_inds):
+            coupled = a.codomain.sector_decomposition[i]
+            new_block_ind = [
+                new_codomain.sector_decomposition_where(coupled),
+                new_domain.sector_decomposition_where(coupled),
+            ]
+            if None in new_block_ind:
+                # the new space (of b) only has sectors incompatible with the coupled sector of a
+                continue
+            new_shape = (new_codomain.multiplicities[new_block_ind[0]], new_domain.multiplicities[new_block_ind[1]])
+            new_block = self.block_backend.zeros(new_shape, dtype, device=a.device)
+            new_block_inds.append(new_block_ind)
+
+            for dummy_tree, _, dummy_mults, _ in iter_space.iter_tree_blocks([coupled]):
+                b_coupled = dummy_tree.uncoupled[leg_idx]
+                b_block_ind = b.data.block_ind_from_coupled(b_coupled, b.domain)
+                if b_block_ind is None:
+                    # the corresponding block in b is trivial, but we only iterate over nontrivial blocks (eff_space)
+                    raise RuntimeError
+                # since this is not the original (co)domain, the slices are different
+                # parts of the multiplicities can be reused anyway
+                dummy_mults = (prod(dummy_mults[:leg_idx]), 1, prod(dummy_mults[leg_idx + 1 :]))
+
+                # reuse the tree transformations using that they only depend on the vertex sectors
+                dummy_key = (tuple(x) for x in dummy_tree.vertex_labels(max(0, leg_idx - 1)))
+                if dummy_key not in tree_transformations:
+                    tree_transformations[dummy_key] = dict()
+                for X_b, X_b_slc, *_ in b.codomain.iter_tree_blocks([b_coupled]):
+                    if X_b in tree_transformations[dummy_key]:
+                        X_b_trafo = tree_transformations[dummy_key][X_b]
+                    else:
+                        X_b_trafo = dummy_tree.insert_at(leg_idx, X_b)
+                        tree_transformations[dummy_key][X_b] = X_b_trafo
+                    for Y_b, Y_b_slc, *_ in b.domain.iter_tree_blocks([b_coupled]):
+                        if Y_b in tree_transformations[dummy_key]:
+                            Y_b_trafo = tree_transformations[dummy_key][Y_b]
+                        else:
+                            Y_b_trafo = dummy_tree.insert_at(leg_idx, Y_b)
+                            tree_transformations[dummy_key][Y_b] = Y_b_trafo
+                        b_tree_block = b.data.blocks[b_block_ind][X_b_slc, Y_b_slc]
+                        b_tree_block_shape = self.block_backend.get_shape(b_tree_block)
+                        if in_domain:
+                            # the Ys in the domain of tensor a fit the Xs in the codomain of tensor b
+                            for old_tree, amp_old_tree in X_b_trafo.items():
+                                old_slc = old_space.tree_block_slice(old_tree)
+                                a_forest_row_col = a.data.blocks[block_ind][:, old_slc]
+                                a_forest_row_col = self.block_backend.reshape(
+                                    a_forest_row_col, (-1, dummy_mults[0], b_tree_block_shape[0], dummy_mults[2])
+                                )
+                                for new_tree, amp_new_tree in Y_b_trafo.items():
+                                    new_slc = new_space.tree_block_slice(new_tree)
+                                    contribution = self.block_backend.tdot(a_forest_row_col, b_tree_block, [2], [0])
+                                    contribution = self.block_backend.permute_axes(contribution, [0, 1, 3, 2])
+                                    contribution = self.block_backend.reshape(
+                                        contribution, (-1, dummy_mults[0] * b_tree_block_shape[1] * dummy_mults[2])
+                                    )
+                                    new_block[:, new_slc] += contribution * amp_old_tree * np.conj(amp_new_tree)
+                        else:
+                            for old_tree, amp_old_tree in Y_b_trafo.items():
+                                old_slc = old_space.tree_block_slice(old_tree)
+                                a_forest_row_col = a.data.blocks[block_ind][old_slc, :]
+                                a_forest_row_col = self.block_backend.reshape(
+                                    a_forest_row_col, (dummy_mults[0], b_tree_block_shape[1], dummy_mults[2], -1)
+                                )
+                                for new_tree, amp_new_tree in X_b_trafo.items():
+                                    new_slc = new_space.tree_block_slice(new_tree)
+                                    contribution = self.block_backend.tdot(a_forest_row_col, b_tree_block, [1], [1])
+                                    contribution = self.block_backend.permute_axes(contribution, [0, 3, 1, 2])
+                                    contribution = self.block_backend.reshape(
+                                        contribution, (dummy_mults[0] * b_tree_block_shape[0] * dummy_mults[2], -1)
+                                    )
+                                    new_block[new_slc, :] += contribution * np.conj(amp_old_tree) * amp_new_tree
+            new_blocks.append(new_block)
+
+        if len(new_block_inds) == 0:
+            new_block_inds = np.zeros((0, 2), int)
+        else:
+            new_block_inds = np.array(new_block_inds, int)
+        res_data = FusionTreeData(new_block_inds, new_blocks, dtype, a.device, is_sorted=True)
+        res_data.discard_zero_blocks(self.block_backend, self.eps)
+        return res_data
+
     def partial_trace(
         self, tensor: SymmetricTensor, pairs: list[tuple[int, int]], levels: list[int | None]
     ) -> tuple[Data, TensorProduct, TensorProduct]:
@@ -2892,7 +3011,7 @@ class TensorMapping(metaclass=ABCMeta):
     on the tree-pairs that actually occur in the tensor.
 
     This is a base class that defines the common interface.
-    See :class:`TreePairMapping` and :class:`IndividualTreeMapping` for the concrete classes.
+    See :class:`TreePairMapping` and :class:`FactorizedTreeMapping` for the concrete classes.
 
     Attributes
     ----------
