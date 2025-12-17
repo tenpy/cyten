@@ -1700,6 +1700,9 @@ class FusionTreeBackend(TensorBackend):
                                     contribution = self.block_backend.reshape(
                                         contribution, (-1, dummy_mults[0] * b_tree_block_shape[1] * dummy_mults[2])
                                     )
+                                    # TODO check if the complex conjugation here is correct or if we need to do it as
+                                    # currently done in the codomain; check this when we have a symmetry with complex
+                                    # F symbols and verify that the incorrect way actually has test cases failing
                                     new_block[:, new_slc] += contribution * amp_old_tree * np.conj(amp_new_tree)
                         else:
                             for old_tree, amp_old_tree in Y_b_trafo.items():
