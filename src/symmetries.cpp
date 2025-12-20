@@ -11,7 +11,7 @@
 #endif
 
 namespace cyten {
-    
+
 Symmetry::Symmetry(FusionStyle fusion, BraidingStyle braiding)
     : fusion_style(fusion), braiding_style(braiding), _num_sectors(INFINITE_NUM_SECTORS)
 {
@@ -46,7 +46,7 @@ cyten_int Symmetry::n_symbol(Sector a, Sector b, Sector c) const {
 
 py::array Symmetry::f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const {
 #if DO_FUSION_INPUT_CHECKS
-    if (!( 
+    if (!(
         can_fuse_to(b, c, e) &&
         can_fuse_to(a, e, d) &&
         can_fuse_to(a, b, f) &&
@@ -108,7 +108,7 @@ std::vector<Sector> Symmetry::decompress_sector(Sector compressed) const {
 
 SectorArray Symmetry::compress_sectorarray(py::array_t<Sector> sectors) const {
     assert(sectors.ndim() == 1);
-    std::vector<Sector> decompressed(sector_ind_len()); 
+    std::vector<Sector> decompressed(sector_ind_len());
     SectorArray result(sectors.shape()[0]);
     for(size_t i = 0; i < sectors.shape()[0]; ++i) {
         for (size_t j = 0; j < sector_ind_len(); ++j)
@@ -237,8 +237,8 @@ cyten_float Symmetry::total_qdim() const {
 
 
 py::array Symmetry::b_symbol(Sector a, Sector b, Sector c) const {
-#if DO_FUSION_INPUT_CHECKS 
-    if (!can_fuse_to(a, b, c))       
+#if DO_FUSION_INPUT_CHECKS
+    if (!can_fuse_to(a, b, c))
         throw SymmetryError("Sectors are not consistent with fusion rules.");
 #endif
     return _b_symbol(a, b, c);
@@ -246,12 +246,12 @@ py::array Symmetry::b_symbol(Sector a, Sector b, Sector c) const {
 
 py::array Symmetry::c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const {
 #if DO_FUSION_INPUT_CHECKS
-    if (!(can_fuse_to(a, b, e) && 
-          can_fuse_to(e, c, d) && 
+    if (!(can_fuse_to(a, b, e) &&
+          can_fuse_to(e, c, d) &&
           can_fuse_to(a, c, f) &&
           can_fuse_to(f, b, d)))
         throw SymmetryError("Sectors are not consistent with fusion rules.");
-#endif 
+#endif
     return _c_symbol(a, b, c, d, e, f);
 }
 
@@ -352,7 +352,7 @@ Sector _compress_sector(std::vector<Sector> decompressed, std::vector<int> const
                 throw std::overflow_error("discarding bits in compress_Sector");
         }
         compressed |= compress_i << shift;
-        shift += bit_lengths[i];           
+        shift += bit_lengths[i];
     }
     assert(shift <= 64);
     return compressed;
@@ -371,7 +371,7 @@ std::vector<Sector> _decompress_sector(Sector compressed, std::vector<int> const
         if (decomp >> (bit_lengths[i] - 1))
             decomp |= ~mask_last_bits;
         decompressed[i] = decomp;
-        shift += bit_lengths[i];           
+        shift += bit_lengths[i];
     }
     assert(shift <= 64);
     return decompressed;

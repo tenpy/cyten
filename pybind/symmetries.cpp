@@ -11,7 +11,7 @@ using namespace std;
 using namespace cyten;
 namespace py = pybind11;
 using namespace pybind11::literals; // provides "arg"_a literals
-                                
+
 
 /// @brief pybind11 trampoline class to allow subclassing Symmetry in Python
 template<class SymmetryBase=Symmetry>
@@ -72,7 +72,7 @@ void bind_symmetries(py::module_ &m){
         )pydoc")
         .value("bosonic", BraidingStyle::bosonic, "Symmetric braiding with trivial twist")
         .value("fermionic", BraidingStyle::fermionic, "Symmetric braiding with non-trivial twist")
-        .value("anyonic", BraidingStyle::anyonic, "General, non-symmetric braiding") 
+        .value("anyonic", BraidingStyle::anyonic, "General, non-symmetric braiding")
         .value("no_braiding", BraidingStyle::no_braiding, "Braiding is not defined")
         .export_values();
 
@@ -95,7 +95,7 @@ void bind_symmetries(py::module_ &m){
         .def_property_readonly("sector_ind_len", &Symmetry::sector_ind_len)
         .def_property_readonly("empty_sector_array", [](){return SectorArray(); })
         .def_property_readonly("is_abelian", &Symmetry::is_abelian)
-        .def("is_valid_sector", &Symmetry::is_valid_sector, 
+        .def("is_valid_sector", &Symmetry::is_valid_sector,
             "Whether `a` is a valid sector of this symmetry")
         .def("fusion_outcomes", &Symmetry::fusion_outcomes, R"pydoc(
             Returns all outcomes for the fusion of sectors
