@@ -29,6 +29,7 @@ from ..symmetries import (
     SymmetryError,
     U1Symmetry,
     ZNSymmetry,
+    Sector
 )
 from ..tensors import DiagonalTensor, SymmetricTensor
 from ..tools import as_immutable_array, is_iterable, to_iterable, to_valid_idx
@@ -148,6 +149,16 @@ class Site:
                 understood_braiding=understood_braiding,
             )
         self.onsite_operators[name] = op
+
+    @abstractmethod
+    def get_mpo_building_block(self, label: str) -> SymmetricTensor:
+        """FIXME"""
+        ...
+
+    @abstractmethod
+    def mpo_building_block_basis(self, a: Sector, b: Sector) -> list[int]:
+        """"""
+        ...
 
     def state_index(self, label: str | int) -> int:
         """The index of a basis state."""
