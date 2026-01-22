@@ -1615,7 +1615,7 @@ class AbelianBackend(TensorBackend):
         mod_codomain = [a._as_codomain_leg(idx) for i, idx in enumerate(perm_a) if i < a.num_legs - num_contr_legs]
         mod_codomain = TensorProduct(mod_codomain, a.symmetry)
         mod_domain = [b._as_domain_leg(idx) for i, idx in enumerate(perm_b) if i >= num_contr_legs][::-1]
-        mod_domain = TensorProduct(mod_domain)
+        mod_domain = TensorProduct(mod_domain, a.symmetry)
         contr_spaces = [b.get_leg_co_domain(idx) for i, idx in enumerate(perm_b) if i < num_contr_legs]
 
         res_data = self._compose_worker(a_data, b_data, mod_codomain, contr_spaces, mod_domain)

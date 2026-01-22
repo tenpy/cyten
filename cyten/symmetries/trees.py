@@ -781,6 +781,17 @@ class FusionTree:
         assert np.all(self.uncoupled[n] == t2.coupled)
         assert not self.are_dual[n]
 
+        if t2.num_uncoupled == 0:
+            # special case: empty tree with trivial coupled sector
+            # -> effectively remove self.uncoupled[n] (replace with empty set of sectors)
+            res_unc = np.vstack((self.uncoupled[:n], self.uncoupled[n + 1 :]))
+            res_dual = np.concatenate([self.are_dual[:n], self.are_dual[n + 1 :]])
+            idx = max(0, n - 1)
+            res_inners = np.vstack((self.inner_sectors[:idx], self.inner_sectors[idx + 1 :]))
+            res_mults = np.concatenate([self.multiplicities[:idx], self.multiplicities[idx:]])
+            res = FusionTree(self.symmetry, res_unc, self.coupled, res_dual, res_inners, res_mults)
+            return {res: 1}
+
         if t2.num_vertices == 0:
             # t2 has no actual fusion, it is either identity or a Z iso
             if t2.are_dual[0]:

@@ -5152,9 +5152,12 @@ def partial_compose(
 
     leg_msg = 'Not all legs to be contracted are in the (co)domain'
     compose_msg = 'Use compose for contracting the full (co)domain'
+    # OPTIMIZE we may add this in the future when we find an actual use case
+    contract_msg = 'Use compose or outer when no legs are to be contracted'
     if tensor1_first_leg < tensor1.num_codomain_legs:
         num_legs = tensor2.num_domain_legs
         tensor1_last_leg = tensor1_first_leg + num_legs - 1
+        assert num_legs > 0, contract_msg
         assert tensor1_last_leg < tensor1.num_codomain_legs, leg_msg
         assert num_legs < tensor1.num_codomain_legs, compose_msg
         _check_compatible_legs(
@@ -5173,6 +5176,7 @@ def partial_compose(
     else:
         num_legs = tensor2.num_codomain_legs
         tensor1_last_leg = tensor1_first_leg + num_legs - 1
+        assert num_legs > 0, contract_msg
         assert tensor1_last_leg < tensor1.num_legs, leg_msg
         assert num_legs < tensor1.num_domain_legs, compose_msg
         domain_first_leg = tensor1.num_legs - 1 - tensor1_last_leg
