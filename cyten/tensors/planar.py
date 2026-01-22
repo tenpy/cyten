@@ -22,6 +22,7 @@ from ._tensors import (
     combine_legs,
     compose,
     is_valid_leg_label,
+    partial_compose,
     partial_trace,
     permute_legs,
 )
@@ -1071,7 +1072,7 @@ def planar_contraction(
     We do not make assumptions about the leg arrangement of the result.
     It is constrained by the planar requirement, but otherwise arbitrary.
     I.e. it is the leg arrangement of the result of :func:`~cyten.tensors.tdot`, up to
-    braid-free :func`~cyten.tensors.permute_legs`, i.e. up to arbitrary leg bending.
+    braid-free :func:`~cyten.tensors.permute_legs`, i.e. up to arbitrary leg bending.
     """
     legs1 = tensor1.get_leg_idcs(legs1)
     legs2 = tensor2.get_leg_idcs(legs2)
@@ -1103,32 +1104,52 @@ def planar_contraction(
         cost = tensor1.cost_to_make + tensor2.cost_to_make + BigOPolynomial.prod(*dims, contr_dims)
         return TensorPlaceholder(labels, dims, cost_to_make=cost)
 
-    # choose if we do ``compose(tensor1, tensor2)`` or ``compose(tensor2, tensor1)``:
-    if all(l < tensor1.num_codomain_legs for l in contr1):
-        # all contr1 are already in tensor1 codomain -> compose(tensor2, tensor1) is best
-        flip_order = True
-    elif all(l >= tensor1.num_codomain_legs for l in contr1):
-        # all contr1 are already in tensor1 domain -> compose(tensor1, tensor2) is best
-        flip_order = False
-    elif all(l < tensor2.num_codomain_legs for l in contr2):
-        # all contr2 are already in tensor2 codomain -> compose(tensor1, tensor2) is best
-        flip_order = False
-    elif all(l >= tensor2.num_codomain_legs for l in contr2):
-        # all contr2 are already in tensor2 domain -> compose(tensor2, tensor1) is best
-        flip_order = True
-    else:
-        # remaining cases: choose arbitrarily
-        flip_order = False
+    # find out how we can have the least number of bends before compose / partial_compose
+    # Step 1: determine if it is cheaper to contract codomain of tensor1 with domain of
+    #         tensor2 or vice versa
+    # Step 2: determine if we can use partial_compose (ignores legs that are not
+    #         contracted; can only ignore uncontracted legs for one of the tensors)
+    tensor1_bend_up = len([l for l in contr1 if l < tensor1.num_codomain_legs])
+    tensor1_bend_down = num_contr - tensor1_bend_up
+    tensor2_bend_up = len([l for l in contr2 if l < tensor2.num_codomain_legs])
+    tensor2_bend_down = num_contr - tensor2_bend_up
+    if tensor1_bend_up + tensor2_bend_down < tensor1_bend_down + tensor2_bend_up:
+        # contracted legs up for tensor1, down for tensor2
 
-    if flip_order:
-        # planar_permute_legs takes the ordered legs; order of contr2 is reversed
-        tensor1 = planar_permute_legs(tensor1, codomain=contr1, domain=open1[::-1])
-        tensor2 = planar_permute_legs(tensor2, codomain=open2, domain=contr2)
-        return compose(tensor2, tensor1, relabel2, relabel1)
+        # partial_compose requires all legs to be contracted of one tensor to
+        # be in domain or codomain -> find out which tensor needs less bends
+        tensor1_bend_away = tensor1.num_domain_legs + tensor1_bend_up - num_contr
+        tensor2_bend_away = tensor2.num_codomain_legs + tensor2_bend_down - num_contr
+
+        if tensor2_bend_away < tensor1_bend_away:
+            tensor1, partial_compose_leg = _planar_contraction_helper(tensor1, contr1, tensor1_bend_up, True)
+            tensor2 = planar_permute_legs(tensor2, codomain=contr2[::-1], domain=open2[::-1])
+            if tensor1_bend_away > 0 and partial_compose_leg is not None:
+                return partial_compose(tensor1, tensor2, partial_compose_leg, relabel1, relabel2)
+            return compose(tensor1, tensor2, relabel1, relabel2)
+        else:
+            tensor2, partial_compose_leg = _planar_contraction_helper(tensor2, contr2, tensor2_bend_down, False)
+            tensor1 = planar_permute_legs(tensor1, codomain=open1, domain=contr1[::-1])
+            if tensor2_bend_away > 0 and partial_compose_leg is not None:
+                return partial_compose(tensor2, tensor1, partial_compose_leg, relabel2, relabel1)
+            return compose(tensor1, tensor2, relabel1, relabel2)
     else:
-        tensor1 = planar_permute_legs(tensor1, codomain=open1, domain=contr1[::-1])
-        tensor2 = planar_permute_legs(tensor2, codomain=contr2[::-1], domain=open2[::-1])
-        return compose(tensor1, tensor2, relabel1, relabel2)
+        # contracted legs down for tensor1, up for tensor2
+        tensor1_bend_away = tensor1.num_codomain_legs + tensor1_bend_down - num_contr
+        tensor2_bend_away = tensor2.num_domain_legs + tensor2_bend_up - num_contr
+
+        if tensor2_bend_away < tensor1_bend_away:
+            tensor1, partial_compose_leg = _planar_contraction_helper(tensor1, contr1, tensor1_bend_down, False)
+            tensor2 = planar_permute_legs(tensor2, codomain=open2, domain=contr2)
+            if tensor1_bend_away > 0 and partial_compose_leg is not None:
+                return partial_compose(tensor1, tensor2, partial_compose_leg, relabel1, relabel2)
+            return compose(tensor2, tensor1, relabel2, relabel1)
+        else:
+            tensor2, partial_compose_leg = _planar_contraction_helper(tensor2, contr2, tensor2_bend_up, True)
+            tensor1 = planar_permute_legs(tensor1, codomain=contr1, domain=open1[::-1])
+            if tensor2_bend_away > 0 and partial_compose_leg is not None:
+                return partial_compose(tensor2, tensor1, partial_compose_leg, relabel2, relabel1)
+            return compose(tensor2, tensor1, relabel2, relabel1)
 
 
 @overload
@@ -1511,3 +1532,56 @@ def parse_leg_bipartition(legs: Sequence[int], num_legs: int) -> tuple[list[int]
         raise ValueError('Not a planar bipartition')
 
     return res_legs, other_legs
+
+
+def _planar_contraction_helper(tensor: Tensor, contr: list[int], num_bends: int, domain: bool):
+    """Helper function for :func:`~cyten.tensors.planar_contraction`.
+
+    Bend legs of a tensor up or down in preparation for `compose` or `partial_compose` with
+    another tensor.
+
+    Parameters
+    ----------
+    tensor : Tensor
+        The tensor whose legs are to be bent.
+    contr : list of int
+        The legs of `tensor` that are contracted in :func:`~cyten.tensors.planar_contraction`.
+    num_bend : int
+        The number of legs of `tensor` that need to be bent up or down. Right bends are used
+        if possible.
+    domain : int
+        Determines whether the legs are bent into the domain or codomain.
+
+    """
+    if num_bends > 0:
+        bend_right = tensor.num_codomain_legs - 1 in contr and tensor.num_codomain_legs in contr
+        if bend_right:
+            partial_compose_leg = min(contr)
+            if domain:
+                new_codom = list(range(tensor.num_codomain_legs - num_bends))
+                new_dom = list(range(tensor.num_codomain_legs - num_bends, tensor.num_legs))
+            else:
+                new_codom = list(range(tensor.num_codomain_legs + num_bends))
+                new_dom = list(range(tensor.num_codomain_legs + num_bends, tensor.num_legs))
+        else:
+            if domain:
+                partial_compose_leg = tensor.num_legs - len(contr)
+                new_codom = list(range(num_bends, tensor.num_codomain_legs))
+                new_dom = list(range(tensor.num_codomain_legs, tensor.num_legs))
+                new_dom.extend(list(range(num_bends)))
+            else:
+                partial_compose_leg = 0
+                new_codom = list(range(tensor.num_legs - num_bends, tensor.num_legs))
+                new_codom.extend(list(range(tensor.num_codomain_legs)))
+                new_dom = list(range(tensor.num_codomain_legs, tensor.num_legs - num_bends))
+        return planar_permute_legs(tensor, codomain=new_codom, domain=new_dom[::-1]), partial_compose_leg
+    if len(contr) == 0:
+        # no legs are contracted -> use compose in planar_contraction and do appropriate bends here
+        if domain:
+            new_codom = list(range(tensor.num_legs))
+            new_dom = None
+        else:
+            new_codom = None
+            new_dom = list(reversed(range(tensor.num_legs)))
+        return planar_permute_legs(tensor, codomain=new_codom, domain=new_dom), None
+    return tensor, min(contr)
