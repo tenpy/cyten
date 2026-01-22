@@ -1618,6 +1618,12 @@ class FusionTreeBackend(TensorBackend):
         new_domain: TensorProduct,
     ) -> Data:
         # OPTIMIZE ?
+        dtype = Dtype.common(a.dtype, b.dtype)
+        new_block_inds = []
+        new_blocks = []
+        if len(a.data.blocks) == 0 or len(b.data.blocks) == 0:
+            return FusionTreeData(np.zeros((0, 2), int), new_blocks, dtype, a.device, is_sorted=True)
+
         # space used to iterate over dummy fusion trees containing the
         # relevant coupled sectors for the legs that are contracted
         eff_space = ElementarySpace.from_defining_sectors(
@@ -1637,10 +1643,6 @@ class FusionTreeBackend(TensorBackend):
             old_space = a.domain
             new_space = new_domain
             iter_space = TensorProduct(a.domain[:leg_idx] + [eff_space] + a.domain[leg_idx + num_contr_legs :])
-
-        dtype = Dtype.common(a.dtype, b.dtype)
-        new_block_inds = []
-        new_blocks = []
 
         # we do not want to recompute the transformations for the fusion trees, so cache them here
         tree_transformations = dict()
