@@ -509,8 +509,8 @@ def test_PlanarDiagram(symmetry, np_random):
     # ===========================================
     res = density_matrix_mixing_left(Lp=Lp, Lp_hc=Lp.hc, W=W, W_hc=W.hc, mixL=mixL, theta=theta, theta_hc=theta.hc)
     res.test_sanity()
-    assert res.labels == ['p*', 'vL*', 'vL', 'p'], 'if cyclical need to redesign test. otherwise wrong!'
-    assert res.num_codomain_legs == 2, 'if this fails, just need to redesign tests'
+    assert res.labels == ['vL', 'p', 'p*', 'vL*'], 'if cyclical need to redesign test. otherwise wrong!'
+    assert res.num_codomain_legs == 4, 'if this fails, just need to redesign tests'
 
     # ===========================================
     # compare to manual contraction, using planar routines
@@ -525,7 +525,7 @@ def test_PlanarDiagram(symmetry, np_random):
     expect1 = ct.planar.planar_permute_legs(expect1, codomain=['p*', 'vL*'])
     assert expect1.labels == ['p*', 'vL*', 'vL', 'p']
     expect1.test_sanity()
-    assert ct.almost_equal(res, expect1)
+    assert ct.planar.planar_almost_equal(res, expect1)
 
     # ===========================================
     # compare to manual contraction, using general (not planar) routines
@@ -556,7 +556,7 @@ def test_PlanarDiagram(symmetry, np_random):
     expect2 = expect2.relabel({'vR*': 'vL', 'vR': 'vL*'})
     expect2 = ct.permute_legs(expect2, ['p*', 'vL*'], ['p', 'vL'], bend_right=[False, False, None, True])
     expect2.test_sanity()
-    assert ct.almost_equal(res, expect2)
+    assert ct.planar.planar_almost_equal(res, expect2)
 
 
 @pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
@@ -612,12 +612,12 @@ def test_PlanarDiagram_add_remove_tensor(symmetry, np_random):
     partial_res = partial_diagram(T1=T1, T2=T2, T3=T3)
     partial_res.test_sanity()
     assert partial_res.labels == ['w1', 'vL', 'vR']
-    assert partial_res.num_codomain_legs == 2
+    assert partial_res.num_codomain_legs == 3
 
     full_res = full_diagram(T1=T1, T2=T2, T3=T3, T4=T4)
     full_res.test_sanity()
-    assert full_res.labels == ['w2', 'w1']
-    assert full_res.num_codomain_legs == 1
+    assert full_res.labels == ['w1', 'w2']
+    assert full_res.num_codomain_legs == 2
 
     # ===========================================
     # transform between the diagrams
@@ -631,7 +631,7 @@ def test_PlanarDiagram_add_remove_tensor(symmetry, np_random):
     full_res2 = ct.planar.planar_permute_legs(full_res2, codomain=['w2'])
     assert full_res2.labels == ['w2', 'w1']
     assert full_res2.num_codomain_legs == 1
-    assert ct.almost_equal(full_res, full_res2)
+    assert ct.planar.planar_almost_equal(full_res, full_res2)
 
     partial_diagram2 = full_diagram.remove_tensor(
         'T4', extra_definition=[('T3', 'vR', None, 'vL'), ('T1', 'vR', None, 'vR')]
@@ -639,7 +639,7 @@ def test_PlanarDiagram_add_remove_tensor(symmetry, np_random):
     partial_res2 = partial_diagram2(T1=T1, T2=T2, T3=T3)
     partial_res2.test_sanity()
     assert partial_res2.labels == ['w1', 'vL', 'vR']
-    assert partial_res2.num_codomain_legs == 2
+    assert partial_res2.num_codomain_legs == 3
     assert ct.almost_equal(partial_res, partial_res2)
 
 
@@ -702,13 +702,13 @@ def test_PlanarDiagram_contraction_orders(symmetry, np_random):
     # ===========================================
     res1 = diagram1(T1=T1, T2=T2, T3=T3, T4=T4)
     res1.test_sanity()
-    assert res1.labels == ['w2', 'w1']
-    assert res1.num_codomain_legs == 1
+    assert res1.labels == ['w1', 'w2']
+    assert res1.num_codomain_legs == 2
 
     res2 = diagram2(T1=T1, T2=T2, T3=T3, T4=T4)
     res2.test_sanity()
-    assert res2.labels == ['w2', 'w1']
-    assert res2.num_codomain_legs == 1
+    assert res2.labels == ['w1', 'w2']
+    assert res2.num_codomain_legs == 2
 
     assert ct.almost_equal(res1, res2)
 
@@ -722,12 +722,12 @@ def test_PlanarDiagram_contraction_orders(symmetry, np_random):
     partial_res1 = partial_diagram1(T1=T1, T2=T2, T3=T3)
     partial_res1.test_sanity()
     assert partial_res1.labels == ['w1', 'vL', 'vR']
-    assert partial_res1.num_codomain_legs == 2
+    assert partial_res1.num_codomain_legs == 3
 
     partial_res2 = partial_diagram2(T1=T1, T2=T2, T3=T3)
     partial_res2.test_sanity()
     assert partial_res2.labels == ['w1', 'vL', 'vR']
-    assert partial_res2.num_codomain_legs == 2
+    assert partial_res2.num_codomain_legs == 3
 
     assert ct.almost_equal(partial_res1, partial_res2)
 
@@ -746,12 +746,12 @@ def test_PlanarDiagram_contraction_orders(symmetry, np_random):
     res1_ = diagram1_(T1=T1, T2=T2, T3=T3, T4=T4)
     res1_.test_sanity()
     assert res1_.labels == ['w1', 'w2']
-    assert res1_.num_codomain_legs == 1
+    assert res1_.num_codomain_legs == 2
 
     res2_ = diagram2_(T1=T1, T2=T2, T3=T3, T4=T4)
     res2_.test_sanity()
     assert res2_.labels == ['w1', 'w2']
-    assert res2_.num_codomain_legs == 1
+    assert res2_.num_codomain_legs == 2
 
     assert ct.almost_equal(res1_, res2_)
     assert ct.planar.planar_almost_equal(res1_, res1)
