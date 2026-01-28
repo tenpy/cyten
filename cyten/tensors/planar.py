@@ -1785,7 +1785,7 @@ def planar_svd(
     A :ref:`tensor decomposition <decompositions>` ``tensor ~ U @ S @ Vh`` with the following
     properties:
 
-    - ``Vh`` and ``U``are isometries.
+    - ``Vh`` and ``U`` are isometries.
     - ``S`` is a :class:`DiagonalTensor` with real, non-negative entries.
     - If `tensor` is a matrix (i.e. if it has exactly one leg each in domain and codomain), it
       reproduces the usual matrix SVD.
