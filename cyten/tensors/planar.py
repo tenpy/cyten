@@ -1164,8 +1164,12 @@ def planar_decomposition(
     new_labels: str | Sequence[str] = None,
     new_leg_dual: bool = False,
     **kwargs,
-) -> tuple[Tensor, Tensor] | tuple[Tensor, Tensor, Tensor]:
-    """TODO"""
+) -> tuple[Tensor, Tensor] | tuple[Tensor, DiagonalTensor, Tensor]:
+    """Planar generalization of eigen, QR, LQ, SV, and truncated SV decompositions.
+
+    See the respective docstrings of :func:`planar_eigh`, :func:`planar_qr`, :func:`planar_lq`,
+    :func:`planar_svd`, and :func:`planar_truncated_svd` for more details.
+    """
     # OPTIMIZE for fusion tree backend, can probably work something better out with explicit trees?
     assert 0 <= codomain_cut <= tensor.num_codomain_legs
     assert 0 <= domain_cut <= tensor.num_domain_legs
@@ -1220,7 +1224,75 @@ def planar_eigh(
     new_leg_dual: bool = False,
     sort=None,
 ) -> tuple[DiagonalTensor, Tensor]:
-    """TODO"""
+    """Planar eigen-decomposition of a hermitian tensor.
+
+    A :ref:`tensor decomposition <decompositions>` ``tensor ~ V @ W @ dagger(V)`` with
+    the following properties:
+
+    - ``V`` is unitary.
+    - ``W`` is a :class:`DiagonalTensor` with the real eigenvalues of ``tensor``.
+
+    This planar decomposition differs from :func:`eigh` in the sense that it decomposes a
+    tensor into more general left and right parts rather than into codomain and domain.
+
+    *Assumes* that `tensor` is hermitian with respect to the legs specified by
+    `codomain_cut` and `domain_cut`: if `T` is obtained from `tensor` by bending legs
+    s.t. all legs on the left (right) are in the codomain (domain), or, equivalently,
+    ``T = planar_permute_legs(tensor, domain=[*range(codomain_cut, tensor.num_legs - domain_cut))][::-1])``,
+    then ``dagger(T) ~ T``, which requires in particular that ``T.domain == T.codomain``.
+
+    Graphically, here with ``codomain_cut=3, domain_cut=1``::
+
+        |                                  │    │   │   │
+        |                                  │   ┏┷━━━┷━━━┷┓
+        |                                  │   ┃dagger(V)┃
+        |        │   │   │   │             │   ┗━┯━━━━━┯━┛
+        |       ┏┷━━━┷━━━┷━━━┷┓            │   ┏━┷━┓   │
+        |       ┃   tensor    ┃    ==      │   ┃ W ┃   │
+        |       ┗┯━━━┯━━━┯━━━┯┛            │   ┗━┯━┛   │
+        |        │   │   │   │           ┏━┷━━━━━┷━┓   │
+        |                                ┃    V    ┃   │
+        |                                ┗┯━━━┯━━━┯┛   │
+        |                                 │   │   │    │
+
+    Parameters
+    ----------
+    tensor: :class:`Tensor`
+        The hermitian tensor to decompose.
+    codomain_cut: int
+        The first `codomain_cut` legs from the codomain end up in the codomain of `V`,
+        the rest of the codomain ends up in the codomain of `dagger(V)`.
+    domain_cut: int
+        The first `domain_cut` legs from the domain end up in the domain of `V`, the rest
+        of the domain ends up in the domain of `dagger(V)`.
+    new_labels: (list of) str, optional
+        The labels for the new legs can be specified in the following three ways;
+        Three labels ``[a, b, c]`` result in ``V.labels[-1 - domain_cut] == a`` and
+        ``W.labels == [b, c]``.
+        Two labels ``[a, b]`` are equivalent to ``[a, b, a]``.
+        A single label ``a`` is equivalent to ``[a, a*, a]``.
+        The new legs are unlabelled by default.
+    new_leg_dual: bool
+        If the new leg should be a ket space (``False``) or bra space (``True``)
+    sort: {'m>', 'm<', '>', '<', ``None``}
+        How the eigenvalues should are sorted *within* each charge block.
+        Defaults to ``None``, which is same as '<'. See :func:`argsort` for details.
+
+    Returns
+    -------
+    W: :class:`DiagonalTensor`
+        The real eigenvalues.
+    V: :class:`SymmetricTensor`
+        The orthonormal eigenvectors.
+
+    See Also
+    --------
+    eigh
+        eigen decomposition with respect to codomain and domain. Corresponds to this
+        function with parameters ``codomain_cut=tensor.num_codomain_legs``,
+        ``domain_cut=0``.
+
+    """
     return planar_decomposition(
         tensor,
         codomain_cut=codomain_cut,
@@ -1239,7 +1311,55 @@ def planar_lq(
     new_labels: str | list[str] = None,
     new_leg_dual: bool = False,
 ) -> tuple[Tensor, Tensor]:
-    """TODO"""
+    """Planar LQ decomposition of a tensor.
+
+    A :ref:`tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
+    properties:
+
+    - ``L`` has a lower triangular structure *in the coupled basis*.
+    - ``Q`` is an isometry.
+
+    This planar decomposition differs from :func:`lq` in the sense that it decomposes a
+    tensor into more general left and right parts rather than into codomain and domain.
+
+    Graphically, here with ``codomain_cut=2, domain_cut=1``::
+
+        |                                  │  │  │  │
+        |                                  │ ┏┷━━┷━━┷┓
+        |        │   │   │   │             │ ┃   Q   ┃
+        |       ┏┷━━━┷━━━┷━━━┷┓            │ ┗━┯━━━┯━┛
+        |       ┃   tensor    ┃    ==      │   │   │
+        |       ┗━━┯━━━┯━━━┯━━┛          ┏━┷━━━┷━┓ │
+        |          │   │   │             ┃   L   ┃ │
+        |                                ┗━┯━━━┯━┛ │
+        |                                  │   │   │
+
+    We always compute the "reduced", a.k.a. "economic" version.
+
+    Parameters
+    ----------
+    tensor: :class:`Tensor`
+        The tensor to decompose.
+    codomain_cut: int
+        The first `codomain_cut` legs from the codomain end up in the codomain of `L`,
+        the rest of the codomain ends up in the codomain of `Q`.
+    domain_cut: int
+        The first `domain_cut` legs from the domain end up in the domain of `L`, the rest
+        of the domain ends up in the domain of `Q`.
+    new_labels: (list of) str
+        Labels for the new legs. Either two legs ``[a, b]`` s.t. ``L.labels[-1 - domain_cut] == a``
+        and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
+    new_leg_dual: bool
+        If the new leg should be a ket space (``False``) or bra space (``True``)
+
+    See Also
+    --------
+    lq
+        LQ decomposition with respect to codomain and domain. Corresponds to this
+        function with parameters ``codomain_cut=tensor.num_codomain_legs``,
+        ``domain_cut=0``.
+
+    """
     return planar_decomposition(
         tensor,
         codomain_cut=codomain_cut,
@@ -1593,7 +1713,55 @@ def planar_qr(
     new_labels: str | list[str] = None,
     new_leg_dual: bool = False,
 ) -> tuple[Tensor, Tensor]:
-    """TODO"""
+    """Planar QR decomposition of a tensor.
+
+    A :ref:`tensor decomposition <decompositions>` ``tensor ~ Q @ R`` with the following
+    properties:
+
+    - ``Q`` is an isometry.
+    - ``R`` has an upper triangular structure *in the coupled basis*.
+
+    This planar decomposition differs from :func:`qr` in the sense that it decomposes a
+    tensor into more general left and right parts rather than into codomain and domain.
+
+    Graphically, here with ``codomain_cut=2, domain_cut=1``::
+
+        |                                  │  │  │  │
+        |                                  │ ┏┷━━┷━━┷┓
+        |        │   │   │   │             │ ┃   R   ┃
+        |       ┏┷━━━┷━━━┷━━━┷┓            │ ┗━┯━━━┯━┛
+        |       ┃   tensor    ┃    ==      │   │   │
+        |       ┗━━┯━━━┯━━━┯━━┛          ┏━┷━━━┷━┓ │
+        |          │   │   │             ┃   Q   ┃ │
+        |                                ┗━┯━━━┯━┛ │
+        |                                  │   │   │
+
+    We always compute the "reduced", a.k.a. "economic" version.
+
+    Parameters
+    ----------
+    tensor: :class:`Tensor`
+        The tensor to decompose.
+    codomain_cut: int
+        The first `codomain_cut` legs from the codomain end up in the codomain of `Q`,
+        the rest of the codomain ends up in the codomain of `R`.
+    domain_cut: int
+        The first `domain_cut` legs from the domain end up in the domain of `Q`, the rest
+        of the domain ends up in the domain of `R`.
+    new_labels: (list of) str
+        Labels for the new legs. Either two legs ``[a, b]`` s.t. ``Q.labels[-1 - domain_cut] == a``
+        and ``R.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
+    new_leg_dual: bool
+        If the new leg should be a ket space (``False``) or bra space (``True``)
+
+    See Also
+    --------
+    qr
+        QR decomposition with respect to codomain and domain. Corresponds to this
+        function with parameters ``codomain_cut=tensor.num_codomain_legs``,
+        ``domain_cut=0``.
+
+    """
     return planar_decomposition(
         tensor,
         codomain_cut=codomain_cut,
@@ -1612,7 +1780,78 @@ def planar_svd(
     new_leg_dual: bool = False,
     algorithm: str | None = None,
 ) -> tuple[Tensor, DiagonalTensor, Tensor]:
-    """TODO"""
+    """Planar singular value decomposition (SVD) of a tensor.
+
+    A :ref:`tensor decomposition <decompositions>` ``tensor ~ U @ S @ Vh`` with the following
+    properties:
+
+    - ``Vh`` and ``U``are isometries.
+    - ``S`` is a :class:`DiagonalTensor` with real, non-negative entries.
+    - If `tensor` is a matrix (i.e. if it has exactly one leg each in domain and codomain), it
+      reproduces the usual matrix SVD.
+
+    .. note ::
+        The basis for the newly generated leg is chosen arbitrarily, and in particular unlike
+        e.g. :func:`numpy.linalg.svd` it is not guaranteed that ``S.diag_numpy`` is sorted.
+
+    This planar decomposition differs from :func:`svd` in the sense that it decomposes a
+    tensor into more general left and right parts rather than into codomain and domain.
+
+    Graphically, here with ``codomain_cut=2, domain_cut=1``::
+
+        |                                  │    │   │   │
+        |                                  │   ┏┷━━━┷━━━┷┓
+        |                                  │   ┃   Vh    ┃
+        |        │   │   │   │             │   ┗━┯━━━━━┯━┛
+        |       ┏┷━━━┷━━━┷━━━┷┓            │   ┏━┷━┓   │
+        |       ┃   tensor    ┃    ==      │   ┃ S ┃   │
+        |       ┗━━┯━━━┯━━━┯━━┛            │   ┗━┯━┛   │
+        |          │   │   │             ┏━┷━━━━━┷━┓   │
+        |                                ┃    U    ┃   │
+        |                                ┗━┯━━━━━┯━┛   │
+        |                                  │     │     │
+
+    We always compute the "reduced", a.k.a. "economic" version of SVD, where the
+    isometries are (in general) not full unitaries.
+
+    Parameters
+    ----------
+    tensor: :class:`Tensor`
+        The tensor to decompose.
+    codomain_cut: int
+        The first `codomain_cut` legs from the codomain end up in the codomain of `U`,
+        the rest of the codomain ends up in the codomain of `Vh`.
+    domain_cut: int
+        The first `domain_cut` legs from the domain end up in the domain of `U`, the rest
+        of the domain ends up in the domain of `Vh`.
+    new_labels: (list of) str, optional
+        The labels for the new legs can be specified in the following three ways;
+        Four labels ``[a, b, c, d]`` result in ``U.labels[-1 - domain_cut] == a``,
+        ``S.labels == [b, c]`` and ``Vh.labels[0] == d``.
+        Two labels ``[a, b]`` are equivalent to ``[a, b, a, b]``.
+        A single label ``a`` is equivalent to ``[a, a*, a, a*]``.
+        The new legs are unlabelled by default.
+    new_leg_dual: bool
+        If the new leg should be a ket space (``False``) or bra space (``True``)
+    algorithm: str, optional
+        The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
+        See the :attr:`~cyten.backends.BlockBackend.svd_algorithms` attribute of the
+        ``tensor.backend.block_backend``.
+
+    Returns
+    -------
+    U: SymmetricTensor
+    S: DiagonalTensor
+    Vh: SymmetricTensor
+
+    See Also
+    --------
+    svd
+        SVD decomposition with respect to codomain and domain. Corresponds to this
+        function with parameters ``codomain_cut=tensor.num_codomain_legs``,
+        ``domain_cut=0``.
+
+    """
     return planar_decomposition(
         tensor,
         codomain_cut=codomain_cut,
@@ -1638,7 +1877,41 @@ def planar_truncated_svd(
     trunc_cut: float = 0,
     svd_min: float = 0,
 ) -> tuple[Tensor, DiagonalTensor, Tensor, float, float]:
-    """TODO"""
+    """Truncated version of :func:`planar_svd`.
+
+    Parameters
+    ----------
+    tensor, codomain_cut, domain_cut, new_labels, new_leg_dual, algorithm
+        Same as for the non-truncated :func:`planar_svd`.
+    normalize_to: float or None
+        If ``None`` (default), the resulting singular values are not renormalized,
+        resulting in an approximation in terms of ``U, S, Vh`` which has smaller norm than `a`.
+        If a ``float``, the singular values are scaled such that ``norm(S) == normalize_to``.
+    chi_max, chi_min, degeneracy_tol, trunc_cut, svd_min
+        Options for truncations, see documentation of :func:`truncate_singular_values`.
+
+    Returns
+    -------
+    U, S, Vh
+        The tensors U, S, Vh that form the truncated SVD, such that
+        ``U @ S @ Vh`` is *approximately* equal to `a`.
+    err : float
+        The relative 2-norm truncation error ``norm(a - U_S_Vh) / norm(a)``.
+        This is the (relative) 2-norm weight of the discarded singular values.
+    renormalize : float
+        Factor, by which `S` was renormalized, i.e. ``norm(S) / norm(a)``, such that
+        ``U @ S @ Vh / renormalize`` has the same norm as `a`.
+
+    See Also
+    --------
+    planar_svd
+        Planar SVD decomposition without truncation.
+    truncated_svd
+        Truncated SVD decomposition with respect to codomain and domain. Corresponds to
+        this function with parameters ``codomain_cut=tensor.num_codomain_legs``,
+        ``domain_cut=0``.
+
+    """
     return planar_decomposition(
         tensor,
         codomain_cut=codomain_cut,
