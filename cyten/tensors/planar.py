@@ -16,15 +16,21 @@ from ._tensors import (
     CONTRACT_SYMBOL,
     LEG_SELECT_SYMBOL,
     OPEN_LEG_SYMBOL,
+    DiagonalTensor,
     LabelledLegs,
     Tensor,
     almost_equal,
     combine_legs,
     compose,
+    eigh,
     is_valid_leg_label,
+    lq,
     partial_compose,
     partial_trace,
     permute_legs,
+    qr,
+    svd,
+    truncated_svd,
 )
 from .sparse import LinearOperator
 
@@ -1150,6 +1156,100 @@ def planar_contraction(
             return compose(tensor2, tensor1, relabel2, relabel1)
 
 
+def planar_decomposition(
+    tensor: Tensor,
+    codomain_cut: int,
+    domain_cut: int,
+    which: Literal['eigh', 'qr', 'lq', 'svd', 'truncated_svd'],
+    new_labels: str | Sequence[str] = None,
+    new_leg_dual: bool = False,
+    **kwargs,
+) -> tuple[Tensor, Tensor] | tuple[Tensor, Tensor, Tensor]:
+    """TODO"""
+    # OPTIMIZE for fusion tree backend, can probably work something better out with explicit trees?
+    assert 0 <= codomain_cut <= tensor.num_codomain_legs
+    assert 0 <= domain_cut <= tensor.num_domain_legs
+    if codomain_cut == 0 and domain_cut == 0:
+        raise ValueError('Nothing to do')
+    if codomain_cut == tensor.num_codomain_legs and domain_cut == tensor.num_domain_legs:
+        raise ValueError('Nothing to do')
+
+    codom = [*range(tensor.num_legs - domain_cut, tensor.num_legs), *range(codomain_cut)]
+    dom = [*reversed(range(codomain_cut, tensor.num_legs - domain_cut))]
+    to_decompose = planar_permute_legs(tensor, codomain=codom, domain=dom)
+
+    if which == 'qr':
+        A, B = qr(to_decompose, new_labels=new_labels, new_leg_dual=new_leg_dual)
+    elif which == 'lq':
+        A, B = lq(to_decompose, new_labels=new_labels, new_leg_dual=new_leg_dual)
+    elif which == 'eigh':
+        # eigh returns W, V, where V is the unitary -> permute legs as, e.g., Q in QR
+        B, A = eigh(to_decompose, new_labels=new_labels, new_leg_dual=new_leg_dual, **kwargs)
+    elif which == 'svd':
+        A, S, B = svd(to_decompose, new_labels=new_labels, new_leg_dual=new_leg_dual, **kwargs)
+    elif which == 'truncated_svd':
+        A, S, B, err, renormalize = truncated_svd(
+            to_decompose, new_labels=new_labels, new_leg_dual=new_leg_dual, **kwargs
+        )
+    else:
+        raise ValueError(f'Invalid decomposition "{which}"')
+
+    if not which == 'eigh':
+        # B contains the eigenvalues for eigh
+        B_codom = [*range(tensor.num_codomain_legs - codomain_cut + 1)]
+        B_dom = [*reversed(range(tensor.num_codomain_legs - codomain_cut + 1, B.num_legs))]
+        B = planar_permute_legs(B, codomain=B_codom, domain=B_dom)
+    A_codom = [*range(domain_cut, A.num_codomain_legs)]
+    A_dom = [*reversed(range(domain_cut)), A.num_codomain_legs]
+    A = planar_permute_legs(A, codomain=A_codom, domain=A_dom)
+
+    if which == 'svd':
+        return A, S, B
+    elif which == 'truncated_svd':
+        return A, S, B, err, renormalize
+    elif which == 'eigh':
+        return B, A
+    return A, B
+
+
+def planar_eigh(
+    tensor: Tensor,
+    codomain_cut: int,
+    domain_cut: int,
+    new_labels: str | list[str] = None,
+    new_leg_dual: bool = False,
+    sort=None,
+) -> tuple[DiagonalTensor, Tensor]:
+    """TODO"""
+    return planar_decomposition(
+        tensor,
+        codomain_cut=codomain_cut,
+        domain_cut=domain_cut,
+        which='eigh',
+        new_labels=new_labels,
+        new_leg_dual=new_leg_dual,
+        sort=sort,
+    )
+
+
+def planar_lq(
+    tensor: Tensor,
+    codomain_cut: int,
+    domain_cut: int,
+    new_labels: str | list[str] = None,
+    new_leg_dual: bool = False,
+) -> tuple[Tensor, Tensor]:
+    """TODO"""
+    return planar_decomposition(
+        tensor,
+        codomain_cut=codomain_cut,
+        domain_cut=domain_cut,
+        which='lq',
+        new_labels=new_labels,
+        new_leg_dual=new_leg_dual,
+    )
+
+
 @overload
 def planar_partial_trace(
     tensor: Tensor, *pairs: Sequence[int, str]
@@ -1478,6 +1578,76 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None, domain: 
         )
 
     return permute_legs(T, codomain=codomain, domain=domain, levels=None, bend_right=bend_right)
+
+
+def planar_qr(
+    tensor: Tensor,
+    codomain_cut: int,
+    domain_cut: int,
+    new_labels: str | list[str] = None,
+    new_leg_dual: bool = False,
+) -> tuple[Tensor, Tensor]:
+    """TODO"""
+    return planar_decomposition(
+        tensor,
+        codomain_cut=codomain_cut,
+        domain_cut=domain_cut,
+        which='qr',
+        new_labels=new_labels,
+        new_leg_dual=new_leg_dual,
+    )
+
+
+def planar_svd(
+    tensor: Tensor,
+    codomain_cut: int,
+    domain_cut: int,
+    new_labels: str | list[str] = None,
+    new_leg_dual: bool = False,
+    algorithm: str | None = None,
+) -> tuple[Tensor, DiagonalTensor, Tensor]:
+    """TODO"""
+    return planar_decomposition(
+        tensor,
+        codomain_cut=codomain_cut,
+        domain_cut=domain_cut,
+        which='svd',
+        new_labels=new_labels,
+        new_leg_dual=new_leg_dual,
+        algorithm=algorithm,
+    )
+
+
+def planar_truncated_svd(
+    tensor: Tensor,
+    codomain_cut: int,
+    domain_cut: int,
+    new_labels: str | list[str] = None,
+    new_leg_dual: bool = False,
+    algorithm: str | None = None,
+    normalize_to: float = None,
+    chi_max: int = None,
+    chi_min: int = 1,
+    degeneracy_tol: float = 0,
+    trunc_cut: float = 0,
+    svd_min: float = 0,
+) -> tuple[Tensor, DiagonalTensor, Tensor, float, float]:
+    """TODO"""
+    return planar_decomposition(
+        tensor,
+        codomain_cut=codomain_cut,
+        domain_cut=domain_cut,
+        which='truncated_svd',
+        new_labels=new_labels,
+        new_leg_dual=new_leg_dual,
+        algorithm=algorithm,
+        normalize_to=normalize_to,
+        chi_max=chi_max,
+        chi_min=chi_min,
+        degeneracy_tol=degeneracy_tol,
+        trunc_cut=trunc_cut,
+        svd_min=svd_min,
+    )
 
 
 def parse_leg_bipartition(legs: Sequence[int], num_legs: int) -> tuple[list[int], list[int]]:
