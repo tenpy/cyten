@@ -1503,6 +1503,9 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None, domain: 
             right_bending = len(codomain) - codomain.index(0)
         else:
             right_bending = 0
+        if dont_bend == 0 and left_bending == right_bending == T.num_legs:
+            # special case when all legs need to be bent down to the right or left
+            left_bending = 0
         assert left_bending + dont_bend + right_bending == T.num_legs
         bend_right = [True] * right_bending + [None] * dont_bend + [False] * left_bending
 
@@ -1519,6 +1522,9 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None, domain: 
             right_bending = len(domain) - domain.index(T.num_legs - 1)
         else:
             right_bending = 0
+        if dont_bend == 0 and left_bending == right_bending == T.num_legs:
+            # special case when all legs need to be bent up to the right or left
+            left_bending = 0
         assert left_bending + dont_bend + right_bending == T.num_legs
         bend_right = [False] * left_bending + [None] * dont_bend + [True] * right_bending
 
