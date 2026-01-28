@@ -5613,7 +5613,7 @@ def real_if_close(x: _ElementwiseType, tol: float = 100) -> _ElementwiseType:
 def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = False) -> tuple[Tensor, Tensor]:
     """The LQ decomposition of a tensor.
 
-    A :ref:`tensor decomposition <decompositions>` ``tensor ~ Q @ R`` with the following
+    A :ref:`tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
     properties:
 
     - ``L`` has a lower triangular structure *in the coupled basis*.
