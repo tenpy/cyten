@@ -245,7 +245,10 @@ class FusionTreeBackend(TensorBackend):
     DataCls = FusionTreeData
     can_decompose_tensors = True
 
-    def __init__(self, block_backend: BlockBackend, eps: float = 1.0e-14):
+    def __init__(self, block_backend: BlockBackend, eps: float = 5.0e-14):
+        # the default value for eps is based on tests for 4-leg tensors. For smaller values of eps,
+        # we obtained additional blocks above this threshold (from numerical imprecisions) when
+        # bending some legs and then going back to the initial configuration.
         self.eps = eps
         super().__init__(block_backend)
 
@@ -407,6 +410,7 @@ class FusionTreeBackend(TensorBackend):
             domain_idcs=domain_idcs,
             block_backend=self.block_backend,
         )
+        data.discard_zero_blocks(self.block_backend, self.eps)
         return data
 
     def apply_mask_to_DiagonalTensor(self, tensor: DiagonalTensor, mask: Mask) -> DiagonalData:
