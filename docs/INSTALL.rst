@@ -21,8 +21,7 @@ To build cyten locally on your machine, install the following requirements
 
 - C++ compiler with at least C++17 standard  (can be installed manually with `conda install -c conda-forge compilers` if needed)
 - CMake, make
-- boost library (only required for the intrusive pointer - can we get rid of that requirement?)
-- Python >= 3.10, with numpy>=2.0, scipy and a few other python packages as listed `environment.yml`
+- Python >= 3.12, with numpy>=2.0, scipy and a few other python packages as listed `environment.yml`
 - scikit-build
 
 The easiest way to install all of those is to create a conda envrironment from the `environment.yml` to install all requirements

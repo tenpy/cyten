@@ -5,12 +5,10 @@ dependencies:
   - python>=3.10
   - pip
   - setuptools>=68.0.0
-  - pybind11
+  - pybind11>=3.0
   - scikit-build-core
   - numpy>=2.0
   - scipy
-  - boost
-  - libboost
   - openblas
   # alteratively use MKL instead of openblas
   # - mkl
@@ -29,7 +27,7 @@ dependencies:
   - pip:
     - breathe  # conde-forge version seems incompatible
 
-  # I/O (to be added later...)
-  # - hdf5
-  # - h5py
-  # - pyyaml
+  # I/O
+  - hdf5
+  - h5py
+  - pyyaml
