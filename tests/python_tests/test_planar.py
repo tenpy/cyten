@@ -270,6 +270,69 @@ def test_planar_contraction(
         assert np.allclose(res, expect)
 
 
+@pytest.mark.parametrize(
+    'cls, dom, cod, dom_cut, cod_cut, new_leg_dual',
+    [
+        pytest.param(ct.SymmetricTensor, 1, 1, 0, 1, False, id='Sym-1-1-False'),
+        pytest.param(ct.SymmetricTensor, 2, 0, 1, 0, True, id='Sym-2-0-True'),
+        pytest.param(ct.SymmetricTensor, 3, 1, 2, 0, False, id='Sym-3-1-False'),
+        pytest.param(ct.SymmetricTensor, 1, 3, 1, 1, True, id='Sym-1-3-True'),
+        pytest.param(ct.SymmetricTensor, 2, 2, 1, 1, False, id='Sym-2-2-False'),
+        pytest.param(ct.SymmetricTensor, 2, 2, 0, 2, True, id='Sym-2-2-True'),
+        pytest.param(ct.DiagonalTensor, 1, 1, 1, 0, False, id='Diag-False'),
+        pytest.param(ct.DiagonalTensor, 1, 1, 0, 1, True, id='Diag-True'),
+    ],
+)
+def test_planar_eigh(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatible_tensor):
+    # prepare hermitian tensor, do this as in test_eigh, then bend the legs
+    num_dom_legs = (cod + dom) // 2
+    T2: ct.Tensor = make_compatible_tensor(num_dom_legs, num_dom_legs, cls=cls)
+    T2: ct.Tensor = make_compatible_tensor(T2.domain, T2.domain, cls=cls)
+    T2 = T2 + T2.hc
+    T2_labels = list('efghijk')[:num_dom_legs]
+    T2_labels.extend(reversed([f'{l}*' for l in T2_labels]))
+    T2.set_labels(T2_labels)
+    T2.test_sanity()
+
+    left_bends = dom_cut
+    right_bends = cod - cod_cut
+    cod_legs = [*range(left_bends, num_dom_legs + right_bends)]
+    dom_legs = [*reversed(range(left_bends)), *reversed(range(num_dom_legs + right_bends, 2 * num_dom_legs))]
+    bend_right = [False] * left_bends + [True] * (2 * num_dom_legs - left_bends)
+    T = ct.permute_legs(T2, cod_legs, dom_legs, bend_right=bend_right)
+
+    sort = ['<', '>', 'm<', 'm>'][dom_cut - cod_cut]
+    W, V = ct.planar.planar_eigh(
+        T, codomain_cut=cod_cut, domain_cut=dom_cut, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual, sort=sort
+    )
+    W.test_sanity()
+    if isinstance(T.backend, ct.backends.AbelianBackend) and new_leg_dual and cod in [2, 3]:
+        with pytest.raises(AssertionError, match='wrong block shape'):
+            V.test_sanity()
+        pytest.xfail('Bug in tensors.eigh for abelian backend and new_leg_dual = True; probably with combine_legs')
+    V.test_sanity()
+    assert W.labels == ['b', 'c']
+    assert V.labels == [*T.labels[:cod_cut], 'a', *T.labels[T.num_legs - dom_cut :]]
+
+    assert ct.planar.planar_almost_equal(
+        ct.planar_contraction(ct.planar_contraction(V, W, 'a', 'b'), V.hc, 'c', 'a*'), T
+    )
+    eye1 = ct.SymmetricTensor.from_eye(T2.domain, T.backend, labels=T2_labels[: T2.num_domain_legs])
+    eye2 = ct.SymmetricTensor.from_eye([V.get_leg('a')], T.backend, labels=['a'])
+    eye2_contr = [l for l in V.labels if l != 'a']
+    assert ct.planar.planar_almost_equal(ct.planar_contraction(V, V.hc, 'a', 'a*'), eye1)
+    assert ct.planar.planar_almost_equal(
+        ct.planar_contraction(V, V.hc, eye2_contr, [f'{l}*' for l in eye2_contr]), eye2
+    )
+
+    # compare to non-planar result
+    W2, V2 = ct.eigh(T2, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual, sort=sort)
+    W2.test_sanity()
+    V2.test_sanity()
+    assert ct.almost_equal(W, W2)
+    assert ct.planar.planar_almost_equal(V, V2)
+
+
 planar_partial_trace_cases = {
     # traces in codomain
     'codomain-aab': (['a', 'a', 'b'], []),
