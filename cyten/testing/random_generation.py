@@ -597,7 +597,7 @@ def random_tensor(
             backend=backend,
             use_pipes=use_pipes,
             in_domain=False,
-            np_random=np_random
+            np_random=np_random,
         )
         codomain = partial_codomain.insert_multiply(leg, last)
     elif not domain_complete:
@@ -626,7 +626,7 @@ def random_tensor(
             backend=backend,
             use_pipes=use_pipes,
             in_domain=True,
-            np_random=np_random
+            np_random=np_random,
         )
         domain = partial_domain.insert_multiply(leg, last)
     else:
