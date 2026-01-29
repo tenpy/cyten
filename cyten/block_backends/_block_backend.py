@@ -35,6 +35,11 @@ class BlockBackend(metaclass=ABCMeta):
     def __str__(self):
         return f'{type(self).__name__}()'
 
+    @abstractmethod
+    def abs(self, a: Block) -> Block:
+        """The absolute value of a complex number, elementwise."""
+        ...
+
     def apply_basis_perm(self, block: Block, legs: list[Space], inv: bool = False) -> Block:
         """Apply basis_perm of a ElementarySpace (or its inverse) on every axis of a dense block"""
         # OPTIMIZE avoid applying permutations that we know are trivial (_basis_perm = None)
@@ -155,17 +160,17 @@ class BlockBackend(metaclass=ABCMeta):
 
         """
         if sort == 'm<' or sort == 'SM':
-            block = np.abs(block)
+            block = self.abs(block)
         elif sort == 'm>' or sort == 'LM':
-            block = -np.abs(block)
+            block = -self.abs(block)
         elif sort == '<' or sort == 'SR' or sort == 'SA':
-            block = np.real(block)
+            block = self.real(block)
         elif sort == '>' or sort == 'LR' or sort == 'LA':
-            block = -np.real(block)
+            block = -self.real(block)
         elif sort == 'SI':
-            block = np.imag(block)
+            block = self.imag(block)
         elif sort == 'LI':
-            block = -np.imag(block)
+            block = -self.imag(block)
         else:
             raise ValueError('unknown sort option ' + repr(sort))
         return self._argsort(block, axis=axis)
