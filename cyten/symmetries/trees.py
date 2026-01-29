@@ -788,7 +788,7 @@ class FusionTree:
             res_dual = np.concatenate([self.are_dual[:n], self.are_dual[n + 1 :]])
             idx = max(0, n - 1)
             res_inners = np.vstack((self.inner_sectors[:idx], self.inner_sectors[idx + 1 :]))
-            res_mults = np.concatenate([self.multiplicities[:idx], self.multiplicities[idx:]])
+            res_mults = np.concatenate([self.multiplicities[:idx], self.multiplicities[idx + 1 :]])
             res = FusionTree(self.symmetry, res_unc, self.coupled, res_dual, res_inners, res_mults)
             return {res: 1}
 
