@@ -461,6 +461,162 @@ def test_planar_permute_legs(J, K, codomain, domain, symmetry, backend, np_rando
         assert ct.almost_equal(permuted_back2, T)
 
 
+@pytest.mark.parametrize(
+    'cls, dom, cod, dom_cut, cod_cut, new_leg_dual',
+    [
+        pytest.param(ct.SymmetricTensor, 1, 1, 0, 1, False, id='Sym-1-1-False'),
+        pytest.param(ct.SymmetricTensor, 1, 1, 1, 0, True, id='Sym-1-1-True'),
+        pytest.param(ct.SymmetricTensor, 3, 1, 2, 1, False, id='Sym-3-1-False'),
+        pytest.param(ct.SymmetricTensor, 2, 2, 1, 1, False, id='Sym-2-2-False'),
+        pytest.param(ct.SymmetricTensor, 2, 2, 0, 2, True, id='Sym-2-2-True'),
+        pytest.param(ct.DiagonalTensor, 1, 1, 1, 0, False, id='Diag-False'),
+        pytest.param(ct.DiagonalTensor, 1, 1, 0, 1, True, id='Diag-True'),
+        pytest.param(ct.Mask, 1, 1, 0, 1, False, id='Mask-False'),
+        pytest.param(ct.Mask, 1, 1, 1, 0, True, id='Mask-True'),
+    ],
+)
+def test_planar_qr_lq(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatible_tensor):
+    T_labels = list('abcdef')[: dom + cod]
+    T: ct.Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=T_labels)
+
+    Q, R = ct.planar.planar_qr(T, codomain_cut=cod_cut, domain_cut=dom_cut, new_leg_dual=new_leg_dual, new_labels='v')
+    Q.test_sanity()
+    R.test_sanity()
+    assert Q.labels == [*T.labels[:cod_cut], 'v', *T.labels[T.num_legs - dom_cut :]]
+    assert R.labels == ['v*', *T.labels[cod_cut : T.num_legs - dom_cut]]
+    assert ct.planar.planar_almost_equal(ct.planar_contraction(Q, R, 'v', 'v*'), T)
+    eye = ct.SymmetricTensor.from_eye([Q.get_leg('v')], T.backend, labels=['v'])
+    contr = [l for l in Q.labels if l != 'v']
+    assert ct.planar.planar_almost_equal(ct.planar_contraction(Q, Q.hc, contr, [f'{l}*' for l in contr]), eye)
+    # compare to non-planar result
+    idcs = [*range(T.num_legs - dom_cut, T.num_legs), *range(cod_cut)]
+    T2 = ct.planar_permute_legs(T, codomain=idcs)
+    Q2, R2 = ct.qr(T2, new_labels='v', new_leg_dual=new_leg_dual)
+    Q2.test_sanity()
+    R2.test_sanity()
+    assert ct.planar.planar_almost_equal(Q, Q2)
+    assert ct.planar.planar_almost_equal(R, R2)
+
+    L, Q = ct.planar.planar_lq(
+        T, codomain_cut=cod_cut, domain_cut=dom_cut, new_leg_dual=new_leg_dual, new_labels=['v*', 'v']
+    )
+    L.test_sanity()
+    Q.test_sanity()
+    assert L.labels == [*T.labels[:cod_cut], 'v*', *T.labels[T.num_legs - dom_cut :]]
+    assert Q.labels == ['v', *T.labels[cod_cut : T.num_legs - dom_cut]]
+    assert ct.planar.planar_almost_equal(ct.planar_contraction(L, Q, 'v*', 'v'), T)
+    eye = ct.SymmetricTensor.from_eye([Q.get_leg('v')], T.backend, labels='v')
+    contr = [l for l in Q.labels if l != 'v']
+    assert ct.planar.planar_almost_equal(ct.planar_contraction(Q, Q.hc, contr, [f'{l}*' for l in contr]), eye)
+    # compare to non-planar result
+    L2, Q2 = ct.lq(T2, new_labels=['v*', 'v'], new_leg_dual=new_leg_dual)
+    L2.test_sanity()
+    Q2.test_sanity()
+    assert ct.planar.planar_almost_equal(L, L2)
+    assert ct.planar.planar_almost_equal(Q, Q2)
+
+
+@pytest.mark.parametrize(
+    'cls, dom, cod, dom_cut, cod_cut, new_leg_dual',
+    [
+        pytest.param(ct.SymmetricTensor, 1, 1, 1, 0, False, id='Sym-1-1-False'),
+        pytest.param(ct.SymmetricTensor, 1, 3, 0, 1, False, id='Sym-1-3-False'),
+        pytest.param(ct.SymmetricTensor, 3, 1, 2, 1, False, id='Sym-3-1-False'),
+        pytest.param(ct.SymmetricTensor, 2, 2, 1, 0, False, id='Sym-2-2-False'),
+        pytest.param(ct.SymmetricTensor, 2, 2, 1, 1, True, id='Sym-2-2-True'),
+        pytest.param(ct.DiagonalTensor, 1, 1, 1, 0, False, id='Diag-False'),
+        pytest.param(ct.DiagonalTensor, 1, 1, 0, 1, True, id='Diag-True'),
+        pytest.param(ct.Mask, 1, 1, 0, 1, False, id='Mask-False'),
+        pytest.param(ct.Mask, 1, 1, 1, 0, True, id='Mask-True'),
+    ],
+)
+def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatible_tensor):
+    T_labels = list('efghijklmn')[: dom + cod]
+    T: ct.Tensor = make_compatible_tensor(cod, dom, labels=T_labels, cls=cls)
+
+    print('Normal (non-truncated) SVD')
+    U, S, Vh = ct.planar.planar_svd(
+        T, codomain_cut=cod_cut, domain_cut=dom_cut, new_labels=['a', 'b', 'c', 'd'], new_leg_dual=new_leg_dual
+    )
+    U.test_sanity()
+    S.test_sanity()
+    Vh.test_sanity()
+    assert U.labels == [*T.labels[:cod_cut], 'a', *T.labels[T.num_legs - dom_cut :]]
+    assert S.labels == ['b', 'c']
+    assert Vh.labels == ['d', *T.labels[cod_cut : T.num_legs - dom_cut]]
+
+    assert isinstance(S, ct.DiagonalTensor)
+    assert (S >= 0).all()
+    npt.assert_almost_equal(ct.norm(S), ct.norm(T))
+
+    assert ct.planar.planar_almost_equal(ct.planar_contraction(ct.planar_contraction(U, S, 'a', 'b'), Vh, 'c', 'd'), T)
+    eye = ct.SymmetricTensor.from_eye(S.domain, backend=T.backend, labels=['a*', 'a'])
+    contr_U = [l for l in U.labels if l != 'a']
+    contr_Vh = [l for l in Vh.labels if l != 'd']
+    assert ct.planar.planar_almost_equal(ct.planar_contraction(U, U.hc, contr_U, [f'{l}*' for l in contr_U]), eye)
+    eye.set_labels(['d', 'd*'])
+    assert ct.planar.planar_almost_equal(ct.planar_contraction(Vh, Vh.hc, contr_Vh, [f'{l}*' for l in contr_Vh]), eye)
+
+    # compare to non-planar result
+    idcs = [*range(T.num_legs - dom_cut, T.num_legs), *range(cod_cut)]
+    T2 = ct.planar_permute_legs(T, codomain=idcs)
+    U2, S2, Vh2 = ct.svd(T2, new_labels=['a', 'b', 'c', 'd'], new_leg_dual=new_leg_dual)
+    U2.test_sanity()
+    S2.test_sanity()
+    Vh2.test_sanity()
+    assert ct.planar.planar_almost_equal(U, U2)
+    assert ct.almost_equal(S, S2)
+    assert ct.planar.planar_almost_equal(Vh, Vh2)
+
+    if isinstance(T.backend, ct.backends.FusionTreeBackend) and T.has_pipes:
+        with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
+            _ = ct.truncated_svd(T)
+        pytest.xfail('_mask_contract does not support pipes yet')
+
+    print('Truncated SVD')
+    for svd_min, normalize_to in [(1e-14, None), (1e-4, None), (1e-4, 2.7)]:
+        U, S, Vh, err, renormalize = ct.planar.planar_truncated_svd(
+            T,
+            codomain_cut=cod_cut,
+            domain_cut=dom_cut,
+            new_labels=['a', 'b', 'c', 'd'],
+            new_leg_dual=new_leg_dual,
+            normalize_to=normalize_to,
+            svd_min=svd_min,
+        )
+        U.test_sanity()
+        S.test_sanity()
+        Vh.test_sanity()
+        # check that U @ S @ Vd recovers the original tensor up to the error incurred
+        T_approx = ct.planar_contraction(ct.planar_contraction(U, S, 'a', 'b'), Vh, 'c', 'd') / renormalize
+        npt.assert_almost_equal(
+            err,
+            ct.norm(
+                T.as_SymmetricTensor()
+                - ct.planar_permute_legs(T_approx, codomain=T.codomain_labels, domain=T.domain_labels)
+            ),
+        )
+
+        # check isometric properties
+        eye = ct.SymmetricTensor.from_eye(S.domain, backend=T.backend, labels=['a*', 'a'])
+        assert ct.planar.planar_almost_equal(ct.planar_contraction(U, U.hc, contr_U, [f'{l}*' for l in contr_U]), eye)
+        eye.set_labels(['d', 'd*'])
+        assert ct.planar.planar_almost_equal(
+            ct.planar_contraction(Vh, Vh.hc, contr_Vh, [f'{l}*' for l in contr_Vh]), eye
+        )
+
+        # compare to non-planar result
+        U2, S2, Vh2, _, _ = ct.truncated_svd(
+            T2, new_labels=['a', 'b', 'c', 'd'], new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min
+        )
+        U2.test_sanity()
+        S2.test_sanity()
+        Vh2.test_sanity()
+        assert ct.planar.planar_almost_equal(U, U2)
+        assert ct.almost_equal(S, S2)
+        assert ct.planar.planar_almost_equal(Vh, Vh2)
+
+
 @pytest.mark.parametrize('symmetry', [ct.no_symmetry, ct.u1_symmetry, ct.fibonacci_anyon_category])
 def test_PlanarDiagram(symmetry, np_random):
     # ===========================================
