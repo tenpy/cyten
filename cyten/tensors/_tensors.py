@@ -3309,7 +3309,7 @@ class ChargedTensor(Tensor):
         if self.charge_leg.num_sectors != 1 or self.charge_leg.multiplicities[0] != 1:
             raise ValueError('Not a single sector.')
         if self.charge_leg.sector_dims[0] > 1:
-            raise NotImplementedError
+            raise NotImplementedError('to_dense_block_single_sector does not support higher-dim sectors')
         block = self.backend.inv_part_to_dense_block_single_sector(self.invariant_part)
         return self.backend.block_backend.item(self.charged_state) * block
 

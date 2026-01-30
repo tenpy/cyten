@@ -171,6 +171,13 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
         assert np.allclose(a_lhs, a_rhs)
 
 
+def tree_pair_to_numpy(X: trees.FusionTree, Y: trees.FusionTree):
+    X = X.as_block().conj()  # [a1 ... aJ c]
+    Y = Y.as_block()  # [b1 ... bK c]
+    Y = np.transpose(Y, list(reversed(range(Y.ndim))))  # [c bK .. b1]
+    return np.tensordot(X, Y, (-1, 0))  # [a1 ... aJ bK ... b1]
+
+
 @pytest.mark.parametrize('bend_down', [True, False])
 def test_FusionTree_bend_leg(bend_down, any_symmetry, make_any_sectors, np_random):
     X, Y = random_tree_pair(
@@ -200,8 +207,8 @@ def test_FusionTree_bend_leg(bend_down, any_symmetry, make_any_sectors, np_rando
     # compare to matrix representation
     if any_symmetry.can_be_dropped:
         # bending leg does nothing in this case
-        expect = np.tensordot(X.as_block().conj(), Y.as_block(), (-1, -1))
-        res_np = sum(a_i * np.tensordot(Y_i.as_block().conj(), X_i.as_block(), (-1, -1)) for (Y_i, X_i), a_i in res)
+        expect = tree_pair_to_numpy(X, Y)
+        res_np = sum(a_i * tree_pair_to_numpy(X_i, Y_i) for (X_i, Y_i), a_i in res)
         assert np.allclose(res_np, expect)
 
     # check that bending back gives back the same tree

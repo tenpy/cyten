@@ -23,7 +23,7 @@ def random_symmetry_sectors(
 ) -> _symmetries.SectorArray:
     """Random unique symmetry sectors, optionally sorted."""
     if isinstance(symmetry, _symmetries.SU2Symmetry):
-        res = np_random.choice(int(1.3 * num), replace=False, size=(num, 1))
+        res = np_random.choice(max(int(1.3 * num), 2), replace=False, size=(num, 1))
     elif isinstance(symmetry, _symmetries.U1Symmetry):
         vals = list(range(-num, num)) + [123]
         res = np_random.choice(vals, replace=False, size=(num, 1))
@@ -429,8 +429,10 @@ def random_tensor(
             use_pipes=use_pipes,
             np_random=np_random,
         )
-
-        charged_state = [1] if inv_part.symmetry.can_be_dropped else None
+        if inv_part.symmetry.can_be_dropped and charge_leg.dim == 1:
+            charged_state = [1]
+        else:
+            charged_state = None
         res = tensors.ChargedTensor(inv_part, charged_state=charged_state)
         res.test_sanity()
         return res
