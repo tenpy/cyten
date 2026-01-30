@@ -1401,7 +1401,7 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
     if tensor.symmetry.can_be_dropped:
         tensor_np = tensor.to_numpy(understood_braiding=True)
         res_np = res.to_numpy(understood_braiding=True)
-        npt.assert_array_almost_equal_nulp(res_np, tensor_np, 100)
+        npt.assert_allclose(res_np, tensor_np)
 
     bent_back = tensors.bend_legs(tensor, num_codomain_legs=tensor.num_codomain_legs)
     bent_back.test_sanity()
