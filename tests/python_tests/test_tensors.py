@@ -2954,10 +2954,10 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
             [['c', 'e'], ['a', 'f']],
             [0, 3],
             [3, 0],
-            id='Sym@Sym-4-2-4',
+            id='Sym-Sym-4-2-4',
         ),
         pytest.param(
-            SymmetricTensor, SymmetricTensor, [['a', 'b'], ['c']], [['d', 'e'], ['f']], [], [], id='Sym@Sym-3-0-3'
+            SymmetricTensor, SymmetricTensor, [['a', 'b'], ['c']], [['d', 'e'], ['f']], [], [], id='Sym-Sym-3-0-3'
         ),
         pytest.param(
             SymmetricTensor,
@@ -2966,10 +2966,10 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
             [['c', 'a'], ['d', 'b']],
             [0, 1, 3, 2],
             [1, 2, 0, 3],
-            id='Sym@Sym-4-4-4',
+            id='Sym-Sym-4-4-4',
         ),
         pytest.param(
-            SymmetricTensor, SymmetricTensor, [[], ['a', 'b']], [['b', 'c'], ['d']], [0], [0], id='Sym@Sym-2-1-3'
+            SymmetricTensor, SymmetricTensor, [[], ['a', 'b']], [['b', 'c'], ['d']], [0], [0], id='Sym-Sym-2-1-3'
         ),
         #
         pytest.param(
@@ -2979,10 +2979,10 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
             [['c', 'e'], ['a', 'f']],
             [0, 3],
             [3, 0],
-            id='Sym@Charged-4-2-4',
+            id='Sym-Charged-4-2-4',
         ),
         pytest.param(
-            ChargedTensor, SymmetricTensor, [['a', 'b'], ['c']], [['d', 'e'], ['f']], [], [], id='Charged@Sym-3-0-3'
+            ChargedTensor, SymmetricTensor, [['a', 'b'], ['c']], [['d', 'e'], ['f']], [], [], id='Charged-Sym-3-0-3'
         ),
         pytest.param(
             SymmetricTensor,
@@ -2991,10 +2991,10 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
             [['c', 'a'], ['d', 'b']],
             [0, 1, 3, 2],
             [1, 2, 0, 3],
-            id='Sym@Charged-4-4-4',
+            id='Sym-Charged-4-4-4',
         ),
         pytest.param(
-            SymmetricTensor, ChargedTensor, [[], ['a', 'b']], [['b', 'c'], ['d']], [0], [0], id='Sym@Charged-2-1-3'
+            SymmetricTensor, ChargedTensor, [[], ['a', 'b']], [['b', 'c'], ['d']], [0], [0], id='Sym-Charged-2-1-3'
         ),
         #
         # Note: need to put DiagonalTensor first to get correct legs. If SymmetricTensor is first,
@@ -3006,39 +3006,39 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
             [['a', 'b'], ['c', 'd']],
             [1, 0],
             [1, 3],
-            id='Diag@Sym-4-2-2',
+            id='Diag-Sym-4-2-2',
         ),
         pytest.param(
-            SymmetricTensor, DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Sym@Diag-4-1-2'
+            SymmetricTensor, DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Sym-Diag-4-1-2'
         ),
         pytest.param(
-            SymmetricTensor, DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['f']], [], [], id='Sym@Diag-4-0-2'
+            SymmetricTensor, DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['f']], [], [], id='Sym-Diag-4-0-2'
         ),
         #
         # Note: If both legs of a mask are contracted, we should generate the mask first. otherwise its legs may be invalid.
         pytest.param(
-            Mask, SymmetricTensor, [['c'], ['b']], [['a', 'b'], ['c', 'd']], [1, 0], [1, 3], id='Sym@Mask-4-2-2'
+            Mask, SymmetricTensor, [['c'], ['b']], [['a', 'b'], ['c', 'd']], [1, 0], [1, 3], id='Sym-Mask-4-2-2'
         ),
-        pytest.param(SymmetricTensor, Mask, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Sym@Mask-4-1-2'),
-        pytest.param(SymmetricTensor, Mask, [['a', 'b'], ['c', 'd']], [['e'], ['f']], [], [], id='Sym@Mask-4-0-2'),
+        pytest.param(SymmetricTensor, Mask, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Sym-Mask-4-1-2'),
+        pytest.param(SymmetricTensor, Mask, [['a', 'b'], ['c', 'd']], [['e'], ['f']], [], [], id='Sym-Mask-4-0-2'),
         #
         pytest.param(
-            ChargedTensor, DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Charged@Diag-4-1-2'
+            ChargedTensor, DiagonalTensor, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Charged-Diag-4-1-2'
         ),
-        pytest.param(ChargedTensor, Mask, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Charged@Mask-4-1-2'),
+        pytest.param(ChargedTensor, Mask, [['a', 'b'], ['c', 'd']], [['e'], ['b']], [1], [1], id='Charged@-ask-4-1-2'),
         #
-        pytest.param(DiagonalTensor, DiagonalTensor, [['a'], ['b']], [['c'], ['b']], [1], [1], id='Diag@Diag-2-1-2'),
+        pytest.param(DiagonalTensor, DiagonalTensor, [['a'], ['b']], [['c'], ['b']], [1], [1], id='Diag-Diag-2-1-2'),
         pytest.param(
-            DiagonalTensor, DiagonalTensor, [['a'], ['b']], [['b'], ['a']], [1, 0], [0, 1], id='Diag@Diag-2-2-2'
+            DiagonalTensor, DiagonalTensor, [['a'], ['b']], [['b'], ['a']], [1, 0], [0, 1], id='Diag-Diag-2-2-2'
         ),
-        pytest.param(DiagonalTensor, DiagonalTensor, [['a'], ['b']], [['c'], ['d']], [], [], id='Diag@Diag-2-0-2'),
+        pytest.param(DiagonalTensor, DiagonalTensor, [['a'], ['b']], [['c'], ['d']], [], [], id='Diag-Diag-2-0-2'),
         #
-        pytest.param(Mask, Mask, [['a'], ['b']], [['c'], ['b']], [1], [1], id='Mask@Mask-2-1-2'),
+        pytest.param(Mask, Mask, [['a'], ['b']], [['c'], ['b']], [1], [1], id='Mask-Mask-2-1-2'),
         #
         # TODO: having issues randomly generating the masks in this case...
-        # pytest.param(Mask, Mask, [['a'], ['b']], [['a'], ['b']], [0, 1], [0, 1], id='Mask@Mask-2-2-2'),
+        # pytest.param(Mask, Mask, [['a'], ['b']], [['a'], ['b']], [0, 1], [0, 1], id='Mask-Mask-2-2-2'),
         #
-        pytest.param(Mask, Mask, [['a'], ['b']], [['c'], ['d']], [], [], id='Mask@Mask-2-0-2'),
+        pytest.param(Mask, Mask, [['a'], ['b']], [['c'], ['d']], [], [], id='Mask-Mask-2-0-2'),
     ],
 )
 @pytest.mark.parametrize('use_pipes', [False, 0.3])
