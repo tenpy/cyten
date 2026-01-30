@@ -825,6 +825,36 @@ class ProductSymmetry(Symmetry):
         else:
             self.fusion_tensor_dtype = Dtype.common(*dtypes)
 
+    @classmethod
+    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
+        obj = cls.__new__(cls)
+        hdf5_loader.memorize_load(h5gr, obj)
+        obj.factors = hdf5_loader.load(subpath + 'factors')
+        obj.sector_slices = hdf5_loader.load(subpath + 'sector_slices')
+        obj.fusion_tensor_dtype = Dtype(hdf5_loader.load(subpath + 'fusion_tensor_dtype'))
+        obj.group_name = hdf5_loader.load(subpath + 'group_name')
+        obj.fusion_style = FusionStyle(hdf5_loader.load(subpath + 'fusion_style'))
+        obj.braiding_style = BraidingStyle(hdf5_loader.load(subpath + 'braiding_style'))
+        obj.trivial_sector = hdf5_loader.load(subpath + 'trivial_sector')
+        obj.num_sectors = hdf5_loader.load(subpath + 'num_sectors')
+        obj.sector_ind_len = hdf5_loader.load(subpath + 'sector_ind_len')
+        obj.descriptive_name = hdf5_loader.get_attr(h5gr, 'descriptive_name')
+        obj.has_complex_topological_data = hdf5_loader.get_attr(h5gr, 'has_complex_topological_data')
+        return obj
+
+    def save_hdf5(self, hdf5_saver, h5gr, subpath):
+        hdf5_saver.save(self.factors, subpath + 'factors')
+        hdf5_saver.save(self.sector_slices, subpath + 'sector_slices')
+        hdf5_saver.save(self.fusion_tensor_dtype.value, subpath + 'fusion_tensor_dtype')
+        hdf5_saver.save(self.group_name, subpath + 'group_name')
+        hdf5_saver.save(self.fusion_style.value, subpath + 'fusion_style')
+        hdf5_saver.save(self.braiding_style.value, subpath + 'braiding_style')
+        hdf5_saver.save(self.trivial_sector, subpath + 'trivial_sector')
+        hdf5_saver.save(self.num_sectors, subpath + 'num_sectors')
+        hdf5_saver.save(self.sector_ind_len, subpath + 'sector_ind_len')
+        h5gr.attrs['descriptive_name'] = self.descriptive_name.__str__()
+        h5gr.attrs['has_complex_topological_data'] = bool(self.has_complex_topological_data)
+
     def is_valid_sector(self, a: Sector) -> bool:
         if getattr(a, 'shape', ()) != (self.sector_ind_len,):
             return False
