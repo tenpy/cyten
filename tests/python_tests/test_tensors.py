@@ -3323,7 +3323,7 @@ def test_tdot(
                 B = tensors.permute_legs(B, codomain=contr_B, domain=domain_B, levels=levels_B)
             contr_B = list(range(num_contr))
 
-    compare_numpy = A.symmetry.has_trivial_braid
+    compare_numpy = A.symmetry.has_symmetric_braid
     # if the braid is trivial, we can compare to braiding the to_numpy() representations
     # for a symmetric braid, we can do to_numpy(), but the numpy rep loses the braiding information
     # for general braids, we cant even do to_numpy()
@@ -3342,16 +3342,22 @@ def test_tdot(
         # tensor result
         res.test_sanity()
         if compare_numpy:
-            res_np = res.to_numpy()
+            res_np = res.to_numpy(understood_braiding=True)
         assert res.codomain.factors == expect_codomain
         assert res.domain.factors == expect_domain
         assert res.legs == expect_legs
         assert res.labels == expect_labels
 
     if compare_numpy:
-        A_np = A.to_numpy()
-        B_np = B.to_numpy()
-        expect = np.tensordot(A_np, B_np, [contr_A, contr_B])
+        A_np = A.to_numpy(understood_braiding=True)
+        B_np = B.to_numpy(understood_braiding=True)
+        if A.symmetry.has_trivial_braid:
+            expect = np.tensordot(A_np, B_np, [contr_A, contr_B])
+        else:
+            # need to be careful about the braiding
+            A2 = swap_gate_numpy.permute_legs(A_np, A.num_codomain_legs, A.legs, codomain=contr_A, bend_right=True)
+            B2 = swap_gate_numpy.permute_legs(B_np, B.num_codomain_legs, B.legs, domain=contr_B, bend_right=True)
+            expect = np.tensordot(A2, B2, ([*range(num_contr)], [*reversed(range(B.num_legs - num_contr, B.num_legs))]))
         npt.assert_allclose(res_np, expect, atol=1.0e-14)
 
 
