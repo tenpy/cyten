@@ -23,7 +23,7 @@ def random_symmetry_sectors(
 ) -> _symmetries.SectorArray:
     """Random unique symmetry sectors, optionally sorted."""
     if isinstance(symmetry, _symmetries.SU2Symmetry):
-        res = np_random.choice(int(1.3 * num), replace=False, size=(num, 1))
+        res = np_random.choice(max(int(1.3 * num), 2), replace=False, size=(num, 1))
     elif isinstance(symmetry, _symmetries.U1Symmetry):
         vals = list(range(-num, num)) + [123]
         res = np_random.choice(vals, replace=False, size=(num, 1))
