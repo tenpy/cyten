@@ -119,7 +119,9 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
     # for groups: check versus explicit matrix representations
     if any_symmetry.can_be_dropped:
         tree_np = tree.as_block()
-        expect = np.swapaxes(tree_np, j, j + 1)
+        a_j, a_jp1 = tree.uncoupled[j], tree.uncoupled[j + 1]
+        fused = any_symmetry.fusion_outcomes(a_j, a_jp1)[0]
+        expect = any_symmetry.r_symbol(a_j, a_jp1, fused).item() * np.swapaxes(tree_np, j, j + 1)
         res = sum(a * t.as_block() for t, a in braided1)
         assert np.allclose(res, expect)
 
