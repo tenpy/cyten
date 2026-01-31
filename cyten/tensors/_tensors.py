@@ -3584,7 +3584,7 @@ def angle(x: _ElementwiseType) -> _ElementwiseType:
 
 
 def almost_equal(
-    tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol=1e-8, allow_different_types: bool = False
+    tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol: float = 1e-8, allow_different_types: bool = False
 ) -> bool:
     """Checks if two tensors are equal up to numerical tolerance.
 
@@ -3597,7 +3597,7 @@ def almost_equal(
     Parameters
     ----------
     tensor_1, tensor_2
-        The tensors to compare
+        The tensors to compare.
     atol, rtol
         Absolute and relative tolerance, see above.
     allow_different_types: bool
@@ -3607,6 +3607,11 @@ def almost_equal(
     Notes
     -----
     Unlike numpy, our definition is symmetric under exchanging.
+
+    See Also
+    --------
+    planar_almost_equal
+        Comparison between two tensors with a possible planar permutation between them.
 
     """
     check_same_legs(tensor_1, tensor_2)
@@ -3936,6 +3941,11 @@ def combine_legs(
     such that the ordering of non-participating legs is preserved.
     Then, each group is replaced by the appropriate product space, either in the domain or the
     codomain.
+
+    See Also
+    --------
+    planar_combine_legs
+        Planar version that uses only left and right bends, not braids, in order to combine legs.
 
     """
     # 1) Deal with different tensor types. Reduce everything to SymmetricTensor.
@@ -4379,8 +4389,8 @@ def eigh(
         A single label ``a`` is equivalent to ``[a, a*, a]``.
         The new legs are unlabelled by default.
     new_leg_dual: bool
-        If the new leg should be a ket space (``False``) or bra space (``True``)
-    sort: {'m>', 'm<', '>', '<', ``None``}
+        If the new leg should be a ket space (``False``) or bra space (``True``).
+    sort: {'m>', 'm<', '>', '<', 'LI', 'SI', ``None``}
         How the eigenvalues should are sorted *within* each charge block.
         Defaults to ``None``, which is same as '<'. See :func:`argsort` for details.
 
@@ -5249,7 +5259,7 @@ def partial_trace(
         |    │   ╭───│───╮   │
         |    7   6   5   4   │
         |   ┏┷━━━┷━━━┷━━━┷┓  │
-        |   ┃      A      ┃  │    ==   trace(A, (0, 2), (3, 5), (-2, 4))
+        |   ┃      A      ┃  │    ==   partial_trace(A, (0, 2), (3, 5), (-2, 4))
         |   ┗┯━━━┯━━━┯━━━┯┛  │
         |    0   1   2   3   │
         |    ╰───│───╯   ╰───╯
@@ -5260,7 +5270,7 @@ def partial_trace(
     Parameters
     ----------
     tensor: Tensor
-        The tensor to act on
+        The tensor to act on.
     *pairs:
         A number of pairs, each describing two legs via index or via label.
         Each pair is connected, realizing a partial trace.
@@ -5561,7 +5571,7 @@ def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
         Labels for the new legs. Either two legs ``[a, b]`` s.t. ``Q.labels[-1] == a``
         and ``R.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
     new_leg_dual: bool
-        If the new leg should be a ket space (``False``) or bra space (``True``)
+        If the new leg should be a ket space (``False``) or bra space (``True``).
 
     """
     a, b = _decomposition_labels(new_labels)
@@ -5642,7 +5652,7 @@ def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
         Labels for the new legs. Either two legs ``[a, b]`` s.t. ``L.labels[-1] == a``
         and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
     new_leg_dual: bool
-        If the new leg should be a ket space (``False``) or bra space (``True``)
+        If the new leg should be a ket space (``False``) or bra space (``True``).
 
     """
     a, b = _decomposition_labels(new_labels)
@@ -5939,8 +5949,8 @@ def svd(
       reproduces the usual matrix SVD.
 
     .. note ::
-        The basis for the newly generated leg is chosen arbitrarily, and in particular unlike
-        e.g. :func:`numpy.linalg.svd` it is not guaranteed that ``S.diag_numpy`` is sorted.
+        The basis for the newly generated leg is chosen arbitrarily, and in particular, unlike,
+        e.g., :func:`numpy.linalg.svd` it is not guaranteed that ``S.diag_numpy`` is sorted.
 
     Graphically::
 
@@ -5973,7 +5983,7 @@ def svd(
         A single label ``a`` is equivalent to ``[a, a*, a, a*]``.
         The new legs are unlabelled by default.
     new_leg_dual: bool
-        If the new leg should be a ket space (``False``) or bra space (``True``)
+        If the new leg should be a ket space (``False``) or bra space (``True``).
     algorithm: str, optional
         The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
         See the :attr:`~cyten.backends.BlockBackend.svd_algorithms` attribute of the
@@ -6186,7 +6196,7 @@ def tdot(
         Which legs to contract: ``legs1[n]`` on `tensor1` is contracted with ``legs2[n]`` on
         `tensor2`.
     relabel1, relabel2: dict[str, str], optional
-        A mapping of labels for each of the tensors. The result has labels, as if the
+        A mapping of labels for each of the tensors. The result has labels as if the
         input tensors were relabelled accordingly before contraction.
 
     Returns
@@ -6201,7 +6211,7 @@ def tdot(
 
     See Also
     --------
-    compose, partial_compose, apply_mask, scale_axis
+    compose, partial_compose, apply_mask, scale_axis, planar_contraction
 
     """
     _ = get_same_device(tensor1, tensor2)
