@@ -3,9 +3,9 @@ import numpy as np
 import pytest
 from numpy import testing as npt
 
-from cyten import SymmetryError
+from cyten import SymmetryError, symmetries
 from cyten.block_backends import NumpyBlockBackend
-from cyten.symmetries import _symmetries, spaces, trees
+from cyten.symmetries import spaces, trees
 from cyten.testing import random_ElementarySpace
 from cyten.tools import is_permutation
 
@@ -23,7 +23,7 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
     s2 = spaces.ElementarySpace.from_trivial_sector(dim=8)
 
     print('checking ElementarySpace.sector_decomposition')
-    npt.assert_array_equal(s2.sector_decomposition, _symmetries.no_symmetry.trivial_sector[None, :])
+    npt.assert_array_equal(s2.sector_decomposition, symmetries.no_symmetry.trivial_sector[None, :])
 
     print('checking str and repr')
     _ = str(s1)
@@ -121,7 +121,7 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
 
     print('check from_basis')
     if any_symmetry.can_be_dropped:
-        if isinstance(any_symmetry, _symmetries.SU2Symmetry):
+        if any_symmetry.has_factor(symmetries.SU2Symmetry):
             with pytest.raises(ValueError, match='Sectors must appear in whole multiplets'):
                 bad_sectors = np.array([0, 1, 1, 1, 2, 2, 2])[:, None]
                 # have three basis vectors for 2-dimensional spin-1/2
@@ -211,7 +211,7 @@ def test_take_slice(make_any_space, any_symmetry, np_random):
             _ = space.take_slice([True])
         return
 
-    if isinstance(any_symmetry, _symmetries.SU2Symmetry):
+    if any_symmetry.has_factor(symmetries.SU2Symmetry):
         sectors = np.array([0, 1, 2, 4])[:, None]
         mults = np.array([3, 1, 2, 2])
         basis_perm = np.array([19, 20, 17, 2, 9, 16, 8, 3, 0, 4, 11, 13, 5, 15, 12, 14, 10, 7, 1, 18, 6])
@@ -315,7 +315,7 @@ def test_TensorProduct(any_symmetry, make_any_space, make_any_sectors, num_space
 
 
 def test_TensorProduct_SU2():
-    sym = _symmetries.SU2Symmetry()
+    sym = symmetries.SU2Symmetry().as_ProductSymmetry()
     a = spaces.ElementarySpace(sym, [[0], [3], [2]], [2, 3, 4])
     b = spaces.ElementarySpace(sym, [[1], [4]], [5, 6])
     c = spaces.ElementarySpace(sym, [[0], [3], [1]], [3, 1, 2])
@@ -596,7 +596,7 @@ def assert_spaces_equal(space1: spaces.Space, space2: spaces.Space):
     assert space1 == space2
 
 
-def _sort_sectors(sectors, sym: _symmetries.Symmetry, by_duals: bool = False):
+def _sort_sectors(sectors, sym: symmetries.ProductSymmetry, by_duals: bool = False):
     sectors = np.array(sectors)
     sort_by = sym.dual_sectors(sectors) if by_duals else sectors
     perm = np.lexsort(sort_by.T)

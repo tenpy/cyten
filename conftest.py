@@ -198,9 +198,9 @@ _symmetries = {
     # groups:
     'NoSymm': ct.no_symmetry,
     'U1': ct.u1_symmetry,
-    'Z4_named': ct.ZNSymmetry(4, 'My_Z4_symmetry'),
-    'U1xZ3': ct.ProductSymmetry([ct.u1_symmetry, ct.z3_symmetry]),
-    'SU2': ct.SU2Symmetry(),
+    'Z4_named': ct.ZNSymmetry(4, 'My_Z4_symmetry').as_ProductSymmetry(),
+    'U1xZ3': ct.u1_symmetry * ct.z3_symmetry,
+    'SU2': ct.su2_symmetry,
     # anyons:
     'fermion': ct.fermion_parity,
     'FibonacciAnyon': ct.fibonacci_anyon_category,
@@ -238,7 +238,7 @@ def any_backend(block_backend, any_symmetry_backend) -> backends.TensorBackend:
     params=[s for s in _symmetries.values() if isinstance(s, ct.AbelianGroup)],
     ids=[k for k, s in _symmetries.items() if isinstance(s, ct.AbelianGroup)],
 )
-def abelian_group_symmetry(request) -> ct.Symmetry:
+def abelian_group_symmetry(request) -> ct.ProductSymmetry:
     return request.param
 
 
@@ -246,12 +246,12 @@ def abelian_group_symmetry(request) -> ct.Symmetry:
     params=[s for s in _symmetries.values() if s.can_be_dropped],
     ids=[k for k, s in _symmetries.items() if s.can_be_dropped],
 )
-def any_symmetry_that_can_be_dropped(request) -> ct.Symmetry:
+def any_symmetry_that_can_be_dropped(request) -> ct.ProductSymmetry:
     return request.param
 
 
 @pytest.fixture(params=list(_symmetries.values()), ids=list(_symmetries.keys()))
-def any_symmetry(request) -> ct.Symmetry:
+def any_symmetry(request) -> ct.ProductSymmetry:
     return request.param
 
 
@@ -296,10 +296,10 @@ for _sym_name, _sym in _symmetries.items():
 
 
 @pytest.fixture(params=list(_compatible_pairs.values()), ids=list(_compatible_pairs.keys()))
-def _compatible_backend_symm_pairs(request) -> tuple[str, ct.Symmetry]:
+def _compatible_backend_symm_pairs(request) -> tuple[str, ct.ProductSymmetry]:
     """Helper fixture that allows us to generate the *compatible* fixtures.
 
-    Values are pairs (symmetry_backend: str, symmetry: Symmetry)
+    Values are pairs (symmetry_backend: str, symmetry: ProductSymmetry)
     """
     return request.param
 
@@ -316,7 +316,7 @@ def compatible_backend(compatible_symmetry_backend, block_backend) -> backends.T
 
 
 @pytest.fixture
-def compatible_symmetry(_compatible_backend_symm_pairs) -> ct.Symmetry:
+def compatible_symmetry(_compatible_backend_symm_pairs) -> ct.ProductSymmetry:
     symmetry_backend, symmetry = _compatible_backend_symm_pairs
     return symmetry
 

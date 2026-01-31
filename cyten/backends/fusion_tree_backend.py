@@ -95,9 +95,9 @@ from ..symmetries import (
     ElementarySpace,
     FusionTree,
     LegPipe,
+    ProductSymmetry,
     Sector,
     Space,
-    Symmetry,
     TensorProduct,
     fusion_trees,
 )
@@ -2112,9 +2112,9 @@ class FusionTreeBackend(TensorBackend):
     def squeeze_legs(self, a: SymmetricTensor, idcs: list[int]) -> Data:
         return a.data
 
-    def supports_symmetry(self, symmetry: Symmetry) -> bool:
+    def supports_symmetry(self, symmetry: ProductSymmetry) -> bool:
         # supports all symmetries
-        return isinstance(symmetry, Symmetry)
+        return isinstance(symmetry, ProductSymmetry)
 
     def svd(
         self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None
@@ -2367,7 +2367,7 @@ class FusionTreeBackend(TensorBackend):
     def _get_forest_block_contribution(
         self,
         block,
-        sym: Symmetry,
+        sym: ProductSymmetry,
         codomain,
         domain,
         coupled,
@@ -2450,7 +2450,7 @@ class FusionTreeBackend(TensorBackend):
         self,
         block,
         entries,
-        sym: Symmetry,
+        sym: ProductSymmetry,
         codomain: TensorProduct,
         domain: TensorProduct,
         coupled,

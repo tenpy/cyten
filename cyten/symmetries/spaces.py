@@ -28,7 +28,7 @@ from ..tools.misc import (
     to_valid_idx,
 )
 from ..tools.string import format_like_list
-from ._symmetries import ProductSymmetry, Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
+from ._symmetries import ProductSymmetry, Sector, SectorArray, SymmetryError, no_symmetry
 from .trees import FusionTree, fusion_trees
 
 if TYPE_CHECKING:
@@ -43,7 +43,7 @@ class Leg(metaclass=ABCMeta):
 
     Attributes
     ----------
-    symmetry : Symmetry
+    symmetry : ProductSymmetry
         The symmetry associated with this leg.
     dim : int or float
         The (quantum-)dimension of this leg.
@@ -54,7 +54,7 @@ class Leg(metaclass=ABCMeta):
 
     """
 
-    def __init__(self, symmetry: Symmetry, dim: int | float, is_dual: bool, basis_perm: ndarray | None):
+    def __init__(self, symmetry: ProductSymmetry, dim: int | float, is_dual: bool, basis_perm: ndarray | None):
         self.symmetry = symmetry
         self.dim = dim
         self.is_dual = is_dual
@@ -415,7 +415,7 @@ class Space(metaclass=ABCMeta):
 
     Attributes
     ----------
-    symmetry: Symmetry
+    symmetry: ProductSymmetry
         The symmetry associated with this space.
     sector_decomposition : 2D numpy array of int
         The unique sectors that appear in the sector decomposition. A 2D array of integers with
@@ -455,12 +455,12 @@ class Space(metaclass=ABCMeta):
 
     def __init__(
         self,
-        symmetry: Symmetry,
+        symmetry: ProductSymmetry,
         sector_decomposition: SectorArray | Sequence[Sequence[int]],
         multiplicities: Sequence[int] | None = None,
         sector_order: Literal['sorted'] | Literal['dual_sorted'] | None = None,
     ):
-        self.symmetry = symmetry
+        self.symmetry = symmetry = symmetry.as_ProductSymmetry()
         self.sector_decomposition = sector_decomposition = np.asarray(sector_decomposition, dtype=int)
         self.sector_order = sector_order
         if sector_decomposition.ndim != 2 or sector_decomposition.shape[1] != symmetry.sector_ind_len:
@@ -663,7 +663,9 @@ class Space(metaclass=ABCMeta):
         )
 
     @abstractmethod
-    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, injective: bool = False) -> ElementarySpace:
+    def change_symmetry(
+        self, symmetry: ProductSymmetry, sector_map: callable, injective: bool = False
+    ) -> ElementarySpace:
         """Change the symmetry by specifying how the sectors change.
 
         .. note ::
@@ -674,7 +676,7 @@ class Space(metaclass=ABCMeta):
 
         Parameters
         ----------
-        symmetry : :class:`~cyten.groups.Symmetry`
+        symmetry : :class:`~cyten.groups.ProductSymmetry`
             The symmetry of the new space
         sector_map : function (SectorArray,) -> (SectorArray,)
             A map of sectors (2D int arrays), such that ``new_sectors = sector_map(old_sectors)``.
@@ -786,7 +788,7 @@ class ElementarySpace(Space, Leg):
 
     def __init__(
         self,
-        symmetry: Symmetry,
+        symmetry: ProductSymmetry,
         defining_sectors: SectorArray,
         multiplicities: ndarray = None,
         is_dual: bool = False,
@@ -821,7 +823,7 @@ class ElementarySpace(Space, Leg):
         Leg.test_sanity(self)
 
     @classmethod
-    def from_basis(cls, symmetry: Symmetry, sectors_of_basis: Sequence[Sequence[int]]) -> ElementarySpace:
+    def from_basis(cls, symmetry: ProductSymmetry, sectors_of_basis: Sequence[Sequence[int]]) -> ElementarySpace:
         """Create an ElementarySpace by specifying the sector of every basis element.
 
         This requires that the symmetry :attr:`~cyten.symmetries.Symmetry.can_be_dropped`, such
@@ -842,7 +844,7 @@ class ElementarySpace(Space, Leg):
 
         Parameters
         ----------
-        symmetry: Symmetry
+        symmetry: ProductSymmetry
             The symmetry associated with this space.
         sectors_of_basis : iterable of iterable of int
             Specifies the basis. ``sectors_of_basis[n]`` is the sector of the ``n``-th basis element.
@@ -967,7 +969,7 @@ class ElementarySpace(Space, Leg):
         return res
 
     @classmethod
-    def from_null_space(cls, symmetry: Symmetry, is_dual: bool = False) -> ElementarySpace:
+    def from_null_space(cls, symmetry: ProductSymmetry, is_dual: bool = False) -> ElementarySpace:
         """The zero-dimensional space, i.e. the span of the empty set."""
         return cls(
             symmetry=symmetry,
@@ -979,7 +981,7 @@ class ElementarySpace(Space, Leg):
     @classmethod
     def from_defining_sectors(
         cls,
-        symmetry: Symmetry,
+        symmetry: ProductSymmetry,
         defining_sectors: SectorArray,
         multiplicities: Sequence[int] = None,
         is_dual: bool = False,
@@ -998,7 +1000,7 @@ class ElementarySpace(Space, Leg):
 
         Parameters
         ----------
-        symmetry: Symmetry
+        symmetry: ProductSymmetry
             The symmetry associated with this space.
         defining_sectors: 2D array_like of int
             Like the :attr:`defining_sectors` attribute, but can be in any order and may contain
@@ -1092,7 +1094,7 @@ class ElementarySpace(Space, Leg):
     @classmethod
     def from_sector_decomposition(
         cls,
-        symmetry: Symmetry,
+        symmetry: ProductSymmetry,
         sector_decomposition: SectorArray,
         multiplicities: Sequence[int] = None,
         is_dual: bool = False,
@@ -1103,7 +1105,7 @@ class ElementarySpace(Space, Leg):
 
         Parameters
         ----------
-        symmetry: Symmetry
+        symmetry: ProductSymmetry
             The symmetry associated with this space.
         sector_decomposition: 2D array_like of int
             Like the :attr:`sector_decomposition` attribute, but can be in any order and may contain
@@ -1142,7 +1144,7 @@ class ElementarySpace(Space, Leg):
 
     @classmethod
     def from_trivial_sector(
-        cls, dim: int = 1, symmetry: Symmetry = no_symmetry, is_dual: bool = False, basis_perm: ndarray = None
+        cls, dim: int = 1, symmetry: ProductSymmetry = no_symmetry, is_dual: bool = False, basis_perm: ndarray = None
     ) -> ElementarySpace:
         """Create an ElementarySpace that lives in the trivial sector (i.e. it is symmetric).
 
@@ -1150,7 +1152,7 @@ class ElementarySpace(Space, Leg):
         ----------
         dim : int
             The dimension of the space.
-        symmetry : :class:`~cyten.groups.Symmetry`
+        symmetry : :class:`~cyten.ProductSymmetry`
             The symmetry of the space.
         is_dual : bool
             If the space should be bra or a ket space.
@@ -1263,7 +1265,9 @@ class ElementarySpace(Space, Leg):
             return self
         return self.with_opposite_duality()
 
-    def change_symmetry(self, symmetry: Symmetry, sector_map: callable, injective: bool = False) -> ElementarySpace:
+    def change_symmetry(
+        self, symmetry: ProductSymmetry, sector_map: callable, injective: bool = False
+    ) -> ElementarySpace:
         return ElementarySpace.from_defining_sectors(
             symmetry=symmetry,
             defining_sectors=sector_map(self.defining_sectors),
@@ -1497,7 +1501,7 @@ class TensorProduct(Space):
     def __init__(
         self,
         factors: list[Space | LegPipe],
-        symmetry: Symmetry = None,
+        symmetry: ProductSymmetry = None,
         _sector_decomposition: SectorArray = None,
         _multiplicities: SectorArray = None,
     ):
@@ -2534,44 +2538,25 @@ def _sort_sectors(sectors: SectorArray, multiplicities: np.ndarray):
     return sectors[perm], multiplicities[perm], perm
 
 
-def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetry) -> tuple[list[int] | None, Symmetry]:
+def _parse_inputs_drop_symmetry(
+    which: int | list[int] | None, symmetry: ProductSymmetry
+) -> tuple[list[int] | None, ProductSymmetry]:
     """Input parsing for :meth:`Space.drop_symmetry`.
 
     Returns
     -------
     which : None | list of int
-        Which symmetries to drop, as integers in ``range(len(symmetries.factors))``.
+        Which symmetries to drop, as integers in ``range(symmetry.num_factors)``.
         ``None`` indicates to drop all.
-    remaining_symmetry : Symmetry
+    remaining_symmetry : ProductSymmetry
         The symmetry that remains.
 
     """
-    if which is None or which == []:
-        pass
-    elif isinstance(symmetry, ProductSymmetry):
-        which = to_iterable(which)
-        num_factors = len(symmetry.factors)
-        # normalize negative indices to be in range(num_factors)
-        for i, w in enumerate(which):
-            if not -num_factors <= w < num_factors:
-                raise ValueError(f'which entry {w} out of bounds for {num_factors} symmetries.')
-            if w < 0:
-                which[i] += num_factors
-        if len(which) == num_factors:
-            which = None
-    elif which == 0 or which == [0]:
-        which = None
-    else:
-        msg = f'Can not drop which={which} for a single (non-ProductSymmetry) symmetry.'
-        raise ValueError(msg)
-
     if which is None:
-        remaining_symmetry = no_symmetry
-    else:
-        factors = [f for i, f in enumerate(symmetry.factors) if i not in which]
-        if len(factors) == 1:
-            remaining_symmetry = factors[0]
-        else:
-            remaining_symmetry = ProductSymmetry(factors)
-
+        return None, no_symmetry
+    N = symmetry.num_factors
+    which = [to_valid_idx(i, N) for i in to_iterable(which)]
+    if len(which) == N:
+        return None, no_symmetry
+    remaining_symmetry = ProductSymmetry([f for i, f in enumerate(symmetry.factors) if i not in which])
     return which, remaining_symmetry

@@ -266,6 +266,9 @@ class Symmetry(metaclass=ABCMeta):
         """If the symmetry always has unique fusion channels, i.e. if N symbols are 0 or 1."""
         return self.fusion_style <= FusionStyle.multiple_unique
 
+    def as_ProductSymmetry(self) -> ProductSymmetry:
+        return ProductSymmetry([self])
+
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
         """Internal implementation of :meth:`fusion_tensor`. Can assume that inputs are valid."""
         if not self.can_be_dropped:
@@ -311,7 +314,7 @@ class Symmetry(metaclass=ABCMeta):
         return self.sqrt_qdim(a) * X.conj()[0, :, :, 0].T
 
     def all_sectors(self) -> SectorArray:
-        """If there are finitely many sectors, return all of them. Else raise a ValueError.
+        """Assume there are finitely many sectors, return all of them.
 
         .. warning ::
             Do not perform inplace operations on the output. That may invalidate caches.
@@ -845,6 +848,10 @@ class ProductSymmetry(Symmetry):
         else:
             self.fusion_tensor_dtype = Dtype.common(*dtypes)
 
+    @property
+    def num_factors(self) -> int:
+        return len(self.factors)
+
     @classmethod
     def from_hdf5(cls, hdf5_loader, h5gr, subpath):
         obj = cls.__new__(cls)
@@ -884,6 +891,9 @@ class ProductSymmetry(Symmetry):
                 return False
         return True
 
+    def as_ProductSymmetry(self) -> ProductSymmetry:
+        return self
+
     def are_valid_sectors(self, sectors: SectorArray) -> bool:
         shape = getattr(sectors, 'shape', ())
         if len(shape) != 2 or shape[1] != self.sector_ind_len:
@@ -917,8 +927,8 @@ class ProductSymmetry(Symmetry):
         c_dtype = np.promote_types(a.dtype, b.dtype)
         result = np.zeros(num_possibilities + [self.sector_ind_len], dtype=c_dtype)
         for i, c_i in enumerate(all_outcomes):
-            res_idx = (colon,) * len(self.factors) + (slice(self.sector_slices[i], self.sector_slices[i + 1], None),)
-            c_i_idx = (None,) * i + (colon,) + (None,) * (len(self.factors) - i - 1) + (colon,)
+            res_idx = (colon,) * self.num_factors + (slice(self.sector_slices[i], self.sector_slices[i + 1], None),)
+            c_i_idx = (None,) * i + (colon,) + (None,) * (self.num_factors - i - 1) + (colon,)
             result[res_idx] = c_i[c_i_idx]
 
         # now reshape so that we get a 2D array where the first index (axis=0) runs over all those
@@ -937,6 +947,13 @@ class ProductSymmetry(Symmetry):
         # the c_i have the same first axis as a and b.
         # it remains to concatenate them along the last axis
         return np.concatenate(components, axis=-1)
+
+    def has_factor(self, other: Symmetry | type[Symmetry]) -> bool:
+        if isinstance(other, Symmetry):
+            return any(f == other for f in self.factors)
+        if issubclass(other, Symmetry):
+            return any(isinstance(f, other) for f in self.factors)
+        raise TypeError('Expected instance or subclass of Symmetry.')
 
     def _multiple_fusion_broadcast(self, *sectors: SectorArray) -> SectorArray:
         components = []
@@ -981,16 +998,16 @@ class ProductSymmetry(Symmetry):
         return f'[{", ".join(strs)}]'
 
     def __repr__(self):
-        if len(self.factors) == 0:
+        if self.num_factors == 0:
             return f'ProductSymmetry([])'
-        if len(self.factors) == 1:
+        if self.num_factors == 1:
             return f'ProductSymmetry({self.factors[0]!r})'
         return ' * '.join(repr(f) for f in self.factors)
 
     def __str__(self):
-        if len(self.factors) == 0:
+        if self.num_factors == 0:
             return f'ProductSymmetry([])'
-        if len(self.factors) == 1:
+        if self.num_factors == 1:
             return f'ProductSymmetry({self.factors[0]!s})'
         return ' ⨉ '.join(str(f) for f in self.factors)
 
@@ -998,7 +1015,7 @@ class ProductSymmetry(Symmetry):
         if not isinstance(other, ProductSymmetry):
             return False
 
-        if len(self.factors) != len(other.factors):
+        if self.num_factors != other.num_factors:
             return False
 
         return all(f1 == f2 for f1, f2 in zip(self.factors, other.factors))
@@ -1006,7 +1023,7 @@ class ProductSymmetry(Symmetry):
     def is_same_symmetry(self, other) -> bool:
         if not isinstance(other, ProductSymmetry):
             return False
-        if len(self.factors) != len(other.factors):
+        if self.num_factors != other.num_factors:
             return False
         return all(f1.is_same_symmetry(f2) for f1, f2 in zip(self.factors, other.factors))
 
@@ -1046,8 +1063,8 @@ class ProductSymmetry(Symmetry):
         results_shape = [f.num_sectors for f in self.factors] + [self.sector_ind_len]
         results = np.zeros(results_shape, dtype=self.trivial_sector.dtype)
         for i, factor_i in enumerate(self.factors):
-            lhs_idx = (colon,) * len(self.factors) + (slice(self.sector_slices[i], self.sector_slices[i + 1], None),)
-            rhs_idx = (None,) * i + (colon,) + (None,) * (len(self.factors) - i - 1) + (colon,)
+            lhs_idx = (colon,) * self.num_factors + (slice(self.sector_slices[i], self.sector_slices[i + 1], None),)
+            rhs_idx = (None,) * i + (colon,) + (None,) * (self.num_factors - i - 1) + (colon,)
             results[lhs_idx] = factor_i.all_sectors()[rhs_idx]
         return np.reshape(results, (np.prod(results_shape[:-1]), results_shape[-1]))
 
@@ -3288,21 +3305,21 @@ class SU3_3AnyonCategory(Symmetry):
 
 
 # Note : some symmetries have expensive __init__ ! Do not initialize those.
-no_symmetry = NoSymmetry()
-z2_symmetry = ZNSymmetry(N=2)
-z3_symmetry = ZNSymmetry(N=3)
-z4_symmetry = ZNSymmetry(N=4)
-z5_symmetry = ZNSymmetry(N=5)
-z6_symmetry = ZNSymmetry(N=6)
-z7_symmetry = ZNSymmetry(N=7)
-z8_symmetry = ZNSymmetry(N=8)
-z9_symmetry = ZNSymmetry(N=9)
-u1_symmetry = U1Symmetry()
-su2_symmetry = SU2Symmetry()
-fermion_number = FermionNumber()
-fermion_parity = FermionParity()
-semion_category = ZNAnyonCategory2(2, 0)
-toric_code_category = ToricCodeCategory()
-double_semion_category = ProductSymmetry([ZNAnyonCategory2(2, 0), ZNAnyonCategory2(2, 1)])
-fibonacci_anyon_category = FibonacciAnyonCategory(handedness='left')
-ising_anyon_category = IsingAnyonCategory(nu=1)
+no_symmetry = NoSymmetry().as_ProductSymmetry()
+z2_symmetry = ZNSymmetry(N=2).as_ProductSymmetry()
+z3_symmetry = ZNSymmetry(N=3).as_ProductSymmetry()
+z4_symmetry = ZNSymmetry(N=4).as_ProductSymmetry()
+z5_symmetry = ZNSymmetry(N=5).as_ProductSymmetry()
+z6_symmetry = ZNSymmetry(N=6).as_ProductSymmetry()
+z7_symmetry = ZNSymmetry(N=7).as_ProductSymmetry()
+z8_symmetry = ZNSymmetry(N=8).as_ProductSymmetry()
+z9_symmetry = ZNSymmetry(N=9).as_ProductSymmetry()
+u1_symmetry = U1Symmetry().as_ProductSymmetry()
+su2_symmetry = SU2Symmetry().as_ProductSymmetry()
+fermion_number = FermionNumber().as_ProductSymmetry()
+fermion_parity = FermionParity().as_ProductSymmetry()
+semion_category = ZNAnyonCategory2(2, 0).as_ProductSymmetry()
+toric_code_category = ToricCodeCategory().as_ProductSymmetry()
+double_semion_category = ZNAnyonCategory2(2, 0) * ZNAnyonCategory2(2, 1)
+fibonacci_anyon_category = FibonacciAnyonCategory(handedness='left').as_ProductSymmetry()
+ising_anyon_category = IsingAnyonCategory(nu=1).as_ProductSymmetry()

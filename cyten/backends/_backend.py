@@ -14,7 +14,7 @@ import numpy as np
 
 from ..block_backends import Block, BlockBackend
 from ..block_backends.dtypes import Dtype
-from ..symmetries import ElementarySpace, FusionTree, Leg, LegPipe, Space, Symmetry, TensorProduct
+from ..symmetries import ElementarySpace, FusionTree, Leg, LegPipe, ProductSymmetry, Space, TensorProduct
 from ..tools.misc import combine_constraints
 
 if TYPE_CHECKING:
@@ -750,7 +750,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def supports_symmetry(self, symmetry: Symmetry) -> bool: ...
+    def supports_symmetry(self, symmetry: ProductSymmetry) -> bool: ...
 
     @abstractmethod
     def svd(

@@ -105,7 +105,7 @@ class Site:
             op.test_sanity()
 
     @property
-    def symmetry(self) -> Symmetry:
+    def symmetry(self) -> ProductSymmetry:
         return self.leg.symmetry
 
     @property
@@ -494,7 +494,7 @@ class BosonicDOF(OccupationDOF):
     @staticmethod
     def conservation_law_to_symmetry(
         conserve: Literal['N', 'parity', 'None'] | Sequence[Literal['N', 'parity', 'None']],
-    ) -> Symmetry | ProductSymmetry:
+    ) -> Symmetry:
         """Translate conservation law for individual / all bosons to a symmetry."""
         if isinstance(conserve, str) or conserve is None:
             if conserve in ['N', 'Ntot', 'N_tot', 'U(1)', 'U1']:
@@ -663,11 +663,12 @@ class FermionicDOF(OccupationDOF):
     @staticmethod
     def conservation_law_to_symmetry(
         conserve: Literal['N', 'parity'] | Sequence[Literal['N', 'parity', 'None']],
-    ) -> Symmetry | ProductSymmetry:
+    ) -> Symmetry:
         """Translate conservation law for individual / all fermions to a symmetry."""
         if isinstance(conserve, str):
             if conserve in ['N', 'Ntot', 'N_tot']:
-                sym = ProductSymmetry([U1Symmetry('total_fermion_occupation'), FermionParity('total_fermion_parity')])
+                # TODO why not FermionNumber?
+                sym = U1Symmetry('total_fermion_occupation') * FermionParity('total_fermion_parity')
             elif conserve in ['parity', 'P', 'Ptot', 'P_tot']:
                 sym = FermionParity('total_fermion_parity')
             else:

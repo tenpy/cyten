@@ -7,7 +7,7 @@ import numpy as np
 
 from .. import backends, tensors, tools
 from ..block_backends import dtypes
-from ..symmetries import _symmetries, spaces
+from ..symmetries import ProductSymmetry, SectorArray, SU2Symmetry, Symmetry, U1Symmetry, spaces
 
 
 def random_block(block_backend, size, real=False, np_random=np.random.default_rng(0)):
@@ -19,34 +19,41 @@ def random_block(block_backend, size, real=False, np_random=np.random.default_rn
 
 
 def random_symmetry_sectors(
-    symmetry: _symmetries.Symmetry, num: int, sort: bool = False, np_random=np.random.default_rng()
-) -> _symmetries.SectorArray:
+    symmetry: ProductSymmetry, num: int, sort: bool = False, np_random=np.random.default_rng()
+) -> SectorArray:
     """Random unique symmetry sectors, optionally sorted."""
-    if isinstance(symmetry, _symmetries.SU2Symmetry):
-        res = np_random.choice(max(int(1.3 * num), 2), replace=False, size=(num, 1))
-    elif isinstance(symmetry, _symmetries.U1Symmetry):
-        vals = list(range(-num, num)) + [123]
-        res = np_random.choice(vals, replace=False, size=(num, 1))
-    elif symmetry.num_sectors < np.inf:
-        if symmetry.num_sectors <= num:
-            res = np_random.permutation(symmetry.all_sectors())
-        else:
-            which = np_random.choice(symmetry.num_sectors, replace=False, size=num)
-            res = symmetry.all_sectors()[which, :]
-    elif isinstance(symmetry, _symmetries.ProductSymmetry):
-        factor_len = max(3, num // len(symmetry.factors))
-        factor_sectors = [
-            random_symmetry_sectors(factor, factor_len, np_random=np_random) for factor in symmetry.factors
-        ]
-        combs = np.indices([len(s) for s in factor_sectors]).T.reshape((-1, len(factor_sectors)))
-        if len(combs) > num:
-            combs = np_random.choice(combs, replace=False, size=num)
-        res = np.hstack([fs[i] for fs, i in zip(factor_sectors, combs.T)])
-    else:
-        raise NotImplementedError("don't know how to get symmetry sectors")
+    assert isinstance(symmetry, ProductSymmetry)
+    samples_per_factor = max(3, num // symmetry.num_factors)
+    factor_sectors = [
+        random_factor_sectors(factor=f, num=samples_per_factor, np_random=np_random) for f in symmetry.factors
+    ]
+    combs = np.indices([len(s) for s in factor_sectors]).T.reshape((-1, len(factor_sectors)))
+    if len(combs) > num:
+        combs = np_random.choice(combs, replace=False, size=num)
+    res = np.hstack([fs[i] for fs, i in zip(factor_sectors, combs.T)])
     if sort:
         order = np.lexsort(res.T)
         res = res[order]
+    return res
+
+
+def random_factor_sectors(factor: Symmetry, num: int, np_random=np.random.default_rng()) -> SectorArray:
+    """Random unique symmetry sectors, optionally sorted."""
+    assert not isinstance(factor, ProductSymmetry)
+    assert isinstance(factor, Symmetry)
+    if isinstance(factor, SU2Symmetry):
+        res = np_random.choice(max(int(1.3 * num), 2), replace=False, size=(num, 1))
+    elif isinstance(factor, U1Symmetry):
+        vals = list(range(-num, num)) + [123]
+        res = np_random.choice(vals, replace=False, size=(num, 1))
+    elif factor.num_sectors < np.inf:
+        if factor.num_sectors <= num:
+            res = np_random.permutation(factor.all_sectors())
+        else:
+            which = np_random.choice(factor.num_sectors, replace=False, size=num)
+            res = factor.all_sectors()[which, :]
+    else:
+        raise NotImplementedError("don't know how to get symmetry sectors")
     return res
 
 
@@ -276,7 +283,7 @@ def find_last_leg(
 
 
 def random_tensor(
-    symmetry: _symmetries.Symmetry,
+    symmetry: ProductSymmetry,
     codomain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
     domain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
     labels: list[str | None] = None,
