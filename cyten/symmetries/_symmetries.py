@@ -132,9 +132,7 @@ class Symmetry(metaclass=ABCMeta):
 
     Notes
     -----
-    Some symmetries, can in principle be dropped to :class:`NoSymmetry`.
-    We call this property :attr:`can_be_dropped`. Currently, only :class:`GroupSymmetry` subclasses
-    and their products have this property.
+    Some symmetries can be dropped to :class:`NoSymmetry`, see :attr:`can_be_dropped`.
     It implies that all operations that may be carried out on symmetric objects have a corresponding
     operation on a non-symmetric counterpart. For example, a symmetric space :math:`A` has a
     corresponding space :math:`\mathbb{C}^n_A`, without further structure.
@@ -151,7 +149,7 @@ class Symmetry(metaclass=ABCMeta):
     commutes.
     The same goes for tensors, i.e. for symmetric tensors there are corresponding non-symmetric
     tensors which we may manipulate instead. This means that if *and only if* the symmetry has this
-    property does it make sense to between symmetric tensors and e.g. numpy arrays, which we can
+    property does it make sense to convert between symmetric tensors and e.g. numpy arrays, which we can
     think of as tensors with :class:`NoSymmetry`. Additionally, the concept of a basis only makes
     sense in exactly these cases.
 
