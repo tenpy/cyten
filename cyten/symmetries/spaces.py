@@ -28,7 +28,7 @@ from ..tools.misc import (
     to_valid_idx,
 )
 from ..tools.string import format_like_list
-from ._symmetries import FusionStyle, ProductSymmetry, Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
+from ._symmetries import ProductSymmetry, Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
 from .trees import FusionTree, fusion_trees
 
 if TYPE_CHECKING:
@@ -1790,6 +1790,16 @@ class TensorProduct(Space):
 
         """
         flat_legs = self.flat_legs
+
+        if len(flat_legs) == 0:
+            a = self.symmetry.empty_sector_array
+            m = np.zeros(0, int)
+            if yield_slices:
+                yield a, m, []
+            else:
+                yield a, m
+            return
+
         for idcs in it.product(*(range(s.num_sectors) for s in flat_legs)):
             a = np.array([flat_legs[n].sector_decomposition[i] for n, i in enumerate(idcs)], int)
             m = np.array([flat_legs[n].multiplicities[i] for n, i in enumerate(idcs)], int)
@@ -1956,7 +1966,7 @@ class TensorProduct(Space):
             for s1, m1 in zip(sectors, mults):
                 new_sects = self.symmetry.fusion_outcomes(s1, s2)
                 sector_arrays.append(new_sects)
-                if self.symmetry.fusion_style <= FusionStyle.multiple_unique:
+                if self.symmetry.has_unique_fusion:
                     new_mults = m1 * m2 * np.ones(len(new_sects), dtype=int)
                 else:
                     # OPTIMIZE support batched N symbol?

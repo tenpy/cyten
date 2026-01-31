@@ -19,7 +19,6 @@ from ..backends import TensorBackend, conventional_leg_order, get_backend, get_s
 from ..block_backends import Block, Dtype
 from ..dummy_config import printoptions
 from ..symmetries import (
-    BraidingStyle,
     ElementarySpace,
     FusionTree,
     Leg,
@@ -6450,7 +6449,7 @@ def transpose(tensor: Tensor) -> Tensor:
             bend_right=[False] * tensor.num_codomain_legs + [True] * tensor.num_domain_legs,
         )
     if isinstance(tensor, ChargedTensor):
-        if tensor.symmetry.braiding_style > BraidingStyle.bosonic:
+        if not tensor.symmetry.has_trivial_braid:
             msg = (
                 f'transpose is not defined for ChargedTensors with fermionic symmetries. '
                 f'This is because there is no way to recover the ChargedTensor format in such a '

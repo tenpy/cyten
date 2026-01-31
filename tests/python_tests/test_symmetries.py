@@ -290,44 +290,35 @@ def common_checks(
     check_B_symbols(sym, sector_triplets)
 
     # check derived topological data vs the fallback implementations.
-    # we always check if the method is actually overridden, to avoid comparing identical implementations.
-    SymCls = type(sym)
-    if sym.can_be_dropped and SymCls.Z_iso is not _symmetries.Symmetry.Z_iso:
-        for a in example_sectors:
+    for a in example_sectors:
+        if sym.can_be_dropped:
             assert_array_almost_equal(
                 sym.Z_iso(a), _symmetries.Symmetry.Z_iso(sym, a), err_msg='Z_iso does not match fallback'
             )
-    if SymCls.frobenius_schur is not _symmetries.Symmetry.frobenius_schur:
-        for a in example_sectors:
-            msg = 'frobenius_schur does not match fallback'
-            assert sym.frobenius_schur(a) == _symmetries.Symmetry.frobenius_schur(sym, a), msg
-    if SymCls.qdim is not _symmetries.Symmetry.qdim:
-        for a in example_sectors:
-            # need almost equal for non-integer qdim
-            assert_array_almost_equal(
-                sym.qdim(a), _symmetries.Symmetry.qdim(sym, a), err_msg='qdim does not match fallback'
-            )
-    if SymCls._b_symbol is not _symmetries.Symmetry._b_symbol:
-        for a, b, c in sector_triplets:
-            assert_array_almost_equal(
-                sym._b_symbol(a, b, c),
-                _symmetries.Symmetry._b_symbol(sym, a, b, c),
-                err_msg='B symbol does not match fallback',
-            )
-    if SymCls._c_symbol is not _symmetries.Symmetry._c_symbol:
-        for c, a, b, d, e, f in sector_sextets:
-            assert_array_almost_equal(
-                sym._c_symbol(a, b, c, d, e, f),
-                _symmetries.Symmetry._c_symbol(sym, a, b, c, d, e, f),
-                err_msg='C symbol does not match fallback',
-            )
-    if SymCls.topological_twist is not _symmetries.Symmetry.topological_twist:
-        for a in example_sectors:
-            assert_array_almost_equal(
-                sym.topological_twist(a),
-                _symmetries.Symmetry.topological_twist(sym, a),
-                err_msg='topological_twist does not match fallback',
-            )
+        assert sym.frobenius_schur(a) == _symmetries.Symmetry.frobenius_schur(sym, a), (
+            'frobenius_schur does not match fallback'
+        )
+        # note: need almost equal for non-integer qdim
+        assert_array_almost_equal(
+            sym.qdim(a), _symmetries.Symmetry.qdim(sym, a), err_msg='qdim does not match fallback'
+        )
+        assert_array_almost_equal(
+            sym.topological_twist(a),
+            _symmetries.Symmetry.topological_twist(sym, a),
+            err_msg='topological_twist does not match fallback',
+        )
+    for a, b, c in sector_triplets:
+        assert_array_almost_equal(
+            sym._b_symbol(a, b, c),
+            _symmetries.Symmetry._b_symbol(sym, a, b, c),
+            err_msg='B symbol does not match fallback',
+        )
+    for c, a, b, d, e, f in sector_sextets:
+        assert_array_almost_equal(
+            sym._c_symbol(a, b, c, d, e, f),
+            _symmetries.Symmetry._c_symbol(sym, a, b, c, d, e, f),
+            err_msg='C symbol does not match fallback',
+        )
 
     # check braiding style
     for a in example_sectors:  # check topological twist
@@ -341,12 +332,12 @@ def common_checks(
             assert_array_almost_equal(sym.r_symbol(a, b, c) ** 2, np.ones(sym.n_symbol(a, b, c)))
 
     # check fusion style
-    if sym.fusion_style == _symmetries.FusionStyle.single:
+    if sym.is_abelian:
         for a in example_sectors:
             for b in example_sectors:
                 assert len(sym.fusion_outcomes(a, b)) == 1
 
-    if sym.fusion_style.value <= _symmetries.FusionStyle.multiple_unique.value:
+    if sym.has_unique_fusion:
         for a, b, c in sector_triplets:
             # we check `== 1` and not `in [0, 1]` here since we iterate over sector_triplets
             assert sym.n_symbol(a, b, c) == 1
@@ -998,7 +989,7 @@ def test_su2_symmetry(np_random):
 
     print('checking fusion_outcomes_broadcast')
     with pytest.raises(AssertionError):
-        # sym does not have FusionStyle.single, so this should raise
+        # sym is not abelian, so this should raise
         _ = sym.fusion_outcomes_broadcast(spin_1[None, :], spin_3_half[None, :])
 
     print('checking sector dimensions')
