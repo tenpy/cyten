@@ -725,6 +725,28 @@ class Symmetry(metaclass=ABCMeta):
                 raise SymmetryError('Sectors are not consistent with fusion rules.')
         return self._fusion_tensor(a, b, c, Z_a, Z_b)
 
+    def swap_gate(self, a: Sector, b: Sector) -> np.ndarray:
+        """The swap gate (numpy representation of the braid) of single sectors.
+
+            |   a   b
+            |   │   │
+            |   v   v
+            |    ╲ ╱
+            |     ╲          <-  overbraid == underbraid is assumed
+            |    ╱ ╲
+            |   v   v
+            |   │   │
+            |   b   a
+
+        Returns
+        -------
+        A numpy representation of the above tensor with axes ``[b, a, b*, a*]``.
+
+        """
+        if not self.can_be_dropped:
+            raise SymmetryError(f'braid can not be written as array for {self}')
+        raise NotImplementedError('should be implemented by subclass')
+
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
         hdf5_saver.save(self.group_name, subpath + 'group_name')
         hdf5_saver.save(self.fusion_style.value, subpath + 'fusion_style')
@@ -1080,6 +1102,16 @@ class ProductSymmetry(Symmetry):
             res = np.kron(res, factor_i._fusion_tensor(a_i, b_i, c_i, Z_a, Z_b))
         return res
 
+    def swap_gate(self, a: Sector, b: Sector) -> np.ndarray:
+        if not self.can_be_dropped:
+            raise SymmetryError(f'fusion tensor can not be written as array for {self}')
+        res = np.ones((1, 1, 1, 1))
+        for i, factor_i in enumerate(self.factors):
+            a_i = a[self.sector_slices[i] : self.sector_slices[i + 1]]
+            b_i = b[self.sector_slices[i] : self.sector_slices[i + 1]]
+            res = np.kron(res, factor_i.swap_gate(a_i, b_i))
+        return res
+
     def Z_iso(self, a: Sector) -> np.ndarray:
         if not self.can_be_dropped:
             raise SymmetryError(f'Z iso can not be written as array for {self}')
@@ -1147,6 +1179,10 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> npt.NDArray:
         # subclasses must implement. for groups it is always possible.
         ...
+
+    def swap_gate(self, a: Sector, b: Sector) -> np.ndarray:
+        # [b, a, b*, a*]
+        return np.eye(self.sector_dim(a))[None, :, None, :] * np.eye(self.sector_dim(b))[:, None, :, None]
 
     def qdim(self, a: Sector) -> float:
         return self.sector_dim(a)
@@ -2170,6 +2206,12 @@ class FermionNumber(Symmetry):
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
         return one_4D_float
 
+    def swap_gate(self, a: Sector, b: Sector):
+        # if a and b are odd -1, otherwise +1
+        # in the first (second) case above, we have ``a * b`` equal to 1 (0).
+        sign = 1 - 2 * np.mod(a, 2) * np.mod(b, 2)
+        return sign * one_4D_float
+
     def topological_twist(self, a):
         # +1 for even parity, -1 for odd
         return 1 - 2 * np.mod(a, 2).item()
@@ -2292,6 +2334,12 @@ class FermionParity(Symmetry):
 
     def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
         return one_4D_float
+
+    def swap_gate(self, a: Sector, b: Sector):
+        # if a and b are fermionic -1, otherwise +1
+        # in the first (second) case above, we have ``a * b`` equal to 1 (0).
+        sign = 1 - 2 * a * b
+        return sign * one_4D_float
 
     def topological_twist(self, a):
         return 1 - 2 * a.item()

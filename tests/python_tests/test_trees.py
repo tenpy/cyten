@@ -99,8 +99,12 @@ def test_FusionTree_class():
 @pytest.mark.parametrize('overbraid', [True, False])
 @pytest.mark.parametrize('j', [0, 1, 2])
 def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_random):
+    num_uncoupled = 5
     tree = random_fusion_tree(
-        symmetry=any_symmetry, num_uncoupled=5, sector_rng=lambda: make_any_sectors(1)[0], np_random=np_random
+        symmetry=any_symmetry,
+        num_uncoupled=num_uncoupled,
+        sector_rng=lambda: make_any_sectors(1)[0],
+        np_random=np_random,
     )
     braided1 = list(tree.braid(j, overbraid=overbraid).items())
     for t, _ in braided1:
@@ -118,10 +122,12 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
 
     # for groups: check versus explicit matrix representations
     if any_symmetry.can_be_dropped:
-        tree_np = tree.as_block()
-        a_j, a_jp1 = tree.uncoupled[j], tree.uncoupled[j + 1]
-        fused = any_symmetry.fusion_outcomes(a_j, a_jp1)[0]
-        expect = any_symmetry.r_symbol(a_j, a_jp1, fused).item() * np.swapaxes(tree_np, j, j + 1)
+        tree_np = tree.as_block()  # [a1 ... aj aj+1 ... aJ c]
+        swap = any_symmetry.swap_gate(tree.uncoupled[j], tree.uncoupled[j + 1])  # [aj+1 aj aj+1* aj*]
+        expect = np.tensordot(tree_np, swap, ([j, j + 1], [1, 0]))  # [a1 ... aj-1 aj+2 ... aj c aj+1 aj]
+        expect = np.transpose(
+            expect, [*range(j), -2, -1, *range(j, num_uncoupled - 1)]
+        )  # [a1 ... aj-1 aj+2 ... aj c aj+1 aj]
         res = sum(a * t.as_block() for t, a in braided1)
         assert np.allclose(res, expect)
 
