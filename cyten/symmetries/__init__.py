@@ -47,5 +47,5 @@ from ._symmetries import (
     z8_symmetry,
     z9_symmetry,
 )
-from .spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct
+from .spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct, swap_gate
 from .trees import FusionTree, fusion_trees
