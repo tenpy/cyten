@@ -26,7 +26,6 @@ from .backends import TensorBackend, get_backend
 from .block_backends import Block, BlockBackend, Dtype, NumpyBlockBackend, TorchBlockBackend
 from .models import Coupling, Site, couplings, sites
 from .symmetries import (
-    AbelianGroup,
     AbelianLegPipe,
     BraidChiralityUnspecifiedError,
     BraidingStyle,

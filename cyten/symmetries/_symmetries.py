@@ -105,7 +105,7 @@ class Symmetry(metaclass=ABCMeta):
     ----------
     can_be_dropped: bool
         If the symmetry could be dropped to :class:`NoSymmetry` while preserving the structure.
-        This is e.g. the case for :class:`GroupSymmetry` subclasses.
+        This is e.g. the case for group symmetries.
         This means that there is a well-defined notion of a basis of graded vector spaces and of
         dense array representations of symmetric Tensor. See notes below.
     trivial_sector: Sector
@@ -784,10 +784,6 @@ class ProductSymmetry(Symmetry):
     The allowed sectors are "stacks" (using e.g. :func:`numpy.concatenate`) of sectors for the
     individual symmetries. For recovering the individual sectors see :attr:`sector_slices`.
 
-    If all factors are :class:`AbelianGroup` instances, instances of this class will masquerade as
-    instances of :class:`AbelianGroup` too, meaning they fulfill ``isinstance(s, AbelianGroup)``.
-    Same for :class:`GroupSymmetry`.
-
     Attributes
     ----------
     factors : list of :class:`Symmetry`
@@ -1137,36 +1133,11 @@ class ProductSymmetry(Symmetry):
         return res
 
 
-class _ABCFactorSymmetryMeta(ABCMeta):
-    """Metaclass for the AbstractBaseClasses which can be factors of a ProductSymmetry.
-
-    For concreteness let FactorSymmetry be such a class.
-    This metaclass, in addition to having the same effects as making the class an AbstractBaseClass
-    modifies instancecheck, such that products of FactorSymmetry instances, which are instances
-    of ProductSymmetry, not of FactorSymmetry, do appear like instances of FactorSymmetry
-
-    E.g. a ProductSymmetry instance whose factors are all instances of AbelianGroup
-    then appears to also be an instance of AbelianGroup
-    """
-
-    def __instancecheck__(cls, instance) -> bool:
-        if (cls == GroupSymmetry or cls == AbelianGroup) and type.__instancecheck__(ProductSymmetry, instance):
-            return all(type.__instancecheck__(cls, factor) for factor in instance.factors)
-        return type.__instancecheck__(cls, instance)
-
-
-class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
+class GroupSymmetry(Symmetry):
     """Base-class for symmetries that are described by a group.
 
     The symmetry is given via a faithful representation on the Hilbert space.
     Notable counter-examples are fermionic parity or anyonic grading.
-
-    Notes
-    -----
-    Products of :class:`GroupSymmetry`s are instances described by the :class:`ProductSymmetry`
-    class, which is not a sub- or superclass of `GroupSymmetry`. Nevertheless, instancechecks can
-    be used to check if a given `ProductSymmetry` *instance* is a group-symmetry.
-    See examples in docstring of :class:`AbelianGroup`.
 
     """
 
@@ -1209,24 +1180,8 @@ class GroupSymmetry(Symmetry, metaclass=_ABCFactorSymmetryMeta):
         return 1
 
 
-class AbelianGroup(GroupSymmetry, metaclass=_ABCFactorSymmetryMeta):
-    """Base-class for abelian symmetry groups.
-
-    Notes
-    -----
-    A product of several abelian groups is also an abelian group, but represented by a
-    ProductSymmetry, which is not a subclass of AbelianGroup.
-    We have adjusted instancechecks accordingly, i.e. we have
-
-    .. doctest ::
-
-        >>> s = ProductSymmetry([z3_symmetry, z5_symmetry])  # product of abelian groups
-        >>> isinstance(s, AbelianGroup)
-        True
-        >>> issubclass(type(s), AbelianGroup)
-        False
-
-    """
+class AbelianGroup(GroupSymmetry):
+    """Base-class for abelian symmetry groups."""
 
     fusion_tensor_dtype = Dtype.float64
 

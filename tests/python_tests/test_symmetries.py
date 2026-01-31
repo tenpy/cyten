@@ -696,10 +696,10 @@ def test_no_symmetry(np_random):
     s = np.array([0])
     common_checks(sym, example_sectors=s[np.newaxis, :], example_sectors_low_qdim=s[np.newaxis, :], np_random=np_random)
 
-    print('instancecheck and is_abelian')
-    assert isinstance(sym, symmetries.AbelianGroup)
-    assert isinstance(sym, symmetries.GroupSymmetry)
     assert sym.is_abelian
+    assert sym.has_unique_fusion
+    assert sym.has_trivial_braid
+    assert sym.has_symmetric_braid
 
     print('checking valid sectors')
     assert sym.is_valid_sector(s)
@@ -783,13 +783,15 @@ def test_product_symmetry(np_random):
         skip_fusion_tensor=False,
     )
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
     assert not sym.is_abelian
-    assert isinstance(u1_z3, symmetries.AbelianGroup)
-    assert isinstance(u1_z3, symmetries.GroupSymmetry)
+    assert sym.has_unique_fusion
+    assert not sym.has_trivial_braid
+    assert sym.has_symmetric_braid
+
     assert u1_z3.is_abelian
+    assert u1_z3.has_unique_fusion
+    assert u1_z3.has_trivial_braid
+    assert u1_z3.has_symmetric_braid
 
     print('checking creation via __mul__')
     sym2 = symmetries.SU2Symmetry() * symmetries.u1_symmetry * symmetries.fermion_parity
@@ -850,10 +852,10 @@ def test_u1_symmetry(np_random):
     sectors = np.array([s_0, s_1, s_neg1, s_2, s_42])
     common_checks(sym, example_sectors=sectors, example_sectors_low_qdim=sectors, np_random=np_random)
 
-    print('instancecheck and is_abelian')
-    assert isinstance(sym, symmetries.AbelianGroup)
-    assert isinstance(sym, symmetries.GroupSymmetry)
     assert sym.is_abelian
+    assert sym.has_unique_fusion
+    assert sym.has_trivial_braid
+    assert sym.has_symmetric_braid
 
     print('checking valid sectors')
     for s in [s_0, s_1, s_neg1, s_2, s_42]:
@@ -901,10 +903,10 @@ def test_ZN_symmetry(N, np_random):
     sectors_b = np.array([0, 1, 3, 11])[:, None] % N
     common_checks(sym, example_sectors=sectors_a, example_sectors_low_qdim=sectors_a, np_random=np_random)
 
-    print('instancecheck and is_abelian')
-    assert isinstance(sym, symmetries.AbelianGroup)
-    assert isinstance(sym, symmetries.GroupSymmetry)
     assert sym.is_abelian
+    assert sym.has_unique_fusion
+    assert sym.has_trivial_braid
+    assert sym.has_symmetric_braid
 
     print('checking valid sectors')
     for s in sectors_a:
@@ -963,10 +965,10 @@ def test_su2_symmetry(np_random):
     spin_3_half = np.array([3])
     sym_with_name = symmetries.SU2Symmetry('foo')
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert isinstance(sym, symmetries.GroupSymmetry)
     assert not sym.is_abelian
+    assert sym.has_unique_fusion
+    assert sym.has_trivial_braid
+    assert sym.has_symmetric_braid
 
     print('checking valid sectors')
     for valid in [[0], [1], [2], [42]]:
@@ -1038,10 +1040,10 @@ def test_suN_symmetry(N, CGfile, Ffile, Rfile, np_random):
     # spin_3_half = np.array([3])
     # sym_with_name = symmetries.SU2Symmetry('foo')
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert isinstance(sym, symmetries.GroupSymmetry)
     assert not sym.is_abelian
+    assert sym.has_unique_fusion
+    assert sym.has_trivial_braid
+    assert sym.has_symmetric_braid
 
     print('checking valid sectors')
     for valid in gen_irrepsTEST(N, 2):
@@ -1067,10 +1069,10 @@ def test_fermion_parity(np_random):
         sym, example_sectors=np.array([even, odd]), example_sectors_low_qdim=np.array([even, odd]), np_random=np_random
     )
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
     assert sym.is_abelian
+    assert sym.has_unique_fusion
+    assert not sym.has_trivial_braid
+    assert sym.has_symmetric_braid
 
     print('checking valid sectors')
     assert sym.is_valid_sector(odd)
@@ -1113,10 +1115,10 @@ def test_fermion_number(np_random):
     example_sectors = np.array([0, 1, -1, 2, 42, -123])[:, None]
     common_checks(sym, example_sectors=example_sectors, example_sectors_low_qdim=example_sectors, np_random=np_random)
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
     assert sym.is_abelian
+    assert sym.has_unique_fusion
+    assert not sym.has_trivial_braid
+    assert sym.has_symmetric_braid
 
     print('checking valid sectors')
     assert sym.is_valid_sector(example_sectors[0])
@@ -1161,10 +1163,10 @@ def test_fibonacci_grading(handedness, np_random):
         sym, example_sectors=sym.all_sectors(), example_sectors_low_qdim=sym.all_sectors(), np_random=np_random
     )
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
     assert not sym.is_abelian
+    assert sym.has_unique_fusion
+    assert not sym.has_trivial_braid
+    assert not sym.has_symmetric_braid
 
     print('checking valid sectors')
     assert sym.is_valid_sector(tau)
@@ -1204,10 +1206,10 @@ def test_ising_grading(nu, np_random):
         sym, example_sectors=sym.all_sectors(), example_sectors_low_qdim=sym.all_sectors(), np_random=np_random
     )
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
     assert not sym.is_abelian
+    assert sym.has_unique_fusion
+    assert not sym.has_trivial_braid
+    assert not sym.has_symmetric_braid
 
     print('checking valid sectors')
     assert sym.is_valid_sector(anyon)
@@ -1251,10 +1253,10 @@ def test_SU3_3AnyonCategory(np_random):
         sym, example_sectors=sym.all_sectors(), example_sectors_low_qdim=sym.all_sectors(), np_random=np_random
     )
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
     assert not sym.is_abelian
+    assert not sym.has_unique_fusion
+    assert not sym.has_trivial_braid
+    assert not sym.has_symmetric_braid
 
     print('checking valid sectors')
     for valid in [a, b, c, d]:
@@ -1366,10 +1368,10 @@ def test_QuantumDoubleZNAnyonCategory(N, np_random):
     sectors_b = np.array([[0, 2], [1, 1], [3, 8], [11, 4]]) % N
     common_checks(sym, example_sectors=sectors_a, example_sectors_low_qdim=sectors_a, np_random=np_random)
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
     assert sym.is_abelian
+    assert sym.has_unique_fusion
+    assert not sym.has_trivial_braid
+    assert not sym.has_symmetric_braid
 
     print('checking valid sectors')
     for s in np.append(sectors_a, sectors_b, axis=0):
@@ -1430,10 +1432,10 @@ def test_SU2_kAnyonCategory(k, handedness, np_random):
     sectors_b = np.array([[i] for i in range(min(k + 1, 5))])
     common_checks(sym, example_sectors=sectors_a, example_sectors_low_qdim=sectors_b, np_random=np_random)
 
-    print('instancecheck and is_abelian')
-    assert not isinstance(sym, symmetries.AbelianGroup)
-    assert not isinstance(sym, symmetries.GroupSymmetry)
     assert not sym.is_abelian
+    assert sym.has_unique_fusion
+    assert not sym.has_trivial_braid
+    assert not sym.has_symmetric_braid
 
     print('checking valid sectors')
     for valid in [[0], [1], [k]]:

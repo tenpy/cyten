@@ -235,8 +235,8 @@ def any_backend(block_backend, any_symmetry_backend) -> backends.TensorBackend:
 
 
 @pytest.fixture(
-    params=[s for s in _symmetries.values() if isinstance(s, ct.AbelianGroup)],
-    ids=[k for k, s in _symmetries.items() if isinstance(s, ct.AbelianGroup)],
+    params=[s for s in _symmetries.values() if s.is_abelian and s.has_trivial_braid],
+    ids=[k for k, s in _symmetries.items() if s.is_abelian and s.has_trivial_braid],
 )
 def abelian_group_symmetry(request) -> ct.ProductSymmetry:
     return request.param
@@ -288,7 +288,7 @@ def make_any_block(any_backend, np_random):
 # build the compatible pairs
 _compatible_pairs = {'NoSymmetry': ('no_symmetry', ct.no_symmetry)}  # {id: param}
 for _sym_name, _sym in _symmetries.items():
-    if isinstance(_sym, ct.AbelianGroup):
+    if _sym.is_abelian and _sym.has_trivial_braid:
         _compatible_pairs[f'AbelianBackend-{_sym_name}'] = ('abelian', _sym)
     _compatible_pairs[f'FusionTreeBackend-{_sym_name}'] = pytest.param(
         ('fusion_tree', _sym), marks=pytest.mark.FusionTree
