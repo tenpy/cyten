@@ -694,13 +694,13 @@ class Space(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def drop_symmetry(self, which: int | list[int] = None):
+    def drop_symmetry(self, which: int | list[int] = 'all'):
         """Drop some or all symmetries.
 
         Parameters
         ----------
-        which : None | (list of) int
-            If ``None`` (default) the entire symmetry is dropped and the result has ``no_symmetry``.
+        which : 'all' | (list of) int
+            If ``'all'`` (default) the entire symmetry is dropped and the result has ``no_symmetry``.
             An integer or list of integers indicates to drop the :attr:`~cyten.Symmetry.factors` with
             those indices.
 
@@ -1300,9 +1300,9 @@ class ElementarySpace(Space, Leg):
             basis_perm=basis_perm,
         )
 
-    def drop_symmetry(self, which: int | list[int] = None):
+    def drop_symmetry(self, which: int | list[int] = 'all'):
         which, remaining_symmetry = _parse_inputs_drop_symmetry(which, self.symmetry)
-        if which is None:
+        if which == 'all':
             return ElementarySpace.from_trivial_sector(
                 dim=self.dim, symmetry=remaining_symmetry, is_dual=self.is_dual, basis_perm=self._basis_perm
             )
@@ -1599,9 +1599,9 @@ class TensorProduct(Space):
             _multiplicities=multiplicities,
         )
 
-    def drop_symmetry(self, which=None):
+    def drop_symmetry(self, which='all'):
         which, remaining_symmetry = _parse_inputs_drop_symmetry(which, self.symmetry)
-        if which is None:
+        if which == 'all':
             sectors = self.symmetry.trivial_sector[None, :]
             multiplicities = [self.dim]
         else:
@@ -2221,7 +2221,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         legs = [l.change_symmetry(symmetry, sector_map, injective) for l in self.legs]
         return AbelianLegPipe(legs, is_dual=self.is_dual, combine_cstyle=self.combine_cstyle)
 
-    def drop_symmetry(self, which: int | list[int] = None):
+    def drop_symmetry(self, which: int | list[int] = 'all'):
         # OPTIMIZE can we avoid recomputation of fusion?
         legs = [l.drop_symmetry(which) for l in self.legs]
         return AbelianLegPipe(legs, is_dual=self.is_dual, combine_cstyle=self.combine_cstyle)
@@ -2534,23 +2534,25 @@ def _sort_sectors(sectors: SectorArray, multiplicities: np.ndarray):
     return sectors[perm], multiplicities[perm], perm
 
 
-def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetry) -> tuple[list[int] | None, Symmetry]:
+def _parse_inputs_drop_symmetry(
+    which: int | list[int] | Literal['all'], symmetry: Symmetry
+) -> tuple[list[int] | Literal['all'], Symmetry]:
     """Input parsing for :meth:`Space.drop_symmetry`.
 
     Returns
     -------
-    which : None | list of int
+    which : 'all' | list of int
         Which symmetries to drop, as integers in ``range(symmetry.num_factors)``.
-        ``None`` indicates to drop all.
+        ``'all'`` indicates to drop all.
     remaining_symmetry : Symmetry
         The symmetry that remains.
 
     """
-    if which is None:
-        return None, no_symmetry
+    if which == 'all':
+        return 'all', no_symmetry
     N = symmetry.num_factors
     which = [to_valid_idx(i, N) for i in to_iterable(which)]
     if len(which) == N:
-        return None, no_symmetry
+        return 'all', no_symmetry
     remaining_symmetry = Symmetry([f for i, f in enumerate(symmetry.factors) if i not in which])
     return which, remaining_symmetry
