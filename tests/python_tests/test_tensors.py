@@ -419,7 +419,7 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
 
 def test_fixes_124(np_random):
     """Check if the bug discussed in PR #124 is fixed"""
-    symm = SU2Symmetry().as_ProductSymmetry()
+    symm = SU2Symmetry().as_Symmetry()
     backend = get_backend(symm, 'numpy')
     a = ElementarySpace(symm, [[1]], [1])
     b = ElementarySpace(symm, [[1]], [1])
@@ -456,7 +456,7 @@ def test_fixes_124(np_random):
 
 def test_fixes_23():
     # See PR #23
-    sym = SU2Symmetry().as_ProductSymmetry()
+    sym = SU2Symmetry().as_Symmetry()
     site = ElementarySpace(sym, SU2Symmetry.spin_half[None, :])
     block = np.zeros((2,) * 6, float)
     tens = SymmetricTensor.from_dense_block(block, codomain=[site] * 3, domain=[site] * 3)
@@ -1017,7 +1017,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
 @pytest.mark.parametrize('symmetry_backend', [pytest.param('fusion_tree', marks=pytest.mark.FusionTree)])
 def test_from_block_su2_symm(symmetry_backend, block_backend):
     backend = get_backend(symmetry_backend, block_backend)
-    sym = SU2Symmetry().as_ProductSymmetry()
+    sym = SU2Symmetry().as_Symmetry()
     spin_half = ElementarySpace(sym, [[1]])
 
     # basis order: [down, up]  ->  might look unusual

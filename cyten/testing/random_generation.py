@@ -7,7 +7,7 @@ import numpy as np
 
 from .. import backends, tensors, tools
 from ..block_backends import dtypes
-from ..symmetries import ProductSymmetry, SectorArray, SU2Symmetry, Symmetry, U1Symmetry, spaces
+from ..symmetries import SectorArray, SU2Symmetry, Symmetry, SymmetryFactor, U1Symmetry, spaces
 
 
 def random_block(block_backend, size, real=False, np_random=np.random.default_rng(0)):
@@ -19,10 +19,10 @@ def random_block(block_backend, size, real=False, np_random=np.random.default_rn
 
 
 def random_symmetry_sectors(
-    symmetry: ProductSymmetry, num: int, sort: bool = False, np_random=np.random.default_rng()
+    symmetry: Symmetry, num: int, sort: bool = False, np_random=np.random.default_rng()
 ) -> SectorArray:
     """Random unique symmetry sectors, optionally sorted."""
-    assert isinstance(symmetry, ProductSymmetry)
+    assert isinstance(symmetry, Symmetry)
     samples_per_factor = max(3, num // symmetry.num_factors)
     factor_sectors = [
         random_factor_sectors(factor=f, num=samples_per_factor, np_random=np_random) for f in symmetry.factors
@@ -37,10 +37,10 @@ def random_symmetry_sectors(
     return res
 
 
-def random_factor_sectors(factor: Symmetry, num: int, np_random=np.random.default_rng()) -> SectorArray:
+def random_factor_sectors(factor: SymmetryFactor, num: int, np_random=np.random.default_rng()) -> SectorArray:
     """Random unique symmetry sectors, optionally sorted."""
-    assert not isinstance(factor, ProductSymmetry)
-    assert isinstance(factor, Symmetry)
+    assert not isinstance(factor, Symmetry)
+    assert isinstance(factor, SymmetryFactor)
     if isinstance(factor, SU2Symmetry):
         res = np_random.choice(max(int(1.3 * num), 2), replace=False, size=(num, 1))
     elif isinstance(factor, U1Symmetry):
@@ -283,7 +283,7 @@ def find_last_leg(
 
 
 def random_tensor(
-    symmetry: ProductSymmetry,
+    symmetry: Symmetry,
     codomain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
     domain: list[spaces.Space | str | None] | spaces.TensorProduct | int = None,
     labels: list[str | None] = None,

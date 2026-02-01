@@ -315,7 +315,7 @@ def test_TensorProduct(any_symmetry, make_any_space, make_any_sectors, num_space
 
 
 def test_TensorProduct_SU2():
-    sym = symmetries.SU2Symmetry().as_ProductSymmetry()
+    sym = symmetries.SU2Symmetry().as_Symmetry()
     a = spaces.ElementarySpace(sym, [[0], [3], [2]], [2, 3, 4])
     b = spaces.ElementarySpace(sym, [[1], [4]], [5, 6])
     c = spaces.ElementarySpace(sym, [[0], [3], [1]], [3, 1, 2])
@@ -596,7 +596,7 @@ def assert_spaces_equal(space1: spaces.Space, space2: spaces.Space):
     assert space1 == space2
 
 
-def _sort_sectors(sectors, sym: symmetries.ProductSymmetry, by_duals: bool = False):
+def _sort_sectors(sectors, sym: symmetries.Symmetry, by_duals: bool = False):
     sectors = np.array(sectors)
     sort_by = sym.dual_sectors(sectors) if by_duals else sectors
     perm = np.lexsort(sort_by.T)

@@ -16,10 +16,10 @@ from cyten.symmetries import (
     ElementarySpace,
     FibonacciAnyonCategory,
     FusionTree,
-    ProductSymmetry,
     SU2_kAnyonCategory,
     SU2Symmetry,
     SU3_3AnyonCategory,
+    Symmetry,
     TensorProduct,
     fibonacci_anyon_category,
     ising_anyon_category,
@@ -199,7 +199,7 @@ def test_c_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     funcs = [cross_check_single_c_symbol_tree_blocks, cross_check_single_c_symbol_tree_cols, apply_single_c_symbol]
     zero_block = backend.block_backend.zeros
     eps = 1.0e-14
-    sym = ProductSymmetry([fibonacci_anyon_category, SU2Symmetry()])
+    sym = Symmetry([fibonacci_anyon_category, SU2Symmetry()])
     s1 = ElementarySpace(sym, [[1, 1]], [2])  # only (tau, spin-1/2)
     s2 = ElementarySpace(sym, [[0, 0], [1, 1]], [1, 2])  # (1, spin-0) and (tau, spin-1/2)
     codomain = TensorProduct([s2, s2, s2])
@@ -400,7 +400,7 @@ def test_c_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     funcs = [cross_check_single_c_symbol_tree_blocks, cross_check_single_c_symbol_tree_cols, apply_single_c_symbol]
     zero_block = backend.block_backend.zeros
     eps = 1.0e-14
-    sym = SU3_3AnyonCategory().as_ProductSymmetry()
+    sym = SU3_3AnyonCategory().as_Symmetry()
     s1 = ElementarySpace(sym, [[1], [2]], [1, 1])  # 8 and 10
     s2 = ElementarySpace(sym, [[1]], [2])  # 8 with multiplicity 2
     [c0, c1, c2, c3] = [np.array([i]) for i in range(4)]  # charges
@@ -806,7 +806,7 @@ def test_b_symbol_product_sym(block_backend: str, np_random: np.random.Generator
     reshape = backend.block_backend.reshape
     zero_block = backend.block_backend.zeros
     eps = 1.0e-14
-    sym = ProductSymmetry([fibonacci_anyon_category, SU2Symmetry()])
+    sym = Symmetry([fibonacci_anyon_category, SU2Symmetry()])
     s1 = ElementarySpace(sym, [[1, 1]], [1])  # only (tau, spin-1/2)
     s2 = ElementarySpace(sym, [[0, 0], [1, 1]], [1, 2])  # (1, spin-0) and (tau, spin-1/2)
     s3 = ElementarySpace(sym, [[0, 0], [1, 1], [1, 2]], [1, 2, 2])  # (1, spin-0), (tau, spin-1/2) and (tau, spin-1)
@@ -1007,7 +1007,7 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     reshape = backend.block_backend.reshape
     zero_block = backend.block_backend.zeros
     eps = 1.0e-14
-    sym = SU3_3AnyonCategory().as_ProductSymmetry()
+    sym = SU3_3AnyonCategory().as_Symmetry()
     s1 = ElementarySpace(sym, [[1], [2]], [1, 1])  # 8 and 10
     s2 = ElementarySpace(sym, [[1]], [2])  # 8 with multiplicity 2
     s3 = ElementarySpace(sym, [[0], [1], [3]], [1, 2, 3])  # 1, 8, 10-
@@ -1221,14 +1221,14 @@ def test_b_symbol_su3_3(block_backend: str, np_random: np.random.Generator):
     [
         fibonacci_anyon_category,
         ising_anyon_category,
-        SU2_kAnyonCategory(4).as_ProductSymmetry(),
+        SU2_kAnyonCategory(4).as_Symmetry(),
         SU2_kAnyonCategory(5) * u1_symmetry,
         SU2Symmetry() * ising_anyon_category,
         SU3_3AnyonCategory() * u1_symmetry,
         fibonacci_anyon_category * z5_symmetry,
     ],
 )
-def test_ftb_transpose(symmetry: ProductSymmetry, block_backend: str, np_random: np.random.Generator):
+def test_ftb_transpose(symmetry: Symmetry, block_backend: str, np_random: np.random.Generator):
     backend = get_backend('fusion_tree', block_backend)
     num_codom_legs, num_dom_legs = np_random.integers(low=2, high=4, size=2)
     tens = random_tensor(
@@ -1571,14 +1571,14 @@ def test_permute_legs_instructions():
     [
         fibonacci_anyon_category,
         ising_anyon_category,
-        SU2_kAnyonCategory(4).as_ProductSymmetry(),
+        SU2_kAnyonCategory(4).as_Symmetry(),
         SU2_kAnyonCategory(5) * u1_symmetry,
         SU2Symmetry() * ising_anyon_category,
         SU3_3AnyonCategory() * u1_symmetry,
         fibonacci_anyon_category * z5_symmetry,
     ],
 )
-def test_ftb_partial_trace(symmetry: ProductSymmetry, block_backend: str, np_random: np.random.Generator):
+def test_ftb_partial_trace(symmetry: Symmetry, block_backend: str, np_random: np.random.Generator):
     backend = get_backend('fusion_tree', block_backend)
     num_codom_legs, num_dom_legs = np_random.integers(low=2, high=4, size=2)
     num_legs = num_codom_legs + num_dom_legs

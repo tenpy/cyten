@@ -7,7 +7,7 @@ import logging
 
 from ..block_backends import NumpyBlockBackend, TorchBlockBackend
 from ..dummy_config import config
-from ..symmetries import ProductSymmetry, no_symmetry
+from ..symmetries import Symmetry, no_symmetry
 from ._backend import TensorBackend
 from .abelian import AbelianBackend
 from .fusion_tree_backend import FusionTreeBackend
@@ -31,7 +31,7 @@ _block_backends = dict(  # values: (cls, kwargs)
 _instantiated_backends = {}  # keys: (tensor_backend: str, block_backend: str)
 
 
-def get_backend(symmetry: ProductSymmetry | str = None, block_backend: str = None) -> TensorBackend:
+def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> TensorBackend:
     """Get an instance of an appropriate backend.
 
     Backends are instantiated only once and then cached. If a suitable backend instance is in
@@ -39,7 +39,7 @@ def get_backend(symmetry: ProductSymmetry | str = None, block_backend: str = Non
 
     Parameters
     ----------
-    symmetry : {'no_symmetry', 'abelian', 'fusion_tree'} | ProductSymmetry
+    symmetry : {'no_symmetry', 'abelian', 'fusion_tree'} | Symmetry
         Specifies which subclass of :class:`TensorBackend` to use, either directly via string,
         or as the minimal version which supports the given symmetry.
     block_backend : {None, 'numpy', 'torch', 'tensorflow', 'jax', 'cpu', 'gpu', 'tpu'}
@@ -51,7 +51,7 @@ def get_backend(symmetry: ProductSymmetry | str = None, block_backend: str = Non
     if block_backend is None:
         block_backend = config.default_block_backend
 
-    if isinstance(symmetry, ProductSymmetry):
+    if isinstance(symmetry, Symmetry):
         # figure out minimal symmetry_backend that supports that symmetry
         if symmetry.is_same_symmetry(no_symmetry):
             tensor_backend = 'no_symmetry'
@@ -73,7 +73,7 @@ def get_backend(symmetry: ProductSymmetry | str = None, block_backend: str = Non
     TensorBackendCls, tensor_kwargs = _tensor_backend_classes[tensor_backend]
     backend = TensorBackendCls(block_backend=BlockBackendCls(**block_kwargs), **tensor_kwargs)
 
-    if isinstance(symmetry, ProductSymmetry):
+    if isinstance(symmetry, Symmetry):
         assert backend.supports_symmetry(symmetry)
 
     _instantiated_backends[key] = backend

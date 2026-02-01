@@ -23,9 +23,9 @@ from ..symmetries import (
     FusionTree,
     Leg,
     LegPipe,
-    ProductSymmetry,
     Sector,
     Space,
+    Symmetry,
     SymmetryError,
     TensorProduct,
 )
@@ -179,7 +179,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         The domain and codomain of the tensor. See also :attr:`legs` and :ref:`tensors_as_maps`.
     backend : TensorBackend
         The backend of the tensor.
-    symmetry : ProductSymmetry
+    symmetry : Symmetry
         The symmetry of the tensor.
     num_legs : int
         The total number of legs in the domain and codomain.
@@ -246,7 +246,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
             The codomain and domain, converted to :class:`TensorProduct` if needed.
         backend: TensorBackend
             The given backend, or the default backend compatible with `symmetry`.
-        symmetry: ProductSymmetry
+        symmetry: Symmetry
             The symmetry of the domain and codomain
 
         """
@@ -1397,7 +1397,7 @@ class SymmetricTensor(Tensor):
         )
 
     @staticmethod
-    def _parse_default_dtype(dtype: Dtype | None, symmetry: ProductSymmetry):
+    def _parse_default_dtype(dtype: Dtype | None, symmetry: Symmetry):
         if symmetry.has_complex_topological_data:
             if dtype is None:
                 dtype = Dtype.complex128
@@ -3192,7 +3192,7 @@ class ChargedTensor(Tensor):
         return ChargedTensor(inv_part, charged_state)
 
     @classmethod
-    def supports_symmetry(cls, symmetry: ProductSymmetry) -> bool:
+    def supports_symmetry(cls, symmetry: Symmetry) -> bool:
         """If the :class:`ChargedTensor` concept is well defined for the `symmetry`."""
         return symmetry.has_symmetric_braid
 

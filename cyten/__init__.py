@@ -42,7 +42,6 @@ from .symmetries import (
     Leg,
     LegPipe,
     NoSymmetry,
-    ProductSymmetry,
     QuantumDoubleZNAnyonCategory,
     Sector,
     SectorArray,
@@ -54,6 +53,7 @@ from .symmetries import (
     Symmetry,
     # _symmetries.py
     SymmetryError,
+    SymmetryFactor,
     TensorProduct,
     ToricCodeCategory,
     U1Symmetry,

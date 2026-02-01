@@ -11,8 +11,8 @@ from cyten.block_backends import Block
 from cyten.block_backends.dtypes import Dtype
 from cyten.symmetries import (
     ElementarySpace,
-    ProductSymmetry,
     Sector,
+    Symmetry,
     SymmetryError,
     TensorProduct,
     trees,
@@ -23,7 +23,7 @@ from cyten.testing import random_symmetry_sectors
 
 
 def random_fusion_tree(
-    symmetry: ProductSymmetry, num_uncoupled: int, sector_rng: Callable[[], Sector], np_random: np.random.Generator
+    symmetry: Symmetry, num_uncoupled: int, sector_rng: Callable[[], Sector], np_random: np.random.Generator
 ) -> trees.FusionTree:
     if num_uncoupled == 0:
         return trees.FusionTree.from_empty(symmetry=symmetry)
@@ -58,7 +58,7 @@ def random_fusion_tree(
 
 
 def random_tree_pair(
-    symmetry: ProductSymmetry,
+    symmetry: Symmetry,
     num_uncoupled_in: int,
     num_uncoupled_out: int,
     sector_rng: Callable[[], Sector],
@@ -467,7 +467,7 @@ def check_fusion_trees(it: trees.fusion_trees, expect_len: int = None):
     assert num_trees == expect_len
 
 
-def test_fusion_trees(any_symmetry: ProductSymmetry, make_any_sectors, np_random):
+def test_fusion_trees(any_symmetry: Symmetry, make_any_sectors, np_random):
     """test the ``fusion_trees`` iterator"""
     some_sectors = make_any_sectors(20)  # generates unique sectors
     non_trivial_sectors = some_sectors[np.any(some_sectors != any_symmetry.trivial_sector[None, :], axis=1)]

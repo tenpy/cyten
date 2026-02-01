@@ -2,7 +2,7 @@
 
 Changes compared to old np_conserved:
 
-- replace `ChargeInfo` by `ProductSymmetry`
+- replace `ChargeInfo` by `Symmetry`
 - replace `LegCharge` by `ElementarySpace` and `LegPipe` by `AbelianLegPipe`. Changed class hierarchy!
 - standard `Tensor` have qtotal=0, only ChargedTensor can have non-zero qtotal
 - relabeling:
@@ -45,8 +45,8 @@ from ..symmetries import (
     FusionTree,
     Leg,
     LegPipe,
-    ProductSymmetry,
     Space,
+    Symmetry,
     TensorProduct,
 )
 from ..tools.misc import (
@@ -1921,7 +1921,7 @@ class AbelianBackend(TensorBackend):
         block_inds = a.data.block_inds[:, keep]
         return AbelianBackendData(a.data.dtype, a.data.device, blocks, block_inds, is_sorted=True)
 
-    def supports_symmetry(self, symmetry: ProductSymmetry) -> bool:
+    def supports_symmetry(self, symmetry: Symmetry) -> bool:
         return symmetry.is_abelian and symmetry.has_trivial_braid
 
     def svd(
