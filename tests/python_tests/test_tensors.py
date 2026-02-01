@@ -16,10 +16,10 @@ from cyten.backends import conventional_leg_order, get_backend
 from cyten.block_backends import NumpyBlockBackend
 from cyten.block_backends.dtypes import Dtype
 from cyten.symmetries import (
+    SU2,
     AbelianLegPipe,
     ElementarySpace,
     LegPipe,
-    SU2Symmetry,
     SymmetryError,
     TensorProduct,
     u1_symmetry,
@@ -419,7 +419,7 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
 
 def test_fixes_124(np_random):
     """Check if the bug discussed in PR #124 is fixed"""
-    symm = SU2Symmetry().as_Symmetry()
+    symm = SU2().as_Symmetry()
     backend = get_backend(symm, 'numpy')
     a = ElementarySpace(symm, [[1]], [1])
     b = ElementarySpace(symm, [[1]], [1])
@@ -456,8 +456,8 @@ def test_fixes_124(np_random):
 
 def test_fixes_23():
     # See PR #23
-    sym = SU2Symmetry().as_Symmetry()
-    site = ElementarySpace(sym, SU2Symmetry.spin_half[None, :])
+    sym = SU2().as_Symmetry()
+    site = ElementarySpace(sym, SU2.spin_half[None, :])
     block = np.zeros((2,) * 6, float)
     tens = SymmetricTensor.from_dense_block(block, codomain=[site] * 3, domain=[site] * 3)
     tens.test_sanity()
@@ -1017,7 +1017,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
 @pytest.mark.parametrize('symmetry_backend', [pytest.param('fusion_tree', marks=pytest.mark.FusionTree)])
 def test_from_block_su2_symm(symmetry_backend, block_backend):
     backend = get_backend(symmetry_backend, block_backend)
-    sym = SU2Symmetry().as_Symmetry()
+    sym = SU2().as_Symmetry()
     spin_half = ElementarySpace(sym, [[1]])
 
     # basis order: [down, up]  ->  might look unusual
@@ -2365,7 +2365,7 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
     ],
 )
 def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor, compatible_symmetry):
-    if compatible_symmetry.has_factor(SU2Symmetry):
+    if compatible_symmetry.has_factor(SU2):
         # need to make the test case smaller, so this does not need to many resources
         kwargs = dict(use_pipes=False, max_blocks=3)
         cA = dA = cB = dB = 1
@@ -2699,7 +2699,7 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
 def test_permute_legs(
     cls, num_cod, num_dom, codomain, domain, levels, bend_right, make_compatible_tensor, compatible_symmetry, np_random
 ):
-    if compatible_symmetry.has_factor(SU2Symmetry) and (num_cod + num_dom) > 4:
+    if compatible_symmetry.has_factor(SU2) and (num_cod + num_dom) > 4:
         # make sure we dont need symmetry data for too large sectors
         sectors = [[0], [1], [2]]
         legs = []

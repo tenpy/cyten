@@ -198,7 +198,7 @@ _symmetries = {
     # groups:
     'NoSymm': ct.no_symmetry,
     'U1': ct.u1_symmetry,
-    'Z4_named': ct.ZNSymmetry(4, 'My_Z4_symmetry').as_Symmetry(),
+    'Z4_named': ct.ZN(4, 'My_Z4_symmetry').as_Symmetry(),
     'U1xZ3': ct.u1_symmetry * ct.z3_symmetry,
     'SU2': ct.su2_symmetry,
     # anyons:

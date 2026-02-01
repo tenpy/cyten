@@ -25,46 +25,33 @@ from .backends import TensorBackend, get_backend
 # subpackages
 from .block_backends import Block, BlockBackend, Dtype, NumpyBlockBackend, TorchBlockBackend
 from .models import Coupling, Site, couplings, sites
-from .symmetries import (
-    AbelianLegPipe,
+from .symmetries._symmetries import (
+    SU2,
+    SUN,
+    U1,
+    ZN,
     BraidChiralityUnspecifiedError,
     BraidingStyle,
-    ElementarySpace,
     FermionNumber,
     FermionParity,
     FibonacciAnyonCategory,
     FusionStyle,
-    # trees
-    FusionTree,
-    GroupSymmetry,
     IsingAnyonCategory,
-    # spaces
-    Leg,
-    LegPipe,
     NoSymmetry,
     QuantumDoubleZNAnyonCategory,
     Sector,
     SectorArray,
-    Space,
     SU2_kAnyonCategory,
-    SU2Symmetry,
     SU3_3AnyonCategory,
-    SUNSymmetry,
     Symmetry,
-    # _symmetries.py
     SymmetryError,
-    SymmetryFactor,
-    TensorProduct,
     ToricCodeCategory,
-    U1Symmetry,
     ZNAnyonCategory,
     ZNAnyonCategory2,
-    ZNSymmetry,
     double_semion_category,
     fermion_number,
     fermion_parity,
     fibonacci_anyon_category,
-    fusion_trees,
     ising_anyon_category,
     no_symmetry,
     semion_category,
@@ -80,6 +67,8 @@ from .symmetries import (
     z8_symmetry,
     z9_symmetry,
 )
+from .symmetries.spaces import AbelianLegPipe, ElementarySpace, Leg, LegPipe, Space, TensorProduct
+from .symmetries.trees import FusionTree, fusion_trees
 from .tensors import (
     ChargedTensor,
     DiagonalTensor,

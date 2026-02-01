@@ -7,7 +7,7 @@ import numpy as np
 
 from .. import backends, tensors, tools
 from ..block_backends import dtypes
-from ..symmetries import SectorArray, SU2Symmetry, Symmetry, SymmetryFactor, U1Symmetry, spaces
+from ..symmetries import SU2, U1, SectorArray, Symmetry, SymmetryFactor, spaces
 
 
 def random_block(block_backend, size, real=False, np_random=np.random.default_rng(0)):
@@ -41,9 +41,9 @@ def random_factor_sectors(factor: SymmetryFactor, num: int, np_random=np.random.
     """Random unique symmetry sectors, optionally sorted."""
     assert not isinstance(factor, Symmetry)
     assert isinstance(factor, SymmetryFactor)
-    if isinstance(factor, SU2Symmetry):
+    if isinstance(factor, SU2):
         res = np_random.choice(max(int(1.3 * num), 2), replace=False, size=(num, 1))
-    elif isinstance(factor, U1Symmetry):
+    elif isinstance(factor, U1):
         vals = list(range(-num, num)) + [123]
         res = np_random.choice(vals, replace=False, size=(num, 1))
     elif factor.num_sectors < np.inf:

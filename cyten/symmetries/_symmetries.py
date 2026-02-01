@@ -1154,7 +1154,7 @@ class SymmetryFactor(BaseSymmetry):
         return obj
 
 
-class GroupSymmetry(SymmetryFactor):
+class Group(SymmetryFactor):
     """Base-class for symmetries that are described by a group.
 
     The symmetry is given via a faithful representation on the Hilbert space.
@@ -1201,7 +1201,7 @@ class GroupSymmetry(SymmetryFactor):
         return 1
 
 
-class AbelianGroup(GroupSymmetry):
+class AbelianGroup(Group):
     """Base-class for abelian symmetry groups."""
 
     fusion_tensor_dtype = Dtype.float64
@@ -1209,7 +1209,7 @@ class AbelianGroup(GroupSymmetry):
     def __init__(
         self, trivial_sector: Sector, group_name: str, num_sectors: int | float, descriptive_name: str | None = None
     ):
-        GroupSymmetry.__init__(
+        Group.__init__(
             self,
             fusion_style=FusionStyle.single,
             trivial_sector=trivial_sector,
@@ -1314,7 +1314,7 @@ class NoSymmetry(AbelianGroup):
         return self.trivial_sector[np.newaxis, :]
 
 
-class U1Symmetry(AbelianGroup):
+class U1(AbelianGroup):
     """U(1) symmetry.
 
     Allowed sectors are 1D arrays with a single integer entry.
@@ -1357,10 +1357,10 @@ class U1Symmetry(AbelianGroup):
         return f'U1Symmetry({name_str})'
 
     def is_same_symmetry(self, other) -> bool:
-        return isinstance(other, U1Symmetry)
+        return isinstance(other, U1)
 
 
-class ZNSymmetry(AbelianGroup):
+class ZN(AbelianGroup):
     """Z_N symmetry.
 
     Allowed sectors are 1D arrays with a single integer entry between `0` and `N-1`.
@@ -1399,7 +1399,7 @@ class ZNSymmetry(AbelianGroup):
         return f'ZNSymmetry({self.N}{name_str})'
 
     def is_same_symmetry(self, other) -> bool:
-        return isinstance(other, ZNSymmetry) and other.N == self.N
+        return isinstance(other, ZN) and other.N == self.N
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a < self.N
@@ -1427,7 +1427,7 @@ class ZNSymmetry(AbelianGroup):
         return np.arange(self.N, dtype=int)[:, None]
 
 
-class SU2Symmetry(GroupSymmetry):
+class SU2(Group):
     """SU(2) symmetry.
 
     Allowed sectors are 1D arrays ``[jj]`` of positive integers `jj` = `0`, `1`, `2`, ...
@@ -1442,7 +1442,7 @@ class SU2Symmetry(GroupSymmetry):
     spin_one = as_immutable_array(np.array([2], dtype=int))
 
     def __init__(self, descriptive_name: str | None = None):
-        GroupSymmetry.__init__(
+        Group.__init__(
             self,
             fusion_style=FusionStyle.multiple_unique,
             trivial_sector=np.array([0], dtype=int),
@@ -1488,7 +1488,7 @@ class SU2Symmetry(GroupSymmetry):
         return f'SU2Symmetry({name_str})'
 
     def is_same_symmetry(self, other) -> bool:
-        return isinstance(other, SU2Symmetry)
+        return isinstance(other, SU2)
 
     def dual_sector(self, a: Sector) -> Sector:
         # all sectors are self-dual
@@ -1550,7 +1550,7 @@ class SU2Symmetry(GroupSymmetry):
         return _su2data.Z_iso(a[0])
 
 
-class SUNSymmetry(GroupSymmetry):
+class SUN(Group):
     """SU(N) group symmetry
 
     The sectors are arrays of length N which correspond to first rows of normalized Gelfand-Tsetlin
@@ -1584,7 +1584,7 @@ class SUNSymmetry(GroupSymmetry):
         self.Ffile = Ffile
         self.Rfile = Rfile
 
-        GroupSymmetry.__init__(
+        Group.__init__(
             self,
             fusion_style=FusionStyle.general,
             trivial_sector=np.array([0] * N, dtype=int),
@@ -1607,7 +1607,7 @@ class SUNSymmetry(GroupSymmetry):
         return len(a) == self.N and a[-1] == 0
 
     def is_same_symmetry(self, other) -> bool:
-        if not isinstance(other, SUNSymmetry):
+        if not isinstance(other, SUN):
             return False
         return self.N == other.N
 
@@ -3282,16 +3282,16 @@ class SU3_3AnyonCategory(SymmetryFactor):
 
 # Note : some symmetries have expensive __init__ ! Do not initialize those.
 no_symmetry = NoSymmetry().as_Symmetry()
-z2_symmetry = ZNSymmetry(N=2).as_Symmetry()
-z3_symmetry = ZNSymmetry(N=3).as_Symmetry()
-z4_symmetry = ZNSymmetry(N=4).as_Symmetry()
-z5_symmetry = ZNSymmetry(N=5).as_Symmetry()
-z6_symmetry = ZNSymmetry(N=6).as_Symmetry()
-z7_symmetry = ZNSymmetry(N=7).as_Symmetry()
-z8_symmetry = ZNSymmetry(N=8).as_Symmetry()
-z9_symmetry = ZNSymmetry(N=9).as_Symmetry()
-u1_symmetry = U1Symmetry().as_Symmetry()
-su2_symmetry = SU2Symmetry().as_Symmetry()
+z2_symmetry = ZN(N=2).as_Symmetry()
+z3_symmetry = ZN(N=3).as_Symmetry()
+z4_symmetry = ZN(N=4).as_Symmetry()
+z5_symmetry = ZN(N=5).as_Symmetry()
+z6_symmetry = ZN(N=6).as_Symmetry()
+z7_symmetry = ZN(N=7).as_Symmetry()
+z8_symmetry = ZN(N=8).as_Symmetry()
+z9_symmetry = ZN(N=9).as_Symmetry()
+u1_symmetry = U1().as_Symmetry()
+su2_symmetry = SU2().as_Symmetry()
 fermion_number = FermionNumber().as_Symmetry()
 fermion_parity = FermionParity().as_Symmetry()
 semion_category = ZNAnyonCategory2(2, 0).as_Symmetry()
