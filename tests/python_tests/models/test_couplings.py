@@ -158,7 +158,7 @@ def test_spin_spin_coupling(any_backend, np_random):
 
         # test different site combinations
         for site2 in site_list[: i + 1]:
-            # Note: is_same_symmetry does not work here since it does not distinguish
+            # Note: is_equivalent_to does not work here since it does not distinguish
             # between U(1) fermion number symmetry and Sz spin symmetry for fermions
             if not site1.symmetry == site2.symmetry:
                 continue

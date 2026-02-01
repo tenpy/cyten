@@ -606,7 +606,7 @@ class Space(metaclass=ABCMeta):
         ElementarySpace.from_largest_common_subspace
 
         """
-        if not self.symmetry.is_same_symmetry(other.symmetry):
+        if not self.symmetry.is_equivalent_to(other.symmetry):
             return False
         if self.num_sectors == 0:
             return True

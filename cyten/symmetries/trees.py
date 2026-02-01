@@ -1182,7 +1182,7 @@ class fusion_trees(Iterable[FusionTree]):
     def index(self, tree: FusionTree) -> int:
         """The index of a given tree in the iterator."""
         # check compatibility first (same symmetry, same uncoupled, same coupled, same are_dual)
-        if not self.symmetry.is_same_symmetry(tree.symmetry):
+        if not self.symmetry.is_equivalent_to(tree.symmetry):
             raise ValueError(f'Inconsistent symmetries, {self.symmetry} != {tree.symmetry}')
         if not np.all(self.uncoupled == tree.uncoupled):
             raise ValueError(f'Inconsistent uncoupled sectors, {self.uncoupled} != {tree.uncoupled}')

@@ -53,7 +53,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
     if isinstance(symmetry, Symmetry):
         # figure out minimal symmetry_backend that supports that symmetry
-        if symmetry.is_same_symmetry(no_symmetry):
+        if symmetry.is_equivalent_to(no_symmetry):
             tensor_backend = 'no_symmetry'
         elif symmetry.is_abelian and symmetry.has_trivial_braid:
             tensor_backend = 'abelian'

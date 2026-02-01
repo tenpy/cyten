@@ -667,7 +667,7 @@ class Symmetry(BaseSymmetry):
                 flat_factors.extend(f.factors)
             else:
                 flat_factors.append(f)
-        self.factors = flat_factors
+        self.factors: list[SymmetryFactor] = flat_factors
         for f in flat_factors:
             assert not isinstance(f, Symmetry)  # avoid unnecessary nesting
 
@@ -860,7 +860,6 @@ class Symmetry(BaseSymmetry):
 
         if self.num_factors != other.num_factors:
             return False
-
         return all(f1 == f2 for f1, f2 in zip(self.factors, other.factors))
 
     def __mul__(self, other):
@@ -870,12 +869,29 @@ class Symmetry(BaseSymmetry):
             return Symmetry([*self.factors, other])
         return NotImplemented
 
-    def is_same_symmetry(self, other) -> bool:
-        if not isinstance(other, Symmetry):
-            return False
+    def is_equivalent_to(self, other: Symmetry | SymmetryFactor, strict_ordering: bool = False) -> bool:
+        """If two symmetries are equivalent.
+
+        Equivalence ignores the :attr:`SymmetryFactor.descriptive_name` of the factors.
+        Ordering of the :attr:`factors` is also ignored, unless ``strict_ordering=True``.
+        """
+        other = other.as_Symmetry()
         if self.num_factors != other.num_factors:
             return False
-        return all(f1.is_same_symmetry(f2) for f1, f2 in zip(self.factors, other.factors))
+        if strict_ordering:
+            return all(f1._is_equivalent_factor(f2) for f1, f2 in zip(self.factors, other.factors))
+        already_matched = []
+        for f1 in self.factors:
+            for i, f2 in enumerate(other.factors):
+                if i in already_matched:
+                    continue
+                if f1._is_equivalent_factor(f2):
+                    already_matched.append(i)
+                    break
+            else:  # no break occurred
+                return False
+        # if the loop terminates without returning False, every f1 found a match
+        return True
 
     def dual_sector(self, a: Sector) -> Sector:
         res = np.empty_like(a)
@@ -1088,11 +1104,16 @@ class SymmetryFactor(BaseSymmetry):
         # Convention: valid syntax for the constructor, i.e. "ClassName(..., name='...')"
         ...
 
+    def is_equivalent_to(self, other: Symmetry | SymmetryFactor) -> bool:
+        if isinstance(other, Symmetry):
+            return other.is_equivalent_to(self)
+        return self._is_equivalent_factor(other)
+
     @abstractmethod
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         """Whether self and other describe the same mathematical structure.
 
-        descriptive_name is ignored.
+        In particular, :attr:`descriptive_name` is ignored.
         """
         ...
 
@@ -1121,8 +1142,7 @@ class SymmetryFactor(BaseSymmetry):
 
         if self.descriptive_name != other.descriptive_name:
             return False
-
-        return self.is_same_symmetry(other)
+        return self._is_equivalent_factor(other)
 
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
         hdf5_saver.save(self.group_name, subpath + 'group_name')
@@ -1307,7 +1327,7 @@ class NoSymmetry(AbelianGroup):
     def __repr__(self):
         return 'NoSymmetry()'
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         return isinstance(other, NoSymmetry)
 
     def all_sectors(self) -> SectorArray:
@@ -1356,7 +1376,7 @@ class U1(AbelianGroup):
         name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
         return f'U1Symmetry({name_str})'
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         return isinstance(other, U1)
 
 
@@ -1398,7 +1418,7 @@ class ZN(AbelianGroup):
         name_str = '' if self.descriptive_name is None else f', "{self.descriptive_name}"'
         return f'ZNSymmetry({self.N}{name_str})'
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         return isinstance(other, ZN) and other.N == self.N
 
     def is_valid_sector(self, a: Sector) -> bool:
@@ -1487,7 +1507,7 @@ class SU2(Group):
         name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
         return f'SU2Symmetry({name_str})'
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         return isinstance(other, SU2)
 
     def dual_sector(self, a: Sector) -> Sector:
@@ -1606,7 +1626,7 @@ class SUN(Group):
 
         return len(a) == self.N and a[-1] == 0
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         if not isinstance(other, SUN):
             return False
         return self.N == other.N
@@ -2153,7 +2173,7 @@ class FermionNumber(SymmetryFactor):
     def batch_qdim(self, a: SectorArray) -> np.ndarray:
         return np.ones((len(a),), int)
 
-    def is_same_symmetry(self, other):
+    def _is_equivalent_factor(self, other):
         return isinstance(other, FermionNumber)
 
     def dual_sector(self, a: Sector) -> Sector:
@@ -2282,7 +2302,7 @@ class FermionParity(SymmetryFactor):
         name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
         return f'FermionParity({name_str})'
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         return isinstance(other, FermionParity)
 
     def dual_sector(self, a: Sector) -> Sector:
@@ -2404,7 +2424,7 @@ class ZNAnyonCategory(SymmetryFactor):
         name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
         return f'ZNAnyonCategory({self.N}, {self.n}, {name_str})'
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         return isinstance(other, ZNAnyonCategory) and other.N == self.N and other.n == self.n
 
     def dual_sector(self, a: Sector) -> Sector:
@@ -2498,7 +2518,7 @@ class ZNAnyonCategory2(SymmetryFactor):
         name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
         return f'ZNAnyonCategory2({self.N}, {self.n}, {name_str})'
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         return isinstance(other, ZNAnyonCategory2) and other.N == self.N and other.n == self.n
 
     def dual_sector(self, a: Sector) -> Sector:
@@ -2586,7 +2606,7 @@ class QuantumDoubleZNAnyonCategory(SymmetryFactor):
         name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
         return f'QuantumDoubleZNAnyonCategory({self.N}, {name_str})'
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         return isinstance(other, QuantumDoubleZNAnyonCategory) and other.N == self.N
 
     def dual_sector(self, a: Sector) -> Sector:
@@ -2711,7 +2731,7 @@ class FibonacciAnyonCategory(SymmetryFactor):
     def __repr__(self):
         return f'FibonacciAnyonCategory(handedness={self.handedness})'
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         return isinstance(other, FibonacciAnyonCategory) and other.handedness == self.handedness
 
     def dual_sector(self, a: Sector) -> Sector:
@@ -2839,7 +2859,7 @@ class IsingAnyonCategory(SymmetryFactor):
     def __repr__(self):
         return f'IsingAnyonCategory(nu={self.nu})'
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         return isinstance(other, IsingAnyonCategory) and other.nu == self.nu
 
     def dual_sector(self, a: Sector) -> Sector:
@@ -3014,7 +3034,7 @@ class SU2_kAnyonCategory(SymmetryFactor):
     def __repr__(self):
         return f'SU2_kAnyonCategory({self.k}, {self.handedness})'
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         return isinstance(other, SU2_kAnyonCategory) and other.k == self.k and other.handedness == self.handedness
 
     def dual_sector(self, a: Sector) -> Sector:
@@ -3239,7 +3259,7 @@ class SU3_3AnyonCategory(SymmetryFactor):
     def __repr__(self):
         return f'SU3_3AnyonCategory()'
 
-    def is_same_symmetry(self, other) -> bool:
+    def _is_equivalent_factor(self, other) -> bool:
         return isinstance(other, SU3_3AnyonCategory)
 
     def dual_sector(self, a: Sector) -> Sector:

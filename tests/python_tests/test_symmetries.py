@@ -724,10 +724,10 @@ def test_no_symmetry(np_random):
     assert sym != symmetries.U1()
     assert sym != symmetries.SU2() * symmetries.u1_symmetry
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(symmetries.NoSymmetry())
-    assert not sym.is_same_symmetry(symmetries.U1())
-    assert not sym.is_same_symmetry(symmetries.SU2() * symmetries.u1_symmetry)
+    print('checking is_equivalent_to')
+    assert sym.is_equivalent_to(symmetries.NoSymmetry())
+    assert not sym.is_equivalent_to(symmetries.U1())
+    assert not sym.is_equivalent_to(symmetries.SU2() * symmetries.u1_symmetry)
 
     print('checking dual_sector')
     assert_array_equal(sym.dual_sector(s), s)
@@ -827,11 +827,11 @@ def test_product_symmetry(np_random):
     assert sym != symmetries.SU2() * symmetries.u1_symmetry
     assert sym != symmetries.no_symmetry
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert sym.is_same_symmetry(sym_with_name)
-    assert not sym.is_same_symmetry(symmetries.SU2() * symmetries.u1_symmetry)
-    assert not sym.is_same_symmetry(symmetries.no_symmetry)
+    print('checking is_equivalent_to')
+    assert sym.is_equivalent_to(sym)
+    assert sym.is_equivalent_to(sym_with_name)
+    assert not sym.is_equivalent_to(symmetries.SU2() * symmetries.u1_symmetry)
+    assert not sym.is_equivalent_to(symmetries.no_symmetry)
 
     print('checking dual_sector')
     assert_array_equal(sym.dual_sector(s1), np.array([5, -3, 1]))
@@ -881,12 +881,12 @@ def test_u1_symmetry(np_random):
     assert sym != symmetries.NoSymmetry()
     assert sym != symmetries.SU2() * symmetries.u1_symmetry
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert sym.is_same_symmetry(sym_with_name)
-    assert sym.is_same_symmetry(symmetries.U1('even_with_name'))
-    assert not sym.is_same_symmetry(symmetries.NoSymmetry())
-    assert not sym.is_same_symmetry(symmetries.SU2() * symmetries.u1_symmetry)
+    print('checking is_equivalent_to')
+    assert sym.is_equivalent_to(sym)
+    assert sym.is_equivalent_to(sym_with_name)
+    assert sym.is_equivalent_to(symmetries.U1('even_with_name'))
+    assert not sym.is_equivalent_to(symmetries.NoSymmetry())
+    assert not sym.is_equivalent_to(symmetries.SU2() * symmetries.u1_symmetry)
 
     print('checking dual_sector')
     assert_array_equal(sym.dual_sector(s_1), s_neg1)
@@ -937,12 +937,12 @@ def test_ZN_symmetry(N, np_random):
     assert sym != other[N + 1]
     assert sym != symmetries.u1_symmetry
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert sym.is_same_symmetry(sym_with_name)
-    assert sym.is_same_symmetry(other[N])
-    assert not sym.is_same_symmetry(other[N + 1])
-    assert not sym.is_same_symmetry(symmetries.u1_symmetry)
+    print('checking is_equivalent_to')
+    assert sym.is_equivalent_to(sym)
+    assert sym.is_equivalent_to(sym_with_name)
+    assert sym.is_equivalent_to(other[N])
+    assert not sym.is_equivalent_to(other[N + 1])
+    assert not sym.is_equivalent_to(symmetries.u1_symmetry)
 
     print('checking dual_sector')
     for s in sectors_a:
@@ -1098,10 +1098,10 @@ def test_fermion_parity(np_random):
     assert sym != symmetries.SU2()
     assert sym != symmetries.fermion_parity * symmetries.z2_symmetry
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert not sym.is_same_symmetry(symmetries.no_symmetry)
-    assert not sym.is_same_symmetry(symmetries.SU2())
+    print('checking is_equivalent_to')
+    assert sym.is_equivalent_to(sym)
+    assert not sym.is_equivalent_to(symmetries.no_symmetry)
+    assert not sym.is_equivalent_to(symmetries.SU2())
 
     print('checking dual_sector')
     assert_array_equal(sym.dual_sector(odd), odd)
@@ -1141,10 +1141,10 @@ def test_fermion_number(np_random):
     assert sym != symmetries.SU2()
     assert sym != symmetries.fermion_number * symmetries.z2_symmetry
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert not sym.is_same_symmetry(symmetries.NoSymmetry())
-    assert not sym.is_same_symmetry(symmetries.SU2())
+    print('checking is_equivalent_to')
+    assert sym.is_equivalent_to(sym)
+    assert not sym.is_equivalent_to(symmetries.NoSymmetry())
+    assert not sym.is_equivalent_to(symmetries.SU2())
 
     print('checking dual_sector')
     assert_array_equal(sym.dual_sector(np.array([2])), np.array([-2]))
@@ -1185,12 +1185,12 @@ def test_fibonacci_grading(handedness, np_random):
     assert sym != symmetries.no_symmetry
     assert sym != symmetries.SU2()
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert sym.is_same_symmetry(symmetries.FibonacciAnyonCategory(handedness))
-    assert not sym.is_same_symmetry(symmetries.FibonacciAnyonCategory(other_handedness))
-    assert not sym.is_same_symmetry(symmetries.no_symmetry)
-    assert not sym.is_same_symmetry(symmetries.SU2())
+    print('checking is_equivalent_to')
+    assert sym.is_equivalent_to(sym)
+    assert sym.is_equivalent_to(symmetries.FibonacciAnyonCategory(handedness))
+    assert not sym.is_equivalent_to(symmetries.FibonacciAnyonCategory(other_handedness))
+    assert not sym.is_equivalent_to(symmetries.no_symmetry)
+    assert not sym.is_equivalent_to(symmetries.SU2())
 
     print('checking dual_sector')
     assert_array_equal(sym.dual_sector(tau), tau)
@@ -1231,12 +1231,12 @@ def test_ising_grading(nu, np_random):
     assert sym != symmetries.NoSymmetry()
     assert sym != symmetries.SU2()
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert sym.is_same_symmetry(symmetries.IsingAnyonCategory(nu))
-    assert not sym.is_same_symmetry(symmetries.IsingAnyonCategory(nu + 2))
-    assert not sym.is_same_symmetry(symmetries.NoSymmetry())
-    assert not sym.is_same_symmetry(symmetries.SU2())
+    print('checking is_equivalent_to')
+    assert sym.is_equivalent_to(sym)
+    assert sym.is_equivalent_to(symmetries.IsingAnyonCategory(nu))
+    assert not sym.is_equivalent_to(symmetries.IsingAnyonCategory(nu + 2))
+    assert not sym.is_equivalent_to(symmetries.NoSymmetry())
+    assert not sym.is_equivalent_to(symmetries.SU2())
 
     print('checking dual_sector')
     assert_array_equal(sym.dual_sector(anyon), anyon)
@@ -1277,10 +1277,10 @@ def test_SU3_3AnyonCategory(np_random):
     assert sym != symmetries.no_symmetry
     assert sym != symmetries.SU2()
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert not sym.is_same_symmetry(symmetries.no_symmetry)
-    assert not sym.is_same_symmetry(symmetries.SU2())
+    print('checking is_equivalent_to')
+    assert sym.is_equivalent_to(sym)
+    assert not sym.is_equivalent_to(symmetries.no_symmetry)
+    assert not sym.is_equivalent_to(symmetries.SU2())
 
     print('checking dual_sector')
     assert_array_equal(sym.dual_sector(b), b)
@@ -1345,13 +1345,13 @@ def test_ZNAnyonCategories(cls, N, n, np_random):
     if cls is symmetries.ZNAnyonCategory2:
         assert sym != symmetries.ZNAnyonCategory(N, n)
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert sym.is_same_symmetry(other[0])
-    assert sym.is_same_symmetry(other[1])
+    print('checking is_equivalent_to')
+    assert sym.is_equivalent_to(sym)
+    assert sym.is_equivalent_to(other[0])
+    assert sym.is_equivalent_to(other[1])
     for i in range(2, 5):
-        assert not sym.is_same_symmetry(other[i])
-    assert not sym.is_same_symmetry(symmetries.u1_symmetry)
+        assert not sym.is_equivalent_to(other[i])
+    assert not sym.is_equivalent_to(symmetries.u1_symmetry)
 
     print('checking dual_sector')
     for s in sectors_a:
@@ -1409,12 +1409,12 @@ def test_QuantumDoubleZNAnyonCategory(N, np_random):
     assert sym != other[3]
     assert sym != symmetries.no_symmetry
 
-    print('checking is_same_symmetry')
-    assert sym.is_same_symmetry(sym)
-    assert sym.is_same_symmetry(other[0])
+    print('checking is_equivalent_to')
+    assert sym.is_equivalent_to(sym)
+    assert sym.is_equivalent_to(other[0])
     for i in range(1, 4):
-        assert not sym.is_same_symmetry(other[i])
-    assert not sym.is_same_symmetry(symmetries.u1_symmetry)
+        assert not sym.is_equivalent_to(other[i])
+    assert not sym.is_equivalent_to(symmetries.u1_symmetry)
 
     print('checking dual_sector')
     for s in sectors_a:

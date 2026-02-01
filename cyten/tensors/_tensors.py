@@ -3824,7 +3824,7 @@ def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | Non
     is mixed up by accident), the error message is amended accordingly on mismatched legs.
     If the legs still match regardless, a warning is issued.
     """
-    if not t1.symmetry.is_same_symmetry(t2.symmetry):
+    if not t1.symmetry.is_equivalent_to(t2.symmetry):
         raise ValueError('Incompatible symmetries')
     incompatible_labels = False
     for n1, l1 in enumerate(t1._labels):
@@ -5029,7 +5029,7 @@ def outer(tensor1: Tensor, tensor2: Tensor, relabel1: dict[str, str] = None, rel
 
     """
     _ = get_same_device(tensor1, tensor2)
-    assert tensor1.symmetry.is_same_symmetry(tensor2.symmetry)
+    assert tensor1.symmetry.is_equivalent_to(tensor2.symmetry)
 
     if isinstance(tensor1, (Mask, DiagonalTensor)):
         msg = 'Converting to SymmetricTensor for outer. Use as_SymmetricTensor() explicitly to suppress the warning.'
@@ -5730,7 +5730,7 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
         leg = tensor.domain[co_domain_idx]
     else:
         leg = tensor.codomain[co_domain_idx]
-    assert tensor.symmetry.is_same_symmetry(diag.symmetry)
+    assert tensor.symmetry.is_equivalent_to(diag.symmetry)
     if leg == diag.leg:
         pass
     elif leg == diag.leg.dual:
@@ -6661,7 +6661,7 @@ def _check_compatible_legs(legs1: Sequence[Leg], legs2: Sequence[Leg], expect_eq
     if len(legs1) != len(legs2):
         raise ValueError('Different number of legs')
     for l1, l2 in zip(legs1, legs2):
-        if not l1.symmetry.is_same_symmetry(l2.symmetry):
+        if not l1.symmetry.is_equivalent_to(l2.symmetry):
             raise ValueError('Different symmetries')
         compatible = l1 == (l2 if expect_equal else l2.dual)
         if not compatible:
