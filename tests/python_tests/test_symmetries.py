@@ -1295,69 +1295,72 @@ def test_SU3_3AnyonCategory(np_random):
 
 @pytest.mark.parametrize('N', [4, 7, 36])
 @pytest.mark.parametrize('n', [1, 3, 4])
-def test_ZNAnyonCategories(N, n, np_random):
-    syms = [_symmetries.ZNAnyonCategory(N, n)]
-    if N % 2 == 0:
-        syms.append(_symmetries.ZNAnyonCategory2(N, n))
+@pytest.mark.parametrize('cls', [_symmetries.ZNAnyonCategory, _symmetries.ZNAnyonCategory2])
+def test_ZNAnyonCategories(cls, N, n, np_random):
+    if cls is _symmetries.ZNAnyonCategory2 and N % 2 != 0:
+        with pytest.raises(AssertionError):
+            _ = cls(N, n)
+        return  # error is expected behavior
 
-    for sym in syms:
-        sectors_a = np.array([0, 1, 2, 10])[:, None] % N
-        sectors_b = np.array([0, 1, 3, 11])[:, None] % N
-        common_checks(sym, example_sectors=sectors_a, example_sectors_low_qdim=sectors_a, np_random=np_random)
+    sym = cls(N, n)
+    sectors_a = np.array([0, 1, 2, 10])[:, None] % N
+    sectors_b = np.array([0, 1, 3, 11])[:, None] % N
+    common_checks(sym, example_sectors=sectors_a, example_sectors_low_qdim=sectors_a, np_random=np_random)
 
-        print('instancecheck and is_abelian')
-        assert not isinstance(sym, _symmetries.AbelianGroup)
-        assert not isinstance(sym, _symmetries.GroupSymmetry)
-        assert sym.is_abelian
+    assert sym.is_abelian
+    assert sym.has_unique_fusion
+    assert not sym.has_trivial_braid
+    assert not sym.has_symmetric_braid
 
-        print('checking valid sectors')
-        for s in sectors_a:
-            assert sym.is_valid_sector(s)
-        assert not sym.is_valid_sector(np.array([0, 0]))
-        assert not sym.is_valid_sector(np.array([N]))
-        assert not sym.is_valid_sector(np.array([-1]))
+    print('checking valid sectors')
+    for s in sectors_a:
+        assert sym.is_valid_sector(s)
+    assert not sym.is_valid_sector(np.array([0, 0]))
+    assert not sym.is_valid_sector(np.array([N]))
+    assert not sym.is_valid_sector(np.array([-1]))
 
-        print('checking fusion_outcomes')
-        for a in sectors_a:
-            for b in sectors_b:
-                expect = (a + b)[None, :] % N
-                assert_array_equal(sym.fusion_outcomes(a, b), expect)
+    print('checking fusion_outcomes')
+    for a in sectors_a:
+        for b in sectors_b:
+            expect = (a + b)[None, :] % N
+            assert_array_equal(sym.fusion_outcomes(a, b), expect)
 
-        print('checking fusion_outcomes_broadcast')
-        expect = (sectors_a + sectors_b) % N
-        assert_array_equal(sym.fusion_outcomes_broadcast(sectors_a, sectors_b), expect)
+    print('checking fusion_outcomes_broadcast')
+    expect = (sectors_a + sectors_b) % N
+    assert_array_equal(sym.fusion_outcomes_broadcast(sectors_a, sectors_b), expect)
 
-        print('checking sector dimensions')
-        for s in sectors_a:
-            assert sym.sector_dim(s) == 1
+    print('checking sector dimensions')
+    for s in sectors_a:
+        assert sym.sector_dim(s) == 1
 
-        print('checking equality')
-        cls = sym.__class__
-        other = [cls(N, n), cls(N, n + N), cls(N, n - 1), cls(N, n + 1), cls(N + 2, n)]
-        assert sym == sym
-        assert sym == other[0]
-        assert sym == other[1]
-        for i in range(2, 5):
-            assert sym != other[i]
-        assert sym != _symmetries.u1_symmetry
-        if N % 2 == 0:
-            assert (cls == _symmetries.ZNAnyonCategory) == (sym == _symmetries.ZNAnyonCategory(N, n))
-            assert (cls == _symmetries.ZNAnyonCategory2) == (sym == _symmetries.ZNAnyonCategory2(N, n))
+    print('checking equality')
+    cls = sym.__class__
+    other = [cls(N, n), cls(N, n + N), cls(N, n - 1), cls(N, n + 1), cls(N + 2, n)]
+    assert sym == sym
+    assert sym == cls(N, n)
+    assert sym == cls(N, n + N)
+    assert sym != cls(N, n - 1)
+    assert sym != cls(N, n + 1)
+    assert sym != cls(N + 2, n)
+    if cls is _symmetries.ZNAnyonCategory and N % 2 == 0:
+        assert sym != _symmetries.ZNAnyonCategory2(N, n)
+    if cls is _symmetries.ZNAnyonCategory2:
+        assert sym != _symmetries.ZNAnyonCategory(N, n)
 
-        print('checking is_same_symmetry')
-        assert sym.is_same_symmetry(sym)
-        assert sym.is_same_symmetry(other[0])
-        assert sym.is_same_symmetry(other[1])
-        for i in range(2, 5):
-            assert not sym.is_same_symmetry(other[i])
-        assert not sym.is_same_symmetry(_symmetries.u1_symmetry)
+    print('checking is_same_symmetry')
+    assert sym.is_same_symmetry(sym)
+    assert sym.is_same_symmetry(other[0])
+    assert sym.is_same_symmetry(other[1])
+    for i in range(2, 5):
+        assert not sym.is_same_symmetry(other[i])
+    assert not sym.is_same_symmetry(_symmetries.u1_symmetry)
 
-        print('checking dual_sector')
-        for s in sectors_a:
-            assert_array_equal(sym.dual_sector(s), (-s) % N)
+    print('checking dual_sector')
+    for s in sectors_a:
+        assert_array_equal(sym.dual_sector(s), (-s) % N)
 
-        print('checking dual_sectors')
-        assert_array_equal(sym.dual_sectors(sectors_a), (-sectors_a) % N)
+    print('checking dual_sectors')
+    assert_array_equal(sym.dual_sectors(sectors_a), (-sectors_a) % N)
 
 
 @pytest.mark.parametrize('N', [3, 8, 31])
