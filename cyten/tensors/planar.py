@@ -681,7 +681,44 @@ def _split_tensor_text(text: str) -> list[tuple[str, list[str]]]:
 
 
 class ContractionTreeNode:
-    """Node in a :class:`ContractionTree`."""
+    """Node in a :class:`ContractionTree`.
+
+    Represents a single tensor contraction in a contraction tree, where the left and
+    right child (if not `None`) may correspond a single tensor or contractions of
+    multiple tensors. The result of the represented tensor contraction can be part of
+    subsequent contractions represented by the parent (if not `None`).
+    If both children are `None`, the node only represents a tensor.
+
+    Graphically::
+
+        |            parent
+        |              │                   parent━value
+        |            value            ==            ┣━left_child
+        |       ┏━━━━━━┷━━━━━━┓                     ┗━right_child
+        |   left_child   right_child
+
+    The RHS above corresponds to the graphic representation of the node in the full
+    contraction tree, as constructed in :meth:`show_whole_tree`.
+
+    Parameters
+    ----------
+    parent : :class:`ContractionTreeNode` or None
+        Node representing a subsequent tensor contraction for which the result of the
+        contraction represented by `self` is a left or right child.
+    left_child : :class:`ContractionTreeNode` or None
+        Represents the left tensor to be contracted.
+        May itself be the result of a tensor contraction.
+        May be `None` if `self` represents a single tensor rather than a tensor
+        contraction. In such a case, `right_child` must also be `None`.
+    right_child : :class:`ContractionTreeNode` or None
+        Represents the right tensor to be contracted.
+        May itself be the result of a tensor contraction.
+        May be `None` if `self` represents a single tensor rather than a tensor
+        contraction. In such a case, `left_child` must also be `None`.
+    value : str or None
+        Value describing the contraction tree node.
+
+    """
 
     def __init__(
         self,
@@ -699,19 +736,22 @@ class ContractionTreeNode:
 
     def test_sanity(self):
         """Perform sanity checks."""
+        assert self.parent is None or isinstance(self.parent, ContractionTreeNode)
         if self.left_child is None and self.right_child is None:
             pass
         elif self.left_child is not None and self.right_child is not None:
+            assert isinstance(self.left_child, ContractionTreeNode)
+            assert isinstance(self.right_child, ContractionTreeNode)
             self.left_child.test_sanity()
             self.right_child.test_sanity()
         else:
             raise ValueError('Must have either none or two child nodes')
 
     @property
-    def is_leaf(self):
+    def is_leaf(self) -> bool:
         return self.left_child is None and self.right_child is None
 
-    def copy(self, parent=None):
+    def copy(self, parent=None) -> ContractionTreeNode:
         """Implement :meth:`ContractionTree.copy` recursively."""
         if self.left_child is None:
             left_child = None
@@ -724,14 +764,14 @@ class ContractionTreeNode:
         return ContractionTreeNode(parent=parent, left_child=left_child, right_child=right_child, value=self.value)
 
     def get_leaves(self) -> tuple[list[str], int]:
-        """Returns ``leaves, num_nodes_below``"""
+        """Returns ``leaves, num_nodes_below``."""
         if self.is_leaf:
             return [self.value], 0
         leaves_L, num_L = self.left_child.get_leaves()
         leaves_R, num_R = self.right_child.get_leaves()
         return [*leaves_L, *leaves_R], 2 + num_L + num_R
 
-    def remove_children(self) -> tuple[str, str]:
+    def remove_children(self) -> tuple[str | None, str | None]:
         """Remove both children and return their values."""
         assert not self.is_leaf
         a = self.left_child.value
@@ -742,7 +782,7 @@ class ContractionTreeNode:
         self.right_child = None
         return a, b
 
-    def pop_contraction(self) -> tuple[None, str, str, str]:
+    def pop_contraction(self) -> tuple[str | None, str | None, str | None, str]:
         """Implement :meth:`ContractionTree.pop_contraction` recursively."""
         if self.is_leaf:
             raise ValueError('Can not pop a contraction from a single leaf')
@@ -765,7 +805,8 @@ class ContractionTreeNode:
             *self.right_child._str_lines(prefix_0=prefix + '┗━', prefix=prefix + '  '),
         ]
 
-    def show_whole_tree(self):
+    def show_whole_tree(self) -> str:
+        """Return a graphic representation of the full contraction tree."""
         root = self
         while root.parent is not None:
             root = root.parent
@@ -780,6 +821,13 @@ class ContractionTree:
 
     The values of non-leaf nodes currently have no meaning and are always set to ``None``,
     but may cary extra information about leg handling during a pairwise contraction in the future.
+
+    Parameters
+    ----------
+    root : :class:`ContractionTreeNode`
+        Node representing the root of the contraction tree, i.e., the upper-most node that does not
+        have a parent.
+
     """
 
     def __init__(self, root: ContractionTreeNode[str, None]):
@@ -787,6 +835,7 @@ class ContractionTree:
 
     def test_sanity(self):
         """Perform sanity checks."""
+        assert self.root.parent is None, 'The root of a contraction tree cannot have a parent.'
         self.root.test_sanity()
 
     @property
@@ -855,14 +904,15 @@ class ContractionTree:
         return left.fuse(right, value=None)
 
     @classmethod
-    def from_single_node(cls, node: str) -> ContractionTree:
+    def from_single_node(cls, node: str | None) -> ContractionTree:
+        """Contraction tree from a single node, i.e., without any child and parent nodes."""
         root = ContractionTreeNode(parent=None, left_child=None, right_child=None, value=node)
         return cls(root)
 
-    def copy(self):
+    def copy(self) -> ContractionTree:
         return ContractionTree(self.root.copy())
 
-    def fuse(self, other: ContractionTree, value=None):
+    def fuse(self, other: ContractionTree, value: str | None = None) -> ContractionTree:
         r"""Fuse two trees. In-place on both trees.
 
         Graphically::
@@ -873,6 +923,14 @@ class ContractionTree:
             |      / \     ,     / \      ->      / \      / \
             |    ... ...       ... ...          ... ...  ... ...
 
+        Parameters
+        ----------
+        other : :class:ContractionTree
+            The contraction tree that will become the right child of the resulting
+            combined contraction tree; `self` becomes the left child.
+        value : str or None
+            The value of the new root node at which `self` and `other` are fused.
+
         """
         a = self.root
         b = other.root
@@ -881,7 +939,7 @@ class ContractionTree:
         b.parent = root
         return ContractionTree(root)
 
-    def pop_contraction(self) -> tuple[None, str, str]:
+    def pop_contraction(self) -> tuple[str | None, str | None, str | None, str]:
         r"""Replace a bottom node (where both children are leaves) with a single leaf, in-place.
 
         Graphically::
@@ -894,9 +952,9 @@ class ContractionTree:
 
         Returns
         -------
-        X : None
+        X : str or None
             The value at the non-leaf node that is replaced
-        a, b : str
+        a, b : str or None
             The values of the leaf nodes that are removed
         new_value : str
             The value of the new leaf, conventionally ``'a @ b'``.
