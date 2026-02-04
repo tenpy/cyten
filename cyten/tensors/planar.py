@@ -689,6 +689,10 @@ class ContractionTreeNode:
     subsequent contractions represented by the parent (if not `None`).
     If both children are `None`, the node only represents a tensor.
 
+    A node must not be trivial, that is, it must either represent a tensor contraction
+    (i.e., have a left and right child; value is optional) or have a value different
+    from `None` when representing a tensor.
+
     Graphically::
 
         |            parent
@@ -731,6 +735,9 @@ class ContractionTreeNode:
         self.left_child = left_child
         self.right_child = right_child
         self.value = value
+        if left_child is None and right_child is None and value is None:
+            msg = 'Node must be nontrivial, i.e., either have two child nodes or a value different from `None`'
+            raise ValueError(msg)
         if (self.left_child is None) != (self.right_child is None):
             raise ValueError('Must have either none or two child nodes')
 
@@ -738,7 +745,7 @@ class ContractionTreeNode:
         """Perform sanity checks."""
         assert self.parent is None or isinstance(self.parent, ContractionTreeNode)
         if self.left_child is None and self.right_child is None:
-            pass
+            assert self.value is not None
         elif self.left_child is not None and self.right_child is not None:
             assert isinstance(self.left_child, ContractionTreeNode)
             assert isinstance(self.right_child, ContractionTreeNode)
@@ -782,7 +789,7 @@ class ContractionTreeNode:
         self.right_child = None
         return a, b
 
-    def pop_contraction(self) -> tuple[str | None, str | None, str | None, str]:
+    def pop_contraction(self) -> tuple[str | None, str, str, str]:
         """Implement :meth:`ContractionTree.pop_contraction` recursively."""
         if self.is_leaf:
             raise ValueError('Can not pop a contraction from a single leaf')
@@ -904,7 +911,7 @@ class ContractionTree:
         return left.fuse(right, value=None)
 
     @classmethod
-    def from_single_node(cls, node: str | None) -> ContractionTree:
+    def from_single_node(cls, node: str) -> ContractionTree:
         """Contraction tree from a single node, i.e., without any child and parent nodes."""
         root = ContractionTreeNode(parent=None, left_child=None, right_child=None, value=node)
         return cls(root)
@@ -939,7 +946,7 @@ class ContractionTree:
         b.parent = root
         return ContractionTree(root)
 
-    def pop_contraction(self) -> tuple[str | None, str | None, str | None, str]:
+    def pop_contraction(self) -> tuple[str | None, str, str, str]:
         r"""Replace a bottom node (where both children are leaves) with a single leaf, in-place.
 
         Graphically::
