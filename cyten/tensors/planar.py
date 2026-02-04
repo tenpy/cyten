@@ -167,7 +167,11 @@ class PlanarDiagram:
         extra_dims: dict[str, Sequence[str]] = None,
         order: str | NestedContainer_str | ContractionTree = 'definition',
     ) -> PlanarDiagram:
-        """Create a new diagram with an additional tensor.
+        """Create a new planar diagram with an additional tensor.
+
+        The new planar diagram arises from the old one by adding a single tensor and contracting
+        (some of) its legs with open legs of the old planar diagram. It is in particular not
+        possible to change tensor contractions involving two tensors of the old planar diagram.
 
         TODO should we allow to reference the existing diagram as a whole, instead of its
              individual tensors?
@@ -175,11 +179,12 @@ class PlanarDiagram:
         Parameters
         ----------
         tensor : str (or {str: TensorPlaceholder})
-            Same as the parameter to :class:`PlanarDiagram`, but expect only a single tensor,
-            to be added to the diagram
+            Same as the parameter to :class:`PlanarDiagram`, but expect only a single tensor
+            to be added to the diagram.
         extra_definition : str (or list of (str, str, str | None, str))
             Same as the parameter to :class:`PlanarDiagram`.
-            Should define what each leg of the new tensor does; either contracted or open.
+            Should define for each leg of the new tensor whether it is an open leg or contracted
+            with another leg.
             The new :attr:`definition` is given by this extra definition together with the old
             definition, except for entries that correspond to legs that were open in the original
             diagram and are now contracted with the new tensor.
@@ -237,7 +242,7 @@ class PlanarDiagram:
     ) -> TensorPlaceholder: ...  # this stub exists for type hints only, definition is below
 
     def evaluate(self, tensors: dict[str, Tensor]) -> Tensor:
-        """Do the contractions defined by the diagram for given concrete `tensors`."""
+        """Do the contractions defined by the planar diagram for given concrete `tensors`."""
         assert tensors.keys() == self.tensors.keys(), 'Invalid tensor names (keys)'
         for name, t in tensors.items():
             ph = self.tensors[name]
@@ -272,7 +277,7 @@ class PlanarDiagram:
         return tensor
 
     def optimize_order(self, strategy: Literal['greedy', 'optimal']) -> ContractionTree:
-        """Find the optimal contraction order for the given diagram.
+        """Find the optimal contraction order for the given planar diagram.
 
         TODO make it easy to print what you need to hard-code.
         TODO allow relations like ``d < w < chi``, or ``d^2 < chi`` to simplify the polynomials.
@@ -287,6 +292,7 @@ class PlanarDiagram:
     def parse_definition(
         definition: str | list[tuple[str, str, str | None, str]],
     ) -> list[tuple[str, str, str | None, str]]:
+        """Parse the input format for the ``definition`` arg to :class:`PlanarDiagram`."""
         if not isinstance(definition, str):
             for x in definition:
                 assert len(x) == 4
@@ -308,7 +314,8 @@ class PlanarDiagram:
                 raise ValueError(f'Invalid syntax: "{i}"')
         return res
 
-    def parse_order(self, order: str | NestedContainer_str | ContractionTree):
+    def parse_order(self, order: str | NestedContainer_str | ContractionTree) -> ContractionTree:
+        """Parse the input format for the ``order`` arg to :class:`PlanarDiagram`."""
         if len(self.tensors) == 1:
             return ContractionTree.from_single_node(next(iter(self.tensors.keys())))
         if order == 'definition':
@@ -324,6 +331,9 @@ class PlanarDiagram:
                     raise ValueError(f'Invalid syntax for order: {i}')
                 contraction_order.append((_as_valid_name(parts[0]), _as_valid_name(parts[1])))
             return ContractionTree.from_contraction_order(contraction_order)
+        if isinstance(order, ContractionTree):
+            assert order.num_leaves == len(self.tensors)
+            return order
         return ContractionTree.from_nested_containers(order)
 
     @staticmethod
@@ -371,14 +381,20 @@ class PlanarDiagram:
         extra_definition: str | list[tuple[str, str, None, str]] = [],
         order: str | NestedContainer_str | ContractionTree = 'greedy',
     ) -> PlanarDiagram:
-        """Create a new diagram, with one tensor removed.
+        """Create a new planar diagram by removing one tensor.
+
+        The new planar diagram arises from the old one by removing a single tensor and leaving the
+        legs that were previously contracted with this tensor open. It is in particular not
+        possible to change any tensor contractions in the planar diagram.
 
         Parameters
         ----------
         name : str
             The name of the tensor to be removed.
         extra_definition : str (or list of (str, str, None, str))
-            Extra instructions to be added to the :attr:`definition`. Expect only for open legs.
+            Extra instructions to be added to the :attr:`definition`. Expected to only contain
+            instructions for the legs that were contracted with `name` in the old planar diagram
+            and are now open legs.
             Same format as the `definition` parameter to :class:`PlanarDiagram`.
         order : 'greedy' | 'optimal' | 'definition' | str | nested tuples of str
             Same as the parameter to :class:`PlanarDiagram`, applies to the entire new diagram.
@@ -415,7 +431,7 @@ class PlanarDiagram:
         return PlanarDiagram(tensors=tensors, definition=definition, dims=None, order=order)
 
     def verify_diagram(self) -> tuple[list[str], BigOPolynomial]:
-        """Verify the definition of the diagram. Returns the :attr:`open_legs`.
+        """Verify the definition of the planar diagram. Returns the :attr:`open_legs`.
 
         Returns
         -------
@@ -472,7 +488,7 @@ class PlanarDiagram:
         tensors : {str: Tensor}
             The input tensors.
             Is modified in-place, removing used tensors and adding partial contraction results,
-            until it eventually only contains one tensors, the overall result.
+            until it eventually only contains one tensor, i.e., the overall result.
         contractions : list of (str, str, str, str)
             List of ``(name1, l1, name2, l2)`` indicating a contraction of leg ``l1`` on tensor
             ``name1`` with ``l2`` on ``name2``. Note that a pair ``(name1, name2)`` may appear
@@ -530,7 +546,7 @@ class PlanarDiagram:
         ----------
         tensors : {str: Tensor}
             The input tensors.
-            Is modified in-place, replacing input tensors with traced tensors.
+            Is modified in-place, replacing input tensors with partially traced tensors.
         traces : list of (str, str, str)
             List of ``(name, l1, l2)`` indicating that ``l1`` should be connected with ``l2`` on
             tensor ``name``. Note that a ``name`` may appear multiple times!
@@ -557,7 +573,17 @@ class PlanarDiagram:
 
     @staticmethod
     def _extract_result(tensors: dict[str, Tensor], open_legs: list[tuple[str, str]]) -> Tensor:
-        """Helper for :meth:`evaluate`. Extract result from single-entry dict and relabel."""
+        """Helper for :meth:`evaluate`. Extract result from single-entry dict and relabel.
+
+        Parameters
+        ----------
+        tensors : {str: Tensor}
+            The tensor corresponding to the contracted planar diagram.
+        open_legs : list of tuples of str
+            List of ``(f'{t1}:{l1}', l2)`` indicating that the open leg ``l1`` of tensor ``t1`` in
+            the planar diagram is renamed to ``l2`` in the result.
+
+        """
         assert len(tensors) == 1
         tens = next(iter(tensors.values()))
         if len(open_legs) == 0:
@@ -572,6 +598,7 @@ class PlanarDiagram:
 
     @staticmethod
     def _parse_contract_instruction(i: str) -> tuple[str, str, str, str]:
+        """Parse the instruction for a tensor contraction in :class:`PlanarDiagram`."""
         left, right, *more = i.split(CONTRACT_SYMBOL)
         left_parts = left.split(LEG_SELECT_SYMBOL)
         right_parts = right.split(LEG_SELECT_SYMBOL)
@@ -585,6 +612,7 @@ class PlanarDiagram:
 
     @staticmethod
     def _parse_open_leg_instruction(i: str) -> tuple[str, str, None, str]:
+        """Parse the instruction for an open leg in :class:`PlanarDiagram`."""
         left, right, *more = i.split(OPEN_LEG_SYMBOL)
         left_parts = left.split(LEG_SELECT_SYMBOL)
         if len(more) > 0 or len(left_parts) != 2:
@@ -611,7 +639,7 @@ class PlanarDiagram:
 
 
 def _as_valid_name(name: str) -> str:
-    """Strip whitespace and check the name is valid as a tensor name or leg label"""
+    """Strip whitespace and check that `name` is valid as a tensor name or leg label."""
     name = str(name).strip()
     assert is_valid_leg_label(name)
     return name
@@ -886,22 +914,23 @@ class PlanarLinearOperator(LinearOperator):
     r"""Base class for :class:`LinearOperator`\ s defined in terms of :class:`PlanarDiagram`\ s.
 
     .. warning ::
-        Instantiating :class:`PlanarDiagram`\ s may be expensive (if the order is optimized).
-        Make sure to either hard-code the order, or make the diagram instance as early as possible,
-        e.g. as a *class* variable of the parent class instead of during its ``__init__``.
+        Instantiating a :class:`PlanarDiagram` may be expensive if the order is optimized.
+        Make sure to either hard-code the order, or make the planar diagram instance as early as
+        possible, e.g., as a *class* variable of the parent class instead of during its
+        ``__init__``.
 
     Parameters
     ----------
-    op_diagram : PlanarDiagram
-        The diagram that defines the operator (without a vector).
-    matvec_diagram : PlanarDiagram
+    op_diagram : :class:`PlanarDiagram`
+        The diagram that defines the operator (without acting on a vector).
+    matvec_diagram : :class:`PlanarDiagram`
         The diagram that defines the action of the operator on a vector.
         Must have the same tensor names as the `op_diagram` in addition to a single tensor
-        with `vec_name`
-    op_tensors : {str : Tensor}
+        with `vec_name`.
+    op_tensors : {str : :class:`Tensor`}
         The concrete tensors that define the operator, see `op_diagram`.
     vec_name : str
-        The name of the "vector", i.e. the tensor that the linear operator acts on in the
+        The name of the "vector", i.e., the tensor that the linear operator acts on in the
         `matvec_diagram`.
 
     """
@@ -920,10 +949,10 @@ class PlanarLinearOperator(LinearOperator):
             )
             raise ValueError(msg)
 
-    def matvec(self, vec):
+    def matvec(self, vec) -> Tensor:
         return self.matvec_diagram.evaluate(tensors={**self.op_tensors, self.vec_name: vec})
 
-    def to_tensor(self, **kw):
+    def to_tensor(self, **kw) -> Tensor:
         return self.op_diagram.evaluate(tensors=self.op_tensors)
 
 
@@ -1341,7 +1370,7 @@ def planar_eigh(
         If the new leg should be a ket space (``False``) or bra space (``True``).
     sort: {'m>', 'm<', '>', '<', 'LI', 'SI', ``None``}
         How the eigenvalues should are sorted *within* each charge block.
-        Defaults to ``None``, which is same as '<'. See :func:`BlockBackend.argsort` for
+        Defaults to ``None``, which is same as '<'. See :meth:`BlockBackend.argsort` for
         details.
 
     Returns
