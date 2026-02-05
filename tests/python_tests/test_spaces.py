@@ -5,7 +5,7 @@ from numpy import testing as npt
 
 from cyten import SymmetryError
 from cyten.block_backends import NumpyBlockBackend
-from cyten.symmetries import _symmetries, spaces, trees
+from cyten.symmetries import FermionNumber, FermionParity, _symmetries, spaces, trees
 from cyten.testing import random_ElementarySpace
 from cyten.tools import is_permutation
 
@@ -566,6 +566,44 @@ def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines
         assert len(res) <= str_max_len
         assert res.count('\n') <= str_max_lines
         print(res)
+
+
+def test_swap_gate(make_any_space, any_symmetry):
+    V = make_any_space()
+    W = make_any_space()
+    V.basis_perm = None
+    W.basis_perm = None
+
+    if not any_symmetry.can_be_dropped:
+        with pytest.raises(SymmetryError, match='braid can not be written as array'):
+            _ = spaces.swap_gate(V, W)
+        return  # error is expected behavior
+
+    swap = spaces.swap_gate(V, W)
+    assert (
+        swap.shape
+        == (
+            int(W.dim),
+            int(V.dim),
+        )
+        * 2
+    )  # [W, V, W*, V*]
+
+    if any_symmetry.has_trivial_braid:
+        expect2 = np.eye(int(W.dim))[:, None, :, None] * np.eye(int(V.dim))[None, :, None, :]
+        expect = np.zeros(swap.shape)
+        for i in range(int(W.dim)):
+            for j in range(int(V.dim)):
+                expect[i, j, i, j] = 1
+        npt.assert_almost_equal(expect, expect2)
+    elif isinstance(any_symmetry, (FermionNumber, FermionParity)):
+        expect = np.zeros(swap.shape)
+        for i, a in enumerate(V.sectors_of_basis):
+            for j, b in enumerate(W.sectors_of_basis):
+                expect[j, i, j, i] = 1 - 2 * (a.item() % 2) * (b.item() % 2)  # -1 if both odd parity, else +1
+    else:
+        raise NotImplementedError
+    npt.assert_almost_equal(swap, expect)
 
 
 # TODO move to some testing tools module?

@@ -740,6 +740,11 @@ class Symmetry(metaclass=ABCMeta):
         -------
         A numpy representation of the above tensor with axes ``[b, a, b*, a*]``.
 
+        See Also
+        --------
+        :func:`cyten.swap_gate`
+            Similar method for braiding general spaces, not just single sectors.
+
         """
         if not self.can_be_dropped:
             raise SymmetryError(f'braid can not be written as array for {self}')

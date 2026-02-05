@@ -2503,6 +2503,55 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         return perm
 
 
+def swap_gate(V: ElementarySpace, W: ElementarySpace) -> np.ndarray:
+    """The swap gate (numpy representation of the braid).
+
+        |   V   W
+        |   │   │
+        |   v   v
+        |    ╲ ╱
+        |     ╲          <-  overbraid == underbraid is assumed
+        |    ╱ ╲
+        |   v   v
+        |   │   │
+        |   W   V
+
+    Returns
+    -------
+    A numpy representation of the above tensor with axes ``[W, V, W*, V*]``.
+
+    See Also
+    --------
+    :meth:`cyten.Symmetry.swap_gate`
+        The swap gate for single sectors.
+
+    """
+    assert V.symmetry == W.symmetry
+    if not V.symmetry.can_be_dropped:
+        raise SymmetryError(f'braid can not be written as array for {V.symmetry}')
+    dV = int(V.dim)
+    dW = int(W.dim)
+    res = np.zeros((dW, dV, dW, dV))
+    # build in internal basis order, permute after
+    # OPTIMIZE these loops are probably inefficient, and there may be some numpy magic that does it better...
+    i = 0
+    for a, ma in zip(V.defining_sectors, V.multiplicities):
+        j = 0
+        for b, mb in zip(W.defining_sectors, W.multiplicities):
+            swap = V.symmetry.swap_gate(a, b)
+            db, da, _, _ = swap.shape
+            i2 = i
+            for na in range(ma):
+                j2 = j
+                for nb in range(mb):
+                    res[j2 : j2 + db, i2 : i2 + da, j2 : j2 + db, i2 : i2 + da] = swap
+                    j2 += db
+                i2 += da
+            j += db * mb
+        i += da * ma
+    return res[np.ix_(W.basis_perm, V.basis_perm, W.basis_perm, V.basis_perm)]
+
+
 def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicities: np.ndarray):
     """Sort sectors and merge duplicates.
 
