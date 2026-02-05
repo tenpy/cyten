@@ -47,6 +47,8 @@ class TensorPlaceholder(LabelledLegs):
         clockwise around the shape, any starting point can be chosen for the labels.
     dims : list of (str | None)
         For each of the legs, an optional symbol to represent its dimension.
+    cost_to_make : :class:`BigOPolynomial`
+        Algorithmic cost of creating the tensor.
 
     """
 
@@ -62,7 +64,7 @@ class TensorPlaceholder(LabelledLegs):
         self.cost_to_make = cost_to_make
         LabelledLegs.__init__(self, labels)
 
-    def copy(self, deep=True):
+    def copy(self, deep=True) -> TensorPlaceholder:
         # note: accessing the self.labels property already makes a copy of the list.
         return TensorPlaceholder(self.labels, self.dims[:], cost_to_make=self.cost_to_make)
 
@@ -73,29 +75,40 @@ class TensorPlaceholder(LabelledLegs):
 class PlanarDiagram:
     """Abstract representation for the contraction of multiple tensors without any braids.
 
-    Random notes (TODO elaborate)::
+    The tensors in a planar diagram are represented using placeholders that have the same leg
+    labels as the actual tensors for which the diagram is to be evaluated. The tensor contractions
+    of the planar diagram, as well as its open (non-contracted) legs, are specified using only the
+    leg labels of the tensors / placeholders. The full diagram must be both planar and connected,
+    meaning that the tensor legs must not braid with each other and that the full diagram is
+    contractible to a single tensor. Disconnected tensors can nevertheless be considered by
+    combining them with another tensor using :func:`outer` before adding them to the diagram.
+    When specifying the leg labels of the tensors, their order must coincide with the conventional
+    (counter-clockwise) leg ordering of tensors. The leg labels may however be cyclically permuted
+    since such permutations are planar. It is further irrelevant how the legs are distributed among
+    the codomain and domain (as long as the order is correct).
 
-        - abstract representation of the connectivity in terms of string labels
-        - Use :meth:`evaluate`, or directly call the diagram (``__call__``) to actually do contractions
-        - we only care about the order of legs around a tensor (counter-clockwise),
-        with arbitrary starting point. I.e. no need to care about codomain / domain
-        - Intended use: make instances in a module, such that they are instantiated at import-time.
-        - Optimization of contraction order can be expensive in some cases.
-        Intended workflow: run optimizing once during development and hard-code it.
-        Fallback: run greedy optimization when the diagram is instantiated
-        - Diagrams must be connected, i.e., contractible to a single tensor; disconnected tensors must be
-        combined with outer before adding them to a diagram
+    The contractions specified by a planar diagram can be performed for a concrete set of tensors
+    by using :meth:`evaluate` or directly calling the planar diagram instance with the
+    corresponding tensors as argument. The result is only specified up to cyclic leg permutations.
+
+    In general, optimizing the contraction order of the tensors is expensive and should be done
+    once during development and then hard-coded. Alternatively, a greedy optimization can be run
+    during the instantiation. The intended use case is to create instances of planar diagrams on
+    module level, such that the instantiation happens at import time.
+
+    It is possible to use a planar diagram for creating a new one by adding or removing a tensor,
+    see :meth:`add_tensor` and :meth:`remove_tensor`, respectively.
 
     Parameters
     ----------
     tensors : str or {str: TensorPlaceholder}
-        Specifies the tensors in the diagram, each with leg labels and a unique name.
+        Specifies the tensors in the planar diagram, each with leg labels and a unique name.
         Syntax for string input: a comma (`,`) separated list of entries, each for one tensor.
         The entry for a tensor is its name, followed by comma separated leg labels enclosed in
         brackets. Example: ``'theta[vL, p0, p1, vR], U[p0, p1, p1*, p0*]'``.
         The same format as the attribute :attr:`tensors` (dict) is accepted as well.
     definition : str or list of (str, str, str | None, str)
-        Specifies the diagram, i.e. how the `tensors` are contracted.
+        Specifies the planar diagram, i.e., how the `tensors` are contracted.
         Syntax for string input: a comma (`,`) separated list of instructions, each either
         a contraction or an open leg.
         Contractions are of the form ``'{tensorA}:{legA} @ {tensorB}:{legB}'``.
@@ -122,23 +135,66 @@ class PlanarDiagram:
     Attributes
     ----------
     tensors : {str: TensorPlaceholder}
-        The tensors in the diagram, as a dictionary from name to its placeholder, which stores
-        leg labels and dims.
+        The tensors in the planar diagram, as a dictionary from name to its placeholder, which
+        stores leg labels and dims.
     definition : list of (str, str, str | None, str)
-        Defines the contractions in the diagram.
+        Defines the contractions in the planar diagram.
         An entry ``(t1, l1, t2, l2)`` indicates to contract leg ``l1`` of ``tensors[t1]`` with
         leg ``l2`` of ``tensors[t2]``.
         An entry ``(t1, l1, None, new_l)`` indicates that leg ``l1`` of ``tensors[t1]`` is an open
-        leg of the diagram and should have label ``new_l`` in the result.
+        leg of the planar diagram and should have label ``new_l`` in the result.
     order : ContractionTree
-        Specifies the order for the contractions during :meth:`evaluate`.
+        Specifies the order for the tensor contractions during :meth:`evaluate`.
     open_legs : list of str
-        The open legs of the diagram, up to cyclical permutation.
+        The open legs of the planar diagram, up to cyclical permutation.
         This is such that the result of :meth:`evaluate` has these leg labels (up to cycl. perm.).
 
     Examples
     --------
-    TODO
+    1. For a local two-site MPS tensor `theta` with legs ``vL, p0, p1, vR`` and a two-site operator
+    `op` with legs ``p0, p1, p1*, p0*``, the expectation value of `op` can be expressed as the
+    following planar diagram::
+
+        exp_val_diagram = PlanarDiagram(
+            tensors='theta[vL, p0, p1, vR], theta_hc[vR*, p1*, p0*, vL*], op[p0, p1, p1*, p0*]',
+            definition='theta:p0 @ op:p0*, theta:p1 @ op:p1*, '
+            'theta:vL @ theta_hc:vL*, theta:vR @ theta_hc:vR*, '
+            'op:p0 @ theta_hc:p0*, op:p1 @ theta_hc:p1*',
+            dims=dict(chi=['vR', 'vR*', 'vL', 'vL*'], d=['p0', 'p0*', 'p1', 'p1*']),
+        )
+        exp_val = exp_val_diagram.evaluate(theta=theta, theta_hc=theta.hc, op=op)
+
+    2. For a local two-site MPS tensor `theta` with legs ``vL, p0, p1, vR`` and a two-site unitary
+    operator `U` with legs ``p0, p1, p1*, p0*`` that is applied to `theta` (as done in TEBD), the
+    updated tensor expressed as the following planar diagram::
+
+        TEBD_diagram = PlanarDiagram(
+            tensors='theta[vL, p0, p1, vR], U[p0, p1, p1*, p0*]',
+            definition='theta:p0 @ U:p0*, theta:p1 @ U:p1*, theta:vL -> vL, theta:vR -> vR, U:p0 -> p0, U:p1 -> p1',
+            dims=dict(chi=['vR', 'vL'], d=['p0', 'p0*', 'p1', 'p1*']),
+        )
+        theta_updated = TEBD_diagram.evaluate(theta=theta, U=U)
+
+    3. The two examples above (`exp_val_diagram` and `TEBD_diagram`) can be related using
+    :meth:`add_tensor` and :meth:`remove_tensor` (note the correspondence between `op` and `U`)
+    as::
+
+        TEBD_diagram2 = exp_val_diagram.remove_tensor(
+            name='theta_hc',
+            extra_definition='theta:vL -> vL, theta:vR -> vR, '
+            'op:p0 -> p0, op:p1 -> p1',
+        )
+        theta_updated2 = TEBD_diagram2.evaluate(theta=theta, op=U)
+        assert planar_almost_equal(theta_updated, theta_updated2)
+
+        exp_val_diagram2 = TEBD_diagram.add_tensor(
+            tensor='theta_hc[vR*, p1*, p0*, vL*]'
+            extra_definition='theta:vL @ theta_hc:vL*, theta:vR @ theta_hc:vR*, '
+            'U:p0 @ theta_hc:p0*, U:p1 @ theta_hc:p1*',
+            extra_dims='dict(chi=['vR*', 'vL*'], d=['p0*', 'p1*'])'
+        )
+        exp_val2 = exp_val_diagram2.evaluate(theta=theta, theta_hc=theta.hc, U=op)
+        assert np.isclose(exp_val, exp_val2)  # number, not a tensor
 
     """
 
