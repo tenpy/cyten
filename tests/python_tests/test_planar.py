@@ -306,12 +306,6 @@ def test_planar_eigh(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compati
         T, codomain_cut=cod_cut, domain_cut=dom_cut, new_labels=['a', 'b', 'c'], new_leg_dual=new_leg_dual, sort=sort
     )
     W.test_sanity()
-    if isinstance(T.backend, ct.backends.AbelianBackend) and new_leg_dual and cod in [2, 3]:
-        if not isinstance(T2.symmetry, ct.ProductSymmetry):
-            # for U1xZ3 symmetry this does not happen by chance with the default seed
-            with pytest.raises(AssertionError, match='wrong block shape'):
-                V.test_sanity()
-            pytest.xfail('Bug in tensors.eigh for abelian backend and new_leg_dual = True; probably with combine_legs')
     V.test_sanity()
     assert isinstance(W, ct.DiagonalTensor)
     assert W.labels == ['b', 'c']
