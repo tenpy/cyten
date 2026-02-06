@@ -313,7 +313,10 @@ def test_planar_eigh(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compati
                 V.test_sanity()
             pytest.xfail('Bug in tensors.eigh for abelian backend and new_leg_dual = True; probably with combine_legs')
     V.test_sanity()
+    assert isinstance(W, ct.DiagonalTensor)
     assert W.labels == ['b', 'c']
+    assert V.num_codomain_legs == cod_cut
+    assert V.num_domain_legs == dom_cut + 1
     assert V.labels == [*T.labels[:cod_cut], 'a', *T.labels[T.num_legs - dom_cut :]]
 
     assert ct.planar.planar_almost_equal(
@@ -547,7 +550,11 @@ def test_planar_qr_lq(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compat
     Q, R = ct.planar.planar_qr(T, codomain_cut=cod_cut, domain_cut=dom_cut, new_leg_dual=new_leg_dual, new_labels='v')
     Q.test_sanity()
     R.test_sanity()
+    assert Q.num_codomain_legs == cod_cut
+    assert Q.num_domain_legs == dom_cut + 1
     assert Q.labels == [*T.labels[:cod_cut], 'v', *T.labels[T.num_legs - dom_cut :]]
+    assert R.num_codomain_legs == 1 + (cod - cod_cut)
+    assert R.num_domain_legs == dom - dom_cut
     assert R.labels == ['v*', *T.labels[cod_cut : T.num_legs - dom_cut]]
     assert ct.planar.planar_almost_equal(ct.planar_contraction(Q, R, 'v', 'v*'), T)
     eye = ct.SymmetricTensor.from_eye([Q.get_leg('v')], T.backend, labels=['v'])
@@ -567,7 +574,11 @@ def test_planar_qr_lq(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compat
     )
     L.test_sanity()
     Q.test_sanity()
+    assert L.num_codomain_legs == cod_cut
+    assert L.num_domain_legs == dom_cut + 1
     assert L.labels == [*T.labels[:cod_cut], 'v*', *T.labels[T.num_legs - dom_cut :]]
+    assert Q.num_codomain_legs == 1 + (cod - cod_cut)
+    assert Q.num_domain_legs == dom - dom_cut
     assert Q.labels == ['v', *T.labels[cod_cut : T.num_legs - dom_cut]]
     assert ct.planar.planar_almost_equal(ct.planar_contraction(L, Q, 'v*', 'v'), T)
     eye = ct.SymmetricTensor.from_eye([Q.get_leg('v')], T.backend, labels='v')
@@ -606,8 +617,12 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
     U.test_sanity()
     S.test_sanity()
     Vh.test_sanity()
+    assert U.num_codomain_legs == cod_cut
+    assert U.num_domain_legs == dom_cut + 1
     assert U.labels == [*T.labels[:cod_cut], 'a', *T.labels[T.num_legs - dom_cut :]]
     assert S.labels == ['b', 'c']
+    assert Vh.num_codomain_legs == 1 + (cod - cod_cut)
+    assert Vh.num_domain_legs == dom - dom_cut
     assert Vh.labels == ['d', *T.labels[cod_cut : T.num_legs - dom_cut]]
 
     assert isinstance(S, ct.DiagonalTensor)
@@ -652,6 +667,14 @@ def test_planar_svd(cls, dom, cod, dom_cut, cod_cut, new_leg_dual, make_compatib
         U.test_sanity()
         S.test_sanity()
         Vh.test_sanity()
+        assert U.num_codomain_legs == cod_cut
+        assert U.num_domain_legs == dom_cut + 1
+        assert U.labels == [*T.labels[:cod_cut], 'a', *T.labels[T.num_legs - dom_cut :]]
+        assert S.labels == ['b', 'c']
+        assert Vh.num_codomain_legs == 1 + (cod - cod_cut)
+        assert Vh.num_domain_legs == dom - dom_cut
+        assert Vh.labels == ['d', *T.labels[cod_cut : T.num_legs - dom_cut]]
+
         # check that U @ S @ Vd recovers the original tensor up to the error incurred
         T_approx = ct.planar_contraction(ct.planar_contraction(U, S, 'a', 'b'), Vh, 'c', 'd') / renormalize
         npt.assert_almost_equal(
