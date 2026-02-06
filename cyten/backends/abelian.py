@@ -1896,6 +1896,9 @@ class AbelianBackend(TensorBackend):
         new_block_shapes = np.empty((res_num_blocks, res_num_legs), dtype=int)
         for i, leg in enumerate(conventional_leg_order(new_codomain, new_domain)):
             new_block_shapes[:, i] = leg.multiplicities[new_block_inds[:, i]]
+        # need to permute these shapes here to compensate the permute_axes on the blocks below
+        # (only relevant for F style combining, i.e., dual pipes)
+        new_block_shapes = new_block_shapes[:, axes_perm]
 
         # the actual loop to split the blocks
         new_blocks = []
