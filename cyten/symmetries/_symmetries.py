@@ -637,10 +637,16 @@ class BaseSymmetry(metaclass=ABCMeta):
 
 
 class Symmetry(BaseSymmetry):
-    r"""Multiple symmetries.
+    r"""Describes a symmetry of a space or tensor.
 
-    The allowed sectors are "stacks" (using e.g. :func:`numpy.concatenate`) of sectors for the
-    individual symmetries. For recovering the individual sectors see :attr:`sector_slices`.
+    A symmetry consists of several :attr:`factors`. For consistency, we always use this product structure,
+    even if there are no factors at all (trivial symmetry), or just a single factor.
+
+    The prototypical example of a symmetry comes from the (representation of) a :class:`Group`
+    and leads to conserved quantities. For a concrete example, we could have a :class:`U1`
+    that represents the :math:`S^z` conservation of a spin chain.
+    The framework of symmetries, however, is more general and extends to fermionic or anyonic
+    grading, see e.g. :class:`FermionParity` or :class:`FibonacciAnyonCategory`.
 
     Attributes
     ----------
@@ -726,6 +732,11 @@ class Symmetry(BaseSymmetry):
         h5gr.attrs['has_complex_topological_data'] = bool(self.has_complex_topological_data)
 
     def is_valid_sector(self, a: Sector) -> bool:
+        """Check if `a` is a valid sector.
+
+        For a :class:`Symmetry`, the valid sectors are 1D integer arrays, which are "stacks" of
+        valid sectors for each of the :attr:`factors`, see :attr:`sector_slices`.
+        """
         if getattr(a, 'shape', ()) != (self.sector_ind_len,):
             return False
         for i, factor_i in enumerate(self.factors):
