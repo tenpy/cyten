@@ -134,7 +134,7 @@ def init_FM_MPS(L, d=2, bc='finite', backend='abelian', conserve='none'):
         B = ct.tensor(B, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
         S = ct.eye(v, backend=backend, labels=['vL', 'vR'])
     elif conserve == 'Z2':
-        sym = ct.ZNSymmetry(2, 'Sz_parity')
+        sym = ct.ZN(2, 'Sz_parity').as_Symmetry()
         p = ct.ElementarySpace.from_basis(sym, np.arange(d)[:, None] % 2)
         v = ct.ElementarySpace.from_trivial_sector(1, sym)
         B = ct.SymmetricTensor.from_dense_block(B, [v, p], [v], labels=['vL', 'p', 'vR'], backend=backend)
@@ -160,7 +160,7 @@ def init_Neel_MPS(L, d=2, bc='finite', backend='abelian', conserve='none'):
         B_list = [B1, B2] * (L // 2) + [B1] * (L % 2)
         S_list = [S] * L
     elif conserve == 'Z2':
-        sym = ct.ZNSymmetry(2, 'Sz_parity')
+        sym = ct.ZN(2, 'Sz_parity').as_Symmetry()
         p = ct.ElementarySpace.from_basis(sym, np.arange(d)[:, None] % 2)
         v1 = ct.ElementarySpace.from_trivial_sector(1, sym)
         v2 = ct.ElementarySpace.from_defining_sectors(sym, [[1]])
@@ -185,7 +185,7 @@ def init_SU2_sym_MPS(L, d=2, bc='finite', backend=None):
     assert L % 2 == 0
     if backend is None:
         backend = ct.get_backend('fusion_tree', 'numpy')
-    sym = ct.SU2Symmetry('spin')
+    sym = ct.SU2('spin').as_Symmetry()
     p = ct.ElementarySpace.from_defining_sectors(sym, [[d - 1]])
     v1 = ct.ElementarySpace.from_trivial_sector(1, sym)
     v2 = p

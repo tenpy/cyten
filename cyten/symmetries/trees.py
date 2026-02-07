@@ -84,6 +84,7 @@ class FusionTree:
         multiplicities: np.ndarray | list[int] = None,  # N - 1 multiplicity labels; all 0 per default
     ):
         # OPTIMIZE demand SectorArray / ndarray (not list) and skip conversions?
+        assert isinstance(symmetry, Symmetry)
         self.symmetry = symmetry
         self.uncoupled = np.asarray(uncoupled)
         self.num_uncoupled = len(uncoupled)
@@ -1099,6 +1100,7 @@ class fusion_trees(Iterable[FusionTree]):
     def __init__(self, symmetry: Symmetry, uncoupled: SectorArray | list[Sector], coupled: Sector, are_dual=None):
         # DOC: coupled = None means trivial sector
         self.symmetry = symmetry
+        assert isinstance(symmetry, Symmetry)
         if len(uncoupled) == 0:
             uncoupled = symmetry.empty_sector_array
         self.uncoupled = np.asarray(uncoupled)  # OPTIMIZE demand SectorArray (not list) and skip?
@@ -1180,7 +1182,7 @@ class fusion_trees(Iterable[FusionTree]):
     def index(self, tree: FusionTree) -> int:
         """The index of a given tree in the iterator."""
         # check compatibility first (same symmetry, same uncoupled, same coupled, same are_dual)
-        if not self.symmetry.is_same_symmetry(tree.symmetry):
+        if not self.symmetry.is_equivalent_to(tree.symmetry):
             raise ValueError(f'Inconsistent symmetries, {self.symmetry} != {tree.symmetry}')
         if not np.all(self.uncoupled == tree.uncoupled):
             raise ValueError(f'Inconsistent uncoupled sectors, {self.uncoupled} != {tree.uncoupled}')

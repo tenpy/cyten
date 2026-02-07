@@ -158,7 +158,7 @@ def test_spin_spin_coupling(any_backend, np_random):
 
         # test different site combinations
         for site2 in site_list[: i + 1]:
-            # Note: is_same_symmetry does not work here since it does not distinguish
+            # Note: is_equivalent_to does not work here since it does not distinguish
             # between U(1) fermion number symmetry and Sz spin symmetry for fermions
             if not site1.symmetry == site2.symmetry:
                 continue
@@ -601,7 +601,7 @@ def test_clock_field_coupling(any_backend, np_random):
     site_list = generate_clock_dofs(any_backend)
     for site in site_list:
         hx, hz = np_random.random(2)
-        if isinstance(site.leg.symmetry, cyten.ZNSymmetry):
+        if isinstance(site.leg.symmetry.factors[0], cyten.ZN):
             hx = 0
         coupling = couplings.clock_field_coupling([site], hx=hx, hz=hz)
         coupling.test_sanity()
@@ -611,7 +611,7 @@ def test_clock_field_coupling(any_backend, np_random):
         # trace is zero
         assert np.allclose(tensors.trace(tensor), 0)
         # check eigenvalues
-        if isinstance(site.leg.symmetry, cyten.ZNSymmetry):
+        if isinstance(site.leg.symmetry.factors[0], cyten.ZN):
             expect_evs = 2 * np.cos(np.linspace(0, 2 * np.pi, site.q, endpoint=False))
             evs = tensor.to_numpy(understood_braiding=True)
             evs = np.sort(np.linalg.eigvalsh(evs))

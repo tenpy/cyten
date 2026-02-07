@@ -11,17 +11,16 @@ import numpy as np
 
 from ..backends import TensorBackend
 from ..symmetries import (
+    SU2,
+    U1,
+    ZN,
     ElementarySpace,
     FermionParity,
     FibonacciAnyonCategory,
     IsingAnyonCategory,
     NoSymmetry,
-    ProductSymmetry,
     SU2_kAnyonCategory,
-    SU2Symmetry,
     Symmetry,
-    U1Symmetry,
-    ZNSymmetry,
 )
 from .degrees_of_freedom import AnyonDOF, BosonicDOF, ClockDOF, FermionicDOF, SpinDOF
 
@@ -76,13 +75,17 @@ class SpinSite(SpinDOF):
 
         sym = SpinDOF.conservation_law_to_symmetry(conserve)
         # build leg
-        if isinstance(sym, SU2Symmetry):
+        if isinstance(sym, SU2):
+            sym = sym.as_Symmetry()
             leg = ElementarySpace.from_defining_sectors(sym, [[two_S]])
-        elif isinstance(sym, U1Symmetry):
+        elif isinstance(sym, U1):
+            sym = sym.as_Symmetry()
             leg = ElementarySpace.from_basis(sym, np.arange(-two_S, two_S + 2, 2)[:, None])
-        elif isinstance(sym, ZNSymmetry):
+        elif isinstance(sym, ZN):
+            sym = sym.as_Symmetry()
             leg = ElementarySpace.from_basis(sym, np.arange(dim)[:, None] % 2)
         elif isinstance(sym, NoSymmetry):
+            sym = sym.as_Symmetry()
             leg = ElementarySpace.from_trivial_sector(dim=dim, symmetry=sym)
         else:
             raise ValueError(f'`conserve` invalid for `SpinSite`: {conserve}')
@@ -101,11 +104,11 @@ class SpinSite(SpinDOF):
             default_device=default_device,
         )
 
-        if not isinstance(sym, SU2Symmetry):
+        if not isinstance(sym.factors[0], SU2):
             self.add_onsite_operator('Sz', spin_vector[:, :, 2], is_diagonal=True)
             if two_S == 1:
                 self.add_onsite_operator('Sigmaz', 2.0 * spin_vector[:, :, 2], is_diagonal=True)
-        if isinstance(sym, NoSymmetry):
+        if isinstance(sym.factors[0], NoSymmetry):
             self.add_onsite_operator('Sx', spin_vector[:, :, 0])
             self.add_onsite_operator('Sy', spin_vector[:, :, 1])
             self.add_onsite_operator('Sp', spin_vector[:, :, 0] + 1.0j * spin_vector[:, :, 1])
@@ -189,16 +192,16 @@ class SpinlessBosonSite(BosonicDOF):
         total_dim = np.prod(dims, dtype=int)
 
         sym = BosonicDOF.conservation_law_to_symmetry(conserve)
-        if isinstance(sym, ProductSymmetry):
-            assert len(conserve) == len(sym.factors)  # TODO delete
+        if isinstance(sym, Symmetry):
+            assert len(conserve) == sym.num_factors  # TODO delete
             no_sym_idcs = []
             parity_sym_idcs = []
             for i, sym_factor_i in enumerate(sym.factors):
                 if isinstance(sym_factor_i, NoSymmetry):
                     no_sym_idcs.append(i)
-                elif isinstance(sym_factor_i, ZNSymmetry):
+                elif isinstance(sym_factor_i, ZN):
                     parity_sym_idcs.append(i)
-                elif isinstance(sym_factor_i, U1Symmetry):
+                elif isinstance(sym_factor_i, U1):
                     pass
                 else:
                     msg = f'Entry in `conserve` invalid for `SpinlessBosonSite`: {conserve[i]}'
@@ -211,18 +214,19 @@ class SpinlessBosonSite(BosonicDOF):
                 sectors.append(sector)
             leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int))
         else:
-            if isinstance(sym, (U1Symmetry, ZNSymmetry)):
+            if isinstance(sym, (U1, ZN)):
+                sym = sym.as_Symmetry()
                 # for U(1) and Z_2, iterate over all states in the correct order to
                 # get the correct basis_perm in ElementarySpace.from_basis
                 sectors = []
                 for occupations in itproduct(*states):
                     sectors.append(np.sum(occupations))
                 sectors = np.asarray(sectors, dtype=int)[:, None]
-                if isinstance(sym, ZNSymmetry):
+                if isinstance(sym, ZN):
                     sectors = np.mod(sectors, 2)
                 leg = ElementarySpace.from_basis(sym, sectors)
             elif isinstance(sym, NoSymmetry):
-                leg = ElementarySpace.from_trivial_sector(dim=total_dim, symmetry=sym)
+                leg = ElementarySpace.from_trivial_sector(dim=total_dim, symmetry=sym.as_Symmetry())
             else:
                 raise ValueError(f'`conserve` invalid for `SpinlessBosonSite`: {conserve}')
         self.conserve = conserve
@@ -338,21 +342,23 @@ class SpinlessFermionSite(FermionicDOF):
 
         sym = FermionicDOF.conservation_law_to_symmetry(conserve)
         if isinstance(sym, FermionParity):
+            sym = sym.as_Symmetry()
             sectors = []
             for occupations in itproduct([0, 1], repeat=num_species):
                 sectors.append(np.sum(occupations) % 2)
             leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int)[:, None])
         elif not isinstance(conserve, str):
-            assert len(conserve) + 1 == len(sym.factors)
+            assert isinstance(sym, Symmetry)
+            assert len(conserve) + 1 == sym.num_factors
             no_sym_idcs = []
             parity_sym_idcs = []
             # no need to iterate over the final fermion parity
             for i, sym_factor_i in enumerate(sym.factors[:-1]):
                 if isinstance(sym_factor_i, NoSymmetry):
                     no_sym_idcs.append(i)
-                elif isinstance(sym_factor_i, ZNSymmetry):
+                elif isinstance(sym_factor_i, ZN):
                     parity_sym_idcs.append(i)
-                elif isinstance(sym_factor_i, U1Symmetry):
+                elif isinstance(sym_factor_i, U1):
                     pass
                 else:
                     msg = f'Entry in `conserve` invalid for `SpinlessFermionSite`: {conserve[i]}'
@@ -364,9 +370,9 @@ class SpinlessFermionSite(FermionicDOF):
                 sector[no_sym_idcs] = 0
                 sectors.append(sector)
             leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int))
-        elif isinstance(sym.factors[0], U1Symmetry):
+        elif isinstance(sym.factors[0], U1):
             # remaining case: conserve total particle number
-            assert len(sym.factors) == 2
+            assert sym.num_factors == 2
             sectors = []
             for occupations in itproduct([0, 1], repeat=num_species):
                 fermion_number = np.sum(occupations)
@@ -482,18 +488,19 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
 
         # construct sectors (including spin as U(1)) as: [spin, fermion U(1), fermion parity]
         if isinstance(sym_N, FermionParity):
+            sym_N = sym_N.as_Symmetry()
             sectors = np.asarray([[0, 0], [-1, 1], [1, 1], [0, 0]], dtype=int)
-        elif isinstance(sym_N.factors[0], U1Symmetry):
+        elif isinstance(sym_N.factors[0], U1):
             sectors = np.asarray([[0, 0, 0], [-1, 1, 1], [1, 1, 1], [0, 2, 0]], dtype=int)
         else:
             raise ValueError(f'`conserve_N` invalid for `SpinHalfFermionSite`: {conserve_N}')
 
         sym_S = SpinDOF.conservation_law_to_symmetry(conserve_S)
-        if isinstance(sym_S, U1Symmetry):
+        if isinstance(sym_S, U1):
             pass  # sectors already correct
-        elif isinstance(sym_S, ZNSymmetry):
+        elif isinstance(sym_S, ZN):
             sectors[:, 0] = np.mod(sectors[:, 0], 2)
-        elif isinstance(sym_S, SU2Symmetry):
+        elif isinstance(sym_S, SU2):
             sectors[1, 0] = 1
         elif isinstance(sym_S, NoSymmetry):
             sectors = sectors[:, 1:]
@@ -503,8 +510,8 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
         if isinstance(sym_S, NoSymmetry):
             sym = sym_N
         else:
-            sym = [sym_S, *sym_N.factors] if isinstance(sym_N, ProductSymmetry) else [sym_S, sym_N]
-            sym = ProductSymmetry(sym)
+            sym = [sym_S, *sym_N.factors] if isinstance(sym_N, Symmetry) else [sym_S, sym_N]
+            sym = Symmetry(sym)
         leg = ElementarySpace.from_basis(sym, sectors)
         self.conserve_N = conserve_N
         self.conserve_S = conserve_S
@@ -540,7 +547,7 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
             species_names=['up', 'down'],
         )
 
-        if not isinstance(sym_S, SU2Symmetry):
+        if not isinstance(sym_S, SU2):
             self.add_individual_occupation_ops()
             self.onsite_operators.update({'Nup': self.onsite_operators.pop('N0')})
             self.onsite_operators.update({'Ndown': self.onsite_operators.pop('N1')})
@@ -548,7 +555,7 @@ class SpinHalfFermionSite(SpinDOF, FermionicDOF):
 
         # spin operators
         ops = {}
-        if not isinstance(sym_S, SU2Symmetry):
+        if not isinstance(sym_S, SU2):
             ops['Sz'] = spin_vector[:, :, 2]
             ops['Sigmaz'] = 2.0 * spin_vector[:, :, 2]
         if isinstance(sym_S, NoSymmetry):
@@ -611,10 +618,10 @@ class ClockSite(ClockDOF):
 
         # build leg
         if conserve in ['Z_N', 'ZN', 'Z_q', 'Zq']:
-            sym = ZNSymmetry(q, 'q')
+            sym = ZN(q, 'Z_q').as_Symmetry()
             leg = ElementarySpace.from_basis(sym, np.arange(q)[:, None])
         elif conserve in ['None', 'none', None]:
-            sym = NoSymmetry()
+            sym = NoSymmetry().as_Symmetry()
             leg = ElementarySpace.from_trivial_sector(dim=q, symmetry=sym)
         else:
             raise ValueError(f'Invalid `conserve`: {conserve}')
@@ -636,7 +643,7 @@ class ClockSite(ClockDOF):
         )
 
         Xhc = np.conj(clock_operators[:, :, 0].T)
-        if isinstance(sym, NoSymmetry):
+        if isinstance(sym.factors[0], NoSymmetry):
             self.add_onsite_operator('X', X)
             self.add_onsite_operator('Xhc', Xhc)
             self.add_onsite_operator('Xphc', X + Xhc)
@@ -690,7 +697,7 @@ class FibonacciAnyonSite(AnyonSite):
     def __init__(
         self, handedness: Literal['left', 'right'] = 'left', backend: TensorBackend = None, default_device: str = None
     ):
-        sym = FibonacciAnyonCategory(handedness=handedness)
+        sym = FibonacciAnyonCategory(handedness=handedness).as_Symmetry()
         AnyonSite.__init__(self, sym, sector_names=['vac', 'tau'], backend=backend, default_device=default_device)
 
     def __repr__(self):
@@ -711,7 +718,7 @@ class IsingAnyonSite(AnyonSite):
     """
 
     def __init__(self, nu: int = 1, backend: TensorBackend = None, default_device: str = None):
-        sym = IsingAnyonCategory(nu=nu)
+        sym = IsingAnyonCategory(nu=nu).as_Symmetry()
         AnyonSite.__init__(
             self, sym, sector_names=['vac', 'sigma', 'psi'], backend=backend, default_device=default_device
         )
@@ -733,8 +740,8 @@ class GoldenSite(AnyonDOF):
     def __init__(
         self, handedness: Literal['left', 'right'] = 'left', backend: TensorBackend = None, default_device: str = None
     ):
-        sym = FibonacciAnyonCategory(handedness=handedness)
-        leg = ElementarySpace.from_defining_sectors(sym, [sym.tau])
+        sym = FibonacciAnyonCategory(handedness=handedness).as_Symmetry()
+        leg = ElementarySpace.from_defining_sectors(sym, [FibonacciAnyonCategory.tau])
         AnyonDOF.__init__(self, leg=leg, backend=backend, default_device=default_device)
 
     def __repr__(self):
@@ -761,8 +768,8 @@ class SU2kSpin1Site(AnyonDOF):
         default_device: str = None,
     ):
         assert k >= 2
-        sym = SU2_kAnyonCategory(k, handedness=handedness)
-        leg = ElementarySpace.from_defining_sectors(sym, [sym.spin_one])
+        sym = SU2_kAnyonCategory(k, handedness=handedness).as_Symmetry()
+        leg = ElementarySpace.from_defining_sectors(sym, [sym.factors[0].spin_one])
         AnyonDOF.__init__(self, leg=leg, backend=backend, default_device=default_device)
 
     def __repr__(self):

@@ -53,14 +53,16 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
     if isinstance(symmetry, Symmetry):
         # figure out minimal symmetry_backend that supports that symmetry
-        if symmetry == no_symmetry:
+        if symmetry.is_equivalent_to(no_symmetry):
             tensor_backend = 'no_symmetry'
         elif symmetry.is_abelian and symmetry.has_trivial_braid:
             tensor_backend = 'abelian'
         else:
             tensor_backend = 'fusion_tree'
-    else:
+    elif isinstance(symmetry, str):
         tensor_backend = symmetry
+    else:
+        raise TypeError
 
     key = (tensor_backend, block_backend)
     backend = _instantiated_backends.get(key, None)

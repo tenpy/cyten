@@ -12,7 +12,7 @@ import numpy as np
 
 from ..backends import get_same_backend
 from ..block_backends import Block, Dtype
-from ..symmetries import FibonacciAnyonCategory, Sector, SymmetryError
+from ..symmetries import FibonacciAnyonCategory, Sector, SymmetryError, fibonacci_anyon_category
 from ..tensors import SymmetricTensor, add_trivial_leg, compose, horizontal_factorization, permute_legs, squeeze_legs
 from .degrees_of_freedom import ALL_SPECIES, BosonicDOF, ClockDOF, FermionicDOF, Site, SpinDOF
 from .sites import GoldenSite
@@ -672,6 +672,6 @@ def gold_coupling(sites: list[GoldenSite], J: float = 1, name: str = 'gold') -> 
     if len(sites) != 2:
         raise ValueError(f'Invalid number of sites. Expected 2, got {len(sites)}')
     for site in sites:
-        assert isinstance(site.symmetry, FibonacciAnyonCategory)
+        assert site.symmetry.is_equivalent_to(fibonacci_anyon_category)
         assert site.leg.sector_decomposition_where(FibonacciAnyonCategory.tau) is not None
     return sector_projection_coupling(sites, J=-J, sector=FibonacciAnyonCategory.vacuum, name=name)

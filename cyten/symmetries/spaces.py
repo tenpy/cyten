@@ -28,7 +28,7 @@ from ..tools.misc import (
     to_valid_idx,
 )
 from ..tools.string import format_like_list
-from ._symmetries import ProductSymmetry, Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
+from ._symmetries import Sector, SectorArray, Symmetry, SymmetryError, no_symmetry
 from .trees import FusionTree, fusion_trees
 
 if TYPE_CHECKING:
@@ -460,7 +460,7 @@ class Space(metaclass=ABCMeta):
         multiplicities: Sequence[int] | None = None,
         sector_order: Literal['sorted'] | Literal['dual_sorted'] | None = None,
     ):
-        self.symmetry = symmetry
+        self.symmetry = symmetry = symmetry.as_Symmetry()
         self.sector_decomposition = sector_decomposition = np.asarray(sector_decomposition, dtype=int)
         self.sector_order = sector_order
         if sector_decomposition.ndim != 2 or sector_decomposition.shape[1] != symmetry.sector_ind_len:
@@ -606,7 +606,7 @@ class Space(metaclass=ABCMeta):
         ElementarySpace.from_largest_common_subspace
 
         """
-        if not self.symmetry.is_same_symmetry(other.symmetry):
+        if not self.symmetry.is_equivalent_to(other.symmetry):
             return False
         if self.num_sectors == 0:
             return True
@@ -694,15 +694,15 @@ class Space(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def drop_symmetry(self, which: int | list[int] = None):
+    def drop_symmetry(self, which: int | list[int] = 'all'):
         """Drop some or all symmetries.
 
         Parameters
         ----------
-        which : None | (list of) int
-            If ``None`` (default) the entire symmetry is dropped and the result has ``no_symmetry``.
-            An integer or list of integers assume that ``self.symmetry`` is a ``ProductSymmetry``
-            and indicates which of its factors to drop.
+        which : 'all' | (list of) int
+            If ``'all'`` (default) the entire symmetry is dropped and the result has ``no_symmetry``.
+            An integer or list of integers indicates to drop the :attr:`~cyten.Symmetry.factors` with
+            those indices.
 
         """
         ...
@@ -907,7 +907,7 @@ class ElementarySpace(Space, Leg):
         if len(independent_descriptions) == 0:
             # all descriptions had no_symmetry
             return cls.from_trivial_sector(dim=dim)
-        symmetry = ProductSymmetry.from_nested_factors([s.symmetry for s in independent_descriptions])
+        symmetry = Symmetry.from_nested_factors([s.symmetry for s in independent_descriptions])
         if not symmetry.can_be_dropped:
             msg = f'from_independent_symmetries is not supported for {symmetry}.'
             # TODO is there a way to define this? the straight-forward picture works only if we have
@@ -1150,7 +1150,7 @@ class ElementarySpace(Space, Leg):
         ----------
         dim : int
             The dimension of the space.
-        symmetry : :class:`~cyten.groups.Symmetry`
+        symmetry : :class:`~cyten.Symmetry`
             The symmetry of the space.
         is_dual : bool
             If the space should be bra or a ket space.
@@ -1300,9 +1300,9 @@ class ElementarySpace(Space, Leg):
             basis_perm=basis_perm,
         )
 
-    def drop_symmetry(self, which: int | list[int] = None):
+    def drop_symmetry(self, which: int | list[int] = 'all'):
         which, remaining_symmetry = _parse_inputs_drop_symmetry(which, self.symmetry)
-        if which is None:
+        if which == 'all':
             return ElementarySpace.from_trivial_sector(
                 dim=self.dim, symmetry=remaining_symmetry, is_dual=self.is_dual, basis_perm=self._basis_perm
             )
@@ -1599,9 +1599,9 @@ class TensorProduct(Space):
             _multiplicities=multiplicities,
         )
 
-    def drop_symmetry(self, which=None):
+    def drop_symmetry(self, which='all'):
         which, remaining_symmetry = _parse_inputs_drop_symmetry(which, self.symmetry)
-        if which is None:
+        if which == 'all':
             sectors = self.symmetry.trivial_sector[None, :]
             multiplicities = [self.dim]
         else:
@@ -2221,7 +2221,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         legs = [l.change_symmetry(symmetry, sector_map, injective) for l in self.legs]
         return AbelianLegPipe(legs, is_dual=self.is_dual, combine_cstyle=self.combine_cstyle)
 
-    def drop_symmetry(self, which: int | list[int] = None):
+    def drop_symmetry(self, which: int | list[int] = 'all'):
         # OPTIMIZE can we avoid recomputation of fusion?
         legs = [l.drop_symmetry(which) for l in self.legs]
         return AbelianLegPipe(legs, is_dual=self.is_dual, combine_cstyle=self.combine_cstyle)
@@ -2534,44 +2534,25 @@ def _sort_sectors(sectors: SectorArray, multiplicities: np.ndarray):
     return sectors[perm], multiplicities[perm], perm
 
 
-def _parse_inputs_drop_symmetry(which: int | list[int] | None, symmetry: Symmetry) -> tuple[list[int] | None, Symmetry]:
+def _parse_inputs_drop_symmetry(
+    which: int | list[int] | Literal['all'], symmetry: Symmetry
+) -> tuple[list[int] | Literal['all'], Symmetry]:
     """Input parsing for :meth:`Space.drop_symmetry`.
 
     Returns
     -------
-    which : None | list of int
-        Which symmetries to drop, as integers in ``range(len(symmetries.factors))``.
-        ``None`` indicates to drop all.
+    which : 'all' | list of int
+        Which symmetries to drop, as integers in ``range(symmetry.num_factors)``.
+        ``'all'`` indicates to drop all.
     remaining_symmetry : Symmetry
         The symmetry that remains.
 
     """
-    if which is None or which == []:
-        pass
-    elif isinstance(symmetry, ProductSymmetry):
-        which = to_iterable(which)
-        num_factors = len(symmetry.factors)
-        # normalize negative indices to be in range(num_factors)
-        for i, w in enumerate(which):
-            if not -num_factors <= w < num_factors:
-                raise ValueError(f'which entry {w} out of bounds for {num_factors} symmetries.')
-            if w < 0:
-                which[i] += num_factors
-        if len(which) == num_factors:
-            which = None
-    elif which == 0 or which == [0]:
-        which = None
-    else:
-        msg = f'Can not drop which={which} for a single (non-ProductSymmetry) symmetry.'
-        raise ValueError(msg)
-
-    if which is None:
-        remaining_symmetry = no_symmetry
-    else:
-        factors = [f for i, f in enumerate(symmetry.factors) if i not in which]
-        if len(factors) == 1:
-            remaining_symmetry = factors[0]
-        else:
-            remaining_symmetry = ProductSymmetry(factors)
-
+    if which == 'all':
+        return 'all', no_symmetry
+    N = symmetry.num_factors
+    which = [to_valid_idx(i, N) for i in to_iterable(which)]
+    if len(which) == N:
+        return 'all', no_symmetry
+    remaining_symmetry = Symmetry([f for i, f in enumerate(symmetry.factors) if i not in which])
     return which, remaining_symmetry
