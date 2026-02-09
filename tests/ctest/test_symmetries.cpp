@@ -1,20 +1,21 @@
 
-#include <iostream>
-#include <cassert>
 #include <bitset>
+#include <cassert>
+#include <iostream>
 
 #include "cyten/symmetries.h"
 
 using namespace cyten;
 
-
-int test_symmetries(int argc, char ** args) {
+int
+test_symmetries(int argc, char** args)
+{
     std::cout << "Hello world" << std::endl;
     // std::cout << (BraidingStyle::bosonic < BraidingStyle::anyonic) << std::endl;
-    Sector a =-1, b=-5;
-    std::array<int, 2> bit_lengths {4,4};
+    Sector a = -1, b = -5;
+    std::array<int, 2> bit_lengths{ 4, 4 };
 
-    Sector c = _compress_sector_fixed<2>({a,b}, bit_lengths);
+    Sector c = _compress_sector_fixed<2>({ a, b }, bit_lengths);
     auto dec = _decompress_sector_fixed<2>(c, bit_lengths);
     std::cout << std::bitset<64>(a) << ", " << std::bitset<64>(b) << std::endl
               << " -> " << std::bitset<64>(c) << std::endl

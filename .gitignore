@@ -24,3 +24,5 @@ coverage.*
 *.pkl
 docs/build_docs
 docs/reference
+.conda
+.venv

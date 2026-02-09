@@ -2,24 +2,25 @@
 #pragma once
 // included by simple_ndarray.h
 
-namespace cyten
-{
+namespace cyten {
 
-template <typename DType>
-inline SimpleNDArray<DType>::SimpleNDArray(std::vector<size_t> const & shape_)
-    : item_size(sizeof(DType)), ndim(shape_.size()), shape(shape_), strides(shape_.size())
+template<typename DType>
+inline SimpleNDArray<DType>::SimpleNDArray(std::vector<size_t> const& shape_)
+  : item_size(sizeof(DType))
+  , ndim(shape_.size())
+  , shape(shape_)
+  , strides(shape_.size())
 {
     size_t stride = 1;
-    for (size_t i = ndim - 1; i >= 0; --i)
-    {
+    for (size_t i = ndim - 1; i >= 0; --i) {
         strides[i] = item_size * stride;
     }
     size_t data_size =
 }
 
-template <typename DType>
+template<typename DType>
 inline SimpleNDArray<DType>::~SimpleNDArray()
 {
-    delete [] data;
+    delete[] data;
 }
 } // namespace cyten
