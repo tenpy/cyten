@@ -10,14 +10,14 @@ namespace cyten {
 class SymmetryError : public std::invalid_argument {
     using std::invalid_argument::invalid_argument;
 };
-    
+
 enum class FusionStyle {
     single = 0,  // only one resulting sector, a ⊗ b = c, e.g. abelian symmetry groups
     multiple_unique = 10,  // every sector appears at most once in pairwise fusion, N^{ab}_c \in {0,1}
     general = 20,  // assumptions N^{ab}_c = 0, 1, 2, ...
 };
 
-enum class BraidingStyle { 
+enum class BraidingStyle {
     bosonic = 0,  // symmetric braiding with trivial twist; v ⊗ w ↦ w ⊗ v
     fermionic = 10,  // symmetric braiding with non-trivial twist; v ⊗ w ↦ (-1)^p(v,w) w ⊗ v
     anyonic = 20,  // non-symmetric braiding
@@ -26,7 +26,7 @@ enum class BraidingStyle {
 
 
 /// @brief representation of a Sector by a single 64-bit int
-/// 
+///
 /// Product symmetries limit the size of each of the Sectors to a fixed bit-length such that sum of bit_lengths <= 64.
 typedef int64_t Sector;
 
@@ -66,7 +66,7 @@ class Symmetry {
         size_t num_sectors() const;
         size_t sector_ind_len() const;
         bool has_symmetric_braid() const;
-        
+
     // ABSTRACT METHODS (virtual methods need to be overwritten)
     public:
         virtual std::string group_name() const = 0;
@@ -79,8 +79,8 @@ class Symmetry {
         virtual std::string __repr__() const = 0;
 
         /// Whether self and other describe the same mathematical structure.
-        virtual bool is_same_symmetry(Symmetry const & other) const = 0;        
-        
+        virtual bool is_same_symmetry(Symmetry const & other) const = 0;
+
         /// The sector dual to a, such that N^{a,dual(a)}_u = 1.
         virtual Sector dual_sector(Sector a) const = 0;
        // element-wise dual_sector(a)
@@ -103,24 +103,24 @@ class Symmetry {
         virtual SectorArray all_sectors() const ;
 
     // FALLBACK IMPLEMENTATIONS (might want to override virtual methods)
-    public: 
+    public:
         // default implementation for _sector_ind_len = 1
         virtual Sector compress_sector(std::vector<Sector> const & decompressed) const;
         // default implementation for _sector_ind_len = 1
         virtual std::vector<Sector> decompress_sector(Sector compressed) const;
         SectorArray compress_sectorarray(py::array_t<Sector> sectors) const;
         py::array_t<Sector> decompress_sectorarray(SectorArray sectors) const;
- 
+
         virtual bool are_valid_sectors(SectorArray const & sectors) const;
         virtual SectorArray fusion_outcomes_broadcast(SectorArray const & a, SectorArray const & b) const;
-        
+
         Sector multiple_fusion(std::vector<Sector> const & sectors) const;
         SectorArray multiple_fusion_broadcast(std::vector<SectorArray> const & sectors) const;
         virtual SectorArray _multiple_fusion_broadcast(std::vector<SectorArray> const & sectors) const;
     public:
-        
+
         virtual bool can_fuse_to(Sector a, Sector b, Sector c) const;
-        
+
         /// @brief The dimension of a sector, as an unstructured space (i.e. if we drop the symmetry).
         /// For bosonic braiding style, e.g. for group symmetries, this coincides with the quantum dimension computed by :meth:`qdim`.
         /// For other braiding styles,
@@ -138,11 +138,11 @@ class Symmetry {
 
         /// Short and readable string for the sector. Is used in __str__ of symmetry-related objects.
         virtual std::string sector_str(Sector a) const;
-        
-        
+
+
         /// The Frobenius Schur indicator of a sector.
         virtual cyten_int frobenius_schur(Sector a) const;
-        
+
         py::array b_symbol(Sector a, Sector b, Sector c) const;
         py::array c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
         virtual py::array _b_symbol(Sector a, Sector b, Sector c) const;
@@ -151,8 +151,8 @@ class Symmetry {
         cyten_complex topological_twist(Sector a) const;
         cyten_complex s_matrix_element(Sector a, Sector b) const;
         py::array s_matrix(Sector a, Sector b) const;
-        
-        
+
+
     // COMMON IMPLEMENTATIONS
     public:
 
@@ -166,8 +166,8 @@ class Symmetry {
 
 
 class ProductSymmetry : public Symmetry {
-    public: 
-        const std::vector<std::shared_ptr<Symmetry *>> factors; 
+    public:
+        const std::vector<std::shared_ptr<Symmetry *>> factors;
     public:
         ProductSymmetry(std::vector<std::shared_ptr<Symmetry *>> const & factors);
 };
@@ -180,13 +180,13 @@ class GroupSymmetry : public Symmetry {
         virtual bool can_be_dropped() const override;
         virtual py::array _fusion_tensor(Sector a, Sector b, Sector c) = 0;
         virtual py::array _Z_iso(Sector a) = 0;
-              
-        
+
+
 
 };
 
 class AbelianSymmetry: public GroupSymmetry {
-    
+
 };
 
 

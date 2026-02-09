@@ -23,5 +23,3 @@ int test_symmetries(int argc, char ** args) {
     assert(b == dec[1]);
     return 0;
 }
-
-

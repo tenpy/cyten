@@ -16,9 +16,9 @@ void bind_symmetries(py::module_ &m);
 
 PYBIND11_MODULE(_core, m) {
     m.doc() = "Cyten python bindings using pybind11"; // optional module docstring
-    
+
     m.def("add", &cyten::add, "A function that adds two numbers");
-    
+
     bind_symmetries(m);
 
 }

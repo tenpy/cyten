@@ -17,6 +17,6 @@ C++ API Reference
 
 .. .. doxygenclass:: cyten::Symmetry
 ..     :members:
-   
+
 
 .. .. doxygenindex::

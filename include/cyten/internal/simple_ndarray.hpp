@@ -4,7 +4,7 @@
 
 namespace cyten
 {
-    
+
 template <typename DType>
 inline SimpleNDArray<DType>::SimpleNDArray(std::vector<size_t> const & shape_)
     : item_size(sizeof(DType)), ndim(shape_.size()), shape(shape_), strides(shape_.size())
@@ -14,7 +14,7 @@ inline SimpleNDArray<DType>::SimpleNDArray(std::vector<size_t> const & shape_)
     {
         strides[i] = item_size * stride;
     }
-    size_t data_size = 
+    size_t data_size =
 }
 
 template <typename DType>

@@ -6,26 +6,26 @@
 
 
 namespace cyten {
-  
+
   int add(int i, int j) {
     return i +j;
   }
-  
+
   // typedef unsigned int charge;
   // template <typename Sector>
   // class Symmetry {
-  //   public: 
+  //   public:
   //     typedef std::vector<Sector> SectorArray;
   //     virtual SectorArray fusion_outcomes(Sector a, Sector b) = 0;
   // };
-  
+
   // class U1Symmetry : public Symmetry<charge> {
   //   public:
   //     SectorArray fusion_outcomes(charge a, charge b) override{
   //       return SectorArray{a + b};
   //     }
   // } u1_symmetry;
-  
+
   // template<int N>
   // class SUNSymmetry : public Symmetry<std::array<charge, N>> {
   //   public:
