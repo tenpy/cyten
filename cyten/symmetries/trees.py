@@ -12,7 +12,7 @@ import numpy as np
 from ..block_backends import Block, NumpyBlockBackend
 from ..block_backends.dtypes import Dtype
 from ..tools import to_valid_idx
-from ._symmetries import FusionStyle, Sector, SectorArray, Symmetry, SymmetryError
+from ._symmetries import Sector, SectorArray, Symmetry, SymmetryError
 
 if TYPE_CHECKING:
     from ..backends import TensorBackend
@@ -84,6 +84,7 @@ class FusionTree:
         multiplicities: np.ndarray | list[int] = None,  # N - 1 multiplicity labels; all 0 per default
     ):
         # OPTIMIZE demand SectorArray / ndarray (not list) and skip conversions?
+        assert isinstance(symmetry, Symmetry)
         self.symmetry = symmetry
         self.uncoupled = np.asarray(uncoupled)
         self.num_uncoupled = len(uncoupled)
@@ -184,10 +185,10 @@ class FusionTree:
         return res
 
     def __hash__(self) -> int:
-        if self.fusion_style == FusionStyle.single:
+        if self.symmetry.is_abelian:
             # inner sectors are completely determined by uncoupled, all multiplicities are 0
             unique_identifier = [self.are_dual, self.coupled, self.uncoupled]
-        elif self.fusion_style == FusionStyle.multiple_unique:
+        elif self.symmetry.has_unique_fusion:
             # all multiplicities are 0
             unique_identifier = [self.are_dual, self.coupled, self.uncoupled, self.inner_sectors]
         else:
@@ -298,7 +299,7 @@ class FusionTree:
         else:
             extra_left = np.zeros((0, num_rows), str)
 
-        if self.symmetry.fusion_style > FusionStyle.multiple_unique:
+        if not self.symmetry.has_unique_fusion:
             # need to print multiplicities
             for (x, y), mult in zip(vertex_positions, self.multiplicities):
                 mult = str(mult)
@@ -1099,6 +1100,7 @@ class fusion_trees(Iterable[FusionTree]):
     def __init__(self, symmetry: Symmetry, uncoupled: SectorArray | list[Sector], coupled: Sector, are_dual=None):
         # DOC: coupled = None means trivial sector
         self.symmetry = symmetry
+        assert isinstance(symmetry, Symmetry)
         if len(uncoupled) == 0:
             uncoupled = symmetry.empty_sector_array
         self.uncoupled = np.asarray(uncoupled)  # OPTIMIZE demand SectorArray (not list) and skip?
@@ -1180,7 +1182,7 @@ class fusion_trees(Iterable[FusionTree]):
     def index(self, tree: FusionTree) -> int:
         """The index of a given tree in the iterator."""
         # check compatibility first (same symmetry, same uncoupled, same coupled, same are_dual)
-        if not self.symmetry.is_same_symmetry(tree.symmetry):
+        if not self.symmetry.is_equivalent_to(tree.symmetry):
             raise ValueError(f'Inconsistent symmetries, {self.symmetry} != {tree.symmetry}')
         if not np.all(self.uncoupled == tree.uncoupled):
             raise ValueError(f'Inconsistent uncoupled sectors, {self.uncoupled} != {tree.uncoupled}')
