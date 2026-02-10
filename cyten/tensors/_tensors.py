@@ -4022,9 +4022,7 @@ def combine_legs(
         if n in codomain_groups:
             group = codomain_groups[n]
             spaces_to_combine = tensor.codomain[group[0] : group[-1] + 1]
-            combined = tensor.backend.make_pipe(
-                spaces_to_combine, is_dual=pipe_dualities[i], in_domain=False, pipe=pipes[i]
-            )
+            combined = tensor.backend.make_pipe(spaces_to_combine, is_dual=pipe_dualities[i], pipe=pipes[i])
             pipes[i] = combined
             codomain_spaces.append(combined)
             codomain_labels.append(_combine_leg_labels(tensor.labels[group[0] : group[-1] + 1]))
@@ -4036,9 +4034,7 @@ def combine_legs(
             spaces_to_combine = tensor.domain[codomain_idx2 : domain_idx1 + 1]
             # Note: this is the result.domain[some_idx],  which has opposite duality from
             #       result.legs[-1-some_idx], so we need to invert pipe_dualities[i]
-            combined = tensor.backend.make_pipe(
-                spaces_to_combine, is_dual=not pipe_dualities[i], in_domain=True, pipe=pipes[i]
-            )
+            combined = tensor.backend.make_pipe(spaces_to_combine, is_dual=not pipe_dualities[i], pipe=pipes[i])
             pipes[i] = combined
             domain_spaces_reversed.append(combined)
             domain_labels_reversed.append(_combine_leg_labels(tensor.labels[group[0] : group[-1] + 1]))
