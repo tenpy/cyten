@@ -4034,6 +4034,7 @@ def combine_legs(
             pipes[i] = combined
             domain_spaces_reversed.append(combined)
             domain_labels_reversed.append(_combine_leg_labels(tensor.labels[group[0] : group[-1] + 1]))
+            i += 1
         elif n in to_combine:
             # n is part of a group, but not the *first* of its group
             pass
@@ -5637,12 +5638,12 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     if legs is None:
         codomain_split = [n for n, l in enumerate(tensor.codomain) if isinstance(l, LegPipe)]
         domain_split = [n for n, l in enumerate(tensor.domain) if isinstance(l, LegPipe)]
-        leg_idcs = [*codomain_split, *(tensor.num_legs - 1 - n for n in domain_split)]
+        leg_idcs = [*codomain_split, *(tensor.num_legs - 1 - n for n in reversed(domain_split))]
     else:
         leg_idcs = []
         codomain_split = []
         domain_split = []
-        for l in to_iterable(legs):
+        for l in sorted(tensor.get_leg_idcs(legs)):
             in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(l)
             leg_idcs.append(leg_idx)
             if in_domain:
