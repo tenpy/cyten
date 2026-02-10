@@ -15,14 +15,12 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#if __STDCPP_FLOAT64_T__ != 1
-#error "64-bit float type required"
-#endif
+static_assert(std::numeric_limits<double>::is_iec559);
 
 namespace cyten {
 namespace py = ::pybind11;
-typedef std::int64_t cyten_int;
-typedef std::float64_t cyten_float;
-typedef std::complex<cyten_float> cyten_complex;
-
+using cyten_int = std::int64_t;
+using cyten_float = double;
+using cyten_complex = std::complex<cyten_float>;
+using size_t = std::size_t;
 } // namespace cyten

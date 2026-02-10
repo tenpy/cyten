@@ -7,7 +7,7 @@ message(STATUS "")
 # #####################################################################
 # ## CMAKE and CXX VERSION
 # #####################################################################
-cmake_minimum_required(VERSION 3.20...3.27)
+cmake_minimum_required(VERSION 3.27)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -30,6 +30,7 @@ endif()
 # ## COMMAND LINE OPTIONS
 # #####################################################################
 option(BUILD_DOC "Build API documentation" OFF)
+option(LINTING "Use clang-tidy for linting" OFF)
 option(BUILD_TESTING "Build ctest tests" ON)
 
 
@@ -126,6 +127,20 @@ if(DOXYGEN_FOUND)
     DESTINATION docs
     COMPONENT documentation
   )
+endif()
+
+
+# #####################################################################
+# ## clang-tidy for linting
+# #####################################################################
+if (LINTING)
+  find_program(CLANG_TIDY_EXE "clang-tidy")
+  if(CLANG_TIDY_EXE)
+    message(STATUS "clang-tidy found: ${CLANG_TIDY_EXE}")
+    set(CMAKE_CXX_CLANG_TIDY ${CLANG_TIDY_EXE})
+  else()
+    message(WARNING "clang-tidy not found!")
+  endif()
 endif()
 
 

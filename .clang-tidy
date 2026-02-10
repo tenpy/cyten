@@ -1,0 +1,5 @@
+Checks: 'cppcoreguidelines-*'
+# TODO: also include modernize-* checks eventually
+
+# Treat specific warnings as errors:
+# WarningsAsErrors: 'cppcoreguidelines-*'
