@@ -63,7 +63,6 @@ def random_ElementarySpace(
 def random_LegPipe(
     symmetry,
     backend,
-    in_domain,
     max_sectors=5,
     max_multiplicity=5,
     is_dual=None,
@@ -91,7 +90,7 @@ def random_LegPipe(
         )
         legs.append(leg)
 
-    pipe = backend.make_pipe(legs=legs, is_dual=is_dual, in_domain=in_domain)
+    pipe = backend.make_pipe(legs=legs, is_dual=is_dual)
     pipe_as_space = pipe.as_Space()
 
     # make sure that for non-abelian symmetries, max_sectors and max_multiplicity
@@ -105,7 +104,7 @@ def random_LegPipe(
     ):
         legs[idx] = triv
         idx += 1
-        pipe = backend.make_pipe(legs=legs, is_dual=is_dual, in_domain=in_domain)
+        pipe = backend.make_pipe(legs=legs, is_dual=is_dual)
         pipe_as_space = pipe.as_Space()
     return pipe
 
@@ -126,7 +125,6 @@ def random_leg(
         return random_LegPipe(
             symmetry=symmetry,
             backend=backend,
-            in_domain=in_domain,
             max_sectors=max_sectors,
             max_multiplicity=max_multiplicity,
             is_dual=is_dual,
@@ -205,7 +203,6 @@ def find_last_leg(
     max_mult: int,
     backend: backends.TensorBackend,
     use_pipes: bool | float,
-    in_domain: bool,
     extra_sectors=None,
     np_random=np.random.default_rng(),
 ):
@@ -264,7 +261,7 @@ def find_last_leg(
             prod.symmetry, defining_sectors=[prod.symmetry.trivial_sector], multiplicities=[1]
         )
         legs = [res] + [triv] * (_random_num_legs(np_random=np_random) - 1)
-        res = backend.make_pipe(legs=legs, is_dual=False, in_domain=in_domain)
+        res = backend.make_pipe(legs=legs, is_dual=False)
     #
     # check that it actually worked
     # OPTIMIZE remove?
@@ -596,7 +593,6 @@ def random_tensor(
             max_mult=max_multiplicity,
             backend=backend,
             use_pipes=use_pipes,
-            in_domain=False,
         )
         codomain = partial_codomain.insert_multiply(leg, last)
     elif not domain_complete:
@@ -624,7 +620,6 @@ def random_tensor(
             max_mult=max_multiplicity,
             backend=backend,
             use_pipes=use_pipes,
-            in_domain=True,
         )
         domain = partial_domain.insert_multiply(leg, last)
     else:
