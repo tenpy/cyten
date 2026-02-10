@@ -764,7 +764,7 @@ class FusionTreeBackend(TensorBackend):
             idcs = []
             split_dims = []
             legs = [*codomain.factors, *reversed([f.dual for f in domain.factors])]
-            axes_perm = inverse_permutation(_flat_leg_permutation(legs))
+            axes_perm = _flat_leg_permutation(legs)
             perm_idx = 0
             for n, leg in enumerate(legs):
                 if isinstance(leg, LegPipe):
@@ -2255,7 +2255,7 @@ class FusionTreeBackend(TensorBackend):
         if a.has_pipes:
             # we cannot simply use cstyles as argument in combine_legs since we potentially need to deal with
             # nested pipes with different cstyles -> choose to combine in C style and do axis permutation explicitly
-            axes_perm = _flat_leg_permutation(a.legs)
+            axes_perm = inverse_permutation(_flat_leg_permutation(a.legs))
             combine_axes = a.codomain.flat_legs_nesting() + [
                 [J + K - 1 - leg_idx for leg_idx in reversed(group)] for group in reversed(a.domain.flat_legs_nesting())
             ]

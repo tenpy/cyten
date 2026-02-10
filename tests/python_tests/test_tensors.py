@@ -1561,8 +1561,7 @@ def test_combine_split_with_dualities(use_pipes, in_domain, make_compatible_tens
         T: SymmetricTensor = make_compatible_tensor(labels, [], use_pipes=use_pipes)
     assert T.labels == labels
 
-    # TODO remove use_pipes from EVERY if below
-    if T.symmetry.can_be_dropped and not use_pipes:
+    if T.symmetry.can_be_dropped:
         other_backends = [backends.NoSymmetryBackend, backends.AbelianBackend, backends.FusionTreeBackend]
         other_backends = [bak(T.backend.block_backend) for bak in other_backends if not isinstance(T.backend, bak)]
         other_backends = [bak for bak in other_backends if bak.supports_symmetry(T.symmetry)]
@@ -1570,8 +1569,8 @@ def test_combine_split_with_dualities(use_pipes, in_domain, make_compatible_tens
         T_bak = [
             SymmetricTensor.from_dense_block(
                 block=T_np,
-                codomain=T.codomain,
-                domain=T.domain,
+                codomain=[bak.make_pipe(leg, leg.is_dual) if isinstance(leg, LegPipe) else leg for leg in T.codomain],
+                domain=[bak.make_pipe(leg, leg.is_dual) if isinstance(leg, LegPipe) else leg for leg in T.domain],
                 backend=bak,
                 labels=T.labels,
                 dtype=T.dtype,
@@ -1590,7 +1589,7 @@ def test_combine_split_with_dualities(use_pipes, in_domain, make_compatible_tens
         split = tensors.split_legs(combined, split_idcs)
         split.test_sanity()
         assert tensors.almost_equal(split, T)
-        if T.symmetry.can_be_dropped and not use_pipes:
+        if T.symmetry.can_be_dropped:
             npt.assert_almost_equal(T_np, split.to_numpy(understood_braiding=True))
             for T2 in T_bak:
                 combined2 = tensors.combine_legs(T2, [0, 1], pipe_dualities=[dual])
@@ -1605,7 +1604,7 @@ def test_combine_split_with_dualities(use_pipes, in_domain, make_compatible_tens
         split = tensors.split_legs(combined, split_idcs)
         split.test_sanity()
         assert tensors.almost_equal(split, T)
-        if T.symmetry.can_be_dropped and not use_pipes:
+        if T.symmetry.can_be_dropped:
             npt.assert_almost_equal(T_np, split.to_numpy(understood_braiding=True))
             for T2 in T_bak:
                 combined2 = tensors.combine_legs(T2, [2, 3], pipe_dualities=[dual])
@@ -1620,7 +1619,7 @@ def test_combine_split_with_dualities(use_pipes, in_domain, make_compatible_tens
         split = tensors.split_legs(combined)
         split.test_sanity()
         assert tensors.almost_equal(split, T)
-        if T.symmetry.can_be_dropped and not use_pipes:
+        if T.symmetry.can_be_dropped:
             npt.assert_almost_equal(T_np, split.to_numpy(understood_braiding=True))
             for T2 in T_bak:
                 combined2 = tensors.combine_legs(T2, [0, 1], [2, 3], pipe_dualities=dual)
