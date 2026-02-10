@@ -1553,23 +1553,25 @@ def test_combine_split(use_pipes, make_compatible_tensor):
     ],
 )
 def test_combine_split_with_dualities(use_pipes, in_domain, make_compatible_tensor):
-    pytest.xfail('Activate this test and fix the bugs')
+    labels = ['a', 'b', 'c', 'd']
     if in_domain:
-        T: SymmetricTensor = make_compatible_tensor([], ['d', 'c', 'b', 'a'], use_pipes=use_pipes)
+        T: SymmetricTensor = make_compatible_tensor([], labels[::-1], use_pipes=use_pipes)
     else:
-        T: SymmetricTensor = make_compatible_tensor(['a', 'b', 'c', 'd'], [], use_pipes=use_pipes)
-    assert T.labels == ['a', 'b', 'c', 'd']
+        T: SymmetricTensor = make_compatible_tensor(labels, [], use_pipes=use_pipes)
+    assert T.labels == labels
 
     for dual in [True, False]:
         combined = tensors.combine_legs(T, [0, 1], pipe_dualities=[dual])
         combined.test_sanity()
-        split = tensors.split_legs(combined)
+        split_idcs = [0] if use_pipes else None
+        split = tensors.split_legs(combined, split_idcs)
         split.test_sanity()
         assert tensors.almost_equal(split, T)
 
         combined = tensors.combine_legs(T, [2, 3], pipe_dualities=[dual])
         combined.test_sanity()
-        split = tensors.split_legs(combined)
+        split_idcs = [2] if use_pipes else None
+        split = tensors.split_legs(combined, split_idcs)
         split.test_sanity()
         assert tensors.almost_equal(split, T)
 
