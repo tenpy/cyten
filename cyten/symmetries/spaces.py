@@ -170,6 +170,10 @@ class Leg(metaclass=ABCMeta):
         """The number of :attr:`flat_legs`."""
         return 1
 
+    def _flat_leg_permutation(self, offset: int = 0) -> list[int]:
+        """Leg permutation such that combining legs would be in C style."""
+        return [offset]
+
     @property
     def ascii_arrow(self) -> str:
         """A single character arrow, for use in tensor diagrams
@@ -328,6 +332,19 @@ class LegPipe(Leg):
     @property
     def num_flat_legs(self) -> int:
         return sum(l.num_flat_legs for l in self.legs)
+
+    def _flat_leg_permutation(self, offset: int = 0) -> list[int]:
+        if self.num_legs == self.num_flat_legs:
+            perm = list(range(offset, offset + self.num_legs))
+            if not self.combine_cstyle:
+                return perm[::-1]
+            return perm
+        legs = self.legs if self.combine_cstyle else self.legs[::-1]
+        offsets = np.cumsum([offset, *[leg.num_flat_legs for leg in legs]])[:-1]
+        if not self.combine_cstyle:
+            offsets = offsets[::-1]
+        perm = [leg._flat_leg_permutation(offset) for leg, offset in zip(self.legs, offsets)]
+        return list(it.chain.from_iterable(perm))
 
     def set_basis_perm(
         self, basis_perm: Sequence[int] | None = UNSPECIFIED, inverse_basis_perm: Sequence[int] | None = UNSPECIFIED
@@ -2501,6 +2518,24 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             perm[start:stop] = np.sum(basis_grid * dim_strides, axis=1)
 
         return perm
+
+
+def _flat_leg_permutation(legs: list[LegPipe | Leg]) -> list[int]:
+    """Leg permutation such that combining / splitting legs would be in C style.
+
+    Returns
+    -------
+    perm
+        The permutation of the flat legs such that combining or splitting them in C style after
+        applying this permutation corresponds to combining / splitting them with respect to their
+        :attr:`combine_c_style` without applying this permuatation.
+        This is useful when working with the flat legs of nested pipes that may have different
+        :attr:`combine_c_style`, as done in the fusion tree backend.
+
+    """
+    offsets = np.cumsum([0, *[leg.num_flat_legs for leg in legs]], dtype=int)[:-1]
+    perm = [leg._flat_leg_permutation(offset) for leg, offset in zip(legs, offsets)]
+    return list(it.chain.from_iterable(perm))
 
 
 def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicities: np.ndarray):

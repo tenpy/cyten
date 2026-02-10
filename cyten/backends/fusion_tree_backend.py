@@ -101,6 +101,7 @@ from ..symmetries import (
     TensorProduct,
     fusion_trees,
 )
+from ..symmetries.spaces import _flat_leg_permutation
 from ..tools.mappings import IdentityMapping, SparseMapping
 from ..tools.misc import (
     inverse_permutation,
@@ -758,11 +759,26 @@ class FusionTreeBackend(TensorBackend):
 
     def from_dense_block(self, a: Block, codomain: TensorProduct, domain: TensorProduct, tol: float) -> FusionTreeData:
         if codomain.has_pipes or domain.has_pipes:
-            num_piped_legs = codomain.num_factors + domain.num_factors
-            codomain_split_dims = [[flat.dim for flat in l.flat_legs] for l in codomain]
-            domain_split_dims = [[flat.dim for flat in l.flat_legs] for l in domain]
-            split_dims = codomain_split_dims + [dims[::-1] for dims in reversed(domain_split_dims)]
-            a = self.block_backend.split_legs(a, idcs=[*range(num_piped_legs)], dims=split_dims)
+            # we cannot simply use cstyles as argument in combine_legs since we potentially need to deal with
+            # nested pipes with different cstyles -> choose to combine in C style and do axis permutation explicitly
+            idcs = []
+            split_dims = []
+            legs = [*codomain.factors, *reversed([f.dual for f in domain.factors])]
+            axes_perm = inverse_permutation(_flat_leg_permutation(legs))
+            perm_idx = 0
+            for n, leg in enumerate(legs):
+                if isinstance(leg, LegPipe):
+                    idcs.append(n)
+                    dims = [s.dim for s in leg.flat_legs]
+                    perm = axes_perm[perm_idx : perm_idx + leg.num_flat_legs]
+                    perm_min = min(perm)
+                    perm = [p - perm_min for p in perm]
+                    split_dims.append([dims[i] for i in perm])
+                    perm_idx += leg.num_flat_legs
+                else:
+                    perm_idx += 1
+            a = self.block_backend.split_legs(a, idcs=idcs, dims=split_dims)
+            a = self.block_backend.permute_axes(a, axes_perm)
 
         sym = codomain.symmetry
         assert sym.can_be_dropped
@@ -2237,9 +2253,13 @@ class FusionTreeBackend(TensorBackend):
         res = self.block_backend.permute_axes(res, [*range(J), *reversed(range(J, J + K))])
 
         if a.has_pipes:
+            # we cannot simply use cstyles as argument in combine_legs since we potentially need to deal with
+            # nested pipes with different cstyles -> choose to combine in C style and do axis permutation explicitly
+            axes_perm = _flat_leg_permutation(a.legs)
             combine_axes = a.codomain.flat_legs_nesting() + [
                 [J + K - 1 - leg_idx for leg_idx in reversed(group)] for group in reversed(a.domain.flat_legs_nesting())
             ]
+            res = self.block_backend.permute_axes(res, axes_perm)
             res = self.block_backend.combine_legs(res, combine_axes)
 
         return res
