@@ -5710,12 +5710,12 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     if legs is None:
         codomain_split = [n for n, l in enumerate(tensor.codomain) if isinstance(l, LegPipe)]
         domain_split = [n for n, l in enumerate(tensor.domain) if isinstance(l, LegPipe)]
-        leg_idcs = [*codomain_split, *(tensor.num_legs - 1 - n for n in domain_split)]
+        leg_idcs = [*codomain_split, *(tensor.num_legs - 1 - n for n in reversed(domain_split))]
     else:
         leg_idcs = []
         codomain_split = []
         domain_split = []
-        for l in to_iterable(legs):
+        for l in sorted(tensor.get_leg_idcs(legs)):
             in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(l)
             leg_idcs.append(leg_idx)
             if in_domain:
