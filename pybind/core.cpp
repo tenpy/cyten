@@ -11,13 +11,9 @@ using namespace cyten;
 namespace py = pybind11;
 using namespace pybind11::literals; // provides "arg"_a literals
 
-void bind_symmetries(py::module_& m);
-
 PYBIND11_MODULE(_core, m)
 {
     m.doc() = "Cyten python bindings using pybind11"; // optional module docstring
 
     m.def("add", &cyten::add, "A function that adds two numbers");
-
-    bind_symmetries(m);
 }

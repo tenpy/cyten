@@ -5,5 +5,4 @@
 target_sources(_core
   PUBLIC
   core.cpp
-  symmetries.cpp
 )

@@ -5,16 +5,16 @@
 enable_testing()
 # create the testing file and list of tests
 set (TestsToRun
-  test_symmetries.cpp
+  test_setup_check.cpp
 )
 
 create_test_sourcelist(Tests CommonCppTests.cpp ${TestsToRun})
 
 
 # add the executable
-add_executable (CommonCppTests ${Tests})
+add_executable(CommonCppTests ${Tests})
 set_source_files_properties(CommonCppTests.cpp ${TestsToRun} PROPERTIES
-    SKIP_LINTING ON
+  SKIP_LINTING ON
 )
 
 target_include_directories(CommonCppTests

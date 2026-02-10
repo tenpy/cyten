@@ -14,25 +14,17 @@ Until then, you need to build the package yourself on your local machine, as det
 
 ## Testing
 The python interface is tested with `pytest` run from the `tests/` folder in the repo.
-To test the C++ code, run `gtest` (from GoogleTest).
+C++ tests can be run via CMake CTest by invoking `ctest` in the `build/` folder, provided that the project has been build with `-DBUILD_TESTING=ON` (the default).
 
 ## Documentation
 Will eventually be online, but so far you also need to build it locally.
 See `README.md` in the `docs/` folder on how - essentially just install `cyten`, run `doxygen` and then `make html` in the `docs/` folder.
 
-## Code style and linting
-Please follow these guidelines when contributing code
+## Pre-commit
+Formatting and linting can be enabled with pre-commit using git hooks, so you don't need to worry about formatting.
 
-- Use a code style based on :pep:`8`.
-  The git repo includes a config file ``.flake8`` for the python package `flake8 <https://flake8.pycqa.org/en/latest/>`_.
-  `flake8` is a tool that lints python code, i.e. it checks a number of rules for code formatting and
-  reports any violations. Install it using either `pip` or `conda`.
-  Run e.g. `flake8 .` in the repository root.
-  Feel free to use the git hooks, see `docs/contributing/code_style.rst`.
-  It is recommended to also install the `flake8-docstring <https://github.com/pycqa/flake8-docstrings>`
-  extension.
-
-- Every function/class/module should be documented by its doc-string, see :pep:`257`.
+## Python Code style
+- Every Python function/class/module should be documented by its doc-string, see :pep:`257`.
   Exception: If you override a method of a parent class, only add a docstring if it adds value.
 
   Additional documentation for the user guide is in the folder ``doc/``.
@@ -86,3 +78,7 @@ Please follow these guidelines when contributing code
   Unfinished functions should ``raise NotImplementedError()``.
 
 - We may start keeping a changelog in the future, so far we do not.
+
+## C++ Code style
+- Code internals can be documented in C++ comments, but the high level interface is documented in the python doc strings included in pybind11 bindings.
+- Similar ``// TODO`` comment rules as for Python.
