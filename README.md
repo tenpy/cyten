@@ -5,8 +5,16 @@ The name Cyten is pronounced like sci-ten, and refers to scientific tensor netwo
 ## About: combining forces of the TeNPy and Cytnx team
 This repo originates from a collaboration between the [Cytnx](https://github.com/cytnx-dev/cytnx) and [TeNPy](https://github.com/tenpy/tenpy) developers.
 Cytnx is a C++ library for Tensors with Abelian symmetries with pybind11 bindings to Python.
-The goal is to use that as a basis to translate the refactoring and implementation of non-Abelian symmetries from the `v2_alpha` branch in the tenpy repository (currenlty in pure Python) into C++, thereby extending the capabilities of the cytnx library, and providing a backend for TeNpy which will then focus on the higher-levels (defining MPS and algorithms like DMRG  etc).
-At the same time, the code from cytnx to be included will be refactored and cleaned a bit.
+TeNPy is a python library for Tensor networks, in the current version 1.0 also for abelian symmetries only.
+
+## current status
+The goal of this repository is to refactor and replace the linear algebra part of TeNPy, combined with the knowledge of Cytnx, to provide a high-level interface for Tensors with block-diagonal structue imposed by symmetries. At the same time, we heavly generalize to also support non-abelian symmetries with a fusion-tree backend. Moreover, we allow to switch the backend for the underlying blocks e.g. to torch to allow an efficient implementation on GPUs.
+
+By now, we have completed a draft of the new Tensor library/interface, including working backends in Python, and are (on this branch) converting this python library code to C++ to avoid unnecessary Python overhead.
+The goal is to keep the code structure and python interface mostly intact, and in particular keep the existing and extensive python test suite working while step by step conver individual modules/classes.
+
+## Repo overview
+The overview of the repository is given in the file `docs/intro/overview.rst`.
 
 ## Setup
 Once released, we will provide pre-compiled packages on conda/pip.
@@ -23,62 +31,5 @@ See `README.md` in the `docs/` folder on how - essentially just install `cyten`,
 ## Pre-commit
 Formatting and linting can be enabled with pre-commit using git hooks, so you don't need to worry about formatting.
 
-## Python Code style
-- Every Python function/class/module should be documented by its doc-string, see :pep:`257`.
-  Exception: If you override a method of a parent class, only add a docstring if it adds value.
-
-  Additional documentation for the user guide is in the folder ``doc/``.
-
-  The documentation uses `reStructuredText`. If you are new to `reStructuredText`, read this `introduction <http://www.sphinx-doc.org/en/stable/rest.html>`_.
-  We use the `numpy` style for doc-strings (with the `napoleon <https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html>`_ extension to sphinx).
-  You can read about them in these `Instructions for the doc strings <https://numpydoc.readthedocs.io/en/latest/format.html>`_.
-  In addition, you can take a look at the following `example file <https://github.com/numpy/numpydoc/blob/main/doc/example.py>`_.
-  Helpful hints on top of that::
-
-        r"""<- this r makes me a raw string, thus '\' has no special meaning.
-        Otherwise you would need to escape backslashes, e.g. in math formulas.
-
-        You can include cross references to classes, methods, functions, modules like
-        :class:`~tenpy.linalg.np_conserved.Array`, :meth:`~tenpy.linalg.np_conserved.Array.to_ndarray`,
-        :func:`tenpy.tools.math.toiterable`, :mod:`tenpy.linalg.np_conserved`.
-        The ~ in the beginning makes only the last part of the name appear in the generated documentation.
-        Documents of the userguide can be referenced with :doc:`/intro_npc` even from inside the doc-strings.
-        You can also cross-link to other documentations, e.g. :class:`numpy.ndarray`, :func`scipy.linalg.svd` and :mod: will work.
-
-        Moreover, you can link to github issues, arXiv papers, dois, and topics in the community forum with
-        e.g. :issue:`5`, :arxiv:`1805.00055`, :doi:`10.1000/1` and :forum:`3`.
-
-        Citations from the literature list can be cited as :cite:`white1992` using the bibtex key.
-
-        Write inline formulas as :math:`H |\Psi\rangle = E |\Psi\rangle` or displayed equations as
-        .. math ::
-
-           e^{i\pi} + 1 = 0
-
-        In doc-strings, math can only be used in the Notes section.
-        To refer to variables within math, use `\mathtt{varname}`.
-
-        .. todo ::
-
-           This block can describe things which need to be done and is automatically included in a section of :doc:`todo`.
-        """
-
-- Use relative imports within the package. Example::
-
-      from .symmetries import no_symmetry
-
-- If you write new functions, please also include suitable tests!
-
-- During development, you might introduce ``# TODO`` comments.
-  Please use exactly this format, to make searching for them easier, and include your initials or name.
-  Try to remove/resolve them as soon as possible.
-  If you're not 100% sure that you will remove it soon, please add a doc-string with a
-  ``.. todo ::`` block, such that we can keep track of it.
-
-  Unfinished functions should ``raise NotImplementedError()``.
-
-- We may start keeping a changelog in the future, so far we do not.
-
-## C++ Code style
-- Code internals can be documented in C++ comments, but the high level interface is documented in the python doc strings included in pybind11 bindings.
-- Similar ``// TODO`` comment rules as for Python.
+## Code style
+Details are given in `docs/guidelines/code_style.rst`.
