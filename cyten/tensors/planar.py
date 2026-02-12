@@ -50,6 +50,7 @@ from ._tensors import (
     partial_trace,
     permute_legs,
     qr,
+    scale_axis,
     svd,
     truncated_svd,
 )
@@ -1096,6 +1097,76 @@ class PlanarLinearOperator(LinearOperator):
 
     def to_tensor(self, **kw) -> Tensor:
         return self.op_diagram.evaluate(tensors=self.op_tensors)
+
+
+def horizontal_factorization(
+    tensor: Tensor,
+    codomain_cut: int,
+    domain_cut: int,
+    new_labels: str | Sequence[str] = None,
+    cutoff_singular_values: float = None,
+) -> tuple[Tensor, Tensor]:
+    """Factorize a tensor into left and right parts.
+
+    Graphically, here with ``codomain_cut=3, domain_cut=1``::
+
+        |      │   │   │               │           │   │             │   ╭──────╮    │   │
+        |   ┏━━┷━━━┷━━━┷━━┓         ┏━━┷━━━━━━┓   ┏┷━━━┷┓         ┏━━┷━━━┷━━┓   │   ┏┷━━━┷┓
+        |   ┃   tensor    ┃    =    ┃    A    ┠───┨  B  ┃   :=    ┃    A    ┃   │   ┃  B  ┃
+        |   ┗┯━━━┯━━━┯━━━┯┛         ┗┯━━━┯━━━┯┛   ┗━━━━┯┛         ┗┯━━━┯━━━┯┛   │   ┗┯━━━┯┛
+        |    │   │   │   │           │   │   │         │           │   │   │    ╰────╯   │
+
+    Parameters
+    ----------
+    tensor: Tensor
+        The tensor to factorize
+    codomain_cut: int
+        The first `codomain_cut` legs from the codomain end up in the codomain of `A`, the rest
+        of the codomain ends up in the codomain of `B`.
+    domain_cut: int
+        The first `domain_cut` legs from the domain end up in the domain of `A`, the rest
+        of the domain ends up in the domain of `B`.
+    new_labels: (list of) str
+        The labels for the new legs.
+        Two entries ``[a, b]`` result in ``A.labels[-1 - domain_cut] == a`` and ``B.labels[0] == b``
+        and a single entry ``a`` is equivalent to ``[a, a*]``.
+    cutoff_singular_values: float, optional
+        If ``None`` (default), we factorize using :func:`qr` without truncation. If given, we use a
+        truncated SVD and truncate by discarding singular values below this threshold.
+
+    Returns
+    -------
+    A, B: Tensor
+        A factorization of the `tensor`, such that ``tdot(A, B, -1 - domain_cut, 1)`` reproduces
+        the `tensor`, up to bending and possibly up to truncation if `cutoff_singular_values` is
+        given.
+
+    Notes
+    -----
+    This is achieved by bending legs such that we can do the factorization as a QR or SVD,
+    then bend back, that is for the example case depicted above::
+
+        |                                             │    │   │   ╭────╮         │   │   │
+        |             │           │   │    ╭──╮       │ ┏━━┷━━━┷━━━┷━━┓ │         │  ┏┷━━━┷┓
+        |             │  ╭────╮   │   │    │  │       │ ┃      B'     ┃ │         │  ┃  B  ┃
+        |             │  │ ┏━━┷━━━┷━━━┷━━┓ │  │       │ ┗━━━━━━┯━━━━━━┛ │         │  ┗┯━━━┯┛
+        |   LHS   =   │  │ ┃   tensor    ┃ │  │   =   │        │        │   =     │   │   │   =  RHS
+        |             │  │ ┗┯━━━┯━━━┯━━━┯┛ │  │       │ ┏━━━━━━┷━━━━━━┓ │      ┏━━┷━━━┷━━┓│
+        |             │  │  │   │   │   ╰──╯  │       │ ┃      A'     ┃ │      ┃    A    ┃│
+        |             ╰──╯  │   │   │         │       │ ┗┯━━━┯━━━┯━━━┯┛ │      ┗┯━━━┯━━━┯┛│
+        |                                             ╰──╯   │   │   │  │       │   │   │ │
+
+
+    Note how we bend some legs to the left, to avoid any braids, such that the operation does not
+    need to specify any braid chiralities.
+
+    """
+    if cutoff_singular_values is None:
+        return planar_qr(tensor, codomain_cut=codomain_cut, domain_cut=domain_cut, new_labels=new_labels)
+    A, S, Vh, _, _ = planar_truncated_svd(
+        tensor, codomain_cut=codomain_cut, domain_cut=domain_cut, new_labels=new_labels, svd_min=cutoff_singular_values
+    )
+    return A, scale_axis(Vh, S, 0)
 
 
 def planar_almost_equal(tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
