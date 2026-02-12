@@ -1,10 +1,13 @@
 
 #include "check.h"
+#include "cyten/cyten.h"
 
 #include <string>
-#include <vector>
 
 namespace cyten {
+
+NotImplemented::NotImplemented(std::string name)
+  : std::logic_error(std::format("Function {} not implemented", name)) {};
 
 int
 add(int i, int j)
