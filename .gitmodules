@@ -1,0 +1,3 @@
+[submodule ".cursor/skills/pybind11-codegen"]
+	path = .cursor/skills/pybind11-codegen
+	url = git@github.com:tenpy/pybind11_codegen.git
