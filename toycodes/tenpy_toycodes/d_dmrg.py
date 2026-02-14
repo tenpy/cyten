@@ -1,4 +1,7 @@
-"""Toy code implementing the 2-site DMRG algorithm."""
+"""Toy code implementing the 2-site DMRG algorithm.
+
+Note that this toy code uses the outdated convention of kets pointing upwards in the diagrams.
+"""
 
 # Copyright (C) TeNPy Developers, Apache license
 import numpy as np
@@ -84,6 +87,37 @@ class HEffective(ct.sparse.LinearOperator):
 
     def to_tensor(self) -> ct.Tensor:
         raise NotImplementedError
+
+
+class PlanarHEffective(ct.PlanarLinearOperator):
+    """Same as ``HEffective``, but as ``PlanarLinearOperator``."""
+
+    dmrg_diagram = ct.PlanarDiagram(
+        tensors='Lp[vL, wL*, vL*], W0[wL, p, wR, p*], W1[wL, p, wR, p*], Rp[vR*, wR*, vR], theta[vL, p0, p1, vR]',
+        definition='Lp:vL -> vL, Lp:vL* @ theta:vL, Lp:wL* @ W0:wL, '
+        'W0:p -> p0, W0:p* @ theta:p0, W0:wR @ W1:wL, '
+        'W1:p -> p1, W1:p* @ theta:p1, W1:wR @ Rp:wR*, '
+        'Rp:vR -> vR, Rp:vR* @ theta:vR',
+        dims=dict(chi=['vR', 'vR*', 'vL', 'vL*'], w=['wL', 'wL*', 'wR', 'wR*'], d=['p', 'p*', 'p0', 'p1']),
+    )
+    op_diagram = dmrg_diagram.remove_tensor(
+        name='theta', extra_definition='Lp:vL* -> vL*,  W0:p* -> p0*, W1:p* -> p1*, Rp:vR* -> vR*'
+    )
+
+    def __init__(self, Lp, W0, W1, Rp):
+        ct.planar.PlanarLinearOperator.__init__(
+            self,
+            op_diagram=self.op_diagram,
+            matvec_diagram=self.dmrg_diagram,
+            op_tensors=dict(Lp=Lp, W0=W0, W1=W1, Rp=Rp),
+            vec_name='theta',
+        )
+
+    def matvec(self, vec):
+        # we need to assure here that the result has the same codomain and domain as vec
+        # (because `inner` is called in `LanczosGroundState._build_krylov`)
+        res = self.dmrg_diagram.evaluate(tensors={**self.op_tensors, self.vec_name: vec})
+        return ct.planar_permute_legs(res, codomain=['vL', 'p0'])
 
 
 class DMRGEngine:
@@ -252,3 +286,54 @@ class DMRGEngine:
             self.sweep()
             e_new = self.energies[-1]
         return self.energies[-1]
+
+
+class PlanarDMRGEngine(DMRGEngine):
+    """Same as ``DMRGEngine``, but using ``PlanarDiagram``s."""
+
+    update_RP_diagram = ct.PlanarDiagram(
+        tensors='Rp[vR*, wR*, vR], W[wL, p, wR, p*], B[vL, p, vR], B_hc[vR*, p*, vL*]',
+        definition='Rp:vR @ B_hc:vR*, Rp:wR* @ W:wR, Rp:vR* @ B:vR, '
+        'W:p* @ B:p, W:p @ B_hc:p*, W:wL -> wR*, '
+        'B_hc:vL* -> vR, B:vL -> vR*',
+        dims=dict(chi=['vR', 'vR*', 'vL', 'vL*'], w=['wL', 'wR', 'wR*'], d=['p', 'p*']),
+    )
+    update_LP_diagram = ct.PlanarDiagram(
+        tensors='Lp[vL, wL*, vL*], W[wL, p, wR, p*], A[vL, p, vR], A_hc[vR*, p*, vL*]',
+        definition='Lp:vL @ A_hc:vL*, Lp:wL* @ W:wL, Lp:vL* @ A:vL, '
+        'W:p* @ A:p, W:p @ A_hc:p*, W:wR -> wL*, '
+        'A_hc:vR* -> vL, A:vR -> vL*',
+        dims=dict(chi=['vR', 'vR*', 'vL', 'vL*'], w=['wL', 'wL*', 'wR'], d=['p', 'p*']),
+    )
+
+    def update_bond(self, i):
+        j = i + 1
+        # get effective Hamiltonian
+        Heff = PlanarHEffective(Lp=self.LPs[i], Rp=self.RPs[j], W0=self.H_mpo[i], W1=self.H_mpo[j])
+        # Diagonalize Heff, find ground state `theta`
+        theta0 = self.psi.get_theta2(i)
+        e, theta, _ = ct.krylov_based.lanczos(Heff, theta0)
+        self.energies.append(e)
+        # split and truncate
+        Ai, Sj, Bj = split_truncate_theta(theta, self.chi_max, self.eps)
+        # put back into MPS
+        Gi = ct.scale_axis(Ai, ct.pinv(self.psi.Ss[i], cutoff=self.eps), leg='vL')
+        Bi = ct.scale_axis(Gi, Sj, leg='vR')
+        self.psi.Bs[i] = Bi
+        self.psi.Ss[j] = Sj
+        self.psi.Bs[j] = Bj
+        self.update_LP(i)
+        self.update_RP(j)
+
+    def update_RP(self, i):
+        """Calculate RP right of site `i-1` from RP right of site `i`."""
+        self.RPs[i - 1] = self.update_RP_diagram(
+            Rp=self.RPs[i], W=self.H_mpo[i], B=self.psi.Bs[i], B_hc=self.psi.Bs[i].hc
+        )
+
+    def update_LP(self, i):
+        """Calculate LP left of site `i+1` from LP left of site `i`."""
+        B = self.psi.Bs[i]
+        G = ct.scale_axis(B, ct.pinv(self.psi.Ss[i + 1], cutoff=self.eps), leg='vR')
+        A = ct.scale_axis(G, self.psi.Ss[i], leg='vL')
+        self.LPs[i + 1] = self.update_LP_diagram(Lp=self.LPs[i], W=self.H_mpo[i], A=A, A_hc=A.hc)
