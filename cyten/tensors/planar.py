@@ -1937,12 +1937,15 @@ def planar_permute_legs(T: Tensor, *, codomain: list[int | str] = None, domain: 
         bend_twice = len(domain) - domain.index(T.num_legs - 1)
         assert bend_twice + bend_down + dont_bend == T.num_domain_legs
         res = permute_legs(
-            T, codomain=range(dont_bend, T.num_legs), domain=reversed(range(dont_bend)), bend_right=False
+            T,
+            codomain=[*range(T.num_codomain_legs + dont_bend, T.num_legs), *range(T.num_codomain_legs)],
+            domain=reversed(range(T.num_codomain_legs, T.num_codomain_legs + dont_bend)),
+            bend_right=False,
         )
         res = permute_legs(
             res,
             codomain=range(bend_down),
-            domain=reversed([*range(bend_down, bend_down + bend_twice), *range(bend_down + bend_twice, T.num_legs)]),
+            domain=reversed(range(bend_down, T.num_legs)),
             bend_right=True,
         )
         return res
