@@ -12,7 +12,7 @@ from toycodes.tenpy_toycodes.b_model import (
     heisenberg_finite_gs_energy,
     tfi_finite_gs_energy,
 )
-from toycodes.tenpy_toycodes.d_dmrg import DMRGEngine
+from toycodes.tenpy_toycodes.d_dmrg import DMRGEngine, PlanarDMRGEngine
 
 
 def test_toy_MPS():
@@ -47,6 +47,17 @@ def test_dmrg_golden_chain():
     assert abs(e - GC_energies[L]) < 1e-9
 
 
+def test_planar_dmrg_golden_chain():
+    # energies from MPSKit.jl with DMRG
+    GC_energies = {6: -4.02595560765756, 8: -5.54888659415890, 10: -7.0735949995638}
+    L = 8
+    psi = init_Fib_anyon_MPS(L)
+    model = GoldenChainModel(L, J=1)
+    dmrg = PlanarDMRGEngine(psi, model)
+    e = dmrg.run()
+    assert abs(e - GC_energies[L]) < 1e-9
+
+
 @pytest.mark.slow
 def test_dmrg_heisenberg():
     backend = ct.get_backend('fusion_tree', 'numpy')
@@ -63,6 +74,21 @@ def test_dmrg_heisenberg():
         assert abs(e - e_exact) < 1e-9
 
 
+def test_planar_dmrg_heisenberg():
+    backend = ct.get_backend('fusion_tree', 'numpy')
+    L = 8
+    e_exact = heisenberg_finite_gs_energy(L, J=1)
+    for conserve in ['none', 'Z2', 'SU2']:
+        if conserve == 'SU2':
+            psi = init_SU2_sym_MPS(L, backend=backend)
+        else:
+            psi = init_Neel_MPS(L, backend=backend, conserve=conserve)
+        model = HeisenbergModel(L, J=1, backend=backend, conserve=conserve)
+        dmrg = PlanarDMRGEngine(psi, model)
+        e = dmrg.run()
+        assert abs(e - e_exact) < 1e-9
+
+
 @pytest.mark.slow
 def test_dmrg_tfi(np_random):
     backend = ct.get_backend('abelian', 'numpy')
@@ -74,5 +100,19 @@ def test_dmrg_tfi(np_random):
         psi = init_FM_MPS(L, backend=backend, conserve=conserve)
         model = TFIModel(L, J, g, backend=backend, conserve=conserve)
         dmrg = DMRGEngine(psi, model)
+        e = dmrg.run()
+        assert abs(e - e_exact) < 1e-9
+
+
+def test_planar_dmrg_tfi(np_random):
+    backend = ct.get_backend('abelian', 'numpy')
+    L = 16
+    J, g = np_random.random(2)
+    e_exact = tfi_finite_gs_energy(L, J, g)
+
+    for conserve in ['none', 'Z2']:
+        psi = init_FM_MPS(L, backend=backend, conserve=conserve)
+        model = TFIModel(L, J, g, backend=backend, conserve=conserve)
+        dmrg = PlanarDMRGEngine(psi, model)
         e = dmrg.run()
         assert abs(e - e_exact) < 1e-9
