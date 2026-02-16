@@ -113,12 +113,6 @@ class PlanarHEffective(ct.PlanarLinearOperator):
             vec_name='theta',
         )
 
-    def matvec(self, vec):
-        # we need to assure here that the result has the same codomain and domain as vec
-        # (because `inner` is called in `LanczosGroundState._build_krylov`)
-        res = self.dmrg_diagram.evaluate(tensors={**self.op_tensors, self.vec_name: vec})
-        return ct.planar_permute_legs(res, codomain=['vL', 'p0'])
-
 
 class DMRGEngine:
     """DMRG algorithm, implemented as class holding the necessary data.
@@ -306,15 +300,22 @@ class PlanarDMRGEngine(DMRGEngine):
         dims=dict(chi=['vR', 'vR*', 'vL', 'vL*'], w=['wL', 'wL*', 'wR'], d=['p', 'p*']),
     )
 
+    def init_RP(self):
+        # Need to do this in a way s.t. updating RP using the planar diagram yields the same leg
+        # configuration. This is already fulfilled for LP with the default choice from DMRGEngine.
+        return ct.planar_permute_legs(super().init_RP(), domain=['vR', 'wR*', 'vR*'])
+
     def update_bond(self, i):
         j = i + 1
         # get effective Hamiltonian
         Heff = PlanarHEffective(Lp=self.LPs[i], Rp=self.RPs[j], W0=self.H_mpo[i], W1=self.H_mpo[j])
         # Diagonalize Heff, find ground state `theta`
         theta0 = self.psi.get_theta2(i)
+        theta0 = ct.planar_permute_legs(theta0, domain=['vR', 'p1', 'p0', 'vL'])
         e, theta, _ = ct.krylov_based.lanczos(Heff, theta0)
         self.energies.append(e)
         # split and truncate
+        theta = ct.planar_permute_legs(theta, codomain=['vL', 'p0'], domain=['vR', 'p1'])
         Ai, Sj, Bj = split_truncate_theta(theta, self.chi_max, self.eps)
         # put back into MPS
         Gi = ct.scale_axis(Ai, ct.pinv(self.psi.Ss[i], cutoff=self.eps), leg='vL')
