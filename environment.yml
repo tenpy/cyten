@@ -43,3 +43,4 @@ dependencies:
   - hdf5
   - h5py
   - pyyaml
+  - toml

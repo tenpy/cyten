@@ -1,0 +1,21 @@
+# config file for https://github.com/tenpy/pybind11_codegen/, added as submodule in .cursor/skills/
+[clang]
+parse_args = ["-x", "c++", "--driver-mode=g++", "-v", "--std=c++23",
+  "-I/usr/lib/clang/21/include/",
+  "-I/usr/include/python3.12",
+  "-I/home/ga93non/ai-coding/cyten_cpp/include",
+  "-I/home/ga93non/ai-coding/cyten_cpp/src",
+  "-I/home/ga93non/ai-coding/cyten_cpp/pybind",
+]
+library_path = "/usr/lib64"
+# library_file = "/usr/lib64/libclang.so.21.4"
+
+[paths]
+load_python = "cyten/**/*.py"
+load_cpp_include = "include/**/*.h"
+
+[types_py_to_cpp]
+int = "int64_t"
+float = "float64_t"
+complex = "std::complex<float64_t>"
+"npt.NDArray" = "xt::xarray<float64_t>"
