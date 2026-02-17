@@ -1,3 +1,6 @@
 [submodule ".cursor/skills/pybind11-codegen"]
 	path = .cursor/skills/pybind11-codegen
 	url = git@github.com:tenpy/pybind11_codegen.git
+[submodule "docs/latex"]
+	path = docs/latex
+	url = https://git@git.overleaf.com/65e5f5db3d299471ca8a5979
