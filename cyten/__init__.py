@@ -9,7 +9,7 @@ Provides a tensor class with block-sparsity from symmetries with an exchangeable
 from . import (
     backends,
     block_backends,
-    dummy_config,
+    config,
     models,
     symmetries,
     tensors,
@@ -18,8 +18,7 @@ from . import (
 )
 
 # import pybind11 bindings from C++ code
-# TODO do explicit imports instead of *
-from ._core import *  # type: ignore
+from ._core import add, get_config
 from .backends import TensorBackend, get_backend
 
 # subpackages

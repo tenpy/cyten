@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <stdfloat>
+#include <string>
 
 #include <pybind11/numpy.h>
 #include <pybind11/operators.h>

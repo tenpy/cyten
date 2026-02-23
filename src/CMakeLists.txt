@@ -5,4 +5,5 @@
 target_sources(cyten
   PRIVATE
   check.cpp
+  config.cpp
 )

@@ -15,7 +15,7 @@ import numpy as np
 from numpy import typing as npt
 
 from ..block_backends.dtypes import Dtype
-from ..dummy_config import config
+from ..config import get_config
 from ..tools.misc import as_immutable_array
 
 try:
@@ -301,7 +301,7 @@ class BaseSymmetry(metaclass=ABCMeta):
             The F symbol as an array of the multiplicity indices [μ,ν,κ,λ]
 
         """
-        if config.do_fusion_input_checks:
+        if get_config().do_fusion_input_checks:
             is_correct = all(
                 [
                     self.can_fuse_to(b, c, e),
@@ -341,7 +341,7 @@ class BaseSymmetry(metaclass=ABCMeta):
             The B symbol as an array of the multiplicity indices [μ,ν]
 
         """
-        if config.do_fusion_input_checks:
+        if get_config().do_fusion_input_checks:
             is_correct = self.can_fuse_to(a, b, c)
             if not is_correct:
                 raise SymmetryError('Sectors are not consistent with fusion rules.')
@@ -378,7 +378,7 @@ class BaseSymmetry(metaclass=ABCMeta):
             The diagonal entries of the R symbol as an array of the multiplicity index [μ].
 
         """
-        if config.do_fusion_input_checks:
+        if get_config().do_fusion_input_checks:
             is_correct = self.can_fuse_to(a, b, c)
             if not is_correct:
                 raise SymmetryError('Sectors are not consistent with fusion rules.')
@@ -408,7 +408,7 @@ class BaseSymmetry(metaclass=ABCMeta):
             The C symbol as an array of the multiplicity indices [μ,ν,κ,λ]
 
         """
-        if config.do_fusion_input_checks:
+        if get_config().do_fusion_input_checks:
             is_correct = all(
                 [
                     self.can_fuse_to(a, b, e),
@@ -446,7 +446,7 @@ class BaseSymmetry(metaclass=ABCMeta):
             m_a goes over a basis for sector a, etc.
 
         """
-        if config.do_fusion_input_checks:
+        if get_config().do_fusion_input_checks:
             is_correct = self.can_fuse_to(a, b, c)
             if not is_correct:
                 raise SymmetryError('Sectors are not consistent with fusion rules.')

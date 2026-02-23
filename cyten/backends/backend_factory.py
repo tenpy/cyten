@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 
 from ..block_backends import NumpyBlockBackend, TorchBlockBackend
-from ..dummy_config import config
+from ..config import get_config
 from ..symmetries import Symmetry, no_symmetry
 from ._backend import TensorBackend
 from .abelian import AbelianBackend
@@ -47,9 +47,9 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
     """
     if symmetry is None:
-        symmetry = config.default_symmetry_backend
+        symmetry = get_config().default_symmetry_backend
     if block_backend is None:
-        block_backend = config.default_block_backend
+        block_backend = get_config().default_block_backend
 
     if isinstance(symmetry, Symmetry):
         # figure out minimal symmetry_backend that supports that symmetry
