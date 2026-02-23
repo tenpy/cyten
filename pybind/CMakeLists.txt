@@ -4,6 +4,6 @@
 
 target_sources(_core
   PUBLIC
-  core.cpp
+  _core.cpp
   config.cpp
 )

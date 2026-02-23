@@ -87,7 +87,7 @@ target_link_libraries(cyten PUBLIC pybind11::pybind11)
 # ## PYTHON BINDINGS
 # #####################################################################
 
-pybind11_add_module(_core pybind/core.cpp)
+pybind11_add_module(_core pybind/_core.cpp)
 
 target_include_directories(_core
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/pybind

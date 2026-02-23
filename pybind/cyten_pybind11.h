@@ -8,7 +8,7 @@
 
 namespace cyten {
 
-// the core.cpp file implements the main pybind11 python module cyten._core with all python
+// the _core.cpp file implements the main pybind11 python module cyten._core with all python
 // bindings.
 
 // here, we have declarations of binding functions defined in the corresponding *.cpp files.
