@@ -27,3 +27,4 @@ docs/build_docs
 docs/reference
 .conda
 .venv
+src/version.h

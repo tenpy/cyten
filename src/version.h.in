@@ -1,0 +1,7 @@
+#pragma once
+
+// generated/filled by version-h-gen.cmake during build process
+#define GIT_REV "@GIT_REV@@GIT_DIFF@"
+#define GIT_TAG "@GIT_TAG@"
+#define GIT_BRANCH "@GIT_BRANCH@"
+#define GIT_DIRTY "@GIT_DIFF@"

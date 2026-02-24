@@ -6,7 +6,7 @@ namespace py = pybind11;
 namespace cyten {
 
 void
-bind_config(pybind11::module_& m)
+bind_config(py::module_& m)
 {
     py::class_<CytenConfig::PrintOptions>(m, "PrintOptions")
       .def(py::init<>())
