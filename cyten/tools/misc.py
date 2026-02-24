@@ -7,6 +7,12 @@ from typing import TypeVar
 
 import numpy as np
 
+from .._core import (
+    is_iterable,  # noqa
+    to_iterable,  # noqa
+    to_valid_idx,  # noqa
+)
+
 UNSPECIFIED = object()  # sentinel, also used elsewhere
 _T = TypeVar('_T')  # used in typing some functions
 _MAX_INT = np.iinfo(int).max
@@ -17,31 +23,31 @@ def duplicate_entries(seq: Sequence[_T], ignore: Sequence[_T] = []) -> set[_T]:
     return set(ele for idx, ele in enumerate(seq) if ele in seq[idx + 1 :] and ele not in ignore)
 
 
-def is_iterable(a):
-    """If the given object is iterable."""
-    try:
-        iter(a)
-    except TypeError:
-        return False
-    return True
+# def is_iterable(a):
+#     """If the given object is iterable."""
+#     try:
+#         iter(a)
+#     except TypeError:
+#         return False
+#     return True
 
 
-def to_iterable(a):
-    """If `a` is a not iterable or a string, return ``[a]``, else return ``a``."""
-    if type(a) is str:
-        return [a]
-    if is_iterable(a):
-        return a
-    return [a]
+# def to_iterable(a):
+#     """If `a` is a not iterable or a string, return ``[a]``, else return ``a``."""
+#     if type(a) is str:
+#         return [a]
+#     if is_iterable(a):
+#         return a
+#     return [a]
 
 
-def to_valid_idx(idx: int, length: int) -> int:
-    """Convert to a valid non-negative index into the given `length`, if possible."""
-    if not -length <= idx < length:
-        raise IndexError(f'Index {idx} out of bounds for length {length}')
-    if idx < 0:
-        idx += length
-    return idx
+# def to_valid_idx(idx: int, length: int) -> int:
+#     """Convert to a valid non-negative index into the given `length`, if possible."""
+#     if not -length <= idx < length:
+#         raise IndexError(f'Index {idx} out of bounds for length {length}')
+#     if idx < 0:
+#         idx += length
+#     return idx
 
 
 def as_immutable_array(a, dtype=None):

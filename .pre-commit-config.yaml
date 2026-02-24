@@ -58,4 +58,4 @@ repos:
         language: pygrep
         types: [text]
         # this file needs to include the forbidden patterns, so we need to exclude it.
-        exclude: ^(\.pre-commit-config\.yaml|docs/guidelines/code_style.rst)$
+        exclude: ^(\.pre-commit-config\.yaml|docs/guidelines/code_style.rst|docs/cpp_conversion)
