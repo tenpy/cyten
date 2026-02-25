@@ -180,6 +180,47 @@ def pytest_collection_modifyitems(config, items):
         config.hook.pytest_deselected(items=removed)
         items[:] = kept
 
+    # Mark tests that take >3s as slow
+    # add patterns by running `pytest --durations=100 --durations-min=1.0` and looking at the slowest tests.
+    _slow_nodeid_patterns = [
+        # >12s
+        'test_horizontal_factorization[FusionTreeBackend-SU2-',
+        'test_partial_compose[FusionTreeBackend-SU2-numpy-Charged@Sym-1-3-2-1-dom]',
+        'test_partial_compose[FusionTreeBackend-SU2-numpy-Charged@Charged-1-3-2-1-dom]',
+        'test_partial_compose[FusionTreeBackend-SU2-numpy-Charged@Charged-3-1-1-2-codom]',
+        'test_partial_compose[FusionTreeBackend-SU2-numpy-Charged@Sym-3-1-1-2-codom]',
+        'test_permute_legs[FusionTreeBackend-SU2-numpy-Symmetric-3-3-general]',
+        'test_transpose[FusionTreeBackend-SU2-numpy-Charged-2-2]',
+        'test_outer[FusionTreeBackend-U1xZ3-numpy-Charged@Sym-1-2-2-1]',
+        'test_coupling[FusionTreeBackend-SU2-3]',
+        'test_ftb_transpose[numpy-symmetry2]',
+        'test_PlanarLinearOperator[symmetry2]',
+        'test_c_symbol_fibonacci_anyons[numpy]',
+        # 3s–12s
+        'test_SymmetricTensor_from_eye[FusionTreeBackend-U1-numpy-3]',
+        'test_combine_split[FusionTreeBackend-SU2-numpy-no pipes]',
+        'test_SymmetricTensor_from_eye[FusionTreeBackend-U1xZ3-numpy-3]',
+        'test_dagger[FusionTreeBackend-SU2-numpy-Charged-2-2]',
+        'test_SymmetricTensor_from_eye[FusionTreeBackend-SU2-numpy-3]',
+        'test_move_leg[FusionTreeBackend-SU2-numpy-Charged-c]',
+        'test_tensor_from_grid[FusionTreeBackend-U1xZ3-numpy-Tens-3-1-Grid-2-2]',
+        'test_outer[FusionTreeBackend-U1-numpy-Sym@Sym-1-2-2-1]',
+        'test_outer[FusionTreeBackend-U1xZ3-numpy-Sym@Sym-1-2-2-1]',
+        'test_permute_legs[FusionTreeBackend-U1-numpy-Symmetric-3-3-general]',
+        'test_compose[FusionTreeBackend-SU2-numpy-Sym@Sym-2-2-2]',
+        'test_TensorProduct[Fib_U1-5]',
+        'test_permute_legs[FusionTreeBackend-Fib_U1-numpy-Symmetric-3-3-general]',
+    ]
+
+    for item in items:
+        if item.get_closest_marker('slow') is not None:
+            continue
+        nodeid = item.nodeid
+        for pattern in _slow_nodeid_patterns:
+            if pattern in nodeid:
+                item.add_marker(pytest.mark.slow)
+                break
+
 
 def pytest_generate_tests(metafunc):
     if 'block_backend' in metafunc.fixturenames:
