@@ -150,6 +150,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = [
     "F401",  # imported but unused
+	"I"
 ]
 "conftest.py" = [
     "D103",  # Missing docstring in public function

@@ -14,6 +14,7 @@ namespace cyten {
 // here, we have declarations of binding functions defined in the corresponding *.cpp files.
 
 void bind_config(pybind11::module_& m);
+void bind_dtypes(pybind11::module_& m);
 void bind_tools(pybind11::module_& m);
 void bind_version(pybind11::module_& m);
 

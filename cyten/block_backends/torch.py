@@ -6,8 +6,8 @@ from __future__ import annotations
 import numpy
 from numpy import prod
 
+from . import Dtype
 from ._block_backend import Block, BlockBackend
-from .dtypes import Dtype
 
 
 class TorchBlockBackend(BlockBackend):

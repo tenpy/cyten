@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from . import Dtype
 from ._block_backend import Block, BlockBackend
-from .dtypes import Dtype
 
 
 class ArrayApiBlockBackend(BlockBackend):

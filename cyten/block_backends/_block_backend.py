@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, TypeVar
 import numpy as np
 
 from ..tools.misc import to_iterable
-from .dtypes import Dtype
+from . import Dtype
 
 # placeholder for a backend-specific type that represents the blocks of symmetric tensors
 Block = TypeVar('Block')

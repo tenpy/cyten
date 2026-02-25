@@ -6,6 +6,7 @@ target_sources(cyten
   PRIVATE
   check.cpp
   config.cpp
+  dtypes.cpp
   tools.cpp
   version.cpp
 )

@@ -28,3 +28,4 @@ docs/reference
 .conda
 .venv
 src/version.h
+.cursor/plans
