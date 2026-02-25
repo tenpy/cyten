@@ -1,6 +1,8 @@
 """Testing if the toycodes can run."""
 
 # Copyright (C) TeNPy Developers, Apache license
+import pytest
+
 import cyten as ct
 from toycodes.tenpy_toycodes.a_mps import init_Fib_anyon_MPS, init_FM_MPS, init_Neel_MPS, init_SU2_sym_MPS
 from toycodes.tenpy_toycodes.b_model import (
@@ -33,6 +35,7 @@ def test_toy_models():
     _ = GoldenChainModel(L=10, J=1, bc='finite')
 
 
+@pytest.mark.slow
 def test_dmrg_golden_chain():
     # energies from MPSKit.jl with DMRG
     GC_energies = {6: -4.02595560765756, 8: -5.54888659415890, 10: -7.0735949995638}
@@ -44,6 +47,7 @@ def test_dmrg_golden_chain():
     assert abs(e - GC_energies[L]) < 1e-9
 
 
+@pytest.mark.slow
 def test_dmrg_heisenberg():
     backend = ct.get_backend('fusion_tree', 'numpy')
     L = 8
@@ -59,6 +63,7 @@ def test_dmrg_heisenberg():
         assert abs(e - e_exact) < 1e-9
 
 
+@pytest.mark.slow
 def test_dmrg_tfi(np_random):
     backend = ct.get_backend('abelian', 'numpy')
     L = 16
