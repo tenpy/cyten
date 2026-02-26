@@ -245,7 +245,10 @@ class FusionTreeBackend(TensorBackend):
     DataCls = FusionTreeData
     can_decompose_tensors = True
 
-    def __init__(self, block_backend: BlockBackend, eps: float = 1.0e-14):
+    def __init__(self, block_backend: BlockBackend, eps: float = 5.0e-14):
+        # the default value for eps is based on tests for 4-leg tensors. For smaller values of eps,
+        # we obtained additional blocks above this threshold (from numerical imprecisions) when
+        # bending some legs and then going back to the initial configuration.
         self.eps = eps
         super().__init__(block_backend)
 
@@ -407,6 +410,7 @@ class FusionTreeBackend(TensorBackend):
             domain_idcs=domain_idcs,
             block_backend=self.block_backend,
         )
+        data.discard_zero_blocks(self.block_backend, self.eps)
         return data
 
     def apply_mask_to_DiagonalTensor(self, tensor: DiagonalTensor, mask: Mask) -> DiagonalData:
@@ -1618,6 +1622,12 @@ class FusionTreeBackend(TensorBackend):
         new_domain: TensorProduct,
     ) -> Data:
         # OPTIMIZE ?
+        dtype = Dtype.common(a.dtype, b.dtype)
+        new_block_inds = []
+        new_blocks = []
+        if len(a.data.blocks) == 0 or len(b.data.blocks) == 0:
+            return FusionTreeData(np.zeros((0, 2), int), new_blocks, dtype, a.device, is_sorted=True)
+
         # space used to iterate over dummy fusion trees containing the
         # relevant coupled sectors for the legs that are contracted
         eff_space = ElementarySpace.from_defining_sectors(
@@ -1637,10 +1647,6 @@ class FusionTreeBackend(TensorBackend):
             old_space = a.domain
             new_space = new_domain
             iter_space = TensorProduct(a.domain[:leg_idx] + [eff_space] + a.domain[leg_idx + num_contr_legs :])
-
-        dtype = Dtype.common(a.dtype, b.dtype)
-        new_block_inds = []
-        new_blocks = []
 
         # we do not want to recompute the transformations for the fusion trees, so cache them here
         tree_transformations = dict()
@@ -2102,8 +2108,6 @@ class FusionTreeBackend(TensorBackend):
         self,
         a: SymmetricTensor,
         leg_idcs: list[int],
-        codomain_split: list[int],
-        domain_split: list[int],
         new_codomain: TensorProduct,
         new_domain: TensorProduct,
     ) -> Data:

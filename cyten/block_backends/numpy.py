@@ -23,6 +23,9 @@ class NumpyBlockBackend(BlockBackend):
     def __init__(self):
         super().__init__(default_device='cpu')
 
+    def abs(self, a: Block) -> Block:
+        return np.abs(a)
+
     def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None) -> Block:
         _ = self.as_device(device)  # for input check only
         block = np.asarray(a, dtype=self.backend_dtype_map[dtype])

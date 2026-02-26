@@ -3587,7 +3587,7 @@ def angle(x: _ElementwiseType) -> _ElementwiseType:
 
 
 def almost_equal(
-    tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol=1e-8, allow_different_types: bool = False
+    tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol: float = 1e-8, allow_different_types: bool = False
 ) -> bool:
     """Checks if two tensors are equal up to numerical tolerance.
 
@@ -3599,8 +3599,8 @@ def almost_equal(
 
     Parameters
     ----------
-    t1, t2
-        The tensors to compare
+    tensor_1, tensor_2
+        The tensors to compare.
     atol, rtol
         Absolute and relative tolerance, see above.
     allow_different_types: bool
@@ -3609,7 +3609,12 @@ def almost_equal(
 
     Notes
     -----
-    Unlike numpy, our definition is symmetric under exchanging
+    Unlike numpy, our definition is symmetric under exchanging.
+
+    See Also
+    --------
+    planar_almost_equal
+        Comparison between two tensors with a possible planar permutation between them.
 
     """
     check_same_legs(tensor_1, tensor_2)
@@ -3940,6 +3945,11 @@ def combine_legs(
     Then, each group is replaced by the appropriate product space, either in the domain or the
     codomain.
 
+    See Also
+    --------
+    planar_combine_legs
+        Planar version that uses only left and right bends, not braids, in order to combine legs.
+
     """
     # 1) Deal with different tensor types. Reduce everything to SymmetricTensor.
     # ==============================================================================================
@@ -4035,6 +4045,7 @@ def combine_legs(
             pipes[i] = combined
             domain_spaces_reversed.append(combined)
             domain_labels_reversed.append(_combine_leg_labels(tensor.labels[group[0] : group[-1] + 1]))
+            i += 1
         elif n in to_combine:
             # n is part of a group, but not the *first* of its group
             pass
@@ -4051,6 +4062,7 @@ def combine_legs(
     #
     # 4) Build the data / finish up
     # ==============================================================================================
+    which_legs = sorted(which_legs)
     data = tensor.backend.combine_legs(
         tensor, leg_idcs_combine=which_legs, pipes=pipes, new_codomain=codomain, new_domain=domain
     )
@@ -4380,8 +4392,8 @@ def eigh(
         A single label ``a`` is equivalent to ``[a, a*, a]``.
         The new legs are unlabelled by default.
     new_leg_dual: bool
-        If the new leg should be a ket space (``False``) or bra space (``True``)
-    sort: {'m>', 'm<', '>', '<', ``None``}
+        If the new leg should be a ket space (``False``) or bra space (``True``).
+    sort: {'m>', 'm<', '>', '<', 'LI', 'SI', ``None``}
         How the eigenvalues should are sorted *within* each charge block.
         Defaults to ``None``, which is same as '<'. See :func:`argsort` for details.
 
@@ -4571,101 +4583,6 @@ def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') 
     if not all(tens.device == device for tens in tensors[1:]):
         raise ValueError(error_msg)
     return device
-
-
-def horizontal_factorization(
-    tensor: Tensor,
-    codomain_cut: int,
-    domain_cut: int,
-    new_labels: str | Sequence[str] = None,
-    cutoff_singular_values: float = None,
-) -> tuple[Tensor, Tensor]:
-    """Factorize a tensor into left and right parts.
-
-    Graphically, here with ``codomain_cut=3, domain_cut=1``::
-
-        |      │   │   │               │           │   │             │   ╭──────╮    │   │
-        |   ┏━━┷━━━┷━━━┷━━┓         ┏━━┷━━━━━━┓   ┏┷━━━┷┓         ┏━━┷━━━┷━━┓   │   ┏┷━━━┷┓
-        |   ┃   tensor    ┃    =    ┃    A    ┠───┨  B  ┃   :=    ┃    A    ┃   │   ┃  B  ┃
-        |   ┗┯━━━┯━━━┯━━━┯┛         ┗┯━━━┯━━━┯┛   ┗━━━━┯┛         ┗┯━━━┯━━━┯┛   │   ┗┯━━━┯┛
-        |    │   │   │   │           │   │   │         │           │   │   │    ╰────╯   │
-
-    Parameters
-    ----------
-    tensor: Tensor
-        The tensor to factorize
-    codomain_cut: int
-        The first `codomain_cut` legs from the codomain end up in the codomain of `A`, the rest
-        of the codomain ends up in the codomain of `B`.
-    domain_cut: int
-        The first `domain_cut` legs from the domain end up in the domain of `A`, the rest
-        of the domain ends up in the domain of `B`.
-    new_labels: (list of) str
-        The labels for the new legs.
-        Two entries ``[a, b]`` result in ``A.labels[-1 - domain_cut] == a`` and ``B.labels[0] == b``
-        and a single entry ``a`` is equivalent to ``[a, a*]``.
-    cutoff_singular_values: float, optional
-        If ``None`` (default), we factorize using :func:`qr` without truncation. If given, we use a
-        truncated SVD and truncate by discarding singular values below this threshold.
-
-    Returns
-    -------
-    A, B: Tensor
-        A factorization of the `tensor`, such that ``tdot(A, B, -1 - domain_cut, 1)`` reproduces
-        the `tensor`, up to bending and possibly up to truncation if `cutoff_singular_values` is
-        given.
-
-    Notes
-    -----
-    This is achieved by bending legs such that we can do the factorization as a QR or SVD,
-    then bend back, that is for the example case depicted above::
-
-        |                                             │    │   │   ╭────╮         │   │   │
-        |             │           │   │    ╭──╮       │ ┏━━┷━━━┷━━━┷━━┓ │         │  ┏┷━━━┷┓
-        |             │  ╭────╮   │   │    │  │       │ ┃      B'     ┃ │         │  ┃  B  ┃
-        |             │  │ ┏━━┷━━━┷━━━┷━━┓ │  │       │ ┗━━━━━━┯━━━━━━┛ │         │  ┗┯━━━┯┛
-        |   LHS   =   │  │ ┃   tensor    ┃ │  │   =   │        │        │   =     │   │   │   =  RHS
-        |             │  │ ┗┯━━━┯━━━┯━━━┯┛ │  │       │ ┏━━━━━━┷━━━━━━┓ │      ┏━━┷━━━┷━━┓│
-        |             │  │  │   │   │   ╰──╯  │       │ ┃      A'     ┃ │      ┃    A    ┃│
-        |             ╰──╯  │   │   │         │       │ ┗┯━━━┯━━━┯━━━┯┛ │      ┗┯━━━┯━━━┯┛│
-        |                                             ╰──╯   │   │   │  │       │   │   │ │
-
-
-    Note how we bend some legs to the left, to avoid any braids, such that the operation does not
-    need to specify any braid chiralities.
-
-    """
-    # OPTIMIZE for fusion tree backend, can probably work something better out with explicit trees?
-    assert 0 <= codomain_cut <= tensor.num_codomain_legs
-    assert 0 <= domain_cut <= tensor.num_domain_legs
-    if codomain_cut == 0 and domain_cut == 0:
-        raise ValueError('Nothing to do')
-    if codomain_cut == tensor.num_codomain_legs and domain_cut == tensor.num_domain_legs:
-        raise ValueError('Nothing to do')
-
-    J = tensor.num_codomain_legs
-    J1 = codomain_cut
-    J2 = J - J1
-    K = tensor.num_domain_legs
-    K1 = domain_cut
-    K2 = K - K1
-
-    to_decompose = permute_legs(
-        tensor,
-        codomain=[*range(J + K2, J + K), *range(J1)],
-        domain=[*reversed(range(J1, J + K2))],
-        bend_right=[True] * J + [False] * K,
-    )
-
-    if cutoff_singular_values is None:
-        A, B = qr(to_decompose, new_labels=new_labels)
-    else:
-        A, S, Vh, _, _ = truncated_svd(to_decompose, new_labels=new_labels, svd_min=cutoff_singular_values)
-        B = compose(S, Vh)
-
-    A = permute_legs(A, codomain=[*range(K1, K1 + J1)], domain=[*reversed(range(K1)), -1], bend_right=False)
-    B = permute_legs(B, codomain=[*range(1 + J2)], domain=[*reversed(range(1 + J2, 1 + J2 + K2))], bend_right=True)
-    return A, B
 
 
 @_elementwise_function(block_func='imag', maps_zero_to_zero=True)
@@ -5153,9 +5070,12 @@ def partial_compose(
 
     leg_msg = 'Not all legs to be contracted are in the (co)domain'
     compose_msg = 'Use compose for contracting the full (co)domain'
+    # OPTIMIZE we may add this in the future when we find an actual use case
+    contract_msg = 'Use compose or outer when no legs are to be contracted'
     if tensor1_first_leg < tensor1.num_codomain_legs:
         num_legs = tensor2.num_domain_legs
         tensor1_last_leg = tensor1_first_leg + num_legs - 1
+        assert num_legs > 0, contract_msg
         assert tensor1_last_leg < tensor1.num_codomain_legs, leg_msg
         assert num_legs < tensor1.num_codomain_legs, compose_msg
         _check_compatible_legs(
@@ -5174,6 +5094,7 @@ def partial_compose(
     else:
         num_legs = tensor2.num_codomain_legs
         tensor1_last_leg = tensor1_first_leg + num_legs - 1
+        assert num_legs > 0, contract_msg
         assert tensor1_last_leg < tensor1.num_legs, leg_msg
         assert num_legs < tensor1.num_domain_legs, compose_msg
         domain_first_leg = tensor1.num_legs - 1 - tensor1_last_leg
@@ -5246,7 +5167,7 @@ def partial_trace(
         |    │   ╭───│───╮   │
         |    7   6   5   4   │
         |   ┏┷━━━┷━━━┷━━━┷┓  │
-        |   ┃      A      ┃  │    ==   trace(A, (0, 2), (3, 5), (-2, 4))
+        |   ┃      A      ┃  │    ==   partial_trace(A, (0, 2), (3, 5), (-2, 4))
         |   ┗┯━━━┯━━━┯━━━┯┛  │
         |    0   1   2   3   │
         |    ╰───│───╯   ╰───╯
@@ -5257,7 +5178,7 @@ def partial_trace(
     Parameters
     ----------
     tensor: Tensor
-        The tensor to act on
+        The tensor to act on.
     *pairs:
         A number of pairs, each describing two legs via index or via label.
         Each pair is connected, realizing a partial trace.
@@ -5558,7 +5479,7 @@ def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
         Labels for the new legs. Either two legs ``[a, b]`` s.t. ``Q.labels[-1] == a``
         and ``R.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
     new_leg_dual: bool
-        If the new leg should be a ket space (``False``) or bra space (``True``)
+        If the new leg should be a ket space (``False``) or bra space (``True``).
 
     """
     a, b = _decomposition_labels(new_labels)
@@ -5610,7 +5531,7 @@ def real_if_close(x: _ElementwiseType, tol: float = 100) -> _ElementwiseType:
 def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = False) -> tuple[Tensor, Tensor]:
     """The LQ decomposition of a tensor.
 
-    A :ref:`tensor decomposition <decompositions>` ``tensor ~ Q @ R`` with the following
+    A :ref:`tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
     properties:
 
     - ``L`` has a lower triangular structure *in the coupled basis*.
@@ -5639,7 +5560,7 @@ def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
         Labels for the new legs. Either two legs ``[a, b]`` s.t. ``L.labels[-1] == a``
         and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
     new_leg_dual: bool
-        If the new leg should be a ket space (``False``) or bra space (``True``)
+        If the new leg should be a ket space (``False``) or bra space (``True``).
 
     """
     a, b = _decomposition_labels(new_labels)
@@ -5844,7 +5765,8 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
         else:
             labels.append(l)
     #
-    data = tensor.backend.split_legs(tensor, leg_idcs, codomain_split, domain_split, codomain, domain)
+    leg_idcs = sorted(leg_idcs)
+    data = tensor.backend.split_legs(tensor, leg_idcs, codomain, domain)
     return SymmetricTensor(data, codomain, domain, backend=tensor.backend, labels=labels)
 
 
@@ -5929,14 +5851,14 @@ def svd(
     A :ref:`tensor decomposition <decompositions>` ``tensor ~ U @ S @ Vh`` with the following
     properties:
 
-    - ``Vh`` and ``U``are isometries: ``dagger(U) @ U ~ eye ~ Vh @ dagger(Vh)``.
+    - ``Vh`` and ``U`` are isometries: ``dagger(U) @ U ~ eye ~ Vh @ dagger(Vh)``.
     - ``S`` is a :class:`DiagonalTensor` with real, non-negative entries.
     - If `tensor` is a matrix (i.e. if it has exactly one leg each in domain and codomain), it
       reproduces the usual matrix SVD.
 
     .. note ::
-        The basis for the newly generated leg is chosen arbitrarily, and in particular unlike
-        e.g. :func:`numpy.linalg.svd` it is not guaranteed that ``S.diag_numpy`` is sorted.
+        The basis for the newly generated leg is chosen arbitrarily, and in particular, unlike,
+        e.g., :func:`numpy.linalg.svd` it is not guaranteed that ``S.diag_numpy`` is sorted.
 
     Graphically::
 
@@ -5969,7 +5891,7 @@ def svd(
         A single label ``a`` is equivalent to ``[a, a*, a, a*]``.
         The new legs are unlabelled by default.
     new_leg_dual: bool
-        If the new leg should be a ket space (``False``) or bra space (``True``)
+        If the new leg should be a ket space (``False``) or bra space (``True``).
     algorithm: str, optional
         The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
         See the :attr:`~cyten.backends.BlockBackend.svd_algorithms` attribute of the
@@ -6182,7 +6104,7 @@ def tdot(
         Which legs to contract: ``legs1[n]`` on `tensor1` is contracted with ``legs2[n]`` on
         `tensor2`.
     relabel1, relabel2: dict[str, str], optional
-        A mapping of labels for each of the tensors. The result has labels, as if the
+        A mapping of labels for each of the tensors. The result has labels as if the
         input tensors were relabelled accordingly before contraction.
 
     Returns
@@ -6197,7 +6119,7 @@ def tdot(
 
     See Also
     --------
-    compose, partial_compose, apply_mask, scale_axis
+    compose, partial_compose, apply_mask, scale_axis, planar_contraction
 
     """
     _ = get_same_device(tensor1, tensor2)

@@ -41,6 +41,9 @@ class TorchBlockBackend(BlockBackend):
         self.BlockCls = torch.Tensor
         super().__init__(default_device=default_device)
 
+    def abs(self, a: Block) -> Block:
+        return torch_module.abs(a)
+
     def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None) -> Block:
         # TODO good error handling if a device does not support a given dtype
         block = torch_module.as_tensor(a, dtype=self.backend_dtype_map[dtype], device=self.as_device(device))

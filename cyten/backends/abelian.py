@@ -1615,7 +1615,7 @@ class AbelianBackend(TensorBackend):
         mod_codomain = [a._as_codomain_leg(idx) for i, idx in enumerate(perm_a) if i < a.num_legs - num_contr_legs]
         mod_codomain = TensorProduct(mod_codomain, a.symmetry)
         mod_domain = [b._as_domain_leg(idx) for i, idx in enumerate(perm_b) if i >= num_contr_legs][::-1]
-        mod_domain = TensorProduct(mod_domain)
+        mod_domain = TensorProduct(mod_domain, a.symmetry)
         contr_spaces = [b.get_leg_co_domain(idx) for i, idx in enumerate(perm_b) if i < num_contr_legs]
 
         res_data = self._compose_worker(a_data, b_data, mod_codomain, contr_spaces, mod_domain)
@@ -1832,8 +1832,6 @@ class AbelianBackend(TensorBackend):
         self,
         a: SymmetricTensor,
         leg_idcs: list[int],
-        codomain_split: list[int],
-        domain_split: list[int],
         new_codomain: TensorProduct,
         new_domain: TensorProduct,
     ) -> Data:
@@ -1898,6 +1896,9 @@ class AbelianBackend(TensorBackend):
         new_block_shapes = np.empty((res_num_blocks, res_num_legs), dtype=int)
         for i, leg in enumerate(conventional_leg_order(new_codomain, new_domain)):
             new_block_shapes[:, i] = leg.multiplicities[new_block_inds[:, i]]
+        # need to permute these shapes here to compensate the permute_axes on the blocks below
+        # (only relevant for F style combining, i.e., dual pipes)
+        new_block_shapes = new_block_shapes[:, axes_perm]
 
         # the actual loop to split the blocks
         new_blocks = []
