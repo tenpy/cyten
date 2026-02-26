@@ -2255,7 +2255,8 @@ class FusionTreeBackend(TensorBackend):
         if a.has_pipes:
             # we cannot simply use cstyles as argument in combine_legs since we potentially need to deal with
             # nested pipes with different cstyles -> choose to combine in C style and do axis permutation explicitly
-            axes_perm = inverse_permutation(_flat_leg_permutation(a.legs))
+            # need to cast to a list here since numpy arrays leads errors in the torch block backend
+            axes_perm = list(inverse_permutation(_flat_leg_permutation(a.legs)))
             combine_axes = a.codomain.flat_legs_nesting() + [
                 [J + K - 1 - leg_idx for leg_idx in reversed(group)] for group in reversed(a.domain.flat_legs_nesting())
             ]
