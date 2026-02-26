@@ -4,6 +4,9 @@
 
 target_sources(cyten
   PRIVATE
+  block.cpp
+  block_backend.cpp
+  numpy_block_backend.cpp
   check.cpp
   config.cpp
   dtypes.cpp

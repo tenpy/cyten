@@ -8,16 +8,16 @@ Reminder and notes for when the Python `Space` type (and related symmetry types 
 
 During the conversion of `BlockBackend` to C++, the method **`apply_basis_perm(block, legs, inv)`** depends on `Space`: it takes `legs: list[Space]` and uses each leg’s `basis_perm` / `inverse_basis_perm` (index arrays) to permute the block’s axes.
 
-**Current (planned) state until Space is converted:**
+**Current state:**
 
-- **C++**: `BlockBackend` declares `apply_basis_perm` with a **forward-declared** `Space` type (e.g. `const std::vector<Space>&` or `const std::vector<const Space*>&` once `Space` exists). The C++ implementation **throws `NotImplemented`** so the signature is in place but no real logic runs in C++.
-- **Python**: The original `apply_basis_perm` logic remains in Python behind a **small wrapper**: the Python `BlockBackend` (or a thin wrapper around the C++ backend) still implements `apply_basis_perm` using Python `Space` objects (building the list of perms from `leg.basis_perm` / `leg.inverse_basis_perm` and calling `apply_leg_permutations`). So Python callers keep the current behavior.
+- **C++**: `BlockBackend::apply_basis_perm(block, legs, inv)` is **implemented in C++**. It accepts `std::vector<py::object> legs` (Python Space/leg objects). For each leg it reads `leg.attr("inverse_basis_perm")` or `leg.attr("basis_perm")`, builds `std::vector<py::array_t<cyten_int>> perms`, and calls `apply_leg_permutations(block, perms)`. No Python wrapper is needed; Python callers pass the same `list[Space]` and the binding converts it to `std::vector<py::object>`.
+- **Python**: Callers use `backend.block_backend.apply_basis_perm(block, legs, inv=False)` as before; the C++ implementation is used directly.
 
 **When converting Space to C++:**
 
 1. Implement the real C++ `Space` type (and any needed subtypes, e.g. `ElementarySpace`) with at least `basis_perm` and `inverse_basis_perm` (e.g. as `std::vector<cyten_int>` or array views).
-2. In `BlockBackend`, replace the `apply_basis_perm` stub with the actual implementation: build the perms from the C++ `Space` legs and call `apply_leg_permutations(block, perms)`.
-3. Remove the Python-side wrapper for `apply_basis_perm` and have Python call the C++ implementation (with Space objects bound from C++ or converted at the boundary).
+2. Optionally change `BlockBackend::apply_basis_perm` to accept `std::vector<Space const*>` (or C++ Space references) instead of `std::vector<py::object>`, and build perms from the C++ Space objects to avoid Python attribute access.
+3. Bind the C++ Space type and have Python pass C++ Space objects (or keep passing Python Space and convert at the boundary via `py::object` until Space is fully migrated).
 
 ## Where Space is used (Python)
 

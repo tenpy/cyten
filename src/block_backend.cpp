@@ -1,0 +1,339 @@
+#include <cyten/block.h>
+#include <cyten/block_backend.h>
+#include <cyten/cyten.h>
+#include <cyten/dtypes.h>
+
+#include <algorithm>
+#include <cmath>
+#include <numeric>
+#include <stdexcept>
+
+namespace cyten {
+
+namespace {
+// Product of elements in [first, last)
+cyten_int
+prod_range(std::vector<cyten_int> const& shape, size_t first, size_t last)
+{
+    cyten_int p = 1;
+    for (size_t i = first; i < last; ++i)
+        p *= shape[i];
+    return p;
+}
+} // namespace
+
+BlockBackend::BlockBackend(std::string default_device)
+  : default_device(std::move(default_device))
+{
+}
+
+std::string
+BlockBackend::get_backend_name() const
+{
+    return "BlockBackend";
+}
+
+BlockPtr
+BlockBackend::apply_basis_perm(BlockCPtr const& block,
+                               std::vector<py::object> const& legs,
+                               bool inv)
+{
+    std::vector<py::array_t<cyten_int>> perms;
+    perms.reserve(legs.size());
+    for (py::object const& leg : legs) {
+        py::object perm = inv ? leg.attr("inverse_basis_perm") : leg.attr("basis_perm");
+        perms.push_back(py::array_t<cyten_int>::ensure(perm));
+    }
+    return apply_leg_permutations(block, perms);
+}
+
+BlockPtr
+BlockBackend::argsort(BlockCPtr const& block, std::optional<std::string> sort, int axis)
+{
+    BlockCPtr work = block;
+    if (sort) {
+        if (*sort == "m<" || *sort == "SM") {
+            work = abs(block);
+        } else if (*sort == "m>" || *sort == "LM") {
+            work = mul(py::float_(-1.0), abs(block));
+        } else if (*sort == "<" || *sort == "SR" || *sort == "SA") {
+            work = real(block);
+        } else if (*sort == ">" || *sort == "LR" || *sort == "LA") {
+            work = mul(py::float_(-1.0), real(block));
+        } else if (*sort == "SI") {
+            work = imag(block);
+        } else if (*sort == "LI") {
+            work = mul(py::float_(-1.0), imag(block));
+        } else {
+            throw std::invalid_argument(std::string("unknown sort option ") + *sort);
+        }
+    }
+    return _argsort(work, axis);
+}
+
+BlockPtr
+BlockBackend::combine_legs(BlockCPtr const& a,
+                           std::vector<std::vector<int>> const& leg_idcs_combine,
+                           std::vector<bool> const& cstyles_in)
+{
+    std::vector<bool> cstyles = cstyles_in;
+    if (cstyles.size() == 1u)
+        cstyles.resize(leg_idcs_combine.size(), cstyles[0]);
+
+    std::vector<cyten_int> const old_shape = get_shape(a);
+    size_t const ndim = old_shape.size();
+    std::vector<int> axes_perm(ndim);
+    std::iota(axes_perm.begin(), axes_perm.end(), 0);
+
+    std::vector<cyten_int> new_shape;
+    size_t last_stop = 0;
+
+    for (size_t g = 0; g < leg_idcs_combine.size(); ++g) {
+        std::vector<int> const& group = leg_idcs_combine[g];
+        int const start = group.front();
+        int const stop = group.back() + 1;
+
+        if (start < static_cast<int>(last_stop))
+            throw std::invalid_argument("The groups in leg_idcs_combine must not overlap");
+        for (size_t i = 0; i < group.size(); ++i)
+            if (group[i] != static_cast<int>(start + i))
+                throw std::invalid_argument(
+                  "Each group in leg_idcs_combine must be contiguous and ascending");
+
+        for (size_t i = last_stop; i < static_cast<size_t>(start); ++i)
+            new_shape.push_back(old_shape[i]);
+
+        cyten_int combined = 1;
+        for (int i = start; i < stop; ++i)
+            combined *= old_shape[i];
+        new_shape.push_back(combined);
+
+        if (!cstyles[g])
+            std::reverse(axes_perm.begin() + start, axes_perm.begin() + stop);
+
+        last_stop = static_cast<size_t>(stop);
+    }
+    for (size_t i = last_stop; i < ndim; ++i)
+        new_shape.push_back(old_shape[i]);
+
+    return reshape(permute_axes(a, axes_perm), new_shape);
+}
+
+BlockPtr
+BlockBackend::combine_legs(BlockCPtr const& a,
+                           std::vector<std::vector<int>> const& leg_idcs_combine,
+                           bool cstyles)
+{
+    return combine_legs(a, leg_idcs_combine, std::vector<bool>(1, cstyles));
+}
+
+BlockPtr
+BlockBackend::dagger(BlockCPtr const& a)
+{
+    std::vector<cyten_int> const sh = get_shape(a);
+    int const num_legs = static_cast<int>(sh.size());
+    std::vector<int> rev(num_legs);
+    for (int i = 0; i < num_legs; ++i)
+        rev[i] = num_legs - 1 - i;
+    return conj(permute_axes(a, rev));
+}
+
+bool
+BlockBackend::is_real(BlockCPtr const& a)
+{
+    return dtype::is_real(get_dtype(a));
+}
+
+BlockPtr
+BlockBackend::permute_combined_matrix(BlockCPtr const& block,
+                                      std::vector<cyten_int> const& dims1,
+                                      std::vector<int> const& idcs1,
+                                      std::vector<cyten_int> const& dims2,
+                                      std::vector<int> const& idcs2)
+{
+    std::vector<cyten_int> shape = dims1;
+    shape.insert(shape.end(), dims2.begin(), dims2.end());
+    BlockPtr b = reshape(block, shape);
+
+    // idcs1 and idcs2 are absolute indices into [0..ndim-1] (same as Python)
+    std::vector<int> perm;
+    perm.reserve(idcs1.size() + idcs2.size());
+    for (int i : idcs1)
+        perm.push_back(i);
+    for (int i : idcs2)
+        perm.push_back(i);
+    b = permute_axes(b, perm);
+
+    std::vector<cyten_int> const sh = get_shape(b);
+    size_t const n1 = idcs1.size();
+    cyten_int M_new = 1;
+    for (size_t i = 0; i < n1; ++i)
+        M_new *= sh[i];
+    cyten_int N_new = 1;
+    for (size_t i = n1; i < sh.size(); ++i)
+        N_new *= sh[i];
+    return reshape(b, { M_new, N_new });
+}
+
+BlockPtr
+BlockBackend::permute_combined_idx(BlockCPtr const& block,
+                                   int axis,
+                                   std::vector<cyten_int> const& dims,
+                                   std::vector<int> const& idcs)
+{
+    std::vector<cyten_int> const sh = get_shape(block);
+    cyten_int const M = sh[0];
+    cyten_int const N = sh[1];
+    int ax = axis;
+    if (ax < 0)
+        ax += 2;
+
+    if (ax == 0) {
+        std::vector<cyten_int> new_shape = dims;
+        new_shape.push_back(N);
+        BlockPtr b = reshape(block, new_shape);
+        std::vector<int> perm;
+        for (int i : idcs)
+            perm.push_back(i);
+        perm.push_back(static_cast<int>(idcs.size()));
+        b = permute_axes(b, perm);
+        return reshape(b, { M, N });
+    }
+    if (ax == 1) {
+        std::vector<cyten_int> new_shape = { M };
+        new_shape.insert(new_shape.end(), dims.begin(), dims.end());
+        BlockPtr b = reshape(block, new_shape);
+        std::vector<int> perm = { 0 };
+        for (int i : idcs)
+            perm.push_back(1 + i);
+        b = permute_axes(b, perm);
+        return reshape(b, { M, N });
+    }
+    throw std::runtime_error("permute_combined_idx: invalid axis");
+}
+
+BlockPtr
+BlockBackend::split_legs(BlockCPtr const& a,
+                         std::vector<int> const& idcs,
+                         std::vector<std::vector<cyten_int>> const& dims,
+                         std::vector<bool> const& cstyles_in)
+{
+    std::vector<bool> cstyles = cstyles_in;
+    if (cstyles.size() == 1u)
+        cstyles.resize(idcs.size(), cstyles[0]);
+
+    std::vector<cyten_int> const old_shape = get_shape(a);
+    std::vector<int> axes_perm;
+    std::vector<cyten_int> new_shape;
+    size_t start = 0;
+
+    for (size_t g = 0; g < idcs.size(); ++g) {
+        int const i = idcs[g];
+        std::vector<cyten_int> const& i_dims = dims[g];
+
+        for (size_t k = start; k < static_cast<size_t>(i); ++k)
+            new_shape.push_back(old_shape[k]);
+
+        for (cyten_int d : i_dims)
+            new_shape.push_back(d);
+
+        size_t const n_axes_before = axes_perm.size();
+        for (size_t k = start; k < static_cast<size_t>(i); ++k)
+            axes_perm.push_back(static_cast<int>(k));
+        if (cstyles[g]) {
+            for (size_t k = 0; k < i_dims.size(); ++k)
+                axes_perm.push_back(static_cast<int>(n_axes_before + k));
+        } else {
+            for (size_t k = i_dims.size(); k > 0; --k)
+                axes_perm.push_back(static_cast<int>(n_axes_before + k - 1));
+        }
+        start = static_cast<size_t>(i) + 1;
+    }
+    for (size_t k = start; k < old_shape.size(); ++k) {
+        new_shape.push_back(old_shape[k]);
+        axes_perm.push_back(static_cast<int>(k));
+    }
+
+    return permute_axes(reshape(a, new_shape), axes_perm);
+}
+
+BlockPtr
+BlockBackend::split_legs(BlockCPtr const& a,
+                         std::vector<int> const& idcs,
+                         std::vector<std::vector<cyten_int>> const& dims,
+                         bool cstyles)
+{
+    return split_legs(a, idcs, dims, std::vector<bool>(1, cstyles));
+}
+
+BlockPtr
+BlockBackend::tensor_outer(BlockCPtr const& a, BlockCPtr const& b, int K)
+{
+    BlockPtr res = outer(a, b);
+    std::vector<cyten_int> const sh_a = get_shape(a);
+    std::vector<cyten_int> const sh_b = get_shape(b);
+    int const N = static_cast<int>(sh_a.size());
+    int const M = static_cast<int>(sh_b.size());
+
+    std::vector<int> perm;
+    for (int i = 0; i < K; ++i)
+        perm.push_back(i);
+    for (int i = 0; i < M; ++i)
+        perm.push_back(N + i);
+    for (int i = K; i < N; ++i)
+        perm.push_back(i);
+    return permute_axes(res, perm);
+}
+
+BlockPtr
+BlockBackend::eye_block(std::vector<cyten_int> const& legs,
+                        Dtype dtype,
+                        std::optional<std::string> device)
+{
+    cyten_int dim = 1;
+    for (cyten_int d : legs)
+        dim *= d;
+    BlockPtr eye = eye_matrix(static_cast<int>(dim), dtype, device);
+    std::vector<cyten_int> shape = legs;
+    shape.insert(shape.end(), legs.begin(), legs.end());
+    eye = reshape(eye, shape);
+    int const J = static_cast<int>(legs.size());
+    std::vector<int> perm;
+    for (int i = 0; i < J; ++i)
+        perm.push_back(i);
+    for (int i = J - 1; i >= 0; --i)
+        perm.push_back(J + i);
+    return permute_axes(eye, perm);
+}
+
+std::tuple<BlockPtr, BlockPtr>
+BlockBackend::matrix_lq(BlockCPtr const& a, bool full)
+{
+    std::vector<int> perm = { 1, 0 };
+    BlockPtr at = permute_axes(a, perm);
+    auto [q, r] = matrix_qr(at, full);
+    return { permute_axes(r, perm), permute_axes(q, perm) };
+}
+
+void
+BlockBackend::synchronize()
+{
+}
+
+std::complex<cyten_float>
+BlockBackend::inner(BlockCPtr const& a, BlockCPtr const& b, bool do_dagger)
+{
+    BlockCPtr ac;
+    if (do_dagger) {
+        ac = conj(a);
+    } else {
+        std::vector<cyten_int> const sh = get_shape(a);
+        std::vector<int> rev(sh.size());
+        for (size_t i = 0; i < sh.size(); ++i)
+            rev[i] = static_cast<int>(sh.size() - 1 - i);
+        ac = permute_axes(a, rev);
+    }
+    return sum_all(multiply_blocks(ac, b));
+}
+
+} // namespace cyten

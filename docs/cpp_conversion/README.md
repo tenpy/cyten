@@ -134,8 +134,11 @@ Keep namespaces and include structure consistent with [include/cyten/cyten.h](in
 
 ## Practical recommendations
 
-1. **Create `docs/cpp_conversion/`** — Store one `convert_<pyname>.md` per conversion (and optionally high-level `convert_tensors.md`, `convert_symmetries.md`) to track progress and decisions.
-2. **Extend type mappings** — Update [pybind11_codegen.toml](pybind11_codegen.toml) `[types_py_to_cpp]` as you find recurring types (e.g. `npt.NDArray` → appropriate C++ container or pybind11 buffer).
-3. **Trampolines** — Use `gen_pyb11_trampoline` only for classes that are subclassed in Python (e.g. `TensorBackend`, `BlockBackend`, `Symmetry`); for internal-only bases, bindings may not need trampolines.
-4. **Tests** — For each converted object, run the relevant pytest under `tests/`; keep the full suite passing before removing the corresponding Python implementation.
-5. **Incremental commits** — Per the skill: WIP commits with `--no-verify` (e.g. "WIP: convert : ") so pre-commit doesn’t block mid-conversion.
+1. Use the script from [.cursor/skills/pybind11-codegen/SKILL.md](.cursor/skills/pybind11-codegen/SKILL.md) to provide drafts. This will ensure that the docstrings and names are carried over correctly and provide hints for things to check.
+1. **Holder type** — Use `py::smart_holder` (pybind11 v3 built-in) as the holder for `py::class_` bindings of C++ types that use `std::shared_ptr` in the API (e.g. `Block`, `NumpyBlock`, `BlockBackend`, `NumpyBlockBackend`). Prefer `py::class_<T, py::smart_holder>` over `py::class_<T, std::shared_ptr<T>>` so Python/C++ conversions work with both `std::unique_ptr` and `std::shared_ptr` and trampolines are handled safely. No extra include is required.
+2. **Create `docs/cpp_conversion/`** — Store one `convert_<pyname>.md` per conversion (and optionally high-level `convert_tensors.md`, `convert_symmetries.md`) to track progress and decisions.
+3. **Extend type mappings** — Update [pybind11_codegen.toml](pybind11_codegen.toml) `[types_py_to_cpp]` as you find recurring types (e.g. `npt.NDArray` → appropriate C++ container or pybind11 buffer).
+4. **Trampolines** — Use `gen_pyb11_trampoline` only for classes that are subclassed in Python (e.g. `TensorBackend`, `BlockBackend`, `Symmetry`); for internal-only bases, bindings may not need trampolines.
+5. **Tests** — For each converted object, run the relevant pytest under `tests/`; keep the full suite passing before removing the corresponding Python implementation.
+6. **Incremental commits** — Per the skill: WIP commits with `--no-verify` (e.g. "WIP: convert : ") so pre-commit doesn’t block mid-conversion.
+7. **Docstrings** — Use raw string literals `R"pydoc(...)pydoc"` for multi-line docstrings in pybind11 `.def()` calls. Indent the content to the same level as the line where `R"pydoc(` starts (e.g. 6–10 spaces to align with the surrounding `.def()` block), and put the closing `)pydoc"` on its own line with the same indentation. Copy the full docstring from the original Python method when available. The [.cursor/skills/pybind11-codegen/](.cursor/skills/pybind11-codegen/) script will automatically add the docstring for the various methods.
