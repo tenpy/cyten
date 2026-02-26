@@ -129,8 +129,6 @@ def test_planar_combine_legs(
         np_random=np_random,
     )
     pipe_dualities = np_random.choice([True, False], size=len(which_legs))
-    # TODO fix
-    pipe_dualities = None
 
     num_codomain_legs = T.num_codomain_legs
     num_codomain_flat_legs = T.num_codomain_flat_legs
