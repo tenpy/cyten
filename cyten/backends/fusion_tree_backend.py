@@ -773,7 +773,8 @@ class FusionTreeBackend(TensorBackend):
                     perm = axes_perm[perm_idx : perm_idx + leg.num_flat_legs]
                     perm_min = min(perm)
                     perm = [p - perm_min for p in perm]
-                    split_dims.append([dims[i] for i in perm])
+                    # use inverse permutation here s.t. it the dims agree with the flat dims after permute_axes below
+                    split_dims.append([dims[i] for i in inverse_permutation(perm)])
                     perm_idx += leg.num_flat_legs
                 else:
                     perm_idx += 1
