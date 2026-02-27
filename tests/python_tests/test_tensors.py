@@ -3289,7 +3289,7 @@ def test_tdot(
                 B = tensors.permute_legs(B, codomain=contr_B, domain=domain_B, levels=levels_B)
             contr_B = list(range(num_contr))
 
-    compare_numpy = A.symmetry.has_trivial_braid
+    compare_numpy = A.symmetry.has_symmetric_braid
     # if the braid is trivial, we can compare to braiding the to_numpy() representations
     # for a symmetric braid, we can do to_numpy(), but the numpy rep loses the braiding information
     # for general braids, we cant even do to_numpy()
@@ -3308,17 +3308,22 @@ def test_tdot(
         # tensor result
         res.test_sanity()
         if compare_numpy:
-            res_np = res.to_numpy()
+            res_np = res.to_numpy(understood_braiding=True)
         assert res.codomain.factors == expect_codomain
         assert res.domain.factors == expect_domain
         assert res.legs == expect_legs
         assert res.labels == expect_labels
 
     if compare_numpy:
-        A_np = A.to_numpy()
-        B_np = B.to_numpy()
+        A_np = A.to_numpy(understood_braiding=True)
+        B_np = B.to_numpy(understood_braiding=True)
         expect = np.tensordot(A_np, B_np, [contr_A, contr_B])
-        npt.assert_allclose(res_np, expect, atol=1.0e-14)
+        if A.symmetry.has_trivial_braid:
+            npt.assert_allclose(res_np, expect, atol=1.0e-14)
+        else:
+            # TODO for a proper comparison, we would need explicit swap gates etc
+            #      for now, since they would only give signs, we can check for a match up to +/- signs
+            assert np.all(np.isclose(res_np, expect) | np.isclose(res_np, -1 * expect))
 
 
 @pytest.mark.parametrize(
