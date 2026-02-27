@@ -15,7 +15,7 @@ load_python = "cyten/**/*.py"
 load_cpp_include = "include/**/*.h"
 
 [types_py_to_cpp]
-int = "int64_t"
-float = "float64_t"
-complex = "std::complex<float64_t>"
-"npt.NDArray" = "xt::xarray<float64_t>"
+int = "cyten_int"
+float = "cyten_float"
+complex = "cyten_complex"
+"npt.NDArray[float]" = "xt::xarray<cyten_float>"
