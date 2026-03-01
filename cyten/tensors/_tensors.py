@@ -1978,7 +1978,7 @@ class DiagonalTensor(SymmetricTensor):
     def any(self) -> bool:
         """For a bool dtype, if any value is True. Raises for other dtypes."""
         if self.dtype != Dtype.bool:
-            raise ValueError(f'all is not defined for dtype {self.dtype}')
+            raise ValueError(f'any is not defined for dtype {self.dtype}')
         return self.backend.diagonal_any(self)
 
     def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None) -> SymmetricTensor:
@@ -5216,7 +5216,7 @@ def partial_trace(
         return tensor
     # deal with other tensor types
     if isinstance(tensor, (DiagonalTensor, Mask)):
-        # only remaining option after input checks if the full trace.
+        # only remaining option after input checks is the full trace.
         return trace(tensor)
     if isinstance(tensor, ChargedTensor):
         if levels is not None:
@@ -5681,7 +5681,7 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
 def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     r"""Split legs that were previously combined using :func:`combine_legs`.
 
-    |       │   │   │   │   │   │
+    |       │  │    │   │   │   │
     |       ╰──┴───╥╯   │   ╰──╥╯
     |      ┏━━━━━━━┷━━━━┷━━━━━━┷━┓
     |      ┃          T          ┃    ==    split_legs(T, [2, 4, 6])
