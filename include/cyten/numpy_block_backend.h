@@ -28,97 +28,122 @@ class NumpyBlock : public Block
 class NumpyBlockBackend : public BlockBackend
 {
   public:
-    static TYPEOF_BlockCls BlockCls;
-    static TYPEOF_svd_algorithms svd_algorithms;
-    static TYPEOF_cyten_dtype_map cyten_dtype_map;
-    static TYPEOF_backend_dtype_map backend_dtype_map;
-
-  public:
     NumpyBlockBackend();
-    virtual ~NumpyBlockBackend() = default;
-    virtual Block abs(Block a) override;
-    virtual Block as_block(TYPEOF_a a,
-                           Dtype dtype = py::none(),
-                           bool return_dtype = false,
-                           std::string device = py::none()) override;
-    virtual std::string as_device(std::string device) override;
-    virtual Block add_axis(Block a, cyten_int pos) override;
-    virtual list_int_ abs_argmax(Block block) override;
-    virtual bool block_all(TYPEOF_a a) override;
-    virtual bool allclose(Block a,
-                          Block b,
-                          cyten_float rtol = 1e-05,
-                          cyten_float atol = 1e-08) override;
-    virtual Block angle(Block a) override;
-    virtual bool block_any(TYPEOF_a a) override;
-    virtual Block apply_mask(Block block, Block mask, cyten_int ax) override;
-    virtual Block _argsort(Block block, cyten_int axis) override;
-    virtual Block conj(Block a) override;
-    virtual Block copy_block(Block a, std::string device = py::none()) override;
+
+    static std::shared_ptr<NumpyBlockBackend> load_hdf5(py::object hdf5_loader,
+                                                        py::object h5gr,
+                                                        std::string const& subpath);
+
+    std::string get_backend_name() const override;
+
+    BlockPtr apply_leg_permutations(BlockCPtr const& block,
+                                    std::vector<py::array_t<cyten_int>> const& perms) override;
+    BlockPtr as_block(py::object a,
+                      std::optional<Dtype> dtype,
+                      std::optional<std::string> device) override;
+    std::string as_device(std::optional<std::string> device) override;
+    std::vector<cyten_int> abs_argmax(BlockCPtr const& block) override;
+    BlockPtr abs(BlockCPtr const& a) override;
+    BlockPtr add_axis(BlockCPtr const& a, int pos) override;
+    bool block_all(BlockCPtr const& a) override;
+    bool allclose(BlockCPtr const& a, BlockCPtr const& b, double rtol, double atol) override;
+    BlockPtr angle(BlockCPtr const& a) override;
+    bool block_any(BlockCPtr const& a) override;
+    BlockPtr apply_mask(BlockCPtr const& block, BlockCPtr const& mask, int ax) override;
+    BlockPtr _argsort(BlockCPtr const& block, int axis) override;
+    BlockPtr conj(BlockCPtr const& a) override;
+    BlockPtr copy_block(BlockCPtr const& a, std::optional<std::string> device) override;
     /// The elementwise cutoff-inverse: ``1 / a`` where ``abs(a) >= cutoff``, otherwise ``0``.
-    virtual Block cutoff_inverse(Block a, cyten_float cutoff) override;
-    virtual Dtype get_dtype(Block a) override;
-    virtual tuple_Block_Block_ eigh(Block block, std::string sort = py::none()) override;
-    virtual Block eigvalsh(Block block, std::string sort = py::none()) override;
-    virtual Block enlarge_leg(Block block, Block mask, cyten_int axis) override;
-    virtual Block exp(Block a) override;
-    virtual Block block_from_diagonal(Block diag) override;
-    virtual Block block_from_mask(Block mask, Dtype dtype) override;
-    virtual Block block_from_numpy(np_NDArray a,
-                                   Dtype dtype = py::none(),
-                                   std::string device = py::none()) override;
-    virtual std::string get_device(Block a) override;
-    virtual Block get_diagonal(Block a, cyten_float tol) override;
-    virtual Block imag(Block a) override;
-    virtual cyten_float inner(Block a, Block b, bool do_dagger) override;
-    virtual cyten_float item(Block a) override;
-    virtual Block kron(Block a, Block b) override;
-    virtual Block log(Block a) override;
-    virtual cyten_float max(Block a) override;
-    virtual cyten_float max_abs(Block a) override;
-    virtual cyten_float min(Block a) override;
-    virtual cyten_float norm(Block a, cyten_int order = 2, cyten_int axis = py::none()) override;
-    virtual Block outer(Block a, Block b) override;
-    virtual Block permute_axes(Block a, list_int_ permutation) override;
-    virtual Block random_normal(list_int_ dims,
-                                Dtype dtype,
-                                cyten_float sigma,
-                                std::string device = py::none()) override;
-    virtual Block random_uniform(list_int_ dims,
-                                 Dtype dtype,
-                                 std::string device = py::none()) override;
-    virtual Block real(Block a) override;
-    virtual Block real_if_close(Block a, cyten_float tol) override;
-    virtual Block tile(Block a, cyten_int repeats, cyten_int axis = py::none()) override;
-    virtual list_str_ _block_repr_lines(Block a,
-                                        std::string indent,
-                                        cyten_int max_width,
-                                        cyten_int max_lines) override;
-    virtual Block reshape(Block a, tuple_int_ shape) override;
-    virtual tuple_int_ get_shape(Block a) override;
-    virtual Block sqrt(Block a) override;
-    virtual Block squeeze_axes(Block a, list_int_ idcs) override;
-    virtual Block stable_log(Block block, cyten_float cutoff) override;
-    virtual Block sum(Block a, cyten_int ax) override;
-    virtual cyten_float sum_all(Block a) override;
-    virtual Block tdot(Block a, Block b, list_int_ idcs_a, list_int_ idcs_b) override;
-    virtual Block to_dtype(Block a, Dtype dtype) override;
-    virtual cyten_float trace_full(Block a) override;
-    virtual Block trace_partial(Block a,
-                                list_int_ idcs1,
-                                list_int_ idcs2,
-                                list_int_ remaining) override;
-    virtual Block eye_matrix(cyten_int dim, Dtype dtype, std::string device = py::none()) override;
-    virtual cyten_complex get_block_element(Block a, list_int_ idcs) override;
-    virtual Block matrix_dot(Block a, Block b) override;
-    virtual Block matrix_exp(Block matrix) override;
-    virtual Block matrix_log(Block matrix) override;
-    virtual tuple_Block_Block_ matrix_qr(Block a, bool full) override;
-    virtual tuple_Block_Block_Block_ matrix_svd(Block a, std::string algorithm) override;
-    virtual Block ones_block(list_int_ shape,
-                             Dtype dtype,
-                             std::string device = py::none()) override;
-    virtual Block zeros(list_int_ shape, Dtype dtype, std::string device = py::none()) override;
+    BlockPtr cutoff_inverse(BlockCPtr const& a, double cutoff) override;
+    Dtype get_dtype(BlockCPtr const& a) override;
+    std::tuple<BlockPtr, BlockPtr> eigh(BlockCPtr const& block,
+                                        std::optional<std::string> sort) override;
+    BlockPtr eigvalsh(BlockCPtr const& block, std::optional<std::string> sort) override;
+    BlockPtr enlarge_leg(BlockCPtr const& block, BlockCPtr const& mask, int axis) override;
+    BlockPtr exp(BlockCPtr const& a) override;
+    BlockPtr block_from_diagonal(BlockCPtr const& diag) override;
+    BlockPtr block_from_mask(BlockCPtr const& mask, Dtype dtype) override;
+    BlockPtr block_from_numpy(py::array const& a,
+                              std::optional<Dtype> dtype,
+                              std::optional<std::string> device) override;
+    std::string get_device(BlockCPtr const& a) override;
+    BlockPtr get_diagonal(BlockCPtr const& a, std::optional<double> tol) override;
+    bool get_block_mask_element(BlockCPtr const& a,
+                                cyten_int large_leg_idx,
+                                cyten_int small_leg_idx,
+                                cyten_int sum_block) override;
+    BlockPtr imag(BlockCPtr const& a) override;
+    py::object item(BlockCPtr const& a) override;
+    BlockPtr kron(BlockCPtr const& a, BlockCPtr const& b) override;
+    BlockPtr linear_combination(py::object a_coef,
+                                BlockCPtr const& v,
+                                py::object b_coef,
+                                BlockCPtr const& w) override;
+    BlockPtr log(BlockCPtr const& a) override;
+    double max(BlockCPtr const& a) override;
+    double max_abs(BlockCPtr const& a) override;
+    double min(BlockCPtr const& a) override;
+    BlockPtr mul(py::object a, BlockCPtr const& b) override;
+    double norm(BlockCPtr const& a, double order, std::optional<int> axis) override;
+    BlockPtr outer(BlockCPtr const& a, BlockCPtr const& b) override;
+    BlockPtr permute_axes(BlockCPtr const& a, std::vector<int> const& permutation) override;
+    BlockPtr random_normal(std::vector<cyten_int> const& dims,
+                           Dtype dtype,
+                           double sigma,
+                           std::optional<std::string> device) override;
+    BlockPtr random_uniform(std::vector<cyten_int> const& dims,
+                            Dtype dtype,
+                            std::optional<std::string> device) override;
+    BlockPtr real(BlockCPtr const& a) override;
+    BlockPtr real_if_close(BlockCPtr const& a, double tol) override;
+    BlockPtr scale_axis(BlockCPtr const& block, BlockCPtr const& factors, int axis) override;
+    BlockPtr tile(BlockCPtr const& a, int repeats) override;
+    std::vector<std::string> _block_repr_lines(BlockCPtr const& a,
+                                               std::string const& indent,
+                                               int max_width,
+                                               int max_lines) override;
+    BlockPtr reshape(BlockCPtr const& a, std::vector<cyten_int> const& shape) override;
+    std::vector<cyten_int> get_shape(BlockCPtr const& a) override;
+    BlockPtr sqrt(BlockCPtr const& a) override;
+    BlockPtr squeeze_axes(BlockCPtr const& a, std::vector<int> const& idcs) override;
+    BlockPtr stable_log(BlockCPtr const& block, double cutoff) override;
+    BlockPtr sum(BlockCPtr const& a, int ax) override;
+    std::complex<cyten_float> sum_all(BlockCPtr const& a) override;
+    BlockPtr multiply_blocks(BlockCPtr const& a, BlockCPtr const& b) override;
+    BlockPtr tdot(BlockCPtr const& a,
+                  BlockCPtr const& b,
+                  std::vector<int> const& idcs_a,
+                  std::vector<int> const& idcs_b) override;
+    BlockPtr to_dtype(BlockCPtr const& a, Dtype dtype) override;
+    py::object to_numpy(BlockCPtr const& a, std::optional<py::object> numpy_dtype) override;
+    std::complex<cyten_float> trace_full(BlockCPtr const& a) override;
+    BlockPtr trace_partial(BlockCPtr const& a,
+                           std::vector<int> const& idcs1,
+                           std::vector<int> const& idcs2,
+                           std::vector<int> const& remaining_idcs) override;
+    BlockPtr eye_matrix(int dim, Dtype dtype, std::optional<std::string> device) override;
+    py::object get_block_element(BlockCPtr const& a, std::vector<cyten_int> const& idcs) override;
+    BlockPtr matrix_dot(BlockCPtr const& a, BlockCPtr const& b) override;
+    BlockPtr matrix_exp(BlockCPtr const& matrix) override;
+    BlockPtr matrix_log(BlockCPtr const& matrix) override;
+    std::tuple<BlockPtr, BlockPtr> matrix_qr(BlockCPtr const& a, bool full) override;
+    std::tuple<BlockPtr, BlockPtr, BlockPtr> matrix_svd(
+      BlockCPtr const& a,
+      std::optional<std::string> algorithm) override;
+    BlockPtr ones_block(std::vector<cyten_int> const& shape,
+                        Dtype dtype,
+                        std::optional<std::string> device) override;
+    BlockPtr zeros(std::vector<cyten_int> const& shape,
+                   Dtype dtype,
+                   std::optional<std::string> device) override;
+
+  protected:
+    bool is_correct_block_type(BlockCPtr const& block) const override;
+
+  private:
+    static NumpyBlock const* ptr(BlockCPtr const& b);
+    static py::object obj(BlockCPtr const& b);
+    static BlockPtr wrap(py::object arr);
 };
 
 } // namespace cyten

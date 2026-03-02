@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
+#include <sstream>
 #include <stdexcept>
 
 namespace cyten {
@@ -320,6 +321,42 @@ BlockBackend::synchronize()
 {
 }
 
+void
+BlockBackend::test_block_sanity(BlockCPtr const& block,
+                                std::optional<std::vector<cyten_int>> expect_shape,
+                                std::optional<Dtype> expect_dtype,
+                                std::optional<std::string> expect_device)
+{
+    if (!is_correct_block_type(block)) {
+        throw std::runtime_error("wrong block type");
+    }
+    if (expect_shape) {
+        std::vector<cyten_int> const got = get_shape(block);
+        if (got != *expect_shape) {
+            std::ostringstream msg;
+            msg << "wrong block shape ";
+            msg << "(";
+            for (size_t i = 0; i < got.size(); ++i)
+                msg << (i ? ", " : "") << got[i];
+            msg << ") != (";
+            for (size_t i = 0; i < expect_shape->size(); ++i)
+                msg << (i ? ", " : "") << (*expect_shape)[i];
+            msg << ")";
+            throw std::runtime_error(msg.str());
+        }
+    }
+    if (expect_dtype) {
+        if (get_dtype(block) != *expect_dtype) {
+            throw std::runtime_error("wrong block dtype");
+        }
+    }
+    if (expect_device) {
+        if (get_device(block) != *expect_device) {
+            throw std::runtime_error("wrong block device");
+        }
+    }
+}
+
 std::complex<cyten_float>
 BlockBackend::inner(BlockCPtr const& a, BlockCPtr const& b, bool do_dagger)
 {
@@ -334,6 +371,21 @@ BlockBackend::inner(BlockCPtr const& a, BlockCPtr const& b, bool do_dagger)
         ac = permute_axes(a, rev);
     }
     return sum_all(multiply_blocks(ac, b));
+}
+
+void
+BlockBackend::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath)
+{
+    py::list svd_algs = py::cast(svd_algorithms);
+    hdf5_saver.attr("save")(svd_algs, subpath + std::string("svd_algorithms"));
+    hdf5_saver.attr("save")(default_device, subpath + std::string("default_device"));
+}
+
+std::shared_ptr<BlockBackend>
+BlockBackend::load_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    throw NotImplemented(
+      "Needs to be implemented in Subclass, since we don't know the subclass type here!");
 }
 
 } // namespace cyten

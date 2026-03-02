@@ -26,13 +26,11 @@ class NumpyBlockBackend(BlockBackend):
     def abs(self, a: Block) -> Block:
         return np.abs(a)
 
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None) -> Block:
+    def as_block(self, a, dtype: Dtype = None, device: str = None) -> Block:
         _ = self.as_device(device)  # for input check only
         block = np.asarray(a, dtype=self.backend_dtype_map[dtype])
         if np.issubdtype(block.dtype, np.integer):
             block = block.astype(np.float64, copy=False)
-        if return_dtype:
-            return block, self.cyten_dtype_map[block.dtype]
         return block
 
     def as_device(self, device: str | None) -> str:

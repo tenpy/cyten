@@ -39,15 +39,13 @@ class ArrayApiBlockBackend(BlockBackend):
         }
         super().__init__(default_device=default_device)
 
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None) -> Block:
+    def as_block(self, a, dtype: Dtype = None, device: str = None) -> Block:
         if device is None and not hasattr(a, 'device'):
             device = self.default_device
         block = self._api.asarray(a, dtype=self.backend_dtype_map[dtype], device=device)
         if dtype != Dtype.bool:
             # force float or complex dtype without multiplying
             block = 1.0 * block
-        if return_dtype:
-            return block, self.cyten_dtype_map[block.dtype]
         return block
 
     def as_device(self, device: str | None) -> str:

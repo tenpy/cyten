@@ -107,23 +107,12 @@ bind_block_backend(py::module_& m)
         py::arg("legs"),
         py::arg("inv") = false,
         R"pydoc(Apply basis_perm of a ElementarySpace (or its inverse) on every axis of a dense block)pydoc")
-      .def(
-        "as_block",
-        [](BlockBackend& self,
-           py::object a,
-           std::optional<Dtype> dtype,
-           bool return_dtype,
-           std::optional<std::string> device) -> py::object {
-            auto [block, out_dtype] = self.as_block(a, dtype, return_dtype, device);
-            if (return_dtype && out_dtype)
-                return py::make_tuple(block, *out_dtype);
-            return py::cast(block);
-        },
-        py::arg("a"),
-        py::arg("dtype") = py::none(),
-        py::arg("return_dtype") = false,
-        py::arg("device") = py::none(),
-        R"pydoc(
+      .def("as_block",
+           &BlockBackend::as_block,
+           py::arg("a"),
+           py::arg("dtype") = py::none(),
+           py::arg("device") = py::none(),
+           R"pydoc(
         Convert objects to blocks.
 
         Should support blocks, numpy arrays, nested python containers. May support more.
@@ -134,12 +123,6 @@ bind_block_backend(py::module_& m)
         -------
         block : Block
             The new block
-        dtype : Dtype, optional
-            The new dtype of the block. Only returned if `return_dtype`.
-        device : str, optional
-            The device for the block. Default behavior (if None) is to leave `a` on its
-            current device if it already is a block, and to use default_device if a new
-            block needs to be created (e.g. if `a` is a list).
 
         See Also
         --------
@@ -491,11 +474,48 @@ bind_block_backend(py::module_& m)
       .def("synchronize",
            &BlockBackend::synchronize,
            R"pydoc(Wait for asynchronous processes (if any) to finish)pydoc")
+      .def(
+        "test_block_sanity",
+        [](BlockBackend& self,
+           BlockCPtr const& block,
+           py::object expect_shape,
+           py::object expect_dtype,
+           py::object expect_device) {
+            std::optional<std::vector<cyten_int>> shape_opt;
+            if (!expect_shape.is_none()) {
+                std::vector<cyten_int> sh;
+                for (py::handle h : expect_shape) {
+                    sh.push_back(py::cast<cyten_int>(h));
+                }
+                shape_opt = std::move(sh);
+            }
+            std::optional<Dtype> dtype_opt;
+            if (!expect_dtype.is_none())
+                dtype_opt = py::cast<Dtype>(expect_dtype);
+            std::optional<std::string> device_opt;
+            if (!expect_device.is_none())
+                device_opt = py::cast<std::string>(expect_device);
+            self.test_block_sanity(block, shape_opt, dtype_opt, device_opt);
+        },
+        py::arg("block"),
+        py::arg("expect_shape") = py::none(),
+        py::arg("expect_dtype") = py::none(),
+        py::arg("expect_device") = py::none())
       .def("zeros",
            &BlockBackend::zeros,
            py::arg("shape"),
            py::arg("dtype"),
            py::arg("device") = py::none())
+      .def("save_hdf5",
+           &BlockBackend::save_hdf5,
+           py::arg("hdf5_saver"),
+           py::arg("h5gr"),
+           py::arg("subpath"))
+      .def_static("from_hdf5",
+                  &BlockBackend::load_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"))
       .def(
         "cutoff_inverse",
         &BlockBackend::cutoff_inverse,

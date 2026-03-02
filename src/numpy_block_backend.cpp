@@ -104,6 +104,12 @@ NumpyBlockBackend::get_backend_name() const
     return "NumpyBlockBackend";
 }
 
+bool
+NumpyBlockBackend::is_correct_block_type(BlockCPtr const& block) const
+{
+    return dynamic_cast<NumpyBlock const*>(block.get()) != nullptr;
+}
+
 BlockPtr
 NumpyBlockBackend::apply_leg_permutations(BlockCPtr const& block,
                                           std::vector<py::array_t<cyten_int>> const& perms)
@@ -117,10 +123,9 @@ NumpyBlockBackend::apply_leg_permutations(BlockCPtr const& block,
     return wrap(a[ix]);
 }
 
-std::pair<BlockPtr, std::optional<Dtype>>
+BlockPtr
 NumpyBlockBackend::as_block(py::object a,
                             std::optional<Dtype> dtype_opt,
-                            bool return_dtype,
                             std::optional<std::string> device)
 {
     (void)as_device(device);
@@ -133,9 +138,7 @@ NumpyBlockBackend::as_block(py::object a,
         if (np.attr("issubdtype")(d, np.attr("integer")).cast<bool>())
             arr = arr.attr("astype")(np.attr("float64"), py::arg("copy") = false);
     }
-    if (return_dtype)
-        return { wrap(arr), dtype::from_numpy_dtype(arr.attr("dtype")) };
-    return { wrap(arr), std::nullopt };
+    return wrap(arr);
 }
 
 std::string
@@ -743,6 +746,18 @@ NumpyBlockBackend::zeros(std::vector<cyten_int> const& shape,
     (void)as_device(device);
     return wrap(
       np_attr("zeros")(py::cast(shape), py::arg("dtype") = dtype::to_numpy_dtype(dtype)));
+}
+
+std::shared_ptr<NumpyBlockBackend>
+NumpyBlockBackend::load_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    auto obj = std::make_shared<NumpyBlockBackend>();
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    // std::vector<std::string> svd_algs = hdf5_loader.attr("load")(subpath +
+    // std::string("svd_algorithms")); std::string default_dev = hdf5_loader.attr("load")(subpath +
+    // std::string("default_device"));
+    // TODO: could check svd_algorithms and default_dev for correctness.
+    return obj;
 }
 
 } // namespace cyten

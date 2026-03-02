@@ -55,9 +55,7 @@ class BlockBackend(metaclass=ABCMeta):
         return block[np.ix_(*perms)]
 
     @abstractmethod
-    def as_block(
-        self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None
-    ) -> Block | tuple[Block, Dtype]:
+    def as_block(self, a, dtype: Dtype = None, device: str = None) -> Block:
         """Convert objects to blocks.
 
         Should support blocks, numpy arrays, nested python containers. May support more.
@@ -68,12 +66,6 @@ class BlockBackend(metaclass=ABCMeta):
         -------
         block: Block
             The new block
-        dtype: Dtype, optional
-            The new dtype of the block. Only returned if `return_dtype`.
-        device: str, optional
-            The device for the block. Default behavior (if ``None``) is to leave `a` on its
-            current device if it already is a block, and to use :attr:`default_device` if a new
-            block needs to be created (e.g. if `a` is a list).
 
         See Also
         --------

@@ -44,13 +44,11 @@ class TorchBlockBackend(BlockBackend):
     def abs(self, a: Block) -> Block:
         return torch_module.abs(a)
 
-    def as_block(self, a, dtype: Dtype = None, return_dtype: bool = False, device: str = None) -> Block:
+    def as_block(self, a, dtype: Dtype = None, device: str = None) -> Block:
         # TODO good error handling if a device does not support a given dtype
         block = torch_module.as_tensor(a, dtype=self.backend_dtype_map[dtype], device=self.as_device(device))
         if dtype != Dtype.bool:
             block = 1.0 * block  # force int to float.
-        if return_dtype:
-            return block, self.cyten_dtype_map[block.dtype]
         return block
 
     def as_device(self, device: str | None) -> str:

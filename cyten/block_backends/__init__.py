@@ -24,7 +24,7 @@ class NumpyBlockBackend(_NumpyBlockBackendCpp):
         dims1, idcs1, dims2, idcs2 = list(dims1), list(idcs1), list(dims2), list(idcs2)
         input_was_ndarray = isinstance(block, np.ndarray)
         if isinstance(block, np.ndarray):
-            block = _NumpyBlockBackendCpp.as_block(self, block, None, False, None)
+            block = _NumpyBlockBackendCpp.as_block(self, block, None, None)
         res = _NumpyBlockBackendCpp.permute_combined_matrix(self, block, dims1, idcs1, dims2, idcs2)
         return res.array() if input_was_ndarray else res
 
@@ -32,7 +32,7 @@ class NumpyBlockBackend(_NumpyBlockBackendCpp):
         dims, idcs = list(dims), list(idcs)
         input_was_ndarray = isinstance(block, np.ndarray)
         if isinstance(block, np.ndarray):
-            block = _NumpyBlockBackendCpp.as_block(self, block, None, False, None)
+            block = _NumpyBlockBackendCpp.as_block(self, block, None, None)
         res = _NumpyBlockBackendCpp.permute_combined_idx(self, block, axis, dims, idcs)
         return res.array() if input_was_ndarray else res
 
@@ -45,15 +45,10 @@ class NumpyBlockBackend(_NumpyBlockBackendCpp):
     ):
         if not isinstance(block, self.BlockCls):
             raise AssertionError('wrong block type')
-        if expect_shape is not None:
-            if self.get_shape(block) != list(expect_shape):
-                raise AssertionError(f'wrong block shape {self.get_shape(block)} != {expect_shape}')
-        if expect_dtype is not None:
-            if self.get_dtype(block) != expect_dtype:
-                raise AssertionError('wrong block dtype')
-        if expect_device is not None:
-            if self.get_device(block) != expect_device:
-                raise AssertionError('wrong block device')
+        # Convert ndarray to NumpyBlock so C++ can validate (C++ throws RuntimeError on failure)
+        if isinstance(block, np.ndarray):
+            block = _NumpyBlockBackendCpp.as_block(self, block, None, None)
+        _NumpyBlockBackendCpp.test_block_sanity(self, block, expect_shape, expect_dtype, expect_device)
 
 
 dtypes.Dtype = Dtype
