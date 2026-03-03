@@ -4,14 +4,12 @@
 #include <cyten/dtypes.h>
 
 #include <algorithm>
-#include <cmath>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
 
 namespace cyten {
 
-namespace {
 // Product of elements in [first, last)
 cyten_int
 prod_range(std::vector<cyten_int> const& shape, size_t first, size_t last)
@@ -21,7 +19,6 @@ prod_range(std::vector<cyten_int> const& shape, size_t first, size_t last)
         p *= shape[i];
     return p;
 }
-} // namespace
 
 BlockBackend::BlockBackend(std::string default_device)
   : default_device(std::move(default_device))

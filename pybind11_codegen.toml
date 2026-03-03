@@ -13,6 +13,7 @@ library_path = "/usr/lib64"
 [paths]
 load_python = "cyten/**/*.py"
 load_cpp_include = "include/**/*.h"
+templates = ".cursor/skills/pybind11-codegen/assets"
 
 [types_py_to_cpp]
 int = "cyten_int"
