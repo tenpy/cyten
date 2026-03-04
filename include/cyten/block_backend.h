@@ -112,20 +112,20 @@ class BlockBackend
     virtual py::object item(BlockCPtr const& a) = 0;
     /// The kronecker product.
     virtual BlockPtr kron(BlockCPtr const& a, BlockCPtr const& b) = 0;
-    virtual BlockPtr linear_combination(py::object a_coef,
+    virtual BlockPtr linear_combination(Scalar a_coef,
                                         BlockCPtr const& v,
-                                        py::object b_coef,
+                                        Scalar b_coef,
                                         BlockCPtr const& w) = 0;
     /// The *elementwise* natural logarithm.
     virtual BlockPtr log(BlockCPtr const& a) = 0;
-    virtual double max(BlockCPtr const& a) = 0;
-    virtual double max_abs(BlockCPtr const& a) = 0;
-    virtual double min(BlockCPtr const& a) = 0;
+    virtual cyten_float max(BlockCPtr const& a) = 0;
+    virtual cyten_float max_abs(BlockCPtr const& a) = 0;
+    virtual cyten_float min(BlockCPtr const& a) = 0;
     virtual BlockPtr mul(py::object a, BlockCPtr const& b) = 0;
     /// The p-norm vector-norm of a block.
-    virtual double norm(BlockCPtr const& a,
-                        double order = 2,
-                        std::optional<int> axis = std::nullopt) = 0;
+    virtual cyten_float norm(BlockCPtr const& a,
+                             double order = 2,
+                             std::optional<int> axis = std::nullopt) = 0;
     /// Outer product of blocks.
     virtual BlockPtr outer(BlockCPtr const& a, BlockCPtr const& b) = 0;
     virtual BlockPtr permute_axes(BlockCPtr const& a, std::vector<int> const& permutation) = 0;

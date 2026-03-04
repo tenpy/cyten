@@ -75,9 +75,9 @@ class NumpyBlockBackend : public BlockBackend
     BlockPtr imag(BlockCPtr const& a) override;
     py::object item(BlockCPtr const& a) override;
     BlockPtr kron(BlockCPtr const& a, BlockCPtr const& b) override;
-    BlockPtr linear_combination(py::object a_coef,
+    BlockPtr linear_combination(Scalar a_coef,
                                 BlockCPtr const& v,
-                                py::object b_coef,
+                                Scalar b_coef,
                                 BlockCPtr const& w) override;
     BlockPtr log(BlockCPtr const& a) override;
     double max(BlockCPtr const& a) override;

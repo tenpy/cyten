@@ -378,12 +378,12 @@ NumpyBlockBackend::kron(BlockCPtr const& a, BlockCPtr const& b)
 }
 
 BlockPtr
-NumpyBlockBackend::linear_combination(py::object a_coef,
+NumpyBlockBackend::linear_combination(Scalar a_coef,
                                       BlockCPtr const& v,
-                                      py::object b_coef,
+                                      Scalar b_coef,
                                       BlockCPtr const& w)
 {
-    return wrap(a_coef * obj(v) + b_coef * obj(w));
+    return wrap(a_coef.to_numpy() * obj(v) + b_coef.to_numpy() * obj(w));
 }
 
 BlockPtr

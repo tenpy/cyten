@@ -26,7 +26,7 @@ class PyBlockBackend
     BlockPtr apply_leg_permutations(const BlockCPtr& block,
                                     const std::vector<py::array_t<cyten_int>>& perms) override
     {
-        PYBIND11_OVERRIDE(BlockPtr, BlockBackendBase, apply_leg_permutations, block, perms);
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, apply_leg_permutations, block, perms);
     }
     BlockPtr as_block(py::object a,
                       std::optional<Dtype> dtype,
@@ -64,7 +64,7 @@ class PyBlockBackend
     }
     BlockPtr apply_mask(const BlockCPtr& block, const BlockCPtr& mask, int ax) override
     {
-        PYBIND11_OVERRIDE(BlockPtr, BlockBackendBase, apply_mask, block, mask, ax);
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, apply_mask, block, mask, ax);
     }
     BlockPtr _argsort(const BlockCPtr& block, int axis) override
     {
@@ -80,7 +80,7 @@ class PyBlockBackend
     }
     BlockPtr cutoff_inverse(const BlockCPtr& a, double cutoff) override
     {
-        PYBIND11_OVERRIDE(BlockPtr, BlockBackendBase, cutoff_inverse, a, cutoff);
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, cutoff_inverse, a, cutoff);
     }
     Dtype get_dtype(const BlockCPtr& a) override
     {
@@ -98,7 +98,7 @@ class PyBlockBackend
     }
     BlockPtr enlarge_leg(const BlockCPtr& block, const BlockCPtr& mask, int axis) override
     {
-        PYBIND11_OVERRIDE(BlockPtr, BlockBackendBase, enlarge_leg, block, mask, axis);
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, enlarge_leg, block, mask, axis);
     }
     BlockPtr exp(const BlockCPtr& a) override
     {
@@ -138,12 +138,13 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, kron, a, b);
     }
-    BlockPtr linear_combination(py::object a_coef,
+    BlockPtr linear_combination(Scalar a_coef,
                                 const BlockCPtr& v,
-                                py::object b_coef,
+                                Scalar b_coef,
                                 const BlockCPtr& w) override
     {
-        PYBIND11_OVERRIDE(BlockPtr, BlockBackendBase, linear_combination, a_coef, v, b_coef, w);
+        PYBIND11_OVERRIDE_PURE(
+          BlockPtr, BlockBackendBase, linear_combination, a_coef, v, b_coef, w);
     }
     BlockPtr log(const BlockCPtr& a) override
     {
@@ -163,7 +164,7 @@ class PyBlockBackend
     }
     BlockPtr mul(py::object a, const BlockCPtr& b) override
     {
-        PYBIND11_OVERRIDE(BlockPtr, BlockBackendBase, mul, a, b);
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, mul, a, b);
     }
     double norm(const BlockCPtr& a, double order, std::optional<int> axis) override
     {
@@ -222,7 +223,7 @@ class PyBlockBackend
     }
     BlockPtr scale_axis(const BlockCPtr& block, const BlockCPtr& factors, int axis) override
     {
-        PYBIND11_OVERRIDE(BlockPtr, BlockBackendBase, scale_axis, block, factors, axis);
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, scale_axis, block, factors, axis);
     }
     std::vector<cyten_int> get_shape(const BlockCPtr& a) override
     {
@@ -261,7 +262,7 @@ class PyBlockBackend
     }
     py::object to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype) override
     {
-        PYBIND11_OVERRIDE(py::object, BlockBackendBase, to_numpy, a, numpy_dtype);
+        PYBIND11_OVERRIDE_PURE(py::object, BlockBackendBase, to_numpy, a, numpy_dtype);
     }
     std::complex<cyten_float> trace_full(const BlockCPtr& a) override
     {
@@ -288,13 +289,13 @@ class PyBlockBackend
                                 cyten_int small_leg_idx,
                                 cyten_int sum_block) override
     {
-        PYBIND11_OVERRIDE(bool,
-                          BlockBackendBase,
-                          get_block_mask_element,
-                          a,
-                          large_leg_idx,
-                          small_leg_idx,
-                          sum_block);
+        PYBIND11_OVERRIDE_PURE(bool,
+                               BlockBackendBase,
+                               get_block_mask_element,
+                               a,
+                               large_leg_idx,
+                               small_leg_idx,
+                               sum_block);
     }
     BlockPtr matrix_dot(const BlockCPtr& a, const BlockCPtr& b) override
     {
@@ -341,11 +342,11 @@ class PyBlockBackend
     }
     BlockPtr multiply_blocks(const BlockCPtr& a, const BlockCPtr& b) override
     {
-        PYBIND11_OVERRIDE(BlockPtr, BlockBackendBase, multiply_blocks, a, b);
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, multiply_blocks, a, b);
     }
     bool is_correct_block_type(const BlockCPtr& block) const override
     {
-        PYBIND11_OVERRIDE(bool, BlockBackendBase, is_correct_block_type, block);
+        PYBIND11_OVERRIDE_PURE(bool, BlockBackendBase, is_correct_block_type, block);
     }
 }; // trampoline class PyBlockBackend
 
@@ -466,32 +467,32 @@ bind_block_backend(py::module_& m)
            py::arg("dtype") = py::none(),
            py::arg("device") = py::none(),
            R"pydoc(
-        Convert objects to blocks.
+           Convert objects to blocks.
 
-        Should support blocks, numpy arrays, nested python containers. May support more.
-        If `a` is already a block of correct dtype on the correct device, it may be returned
-        un-modified.
+           Should support blocks, numpy arrays, nested python containers. May support more.
+           If `a` is already a block of correct dtype on the correct device, it may be returned
+           un-modified.
 
-        Returns
-        -------
-        block: Block
-            The new block
+           Returns
+           -------
+           block: Block
+               The new block
 
-        See Also
-        --------
-        block_copy
-            Guarantees an independent copy.
-        )pydoc")
+           See Also
+           --------
+           block_copy
+               Guarantees an independent copy.
+           )pydoc")
       .def("as_device",
            &BlockBackend::as_device,
            py::arg("device"),
            R"pydoc(
-        Convert input string to unambiguous device name.
+           Convert input string to unambiguous device name.
 
-        In particular, this should map any possible aliases to one unique name, e.g.
-        for PyTorch, map ``'cuda'`` to ``'cuda:0'``.
-        Also checks if that device is valid and available.
-        )pydoc")
+           In particular, this should map any possible aliases to one unique name, e.g.
+           for PyTorch, map ``'cuda'`` to ``'cuda:0'``.
+           Also checks if that device is valid and available.
+           )pydoc")
       .def("abs_argmax",
            &BlockBackend::abs_argmax,
            py::arg("block"),
@@ -527,39 +528,39 @@ bind_block_backend(py::module_& m)
            py::arg("sort") = py::none(),
            py::arg("axis") = 0,
            R"pydoc(
-        Return the permutation that would sort a block along one axis.
+           Return the permutation that would sort a block along one axis.
 
-        Parameters
-        ----------
-        block : Block
-            The block to sort.
-        sort : str
-            Specify how the arguments should be sorted.
+           Parameters
+           ----------
+           block : Block
+               The block to sort.
+           sort : str
+               Specify how the arguments should be sorted.
 
-            ==================== =============================
-            `sort`               order
-            ==================== =============================
-            ``'m>', 'LM'``       Largest magnitude first
-            -------------------- -----------------------------
-            ``'m<', 'SM'``       Smallest magnitude first
-            -------------------- -----------------------------
-            ``'>', 'LR', 'LA'``  Largest real part first
-            -------------------- -----------------------------
-            ``'<', 'SR', 'SA'``  Smallest real part first
-            -------------------- -----------------------------
-            ``'LI'``             Largest imaginary part first
-            -------------------- -----------------------------
-            ``'SI'``             Smallest imaginary part first
-            ==================== =============================
+               ==================== =============================
+               `sort`               order
+               ==================== =============================
+               ``'m>', 'LM'``       Largest magnitude first
+               -------------------- -----------------------------
+               ``'m<', 'SM'``       Smallest magnitude first
+               -------------------- -----------------------------
+               ``'>', 'LR', 'LA'``  Largest real part first
+               -------------------- -----------------------------
+               ``'<', 'SR', 'SA'``  Smallest real part first
+               -------------------- -----------------------------
+               ``'LI'``             Largest imaginary part first
+               -------------------- -----------------------------
+               ``'SI'``             Smallest imaginary part first
+               ==================== =============================
 
-        axis : int
-            The axis along which to sort
+           axis : int
+               The axis along which to sort
 
-        Returns
-        -------
-        1D block of int
-            The indices that would sort the block
-        )pydoc")
+           Returns
+           -------
+           1D block of int
+               The indices that would sort the block
+           )pydoc")
       .def("_argsort",
            &BlockBackend::_argsort,
            py::arg("block"),
@@ -573,12 +574,12 @@ bind_block_backend(py::module_& m)
            py::arg("leg_idcs_combine"),
            py::arg("cstyles"),
            R"pydoc(
-        Combine each group of legs in `leg_idcs_combine` into a single leg.
+           Combine each group of legs in `leg_idcs_combine` into a single leg.
 
-        The group of legs in each entry of `leg_idcs_combine` must be contiguous.
-        The legs can be combined in C style (default) or F style; the style can
-        be specified for each group of legs independently.
-        )pydoc")
+           The group of legs in each entry of `leg_idcs_combine` must be contiguous.
+           The legs can be combined in C style (default) or F style; the style can
+           be specified for each group of legs independently.
+           )pydoc")
       .def("combine_legs",
            py::overload_cast<BlockCPtr const&, std::vector<std::vector<int>> const&, bool>(
              &BlockBackend::combine_legs),
@@ -591,20 +592,20 @@ bind_block_backend(py::module_& m)
            py::arg("a"),
            py::arg("device") = py::none(),
            R"pydoc(
-        Create a new, independent block with the same data
+           Create a new, independent block with the same data
 
-        Parameters
-        ----------
-        a
-            The block to copy
-        device
-            The device for the new block. Per default, use the same device as the old block.
+           Parameters
+           ----------
+           a
+               The block to copy
+           device
+               The device for the new block. Per default, use the same device as the old block.
 
-        See Also
-        --------
-        as_block
-            Function to guarantee dtype and device, without forcing copies.
-        )pydoc")
+           See Also
+           --------
+           as_block
+               Function to guarantee dtype and device, without forcing copies.
+           )pydoc")
       .def(
         "cutoff_inverse",
         &BlockBackend::cutoff_inverse,
@@ -621,33 +622,33 @@ bind_block_backend(py::module_& m)
            py::arg("block"),
            py::arg("sort") = py::none(),
            R"pydoc(
-        Eigenvalue decomposition of a 2D hermitian block.
+           Eigenvalue decomposition of a 2D hermitian block.
 
-        Return a 1D block of eigenvalues and a 2D block of eigenvectors
+           Return a 1D block of eigenvalues and a 2D block of eigenvectors
 
-        Parameters
-        ----------
-        block : Block
-            The block to decompose
-        sort : {'m>', 'm<', '>', '<'}
-            How the eigenvalues are sorted
-        )pydoc")
+           Parameters
+           ----------
+           block : Block
+               The block to decompose
+           sort : {'m>', 'm<', '>', '<'}
+               How the eigenvalues are sorted
+           )pydoc")
       .def("eigvalsh",
            &BlockBackend::eigvalsh,
            py::arg("block"),
            py::arg("sort") = py::none(),
            R"pydoc(
-        Eigenvalues of a 2D hermitian block.
+           Eigenvalues of a 2D hermitian block.
 
-        Return a 1D block of eigenvalues
+           Return a 1D block of eigenvalues
 
-        Parameters
-        ----------
-        block : Block
-            The block to decompose
-        sort : {'m>', 'm<', '>', '<'}
-            How the eigenvalues are sorted
-        )pydoc")
+           Parameters
+           ----------
+           block : Block
+               The block to decompose
+           sort : {'m>', 'm<', '>', '<'}
+               How the eigenvalues are sorted
+           )pydoc")
       .def("enlarge_leg",
            &BlockBackend::enlarge_leg,
            py::arg("block"),
@@ -657,10 +658,10 @@ bind_block_backend(py::module_& m)
            &BlockBackend::exp,
            py::arg("a"),
            R"pydoc(
-        The *elementwise* exponential.
+           The *elementwise* exponential.
 
-        Not to be confused with :meth:`matrix_exp`, the *matrix* exponential.
-        )pydoc")
+           Not to be confused with :meth:`matrix_exp`, the *matrix* exponential.
+           )pydoc")
       .def("block_from_diagonal",
            &BlockBackend::block_from_diagonal,
            py::arg("diag"),
@@ -670,11 +671,11 @@ bind_block_backend(py::module_& m)
            py::arg("mask"),
            py::arg("dtype"),
            R"pydoc(
-        Convert a mask to a full block.
+           Convert a mask to a full block.
 
-        Return a (N, M) of numbers (float or complex dtype) from a 1D bool-valued block shape (M,)
-        where N is the number of True entries. The result is the coefficient matrix of the projection map.
-        )pydoc")
+           Return a (N, M) of numbers (float or complex dtype) from a 1D bool-valued block shape (M,)
+           where N is the number of True entries. The result is the coefficient matrix of the projection map.
+           )pydoc")
       .def("block_from_numpy",
            &BlockBackend::block_from_numpy,
            py::arg("a"),
@@ -696,19 +697,19 @@ bind_block_backend(py::module_& m)
            py::arg("b"),
            py::arg("do_dagger"),
            R"pydoc(
-        Dense block version of tensors.inner.
+           Dense block version of tensors.inner.
 
-        If do dagger, ``sum(conj(a[i1, i2, ..., iN]) * b[i1, ..., iN])``
-        otherwise, ``sum(a[i1, ..., iN] * b[iN, ..., i2, i1])``.
-        )pydoc")
+           If do dagger, ``sum(conj(a[i1, i2, ..., iN]) * b[i1, ..., iN])``
+           otherwise, ``sum(a[i1, ..., iN] * b[iN, ..., i2, i1])``.
+           )pydoc")
       .def("is_real",
            &BlockBackend::is_real,
            py::arg("a"),
            R"pydoc(
-        If the block is comprised of real numbers.
+           If the block is comprised of real numbers.
 
-        Complex numbers with small or zero imaginary part still cause a `False` return.
-        )pydoc")
+           Complex numbers with small or zero imaginary part still cause a `False` return.
+           )pydoc")
       .def("item",
            &BlockBackend::item,
            py::arg("a"),
@@ -719,23 +720,23 @@ bind_block_backend(py::module_& m)
            py::arg("a"),
            py::arg("b"),
            R"pydoc(
-        The kronecker product.
+           The kronecker product.
 
-        Parameters
-        ----------
-        a, b
-            Two blocks with the same number of dimensions.
+           Parameters
+           ----------
+           a, b
+               Two blocks with the same number of dimensions.
 
-        Notes
-        -----
-        The elements are products of elements from `a` and `b`::
-            kron(a, b)[k0, k1, ..., kN] = a[i0, i1, ..., iN] * b[j0, j1, ..., jN]
+           Notes
+           -----
+           The elements are products of elements from `a` and `b`::
+               kron(a, b)[k0, k1, ..., kN] = a[i0, i1, ..., iN] * b[j0, j1, ..., jN]
 
-        where::
-            kt = it * st + jt,  t = 0,...,N
+           where::
+               kt = it * st + jt,  t = 0,...,N
 
-        (Taken from numpy docs)
-        )pydoc")
+           (Taken from numpy docs)
+           )pydoc")
       .def("linear_combination",
            &BlockBackend::linear_combination,
            py::arg("a"),
@@ -746,10 +747,10 @@ bind_block_backend(py::module_& m)
            &BlockBackend::log,
            py::arg("a"),
            R"pydoc(
-        The *elementwise* natural logarithm.
+           The *elementwise* natural logarithm.
 
-        Not to be confused with :meth:`matrix_log`, the *matrix* logarithm.
-        )pydoc")
+           Not to be confused with :meth:`matrix_log`, the *matrix* logarithm.
+           )pydoc")
       .def("max", &BlockBackend::max, py::arg("a"))
       .def("max_abs", &BlockBackend::max_abs, py::arg("a"))
       .def("min", &BlockBackend::min, py::arg("a"))
@@ -760,27 +761,27 @@ bind_block_backend(py::module_& m)
            py::arg("order") = 2,
            py::arg("axis") = py::none(),
            R"pydoc(
-        The p-norm vector-norm of a block.
+           The p-norm vector-norm of a block.
 
-        Parameters
-        ----------
-        order : float
-            The order :math:`p` of the norm.
-            Unlike numpy, we always compute vector norms, never matrix norms.
-            We only support p-norms :math:`\Vert x \Vert = \sqrt[p]{\sum_i \abs{x_i}^p}`.
-        axis : int | None
-            ``axis=None`` means "all axes", i.e. norm of the flattened block.
-            An integer means to broadcast the norm over all other axes.
-        )pydoc")
+           Parameters
+           ----------
+           order : float
+               The order :math:`p` of the norm.
+               Unlike numpy, we always compute vector norms, never matrix norms.
+               We only support p-norms :math:`\Vert x \Vert = \sqrt[p]{\sum_i \abs{x_i}^p}`.
+           axis : int | None
+               ``axis=None`` means "all axes", i.e. norm of the flattened block.
+               An integer means to broadcast the norm over all other axes.
+           )pydoc")
       .def("outer",
            &BlockBackend::outer,
            py::arg("a"),
            py::arg("b"),
            R"pydoc(
-        Outer product of blocks.
+           Outer product of blocks.
 
-        ``res[i1,...,iN,j1,...,jM] = a[i1,...,iN] * b[j1,...,jM]``
-        )pydoc")
+           ``res[i1,...,iN,j1,...,jM] = a[i1,...,iN] * b[j1,...,jM]``
+           )pydoc")
       .def("permute_axes", &BlockBackend::permute_axes, py::arg("a"), py::arg("permutation"))
       .def("permute_combined_matrix",
            &BlockBackend::permute_combined_matrix,
@@ -790,34 +791,34 @@ bind_block_backend(py::module_& m)
            py::arg("dims2"),
            py::arg("idcs2"),
            R"pydoc(
-        For a matrix `a` with two combined multi-indices, permute the sub-indices.
+           For a matrix `a` with two combined multi-indices, permute the sub-indices.
 
-        Parameters
-        ----------
-        a : 2D Block
-            A matrix with combined axes ``[(m1.m2...mJ), (n1.n2...nK)]``.
-        dims1 : list or 1D array of int
-            The dimensions of the subindices ``[m1, m2, ..., mJ]``.
-        idcs1 : list or 1D array of int
-            Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the first
-            multi-index of the result.
-        dims2 : list or 1D array of int
-            The dimensions of the subindices ``[n1, n2, ..., nK]``.
-        idcs2 : list or 1D array of int
-            Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the second
-            multi-index of the result.
+           Parameters
+           ----------
+           a : 2D Block
+               A matrix with combined axes ``[(m1.m2...mJ), (n1.n2...nK)]``.
+           dims1 : list or 1D array of int
+               The dimensions of the subindices ``[m1, m2, ..., mJ]``.
+           idcs1 : list or 1D array of int
+               Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the first
+               multi-index of the result.
+           dims2 : list or 1D array of int
+               The dimensions of the subindices ``[n1, n2, ..., nK]``.
+           idcs2 : list or 1D array of int
+               Which of the axes ``[m1, m2, ..., mJ, n1, n2, ..., nK]`` should be in the second
+               multi-index of the result.
 
-        Returns
-        -------
-        2D block
-            A matrix with the same entries as `a`, but rearranged to the new axis order,
-            e.g. ``[M, N]``, where ``M == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs1])``
-            and ``N == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs2])``.
+           Returns
+           -------
+           2D block
+               A matrix with the same entries as `a`, but rearranged to the new axis order,
+               e.g. ``[M, N]``, where ``M == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs1])``
+               and ``N == combined([m1, m2, ..., mJ, n1, n2, ..., nK][idcs2])``.
 
-        See Also
-        --------
-        permute_combined_idx
-        )pydoc")
+           See Also
+           --------
+           permute_combined_idx
+           )pydoc")
       .def("permute_combined_idx",
            &BlockBackend::permute_combined_idx,
            py::arg("block"),
@@ -825,31 +826,31 @@ bind_block_backend(py::module_& m)
            py::arg("dims"),
            py::arg("idcs"),
            R"pydoc(
-        For a matrix `a` with a single combined multi-index, permute sub-indices.
+           For a matrix `a` with a single combined multi-index, permute sub-indices.
 
-        Parameters
-        ----------
-        a : 2D Block
-            A matrix with axes ``[M, N]``, where either ``M = (m1.m2...mJ)`` or ``N = (n1.n2...nK)``
-            is a multi-index *but not both*.
-        axis : int
-            Which of the two axes has the multi-indices
-        dims : list or 1D array of int
-            The dimensions of the sub-indices, e.g. ``[m1, m2, ..., mJ]``.
-        idcs : list of 1D array of int
-            The order of the sub-indices in the results, such that the result has
-            axes ``[[m1, m2, ..., mJ][i] for i in idcs]``.
+           Parameters
+           ----------
+           a : 2D Block
+               A matrix with axes ``[M, N]``, where either ``M = (m1.m2...mJ)`` or ``N = (n1.n2...nK)``
+               is a multi-index *but not both*.
+           axis : int
+               Which of the two axes has the multi-indices
+           dims : list or 1D array of int
+               The dimensions of the sub-indices, e.g. ``[m1, m2, ..., mJ]``.
+           idcs : list of 1D array of int
+               The order of the sub-indices in the results, such that the result has
+               axes ``[[m1, m2, ..., mJ][i] for i in idcs]``.
 
-        Returns
-        -------
-        2D Block
-            A matrix with the same entries as `a`, but rearranged to the new axis order,
-            i.e. ``[M_new, N_new]`` where e.g. ``M_new = combined([m1, m2, ..., mJ][idcs])``.
+           Returns
+           -------
+           2D Block
+               A matrix with the same entries as `a`, but rearranged to the new axis order,
+               i.e. ``[M_new, N_new]`` where e.g. ``M_new = combined([m1, m2, ..., mJ][idcs])``.
 
-        See Also
-        --------
-        permute_combined_matrix
-        )pydoc")
+           See Also
+           --------
+           permute_combined_matrix
+           )pydoc")
       .def("random_normal",
            &BlockBackend::random_normal,
            py::arg("dims"),
@@ -870,10 +871,10 @@ bind_block_backend(py::module_& m)
            py::arg("a"),
            py::arg("tol"),
            R"pydoc(
-        If a block is close to its real part, return the real part.
+           If a block is close to its real part, return the real part.
 
-        Otherwise the original block. Elementwise.
-        )pydoc")
+           Otherwise the original block. Elementwise.
+           )pydoc")
       .def("tile",
            &BlockBackend::tile,
            py::arg("a"),
@@ -892,11 +893,11 @@ bind_block_backend(py::module_& m)
            py::arg("factors"),
            py::arg("axis"),
            R"pydoc(
-        Multiply block with the factors (a 1D block), along a given axis.
+           Multiply block with the factors (a 1D block), along a given axis.
 
-        E.g. if block is 4D and ``axis==2`` with numpy-like broadcasting, this is would be
-        ``block * factors[None, None, :, None]``.
-        )pydoc")
+           E.g. if block is 4D and ``axis==2`` with numpy-like broadcasting, this is would be
+           ``block * factors[None, None, :, None]``.
+           )pydoc")
       .def("get_shape", &BlockBackend::get_shape, py::arg("a"))
       .def("split_legs",
            py::overload_cast<BlockCPtr const&,
@@ -908,13 +909,13 @@ bind_block_backend(py::module_& m)
            py::arg("dims"),
            py::arg("cstyles"),
            R"pydoc(
-        Split legs into groups of legs with specified dimensions.
+           Split legs into groups of legs with specified dimensions.
 
-        The splitting of a leg can be in C style (default) or F style. In the
-        latter case, the specified dimensions of the resulting group of legs
-        *are reversed*. The style can be specified for each group of legs
-        independently.
-        )pydoc")
+           The splitting of a leg can be in C style (default) or F style. In the
+           latter case, the specified dimensions of the resulting group of legs
+           *are reversed*. The style can be specified for each group of legs
+           independently.
+           )pydoc")
       .def("split_legs",
            py::overload_cast<BlockCPtr const&,
                              std::vector<int> const&,
@@ -936,10 +937,10 @@ bind_block_backend(py::module_& m)
            &BlockBackend::sum_all,
            py::arg("a"),
            R"pydoc(
-        The sum of all entries of the block.
+           The sum of all entries of the block.
 
-        If the block contains boolean values, this should return the number of ``True`` entries.
-        )pydoc")
+           If the block contains boolean values, this should return the number of ``True`` entries.
+           )pydoc")
       .def("tdot",
            &BlockBackend::tdot,
            py::arg("a"),
@@ -952,14 +953,14 @@ bind_block_backend(py::module_& m)
            py::arg("b"),
            py::arg("K"),
            R"pydoc(
-        Version of ``tensors.outer`` on blocks.
+           Version of ``tensors.outer`` on blocks.
 
-        Note the different leg order to usual outer products::
+           Note the different leg order to usual outer products::
 
-            res[i1,...,iK,j1,...,jM,i{K+1},...,iN] == a[i1,...,iN] * b[j1,...,jM]
+               res[i1,...,iK,j1,...,jM,i{K+1},...,iN] == a[i1,...,iN] * b[j1,...,jM]
 
-        intended to be used with ``K == a_num_codomain_legs``.
-        )pydoc")
+           intended to be used with ``K == a_num_codomain_legs``.
+           )pydoc")
       .def("to_dtype", &BlockBackend::to_dtype, py::arg("a"), py::arg("dtype"))
       .def("to_numpy", &BlockBackend::to_numpy, py::arg("a"), py::arg("numpy_dtype") = py::none())
       .def("trace_full", &BlockBackend::trace_full, py::arg("a"))
@@ -975,14 +976,14 @@ bind_block_backend(py::module_& m)
            py::arg("dtype"),
            py::arg("device") = py::none(),
            R"pydoc(
-        The identity matrix, reshaped to a block.
+           The identity matrix, reshaped to a block.
 
-        Note the unusual leg order ``[m1,...,mJ,mJ*,...,m1*]``,
-        which is chosen to match :meth:`eye_data`.
+           Note the unusual leg order ``[m1,...,mJ,mJ*,...,m1*]``,
+           which is chosen to match :meth:`eye_data`.
 
-        Note also that the ``legs`` only specify the dimensions of the first half,
-        namely ``m1,...,mJ``.
-        )pydoc")
+           Note also that the ``legs`` only specify the dimensions of the first half,
+           namely ``m1,...,mJ``.
+           )pydoc")
       .def("eye_matrix",
            &BlockBackend::eye_matrix,
            py::arg("dim"),
@@ -997,22 +998,22 @@ bind_block_backend(py::module_& m)
            py::arg("small_leg_idx"),
            py::arg("sum_block") = 0,
            R"pydoc(
-        Get an element of a mask.
+           Get an element of a mask.
 
-        Mask elements are `True` if the entry `a[large_leg_idx]` is the `small_leg_idx`-th `True`
-        in the block.
+           Mask elements are `True` if the entry `a[large_leg_idx]` is the `small_leg_idx`-th `True`
+           in the block.
 
-        Parameters
-        ----------
-        a
-            The mask block
-        large_leg_idx, small_leg_idx
-            The block indices
-        sum_block
-            Number of `True` entries in the block, i.e., ``sum_block == self.sum_all(a)``. Agrees
-            with the sector multiplicity of the small leg.
-            (Only important if the sector dimension is larger than 1.)
-        )pydoc")
+           Parameters
+           ----------
+           a
+               The mask block
+           large_leg_idx, small_leg_idx
+               The block indices
+           sum_block
+               Number of `True` entries in the block, i.e., ``sum_block == self.sum_all(a)``. Agrees
+               with the sector multiplicity of the small leg.
+               (Only important if the sector dimension is larger than 1.)
+           )pydoc")
       .def("matrix_dot",
            &BlockBackend::matrix_dot,
            py::arg("a"),
@@ -1060,6 +1061,9 @@ bind_block_backend(py::module_& m)
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath")); // completed block_backend methods
+
+    py::class_<NumpyBlockBackend, BlockBackend, py::smart_holder>(m, "NumpyBlockBackend")
+      .def(py::init<>());
 }
 
 } // namespace cyten

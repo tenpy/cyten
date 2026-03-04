@@ -3,7 +3,6 @@
 #include <cyten/cyten.h>
 #include <cyten/dtypes.h>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -20,21 +19,21 @@ class Scalar
     }
 
     /// Construct from bool; dtype is Bool.
-    explicit Scalar(bool b)
+    Scalar(bool b)
       : dtype_(Dtype::Bool)
       , value_(b ? cyten_float(1) : cyten_float(0))
     {
     }
 
     /// Construct from real; dtype is Float64.
-    explicit Scalar(cyten_float x)
+    Scalar(cyten_float x)
       : dtype_(Dtype::Float64)
       , value_(x)
     {
     }
 
     /// Construct from complex; dtype is Complex128.
-    explicit Scalar(cyten_complex z)
+    Scalar(cyten_complex z)
       : dtype_(Dtype::Complex128)
       , value_(z)
     {
@@ -63,7 +62,8 @@ class Scalar
 };
 
 /// Abstract base class for dense blocks. Subclassed per backend (e.g. NumpyBlock).
-/// Pass and return as std::shared_ptr<Block>; use const std::shared_ptr<Block>& for inputs.
+/// Pass and return as BlockPtr=std::shared_ptr<Block>; use BlockCPtr=std::shared_ptr<const Block>
+/// for inputs.
 class Block
 {
   public:
