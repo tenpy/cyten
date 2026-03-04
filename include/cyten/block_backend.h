@@ -16,6 +16,9 @@ namespace cyten {
 /// Abstract base class that defines the operation on dense blocks.
 class BlockBackend
 {
+  public:
+    std::string default_device;
+    std::vector<std::string> svd_algorithms; // first is default
 
   public:
     explicit BlockBackend(std::string default_device);
@@ -23,9 +26,6 @@ class BlockBackend
 
     /// Name of the backend class for __repr__ / __str__ (e.g. "NumpyBlockBackend").
     virtual std::string get_backend_name() const;
-
-    std::string default_device;
-    std::vector<std::string> svd_algorithms; // first is default
 
     /// The absolute value of a complex number, elementwise.
     virtual BlockPtr abs(BlockCPtr const& a) = 0;
@@ -238,7 +238,7 @@ class BlockBackend
     /// Save backend state to HDF5.
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath);
     /// Load backend from HDF5.
-    static std::shared_ptr<BlockBackend> load_hdf5(py::object hdf5_loader,
+    static std::shared_ptr<BlockBackend> from_hdf5(py::object hdf5_loader,
                                                    py::object h5gr,
                                                    std::string const& subpath);
 

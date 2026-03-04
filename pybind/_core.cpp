@@ -1,8 +1,6 @@
 #include "cyten_pybind11.h"
 
 using namespace cyten;
-namespace py = pybind11;
-using namespace pybind11::literals; // provides "arg"_a literals
 
 #include <check.h> // TODO: remove check
 

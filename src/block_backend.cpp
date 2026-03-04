@@ -379,7 +379,7 @@ BlockBackend::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string cons
 }
 
 std::shared_ptr<BlockBackend>
-BlockBackend::load_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+BlockBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
 {
     throw NotImplemented(
       "Needs to be implemented in Subclass, since we don't know the subclass type here!");
