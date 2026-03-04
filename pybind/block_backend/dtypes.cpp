@@ -25,14 +25,12 @@ bind_dtypes(py::module_& m)
       .def("_dtype_from_numpy_dtype", &dtype::from_numpy_dtype, py::arg("dtype"))
       .def("_dtype_common", &dtype::common, py::arg("dtypes"));
 
-    py::native_enum<Dtype> dtype_enum(m,
-                                      "Dtype",
-                                      "cyten.block_backends.dtypes._DtypeEnumWrapper",
-                                      R"pydoc(
+    py::native_enum<Dtype> dtype_enum(m, "Dtype", "cyten.block_backends.dtypes._DtypeEnumWrapper");
+    dtype_enum.doc() = R"pydoc(
         The dtype of (entries in) a tensor.
 
         value = num_bytes * 2 + int(not is_real)
-        )pydoc");
+        )pydoc";
     dtype_enum.value("bool", Dtype::Bool)
       .value("float32", Dtype::Float32)
       .value("complex64", Dtype::Complex64)

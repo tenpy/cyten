@@ -59,3 +59,8 @@ repos:
         types: [text]
         # this file needs to include the forbidden patterns, so we need to exclude it.
         exclude: ^(\.pre-commit-config\.yaml|docs/guidelines/code_style.rst|docs/cpp_conversion)
+      - id: cpp-docstring-indent
+        name: C++ docstring indentation
+        entry: tests/linting/cpp_docstring_indent.py
+        language: unsupported_script
+        files: ^pybind/.*\.cpp$
