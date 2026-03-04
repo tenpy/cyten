@@ -52,17 +52,6 @@ NumpyBlock::device() const
     return "cpu";
 }
 
-py::object
-NumpyBlock::operator[](std::vector<cyten_int> const& idcs) const
-{
-    py::tuple key = py::cast(idcs);
-    py::object result = arr_.attr("__getitem__")(key);
-    py::object sh = result.attr("shape");
-    if (py::len(sh) == 0)
-        return result.attr("item")();
-    return py::cast(std::make_shared<NumpyBlock>(result));
-}
-
 // -----------------------------------------------------------------------------
 // NumpyBlockBackend helpers
 // -----------------------------------------------------------------------------

@@ -58,18 +58,20 @@ def fix_docstring_alignment(content):
 
 
 def main():
-    if len(sys.argv) != 2:
-        raise ValueError('Usage: cpp_docstrings.py <cpp_file>')
-    path = sys.argv[1]
-    with open(path, 'r') as f:
-        content = f.readlines()
-    if fix_docstring_alignment(content):
-        print(f'Fixed docstring alignment in {path}')
-        with open(path, 'w') as f:
-            f.writelines(content)
-        raise SystemExit(1)
-    print(f'No docstring alignment issues found in {path}')
-    raise SystemExit(0)
+    if len(sys.argv) < 2:
+        raise ValueError(f'Usage: {__name__} <cpp_file> ...')
+    exit = 0
+    for path in sys.argv[1:]:
+        with open(path, 'r') as f:
+            content = f.readlines()
+        if fix_docstring_alignment(content):
+            print(f'Fixed docstring alignment in {path}')
+            with open(path, 'w') as f:
+                f.writelines(content)
+
+            exit = 1
+        print(f'No docstring alignment issues found in {path}')
+    raise SystemExit(exit)
 
 
 if __name__ == '__main__':

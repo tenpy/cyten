@@ -4,9 +4,6 @@
 
 namespace cyten {
 
-// CHECKME: the following was appended by .cursor/skills/pybind11-codegen/pybind11_codegen.py
-// gen_cpp_definition --py-name format_like_list --header-file include/cyten/tools.h --src-file
-// src/tools.cpp
 /// Format elements of an iterable as if it were a plain list.
 std::string
 format_like_list(py::iterable it)

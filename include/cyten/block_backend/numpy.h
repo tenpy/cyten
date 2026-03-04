@@ -1,7 +1,7 @@
 #pragma once
 
-#include <cyten/block_backend.h>
 #include <cyten/block_backend/block.h>
+#include <cyten/block_backend/block_backend.h>
 #include <memory>
 
 namespace cyten {
@@ -14,16 +14,12 @@ class NumpyBlock : public Block
     std::vector<cyten_int> shape() const override;
     Dtype dtype() const override;
     std::string device() const override;
-    py::object operator[](std::vector<cyten_int> const& idcs) const override;
     py::object const& array() const { return arr_; }
 
   private:
     py::object arr_;
 };
 
-// CHECKME: the following was appended by .cursor/skills/pybind11-codegen/pybind11_codegen.py
-// gen_cpp_declaration --py-name NumpyBlockBackend --header-file
-// include/cyten/numpy_block_backend.h
 /// A block backend using numpy.
 class NumpyBlockBackend : public BlockBackend
 {
