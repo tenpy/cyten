@@ -1,7 +1,7 @@
-#include <cyten/block.h>
 #include <cyten/block_backend.h>
+#include <cyten/block_backend/dtypes.h>
+#include <cyten/block_backend/numpy.h>
 #include <cyten/cyten.h>
-#include <cyten/dtypes.h>
 
 #include <algorithm>
 #include <numeric>

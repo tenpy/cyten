@@ -1,7 +1,7 @@
 
 #include "cyten_pybind11.h"
 #include <cyten/block_backend.h>
-#include <cyten/numpy_block_backend.h>
+#include <cyten/block_backend/numpy.h>
 #include <pybind11/detail/common.h>
 
 namespace cyten {

@@ -1,5 +1,5 @@
-#include <cyten/block.h>
-#include <cyten/dtypes.h>
+#include <cyten/block_backend/dtypes.h>
+#include <cyten/block_backend/scalar.h>
 
 namespace cyten {
 

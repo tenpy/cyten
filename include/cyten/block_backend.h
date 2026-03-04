@@ -1,9 +1,10 @@
 #pragma once
 
 #include <complex>
-#include <cyten/block.h>
+#include <cyten/block_backend/block.h>
+#include <cyten/block_backend/dtypes.h>
+#include <cyten/block_backend/scalar.h>
 #include <cyten/cyten.h>
-#include <cyten/dtypes.h>
 #include <optional>
 #include <string>
 #include <tuple>

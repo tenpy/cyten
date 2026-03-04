@@ -1,5 +1,5 @@
-#include <cyten/dtypes.h>
-#include <cyten/numpy_block_backend.h>
+#include <cyten/block_backend/dtypes.h>
+#include <cyten/block_backend/numpy.h>
 
 #include <pybind11/numpy.h>
 #include <stdexcept>
