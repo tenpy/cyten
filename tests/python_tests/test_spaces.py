@@ -265,37 +265,45 @@ def test_LegPipe_basis_perm(np_random):
     c = spaces.ElementarySpace.from_trivial_sector(dim=7, is_dual=True, basis_perm=np_random.permutation(7))
     d = spaces.ElementarySpace.from_trivial_sector(dim=8, is_dual=False, basis_perm=np_random.permutation(8))
 
-    data = block_backend.block_from_numpy(
-        np.arange(a.dim * b.dim * c.dim * d.dim).reshape([a.dim, b.dim, c.dim, d.dim])
-    )
+    data_numpy = np.arange(a.dim * b.dim * c.dim * d.dim).reshape([a.dim, b.dim, c.dim, d.dim])
+    data = block_backend.block_from_numpy(data_numpy)
 
     pipe_ab = spaces.LegPipe([a, b])
     check_basis_perm(pipe_ab.basis_perm, pipe_ab.inverse_basis_perm)
-    data1 = block_backend.apply_leg_permutations(
-        data, [a.basis_perm, b.basis_perm, c.basis_perm, d.basis_perm]
+    data1 = block_backend.to_numpy(
+        block_backend.apply_leg_permutations(data, [a.basis_perm, b.basis_perm, c.basis_perm, d.basis_perm])
     ).reshape((a.dim * b.dim, c.dim, d.dim))
-    data2 = block_backend.apply_leg_permutations(
-        data.reshape((a.dim * b.dim, c.dim, d.dim)), [pipe_ab.basis_perm, c.basis_perm, d.basis_perm]
+    data2 = block_backend.to_numpy(
+        block_backend.apply_leg_permutations(
+            block_backend.block_from_numpy(data_numpy.reshape((a.dim * b.dim, c.dim, d.dim))),
+            [pipe_ab.basis_perm, c.basis_perm, d.basis_perm],
+        )
     )
     npt.assert_array_equal(data1, data2)
 
     pipe_abc = spaces.LegPipe([a, b, c])
     check_basis_perm(pipe_abc.basis_perm, pipe_abc.inverse_basis_perm)
-    data1 = block_backend.apply_leg_permutations(
-        data, [a.basis_perm, b.basis_perm, c.basis_perm, d.basis_perm]
+    data1 = block_backend.to_numpy(
+        block_backend.apply_leg_permutations(data, [a.basis_perm, b.basis_perm, c.basis_perm, d.basis_perm])
     ).reshape((a.dim * b.dim * c.dim, d.dim))
-    data2 = block_backend.apply_leg_permutations(
-        data.reshape((a.dim * b.dim * c.dim, d.dim)), [pipe_abc.basis_perm, d.basis_perm]
+    data2 = block_backend.to_numpy(
+        block_backend.apply_leg_permutations(
+            block_backend.block_from_numpy(data_numpy.reshape((a.dim * b.dim * c.dim, d.dim))),
+            [pipe_abc.basis_perm, d.basis_perm],
+        )
     )
     npt.assert_array_equal(data1, data2)
 
     pipe_nested = spaces.LegPipe([pipe_ab, c])
     check_basis_perm(pipe_nested.basis_perm, pipe_nested.inverse_basis_perm)
-    data1 = block_backend.apply_leg_permutations(
-        data, [a.basis_perm, b.basis_perm, c.basis_perm, d.basis_perm]
+    data1 = block_backend.to_numpy(
+        block_backend.apply_leg_permutations(data, [a.basis_perm, b.basis_perm, c.basis_perm, d.basis_perm])
     ).reshape((a.dim * b.dim * c.dim, d.dim))
-    data2 = block_backend.apply_leg_permutations(
-        data.reshape((a.dim * b.dim * c.dim, d.dim)), [pipe_nested.basis_perm, d.basis_perm]
+    data2 = block_backend.to_numpy(
+        block_backend.apply_leg_permutations(
+            block_backend.block_from_numpy(data_numpy.reshape((a.dim * b.dim * c.dim, d.dim))),
+            [pipe_nested.basis_perm, d.basis_perm],
+        )
     )
     npt.assert_array_equal(data1, data2)
 

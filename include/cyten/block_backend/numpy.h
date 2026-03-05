@@ -1,33 +1,30 @@
 #pragma once
 
-#include <cyten/block_backend/block.h>
 #include <cyten/block_backend/block_backend.h>
 #include <memory>
 
 namespace cyten {
 
-class NumpyBlockBackend; // forward declaration
-
-/// Block that holds a numpy array in a py::object.
-class PYBIND11_EXPORT NumpyBlock : public Block
-{
-  public:
-    explicit NumpyBlock(py::array arr);
-    virtual ~NumpyBlock() = default;
-
-    std::vector<cyten_int> shape() const override;
-    Dtype dtype() const override;
-    std::string device() const override;
-    py::array to_numpy() const override { return arr_; }
-
-  protected:
-    py::array arr_;
-    friend class NumpyBlockBackend;
-};
-
 /// A block backend using numpy.
 class NumpyBlockBackend : public BlockBackend
 {
+  public:
+    /// Block that holds a numpy array in a py::array.
+    class PYBIND11_EXPORT Block : public BlockBackend::Block
+    {
+      public:
+        explicit Block(py::array arr);
+        virtual ~Block() = default;
+
+        std::vector<cyten_int> shape() const override;
+        Dtype dtype() const override;
+        std::string device() const override;
+        py::array to_numpy() const override { return arr_; }
+
+      protected:
+        py::array arr_;
+    };
+
   public:
     NumpyBlockBackend();
 
@@ -142,7 +139,7 @@ class NumpyBlockBackend : public BlockBackend
     bool is_correct_block_type(BlockCPtr const& block) const override;
 
   private:
-    static NumpyBlock const* ptr(BlockCPtr const& b);
+    static NumpyBlockBackend::Block const* ptr(BlockCPtr const& b);
     static py::object obj(BlockCPtr const& b);
     static BlockPtr wrap(py::object arr);
 };

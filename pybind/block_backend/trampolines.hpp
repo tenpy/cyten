@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cyten/block_backend/block.h>
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
 #include <pybind11/pybind11.h>
@@ -8,7 +7,7 @@
 namespace cyten {
 
 /// @brief pybind11 trampoline class for Block in Python
-template<class BlockBase = Block>
+template<class BlockBase = BlockBackend::Block>
 class PyBlock
   : public BlockBase
   , py::trampoline_self_life_support

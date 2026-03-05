@@ -29,15 +29,15 @@ bind_block_backend(py::module_& m)
       .def("as_bool", &Scalar::as_bool, "As bool; raises if dtype is not Bool.")
       .def("to_numpy", &Scalar::to_numpy, "Return as numpy scalar (np.bool_, np.float64, etc.).");
 
-    py::class_<Block, PyBlock<Block>, py::smart_holder>(
-      m, "Block", "Abstract base for dense blocks.")
-      .def_property_readonly("shape", &Block::shape)
-      .def_property_readonly("dtype", &Block::dtype)
-      .def_property_readonly("device", &Block::device);
-
     py::class_<BlockBackend, PyBlockBackend<BlockBackend>, py::smart_holder> block_backend(
       m, "BlockBackend");
     block_backend.doc() = "Abstract base class that defines the operation on dense blocks.";
+
+    py::class_<BlockBackend::Block, PyBlock<>, py::smart_holder>(
+      block_backend, "BlockCls", "Abstract base for dense blocks.")
+      .def_property_readonly("shape", &BlockBackend::Block::shape)
+      .def_property_readonly("dtype", &BlockBackend::Block::dtype)
+      .def_property_readonly("device", &BlockBackend::Block::device);
 
     block_backend // init and attributes
       .def(py::init<std::string>())

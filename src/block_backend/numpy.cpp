@@ -24,13 +24,13 @@ np_attr(char const* name)
 // NumpyBlock
 // -----------------------------------------------------------------------------
 
-NumpyBlock::NumpyBlock(py::array arr)
+NumpyBlockBackend::Block::Block(py::array arr)
   : arr_(std::move(arr))
 {
 }
 
 std::vector<cyten_int>
-NumpyBlock::shape() const
+NumpyBlockBackend::Block::shape() const
 {
     py::tuple t = py::cast<py::tuple>(arr_.attr("shape"));
     std::vector<cyten_int> s;
@@ -41,13 +41,13 @@ NumpyBlock::shape() const
 }
 
 Dtype
-NumpyBlock::dtype() const
+NumpyBlockBackend::Block::dtype() const
 {
     return dtype::from_numpy_dtype(arr_.attr("dtype"));
 }
 
 std::string
-NumpyBlock::device() const
+NumpyBlockBackend::Block::device() const
 {
     return "cpu";
 }
@@ -56,10 +56,10 @@ NumpyBlock::device() const
 // NumpyBlockBackend helpers
 // -----------------------------------------------------------------------------
 
-NumpyBlock const*
+NumpyBlockBackend::Block const*
 NumpyBlockBackend::ptr(BlockCPtr const& b)
 {
-    auto* p = dynamic_cast<NumpyBlock const*>(b.get());
+    auto* p = dynamic_cast<NumpyBlockBackend::Block const*>(b.get());
     if (!p)
         throw std::invalid_argument("block is not a NumpyBlock");
     return p;
@@ -74,7 +74,7 @@ NumpyBlockBackend::obj(BlockCPtr const& b)
 BlockPtr
 NumpyBlockBackend::wrap(py::object arr)
 {
-    return std::make_shared<NumpyBlock>(std::move(arr));
+    return std::make_shared<NumpyBlockBackend::Block>(std::move(arr));
 }
 
 // -----------------------------------------------------------------------------
@@ -96,7 +96,7 @@ NumpyBlockBackend::get_backend_name() const
 bool
 NumpyBlockBackend::is_correct_block_type(BlockCPtr const& block) const
 {
-    return dynamic_cast<NumpyBlock const*>(block.get()) != nullptr;
+    return dynamic_cast<NumpyBlockBackend::Block const*>(block.get()) != nullptr;
 }
 
 BlockPtr

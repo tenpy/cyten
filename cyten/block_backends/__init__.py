@@ -4,16 +4,17 @@
 # Note: order matters to avoid circular imports!
 # pyright: ignore
 from .._core import Dtype  # noqa
-from .._core import NumpyBlock, NumpyBlockBackend
+from .._core import NumpyBlockBackend
 from . import dtypes
 from .dtypes import _DtypeEnumWrapper
 
-from ._block_backend import Block, BlockBackend
+from ._block_backend import BlockBackend
 from .array_api import ArrayApiBlockBackend
 from .torch import TorchBlockBackend
 
 import numpy as np
 
+Block = BlockBackend.BlockCls
 
 dtypes.Dtype = Dtype
 dtypes._cyten_dtype_to_numpy[Dtype.bool] = np.bool_
