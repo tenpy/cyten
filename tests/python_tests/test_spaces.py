@@ -265,7 +265,9 @@ def test_LegPipe_basis_perm(np_random):
     c = spaces.ElementarySpace.from_trivial_sector(dim=7, is_dual=True, basis_perm=np_random.permutation(7))
     d = spaces.ElementarySpace.from_trivial_sector(dim=8, is_dual=False, basis_perm=np_random.permutation(8))
 
-    data = np.arange(a.dim * b.dim * c.dim * d.dim).reshape([a.dim, b.dim, c.dim, d.dim])
+    data = block_backend.block_from_numpy(
+        np.arange(a.dim * b.dim * c.dim * d.dim).reshape([a.dim, b.dim, c.dim, d.dim])
+    )
 
     pipe_ab = spaces.LegPipe([a, b])
     check_basis_perm(pipe_ab.basis_perm, pipe_ab.inverse_basis_perm)

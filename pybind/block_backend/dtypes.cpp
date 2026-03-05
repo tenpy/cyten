@@ -2,12 +2,10 @@
 #include <pybind11/attr.h>
 #include <pybind11/native_enum.h>
 
-#include "cyten_pybind11.h"
-
 namespace cyten {
 
 void
-bind_dtypes(py::module_& m)
+bind_block_backend_dtypes(py::module_& m)
 {
     m.def("_dtype_is_real", &dtype::is_real, py::arg("dtype"))
       .def("_dtype_is_complex", &dtype::is_complex, py::arg("dtype"))

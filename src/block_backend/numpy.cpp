@@ -24,7 +24,7 @@ np_attr(char const* name)
 // NumpyBlock
 // -----------------------------------------------------------------------------
 
-NumpyBlock::NumpyBlock(py::object arr)
+NumpyBlock::NumpyBlock(py::array arr)
   : arr_(std::move(arr))
 {
 }
@@ -68,7 +68,7 @@ NumpyBlockBackend::ptr(BlockCPtr const& b)
 py::object
 NumpyBlockBackend::obj(BlockCPtr const& b)
 {
-    return ptr(b)->array();
+    return ptr(b)->to_numpy();
 }
 
 BlockPtr

@@ -6,18 +6,23 @@
 
 namespace cyten {
 
+class NumpyBlockBackend; // forward declaration
+
 /// Block that holds a numpy array in a py::object.
-class NumpyBlock : public Block
+class PYBIND11_EXPORT NumpyBlock : public Block
 {
   public:
-    explicit NumpyBlock(py::object arr);
+    explicit NumpyBlock(py::array arr);
+    virtual ~NumpyBlock() = default;
+
     std::vector<cyten_int> shape() const override;
     Dtype dtype() const override;
     std::string device() const override;
-    py::object const& array() const { return arr_; }
+    py::array to_numpy() const override { return arr_; }
 
-  private:
-    py::object arr_;
+  protected:
+    py::array arr_;
+    friend class NumpyBlockBackend;
 };
 
 /// A block backend using numpy.

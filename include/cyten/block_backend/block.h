@@ -13,7 +13,13 @@ namespace cyten {
 class Block
 {
   public:
+    // subclasses should have constructor from numpy array
+    // explicit Block(std::shared_ptr<py::array> arr);
+
     virtual ~Block() = default;
+
+    /// convert to numpy array, might be copy or (immutable) view
+    virtual py::array to_numpy() const = 0;
 
     /// Shape of the block (one size per axis).
     virtual std::vector<cyten_int> shape() const = 0;

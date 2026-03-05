@@ -1,5 +1,8 @@
 #include "../cyten_pybind11.h"
-#include "trampolines.h"
+#include "dtypes.cpp"
+#include "numpy.cpp"
+#include "trampolines.hpp"
+
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
 #include <pybind11/detail/common.h>
@@ -9,6 +12,7 @@ namespace cyten {
 void
 bind_block_backend(py::module_& m)
 {
+    bind_block_backend_dtypes(m);
 
     py::class_<Scalar, py::smart_holder>(
       m, "Scalar", "Scalar value with Dtype; use accessors to cast to float, complex, or bool.")
@@ -25,10 +29,11 @@ bind_block_backend(py::module_& m)
       .def("as_bool", &Scalar::as_bool, "As bool; raises if dtype is not Bool.")
       .def("to_numpy", &Scalar::to_numpy, "Return as numpy scalar (np.bool_, np.float64, etc.).");
 
-    py::class_<Block, py::smart_holder>(m, "Block", "Abstract base for dense blocks.")
-      .def("shape", &Block::shape)
-      .def("dtype", &Block::dtype)
-      .def("device", &Block::device);
+    py::class_<Block, PyBlock<Block>, py::smart_holder>(
+      m, "Block", "Abstract base for dense blocks.")
+      .def_property_readonly("shape", &Block::shape)
+      .def_property_readonly("dtype", &Block::dtype)
+      .def_property_readonly("device", &Block::device);
 
     py::class_<BlockBackend, PyBlockBackend<BlockBackend>, py::smart_holder> block_backend(
       m, "BlockBackend");
@@ -659,6 +664,8 @@ bind_block_backend(py::module_& m)
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath")); // completed block_backend methods
+
+    bind_block_backend_numpy(m);
 }
 
 } // namespace cyten
