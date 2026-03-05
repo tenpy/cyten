@@ -29,14 +29,14 @@ NumpyBlockBackend::Block::Block(py::array arr)
 {
 }
 
-std::vector<cyten_int>
+std::vector<int64>
 NumpyBlockBackend::Block::shape() const
 {
     py::tuple t = py::cast<py::tuple>(arr_.attr("shape"));
-    std::vector<cyten_int> s;
+    std::vector<int64> s;
     s.reserve(t.size());
     for (auto const& item : t)
-        s.push_back(py::cast<cyten_int>(item));
+        s.push_back(py::cast<int64>(item));
     return s;
 }
 
@@ -101,7 +101,7 @@ NumpyBlockBackend::is_correct_block_type(BlockCPtr const& block) const
 
 BlockPtr
 NumpyBlockBackend::apply_leg_permutations(BlockCPtr const& block,
-                                          std::vector<py::array_t<cyten_int>> const& perms)
+                                          std::vector<py::array_t<int64>> const& perms)
 {
     py::object a = obj(block);
     py::module_ np = numpy_module();
@@ -140,7 +140,7 @@ NumpyBlockBackend::as_device(std::optional<std::string> device)
     return *device;
 }
 
-std::vector<cyten_int>
+std::vector<int64>
 NumpyBlockBackend::abs_argmax(BlockCPtr const& block)
 {
     py::object a = obj(block);
@@ -148,9 +148,9 @@ NumpyBlockBackend::abs_argmax(BlockCPtr const& block)
     py::object idx =
       np.attr("unravel_index")(np.attr("argmax")(np.attr("abs")(a)), a.attr("shape"));
     py::tuple t = py::cast<py::tuple>(idx);
-    std::vector<cyten_int> out;
+    std::vector<int64> out;
     for (auto const& item : t)
-        out.push_back(py::cast<cyten_int>(item));
+        out.push_back(py::cast<int64>(item));
     return out;
 }
 
@@ -333,18 +333,18 @@ NumpyBlockBackend::get_diagonal(BlockCPtr const& a, std::optional<double> tol)
 
 bool
 NumpyBlockBackend::get_block_mask_element(BlockCPtr const& a,
-                                          cyten_int large_leg_idx,
-                                          cyten_int small_leg_idx,
-                                          cyten_int sum_block)
+                                          int64 large_leg_idx,
+                                          int64 small_leg_idx,
+                                          int64 sum_block)
 {
     py::object arr = obj(a);
-    cyten_int dim0 = get_shape(a).at(0);
-    cyten_int offset = (large_leg_idx / dim0) * sum_block;
+    int64 dim0 = get_shape(a).at(0);
+    int64 offset = (large_leg_idx / dim0) * sum_block;
     large_leg_idx %= dim0;
     if (!py::cast<bool>(arr.attr("__getitem__")(large_leg_idx)))
         return false;
     py::object prefix = arr.attr("__getitem__")(py::slice(0, large_leg_idx, 1));
-    cyten_int running = py::cast<cyten_int>(np_attr("sum")(prefix));
+    int64 running = py::cast<int64>(np_attr("sum")(prefix));
     return small_leg_idx == offset + running;
 }
 
@@ -431,7 +431,7 @@ NumpyBlockBackend::permute_axes(BlockCPtr const& a, std::vector<int> const& perm
 }
 
 BlockPtr
-NumpyBlockBackend::random_normal(std::vector<cyten_int> const& dims,
+NumpyBlockBackend::random_normal(std::vector<int64> const& dims,
                                  Dtype dtype,
                                  double sigma,
                                  std::optional<std::string> device)
@@ -451,7 +451,7 @@ NumpyBlockBackend::random_normal(std::vector<cyten_int> const& dims,
 }
 
 BlockPtr
-NumpyBlockBackend::random_uniform(std::vector<cyten_int> const& dims,
+NumpyBlockBackend::random_uniform(std::vector<int64> const& dims,
                                   Dtype dtype,
                                   std::optional<std::string> device)
 {
@@ -525,12 +525,12 @@ NumpyBlockBackend::_block_repr_lines(BlockCPtr const& a,
 }
 
 BlockPtr
-NumpyBlockBackend::reshape(BlockCPtr const& a, std::vector<cyten_int> const& shape)
+NumpyBlockBackend::reshape(BlockCPtr const& a, std::vector<int64> const& shape)
 {
     return wrap(np_attr("reshape")(obj(a), py::cast(shape)));
 }
 
-std::vector<cyten_int>
+std::vector<int64>
 NumpyBlockBackend::get_shape(BlockCPtr const& a)
 {
     return ptr(a)->shape();
@@ -563,10 +563,10 @@ NumpyBlockBackend::sum(BlockCPtr const& a, int ax)
     return wrap(np_attr("sum")(obj(a), py::arg("axis") = ax));
 }
 
-std::complex<cyten_float>
+std::complex<float64>
 NumpyBlockBackend::sum_all(BlockCPtr const& a)
 {
-    return py::cast<std::complex<cyten_float>>(np_attr("sum")(obj(a)).attr("item")());
+    return py::cast<std::complex<float64>>(np_attr("sum")(obj(a)).attr("item")());
 }
 
 BlockPtr
@@ -600,13 +600,13 @@ NumpyBlockBackend::to_numpy(BlockCPtr const& a, std::optional<py::object> numpy_
     return np_attr("asarray")(arr);
 }
 
-std::complex<cyten_float>
+std::complex<float64>
 NumpyBlockBackend::trace_full(BlockCPtr const& a)
 {
     py::object arr = obj(a);
-    std::vector<cyten_int> sh = get_shape(a);
+    std::vector<int64> sh = get_shape(a);
     size_t num_trace = sh.size() / 2;
-    cyten_int trace_dim = 1;
+    int64 trace_dim = 1;
     for (size_t i = 0; i < num_trace; ++i)
         trace_dim *= sh[i];
     std::vector<int> perm(sh.size());
@@ -616,7 +616,7 @@ NumpyBlockBackend::trace_full(BlockCPtr const& a)
         perm[num_trace + i] = static_cast<int>(2 * num_trace - 1 - i);
     arr = np_attr("transpose")(arr, py::cast(perm));
     arr = np_attr("reshape")(arr, py::make_tuple(trace_dim, trace_dim));
-    return py::cast<std::complex<cyten_float>>(
+    return py::cast<std::complex<float64>>(
       np_attr("trace")(arr, py::arg("axis1") = 0, py::arg("axis2") = 1).attr("item")());
 }
 
@@ -631,8 +631,8 @@ NumpyBlockBackend::trace_partial(BlockCPtr const& a,
     perm.insert(perm.end(), idcs1.begin(), idcs1.end());
     perm.insert(perm.end(), idcs2.begin(), idcs2.end());
     arr = np_attr("transpose")(arr, py::cast(perm));
-    std::vector<cyten_int> sh = get_shape(a);
-    cyten_int trace_dim = 1;
+    std::vector<int64> sh = get_shape(a);
+    int64 trace_dim = 1;
     for (int i : idcs1)
         trace_dim *= sh[i];
     py::tuple shape = arr.attr("shape");
@@ -653,7 +653,7 @@ NumpyBlockBackend::eye_matrix(int dim, Dtype dtype, std::optional<std::string> d
 }
 
 py::object
-NumpyBlockBackend::get_block_element(BlockCPtr const& a, std::vector<cyten_int> const& idcs)
+NumpyBlockBackend::get_block_element(BlockCPtr const& a, std::vector<int64> const& idcs)
 {
     return obj(a).attr("__getitem__")(py::cast(idcs)).attr("item")();
 }
@@ -719,7 +719,7 @@ NumpyBlockBackend::matrix_svd(BlockCPtr const& a, std::optional<std::string> alg
 }
 
 BlockPtr
-NumpyBlockBackend::ones_block(std::vector<cyten_int> const& shape,
+NumpyBlockBackend::ones_block(std::vector<int64> const& shape,
                               Dtype dtype,
                               std::optional<std::string> device)
 {
@@ -728,7 +728,7 @@ NumpyBlockBackend::ones_block(std::vector<cyten_int> const& shape,
 }
 
 BlockPtr
-NumpyBlockBackend::zeros(std::vector<cyten_int> const& shape,
+NumpyBlockBackend::zeros(std::vector<int64> const& shape,
                          Dtype dtype,
                          std::optional<std::string> device)
 {

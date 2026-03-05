@@ -16,7 +16,7 @@ class NumpyBlockBackend : public BlockBackend
         explicit Block(py::array arr);
         virtual ~Block() = default;
 
-        std::vector<cyten_int> shape() const override;
+        std::vector<int64> shape() const override;
         Dtype dtype() const override;
         std::string device() const override;
         py::array to_numpy() const override { return arr_; }
@@ -35,12 +35,12 @@ class NumpyBlockBackend : public BlockBackend
     std::string get_backend_name() const override;
 
     BlockPtr apply_leg_permutations(BlockCPtr const& block,
-                                    std::vector<py::array_t<cyten_int>> const& perms) override;
+                                    std::vector<py::array_t<int64>> const& perms) override;
     BlockPtr as_block(py::object a,
                       std::optional<Dtype> dtype,
                       std::optional<std::string> device) override;
     std::string as_device(std::optional<std::string> device) override;
-    std::vector<cyten_int> abs_argmax(BlockCPtr const& block) override;
+    std::vector<int64> abs_argmax(BlockCPtr const& block) override;
     BlockPtr abs(BlockCPtr const& a) override;
     BlockPtr add_axis(BlockCPtr const& a, int pos) override;
     bool block_all(BlockCPtr const& a) override;
@@ -67,9 +67,9 @@ class NumpyBlockBackend : public BlockBackend
     std::string get_device(BlockCPtr const& a) override;
     BlockPtr get_diagonal(BlockCPtr const& a, std::optional<double> tol) override;
     bool get_block_mask_element(BlockCPtr const& a,
-                                cyten_int large_leg_idx,
-                                cyten_int small_leg_idx,
-                                cyten_int sum_block) override;
+                                int64 large_leg_idx,
+                                int64 small_leg_idx,
+                                int64 sum_block) override;
     BlockPtr imag(BlockCPtr const& a) override;
     py::object item(BlockCPtr const& a) override;
     BlockPtr kron(BlockCPtr const& a, BlockCPtr const& b) override;
@@ -85,11 +85,11 @@ class NumpyBlockBackend : public BlockBackend
     double norm(BlockCPtr const& a, double order, std::optional<int> axis) override;
     BlockPtr outer(BlockCPtr const& a, BlockCPtr const& b) override;
     BlockPtr permute_axes(BlockCPtr const& a, std::vector<int> const& permutation) override;
-    BlockPtr random_normal(std::vector<cyten_int> const& dims,
+    BlockPtr random_normal(std::vector<int64> const& dims,
                            Dtype dtype,
                            double sigma,
                            std::optional<std::string> device) override;
-    BlockPtr random_uniform(std::vector<cyten_int> const& dims,
+    BlockPtr random_uniform(std::vector<int64> const& dims,
                             Dtype dtype,
                             std::optional<std::string> device) override;
     BlockPtr real(BlockCPtr const& a) override;
@@ -100,13 +100,13 @@ class NumpyBlockBackend : public BlockBackend
                                                std::string const& indent,
                                                int max_width,
                                                int max_lines) override;
-    BlockPtr reshape(BlockCPtr const& a, std::vector<cyten_int> const& shape) override;
-    std::vector<cyten_int> get_shape(BlockCPtr const& a) override;
+    BlockPtr reshape(BlockCPtr const& a, std::vector<int64> const& shape) override;
+    std::vector<int64> get_shape(BlockCPtr const& a) override;
     BlockPtr sqrt(BlockCPtr const& a) override;
     BlockPtr squeeze_axes(BlockCPtr const& a, std::vector<int> const& idcs) override;
     BlockPtr stable_log(BlockCPtr const& block, double cutoff) override;
     BlockPtr sum(BlockCPtr const& a, int ax) override;
-    std::complex<cyten_float> sum_all(BlockCPtr const& a) override;
+    std::complex<float64> sum_all(BlockCPtr const& a) override;
     BlockPtr multiply_blocks(BlockCPtr const& a, BlockCPtr const& b) override;
     BlockPtr tdot(BlockCPtr const& a,
                   BlockCPtr const& b,
@@ -114,13 +114,13 @@ class NumpyBlockBackend : public BlockBackend
                   std::vector<int> const& idcs_b) override;
     BlockPtr to_dtype(BlockCPtr const& a, Dtype dtype) override;
     py::object to_numpy(BlockCPtr const& a, std::optional<py::object> numpy_dtype) override;
-    std::complex<cyten_float> trace_full(BlockCPtr const& a) override;
+    std::complex<float64> trace_full(BlockCPtr const& a) override;
     BlockPtr trace_partial(BlockCPtr const& a,
                            std::vector<int> const& idcs1,
                            std::vector<int> const& idcs2,
                            std::vector<int> const& remaining_idcs) override;
     BlockPtr eye_matrix(int dim, Dtype dtype, std::optional<std::string> device) override;
-    py::object get_block_element(BlockCPtr const& a, std::vector<cyten_int> const& idcs) override;
+    py::object get_block_element(BlockCPtr const& a, std::vector<int64> const& idcs) override;
     BlockPtr matrix_dot(BlockCPtr const& a, BlockCPtr const& b) override;
     BlockPtr matrix_exp(BlockCPtr const& matrix) override;
     BlockPtr matrix_log(BlockCPtr const& matrix) override;
@@ -128,10 +128,10 @@ class NumpyBlockBackend : public BlockBackend
     std::tuple<BlockPtr, BlockPtr, BlockPtr> matrix_svd(
       BlockCPtr const& a,
       std::optional<std::string> algorithm) override;
-    BlockPtr ones_block(std::vector<cyten_int> const& shape,
+    BlockPtr ones_block(std::vector<int64> const& shape,
                         Dtype dtype,
                         std::optional<std::string> device) override;
-    BlockPtr zeros(std::vector<cyten_int> const& shape,
+    BlockPtr zeros(std::vector<int64> const& shape,
                    Dtype dtype,
                    std::optional<std::string> device) override;
 

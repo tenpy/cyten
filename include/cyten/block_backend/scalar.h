@@ -9,7 +9,7 @@ namespace cyten {
 class Scalar
 {
   public:
-    Scalar(Dtype dtype, cyten_complex value)
+    Scalar(Dtype dtype, complex128 value)
       : dtype_(dtype)
       , value_(value)
     {
@@ -18,19 +18,19 @@ class Scalar
     /// Construct from bool; dtype is Bool.
     Scalar(bool b)
       : dtype_(Dtype::Bool)
-      , value_(b ? cyten_float(1) : cyten_float(0))
+      , value_(b ? float64(1) : float64(0))
     {
     }
 
     /// Construct from real; dtype is Float64.
-    Scalar(cyten_float x)
+    Scalar(float64 x)
       : dtype_(Dtype::Float64)
       , value_(x)
     {
     }
 
     /// Construct from complex; dtype is Complex128.
-    Scalar(cyten_complex z)
+    Scalar(complex128 z)
       : dtype_(Dtype::Complex128)
       , value_(z)
     {
@@ -39,13 +39,13 @@ class Scalar
     Dtype dtype() const { return dtype_; }
 
     /// Real part; valid for any dtype (complex -> real part, bool -> 0 or 1).
-    cyten_float real() const;
+    float64 real() const;
 
     /// As a real (float) scalar. Throws if dtype is not Float32 or Float64.
-    cyten_float cyten_double() const;
+    float64 cyten_double() const;
 
     /// As a complex scalar. Always valid (real/bool stored with zero imaginary part).
-    cyten_complex as_complex() const;
+    complex128 as_complex() const;
 
     /// As a bool. Throws if dtype is not Bool.
     bool as_bool() const;
@@ -55,7 +55,7 @@ class Scalar
 
   private:
     Dtype dtype_;
-    cyten_complex value_;
+    complex128 value_;
 };
 
 } // namespace cyten

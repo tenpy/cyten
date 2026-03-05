@@ -4,6 +4,9 @@
 
 namespace cyten {
 
+NotImplemented::NotImplemented(std::string name)
+  : std::logic_error(std::format("Not implemented: {}", name)) {};
+
 /// Format elements of an iterable as if it were a plain list.
 std::string
 format_like_list(py::iterable it)
@@ -44,8 +47,8 @@ to_iterable(py::object a)
     return result;
 }
 
-cyten_int
-to_valid_idx(cyten_int idx, cyten_int length)
+int64
+to_valid_idx(int64 idx, int64 length)
 {
     if (idx < -length || idx >= length)
         throw std::out_of_range("Index " + std::to_string(idx) + " out of bounds for length " +

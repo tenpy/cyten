@@ -3,13 +3,13 @@
 
 namespace cyten {
 
-cyten_float
+float64
 Scalar::real() const
 {
     return value_.real();
 }
 
-cyten_float
+float64
 Scalar::cyten_double() const
 {
     if (dtype_ == Dtype::Bool)
@@ -19,7 +19,7 @@ Scalar::cyten_double() const
     return value_.real();
 }
 
-cyten_complex
+complex128
 Scalar::as_complex() const
 {
     return value_;
@@ -30,7 +30,7 @@ Scalar::as_bool() const
 {
     if (dtype_ != Dtype::Bool)
         throw std::runtime_error("Scalar::as_bool: dtype is not Bool");
-    return value_.real() != cyten_float(0) || value_.imag() != cyten_float(0);
+    return value_.real() != float64(0) || value_.imag() != float64(0);
 }
 
 py::object

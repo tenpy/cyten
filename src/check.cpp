@@ -6,11 +6,8 @@
 
 namespace cyten {
 
-NotImplemented::NotImplemented(std::string name)
-  : std::logic_error(std::format("Function {} not implemented", name)) {};
-
-int
-add(int i, int j)
+int64
+add(int64 i, int64 j)
 {
     return i + j;
 }

@@ -16,8 +16,8 @@ load_cpp_include = "include/**/*.h"
 templates = ".cursor/skills/pybind11-codegen/assets"
 
 [types_py_to_cpp]
-int = "cyten_int"
-float = "cyten_float"
-complex = "cyten_complex"
-"npt.NDArray[float]" = "xt::xarray<cyten_float>"
+int = "int64"
+float = "float64"
+complex = "complex128"
+"npt.NDArray[float]" = "xt::xarray<float64>"
 Block = "BlockPtr"

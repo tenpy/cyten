@@ -2,6 +2,7 @@
 #include <cyten/block_backend/dtypes.h>
 #include <cyten/block_backend/numpy.h>
 #include <cyten/cyten.h>
+#include <cyten/tools.h>
 
 #include <algorithm>
 #include <numeric>
@@ -11,10 +12,10 @@
 namespace cyten {
 
 // Product of elements in [first, last)
-cyten_int
-prod_range(std::vector<cyten_int> const& shape, size_t first, size_t last)
+int64
+prod_range(std::vector<int64> const& shape, size_t first, size_t last)
 {
-    cyten_int p = 1;
+    int64 p = 1;
     for (size_t i = first; i < last; ++i)
         p *= shape[i];
     return p;
@@ -36,11 +37,11 @@ BlockBackend::apply_basis_perm(BlockCPtr const& block,
                                std::vector<py::object> const& legs,
                                bool inv)
 {
-    std::vector<py::array_t<cyten_int>> perms;
+    std::vector<py::array_t<int64>> perms;
     perms.reserve(legs.size());
     for (py::object const& leg : legs) {
         py::object perm = inv ? leg.attr("inverse_basis_perm") : leg.attr("basis_perm");
-        perms.push_back(py::array_t<cyten_int>::ensure(perm));
+        perms.push_back(py::array_t<int64>::ensure(perm));
     }
     return apply_leg_permutations(block, perms);
 }
@@ -78,12 +79,12 @@ BlockBackend::combine_legs(BlockCPtr const& a,
     if (cstyles.size() == 1u)
         cstyles.resize(leg_idcs_combine.size(), cstyles[0]);
 
-    std::vector<cyten_int> const old_shape = get_shape(a);
+    std::vector<int64> const old_shape = get_shape(a);
     size_t const ndim = old_shape.size();
     std::vector<int> axes_perm(ndim);
     std::iota(axes_perm.begin(), axes_perm.end(), 0);
 
-    std::vector<cyten_int> new_shape;
+    std::vector<int64> new_shape;
     size_t last_stop = 0;
 
     for (size_t g = 0; g < leg_idcs_combine.size(); ++g) {
@@ -101,7 +102,7 @@ BlockBackend::combine_legs(BlockCPtr const& a,
         for (size_t i = last_stop; i < static_cast<size_t>(start); ++i)
             new_shape.push_back(old_shape[i]);
 
-        cyten_int combined = 1;
+        int64 combined = 1;
         for (int i = start; i < stop; ++i)
             combined *= old_shape[i];
         new_shape.push_back(combined);
@@ -128,7 +129,7 @@ BlockBackend::combine_legs(BlockCPtr const& a,
 BlockPtr
 BlockBackend::dagger(BlockCPtr const& a)
 {
-    std::vector<cyten_int> const sh = get_shape(a);
+    std::vector<int64> const sh = get_shape(a);
     int const num_legs = static_cast<int>(sh.size());
     std::vector<int> rev(num_legs);
     for (int i = 0; i < num_legs; ++i)
@@ -144,12 +145,12 @@ BlockBackend::is_real(BlockCPtr const& a)
 
 BlockPtr
 BlockBackend::permute_combined_matrix(BlockCPtr const& block,
-                                      std::vector<cyten_int> const& dims1,
+                                      std::vector<int64> const& dims1,
                                       std::vector<int> const& idcs1,
-                                      std::vector<cyten_int> const& dims2,
+                                      std::vector<int64> const& dims2,
                                       std::vector<int> const& idcs2)
 {
-    std::vector<cyten_int> shape = dims1;
+    std::vector<int64> shape = dims1;
     shape.insert(shape.end(), dims2.begin(), dims2.end());
     BlockPtr b = reshape(block, shape);
 
@@ -162,12 +163,12 @@ BlockBackend::permute_combined_matrix(BlockCPtr const& block,
         perm.push_back(i);
     b = permute_axes(b, perm);
 
-    std::vector<cyten_int> const sh = get_shape(b);
+    std::vector<int64> const sh = get_shape(b);
     size_t const n1 = idcs1.size();
-    cyten_int M_new = 1;
+    int64 M_new = 1;
     for (size_t i = 0; i < n1; ++i)
         M_new *= sh[i];
-    cyten_int N_new = 1;
+    int64 N_new = 1;
     for (size_t i = n1; i < sh.size(); ++i)
         N_new *= sh[i];
     return reshape(b, { M_new, N_new });
@@ -176,18 +177,18 @@ BlockBackend::permute_combined_matrix(BlockCPtr const& block,
 BlockPtr
 BlockBackend::permute_combined_idx(BlockCPtr const& block,
                                    int axis,
-                                   std::vector<cyten_int> const& dims,
+                                   std::vector<int64> const& dims,
                                    std::vector<int> const& idcs)
 {
-    std::vector<cyten_int> const sh = get_shape(block);
-    cyten_int const M = sh[0];
-    cyten_int const N = sh[1];
+    std::vector<int64> const sh = get_shape(block);
+    int64 const M = sh[0];
+    int64 const N = sh[1];
     int ax = axis;
     if (ax < 0)
         ax += 2;
 
     if (ax == 0) {
-        std::vector<cyten_int> new_shape = dims;
+        std::vector<int64> new_shape = dims;
         new_shape.push_back(N);
         BlockPtr b = reshape(block, new_shape);
         std::vector<int> perm;
@@ -198,7 +199,7 @@ BlockBackend::permute_combined_idx(BlockCPtr const& block,
         return reshape(b, { M, N });
     }
     if (ax == 1) {
-        std::vector<cyten_int> new_shape = { M };
+        std::vector<int64> new_shape = { M };
         new_shape.insert(new_shape.end(), dims.begin(), dims.end());
         BlockPtr b = reshape(block, new_shape);
         std::vector<int> perm = { 0 };
@@ -213,26 +214,26 @@ BlockBackend::permute_combined_idx(BlockCPtr const& block,
 BlockPtr
 BlockBackend::split_legs(BlockCPtr const& a,
                          std::vector<int> const& idcs,
-                         std::vector<std::vector<cyten_int>> const& dims,
+                         std::vector<std::vector<int64>> const& dims,
                          std::vector<bool> const& cstyles_in)
 {
     std::vector<bool> cstyles = cstyles_in;
     if (cstyles.size() == 1u)
         cstyles.resize(idcs.size(), cstyles[0]);
 
-    std::vector<cyten_int> const old_shape = get_shape(a);
+    std::vector<int64> const old_shape = get_shape(a);
     std::vector<int> axes_perm;
-    std::vector<cyten_int> new_shape;
+    std::vector<int64> new_shape;
     size_t start = 0;
 
     for (size_t g = 0; g < idcs.size(); ++g) {
         int const i = idcs[g];
-        std::vector<cyten_int> const& i_dims = dims[g];
+        std::vector<int64> const& i_dims = dims[g];
 
         for (size_t k = start; k < static_cast<size_t>(i); ++k)
             new_shape.push_back(old_shape[k]);
 
-        for (cyten_int d : i_dims)
+        for (int64 d : i_dims)
             new_shape.push_back(d);
 
         size_t const n_axes_before = axes_perm.size();
@@ -258,7 +259,7 @@ BlockBackend::split_legs(BlockCPtr const& a,
 BlockPtr
 BlockBackend::split_legs(BlockCPtr const& a,
                          std::vector<int> const& idcs,
-                         std::vector<std::vector<cyten_int>> const& dims,
+                         std::vector<std::vector<int64>> const& dims,
                          bool cstyles)
 {
     return split_legs(a, idcs, dims, std::vector<bool>(1, cstyles));
@@ -268,8 +269,8 @@ BlockPtr
 BlockBackend::tensor_outer(BlockCPtr const& a, BlockCPtr const& b, int K)
 {
     BlockPtr res = outer(a, b);
-    std::vector<cyten_int> const sh_a = get_shape(a);
-    std::vector<cyten_int> const sh_b = get_shape(b);
+    std::vector<int64> const sh_a = get_shape(a);
+    std::vector<int64> const sh_b = get_shape(b);
     int const N = static_cast<int>(sh_a.size());
     int const M = static_cast<int>(sh_b.size());
 
@@ -284,15 +285,15 @@ BlockBackend::tensor_outer(BlockCPtr const& a, BlockCPtr const& b, int K)
 }
 
 BlockPtr
-BlockBackend::eye_block(std::vector<cyten_int> const& legs,
+BlockBackend::eye_block(std::vector<int64> const& legs,
                         Dtype dtype,
                         std::optional<std::string> device)
 {
-    cyten_int dim = 1;
-    for (cyten_int d : legs)
+    int64 dim = 1;
+    for (int64 d : legs)
         dim *= d;
     BlockPtr eye = eye_matrix(static_cast<int>(dim), dtype, device);
-    std::vector<cyten_int> shape = legs;
+    std::vector<int64> shape = legs;
     shape.insert(shape.end(), legs.begin(), legs.end());
     eye = reshape(eye, shape);
     int const J = static_cast<int>(legs.size());
@@ -320,7 +321,7 @@ BlockBackend::synchronize()
 
 void
 BlockBackend::test_block_sanity(BlockCPtr const& block,
-                                std::optional<std::vector<cyten_int>> expect_shape,
+                                std::optional<std::vector<int64>> expect_shape,
                                 std::optional<Dtype> expect_dtype,
                                 std::optional<std::string> expect_device)
 {
@@ -328,7 +329,7 @@ BlockBackend::test_block_sanity(BlockCPtr const& block,
         throw std::runtime_error("wrong block type");
     }
     if (expect_shape) {
-        std::vector<cyten_int> const got = get_shape(block);
+        std::vector<int64> const got = get_shape(block);
         if (got != *expect_shape) {
             std::ostringstream msg;
             msg << "wrong block shape ";
@@ -354,14 +355,14 @@ BlockBackend::test_block_sanity(BlockCPtr const& block,
     }
 }
 
-std::complex<cyten_float>
+std::complex<float64>
 BlockBackend::inner(BlockCPtr const& a, BlockCPtr const& b, bool do_dagger)
 {
     BlockCPtr ac;
     if (do_dagger) {
         ac = conj(a);
     } else {
-        std::vector<cyten_int> const sh = get_shape(a);
+        std::vector<int64> const sh = get_shape(a);
         std::vector<int> rev(sh.size());
         for (size_t i = 0; i < sh.size(); ++i)
             rev[i] = static_cast<int>(sh.size() - 1 - i);

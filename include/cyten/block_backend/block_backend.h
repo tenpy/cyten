@@ -31,7 +31,7 @@ class BlockBackend
         virtual py::array to_numpy() const = 0;
 
         /// Shape of the block (one size per axis).
-        virtual std::vector<cyten_int> shape() const = 0;
+        virtual std::vector<int64> shape() const = 0;
 
         /// Dtype of the block entries.
         virtual Dtype dtype() const = 0;
@@ -61,7 +61,7 @@ class BlockBackend
                               bool inv = false);
     /// Apply permutations to every axis of a dense block
     virtual BlockPtr apply_leg_permutations(BlockCPtr const& block,
-                                            std::vector<py::array_t<cyten_int>> const& perms) = 0;
+                                            std::vector<py::array_t<int64>> const& perms) = 0;
     /// Convert objects to blocks.
     virtual BlockPtr as_block(py::object a,
                               std::optional<Dtype> dtype = std::nullopt,
@@ -69,7 +69,7 @@ class BlockBackend
     /// Convert input string to unambiguous device name.
     virtual std::string as_device(std::optional<std::string> device) = 0;
     /// Return the indices (one per axis) of the largest entry (by magnitude) of the block
-    virtual std::vector<cyten_int> abs_argmax(BlockCPtr const& block) = 0;
+    virtual std::vector<int64> abs_argmax(BlockCPtr const& block) = 0;
     virtual BlockPtr add_axis(BlockCPtr const& a, int pos) = 0;
     /// Require a boolean block. If all of its entries are True
     virtual bool block_all(BlockCPtr const& a) = 0;
@@ -130,7 +130,7 @@ class BlockBackend
     /// The imaginary part of a complex number, elementwise.
     virtual BlockPtr imag(BlockCPtr const& a) = 0;
     /// Dense block version of tensors.inner.
-    std::complex<cyten_float> inner(BlockCPtr const& a, BlockCPtr const& b, bool do_dagger);
+    std::complex<float64> inner(BlockCPtr const& a, BlockCPtr const& b, bool do_dagger);
     /// If the block is comprised of real numbers.
     bool is_real(BlockCPtr const& a);
     /// Assumes that data is a scalar (i.e. has only one entry). Returns that scalar as python
@@ -144,33 +144,33 @@ class BlockBackend
                                         BlockCPtr const& w) = 0;
     /// The *elementwise* natural logarithm.
     virtual BlockPtr log(BlockCPtr const& a) = 0;
-    virtual cyten_float max(BlockCPtr const& a) = 0;
-    virtual cyten_float max_abs(BlockCPtr const& a) = 0;
-    virtual cyten_float min(BlockCPtr const& a) = 0;
+    virtual float64 max(BlockCPtr const& a) = 0;
+    virtual float64 max_abs(BlockCPtr const& a) = 0;
+    virtual float64 min(BlockCPtr const& a) = 0;
     virtual BlockPtr mul(py::object a, BlockCPtr const& b) = 0;
     /// The p-norm vector-norm of a block.
-    virtual cyten_float norm(BlockCPtr const& a,
-                             double order = 2,
-                             std::optional<int> axis = std::nullopt) = 0;
+    virtual float64 norm(BlockCPtr const& a,
+                         double order = 2,
+                         std::optional<int> axis = std::nullopt) = 0;
     /// Outer product of blocks.
     virtual BlockPtr outer(BlockCPtr const& a, BlockCPtr const& b) = 0;
     virtual BlockPtr permute_axes(BlockCPtr const& a, std::vector<int> const& permutation) = 0;
     /// For a matrix `a` with two combined multi-indices, permute the sub-indices.
     BlockPtr permute_combined_matrix(BlockCPtr const& block,
-                                     std::vector<cyten_int> const& dims1,
+                                     std::vector<int64> const& dims1,
                                      std::vector<int> const& idcs1,
-                                     std::vector<cyten_int> const& dims2,
+                                     std::vector<int64> const& dims2,
                                      std::vector<int> const& idcs2);
     /// For a matrix `a` with a single combined multi-index, permute sub-indices.
     BlockPtr permute_combined_idx(BlockCPtr const& block,
                                   int axis,
-                                  std::vector<cyten_int> const& dims,
+                                  std::vector<int64> const& dims,
                                   std::vector<int> const& idcs);
-    virtual BlockPtr random_normal(std::vector<cyten_int> const& dims,
+    virtual BlockPtr random_normal(std::vector<int64> const& dims,
                                    Dtype dtype,
                                    double sigma,
                                    std::optional<std::string> device = std::nullopt) = 0;
-    virtual BlockPtr random_uniform(std::vector<cyten_int> const& dims,
+    virtual BlockPtr random_uniform(std::vector<int64> const& dims,
                                     Dtype dtype,
                                     std::optional<std::string> device = std::nullopt) = 0;
     /// The real part of a complex number, elementwise.
@@ -183,18 +183,18 @@ class BlockBackend
                                                        std::string const& indent,
                                                        int max_width,
                                                        int max_lines) = 0;
-    virtual BlockPtr reshape(BlockCPtr const& a, std::vector<cyten_int> const& shape) = 0;
+    virtual BlockPtr reshape(BlockCPtr const& a, std::vector<int64> const& shape) = 0;
     /// Multiply block with the factors (a 1D block), along a given axis.
     virtual BlockPtr scale_axis(BlockCPtr const& block, BlockCPtr const& factors, int axis) = 0;
-    virtual std::vector<cyten_int> get_shape(BlockCPtr const& a) = 0;
+    virtual std::vector<int64> get_shape(BlockCPtr const& a) = 0;
     /// Split legs into groups of legs with specified dimensions.
     BlockPtr split_legs(BlockCPtr const& a,
                         std::vector<int> const& idcs,
-                        std::vector<std::vector<cyten_int>> const& dims,
+                        std::vector<std::vector<int64>> const& dims,
                         std::vector<bool> const& cstyles);
     BlockPtr split_legs(BlockCPtr const& a,
                         std::vector<int> const& idcs,
-                        std::vector<std::vector<cyten_int>> const& dims,
+                        std::vector<std::vector<int64>> const& dims,
                         bool cstyles = true);
     /// The elementwise square root
     virtual BlockPtr sqrt(BlockCPtr const& a) = 0;
@@ -204,7 +204,7 @@ class BlockBackend
     /// The sum over a single axis.
     virtual BlockPtr sum(BlockCPtr const& a, int ax) = 0;
     /// The sum of all entries of the block.
-    virtual std::complex<cyten_float> sum_all(BlockCPtr const& a) = 0;
+    virtual std::complex<float64> sum_all(BlockCPtr const& a) = 0;
     virtual BlockPtr multiply_blocks(BlockCPtr const& a, BlockCPtr const& b) = 0; // elementwise
     virtual BlockPtr tdot(BlockCPtr const& a,
                           BlockCPtr const& b,
@@ -215,26 +215,25 @@ class BlockBackend
     virtual BlockPtr to_dtype(BlockCPtr const& a, Dtype dtype) = 0;
     virtual py::object to_numpy(BlockCPtr const& a,
                                 std::optional<py::object> numpy_dtype = std::nullopt) = 0;
-    virtual std::complex<cyten_float> trace_full(BlockCPtr const& a) = 0;
+    virtual std::complex<float64> trace_full(BlockCPtr const& a) = 0;
     virtual BlockPtr trace_partial(BlockCPtr const& a,
                                    std::vector<int> const& idcs1,
                                    std::vector<int> const& idcs2,
                                    std::vector<int> const& remaining_idcs) = 0;
     /// The identity matrix, reshaped to a block.
-    BlockPtr eye_block(std::vector<cyten_int> const& legs,
+    BlockPtr eye_block(std::vector<int64> const& legs,
                        Dtype dtype,
                        std::optional<std::string> device = std::nullopt);
     /// The ``dim x dim`` identity matrix
     virtual BlockPtr eye_matrix(int dim,
                                 Dtype dtype,
                                 std::optional<std::string> device = std::nullopt) = 0;
-    virtual py::object get_block_element(BlockCPtr const& a,
-                                         std::vector<cyten_int> const& idcs) = 0;
+    virtual py::object get_block_element(BlockCPtr const& a, std::vector<int64> const& idcs) = 0;
     /// Get an element of a mask.
     virtual bool get_block_mask_element(BlockCPtr const& a,
-                                        cyten_int large_leg_idx,
-                                        cyten_int small_leg_idx,
-                                        cyten_int sum_block = 0) = 0;
+                                        int64 large_leg_idx,
+                                        int64 small_leg_idx,
+                                        int64 sum_block = 0) = 0;
     /// As in numpy.dot, both a and b might be matrix or vector.
     virtual BlockPtr matrix_dot(BlockCPtr const& a, BlockCPtr const& b) = 0;
     virtual BlockPtr matrix_exp(BlockCPtr const& matrix) = 0;
@@ -246,7 +245,7 @@ class BlockBackend
     virtual std::tuple<BlockPtr, BlockPtr, BlockPtr> matrix_svd(
       BlockCPtr const& a,
       std::optional<std::string> algorithm = std::nullopt) = 0;
-    virtual BlockPtr ones_block(std::vector<cyten_int> const& shape,
+    virtual BlockPtr ones_block(std::vector<int64> const& shape,
                                 Dtype dtype,
                                 std::optional<std::string> device = std::nullopt) = 0;
     /// Wait for asynchronous processes (if any) to finish
@@ -254,10 +253,10 @@ class BlockBackend
     /// Assert block type and optional shape/dtype/device. Throws std::runtime_error if any check
     /// fails.
     void test_block_sanity(BlockCPtr const& block,
-                           std::optional<std::vector<cyten_int>> expect_shape = std::nullopt,
+                           std::optional<std::vector<int64>> expect_shape = std::nullopt,
                            std::optional<Dtype> expect_dtype = std::nullopt,
                            std::optional<std::string> expect_device = std::nullopt);
-    virtual BlockPtr zeros(std::vector<cyten_int> const& shape,
+    virtual BlockPtr zeros(std::vector<int64> const& shape,
                            Dtype dtype,
                            std::optional<std::string> device = std::nullopt) = 0;
 

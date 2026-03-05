@@ -5,6 +5,12 @@
 
 namespace cyten {
 
+class NotImplemented : public std::logic_error
+{
+  public:
+    NotImplemented(std::string name);
+};
+
 /// Format elements of an iterable as if it were a plain list.
 std::string format_like_list(py::iterable it);
 
@@ -15,6 +21,6 @@ bool is_iterable(py::object a);
 py::object to_iterable(py::object a);
 
 /// Convert to a valid non-negative index into the given length.
-cyten_int to_valid_idx(cyten_int idx, cyten_int length);
+int64 to_valid_idx(int64 idx, int64 length);
 
 } // namespace cyten

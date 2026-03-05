@@ -15,9 +15,9 @@ class PyBlock
   public:
     using BlockBase::BlockBase; // inherit constructors
 
-    std::vector<cyten_int> shape() const override
+    std::vector<int64> shape() const override
     {
-        PYBIND11_OVERRIDE_PURE(PYBIND11_TYPE(std::vector<cyten_int>), BlockBase, shape);
+        PYBIND11_OVERRIDE_PURE(PYBIND11_TYPE(std::vector<int64>), BlockBase, shape);
     }
     Dtype dtype() const override { PYBIND11_OVERRIDE_PURE(Dtype, BlockBase, dtype); }
     std::string device() const override { PYBIND11_OVERRIDE_PURE(std::string, BlockBase, device); }
@@ -37,7 +37,7 @@ class PyBlockBackend
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, abs, a);
     }
     BlockPtr apply_leg_permutations(const BlockCPtr& block,
-                                    const std::vector<py::array_t<cyten_int>>& perms) override
+                                    const std::vector<py::array_t<int64>>& perms) override
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, apply_leg_permutations, block, perms);
     }
@@ -51,9 +51,9 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(std::string, BlockBackendBase, as_device, device);
     }
-    std::vector<cyten_int> abs_argmax(const BlockCPtr& block) override
+    std::vector<int64> abs_argmax(const BlockCPtr& block) override
     {
-        PYBIND11_OVERRIDE_PURE(std::vector<cyten_int>, BlockBackendBase, abs_argmax, block);
+        PYBIND11_OVERRIDE_PURE(std::vector<int64>, BlockBackendBase, abs_argmax, block);
     }
     BlockPtr add_axis(const BlockCPtr& a, int pos) override
     {
@@ -191,7 +191,7 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, permute_axes, a, permutation);
     }
-    BlockPtr random_normal(const std::vector<cyten_int>& dims,
+    BlockPtr random_normal(const std::vector<int64>& dims,
                            Dtype dtype,
                            double sigma,
                            std::optional<std::string> device) override
@@ -199,7 +199,7 @@ class PyBlockBackend
         PYBIND11_OVERRIDE_PURE(
           BlockPtr, BlockBackendBase, random_normal, dims, dtype, sigma, device);
     }
-    BlockPtr random_uniform(const std::vector<cyten_int>& dims,
+    BlockPtr random_uniform(const std::vector<int64>& dims,
                             Dtype dtype,
                             std::optional<std::string> device) override
     {
@@ -230,7 +230,7 @@ class PyBlockBackend
                                max_width,
                                max_lines);
     }
-    BlockPtr reshape(const BlockCPtr& a, const std::vector<cyten_int>& shape) override
+    BlockPtr reshape(const BlockCPtr& a, const std::vector<int64>& shape) override
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, reshape, a, shape);
     }
@@ -238,9 +238,9 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, scale_axis, block, factors, axis);
     }
-    std::vector<cyten_int> get_shape(const BlockCPtr& a) override
+    std::vector<int64> get_shape(const BlockCPtr& a) override
     {
-        PYBIND11_OVERRIDE_PURE(std::vector<cyten_int>, BlockBackendBase, get_shape, a);
+        PYBIND11_OVERRIDE_PURE(std::vector<int64>, BlockBackendBase, get_shape, a);
     }
     BlockPtr sqrt(const BlockCPtr& a) override
     {
@@ -258,9 +258,9 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, sum, a, ax);
     }
-    std::complex<cyten_float> sum_all(const BlockCPtr& a) override
+    std::complex<float64> sum_all(const BlockCPtr& a) override
     {
-        PYBIND11_OVERRIDE_PURE(std::complex<cyten_float>, BlockBackendBase, sum_all, a);
+        PYBIND11_OVERRIDE_PURE(std::complex<float64>, BlockBackendBase, sum_all, a);
     }
     BlockPtr tdot(const BlockCPtr& a,
                   const BlockCPtr& b,
@@ -277,9 +277,9 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(py::object, BlockBackendBase, to_numpy, a, numpy_dtype);
     }
-    std::complex<cyten_float> trace_full(const BlockCPtr& a) override
+    std::complex<float64> trace_full(const BlockCPtr& a) override
     {
-        PYBIND11_OVERRIDE_PURE(std::complex<cyten_float>, BlockBackendBase, trace_full, a);
+        PYBIND11_OVERRIDE_PURE(std::complex<float64>, BlockBackendBase, trace_full, a);
     }
     BlockPtr trace_partial(const BlockCPtr& a,
                            const std::vector<int>& idcs1,
@@ -293,14 +293,14 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, eye_matrix, dim, dtype, device);
     }
-    py::object get_block_element(const BlockCPtr& a, const std::vector<cyten_int>& idcs) override
+    py::object get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs) override
     {
         PYBIND11_OVERRIDE_PURE(py::object, BlockBackendBase, get_block_element, a, idcs);
     }
     bool get_block_mask_element(const BlockCPtr& a,
-                                cyten_int large_leg_idx,
-                                cyten_int small_leg_idx,
-                                cyten_int sum_block) override
+                                int64 large_leg_idx,
+                                int64 small_leg_idx,
+                                int64 sum_block) override
     {
         PYBIND11_OVERRIDE_PURE(bool,
                                BlockBackendBase,
@@ -337,13 +337,13 @@ class PyBlockBackend
                                a,
                                algorithm);
     }
-    BlockPtr ones_block(const std::vector<cyten_int>& shape,
+    BlockPtr ones_block(const std::vector<int64>& shape,
                         Dtype dtype,
                         std::optional<std::string> device) override
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackendBase, ones_block, shape, dtype, device);
     }
-    BlockPtr zeros(const std::vector<cyten_int>& shape,
+    BlockPtr zeros(const std::vector<int64>& shape,
                    Dtype dtype,
                    std::optional<std::string> device) override
     {

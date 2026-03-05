@@ -16,7 +16,7 @@ bind_block_backend(py::module_& m)
 
     py::class_<Scalar, py::smart_holder>(
       m, "Scalar", "Scalar value with Dtype; use accessors to cast to float, complex, or bool.")
-      .def(py::init<Dtype, cyten_complex>(),
+      .def(py::init<Dtype, complex128>(),
            py::arg("dtype"),
            py::arg("value"),
            "Construct from Dtype and numeric value (int/float/complex; stored as complex "
@@ -505,7 +505,7 @@ bind_block_backend(py::module_& m)
       .def("split_legs",
            py::overload_cast<BlockCPtr const&,
                              std::vector<int> const&,
-                             std::vector<std::vector<cyten_int>> const&,
+                             std::vector<std::vector<int64>> const&,
                              std::vector<bool> const&>(&BlockBackend::split_legs),
            py::arg("a"),
            py::arg("idcs"),
@@ -522,7 +522,7 @@ bind_block_backend(py::module_& m)
       .def("split_legs",
            py::overload_cast<BlockCPtr const&,
                              std::vector<int> const&,
-                             std::vector<std::vector<cyten_int>> const&,
+                             std::vector<std::vector<int64>> const&,
                              bool>(&BlockBackend::split_legs),
            py::arg("a"),
            py::arg("idcs"),

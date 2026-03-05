@@ -1,4 +1,5 @@
 #include <cyten/block_backend/dtypes.h>
+#include <cyten/tools.h>
 
 namespace cyten {
 
@@ -146,10 +147,10 @@ convert_python_scalar(Dtype dtype, py::object value)
     }
     // complex
     try {
-        return py::cast(py::cast<cyten_complex>(value));
+        return py::cast(py::cast<complex128>(value));
     } catch (const py::cast_error&) {
         try {
-            return py::cast(cyten_complex(py::cast<double>(value), 0));
+            return py::cast(complex128(py::cast<double>(value), 0));
         } catch (const py::cast_error&) {
             throw std::invalid_argument("Type incompatible with complex dtype");
         }
@@ -173,7 +174,7 @@ zero_scalar(Dtype dtype)
         return py::cast(false);
     if (is_real(dtype))
         return py::cast(0.0);
-    return py::cast(cyten_complex(0.0, 0.0));
+    return py::cast(complex128(0.0, 0.0));
 }
 
 } // namespace dtype

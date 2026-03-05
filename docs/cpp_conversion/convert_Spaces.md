@@ -10,12 +10,12 @@ During the conversion of `BlockBackend` to C++, the method **`apply_basis_perm(b
 
 **Current state:**
 
-- **C++**: `BlockBackend::apply_basis_perm(block, legs, inv)` is **implemented in C++**. It accepts `std::vector<py::object> legs` (Python Space/leg objects). For each leg it reads `leg.attr("inverse_basis_perm")` or `leg.attr("basis_perm")`, builds `std::vector<py::array_t<cyten_int>> perms`, and calls `apply_leg_permutations(block, perms)`. No Python wrapper is needed; Python callers pass the same `list[Space]` and the binding converts it to `std::vector<py::object>`.
+- **C++**: `BlockBackend::apply_basis_perm(block, legs, inv)` is **implemented in C++**. It accepts `std::vector<py::object> legs` (Python Space/leg objects). For each leg it reads `leg.attr("inverse_basis_perm")` or `leg.attr("basis_perm")`, builds `std::vector<py::array_t<int64>> perms`, and calls `apply_leg_permutations(block, perms)`. No Python wrapper is needed; Python callers pass the same `list[Space]` and the binding converts it to `std::vector<py::object>`.
 - **Python**: Callers use `backend.block_backend.apply_basis_perm(block, legs, inv=False)` as before; the C++ implementation is used directly.
 
 **When converting Space to C++:**
 
-1. Implement the real C++ `Space` type (and any needed subtypes, e.g. `ElementarySpace`) with at least `basis_perm` and `inverse_basis_perm` (e.g. as `std::vector<cyten_int>` or array views).
+1. Implement the real C++ `Space` type (and any needed subtypes, e.g. `ElementarySpace`) with at least `basis_perm` and `inverse_basis_perm` (e.g. as `std::vector<int64>` or array views).
 2. Optionally change `BlockBackend::apply_basis_perm` to accept `std::vector<Space const*>` (or C++ Space references) instead of `std::vector<py::object>`, and build perms from the C++ Space objects to avoid Python attribute access.
 3. Bind the C++ Space type and have Python pass C++ Space objects (or keep passing Python Space and convert at the boundary via `py::object` until Space is fully migrated).
 
