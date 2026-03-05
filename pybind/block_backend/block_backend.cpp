@@ -23,9 +23,10 @@ bind_block_backend(py::module_& m)
            "internally).")
       .def_property_readonly("dtype", &Scalar::dtype)
       .def("real", &Scalar::real, "Real part (valid for any dtype).")
-      .def(
-        "cyten_double", &Scalar::cyten_double, "As float; raises if dtype is not Float32/Float64.")
-      .def("as_complex", &Scalar::as_complex, "As complex (real/bool have zero imaginary part).")
+      .def("as_float64", &Scalar::as_float64, "As float; raises if dtype is not Float32/Float64.")
+      .def("as_complex128",
+           &Scalar::as_complex128,
+           "As complex (real/bool have zero imaginary part).")
       .def("as_bool", &Scalar::as_bool, "As bool; raises if dtype is not Bool.")
       .def("to_numpy", &Scalar::to_numpy, "Return as numpy scalar (np.bool_, np.float64, etc.).");
 
@@ -46,9 +47,9 @@ bind_block_backend(py::module_& m)
 
     block_backend //  methods
       .def("__repr__",
-           [](BlockBackend const& self) { return self.get_backend_name() + std::string("()"); })
+           [](const BlockBackend& self) { return self.get_backend_name() + std::string("()"); })
       .def("__str__",
-           [](BlockBackend const& self) { return self.get_backend_name() + std::string("()"); })
+           [](const BlockBackend& self) { return self.get_backend_name() + std::string("()"); })
       .def("abs",
            &BlockBackend::abs,
            py::arg("a"),
@@ -170,9 +171,9 @@ bind_block_backend(py::module_& m)
            py::arg("axis"),
            "Like :meth:`block_argsort` but can assume real valued block, and sort ascending")
       .def("combine_legs",
-           py::overload_cast<BlockCPtr const&,
-                             std::vector<std::vector<int>> const&,
-                             std::vector<bool> const&>(&BlockBackend::combine_legs),
+           py::overload_cast<const BlockCPtr&,
+                             const std::vector<std::vector<int64>>&,
+                             const std::vector<bool>&>(&BlockBackend::combine_legs),
            py::arg("a"),
            py::arg("leg_idcs_combine"),
            py::arg("cstyles"),
@@ -184,7 +185,7 @@ bind_block_backend(py::module_& m)
            be specified for each group of legs independently.
            )pydoc")
       .def("combine_legs",
-           py::overload_cast<BlockCPtr const&, std::vector<std::vector<int>> const&, bool>(
+           py::overload_cast<const BlockCPtr&, const std::vector<std::vector<int64>>&, bool>(
              &BlockBackend::combine_legs),
            py::arg("a"),
            py::arg("leg_idcs_combine"),
@@ -503,10 +504,10 @@ bind_block_backend(py::module_& m)
            )pydoc")
       .def("get_shape", &BlockBackend::get_shape, py::arg("a"))
       .def("split_legs",
-           py::overload_cast<BlockCPtr const&,
-                             std::vector<int> const&,
-                             std::vector<std::vector<int64>> const&,
-                             std::vector<bool> const&>(&BlockBackend::split_legs),
+           py::overload_cast<const BlockCPtr&,
+                             const std::vector<int64>&,
+                             const std::vector<std::vector<int64>>&,
+                             const std::vector<bool>&>(&BlockBackend::split_legs),
            py::arg("a"),
            py::arg("idcs"),
            py::arg("dims"),
@@ -520,9 +521,9 @@ bind_block_backend(py::module_& m)
            independently.
            )pydoc")
       .def("split_legs",
-           py::overload_cast<BlockCPtr const&,
-                             std::vector<int> const&,
-                             std::vector<std::vector<int64>> const&,
+           py::overload_cast<const BlockCPtr&,
+                             const std::vector<int64>&,
+                             const std::vector<std::vector<int64>>&,
                              bool>(&BlockBackend::split_legs),
            py::arg("a"),
            py::arg("idcs"),

@@ -23,7 +23,7 @@ bind_block_backend_numpy(py::module_& m)
            &NumpyBlockBackend::Block::to_numpy,
            py::return_value_policy::reference_internal)
       .def("__getitem__",
-           [](NumpyBlockBackend::Block const& self, py::object key) -> py::object {
+           [](const NumpyBlockBackend::Block& self, py::object key) -> py::object {
                py::array result = self.to_numpy().attr("__getitem__")(key);
                py::object sh = result.attr("shape");
                if (py::len(sh) == 0)
@@ -36,43 +36,43 @@ bind_block_backend_numpy(py::module_& m)
            })
       .def(
         "__array__",
-        [](NumpyBlockBackend::Block const& self, py::object dtype) {
+        [](const NumpyBlockBackend::Block& self, py::object dtype) {
             if (dtype.is_none())
                 return self.to_numpy();
             return py::cast<py::array>(self.to_numpy().attr("astype")(dtype));
         },
         py::arg("dtype") = py::none())
       .def("__mul__",
-           [](NumpyBlockBackend::Block const& self, py::object other) {
+           [](const NumpyBlockBackend::Block& self, py::object other) {
                return std::make_shared<NumpyBlockBackend::Block>(
                  self.to_numpy().attr("__mul__")(other));
            })
       .def("__rmul__",
-           [](NumpyBlockBackend::Block const& self, py::object other) {
+           [](const NumpyBlockBackend::Block& self, py::object other) {
                return std::make_shared<NumpyBlockBackend::Block>(
                  self.to_numpy().attr("__rmul__")(other));
            })
       .def("__truediv__",
-           [](NumpyBlockBackend::Block const& self, py::object other) {
+           [](const NumpyBlockBackend::Block& self, py::object other) {
                return std::make_shared<NumpyBlockBackend::Block>(
                  self.to_numpy().attr("__truediv__")(other));
            })
       .def("__add__",
-           [](NumpyBlockBackend::Block const& self, py::object other) {
+           [](const NumpyBlockBackend::Block& self, py::object other) {
                return std::make_shared<NumpyBlockBackend::Block>(
                  self.to_numpy().attr("__add__")(other));
            })
       .def("__radd__",
-           [](NumpyBlockBackend::Block const& self, py::object other) {
+           [](const NumpyBlockBackend::Block& self, py::object other) {
                return std::make_shared<NumpyBlockBackend::Block>(
                  self.to_numpy().attr("__radd__")(other));
            })
       .def("__sub__",
-           [](NumpyBlockBackend::Block const& self, py::object other) {
+           [](const NumpyBlockBackend::Block& self, py::object other) {
                return std::make_shared<NumpyBlockBackend::Block>(
                  self.to_numpy().attr("__sub__")(other));
            })
-      .def("__rsub__", [](NumpyBlockBackend::Block const& self, py::object other) {
+      .def("__rsub__", [](const NumpyBlockBackend::Block& self, py::object other) {
           return std::make_shared<NumpyBlockBackend::Block>(
             self.to_numpy().attr("__rsub__")(other));
       });

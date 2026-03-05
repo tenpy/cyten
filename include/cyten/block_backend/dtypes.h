@@ -37,7 +37,7 @@ Dtype to_real(Dtype dtype);
 std::string repr(Dtype dtype);
 
 /// Epsilon: difference between 1.0 and next representable. Bool raises.
-double eps(Dtype dtype);
+float64 eps(Dtype dtype);
 
 /// Numpy dtype object for this Dtype.
 py::object to_numpy_dtype(Dtype dtype);

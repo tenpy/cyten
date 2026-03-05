@@ -10,7 +10,7 @@ Scalar::real() const
 }
 
 float64
-Scalar::cyten_double() const
+Scalar::as_float64() const
 {
     if (dtype_ == Dtype::Bool)
         throw std::runtime_error("Scalar::cyten_double: dtype is Bool");
@@ -20,7 +20,7 @@ Scalar::cyten_double() const
 }
 
 complex128
-Scalar::as_complex() const
+Scalar::as_complex128() const
 {
     return value_;
 }
@@ -43,11 +43,11 @@ Scalar::to_numpy() const
             break;
         case Dtype::Float32:
         case Dtype::Float64:
-            val = py::cast(cyten_double());
+            val = py::cast(as_float64());
             break;
         case Dtype::Complex64:
         case Dtype::Complex128:
-            val = py::cast(as_complex());
+            val = py::cast(as_complex128());
             break;
     }
     return dtype::to_numpy_dtype(dtype_)(val);

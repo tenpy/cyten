@@ -51,16 +51,16 @@ to_real(Dtype dtype)
     return static_cast<Dtype>(static_cast<std::uint8_t>(dtype) - 1);
 }
 
-double
+float64
 eps(Dtype dtype)
 {
     if (dtype == Dtype::Bool)
         throw std::invalid_argument("Dtype.bool is not inexact");
     std::uint8_t n_bits = 8 * (static_cast<std::uint8_t>(dtype) / 2);
     if (n_bits == 32)
-        return std::pow(2.0, -23); // float32
+        return static_cast<float64>(std::pow(2.0, -23)); // float32
     if (n_bits == 64)
-        return std::pow(2.0, -52); // float64
+        return static_cast<float64>(std::pow(2.0, -52)); // float64
     throw NotImplemented(std::string("Dtype.eps not implemented for n_bits=") +
                          std::to_string(n_bits));
 }
@@ -131,15 +131,15 @@ convert_python_scalar(Dtype dtype, py::object value)
         // bool: accept True, False, 0, 1
         if (value.equal(py::cast(true)) || value.equal(py::cast(false)) ||
             value.equal(py::cast(0)) || value.equal(py::cast(1)))
-            return py::cast(bool(py::cast<int>(value)));
+            return py::cast(bool(py::cast<int64>(value)));
         throw std::invalid_argument("Type incompatible with dtype bool");
     }
     if (is_real(dtype)) {
         try {
-            return py::cast(py::cast<double>(value));
+            return py::cast(py::cast<float64>(value));
         } catch (const py::cast_error&) {
             try {
-                return py::cast(static_cast<double>(py::cast<int>(value)));
+                return py::cast(static_cast<float64>(py::cast<int64>(value)));
             } catch (const py::cast_error&) {
                 throw std::invalid_argument("Type incompatible with real dtype");
             }
@@ -150,7 +150,7 @@ convert_python_scalar(Dtype dtype, py::object value)
         return py::cast(py::cast<complex128>(value));
     } catch (const py::cast_error&) {
         try {
-            return py::cast(complex128(py::cast<double>(value), 0));
+            return py::cast(complex128(py::cast<float64>(value), 0));
         } catch (const py::cast_error&) {
             throw std::invalid_argument("Type incompatible with complex dtype");
         }
@@ -173,7 +173,7 @@ zero_scalar(Dtype dtype)
     if (dtype == Dtype::Bool)
         return py::cast(false);
     if (is_real(dtype))
-        return py::cast(0.0);
+        return py::cast(static_cast<float64>(0.0));
     return py::cast(complex128(0.0, 0.0));
 }
 

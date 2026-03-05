@@ -57,7 +57,7 @@ NumpyBlockBackend::Block::device() const
 // -----------------------------------------------------------------------------
 
 NumpyBlockBackend::Block const*
-NumpyBlockBackend::ptr(BlockCPtr const& b)
+NumpyBlockBackend::ptr(const BlockCPtr& b)
 {
     auto* p = dynamic_cast<NumpyBlockBackend::Block const*>(b.get());
     if (!p)
@@ -66,7 +66,7 @@ NumpyBlockBackend::ptr(BlockCPtr const& b)
 }
 
 py::object
-NumpyBlockBackend::obj(BlockCPtr const& b)
+NumpyBlockBackend::obj(const BlockCPtr& b)
 {
     return ptr(b)->to_numpy();
 }
@@ -94,14 +94,14 @@ NumpyBlockBackend::get_backend_name() const
 }
 
 bool
-NumpyBlockBackend::is_correct_block_type(BlockCPtr const& block) const
+NumpyBlockBackend::is_correct_block_type(const BlockCPtr& block) const
 {
     return dynamic_cast<NumpyBlockBackend::Block const*>(block.get()) != nullptr;
 }
 
 BlockPtr
-NumpyBlockBackend::apply_leg_permutations(BlockCPtr const& block,
-                                          std::vector<py::array_t<int64>> const& perms)
+NumpyBlockBackend::apply_leg_permutations(const BlockCPtr& block,
+                                          const std::vector<py::array_t<int64>>& perms)
 {
     py::object a = obj(block);
     py::module_ np = numpy_module();
@@ -141,7 +141,7 @@ NumpyBlockBackend::as_device(std::optional<std::string> device)
 }
 
 std::vector<int64>
-NumpyBlockBackend::abs_argmax(BlockCPtr const& block)
+NumpyBlockBackend::abs_argmax(const BlockCPtr& block)
 {
     py::object a = obj(block);
     py::module_ np = numpy_module();
@@ -155,69 +155,69 @@ NumpyBlockBackend::abs_argmax(BlockCPtr const& block)
 }
 
 BlockPtr
-NumpyBlockBackend::abs(BlockCPtr const& a)
+NumpyBlockBackend::abs(const BlockCPtr& a)
 {
     return wrap(np_attr("abs")(obj(a)));
 }
 
 BlockPtr
-NumpyBlockBackend::add_axis(BlockCPtr const& a, int pos)
+NumpyBlockBackend::add_axis(const BlockCPtr& a, int64 pos)
 {
     return wrap(np_attr("expand_dims")(obj(a), pos));
 }
 
 bool
-NumpyBlockBackend::block_all(BlockCPtr const& a)
+NumpyBlockBackend::block_all(const BlockCPtr& a)
 {
     return np_attr("all")(obj(a)).cast<bool>();
 }
 
 bool
-NumpyBlockBackend::allclose(BlockCPtr const& a, BlockCPtr const& b, double rtol, double atol)
+NumpyBlockBackend::allclose(const BlockCPtr& a, const BlockCPtr& b, float64 rtol, float64 atol)
 {
     return np_attr("allclose")(obj(a), obj(b), py::arg("rtol") = rtol, py::arg("atol") = atol)
       .cast<bool>();
 }
 
 BlockPtr
-NumpyBlockBackend::angle(BlockCPtr const& a)
+NumpyBlockBackend::angle(const BlockCPtr& a)
 {
     return wrap(np_attr("angle")(obj(a)));
 }
 
 bool
-NumpyBlockBackend::block_any(BlockCPtr const& a)
+NumpyBlockBackend::block_any(const BlockCPtr& a)
 {
     return np_attr("any")(obj(a)).cast<bool>();
 }
 
 BlockPtr
-NumpyBlockBackend::apply_mask(BlockCPtr const& block, BlockCPtr const& mask, int ax)
+NumpyBlockBackend::apply_mask(const BlockCPtr& block, const BlockCPtr& mask, int64 ax)
 {
     return wrap(np_attr("compress")(obj(mask), obj(block), ax));
 }
 
 BlockPtr
-NumpyBlockBackend::_argsort(BlockCPtr const& block, int axis)
+NumpyBlockBackend::_argsort(const BlockCPtr& block, int64 axis)
 {
     return wrap(np_attr("argsort")(obj(block), py::arg("axis") = axis));
 }
 
 BlockPtr
-NumpyBlockBackend::conj(BlockCPtr const& a)
+NumpyBlockBackend::conj(const BlockCPtr& a)
 {
     return wrap(np_attr("conj")(obj(a)));
 }
 
 BlockPtr
-NumpyBlockBackend::copy_block(BlockCPtr const& a, std::optional<std::string> device)
+NumpyBlockBackend::copy_block(const BlockCPtr& a, std::optional<std::string> device)
 {
     (void)as_device(device);
     return wrap(np_attr("copy")(obj(a)));
 }
 
 BlockPtr
-NumpyBlockBackend::cutoff_inverse(BlockCPtr const& a, double cutoff)
+NumpyBlockBackend::cutoff_inverse(const BlockCPtr& a, float64 cutoff)
 {
     py::object arr = obj(a);
     py::module_ np = numpy_module();
@@ -227,13 +227,13 @@ NumpyBlockBackend::cutoff_inverse(BlockCPtr const& a, double cutoff)
 }
 
 Dtype
-NumpyBlockBackend::get_dtype(BlockCPtr const& a)
+NumpyBlockBackend::get_dtype(const BlockCPtr& a)
 {
     return dtype::from_numpy_dtype(obj(a).attr("dtype"));
 }
 
 std::tuple<BlockPtr, BlockPtr>
-NumpyBlockBackend::eigh(BlockCPtr const& block, std::optional<std::string> sort)
+NumpyBlockBackend::eigh(const BlockCPtr& block, std::optional<std::string> sort)
 {
     py::object a = obj(block);
     py::tuple res = py::cast<py::tuple>(np_attr("linalg").attr("eigh")(a));
@@ -249,7 +249,7 @@ NumpyBlockBackend::eigh(BlockCPtr const& block, std::optional<std::string> sort)
 }
 
 BlockPtr
-NumpyBlockBackend::eigvalsh(BlockCPtr const& block, std::optional<std::string> sort)
+NumpyBlockBackend::eigvalsh(const BlockCPtr& block, std::optional<std::string> sort)
 {
     py::object w = np_attr("linalg").attr("eigvalsh")(obj(block));
     if (sort) {
@@ -260,7 +260,7 @@ NumpyBlockBackend::eigvalsh(BlockCPtr const& block, std::optional<std::string> s
 }
 
 BlockPtr
-NumpyBlockBackend::enlarge_leg(BlockCPtr const& block, BlockCPtr const& mask, int axis)
+NumpyBlockBackend::enlarge_leg(const BlockCPtr& block, const BlockCPtr& mask, int64 axis)
 {
     py::object a = obj(block);
     py::object m = obj(mask);
@@ -270,39 +270,39 @@ NumpyBlockBackend::enlarge_leg(BlockCPtr const& block, BlockCPtr const& mask, in
     py::object shape = py::tuple(shape_list);
     py::object res = np.attr("zeros")(shape, py::arg("dtype") = a.attr("dtype"));
     py::list idcs;
-    for (int i = 0; i < py::len(shape_list); ++i)
+    for (int64 i = 0; i < py::len(shape_list); ++i)
         idcs.append(i == axis ? m : py::object(py::slice(py::none(), py::none(), py::none())));
     res[py::tuple(idcs)] = np_attr("copy")(a);
     return wrap(res);
 }
 
 BlockPtr
-NumpyBlockBackend::exp(BlockCPtr const& a)
+NumpyBlockBackend::exp(const BlockCPtr& a)
 {
     return wrap(np_attr("exp")(obj(a)));
 }
 
 BlockPtr
-NumpyBlockBackend::block_from_diagonal(BlockCPtr const& diag)
+NumpyBlockBackend::block_from_diagonal(const BlockCPtr& diag)
 {
     return wrap(np_attr("diag")(obj(diag)));
 }
 
 BlockPtr
-NumpyBlockBackend::block_from_mask(BlockCPtr const& mask, Dtype dtype)
+NumpyBlockBackend::block_from_mask(const BlockCPtr& mask, Dtype dtype)
 {
     py::object m = obj(mask);
     py::module_ np = numpy_module();
     py::object dt = dtype::to_numpy_dtype(dtype);
-    int M = py::cast<int>(m.attr("shape").attr("__getitem__")(0));
-    int N = py::cast<int>(np.attr("sum")(m));
+    int64 M = py::cast<int64>(m.attr("shape").attr("__getitem__")(0));
+    int64 N = py::cast<int64>(np.attr("sum")(m));
     py::object res = np.attr("zeros")(py::make_tuple(N, M), py::arg("dtype") = dt);
     res[py::make_tuple(np.attr("arange")(N), m)] = 1;
     return wrap(res);
 }
 
 BlockPtr
-NumpyBlockBackend::block_from_numpy(py::array const& a,
+NumpyBlockBackend::block_from_numpy(const py::array& a,
                                     std::optional<Dtype> dtype_opt,
                                     std::optional<std::string> device)
 {
@@ -313,13 +313,13 @@ NumpyBlockBackend::block_from_numpy(py::array const& a,
 }
 
 std::string
-NumpyBlockBackend::get_device(BlockCPtr const& /*a*/)
+NumpyBlockBackend::get_device(const BlockCPtr& /*a*/)
 {
     return default_device;
 }
 
 BlockPtr
-NumpyBlockBackend::get_diagonal(BlockCPtr const& a, std::optional<double> tol)
+NumpyBlockBackend::get_diagonal(const BlockCPtr& a, std::optional<float64> tol)
 {
     py::object arr = obj(a);
     py::object res = np_attr("diagonal")(arr);
@@ -332,7 +332,7 @@ NumpyBlockBackend::get_diagonal(BlockCPtr const& a, std::optional<double> tol)
 }
 
 bool
-NumpyBlockBackend::get_block_mask_element(BlockCPtr const& a,
+NumpyBlockBackend::get_block_mask_element(const BlockCPtr& a,
                                           int64 large_leg_idx,
                                           int64 small_leg_idx,
                                           int64 sum_block)
@@ -349,91 +349,91 @@ NumpyBlockBackend::get_block_mask_element(BlockCPtr const& a,
 }
 
 BlockPtr
-NumpyBlockBackend::imag(BlockCPtr const& a)
+NumpyBlockBackend::imag(const BlockCPtr& a)
 {
     return wrap(np_attr("imag")(obj(a)));
 }
 
 py::object
-NumpyBlockBackend::item(BlockCPtr const& a)
+NumpyBlockBackend::item(const BlockCPtr& a)
 {
     return obj(a).attr("item")();
 }
 
 BlockPtr
-NumpyBlockBackend::kron(BlockCPtr const& a, BlockCPtr const& b)
+NumpyBlockBackend::kron(const BlockCPtr& a, const BlockCPtr& b)
 {
     return wrap(np_attr("kron")(obj(a), obj(b)));
 }
 
 BlockPtr
 NumpyBlockBackend::linear_combination(Scalar a_coef,
-                                      BlockCPtr const& v,
+                                      const BlockCPtr& v,
                                       Scalar b_coef,
-                                      BlockCPtr const& w)
+                                      const BlockCPtr& w)
 {
     return wrap(a_coef.to_numpy() * obj(v) + b_coef.to_numpy() * obj(w));
 }
 
 BlockPtr
-NumpyBlockBackend::log(BlockCPtr const& a)
+NumpyBlockBackend::log(const BlockCPtr& a)
 {
     return wrap(np_attr("log")(obj(a)));
 }
 
-double
-NumpyBlockBackend::max(BlockCPtr const& a)
+float64
+NumpyBlockBackend::max(const BlockCPtr& a)
 {
-    return py::cast<double>(np_attr("max")(obj(a)).attr("item")());
+    return py::cast<float64>(np_attr("max")(obj(a)).attr("item")());
 }
 
-double
-NumpyBlockBackend::max_abs(BlockCPtr const& a)
+float64
+NumpyBlockBackend::max_abs(const BlockCPtr& a)
 {
-    return py::cast<double>(np_attr("max")(np_attr("abs")(obj(a))).attr("item")());
+    return py::cast<float64>(np_attr("max")(np_attr("abs")(obj(a))).attr("item")());
 }
 
-double
-NumpyBlockBackend::min(BlockCPtr const& a)
+float64
+NumpyBlockBackend::min(const BlockCPtr& a)
 {
-    return py::cast<double>(np_attr("min")(obj(a)).attr("item")());
+    return py::cast<float64>(np_attr("min")(obj(a)).attr("item")());
 }
 
 BlockPtr
-NumpyBlockBackend::mul(py::object a, BlockCPtr const& b)
+NumpyBlockBackend::mul(py::object a, const BlockCPtr& b)
 {
     return wrap(a * obj(b));
 }
 
-double
-NumpyBlockBackend::norm(BlockCPtr const& a, double order, std::optional<int> axis)
+float64
+NumpyBlockBackend::norm(const BlockCPtr& a, float64 order, std::optional<int64> axis)
 {
     py::object arr = obj(a);
     if (!axis) {
-        return py::cast<double>(np_attr("linalg")
-                                  .attr("norm")(arr.attr("ravel")(), py::arg("ord") = order)
-                                  .attr("item")());
+        return py::cast<float64>(np_attr("linalg")
+                                   .attr("norm")(arr.attr("ravel")(), py::arg("ord") = order)
+                                   .attr("item")());
     }
-    return py::cast<double>(
+    return py::cast<float64>(
       np_attr("linalg").attr("norm")(arr, py::arg("ord") = order, py::arg("axis") = *axis));
 }
 
 BlockPtr
-NumpyBlockBackend::outer(BlockCPtr const& a, BlockCPtr const& b)
+NumpyBlockBackend::outer(const BlockCPtr& a, const BlockCPtr& b)
 {
     return wrap(np_attr("tensordot")(obj(a), obj(b), py::make_tuple(py::tuple(), py::tuple())));
 }
 
 BlockPtr
-NumpyBlockBackend::permute_axes(BlockCPtr const& a, std::vector<int> const& permutation)
+NumpyBlockBackend::permute_axes(const BlockCPtr& a, const std::vector<int64>& permutation)
 {
     return wrap(np_attr("transpose")(obj(a), py::cast(permutation)));
 }
 
 BlockPtr
-NumpyBlockBackend::random_normal(std::vector<int64> const& dims,
+NumpyBlockBackend::random_normal(const std::vector<int64>& dims,
                                  Dtype dtype,
-                                 double sigma,
+                                 float64 sigma,
                                  std::optional<std::string> device)
 {
     (void)as_device(device);
@@ -444,14 +444,14 @@ NumpyBlockBackend::random_normal(std::vector<int64> const& dims,
     py::object res = np.attr("random").attr("normal")(
       py::arg("loc") = 0, py::arg("scale") = sigma, py::arg("size") = dims);
     if (!dtype::is_real(dtype))
-        res = res + py::cast(std::complex<double>(0, 1)) *
+        res = res + py::cast(complex128(0, 1)) *
                       np.attr("random").attr("normal")(
                         py::arg("loc") = 0, py::arg("scale") = sigma, py::arg("size") = dims);
     return wrap(np.attr("asarray")(res, py::arg("dtype") = dt));
 }
 
 BlockPtr
-NumpyBlockBackend::random_uniform(std::vector<int64> const& dims,
+NumpyBlockBackend::random_uniform(const std::vector<int64>& dims,
                                   Dtype dtype,
                                   std::optional<std::string> device)
 {
@@ -461,95 +461,95 @@ NumpyBlockBackend::random_uniform(std::vector<int64> const& dims,
     py::object res = np.attr("random").attr("uniform")(
       py::arg("low") = -1, py::arg("high") = 1, py::arg("size") = dims);
     if (!dtype::is_real(dtype))
-        res = res + py::cast(std::complex<double>(0, 1)) *
+        res = res + py::cast(complex128(0, 1)) *
                       np.attr("random").attr("uniform")(
                         py::arg("low") = -1, py::arg("high") = 1, py::arg("size") = dims);
     return wrap(np.attr("asarray")(res, py::arg("dtype") = dt));
 }
 
 BlockPtr
-NumpyBlockBackend::real(BlockCPtr const& a)
+NumpyBlockBackend::real(const BlockCPtr& a)
 {
     return wrap(np_attr("real")(obj(a)));
 }
 
 BlockPtr
-NumpyBlockBackend::real_if_close(BlockCPtr const& a, double tol)
+NumpyBlockBackend::real_if_close(const BlockCPtr& a, float64 tol)
 {
     return wrap(np_attr("real_if_close")(obj(a), py::arg("tol") = tol));
 }
 
 BlockPtr
-NumpyBlockBackend::scale_axis(BlockCPtr const& block, BlockCPtr const& factors, int axis)
+NumpyBlockBackend::scale_axis(const BlockCPtr& block, const BlockCPtr& factors, int64 axis)
 {
     py::object a = obj(block);
     py::object f = obj(factors);
     py::module_ np = numpy_module();
-    int ndim = static_cast<int>(get_shape(block).size());
+    int64 ndim = static_cast<int64>(get_shape(block).size());
     py::list idx;
-    for (int i = 0; i < ndim; ++i)
+    for (int64 i = 0; i < ndim; ++i)
         idx.append(i == axis ? py::object(py::slice(py::none(), py::none(), py::none()))
                              : py::object(py::none()));
     return wrap(a * f.attr("__getitem__")(py::tuple(idx)));
 }
 
 BlockPtr
-NumpyBlockBackend::tile(BlockCPtr const& a, int repeats)
+NumpyBlockBackend::tile(const BlockCPtr& a, int64 repeats)
 {
     return wrap(np_attr("tile")(obj(a), repeats));
 }
 
 std::vector<std::string>
-NumpyBlockBackend::_block_repr_lines(BlockCPtr const& a,
-                                     std::string const& indent,
-                                     int max_width,
-                                     int max_lines)
+NumpyBlockBackend::_block_repr_lines(const BlockCPtr& a,
+                                     const std::string& indent,
+                                     int64 max_width,
+                                     int64 max_lines)
 {
     py::module_ np = numpy_module();
     py::object arr = obj(a);
-    np.attr("printoptions")(py::arg("linewidth") = max_width - static_cast<int>(indent.size()));
+    np.attr("printoptions")(py::arg("linewidth") = max_width - static_cast<int64>(indent.size()));
     py::str s = py::str(arr);
     py::list lines = s.attr("split")("\n");
     std::vector<std::string> out;
-    int n = py::len(lines);
-    int first = (max_lines - 1) / 2;
-    int last = max_lines - 1 - first;
-    for (int i = 0; i < std::min(first, n); ++i)
+    int64 n = py::len(lines);
+    int64 first = (max_lines - 1) / 2;
+    int64 last = max_lines - 1 - first;
+    for (int64 i = 0; i < std::min(first, n); ++i)
         out.push_back(indent + py::cast<std::string>(lines[i]));
     if (n > max_lines) {
         out.push_back(indent + "...");
-        for (int i = std::max(n - last, first); i < n; ++i)
+        for (int64 i = std::max(n - last, first); i < n; ++i)
             out.push_back(indent + py::cast<std::string>(lines[i]));
     }
     return out;
 }
 
 BlockPtr
-NumpyBlockBackend::reshape(BlockCPtr const& a, std::vector<int64> const& shape)
+NumpyBlockBackend::reshape(const BlockCPtr& a, const std::vector<int64>& shape)
 {
     return wrap(np_attr("reshape")(obj(a), py::cast(shape)));
 }
 
 std::vector<int64>
-NumpyBlockBackend::get_shape(BlockCPtr const& a)
+NumpyBlockBackend::get_shape(const BlockCPtr& a)
 {
     return ptr(a)->shape();
 }
 
 BlockPtr
-NumpyBlockBackend::sqrt(BlockCPtr const& a)
+NumpyBlockBackend::sqrt(const BlockCPtr& a)
 {
     return wrap(np_attr("sqrt")(obj(a)));
 }
 
 BlockPtr
-NumpyBlockBackend::squeeze_axes(BlockCPtr const& a, std::vector<int> const& idcs)
+NumpyBlockBackend::squeeze_axes(const BlockCPtr& a, const std::vector<int64>& idcs)
 {
     return wrap(np_attr("squeeze")(obj(a), py::cast(idcs)));
 }
 
 BlockPtr
-NumpyBlockBackend::stable_log(BlockCPtr const& block, double cutoff)
+NumpyBlockBackend::stable_log(const BlockCPtr& block, float64 cutoff)
 {
     py::object arr = obj(block);
     py::module_ np = numpy_module();
@@ -558,41 +558,41 @@ NumpyBlockBackend::stable_log(BlockCPtr const& block, double cutoff)
 }
 
 BlockPtr
-NumpyBlockBackend::sum(BlockCPtr const& a, int ax)
+NumpyBlockBackend::sum(const BlockCPtr& a, int64 ax)
 {
     return wrap(np_attr("sum")(obj(a), py::arg("axis") = ax));
 }
 
-std::complex<float64>
-NumpyBlockBackend::sum_all(BlockCPtr const& a)
+complex128
+NumpyBlockBackend::sum_all(const BlockCPtr& a)
 {
-    return py::cast<std::complex<float64>>(np_attr("sum")(obj(a)).attr("item")());
+    return py::cast<complex128>(np_attr("sum")(obj(a)).attr("item")());
 }
 
 BlockPtr
-NumpyBlockBackend::multiply_blocks(BlockCPtr const& a, BlockCPtr const& b)
+NumpyBlockBackend::multiply_blocks(const BlockCPtr& a, const BlockCPtr& b)
 {
     return wrap(obj(a) * obj(b));
 }
 
 BlockPtr
-NumpyBlockBackend::tdot(BlockCPtr const& a,
-                        BlockCPtr const& b,
-                        std::vector<int> const& idcs_a,
-                        std::vector<int> const& idcs_b)
+NumpyBlockBackend::tdot(const BlockCPtr& a,
+                        const BlockCPtr& b,
+                        const std::vector<int64>& idcs_a,
+                        const std::vector<int64>& idcs_b)
 {
     return wrap(
       np_attr("tensordot")(obj(a), obj(b), py::make_tuple(py::cast(idcs_a), py::cast(idcs_b))));
 }
 
 BlockPtr
-NumpyBlockBackend::to_dtype(BlockCPtr const& a, Dtype dtype)
+NumpyBlockBackend::to_dtype(const BlockCPtr& a, Dtype dtype)
 {
     return wrap(np_attr("asarray")(obj(a), dtype::to_numpy_dtype(dtype)));
 }
 
 py::object
-NumpyBlockBackend::to_numpy(BlockCPtr const& a, std::optional<py::object> numpy_dtype)
+NumpyBlockBackend::to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype)
 {
     py::object arr = obj(a);
     if (numpy_dtype)
@@ -601,7 +601,7 @@ NumpyBlockBackend::to_numpy(BlockCPtr const& a, std::optional<py::object> numpy_
 }
 
 std::complex<float64>
-NumpyBlockBackend::trace_full(BlockCPtr const& a)
+NumpyBlockBackend::trace_full(const BlockCPtr& a)
 {
     py::object arr = obj(a);
     std::vector<int64> sh = get_shape(a);
@@ -609,31 +609,31 @@ NumpyBlockBackend::trace_full(BlockCPtr const& a)
     int64 trace_dim = 1;
     for (size_t i = 0; i < num_trace; ++i)
         trace_dim *= sh[i];
-    std::vector<int> perm(sh.size());
+    std::vector<int64> perm(sh.size());
     for (size_t i = 0; i < num_trace; ++i)
         perm[i] = static_cast<int>(i);
     for (size_t i = 0; i < num_trace; ++i)
         perm[num_trace + i] = static_cast<int>(2 * num_trace - 1 - i);
     arr = np_attr("transpose")(arr, py::cast(perm));
     arr = np_attr("reshape")(arr, py::make_tuple(trace_dim, trace_dim));
-    return py::cast<std::complex<float64>>(
+    return py::cast<complex128>(
       np_attr("trace")(arr, py::arg("axis1") = 0, py::arg("axis2") = 1).attr("item")());
 }
 
 BlockPtr
-NumpyBlockBackend::trace_partial(BlockCPtr const& a,
-                                 std::vector<int> const& idcs1,
-                                 std::vector<int> const& idcs2,
-                                 std::vector<int> const& remaining_idcs)
+NumpyBlockBackend::trace_partial(const BlockCPtr& a,
+                                 const std::vector<int64>& idcs1,
+                                 const std::vector<int64>& idcs2,
+                                 const std::vector<int64>& remaining_idcs)
 {
     py::object arr = obj(a);
-    std::vector<int> perm = remaining_idcs;
+    std::vector<int64> perm = remaining_idcs;
     perm.insert(perm.end(), idcs1.begin(), idcs1.end());
     perm.insert(perm.end(), idcs2.begin(), idcs2.end());
     arr = np_attr("transpose")(arr, py::cast(perm));
     std::vector<int64> sh = get_shape(a);
     int64 trace_dim = 1;
-    for (int i : idcs1)
+    for (int64 i : idcs1)
         trace_dim *= sh[i];
     py::tuple shape = arr.attr("shape");
     py::list new_shape;
@@ -646,38 +646,38 @@ NumpyBlockBackend::trace_partial(BlockCPtr const& a,
 }
 
 BlockPtr
-NumpyBlockBackend::eye_matrix(int dim, Dtype dtype, std::optional<std::string> device)
+NumpyBlockBackend::eye_matrix(int64 dim, Dtype dtype, std::optional<std::string> device)
 {
     (void)as_device(device);
     return wrap(np_attr("eye")(dim, py::arg("dtype") = dtype::to_numpy_dtype(dtype)));
 }
 
 py::object
-NumpyBlockBackend::get_block_element(BlockCPtr const& a, std::vector<int64> const& idcs)
+NumpyBlockBackend::get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs)
 {
     return obj(a).attr("__getitem__")(py::cast(idcs)).attr("item")();
 }
 
 BlockPtr
-NumpyBlockBackend::matrix_dot(BlockCPtr const& a, BlockCPtr const& b)
+NumpyBlockBackend::matrix_dot(const BlockCPtr& a, const BlockCPtr& b)
 {
     return wrap(np_attr("dot")(obj(a), obj(b)));
 }
 
 BlockPtr
-NumpyBlockBackend::matrix_exp(BlockCPtr const& matrix)
+NumpyBlockBackend::matrix_exp(const BlockCPtr& matrix)
 {
     return wrap(py::module_::import("scipy.linalg").attr("expm")(obj(matrix)));
 }
 
 BlockPtr
-NumpyBlockBackend::matrix_log(BlockCPtr const& matrix)
+NumpyBlockBackend::matrix_log(const BlockCPtr& matrix)
 {
     return wrap(py::module_::import("scipy.linalg").attr("logm")(obj(matrix)));
 }
 
 std::tuple<BlockPtr, BlockPtr>
-NumpyBlockBackend::matrix_qr(BlockCPtr const& a, bool full)
+NumpyBlockBackend::matrix_qr(const BlockCPtr& a, bool full)
 {
     py::tuple qr = py::module_::import("scipy.linalg")
                      .attr("qr")(obj(a), py::arg("mode") = (full ? "full" : "economic"));
@@ -685,7 +685,7 @@ NumpyBlockBackend::matrix_qr(BlockCPtr const& a, bool full)
 }
 
 std::tuple<BlockPtr, BlockPtr, BlockPtr>
-NumpyBlockBackend::matrix_svd(BlockCPtr const& a, std::optional<std::string> algorithm)
+NumpyBlockBackend::matrix_svd(const BlockCPtr& a, std::optional<std::string> algorithm)
 {
     std::string algo = algorithm ? *algorithm : "gesdd";
     if (algo == "gesdd") {
@@ -705,7 +705,7 @@ NumpyBlockBackend::matrix_svd(BlockCPtr const& a, std::optional<std::string> alg
             py::tuple uvt = py::module_::import("scipy.linalg")
                               .attr("svd")(obj(a), py::arg("full_matrices") = false);
             return { wrap(uvt[0]), wrap(uvt[1]), wrap(uvt[2]) };
-        } catch (py::error_already_set const&) {
+        } catch (const py::error_already_set&) {
             if (algo != "robust_silent")
                 throw;
         }
@@ -719,7 +719,7 @@ NumpyBlockBackend::matrix_svd(BlockCPtr const& a, std::optional<std::string> alg
 }
 
 BlockPtr
-NumpyBlockBackend::ones_block(std::vector<int64> const& shape,
+NumpyBlockBackend::ones_block(const std::vector<int64>& shape,
                               Dtype dtype,
                               std::optional<std::string> device)
 {
@@ -728,7 +728,7 @@ NumpyBlockBackend::ones_block(std::vector<int64> const& shape,
 }
 
 BlockPtr
-NumpyBlockBackend::zeros(std::vector<int64> const& shape,
+NumpyBlockBackend::zeros(const std::vector<int64>& shape,
                          Dtype dtype,
                          std::optional<std::string> device)
 {
@@ -738,7 +738,7 @@ NumpyBlockBackend::zeros(std::vector<int64> const& shape,
 }
 
 std::shared_ptr<NumpyBlockBackend>
-NumpyBlockBackend::load_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+NumpyBlockBackend::load_hdf5(py::object hdf5_loader, py::object h5gr, const std::string& subpath)
 {
     auto obj = std::make_shared<NumpyBlockBackend>();
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
