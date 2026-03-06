@@ -16,9 +16,11 @@ class NumpyBlockBackend : public BlockBackend
         explicit Block(py::array arr);
         virtual ~Block() = default;
 
+        BlockBackend* get_backend() const override;
+
         std::vector<int64> shape() const override;
         Dtype dtype() const override;
-        std::string device() const override;
+        const std::string& device() const override;
         py::array to_numpy() const override { return arr_; }
 
       protected:
@@ -26,8 +28,16 @@ class NumpyBlockBackend : public BlockBackend
     };
 
   public:
-    NumpyBlockBackend();
+    /// Get the backend instance for the given device (nearly-singleton per device).
+    static NumpyBlockBackend* from_factory(const std::string& device = "cpu");
+    /// Get a shared_ptr to the backend (e.g. for load_hdf5 or Python reference).
+    static std::shared_ptr<NumpyBlockBackend> from_factory_shared(
+      const std::string& device = "cpu");
 
+  protected:
+    explicit NumpyBlockBackend();
+
+  public:
     static std::shared_ptr<NumpyBlockBackend> load_hdf5(py::object hdf5_loader,
                                                         py::object h5gr,
                                                         const std::string& subpath);

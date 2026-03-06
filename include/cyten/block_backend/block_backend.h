@@ -3,6 +3,7 @@
 #include <cyten/block_backend/dtypes.h>
 #include <cyten/block_backend/scalar.h>
 #include <cyten/cyten.h>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -18,13 +19,17 @@ class BlockBackend
     /// Abstract base class for dense blocks. Subclassed per backend (e.g.
     /// NumpyBlockBackend::Block). Access to elements should be done exclusively through the
     /// BlockBackend.
-    class Block
+    class Block : public std::enable_shared_from_this<Block>
     {
       public:
         // subclasses should have constructor from numpy array
-        // explicit Block(std::shared_ptr<py::array> arr);
+        // explicit Block(py::array arr);
 
         virtual ~Block() = default;
+
+        /// Return the backend for this block's device (e.g.
+        /// NumpyBlockBackend::from_factory(device())).
+        virtual BlockBackend* get_backend() const = 0;
 
         /// convert to numpy array, might be copy or (immutable) view
         virtual py::array to_numpy() const = 0;
@@ -36,7 +41,14 @@ class BlockBackend
         virtual Dtype dtype() const = 0;
 
         /// Device string (e.g. "cpu", "cuda:0").
-        virtual std::string device() const = 0;
+        virtual const std::string& device() const = 0;
+
+        /// Elementwise addition with another block.
+        std::shared_ptr<Block> operator+(const std::shared_ptr<const Block>& other) const;
+        /// Scalar multiplication.
+        std::shared_ptr<Block> operator*(Scalar s) const;
+        /// Item access by multi-index.
+        Scalar operator[](const std::vector<int64>& idcs) const;
     };
     using BlockPtr = std::shared_ptr<Block>;
     using BlockCPtr = std::shared_ptr<const Block>;
@@ -45,7 +57,17 @@ class BlockBackend
     std::string default_device;
 
   public:
+    /// Get the backend instance for the given device. Implemented in subclasses (e.g.
+    /// NumpyBlockBackend).
+    static BlockBackend* from_factory(std::string device = "cpu");
+
+  public:
+    /// Public constructor for Python Subclasses.
+    /// C++ Subclasses should have a protected constructor and enforce instantiation via
+    /// from_factory.
     explicit BlockBackend(std::string default_device);
+
+  public:
     virtual ~BlockBackend() = default;
 
     /// Name of the backend class for __repr__ / __str__ (e.g. "NumpyBlockBackend").

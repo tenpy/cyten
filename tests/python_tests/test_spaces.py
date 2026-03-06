@@ -259,7 +259,7 @@ def check_basis_perm(perm, inv_perm=None):
 
 
 def test_LegPipe_basis_perm(np_random):
-    block_backend = NumpyBlockBackend()
+    block_backend = NumpyBlockBackend.from_factory('cpu')
     a = spaces.ElementarySpace.from_trivial_sector(dim=5, is_dual=True, basis_perm=np_random.permutation(5))
     b = spaces.ElementarySpace.from_trivial_sector(dim=6, is_dual=False, basis_perm=np_random.permutation(6))
     c = spaces.ElementarySpace.from_trivial_sector(dim=7, is_dual=True, basis_perm=np_random.permutation(7))

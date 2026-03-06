@@ -26,10 +26,44 @@ BlockBackend::BlockBackend(std::string default_device)
 {
 }
 
+BlockBackend*
+BlockBackend::from_factory(std::string /* device */)
+{
+    throw NotImplemented(
+      "from_factory needs to be called on a subclass (e.g. NumpyBlockBackend::from_factory)");
+}
+
 std::string
 BlockBackend::get_backend_name() const
 {
     return "BlockBackend";
+}
+
+BlockPtr
+BlockBackend::Block::operator+(const BlockCPtr& other) const
+{
+    return get_backend()->linear_combination(Scalar(1.0), shared_from_this(), Scalar(1.0), other);
+}
+
+BlockPtr
+BlockBackend::Block::operator*(Scalar s) const
+{
+    return get_backend()->mul(s.to_numpy(), shared_from_this());
+}
+
+Scalar
+BlockBackend::Block::operator[](const std::vector<int64>& idcs) const
+{
+    py::object o = get_backend()->get_block_element(shared_from_this(), idcs);
+    Dtype dt = dtype();
+    complex128 z;
+    if (dt == Dtype::Bool)
+        z = py::cast<bool>(o) ? float64(1) : float64(0);
+    else if (dtype::is_complex(dt))
+        z = py::cast<complex128>(o);
+    else
+        z = complex128(py::cast<float64>(o), 0);
+    return Scalar(dt, z);
 }
 
 BlockPtr

@@ -9,16 +9,28 @@ void
 bind_block_backend_numpy(py::module_& m)
 {
 
-    py::
-      class_<NumpyBlockBackend, BlockBackend, PyBlockBackend<NumpyBlockBackend>, py::smart_holder>
-        numpy_block_backend(m, "NumpyBlockBackend");
-    numpy_block_backend.doc() = "A block backend using numpy.";
-    numpy_block_backend.def(py::init<>());
+    py::class_<NumpyBlockBackend, BlockBackend, py::smart_holder> numpy_block_backend(
+      m, "NumpyBlockBackend");
+    numpy_block_backend.doc() = R"pydoc(
+        A block backend using numpy.
 
-    py::class_<NumpyBlockBackend::Block,
-               BlockBackend::Block,
-               PyBlock<NumpyBlockBackend::Block>,
-               py::smart_holder>(
+        No constructor available, use from_factory instead.
+        Not to be subclassed.
+        )pydoc";
+    numpy_block_backend.def_static(
+      "from_factory",
+      &NumpyBlockBackend::from_factory,
+      py::arg("device") = "cpu",
+      py::return_value_policy::reference,
+      "Get the backend instance for the given device (nearly-singleton per device).");
+    numpy_block_backend.def_static("load_hdf5",
+                                   &NumpyBlockBackend::load_hdf5,
+                                   py::arg("hdf5_loader"),
+                                   py::arg("h5gr"),
+                                   py::arg("subpath"),
+                                   "Load a block from an HDF5 file.");
+
+    py::class_<NumpyBlockBackend::Block, BlockBackend::Block, py::smart_holder>(
       numpy_block_backend, "BlockCls", "Block that holds a numpy array in a py::object.")
       .def(py::init<py::array>(), py::arg("arr"))
       .def("to_numpy",

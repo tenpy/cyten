@@ -30,18 +30,43 @@ bind_block_backend(py::module_& m)
       .def("as_bool", &Scalar::as_bool, "As bool; raises if dtype is not Bool.")
       .def("to_numpy", &Scalar::to_numpy, "Return as numpy scalar (np.bool_, np.float64, etc.).");
 
-    py::class_<BlockBackend, PyBlockBackend<BlockBackend>, py::smart_holder> block_backend(
-      m, "BlockBackend");
+    py::class_<BlockBackend, PyBlockBackend, py::smart_holder> block_backend(m, "BlockBackend");
     block_backend.doc() = "Abstract base class that defines the operation on dense blocks.";
 
-    py::class_<BlockBackend::Block, PyBlock<>, py::smart_holder>(
+    py::class_<BlockBackend::Block, PyBlock, py::smart_holder>(
       block_backend, "BlockCls", "Abstract base for dense blocks.")
       .def_property_readonly("shape", &BlockBackend::Block::shape)
       .def_property_readonly("dtype", &BlockBackend::Block::dtype)
-      .def_property_readonly("device", &BlockBackend::Block::device);
+      .def_property_readonly("device", &BlockBackend::Block::device)
+      .def("get_backend",
+           &BlockBackend::Block::get_backend,
+           py::return_value_policy::reference,
+           "Return the backend for this block's device.")
+      .def(
+        "__add__",
+        [](const BlockBackend::Block& self, const BlockCPtr& other) {
+            return self.operator+(other);
+        },
+        py::arg("other"),
+        "Elementwise addition with another block.")
+      .def(
+        "__mul__",
+        [](const BlockBackend::Block& self, Scalar s) { return self * s; },
+        py::arg("other"),
+        "Multiplication by a scalar.")
+      .def(
+        "__rmul__",
+        [](const BlockBackend::Block& self, Scalar s) { return self * s; },
+        py::arg("other"),
+        "Right multiplication by a scalar.")
+      .def(
+        "get_element",
+        [](const BlockBackend::Block& self, const std::vector<int64>& idcs) { return self[idcs]; },
+        py::arg("idcs"),
+        "Get element at multi-index.");
 
     block_backend // init and attributes
-      .def(py::init<std::string>())
+      .def(py::init<std::string>(), py::arg("device") = "cpu")
       .def_readonly("default_device", &BlockBackend::default_device);
 
     block_backend //  methods

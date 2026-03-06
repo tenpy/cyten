@@ -628,7 +628,7 @@ class FusionTree:
         if not self.symmetry.can_be_dropped:
             raise SymmetryError(f'Can not convert to block for symmetry {self.symmetry}')
         if backend is None:
-            block_backend = NumpyBlockBackend()
+            block_backend = NumpyBlockBackend.from_factory('cpu')
         else:
             block_backend = backend.block_backend
         if dtype is None:

@@ -71,7 +71,11 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
     BlockBackendCls, block_kwargs = _block_backends[block_backend]
     TensorBackendCls, tensor_kwargs = _tensor_backend_classes[tensor_backend]
-    backend = TensorBackendCls(block_backend=BlockBackendCls(**block_kwargs), **tensor_kwargs)
+    if BlockBackendCls is NumpyBlockBackend and not block_kwargs:
+        block_backend_instance = NumpyBlockBackend.from_factory('cpu')
+    else:
+        block_backend_instance = BlockBackendCls(**block_kwargs)
+    backend = TensorBackendCls(block_backend=block_backend_instance, **tensor_kwargs)
 
     if isinstance(symmetry, Symmetry):
         assert backend.supports_symmetry(symmetry)

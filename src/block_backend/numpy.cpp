@@ -1,6 +1,8 @@
 #include <cyten/block_backend/dtypes.h>
 #include <cyten/block_backend/numpy.h>
 
+#include <map>
+#include <mutex>
 #include <pybind11/numpy.h>
 #include <stdexcept>
 
@@ -46,10 +48,17 @@ NumpyBlockBackend::Block::dtype() const
     return dtype::from_numpy_dtype(arr_.attr("dtype"));
 }
 
-std::string
+const std::string&
 NumpyBlockBackend::Block::device() const
 {
-    return "cpu";
+    static std::string device = "cpu";
+    return device;
+}
+
+BlockBackend*
+NumpyBlockBackend::Block::get_backend() const
+{
+    return NumpyBlockBackend::from_factory(device());
 }
 
 // -----------------------------------------------------------------------------
@@ -80,6 +89,29 @@ NumpyBlockBackend::wrap(py::object arr)
 // -----------------------------------------------------------------------------
 // NumpyBlockBackend
 // -----------------------------------------------------------------------------
+
+NumpyBlockBackend*
+NumpyBlockBackend::from_factory(const std::string& device)
+{
+    return from_factory_shared(device).get();
+}
+
+std::shared_ptr<NumpyBlockBackend>
+NumpyBlockBackend::from_factory_shared(const std::string& device)
+{
+    if (device != "cpu")
+        throw std::invalid_argument(
+          "NumpyBlockBackend::from_factory only supports device \"cpu\", got: " + device);
+    static std::mutex mutex;
+    static std::map<std::string, std::shared_ptr<NumpyBlockBackend>> cache;
+    std::lock_guard<std::mutex> lock(mutex);
+    auto it = cache.find(device);
+    if (it == cache.end()) {
+        it =
+          cache.emplace(device, std::shared_ptr<NumpyBlockBackend>(new NumpyBlockBackend())).first;
+    }
+    return it->second;
+}
 
 NumpyBlockBackend::NumpyBlockBackend()
   : BlockBackend("cpu")
@@ -748,12 +780,8 @@ NumpyBlockBackend::zeros(const std::vector<int64>& shape,
 std::shared_ptr<NumpyBlockBackend>
 NumpyBlockBackend::load_hdf5(py::object hdf5_loader, py::object h5gr, const std::string& subpath)
 {
-    auto obj = std::make_shared<NumpyBlockBackend>();
+    auto obj = NumpyBlockBackend::from_factory_shared("cpu");
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
-    // std::vector<std::string> svd_algs = hdf5_loader.attr("load")(subpath +
-    // std::string("svd_algorithms")); std::string default_dev = hdf5_loader.attr("load")(subpath +
-    // std::string("default_device"));
-    // TODO: could check svd_algorithms and default_dev for correctness.
     return obj;
 }
 

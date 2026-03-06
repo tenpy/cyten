@@ -342,7 +342,7 @@ def test_SymmetricTensor_from_random_normal(leg_nums, dtype, make_compatible_ten
 def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_random):
     T: SymmetricTensor = make_compatible_tensor(*leg_nums, use_pipes=False)
 
-    numpy_block_backend = NumpyBlockBackend()
+    numpy_block_backend = NumpyBlockBackend.from_factory('cpu')
     # build two valid dicts
     trees1 = {}
     trees2 = {}
@@ -1741,7 +1741,7 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     if cyten_func is tensors.cutoff_inverse:
-        numpy_func = partial(NumpyBlockBackend().cutoff_inverse, **kwargs)
+        numpy_func = partial(NumpyBlockBackend.from_factory('cpu').cutoff_inverse, **kwargs)
         npt.assert_almost_equal(numpy_func(1), 1)
         npt.assert_almost_equal(numpy_func(0), 0)
         npt.assert_almost_equal(numpy_func(2 * kwargs['cutoff']), 0.5 / kwargs['cutoff'])

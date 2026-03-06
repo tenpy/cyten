@@ -7,7 +7,7 @@ from cyten._core import Dtype, NumpyBlockBackend
 
 
 def test_numpy_block_backend_zeros_get_shape():
-    be = NumpyBlockBackend()
+    be = NumpyBlockBackend.from_factory('cpu')
     z = be.zeros([2, 3], Dtype.float64)
     assert be.get_shape(z) == [2, 3]
     assert be.get_dtype(z) == Dtype.float64
@@ -15,7 +15,7 @@ def test_numpy_block_backend_zeros_get_shape():
 
 
 def test_numpy_block_backend_copy_block():
-    be = NumpyBlockBackend()
+    be = NumpyBlockBackend.from_factory('cpu')
     z = be.zeros([2, 2], Dtype.float64)
     c = be.copy_block(z)
     assert be.get_shape(c) == [2, 2]
@@ -24,7 +24,7 @@ def test_numpy_block_backend_copy_block():
 
 
 def test_numpy_block_backend_apply_leg_permutations():
-    be = NumpyBlockBackend()
+    be = NumpyBlockBackend.from_factory('cpu')
     # block shape (2, 3); permute first axis [1,0], second axis identity [0,1,2]
     z = be.zeros([2, 3], Dtype.float64)
     arr = be.to_numpy(z)
