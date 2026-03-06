@@ -2185,8 +2185,7 @@ def planar_svd(
         If the new leg should be a ket space (``False``) or bra space (``True``).
     algorithm: str, optional
         The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
-        See the :attr:`~cyten.backends.BlockBackend.svd_algorithms` attribute of the
-        ``tensor.backend.block_backend``.
+        See :meth:`~cyten.block_backends.BlockBackend.possible_svd_algorithms`.
 
     Returns
     -------

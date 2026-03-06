@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 class BlockBackend(metaclass=ABCMeta):
     """Abstract base class that defines the operation on dense blocks."""
 
-    svd_algorithms: list[str]  # first is default
     BlockCls = None  # to be set by subclass
 
     def __init__(self, default_device: str):
@@ -727,7 +726,6 @@ class BlockBackend(metaclass=ABCMeta):
 
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
         hdf5_saver.save(self.BlockCls, subpath + 'BlockCls')
-        hdf5_saver.save(self.svd_algorithms, subpath + 'svd_algorithms')
 
     @classmethod
     def from_hdf5(cls, hdf5_loader, h5gr, subpath):
@@ -735,6 +733,5 @@ class BlockBackend(metaclass=ABCMeta):
         hdf5_loader.memorize_load(h5gr, obj)
 
         obj.BlockCls = hdf5_loader.load(subpath + 'BlockCls')
-        obj.svd_algorithms = hdf5_loader.load(subpath + 'svd_algorithms')
 
         return obj

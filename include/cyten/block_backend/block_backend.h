@@ -1,6 +1,5 @@
 #pragma once
 
-#include <complex>
 #include <cyten/block_backend/dtypes.h>
 #include <cyten/block_backend/scalar.h>
 #include <cyten/cyten.h>
@@ -44,7 +43,6 @@ class BlockBackend
 
   public:
     std::string default_device;
-    std::vector<std::string> svd_algorithms; // first is default
 
   public:
     explicit BlockBackend(std::string default_device);
@@ -245,6 +243,8 @@ class BlockBackend
     virtual std::tuple<BlockPtr, BlockPtr, BlockPtr> matrix_svd(
       const BlockCPtr& a,
       std::optional<std::string> algorithm = std::nullopt) = 0;
+    /// Possible SVD algorithms for this backend.
+    virtual const std::vector<std::string>& possible_svd_algorithms() const = 0;
     virtual BlockPtr ones_block(const std::vector<int64>& shape,
                                 Dtype dtype,
                                 std::optional<std::string> device = std::nullopt) = 0;

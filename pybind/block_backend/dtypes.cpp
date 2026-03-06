@@ -1,3 +1,5 @@
+// NOTE: this file is #included from block_backend.cpp
+
 #include <cyten/block_backend/dtypes.h>
 #include <pybind11/attr.h>
 #include <pybind11/native_enum.h>

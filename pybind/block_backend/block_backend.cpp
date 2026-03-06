@@ -42,8 +42,7 @@ bind_block_backend(py::module_& m)
 
     block_backend // init and attributes
       .def(py::init<std::string>())
-      .def_readwrite("default_device", &BlockBackend::default_device)
-      .def_readwrite("svd_algorithms", &BlockBackend::svd_algorithms);
+      .def_readonly("default_device", &BlockBackend::default_device);
 
     block_backend //  methods
       .def("__repr__",
@@ -635,7 +634,10 @@ bind_block_backend(py::module_& m)
            &BlockBackend::matrix_svd,
            py::arg("a"),
            py::arg("algorithm"),
-           "Internal version of :meth:`matrix_svd`, to be implemented by subclasses.")
+           "Perform a SVD decomposition of a matrix.")
+      .def("possible_svd_algorithms",
+           &BlockBackend::possible_svd_algorithms,
+           "Possible algorithms for :meth:`matrix_svd`.")
       .def("ones_block",
            &BlockBackend::ones_block,
            py::arg("shape"),

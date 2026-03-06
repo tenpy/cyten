@@ -13,8 +13,6 @@ from ._block_backend import Block, BlockBackend
 class TorchBlockBackend(BlockBackend):
     """A block-backend using PyTorch"""
 
-    svd_algorithms = ['gesvdj', 'gesvda', 'gesvd']
-
     def __init__(self, default_device: str = 'cpu') -> None:
         global torch_module
         try:
@@ -307,7 +305,7 @@ class TorchBlockBackend(BlockBackend):
         if a.device.type == 'cuda':
             if algorithm is None:
                 algorithm = 'gesvd'
-            assert algorithm in self.svd_algorithms
+            assert algorithm in self.possible_svd_algorithms()
         else:
             if algorithm == 'gesvd':
                 algorithm = None
@@ -316,6 +314,9 @@ class TorchBlockBackend(BlockBackend):
                 raise ValueError(msg)
         U, S, V = torch_module.linalg.svd(a, full_matrices=False, driver=algorithm)
         return U, S, V
+
+    def possible_svd_algorithms(self) -> list[str]:
+        return ['gesvdj', 'gesvda', 'gesvd']
 
     def ones_block(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
         return torch_module.ones(list(shape), dtype=self.backend_dtype_map[dtype], device=self.as_device(device))

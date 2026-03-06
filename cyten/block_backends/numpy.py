@@ -15,7 +15,6 @@ class NumpyBlockBackend(BlockBackend):
     """A block backend using numpy."""
 
     BlockCls = np.ndarray
-    svd_algorithms = ['gesdd', 'gesvd', 'robust', 'robust_silent']
 
     cyten_dtype_map = _numpy_dtype_to_cyten
     backend_dtype_map = _cyten_dtype_to_numpy

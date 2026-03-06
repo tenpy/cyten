@@ -1,3 +1,5 @@
+// NOTE: this file is #included from block_backend.cpp
+
 #include "trampolines.hpp"
 #include <cyten/block_backend/numpy.h>
 

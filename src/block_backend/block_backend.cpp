@@ -181,6 +181,8 @@ BlockBackend::permute_combined_idx(const BlockCPtr& block,
                                    const std::vector<int64>& idcs)
 {
     std::vector<int64> const sh = get_shape(block);
+    if (sh.size() != 2)
+        throw std::runtime_error("permute_combined_idx: block must be 2D");
     int64 const M = sh[0];
     int64 const N = sh[1];
     int64 ax = axis;
@@ -385,8 +387,6 @@ BlockBackend::inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger)
 void
 BlockBackend::save_hdf5(py::object hdf5_saver, py::object h5gr, const std::string& subpath)
 {
-    py::list svd_algs = py::cast(svd_algorithms);
-    hdf5_saver.attr("save")(svd_algs, subpath + std::string("svd_algorithms"));
     hdf5_saver.attr("save")(default_device, subpath + std::string("default_device"));
 }
 

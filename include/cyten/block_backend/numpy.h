@@ -128,6 +128,7 @@ class NumpyBlockBackend : public BlockBackend
     std::tuple<BlockPtr, BlockPtr, BlockPtr> matrix_svd(
       const BlockCPtr& a,
       std::optional<std::string> algorithm) override;
+    virtual const std::vector<std::string>& possible_svd_algorithms() const override;
     BlockPtr ones_block(const std::vector<int64>& shape,
                         Dtype dtype,
                         std::optional<std::string> device) override;

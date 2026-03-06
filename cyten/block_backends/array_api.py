@@ -15,8 +15,6 @@ from ._block_backend import Block, BlockBackend
 class ArrayApiBlockBackend(BlockBackend):
     """A block-backend based on a generic Array API compliant library"""
 
-    svd_algorithms = ['default']  # can not specify algorithms through the array API
-
     def __init__(self, api_namespace, default_device: str = 'cpu'):
         self._api = api_namespace
         self.BlockCls = type(api_namespace.zero(1))
@@ -177,6 +175,10 @@ class ArrayApiBlockBackend(BlockBackend):
             raise ValueError(f'SVD algorithm not supported: {algorithm}')
 
         self._api.linalg.svd(a, full_matrices=False)
+
+    def possible_svd_algorithms(self) -> list[str]:
+        """Cannot specify algorithms through the array API."""
+        return ['default']
 
     def matrix_qr(self, a: Block, full: bool) -> tuple[Block, Block]:
         return self._api.linalg.qr(a, mode='complete' if full else 'reduced')

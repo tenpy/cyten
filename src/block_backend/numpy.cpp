@@ -84,7 +84,6 @@ NumpyBlockBackend::wrap(py::object arr)
 NumpyBlockBackend::NumpyBlockBackend()
   : BlockBackend("cpu")
 {
-    svd_algorithms = { "gesdd", "gesvd", "robust", "robust_silent" };
 }
 
 std::string
@@ -716,6 +715,15 @@ NumpyBlockBackend::matrix_svd(const BlockCPtr& a, std::optional<std::string> alg
         return { wrap(uvt[0]), wrap(uvt[1]), wrap(uvt[2]) };
     }
     throw std::invalid_argument("SVD algorithm not supported: " + algo);
+}
+
+const std::vector<std::string>&
+NumpyBlockBackend::possible_svd_algorithms() const
+{
+    static const std::vector<std::string> algorithms = {
+        "gesdd", "gesvd", "robust", "robust_silent"
+    };
+    return algorithms;
 }
 
 BlockPtr

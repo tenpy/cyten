@@ -337,6 +337,11 @@ class PyBlockBackend
                                a,
                                algorithm);
     }
+    const std::vector<std::string>& possible_svd_algorithms() const override
+    {
+        PYBIND11_OVERRIDE_PURE(
+          const std::vector<std::string>&, BlockBackendBase, possible_svd_algorithms);
+    }
     BlockPtr ones_block(const std::vector<int64>& shape,
                         Dtype dtype,
                         std::optional<std::string> device) override
