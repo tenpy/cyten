@@ -1,6 +1,6 @@
 #include <cyten/config.h>
 
-#include "cyten_pybind11.h"
+#include "py_cyten_pybind11.h"
 
 namespace py = pybind11;
 namespace cyten {

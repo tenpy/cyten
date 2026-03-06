@@ -1,6 +1,6 @@
-// NOTE: this file is #included from block_backend.cpp
+// NOTE: this file is #included from py_block_backend.cpp
 
-#include "trampolines.hpp"
+#include "py_trampolines.hpp"
 #include <cyten/block_backend/numpy.h>
 
 namespace cyten {

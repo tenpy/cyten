@@ -1,7 +1,7 @@
-#include "../cyten_pybind11.h"
-#include "dtypes.cpp"
-#include "numpy.cpp"
-#include "trampolines.hpp"
+#include "../py_cyten_pybind11.h"
+#include "py_dtypes.cpp"
+#include "py_numpy.cpp"
+#include "py_trampolines.hpp"
 
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
