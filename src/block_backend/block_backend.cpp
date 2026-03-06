@@ -215,43 +215,54 @@ BlockPtr
 BlockBackend::split_legs(const BlockCPtr& a,
                          const std::vector<int64>& idcs,
                          const std::vector<std::vector<int64>>& dims,
-                         const std::vector<bool>& cstyles_in)
+                         const std::vector<bool>& cstyles)
 {
-    std::vector<bool> cstyles = cstyles_in;
-    if (cstyles.size() == 1u)
-        cstyles.resize(idcs.size(), cstyles[0]);
+    if (idcs.size() != dims.size() || idcs.size() != cstyles.size())
+        throw std::invalid_argument("idcs, dims, and cstyles must have the same length");
 
     std::vector<int64> const old_shape = get_shape(a);
-    std::vector<int64> axes_perm;
+    size_t new_ndim = old_shape.size();
+    for (auto& dim : dims)
+        new_ndim += dim.size();
     std::vector<int64> new_shape;
-    size_t start = 0;
+    std::vector<int64> axes_perm;
+    new_shape.reserve(new_ndim);
+    axes_perm.reserve(new_ndim);
 
+    size_t start_old_shape = 0;
     for (size_t g = 0; g < idcs.size(); ++g) {
-        int const i = idcs[g];
-        const std::vector<int64>& i_dims = dims[g];
-
-        for (size_t k = start; k < static_cast<size_t>(i); ++k)
+        size_t stop_old_shape = static_cast<size_t>(idcs[g]);
+        for (size_t k = start_old_shape; k < stop_old_shape; ++k)
             new_shape.push_back(old_shape[k]);
-
-        for (int64 d : i_dims)
+        for (size_t j = axes_perm.size(); j < new_shape.size(); ++j)
+            axes_perm.push_back(static_cast<int64>(j));
+        // now insert the split dimensions instead of the old dimensions
+        size_t replace_dims = 1;
+        for (int64 d : dims[g]) {
             new_shape.push_back(d);
-
-        size_t const n_axes_before = axes_perm.size();
-        for (size_t k = start; k < static_cast<size_t>(i); ++k)
-            axes_perm.push_back(static_cast<int>(k));
-        if (cstyles[g]) {
-            for (size_t k = 0; k < i_dims.size(); ++k)
-                axes_perm.push_back(static_cast<int>(n_axes_before + k));
-        } else {
-            for (size_t k = i_dims.size(); k > 0; --k)
-                axes_perm.push_back(static_cast<int64>(n_axes_before + k - 1));
+            replace_dims *= d;
         }
-        start = static_cast<size_t>(i) + 1;
+        if (old_shape[stop_old_shape] != replace_dims)
+            throw std::invalid_argument(
+              "The dimensions of the split legs do not match the old dimensions");
+
+        size_t n_axes_now = axes_perm.size();
+        size_t n_axes_after = new_shape.size();
+        if (cstyles[g]) {
+            for (size_t j = n_axes_now; j < n_axes_after; ++j)
+                axes_perm.push_back(static_cast<int64>(j));
+        } else {
+            // reverse the order of the axes
+            for (size_t j = n_axes_after; j > n_axes_now; --j)
+                axes_perm.push_back(static_cast<int64>(j - 1));
+        }
+        start_old_shape = stop_old_shape + 1;
     }
-    for (size_t k = start; k < old_shape.size(); ++k) {
+    size_t stop_old_shape = new_ndim;
+    for (size_t k = start_old_shape; k < stop_old_shape; ++k)
         new_shape.push_back(old_shape[k]);
-        axes_perm.push_back(static_cast<int64>(k));
-    }
+    for (size_t j = axes_perm.size(); j < new_shape.size(); ++j)
+        axes_perm.push_back(static_cast<int64>(j));
 
     return permute_axes(reshape(a, new_shape), axes_perm);
 }
