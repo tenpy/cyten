@@ -34,18 +34,17 @@ NumpyBlockBackend::Block::Block(py::array arr)
 std::vector<int64>
 NumpyBlockBackend::Block::shape() const
 {
-    py::tuple t = py::cast<py::tuple>(arr_.attr("shape"));
     std::vector<int64> s;
-    s.reserve(t.size());
-    for (auto const& item : t)
-        s.push_back(py::cast<int64>(item));
+    s.reserve(static_cast<size_t>(arr_.ndim()));
+    for (py::ssize_t i = 0; i < arr_.ndim(); ++i)
+        s.push_back(static_cast<int64>(arr_.shape(i)));
     return s;
 }
 
 Dtype
 NumpyBlockBackend::Block::dtype() const
 {
-    return dtype::from_numpy_dtype(arr_.attr("dtype"));
+    return dtype::from_numpy_dtype(arr_.dtype());
 }
 
 const std::string&
@@ -153,8 +152,9 @@ NumpyBlockBackend::as_block(py::object a,
     py::object dt = dtype_opt ? dtype::to_numpy_dtype(*dtype_opt) : py::none();
     py::object arr = np.attr("asarray")(a, dt);
     // integer -> float64 like Python
-    if (py::hasattr(arr, "dtype")) {
-        py::object d = arr.attr("dtype");
+    if (py::isinstance<py::array>(arr)) {
+        py::array arr_arr = py::reinterpret_borrow<py::array>(arr);
+        py::object d = arr_arr.dtype();
         if (np.attr("issubdtype")(d, np.attr("integer")).cast<bool>())
             arr = arr.attr("astype")(np.attr("float64"), py::arg("copy") = false);
     }
@@ -174,10 +174,12 @@ NumpyBlockBackend::as_device(std::optional<std::string> device)
 std::vector<int64>
 NumpyBlockBackend::abs_argmax(const BlockCPtr& block)
 {
-    py::object a = obj(block);
+    py::array arr = py::reinterpret_borrow<py::array>(obj(block));
     py::module_ np = numpy_module();
-    py::object idx =
-      np.attr("unravel_index")(np.attr("argmax")(np.attr("abs")(a)), a.attr("shape"));
+    py::tuple shape_tuple(arr.ndim());
+    for (py::ssize_t i = 0; i < arr.ndim(); ++i)
+        shape_tuple[i] = py::int_(arr.shape(i));
+    py::object idx = np.attr("unravel_index")(np.attr("argmax")(np.attr("abs")(arr)), shape_tuple);
     py::tuple t = py::cast<py::tuple>(idx);
     std::vector<int64> out;
     for (auto const& item : t)
@@ -260,7 +262,8 @@ NumpyBlockBackend::cutoff_inverse(const BlockCPtr& a, float64 cutoff)
 Dtype
 NumpyBlockBackend::get_dtype(const BlockCPtr& a)
 {
-    return dtype::from_numpy_dtype(obj(a).attr("dtype"));
+    py::array arr = py::reinterpret_borrow<py::array>(obj(a));
+    return dtype::from_numpy_dtype(arr.dtype());
 }
 
 std::tuple<BlockPtr, BlockPtr>
@@ -293,17 +296,19 @@ NumpyBlockBackend::eigvalsh(const BlockCPtr& block, std::optional<std::string> s
 BlockPtr
 NumpyBlockBackend::enlarge_leg(const BlockCPtr& block, const BlockCPtr& mask, int64 axis)
 {
-    py::object a = obj(block);
+    py::array a_arr = py::reinterpret_borrow<py::array>(obj(block));
     py::object m = obj(mask);
     py::module_ np = numpy_module();
-    py::list shape_list = py::cast<py::list>(a.attr("shape"));
+    py::list shape_list;
+    for (py::ssize_t i = 0; i < a_arr.ndim(); ++i)
+        shape_list.append(py::int_(a_arr.shape(i)));
     shape_list[axis] = py::len(m);
     py::object shape = py::tuple(shape_list);
-    py::object res = np.attr("zeros")(shape, py::arg("dtype") = a.attr("dtype"));
+    py::object res = np.attr("zeros")(shape, py::arg("dtype") = a_arr.dtype());
     py::list idcs;
-    for (int64 i = 0; i < py::len(shape_list); ++i)
+    for (int64 i = 0; i < static_cast<int64>(a_arr.ndim()); ++i)
         idcs.append(i == axis ? m : py::object(py::slice(py::none(), py::none(), py::none())));
-    res[py::tuple(idcs)] = np_attr("copy")(a);
+    res[py::tuple(idcs)] = np_attr("copy")(a_arr);
     return wrap(res);
 }
 
@@ -322,13 +327,13 @@ NumpyBlockBackend::block_from_diagonal(const BlockCPtr& diag)
 BlockPtr
 NumpyBlockBackend::block_from_mask(const BlockCPtr& mask, Dtype dtype)
 {
-    py::object m = obj(mask);
+    py::array m_arr = py::reinterpret_borrow<py::array>(obj(mask));
     py::module_ np = numpy_module();
     py::object dt = dtype::to_numpy_dtype(dtype);
-    int64 M = py::cast<int64>(m.attr("shape").attr("__getitem__")(0));
-    int64 N = py::cast<int64>(np.attr("sum")(m));
+    int64 M = static_cast<int64>(m_arr.shape(0));
+    int64 N = py::cast<int64>(np.attr("sum")(m_arr));
     py::object res = np.attr("zeros")(py::make_tuple(N, M), py::arg("dtype") = dt);
-    res[py::make_tuple(np.attr("arange")(N), m)] = 1;
+    res[py::make_tuple(np.attr("arange")(N), m_arr)] = 1;
     return wrap(res);
 }
 
@@ -666,10 +671,10 @@ NumpyBlockBackend::trace_partial(const BlockCPtr& a,
     int64 trace_dim = 1;
     for (int64 i : idcs1)
         trace_dim *= sh[i];
-    py::tuple shape = arr.attr("shape");
+    py::array arr_arr = py::reinterpret_borrow<py::array>(arr);
     py::list new_shape;
     for (size_t i = 0; i < remaining_idcs.size(); ++i)
-        new_shape.append(shape[i]);
+        new_shape.append(py::int_(arr_arr.shape(static_cast<py::ssize_t>(i))));
     new_shape.append(trace_dim);
     new_shape.append(trace_dim);
     arr = np_attr("reshape")(arr, py::tuple(new_shape));
