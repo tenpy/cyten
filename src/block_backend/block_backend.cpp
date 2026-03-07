@@ -39,6 +39,32 @@ BlockBackend::get_backend_name() const
     return "BlockBackend";
 }
 
+std::vector<int64>
+BlockBackend::get_shape(const BlockCPtr& a)
+{
+    return a->shape();
+}
+
+Dtype
+BlockBackend::get_dtype(const BlockCPtr& a)
+{
+    return a->dtype();
+}
+
+const std::string&
+BlockBackend::get_device(const BlockCPtr& a)
+{
+    return a->device();
+}
+
+py::object
+BlockBackend::to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype)
+{
+    if (numpy_dtype)
+        return py::object(a->to_numpy(dtype::from_numpy_dtype(*numpy_dtype)));
+    return py::object(a->to_numpy());
+}
+
 BlockPtr
 BlockBackend::Block::operator+(const BlockCPtr& other) const
 {
@@ -67,6 +93,14 @@ BlockBackend::Block::operator=(py::object rhs)
 {
     set_item(py::slice(py::none(), py::none(), py::none()), rhs);
     return *this;
+}
+
+py::array
+BlockBackend::Block::to_numpy(Dtype dtype) const
+{
+    py::array arr = to_numpy();
+    py::module_ np = py::module_::import("numpy");
+    return py::array(np.attr("asarray")(arr, dtype::to_numpy_dtype(dtype)));
 }
 
 BlockPtr

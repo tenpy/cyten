@@ -34,7 +34,11 @@ bind_block_backend_numpy(py::module_& m)
       numpy_block_backend, "BlockCls", "Block that holds a numpy array in a py::object.")
       .def(py::init<py::array>(), py::arg("arr"))
       .def("to_numpy",
-           &NumpyBlockBackend::Block::to_numpy,
+           py::overload_cast<>(&NumpyBlockBackend::Block::to_numpy, py::const_),
+           py::return_value_policy::reference_internal)
+      .def("to_numpy",
+           py::overload_cast<Dtype>(&NumpyBlockBackend::Block::to_numpy, py::const_),
+           py::arg("dtype"),
            py::return_value_policy::reference_internal)
       .def(
         "__array__",

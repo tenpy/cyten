@@ -33,6 +33,9 @@ class BlockBackend
 
         /// convert to numpy array, might be copy or (immutable) view
         virtual py::array to_numpy() const = 0;
+        /// convert to numpy array with given Dtype (default impl: to_numpy() then asarray(...,
+        /// dtype)).
+        virtual py::array to_numpy(Dtype dtype) const;
 
         /// Shape of the block (one size per axis).
         virtual std::vector<int64> shape() const = 0;
@@ -135,7 +138,7 @@ class BlockBackend
     virtual BlockPtr cutoff_inverse(const BlockCPtr& a, float64 cutoff) = 0;
     /// Permute axes to reverse order and elementwise conj.
     BlockPtr dagger(const BlockCPtr& a);
-    virtual Dtype get_dtype(const BlockCPtr& a) = 0;
+    Dtype get_dtype(const BlockCPtr& a);
     /// Eigenvalue decomposition of a 2D hermitian block.
     virtual std::tuple<BlockPtr, BlockPtr> eigh(
       const BlockCPtr& block,
@@ -153,7 +156,7 @@ class BlockBackend
     virtual BlockPtr block_from_numpy(const py::array& a,
                                       std::optional<Dtype> dtype = std::nullopt,
                                       std::optional<std::string> device = std::nullopt) = 0;
-    virtual std::string get_device(const BlockCPtr& a) = 0;
+    const std::string& get_device(const BlockCPtr& a);
     /// Get the diagonal of a 2D block as a 1D block
     virtual BlockPtr get_diagonal(const BlockCPtr& a,
                                   std::optional<float64> tol = std::nullopt) = 0;
@@ -216,7 +219,7 @@ class BlockBackend
     virtual BlockPtr reshape(const BlockCPtr& a, const std::vector<int64>& shape) = 0;
     /// Multiply block with the factors (a 1D block), along a given axis.
     virtual BlockPtr scale_axis(const BlockCPtr& block, const BlockCPtr& factors, int64 axis) = 0;
-    virtual std::vector<int64> get_shape(const BlockCPtr& a) = 0;
+    std::vector<int64> get_shape(const BlockCPtr& a);
     /// Split legs into groups of legs with specified dimensions.
     BlockPtr split_legs(const BlockCPtr& a,
                         const std::vector<int64>& idcs,
@@ -243,8 +246,7 @@ class BlockBackend
     /// Version of ``tensors.outer`` on blocks.
     BlockPtr tensor_outer(const BlockCPtr& a, const BlockCPtr& b, int64 K);
     virtual BlockPtr to_dtype(const BlockCPtr& a, Dtype dtype) = 0;
-    virtual py::object to_numpy(const BlockCPtr& a,
-                                std::optional<py::object> numpy_dtype = std::nullopt) = 0;
+    py::object to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype = std::nullopt);
     virtual complex128 trace_full(const BlockCPtr& a) = 0;
     virtual BlockPtr trace_partial(const BlockCPtr& a,
                                    const std::vector<int64>& idcs1,

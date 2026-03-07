@@ -59,21 +59,24 @@ bind_block_backend(py::module_& m)
         [](const BlockBackend::Block& self, Scalar s) { return self * s; },
         py::arg("other"),
         "Right multiplication by a scalar.")
-      .def(
-        "__getitem__",
-        [](const BlockBackend::Block& self, py::object key) { return self.get_item(key); },
-        py::arg("key"))
-      .def(
-        "__getitem__",
-        [](BlockBackend::Block& self, py::object key) { return self.get_item(key); },
-        py::arg("key"))
+      .def("__getitem__",
+           py::overload_cast<py::object>(&BlockBackend::Block::get_item),
+           py::arg("key"))
+      // .def( /// python is not const-correct, so we can't provide a const access
+      //   "__getitem__",
+      //   py::overload_cast<py::object>(&BlockBackend::Block::get_item, py::const_),
+      //   py::arg("key"))
       .def(
         "__setitem__",
         [](BlockBackend::Block& self, py::object key, py::object value) {
             self.set_item(key, value);
         },
         py::arg("key"),
-        py::arg("value"));
+        py::arg("value"))
+      .def("to_numpy",
+           py::overload_cast<Dtype>(&BlockBackend::Block::to_numpy, py::const_),
+           py::arg("dtype"),
+           "Convert to numpy array with the given Dtype.");
 
     block_backend // init and attributes
       .def(py::init<std::string>(), py::arg("device") = "cpu")

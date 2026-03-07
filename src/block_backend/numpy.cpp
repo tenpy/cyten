@@ -54,6 +54,12 @@ NumpyBlockBackend::Block::device() const
     return device;
 }
 
+py::array
+NumpyBlockBackend::Block::to_numpy(Dtype dtype) const
+{
+    return py::array(arr_.attr("astype")(dtype::to_numpy_dtype(dtype)));
+}
+
 BlockBackend*
 NumpyBlockBackend::Block::get_backend() const
 {
@@ -279,13 +285,6 @@ NumpyBlockBackend::cutoff_inverse(const BlockCPtr& a, float64 cutoff)
     return wrap(py::float_(1.0) / denom);
 }
 
-Dtype
-NumpyBlockBackend::get_dtype(const BlockCPtr& a)
-{
-    py::array arr = py::reinterpret_borrow<py::array>(obj(a));
-    return dtype::from_numpy_dtype(arr.dtype());
-}
-
 std::tuple<BlockPtr, BlockPtr>
 NumpyBlockBackend::eigh(const BlockCPtr& block, std::optional<std::string> sort)
 {
@@ -366,12 +365,6 @@ NumpyBlockBackend::block_from_numpy(const py::array& a,
     if (!dtype_opt)
         return wrap(py::object(a));
     return wrap(np_attr("asarray")(a, dtype::to_numpy_dtype(*dtype_opt)));
-}
-
-std::string
-NumpyBlockBackend::get_device(const BlockCPtr& /*a*/)
-{
-    return default_device;
 }
 
 BlockPtr
@@ -586,12 +579,6 @@ NumpyBlockBackend::reshape(const BlockCPtr& a, const std::vector<int64>& shape)
     return wrap(np_attr("reshape")(obj(a), py::cast(shape)));
 }
 
-std::vector<int64>
-NumpyBlockBackend::get_shape(const BlockCPtr& a)
-{
-    return ptr(a)->shape();
-}
-
 BlockPtr
 NumpyBlockBackend::sqrt(const BlockCPtr& a)
 {
@@ -645,15 +632,6 @@ BlockPtr
 NumpyBlockBackend::to_dtype(const BlockCPtr& a, Dtype dtype)
 {
     return wrap(np_attr("asarray")(obj(a), dtype::to_numpy_dtype(dtype)));
-}
-
-py::object
-NumpyBlockBackend::to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype)
-{
-    py::object arr = obj(a);
-    if (numpy_dtype)
-        return np_attr("asarray")(arr, *numpy_dtype);
-    return np_attr("asarray")(arr);
 }
 
 std::complex<float64>

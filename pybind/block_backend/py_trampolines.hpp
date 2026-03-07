@@ -27,6 +27,10 @@ class PyBlock
     {
         PYBIND11_OVERRIDE_PURE(const std::string&, BlockBackend::Block, device);
     }
+    py::array to_numpy() const override
+    {
+        PYBIND11_OVERRIDE_PURE(py::array, BlockBackend::Block, to_numpy);
+    }
     BlockCPtr get_item(py::object key) const override
     {
         PYBIND11_OVERRIDE_PURE(BlockCPtr, BlockBackend::Block, get_item, key);
@@ -38,6 +42,10 @@ class PyBlock
     void set_item(py::object key, py::object value) override
     {
         PYBIND11_OVERRIDE_PURE(void, BlockBackend::Block, set_item, key, value);
+    }
+    py::array to_numpy(Dtype dtype) const override
+    {
+        PYBIND11_OVERRIDE(py::array, BlockBackend::Block, to_numpy, dtype);
     }
 }; // trampoline class PyBlock
 
@@ -116,10 +124,6 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, cutoff_inverse, a, cutoff);
     }
-    Dtype get_dtype(const BlockCPtr& a) override
-    {
-        PYBIND11_OVERRIDE_PURE(Dtype, BlockBackend, get_dtype, a);
-    }
     std::tuple<BlockPtr, BlockPtr> eigh(const BlockCPtr& block,
                                         std::optional<std::string> sort) override
     {
@@ -151,10 +155,6 @@ class PyBlockBackend
                               std::optional<std::string> device) override
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, block_from_numpy, a, dtype, device);
-    }
-    std::string get_device(const BlockCPtr& a) override
-    {
-        PYBIND11_OVERRIDE_PURE(std::string, BlockBackend, get_device, a);
     }
     BlockPtr get_diagonal(const BlockCPtr& a, std::optional<float64> tol) override
     {
@@ -257,10 +257,6 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, scale_axis, block, factors, axis);
     }
-    std::vector<int64> get_shape(const BlockCPtr& a) override
-    {
-        PYBIND11_OVERRIDE_PURE(std::vector<int64>, BlockBackend, get_shape, a);
-    }
     BlockPtr sqrt(const BlockCPtr& a) override
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, sqrt, a);
@@ -291,10 +287,6 @@ class PyBlockBackend
     BlockPtr to_dtype(const BlockCPtr& a, Dtype dtype) override
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, to_dtype, a, dtype);
-    }
-    py::object to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype) override
-    {
-        PYBIND11_OVERRIDE_PURE(py::object, BlockBackend, to_numpy, a, numpy_dtype);
     }
     complex128 trace_full(const BlockCPtr& a) override
     {

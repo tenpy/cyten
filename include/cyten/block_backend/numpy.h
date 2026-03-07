@@ -22,6 +22,7 @@ class NumpyBlockBackend : public BlockBackend
         Dtype dtype() const override;
         const std::string& device() const override;
         py::array to_numpy() const override { return arr_; }
+        py::array to_numpy(Dtype dtype) const override;
 
         BlockPtr get_item(py::object key) override;
         BlockCPtr get_item(py::object key) const override;
@@ -67,7 +68,6 @@ class NumpyBlockBackend : public BlockBackend
     BlockPtr copy_block(const BlockCPtr& a, std::optional<std::string> device) override;
     /// The elementwise cutoff-inverse: ``1 / a`` where ``abs(a) >= cutoff``, otherwise ``0``.
     BlockPtr cutoff_inverse(const BlockCPtr& a, float64 cutoff) override;
-    Dtype get_dtype(const BlockCPtr& a) override;
     std::tuple<BlockPtr, BlockPtr> eigh(const BlockCPtr& block,
                                         std::optional<std::string> sort) override;
     BlockPtr eigvalsh(const BlockCPtr& block, std::optional<std::string> sort) override;
@@ -78,7 +78,6 @@ class NumpyBlockBackend : public BlockBackend
     BlockPtr block_from_numpy(const py::array& a,
                               std::optional<Dtype> dtype,
                               std::optional<std::string> device) override;
-    std::string get_device(const BlockCPtr& a) override;
     BlockPtr get_diagonal(const BlockCPtr& a, std::optional<float64> tol) override;
     bool get_block_mask_element(const BlockCPtr& a,
                                 int64 large_leg_idx,
@@ -115,7 +114,6 @@ class NumpyBlockBackend : public BlockBackend
                                                int64 max_width,
                                                int64 max_lines) override;
     BlockPtr reshape(const BlockCPtr& a, const std::vector<int64>& shape) override;
-    std::vector<int64> get_shape(const BlockCPtr& a) override;
     BlockPtr sqrt(const BlockCPtr& a) override;
     BlockPtr squeeze_axes(const BlockCPtr& a, const std::vector<int64>& idcs) override;
     BlockPtr stable_log(const BlockCPtr& block, float64 cutoff) override;
@@ -127,7 +125,6 @@ class NumpyBlockBackend : public BlockBackend
                   const std::vector<int64>& idcs_a,
                   const std::vector<int64>& idcs_b) override;
     BlockPtr to_dtype(const BlockCPtr& a, Dtype dtype) override;
-    py::object to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype) override;
     complex128 trace_full(const BlockCPtr& a) override;
     BlockPtr trace_partial(const BlockCPtr& a,
                            const std::vector<int64>& idcs1,
