@@ -36,18 +36,6 @@ bind_block_backend_numpy(py::module_& m)
       .def("to_numpy",
            &NumpyBlockBackend::Block::to_numpy,
            py::return_value_policy::reference_internal)
-      .def("__getitem__",
-           [](const NumpyBlockBackend::Block& self, py::object key) -> py::object {
-               py::array result = self.to_numpy().attr("__getitem__")(key);
-               py::object sh = result.attr("shape");
-               if (py::len(sh) == 0)
-                   return result.attr("item")();
-               return py::cast(std::make_shared<NumpyBlockBackend::Block>(result));
-           })
-      .def("__setitem__",
-           [](NumpyBlockBackend::Block& self, py::object key, py::object value) {
-               self.to_numpy().attr("__setitem__")(key, value);
-           })
       .def(
         "__array__",
         [](const NumpyBlockBackend::Block& self, py::object dtype) {

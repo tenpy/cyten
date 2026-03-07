@@ -60,6 +60,26 @@ NumpyBlockBackend::Block::get_backend() const
     return NumpyBlockBackend::from_factory(device());
 }
 
+BlockCPtr
+NumpyBlockBackend::Block::get_item(py::object key) const
+{
+    py::array result = arr_.attr("__getitem__")(key);
+    return std::make_shared<const NumpyBlockBackend::Block>(std::move(result));
+}
+
+BlockPtr
+NumpyBlockBackend::Block::get_item(py::object key)
+{
+    py::array result = arr_.attr("__getitem__")(key);
+    return std::make_shared<NumpyBlockBackend::Block>(std::move(result));
+}
+
+void
+NumpyBlockBackend::Block::set_item(py::object key, py::object value)
+{
+    arr_.attr("__setitem__")(key, value);
+}
+
 // -----------------------------------------------------------------------------
 // NumpyBlockBackend helpers
 // -----------------------------------------------------------------------------

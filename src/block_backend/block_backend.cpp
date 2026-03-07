@@ -51,19 +51,22 @@ BlockBackend::Block::operator*(Scalar s) const
     return get_backend()->mul(s.to_numpy(), shared_from_this());
 }
 
-Scalar
-BlockBackend::Block::operator[](const std::vector<int64>& idcs) const
+std::shared_ptr<BlockBackend::Block>
+BlockBackend::Block::operator[](py::object key)
 {
-    py::object o = get_backend()->get_block_element(shared_from_this(), idcs);
-    Dtype dt = dtype();
-    complex128 z;
-    if (dt == Dtype::Bool)
-        z = py::cast<bool>(o) ? float64(1) : float64(0);
-    else if (dtype::is_complex(dt))
-        z = py::cast<complex128>(o);
-    else
-        z = complex128(py::cast<float64>(o), 0);
-    return Scalar(dt, z);
+    return get_item(key);
+}
+std::shared_ptr<const BlockBackend::Block>
+BlockBackend::Block::operator[](py::object key) const
+{
+    return get_item(key);
+}
+
+BlockBackend::Block&
+BlockBackend::Block::operator=(py::object rhs)
+{
+    set_item(py::slice(py::none(), py::none(), py::none()), rhs);
+    return *this;
 }
 
 BlockPtr

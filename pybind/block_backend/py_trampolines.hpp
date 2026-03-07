@@ -27,6 +27,18 @@ class PyBlock
     {
         PYBIND11_OVERRIDE_PURE(const std::string&, BlockBackend::Block, device);
     }
+    BlockCPtr get_item(py::object key) const override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockCPtr, BlockBackend::Block, get_item, key);
+    }
+    BlockPtr get_item(py::object key) override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, get_item, key);
+    }
+    void set_item(py::object key, py::object value) override
+    {
+        PYBIND11_OVERRIDE_PURE(void, BlockBackend::Block, set_item, key, value);
+    }
 }; // trampoline class PyBlock
 
 /// @brief pybind11 trampoline class for BlockBackend in Python

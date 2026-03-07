@@ -47,8 +47,18 @@ class BlockBackend
         std::shared_ptr<Block> operator+(const std::shared_ptr<const Block>& other) const;
         /// Scalar multiplication.
         std::shared_ptr<Block> operator*(Scalar s) const;
-        /// Item access by multi-index.
-        Scalar operator[](const std::vector<int64>& idcs) const;
+        /// Arbitrary access by Python key; returns new block (shared_ptr).
+        std::shared_ptr<const Block> operator[](py::object key) const;
+        std::shared_ptr<Block> operator[](py::object key);
+
+        /// Assign to whole block (slice(None, None)); calls set_item with full slice.
+        Block& operator=(py::object rhs);
+
+        /// Arbitrary getitem; implemented by backends (e.g. numpy __getitem__).
+        virtual std::shared_ptr<Block> get_item(py::object key) = 0;
+        virtual std::shared_ptr<const Block> get_item(py::object key) const = 0;
+        /// Arbitrary setitem; implemented by backends (e.g. numpy __setitem__).
+        virtual void set_item(py::object key, py::object value) = 0;
     };
     using BlockPtr = std::shared_ptr<Block>;
     using BlockCPtr = std::shared_ptr<const Block>;

@@ -23,6 +23,10 @@ class NumpyBlockBackend : public BlockBackend
         const std::string& device() const override;
         py::array to_numpy() const override { return arr_; }
 
+        BlockPtr get_item(py::object key) override;
+        BlockCPtr get_item(py::object key) const override;
+        void set_item(py::object key, py::object value) override;
+
       protected:
         py::array arr_;
     };

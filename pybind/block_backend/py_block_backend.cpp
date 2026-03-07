@@ -60,10 +60,20 @@ bind_block_backend(py::module_& m)
         py::arg("other"),
         "Right multiplication by a scalar.")
       .def(
-        "get_element",
-        [](const BlockBackend::Block& self, const std::vector<int64>& idcs) { return self[idcs]; },
-        py::arg("idcs"),
-        "Get element at multi-index.");
+        "__getitem__",
+        [](const BlockBackend::Block& self, py::object key) { return self.get_item(key); },
+        py::arg("key"))
+      .def(
+        "__getitem__",
+        [](BlockBackend::Block& self, py::object key) { return self.get_item(key); },
+        py::arg("key"))
+      .def(
+        "__setitem__",
+        [](BlockBackend::Block& self, py::object key, py::object value) {
+            self.set_item(key, value);
+        },
+        py::arg("key"),
+        py::arg("value"));
 
     block_backend // init and attributes
       .def(py::init<std::string>(), py::arg("device") = "cpu")
