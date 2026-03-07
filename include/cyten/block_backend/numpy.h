@@ -25,6 +25,7 @@ class NumpyBlockBackend : public BlockBackend
         py::array to_numpy(Dtype dtype) const override;
 
         BlockPtr get_item(py::object key) override;
+        py::object _item_key_cast_Blocks_to_numpy(py::object key) const;
         BlockCPtr get_item(py::object key) const override;
         void set_item(py::object key, py::object value) override;
 

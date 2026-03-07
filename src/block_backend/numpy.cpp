@@ -69,13 +69,42 @@ NumpyBlockBackend::Block::get_backend() const
 BlockCPtr
 NumpyBlockBackend::Block::get_item(py::object key) const
 {
-    py::array result = arr_.attr("__getitem__")(key);
+    if (key.is_none())
+        return shared_from_this();
+    py::object key_copy = _item_key_cast_Blocks_to_numpy(key);
+    py::array result = arr_.attr("__getitem__")(key_copy);
     return std::make_shared<const NumpyBlockBackend::Block>(std::move(result));
+}
+
+py::object
+NumpyBlockBackend::Block::_item_key_cast_Blocks_to_numpy(py::object key) const
+{
+    if (py::isinstance<NumpyBlockBackend::Block>(key)) {
+        NumpyBlockBackend::Block* block = key.cast<NumpyBlockBackend::Block*>();
+        return block->to_numpy();
+    } else if (py::isinstance<py::tuple>(key)) {
+        // cast any Block objects in the key to numpy arrays and make a new tuple
+        py::tuple key_tuple = py::reinterpret_borrow<py::tuple>(key);
+        py::tuple new_tuple = py::tuple(key_tuple.size());
+        for (py::ssize_t i = 0; i < key_tuple.size(); ++i) {
+            if (py::isinstance<NumpyBlockBackend::Block>(key_tuple[i])) {
+                NumpyBlockBackend::Block* block = key_tuple[i].cast<NumpyBlockBackend::Block*>();
+                new_tuple[i] = block->to_numpy();
+            } else {
+                new_tuple[i] = key_tuple[i];
+            }
+        }
+        return std::move(new_tuple);
+    }
+    return key;
 }
 
 BlockPtr
 NumpyBlockBackend::Block::get_item(py::object key)
 {
+    if (key.is_none())
+        return shared_from_this();
+    py::object key_copy = _item_key_cast_Blocks_to_numpy(key);
     py::array result = arr_.attr("__getitem__")(key);
     return std::make_shared<NumpyBlockBackend::Block>(std::move(result));
 }
@@ -83,6 +112,11 @@ NumpyBlockBackend::Block::get_item(py::object key)
 void
 NumpyBlockBackend::Block::set_item(py::object key, py::object value)
 {
+    py::object key_copy = _item_key_cast_Blocks_to_numpy(key);
+    if (py::isinstance<NumpyBlockBackend::Block>(value)) {
+        NumpyBlockBackend::Block* block = value.cast<NumpyBlockBackend::Block*>();
+        value = block->to_numpy();
+    }
     arr_.attr("__setitem__")(key, value);
 }
 

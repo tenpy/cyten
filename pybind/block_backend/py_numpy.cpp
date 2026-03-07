@@ -40,14 +40,14 @@ bind_block_backend_numpy(py::module_& m)
            py::overload_cast<Dtype>(&NumpyBlockBackend::Block::to_numpy, py::const_),
            py::arg("dtype"),
            py::return_value_policy::reference_internal)
-      .def(
-        "__array__",
-        [](const NumpyBlockBackend::Block& self, py::object dtype) {
-            if (dtype.is_none())
-                return self.to_numpy();
-            return py::cast<py::array>(self.to_numpy().attr("astype")(dtype));
-        },
-        py::arg("dtype") = py::none())
+      //  .def(
+      //    "__array__",
+      //    [](const NumpyBlockBackend::Block& self, py::object dtype) {
+      //        if (dtype.is_none())
+      //            return self.to_numpy();
+      //        return py::cast<py::array>(self.to_numpy().attr("astype")(dtype));
+      //    },
+      //    py::arg("dtype") = py::none())
       .def("__mul__",
            [](const NumpyBlockBackend::Block& self, py::object other) {
                return std::make_shared<NumpyBlockBackend::Block>(
