@@ -265,7 +265,7 @@ class BlockBackend
     virtual bool get_block_mask_element(const BlockCPtr& a,
                                         int64 large_leg_idx,
                                         int64 small_leg_idx,
-                                        int64 sum_block = 0) = 0;
+                                        int64 sum_block = 0);
     /// As in numpy.dot, both a and b might be matrix or vector.
     virtual BlockPtr matrix_dot(const BlockCPtr& a, const BlockCPtr& b) = 0;
     virtual BlockPtr matrix_exp(const BlockCPtr& matrix) = 0;

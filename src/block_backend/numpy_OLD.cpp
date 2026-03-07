@@ -6,6 +6,8 @@
 #include <stdexcept>
 
 namespace cyten {
+/// ... some code for NumpyBlockBackend::Block ... and NumpyBlockBackend helpers ...
+
 // -----------------------------------------------------------------------------
 // NumpyBlockBackend
 // -----------------------------------------------------------------------------

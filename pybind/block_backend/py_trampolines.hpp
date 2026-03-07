@@ -313,7 +313,7 @@ class PyBlockBackend
                                 int64 small_leg_idx,
                                 int64 sum_block) override
     {
-        PYBIND11_OVERRIDE_PURE(
+        PYBIND11_OVERRIDE(
           bool, BlockBackend, get_block_mask_element, a, large_leg_idx, small_leg_idx, sum_block);
     }
     BlockPtr matrix_dot(const BlockCPtr& a, const BlockCPtr& b) override
