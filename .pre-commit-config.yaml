@@ -34,10 +34,17 @@ repos:
       exclude: ^(tests/|toycodes/)
       additional_dependencies: [flake8-rst-docstrings]
 
-  - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v21.1.8
+  # - repo: https://github.com/pre-commit/mirrors-clang-format
+  #   rev: v21.1.8
+  #   hooks:
+  #   - id: clang-format
+  - repo: https://github.com/Takishima/cmake-pre-commit-hooks
+    rev: v1.9.6
     hooks:
-    - id: clang-format
+      - id: clang-format
+      # - id: clang-tidy
+      #   args: [--checks=readability-magic-numbers,--warnings-as-errors=*]
+      # - id: include-what-you-use
 
   - repo: https://github.com/sphinx-contrib/sphinx-lint
     rev: v1.0.0
@@ -64,3 +71,8 @@ repos:
         entry: tests/linting/cpp_docstring_indent.py
         language: unsupported_script
         files: ^pybind/.*\.cpp$
+      # TODO: setup only-if-no-fails along logfile idea of https://stackoverflow.com/questions/67195842/run-a-pre-commit-hook-only-if-all-other-hooks-are-successful
+      # - id: cmake-build
+      #   name: cmake --build build
+      #   language: unsupported_script
+      #   entry: tests/linting/run_local_cmake_build.py
