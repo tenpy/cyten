@@ -80,11 +80,8 @@ class NumpyBlockBackend : public BlockBackend
                               std::optional<Dtype> dtype,
                               std::optional<std::string> device) override;
     BlockPtr get_diagonal(const BlockCPtr& a, std::optional<float64> tol) override;
-    bool get_block_mask_element(const BlockCPtr& a,
-                                int64 large_leg_idx,
-                                int64 small_leg_idx,
-                                int64 sum_block) override;
     BlockPtr imag(const BlockCPtr& a) override;
+    complex128 inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger) override;
     py::object item(const BlockCPtr& a) override;
     BlockPtr kron(const BlockCPtr& a, const BlockCPtr& b) override;
     BlockPtr linear_combination(Scalar a_coef,

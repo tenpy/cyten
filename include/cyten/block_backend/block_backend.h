@@ -40,6 +40,9 @@ class BlockBackend
         /// Shape of the block (one size per axis).
         virtual std::vector<int64> shape() const = 0;
 
+        /// Number of axes/dimensions of the block = shape().size()
+        virtual int64 ndim() const;
+
         /// Dtype of the block entries.
         virtual Dtype dtype() const = 0;
 
@@ -163,7 +166,7 @@ class BlockBackend
     /// The imaginary part of a complex number, elementwise.
     virtual BlockPtr imag(const BlockCPtr& a) = 0;
     /// Dense block version of tensors.inner.
-    complex128 inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger);
+    virtual complex128 inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger);
     /// If the block is comprised of real numbers.
     bool is_real(const BlockCPtr& a);
     /// Assumes that data is a scalar (i.e. has only one entry). Returns that scalar as python

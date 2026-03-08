@@ -103,6 +103,12 @@ BlockBackend::Block::to_numpy(Dtype dtype) const
     return py::array(np.attr("asarray")(arr, dtype::to_numpy_dtype(dtype)));
 }
 
+int64
+BlockBackend::Block::ndim() const
+{
+    return static_cast<int64>(shape().size());
+}
+
 BlockPtr
 BlockBackend::apply_basis_perm(const BlockCPtr& block,
                                const std::vector<py::object>& legs,
@@ -129,14 +135,14 @@ BlockBackend::get_block_mask_element(const BlockCPtr& a,
     int64 offset = (large_leg_idx / dim0) * sum_block;
     large_leg_idx %= dim0;
     // if this does not work, need to override.
-    if (! item((*a)[py::cast(large_leg_idx)]).cast<bool>())
+    if (!item((*a)[py::cast(large_leg_idx)]).cast<bool>())
         // if the block has a False entry, the matrix has only False in that column
         return false;
     // otherwise, there is exactly one True in that column, at index sum(a[:large_leg_idx])
-    int64 running = static_cast<int64>(sum_all((*a)[py::slice(int64(0), large_leg_idx, std::nullopt)]).real());
+    int64 running =
+      static_cast<int64>(sum_all((*a)[py::slice(int64(0), large_leg_idx, std::nullopt)]).real());
     return bool(small_leg_idx == offset + running);
 }
-
 
 BlockPtr
 BlockBackend::argsort(const BlockCPtr& block, std::optional<std::string> sort, int64 axis)

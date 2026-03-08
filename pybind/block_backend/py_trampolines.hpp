@@ -22,6 +22,7 @@ class PyBlock
     {
         PYBIND11_OVERRIDE_PURE(PYBIND11_TYPE(std::vector<int64>), BlockBackend::Block, shape);
     }
+    int64 ndim() const override { PYBIND11_OVERRIDE(int64, BlockBackend::Block, ndim); }
     Dtype dtype() const override { PYBIND11_OVERRIDE_PURE(Dtype, BlockBackend::Block, dtype); }
     const std::string& device() const override
     {
