@@ -217,6 +217,14 @@ NumpyBlockBackend::as_block(py::object a,
      * return block
      */
     (void)as_device(device);
+    if (py::isinstance<NumpyBlockBackend::Block>(a)) {
+        // just use the block directly, no need to convert to numpy and back
+        BlockPtr block = a.cast<BlockPtr>();
+        if (dtype_opt) {
+            block = block->get_backend()->to_dtype(block, *dtype_opt);
+        }
+        return block;
+    }
     py::module_ np = numpy_module();
     py::object dt = dtype_opt ? dtype::to_numpy_dtype(*dtype_opt) : py::none();
     py::object arr = np.attr("asarray")(a, dt);
@@ -783,7 +791,11 @@ NumpyBlockBackend::squeeze_axes(const BlockCPtr& a, const std::vector<int64>& id
     /* converted from following python code:
      * return np.squeeze(a, tuple(idcs))
      */
-    return wrap(np_attr("squeeze")(obj(a), py::cast(idcs)));
+    // squeeze explicitly needs tuple, list is not ok
+    py::tuple t(idcs.size());
+    for (size_t i = 0; i < idcs.size(); ++i)
+        t[i] = py::int_(idcs[i]);
+    return wrap(np_attr("squeeze")(obj(a), t));
 }
 
 BlockPtr
