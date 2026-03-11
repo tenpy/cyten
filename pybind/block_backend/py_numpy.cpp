@@ -39,49 +39,53 @@ bind_block_backend_numpy(py::module_& m)
       .def("to_numpy",
            py::overload_cast<Dtype>(&NumpyBlockBackend::Block::to_numpy, py::const_),
            py::arg("dtype"),
-           py::return_value_policy::reference_internal)
-      //  .def(
-      //    "__array__",
-      //    [](const NumpyBlockBackend::Block& self, py::object dtype) {
-      //        if (dtype.is_none())
-      //            return self.to_numpy();
-      //        return py::cast<py::array>(self.to_numpy().attr("astype")(dtype));
-      //    },
-      //    py::arg("dtype") = py::none())
-      .def("__mul__",
-           [](const NumpyBlockBackend::Block& self, py::object other) {
-               return std::make_shared<NumpyBlockBackend::Block>(
-                 self.to_numpy().attr("__mul__")(other));
-           })
-      .def("__rmul__",
-           [](const NumpyBlockBackend::Block& self, py::object other) {
-               return std::make_shared<NumpyBlockBackend::Block>(
-                 self.to_numpy().attr("__rmul__")(other));
-           })
-      .def("__truediv__",
-           [](const NumpyBlockBackend::Block& self, py::object other) {
-               return std::make_shared<NumpyBlockBackend::Block>(
-                 self.to_numpy().attr("__truediv__")(other));
-           })
-      .def("__add__",
-           [](const NumpyBlockBackend::Block& self, py::object other) {
-               return std::make_shared<NumpyBlockBackend::Block>(
-                 self.to_numpy().attr("__add__")(other));
-           })
-      .def("__radd__",
-           [](const NumpyBlockBackend::Block& self, py::object other) {
-               return std::make_shared<NumpyBlockBackend::Block>(
-                 self.to_numpy().attr("__radd__")(other));
-           })
-      .def("__sub__",
-           [](const NumpyBlockBackend::Block& self, py::object other) {
-               return std::make_shared<NumpyBlockBackend::Block>(
-                 self.to_numpy().attr("__sub__")(other));
-           })
-      .def("__rsub__", [](const NumpyBlockBackend::Block& self, py::object other) {
-          return std::make_shared<NumpyBlockBackend::Block>(
-            self.to_numpy().attr("__rsub__")(other));
-      });
+           py::return_value_policy::reference_internal);
+    // NOTE: disabled since we don't want to allow Blocks to cast to numpy arrays except via
+    // to_numpy()
+    //  .def(
+    //    "__array__",
+    //    [](const NumpyBlockBackend::Block& self, py::object dtype) {
+    //        if (dtype.is_none())
+    //            return self.to_numpy();
+    //        return py::cast<py::array>(self.to_numpy().attr("astype")(dtype));
+    //    },
+    //    py::arg("dtype") = py::none())
+    // NOTE: __mul__ etc till _sub__ disabled since we only want to allow Block*Scalar defined in
+    // Block
+    //  .def("__mul__",
+    //       [](const NumpyBlockBackend::Block& self, py::object other) {
+    //           return std::make_shared<NumpyBlockBackend::Block>(
+    //             self.to_numpy().attr("__mul__")(other));
+    //       })
+    //  .def("__rmul__",
+    //       [](const NumpyBlockBackend::Block& self, py::object other) {
+    //           return std::make_shared<NumpyBlockBackend::Block>(
+    //             self.to_numpy().attr("__rmul__")(other));
+    //       })
+    //  .def("__truediv__",
+    //       [](const NumpyBlockBackend::Block& self, py::object other) {
+    //           return std::make_shared<NumpyBlockBackend::Block>(
+    //             self.to_numpy().attr("__truediv__")(other));
+    //       })
+    //  .def("__add__",
+    //       [](const NumpyBlockBackend::Block& self, py::object other) {
+    //           return std::make_shared<NumpyBlockBackend::Block>(
+    //             self.to_numpy().attr("__add__")(other));
+    //       })
+    //  .def("__radd__",
+    //       [](const NumpyBlockBackend::Block& self, py::object other) {
+    //           return std::make_shared<NumpyBlockBackend::Block>(
+    //             self.to_numpy().attr("__radd__")(other));
+    //       })
+    //  .def("__sub__",
+    //       [](const NumpyBlockBackend::Block& self, py::object other) {
+    //           return std::make_shared<NumpyBlockBackend::Block>(
+    //             self.to_numpy().attr("__sub__")(other));
+    //       })
+    //  .def("__rsub__", [](const NumpyBlockBackend::Block& self, py::object other) {
+    //      return std::make_shared<NumpyBlockBackend::Block>(
+    //        self.to_numpy().attr("__rsub__")(other));
+    //  });
 }
 
 } // namespace cyten

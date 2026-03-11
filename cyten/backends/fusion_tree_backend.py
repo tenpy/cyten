@@ -3330,13 +3330,14 @@ class TreePairMapping(TensorMapping):
                     old_mults = [leg_mults[i] for i in inv_leg_perm]
                     #              0   1      J-1  J   J+1      J+K-1
                     # tree_block [m1, m2, ..., mJ, n1, n2, ..., nK]
-                    block[idcs1, idcs2] = block_backend.permute_combined_matrix(
+                    permuted = block_backend.permute_combined_matrix(
                         tree_block,
                         old_mults[:J],
                         tree_block_axes_1,
-                        reversed(old_mults[J:]),
+                        list(reversed(old_mults[J:])),
                         tree_block_axes_2,
                     )
+                    block[idcs1, idcs2] = block_backend.to_numpy(permuted)
             if is_zero_block:
                 continue
             block_inds.append([i, j])

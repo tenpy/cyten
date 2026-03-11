@@ -10,6 +10,7 @@ dependencies:
   - numpy>=2.0
   - scipy
   - openblas
+  - cmake
   # alteratively use MKL instead of openblas
   # - mkl
   # - mkl-devel
@@ -17,6 +18,13 @@ dependencies:
   # Testing
   - pytest>=6.0
   - sympy
+
+  # developer tools
+  - ipython
+  - ruff
+  - flake8
+  - flake8-rst-docstrings
+  - sphinx-lint
 
   # building docs
   - doxygen
@@ -31,3 +39,4 @@ dependencies:
   - hdf5
   - h5py
   - pyyaml
+  - toml

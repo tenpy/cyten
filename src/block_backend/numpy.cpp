@@ -30,6 +30,12 @@ np_attr(char const* name)
 NumpyBlockBackend::Block::Block(py::array arr)
   : arr_(std::move(arr))
 {
+    try {
+        dtype::from_numpy_dtype(arr_.dtype());
+    } catch (std::invalid_argument& e) {
+        std::string dtype_str = py::str(arr_.dtype()).cast<std::string>();
+        throw std::invalid_argument("NumpyBlockBackend::Block: invalid numpy dtype: " + dtype_str);
+    }
 }
 
 std::vector<int64>

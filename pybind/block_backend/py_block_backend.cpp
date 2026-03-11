@@ -21,6 +21,10 @@ bind_block_backend(py::module_& m)
            py::arg("value"),
            "Construct from Dtype and numeric value (int/float/complex; stored as complex "
            "internally).")
+      .def(py::init<bool>(), py::arg("value"), "Construct from bool (dtype is Bool).")
+      .def(py::init<float64>(), py::arg("value"), "Construct from float (dtype is Float64).")
+      .def(
+        py::init<complex128>(), py::arg("value"), "Construct from complex (dtype is Complex128).")
       .def_property_readonly("dtype", &Scalar::dtype)
       .def("real", &Scalar::real, "Real part (valid for any dtype).")
       .def("as_float64", &Scalar::as_float64, "As float; raises if dtype is not Float32/Float64.")
