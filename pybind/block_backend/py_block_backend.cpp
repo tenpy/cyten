@@ -91,7 +91,35 @@ bind_block_backend(py::module_& m)
       .def("as_bool", &BlockBackend::Scalar::as_bool, "As bool; raises if dtype is not Bool.")
       .def("to_numpy",
            &BlockBackend::Scalar::to_numpy,
-           "Return as numpy scalar (np.bool_, np.float64, etc.).");
+           "Return as numpy scalar (np.bool_, np.float64, etc.).")
+      .def(
+        "__add__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self + other;
+        },
+        py::arg("other"),
+        "Addition with another scalar.")
+      .def(
+        "__sub__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self - other;
+        },
+        py::arg("other"),
+        "Subtraction with another scalar.")
+      .def(
+        "__mul__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self * other;
+        },
+        py::arg("other"),
+        "Multiplication with another scalar.")
+      .def(
+        "__truediv__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self / other;
+        },
+        py::arg("other"),
+        "Division with another scalar.");
 
     block_backend // init and attributes
       .def(py::init<std::string>(), py::arg("device") = "cpu")

@@ -197,9 +197,9 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, imag, a);
     }
-    py::object item(const BlockCPtr& a) override
+    Scalar item(const BlockCPtr& a) override
     {
-        PYBIND11_OVERRIDE_PURE(py::object, BlockBackend, item, a);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, item, a);
     }
     BlockPtr kron(const BlockCPtr& a, const BlockCPtr& b) override
     {
@@ -216,25 +216,25 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, log, a);
     }
-    float64 max(const BlockCPtr& a) override
+    Scalar max(const BlockCPtr& a) override
     {
-        PYBIND11_OVERRIDE_PURE(float64, BlockBackend, max, a);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, max, a);
     }
-    float64 max_abs(const BlockCPtr& a) override
+    Scalar max_abs(const BlockCPtr& a) override
     {
-        PYBIND11_OVERRIDE_PURE(float64, BlockBackend, max_abs, a);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, max_abs, a);
     }
-    float64 min(const BlockCPtr& a) override
+    Scalar min(const BlockCPtr& a) override
     {
-        PYBIND11_OVERRIDE_PURE(float64, BlockBackend, min, a);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, min, a);
     }
-    BlockPtr mul(py::object a, const BlockCPtr& b) override
+    BlockPtr mul(const Scalar& a, const BlockCPtr& b) override
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, mul, a, b);
     }
-    float64 norm(const BlockCPtr& a, float64 order, std::optional<int64> axis) override
+    Scalar norm(const BlockCPtr& a, float64 order, std::optional<int64> axis) override
     {
-        PYBIND11_OVERRIDE_PURE(float64, BlockBackend, norm, a, order, axis);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, norm, a, order, axis);
     }
     BlockPtr outer(const BlockCPtr& a, const BlockCPtr& b) override
     {
@@ -306,9 +306,9 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, sum, a, ax);
     }
-    complex128 sum_all(const BlockCPtr& a) override
+    Scalar sum_all(const BlockCPtr& a) override
     {
-        PYBIND11_OVERRIDE_PURE(PYBIND11_TYPE(complex128), BlockBackend, sum_all, a);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, sum_all, a);
     }
     BlockPtr tdot(const BlockCPtr& a,
                   const BlockCPtr& b,
@@ -321,9 +321,9 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, to_dtype, a, dtype);
     }
-    complex128 trace_full(const BlockCPtr& a) override
+    Scalar trace_full(const BlockCPtr& a) override
     {
-        PYBIND11_OVERRIDE_PURE(PYBIND11_TYPE(complex128), BlockBackend, trace_full, a);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, trace_full, a);
     }
     BlockPtr trace_partial(const BlockCPtr& a,
                            const std::vector<int64>& idcs1,
@@ -337,9 +337,9 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, eye_matrix, dim, dtype, device);
     }
-    py::object get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs) override
+    Scalar get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs) override
     {
-        PYBIND11_OVERRIDE_PURE(py::object, BlockBackend, get_block_element, a, idcs);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, get_block_element, a, idcs);
     }
     bool get_block_mask_element(const BlockCPtr& a,
                                 int64 large_leg_idx,

@@ -106,6 +106,11 @@ class BlockBackend
         /// np.complex128).
         py::object to_numpy() const;
 
+        Scalar operator+(const Scalar& other) const;
+        Scalar operator-(const Scalar& other) const;
+        Scalar operator*(const Scalar& other) const;
+        Scalar operator/(const Scalar& other) const;
+
       private:
         std::shared_ptr<Block> block_;
     };
@@ -216,12 +221,12 @@ class BlockBackend
     /// The imaginary part of a complex number, elementwise.
     virtual BlockPtr imag(const BlockCPtr& a) = 0;
     /// Dense block version of tensors.inner.
-    virtual complex128 inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger);
+    virtual Scalar inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger);
     /// If the block is comprised of real numbers.
     bool is_real(const BlockCPtr& a);
     /// Assumes that data is a scalar (i.e. has only one entry). Returns that scalar as python
     /// float or complex
-    virtual py::object item(const BlockCPtr& a) = 0;
+    virtual Scalar item(const BlockCPtr& a) = 0;
     /// The kronecker product.
     virtual BlockPtr kron(const BlockCPtr& a, const BlockCPtr& b) = 0;
     virtual BlockPtr linear_combination(const Scalar& a_coef,
@@ -230,14 +235,14 @@ class BlockBackend
                                         const BlockCPtr& w) = 0;
     /// The *elementwise* natural logarithm.
     virtual BlockPtr log(const BlockCPtr& a) = 0;
-    virtual float64 max(const BlockCPtr& a) = 0;
-    virtual float64 max_abs(const BlockCPtr& a) = 0;
-    virtual float64 min(const BlockCPtr& a) = 0;
-    virtual BlockPtr mul(py::object a, const BlockCPtr& b) = 0;
+    virtual Scalar max(const BlockCPtr& a) = 0;
+    virtual Scalar max_abs(const BlockCPtr& a) = 0;
+    virtual Scalar min(const BlockCPtr& a) = 0;
+    virtual BlockPtr mul(const Scalar& a, const BlockCPtr& b) = 0;
     /// The p-norm vector-norm of a block.
-    virtual float64 norm(const BlockCPtr& a,
-                         float64 order = 2,
-                         std::optional<int64> axis = std::nullopt) = 0;
+    virtual Scalar norm(const BlockCPtr& a,
+                        float64 order = 2,
+                        std::optional<int64> axis = std::nullopt) = 0;
     /// Outer product of blocks.
     virtual BlockPtr outer(const BlockCPtr& a, const BlockCPtr& b) = 0;
     virtual BlockPtr permute_axes(const BlockCPtr& a, const std::vector<int64>& permutation) = 0;
@@ -290,7 +295,7 @@ class BlockBackend
     /// The sum over a single axis.
     virtual BlockPtr sum(const BlockCPtr& a, int64 ax) = 0;
     /// The sum of all entries of the block.
-    virtual complex128 sum_all(const BlockCPtr& a) = 0;
+    virtual Scalar sum_all(const BlockCPtr& a) = 0;
     virtual BlockPtr multiply_blocks(const BlockCPtr& a, const BlockCPtr& b) = 0; // elementwise
     virtual BlockPtr tdot(const BlockCPtr& a,
                           const BlockCPtr& b,
@@ -300,7 +305,7 @@ class BlockBackend
     BlockPtr tensor_outer(const BlockCPtr& a, const BlockCPtr& b, int64 K);
     virtual BlockPtr to_dtype(const BlockCPtr& a, Dtype dtype) = 0;
     py::object to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype = std::nullopt);
-    virtual complex128 trace_full(const BlockCPtr& a) = 0;
+    virtual Scalar trace_full(const BlockCPtr& a) = 0;
     virtual BlockPtr trace_partial(const BlockCPtr& a,
                                    const std::vector<int64>& idcs1,
                                    const std::vector<int64>& idcs2,
@@ -313,7 +318,7 @@ class BlockBackend
     virtual BlockPtr eye_matrix(int64 dim,
                                 Dtype dtype,
                                 std::optional<std::string> device = std::nullopt) = 0;
-    virtual py::object get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs) = 0;
+    virtual Scalar get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs) = 0;
     /// Get an element of a mask.
     virtual bool get_block_mask_element(const BlockCPtr& a,
                                         int64 large_leg_idx,

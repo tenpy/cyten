@@ -1,3 +1,4 @@
+#include "cyten/block_backend/block_backend.h"
 #include <cyten/block_backend/numpy.h>
 
 #include <map>
@@ -132,6 +133,12 @@ complex128
 NumpyBlockBackend::Block::_item_as_complex128() const
 {
     return (arr_.attr("item")()).cast<complex128>();
+}
+
+int64
+NumpyBlockBackend::Block::_item_as_int64() const
+{
+    return (arr_.attr("item")()).cast<int64>();
 }
 
 // -----------------------------------------------------------------------------
@@ -603,7 +610,7 @@ NumpyBlockBackend::imag(const BlockCPtr& a)
     return wrap(np_attr("imag")(obj(a)));
 }
 
-complex128
+BlockBackend::Scalar
 NumpyBlockBackend::inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger)
 {
     /* converted from following python code:
@@ -613,28 +620,32 @@ NumpyBlockBackend::inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger)
      * return np.tensordot(a, b, [list(range(a.ndim)), list(reversed(range(a.ndim)))]).item()
      */
     // OPTIMIZE use np.sum(a * b) instead?
+    if (a->ndim() != b->ndim()) {
+        throw std::invalid_argument("a and b must have the same number of dimensions");
+    }
     py::object contr;
     if (do_dagger) {
         contr = np_attr("tensordot")(obj(conj(a)), obj(b), a->ndim());
     } else {
-        std::vector<int64> range = std::vector<int64>(a->ndim());
-        std::vector<int64> rev_range = std::vector<int64>(a->ndim());
+        std::vector<int64> range(a->ndim());
+        std::vector<int64> rev_range(a->ndim());
         for (int64 i = 0; i < a->ndim(); ++i) {
             range[i] = i;
             rev_range[i] = a->ndim() - 1 - i;
         }
-        contr = np_attr("tensordot")(a, b, py::make_tuple(py::cast(range), py::cast(rev_range)));
+        contr = np_attr("tensordot")(
+          obj(a), obj(b), py::make_tuple(py::cast(range), py::cast(rev_range)));
     }
-    return contr.attr("item").cast<complex128>();
+    return item(wrap(contr.attr("item")()));
 }
 
-py::object
+BlockBackend::Scalar
 NumpyBlockBackend::item(const BlockCPtr& a)
 {
     /* converted from following python code:
      * return a.item()
      */
-    return obj(a).attr("item")();
+    return Scalar(wrap(obj(a).attr("item")()));
 }
 
 BlockPtr
@@ -655,34 +666,34 @@ NumpyBlockBackend::log(const BlockCPtr& a)
     return wrap(np_attr("log")(obj(a)));
 }
 
-float64
+BlockBackend::Scalar
 NumpyBlockBackend::max(const BlockCPtr& a)
 {
     /* converted from following python code:
      * return np.max(a).item()
      */
-    return np_attr("max")(obj(a)).attr("item")().cast<float64>();
+    return Scalar(item(wrap(np_attr("max")(obj(a)))));
 }
 
-float64
+BlockBackend::Scalar
 NumpyBlockBackend::max_abs(const BlockCPtr& a)
 {
     /* converted from following python code:
      * return np.max(np.abs(a)).item()
      */
-    return np_attr("max")(np_attr("abs")(obj(a))).attr("item")().cast<float64>();
+    return Scalar(item(wrap(np_attr("max")(np_attr("abs")(obj(a))))));
 }
 
-float64
+BlockBackend::Scalar
 NumpyBlockBackend::min(const BlockCPtr& a)
 {
     /* converted from following python code:
      * return np.min(a).item()
      */
-    return np_attr("min")(obj(a)).attr("item")().cast<float64>();
+    return Scalar(item(wrap(np_attr("min")(obj(a)))));
 }
 
-float64
+BlockBackend::Scalar
 NumpyBlockBackend::norm(const BlockCPtr& a, float64 order, std::optional<int64> axis)
 {
     /* converted from following python code:
@@ -692,14 +703,11 @@ NumpyBlockBackend::norm(const BlockCPtr& a, float64 order, std::optional<int64> 
      */
     py::object arr = obj(a);
     if (!axis) {
-        return np_attr("linalg")
-          .attr("norm")(arr.attr("ravel")(), py::arg("ord") = order)
-          .attr("item")()
-          .cast<float64>();
+        return Scalar(
+          item(wrap(np_attr("linalg").attr("norm")(arr.attr("ravel")(), py::arg("ord") = order))));
     }
-    return np_attr("linalg")
-      .attr("norm")(arr, py::arg("ord") = order, py::arg("axis") = *axis)
-      .cast<float64>();
+    return Scalar(item(
+      wrap(np_attr("linalg").attr("norm")(arr, py::arg("ord") = order, py::arg("axis") = *axis))));
 }
 
 BlockPtr
@@ -893,13 +901,13 @@ NumpyBlockBackend::sum(const BlockCPtr& a, int64 ax)
     return wrap(np_attr("sum")(obj(a), py::arg("axis") = ax));
 }
 
-complex128
+BlockBackend::Scalar
 NumpyBlockBackend::sum_all(const BlockCPtr& a)
 {
     /* converted from following python code:
      * return np.sum(a).item()
      */
-    return np_attr("sum")(obj(a)).attr("item")().cast<complex128>();
+    return Scalar(wrap(np_attr("sum")(obj(a))));
 }
 
 BlockPtr
@@ -924,7 +932,7 @@ NumpyBlockBackend::to_dtype(const BlockCPtr& a, Dtype dtype)
     return wrap(np_attr("asarray")(obj(a), dtype::to_numpy_dtype(dtype)));
 }
 
-complex128
+BlockBackend::Scalar
 NumpyBlockBackend::trace_full(const BlockCPtr& a)
 {
     /* converted from following python code:
@@ -947,9 +955,7 @@ NumpyBlockBackend::trace_full(const BlockCPtr& a)
         perm[num_trace + i] = static_cast<int>(2 * num_trace - 1 - i);
     arr = np_attr("transpose")(arr, py::cast(perm));
     arr = np_attr("reshape")(arr, py::make_tuple(trace_dim, trace_dim));
-    return np_attr("trace")(arr, py::arg("axis1") = 0, py::arg("axis2") = 1)
-      .attr("item")()
-      .cast<complex128>();
+    return Scalar(item(wrap(np_attr("trace")(arr, py::arg("axis1") = 0, py::arg("axis2") = 1))));
 }
 
 BlockPtr
@@ -995,13 +1001,13 @@ NumpyBlockBackend::eye_matrix(int64 dim, Dtype dtype, std::optional<std::string>
     return wrap(np_attr("eye")(dim, py::arg("dtype") = dtype::to_numpy_dtype(dtype)));
 }
 
-py::object
+BlockBackend::Scalar
 NumpyBlockBackend::get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs)
 {
     /* converted from following python code:
      * return a[tuple(idcs)].item()
      */
-    return obj(a).attr("__getitem__")(py::cast(idcs)).attr("item")();
+    return Scalar(wrap(obj(a).attr("__getitem__")(py::cast(idcs))));
 }
 
 BlockPtr
@@ -1163,9 +1169,9 @@ NumpyBlockBackend::linear_combination(const Scalar& a_coef,
 }
 
 BlockPtr
-NumpyBlockBackend::mul(py::object a, const BlockCPtr& b)
+NumpyBlockBackend::mul(const Scalar& a, const BlockCPtr& b)
 {
-    return wrap(a * obj(b));
+    return wrap(a.to_numpy() * obj(b));
 }
 
 BlockPtr

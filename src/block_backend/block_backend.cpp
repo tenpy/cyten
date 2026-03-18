@@ -25,7 +25,7 @@ BlockBackend::Block::operator+(const BlockCPtr& other) const
 BlockPtr
 BlockBackend::Block::operator*(const Scalar& s) const
 {
-    return get_backend()->mul(s.to_numpy(), shared_from_this());
+    return get_backend()->mul(s, shared_from_this());
 }
 
 std::shared_ptr<BlockBackend::Block>
@@ -148,6 +148,47 @@ BlockBackend::Scalar::to_numpy() const
     return dtype::to_numpy_dtype(block_->dtype())(val);
 }
 
+BlockBackend::Scalar
+BlockBackend::Scalar::operator+(const Scalar& other) const
+{
+    return Scalar(
+      block_->get_backend()->linear_combination(*(block_->get_backend()->as_scalar(1.0)),
+                                                block_,
+                                                *(block_->get_backend()->as_scalar(1.0)),
+                                                other.block_));
+}
+
+BlockBackend::Scalar
+BlockBackend::Scalar::operator-(const Scalar& other) const
+{
+    return Scalar(
+      block_->get_backend()->linear_combination(*(block_->get_backend()->as_scalar(1.0)),
+                                                block_,
+                                                *(block_->get_backend()->as_scalar(-1.0)),
+                                                other.block_));
+}
+
+BlockBackend::Scalar
+BlockBackend::Scalar::operator*(const Scalar& other) const
+{
+    return block_->get_backend()->mul(*this, block_);
+}
+
+BlockBackend::Scalar
+BlockBackend::Scalar::operator/(const Scalar& other) const
+{
+    if (other.as_complex128() == complex128(0.0, 0.0)) {
+        throw std::runtime_error("Division by zero");
+    }
+    if (dtype::is_complex(other.block_->dtype())) {
+        return Scalar(block_->get_backend()->mul(
+          *(block_->get_backend()->as_scalar(1.0 / other.as_complex128())), block_));
+    } else {
+        return Scalar(block_->get_backend()->mul(
+          *(block_->get_backend()->as_scalar(1.0 / other.as_float64())), block_));
+    }
+}
+
 // -----------------------------------------------------------------------------
 // BlockBackend class
 // -----------------------------------------------------------------------------
@@ -222,7 +263,7 @@ BlockBackend::get_block_mask_element(const BlockCPtr& a,
     int64 offset = (large_leg_idx / dim0) * sum_block;
     large_leg_idx %= dim0;
     // if this does not work, need to override.
-    if (!item((*a)[py::cast(large_leg_idx)]).cast<bool>())
+    if (!item((*a)[py::cast(large_leg_idx)]).as_bool())
         // if the block has a False entry, the matrix has only False in that column
         return false;
     // otherwise, there is exactly one True in that column, at index sum(a[:large_leg_idx])
@@ -239,15 +280,15 @@ BlockBackend::argsort(const BlockCPtr& block, std::optional<std::string> sort, i
         if (*sort == "m<" || *sort == "SM") {
             work = abs(block);
         } else if (*sort == "m>" || *sort == "LM") {
-            work = mul(py::float_(-1.0), abs(block));
+            work = mul(*as_scalar(float64(-1.0)), abs(block));
         } else if (*sort == "<" || *sort == "SR" || *sort == "SA") {
             work = real(block);
         } else if (*sort == ">" || *sort == "LR" || *sort == "LA") {
-            work = mul(py::float_(-1.0), real(block));
+            work = mul(*as_scalar(float64(-1.0)), real(block));
         } else if (*sort == "SI") {
             work = imag(block);
         } else if (*sort == "LI") {
-            work = mul(py::float_(-1.0), imag(block));
+            work = mul(*as_scalar(float64(-1.0)), imag(block));
         } else {
             throw std::invalid_argument(std::string("unknown sort option ") + *sort);
         }
@@ -553,7 +594,7 @@ BlockBackend::test_block_sanity(const BlockCPtr& block,
     }
 }
 
-complex128
+BlockBackend::Scalar
 BlockBackend::inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger)
 {
     BlockCPtr ac;

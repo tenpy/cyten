@@ -97,19 +97,19 @@ class NumpyBlockBackend : public BlockBackend
                               std::optional<std::string> device) override;
     BlockPtr get_diagonal(const BlockCPtr& a, std::optional<float64> tol) override;
     BlockPtr imag(const BlockCPtr& a) override;
-    complex128 inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger) override;
-    py::object item(const BlockCPtr& a) override;
+    Scalar inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger) override;
+    Scalar item(const BlockCPtr& a) override;
     BlockPtr kron(const BlockCPtr& a, const BlockCPtr& b) override;
     BlockPtr linear_combination(const Scalar& a_coef,
                                 const BlockCPtr& v,
                                 const Scalar& b_coef,
                                 const BlockCPtr& w) override;
     BlockPtr log(const BlockCPtr& a) override;
-    float64 max(const BlockCPtr& a) override;
-    float64 max_abs(const BlockCPtr& a) override;
-    float64 min(const BlockCPtr& a) override;
-    BlockPtr mul(py::object a, const BlockCPtr& b) override;
-    float64 norm(const BlockCPtr& a, float64 order, std::optional<int64> axis) override;
+    Scalar max(const BlockCPtr& a) override;
+    Scalar max_abs(const BlockCPtr& a) override;
+    Scalar min(const BlockCPtr& a) override;
+    BlockPtr mul(const Scalar& a, const BlockCPtr& b) override;
+    Scalar norm(const BlockCPtr& a, float64 order, std::optional<int64> axis) override;
     BlockPtr outer(const BlockCPtr& a, const BlockCPtr& b) override;
     BlockPtr permute_axes(const BlockCPtr& a, const std::vector<int64>& permutation) override;
     BlockPtr random_normal(const std::vector<int64>& dims,
@@ -132,20 +132,20 @@ class NumpyBlockBackend : public BlockBackend
     BlockPtr squeeze_axes(const BlockCPtr& a, const std::vector<int64>& idcs) override;
     BlockPtr stable_log(const BlockCPtr& block, float64 cutoff) override;
     BlockPtr sum(const BlockCPtr& a, int64 ax) override;
-    complex128 sum_all(const BlockCPtr& a) override;
+    Scalar sum_all(const BlockCPtr& a) override;
     BlockPtr multiply_blocks(const BlockCPtr& a, const BlockCPtr& b) override;
     BlockPtr tdot(const BlockCPtr& a,
                   const BlockCPtr& b,
                   const std::vector<int64>& idcs_a,
                   const std::vector<int64>& idcs_b) override;
     BlockPtr to_dtype(const BlockCPtr& a, Dtype dtype) override;
-    complex128 trace_full(const BlockCPtr& a) override;
+    Scalar trace_full(const BlockCPtr& a) override;
     BlockPtr trace_partial(const BlockCPtr& a,
                            const std::vector<int64>& idcs1,
                            const std::vector<int64>& idcs2,
                            const std::vector<int64>& remaining_idcs) override;
     BlockPtr eye_matrix(int64 dim, Dtype dtype, std::optional<std::string> device) override;
-    py::object get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs) override;
+    Scalar get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs) override;
     BlockPtr matrix_dot(const BlockCPtr& a, const BlockCPtr& b) override;
     BlockPtr matrix_exp(const BlockCPtr& matrix) override;
     BlockPtr matrix_log(const BlockCPtr& matrix) override;
