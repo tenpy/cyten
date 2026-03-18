@@ -9,4 +9,5 @@ target_sources(_core
   py_config.cpp
   py_tools.cpp
   py_version.cpp
+  py_check.cpp
 )
