@@ -2,6 +2,7 @@
 
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
+#include <memory>
 #include <pybind11/pybind11.h>
 
 namespace cyten {
@@ -48,6 +49,10 @@ class PyBlock
     {
         PYBIND11_OVERRIDE(py::array, BlockBackend::Block, to_numpy, dtype);
     }
+    complex128 _item_as_complex128() const override
+    {
+        PYBIND11_OVERRIDE_PURE(complex128, BlockBackend::Block, _item_as_complex128);
+    }
 }; // trampoline class PyBlock
 
 /// @brief pybind11 trampoline class for BlockBackend in Python
@@ -60,6 +65,35 @@ class PyBlockBackend
     PyBlockBackend(BlockBackend&& base)
       : BlockBackend(std::move(base))
     {
+    }
+
+    std::shared_ptr<Scalar> as_scalar(complex128 value, Dtype dtype) override
+    {
+        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, value, dtype);
+    }
+    std::shared_ptr<Scalar> as_scalar(py::object value, Dtype dtype) override
+    {
+        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, value, dtype);
+    }
+    std::shared_ptr<Scalar> as_scalar(bool b) override
+    {
+        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, b);
+    }
+    std::shared_ptr<Scalar> as_scalar(float32 x) override
+    {
+        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, x);
+    }
+    std::shared_ptr<Scalar> as_scalar(float64 x) override
+    {
+        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, x);
+    }
+    std::shared_ptr<Scalar> as_scalar(complex64 z) override
+    {
+        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, z);
+    }
+    std::shared_ptr<Scalar> as_scalar(complex128 z) override
+    {
+        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, z);
     }
 
     BlockPtr abs(const BlockCPtr& a) override
@@ -173,9 +207,9 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, kron, a, b);
     }
-    BlockPtr linear_combination(Scalar a_coef,
+    BlockPtr linear_combination(const Scalar& a_coef,
                                 const BlockCPtr& v,
-                                Scalar b_coef,
+                                const Scalar& b_coef,
                                 const BlockCPtr& w) override
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, linear_combination, a_coef, v, b_coef, w);

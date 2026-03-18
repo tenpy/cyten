@@ -14,26 +14,6 @@ bind_block_backend(py::module_& m)
 {
     bind_block_backend_dtypes(m);
 
-    py::class_<Scalar, py::smart_holder>(
-      m, "Scalar", "Scalar value with Dtype; use accessors to cast to float, complex, or bool.")
-      .def(py::init<Dtype, complex128>(),
-           py::arg("dtype"),
-           py::arg("value"),
-           "Construct from Dtype and numeric value (int/float/complex; stored as complex "
-           "internally).")
-      .def(py::init<bool>(), py::arg("value"), "Construct from bool (dtype is Bool).")
-      .def(py::init<float64>(), py::arg("value"), "Construct from float (dtype is Float64).")
-      .def(
-        py::init<complex128>(), py::arg("value"), "Construct from complex (dtype is Complex128).")
-      .def_property_readonly("dtype", &Scalar::dtype)
-      .def("real", &Scalar::real, "Real part (valid for any dtype).")
-      .def("as_float64", &Scalar::as_float64, "As float; raises if dtype is not Float32/Float64.")
-      .def("as_complex128",
-           &Scalar::as_complex128,
-           "As complex (real/bool have zero imaginary part).")
-      .def("as_bool", &Scalar::as_bool, "As bool; raises if dtype is not Bool.")
-      .def("to_numpy", &Scalar::to_numpy, "Return as numpy scalar (np.bool_, np.float64, etc.).");
-
     py::class_<BlockBackend, PyBlockBackend, py::smart_holder> block_backend(m, "BlockBackend");
     block_backend.doc() = "Abstract base class that defines the operation on dense blocks.";
 
@@ -55,12 +35,12 @@ bind_block_backend(py::module_& m)
         "Elementwise addition with another block.")
       .def(
         "__mul__",
-        [](const BlockBackend::Block& self, Scalar s) { return self * s; },
+        [](const BlockBackend::Block& self, const BlockBackend::Scalar& s) { return self * s; },
         py::arg("other"),
         "Multiplication by a scalar.")
       .def(
         "__rmul__",
-        [](const BlockBackend::Block& self, Scalar s) { return self * s; },
+        [](const BlockBackend::Block& self, BlockBackend::Scalar s) { return self * s; },
         py::arg("other"),
         "Right multiplication by a scalar.")
       .def("__getitem__",
@@ -80,7 +60,30 @@ bind_block_backend(py::module_& m)
       .def("to_numpy",
            py::overload_cast<Dtype>(&BlockBackend::Block::to_numpy, py::const_),
            py::arg("dtype"),
-           "Convert to numpy array with the given Dtype.");
+           "Convert to numpy array with the given Dtype.")
+      .def("_item_as_complex128",
+           &BlockBackend::Block::_item_as_complex128,
+           "Return the element of a zero-dimensional block as a complex128.");
+
+    py::class_<BlockBackend::Scalar, py::smart_holder>(
+      block_backend,
+      "Scalar",
+      "Scalar value with Dtype; use accessors to cast to float, complex, or bool.")
+      .def(py::init<std::shared_ptr<BlockBackend::Block>>(),
+           py::arg("block"),
+           "Construct from a 0-d block (ndim == 0). Raises if block is null or ndim != 0.")
+      .def_property_readonly("dtype", &BlockBackend::Scalar::dtype)
+      .def("real", &BlockBackend::Scalar::real, "Real part (valid for any dtype).")
+      .def("as_float64",
+           &BlockBackend::Scalar::as_float64,
+           "As float; raises if dtype is not Float32/Float64.")
+      .def("as_complex128",
+           &BlockBackend::Scalar::as_complex128,
+           "As complex (real/bool have zero imaginary part).")
+      .def("as_bool", &BlockBackend::Scalar::as_bool, "As bool; raises if dtype is not Bool.")
+      .def("to_numpy",
+           &BlockBackend::Scalar::to_numpy,
+           "Return as numpy scalar (np.bool_, np.float64, etc.).");
 
     block_backend // init and attributes
       .def(py::init<std::string>(), py::arg("device") = "cpu")
@@ -91,6 +94,23 @@ bind_block_backend(py::module_& m)
            [](const BlockBackend& self) { return self.get_backend_name() + std::string("()"); })
       .def("__str__",
            [](const BlockBackend& self) { return self.get_backend_name() + std::string("()"); })
+      .def("as_scalar",
+           py::overload_cast<bool>(&BlockBackend::as_scalar),
+           py::arg("value"),
+           "Convert a bool to a scalar block.")
+      .def("as_scalar",
+           py::overload_cast<float64>(&BlockBackend::as_scalar),
+           py::arg("value"),
+           "Convert a float64 to a scalar block.")
+      .def("as_scalar",
+           py::overload_cast<complex64>(&BlockBackend::as_scalar),
+           py::arg("value"),
+           "Convert a complex64 to a scalar block.")
+      .def("as_scalar",
+           py::overload_cast<py::object, Dtype>(&BlockBackend::as_scalar),
+           py::arg("value"),
+           py::arg("dtype"),
+           "Convert a Python object to a scalar block with the given Dtype.")
       .def("abs",
            &BlockBackend::abs,
            py::arg("a"),

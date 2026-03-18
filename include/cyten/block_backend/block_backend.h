@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cyten/block_backend/dtypes.h>
-#include <cyten/block_backend/scalar.h>
 #include <cyten/cyten.h>
 #include <memory>
 #include <optional>
@@ -10,11 +9,13 @@
 
 namespace cyten {
 
-// CHECKME: the following was appended by .cursor/skills/pybind11-codegen/pybind11_codegen.py
-// gen_cpp_declaration --py-name BlockBackend --header-file include/cyten/block_backend_draft.h
 /// Abstract base class that defines the operation on dense blocks.
 class BlockBackend
 {
+  public:
+    // forward declaration, defined below.
+    class Scalar;
+
   public:
     /// Abstract base class for dense blocks. Subclassed per backend (e.g.
     /// NumpyBlockBackend::Block). Access to elements should be done exclusively through the
@@ -52,7 +53,7 @@ class BlockBackend
         /// Elementwise addition with another block.
         std::shared_ptr<Block> operator+(const std::shared_ptr<const Block>& other) const;
         /// Scalar multiplication.
-        std::shared_ptr<Block> operator*(Scalar s) const;
+        std::shared_ptr<Block> operator*(const Scalar& s) const;
         /// Arbitrary access by Python key; returns new block (shared_ptr).
         std::shared_ptr<const Block> operator[](py::object key) const;
         std::shared_ptr<Block> operator[](py::object key);
@@ -65,9 +66,54 @@ class BlockBackend
         virtual std::shared_ptr<const Block> get_item(py::object key) const = 0;
         /// Arbitrary setitem; implemented by backends (e.g. numpy __setitem__).
         virtual void set_item(py::object key, py::object value) = 0;
+        // implicit conversion to Scalar, throws for Blocks which are not 0-D.
+        virtual operator Scalar() { return Scalar(shared_from_this()); };
+        friend class Scalar;
+        /// Return the element of a zero-dimensional block. Raise if not 0-D
+        virtual complex128 _item_as_complex128() const = 0;
     };
     using BlockPtr = std::shared_ptr<Block>;
     using BlockCPtr = std::shared_ptr<const Block>;
+
+    /// Holds a single scalar value with a Dtype as a 0-d Block.
+    // Use accessors to cast to the desired C++ type.
+    class Scalar
+    {
+      public:
+        /// (implicitly) convert from a block with trivial empty shape (ndim == 0). Throws if ndim
+        /// != 0.
+        Scalar(std::shared_ptr<Block> block);
+
+        Dtype dtype() const { return block_->dtype(); }
+
+        /// Real part; valid for any dtype (complex -> real part, bool -> 0 or 1).
+        float64 real() const;
+        /// As a real (float64) scalar. Throws if dtype is not Float32 or Float64.
+        float64 as_float64() const;
+        /// As a float32 scalar. Throws if dtype is not Float32.
+        float32 as_float32() const;
+        /// As a complex64 scalar. Throws if dtype is not Complex64.
+        complex64 as_complex64() const;
+        /// As a complex128 scalar. Always valid (real/bool stored with zero imaginary part).
+        complex128 as_complex128() const;
+        /// As a bool. Throws if dtype is not Bool.
+        bool as_bool() const;
+        /// Return as a numpy scalar (np.bool_, np.float32, np.float64, np.complex64,
+        /// np.complex128).
+        py::object to_numpy() const;
+
+      private:
+        std::shared_ptr<Block> block_;
+    };
+
+  public:
+    virtual std::shared_ptr<Scalar> as_scalar(complex128 value, Dtype dtype) = 0;
+    virtual std::shared_ptr<Scalar> as_scalar(py::object value, Dtype dtype) = 0;
+    virtual std::shared_ptr<Scalar> as_scalar(bool b) = 0;
+    virtual std::shared_ptr<Scalar> as_scalar(float32 x) = 0;
+    virtual std::shared_ptr<Scalar> as_scalar(float64 x) = 0;
+    virtual std::shared_ptr<Scalar> as_scalar(complex64 z) = 0;
+    virtual std::shared_ptr<Scalar> as_scalar(complex128 z) = 0;
 
   public:
     std::string default_device;
@@ -174,9 +220,9 @@ class BlockBackend
     virtual py::object item(const BlockCPtr& a) = 0;
     /// The kronecker product.
     virtual BlockPtr kron(const BlockCPtr& a, const BlockCPtr& b) = 0;
-    virtual BlockPtr linear_combination(Scalar a_coef,
+    virtual BlockPtr linear_combination(const Scalar& a_coef,
                                         const BlockCPtr& v,
-                                        Scalar b_coef,
+                                        const Scalar& b_coef,
                                         const BlockCPtr& w) = 0;
     /// The *elementwise* natural logarithm.
     virtual BlockPtr log(const BlockCPtr& a) = 0;

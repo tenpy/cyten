@@ -3304,7 +3304,7 @@ class TreePairMapping(TensorMapping):
             is_zero_block = True
             for X, idcs1, mults1, _ in new_codomain.iter_tree_blocks([coupled]):
                 for Y, idcs2, mults2, _ in new_domain.iter_tree_blocks([coupled]):
-                    tree_block = 0
+                    tree_block = block_backend.as_scalar(0.0)
                     is_zero_tree_block = True
                     # note: we first add all contributions to the new tree block, and do the axes
                     #       permutation only once to the result

@@ -3,6 +3,7 @@
 #include <map>
 #include <mutex>
 #include <pybind11/numpy.h>
+#include <pybind11/pytypes.h>
 #include <stdexcept>
 
 namespace cyten {
@@ -127,6 +128,12 @@ NumpyBlockBackend::Block::set_item(py::object key, py::object value)
     arr_.attr("__setitem__")(key_copy, value);
 }
 
+complex128
+NumpyBlockBackend::Block::_item_as_complex128() const
+{
+    return (arr_.attr("item")()).cast<complex128>();
+}
+
 // -----------------------------------------------------------------------------
 // NumpyBlockBackend helpers
 // -----------------------------------------------------------------------------
@@ -156,6 +163,65 @@ bool
 NumpyBlockBackend::is_correct_block_type(const BlockCPtr& block) const
 {
     return dynamic_cast<NumpyBlockBackend::Block const*>(block.get()) != nullptr;
+}
+
+// -----------------------------------------------------------------------------
+// NumpyBlockBackend::Scalar
+// -----------------------------------------------------------------------------
+std::shared_ptr<BlockBackend::Scalar>
+NumpyBlockBackend::as_scalar(py::array value)
+{
+    BlockPtr block = wrap(value);
+    return std::make_shared<BlockBackend::Scalar>(std::move(block));
+}
+
+std::shared_ptr<BlockBackend::Scalar>
+NumpyBlockBackend::as_scalar(complex128 value, Dtype dtype)
+{
+    py::array arr = np_attr("array")(py::cast(value), dtype::to_numpy_dtype(dtype));
+    return as_scalar(arr);
+}
+
+std::shared_ptr<BlockBackend::Scalar>
+NumpyBlockBackend::as_scalar(py::object value, Dtype dtype)
+{
+    py::array arr = np_attr("array")(value, dtype::to_numpy_dtype(dtype));
+    return as_scalar(arr);
+}
+
+std::shared_ptr<NumpyBlockBackend::Scalar>
+NumpyBlockBackend::as_scalar(bool b)
+{
+    py::array arr = np_attr("bool_")(py::cast(b));
+    return as_scalar(arr);
+}
+
+std::shared_ptr<NumpyBlockBackend::Scalar>
+NumpyBlockBackend::as_scalar(float32 x)
+{
+    py::array arr = np_attr("float32")(py::cast(x));
+    return as_scalar(arr);
+}
+
+std::shared_ptr<NumpyBlockBackend::Scalar>
+NumpyBlockBackend::as_scalar(float64 x)
+{
+    py::array arr = np_attr("float64")(py::cast(x));
+    return as_scalar(arr);
+}
+
+std::shared_ptr<NumpyBlockBackend::Scalar>
+NumpyBlockBackend::as_scalar(complex64 z)
+{
+    py::array arr = np_attr("complex64")(py::cast(z));
+    return as_scalar(arr);
+}
+
+std::shared_ptr<NumpyBlockBackend::Scalar>
+NumpyBlockBackend::as_scalar(complex128 z)
+{
+    py::array arr = np_attr("complex128")(py::cast(z));
+    return as_scalar(arr);
 }
 
 // -----------------------------------------------------------------------------
@@ -540,7 +606,7 @@ NumpyBlockBackend::imag(const BlockCPtr& a)
 complex128
 NumpyBlockBackend::inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger)
 {
-    /* CHECKME: converted from following python code:
+    /* converted from following python code:
      * # OPTIMIZE use np.sum(a * b) instead?
      * if do_dagger:
      *             return np.tensordot(np.conj(a), b, a.ndim).item()
@@ -1085,9 +1151,9 @@ NumpyBlockBackend::apply_leg_permutations(const BlockCPtr& block,
 }
 
 BlockPtr
-NumpyBlockBackend::linear_combination(Scalar a_coef,
+NumpyBlockBackend::linear_combination(const Scalar& a_coef,
                                       const BlockCPtr& v,
-                                      Scalar b_coef,
+                                      const Scalar& b_coef,
                                       const BlockCPtr& w)
 {
     return wrap(a_coef.to_numpy() * obj(v) + b_coef.to_numpy() * obj(w));

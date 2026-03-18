@@ -4,9 +4,7 @@
 
 #include <cassert>
 #include <cstdint>
-#include <stdexcept>
 #include <stdfloat>
-#include <string>
 
 #include <pybind11/numpy.h>
 #include <pybind11/operators.h>
@@ -19,7 +17,9 @@ namespace cyten {
 
 namespace py = ::pybind11;
 using int64 = std::int64_t;
+using float32 = float;
 using float64 = double;
+using complex64 = std::complex<float32>;
 using complex128 = std::complex<float64>;
 
 } // namespace cyten

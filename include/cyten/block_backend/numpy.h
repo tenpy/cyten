@@ -2,6 +2,7 @@
 
 #include <cyten/block_backend/block_backend.h>
 #include <memory>
+#include <pybind11/pytypes.h>
 
 namespace cyten {
 
@@ -29,9 +30,23 @@ class NumpyBlockBackend : public BlockBackend
         BlockCPtr get_item(py::object key) const override;
         void set_item(py::object key, py::object value) override;
 
+        complex128 _item_as_complex128() const override;
+
       protected:
         py::array arr_;
     };
+
+  private:
+    std::shared_ptr<Scalar> as_scalar(py::array value);
+
+  public:
+    std::shared_ptr<Scalar> as_scalar(complex128 value, Dtype dtype) override;
+    std::shared_ptr<Scalar> as_scalar(py::object value, Dtype dtype) override;
+    std::shared_ptr<Scalar> as_scalar(bool b) override;
+    std::shared_ptr<Scalar> as_scalar(float32 x) override;
+    std::shared_ptr<Scalar> as_scalar(float64 x) override;
+    std::shared_ptr<Scalar> as_scalar(complex64 z) override;
+    std::shared_ptr<Scalar> as_scalar(complex128 z) override;
 
   public:
     /// Get the backend instance for the given device (nearly-singleton per device).
@@ -84,9 +99,9 @@ class NumpyBlockBackend : public BlockBackend
     complex128 inner(const BlockCPtr& a, const BlockCPtr& b, bool do_dagger) override;
     py::object item(const BlockCPtr& a) override;
     BlockPtr kron(const BlockCPtr& a, const BlockCPtr& b) override;
-    BlockPtr linear_combination(Scalar a_coef,
+    BlockPtr linear_combination(const Scalar& a_coef,
                                 const BlockCPtr& v,
-                                Scalar b_coef,
+                                const Scalar& b_coef,
                                 const BlockCPtr& w) override;
     BlockPtr log(const BlockCPtr& a) override;
     float64 max(const BlockCPtr& a) override;
@@ -137,7 +152,7 @@ class NumpyBlockBackend : public BlockBackend
     std::tuple<BlockPtr, BlockPtr, BlockPtr> matrix_svd(
       const BlockCPtr& a,
       std::optional<std::string> algorithm) override;
-    virtual const std::vector<std::string>& possible_svd_algorithms() const override;
+    const std::vector<std::string>& possible_svd_algorithms() const override;
     BlockPtr ones_block(const std::vector<int64>& shape,
                         Dtype dtype,
                         std::optional<std::string> device) override;

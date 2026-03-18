@@ -11,15 +11,138 @@
 
 namespace cyten {
 
-// Product of elements in [first, last)
-int64
-prod_range(const std::vector<int64>& shape, size_t first, size_t last)
+// -----------------------------------------------------------------------------
+// Block class
+// -----------------------------------------------------------------------------
+
+BlockPtr
+BlockBackend::Block::operator+(const BlockCPtr& other) const
 {
-    int64 p = 1;
-    for (size_t i = first; i < last; ++i)
-        p *= shape[i];
-    return p;
+    auto scalar1 = get_backend()->as_scalar(1.0);
+    return get_backend()->linear_combination(*scalar1, shared_from_this(), *scalar1, other);
 }
+
+BlockPtr
+BlockBackend::Block::operator*(const Scalar& s) const
+{
+    return get_backend()->mul(s.to_numpy(), shared_from_this());
+}
+
+std::shared_ptr<BlockBackend::Block>
+BlockBackend::Block::operator[](py::object key)
+{
+    return get_item(key);
+}
+std::shared_ptr<const BlockBackend::Block>
+BlockBackend::Block::operator[](py::object key) const
+{
+    return get_item(key);
+}
+
+BlockBackend::Block&
+BlockBackend::Block::operator=(py::object rhs)
+{
+    set_item(py::slice(py::none(), py::none(), py::none()), rhs);
+    return *this;
+}
+
+py::array
+BlockBackend::Block::to_numpy(Dtype dtype) const
+{
+    py::array arr = to_numpy();
+    py::module_ np = py::module_::import("numpy");
+    return py::array(np.attr("asarray")(arr, dtype::to_numpy_dtype(dtype)));
+}
+
+int64
+BlockBackend::Block::ndim() const
+{
+    return static_cast<int64>(shape().size());
+}
+
+// -----------------------------------------------------------------------------
+// Scalar class
+// -----------------------------------------------------------------------------
+
+BlockBackend::Scalar::Scalar(std::shared_ptr<Block> block)
+{
+    if (!block || block->ndim() != 0)
+        throw std::invalid_argument(
+          "Scalar: block must be non-null and have ndim() == 0 (trivial empty shape).");
+    block_ = std::move(block);
+}
+
+float64
+BlockBackend::Scalar::real() const
+{
+    return block_->_item_as_complex128().real();
+}
+
+float64
+BlockBackend::Scalar::as_float64() const
+{
+    if (block_->dtype() == Dtype::Bool)
+        throw std::runtime_error("Scalar::as_float64: dtype is Bool");
+    if (!dtype::is_real(block_->dtype()))
+        throw std::runtime_error("Scalar::as_float64: dtype is complex");
+    return block_->_item_as_complex128().real();
+}
+
+float32
+BlockBackend::Scalar::as_float32() const
+{
+    if (block_->dtype() != Dtype::Float32)
+        throw std::runtime_error("Scalar::as_float32: dtype is not Float32");
+    return static_cast<float32>(as_float64());
+}
+
+complex64
+BlockBackend::Scalar::as_complex64() const
+{
+    if (block_->dtype() != Dtype::Complex64)
+        throw std::runtime_error("Scalar::as_complex64: dtype is not Complex64");
+    return static_cast<complex64>(block_->_item_as_complex128());
+}
+complex128
+BlockBackend::Scalar::as_complex128() const
+{
+    return block_->_item_as_complex128();
+}
+
+bool
+BlockBackend::Scalar::as_bool() const
+{
+    if (block_->dtype() != Dtype::Bool)
+        throw std::runtime_error("Scalar::as_bool: dtype is not Bool");
+    complex128 z = block_->_item_as_complex128();
+    return z.real() != float64(0) || z.imag() != float64(0);
+}
+
+py::object
+BlockBackend::Scalar::to_numpy() const
+{
+    py::object val;
+    switch (block_->dtype()) {
+        case Dtype::Bool:
+            val = py::cast(as_bool());
+            break;
+        case Dtype::Float32:
+        case Dtype::Float64:
+            val = py::cast(as_float64());
+            break;
+        case Dtype::Complex64:
+        case Dtype::Complex128:
+            val = py::cast(as_complex128());
+            break;
+        default:
+            throw std::runtime_error("Scalar::to_numpy: unknown dtype");
+    }
+    return dtype::to_numpy_dtype(block_->dtype())(val);
+}
+
+// -----------------------------------------------------------------------------
+// BlockBackend class
+// -----------------------------------------------------------------------------
 
 BlockBackend::BlockBackend(std::string default_device)
   : default_device(std::move(default_device))
@@ -63,50 +186,6 @@ BlockBackend::to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype
     if (numpy_dtype)
         return py::object(a->to_numpy(dtype::from_numpy_dtype(*numpy_dtype)));
     return py::object(a->to_numpy());
-}
-
-BlockPtr
-BlockBackend::Block::operator+(const BlockCPtr& other) const
-{
-    return get_backend()->linear_combination(Scalar(1.0), shared_from_this(), Scalar(1.0), other);
-}
-
-BlockPtr
-BlockBackend::Block::operator*(Scalar s) const
-{
-    return get_backend()->mul(s.to_numpy(), shared_from_this());
-}
-
-std::shared_ptr<BlockBackend::Block>
-BlockBackend::Block::operator[](py::object key)
-{
-    return get_item(key);
-}
-std::shared_ptr<const BlockBackend::Block>
-BlockBackend::Block::operator[](py::object key) const
-{
-    return get_item(key);
-}
-
-BlockBackend::Block&
-BlockBackend::Block::operator=(py::object rhs)
-{
-    set_item(py::slice(py::none(), py::none(), py::none()), rhs);
-    return *this;
-}
-
-py::array
-BlockBackend::Block::to_numpy(Dtype dtype) const
-{
-    py::array arr = to_numpy();
-    py::module_ np = py::module_::import("numpy");
-    return py::array(np.attr("asarray")(arr, dtype::to_numpy_dtype(dtype)));
-}
-
-int64
-BlockBackend::Block::ndim() const
-{
-    return static_cast<int64>(shape().size());
 }
 
 BlockPtr
