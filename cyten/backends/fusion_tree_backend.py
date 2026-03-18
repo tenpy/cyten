@@ -496,10 +496,10 @@ class FusionTreeBackend(TensorBackend):
             # there are missing blocks. -> they contain False -> all(a) == False
             return False
         # now it is enough to check the existing blocks
-        return all(self.block_backend.block_all(b) for b in a.data.blocks)
+        return all(self.block_backend.all(b) for b in a.data.blocks)
 
     def diagonal_any(self, a: DiagonalTensor) -> bool:
-        return any(self.block_backend.block_any(b) for b in a.data.blocks)
+        return any(self.block_backend.any(b) for b in a.data.blocks)
 
     def diagonal_elementwise_binary(
         self, a: DiagonalTensor, b: DiagonalTensor, func, func_kwargs, partial_zero_is_zero: bool
@@ -651,7 +651,7 @@ class FusionTreeBackend(TensorBackend):
         # -> maybe need to do additional sorting if leg is dual
         is_sorted = not large_leg.is_dual
         for diag_block, diag_bi in zip(tens.data.blocks, tens.data.block_inds):
-            if not self.block_backend.block_any(diag_block):
+            if not self.block_backend.any(diag_block):
                 continue
             bi, _ = diag_bi
 

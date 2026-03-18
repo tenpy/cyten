@@ -163,8 +163,8 @@ bind_block_backend(py::module_& m)
            py::arg("block"),
            "Return the indices (one per axis) of the largest entry (by magnitude) of the block")
       .def("add_axis", &BlockBackend::add_axis, py::arg("a"), py::arg("pos"))
-      .def("block_all",
-           &BlockBackend::block_all,
+      .def("all",
+           &BlockBackend::all,
            py::arg("a"),
            "Require a boolean block. If all of its entries are True")
       .def("allclose",
@@ -177,8 +177,8 @@ bind_block_backend(py::module_& m)
            &BlockBackend::angle,
            py::arg("a"),
            "The angle of a complex number such that ``a == exp(1.j * angle)``. Elementwise.")
-      .def("block_any",
-           &BlockBackend::block_any,
+      .def("any",
+           &BlockBackend::any,
            py::arg("a"),
            "Require a boolean block. If any of its entries are True")
       .def("apply_mask",

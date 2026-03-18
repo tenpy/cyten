@@ -74,10 +74,10 @@ class NumpyBlockBackend : public BlockBackend
     std::vector<int64> abs_argmax(const BlockCPtr& block) override;
     BlockPtr abs(const BlockCPtr& a) override;
     BlockPtr add_axis(const BlockCPtr& a, int64 pos) override;
-    bool block_all(const BlockCPtr& a) override;
+    bool all(const BlockCPtr& a) override;
     bool allclose(const BlockCPtr& a, const BlockCPtr& b, float64 rtol, float64 atol) override;
     BlockPtr angle(const BlockCPtr& a) override;
-    bool block_any(const BlockCPtr& a) override;
+    bool any(const BlockCPtr& a) override;
     BlockPtr apply_mask(const BlockCPtr& block, const BlockCPtr& mask, int64 ax) override;
     BlockPtr _argsort(const BlockCPtr& block, int64 axis) override;
     BlockPtr conj(const BlockCPtr& a) override;

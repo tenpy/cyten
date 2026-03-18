@@ -46,7 +46,7 @@ class NumpyBlockBackend(BlockBackend):
     def abs_argmax(self, block: Block) -> list[int]:
         return np.unravel_index(np.argmax(np.abs(block)), block.shape)
 
-    def block_all(self, a) -> bool:
+    def all(self, a) -> bool:
         return np.all(a)
 
     def allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
@@ -55,7 +55,7 @@ class NumpyBlockBackend(BlockBackend):
     def angle(self, a: Block) -> Block:
         return np.angle(a)
 
-    def block_any(self, a) -> bool:
+    def any(self, a) -> bool:
         return np.any(a)
 
     def apply_mask(self, block: Block, mask: Block, ax: int) -> Block:

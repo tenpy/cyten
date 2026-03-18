@@ -123,10 +123,7 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, add_axis, a, pos);
     }
-    bool block_all(const BlockCPtr& a) override
-    {
-        PYBIND11_OVERRIDE_PURE(bool, BlockBackend, block_all, a);
-    }
+    bool all(const BlockCPtr& a) override { PYBIND11_OVERRIDE_PURE(bool, BlockBackend, all, a); }
     bool allclose(const BlockCPtr& a, const BlockCPtr& b, float64 rtol, float64 atol) override
     {
         PYBIND11_OVERRIDE_PURE(bool, BlockBackend, allclose, a, b, rtol, atol);
@@ -135,10 +132,7 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, angle, a);
     }
-    bool block_any(const BlockCPtr& a) override
-    {
-        PYBIND11_OVERRIDE_PURE(bool, BlockBackend, block_any, a);
-    }
+    bool any(const BlockCPtr& a) override { PYBIND11_OVERRIDE_PURE(bool, BlockBackend, any, a); }
     BlockPtr apply_mask(const BlockCPtr& block, const BlockCPtr& mask, int64 ax) override
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, apply_mask, block, mask, ax);

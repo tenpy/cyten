@@ -154,7 +154,7 @@ class BlockBackend
     virtual std::vector<int64> abs_argmax(const BlockCPtr& block) = 0;
     virtual BlockPtr add_axis(const BlockCPtr& a, int64 pos) = 0;
     /// Require a boolean block. If all of its entries are True
-    virtual bool block_all(const BlockCPtr& a) = 0;
+    virtual bool all(const BlockCPtr& a) = 0;
     virtual bool allclose(const BlockCPtr& a,
                           const BlockCPtr& b,
                           float64 rtol = 1e-5,      // NOLINT(readability-magic-numbers)
@@ -162,14 +162,14 @@ class BlockBackend
     /// The angle of a complex number such that ``a == exp(1.j * angle)``. Elementwise.
     virtual BlockPtr angle(const BlockCPtr& a) = 0;
     /// Require a boolean block. If any of its entries are True
-    virtual bool block_any(const BlockCPtr& a) = 0;
+    virtual bool any(const BlockCPtr& a) = 0;
     /// Apply a mask (1D boolean block) to a block, slicing/projecting that axis
     virtual BlockPtr apply_mask(const BlockCPtr& block, const BlockCPtr& mask, int64 ax) = 0;
     /// Return the permutation that would sort a block along one axis.
     BlockPtr argsort(const BlockCPtr& block,
                      std::optional<std::string> sort = std::nullopt,
                      int64 axis = 0);
-    /// Like :meth:`block_argsort` but can assume real valued block, and sort ascending
+    /// Like :meth:`argsort` but can assume real valued block, and sort ascending
     virtual BlockPtr _argsort(const BlockCPtr& block, int64 axis) = 0;
     /// Combine each group of legs in `leg_idcs_combine` into a single leg.
     BlockPtr combine_legs(const BlockCPtr& a,

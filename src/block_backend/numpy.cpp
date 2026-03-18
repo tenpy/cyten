@@ -357,7 +357,7 @@ NumpyBlockBackend::abs_argmax(const BlockCPtr& block)
 }
 
 bool
-NumpyBlockBackend::block_all(const BlockCPtr& a)
+NumpyBlockBackend::all(const BlockCPtr& a)
 {
     /* converted from following python code:
      * return np.all(a)
@@ -385,7 +385,7 @@ NumpyBlockBackend::angle(const BlockCPtr& a)
 }
 
 bool
-NumpyBlockBackend::block_any(const BlockCPtr& a)
+NumpyBlockBackend::any(const BlockCPtr& a)
 {
     /* converted from following python code:
      * return np.any(a)

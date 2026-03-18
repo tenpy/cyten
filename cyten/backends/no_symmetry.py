@@ -115,10 +115,10 @@ class NoSymmetryBackend(TensorBackend):
         return self.block_backend.item(a)
 
     def diagonal_all(self, a: DiagonalTensor) -> bool:
-        return self.block_backend.block_all(a.data)
+        return self.block_backend.all(a.data)
 
     def diagonal_any(self, a: DiagonalTensor) -> bool:
-        return self.block_backend.block_any(a.data)
+        return self.block_backend.any(a.data)
 
     def diagonal_elementwise_binary(
         self, a: DiagonalTensor, b: DiagonalTensor, func, func_kwargs, partial_zero_is_zero: bool

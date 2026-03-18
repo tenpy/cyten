@@ -93,7 +93,7 @@ class BlockBackend(metaclass=ABCMeta):
     def add_axis(self, a: Block, pos: int) -> Block: ...
 
     @abstractmethod
-    def block_all(self, a) -> bool:
+    def all(self, a) -> bool:
         """Require a boolean block. If all of its entries are True"""
         ...
 
@@ -106,7 +106,7 @@ class BlockBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def block_any(self, a) -> bool:
+    def any(self, a) -> bool:
         """Require a boolean block. If any of its entries are True"""
         ...
 

@@ -53,10 +53,10 @@ class ArrayApiBlockBackend(BlockBackend):
         # device objects. making this block also guarantees that device is valid and available.
         return str(self.ones_block([1], device=device).device)
 
-    def block_all(self, a) -> bool:
+    def all(self, a) -> bool:
         return self._api.all(a)
 
-    def block_any(self, a) -> bool:
+    def any(self, a) -> bool:
         return self._api.any(a)
 
     def tdot(self, a: Block, b: Block, idcs_a: list[int], idcs_b: list[int]) -> Block:

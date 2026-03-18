@@ -713,10 +713,10 @@ class AbelianBackend(TensorBackend):
             # missing blocks are filled with False
             return False
         # now it is enough to check that all existing blocks are all-True
-        return all(self.block_backend.block_all(b) for b in a.data.blocks)
+        return all(self.block_backend.all(b) for b in a.data.blocks)
 
     def diagonal_any(self, a: DiagonalTensor) -> bool:
-        return any(self.block_backend.block_any(b) for b in a.data.blocks)
+        return any(self.block_backend.any(b) for b in a.data.blocks)
 
     def diagonal_elementwise_binary(
         self, a: DiagonalTensor, b: DiagonalTensor, func, func_kwargs, partial_zero_is_zero: bool
@@ -850,7 +850,7 @@ class AbelianBackend(TensorBackend):
         multiplicities = []
         basis_perm_ranks = []
         for diag_block, diag_bi in zip(tens.data.blocks, tens.data.block_inds):
-            if not self.block_backend.block_any(diag_block):
+            if not self.block_backend.any(diag_block):
                 continue
             bi, _ = diag_bi
             #

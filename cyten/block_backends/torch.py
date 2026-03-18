@@ -69,7 +69,7 @@ class TorchBlockBackend(BlockBackend):
     def add_axis(self, a: Block, pos: int) -> Block:
         return torch_module.unsqueeze(a, pos)
 
-    def block_all(self, a) -> bool:
+    def all(self, a) -> bool:
         return torch_module.all(a)
 
     def allclose(self, a: Block, b: Block, rtol: float = 1e-5, atol: float = 1e-8) -> bool:
@@ -81,7 +81,7 @@ class TorchBlockBackend(BlockBackend):
     def angle(self, a: Block) -> Block:
         return torch_module.angle(a)
 
-    def block_any(self, a) -> bool:
+    def any(self, a) -> bool:
         return torch_module.any(a)
 
     def _argsort(self, block: Block, axis: int) -> Block:
