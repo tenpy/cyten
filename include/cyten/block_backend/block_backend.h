@@ -71,6 +71,8 @@ class BlockBackend
         friend class Scalar;
         /// Return the element of a zero-dimensional block. Raise if not 0-D
         virtual complex128 _item_as_complex128() const = 0;
+        /// float etc can be cast to complex128 without loss, but not int64
+        virtual int64 _item_as_int64() const = 0;
     };
     using BlockPtr = std::shared_ptr<Block>;
     using BlockCPtr = std::shared_ptr<const Block>;
@@ -97,6 +99,8 @@ class BlockBackend
         /// As a complex128 scalar. Always valid (real/bool stored with zero imaginary part).
         complex128 as_complex128() const;
         /// As a bool. Throws if dtype is not Bool.
+        int64 as_int64() const;
+        /// As a bool scalar. Throws if dtype is not Int64.
         bool as_bool() const;
         /// Return as a numpy scalar (np.bool_, np.float32, np.float64, np.complex64,
         /// np.complex128).

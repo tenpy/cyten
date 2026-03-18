@@ -109,6 +109,14 @@ BlockBackend::Scalar::as_complex128() const
     return block_->_item_as_complex128();
 }
 
+int64
+BlockBackend::Scalar::as_int64() const
+{
+    if (block_->dtype() != Dtype::Int64)
+        throw std::runtime_error("Scalar::as_int64: dtype is not Int64");
+    return block_->_item_as_int64();
+}
+
 bool
 BlockBackend::Scalar::as_bool() const
 {

@@ -53,6 +53,10 @@ class PyBlock
     {
         PYBIND11_OVERRIDE_PURE(complex128, BlockBackend::Block, _item_as_complex128);
     }
+    int64 _item_as_int64() const override
+    {
+        PYBIND11_OVERRIDE_PURE(int64, BlockBackend::Block, _item_as_int64);
+    }
 }; // trampoline class PyBlock
 
 /// @brief pybind11 trampoline class for BlockBackend in Python

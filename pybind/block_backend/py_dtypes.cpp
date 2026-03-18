@@ -37,6 +37,7 @@ bind_block_backend_dtypes(py::module_& m)
       .value("complex64", Dtype::Complex64)
       .value("float64", Dtype::Float64)
       .value("complex128", Dtype::Complex128)
+      .value("int64", Dtype::Int64)
       .export_values()
       .finalize();
 }

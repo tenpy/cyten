@@ -63,7 +63,10 @@ bind_block_backend(py::module_& m)
            "Convert to numpy array with the given Dtype.")
       .def("_item_as_complex128",
            &BlockBackend::Block::_item_as_complex128,
-           "Return the element of a zero-dimensional block as a complex128.");
+           "Return the element of a zero-dimensional block as a complex128.")
+      .def("_item_as_int64",
+           &BlockBackend::Block::_item_as_int64,
+           "Return the element of a zero-dimensional block as a int64.");
 
     py::class_<BlockBackend::Scalar, py::smart_holder>(
       block_backend,

@@ -352,7 +352,7 @@ NumpyBlockBackend::abs_argmax(const BlockCPtr& block)
     py::tuple t = py::cast<py::tuple>(idx);
     std::vector<int64> out;
     for (auto const& item : t)
-        out.push_back(py::cast<int64>(item));
+        out.push_back(item.cast<int64>());
     return out;
 }
 
@@ -550,7 +550,7 @@ NumpyBlockBackend::block_from_mask(const BlockCPtr& mask, Dtype dtype)
     py::module_ np = numpy_module();
     py::object dt = dtype::to_numpy_dtype(dtype);
     int64 M = static_cast<int64>(m_arr.shape(0));
-    int64 N = py::cast<int64>(np.attr("sum")(m_arr));
+    int64 N = np.attr("sum")(m_arr).cast<int64>();
     py::object res = np.attr("zeros")(py::make_tuple(N, M), py::arg("dtype") = dt);
     res[py::make_tuple(np.attr("arange")(N), m_arr)] = 1;
     return wrap(res);
@@ -661,7 +661,7 @@ NumpyBlockBackend::max(const BlockCPtr& a)
     /* converted from following python code:
      * return np.max(a).item()
      */
-    return py::cast<float64>(np_attr("max")(obj(a)).attr("item")());
+    return np_attr("max")(obj(a)).attr("item")().cast<float64>();
 }
 
 float64
@@ -670,7 +670,7 @@ NumpyBlockBackend::max_abs(const BlockCPtr& a)
     /* converted from following python code:
      * return np.max(np.abs(a)).item()
      */
-    return py::cast<float64>(np_attr("max")(np_attr("abs")(obj(a))).attr("item")());
+    return np_attr("max")(np_attr("abs")(obj(a))).attr("item")().cast<float64>();
 }
 
 float64
@@ -679,7 +679,7 @@ NumpyBlockBackend::min(const BlockCPtr& a)
     /* converted from following python code:
      * return np.min(a).item()
      */
-    return py::cast<float64>(np_attr("min")(obj(a)).attr("item")());
+    return np_attr("min")(obj(a)).attr("item")().cast<float64>();
 }
 
 float64
@@ -692,12 +692,14 @@ NumpyBlockBackend::norm(const BlockCPtr& a, float64 order, std::optional<int64> 
      */
     py::object arr = obj(a);
     if (!axis) {
-        return py::cast<float64>(np_attr("linalg")
-                                   .attr("norm")(arr.attr("ravel")(), py::arg("ord") = order)
-                                   .attr("item")());
+        return np_attr("linalg")
+          .attr("norm")(arr.attr("ravel")(), py::arg("ord") = order)
+          .attr("item")()
+          .cast<float64>();
     }
-    return py::cast<float64>(
-      np_attr("linalg").attr("norm")(arr, py::arg("ord") = order, py::arg("axis") = *axis));
+    return np_attr("linalg")
+      .attr("norm")(arr, py::arg("ord") = order, py::arg("axis") = *axis)
+      .cast<float64>();
 }
 
 BlockPtr
@@ -830,11 +832,11 @@ NumpyBlockBackend::_block_repr_lines(const BlockCPtr& a,
     int64 first = (max_lines - 1) / 2;
     int64 last = max_lines - 1 - first;
     for (int64 i = 0; i < std::min(first, n); ++i)
-        out.push_back(indent + py::cast<std::string>(lines[i]));
+        out.push_back(indent + lines[i].cast<std::string>());
     if (n > max_lines) {
         out.push_back(indent + "...");
         for (int64 i = std::max(n - last, first); i < n; ++i)
-            out.push_back(indent + py::cast<std::string>(lines[i]));
+            out.push_back(indent + lines[i].cast<std::string>());
     }
     return out;
 }
@@ -897,7 +899,7 @@ NumpyBlockBackend::sum_all(const BlockCPtr& a)
     /* converted from following python code:
      * return np.sum(a).item()
      */
-    return py::cast<complex128>(np_attr("sum")(obj(a)).attr("item")());
+    return np_attr("sum")(obj(a)).attr("item")().cast<complex128>();
 }
 
 BlockPtr
@@ -945,8 +947,9 @@ NumpyBlockBackend::trace_full(const BlockCPtr& a)
         perm[num_trace + i] = static_cast<int>(2 * num_trace - 1 - i);
     arr = np_attr("transpose")(arr, py::cast(perm));
     arr = np_attr("reshape")(arr, py::make_tuple(trace_dim, trace_dim));
-    return py::cast<complex128>(
-      np_attr("trace")(arr, py::arg("axis1") = 0, py::arg("axis2") = 1).attr("item")());
+    return np_attr("trace")(arr, py::arg("axis1") = 0, py::arg("axis2") = 1)
+      .attr("item")()
+      .cast<complex128>();
 }
 
 BlockPtr

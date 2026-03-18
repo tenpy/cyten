@@ -26,6 +26,8 @@ repr(Dtype dtype)
             return "float64";
         case Dtype::Complex128:
             return "complex128";
+        case Dtype::Int64:
+            return "int64";
         default:
             return "?";
     }
@@ -36,6 +38,8 @@ to_complex(Dtype dtype)
 {
     if (dtype == Dtype::Bool)
         throw std::invalid_argument("Dtype.bool can not be converted to complex");
+    if (dtype == Dtype::Int64)
+        throw std::invalid_argument("Dtype.int64 can not be converted to complex");
     if (static_cast<std::uint8_t>(dtype) % 2 == 1)
         return dtype;
     return static_cast<Dtype>(static_cast<std::uint8_t>(dtype) + 1);
@@ -46,6 +50,8 @@ to_real(Dtype dtype)
 {
     if (dtype == Dtype::Bool)
         throw std::invalid_argument("Dtype.bool can not be converted to real");
+    if (dtype == Dtype::Int64)
+        throw std::invalid_argument("Dtype.int64 can not be converted to real");
     if (static_cast<std::uint8_t>(dtype) % 2 == 0)
         return dtype;
     return static_cast<Dtype>(static_cast<std::uint8_t>(dtype) - 1);
@@ -56,6 +62,8 @@ eps(Dtype dtype)
 {
     if (dtype == Dtype::Bool)
         throw std::invalid_argument("Dtype.bool is not inexact");
+    if (dtype == Dtype::Int64)
+        throw std::invalid_argument("Dtype.int64 is not inexact");
     std::uint8_t n_bits = 8 * (static_cast<std::uint8_t>(dtype) / 2);
     if (n_bits == 32)
         return static_cast<float64>(std::pow(2.0, -23)); // float32
@@ -72,14 +80,16 @@ to_numpy_dtype(Dtype dtype)
     switch (dtype) {
         case Dtype::Bool:
             return np.attr("bool_");
-        case Dtype::Float32:
-            return np.attr("float32");
         case Dtype::Float64:
             return np.attr("float64");
-        case Dtype::Complex64:
-            return np.attr("complex64");
         case Dtype::Complex128:
             return np.attr("complex128");
+        case Dtype::Int64:
+            return np.attr("int64");
+        case Dtype::Float32:
+            return np.attr("float32");
+        case Dtype::Complex64:
+            return np.attr("complex64");
         default:
             throw std::invalid_argument("unknown Dtype");
     }
@@ -93,14 +103,16 @@ from_numpy_dtype(py::object numpy_dtype)
     py::module_ np = numpy_module();
     if (numpy_dtype.equal(np.attr("bool_")))
         return Dtype::Bool;
-    if (numpy_dtype.equal(np.attr("float32")))
-        return Dtype::Float32;
     if (numpy_dtype.equal(np.attr("float64")))
         return Dtype::Float64;
-    if (numpy_dtype.equal(np.attr("complex64")))
-        return Dtype::Complex64;
     if (numpy_dtype.equal(np.attr("complex128")))
         return Dtype::Complex128;
+    if (numpy_dtype.equal(np.attr("int64")))
+        return Dtype::Int64;
+    if (numpy_dtype.equal(np.attr("float32")))
+        return Dtype::Float32;
+    if (numpy_dtype.equal(np.attr("complex64")))
+        return Dtype::Complex64;
     throw std::invalid_argument("unknown numpy dtype");
 }
 
@@ -131,15 +143,15 @@ convert_python_scalar(Dtype dtype, py::object value)
         // bool: accept True, False, 0, 1
         if (value.equal(py::cast(true)) || value.equal(py::cast(false)) ||
             value.equal(py::cast(0)) || value.equal(py::cast(1)))
-            return py::cast(bool(py::cast<int64>(value)));
+            return py::cast(bool(value.cast<int64>()));
         throw std::invalid_argument("Type incompatible with dtype bool");
     }
     if (is_real(dtype)) {
         try {
-            return py::cast(py::cast<float64>(value));
+            return py::cast(value.cast<float64>());
         } catch (const py::cast_error&) {
             try {
-                return py::cast(static_cast<float64>(py::cast<int64>(value)));
+                return py::cast(static_cast<float64>(value.cast<int64>()));
             } catch (const py::cast_error&) {
                 throw std::invalid_argument("Type incompatible with real dtype");
             }
@@ -147,10 +159,10 @@ convert_python_scalar(Dtype dtype, py::object value)
     }
     // complex
     try {
-        return py::cast(py::cast<complex128>(value));
+        return py::cast(value.cast<complex128>());
     } catch (const py::cast_error&) {
         try {
-            return py::cast(complex128(py::cast<float64>(value), 0));
+            return py::cast(complex128(value.cast<float64>(), 0));
         } catch (const py::cast_error&) {
             throw std::invalid_argument("Type incompatible with complex dtype");
         }
@@ -162,6 +174,8 @@ python_type(Dtype dtype)
 {
     if (dtype == Dtype::Bool)
         return py::module_::import("builtins").attr("bool");
+    if (dtype == Dtype::Int64)
+        return py::module_::import("builtins").attr("int");
     if (is_real(dtype))
         return py::module_::import("builtins").attr("float");
     return py::module_::import("builtins").attr("complex");
@@ -172,6 +186,8 @@ zero_scalar(Dtype dtype)
 {
     if (dtype == Dtype::Bool)
         return py::cast(false);
+    if (dtype == Dtype::Int64)
+        return py::cast(0);
     if (is_real(dtype))
         return py::cast(static_cast<float64>(0.0));
     return py::cast(complex128(0.0, 0.0));

@@ -31,6 +31,7 @@ class NumpyBlockBackend : public BlockBackend
         void set_item(py::object key, py::object value) override;
 
         complex128 _item_as_complex128() const override;
+        int64 _item_as_int64() const override;
 
       protected:
         py::array arr_;

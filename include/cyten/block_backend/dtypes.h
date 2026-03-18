@@ -12,6 +12,7 @@ enum class Dtype : std::uint8_t
 {
     // value = num_bytes * 2 + int(not is_real)
     Bool = 2,
+    Int64 = 4, // used for index arrays, e.g. argsort
     Float32 = 8,
     Complex64 = 9,
     Float64 = 16,
