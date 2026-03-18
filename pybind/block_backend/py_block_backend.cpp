@@ -19,7 +19,12 @@ bind_block_backend(py::module_& m)
 
     py::class_<BlockBackend::Block, PyBlock, py::smart_holder>(
       block_backend, "BlockCls", "Abstract base for dense blocks.")
-      .def_property_readonly("shape", &BlockBackend::Block::shape)
+      .def_property_readonly(
+        "shape",
+        [&](const BlockBackend::Block& self) {
+            return py::cast<py::tuple>(py::cast(self.shape()));
+        },
+        "The shape of the block.")
       .def_property_readonly("dtype", &BlockBackend::Block::dtype)
       .def_property_readonly("device", &BlockBackend::Block::device)
       .def("get_backend",
@@ -566,7 +571,12 @@ bind_block_backend(py::module_& m)
            E.g. if block is 4D and ``axis==2`` with numpy-like broadcasting, this is would be
            ``block * factors[None, None, :, None]``.
            )pydoc")
-      .def("get_shape", &BlockBackend::get_shape, py::arg("a"))
+      .def(
+        "get_shape",
+        [](BlockBackend& self, const BlockCPtr& a) {
+            return py::cast<py::tuple>(py::cast(self.get_shape(a)));
+        },
+        py::arg("a"))
       .def("split_legs",
            py::overload_cast<const BlockCPtr&,
                              const std::vector<int64>&,
