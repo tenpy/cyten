@@ -199,6 +199,11 @@ BlockBackend::Scalar::inverse() const
     }
 }
 
+BlockCPtr
+BlockBackend::Scalar::_block() const
+{
+    return block_;
+}
 // -----------------------------------------------------------------------------
 // BlockBackend class
 // -----------------------------------------------------------------------------

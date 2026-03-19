@@ -139,7 +139,9 @@ bind_block_backend(py::module_& m)
         },
         py::arg("other"),
         "Division with another scalar.")
-      .def("inverse", &BlockBackend::Scalar::inverse, "The inverse of the scalar, 1./self");
+      .def("inverse", &BlockBackend::Scalar::inverse, "The inverse of the scalar, 1./self")
+      .def_property_readonly(
+        "_block", &BlockBackend::Scalar::_block, "Return the underlying block.");
 
     block_backend // init and attributes
       .def(py::init<std::string>(), py::arg("device") = "cpu")

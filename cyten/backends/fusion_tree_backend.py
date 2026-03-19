@@ -821,7 +821,7 @@ class FusionTreeBackend(TensorBackend):
                     i1 += forest_block_height  # move down by one forest-block
                 i1 = 0  # reset to the top of the block
                 i2 += forest_block_width  # move right by one forest-block
-            block_norm = self.block_backend.norm(block, order=2)
+            block_norm = self.block_backend.norm(block, order=2).as_float64()
             if block_norm <= 1e-14:
                 continue
             block_inds.append([i, j])
@@ -833,7 +833,7 @@ class FusionTreeBackend(TensorBackend):
         # orthogonal, we have  ``norm(a) ** 2 = norm(a_sym) ** 2 + norm(a_rest) ** 2``.
         # thus ``abs_err = norm(a - a_sym) = norm(a_rest) = sqrt(norm(a) ** 2 - norm(a_sym) ** 2)``
         if tol is not None:
-            a_norm_sq = self.block_backend.norm(a, order=2) ** 2
+            a_norm_sq = self.block_backend.norm(a, order=2).as_float64() ** 2
             norm_diff_sq = a_norm_sq - norm_sq_projected
             abs_tol_sq = tol * tol * a_norm_sq
             if norm_diff_sq > abs_tol_sq > 0:
@@ -1581,7 +1581,7 @@ class FusionTreeBackend(TensorBackend):
         # OPTIMIZE should we offer the square-norm instead?
         norm_sq = 0
         for i, block in zip(a.data.block_inds[:, 0], a.data.blocks):
-            norm_sq += a.codomain.sector_qdims[i] * (self.block_backend.norm(block) ** 2)
+            norm_sq += a.codomain.sector_qdims[i] * (self.block_backend.norm(block).as_float64() ** 2)
         return np.sqrt(norm_sq).item()
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:

@@ -115,6 +115,8 @@ class BlockBackend
         /// The inverse of the scalar, 1./self
         Scalar inverse() const;
 
+        std::shared_ptr<const Block> _block() const;
+
       private:
         std::shared_ptr<Block> block_;
     };
