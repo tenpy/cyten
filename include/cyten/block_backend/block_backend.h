@@ -54,6 +54,8 @@ class BlockBackend
         std::shared_ptr<Block> operator+(const std::shared_ptr<const Block>& other) const;
         /// Scalar multiplication.
         std::shared_ptr<Block> operator*(const Scalar& s) const;
+        /// Multiplication by inverse of a scalar.
+        std::shared_ptr<Block> operator/(const Scalar& s) const;
         /// Arbitrary access by Python key; returns new block (shared_ptr).
         std::shared_ptr<const Block> operator[](py::object key) const;
         std::shared_ptr<Block> operator[](py::object key);
@@ -110,6 +112,8 @@ class BlockBackend
         Scalar operator-(const Scalar& other) const;
         Scalar operator*(const Scalar& other) const;
         Scalar operator/(const Scalar& other) const;
+        /// The inverse of the scalar, 1./self
+        Scalar inverse() const;
 
       private:
         std::shared_ptr<Block> block_;

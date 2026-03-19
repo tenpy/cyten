@@ -1,5 +1,6 @@
-#include "cyten/block_backend/block_backend.h"
+#include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
+#include <cyten/tools.h>
 
 #include <map>
 #include <mutex>
@@ -978,7 +979,7 @@ NumpyBlockBackend::trace_partial(const BlockCPtr& a,
     std::vector<int64> sh = get_shape(a);
     int64 trace_dim = 1;
     for (int64 i : idcs1)
-        trace_dim *= sh[i];
+        trace_dim *= sh[to_valid_idx(i, static_cast<int64>(sh.size()))];
     py::array arr_arr = py::reinterpret_borrow<py::array>(arr);
     py::list new_shape;
     for (size_t i = 0; i < remaining_idcs.size(); ++i)

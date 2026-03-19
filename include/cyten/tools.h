@@ -20,7 +20,8 @@ bool is_iterable(py::object a);
 /// If `a` is not iterable or a string, return [a], else return a.
 py::object to_iterable(py::object a);
 
-/// Convert to a valid non-negative index into the given length.
+/// Convert to a valid index into the given length, with python convention of negative indices from
+/// back
 int64 to_valid_idx(int64 idx, int64 length);
 
 } // namespace cyten

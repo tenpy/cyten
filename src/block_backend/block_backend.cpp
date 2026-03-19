@@ -28,6 +28,12 @@ BlockBackend::Block::operator*(const Scalar& s) const
     return get_backend()->mul(s, shared_from_this());
 }
 
+BlockPtr
+BlockBackend::Block::operator/(const Scalar& s) const
+{
+    return get_backend()->mul(s.inverse(), shared_from_this());
+}
+
 std::shared_ptr<BlockBackend::Block>
 BlockBackend::Block::operator[](py::object key)
 {
@@ -177,15 +183,19 @@ BlockBackend::Scalar::operator*(const Scalar& other) const
 BlockBackend::Scalar
 BlockBackend::Scalar::operator/(const Scalar& other) const
 {
-    if (other.as_complex128() == complex128(0.0, 0.0)) {
+    return *this * other.inverse();
+}
+
+BlockBackend::Scalar
+BlockBackend::Scalar::inverse() const
+{
+    if (as_complex128() == complex128(0.0, 0.0)) {
         throw std::runtime_error("Division by zero");
     }
-    if (dtype::is_complex(other.block_->dtype())) {
-        return Scalar(block_->get_backend()->mul(
-          *(block_->get_backend()->as_scalar(1.0 / other.as_complex128())), block_));
+    if (dtype::is_complex(block_->dtype())) {
+        return Scalar(block_->get_backend()->as_scalar(1.0 / as_complex128()).get()->block_);
     } else {
-        return Scalar(block_->get_backend()->mul(
-          *(block_->get_backend()->as_scalar(1.0 / other.as_float64())), block_));
+        return Scalar(block_->get_backend()->as_scalar(1.0 / as_float64()).get()->block_);
     }
 }
 

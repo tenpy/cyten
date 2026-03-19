@@ -48,6 +48,18 @@ bind_block_backend(py::module_& m)
         [](const BlockBackend::Block& self, BlockBackend::Scalar s) { return self * s; },
         py::arg("other"),
         "Right multiplication by a scalar.")
+      .def(
+        "__truediv__",
+        [](const BlockBackend::Block& self, const BlockBackend::Scalar& s) { return self / s; },
+        py::arg("other"),
+        "Division by a scalar.")
+      .def(
+        "__truediv__",
+        [](const BlockBackend::Block& self, float64 s) {
+            return self / *self.get_backend()->as_scalar(s);
+        },
+        py::arg("other"),
+        "Division by a scalar.")
       .def("__getitem__",
            py::overload_cast<py::object>(&BlockBackend::Block::get_item),
            py::arg("key"))
@@ -114,12 +126,20 @@ bind_block_backend(py::module_& m)
         py::arg("other"),
         "Multiplication with another scalar.")
       .def(
+        "__mul__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Block& other) {
+            return other * self;
+        },
+        py::arg("other"),
+        "Multiplication with another scalar.")
+      .def(
         "__truediv__",
         [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
             return self / other;
         },
         py::arg("other"),
-        "Division with another scalar.");
+        "Division with another scalar.")
+      .def("inverse", &BlockBackend::Scalar::inverse, "The inverse of the scalar, 1./self");
 
     block_backend // init and attributes
       .def(py::init<std::string>(), py::arg("device") = "cpu")
