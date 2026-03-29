@@ -1490,6 +1490,7 @@ class SymmetricTensor(Tensor):
         hdf5_saver.save(self.device, subpath + 'device')
         h5gr.attrs['num_legs'] = self.num_legs
         h5gr.attrs['shape'] = np.array(self.shape, np.intp)
+        h5gr.attrs['cls'] = type(self).__name__
 
         if all(i is None for i in self.labels):
             h5gr.attrs['labels'] = []
