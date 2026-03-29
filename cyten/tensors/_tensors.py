@@ -6694,33 +6694,6 @@ def is_valid_leg_label(label) -> bool:
     return True
 
 
-def _parse_idcs(idcs: T | Sequence[T], length: int, fill: T = slice(None, None, None)) -> list[T]:
-    """Parse a single index or sequence of indices to a list of given length.
-
-    Ellipsis (``...``) and missing entries at the back are filled in using `fill`.
-
-    For invalid input, an IndexError is raised instead of ValueError, since this is a helper
-    function for __getitem__ and __setitem__.
-    """
-    idcs = list(to_iterable(idcs))
-    if Ellipsis in idcs:
-        where = idcs.index(Ellipsis)
-        first = idcs[:where]
-        last = idcs[where + 1 :]
-        if Ellipsis in last:
-            raise IndexError("Ellipsis ('...') may not appear multiple times.")
-        num_fill = length - len(first) - len(last)
-        if num_fill < 0:
-            got = len(idcs) - 1  # dont count the ellipsis
-            raise IndexError(f'Too many indices. Expected {length}. Got {got}.')
-        return first + [fill] * num_fill + last
-    else:
-        num_fill = length - len(idcs)
-        if num_fill < 0:
-            raise IndexError(f'Too many indices. Expected {length}. Got {len(idcs)}.')
-        return idcs + [fill] * num_fill
-
-
 def _split_leg_label(label: str | None, num: int = None) -> list[str | None]:
     """Undo _combine_leg_labels, i.e. recover the original labels"""
     if label is None:
