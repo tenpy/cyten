@@ -66,6 +66,7 @@ I.e. viewing tensors as linear maps, combining legs or not, mention :func:`combi
 from ._tensors import (
     ChargedTensor,
     DiagonalTensor,
+    Identity,
     LabelledLegs,
     Mask,
     SymmetricTensor,

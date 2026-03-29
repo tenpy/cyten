@@ -1982,6 +1982,11 @@ class DiagonalTensor(SymmetricTensor):
             raise ValueError(f'any is not defined for dtype {self.dtype}')
         return self.backend.diagonal_any(self)
 
+    def as_DiagonalTensor(self, guarantee_copy=False, warning=None):
+        if guarantee_copy:
+            return self.copy()
+        return self
+
     def as_SymmetricTensor(self, guarantee_copy: bool = False, warning: str = None) -> SymmetricTensor:
         if warning is not None:
             warnings.warn(warning, UserWarning, stacklevel=2)
@@ -2030,6 +2035,8 @@ class DiagonalTensor(SymmetricTensor):
                 )
             labels = self.labels
         elif isinstance(other, DiagonalTensor):
+            if isinstance(other, Identity):
+                other = other.as_DiagonalTensor()
             backend = get_same_backend(self, other)
             if self.leg != other.leg:
                 raise ValueError('Incompatible legs!')
@@ -2078,6 +2085,7 @@ class DiagonalTensor(SymmetricTensor):
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
     def elementwise_almost_equal(self, other: DiagonalTensor, rtol: float = 1e-5, atol=1e-8) -> DiagonalTensor:
+        other = other.as_DiagonalTensor()
         return abs(self - other) <= (atol + rtol * abs(self))
 
     def _elementwise_binary(
@@ -2090,6 +2098,7 @@ class DiagonalTensor(SymmetricTensor):
         """
         if not isinstance(other, DiagonalTensor):
             raise TypeError('Expected a DiagonalTensor')
+        other = other.as_DiagonalTensor()
         if not self.leg == other.leg:
             raise ValueError('Incompatible legs')
         backend = get_same_backend(self, other)
@@ -2161,6 +2170,175 @@ class DiagonalTensor(SymmetricTensor):
         obj = super().from_hdf5(hdf5_loader, h5gr, subpath)
 
         return obj
+
+
+class Identity(DiagonalTensor):
+    def __init__(
+        self,
+        leg: Space,
+        backend: TensorBackend | None = None,
+        dtype: Dtype = None,
+        device=None,
+        labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+    ):
+        # Note: SymmetricTensor.__init__ assumes that there is data, which we do not have here,
+        #       so we need to skip it and go straigth to Tensor.__init__
+        codomain, domain, backend, _ = self._init_parse_args(codomain=[leg], domain=[leg], backend=backend)
+        dtype = self._parse_default_dtype(dtype, symmetry=leg.symmetry)
+        if dtype is None:
+            dtype = Dtype.float64
+        if device is None:
+            device = backend.block_backend.default_device
+        Tensor.__init__(
+            self, codomain=codomain, domain=domain, backend=backend, labels=labels, dtype=dtype, device=device
+        )
+
+    def test_sanity(self):
+        Tensor.test_sanity(self)
+        self.verify_dtype()
+
+    @classmethod
+    def from_block_func(cls, *a, **kw):
+        msg = f'from_block_func is not supported for {cls.__name__}'
+        raise TypeError(msg)
+
+    @classmethod
+    def from_dense_block(cls, *a, **kw):
+        msg = f'from_dense_block is not supported for {cls.__name__}'
+        raise TypeError(msg)
+
+    @classmethod
+    def from_diag_block(cls, *a, **kw):
+        msg = f'from_diag_block is not supported for {cls.__name__}'
+        raise TypeError(msg)
+
+    @classmethod
+    def from_eye(
+        cls,
+        leg: Space,
+        backend: TensorBackend | None = None,
+        labels: Sequence[list[str | None] | None] | list[str | None] | None = None,
+        dtype: Dtype = Dtype.float64,
+        device: str = None,
+    ):
+        return cls(leg=leg, backend=backend, labels=labels)
+
+    @classmethod
+    def from_random_normal(cls, *a, **kw):
+        msg = f'from_random_normal is not supported for {cls.__name__}'
+        raise TypeError(msg)
+
+    @classmethod
+    def from_random_uniform(cls, *a, **kw):
+        msg = f'from_random_uniform is not supported for {cls.__name__}'
+        raise TypeError(msg)
+
+    @classmethod
+    def from_sector_block_func(cls, *a, **kw):
+        msg = f'from_sector_block_func is not supported for {cls.__name__}'
+        raise TypeError(msg)
+
+    @classmethod
+    def from_tensor(cls, *a, **kw):
+        msg = f'from_tensor is not supported for {cls.__name__}'
+        raise TypeError(msg)
+
+    @classmethod
+    def from_zero(cls, *a, **kw):
+        msg = f'from_zero is not supported for {cls.__name__}'
+        raise TypeError(msg)
+
+    def __abs__(self):
+        return self
+
+    def __bool__(self):
+        if self.dtype == Dtype.bool and is_scalar(self):
+            return True
+        msg = 'The truth value of a non-scalar DiagonalTensor is ambiguous. Use a.any() or a.all()'
+        raise ValueError(msg)
+
+    def all(self) -> bool:
+        """For a bool dtype, if all values are True. Raises for other dtypes."""
+        if self.dtype != Dtype.bool:
+            raise ValueError(f'all is not defined for dtype {self.dtype}')
+        return True
+
+    def any(self) -> bool:
+        """For a bool dtype, if any value is True. Raises for other dtypes."""
+        if self.dtype != Dtype.bool:
+            raise ValueError(f'any is not defined for dtype {self.dtype}')
+        return self.leg.dim > 0
+
+    def as_SymmetricTensor(self, guarantee_copy=False, warning=None):
+        if warning is not None:
+            warnings.warn(warning, UserWarning, stacklevel=2)
+        return SymmetricTensor.from_eye(
+            self.codomain, backend=self.backend, labels=self.labels, dtype=self.dtype, device=self.device
+        )
+
+    def as_DiagonalTensor(self, guarantee_copy=False, warning=None):
+        if warning is not None:
+            warnings.warn(warning, UserWarning, stacklevel=2)
+        return DiagonalTensor.from_eye(
+            self.leg, backend=self.backend, labels=self.labels, dtype=self.dtype, device=self.device
+        )
+
+    def _binary_operand(self, other, func, operand, return_NotImplemented=False, right=False):
+        substitute = self.as_DiagonalTensor()
+        return substitute._binary_operand(
+            other, func=func, operand=operand, return_NotImplemented=return_NotImplemented, right=right
+        )
+
+    def copy(self, deep=True, device=None):
+        return self
+
+    def diagonal(self):
+        return self.as_DiagonalTensor()
+
+    def diagonal_as_block(self, dtype=None):
+        if not self.symmetry.can_be_dropped:
+            raise SymmetryError
+        return self.backend.block_backend.ones_block(
+            [self.leg.dim], dtype=self.dtype if dtype is None else dtype, device=self.device
+        )
+
+    def diagonal_as_numpy(self, numpy_dtype=None) -> np.ndarray:
+        if numpy_dtype is None:
+            numpy_dtype = self.dtype.to_numpy_dtype()
+        return np.ones(self.leg.dim, numpy_dtype)
+
+    def elementwise_almost_equal(self, other, rtol=0.00001, atol=1e-8):
+        return self.as_DiagonalTensor().elementwise_almost_equal(other, rtol=rtol, atol=atol)
+
+    def _elementwise_binary(self, other, func, func_kwargs=None, partial_zero_is_zero=False):
+        substitute = self.as_DiagonalTensor()
+        return substitute._elementwise_binary(other, func, func_kwargs, partial_zero_is_zero)
+
+    def _elementwise_unary(self, func, func_kwargs=None, maps_zero_to_zero=False):
+        substitute = self.as_DiagonalTensor()
+        return substitute._elementwise_unary(func, func_kwargs, maps_zero_to_zero)
+
+    def _get_item(self, idx: list[int]) -> bool | float | complex:
+        i1, i2 = idx
+        if i1 != i2:
+            return self.dtype.zero_scalar
+        return self.dtype.one_scalar
+
+    def max(self):
+        assert self.dtype.is_real
+        return self.dtype.one_scalar
+
+    def min(self):
+        assert self.dtype.is_real
+        return self.dtype.one_scalar
+
+    def move_to_device(self, device):
+        self.device = self.backend.block_backend.as_device(device)
+
+    def to_dense_block(self, leg_order=None, dtype=None, understood_braiding=False):
+        return self.as_DiagonalTensor().to_dense_block(
+            leg_order=leg_order, dtype=dtype, understood_braiding=understood_braiding
+        )
 
 
 class Mask(Tensor):
@@ -3773,6 +3951,8 @@ def apply_mask_DiagonalTensor(tensor: DiagonalTensor, mask: Mask) -> DiagonalTen
     assert mask.is_projection
     assert mask.large_leg == tensor.leg
     backend = get_same_backend(tensor, mask)
+    if isinstance(tensor, Identity):
+        return Identity(leg=mask.small_leg, backend=backend, labels=tensor.labels)
     return DiagonalTensor(
         data=backend.apply_mask_to_DiagonalTensor(tensor, mask),
         leg=mask.small_leg,
@@ -4190,6 +4370,8 @@ def dagger(tensor: Tensor) -> Tensor:
             backend=tensor.backend,
             labels=[_dual_leg_label(l) for l in reversed(tensor._labels)],
         )
+    if isinstance(tensor, Identity):
+        return tensor
     if isinstance(tensor, DiagonalTensor):
         if tensor.dtype == Dtype.bool:
             res = tensor.copy(deep=False)
@@ -4260,6 +4442,11 @@ def compose(
         return _compose_with_Mask(tensor2, tensor1, 0).set_label(0, tensor1.labels[0])
     if isinstance(tensor2, Mask):
         return _compose_with_Mask(tensor1, tensor2, -1).set_label(-1, tensor2.labels[1])
+
+    if isinstance(tensor1, Identity):
+        return tensor2.copy(deep=False).set_labels(res_labels)
+    if isinstance(tensor2, Identity):
+        return tensor1.copy(deep=False).set_labels(res_labels)
 
     if isinstance(tensor1, DiagonalTensor):
         return scale_axis(tensor2, tensor1, 0).set_labels(res_labels)
@@ -4433,7 +4620,7 @@ def eigh(
             dtype=tensor.dtype,
             device=tensor.device,
         )
-        W = tensor.copy().set_labels([b, c])
+        W = tensor.as_DiagonalTensor(guarantee_copy=True).set_labels([b, c])
         return W, V
     tensor = tensor.as_SymmetricTensor()
 
@@ -4533,7 +4720,9 @@ def entropy(p: DiagonalTensor | Sequence[float], n=1):
     is the quantum dimension of sector :math:`a`. (See :meth:`Symmetry.qdim`.)
 
     """
-    if isinstance(p, DiagonalTensor):
+    if isinstance(p, Identity):
+        raise TypeError('entropy does not support Identity. It is never a normalized distribution.')
+    elif isinstance(p, DiagonalTensor):
         assert p.dtype.is_real
         if n == 1:
             return -trace(p * stable_log(p, cutoff=1e-30))
@@ -4744,6 +4933,8 @@ def item(tensor: Tensor) -> float | complex | bool:
         raise ValueError('Not a scalar')
     if isinstance(tensor, Mask):
         return Mask.any(tensor)
+    if isinstance(tensor, Identity):
+        return tensor.dtype.one_scalar
     if isinstance(tensor, (DiagonalTensor, SymmetricTensor)):
         return tensor.backend.item(tensor)
     if isinstance(tensor, ChargedTensor):
@@ -4771,7 +4962,7 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
     #  all other cases  ->  SymmetricTensor
 
     if isinstance(v, DiagonalTensor) and isinstance(w, DiagonalTensor):
-        return DiagonalTensor._binary_operand(v, w, func=lambda _v, _w: a * _v + b * _w, operand='linear_combination')
+        return v._binary_operand(w, func=lambda _v, _w: a * _v + b * _w, operand='linear_combination')
     if isinstance(v, ChargedTensor) and isinstance(w, ChargedTensor):
         if v.charge_leg != w.charge_leg:
             raise ValueError('Can not add ChargedTensors with different dummy legs')
@@ -4880,6 +5071,8 @@ def norm(tensor: Tensor) -> float:
     if isinstance(tensor, Mask):
         # norm ** 2 = Tr(m^\dagger . m) = Tr(id_{small_leg}) = dim(small_leg)
         return np.sqrt(tensor.small_leg.dim)
+    if isinstance(tensor, Identity):
+        return np.sqrt(tensor.leg.dim)
     if isinstance(tensor, (DiagonalTensor, SymmetricTensor)):
         return tensor.backend.norm(tensor)
     if isinstance(tensor, ChargedTensor):
@@ -5116,6 +5309,12 @@ def partial_compose(
 
     res_labels = [*codomain_labels, *reversed(domain_labels)]
     assert not duplicate_entries(res_labels, ignore=[None]), 'duplicate labels'
+
+    if isinstance(tensor1, Identity):
+        return tensor2.copy(deep=False).set_labels(res_labels)
+
+    if isinstance(tensor2, Identity):
+        return tensor1.copy(deep=False).set_labels(res_labels)
 
     # tensor1 cannot be Mask or DiagonalTensor due to num_legs constraint
     if isinstance(tensor2, Mask):
@@ -5444,6 +5643,8 @@ def permute_legs(
 
 def pinv(tensor: Tensor, cutoff=1e-15) -> Tensor:
     """The Moore-Penrose pseudo-inverse of a tensor."""
+    if isinstance(tensor, Identity):
+        return tensor
     if isinstance(tensor, DiagonalTensor):
         return cutoff_inverse(tensor, cutoff=cutoff)
     U, S, Vh = truncated_svd(tensor, options=dict(svd_min=cutoff))
@@ -5650,6 +5851,9 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
 
     """
     _ = get_same_device(tensor, diag)
+
+    if isinstance(diag, Identity):
+        return tensor
 
     # transpose if needed
     in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg)
@@ -6202,6 +6406,7 @@ def tdot(
 
     # Deal with DiagonalTensor: either return or reduce to SymmetricTensor
     if isinstance(tensor1, DiagonalTensor):
+        # Identity is considered in this branch too
         if num_contr == 0:
             tensor1 = tensor1.as_SymmetricTensor()
         if num_contr == 1:
@@ -6309,6 +6514,8 @@ def trace(tensor: Tensor):
 
     """
     _check_compatible_legs([tensor.domain], [tensor.codomain])
+    if isinstance(tensor, Identity):
+        return tensor.leg.dim
     if isinstance(tensor, DiagonalTensor):
         return tensor.backend.diagonal_tensor_trace_full(tensor)
     if isinstance(tensor, ChargedTensor):
@@ -6365,6 +6572,8 @@ def transpose(tensor: Tensor) -> Tensor:
             backend=tensor.backend,
             labels=labels,
         )
+    if isinstance(tensor, Identity):
+        return Identity(tensor.leg.dual, backend=tensor.backend, labels=labels)
     if isinstance(tensor, DiagonalTensor):
         dual_leg, data = tensor.backend.diagonal_transpose(tensor)
         return DiagonalTensor(data=data, leg=dual_leg, backend=tensor.backend, labels=labels)

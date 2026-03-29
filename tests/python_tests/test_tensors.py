@@ -513,6 +513,35 @@ def test_DiagonalTensor(make_compatible_tensor):
     npt.assert_almost_equal(real_T.min(), np.min(real_np))
 
 
+def test_Identity(compatible_backend, make_compatible_space, make_compatible_tensor):
+    leg = make_compatible_space()
+    tens = tensors.Identity(leg=leg, backend=compatible_backend)
+    tens.test_sanity()
+    eye_diag = tensors.DiagonalTensor.from_eye(leg, backend=compatible_backend)
+    eye_symm = tensors.SymmetricTensor.from_eye([leg], backend=compatible_backend)
+
+    if tens.symmetry.can_be_dropped:
+        t_np = tens.to_numpy(understood_braiding=True)
+        npt.assert_allclose(t_np, np.eye(leg.dim))
+
+    assert tensors.almost_equal(tens, eye_diag, allow_different_types=True)
+    assert tensors.almost_equal(tens, eye_symm, allow_different_types=True)
+
+    assert tensors.norm(tens - eye_symm) < 1e-14
+    assert tensors.norm(tens - eye_diag) < 1e-14
+
+    # identity property in contraction
+    A = make_compatible_tensor(codomain=[leg])
+    B = make_compatible_tensor(domain=[leg])
+    A_contr = tensors.compose(tens, A)
+    assert tensors.norm(A_contr - A) < 1e-15
+
+    B_contr = tensors.compose(B, tens)
+    assert tensors.norm(B_contr - B) < 1e-14
+
+    # TODO test partial_compose!
+
+
 def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
     M_projection: Mask = make_compatible_tensor(cls=Mask)
     backend = M_projection.backend
