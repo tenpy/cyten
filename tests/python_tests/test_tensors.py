@@ -2293,11 +2293,6 @@ def test_linear_combination(cls, make_compatible_tensor):
         v = make_compatible_tensor(cls=cls)
     w = make_compatible_tensor(like=v)
 
-    if cls is Mask:
-        catch_warnings = pytest.warns(UserWarning, match='Converting types')
-    else:
-        catch_warnings = nullcontext()
-
     compare_numpy = w.symmetry.can_be_dropped
     if cls is ChargedTensor and (v.charged_state is None or w.charged_state is None):
         compare_numpy = False
@@ -2307,8 +2302,7 @@ def test_linear_combination(cls, make_compatible_tensor):
         w_np = w.to_numpy(understood_braiding=True)
 
     for valid_scalar in [0, 1.0, 2.0 + 3.0j, -42]:
-        with catch_warnings:
-            res = tensors.linear_combination(valid_scalar, v, 2 * valid_scalar, w)
+        res = tensors.linear_combination(valid_scalar, v, 2 * valid_scalar, w)
         res.test_sanity()
         if compare_numpy:
             expect = valid_scalar * v_np + 2 * valid_scalar * w_np
@@ -2316,8 +2310,7 @@ def test_linear_combination(cls, make_compatible_tensor):
         if valid_scalar == 0:
             continue
         # res = a * v + 2 * a * w  =>  v = res / a - 2 * w
-        with catch_warnings:
-            z = tensors.linear_combination(1.0 / valid_scalar, res, -2, w)
+        z = tensors.linear_combination(1.0 / valid_scalar, res, -2, w)
         z.test_sanity()
         assert tensors.almost_equal(v, z, allow_different_types=True)
     for invalid_scalar in [None, (1, 2), v, 'abc']:
@@ -3490,3 +3483,14 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
             # would need to account for twists, which give +1/-1 factors
             # lazy version: just ignore the signs...
             assert np.all(np.isclose(res_np, expect) | np.isclose(res_np, -expect))
+
+
+def test_bug_linear_combinations(make_compatible_tensor):
+    #
+    A = make_compatible_tensor(cls=tensors.DiagonalTensor)
+    B = make_compatible_tensor(cls=tensors.SymmetricTensor, codomain=A.codomain, domain=A.domain)
+
+    (B - A).test_sanity()
+    (B + A).test_sanity()
+    (A - B).test_sanity()
+    (A + B).test_sanity()

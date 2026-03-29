@@ -1918,6 +1918,8 @@ class DiagonalTensor(SymmetricTensor):
         raise ValueError(msg)
 
     def __add__(self, other):
+        if isinstance(other, Tensor):
+            return linear_combination(+1, self, +1, other)
         return self._binary_operand(other, func=operator.add, operand='+')
 
     def __ge__(self, other):
@@ -1939,6 +1941,8 @@ class DiagonalTensor(SymmetricTensor):
         return self._binary_operand(other, func=operator.pow, operand='**')
 
     def __radd__(self, other):
+        if isinstance(other, Tensor):
+            return linear_combination(+1, other, +1, self)
         return self._binary_operand(other, func=operator.add, operand='+', right=True)
 
     def __rmul__(self, other):
@@ -1948,12 +1952,18 @@ class DiagonalTensor(SymmetricTensor):
         return self._binary_operand(other, func=operator.pow, operand='**', right=True)
 
     def __rsub__(self, other):
+        # other - self
+        if isinstance(other, Tensor):
+            return linear_combination(+1, other, -1, self)
         return self._binary_operand(other, func=operator.sub, operand='-', right=True)
 
     def __rtruediv__(self, other):
         return self._binary_operand(other, func=operator.truediv, operand='/', right=True)
 
     def __sub__(self, other):
+        # other - self
+        if isinstance(other, Tensor):
+            return linear_combination(+1, self, -1, other)
         return self._binary_operand(other, func=operator.sub, operand='-')
 
     def __truediv__(self, other):
@@ -4753,6 +4763,12 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
     if (not isinstance(a, Number)) or (not isinstance(b, Number)):
         msg = f'unsupported scalar types: {type(a).__name__}, {type(b).__name__}'
         raise TypeError(msg)
+
+    # we treat the following cases independently:
+    #  DiagonalTensor + DiagonalTensor  ->  DiagonalTensor
+    #  ChargedTensor + ChargedTensor  ->  ChargedTensor (if compatible)
+    #  all other cases  ->  SymmetricTensor
+
     if isinstance(v, DiagonalTensor) and isinstance(w, DiagonalTensor):
         return DiagonalTensor._binary_operand(v, w, func=lambda _v, _w: a * _v + b * _w, operand='linear_combination')
     if isinstance(v, ChargedTensor) and isinstance(w, ChargedTensor):
@@ -4771,14 +4787,7 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
     if isinstance(v, ChargedTensor) or isinstance(w, ChargedTensor):
         raise TypeError('Can not add ChargedTensor and non-charged tensor.')
 
-    # Remaining case: Mask, DiagonalTensor (but not both), SymmetricTensor
-    if isinstance(v, (DiagonalTensor, Mask)) or isinstance(w, (DiagonalTensor, Mask)):
-        msg = (
-            f'Converting types ({type(v).__name__, type(w).__name__}) to '
-            f'(SymmetricTensor, SymmetricTensor) for  linear_combination. '
-            f'Use tensor.as_SymmetricTensor() explicitly to suppress this warning.'
-        )
-        warnings.warn(msg, stacklevel=2)
+    # Remaining case: convert to SymmetricTensor
     v = v.as_SymmetricTensor()
     w = w.as_SymmetricTensor()
 
