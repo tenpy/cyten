@@ -6404,6 +6404,24 @@ def tdot(
                 return res
             return bend_legs(res, num_domain_legs=0)
 
+    if isinstance(tensor1, Identity):
+        if num_contr == 1:
+            res = permute_legs(tensor2, codomain=legs2, bend_right=None)
+            return res.set_label(0, tensor1.labels[1 - legs1[0]])
+        elif num_contr == 2:
+            res = partial_trace(tensor2, legs2)
+            return bend_legs(res, num_codomain_legs=0)
+        tensor1 = tensor1.as_DiagonalTensor()
+
+    if isinstance(tensor2, Identity):
+        if num_contr == 1:
+            res = permute_legs(tensor1, domain=legs1, bend_right=None)
+            return tensor1.copy(deep=False).set_label(legs1[0], tensor2.labels[1 - legs2[0]])
+        elif num_contr == 2:
+            res = partial_trace(tensor1, legs1)
+            return bend_legs(res, num_domain_legs=0)
+        tensor2 = tensor2.as_DiagonalTensor()
+
     # Deal with DiagonalTensor: either return or reduce to SymmetricTensor
     if isinstance(tensor1, DiagonalTensor):
         # Identity is considered in this branch too
