@@ -4827,6 +4827,14 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
     else:
         _check_compatible_legs([A.codomain, A.domain], [B.domain, B.codomain])
 
+    if isinstance(A, Identity):
+        return trace(B)
+
+    if isinstance(B, Identity):
+        if do_dagger:
+            return complex_conj(trace(A))
+        return trace(A)
+
     if isinstance(A, (DiagonalTensor, Mask)):
         # in this case, there is no benefit to having a dedicated backend function,
         # as the dot is cheap
