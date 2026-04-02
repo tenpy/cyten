@@ -15,7 +15,7 @@ class TorchBlockBackend(BlockBackend):
 
     svd_algorithms = ['gesvdj', 'gesvda', 'gesvd']
 
-    def __init__(self, default_device: str = 'cpu') -> None:
+    def __init__(self, default_device: str = 'cpu:0') -> None:
         global torch_module
         try:
             import torch

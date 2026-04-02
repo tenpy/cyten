@@ -72,6 +72,7 @@ from .symmetries.trees import FusionTree, fusion_trees
 from .tensors import (
     ChargedTensor,
     DiagonalTensor,
+    Identity,
     Mask,
     PlanarDiagram,
     PlanarLinearOperator,
