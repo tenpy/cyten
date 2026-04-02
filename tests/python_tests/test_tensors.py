@@ -3353,3 +3353,45 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
             # would need to account for twists, which give +1/-1 factors
             # lazy version: just ignore the signs...
             assert np.all(np.isclose(res_np, expect) | np.isclose(res_np, -expect))
+
+
+def test_fixes_200():
+    from cyten import FermionParity
+    from cyten.testing import random_tensor
+
+    symm = FermionParity()
+    labels_A = [['c'], ['b']]
+    labels_B = [['a', 'b'], ['c', 'd']]
+    contr_A = [1, 0]
+    contr_B = [1, 3]
+
+    A: Tensor = random_tensor(
+        symmetry=symm,
+        codomain=len(labels_A[0]),
+        domain=len(labels_A[1]),
+        labels=[*labels_A[0], *reversed(labels_A[1])],
+        max_multiplicity=3,
+        max_blocks=3,
+        cls=DiagonalTensor,
+        use_pipes=False,
+    )
+    B = random_tensor(
+        symmetry=symm,
+        codomain=[A._as_domain_leg(l) if A.has_label(l) else None for l in labels_B[0]],
+        domain=[A._as_codomain_leg(l) if A.has_label(l) else None for l in labels_B[1]],
+        labels=[*labels_B[0], *reversed(labels_B[1])],
+        max_multiplicity=1,
+        max_blocks=3,
+        cls=SymmetricTensor,
+        use_pipes=False,
+    )
+    B = SymmetricTensor.from_block_func(
+        lambda shape: np.random.randint(0, 5, shape), codomain=B.codomain, domain=B.domain, backend=B.backend
+    )
+
+    res = tensors.tdot(A, B, contr_A, contr_B)
+    A_np = A.to_numpy(understood_braiding=True)
+    B_np = B.to_numpy(understood_braiding=True)
+    res_np = res.to_numpy(understood_braiding=True)
+    expect = np.tensordot(A_np, B_np, [contr_A, contr_B])
+    assert np.all(np.isclose(res_np, expect) | np.isclose(res_np, -1 * expect))
