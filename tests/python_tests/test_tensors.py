@@ -3470,7 +3470,7 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
         pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
         pytest.param(SymmetricTensor, 3, 0, id='Sym-3-0'),
         pytest.param(SymmetricTensor, 1, 1, id='Sym-1-1'),
-        pytest.param(SymmetricTensor, 0, 3, id='Sym-3-0'),
+        pytest.param(SymmetricTensor, 0, 3, id='Sym-0-3'),
         pytest.param(ChargedTensor, 2, 2, id='Charged-2-2'),
         pytest.param(ChargedTensor, 3, 0, id='Charged-3-0'),
         pytest.param(ChargedTensor, 1, 1, id='Charged-1-1'),
@@ -3479,9 +3479,10 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
         pytest.param(Mask, 1, 1, id='Mask'),
     ],
 )
-def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
+@pytest.mark.parametrize('use_pipes', [False, 0.3])
+def test_transpose(cls, cod, dom, make_compatible_tensor, np_random, use_pipes):
     labels = list('abcdefghi')[: cod + dom]
-    tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
+    tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels, use_pipes=use_pipes)
 
     if isinstance(tensor, ChargedTensor) and not tensor.symmetry.has_trivial_braid:
         with pytest.raises(SymmetryError, match='not defined'):
@@ -3516,20 +3517,55 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     assert_tensors_almost_equal(res, left_transpose)
     assert_tensors_almost_equal(res, right_transpose)
 
+    if cls in [DiagonalTensor, Mask]:
+        res2 = tensors.transpose(tensor.as_SymmetricTensor())
+        assert_tensors_almost_equal(res.as_SymmetricTensor(), res2)
+
     compare_numpy = tensor.symmetry.can_be_dropped
     if cls is ChargedTensor and tensor.charged_state is None:
         compare_numpy = False
 
     if compare_numpy:
         res_np = res.to_numpy(understood_braiding=True)
+        npt.assert_almost_equal(res_np, left_transpose.to_numpy(understood_braiding=True))
+        npt.assert_almost_equal(res_np, right_transpose.to_numpy(understood_braiding=True))
+
         tensor_np = tensor.to_numpy(understood_braiding=True)
-        expect = np.transpose(tensor_np, [*range(cod, cod + dom), *range(cod)])
-        if tensor.symmetry.has_trivial_braid or cls is Mask:
-            npt.assert_almost_equal(res_np, expect)
-        else:
-            # would need to account for twists, which give +1/-1 factors
-            # lazy version: just ignore the signs...
-            assert np.all(np.isclose(res_np, expect) | np.isclose(res_np, -expect))
+        if tensor.has_pipes and not tensor.symmetry.has_trivial_braid:
+            with pytest.raises(NotImplementedError, match='swap gate not yet supported for pipes'):
+                for right in [True, False]:
+                    _ = swap_gate_numpy.permute_legs(
+                        tensor_np,
+                        num_codomain_legs=cod,
+                        legs=tensor.legs,
+                        codomain=[*range(cod, cod + dom)],
+                        domain=[*reversed(range(cod))],
+                        bend_right=[right] * cod + [not right] * dom,
+                    )
+            # dont have access to swap gates to do it properly, so we accept that signs are off
+            expect = np.transpose(tensor_np, [*range(cod, cod + dom), *range(cod)])
+            assert np.all(np.isclose(res_np, expect) | np.isclose(res_np, -1 * expect))
+            return
+
+        expect_right_transpose = swap_gate_numpy.permute_legs(
+            tensor_np,
+            num_codomain_legs=cod,
+            legs=tensor.legs,
+            codomain=[*range(cod, cod + dom)],
+            domain=[*reversed(range(cod))],
+            bend_right=[True] * cod + [False] * dom,
+        )
+        expect_left_transpose = swap_gate_numpy.permute_legs(
+            tensor_np,
+            num_codomain_legs=cod,
+            legs=tensor.legs,
+            codomain=[*range(cod, cod + dom)],
+            domain=[*reversed(range(cod))],
+            bend_right=[False] * cod + [True] * dom,
+        )
+
+        npt.assert_almost_equal(res_np, expect_right_transpose, err_msg='right')
+        npt.assert_almost_equal(res_np, expect_left_transpose, err_msg='left')
 
 
 def test_bug_linear_combinations(make_compatible_tensor):
