@@ -2400,14 +2400,17 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
         compare_numpy = False
 
     if compare_numpy:
-        expect = T.to_numpy(understood_braiding=True).transpose(perm)
+        T_np = T.to_numpy(understood_braiding=True)
         res_np = res.to_numpy(understood_braiding=True)
-        if T.symmetry.has_trivial_braid:
-            npt.assert_allclose(res_np, expect, atol=1.0e-14)
-        else:
-            # would need explicit swap gates that introduce some -1 signs.
-            # lazy version: just check if it matches with either sign
+        perm_is_trivial = perm == list(range(len(perm)))
+        if not T.symmetry.has_trivial_braid and T.has_pipes and not perm_is_trivial:
+            with pytest.raises(NotImplementedError, match='swap gate not yet supported for pipes'):
+                _ = swap_gate_numpy.transpose(T_np, T.legs, perm)
+            expect = np.transpose(T_np, perm)
             assert np.all(np.isclose(res_np, expect) | np.isclose(res_np, -expect))
+        else:
+            expect = swap_gate_numpy.transpose(T_np, T.legs, perm)
+            npt.assert_allclose(res_np, expect, atol=1.0e-14)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
