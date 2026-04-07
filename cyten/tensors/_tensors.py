@@ -514,6 +514,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
             gates. When using the result, special care needs to be taken regarding the leg order.
             To avoid this pitfall, we raise an error by default. Set this flag to ``True`` to
             disable the error. It is then your responsibility to take care of leg orders and braids.
+            See :mod:`cyten.testing.swap_gate_numpy` for manipulations on these dense blocks.
 
         """
         ...

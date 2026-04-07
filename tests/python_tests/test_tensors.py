@@ -27,7 +27,7 @@ from cyten.symmetries import (
     z4_symmetry,
 )
 from cyten.tensors import ChargedTensor, DiagonalTensor, Mask, SymmetricTensor, Tensor
-from cyten.testing import assert_tensors_almost_equal
+from cyten.testing import assert_tensors_almost_equal, swap_gate_numpy
 from cyten.tools.misc import duplicate_entries, inverse_permutation, iter_common_noncommon_sorted_arrays, to_valid_idx
 
 # TENSOR CLASSES
@@ -1541,6 +1541,19 @@ def test_combine_split(use_pipes, make_compatible_tensor):
     contracted_via_pipes = tensors.compose(combined5, T3_combined)
     contracted_via_pipes.test_sanity()
     assert tensors.almost_equal(contracted_individual, contracted_via_pipes)
+
+
+def test_swap_gate_numpy(np_random):
+    from cyten import fermion_parity as symm
+    from cyten.testing import random_tensor
+
+    leg = ElementarySpace.from_basis(symm, [[0], [1]])
+    T = random_tensor(symm, [leg, leg], [leg, leg], list('abcd'), max_multiplicity=1, np_random=np_random)
+    T_np = T.to_numpy(understood_braiding=True)
+    A = tensors.permute_legs(T, [1, 0], [3, 2])
+    A_np = A.to_numpy(understood_braiding=True)
+    expect = swap_gate_numpy.transpose(T_np, T.legs, [1, 0, 2, 3])
+    assert np.allclose(A_np, expect)
 
 
 @pytest.mark.parametrize(

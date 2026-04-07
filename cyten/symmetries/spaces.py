@@ -2543,6 +2543,9 @@ def swap_gate(V: ElementarySpace, W: ElementarySpace) -> np.ndarray:
         The swap gate for single sectors.
 
     """
+    if not isinstance(V, ElementarySpace) or not isinstance(W, ElementarySpace):
+        raise NotImplementedError('swap gate not yet supported for pipes')  # TODO
+
     assert V.symmetry == W.symmetry
     if not V.symmetry.can_be_dropped:
         raise SymmetryError(f'braid can not be written as array for {V.symmetry}')
