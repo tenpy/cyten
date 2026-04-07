@@ -568,11 +568,10 @@ def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines
         print(res)
 
 
-def test_swap_gate(make_any_space, any_symmetry):
-    V = make_any_space()
-    W = make_any_space()
-    V.basis_perm = None
-    W.basis_perm = None
+@pytest.mark.parametrize('basis_perm', [True, False])
+def test_swap_gate(make_any_space, any_symmetry, basis_perm):
+    V = make_any_space(allow_basis_perm=basis_perm)
+    W = make_any_space(allow_basis_perm=basis_perm)
 
     if not any_symmetry.can_be_dropped:
         with pytest.raises(SymmetryError, match='braid can not be written as array'):

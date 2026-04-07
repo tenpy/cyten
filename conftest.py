@@ -38,7 +38,8 @@ make_any_sectors               any_symmetry            RNG for sectors with ``an
                                                        ``make(num, sort=False)``
 -----------------------------  ----------------------  -------------------------------------------
 make_any_space                 any_symmetry            RNG for spaces with ``any_symmetry``.
-                                                       ``make(max_sectors=5, max_mult=5, is_dual=None)``
+                                                       ``make(max_sectors=5, max_mult=5,
+                                                       is_dual=None, allow_basis_perm=True)``
 -----------------------------  ----------------------  -------------------------------------------
 make_any_block                 any_backend             RNG for blocks of ``any_backend``.
                                                        ``make(size, real=False)``
@@ -308,9 +309,13 @@ def make_any_sectors(any_symmetry, np_random):
 
 @pytest.fixture
 def make_any_space(any_symmetry, np_random):
-    def make(max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None) -> ct.ElementarySpace:
+    def make(
+        max_sectors: int = 5, max_mult: int = 5, is_dual: bool = None, allow_basis_perm: bool = True
+    ) -> ct.ElementarySpace:
         # return ElementarySpace
-        return random_ElementarySpace(any_symmetry, max_sectors, max_mult, is_dual, np_random=np_random)
+        return random_ElementarySpace(
+            any_symmetry, max_sectors, max_mult, is_dual, np_random=np_random, allow_basis_perm=allow_basis_perm
+        )
 
     return make
 

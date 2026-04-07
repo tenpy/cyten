@@ -2566,7 +2566,7 @@ def swap_gate(V: ElementarySpace, W: ElementarySpace) -> np.ndarray:
                 i2 += da
             j += db * mb
         i += da * ma
-    return res[np.ix_(W.basis_perm, V.basis_perm, W.basis_perm, V.basis_perm)]
+    return res[np.ix_(W.inverse_basis_perm, V.inverse_basis_perm, W.inverse_basis_perm, V.inverse_basis_perm)]
 
 
 def _flat_leg_permutation(legs: list[LegPipe | Leg]) -> list[int]:
