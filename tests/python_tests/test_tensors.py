@@ -2406,6 +2406,7 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
         if not T.symmetry.has_trivial_braid and T.has_pipes and not perm_is_trivial:
             with pytest.raises(NotImplementedError, match='swap gate not yet supported for pipes'):
                 _ = swap_gate_numpy.transpose(T_np, T.legs, perm)
+            # dont have access to swap gates to do it properly, so we accept that signs are off
             expect = np.transpose(T_np, perm)
             assert np.all(np.isclose(res_np, expect) | np.isclose(res_np, -expect))
         else:
@@ -2787,9 +2788,11 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
         pytest.param(SymmetricTensor, 3, 3, [1, 4, 0], [2, 3, 5], [4, 1, 3, 5, 0, 2], True, id='Symmetric-3-3-general'),
         pytest.param(DiagonalTensor, 1, 1, [0], [1], [0, 1], True, id='Diagonal-trivial'),
         pytest.param(DiagonalTensor, 1, 1, [1], [0], [0, 1], True, id='Diagonal-swap'),
+        pytest.param(DiagonalTensor, 1, 1, [1], [0], [0, 1], [True, False], id='Diagonal-transpose'),
         pytest.param(DiagonalTensor, 1, 1, [1, 0], [], [0, 1], True, id='Diagonal-general'),
         pytest.param(Mask, 1, 1, [0], [1], [0, 1], True, id='Mask-trivial'),
         pytest.param(Mask, 1, 1, [1], [0], [0, 1], True, id='Mask-swap'),
+        pytest.param(Mask, 1, 1, [1], [0], [0, 1], [True, False], id='Mask-transpose'),
         pytest.param(Mask, 1, 1, [1, 0], [], [0, 1], True, id='Mask-general'),
         pytest.param(ChargedTensor, 2, 2, [0, 1], [3, 2], None, True, id='Charged-2-2-trivial'),
         pytest.param(ChargedTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], True, id='Charged-2-2-braid'),
@@ -2816,8 +2819,11 @@ def test_permute_legs(
     T = make_compatible_tensor(T_codomain, T_domain, max_block_size=3, cls=cls)
 
     if cls in [DiagonalTensor, Mask]:
-        if len(codomain) == 1:
-            # special case where legs are not actually permuted -> no warning expected
+        if (codomain, domain) == ([0], [1]):
+            # trivial permutation -> no warning expected
+            catch_warnings = nullcontext()
+        elif (codomain, domain) == ([1], [0]) and (bend_right == [True, False] or T.symmetry.has_trivial_braid):
+            # special case transpose -> no warning expected
             catch_warnings = nullcontext()
         else:
             catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
@@ -2827,6 +2833,10 @@ def test_permute_legs(
     with catch_warnings:
         res = tensors.permute_legs(T, codomain, domain, levels, bend_right=bend_right)
     res.test_sanity()
+
+    if issubclass(cls, (DiagonalTensor, Mask)):
+        res2 = tensors.permute_legs(T.as_SymmetricTensor(), codomain, domain, levels, bend_right=bend_right)
+        assert tensors.almost_equal(res2, res, allow_different_types=True)
 
     for n, i in enumerate(codomain):
         assert res.codomain[n] == T._as_codomain_leg(i)
@@ -2841,14 +2851,25 @@ def test_permute_legs(
 
     if compare_numpy:
         T_np = T.to_numpy(understood_braiding=True)
-        expect = np.transpose(T_np, [*codomain, *reversed(domain)])
         actual = res.to_numpy(understood_braiding=True)
-        if T.symmetry.has_trivial_braid:
-            npt.assert_allclose(actual, expect, atol=1.0e-14)
+        perm = [*codomain, *reversed(domain)]
+        perm_is_trivial = perm == list(range(len(perm)))
+        if T.has_pipes and not T.symmetry.has_trivial_braid and not perm_is_trivial:
+            with pytest.raises(NotImplementedError, match='swap gate not yet supported for pipes'):
+                _ = swap_gate_numpy.transpose(T_np, T.legs, [-1, *range(T.num_legs - 1)])
+            # dont have access to swap gates to do it properly, so we accept that signs are off
+            expect_up_to_signs = np.transpose(T_np, perm)
+            assert np.all(np.isclose(actual, expect_up_to_signs) | np.isclose(actual, -1 * expect_up_to_signs))
         else:
-            # swap gates give some +-1 signs.
-            # TODO properly build the expected tensor using swap gates!
-            assert np.all(np.isclose(actual, expect) | np.isclose(actual, -1 * expect))
+            expect = swap_gate_numpy.permute_legs(
+                T_np,
+                num_codomain_legs=T.num_codomain_legs,
+                legs=T.legs,
+                codomain=codomain,
+                domain=domain,
+                bend_right=bend_right,
+            )
+            npt.assert_allclose(actual, expect, atol=1.0e-14)
 
     # construct the instructions needed to undo the original instructions
     leg_perm = [*codomain, *reversed(domain)]

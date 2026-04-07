@@ -5399,7 +5399,11 @@ def permute_legs(
         if codomain == [0] and domain == [1]:
             return tensor
         if codomain == [1] and domain == [0]:
-            return transpose(tensor)
+            if tensor.symmetry.has_trivial_braid or (bend_right[0] != bend_right[1]):
+                return transpose(tensor)
+            # OPTIMIZE : else we have a twist in addition to the transpose.
+            #            we could exploit that structure for DiagonalTensor, to return another DiagonalTensor.
+            #            We can not preserve the Mask structure, since the twist (in general) introduces phases.
         # other cases involve two legs either in the domain or codomain.
         # Cant be done with Mask / DiagonalTensor
         msg = (

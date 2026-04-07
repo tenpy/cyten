@@ -2572,6 +2572,40 @@ def swap_gate(V: ElementarySpace, W: ElementarySpace) -> np.ndarray:
     return res[np.ix_(W.inverse_basis_perm, V.inverse_basis_perm, W.inverse_basis_perm, V.inverse_basis_perm)]
 
 
+def twist_gate(V: Leg) -> np.ndarray:
+    """The topological twist on a whole space, as numpy representation.
+
+    Returns
+    -------
+    A numpy representation of the above tensor with axes ``[V, V*]``.
+
+    See Also
+    --------
+    :meth:`cyten.Symmetry.topological_twist`
+        The twist on a single sector, given in the form of a prefactor for the identity map.
+
+    """
+    if not V.symmetry.can_be_dropped:
+        raise SymmetryError(f'twist can not be written as array for {V.symmetry}')
+    return np.diag(_twist_gate_diag(V))
+
+
+def _twist_gate_diag(V: Leg) -> np.ndarray:
+    if not isinstance(V, ElementarySpace):
+        assert isinstance(V, LegPipe)
+        reshape_order = 'C' if V.combine_cstyle else 'F'
+        res = _twist_gate_diag(V.legs[0])
+        for Vi in V.legs[1:]:
+            res = np.reshape(res[:, None] * _twist_gate_diag(Vi)[None, :], -1, order=reshape_order)
+        return res
+
+    dV = int(V.dim)
+    res_diag = np.zeros(dV)
+    for a, (i, j) in zip(V.sector_decomposition, V.slices):
+        res_diag[i:j] = V.symmetry.topological_twist(a)
+    return res_diag[V.inverse_basis_perm]
+
+
 def _flat_leg_permutation(legs: list[LegPipe | Leg]) -> list[int]:
     """Leg permutation such that combining / splitting legs would be in C style.
 
