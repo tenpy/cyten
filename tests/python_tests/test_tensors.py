@@ -1505,13 +1505,17 @@ def test_combine_split(use_pipes, make_compatible_tensor):
         combined2_np = combined2.to_numpy(understood_braiding=True)
         assert np.allclose(combined2_np, expect2)
 
-        expect3 = np.reshape(np.transpose(T_np, [1, 0, 2, 3]), (a * b, c, d))
         combined3_np = combined3.to_numpy(understood_braiding=True)
-        if T.symmetry.has_trivial_braid:
-            assert np.allclose(combined3_np, expect3)
-        else:
-            # braids/twists would give -1 signs: lazy test is to expect that some signs are off
+        if T.has_pipes and not T.symmetry.has_trivial_braid:
+            with pytest.raises(NotImplementedError, match='swap gate not yet supported for pipes'):
+                # if this does not raise anymore, we should remove this whole if-clause
+                swap_gate_numpy.transpose(T_np, T.legs, [1, 0, 2, 3]), (a * b, c, d)
+            # dont have access to swap gates to do it properly, so we accept that signs are off
+            expect3 = np.reshape(np.transpose(T_np, [1, 0, 2, 3]), (a * b, c, d))
             assert np.all(np.isclose(combined3_np, expect3) | np.isclose(combined3_np, -expect3))
+        else:
+            expect3 = np.reshape(swap_gate_numpy.transpose(T_np, T.legs, [1, 0, 2, 3]), (a * b, c, d))
+            assert np.allclose(combined3_np, expect3)
 
         expect4 = np.reshape(T_np, (a, b * c, d))
         combined4_np = combined4.to_numpy(understood_braiding=True)
