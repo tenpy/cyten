@@ -5,7 +5,7 @@ from numpy import testing as npt
 
 from cyten import SymmetryError, symmetries
 from cyten.block_backends import NumpyBlockBackend
-from cyten.symmetries import FermionNumber, FermionParity, spaces, trees
+from cyten.symmetries import fermion_number, fermion_parity, spaces, trees
 from cyten.testing import random_ElementarySpace
 from cyten.tools import is_permutation
 
@@ -595,7 +595,7 @@ def test_swap_gate(make_any_space, any_symmetry, basis_perm):
             for j in range(int(V.dim)):
                 expect[i, j, i, j] = 1
         npt.assert_almost_equal(expect, expect2)
-    elif isinstance(any_symmetry, (FermionNumber, FermionParity)):
+    elif any_symmetry.is_equivalent_to(fermion_number) or any_symmetry.is_equivalent_to(fermion_parity):
         expect = np.zeros(swap.shape)
         for i, a in enumerate(V.sectors_of_basis):
             for j, b in enumerate(W.sectors_of_basis):
