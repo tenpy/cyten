@@ -142,6 +142,30 @@ NumpyBlockBackend::Block::_item_as_int64() const
     return (arr_.attr("item")()).cast<int64>();
 }
 
+BlockPtr
+NumpyBlockBackend::Block::operator<(const BlockBackend::Block& other) const
+{
+    return wrap(arr_.attr("__lt__")(other.to_numpy()));
+}
+
+BlockPtr
+NumpyBlockBackend::Block::operator<=(const BlockBackend::Block& other) const
+{
+    return wrap(arr_.attr("__le__")(other.to_numpy()));
+}
+
+BlockPtr
+NumpyBlockBackend::Block::operator>(const BlockBackend::Block& other) const
+{
+    return wrap(arr_.attr("__gt__")(other.to_numpy()));
+}
+
+BlockPtr
+NumpyBlockBackend::Block::operator>=(const BlockBackend::Block& other) const
+{
+    return wrap(arr_.attr("__ge__")(other.to_numpy()));
+}
+
 // -----------------------------------------------------------------------------
 // NumpyBlockBackend helpers
 // -----------------------------------------------------------------------------

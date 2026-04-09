@@ -16,10 +16,11 @@ namespace cyten {
 // -----------------------------------------------------------------------------
 
 BlockPtr
-BlockBackend::Block::operator+(const BlockCPtr& other) const
+BlockBackend::Block::operator+(const Block& other) const
 {
     auto scalar1 = get_backend()->as_scalar(1.0);
-    return get_backend()->linear_combination(*scalar1, shared_from_this(), *scalar1, other);
+    std::shared_ptr<const Block> other_ptr = other.shared_from_this();
+    return get_backend()->linear_combination(*scalar1, shared_from_this(), *scalar1, other_ptr);
 }
 
 BlockPtr
@@ -636,6 +637,87 @@ BlockBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, const std::stri
 {
     throw NotImplemented(
       "Needs to be implemented in Subclass, since we don't know the subclass type here!");
+}
+
+BlockPtr
+operator<(const BlockBackend::Block& left, const BlockBackend::Scalar& right)
+{
+    return left < *right._block();
+}
+BlockPtr
+operator>(const BlockBackend::Block& left, const BlockBackend::Scalar& right)
+{
+    return left > *right._block();
+}
+BlockPtr
+operator<=(const BlockBackend::Block& left, const BlockBackend::Scalar& right)
+{
+    return left <= *right._block();
+}
+BlockPtr
+operator>=(const BlockBackend::Block& left, const BlockBackend::Scalar& right)
+{
+    return left >= *right._block();
+}
+BlockPtr
+operator<(const BlockBackend::Scalar& left, const BlockBackend::Block& right)
+{
+    return *left._block() < right;
+}
+BlockPtr
+operator>(const BlockBackend::Scalar& left, const BlockBackend::Block& right)
+{
+    return *left._block() > right;
+}
+BlockPtr
+operator<=(const BlockBackend::Scalar& left, const BlockBackend::Block& right)
+{
+    return *left._block() <= right;
+}
+BlockPtr
+operator>=(const BlockBackend::Scalar& left, const BlockBackend::Block& right)
+{
+    return *left._block() >= right;
+}
+BlockPtr
+operator<(const BlockBackend::Block& left, float64 right)
+{
+    return left < *left.get_backend()->as_scalar(right);
+}
+BlockPtr
+operator>(const BlockBackend::Block& left, float64 right)
+{
+    return left > *left.get_backend()->as_scalar(right);
+}
+BlockPtr
+operator<=(const BlockBackend::Block& left, float64 right)
+{
+    return left <= *left.get_backend()->as_scalar(right);
+}
+BlockPtr
+operator>=(const BlockBackend::Block& left, float64 right)
+{
+    return left >= *left.get_backend()->as_scalar(right);
+}
+BlockPtr
+operator<(float64 left, const BlockBackend::Block& right)
+{
+    return *right.get_backend()->as_scalar(left) < right;
+}
+BlockPtr
+operator>(float64 left, const BlockBackend::Block& right)
+{
+    return *right.get_backend()->as_scalar(left) > right;
+}
+BlockPtr
+operator<=(float64 left, const BlockBackend::Block& right)
+{
+    return *right.get_backend()->as_scalar(left) <= right;
+}
+BlockPtr
+operator>=(float64 left, const BlockBackend::Block& right)
+{
+    return *right.get_backend()->as_scalar(left) >= right;
 }
 
 } // namespace cyten

@@ -1040,12 +1040,12 @@ def test_from_block_su2_symm(symmetry_backend, block_backend):
     # The blocks are the eigenvalue of the Heisenberg coupling in the fixed total spin sectors
     # For singlet states (coupled=spin-0), we have eigenvalue -3/4
     # For triplet states (coupled=spin-1), we have eigenvalue +1/4
-    expect_spin_0 = -3 / 4
-    expect_spin_1 = 1 / 4
-    assert backend.block_backend.allclose(tens_4.data.blocks[0], expect_spin_0)
-    assert backend.block_backend.allclose(tens_4.data.blocks[1], expect_spin_1)
+    expect_spin_0 = backend.block_backend.as_scalar(-3 / 4)
+    expect_spin_1 = backend.block_backend.as_scalar(1 / 4)
+    assert backend.block_backend.allclose(tens_4.data.blocks[0], expect_spin_0._block)
+    assert backend.block_backend.allclose(tens_4.data.blocks[1], expect_spin_1._block)
 
-    recovered_block = tens_4.to_dense_block()
+    recovered_block = tens_4.to_dense_block().to_numpy()
     print()
     print('got:')
     print(recovered_block.reshape((4, 4)))
@@ -1053,7 +1053,7 @@ def test_from_block_su2_symm(symmetry_backend, block_backend):
     print('expect:')
     print(heisenberg_4.reshape((4, 4)))
 
-    assert backend.block_backend.allclose(recovered_block, heisenberg_4)
+    assert np.allclose(recovered_block, heisenberg_4)
 
 
 @pytest.mark.parametrize(

@@ -34,7 +34,7 @@ bind_block_backend(py::module_& m)
       .def(
         "__add__",
         [](const BlockBackend::Block& self, const BlockCPtr& other) {
-            return self.operator+(other);
+            return self.operator+(*other);
         },
         py::arg("other"),
         "Elementwise addition with another block.")
@@ -60,6 +60,74 @@ bind_block_backend(py::module_& m)
         },
         py::arg("other"),
         "Division by a scalar.")
+      .def(
+        "__lt__",
+        [](const BlockBackend::Block& self, const BlockBackend::Block& other) {
+            return self < other;
+        },
+        py::arg("other"),
+        "Less than with another block.")
+      .def(
+        "__lt__",
+        [](const BlockBackend::Block& self, const BlockBackend::Scalar& other) {
+            return self < other;
+        },
+        py::arg("other"))
+      .def(
+        "__lt__",
+        [](const BlockBackend::Block& self, float64 other) { return self < other; },
+        py::arg("other"))
+      .def(
+        "__le__",
+        [](const BlockBackend::Block& self, const BlockBackend::Block& other) {
+            return self <= other;
+        },
+        py::arg("other"),
+        "Less than or equal to with another block.")
+      .def(
+        "__le__",
+        [](const BlockBackend::Block& self, const BlockBackend::Scalar& other) {
+            return self <= other;
+        },
+        py::arg("other"))
+      .def(
+        "__le__",
+        [](const BlockBackend::Block& self, float64 other) { return self <= other; },
+        py::arg("other"))
+      .def(
+        "__gt__",
+        [](const BlockBackend::Block& self, const BlockBackend::Block& other) {
+            return self > other;
+        },
+        py::arg("other"),
+        "Greater than with another block.")
+      .def(
+        "__gt__",
+        [](const BlockBackend::Block& self, const BlockBackend::Scalar& other) {
+            return self > other;
+        },
+        py::arg("other"))
+      .def(
+        "__gt__",
+        [](const BlockBackend::Block& self, float64 other) { return self > other; },
+        py::arg("other"))
+      .def(
+        "__ge__",
+        [](const BlockBackend::Block& self, const BlockBackend::Block& other) {
+            return self >= other;
+        },
+        py::arg("other"),
+        "Greater than or equal to with another block.")
+      .def(
+        "__ge__",
+        [](const BlockBackend::Block& self, const BlockBackend::Scalar& other) {
+            return self >= other;
+        },
+        py::arg("other"))
+      .def(
+        "__ge__",
+        [](const BlockBackend::Block& self, float64 other) { return self >= other; },
+        py::arg("other"))
       .def("__getitem__",
            py::overload_cast<py::object>(&BlockBackend::Block::get_item),
            py::arg("key"))

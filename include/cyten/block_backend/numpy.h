@@ -33,6 +33,11 @@ class NumpyBlockBackend : public BlockBackend
         complex128 _item_as_complex128() const override;
         int64 _item_as_int64() const override;
 
+        BlockPtr operator<(const BlockBackend::Block& other) const override;
+        BlockPtr operator<=(const BlockBackend::Block& other) const override;
+        BlockPtr operator>(const BlockBackend::Block& other) const override;
+        BlockPtr operator>=(const BlockBackend::Block& other) const override;
+
       protected:
         py::array arr_;
     };

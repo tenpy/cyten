@@ -25,6 +25,7 @@ class BlockBackend
       public:
         // subclasses should have constructor from numpy array
         // explicit Block(py::array arr);
+        // and
 
         virtual ~Block() = default;
 
@@ -51,11 +52,17 @@ class BlockBackend
         virtual const std::string& device() const = 0;
 
         /// Elementwise addition with another block.
-        std::shared_ptr<Block> operator+(const std::shared_ptr<const Block>& other) const;
+        std::shared_ptr<Block> operator+(const Block& other) const;
+        /// comparisons with another block.
+        virtual std::shared_ptr<Block> operator<(const Block& other) const = 0;
+        virtual std::shared_ptr<Block> operator<=(const Block& other) const = 0;
+        virtual std::shared_ptr<Block> operator>(const Block& other) const = 0;
+        virtual std::shared_ptr<Block> operator>=(const Block& other) const = 0;
         /// Scalar multiplication.
         std::shared_ptr<Block> operator*(const Scalar& s) const;
         /// Multiplication by inverse of a scalar.
         std::shared_ptr<Block> operator/(const Scalar& s) const;
+
         /// Arbitrary access by Python key; returns new block (shared_ptr).
         std::shared_ptr<const Block> operator[](py::object key) const;
         std::shared_ptr<Block> operator[](py::object key);
@@ -84,8 +91,8 @@ class BlockBackend
     class Scalar
     {
       public:
-        /// (implicitly) convert from a block with trivial empty shape (ndim == 0). Throws if ndim
-        /// != 0.
+        /// (implicitly) convert from a block with trivial empty shape (ndim == 0).
+        /// Throws if ndim != 0.
         Scalar(std::shared_ptr<Block> block);
 
         Dtype dtype() const { return block_->dtype(); }
@@ -372,5 +379,22 @@ class BlockBackend
 
 using BlockPtr = std::shared_ptr<BlockBackend::Block>;
 using BlockCPtr = std::shared_ptr<const BlockBackend::Block>;
+
+BlockPtr operator<(const BlockBackend::Block& left, const BlockBackend::Scalar& right);
+BlockPtr operator>(const BlockBackend::Block& left, const BlockBackend::Scalar& right);
+BlockPtr operator<=(const BlockBackend::Block& left, const BlockBackend::Scalar& right);
+BlockPtr operator>=(const BlockBackend::Block& left, const BlockBackend::Scalar& right);
+BlockPtr operator<(const BlockBackend::Scalar& left, const BlockBackend::Block& right);
+BlockPtr operator>(const BlockBackend::Scalar& left, const BlockBackend::Block& right);
+BlockPtr operator<=(const BlockBackend::Scalar& left, const BlockBackend::Block& right);
+BlockPtr operator>=(const BlockBackend::Scalar& left, const BlockBackend::Block& right);
+BlockPtr operator<(const BlockBackend::Block& left, float64 right);
+BlockPtr operator>(const BlockBackend::Block& left, float64 right);
+BlockPtr operator<=(const BlockBackend::Block& left, float64 right);
+BlockPtr operator>=(const BlockBackend::Block& left, float64 right);
+BlockPtr operator<(float64 left, const BlockBackend::Block& right);
+BlockPtr operator>(float64 left, const BlockBackend::Block& right);
+BlockPtr operator<=(float64 left, const BlockBackend::Block& right);
+BlockPtr operator>=(float64 left, const BlockBackend::Block& right);
 
 } // namespace cyten
