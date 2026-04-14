@@ -1506,16 +1506,8 @@ def test_combine_split(use_pipes, make_compatible_tensor):
         assert np.allclose(combined2_np, expect2)
 
         combined3_np = combined3.to_numpy(understood_braiding=True)
-        if T.has_pipes and not T.symmetry.has_trivial_braid:
-            with pytest.raises(NotImplementedError, match='swap gate not yet supported for pipes'):
-                # if this does not raise anymore, we should remove this whole if-clause
-                swap_gate_numpy.transpose(T_np, T.legs, [1, 0, 2, 3]), (a * b, c, d)
-            # dont have access to swap gates to do it properly, so we accept that signs are off
-            expect3 = np.reshape(np.transpose(T_np, [1, 0, 2, 3]), (a * b, c, d))
-            assert np.all(np.isclose(combined3_np, expect3) | np.isclose(combined3_np, -expect3))
-        else:
-            expect3 = np.reshape(swap_gate_numpy.transpose(T_np, T.legs, [1, 0, 2, 3]), (a * b, c, d))
-            assert np.allclose(combined3_np, expect3)
+        expect3 = np.reshape(swap_gate_numpy.transpose(T_np, T.legs, [1, 0, 2, 3]), (a * b, c, d))
+        assert np.allclose(combined3_np, expect3)
 
         expect4 = np.reshape(T_np, (a, b * c, d))
         combined4_np = combined4.to_numpy(understood_braiding=True)
@@ -2402,16 +2394,8 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
     if compare_numpy:
         T_np = T.to_numpy(understood_braiding=True)
         res_np = res.to_numpy(understood_braiding=True)
-        perm_is_trivial = perm == list(range(len(perm)))
-        if not T.symmetry.has_trivial_braid and T.has_pipes and not perm_is_trivial:
-            with pytest.raises(NotImplementedError, match='swap gate not yet supported for pipes'):
-                _ = swap_gate_numpy.transpose(T_np, T.legs, perm)
-            # dont have access to swap gates to do it properly, so we accept that signs are off
-            expect = np.transpose(T_np, perm)
-            assert np.all(np.isclose(res_np, expect) | np.isclose(res_np, -expect))
-        else:
-            expect = swap_gate_numpy.transpose(T_np, T.legs, perm)
-            npt.assert_allclose(res_np, expect, atol=1.0e-14)
+        expect = swap_gate_numpy.transpose(T_np, T.legs, perm)
+        npt.assert_allclose(res_np, expect, atol=1.0e-14)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
@@ -2854,22 +2838,15 @@ def test_permute_legs(
         actual = res.to_numpy(understood_braiding=True)
         perm = [*codomain, *reversed(domain)]
         perm_is_trivial = perm == list(range(len(perm)))
-        if T.has_pipes and not T.symmetry.has_trivial_braid and not perm_is_trivial:
-            with pytest.raises(NotImplementedError, match='swap gate not yet supported for pipes'):
-                _ = swap_gate_numpy.transpose(T_np, T.legs, [-1, *range(T.num_legs - 1)])
-            # dont have access to swap gates to do it properly, so we accept that signs are off
-            expect_up_to_signs = np.transpose(T_np, perm)
-            assert np.all(np.isclose(actual, expect_up_to_signs) | np.isclose(actual, -1 * expect_up_to_signs))
-        else:
-            expect = swap_gate_numpy.permute_legs(
-                T_np,
-                num_codomain_legs=T.num_codomain_legs,
-                legs=T.legs,
-                codomain=codomain,
-                domain=domain,
-                bend_right=bend_right,
-            )
-            npt.assert_allclose(actual, expect, atol=1.0e-14)
+        expect = swap_gate_numpy.permute_legs(
+            T_np,
+            num_codomain_legs=T.num_codomain_legs,
+            legs=T.legs,
+            codomain=codomain,
+            domain=domain,
+            bend_right=bend_right,
+        )
+        npt.assert_allclose(actual, expect, atol=1.0e-14)
 
     # construct the instructions needed to undo the original instructions
     leg_perm = [*codomain, *reversed(domain)]
