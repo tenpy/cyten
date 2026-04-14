@@ -2394,7 +2394,9 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
     if compare_numpy:
         T_np = T.to_numpy(understood_braiding=True)
         res_np = res.to_numpy(understood_braiding=True)
-        expect = swap_gate_numpy.transpose(T_np, T.legs, perm)
+        expect = swap_gate_numpy.permute_legs(
+            T_np, T.num_codomain_legs, T.legs, codomain=codomain_perm, domain=domain_perm, bend_right=bend_right
+        )
         npt.assert_allclose(res_np, expect, atol=1.0e-14)
 
 
@@ -3508,22 +3510,6 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random, use_pipes):
         npt.assert_almost_equal(res_np, right_transpose.to_numpy(understood_braiding=True))
 
         tensor_np = tensor.to_numpy(understood_braiding=True)
-        if tensor.has_pipes and not tensor.symmetry.has_trivial_braid:
-            with pytest.raises(NotImplementedError, match='swap gate not yet supported for pipes'):
-                for right in [True, False]:
-                    _ = swap_gate_numpy.permute_legs(
-                        tensor_np,
-                        num_codomain_legs=cod,
-                        legs=tensor.legs,
-                        codomain=[*range(cod, cod + dom)],
-                        domain=[*reversed(range(cod))],
-                        bend_right=[right] * cod + [not right] * dom,
-                    )
-            # dont have access to swap gates to do it properly, so we accept that signs are off
-            expect = np.transpose(tensor_np, [*range(cod, cod + dom), *range(cod)])
-            assert np.all(np.isclose(res_np, expect) | np.isclose(res_np, -1 * expect))
-            return
-
         expect_right_transpose = swap_gate_numpy.permute_legs(
             tensor_np,
             num_codomain_legs=cod,
