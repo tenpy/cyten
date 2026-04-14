@@ -498,6 +498,12 @@ class BaseSymmetry(metaclass=ABCMeta):
         For bosonic braiding style, e.g. for group symmetries, this coincides with the quantum
         dimension computed by :meth:`qdim`.
         For other braiding styles,
+
+        See Also
+        --------
+        :func:`cyten.swap_gate`
+            Similar method for braiding general spaces, not just single sectors.
+
         """
         if not self.can_be_dropped:
             raise SymmetryError(f'sector_dim is not supported for {self}.')

@@ -2520,6 +2520,114 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         return perm
 
 
+def swap_gate(V: ElementarySpace, W: ElementarySpace) -> np.ndarray:
+    """The swap gate (numpy representation of the braid).
+
+        |   V   W
+        |   │   │
+        |   v   v
+        |    ╲ ╱
+        |     ╲          <-  overbraid == underbraid is assumed
+        |    ╱ ╲
+        |   v   v
+        |   │   │
+        |   W   V
+
+    Returns
+    -------
+    A numpy representation of the above tensor with axes ``[W, V, W*, V*]``.
+
+    See Also
+    --------
+    :meth:`cyten.Symmetry.swap_gate`
+        The swap gate for single sectors.
+
+    """
+    assert V.symmetry == W.symmetry
+    if not V.symmetry.can_be_dropped:
+        raise SymmetryError(f'braid can not be written as array for {V.symmetry}')
+    dV = int(V.dim)
+    dW = int(W.dim)
+
+    # special case: pipes
+    if not isinstance(V, ElementarySpace):
+        # since we call this function recursively, we do not need to distinguish if W is a pipe at this point
+        assert isinstance(V, LegPipe)
+        res = swap_gate(V.legs[-1], W)  # [W, Vz, W*, Vz*]
+        for n, Vi in enumerate(reversed(V.legs[:-1])):
+            sw = swap_gate(Vi, W)  # [W, Vi, W*, Vi*]
+            # [W, Vi, (W*), Vi*] @ [(W), {Vs}, W*, {Vs}*] -> [W, Vi, Vi*, {Vs}, W*, {Vs}*]
+            res = np.tensordot(sw, res, (2, 0))
+            # [W, Vi, (Vi*), {Vs}, W*, {Vs}*] -> [W, Vi, {Vs}, W*, (Vi*), {Vs}*]
+            res = np.moveaxis(res, 2, -2 - n)
+        return np.reshape(res, (dW, dV, dW, dV), order='C' if V.combine_cstyle else 'F')
+    if not isinstance(W, ElementarySpace):
+        # since we call this function recursively, we do not need to distinguish if V is a pipe at this point
+        assert isinstance(W, LegPipe)
+        res = swap_gate(V, W.legs[0])  # [Wa, V, Wa*, V*]
+        for n, Wi in enumerate(W.legs[1:], start=1):
+            sw = swap_gate(V, Wi)  # [Wi, V, Wi*, V]
+            # [{Ws}, (V), {Ws}*, V*] @ [Wi, V, Wi*, (V*)] -> [{Ws}, {Ws*}, V*, Wi, V, Wi*]
+            res = np.tensordot(res, sw, (n, -1))
+            # [{Ws}, {Ws*}, V*, Wi, V, Wi*] -> [{Ws}, Wi, V, {Ws*}, Wi*, V*]
+            res = np.transpose(res, [*range(n), -3, -2, *range(n, 2 * n), -1, -4])
+        return np.reshape(res, (dW, dV, dW, dV), order='C' if W.combine_cstyle else 'F')
+
+    res = np.zeros((dW, dV, dW, dV))
+    # build in internal basis order, permute after
+    # OPTIMIZE these loops are probably inefficient, and there may be some numpy magic that does it better...
+    i = 0
+    for a, ma in zip(V.defining_sectors, V.multiplicities):
+        j = 0
+        for b, mb in zip(W.defining_sectors, W.multiplicities):
+            swap = V.symmetry.swap_gate(a, b)
+            db, da, _, _ = swap.shape
+            i2 = i
+            for na in range(ma):
+                j2 = j
+                for nb in range(mb):
+                    res[j2 : j2 + db, i2 : i2 + da, j2 : j2 + db, i2 : i2 + da] = swap
+                    j2 += db
+                i2 += da
+            j += db * mb
+        i += da * ma
+    return res[np.ix_(W.inverse_basis_perm, V.inverse_basis_perm, W.inverse_basis_perm, V.inverse_basis_perm)]
+
+
+def twist_gate(V: Leg) -> np.ndarray:
+    """The topological twist on a whole space, as numpy representation.
+
+    Returns
+    -------
+    A numpy representation of the above tensor with axes ``[V, V*]``.
+
+    See Also
+    --------
+    :meth:`cyten.Symmetry.topological_twist`
+        The twist on a single sector, given in the form of a prefactor for the identity map.
+
+    """
+    if not V.symmetry.can_be_dropped:
+        raise SymmetryError(f'twist can not be written as array for {V.symmetry}')
+    return np.diag(_twist_gate_diag(V))
+
+
+def _twist_gate_diag(V: Leg) -> np.ndarray:
+    if not isinstance(V, ElementarySpace):
+        assert isinstance(V, LegPipe)
+        reshape_order = 'C' if V.combine_cstyle else 'F'
+        res = _twist_gate_diag(V.legs[0])
+        for Vi in V.legs[1:]:
+            res = np.reshape(res[:, None] * _twist_gate_diag(Vi)[None, :], -1, order=reshape_order)
+        return res
+
+    dV = int(V.dim)
+    res_diag = np.zeros(dV)
+    for a, (i, j) in zip(V.sector_decomposition, V.slices):
+        res_diag[i:j] = V.symmetry.topological_twist(a)
+    return res_diag[V.inverse_basis_perm]
+
+
 def _flat_leg_permutation(legs: list[LegPipe | Leg]) -> list[int]:
     """Leg permutation such that combining / splitting legs would be in C style.
 

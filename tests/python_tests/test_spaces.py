@@ -3,11 +3,11 @@ import numpy as np
 import pytest
 from numpy import testing as npt
 
-from cyten import SymmetryError, symmetries
+from cyten import SymmetryError, get_backend, symmetries
 from cyten.block_backends import NumpyBlockBackend
-from cyten.symmetries import spaces, trees
-from cyten.testing import random_ElementarySpace
-from cyten.tools import is_permutation
+from cyten.symmetries import fermion_parity, no_symmetry, spaces, trees, u1_symmetry
+from cyten.testing import random_ElementarySpace, random_LegPipe
+from cyten.tools import is_permutation, make_grid
 
 # TODO test all cases of Space.as_ElementarySpace
 
@@ -566,6 +566,96 @@ def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines
         assert len(res) <= str_max_len
         assert res.count('\n') <= str_max_lines
         print(res)
+
+
+@pytest.mark.parametrize('symm', [no_symmetry, u1_symmetry, fermion_parity], ids=['no_symm', 'U1', 'fermion'])
+@pytest.mark.parametrize('V_dual', [True, False], ids=['Vbra', 'Vket'])
+@pytest.mark.parametrize('W_dual', [True, False], ids=['Wbra', 'Wket'])
+@pytest.mark.parametrize('basis_perm', [True, False], ids=['perm', 'noperm'])
+@pytest.mark.parametrize('V_pipe', [3, 2, 1, False], ids=['Vpipe3', 'Vpipe2', 'Vpipe1', 'Vnopipe'])
+@pytest.mark.parametrize('W_pipe', [3, 2, 1, False], ids=['Wpipe3', 'Wpipe2', 'Wpipe1', 'Wnopipe'])
+@pytest.mark.parametrize('abelian_pipes', [True, False], ids=['abelianPipes', 'plainPipes'])
+def test_swap_gate(symm, basis_perm, abelian_pipes, np_random, V_pipe, W_pipe, V_dual, W_dual):
+    pipe_backend = get_backend('abelian' if abelian_pipes else 'fusion_tree')
+    if not pipe_backend.supports_symmetry(symm):
+        return
+
+    if V_pipe is False:
+        V = random_ElementarySpace(symm, allow_basis_perm=basis_perm, np_random=np_random, is_dual=V_dual)
+    else:
+        V = random_LegPipe(
+            symmetry=symm,
+            backend=pipe_backend,
+            allow_basis_perm=basis_perm,
+            num_legs=V_pipe,
+            np_random=np_random,
+            is_dual=V_dual,
+        )
+    if W_pipe is False:
+        W = random_ElementarySpace(symm, allow_basis_perm=basis_perm, np_random=np_random, is_dual=W_dual)
+    else:
+        W = random_LegPipe(
+            symmetry=symm,
+            backend=pipe_backend,
+            allow_basis_perm=basis_perm,
+            num_legs=W_pipe,
+            np_random=np_random,
+            is_dual=W_dual,
+        )
+
+    if not symm.can_be_dropped:
+        with pytest.raises(SymmetryError, match='braid can not be written as array'):
+            _ = spaces.swap_gate(V, W)
+        return  # error is expected behavior
+
+    dV = int(V.dim)
+    dW = int(W.dim)
+
+    swap = spaces.swap_gate(V, W)
+    assert swap.shape == (dW, dV, dW, dV)
+
+    # must be "diagonal", in the swapped basis swap[i, j, k, l] = phases[i, j] δ_ik δ_jl
+    phases = np.diag(swap.reshape(dW * dV, dW * dV)).reshape(dW, dV)
+    npt.assert_almost_equal(swap, np.diag(phases.reshape(-1)).reshape(dW, dV, dW, dV))
+    # -> it is now enough to check that the phases are as expected
+
+    # they must be complex phases
+    npt.assert_allclose(np.abs(phases), 1)
+
+    if symm.has_trivial_braid:
+        npt.assert_allclose(phases, +1)
+
+    elif symm is fermion_parity:
+        if V_pipe is False:
+            V_parity = np.reshape(V.sectors_of_basis % 2, -1)
+        else:
+            # implementation of this test assumes no nested pipes...
+            V_sectors = [Vi.sectors_of_basis for Vi in V.legs]
+            V_parity = np.array(
+                [
+                    sum(sectors[i] for sectors, i in zip(V_sectors, i_idcs)) % 2
+                    for i_idcs in make_grid([int(Vi.dim) for Vi in V.legs], cstyle=V.combine_cstyle)
+                ]
+            ).reshape(-1)
+        if W_pipe is False:
+            W_parity = np.reshape(W.sectors_of_basis % 2, -1)
+        else:
+            W_sectors = [Wi.sectors_of_basis for Wi in W.legs]
+            W_parity = np.array(
+                [
+                    sum(sectors[j] for sectors, j in zip(W_sectors, j_idcs)) % 2
+                    for j_idcs in make_grid([int(Wi.dim) for Wi in W.legs], cstyle=W.combine_cstyle)
+                ]
+            ).reshape(-1)
+
+        for j in range(dW):
+            for i in range(dV):
+                assert np.allclose(phases[j, i], 1 - 2 * V_parity[i] * W_parity[j])
+        npt.assert_almost_equal(phases, 1 - 2 * V_parity[None, :] * W_parity[:, None])
+
+    else:
+        # would need to redesign the tests
+        raise NotImplementedError
 
 
 # TODO move to some testing tools module?
