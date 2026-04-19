@@ -2,7 +2,7 @@
 
 # Copyright (C) TeNPy Developers, Apache license
 from . import random_generation
-from .asserting import assert_tensors_almost_equal
+from .asserting import assert_equivalent_legs, assert_tensors_almost_equal
 from .random_generation import (
     random_block,
     random_ElementarySpace,

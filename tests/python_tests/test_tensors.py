@@ -22,12 +22,15 @@ from cyten.symmetries import (
     LegPipe,
     SymmetryError,
     TensorProduct,
+    fibonacci_anyon_category,
+    no_symmetry,
+    su2_symmetry,
     u1_symmetry,
     z3_symmetry,
     z4_symmetry,
 )
 from cyten.tensors import ChargedTensor, DiagonalTensor, Mask, SymmetricTensor, Tensor
-from cyten.testing import assert_tensors_almost_equal, swap_gate_numpy
+from cyten.testing import assert_equivalent_legs, assert_tensors_almost_equal, random_tensor, swap_gate_numpy
 from cyten.tools.misc import duplicate_entries, inverse_permutation, iter_common_noncommon_sorted_arrays, to_valid_idx
 
 # TENSOR CLASSES
@@ -3569,3 +3572,83 @@ def test_bug_linear_combinations(make_compatible_tensor):
     (B + A).test_sanity()
     (A - B).test_sanity()
     (A + B).test_sanity()
+
+
+@pytest.mark.deselect_invalid_ChargedTensor_cases(get_sym=lambda kw: kw['symm'])
+@pytest.mark.parametrize(
+    'cls, cod, dom, combine',
+    [
+        pytest.param(SymmetricTensor, 1, 1, None, id='Sym-1-1-nopipes'),
+        pytest.param(SymmetricTensor, 2, 1, [0, 1], id='Sym-1-1-pipes'),
+        pytest.param(SymmetricTensor, 2, 2, None, id='Sym-2-2'),
+        pytest.param(SymmetricTensor, 3, 0, None, id='Sym-3-0'),
+        pytest.param(SymmetricTensor, 0, 3, None, id='Sym-0-3'),
+        pytest.param(ChargedTensor, 2, 2, None, id='Charged'),
+        pytest.param(DiagonalTensor, 1, 1, None, id='Diag'),
+        pytest.param(Mask, 1, 1, None, id='Mask'),
+    ],
+)
+@pytest.mark.parametrize(
+    'symm, original_backend',
+    [
+        pytest.param(no_symmetry, 'no_symmetry', id='NoSymmetry-NS'),
+        pytest.param(no_symmetry, 'abelian', id='NoSymmetry-AB'),
+        pytest.param(no_symmetry, 'fusion_tree', id='NoSymmetry-FT'),
+        pytest.param(u1_symmetry, 'abelian', id='U1-AB'),
+        pytest.param(u1_symmetry, 'fusion_tree', id='U1-FT'),
+        pytest.param(su2_symmetry, 'fusion_tree', id='SU2-FT'),
+        pytest.param(fibonacci_anyon_category, 'fusion_tree', id='Fib-FT'),
+    ],
+)
+@pytest.mark.parametrize('target_backend', ['no_symmetry', 'abelian', 'fusion_tree'], ids=['NS', 'AB', 'FT'])
+@pytest.mark.parametrize('original_block_backend', ['numpy'])
+@pytest.mark.parametrize('target_block_backend', ['numpy', pytest.param('torch', marks=pytest.mark.torch)])
+def test_to_backend(
+    cls,
+    cod,
+    dom,
+    combine,
+    symm,
+    original_backend,
+    original_block_backend,
+    target_backend,
+    target_block_backend,
+    np_random,
+):
+    if target_block_backend == 'torch':
+        _ = pytest.importorskip('torch')
+    b1 = get_backend(original_backend, original_block_backend)
+    b2 = get_backend(target_backend, target_block_backend)
+
+    tens = random_tensor(symm, cod, dom, backend=b1, np_random=np_random, cls=cls)
+    if combine is not None:
+        tens = tensors.combine_legs(tens, combine)
+        cod = tens.num_codomain_legs
+        dom = tens.num_domain_legs
+
+    if not b2.supports_symmetry(symm):
+        with pytest.raises(SymmetryError, match='backend does not support symmetry'):
+            res = tens.to_backend(b2)
+        return
+
+    res = tens.to_backend(b2)
+    res.test_sanity()
+    assert res.backend == b2
+    assert type(res) is type(tens)
+    assert_equivalent_legs(res, tens)
+    assert res.labels == tens.labels
+
+    recovered = res.to_backend(b1)
+    recovered.test_sanity()
+    assert recovered.backend == b1
+    assert tensors.almost_equal(recovered, tens)
+
+    if symm.can_be_dropped:
+        if cls is ChargedTensor and tens.charged_state is None:
+            # compare the inv-parts instead
+            tens_np = tens.invariant_part.to_numpy(understood_braiding=True)
+            res_np = res.invariant_part.to_numpy(understood_braiding=True)
+        else:
+            tens_np = tens.to_numpy(understood_braiding=True)
+            res_np = res.to_numpy(understood_braiding=True)
+        npt.assert_almost_equal(res_np, tens_np)
