@@ -1090,7 +1090,7 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(dtype, a.data.device, blocks, a.data.block_inds, is_sorted=True)
 
     def get_device_from_data(self, a: AbelianBackendData) -> str:
-        return a.device
+        return self.block_backend.as_device(a.device)
 
     def get_dtype_from_data(self, a: AbelianBackendData) -> Dtype:
         return a.dtype
