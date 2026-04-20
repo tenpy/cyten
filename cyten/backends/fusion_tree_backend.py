@@ -1019,7 +1019,7 @@ class FusionTreeBackend(TensorBackend):
         )
 
     def get_device_from_data(self, a: FusionTreeData) -> str:
-        return a.device
+        return self.block_backend.as_device(a.device)
 
     def get_dtype_from_data(self, a: FusionTreeData) -> Dtype:
         return a.dtype
