@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import functools
+import itertools as it
 import logging
 import operator
 import warnings
@@ -15,7 +16,17 @@ from typing import TypeVar
 
 import numpy as np
 
-from ..backends import TensorBackend, conventional_leg_order, get_backend, get_same_backend
+from ..backends import (
+    AbelianBackend,
+    AbelianBackendData,
+    FusionTreeBackend,
+    FusionTreeData,
+    NoSymmetryBackend,
+    TensorBackend,
+    conventional_leg_order,
+    get_backend,
+    get_same_backend,
+)
 from ..block_backends import Block, Dtype
 from ..dummy_config import printoptions
 from ..symmetries import (
@@ -1440,6 +1451,62 @@ class SymmetricTensor(Tensor):
         self.data = self.backend.move_to_device(self, device=device)
         self.device = self.backend.block_backend.as_device(device)
 
+    def to_backend(self, backend: TensorBackend, dtype: Dtype = None, device: str = None) -> SymmetricTensor:
+        if not backend.supports_symmetry(self.symmetry):
+            raise SymmetryError('backend does not support symmetry')
+        if dtype is None:
+            dtype = self.dtype
+        device = backend.block_backend.as_device(self.device if device is None else device)
+
+        if self.has_pipes:
+            # Flatten the pipes, convert backends on flat leg basis, then recombine
+            # This means we dont have to deal with the permutation induced by pipes in the AB backend
+            # or with the special AbelianLegPipe type
+            # OPTIMIZE do it directly if no abelian backend is involved?
+            combine = []
+            pipe_dualities = []
+            flat_leg_counter = 0
+            for leg in conventional_leg_order(self):
+                if isinstance(leg, LegPipe):
+                    combine.append([*range(flat_leg_counter, flat_leg_counter + leg.num_legs)])
+                    pipe_dualities.append(leg.is_dual)
+                    flat_leg_counter += leg.num_legs
+                else:
+                    flat_leg_counter += 1
+            flat = split_legs(self)
+            res_flat = flat.to_backend(backend, dtype=dtype, device=device)
+            res = combine_legs(res_flat, *combine, pipe_dualities=pipe_dualities)
+            return res
+
+        if isinstance(backend, NoSymmetryBackend):
+            old_block = self.backend.to_dense_block(self)
+            new_block = backend.block_backend.as_block(old_block, dtype=dtype, device=device)
+            new_data = new_block
+        elif isinstance(self.backend, NoSymmetryBackend):
+            old_block = self.data
+            new_block = backend.block_backend.as_block(old_block, dtype=dtype, device=device)
+            new_data = backend.from_dense_block(new_block, codomain=self.codomain, domain=self.domain, tol=0)
+        elif isinstance(backend, AbelianBackend):
+            if isinstance(self.backend, AbelianBackend):
+                new_data = self.backend.to_block_backend(self.data, backend.block_backend)
+            elif isinstance(self.backend, FusionTreeBackend):
+                new_data = _convert_FT_to_abelian(self, backend, dtype=dtype, device=device)
+            else:
+                raise RuntimeError
+        elif isinstance(backend, FusionTreeBackend):
+            if isinstance(self.backend, AbelianBackend):
+                new_data = _convert_abelian_to_FT(self, backend, dtype=dtype, device=device)
+            elif isinstance(self.backend, FusionTreeBackend):
+                new_data = self.backend.to_block_backend(self.data, backend.block_backend)
+            else:
+                raise RuntimeError
+        else:
+            raise TypeError(f'Unexpected backend type {type(backend).__name__}')
+
+        return SymmetricTensor(
+            new_data, codomain=self.codomain, domain=self.domain, backend=backend, labels=self.labels
+        )
+
     def to_dense_block(
         self, leg_order: list[int | str] = None, dtype: Dtype = None, understood_braiding: bool = False
     ) -> Block:
@@ -2138,6 +2205,30 @@ class DiagonalTensor(SymmetricTensor):
         self.data = self.backend.move_to_device(self, device=device)
         self.device = self.backend.block_backend.as_device(device)
 
+    def to_backend(self, backend: TensorBackend, dtype: Dtype = None, device: str = None) -> DiagonalTensor:
+        if not backend.supports_symmetry(self.symmetry):
+            raise SymmetryError('backend does not support symmetry')
+
+        # In most cases, we can just go via a single block for the diagonal
+        # exceptions:
+        #   - for non-abelian symmetries this is inefficient (needs to expand sectors into multiplets)
+        #   - for symmetries that can not be dropped, this is not possible
+        # Both of these exceptions can only ocurr if both backends are FusionTreeBackend, which is then also simple
+
+        # OPTIMIZE
+        #   for abelian <-> fusion tree, this might be slightly inefficient.
+        #   I think the blocks should be the same already, so we could get away without first
+        #   concatenating all of them and them splitting them back up
+
+        device = backend.block_backend.as_device(self.device if device is None else device)
+        if isinstance(self.backend, FusionTreeBackend) and isinstance(backend, FusionTreeBackend):
+            new_data = self.backend.to_block_backend(self.data, backend.block_backend)
+        else:
+            old_diag = self.backend.diagonal_tensor_to_block(self)
+            new_diag = backend.block_backend.as_block(old_diag, dtype=dtype, device=device)
+            new_data = backend.diagonal_from_block(new_diag, co_domain=self.codomain, tol=0)
+        return DiagonalTensor(new_data, leg=self.leg, backend=backend, labels=self.labels)
+
     def to_dense_block(
         self, leg_order: list[int | str] = None, dtype: Dtype = None, understood_braiding: bool = False
     ) -> Block:
@@ -2335,6 +2426,14 @@ class Identity(DiagonalTensor):
 
     def move_to_device(self, device):
         self.device = self.backend.block_backend.as_device(device)
+
+    def to_backend(self, backend: TensorBackend, dtype: Dtype = None, device: str = None) -> Identity:
+        if not backend.supports_symmetry(self.symmetry):
+            raise SymmetryError('backend does not support symmetry')
+
+        dtype = self.dtype if dtype is None else dtype
+        device = backend.block_backend.as_device(self.device if device is None else device)
+        return Identity(leg=self.leg, backend=backend, dtype=dtype, device=device)
 
     def to_dense_block(self, leg_order=None, dtype=None, understood_braiding=False):
         return self.as_DiagonalTensor().to_dense_block(
@@ -2913,6 +3012,33 @@ class Mask(Tensor):
         """The "opposite" Mask, that keeps exactly what self discards and vv."""
         return self._unary_operand(operator.invert)
 
+    def to_backend(self, backend: TensorBackend, dtype: Dtype = None, device: str = None) -> Mask:
+        if not backend.supports_symmetry(self.symmetry):
+            raise SymmetryError('backend does not support symmetry')
+
+        if not (dtype is None or dtype == Dtype.bool):
+            raise ValueError('Mask requires Dtype.bool')
+
+        # similar to DiagonalTensor, we can just go via dense mask, with some exceptions.
+        # these exceptions only occurr for FusionTreeBackend -> FusionTreeBackend, and that allows
+        # a simple implementation directly
+
+        device = backend.block_backend.as_device(self.device if device is None else device)
+        if isinstance(self.backend, FusionTreeBackend) and isinstance(backend, FusionTreeBackend):
+            new_data = self.backend.to_block_backend(self.data, backend.block_backend)
+        else:
+            old_mask = self.backend.mask_to_block(self)
+            new_mask = backend.block_backend.as_block(old_mask, dtype=Dtype.bool, device=device)
+            new_data, _ = backend.mask_from_block(new_mask, large_leg=self.large_leg)
+        return Mask(
+            new_data,
+            space_in=self.domain[0],
+            space_out=self.codomain[0],
+            is_projection=self.is_projection,
+            backend=backend,
+            labels=self.labels,
+        )
+
     def to_dense_block(
         self, leg_order: list[int | str] = None, dtype: Dtype = None, understood_braiding: bool = False
     ) -> Block:
@@ -3463,6 +3589,18 @@ class ChargedTensor(Tensor):
         super().set_labels(labels)
         self.invariant_part.set_labels([*self._labels, *self._CHARGE_LEG_LABEL])
         return self
+
+    def to_backend(self, backend: TensorBackend, dtype: Dtype = None, device: str = None) -> ChargedTensor:
+        if not backend.supports_symmetry(self.symmetry):
+            raise SymmetryError('backend does not support symmetry')
+        device = backend.block_backend.as_device(self.device if device is None else device)
+
+        inv_part = self.invariant_part.to_backend(backend, dtype=dtype, device=device)
+        if self.charged_state is None:
+            charged_state = None
+        else:
+            charged_state = backend.block_backend.as_block(self.charged_state, dtype=dtype, device=device)
+        return ChargedTensor(invariant_part=inv_part, charged_state=charged_state)
 
     def to_dense_block(
         self, leg_order: list[int | str] = None, dtype: Dtype = None, understood_braiding: bool = False
@@ -6839,6 +6977,224 @@ def _check_compatible_legs(legs1: Sequence[Leg], legs2: Sequence[Leg], expect_eq
 def _combine_leg_labels(labels: list[str | None]) -> str:
     """The label that a combined leg should have"""
     return '(' + '.'.join(f'?{n}' if l is None else l for n, l in enumerate(labels)) + ')'
+
+
+def _convert_abelian_to_FT(tensor: SymmetricTensor, backend: FusionTreeBackend, dtype: Dtype, device: str):
+    """Convert tensor from abelian backend to FT backend. Return the data
+
+    Same idea as :func:`_convert_FT_to_abelian`, see its docstring.
+    """
+    # Start with all allowed blocks initialized with zeros
+    # OPTIMIZE create the blocks on-demand instead?
+    res = backend.zero_data(tensor.codomain, tensor.domain, dtype=dtype, device=device, all_blocks=True)
+    blocks_touched = [False] * len(res.blocks)
+    cod_sector_ranges = [range(l.num_sectors) for l in tensor.codomain]
+    dom_sector_ranges = [range(l.num_sectors) for l in tensor.domain]
+
+    if tensor.num_codomain_legs == 0:
+        i2 = 0
+        for dom_sector_idcs in it.product(*dom_sector_ranges):
+            b_sectors = [leg.sector_decomposition[i] for leg, i in zip(tensor.domain, dom_sector_idcs)]
+            b_mults = [leg.multiplicities[i] for leg, i in zip(tensor.domain, dom_sector_idcs)]
+            c = tensor.symmetry.multiple_fusion(*b_sectors)
+            if not np.all(c == tensor.symmetry.trivial_sector):
+                continue
+            tree_block_width = np.prod(b_mults, dtype=int)
+            ab_block_inds = np.array([*reversed(dom_sector_idcs)])
+            ab_i, *_ = np.where(np.all(tensor.data.block_inds == ab_block_inds[None, :], axis=1))
+            if len(ab_i) == 0:
+                # block is missing (zero) -> nothing to do
+                i2 += tree_block_width
+                continue
+            assert len(ab_i) == 1
+            ab_i = ab_i.item()
+            ab_block = tensor.data.blocks[ab_i]
+            tree_block = tensor.backend.block_backend.combine_legs(ab_block, [[*range(tensor.num_legs)]], cstyles=False)
+            tree_block = backend.block_backend.as_block(tree_block, dtype=dtype, device=device)
+            res.blocks[0][0, i2 : i2 + tree_block_width] = tree_block
+            blocks_touched[0] = True
+            i2 += tree_block_width
+
+    elif tensor.num_domain_legs == 0:
+        i1 = 0
+        for cod_sector_idcs in it.product(*cod_sector_ranges):
+            a_sectors = [leg.sector_decomposition[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
+            a_mults = [leg.multiplicities[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
+            c = tensor.symmetry.multiple_fusion(*a_sectors)
+            if not np.all(c == tensor.symmetry.trivial_sector):
+                continue
+            tree_block_height = np.prod(a_mults, dtype=int)
+            ab_block_inds = np.array(cod_sector_idcs)
+            ab_i, *_ = np.where(np.all(tensor.data.block_inds == ab_block_inds[None, :], axis=1))
+            if len(ab_i) == 0:
+                # block is missing (zero) -> nothing to do
+                i1 += tree_block_height
+                continue
+            assert len(ab_i) == 1
+            ab_i = ab_i.item()
+            ab_block = tensor.data.blocks[ab_i]
+            tree_block = tensor.backend.block_backend.combine_legs(ab_block, [[*range(tensor.num_legs)]], cstyles=True)
+            tree_block = backend.block_backend.as_block(tree_block, dtype=dtype, device=device)
+            res.blocks[0][i1 : i1 + tree_block_height, 0] = tree_block
+            blocks_touched[0] = True
+            i1 += tree_block_height
+
+    else:
+        i1 = 0
+        i2_per_coupled = np.zeros(len(res.blocks), int)
+        combine = [[*range(tensor.num_codomain_legs)], [*range(tensor.num_codomain_legs, tensor.num_legs)]]
+
+        for dom_sector_idcs in it.product(*dom_sector_ranges):
+            b_sectors = [leg.sector_decomposition[i] for leg, i in zip(tensor.domain, dom_sector_idcs)]
+            b_mults = [leg.multiplicities[i] for leg, i in zip(tensor.domain, dom_sector_idcs)]
+            c = tensor.symmetry.multiple_fusion(*b_sectors)
+            ft_bi = res.block_ind_from_coupled(c, tensor.domain)
+            if ft_bi is None:
+                continue  # this can happen if c does not appear in the codomain at all -> no block
+            tree_block_width = np.prod(b_mults, dtype=int)
+            i2 = i2_per_coupled[ft_bi]
+
+            for cod_sector_idcs in it.product(*cod_sector_ranges):
+                a_sectors = [leg.sector_decomposition[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
+                a_mults = [leg.multiplicities[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
+                c2 = tensor.symmetry.multiple_fusion(*a_sectors)
+                tree_block_height = np.prod(a_mults, dtype=int)
+                if not np.all(c2 == c):
+                    continue  # sector combination violates fusion rules -> no contributions
+
+                ab_block_inds = np.array([*cod_sector_idcs, *reversed(dom_sector_idcs)])
+
+                # OPTIMIZE use that the data.block_inds are lexsorted for this lookup (also above)
+                ab_i, *_ = np.where(np.all(tensor.data.block_inds == ab_block_inds[None, :], axis=1))
+                if len(ab_i) == 0:
+                    # block is missing (zero) -> nothing to do
+                    i1 += tree_block_height
+                    continue
+                assert len(ab_i) == 1
+                ab_i = ab_i.item()
+
+                ab_block = tensor.data.blocks[ab_i]
+                # cstyle combine in the codomain, Fstyle in the domain
+                tree_block = tensor.backend.block_backend.combine_legs(ab_block, combine, cstyles=[True, False])
+                tree_block = backend.block_backend.as_block(tree_block, dtype=dtype, device=device)
+                res.blocks[ft_bi][i1 : i1 + tree_block_height, i2 : i2 + tree_block_width] = tree_block
+                blocks_touched[ft_bi] = True
+
+                i1 += tree_block_height  # move down by one tree-block
+
+            # reset to the top
+            i1 = 0
+            # move to the right by one tree-block, for the next time we visit this block
+            i2_per_coupled[ft_bi] += tree_block_width
+
+    blocks = [res.blocks[n] for n, touched in enumerate(blocks_touched) if touched]
+    block_inds = res.block_inds[blocks_touched]
+    return FusionTreeData(block_inds, blocks, dtype=dtype, device=device, is_sorted=True)
+
+
+def _convert_FT_to_abelian(tensor: SymmetricTensor, backend: FusionTreeBackend, dtype: Dtype, device: str):
+    """Convert tensor from abelian backend to FT backend. Return the data
+
+    Notes
+    -----
+    - For abelian symmetries, a fusion tree is completely determined by its uncoupled sectors
+    - This means that each forest blocks consists of a single tree block
+    - The blocks of the abelian backend correspond one-to-one to tree blocks in the FT backend,
+      up to reshaping and transposing
+    - All that remains is to make sure we loop over all of them in an efficient manner.
+    - It is convenient to do the outer loops over combinations of uncoupled sectors
+        - This way, we have the abelian block_inds by construction
+        - we need to compute the coupled sectors to check for valid fusion channels anyway,
+          which gives us the FT block inds with one additional lookup
+        - While we jump back-and-forth between different coupled sectors, and thus different FT block
+          while iterating, we know that we visit the tree-blocks within each FT block *in order*,
+          and we can thus keep track of where we are within each FT block easily.
+
+    """
+    res_blocks = []
+    res_block_inds = []
+
+    if tensor.num_codomain_legs == 0:
+        i2_per_coupled = np.zeros(len(tensor.data.blocks), int)
+        for dom_sector_idcs in it.product(*(range(l.num_sectors) for l in tensor.domain)):
+            b_sectors = [leg.sector_decomposition[i] for leg, i in zip(tensor.domain, dom_sector_idcs)]
+            b_mults = [leg.multiplicities[i] for leg, i in zip(tensor.domain, dom_sector_idcs)]
+            c = tensor.symmetry.multiple_fusion(*b_sectors)
+            if not np.all(c == tensor.symmetry.trivial_sector):
+                continue  # fusion rule violated
+            ft_bi = tensor.data.block_ind_from_coupled(c, tensor.domain)
+            if ft_bi is None:
+                continue  # no block for this coupled sector -> dont need to add a result block either
+            tree_block_width = np.prod(b_mults, dtype=int)
+            i2 = i2_per_coupled[ft_bi]
+            tree_block = tensor.data.blocks[ft_bi][0, i2 : i2 + tree_block_width]
+            ab_block = tensor.backend.block_backend.split_legs(tree_block, [0], [b_mults], cstyles=False)
+            # convert to new block_backend
+            ab_block = backend.block_backend.as_block(ab_block, dtype=dtype, device=device)
+            res_blocks.append(ab_block)
+            res_block_inds.append([*reversed(dom_sector_idcs)])
+            i2_per_coupled[ft_bi] += tree_block_width
+
+    elif tensor.num_domain_legs == 0:
+        i1_per_coupled = np.zeros(len(tensor.data.blocks), int)
+        for cod_sector_idcs in it.product(*(range(l.num_sectors) for l in tensor.codomain)):
+            a_sectors = [leg.sector_decomposition[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
+            a_mults = [leg.multiplicities[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
+            c = tensor.symmetry.multiple_fusion(*a_sectors)
+            if not np.all(c == tensor.symmetry.trivial_sector):
+                continue  # fusion rule violated
+            ft_bi = tensor.data.block_ind_from_coupled(c, tensor.domain)
+            if ft_bi is None:
+                continue  # no block for this coupled sector -> dont need to add a result block either
+            tree_block_height = np.prod(a_mults, dtype=int)
+            i1 = i1_per_coupled[ft_bi]
+            tree_block = tensor.data.blocks[ft_bi][i1 : i1 + tree_block_height, 0]
+            ab_block = tensor.backend.block_backend.split_legs(tree_block, [0], [a_mults], cstyles=True)
+            # convert to new block_backend
+            ab_block = backend.block_backend.as_block(ab_block, dtype=dtype, device=device)
+            res_blocks.append(ab_block)
+            res_block_inds.append([*cod_sector_idcs])
+            i1_per_coupled[ft_bi] += tree_block_height
+
+    else:
+        cod_sector_ranges = [range(l.num_sectors) for l in tensor.codomain]
+        dom_sector_ranges = [range(l.num_sectors) for l in tensor.domain]
+        i2_per_coupled = np.zeros(len(tensor.data.blocks), int)
+        i1 = 0
+        for dom_sector_idcs in it.product(*dom_sector_ranges):
+            b_sectors = [leg.sector_decomposition[i] for leg, i in zip(tensor.domain, dom_sector_idcs)]
+            b_mults = [leg.multiplicities[i] for leg, i in zip(tensor.domain, dom_sector_idcs)]
+            c = tensor.symmetry.multiple_fusion(*b_sectors)
+            ft_bi = tensor.data.block_ind_from_coupled(c, tensor.domain)
+            if ft_bi is None:
+                continue  # no block for this coupled sector -> dont need to add a result block either
+            tree_block_width = np.prod(b_mults, dtype=int)
+            i2 = i2_per_coupled[ft_bi]
+            for cod_sector_idcs in it.product(*cod_sector_ranges):
+                a_sectors = [leg.sector_decomposition[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
+                a_mults = [leg.multiplicities[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
+                c2 = tensor.symmetry.multiple_fusion(*a_sectors)
+                tree_block_height = np.prod(a_mults, dtype=int)
+                if not np.all(c2 == c):
+                    continue  # sector combination violates fusion rules -> no contributions
+                tree_block = tensor.data.blocks[ft_bi][i1 : i1 + tree_block_height, i2 : i2 + tree_block_width]
+                ab_block = tensor.backend.block_backend.split_legs(
+                    tree_block, [0, 1], [a_mults, b_mults], cstyles=[True, False]
+                )
+                # convert to new block_backend
+                ab_block = backend.block_backend.as_block(ab_block, dtype=dtype, device=device)
+                res_blocks.append(ab_block)
+                res_block_inds.append([*cod_sector_idcs, *reversed(dom_sector_idcs)])
+                i1 += tree_block_height  # move down by one tree-block
+            # reset to the top
+            i1 = 0
+            # move to the right by one tree-block, for the next time we visit this block
+            i2_per_coupled[ft_bi] += tree_block_width
+    if len(res_block_inds) == 0:
+        res_block_inds = np.zeros((0, tensor.num_legs), int)
+    else:
+        res_block_inds = np.array(res_block_inds)
+    return AbelianBackendData(dtype=dtype, device=device, blocks=res_blocks, block_inds=res_block_inds)
 
 
 def _decomposition_prepare(tensor: Tensor, new_leg_dual: bool) -> tuple[SymmetricTensor, ElementarySpace, bool, bool]:

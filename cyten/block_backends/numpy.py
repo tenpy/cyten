@@ -3,6 +3,8 @@
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import scipy
 
@@ -36,6 +38,8 @@ class NumpyBlockBackend(BlockBackend):
 
     def as_device(self, device: str | None) -> str:
         if device is None:
+            return self.default_device
+        if re.match(rf'{self.default_device}:\d+', str(device)):
             return self.default_device
         if device != self.default_device:
             msg = f'{self.__class__.__name__} does not support device {device}.'
