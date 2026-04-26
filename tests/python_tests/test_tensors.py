@@ -2008,7 +2008,11 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
     assert res.legs == expect_legs
     assert res.labels == T.labels
 
-    if T.symmetry.can_be_dropped:
+    compare_numpy = T.symmetry.can_be_dropped
+    if isinstance(T, ChargedTensor) and T.charged_state is None:
+        compare_numpy = False
+
+    if compare_numpy:
         T_np = T.to_numpy(understood_braiding=True)
         mask_np = M.as_numpy_mask()
         idcs = (slice(None, None, None),) * leg_idx + (mask_np,)
