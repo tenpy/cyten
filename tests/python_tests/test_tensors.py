@@ -2116,11 +2116,16 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
 
 
 @pytest.mark.parametrize('trunc', [None, 1e-10])
-def test_horizontal_factorization(trunc, make_compatible_tensor):
+def test_horizontal_factorization(trunc, make_compatible_tensor, compatible_symmetry):
     cod = 4
     cod_cut = 2
     dom = 3
     dom_cut = 1
+    if compatible_symmetry.is_equivalent_to(SU2()):
+        # use fewer legs, to make it not super slow
+        cod = 3
+        dom = 2
+
     T_labels = list('efghijklmn')[: dom + cod]
     T: Tensor = make_compatible_tensor(
         cod, dom, labels=T_labels, cls=SymmetricTensor, use_pipes=False, max_blocks=3, max_block_size=3
