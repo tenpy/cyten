@@ -22,12 +22,13 @@ from cyten.symmetries import (
     LegPipe,
     SymmetryError,
     TensorProduct,
+    fermion_parity,
     u1_symmetry,
     z3_symmetry,
     z4_symmetry,
 )
 from cyten.tensors import ChargedTensor, DiagonalTensor, Mask, SymmetricTensor, Tensor
-from cyten.testing import assert_tensors_almost_equal, swap_gate_numpy
+from cyten.testing import assert_tensors_almost_equal, random_tensor, swap_gate_numpy
 from cyten.tools.misc import duplicate_entries, inverse_permutation, iter_common_noncommon_sorted_arrays, to_valid_idx
 
 # TENSOR CLASSES
@@ -2433,6 +2434,23 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
             T_np, T.num_codomain_legs, T.legs, codomain=codomain_perm, domain=domain_perm, bend_right=bend_right
         )
         npt.assert_allclose(res_np, expect, atol=1.0e-14)
+
+
+def test_left_bends_fermions(block_backend, np_random):
+    #
+    #    |  |  |
+    #    |  tens
+    #    |  |  |
+    #    .--.  |
+    #          |
+    backend = get_backend(fermion_parity, block_backend)
+    tens = random_tensor(fermion_parity, 2, 2, backend=backend, np_random=np_random)
+    res = tensors.permute_legs(tens, [1], [0, 3, 2], bend_right=False)
+    tens_np = tens.to_numpy(understood_braiding=True)
+    expect = np.transpose(tens_np, [1, 2, 3, 0])
+    res_np = res.to_numpy(understood_braiding=True)
+    npt.assert_almost_equal(np.abs(res_np), np.abs(expect))
+    npt.assert_almost_equal(res_np, expect)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
