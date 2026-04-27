@@ -253,10 +253,7 @@ def common_checks(
     assert_array_equal(sym.dual_sector(sym.trivial_sector), sym.trivial_sector)
 
     # check fusion tensors, if available
-    if skip_fusion_tensor:
-        pass
-    elif sym.has_trivial_braid:
-        # only for trivial braiding can we do the computation in numpy
+    if sym.can_be_dropped and not skip_fusion_tensor:
         check_fusion_tensor(sym, example_sectors, np_random)
         check_symbols_via_fusion_tensors(sym, sector_triplets, sector_sextets, np_random)
 
@@ -358,9 +355,8 @@ def check_fusion_tensor(sym: symmetries.Symmetry, example_sectors, np_random):
     - orthonormality
     - completeness
     - relationship to left/right unitor
-
-    TODO should check:
-    - relationship to cup
+    - relationship to cup & Z
+    - unitarity of Z, transpose relations of Z
     """
     for a, b in sampled_zip(example_sectors, num_copies=2, num_samples=10, np_rng=np_random):
         d_a = sym.sector_dim(a)
@@ -468,9 +464,10 @@ def check_symbols_via_fusion_tensors(sym: symmetries.Symmetry, sector_triplets, 
     for a, b, c in sector_triplets:
         # need a x b -> c
         res = sym.fusion_tensor(b, a, c).conj()  # [nu, b, a, c]
-        # note: braid is taken care of simply by the leg order, since we are in Rep(G).
-        # [nu, b, a, c] @ [mu, a, b, c] -> [nu, c, mu, c]
-        res = np.tensordot(res, sym.fusion_tensor(a, b, c), ([1, 2], [2, 1]))
+        # [nu, (b), (a), c] @ [a, b, (a*), (b*)] -> [nu, c, a, b]
+        res = np.tensordot(res, sym.swap_gate(b, a), ([2, 1], [2, 3]))
+        # [nu, c, (a), (b)] @ [mu, (a), (b), c] -> [nu, c, mu, c]
+        res = np.tensordot(res, sym.fusion_tensor(a, b, c), ([2, 3], [1, 2]))
         # [nu, c, mu, c] -> [mu, nu, c, c]
         res = np.transpose(res, [2, 0, 1, 3])
 
@@ -488,9 +485,10 @@ def check_symbols_via_fusion_tensors(sym: symmetries.Symmetry, sector_triplets, 
         res = sym.fusion_tensor(f, b, d).conj()  # [lambda, f, b, d]
         # [lambda, (f), b, d] @ [kappa, a, c, (f)] -> [lambda, b, d, kappa, a, c]
         res = np.tensordot(res, sym.fusion_tensor(a, c, f).conj(), (1, -1))
-        # note: braid is taken care of simply by the leg order, since we are in Rep(G).
-        # [lambda, (b), d, kappa, (a), c] @ [mu, (a), (b), e] -> [lambda, d, kappa, c, mu, e]
-        res = np.tensordot(res, sym.fusion_tensor(a, b, e), ([1, 4], [2, 1]))
+        # [lambda, (b), d, kappa, a, (c)] @ [b, c, (b*), (c*)] -> [lambda, d, kappa, a, b, c]
+        res = np.tensordot(res, sym.swap_gate(c, b), ([1, 5], [2, 3]))
+        # [lambda, d, kappa, (a), (b), c] @ [mu, (a), (b), e] -> [lambda, d, kappa, c, mu, e]
+        res = np.tensordot(res, sym.fusion_tensor(a, b, e), ([3, 4], [1, 2]))
         # [lambda, d, kappa, (c), mu, (e)] @ [nu, (e), (c), d] -> [lambda, d, kappa, mu, nu, d]
         res = np.tensordot(res, sym.fusion_tensor(e, c, d), ([3, 5], [2, 1]))
         # [lambda, d, kappa, mu, nu, d] -> [mu, nu, kappa, lambda, d, d]
@@ -509,7 +507,7 @@ def check_symbols_via_fusion_tensors(sym: symmetries.Symmetry, sector_triplets, 
         bbar = sym.dual_sector(b)
         # need (a x b) -> c
         res = sym.fusion_tensor(a, b, c)  # [mu, a, b, c]
-        # note: cup is taken care of trivially, since we are in Rep(G)
+        # note: cup is taken care of trivially
         # [mu, a, (b), c] @ [bbar, (b)] -> [mu, a, c, bbar]
         res = np.tensordot(res, sym.Z_iso(b), (2, 1))
         # [mu, a, (c), (bbar)] @ [nu, (c), (bbar), a] -> [mu, a, nu, a]

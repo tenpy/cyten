@@ -803,17 +803,17 @@ class FusionTreeBackend(TensorBackend):
             # iterate over uncoupled sectors / forest-blocks within the block
             i1 = 0  # start row index of the current forest block
             i2 = 0  # start column index of the current forest block
-            for b_sectors, n_dims, j2 in domain.iter_uncoupled(yield_slices=True):
+            for b_sectors, n_mults, j2 in domain.iter_uncoupled(yield_slices=True):
                 b_dims = sym.batch_sector_dim(b_sectors)
                 tree_block_width = domain.tree_block_size(b_sectors)
-                for a_sectors, m_dims, j1 in codomain.iter_uncoupled(yield_slices=True):
+                for a_sectors, m_mults, j1 in codomain.iter_uncoupled(yield_slices=True):
                     a_dims = sym.batch_sector_dim(a_sectors)
                     tree_block_height = codomain.tree_block_size(a_sectors)
                     entries = a[(*j1, *j2)]  # [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
                     # reshape to [a1,m1,...,aJ,mJ, b1,n1,...,bK,nK]
                     shape = [0] * (2 * num_legs)
                     shape[::2] = [*a_dims, *b_dims]
-                    shape[1::2] = [*m_dims, *n_dims]
+                    shape[1::2] = [*m_mults, *n_mults]
                     entries = self.block_backend.reshape(entries, shape)
                     # permute to [a1,...,aJ, b1,...,bK, m1,...,mJ, n1,...nK]
                     perm = [*range(0, 2 * num_legs, 2), *range(1, 2 * num_legs, 2)]
@@ -2211,10 +2211,10 @@ class FusionTreeBackend(TensorBackend):
             coupled = a.codomain.sector_decomposition[bi_cod]
             i1 = 0  # start row index of the current forest block
             i2 = 0  # start column index of the current forest block
-            for b_sectors, n_dims, j2 in a.domain.iter_uncoupled(yield_slices=True):
+            for b_sectors, n_mults, j2 in a.domain.iter_uncoupled(yield_slices=True):
                 b_dims = sym.batch_sector_dim(b_sectors)
                 tree_block_width = a.domain.tree_block_size(b_sectors)
-                for a_sectors, m_dims, j1 in a.codomain.iter_uncoupled(yield_slices=True):
+                for a_sectors, m_mults, j1 in a.codomain.iter_uncoupled(yield_slices=True):
                     a_dims = sym.batch_sector_dim(a_sectors)
                     tree_block_height = a.codomain.tree_block_size(a_sectors)
                     entries, num_alpha_trees, num_beta_trees = self._get_forest_block_contribution(
@@ -2231,8 +2231,8 @@ class FusionTreeBackend(TensorBackend):
                         tree_block_height,
                         i1,
                         i2,
-                        m_dims,
-                        n_dims,
+                        m_mults,
+                        n_mults,
                         dtype,
                     )
                     forest_b_height = num_alpha_trees * tree_block_height
@@ -2244,7 +2244,7 @@ class FusionTreeBackend(TensorBackend):
                     perm = [i + offset for i in range(num_legs) for offset in [0, num_legs]]
                     entries = self.block_backend.permute_axes(entries, perm)
                     # reshape to [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
-                    shape = [d_a * m for d_a, m in zip(a_dims, m_dims)] + [d_b * n for d_b, n in zip(b_dims, n_dims)]
+                    shape = [d_a * m for d_a, m in zip(a_dims, m_mults)] + [d_b * n for d_b, n in zip(b_dims, n_mults)]
                     entries = self.block_backend.reshape(entries, shape)
                     res[(*j1, *j2)] += entries
                     i1 += forest_b_height  # move down by one forest-block
@@ -2405,8 +2405,8 @@ class FusionTreeBackend(TensorBackend):
         tree_block_height,
         i1_init,
         i2_init,
-        m_dims,
-        n_dims,
+        m_mults,
+        n_mults,
         dtype,
     ):
         """Helper function for :meth:`to_dense_block`.
@@ -2433,6 +2433,10 @@ class FusionTreeBackend(TensorBackend):
             Equal to ``tree_block_size(codomain, a_sectors)``
         i1_init, i2_init:
             The start indices of the current forest block within the block
+        m_mults
+            The multiplicities [M1, M2, ..., MJ] of each sector aj in its respective leg.
+        n_mults
+            The multiplicities [N1, N2, ..., NK] of each sector bk in its respective leg.
 
         Returns
         -------
@@ -2450,11 +2454,13 @@ class FusionTreeBackend(TensorBackend):
         i2 = i2_init  # i2: start column index of the current tree block within the block
         alpha_tree_iter = fusion_trees(sym, a_sectors, coupled, [sp.is_dual for sp in codomain.flat_legs])
         beta_tree_iter = fusion_trees(sym, b_sectors, coupled, [sp.is_dual for sp in domain.flat_legs])
-        entries = self.block_backend.zeros([*a_dims, *b_dims, *m_dims, *n_dims], dtype)
+        entries = self.block_backend.zeros([*a_dims, *b_dims, *m_mults, *n_mults], dtype)
         for alpha_tree in alpha_tree_iter:
-            splitting_tree = self.block_backend.conj(alpha_tree.as_block(backend=self))  # [a1,...,aJ,c]
+            splitting_tree = self.block_backend.conj(
+                alpha_tree.to_dense_block(backend=self, understood_braiding=True)
+            )  # [a1,...,aJ,c]
             for beta_tree in beta_tree_iter:
-                fusion_tree = beta_tree.as_block(backend=self)  # [b1,...,bK,c]
+                fusion_tree = beta_tree.to_dense_block(backend=self, understood_braiding=True)  # [b1,...,bK,c]
                 symmetry_data = self.block_backend.tdot(
                     splitting_tree, fusion_tree, [-1], [-1]
                 )  # [a1,...,aJ,b1,...,bK]
@@ -2462,7 +2468,7 @@ class FusionTreeBackend(TensorBackend):
                 idx2 = slice(i2, i2 + tree_block_width)
                 degeneracy_data = block[idx1, idx2]  # [M, N]
                 # [M, N] -> [m1,...,mJ,n1,...,nK]
-                degeneracy_data = self.block_backend.reshape(degeneracy_data, [*m_dims, *n_dims])
+                degeneracy_data = self.block_backend.reshape(degeneracy_data, [*m_mults, *n_mults])
                 entries += self.block_backend.outer(symmetry_data, degeneracy_data)  # [{aj} {bk} {mj} {nk}]
                 i2 += tree_block_width
             i2 = i2_init  # reset to the left of the current forest-block
@@ -2537,11 +2543,11 @@ class FusionTreeBackend(TensorBackend):
         alpha_tree_iter = fusion_trees(sym, a_sectors, coupled, codomain_are_dual)
         beta_tree_iter = fusion_trees(sym, b_sectors, coupled, domain_are_dual)
         for alpha_tree in alpha_tree_iter:
-            Y = alpha_tree.as_block(backend=self)
+            Y = alpha_tree.to_dense_block(backend=self, understood_braiding=True)
             # entries: [a1,...,aJ,b1,...,bK,m1,...,mJ,n1,...,nK]
             Y_projected = self.block_backend.tdot(entries, Y, range_J, range_J)  # [{bk}, {mj}, {nk}, c]
             for beta_tree in beta_tree_iter:
-                X = self.block_backend.conj(beta_tree.as_block(backend=self))
+                X = self.block_backend.conj(beta_tree.to_dense_block(backend=self, understood_braiding=True))
                 YX_projected = self.block_backend.tdot(Y_projected, X, range_K, range_K)  # [{mj}, {nk}, c, c']
                 # projected onto the identity on [c, c']
                 tree_block = self.block_backend.trace_partial(YX_projected, [-2], [-1], range_JK) / dim_c
