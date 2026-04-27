@@ -2566,7 +2566,7 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor, compatible_
         pytest.param(ChargedTensor, ChargedTensor, [1, 3], [2, 1], 2, id='Charged-Charged-1-3-2-1-dom'),
     ],
 )
-def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compatible_tensor):
+def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compatible_tensor, np_random):
     labels_A = [*list('abcde')[: legs_A[0]], *list('fghij')[: legs_A[1]][::-1]]
     labels_B = [*list('klmno')[: legs_B[0]], *list('pqrst')[: legs_B[1]][::-1]]
     A: Tensor = make_compatible_tensor(codomain=legs_A[0], domain=legs_A[1], labels=labels_A, cls=cls_A)
@@ -2595,6 +2595,11 @@ def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compati
         pytest.xfail(reason='Mask generation broken')
 
     B: Tensor = make_compatible_tensor(codomain=codom_B, domain=dom_B, labels=labels_B, cls=cls_B)
+    if isinstance(A, ChargedTensor) and isinstance(B, ChargedTensor):
+        if A.charged_state is not None and B.charged_state is None:
+            B.charged_state = B.backend.block_backend.as_block(np_random.uniform(int(B.charge_leg.dim)))
+        if A.charged_state is None and B.charged_state is not None:
+            B.charged_state = None
 
     if isinstance(A.backend, backends.FusionTreeBackend) and A.has_pipes and cls_B is Mask:
         with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
