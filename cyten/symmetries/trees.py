@@ -615,10 +615,26 @@ class FusionTree:
             f'inner_sectors={inner}, multiplicities={self.multiplicities})'
         )
 
-    def as_block(self, backend: TensorBackend = None, dtype: Dtype = None) -> Block:
+    def to_dense_block(
+        self, backend: TensorBackend = None, dtype: Dtype = None, understood_braiding: bool = False
+    ) -> Block:
         """Get the matrix elements of the map as a backend Block.
 
-        If no backend is given, we return it as a numpy array.
+        Parameters
+        ----------
+        backend : TensorBackend, optional
+            The backend for the resulting block. By default, we return a numpy array.
+        dtye : Dtype, optional
+            The dtype for the resulting block. By default, inferred from the symmetry
+        understood_braiding : bool
+            For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the resulting
+            dense block does no longer capture the braiding statistics correctly. This means that
+            :func:`permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on
+            the dense block representation. Permuting its legs would require e.g. explicit swap
+            gates. When using the result, special care needs to be taken regarding the leg order.
+            To avoid this pitfall, we raise an error by default. Set this flag to ``True`` to
+            disable the error. It is then your responsibility to take care of leg orders and braids.
+            See :mod:`cyten.testing.swap_gate_numpy` for manipulations on these dense blocks.
 
         Returns
         -------
@@ -627,6 +643,14 @@ class FusionTree:
         """
         if not self.symmetry.can_be_dropped:
             raise SymmetryError(f'Can not convert to block for symmetry {self.symmetry}')
+        if not self.symmetry.has_trivial_braid and not understood_braiding:
+            msg = (
+                'If the symmetry has non-trivial braids, dense block representations do not '
+                'consistently reproduce the braiding statistics. Make sure you understand what '
+                'that means (read the docstring of from_dense_block). Then you can disable '
+                'this error by setting ``understood_braiding=True``.'
+            )
+            raise SymmetryError(msg)
         if backend is None:
             block_backend = NumpyBlockBackend()
         else:

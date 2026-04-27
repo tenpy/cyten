@@ -379,7 +379,11 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
             expect = np.zeros_like(T_np)
             for (X, Y), block in trees_dict.items():
                 # [a1...aJ,b1...bK]
-                symmetry_data = np.tensordot(X.as_block().conj(), Y.as_block(), (-1, -1))
+                symmetry_data = np.tensordot(
+                    X.to_dense_block(understood_braiding=True).conj(),
+                    Y.to_dense_block(understood_braiding=True),
+                    (-1, -1),
+                )
                 # [a1...aJ,b1...bK] & [a1...aJ,bK...b1]
                 symmetry_data = np.transpose(
                     symmetry_data, [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]
@@ -441,7 +445,9 @@ def test_fixes_124(np_random):
     T_np = T.to_numpy()
     expect = np.zeros_like(T_np)
     for (X, Y), block in trees.items():
-        symmetry_data = np.tensordot(X.as_block().conj(), Y.as_block(), (-1, -1))
+        symmetry_data = np.tensordot(
+            X.to_dense_block(understood_braiding=True).conj(), Y.to_dense_block(understood_braiding=True), (-1, -1)
+        )
         # [a1...aJ,b1...bK] & [a1...aJ,bK...b1]
         symmetry_data = np.transpose(
             symmetry_data, [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]

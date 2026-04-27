@@ -2456,9 +2456,11 @@ class FusionTreeBackend(TensorBackend):
         beta_tree_iter = fusion_trees(sym, b_sectors, coupled, [sp.is_dual for sp in domain.flat_legs])
         entries = self.block_backend.zeros([*a_dims, *b_dims, *m_mults, *n_mults], dtype)
         for alpha_tree in alpha_tree_iter:
-            splitting_tree = self.block_backend.conj(alpha_tree.as_block(backend=self))  # [a1,...,aJ,c]
+            splitting_tree = self.block_backend.conj(
+                alpha_tree.to_dense_block(backend=self, understood_braiding=True)
+            )  # [a1,...,aJ,c]
             for beta_tree in beta_tree_iter:
-                fusion_tree = beta_tree.as_block(backend=self)  # [b1,...,bK,c]
+                fusion_tree = beta_tree.to_dense_block(backend=self, understood_braiding=True)  # [b1,...,bK,c]
                 symmetry_data = self.block_backend.tdot(
                     splitting_tree, fusion_tree, [-1], [-1]
                 )  # [a1,...,aJ,b1,...,bK]
@@ -2541,11 +2543,11 @@ class FusionTreeBackend(TensorBackend):
         alpha_tree_iter = fusion_trees(sym, a_sectors, coupled, codomain_are_dual)
         beta_tree_iter = fusion_trees(sym, b_sectors, coupled, domain_are_dual)
         for alpha_tree in alpha_tree_iter:
-            Y = alpha_tree.as_block(backend=self)
+            Y = alpha_tree.to_dense_block(backend=self, understood_braiding=True)
             # entries: [a1,...,aJ,b1,...,bK,m1,...,mJ,n1,...,nK]
             Y_projected = self.block_backend.tdot(entries, Y, range_J, range_J)  # [{bk}, {mj}, {nk}, c]
             for beta_tree in beta_tree_iter:
-                X = self.block_backend.conj(beta_tree.as_block(backend=self))
+                X = self.block_backend.conj(beta_tree.to_dense_block(backend=self, understood_braiding=True))
                 YX_projected = self.block_backend.tdot(Y_projected, X, range_K, range_K)  # [{mj}, {nk}, c, c']
                 # projected onto the identity on [c, c']
                 tree_block = self.block_backend.trace_partial(YX_projected, [-2], [-1], range_JK) / dim_c

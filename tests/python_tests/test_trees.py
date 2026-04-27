@@ -122,13 +122,13 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
 
     # for groups: check versus explicit matrix representations
     if any_symmetry.can_be_dropped:
-        tree_np = tree.as_block()  # [a1 ... aj aj+1 ... aJ c]
+        tree_np = tree.to_dense_block(understood_braiding=True)  # [a1 ... aj aj+1 ... aJ c]
         swap = any_symmetry.swap_gate(tree.uncoupled[j], tree.uncoupled[j + 1])  # [aj+1 aj aj+1* aj*]
         expect = np.tensordot(tree_np, swap, ([j, j + 1], [1, 0]))  # [a1 ... aj-1 aj+2 ... aj c aj+1 aj]
         expect = np.transpose(
             expect, [*range(j), -2, -1, *range(j, num_uncoupled - 1)]
         )  # [a1 ... aj-1 aj+2 ... aj c aj+1 aj]
-        res = sum(a * t.as_block() for t, a in braided1)
+        res = sum(a * t.to_dense_block(understood_braiding=True) for t, a in braided1)
         assert np.allclose(res, expect)
 
     # check if opposite braid undoes it
@@ -180,8 +180,8 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
 
 
 def tree_pair_to_numpy(X: trees.FusionTree, Y: trees.FusionTree):
-    X = X.as_block().conj()  # [a1 ... aJ c]
-    Y = Y.as_block()  # [b1 ... bK c]
+    X = X.to_dense_block(understood_braiding=True).conj()  # [a1 ... aJ c]
+    Y = Y.to_dense_block(understood_braiding=True)  # [b1 ... bK c]
     Y = np.transpose(Y, list(reversed(range(Y.ndim))))  # [c bK .. b1]
     return np.tensordot(X, Y, (-1, 0))  # [a1 ... aJ bK ... b1]
 
@@ -302,8 +302,8 @@ def test_FusionTree_manipulations(compatible_symmetry, compatible_backend, make_
                 check_insert_at_via_f_symbols(tree1, tree2, i)
                 # check with as_block
                 if sym.can_be_dropped:
-                    block1 = tree1.as_block(backend)
-                    block2 = tree2.as_block(backend)
+                    block1 = tree1.to_dense_block(backend, understood_braiding=True)
+                    block2 = tree2.to_dense_block(backend, understood_braiding=True)
                     expect = backend.block_backend.tdot(block1, block2, [i], [-1])
                     expect = backend.block_backend.permute_axes(expect, perm)
                     combined_tree = tree1.insert_at(i, tree2)
@@ -442,9 +442,9 @@ def random_trees_from_uncoupled(symmetry, uncoupled, np_random, are_dual=None) -
 def tree_superposition_as_block(superposition, backend, dtype=None) -> Block:
     for i, (tree, amp) in enumerate(superposition.items()):
         if i == 0:
-            res = amp * tree.as_block(backend, dtype)
+            res = amp * tree.to_dense_block(understood_braiding=True, dtype=dtype)
         else:
-            res += amp * tree.as_block(backend, dtype)
+            res += amp * tree.to_dense_block(understood_braiding=True, dtype=dtype)
     return res
 
 
@@ -536,12 +536,17 @@ def check_to_block(symmetry, backend, uncoupled, np_random, dtype):
 
     if not symmetry.can_be_dropped:
         with pytest.raises(SymmetryError, match='Can not convert to block for symmetry .*'):
-            _ = all_trees[0].as_block(backend, dtype)
+            _ = all_trees[0].to_dense_block(backend, dtype)
+        # error is expected behavior, nothing else to check
         return
+    if not symmetry.has_trivial_braid:
+        with pytest.raises(SymmetryError, match='do not consistently reproduce the braiding'):
+            _ = all_trees[0].to_dense_block(backend, dtype, understood_braiding=False)
+        # error is expected behavior, but we can continue with understood_braiding=True
 
     coupled_dim = symmetry.sector_dim(all_trees[0].coupled)
     uncoupled_dims = symmetry.batch_sector_dim(uncoupled)
-    all_blocks = [t.as_block(backend, dtype) for t in all_trees]
+    all_blocks = [t.to_dense_block(backend, dtype, understood_braiding=True) for t in all_trees]
     axes = list(range(len(uncoupled)))
     if symmetry.fusion_tensor_dtype.is_complex:
         expect_dtype = dtype.to_complex
