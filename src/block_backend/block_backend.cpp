@@ -617,15 +617,20 @@ BlockBackend::split_legs(const BlockCPtr& a,
 {
     if (idcs.size() != dims.size() || idcs.size() != cstyles.size())
         throw std::invalid_argument("idcs, dims, and cstyles must have the same length");
-
     std::vector<int64> const old_shape = get_shape(a);
-    size_t new_ndim = old_shape.size();
+    size_t new_ndim = old_shape.size() - idcs.size();
     for (auto& dim : dims)
         new_ndim += dim.size();
     std::vector<int64> new_shape;
     std::vector<int64> axes_perm;
     new_shape.reserve(new_ndim);
     axes_perm.reserve(new_ndim);
+    for (int64 i : idcs)
+        if (i < 0 || i >= old_shape.size())
+            throw std::invalid_argument("idcs must be within the range of the block shape");
+    for (size_t i = 1; i < idcs.size(); ++i)
+        if (idcs[i - 1] >= idcs[i])
+            throw std::invalid_argument("idcs must be in ascending order and unique");
 
     size_t start_old_shape = 0;
     for (size_t g = 0; g < idcs.size(); ++g) {
@@ -656,7 +661,7 @@ BlockBackend::split_legs(const BlockCPtr& a,
         }
         start_old_shape = stop_old_shape + 1;
     }
-    size_t stop_old_shape = new_ndim;
+    size_t stop_old_shape = old_shape.size();
     for (size_t k = start_old_shape; k < stop_old_shape; ++k)
         new_shape.push_back(old_shape[k]);
     for (size_t j = axes_perm.size(); j < new_shape.size(); ++j)
