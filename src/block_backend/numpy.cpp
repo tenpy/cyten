@@ -143,6 +143,30 @@ NumpyBlockBackend::Block::_item_as_int64() const
 }
 
 BlockPtr
+NumpyBlockBackend::Block::operator+(const BlockBackend::Block& other) const
+{
+    return wrap(arr_.attr("__add__")(other.to_numpy()));
+}
+
+BlockPtr
+NumpyBlockBackend::Block::operator-(const BlockBackend::Block& other) const
+{
+    return wrap(arr_.attr("__sub__")(other.to_numpy()));
+}
+
+BlockPtr
+NumpyBlockBackend::Block::operator*(const BlockBackend::Block& other) const
+{
+    return wrap(arr_.attr("__mul__")(other.to_numpy()));
+}
+
+BlockPtr
+NumpyBlockBackend::Block::operator/(const BlockBackend::Block& other) const
+{
+    return wrap(arr_.attr("__truediv__")(other.to_numpy()));
+}
+
+BlockPtr
 NumpyBlockBackend::Block::operator<(const BlockBackend::Block& other) const
 {
     return wrap(arr_.attr("__lt__")(other.to_numpy()));
@@ -198,58 +222,58 @@ NumpyBlockBackend::is_correct_block_type(const BlockCPtr& block) const
 }
 
 // -----------------------------------------------------------------------------
-// NumpyBlockBackend::Scalar
+// NumpyBlockBackend::as_scalar
 // -----------------------------------------------------------------------------
-std::shared_ptr<BlockBackend::Scalar>
+BlockBackend::Scalar
 NumpyBlockBackend::as_scalar(py::array value)
 {
     BlockPtr block = wrap(value);
-    return std::make_shared<BlockBackend::Scalar>(std::move(block));
+    return BlockBackend::Scalar(std::move(block));
 }
 
-std::shared_ptr<BlockBackend::Scalar>
+BlockBackend::Scalar
 NumpyBlockBackend::as_scalar(complex128 value, Dtype dtype)
 {
     py::array arr = np_attr("array")(py::cast(value), dtype::to_numpy_dtype(dtype));
     return as_scalar(arr);
 }
 
-std::shared_ptr<BlockBackend::Scalar>
+BlockBackend::Scalar
 NumpyBlockBackend::as_scalar(py::object value, Dtype dtype)
 {
     py::array arr = np_attr("array")(value, dtype::to_numpy_dtype(dtype));
     return as_scalar(arr);
 }
 
-std::shared_ptr<NumpyBlockBackend::Scalar>
+BlockBackend::Scalar
 NumpyBlockBackend::as_scalar(bool b)
 {
     py::array arr = np_attr("bool_")(py::cast(b));
     return as_scalar(arr);
 }
 
-std::shared_ptr<NumpyBlockBackend::Scalar>
+BlockBackend::Scalar
 NumpyBlockBackend::as_scalar(float32 x)
 {
     py::array arr = np_attr("float32")(py::cast(x));
     return as_scalar(arr);
 }
 
-std::shared_ptr<NumpyBlockBackend::Scalar>
+BlockBackend::Scalar
 NumpyBlockBackend::as_scalar(float64 x)
 {
     py::array arr = np_attr("float64")(py::cast(x));
     return as_scalar(arr);
 }
 
-std::shared_ptr<NumpyBlockBackend::Scalar>
+BlockBackend::Scalar
 NumpyBlockBackend::as_scalar(complex64 z)
 {
     py::array arr = np_attr("complex64")(py::cast(z));
     return as_scalar(arr);
 }
 
-std::shared_ptr<NumpyBlockBackend::Scalar>
+BlockBackend::Scalar
 NumpyBlockBackend::as_scalar(complex128 z)
 {
     py::array arr = np_attr("complex128")(py::cast(z));
@@ -728,11 +752,11 @@ NumpyBlockBackend::norm(const BlockCPtr& a, float64 order, std::optional<int64> 
      */
     py::object arr = obj(a);
     if (!axis) {
-        return Scalar(
-          item(wrap(np_attr("linalg").attr("norm")(arr.attr("ravel")(), py::arg("ord") = order))));
+        return item(
+          wrap(np_attr("linalg").attr("norm")(arr.attr("ravel")(), py::arg("ord") = order)));
     }
-    return Scalar(item(
-      wrap(np_attr("linalg").attr("norm")(arr, py::arg("ord") = order, py::arg("axis") = *axis))));
+    return item(
+      wrap(np_attr("linalg").attr("norm")(arr, py::arg("ord") = order, py::arg("axis") = *axis)));
 }
 
 BlockPtr

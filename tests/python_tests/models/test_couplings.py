@@ -168,7 +168,7 @@ def test_spin_spin_coupling(any_backend, np_random):
             # hermiticity
             assert tensors.almost_equal(tensor.hc, tensor)
             # trace is zero
-            assert np.allclose(tensors.trace(tensor), 0)
+            assert np.allclose(tensors.trace(tensor).to_numpy(), 0)
             if site1 == site2:
                 # commutation relation
                 tensor_commuted = tensors.permute_legs(tensor, codomain=[1, 0], domain=[2, 3])

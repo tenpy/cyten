@@ -39,15 +39,48 @@ bind_block_backend(py::module_& m)
         py::arg("other"),
         "Elementwise addition with another block.")
       .def(
+        "__sub__",
+        [](const BlockBackend::Block& self, const BlockCPtr& other) {
+            return self.operator-(*other);
+        },
+        py::arg("other"),
+        "Elementwise addition with another block.")
+      .def(
         "__mul__",
         [](const BlockBackend::Block& self, const BlockBackend::Scalar& s) { return self * s; },
         py::arg("other"),
         "Multiplication by a scalar.")
       .def(
+        "__mul__",
+        [](const BlockBackend::Block& self, const BlockBackend::Block& s) { return self * s; },
+        py::arg("other"),
+        "Elementwise multiplication with another block.")
+      .def(
         "__rmul__",
         [](const BlockBackend::Block& self, BlockBackend::Scalar s) { return self * s; },
         py::arg("other"),
         "Right multiplication by a scalar.")
+      .def(
+        "__rmul__",
+        [](const BlockBackend::Block& self, float64 s) {
+            return self * self.get_backend()->as_scalar(s);
+        },
+        py::arg("other"),
+        "Right multiplication by a scalar.")
+      .def(
+        "__rmul__",
+        [](const BlockBackend::Block& self, complex128 s) {
+            return self * self.get_backend()->as_scalar(s);
+        },
+        py::arg("other"),
+        "Right multiplication by a scalar.")
+      .def(
+        "__truediv__",
+        [](const BlockBackend::Block& self, const BlockCPtr& other) {
+            return self.operator/(*other);
+        },
+        py::arg("other"),
+        "Elementwise division with another block.")
       .def(
         "__truediv__",
         [](const BlockBackend::Block& self, const BlockBackend::Scalar& s) { return self / s; },
@@ -56,7 +89,7 @@ bind_block_backend(py::module_& m)
       .def(
         "__truediv__",
         [](const BlockBackend::Block& self, float64 s) {
-            return self / *self.get_backend()->as_scalar(s);
+            return self / self.get_backend()->as_scalar(s);
         },
         py::arg("other"),
         "Division by a scalar.")
@@ -168,10 +201,17 @@ bind_block_backend(py::module_& m)
       .def("as_complex128",
            &BlockBackend::Scalar::as_complex128,
            "As complex (real/bool have zero imaginary part).")
+      .def("as_int64", &BlockBackend::Scalar::as_int64, "As int64; raises if dtype is not Int64.")
       .def("as_bool", &BlockBackend::Scalar::as_bool, "As bool; raises if dtype is not Bool.")
       .def("to_numpy",
            &BlockBackend::Scalar::to_numpy,
            "Return as numpy scalar (np.bool_, np.float64, etc.).")
+      .def(
+        "__bool__",
+        [](const BlockBackend::Scalar& self) {
+            return self.as_bool(); // throws if dtype is not Bool!
+        },
+        "Return value of boolean scalar. Raises if dtype != bool.")
       .def(
         "__add__",
         [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
@@ -180,12 +220,36 @@ bind_block_backend(py::module_& m)
         py::arg("other"),
         "Addition with another scalar.")
       .def(
+        "__add__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self + other; },
+        py::arg("other"))
+      .def(
+        "__add__",
+        [](const BlockBackend::Scalar& self, complex128 other) { return self + other; },
+        py::arg("other"))
+      .def(
+        "__radd__",
+        [](const BlockBackend::Scalar& self, float64 other) { return other + self; },
+        py::arg("other"))
+      .def(
+        "__radd__",
+        [](const BlockBackend::Scalar& self, complex128 other) { return other + self; },
+        py::arg("other"))
+      .def(
         "__sub__",
         [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
             return self - other;
         },
         py::arg("other"),
         "Subtraction with another scalar.")
+      .def(
+        "__sub__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self - other; },
+        py::arg("other"))
+      .def(
+        "__sub__",
+        [](const BlockBackend::Scalar& self, complex128 other) { return self - other; },
+        py::arg("other"))
       .def(
         "__mul__",
         [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
@@ -201,12 +265,68 @@ bind_block_backend(py::module_& m)
         py::arg("other"),
         "Multiplication with another scalar.")
       .def(
+        "__mul__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self * other; },
+        py::arg("other"))
+      .def(
+        "__mul__",
+        [](const BlockBackend::Scalar& self, complex128 other) { return self * other; },
+        py::arg("other"))
+      .def(
+        "__rmul__",
+        [](const BlockBackend::Scalar& self, float64 other) { return other * self; },
+        py::arg("other"))
+      .def(
+        "__rmul__",
+        [](const BlockBackend::Scalar& self, complex128 other) { return other * self; },
+        py::arg("other"))
+      .def(
         "__truediv__",
         [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
             return self / other;
         },
         py::arg("other"),
         "Division with another scalar.")
+      .def(
+        "__lt__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self < other;
+        },
+        py::arg("other"))
+      .def(
+        "__lt__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self < other; },
+        py::arg("other"))
+      .def(
+        "__gt__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self > other;
+        },
+        py::arg("other"))
+      .def(
+        "__gt__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self > other; },
+        py::arg("other"))
+      .def(
+        "__le__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self <= other;
+        },
+        py::arg("other"))
+      .def(
+        "__le__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self <= other; },
+        py::arg("other"))
+      .def(
+        "__ge__",
+        [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
+            return self >= other;
+        },
+        py::arg("other"))
+      .def(
+        "__ge__",
+        [](const BlockBackend::Scalar& self, float64 other) { return self >= other; },
+        py::arg("other"))
       .def("inverse", &BlockBackend::Scalar::inverse, "The inverse of the scalar, 1./self")
       .def_property_readonly(
         "_block", &BlockBackend::Scalar::_block, "Return the underlying block.");

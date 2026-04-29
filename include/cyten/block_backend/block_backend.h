@@ -52,7 +52,12 @@ class BlockBackend
         virtual const std::string& device() const = 0;
 
         /// Elementwise addition with another block.
-        std::shared_ptr<Block> operator+(const Block& other) const;
+        virtual std::shared_ptr<Block> operator+(const Block& other) const = 0;
+        virtual std::shared_ptr<Block> operator-(const Block& other) const = 0;
+        /// Elementwise multiplication with another block.
+        virtual std::shared_ptr<Block> operator*(const Block& other) const = 0;
+        /// Elementwise division with another block.
+        virtual std::shared_ptr<Block> operator/(const Block& other) const = 0;
         /// comparisons with another block.
         virtual std::shared_ptr<Block> operator<(const Block& other) const = 0;
         virtual std::shared_ptr<Block> operator<=(const Block& other) const = 0;
@@ -119,6 +124,23 @@ class BlockBackend
         Scalar operator-(const Scalar& other) const;
         Scalar operator*(const Scalar& other) const;
         Scalar operator/(const Scalar& other) const;
+        Scalar operator+(float64 other) const;
+        Scalar operator-(float64 other) const;
+        Scalar operator*(float64 other) const;
+        Scalar operator/(float64 other) const;
+        Scalar operator+(complex128 other) const;
+        Scalar operator-(complex128 other) const;
+        Scalar operator*(complex128 other) const;
+        Scalar operator/(complex128 other) const;
+
+        Scalar operator<(const Scalar& other) const;
+        Scalar operator>(const Scalar& other) const;
+        Scalar operator<=(const Scalar& other) const;
+        Scalar operator>=(const Scalar& other) const;
+        Scalar operator<(float64 other) const;
+        Scalar operator>(float64 other) const;
+        Scalar operator<=(float64 other) const;
+        Scalar operator>=(float64 other) const;
         /// The inverse of the scalar, 1./self
         Scalar inverse() const;
 
@@ -129,13 +151,13 @@ class BlockBackend
     };
 
   public:
-    virtual std::shared_ptr<Scalar> as_scalar(complex128 value, Dtype dtype) = 0;
-    virtual std::shared_ptr<Scalar> as_scalar(py::object value, Dtype dtype) = 0;
-    virtual std::shared_ptr<Scalar> as_scalar(bool b) = 0;
-    virtual std::shared_ptr<Scalar> as_scalar(float32 x) = 0;
-    virtual std::shared_ptr<Scalar> as_scalar(float64 x) = 0;
-    virtual std::shared_ptr<Scalar> as_scalar(complex64 z) = 0;
-    virtual std::shared_ptr<Scalar> as_scalar(complex128 z) = 0;
+    virtual Scalar as_scalar(complex128 value, Dtype dtype) = 0;
+    virtual Scalar as_scalar(py::object value, Dtype dtype) = 0;
+    virtual Scalar as_scalar(bool b) = 0;
+    virtual Scalar as_scalar(float32 x) = 0;
+    virtual Scalar as_scalar(float64 x) = 0;
+    virtual Scalar as_scalar(complex64 z) = 0;
+    virtual Scalar as_scalar(complex128 z) = 0;
 
   public:
     std::string default_device;
@@ -245,13 +267,13 @@ class BlockBackend
     virtual BlockPtr linear_combination(const Scalar& a_coef,
                                         const BlockCPtr& v,
                                         const Scalar& b_coef,
-                                        const BlockCPtr& w) = 0;
+                                        const BlockCPtr& w);
     /// The *elementwise* natural logarithm.
     virtual BlockPtr log(const BlockCPtr& a) = 0;
     virtual Scalar max(const BlockCPtr& a) = 0;
     virtual Scalar max_abs(const BlockCPtr& a) = 0;
     virtual Scalar min(const BlockCPtr& a) = 0;
-    virtual BlockPtr mul(const Scalar& a, const BlockCPtr& b) = 0;
+    virtual BlockPtr mul(const Scalar& a, const BlockCPtr& b);
     /// The p-norm vector-norm of a block.
     virtual Scalar norm(const BlockCPtr& a,
                         float64 order = 2,
@@ -379,6 +401,19 @@ class BlockBackend
 
 using BlockPtr = std::shared_ptr<BlockBackend::Block>;
 using BlockCPtr = std::shared_ptr<const BlockBackend::Block>;
+
+BlockBackend::Scalar operator+(float64 left, const BlockBackend::Scalar& right);
+BlockBackend::Scalar operator-(float64 left, const BlockBackend::Scalar& right);
+BlockBackend::Scalar operator*(float64 left, const BlockBackend::Scalar& right);
+BlockBackend::Scalar operator/(float64 left, const BlockBackend::Scalar& right);
+BlockBackend::Scalar operator+(complex128 left, const BlockBackend::Scalar& right);
+BlockBackend::Scalar operator-(complex128 left, const BlockBackend::Scalar& right);
+BlockBackend::Scalar operator*(complex128 left, const BlockBackend::Scalar& right);
+BlockBackend::Scalar operator/(complex128 left, const BlockBackend::Scalar& right);
+BlockBackend::Scalar operator<(float64 left, const BlockBackend::Scalar& right);
+BlockBackend::Scalar operator>(float64 left, const BlockBackend::Scalar& right);
+BlockBackend::Scalar operator<=(float64 left, const BlockBackend::Scalar& right);
+BlockBackend::Scalar operator>=(float64 left, const BlockBackend::Scalar& right);
 
 BlockPtr operator<(const BlockBackend::Block& left, const BlockBackend::Scalar& right);
 BlockPtr operator>(const BlockBackend::Block& left, const BlockBackend::Scalar& right);

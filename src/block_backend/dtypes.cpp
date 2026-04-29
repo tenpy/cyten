@@ -101,13 +101,14 @@ from_numpy_dtype(py::object numpy_dtype)
     if (numpy_dtype.is_none())
         throw std::invalid_argument("None is not a valid cyten dtype");
     py::module_ np = numpy_module();
-    if (numpy_dtype.equal(np.attr("bool_")))
-        return Dtype::Bool;
-    if (numpy_dtype.equal(np.attr("float64")))
+    py::module_ builtins = py::module_::import("builtins");
+    if (numpy_dtype.equal(np.attr("float64")) || numpy_dtype.equal(builtins.attr("float")))
         return Dtype::Float64;
-    if (numpy_dtype.equal(np.attr("complex128")))
+    if (numpy_dtype.equal(np.attr("complex128")) || numpy_dtype.equal(builtins.attr("complex")))
         return Dtype::Complex128;
-    if (numpy_dtype.equal(np.attr("int64")))
+    if (numpy_dtype.equal(np.attr("bool_")) || numpy_dtype.equal(builtins.attr("bool")))
+        return Dtype::Bool;
+    if (numpy_dtype.equal(np.attr("int64")) || numpy_dtype.equal(builtins.attr("int")))
         return Dtype::Int64;
     if (numpy_dtype.equal(np.attr("float32")))
         return Dtype::Float32;

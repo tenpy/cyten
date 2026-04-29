@@ -5,6 +5,7 @@
 #include <cyten/tools.h>
 
 #include <algorithm>
+#include <memory>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
@@ -14,14 +15,6 @@ namespace cyten {
 // -----------------------------------------------------------------------------
 // Block class
 // -----------------------------------------------------------------------------
-
-BlockPtr
-BlockBackend::Block::operator+(const Block& other) const
-{
-    auto scalar1 = get_backend()->as_scalar(1.0);
-    std::shared_ptr<const Block> other_ptr = other.shared_from_this();
-    return get_backend()->linear_combination(*scalar1, shared_from_this(), *scalar1, other_ptr);
-}
 
 BlockPtr
 BlockBackend::Block::operator*(const Scalar& s) const
@@ -158,27 +151,25 @@ BlockBackend::Scalar::to_numpy() const
 BlockBackend::Scalar
 BlockBackend::Scalar::operator+(const Scalar& other) const
 {
-    return Scalar(
-      block_->get_backend()->linear_combination(*(block_->get_backend()->as_scalar(1.0)),
-                                                block_,
-                                                *(block_->get_backend()->as_scalar(1.0)),
-                                                other.block_));
+    return Scalar(block_->get_backend()->linear_combination(block_->get_backend()->as_scalar(1.0),
+                                                            block_,
+                                                            block_->get_backend()->as_scalar(1.0),
+                                                            other.block_));
 }
 
 BlockBackend::Scalar
 BlockBackend::Scalar::operator-(const Scalar& other) const
 {
-    return Scalar(
-      block_->get_backend()->linear_combination(*(block_->get_backend()->as_scalar(1.0)),
-                                                block_,
-                                                *(block_->get_backend()->as_scalar(-1.0)),
-                                                other.block_));
+    return Scalar(block_->get_backend()->linear_combination(block_->get_backend()->as_scalar(1.0),
+                                                            block_,
+                                                            block_->get_backend()->as_scalar(-1.0),
+                                                            other.block_));
 }
 
 BlockBackend::Scalar
 BlockBackend::Scalar::operator*(const Scalar& other) const
 {
-    return block_->get_backend()->mul(*this, block_);
+    return block_->get_backend()->mul(*this, other.block_);
 }
 
 BlockBackend::Scalar
@@ -193,11 +184,11 @@ BlockBackend::Scalar::inverse() const
     if (as_complex128() == complex128(0.0, 0.0)) {
         throw std::runtime_error("Division by zero");
     }
+    // TODO: this should actually use block operation instead of converting to C++ types!
     if (dtype::is_complex(block_->dtype())) {
-        return Scalar(block_->get_backend()->as_scalar(1.0 / as_complex128()).get()->block_);
-    } else {
-        return Scalar(block_->get_backend()->as_scalar(1.0 / as_float64()).get()->block_);
+        return block_->get_backend()->as_scalar(1.0 / as_complex128());
     }
+    return block_->get_backend()->as_scalar(1.0 / as_float64());
 }
 
 BlockCPtr
@@ -205,6 +196,152 @@ BlockBackend::Scalar::_block() const
 {
     return block_;
 }
+
+BlockBackend::Scalar
+BlockBackend::Scalar::operator<(const Scalar& other) const
+{
+    return *block_ < *other.block_;
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator>(const Scalar& other) const
+{
+    return *block_ > *other.block_;
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator<=(const Scalar& other) const
+{
+    return *block_ <= *other.block_;
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator>=(const Scalar& other) const
+{
+    return *block_ >= *other.block_;
+};
+
+BlockBackend::Scalar
+BlockBackend::Scalar::operator+(float64 right) const
+{
+    return *this + block_->get_backend()->as_scalar(right);
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator-(float64 right) const
+{
+    return *this - block_->get_backend()->as_scalar(right);
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator*(float64 right) const
+{
+    return *this * block_->get_backend()->as_scalar(right);
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator/(float64 right) const
+{
+    return *this / block_->get_backend()->as_scalar(right);
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator+(complex128 right) const
+{
+    return *this + block_->get_backend()->as_scalar(right);
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator-(complex128 right) const
+{
+    return *this - block_->get_backend()->as_scalar(right);
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator*(complex128 right) const
+{
+    return *this * block_->get_backend()->as_scalar(right);
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator/(complex128 right) const
+{
+    return *this / block_->get_backend()->as_scalar(right);
+};
+
+BlockBackend::Scalar
+operator+(float64 left, const BlockBackend::Scalar& right)
+{
+    return right._block()->get_backend()->as_scalar(left) + right;
+};
+BlockBackend::Scalar
+operator-(float64 left, const BlockBackend::Scalar& right)
+{
+    return right._block()->get_backend()->as_scalar(left) - right;
+};
+BlockBackend::Scalar
+operator*(float64 left, const BlockBackend::Scalar& right)
+{
+    return right._block()->get_backend()->as_scalar(left) * right;
+};
+BlockBackend::Scalar
+operator/(float64 left, const BlockBackend::Scalar& right)
+{
+    return right._block()->get_backend()->as_scalar(left) / right;
+};
+BlockBackend::Scalar
+operator+(complex128 left, const BlockBackend::Scalar& right)
+{
+    return right._block()->get_backend()->as_scalar(left) + right;
+};
+BlockBackend::Scalar
+operator-(complex128 left, const BlockBackend::Scalar& right)
+{
+    return right._block()->get_backend()->as_scalar(left) - right;
+};
+BlockBackend::Scalar
+operator*(complex128 left, const BlockBackend::Scalar& right)
+{
+    return right._block()->get_backend()->as_scalar(left) * right;
+};
+BlockBackend::Scalar
+operator/(complex128 left, const BlockBackend::Scalar& right)
+{
+    return right._block()->get_backend()->as_scalar(left) / right;
+};
+
+BlockBackend::Scalar
+BlockBackend::Scalar::operator<(float64 right) const
+{
+    return *this < block_->get_backend()->as_scalar(right);
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator>(float64 right) const
+{
+    return *this > block_->get_backend()->as_scalar(right);
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator<=(float64 right) const
+{
+    return *this <= block_->get_backend()->as_scalar(right);
+};
+BlockBackend::Scalar
+BlockBackend::Scalar::operator>=(float64 right) const
+{
+    return *this >= block_->get_backend()->as_scalar(right);
+};
+
+BlockBackend::Scalar
+operator<(float64 left, const BlockBackend::Scalar& right)
+{
+    return right._block()->get_backend()->as_scalar(left) < right;
+};
+BlockBackend::Scalar
+operator>(float64 left, const BlockBackend::Scalar& right)
+{
+    return right._block()->get_backend()->as_scalar(left) > right;
+};
+BlockBackend::Scalar
+operator<=(float64 left, const BlockBackend::Scalar& right)
+{
+    return right._block()->get_backend()->as_scalar(left) <= right;
+};
+BlockBackend::Scalar
+operator>=(float64 left, const BlockBackend::Scalar& right)
+{
+    return right._block()->get_backend()->as_scalar(left) >= right;
+};
+
 // -----------------------------------------------------------------------------
 // BlockBackend class
 // -----------------------------------------------------------------------------
@@ -243,6 +380,23 @@ const std::string&
 BlockBackend::get_device(const BlockCPtr& a)
 {
     return a->device();
+}
+
+BlockPtr
+BlockBackend::linear_combination(const Scalar& a_coef,
+                                 const BlockCPtr& v,
+                                 const Scalar& b_coef,
+                                 const BlockCPtr& w)
+{
+    BlockPtr av = (*v) * a_coef;
+    BlockPtr bw = (*w) * b_coef;
+    return (*av) + (*bw);
+}
+
+BlockPtr
+BlockBackend::mul(const Scalar& a, const BlockCPtr& b)
+{
+    return (*b) * a;
 }
 
 py::object
@@ -296,15 +450,15 @@ BlockBackend::argsort(const BlockCPtr& block, std::optional<std::string> sort, i
         if (*sort == "m<" || *sort == "SM") {
             work = abs(block);
         } else if (*sort == "m>" || *sort == "LM") {
-            work = mul(*as_scalar(float64(-1.0)), abs(block));
+            work = mul(as_scalar(float64(-1.0)), abs(block));
         } else if (*sort == "<" || *sort == "SR" || *sort == "SA") {
             work = real(block);
         } else if (*sort == ">" || *sort == "LR" || *sort == "LA") {
-            work = mul(*as_scalar(float64(-1.0)), real(block));
+            work = mul(as_scalar(float64(-1.0)), real(block));
         } else if (*sort == "SI") {
             work = imag(block);
         } else if (*sort == "LI") {
-            work = mul(*as_scalar(float64(-1.0)), imag(block));
+            work = mul(as_scalar(float64(-1.0)), imag(block));
         } else {
             throw std::invalid_argument(std::string("unknown sort option ") + *sort);
         }
@@ -517,7 +671,7 @@ BlockBackend::split_legs(const BlockCPtr& a,
                          const std::vector<std::vector<int64>>& dims,
                          bool cstyles)
 {
-    return split_legs(a, idcs, dims, std::vector<bool>(1, cstyles));
+    return split_legs(a, idcs, dims, std::vector<bool>(idcs.size(), cstyles));
 }
 
 BlockPtr
@@ -682,42 +836,42 @@ operator>=(const BlockBackend::Scalar& left, const BlockBackend::Block& right)
 BlockPtr
 operator<(const BlockBackend::Block& left, float64 right)
 {
-    return left < *left.get_backend()->as_scalar(right);
+    return left < left.get_backend()->as_scalar(right);
 }
 BlockPtr
 operator>(const BlockBackend::Block& left, float64 right)
 {
-    return left > *left.get_backend()->as_scalar(right);
+    return left > left.get_backend()->as_scalar(right);
 }
 BlockPtr
 operator<=(const BlockBackend::Block& left, float64 right)
 {
-    return left <= *left.get_backend()->as_scalar(right);
+    return left <= left.get_backend()->as_scalar(right);
 }
 BlockPtr
 operator>=(const BlockBackend::Block& left, float64 right)
 {
-    return left >= *left.get_backend()->as_scalar(right);
+    return left >= left.get_backend()->as_scalar(right);
 }
 BlockPtr
 operator<(float64 left, const BlockBackend::Block& right)
 {
-    return *right.get_backend()->as_scalar(left) < right;
+    return right.get_backend()->as_scalar(left) < right;
 }
 BlockPtr
 operator>(float64 left, const BlockBackend::Block& right)
 {
-    return *right.get_backend()->as_scalar(left) > right;
+    return right.get_backend()->as_scalar(left) > right;
 }
 BlockPtr
 operator<=(float64 left, const BlockBackend::Block& right)
 {
-    return *right.get_backend()->as_scalar(left) <= right;
+    return right.get_backend()->as_scalar(left) <= right;
 }
 BlockPtr
 operator>=(float64 left, const BlockBackend::Block& right)
 {
-    return *right.get_backend()->as_scalar(left) >= right;
+    return right.get_backend()->as_scalar(left) >= right;
 }
 
 } // namespace cyten

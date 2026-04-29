@@ -65,6 +65,7 @@ from ._backend import Data, DiagonalData, MaskData, TensorBackend, conventional_
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
     # this clause allows mypy etc to evaluate the type-hints anyway
+    from ..block_backends import BlockBackend
     from ..tensors import DiagonalTensor, Mask, SymmetricTensor
 
 
@@ -281,7 +282,7 @@ class AbelianBackend(TensorBackend):
             self.block_backend.test_block_sanity(
                 block, expect_shape=(expect_len,), expect_dtype=Dtype.bool, expect_device=data.device
             )
-            assert self.block_backend.sum_all(block) == expect_sum
+            assert self.block_backend.sum_all(block).as_int64() == expect_sum
 
     # OVERRIDES
 
@@ -829,8 +830,8 @@ class AbelianBackend(TensorBackend):
         blocks = [self.block_backend.get_diagonal(block, tol) for block in a.data.blocks]
         return AbelianBackendData(a.dtype, a.data.device, blocks, a.data.block_inds, is_sorted=True)
 
-    def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
-        total_sum = a.data.dtype.zero_scalar
+    def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> BlockBackend.Scalar:
+        total_sum = self.block_backend.as_scalar(0.0, dtype=a.dtype)
         for block in a.data.blocks:
             total_sum += self.block_backend.sum_all(block)
         return total_sum
@@ -857,7 +858,7 @@ class AbelianBackend(TensorBackend):
             blocks.append(diag_block)
             large_leg_block_inds.append(bi)
             sectors.append(large_leg.defining_sectors[bi])
-            multiplicities.append(self.block_backend.sum_all(diag_block))
+            multiplicities.append(self.block_backend.sum_all(diag_block).as_int64())
             if basis_perm is not None:
                 mask = self.block_backend.to_numpy(diag_block, bool)
                 basis_perm_ranks.append(basis_perm[slice(*large_leg.slices[bi])][mask])
@@ -1120,7 +1121,7 @@ class AbelianBackend(TensorBackend):
             large, small = pos[:, 1]
         return self.block_backend.get_block_mask_element(block, large, small)
 
-    def inner(self, a: SymmetricTensor, b: SymmetricTensor, do_dagger: bool) -> float | complex:
+    def inner(self, a: SymmetricTensor, b: SymmetricTensor, do_dagger: bool) -> BlockBackend.Scalar:
         a_blocks = a.data.blocks
         b_blocks = b.data.blocks
         # F-style strides for block_inds -> preserve sorting
@@ -1134,7 +1135,7 @@ class AbelianBackend(TensorBackend):
             sort = np.argsort(b_block_inds)
             b_block_inds = b_block_inds[sort]
             b_blocks = [b_blocks[i] for i in sort]
-        res = 0.0
+        res = self.block_backend.as_scalar(0.0, dtype=a.dtype)
         for i, j in iter_common_sorted(a_block_inds, b_block_inds):
             res += self.block_backend.inner(a_blocks[i], b_blocks[j], do_dagger=do_dagger)
         return res
@@ -1287,7 +1288,7 @@ class AbelianBackend(TensorBackend):
             else:
                 block2 = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
             new_block = func(block1, block2)
-            mult = self.block_backend.sum_all(new_block)
+            mult = self.block_backend.sum_all(new_block).as_int64()
             if mult == 0:
                 continue
             blocks.append(new_block)
@@ -1408,7 +1409,7 @@ class AbelianBackend(TensorBackend):
         basis_perm_ranks = []
         for bi_large, (slc, sector) in enumerate(zip(large_leg.slices, large_leg.defining_sectors)):
             block = a[slice(*slc)]
-            mult = self.block_backend.sum_all(block)
+            mult = self.block_backend.sum_all(block).as_int64()
             if mult == 0:
                 continue
             blocks.append(block)
@@ -1496,7 +1497,7 @@ class AbelianBackend(TensorBackend):
             else:
                 block = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
             new_block = func(block)
-            mult = self.block_backend.sum_all(new_block)
+            mult = self.block_backend.sum_all(new_block).as_int64()
             if mult == 0:
                 continue
             blocks.append(new_block)

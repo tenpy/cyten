@@ -116,6 +116,7 @@ from ._backend import Data, DiagonalData, MaskData, TensorBackend, conventional_
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
     # this clause allows mypy etc to evaluate the type-hints anyway
+    from ..block_backends import BlockBackend
     from ..tensors import DiagonalTensor, Mask, SymmetricTensor
 
 
@@ -310,7 +311,7 @@ class FusionTreeBackend(TensorBackend):
             self.block_backend.test_block_sanity(
                 block, expect_shape=(expect_len,), expect_dtype=Dtype.bool, expect_device=a.device
             )
-            assert self.block_backend.sum_all(block) == expect_sum
+            assert self.block_backend.sum_all(block).as_int64() == expect_sum
 
     # ABSTRACT METHODS
 
@@ -613,10 +614,10 @@ class FusionTreeBackend(TensorBackend):
         blocks = [self.block_backend.get_diagonal(block, tol) for block in a.data.blocks]
         return FusionTreeData(a.data.block_inds, blocks, a.dtype, a.data.device, is_sorted=True)
 
-    def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
+    def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> BlockBackend.Scalar:
         return sum(
             (
-                a.domain.sector_qdims[bi] * self.block_backend.sum_all(block)
+                float(a.domain.sector_qdims[bi]) * self.block_backend.sum_all(block)
                 for bi, block in zip(a.data.block_inds[:, 0], a.data.blocks)
             ),
             a.dtype.zero_scalar,
@@ -663,7 +664,7 @@ class FusionTreeBackend(TensorBackend):
             blocks.append(diag_block)
             codom_block_inds.append(bi)
             sectors.append(sector)
-            multiplicities.append(self.block_backend.sum_all(diag_block))
+            multiplicities.append(self.block_backend.sum_all(diag_block).as_int64())
             if basis_perm is not None:
                 dim = large_leg.symmetry.sector_dim(sector)
                 mask = np.tile(self.block_backend.to_numpy(diag_block, bool), dim)
@@ -1118,7 +1119,7 @@ class FusionTreeBackend(TensorBackend):
         else:
             # need to math a.codomain == b.domain
             b_block_inds = b.data.block_inds[:, 1]
-        res = a.dtype.zero_scalar * b.dtype.zero_scalar
+        res = self.block_backend.as_scalar(0.0, dtype=a.dtype)
         for i, j in iter_common_sorted(a_codomain_block_inds, b_block_inds):
             inn = self.block_backend.inner(a_blocks[i], b_blocks[j], do_dagger=do_dagger)
             res += a_codomain_qdims[a_codomain_block_inds[i]] * inn
@@ -1253,7 +1254,7 @@ class FusionTreeBackend(TensorBackend):
                 block2 = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
 
             new_block = func(block1, block2)
-            mult = self.block_backend.sum_all(new_block)
+            mult = self.block_backend.sum_all(new_block).as_int64()
             if mult == 0:
                 continue
             blocks.append(new_block)
@@ -1404,7 +1405,7 @@ class FusionTreeBackend(TensorBackend):
             )
         for bi_large, (slc, sector) in enumerate(zip(large_leg.slices, large_leg.defining_sectors)):
             block = a[slice(*slc)]
-            mult = self.block_backend.sum_all(block)
+            mult = self.block_backend.sum_all(block).as_int64()
             if mult == 0:
                 continue
             if not is_sorted:
@@ -1523,7 +1524,7 @@ class FusionTreeBackend(TensorBackend):
                 block = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
 
             new_block = func(block)
-            mult = self.block_backend.sum_all(new_block)
+            mult = self.block_backend.sum_all(new_block).as_int64()
             if mult == 0:
                 continue
             blocks.append(new_block)
@@ -3304,8 +3305,7 @@ class TreePairMapping(TensorMapping):
             is_zero_block = True
             for X, idcs1, mults1, _ in new_codomain.iter_tree_blocks([coupled]):
                 for Y, idcs2, mults2, _ in new_domain.iter_tree_blocks([coupled]):
-                    tree_block = block_backend.as_scalar(0.0)
-                    is_zero_tree_block = True
+                    tree_block = None
                     # note: we first add all contributions to the new tree block, and do the axes
                     #       permutation only once to the result
                     for (X_I, Y_I), self_I in self.mapping.items():
@@ -3316,11 +3316,14 @@ class TreePairMapping(TensorMapping):
                             # ie old block is not set / is zero
                             continue
                         old_block = data.blocks[which_block]
-                        is_zero_tree_block = False
                         i1 = codomain.tree_block_slice(X_I)  # OPTIMIZE cache these?
                         i2 = domain.tree_block_slice(Y_I)
-                        tree_block += self_I[X, Y] * old_block[i1, i2]
-                    if is_zero_tree_block:
+                        add_block = self_I[X, Y] * old_block[i1, i2]
+                        if tree_block is None:
+                            tree_block = add_block
+                        else:
+                            tree_block += add_block
+                    if tree_block is None:
                         continue
                     is_zero_block = False
                     #
@@ -3337,7 +3340,7 @@ class TreePairMapping(TensorMapping):
                         list(reversed(old_mults[J:])),
                         tree_block_axes_2,
                     )
-                    block[idcs1, idcs2] = block_backend.to_numpy(permuted)
+                    block[idcs1, idcs2] = permuted
             if is_zero_block:
                 continue
             block_inds.append([i, j])

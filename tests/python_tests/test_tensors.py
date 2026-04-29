@@ -2128,7 +2128,9 @@ def test_inner(cls, cod, dom, do_dagger, allow_basis_perm, make_compatible_tenso
         return
 
     res = tensors.inner(A, B, do_dagger=do_dagger)
-    assert isinstance(res, (float, complex))
+    assert isinstance(res, A.backend.block_backend.Scalar)
+    res = res.to_numpy()
+    assert isinstance(res, (bool, float, complex, np.bool_, np.float32, np.float64, np.complex64, np.complex128))
 
     if A.symmetry.has_trivial_braid:
         if do_dagger:

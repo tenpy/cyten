@@ -62,7 +62,7 @@ class NoSymmetryBackend(TensorBackend):
         self.block_backend.test_block_sanity(
             a.data, expect_shape=(a.large_leg.dim,), expect_dtype=Dtype.bool, expect_device=a.device
         )
-        assert self.block_backend.sum_all(a.data) == a.small_leg.dim
+        assert self.block_backend.sum_all(a.data).as_int64() == a.small_leg.dim
 
     # ABSTRACT METHODS:
 
@@ -152,7 +152,7 @@ class NoSymmetryBackend(TensorBackend):
         if basis_perm is not None:
             basis_perm = rank_data(basis_perm[self.block_backend.to_numpy(data)])
         small_leg = ElementarySpace.from_trivial_sector(
-            dim=self.block_backend.sum_all(data),
+            dim=self.block_backend.sum_all(data).as_int64(),
             symmetry=large_leg.symmetry,
             is_dual=large_leg.is_dual,
             basis_perm=basis_perm,
@@ -298,7 +298,7 @@ class NoSymmetryBackend(TensorBackend):
         if basis_perm is not None:
             basis_perm = rank_data(basis_perm[data])
         small_leg = ElementarySpace.from_trivial_sector(
-            dim=self.block_backend.sum_all(data),
+            dim=self.block_backend.sum_all(data).as_int64(),
             symmetry=large_leg.symmetry,
             is_dual=large_leg.is_dual,
             basis_perm=basis_perm,
@@ -347,7 +347,7 @@ class NoSymmetryBackend(TensorBackend):
         if basis_perm is not None:
             basis_perm = rank_data(basis_perm[a])
         small_leg = ElementarySpace.from_trivial_sector(
-            dim=self.block_backend.sum_all(a),
+            dim=self.block_backend.sum_all(a).as_int64(),
             symmetry=large_leg.symmetry,
             is_dual=large_leg.is_dual,
             basis_perm=basis_perm,
@@ -372,7 +372,7 @@ class NoSymmetryBackend(TensorBackend):
         if basis_perm is not None:
             basis_perm = rank_data(basis_perm[data])
         small_leg = ElementarySpace.from_trivial_sector(
-            dim=self.block_backend.sum_all(data),
+            dim=self.block_backend.sum_all(data).as_int64(),
             symmetry=large_leg.symmetry,
             is_dual=large_leg.is_dual,
             basis_perm=basis_perm,

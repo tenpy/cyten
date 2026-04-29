@@ -57,6 +57,22 @@ class PyBlock
     {
         PYBIND11_OVERRIDE_PURE(int64, BlockBackend::Block, _item_as_int64);
     }
+    BlockPtr operator+(const BlockBackend::Block& other) const override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, operator+, other);
+    }
+    BlockPtr operator-(const BlockBackend::Block& other) const override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, operator-, other);
+    }
+    BlockPtr operator*(const BlockBackend::Block& other) const override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, operator*, other);
+    }
+    BlockPtr operator/(const BlockBackend::Block& other) const override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, operator/, other);
+    }
 }; // trampoline class PyBlock
 
 /// @brief pybind11 trampoline class for BlockBackend in Python
@@ -71,33 +87,33 @@ class PyBlockBackend
     {
     }
 
-    std::shared_ptr<Scalar> as_scalar(complex128 value, Dtype dtype) override
+    Scalar as_scalar(complex128 value, Dtype dtype) override
     {
-        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, value, dtype);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, as_scalar, value, dtype);
     }
-    std::shared_ptr<Scalar> as_scalar(py::object value, Dtype dtype) override
+    Scalar as_scalar(py::object value, Dtype dtype) override
     {
-        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, value, dtype);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, as_scalar, value, dtype);
     }
-    std::shared_ptr<Scalar> as_scalar(bool b) override
+    Scalar as_scalar(bool b) override
     {
-        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, b);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, as_scalar, b);
     }
-    std::shared_ptr<Scalar> as_scalar(float32 x) override
+    Scalar as_scalar(float32 x) override
     {
-        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, x);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, as_scalar, x);
     }
-    std::shared_ptr<Scalar> as_scalar(float64 x) override
+    Scalar as_scalar(float64 x) override
     {
-        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, x);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, as_scalar, x);
     }
-    std::shared_ptr<Scalar> as_scalar(complex64 z) override
+    Scalar as_scalar(complex64 z) override
     {
-        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, z);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, as_scalar, z);
     }
-    std::shared_ptr<Scalar> as_scalar(complex128 z) override
+    Scalar as_scalar(complex128 z) override
     {
-        PYBIND11_OVERRIDE_PURE(std::shared_ptr<Scalar>, BlockBackend, as_scalar, z);
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, as_scalar, z);
     }
 
     BlockPtr abs(const BlockCPtr& a) override
@@ -210,7 +226,7 @@ class PyBlockBackend
                                 const Scalar& b_coef,
                                 const BlockCPtr& w) override
     {
-        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, linear_combination, a_coef, v, b_coef, w);
+        PYBIND11_OVERRIDE(BlockPtr, BlockBackend, linear_combination, a_coef, v, b_coef, w);
     }
     BlockPtr log(const BlockCPtr& a) override
     {
@@ -230,7 +246,7 @@ class PyBlockBackend
     }
     BlockPtr mul(const Scalar& a, const BlockCPtr& b) override
     {
-        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, mul, a, b);
+        PYBIND11_OVERRIDE(BlockPtr, BlockBackend, mul, a, b);
     }
     Scalar norm(const BlockCPtr& a, float64 order, std::optional<int64> axis) override
     {

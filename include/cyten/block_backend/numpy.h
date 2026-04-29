@@ -33,6 +33,10 @@ class NumpyBlockBackend : public BlockBackend
         complex128 _item_as_complex128() const override;
         int64 _item_as_int64() const override;
 
+        BlockPtr operator+(const BlockBackend::Block& other) const override;
+        BlockPtr operator-(const BlockBackend::Block& other) const override;
+        BlockPtr operator*(const BlockBackend::Block& other) const override;
+        BlockPtr operator/(const BlockBackend::Block& other) const override;
         BlockPtr operator<(const BlockBackend::Block& other) const override;
         BlockPtr operator<=(const BlockBackend::Block& other) const override;
         BlockPtr operator>(const BlockBackend::Block& other) const override;
@@ -43,16 +47,16 @@ class NumpyBlockBackend : public BlockBackend
     };
 
   private:
-    std::shared_ptr<Scalar> as_scalar(py::array value);
+    Scalar as_scalar(py::array value);
 
   public:
-    std::shared_ptr<Scalar> as_scalar(complex128 value, Dtype dtype) override;
-    std::shared_ptr<Scalar> as_scalar(py::object value, Dtype dtype) override;
-    std::shared_ptr<Scalar> as_scalar(bool b) override;
-    std::shared_ptr<Scalar> as_scalar(float32 x) override;
-    std::shared_ptr<Scalar> as_scalar(float64 x) override;
-    std::shared_ptr<Scalar> as_scalar(complex64 z) override;
-    std::shared_ptr<Scalar> as_scalar(complex128 z) override;
+    Scalar as_scalar(complex128 value, Dtype dtype) override;
+    Scalar as_scalar(py::object value, Dtype dtype) override;
+    Scalar as_scalar(bool b) override;
+    Scalar as_scalar(float32 x) override;
+    Scalar as_scalar(float64 x) override;
+    Scalar as_scalar(complex64 z) override;
+    Scalar as_scalar(complex128 z) override;
 
   public:
     /// Get the backend instance for the given device (nearly-singleton per device).
