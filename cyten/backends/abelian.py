@@ -703,7 +703,7 @@ class AbelianBackend(TensorBackend):
 
     def data_item(self, a: Data | DiagonalData) -> float | complex:
         if len(a.blocks) > 1:
-            raise ValueError('More than 1 block!')
+            raise RuntimeError('Inconsistent data.')
         if len(a.blocks) == 0:
             return a.dtype.zero_scalar
         return self.block_backend.item(a.blocks[0])

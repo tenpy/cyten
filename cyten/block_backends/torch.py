@@ -297,10 +297,10 @@ class TorchBlockBackend(BlockBackend):
         return torch_module.matmul(a, b)
 
     def matrix_exp(self, matrix: Block) -> Block:
-        raise NotImplementedError
+        raise NotImplementedError(f'{self} does not support matrix_exp yet.')
 
     def matrix_log(self, matrix: Block) -> Block:
-        raise NotImplementedError
+        raise NotImplementedError(f'{self} does not support matrix_log yet.')
 
     def matrix_qr(self, a: Block, full: bool) -> tuple[Block, Block]:
         return torch_module.linalg.qr(a, mode='complete' if full else 'reduced')
@@ -336,7 +336,7 @@ class TorchBlockBackend(BlockBackend):
     def synchronize(self):
         """Wait for asynchronous processes (if any) to finish"""
         # how do we know which devices to synchronize??
-        raise NotImplementedError
+        raise NotImplementedError(f'{self} does not support synchronize yet.')
 
     def zeros(self, shape: list[int], dtype: Dtype, device: str = None) -> Block:
         return torch_module.zeros(list(shape), dtype=self.backend_dtype_map[dtype], device=self.as_device(device))

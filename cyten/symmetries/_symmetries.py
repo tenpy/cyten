@@ -264,7 +264,7 @@ class BaseSymmetry(metaclass=ABCMeta):
             msg = f'{type(self)} has infinitely many sectors.'
             raise SymmetryError(msg)
 
-        raise NotImplementedError
+        raise NotImplementedError('Should be implemented in subclass')
 
     # WRAPPERS WITH INPUT-CHECKS
 

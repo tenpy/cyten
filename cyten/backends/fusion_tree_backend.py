@@ -487,7 +487,7 @@ class FusionTreeBackend(TensorBackend):
 
     def data_item(self, a: FusionTreeData) -> float | complex:
         if len(a.blocks) > 1:
-            raise ValueError('More than 1 block!')
+            raise RuntimeError('Inconsistent data.')
         if len(a.blocks) == 0:
             return a.dtype.zero_scalar
         return self.block_backend.item(a.blocks[0])
@@ -2802,7 +2802,7 @@ class PermuteLegsInstructionEngine:
                 else:
                     assert 0 <= min(i.idcs) <= max(i.idcs) < len(domain)
             else:
-                raise TypeError
+                raise TypeError  # this should never happen
         assert codomain == list(codomain_idcs)
         assert domain == list(domain_idcs)
 
@@ -3098,10 +3098,8 @@ class TensorMapping(metaclass=ABCMeta):
             res = self.pre_compose_braid_instruction(instruction, is_real=is_real)
         elif isinstance(instruction, TwistInstruction):
             res = self.pre_compose_twist_instruction(instruction, is_real=is_real)
-        elif isinstance(instruction, Instruction):
-            raise NotImplementedError
         else:
-            raise TypeError
+            raise TypeError  # this should never happen
         if prune_tol is not None:
             res.prune(prune_tol)
         return res

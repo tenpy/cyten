@@ -80,7 +80,7 @@ def permute_legs(
     elif bend_right in [True, False]:
         bend_right = [bend_right] * N
     else:
-        raise ValueError
+        raise ValueError('Invalid bend_right')
 
     # check if those that need to be specified are
     if symm.has_trivial_braid:

@@ -48,7 +48,7 @@ def speigs(A, k, *args, **kwargs):
         if isinstance(A, np.ndarray):
             Amat = A
         else:
-            raise TypeError
+            raise NotImplementedError
         ret_eigv = kwargs.get('return_eigenvectors', args[7] if len(args) > 7 else True)
         which = kwargs.get('which', args[2] if len(args) > 2 else 'LM')
         if ret_eigv:
@@ -96,7 +96,7 @@ def speigsh(A, k, *args, **kwargs):
         if isinstance(A, np.ndarray):
             Amat = A
         else:
-            raise TypeError
+            raise NotImplementedError
         ret_eigv = kwargs.get('return_eigenvectors', args[7] if len(args) > 7 else True)
         which = kwargs.get('which', args[2] if len(args) > 2 else 'LM')
         if ret_eigv:

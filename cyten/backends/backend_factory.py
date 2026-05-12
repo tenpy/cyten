@@ -62,7 +62,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
     elif isinstance(symmetry, str):
         tensor_backend = symmetry
     else:
-        raise TypeError
+        raise TypeError('Invalid type for symmetry. Expected Symmetry or str')
 
     key = (tensor_backend, block_backend)
     backend = _instantiated_backends.get(key, None)
