@@ -2313,7 +2313,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
                 one_line_items.append(f'num_legs={self.num_legs}')
                 lines.append(f'{indent}num_legs={self.num_legs},')
             else:
-                raise RuntimeError
+                raise RuntimeError  # this should not happen
 
             if sector_mode == 0:
                 sector_dec_strs = [self.symmetry.sector_str(a) for a in self.sector_decomposition]
@@ -2331,7 +2331,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             elif sector_mode == 2:
                 pass  # dont add anything
             else:
-                raise RuntimeError
+                raise RuntimeError  # this should not happen
 
             if self._basis_perm is not None:
                 if summarize_basis_perm:

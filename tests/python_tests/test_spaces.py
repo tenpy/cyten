@@ -478,7 +478,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
                 expect_perm.append(j)
                 break
         else:  # else == "no break occurred"
-            raise RuntimeError
+            raise RuntimeError  # should not happen
 
     assert np.all(pipe.basis_perm == np.array(expect_perm))
 

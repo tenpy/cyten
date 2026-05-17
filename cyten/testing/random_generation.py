@@ -345,7 +345,7 @@ def random_tensor(
         elif cls in [tensors.DiagonalTensor, tensors.Mask]:
             codomain = [None]
         else:
-            raise ValueError
+            raise ValueError('Invalid cls')
 
     # 1) deal with strings in codomain / domain.
     # ======================================================================================

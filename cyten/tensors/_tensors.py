@@ -1346,9 +1346,9 @@ class SymmetricTensor(Tensor):
         """
         if len(trees) == 0:
             if dtype is None:
-                raise ValueError('Can not infer Dtype')
+                raise ValueError('dtype is required if trees is empty')
             if device is None:
-                raise ValueError('Can not infer device')
+                raise ValueError('device is required if trees is empty')
             return cls.from_zero(
                 codomain=codomain, domain=domain, backend=backend, labels=labels, dtype=dtype, device=device
             )
@@ -1837,7 +1837,7 @@ class DiagonalTensor(SymmetricTensor):
                 assert mean.dtype == dtype
         else:
             if leg is None:
-                raise ValueError('Must specify the lef if mean is not given.')
+                raise ValueError('Must specify the leg if mean is not given.')
             co_domain, _, backend, symmetry = cls._init_parse_args(codomain=[leg], domain=[leg], backend=backend)
 
         if device is None:
@@ -2141,7 +2141,8 @@ class DiagonalTensor(SymmetricTensor):
 
     def diagonal_as_block(self, dtype: Dtype = None) -> Block:
         if not self.symmetry.can_be_dropped:
-            raise SymmetryError
+            msg = f'Dense block representation is not supported for symmetry {self.symmetry}'
+            raise SymmetricTensor(msg)
         res = self.backend.diagonal_tensor_to_block(self)
         res = self.backend.block_backend.apply_basis_perm(res, [self.leg], inv=True)
         if dtype is not None:
@@ -2389,7 +2390,8 @@ class Identity(DiagonalTensor):
 
     def diagonal_as_block(self, dtype=None):
         if not self.symmetry.can_be_dropped:
-            raise SymmetryError
+            msg = f'Dense block representation is not supported for symmetry {self.symmetry}'
+            raise SymmetricTensor(msg)
         return self.backend.block_backend.ones_block(
             [self.leg.dim], dtype=self.dtype if dtype is None else dtype, device=self.device
         )
@@ -2666,7 +2668,8 @@ class Mask(Tensor):
 
         """
         if not large_leg.symmetry.can_be_dropped:
-            raise SymmetryError
+            msg = f'Dense block representation is not supported for symmetry {large_leg.symmetry}'
+            raise SymmetricTensor(msg)
         if backend is None:
             backend = get_backend(symmetry=large_leg.symmetry)
         block_mask = backend.block_backend.as_block(block_mask, Dtype.bool, device=device)
@@ -3281,7 +3284,7 @@ class ChargedTensor(Tensor):
         if isinstance(charge, ElementarySpace):
             pass
         elif isinstance(charge, (Space, Leg)):
-            raise TypeError
+            raise TypeError('Invalid type for charge. Expected ElementarySpace or sector')
         else:
             charge = ElementarySpace(domain.symmetry, np.asarray(charge, int)[None, :])
         return domain.left_multiply(charge), charge
@@ -3385,7 +3388,8 @@ class ChargedTensor(Tensor):
         codomain, domain, backend, symmetry = cls._init_parse_args(codomain, domain, backend)
         labels, inv_labels = cls._parse_inv_labels(labels, codomain, domain)
         if not symmetry.can_be_dropped:
-            raise SymmetryError
+            msg = f'Dense block representation is not supported for symmetry {symmetry}'
+            raise SymmetryError(msg)
         block = backend.block_backend.as_block(block, dtype, device=device)
         if charge is None:
             raise NotImplementedError
@@ -3875,7 +3879,7 @@ def add_trivial_leg(
             inv_part = add_trivial_leg(tens.invariant_part, codomain_pos=co_domain_pos, label=label, is_dual=is_dual)
         return ChargedTensor(inv_part, charged_state=tens.charged_state)
     if not isinstance(tens, SymmetricTensor):
-        raise TypeError
+        raise TypeError('Invalid type for tens. Expected a Tensor subtype')
 
     new_leg = ElementarySpace.from_trivial_sector(1, symmetry=tens.symmetry, is_dual=is_dual)
     if add_to_domain:
@@ -4137,7 +4141,7 @@ def bend_legs(tensor: Tensor, num_codomain_legs: int = None, num_domain_legs: in
 
     """
     if num_codomain_legs is None and num_domain_legs is None:
-        raise ValueError
+        raise ValueError('Must specify either num_codomain_legs or num_domain_legs')
     elif num_domain_legs is None:
         num_domain_legs = tensor.num_legs - num_codomain_legs
     elif num_codomain_legs is None:
@@ -4535,7 +4539,7 @@ def dagger(tensor: Tensor) -> Tensor:
         if charged_state is not None:
             charged_state = tensor.backend.block_backend.conj(charged_state)
         return ChargedTensor(inv_part, charged_state)
-    raise TypeError
+    raise TypeError('Invalid type for tensor. Expected a Tensor subtype')
 
 
 def compose(
@@ -5090,7 +5094,7 @@ def item(tensor: Tensor) -> float | complex | bool:
         inv_block = tensor.invariant_part.to_dense_block(understood_braiding=True)
         res = tensor.backend.block_backend.tdot(tensor.charged_state, inv_block, 0, -1)
         return tensor.backend.block_backend.item(res)
-    raise TypeError
+    raise TypeError('Invalid type for tensor.')
 
 
 def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
@@ -5237,7 +5241,7 @@ def norm(tensor: Tensor) -> float:
             warnings.warn('Converting ChargedTensor to dense block for `norm`', stacklevel=2)
             block = tensor.to_dense_block(understood_braiding=True)
             return tensor.backend.block_backend.norm(block, order=2)
-    raise TypeError
+    raise TypeError('Invalid type for tensor.')
 
 
 def on_device(tensor: Tensor, device: str, copy: bool = True) -> Tensor:
@@ -5731,7 +5735,7 @@ def permute_legs(
     elif bend_right in [True, False]:  # single bool applies to all legs
         bend_right = [bend_right] * tensor.num_legs
     else:
-        raise ValueError
+        raise ValueError('Invalid bend_right.')
     # check if those that need to be specified are
     if tensor.symmetry.has_trivial_braid:
         # it doesnt matter which way. choose all right
@@ -6781,7 +6785,7 @@ def transpose(tensor: Tensor) -> Tensor:
         inv_part = transpose(tensor.invariant_part)
         inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0)
         return ChargedTensor(inv_part, tensor.charged_state)
-    raise TypeError
+    raise TypeError('Invalid type for tensor.')
 
 
 def truncate_singular_values(
@@ -6969,7 +6973,7 @@ def zero_like(tensor: Tensor) -> Tensor:
             dtype=tensor.dtype,
             device=tensor.device,
         )
-    raise TypeError
+    raise TypeError('Invalid type for tensor.')
 
 
 # INTERNAL HELPER FUNCTIONS
