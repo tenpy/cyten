@@ -2014,6 +2014,15 @@ class AbelianBackend(TensorBackend):
         # clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
 
+    def to_block_backend(
+        self, data: AbelianBackendData, block_backend, dtype: Dtype = None, device: str = None
+    ) -> AbelianBackendData:
+        if dtype is None:
+            dtype = data.dtype
+        device = block_backend.as_device(data.device if device is None else device)
+        blocks = [block_backend.as_block(b, dtype=dtype, device=device) for b in data.blocks]
+        return AbelianBackendData(dtype=dtype, device=device, blocks=blocks, block_inds=data.block_inds)
+
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         res = self.block_backend.zeros(a.shape, a.data.dtype)
         for block, b_i in zip(a.data.blocks, a.data.block_inds):

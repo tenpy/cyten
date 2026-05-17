@@ -2193,6 +2193,15 @@ class FusionTreeBackend(TensorBackend):
         # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
 
+    def to_block_backend(
+        self, data: FusionTreeData, block_backend, dtype: Dtype = None, device: str = None
+    ) -> FusionTreeData:
+        if dtype is None:
+            dtype = data.dtype
+        device = block_backend.as_device(data.device if device is None else device)
+        blocks = [block_backend.as_block(b, dtype=dtype, device=device) for b in data.blocks]
+        return FusionTreeData(block_inds=data.block_inds, blocks=blocks, dtype=dtype, device=device)
+
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         # first build it with the flattened legs, and if there are pipes, combine at the very end
 
