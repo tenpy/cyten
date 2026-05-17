@@ -6494,6 +6494,21 @@ def tdot(
         [tensor2._as_codomain_leg(i2) for i2 in legs2],
     )
 
+    # deal with relabelling once using recursion.
+    # This means we do not need to worry about labels in each of the many return sites below
+    if relabel1 is not None or relabel2 is not None:
+        if relabel1 is None:
+            codomain_labels = [lbl for n, lbl in enumerate(tensor1._labels) if n not in legs1]
+        else:
+            codomain_labels = [relabel1.get(lbl, lbl) for n, lbl in enumerate(tensor1._labels) if n not in legs1]
+        if relabel2 is None:
+            domain_labels = [lbl for n, lbl in enumerate(tensor2._labels) if n not in legs2]
+        else:
+            domain_labels = [relabel2.get(lbl, lbl) for n, lbl in enumerate(tensor2._labels) if n not in legs2]
+        res = tdot(tensor1, tensor2, legs1, legs2)
+        res.set_labels(codomain_labels + domain_labels)
+        return res
+
     # Deal with Masks: either return or reduce to SymmetricTensor
     if isinstance(tensor1, Mask):
         if num_contr == 0:
@@ -6507,7 +6522,10 @@ def tdot(
                 res = _compose_with_Mask(tensor2, tensor1, legs2[0])
             res.set_label(legs2[0], tensor1.labels[1 - legs1[0]])
             # move legs to tdot convention
-            return permute_legs(res, codomain=legs1)
+            try:
+                return permute_legs(res, codomain=legs1)
+            except SymmetryError:
+                raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from None
         if num_contr == 2:
             # contract the large leg first
             which_is_large = legs1.index(1 if tensor1.is_projection else 0)
@@ -6616,15 +6634,13 @@ def tdot(
         c = ChargedTensor._CHARGE_LEG_LABEL
         c1 = c + '1'
         c2 = c + '2'
-        relabel1 = {c: c1} if relabel1 is None else {**relabel1, c: c1}
-        relabel2 = {c: c2} if relabel2 is None else {**relabel2, c: c2}
         inv_part = tdot(
             tensor1.invariant_part,
             tensor2.invariant_part,
             legs1=legs1,
             legs2=legs2,
-            relabel1=relabel1,
-            relabel2=relabel2,
+            relabel1={c: c1},
+            relabel2={c: c2},
         )
         inv_part = move_leg(inv_part, c1, domain_pos=0)
         return ChargedTensor.from_two_charge_legs(
@@ -6633,11 +6649,11 @@ def tdot(
             state2=tensor2.charged_state,
         )
     if isinstance(tensor1, ChargedTensor):
-        inv_part = tdot(tensor1.invariant_part, tensor2, legs1=legs1, legs2=legs2, relabel1=relabel1, relabel2=relabel2)
+        inv_part = tdot(tensor1.invariant_part, tensor2, legs1=legs1, legs2=legs2)
         inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0)
         return ChargedTensor.from_invariant_part(inv_part, tensor1.charged_state)
     if isinstance(tensor2, ChargedTensor):
-        inv_part = tdot(tensor1, tensor2.invariant_part, legs1=legs1, legs2=legs2, relabel1=relabel1, relabel2=relabel2)
+        inv_part = tdot(tensor1, tensor2.invariant_part, legs1=legs1, legs2=legs2)
         return ChargedTensor.from_invariant_part(inv_part, tensor2.charged_state)
 
     # Remaining case: both are SymmetricTenor
@@ -6649,7 +6665,7 @@ def tdot(
         tensor2 = permute_legs(tensor2, codomain=legs2, bend_right=None)
     except SymmetryError as e:
         raise SymmetryError(_USE_PERMUTE_LEGS_ERR_MSG) from e
-    return _compose_SymmetricTensors(tensor1, tensor2, relabel1=relabel1, relabel2=relabel2)
+    return _compose_SymmetricTensors(tensor1, tensor2)
 
 
 def trace(tensor: Tensor):
