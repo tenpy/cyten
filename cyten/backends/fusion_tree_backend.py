@@ -1019,7 +1019,7 @@ class FusionTreeBackend(TensorBackend):
         )
 
     def get_device_from_data(self, a: FusionTreeData) -> str:
-        return a.device
+        return self.block_backend.as_device(a.device)
 
     def get_dtype_from_data(self, a: FusionTreeData) -> Dtype:
         return a.dtype
@@ -2192,6 +2192,15 @@ class FusionTreeBackend(TensorBackend):
     def state_tensor_product(self, state1: Block, state2: Block, pipe: LegPipe):
         # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
+
+    def to_block_backend(
+        self, data: FusionTreeData, block_backend, dtype: Dtype = None, device: str = None
+    ) -> FusionTreeData:
+        if dtype is None:
+            dtype = data.dtype
+        device = block_backend.as_device(data.device if device is None else device)
+        blocks = [block_backend.as_block(b, dtype=dtype, device=device) for b in data.blocks]
+        return FusionTreeData(block_inds=data.block_inds, blocks=blocks, dtype=dtype, device=device)
 
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         # first build it with the flattened legs, and if there are pipes, combine at the very end

@@ -763,6 +763,11 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
+    def to_block_backend(
+        self, data: Data, block_backend: BlockBackend, dtype: Dtype = None, device: str = None
+    ) -> Data: ...
+
+    @abstractmethod
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         """Forget about symmetry structure and convert to a single block.
 

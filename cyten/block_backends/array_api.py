@@ -223,7 +223,7 @@ class ArrayApiBlockBackend(BlockBackend):
         return self.item(a[tuple(idcs)])
 
     def get_device(self, a: Block) -> str:
-        return a.device
+        return self.as_device(a.device)
 
     def get_diagonal(self, a: Block, tol: float | None) -> Block:
         assert a.ndim == 2

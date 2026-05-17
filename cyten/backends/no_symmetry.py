@@ -505,6 +505,11 @@ class NoSymmetryBackend(TensorBackend):
         # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
 
+    def to_block_backend(
+        self, data: Data, block_backend: BlockBackend, dtype: Dtype = None, device: str = None
+    ) -> Data:
+        return block_backend.as_block(data, dtype=dtype, device=device)
+
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         return a.data
 
