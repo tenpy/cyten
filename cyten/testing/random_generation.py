@@ -697,7 +697,7 @@ def _random_ElementarySpace(symmetry, num_sectors, max_multiplicity, is_dual, al
     mults = np_random.integers(min_mult, max_multiplicity, size=(len(sectors),), endpoint=True)
     if symmetry.can_be_dropped and allow_basis_perm:
         dim = np.sum(symmetry.batch_sector_dim(sectors) * mults)
-        basis_perm = np_random.permutation(dim) if np_random.random() < 0.7 else None
+        basis_perm = _random_basis_perm(dim, np_random)
     else:
         basis_perm = None
     if is_dual is None:
@@ -705,6 +705,23 @@ def _random_ElementarySpace(symmetry, num_sectors, max_multiplicity, is_dual, al
     res = spaces.ElementarySpace(symmetry, sectors, mults, basis_perm=basis_perm, is_dual=is_dual)
     res.test_sanity()
     return res
+
+
+def _random_basis_perm(N: int, np_random, p_trivial=0.3):
+    if np_random.random() < p_trivial:
+        return None
+    perm = np_random.permutation(N)
+    # avoid self-inverse permutations, they may hide that we use it the wrong way around
+    if np.all(perm[perm] == np.arange(N)):
+        # compose with a full cycle, which is not self-inverse for N > 2
+        perm = np.roll(perm, 1)
+    # avoid cyclical permutations
+    if np.all(np.roll(perm, perm[0]) == np.arange(N)) and N > 1:
+        # compose with an elementary swap
+        # note that this swap *is* self-inverse, and thus composing with it does not change if the
+        # permutation is self-inverse or not, perm[perm] is unchanged by this
+        perm[[0, 1]] = perm[[1, 0]]
+    return perm
 
 
 def _random_num_legs(np_random):

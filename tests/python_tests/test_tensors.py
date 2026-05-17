@@ -2008,7 +2008,11 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
     assert res.legs == expect_legs
     assert res.labels == T.labels
 
-    if T.symmetry.can_be_dropped:
+    compare_numpy = T.symmetry.can_be_dropped
+    if isinstance(T, ChargedTensor) and T.charged_state is None:
+        compare_numpy = False
+
+    if compare_numpy:
         T_np = T.to_numpy(understood_braiding=True)
         mask_np = M.as_numpy_mask()
         idcs = (slice(None, None, None),) * leg_idx + (mask_np,)
@@ -2112,11 +2116,16 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
 
 
 @pytest.mark.parametrize('trunc', [None, 1e-10])
-def test_horizontal_factorization(trunc, make_compatible_tensor):
+def test_horizontal_factorization(trunc, make_compatible_tensor, compatible_symmetry):
     cod = 4
     cod_cut = 2
     dom = 3
     dom_cut = 1
+    if compatible_symmetry.is_equivalent_to(SU2()):
+        # use fewer legs, to make it not super slow
+        cod = 3
+        dom = 2
+
     T_labels = list('efghijklmn')[: dom + cod]
     T: Tensor = make_compatible_tensor(
         cod, dom, labels=T_labels, cls=SymmetricTensor, use_pipes=False, max_blocks=3, max_block_size=3
@@ -2531,33 +2540,33 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor, compatible_
 @pytest.mark.parametrize(
     'cls_A, cls_B, legs_A, legs_B, A_contr_leg',
     [
-        pytest.param(SymmetricTensor, SymmetricTensor, [2, 2], [1, 1], 1, id='Sym@Sym-2-2-1-1-codom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [2, 2], 1, id='Sym@Sym-3-1-2-2-codom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [1, 2], 1, id='Sym@Sym-3-1-1-2-codom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [3, 0], [2, 2], 1, id='Sym@Sym-3-0-2-2-codom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [0, 2], 1, id='Sym@Sym-3-1-0-2-codom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [2, 2], [1, 1], 2, id='Sym@Sym-2-2-1-1-dom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [1, 3], [2, 2], 2, id='Sym@Sym-1-3-2-2-dom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [1, 3], [2, 1], 2, id='Sym@Sym-1-3-2-1-dom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [0, 3], [2, 2], 0, id='Sym@Sym-0-3-2-2-dom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [0, 3], [2, 0], 1, id='Sym@Sym-0-3-2-0-dom'),
-        pytest.param(SymmetricTensor, Mask, [2, 2], [1, 1], 1, id='Sym@Mask-2-2-1-1-codom'),
-        pytest.param(SymmetricTensor, Mask, [2, 2], [1, 1], 2, id='Sym@Mask-2-2-1-1-dom'),
-        pytest.param(SymmetricTensor, DiagonalTensor, [2, 2], [1, 1], 1, id='Sym@Diag-2-2-1-1-codom'),
-        pytest.param(SymmetricTensor, DiagonalTensor, [2, 2], [1, 1], 2, id='Sym@Diag-2-2-1-1-dom'),
-        pytest.param(SymmetricTensor, ChargedTensor, [3, 1], [1, 2], 1, id='Sym@Charged-3-1-1-2-codom'),
-        pytest.param(SymmetricTensor, ChargedTensor, [1, 3], [2, 1], 2, id='Sym@Charged-1-3-2-1-dom'),
-        pytest.param(ChargedTensor, SymmetricTensor, [3, 1], [1, 2], 1, id='Charged@Sym-3-1-1-2-codom'),
-        pytest.param(ChargedTensor, SymmetricTensor, [1, 3], [2, 1], 2, id='Charged@Sym-1-3-2-1-dom'),
-        pytest.param(ChargedTensor, Mask, [2, 2], [1, 1], 1, id='Charged@Mask-2-2-1-1-codom'),
-        pytest.param(ChargedTensor, Mask, [2, 2], [1, 1], 2, id='Charged@Mask-2-2-1-1-dom'),
-        pytest.param(ChargedTensor, DiagonalTensor, [2, 2], [1, 1], 1, id='Charged@Diag-2-2-1-1-codom'),
-        pytest.param(ChargedTensor, DiagonalTensor, [2, 2], [1, 1], 2, id='Charged@Diag-2-2-1-1-dom'),
-        pytest.param(ChargedTensor, ChargedTensor, [3, 1], [1, 2], 1, id='Charged@Charged-3-1-1-2-codom'),
-        pytest.param(ChargedTensor, ChargedTensor, [1, 3], [2, 1], 2, id='Charged@Charged-1-3-2-1-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [2, 2], [1, 1], 1, id='Sym-Sym-2-2-1-1-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [2, 2], 1, id='Sym-Sym-3-1-2-2-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [1, 2], 1, id='Sym-Sym-3-1-1-2-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [3, 0], [2, 2], 1, id='Sym-Sym-3-0-2-2-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [0, 2], 1, id='Sym-Sym-3-1-0-2-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [2, 2], [1, 1], 2, id='Sym-Sym-2-2-1-1-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [1, 3], [2, 2], 2, id='Sym-Sym-1-3-2-2-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [1, 3], [2, 1], 2, id='Sym-Sym-1-3-2-1-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [0, 3], [2, 2], 0, id='Sym-Sym-0-3-2-2-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [0, 3], [2, 0], 1, id='Sym-Sym-0-3-2-0-dom'),
+        pytest.param(SymmetricTensor, Mask, [2, 2], [1, 1], 1, id='Sym-Mask-2-2-1-1-codom'),
+        pytest.param(SymmetricTensor, Mask, [2, 2], [1, 1], 2, id='Sym-Mask-2-2-1-1-dom'),
+        pytest.param(SymmetricTensor, DiagonalTensor, [2, 2], [1, 1], 1, id='Sym-Diag-2-2-1-1-codom'),
+        pytest.param(SymmetricTensor, DiagonalTensor, [2, 2], [1, 1], 2, id='Sym-Diag-2-2-1-1-dom'),
+        pytest.param(SymmetricTensor, ChargedTensor, [3, 1], [1, 2], 1, id='Sym-Charged-3-1-1-2-codom'),
+        pytest.param(SymmetricTensor, ChargedTensor, [1, 3], [2, 1], 2, id='Sym-Charged-1-3-2-1-dom'),
+        pytest.param(ChargedTensor, SymmetricTensor, [3, 1], [1, 2], 1, id='Charged-Sym-3-1-1-2-codom'),
+        pytest.param(ChargedTensor, SymmetricTensor, [1, 3], [2, 1], 2, id='Charged-Sym-1-3-2-1-dom'),
+        pytest.param(ChargedTensor, Mask, [2, 2], [1, 1], 1, id='Charged-Mask-2-2-1-1-codom'),
+        pytest.param(ChargedTensor, Mask, [2, 2], [1, 1], 2, id='Charged-Mask-2-2-1-1-dom'),
+        pytest.param(ChargedTensor, DiagonalTensor, [2, 2], [1, 1], 1, id='Charged-Diag-2-2-1-1-codom'),
+        pytest.param(ChargedTensor, DiagonalTensor, [2, 2], [1, 1], 2, id='Charged-Diag-2-2-1-1-dom'),
+        pytest.param(ChargedTensor, ChargedTensor, [3, 1], [1, 2], 1, id='Charged-Charged-3-1-1-2-codom'),
+        pytest.param(ChargedTensor, ChargedTensor, [1, 3], [2, 1], 2, id='Charged-Charged-1-3-2-1-dom'),
     ],
 )
-def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compatible_tensor):
+def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compatible_tensor, np_random):
     labels_A = [*list('abcde')[: legs_A[0]], *list('fghij')[: legs_A[1]][::-1]]
     labels_B = [*list('klmno')[: legs_B[0]], *list('pqrst')[: legs_B[1]][::-1]]
     A: Tensor = make_compatible_tensor(codomain=legs_A[0], domain=legs_A[1], labels=labels_A, cls=cls_A)
@@ -2586,6 +2595,11 @@ def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compati
         pytest.xfail(reason='Mask generation broken')
 
     B: Tensor = make_compatible_tensor(codomain=codom_B, domain=dom_B, labels=labels_B, cls=cls_B)
+    if isinstance(A, ChargedTensor) and isinstance(B, ChargedTensor):
+        if A.charged_state is not None and B.charged_state is None:
+            B.charged_state = B.backend.block_backend.as_block(np_random.uniform(int(B.charge_leg.dim)))
+        if A.charged_state is None and B.charged_state is not None:
+            B.charged_state = None
 
     if isinstance(A.backend, backends.FusionTreeBackend) and A.has_pipes and cls_B is Mask:
         with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
