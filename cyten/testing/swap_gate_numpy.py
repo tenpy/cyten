@@ -1,6 +1,12 @@
 """Tools for recreating tensor operations on numpy representations.
 
 This uses e.g. explicit SWAP gates.
+
+- combining / splitting legs can be done as usual with np.reshape
+- changing leg order
+    - with a *cyclic* permutation (i.e. leg bends without braids) is fine with np.transpose
+    - with non-cyclic permutation, needs swap gates, see `transpose` and `permute_legs` in this module.
+
 """
 
 # Copyright (C) TeNPy Developers, Apache license
