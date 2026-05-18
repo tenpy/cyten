@@ -28,7 +28,7 @@ from ..backends import (
     get_same_backend,
 )
 from ..block_backends import Block, Dtype
-from ..dummy_config import printoptions
+from ..config import get_option
 from ..symmetries import (
     ElementarySpace,
     FusionTree,
@@ -674,7 +674,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return self
 
     def __repr__(self):
-        indent = printoptions.indent * ' '
+        indent = get_option('print_indent') * ' '
         lines = [f'<{self.__class__.__name__}']
         lines.extend(self._repr_header_lines(indent=indent))
         # skipped showing data. see commit 4bdaa5c for an old implementation of showing data.
@@ -3570,6 +3570,7 @@ class ChargedTensor(Tensor):
             self.charged_state = self.backend.block_backend.as_block(self.charged_state, device=device)
 
     def _repr_header_lines(self, indent: str) -> list[str]:
+        linewidth = get_option('print_linewidth')
         lines = Tensor._repr_header_lines(self, indent=indent)
         lines.append(
             f'{indent}* Charge Leg: dim={round(self.charge_leg.dim, 3)} sectors={self.charge_leg.sector_decomposition}'
@@ -3579,7 +3580,7 @@ class ChargedTensor(Tensor):
             lines.append(f'{start}unspecified')
         else:
             state_lines = self.backend.block_backend._block_repr_lines(
-                self.charged_state, indent=indent + '  ', max_width=printoptions.linewidth - len(start), max_lines=1
+                self.charged_state, indent=indent + '  ', max_width=linewidth - len(start), max_lines=1
             )
             lines.append(start + state_lines[0])
         return lines
