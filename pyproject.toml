@@ -58,11 +58,12 @@ classifiers = [
 dependencies = [
     "numpy",
     "scipy",
+    "pyyaml",
 ]
 
 [project.optional-dependencies]
 # users:
-io = ["h5py", "pyyaml"]
+io = ["h5py"]
 gpu = ["torch"]
 # dev:
 test = ["pytest>=6.0", "sympy", "cyten[io]"]

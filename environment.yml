@@ -44,4 +44,4 @@ dependencies:
   # I/O (to be added later...)
   # - hdf5
   - h5py
-  # - pyyaml
+  - pyyaml
