@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from numpy import ndarray
 
-from ..dummy_config import printoptions
+from ..config import get_option
 from ..tools.misc import (
     UNSPECIFIED,
     combine_permutations,
@@ -378,6 +378,9 @@ class LegPipe(Leg):
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
+        linewidth = get_option('print_linewidth')
+        indent = get_option('print_indent')
+        maxlines = get_option('maxlines_spaces')
 
         if one_line:
             if show_symmetry:
@@ -385,19 +388,20 @@ class LegPipe(Leg):
                     f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual}, '
                     f'symmetry={self.symmetry!r}, combine_cstyle={self.combine_cstyle})'
                 )
-                if len(res) <= printoptions.linewidth:
+
+                if len(res) <= linewidth:
                     return res
                 return self.__repr__(show_symmetry=False, one_line=True)
             else:
                 res = (
                     f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual}, combine_cstyle={self.combine_cstyle})'
                 )
-                if len(res) <= printoptions.linewidth:
+                if len(res) <= linewidth:
                     return res
                 raise RuntimeError  # the above should always fit in linewidth ...
 
         lines = [f'{ClsName}([']
-        indent = printoptions.indent * ' '
+        indent = indent * ' '
 
         for force_children_one_line in [False, True]:
             for leg in self.legs:
@@ -408,8 +412,8 @@ class LegPipe(Leg):
                 lines.append(f'], is_dual={self.is_dual}, symmetry={self.symmetry!r})')
             else:
                 lines.append(f'], is_dual={self.is_dual})')
-            maxlines_ok = len(lines) <= printoptions.maxlines_spaces
-            linewidth_ok = all(len(l) < printoptions.linewidth for l in lines)
+            maxlines_ok = len(lines) <= maxlines
+            linewidth_ok = all(len(l) < linewidth for l in lines)
             if maxlines_ok and linewidth_ok:
                 return '\n'.join(lines)
 
@@ -1197,7 +1201,9 @@ class ElementarySpace(Space, Leg):
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
-        indent = printoptions.indent * ' '
+        indent = get_option('print_indent') * ' '
+        linewidth = get_option('print_linewidth')
+        maxlines = get_option('maxlines_spaces')
 
         # try to show everything, then less and less
         for full_sectors, summarized_sectors, symmetry in [
@@ -1206,7 +1212,7 @@ class ElementarySpace(Space, Leg):
             (False, False, show_symmetry),
             (False, False, False),
         ]:
-            if full_sectors and (3 * self.defining_sectors.size > printoptions.linewidth):
+            if full_sectors and (3 * self.defining_sectors.size > linewidth):
                 # there is no chance to print all sectors in one line
                 continue
 
@@ -1230,14 +1236,14 @@ class ElementarySpace(Space, Leg):
 
             # try one line
             res = ClsName + '(' + ', '.join(items) + ')'
-            if len(res) <= printoptions.linewidth:
+            if len(res) <= linewidth:
                 return res
 
             if not one_line:
                 # try multi line
                 items = [indent + i + ',' for i in items]
-                maxlines_ok = len(items) + 2 <= printoptions.maxlines_spaces
-                linewidth_ok = all(len(l) < printoptions.linewidth for l in items)
+                maxlines_ok = len(items) + 2 <= maxlines
+                linewidth_ok = all(len(l) < linewidth for l in items)
                 if maxlines_ok and linewidth_ok:
                     return ClsName + '(\n' + '\n'.join(indent + i for i in items) + '\n)'
 
@@ -1888,7 +1894,9 @@ class TensorProduct(Space):
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
-        indent = printoptions.indent * ' '
+        indent = get_option('print_indent') * ' '
+        linewidth = get_option('print_linewidth')
+        maxlines = get_option('maxlines_spaces')
 
         for mode in [
             (True, False, True, show_symmetry),
@@ -1900,7 +1908,7 @@ class TensorProduct(Space):
         ]:
             full_sectors, summarized_sectors, show_all_factors, symmetry = mode
 
-            if full_sectors and (3 * self.sector_decomposition.size > printoptions.linewidth):
+            if full_sectors and (3 * self.sector_decomposition.size > linewidth):
                 # there is no chance to print all sectors in one line
                 continue
 
@@ -1935,13 +1943,13 @@ class TensorProduct(Space):
 
             # try one line
             res = ClsName + '(' + ', '.join(one_line_items) + ')'
-            if len(res) <= printoptions.linewidth:
+            if len(res) <= linewidth:
                 return res
 
             if not one_line:
                 # try multi line
-                maxlines_ok = len(lines) <= printoptions.maxlines_spaces
-                linewidth_ok = all(len(l) < printoptions.linewidth for l in lines)
+                maxlines_ok = len(lines) <= maxlines
+                linewidth_ok = all(len(l) < linewidth for l in lines)
                 if maxlines_ok and linewidth_ok:
                     return '\n'.join(lines)
 
@@ -2273,7 +2281,9 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
-        indent = printoptions.indent * ' '
+        indent = get_option('print_indent') * ' '
+        linewidth = get_option('print_linewidth')
+        maxlines = get_option('maxlines_spaces')
 
         for mode in [
             (0, 0, False, show_symmetry),
@@ -2289,7 +2299,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             # child_mode: 0=show full , 1=force one-line each, 2=show only num
             # summarize_basis_perm: bool
 
-            if (sector_mode == 0) and (3 * self.sector_decomposition.size > printoptions.linewidth):
+            if (sector_mode == 0) and (3 * self.sector_decomposition.size > linewidth):
                 # there is no chance to print all sectors in one line
                 continue
 
@@ -2348,13 +2358,13 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
             # try one line
             res = ClsName + '(' + ', '.join(one_line_items) + ')'
-            if len(res) <= printoptions.linewidth:
+            if len(res) <= linewidth:
                 return res
 
             if not one_line:
                 # try multi line
-                maxlines_ok = len(lines) <= printoptions.maxlines_spaces
-                linewidth_ok = all(len(l) < printoptions.linewidth for l in lines)
+                maxlines_ok = len(lines) <= maxlines
+                linewidth_ok = all(len(l) < linewidth for l in lines)
                 if maxlines_ok and linewidth_ok:
                     return '\n'.join(lines)
 

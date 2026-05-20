@@ -14,7 +14,7 @@ Cyten main module
 
     backends
     dtypes
-    dummy_config
+    config
     krylov_based
     models
     random_matrix

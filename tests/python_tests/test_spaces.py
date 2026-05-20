@@ -521,7 +521,7 @@ def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines
     terminal_width = 80
     str_max_len = terminal_width * str_max_lines
     repr_max_len = terminal_width * str_max_lines
-    # TODO output is a bit long, should we force shorter? -> consider config.printoptions!
+    # TODO output is a bit long, should we force shorter?
 
     instances = {
         'ElementarySpace (short)': make_any_space(max_sectors=3, is_dual=True),
