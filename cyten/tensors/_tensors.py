@@ -49,6 +49,7 @@ from ..tools.misc import (
     to_iterable,
     to_valid_idx,
 )
+from ..tools.string import vert_join
 
 logger = logging.getLogger(__name__)
 _USE_PERMUTE_LEGS_ERR_MSG = 'Legs can not be permuted automatically. Explicitly use permute_legs()'
@@ -681,6 +682,10 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         lines.append('>')
         return '\n'.join(lines)
 
+    def __str__(self):
+        lines = self._repr_header_lines(indent='', use_symm_str=True)
+        return vert_join([self.ascii_diagram, '\n'.join([type(self).__name__, *lines])], valign='c', delim='   |  ')
+
     def __rmul__(self, other):
         if isinstance(other, Number):
             return scalar_multiply(other, self)
@@ -761,7 +766,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
             co_domain_idx = idx
         return in_domain, co_domain_idx, idx
 
-    def _repr_header_lines(self, indent: str) -> list[str]:
+    def _repr_header_lines(self, indent: str, use_symm_str: bool = False) -> list[str]:
         if all(l is None for l in self._labels):
             labels_str = 'None'
         else:
@@ -769,7 +774,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         lines = [
             f'{indent}* Device: {self.device}',
             f'{indent}* Backend: {self.backend!s}',
-            f'{indent}* Symmetry: {self.symmetry!r}',
+            f'{indent}* Symmetry: {str(self.symmetry) if use_symm_str else repr(self.symmetry)}',
             f'{indent}* Labels: {labels_str}',
         ]
         if self.symmetry.can_be_dropped:
@@ -3569,9 +3574,9 @@ class ChargedTensor(Tensor):
         if self.charged_state is not None:
             self.charged_state = self.backend.block_backend.as_block(self.charged_state, device=device)
 
-    def _repr_header_lines(self, indent: str) -> list[str]:
+    def _repr_header_lines(self, indent: str, use_symm_str: bool = False) -> list[str]:
         linewidth = get_option('print_linewidth')
-        lines = Tensor._repr_header_lines(self, indent=indent)
+        lines = Tensor._repr_header_lines(self, indent=indent, use_symm_str=use_symm_str)
         lines.append(
             f'{indent}* Charge Leg: dim={round(self.charge_leg.dim, 3)} sectors={self.charge_leg.sector_decomposition}'
         )
