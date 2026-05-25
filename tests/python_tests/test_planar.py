@@ -265,7 +265,7 @@ def test_planar_contraction(
         assert ct.planar.planar_almost_equal(res, expect)
     else:
         assert len(contr_A) == A.num_legs and len(contr_B) == B.num_legs
-        assert np.allclose(res, expect)
+        npt.assert_almost_equal(res, expect)
 
 
 @pytest.mark.parametrize(
@@ -1067,7 +1067,7 @@ def test_PlanarDiagram_with_traces(symmetry, np_random):
     expect1 = ct.planar.planar_contraction(expect1, T3_traced, ['vR'], ['vL'])
     expect1 = ct.planar.planar_contraction(expect1, T4_traced, ['vL', 'vR'], ['vL', 'vR'])
     assert isinstance(expect1, (float, complex))
-    assert np.allclose(expect1, res)
+    npt.assert_almost_equal(expect1, res)
 
     # ===========================================
     # compare to manual contraction, using general (not planar) routines
@@ -1087,7 +1087,7 @@ def test_PlanarDiagram_with_traces(symmetry, np_random):
         ct.permute_legs(T4_traced_, codomain=['vL', 'vR'], bend_right=True),
     )
     assert isinstance(expect2, (float, complex))
-    assert np.allclose(expect2, res)
+    npt.assert_almost_equal(expect2, res)
 
 
 def test_PlanarDiagram_verify_diagram():

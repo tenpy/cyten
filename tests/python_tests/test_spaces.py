@@ -109,7 +109,7 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
                     sector_idx, mult_idx = s1.parse_index(idx)
                     assert sector_idx == n_sector
                     assert mult_idx == m * d + mu
-                    assert np.all(s1.idx_to_sector(idx) == sector)
+                    npt.assert_array_equal(s1.idx_to_sector(idx), sector)
                     idx += 1
 
     print('check sector lookup')
@@ -182,8 +182,8 @@ def test_ElementarySpace_from_defining_sectors(any_symmetry, make_any_sectors, n
         np.all(sectors[None, :, :] == expect_sectors[:, None, :], axis=2), multiplicities[None, :], 0
     )
     expect_mults = np.sum(mult_contributions, axis=1)
-    assert np.all(res.sector_decomposition == expect_sectors)
-    assert np.all(res.multiplicities == expect_mults)
+    npt.assert_array_equal(res.sector_decomposition, expect_sectors)
+    npt.assert_array_equal(res.multiplicities, expect_mults)
     #
     # check basis perm
     if any_symmetry.can_be_dropped:
@@ -419,7 +419,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
     start = 0
     for sector, mult in zip(leg_1.sector_decomposition, leg_1.multiplicities):
         for b in internal_basis_1[start : start + mult]:
-            assert np.all(b[0] == sector)
+            npt.assert_array_equal(b[0], sector)
         start = start + mult
     assert start == leg_1.dim
 
@@ -434,7 +434,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
         for s_1, s_2 in iter_combinations(leg_1.sector_decomposition, leg_2.sector_decomposition)
     ]
     fusion_outcomes_sorted, expect = _sort_sectors(fusion_outcomes, abelian_group_symmetry, by_duals=pipe.is_dual)
-    assert np.all(pipe.fusion_outcomes_sort == expect)
+    npt.assert_array_equal(pipe.fusion_outcomes_sort, expect)
 
     # check block_ind_map_slices
     # =======================================
@@ -457,12 +457,12 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
         [b[0] for b in internal_fusion_outcomes], abelian_group_symmetry, by_duals=pipe.is_dual
     )
 
-    assert np.all(pipe._get_fusion_outcomes_perm(pipe.multiplicities) == fusion_outcomes_perm)
+    npt.assert_array_equal(pipe._get_fusion_outcomes_perm(pipe.multiplicities), fusion_outcomes_perm)
 
     # check basis_perm
     # =======================================
     assert pipe.basis_perm.shape == (pipe.dim,)
-    assert np.all(np.sort(pipe.basis_perm) == np.arange(pipe.dim))
+    npt.assert_array_equal(np.sort(pipe.basis_perm), np.arange(pipe.dim))
     public_basis_pipe = [
         (abelian_group_symmetry.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
         for b_1, b_2 in iter_combinations(public_basis_1, public_basis_2)
@@ -480,7 +480,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
         else:  # else == "no break occurred"
             raise RuntimeError  # should not happen
 
-    assert np.all(pipe.basis_perm == np.array(expect_perm))
+    npt.assert_array_equal(pipe.basis_perm, np.array(expect_perm))
 
 
 @pytest.mark.parametrize('is_dual', [True, False])
@@ -509,8 +509,8 @@ def test_direct_sum(is_dual, make_any_space, max_mult=5, max_sectors=5):
         expected_order = np.lexsort(d.sector_decomposition.T)
     else:
         expected_order = slice(None, None, None)
-    assert np.all(d.sector_decomposition[expected_order] == sectors)
-    assert np.all(d.multiplicities[expected_order] == mults)
+    npt.assert_array_equal(d.sector_decomposition[expected_order], sectors)
+    npt.assert_array_equal(d.multiplicities[expected_order], mults)
 
 
 def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines=20):
@@ -620,10 +620,10 @@ def test_swap_gate(symm, basis_perm, abelian_pipes, np_random, V_pipe, W_pipe, V
     # -> it is now enough to check that the phases are as expected
 
     # they must be complex phases
-    npt.assert_allclose(np.abs(phases), 1)
+    npt.assert_almost_equal(np.abs(phases), 1)
 
     if symm.has_trivial_braid:
-        npt.assert_allclose(phases, +1)
+        npt.assert_almost_equal(phases, +1)
 
     elif symm is fermion_parity:
         if V_pipe is False:
@@ -650,7 +650,7 @@ def test_swap_gate(symm, basis_perm, abelian_pipes, np_random, V_pipe, W_pipe, V
 
         for j in range(dW):
             for i in range(dV):
-                assert np.allclose(phases[j, i], 1 - 2 * V_parity[i] * W_parity[j])
+                npt.assert_almost_equal(phases[j, i], 1 - 2 * V_parity[i] * W_parity[j])
         npt.assert_almost_equal(phases, 1 - 2 * V_parity[None, :] * W_parity[:, None])
 
     else:
@@ -666,11 +666,11 @@ def assert_spaces_equal(space1: spaces.Space, space2: spaces.Space):
         assert space1.is_dual == space2.is_dual, 'mismatched is_dual'
         assert space1.symmetry == space2.symmetry, 'mismatched symmetry'
         assert space1.num_sectors == space2.num_sectors, 'mismatched num_sectors'
-        assert np.all(space1.multiplicities == space2.multiplicities), 'mismatched multiplicities'
-        assert np.all(space1.sector_decomposition == space2.sector_decomposition), 'mismatched sectors'
+        npt.assert_array_equal(space1.multiplicities, space2.multiplicities), 'mismatched multiplicities'
+        npt.assert_array_equal(space1.sector_decomposition, space2.sector_decomposition), 'mismatched sectors'
         if (space1._basis_perm is not None) or (space2._basis_perm is not None):
             # otherwise both are trivial and this match
-            assert np.all(space1.basis_perm == space2.basis_perm), 'mismatched basis_perm'
+            npt.assert_array_equal(space1.basis_perm, space2.basis_perm), 'mismatched basis_perm'
     elif isinstance(space1, spaces.TensorProduct):
         assert isinstance(space2, spaces.TensorProduct), 'mismatching types'
         assert space1.num_factors == space2.num_factors

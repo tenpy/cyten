@@ -40,7 +40,7 @@ def test_lanczos_gs(compatible_backend, make_compatible_space, N_cache, tol):
 
     H_np = H.to_numpy()
     H_op = sparse.TensorLinearOperator(H, which_leg=1)
-    npt.assert_allclose(H_np, H_np.conj().transpose())  # make sure we generated a hermitian operator
+    npt.assert_almost_equal(H_np, H_np.conj().transpose())  # make sure we generated a hermitian operator
     E_np, psi_np = np.linalg.eigh(H_np)
     E0_np, psi0_np = E_np[0], psi_np[:, 0]
 
@@ -139,7 +139,7 @@ def test_lanczos_evolve(compatible_backend, make_compatible_space, N_cache, tol)
         return
 
     H_np = H.to_numpy()
-    npt.assert_allclose(H_np, H_np.conj().transpose())  # make sure we generated a hermitian operator
+    npt.assert_almost_equal(H_np, H_np.conj().transpose())  # make sure we generated a hermitian operator
 
     sector = leg.sector_decomposition[0]
     psi_init = tensors.ChargedTensor.random_uniform(legs=[leg], charge=sector, backend=backend, dummy_leg_state=[1])
