@@ -104,8 +104,8 @@ def test_spin_site(any_backend, spin):
         sz = site.spin_vector[:, :, 2]
         down = site.state_labels['down']
         up = site.state_labels['up']
-        assert np.allclose(sz[down, down], -1 * spin)
-        assert np.allclose(sz[up, up], spin)
+        npt.assert_almost_equal(sz[down, down], -1 * spin)
+        npt.assert_almost_equal(sz[up, up], spin)
 
         expect_ops = {}
         if conserve in ['Sz', 'parity', 'None']:
@@ -138,10 +138,10 @@ def test_spinless_boson_site(any_backend, np_random, Nmax):
         site.test_sanity()
 
         vac = site.state_labels['vac']
-        assert np.allclose(site.n_tot[vac, vac], 0)
+        npt.assert_almost_equal(site.n_tot[vac, vac], 0)
         for i in range(Nmax):
             state = site.state_labels[str(i)]
-            assert np.allclose(site.n_tot[state, state], i)
+            npt.assert_almost_equal(site.n_tot[state, state], i)
 
         expect_ops = dict(N0=True, N=True, Ntot=True)
         expect_ops.update(N0N0=True, NN=True, NtotNtot=True)
@@ -179,12 +179,12 @@ def test_spinless_boson_site(any_backend, np_random, Nmax):
         site.test_sanity()
 
         vac = site.state_labels['vac']
-        assert np.allclose(site.n_tot[vac, vac], 0)
+        npt.assert_almost_equal(site.n_tot[vac, vac], 0)
         for i in range(Nmax):
             for j in range(Nmax2):
                 state = site.state_labels[f'({i}, {j})']
-                assert np.allclose(site.number_operators[state, state, 0], i)
-                assert np.allclose(site.number_operators[state, state, 1], j)
+                npt.assert_almost_equal(site.number_operators[state, state, 0], i)
+                npt.assert_almost_equal(site.number_operators[state, state, 1], j)
 
         expect_ops = dict(N0=True, N1=True, Ntot=True)
         expect_ops.update(N0N0=True, N1N1=True, NtotNtot=True)
@@ -211,16 +211,16 @@ def test_spinless_fermion_site(block_backend, np_random, num_species):
         site.test_sanity()
 
         vac = site.state_labels['vac']
-        assert np.allclose(site.n_tot[vac, vac], 0)
+        npt.assert_almost_equal(site.n_tot[vac, vac], 0)
         if num_species == 1:
             assert site.state_labels['0'] == vac
             state = site.state_labels['1']
-            assert np.allclose(site.n_tot[state, state], 1)
+            npt.assert_almost_equal(site.n_tot[state, state], 1)
         else:
             for occupations in it.product([0, 1], repeat=num_species):
                 state = site.state_labels[str(occupations)]
                 for k in range(num_species):
-                    assert np.allclose(site.number_operators[state, state, k], occupations[k])
+                    npt.assert_almost_equal(site.number_operators[state, state, k], occupations[k])
 
         expect_ops = {f'N{k}': True for k in range(num_species)}
         expect_ops.update(Ntot=True, Ptot=True, NtotNtot=True)
@@ -255,9 +255,9 @@ def test_spin_half_fermion_site(block_backend, np_random):
         assert site.state_labels['full'] == site.state_labels['(1, 1)']
         for occupations in it.product([0, 1], repeat=2):
             state = site.state_labels[str(occupations)]
-            assert np.allclose(site.number_operators[state, state, 0], occupations[0])  # spin up
-            assert np.allclose(site.number_operators[state, state, 1], occupations[1])  # spin down
-            assert np.allclose(site.spin_vector[state, state, 2], 0.5 * (occupations[0] - occupations[1]))
+            npt.assert_almost_equal(site.number_operators[state, state, 0], occupations[0])  # spin up
+            npt.assert_almost_equal(site.number_operators[state, state, 1], occupations[1])  # spin down
+            npt.assert_almost_equal(site.spin_vector[state, state, 2], 0.5 * (occupations[0] - occupations[1]))
 
         expect_ops = dict(Ntot=True, Ptot=True, NtotNtot=True)
         if conserve_S in ['Sz', 'parity', 'None']:
@@ -294,10 +294,10 @@ def test_clock_site(any_backend, q):
 
         z = site.clock_operators[:, :, 1]
         up = site.state_labels['up']
-        assert np.allclose(z[up, up], 1)
+        npt.assert_almost_equal(z[up, up], 1)
         if q % 2 == 0:
             down = site.state_labels['down']
-            assert np.allclose(z[down, down], -1)
+            npt.assert_almost_equal(z[down, down], -1)
         else:
             assert 'down' not in site.state_labels
 

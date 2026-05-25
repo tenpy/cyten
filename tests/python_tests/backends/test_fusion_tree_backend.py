@@ -8,6 +8,7 @@ from math import prod
 
 import numpy as np
 import pytest
+from numpy import testing as npt
 
 from cyten import backends
 from cyten.backends import fusion_tree_backend, get_backend
@@ -62,10 +63,10 @@ def test_c_symbol_fibonacci_anyons(block_backend: str, np_random: np.random.Gene
     C_ttttt1 = phi**-0.5 * R_tau * R_1.conj()
     C_tttt1t = phi**-0.5 * R_tau.conj()
     C_tttttt = -1 * phi**-1
-    assert np.allclose(sym.c_symbol(tau, tau, tau, tau, vac, vac), C_tttt11)
-    assert np.allclose(sym.c_symbol(tau, tau, tau, tau, tau, vac), C_ttttt1)
-    assert np.allclose(sym.c_symbol(tau, tau, tau, tau, vac, tau), C_tttt1t)
-    assert np.allclose(sym.c_symbol(tau, tau, tau, tau, tau, tau), C_tttttt)
+    npt.assert_almost_equal(sym.c_symbol(tau, tau, tau, tau, vac, vac), C_tttt11)
+    npt.assert_almost_equal(sym.c_symbol(tau, tau, tau, tau, tau, vac), C_ttttt1)
+    npt.assert_almost_equal(sym.c_symbol(tau, tau, tau, tau, vac, tau), C_tttt1t)
+    npt.assert_almost_equal(sym.c_symbol(tau, tau, tau, tau, tau, tau), C_tttttt)
     # R_1=-0.8090-0.5878j  R_tau=-0.3090+0.9511j
     # C_tttt11=-0.5000+0.3633j   C_tttt1t=-0.2429-0.7477j   C_ttttt1=-0.2429-0.7477j   C_tttttt=-0.6180
 
