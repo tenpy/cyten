@@ -21,6 +21,8 @@ Changes compared to old np_conserved:
 
 .. _abelian_backend__blocks:
 
+FIXME update
+
 Blocks
 ------
 TODO elaborate about blocks, block_inds etc
@@ -1707,6 +1709,10 @@ class AbelianBackend(TensorBackend):
         levels: list[int] | None,
         bend_right: list[bool | None],
     ) -> AbelianBackendData:
+        # FIXME define a Symmetry function that retrieves the prefactor for each block
+        #       should be fully specified by the uncoupled sectors & the permutation
+        # FIXME We could do this in batch for all the blocks too (broadcast R symbol over SectorArrays)!
+        raise NotImplementedError
         axes_perm = [*codomain_idcs, *reversed(domain_idcs)]
         blocks = [self.block_backend.permute_axes(block, axes_perm) for block in a.data.blocks]
         block_inds = a.data.block_inds[:, axes_perm]
@@ -1923,7 +1929,7 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(a.data.dtype, a.data.device, blocks, block_inds, is_sorted=True)
 
     def supports_symmetry(self, symmetry: Symmetry) -> bool:
-        return symmetry.is_abelian and symmetry.has_trivial_braid
+        return symmetry.is_abelian and symmetry.has_symmetric_braid
 
     def svd(
         self, a: SymmetricTensor, new_co_domain: TensorProduct, algorithm: str | None

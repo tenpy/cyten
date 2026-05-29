@@ -334,7 +334,7 @@ def make_any_block(any_backend, np_random):
 # build the compatible pairs
 _compatible_pairs = {'NoSymmetry': ('no_symmetry', ct.no_symmetry)}  # {id: param}
 for _sym_name, _sym in _symmetries.items():
-    if _sym.is_abelian and _sym.has_trivial_braid:
+    if _sym.is_abelian and _sym.has_symmetric_braid:
         _compatible_pairs[f'AbelianBackend-{_sym_name}'] = ('abelian', _sym)
     _compatible_pairs[f'FusionTreeBackend-{_sym_name}'] = pytest.param(
         ('fusion_tree', _sym), marks=pytest.mark.FusionTree
