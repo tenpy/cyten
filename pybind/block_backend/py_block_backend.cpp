@@ -665,7 +665,18 @@ bind_block_backend(py::module_& m)
       .def("max", &BlockBackend::max, py::arg("a"))
       .def("max_abs", &BlockBackend::max_abs, py::arg("a"))
       .def("min", &BlockBackend::min, py::arg("a"))
-      .def("mul", &BlockBackend::mul, py::arg("a"), py::arg("b"))
+      .def("mul",
+           py::overload_cast<const BlockBackend::Scalar&, const BlockCPtr&>(&BlockBackend::mul),
+           py::arg("a"),
+           py::arg("b"))
+      .def("mul",
+           py::overload_cast<float64, const BlockCPtr&>(&BlockBackend::mul),
+           py::arg("a"),
+           py::arg("b"))
+      .def("mul",
+           py::overload_cast<complex128, const BlockCPtr&>(&BlockBackend::mul),
+           py::arg("a"),
+           py::arg("b"))
       .def("norm",
            &BlockBackend::norm,
            py::arg("a"),

@@ -399,6 +399,18 @@ BlockBackend::mul(const Scalar& a, const BlockCPtr& b)
     return (*b) * a;
 }
 
+BlockPtr
+BlockBackend::mul(float64 a, const BlockCPtr& b)
+{
+    return mul(as_scalar(a), b);
+}
+
+BlockPtr
+BlockBackend::mul(complex128 a, const BlockCPtr& b)
+{
+    return mul(as_scalar(a), b);
+}
+
 py::object
 BlockBackend::to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype)
 {

@@ -274,6 +274,8 @@ class BlockBackend
     virtual Scalar max_abs(const BlockCPtr& a) = 0;
     virtual Scalar min(const BlockCPtr& a) = 0;
     virtual BlockPtr mul(const Scalar& a, const BlockCPtr& b);
+    virtual BlockPtr mul(float64 a, const BlockCPtr& b);
+    virtual BlockPtr mul(complex128 a, const BlockCPtr& b);
     /// The p-norm vector-norm of a block.
     virtual Scalar norm(const BlockCPtr& a,
                         float64 order = 2,
