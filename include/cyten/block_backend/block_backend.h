@@ -32,7 +32,6 @@ class BlockBackend
         /// Return the backend for this block's device (e.g.
         /// NumpyBlockBackend::from_factory(device())).
         virtual BlockBackend* get_backend() const = 0;
-
         /// convert to numpy array, might be copy or (immutable) view
         virtual py::array to_numpy() const = 0;
         /// convert to numpy array with given Dtype (default impl: to_numpy() then asarray(...,
@@ -58,11 +57,13 @@ class BlockBackend
         virtual std::shared_ptr<Block> operator*(const Block& other) const = 0;
         /// Elementwise division with another block.
         virtual std::shared_ptr<Block> operator/(const Block& other) const = 0;
-        /// comparisons with another block.
+        /// Elementwise comparisons with another block.
         virtual std::shared_ptr<Block> operator<(const Block& other) const = 0;
         virtual std::shared_ptr<Block> operator<=(const Block& other) const = 0;
         virtual std::shared_ptr<Block> operator>(const Block& other) const = 0;
         virtual std::shared_ptr<Block> operator>=(const Block& other) const = 0;
+        virtual std::shared_ptr<Block> operator==(const Block& other) const = 0;
+        virtual std::shared_ptr<Block> operator!=(const Block& other) const = 0;
         /// Scalar multiplication.
         std::shared_ptr<Block> operator*(const Scalar& s) const;
         /// Multiplication by inverse of a scalar.

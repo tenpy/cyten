@@ -41,6 +41,8 @@ class NumpyBlockBackend : public BlockBackend
         BlockPtr operator<=(const BlockBackend::Block& other) const override;
         BlockPtr operator>(const BlockBackend::Block& other) const override;
         BlockPtr operator>=(const BlockBackend::Block& other) const override;
+        BlockPtr operator==(const BlockBackend::Block& other) const override;
+        BlockPtr operator!=(const BlockBackend::Block& other) const override;
 
       protected:
         py::array arr_;

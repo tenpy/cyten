@@ -620,7 +620,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
 
     def __add__(self, other):
         if isinstance(other, Tensor):
-            return linear_combination(+1, self, +1, other)
+            return linear_combination(+1., self, +1., other)
         return NotImplemented
 
     def __complex__(self):
@@ -1909,7 +1909,7 @@ class DiagonalTensor(SymmetricTensor):
         return self.codomain.factors[0]
 
     def __abs__(self):
-        return self._elementwise_unary(func=operator.abs, maps_zero_to_zero=True)
+        return self._elementwise_unary(func=self.backend.block_backend.abs, maps_zero_to_zero=True)
 
     def __bool__(self):
         if self.dtype == Dtype.bool and is_scalar(self):
@@ -2067,7 +2067,9 @@ class DiagonalTensor(SymmetricTensor):
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
     def elementwise_almost_equal(self, other: DiagonalTensor, rtol: float = 1e-5, atol=1e-8) -> DiagonalTensor:
-        return abs(self - other) <= (atol + rtol * abs(self))
+        # no (Scalar + Block) operation defined, so requires explicit casting
+        ones = DiagonalTensor.from_eye(self.leg, self.backend, self.labels, self.dtype, self.device)
+        return (abs(self - other) <= (atol*ones + rtol * abs(self)))
 
     def _elementwise_binary(
         self, other: DiagonalTensor, func, func_kwargs: dict = None, partial_zero_is_zero: bool = False
@@ -4751,12 +4753,16 @@ def item(tensor: Tensor) -> float | complex | bool:
     raise TypeError
 
 
-def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
+def linear_combination(a: Number | "Scalar", v: Tensor, b: Number | "Scalar", w: Tensor):
     """The linear combination ``a * v + b * w``"""
     _ = get_same_device(v, w)
     _check_compatible_legs([v.codomain, v.domain], [w.codomain, w.domain])
     # Note: We implement Tensor.__add__ and Tensor.__sub__ in terms of this function, so we cant
     #       use them (or the ``+`` and ``-`` operations) here.
+    if isinstance(a, Number):
+        a = v.backend.block_backend.as_scalar(a)
+    if isinstance(b, Number):
+        b = w.backend.block_backend.as_scalar(b)
     if (not isinstance(a, Number)) or (not isinstance(b, Number)):
         msg = f'unsupported scalar types: {type(a).__name__}, {type(b).__name__}'
         raise TypeError(msg)
@@ -4790,6 +4796,8 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
     w = w.as_SymmetricTensor()
 
     backend = get_same_backend(v, w)
+    a = backend.block_backend.as_scalar(a)
+    b = backend.block_backend.as_scalar(b)
     return SymmetricTensor(
         backend.linear_combination(a, v, b, w),
         codomain=v.codomain,

@@ -15,6 +15,9 @@ dependencies:
   - scipy
   - openblas
   - cmake
+  #- pytorch
+  #- xtensor
+  #- xtensor-python
   # alteratively use MKL instead of openblas
   # - mkl
   # - mkl-devel

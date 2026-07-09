@@ -296,7 +296,7 @@ class NoSymmetryBackend(TensorBackend):
         basis_perm = large_leg._basis_perm
         data = func(mask1.data, mask2.data)
         if basis_perm is not None:
-            basis_perm = rank_data(basis_perm[data])
+            basis_perm = rank_data(basis_perm[data.to_numpy()])
         small_leg = ElementarySpace.from_trivial_sector(
             dim=self.block_backend.sum_all(data).as_int64(),
             symmetry=large_leg.symmetry,
@@ -345,7 +345,7 @@ class NoSymmetryBackend(TensorBackend):
     def mask_from_block(self, a: Block, large_leg: Space) -> tuple[MaskData, ElementarySpace]:
         basis_perm = large_leg._basis_perm
         if basis_perm is not None:
-            basis_perm = rank_data(basis_perm[a])
+            basis_perm = rank_data(basis_perm[a.to_numpy()])
         small_leg = ElementarySpace.from_trivial_sector(
             dim=self.block_backend.sum_all(a).as_int64(),
             symmetry=large_leg.symmetry,

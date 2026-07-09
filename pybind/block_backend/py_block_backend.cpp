@@ -161,6 +161,20 @@ bind_block_backend(py::module_& m)
         "__ge__",
         [](const BlockBackend::Block& self, float64 other) { return self >= other; },
         py::arg("other"))
+      .def(
+        "__eq__",
+        [](const BlockBackend::Block& self, const BlockBackend::Block& other) {
+            return self == other;
+        },
+        py::arg("other"),
+        "Equality comparison with another block.")
+      .def(
+        "__ne__",
+        [](const BlockBackend::Block& self, const BlockBackend::Block& other) {
+            return self != other;
+        },
+        py::arg("other"),
+        "Inequality comparison with another block.")
       .def("__getitem__",
            py::overload_cast<py::object>(&BlockBackend::Block::get_item),
            py::arg("key"))

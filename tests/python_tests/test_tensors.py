@@ -379,42 +379,43 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
             expect = np.zeros_like(T_np)
             for (X, Y), block in trees_dict.items():
                 # [a1...aJ,b1...bK]
-                symmetry_data = np.tensordot(X.as_block().conj(), Y.as_block(), (-1, -1))
+                symmetry_data = np.tensordot(X.as_block().to_numpy().conj(), Y.as_block().to_numpy(), (-1, -1))
                 # [a1...aJ,b1...bK] & [a1...aJ,bK...b1]
                 symmetry_data = np.transpose(
                     symmetry_data, [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]
                 )
-                contribution = np.kron(symmetry_data, block)
+                contribution = np.kron(symmetry_data, block.to_numpy())
                 codom_idcs = [
                     slice(*l.slices[l.sector_decomposition_where(a)]) for l, a in zip(T.codomain, X.uncoupled)
                 ]
                 dom_idcs = [slice(*l.slices[l.sector_decomposition_where(b)]) for l, b in zip(T.domain, Y.uncoupled)]
                 expect[(*codom_idcs, *reversed(dom_idcs))] += contribution
-            expect = numpy_block_backend.apply_basis_perm(expect, conventional_leg_order(T_res), inv=True)
 
+            perms = [l.inverse_basis_perm for l in conventional_leg_order(T_res)]
+            expect = expect[np.ix_(*perms)]
             npt.assert_array_almost_equal(T_np, expect)
 
-    # TODO test to_dense_block_trivial_sector
-    # def OLD_test_Tensor_tofrom_dense_block_trivial_sector(make_compatible_tensor):
-    #     # TODO move to SymmetricTensor test?
-    #     tens = make_compatible_tensor(labels=['a'])
-    #     leg, = tens.legs
-    #     block_size = leg.sector_multiplicity(tens.symmetry.trivial_sector)
-    #     #
-    #     if isinstance(tens.backend, backends.FusionTreeBackend):
-    #         with pytest.raises(NotImplementedError, match='to_dense_block_trivial_sector not implemented'):
-    #             block = tens.to_dense_block_trivial_sector()
-    #         return  # TODO
-    #     #
-    #     block = tens.to_dense_block_trivial_sector()
-    #     assert tens.backend.block_shape(block) == (block_size,)
-    #     tens2 = SymmetricTensor.from_dense_block_trivial_sector(leg=leg, block=block, backend=tens.backend, label='a')
-    #     tens2.test_sanity()
-    #     assert tensors.almost_equal(tens, tens2)
-    #     block2 = tens2.to_dense_block_trivial_sector()
-    #     npt.assert_array_almost_equal_nulp(tens.backend.block_to_numpy(block),
-    #                                     tens.backend.block_to_numpy(block2),
-    #                                     100)
+# TODO test to_dense_block_trivial_sector
+# def OLD_test_Tensor_tofrom_dense_block_trivial_sector(make_compatible_tensor):
+#     # TODO move to SymmetricTensor test?
+#     tens = make_compatible_tensor(labels=['a'])
+#     leg, = tens.legs
+#     block_size = leg.sector_multiplicity(tens.symmetry.trivial_sector)
+#     #
+#     if isinstance(tens.backend, backends.FusionTreeBackend):
+#         with pytest.raises(NotImplementedError, match='to_dense_block_trivial_sector not implemented'):
+#             block = tens.to_dense_block_trivial_sector()
+#         return  # TODO
+#     #
+#     block = tens.to_dense_block_trivial_sector()
+#     assert tens.backend.block_shape(block) == (block_size,)
+#     tens2 = SymmetricTensor.from_dense_block_trivial_sector(leg=leg, block=block, backend=tens.backend, label='a')
+#     tens2.test_sanity()
+#     assert tensors.almost_equal(tens, tens2)
+#     block2 = tens2.to_dense_block_trivial_sector()
+#     npt.assert_array_almost_equal_nulp(tens.backend.block_to_numpy(block),
+#                                     tens.backend.block_to_numpy(block2),
+#                                     100)
 
 
 def test_fixes_124(np_random):
@@ -441,16 +442,17 @@ def test_fixes_124(np_random):
     T_np = T.to_numpy()
     expect = np.zeros_like(T_np)
     for (X, Y), block in trees.items():
-        symmetry_data = np.tensordot(X.as_block().conj(), Y.as_block(), (-1, -1))
+        symmetry_data = np.tensordot(X.as_block().to_numpy().conj(), Y.as_block().to_numpy(), (-1, -1))
         # [a1...aJ,b1...bK] & [a1...aJ,bK...b1]
         symmetry_data = np.transpose(
             symmetry_data, [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]
         )
-        contribution = np.kron(symmetry_data, block)
+        contribution = np.kron(symmetry_data, block.to_numpy())
         codom_idcs = [slice(*l.slices[l.sector_decomposition_where(a)]) for l, a in zip(T.codomain, X.uncoupled)]
         dom_idcs = [slice(*l.slices[l.sector_decomposition_where(b)]) for l, b in zip(T.domain, Y.uncoupled)]
         expect[(*codom_idcs, *reversed(dom_idcs))] += contribution
-    expect = backend.block_backend.apply_basis_perm(expect, conventional_leg_order(T), inv=True)
+    perms = [l.inverse_basis_perm for l in conventional_leg_order(T)]
+    expect = expect[np.ix_(*perms)]
     npt.assert_array_almost_equal(T_np, expect)
 
 
@@ -509,8 +511,8 @@ def test_DiagonalTensor(make_compatible_tensor):
     print('checking min / max')
     real_T = tensors.real(T)
     real_np = real_T.diagonal_as_numpy()
-    npt.assert_almost_equal(real_T.max(), np.max(real_np))
-    npt.assert_almost_equal(real_T.min(), np.min(real_np))
+    npt.assert_almost_equal(real_T.max().as_float64(), np.max(real_np))
+    npt.assert_almost_equal(real_T.min().as_float64(), np.min(real_np))
 
 
 def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
@@ -554,7 +556,7 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
                     slc = slice(*slc)
                     stop = int(len(block_mask[slc]) // dim)
                     block_mask[slc] = np.tile(block_mask[slc][:stop], dim)
-            block_mask = backend.block_backend.apply_basis_perm(block_mask, [large_leg], inv=True)
+            block_mask = block_mask[large_leg.inverse_basis_perm]
         M = Mask.from_block_mask(block_mask, large_leg=large_leg, backend=backend)
         M.test_sanity()
         assert M.large_leg == large_leg

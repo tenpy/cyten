@@ -190,6 +190,18 @@ NumpyBlockBackend::Block::operator>=(const BlockBackend::Block& other) const
     return wrap(arr_.attr("__ge__")(other.to_numpy()));
 }
 
+BlockPtr
+NumpyBlockBackend::Block::operator==(const BlockBackend::Block& other) const
+{
+    return wrap(arr_.attr("__eq__")(other.to_numpy()));
+}
+
+BlockPtr
+NumpyBlockBackend::Block::operator!=(const BlockBackend::Block& other) const
+{
+    return wrap(arr_.attr("__ne__")(other.to_numpy()));
+}
+
 // -----------------------------------------------------------------------------
 // NumpyBlockBackend helpers
 // -----------------------------------------------------------------------------
@@ -878,21 +890,24 @@ NumpyBlockBackend::_block_repr_lines(const BlockCPtr& a,
      */
     py::module_ np = numpy_module();
     py::object arr = obj(a);
-    py::object printoptions = np_attr("get_printoptions")();
+    int64 old_linewidth = np_attr("get_printoptions")()["linewidth"].cast<int64>();
     np_attr("set_printoptions")(py::arg("linewidth") =
                                   max_width - static_cast<int64>(indent.size()));
     py::str s = py::str(arr);
-    np_attr("set_printoptions")(printoptions);
+    np_attr("set_printoptions")(py::arg("linewidth") = old_linewidth);
     py::list lines = s.attr("split")("\n");
     std::vector<std::string> out;
     int64 n = py::len(lines);
-    int64 first = (max_lines - 1) / 2;
-    int64 last = max_lines - 1 - first;
-    for (int64 i = 0; i < std::min(first, n); ++i)
-        out.push_back(indent + lines[i].cast<std::string>());
-    if (n > max_lines) {
+    if ( n <= max_lines) {
+        for (int64 i = 0; i < n; ++i)
+            out.push_back(indent + lines[i].cast<std::string>());
+    } else {
+        int64 first = (max_lines - 1) / 2;
+        int64 last = max_lines - 1 - first;
+        for (int64 i = 0; i < first; ++i)
+            out.push_back(indent + lines[i].cast<std::string>());
         out.push_back(indent + "...");
-        for (int64 i = std::max(n - last, first); i < n; ++i)
+        for (int64 i = n - last; i < n; ++i)
             out.push_back(indent + lines[i].cast<std::string>());
     }
     return out;

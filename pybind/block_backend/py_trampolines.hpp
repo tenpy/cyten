@@ -73,6 +73,14 @@ class PyBlock
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, operator/, other);
     }
+    BlockPtr operator==(const BlockBackend::Block& other) const override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, operator==, other);
+    }
+    BlockPtr operator!=(const BlockBackend::Block& other) const override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, operator!=, other);
+    }
 }; // trampoline class PyBlock
 
 /// @brief pybind11 trampoline class for BlockBackend in Python

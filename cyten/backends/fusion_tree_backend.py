@@ -1414,7 +1414,7 @@ class FusionTreeBackend(TensorBackend):
             dom_block_inds.append(bi_large)
             sectors.append(sector)
             dim = large_leg.symmetry.sector_dim(sector)
-            stop = int(len(block) // dim)
+            stop = int(block.shape[0] // dim)
             blocks.append(block[:stop])
             multiplicities.append(mult // dim)
             if basis_perm is not None:
