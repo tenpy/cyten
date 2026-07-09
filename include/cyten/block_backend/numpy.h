@@ -43,6 +43,8 @@ class NumpyBlockBackend : public BlockBackend
         BlockPtr operator>=(const BlockBackend::Block& other) const override;
         BlockPtr operator==(const BlockBackend::Block& other) const override;
         BlockPtr operator!=(const BlockBackend::Block& other) const override;
+        BlockPtr pow(const BlockBackend::Scalar& exponent) const override;
+        BlockPtr pow(const BlockBackend::Block& exponent) const override;
 
       protected:
         py::array arr_;
@@ -55,6 +57,7 @@ class NumpyBlockBackend : public BlockBackend
     Scalar as_scalar(complex128 value, Dtype dtype) override;
     Scalar as_scalar(py::object value, Dtype dtype) override;
     Scalar as_scalar(bool b) override;
+    Scalar as_scalar(int64 x) override;
     Scalar as_scalar(float32 x) override;
     Scalar as_scalar(float64 x) override;
     Scalar as_scalar(complex64 z) override;

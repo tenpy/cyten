@@ -68,6 +68,9 @@ class BlockBackend
         std::shared_ptr<Block> operator*(const Scalar& s) const;
         /// Multiplication by inverse of a scalar.
         std::shared_ptr<Block> operator/(const Scalar& s) const;
+        // Elementwise power
+        virtual std::shared_ptr<Block> pow(const Scalar& exponent) const = 0;
+        virtual std::shared_ptr<Block> pow(const Block& exponent) const = 0;
 
         /// Arbitrary access by Python key; returns new block (shared_ptr).
         std::shared_ptr<const Block> operator[](py::object key) const;
@@ -122,6 +125,7 @@ class BlockBackend
         py::object to_numpy() const;
 
         Scalar operator+(const Scalar& other) const;
+        Scalar operator-() const;
         Scalar operator-(const Scalar& other) const;
         Scalar operator*(const Scalar& other) const;
         Scalar operator/(const Scalar& other) const;
@@ -154,7 +158,9 @@ class BlockBackend
   public:
     virtual Scalar as_scalar(complex128 value, Dtype dtype) = 0;
     virtual Scalar as_scalar(py::object value, Dtype dtype) = 0;
+    virtual Scalar as_scalar(const Scalar& value);
     virtual Scalar as_scalar(bool b) = 0;
+    virtual Scalar as_scalar(int64 x) = 0;
     virtual Scalar as_scalar(float32 x) = 0;
     virtual Scalar as_scalar(float64 x) = 0;
     virtual Scalar as_scalar(complex64 z) = 0;

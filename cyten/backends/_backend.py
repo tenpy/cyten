@@ -605,7 +605,7 @@ class TensorBackend(metaclass=ABCMeta):
         """
 
     @abstractmethod
-    def mul(self, a: float | complex, b: SymmetricTensor) -> Data: ...
+    def mul(self, a: float | complex | BlockBackend.Scalar, b: SymmetricTensor) -> Data: ...
 
     @abstractmethod
     def norm(self, a: SymmetricTensor | DiagonalTensor) -> float:

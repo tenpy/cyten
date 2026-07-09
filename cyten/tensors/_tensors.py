@@ -16,7 +16,7 @@ from typing import TypeVar
 import numpy as np
 
 from ..backends import TensorBackend, conventional_leg_order, get_backend, get_same_backend
-from ..block_backends import Block, Dtype
+from ..block_backends import Block, Dtype, Scalar
 from ..config import get_config
 from ..symmetries import (
     ElementarySpace,
@@ -651,7 +651,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return compose(self, other)
 
     def __mul__(self, other):
-        if isinstance(other, Number):
+        if isinstance(other, (Number, Scalar)):
             return scalar_multiply(other, self)
         return NotImplemented
 
@@ -670,7 +670,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return '\n'.join(lines)
 
     def __rmul__(self, other):
-        if isinstance(other, Number):
+        if isinstance(other, (Number, Scalar)):
             return scalar_multiply(other, self)
         return NotImplemented
 
@@ -683,10 +683,13 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return NotImplemented
 
     def __truediv__(self, other):
-        if not isinstance(other, Number):
+        if not isinstance(other, (Number, Scalar)):
             return NotImplemented
         try:
-            inverse_other = 1.0 / other
+            if isinstance(other, Scalar):
+                inverse_other = other.inverse()
+            else:
+                inverse_other = 1.0 / other
         except Exception:
             raise ValueError('Tensor can only be divided by invertible scalars.') from None
         return scalar_multiply(inverse_other, self)
@@ -1984,7 +1987,7 @@ class DiagonalTensor(SymmetricTensor):
 
     def _binary_operand(
         self,
-        other: Number | DiagonalTensor,
+        other: Number | Scalar | DiagonalTensor,
         func,
         operand: str,
         return_NotImplemented: bool = False,
@@ -1998,7 +2001,8 @@ class DiagonalTensor(SymmetricTensor):
             Either a number or a DiagonalTensor.
         func
             The function with signature
-            ``func(self_block: Block, other_or_other_block: Number | Block) -> Block``
+            ``func(self_block: Block, other_block: Block) -> Block``
+            Scalars get passed the (0D) block representation of the scalar.
         operand
             A string representation of the operand, used in error messages
         return_NotImplemented
@@ -2007,15 +2011,16 @@ class DiagonalTensor(SymmetricTensor):
             If this is the "right" version, i.e. ``func(other, self)``.
 
         """
-        if isinstance(other, Number):
+        if isinstance(other, (Number, self.backend.block_backend.Scalar)):
             backend = self.backend
+            other_block = backend.block_backend.as_scalar(other)._block
             if right:
                 data = backend.diagonal_elementwise_unary(
-                    self, func=lambda block: func(other, block), func_kwargs={}, maps_zero_to_zero=False
+                    self, func=lambda block: func(other_block, block), func_kwargs={}, maps_zero_to_zero=False
                 )
             else:
                 data = backend.diagonal_elementwise_unary(
-                    self, func=lambda block: func(block, other), func_kwargs={}, maps_zero_to_zero=False
+                    self, func=lambda block: func(block, other_block), func_kwargs={}, maps_zero_to_zero=False
                 )
             labels = self.labels
         elif isinstance(other, DiagonalTensor):
@@ -3669,8 +3674,8 @@ def almost_equal(
             backend = get_same_backend(tensor_1, tensor_2)
             if tensor_1.charge_leg.dim == 1:
                 return almost_equal(
-                    backend.block_backend.item(tensor_2.charged_state) * tensor_1.invariant_part,
-                    backend.block_backend.item(tensor_1.charged_state) * tensor_2.invariant_part,
+                    scalar_multiply(backend.block_backend.item(tensor_2.charged_state), tensor_1.invariant_part),
+                    scalar_multiply(backend.block_backend.item(tensor_1.charged_state), tensor_2.invariant_part),
                     rtol=rtol,
                     atol=atol,
                 )
@@ -4753,19 +4758,18 @@ def item(tensor: Tensor) -> float | complex | bool:
     raise TypeError
 
 
-def linear_combination(a: Number | "Scalar", v: Tensor, b: Number | "Scalar", w: Tensor):
+def linear_combination(a: Number | Scalar, v: Tensor, b: Number | Scalar, w: Tensor):
     """The linear combination ``a * v + b * w``"""
     _ = get_same_device(v, w)
     _check_compatible_legs([v.codomain, v.domain], [w.codomain, w.domain])
     # Note: We implement Tensor.__add__ and Tensor.__sub__ in terms of this function, so we cant
     #       use them (or the ``+`` and ``-`` operations) here.
-    if isinstance(a, Number):
-        a = v.backend.block_backend.as_scalar(a)
-    if isinstance(b, Number):
-        b = w.backend.block_backend.as_scalar(b)
-    if (not isinstance(a, Number)) or (not isinstance(b, Number)):
+    if not isinstance(a, (Number, Scalar)) or not isinstance(b, (Number, Scalar)):
         msg = f'unsupported scalar types: {type(a).__name__}, {type(b).__name__}'
         raise TypeError(msg)
+    backend = get_same_backend(v, w)
+    a = backend.block_backend.as_scalar(a)
+    b = backend.block_backend.as_scalar(b)
     if isinstance(v, DiagonalTensor) and isinstance(w, DiagonalTensor):
         return DiagonalTensor._binary_operand(v, w, func=lambda _v, _w: a * _v + b * _w, operand='linear_combination')
     if isinstance(v, ChargedTensor) and isinstance(w, ChargedTensor):
@@ -4795,9 +4799,6 @@ def linear_combination(a: Number | "Scalar", v: Tensor, b: Number | "Scalar", w:
     v = v.as_SymmetricTensor()
     w = w.as_SymmetricTensor()
 
-    backend = get_same_backend(v, w)
-    a = backend.block_backend.as_scalar(a)
-    b = backend.block_backend.as_scalar(b)
     return SymmetricTensor(
         backend.linear_combination(a, v, b, w),
         codomain=v.codomain,
@@ -5591,11 +5592,12 @@ def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
     return L, Q
 
 
-def scalar_multiply(a: Number, v: Tensor) -> Tensor:
+def scalar_multiply(a: Number | Scalar, v: Tensor) -> Tensor:
     """The scalar multiplication ``a * v``"""
-    if not isinstance(a, Number):
+    if not isinstance(a, (Number, Scalar)):
         msg = f'unsupported scalar type: {type(a).__name__}'
         raise TypeError(msg)
+    a = v.backend.block_backend.as_scalar(a)
     if isinstance(v, DiagonalTensor):
         return DiagonalTensor._elementwise_unary(v, func=lambda _v: a * _v, maps_zero_to_zero=True)
     if isinstance(v, Mask):

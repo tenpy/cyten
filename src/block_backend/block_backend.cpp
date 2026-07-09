@@ -134,6 +134,9 @@ BlockBackend::Scalar::to_numpy() const
         case Dtype::Bool:
             val = py::cast(as_bool());
             break;
+        case Dtype::Int64:
+            val = py::cast(as_int64());
+            break;
         case Dtype::Float32:
         case Dtype::Float64:
             val = py::cast(as_float64());
@@ -155,6 +158,12 @@ BlockBackend::Scalar::operator+(const Scalar& other) const
                                                             block_,
                                                             block_->get_backend()->as_scalar(1.0),
                                                             other.block_));
+}
+
+BlockBackend::Scalar
+BlockBackend::Scalar::operator-() const
+{
+    return block_->get_backend()->mul(block_->get_backend()->as_scalar(-1.0), block_);
 }
 
 BlockBackend::Scalar
@@ -380,6 +389,12 @@ const std::string&
 BlockBackend::get_device(const BlockCPtr& a)
 {
     return a->device();
+}
+
+BlockBackend::Scalar
+BlockBackend::as_scalar(const Scalar& value)
+{
+    return value;
 }
 
 BlockPtr

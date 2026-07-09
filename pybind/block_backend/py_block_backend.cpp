@@ -94,6 +94,32 @@ bind_block_backend(py::module_& m)
         py::arg("other"),
         "Division by a scalar.")
       .def(
+        "__pow__",
+        [](const BlockBackend::Block& self, const BlockBackend::Scalar& exponent) {
+            return self.pow(exponent);
+        },
+        py::arg("exponent"),
+        "Elementwise power with scalar exponent.")
+      .def(
+        "__pow__",
+        [](const BlockBackend::Block& self, float64 exponent) {
+            return self.pow(self.get_backend()->as_scalar(exponent));
+        },
+        py::arg("exponent"))
+      .def(
+        "__pow__",
+        [](const BlockBackend::Block& self, complex128 exponent) {
+            return self.pow(self.get_backend()->as_scalar(exponent));
+        },
+        py::arg("exponent"))
+      .def(
+        "__pow__",
+        [](const BlockBackend::Block& self, const BlockBackend::Block& exponent) {
+            return self.pow(exponent);
+        },
+        py::arg("exponent"),
+        "Elementwise power with block exponent.")
+      .def(
         "__lt__",
         [](const BlockBackend::Block& self, const BlockBackend::Block& other) {
             return self < other;
@@ -226,6 +252,7 @@ bind_block_backend(py::module_& m)
             return self.as_bool(); // throws if dtype is not Bool!
         },
         "Return value of boolean scalar. Raises if dtype != bool.")
+      .def("__neg__", [](const BlockBackend::Scalar& self) { return -self; }, "Unary negation.")
       .def(
         "__add__",
         [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& other) {
@@ -285,6 +312,12 @@ bind_block_backend(py::module_& m)
       .def(
         "__mul__",
         [](const BlockBackend::Scalar& self, complex128 other) { return self * other; },
+        py::arg("other"))
+      .def(
+        "__mul__",
+        [](const BlockBackend::Scalar&, py::object) -> py::object {
+            return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+        },
         py::arg("other"))
       .def(
         "__rmul__",
@@ -355,9 +388,15 @@ bind_block_backend(py::module_& m)
       .def("__str__",
            [](const BlockBackend& self) { return self.get_backend_name() + std::string("()"); })
       .def("as_scalar",
-           py::overload_cast<bool>(&BlockBackend::as_scalar),
+           [](BlockBackend& self, py::bool_ value) {
+               return self.as_scalar(value.cast<bool>());
+           },
            py::arg("value"),
-           "Convert a bool to a scalar block.")
+           "Convert a Python bool to a scalar block.")
+      .def("as_scalar",
+           py::overload_cast<int64>(&BlockBackend::as_scalar),
+           py::arg("value"),
+           "Convert an int64 to a scalar block.")
       .def("as_scalar",
            py::overload_cast<float64>(&BlockBackend::as_scalar),
            py::arg("value"),
@@ -367,10 +406,18 @@ bind_block_backend(py::module_& m)
            py::arg("value"),
            "Convert a complex64 to a scalar block.")
       .def("as_scalar",
+           py::overload_cast<complex128>(&BlockBackend::as_scalar),
+           py::arg("value"),
+           "Convert a complex128 to a scalar block.")
+      .def("as_scalar",
            py::overload_cast<py::object, Dtype>(&BlockBackend::as_scalar),
            py::arg("value"),
            py::arg("dtype"),
            "Convert a Python object to a scalar block with the given Dtype.")
+      .def("as_scalar",
+           py::overload_cast<const BlockBackend::Scalar&>(&BlockBackend::as_scalar),
+           py::arg("value"),
+           "Return a Scalar unchanged.")
       .def("abs",
            &BlockBackend::abs,
            py::arg("a"),

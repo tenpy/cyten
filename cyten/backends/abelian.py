@@ -1535,12 +1535,18 @@ class AbelianBackend(TensorBackend):
         a.data.device = self.block_backend.as_device(device)
         return a.data
 
-    def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
-        if a == 0.0:
+    def mul(self, a: float | complex | BlockBackend.Scalar, b: SymmetricTensor) -> Data:
+        if isinstance(a, self.block_backend.Scalar):
+            is_zero = a.as_complex128() == 0
+        else:
+            is_zero = a == 0
+        if is_zero:
             return self.zero_data(b.codomain, b.domain, b.dtype, device=b.data.device)
         blocks = [self.block_backend.mul(a, T) for T in b.data.blocks]
         if len(blocks) == 0:
-            if isinstance(a, float):
+            if isinstance(a, self.block_backend.Scalar):
+                dtype = b.data.dtype if a.dtype.is_real else b.data.dtype.to_complex
+            elif isinstance(a, float):
                 dtype = b.data.dtype
             else:
                 dtype = b.data.dtype.to_complex

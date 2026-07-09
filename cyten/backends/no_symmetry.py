@@ -382,7 +382,7 @@ class NoSymmetryBackend(TensorBackend):
     def move_to_device(self, a: SymmetricTensor | DiagonalTensor | Mask, device: str) -> Data:
         return self.block_backend.as_block(a.data, device=device)
 
-    def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
+    def mul(self, a: float | complex | BlockBackend.Scalar, b: SymmetricTensor) -> Data:
         return self.block_backend.mul(a, b.data)
 
     def norm(self, a: SymmetricTensor | DiagonalTensor) -> float:

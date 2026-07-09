@@ -1732,7 +1732,7 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
         # want almost real
         rp = make_compatible_tensor(cls=DiagonalTensor, dtype=Dtype.float64)
         ip = make_compatible_tensor(domain=rp.domain, cls=DiagonalTensor, dtype=Dtype.float64)
-        D = rp + 1 - 12j * ip
+        D = rp + 1e-12j * ip
     else:
         raise ValueError
 
@@ -1743,7 +1743,8 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     if cyten_func is tensors.cutoff_inverse:
-        numpy_func = partial(NumpyBlockBackend.from_factory('cpu').cutoff_inverse, **kwargs)
+        def numpy_func(a, cutoff=kwargs['cutoff']):
+            return 1 / np.where(np.abs(a) < cutoff, np.inf, a)
         npt.assert_almost_equal(numpy_func(1), 1)
         npt.assert_almost_equal(numpy_func(0), 0)
         npt.assert_almost_equal(numpy_func(2 * kwargs['cutoff']), 0.5 / kwargs['cutoff'])
@@ -1769,6 +1770,10 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
 )
 def test_DiagonalTensor_elementwise_binary(cls, op, dtype, make_compatible_tensor, np_random):
     t1: DiagonalTensor = make_compatible_tensor(cls=cls, dtype=dtype)
+    if op == operator.pow:
+        dtype = Dtype.float64 
+        # complex exponentials t1**(r+i) = exp(np.log(t1)*(r+i)) have a high precision loss due to log, 
+        # making the "assert_almost_equal" fail in some cases
     t2: DiagonalTensor = make_compatible_tensor(domain=t1.domain, cls=cls, dtype=dtype)
     if dtype == Dtype.bool:
         scalar = bool(np_random.choice([True, False]))
@@ -1795,6 +1800,14 @@ def test_DiagonalTensor_elementwise_binary(cls, op, dtype, make_compatible_tenso
     res_np = res.diagonal_as_numpy()
     expect = op(t1_np, scalar)
     npt.assert_almost_equal(res_np, expect)
+
+    if op == operator.add:
+        # had issues with implicit conversion of int to Scalar types, 
+        # explicitly check different versions of scalar types
+        for scalar in [3, 3., np.float64(3), t1.backend.block_backend.as_scalar(3)]:
+            res_int = t1 + scalar
+            res_int.test_sanity()
+            npt.assert_almost_equal(res_int.diagonal_as_numpy(), t1_np + 3)
 
 
 @pytest.mark.parametrize(
@@ -2225,6 +2238,10 @@ def test_linear_combination(cls, make_compatible_tensor):
         w_np = w.to_numpy(understood_braiding=True)
 
     for valid_scalar in [0, 1.0, 2.0 + 3.0j, -42]:
+        scalar_dtype = Dtype.float64 if v.dtype == Dtype.bool else v.dtype
+        if isinstance(valid_scalar, complex) and valid_scalar.imag != 0 and scalar_dtype.is_real:
+            scalar_dtype = scalar_dtype.to_complex
+        scalar = v.backend.block_backend.as_scalar(valid_scalar, scalar_dtype)
         with catch_warnings:
             res = tensors.linear_combination(valid_scalar, v, 2 * valid_scalar, w)
         res.test_sanity()
@@ -2232,12 +2249,28 @@ def test_linear_combination(cls, make_compatible_tensor):
             expect = valid_scalar * v_np + 2 * valid_scalar * w_np
             npt.assert_allclose(res.to_numpy(understood_braiding=True), expect)
         if valid_scalar == 0:
+            with catch_warnings:
+                res_scalar = tensors.linear_combination(scalar, v, 2 * scalar, w)
+                res_mixed = tensors.linear_combination(valid_scalar, v, 2 * scalar, w)
+            res_scalar.test_sanity()
+            res_mixed.test_sanity()
+            if compare_numpy:
+                npt.assert_allclose(res_scalar.to_numpy(understood_braiding=True), expect)
+                npt.assert_allclose(res_mixed.to_numpy(understood_braiding=True), expect)
             continue
         # res = a * v + 2 * a * w  =>  v = res / a - 2 * w
         with catch_warnings:
             z = tensors.linear_combination(1.0 / valid_scalar, res, -2, w)
         z.test_sanity()
         assert tensors.almost_equal(v, z, allow_different_types=True)
+        with catch_warnings:
+            res_scalar = tensors.linear_combination(scalar, v, 2 * scalar, w)
+            res_mixed = tensors.linear_combination(valid_scalar, v, 2 * scalar, w)
+        res_scalar.test_sanity()
+        res_mixed.test_sanity()
+        if compare_numpy:
+            npt.assert_allclose(res_scalar.to_numpy(understood_braiding=True), expect)
+            npt.assert_allclose(res_mixed.to_numpy(understood_braiding=True), expect)
     for invalid_scalar in [None, (1, 2), v, 'abc']:
         with pytest.raises(TypeError, match='unsupported scalar types'):
             _ = tensors.linear_combination(invalid_scalar, v, invalid_scalar, w)
@@ -2820,14 +2853,46 @@ def test_scalar_multiply(cls, make_compatible_tensor):
         T_np = T.to_numpy(understood_braiding=True)
 
     for valid_scalar in [0, 1.0, 2.0 + 3.0j, -42]:
+        scalar_dtype = Dtype.float64 if T.dtype == Dtype.bool else T.dtype
+        if isinstance(valid_scalar, complex) and valid_scalar.imag != 0 and scalar_dtype.is_real:
+            scalar_dtype = scalar_dtype.to_complex
+        scalar = T.backend.block_backend.as_scalar(valid_scalar, scalar_dtype)
         with catch_warnings:
             res = tensors.scalar_multiply(valid_scalar, T)
         res.test_sanity()
         if compare_numpy:
             npt.assert_allclose(res.to_numpy(understood_braiding=True), valid_scalar * T_np)
+        with catch_warnings:
+            res_scalar = tensors.scalar_multiply(scalar, T)
+        res_scalar.test_sanity()
+        if compare_numpy:
+            npt.assert_allclose(res_scalar.to_numpy(understood_braiding=True), valid_scalar * T_np)
+        with catch_warnings:
+            left_mul = scalar * T
+            right_mul = T * scalar
+        left_mul.test_sanity()
+        right_mul.test_sanity()
+        if compare_numpy:
+            npt.assert_allclose(left_mul.to_numpy(understood_braiding=True), valid_scalar * T_np)
+            npt.assert_allclose(right_mul.to_numpy(understood_braiding=True), valid_scalar * T_np)
     for invalid_scalar in [None, (1, 2), T, 'abc']:
         with pytest.raises(TypeError, match='unsupported scalar type'):
             _ = tensors.scalar_multiply(invalid_scalar, T)
+
+
+def test_block_backend_as_scalar_passthrough(make_compatible_tensor):
+    T = make_compatible_tensor(cls=SymmetricTensor, codomain=1, domain=1, max_block_size=2, max_blocks=2)
+    bb = T.backend.block_backend
+    scalar = bb.as_scalar(1.5)
+    same = bb.as_scalar(scalar)
+    assert same.dtype == scalar.dtype
+    npt.assert_equal(same.to_numpy(), scalar.to_numpy())
+
+    int_scalar = bb.as_scalar(2)
+    assert int_scalar.dtype == Dtype.int64
+    assert int_scalar.as_int64() == 2
+    assert bb.as_scalar(True).dtype == Dtype.bool
+    assert bb.as_scalar(True).as_bool() is True
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases

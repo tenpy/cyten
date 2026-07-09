@@ -15,6 +15,7 @@ from .torch import TorchBlockBackend
 import numpy as np
 
 Block = BlockBackend.BlockCls
+Scalar = BlockBackend.Scalar
 
 dtypes.Dtype = Dtype
 dtypes._cyten_dtype_to_numpy[Dtype.bool] = np.bool_

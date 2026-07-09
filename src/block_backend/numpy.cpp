@@ -202,6 +202,18 @@ NumpyBlockBackend::Block::operator!=(const BlockBackend::Block& other) const
     return wrap(arr_.attr("__ne__")(other.to_numpy()));
 }
 
+BlockPtr
+NumpyBlockBackend::Block::pow(const BlockBackend::Scalar& exponent) const
+{
+    return wrap(arr_.attr("__pow__")(exponent.to_numpy()));
+}
+
+BlockPtr
+NumpyBlockBackend::Block::pow(const BlockBackend::Block& exponent) const
+{
+    return wrap(arr_.attr("__pow__")(exponent.to_numpy()));
+}
+
 // -----------------------------------------------------------------------------
 // NumpyBlockBackend helpers
 // -----------------------------------------------------------------------------
@@ -253,7 +265,22 @@ NumpyBlockBackend::as_scalar(complex128 value, Dtype dtype)
 BlockBackend::Scalar
 NumpyBlockBackend::as_scalar(py::object value, Dtype dtype)
 {
+    if (py::isinstance<BlockBackend::Scalar>(value)) {
+        auto scalar = py::cast<BlockBackend::Scalar>(value);
+        if (scalar.dtype() == dtype)
+            return scalar;
+        BlockPtr converted =
+          to_dtype(std::const_pointer_cast<BlockBackend::Block>(scalar._block()), dtype);
+        return BlockBackend::Scalar(std::move(converted));
+    }
     py::array arr = np_attr("array")(value, dtype::to_numpy_dtype(dtype));
+    return as_scalar(arr);
+}
+
+BlockBackend::Scalar
+NumpyBlockBackend::as_scalar(int64 x)
+{
+    py::array arr = np_attr("int64")(py::cast(x));
     return as_scalar(arr);
 }
 

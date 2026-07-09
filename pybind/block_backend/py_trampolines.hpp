@@ -81,6 +81,14 @@ class PyBlock
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, operator!=, other);
     }
+    BlockPtr pow(const BlockBackend::Scalar& exponent) const override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, pow, exponent);
+    }
+    BlockPtr pow(const BlockBackend::Block& exponent) const override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, pow, exponent);
+    }
 }; // trampoline class PyBlock
 
 /// @brief pybind11 trampoline class for BlockBackend in Python
@@ -102,6 +110,14 @@ class PyBlockBackend
     Scalar as_scalar(py::object value, Dtype dtype) override
     {
         PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, as_scalar, value, dtype);
+    }
+    Scalar as_scalar(const Scalar& value) override
+    {
+        PYBIND11_OVERRIDE(Scalar, BlockBackend, as_scalar, value);
+    }
+    Scalar as_scalar(int64 x) override
+    {
+        PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, as_scalar, x);
     }
     Scalar as_scalar(bool b) override
     {
