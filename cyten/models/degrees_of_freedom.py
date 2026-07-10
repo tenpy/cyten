@@ -29,7 +29,7 @@ from ..symmetries import (
     SymmetryError,
     SymmetryFactor,
 )
-from ..tensors import DiagonalTensor, SymmetricTensor
+from ..tensors import DiagonalTensor, Identity, SymmetricTensor, compose
 from ..tools import as_immutable_array, is_iterable, to_iterable, to_valid_idx
 
 ALL_SPECIES = object()
@@ -81,6 +81,12 @@ class Site:
             default_device = 'cpu'
         self.default_device = default_device
         self.onsite_operators: dict[str, SymmetricTensor] = {}
+        self.add_onsite_operator(
+            'Id',
+            Identity(
+                leg=self.leg, backend=self.backend, device=self.default_device, labels=['p', 'p*']
+            ).as_DiagonalTensor(),
+        )
         if onsite_operators is not None:
             for name, op in onsite_operators.items():
                 # we add them one-by-one instead to perform the input checks and conversions
@@ -118,7 +124,9 @@ class Site:
         """Add an operator to the :attr:`onsite_operators`."""
         if name in self.onsite_operators:
             raise ValueError(f'Operator with {name=} already exists.')
-        #
+        if ' ' in name:
+            # not allowed as it signifies multiplication of onsite operators
+            raise ValueError('operator names are not allowed to feature whitespace')
         if isinstance(op, SymmetricTensor):
             if is_diagonal is not None:
                 assert isinstance(op, DiagonalTensor) == bool(is_diagonal)
@@ -147,6 +155,89 @@ class Site:
                 understood_braiding=understood_braiding,
             )
         self.onsite_operators[name] = op
+
+    def get_op(self, name: str) -> SymmetricTensor:
+        """Return operator of given name.
+
+        Parameters
+        ----------
+        name : str
+            The name of the operator to be returned.
+            In case of multiple operator names separated by whitespace,
+            we multiply them together to a single on-site operator
+            (with the one on the right acting first).
+
+        Returns
+        -------
+        op : :class:`~cyten.SymmetricTensor`
+            The operator given by `name`, with labels ``'p', 'p*'``.
+            If name already was an onsite operator, it's directly returned.
+
+        """
+        names = name.split()
+        if names[0] in self.onsite_operators:
+            op = self.onsite_operators[names[0]]
+        else:
+            raise ValueError(f"{self!r} doesn't have the operator {names[0]!r}")
+        for name2 in names[1:]:
+            if name2 in self.onsite_operators:
+                op2 = self.onsite_operators[name2]
+            else:
+                raise ValueError(f"{self!r} doesn't have the operator {name2!r}")
+            op = compose(op, op2)
+        return op
+
+    def multiply_op_names(self, names: list[str]) -> str:
+        """Multiply operator names together.
+
+        Join the operator names in `names` such that `get_op` returns the product of the
+        corresponding operators.
+
+        Parameters
+        ----------
+        names : list of str
+            List of valid operator labels.
+
+        Returns
+        -------
+        combined_opname : str
+            A valid operator name
+            Operator name representing the product of operators in `names`.
+
+        """
+        if len(names) == 0:
+            return 'Id'
+        return ' '.join(names)
+
+    def multiply_operators(self, operators: list[str | SymmetricTensor]) -> SymmetricTensor:
+        """Multiply local operators (possibly given by their names) together.
+
+        Parameters
+        ----------
+        operators : list of {str | :class:`~cyten.SymmetricTensor`}
+            List of valid operator names (to be translated with :meth:`get_op`) or
+            directly on-site operators in the form of tensors with ``'p', 'p*'`` labels.
+            The operators are multiplied left-to-right.
+
+        Returns
+        -------
+        combined_operator : :class:`~cyten.SymmetricTensor`
+            The product of the given `operators` in a left-to-right multiplication following the
+            usual mathematical convention. For example, if ``operators=['Sz', 'Sp', 'Sx']``,
+            the final operator is equivalent to ``site.get_op('Sz Sp Sx')``, with the ``'Sx'``
+            operator acting first on any physical state.
+
+        """
+        if len(operators) == 0:
+            return self.onsite_operators['Id']
+        op = operators[0]
+        if isinstance(op, str):
+            op = self.get_op(op)
+        for next_op in operators[1:]:
+            if isinstance(next_op, str):
+                next_op = self.get_op(next_op)
+            op = compose(op, next_op)
+        return op
 
     def state_index(self, label: str | int) -> int:
         """The index of a basis state."""
