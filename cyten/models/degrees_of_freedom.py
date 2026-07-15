@@ -29,7 +29,7 @@ from ..symmetries import (
     SymmetryError,
     SymmetryFactor,
 )
-from ..tensors import DiagonalTensor, Identity, SymmetricTensor, compose
+from ..tensors import DiagonalTensor, Identity, SymmetricTensor, compose, permute_legs
 from ..tools import as_immutable_array, is_iterable, to_iterable, to_valid_idx
 
 ALL_SPECIES = object()
@@ -156,6 +156,10 @@ class Site:
             )
         self.onsite_operators[name] = op
 
+    def valid_opname(self, name: str) -> bool:
+        """Whether `name` labels a valid onsite operator of this site."""
+        return name in self.onsite_operators
+
     def get_op(self, name: str) -> SymmetricTensor:
         """Return operator of given name.
 
@@ -238,6 +242,38 @@ class Site:
                 next_op = self.get_op(next_op)
             op = compose(op, next_op)
         return op
+
+    def identity_tensor(self, wL: ElementarySpace, wR: ElementarySpace, overbraid: bool = True) -> SymmetricTensor:
+        """Build an identity MPO tensor for this site with the given virtual legs.
+
+        Returns a 4-leg tensor with legs ``[wL, p, wR, p*]``; the physical legs carry :attr:`leg`.
+        Follows the convention of :meth:`~cyten.tensors.SymmetricTensor.from_eye`, which uses
+        ``domain=co_domain`` (the same underlying space, not its dual): `wR` must therefore be
+        the *same* :class:`~cyten.symmetries.ElementarySpace` as `wL` (both the non-dual,
+        codomain-style representative of the virtual bond, as e.g. returned by
+        ``W.get_leg_co_domain('wR')`` / ``W.get_leg_co_domain('wL')`` on adjacent MPO blocks).
+        A :class:`ValueError` is raised if ``wR != wL``.
+
+        Parameters
+        ----------
+        wL, wR : ElementarySpace
+            Left and right virtual legs of the returned tensor. Must be equal.
+        overbraid : bool
+            Controls the braiding direction when the virtual leg is permuted past the physical
+            leg. ``True`` (default) uses an over-braid (``bend_right=False`` in
+            :func:`~cyten.tensors.permute_legs`); ``False`` uses an under-braid (``bend_right=True``).
+
+        Returns
+        -------
+        SymmetricTensor
+            Identity tensor with legs ``[wL, p, wR, p*]``.
+
+        """
+        if wR != wL:
+            raise ValueError(f'wR must equal wL for an identity tensor, got wR={wR}, wL={wL}')
+        tensor = SymmetricTensor.from_eye(co_domain=[self.leg, wL], backend=self.backend, labels=['p', 'w'])
+        tensor = permute_legs(tensor, codomain=['w', 'p'], domain=['p*', 'w*'], bend_right=not overbraid)
+        return tensor.relabel({'w': 'wL', 'w*': 'wR'})
 
     def state_index(self, label: str | int) -> int:
         """The index of a basis state."""

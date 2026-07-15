@@ -225,8 +225,6 @@ class Coupling:
 
         site_left = self.sites[position - 1]
         site_right = self.sites[position]
-        leg = site_left.leg
-        backend = get_same_backend(site_left, site_right)
 
         left_block = self.factorization[position - 1]
         right_block = self.factorization[position]
@@ -237,24 +235,16 @@ class Coupling:
         if isinstance(wR_space, list) or isinstance(wL_space, list):
             raise NotImplementedError('Multi-bond insertions not yet supported')
 
-        if leg != site_right.leg:
-            raise ValueError(f'Sites must have same physical leg.')
+        if site_left.leg != site_right.leg:
+            raise ValueError('Sites must have same physical leg.')
 
-        # Create identity via from_eye, permute, and relabel
-        identity_tensor = SymmetricTensor.from_eye(
-            co_domain=[leg, wR_space],
-            backend=backend,
-            labels=['p', 'w'],
-        )
-        # Permute: swap codomain legs so w moves to first position
-        identity_tensor = permute_legs(identity_tensor, codomain=['w', 'p'], domain=['p*', 'w*'], bend_right=False)
-        # Relabel to match [wL, p, wR, p*]
-        identity_tensor = identity_tensor.relabel({'w': 'wL', 'w*': 'wR'})
+        # delegates to Site.identity_tensor, which also checks wR_space == wL_space
+        identity = site_left.identity_tensor(wR_space, wL_space)
 
         new_sites = self.sites[:position] + [site_left] + self.sites[position:]
         new_factorization = (
             self.factorization[:position]
-            + [identity_tensor]
+            + [identity]
             + self.factorization[position:]
         )
 

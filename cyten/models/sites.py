@@ -22,7 +22,8 @@ from ..symmetries import (
     SU2_kAnyonCategory,
     Symmetry,
 )
-from .degrees_of_freedom import AnyonDOF, BosonicDOF, ClockDOF, FermionicDOF, SpinDOF
+from ..tensors import SymmetricTensor
+from .degrees_of_freedom import AnyonDOF, BosonicDOF, ClockDOF, FermionicDOF, Site, SpinDOF
 
 
 class SpinSite(SpinDOF):
@@ -774,3 +775,19 @@ class SU2kSpin1Site(AnyonDOF):
 
     def __repr__(self):
         return f'SU2kSpin1Site(k={self.symmetry.k}, handedness={self.symmetry.handedness})'
+
+
+def identity_tensor(
+    site: Site,
+    wL: ElementarySpace,
+    wR: ElementarySpace,
+    overbraid: bool = True,
+) -> SymmetricTensor:
+    """Create an identity MPO tensor for *site* with the given virtual legs.
+
+    Thin wrapper kept for backwards compatibility; the actual implementation now lives on
+    :meth:`~cyten.models.degrees_of_freedom.Site.identity_tensor`, since it is a property of any
+    individual site rather than something specific to this module. Prefer calling
+    ``site.identity_tensor(wL, wR)`` directly. See that method for the full docstring.
+    """
+    return site.identity_tensor(wL, wR, overbraid=overbraid)
