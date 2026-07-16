@@ -68,6 +68,8 @@ class BlockBackend
         std::shared_ptr<Block> operator*(const Scalar& s) const;
         /// Multiplication by inverse of a scalar.
         std::shared_ptr<Block> operator/(const Scalar& s) const;
+        /// Elementwise absolute value (Python ``__abs__`` / ``abs(block)``).
+        std::shared_ptr<Block> abs() const;
         // Elementwise power
         virtual std::shared_ptr<Block> pow(const Scalar& exponent) const = 0;
         virtual std::shared_ptr<Block> pow(const Block& exponent) const = 0;
@@ -82,8 +84,20 @@ class BlockBackend
         /// Arbitrary getitem; implemented by backends (e.g. numpy __getitem__).
         virtual std::shared_ptr<Block> get_item(py::object key) = 0;
         virtual std::shared_ptr<const Block> get_item(py::object key) const = 0;
+        /// Get a single element by integer multi-index; returns a Scalar.
+        /// Default: delegates to BlockBackend::get_block_element.
+        virtual Scalar get_item(const std::vector<int64>& key) const;
+        /// Get a single element by integer index for 1D blocks; returns a Scalar.
+        /// Default: delegates to get_item(std::vector{idx}) after checking ndim()==1.
+        virtual Scalar get_item(int64 idx) const;
         /// Arbitrary setitem; implemented by backends (e.g. numpy __setitem__).
         virtual void set_item(py::object key, py::object value) = 0;
+        /// Set a single element by integer multi-index from a Scalar.
+        /// Default: set_item(tuple(key), value.to_numpy()).
+        virtual void set_item(const std::vector<int64>& key, const Scalar& value);
+        /// Set a single element by integer index for 1D blocks from a Scalar.
+        /// Default: set_item(std::vector{idx}, value) after checking ndim()==1.
+        virtual void set_item(int64 idx, const Scalar& value);
         // implicit conversion to Scalar, throws for Blocks which are not 0-D.
         virtual operator Scalar() { return Scalar(shared_from_this()); };
         friend class Scalar;
@@ -148,6 +162,13 @@ class BlockBackend
         Scalar operator>=(float64 other) const;
         /// The inverse of the scalar, 1./self
         Scalar inverse() const;
+
+        /// convenience access for further methods, delegating to block_backend
+        Scalar abs() const;
+        Scalar sqrt() const;
+        Scalar exp() const;
+        Scalar log() const;
+        Scalar pow(const Scalar& exponent) const;
 
         std::shared_ptr<const Block> _block() const;
 
@@ -364,10 +385,10 @@ class BlockBackend
                                 std::optional<std::string> device = std::nullopt) = 0;
     virtual Scalar get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs) = 0;
     /// Get an element of a mask.
-    virtual bool get_block_mask_element(const BlockCPtr& a,
-                                        int64 large_leg_idx,
-                                        int64 small_leg_idx,
-                                        int64 sum_block = 0);
+    virtual Scalar get_block_mask_element(const BlockCPtr& a,
+                                          int64 large_leg_idx,
+                                          int64 small_leg_idx,
+                                          int64 sum_block = 0);
     /// As in numpy.dot, both a and b might be matrix or vector.
     virtual BlockPtr matrix_dot(const BlockCPtr& a, const BlockCPtr& b) = 0;
     virtual BlockPtr matrix_exp(const BlockCPtr& matrix) = 0;

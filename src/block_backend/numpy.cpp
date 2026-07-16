@@ -130,6 +130,22 @@ NumpyBlockBackend::Block::set_item(py::object key, py::object value)
     arr_.attr("__setitem__")(key_copy, value);
 }
 
+void
+NumpyBlockBackend::Block::set_item(const std::vector<int64>& key, const Scalar& value)
+{
+    // Tuple key so numpy does multi-index assignment, not fancy indexing.
+    arr_.attr("__setitem__")(py::tuple(py::cast(key)), value.to_numpy());
+}
+
+void
+NumpyBlockBackend::Block::set_item(int64 idx, const Scalar& value)
+{
+    if (ndim() != 1)
+        throw std::invalid_argument(
+          "NumpyBlockBackend::Block::set_item(int64): block must be 1-dimensional");
+    set_item(std::vector<int64>{idx}, value);
+}
+
 complex128
 NumpyBlockBackend::Block::_item_as_complex128() const
 {
@@ -1098,7 +1114,7 @@ NumpyBlockBackend::get_block_element(const BlockCPtr& a, const std::vector<int64
     /* converted from following python code:
      * return a[tuple(idcs)].item()
      */
-    return Scalar(wrap(obj(a).attr("__getitem__")(py::cast(idcs))));
+    return Scalar(wrap(obj(a).attr("__getitem__")(py::tuple(py::cast(idcs)))));
 }
 
 BlockPtr

@@ -712,7 +712,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         print(self.ascii_diagram)
 
     @abstractmethod
-    def _get_item(self, idx: list[int]) -> bool | float | complex:
+    def _get_item(self, idx: list[int]) -> Scalar:
         """Implementation of :meth:`__getitem__`.
 
         Can assume we have one non-negative integer index per leg.
@@ -1435,7 +1435,7 @@ class SymmetricTensor(Tensor):
         """
         return DiagonalTensor.from_tensor(self, check_offdiagonal=check_offdiagonal)
 
-    def _get_item(self, idx: list[int]) -> bool | float | complex:
+    def _get_item(self, idx: list[int]) -> Scalar:
         return self.backend.get_element(self, idx)
 
     def move_to_device(self, device: str):
@@ -2106,10 +2106,10 @@ class DiagonalTensor(SymmetricTensor):
         )
         return DiagonalTensor(data, self.leg, backend=self.backend, labels=self.labels)
 
-    def _get_item(self, idx: list[int]) -> bool | float | complex:
+    def _get_item(self, idx: list[int]) -> Scalar:
         i1, i2 = idx
         if i1 != i2:
-            return self.dtype.zero_scalar
+            return self.backend.block_backend.as_scalar(self.dtype.zero_scalar)
         return self.backend.get_element_diagonal(self, i1)
 
     def max(self):
@@ -2715,7 +2715,7 @@ class Mask(Tensor):
             labels=self.labels,
         )
 
-    def _get_item(self, idx: list[int]) -> bool | float | complex:
+    def _get_item(self, idx: list[int]) -> Scalar:
         return self.backend.get_element_mask(self, idx)
 
     def logical_not(self):
@@ -3237,17 +3237,17 @@ class ChargedTensor(Tensor):
                 charged_state = self.backend.block_backend.as_block(charged_state, device=device)
         return ChargedTensor(inv_part, charged_state)
 
-    def _get_item(self, idx: list[int]) -> bool | float | complex:
+    def _get_item(self, idx: list[int]) -> Scalar:
         if self.charged_state is None:
             raise IndexError('Can not index a ChargedTensor with unspecified charged_state.')
-        if len(self.charged_state) > 10:
+        if self.charged_state.shape[0] > 10:
             raise NotImplementedError  # should do sth smarter...
         return sum(
             (
-                self.backend.block_backend.item(a) * self.invariant_part._get_item([*idx, n])
+                a * self.invariant_part._get_item([*idx, n])
                 for n, a in enumerate(self.charged_state)
             ),
-            start=self.dtype.zero_scalar,
+            start=self.backend.block_backend.as_scalar(self.dtype.zero_scalar),
         )
 
     def move_to_device(self, device: str):
@@ -4539,13 +4539,13 @@ def entropy(p: DiagonalTensor | Sequence[float], n=1):
     if isinstance(p, DiagonalTensor):
         assert p.dtype.is_real
         if n == 1:
-            return -trace(p * stable_log(p, cutoff=1e-30))
+            return -trace(p * stable_log(p, cutoff=1e-30)).to_numpy()
         if n == np.inf:
-            return -np.log(p.max())
-        return np.log(trace(p**n)) / (1.0 - n)
-    else:
-        p = np.asarray(p)
-        p = np.real_if_close(p)
+            return -np.log(p.max().to_numpy())
+        return np.log(trace(p**n).to_numpy()) / (1.0 - n)
+    # else:
+    p = np.asarray(p)
+    p = np.real_if_close(p)
     p = p[p > 1e-30]  # for stability of log
     if n == 1:
         return -np.inner(np.log(p), p)
@@ -4598,7 +4598,7 @@ def imag(x: _ElementwiseType) -> _ElementwiseType:
     return np.imag(x)
 
 
-def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
+def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> Scalar:
     r"""The Frobenius inner product :math:`\langle A \vert B \rangle_\text{F}` of two tensors.
 
     Graphically::
@@ -4696,7 +4696,7 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
         if B.charged_state is None:
             raise ValueError('charged_state must be specified for inner()')
         if B.charge_leg.sector_multiplicity(B.symmetry.trivial_sector) == 0:
-            return Dtype.common(A.dtype, B.dtype).zero_scalar
+            return backend.block_backend.as_scalar(Dtype.common(A.dtype, B.dtype).zero_scalar)
         # OPTIMIZE: by charge rule, only components in the trivial sector of the charge_leg contribute
         #           could exploit by projecting to those components first.
         if do_dagger:
@@ -4741,8 +4741,8 @@ def is_scalar(obj):
     return isinstance(obj, Number)
 
 
-def item(tensor: Tensor) -> float | complex | bool:
-    """If the tensor is a scalar (with only trivial legs), convert to python scalar."""
+def item(tensor: Tensor) -> Scalar:
+    """If the tensor is a scalar (with only trivial legs), convert to a Scalar."""
     if not is_scalar(tensor):
         raise ValueError('Not a scalar')
     if isinstance(tensor, Mask):
@@ -4876,7 +4876,7 @@ def move_leg(
     return permute_legs(tensor, new_codomain, new_domain, levels=levels, bend_right=bend_right)
 
 
-def norm(tensor: Tensor) -> float:
+def norm(tensor: Tensor) -> Scalar:
     r"""The Frobenius norm of a Tensor.
 
     The norm is given by :math:`\Vert A \Vert_\text{F} = \sqrt{\langle A \vert A \rangle_\text{F}}`,
@@ -4885,7 +4885,7 @@ def norm(tensor: Tensor) -> float:
     """
     if isinstance(tensor, Mask):
         # norm ** 2 = Tr(m^\dagger . m) = Tr(id_{small_leg}) = dim(small_leg)
-        return np.sqrt(tensor.small_leg.dim)
+        return tensor.backend.block_backend.as_scalar(np.sqrt(tensor.small_leg.dim))
     if isinstance(tensor, (DiagonalTensor, SymmetricTensor)):
         return tensor.backend.norm(tensor)
     if isinstance(tensor, ChargedTensor):

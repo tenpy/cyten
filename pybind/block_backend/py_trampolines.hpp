@@ -41,9 +41,25 @@ class PyBlock
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, get_item, key);
     }
+    BlockBackend::Scalar get_item(const std::vector<int64>& key) const override
+    {
+        PYBIND11_OVERRIDE(BlockBackend::Scalar, BlockBackend::Block, get_item, key);
+    }
+    BlockBackend::Scalar get_item(int64 idx) const override
+    {
+        PYBIND11_OVERRIDE(BlockBackend::Scalar, BlockBackend::Block, get_item, idx);
+    }
     void set_item(py::object key, py::object value) override
     {
         PYBIND11_OVERRIDE_PURE(void, BlockBackend::Block, set_item, key, value);
+    }
+    void set_item(const std::vector<int64>& key, const BlockBackend::Scalar& value) override
+    {
+        PYBIND11_OVERRIDE(void, BlockBackend::Block, set_item, key, value);
+    }
+    void set_item(int64 idx, const BlockBackend::Scalar& value) override
+    {
+        PYBIND11_OVERRIDE(void, BlockBackend::Block, set_item, idx, value);
     }
     py::array to_numpy(Dtype dtype) const override
     {
@@ -381,13 +397,13 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, get_block_element, a, idcs);
     }
-    bool get_block_mask_element(const BlockCPtr& a,
+    Scalar get_block_mask_element(const BlockCPtr& a,
                                 int64 large_leg_idx,
                                 int64 small_leg_idx,
                                 int64 sum_block) override
     {
         PYBIND11_OVERRIDE(
-          bool, BlockBackend, get_block_mask_element, a, large_leg_idx, small_leg_idx, sum_block);
+          Scalar, BlockBackend, get_block_mask_element, a, large_leg_idx, small_leg_idx, sum_block);
     }
     BlockPtr matrix_dot(const BlockCPtr& a, const BlockCPtr& b) override
     {

@@ -58,7 +58,7 @@ class TensorBackend(metaclass=ABCMeta):
     def __str__(self):
         return f'{type(self).__name__}({self.block_backend!r})'
 
-    def item(self, a: SymmetricTensor | DiagonalTensor) -> float | complex:
+    def item(self, a: SymmetricTensor | DiagonalTensor) -> Scalar:
         """Convert tensor to a python scalar.
 
         Assumes that tensor is a scalar (i.e. has only one entry).
@@ -206,10 +206,10 @@ class TensorBackend(metaclass=ABCMeta):
     def dagger(self, a: SymmetricTensor) -> Data: ...
 
     @abstractmethod
-    def data_item(self, a: Data | DiagonalData | MaskData) -> float | complex:
+    def data_item(self, a: Data | DiagonalData | MaskData) -> Scalar:
         """Assumes that data is a scalar (as defined in tensors.is_scalar).
 
-        Return that scalar as python float or complex
+        Return that scalar as a Scalar.
         """
         ...
 
@@ -271,7 +271,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex: ...
+    def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> Scalar: ...
 
     @abstractmethod
     def diagonal_tensor_to_block(self, a: DiagonalTensor) -> Block:
@@ -438,7 +438,7 @@ class TensorBackend(metaclass=ABCMeta):
     def get_dtype_from_data(self, a: Data) -> Dtype: ...
 
     @abstractmethod
-    def get_element(self, a: SymmetricTensor, idcs: list[int]) -> complex | float | bool:
+    def get_element(self, a: SymmetricTensor, idcs: list[int]) -> Scalar:
         """Get a single scalar element from a tensor.
 
         Should be equivalent to ``a.to_numpy()[tuple(idcs)].item()``.
@@ -454,7 +454,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def get_element_diagonal(self, a: DiagonalTensor, idx: int) -> complex | float | bool:
+    def get_element_diagonal(self, a: DiagonalTensor, idx: int) -> Scalar:
         """Get a single scalar element from a diagonal tensor.
 
         Should be equivalent to ``a.to_numpy()[idx, idx].item()`` or ``a.diagonal_as_numpy()[idx].item()``.
@@ -469,7 +469,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def get_element_mask(self, a: Mask, idcs: list[int]) -> bool:
+    def get_element_mask(self, a: Mask, idcs: list[int]) -> Scalar:
         """Get a single scalar element from a diagonal tensor.
 
         Should be equivalent to ``a.to_numpy()[tuple(idcs)].item()``.
@@ -485,7 +485,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def inner(self, a: SymmetricTensor, b: SymmetricTensor, do_dagger: bool) -> float | complex:
+    def inner(self, a: SymmetricTensor, b: SymmetricTensor, do_dagger: bool) -> Scalar:
         """tensors.inner on SymmetricTensors"""
         ...
 
@@ -608,7 +608,7 @@ class TensorBackend(metaclass=ABCMeta):
     def mul(self, a: float | complex | BlockBackend.Scalar, b: SymmetricTensor) -> Data: ...
 
     @abstractmethod
-    def norm(self, a: SymmetricTensor | DiagonalTensor) -> float:
+    def norm(self, a: SymmetricTensor | DiagonalTensor) -> Scalar:
         """Norm of a tensor. order has already been parsed and is a number"""
         ...
 
@@ -700,12 +700,12 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def reduce_DiagonalTensor(self, tensor: DiagonalTensor, block_func, func) -> float | complex:
+    def reduce_DiagonalTensor(self, tensor: DiagonalTensor, block_func, func) -> Scalar:
         """Reduce a diagonal tensor to a single number.
 
         Used e.g. to implement ``DiagonalTensor.max``.
-        ``block_func(block: Block) -> float | complex`` realizes that reduction on blocks,
-        ``func(numbers: Sequence[float | complex]) -> float | complex`` for python numbers.
+        ``block_func(block: Block) -> Scalar`` realizes that reduction on blocks,
+        ``func(numbers: Sequence[Scalar]) -> Scalar`` for numbers.
         """
         ...
 
@@ -785,7 +785,7 @@ class TensorBackend(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def trace_full(self, a: SymmetricTensor, idcs1: list[int], idcs2: list[int]) -> float | complex: ...
+    def trace_full(self, a: SymmetricTensor, idcs1: list[int], idcs2: list[int]) -> Scalar: ...
 
     @abstractmethod
     def truncate_singular_values(

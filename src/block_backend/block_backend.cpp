@@ -28,6 +28,12 @@ BlockBackend::Block::operator/(const Scalar& s) const
     return get_backend()->mul(s.inverse(), shared_from_this());
 }
 
+BlockPtr
+BlockBackend::Block::abs() const
+{
+    return get_backend()->abs(shared_from_this());
+}
+
 std::shared_ptr<BlockBackend::Block>
 BlockBackend::Block::operator[](py::object key)
 {
@@ -37,6 +43,35 @@ std::shared_ptr<const BlockBackend::Block>
 BlockBackend::Block::operator[](py::object key) const
 {
     return get_item(key);
+}
+
+BlockBackend::Scalar
+BlockBackend::Block::get_item(const std::vector<int64>& key) const
+{
+    return get_backend()->get_block_element(shared_from_this(), key);
+}
+
+BlockBackend::Scalar
+BlockBackend::Block::get_item(int64 idx) const
+{
+    if (ndim() != 1)
+        throw std::invalid_argument("Block::get_item(int64): block must be 1-dimensional");
+    return get_item(std::vector<int64>{idx});
+}
+
+void
+BlockBackend::Block::set_item(const std::vector<int64>& key, const Scalar& value)
+{
+    // Tuple key so backends (e.g. numpy) do multi-index assignment, not fancy indexing.
+    set_item(py::tuple(py::cast(key)), value.to_numpy());
+}
+
+void
+BlockBackend::Block::set_item(int64 idx, const Scalar& value)
+{
+    if (ndim() != 1)
+        throw std::invalid_argument("Block::set_item(int64): block must be 1-dimensional");
+    set_item(std::vector<int64>{idx}, value);
 }
 
 BlockBackend::Block&
@@ -351,6 +386,37 @@ operator>=(float64 left, const BlockBackend::Scalar& right)
     return right._block()->get_backend()->as_scalar(left) >= right;
 };
 
+BlockBackend::Scalar
+BlockBackend::Scalar::abs() const
+{
+    return block_->get_backend()->abs(block_);
+}
+
+BlockBackend::Scalar
+BlockBackend::Scalar::sqrt() const
+{
+    return block_->get_backend()->sqrt(block_);
+}
+
+BlockBackend::Scalar
+BlockBackend::Scalar::exp() const
+{
+    return block_->get_backend()->exp(block_);
+}
+
+BlockBackend::Scalar
+BlockBackend::Scalar::log() const
+{
+    return block_->get_backend()->log(block_);
+}
+
+BlockBackend::Scalar
+BlockBackend::Scalar::pow(const Scalar& exponent) const
+{
+    return block_->pow(exponent);
+}
+
+
 // -----------------------------------------------------------------------------
 // BlockBackend class
 // -----------------------------------------------------------------------------
@@ -448,7 +514,7 @@ BlockBackend::apply_basis_perm(const BlockCPtr& block,
     return apply_leg_permutations(block, perms);
 }
 
-bool
+BlockBackend::Scalar
 BlockBackend::get_block_mask_element(const BlockCPtr& a,
                                      int64 large_leg_idx,
                                      int64 small_leg_idx,
@@ -462,11 +528,10 @@ BlockBackend::get_block_mask_element(const BlockCPtr& a,
     // if this does not work, need to override.
     if (!item((*a)[py::cast(large_leg_idx)]).as_bool())
         // if the block has a False entry, the matrix has only False in that column
-        return false;
+        return as_scalar(false);
     // otherwise, there is exactly one True in that column, at index sum(a[:large_leg_idx])
-    int64 running =
-      static_cast<int64>(sum_all((*a)[py::slice(int64(0), large_leg_idx, std::nullopt)]).real());
-    return bool(small_leg_idx == offset + running);
+    int64 running = sum_all((*a)[py::slice(int64(0), large_leg_idx, std::nullopt)]).as_int64();
+    return as_scalar(small_leg_idx == offset + running);
 }
 
 BlockPtr

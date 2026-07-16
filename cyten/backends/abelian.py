@@ -702,7 +702,7 @@ class AbelianBackend(TensorBackend):
         block_inds = a.data.block_inds[:, ::-1]
         return AbelianBackendData(a.dtype, a.data.device, blocks=blocks, block_inds=block_inds)
 
-    def data_item(self, a: Data | DiagonalData) -> float | complex:
+    def data_item(self, a: Data | DiagonalData) -> Scalar:
         if len(a.blocks) > 1:
             raise ValueError('More than 1 block!')
         if len(a.blocks) == 0:
@@ -1096,25 +1096,25 @@ class AbelianBackend(TensorBackend):
     def get_dtype_from_data(self, a: AbelianBackendData) -> Dtype:
         return a.dtype
 
-    def get_element(self, a: SymmetricTensor, idcs: list[int]) -> complex | float | bool:
+    def get_element(self, a: SymmetricTensor, idcs: list[int]) -> Scalar:
         pos = np.array([l.parse_index(idx) for l, idx in zip(conventional_leg_order(a), idcs)])
         block = a.data.get_block(pos[:, 0])
         if block is None:
-            return a.dtype.zero_scalar
+            return self.block_backend.as_scalar(a.dtype.zero_scalar)
         return self.block_backend.get_block_element(block, pos[:, 1])
 
-    def get_element_diagonal(self, a: DiagonalTensor, idx: int) -> complex | float | bool:
+    def get_element_diagonal(self, a: DiagonalTensor, idx: int) -> Scalar:
         block_idx, idx_within = a.leg.parse_index(idx)
         block = a.data.get_block(np.array([block_idx, block_idx]))
         if block is None:
-            return a.dtype.zero_scalar
+            return self.block_backend.as_scalar(a.dtype.zero_scalar)
         return self.block_backend.get_block_element(block, [idx_within])
 
-    def get_element_mask(self, a: Mask, idcs: list[int]) -> bool:
+    def get_element_mask(self, a: Mask, idcs: list[int]) -> Scalar:
         pos = np.array([l.parse_index(idx) for l, idx in zip(conventional_leg_order(a), idcs)])
         block = a.data.get_block(pos[:, 0])
         if block is None:
-            return False
+            return self.block_backend.as_scalar(False, dtype=Dtype.bool)
         if a.is_projection:
             small, large = pos[:, 1]
         else:
@@ -1554,9 +1554,11 @@ class AbelianBackend(TensorBackend):
             dtype = self.block_backend.get_dtype(blocks[0])
         return AbelianBackendData(dtype, b.data.device, blocks, b.data.block_inds, is_sorted=True)
 
-    def norm(self, a: SymmetricTensor | DiagonalTensor) -> float:
-        block_norms = [self.block_backend.norm(b, order=2) for b in a.data.blocks]
-        return float(np.linalg.norm(block_norms, ord=2))
+    def norm(self, a: SymmetricTensor | DiagonalTensor) -> Scalar:
+        block_norms = self.block_backend.zeros([len(a.data.blocks)], a.dtype)
+        for i, b in enumerate(a.data.blocks):
+            block_norms[i] = self.block_backend.norm(b, order=2)
+        return self.block_backend.norm(block_norms, order=2)
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         a_blocks = a.data.blocks
@@ -1780,7 +1782,7 @@ class AbelianBackend(TensorBackend):
         r_data = AbelianBackendData(a.dtype, a.data.device, r_blocks, r_block_inds, is_sorted=r_sorted)
         return q_data, r_data
 
-    def reduce_DiagonalTensor(self, tensor: DiagonalTensor, block_func, func) -> float | complex:
+    def reduce_DiagonalTensor(self, tensor: DiagonalTensor, block_func, func) -> Scalar:
         numbers = []
         block_inds = tensor.data.block_inds
         blocks = tensor.data.blocks
@@ -2043,11 +2045,11 @@ class AbelianBackend(TensorBackend):
         blocks = [self.block_backend.to_dtype(block, dtype) for block in a.data.blocks]
         return AbelianBackendData(dtype, a.data.device, blocks, a.data.block_inds, is_sorted=True)
 
-    def trace_full(self, a: SymmetricTensor) -> float | complex:
+    def trace_full(self, a: SymmetricTensor) -> Scalar:
         a_blocks = a.data.blocks
         a_block_inds = a.data.block_inds
         K = a.num_codomain_legs
-        res = a.data.dtype.zero_scalar
+        res = self.block_backend.as_scalar(a.data.dtype.zero_scalar)
         for block, bi in zip(a_blocks, a_block_inds):
             bi_cod = bi[:K]
             bi_dom = bi[K:]

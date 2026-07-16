@@ -14,6 +14,7 @@ import pytest
 from cyten import BraidChiralityUnspecifiedError, backends, tensors
 from cyten.backends import conventional_leg_order, get_backend
 from cyten.block_backends import NumpyBlockBackend
+from cyten.block_backends import Scalar
 from cyten.block_backends.dtypes import Dtype
 from cyten.symmetries import (
     SU2,
@@ -1978,8 +1979,8 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
 
     with catch_warnings:
         entry = T[random_idx]
-    assert isinstance(entry, (bool, float, complex))
-    assert_same(entry, T_np[random_idx])
+    assert isinstance(entry, Scalar)
+    assert_same(entry.to_numpy(), T_np[random_idx])
 
     # trying to set items raises
     with pytest.raises(TypeError, match='.* do.* not support item assignment.'):
@@ -1991,7 +1992,7 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
     assert len(non_zero_idx) > 0
     with catch_warnings:
         entry = T[non_zero_idx]
-    assert_same(entry, T_np[non_zero_idx])
+    assert_same(entry.to_numpy(), T_np[non_zero_idx])
 
     zero_idcs = np.where(np.abs(T_np) < 1e-8)
     if len(zero_idcs[0]) > 0:
@@ -1999,7 +2000,7 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
         zero_idx = tuple(ax[which] for ax in zero_idcs)
         with catch_warnings:
             entry = T[zero_idx]
-        assert_same(entry, T_np[zero_idx])
+        assert_same(entry.to_numpy(), T_np[zero_idx])
 
 
 @pytest.mark.parametrize('trunc', [None, 1e-10])
@@ -2203,7 +2204,7 @@ def test_item(make_compatible_tensor, make_compatible_sectors, compatible_symmet
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     expect = T.to_numpy(understood_braiding=True).item()
-    npt.assert_almost_equal(res, expect)
+    npt.assert_almost_equal(res.to_numpy(), expect)
 
     leg2 = ElementarySpace(compatible_symmetry, [sector], [3])
     non_scalar_T = make_compatible_tensor([leg, leg2], [leg, leg], cls=SymmetricTensor)
@@ -2379,11 +2380,11 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
         return
 
     res = tensors.norm(T)
-    assert isinstance(res, (float, complex))
+    assert isinstance(res, Scalar)
 
     if T.symmetry.can_be_dropped:
         expect = np.linalg.norm(T.to_numpy(understood_braiding=True))
-        npt.assert_almost_equal(res, expect)
+        npt.assert_almost_equal(res.to_numpy(), expect)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases(
@@ -2682,8 +2683,8 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
     if compare_numpy:
         num_open = T.num_legs - 2 * len(pairs)
         if num_open == 0:
-            assert isinstance(res, (float, complex))
-            res_np = res
+            assert isinstance(res, Scalar)
+            res_np = res.to_numpy()
         else:
             assert isinstance(res, cls)
             res.test_sanity()
@@ -3285,8 +3286,8 @@ def test_tdot(
 
     if num_open == 0:
         # scalar result
-        assert isinstance(res, (float, complex))
-        res_np = res
+        assert isinstance(res, Scalar)
+        res_np = res.to_numpy()
     else:
         # tensor result
         res.test_sanity()
@@ -3397,13 +3398,14 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
         tensor: Tensor = make_compatible_tensor(co_domain_spaces, co_domain_spaces, cls=cls)
 
     res = tensors.trace(tensor)
-    assert isinstance(res, (float, complex))
+    assert isinstance(res, Scalar)
+    res_np = res.to_numpy()
 
     if tensor.symmetry.can_be_dropped:
         expect = tensor.to_numpy(understood_braiding=True)
         while expect.ndim > 0:
             expect = np.trace(expect, axis1=0, axis2=-1)
-        npt.assert_almost_equal(res, expect)
+        npt.assert_almost_equal(res_np, expect)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
