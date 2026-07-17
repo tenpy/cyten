@@ -891,6 +891,12 @@ BlockBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, const std::stri
 }
 
 BlockPtr
+operator*(const BlockBackend::Scalar& left, const BlockBackend::Block& right)
+{
+    return right.get_backend()->mul(left, right.shared_from_this());
+}
+
+BlockPtr
 operator<(const BlockBackend::Block& left, const BlockBackend::Scalar& right)
 {
     return left < *right._block();

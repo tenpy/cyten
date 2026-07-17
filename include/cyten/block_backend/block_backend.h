@@ -445,6 +445,7 @@ BlockBackend::Scalar operator>(float64 left, const BlockBackend::Scalar& right);
 BlockBackend::Scalar operator<=(float64 left, const BlockBackend::Scalar& right);
 BlockBackend::Scalar operator>=(float64 left, const BlockBackend::Scalar& right);
 
+BlockPtr operator*(const BlockBackend::Scalar& left, const BlockBackend::Block& right);
 BlockPtr operator<(const BlockBackend::Block& left, const BlockBackend::Scalar& right);
 BlockPtr operator>(const BlockBackend::Block& left, const BlockBackend::Scalar& right);
 BlockPtr operator<=(const BlockBackend::Block& left, const BlockBackend::Scalar& right);

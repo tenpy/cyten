@@ -78,17 +78,17 @@ bind_block_backend(py::module_& m)
       .def(
         "__add__",
         [](const BlockBackend::Block& self, const BlockCPtr& other) {
-            return self.operator+(*other);
+            return self + (*other);
         },
         py::arg("other"),
         "Elementwise addition with another block.")
       .def(
         "__sub__",
         [](const BlockBackend::Block& self, const BlockCPtr& other) {
-            return self.operator-(*other);
+            return self - (*other);
         },
         py::arg("other"),
-        "Elementwise addition with another block.")
+        "Elementwise subtraction with another block.")
       .def(
         "__mul__",
         [](const BlockBackend::Block& self, const BlockBackend::Scalar& s) { return self * s; },
@@ -96,28 +96,37 @@ bind_block_backend(py::module_& m)
         "Multiplication by a scalar.")
       .def(
         "__mul__",
-        [](const BlockBackend::Block& self, const BlockBackend::Block& s) { return self * s; },
-        py::arg("other"),
-        "Elementwise multiplication with another block.")
-      .def(
-        "__rmul__",
-        [](const BlockBackend::Block& self, BlockBackend::Scalar s) { return self * s; },
-        py::arg("other"),
-        "Right multiplication by a scalar.")
-      .def(
-        "__rmul__",
         [](const BlockBackend::Block& self, float64 s) {
             return self * self.get_backend()->as_scalar(s);
         },
-        py::arg("other"),
-        "Right multiplication by a scalar.")
+        py::arg("other"))
       .def(
-        "__rmul__",
+        "__mul__",
         [](const BlockBackend::Block& self, complex128 s) {
             return self * self.get_backend()->as_scalar(s);
         },
+        py::arg("other"))
+      .def(
+        "__rmul__",
+        [](const BlockBackend::Block& self, BlockBackend::Scalar s) { return self * s; },
+        py::arg("other"))
+      .def(
+        "__rmul__",
+        [](const BlockBackend::Block& self, float64 s) {
+            return self.get_backend()->as_scalar(s) * self;
+        },
+        py::arg("other"))
+      .def(
+        "__rmul__",
+        [](const BlockBackend::Block& self, complex128 s) {
+            return self.get_backend()->as_scalar(s) * self;
+        },
+        py::arg("other"))
+      .def(
+        "__mul__",
+        [](const BlockBackend::Block& self, const BlockBackend::Block& s) { return self * s; },
         py::arg("other"),
-        "Right multiplication by a scalar.")
+        "Elementwise multiplication with another block.")
       .def(
         "__truediv__",
         [](const BlockBackend::Block& self, const BlockCPtr& other) {
@@ -135,8 +144,13 @@ bind_block_backend(py::module_& m)
         [](const BlockBackend::Block& self, float64 s) {
             return self / self.get_backend()->as_scalar(s);
         },
-        py::arg("other"),
-        "Division by a scalar.")
+        py::arg("other"))
+      .def(
+        "__truediv__",
+        [](const BlockBackend::Block& self, complex128 s) {
+            return self / self.get_backend()->as_scalar(s);
+        },
+        py::arg("other"))
       .def("__abs__", &BlockBackend::Block::abs, "Elementwise absolute value.")
       .def(
         "__pow__",
