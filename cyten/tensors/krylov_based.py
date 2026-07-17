@@ -245,9 +245,10 @@ class Arnoldi(KrylovBased):
             self._to_cache(w)
             w = self.H.matvec(w)
             for i, v_i in enumerate(self._cache):
-                h[i, k] = ov = inner(v_i, w)
+                ov = inner(v_i, w)
+                h[i, k] = ov.to_numpy()
                 w += -ov * v_i
-            h[k + 1, k] = w_norm = norm(w)
+            h[k + 1, k] = w_norm = norm(w).to_numpy()
             self._calc_result_krylov(k)
             if w_norm < self._cutoff or (k + 1 >= self.N_min and self._converged(k)):
                 break
@@ -391,8 +392,8 @@ class LanczosGroundState(KrylovBased):
             w = scalar_multiply(1.0 / beta, w)
             self._to_cache(w)
             w = self.H.matvec(w)
-            alpha = inner(w, self._cache[-1]).real
-            h[k, k] = alpha
+            alpha = inner(w, self._cache[-1]).real()
+            h[k, k] = alpha.to_numpy()
             self._calc_result_krylov(k)
             w -= alpha * self._cache[-1]
             if self.reortho:
@@ -400,7 +401,7 @@ class LanczosGroundState(KrylovBased):
                     w -= inner(c, w) * c
             elif k > 0:
                 w -= beta * self._cache[-2]
-            beta = norm(w)
+            beta = norm(w).real().to_numpy()
             h[k, k + 1] = h[k + 1, k] = beta  # needed for the next step and convergence criteria
             if abs(beta) < self._cutoff or (k + 1 >= self.N_min and self._converged(k)):
                 break

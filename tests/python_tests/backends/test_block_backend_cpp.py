@@ -100,6 +100,21 @@ def test_scalar_sqrt_exp_log_pow():
     assert s.pow(be.as_scalar(3.0)).as_float64() == 64.0
 
 
+def test_scalar_real_imag():
+    from cyten._core import BlockBackend
+
+    be = NumpyBlockBackend.from_factory('cpu')
+    z = be.as_scalar(3.0 + 4.0j)
+    r = z.real()
+    assert isinstance(r, BlockBackend.Scalar)
+    assert r.as_float64() == 3.0
+    assert r.dtype == Dtype.float64
+    i = z.imag()
+    assert isinstance(i, BlockBackend.Scalar)
+    assert i.as_float64() == 4.0
+    assert i.dtype == Dtype.float64
+
+
 def test_numpy_block_backend_apply_leg_permutations():
     be = NumpyBlockBackend.from_factory('cpu')
     # block shape (2, 3); permute first axis [1,0], second axis identity [0,1,2]

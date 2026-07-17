@@ -464,7 +464,7 @@ def test_fixes_23():
     block = np.zeros((2,) * 6, float)
     tens = SymmetricTensor.from_dense_block(block, codomain=[site] * 3, domain=[site] * 3)
     tens.test_sanity()
-    npt.assert_allclose(tensors.norm(tens), 0)
+    npt.assert_allclose(tensors.norm(tens).to_numpy(), 0)
 
 
 def test_DiagonalTensor(make_compatible_tensor):

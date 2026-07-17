@@ -122,13 +122,13 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
 
     # for groups: check versus explicit matrix representations
     if any_symmetry.can_be_dropped:
-        tree_np = tree.as_block()  # [a1 ... aj aj+1 ... aJ c]
+        tree_np = tree.as_block().to_numpy()  # [a1 ... aj aj+1 ... aJ c]
         swap = any_symmetry.swap_gate(tree.uncoupled[j], tree.uncoupled[j + 1])  # [aj+1 aj aj+1* aj*]
         expect = np.tensordot(tree_np, swap, ([j, j + 1], [1, 0]))  # [a1 ... aj-1 aj+2 ... aj c aj+1 aj]
         expect = np.transpose(
             expect, [*range(j), -2, -1, *range(j, num_uncoupled - 1)]
         )  # [a1 ... aj-1 aj+2 ... aj c aj+1 aj]
-        res = sum(a * t.as_block() for t, a in braided1)
+        res = sum(a * t.as_block().to_numpy() for t, a in braided1)
         assert np.allclose(res, expect)
 
     # check if opposite braid undoes it
@@ -180,8 +180,8 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
 
 
 def tree_pair_to_numpy(X: trees.FusionTree, Y: trees.FusionTree):
-    X = X.as_block().conj()  # [a1 ... aJ c]
-    Y = Y.as_block()  # [b1 ... bK c]
+    X = X.as_block().to_numpy().conj()  # [a1 ... aJ c]
+    Y = Y.as_block().to_numpy()  # [b1 ... bK c]
     Y = np.transpose(Y, list(reversed(range(Y.ndim))))  # [c bK .. b1]
     return np.tensordot(X, Y, (-1, 0))  # [a1 ... aJ bK ... b1]
 

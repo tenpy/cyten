@@ -108,12 +108,6 @@ BlockBackend::Scalar::Scalar(std::shared_ptr<Block> block)
 }
 
 float64
-BlockBackend::Scalar::real() const
-{
-    return block_->_item_as_complex128().real();
-}
-
-float64
 BlockBackend::Scalar::as_float64() const
 {
     if (block_->dtype() == Dtype::Bool)
@@ -385,6 +379,18 @@ operator>=(float64 left, const BlockBackend::Scalar& right)
 {
     return right._block()->get_backend()->as_scalar(left) >= right;
 };
+
+BlockBackend::Scalar
+BlockBackend::Scalar::real() const
+{
+    return block_->get_backend()->real(block_);
+}
+
+BlockBackend::Scalar
+BlockBackend::Scalar::imag() const
+{
+    return block_->get_backend()->imag(block_);
+}
 
 BlockBackend::Scalar
 BlockBackend::Scalar::abs() const

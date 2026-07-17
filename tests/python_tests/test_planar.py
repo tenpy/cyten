@@ -3,6 +3,7 @@ import numpy.testing as npt
 import pytest
 
 import cyten as ct
+from cyten.block_backends import Scalar
 
 
 def is_cyclical_perm(seq: list[int]) -> bool:
@@ -264,10 +265,13 @@ def test_planar_contraction(
     expect = ct.tdot(A_permuted, B_permuted, contr_A, contr_B)
 
     if isinstance(res, ct.Tensor):
+        assert isinstance(expect, ct.Tensor)
         assert ct.planar.planar_almost_equal(res, expect)
     else:
+        assert isinstance(res, Scalar)
+        assert isinstance(expect, Scalar)
         assert len(contr_A) == A.num_legs and len(contr_B) == B.num_legs
-        assert np.allclose(res, expect)
+        assert np.allclose(res.to_numpy(), expect.to_numpy())
 
 
 @pytest.mark.parametrize(
@@ -359,6 +363,13 @@ planar_partial_trace_cases = {
 }
 
 
+def trace_partial_np(a: np.ndarray, idcs1: list[int], idcs2: list[int], remaining: list[int]) -> np.ndarray:
+    """numpy version of block_backend.trace_partial"""
+    a = np.transpose(a, remaining + idcs1 + idcs2)
+    trace_dim = np.prod(a.shape[len(remaining) : len(remaining) + len(idcs1)], dtype=int)
+    a = np.reshape(a, a.shape[: len(remaining)] + (trace_dim, trace_dim))
+    return np.trace(a, axis1=-2, axis2=-1)
+
 @pytest.mark.parametrize('codomain, domain', planar_partial_trace_cases.values(), ids=planar_partial_trace_cases.keys())
 @pytest.mark.parametrize(
     'symmetry, backend',
@@ -425,8 +436,7 @@ def test_planar_partial_trace(codomain, domain, symmetry, backend, np_random):
         idcs1 = [p[0] for p in pairs]
         idcs2 = [p[1] for p in pairs]
         remaining = [n for n in range(T.num_legs) if n not in idcs1 and n not in idcs2]
-        expect = T.backend.block_backend.trace_partial(T_np, idcs1, idcs2, remaining)
-        expect = T.backend.block_backend.to_numpy(expect)
+        expect = trace_partial_np(T_np, idcs1, idcs2, remaining)
         res_np = res.to_numpy()
         npt.assert_almost_equal(res_np, expect)
 
@@ -1056,7 +1066,8 @@ def test_PlanarDiagram_with_traces(symmetry, np_random):
     # evaluate the diagram
     # ===========================================
     res = diagram(T1=T1, T2=T2, T3=T3, T4=T4)
-    assert isinstance(res, (float, complex))
+    assert isinstance(res, Scalar)
+    res = res.to_numpy()
 
     # ===========================================
     # compare to manual contraction, using planar routines
@@ -1068,8 +1079,8 @@ def test_PlanarDiagram_with_traces(symmetry, np_random):
     expect1 = ct.planar.planar_contraction(T1, T2_traced, ['vL'], ['vR'])
     expect1 = ct.planar.planar_contraction(expect1, T3_traced, ['vR'], ['vL'])
     expect1 = ct.planar.planar_contraction(expect1, T4_traced, ['vL', 'vR'], ['vL', 'vR'])
-    assert isinstance(expect1, (float, complex))
-    assert np.allclose(expect1, res)
+    assert isinstance(expect1, Scalar)
+    assert np.allclose(expect1.to_numpy(), res)
 
     # ===========================================
     # compare to manual contraction, using general (not planar) routines
@@ -1088,8 +1099,8 @@ def test_PlanarDiagram_with_traces(symmetry, np_random):
         ct.permute_legs(expect2, domain=['vL', 'vR'], bend_right=False),
         ct.permute_legs(T4_traced_, codomain=['vL', 'vR'], bend_right=True),
     )
-    assert isinstance(expect2, (float, complex))
-    assert np.allclose(expect2, res)
+    assert isinstance(expect2, Scalar)
+    assert np.allclose(expect2.to_numpy(), res)
 
 
 def test_PlanarDiagram_verify_diagram():

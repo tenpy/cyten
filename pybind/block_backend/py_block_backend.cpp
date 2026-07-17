@@ -12,29 +12,39 @@ namespace cyten {
 namespace {
 
 bool
-is_py_integer(const py::handle& obj)
+is_py_integer_scalar(const py::handle& obj)
 {
-    return PyIndex_Check(obj.ptr()) != 0;
+    if (obj.is_none())
+        return false;
+    // Numpy arrays are sequences and may expose __index__, but are not scalar indices.
+    if (py::isinstance<py::array>(obj))
+        return false;
+    if (py::isinstance<py::slice>(obj))
+        return false;
+    try {
+        (void)py::cast<int64>(obj);
+        return true;
+    } catch (const py::cast_error&) {
+        return false;
+    }
 }
 
-/// Parse ``key`` as an integer or tuple/list of integers (not slices or strings).
+/// Parse ``key`` as an integer or tuple/list of integer scalars (not slices, strings, or arrays).
 bool
 try_parse_int_index_sequence(const py::object& key, std::vector<int64>& indices)
 {
-    if (is_py_integer(key)) {
+    if (is_py_integer_scalar(key)) {
         indices = {key.cast<int64>()};
         return true;
     }
-    if (!py::isinstance<py::sequence>(key) || py::isinstance<py::str>(key))
-        return false;
-    if (py::isinstance<py::slice>(key))
+    if (!py::isinstance<py::tuple>(key) && !py::isinstance<py::list>(key))
         return false;
     const py::sequence seq = key;
     indices.clear();
     indices.reserve(static_cast<std::size_t>(seq.size()));
     for (py::ssize_t i = 0; i < seq.size(); ++i) {
         const py::handle item = seq[i];
-        if (!is_py_integer(item))
+        if (!is_py_integer_scalar(item))
             return false;
         indices.push_back(item.cast<int64>());
     }
@@ -46,7 +56,7 @@ is_scalar_element_index(const BlockBackend::Block& block,
                         const py::object& key,
                         const std::vector<int64>& indices)
 {
-    if (indices.size() == 1 && block.ndim() == 1 && is_py_integer(key))
+    if (indices.size() == 1 && block.ndim() == 1 && is_py_integer_scalar(key))
         return true;
     return indices.size() == static_cast<std::size_t>(block.ndim());
 }
@@ -266,7 +276,7 @@ bind_block_backend(py::module_& m)
             std::vector<int64> indices;
             if (try_parse_int_index_sequence(key, indices)
                 && is_scalar_element_index(self, key, indices)) {
-                if (indices.size() == 1 && self.ndim() == 1 && is_py_integer(key))
+                if (indices.size() == 1 && self.ndim() == 1 && is_py_integer_scalar(key))
                     return py::cast(self.get_item(indices[0]));
                 return py::cast(self.get_item(indices));
             }
@@ -281,7 +291,7 @@ bind_block_backend(py::module_& m)
                 if (try_parse_int_index_sequence(key, indices)
                     && is_scalar_element_index(self, key, indices)) {
                     const auto& scalar = value.cast<BlockBackend::Scalar>();
-                    if (indices.size() == 1 && self.ndim() == 1 && is_py_integer(key))
+                    if (indices.size() == 1 && self.ndim() == 1 && is_py_integer_scalar(key))
                         self.set_item(indices[0], scalar);
                     else
                         self.set_item(indices, scalar);
@@ -311,7 +321,6 @@ bind_block_backend(py::module_& m)
            py::arg("block"),
            "Construct from a 0-d block (ndim == 0). Raises if block is null or ndim != 0.")
       .def_property_readonly("dtype", &BlockBackend::Scalar::dtype)
-      .def("real", &BlockBackend::Scalar::real, "Real part (valid for any dtype).")
       .def("as_float64",
            &BlockBackend::Scalar::as_float64,
            "As float; raises if dtype is not Float32/Float64.")
@@ -330,6 +339,8 @@ bind_block_backend(py::module_& m)
         },
         "Return value of boolean scalar. Raises if dtype != bool.")
       .def("__neg__", [](const BlockBackend::Scalar& self) { return -self; }, "Unary negation.")
+      .def("real", &BlockBackend::Scalar::real, "Real part as a Scalar (valid for any dtype).")
+      .def("imag", &BlockBackend::Scalar::imag, "Imaginary part as a Scalar (valid for any dtype).")
       .def("__abs__", &BlockBackend::Scalar::abs, "Absolute value.")
       .def("sqrt", &BlockBackend::Scalar::sqrt, "Square root.")
       .def("exp", &BlockBackend::Scalar::exp, "Elementwise / scalar exponential.")

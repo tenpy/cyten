@@ -120,8 +120,6 @@ class BlockBackend
 
         Dtype dtype() const { return block_->dtype(); }
 
-        /// Real part; valid for any dtype (complex -> real part, bool -> 0 or 1).
-        float64 real() const;
         /// As a real (float64) scalar. Throws if dtype is not Float32 or Float64.
         float64 as_float64() const;
         /// As a float32 scalar. Throws if dtype is not Float32.
@@ -164,6 +162,8 @@ class BlockBackend
         Scalar inverse() const;
 
         /// convenience access for further methods, delegating to block_backend
+        Scalar real() const;
+        Scalar imag() const;
         Scalar abs() const;
         Scalar sqrt() const;
         Scalar exp() const;

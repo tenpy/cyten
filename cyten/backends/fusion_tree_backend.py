@@ -1586,7 +1586,7 @@ class FusionTreeBackend(TensorBackend):
 
     def norm(self, a: SymmetricTensor | DiagonalTensor) -> Scalar:
         # OPTIMIZE should we offer the square-norm instead?
-        norm_sq = a.backend.block_backend.as_scalar(0, a.dtype)
+        norm_sq = a.backend.block_backend.as_scalar(0, a.dtype.to_real)
         for i, block in zip(a.data.block_inds[:, 0], a.data.blocks):
             norm_block = self.block_backend.norm(block)
             norm_sq += a.codomain.sector_qdims[i] * (norm_block * norm_block)
