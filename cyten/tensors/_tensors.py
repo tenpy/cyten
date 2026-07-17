@@ -515,6 +515,22 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         ...
 
     @abstractmethod
+    def to_backend(self, backend: TensorBackend, dtype: Dtype = None, device: str = None) -> Tensor:
+        """Convert to a tensor with a different backend.
+
+        Parameters
+        ----------
+        backend: TensorBackend
+            The backend of the result.
+        dtype: Dtype, optional
+            The dtype of the result. Per default, use the same dtype as `self`.
+        device: str, optional
+            The device for the result. Per default, use the same device as `self`.
+
+        """
+        ...
+
+    @abstractmethod
     def to_dense_block(
         self, leg_order: list[int | str] = None, dtype: Dtype = None, understood_braiding: bool = False
     ) -> Block:
@@ -1496,7 +1512,7 @@ class SymmetricTensor(Tensor):
             combine = []
             pipe_dualities = []
             flat_leg_counter = 0
-            for leg in conventional_leg_order(self):
+            for leg in self.legs:
                 if isinstance(leg, LegPipe):
                     combine.append([*range(flat_leg_counter, flat_leg_counter + leg.num_legs)])
                     pipe_dualities.append(leg.is_dual)
@@ -1518,7 +1534,7 @@ class SymmetricTensor(Tensor):
             new_data = backend.from_dense_block(new_block, codomain=self.codomain, domain=self.domain, tol=0)
         elif isinstance(backend, AbelianBackend):
             if isinstance(self.backend, AbelianBackend):
-                new_data = self.backend.to_block_backend(self.data, backend.block_backend)
+                new_data = self.backend.to_block_backend(self.data, backend.block_backend, dtype=dtype, device=device)
             elif isinstance(self.backend, FusionTreeBackend):
                 new_data = _convert_FT_to_abelian(self, backend, dtype=dtype, device=device)
             else:
@@ -1527,7 +1543,7 @@ class SymmetricTensor(Tensor):
             if isinstance(self.backend, AbelianBackend):
                 new_data = _convert_abelian_to_FT(self, backend, dtype=dtype, device=device)
             elif isinstance(self.backend, FusionTreeBackend):
-                new_data = self.backend.to_block_backend(self.data, backend.block_backend)
+                new_data = self.backend.to_block_backend(self.data, backend.block_backend, dtype=dtype, device=device)
             else:
                 raise RuntimeError
         else:
@@ -2262,7 +2278,7 @@ class DiagonalTensor(SymmetricTensor):
 
         device = backend.block_backend.as_device(self.device if device is None else device)
         if isinstance(self.backend, FusionTreeBackend) and isinstance(backend, FusionTreeBackend):
-            new_data = self.backend.to_block_backend(self.data, backend.block_backend)
+            new_data = self.backend.to_block_backend(self.data, backend.block_backend, dtype=dtype, device=device)
         else:
             old_diag = self.backend.diagonal_tensor_to_block(self)
             new_diag = backend.block_backend.as_block(old_diag, dtype=dtype, device=device)
@@ -3086,11 +3102,14 @@ class Mask(Tensor):
 
         device = backend.block_backend.as_device(self.device if device is None else device)
         if isinstance(self.backend, FusionTreeBackend) and isinstance(backend, FusionTreeBackend):
-            new_data = self.backend.to_block_backend(self.data, backend.block_backend)
+            new_data = self.backend.to_block_backend(self.data, backend.block_backend, dtype=Dtype.bool, device=device)
         else:
             old_mask = self.backend.mask_to_block(self)
             new_mask = backend.block_backend.as_block(old_mask, dtype=Dtype.bool, device=device)
             new_data, _ = backend.mask_from_block(new_mask, large_leg=self.large_leg)
+            if isinstance(backend, AbelianBackend) and not self.is_projection:
+                # mask_from_block assumes projection mask -> swap block_inds for inclusion
+                new_data.block_inds = new_data.block_inds[:, ::-1]
         return Mask(
             new_data,
             space_in=self.domain[0],
@@ -4238,7 +4257,7 @@ def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | Non
         if n2 != n1:
             incompatible_labels = True
             break
-    same_legs = t1.domain == t2.domain and t1.codomain == t1.codomain
+    same_legs = t1.domain == t2.domain and t1.codomain == t2.codomain
     if not same_legs:
         msg = 'Incompatible legs. '
         if incompatible_labels:
@@ -4416,6 +4435,7 @@ def combine_legs(
     domain_labels_reversed = []
     domain_spaces_reversed = []
     i = 0  # have already used pipes[:i]
+    label_offset = 0
     for n in range(N):
         if n in codomain_groups:
             group = codomain_groups[n]
@@ -4423,8 +4443,9 @@ def combine_legs(
             combined = tensor.backend.make_pipe(spaces_to_combine, is_dual=pipe_dualities[i], pipe=pipes[i])
             pipes[i] = combined
             codomain_spaces.append(combined)
-            codomain_labels.append(_combine_leg_labels(tensor.labels[group[0] : group[-1] + 1]))
+            codomain_labels.append(_combine_leg_labels(tensor.labels[group[0] : group[-1] + 1], label_offset))
             i += 1
+            label_offset += len([tensor.labels[l] for l in group if tensor.labels[l] is None])
         elif n in domain_groups:
             group = domain_groups[n]
             domain_idx1 = N - 1 - group[0]
@@ -4435,8 +4456,9 @@ def combine_legs(
             combined = tensor.backend.make_pipe(spaces_to_combine, is_dual=not pipe_dualities[i], pipe=pipes[i])
             pipes[i] = combined
             domain_spaces_reversed.append(combined)
-            domain_labels_reversed.append(_combine_leg_labels(tensor.labels[group[0] : group[-1] + 1]))
+            domain_labels_reversed.append(_combine_leg_labels(tensor.labels[group[0] : group[-1] + 1], label_offset))
             i += 1
+            label_offset += len([tensor.labels[l] for l in group if tensor.labels[l] is None])
         elif n in to_combine:
             # n is part of a group, but not the *first* of its group
             pass
@@ -7058,9 +7080,9 @@ def _check_compatible_legs(legs1: Sequence[Leg], legs2: Sequence[Leg], expect_eq
             raise ValueError('Incompatible legs.')
 
 
-def _combine_leg_labels(labels: list[str | None]) -> str:
+def _combine_leg_labels(labels: list[str | None], offset: int) -> str:
     """The label that a combined leg should have"""
-    return '(' + '.'.join(f'?{n}' if l is None else l for n, l in enumerate(labels)) + ')'
+    return '(' + '.'.join(f'?{n + offset}' if l is None else l for n, l in enumerate(labels)) + ')'
 
 
 def _convert_abelian_to_FT(tensor: SymmetricTensor, backend: FusionTreeBackend, dtype: Dtype, device: str):
