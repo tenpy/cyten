@@ -230,6 +230,25 @@ NumpyBlockBackend::Block::pow(const BlockBackend::Block& exponent) const
     return wrap(arr_.attr("__pow__")(exponent.to_numpy()));
 }
 
+void
+NumpyBlockBackend::Block::save_hdf5(py::object hdf5_saver,
+                                    py::object /*h5gr*/,
+                                    const std::string& subpath)
+{
+    hdf5_saver.attr("save")(arr_, subpath + std::string("arr"));
+}
+
+std::shared_ptr<NumpyBlockBackend::Block>
+NumpyBlockBackend::Block::from_hdf5(py::object hdf5_loader,
+                                    py::object h5gr,
+                                    const std::string& subpath)
+{
+    py::array arr = hdf5_loader.attr("load")(subpath + std::string("arr")).cast<py::array>();
+    auto obj = std::make_shared<NumpyBlockBackend::Block>(arr);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
+}
+
 // -----------------------------------------------------------------------------
 // NumpyBlockBackend helpers
 // -----------------------------------------------------------------------------
@@ -1246,7 +1265,7 @@ NumpyBlockBackend::zeros(const std::vector<int64>& shape,
 }
 
 std::shared_ptr<NumpyBlockBackend>
-NumpyBlockBackend::load_hdf5(py::object hdf5_loader, py::object h5gr, const std::string& subpath)
+NumpyBlockBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, const std::string& subpath)
 {
     auto obj = NumpyBlockBackend::from_factory_shared("cpu");
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));

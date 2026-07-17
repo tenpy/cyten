@@ -235,6 +235,30 @@ BlockBackend::Scalar::_block() const
     return block_;
 }
 
+void
+BlockBackend::Scalar::save_hdf5(py::object hdf5_saver, py::object /*h5gr*/, const std::string& subpath)
+{
+    hdf5_saver.attr("save")(block_, subpath + std::string("_block"));
+}
+
+BlockBackend::Scalar
+BlockBackend::Scalar::from_hdf5(py::object hdf5_loader, py::object h5gr, const std::string& subpath)
+{
+    auto block = hdf5_loader.attr("load")(subpath + std::string("_block")).cast<BlockPtr>();
+    Scalar obj(block);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
+}
+
+std::shared_ptr<BlockBackend::Block>
+BlockBackend::Block::from_hdf5(py::object /*hdf5_loader*/,
+                               py::object /*h5gr*/,
+                               const std::string& /*subpath*/)
+{
+    throw NotImplemented(
+      "Needs to be implemented in Subclass, since we don't know the subclass type here!");
+}
+
 BlockBackend::Scalar
 BlockBackend::Scalar::operator<(const Scalar& other) const
 {

@@ -105,6 +105,10 @@ class PyBlock
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, pow, exponent);
     }
+    void save_hdf5(py::object hdf5_saver, py::object h5gr, const std::string& subpath) override
+    {
+        PYBIND11_OVERRIDE_PURE(void, BlockBackend::Block, save_hdf5, hdf5_saver, h5gr, subpath);
+    }
 }; // trampoline class PyBlock
 
 /// @brief pybind11 trampoline class for BlockBackend in Python

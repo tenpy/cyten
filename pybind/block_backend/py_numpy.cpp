@@ -23,12 +23,12 @@ bind_block_backend_numpy(py::module_& m)
       py::arg("device") = "cpu",
       py::return_value_policy::reference,
       "Get the backend instance for the given device (nearly-singleton per device).");
-    numpy_block_backend.def_static("load_hdf5",
-                                   &NumpyBlockBackend::load_hdf5,
+    numpy_block_backend.def_static("from_hdf5",
+                                   &NumpyBlockBackend::from_hdf5,
                                    py::arg("hdf5_loader"),
                                    py::arg("h5gr"),
                                    py::arg("subpath"),
-                                   "Load a block from an HDF5 file.");
+                                   "Load a NumpyBlockBackend from an HDF5 file.");
 
     py::class_<NumpyBlockBackend::Block, BlockBackend::Block, py::smart_holder>(
       numpy_block_backend, "BlockCls", "Block that holds a numpy array in a py::object.")
@@ -39,7 +39,19 @@ bind_block_backend_numpy(py::module_& m)
       .def("to_numpy",
            py::overload_cast<Dtype>(&NumpyBlockBackend::Block::to_numpy, py::const_),
            py::arg("dtype"),
-           py::return_value_policy::reference_internal);
+           py::return_value_policy::reference_internal)
+      .def("save_hdf5",
+           &NumpyBlockBackend::Block::save_hdf5,
+           py::arg("hdf5_saver"),
+           py::arg("h5gr"),
+           py::arg("subpath"),
+           "Save block (numpy array) to HDF5.")
+      .def_static("from_hdf5",
+                  &NumpyBlockBackend::Block::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"),
+                  "Load block from HDF5.");
     // NOTE: don't immplment __array__ since we don't want to allow Blocks to cast to numpy arrays
     // except via NOTE: no __mul__, __add__ etc since we have Block*Scalar defined in
     // BlockBackend.cpp

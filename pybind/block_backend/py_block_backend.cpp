@@ -311,7 +311,19 @@ bind_block_backend(py::module_& m)
            "Return the element of a zero-dimensional block as a complex128.")
       .def("_item_as_int64",
            &BlockBackend::Block::_item_as_int64,
-           "Return the element of a zero-dimensional block as a int64.");
+           "Return the element of a zero-dimensional block as a int64.")
+      .def("save_hdf5",
+           &BlockBackend::Block::save_hdf5,
+           py::arg("hdf5_saver"),
+           py::arg("h5gr"),
+           py::arg("subpath"),
+           "Save block state to HDF5.")
+      .def_static("from_hdf5",
+                  &BlockBackend::Block::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"),
+                  "Load block from HDF5 (subclass must implement).");
 
     py::class_<BlockBackend::Scalar, py::smart_holder>(
       block_backend,
@@ -523,7 +535,19 @@ bind_block_backend(py::module_& m)
         py::arg("other"))
       .def("inverse", &BlockBackend::Scalar::inverse, "The inverse of the scalar, 1./self")
       .def_property_readonly(
-        "_block", &BlockBackend::Scalar::_block, "Return the underlying block.");
+        "_block", &BlockBackend::Scalar::_block, "Return the underlying block.")
+      .def("save_hdf5",
+           &BlockBackend::Scalar::save_hdf5,
+           py::arg("hdf5_saver"),
+           py::arg("h5gr"),
+           py::arg("subpath"),
+           "Save scalar to HDF5.")
+      .def_static("from_hdf5",
+                  &BlockBackend::Scalar::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"),
+                  "Load scalar from HDF5.");
 
     block_backend // init and attributes
       .def(py::init<std::string>(), py::arg("device") = "cpu")

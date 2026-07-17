@@ -70,6 +70,30 @@ def test_hdf5_tensor_io(tmp_path):
         io_test.assert_event_handler_example_works(data_imported)
 
 
+@pytest.mark.filterwarnings(r'ignore:Hdf5Saver.* object of type.*:UserWarning')
+def test_hdf5_block_and_scalar_io(tmp_path):
+    """Roundtrip C++ NumpyBlockBackend Block and Scalar via HDF5."""
+    import numpy as np
+    from cyten._core import NumpyBlockBackend
+
+    be = NumpyBlockBackend.from_factory('cpu')
+    block = be.as_block(np.arange(6, dtype=np.float64).reshape(2, 3))
+    scalar = be.as_scalar(3.5)
+
+    filename = tmp_path / 'block_scalar.hdf5'
+    with h5py.File(str(filename), 'w') as f:
+        hdf5_io.save_to_hdf5(f, {'block': block, 'scalar': scalar})
+    with h5py.File(str(filename), 'r') as f:
+        loaded = hdf5_io.load_from_hdf5(f)
+
+    block_loaded = loaded['block']
+    scalar_loaded = loaded['scalar']
+    np.testing.assert_array_equal(block_loaded.to_numpy(), block.to_numpy())
+    assert block_loaded.shape == block.shape
+    assert scalar_loaded.as_float64() == pytest.approx(3.5)
+    assert scalar_loaded.dtype == scalar.dtype
+
+
 @pytest.mark.parametrize('fn', datadir_hdf5)
 @pytest.mark.filterwarnings('ignore::FutureWarning')
 def test_import_from_datadir(fn):

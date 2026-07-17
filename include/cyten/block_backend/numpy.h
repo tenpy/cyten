@@ -50,6 +50,11 @@ class NumpyBlockBackend : public BlockBackend
         BlockPtr pow(const BlockBackend::Scalar& exponent) const override;
         BlockPtr pow(const BlockBackend::Block& exponent) const override;
 
+        void save_hdf5(py::object hdf5_saver, py::object h5gr, const std::string& subpath) override;
+        static std::shared_ptr<Block> from_hdf5(py::object hdf5_loader,
+                                               py::object h5gr,
+                                               const std::string& subpath);
+
       protected:
         py::array arr_;
     };
@@ -70,7 +75,7 @@ class NumpyBlockBackend : public BlockBackend
   public:
     /// Get the backend instance for the given device (nearly-singleton per device).
     static NumpyBlockBackend* from_factory(const std::string& device = "cpu");
-    /// Get a shared_ptr to the backend (e.g. for load_hdf5 or Python reference).
+    /// Get a shared_ptr to the backend (e.g. for from_hdf5 or Python reference).
     static std::shared_ptr<NumpyBlockBackend> from_factory_shared(
       const std::string& device = "cpu");
 
@@ -78,7 +83,7 @@ class NumpyBlockBackend : public BlockBackend
     explicit NumpyBlockBackend();
 
   public:
-    static std::shared_ptr<NumpyBlockBackend> load_hdf5(py::object hdf5_loader,
+    static std::shared_ptr<NumpyBlockBackend> from_hdf5(py::object hdf5_loader,
                                                         py::object h5gr,
                                                         const std::string& subpath);
 
