@@ -83,9 +83,7 @@ class Site:
         self.onsite_operators: dict[str, SymmetricTensor] = {}
         self.add_onsite_operator(
             'Id',
-            Identity(
-                leg=self.leg, backend=self.backend, device=self.default_device, labels=['p', 'p*']
-            ).as_DiagonalTensor(),
+            Identity(leg=self.leg, backend=self.backend, device=self.default_device, labels=['p', 'p*']),
         )
         if onsite_operators is not None:
             for name, op in onsite_operators.items():

@@ -2337,8 +2337,12 @@ class Identity(DiagonalTensor):
             dtype = Dtype.float64
         if device is None:
             device = backend.block_backend.default_device
-        Tensor.__init__(
-            self, codomain=codomain, domain=domain, backend=backend, labels=labels, dtype=dtype, device=device
+        # we give it dummy data here (that is not used in contractions etc.)
+        # this is important since there is a potential change in the device matching
+        # the same effect for the other tensor classes (happens e.g. for torch)
+        # using backend.block_backend.as_device() is not sufficient? Why?
+        DiagonalTensor.__init__(
+            self, backend.eye_data(codomain, dtype, device), leg=leg, backend=backend, labels=labels
         )
 
     def test_sanity(self):
