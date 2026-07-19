@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Protocol, TypeVar
 
 import numpy as np
 
-from ..block_backends import Block, BlockBackend
+from ..block_backends import Block, BlockBackend, Scalar
 from ..block_backends.dtypes import Dtype
 from ..symmetries import ElementarySpace, FusionTree, Leg, LegPipe, Space, Symmetry, TensorProduct
 from ..tools.misc import combine_constraints

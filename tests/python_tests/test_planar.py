@@ -370,6 +370,7 @@ def trace_partial_np(a: np.ndarray, idcs1: list[int], idcs2: list[int], remainin
     a = np.reshape(a, a.shape[: len(remaining)] + (trace_dim, trace_dim))
     return np.trace(a, axis1=-2, axis2=-1)
 
+
 @pytest.mark.parametrize('codomain, domain', planar_partial_trace_cases.values(), ids=planar_partial_trace_cases.keys())
 @pytest.mark.parametrize(
     'symmetry, backend',

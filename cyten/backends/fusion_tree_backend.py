@@ -88,7 +88,7 @@ from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
-from ..block_backends import Block, BlockBackend
+from ..block_backends import Block, BlockBackend, Scalar
 from ..block_backends.dtypes import Dtype
 from ..symmetries import (
     BraidChiralityUnspecifiedError,
@@ -3546,7 +3546,7 @@ class FactorizedTreeMapping(TensorMapping):
 
         is_zero = True
         for X2, idcs, mults, _ in new_codomain.iter_tree_blocks([coupled]):
-            tree_row = None 
+            tree_row = None
             # note: we first add all contributions to the new rows, and then do the
             #       axes permutation only once to the result.
             for X, self_X in self.splitting_tree_mapping.items():

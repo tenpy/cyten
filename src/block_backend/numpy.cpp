@@ -143,7 +143,7 @@ NumpyBlockBackend::Block::set_item(int64 idx, const Scalar& value)
     if (ndim() != 1)
         throw std::invalid_argument(
           "NumpyBlockBackend::Block::set_item(int64): block must be 1-dimensional");
-    set_item(std::vector<int64>{idx}, value);
+    set_item(std::vector<int64>{ idx }, value);
 }
 
 complex128
@@ -960,7 +960,7 @@ NumpyBlockBackend::_block_repr_lines(const BlockCPtr& a,
     py::list lines = s.attr("split")("\n");
     std::vector<std::string> out;
     int64 n = py::len(lines);
-    if ( n <= max_lines) {
+    if (n <= max_lines) {
         for (int64 i = 0; i < n; ++i)
             out.push_back(indent + lines[i].cast<std::string>());
     } else {

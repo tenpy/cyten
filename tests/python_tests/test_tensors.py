@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import operator
 from contextlib import nullcontext
-from functools import partial
 
 import numpy as np
 import numpy.testing as npt
@@ -13,8 +12,7 @@ import pytest
 
 from cyten import BraidChiralityUnspecifiedError, backends, tensors
 from cyten.backends import conventional_leg_order, get_backend
-from cyten.block_backends import NumpyBlockBackend
-from cyten.block_backends import Scalar
+from cyten.block_backends import NumpyBlockBackend, Scalar
 from cyten.block_backends.dtypes import Dtype
 from cyten.symmetries import (
     SU2,
@@ -395,6 +393,7 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
             perms = [l.inverse_basis_perm for l in conventional_leg_order(T_res)]
             expect = expect[np.ix_(*perms)]
             npt.assert_array_almost_equal(T_np, expect)
+
 
 # TODO test to_dense_block_trivial_sector
 # def OLD_test_Tensor_tofrom_dense_block_trivial_sector(make_compatible_tensor):
@@ -1744,8 +1743,10 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     if cyten_func is tensors.cutoff_inverse:
+
         def numpy_func(a, cutoff=kwargs['cutoff']):
             return 1 / np.where(np.abs(a) < cutoff, np.inf, a)
+
         npt.assert_almost_equal(numpy_func(1), 1)
         npt.assert_almost_equal(numpy_func(0), 0)
         npt.assert_almost_equal(numpy_func(2 * kwargs['cutoff']), 0.5 / kwargs['cutoff'])
@@ -1772,8 +1773,8 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
 def test_DiagonalTensor_elementwise_binary(cls, op, dtype, make_compatible_tensor, np_random):
     t1: DiagonalTensor = make_compatible_tensor(cls=cls, dtype=dtype)
     if op == operator.pow:
-        dtype = Dtype.float64 
-        # complex exponentials t1**(r+i) = exp(np.log(t1)*(r+i)) have a high precision loss due to log, 
+        dtype = Dtype.float64
+        # complex exponentials t1**(r+i) = exp(np.log(t1)*(r+i)) have a high precision loss due to log,
         # making the "assert_almost_equal" fail in some cases
     t2: DiagonalTensor = make_compatible_tensor(domain=t1.domain, cls=cls, dtype=dtype)
     if dtype == Dtype.bool:
@@ -1803,9 +1804,9 @@ def test_DiagonalTensor_elementwise_binary(cls, op, dtype, make_compatible_tenso
     npt.assert_almost_equal(res_np, expect)
 
     if op == operator.add:
-        # had issues with implicit conversion of int to Scalar types, 
+        # had issues with implicit conversion of int to Scalar types,
         # explicitly check different versions of scalar types
-        for scalar in [3, 3., np.float64(3), t1.backend.block_backend.as_scalar(3)]:
+        for scalar in [3, 3.0, np.float64(3), t1.backend.block_backend.as_scalar(3)]:
             res_int = t1 + scalar
             res_int.test_sanity()
             npt.assert_almost_equal(res_int.diagonal_as_numpy(), t1_np + 3)

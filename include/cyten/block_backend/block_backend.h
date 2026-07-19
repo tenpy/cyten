@@ -107,11 +107,13 @@ class BlockBackend
         virtual int64 _item_as_int64() const = 0;
 
         /// Save block state to HDF5 (subclass implements payload).
-        virtual void save_hdf5(py::object hdf5_saver, py::object h5gr, const std::string& subpath) = 0;
+        virtual void save_hdf5(py::object hdf5_saver,
+                               py::object h5gr,
+                               const std::string& subpath) = 0;
         /// Load block from HDF5. Subclasses must override; base throws NotImplemented.
         static std::shared_ptr<Block> from_hdf5(py::object hdf5_loader,
-                                               py::object h5gr,
-                                               const std::string& subpath);
+                                                py::object h5gr,
+                                                const std::string& subpath);
     };
     using BlockPtr = std::shared_ptr<Block>;
     using BlockCPtr = std::shared_ptr<const Block>;
@@ -182,7 +184,9 @@ class BlockBackend
         /// Save scalar (via underlying 0-d block) to HDF5.
         void save_hdf5(py::object hdf5_saver, py::object h5gr, const std::string& subpath);
         /// Load scalar from HDF5.
-        static Scalar from_hdf5(py::object hdf5_loader, py::object h5gr, const std::string& subpath);
+        static Scalar from_hdf5(py::object hdf5_loader,
+                                py::object h5gr,
+                                const std::string& subpath);
 
       private:
         std::shared_ptr<Block> block_;

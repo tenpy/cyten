@@ -37,7 +37,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy import ndarray
 
-from ..block_backends import Block
+from ..block_backends import Block, Scalar
 from ..block_backends.dtypes import Dtype
 from ..symmetries import (
     AbelianLegPipe,

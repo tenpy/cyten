@@ -56,7 +56,7 @@ BlockBackend::Block::get_item(int64 idx) const
 {
     if (ndim() != 1)
         throw std::invalid_argument("Block::get_item(int64): block must be 1-dimensional");
-    return get_item(std::vector<int64>{idx});
+    return get_item(std::vector<int64>{ idx });
 }
 
 void
@@ -71,7 +71,7 @@ BlockBackend::Block::set_item(int64 idx, const Scalar& value)
 {
     if (ndim() != 1)
         throw std::invalid_argument("Block::set_item(int64): block must be 1-dimensional");
-    set_item(std::vector<int64>{idx}, value);
+    set_item(std::vector<int64>{ idx }, value);
 }
 
 BlockBackend::Block&
@@ -236,13 +236,17 @@ BlockBackend::Scalar::_block() const
 }
 
 void
-BlockBackend::Scalar::save_hdf5(py::object hdf5_saver, py::object /*h5gr*/, const std::string& subpath)
+BlockBackend::Scalar::save_hdf5(py::object hdf5_saver,
+                                py::object /*h5gr*/,
+                                const std::string& subpath)
 {
     hdf5_saver.attr("save")(block_, subpath + std::string("_block"));
 }
 
 BlockBackend::Scalar
-BlockBackend::Scalar::from_hdf5(py::object hdf5_loader, py::object h5gr, const std::string& subpath)
+BlockBackend::Scalar::from_hdf5(py::object hdf5_loader,
+                                py::object h5gr,
+                                const std::string& subpath)
 {
     auto block = hdf5_loader.attr("load")(subpath + std::string("_block")).cast<BlockPtr>();
     Scalar obj(block);
@@ -445,7 +449,6 @@ BlockBackend::Scalar::pow(const Scalar& exponent) const
 {
     return block_->pow(exponent);
 }
-
 
 // -----------------------------------------------------------------------------
 // BlockBackend class

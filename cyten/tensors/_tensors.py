@@ -620,7 +620,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
 
     def __add__(self, other):
         if isinstance(other, Tensor):
-            return linear_combination(+1., self, +1., other)
+            return linear_combination(+1.0, self, +1.0, other)
         return NotImplemented
 
     def __complex__(self):
@@ -2074,7 +2074,7 @@ class DiagonalTensor(SymmetricTensor):
     def elementwise_almost_equal(self, other: DiagonalTensor, rtol: float = 1e-5, atol=1e-8) -> DiagonalTensor:
         # no (Scalar + Block) operation defined, so requires explicit casting
         ones = DiagonalTensor.from_eye(self.leg, self.backend, self.labels, self.dtype, self.device)
-        return (abs(self - other) <= (atol*ones + rtol * abs(self)))
+        return abs(self - other) <= (atol * ones + rtol * abs(self))
 
     def _elementwise_binary(
         self, other: DiagonalTensor, func, func_kwargs: dict = None, partial_zero_is_zero: bool = False
@@ -3243,10 +3243,7 @@ class ChargedTensor(Tensor):
         if self.charged_state.shape[0] > 10:
             raise NotImplementedError  # should do sth smarter...
         return sum(
-            (
-                a * self.invariant_part._get_item([*idx, n])
-                for n, a in enumerate(self.charged_state)
-            ),
+            (a * self.invariant_part._get_item([*idx, n]) for n, a in enumerate(self.charged_state)),
             start=self.backend.block_backend.as_scalar(self.dtype.zero_scalar),
         )
 

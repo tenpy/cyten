@@ -34,7 +34,7 @@ bool
 try_parse_int_index_sequence(const py::object& key, std::vector<int64>& indices)
 {
     if (is_py_integer_scalar(key)) {
-        indices = {key.cast<int64>()};
+        indices = { key.cast<int64>() };
         return true;
     }
     if (!py::isinstance<py::tuple>(key) && !py::isinstance<py::list>(key))
@@ -87,16 +87,12 @@ bind_block_backend(py::module_& m)
            "Return the backend for this block's device.")
       .def(
         "__add__",
-        [](const BlockBackend::Block& self, const BlockCPtr& other) {
-            return self + (*other);
-        },
+        [](const BlockBackend::Block& self, const BlockCPtr& other) { return self + (*other); },
         py::arg("other"),
         "Elementwise addition with another block.")
       .def(
         "__sub__",
-        [](const BlockBackend::Block& self, const BlockCPtr& other) {
-            return self - (*other);
-        },
+        [](const BlockBackend::Block& self, const BlockCPtr& other) { return self - (*other); },
         py::arg("other"),
         "Elementwise subtraction with another block.")
       .def(
@@ -274,8 +270,8 @@ bind_block_backend(py::module_& m)
         "__getitem__",
         [](BlockBackend::Block& self, py::object key) -> py::object {
             std::vector<int64> indices;
-            if (try_parse_int_index_sequence(key, indices)
-                && is_scalar_element_index(self, key, indices)) {
+            if (try_parse_int_index_sequence(key, indices) &&
+                is_scalar_element_index(self, key, indices)) {
                 if (indices.size() == 1 && self.ndim() == 1 && is_py_integer_scalar(key))
                     return py::cast(self.get_item(indices[0]));
                 return py::cast(self.get_item(indices));
@@ -288,8 +284,8 @@ bind_block_backend(py::module_& m)
         [](BlockBackend::Block& self, py::object key, py::object value) {
             if (py::isinstance<BlockBackend::Scalar>(value)) {
                 std::vector<int64> indices;
-                if (try_parse_int_index_sequence(key, indices)
-                    && is_scalar_element_index(self, key, indices)) {
+                if (try_parse_int_index_sequence(key, indices) &&
+                    is_scalar_element_index(self, key, indices)) {
                     const auto& scalar = value.cast<BlockBackend::Scalar>();
                     if (indices.size() == 1 && self.ndim() == 1 && is_py_integer_scalar(key))
                         self.set_item(indices[0], scalar);
@@ -350,18 +346,16 @@ bind_block_backend(py::module_& m)
             return self.as_bool(); // throws if dtype is not Bool!
         },
         "Return value of boolean scalar. Raises if dtype != bool.")
-      .def("__neg__", [](const BlockBackend::Scalar& self) { return -self; }, "Unary negation.")
+      .def(
+        "__neg__", [](const BlockBackend::Scalar& self) { return -self; }, "Unary negation.")
       .def("real", &BlockBackend::Scalar::real, "Real part as a Scalar (valid for any dtype).")
-      .def("imag", &BlockBackend::Scalar::imag, "Imaginary part as a Scalar (valid for any dtype).")
+      .def(
+        "imag", &BlockBackend::Scalar::imag, "Imaginary part as a Scalar (valid for any dtype).")
       .def("__abs__", &BlockBackend::Scalar::abs, "Absolute value.")
       .def("sqrt", &BlockBackend::Scalar::sqrt, "Square root.")
       .def("exp", &BlockBackend::Scalar::exp, "Elementwise / scalar exponential.")
       .def("log", &BlockBackend::Scalar::log, "Natural logarithm.")
-      .def(
-        "pow",
-        &BlockBackend::Scalar::pow,
-        py::arg("exponent"),
-        "Raise to a scalar power.")
+      .def("pow", &BlockBackend::Scalar::pow, py::arg("exponent"), "Raise to a scalar power.")
       .def(
         "__pow__",
         [](const BlockBackend::Scalar& self, const BlockBackend::Scalar& exponent) {
@@ -421,11 +415,13 @@ bind_block_backend(py::module_& m)
         py::arg("other"))
       .def(
         "__rsub__",
-        [](const BlockBackend::Scalar& self, float64 other) { return other - self; },  // reversed!
+        [](const BlockBackend::Scalar& self, float64 other) { return other - self; }, // reversed!
         py::arg("other"))
       .def(
         "__rsub__",
-        [](const BlockBackend::Scalar& self, complex128 other) { return other - self; },  // reversed!
+        [](const BlockBackend::Scalar& self, complex128 other) {
+            return other - self;
+        }, // reversed!
         py::arg("other"))
       .def(
         "__mul__",
@@ -471,26 +467,22 @@ bind_block_backend(py::module_& m)
         py::arg("other"))
       .def(
         "__truediv__",
-        [](const BlockBackend::Scalar& self, float64 other) {
-            return self / other;
-        },
+        [](const BlockBackend::Scalar& self, float64 other) { return self / other; },
         py::arg("other"))
       .def(
         "__truediv__",
-        [](const BlockBackend::Scalar& self, complex128 other) {
-            return self / other;
-        },
+        [](const BlockBackend::Scalar& self, complex128 other) { return self / other; },
         py::arg("other"))
       .def(
         "__rtruediv__",
         [](const BlockBackend::Scalar& self, float64 other) {
-            return other / self;  // reversed!
+            return other / self; // reversed!
         },
         py::arg("other"))
       .def(
         "__rtruediv__",
         [](const BlockBackend::Scalar& self, complex128 other) {
-            return other / self;  // reversed!
+            return other / self; // reversed!
         },
         py::arg("other"))
       .def(
@@ -558,12 +550,11 @@ bind_block_backend(py::module_& m)
            [](const BlockBackend& self) { return self.get_backend_name() + std::string("()"); })
       .def("__str__",
            [](const BlockBackend& self) { return self.get_backend_name() + std::string("()"); })
-      .def("as_scalar",
-           [](BlockBackend& self, py::bool_ value) {
-               return self.as_scalar(value.cast<bool>());
-           },
-           py::arg("value"),
-           "Convert a Python bool to a scalar block.")
+      .def(
+        "as_scalar",
+        [](BlockBackend& self, py::bool_ value) { return self.as_scalar(value.cast<bool>()); },
+        py::arg("value"),
+        "Convert a Python bool to a scalar block.")
       .def("as_scalar",
            py::overload_cast<int64>(&BlockBackend::as_scalar),
            py::arg("value"),

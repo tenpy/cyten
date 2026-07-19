@@ -402,12 +402,17 @@ class PyBlockBackend
         PYBIND11_OVERRIDE_PURE(Scalar, BlockBackend, get_block_element, a, idcs);
     }
     Scalar get_block_mask_element(const BlockCPtr& a,
-                                int64 large_leg_idx,
-                                int64 small_leg_idx,
-                                int64 sum_block) override
+                                  int64 large_leg_idx,
+                                  int64 small_leg_idx,
+                                  int64 sum_block) override
     {
-        PYBIND11_OVERRIDE(
-          Scalar, BlockBackend, get_block_mask_element, a, large_leg_idx, small_leg_idx, sum_block);
+        PYBIND11_OVERRIDE(Scalar,
+                          BlockBackend,
+                          get_block_mask_element,
+                          a,
+                          large_leg_idx,
+                          small_leg_idx,
+                          sum_block);
     }
     BlockPtr matrix_dot(const BlockCPtr& a, const BlockCPtr& b) override
     {
