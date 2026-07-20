@@ -101,6 +101,7 @@ from ..symmetries import (
     TensorProduct,
     fusion_trees,
 )
+from ..symmetries.spaces import _flat_leg_permutation
 from ..tools.mappings import IdentityMapping, SparseMapping
 from ..tools.misc import (
     inverse_permutation,
@@ -487,7 +488,7 @@ class FusionTreeBackend(TensorBackend):
 
     def data_item(self, a: FusionTreeData) -> Scalar:
         if len(a.blocks) > 1:
-            raise ValueError('More than 1 block!')
+            raise RuntimeError('Inconsistent data.')
         if len(a.blocks) == 0:
             return self.block_backend.as_scalar(a.dtype.zero_scalar)
         return self.block_backend.item(a.blocks[0])
@@ -759,11 +760,27 @@ class FusionTreeBackend(TensorBackend):
 
     def from_dense_block(self, a: Block, codomain: TensorProduct, domain: TensorProduct, tol: float) -> FusionTreeData:
         if codomain.has_pipes or domain.has_pipes:
-            num_piped_legs = codomain.num_factors + domain.num_factors
-            codomain_split_dims = [[flat.dim for flat in l.flat_legs] for l in codomain]
-            domain_split_dims = [[flat.dim for flat in l.flat_legs] for l in domain]
-            split_dims = codomain_split_dims + [dims[::-1] for dims in reversed(domain_split_dims)]
-            a = self.block_backend.split_legs(a, idcs=[*range(num_piped_legs)], dims=split_dims)
+            # we cannot simply use cstyles as argument in combine_legs since we potentially need to deal with
+            # nested pipes with different cstyles -> choose to combine in C style and do axis permutation explicitly
+            idcs = []
+            split_dims = []
+            legs = [*codomain.factors, *reversed([f.dual for f in domain.factors])]
+            axes_perm = _flat_leg_permutation(legs)
+            perm_idx = 0
+            for n, leg in enumerate(legs):
+                if isinstance(leg, LegPipe):
+                    idcs.append(n)
+                    dims = [s.dim for s in leg.flat_legs]
+                    perm = axes_perm[perm_idx : perm_idx + leg.num_flat_legs]
+                    perm_min = min(perm)
+                    perm = [p - perm_min for p in perm]
+                    # use inverse permutation here s.t. it the dims agree with the flat dims after permute_axes below
+                    split_dims.append([dims[i] for i in inverse_permutation(perm)])
+                    perm_idx += leg.num_flat_legs
+                else:
+                    perm_idx += 1
+            a = self.block_backend.split_legs(a, idcs=idcs, dims=split_dims)
+            a = self.block_backend.permute_axes(a, axes_perm)
 
         sym = codomain.symmetry
         assert sym.can_be_dropped
@@ -787,17 +804,17 @@ class FusionTreeBackend(TensorBackend):
             # iterate over uncoupled sectors / forest-blocks within the block
             i1 = 0  # start row index of the current forest block
             i2 = 0  # start column index of the current forest block
-            for b_sectors, n_dims, j2 in domain.iter_uncoupled(yield_slices=True):
+            for b_sectors, n_mults, j2 in domain.iter_uncoupled(yield_slices=True):
                 b_dims = sym.batch_sector_dim(b_sectors)
                 tree_block_width = domain.tree_block_size(b_sectors)
-                for a_sectors, m_dims, j1 in codomain.iter_uncoupled(yield_slices=True):
+                for a_sectors, m_mults, j1 in codomain.iter_uncoupled(yield_slices=True):
                     a_dims = sym.batch_sector_dim(a_sectors)
                     tree_block_height = codomain.tree_block_size(a_sectors)
                     entries = a[(*j1, *j2)]  # [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
                     # reshape to [a1,m1,...,aJ,mJ, b1,n1,...,bK,nK]
                     shape = [0] * (2 * num_legs)
                     shape[::2] = [*a_dims, *b_dims]
-                    shape[1::2] = [*m_dims, *n_dims]
+                    shape[1::2] = [*m_mults, *n_mults]
                     entries = self.block_backend.reshape(entries, shape)
                     # permute to [a1,...,aJ, b1,...,bK, m1,...,mJ, n1,...nK]
                     perm = [*range(0, 2 * num_legs, 2), *range(1, 2 * num_legs, 2)]
@@ -1003,7 +1020,7 @@ class FusionTreeBackend(TensorBackend):
         )
 
     def get_device_from_data(self, a: FusionTreeData) -> str:
-        return a.device
+        return self.block_backend.as_device(a.device)
 
     def get_dtype_from_data(self, a: FusionTreeData) -> Dtype:
         return a.dtype
@@ -2186,6 +2203,15 @@ class FusionTreeBackend(TensorBackend):
         # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
 
+    def to_block_backend(
+        self, data: FusionTreeData, block_backend, dtype: Dtype = None, device: str = None
+    ) -> FusionTreeData:
+        if dtype is None:
+            dtype = data.dtype
+        device = block_backend.as_device(data.device if device is None else device)
+        blocks = [block_backend.as_block(b, dtype=dtype, device=device) for b in data.blocks]
+        return FusionTreeData(block_inds=data.block_inds, blocks=blocks, dtype=dtype, device=device)
+
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         # first build it with the flattened legs, and if there are pipes, combine at the very end
 
@@ -2204,10 +2230,10 @@ class FusionTreeBackend(TensorBackend):
             coupled = a.codomain.sector_decomposition[bi_cod]
             i1 = 0  # start row index of the current forest block
             i2 = 0  # start column index of the current forest block
-            for b_sectors, n_dims, j2 in a.domain.iter_uncoupled(yield_slices=True):
+            for b_sectors, n_mults, j2 in a.domain.iter_uncoupled(yield_slices=True):
                 b_dims = sym.batch_sector_dim(b_sectors)
                 tree_block_width = a.domain.tree_block_size(b_sectors)
-                for a_sectors, m_dims, j1 in a.codomain.iter_uncoupled(yield_slices=True):
+                for a_sectors, m_mults, j1 in a.codomain.iter_uncoupled(yield_slices=True):
                     a_dims = sym.batch_sector_dim(a_sectors)
                     tree_block_height = a.codomain.tree_block_size(a_sectors)
                     entries, num_alpha_trees, num_beta_trees = self._get_forest_block_contribution(
@@ -2224,8 +2250,8 @@ class FusionTreeBackend(TensorBackend):
                         tree_block_height,
                         i1,
                         i2,
-                        m_dims,
-                        n_dims,
+                        m_mults,
+                        n_mults,
                         dtype,
                     )
                     forest_b_height = num_alpha_trees * tree_block_height
@@ -2237,7 +2263,7 @@ class FusionTreeBackend(TensorBackend):
                     perm = [i + offset for i in range(num_legs) for offset in [0, num_legs]]
                     entries = self.block_backend.permute_axes(entries, perm)
                     # reshape to [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
-                    shape = [d_a * m for d_a, m in zip(a_dims, m_dims)] + [d_b * n for d_b, n in zip(b_dims, n_dims)]
+                    shape = [d_a * m for d_a, m in zip(a_dims, m_mults)] + [d_b * n for d_b, n in zip(b_dims, n_mults)]
                     entries = self.block_backend.reshape(entries, shape)
                     res[(*j1, *j2)] += entries
                     i1 += forest_b_height  # move down by one forest-block
@@ -2247,9 +2273,14 @@ class FusionTreeBackend(TensorBackend):
         res = self.block_backend.permute_axes(res, [*range(J), *reversed(range(J, J + K))])
 
         if a.has_pipes:
+            # we cannot simply use cstyles as argument in combine_legs since we potentially need to deal with
+            # nested pipes with different cstyles -> choose to combine in C style and do axis permutation explicitly
+            # need to cast to a list here since numpy arrays leads errors in the torch block backend
+            axes_perm = list(inverse_permutation(_flat_leg_permutation(a.legs)))
             combine_axes = a.codomain.flat_legs_nesting() + [
                 [J + K - 1 - leg_idx for leg_idx in reversed(group)] for group in reversed(a.domain.flat_legs_nesting())
             ]
+            res = self.block_backend.permute_axes(res, axes_perm)
             res = self.block_backend.combine_legs(res, combine_axes)
 
         return res
@@ -2393,8 +2424,8 @@ class FusionTreeBackend(TensorBackend):
         tree_block_height,
         i1_init,
         i2_init,
-        m_dims,
-        n_dims,
+        m_mults,
+        n_mults,
         dtype,
     ):
         """Helper function for :meth:`to_dense_block`.
@@ -2421,6 +2452,10 @@ class FusionTreeBackend(TensorBackend):
             Equal to ``tree_block_size(codomain, a_sectors)``
         i1_init, i2_init:
             The start indices of the current forest block within the block
+        m_mults
+            The multiplicities [M1, M2, ..., MJ] of each sector aj in its respective leg.
+        n_mults
+            The multiplicities [N1, N2, ..., NK] of each sector bk in its respective leg.
 
         Returns
         -------
@@ -2438,11 +2473,13 @@ class FusionTreeBackend(TensorBackend):
         i2 = i2_init  # i2: start column index of the current tree block within the block
         alpha_tree_iter = fusion_trees(sym, a_sectors, coupled, [sp.is_dual for sp in codomain.flat_legs])
         beta_tree_iter = fusion_trees(sym, b_sectors, coupled, [sp.is_dual for sp in domain.flat_legs])
-        entries = self.block_backend.zeros([*a_dims, *b_dims, *m_dims, *n_dims], dtype)
+        entries = self.block_backend.zeros([*a_dims, *b_dims, *m_mults, *n_mults], dtype)
         for alpha_tree in alpha_tree_iter:
-            splitting_tree = self.block_backend.conj(alpha_tree.as_block(backend=self))  # [a1,...,aJ,c]
+            splitting_tree = self.block_backend.conj(
+                alpha_tree.to_dense_block(backend=self, understood_braiding=True)
+            )  # [a1,...,aJ,c]
             for beta_tree in beta_tree_iter:
-                fusion_tree = beta_tree.as_block(backend=self)  # [b1,...,bK,c]
+                fusion_tree = beta_tree.to_dense_block(backend=self, understood_braiding=True)  # [b1,...,bK,c]
                 symmetry_data = self.block_backend.tdot(
                     splitting_tree, fusion_tree, [-1], [-1]
                 )  # [a1,...,aJ,b1,...,bK]
@@ -2450,7 +2487,7 @@ class FusionTreeBackend(TensorBackend):
                 idx2 = slice(i2, i2 + tree_block_width)
                 degeneracy_data = block[idx1, idx2]  # [M, N]
                 # [M, N] -> [m1,...,mJ,n1,...,nK]
-                degeneracy_data = self.block_backend.reshape(degeneracy_data, [*m_dims, *n_dims])
+                degeneracy_data = self.block_backend.reshape(degeneracy_data, [*m_mults, *n_mults])
                 entries += self.block_backend.outer(symmetry_data, degeneracy_data)  # [{aj} {bk} {mj} {nk}]
                 i2 += tree_block_width
             i2 = i2_init  # reset to the left of the current forest-block
@@ -2525,11 +2562,11 @@ class FusionTreeBackend(TensorBackend):
         alpha_tree_iter = fusion_trees(sym, a_sectors, coupled, codomain_are_dual)
         beta_tree_iter = fusion_trees(sym, b_sectors, coupled, domain_are_dual)
         for alpha_tree in alpha_tree_iter:
-            Y = alpha_tree.as_block(backend=self)
+            Y = alpha_tree.to_dense_block(backend=self, understood_braiding=True)
             # entries: [a1,...,aJ,b1,...,bK,m1,...,mJ,n1,...,nK]
             Y_projected = self.block_backend.tdot(entries, Y, range_J, range_J)  # [{bk}, {mj}, {nk}, c]
             for beta_tree in beta_tree_iter:
-                X = self.block_backend.conj(beta_tree.as_block(backend=self))
+                X = self.block_backend.conj(beta_tree.to_dense_block(backend=self, understood_braiding=True))
                 YX_projected = self.block_backend.tdot(Y_projected, X, range_K, range_K)  # [{mj}, {nk}, c, c']
                 # projected onto the identity on [c, c']
                 tree_block = self.block_backend.trace_partial(YX_projected, [-2], [-1], range_JK) / dim_c
@@ -2790,7 +2827,7 @@ class PermuteLegsInstructionEngine:
                 else:
                     assert 0 <= min(i.idcs) <= max(i.idcs) < len(domain)
             else:
-                raise TypeError
+                raise TypeError  # this should never happen
         assert codomain == list(codomain_idcs)
         assert domain == list(domain_idcs)
 
@@ -3086,10 +3123,8 @@ class TensorMapping(metaclass=ABCMeta):
             res = self.pre_compose_braid_instruction(instruction, is_real=is_real)
         elif isinstance(instruction, TwistInstruction):
             res = self.pre_compose_twist_instruction(instruction, is_real=is_real)
-        elif isinstance(instruction, Instruction):
-            raise NotImplementedError
         else:
-            raise TypeError
+            raise TypeError  # this should never happen
         if prune_tol is not None:
             res.prune(prune_tol)
         return res

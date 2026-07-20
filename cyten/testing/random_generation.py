@@ -70,7 +70,6 @@ def random_ElementarySpace(
 def random_LegPipe(
     symmetry,
     backend,
-    in_domain,
     max_sectors=5,
     max_multiplicity=5,
     is_dual=None,
@@ -98,7 +97,7 @@ def random_LegPipe(
         )
         legs.append(leg)
 
-    pipe = backend.make_pipe(legs=legs, is_dual=is_dual, in_domain=in_domain)
+    pipe = backend.make_pipe(legs=legs, is_dual=is_dual)
     pipe_as_space = pipe.as_Space()
 
     # make sure that for non-abelian symmetries, max_sectors and max_multiplicity
@@ -112,7 +111,7 @@ def random_LegPipe(
     ):
         legs[idx] = triv
         idx += 1
-        pipe = backend.make_pipe(legs=legs, is_dual=is_dual, in_domain=in_domain)
+        pipe = backend.make_pipe(legs=legs, is_dual=is_dual)
         pipe_as_space = pipe.as_Space()
     return pipe
 
@@ -133,7 +132,6 @@ def random_leg(
         return random_LegPipe(
             symmetry=symmetry,
             backend=backend,
-            in_domain=in_domain,
             max_sectors=max_sectors,
             max_multiplicity=max_multiplicity,
             is_dual=is_dual,
@@ -212,7 +210,6 @@ def find_last_leg(
     max_mult: int,
     backend: backends.TensorBackend,
     use_pipes: bool | float,
-    in_domain: bool,
     extra_sectors=None,
     np_random=np.random.default_rng(),
 ):
@@ -271,7 +268,7 @@ def find_last_leg(
             prod.symmetry, defining_sectors=[prod.symmetry.trivial_sector], multiplicities=[1]
         )
         legs = [res] + [triv] * (_random_num_legs(np_random=np_random) - 1)
-        res = backend.make_pipe(legs=legs, is_dual=False, in_domain=in_domain)
+        res = backend.make_pipe(legs=legs, is_dual=False)
     #
     # check that it actually worked
     # OPTIMIZE remove?
@@ -291,11 +288,11 @@ def random_tensor(
     backend: backends.TensorBackend = None,
     device: str = None,
     like: tensors.Tensor = None,
-    max_blocks=5,
-    max_multiplicity=5,
-    empty_ok=False,
-    all_blocks=False,
-    cls=tensors.SymmetricTensor,
+    max_blocks: int = 5,
+    max_multiplicity: int = 5,
+    empty_ok: bool = False,
+    all_blocks: bool = False,
+    cls: type[tensors.Tensor] = tensors.SymmetricTensor,
     allow_basis_perm: bool = True,
     use_pipes: bool | float = False,
     np_random=np.random.default_rng(),
@@ -348,7 +345,7 @@ def random_tensor(
         elif cls in [tensors.DiagonalTensor, tensors.Mask]:
             codomain = [None]
         else:
-            raise ValueError
+            raise ValueError('Invalid cls')
 
     # 1) deal with strings in codomain / domain.
     # ======================================================================================
@@ -605,7 +602,6 @@ def random_tensor(
             max_mult=max_multiplicity,
             backend=backend,
             use_pipes=use_pipes,
-            in_domain=False,
             np_random=np_random,
         )
         codomain = partial_codomain.insert_multiply(leg, last)
@@ -634,7 +630,6 @@ def random_tensor(
             max_mult=max_multiplicity,
             backend=backend,
             use_pipes=use_pipes,
-            in_domain=True,
             np_random=np_random,
         )
         domain = partial_domain.insert_multiply(leg, last)
@@ -702,7 +697,7 @@ def _random_ElementarySpace(symmetry, num_sectors, max_multiplicity, is_dual, al
     mults = np_random.integers(min_mult, max_multiplicity, size=(len(sectors),), endpoint=True)
     if symmetry.can_be_dropped and allow_basis_perm:
         dim = np.sum(symmetry.batch_sector_dim(sectors) * mults)
-        basis_perm = np_random.permutation(dim) if np_random.random() < 0.7 else None
+        basis_perm = _random_basis_perm(dim, np_random)
     else:
         basis_perm = None
     if is_dual is None:
@@ -710,6 +705,23 @@ def _random_ElementarySpace(symmetry, num_sectors, max_multiplicity, is_dual, al
     res = spaces.ElementarySpace(symmetry, sectors, mults, basis_perm=basis_perm, is_dual=is_dual)
     res.test_sanity()
     return res
+
+
+def _random_basis_perm(N: int, np_random, p_trivial=0.3):
+    if np_random.random() < p_trivial:
+        return None
+    perm = np_random.permutation(N)
+    # avoid self-inverse permutations, they may hide that we use it the wrong way around
+    if np.all(perm[perm] == np.arange(N)):
+        # compose with a full cycle, which is not self-inverse for N > 2
+        perm = np.roll(perm, 1)
+    # avoid cyclical permutations
+    if np.all(np.roll(perm, perm[0]) == np.arange(N)) and N > 1:
+        # compose with an elementary swap
+        # note that this swap *is* self-inverse, and thus composing with it does not change if the
+        # permutation is self-inverse or not, perm[perm] is unchanged by this
+        perm[[0, 1]] = perm[[1, 0]]
+    return perm
 
 
 def _random_num_legs(np_random):

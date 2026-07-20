@@ -286,7 +286,7 @@ class AbelianBackend(TensorBackend):
 
     # OVERRIDES
 
-    def make_pipe(self, legs: list[Leg], is_dual: bool, in_domain: bool, pipe: LegPipe | None = None) -> LegPipe:
+    def make_pipe(self, legs: list[Leg], is_dual: bool, pipe: LegPipe | None = None) -> LegPipe:
         assert all(isinstance(l, ElementarySpace) for l in legs)  # OPTIMIZE rm check
         if isinstance(pipe, AbelianLegPipe):
             assert pipe.combine_cstyle == (not is_dual)
@@ -704,7 +704,7 @@ class AbelianBackend(TensorBackend):
 
     def data_item(self, a: Data | DiagonalData) -> Scalar:
         if len(a.blocks) > 1:
-            raise ValueError('More than 1 block!')
+            raise RuntimeError('Inconsistent data.')
         if len(a.blocks) == 0:
             return a.dtype.zero_scalar
         return self.block_backend.item(a.blocks[0])
@@ -1091,7 +1091,7 @@ class AbelianBackend(TensorBackend):
         return AbelianBackendData(dtype, a.data.device, blocks, a.data.block_inds, is_sorted=True)
 
     def get_device_from_data(self, a: AbelianBackendData) -> str:
-        return a.device
+        return self.block_backend.as_device(a.device)
 
     def get_dtype_from_data(self, a: AbelianBackendData) -> Dtype:
         return a.dtype
@@ -2022,6 +2022,15 @@ class AbelianBackend(TensorBackend):
     def state_tensor_product(self, state1: Block, state2: Block, pipe: AbelianLegPipe):
         # clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
+
+    def to_block_backend(
+        self, data: AbelianBackendData, block_backend, dtype: Dtype = None, device: str = None
+    ) -> AbelianBackendData:
+        if dtype is None:
+            dtype = data.dtype
+        device = block_backend.as_device(data.device if device is None else device)
+        blocks = [block_backend.as_block(b, dtype=dtype, device=device) for b in data.blocks]
+        return AbelianBackendData(dtype=dtype, device=device, blocks=blocks, block_inds=data.block_inds)
 
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         res = self.block_backend.zeros(a.shape, a.data.dtype)

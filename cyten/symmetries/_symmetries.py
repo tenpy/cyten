@@ -112,6 +112,7 @@ class BaseSymmetry(metaclass=ABCMeta):
         trivial_sector: Sector,
         num_sectors: int | float,
         has_complex_topological_data: bool,
+        trivial_shift: bool,
     ):
         self.fusion_style = fusion_style
         self.braiding_style = braiding_style
@@ -120,6 +121,7 @@ class BaseSymmetry(metaclass=ABCMeta):
         self.sector_ind_len = sector_ind_len = len(trivial_sector)
         self.empty_sector_array = as_immutable_array(np.zeros((0, sector_ind_len), dtype=int))
         self.has_complex_topological_data = has_complex_topological_data
+        self.trivial_shift = trivial_shift
 
     # ABSTRACT METHODS
 
@@ -264,7 +266,7 @@ class BaseSymmetry(metaclass=ABCMeta):
             msg = f'{type(self)} has infinitely many sectors.'
             raise SymmetryError(msg)
 
-        raise NotImplementedError
+        raise NotImplementedError('Should be implemented in subclass')
 
     # WRAPPERS WITH INPUT-CHECKS
 
@@ -498,6 +500,12 @@ class BaseSymmetry(metaclass=ABCMeta):
         For bosonic braiding style, e.g. for group symmetries, this coincides with the quantum
         dimension computed by :meth:`qdim`.
         For other braiding styles,
+
+        See Also
+        --------
+        :func:`cyten.swap_gate`
+            Similar method for braiding general spaces, not just single sectors.
+
         """
         if not self.can_be_dropped:
             raise SymmetryError(f'sector_dim is not supported for {self}.')
@@ -694,6 +702,7 @@ class Symmetry(BaseSymmetry):
             trivial_sector=np.concatenate([f.trivial_sector for f in flat_factors]),
             num_sectors=math.prod([symm.num_sectors for symm in flat_factors]),
             has_complex_topological_data=any(f.has_complex_topological_data for f in flat_factors),
+            trivial_shift=all(f.trivial_shift for f in flat_factors),
         )
         dtypes = [f.fusion_tensor_dtype for f in flat_factors]
         if None in dtypes:
@@ -1045,6 +1054,9 @@ class SymmetryFactor(BaseSymmetry):
         since real blocks become complex under leg manipulations.
         Note: for a group (and for fermions), the topo data must be real if the fusion tensors
         are real. This is because the associator, the braid, and the cup are all real for groups.
+    trivial_shift : bool
+        Whether or not the symmetry sectors transform trivially under spatial translations.
+        Nontrivial shifts are only sensible for symmetries with unique fusion style.
 
     Notes
     -----
@@ -1083,6 +1095,7 @@ class SymmetryFactor(BaseSymmetry):
         num_sectors: int | float,
         has_complex_topological_data: bool,
         descriptive_name: str | None = None,
+        trivial_shift: bool = True,
     ):
         self.descriptive_name = descriptive_name
         self.group_name = group_name
@@ -1093,6 +1106,7 @@ class SymmetryFactor(BaseSymmetry):
             trivial_sector=trivial_sector,
             num_sectors=num_sectors,
             has_complex_topological_data=has_complex_topological_data,
+            trivial_shift=trivial_shift,
         )
 
     # ABSTRACT METHODS
@@ -1201,6 +1215,7 @@ class Group(SymmetryFactor):
         num_sectors: int | float,
         has_complex_topological_data: bool,
         descriptive_name: str | None = None,
+        trivial_shift: bool = True,
     ):
         SymmetryFactor.__init__(
             self,
@@ -1211,6 +1226,7 @@ class Group(SymmetryFactor):
             num_sectors=num_sectors,
             has_complex_topological_data=has_complex_topological_data,
             descriptive_name=descriptive_name,
+            trivial_shift=trivial_shift,
         )
 
     @abstractmethod
@@ -1238,7 +1254,12 @@ class AbelianGroup(Group):
     fusion_tensor_dtype = Dtype.float64
 
     def __init__(
-        self, trivial_sector: Sector, group_name: str, num_sectors: int | float, descriptive_name: str | None = None
+        self,
+        trivial_sector: Sector,
+        group_name: str,
+        num_sectors: int | float,
+        descriptive_name: str | None = None,
+        trivial_shift: bool = True,
     ):
         Group.__init__(
             self,
@@ -1248,6 +1269,7 @@ class AbelianGroup(Group):
             num_sectors=num_sectors,
             has_complex_topological_data=False,
             descriptive_name=descriptive_name,
+            trivial_shift=trivial_shift,
         )
 
     def sector_str(self, a: Sector) -> str:
@@ -1352,13 +1374,14 @@ class U1(AbelianGroup):
     ..., `[-2]`, `[-1]`, `[0]`, `[1]`, `[2]`, ...
     """
 
-    def __init__(self, descriptive_name: str | None = None):
+    def __init__(self, descriptive_name: str | None = None, trivial_shift: bool = True):
         AbelianGroup.__init__(
             self,
             trivial_sector=np.array([0], dtype=int),
             group_name='U(1)',
             num_sectors=np.inf,
             descriptive_name=descriptive_name,
+            trivial_shift=trivial_shift,
         )
 
     def is_valid_sector(self, a: Sector) -> bool:
@@ -1398,7 +1421,7 @@ class ZN(AbelianGroup):
     `[0]`, `[1]`, ..., `[N-1]`
     """
 
-    def __init__(self, N: int, descriptive_name: str | None = None):
+    def __init__(self, N: int, descriptive_name: str | None = None, trivial_shift: bool = True):
         assert isinstance(N, int)
         if not isinstance(N, int) and N > 1:
             raise ValueError(f'invalid ZNSymmetry(N={N!r},{descriptive_name!s})')
@@ -1423,6 +1446,7 @@ class ZN(AbelianGroup):
             group_name=group_name,
             num_sectors=N,
             descriptive_name=descriptive_name,
+            trivial_shift=trivial_shift,
         )
 
     def __repr__(self):
@@ -2148,7 +2172,7 @@ class FermionNumber(SymmetryFactor):
 
     fusion_tensor_dtype = Dtype.float64
 
-    def __init__(self, descriptive_name: str = None):
+    def __init__(self, descriptive_name: str = None, trivial_shift: bool = True):
         super().__init__(
             fusion_style=FusionStyle.single,
             braiding_style=BraidingStyle.fermionic,
@@ -2157,6 +2181,7 @@ class FermionNumber(SymmetryFactor):
             num_sectors=np.inf,
             has_complex_topological_data=False,
             descriptive_name=descriptive_name,
+            trivial_shift=trivial_shift,
         )
 
     def is_valid_sector(self, a: Sector) -> bool:
@@ -2267,7 +2292,7 @@ class FermionParity(SymmetryFactor):
     even = as_immutable_array(np.array([0], dtype=int))
     odd = as_immutable_array(np.array([1], dtype=int))
 
-    def __init__(self, descriptive_name: str = None):
+    def __init__(self, descriptive_name: str = None, trivial_shift: bool = True):
         SymmetryFactor.__init__(
             self,
             fusion_style=FusionStyle.single,
@@ -2277,6 +2302,7 @@ class FermionParity(SymmetryFactor):
             num_sectors=2,
             has_complex_topological_data=False,
             descriptive_name=descriptive_name,
+            trivial_shift=trivial_shift,
         )
 
     def is_valid_sector(self, a: Sector) -> bool:

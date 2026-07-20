@@ -63,7 +63,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # users:
-io = ["h5py", "pyyaml"]
+io = ["h5py"]
 gpu = ["torch"]
 # dev:
 test = ["pytest>=6.0", "sympy", "cyten[io]"]
@@ -151,7 +151,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = [
     "F401",  # imported but unused
-	"I"
+	"I",  # keep import order - this is needed to avoid circular imports
+    "E402",  # Module level import not at top of file
 ]
 "conftest.py" = [
     "D103",  # Missing docstring in public function

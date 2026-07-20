@@ -3,11 +3,11 @@ import numpy as np
 import pytest
 from numpy import testing as npt
 
-from cyten import SymmetryError, symmetries
+from cyten import SymmetryError, get_backend, symmetries
 from cyten.block_backends import NumpyBlockBackend
-from cyten.symmetries import spaces, trees
-from cyten.testing import random_ElementarySpace
-from cyten.tools import is_permutation
+from cyten.symmetries import fermion_parity, no_symmetry, spaces, trees, u1_symmetry
+from cyten.testing import random_ElementarySpace, random_LegPipe
+from cyten.tools import is_permutation, make_grid
 
 # TODO test all cases of Space.as_ElementarySpace
 
@@ -109,7 +109,7 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
                     sector_idx, mult_idx = s1.parse_index(idx)
                     assert sector_idx == n_sector
                     assert mult_idx == m * d + mu
-                    assert np.all(s1.idx_to_sector(idx) == sector)
+                    npt.assert_array_equal(s1.idx_to_sector(idx), sector)
                     idx += 1
 
     print('check sector lookup')
@@ -182,8 +182,8 @@ def test_ElementarySpace_from_defining_sectors(any_symmetry, make_any_sectors, n
         np.all(sectors[None, :, :] == expect_sectors[:, None, :], axis=2), multiplicities[None, :], 0
     )
     expect_mults = np.sum(mult_contributions, axis=1)
-    assert np.all(res.sector_decomposition == expect_sectors)
-    assert np.all(res.multiplicities == expect_mults)
+    npt.assert_array_equal(res.sector_decomposition, expect_sectors)
+    npt.assert_array_equal(res.multiplicities, expect_mults)
     #
     # check basis perm
     if any_symmetry.can_be_dropped:
@@ -429,7 +429,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
     start = 0
     for sector, mult in zip(leg_1.sector_decomposition, leg_1.multiplicities):
         for b in internal_basis_1[start : start + mult]:
-            assert np.all(b[0] == sector)
+            npt.assert_array_equal(b[0], sector)
         start = start + mult
     assert start == leg_1.dim
 
@@ -444,7 +444,7 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
         for s_1, s_2 in iter_combinations(leg_1.sector_decomposition, leg_2.sector_decomposition)
     ]
     fusion_outcomes_sorted, expect = _sort_sectors(fusion_outcomes, abelian_group_symmetry, by_duals=pipe.is_dual)
-    assert np.all(pipe.fusion_outcomes_sort == expect)
+    npt.assert_array_equal(pipe.fusion_outcomes_sort, expect)
 
     # check block_ind_map_slices
     # =======================================
@@ -467,12 +467,12 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
         [b[0] for b in internal_fusion_outcomes], abelian_group_symmetry, by_duals=pipe.is_dual
     )
 
-    assert np.all(pipe._get_fusion_outcomes_perm(pipe.multiplicities) == fusion_outcomes_perm)
+    npt.assert_array_equal(pipe._get_fusion_outcomes_perm(pipe.multiplicities), fusion_outcomes_perm)
 
     # check basis_perm
     # =======================================
     assert pipe.basis_perm.shape == (pipe.dim,)
-    assert np.all(np.sort(pipe.basis_perm) == np.arange(pipe.dim))
+    npt.assert_array_equal(np.sort(pipe.basis_perm), np.arange(pipe.dim))
     public_basis_pipe = [
         (abelian_group_symmetry.fusion_outcomes(b_1[0], b_2[0])[0], b_1[1], b_2[1])
         for b_1, b_2 in iter_combinations(public_basis_1, public_basis_2)
@@ -488,9 +488,9 @@ def test_AbelianLegPipe(abelian_group_symmetry, combine_cstyle, pipe_dual, np_ra
                 expect_perm.append(j)
                 break
         else:  # else == "no break occurred"
-            raise RuntimeError
+            raise RuntimeError  # should not happen
 
-    assert np.all(pipe.basis_perm == np.array(expect_perm))
+    npt.assert_array_equal(pipe.basis_perm, np.array(expect_perm))
 
 
 @pytest.mark.parametrize('is_dual', [True, False])
@@ -519,8 +519,8 @@ def test_direct_sum(is_dual, make_any_space, max_mult=5, max_sectors=5):
         expected_order = np.lexsort(d.sector_decomposition.T)
     else:
         expected_order = slice(None, None, None)
-    assert np.all(d.sector_decomposition[expected_order] == sectors)
-    assert np.all(d.multiplicities[expected_order] == mults)
+    npt.assert_array_equal(d.sector_decomposition[expected_order], sectors)
+    npt.assert_array_equal(d.multiplicities[expected_order], mults)
 
 
 def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines=20):
@@ -531,7 +531,7 @@ def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines
     terminal_width = 80
     str_max_len = terminal_width * str_max_lines
     repr_max_len = terminal_width * str_max_lines
-    # TODO output is a bit long, should we force shorter? -> consider config.printoptions!
+    # TODO output is a bit long, should we force shorter?
 
     instances = {
         'ElementarySpace (short)': make_any_space(max_sectors=3, is_dual=True),
@@ -578,6 +578,96 @@ def test_str_repr(make_any_space, any_symmetry, str_max_lines=20, repr_max_lines
         print(res)
 
 
+@pytest.mark.parametrize('symm', [no_symmetry, u1_symmetry, fermion_parity], ids=['no_symm', 'U1', 'fermion'])
+@pytest.mark.parametrize('V_dual', [True, False], ids=['Vbra', 'Vket'])
+@pytest.mark.parametrize('W_dual', [True, False], ids=['Wbra', 'Wket'])
+@pytest.mark.parametrize('basis_perm', [True, False], ids=['perm', 'noperm'])
+@pytest.mark.parametrize('V_pipe', [3, 2, 1, False], ids=['Vpipe3', 'Vpipe2', 'Vpipe1', 'Vnopipe'])
+@pytest.mark.parametrize('W_pipe', [3, 2, 1, False], ids=['Wpipe3', 'Wpipe2', 'Wpipe1', 'Wnopipe'])
+@pytest.mark.parametrize('abelian_pipes', [True, False], ids=['abelianPipes', 'plainPipes'])
+def test_swap_gate(symm, basis_perm, abelian_pipes, np_random, V_pipe, W_pipe, V_dual, W_dual):
+    pipe_backend = get_backend('abelian' if abelian_pipes else 'fusion_tree')
+    if not pipe_backend.supports_symmetry(symm):
+        return
+
+    if V_pipe is False:
+        V = random_ElementarySpace(symm, allow_basis_perm=basis_perm, np_random=np_random, is_dual=V_dual)
+    else:
+        V = random_LegPipe(
+            symmetry=symm,
+            backend=pipe_backend,
+            allow_basis_perm=basis_perm,
+            num_legs=V_pipe,
+            np_random=np_random,
+            is_dual=V_dual,
+        )
+    if W_pipe is False:
+        W = random_ElementarySpace(symm, allow_basis_perm=basis_perm, np_random=np_random, is_dual=W_dual)
+    else:
+        W = random_LegPipe(
+            symmetry=symm,
+            backend=pipe_backend,
+            allow_basis_perm=basis_perm,
+            num_legs=W_pipe,
+            np_random=np_random,
+            is_dual=W_dual,
+        )
+
+    if not symm.can_be_dropped:
+        with pytest.raises(SymmetryError, match='braid can not be written as array'):
+            _ = spaces.swap_gate(V, W)
+        return  # error is expected behavior
+
+    dV = int(V.dim)
+    dW = int(W.dim)
+
+    swap = spaces.swap_gate(V, W)
+    assert swap.shape == (dW, dV, dW, dV)
+
+    # must be "diagonal", in the swapped basis swap[i, j, k, l] = phases[i, j] δ_ik δ_jl
+    phases = np.diag(swap.reshape(dW * dV, dW * dV)).reshape(dW, dV)
+    npt.assert_almost_equal(swap, np.diag(phases.reshape(-1)).reshape(dW, dV, dW, dV))
+    # -> it is now enough to check that the phases are as expected
+
+    # they must be complex phases
+    npt.assert_almost_equal(np.abs(phases), 1)
+
+    if symm.has_trivial_braid:
+        npt.assert_almost_equal(phases, +1)
+
+    elif symm is fermion_parity:
+        if V_pipe is False:
+            V_parity = np.reshape(V.sectors_of_basis % 2, -1)
+        else:
+            # implementation of this test assumes no nested pipes...
+            V_sectors = [Vi.sectors_of_basis for Vi in V.legs]
+            V_parity = np.array(
+                [
+                    sum(sectors[i] for sectors, i in zip(V_sectors, i_idcs)) % 2
+                    for i_idcs in make_grid([int(Vi.dim) for Vi in V.legs], cstyle=V.combine_cstyle)
+                ]
+            ).reshape(-1)
+        if W_pipe is False:
+            W_parity = np.reshape(W.sectors_of_basis % 2, -1)
+        else:
+            W_sectors = [Wi.sectors_of_basis for Wi in W.legs]
+            W_parity = np.array(
+                [
+                    sum(sectors[j] for sectors, j in zip(W_sectors, j_idcs)) % 2
+                    for j_idcs in make_grid([int(Wi.dim) for Wi in W.legs], cstyle=W.combine_cstyle)
+                ]
+            ).reshape(-1)
+
+        for j in range(dW):
+            for i in range(dV):
+                npt.assert_almost_equal(phases[j, i], 1 - 2 * V_parity[i] * W_parity[j])
+        npt.assert_almost_equal(phases, 1 - 2 * V_parity[None, :] * W_parity[:, None])
+
+    else:
+        # would need to redesign the tests
+        raise NotImplementedError
+
+
 # TODO move to some testing tools module?
 def assert_spaces_equal(space1: spaces.Space, space2: spaces.Space):
     # TODO review in light of new spaces classes
@@ -586,11 +676,11 @@ def assert_spaces_equal(space1: spaces.Space, space2: spaces.Space):
         assert space1.is_dual == space2.is_dual, 'mismatched is_dual'
         assert space1.symmetry == space2.symmetry, 'mismatched symmetry'
         assert space1.num_sectors == space2.num_sectors, 'mismatched num_sectors'
-        assert np.all(space1.multiplicities == space2.multiplicities), 'mismatched multiplicities'
-        assert np.all(space1.sector_decomposition == space2.sector_decomposition), 'mismatched sectors'
+        npt.assert_array_equal(space1.multiplicities, space2.multiplicities), 'mismatched multiplicities'
+        npt.assert_array_equal(space1.sector_decomposition, space2.sector_decomposition), 'mismatched sectors'
         if (space1._basis_perm is not None) or (space2._basis_perm is not None):
             # otherwise both are trivial and this match
-            assert np.all(space1.basis_perm == space2.basis_perm), 'mismatched basis_perm'
+            npt.assert_array_equal(space1.basis_perm, space2.basis_perm), 'mismatched basis_perm'
     elif isinstance(space1, spaces.TensorProduct):
         assert isinstance(space2, spaces.TensorProduct), 'mismatching types'
         assert space1.num_factors == space2.num_factors

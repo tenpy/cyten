@@ -7,6 +7,7 @@ from typing import Literal
 
 import numpy as np
 import pytest
+from numpy import testing as npt
 
 import cyten
 from cyten import SymmetryError, backends, tensors
@@ -129,10 +130,10 @@ def test_coupling(codom, make_compatible_space):
     assert tensors.almost_equal(coupling.to_tensor(), T)
     if T.symmetry.can_be_dropped:
         coupling_to_numpy = coupling.to_numpy(understood_braiding=True)
-        assert np.allclose(coupling_to_numpy, T.to_numpy(understood_braiding=True))
+        npt.assert_almost_equal(coupling_to_numpy, T.to_numpy(understood_braiding=True))
         coupling2 = couplings.Coupling.from_dense_block(coupling_to_numpy, site_list, understood_braiding=True)
         coupling2.test_sanity()
-        assert np.all(coupling2.sites == coupling.sites)
+        npt.assert_array_equal(coupling2.sites, coupling.sites)
         for i in range(codom):
             assert tensors.almost_equal(coupling2.factorization[i], coupling.factorization[i])
 
@@ -168,7 +169,7 @@ def test_spin_spin_coupling(any_backend, np_random):
             # hermiticity
             assert tensors.almost_equal(tensor.hc, tensor)
             # trace is zero
-            assert np.allclose(tensors.trace(tensor).to_numpy(), 0)
+            npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), 0)
             if site1 == site2:
                 # commutation relation
                 tensor_commuted = tensors.permute_legs(tensor, codomain=[1, 0], domain=[2, 3])
@@ -197,7 +198,7 @@ def test_spin_spin_coupling(any_backend, np_random):
                 evs = tensor.to_numpy(leg_order=[0, 1, 3, 2], understood_braiding=True)
                 evs = np.reshape(evs, (np.prod(evs.shape[:2]), -1))
                 evs = np.sort(np.linalg.eigvalsh(evs))
-                assert np.allclose(evs, np.sort(Jz * expect_evs))
+                npt.assert_almost_equal(evs, np.sort(Jz * expect_evs))
 
     check_coupling(couplings.spin_spin_coupling, site_num=2, invalid_site_nums=[1, 3], boson_fermion_mixing=False)
 
@@ -221,7 +222,7 @@ def test_spin_field_coupling(any_backend, np_random):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is zero
-        assert np.allclose(tensors.trace(tensor), 0)
+        npt.assert_almost_equal(tensors.trace(tensor), 0)
         # check eigenvalues
         h = np.sqrt(hx**2 + hy**2 + hz**2)
         if isinstance(site, sites.SpinSite):
@@ -231,7 +232,7 @@ def test_spin_field_coupling(any_backend, np_random):
             expect_evs = np.array([0, 0, -0.5, 0.5])
         evs = tensor.to_numpy(understood_braiding=True)
         evs = np.sort(np.linalg.eigvalsh(evs))
-        assert np.allclose(evs, np.sort(h * expect_evs))
+        npt.assert_almost_equal(evs, np.sort(h * expect_evs))
 
     check_coupling(couplings.spin_field_coupling, site_num=1, invalid_site_nums=[2], boson_fermion_mixing=False)
 
@@ -269,10 +270,10 @@ def test_aklt_coupling(any_backend, np_random):
             evs = tensor.to_numpy(leg_order=[0, 1, 3, 2], understood_braiding=True)
             evs = np.reshape(evs, (np.prod(evs.shape[:2]), -1))
             evs = np.sort(np.linalg.eigvalsh(evs))
-            assert np.allclose(evs, np.sort(J * expect_evs))
+            npt.assert_almost_equal(evs, np.sort(J * expect_evs))
             if site1 == site2 and isinstance(site1, sites.SpinSite) and site1.double_total_spin == 2:
                 # actual AKLT case
-                assert np.allclose(evs, J * np.array([-2.0 / 3.0] * 4 + [4.0 / 3.0] * 5))
+                npt.assert_almost_equal(evs, J * np.array([-2.0 / 3.0] * 4 + [4.0 / 3.0] * 5))
 
     check_coupling(couplings.aklt_coupling, site_num=2, invalid_site_nums=[1, 3], boson_fermion_mixing=False)
 
@@ -295,7 +296,7 @@ def test_chiral_3spin_coupling(any_backend, np_random):
             # hermiticity
             assert tensors.almost_equal(tensor.hc, tensor)
             # trace is zero
-            assert np.allclose(tensors.trace(tensor), 0)
+            npt.assert_almost_equal(tensors.trace(tensor), 0)
             if site1 == site2:
                 # cyclic permutation relation
                 tensor_commuted = tensors.permute_legs(tensor, codomain=[2, 0, 1], domain=[3, 5, 4])
@@ -337,7 +338,7 @@ def test_chemical_potential(any_backend, np_random):
             expect_evs.append(-mu * sum([occupations[k] for k in species]))
         evs = tensor.to_numpy(understood_braiding=True)
         evs = np.sort(np.linalg.eigvalsh(evs))
-        assert np.allclose(evs, np.sort(expect_evs))
+        npt.assert_almost_equal(evs, np.sort(expect_evs))
 
     check_coupling(couplings.chemical_potential, site_num=1, invalid_site_nums=[2], boson_fermion_mixing=False, mu=1.0)
 
@@ -371,7 +372,7 @@ def test_onsite_interaction(any_backend, np_random):
             expect_evs.append(U * n**2 / 2.0)
         evs = tensor.to_numpy(understood_braiding=True)
         evs = np.sort(np.linalg.eigvalsh(evs))
-        assert np.allclose(evs, np.sort(expect_evs))
+        npt.assert_almost_equal(evs, np.sort(expect_evs))
 
     check_coupling(couplings.onsite_interaction, site_num=1, invalid_site_nums=[2], boson_fermion_mixing=False)
 
@@ -415,7 +416,7 @@ def test_density_density_interaction(any_backend, np_random):
         evs = tensor.to_numpy(leg_order=[0, 1, 3, 2], understood_braiding=True)
         evs = np.reshape(evs, (np.prod(evs.shape[:2]), -1))
         evs = np.sort(np.linalg.eigvalsh(evs))
-        assert np.allclose(evs, np.sort(expect_evs))
+        npt.assert_almost_equal(evs, np.sort(expect_evs))
 
     check_coupling(
         couplings.density_density_interaction, site_num=2, invalid_site_nums=[1, 3], boson_fermion_mixing=True
@@ -459,7 +460,7 @@ def test_hopping(any_backend, np_random):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is zero
-        assert np.allclose(tensors.trace(tensor), 0)
+        npt.assert_almost_equal(tensors.trace(tensor), 0)
         # if there is a permutation s.t. species1 <-> species2, we can commute the legs
         symmetric = False
         for perm in it.permutations(range(len(species1))):
@@ -515,7 +516,7 @@ def test_pairing(any_backend, np_random):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is zero
-        assert np.allclose(tensors.trace(tensor), 0)
+        npt.assert_almost_equal(tensors.trace(tensor), 0)
         # if there is a permutation s.t. species1 <-> species2, we can commute the legs
         symmetric = False
         for perm in it.permutations(range(len(species1))):
@@ -565,12 +566,12 @@ def test_onsite_pairing(any_backend, np_random):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is zero
-        assert np.allclose(tensors.trace(tensor), 0)
+        npt.assert_almost_equal(tensors.trace(tensor), 0)
         if isinstance(site, degrees_of_freedom.FermionicDOF):
             # default case is trivial for fermions
             coupling = couplings.onsite_pairing([site], Delta=1)
             coupling.test_sanity()
-            assert np.allclose(tensors.norm(coupling.to_tensor()), 0)
+            npt.assert_almost_equal(tensors.norm(coupling.to_tensor()), 0)
 
     check_coupling(couplings.onsite_pairing, site_num=1, invalid_site_nums=[2], boson_fermion_mixing=False)
 
@@ -588,7 +589,7 @@ def test_clock_clock_coupling(any_backend, np_random):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is zero
-        assert np.allclose(tensors.trace(tensor), 0)
+        npt.assert_almost_equal(tensors.trace(tensor), 0)
         # commutation relation
         tensor_commuted = tensors.permute_legs(tensor, codomain=[1, 0], domain=[2, 3])
         tensor_commuted.relabel({'p0': 'p1', 'p1': 'p0', 'p0*': 'p1*', 'p1*': 'p0*'})
@@ -609,13 +610,13 @@ def test_clock_field_coupling(any_backend, np_random):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is zero
-        assert np.allclose(tensors.trace(tensor), 0)
+        npt.assert_almost_equal(tensors.trace(tensor), 0)
         # check eigenvalues
         if isinstance(site.leg.symmetry.factors[0], cyten.ZN):
             expect_evs = 2 * np.cos(np.linspace(0, 2 * np.pi, site.q, endpoint=False))
             evs = tensor.to_numpy(understood_braiding=True)
             evs = np.sort(np.linalg.eigvalsh(evs))
-            assert np.allclose(evs, np.sort(hz * expect_evs))
+            npt.assert_almost_equal(evs, np.sort(hz * expect_evs))
 
     check_coupling(couplings.clock_field_coupling, site_num=1, invalid_site_nums=[2], boson_fermion_mixing=False)
 
@@ -636,7 +637,7 @@ def test_sector_projection_coupling(block_backend):
         # trace is integer * dim(sector)
         dim_sec = site.symmetry.qdim(sector)
         tr = tensors.trace(tensor).to_numpy()
-        assert np.allclose(np.round(tr / dim_sec, 0), tr / dim_sec)
+        npt.assert_almost_equal(np.round(tr / dim_sec, 0), tr / dim_sec)
 
 
 def test_gold_coupling(block_backend):
@@ -649,7 +650,7 @@ def test_gold_coupling(block_backend):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace
-        assert np.allclose(tensors.trace(tensor).to_numpy(), [-1, -2][i])
+        npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), [-1, -2][i])
 
     coupling = couplings.gold_coupling(site_list, J=1.0)
     coupling.test_sanity()
@@ -657,6 +658,6 @@ def test_gold_coupling(block_backend):
     # hermiticity
     assert tensors.almost_equal(tensor.hc, tensor)
     # trace
-    assert np.allclose(tensors.trace(tensor).to_numpy(), -1)
+    npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), -1)
 
     check_coupling(couplings.gold_coupling, site_num=2, invalid_site_nums=[1, 3], boson_fermion_mixing=False)

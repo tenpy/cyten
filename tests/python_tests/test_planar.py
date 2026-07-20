@@ -130,8 +130,6 @@ def test_planar_combine_legs(
         np_random=np_random,
     )
     pipe_dualities = np_random.choice([True, False], size=len(which_legs))
-    # TODO fix
-    pipe_dualities = None
 
     num_codomain_legs = T.num_codomain_legs
     num_codomain_flat_legs = T.num_codomain_flat_legs
@@ -271,7 +269,7 @@ def test_planar_contraction(
         assert isinstance(res, Scalar)
         assert isinstance(expect, Scalar)
         assert len(contr_A) == A.num_legs and len(contr_B) == B.num_legs
-        assert np.allclose(res.to_numpy(), expect.to_numpy())
+        npt.assert_almost_equal(res.to_numpy(), expect.to_numpy())
 
 
 @pytest.mark.parametrize(
@@ -1081,7 +1079,7 @@ def test_PlanarDiagram_with_traces(symmetry, np_random):
     expect1 = ct.planar.planar_contraction(expect1, T3_traced, ['vR'], ['vL'])
     expect1 = ct.planar.planar_contraction(expect1, T4_traced, ['vL', 'vR'], ['vL', 'vR'])
     assert isinstance(expect1, Scalar)
-    assert np.allclose(expect1.to_numpy(), res)
+    npt.assert_almost_equal(expect1.to_numpy(), res)
 
     # ===========================================
     # compare to manual contraction, using general (not planar) routines
@@ -1101,7 +1099,7 @@ def test_PlanarDiagram_with_traces(symmetry, np_random):
         ct.permute_legs(T4_traced_, codomain=['vL', 'vR'], bend_right=True),
     )
     assert isinstance(expect2, Scalar)
-    assert np.allclose(expect2.to_numpy(), res)
+    npt.assert_almost_equal(expect2.to_numpy(), res)
 
 
 def test_PlanarDiagram_verify_diagram():

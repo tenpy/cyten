@@ -65,7 +65,7 @@ class ArrayApiBlockBackend(BlockBackend):
     def get_shape(self, a: Block) -> tuple[int]:
         shape = a.shape
         if None in shape:
-            raise RuntimeError  # array API allows "unknown" dimensions. we do not.
+            raise RuntimeError('Inconsistnet block. Unknown dimensions with None in shape not allowed.')
         return shape
 
     def item(self, a: Block) -> float | complex:
@@ -115,16 +115,16 @@ class ArrayApiBlockBackend(BlockBackend):
         return self._api.conj(a)
 
     def angle(self, a: Block) -> Block:
-        raise NotImplementedError
+        raise NotImplementedError(f'{self} does not support angle.')
 
     def real(self, a: Block) -> Block:
         return self._api.real(a)
 
     def real_if_close(self, a: Block, tol: float) -> Block:
-        raise NotImplementedError
+        raise NotImplementedError(f'{self} does not support real_if_close.')
 
     def sqrt(self, a: Block) -> Block:
-        raise NotImplementedError
+        raise NotImplementedError(f'{self} does not support sqrt.')
 
     def imag(self, a: Block) -> Block:
         return self._api.imag(a)
@@ -217,13 +217,13 @@ class ArrayApiBlockBackend(BlockBackend):
     def kron(self, a: Block, b: Block) -> Block:
         # is this really not in the API...?
         # should be able to do this via mul and reshape?
-        raise NotImplementedError
+        raise NotImplementedError(f'{self} does not support kron.')
 
     def get_block_element(self, a: Block, idcs: list[int]) -> complex | float | bool:
         return self.item(a[tuple(idcs)])
 
     def get_device(self, a: Block) -> str:
-        return a.device
+        return self.as_device(a.device)
 
     def get_diagonal(self, a: Block, tol: float | None) -> Block:
         assert a.ndim == 2
@@ -234,10 +234,10 @@ class ArrayApiBlockBackend(BlockBackend):
         return res
 
     def block_from_diagonal(self, diag: Block) -> Block:
-        raise NotImplementedError
+        raise NotImplementedError(f'{self} does not support block_from_diagonal.')
 
     def block_from_mask(self, mask: Block, dtype: Dtype) -> Block:
-        raise NotImplementedError
+        raise NotImplementedError(f'{self} does not support block_from_mask.')
 
     def sum(self, a: Block, ax: int) -> Block:
         return self._api.sum(a, axis=ax)

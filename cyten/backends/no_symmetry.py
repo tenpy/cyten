@@ -476,13 +476,11 @@ class NoSymmetryBackend(TensorBackend):
         dims = []
         cstyles = []
         for n in leg_idcs:
-            in_domain, co_domain_idx, _ = a._parse_leg_idx(n)
-            if in_domain:
-                dims.append([s.dim for s in reversed(a.domain[co_domain_idx].legs)])
-                cstyles.append(not a.domain[co_domain_idx].combine_cstyle)
+            cstyles.append(a.legs[n].combine_cstyle)
+            if cstyles[-1]:
+                dims.append([s.dim for s in a.legs[n].legs])
             else:
-                dims.append([s.dim for s in a.codomain[co_domain_idx].legs])
-                cstyles.append(a.codomain[co_domain_idx].combine_cstyle)
+                dims.append([s.dim for s in reversed(a.legs[n].legs)])
         return self.block_backend.split_legs(a.data, leg_idcs, dims, cstyles)
 
     def squeeze_legs(self, a: SymmetricTensor, idcs: list[int]) -> Data:
@@ -506,6 +504,11 @@ class NoSymmetryBackend(TensorBackend):
     def state_tensor_product(self, state1: Block, state2: Block, pipe: LegPipe):
         # TODO clearly define what this should do in tensors.py first!
         raise NotImplementedError('state_tensor_product not implemented')
+
+    def to_block_backend(
+        self, data: Data, block_backend: BlockBackend, dtype: Dtype = None, device: str = None
+    ) -> Data:
+        return block_backend.as_block(data, dtype=dtype, device=device)
 
     def to_dense_block(self, a: SymmetricTensor) -> Block:
         return a.data

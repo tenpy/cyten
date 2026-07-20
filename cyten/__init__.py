@@ -5,6 +5,13 @@ Provides a tensor class with block-sparsity from symmetries with an exchangeable
 """
 # Copyright (C) TeNPy Developers, Apache license
 
+# do config load -- should be very early!
+from .config._config import init_config
+
+init_config()
+del init_config  # we do not want to expose cyten.init_config
+
+
 # note: order matters!
 from . import (
     backends,
@@ -20,9 +27,10 @@ from . import (
 # import pybind11 bindings from C++ code
 from ._core import add, get_config
 from .backends import TensorBackend, get_backend
+from .block_backends import Block, BlockBackend, Dtype, NumpyBlockBackend, TorchBlockBackend
 
 # subpackages
-from .block_backends import Block, BlockBackend, Dtype, NumpyBlockBackend, TorchBlockBackend
+from .config import get_option, set_options, temporary_options
 from .models import Coupling, Site, couplings, sites
 from .symmetries._symmetries import (
     SU2,
@@ -71,6 +79,7 @@ from .symmetries.trees import FusionTree, fusion_trees
 from .tensors import (
     ChargedTensor,
     DiagonalTensor,
+    Identity,
     Mask,
     PlanarDiagram,
     PlanarLinearOperator,

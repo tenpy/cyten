@@ -170,6 +170,10 @@ class Leg(metaclass=ABCMeta):
         """The number of :attr:`flat_legs`."""
         return 1
 
+    def _flat_leg_permutation(self, offset: int = 0) -> list[int]:
+        """Leg permutation such that combining legs would be in C style."""
+        return [offset]
+
     @property
     def ascii_arrow(self) -> str:
         """A single character arrow, for use in tensor diagrams
@@ -329,6 +333,19 @@ class LegPipe(Leg):
     def num_flat_legs(self) -> int:
         return sum(l.num_flat_legs for l in self.legs)
 
+    def _flat_leg_permutation(self, offset: int = 0) -> list[int]:
+        if self.num_legs == self.num_flat_legs:
+            perm = list(range(offset, offset + self.num_legs))
+            if not self.combine_cstyle:
+                return perm[::-1]
+            return perm
+        legs = self.legs if self.combine_cstyle else self.legs[::-1]
+        offsets = np.cumsum([offset, *[leg.num_flat_legs for leg in legs]])[:-1]
+        if not self.combine_cstyle:
+            offsets = offsets[::-1]
+        perm = [leg._flat_leg_permutation(offset) for leg, offset in zip(self.legs, offsets)]
+        return list(it.chain.from_iterable(perm))
+
     def set_basis_perm(
         self, basis_perm: Sequence[int] | None = UNSPECIFIED, inverse_basis_perm: Sequence[int] | None = UNSPECIFIED
     ):
@@ -361,6 +378,9 @@ class LegPipe(Leg):
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
+        linewidth = get_config().print_linewidth
+        indent = get_config().print_indent * ' '
+        maxlines = get_config().maxlines_spaces
 
         if one_line:
             if show_symmetry:
@@ -368,19 +388,19 @@ class LegPipe(Leg):
                     f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual}, '
                     f'symmetry={self.symmetry!r}, combine_cstyle={self.combine_cstyle})'
                 )
-                if len(res) <= get_config().print_linewidth:
+
+                if len(res) <= linewidth:
                     return res
                 return self.__repr__(show_symmetry=False, one_line=True)
             else:
                 res = (
                     f'{ClsName}(num_legs={self.num_legs}, is_dual={self.is_dual}, combine_cstyle={self.combine_cstyle})'
                 )
-                if len(res) <= get_config().print_linewidth:
+                if len(res) <= linewidth:
                     return res
                 raise RuntimeError  # the above should always fit in linewidth ...
 
         lines = [f'{ClsName}([']
-        indent = get_config().print_indent * ' '
 
         for force_children_one_line in [False, True]:
             for leg in self.legs:
@@ -391,8 +411,8 @@ class LegPipe(Leg):
                 lines.append(f'], is_dual={self.is_dual}, symmetry={self.symmetry!r})')
             else:
                 lines.append(f'], is_dual={self.is_dual})')
-            maxlines_ok = len(lines) <= get_config().maxlines_spaces
-            linewidth_ok = all(len(l) < get_config().print_linewidth for l in lines)
+            maxlines_ok = len(lines) <= maxlines
+            linewidth_ok = all(len(l) < linewidth for l in lines)
             if maxlines_ok and linewidth_ok:
                 return '\n'.join(lines)
 
@@ -1181,6 +1201,8 @@ class ElementarySpace(Space, Leg):
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
         indent = get_config().print_indent * ' '
+        linewidth = get_config().print_linewidth
+        maxlines = get_config().maxlines_spaces
 
         # try to show everything, then less and less
         for full_sectors, summarized_sectors, symmetry in [
@@ -1189,7 +1211,7 @@ class ElementarySpace(Space, Leg):
             (False, False, show_symmetry),
             (False, False, False),
         ]:
-            if full_sectors and (3 * self.defining_sectors.size > get_config().print_linewidth):
+            if full_sectors and (3 * self.defining_sectors.size > linewidth):
                 # there is no chance to print all sectors in one line
                 continue
 
@@ -1213,14 +1235,14 @@ class ElementarySpace(Space, Leg):
 
             # try one line
             res = ClsName + '(' + ', '.join(items) + ')'
-            if len(res) <= get_config().print_linewidth:
+            if len(res) <= linewidth:
                 return res
 
             if not one_line:
                 # try multi line
                 items = [indent + i + ',' for i in items]
-                maxlines_ok = len(items) + 2 <= get_config().maxlines_spaces
-                linewidth_ok = all(len(l) < get_config().print_linewidth for l in items)
+                maxlines_ok = len(items) + 2 <= maxlines
+                linewidth_ok = all(len(l) < linewidth for l in items)
                 if maxlines_ok and linewidth_ok:
                     return ClsName + '(\n' + '\n'.join(indent + i for i in items) + '\n)'
 
@@ -1872,6 +1894,8 @@ class TensorProduct(Space):
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
         indent = get_config().print_indent * ' '
+        linewidth = get_config().print_linewidth
+        maxlines = get_config().maxlines_spaces
 
         for mode in [
             (True, False, True, show_symmetry),
@@ -1883,7 +1907,7 @@ class TensorProduct(Space):
         ]:
             full_sectors, summarized_sectors, show_all_factors, symmetry = mode
 
-            if full_sectors and (3 * self.sector_decomposition.size > get_config().print_linewidth):
+            if full_sectors and (3 * self.sector_decomposition.size > linewidth):
                 # there is no chance to print all sectors in one line
                 continue
 
@@ -1918,13 +1942,13 @@ class TensorProduct(Space):
 
             # try one line
             res = ClsName + '(' + ', '.join(one_line_items) + ')'
-            if len(res) <= get_config().print_linewidth:
+            if len(res) <= linewidth:
                 return res
 
             if not one_line:
                 # try multi line
-                maxlines_ok = len(lines) <= get_config().maxlines_spaces
-                linewidth_ok = all(len(l) < get_config().print_linewidth for l in lines)
+                maxlines_ok = len(lines) <= maxlines
+                linewidth_ok = all(len(l) < linewidth for l in lines)
                 if maxlines_ok and linewidth_ok:
                     return '\n'.join(lines)
 
@@ -2257,6 +2281,8 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
         indent = get_config().print_indent * ' '
+        linewidth = get_config().print_linewidth
+        maxlines = get_config().maxlines_spaces
 
         for mode in [
             (0, 0, False, show_symmetry),
@@ -2272,7 +2298,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             # child_mode: 0=show full , 1=force one-line each, 2=show only num
             # summarize_basis_perm: bool
 
-            if (sector_mode == 0) and (3 * self.sector_decomposition.size > get_config().print_linewidth):
+            if (sector_mode == 0) and (3 * self.sector_decomposition.size > linewidth):
                 # there is no chance to print all sectors in one line
                 continue
 
@@ -2296,7 +2322,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
                 one_line_items.append(f'num_legs={self.num_legs}')
                 lines.append(f'{indent}num_legs={self.num_legs},')
             else:
-                raise RuntimeError
+                raise RuntimeError  # this should not happen
 
             if sector_mode == 0:
                 sector_dec_strs = [self.symmetry.sector_str(a) for a in self.sector_decomposition]
@@ -2314,7 +2340,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             elif sector_mode == 2:
                 pass  # dont add anything
             else:
-                raise RuntimeError
+                raise RuntimeError  # this should not happen
 
             if self._basis_perm is not None:
                 if summarize_basis_perm:
@@ -2331,13 +2357,13 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
             # try one line
             res = ClsName + '(' + ', '.join(one_line_items) + ')'
-            if len(res) <= get_config().print_linewidth:
+            if len(res) <= linewidth:
                 return res
 
             if not one_line:
                 # try multi line
-                maxlines_ok = len(lines) <= get_config().maxlines_spaces
-                linewidth_ok = all(len(l) < get_config().print_linewidth for l in lines)
+                maxlines_ok = len(lines) <= maxlines
+                linewidth_ok = all(len(l) < linewidth for l in lines)
                 if maxlines_ok and linewidth_ok:
                     return '\n'.join(lines)
 
@@ -2501,6 +2527,132 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             perm[start:stop] = np.sum(basis_grid * dim_strides, axis=1)
 
         return perm
+
+
+def swap_gate(V: ElementarySpace, W: ElementarySpace) -> np.ndarray:
+    """The swap gate (numpy representation of the braid).
+
+        |   V   W
+        |   │   │
+        |   v   v
+        |    ╲ ╱
+        |     ╲          <-  overbraid == underbraid is assumed
+        |    ╱ ╲
+        |   v   v
+        |   │   │
+        |   W   V
+
+    Returns
+    -------
+    A numpy representation of the above tensor with axes ``[W, V, W*, V*]``.
+
+    See Also
+    --------
+    :meth:`cyten.Symmetry.swap_gate`
+        The swap gate for single sectors.
+
+    """
+    assert V.symmetry == W.symmetry
+    if not V.symmetry.can_be_dropped:
+        raise SymmetryError(f'braid can not be written as array for {V.symmetry}')
+    dV = int(V.dim)
+    dW = int(W.dim)
+
+    # special case: pipes
+    if not isinstance(V, ElementarySpace):
+        # since we call this function recursively, we do not need to distinguish if W is a pipe at this point
+        assert isinstance(V, LegPipe)
+        res = swap_gate(V.legs[-1], W)  # [W, Vz, W*, Vz*]
+        for n, Vi in enumerate(reversed(V.legs[:-1])):
+            sw = swap_gate(Vi, W)  # [W, Vi, W*, Vi*]
+            # [W, Vi, (W*), Vi*] @ [(W), {Vs}, W*, {Vs}*] -> [W, Vi, Vi*, {Vs}, W*, {Vs}*]
+            res = np.tensordot(sw, res, (2, 0))
+            # [W, Vi, (Vi*), {Vs}, W*, {Vs}*] -> [W, Vi, {Vs}, W*, (Vi*), {Vs}*]
+            res = np.moveaxis(res, 2, -2 - n)
+        return np.reshape(res, (dW, dV, dW, dV), order='C' if V.combine_cstyle else 'F')
+    if not isinstance(W, ElementarySpace):
+        # since we call this function recursively, we do not need to distinguish if V is a pipe at this point
+        assert isinstance(W, LegPipe)
+        res = swap_gate(V, W.legs[0])  # [Wa, V, Wa*, V*]
+        for n, Wi in enumerate(W.legs[1:], start=1):
+            sw = swap_gate(V, Wi)  # [Wi, V, Wi*, V]
+            # [{Ws}, (V), {Ws}*, V*] @ [Wi, V, Wi*, (V*)] -> [{Ws}, {Ws*}, V*, Wi, V, Wi*]
+            res = np.tensordot(res, sw, (n, -1))
+            # [{Ws}, {Ws*}, V*, Wi, V, Wi*] -> [{Ws}, Wi, V, {Ws*}, Wi*, V*]
+            res = np.transpose(res, [*range(n), -3, -2, *range(n, 2 * n), -1, -4])
+        return np.reshape(res, (dW, dV, dW, dV), order='C' if W.combine_cstyle else 'F')
+
+    res = np.zeros((dW, dV, dW, dV))
+    # build in internal basis order, permute after
+    # OPTIMIZE these loops are probably inefficient, and there may be some numpy magic that does it better...
+    i = 0
+    for a, ma in zip(V.defining_sectors, V.multiplicities):
+        j = 0
+        for b, mb in zip(W.defining_sectors, W.multiplicities):
+            swap = V.symmetry.swap_gate(a, b)
+            db, da, _, _ = swap.shape
+            i2 = i
+            for na in range(ma):
+                j2 = j
+                for nb in range(mb):
+                    res[j2 : j2 + db, i2 : i2 + da, j2 : j2 + db, i2 : i2 + da] = swap
+                    j2 += db
+                i2 += da
+            j += db * mb
+        i += da * ma
+    return res[np.ix_(W.inverse_basis_perm, V.inverse_basis_perm, W.inverse_basis_perm, V.inverse_basis_perm)]
+
+
+def twist_gate(V: Leg) -> np.ndarray:
+    """The topological twist on a whole space, as numpy representation.
+
+    Returns
+    -------
+    A numpy representation of the above tensor with axes ``[V, V*]``.
+
+    See Also
+    --------
+    :meth:`cyten.Symmetry.topological_twist`
+        The twist on a single sector, given in the form of a prefactor for the identity map.
+
+    """
+    if not V.symmetry.can_be_dropped:
+        raise SymmetryError(f'twist can not be written as array for {V.symmetry}')
+    return np.diag(_twist_gate_diag(V))
+
+
+def _twist_gate_diag(V: Leg) -> np.ndarray:
+    if not isinstance(V, ElementarySpace):
+        assert isinstance(V, LegPipe)
+        reshape_order = 'C' if V.combine_cstyle else 'F'
+        res = _twist_gate_diag(V.legs[0])
+        for Vi in V.legs[1:]:
+            res = np.reshape(res[:, None] * _twist_gate_diag(Vi)[None, :], -1, order=reshape_order)
+        return res
+
+    dV = int(V.dim)
+    res_diag = np.zeros(dV)
+    for a, (i, j) in zip(V.sector_decomposition, V.slices):
+        res_diag[i:j] = V.symmetry.topological_twist(a)
+    return res_diag[V.inverse_basis_perm]
+
+
+def _flat_leg_permutation(legs: list[LegPipe | Leg]) -> list[int]:
+    """Leg permutation such that combining / splitting legs would be in C style.
+
+    Returns
+    -------
+    perm
+        The permutation of the flat legs such that combining or splitting them in C style after
+        applying this permutation corresponds to combining / splitting them with respect to their
+        :attr:`combine_c_style` without applying this permuatation.
+        This is useful when working with the flat legs of nested pipes that may have different
+        :attr:`combine_c_style`, as done in the fusion tree backend.
+
+    """
+    offsets = np.cumsum([0, *[leg.num_flat_legs for leg in legs]], dtype=int)[:-1]
+    perm = [leg._flat_leg_permutation(offset) for leg, offset in zip(legs, offsets)]
+    return list(it.chain.from_iterable(perm))
 
 
 def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicities: np.ndarray):

@@ -117,7 +117,7 @@ class TFIModel(CouplingModel):
         elif conserve in ['parity', 'None']:
             pass
         else:
-            raise ValueError
+            raise ValueError('invalid conserve')
         site = SpinSite(S=0.5, conserve=conserve)
         return site
 

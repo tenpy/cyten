@@ -117,7 +117,7 @@ def test_make_grid(cstyle, shape):
     # order
     should_be_sorted = grid[:, ::-1] if cstyle else grid
     perm = np.lexsort(should_be_sorted.T)
-    assert np.all(perm == np.arange(len(perm)))
+    npt.assert_array_equal(perm, np.arange(len(perm)))
     # contains all entries
     #    if we have prod(shape) many valid combinations, we have all of them
     assert len(np.unique(grid, axis=0)) == len(grid)

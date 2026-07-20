@@ -21,12 +21,16 @@ from cyten.symmetries import (
     LegPipe,
     SymmetryError,
     TensorProduct,
+    fermion_parity,
+    fibonacci_anyon_category,
+    no_symmetry,
+    su2_symmetry,
     u1_symmetry,
     z3_symmetry,
     z4_symmetry,
 )
 from cyten.tensors import ChargedTensor, DiagonalTensor, Mask, SymmetricTensor, Tensor
-from cyten.testing import assert_tensors_almost_equal
+from cyten.testing import assert_equivalent_legs, assert_tensors_almost_equal, random_tensor, swap_gate_numpy
 from cyten.tools.misc import duplicate_entries, inverse_permutation, iter_common_noncommon_sorted_arrays, to_valid_idx
 
 # TENSOR CLASSES
@@ -167,7 +171,7 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums, use_pipes):
     )
     tens.test_sanity()
     tens_np = tens.to_numpy(understood_braiding=True)
-    npt.assert_allclose(tens_np, numpy_block)
+    npt.assert_almost_equal(tens_np, numpy_block)
 
     can_have_non_symmetric_dense_blocks = T.num_parameters < T.size
 
@@ -228,8 +232,13 @@ def test_SymmetricTensor_from_eye(make_compatible_space, make_compatible_tensor,
             )
         else:
             raise RuntimeError('Need to adjust test design')
-        npt.assert_allclose(expect_from_backend, expect_explicit)
-        npt.assert_allclose(res, expect_explicit, rtol=1e-7, atol=1e-10)
+        npt.assert_array_almost_equal_nulp(expect_from_backend, expect_explicit, 10)
+        if T2.symmetry.is_abelian:
+            # should be exactly the eye blocks
+            npt.assert_array_almost_equal_nulp(res, expect_explicit, 100)
+        else:
+            # composing fusion tensors should introduce some floating point errors
+            npt.assert_array_almost_equal(res, expect_explicit, decimal=10)
 
 
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)], ids=['1->1', '1->2', '0->3', '3->0'])
@@ -378,7 +387,11 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
             expect = np.zeros_like(T_np)
             for (X, Y), block in trees_dict.items():
                 # [a1...aJ,b1...bK]
-                symmetry_data = np.tensordot(X.as_block().to_numpy().conj(), Y.as_block().to_numpy(), (-1, -1))
+                symmetry_data = np.tensordot(
+                    X.to_dense_block(understood_braiding=True).to_numpy().conj(),
+                    Y.to_dense_block(understood_braiding=True).to_numpy(),
+                    (-1, -1),
+                )
                 # [a1...aJ,b1...bK] & [a1...aJ,bK...b1]
                 symmetry_data = np.transpose(
                     symmetry_data, [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]
@@ -392,7 +405,7 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
 
             perms = [l.inverse_basis_perm for l in conventional_leg_order(T_res)]
             expect = expect[np.ix_(*perms)]
-            npt.assert_array_almost_equal(T_np, expect)
+            npt.assert_almost_equal(T_np, expect)
 
 
 # TODO test to_dense_block_trivial_sector
@@ -442,7 +455,11 @@ def test_fixes_124(np_random):
     T_np = T.to_numpy()
     expect = np.zeros_like(T_np)
     for (X, Y), block in trees.items():
-        symmetry_data = np.tensordot(X.as_block().to_numpy().conj(), Y.as_block().to_numpy(), (-1, -1))
+        symmetry_data = np.tensordot(
+            X.to_dense_block(understood_braiding=True).to_numpy().conj(),
+            Y.to_dense_block(understood_braiding=True).to_numpy(),
+            (-1, -1),
+        )
         # [a1...aJ,b1...bK] & [a1...aJ,bK...b1]
         symmetry_data = np.transpose(
             symmetry_data, [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]
@@ -453,7 +470,7 @@ def test_fixes_124(np_random):
         expect[(*codom_idcs, *reversed(dom_idcs))] += contribution
     perms = [l.inverse_basis_perm for l in conventional_leg_order(T)]
     expect = expect[np.ix_(*perms)]
-    npt.assert_array_almost_equal(T_np, expect)
+    npt.assert_almost_equal(T_np, expect)
 
 
 def test_fixes_23():
@@ -463,7 +480,7 @@ def test_fixes_23():
     block = np.zeros((2,) * 6, float)
     tens = SymmetricTensor.from_dense_block(block, codomain=[site] * 3, domain=[site] * 3)
     tens.test_sanity()
-    npt.assert_allclose(tensors.norm(tens).to_numpy(), 0)
+    npt.assert_almost_equal(tensors.norm(tens).to_numpy(), 0)
 
 
 def test_DiagonalTensor(make_compatible_tensor):
@@ -513,6 +530,35 @@ def test_DiagonalTensor(make_compatible_tensor):
     real_np = real_T.diagonal_as_numpy()
     npt.assert_almost_equal(real_T.max().as_float64(), np.max(real_np))
     npt.assert_almost_equal(real_T.min().as_float64(), np.min(real_np))
+
+
+def test_Identity(compatible_backend, make_compatible_space, make_compatible_tensor):
+    leg = make_compatible_space()
+    tens = tensors.Identity(leg=leg, backend=compatible_backend)
+    tens.test_sanity()
+    eye_diag = tensors.DiagonalTensor.from_eye(leg, backend=compatible_backend)
+    eye_symm = tensors.SymmetricTensor.from_eye([leg], backend=compatible_backend)
+
+    if tens.symmetry.can_be_dropped:
+        t_np = tens.to_numpy(understood_braiding=True)
+        npt.assert_almost_equal(t_np, np.eye(leg.dim))
+
+    assert tensors.almost_equal(tens, eye_diag, allow_different_types=True)
+    assert tensors.almost_equal(tens, eye_symm, allow_different_types=True)
+
+    assert tensors.norm(tens - eye_symm) < 1e-14
+    assert tensors.norm(tens - eye_diag) < 1e-14
+
+    # identity property in contraction
+    A = make_compatible_tensor(codomain=[leg])
+    B = make_compatible_tensor(domain=[leg])
+    A_contr = tensors.compose(tens, A)
+    assert tensors.norm(A_contr - A) < 1e-15
+
+    B_contr = tensors.compose(B, tens)
+    assert tensors.norm(B_contr - B) < 1e-14
+
+    # TODO test partial_compose!
 
 
 def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
@@ -633,7 +679,7 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
     if symmetry.can_be_dropped:
         res_via_Symmetric = M_SymmetricTensor.to_numpy(understood_braiding=True)
         res_direct = M_projection.to_numpy(understood_braiding=True)
-        npt.assert_allclose(res_via_Symmetric, res_direct)
+        npt.assert_almost_equal(res_via_Symmetric, res_direct)
     print('   also for inclusion Mask')
     M_SymmetricTensor = M_inclusion.as_SymmetricTensor()
     assert M_SymmetricTensor.shape == M_inclusion.shape
@@ -641,7 +687,7 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
     if symmetry.can_be_dropped:
         res_via_Symmetric = M_SymmetricTensor.to_numpy(understood_braiding=True)
         res_direct = M_inclusion.to_numpy(understood_braiding=True)
-        npt.assert_allclose(res_via_Symmetric, res_direct)
+        npt.assert_almost_equal(res_via_Symmetric, res_direct)
 
     # TODO check binary operands: &, ==, !=, &, |, ^ :
     #   left and right
@@ -813,7 +859,7 @@ def test_explicit_blocks(symmetry_backend, block_backend):
             npt.assert_array_almost_equal_nulp(t.backend.block_backend.to_numpy(actual), expect, 100)
 
     elif symmetry_backend == 'fusion_tree':
-        assert np.all(t.data.block_inds == np.array([0, 0])[None, :])
+        npt.assert_array_equal(t.data.block_inds, np.array([0, 0])[None, :])
         forest_block_00 = block_00.reshape((-1, 1))
         forest_block_22 = block_22.reshape((-1, 1))
         forest_block_31 = block_31.reshape((-1, 1))
@@ -980,10 +1026,10 @@ def test_explicit_blocks(symmetry_backend, block_backend):
 
     elif symmetry_backend == 'fusion_tree':
         # check block_inds. first make sure the (co)domain.sector_decomposition are what we expect
-        assert np.all(t.codomain.sector_decomposition == np.stack([q0, q1, q2, q3]))
-        assert np.all(t.domain.sector_decomposition == np.stack([q0, q1, q2, q3]))
+        npt.assert_array_equal(t.codomain.sector_decomposition, np.stack([q0, q1, q2, q3]))
+        npt.assert_array_equal(t.domain.sector_decomposition, np.stack([q0, q1, q2, q3]))
         # expect coupled sectors [q0, q1, q2, q3]
-        assert np.all(t.data.block_inds == np.repeat(np.arange(4)[:, None], 2, axis=1))
+        npt.assert_array_equal(t.data.block_inds, np.repeat(np.arange(4)[:, None], 2, axis=1))
         #
         # build the blocks for fixed coupled sectors
         # note: when setting the data we listed the uncoupled sectors of the domain
@@ -1038,7 +1084,7 @@ def test_from_block_su2_symm(symmetry_backend, block_backend):
         labels=[['p1', 'p2'], ['p1*', 'p2*']],
     )
     tens_4.test_sanity()
-    assert np.all(tens_4.data.block_inds == np.array([[0, 0], [1, 1]]))  # spin 0, spin 1
+    npt.assert_array_equal(tens_4.data.block_inds, np.array([[0, 0], [1, 1]]))  # spin 0, spin 1
     # The blocks are the eigenvalue of the Heisenberg coupling in the fixed total spin sectors
     # For singlet states (coupled=spin-0), we have eigenvalue -3/4
     # For triplet states (coupled=spin-1), we have eigenvalue +1/4
@@ -1349,7 +1395,7 @@ def test_bend_legs(cls, codomain, domain, num_codomain_legs, make_compatible_ten
     if tensor.symmetry.can_be_dropped:
         tensor_np = tensor.to_numpy(understood_braiding=True)
         res_np = res.to_numpy(understood_braiding=True)
-        npt.assert_allclose(res_np, tensor_np)
+        npt.assert_almost_equal(res_np, tensor_np)
 
     bent_back = tensors.bend_legs(tensor, num_codomain_legs=tensor.num_codomain_legs)
     bent_back.test_sanity()
@@ -1501,23 +1547,19 @@ def test_combine_split(use_pipes, make_compatible_tensor):
 
         expect1 = np.reshape(T_np, (a * b, c, d))
         combined1_np = combined1.to_numpy(understood_braiding=True)
-        assert np.allclose(combined1_np, expect1)
+        npt.assert_almost_equal(combined1_np, expect1)
 
         expect2 = np.reshape(T_np, (a, b, c * d))
         combined2_np = combined2.to_numpy(understood_braiding=True)
-        assert np.allclose(combined2_np, expect2)
+        npt.assert_almost_equal(combined2_np, expect2)
 
-        expect3 = np.reshape(np.transpose(T_np, [1, 0, 2, 3]), (a * b, c, d))
         combined3_np = combined3.to_numpy(understood_braiding=True)
-        if T.symmetry.has_trivial_braid:
-            assert np.allclose(combined3_np, expect3)
-        else:
-            # braids/twists would give -1 signs: lazy test is to expect that some signs are off
-            assert np.all(np.isclose(combined3_np, expect3) | np.isclose(combined3_np, -expect3))
+        expect3 = np.reshape(swap_gate_numpy.transpose(T_np, T.legs, [1, 0, 2, 3]), (a * b, c, d))
+        npt.assert_almost_equal(combined3_np, expect3)
 
         expect4 = np.reshape(T_np, (a, b * c, d))
         combined4_np = combined4.to_numpy(understood_braiding=True)
-        assert np.allclose(combined4_np, expect4)
+        npt.assert_almost_equal(combined4_np, expect4)
 
     # 6) check contracting combined leg versus contracting the individual legs
     if T.symmetry.has_trivial_braid:
@@ -1543,6 +1585,105 @@ def test_combine_split(use_pipes, make_compatible_tensor):
     contracted_via_pipes = tensors.compose(combined5, T3_combined)
     contracted_via_pipes.test_sanity()
     assert tensors.almost_equal(contracted_individual, contracted_via_pipes)
+
+
+def test_swap_gate_numpy(np_random):
+    from cyten import fermion_parity as symm
+    from cyten.testing import random_tensor
+
+    leg = ElementarySpace.from_basis(symm, [[0], [1]])
+    T = random_tensor(symm, [leg, leg], [leg, leg], list('abcd'), max_multiplicity=1, np_random=np_random)
+    T_np = T.to_numpy(understood_braiding=True)
+    A = tensors.permute_legs(T, [1, 0], [3, 2])
+    A_np = A.to_numpy(understood_braiding=True)
+    expect = swap_gate_numpy.transpose(T_np, T.legs, [1, 0, 2, 3])
+    npt.assert_almost_equal(A_np, expect)
+
+
+@pytest.mark.parametrize(
+    'use_pipes, in_domain',
+    [
+        pytest.param(True, False, id='codomain pipes'),
+        pytest.param(False, False, id='codomain no pipes'),
+        pytest.param(True, True, id='domain pipes'),
+        pytest.param(False, True, id='domain no pipes'),
+    ],
+)
+def test_combine_split_with_dualities(use_pipes, in_domain, make_compatible_tensor):
+    # use dense blocks as check that pipes are consistent across the different backends
+    labels = ['a', 'b', 'c', 'd']
+    if in_domain:
+        T: SymmetricTensor = make_compatible_tensor([], labels[::-1], use_pipes=use_pipes)
+    else:
+        T: SymmetricTensor = make_compatible_tensor(labels, [], use_pipes=use_pipes)
+    assert T.labels == labels
+
+    if T.symmetry.can_be_dropped:
+        other_backends = [backends.NoSymmetryBackend, backends.AbelianBackend, backends.FusionTreeBackend]
+        other_backends = [bak(T.backend.block_backend) for bak in other_backends if not isinstance(T.backend, bak)]
+        other_backends = [bak for bak in other_backends if bak.supports_symmetry(T.symmetry)]
+        T_np = T.to_dense_block(understood_braiding=True)
+        T_bak = [
+            SymmetricTensor.from_dense_block(
+                block=T_np,
+                codomain=[bak.make_pipe(leg, leg.is_dual) if isinstance(leg, LegPipe) else leg for leg in T.codomain],
+                domain=[bak.make_pipe(leg, leg.is_dual) if isinstance(leg, LegPipe) else leg for leg in T.domain],
+                backend=bak,
+                labels=T.labels,
+                dtype=T.dtype,
+                understood_braiding=True,
+            )
+            for bak in other_backends
+        ]
+        T_np = T.backend.block_backend.to_numpy(T_np)
+        for T2 in T_bak:
+            npt.assert_almost_equal(T_np, T2.to_numpy(understood_braiding=True))
+
+    for dual in [True, False]:
+        combined = tensors.combine_legs(T, [0, 1], pipe_dualities=[dual])
+        combined.test_sanity()
+        split_idcs = [0] if use_pipes else None
+        split = tensors.split_legs(combined, split_idcs)
+        split.test_sanity()
+        assert tensors.almost_equal(split, T)
+        if T.symmetry.can_be_dropped:
+            npt.assert_almost_equal(T_np, split.to_numpy(understood_braiding=True))
+            for T2 in T_bak:
+                combined2 = tensors.combine_legs(T2, [0, 1], pipe_dualities=[dual])
+                combined2.test_sanity()
+                npt.assert_almost_equal(
+                    combined.to_numpy(understood_braiding=True), combined2.to_numpy(understood_braiding=True)
+                )
+
+        combined = tensors.combine_legs(T, [2, 3], pipe_dualities=[dual])
+        combined.test_sanity()
+        split_idcs = [2] if use_pipes else None
+        split = tensors.split_legs(combined, split_idcs)
+        split.test_sanity()
+        assert tensors.almost_equal(split, T)
+        if T.symmetry.can_be_dropped:
+            npt.assert_almost_equal(T_np, split.to_numpy(understood_braiding=True))
+            for T2 in T_bak:
+                combined2 = tensors.combine_legs(T2, [2, 3], pipe_dualities=[dual])
+                combined2.test_sanity()
+                npt.assert_almost_equal(
+                    combined.to_numpy(understood_braiding=True), combined2.to_numpy(understood_braiding=True)
+                )
+
+    for dual in [[True, True], [True, False], [False, True], [False, False]]:
+        combined = tensors.combine_legs(T, [0, 1], [2, 3], pipe_dualities=dual)
+        combined.test_sanity()
+        split = tensors.split_legs(combined)
+        split.test_sanity()
+        assert tensors.almost_equal(split, T)
+        if T.symmetry.can_be_dropped:
+            npt.assert_almost_equal(T_np, split.to_numpy(understood_braiding=True))
+            for T2 in T_bak:
+                combined2 = tensors.combine_legs(T2, [0, 1], [2, 3], pipe_dualities=dual)
+                combined2.test_sanity()
+                npt.assert_almost_equal(
+                    combined.to_numpy(understood_braiding=True), combined2.to_numpy(understood_braiding=True)
+                )
 
 
 def test_combine_split_pr_16():
@@ -1689,7 +1830,7 @@ def test_dagger(cls, cod, dom, make_compatible_tensor, np_random):
 
         if not T.symmetry.has_trivial_braid and cls is ChargedTensor:
             # TODO this should not be the case....?
-            assert np.allclose(res_np, expect) or np.allclose(res_np, -expect)
+            npt.assert_almost_equal(res_np, expect) or np.allclose(res_np, -expect)
         else:
             npt.assert_almost_equal(res_np, expect)
 
@@ -1901,7 +2042,11 @@ def test_enlarge_leg(cls, codomain, domain, which_leg, make_compatible_tensor, m
     assert res.legs == expect_legs
     assert res.labels == T.labels
 
-    if T.symmetry.can_be_dropped:
+    compare_numpy = T.symmetry.can_be_dropped
+    if isinstance(T, ChargedTensor) and T.charged_state is None:
+        compare_numpy = False
+
+    if compare_numpy:
         T_np = T.to_numpy(understood_braiding=True)
         mask_np = M.as_numpy_mask()
         idcs = (slice(None, None, None),) * leg_idx + (mask_np,)
@@ -2005,11 +2150,16 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
 
 
 @pytest.mark.parametrize('trunc', [None, 1e-10])
-def test_horizontal_factorization(trunc, make_compatible_tensor):
+def test_horizontal_factorization(trunc, make_compatible_tensor, compatible_symmetry):
     cod = 4
     cod_cut = 2
     dom = 3
     dom_cut = 1
+    if compatible_symmetry.is_equivalent_to(SU2()):
+        # use fewer legs, to make it not super slow
+        cod = 3
+        dom = 2
+
     T_labels = list('efghijklmn')[: dom + cod]
     T: Tensor = make_compatible_tensor(
         cod, dom, labels=T_labels, cls=SymmetricTensor, use_pipes=False, max_blocks=3, max_block_size=3
@@ -2036,7 +2186,7 @@ def test_horizontal_factorization(trunc, make_compatible_tensor):
         )
         # [*J1, *J2, *J2_rev, *K1_rev] = [*J, *J_rev]
         T_np = T.to_numpy(understood_braiding=True)
-        npt.assert_array_almost_equal(T2_np, T_np)
+        npt.assert_almost_equal(T2_np, T_np)
 
     A_bent = tensors.permute_legs(A, [*range(cod_cut + 1, A.num_legs), *range(cod_cut)], [cod_cut], bend_right=False)
     B_bent = tensors.permute_legs(B, [0], [*reversed(range(1, B.num_legs))], bend_right=True)
@@ -2249,7 +2399,7 @@ def test_linear_combination(cls, make_compatible_tensor):
         res.test_sanity()
         if compare_numpy:
             expect = valid_scalar * v_np + 2 * valid_scalar * w_np
-            npt.assert_allclose(res.to_numpy(understood_braiding=True), expect)
+            npt.assert_almost_equal(res.to_numpy(understood_braiding=True), expect)
         if valid_scalar == 0:
             with catch_warnings:
                 res_scalar = tensors.linear_combination(scalar, v, 2 * scalar, w)
@@ -2261,8 +2411,7 @@ def test_linear_combination(cls, make_compatible_tensor):
                 npt.assert_allclose(res_mixed.to_numpy(understood_braiding=True), expect)
             continue
         # res = a * v + 2 * a * w  =>  v = res / a - 2 * w
-        with catch_warnings:
-            z = tensors.linear_combination(1.0 / valid_scalar, res, -2, w)
+        z = tensors.linear_combination(1.0 / valid_scalar, res, -2, w)
         z.test_sanity()
         assert tensors.almost_equal(v, z, allow_different_types=True)
         with catch_warnings:
@@ -2343,14 +2492,29 @@ def test_move_leg(cls, cod, dom, leg, codomain_pos, domain_pos, levels, make_com
         compare_numpy = False
 
     if compare_numpy:
-        expect = T.to_numpy(understood_braiding=True).transpose(perm)
+        T_np = T.to_numpy(understood_braiding=True)
         res_np = res.to_numpy(understood_braiding=True)
-        if T.symmetry.has_trivial_braid:
-            npt.assert_allclose(res_np, expect, atol=1.0e-14)
-        else:
-            # would need explicit swap gates that introduce some -1 signs.
-            # lazy version: just check if it matches with either sign
-            assert np.all(np.isclose(res_np, expect) | np.isclose(res_np, -expect))
+        expect = swap_gate_numpy.permute_legs(
+            T_np, T.num_codomain_legs, T.legs, codomain=codomain_perm, domain=domain_perm, bend_right=bend_right
+        )
+        npt.assert_almost_equal(res_np, expect, decimal=14)
+
+
+def test_left_bends_fermions(block_backend, np_random):
+    #
+    #    |  |  |
+    #    |  tens
+    #    |  |  |
+    #    .--.  |
+    #          |
+    backend = get_backend(fermion_parity, block_backend)
+    tens = random_tensor(fermion_parity, 2, 2, backend=backend, np_random=np_random)
+    res = tensors.permute_legs(tens, [1], [0, 3, 2], bend_right=False)
+    tens_np = tens.to_numpy(understood_braiding=True)
+    expect = np.transpose(tens_np, [1, 2, 3, 0])
+    res_np = res.to_numpy(understood_braiding=True)
+    npt.assert_almost_equal(np.abs(res_np), np.abs(expect))
+    npt.assert_almost_equal(res_np, expect)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
@@ -2455,33 +2619,33 @@ def test_outer(cls_A, cls_B, cA, dA, cB, dB, make_compatible_tensor, compatible_
 @pytest.mark.parametrize(
     'cls_A, cls_B, legs_A, legs_B, A_contr_leg',
     [
-        pytest.param(SymmetricTensor, SymmetricTensor, [2, 2], [1, 1], 1, id='Sym@Sym-2-2-1-1-codom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [2, 2], 1, id='Sym@Sym-3-1-2-2-codom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [1, 2], 1, id='Sym@Sym-3-1-1-2-codom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [3, 0], [2, 2], 1, id='Sym@Sym-3-0-2-2-codom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [0, 2], 1, id='Sym@Sym-3-1-0-2-codom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [2, 2], [1, 1], 2, id='Sym@Sym-2-2-1-1-dom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [1, 3], [2, 2], 2, id='Sym@Sym-1-3-2-2-dom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [1, 3], [2, 1], 2, id='Sym@Sym-1-3-2-1-dom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [0, 3], [2, 2], 0, id='Sym@Sym-0-3-2-2-dom'),
-        pytest.param(SymmetricTensor, SymmetricTensor, [0, 3], [2, 0], 1, id='Sym@Sym-0-3-2-0-dom'),
-        pytest.param(SymmetricTensor, Mask, [2, 2], [1, 1], 1, id='Sym@Mask-2-2-1-1-codom'),
-        pytest.param(SymmetricTensor, Mask, [2, 2], [1, 1], 2, id='Sym@Mask-2-2-1-1-dom'),
-        pytest.param(SymmetricTensor, DiagonalTensor, [2, 2], [1, 1], 1, id='Sym@Diag-2-2-1-1-codom'),
-        pytest.param(SymmetricTensor, DiagonalTensor, [2, 2], [1, 1], 2, id='Sym@Diag-2-2-1-1-dom'),
-        pytest.param(SymmetricTensor, ChargedTensor, [3, 1], [1, 2], 1, id='Sym@Charged-3-1-1-2-codom'),
-        pytest.param(SymmetricTensor, ChargedTensor, [1, 3], [2, 1], 2, id='Sym@Charged-1-3-2-1-dom'),
-        pytest.param(ChargedTensor, SymmetricTensor, [3, 1], [1, 2], 1, id='Charged@Sym-3-1-1-2-codom'),
-        pytest.param(ChargedTensor, SymmetricTensor, [1, 3], [2, 1], 2, id='Charged@Sym-1-3-2-1-dom'),
-        pytest.param(ChargedTensor, Mask, [2, 2], [1, 1], 1, id='Charged@Mask-2-2-1-1-codom'),
-        pytest.param(ChargedTensor, Mask, [2, 2], [1, 1], 2, id='Charged@Mask-2-2-1-1-dom'),
-        pytest.param(ChargedTensor, DiagonalTensor, [2, 2], [1, 1], 1, id='Charged@Diag-2-2-1-1-codom'),
-        pytest.param(ChargedTensor, DiagonalTensor, [2, 2], [1, 1], 2, id='Charged@Diag-2-2-1-1-dom'),
-        pytest.param(ChargedTensor, ChargedTensor, [3, 1], [1, 2], 1, id='Charged@Charged-3-1-1-2-codom'),
-        pytest.param(ChargedTensor, ChargedTensor, [1, 3], [2, 1], 2, id='Charged@Charged-1-3-2-1-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [2, 2], [1, 1], 1, id='Sym-Sym-2-2-1-1-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [2, 2], 1, id='Sym-Sym-3-1-2-2-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [1, 2], 1, id='Sym-Sym-3-1-1-2-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [3, 0], [2, 2], 1, id='Sym-Sym-3-0-2-2-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [3, 1], [0, 2], 1, id='Sym-Sym-3-1-0-2-codom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [2, 2], [1, 1], 2, id='Sym-Sym-2-2-1-1-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [1, 3], [2, 2], 2, id='Sym-Sym-1-3-2-2-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [1, 3], [2, 1], 2, id='Sym-Sym-1-3-2-1-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [0, 3], [2, 2], 0, id='Sym-Sym-0-3-2-2-dom'),
+        pytest.param(SymmetricTensor, SymmetricTensor, [0, 3], [2, 0], 1, id='Sym-Sym-0-3-2-0-dom'),
+        pytest.param(SymmetricTensor, Mask, [2, 2], [1, 1], 1, id='Sym-Mask-2-2-1-1-codom'),
+        pytest.param(SymmetricTensor, Mask, [2, 2], [1, 1], 2, id='Sym-Mask-2-2-1-1-dom'),
+        pytest.param(SymmetricTensor, DiagonalTensor, [2, 2], [1, 1], 1, id='Sym-Diag-2-2-1-1-codom'),
+        pytest.param(SymmetricTensor, DiagonalTensor, [2, 2], [1, 1], 2, id='Sym-Diag-2-2-1-1-dom'),
+        pytest.param(SymmetricTensor, ChargedTensor, [3, 1], [1, 2], 1, id='Sym-Charged-3-1-1-2-codom'),
+        pytest.param(SymmetricTensor, ChargedTensor, [1, 3], [2, 1], 2, id='Sym-Charged-1-3-2-1-dom'),
+        pytest.param(ChargedTensor, SymmetricTensor, [3, 1], [1, 2], 1, id='Charged-Sym-3-1-1-2-codom'),
+        pytest.param(ChargedTensor, SymmetricTensor, [1, 3], [2, 1], 2, id='Charged-Sym-1-3-2-1-dom'),
+        pytest.param(ChargedTensor, Mask, [2, 2], [1, 1], 1, id='Charged-Mask-2-2-1-1-codom'),
+        pytest.param(ChargedTensor, Mask, [2, 2], [1, 1], 2, id='Charged-Mask-2-2-1-1-dom'),
+        pytest.param(ChargedTensor, DiagonalTensor, [2, 2], [1, 1], 1, id='Charged-Diag-2-2-1-1-codom'),
+        pytest.param(ChargedTensor, DiagonalTensor, [2, 2], [1, 1], 2, id='Charged-Diag-2-2-1-1-dom'),
+        pytest.param(ChargedTensor, ChargedTensor, [3, 1], [1, 2], 1, id='Charged-Charged-3-1-1-2-codom'),
+        pytest.param(ChargedTensor, ChargedTensor, [1, 3], [2, 1], 2, id='Charged-Charged-1-3-2-1-dom'),
     ],
 )
-def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compatible_tensor):
+def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compatible_tensor, np_random):
     labels_A = [*list('abcde')[: legs_A[0]], *list('fghij')[: legs_A[1]][::-1]]
     labels_B = [*list('klmno')[: legs_B[0]], *list('pqrst')[: legs_B[1]][::-1]]
     A: Tensor = make_compatible_tensor(codomain=legs_A[0], domain=legs_A[1], labels=labels_A, cls=cls_A)
@@ -2510,6 +2674,11 @@ def test_partial_compose(cls_A, cls_B, legs_A, legs_B, A_contr_leg, make_compati
         pytest.xfail(reason='Mask generation broken')
 
     B: Tensor = make_compatible_tensor(codomain=codom_B, domain=dom_B, labels=labels_B, cls=cls_B)
+    if isinstance(A, ChargedTensor) and isinstance(B, ChargedTensor):
+        if A.charged_state is not None and B.charged_state is None:
+            B.charged_state = B.backend.block_backend.as_block(np_random.uniform(int(B.charge_leg.dim)))
+        if A.charged_state is None and B.charged_state is not None:
+            B.charged_state = None
 
     if isinstance(A.backend, backends.FusionTreeBackend) and A.has_pipes and cls_B is Mask:
         with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
@@ -2727,9 +2896,11 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
         pytest.param(SymmetricTensor, 3, 3, [1, 4, 0], [2, 3, 5], [4, 1, 3, 5, 0, 2], True, id='Symmetric-3-3-general'),
         pytest.param(DiagonalTensor, 1, 1, [0], [1], [0, 1], True, id='Diagonal-trivial'),
         pytest.param(DiagonalTensor, 1, 1, [1], [0], [0, 1], True, id='Diagonal-swap'),
+        pytest.param(DiagonalTensor, 1, 1, [1], [0], [0, 1], [True, False], id='Diagonal-transpose'),
         pytest.param(DiagonalTensor, 1, 1, [1, 0], [], [0, 1], True, id='Diagonal-general'),
         pytest.param(Mask, 1, 1, [0], [1], [0, 1], True, id='Mask-trivial'),
         pytest.param(Mask, 1, 1, [1], [0], [0, 1], True, id='Mask-swap'),
+        pytest.param(Mask, 1, 1, [1], [0], [0, 1], [True, False], id='Mask-transpose'),
         pytest.param(Mask, 1, 1, [1, 0], [], [0, 1], True, id='Mask-general'),
         pytest.param(ChargedTensor, 2, 2, [0, 1], [3, 2], None, True, id='Charged-2-2-trivial'),
         pytest.param(ChargedTensor, 2, 2, [1, 0], [2, 3], [0, 1, 2, 3], True, id='Charged-2-2-braid'),
@@ -2756,8 +2927,11 @@ def test_permute_legs(
     T = make_compatible_tensor(T_codomain, T_domain, max_block_size=3, cls=cls)
 
     if cls in [DiagonalTensor, Mask]:
-        if len(codomain) == 1:
-            # special case where legs are not actually permuted -> no warning expected
+        if (codomain, domain) == ([0], [1]):
+            # trivial permutation -> no warning expected
+            catch_warnings = nullcontext()
+        elif (codomain, domain) == ([1], [0]) and (bend_right == [True, False] or T.symmetry.has_trivial_braid):
+            # special case transpose -> no warning expected
             catch_warnings = nullcontext()
         else:
             catch_warnings = pytest.warns(UserWarning, match='Converting to SymmetricTensor *')
@@ -2767,6 +2941,10 @@ def test_permute_legs(
     with catch_warnings:
         res = tensors.permute_legs(T, codomain, domain, levels, bend_right=bend_right)
     res.test_sanity()
+
+    if issubclass(cls, (DiagonalTensor, Mask)):
+        res2 = tensors.permute_legs(T.as_SymmetricTensor(), codomain, domain, levels, bend_right=bend_right)
+        assert tensors.almost_equal(res2, res, allow_different_types=True)
 
     for n, i in enumerate(codomain):
         assert res.codomain[n] == T._as_codomain_leg(i)
@@ -2781,14 +2959,18 @@ def test_permute_legs(
 
     if compare_numpy:
         T_np = T.to_numpy(understood_braiding=True)
-        expect = np.transpose(T_np, [*codomain, *reversed(domain)])
         actual = res.to_numpy(understood_braiding=True)
-        if T.symmetry.has_trivial_braid:
-            npt.assert_allclose(actual, expect, atol=1.0e-14)
-        else:
-            # swap gates give some +-1 signs.
-            # TODO properly build the expected tensor using swap gates!
-            assert np.all(np.isclose(actual, expect) | np.isclose(actual, -1 * expect))
+        perm = [*codomain, *reversed(domain)]
+        perm_is_trivial = perm == list(range(len(perm)))
+        expect = swap_gate_numpy.permute_legs(
+            T_np,
+            num_codomain_legs=T.num_codomain_legs,
+            legs=T.legs,
+            codomain=codomain,
+            domain=domain,
+            bend_right=bend_right,
+        )
+        npt.assert_almost_equal(actual, expect, decimal=14)
 
     # construct the instructions needed to undo the original instructions
     leg_perm = [*codomain, *reversed(domain)]
@@ -2863,20 +3045,20 @@ def test_scalar_multiply(cls, make_compatible_tensor):
             res = tensors.scalar_multiply(valid_scalar, T)
         res.test_sanity()
         if compare_numpy:
-            npt.assert_allclose(res.to_numpy(understood_braiding=True), valid_scalar * T_np)
+            npt.assert_almost_equal(res.to_numpy(understood_braiding=True), valid_scalar * T_np)
         with catch_warnings:
             res_scalar = tensors.scalar_multiply(scalar, T)
         res_scalar.test_sanity()
         if compare_numpy:
-            npt.assert_allclose(res_scalar.to_numpy(understood_braiding=True), valid_scalar * T_np)
+            npt.assert_almost_equal(res_scalar.to_numpy(understood_braiding=True), valid_scalar * T_np)
         with catch_warnings:
             left_mul = scalar * T
             right_mul = T * scalar
         left_mul.test_sanity()
         right_mul.test_sanity()
         if compare_numpy:
-            npt.assert_allclose(left_mul.to_numpy(understood_braiding=True), valid_scalar * T_np)
-            npt.assert_allclose(right_mul.to_numpy(understood_braiding=True), valid_scalar * T_np)
+            npt.assert_almost_equal(left_mul.to_numpy(understood_braiding=True), valid_scalar * T_np)
+            npt.assert_almost_equal(right_mul.to_numpy(understood_braiding=True), valid_scalar * T_np)
     for invalid_scalar in [None, (1, 2), T, 'abc']:
         with pytest.raises(TypeError, match='unsupported scalar type'):
             _ = tensors.scalar_multiply(invalid_scalar, T)
@@ -2960,7 +3142,7 @@ def test_scale_axis(cls, codom, dom, which_leg, make_compatible_tensor, np_rando
         expect = np.swapaxes(T_np, which_leg, -1)  # swap axis to be scaled to the back
         expect = expect * D.diagonal_as_numpy()  # broadcasts to last axis of expect
         expect = np.swapaxes(expect, which_leg, -1)  # swap back
-        npt.assert_allclose(res.to_numpy(understood_braiding=True), expect, atol=1.0e-14)
+        npt.assert_almost_equal(res.to_numpy(understood_braiding=True), expect, decimal=14)
 
 
 def test_squeeze_legs(make_compatible_tensor, compatible_symmetry):
@@ -2985,9 +3167,9 @@ def test_squeeze_legs(make_compatible_tensor, compatible_symmetry):
         expect_all = T_np[:, 0, 0, :, 0, :, :]
         expect_1 = T_np[:, 0]
         expect_2 = T_np[:, 0, :, :, 0]
-        npt.assert_allclose(res_all.to_numpy(understood_braiding=True), expect_all)
-        npt.assert_allclose(res_1.to_numpy(understood_braiding=True), expect_1)
-        npt.assert_allclose(res_2.to_numpy(understood_braiding=True), expect_2)
+        npt.assert_almost_equal(res_all.to_numpy(understood_braiding=True), expect_all)
+        npt.assert_almost_equal(res_1.to_numpy(understood_braiding=True), expect_1)
+        npt.assert_almost_equal(res_2.to_numpy(understood_braiding=True), expect_2)
     else:
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
@@ -3274,7 +3456,7 @@ def test_tdot(
                 B = tensors.permute_legs(B, codomain=contr_B, domain=domain_B, levels=levels_B)
             contr_B = list(range(num_contr))
 
-    compare_numpy = A.symmetry.has_trivial_braid
+    compare_numpy = A.symmetry.has_symmetric_braid
     # if the braid is trivial, we can compare to braiding the to_numpy() representations
     # for a symmetric braid, we can do to_numpy(), but the numpy rep loses the braiding information
     # for general braids, we cant even do to_numpy()
@@ -3293,17 +3475,23 @@ def test_tdot(
         # tensor result
         res.test_sanity()
         if compare_numpy:
-            res_np = res.to_numpy()
+            res_np = res.to_numpy(understood_braiding=True)
         assert res.codomain.factors == expect_codomain
         assert res.domain.factors == expect_domain
         assert res.legs == expect_legs
         assert res.labels == expect_labels
 
     if compare_numpy:
-        A_np = A.to_numpy()
-        B_np = B.to_numpy()
-        expect = np.tensordot(A_np, B_np, [contr_A, contr_B])
-        npt.assert_allclose(res_np, expect, atol=1.0e-14)
+        A_np = A.to_numpy(understood_braiding=True)
+        B_np = B.to_numpy(understood_braiding=True)
+        if A.symmetry.has_trivial_braid:
+            expect = np.tensordot(A_np, B_np, [contr_A, contr_B])
+        else:
+            # need to be careful about the braiding
+            A2 = swap_gate_numpy.permute_legs(A_np, A.num_codomain_legs, A.legs, codomain=contr_A, bend_right=True)
+            B2 = swap_gate_numpy.permute_legs(B_np, B.num_codomain_legs, B.legs, domain=contr_B, bend_right=True)
+            expect = np.tensordot(A2, B2, ([*range(num_contr)], [*reversed(range(B.num_legs - num_contr, B.num_legs))]))
+        npt.assert_almost_equal(res_np, expect, decimal=12)
 
 
 @pytest.mark.parametrize(
@@ -3416,7 +3604,7 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
         pytest.param(SymmetricTensor, 2, 2, id='Sym-2-2'),
         pytest.param(SymmetricTensor, 3, 0, id='Sym-3-0'),
         pytest.param(SymmetricTensor, 1, 1, id='Sym-1-1'),
-        pytest.param(SymmetricTensor, 0, 3, id='Sym-3-0'),
+        pytest.param(SymmetricTensor, 0, 3, id='Sym-0-3'),
         pytest.param(ChargedTensor, 2, 2, id='Charged-2-2'),
         pytest.param(ChargedTensor, 3, 0, id='Charged-3-0'),
         pytest.param(ChargedTensor, 1, 1, id='Charged-1-1'),
@@ -3425,9 +3613,10 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
         pytest.param(Mask, 1, 1, id='Mask'),
     ],
 )
-def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
+@pytest.mark.parametrize('use_pipes', [False, 0.3])
+def test_transpose(cls, cod, dom, make_compatible_tensor, np_random, use_pipes):
     labels = list('abcdefghi')[: cod + dom]
-    tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels)
+    tensor: Tensor = make_compatible_tensor(cod, dom, cls=cls, labels=labels, use_pipes=use_pipes)
 
     if isinstance(tensor, ChargedTensor) and not tensor.symmetry.has_trivial_braid:
         with pytest.raises(SymmetryError, match='not defined'):
@@ -3462,17 +3651,127 @@ def test_transpose(cls, cod, dom, make_compatible_tensor, np_random):
     assert_tensors_almost_equal(res, left_transpose)
     assert_tensors_almost_equal(res, right_transpose)
 
+    if cls in [DiagonalTensor, Mask]:
+        res2 = tensors.transpose(tensor.as_SymmetricTensor())
+        assert_tensors_almost_equal(res.as_SymmetricTensor(), res2)
+
     compare_numpy = tensor.symmetry.can_be_dropped
     if cls is ChargedTensor and tensor.charged_state is None:
         compare_numpy = False
 
     if compare_numpy:
         res_np = res.to_numpy(understood_braiding=True)
+        npt.assert_almost_equal(res_np, left_transpose.to_numpy(understood_braiding=True))
+        npt.assert_almost_equal(res_np, right_transpose.to_numpy(understood_braiding=True))
+
         tensor_np = tensor.to_numpy(understood_braiding=True)
-        expect = np.transpose(tensor_np, [*range(cod, cod + dom), *range(cod)])
-        if tensor.symmetry.has_trivial_braid or cls is Mask:
-            npt.assert_almost_equal(res_np, expect)
+        expect_right_transpose = swap_gate_numpy.permute_legs(
+            tensor_np,
+            num_codomain_legs=cod,
+            legs=tensor.legs,
+            codomain=[*range(cod, cod + dom)],
+            domain=[*reversed(range(cod))],
+            bend_right=[True] * cod + [False] * dom,
+        )
+        expect_left_transpose = swap_gate_numpy.permute_legs(
+            tensor_np,
+            num_codomain_legs=cod,
+            legs=tensor.legs,
+            codomain=[*range(cod, cod + dom)],
+            domain=[*reversed(range(cod))],
+            bend_right=[False] * cod + [True] * dom,
+        )
+
+        npt.assert_almost_equal(res_np, expect_right_transpose, err_msg='right')
+        npt.assert_almost_equal(res_np, expect_left_transpose, err_msg='left')
+
+
+def test_bug_linear_combinations(make_compatible_tensor):
+    #
+    A = make_compatible_tensor(cls=tensors.DiagonalTensor)
+    B = make_compatible_tensor(cls=tensors.SymmetricTensor, codomain=A.codomain, domain=A.domain)
+
+    (B - A).test_sanity()
+    (B + A).test_sanity()
+    (A - B).test_sanity()
+    (A + B).test_sanity()
+
+
+@pytest.mark.deselect_invalid_ChargedTensor_cases(get_sym=lambda kw: kw['symm'])
+@pytest.mark.parametrize(
+    'cls, cod, dom, combine',
+    [
+        pytest.param(SymmetricTensor, 1, 1, None, id='Sym-1-1-nopipes'),
+        pytest.param(SymmetricTensor, 2, 1, [0, 1], id='Sym-1-1-pipes'),
+        pytest.param(SymmetricTensor, 2, 2, None, id='Sym-2-2'),
+        pytest.param(SymmetricTensor, 3, 0, None, id='Sym-3-0'),
+        pytest.param(SymmetricTensor, 0, 3, None, id='Sym-0-3'),
+        pytest.param(ChargedTensor, 2, 2, None, id='Charged'),
+        pytest.param(DiagonalTensor, 1, 1, None, id='Diag'),
+        pytest.param(Mask, 1, 1, None, id='Mask'),
+    ],
+)
+@pytest.mark.parametrize(
+    'symm, original_backend',
+    [
+        pytest.param(no_symmetry, 'no_symmetry', id='NoSymmetry-NS'),
+        pytest.param(no_symmetry, 'abelian', id='NoSymmetry-AB'),
+        pytest.param(no_symmetry, 'fusion_tree', id='NoSymmetry-FT'),
+        pytest.param(u1_symmetry, 'abelian', id='U1-AB'),
+        pytest.param(u1_symmetry, 'fusion_tree', id='U1-FT'),
+        pytest.param(su2_symmetry, 'fusion_tree', id='SU2-FT'),
+        pytest.param(fibonacci_anyon_category, 'fusion_tree', id='Fib-FT'),
+    ],
+)
+@pytest.mark.parametrize('target_backend', ['no_symmetry', 'abelian', 'fusion_tree'], ids=['NS', 'AB', 'FT'])
+@pytest.mark.parametrize('original_block_backend', ['numpy'])
+@pytest.mark.parametrize('target_block_backend', ['numpy', pytest.param('torch', marks=pytest.mark.torch)])
+def test_to_backend(
+    cls,
+    cod,
+    dom,
+    combine,
+    symm,
+    original_backend,
+    original_block_backend,
+    target_backend,
+    target_block_backend,
+    np_random,
+):
+    if target_block_backend == 'torch':
+        _ = pytest.importorskip('torch')
+    b1 = get_backend(original_backend, original_block_backend)
+    b2 = get_backend(target_backend, target_block_backend)
+
+    tens = random_tensor(symm, cod, dom, backend=b1, np_random=np_random, cls=cls)
+    if combine is not None:
+        tens = tensors.combine_legs(tens, combine)
+        cod = tens.num_codomain_legs
+        dom = tens.num_domain_legs
+
+    if not b2.supports_symmetry(symm):
+        with pytest.raises(SymmetryError, match='backend does not support symmetry'):
+            res = tens.to_backend(b2)
+        return
+
+    res = tens.to_backend(b2)
+    res.test_sanity()
+    assert res.backend == b2
+    assert type(res) is type(tens)
+    assert_equivalent_legs(res, tens)
+    assert res.labels == tens.labels
+
+    recovered = res.to_backend(b1)
+    recovered.test_sanity()
+    assert recovered.backend == b1
+    assert tensors.almost_equal(recovered, tens)
+
+    if symm.can_be_dropped:
+        if cls is ChargedTensor and tens.charged_state is None:
+            # compare the inv-parts instead
+            tens_np = tens.invariant_part.to_numpy(understood_braiding=True)
+            res_np = res.invariant_part.to_numpy(understood_braiding=True)
         else:
-            # would need to account for twists, which give +1/-1 factors
-            # lazy version: just ignore the signs...
-            assert np.all(np.isclose(res_np, expect) | np.isclose(res_np, -expect))
+            tens_np = tens.to_numpy(understood_braiding=True)
+            res_np = res.to_numpy(understood_braiding=True)
+        npt.assert_almost_equal(res_np, tens_np)
