@@ -6,30 +6,10 @@
 from .._core import Dtype  # noqa
 from .._core import BlockBackend, NumpyBlockBackend
 from . import dtypes
-from .dtypes import _DtypeEnumWrapper
 
 # from ._block_backend import BlockBackend
 from .array_api import ArrayApiBlockBackend
 from .torch import TorchBlockBackend
 
-import numpy as np
-
 Block = BlockBackend.BlockCls
 Scalar = BlockBackend.Scalar
-
-dtypes.Dtype = Dtype
-dtypes._cyten_dtype_to_numpy[Dtype.bool] = np.bool_
-dtypes._cyten_dtype_to_numpy[Dtype.float32] = np.dtype('float32')
-dtypes._cyten_dtype_to_numpy[Dtype.float64] = np.dtype('float64')
-dtypes._cyten_dtype_to_numpy[Dtype.complex64] = np.dtype('complex64')
-dtypes._cyten_dtype_to_numpy[Dtype.complex128] = np.dtype('complex128')
-dtypes._numpy_dtype_to_cyten[np.bool_] = Dtype.bool
-dtypes._numpy_dtype_to_cyten[np.float32] = Dtype.float32
-dtypes._numpy_dtype_to_cyten[np.float64] = Dtype.float64
-dtypes._numpy_dtype_to_cyten[np.complex64] = Dtype.complex64
-dtypes._numpy_dtype_to_cyten[np.complex128] = Dtype.complex128
-dtypes._numpy_dtype_to_cyten[np.dtype('bool')] = Dtype.bool
-dtypes._numpy_dtype_to_cyten[np.dtype('float32')] = Dtype.float32
-dtypes._numpy_dtype_to_cyten[np.dtype('float64')] = Dtype.float64
-dtypes._numpy_dtype_to_cyten[np.dtype('complex64')] = Dtype.complex64
-dtypes._numpy_dtype_to_cyten[np.dtype('complex128')] = Dtype.complex128

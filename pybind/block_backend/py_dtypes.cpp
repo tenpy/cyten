@@ -4,30 +4,16 @@
 #include <pybind11/attr.h>
 #include <pybind11/native_enum.h>
 
+#include <vector>
+
 namespace cyten {
 
 void
 bind_block_backend_dtypes(py::module_& m)
 {
-    m.def("_dtype_is_real", &dtype::is_real, py::arg("dtype"))
-      .def("_dtype_is_complex", &dtype::is_complex, py::arg("dtype"))
-      .def("_dtype_to_complex", &dtype::to_complex, py::arg("dtype"))
-      .def("_dtype_to_real", &dtype::to_real, py::arg("dtype"))
-      .def("_dtype_python_type", &dtype::python_type, py::arg("dtype"))
-      .def("_dtype_zero_scalar", &dtype::zero_scalar, py::arg("dtype"))
-      .def("_dtype_one_scalar", &dtype::one_scalar, py::arg("dtype"))
-      .def("_dtype_eps", &dtype::eps, py::arg("dtype"))
-      .def("_dtype_to_numpy_dtype", &dtype::to_numpy_dtype, py::arg("dtype"))
-      .def("_dtype_convert_python_scalar",
-           &dtype::convert_python_scalar,
-           py::arg("dtype"),
-           py::arg("value"))
-      .def("_dtype_from_numpy_dtype", &dtype::from_numpy_dtype, py::arg("dtype"))
-      .def("_dtype_common", &dtype::common, py::arg("dtypes"));
-
     py::native_enum<Dtype> dtype_enum(m,
                                       "Dtype",
-                                      "cyten.block_backends.dtypes._DtypeEnumWrapper",
+                                      "enum.Enum",
                                       R"pydoc(
                                       The dtype of (entries in) a tensor.
 
@@ -41,6 +27,56 @@ bind_block_backend_dtypes(py::module_& m)
       .value("int64", Dtype::Int64)
       .export_values()
       .finalize();
+
+    // native_enum has no .def(); attach methods/properties after finalize.
+    py::object D = m.attr("Dtype");
+    py::object property = py::module_::import("builtins").attr("property");
+    py::object classmethod = py::module_::import("builtins").attr("classmethod");
+
+    auto as_property = [&](const char* name, auto&& fn) {
+        D.attr(name) = property(
+          py::cpp_function(std::forward<decltype(fn)>(fn), py::name(name), py::is_method(D)));
+    };
+
+    as_property("is_real", &dtype::is_real);
+    as_property("is_complex", &dtype::is_complex);
+    as_property("to_complex", &dtype::to_complex);
+    as_property("to_real", &dtype::to_real);
+    as_property("python_type", &dtype::python_type);
+    as_property("zero_scalar", &dtype::zero_scalar);
+    as_property("one_scalar", &dtype::one_scalar);
+    as_property("eps", &dtype::eps);
+    as_property("to_numpy_dtype", &dtype::to_numpy_dtype);
+
+    D.attr("convert_python_scalar") = py::cpp_function(&dtype::convert_python_scalar,
+                                                       py::name("convert_python_scalar"),
+                                                       py::is_method(D),
+                                                       py::arg("value"));
+
+    // Supports both Dtype.common(a, b) and a.common(b) / a.common(b, c, ...).
+    D.attr("common") = py::cpp_function(
+      [](Dtype first, const py::args& rest) {
+          std::vector<Dtype> dtypes;
+          dtypes.reserve(1 + rest.size());
+          dtypes.push_back(first);
+          for (py::handle h : rest)
+              dtypes.push_back(h.cast<Dtype>());
+          return dtype::common(dtypes);
+      },
+      py::name("common"),
+      py::is_method(D));
+
+    D.attr("from_numpy_dtype") = classmethod(
+      py::cpp_function([](py::object /*cls*/,
+                          py::object numpy_dtype) { return dtype::from_numpy_dtype(numpy_dtype); },
+                       py::name("from_numpy_dtype"),
+                       py::arg("cls"),
+                       py::arg("dtype")));
+
+    D.attr("__repr__") =
+      py::cpp_function([](Dtype d) { return std::string("Dtype.") + dtype::repr(d); },
+                       py::name("__repr__"),
+                       py::is_method(D));
 }
 
 } // namespace cyten
