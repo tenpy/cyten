@@ -61,7 +61,7 @@ bind_config(py::module_& m)
                   py::arg("key"),
                   "Environment variable name for a config option")
       .def("set_option",
-           py::overload_cast<const std::string&, const std::string&>(&CytenConfig::set_option),
+           py::overload_cast<const std::string&, bool>(&CytenConfig::set_option),
            py::arg("key"),
            py::arg("value"))
       .def("set_option",
@@ -69,7 +69,7 @@ bind_config(py::module_& m)
            py::arg("key"),
            py::arg("value"))
       .def("set_option",
-           py::overload_cast<const std::string&, bool>(&CytenConfig::set_option),
+           py::overload_cast<const std::string&, const std::string&>(&CytenConfig::set_option),
            py::arg("key"),
            py::arg("value"))
       .def("update", py::overload_cast<py::dict>(&CytenConfig::update), py::arg("options"))

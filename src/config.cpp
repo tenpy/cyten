@@ -416,7 +416,7 @@ get_option(const std::string& key)
 void
 restore_defaults(bool use_user_file, bool use_local_file, bool use_env_vars)
 {
-    _global_config = CytenConfig{};
+    _global_config = CytenConfig{}; // default values
 
     // Precedence (later wins): defaults -> user file -> local file -> env
     if (use_user_file)
