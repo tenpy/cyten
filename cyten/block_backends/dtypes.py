@@ -55,6 +55,10 @@ class _DtypeEnumWrapper(Enum):
         return dtype.python_type(0)
 
     @property
+    def one_scalar(dtype):
+        return dtype.python_type(1)
+
+    @property
     def eps(dtype):
         # difference between 1.0 and the next representable floating point number at the given precision
         if dtype.value == Dtype.bool.value:  # noqa: F821

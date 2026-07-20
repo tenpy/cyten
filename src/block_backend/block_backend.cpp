@@ -585,7 +585,7 @@ BlockBackend::argsort(const BlockCPtr& block, std::optional<std::string> sort, i
         } else if (*sort == "LI") {
             work = mul(as_scalar(float64(-1.0)), imag(block));
         } else {
-            throw std::invalid_argument(std::string("unknown sort option ") + *sort);
+            throw std::invalid_argument("Unknown sort option: '" + *sort + "'");
         }
     }
     return _argsort(work, axis);
@@ -706,11 +706,8 @@ BlockBackend::permute_combined_idx(const BlockCPtr& block,
         throw std::runtime_error("permute_combined_idx: block must be 2D");
     int64 const M = sh[0];
     int64 const N = sh[1];
-    int64 ax = axis;
-    if (ax < 0)
-        ax += 2;
 
-    if (ax == 0) {
+    if (axis == -2 || axis == 0) {
         std::vector<int64> new_shape = dims;
         new_shape.push_back(N);
         BlockPtr b = reshape(block, new_shape);
@@ -721,7 +718,7 @@ BlockBackend::permute_combined_idx(const BlockCPtr& block,
         b = permute_axes(b, perm);
         return reshape(b, { M, N });
     }
-    if (ax == 1) {
+    if (axis == -1 || axis == 1) {
         std::vector<int64> new_shape = { M };
         new_shape.insert(new_shape.end(), dims.begin(), dims.end());
         BlockPtr b = reshape(block, new_shape);
@@ -731,7 +728,7 @@ BlockBackend::permute_combined_idx(const BlockCPtr& block,
         b = permute_axes(b, perm);
         return reshape(b, { M, N });
     }
-    throw std::runtime_error("permute_combined_idx: invalid axis");
+    throw std::invalid_argument("Invalid axis.");
 }
 
 BlockPtr

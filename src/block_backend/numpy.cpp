@@ -6,6 +6,7 @@
 #include <mutex>
 #include <pybind11/numpy.h>
 #include <pybind11/pytypes.h>
+#include <regex>
 #include <stdexcept>
 
 namespace cyten {
@@ -446,12 +447,17 @@ NumpyBlockBackend::as_device(std::optional<std::string> device)
     /* converted from following python code:
      * if device is None:
      *             return self.default_device
+     * if re.match(rf'{self.default_device}:\d+', str(device)):
+     *             return self.default_device
      * if device != self.default_device:
      *             msg = f'{self.__class__.__name__} does not support device {device}.'
      *             raise ValueError(msg)
      * return device
      */
     if (!device)
+        return default_device;
+    // Accept aliases like "cpu:0" for default_device "cpu" (torch-style device strings).
+    if (std::regex_match(*device, std::regex(default_device + R"(:\d+)")))
         return default_device;
     if (*device != default_device)
         throw std::invalid_argument("NumpyBlockBackend does not support device " + *device);

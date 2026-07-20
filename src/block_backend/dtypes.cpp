@@ -194,6 +194,18 @@ zero_scalar(Dtype dtype)
     return py::cast(complex128(0.0, 0.0));
 }
 
+py::object
+one_scalar(Dtype dtype)
+{
+    if (dtype == Dtype::Bool)
+        return py::cast(true);
+    if (dtype == Dtype::Int64)
+        return py::cast(1);
+    if (is_real(dtype))
+        return py::cast(static_cast<float64>(1.0));
+    return py::cast(complex128(1.0, 0.0));
+}
+
 } // namespace dtype
 
 } // namespace cyten

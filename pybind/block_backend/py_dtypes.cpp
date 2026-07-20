@@ -15,6 +15,7 @@ bind_block_backend_dtypes(py::module_& m)
       .def("_dtype_to_real", &dtype::to_real, py::arg("dtype"))
       .def("_dtype_python_type", &dtype::python_type, py::arg("dtype"))
       .def("_dtype_zero_scalar", &dtype::zero_scalar, py::arg("dtype"))
+      .def("_dtype_one_scalar", &dtype::one_scalar, py::arg("dtype"))
       .def("_dtype_eps", &dtype::eps, py::arg("dtype"))
       .def("_dtype_to_numpy_dtype", &dtype::to_numpy_dtype, py::arg("dtype"))
       .def("_dtype_convert_python_scalar",

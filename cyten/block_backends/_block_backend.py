@@ -163,7 +163,7 @@ class BlockBackend(metaclass=ABCMeta):
         elif sort == 'LI':
             block = -self.imag(block)
         else:
-            raise ValueError('unknown sort option ' + repr(sort))
+            raise ValueError(f'Unknown sort option: {sort!r}')
         return self._argsort(block, axis=axis)
 
     @abstractmethod
@@ -481,18 +481,15 @@ class BlockBackend(metaclass=ABCMeta):
 
         """
         M, N = self.get_shape(block)
-        assert -2 <= axis < 2
-        if axis < 0:
-            axis = axis + 2
-        if axis == 0:
+        if axis in [-2, 0]:
             block = self.reshape(block, [*dims, N])
             block = self.permute_axes(block, [*idcs, len(idcs)])
             return self.reshape(block, (M, N))
-        if axis == 1:
+        if axis in [-1, 1]:
             block = self.reshape(block, [M, *dims])
             block = self.permute_axes(block, [0, *(1 + i for i in idcs)])
             return self.reshape(block, (M, N))
-        raise RuntimeError
+        raise ValueError('Invalid axis.')
 
     @abstractmethod
     def random_normal(self, dims: list[int], dtype: Dtype, sigma: float, device: str = None) -> Block: ...

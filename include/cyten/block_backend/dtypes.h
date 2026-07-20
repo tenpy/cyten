@@ -59,6 +59,9 @@ py::object python_type(Dtype dtype);
 /// Zero scalar in this dtype (e.g. 0, 0.0, 0j).
 py::object zero_scalar(Dtype dtype);
 
+/// One scalar in this dtype (e.g. 1, 1.0, 1+0j).
+py::object one_scalar(Dtype dtype);
+
 } // namespace dtype
 
 } // namespace cyten
