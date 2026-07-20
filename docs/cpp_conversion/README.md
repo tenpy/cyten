@@ -87,9 +87,9 @@ Convert **functions and classes** in each file in dependency order within the fi
 
 ### Layer 1 — Block backends (no torch)
 
-- **cyten/block_backends/_block_backend.py** — `BlockBackend` (abstract), `Block` type. Many methods; convert base class first, then concrete backends.
-- **cyten/block_backends/numpy.py** — `NumpyBlockBackend`.
-- **cyten/block_backends/array_api.py** — `ArrayApiBlockBackend`.
+- **cyten/block_backends/_block_backend.py** — `BlockBackend` (abstract) — **done in C++** (see [convert_BlockBackend.md](convert_BlockBackend.md)). Nested C++ types `BlockBackend::Block` and `BlockBackend::Scalar` were added as part of this conversion. Python leftovers remain for ArrayApi/Torch subclasses.
+- **cyten/block_backends/numpy.py** — `NumpyBlockBackend` — **done in C++** (same doc). Exported from `cyten._core` via `__init__.py`.
+- **cyten/block_backends/array_api.py** — `ArrayApiBlockBackend` (still Python).
 
 Skip `block_backends/torch.py` per scope.
 
