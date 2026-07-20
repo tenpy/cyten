@@ -47,7 +47,7 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
     """
     if symmetry is None:
-        symmetry = get_config().default_symmetry_backend
+        symmetry = get_config().default_tensor_backend
     if block_backend is None:
         block_backend = get_config().default_block_backend
 

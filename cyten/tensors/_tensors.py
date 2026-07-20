@@ -662,7 +662,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return self
 
     def __repr__(self):
-        indent = get_config().print_options.indent * ' '
+        indent = get_config().print_indent * ' '
         lines = [f'<{self.__class__.__name__}']
         lines.extend(self._repr_header_lines(indent=indent))
         # skipped showing data. see commit 4bdaa5c for an old implementation of showing data.
@@ -3265,7 +3265,7 @@ class ChargedTensor(Tensor):
             state_lines = self.backend.block_backend._block_repr_lines(
                 self.charged_state,
                 indent=indent + '  ',
-                max_width=get_config().print_options.linewidth - len(start),
+                max_width=get_config().print_linewidth - len(start),
                 max_lines=1,
             )
             lines.append(start + state_lines[0])
