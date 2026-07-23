@@ -7,9 +7,9 @@ from .._core import Dtype  # noqa
 from .._core import BlockBackend, NumpyBlockBackend
 from . import dtypes
 
+Block = BlockBackend.BlockCls
+Scalar = BlockBackend.Scalar
+
 # from ._block_backend import BlockBackend
 from .array_api import ArrayApiBlockBackend
 from .torch import TorchBlockBackend
-
-Block = BlockBackend.BlockCls
-Scalar = BlockBackend.Scalar

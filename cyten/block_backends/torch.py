@@ -6,8 +6,8 @@ from __future__ import annotations
 import numpy
 from numpy import prod
 
-from . import Dtype
-from ._block_backend import Block, BlockBackend
+from . import Block, Dtype
+from ._block_backend import BlockBackend
 
 
 class TorchBlockBackend(BlockBackend):
@@ -44,6 +44,9 @@ class TorchBlockBackend(BlockBackend):
 
     def as_block(self, a, dtype: Dtype = None, device: str = None) -> Block:
         # TODO good error handling if a device does not support a given dtype
+        if isinstance(a, Block):
+            a = a.to_numpy()
+
         block = torch_module.as_tensor(a, dtype=self.backend_dtype_map[dtype], device=self.as_device(device))
         if dtype != Dtype.bool:
             block = 1.0 * block  # force int to float.

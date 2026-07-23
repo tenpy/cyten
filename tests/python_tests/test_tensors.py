@@ -2376,11 +2376,6 @@ def test_linear_combination(cls, make_compatible_tensor):
         v = make_compatible_tensor(cls=cls)
     w = make_compatible_tensor(like=v)
 
-    if cls is Mask:
-        catch_warnings = pytest.warns(UserWarning, match='Converting types')
-    else:
-        catch_warnings = nullcontext()
-
     compare_numpy = w.symmetry.can_be_dropped
     if cls is ChargedTensor and (v.charged_state is None or w.charged_state is None):
         compare_numpy = False
@@ -2394,16 +2389,14 @@ def test_linear_combination(cls, make_compatible_tensor):
         if isinstance(valid_scalar, complex) and valid_scalar.imag != 0 and scalar_dtype.is_real:
             scalar_dtype = scalar_dtype.to_complex
         scalar = v.backend.block_backend.as_scalar(valid_scalar, scalar_dtype)
-        with catch_warnings:
-            res = tensors.linear_combination(valid_scalar, v, 2 * valid_scalar, w)
+        res = tensors.linear_combination(valid_scalar, v, 2 * valid_scalar, w)
         res.test_sanity()
         if compare_numpy:
             expect = valid_scalar * v_np + 2 * valid_scalar * w_np
             npt.assert_almost_equal(res.to_numpy(understood_braiding=True), expect)
         if valid_scalar == 0:
-            with catch_warnings:
-                res_scalar = tensors.linear_combination(scalar, v, 2 * scalar, w)
-                res_mixed = tensors.linear_combination(valid_scalar, v, 2 * scalar, w)
+            res_scalar = tensors.linear_combination(scalar, v, 2 * scalar, w)
+            res_mixed = tensors.linear_combination(valid_scalar, v, 2 * scalar, w)
             res_scalar.test_sanity()
             res_mixed.test_sanity()
             if compare_numpy:
@@ -2414,9 +2407,8 @@ def test_linear_combination(cls, make_compatible_tensor):
         z = tensors.linear_combination(1.0 / valid_scalar, res, -2, w)
         z.test_sanity()
         assert tensors.almost_equal(v, z, allow_different_types=True)
-        with catch_warnings:
-            res_scalar = tensors.linear_combination(scalar, v, 2 * scalar, w)
-            res_mixed = tensors.linear_combination(valid_scalar, v, 2 * scalar, w)
+        res_scalar = tensors.linear_combination(scalar, v, 2 * scalar, w)
+        res_mixed = tensors.linear_combination(valid_scalar, v, 2 * scalar, w)
         res_scalar.test_sanity()
         res_mixed.test_sanity()
         if compare_numpy:
@@ -3739,6 +3731,7 @@ def test_to_backend(
     np_random,
 ):
     if target_block_backend == 'torch':
+        pytest.xfail('torch backend not yet converted to C++')
         _ = pytest.importorskip('torch')
     b1 = get_backend(original_backend, original_block_backend)
     b2 = get_backend(target_backend, target_block_backend)

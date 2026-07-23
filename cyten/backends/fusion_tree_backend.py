@@ -224,7 +224,7 @@ class FusionTreeData:
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
         hdf5_saver.save(self.block_inds, subpath + 'block_inds')
         hdf5_saver.save(self.blocks, subpath + 'blocks')
-        hdf5_saver.save(self.dtype.to_numpy_dtype(), subpath + 'dtype')
+        hdf5_saver.save(self.dtype, subpath + 'dtype')
         hdf5_saver.save(self.device, subpath + 'device')
 
     @classmethod
@@ -235,8 +235,7 @@ class FusionTreeData:
         obj.block_inds = hdf5_loader.load(subpath + 'block_inds')
         obj.blocks = hdf5_loader.load(subpath + 'blocks')
         obj.device = hdf5_loader.load(subpath + 'device')
-        dt = hdf5_loader.load(subpath + 'dtype')
-        obj.dtype = Dtype.from_numpy_dtype(dt)
+        obj.dtype = hdf5_loader.load(subpath + 'dtype')
 
         return obj
 

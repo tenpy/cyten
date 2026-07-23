@@ -2160,7 +2160,7 @@ class DiagonalTensor(SymmetricTensor):
         return res
 
     def diagonal_as_numpy(self, numpy_dtype=None) -> np.ndarray:
-        block = self.diagonal_as_block(dtype=Dtype.from_numpy_dtype(numpy_dtype))
+        block = self.diagonal_as_block(dtype=None if numpy_dtype is None else Dtype.from_numpy_dtype(numpy_dtype))
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
     def elementwise_almost_equal(self, other: DiagonalTensor, rtol: float = 1e-5, atol=1e-8) -> DiagonalTensor:

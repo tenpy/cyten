@@ -4,6 +4,8 @@
 #include <pybind11/attr.h>
 #include <pybind11/native_enum.h>
 
+#include <string>
+#include <type_traits>
 #include <vector>
 
 namespace cyten {
@@ -46,7 +48,11 @@ bind_block_backend_dtypes(py::module_& m)
     as_property("zero_scalar", &dtype::zero_scalar);
     as_property("one_scalar", &dtype::one_scalar);
     as_property("eps", &dtype::eps);
-    as_property("to_numpy_dtype", &dtype::to_numpy_dtype);
+
+    // Methods
+
+    D.attr("to_numpy_dtype") =
+      py::cpp_function(&dtype::to_numpy_dtype, py::name("to_numpy_dtype"), py::is_method(D));
 
     D.attr("convert_python_scalar") = py::cpp_function(&dtype::convert_python_scalar,
                                                        py::name("convert_python_scalar"),
@@ -77,6 +83,32 @@ bind_block_backend_dtypes(py::module_& m)
       py::cpp_function([](Dtype d) { return std::string("Dtype.") + dtype::repr(d); },
                        py::name("__repr__"),
                        py::is_method(D));
+
+    D.attr("save_hdf5") = py::cpp_function(
+      [](Dtype self, py::object hdf5_saver, py::object /*h5gr*/, const std::string& subpath) {
+          using Underlying = std::underlying_type_t<Dtype>;
+          hdf5_saver.attr("save")(static_cast<Underlying>(self), subpath + "value");
+      },
+      py::name("save_hdf5"),
+      py::is_method(D),
+      py::arg("hdf5_saver"),
+      py::arg("h5gr"),
+      py::arg("subpath"),
+      "Export a Dtype enum member for cyten.tools.hdf5_io");
+
+    D.attr("from_hdf5") = classmethod(py::cpp_function(
+      [](py::object cls, py::object hdf5_loader, py::object h5gr, const std::string& subpath) {
+          py::object value = hdf5_loader.attr("load")(subpath + "value");
+          py::object obj = cls(value);
+          hdf5_loader.attr("memorize_load")(h5gr, obj);
+          return obj;
+      },
+      py::name("from_hdf5"),
+      py::arg("cls"),
+      py::arg("hdf5_loader"),
+      py::arg("h5gr"),
+      py::arg("subpath"),
+      "Reconstruct a Dtype enum member from HDF5"));
 }
 
 } // namespace cyten
