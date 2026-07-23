@@ -1,10 +1,12 @@
 #include "../py_cyten_pybind11.h"
 #include "py_dtypes.cpp"
 #include "py_numpy.cpp"
+#include "py_torch.cpp"
 #include "py_trampolines.hpp"
 
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
+#include <cyten/block_backend/torch.h>
 #include <pybind11/detail/common.h>
 
 namespace cyten {
@@ -1212,6 +1214,7 @@ bind_block_backend(py::module_& m)
                   py::arg("subpath")); // completed block_backend methods
 
     bind_block_backend_numpy(m);
+    bind_block_backend_torch(m);
 }
 
 } // namespace cyten
