@@ -7,6 +7,7 @@ target_sources(cyten
   block_backend/block_backend.cpp
   block_backend/dtypes.cpp
   block_backend/numpy.cpp
+  block_backend/torch.cpp
   check.cpp
   config.cpp
   tools.cpp
