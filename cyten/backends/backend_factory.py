@@ -73,6 +73,9 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
     TensorBackendCls, tensor_kwargs = _tensor_backend_classes[tensor_backend]
     if BlockBackendCls is NumpyBlockBackend and not block_kwargs:
         block_backend_instance = NumpyBlockBackend.from_factory('cpu')
+    elif BlockBackendCls is TorchBlockBackend:
+        device = block_kwargs.get('default_device', 'cpu:0')
+        block_backend_instance = TorchBlockBackend.from_factory(device)
     else:
         block_backend_instance = BlockBackendCls(**block_kwargs)
     backend = TensorBackendCls(block_backend=block_backend_instance, **tensor_kwargs)

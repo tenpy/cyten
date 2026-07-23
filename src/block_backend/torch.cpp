@@ -45,11 +45,14 @@ numpy_dtype_from_scalar_type(c10::ScalarType st)
 torch::Tensor
 tensor_from_numpy_array(const py::array& a)
 {
-    py::array arr = py::array::ensure(a);
+    // Force an owned C-contiguous copy so we never alias Python/numpy memory with ATen.
+    py::module_ np = py::module_::import("numpy");
+    py::array arr = py::reinterpret_borrow<py::array>(
+      np.attr("array")(a, py::arg("copy") = true, py::arg("order") = "C"));
     if (!arr)
         throw std::invalid_argument("expected a numpy array");
-    arr = py::reinterpret_steal<py::array>(arr.attr("copy")());
-    std::vector<int64_t> shape(arr.ndim());
+
+    std::vector<int64_t> shape(static_cast<size_t>(arr.ndim()));
     for (py::ssize_t i = 0; i < arr.ndim(); ++i)
         shape[static_cast<size_t>(i)] = static_cast<int64_t>(arr.shape(i));
 
@@ -57,6 +60,8 @@ tensor_from_numpy_array(const py::array& a)
     auto opts = torch::TensorOptions().dtype(dtype::to_torch_dtype(dt)).device(torch::kCPU);
     torch::Tensor t = torch::empty(shape, opts);
     if (t.numel() > 0) {
+        if (static_cast<size_t>(arr.nbytes()) != static_cast<size_t>(t.nbytes()))
+            throw std::runtime_error("numpy/torch nbytes mismatch in tensor_from_numpy_array");
         std::memcpy(t.data_ptr(), arr.data(), static_cast<size_t>(t.nbytes()));
     }
     return t;
@@ -189,11 +194,84 @@ TorchBlockBackend::Block::get_backend() const
     return TorchBlockBackend::from_factory(device());
 }
 
+namespace {
+
+std::optional<TensorIndex>
+try_py_key_to_tensor_index(py::handle key)
+{
+    if (py::isinstance<BlockBackend::Block>(key)) {
+        return TensorIndex{ tensor_from_numpy_array(key.cast<BlockBackend::Block&>().to_numpy()) };
+    }
+    if (py::isinstance<py::array>(key)) {
+        return TensorIndex{ tensor_from_numpy_array(py::reinterpret_borrow<py::array>(key)) };
+    }
+    if (py::isinstance<py::slice>(key)) {
+        py::slice sl = py::reinterpret_borrow<py::slice>(key);
+        py::object start = sl.attr("start");
+        py::object stop = sl.attr("stop");
+        py::object step = sl.attr("step");
+        auto as_opt_int = [](py::object o) -> std::optional<int64_t> {
+            if (o.is_none())
+                return std::nullopt;
+            return o.cast<int64_t>();
+        };
+        return TensorIndex{ Slice(as_opt_int(start), as_opt_int(stop), as_opt_int(step)) };
+    }
+    try {
+        return TensorIndex{ key.cast<int64_t>() };
+    } catch (py::cast_error const&) {
+        return std::nullopt;
+    }
+}
+
+std::optional<std::vector<TensorIndex>>
+try_py_key_to_tensor_indices(py::object key)
+{
+    if (py::isinstance<py::tuple>(key)) {
+        py::tuple t = py::reinterpret_borrow<py::tuple>(key);
+        std::vector<TensorIndex> out;
+        out.reserve(static_cast<size_t>(t.size()));
+        for (auto item : t) {
+            auto idx = try_py_key_to_tensor_index(item);
+            if (!idx)
+                return std::nullopt;
+            out.push_back(*idx);
+        }
+        return out;
+    }
+    auto single = try_py_key_to_tensor_index(key);
+    if (!single)
+        return std::nullopt;
+    return std::vector<TensorIndex>{ *single };
+}
+
+torch::Tensor
+tensor_from_py_value(py::object value, torch::Device device)
+{
+    if (py::isinstance<TorchBlockBackend::Block>(value))
+        return value.cast<TorchBlockBackend::Block&>().tensor().to(device);
+    if (py::isinstance<BlockBackend::Block>(value))
+        return tensor_from_numpy_array(value.cast<BlockBackend::Block&>().to_numpy()).to(device);
+    if (py::isinstance<BlockBackend::Scalar>(value)) {
+        auto block = value.cast<BlockBackend::Scalar&>()._block();
+        if (auto const* tb = dynamic_cast<TorchBlockBackend::Block const*>(block.get()))
+            return tb->tensor().to(device);
+        return tensor_from_numpy_array(block->to_numpy()).to(device);
+    }
+    return tensor_from_py_object(value).to(device);
+}
+
+} // namespace
+
 BlockCPtr
 TorchBlockBackend::Block::get_item(py::object key) const
 {
+    if (auto idcs = try_py_key_to_tensor_indices(key))
+        return std::make_shared<const TorchBlockBackend::Block>(tensor_.index(*idcs));
     // Escape hatch: index via numpy (arbitrary Python keys).
     py::array arr = to_numpy();
+    if (py::isinstance<BlockBackend::Block>(key))
+        key = key.cast<BlockBackend::Block&>().to_numpy();
     py::object result = arr.attr("__getitem__")(key);
     return std::make_shared<const TorchBlockBackend::Block>(
       tensor_from_py_object(result).to(tensor_.device()));
@@ -202,7 +280,11 @@ TorchBlockBackend::Block::get_item(py::object key) const
 BlockPtr
 TorchBlockBackend::Block::get_item(py::object key)
 {
+    if (auto idcs = try_py_key_to_tensor_indices(key))
+        return wrap(tensor_.index(*idcs));
     py::array arr = to_numpy();
+    if (py::isinstance<BlockBackend::Block>(key))
+        key = key.cast<BlockBackend::Block&>().to_numpy();
     py::object result = arr.attr("__getitem__")(key);
     return wrap(tensor_from_py_object(result).to(tensor_.device()));
 }
@@ -210,8 +292,16 @@ TorchBlockBackend::Block::get_item(py::object key)
 void
 TorchBlockBackend::Block::set_item(py::object key, py::object value)
 {
+    torch::Tensor val = tensor_from_py_value(value, tensor_.device()).to(tensor_.options());
+    if (auto idcs = try_py_key_to_tensor_indices(key)) {
+        tensor_.index_put_(*idcs, val);
+        return;
+    }
+    if (py::isinstance<BlockBackend::Block>(key))
+        key = key.cast<BlockBackend::Block&>().to_numpy();
     py::array arr = to_numpy();
-    arr.attr("__setitem__")(key, value);
+    py::object np_val = TorchBlockBackend::Block(val.detach().cpu()).to_numpy();
+    arr.attr("__setitem__")(key, np_val);
     tensor_ = tensor_from_numpy_array(arr).to(tensor_.device());
     torch::Device d = tensor_.device();
     if (!d.has_index())
@@ -962,14 +1052,11 @@ TorchBlockBackend::_block_repr_lines(const BlockCPtr& a,
                                      int64 max_width,
                                      int64 max_lines)
 {
-    // Use Python torch.set_printoptions + repr for faithful formatting.
-    py::module_ torch_mod = py::module_::import("torch");
-    torch_mod.attr("set_printoptions")(py::arg("linewidth") =
-                                         max_width - static_cast<int64>(indent.size()));
-    // Bridge via numpy → torch.as_tensor for a Python-side repr.
-    py::object py_t = torch_mod.attr("as_tensor")(ptr(a)->to_numpy());
-    std::string rep = py::str(py::repr(py_t));
-    torch_mod.attr("set_printoptions")(py::arg("profile") = "default");
+    // Prefer numpy repr to avoid importing the Python torch package (which can conflict with
+    // libtorch already linked into cyten._core).
+    (void)max_width;
+    py::array arr = ptr(a)->to_numpy();
+    std::string rep = py::str(py::repr(arr));
     std::vector<std::string> lines;
     std::size_t start = 0;
     while (start <= rep.size()) {

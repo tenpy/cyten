@@ -4,7 +4,7 @@
 # Note: order matters to avoid circular imports!
 # pyright: ignore
 from .._core import Dtype  # noqa
-from .._core import BlockBackend, NumpyBlockBackend
+from .._core import BlockBackend, NumpyBlockBackend, TorchBlockBackend
 from . import dtypes
 
 Block = BlockBackend.BlockCls
@@ -12,4 +12,4 @@ Scalar = BlockBackend.Scalar
 
 # from ._block_backend import BlockBackend
 from .array_api import ArrayApiBlockBackend
-from .torch import TorchBlockBackend
+# from .torch import TorchBlockBackend  # now from _core

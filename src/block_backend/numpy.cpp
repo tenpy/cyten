@@ -428,6 +428,14 @@ NumpyBlockBackend::as_block(py::object a,
         }
         return block;
     }
+    if (py::isinstance<BlockBackend::Block>(a)) {
+        // Foreign backend Block (e.g. Torch): convert via numpy.
+        BlockPtr block = a.cast<BlockPtr>();
+        py::array arr = block->to_numpy();
+        if (dtype_opt)
+            arr = py::array(arr.attr("astype")(dtype::to_numpy_dtype(*dtype_opt)));
+        return wrap(arr);
+    }
     py::module_ np = numpy_module();
     py::object dt = dtype_opt ? dtype::to_numpy_dtype(*dtype_opt) : py::none();
     py::object arr = np.attr("asarray")(a, dt);
