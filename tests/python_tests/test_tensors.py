@@ -46,8 +46,14 @@ class DummyTensor(tensors.Tensor):
     def __init__(self, codomain, domain, backend, labels, dtype):
         super().__init__(codomain, domain, backend, labels, dtype, device='cpu')
 
+    def as_dtype(self, dtype):
+        raise NotImplementedError
+
     def copy(self, deep=True) -> tensors.Tensor:
         raise NotImplementedError
+
+    def to_backend(self, backend, dtype=None, device=None):
+        return NotImplementedError
 
     def to_dense_block(self, leg_order: list[int | str] = None, dtype: Dtype = None, understood_braiding: bool = False):
         raise NotImplementedError
@@ -200,6 +206,19 @@ def test_SymmetricTensor(make_compatible_tensor, leg_nums, use_pipes):
     _ = repr(T)
     _ = str(zero_tens)
     _ = repr(zero_tens)
+
+    print('checking as_dtype')
+    # use as_dtype and compare to to_backend
+    dtype = Dtype.complex64
+    T2 = T.as_dtype(dtype)
+    T2.test_sanity()
+    T3 = T.to_backend(T.backend, dtype)
+    T3.test_sanity()
+    assert T.dtype != T2.dtype
+    assert T2.dtype == dtype
+    assert T3.dtype == dtype
+    assert tensors.almost_equal(T, T2)
+    assert tensors.almost_equal(T, T3)
 
 
 @pytest.mark.parametrize('leg_num', [1, 2, 3])
@@ -527,6 +546,19 @@ def test_DiagonalTensor(make_compatible_tensor):
     npt.assert_almost_equal(real_T.max(), np.max(real_np))
     npt.assert_almost_equal(real_T.min(), np.min(real_np))
 
+    print('checking as_dtype')
+    # use as_dtype and compare to to_backend
+    dtype = Dtype.complex64
+    T2 = T.as_dtype(dtype)
+    T2.test_sanity()
+    T3 = T.to_backend(T.backend, dtype)
+    T3.test_sanity()
+    assert T.dtype != T2.dtype
+    assert T2.dtype == dtype
+    assert T3.dtype == dtype
+    assert tensors.almost_equal(T, T2)
+    assert tensors.almost_equal(T, T3)
+
 
 def test_Identity(compatible_backend, make_compatible_space, make_compatible_tensor):
     leg = make_compatible_space()
@@ -553,6 +585,19 @@ def test_Identity(compatible_backend, make_compatible_space, make_compatible_ten
 
     B_contr = tensors.compose(B, tens)
     assert tensors.norm(B_contr - B) < 1e-14
+
+    print('checking as_dtype')
+    # use as_dtype and compare to to_backend
+    dtype = Dtype.complex64
+    tens2 = tens.as_dtype(dtype)
+    tens2.test_sanity()
+    tens3 = tens.to_backend(tens.backend, dtype)
+    tens3.test_sanity()
+    assert tens.dtype != tens2.dtype
+    assert tens2.dtype == dtype
+    assert tens3.dtype == tens2.dtype
+    assert tensors.almost_equal(tens, tens2)
+    assert tensors.almost_equal(tens, tens3)
 
     # TODO test partial_compose!
 
@@ -704,6 +749,20 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
     _ = str(M_zero)
     _ = repr(M_zero)
 
+    print('checking as_dtype')
+    # use as_dtype and compare to to_backend
+    dtype = Dtype.bool  # only bool possible
+    for T in [M_projection, M_inclusion]:
+        T2 = T.as_dtype(dtype)
+        T2.test_sanity()
+        T3 = T.to_backend(T.backend, dtype)
+        T3.test_sanity()
+        assert T.dtype == T2.dtype
+        assert T2.dtype == dtype
+        assert T3.dtype == dtype
+        assert tensors.almost_equal(T, T2)
+        assert tensors.almost_equal(T, T3)
+
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases(get_cls=lambda kw: ChargedTensor)
 @pytest.mark.parametrize('leg_nums', [(1, 1), (2, 1), (3, 0), (0, 3)], ids=['1->1', '1->2', '0->3', '3->0'])
@@ -741,6 +800,19 @@ def test_ChargedTensor(make_compatible_tensor, leg_nums):
     _ = repr(T)
     _ = str(zero_tens)
     _ = repr(zero_tens)
+
+    print('checking as_dtype')
+    # use as_dtype and compare to to_backend
+    dtype = Dtype.complex64
+    T2 = T.as_dtype(dtype)
+    T2.test_sanity()
+    T3 = T.to_backend(T.backend, dtype)
+    T3.test_sanity()
+    assert T.dtype != T2.dtype
+    assert T2.dtype == dtype
+    assert T3.dtype == dtype
+    assert tensors.almost_equal(T, T2)
+    assert tensors.almost_equal(T, T3)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases(get_cls=lambda kw: ChargedTensor)
