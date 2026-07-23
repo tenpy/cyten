@@ -47,9 +47,9 @@ LibTorch is already linked (`find_package(Torch)` in top-level CMake; smoke-test
 ## TODO list for conversion
 
 - [x] initial setup
-- [ ] planning
-- [ ] generate the declaration draft
-- [ ] improve and fix the declaration draft
+- [x] planning
+- [x] generate the declaration draft
+- [x] improve and fix the declaration draft
 - [ ] generate the C++ definitions
 - [ ] improve and fix the definition drafts
 - [ ] generate pybind11 bindings
