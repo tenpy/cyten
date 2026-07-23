@@ -63,6 +63,14 @@ cmake_print_variables(Python_INCLUDE_DIRS)
 cmake_print_variables(Python_NumPy_VERSION)
 cmake_print_variables(Python_NumPy_INCLUDE_DIRS)
 
+
+# #####################################################################
+# ## find pytorch
+# #####################################################################
+
+find_package(Torch REQUIRED)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+
 # #####################################################################
 # ## C++ LIBRARY
 # #####################################################################
@@ -81,7 +89,7 @@ target_include_directories(cyten
 add_subdirectory(src)
 target_compile_options(cyten PUBLIC -fPIC)
 
-target_link_libraries(cyten PUBLIC pybind11::pybind11)
+target_link_libraries(cyten PUBLIC pybind11::pybind11 "${TORCH_LIBRARIES}")
 
 # #####################################################################
 # ## PYTHON BINDINGS

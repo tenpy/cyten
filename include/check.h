@@ -29,4 +29,6 @@ int64 add(int64 i, int64 j);
 
 int64 apply_check_op(const CheckBaseOp& op, int64 i, int64 j);
 
+float64 check_torch_array(int64 size);
+
 }

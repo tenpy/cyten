@@ -48,6 +48,7 @@ bind_check(py::module_& m)
           py::arg("i"),
           py::arg("j"),
           "Apply a check operation to two numbers");
+    m.def("check_torch_array", &cyten::check_torch_array, "Create a torch array");
 }
 
 } // namespace cyten
