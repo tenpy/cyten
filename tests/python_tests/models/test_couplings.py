@@ -69,7 +69,7 @@ def generate_fermionic_dofs(
 ) -> list[degrees_of_freedom.FermionicDOF]:
     """Return a list of `FermionicDOF` sites whose symmetries are consistent with `backend`."""
     site_list = []
-    if isinstance(backend, (backends.NoSymmetryBackend, backends.AbelianBackend)):
+    if isinstance(backend, backends.NoSymmetryBackend):
         # fermionic exchange cannot be encoded
         # do it like this (rather than fixing the backend from the start) such that
         # a potential extension of the ablian backend to fermions automatically works
