@@ -13,18 +13,27 @@
 ## Context
 
 `BlockBackend` / `NumpyBlockBackend` / `Block` / `Scalar` are already in C++
-(see [convert_BlockBackend.md](convert_BlockBackend.md)). Torch is still a Python subclass of the
-**Python** ABC in `_block_backend.py` and uses `torch.Tensor` as the block type.
+(see [convert_BlockBackend.md](convert_BlockBackend.md)). This conversion mirrors the numpy pattern:
 
-This conversion mirrors the numpy pattern:
-
-- Nested `TorchBlockBackend::Block` wrapping a `torch::Tensor` (prefer libtorch C++ API).
+- Nested `TorchBlockBackend::Block` wrapping a `torch::Tensor` (libtorch C++ API).
 - Nearly-singleton `from_factory(device)` / `from_factory_shared(device)` (devices like `cpu:0`, `cuda:0`).
 - Scalar-valued ops return `BlockBackend::Scalar` (0-d torch tensors), not bare `float`/`complex`.
 - No trampoline: like numpy, not intended to be subclassed from Python.
 
-LibTorch is already linked (`find_package(Torch)` in top-level CMake; smoke-tested via
-`cyten._core.check_torch_array`).
+## Shared libtorch with Python `torch`
+
+Users will `import cyten` and `import torch` in the same process. Cyten uses the **hybrid**
+approach: C++ `TorchBlockBackend` calls the libtorch C++ API, but `_core` must load the **same**
+shared `libtorch` / `libc10` as `torch._C`:
+
+1. CMake finds Torch via `torch.utils.cmake_prefix_path` from the build Python (not a separate
+   standalone LibTorch tree).
+2. `_core` links `TORCH_LIBRARIES` from that package and sets `INSTALL_RPATH` so runtime
+   resolution prefers env/`site-packages/torch` libs (`$ORIGIN/../../..` and
+   `$ORIGIN/../torch/lib`).
+3. Do **not** ship a second copy of libtorch next to `_core`.
+
+Smoke-tested via `cyten._core.check_torch_array` and dual-import regression tests.
 
 ## Design notes
 
@@ -42,7 +51,7 @@ LibTorch is already linked (`find_package(Torch)` in top-level CMake; smoke-test
 7. **Factory wiring:** Update `backend_factory.py` to use `TorchBlockBackend.from_factory` like
    numpy; export from `cyten/block_backends/__init__.py` via `_core`.
 8. **Tests:** Enable torch path in `test_to_backend` (remove xfail); run pytest with
-   `--block-backends=torch` once monkey-patched.
+   `--block-backends=torch` once monkey-patched. Allow `import torch` alongside cyten.
 
 ## TODO list for conversion
 

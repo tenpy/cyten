@@ -261,8 +261,8 @@ def np_random(request) -> np.random.Generator:
 
 @pytest.fixture  # values defined during `pytest_generate_tests`
 def block_backend(request) -> str:
-    # TorchBlockBackend is provided by cyten._core (libtorch). Do not import the Python
-    # torch package here — dual-loading with libtorch linked into _core is unstable.
+    if request.param == 'torch':
+        _ = pytest.importorskip('torch', reason='torch not installed')
     return request.param
 
 

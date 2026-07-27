@@ -3731,9 +3731,7 @@ def test_to_backend(
     np_random,
 ):
     if target_block_backend == 'torch':
-        # C++ TorchBlockBackend is linked via libtorch in cyten._core; do not import the
-        # Python torch package here (dual-loading libtorch is unstable with numpy).
-        pass
+        _ = pytest.importorskip('torch')
     b1 = get_backend(original_backend, original_block_backend)
     b2 = get_backend(target_backend, target_block_backend)
 

@@ -65,11 +65,29 @@ cmake_print_variables(Python_NumPy_INCLUDE_DIRS)
 
 
 # #####################################################################
-# ## find pytorch
+# ## find pytorch (same shared libs as `import torch`)
 # #####################################################################
-
+#
+# Discover Torch via the active interpreter's installed package so cyten._core
+# links the same libtorch / libc10 that Python's torch._C loads. That makes
+# `import cyten` + `import torch` in one process safe (one shared libtorch).
+execute_process(
+  COMMAND "${Python_EXECUTABLE}" -c "import torch; print(torch.utils.cmake_prefix_path)"
+  OUTPUT_VARIABLE CYTEN_TORCH_CMAKE_PREFIX
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  RESULT_VARIABLE CYTEN_TORCH_CMAKE_PREFIX_RESULT
+)
+if(NOT CYTEN_TORCH_CMAKE_PREFIX_RESULT EQUAL 0 OR CYTEN_TORCH_CMAKE_PREFIX STREQUAL "")
+  message(FATAL_ERROR
+    "Could not obtain torch.utils.cmake_prefix_path from ${Python_EXECUTABLE}. "
+    "Install the matching Python torch package in this environment.")
+endif()
+list(PREPEND CMAKE_PREFIX_PATH "${CYTEN_TORCH_CMAKE_PREFIX}")
 find_package(Torch REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS}")
+cmake_print_variables(Torch_DIR)
+cmake_print_variables(TORCH_INSTALL_PREFIX)
+cmake_print_variables(TORCH_LIBRARIES)
 
 # #####################################################################
 # ## C++ LIBRARY
@@ -103,6 +121,25 @@ target_include_directories(_core
 add_subdirectory(pybind)  # adds source files to _core
 
 target_link_libraries(_core PUBLIC cyten)
+
+# Resolve libtorch/c10 from the same place as Python torch._C.
+# Installed layout: site-packages/cyten/_core*.so
+#   $ORIGIN/../../..  -> env/lib (conda/micromamba shared torch libs)
+#   $ORIGIN/../torch/lib -> site-packages/torch/lib (pip wheel layout)
+# Do not use INSTALL_RPATH_USE_LINK_PATH: Torch/Caffe2 link dirs may inject
+# unrelated paths (e.g. Intel MKL stubs) that we do not want on the module.
+get_filename_component(_cyten_torch_lib_dir "${TORCH_INSTALL_PREFIX}/lib" ABSOLUTE)
+set(_cyten_core_rpath "$ORIGIN/../../..;$ORIGIN/../torch/lib;${_cyten_torch_lib_dir}")
+if(DEFINED ENV{CONDA_PREFIX} AND NOT "$ENV{CONDA_PREFIX}" STREQUAL "")
+  list(APPEND _cyten_core_rpath "$ENV{CONDA_PREFIX}/lib")
+endif()
+# list(APPEND) on a ;-string splits; rebuild a single RPATH string.
+string(JOIN ":" _cyten_core_rpath_str ${_cyten_core_rpath})
+set_target_properties(_core PROPERTIES
+  BUILD_RPATH "${_cyten_core_rpath_str}"
+  INSTALL_RPATH "${_cyten_core_rpath_str}"
+  INSTALL_RPATH_USE_LINK_PATH FALSE
+)
 
 
 # The install directory is the output (wheel) directory
