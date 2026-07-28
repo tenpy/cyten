@@ -9,72 +9,199 @@
 
 namespace cyten {
 
-// ArrayApiBlockBackend declaration (codegen draft follows)
+/// A block-backend based on a generic Array API compliant library.
+///
+/// Holds a Python Array-API namespace (`numpy`, etc.) and dispatches ops through it.
+/// Designed to be subclassed from Python (trampoline: ``PyArrayApiBlockBackend``).
+class ArrayApiBlockBackend : public BlockBackend
+{
+  public:
+    /// Block that holds an Array-API array as ``py::object``.
+    class PYBIND11_EXPORT Block : public BlockBackend::Block
+    {
+      public:
+        explicit Block(py::object arr, ArrayApiBlockBackend* backend);
+        virtual ~Block() = default;
+
+        BlockBackend* get_backend() const override;
+
+        std::vector<int64> shape() const override;
+        Dtype dtype() const override;
+        const std::string& device() const override;
+        py::array to_numpy() const override;
+        py::array to_numpy(Dtype dtype) const override;
+
+        /// Access the underlying Array-API array object.
+        py::object& obj() { return arr_; }
+        const py::object& obj() const { return arr_; }
+
+        BlockPtr get_item(py::object key) override;
+        BlockCPtr get_item(py::object key) const override;
+        void set_item(py::object key, py::object value) override;
+        void set_item(const std::vector<int64>& key, const Scalar& value);
+        void set_item(int64 idx, const Scalar& value);
+
+        complex128 _item_as_complex128() const override;
+        int64 _item_as_int64() const override;
+
+        BlockPtr operator+(const BlockBackend::Block& other) const override;
+        BlockPtr operator-(const BlockBackend::Block& other) const override;
+        BlockPtr operator*(const BlockBackend::Block& other) const override;
+        BlockPtr operator/(const BlockBackend::Block& other) const override;
+        BlockPtr operator<(const BlockBackend::Block& other) const override;
+        BlockPtr operator<=(const BlockBackend::Block& other) const override;
+        BlockPtr operator>(const BlockBackend::Block& other) const override;
+        BlockPtr operator>=(const BlockBackend::Block& other) const override;
+        BlockPtr operator==(const BlockBackend::Block& other) const override;
+        BlockPtr operator!=(const BlockBackend::Block& other) const override;
+        BlockPtr pow(const BlockBackend::Scalar& exponent) const override;
+        BlockPtr pow(const BlockBackend::Block& exponent) const override;
+
+        void save_hdf5(py::object hdf5_saver,
+                       py::object h5gr,
+                       const std::string& subpath) override;
+        static std::shared_ptr<Block> from_hdf5(py::object hdf5_loader,
+                                                py::object h5gr,
+                                                const std::string& subpath);
+
+      protected:
+        py::object arr_;
+        ArrayApiBlockBackend* backend_; // non-owning; backend outlives blocks in practice
+        std::string device_;
+    };
+
+  private:
+    Scalar as_scalar(py::object value);
+
+  public:
+    Scalar as_scalar(complex128 value, Dtype dtype) override;
+    Scalar as_scalar(py::object value, Dtype dtype) override;
+    Scalar as_scalar(bool b) override;
+    Scalar as_scalar(int64 x) override;
+    Scalar as_scalar(float32 x) override;
+    Scalar as_scalar(float64 x) override;
+    Scalar as_scalar(complex64 z) override;
+    Scalar as_scalar(complex128 z) override;
+
+  public:
+    /// Construct from an Array API namespace module/object and default device.
+    /// Public so Python subclasses can call ``super().__init__(api, device)``.
+    explicit ArrayApiBlockBackend(py::object api_namespace,
+                                  const std::string& default_device = "cpu");
+
+    static std::shared_ptr<ArrayApiBlockBackend> from_hdf5(py::object hdf5_loader,
+                                                           py::object h5gr,
+                                                           const std::string& subpath);
+
+    /// The Array API namespace this backend dispatches to.
+    py::object api() const { return api_; }
+
+    std::string get_backend_name() const override;
+
+    BlockPtr apply_leg_permutations(const BlockCPtr& block,
+                                    const std::vector<py::array_t<int64>>& perms) override;
+    BlockPtr as_block(py::object a,
+                      std::optional<Dtype> dtype,
+                      std::optional<std::string> device) override;
+    std::string as_device(std::optional<std::string> device) override;
+    std::vector<int64> abs_argmax(const BlockCPtr& block) override;
+    BlockPtr abs(const BlockCPtr& a) override;
+    BlockPtr add_axis(const BlockCPtr& a, int64 pos) override;
+    bool all(const BlockCPtr& a) override;
+    bool allclose(const BlockCPtr& a, const BlockCPtr& b, float64 rtol, float64 atol) override;
+    BlockPtr angle(const BlockCPtr& a) override;
+    bool any(const BlockCPtr& a) override;
+    BlockPtr apply_mask(const BlockCPtr& block, const BlockCPtr& mask, int64 ax) override;
+    BlockPtr _argsort(const BlockCPtr& block, int64 axis) override;
+    BlockPtr conj(const BlockCPtr& a) override;
+    BlockPtr copy_block(const BlockCPtr& a, std::optional<std::string> device) override;
+    BlockPtr cutoff_inverse(const BlockCPtr& a, float64 cutoff) override;
+    std::tuple<BlockPtr, BlockPtr> eigh(const BlockCPtr& block,
+                                        std::optional<std::string> sort) override;
+    BlockPtr eigvalsh(const BlockCPtr& block, std::optional<std::string> sort) override;
+    BlockPtr enlarge_leg(const BlockCPtr& block, const BlockCPtr& mask, int64 axis) override;
+    BlockPtr exp(const BlockCPtr& a) override;
+    BlockPtr block_from_diagonal(const BlockCPtr& diag) override;
+    BlockPtr block_from_mask(const BlockCPtr& mask, Dtype dtype) override;
+    BlockPtr block_from_numpy(const py::array& a,
+                              std::optional<Dtype> dtype,
+                              std::optional<std::string> device) override;
+    BlockPtr get_diagonal(const BlockCPtr& a, std::optional<float64> tol) override;
+    BlockPtr imag(const BlockCPtr& a) override;
+    Scalar item(const BlockCPtr& a) override;
+    BlockPtr kron(const BlockCPtr& a, const BlockCPtr& b) override;
+    BlockPtr log(const BlockCPtr& a) override;
+    Scalar max(const BlockCPtr& a) override;
+    Scalar max_abs(const BlockCPtr& a) override;
+    Scalar min(const BlockCPtr& a) override;
+    Scalar norm(const BlockCPtr& a, float64 order, std::optional<int64> axis) override;
+    BlockPtr outer(const BlockCPtr& a, const BlockCPtr& b) override;
+    BlockPtr permute_axes(const BlockCPtr& a, const std::vector<int64>& permutation) override;
+    BlockPtr random_normal(const std::vector<int64>& dims,
+                           Dtype dtype,
+                           float64 sigma,
+                           std::optional<std::string> device) override;
+    BlockPtr random_uniform(const std::vector<int64>& dims,
+                            Dtype dtype,
+                            std::optional<std::string> device) override;
+    BlockPtr real(const BlockCPtr& a) override;
+    BlockPtr real_if_close(const BlockCPtr& a, float64 tol) override;
+    BlockPtr scale_axis(const BlockCPtr& block, const BlockCPtr& factors, int64 axis) override;
+    BlockPtr tile(const BlockCPtr& a, int64 repeats) override;
+    std::vector<std::string> _block_repr_lines(const BlockCPtr& a,
+                                               const std::string& indent,
+                                               int64 max_width,
+                                               int64 max_lines) override;
+    BlockPtr reshape(const BlockCPtr& a, const std::vector<int64>& shape) override;
+    BlockPtr sqrt(const BlockCPtr& a) override;
+    BlockPtr squeeze_axes(const BlockCPtr& a, const std::vector<int64>& idcs) override;
+    BlockPtr stable_log(const BlockCPtr& block, float64 cutoff) override;
+    BlockPtr sum(const BlockCPtr& a, int64 ax) override;
+    Scalar sum_all(const BlockCPtr& a) override;
+    BlockPtr multiply_blocks(const BlockCPtr& a, const BlockCPtr& b) override;
+    BlockPtr tdot(const BlockCPtr& a,
+                  const BlockCPtr& b,
+                  const std::vector<int64>& idcs_a,
+                  const std::vector<int64>& idcs_b) override;
+    BlockPtr to_dtype(const BlockCPtr& a, Dtype dtype) override;
+    Scalar trace_full(const BlockCPtr& a) override;
+    BlockPtr trace_partial(const BlockCPtr& a,
+                           const std::vector<int64>& idcs1,
+                           const std::vector<int64>& idcs2,
+                           const std::vector<int64>& remaining_idcs) override;
+    BlockPtr eye_matrix(int64 dim, Dtype dtype, std::optional<std::string> device) override;
+    Scalar get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs) override;
+    BlockPtr matrix_dot(const BlockCPtr& a, const BlockCPtr& b) override;
+    BlockPtr matrix_exp(const BlockCPtr& matrix) override;
+    std::tuple<BlockPtr, BlockPtr> matrix_qr(const BlockCPtr& a, bool full) override;
+    std::tuple<BlockPtr, BlockPtr, BlockPtr> matrix_svd(
+      const BlockCPtr& a,
+      std::optional<std::string> algorithm) override;
+    const std::vector<std::string>& possible_svd_algorithms() const override;
+    BlockPtr ones_block(const std::vector<int64>& shape,
+                        Dtype dtype,
+                        std::optional<std::string> device) override;
+    BlockPtr zeros(const std::vector<int64>& shape,
+                   Dtype dtype,
+                   std::optional<std::string> device) override;
+
+  protected:
+    bool is_correct_block_type(const BlockCPtr& block) const override;
+
+    /// Map Array-API dtype object → cyten Dtype.
+    Dtype dtype_from_api(py::object api_dtype) const;
+    /// Map cyten Dtype → Array-API dtype object.
+    py::object dtype_to_api(Dtype dtype) const;
+
+  private:
+    static const ArrayApiBlockBackend::Block* ptr(const BlockCPtr& b);
+    static py::object obj(const BlockCPtr& b);
+    BlockPtr wrap(py::object arr);
+
+    py::object api_;
+    std::map<Dtype, py::object> backend_dtype_map_;
+    // keyed by id(api_dtype) as py::handle for lookup; also store reverse map via dtype_from_api
+    std::map<std::uintptr_t, Dtype> cyten_dtype_map_;
+};
 
 } // namespace cyten
-// CHECKME: the following was generated by .cursor/skills/pybind11-codegen/pybind11_codegen.py gen_cpp_declaration --py-name ArrayApiBlockBackend --header-file include/cyten/block_backend/array_api.h
-
-/// A block-backend based on a generic Array API compliant library
-class ArrayApiBlockBackend public BlockBackend {
-public:
-public:
-    ArrayApiBlockBackend(TYPEOF_api_namespace api_namespace, std::string default_device="cpu");
-    virtual ~ArrayApiBlockBackend() = default;
-    virtual BlockPtr as_block(TYPEOF_a a, Dtype dtype=py::none(), std::string device=py::none()) override;
-    virtual std::string as_device(std::string device) override;
-    virtual bool all(TYPEOF_a a) override;
-    virtual bool any(TYPEOF_a a) override;
-    virtual BlockPtr tdot(BlockPtr a, BlockPtr b, list_int_ idcs_a, list_int_ idcs_b) override;
-    virtual tuple_int_ get_shape(BlockPtr a) override;
-    virtual float64 item(BlockPtr a) override;
-    virtual Dtype get_dtype(BlockPtr a) override;
-    virtual BlockPtr to_dtype(BlockPtr a, Dtype dtype) override;
-    virtual BlockPtr copy_block(BlockPtr a, std::string device=py::none()) override;
-    virtual list_str_ _block_repr_lines(BlockPtr a, std::string indent, int64 max_width, int64 max_lines) override;
-    virtual BlockPtr outer(BlockPtr a, BlockPtr b) override;
-    virtual BlockPtr permute_axes(BlockPtr a, list_int_ permutation) override;
-    virtual float64 trace_full(BlockPtr a) override;
-    virtual BlockPtr trace_partial(BlockPtr a, list_int_ idcs1, list_int_ idcs2, list_int_ remaining) override;
-    virtual BlockPtr conj(BlockPtr a) override;
-    virtual BlockPtr angle(BlockPtr a) override;
-    virtual BlockPtr real(BlockPtr a) override;
-    virtual BlockPtr real_if_close(BlockPtr a, float64 tol) override;
-    virtual BlockPtr sqrt(BlockPtr a) override;
-    virtual BlockPtr imag(BlockPtr a) override;
-    virtual BlockPtr exp(BlockPtr a) override;
-    virtual BlockPtr log(BlockPtr a) override;
-    virtual bool allclose(BlockPtr a, BlockPtr b, float64 rtol=1e-05, float64 atol=1e-08) override;
-    virtual BlockPtr squeeze_axes(BlockPtr a, list_int_ idcs) override;
-    virtual BlockPtr add_axis(BlockPtr a, int64 pos) override;
-    virtual float64 norm(BlockPtr a, int64 order=2, int64 axis=py::none()) override;
-    virtual float64 max(BlockPtr a) override;
-    virtual float64 max_abs(BlockPtr a) override;
-    virtual float64 min(BlockPtr a) override;
-    virtual BlockPtr reshape(BlockPtr a, tuple_int_ shape) override;
-    virtual BlockPtr matrix_dot(BlockPtr a, BlockPtr b) override;
-    virtual tuple_Block_Block_Block_ matrix_svd(BlockPtr a, std::string algorithm) override;
-    /// Cannot specify algorithms through the array API.
-    list_str_ possible_svd_algorithms();
-    virtual tuple_Block_Block_ matrix_qr(BlockPtr a, bool full) override;
-    virtual BlockPtr matrix_exp(BlockPtr matrix) override;
-    virtual BlockPtr random_uniform(list_int_ dims, Dtype dtype, std::string device=py::none()) override;
-    virtual BlockPtr random_normal(list_int_ dims, Dtype dtype, float64 sigma, std::string device=py::none()) override;
-    virtual BlockPtr block_from_numpy(np_NDArray a, Dtype dtype=py::none(), std::string device=py::none()) override;
-    virtual BlockPtr zeros(list_int_ shape, Dtype dtype, std::string device=py::none()) override;
-    virtual BlockPtr ones_block(list_int_ shape, Dtype dtype, std::string device=py::none()) override;
-    virtual BlockPtr eye_matrix(int64 dim, Dtype dtype, std::string device=py::none()) override;
-    virtual BlockPtr kron(BlockPtr a, BlockPtr b) override;
-    virtual complex128 get_block_element(BlockPtr a, list_int_ idcs) override;
-    virtual std::string get_device(BlockPtr a) override;
-    virtual BlockPtr get_diagonal(BlockPtr a, float64 tol) override;
-    virtual BlockPtr block_from_diagonal(BlockPtr diag) override;
-    virtual BlockPtr block_from_mask(BlockPtr mask, Dtype dtype) override;
-    virtual BlockPtr sum(BlockPtr a, int64 ax) override;
-    virtual float64 sum_all(BlockPtr a) override;
-    virtual tuple_Block_Block_ eigh(BlockPtr block, std::string sort=py::none()) override;
-    virtual BlockPtr eigvalsh(BlockPtr block, std::string sort=py::none()) override;
-    virtual list_int_ abs_argmax(BlockPtr block) override;
-    virtual BlockPtr _argsort(BlockPtr block, int64 axis) override;
-    virtual BlockPtr enlarge_leg(BlockPtr block, BlockPtr mask, int64 axis) override;
-    virtual BlockPtr stable_log(BlockPtr block, float64 cutoff) override;
-};
