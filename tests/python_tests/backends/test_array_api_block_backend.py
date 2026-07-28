@@ -7,18 +7,20 @@ from cyten.block_backends import ArrayApiBlockBackend, Dtype
 
 
 @pytest.fixture
-def bb():
+def arrayapi_backend():
     return ArrayApiBlockBackend(np, default_device='cpu')
 
 
-def test_zeros_and_item(bb):
+def test_zeros_and_item(arrayapi_backend):
+    bb = arrayapi_backend
     z = bb.zeros([2, 3], Dtype.float64)
     assert bb.get_shape(z) == (2, 3)
     assert bb.get_dtype(z) == Dtype.float64
     assert float(bb.sum_all(z).as_float64()) == 0.0
 
 
-def test_outer_and_tdot(bb):
+def test_outer_and_tdot(arrayapi_backend):
+    bb = arrayapi_backend
     a = bb.as_block([[1.0, 2.0]], Dtype.float64)
     b = bb.as_block([3.0, 4.0], Dtype.float64)
     o = bb.outer(a, b)
