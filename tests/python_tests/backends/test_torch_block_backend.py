@@ -7,6 +7,7 @@ import textwrap
 
 import numpy as np
 import pytest
+import scipy
 
 pytest.importorskip('torch')
 
@@ -39,6 +40,16 @@ def test_to_backend_numpy_to_torch():
     assert isinstance(res.backend.block_backend, TorchBlockBackend)
     recovered = res.to_backend(b1)
     recovered.test_sanity()
+
+
+@pytest.mark.torch
+def test_matrix_exp():
+    bb = TorchBlockBackend.from_factory('cpu:0')
+    a_np = np.array([[0.3, -1.0], [1.0, 0.5]], dtype=np.float64)
+    a = bb.block_from_numpy(a_np)
+    exp_a = bb.matrix_exp(a)
+    expect = scipy.linalg.expm(a_np)
+    np.testing.assert_allclose(bb.to_numpy(exp_a), expect, rtol=1e-12, atol=1e-12)
 
 
 _DUAL_IMPORT_SCRIPT = textwrap.dedent(

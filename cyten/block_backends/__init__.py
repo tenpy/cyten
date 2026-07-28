@@ -12,4 +12,3 @@ Scalar = BlockBackend.Scalar
 
 # from ._block_backend import BlockBackend
 from .array_api import ArrayApiBlockBackend
-# from .torch import TorchBlockBackend  # now from _core

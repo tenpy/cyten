@@ -59,11 +59,16 @@ Smoke-tested via `cyten._core.check_torch_array` and dual-import regression test
 - [x] planning
 - [x] generate the declaration draft
 - [x] improve and fix the declaration draft
-- [ ] generate the C++ definitions
-- [ ] improve and fix the definition drafts
-- [ ] generate pybind11 bindings
-- [ ] generate pybind11 trampoline (skip — not subclassed)
-- [ ] monkey-patch the python binding into the Python library
-- [ ] run python tests with pytest
-- [ ] remove original python code for the object converted
-- [ ] wrap up
+- [x] generate the C++ definitions
+- [x] improve and fix the definition drafts
+- [x] generate pybind11 bindings
+- [x] generate pybind11 trampoline (skip — not subclassed)
+- [x] monkey-patch the python binding into the Python library
+- [x] run python tests with pytest
+- [x] remove original python code for the object converted (`torch.py` is a `_core` re-export)
+- [x] wrap up (merge/PR left to the user)
+
+## Known gaps (optional follow-ups)
+
+- `matrix_log` still throws `NotImplemented` (PyTorch has no `torch.linalg.matrix_log`;
+  numpy uses SciPy `logm`). `matrix_exp` uses `torch::linalg_matrix_exp`.

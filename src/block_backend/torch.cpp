@@ -1227,9 +1227,9 @@ TorchBlockBackend::matrix_dot(const BlockCPtr& a, const BlockCPtr& b)
 }
 
 BlockPtr
-TorchBlockBackend::matrix_exp(const BlockCPtr& /*matrix*/)
+TorchBlockBackend::matrix_exp(const BlockCPtr& matrix)
 {
-    throw NotImplemented("TorchBlockBackend does not support matrix_exp yet.");
+    return wrap(torch::linalg_matrix_exp(tens(matrix)));
 }
 
 BlockPtr
