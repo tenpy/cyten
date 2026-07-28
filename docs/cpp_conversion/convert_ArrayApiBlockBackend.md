@@ -53,11 +53,11 @@ must remain a **Python-subclassable** base so libraries can specialize missing o
 - [x] planning
 - [x] generate the declaration draft
 - [x] improve and fix the declaration draft
-- [ ] generate the C++ definitions
-- [ ] improve and fix the definition drafts
-- [ ] generate pybind11 bindings
-- [ ] generate pybind11 trampoline (required — Python subclassable)
-- [ ] monkey-patch the python binding into the Python library
-- [ ] run python tests with pytest
-- [ ] remove original python code for the object converted
-- [ ] wrap up
+- [x] generate the C++ definitions
+- [x] improve and fix the definition drafts
+- [x] generate pybind11 bindings
+- [x] generate pybind11 trampoline (required — Python subclassable)
+- [x] monkey-patch the python binding into the Python library
+- [x] run python tests with pytest
+- [x] remove original python code for the object converted (`array_api.py` is a `_core` re-export)
+- [ ] wrap up (merge/PR left to the user)

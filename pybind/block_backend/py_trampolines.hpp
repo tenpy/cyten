@@ -2,6 +2,7 @@
 
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
+#include <cyten/block_backend/array_api.h>
 #include <memory>
 #include <pybind11/pybind11.h>
 
@@ -467,6 +468,363 @@ class PyBlockBackend
         PYBIND11_OVERRIDE_PURE(bool, BlockBackend, is_correct_block_type, block);
     }
 }; // trampoline class PyBlockBackend
+
+/// @brief pybind11 trampoline class for ArrayApiBlockBackend in Python
+class PyArrayApiBlockBackend
+  : public ArrayApiBlockBackend
+  , py::trampoline_self_life_support
+{
+  public:
+    using ArrayApiBlockBackend::ArrayApiBlockBackend; // inherit constructors
+    PyArrayApiBlockBackend(ArrayApiBlockBackend&& base)
+      : ArrayApiBlockBackend(std::move(base))
+    {
+    }
+
+    Scalar as_scalar(complex128 value, Dtype dtype) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, as_scalar, value, dtype);
+    }
+    Scalar as_scalar(py::object value, Dtype dtype) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, as_scalar, value, dtype);
+    }
+    Scalar as_scalar(const Scalar& value) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, as_scalar, value);
+    }
+    Scalar as_scalar(int64 x) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, as_scalar, x);
+    }
+    Scalar as_scalar(bool b) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, as_scalar, b);
+    }
+    Scalar as_scalar(float32 x) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, as_scalar, x);
+    }
+    Scalar as_scalar(float64 x) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, as_scalar, x);
+    }
+    Scalar as_scalar(complex64 z) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, as_scalar, z);
+    }
+    Scalar as_scalar(complex128 z) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, as_scalar, z);
+    }
+
+    BlockPtr abs(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, abs, a);
+    }
+    BlockPtr apply_leg_permutations(const BlockCPtr& block,
+                                    const std::vector<py::array_t<int64>>& perms) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, apply_leg_permutations, block, perms);
+    }
+    BlockPtr as_block(py::object a,
+                      std::optional<Dtype> dtype,
+                      std::optional<std::string> device) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, as_block, a, dtype, device);
+    }
+    std::string as_device(std::optional<std::string> device) override
+    {
+        PYBIND11_OVERRIDE(std::string, ArrayApiBlockBackend, as_device, device);
+    }
+    std::vector<int64> abs_argmax(const BlockCPtr& block) override
+    {
+        PYBIND11_OVERRIDE(std::vector<int64>, ArrayApiBlockBackend, abs_argmax, block);
+    }
+    BlockPtr add_axis(const BlockCPtr& a, int64 pos) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, add_axis, a, pos);
+    }
+    bool all(const BlockCPtr& a) override { PYBIND11_OVERRIDE(bool, ArrayApiBlockBackend, all, a); }
+    bool allclose(const BlockCPtr& a, const BlockCPtr& b, float64 rtol, float64 atol) override
+    {
+        PYBIND11_OVERRIDE(bool, ArrayApiBlockBackend, allclose, a, b, rtol, atol);
+    }
+    BlockPtr angle(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, angle, a);
+    }
+    bool any(const BlockCPtr& a) override { PYBIND11_OVERRIDE(bool, ArrayApiBlockBackend, any, a); }
+    BlockPtr apply_mask(const BlockCPtr& block, const BlockCPtr& mask, int64 ax) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, apply_mask, block, mask, ax);
+    }
+    BlockPtr _argsort(const BlockCPtr& block, int64 axis) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, _argsort, block, axis);
+    }
+    BlockPtr conj(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, conj, a);
+    }
+    BlockPtr copy_block(const BlockCPtr& a, std::optional<std::string> device) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, copy_block, a, device);
+    }
+    BlockPtr cutoff_inverse(const BlockCPtr& a, float64 cutoff) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, cutoff_inverse, a, cutoff);
+    }
+    std::tuple<BlockPtr, BlockPtr> eigh(const BlockCPtr& block,
+                                        std::optional<std::string> sort) override
+    {
+        PYBIND11_OVERRIDE(
+          PYBIND11_TYPE(std::tuple<BlockPtr, BlockPtr>), ArrayApiBlockBackend, eigh, block, sort);
+    }
+    BlockPtr eigvalsh(const BlockCPtr& block, std::optional<std::string> sort) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, eigvalsh, block, sort);
+    }
+    BlockPtr enlarge_leg(const BlockCPtr& block, const BlockCPtr& mask, int64 axis) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, enlarge_leg, block, mask, axis);
+    }
+    BlockPtr exp(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, exp, a);
+    }
+    BlockPtr block_from_diagonal(const BlockCPtr& diag) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, block_from_diagonal, diag);
+    }
+    BlockPtr block_from_mask(const BlockCPtr& mask, Dtype dtype) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, block_from_mask, mask, dtype);
+    }
+    BlockPtr block_from_numpy(const py::array& a,
+                              std::optional<Dtype> dtype,
+                              std::optional<std::string> device) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, block_from_numpy, a, dtype, device);
+    }
+    BlockPtr get_diagonal(const BlockCPtr& a, std::optional<float64> tol) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, get_diagonal, a, tol);
+    }
+    BlockPtr imag(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, imag, a);
+    }
+    Scalar item(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, item, a);
+    }
+    BlockPtr kron(const BlockCPtr& a, const BlockCPtr& b) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, kron, a, b);
+    }
+    BlockPtr linear_combination(const Scalar& a_coef,
+                                const BlockCPtr& v,
+                                const Scalar& b_coef,
+                                const BlockCPtr& w) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, linear_combination, a_coef, v, b_coef, w);
+    }
+    BlockPtr log(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, log, a);
+    }
+    Scalar max(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, max, a);
+    }
+    Scalar max_abs(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, max_abs, a);
+    }
+    Scalar min(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, min, a);
+    }
+    BlockPtr mul(const Scalar& a, const BlockCPtr& b) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, mul, a, b);
+    }
+    Scalar norm(const BlockCPtr& a, float64 order, std::optional<int64> axis) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, norm, a, order, axis);
+    }
+    BlockPtr outer(const BlockCPtr& a, const BlockCPtr& b) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, outer, a, b);
+    }
+    BlockPtr permute_axes(const BlockCPtr& a, const std::vector<int64>& permutation) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, permute_axes, a, permutation);
+    }
+    BlockPtr random_normal(const std::vector<int64>& dims,
+                           Dtype dtype,
+                           float64 sigma,
+                           std::optional<std::string> device) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, random_normal, dims, dtype, sigma, device);
+    }
+    BlockPtr random_uniform(const std::vector<int64>& dims,
+                            Dtype dtype,
+                            std::optional<std::string> device) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, random_uniform, dims, dtype, device);
+    }
+    BlockPtr real(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, real, a);
+    }
+    BlockPtr real_if_close(const BlockCPtr& a, float64 tol) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, real_if_close, a, tol);
+    }
+    BlockPtr tile(const BlockCPtr& a, int64 repeats) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, tile, a, repeats);
+    }
+    std::vector<std::string> _block_repr_lines(const BlockCPtr& a,
+                                               const std::string& indent,
+                                               int64 max_width,
+                                               int64 max_lines) override
+    {
+        PYBIND11_OVERRIDE(std::vector<std::string>,
+                               ArrayApiBlockBackend,
+                               _block_repr_lines,
+                               a,
+                               indent,
+                               max_width,
+                               max_lines);
+    }
+    BlockPtr reshape(const BlockCPtr& a, const std::vector<int64>& shape) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, reshape, a, shape);
+    }
+    BlockPtr scale_axis(const BlockCPtr& block, const BlockCPtr& factors, int64 axis) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, scale_axis, block, factors, axis);
+    }
+    BlockPtr sqrt(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, sqrt, a);
+    }
+    BlockPtr squeeze_axes(const BlockCPtr& a, const std::vector<int64>& idcs) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, squeeze_axes, a, idcs);
+    }
+    BlockPtr stable_log(const BlockCPtr& block, float64 cutoff) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, stable_log, block, cutoff);
+    }
+    BlockPtr sum(const BlockCPtr& a, int64 ax) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, sum, a, ax);
+    }
+    Scalar sum_all(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, sum_all, a);
+    }
+    BlockPtr tdot(const BlockCPtr& a,
+                  const BlockCPtr& b,
+                  const std::vector<int64>& idcs_a,
+                  const std::vector<int64>& idcs_b) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, tdot, a, b, idcs_a, idcs_b);
+    }
+    BlockPtr to_dtype(const BlockCPtr& a, Dtype dtype) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, to_dtype, a, dtype);
+    }
+    Scalar trace_full(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, trace_full, a);
+    }
+    BlockPtr trace_partial(const BlockCPtr& a,
+                           const std::vector<int64>& idcs1,
+                           const std::vector<int64>& idcs2,
+                           const std::vector<int64>& remaining_idcs) override
+    {
+        PYBIND11_OVERRIDE(
+          BlockPtr, ArrayApiBlockBackend, trace_partial, a, idcs1, idcs2, remaining_idcs);
+    }
+    BlockPtr eye_matrix(int64 dim, Dtype dtype, std::optional<std::string> device) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, eye_matrix, dim, dtype, device);
+    }
+    Scalar get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs) override
+    {
+        PYBIND11_OVERRIDE(Scalar, ArrayApiBlockBackend, get_block_element, a, idcs);
+    }
+    Scalar get_block_mask_element(const BlockCPtr& a,
+                                  int64 large_leg_idx,
+                                  int64 small_leg_idx,
+                                  int64 sum_block) override
+    {
+        PYBIND11_OVERRIDE(Scalar,
+                          ArrayApiBlockBackend,
+                          get_block_mask_element,
+                          a,
+                          large_leg_idx,
+                          small_leg_idx,
+                          sum_block);
+    }
+    BlockPtr matrix_dot(const BlockCPtr& a, const BlockCPtr& b) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, matrix_dot, a, b);
+    }
+    BlockPtr matrix_exp(const BlockCPtr& matrix) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, matrix_exp, matrix);
+    }
+    std::tuple<BlockPtr, BlockPtr> matrix_qr(const BlockCPtr& a, bool full) override
+    {
+        PYBIND11_OVERRIDE(
+          PYBIND11_TYPE(std::tuple<BlockPtr, BlockPtr>), ArrayApiBlockBackend, matrix_qr, a, full);
+    }
+    std::tuple<BlockPtr, BlockPtr, BlockPtr> matrix_svd(
+      const BlockCPtr& a,
+      std::optional<std::string> algorithm) override
+    {
+        PYBIND11_OVERRIDE(PYBIND11_TYPE(std::tuple<BlockPtr, BlockPtr, BlockPtr>),
+                               ArrayApiBlockBackend,
+                               matrix_svd,
+                               a,
+                               algorithm);
+    }
+    const std::vector<std::string>& possible_svd_algorithms() const override
+    {
+        PYBIND11_OVERRIDE(
+          const std::vector<std::string>&, ArrayApiBlockBackend, possible_svd_algorithms);
+    }
+    BlockPtr ones_block(const std::vector<int64>& shape,
+                        Dtype dtype,
+                        std::optional<std::string> device) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, ones_block, shape, dtype, device);
+    }
+    BlockPtr zeros(const std::vector<int64>& shape,
+                   Dtype dtype,
+                   std::optional<std::string> device) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, zeros, shape, dtype, device);
+    }
+    std::string get_backend_name() const override
+    {
+        PYBIND11_OVERRIDE(std::string, ArrayApiBlockBackend, get_backend_name);
+    }
+    BlockPtr multiply_blocks(const BlockCPtr& a, const BlockCPtr& b) override
+    {
+        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, multiply_blocks, a, b);
+    }
+    bool is_correct_block_type(const BlockCPtr& block) const override
+    {
+        PYBIND11_OVERRIDE(bool, ArrayApiBlockBackend, is_correct_block_type, block);
+    }
+}; // trampoline class PyArrayApiBlockBackend
 
 // TODO: trampoline classes for Block
 

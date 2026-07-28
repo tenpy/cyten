@@ -40,27 +40,47 @@ to_py_list(const std::vector<int64>& v)
 }
 
 py::object
+py_mul(py::object a, py::object b)
+{
+    py::object res = a.attr("__mul__")(b);
+    if (res.is(py::reinterpret_borrow<py::object>(Py_NotImplemented)))
+        res = b.attr("__rmul__")(a);
+    if (res.is(py::reinterpret_borrow<py::object>(Py_NotImplemented)))
+        throw py::type_error("unsupported operand type(s) for *");
+    return res;
+}
+
+py::object
 py_add(py::object a, py::object b)
 {
-    return a.attr("__add__")(b);
+    py::object res = a.attr("__add__")(b);
+    if (res.is(py::reinterpret_borrow<py::object>(Py_NotImplemented)))
+        res = b.attr("__radd__")(a);
+    if (res.is(py::reinterpret_borrow<py::object>(Py_NotImplemented)))
+        throw py::type_error("unsupported operand type(s) for +");
+    return res;
 }
 
 py::object
 py_sub(py::object a, py::object b)
 {
-    return a.attr("__sub__")(b);
-}
-
-py::object
-py_mul(py::object a, py::object b)
-{
-    return a.attr("__mul__")(b);
+    py::object res = a.attr("__sub__")(b);
+    if (res.is(py::reinterpret_borrow<py::object>(Py_NotImplemented)))
+        res = b.attr("__rsub__")(a);
+    if (res.is(py::reinterpret_borrow<py::object>(Py_NotImplemented)))
+        throw py::type_error("unsupported operand type(s) for -");
+    return res;
 }
 
 py::object
 py_truediv(py::object a, py::object b)
 {
-    return a.attr("__truediv__")(b);
+    py::object res = a.attr("__truediv__")(b);
+    if (res.is(py::reinterpret_borrow<py::object>(Py_NotImplemented)))
+        res = b.attr("__rtruediv__")(a);
+    if (res.is(py::reinterpret_borrow<py::object>(Py_NotImplemented)))
+        throw py::type_error("unsupported operand type(s) for /");
+    return res;
 }
 
 py::object
@@ -93,8 +113,9 @@ ArrayApiBlockBackend::Block::Block(py::object arr, ArrayApiBlockBackend* backend
 {
     if (!backend_)
         throw std::invalid_argument("ArrayApiBlockBackend::Block requires a non-null backend");
+    // Cache device string without calling as_device() (avoids recursion via ones probes).
     if (py::hasattr(arr_, "device"))
-        device_ = backend_->as_device(arr_.attr("device").cast<std::string>());
+        device_ = py::str(arr_.attr("device")).cast<std::string>();
     else
         device_ = backend_->default_device;
 }
@@ -194,13 +215,18 @@ ArrayApiBlockBackend::Block::set_item(int64 idx, const Scalar& value)
 complex128
 ArrayApiBlockBackend::Block::_item_as_complex128() const
 {
-    return backend_->item(shared_from_this()).as_complex128();
+    py::object val = arr_.attr("item")();
+    try {
+        return val.cast<complex128>();
+    } catch (py::cast_error const&) {
+        return static_cast<complex128>(val.cast<float64>());
+    }
 }
 
 int64
 ArrayApiBlockBackend::Block::_item_as_int64() const
 {
-    return backend_->item(shared_from_this()).as_int64();
+    return arr_.attr("item")().cast<int64>();
 }
 
 namespace {
@@ -515,9 +541,13 @@ std::string
 ArrayApiBlockBackend::as_device(std::optional<std::string> device)
 {
     std::string dev = device ? *device : default_device;
-    // Validate by allocating a 1-element block on that device.
-    BlockPtr probe = ones_block({ 1 }, Dtype::Float64, dev);
-    return get_device(probe);
+    // Validate without constructing a Block (Block ctor calls as_device).
+    py::object probe = api_.attr("ones")(py::make_tuple(1),
+                                         py::arg("dtype") = dtype_to_api(Dtype::Float64),
+                                         py::arg("device") = py::cast(dev));
+    if (py::hasattr(probe, "device"))
+        return py::str(probe.attr("device")).cast<std::string>();
+    return dev;
 }
 
 std::vector<int64>

@@ -82,6 +82,7 @@ class ArrayApiBlockBackend : public BlockBackend
     Scalar as_scalar(float64 x) override;
     Scalar as_scalar(complex64 z) override;
     Scalar as_scalar(complex128 z) override;
+    using BlockBackend::as_scalar;
 
   public:
     /// Construct from an Array API namespace module/object and default device.

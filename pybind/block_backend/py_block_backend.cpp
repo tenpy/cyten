@@ -2,8 +2,10 @@
 #include "py_dtypes.cpp"
 #include "py_numpy.cpp"
 #include "py_torch.cpp"
+#include "py_array_api.cpp"
 #include "py_trampolines.hpp"
 
+#include <cyten/block_backend/array_api.h>
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
 #include <cyten/block_backend/torch.h>
@@ -1214,6 +1216,7 @@ bind_block_backend(py::module_& m)
 
     bind_block_backend_numpy(m);
     bind_block_backend_torch(m);
+    bind_block_backend_array_api(m);
 }
 
 } // namespace cyten
