@@ -263,9 +263,6 @@ class NumpyBlockBackend(BlockBackend):
     def matrix_exp(self, matrix: Block) -> Block:
         return scipy.linalg.expm(matrix)
 
-    def matrix_log(self, matrix: Block) -> Block:
-        return scipy.linalg.logm(matrix)
-
     def matrix_qr(self, a: Block, full: bool) -> tuple[Block, Block]:
         return scipy.linalg.qr(a, mode='full' if full else 'economic')
 

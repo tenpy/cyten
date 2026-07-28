@@ -422,10 +422,6 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, matrix_exp, matrix);
     }
-    BlockPtr matrix_log(const BlockCPtr& matrix) override
-    {
-        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, matrix_log, matrix);
-    }
     std::tuple<BlockPtr, BlockPtr> matrix_qr(const BlockCPtr& a, bool full) override
     {
         PYBIND11_OVERRIDE_PURE(

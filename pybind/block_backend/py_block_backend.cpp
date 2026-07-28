@@ -881,7 +881,7 @@ bind_block_backend(py::module_& m)
            R"pydoc(
            The *elementwise* natural logarithm.
 
-           Not to be confused with :meth:`matrix_log`, the *matrix* logarithm.
+           Not to be confused with the matrix logarithm (not implemented).
            )pydoc")
       .def("max", &BlockBackend::max, py::arg("a"))
       .def("max_abs", &BlockBackend::max_abs, py::arg("a"))
@@ -1168,7 +1168,6 @@ bind_block_backend(py::module_& m)
            py::arg("b"),
            "As in numpy.dot, both a and b might be matrix or vector.")
       .def("matrix_exp", &BlockBackend::matrix_exp, py::arg("matrix"))
-      .def("matrix_log", &BlockBackend::matrix_log, py::arg("matrix"))
       .def("matrix_lq", &BlockBackend::matrix_lq, py::arg("a"), py::arg("full"))
       .def("matrix_qr",
            &BlockBackend::matrix_qr,

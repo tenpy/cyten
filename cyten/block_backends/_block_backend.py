@@ -368,10 +368,7 @@ class BlockBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def log(self, a: Block) -> Block:
-        """The *elementwise* natural logarithm.
-
-        Not to be confused with :meth:`matrix_log`, the *matrix* logarithm.
-        """
+        """The *elementwise* natural logarithm."""
         ...
 
     @abstractmethod
@@ -676,9 +673,6 @@ class BlockBackend(metaclass=ABCMeta):
 
     @abstractmethod
     def matrix_exp(self, matrix: Block) -> Block: ...
-
-    @abstractmethod
-    def matrix_log(self, matrix: Block) -> Block: ...
 
     def matrix_lq(self, a: Block, full: bool) -> tuple[Block, Block]:
         q, r = self.matrix_qr(self.permute_axes(a, [1, 0]), full=full)

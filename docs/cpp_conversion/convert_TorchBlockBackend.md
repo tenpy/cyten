@@ -67,8 +67,3 @@ Smoke-tested via `cyten._core.check_torch_array` and dual-import regression test
 - [x] run python tests with pytest
 - [x] remove original python code for the object converted (`torch.py` is a `_core` re-export)
 - [x] wrap up (merge/PR left to the user)
-
-## Known gaps (optional follow-ups)
-
-- `matrix_log` still throws `NotImplemented` (PyTorch has no `torch.linalg.matrix_log`;
-  numpy uses SciPy `logm`). `matrix_exp` uses `torch::linalg_matrix_exp`.

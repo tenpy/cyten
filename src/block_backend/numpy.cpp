@@ -1168,15 +1168,6 @@ NumpyBlockBackend::matrix_exp(const BlockCPtr& matrix)
     return wrap(py::module_::import("scipy.linalg").attr("expm")(obj(matrix)));
 }
 
-BlockPtr
-NumpyBlockBackend::matrix_log(const BlockCPtr& matrix)
-{
-    /* converted from following python code:
-     * return scipy.linalg.logm(matrix)
-     */
-    return wrap(py::module_::import("scipy.linalg").attr("logm")(obj(matrix)));
-}
-
 std::tuple<BlockPtr, BlockPtr>
 NumpyBlockBackend::matrix_qr(const BlockCPtr& a, bool full)
 {

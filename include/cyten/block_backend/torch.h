@@ -186,7 +186,6 @@ class TorchBlockBackend : public BlockBackend
     Scalar get_block_element(const BlockCPtr& a, const std::vector<int64>& idcs) override;
     BlockPtr matrix_dot(const BlockCPtr& a, const BlockCPtr& b) override;
     BlockPtr matrix_exp(const BlockCPtr& matrix) override;
-    BlockPtr matrix_log(const BlockCPtr& matrix) override;
     std::tuple<BlockPtr, BlockPtr> matrix_qr(const BlockCPtr& a, bool full) override;
     std::tuple<BlockPtr, BlockPtr, BlockPtr> matrix_svd(
       const BlockCPtr& a,

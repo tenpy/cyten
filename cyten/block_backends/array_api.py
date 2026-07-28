@@ -186,9 +186,6 @@ class ArrayApiBlockBackend(BlockBackend):
     def matrix_exp(self, matrix: Block) -> Block:
         raise NotImplementedError(f'{self} does not support matrix_exp.')
 
-    def matrix_log(self, matrix: Block) -> Block:
-        raise NotImplementedError(f'{self} does not support matrix_log.')
-
     def random_uniform(self, dims: list[int], dtype: Dtype, device: str = None) -> Block:
         # API does not specify random generation, so we generate in numpy and convert
         res = np.random.uniform(-1, 1, size=dims)

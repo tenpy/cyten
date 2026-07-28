@@ -1232,12 +1232,6 @@ TorchBlockBackend::matrix_exp(const BlockCPtr& matrix)
     return wrap(torch::linalg_matrix_exp(tens(matrix)));
 }
 
-BlockPtr
-TorchBlockBackend::matrix_log(const BlockCPtr& /*matrix*/)
-{
-    throw NotImplemented("TorchBlockBackend does not support matrix_log yet.");
-}
-
 std::tuple<BlockPtr, BlockPtr>
 TorchBlockBackend::matrix_qr(const BlockCPtr& a, bool full)
 {
