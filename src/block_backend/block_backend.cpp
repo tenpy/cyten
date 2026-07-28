@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <memory>
 #include <numeric>
+#include <ostream>
 #include <sstream>
 #include <stdexcept>
 
@@ -1005,6 +1006,32 @@ BlockPtr
 operator>=(float64 left, const BlockBackend::Block& right)
 {
     return right.get_backend()->as_scalar(left) >= right;
+}
+
+std::ostream&
+operator<<(std::ostream& os, const BlockBackend::Block& block)
+{
+    // Metadata header, then the dense array contents (via numpy stringification).
+    os << "Block(shape=(";
+    const std::vector<int64> shape = block.shape();
+    for (std::size_t i = 0; i < shape.size(); ++i) {
+        if (i > 0)
+            os << ", ";
+        os << shape[i];
+    }
+    if (shape.size() == 1)
+        os << ',';
+    os << "), dtype=" << dtype::repr(block.dtype()) << ", device=" << block.device() << ")\n";
+    os << py::str(block.to_numpy()).cast<std::string>();
+    return os;
+}
+
+std::ostream&
+operator<<(std::ostream& os, const BlockBackend::Scalar& scalar)
+{
+    os << "Scalar(" << py::str(scalar.to_numpy()).cast<std::string>()
+       << ", dtype=" << dtype::repr(scalar.dtype()) << ')';
+    return os;
 }
 
 } // namespace cyten

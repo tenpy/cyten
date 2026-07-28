@@ -2,6 +2,7 @@
 
 #include <cyten/block_backend/dtypes.h>
 #include <cyten/cyten.h>
+#include <iosfwd>
 #include <memory>
 #include <optional>
 #include <string>
@@ -477,5 +478,8 @@ BlockPtr operator<(float64 left, const BlockBackend::Block& right);
 BlockPtr operator>(float64 left, const BlockBackend::Block& right);
 BlockPtr operator<=(float64 left, const BlockBackend::Block& right);
 BlockPtr operator>=(float64 left, const BlockBackend::Block& right);
+
+std::ostream& operator<<(std::ostream& os, const BlockBackend::Block& block);
+std::ostream& operator<<(std::ostream& os, const BlockBackend::Scalar& scalar);
 
 } // namespace cyten

@@ -1,8 +1,8 @@
 #include "../py_cyten_pybind11.h"
+#include "py_array_api.cpp"
 #include "py_dtypes.cpp"
 #include "py_numpy.cpp"
 #include "py_torch.cpp"
-#include "py_array_api.cpp"
 #include "py_trampolines.hpp"
 
 #include <cyten/block_backend/array_api.h>
@@ -10,6 +10,7 @@
 #include <cyten/block_backend/numpy.h>
 #include <cyten/block_backend/torch.h>
 #include <pybind11/detail/common.h>
+#include <sstream>
 
 namespace cyten {
 
@@ -323,7 +324,23 @@ bind_block_backend(py::module_& m)
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"),
-                  "Load block from HDF5 (subclass must implement).");
+                  "Load block from HDF5 (subclass must implement).")
+      .def(
+        "__str__",
+        [](const BlockBackend::Block& self) {
+            std::ostringstream oss;
+            oss << self;
+            return oss.str();
+        },
+        "String representation of the block.")
+      .def(
+        "__repr__",
+        [](const BlockBackend::Block& self) {
+            std::ostringstream oss;
+            oss << self;
+            return oss.str();
+        },
+        "String representation of the block.");
 
     py::class_<BlockBackend::Scalar, py::smart_holder>(
       block_backend,
@@ -333,6 +350,22 @@ bind_block_backend(py::module_& m)
            py::arg("block"),
            "Construct from a 0-d block (ndim == 0). Raises if block is null or ndim != 0.")
       .def_property_readonly("dtype", &BlockBackend::Scalar::dtype)
+      .def(
+        "__str__",
+        [](const BlockBackend::Scalar& self) {
+            std::ostringstream oss;
+            oss << self;
+            return oss.str();
+        },
+        "String representation of the scalar.")
+      .def(
+        "__repr__",
+        [](const BlockBackend::Scalar& self) {
+            std::ostringstream oss;
+            oss << self;
+            return oss.str();
+        },
+        "String representation of the scalar.")
       .def("as_float64",
            &BlockBackend::Scalar::as_float64,
            "As float; raises if dtype is not Float32/Float64.")
