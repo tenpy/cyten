@@ -2166,7 +2166,7 @@ class DiagonalTensor(SymmetricTensor):
     def elementwise_almost_equal(self, other: DiagonalTensor, rtol: float = 1e-5, atol=1e-8) -> DiagonalTensor:
         other = other.as_DiagonalTensor()
         # no (Scalar + Block) operation defined, so requires explicit casting
-        ones = DiagonalTensor.from_eye(self.leg, self.backend, self.labels, self.dtype, self.device)
+        ones = DiagonalTensor.from_eye(self.leg, self.backend, self.labels, self.dtype.to_real, self.device)
         return abs(self - other) <= (atol * ones + rtol * abs(self))
 
     def _elementwise_binary(

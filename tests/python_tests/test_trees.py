@@ -443,9 +443,9 @@ def random_trees_from_uncoupled(symmetry, uncoupled, np_random, are_dual=None) -
 def tree_superposition_as_block(superposition, backend, dtype=None) -> Block:
     for i, (tree, amp) in enumerate(superposition.items()):
         if i == 0:
-            res = amp * tree.to_dense_block(understood_braiding=True, dtype=dtype)
+            res = amp * tree.to_dense_block(backend, understood_braiding=True, dtype=dtype)
         else:
-            res += amp * tree.to_dense_block(understood_braiding=True, dtype=dtype)
+            res += amp * tree.to_dense_block(backend, understood_braiding=True, dtype=dtype)
     return res
 
 

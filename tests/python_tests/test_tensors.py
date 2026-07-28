@@ -1902,10 +1902,13 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
     'cls, op, dtype',
     [
         pytest.param(DiagonalTensor, operator.add, Dtype.complex128, id='+'),
-        pytest.param(DiagonalTensor, operator.ge, Dtype.bool, id='>='),
-        pytest.param(DiagonalTensor, operator.gt, Dtype.bool, id='>'),
-        pytest.param(DiagonalTensor, operator.le, Dtype.bool, id='<='),
-        pytest.param(DiagonalTensor, operator.lt, Dtype.bool, id='<'),
+        pytest.param(DiagonalTensor, operator.ge, Dtype.float64, id='>='),
+        pytest.param(DiagonalTensor, operator.gt, Dtype.float64, id='>'),
+        pytest.param(DiagonalTensor, operator.le, Dtype.float64, id='<='),
+        pytest.param(DiagonalTensor, operator.lt, Dtype.float64, id='<'),
+        pytest.param(
+            DiagonalTensor, operator.le, Dtype.bool, id='<='
+        ),  # this implicitly checks diagonal_as_numpy() for bool
         pytest.param(DiagonalTensor, operator.mul, Dtype.complex128, id='*'),
         pytest.param(DiagonalTensor, operator.pow, Dtype.complex128, id='**'),
         pytest.param(DiagonalTensor, operator.sub, Dtype.complex128, id='-'),
@@ -1917,6 +1920,7 @@ def test_DiagonalTensor_elementwise_binary(cls, op, dtype, make_compatible_tenso
         dtype = Dtype.float64
         # complex exponentials t1**(r+i) = exp(np.log(t1)*(r+i)) have a high precision loss due to log,
         # making the "assert_almost_equal" fail in some cases
+        # hence make second tensor real
     t2: DiagonalTensor = make_compatible_tensor(domain=t1.domain, cls=cls, dtype=dtype)
     if dtype == Dtype.bool:
         scalar = bool(np_random.choice([True, False]))

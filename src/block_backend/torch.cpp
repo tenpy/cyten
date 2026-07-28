@@ -860,7 +860,7 @@ TorchBlockBackend::get_diagonal(const BlockCPtr& a, std::optional<float64> tol)
     torch::Tensor t = tens(a);
     torch::Tensor res = torch::diagonal(t);
     if (tol) {
-        if (!torch::allclose(res, torch::diag(res), /*rtol=*/0.0, /*atol=*/*tol))
+        if (!torch::allclose(t, torch::diag(res), /*rtol=*/0.0, /*atol=*/*tol))
             throw std::invalid_argument("Not a diagonal block.");
     }
     return wrap(std::move(res));
@@ -969,8 +969,15 @@ TorchBlockBackend::norm(const BlockCPtr& a, float64 order, std::optional<int64> 
 BlockPtr
 TorchBlockBackend::outer(const BlockCPtr& a, const BlockCPtr& b)
 {
-    auto [aa, bb] = to_same_dtype(tens(a), tens(b), torch::kHalf);
-    return wrap(torch::tensordot(aa, bb, std::vector<int64_t>{}, std::vector<int64_t>{}));
+    // torch::tensordot(..., dims=([], [])) uses addmm and does not support Bool.
+    // Broadcasted multiply matches tensordot for all dtypes, including bool.
+    auto [aa, bb] = to_same_dtype(tens(a), tens(b));
+    std::vector<int64_t> a_view = aa.sizes().vec();
+    a_view.insert(a_view.end(), bb.dim(), 1);
+    std::vector<int64_t> b_view(aa.dim(), 1);
+    auto b_sizes = bb.sizes().vec();
+    b_view.insert(b_view.end(), b_sizes.begin(), b_sizes.end());
+    return wrap(aa.reshape(a_view) * bb.reshape(b_view));
 }
 
 BlockPtr
