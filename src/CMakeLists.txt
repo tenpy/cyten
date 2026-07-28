@@ -4,6 +4,7 @@
 
 target_sources(cyten
   PRIVATE
+  block_backend/array_api.cpp
   block_backend/block_backend.cpp
   block_backend/dtypes.cpp
   block_backend/numpy.cpp
