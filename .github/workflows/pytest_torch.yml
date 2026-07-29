@@ -19,26 +19,25 @@ jobs:
     env:
       # make pytest output in color
       PY_COLORS: 1
+    defaults:
+      run:
+        # needed so micromamba activation from setup-micromamba takes effect
+        shell: bash -el {0}
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Set up Python 3.14
-      uses: actions/setup-python@v5
+    - name: Set up micromamba
+      uses: mamba-org/setup-micromamba@v3
       with:
-        python-version: "3.14"
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install --upgrade setuptools build
+        environment-file: environment.yml
+        cache-environment: true
 
     - name: Build and install
-      # also installs extra dependencies defined in pyproject.toml
+      # build deps (pybind11, scikit-build-core, cmake, ...) come from environment.yml
       run: |
-        python -m build .
-        python -m pip install -e ".[test, gpu]"
+        pip install --no-build-isolation -e .
 
     - name: Run pytest
       # configuration in pyproject.toml
