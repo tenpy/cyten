@@ -3,7 +3,8 @@ Installation instructions
 
 .. todo ::
    This doesn't work yet, we still need to set this up, once we have the first (beta) release.
-   Meanwhile, just do a `pip install .` from the top folder of the repo.
+   Meanwhile, install the build requirements (including PyTorch; see below) and run
+   ``pip install --no-build-isolation .`` from the top folder of the repo.
 
 With the `conda package manager <https://docs.conda.io>`_ you can install python with::
 
@@ -21,24 +22,29 @@ To build cyten locally on your machine, install the following requirements
 
 - C++ compiler with at least C++17 standard  (can be installed manually with `conda install -c conda-forge compilers` if needed)
 - CMake, make
-- Python >= 3.12, with numpy>=2.0, scipy and a few other python packages as listed `environment.yml`
+- Python >= 3.12, with numpy>=2.0, scipy and a few other python packages as listed in `environment.yml`
+- **PyTorch** (``torch`` / conda-forge ``pytorch``): required at build and runtime.
+  CMake finds libtorch via ``torch.utils.cmake_prefix_path`` and links ``cyten._core`` against
+  the same shared libraries as ``import torch``, so PyTorch must be installed in the build
+  environment before compiling.
 - scikit-build
 
-The easiest way to install all of those is to create a conda envrironment from the `environment.yml` to install all requirements
-and then pip install the package (use `docs/environment.yml` if you plan to build the documentation as well):
+The easiest way to install all of those is to create a conda environment from the `environment.yml`
+(which includes PyTorch) and then pip-install the package
+(use `docs/environment.yml` if you plan to build the documentation as well)::
 
-```
-conda env create -f environment.yml -n cyten
-conda activate cyten
-conda install -c conda-forge _openmp_mutex=*=*_llvm # on Linux/WSL only
-conda install -c conda-forge llvm-openmp # on MacOS only
-pip install -v .
-```
+    conda env create -f environment.yml -n cyten
+    conda activate cyten
+    conda install -c conda-forge _openmp_mutex=*=*_llvm # on Linux/WSL only
+    conda install -c conda-forge llvm-openmp # on MacOS only
+    pip install -v --no-build-isolation .
+
+Use ``--no-build-isolation`` so the build sees the conda-installed PyTorch (and other build
+deps) instead of resolving them in an isolated pip environment.
 
 If needed, you can add defines for the CMake build as options to pip, e.g. `pip install -v -C cmake.define.=ON .`.
 
 
-For a debug build, you can even enable automatic rebuild upon python import:
-```
-pip install -v --no-build-isolation -C editable.rebuild=true -e .
-```
+For a debug build, you can even enable automatic rebuild upon python import::
+
+    pip install -v --no-build-isolation -C editable.rebuild=true -e .

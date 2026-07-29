@@ -10,7 +10,7 @@ build:
   apt_packages:
     - graphviz
   tools:
-    python: "3.11"
+    python: "3.12"
 
 
 # Build documentation in the doc/ directory with Sphinx
