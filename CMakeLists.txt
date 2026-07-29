@@ -95,7 +95,16 @@ cmake_print_variables(TORCH_LIBRARIES)
 
 add_library(cyten STATIC)
 set_property(TARGET cyten PROPERTY C_VISIBILITY_PRESET hidden)
+set_property(TARGET cyten PROPERTY CXX_VISIBILITY_PRESET hidden)
 set_property(TARGET cyten PROPERTY VISIBILITY_INLINES_HIDDEN ON)
+# CXX_VISIBILITY_PRESET is ignored for STATIC libraries; pybind11 still needs
+# -fvisibility=hidden on every TU that includes pybind types (see FAQ:
+# "'SomeClass' declared with greater visibility than the type of its field").
+# pybind11_add_module(_core) already adds the flag; cyten must get it explicitly.
+target_compile_options(cyten PRIVATE
+  $<$<COMPILE_LANGUAGE:C>:-fvisibility=hidden>
+  $<$<COMPILE_LANGUAGE:CXX>:-fvisibility=hidden>
+)
 
 target_include_directories(cyten
   PRIVATE
