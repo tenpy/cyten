@@ -8,7 +8,7 @@ it is easier to have it live in the cyten repo...
 # Copyright (C) TeNPy Developers, Apache license
 from collections.abc import Sequence
 from functools import partial
-from typing import Protocol, TypeAlias
+from typing import Protocol
 
 import numpy as np
 
@@ -26,7 +26,7 @@ class CouplingFactory(Protocol):
     ): ...
 
 
-CouplingLike: TypeAlias = SymmetricTensor | Coupling | CouplingFactory
+type CouplingLike = SymmetricTensor | Coupling | CouplingFactory
 
 
 class CouplingModel:

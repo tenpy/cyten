@@ -12,7 +12,6 @@ from abc import ABCMeta, abstractmethod
 from collections.abc import Sequence
 from math import exp as math_exp
 from numbers import Integral, Number
-from typing import TypeVar
 
 import numpy as np
 
@@ -3685,9 +3684,6 @@ class ChargedTensor(Tensor):
         return obj
 
 
-_ElementwiseType = TypeVar('_ElementwiseType', Number, DiagonalTensor)
-
-
 def _elementwise_function(block_func: str, func_kwargs={}, maps_zero_to_zero=False):
     """Decorator factory used to define elementwise functions.
 
@@ -3916,7 +3912,7 @@ def add_trivial_leg(
 
 
 @_elementwise_function(block_func='angle', maps_zero_to_zero=True)
-def angle(x: _ElementwiseType) -> _ElementwiseType:
+def angle[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """The angle of a complex number, :ref:`elementwise <diagonal_elementwise>`.
 
     The counterclockwise angle from the positive real axis on the complex plane in the
@@ -4465,7 +4461,9 @@ def combine_to_matrix(
 
 
 @_elementwise_function(block_func='cutoff_inverse', maps_zero_to_zero=True)
-def cutoff_inverse(x: _ElementwiseType, cutoff: float = 1e-15) -> _ElementwiseType:
+def cutoff_inverse[ElementwiseType: (Number, DiagonalTensor)](
+    x: ElementwiseType, cutoff: float = 1e-15
+) -> ElementwiseType:
     """The :ref:`elementwise <diagonal_elementwise>` cutoff inverse.
 
     The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, otherwise ``0``.
@@ -4476,7 +4474,7 @@ def cutoff_inverse(x: _ElementwiseType, cutoff: float = 1e-15) -> _ElementwiseTy
 
 
 @_elementwise_function(block_func='conj', maps_zero_to_zero=True)
-def complex_conj(x: _ElementwiseType) -> _ElementwiseType:
+def complex_conj[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """Complex conjugation, :ref:`elementwise <diagonal_elementwise>`."""
     return np.conj(x)
 
@@ -4932,7 +4930,7 @@ def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') 
 
 
 @_elementwise_function(block_func='imag', maps_zero_to_zero=True)
-def imag(x: _ElementwiseType) -> _ElementwiseType:
+def imag[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.imag(x)
 
@@ -5874,13 +5872,13 @@ def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
 
 
 @_elementwise_function(block_func='real', maps_zero_to_zero=True)
-def real(x: _ElementwiseType) -> _ElementwiseType:
+def real[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """The real part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.real(x)
 
 
 @_elementwise_function(block_func='real_if_close', func_kwargs=dict(tol=100), maps_zero_to_zero=True)
-def real_if_close(x: _ElementwiseType, tol: float = 100) -> _ElementwiseType:
+def real_if_close[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType, tol: float = 100) -> ElementwiseType:
     """If close to real, return the :func:`real` part, :ref:`elementwise <diagonal_elementwise>`.
 
     Parameters
@@ -6146,7 +6144,7 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
 
 
 @_elementwise_function(block_func='sqrt', maps_zero_to_zero=True)
-def sqrt(x: _ElementwiseType) -> _ElementwiseType:
+def sqrt[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """The square root of a number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.sqrt(x)
 
@@ -6205,7 +6203,7 @@ def squeeze_legs(tensor: Tensor, legs: int | str | list[int | str] = None) -> Te
 
 
 @_elementwise_function(block_func='stable_log', func_kwargs=dict(cutoff=1e-30), maps_zero_to_zero=True)
-def stable_log(x: _ElementwiseType, cutoff=1e-30) -> _ElementwiseType:
+def stable_log[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType, cutoff=1e-30) -> ElementwiseType:
     """Stabilized logarithm, :ref:`elementwise <diagonal_elementwise>`.
 
     For values ``> cutoff``, this is the standard natural logarithm. For values smaller than the
@@ -6989,9 +6987,6 @@ def zero_like(tensor: Tensor) -> Tensor:
 
 
 # INTERNAL HELPER FUNCTIONS
-
-
-T = TypeVar('T')
 
 
 def _check_compatible_legs(legs1: Sequence[Leg], legs2: Sequence[Leg], expect_equal: bool = True):

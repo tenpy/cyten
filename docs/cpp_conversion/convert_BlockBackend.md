@@ -25,6 +25,7 @@ Python wiring:
 ```python
 # cyten/block_backends/__init__.py
 from .._core import BlockBackend, NumpyBlockBackend
+
 Block = BlockBackend.BlockCls
 Scalar = BlockBackend.Scalar
 ```

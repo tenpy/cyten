@@ -3,7 +3,6 @@
 
 import warnings
 from collections.abc import Generator, Sequence
-from typing import TypeVar
 
 import numpy as np
 
@@ -14,11 +13,10 @@ from .._core import (
 )
 
 UNSPECIFIED = object()  # sentinel, also used elsewhere
-_T = TypeVar('_T')  # used in typing some functions
 _MAX_INT = np.iinfo(int).max
 
 
-def duplicate_entries(seq: Sequence[_T], ignore: Sequence[_T] = []) -> set[_T]:
+def duplicate_entries[T](seq: Sequence[T], ignore: Sequence[T] = []) -> set[T]:
     """The duplicate entries in a sequence, with exceptions from `ignore`."""
     return set(ele for idx, ele in enumerate(seq) if ele in seq[idx + 1 :] and ele not in ignore)
 
