@@ -1,5 +1,6 @@
 #include <cyten/tools.h>
 
+#include <format>
 #include <pybind11/numpy.h>
 
 namespace cyten {

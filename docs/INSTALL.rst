@@ -27,6 +27,11 @@ To build cyten locally on your machine, install the following requirements
   CMake finds libtorch via ``torch.utils.cmake_prefix_path`` and links ``cyten._core`` against
   the same shared libraries as ``import torch``, so PyTorch must be installed in the build
   environment before compiling.
+  Avoid a plain isolated ``pip install pytorch`` against PyPI ``torch`` on machines without the
+  CUDA toolkit: the default Linux wheels are CUDA-enabled and CMake's ``find_package(Torch)``
+  then fails looking for CUDA.
+  Prefer conda-forge ``pytorch`` (CPU) or install a CPU wheel, e.g.
+  ``pip install torch --index-url https://download.pytorch.org/whl/cpu``.
 - scikit-build
 
 The easiest way to install all of those is to create a conda environment from the `environment.yml`
