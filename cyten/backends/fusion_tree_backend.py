@@ -88,7 +88,7 @@ from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
-from ..block_backends import Block, BlockBackend
+from ..block_backends import Block, BlockBackend, Scalar
 from ..block_backends.dtypes import Dtype
 from ..symmetries import (
     BraidChiralityUnspecifiedError,
@@ -117,6 +117,7 @@ from ._backend import Data, DiagonalData, MaskData, TensorBackend, conventional_
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
     # this clause allows mypy etc to evaluate the type-hints anyway
+    from ..block_backends import BlockBackend
     from ..tensors import DiagonalTensor, Mask, SymmetricTensor
 
 
@@ -223,7 +224,7 @@ class FusionTreeData:
     def save_hdf5(self, hdf5_saver, h5gr, subpath):
         hdf5_saver.save(self.block_inds, subpath + 'block_inds')
         hdf5_saver.save(self.blocks, subpath + 'blocks')
-        hdf5_saver.save(self.dtype.to_numpy_dtype(), subpath + 'dtype')
+        hdf5_saver.save(self.dtype, subpath + 'dtype')
         hdf5_saver.save(self.device, subpath + 'device')
 
     @classmethod
@@ -234,8 +235,7 @@ class FusionTreeData:
         obj.block_inds = hdf5_loader.load(subpath + 'block_inds')
         obj.blocks = hdf5_loader.load(subpath + 'blocks')
         obj.device = hdf5_loader.load(subpath + 'device')
-        dt = hdf5_loader.load(subpath + 'dtype')
-        obj.dtype = Dtype.from_numpy_dtype(dt)
+        obj.dtype = hdf5_loader.load(subpath + 'dtype')
 
         return obj
 
@@ -311,7 +311,7 @@ class FusionTreeBackend(TensorBackend):
             self.block_backend.test_block_sanity(
                 block, expect_shape=(expect_len,), expect_dtype=Dtype.bool, expect_device=a.device
             )
-            assert self.block_backend.sum_all(block) == expect_sum
+            assert self.block_backend.sum_all(block).as_int64() == expect_sum
 
     # ABSTRACT METHODS
 
@@ -485,11 +485,11 @@ class FusionTreeBackend(TensorBackend):
             device=a.data.device,
         )
 
-    def data_item(self, a: FusionTreeData) -> float | complex:
+    def data_item(self, a: FusionTreeData) -> Scalar:
         if len(a.blocks) > 1:
             raise RuntimeError('Inconsistent data.')
         if len(a.blocks) == 0:
-            return a.dtype.zero_scalar
+            return self.block_backend.as_scalar(a.dtype.zero_scalar)
         return self.block_backend.item(a.blocks[0])
 
     def diagonal_all(self, a: DiagonalTensor) -> bool:
@@ -497,10 +497,10 @@ class FusionTreeBackend(TensorBackend):
             # there are missing blocks. -> they contain False -> all(a) == False
             return False
         # now it is enough to check the existing blocks
-        return all(self.block_backend.block_all(b) for b in a.data.blocks)
+        return all(self.block_backend.all(b) for b in a.data.blocks)
 
     def diagonal_any(self, a: DiagonalTensor) -> bool:
-        return any(self.block_backend.block_any(b) for b in a.data.blocks)
+        return any(self.block_backend.any(b) for b in a.data.blocks)
 
     def diagonal_elementwise_binary(
         self, a: DiagonalTensor, b: DiagonalTensor, func, func_kwargs, partial_zero_is_zero: bool
@@ -614,10 +614,10 @@ class FusionTreeBackend(TensorBackend):
         blocks = [self.block_backend.get_diagonal(block, tol) for block in a.data.blocks]
         return FusionTreeData(a.data.block_inds, blocks, a.dtype, a.data.device, is_sorted=True)
 
-    def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
+    def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> BlockBackend.Scalar:
         return sum(
             (
-                a.domain.sector_qdims[bi] * self.block_backend.sum_all(block)
+                float(a.domain.sector_qdims[bi]) * self.block_backend.sum_all(block)
                 for bi, block in zip(a.data.block_inds[:, 0], a.data.blocks)
             ),
             a.dtype.zero_scalar,
@@ -652,7 +652,7 @@ class FusionTreeBackend(TensorBackend):
         # -> maybe need to do additional sorting if leg is dual
         is_sorted = not large_leg.is_dual
         for diag_block, diag_bi in zip(tens.data.blocks, tens.data.block_inds):
-            if not self.block_backend.block_any(diag_block):
+            if not self.block_backend.any(diag_block):
                 continue
             bi, _ = diag_bi
 
@@ -664,7 +664,7 @@ class FusionTreeBackend(TensorBackend):
             blocks.append(diag_block)
             codom_block_inds.append(bi)
             sectors.append(sector)
-            multiplicities.append(self.block_backend.sum_all(diag_block))
+            multiplicities.append(self.block_backend.sum_all(diag_block).as_int64())
             if basis_perm is not None:
                 dim = large_leg.symmetry.sector_dim(sector)
                 mask = np.tile(self.block_backend.to_numpy(diag_block, bool), dim)
@@ -838,7 +838,7 @@ class FusionTreeBackend(TensorBackend):
                     i1 += forest_block_height  # move down by one forest-block
                 i1 = 0  # reset to the top of the block
                 i2 += forest_block_width  # move right by one forest-block
-            block_norm = self.block_backend.norm(block, order=2)
+            block_norm = self.block_backend.norm(block, order=2).as_float64()
             if block_norm <= 1e-14:
                 continue
             block_inds.append([i, j])
@@ -850,7 +850,7 @@ class FusionTreeBackend(TensorBackend):
         # orthogonal, we have  ``norm(a) ** 2 = norm(a_sym) ** 2 + norm(a_rest) ** 2``.
         # thus ``abs_err = norm(a - a_sym) = norm(a_rest) = sqrt(norm(a) ** 2 - norm(a_sym) ** 2)``
         if tol is not None:
-            a_norm_sq = self.block_backend.norm(a, order=2) ** 2
+            a_norm_sq = self.block_backend.norm(a, order=2).as_float64() ** 2
             norm_diff_sq = a_norm_sq - norm_sq_projected
             abs_tol_sq = tol * tol * a_norm_sq
             if norm_diff_sq > abs_tol_sq > 0:
@@ -1104,17 +1104,17 @@ class FusionTreeBackend(TensorBackend):
         block = a.data.blocks[block_idx]
         return self.block_backend.get_block_element(block, [idx_within % multi])
 
-    def get_element_mask(self, a: Mask, idcs: list[int]) -> bool:
+    def get_element_mask(self, a: Mask, idcs: list[int]) -> Scalar:
         pos = np.array([l.parse_index(idx) for l, idx in zip(conventional_leg_order(a), idcs)])
         sector_idx = pos[1, 0]  # domain leg index
         sector = a.domain[0].sector_decomposition[sector_idx]
         if not all(sector == a.codomain[0].sector_decomposition[pos[0, 0]]):
-            return False
+            return self.block_backend.as_scalar(False)
         if a.domain[0].is_dual:
             sector_idx = a.domain.sector_decomposition_where(sector)
         block_idx = a.data.block_ind_from_domain_sector_ind(sector_idx)
         if block_idx is None:
-            return False
+            return self.block_backend.as_scalar(False)
         block = a.data.blocks[block_idx]
         if a.is_projection:
             small, large = pos[:, 1]
@@ -1124,7 +1124,7 @@ class FusionTreeBackend(TensorBackend):
             multi = a.small_leg.multiplicities[pos[1, 0]]
         return self.block_backend.get_block_mask_element(block, large, small, sum_block=multi)
 
-    def inner(self, a: SymmetricTensor, b: SymmetricTensor, do_dagger: bool) -> float | complex:
+    def inner(self, a: SymmetricTensor, b: SymmetricTensor, do_dagger: bool) -> Scalar:
         a_blocks = a.data.blocks
         a_codomain_qdims = a.codomain.sector_qdims
         b_blocks = b.data.blocks
@@ -1135,7 +1135,7 @@ class FusionTreeBackend(TensorBackend):
         else:
             # need to math a.codomain == b.domain
             b_block_inds = b.data.block_inds[:, 1]
-        res = a.dtype.zero_scalar * b.dtype.zero_scalar
+        res = self.block_backend.as_scalar(a.dtype.zero_scalar, dtype=a.dtype)
         for i, j in iter_common_sorted(a_codomain_block_inds, b_block_inds):
             inn = self.block_backend.inner(a_blocks[i], b_blocks[j], do_dagger=do_dagger)
             res += a_codomain_qdims[a_codomain_block_inds[i]] * inn
@@ -1270,7 +1270,7 @@ class FusionTreeBackend(TensorBackend):
                 block2 = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
 
             new_block = func(block1, block2)
-            mult = self.block_backend.sum_all(new_block)
+            mult = self.block_backend.sum_all(new_block).as_int64()
             if mult == 0:
                 continue
             blocks.append(new_block)
@@ -1421,7 +1421,7 @@ class FusionTreeBackend(TensorBackend):
             )
         for bi_large, (slc, sector) in enumerate(zip(large_leg.slices, large_leg.defining_sectors)):
             block = a[slice(*slc)]
-            mult = self.block_backend.sum_all(block)
+            mult = self.block_backend.sum_all(block).as_int64()
             if mult == 0:
                 continue
             if not is_sorted:
@@ -1430,7 +1430,7 @@ class FusionTreeBackend(TensorBackend):
             dom_block_inds.append(bi_large)
             sectors.append(sector)
             dim = large_leg.symmetry.sector_dim(sector)
-            stop = int(len(block) // dim)
+            stop = int(block.shape[0] // dim)
             blocks.append(block[:stop])
             multiplicities.append(mult // dim)
             if basis_perm is not None:
@@ -1540,7 +1540,7 @@ class FusionTreeBackend(TensorBackend):
                 block = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
 
             new_block = func(block)
-            mult = self.block_backend.sum_all(new_block)
+            mult = self.block_backend.sum_all(new_block).as_int64()
             if mult == 0:
                 continue
             blocks.append(new_block)
@@ -1581,12 +1581,18 @@ class FusionTreeBackend(TensorBackend):
         a.data.device = self.block_backend.as_device(device)
         return a.data
 
-    def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
-        if a == 0.0:
+    def mul(self, a: float | complex | BlockBackend.Scalar, b: SymmetricTensor) -> Data:
+        if isinstance(a, self.block_backend.Scalar):
+            is_zero = a.as_complex128() == 0
+        else:
+            is_zero = a == 0
+        if is_zero:
             return self.zero_data(b.codomain, b.domain, b.dtype, device=b.data.device)
         blocks = [self.block_backend.mul(a, T) for T in b.data.blocks]
         if len(blocks) == 0:
-            if isinstance(a, float):
+            if isinstance(a, self.block_backend.Scalar):
+                dtype = b.data.dtype if a.dtype.is_real else b.data.dtype.to_complex
+            elif isinstance(a, float):
                 dtype = b.data.dtype
             else:
                 dtype = b.data.dtype.to_complex
@@ -1594,12 +1600,13 @@ class FusionTreeBackend(TensorBackend):
             dtype = self.block_backend.get_dtype(blocks[0])
         return FusionTreeData(b.data.block_inds, blocks, dtype, b.data.device)
 
-    def norm(self, a: SymmetricTensor | DiagonalTensor) -> float:
+    def norm(self, a: SymmetricTensor | DiagonalTensor) -> Scalar:
         # OPTIMIZE should we offer the square-norm instead?
-        norm_sq = 0
+        norm_sq = a.backend.block_backend.as_scalar(0, a.dtype.to_real)
         for i, block in zip(a.data.block_inds[:, 0], a.data.blocks):
-            norm_sq += a.codomain.sector_qdims[i] * (self.block_backend.norm(block) ** 2)
-        return np.sqrt(norm_sq).item()
+            norm_block = self.block_backend.norm(block)
+            norm_sq += a.codomain.sector_qdims[i] * (norm_block * norm_block)
+        return norm_sq.sqrt()
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         # idea: get the fusion trees in the combined (co)domain by inserting an identity
@@ -1625,7 +1632,7 @@ class FusionTreeBackend(TensorBackend):
                         if not all(new_codom_tree.coupled == new_dom_tree.coupled):
                             continue
                         codom_slc = new_codomain.tree_block_slice(new_codom_tree)
-                        factor = np.conj(codom_amp) * dom_amp
+                        factor = self.block_backend.as_scalar(np.conj(codom_amp) * dom_amp)
                         new_data.blocks[block_idx][codom_slc, dom_slc] += new_tree_block * factor
         new_data.discard_zero_blocks(self.block_backend, self.eps)
         return new_data
@@ -1726,7 +1733,8 @@ class FusionTreeBackend(TensorBackend):
                                     # TODO check if the complex conjugation here is correct or if we need to do it as
                                     # currently done in the codomain; check this when we have a symmetry with complex
                                     # F symbols and verify that the incorrect way actually has test cases failing
-                                    new_block[:, new_slc] += contribution * amp_old_tree * np.conj(amp_new_tree)
+                                    factor = self.block_backend.as_scalar(amp_old_tree * np.conj(amp_new_tree))
+                                    new_block[:, new_slc] += contribution * factor
                         else:
                             for old_tree, amp_old_tree in Y_b_trafo.items():
                                 old_slc = old_space.tree_block_slice(old_tree)
@@ -1741,7 +1749,8 @@ class FusionTreeBackend(TensorBackend):
                                     contribution = self.block_backend.reshape(
                                         contribution, (dummy_mults[0] * b_tree_block_shape[0] * dummy_mults[2], -1)
                                     )
-                                    new_block[new_slc, :] += contribution * np.conj(amp_old_tree) * amp_new_tree
+                                    factor = self.block_backend.as_scalar(np.conj(amp_old_tree) * amp_new_tree)
+                                    new_block[new_slc, :] += contribution * factor
             new_blocks.append(new_block)
 
         if len(new_block_inds) == 0:
@@ -1901,7 +1910,7 @@ class FusionTreeBackend(TensorBackend):
                 contribution = self.block_backend.trace_partial(old_block, tr_idcs1, tr_idcs2, remain_idcs)
                 new_shape = (new_codom_slc.stop - new_codom_slc.start, new_dom_slc.stop - new_dom_slc.start)
                 contribution = self.block_backend.reshape(contribution, new_shape)
-                contribution *= factor_codom * np.conj(factor_dom)
+                contribution *= self.block_backend.as_scalar(factor_codom * np.conj(factor_dom))
                 new_data.blocks[new_ind][new_codom_slc, new_dom_slc] += contribution
         new_data.discard_zero_blocks(self.block_backend, self.eps)
 
@@ -3339,8 +3348,7 @@ class TreePairMapping(TensorMapping):
             is_zero_block = True
             for X, idcs1, mults1, _ in new_codomain.iter_tree_blocks([coupled]):
                 for Y, idcs2, mults2, _ in new_domain.iter_tree_blocks([coupled]):
-                    tree_block = 0
-                    is_zero_tree_block = True
+                    tree_block = None
                     # note: we first add all contributions to the new tree block, and do the axes
                     #       permutation only once to the result
                     for (X_I, Y_I), self_I in self.mapping.items():
@@ -3351,11 +3359,14 @@ class TreePairMapping(TensorMapping):
                             # ie old block is not set / is zero
                             continue
                         old_block = data.blocks[which_block]
-                        is_zero_tree_block = False
                         i1 = codomain.tree_block_slice(X_I)  # OPTIMIZE cache these?
                         i2 = domain.tree_block_slice(Y_I)
-                        tree_block += self_I[X, Y] * old_block[i1, i2]
-                    if is_zero_tree_block:
+                        add_block = self_I[X, Y] * old_block[i1, i2]
+                        if tree_block is None:
+                            tree_block = add_block
+                        else:
+                            tree_block += add_block
+                    if tree_block is None:
                         continue
                     is_zero_block = False
                     #
@@ -3365,13 +3376,14 @@ class TreePairMapping(TensorMapping):
                     old_mults = [leg_mults[i] for i in inv_leg_perm]
                     #              0   1      J-1  J   J+1      J+K-1
                     # tree_block [m1, m2, ..., mJ, n1, n2, ..., nK]
-                    block[idcs1, idcs2] = block_backend.permute_combined_matrix(
+                    permuted = block_backend.permute_combined_matrix(
                         tree_block,
                         old_mults[:J],
                         tree_block_axes_1,
-                        reversed(old_mults[J:]),
+                        list(reversed(old_mults[J:])),
                         tree_block_axes_2,
                     )
+                    block[idcs1, idcs2] = permuted
             if is_zero_block:
                 continue
             block_inds.append([i, j])
@@ -3568,17 +3580,18 @@ class FactorizedTreeMapping(TensorMapping):
 
         is_zero = True
         for X2, idcs, mults, _ in new_codomain.iter_tree_blocks([coupled]):
-            tree_row = 0
-            is_zero_row = True
+            tree_row = None
             # note: we first add all contributions to the new rows, and then do the
             #       axes permutation only once to the result.
             for X, self_X in self.splitting_tree_mapping.items():
                 if X2 not in self_X:
                     continue
-                is_zero_row = False
                 i1 = codomain.tree_block_slice(X)
-                tree_row += self_X[X2] * old_block[i1, :]
-            if is_zero_row:
+                if tree_row is None:
+                    tree_row = self_X[X2] * old_block[i1, :]
+                else:
+                    tree_row += self_X[X2] * old_block[i1, :]
+            if tree_row is None:
                 continue
             is_zero = False
             mults_old_order = [mults[i] for i in inverse_permutation(tree_block_axes_1)]
@@ -3606,14 +3619,17 @@ class FactorizedTreeMapping(TensorMapping):
             return old_block, False
         is_zero_block = True
         for Y2, idcs, mults, _ in new_domain.iter_tree_blocks([coupled]):
-            tree_col = 0
+            tree_col = None
             is_zero_tree_col = True
             for Y, self_Y in self.fusion_tree_mapping.items():
                 if Y2 not in self_Y:
                     continue
-                is_zero_tree_col = False
                 i2 = domain.tree_block_slice(Y)
-                tree_col += self_Y[Y2] * old_block[:, i2]
+                if is_zero_tree_col:
+                    is_zero_tree_col = False
+                    tree_col = self_Y[Y2] * old_block[:, i2]
+                else:
+                    tree_col += self_Y[Y2] * old_block[:, i2]
             if is_zero_tree_col:
                 continue
             is_zero_block = False

@@ -37,7 +37,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy import ndarray
 
-from ..block_backends import Block
+from ..block_backends import Block, Scalar
 from ..block_backends.dtypes import Dtype
 from ..symmetries import (
     AbelianLegPipe,
@@ -65,6 +65,7 @@ from ._backend import Data, DiagonalData, MaskData, TensorBackend, conventional_
 if TYPE_CHECKING:
     # can not import Tensor at runtime, since it would be a circular import
     # this clause allows mypy etc to evaluate the type-hints anyway
+    from ..block_backends import BlockBackend
     from ..tensors import DiagonalTensor, Mask, SymmetricTensor
 
 
@@ -281,7 +282,7 @@ class AbelianBackend(TensorBackend):
             self.block_backend.test_block_sanity(
                 block, expect_shape=(expect_len,), expect_dtype=Dtype.bool, expect_device=data.device
             )
-            assert self.block_backend.sum_all(block) == expect_sum
+            assert self.block_backend.sum_all(block).as_int64() == expect_sum
 
     # OVERRIDES
 
@@ -701,7 +702,7 @@ class AbelianBackend(TensorBackend):
         block_inds = a.data.block_inds[:, ::-1]
         return AbelianBackendData(a.dtype, a.data.device, blocks=blocks, block_inds=block_inds)
 
-    def data_item(self, a: Data | DiagonalData) -> float | complex:
+    def data_item(self, a: Data | DiagonalData) -> Scalar:
         if len(a.blocks) > 1:
             raise RuntimeError('Inconsistent data.')
         if len(a.blocks) == 0:
@@ -713,10 +714,10 @@ class AbelianBackend(TensorBackend):
             # missing blocks are filled with False
             return False
         # now it is enough to check that all existing blocks are all-True
-        return all(self.block_backend.block_all(b) for b in a.data.blocks)
+        return all(self.block_backend.all(b) for b in a.data.blocks)
 
     def diagonal_any(self, a: DiagonalTensor) -> bool:
-        return any(self.block_backend.block_any(b) for b in a.data.blocks)
+        return any(self.block_backend.any(b) for b in a.data.blocks)
 
     def diagonal_elementwise_binary(
         self, a: DiagonalTensor, b: DiagonalTensor, func, func_kwargs, partial_zero_is_zero: bool
@@ -829,8 +830,8 @@ class AbelianBackend(TensorBackend):
         blocks = [self.block_backend.get_diagonal(block, tol) for block in a.data.blocks]
         return AbelianBackendData(a.dtype, a.data.device, blocks, a.data.block_inds, is_sorted=True)
 
-    def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> float | complex:
-        total_sum = a.data.dtype.zero_scalar
+    def diagonal_tensor_trace_full(self, a: DiagonalTensor) -> BlockBackend.Scalar:
+        total_sum = self.block_backend.as_scalar(0.0, dtype=a.dtype)
         for block in a.data.blocks:
             total_sum += self.block_backend.sum_all(block)
         return total_sum
@@ -850,14 +851,14 @@ class AbelianBackend(TensorBackend):
         multiplicities = []
         basis_perm_ranks = []
         for diag_block, diag_bi in zip(tens.data.blocks, tens.data.block_inds):
-            if not self.block_backend.block_any(diag_block):
+            if not self.block_backend.any(diag_block):
                 continue
             bi, _ = diag_bi
             #
             blocks.append(diag_block)
             large_leg_block_inds.append(bi)
             sectors.append(large_leg.defining_sectors[bi])
-            multiplicities.append(self.block_backend.sum_all(diag_block))
+            multiplicities.append(self.block_backend.sum_all(diag_block).as_int64())
             if basis_perm is not None:
                 mask = self.block_backend.to_numpy(diag_block, bool)
                 basis_perm_ranks.append(basis_perm[slice(*large_leg.slices[bi])][mask])
@@ -1095,32 +1096,32 @@ class AbelianBackend(TensorBackend):
     def get_dtype_from_data(self, a: AbelianBackendData) -> Dtype:
         return a.dtype
 
-    def get_element(self, a: SymmetricTensor, idcs: list[int]) -> complex | float | bool:
+    def get_element(self, a: SymmetricTensor, idcs: list[int]) -> Scalar:
         pos = np.array([l.parse_index(idx) for l, idx in zip(conventional_leg_order(a), idcs)])
         block = a.data.get_block(pos[:, 0])
         if block is None:
-            return a.dtype.zero_scalar
+            return self.block_backend.as_scalar(a.dtype.zero_scalar)
         return self.block_backend.get_block_element(block, pos[:, 1])
 
-    def get_element_diagonal(self, a: DiagonalTensor, idx: int) -> complex | float | bool:
+    def get_element_diagonal(self, a: DiagonalTensor, idx: int) -> Scalar:
         block_idx, idx_within = a.leg.parse_index(idx)
         block = a.data.get_block(np.array([block_idx, block_idx]))
         if block is None:
-            return a.dtype.zero_scalar
+            return self.block_backend.as_scalar(a.dtype.zero_scalar)
         return self.block_backend.get_block_element(block, [idx_within])
 
-    def get_element_mask(self, a: Mask, idcs: list[int]) -> bool:
+    def get_element_mask(self, a: Mask, idcs: list[int]) -> Scalar:
         pos = np.array([l.parse_index(idx) for l, idx in zip(conventional_leg_order(a), idcs)])
         block = a.data.get_block(pos[:, 0])
         if block is None:
-            return False
+            return self.block_backend.as_scalar(False, dtype=Dtype.bool)
         if a.is_projection:
             small, large = pos[:, 1]
         else:
             large, small = pos[:, 1]
         return self.block_backend.get_block_mask_element(block, large, small)
 
-    def inner(self, a: SymmetricTensor, b: SymmetricTensor, do_dagger: bool) -> float | complex:
+    def inner(self, a: SymmetricTensor, b: SymmetricTensor, do_dagger: bool) -> BlockBackend.Scalar:
         a_blocks = a.data.blocks
         b_blocks = b.data.blocks
         # F-style strides for block_inds -> preserve sorting
@@ -1134,7 +1135,7 @@ class AbelianBackend(TensorBackend):
             sort = np.argsort(b_block_inds)
             b_block_inds = b_block_inds[sort]
             b_blocks = [b_blocks[i] for i in sort]
-        res = 0.0
+        res = self.block_backend.as_scalar(0.0, dtype=a.dtype)
         for i, j in iter_common_sorted(a_block_inds, b_block_inds):
             res += self.block_backend.inner(a_blocks[i], b_blocks[j], do_dagger=do_dagger)
         return res
@@ -1287,7 +1288,7 @@ class AbelianBackend(TensorBackend):
             else:
                 block2 = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
             new_block = func(block1, block2)
-            mult = self.block_backend.sum_all(new_block)
+            mult = self.block_backend.sum_all(new_block).as_int64()
             if mult == 0:
                 continue
             blocks.append(new_block)
@@ -1408,7 +1409,7 @@ class AbelianBackend(TensorBackend):
         basis_perm_ranks = []
         for bi_large, (slc, sector) in enumerate(zip(large_leg.slices, large_leg.defining_sectors)):
             block = a[slice(*slc)]
-            mult = self.block_backend.sum_all(block)
+            mult = self.block_backend.sum_all(block).as_int64()
             if mult == 0:
                 continue
             blocks.append(block)
@@ -1496,7 +1497,7 @@ class AbelianBackend(TensorBackend):
             else:
                 block = self.block_backend.zeros([large_leg.multiplicities[sector_idx]], Dtype.bool)
             new_block = func(block)
-            mult = self.block_backend.sum_all(new_block)
+            mult = self.block_backend.sum_all(new_block).as_int64()
             if mult == 0:
                 continue
             blocks.append(new_block)
@@ -1534,12 +1535,18 @@ class AbelianBackend(TensorBackend):
         a.data.device = self.block_backend.as_device(device)
         return a.data
 
-    def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
-        if a == 0.0:
+    def mul(self, a: float | complex | BlockBackend.Scalar, b: SymmetricTensor) -> Data:
+        if isinstance(a, self.block_backend.Scalar):
+            is_zero = a.as_complex128() == 0
+        else:
+            is_zero = a == 0
+        if is_zero:
             return self.zero_data(b.codomain, b.domain, b.dtype, device=b.data.device)
         blocks = [self.block_backend.mul(a, T) for T in b.data.blocks]
         if len(blocks) == 0:
-            if isinstance(a, float):
+            if isinstance(a, self.block_backend.Scalar):
+                dtype = b.data.dtype if a.dtype.is_real else b.data.dtype.to_complex
+            elif isinstance(a, float):
                 dtype = b.data.dtype
             else:
                 dtype = b.data.dtype.to_complex
@@ -1547,9 +1554,11 @@ class AbelianBackend(TensorBackend):
             dtype = self.block_backend.get_dtype(blocks[0])
         return AbelianBackendData(dtype, b.data.device, blocks, b.data.block_inds, is_sorted=True)
 
-    def norm(self, a: SymmetricTensor | DiagonalTensor) -> float:
-        block_norms = [self.block_backend.norm(b, order=2) for b in a.data.blocks]
-        return float(np.linalg.norm(block_norms, ord=2))
+    def norm(self, a: SymmetricTensor | DiagonalTensor) -> Scalar:
+        block_norms = self.block_backend.zeros([len(a.data.blocks)], a.dtype)
+        for i, b in enumerate(a.data.blocks):
+            block_norms[i] = self.block_backend.norm(b, order=2)
+        return self.block_backend.norm(block_norms, order=2)
 
     def outer(self, a: SymmetricTensor, b: SymmetricTensor) -> Data:
         a_blocks = a.data.blocks
@@ -1773,7 +1782,7 @@ class AbelianBackend(TensorBackend):
         r_data = AbelianBackendData(a.dtype, a.data.device, r_blocks, r_block_inds, is_sorted=r_sorted)
         return q_data, r_data
 
-    def reduce_DiagonalTensor(self, tensor: DiagonalTensor, block_func, func) -> float | complex:
+    def reduce_DiagonalTensor(self, tensor: DiagonalTensor, block_func, func) -> Scalar:
         numbers = []
         block_inds = tensor.data.block_inds
         blocks = tensor.data.blocks
@@ -2045,11 +2054,11 @@ class AbelianBackend(TensorBackend):
         blocks = [self.block_backend.to_dtype(block, dtype) for block in a.data.blocks]
         return AbelianBackendData(dtype, a.data.device, blocks, a.data.block_inds, is_sorted=True)
 
-    def trace_full(self, a: SymmetricTensor) -> float | complex:
+    def trace_full(self, a: SymmetricTensor) -> Scalar:
         a_blocks = a.data.blocks
         a_block_inds = a.data.block_inds
         K = a.num_codomain_legs
-        res = a.data.dtype.zero_scalar
+        res = self.block_backend.as_scalar(a.data.dtype.zero_scalar)
         for block, bi in zip(a_blocks, a_block_inds):
             bi_cod = bi[:K]
             bi_dom = bi[K:]

@@ -1,0 +1,10 @@
+---
+# https://zed0.co.uk/clang-format-configurator/
+BasedOnStyle: Mozilla
+AlwaysBreakAfterReturnType: None
+ColumnLimit: 99
+IndentWidth: 4
+Language: Cpp
+TabWidth: 4
+UseTab: Never
+...

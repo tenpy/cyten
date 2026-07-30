@@ -62,7 +62,7 @@ class NoSymmetryBackend(TensorBackend):
         self.block_backend.test_block_sanity(
             a.data, expect_shape=(a.large_leg.dim,), expect_dtype=Dtype.bool, expect_device=a.device
         )
-        assert self.block_backend.sum_all(a.data) == a.small_leg.dim
+        assert self.block_backend.sum_all(a.data).as_int64() == a.small_leg.dim
 
     # ABSTRACT METHODS:
 
@@ -115,10 +115,10 @@ class NoSymmetryBackend(TensorBackend):
         return self.block_backend.item(a)
 
     def diagonal_all(self, a: DiagonalTensor) -> bool:
-        return self.block_backend.block_all(a.data)
+        return self.block_backend.all(a.data)
 
     def diagonal_any(self, a: DiagonalTensor) -> bool:
-        return self.block_backend.block_any(a.data)
+        return self.block_backend.any(a.data)
 
     def diagonal_elementwise_binary(
         self, a: DiagonalTensor, b: DiagonalTensor, func, func_kwargs, partial_zero_is_zero: bool
@@ -152,7 +152,7 @@ class NoSymmetryBackend(TensorBackend):
         if basis_perm is not None:
             basis_perm = rank_data(basis_perm[self.block_backend.to_numpy(data)])
         small_leg = ElementarySpace.from_trivial_sector(
-            dim=self.block_backend.sum_all(data),
+            dim=self.block_backend.sum_all(data).as_int64(),
             symmetry=large_leg.symmetry,
             is_dual=large_leg.is_dual,
             basis_perm=basis_perm,
@@ -296,9 +296,9 @@ class NoSymmetryBackend(TensorBackend):
         basis_perm = large_leg._basis_perm
         data = func(mask1.data, mask2.data)
         if basis_perm is not None:
-            basis_perm = rank_data(basis_perm[data])
+            basis_perm = rank_data(basis_perm[data.to_numpy()])
         small_leg = ElementarySpace.from_trivial_sector(
-            dim=self.block_backend.sum_all(data),
+            dim=self.block_backend.sum_all(data).as_int64(),
             symmetry=large_leg.symmetry,
             is_dual=large_leg.is_dual,
             basis_perm=basis_perm,
@@ -345,9 +345,9 @@ class NoSymmetryBackend(TensorBackend):
     def mask_from_block(self, a: Block, large_leg: Space) -> tuple[MaskData, ElementarySpace]:
         basis_perm = large_leg._basis_perm
         if basis_perm is not None:
-            basis_perm = rank_data(basis_perm[a])
+            basis_perm = rank_data(basis_perm[a.to_numpy()])
         small_leg = ElementarySpace.from_trivial_sector(
-            dim=self.block_backend.sum_all(a),
+            dim=self.block_backend.sum_all(a).as_int64(),
             symmetry=large_leg.symmetry,
             is_dual=large_leg.is_dual,
             basis_perm=basis_perm,
@@ -372,7 +372,7 @@ class NoSymmetryBackend(TensorBackend):
         if basis_perm is not None:
             basis_perm = rank_data(basis_perm[data])
         small_leg = ElementarySpace.from_trivial_sector(
-            dim=self.block_backend.sum_all(data),
+            dim=self.block_backend.sum_all(data).as_int64(),
             symmetry=large_leg.symmetry,
             is_dual=large_leg.is_dual,
             basis_perm=basis_perm,
@@ -382,7 +382,7 @@ class NoSymmetryBackend(TensorBackend):
     def move_to_device(self, a: SymmetricTensor | DiagonalTensor | Mask, device: str) -> Data:
         return self.block_backend.as_block(a.data, device=device)
 
-    def mul(self, a: float | complex, b: SymmetricTensor) -> Data:
+    def mul(self, a: float | complex | BlockBackend.Scalar, b: SymmetricTensor) -> Data:
         return self.block_backend.mul(a, b.data)
 
     def norm(self, a: SymmetricTensor | DiagonalTensor) -> float:

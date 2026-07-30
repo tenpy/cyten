@@ -123,13 +123,13 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
 
     # for groups: check versus explicit matrix representations
     if any_symmetry.can_be_dropped:
-        tree_np = tree.to_dense_block(understood_braiding=True)  # [a1 ... aj aj+1 ... aJ c]
+        tree_np = tree.to_dense_block(understood_braiding=True).to_numpy()  # [a1 ... aj aj+1 ... aJ c]
         swap = any_symmetry.swap_gate(tree.uncoupled[j], tree.uncoupled[j + 1])  # [aj+1 aj aj+1* aj*]
         expect = np.tensordot(tree_np, swap, ([j, j + 1], [1, 0]))  # [a1 ... aj-1 aj+2 ... aj c aj+1 aj]
         expect = np.transpose(
             expect, [*range(j), -2, -1, *range(j, num_uncoupled - 1)]
         )  # [a1 ... aj-1 aj+2 ... aj c aj+1 aj]
-        res = sum(a * t.to_dense_block(understood_braiding=True) for t, a in braided1)
+        res = sum(a * t.to_dense_block(understood_braiding=True).to_numpy() for t, a in braided1)
         npt.assert_almost_equal(res, expect)
 
     # check if opposite braid undoes it
@@ -181,8 +181,8 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
 
 
 def tree_pair_to_numpy(X: trees.FusionTree, Y: trees.FusionTree):
-    X = X.to_dense_block(understood_braiding=True).conj()  # [a1 ... aJ c]
-    Y = Y.to_dense_block(understood_braiding=True)  # [b1 ... bK c]
+    X = X.to_dense_block(understood_braiding=True).to_numpy().conj()  # [a1 ... aJ c]
+    Y = Y.to_dense_block(understood_braiding=True).to_numpy()  # [b1 ... bK c]
     Y = np.transpose(Y, list(reversed(range(Y.ndim))))  # [c bK .. b1]
     return np.tensordot(X, Y, (-1, 0))  # [a1 ... aJ bK ... b1]
 
@@ -443,9 +443,9 @@ def random_trees_from_uncoupled(symmetry, uncoupled, np_random, are_dual=None) -
 def tree_superposition_as_block(superposition, backend, dtype=None) -> Block:
     for i, (tree, amp) in enumerate(superposition.items()):
         if i == 0:
-            res = amp * tree.to_dense_block(understood_braiding=True, dtype=dtype)
+            res = amp * tree.to_dense_block(backend, understood_braiding=True, dtype=dtype)
         else:
-            res += amp * tree.to_dense_block(understood_braiding=True, dtype=dtype)
+            res += amp * tree.to_dense_block(backend, understood_braiding=True, dtype=dtype)
     return res
 
 

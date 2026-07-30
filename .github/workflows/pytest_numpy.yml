@@ -20,30 +20,33 @@ jobs:
     env:
       # make pytest output in color
       PY_COLORS: 1
+    defaults:
+      run:
+        # needed so micromamba activation from setup-micromamba takes effect
+        shell: bash -el {0}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.12", "3.13", "3.14"]
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+    - name: Set up micromamba
+      uses: mamba-org/setup-micromamba@v3
       with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install --upgrade setuptools build
+        environment-file: environment.yml
+        # pin Python from the matrix; other deps (incl. CPU pytorch) come from environment.yml
+        create-args: >-
+          python=${{ matrix.python-version }}
+        cache-environment: true
 
     - name: Build and install
-      # also installs extra dependencies defined in pyproject.toml
+      # build deps (pybind11, scikit-build-core, cmake, pytorch, ...) come from environment.yml
+      # --no-build-isolation avoids pip pulling a CUDA torch wheel that needs the CUDA toolkit
       run: |
-        python -m build .
-        python -m pip install -e ".[test]"
+        pip install --no-build-isolation -e ".[test]"
 
     - name: Run pytest
       # configuration in pyproject.toml

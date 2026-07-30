@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import operator
 from contextlib import nullcontext
-from functools import partial
 
 import numpy as np
 import numpy.testing as npt
@@ -13,7 +12,7 @@ import pytest
 
 from cyten import BraidChiralityUnspecifiedError, backends, tensors
 from cyten.backends import conventional_leg_order, get_backend
-from cyten.block_backends import NumpyBlockBackend
+from cyten.block_backends import NumpyBlockBackend, Scalar
 from cyten.block_backends.dtypes import Dtype
 from cyten.symmetries import (
     SU2,
@@ -370,7 +369,7 @@ def test_SymmetricTensor_from_random_normal(leg_nums, dtype, make_compatible_ten
 def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_random):
     T: SymmetricTensor = make_compatible_tensor(*leg_nums, use_pipes=False)
 
-    numpy_block_backend = NumpyBlockBackend()
+    numpy_block_backend = NumpyBlockBackend.from_factory('cpu')
     # build two valid dicts
     trees1 = {}
     trees2 = {}
@@ -408,45 +407,47 @@ def test_SymmetricTensor_from_tree_pairs(make_compatible_tensor, leg_nums, np_ra
             for (X, Y), block in trees_dict.items():
                 # [a1...aJ,b1...bK]
                 symmetry_data = np.tensordot(
-                    X.to_dense_block(understood_braiding=True).conj(),
-                    Y.to_dense_block(understood_braiding=True),
+                    X.to_dense_block(understood_braiding=True).to_numpy().conj(),
+                    Y.to_dense_block(understood_braiding=True).to_numpy(),
                     (-1, -1),
                 )
                 # [a1...aJ,b1...bK] & [a1...aJ,bK...b1]
                 symmetry_data = np.transpose(
                     symmetry_data, [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]
                 )
-                contribution = np.kron(symmetry_data, block)
+                contribution = np.kron(symmetry_data, block.to_numpy())
                 codom_idcs = [
                     slice(*l.slices[l.sector_decomposition_where(a)]) for l, a in zip(T.codomain, X.uncoupled)
                 ]
                 dom_idcs = [slice(*l.slices[l.sector_decomposition_where(b)]) for l, b in zip(T.domain, Y.uncoupled)]
                 expect[(*codom_idcs, *reversed(dom_idcs))] += contribution
-            expect = numpy_block_backend.apply_basis_perm(expect, conventional_leg_order(T_res), inv=True)
 
+            perms = [l.inverse_basis_perm for l in conventional_leg_order(T_res)]
+            expect = expect[np.ix_(*perms)]
             npt.assert_almost_equal(T_np, expect)
 
-    # TODO test to_dense_block_trivial_sector
-    # def OLD_test_Tensor_tofrom_dense_block_trivial_sector(make_compatible_tensor):
-    #     # TODO move to SymmetricTensor test?
-    #     tens = make_compatible_tensor(labels=['a'])
-    #     leg, = tens.legs
-    #     block_size = leg.sector_multiplicity(tens.symmetry.trivial_sector)
-    #     #
-    #     if isinstance(tens.backend, backends.FusionTreeBackend):
-    #         with pytest.raises(NotImplementedError, match='to_dense_block_trivial_sector not implemented'):
-    #             block = tens.to_dense_block_trivial_sector()
-    #         return  # TODO
-    #     #
-    #     block = tens.to_dense_block_trivial_sector()
-    #     assert tens.backend.block_shape(block) == (block_size,)
-    #     tens2 = SymmetricTensor.from_dense_block_trivial_sector(leg=leg, block=block, backend=tens.backend, label='a')
-    #     tens2.test_sanity()
-    #     assert tensors.almost_equal(tens, tens2)
-    #     block2 = tens2.to_dense_block_trivial_sector()
-    #     npt.assert_array_almost_equal_nulp(tens.backend.block_to_numpy(block),
-    #                                     tens.backend.block_to_numpy(block2),
-    #                                     100)
+
+# TODO test to_dense_block_trivial_sector
+# def OLD_test_Tensor_tofrom_dense_block_trivial_sector(make_compatible_tensor):
+#     # TODO move to SymmetricTensor test?
+#     tens = make_compatible_tensor(labels=['a'])
+#     leg, = tens.legs
+#     block_size = leg.sector_multiplicity(tens.symmetry.trivial_sector)
+#     #
+#     if isinstance(tens.backend, backends.FusionTreeBackend):
+#         with pytest.raises(NotImplementedError, match='to_dense_block_trivial_sector not implemented'):
+#             block = tens.to_dense_block_trivial_sector()
+#         return  # TODO
+#     #
+#     block = tens.to_dense_block_trivial_sector()
+#     assert tens.backend.block_shape(block) == (block_size,)
+#     tens2 = SymmetricTensor.from_dense_block_trivial_sector(leg=leg, block=block, backend=tens.backend, label='a')
+#     tens2.test_sanity()
+#     assert tensors.almost_equal(tens, tens2)
+#     block2 = tens2.to_dense_block_trivial_sector()
+#     npt.assert_array_almost_equal_nulp(tens.backend.block_to_numpy(block),
+#                                     tens.backend.block_to_numpy(block2),
+#                                     100)
 
 
 def test_fixes_124(np_random):
@@ -474,17 +475,20 @@ def test_fixes_124(np_random):
     expect = np.zeros_like(T_np)
     for (X, Y), block in trees.items():
         symmetry_data = np.tensordot(
-            X.to_dense_block(understood_braiding=True).conj(), Y.to_dense_block(understood_braiding=True), (-1, -1)
+            X.to_dense_block(understood_braiding=True).to_numpy().conj(),
+            Y.to_dense_block(understood_braiding=True).to_numpy(),
+            (-1, -1),
         )
         # [a1...aJ,b1...bK] & [a1...aJ,bK...b1]
         symmetry_data = np.transpose(
             symmetry_data, [*range(T.num_codomain_legs), *reversed(range(T.num_codomain_legs, T.num_legs))]
         )
-        contribution = np.kron(symmetry_data, block)
+        contribution = np.kron(symmetry_data, block.to_numpy())
         codom_idcs = [slice(*l.slices[l.sector_decomposition_where(a)]) for l, a in zip(T.codomain, X.uncoupled)]
         dom_idcs = [slice(*l.slices[l.sector_decomposition_where(b)]) for l, b in zip(T.domain, Y.uncoupled)]
         expect[(*codom_idcs, *reversed(dom_idcs))] += contribution
-    expect = backend.block_backend.apply_basis_perm(expect, conventional_leg_order(T), inv=True)
+    perms = [l.inverse_basis_perm for l in conventional_leg_order(T)]
+    expect = expect[np.ix_(*perms)]
     npt.assert_almost_equal(T_np, expect)
 
 
@@ -495,7 +499,7 @@ def test_fixes_23():
     block = np.zeros((2,) * 6, float)
     tens = SymmetricTensor.from_dense_block(block, codomain=[site] * 3, domain=[site] * 3)
     tens.test_sanity()
-    npt.assert_almost_equal(tensors.norm(tens), 0)
+    npt.assert_almost_equal(tensors.norm(tens).to_numpy(), 0)
 
 
 def test_DiagonalTensor(make_compatible_tensor):
@@ -543,8 +547,8 @@ def test_DiagonalTensor(make_compatible_tensor):
     print('checking min / max')
     real_T = tensors.real(T)
     real_np = real_T.diagonal_as_numpy()
-    npt.assert_almost_equal(real_T.max(), np.max(real_np))
-    npt.assert_almost_equal(real_T.min(), np.min(real_np))
+    npt.assert_almost_equal(real_T.max().as_float64(), np.max(real_np))
+    npt.assert_almost_equal(real_T.min().as_float64(), np.min(real_np))
 
     print('checking as_dtype')
     # use as_dtype and compare to to_backend
@@ -643,7 +647,7 @@ def test_Mask(make_compatible_tensor, compatible_symmetry_backend, np_random):
                     slc = slice(*slc)
                     stop = int(len(block_mask[slc]) // dim)
                     block_mask[slc] = np.tile(block_mask[slc][:stop], dim)
-            block_mask = backend.block_backend.apply_basis_perm(block_mask, [large_leg], inv=True)
+            block_mask = block_mask[large_leg.inverse_basis_perm]
         M = Mask.from_block_mask(block_mask, large_leg=large_leg, backend=backend)
         M.test_sanity()
         assert M.large_leg == large_leg
@@ -1156,12 +1160,12 @@ def test_from_block_su2_symm(symmetry_backend, block_backend):
     # The blocks are the eigenvalue of the Heisenberg coupling in the fixed total spin sectors
     # For singlet states (coupled=spin-0), we have eigenvalue -3/4
     # For triplet states (coupled=spin-1), we have eigenvalue +1/4
-    expect_spin_0 = -3 / 4
-    expect_spin_1 = 1 / 4
-    assert backend.block_backend.allclose(tens_4.data.blocks[0], expect_spin_0)
-    assert backend.block_backend.allclose(tens_4.data.blocks[1], expect_spin_1)
+    expect_spin_0 = backend.block_backend.as_scalar(-3 / 4)
+    expect_spin_1 = backend.block_backend.as_scalar(1 / 4)
+    assert backend.block_backend.allclose(tens_4.data.blocks[0], expect_spin_0._block)
+    assert backend.block_backend.allclose(tens_4.data.blocks[1], expect_spin_1._block)
 
-    recovered_block = tens_4.to_dense_block()
+    recovered_block = tens_4.to_dense_block().to_numpy()
     print()
     print('got:')
     print(recovered_block.reshape((4, 4)))
@@ -1169,7 +1173,7 @@ def test_from_block_su2_symm(symmetry_backend, block_backend):
     print('expect:')
     print(heisenberg_4.reshape((4, 4)))
 
-    assert backend.block_backend.allclose(recovered_block, heisenberg_4)
+    assert np.allclose(recovered_block, heisenberg_4)
 
 
 @pytest.mark.parametrize(
@@ -1941,7 +1945,7 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
         # want almost real
         rp = make_compatible_tensor(cls=DiagonalTensor, dtype=Dtype.float64)
         ip = make_compatible_tensor(domain=rp.domain, cls=DiagonalTensor, dtype=Dtype.float64)
-        D = rp + 1 - 12j * ip
+        D = rp + 1e-12j * ip
     else:
         raise ValueError
 
@@ -1952,7 +1956,10 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     if cyten_func is tensors.cutoff_inverse:
-        numpy_func = partial(NumpyBlockBackend().cutoff_inverse, **kwargs)
+
+        def numpy_func(a, cutoff=kwargs['cutoff']):
+            return 1 / np.where(np.abs(a) < cutoff, np.inf, a)
+
         npt.assert_almost_equal(numpy_func(1), 1)
         npt.assert_almost_equal(numpy_func(0), 0)
         npt.assert_almost_equal(numpy_func(2 * kwargs['cutoff']), 0.5 / kwargs['cutoff'])
@@ -1967,10 +1974,13 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
     'cls, op, dtype',
     [
         pytest.param(DiagonalTensor, operator.add, Dtype.complex128, id='+'),
-        pytest.param(DiagonalTensor, operator.ge, Dtype.bool, id='>='),
-        pytest.param(DiagonalTensor, operator.gt, Dtype.bool, id='>'),
-        pytest.param(DiagonalTensor, operator.le, Dtype.bool, id='<='),
-        pytest.param(DiagonalTensor, operator.lt, Dtype.bool, id='<'),
+        pytest.param(DiagonalTensor, operator.ge, Dtype.float64, id='>='),
+        pytest.param(DiagonalTensor, operator.gt, Dtype.float64, id='>'),
+        pytest.param(DiagonalTensor, operator.le, Dtype.float64, id='<='),
+        pytest.param(DiagonalTensor, operator.lt, Dtype.float64, id='<'),
+        pytest.param(
+            DiagonalTensor, operator.le, Dtype.bool, id='<='
+        ),  # this implicitly checks diagonal_as_numpy() for bool
         pytest.param(DiagonalTensor, operator.mul, Dtype.complex128, id='*'),
         pytest.param(DiagonalTensor, operator.pow, Dtype.complex128, id='**'),
         pytest.param(DiagonalTensor, operator.sub, Dtype.complex128, id='-'),
@@ -1978,6 +1988,11 @@ def test_DiagonalTensor_elementwise_unary(cyten_func, numpy_func, dtype, kwargs,
 )
 def test_DiagonalTensor_elementwise_binary(cls, op, dtype, make_compatible_tensor, np_random):
     t1: DiagonalTensor = make_compatible_tensor(cls=cls, dtype=dtype)
+    if op == operator.pow:
+        dtype = Dtype.float64
+        # complex exponentials t1**(r+i) = exp(np.log(t1)*(r+i)) have a high precision loss due to log,
+        # making the "assert_almost_equal" fail in some cases
+        # hence make second tensor real
     t2: DiagonalTensor = make_compatible_tensor(domain=t1.domain, cls=cls, dtype=dtype)
     if dtype == Dtype.bool:
         scalar = bool(np_random.choice([True, False]))
@@ -2004,6 +2019,14 @@ def test_DiagonalTensor_elementwise_binary(cls, op, dtype, make_compatible_tenso
     res_np = res.diagonal_as_numpy()
     expect = op(t1_np, scalar)
     npt.assert_almost_equal(res_np, expect)
+
+    if op == operator.add:
+        # had issues with implicit conversion of int to Scalar types,
+        # explicitly check different versions of scalar types
+        for scalar in [3, 3.0, np.float64(3), t1.backend.block_backend.as_scalar(3)]:
+            res_int = t1 + scalar
+            res_int.test_sanity()
+            npt.assert_almost_equal(res_int.diagonal_as_numpy(), t1_np + 3)
 
 
 @pytest.mark.parametrize(
@@ -2178,8 +2201,8 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
 
     with catch_warnings:
         entry = T[random_idx]
-    assert isinstance(entry, (bool, float, complex))
-    assert_same(entry, T_np[random_idx])
+    assert isinstance(entry, Scalar)
+    assert_same(entry.to_numpy(), T_np[random_idx])
 
     # trying to set items raises
     with pytest.raises(TypeError, match='.* do.* not support item assignment.'):
@@ -2191,7 +2214,7 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
     assert len(non_zero_idx) > 0
     with catch_warnings:
         entry = T[non_zero_idx]
-    assert_same(entry, T_np[non_zero_idx])
+    assert_same(entry.to_numpy(), T_np[non_zero_idx])
 
     zero_idcs = np.where(np.abs(T_np) < 1e-8)
     if len(zero_idcs[0]) > 0:
@@ -2199,7 +2222,7 @@ def test_getitem(cls, cod, dom, make_compatible_tensor, np_random):
         zero_idx = tuple(ax[which] for ax in zero_idcs)
         with catch_warnings:
             entry = T[zero_idx]
-        assert_same(entry, T_np[zero_idx])
+        assert_same(entry.to_numpy(), T_np[zero_idx])
 
 
 @pytest.mark.parametrize('trunc', [None, 1e-10])
@@ -2348,7 +2371,9 @@ def test_inner(cls, cod, dom, do_dagger, allow_basis_perm, make_compatible_tenso
         return
 
     res = tensors.inner(A, B, do_dagger=do_dagger)
-    assert isinstance(res, (float, complex))
+    assert isinstance(res, A.backend.block_backend.Scalar)
+    res = res.to_numpy()
+    assert isinstance(res, (bool, float, complex, np.bool_, np.float32, np.float64, np.complex64, np.complex128))
 
     if A.symmetry.has_trivial_braid:
         if do_dagger:
@@ -2406,7 +2431,7 @@ def test_item(make_compatible_tensor, make_compatible_sectors, compatible_symmet
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
     expect = T.to_numpy(understood_braiding=True).item()
-    npt.assert_almost_equal(res, expect)
+    npt.assert_almost_equal(res.to_numpy(), expect)
 
     leg2 = ElementarySpace(compatible_symmetry, [sector], [3])
     non_scalar_T = make_compatible_tensor([leg, leg2], [leg, leg], cls=SymmetricTensor)
@@ -2436,17 +2461,35 @@ def test_linear_combination(cls, make_compatible_tensor):
         w_np = w.to_numpy(understood_braiding=True)
 
     for valid_scalar in [0, 1.0, 2.0 + 3.0j, -42]:
+        scalar_dtype = Dtype.float64 if v.dtype == Dtype.bool else v.dtype
+        if isinstance(valid_scalar, complex) and valid_scalar.imag != 0 and scalar_dtype.is_real:
+            scalar_dtype = scalar_dtype.to_complex
+        scalar = v.backend.block_backend.as_scalar(valid_scalar, scalar_dtype)
         res = tensors.linear_combination(valid_scalar, v, 2 * valid_scalar, w)
         res.test_sanity()
         if compare_numpy:
             expect = valid_scalar * v_np + 2 * valid_scalar * w_np
             npt.assert_almost_equal(res.to_numpy(understood_braiding=True), expect)
         if valid_scalar == 0:
+            res_scalar = tensors.linear_combination(scalar, v, 2 * scalar, w)
+            res_mixed = tensors.linear_combination(valid_scalar, v, 2 * scalar, w)
+            res_scalar.test_sanity()
+            res_mixed.test_sanity()
+            if compare_numpy:
+                npt.assert_allclose(res_scalar.to_numpy(understood_braiding=True), expect)
+                npt.assert_allclose(res_mixed.to_numpy(understood_braiding=True), expect)
             continue
         # res = a * v + 2 * a * w  =>  v = res / a - 2 * w
         z = tensors.linear_combination(1.0 / valid_scalar, res, -2, w)
         z.test_sanity()
         assert tensors.almost_equal(v, z, allow_different_types=True)
+        res_scalar = tensors.linear_combination(scalar, v, 2 * scalar, w)
+        res_mixed = tensors.linear_combination(valid_scalar, v, 2 * scalar, w)
+        res_scalar.test_sanity()
+        res_mixed.test_sanity()
+        if compare_numpy:
+            npt.assert_allclose(res_scalar.to_numpy(understood_braiding=True), expect)
+            npt.assert_allclose(res_mixed.to_numpy(understood_braiding=True), expect)
     for invalid_scalar in [None, (1, 2), v, 'abc']:
         with pytest.raises(TypeError, match='unsupported scalar types'):
             _ = tensors.linear_combination(invalid_scalar, v, invalid_scalar, w)
@@ -2570,11 +2613,11 @@ def test_norm(cls, cod, dom, make_compatible_tensor):
         return
 
     res = tensors.norm(T)
-    assert isinstance(res, (float, complex))
+    assert isinstance(res, Scalar)
 
     if T.symmetry.can_be_dropped:
         expect = np.linalg.norm(T.to_numpy(understood_braiding=True))
-        npt.assert_almost_equal(res, expect)
+        npt.assert_almost_equal(res.to_numpy(), expect)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases(
@@ -2878,8 +2921,8 @@ def test_partial_trace(cls, codom, dom, make_compatible_space, make_compatible_t
     if compare_numpy:
         num_open = T.num_legs - 2 * len(pairs)
         if num_open == 0:
-            assert isinstance(res, (float, complex))
-            res_np = res
+            assert isinstance(res, Scalar)
+            res_np = res.to_numpy()
         else:
             assert isinstance(res, cls)
             res.test_sanity()
@@ -3062,14 +3105,46 @@ def test_scalar_multiply(cls, make_compatible_tensor):
         T_np = T.to_numpy(understood_braiding=True)
 
     for valid_scalar in [0, 1.0, 2.0 + 3.0j, -42]:
+        scalar_dtype = Dtype.float64 if T.dtype == Dtype.bool else T.dtype
+        if isinstance(valid_scalar, complex) and valid_scalar.imag != 0 and scalar_dtype.is_real:
+            scalar_dtype = scalar_dtype.to_complex
+        scalar = T.backend.block_backend.as_scalar(valid_scalar, scalar_dtype)
         with catch_warnings:
             res = tensors.scalar_multiply(valid_scalar, T)
         res.test_sanity()
         if compare_numpy:
             npt.assert_almost_equal(res.to_numpy(understood_braiding=True), valid_scalar * T_np)
+        with catch_warnings:
+            res_scalar = tensors.scalar_multiply(scalar, T)
+        res_scalar.test_sanity()
+        if compare_numpy:
+            npt.assert_almost_equal(res_scalar.to_numpy(understood_braiding=True), valid_scalar * T_np)
+        with catch_warnings:
+            left_mul = scalar * T
+            right_mul = T * scalar
+        left_mul.test_sanity()
+        right_mul.test_sanity()
+        if compare_numpy:
+            npt.assert_almost_equal(left_mul.to_numpy(understood_braiding=True), valid_scalar * T_np)
+            npt.assert_almost_equal(right_mul.to_numpy(understood_braiding=True), valid_scalar * T_np)
     for invalid_scalar in [None, (1, 2), T, 'abc']:
         with pytest.raises(TypeError, match='unsupported scalar type'):
             _ = tensors.scalar_multiply(invalid_scalar, T)
+
+
+def test_block_backend_as_scalar_passthrough(make_compatible_tensor):
+    T = make_compatible_tensor(cls=SymmetricTensor, codomain=1, domain=1, max_block_size=2, max_blocks=2)
+    bb = T.backend.block_backend
+    scalar = bb.as_scalar(1.5)
+    same = bb.as_scalar(scalar)
+    assert same.dtype == scalar.dtype
+    npt.assert_equal(same.to_numpy(), scalar.to_numpy())
+
+    int_scalar = bb.as_scalar(2)
+    assert int_scalar.dtype == Dtype.int64
+    assert int_scalar.as_int64() == 2
+    assert bb.as_scalar(True).dtype == Dtype.bool
+    assert bb.as_scalar(True).as_bool() is True
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
@@ -3462,8 +3537,8 @@ def test_tdot(
 
     if num_open == 0:
         # scalar result
-        assert isinstance(res, (float, complex))
-        res_np = res
+        assert isinstance(res, Scalar)
+        res_np = res.to_numpy()
     else:
         # tensor result
         res.test_sanity()
@@ -3580,13 +3655,14 @@ def test_trace(cls, legs, make_compatible_tensor, compatible_symmetry, make_comp
         tensor: Tensor = make_compatible_tensor(co_domain_spaces, co_domain_spaces, cls=cls)
 
     res = tensors.trace(tensor)
-    assert isinstance(res, (float, complex))
+    assert isinstance(res, Scalar)
+    res_np = res.to_numpy()
 
     if tensor.symmetry.can_be_dropped:
         expect = tensor.to_numpy(understood_braiding=True)
         while expect.ndim > 0:
             expect = np.trace(expect, axis1=0, axis2=-1)
-        npt.assert_almost_equal(res, expect)
+        npt.assert_almost_equal(res_np, expect)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases

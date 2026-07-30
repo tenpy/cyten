@@ -12,9 +12,8 @@ In addition, follow the list of guidelines below, which is not automatically che
 If you are having trouble with the guidelines, please don't let that stop you from sharing your contribution.
 Someone from the team can finish up.
 
-
-Guidelines
-~~~~~~~~~~
+Python guidelines
+~~~~~~~~~~~~~~~~~
 
 - Summarize the changes you have made in the changelog.
   Make a new file, and e.g. name it after the PR, ``doc/changelog/latest/pr_401.txt`` or similar.
@@ -22,14 +21,12 @@ Guidelines
   It should contain only bullet points.
   See e.g. `this example <https://github.com/tenpy/tenpy/blob/b49485e7cfdfe9ec4fe740e6dbeea3451783840b/doc/changelog/latest/pr_520.txt>`_.
 
-- If you add a new toycode or example: add a reference to include it in the documentation.
-
 - Use relative imports within cyten. Example::
 
       from ..spaces import ElementarySpace
 
 
-- Include documentation, Put a docstring on every new module, class and function.
+- Include documentation, put a docstring on every new module, class and function.
   See the section on docs below.
 
 - Include tests for your new features. See the existing ones in the ``tests/`` folder.
@@ -42,6 +39,11 @@ Guidelines
   Even if you do, GitHub issues are a better place to keep track of open todos.
 
 - Unfinished functions should ``raise NotImplementedError()``.
+
+C++ Guidelines
+~~~~~~~~~~~~~~
+Use modern C++ style, e.g. the auto keyword and the ranges library.
+We compile with the C++23 standard, and have no need for backwards compatibility to older C++ versions.
 
 
 
@@ -56,10 +58,14 @@ configuration
 
 - Linting of docstrings using ``flake8-rst-docstrings``, with the rules configured in ``.flake8``
 
-- Autoformatting using ``ruff format``. The pre-commit simply does these changes and amends them,
+- Python autoformatting using ``ruff format``. The pre-commit simply does these changes and amends them,
   the GitHub action only checks that another run would not change anything but does not propose
   these changes. You can either read the diff in the action logs, or better run ``ruff`` locally,
   e.g. via ``pre-commit``.
+
+- C++ autoformatting using ``clang-format``, also imposed by the `pre-commit` action, with rules in `.clang-format`
+
+- C++ linter rules are defined in `.clang-tidy`, but are currently not enforced as errors in the pre-commit action.
 
 - Check that text files do not contain the specific strings ``FIXME`` and ``DONTSHIP``.
   You may use them in your workflow as reminders to do something before committing/pushing.
@@ -86,7 +92,7 @@ Use them *responsibly* and *sparingly*.
 
 Documentation
 ~~~~~~~~~~~~~
-- Every function/class/module should be documented by its doc-string, see :pep:`257`.
+- Every (python) function/class/module should be documented by its doc-string, see :pep:`257`.
 
   Additional documentation for the user guide is in the folder ``docs/``.
 

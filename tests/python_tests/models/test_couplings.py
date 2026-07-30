@@ -169,7 +169,7 @@ def test_spin_spin_coupling(any_backend, np_random):
             # hermiticity
             assert tensors.almost_equal(tensor.hc, tensor)
             # trace is zero
-            npt.assert_almost_equal(tensors.trace(tensor), 0)
+            npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), 0)
             if site1 == site2:
                 # commutation relation
                 tensor_commuted = tensors.permute_legs(tensor, codomain=[1, 0], domain=[2, 3])
@@ -636,7 +636,7 @@ def test_sector_projection_coupling(block_backend):
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace is integer * dim(sector)
         dim_sec = site.symmetry.qdim(sector)
-        tr = tensors.trace(tensor)
+        tr = tensors.trace(tensor).to_numpy()
         npt.assert_almost_equal(np.round(tr / dim_sec, 0), tr / dim_sec)
 
 
@@ -650,7 +650,7 @@ def test_gold_coupling(block_backend):
         # hermiticity
         assert tensors.almost_equal(tensor.hc, tensor)
         # trace
-        npt.assert_almost_equal(tensors.trace(tensor), [-1, -2][i])
+        npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), [-1, -2][i])
 
     coupling = couplings.gold_coupling(site_list, J=1.0)
     coupling.test_sanity()
@@ -658,6 +658,6 @@ def test_gold_coupling(block_backend):
     # hermiticity
     assert tensors.almost_equal(tensor.hc, tensor)
     # trace
-    npt.assert_almost_equal(tensors.trace(tensor), -1)
+    npt.assert_almost_equal(tensors.trace(tensor).to_numpy(), -1)
 
     check_coupling(couplings.gold_coupling, site_num=2, invalid_site_nums=[1, 3], boson_fermion_mixing=False)

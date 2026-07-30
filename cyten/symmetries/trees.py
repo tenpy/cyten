@@ -652,7 +652,7 @@ class FusionTree:
             )
             raise SymmetryError(msg)
         if backend is None:
-            block_backend = NumpyBlockBackend()
+            block_backend = NumpyBlockBackend.from_factory('cpu')
         else:
             block_backend = backend.block_backend
         if dtype is None:

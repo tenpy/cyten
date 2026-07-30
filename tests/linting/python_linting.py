@@ -7,8 +7,10 @@ We therefore consider them part of a linting routine and do *not* call them from
 # Copyright (C) TeNPy Developers, Apache license
 
 import os
+from pathlib import Path
 
-import cyten
+# Repo root is two levels up from this script (tests/linting/python_linting.py)
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def main():
@@ -26,15 +28,14 @@ def get_python_files(top):
         if '__pycache__' in dirnames:
             del dirnames[dirnames.index('__pycache__')]
         for fn in filenames:
-            if fn.endswith('.py') and fn != '_npc_helper.py':
-                # exclude _npc_helper.py generated in the egg by ``python setup.py install``
+            if fn.endswith('.py'):
                 python_files.append(os.path.join(dirpath, fn))
     return python_files
 
 
 def check_copyright_notice():
     expected_notice = '# Copyright (C) TeNPy Developers, Apache license'
-    cyten_files = get_python_files(os.path.dirname(cyten.__file__))
+    cyten_files = get_python_files(REPO_ROOT / 'cyten')
     for fn in cyten_files:
         with open(fn, 'r') as f:
             for line in f:

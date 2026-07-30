@@ -7,7 +7,6 @@ import pytest
 from numpy import testing as npt
 
 from cyten import symmetries
-from cyten.block_backends.dtypes import _numpy_dtype_to_cyten
 
 default_rng = np.random.default_rng()
 
@@ -370,7 +369,7 @@ def check_fusion_tensor(sym: symmetries.Symmetry, example_sectors, np_random):
         for c in fusion_outcomes:
             d_c = sym.sector_dim(c)
             X_abc = sym.fusion_tensor(a, b, c)
-            assert _numpy_dtype_to_cyten[X_abc.dtype] == sym.fusion_tensor_dtype
+            assert X_abc.dtype == sym.fusion_tensor_dtype.to_numpy_dtype()
             N_abc = sym.n_symbol(a, b, c)
             Y_abc = np.conj(X_abc)
 

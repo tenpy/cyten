@@ -6,17 +6,18 @@ name: cyten
 channels:
   - conda-forge
 dependencies:
-  - python>=3.10
+  - python>=3.12
   - pip
   - setuptools>=68.0.0
-  - pybind11
+  - pybind11>=3.0
   - scikit-build-core
   - numpy>=2.0
   - scipy
-  - boost
-  - libboost
   - openblas
   - cmake
+  - pytorch
+  #- xtensor
+  #- xtensor-python
   # alteratively use MKL instead of openblas
   # - mkl
   # - mkl-devel
@@ -41,7 +42,7 @@ dependencies:
   # - pip:
   #   - breathe  # conda-forge version seems incompatible
 
-  # I/O (to be added later...)
-  # - hdf5
+  # I/O
+  - hdf5
   - h5py
   - pyyaml

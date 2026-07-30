@@ -16,6 +16,8 @@ import os
 import subprocess
 import sys
 
+from ._core import get_build_version
+
 # hard-coded version for people without git...
 #: current release version as a string
 version = '2.0.0-alpha'
@@ -25,6 +27,8 @@ released = False
 
 #: same as version, but with 'v' in front
 short_version = 'v' + version
+
+build_version = get_build_version()
 
 
 def _get_git_revision(cwd=None):
@@ -94,13 +98,14 @@ def _get_version_summary():
     import scipy
 
     summary = (
-        'cyten {cyten_ver!s},\n'
+        'cyten {cyten_ver!s}, build {build_ver!s}\n'
         'git revision {git_rev!s} using\n'
         'python {python_ver!s}\n'
         'numpy {numpy_ver!s}, scipy {scipy_ver!s}'
     )
     summary = summary.format(
         cyten_ver=full_version,
+        build_ver=build_version,
         git_rev=git_revision,
         python_ver=sys.version,
         numpy_ver=numpy.version.full_version,

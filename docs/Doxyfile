@@ -2843,3 +2843,9 @@ MSCGEN_TOOL            =
 # command).
 
 MSCFILE_DIRS           =
+
+
+
+# define aliases such that /* \rst .... \endrst */ can be used for direct rst comments
+ALIASES                = "rst=\verbatim embed:rst"
+ALIASES               += "endrst=\endverbatim"

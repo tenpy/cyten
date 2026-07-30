@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 from numpy import ndarray
 
-from ..config import get_option
+from ..config import get_config
 from ..tools.misc import (
     UNSPECIFIED,
     combine_permutations,
@@ -378,9 +378,9 @@ class LegPipe(Leg):
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
-        linewidth = get_option('print_linewidth')
-        indent = get_option('print_indent')
-        maxlines = get_option('maxlines_spaces')
+        linewidth = get_config().print_linewidth
+        indent = get_config().print_indent * ' '
+        maxlines = get_config().maxlines_spaces
 
         if one_line:
             if show_symmetry:
@@ -401,7 +401,6 @@ class LegPipe(Leg):
                 raise RuntimeError  # the above should always fit in linewidth ...
 
         lines = [f'{ClsName}([']
-        indent = indent * ' '
 
         for force_children_one_line in [False, True]:
             for leg in self.legs:
@@ -1201,9 +1200,9 @@ class ElementarySpace(Space, Leg):
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
-        indent = get_option('print_indent') * ' '
-        linewidth = get_option('print_linewidth')
-        maxlines = get_option('maxlines_spaces')
+        indent = get_config().print_indent * ' '
+        linewidth = get_config().print_linewidth
+        maxlines = get_config().maxlines_spaces
 
         # try to show everything, then less and less
         for full_sectors, summarized_sectors, symmetry in [
@@ -1894,9 +1893,9 @@ class TensorProduct(Space):
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
-        indent = get_option('print_indent') * ' '
-        linewidth = get_option('print_linewidth')
-        maxlines = get_option('maxlines_spaces')
+        indent = get_config().print_indent * ' '
+        linewidth = get_config().print_linewidth
+        maxlines = get_config().maxlines_spaces
 
         for mode in [
             (True, False, True, show_symmetry),
@@ -2281,9 +2280,9 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
 
     def __repr__(self, show_symmetry: bool = True, one_line=False):
         ClsName = type(self).__name__
-        indent = get_option('print_indent') * ' '
-        linewidth = get_option('print_linewidth')
-        maxlines = get_option('maxlines_spaces')
+        indent = get_config().print_indent * ' '
+        linewidth = get_config().print_linewidth
+        maxlines = get_config().maxlines_spaces
 
         for mode in [
             (0, 0, False, show_symmetry),

@@ -6,7 +6,7 @@ from __future__ import annotations
 import logging
 
 from ..block_backends import NumpyBlockBackend, TorchBlockBackend
-from ..config import get_option
+from ..config import get_config
 from ..symmetries import Symmetry, no_symmetry
 from ._backend import TensorBackend
 from .abelian import AbelianBackend
@@ -47,9 +47,9 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
     """
     if symmetry is None:
-        symmetry = get_option('default_tensor_backend')
+        symmetry = get_config().default_tensor_backend
     if block_backend is None:
-        block_backend = get_option('default_block_backend')
+        block_backend = get_config().default_block_backend
 
     if isinstance(symmetry, Symmetry):
         # figure out minimal symmetry_backend that supports that symmetry
@@ -71,7 +71,14 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
 
     BlockBackendCls, block_kwargs = _block_backends[block_backend]
     TensorBackendCls, tensor_kwargs = _tensor_backend_classes[tensor_backend]
-    backend = TensorBackendCls(block_backend=BlockBackendCls(**block_kwargs), **tensor_kwargs)
+    if BlockBackendCls is NumpyBlockBackend and not block_kwargs:
+        block_backend_instance = NumpyBlockBackend.from_factory('cpu')
+    elif BlockBackendCls is TorchBlockBackend:
+        device = block_kwargs.get('default_device', 'cpu:0')
+        block_backend_instance = TorchBlockBackend.from_factory(device)
+    else:
+        block_backend_instance = BlockBackendCls(**block_kwargs)
+    backend = TensorBackendCls(block_backend=block_backend_instance, **tensor_kwargs)
 
     if isinstance(symmetry, Symmetry):
         assert backend.supports_symmetry(symmetry)

@@ -6,32 +6,30 @@ Provides a tensor class with block-sparsity from symmetries with an exchangeable
 # Copyright (C) TeNPy Developers, Apache license
 
 # do config load -- should be very early!
-from .config._config import init_config
+from ._core import get_config
 
-init_config()
-del init_config  # we do not want to expose cyten.init_config
+get_config()  # initialize config
 
 
 # note: order matters!
 from . import (
-    backends,
-    block_backends,
-    config,
-    models,
-    symmetries,
-    tensors,
-    tools,
     version,
+    config,
+    tools,
+    block_backends,
+    symmetries,
+    backends,
+    tensors,
+    models,
 )
 
 # import pybind11 bindings from C++ code
-# TODO do explicit imports instead of *
-from ._core import *  # type: ignore
+from ._core import add
 from .backends import TensorBackend, get_backend
 from .block_backends import Block, BlockBackend, Dtype, NumpyBlockBackend, TorchBlockBackend
 
 # subpackages
-from .config import get_option, set_options, temporary_options
+from .config import get_config, set_options, temporary_options
 from .models import Coupling, Site, couplings, sites
 from .symmetries._symmetries import (
     SU2,

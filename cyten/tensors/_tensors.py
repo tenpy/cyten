@@ -12,7 +12,6 @@ from abc import ABCMeta, abstractmethod
 from collections.abc import Sequence
 from math import exp as math_exp
 from numbers import Integral, Number
-from typing import TypeVar
 
 import numpy as np
 
@@ -27,8 +26,8 @@ from ..backends import (
     get_backend,
     get_same_backend,
 )
-from ..block_backends import Block, Dtype
-from ..config import get_option
+from ..block_backends import Block, Dtype, Scalar
+from ..config import get_config
 from ..symmetries import (
     ElementarySpace,
     FusionTree,
@@ -663,7 +662,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
 
     def __add__(self, other):
         if isinstance(other, Tensor):
-            return linear_combination(+1, self, +1, other)
+            return linear_combination(+1.0, self, +1.0, other)
         return NotImplemented
 
     def __complex__(self):
@@ -694,7 +693,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return compose(self, other)
 
     def __mul__(self, other):
-        if isinstance(other, Number):
+        if isinstance(other, (Number, Scalar)):
             return scalar_multiply(other, self)
         return NotImplemented
 
@@ -705,7 +704,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return self
 
     def __repr__(self):
-        indent = get_option('print_indent') * ' '
+        indent = get_config().print_indent * ' '
         lines = [f'<{self.__class__.__name__}']
         lines.extend(self._repr_header_lines(indent=indent))
         # skipped showing data. see commit 4bdaa5c for an old implementation of showing data.
@@ -717,7 +716,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return vert_join([self.ascii_diagram, '\n'.join([type(self).__name__, *lines])], valign='c', delim='   |  ')
 
     def __rmul__(self, other):
-        if isinstance(other, Number):
+        if isinstance(other, (Number, Scalar)):
             return scalar_multiply(other, self)
         return NotImplemented
 
@@ -730,10 +729,13 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         return NotImplemented
 
     def __truediv__(self, other):
-        if not isinstance(other, Number):
+        if not isinstance(other, (Number, Scalar)):
             return NotImplemented
         try:
-            inverse_other = 1.0 / other
+            if isinstance(other, Scalar):
+                inverse_other = other.inverse()
+            else:
+                inverse_other = 1.0 / other
         except Exception:
             raise ValueError('Tensor can only be divided by invertible scalars.') from None
         return scalar_multiply(inverse_other, self)
@@ -756,7 +758,7 @@ class Tensor(LabelledLegs, metaclass=ABCMeta):
         print(self.ascii_diagram)
 
     @abstractmethod
-    def _get_item(self, idx: list[int]) -> bool | float | complex:
+    def _get_item(self, idx: list[int]) -> Scalar:
         """Implementation of :meth:`__getitem__`.
 
         Can assume we have one non-negative integer index per leg.
@@ -1490,7 +1492,7 @@ class SymmetricTensor(Tensor):
         """
         return DiagonalTensor.from_tensor(self, check_offdiagonal=check_offdiagonal)
 
-    def _get_item(self, idx: list[int]) -> bool | float | complex:
+    def _get_item(self, idx: list[int]) -> Scalar:
         return self.backend.get_element(self, idx)
 
     def move_to_device(self, device: str):
@@ -2024,7 +2026,7 @@ class DiagonalTensor(SymmetricTensor):
         return self.codomain.factors[0]
 
     def __abs__(self):
-        return self._elementwise_unary(func=operator.abs, maps_zero_to_zero=True)
+        return self._elementwise_unary(func=self.backend.block_backend.abs, maps_zero_to_zero=True)
 
     def __bool__(self):
         if self.dtype == Dtype.bool and is_scalar(self):
@@ -2119,7 +2121,7 @@ class DiagonalTensor(SymmetricTensor):
 
     def _binary_operand(
         self,
-        other: Number | DiagonalTensor,
+        other: Number | Scalar | DiagonalTensor,
         func,
         operand: str,
         return_NotImplemented: bool = False,
@@ -2133,7 +2135,8 @@ class DiagonalTensor(SymmetricTensor):
             Either a number or a DiagonalTensor.
         func
             The function with signature
-            ``func(self_block: Block, other_or_other_block: Number | Block) -> Block``
+            ``func(self_block: Block, other_block: Block) -> Block``
+            Scalars get passed the (0D) block representation of the scalar.
         operand
             A string representation of the operand, used in error messages
         return_NotImplemented
@@ -2142,15 +2145,16 @@ class DiagonalTensor(SymmetricTensor):
             If this is the "right" version, i.e. ``func(other, self)``.
 
         """
-        if isinstance(other, Number):
+        if isinstance(other, (Number, self.backend.block_backend.Scalar)):
             backend = self.backend
+            other_block = backend.block_backend.as_scalar(other)._block
             if right:
                 data = backend.diagonal_elementwise_unary(
-                    self, func=lambda block: func(other, block), func_kwargs={}, maps_zero_to_zero=False
+                    self, func=lambda block: func(other_block, block), func_kwargs={}, maps_zero_to_zero=False
                 )
             else:
                 data = backend.diagonal_elementwise_unary(
-                    self, func=lambda block: func(block, other), func_kwargs={}, maps_zero_to_zero=False
+                    self, func=lambda block: func(block, other_block), func_kwargs={}, maps_zero_to_zero=False
                 )
             labels = self.labels
         elif isinstance(other, DiagonalTensor):
@@ -2205,12 +2209,14 @@ class DiagonalTensor(SymmetricTensor):
         return res
 
     def diagonal_as_numpy(self, numpy_dtype=None) -> np.ndarray:
-        block = self.diagonal_as_block(dtype=Dtype.from_numpy_dtype(numpy_dtype))
+        block = self.diagonal_as_block(dtype=None if numpy_dtype is None else Dtype.from_numpy_dtype(numpy_dtype))
         return self.backend.block_backend.to_numpy(block, numpy_dtype=numpy_dtype)
 
     def elementwise_almost_equal(self, other: DiagonalTensor, rtol: float = 1e-5, atol=1e-8) -> DiagonalTensor:
         other = other.as_DiagonalTensor()
-        return abs(self - other) <= (atol + rtol * abs(self))
+        # no (Scalar + Block) operation defined, so requires explicit casting
+        ones = DiagonalTensor.from_eye(self.leg, self.backend, self.labels, self.dtype.to_real, self.device)
+        return abs(self - other) <= (atol * ones + rtol * abs(self))
 
     def _elementwise_binary(
         self, other: DiagonalTensor, func, func_kwargs: dict = None, partial_zero_is_zero: bool = False
@@ -2243,10 +2249,10 @@ class DiagonalTensor(SymmetricTensor):
         )
         return DiagonalTensor(data, self.leg, backend=self.backend, labels=self.labels)
 
-    def _get_item(self, idx: list[int]) -> bool | float | complex:
+    def _get_item(self, idx: list[int]) -> Scalar:
         i1, i2 = idx
         if i1 != i2:
-            return self.dtype.zero_scalar
+            return self.backend.block_backend.as_scalar(self.dtype.zero_scalar)
         return self.backend.get_element_diagonal(self, i1)
 
     def max(self):
@@ -3078,7 +3084,7 @@ class Mask(Tensor):
             labels=self.labels,
         )
 
-    def _get_item(self, idx: list[int]) -> bool | float | complex:
+    def _get_item(self, idx: list[int]) -> Scalar:
         return self.backend.get_element_mask(self, idx)
 
     def logical_not(self):
@@ -3636,17 +3642,14 @@ class ChargedTensor(Tensor):
                 charged_state = self.backend.block_backend.copy_block(charged_state, device=device)
         return ChargedTensor(inv_part, charged_state)
 
-    def _get_item(self, idx: list[int]) -> bool | float | complex:
+    def _get_item(self, idx: list[int]) -> Scalar:
         if self.charged_state is None:
             raise IndexError('Can not index a ChargedTensor with unspecified charged_state.')
-        if len(self.charged_state) > 10:
+        if self.charged_state.shape[0] > 10:
             raise NotImplementedError  # should do sth smarter...
         return sum(
-            (
-                self.backend.block_backend.item(a) * self.invariant_part._get_item([*idx, n])
-                for n, a in enumerate(self.charged_state)
-            ),
-            start=self.dtype.zero_scalar,
+            (a * self.invariant_part._get_item([*idx, n]) for n, a in enumerate(self.charged_state)),
+            start=self.backend.block_backend.as_scalar(self.dtype.zero_scalar),
         )
 
     def move_to_device(self, device: str):
@@ -3656,7 +3659,7 @@ class ChargedTensor(Tensor):
             self.charged_state = self.backend.block_backend.as_block(self.charged_state, device=device)
 
     def _repr_header_lines(self, indent: str, use_symm_str: bool = False) -> list[str]:
-        linewidth = get_option('print_linewidth')
+        linewidth = get_config().print_linewidth
         lines = Tensor._repr_header_lines(self, indent=indent, use_symm_str=use_symm_str)
         lines.append(
             f'{indent}* Charge Leg: dim={round(self.charge_leg.dim, 3)} sectors={self.charge_leg.sector_decomposition}'
@@ -3760,9 +3763,6 @@ class ChargedTensor(Tensor):
         obj.shape = hdf5_loader.get_attr(h5gr, 'shape')
 
         return obj
-
-
-_ElementwiseType = TypeVar('_ElementwiseType', Number, DiagonalTensor)
 
 
 def _elementwise_function(block_func: str, func_kwargs={}, maps_zero_to_zero=False):
@@ -3993,7 +3993,7 @@ def add_trivial_leg(
 
 
 @_elementwise_function(block_func='angle', maps_zero_to_zero=True)
-def angle(x: _ElementwiseType) -> _ElementwiseType:
+def angle[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """The angle of a complex number, :ref:`elementwise <diagonal_elementwise>`.
 
     The counterclockwise angle from the positive real axis on the complex plane in the
@@ -4083,8 +4083,8 @@ def almost_equal(
             backend = get_same_backend(tensor_1, tensor_2)
             if tensor_1.charge_leg.dim == 1:
                 return almost_equal(
-                    backend.block_backend.item(tensor_2.charged_state) * tensor_1.invariant_part,
-                    backend.block_backend.item(tensor_1.charged_state) * tensor_2.invariant_part,
+                    scalar_multiply(backend.block_backend.item(tensor_2.charged_state), tensor_1.invariant_part),
+                    scalar_multiply(backend.block_backend.item(tensor_1.charged_state), tensor_2.invariant_part),
                     rtol=rtol,
                     atol=atol,
                 )
@@ -4545,7 +4545,9 @@ def combine_to_matrix(
 
 
 @_elementwise_function(block_func='cutoff_inverse', maps_zero_to_zero=True)
-def cutoff_inverse(x: _ElementwiseType, cutoff: float = 1e-15) -> _ElementwiseType:
+def cutoff_inverse[ElementwiseType: (Number, DiagonalTensor)](
+    x: ElementwiseType, cutoff: float = 1e-15
+) -> ElementwiseType:
     """The :ref:`elementwise <diagonal_elementwise>` cutoff inverse.
 
     The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, otherwise ``0``.
@@ -4556,7 +4558,7 @@ def cutoff_inverse(x: _ElementwiseType, cutoff: float = 1e-15) -> _ElementwiseTy
 
 
 @_elementwise_function(block_func='conj', maps_zero_to_zero=True)
-def complex_conj(x: _ElementwiseType) -> _ElementwiseType:
+def complex_conj[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """Complex conjugation, :ref:`elementwise <diagonal_elementwise>`."""
     return np.conj(x)
 
@@ -4958,13 +4960,13 @@ def entropy(p: DiagonalTensor | Sequence[float], n=1):
     elif isinstance(p, DiagonalTensor):
         assert p.dtype.is_real
         if n == 1:
-            return -trace(p * stable_log(p, cutoff=1e-30))
+            return -trace(p * stable_log(p, cutoff=1e-30)).to_numpy()
         if n == np.inf:
-            return -np.log(p.max())
-        return np.log(trace(p**n)) / (1.0 - n)
-    else:
-        p = np.asarray(p)
-        p = np.real_if_close(p)
+            return -np.log(p.max().to_numpy())
+        return np.log(trace(p**n).to_numpy()) / (1.0 - n)
+    # else:
+    p = np.asarray(p)
+    p = np.real_if_close(p)
     p = p[p > 1e-30]  # for stability of log
     if n == 1:
         return -np.inner(np.log(p), p)
@@ -5012,12 +5014,12 @@ def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') 
 
 
 @_elementwise_function(block_func='imag', maps_zero_to_zero=True)
-def imag(x: _ElementwiseType) -> _ElementwiseType:
+def imag[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.imag(x)
 
 
-def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
+def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> Scalar:
     r"""The Frobenius inner product :math:`\langle A \vert B \rangle_\text{F}` of two tensors.
 
     Graphically::
@@ -5123,7 +5125,7 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> float | complex:
         if B.charged_state is None:
             raise ValueError('charged_state must be specified for inner()')
         if B.charge_leg.sector_multiplicity(B.symmetry.trivial_sector) == 0:
-            return Dtype.common(A.dtype, B.dtype).zero_scalar
+            return backend.block_backend.as_scalar(Dtype.common(A.dtype, B.dtype).zero_scalar)
         # OPTIMIZE: by charge rule, only components in the trivial sector of the charge_leg contribute
         #           could exploit by projecting to those components first.
         if do_dagger:
@@ -5168,8 +5170,8 @@ def is_scalar(obj):
     return isinstance(obj, Number)
 
 
-def item(tensor: Tensor) -> float | complex | bool:
-    """If the tensor is a scalar (with only trivial legs), convert to python scalar."""
+def item(tensor: Tensor) -> Scalar:
+    """If the tensor is a scalar (with only trivial legs), convert to a Scalar."""
     if not is_scalar(tensor):
         raise ValueError('Not a scalar')
     if isinstance(tensor, Mask):
@@ -5187,15 +5189,18 @@ def item(tensor: Tensor) -> float | complex | bool:
     raise TypeError('Invalid type for tensor.')
 
 
-def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
+def linear_combination(a: Number | Scalar, v: Tensor, b: Number | Scalar, w: Tensor):
     """The linear combination ``a * v + b * w``"""
     _ = get_same_device(v, w)
     _check_compatible_legs([v.codomain, v.domain], [w.codomain, w.domain])
     # Note: We implement Tensor.__add__ and Tensor.__sub__ in terms of this function, so we cant
     #       use them (or the ``+`` and ``-`` operations) here.
-    if (not isinstance(a, Number)) or (not isinstance(b, Number)):
+    if not isinstance(a, (Number, Scalar)) or not isinstance(b, (Number, Scalar)):
         msg = f'unsupported scalar types: {type(a).__name__}, {type(b).__name__}'
         raise TypeError(msg)
+    backend = get_same_backend(v, w)
+    a = backend.block_backend.as_scalar(a)
+    b = backend.block_backend.as_scalar(b)
 
     # we treat the following cases independently:
     #  DiagonalTensor + DiagonalTensor  ->  DiagonalTensor
@@ -5224,7 +5229,6 @@ def linear_combination(a: Number, v: Tensor, b: Number, w: Tensor):
     v = v.as_SymmetricTensor()
     w = w.as_SymmetricTensor()
 
-    backend = get_same_backend(v, w)
     return SymmetricTensor(
         backend.linear_combination(a, v, b, w),
         codomain=v.codomain,
@@ -5302,7 +5306,7 @@ def move_leg(
     return permute_legs(tensor, new_codomain, new_domain, levels=levels, bend_right=bend_right)
 
 
-def norm(tensor: Tensor) -> float:
+def norm(tensor: Tensor) -> Scalar:
     r"""The Frobenius norm of a Tensor.
 
     The norm is given by :math:`\Vert A \Vert_\text{F} = \sqrt{\langle A \vert A \rangle_\text{F}}`,
@@ -5311,9 +5315,9 @@ def norm(tensor: Tensor) -> float:
     """
     if isinstance(tensor, Mask):
         # norm ** 2 = Tr(m^\dagger . m) = Tr(id_{small_leg}) = dim(small_leg)
-        return np.sqrt(tensor.small_leg.dim)
+        return tensor.backend.block_backend.as_scalar(np.sqrt(tensor.small_leg.dim))
     if isinstance(tensor, Identity):
-        return np.sqrt(tensor.leg.dim)
+        return tensor.backend.block_backend.as_scalar(np.sqrt(tensor.leg.dim))
     if isinstance(tensor, (DiagonalTensor, SymmetricTensor)):
         return tensor.backend.norm(tensor)
     if isinstance(tensor, ChargedTensor):
@@ -5952,13 +5956,13 @@ def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
 
 
 @_elementwise_function(block_func='real', maps_zero_to_zero=True)
-def real(x: _ElementwiseType) -> _ElementwiseType:
+def real[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """The real part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.real(x)
 
 
 @_elementwise_function(block_func='real_if_close', func_kwargs=dict(tol=100), maps_zero_to_zero=True)
-def real_if_close(x: _ElementwiseType, tol: float = 100) -> _ElementwiseType:
+def real_if_close[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType, tol: float = 100) -> ElementwiseType:
     """If close to real, return the :func:`real` part, :ref:`elementwise <diagonal_elementwise>`.
 
     Parameters
@@ -6032,11 +6036,12 @@ def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
     return L, Q
 
 
-def scalar_multiply(a: Number, v: Tensor) -> Tensor:
+def scalar_multiply(a: Number | Scalar, v: Tensor) -> Tensor:
     """The scalar multiplication ``a * v``"""
-    if not isinstance(a, Number):
+    if not isinstance(a, (Number, Scalar)):
         msg = f'unsupported scalar type: {type(a).__name__}'
         raise TypeError(msg)
+    a = v.backend.block_backend.as_scalar(a)
     if isinstance(v, DiagonalTensor):
         return DiagonalTensor._elementwise_unary(v, func=lambda _v: a * _v, maps_zero_to_zero=True)
     if isinstance(v, Mask):
@@ -6223,7 +6228,7 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
 
 
 @_elementwise_function(block_func='sqrt', maps_zero_to_zero=True)
-def sqrt(x: _ElementwiseType) -> _ElementwiseType:
+def sqrt[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """The square root of a number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.sqrt(x)
 
@@ -6282,7 +6287,7 @@ def squeeze_legs(tensor: Tensor, legs: int | str | list[int | str] = None) -> Te
 
 
 @_elementwise_function(block_func='stable_log', func_kwargs=dict(cutoff=1e-30), maps_zero_to_zero=True)
-def stable_log(x: _ElementwiseType, cutoff=1e-30) -> _ElementwiseType:
+def stable_log[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType, cutoff=1e-30) -> ElementwiseType:
     """Stabilized logarithm, :ref:`elementwise <diagonal_elementwise>`.
 
     For values ``> cutoff``, this is the standard natural logarithm. For values smaller than the
@@ -6346,8 +6351,7 @@ def svd(
         If the new leg should be a ket space (``False``) or bra space (``True``).
     algorithm: str, optional
         The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
-        See the :attr:`~cyten.backends.BlockBackend.svd_algorithms` attribute of the
-        ``tensor.backend.block_backend``.
+        See :meth:`~cyten.block_backends.BlockBackend.possible_svd_algorithms`.
 
     Returns
     -------
@@ -7067,9 +7071,6 @@ def zero_like(tensor: Tensor) -> Tensor:
 
 
 # INTERNAL HELPER FUNCTIONS
-
-
-T = TypeVar('T')
 
 
 def _check_compatible_legs(legs1: Sequence[Leg], legs2: Sequence[Leg], expect_equal: bool = True):

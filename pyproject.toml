@@ -1,6 +1,7 @@
 
 [build-system]
-requires = ["scikit-build-core", "pybind11", "numpy>=2.0"]
+# torch is required at build time: CMake links against the same libtorch as `import torch`
+requires = ["scikit-build-core", "pybind11", "numpy>=2.0", "torch"]
 build-backend = "scikit_build_core.build"
 
 
@@ -22,7 +23,7 @@ version = "0.1"
 # dynamic = ["version"] # TODO: does this still work with scikit build?
 description = ""
 readme = {file = "README.md", content-type = "text/markdown"}
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = {text = "Apache_v2"}
 # authors = [
 #     {name = "TeNPy Developer Team"},
@@ -44,8 +45,6 @@ classifiers = [
     "Programming Language :: C++",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -59,12 +58,13 @@ dependencies = [
     "numpy",
     "scipy",
     "pyyaml",
+    "torch",  # required: C++ TorchBlockBackend links libtorch; prefer conda-forge pytorch
 ]
 
 [project.optional-dependencies]
 # users:
 io = ["h5py"]
-gpu = ["torch"]
+# gpu was previously ["torch"]; torch is now a hard dependency (see above)
 # dev:
 test = ["pytest>=6.0", "sympy", "cyten[io]"]
 lint = ["ruff", "flake8", "flake8-rst-docstrings", "sphinx-lint"]
@@ -76,7 +76,7 @@ docbuild = [
 ]
 # bundles
 dev = ["cyten[io, test, lint, docbuild]"]
-all = ["cyten[io, gpu, test, lint, docbuild]"]
+all = ["cyten[io, test, lint, docbuild]"]
 
 
 [project.urls]
@@ -97,6 +97,8 @@ include = ['cyten*']
 [tool.pytest.ini_options]
 filterwarnings = [
     "error",  # consider all unfiltered warnings error. they should be handled or filtered.
+    # sympy still calls deprecated mpmath.bitcount; ignore until sympy catches up
+    "ignore:bitcount function is deprecated:DeprecationWarning:mpmath",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -113,7 +115,7 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py312"
 exclude = []
 
 
@@ -151,6 +153,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = [
     "F401",  # imported but unused
+	"I",  # keep import order - this is needed to avoid circular imports
     "E402",  # Module level import not at top of file
 ]
 "conftest.py" = [
