@@ -97,6 +97,8 @@ include = ['cyten*']
 [tool.pytest.ini_options]
 filterwarnings = [
     "error",  # consider all unfiltered warnings error. they should be handled or filtered.
+    # sympy still calls deprecated mpmath.bitcount; ignore until sympy catches up
+    "ignore:bitcount function is deprecated:DeprecationWarning:mpmath",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
