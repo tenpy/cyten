@@ -8,6 +8,7 @@ PYBIND11_MODULE(_core, m)
 
     bind_version(m);
     bind_tools(m);
+    bind_cost_polynomials(m);
     bind_config(m);
     bind_block_backend(m);
 

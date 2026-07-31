@@ -5,9 +5,9 @@
 - original python names: `BigOMonomial`, `BigOPolynomial` (module `cost_polynomials`)
 - original python file: `cyten/tools/cost_polynomials.py`
 - original python module: `cyten.tools.cost_polynomials`
-- declaration in C++ header file: `include/cyten/tools.h`
-- definition in C++ file: `src/tools.cpp`
-- pybind11 binding: `pybind/py_tools.cpp`
+- declaration in C++ header file: `include/cyten/tools/cost_polynomials.h` (also pulled in by `include/cyten/tools.h`)
+- definition in C++ file: `src/tools/cost_polynomials.cpp`
+- pybind11 binding: `pybind/tools/py_cost_polynomials.cpp`
 - first line of docstring (BigOMonomial): A symbolic representation of an algorithmic cost as a monomial.
 - first line of docstring (BigOPolynomial): A symbolic representation of an algorithmic cost as a monomial.
 
@@ -19,7 +19,7 @@ Trampoline: not needed (no subclasses / virtual overrides in the Python library)
 ## Dependencies / design notes
 
 - Layer 0 tools; no cyten C++ deps beyond existing `tools.h` / `cyten.h`.
-- Types: `dict[str, int]` → `std::map<std::string, int64>`; `list[BigOMonomial]` → `std::vector<BigOMonomial>`.
+- Types: `dict[str, int]` → `std::map<std::string, int64>`; `terms` → `std::set<BigOMonomial>` (unique monomials; `BigOMonomial` has `operator<`).
 - `BigOMonomial + BigOMonomial` returns a `BigOPolynomial`; multiplication stays monomial.
 - `BigOPolynomial.from_str` / arithmetic accept `str` and `BigOMonomial` like Python.
 - Planar calls `BigOPolynomial.prod(*polys)` unbound on the class — keep that callable from Python.
@@ -32,12 +32,12 @@ Trampoline: not needed (no subclasses / virtual overrides in the Python library)
 - [x] planning (this file)
 - [x] generate the declaration draft (`gen_cpp_declaration` for both classes into `include/cyten/tools.h`)
 - [x] improve and fix the declaration draft (namespace, types, C++23 / pre-commit)
-- [ ] generate the C++ definitions (`gen_cpp_definition` into `src/tools.cpp`)
-- [ ] improve and fix the definition drafts (CHECKME/FIXME, clang-tidy, rebuild, ctest)
-- [ ] generate pybind11 bindings (`gen_pyb11_binding` into `pybind/py_tools.cpp`)
-- [ ] fix bindings; recompile
-- [ ] trampoline: skip (no virtual overrides / subclasses)
-- [ ] monkey-patch: `from .._core import BigOMonomial, BigOPolynomial` in `cost_polynomials.py`
-- [ ] run python tests (planar first, then full suite)
-- [ ] remove original python class bodies; keep `_core` import
-- [ ] wrap up (commit remaining changes; merge to `main` / `main_cpp`)
+- [x] generate the C++ definitions (`gen_cpp_definition` into `src/tools.cpp`)
+- [x] improve and fix the definition drafts (CHECKME/FIXME, clang-tidy, rebuild, ctest)
+- [x] generate pybind11 bindings (`gen_pyb11_binding` into `pybind/py_tools.cpp`)
+- [x] fix bindings; recompile
+- [x] trampoline: skip (no virtual overrides / subclasses)
+- [x] monkey-patch: `from .._core import BigOMonomial, BigOPolynomial` in `cost_polynomials.py`
+- [x] run python tests (planar first, then full suite)
+- [x] remove original python class bodies; keep `_core` import
+- [ ] wrap up — commit remaining changes (`cyten/tools/cost_polynomials.py`, docs) and merge `convert_cost_polynomials` into `main` / `main_cpp`

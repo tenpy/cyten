@@ -80,7 +80,7 @@ flowchart LR
 - **cyten/tools/misc.py** — `to_iterable`, `rank_data`, `argsort`, `combine_constraints`, `as_immutable_array`, `duplicate_entries`, `inverse_permutation`, `iter_common_sorted_arrays`, `to_valid_idx`, `is_iterable` (used everywhere).
 - **cyten/tools/string.py** — `format_like_list` (tiny).
 - **cyten/block_backends/dtypes.py** — `Dtype`, numpy/cyten dtype mapping (needed by block_backends).
-- **cyten/tools/cost_polynomials.py** — `BigOPolynomial` (used by planar/tensors).
+- **cyten/tools/cost_polynomials.py** — `BigOMonomial`, `BigOPolynomial` — **done in C++** (see [convert_cost_polynomials.md](convert_cost_polynomials.md)).
 - **cyten/tools/math.py** — `speigs`, `speigsh` (used by sparse/tensors).
 
 Convert **functions and classes** in each file in dependency order within the file (e.g. helpers before public API). Use `list_python_names` to get the exact list of convertible names per module.
