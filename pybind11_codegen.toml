@@ -2,10 +2,10 @@
 [clang]
 parse_args = ["-x", "c++", "--driver-mode=g++", "-v", "--std=c++23",
   "-I/usr/lib/clang/21/include/",
-  "-I/usr/include/python3.12",
-  "-I/home/ga93non/ai-coding/cyten_cpp/include",
-  "-I/home/ga93non/ai-coding/cyten_cpp/src",
-  "-I/home/ga93non/ai-coding/cyten_cpp/pybind",
+  "-I/opt/micromamba/envs/cyten_py314/include/python3.14",
+  "-I/home/johannes/sync/Nextcloud/nc.tnqf-jh.duckdns.org/work/tenpy/cyten_cpp/include",
+  "-I/home/johannes/sync/Nextcloud/nc.tnqf-jh.duckdns.org/work/tenpy/cyten_cpp/src",
+  "-I/home/johannes/sync/Nextcloud/nc.tnqf-jh.duckdns.org/work/tenpy/cyten_cpp/pybind",
 ]
 library_path = "/usr/lib64"
 # library_file = "/usr/lib64/libclang.so.21.4"
