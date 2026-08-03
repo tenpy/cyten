@@ -12,12 +12,14 @@ from typing import Literal
 import numpy as np
 from numpy import typing as npt
 
+# implemented in C++
 from .._core import (
-    BaseSymmetry,  # noqa: E402  # C++ / pybind11
-    BraidingStyle,  # noqa: E402  # C++ / pybind11
-    FusionStyle,  # noqa: E402  # C++ / pybind11
-    SymmetryError,  # noqa: E402  # C++ / pybind11
-    SymmetryFactor,  # noqa: E402  # C++ / pybind11
+    BaseSymmetry,  # noqa: F401
+    BraidChiralityUnspecifiedError,  # noqa: F401
+    BraidingStyle,  # noqa: F401
+    FusionStyle,  # noqa: F401
+    SymmetryError,  # noqa: F401
+    SymmetryFactor,  # noqa: F401
 )
 from ..block_backends.dtypes import Dtype
 from ..tools.misc import as_immutable_array
