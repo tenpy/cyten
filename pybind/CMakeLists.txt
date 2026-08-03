@@ -8,6 +8,7 @@ target_sources(_core
   block_backend/py_block_backend.cpp
   py_config.cpp
   py_tools.cpp
+  tools/py_cost_polynomials.cpp
   py_version.cpp
   py_check.cpp
 )

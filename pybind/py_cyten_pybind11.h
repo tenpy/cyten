@@ -18,6 +18,7 @@ namespace py = pybind11;
 void bind_version(py::module_& m);
 void bind_config(py::module_& m);
 void bind_tools(py::module_& m);
+void bind_cost_polynomials(py::module_& m);
 void bind_block_backend(py::module_& m);
 void bind_check(py::module_& m);
 

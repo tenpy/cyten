@@ -25,3 +25,5 @@ py::object to_iterable(py::object a);
 int64 to_valid_idx(int64 idx, int64 length);
 
 } // namespace cyten
+
+#include <cyten/tools/cost_polynomials.h>
