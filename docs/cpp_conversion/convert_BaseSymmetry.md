@@ -2,7 +2,7 @@
 
 ## Status
 
-**Declaration in progress.** Exceptions/enums already in C++. Codegen draft exists; needs cleanup before definitions.
+**C++ declaration + definitions + bindings/trampoline done.** Not monkey-patched into Python yet: replacing Python `BaseSymmetry` while `Symmetry` / `SymmetryFactor` remain Python subclasses segfaults / fails inheritance. Keep Python `BaseSymmetry` until those subclasses are converted (or trampoline inheritance is fixed). C++ type is still exported as `cyten._core.BaseSymmetry` for further Layer 2 work.
 
 ## Metadata
 
@@ -31,10 +31,12 @@
 ## TODO checklist
 
 - [x] initial setup / planning
-- [ ] improve and fix the declaration draft
-- [ ] generate C++ definitions
-- [ ] improve definition drafts; CTest
-- [ ] pybind11 bindings + trampoline
-- [ ] monkey-patch; pytest
+- [x] improve and fix the declaration draft
+- [x] generate C++ definitions
+- [x] improve definition drafts; compile + sector CTest
+- [x] pybind11 bindings + trampoline (exported from `_core`)
+- [ ] monkey-patch; pytest — **blocked** until SymmetryFactor/Symmetry converted (Python subclass of C++ BaseSymmetry crashes)
 - [ ] remove original Python `BaseSymmetry` once green
 - [ ] wrap up / suggest merge
+
+Interim: `as_Symmetry()` returns `py::object` until C++ `Symmetry` exists.

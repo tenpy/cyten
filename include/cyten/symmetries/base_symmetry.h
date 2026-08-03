@@ -11,7 +11,7 @@
 
 namespace cyten {
 
-class Symmetry; // product symmetry; defined later
+// class Symmetry; // product symmetry; defined later — as_Symmetry returns py::object for now
 
 /// Common method implementations for both :class:`SymmetryFactor` and :class:`Symmetry`.
 ///
@@ -62,7 +62,8 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     /// Internal R symbol; inputs assumed valid.
     virtual py::array _r_symbol(Sector a, Sector b, Sector c) const = 0;
     /// Wrap as a product :class:`Symmetry` (identity if already a product).
-    virtual std::shared_ptr<Symmetry> as_Symmetry() = 0;
+    /// Returns a Python object until :class:`Symmetry` is converted to C++.
+    virtual py::object as_Symmetry() = 0;
     virtual bool is_valid_sector(Sector a) const = 0;
     virtual SectorArray fusion_outcomes(Sector a, Sector b) const = 0;
 

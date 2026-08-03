@@ -2,7 +2,7 @@
 
 ## Status
 
-**In progress.** Hand-written C++ (codegen fails on stdlib bases `Exception` / `IntEnum` with `KeyError`).
+**Done** (exceptions + enums). Hand-written C++ (codegen fails on stdlib bases `Exception` / `IntEnum` with `KeyError`).
 
 ## Metadata
 
@@ -23,8 +23,8 @@
 ## TODO checklist
 
 - [x] initial setup / planning
-- [ ] C++ declarations (hand-written)
-- [ ] pybind11 bindings
-- [ ] monkey-patch into `_symmetries.py`
-- [ ] pytest `tests/python_tests/test_symmetries.py`
-- [ ] remove original Python definitions once green
+- [x] C++ declarations (hand-written)
+- [x] pybind11 bindings
+- [x] monkey-patch into `_symmetries.py`
+- [x] pytest `tests/python_tests/test_symmetries.py`
+- [x] remove original Python definitions once green
