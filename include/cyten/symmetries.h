@@ -7,6 +7,7 @@
 
 #include "symmetries/base_symmetry.h"
 #include "symmetries/exceptions.h"
+#include "symmetries/group.h"
 #include "symmetries/sector.h"
 #include "symmetries/styles.h"
 #include "symmetries/symmetry.h"
