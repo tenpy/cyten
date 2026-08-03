@@ -39,8 +39,15 @@ SymmetryFactor::is_equivalent_to(BaseSymmetry const& other) const
 py::object
 SymmetryFactor::as_Symmetry()
 {
-    auto self = std::static_pointer_cast<SymmetryFactor>(shared_from_this());
-    return py::cast(std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ self }));
+    // Prefer the Python binding (takes py::object) for trampoline instances: smart_holder
+    // does not always initialize enable_shared_from_this. C++-only shared_ptr owners work here.
+    try {
+        auto self = std::static_pointer_cast<SymmetryFactor>(shared_from_this());
+        return py::cast(std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ self }));
+    } catch (std::bad_weak_ptr const&) {
+        throw std::runtime_error(
+          "SymmetryFactor::as_Symmetry: call via Python bindings (no shared_from_this)");
+    }
 }
 
 std::string
@@ -55,20 +62,26 @@ SymmetryFactor::str() const
 py::object
 SymmetryFactor::mul(py::object other)
 {
-    auto self = std::static_pointer_cast<SymmetryFactor>(shared_from_this());
-    if (py::isinstance<SymmetryFactor>(other)) {
-        return py::cast(std::make_shared<Symmetry>(
-          std::vector<SymmetryFactor::Ptr>{ self, other.cast<SymmetryFactor::Ptr>() }));
+    // Prefer the Python ``__mul__`` binding for trampoline instances (see as_Symmetry).
+    try {
+        auto self = std::static_pointer_cast<SymmetryFactor>(shared_from_this());
+        if (py::isinstance<SymmetryFactor>(other)) {
+            return py::cast(std::make_shared<Symmetry>(
+              std::vector<SymmetryFactor::Ptr>{ self, other.cast<SymmetryFactor::Ptr>() }));
+        }
+        if (py::isinstance<Symmetry>(other)) {
+            auto const& sym = other.cast<Symmetry const&>();
+            std::vector<SymmetryFactor::Ptr> factors;
+            factors.reserve(1 + sym.factors.size());
+            factors.push_back(self);
+            factors.insert(factors.end(), sym.factors.begin(), sym.factors.end());
+            return py::cast(std::make_shared<Symmetry>(std::move(factors)));
+        }
+        return py::none(); // binding maps None → NotImplemented
+    } catch (std::bad_weak_ptr const&) {
+        throw std::runtime_error(
+          "SymmetryFactor::mul: call via Python bindings (no shared_from_this)");
     }
-    if (py::isinstance<Symmetry>(other)) {
-        auto const& sym = other.cast<Symmetry const&>();
-        std::vector<SymmetryFactor::Ptr> factors;
-        factors.reserve(1 + sym.factors.size());
-        factors.push_back(self);
-        factors.insert(factors.end(), sym.factors.begin(), sym.factors.end());
-        return py::cast(std::make_shared<Symmetry>(std::move(factors)));
-    }
-    return py::none(); // binding maps None → NotImplemented
 }
 
 bool

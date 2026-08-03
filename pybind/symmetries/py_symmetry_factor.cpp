@@ -128,20 +128,34 @@ bind_symmetry_factor(py::module_& m)
 
            In particular, :attr:`descriptive_name` is ignored.
            )pydoc")
-      .def("as_Symmetry",
-           &SymmetryFactor::as_Symmetry,
-           R"pydoc(
+      .def(
+        "as_Symmetry",
+        [](py::object self) {
+            // Use the Python-held shared_ptr; shared_from_this fails with smart_holder trampolines.
+            auto ptr = self.cast<SymmetryFactor::Ptr>();
+            return py::cast(std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ ptr }));
+        },
+        R"pydoc(
            Convert any :class:`SymmetryFactor` to a :class:`Symmetry` with that single factor.
            )pydoc")
       .def("__str__", &SymmetryFactor::str)
       .def(
         "__mul__",
-        [](SymmetryFactor& self, py::object other) -> py::object {
-            auto res = self.mul(other);
-            if (res.is_none()) {
-                return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
+        [](py::object self, py::object other) -> py::object {
+            auto self_ptr = self.cast<SymmetryFactor::Ptr>();
+            if (py::isinstance<SymmetryFactor>(other)) {
+                return py::cast(std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{
+                  self_ptr, other.cast<SymmetryFactor::Ptr>() }));
             }
-            return res;
+            if (py::isinstance<Symmetry>(other)) {
+                auto const& sym = other.cast<Symmetry const&>();
+                std::vector<SymmetryFactor::Ptr> factors;
+                factors.reserve(1 + sym.factors.size());
+                factors.push_back(self_ptr);
+                factors.insert(factors.end(), sym.factors.begin(), sym.factors.end());
+                return py::cast(std::make_shared<Symmetry>(std::move(factors)));
+            }
+            return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
         })
       .def("__eq__",
            [](SymmetryFactor const& self, py::object other) {

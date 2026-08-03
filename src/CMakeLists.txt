@@ -14,6 +14,7 @@ target_sources(cyten
   symmetries/base_symmetry.cpp
   symmetries/symmetry_factor.cpp
   symmetries/symmetry.cpp
+  symmetries/sector_numpy.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   version.cpp

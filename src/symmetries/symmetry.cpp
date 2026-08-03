@@ -1,5 +1,7 @@
 #include <cyten/symmetries/symmetry.h>
 
+#include <cyten/symmetries/sector_numpy.h>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -119,11 +121,14 @@ Symmetry::Symmetry(std::vector<SymmetryFactor::Ptr> factors_in)
     dtypes.reserve(factors.size());
     bool any_none = false;
     for (auto const& f : factors) {
-        if (!f->fusion_tensor_dtype.has_value()) {
+        // Python subclasses often set fusion_tensor_dtype as a class attribute; the C++
+        // optional member may still be empty. Read via the Python object.
+        py::object dt_py = py::cast(f).attr("fusion_tensor_dtype");
+        if (dt_py.is_none()) {
             any_none = true;
             break;
         }
-        dtypes.push_back(*f->fusion_tensor_dtype);
+        dtypes.push_back(dt_py.cast<Dtype>());
     }
     if (any_none || factors.empty()) {
         fusion_tensor_dtype = std::nullopt;
@@ -278,9 +283,7 @@ Symmetry::fusion_outcomes(Sector a, Sector b) const
 
     for (std::size_t i = 0; i < factors.size(); ++i) {
         auto c_i = factors[i]->fusion_outcomes(factor_sector(a, i), factor_sector(b, i));
-        // cast SectorArray → numpy via type caster
-        py::object c_i_py = py::cast(c_i);
-        all_outcomes.push_back(py::reinterpret_borrow<py::array>(c_i_py));
+        all_outcomes.push_back(sector_array_to_numpy(c_i));
         num_possibilities.push_back(static_cast<ssize_t>(c_i.num_sectors));
     }
 
@@ -323,7 +326,7 @@ Symmetry::fusion_outcomes(Sector a, Sector b) const
     }
     auto reshaped =
       result.attr("reshape")(py::make_tuple(n_rows, static_cast<int>(sector_ind_len)));
-    return py::cast<SectorArray>(reshaped);
+    return sector_array_from_numpy(reshaped);
 }
 
 SectorArray
@@ -465,7 +468,7 @@ Symmetry::all_sectors() const
             rhs_idx.append(py::none());
         }
         rhs_idx.append(colon);
-        auto secs = py::cast(factors[i]->all_sectors());
+        auto secs = sector_array_to_numpy(factors[i]->all_sectors());
         results[py::tuple(lhs_idx)] = secs[py::tuple(rhs_idx)];
     }
 
@@ -475,7 +478,7 @@ Symmetry::all_sectors() const
     }
     auto reshaped =
       results.attr("reshape")(py::make_tuple(n_rows, static_cast<int>(sector_ind_len)));
-    return py::cast<SectorArray>(reshaped);
+    return sector_array_from_numpy(reshaped);
 }
 
 int64
@@ -706,7 +709,7 @@ Symmetry::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& s
     }
     hdf5_saver.attr("save")(static_cast<int>(fusion_style), subpath + "fusion_style");
     hdf5_saver.attr("save")(static_cast<int>(braiding_style), subpath + "braiding_style");
-    hdf5_saver.attr("save")(py::cast(trivial_sector), subpath + "trivial_sector");
+    hdf5_saver.attr("save")(sector_to_numpy(trivial_sector), subpath + "trivial_sector");
     hdf5_saver.attr("save")(num_sectors, subpath + "num_sectors");
     hdf5_saver.attr("save")(static_cast<int>(sector_ind_len), subpath + "sector_ind_len");
     h5gr.attr("attrs")["has_complex_topological_data"] = has_complex_topological_data;

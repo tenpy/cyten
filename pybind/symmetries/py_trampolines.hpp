@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cyten/symmetries/base_symmetry.h>
+#include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/symmetry_factor.h>
 
 #include <pybind11/pybind11.h>
@@ -78,7 +79,18 @@ class PyBaseSymmetry
     }
     SectorArray _multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) const override
     {
-        PYBIND11_OVERRIDE(SectorArray, BaseSymmetry, _multiple_fusion_broadcast, sectors);
+        // Python overrides take ``*sectors``; unpack instead of passing one list.
+        py::gil_scoped_acquire gil;
+        py::function override =
+          py::get_override(static_cast<BaseSymmetry const*>(this), "_multiple_fusion_broadcast");
+        if (override) {
+            py::tuple args(sectors.size());
+            for (std::size_t i = 0; i < sectors.size(); ++i) {
+                args[i] = sector_array_to_numpy(sectors[i]);
+            }
+            return sector_array_from_numpy(override(*args));
+        }
+        return BaseSymmetry::_multiple_fusion_broadcast(sectors);
     }
     bool can_fuse_to(Sector a, Sector b, Sector c) const override
     {
@@ -205,7 +217,18 @@ class PySymmetryFactor
     }
     SectorArray _multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) const override
     {
-        PYBIND11_OVERRIDE(SectorArray, SymmetryFactor, _multiple_fusion_broadcast, sectors);
+        // Python overrides take ``*sectors``; unpack instead of passing one list.
+        py::gil_scoped_acquire gil;
+        py::function override =
+          py::get_override(static_cast<SymmetryFactor const*>(this), "_multiple_fusion_broadcast");
+        if (override) {
+            py::tuple args(sectors.size());
+            for (std::size_t i = 0; i < sectors.size(); ++i) {
+                args[i] = sector_array_to_numpy(sectors[i]);
+            }
+            return sector_array_from_numpy(override(*args));
+        }
+        return SymmetryFactor::_multiple_fusion_broadcast(sectors);
     }
     bool can_fuse_to(Sector a, Sector b, Sector c) const override
     {
