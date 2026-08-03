@@ -7,6 +7,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pytypes.h>
 #include <regex>
+#include <span>
 #include <stdexcept>
 
 namespace cyten {
@@ -78,10 +79,28 @@ NumpyBlockBackend::Block::get_backend() const
 }
 
 BlockCPtr
+NumpyBlockBackend::Block::get_item(std::span<const BlockIndex> key) const
+{
+    py::object py_key = BlockBackend::block_indices_to_py(key);
+    py::array result = arr_.attr("__getitem__")(py_key);
+    return std::make_shared<const NumpyBlockBackend::Block>(std::move(result));
+}
+
+BlockPtr
+NumpyBlockBackend::Block::get_item(std::span<const BlockIndex> key)
+{
+    py::object py_key = BlockBackend::block_indices_to_py(key);
+    py::array result = arr_.attr("__getitem__")(py_key);
+    return std::make_shared<NumpyBlockBackend::Block>(std::move(result));
+}
+
+BlockCPtr
 NumpyBlockBackend::Block::get_item(py::object key) const
 {
     if (key.is_none())
         return shared_from_this();
+    if (auto idcs = BlockBackend::try_py_key_to_block_indices(key))
+        return get_item(std::span<const BlockIndex>(*idcs));
     py::object key_copy = _item_key_cast_Blocks_to_numpy(key);
     py::array result = arr_.attr("__getitem__")(key_copy);
     return std::make_shared<const NumpyBlockBackend::Block>(std::move(result));
@@ -115,14 +134,38 @@ NumpyBlockBackend::Block::get_item(py::object key)
 {
     if (key.is_none())
         return shared_from_this();
+    if (auto idcs = BlockBackend::try_py_key_to_block_indices(key))
+        return get_item(std::span<const BlockIndex>(*idcs));
     py::object key_copy = _item_key_cast_Blocks_to_numpy(key);
     py::array result = arr_.attr("__getitem__")(key_copy);
     return std::make_shared<NumpyBlockBackend::Block>(std::move(result));
 }
 
 void
+NumpyBlockBackend::Block::set_item(std::span<const BlockIndex> key,
+                                   const BlockBackend::Block& value)
+{
+    py::object py_key = BlockBackend::block_indices_to_py(key);
+    arr_.attr("__setitem__")(py_key, value.to_numpy());
+}
+
+void
 NumpyBlockBackend::Block::set_item(py::object key, py::object value)
 {
+    if (auto idcs = BlockBackend::try_py_key_to_block_indices(key)) {
+        if (py::isinstance<BlockBackend::Block>(value)) {
+            set_item(std::span<const BlockIndex>(*idcs), value.cast<BlockBackend::Block&>());
+            return;
+        }
+        if (py::isinstance<BlockBackend::Scalar>(value)) {
+            set_item(std::span<const BlockIndex>(*idcs), value.cast<BlockBackend::Scalar&>());
+            return;
+        }
+        NumpyBlockBackend::Block tmp(
+          py::module_::import("numpy").attr("asarray")(value).cast<py::array>());
+        set_item(std::span<const BlockIndex>(*idcs), tmp);
+        return;
+    }
     py::object key_copy = _item_key_cast_Blocks_to_numpy(key);
     if (py::isinstance<NumpyBlockBackend::Block>(value)) {
         NumpyBlockBackend::Block* block = value.cast<NumpyBlockBackend::Block*>();

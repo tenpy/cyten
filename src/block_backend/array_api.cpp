@@ -8,6 +8,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pytypes.h>
 #include <pybind11/stl.h>
+#include <span>
 #include <stdexcept>
 #include <utility>
 
@@ -166,10 +167,24 @@ ArrayApiBlockBackend::Block::to_numpy(Dtype dt) const
 }
 
 BlockCPtr
+ArrayApiBlockBackend::Block::get_item(std::span<const BlockIndex> key) const
+{
+    return backend_->wrap(arr_.attr("__getitem__")(BlockBackend::block_indices_to_py(key)));
+}
+
+BlockPtr
+ArrayApiBlockBackend::Block::get_item(std::span<const BlockIndex> key)
+{
+    return backend_->wrap(arr_.attr("__getitem__")(BlockBackend::block_indices_to_py(key)));
+}
+
+BlockCPtr
 ArrayApiBlockBackend::Block::get_item(py::object key) const
 {
     if (key.is_none())
         return shared_from_this();
+    if (auto idcs = BlockBackend::try_py_key_to_block_indices(key))
+        return get_item(std::span<const BlockIndex>(*idcs));
     return backend_->wrap(arr_.attr("__getitem__")(key));
 }
 
@@ -178,12 +193,38 @@ ArrayApiBlockBackend::Block::get_item(py::object key)
 {
     if (key.is_none())
         return shared_from_this();
+    if (auto idcs = BlockBackend::try_py_key_to_block_indices(key))
+        return get_item(std::span<const BlockIndex>(*idcs));
     return backend_->wrap(arr_.attr("__getitem__")(key));
+}
+
+void
+ArrayApiBlockBackend::Block::set_item(std::span<const BlockIndex> key,
+                                      const BlockBackend::Block& value)
+{
+    py::object py_key = BlockBackend::block_indices_to_py(key);
+    if (auto const* ab = dynamic_cast<ArrayApiBlockBackend::Block const*>(&value)) {
+        arr_.attr("__setitem__")(py_key, ab->obj());
+        return;
+    }
+    arr_.attr("__setitem__")(py_key, backend_->api().attr("asarray")(value.to_numpy()));
 }
 
 void
 ArrayApiBlockBackend::Block::set_item(py::object key, py::object value)
 {
+    if (auto idcs = BlockBackend::try_py_key_to_block_indices(key)) {
+        if (py::isinstance<BlockBackend::Block>(value)) {
+            set_item(std::span<const BlockIndex>(*idcs), value.cast<BlockBackend::Block&>());
+            return;
+        }
+        if (py::isinstance<BlockBackend::Scalar>(value)) {
+            set_item(std::span<const BlockIndex>(*idcs), value.cast<BlockBackend::Scalar&>());
+            return;
+        }
+        arr_.attr("__setitem__")(BlockBackend::block_indices_to_py(*idcs), value);
+        return;
+    }
     if (py::isinstance<ArrayApiBlockBackend::Block>(value)) {
         auto* block = value.cast<ArrayApiBlockBackend::Block*>();
         arr_.attr("__setitem__")(key, block->obj());
@@ -304,7 +345,8 @@ ArrayApiBlockBackend::Block::operator!=(const BlockBackend::Block& other) const
 BlockPtr
 ArrayApiBlockBackend::Block::pow(const BlockBackend::Scalar& exponent) const
 {
-    return backend_->wrap(arr_.attr("__pow__")(backend_->api().attr("asarray")(exponent.to_numpy())));
+    return backend_->wrap(
+      arr_.attr("__pow__")(backend_->api().attr("asarray")(exponent.to_numpy())));
 }
 
 BlockPtr
@@ -326,9 +368,8 @@ ArrayApiBlockBackend::Block::from_hdf5(py::object /*hdf5_loader*/,
                                        py::object /*h5gr*/,
                                        const std::string& /*subpath*/)
 {
-    throw NotImplemented(
-      "ArrayApiBlockBackend::Block::from_hdf5 needs the Array API namespace; "
-      "load via ArrayApiBlockBackend::block_from_numpy instead.");
+    throw NotImplemented("ArrayApiBlockBackend::Block::from_hdf5 needs the Array API namespace; "
+                         "load via ArrayApiBlockBackend::block_from_numpy instead.");
 }
 
 // -----------------------------------------------------------------------------
@@ -413,7 +454,8 @@ ArrayApiBlockBackend::as_scalar(py::object value, Dtype dt)
 BlockBackend::Scalar
 ArrayApiBlockBackend::as_scalar(bool b)
 {
-    return as_scalar(api_.attr("asarray")(py::cast(b), py::arg("dtype") = dtype_to_api(Dtype::Bool)));
+    return as_scalar(
+      api_.attr("asarray")(py::cast(b), py::arg("dtype") = dtype_to_api(Dtype::Bool)));
 }
 
 BlockBackend::Scalar
@@ -464,11 +506,11 @@ ArrayApiBlockBackend::ArrayApiBlockBackend(py::object api_namespace,
   , api_(std::move(api_namespace))
 {
     backend_dtype_map_ = {
-      { Dtype::Float32, api_.attr("float32") },
-      { Dtype::Float64, api_.attr("float64") },
-      { Dtype::Complex64, api_.attr("complex64") },
-      { Dtype::Complex128, api_.attr("complex128") },
-      { Dtype::Bool, api_.attr("bool") },
+        { Dtype::Float32, api_.attr("float32") },
+        { Dtype::Float64, api_.attr("float64") },
+        { Dtype::Complex64, api_.attr("complex64") },
+        { Dtype::Complex128, api_.attr("complex128") },
+        { Dtype::Bool, api_.attr("bool") },
     };
     // Int64 is used for index arrays; map if the API exposes it, else fall back to float64 cast
     // sites that need indices via numpy.
@@ -531,7 +573,9 @@ ArrayApiBlockBackend::as_block(py::object a,
         dtype_arg = dtype_to_api(*dtype_opt);
 
     py::object block =
-      api_.attr("asarray")(a, py::arg("dtype") = dtype_arg, py::arg("device") = device ? py::cast(*device) : py::none());
+      api_.attr("asarray")(a,
+                           py::arg("dtype") = dtype_arg,
+                           py::arg("device") = device ? py::cast(*device) : py::none());
     if (!dtype_opt || *dtype_opt != Dtype::Bool)
         block = py_mul(py::float_(1.0), block);
     return wrap(std::move(block));
@@ -590,9 +634,9 @@ ArrayApiBlockBackend::allclose(const BlockCPtr& a, const BlockCPtr& b, float64 r
 {
     py::object aa = obj(a);
     py::object bb = obj(b);
-    py::object res =
-      api_.attr("all")(py_le(api_.attr("abs")(py_sub(aa, bb)),
-                             py_add(py::float_(atol), py_mul(py::float_(rtol), api_.attr("abs")(bb)))));
+    py::object res = api_.attr("all")(
+      py_le(api_.attr("abs")(py_sub(aa, bb)),
+            py_add(py::float_(atol), py_mul(py::float_(rtol), api_.attr("abs")(bb)))));
     return item(wrap(std::move(res))).as_bool();
 }
 
@@ -794,8 +838,8 @@ ArrayApiBlockBackend::norm(const BlockCPtr& a, float64 order, std::optional<int6
         res = api_.attr("linalg").attr("vector_norm")(
           obj(a), py::arg("axis") = *axis, py::arg("ord") = order);
     else
-        res =
-          api_.attr("linalg").attr("vector_norm")(obj(a), py::arg("axis") = py::none(), py::arg("ord") = order);
+        res = api_.attr("linalg").attr("vector_norm")(
+          obj(a), py::arg("axis") = py::none(), py::arg("ord") = order);
     return item(wrap(std::move(res)));
 }
 
@@ -819,14 +863,15 @@ ArrayApiBlockBackend::random_normal(const std::vector<int64>& dims,
                                     std::optional<std::string> device)
 {
     py::object np = numpy_module();
-    py::object res =
-      np.attr("random").attr("normal")(py::arg("loc") = 0, py::arg("scale") = sigma, py::arg("size") = to_py_list(dims));
+    py::object res = np.attr("random").attr("normal")(
+      py::arg("loc") = 0, py::arg("scale") = sigma, py::arg("size") = to_py_list(dims));
     if (!dtype::is_real(dt)) {
         py::object imag = np.attr("random").attr("normal")(
           py::arg("loc") = 0, py::arg("scale") = sigma, py::arg("size") = to_py_list(dims));
         res = py_add(res, py_mul(py::cast(complex128{ 0.0, 1.0 }), imag));
     }
-    return wrap(api_.attr("asarray")(res, py::arg("device") = device ? py::cast(*device) : py::none()));
+    return wrap(
+      api_.attr("asarray")(res, py::arg("device") = device ? py::cast(*device) : py::none()));
 }
 
 BlockPtr
@@ -841,7 +886,8 @@ ArrayApiBlockBackend::random_uniform(const std::vector<int64>& dims,
           np.attr("random").attr("uniform")(-1, 1, py::arg("size") = to_py_list(dims));
         res = py_add(res, py_mul(py::cast(complex128{ 0.0, 1.0 }), imag));
     }
-    return wrap(api_.attr("asarray")(res, py::arg("device") = device ? py::cast(*device) : py::none()));
+    return wrap(
+      api_.attr("asarray")(res, py::arg("device") = device ? py::cast(*device) : py::none()));
 }
 
 BlockPtr
@@ -961,7 +1007,8 @@ ArrayApiBlockBackend::tdot(const BlockCPtr& a,
                            const std::vector<int64>& idcs_a,
                            const std::vector<int64>& idcs_b)
 {
-    return wrap(api_.attr("tensordot")(obj(a), obj(b), py::make_tuple(to_py_list(idcs_a), to_py_list(idcs_b))));
+    return wrap(api_.attr("tensordot")(
+      obj(a), obj(b), py::make_tuple(to_py_list(idcs_a), to_py_list(idcs_b))));
 }
 
 BlockPtr
@@ -984,8 +1031,7 @@ ArrayApiBlockBackend::trace_full(const BlockCPtr& a)
         perm.push_back(i);
     for (int64 i = 2 * num_trace - 1; i >= num_trace; --i)
         perm.push_back(i);
-    BlockPtr reshaped =
-      reshape(permute_axes(a, perm), { trace_dim, trace_dim });
+    BlockPtr reshaped = reshape(permute_axes(a, perm), { trace_dim, trace_dim });
     return item(wrap(api_.attr("linalg").attr("trace")(obj(reshaped))));
 }
 
@@ -1036,8 +1082,8 @@ ArrayApiBlockBackend::matrix_exp(const BlockCPtr& /*matrix*/)
 std::tuple<BlockPtr, BlockPtr>
 ArrayApiBlockBackend::matrix_qr(const BlockCPtr& a, bool full)
 {
-    py::tuple pair = api_.attr("linalg").attr("qr")(
-      obj(a), py::arg("mode") = full ? "complete" : "reduced");
+    py::tuple pair =
+      api_.attr("linalg").attr("qr")(obj(a), py::arg("mode") = full ? "complete" : "reduced");
     return { wrap(pair[0]), wrap(pair[1]) };
 }
 
@@ -1047,8 +1093,7 @@ ArrayApiBlockBackend::matrix_svd(const BlockCPtr& a, std::optional<std::string> 
     std::string algo = algorithm ? *algorithm : "default";
     if (algo != "default")
         throw std::invalid_argument("SVD algorithm not supported: " + algo);
-    py::tuple triple =
-      api_.attr("linalg").attr("svd")(obj(a), py::arg("full_matrices") = false);
+    py::tuple triple = api_.attr("linalg").attr("svd")(obj(a), py::arg("full_matrices") = false);
     return { wrap(triple[0]), wrap(triple[1]), wrap(triple[2]) };
 }
 

@@ -28,11 +28,15 @@ class NumpyBlockBackend : public BlockBackend
         BlockPtr get_item(py::object key) override;
         py::object _item_key_cast_Blocks_to_numpy(py::object key) const;
         BlockCPtr get_item(py::object key) const override;
+        BlockPtr get_item(std::span<const BlockIndex> key) override;
+        BlockCPtr get_item(std::span<const BlockIndex> key) const override;
         void set_item(py::object key, py::object value) override;
+        void set_item(std::span<const BlockIndex> key, const BlockBackend::Block& value) override;
+        using BlockBackend::Block::set_item;
         /// Set a single element by integer multi-index from a Scalar (numpy multi-index).
-        void set_item(const std::vector<int64>& key, const Scalar& value);
+        void set_item(const std::vector<int64>& key, const Scalar& value) override;
         /// Set a single element by integer index for 1D blocks from a Scalar.
-        void set_item(int64 idx, const Scalar& value);
+        void set_item(int64 idx, const Scalar& value) override;
 
         complex128 _item_as_complex128() const override;
         int64 _item_as_int64() const override;

@@ -10,6 +10,7 @@
 #include <cyten/block_backend/numpy.h>
 #include <cyten/block_backend/torch.h>
 #include <pybind11/detail/common.h>
+#include <span>
 #include <sstream>
 
 namespace cyten {
@@ -281,6 +282,8 @@ bind_block_backend(py::module_& m)
                     return py::cast(self.get_item(indices[0]));
                 return py::cast(self.get_item(indices));
             }
+            if (auto idcs = BlockBackend::try_py_key_to_block_indices(key))
+                return py::cast(self.get_item(std::span<const BlockBackend::BlockIndex>(*idcs)));
             return py::cast(self.get_item(key));
         },
         py::arg("key"))
@@ -296,6 +299,18 @@ bind_block_backend(py::module_& m)
                         self.set_item(indices[0], scalar);
                     else
                         self.set_item(indices, scalar);
+                    return;
+                }
+            }
+            if (auto idcs = BlockBackend::try_py_key_to_block_indices(key)) {
+                if (py::isinstance<BlockBackend::Block>(value)) {
+                    self.set_item(std::span<const BlockBackend::BlockIndex>(*idcs),
+                                  value.cast<BlockBackend::Block&>());
+                    return;
+                }
+                if (py::isinstance<BlockBackend::Scalar>(value)) {
+                    self.set_item(std::span<const BlockBackend::BlockIndex>(*idcs),
+                                  value.cast<BlockBackend::Scalar&>());
                     return;
                 }
             }

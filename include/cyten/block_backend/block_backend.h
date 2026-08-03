@@ -5,7 +5,9 @@
 #include <iosfwd>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
+#include <variant>
 #include <vector>
 
 namespace cyten {
@@ -14,8 +16,39 @@ namespace cyten {
 class BlockBackend
 {
   public:
-    // forward declaration, defined below.
+    // forward declarations, defined below.
+    class Block;
     class Scalar;
+
+    using BlockPtr = std::shared_ptr<Block>;
+    using BlockCPtr = std::shared_ptr<const Block>;
+
+    /// C++ slice for one axis (``std::nullopt`` = open end / default step), like Python
+    /// ``slice(start, stop, step)``.
+    struct AxisSlice
+    {
+        std::optional<int64> start{};
+        std::optional<int64> stop{};
+        std::optional<int64> step{};
+        static AxisSlice all() { return {}; }
+    };
+
+    /// One axis indexer for native C++ ``get_item`` / ``set_item`` (no ``py::object``).
+    /// Semantics match NumPy/torch basic + advanced indexing for a tuple of one indexer per axis
+    /// (no Ellipsis / newaxis in this API).
+    using BlockIndex = std::variant<int64,              // integer index (collapses that axis)
+                                    AxisSlice,          // basic slice
+                                    std::vector<int64>, // host index array
+                                    BlockCPtr // index-array or bool-mask Block (device-aware)
+                                    >;
+
+    /// Convert a native indexer to a Python key object (for numpy / Array API bridges).
+    static py::object block_index_to_py(const BlockIndex& idx);
+    /// Convert a sequence of native indexers to a Python key (single object or tuple).
+    static py::object block_indices_to_py(std::span<const BlockIndex> key);
+    /// Try to parse a Python key into native ``BlockIndex`` entries. Returns nullopt for
+    /// unsupported keys (Ellipsis, None/newaxis, plain lists, etc.).
+    static std::optional<std::vector<BlockIndex>> try_py_key_to_block_indices(py::object key);
 
   public:
     /// Abstract base class for dense blocks. Subclassed per backend (e.g.
@@ -78,13 +111,21 @@ class BlockBackend
         /// Arbitrary access by Python key; returns new block (shared_ptr).
         std::shared_ptr<const Block> operator[](py::object key) const;
         std::shared_ptr<Block> operator[](py::object key);
+        /// Native C++ subblock access (slices / index arrays); does not route through py::object.
+        std::shared_ptr<const Block> operator[](std::span<const BlockIndex> key) const;
+        std::shared_ptr<Block> operator[](std::span<const BlockIndex> key);
+        std::shared_ptr<const Block> operator[](std::initializer_list<BlockIndex> key) const;
+        std::shared_ptr<Block> operator[](std::initializer_list<BlockIndex> key);
 
-        /// Assign to whole block (slice(None, None)); calls set_item with full slice.
+        /// Assign to whole block; uses native full-slice ``set_item``.
         Block& operator=(py::object rhs);
 
         /// Arbitrary getitem; implemented by backends (e.g. numpy __getitem__).
         virtual std::shared_ptr<Block> get_item(py::object key) = 0;
         virtual std::shared_ptr<const Block> get_item(py::object key) const = 0;
+        /// Native C++ getitem by slices / ints / index arrays (one indexer per axis).
+        virtual std::shared_ptr<Block> get_item(std::span<const BlockIndex> key) = 0;
+        virtual std::shared_ptr<const Block> get_item(std::span<const BlockIndex> key) const = 0;
         /// Get a single element by integer multi-index; returns a Scalar.
         /// Default: delegates to BlockBackend::get_block_element.
         virtual Scalar get_item(const std::vector<int64>& key) const;
@@ -93,6 +134,10 @@ class BlockBackend
         virtual Scalar get_item(int64 idx) const;
         /// Arbitrary setitem; implemented by backends (e.g. numpy __setitem__).
         virtual void set_item(py::object key, py::object value) = 0;
+        /// Native C++ setitem by slices / ints / index arrays.
+        virtual void set_item(std::span<const BlockIndex> key, const Block& value) = 0;
+        /// Native C++ setitem from a Scalar value.
+        virtual void set_item(std::span<const BlockIndex> key, const Scalar& value);
         /// Set a single element by integer multi-index from a Scalar.
         /// Default: set_item(tuple(key), value.to_numpy()).
         virtual void set_item(const std::vector<int64>& key, const Scalar& value);
@@ -116,8 +161,6 @@ class BlockBackend
                                                 py::object h5gr,
                                                 const std::string& subpath);
     };
-    using BlockPtr = std::shared_ptr<Block>;
-    using BlockCPtr = std::shared_ptr<const Block>;
 
     /// Holds a single scalar value with a Dtype as a 0-d Block.
     // Use accessors to cast to the desired C++ type.

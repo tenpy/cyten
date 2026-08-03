@@ -43,6 +43,35 @@ def test_to_backend_numpy_to_torch():
 
 
 @pytest.mark.torch
+def test_torch_block_getitem_setitem_slice_and_index_array():
+    """Torch Block advanced indexing via native C++ BlockIndex path."""
+    from cyten._core import BlockBackend
+
+    bb = TorchBlockBackend.from_factory('cpu:0')
+    block = bb.block_from_numpy(np.arange(12, dtype=np.float64).reshape(3, 4))
+
+    row = block[1, :]
+    assert isinstance(row, BlockBackend.BlockCls)
+    np.testing.assert_array_equal(bb.to_numpy(row), np.arange(4, 8, dtype=np.float64))
+
+    col = block[:, 2]
+    assert isinstance(col, BlockBackend.BlockCls)
+    np.testing.assert_array_equal(bb.to_numpy(col), np.array([2.0, 6.0, 10.0]))
+
+    sub = block[[2, 0], :]
+    assert isinstance(sub, BlockBackend.BlockCls)
+    np.testing.assert_array_equal(bb.to_numpy(sub), np.array([[8.0, 9.0, 10.0, 11.0], [0.0, 1.0, 2.0, 3.0]]))
+
+    block[0, 1:3] = bb.block_from_numpy(np.array([7.0, 8.0]))
+    np.testing.assert_array_equal(bb.to_numpy(block)[0, 1:3], np.array([7.0, 8.0]))
+
+    # scalar element access still returns Scalar
+    s = block[1, 2]
+    assert isinstance(s, BlockBackend.Scalar)
+    assert s.as_float64() == 6.0
+
+
+@pytest.mark.torch
 def test_matrix_exp():
     bb = TorchBlockBackend.from_factory('cpu:0')
     a_np = np.array([[0.3, -1.0], [1.0, 0.5]], dtype=np.float64)

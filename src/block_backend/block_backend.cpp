@@ -5,13 +5,144 @@
 #include <cyten/tools.h>
 
 #include <algorithm>
+#include <cstring>
 #include <memory>
 #include <numeric>
 #include <ostream>
 #include <sstream>
 #include <stdexcept>
+#include <type_traits>
+#include <variant>
 
 namespace cyten {
+
+namespace {
+
+bool
+is_py_integer_scalar_key(const py::handle& obj)
+{
+    if (obj.is_none())
+        return false;
+    if (py::isinstance<py::array>(obj))
+        return false;
+    if (py::isinstance<py::slice>(obj))
+        return false;
+    try {
+        (void)obj.cast<int64>();
+        return true;
+    } catch (const py::cast_error&) {
+        return false;
+    }
+}
+
+std::optional<BlockBackend::BlockIndex>
+try_py_handle_to_block_index(py::handle key)
+{
+    if (py::isinstance<BlockBackend::Block>(key)) {
+        return BlockBackend::BlockCPtr(key.cast<BlockPtr>());
+    }
+    if (py::isinstance<py::array>(key)) {
+        py::array arr = py::reinterpret_borrow<py::array>(key);
+        // Bool masks must stay boolean; wrap as a numpy Block so backends can index natively.
+        try {
+            if (dtype::from_numpy_dtype(arr.dtype()) == Dtype::Bool) {
+                return BlockBackend::BlockCPtr(std::make_shared<NumpyBlockBackend::Block>(arr));
+            }
+        } catch (std::invalid_argument const&) {
+            // Unsupported dtype for cyten — leave for the py::object escape hatch.
+            return std::nullopt;
+        }
+        py::array_t<int64, py::array::c_style | py::array::forcecast> iarr(arr);
+        auto buf = iarr.request();
+        auto* ptr = static_cast<int64*>(buf.ptr);
+        return std::vector<int64>(ptr, ptr + buf.size);
+    }
+    // Plain Python list/tuple of integers → host index array (not a multi-axis key).
+    if (py::isinstance<py::list>(key) || py::isinstance<py::tuple>(key)) {
+        py::sequence seq = py::reinterpret_borrow<py::sequence>(key);
+        std::vector<int64> vec;
+        vec.reserve(static_cast<size_t>(seq.size()));
+        for (py::ssize_t i = 0; i < seq.size(); ++i) {
+            if (!is_py_integer_scalar_key(seq[i]))
+                return std::nullopt;
+            vec.push_back(seq[i].cast<int64>());
+        }
+        return vec;
+    }
+    if (py::isinstance<py::slice>(key)) {
+        py::slice sl = py::reinterpret_borrow<py::slice>(key);
+        auto as_opt_int = [](py::object o) -> std::optional<int64> {
+            if (o.is_none())
+                return std::nullopt;
+            return o.cast<int64>();
+        };
+        return BlockBackend::AxisSlice{ as_opt_int(sl.attr("start")),
+                                        as_opt_int(sl.attr("stop")),
+                                        as_opt_int(sl.attr("step")) };
+    }
+    if (is_py_integer_scalar_key(key))
+        return key.cast<int64>();
+    return std::nullopt;
+}
+
+} // namespace
+
+py::object
+BlockBackend::block_index_to_py(const BlockIndex& idx)
+{
+    return std::visit(
+      [](auto const& v) -> py::object {
+          using T = std::decay_t<decltype(v)>;
+          if constexpr (std::is_same_v<T, int64>) {
+              return py::int_(v);
+          } else if constexpr (std::is_same_v<T, AxisSlice>) {
+              return py::slice(v.start.has_value() ? py::object(py::int_(*v.start)) : py::none(),
+                               v.stop.has_value() ? py::object(py::int_(*v.stop)) : py::none(),
+                               v.step.has_value() ? py::object(py::int_(*v.step)) : py::none());
+          } else if constexpr (std::is_same_v<T, std::vector<int64>>) {
+              py::array_t<int64> arr(static_cast<py::ssize_t>(v.size()));
+              if (!v.empty())
+                  std::memcpy(arr.mutable_data(), v.data(), v.size() * sizeof(int64));
+              return std::move(arr);
+          } else {
+              static_assert(std::is_same_v<T, BlockCPtr>);
+              return py::object(v->to_numpy());
+          }
+      },
+      idx);
+}
+
+py::object
+BlockBackend::block_indices_to_py(std::span<const BlockIndex> key)
+{
+    if (key.size() == 1)
+        return block_index_to_py(key[0]);
+    py::tuple t(static_cast<py::ssize_t>(key.size()));
+    for (size_t i = 0; i < key.size(); ++i)
+        t[static_cast<py::ssize_t>(i)] = block_index_to_py(key[i]);
+    return t;
+}
+
+std::optional<std::vector<BlockBackend::BlockIndex>>
+BlockBackend::try_py_key_to_block_indices(py::object key)
+{
+    if (py::isinstance<py::tuple>(key)) {
+        py::tuple t = py::reinterpret_borrow<py::tuple>(key);
+        std::vector<BlockIndex> out;
+        out.reserve(static_cast<size_t>(t.size()));
+        for (auto item : t) {
+            auto idx = try_py_handle_to_block_index(item);
+            if (!idx)
+                return std::nullopt;
+            out.push_back(std::move(*idx));
+        }
+        return out;
+    }
+    auto single = try_py_handle_to_block_index(key);
+    if (!single)
+        return std::nullopt;
+    return std::vector<BlockIndex>{ std::move(*single) };
+}
 
 // -----------------------------------------------------------------------------
 // Block class
@@ -46,6 +177,30 @@ BlockBackend::Block::operator[](py::object key) const
     return get_item(key);
 }
 
+std::shared_ptr<BlockBackend::Block>
+BlockBackend::Block::operator[](std::span<const BlockIndex> key)
+{
+    return get_item(key);
+}
+
+std::shared_ptr<const BlockBackend::Block>
+BlockBackend::Block::operator[](std::span<const BlockIndex> key) const
+{
+    return get_item(key);
+}
+
+std::shared_ptr<BlockBackend::Block>
+BlockBackend::Block::operator[](std::initializer_list<BlockIndex> key)
+{
+    return get_item(std::span<const BlockIndex>(key.begin(), key.size()));
+}
+
+std::shared_ptr<const BlockBackend::Block>
+BlockBackend::Block::operator[](std::initializer_list<BlockIndex> key) const
+{
+    return get_item(std::span<const BlockIndex>(key.begin(), key.size()));
+}
+
 BlockBackend::Scalar
 BlockBackend::Block::get_item(const std::vector<int64>& key) const
 {
@@ -61,10 +216,19 @@ BlockBackend::Block::get_item(int64 idx) const
 }
 
 void
+BlockBackend::Block::set_item(std::span<const BlockIndex> key, const Scalar& value)
+{
+    set_item(key, *value._block());
+}
+
+void
 BlockBackend::Block::set_item(const std::vector<int64>& key, const Scalar& value)
 {
-    // Tuple key so backends (e.g. numpy) do multi-index assignment, not fancy indexing.
-    set_item(py::tuple(py::cast(key)), value.to_numpy());
+    std::vector<BlockIndex> idcs;
+    idcs.reserve(key.size());
+    for (int64 k : key)
+        idcs.emplace_back(k);
+    set_item(std::span<const BlockIndex>(idcs), value);
 }
 
 void
@@ -78,7 +242,15 @@ BlockBackend::Block::set_item(int64 idx, const Scalar& value)
 BlockBackend::Block&
 BlockBackend::Block::operator=(py::object rhs)
 {
-    set_item(py::slice(py::none(), py::none(), py::none()), rhs);
+    BlockIndex all = AxisSlice::all();
+    if (py::isinstance<Block>(rhs)) {
+        set_item(std::span<const BlockIndex>(&all, 1), rhs.cast<Block&>());
+    } else if (py::isinstance<Scalar>(rhs)) {
+        set_item(std::span<const BlockIndex>(&all, 1), rhs.cast<Scalar&>());
+    } else {
+        // Fall back: assign via Python key path with a converted full-slice key.
+        set_item(block_indices_to_py(std::span<const BlockIndex>(&all, 1)), rhs);
+    }
     return *this;
 }
 
@@ -560,11 +732,11 @@ BlockBackend::get_block_mask_element(const BlockCPtr& a,
     int64 offset = (large_leg_idx / dim0) * sum_block;
     large_leg_idx %= dim0;
     // if this does not work, need to override.
-    if (!item((*a)[py::cast(large_leg_idx)]).as_bool())
+    if (!a->get_item(large_leg_idx).as_bool())
         // if the block has a False entry, the matrix has only False in that column
         return as_scalar(false);
     // otherwise, there is exactly one True in that column, at index sum(a[:large_leg_idx])
-    int64 running = sum_all((*a)[py::slice(int64(0), large_leg_idx, std::nullopt)]).as_int64();
+    int64 running = sum_all((*a)[{ AxisSlice{ 0, large_leg_idx, std::nullopt } }]).as_int64();
     return as_scalar(small_leg_idx == offset + running);
 }
 

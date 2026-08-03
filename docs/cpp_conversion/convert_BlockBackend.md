@@ -53,6 +53,7 @@ Python still accepts `numbers.Number` in many tensor APIs; those call sites were
 - **`apply_basis_perm`.** Implemented in C++, but legs are still `std::vector<py::object>` until `Space` is converted (see [convert_Spaces.md](convert_Spaces.md)).
 - **Default implementations on the base.** Combinators such as `combine_legs` / `split_legs`, `dagger`, `linear_combination`, `mul`, `permute_combined_*`, `eye_block`, `argsort` (wrapper around `_argsort`), etc., live on `BlockBackend` and call pure-virtual primitives implemented by `NumpyBlockBackend`.
 - **HDF5.** `Block`, `Scalar`, and backends implement `save_hdf5` / `from_hdf5` and round-trip through the existing Python HDF5 helpers (covered by pytest).
+- **Native C++ indexing.** `BlockBackend::AxisSlice` and `BlockIndex` (`variant` of `int64` / `AxisSlice` / `vector<int64>` / `BlockCPtr`) provide `get_item` / `set_item` / `operator[]` without constructing `py::slice`. Torch implements this with libtorch; numpy/Array API convert `BlockIndex` to Python keys at the backend boundary.
 
 ## What stayed in Python
 

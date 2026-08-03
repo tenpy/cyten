@@ -60,6 +60,31 @@ def test_block_getitem_setitem_scalar_1d():
     assert tuple(sliced.shape) == (2,)
 
 
+def test_block_getitem_setitem_slice_and_index_array():
+    """Advanced indexing (slices / index arrays) returns Blocks and supports setitem."""
+    from cyten._core import BlockBackend
+
+    be = NumpyBlockBackend.from_factory('cpu')
+    block = be.as_block(np.arange(12, dtype=np.float64).reshape(3, 4))
+
+    row = block[1, :]
+    assert isinstance(row, BlockBackend.BlockCls)
+    np.testing.assert_array_equal(be.to_numpy(row), np.arange(4, 8, dtype=np.float64))
+
+    col = block[:, 2]
+    assert isinstance(col, BlockBackend.BlockCls)
+    np.testing.assert_array_equal(be.to_numpy(col), np.array([2.0, 6.0, 10.0]))
+
+    # integer index array on one axis
+    sub = block[[2, 0], :]
+    assert isinstance(sub, BlockBackend.BlockCls)
+    np.testing.assert_array_equal(be.to_numpy(sub), np.array([[8.0, 9.0, 10.0, 11.0], [0.0, 1.0, 2.0, 3.0]]))
+
+    # setitem via slice
+    block[0, 1:3] = be.as_block(np.array([7.0, 8.0]))
+    np.testing.assert_array_equal(be.to_numpy(block)[0, 1:3], np.array([7.0, 8.0]))
+
+
 def test_block_abs():
     from cyten._core import BlockBackend
 

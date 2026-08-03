@@ -1,10 +1,11 @@
 #pragma once
 
+#include <cyten/block_backend/array_api.h>
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
-#include <cyten/block_backend/array_api.h>
 #include <memory>
 #include <pybind11/pybind11.h>
+#include <span>
 
 namespace cyten {
 
@@ -42,6 +43,14 @@ class PyBlock
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, get_item, key);
     }
+    BlockCPtr get_item(std::span<const BlockBackend::BlockIndex> key) const override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockCPtr, BlockBackend::Block, get_item, key);
+    }
+    BlockPtr get_item(std::span<const BlockBackend::BlockIndex> key) override
+    {
+        PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend::Block, get_item, key);
+    }
     BlockBackend::Scalar get_item(const std::vector<int64>& key) const override
     {
         PYBIND11_OVERRIDE(BlockBackend::Scalar, BlockBackend::Block, get_item, key);
@@ -53,6 +62,16 @@ class PyBlock
     void set_item(py::object key, py::object value) override
     {
         PYBIND11_OVERRIDE_PURE(void, BlockBackend::Block, set_item, key, value);
+    }
+    void set_item(std::span<const BlockBackend::BlockIndex> key,
+                  const BlockBackend::Block& value) override
+    {
+        PYBIND11_OVERRIDE_PURE(void, BlockBackend::Block, set_item, key, value);
+    }
+    void set_item(std::span<const BlockBackend::BlockIndex> key,
+                  const BlockBackend::Scalar& value) override
+    {
+        PYBIND11_OVERRIDE(void, BlockBackend::Block, set_item, key, value);
     }
     void set_item(const std::vector<int64>& key, const BlockBackend::Scalar& value) override
     {
@@ -545,7 +564,10 @@ class PyArrayApiBlockBackend
     {
         PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, add_axis, a, pos);
     }
-    bool all(const BlockCPtr& a) override { PYBIND11_OVERRIDE(bool, ArrayApiBlockBackend, all, a); }
+    bool all(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(bool, ArrayApiBlockBackend, all, a);
+    }
     bool allclose(const BlockCPtr& a, const BlockCPtr& b, float64 rtol, float64 atol) override
     {
         PYBIND11_OVERRIDE(bool, ArrayApiBlockBackend, allclose, a, b, rtol, atol);
@@ -554,7 +576,10 @@ class PyArrayApiBlockBackend
     {
         PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, angle, a);
     }
-    bool any(const BlockCPtr& a) override { PYBIND11_OVERRIDE(bool, ArrayApiBlockBackend, any, a); }
+    bool any(const BlockCPtr& a) override
+    {
+        PYBIND11_OVERRIDE(bool, ArrayApiBlockBackend, any, a);
+    }
     BlockPtr apply_mask(const BlockCPtr& block, const BlockCPtr& mask, int64 ax) override
     {
         PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, apply_mask, block, mask, ax);
@@ -628,7 +653,8 @@ class PyArrayApiBlockBackend
                                 const Scalar& b_coef,
                                 const BlockCPtr& w) override
     {
-        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, linear_combination, a_coef, v, b_coef, w);
+        PYBIND11_OVERRIDE(
+          BlockPtr, ArrayApiBlockBackend, linear_combination, a_coef, v, b_coef, w);
     }
     BlockPtr log(const BlockCPtr& a) override
     {
@@ -667,7 +693,8 @@ class PyArrayApiBlockBackend
                            float64 sigma,
                            std::optional<std::string> device) override
     {
-        PYBIND11_OVERRIDE(BlockPtr, ArrayApiBlockBackend, random_normal, dims, dtype, sigma, device);
+        PYBIND11_OVERRIDE(
+          BlockPtr, ArrayApiBlockBackend, random_normal, dims, dtype, sigma, device);
     }
     BlockPtr random_uniform(const std::vector<int64>& dims,
                             Dtype dtype,
@@ -693,12 +720,12 @@ class PyArrayApiBlockBackend
                                                int64 max_lines) override
     {
         PYBIND11_OVERRIDE(std::vector<std::string>,
-                               ArrayApiBlockBackend,
-                               _block_repr_lines,
-                               a,
-                               indent,
-                               max_width,
-                               max_lines);
+                          ArrayApiBlockBackend,
+                          _block_repr_lines,
+                          a,
+                          indent,
+                          max_width,
+                          max_lines);
     }
     BlockPtr reshape(const BlockCPtr& a, const std::vector<int64>& shape) override
     {
@@ -790,10 +817,10 @@ class PyArrayApiBlockBackend
       std::optional<std::string> algorithm) override
     {
         PYBIND11_OVERRIDE(PYBIND11_TYPE(std::tuple<BlockPtr, BlockPtr, BlockPtr>),
-                               ArrayApiBlockBackend,
-                               matrix_svd,
-                               a,
-                               algorithm);
+                          ArrayApiBlockBackend,
+                          matrix_svd,
+                          a,
+                          algorithm);
     }
     const std::vector<std::string>& possible_svd_algorithms() const override
     {

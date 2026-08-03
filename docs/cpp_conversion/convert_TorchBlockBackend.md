@@ -45,8 +45,10 @@ Smoke-tested via `cyten._core.check_torch_array` and dual-import regression test
    as Python ABC defaults / numpy).
 4. **`to_same_dtype`:** Keep as a private helper (Python had it as a method); promote types with
    `torch::promoteTypes` / `to(...)`.
-5. **`getitem` / `setitem`:** Prefer libtorch indexing where practical; may fall back to
-   pybind/`torch` Python API for arbitrary keys if needed (numpy uses `py::array` `__getitem__`).
+5. **`getitem` / `setitem`:** Native C++ API uses `AxisSlice` / `BlockIndex` with
+   `get_item(std::span<const BlockIndex>)` / `set_item(...)` implemented via libtorch
+   `tensor.index` / `index_put_`. Python keys are parsed to `BlockIndex` when possible;
+   Ellipsis/None/exotic keys still fall back to numpy `__getitem__`/`__setitem__`.
 6. **HDF5:** Round-trip via `to_numpy()` / `block_from_numpy`, same idea as numpy block save/load.
 7. **Factory wiring:** Update `backend_factory.py` to use `TorchBlockBackend.from_factory` like
    numpy; export from `cyten/block_backends/__init__.py` via `_core`.
