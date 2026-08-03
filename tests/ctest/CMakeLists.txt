@@ -6,6 +6,8 @@ enable_testing()
 # create the testing file and list of tests
 set (TestsToRun
   test_setup_check.cpp
+  test_sector.cpp
+  test_sector_casters.cpp
 )
 
 create_test_sourcelist(Tests CommonCppTests.cpp ${TestsToRun})
@@ -19,6 +21,7 @@ set_source_files_properties(CommonCppTests.cpp ${TestsToRun} PROPERTIES
 
 target_include_directories(CommonCppTests
   PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests/ctest
+  PRIVATE ${PROJECT_SOURCE_DIR}/pybind
   PUBLIC ${PROJECT_SOURCE_DIR}/include
 )
 target_link_libraries(CommonCppTests PUBLIC cyten pybind11::embed)

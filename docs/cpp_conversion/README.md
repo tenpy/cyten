@@ -95,7 +95,8 @@ Skip `block_backends/torch.py` per scope.
 
 ### Layer 2 — Symmetries
 
-- **cyten/symmetries/_symmetries.py** — Large (~2.6k lines). Contains `SymmetryError`, `Sector`/`SectorArray`, `FusionStyle`, `Symmetry` (abstract), `TensorProduct`, concrete symmetries (`U1`, `no_symmetry`, etc.), and many functions. Convert in file order: exceptions → types → enums → base `Symmetry` → concrete symmetries → free functions.
+- **Sector / SectorArray** — C++ foundation first (see [convert_Sector.md](convert_Sector.md)): owning `Sector` (`int16_t[7]` + length, 16 bytes), contiguous `SectorArray`, fixed-extent `std::span` views for factor helpers, pybind casters ↔ NumPy (no Python `Sector` class). Do **not** template `Symmetry` on sector length.
+- **cyten/symmetries/_symmetries.py** — Large (~2.6k lines). Convert in order: exceptions → enums → `BaseSymmetry` (virtual API on `Sector` / `SectorArray`) → `SymmetryFactor` / concrete factors → product `Symmetry` → free functions.
 - **cyten/symmetries/_su2data.py** — SU2 data (small).
 - **cyten/symmetries/trees.py** — `FusionTree`, `fusion_trees` (~1k lines).
 - **cyten/symmetries/spaces.py** — `ElementarySpace`, `Leg`, `LegPipe`, `Space`, `TensorProduct`, `AbelianLegPipe` (~2.2k lines). Depends on symmetries and trees.
