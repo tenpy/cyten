@@ -12,6 +12,7 @@ target_sources(cyten
   check.cpp
   config.cpp
   symmetries/base_symmetry.cpp
+  symmetries/symmetry_factor.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   version.cpp
