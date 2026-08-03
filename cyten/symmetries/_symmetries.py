@@ -6,7 +6,6 @@ from __future__ import annotations
 import math
 import warnings
 from abc import ABCMeta, abstractmethod
-from enum import IntEnum
 from functools import reduce
 from itertools import product
 from typing import Literal
@@ -34,16 +33,8 @@ one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 one_4D_float = as_immutable_array(np.ones((1, 1, 1, 1), dtype=float))
 
 
-class SymmetryError(Exception):
-    """An exception that is raised whenever something is not possible or not allowed due to symmetry"""
-
-    pass
-
-
-class BraidChiralityUnspecifiedError(SymmetryError):
-    """An exception that is raised whenever a braid chirality should be specified but wasn't."""
-
-    pass
+from .._core import SymmetryError  # noqa: E402  # C++ / pybind11
+from .._core import BraidChiralityUnspecifiedError  # noqa: E402  # C++ / pybind11
 
 
 Sector = npt.NDArray[np.int_]
@@ -56,46 +47,8 @@ A 2D array of int with axis [s, q] and shape ``(num_sectors, sector_ind_len)``.
 """
 
 
-class FusionStyle(IntEnum):
-    """Describes properties of fusion, i.e. of the tensor product.
-
-    =================  =============================================================================
-    Value              Meaning
-    =================  =============================================================================
-    single             Fusing sectors results in a single sector ``a ⊗ b = c``, e.g. abelian groups.
-    -----------------  -----------------------------------------------------------------------------
-    multiple_unique    Every sector appears at most once in pairwise fusion, ``N_symbol in [0, 1]``.
-    -----------------  -----------------------------------------------------------------------------
-    general            No assumptions, ``N_symbol in [0, 1, 2, 3, ...]``.
-    =================  =============================================================================
-
-    """
-
-    single = 0
-    multiple_unique = 10
-    general = 20
-
-
-class BraidingStyle(IntEnum):
-    """Describes properties of braiding.
-
-    =============  ===========================================
-    Value
-    =============  ===========================================
-    bosonic        Symmetric braiding with trivial twist
-    -------------  -------------------------------------------
-    fermionic      Symmetric braiding with non-trivial twist
-    -------------  -------------------------------------------
-    anyonic        General, non-symmetric braiding
-    -------------  -------------------------------------------
-    no_braiding    Braiding is not defined
-    =============  ===========================================
-    """
-
-    bosonic = 0
-    fermionic = 10
-    anyonic = 20
-    no_braiding = 30
+from .._core import FusionStyle  # noqa: E402  # C++ / pybind11
+from .._core import BraidingStyle  # noqa: E402  # C++ / pybind11
 
 
 class BaseSymmetry(metaclass=ABCMeta):

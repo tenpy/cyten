@@ -11,4 +11,7 @@ target_sources(_core
   tools/py_cost_polynomials.cpp
   py_version.cpp
   py_check.cpp
+  symmetries/py_symmetries.cpp
+  symmetries/py_exceptions.cpp
+  symmetries/py_styles.cpp
 )
