@@ -9,4 +9,5 @@
 #include "symmetries/exceptions.h"
 #include "symmetries/sector.h"
 #include "symmetries/styles.h"
+#include "symmetries/symmetry.h"
 #include "symmetries/symmetry_factor.h"
