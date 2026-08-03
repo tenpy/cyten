@@ -5,7 +5,7 @@
 namespace cyten {
 
 /// Describes properties of fusion (tensor product).
-enum class FusionStyle : std::int32_t
+enum class FusionStyle : std::uint8_t
 {
     single = 0,           ///< a ⊗ b = c (unique), e.g. abelian groups
     multiple_unique = 10, ///< each sector appears at most once; N in {0,1}
@@ -13,7 +13,7 @@ enum class FusionStyle : std::int32_t
 };
 
 /// Describes properties of braiding.
-enum class BraidingStyle : std::int32_t
+enum class BraidingStyle : std::uint8_t
 {
     bosonic = 0,      ///< symmetric braid, trivial twist
     fermionic = 10,   ///< symmetric braid, non-trivial twist
