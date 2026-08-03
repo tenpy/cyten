@@ -2,7 +2,17 @@
 
 ## Status
 
-**In progress.** Thin layer on C++ `SymmetryFactor`: forces bosonic braiding; overrides `swap_gate`, `qdim`, `batch_qdim`, `topological_twist`; pure-virtual `_fusion_tensor`. Python `AbelianGroup` / `SU2` / `SUN` will subclass via `PyGroup` trampoline.
+**Done for monkey-patch.** C++ `Group` + `PyGroup` trampoline; imported from `_core` in `_symmetries.py`. `pytest tests/python_tests/test_symmetries.py`: 48 passed, 1 skipped. Python `AbelianGroup` / `SU2` / `SUN` subclass C++ `Group`.
+
+### Codegen notes
+
+- `gen_cpp_declaration` / `gen_cpp_definition` worked.
+- `gen_pyb11_binding --py-name Group ...` failed: `AttributeError: 'NoneType' object has no attribute 'name'` when resolving base `SymmetryFactor` (already from `_core`). Bindings/trampoline were hand-written.
+
+### Pitfalls
+
+- `PyGroup` must trampoline all pure virtuals inherited from `SymmetryFactor`, not only Group’s own overrides.
+- `_multiple_fusion_broadcast` trampoline must unpack `*args` (same as `PySymmetryFactor`).
 
 ## Metadata
 
@@ -14,35 +24,22 @@
 | declaration | `include/cyten/symmetries/group.h` |
 | definition | `src/symmetries/group.cpp` |
 | pybind11 binding | `pybind/symmetries/py_group.cpp` |
-| trampoline | `PyGroup` in `pybind/symmetries/py_trampolines.hpp` (required: AbelianGroup, SU2, SUN) |
+| trampoline | `PyGroup` in `pybind/symmetries/py_trampolines.hpp` |
 | first line of docstring | Base-class for symmetries that are described by a group. |
 
 ## Design notes
 
 - Inherits `SymmetryFactor`; ctor always passes `BraidingStyle::bosonic`.
-- `num_sectors`: `float64` like other symmetry classes (`+inf` allowed).
-- `descriptive_name`: `std::optional<std::string>`.
-- Pure virtual `_fusion_tensor` (Python `@abstractmethod`); other abstracts remain on `SymmetryFactor` / `BaseSymmetry`.
-- `swap_gate`: Kronecker of identity blocks `[b,a,b*,a*]`.
-- `qdim` / `batch_qdim`: delegate to `sector_dim` / `batch_sector_dim`.
-- `topological_twist`: always `1`.
-- Next: `AbelianGroup`, then concretes (`NoSymmetry`, `U1`, `ZN`, …).
-
-## Dependencies
-
-- Done: `Sector`, styles, `BaseSymmetry`, `SymmetryFactor`, product `Symmetry`.
-- Still Python: `AbelianGroup` and concretes (will hold via `PyGroup`).
+- Pure virtual `_fusion_tensor`; overrides `swap_gate`, `qdim`, `batch_qdim`, `topological_twist`.
+- Next: `AbelianGroup`, then concretes.
 
 ## TODO checklist
 
-- [x] initial setup (clean tree, list_python_names, pytest green, branch `convert_Group`)
-- [x] planning (this file)
-- [ ] generate declaration draft
-- [ ] improve declaration
-- [ ] generate definitions
-- [ ] improve definitions; compile + ctest
-- [ ] pybind11 bindings + trampoline
-- [ ] monkey-patch `from .._core import Group`
-- [ ] pytest `test_symmetries.py`
-- [ ] remove Python `Group` class body
-- [ ] wrap up / suggest merge
+- [x] initial setup
+- [x] planning
+- [x] declaration draft + improve
+- [x] definitions + compile + ctest
+- [x] pybind11 bindings + trampoline
+- [x] monkey-patch; pytest
+- [x] remove Python `Group` class body
+- [ ] wrap up / suggest merge to `main_cpp` (or continue with `AbelianGroup`)

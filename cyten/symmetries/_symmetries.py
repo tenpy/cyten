@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import math
 import warnings
-from abc import abstractmethod
 from itertools import product
 from typing import Literal
 
@@ -18,6 +17,7 @@ from .._core import (
     BraidChiralityUnspecifiedError,  # noqa: F401
     BraidingStyle,  # noqa: F401
     FusionStyle,  # noqa: F401
+    Group,  # noqa: F401
     Symmetry,  # noqa: F401
     SymmetryError,  # noqa: F401
     SymmetryFactor,  # noqa: F401
@@ -72,55 +72,6 @@ def _Symmetry_from_hdf5(cls, hdf5_loader, h5gr, subpath):
 
 
 Symmetry.from_hdf5 = classmethod(_Symmetry_from_hdf5)
-
-
-class Group(SymmetryFactor):
-    """Base-class for symmetries that are described by a group.
-
-    The symmetry is given via a faithful representation on the Hilbert space.
-    Notable counter-examples are fermionic parity or anyonic grading.
-
-    """
-
-    def __init__(
-        self,
-        fusion_style: FusionStyle,
-        trivial_sector: Sector,
-        group_name: str,
-        num_sectors: int | float,
-        has_complex_topological_data: bool,
-        descriptive_name: str | None = None,
-        trivial_shift: bool = True,
-    ):
-        SymmetryFactor.__init__(
-            self,
-            fusion_style=fusion_style,
-            braiding_style=BraidingStyle.bosonic,
-            trivial_sector=trivial_sector,
-            group_name=group_name,
-            num_sectors=num_sectors,
-            has_complex_topological_data=has_complex_topological_data,
-            descriptive_name=descriptive_name,
-            trivial_shift=trivial_shift,
-        )
-
-    @abstractmethod
-    def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> npt.NDArray:
-        # subclasses must implement. for groups it is always possible.
-        ...
-
-    def swap_gate(self, a: Sector, b: Sector) -> np.ndarray:
-        # [b, a, b*, a*]
-        return np.eye(self.sector_dim(a))[None, :, None, :] * np.eye(self.sector_dim(b))[:, None, :, None]
-
-    def qdim(self, a: Sector) -> float:
-        return self.sector_dim(a)
-
-    def batch_qdim(self, a: SectorArray) -> np.ndarray:
-        return self.batch_sector_dim(a)
-
-    def topological_twist(self, a):
-        return 1
 
 
 class AbelianGroup(Group):
