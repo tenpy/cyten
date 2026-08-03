@@ -3,6 +3,7 @@
 #include "symmetries/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
 
+#include <cyten/symmetries/symmetry.h>
 #include <cyten/symmetries/symmetry_factor.h>
 
 #include <optional>
@@ -113,8 +114,7 @@ bind_symmetry_factor(py::module_& m)
       .def(
         "is_equivalent_to",
         [](SymmetryFactor& self, py::object other) {
-            auto Symmetry = py::module_::import("cyten.symmetries._symmetries").attr("Symmetry");
-            if (py::isinstance(other, Symmetry)) {
+            if (py::isinstance<Symmetry>(other)) {
                 return other.attr("is_equivalent_to")(py::cast(self)).cast<bool>();
             }
             return self._is_equivalent_factor(other.cast<SymmetryFactor const&>());
@@ -128,35 +128,21 @@ bind_symmetry_factor(py::module_& m)
 
            In particular, :attr:`descriptive_name` is ignored.
            )pydoc")
-      .def(
-        "as_Symmetry",
-        [](py::object self) {
-            // Import submodule (not package) to avoid circular import during _symmetries load.
-            auto Symmetry = py::module_::import("cyten.symmetries._symmetries").attr("Symmetry");
-            return Symmetry(py::make_tuple(self));
-        },
-        R"pydoc(
-        Convert any :class:`SymmetryFactor` to a :class:`Symmetry` with that single factor.
-        )pydoc")
+      .def("as_Symmetry",
+           &SymmetryFactor::as_Symmetry,
+           R"pydoc(
+           Convert any :class:`SymmetryFactor` to a :class:`Symmetry` with that single factor.
+           )pydoc")
       .def("__str__", &SymmetryFactor::str)
-      .def("__mul__",
-           [](py::object self, py::object other) {
-               auto mod = py::module_::import("cyten.symmetries._symmetries");
-               auto Symmetry = mod.attr("Symmetry");
-               py::object SymmetryFactor_py = mod.attr("SymmetryFactor");
-               if (py::isinstance(other, SymmetryFactor_py)) {
-                   return Symmetry(py::make_tuple(self, other));
-               }
-               if (py::isinstance(other, Symmetry)) {
-                   py::list factors;
-                   factors.append(self);
-                   for (auto f : other.attr("factors")) {
-                       factors.append(f);
-                   }
-                   return Symmetry(factors);
-               }
-               return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
-           })
+      .def(
+        "__mul__",
+        [](SymmetryFactor& self, py::object other) -> py::object {
+            auto res = self.mul(other);
+            if (res.is_none()) {
+                return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
+            }
+            return res;
+        })
       .def("__eq__",
            [](SymmetryFactor const& self, py::object other) {
                if (!py::isinstance<SymmetryFactor>(other)) {

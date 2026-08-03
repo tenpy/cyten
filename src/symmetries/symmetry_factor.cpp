@@ -1,5 +1,7 @@
 #include <cyten/symmetries/symmetry_factor.h>
 
+#include <cyten/symmetries/symmetry.h>
+
 #include <stdexcept>
 
 namespace cyten {
@@ -38,9 +40,7 @@ py::object
 SymmetryFactor::as_Symmetry()
 {
     auto self = std::static_pointer_cast<SymmetryFactor>(shared_from_this());
-    py::object self_py = py::cast(self);
-    auto Symmetry = py::module_::import("cyten.symmetries._symmetries").attr("Symmetry");
-    return Symmetry(py::make_tuple(self_py));
+    return py::cast(std::make_shared<Symmetry>(std::vector<SymmetryFactor::Ptr>{ self }));
 }
 
 std::string
@@ -56,19 +56,17 @@ py::object
 SymmetryFactor::mul(py::object other)
 {
     auto self = std::static_pointer_cast<SymmetryFactor>(shared_from_this());
-    py::object self_py = py::cast(self);
-    auto Symmetry = py::module_::import("cyten.symmetries").attr("Symmetry");
-    py::object SymmetryFactor_py = py::module_::import("cyten.symmetries").attr("SymmetryFactor");
-    if (py::isinstance(other, SymmetryFactor_py)) {
-        return Symmetry(py::make_tuple(self_py, other));
+    if (py::isinstance<SymmetryFactor>(other)) {
+        return py::cast(std::make_shared<Symmetry>(
+          std::vector<SymmetryFactor::Ptr>{ self, other.cast<SymmetryFactor::Ptr>() }));
     }
-    if (py::isinstance(other, Symmetry)) {
-        py::list factors;
-        factors.append(self_py);
-        for (auto f : other.attr("factors")) {
-            factors.append(f);
-        }
-        return Symmetry(factors);
+    if (py::isinstance<Symmetry>(other)) {
+        auto const& sym = other.cast<Symmetry const&>();
+        std::vector<SymmetryFactor::Ptr> factors;
+        factors.reserve(1 + sym.factors.size());
+        factors.push_back(self);
+        factors.insert(factors.end(), sym.factors.begin(), sym.factors.end());
+        return py::cast(std::make_shared<Symmetry>(std::move(factors)));
     }
     return py::none(); // binding maps None → NotImplemented
 }
