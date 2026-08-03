@@ -4,8 +4,12 @@
 #include <map>
 #include <mutex>
 #include <numeric>
+#include <optional>
+#include <span>
 #include <stdexcept>
 #include <torch/torch.h>
+#include <type_traits>
+#include <variant>
 
 namespace cyten {
 
@@ -197,52 +201,43 @@ TorchBlockBackend::Block::get_backend() const
 namespace {
 
 std::optional<TensorIndex>
-try_py_key_to_tensor_index(py::handle key)
+block_index_to_tensor_index(const BlockBackend::BlockIndex& idx, torch::Device device)
 {
-    if (py::isinstance<BlockBackend::Block>(key)) {
-        return TensorIndex{ tensor_from_numpy_array(key.cast<BlockBackend::Block&>().to_numpy()) };
-    }
-    if (py::isinstance<py::array>(key)) {
-        return TensorIndex{ tensor_from_numpy_array(py::reinterpret_borrow<py::array>(key)) };
-    }
-    if (py::isinstance<py::slice>(key)) {
-        py::slice sl = py::reinterpret_borrow<py::slice>(key);
-        py::object start = sl.attr("start");
-        py::object stop = sl.attr("stop");
-        py::object step = sl.attr("step");
-        auto as_opt_int = [](py::object o) -> std::optional<int64_t> {
-            if (o.is_none())
-                return std::nullopt;
-            return o.cast<int64_t>();
-        };
-        return TensorIndex{ Slice(as_opt_int(start), as_opt_int(stop), as_opt_int(step)) };
-    }
-    try {
-        return TensorIndex{ key.cast<int64_t>() };
-    } catch (py::cast_error const&) {
-        return std::nullopt;
-    }
+    return std::visit(
+      [&](auto const& v) -> std::optional<TensorIndex> {
+          using T = std::decay_t<decltype(v)>;
+          if constexpr (std::is_same_v<T, int64>) {
+              return TensorIndex{ static_cast<int64_t>(v) };
+          } else if constexpr (std::is_same_v<T, BlockBackend::AxisSlice>) {
+              return TensorIndex{ Slice(v.start, v.stop, v.step) };
+          } else if constexpr (std::is_same_v<T, std::vector<int64>>) {
+              auto opts = torch::TensorOptions().dtype(torch::kLong).device(device);
+              return TensorIndex{ torch::tensor(to_int64_vec(v), opts) };
+          } else {
+              static_assert(std::is_same_v<T, BlockCPtr>);
+              if (!v)
+                  return std::nullopt;
+              if (auto const* tb = dynamic_cast<TorchBlockBackend::Block const*>(v.get()))
+                  return TensorIndex{ tb->tensor().to(device) };
+              return TensorIndex{ tensor_from_numpy_array(v->to_numpy()).to(device) };
+          }
+      },
+      idx);
 }
 
-std::optional<std::vector<TensorIndex>>
-try_py_key_to_tensor_indices(py::object key)
+std::vector<TensorIndex>
+block_indices_to_tensor_indices(std::span<const BlockBackend::BlockIndex> key,
+                                torch::Device device)
 {
-    if (py::isinstance<py::tuple>(key)) {
-        py::tuple t = py::reinterpret_borrow<py::tuple>(key);
-        std::vector<TensorIndex> out;
-        out.reserve(static_cast<size_t>(t.size()));
-        for (auto item : t) {
-            auto idx = try_py_key_to_tensor_index(item);
-            if (!idx)
-                return std::nullopt;
-            out.push_back(*idx);
-        }
-        return out;
+    std::vector<TensorIndex> out;
+    out.reserve(key.size());
+    for (auto const& idx : key) {
+        auto ti = block_index_to_tensor_index(idx, device);
+        if (!ti)
+            throw std::invalid_argument("TorchBlockBackend: null BlockCPtr in BlockIndex");
+        out.push_back(*ti);
     }
-    auto single = try_py_key_to_tensor_index(key);
-    if (!single)
-        return std::nullopt;
-    return std::vector<TensorIndex>{ *single };
+    return out;
 }
 
 torch::Tensor
@@ -264,11 +259,25 @@ tensor_from_py_value(py::object value, torch::Device device)
 } // namespace
 
 BlockCPtr
+TorchBlockBackend::Block::get_item(std::span<const BlockIndex> key) const
+{
+    auto idcs = block_indices_to_tensor_indices(key, tensor_.device());
+    return std::make_shared<const TorchBlockBackend::Block>(tensor_.index(idcs));
+}
+
+BlockPtr
+TorchBlockBackend::Block::get_item(std::span<const BlockIndex> key)
+{
+    auto idcs = block_indices_to_tensor_indices(key, tensor_.device());
+    return wrap(tensor_.index(idcs));
+}
+
+BlockCPtr
 TorchBlockBackend::Block::get_item(py::object key) const
 {
-    if (auto idcs = try_py_key_to_tensor_indices(key))
-        return std::make_shared<const TorchBlockBackend::Block>(tensor_.index(*idcs));
-    // Escape hatch: index via numpy (arbitrary Python keys).
+    if (auto idcs = BlockBackend::try_py_key_to_block_indices(key))
+        return get_item(std::span<const BlockIndex>(*idcs));
+    // Escape hatch: index via numpy (Ellipsis / None / exotic keys).
     py::array arr = to_numpy();
     if (py::isinstance<BlockBackend::Block>(key))
         key = key.cast<BlockBackend::Block&>().to_numpy();
@@ -280,8 +289,8 @@ TorchBlockBackend::Block::get_item(py::object key) const
 BlockPtr
 TorchBlockBackend::Block::get_item(py::object key)
 {
-    if (auto idcs = try_py_key_to_tensor_indices(key))
-        return wrap(tensor_.index(*idcs));
+    if (auto idcs = BlockBackend::try_py_key_to_block_indices(key))
+        return get_item(std::span<const BlockIndex>(*idcs));
     py::array arr = to_numpy();
     if (py::isinstance<BlockBackend::Block>(key))
         key = key.cast<BlockBackend::Block&>().to_numpy();
@@ -290,16 +299,40 @@ TorchBlockBackend::Block::get_item(py::object key)
 }
 
 void
+TorchBlockBackend::Block::set_item(std::span<const BlockIndex> key,
+                                   const BlockBackend::Block& value)
+{
+    torch::Tensor val;
+    if (auto const* tb = dynamic_cast<TorchBlockBackend::Block const*>(&value))
+        val = tb->tensor().to(tensor_.options());
+    else
+        val = tensor_from_numpy_array(value.to_numpy()).to(tensor_.options());
+    auto idcs = block_indices_to_tensor_indices(key, tensor_.device());
+    tensor_.index_put_(idcs, val);
+}
+
+void
 TorchBlockBackend::Block::set_item(py::object key, py::object value)
 {
-    torch::Tensor val = tensor_from_py_value(value, tensor_.device()).to(tensor_.options());
-    if (auto idcs = try_py_key_to_tensor_indices(key)) {
-        tensor_.index_put_(*idcs, val);
+    if (auto idcs = BlockBackend::try_py_key_to_block_indices(key)) {
+        torch::Tensor val = tensor_from_py_value(value, tensor_.device()).to(tensor_.options());
+        if (py::isinstance<BlockBackend::Block>(value)) {
+            set_item(std::span<const BlockIndex>(*idcs), value.cast<BlockBackend::Block&>());
+            return;
+        }
+        if (py::isinstance<BlockBackend::Scalar>(value)) {
+            set_item(std::span<const BlockIndex>(*idcs), value.cast<BlockBackend::Scalar&>());
+            return;
+        }
+        // Non-Block Python value: build a temporary torch block.
+        TorchBlockBackend::Block tmp(val);
+        set_item(std::span<const BlockIndex>(*idcs), tmp);
         return;
     }
     if (py::isinstance<BlockBackend::Block>(key))
         key = key.cast<BlockBackend::Block&>().to_numpy();
     py::array arr = to_numpy();
+    torch::Tensor val = tensor_from_py_value(value, tensor_.device()).to(tensor_.options());
     py::object np_val = TorchBlockBackend::Block(val.detach().cpu()).to_numpy();
     arr.attr("__setitem__")(key, np_val);
     tensor_ = tensor_from_numpy_array(arr).to(tensor_.device());
