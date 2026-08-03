@@ -16,5 +16,6 @@ target_sources(_core
   symmetries/py_styles.cpp
   symmetries/py_base_symmetry.cpp
   symmetries/py_symmetry_factor.cpp
+  symmetries/py_group.cpp
   symmetries/py_symmetry.cpp
 )
