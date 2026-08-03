@@ -11,6 +11,7 @@ target_sources(cyten
   block_backend/torch.cpp
   check.cpp
   config.cpp
+  symmetries/base_symmetry.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   version.cpp
