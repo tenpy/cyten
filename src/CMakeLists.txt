@@ -16,6 +16,7 @@ target_sources(cyten
   symmetries/symmetry.cpp
   symmetries/sector_numpy.cpp
   symmetries/group.cpp
+  symmetries/abelian_group.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   version.cpp

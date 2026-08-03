@@ -13,6 +13,7 @@ from numpy import typing as npt
 
 # implemented in C++
 from .._core import (
+    AbelianGroup,  # noqa: F401
     BaseSymmetry,  # noqa: F401
     BraidChiralityUnspecifiedError,  # noqa: F401
     BraidingStyle,  # noqa: F401
@@ -72,75 +73,6 @@ def _Symmetry_from_hdf5(cls, hdf5_loader, h5gr, subpath):
 
 
 Symmetry.from_hdf5 = classmethod(_Symmetry_from_hdf5)
-
-
-class AbelianGroup(Group):
-    """Base-class for abelian symmetry groups."""
-
-    fusion_tensor_dtype = Dtype.float64
-
-    def __init__(
-        self,
-        trivial_sector: Sector,
-        group_name: str,
-        num_sectors: int | float,
-        descriptive_name: str | None = None,
-        trivial_shift: bool = True,
-    ):
-        Group.__init__(
-            self,
-            fusion_style=FusionStyle.single,
-            trivial_sector=trivial_sector,
-            group_name=group_name,
-            num_sectors=num_sectors,
-            has_complex_topological_data=False,
-            descriptive_name=descriptive_name,
-            trivial_shift=trivial_shift,
-        )
-
-    def sector_str(self, a: Sector) -> str:
-        # we know sectors are labelled by a single number
-        return str(a.item())
-
-    def sector_dim(self, a: Sector) -> int:
-        return 1
-
-    def batch_sector_dim(self, a: SectorArray) -> np.ndarray:
-        return np.ones((len(a),), int)
-
-    def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
-        return 1
-
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
-        return one_4D
-
-    def frobenius_schur(self, a: Sector) -> int:
-        return 1
-
-    def qdim(self, a: Sector) -> float:
-        return 1
-
-    def sqrt_qdim(self, a: Sector) -> float:
-        return 1
-
-    def inv_sqrt_qdim(self, a: Sector) -> float:
-        return 1
-
-    def _b_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
-        return one_2D
-
-    def _r_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
-        # For abelian groups, the R symbol is always 1.
-        return one_1D
-
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
-        return one_4D
-
-    def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
-        return one_4D_float
-
-    def Z_iso(self, a: Sector) -> np.ndarray:
-        return one_2D_float
 
 
 class NoSymmetry(AbelianGroup):

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cyten/symmetries/abelian_group.h>
 #include <cyten/symmetries/base_symmetry.h>
 #include <cyten/symmetries/group.h>
 #include <cyten/symmetries/sector_numpy.h>
@@ -282,7 +283,7 @@ class PySymmetryFactor
     }
 };
 
-/// Trampoline for Python subclasses of Group (AbelianGroup, SU2, SUN, …).
+/// Trampoline for Python subclasses of Group (SU2, SUN, …).
 class PyGroup
   : public Group
   , public py::trampoline_self_life_support
@@ -411,6 +412,144 @@ class PyGroup
     complex128 topological_twist(Sector a) const override
     {
         PYBIND11_OVERRIDE(complex128, Group, topological_twist, a);
+    }
+};
+
+/// Trampoline for Python subclasses of AbelianGroup (NoSymmetry, U1, ZN, …).
+class PyAbelianGroup
+  : public AbelianGroup
+  , public py::trampoline_self_life_support
+{
+  public:
+    using AbelianGroup::AbelianGroup;
+
+    Sector dual_sector(Sector a) const override
+    {
+        PYBIND11_OVERRIDE_PURE(Sector, AbelianGroup, dual_sector, a);
+    }
+    py::object as_Symmetry() override
+    {
+        PYBIND11_OVERRIDE(py::object, AbelianGroup, as_Symmetry);
+    }
+    bool is_valid_sector(Sector a) const override
+    {
+        PYBIND11_OVERRIDE_PURE(bool, AbelianGroup, is_valid_sector, a);
+    }
+    SectorArray fusion_outcomes(Sector a, Sector b) const override
+    {
+        PYBIND11_OVERRIDE_PURE(SectorArray, AbelianGroup, fusion_outcomes, a, b);
+    }
+    std::string repr() const override
+    {
+        PYBIND11_OVERRIDE_PURE_NAME(std::string, AbelianGroup, "__repr__", repr);
+    }
+    bool _is_equivalent_factor(SymmetryFactor const& other) const override
+    {
+        PYBIND11_OVERRIDE_PURE(bool, AbelianGroup, _is_equivalent_factor, other);
+    }
+
+    int64 _n_symbol(Sector a, Sector b, Sector c) const override
+    {
+        PYBIND11_OVERRIDE(int64, AbelianGroup, _n_symbol, a, b, c);
+    }
+    py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override
+    {
+        PYBIND11_OVERRIDE(py::array, AbelianGroup, _f_symbol, a, b, c, d, e, f);
+    }
+    py::array _r_symbol(Sector a, Sector b, Sector c) const override
+    {
+        PYBIND11_OVERRIDE(py::array, AbelianGroup, _r_symbol, a, b, c);
+    }
+    py::array _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const override
+    {
+        PYBIND11_OVERRIDE(py::array, AbelianGroup, _fusion_tensor, a, b, c, Z_a, Z_b);
+    }
+    py::array swap_gate(Sector a, Sector b) const override
+    {
+        PYBIND11_OVERRIDE(py::array, AbelianGroup, swap_gate, a, b);
+    }
+    py::array Z_iso(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(py::array, AbelianGroup, Z_iso, a);
+    }
+    SectorArray all_sectors() const override
+    {
+        PYBIND11_OVERRIDE(SectorArray, AbelianGroup, all_sectors);
+    }
+    bool are_valid_sectors(SectorArray const& sectors) const override
+    {
+        PYBIND11_OVERRIDE(bool, AbelianGroup, are_valid_sectors, sectors);
+    }
+    SectorArray fusion_outcomes_broadcast(SectorArray const& a,
+                                          SectorArray const& b) const override
+    {
+        PYBIND11_OVERRIDE(SectorArray, AbelianGroup, fusion_outcomes_broadcast, a, b);
+    }
+    SectorArray _multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) const override
+    {
+        py::gil_scoped_acquire gil;
+        py::function override =
+          py::get_override(static_cast<AbelianGroup const*>(this), "_multiple_fusion_broadcast");
+        if (override) {
+            py::tuple args(sectors.size());
+            for (std::size_t i = 0; i < sectors.size(); ++i) {
+                args[i] = sector_array_to_numpy(sectors[i]);
+            }
+            return sector_array_from_numpy(override(*args));
+        }
+        return AbelianGroup::_multiple_fusion_broadcast(sectors);
+    }
+    bool can_fuse_to(Sector a, Sector b, Sector c) const override
+    {
+        PYBIND11_OVERRIDE(bool, AbelianGroup, can_fuse_to, a, b, c);
+    }
+    int64 sector_dim(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(int64, AbelianGroup, sector_dim, a);
+    }
+    py::array batch_sector_dim(SectorArray const& a) const override
+    {
+        PYBIND11_OVERRIDE(py::array, AbelianGroup, batch_sector_dim, a);
+    }
+    py::array batch_qdim(SectorArray const& a) const override
+    {
+        PYBIND11_OVERRIDE(py::array, AbelianGroup, batch_qdim, a);
+    }
+    std::string sector_str(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(std::string, AbelianGroup, sector_str, a);
+    }
+    SectorArray dual_sectors(SectorArray const& sectors) const override
+    {
+        PYBIND11_OVERRIDE(SectorArray, AbelianGroup, dual_sectors, sectors);
+    }
+    int64 frobenius_schur(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(int64, AbelianGroup, frobenius_schur, a);
+    }
+    float64 qdim(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(float64, AbelianGroup, qdim, a);
+    }
+    float64 sqrt_qdim(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(float64, AbelianGroup, sqrt_qdim, a);
+    }
+    float64 inv_sqrt_qdim(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(float64, AbelianGroup, inv_sqrt_qdim, a);
+    }
+    py::array _b_symbol(Sector a, Sector b, Sector c) const override
+    {
+        PYBIND11_OVERRIDE(py::array, AbelianGroup, _b_symbol, a, b, c);
+    }
+    py::array _c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override
+    {
+        PYBIND11_OVERRIDE(py::array, AbelianGroup, _c_symbol, a, b, c, d, e, f);
+    }
+    complex128 topological_twist(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(complex128, AbelianGroup, topological_twist, a);
     }
 };
 
