@@ -11,16 +11,6 @@
 
 namespace cyten {
 
-namespace {
-
-py::array
-zeros_like_int64_1d(py::ssize_t n)
-{
-    return py::array_t<int64>({n});
-}
-
-} // namespace
-
 BaseSymmetry::BaseSymmetry(FusionStyle fusion_style_,
                            BraidingStyle braiding_style_,
                            Sector trivial_sector_,
