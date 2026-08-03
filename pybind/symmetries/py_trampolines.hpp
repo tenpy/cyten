@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cyten/symmetries/base_symmetry.h>
+#include <cyten/symmetries/symmetry_factor.h>
 
 #include <pybind11/pybind11.h>
 
@@ -17,23 +18,9 @@ class PyBaseSymmetry
   public:
     using BaseSymmetry::BaseSymmetry;
 
-    bool can_be_dropped() const override
-    {
-        PYBIND11_OVERRIDE(bool, BaseSymmetry, can_be_dropped);
-    }
-    bool has_symmetric_braid() const override
-    {
-        PYBIND11_OVERRIDE(bool, BaseSymmetry, has_symmetric_braid);
-    }
-    bool has_trivial_braid() const override
-    {
-        PYBIND11_OVERRIDE(bool, BaseSymmetry, has_trivial_braid);
-    }
-    bool is_abelian() const override { PYBIND11_OVERRIDE(bool, BaseSymmetry, is_abelian); }
-    bool has_unique_fusion() const override
-    {
-        PYBIND11_OVERRIDE(bool, BaseSymmetry, has_unique_fusion);
-    }
+    // Note: do NOT trampoline can_be_dropped / has_*_braid / is_abelian / has_unique_fusion.
+    // Those are bound as def_property_readonly; PYBIND11_OVERRIDE then finds the property
+    // and raises TypeError: bool is not an instance of function.
 
     Sector dual_sector(Sector a) const override
     {
@@ -121,10 +108,7 @@ class PyBaseSymmetry
     {
         PYBIND11_OVERRIDE(int64, BaseSymmetry, frobenius_schur, a);
     }
-    float64 qdim(Sector a) const override
-    {
-        PYBIND11_OVERRIDE(float64, BaseSymmetry, qdim, a);
-    }
+    float64 qdim(Sector a) const override { PYBIND11_OVERRIDE(float64, BaseSymmetry, qdim, a); }
     float64 sqrt_qdim(Sector a) const override
     {
         PYBIND11_OVERRIDE(float64, BaseSymmetry, sqrt_qdim, a);
@@ -144,6 +128,133 @@ class PyBaseSymmetry
     complex128 topological_twist(Sector a) const override
     {
         PYBIND11_OVERRIDE(complex128, BaseSymmetry, topological_twist, a);
+    }
+};
+
+/// Trampoline for Python subclasses of SymmetryFactor (Group, anyons, …).
+class PySymmetryFactor
+  : public SymmetryFactor
+  , public py::trampoline_self_life_support
+{
+  public:
+    using SymmetryFactor::SymmetryFactor;
+
+    Sector dual_sector(Sector a) const override
+    {
+        PYBIND11_OVERRIDE_PURE(Sector, SymmetryFactor, dual_sector, a);
+    }
+    int64 _n_symbol(Sector a, Sector b, Sector c) const override
+    {
+        PYBIND11_OVERRIDE_PURE(int64, SymmetryFactor, _n_symbol, a, b, c);
+    }
+    py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override
+    {
+        PYBIND11_OVERRIDE_PURE(py::array, SymmetryFactor, _f_symbol, a, b, c, d, e, f);
+    }
+    py::array _r_symbol(Sector a, Sector b, Sector c) const override
+    {
+        PYBIND11_OVERRIDE_PURE(py::array, SymmetryFactor, _r_symbol, a, b, c);
+    }
+    py::object as_Symmetry() override
+    {
+        PYBIND11_OVERRIDE(py::object, SymmetryFactor, as_Symmetry);
+    }
+    bool is_valid_sector(Sector a) const override
+    {
+        PYBIND11_OVERRIDE_PURE(bool, SymmetryFactor, is_valid_sector, a);
+    }
+    SectorArray fusion_outcomes(Sector a, Sector b) const override
+    {
+        PYBIND11_OVERRIDE_PURE(SectorArray, SymmetryFactor, fusion_outcomes, a, b);
+    }
+    std::string repr() const override
+    {
+        PYBIND11_OVERRIDE_PURE_NAME(std::string, SymmetryFactor, "__repr__", repr);
+    }
+    bool _is_equivalent_factor(SymmetryFactor const& other) const override
+    {
+        PYBIND11_OVERRIDE_PURE(bool, SymmetryFactor, _is_equivalent_factor, other);
+    }
+
+    // Optional overrides commonly customized by factors (mirror PyBaseSymmetry).
+    // Do not trampoline property-bound methods (is_abelian, can_be_dropped, …).
+    py::array _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const override
+    {
+        PYBIND11_OVERRIDE(py::array, SymmetryFactor, _fusion_tensor, a, b, c, Z_a, Z_b);
+    }
+    py::array swap_gate(Sector a, Sector b) const override
+    {
+        PYBIND11_OVERRIDE(py::array, SymmetryFactor, swap_gate, a, b);
+    }
+    py::array Z_iso(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(py::array, SymmetryFactor, Z_iso, a);
+    }
+    SectorArray all_sectors() const override
+    {
+        PYBIND11_OVERRIDE(SectorArray, SymmetryFactor, all_sectors);
+    }
+    bool are_valid_sectors(SectorArray const& sectors) const override
+    {
+        PYBIND11_OVERRIDE(bool, SymmetryFactor, are_valid_sectors, sectors);
+    }
+    SectorArray fusion_outcomes_broadcast(SectorArray const& a,
+                                          SectorArray const& b) const override
+    {
+        PYBIND11_OVERRIDE(SectorArray, SymmetryFactor, fusion_outcomes_broadcast, a, b);
+    }
+    SectorArray _multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) const override
+    {
+        PYBIND11_OVERRIDE(SectorArray, SymmetryFactor, _multiple_fusion_broadcast, sectors);
+    }
+    bool can_fuse_to(Sector a, Sector b, Sector c) const override
+    {
+        PYBIND11_OVERRIDE(bool, SymmetryFactor, can_fuse_to, a, b, c);
+    }
+    int64 sector_dim(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(int64, SymmetryFactor, sector_dim, a);
+    }
+    py::array batch_sector_dim(SectorArray const& a) const override
+    {
+        PYBIND11_OVERRIDE(py::array, SymmetryFactor, batch_sector_dim, a);
+    }
+    py::array batch_qdim(SectorArray const& a) const override
+    {
+        PYBIND11_OVERRIDE(py::array, SymmetryFactor, batch_qdim, a);
+    }
+    std::string sector_str(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(std::string, SymmetryFactor, sector_str, a);
+    }
+    SectorArray dual_sectors(SectorArray const& sectors) const override
+    {
+        PYBIND11_OVERRIDE(SectorArray, SymmetryFactor, dual_sectors, sectors);
+    }
+    int64 frobenius_schur(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(int64, SymmetryFactor, frobenius_schur, a);
+    }
+    float64 qdim(Sector a) const override { PYBIND11_OVERRIDE(float64, SymmetryFactor, qdim, a); }
+    float64 sqrt_qdim(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(float64, SymmetryFactor, sqrt_qdim, a);
+    }
+    float64 inv_sqrt_qdim(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(float64, SymmetryFactor, inv_sqrt_qdim, a);
+    }
+    py::array _b_symbol(Sector a, Sector b, Sector c) const override
+    {
+        PYBIND11_OVERRIDE(py::array, SymmetryFactor, _b_symbol, a, b, c);
+    }
+    py::array _c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override
+    {
+        PYBIND11_OVERRIDE(py::array, SymmetryFactor, _c_symbol, a, b, c, d, e, f);
+    }
+    complex128 topological_twist(Sector a) const override
+    {
+        PYBIND11_OVERRIDE(complex128, SymmetryFactor, topological_twist, a);
     }
 };
 

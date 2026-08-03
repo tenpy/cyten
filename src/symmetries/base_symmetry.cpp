@@ -17,14 +17,14 @@ BaseSymmetry::BaseSymmetry(FusionStyle fusion_style_,
                            float64 num_sectors_,
                            bool has_complex_topological_data_,
                            bool trivial_shift_)
-    : fusion_style(fusion_style_)
-    , braiding_style(braiding_style_)
-    , trivial_sector(trivial_sector_)
-    , num_sectors(num_sectors_)
-    , sector_ind_len(trivial_sector_.len)
-    , empty_sector_array(SectorArray::empty(trivial_sector_.len))
-    , has_complex_topological_data(has_complex_topological_data_)
-    , trivial_shift(trivial_shift_)
+  : fusion_style(fusion_style_)
+  , braiding_style(braiding_style_)
+  , trivial_sector(trivial_sector_)
+  , num_sectors(num_sectors_)
+  , sector_ind_len(trivial_sector_.len)
+  , empty_sector_array(SectorArray::empty(trivial_sector_.len))
+  , has_complex_topological_data(has_complex_topological_data_)
+  , trivial_shift(trivial_shift_)
 {
     if (trivial_sector_.len == 0 || trivial_sector_.len > max_sector_ind_len) {
         throw std::invalid_argument("BaseSymmetry: invalid trivial_sector length");
@@ -88,12 +88,12 @@ BaseSymmetry::Z_iso(Sector a) const
     }
     // fallback: sqrt(d_a) * conj(X)[0, :, :, 0].T
     auto X = fusion_tensor(a, dual_sector(a), trivial_sector);
-    auto Xc = py::reinterpret_borrow<py::array>(X.attr("conj")());
-    auto slice = py::reinterpret_steal<py::object>(
-      Xc.attr("__getitem__")(py::make_tuple(0, py::ellipsis(), 0)));
+    auto Xc = X.attr("conj")();
+    auto slice = Xc.attr("__getitem__")(py::make_tuple(0, py::ellipsis(), 0));
     auto transposed = slice.attr("T");
     auto np = py::module_::import("numpy");
-    return py::reinterpret_steal<py::array>(np.attr("multiply")(sqrt_qdim(a), transposed));
+    // cast (not reinterpret_steal): attr() returns an owning temporary
+    return np.attr("multiply")(sqrt_qdim(a), transposed).cast<py::array>();
 }
 
 SectorArray
@@ -118,8 +118,8 @@ py::array
 BaseSymmetry::f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     if (get_config().check_fusion) {
-        bool ok = can_fuse_to(b, c, e) && can_fuse_to(a, e, d) && can_fuse_to(a, b, f)
-                  && can_fuse_to(f, c, d);
+        bool ok = can_fuse_to(b, c, e) && can_fuse_to(a, e, d) && can_fuse_to(a, b, f) &&
+                  can_fuse_to(f, c, d);
         if (!ok) {
             throw SymmetryError("Sectors are not consistent with fusion rules.");
         }
@@ -153,8 +153,8 @@ py::array
 BaseSymmetry::c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     if (get_config().check_fusion) {
-        bool ok = can_fuse_to(a, b, e) && can_fuse_to(e, c, d) && can_fuse_to(a, c, f)
-                  && can_fuse_to(f, b, d);
+        bool ok = can_fuse_to(a, b, e) && can_fuse_to(e, c, d) && can_fuse_to(a, c, f) &&
+                  can_fuse_to(f, b, d);
         if (!ok) {
             throw SymmetryError("Sectors are not consistent with fusion rules.");
         }
@@ -187,13 +187,29 @@ BaseSymmetry::are_valid_sectors(SectorArray const& sectors) const
 SectorArray
 BaseSymmetry::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const& b) const
 {
-    assert(is_abelian());
-    assert(a.num_sectors == b.num_sectors);
-    assert(a.sector_ind_len == sector_ind_len);
+    // Use Python AssertionError (not C assert) so callers can catch with pytest.raises.
+    if (!is_abelian()) {
+        PyErr_SetString(PyExc_AssertionError,
+                        "fusion_outcomes_broadcast requires an abelian symmetry");
+        throw py::error_already_set();
+    }
+    if (a.num_sectors != b.num_sectors) {
+        PyErr_SetString(PyExc_AssertionError, "fusion_outcomes_broadcast: mismatched batch sizes");
+        throw py::error_already_set();
+    }
+    if (a.sector_ind_len != sector_ind_len || b.sector_ind_len != sector_ind_len) {
+        PyErr_SetString(PyExc_AssertionError,
+                        "fusion_outcomes_broadcast: mismatched sector_ind_len");
+        throw py::error_already_set();
+    }
     SectorArray out(a.num_sectors, sector_ind_len);
     for (std::size_t i = 0; i < a.num_sectors; ++i) {
         auto outcomes = fusion_outcomes(a[i], b[i]);
-        assert(outcomes.num_sectors == 1);
+        if (outcomes.num_sectors != 1) {
+            PyErr_SetString(PyExc_AssertionError,
+                            "fusion_outcomes_broadcast: expected unique fusion outcome");
+            throw py::error_already_set();
+        }
         out.set(i, outcomes[0]);
     }
     return out;
@@ -367,7 +383,7 @@ BaseSymmetry::_b_symbol(Sector a, Sector b, Sector c) const
     // F[0, 0, :, :] * sqrt(d_b)
     auto block = F.attr("__getitem__")(py::make_tuple(0, 0, py::ellipsis()));
     auto np = py::module_::import("numpy");
-    return py::reinterpret_steal<py::array>(np.attr("multiply")(sqrt_qdim(b), block));
+    return np.attr("multiply")(sqrt_qdim(b), block).cast<py::array>();
 }
 
 py::array
@@ -380,16 +396,16 @@ BaseSymmetry::_c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector
     auto np = py::module_::import("numpy");
     auto R1e = R1.attr("reshape")(py::make_tuple(1, -1, 1, 1));
     auto R2e = R2.attr("conj")().attr("reshape")(py::make_tuple(1, 1, -1, 1));
-    return py::reinterpret_steal<py::array>(np.attr("multiply")(np.attr("multiply")(R1e, F), R2e));
+    return np.attr("multiply")(np.attr("multiply")(R1e, F), R2e).cast<py::array>();
 }
 
 complex128
 BaseSymmetry::topological_twist(Sector a) const
 {
     if (has_trivial_braid()) {
-        return complex128{+1.0, 0.0};
+        return complex128{ +1.0, 0.0 };
     }
-    complex128 res{0.0, 0.0};
+    complex128 res{ 0.0, 0.0 };
     auto outcomes = fusion_outcomes(a, a);
     for (std::size_t i = 0; i < outcomes.num_sectors; ++i) {
         Sector b = outcomes[i];
@@ -400,7 +416,7 @@ BaseSymmetry::topological_twist(Sector a) const
     res /= qdim(a);
     if (has_symmetric_braid()) {
         float64 re = res.real();
-        return complex128{(re < 0.0) ? -1.0 : +1.0, 0.0};
+        return complex128{ (re < 0.0) ? -1.0 : +1.0, 0.0 };
     }
     return res;
 }
@@ -408,7 +424,7 @@ BaseSymmetry::topological_twist(Sector a) const
 complex128
 BaseSymmetry::s_matrix_element(Sector a, Sector b) const
 {
-    complex128 S{0.0, 0.0};
+    complex128 S{ 0.0, 0.0 };
     auto outcomes = fusion_outcomes(a, b);
     for (std::size_t i = 0; i < outcomes.num_sectors; ++i) {
         Sector c = outcomes[i];
@@ -417,7 +433,7 @@ BaseSymmetry::s_matrix_element(Sector a, Sector b) const
     S /= topological_twist(a) * topological_twist(b) * total_qdim();
     // real_if_close: if imag part tiny, drop it
     if (std::abs(S.imag()) < 1e-12) {
-        return complex128{S.real(), 0.0};
+        return complex128{ S.real(), 0.0 };
     }
     return S;
 }
@@ -427,7 +443,7 @@ BaseSymmetry::s_matrix() const
 {
     auto sectors = all_sectors();
     auto n = static_cast<py::ssize_t>(sectors.num_sectors);
-    py::array_t<complex128> S({n, n});
+    py::array_t<complex128> S({ n, n });
     auto r = S.mutable_unchecked<2>();
     for (py::ssize_t i = 0; i < n; ++i) {
         for (py::ssize_t j = 0; j < n; ++j) {
@@ -437,21 +453,23 @@ BaseSymmetry::s_matrix() const
     float64 D = total_qdim();
     std::vector<complex128> inv_twist(static_cast<std::size_t>(n));
     for (py::ssize_t i = 0; i < n; ++i) {
-        inv_twist[static_cast<std::size_t>(i)] = complex128{1.0, 0.0} / topological_twist(sectors[static_cast<std::size_t>(i)]);
+        inv_twist[static_cast<std::size_t>(i)] =
+          complex128{ 1.0, 0.0 } / topological_twist(sectors[static_cast<std::size_t>(i)]);
     }
     for (py::ssize_t ia = 0; ia < n; ++ia) {
         Sector a = sectors[static_cast<std::size_t>(ia)];
         for (py::ssize_t ib = 0; ib < n; ++ib) {
             Sector b = sectors[static_cast<std::size_t>(ib)];
-            complex128 Sab{0.0, 0.0};
+            complex128 Sab{ 0.0, 0.0 };
             auto outcomes = fusion_outcomes(a, b);
             for (std::size_t k = 0; k < outcomes.num_sectors; ++k) {
                 Sector c = outcomes[k];
                 Sab += static_cast<float64>(_n_symbol(a, b, c)) * qdim(c) * topological_twist(c);
             }
-            Sab *= inv_twist[static_cast<std::size_t>(ia)] * inv_twist[static_cast<std::size_t>(ib)] / D;
+            Sab *= inv_twist[static_cast<std::size_t>(ia)] *
+                   inv_twist[static_cast<std::size_t>(ib)] / D;
             if (std::abs(Sab.imag()) < 1e-12) {
-                Sab = complex128{Sab.real(), 0.0};
+                Sab = complex128{ Sab.real(), 0.0 };
             }
             r(ia, ib) = Sab;
         }

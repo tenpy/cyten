@@ -38,13 +38,14 @@ class SymmetryFactor : public BaseSymmetry
 
     bool is_equivalent_to(BaseSymmetry const& other) const;
 
-    /// Convert to a product :class:`Symmetry` with this single factor (via Python until converted).
+    /// Convert to a product :class:`Symmetry` with this single factor (via Python until
+    /// converted).
     py::object as_Symmetry() override;
 
     std::string str() const;
 
     /// Product with another factor or product symmetry → Python ``Symmetry``.
-    py::object mul(py::object other) const;
+    py::object mul(py::object other);
 
     bool equals(SymmetryFactor const& other) const;
 

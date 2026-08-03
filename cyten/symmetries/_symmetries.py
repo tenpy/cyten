@@ -5,16 +5,21 @@ from __future__ import annotations
 
 import math
 import warnings
-from abc import ABCMeta, abstractmethod
-from functools import reduce
+from abc import abstractmethod
 from itertools import product
 from typing import Literal
 
 import numpy as np
 from numpy import typing as npt
 
+from .._core import (
+    BaseSymmetry,  # noqa: E402  # C++ / pybind11
+    BraidingStyle,  # noqa: E402  # C++ / pybind11
+    FusionStyle,  # noqa: E402  # C++ / pybind11
+    SymmetryError,  # noqa: E402  # C++ / pybind11
+    SymmetryFactor,  # noqa: E402  # C++ / pybind11
+)
 from ..block_backends.dtypes import Dtype
-from ..config import get_config
 from ..tools.misc import as_immutable_array
 
 try:
@@ -33,8 +38,16 @@ one_4D = as_immutable_array(np.ones((1, 1, 1, 1), dtype=int))
 one_4D_float = as_immutable_array(np.ones((1, 1, 1, 1), dtype=float))
 
 
-from .._core import SymmetryError  # noqa: E402  # C++ / pybind11
-from .._core import BraidChiralityUnspecifiedError  # noqa: E402  # C++ / pybind11
+def _default_c_symbol(sym, a, b, c, d, e, f):
+    """C-symbol from R and F symbols (same formula as ``BaseSymmetry._c_symbol``).
+
+    Prefer this over ``super()._c_symbol`` when the subclass overrides ``_c_symbol``:
+    with a C++ / pybind trampoline base, ``super()`` re-enters the Python override.
+    """
+    R1 = sym._r_symbol(e, c, d)
+    F = sym._f_symbol(c, a, b, d, e, f)
+    R2 = sym._r_symbol(a, c, f)
+    return R1.reshape(1, -1, 1, 1) * F * np.conj(R2).reshape(1, 1, -1, 1)
 
 
 Sector = npt.NDArray[np.int_]
@@ -45,556 +58,6 @@ SectorArray = npt.NDArray[np.int_]
 
 A 2D array of int with axis [s, q] and shape ``(num_sectors, sector_ind_len)``.
 """
-
-
-from .._core import FusionStyle  # noqa: E402  # C++ / pybind11
-from .._core import BraidingStyle  # noqa: E402  # C++ / pybind11
-
-
-class BaseSymmetry(metaclass=ABCMeta):
-    """Common method implementations for both :class:`SymmetryFactor` and :class:`Symmetry`.
-
-    This contains the fallback implementations of e.g. :meth:`qdim` in terms of F symbols.
-
-    """
-
-    def __init__(
-        self,
-        fusion_style: FusionStyle,
-        braiding_style: BraidingStyle,
-        trivial_sector: Sector,
-        num_sectors: int | float,
-        has_complex_topological_data: bool,
-        trivial_shift: bool,
-    ):
-        self.fusion_style = fusion_style
-        self.braiding_style = braiding_style
-        self.trivial_sector = as_immutable_array(trivial_sector)
-        self.num_sectors = num_sectors
-        self.sector_ind_len = sector_ind_len = len(trivial_sector)
-        self.empty_sector_array = as_immutable_array(np.zeros((0, sector_ind_len), dtype=int))
-        self.has_complex_topological_data = has_complex_topological_data
-        self.trivial_shift = trivial_shift
-
-    # ABSTRACT METHODS
-
-    @property
-    def can_be_dropped(self) -> bool:
-        """If the symmetry supports converting tensors to/from numpy."""
-        # trivial braid -> can be dropped, clearly
-        # symmetry braid -> we choose to allow it, but converting to/from numpy loses the braid
-        #                   and makes swap gates necessary
-        # general braid would break compatibility even with the tensor product, so we dont allow it
-        return self.has_symmetric_braid
-
-    @property
-    def has_symmetric_braid(self) -> bool:
-        return self.braiding_style <= BraidingStyle.fermionic
-
-    @property
-    def has_trivial_braid(self) -> bool:
-        return self.braiding_style == BraidingStyle.bosonic
-
-    @property
-    def is_abelian(self) -> bool:
-        """If the symmetry is Abelian.
-
-        An Abelian symmetry is characterized by ``FusionStyle.single``, which implies that all
-        sectors are one-dimensional.
-        Note that this does *not* imply that it is a group, as the braiding may not be bosonic!
-        """
-        return self.fusion_style == FusionStyle.single
-
-    @property
-    def has_unique_fusion(self) -> bool:
-        """If the symmetry always has unique fusion channels, i.e. if N symbols are 0 or 1."""
-        return self.fusion_style <= FusionStyle.multiple_unique
-
-    # ABSTRACT METHODS
-
-    @abstractmethod
-    def dual_sector(self, a: Sector) -> Sector:
-        r"""The sector dual to a, such that N^{a,dual(a)}_u = 1.
-
-        Note that the dual space :math:`a^\star` to a sector :math:`a` may not itself be one of
-        the sectors, but it must be isomorphic to one of the sectors. This method returns that
-        representative :math:`\bar{a}` of the equivalence class.
-        """
-        ...
-
-    @abstractmethod
-    def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
-        """Optimized version of self.n_symbol that assumes that c is a valid fusion outcome.
-
-        If it is not, the results may be nonsensical. We do this for optimization purposes
-        """
-        ...
-
-    @abstractmethod
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
-        """Internal implementation of :meth:`f_symbol`. Can assume that inputs are valid."""
-        ...
-
-    @abstractmethod
-    def _r_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
-        """Internal implementation of :meth:`r_symbol`. Can assume that inputs are valid."""
-        ...
-
-    @abstractmethod
-    def as_Symmetry(self) -> Symmetry: ...
-
-    def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
-        """Internal implementation of :meth:`fusion_tensor`. Can assume that inputs are valid."""
-        if not self.can_be_dropped:
-            raise SymmetryError(f'fusion tensor can not be written as array for {self}')
-        raise NotImplementedError('should be implemented by subclass')
-
-    def swap_gate(self, a: Sector, b: Sector) -> np.ndarray:
-        """The swap gate (numpy representation of the braid) of single sectors.
-
-            |   a   b
-            |   │   │
-            |   v   v
-            |    ╲ ╱
-            |     ╲          <-  overbraid == underbraid is assumed
-            |    ╱ ╲
-            |   v   v
-            |   │   │
-            |   b   a
-
-        Returns
-        -------
-        A numpy representation of the above tensor with axes ``[b, a, b*, a*]``.
-
-        """
-        if not self.can_be_dropped:
-            raise SymmetryError(f'braid can not be written as array for {self}')
-        raise NotImplementedError('should be implemented by subclass')
-
-    def Z_iso(self, a: Sector) -> np.ndarray:
-        r"""The Z isomorphism :math:`Z_{\bar{a}} : \bar{a}^* \to a`.
-
-        The dual :math:`a^*` of a sector :math:`a` is another irreducible space.
-        However, it may not be itself a sector. It must be isomorphic to one of the sector
-        representatives though, which we call :math:`\bar{a}`.
-        The Z isomorphism :math:`Z_a : a^* \to \bar{a}` is that isomorphism.
-
-        We return the matrix elements
-
-        .. math ::
-            (Z_{\bar{a}})_{mn} = \langle m \vert Z_{\bar{a}}(\langle n \vert)
-
-        where :math:`m` goes over a (dual) basis of :math:`\bar{a}` and :math:`n` over a basis of
-        :math:`a`.
-
-        Parameters
-        ----------
-        a : Sector
-            Note that this is the target sector of the map, not its subscript!
-
-        Returns
-        -------
-        The matrix elements as a [d_a, d_a] numpy array.
-
-        """
-        if not self.can_be_dropped:
-            raise SymmetryError(f'Z iso can not be written as array for {self}')
-        # fallback implementation: solve [Jakob thesis, (5.84)] for Z_a
-        X = self.fusion_tensor(a, self.dual_sector(a), self.trivial_sector)
-        # Note: leg order might be unintuitive at first!
-        #   [1] [2]     ;     [0]                 .--.  [0]
-        #    |   |      ;      |                  |  |   |
-        #    Y[0]Y      ;      Z   =   sqrt(d_a)  |  YYYYY   = sqrt(d_a) np.transpose(Y[0, :, :, 0])
-        #      |        ;      |                  |
-        #     [3]       ;     [1]                [1]
-        return self.sqrt_qdim(a) * X.conj()[0, :, :, 0].T
-
-    def all_sectors(self) -> SectorArray:
-        """Assume there are finitely many sectors, return all of them.
-
-        .. warning ::
-            Do not perform inplace operations on the output. That may invalidate caches.
-        """
-        if self.num_sectors == np.inf:
-            msg = f'{type(self)} has infinitely many sectors.'
-            raise SymmetryError(msg)
-
-        raise NotImplementedError('Should be implemented in subclass')
-
-    # WRAPPERS WITH INPUT-CHECKS
-
-    def n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
-        """The N-symbol N^{ab}_c, i.e. how often c appears in the fusion of a and b."""
-        if not self.can_fuse_to(a, b, c):
-            return 0
-        return self._n_symbol(a, b, c)
-
-    def f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
-        r"""Coefficients :math:`[F^{abc}_d]^e_f` related to recoupling of fusion.
-
-        The F symbol relates the following two maps::
-
-            m1 := [a ⊗ b ⊗ c] --(1 ⊗ X_μ)--> [a ⊗ e] --(X_ν)--> d
-            m2 := [a ⊗ b ⊗ c] --(X_κ ⊗ 1)--> [f ⊗ c] --(X_λ)--> d
-
-        Such that :math:`m_1 = \sum_{f\kappa\lambda} [F^{abc}_d]^{e\mu\nu}_{f\kappa\lambda} m_2`.
-
-        The F symbol is unitary as a matrix from indices :math:`(f\kappa\lambda)`
-        to :math:`(e\mu\nu)`.
-
-        .. warning ::
-            Do not perform inplace operations on the output. That may invalidate caches.
-
-        Parameters
-        ----------
-        a, b, c, d, e, f
-            Sectors. Must be compatible with the fusion described above.
-
-        Returns
-        -------
-        F : 4D array
-            The F symbol as an array of the multiplicity indices [μ,ν,κ,λ]
-
-        """
-        if get_config().check_fusion:
-            is_correct = all(
-                [
-                    self.can_fuse_to(b, c, e),
-                    self.can_fuse_to(a, e, d),
-                    self.can_fuse_to(a, b, f),
-                    self.can_fuse_to(f, c, d),
-                ]
-            )
-            if not is_correct:
-                raise SymmetryError('Sectors are not consistent with fusion rules.')
-        return self._f_symbol(a, b, c, d, e, f)
-
-    def b_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
-        r"""Coefficients :math:`B^{ab}_c` related to bending the right leg on a fusion tensor.
-
-        The B symbol relates the following two maps::
-
-            m1 := a --(1 ⊗ η_b)--> [a ⊗ b ⊗ b^*] --(X_μ ⊗ 1)--> [c ⊗ b^*]
-            m2 := a --(Y_ν)--> [c ⊗ \bar{b}] --(1 ⊗ Z_b^†)--> [c ⊗ b^*]
-
-        such that :math:`m_1 = \sum_{\nu} [B^{ab}_c]^\mu_\nu m_2`.
-
-        The related A-symbol for bending left legs is not needed, since we always
-        work with fusion trees in form
-
-        .. warning ::
-            Do not perform inplace operations on the output. That may invalidate caches.
-
-        Parameters
-        ----------
-        a, b, c
-            Sectors. Must be compatible with the fusion described above.
-
-        Returns
-        -------
-        B : 2D array
-            The B symbol as an array of the multiplicity indices [μ,ν]
-
-        """
-        if get_config().check_fusion:
-            is_correct = self.can_fuse_to(a, b, c)
-            if not is_correct:
-                raise SymmetryError('Sectors are not consistent with fusion rules.')
-        return self._b_symbol(a, b, c)
-
-    def r_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
-        r"""Coefficients :math:`R^{ab}_c` related to braiding on a single fusion tensor.
-
-        The R symbol relates the following two maps::
-
-            m1 := [b ⊗ a] --τ--> [a ⊗ b] --X_μ--> c
-            m2 := [b ⊗ a] --X_ν--> c
-
-        such that :math:`m_1 = \sum_{\nu} [R^{ab}_c]^\mu_\nu m_2`.
-
-        We can use the unitary gauge freedom of the fusion tensors
-        .. math ::
-
-            X_μ \mapsto \sum_ν U_{μ,ν} X_ν
-
-        to enforce that the R symbol is diagonal.
-
-        .. warning ::
-            Do not perform inplace operations on the output. That may invalidate caches.
-
-        Parameters
-        ----------
-        a, b, c
-            Sectors. Must be compatible with the fusion described above.
-
-        Returns
-        -------
-        R : 1D array
-            The diagonal entries of the R symbol as an array of the multiplicity index [μ].
-
-        """
-        if get_config().check_fusion:
-            is_correct = self.can_fuse_to(a, b, c)
-            if not is_correct:
-                raise SymmetryError('Sectors are not consistent with fusion rules.')
-        return self._r_symbol(a, b, c)
-
-    def c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
-        r"""Coefficients :math:`[C^{abc}_d]^e_f` related to braiding on a pair of fusion tensors.
-
-        The C symbol relates the following two maps::
-
-            m1 := [a ⊗ c ⊗ b] --(1 ⊗ τ)--> [a ⊗ b ⊗ c] --(X_μ ⊗ 1)--> [e ⊗ c] --X_ν--> d
-            m2 := [a ⊗ c ⊗ b] --(X_κ ⊗ 1)--> [f ⊗ b] --X_λ--> d
-
-        such that :math:`m_1 = \sum_{f\kappa\lambda} C^{e\mu\nu}_{f\kappa\lambda} m_2`.
-
-        .. warning ::
-            Do not perform inplace operations on the output. That may invalidate caches.
-
-        Parameters
-        ----------
-        a, b, c, d, e, f
-            Sectors. Must be compatible with the fusion described above.
-
-        Returns
-        -------
-        C : 4D array
-            The C symbol as an array of the multiplicity indices [μ,ν,κ,λ]
-
-        """
-        if get_config().check_fusion:
-            is_correct = all(
-                [
-                    self.can_fuse_to(a, b, e),
-                    self.can_fuse_to(e, c, d),
-                    self.can_fuse_to(a, c, f),
-                    self.can_fuse_to(f, b, d),
-                ]
-            )
-            if not is_correct:
-                raise SymmetryError('Sectors are not consistent with fusion rules.')
-        return self._c_symbol(a, b, c, d, e, f)
-
-    def fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool = False, Z_b: bool = False) -> np.ndarray:
-        r"""Matrix elements of the fusion tensor :math:`X^{ab}_{c,\mu}` for all :math:`\mu`.
-
-        May not be well defined for anyons.
-
-        .. warning ::
-            Do not perform inplace operations on the output. That may invalidate caches.
-
-        Parameters
-        ----------
-        a, b, c
-            Sectors. Must be compatible with the fusion described above.
-        Z_a : bool
-            If we should include a Z isomorphism :math:`Z_{\bar{a}} : \bar{a}^* -> a` below the
-            sector a. If so, the composite is a map from :math:`\bar{a}^* \otimes b \to c`.
-        Z_b : bool
-            Analogously to `Z_a`.
-
-        Returns
-        -------
-        X : 4D ndarray
-            Axis [μ, m_a, m_b, m_c] where μ is the multiplicity index of the fusion tensor and
-            m_a goes over a basis for sector a, etc.
-
-        """
-        if get_config().check_fusion:
-            is_correct = self.can_fuse_to(a, b, c)
-            if not is_correct:
-                raise SymmetryError('Sectors are not consistent with fusion rules.')
-        return self._fusion_tensor(a, b, c, Z_a, Z_b)
-
-    # FALLBACK IMPLEMENTATIONS (might want to override)
-
-    def are_valid_sectors(self, sectors: SectorArray) -> bool:
-        return all(self.is_valid_sector(a) for a in sectors)
-
-    def fusion_outcomes_broadcast(self, a: SectorArray, b: SectorArray) -> SectorArray:
-        """Allows optimized fusion in the case of FusionStyle.single.
-
-        For two SectorArrays, return the element-wise fusion outcome of each pair of Sectors,
-        which is a single unique Sector, as a new SectorArray.
-        Subclasses may override this with more efficient implementations.
-        """
-        assert self.is_abelian
-        # self.fusion_outcomes(s_a, s_b) is a 2D array with with shape [1, num_q]
-        # stack the outcomes along the trivial first axis
-        return np.concatenate([self.fusion_outcomes(s_a, s_b) for s_a, s_b in zip(a, b)], axis=0)
-
-    def multiple_fusion(self, *sectors: Sector) -> Sector:
-        # OPTIMIZE ?
-        return self.multiple_fusion_broadcast(*(a[None, :] for a in sectors))[0, :]
-
-    def multiple_fusion_broadcast(self, *sectors: SectorArray) -> SectorArray:
-        """Allows optimized fusion in the case of FusionStyle.single.
-
-        It generalizes :meth:`fusion_outcomes_broadcast` to more than two fusion inputs.
-        """
-        if len(sectors) == 0:
-            return self.trivial_sector[None, :]
-        if len(sectors) == 1:
-            return sectors[0]
-        return self._multiple_fusion_broadcast(*sectors)
-
-    def _multiple_fusion_broadcast(self, *sectors: SectorArray) -> SectorArray:
-        """Internal version of :meth:`multiple_fusion_broadcast`. May assume ``len(sectors) >= 2``."""
-        return reduce(self.fusion_outcomes_broadcast, sectors)
-
-    def can_fuse_to(self, a: Sector, b: Sector, c: Sector) -> bool:
-        """Whether c is a valid fusion outcome, i.e. if it appears in ``self.fusion_outcomes(a, b)``"""
-        return np.any(np.all(self.fusion_outcomes(a, b) == c[None, :], axis=1))
-
-    def sector_dim(self, a: Sector) -> int:
-        """The dimension of a sector, as an unstructured space (i.e. if we drop the symmetry).
-
-        For bosonic braiding style, e.g. for group symmetries, this coincides with the quantum
-        dimension computed by :meth:`qdim`.
-        For other braiding styles,
-
-        See Also
-        --------
-        :func:`cyten.swap_gate`
-            Similar method for braiding general spaces, not just single sectors.
-
-        """
-        if not self.can_be_dropped:
-            raise SymmetryError(f'sector_dim is not supported for {self}.')
-        return int(np.round(self.qdim()))
-
-    def batch_sector_dim(self, a: SectorArray) -> np.ndarray:
-        """sector_dim of every sector (row) in a"""
-        if self.is_abelian:
-            return np.ones([a.shape[0]], dtype=int)
-        return np.array([self.sector_dim(s) for s in a])
-
-    def batch_qdim(self, a: SectorArray) -> np.ndarray:
-        """Quantum dimension of every sector (row) in `a`"""
-        if self.is_abelian:
-            return np.ones([a.shape[0]], dtype=int)
-        return np.array([self.qdim(s) for s in a])
-
-    def sector_str(self, a: Sector) -> str:
-        """Short and readable string for the sector. Is used in __str__ of symmetry-related objects."""
-        return str(a)
-
-    def dual_sectors(self, sectors: SectorArray) -> SectorArray:
-        """dual_sector for multiple sectors
-
-        subclasses my override this.
-        """
-        return np.stack([self.dual_sector(s) for s in sectors])
-
-    def frobenius_schur(self, a: Sector) -> int:
-        """The Frobenius Schur indicator of a sector."""
-        F = self._f_symbol(a, self.dual_sector(a), a, a, self.trivial_sector, self.trivial_sector)
-        return np.sign(np.real(F[0, 0, 0, 0]))
-
-    def qdim(self, a: Sector) -> float:
-        """The quantum dimension ``Tr(id_a)`` of a sector"""
-        F = self._f_symbol(a, self.dual_sector(a), a, a, self.trivial_sector, self.trivial_sector)
-        return 1.0 / np.abs(F[0, 0, 0, 0])
-
-    def sqrt_qdim(self, a: Sector) -> float:
-        """The square root of the quantum dimension."""
-        return np.sqrt(self.qdim(a))
-
-    def inv_sqrt_qdim(self, a: Sector) -> float:
-        """The inverse square root of the quantum dimension."""
-        return 1.0 / self.sqrt_qdim(a)
-
-    def total_qdim(self) -> float:
-        r"""Total quantum dimension, :math:`D = \sqrt{\sum_a d_a^2}`."""
-        D = np.sum([self.qdim(a) ** 2 for a in self.all_sectors()])
-        return np.sqrt(D)
-
-    def _b_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
-        """Internal implementation of :meth:`b_symbol`. Can assume that inputs are valid."""
-        F = self._f_symbol(a, b, self.dual_sector(b), a, self.trivial_sector, c).conj()
-        return self.sqrt_qdim(b) * F[0, 0, :, :]
-
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
-        """Internal implementation of :meth:`c_symbol`. Can assume that inputs are valid."""
-        R1 = self._r_symbol(e, c, d)
-        F = self._f_symbol(c, a, b, d, e, f)
-        R2 = self._r_symbol(a, c, f)
-        # axis [mu, nu, kap, lam] ; R symbols are diagonal
-        return R1[None, :, None, None] * F * np.conj(R2)[None, None, :, None]
-
-    def topological_twist(self, a: Sector) -> complex:
-        """The prefactor that relates the twist on a single sector to the identity.
-
-        Graphically::
-
-            |   │   ╭─╮                |
-            |    ╲ ╱  │                |
-            |     ╱   │   =   theta_a  |
-            |    ╱ ╲  │                |
-            |   │   ╰─╯                |
-            |   a                      a
-
-        Notes
-        -----
-        For a twist with opposite chirality, the prefactor is conjugated.
-
-            |   │   ╭─╮                      |
-            |    ╲ ╱  │                      |
-            |     ╲   │   =   conj(theta_a)  |
-            |    ╱ ╲  │                      |
-            |   │   ╰─╯                      |
-            |   a                            a
-
-        """
-        # OPTIMIZE implement concrete formulae for anyons? or just cache?
-        if self.has_trivial_braid:
-            return +1
-        # sum_b sum_mu d_b / d_a * [R^aa_b]^mu_mu
-        res = 0
-        for b in self.fusion_outcomes(a, a):
-            r = self._r_symbol(a, a, b)
-            res += self.qdim(b) * np.sum(r)
-        res /= self.qdim(a)
-        if self.has_symmetric_braid:
-            # must be +1 or -1
-            res = np.real(res)
-            if res < 0:
-                return -1
-            return +1
-        return res.item()
-
-    def s_matrix_element(self, a: Sector, b: Sector) -> complex:
-        """Single matrix-element of the S-matrix.
-
-        See Also
-        --------
-        s_matrix
-
-        """
-        S = 0
-        for c in self.fusion_outcomes(a, b):
-            S += self._n_symbol(a, b, c) * self.qdim(c) * self.topological_twist(c)
-        S /= self.topological_twist(a) * self.topological_twist(b) * self.total_qdim()
-        return np.real_if_close(S)
-
-    def s_matrix(self) -> np.ndarray:
-        """The modular S-matrix. Only defined for modular tensor categories.
-
-        See Also
-        --------
-        s_matrix_element
-
-        """
-        sectors = self.all_sectors()
-        S = np.zeros((self.num_sectors, self.num_sectors), dtype=complex)
-        normalization = np.array([1 / self.topological_twist(a) for a in sectors])
-        normalization = np.outer(normalization, normalization) / self.total_qdim()
-        for a in range(sectors.shape[0]):
-            for b in range(sectors.shape[0]):
-                for c in self.fusion_outcomes(sectors[a], sectors[b]):
-                    S[a, b] += self._n_symbol(sectors[a], sectors[b], c) * self.qdim(c) * self.topological_twist(c)
-        return np.real_if_close(S * normalization)
 
 
 class Symmetry(BaseSymmetry):
@@ -974,182 +437,6 @@ class Symmetry(BaseSymmetry):
             a_i = a[self.sector_slices[i] : self.sector_slices[i + 1]]
             res = np.kron(res, factor_i.Z_iso(a_i))
         return res
-
-
-class SymmetryFactor(BaseSymmetry):
-    r"""Base class for symmetries that impose a block-structure on tensors
-
-    Attributes
-    ----------
-    can_be_dropped: bool
-        If the symmetry could be dropped to :class:`NoSymmetry` while preserving the structure.
-        This is e.g. the case for group symmetries.
-        This means that there is a well-defined notion of a basis of graded vector spaces and of
-        dense array representations of symmetric Tensor. See notes below.
-    trivial_sector: Sector
-        The trivial sector of the symmetry.
-        For a group this is the "symmetric" sector, where the group acts trivially.
-        For a general category, this is the monoidal unit.
-    group_name: str
-        A readable name for the symmetry, purely as a mathematical structure, e.g. ``'U(1)'``.
-    descriptive_name: str | None
-        Optionally, an additional name for the group, indicating e.g. how it arises.
-        Could be e.g. ``'Sz'`` for the U(1) symmetry that conserves magnetization.
-    num_sectors: int | float
-        The number of sectors of the symmetry. An integer if finite, otherwise ``float('inf')``.
-    sector_ind_len : int
-        Valid sectors are numpy arrays with shape ``(sector_ind_len,)``.
-    empty_sector_array : 2D ndarray
-        A SectorArray with no sectors, shape ``(0, sector_ind_len)``.
-    has_complex_topological_data : bool
-        If any of the topological data (F, R, C, B symbols, twist) for any sectors is complex.
-        If so, tensors with that symmetry must have a complex dtype (except DiagonalTensor or Mask),
-        since real blocks become complex under leg manipulations.
-        Note: for a group (and for fermions), the topo data must be real if the fusion tensors
-        are real. This is because the associator, the braid, and the cup are all real for groups.
-    trivial_shift : bool
-        Whether or not the symmetry sectors transform trivially under spatial translations.
-        Nontrivial shifts are only sensible for symmetries with unique fusion style.
-
-    Notes
-    -----
-    Some symmetries can be dropped to :class:`NoSymmetry`, see :attr:`can_be_dropped`.
-    It implies that all operations that may be carried out on symmetric objects have a corresponding
-    operation on a non-symmetric counterpart. For example, a symmetric space :math:`A` has a
-    corresponding space :math:`\mathbb{C}^n_A`, without further structure.
-    It "corresponds" to :math:`A` in the sense that it has the same properties, e.g. same dimension,
-    and that there are compatible operations (tensor product, direct sum, ...) such that::
-
-        symmetric :math:`A`  -------- (operation) --->   symmetric :math:`B`
-                |                                                 |
-             (drop symm)                                       (drop symm)
-                |                                                 |
-                v                                                 v
-        :math:`\mathbb{C}^{n_A}`  --- (operation) --->   :math:`\mathbb{C}^{n_B}`
-
-    commutes.
-    The same goes for tensors, i.e. for symmetric tensors there are corresponding non-symmetric
-    tensors which we may manipulate instead. This means that if *and only if* the symmetry has this
-    property does it make sense to convert between symmetric tensors and e.g. numpy arrays, which we can
-    think of as tensors with :class:`NoSymmetry`. Additionally, the concept of a basis only makes
-    sense in exactly these cases.
-
-    """
-
-    fusion_tensor_dtype = None
-    """The dtype of fusion tensors, or ``None`` no fusion tensors defined."""
-
-    def __init__(
-        self,
-        fusion_style: FusionStyle,
-        braiding_style: BraidingStyle,
-        trivial_sector: Sector,
-        group_name: str,
-        num_sectors: int | float,
-        has_complex_topological_data: bool,
-        descriptive_name: str | None = None,
-        trivial_shift: bool = True,
-    ):
-        self.descriptive_name = descriptive_name
-        self.group_name = group_name
-        BaseSymmetry.__init__(
-            self,
-            fusion_style=fusion_style,
-            braiding_style=braiding_style,
-            trivial_sector=trivial_sector,
-            num_sectors=num_sectors,
-            has_complex_topological_data=has_complex_topological_data,
-            trivial_shift=trivial_shift,
-        )
-
-    # ABSTRACT METHODS
-
-    @abstractmethod
-    def is_valid_sector(self, a: Sector) -> bool:
-        """Whether `a` is a valid sector of this symmetry"""
-        ...
-
-    @abstractmethod
-    def fusion_outcomes(self, a: Sector, b: Sector) -> SectorArray:
-        """Returns all outcomes for the fusion of sectors
-
-        Each sector appears only once, regardless of its multiplicity (given by n_symbol) in the fusion
-        """
-        ...
-
-    @abstractmethod
-    def __repr__(self):
-        # Convention: valid syntax for the constructor, i.e. "ClassName(..., name='...')"
-        ...
-
-    def is_equivalent_to(self, other: Symmetry | SymmetryFactor) -> bool:
-        if isinstance(other, Symmetry):
-            return other.is_equivalent_to(self)
-        return self._is_equivalent_factor(other)
-
-    @abstractmethod
-    def _is_equivalent_factor(self, other) -> bool:
-        """Whether self and other describe the same mathematical structure.
-
-        In particular, :attr:`descriptive_name` is ignored.
-        """
-        ...
-
-    def as_Symmetry(self) -> Symmetry:
-        """Convert any :class:`SymmetryFactor` to a :class:`Symmetry` with that single factor."""
-        return Symmetry([self])
-
-    # CONCRETE IMPLEMENTATIONS
-
-    def __str__(self):
-        res = self.group_name
-        if self.descriptive_name is not None:
-            res = res + f' ("{self.descriptive_name}")'
-        return res
-
-    def __mul__(self, other):
-        if isinstance(other, SymmetryFactor):
-            return Symmetry([self, other])
-        if isinstance(other, Symmetry):
-            return Symmetry([self, *other.factors])
-        return NotImplemented
-
-    def __eq__(self, other):
-        if not isinstance(other, SymmetryFactor):
-            return False
-
-        if self.descriptive_name != other.descriptive_name:
-            return False
-        return self._is_equivalent_factor(other)
-
-    def save_hdf5(self, hdf5_saver, h5gr, subpath):
-        hdf5_saver.save(self.group_name, subpath + 'group_name')
-        hdf5_saver.save(self.fusion_style.value, subpath + 'fusion_style')
-        hdf5_saver.save(self.braiding_style.value, subpath + 'braiding_style')
-        hdf5_saver.save(self.trivial_sector, subpath + 'trivial_sector')
-        hdf5_saver.save(self.num_sectors, subpath + 'num_sectors')
-        hdf5_saver.save(self.sector_ind_len, subpath + 'sector_ind_len')
-        h5gr.attrs['descriptive_name'] = self.descriptive_name.__str__()
-        h5gr.attrs['has_complex_topological_data'] = bool(self.has_complex_topological_data)
-
-    @classmethod
-    def from_hdf5(cls, hdf5_loader, h5gr, subpath):
-        obj = cls.__new__(cls)
-        hdf5_loader.memorize_load(h5gr, obj)
-
-        obj.group_name = hdf5_loader.load(subpath + 'group_name')
-
-        fstyle = hdf5_loader.load(subpath + 'fusion_style')
-        obj.fusion_style = FusionStyle(fstyle)
-        bstyle = hdf5_loader.load(subpath + 'braiding_style')
-        obj.braiding_style = BraidingStyle(bstyle)
-        obj.trivial_sector = hdf5_loader.load(subpath + 'trivial_sector')
-        obj.num_sectors = hdf5_loader.load(subpath + 'num_sectors')
-        obj.sector_ind_len = hdf5_loader.load(subpath + 'sector_ind_len')
-        obj.descriptive_name = hdf5_loader.get_attr(h5gr, 'descriptive_name')
-        obj.has_complex_topological_data = hdf5_loader.get_attr(h5gr, 'has_complex_topological_data')
-
-        return obj
 
 
 class Group(SymmetryFactor):
@@ -2682,18 +1969,7 @@ class FibonacciAnyonCategory(SymmetryFactor):
         self.handedness = handedness
         if handedness == 'right':
             self._r = self._r.conj()
-        self._c = [
-            super()._c_symbol([0], [1], [1], [0], [1], [1]),
-            0,
-            0,  # nontrivial C-symbols
-            super()._c_symbol([0], [1], [1], [1], [1], [1]),
-            0,
-            0,
-            super()._c_symbol([1], [1], [1], [0], [1], [1]),
-            super()._c_symbol([1], [1], [1], [1], [0], [0]),
-            super()._c_symbol([1], [1], [1], [1], [1], [0]),
-            super()._c_symbol([1], [1], [1], [1], [1], [1]),
-        ]
+        # C++ SymmetryFactor base must be constructed before calling virtual _c_symbol.
         SymmetryFactor.__init__(
             self,
             fusion_style=FusionStyle.multiple_unique,
@@ -2704,6 +1980,18 @@ class FibonacciAnyonCategory(SymmetryFactor):
             num_sectors=2,
             descriptive_name=None,
         )
+        self._c = [
+            _default_c_symbol(self, [0], [1], [1], [0], [1], [1]),
+            0,
+            0,  # nontrivial C-symbols
+            _default_c_symbol(self, [0], [1], [1], [1], [1], [1]),
+            0,
+            0,
+            _default_c_symbol(self, [1], [1], [1], [0], [1], [1]),
+            _default_c_symbol(self, [1], [1], [1], [1], [0], [0]),
+            _default_c_symbol(self, [1], [1], [1], [1], [1], [0]),
+            _default_c_symbol(self, [1], [1], [1], [1], [1], [1]),
+        ]
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a < 2
@@ -2807,19 +2095,7 @@ class IsingAnyonCategory(SymmetryFactor):
                 axis=1,
             )
         )
-        self._c = [
-            (-1j) ** self.nu * one_4D,
-            -1 * (-1j) ** self.nu * one_4D,
-            super()._c_symbol([0], [1], [1], [0], [1], [1]),  # nontrivial C-symbols
-            super()._c_symbol([0], [1], [1], [2], [1], [1]),
-            super()._c_symbol([1], [1], [1], [1], [0], [0]),
-            super()._c_symbol([1], [1], [1], [1], [0], [2]),
-            super()._c_symbol([1], [1], [1], [1], [2], [2]),
-            0,
-            super()._c_symbol([2], [1], [1], [0], [1], [1]),
-            super()._c_symbol([2], [1], [1], [2], [1], [1]),
-            -1 * one_4D,
-        ]
+        # C++ SymmetryFactor base must be constructed before calling virtual _c_symbol.
         SymmetryFactor.__init__(
             self,
             fusion_style=FusionStyle.multiple_unique,
@@ -2830,6 +2106,19 @@ class IsingAnyonCategory(SymmetryFactor):
             num_sectors=3,
             descriptive_name=None,
         )
+        self._c = [
+            (-1j) ** self.nu * one_4D,
+            -1 * (-1j) ** self.nu * one_4D,
+            _default_c_symbol(self, [0], [1], [1], [0], [1], [1]),  # nontrivial C-symbols
+            _default_c_symbol(self, [0], [1], [1], [2], [1], [1]),
+            _default_c_symbol(self, [1], [1], [1], [1], [0], [0]),
+            _default_c_symbol(self, [1], [1], [1], [1], [0], [2]),
+            _default_c_symbol(self, [1], [1], [1], [1], [2], [2]),
+            0,
+            _default_c_symbol(self, [2], [1], [1], [0], [1], [1]),
+            _default_c_symbol(self, [2], [1], [1], [2], [1], [1]),
+            -1 * one_4D,
+        ]
 
     def is_valid_sector(self, a: Sector) -> bool:
         return getattr(a, 'shape', ()) == (1,) and 0 <= a < 3
@@ -3086,9 +2375,6 @@ class SU2_kAnyonCategory(SymmetryFactor):
         except KeyError:
             return one_1D
 
-    def _c_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
-        return super()._c_symbol(a, b, c, d, e, f)
-
     def all_sectors(self) -> SectorArray:
         return np.arange(self.k + 1, dtype=int)[:, None]
 
@@ -3170,7 +2456,7 @@ class SU3_3AnyonCategory(SymmetryFactor):
                 and self.can_fuse_to(a, c, f)
                 and self.can_fuse_to(f, b, d)
             ):
-                self._c[(a[0], b[0], c[0], d[0], e[0], f[0])] = super()._c_symbol(a, b, c, d, e, f)
+                self._c[(a[0], b[0], c[0], d[0], e[0], f[0])] = _default_c_symbol(self, a, b, c, d, e, f)
 
     def _compute_f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
         if not np.all(

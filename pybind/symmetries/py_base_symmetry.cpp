@@ -5,6 +5,7 @@
 
 #include <cyten/symmetries/base_symmetry.h>
 
+#include <cmath>
 #include <vector>
 
 namespace cyten {
@@ -12,10 +13,9 @@ namespace cyten {
 void
 bind_base_symmetry(py::module_& m)
 {
-    py::class_<BaseSymmetry, PyBaseSymmetry, py::smart_holder> cls(
-      m,
-      "BaseSymmetry",
-      R"pydoc(
+    py::class_<BaseSymmetry, PyBaseSymmetry, py::smart_holder> cls(m,
+                                                                   "BaseSymmetry",
+                                                                   R"pydoc(
 Common method implementations for both :class:`SymmetryFactor` and :class:`Symmetry`.
 
 This contains the fallback implementations of e.g. :meth:`qdim` in terms of F symbols.
@@ -31,14 +31,20 @@ This contains the fallback implementations of e.g. :meth:`qdim` in terms of F sy
 
     cls.def_readonly("fusion_style", &BaseSymmetry::fusion_style)
       .def_readonly("braiding_style", &BaseSymmetry::braiding_style)
-      .def_property_readonly(
-        "trivial_sector",
-        [](BaseSymmetry const& self) { return self.trivial_sector; })
-      .def_readonly("num_sectors", &BaseSymmetry::num_sectors)
+      .def_property_readonly("trivial_sector",
+                             [](BaseSymmetry const& self) { return self.trivial_sector; })
+      .def_property_readonly("num_sectors",
+                             [](BaseSymmetry const& self) -> py::object {
+                                 // Match Python ``int | float``: finite counts as int, else
+                                 // float('inf').
+                                 if (std::isfinite(self.num_sectors)) {
+                                     return py::int_(static_cast<long long>(self.num_sectors));
+                                 }
+                                 return py::float_(self.num_sectors);
+                             })
       .def_readonly("sector_ind_len", &BaseSymmetry::sector_ind_len)
-      .def_property_readonly(
-        "empty_sector_array",
-        [](BaseSymmetry const& self) { return self.empty_sector_array; })
+      .def_property_readonly("empty_sector_array",
+                             [](BaseSymmetry const& self) { return self.empty_sector_array; })
       .def_readonly("has_complex_topological_data", &BaseSymmetry::has_complex_topological_data)
       .def_readonly("trivial_shift", &BaseSymmetry::trivial_shift);
 
@@ -103,36 +109,33 @@ This contains the fallback implementations of e.g. :meth:`qdim` in terms of F sy
            &BaseSymmetry::fusion_outcomes_broadcast,
            py::arg("a"),
            py::arg("b"))
-      .def(
-        "multiple_fusion",
-        [](BaseSymmetry const& self, py::args args) {
-            std::vector<Sector> sectors;
-            sectors.reserve(args.size());
-            for (auto h : args) {
-                sectors.push_back(h.cast<Sector>());
-            }
-            return self.multiple_fusion(sectors);
-        })
-      .def(
-        "multiple_fusion_broadcast",
-        [](BaseSymmetry const& self, py::args args) {
-            std::vector<SectorArray> sectors;
-            sectors.reserve(args.size());
-            for (auto h : args) {
-                sectors.push_back(h.cast<SectorArray>());
-            }
-            return self.multiple_fusion_broadcast(sectors);
-        })
-      .def(
-        "_multiple_fusion_broadcast",
-        [](BaseSymmetry const& self, py::args args) {
-            std::vector<SectorArray> sectors;
-            sectors.reserve(args.size());
-            for (auto h : args) {
-                sectors.push_back(h.cast<SectorArray>());
-            }
-            return self._multiple_fusion_broadcast(sectors);
-        })
+      .def("multiple_fusion",
+           [](BaseSymmetry const& self, py::args args) {
+               std::vector<Sector> sectors;
+               sectors.reserve(args.size());
+               for (auto h : args) {
+                   sectors.push_back(h.cast<Sector>());
+               }
+               return self.multiple_fusion(sectors);
+           })
+      .def("multiple_fusion_broadcast",
+           [](BaseSymmetry const& self, py::args args) {
+               std::vector<SectorArray> sectors;
+               sectors.reserve(args.size());
+               for (auto h : args) {
+                   sectors.push_back(h.cast<SectorArray>());
+               }
+               return self.multiple_fusion_broadcast(sectors);
+           })
+      .def("_multiple_fusion_broadcast",
+           [](BaseSymmetry const& self, py::args args) {
+               std::vector<SectorArray> sectors;
+               sectors.reserve(args.size());
+               for (auto h : args) {
+                   sectors.push_back(h.cast<SectorArray>());
+               }
+               return self._multiple_fusion_broadcast(sectors);
+           })
       .def("can_fuse_to", &BaseSymmetry::can_fuse_to, py::arg("a"), py::arg("b"), py::arg("c"))
       .def("sector_dim", &BaseSymmetry::sector_dim, py::arg("a"))
       .def("batch_sector_dim", &BaseSymmetry::batch_sector_dim, py::arg("a"))

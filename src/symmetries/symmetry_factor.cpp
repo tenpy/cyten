@@ -12,15 +12,16 @@ SymmetryFactor::SymmetryFactor(FusionStyle fusion_style,
                                bool has_complex_topological_data,
                                std::optional<std::string> descriptive_name_,
                                bool trivial_shift)
-    : BaseSymmetry(fusion_style,
-                   braiding_style,
-                   trivial_sector,
-                   num_sectors,
-                   has_complex_topological_data,
-                   trivial_shift)
-    , group_name(std::move(group_name_))
-    , descriptive_name(std::move(descriptive_name_))
-{}
+  : BaseSymmetry(fusion_style,
+                 braiding_style,
+                 trivial_sector,
+                 num_sectors,
+                 has_complex_topological_data,
+                 trivial_shift)
+  , group_name(std::move(group_name_))
+  , descriptive_name(std::move(descriptive_name_))
+{
+}
 
 bool
 SymmetryFactor::is_equivalent_to(BaseSymmetry const& other) const
@@ -38,7 +39,7 @@ SymmetryFactor::as_Symmetry()
 {
     auto self = std::static_pointer_cast<SymmetryFactor>(shared_from_this());
     py::object self_py = py::cast(self);
-    auto Symmetry = py::module_::import("cyten.symmetries").attr("Symmetry");
+    auto Symmetry = py::module_::import("cyten.symmetries._symmetries").attr("Symmetry");
     return Symmetry(py::make_tuple(self_py));
 }
 
@@ -52,12 +53,11 @@ SymmetryFactor::str() const
 }
 
 py::object
-SymmetryFactor::mul(py::object other) const
+SymmetryFactor::mul(py::object other)
 {
-    auto self = std::static_pointer_cast<SymmetryFactor const>(shared_from_this());
+    auto self = std::static_pointer_cast<SymmetryFactor>(shared_from_this());
     py::object self_py = py::cast(self);
     auto Symmetry = py::module_::import("cyten.symmetries").attr("Symmetry");
-    // isinstance checks against Python SymmetryFactor / Symmetry
     py::object SymmetryFactor_py = py::module_::import("cyten.symmetries").attr("SymmetryFactor");
     if (py::isinstance(other, SymmetryFactor_py)) {
         return Symmetry(py::make_tuple(self_py, other));
@@ -70,7 +70,7 @@ SymmetryFactor::mul(py::object other) const
         }
         return Symmetry(factors);
     }
-    return py::none(); // NotImplemented → binding maps to NotImplemented
+    return py::none(); // binding maps None → NotImplemented
 }
 
 bool
@@ -117,8 +117,7 @@ SymmetryFactor::load_hdf5_common(py::object hdf5_loader,
     } else {
         descriptive_name = descr;
     }
-    has_complex_topological_data =
-      h5gr.attr("attrs")["has_complex_topological_data"].cast<bool>();
+    has_complex_topological_data = h5gr.attr("attrs")["has_complex_topological_data"].cast<bool>();
 }
 
 } // namespace cyten

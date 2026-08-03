@@ -15,4 +15,5 @@ target_sources(_core
   symmetries/py_exceptions.cpp
   symmetries/py_styles.cpp
   symmetries/py_base_symmetry.cpp
+  symmetries/py_symmetry_factor.cpp
 )

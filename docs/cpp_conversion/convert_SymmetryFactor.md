@@ -2,7 +2,17 @@
 
 ## Status
 
-**In progress.** Builds on C++ `BaseSymmetry` ([convert_BaseSymmetry.md](convert_BaseSymmetry.md)). Goal: C++ `SymmetryFactor` + trampoline so Python `Group` / anyons can subclass; then monkey-patch `BaseSymmetry` and `SymmetryFactor` together.
+**Done for monkey-patch.** C++ `SymmetryFactor` + trampoline; `BaseSymmetry` and `SymmetryFactor` imported from `_core` in `_symmetries.py`. `pytest tests/python_tests/test_symmetries.py`: 48 passed, 1 skipped.
+
+Python `Group` / concretes / product `Symmetry` still subclass the C++ bases. Next Layer 2 step: convert `Group` → `AbelianGroup` → concretes → product `Symmetry`.
+
+### Pitfalls fixed during monkey-patch
+
+- `py::reinterpret_steal` on owning `py::object` temporaries → use `.cast<py::array>()`.
+- Do not trampoline methods bound as `def_property_readonly` (`is_abelian`, …) — `PYBIND11_OVERRIDE` then raises `TypeError: bool is not an instance of function`.
+- `super()._c_symbol` from a Python override re-enters the trampoline; use module helper `_default_c_symbol` instead.
+- Finite `num_sectors` must cast to Python `int` (stored as `float64` in C++).
+- `fusion_outcomes_broadcast` must throw `AssertionError`, not C `assert` (Debug abort).
 
 ## Metadata
 
@@ -27,8 +37,8 @@
 ## TODO checklist
 
 - [x] initial setup / planning
-- [ ] declaration draft + improve
-- [ ] definitions + compile
-- [ ] bindings + trampoline
-- [ ] monkey-patch BaseSymmetry + SymmetryFactor; pytest
-- [ ] remove Python SymmetryFactor (and BaseSymmetry) when green
+- [x] declaration draft + improve
+- [x] definitions + compile
+- [x] bindings + trampoline
+- [x] monkey-patch BaseSymmetry + SymmetryFactor; pytest
+- [ ] remove Python SymmetryFactor (and BaseSymmetry) leftovers when hierarchy is fully C++
