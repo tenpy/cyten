@@ -186,4 +186,36 @@ SectorArray::from_hdf5(py::object hdf5_loader, py::object /*h5gr*/, std::string 
     return sector_array_from_numpy(hdf5_loader.attr("load")(subpath + "values"));
 }
 
+py::object
+sector_as_hdf5_exportable(Sector const& src)
+{
+    // Bound ``SectorHdf5`` as ``cyten._core.Sector`` (not ``Sector`` itself — casters).
+    return py::module_::import("cyten._core").attr("Sector")(sector_to_numpy(src));
+}
+
+py::object
+sector_array_as_hdf5_exportable(SectorArray const& src)
+{
+    return py::module_::import("cyten._core").attr("SectorArray")(sector_array_to_numpy(src));
+}
+
+Sector
+sector_from_hdf5_object(py::handle src)
+{
+    // Bound Sector from HDF5, or a plain ndarray (legacy / caster path).
+    if (py::hasattr(src, "__array__") && !py::isinstance<py::array>(src)) {
+        return sector_from_numpy(src.attr("__array__")());
+    }
+    return sector_from_numpy(src);
+}
+
+SectorArray
+sector_array_from_hdf5_object(py::handle src)
+{
+    if (py::hasattr(src, "__array__") && !py::isinstance<py::array>(src)) {
+        return sector_array_from_numpy(src.attr("__array__")());
+    }
+    return sector_array_from_numpy(src);
+}
+
 } // namespace cyten

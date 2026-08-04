@@ -22,7 +22,12 @@ bind_fermion_number(py::module_& m)
                                                                 )pydoc")
       .def(py::init<std::optional<std::string>, bool>(),
            py::arg("descriptive_name") = py::none(),
-           py::arg("trivial_shift") = true);
+           py::arg("trivial_shift") = true)
+      .def_static("from_hdf5",
+                  &FermionNumber::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
 }
 
 } // namespace cyten

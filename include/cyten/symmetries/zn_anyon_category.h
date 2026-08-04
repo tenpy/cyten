@@ -45,6 +45,11 @@ class ZNAnyonCategory : public SymmetryFactor
     py::array _r_symbol(Sector a, Sector b, Sector c) const override;
     py::array _c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override;
     SectorArray all_sectors() const override;
+
+    void save_hdf5(py::object hdf5_saver,
+                   py::object h5gr,
+                   std::string const& subpath) const override;
+    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 };
 
 } // namespace cyten

@@ -51,13 +51,8 @@ class SUN : public Group
     py::dict dims_of_irreps(Sector a, Sector b) const;
     py::dict outer_multiplicity_from_CG(Sector a, Sector b) const;
 
-    float64 clebschgordan(Sector a,
-                          int64 q_a,
-                          Sector b,
-                          int64 q_b,
-                          Sector c,
-                          int64 q_c,
-                          int64 mu) const;
+    float64 clebschgordan(Sector a, int64 q_a, Sector b, int64 q_b, Sector c, int64 q_c, int64 mu)
+      const;
 
     py::array _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const override;
     py::array _f_symbol_from_CG(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
@@ -68,6 +63,11 @@ class SUN : public Group
 
     bool has_data_in_group(py::object group) const;
     void sanity_check_hdf5(py::object file) const;
+
+    void save_hdf5(py::object hdf5_saver,
+                   py::object h5gr,
+                   std::string const& subpath) const override;
+    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 };
 
 } // namespace cyten

@@ -477,4 +477,14 @@ SU3_3AnyonCategory::all_sectors() const
     return out;
 }
 
+SU3_3AnyonCategory::Ptr
+SU3_3AnyonCategory::from_hdf5(py::object hdf5_loader,
+                              py::object h5gr,
+                              std::string const& /*subpath*/)
+{
+    auto obj = std::make_shared<SU3_3AnyonCategory>();
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
+}
+
 } // namespace cyten

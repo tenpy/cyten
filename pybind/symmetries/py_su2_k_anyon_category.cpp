@@ -16,7 +16,12 @@ bind_su2_k_anyon_category(py::module_& m)
                                                                          R"pydoc(
                                                                          :math:`SU(2)_k` anyon category.
                                                                          )pydoc");
-    cls.def(py::init<int, std::string>(), py::arg("k"), py::arg("handedness") = "left");
+    cls.def(py::init<int, std::string>(), py::arg("k"), py::arg("handedness") = "left")
+      .def_static("from_hdf5",
+                  &SU2_kAnyonCategory::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
     cls.attr("spin_zero") = SU2_kAnyonCategory::spin_zero;
     cls.attr("spin_half") = SU2_kAnyonCategory::spin_half;
     cls.def_readonly("k", &SU2_kAnyonCategory::k)

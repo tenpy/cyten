@@ -24,7 +24,9 @@ bind_zn(py::module_& m)
            py::arg("N"),
            py::arg("descriptive_name") = py::none(),
            py::arg("trivial_shift") = true)
-      .def_readonly("N", &ZN::N);
+      .def_readonly("N", &ZN::N)
+      .def_static(
+        "from_hdf5", &ZN::from_hdf5, py::arg("hdf5_loader"), py::arg("h5gr"), py::arg("subpath"));
 }
 
 } // namespace cyten

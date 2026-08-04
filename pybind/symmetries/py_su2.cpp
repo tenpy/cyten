@@ -23,7 +23,9 @@ bind_su2(py::module_& m)
                                                  E.g. a spin-1/2 degree of freedom is represented by the sector `[1]`.
                                                  )pydoc");
 
-    cls.def(py::init<std::optional<std::string>>(), py::arg("descriptive_name") = py::none());
+    cls.def(py::init<std::optional<std::string>>(), py::arg("descriptive_name") = py::none())
+      .def_static(
+        "from_hdf5", &SU2::from_hdf5, py::arg("hdf5_loader"), py::arg("h5gr"), py::arg("subpath"));
 
     // Class-level convenience sectors (match Python ``SU2.spin_half`` etc.).
     cls.attr("spin_zero") = SU2::spin_zero;

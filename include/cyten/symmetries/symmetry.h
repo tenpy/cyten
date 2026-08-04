@@ -77,6 +77,8 @@ class Symmetry : public BaseSymmetry
 
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
 
+    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+
     /// Slice of product sector belonging to factor ``i``.
     Sector factor_sector(Sector const& a, std::size_t i) const;
     SectorArray factor_sectors(SectorArray const& a, std::size_t i) const;

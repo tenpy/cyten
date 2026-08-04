@@ -90,4 +90,14 @@ U1::_is_equivalent_factor(SymmetryFactor const& other) const
     return dynamic_cast<U1 const*>(&other) != nullptr;
 }
 
+U1::Ptr
+U1::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    auto name = descriptive_name_from_hdf5_attrs(h5gr);
+    bool trivial_shift = trivial_shift_from_hdf5(hdf5_loader, subpath);
+    auto obj = std::make_shared<U1>(name, trivial_shift);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
+}
+
 } // namespace cyten

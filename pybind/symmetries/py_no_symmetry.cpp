@@ -16,7 +16,12 @@ bind_no_symmetry(py::module_& m)
 
                                                            The only allowed sector is ``[0]``.
                                                            )pydoc")
-      .def(py::init<>());
+      .def(py::init<>())
+      .def_static("from_hdf5",
+                  &NoSymmetry::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
 }
 
 } // namespace cyten

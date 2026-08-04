@@ -279,4 +279,24 @@ FibonacciAnyonCategory::all_sectors() const
     return out;
 }
 
+void
+FibonacciAnyonCategory::save_hdf5(py::object hdf5_saver,
+                                  py::object h5gr,
+                                  std::string const& subpath) const
+{
+    SymmetryFactor::save_hdf5(hdf5_saver, h5gr, subpath);
+    hdf5_saver.attr("save")(handedness, subpath + "handedness");
+}
+
+FibonacciAnyonCategory::Ptr
+FibonacciAnyonCategory::from_hdf5(py::object hdf5_loader,
+                                  py::object h5gr,
+                                  std::string const& subpath)
+{
+    std::string handedness = hdf5_loader.attr("load")(subpath + "handedness").cast<std::string>();
+    auto obj = std::make_shared<FibonacciAnyonCategory>(handedness);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
+}
+
 } // namespace cyten

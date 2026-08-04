@@ -223,7 +223,12 @@ bind_symmetry(py::module_& m)
            &Symmetry::save_hdf5,
            py::arg("hdf5_saver"),
            py::arg("h5gr"),
-           py::arg("subpath"));
+           py::arg("subpath"))
+      .def_static("from_hdf5",
+                  &Symmetry::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
 }
 
 } // namespace cyten

@@ -104,8 +104,7 @@ std::string
 SU2::sector_str(Sector a) const
 {
     auto const jj = a.q[0];
-    std::string j_str =
-      (jj % 2 == 0) ? std::to_string(jj / 2) : (std::to_string(jj) + "/2");
+    std::string j_str = (jj % 2 == 0) ? std::to_string(jj / 2) : (std::to_string(jj) + "/2");
     return std::to_string(jj) + " (J=" + j_str + ")";
 }
 
@@ -195,6 +194,15 @@ py::array
 SU2::Z_iso(Sector a) const
 {
     return su2data().attr("Z_iso")(a.q[0]).cast<py::array>();
+}
+
+SU2::Ptr
+SU2::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& /*subpath*/)
+{
+    auto name = descriptive_name_from_hdf5_attrs(h5gr);
+    auto obj = std::make_shared<SU2>(name);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
 }
 
 } // namespace cyten

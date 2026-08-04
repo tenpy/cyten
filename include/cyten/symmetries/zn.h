@@ -35,6 +35,11 @@ class ZN : public AbelianGroup
     SectorArray all_sectors() const override;
     std::string repr() const override;
     bool _is_equivalent_factor(SymmetryFactor const& other) const override;
+
+    void save_hdf5(py::object hdf5_saver,
+                   py::object h5gr,
+                   std::string const& subpath) const override;
+    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 };
 
 } // namespace cyten

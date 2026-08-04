@@ -2,7 +2,9 @@
 
 /// Type casters: cyten::Sector / SectorArray ↔ NumPy ndarrays.
 ///
-/// Do not bind Sector as a py::class_. Include this header from binding TUs that
+/// Do not ``py::class_<Sector>`` / ``SectorArray`` — that conflicts with these casters.
+/// HDF5 uses distinct wrappers ``SectorHdf5`` / ``SectorArrayHdf5`` bound as
+/// ``Sector`` / ``SectorArray`` in Python. Include this header from binding TUs that
 /// cross the Python boundary with Sector or SectorArray.
 
 #include <cyten/symmetries/sector.h>
@@ -184,6 +186,7 @@ struct type_caster<cyten::Sector>
 
     bool load(handle src, bool convert)
     {
+        // HDF5 ``SectorHdf5`` instances expose ``__array__``; prefer NumPy conversion.
         return cyten_sector_casters_detail::load_sector(src, convert, value);
     }
 

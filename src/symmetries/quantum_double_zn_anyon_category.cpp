@@ -252,4 +252,25 @@ QuantumDoubleZNAnyonCategory::all_sectors() const
     return out;
 }
 
+void
+QuantumDoubleZNAnyonCategory::save_hdf5(py::object hdf5_saver,
+                                        py::object h5gr,
+                                        std::string const& subpath) const
+{
+    SymmetryFactor::save_hdf5(hdf5_saver, h5gr, subpath);
+    hdf5_saver.attr("save")(N, subpath + "N");
+}
+
+QuantumDoubleZNAnyonCategory::Ptr
+QuantumDoubleZNAnyonCategory::from_hdf5(py::object hdf5_loader,
+                                        py::object h5gr,
+                                        std::string const& subpath)
+{
+    int N = hdf5_loader.attr("load")(subpath + "N").cast<int>();
+    auto name = descriptive_name_from_hdf5_attrs(h5gr);
+    auto obj = std::make_shared<QuantumDoubleZNAnyonCategory>(N, name);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
+}
+
 } // namespace cyten

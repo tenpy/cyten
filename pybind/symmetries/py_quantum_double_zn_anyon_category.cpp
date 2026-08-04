@@ -21,7 +21,12 @@ bind_quantum_double_zn_anyon_category(py::module_& m)
       .def(py::init<int, std::optional<std::string>>(),
            py::arg("N"),
            py::arg("descriptive_name") = py::none())
-      .def_readonly("N", &QuantumDoubleZNAnyonCategory::N);
+      .def_readonly("N", &QuantumDoubleZNAnyonCategory::N)
+      .def_static("from_hdf5",
+                  &QuantumDoubleZNAnyonCategory::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
 }
 
 } // namespace cyten

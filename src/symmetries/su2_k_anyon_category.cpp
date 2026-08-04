@@ -355,4 +355,24 @@ SU2_kAnyonCategory::all_sectors() const
     return out;
 }
 
+void
+SU2_kAnyonCategory::save_hdf5(py::object hdf5_saver,
+                              py::object h5gr,
+                              std::string const& subpath) const
+{
+    SymmetryFactor::save_hdf5(hdf5_saver, h5gr, subpath);
+    hdf5_saver.attr("save")(k, subpath + "k");
+    hdf5_saver.attr("save")(handedness, subpath + "handedness");
+}
+
+SU2_kAnyonCategory::Ptr
+SU2_kAnyonCategory::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    int k = hdf5_loader.attr("load")(subpath + "k").cast<int>();
+    std::string handedness = hdf5_loader.attr("load")(subpath + "handedness").cast<std::string>();
+    auto obj = std::make_shared<SU2_kAnyonCategory>(k, handedness);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
+}
+
 } // namespace cyten

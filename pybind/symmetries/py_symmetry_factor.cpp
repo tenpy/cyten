@@ -188,11 +188,17 @@ bind_symmetry_factor(py::module_& m)
                }
                return self.equals(other.cast<SymmetryFactor const&>());
            })
-      .def("save_hdf5",
-           &SymmetryFactor::save_hdf5,
-           py::arg("hdf5_saver"),
-           py::arg("h5gr"),
-           py::arg("subpath"));
+      .def(
+        "save_hdf5",
+        [](SymmetryFactor const& self,
+           py::object saver,
+           py::object h5gr,
+           std::string const& subpath) {
+            self.save_hdf5(saver, h5gr, subpath); // virtual dispatch
+        },
+        py::arg("hdf5_saver"),
+        py::arg("h5gr"),
+        py::arg("subpath"));
 }
 
 } // namespace cyten

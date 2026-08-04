@@ -89,4 +89,12 @@ NoSymmetry::all_sectors() const
     return out;
 }
 
+NoSymmetry::Ptr
+NoSymmetry::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& /*subpath*/)
+{
+    auto obj = std::make_shared<NoSymmetry>();
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
+}
+
 } // namespace cyten

@@ -247,4 +247,14 @@ FermionParity::repr() const
     return std::string("FermionParity(\"") + *descriptive_name + "\")";
 }
 
+FermionParity::Ptr
+FermionParity::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    auto name = descriptive_name_from_hdf5_attrs(h5gr);
+    bool trivial_shift = trivial_shift_from_hdf5(hdf5_loader, subpath);
+    auto obj = std::make_shared<FermionParity>(name, trivial_shift);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
+}
+
 } // namespace cyten

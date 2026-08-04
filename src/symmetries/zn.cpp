@@ -145,4 +145,22 @@ ZN::_is_equivalent_factor(SymmetryFactor const& other) const
     return false;
 }
 
+void
+ZN::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+{
+    SymmetryFactor::save_hdf5(hdf5_saver, h5gr, subpath);
+    hdf5_saver.attr("save")(N, subpath + "N");
+}
+
+ZN::Ptr
+ZN::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    int N = hdf5_loader.attr("load")(subpath + "N").cast<int>();
+    auto name = descriptive_name_from_hdf5_attrs(h5gr);
+    bool trivial_shift = trivial_shift_from_hdf5(hdf5_loader, subpath);
+    auto obj = std::make_shared<ZN>(N, name, trivial_shift);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
+}
+
 } // namespace cyten

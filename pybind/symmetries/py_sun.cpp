@@ -12,23 +12,22 @@ namespace cyten {
 void
 bind_sun(py::module_& m)
 {
-    py::class_<SUN, Group, py::smart_holder> cls(
-      m,
-      "SUN",
-      R"pydoc(
-      SU(N) group symmetry
+    py::class_<SUN, Group, py::smart_holder> cls(m,
+                                                 "SUN",
+                                                 R"pydoc(
+                                                 SU(N) group symmetry
 
-      The sectors are arrays of length N which correspond to first rows of normalized Gelfand-Tsetlin
-      patterns (see https://arxiv.org/pdf/1009.0437 ).
-      E.g. for SU(3) the 8 dimensional irreducible representation is labeled by [2,1,0]
+                                                 The sectors are arrays of length N which correspond to first rows of normalized Gelfand-Tsetlin
+                                                 patterns (see https://arxiv.org/pdf/1009.0437 ).
+                                                 E.g. for SU(3) the 8 dimensional irreducible representation is labeled by [2,1,0]
 
-      Clebsch Gordan coefficients and F/R symbols need to be calculated within the
-      clebsch_gordan_coefficients package and exported as hdf5 file.
+                                                 Clebsch Gordan coefficients and F/R symbols need to be calculated within the
+                                                 clebsch_gordan_coefficients package and exported as hdf5 file.
 
-      CGfile: hdf5 file containing the clebsch gordan coefficients
-      Ffile: hdf5 file containing the F symbols
-      Rfile: hdf5 file containing the R Symbols
-      )pydoc");
+                                                 CGfile: hdf5 file containing the clebsch gordan coefficients
+                                                 Ffile: hdf5 file containing the F symbols
+                                                 Rfile: hdf5 file containing the R Symbols
+                                                 )pydoc");
 
     cls.def(py::init<int, py::object, py::object, py::object, std::optional<std::string>>(),
             py::arg("N"),
@@ -40,7 +39,9 @@ bind_sun(py::module_& m)
     cls.def_readonly("N", &SUN::N)
       .def_readwrite("CGfile", &SUN::CGfile)
       .def_readwrite("Ffile", &SUN::Ffile)
-      .def_readwrite("Rfile", &SUN::Rfile);
+      .def_readwrite("Rfile", &SUN::Rfile)
+      .def_static(
+        "from_hdf5", &SUN::from_hdf5, py::arg("hdf5_loader"), py::arg("h5gr"), py::arg("subpath"));
 
     cls.def("hweight_from_CG_hdf5", &SUN::hweight_from_CG_hdf5)
       .def("hweight_from_F_hdf5", &SUN::hweight_from_F_hdf5)
@@ -48,10 +49,8 @@ bind_sun(py::module_& m)
       .def("S_index_irrep_weight", &SUN::S_index_irrep_weight, py::arg("a"))
       .def("highest_irrep_in_decomp", &SUN::highest_irrep_in_decomp, py::arg("a"), py::arg("b"))
       .def("dims_of_irreps", &SUN::dims_of_irreps, py::arg("a"), py::arg("b"))
-      .def("outer_multiplicity_from_CG",
-           &SUN::outer_multiplicity_from_CG,
-           py::arg("a"),
-           py::arg("b"))
+      .def(
+        "outer_multiplicity_from_CG", &SUN::outer_multiplicity_from_CG, py::arg("a"), py::arg("b"))
       .def("clebschgordan",
            &SUN::clebschgordan,
            py::arg("a"),

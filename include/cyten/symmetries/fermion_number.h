@@ -45,6 +45,8 @@ class FermionNumber : public SymmetryFactor
     complex128 topological_twist(Sector a) const override;
     py::array Z_iso(Sector a) const override;
     std::string repr() const override;
+
+    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 };
 
 } // namespace cyten

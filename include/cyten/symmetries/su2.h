@@ -45,6 +45,8 @@ class SU2 : public Group
     py::array _r_symbol(Sector a, Sector b, Sector c) const override;
     py::array _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const override;
     py::array Z_iso(Sector a) const override;
+
+    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 };
 
 } // namespace cyten

@@ -23,7 +23,12 @@ bind_zn_anyon_category2(py::module_& m)
            py::arg("n"),
            py::arg("descriptive_name") = py::none())
       .def_readonly("N", &ZNAnyonCategory2::N)
-      .def_readonly("n", &ZNAnyonCategory2::n);
+      .def_readonly("n", &ZNAnyonCategory2::n)
+      .def_static("from_hdf5",
+                  &ZNAnyonCategory2::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
 }
 
 } // namespace cyten

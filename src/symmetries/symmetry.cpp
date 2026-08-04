@@ -706,10 +706,25 @@ Symmetry::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& s
     }
     hdf5_saver.attr("save")(static_cast<int>(fusion_style), subpath + "fusion_style");
     hdf5_saver.attr("save")(static_cast<int>(braiding_style), subpath + "braiding_style");
-    hdf5_saver.attr("save")(trivial_sector, subpath + "trivial_sector");
+    hdf5_saver.attr("save")(sector_as_hdf5_exportable(trivial_sector), subpath + "trivial_sector");
     hdf5_saver.attr("save")(num_sectors, subpath + "num_sectors");
     hdf5_saver.attr("save")(static_cast<int>(sector_ind_len), subpath + "sector_ind_len");
     h5gr.attr("attrs")["has_complex_topological_data"] = has_complex_topological_data;
+}
+
+Symmetry::Ptr
+Symmetry::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    py::list factors_py = hdf5_loader.attr("load")(subpath + "factors").cast<py::list>();
+    std::vector<SymmetryFactor::Ptr> factors;
+    factors.reserve(factors_py.size());
+    for (py::handle h : factors_py) {
+        factors.push_back(h.cast<SymmetryFactor::Ptr>());
+    }
+    auto obj = std::make_shared<Symmetry>(std::move(factors));
+    py::object py_obj = py::cast(obj);
+    hdf5_loader.attr("memorize_load")(h5gr, py_obj);
+    return obj;
 }
 
 } // namespace cyten

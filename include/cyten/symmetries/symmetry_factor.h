@@ -49,9 +49,15 @@ class SymmetryFactor : public BaseSymmetry
 
     bool equals(SymmetryFactor const& other) const;
 
-    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+    virtual void save_hdf5(py::object hdf5_saver,
+                           py::object h5gr,
+                           std::string const& subpath) const;
     /// Reconstruct into an existing instance (used by concrete from_hdf5).
     void load_hdf5_common(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 };
+
+/// Helpers for concrete ``from_hdf5`` implementations.
+std::optional<std::string> descriptive_name_from_hdf5_attrs(py::object h5gr);
+bool trivial_shift_from_hdf5(py::object hdf5_loader, std::string const& subpath);
 
 } // namespace cyten

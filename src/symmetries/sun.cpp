@@ -344,13 +344,7 @@ SUN::outer_multiplicity_from_CG(Sector a, Sector b) const
 }
 
 float64
-SUN::clebschgordan(Sector a,
-                   int64 q_a,
-                   Sector b,
-                   int64 q_b,
-                   Sector c,
-                   int64 q_c,
-                   int64 mu) const
+SUN::clebschgordan(Sector a, int64 q_a, Sector b, int64 q_b, Sector c, int64 q_c, int64 mu) const
 {
     auto const hw = hweight_from_CG_hdf5();
     if (a.q[0] > hw || b.q[0] > hw || c.q[0] > hw) {
@@ -404,8 +398,9 @@ SUN::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
     auto dim_mu = _n_symbol(a, b, c);
     auto np = numpy();
     if (dim_mu == 0) {
-        return np.attr("zeros")(py::make_tuple(dim_Sa, dim_Sb, dim_Sc, 1),
-                                py::arg("dtype") = np.attr("float64"))
+        return np
+          .attr("zeros")(py::make_tuple(dim_Sa, dim_Sb, dim_Sc, 1),
+                         py::arg("dtype") = np.attr("float64"))
           .cast<py::array>();
     }
     auto X = np.attr("zeros")(py::make_tuple(dim_Sa, dim_Sb, dim_Sc, dim_mu),
@@ -427,8 +422,7 @@ py::array
 SUN::_f_symbol_from_CG(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     auto const hw = hweight_from_CG_hdf5();
-    if (a.q[0] > hw || b.q[0] > hw || c.q[0] > hw || d.q[0] > hw || e.q[0] > hw ||
-        f.q[0] > hw) {
+    if (a.q[0] > hw || b.q[0] > hw || c.q[0] > hw || d.q[0] > hw || e.q[0] > hw || f.q[0] > hw) {
         throw std::invalid_argument(
           "Input irreps have higher weight than highest weight irrep in HDF5-file");
     }
@@ -439,7 +433,8 @@ SUN::_f_symbol_from_CG(Sector a, Sector b, Sector c, Sector d, Sector e, Sector 
     auto X4 = _fusion_tensor(a, e, d, false, false).attr("transpose")(py::make_tuple(1, 2, 3, 0));
     if (!py::bool_(X1.attr("any")()) || !py::bool_(X2.attr("any")()) ||
         !py::bool_(X3.attr("any")()) || !py::bool_(X4.attr("any")())) {
-        return np.attr("zeros")(py::make_tuple(1, 1, 1, 1), py::arg("dtype") = np.attr("complex128"))
+        return np
+          .attr("zeros")(py::make_tuple(1, 1, 1, 1), py::arg("dtype") = np.attr("complex128"))
           .cast<py::array>();
     }
     auto X12 = np.attr("tensordot")(X1, X2, py::arg("axes") = py::make_tuple(2, 0));
@@ -447,8 +442,9 @@ SUN::_f_symbol_from_CG(Sector a, Sector b, Sector c, Sector d, Sector e, Sector 
     auto X34 = np.attr("tensordot")(X3, X4, py::arg("axes") = py::make_tuple(2, 1));
     X34 = X34.attr("transpose")(py::make_tuple(3, 0, 1, 4, 2, 5));
     auto F = np.attr("tensordot")(
-      X12, np.attr("conj")(X34), py::arg("axes") = py::make_tuple(py::make_tuple(0, 1, 2, 3),
-                                                                   py::make_tuple(0, 1, 2, 3)));
+      X12,
+      np.attr("conj")(X34),
+      py::arg("axes") = py::make_tuple(py::make_tuple(0, 1, 2, 3), py::make_tuple(0, 1, 2, 3)));
     F = F.attr("transpose")(py::make_tuple(2, 3, 0, 1));
     F = np.attr("where")(np.attr("abs")(F).attr("__lt__")(1e-12), 0, F);
     auto denom = complex128{ static_cast<float64>(sector_dim(d)), 0.0 };
@@ -600,10 +596,11 @@ SUN::sanity_check_hdf5(py::object file) const
             }
         }
         if (!found_zero) {
-            throw std::invalid_argument("Missing key for all-trivial-sector F-symbol: " + zero_key);
+            throw std::invalid_argument("Missing key for all-trivial-sector F-symbol: " +
+                                        zero_key);
         }
-        auto h_key = std::string("[") + std::string(py::str(H)) + ", " + std::string(py::str(H)) +
-                     ", 0]";
+        auto h_key =
+          std::string("[") + std::string(py::str(H)) + ", " + std::string(py::str(H)) + ", 0]";
         bool found_h = false;
         for (auto key : keys) {
             if (std::string(py::str(key)).find(h_key) != std::string::npos) {
@@ -648,10 +645,11 @@ SUN::sanity_check_hdf5(py::object file) const
             }
         }
         if (!found_zero) {
-            throw std::invalid_argument("Missing key for all-trivial-sector R-symbol: " + zero_key);
+            throw std::invalid_argument("Missing key for all-trivial-sector R-symbol: " +
+                                        zero_key);
         }
-        auto h_key = std::string("[") + std::string(py::str(H)) + ", " + std::string(py::str(H)) +
-                     ", 0]";
+        auto h_key =
+          std::string("[") + std::string(py::str(H)) + ", " + std::string(py::str(H)) + ", 0]";
         bool found_h = false;
         for (auto key : keys) {
             if (std::string(py::str(key)).find(h_key) != std::string::npos) {
@@ -683,6 +681,31 @@ SUN::sanity_check_hdf5(py::object file) const
         }
     }
     (void)Nattr;
+}
+
+void
+SUN::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+{
+    SymmetryFactor::save_hdf5(hdf5_saver, h5gr, subpath);
+    hdf5_saver.attr("save")(N, subpath + "N");
+    // Persist paths so from_hdf5 can reopen (h5py.File is not Hdf5Exportable).
+    hdf5_saver.attr("save")(py::str(CGfile.attr("filename")), subpath + "CGfile");
+    hdf5_saver.attr("save")(py::str(Ffile.attr("filename")), subpath + "Ffile");
+    hdf5_saver.attr("save")(py::str(Rfile.attr("filename")), subpath + "Rfile");
+}
+
+SUN::Ptr
+SUN::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    int N = hdf5_loader.attr("load")(subpath + "N").cast<int>();
+    auto name = descriptive_name_from_hdf5_attrs(h5gr);
+    auto h5py = py::module_::import("h5py");
+    py::object CGfile = h5py.attr("File")(hdf5_loader.attr("load")(subpath + "CGfile"), "r");
+    py::object Ffile = h5py.attr("File")(hdf5_loader.attr("load")(subpath + "Ffile"), "r");
+    py::object Rfile = h5py.attr("File")(hdf5_loader.attr("load")(subpath + "Rfile"), "r");
+    auto obj = std::make_shared<SUN>(N, CGfile, Ffile, Rfile, name);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
 }
 
 } // namespace cyten

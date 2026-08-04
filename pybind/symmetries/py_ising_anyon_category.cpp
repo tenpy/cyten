@@ -14,7 +14,12 @@ bind_ising_anyon_category(py::module_& m)
                                                                          R"pydoc(
                                                                          Category describing Ising anyons.
                                                                          )pydoc");
-    cls.def(py::init<int>(), py::arg("nu") = 1);
+    cls.def(py::init<int>(), py::arg("nu") = 1)
+      .def_static("from_hdf5",
+                  &IsingAnyonCategory::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
     cls.attr("vacuum") = IsingAnyonCategory::vacuum;
     cls.attr("sigma") = IsingAnyonCategory::sigma;
     cls.attr("psi") = IsingAnyonCategory::psi;

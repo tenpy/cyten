@@ -32,4 +32,15 @@ ToricCodeCategory::_is_equivalent_factor(SymmetryFactor const& other) const
     return false;
 }
 
+ToricCodeCategory::Ptr
+ToricCodeCategory::from_hdf5(py::object hdf5_loader,
+                             py::object h5gr,
+                             std::string const& /*subpath*/)
+{
+    auto name = descriptive_name_from_hdf5_attrs(h5gr);
+    auto obj = std::make_shared<ToricCodeCategory>(name);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
+}
+
 } // namespace cyten

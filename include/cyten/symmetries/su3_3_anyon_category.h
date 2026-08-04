@@ -47,6 +47,8 @@ class SU3_3AnyonCategory : public SymmetryFactor
     py::array _c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override;
     SectorArray all_sectors() const override;
 
+    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+
   private:
     using FSymKey = std::tuple<int, int, int, int, int, int>;
 
