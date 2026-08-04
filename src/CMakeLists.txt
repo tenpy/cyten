@@ -22,6 +22,16 @@ target_sources(cyten
   symmetries/zn.cpp
   symmetries/su2.cpp
   symmetries/sun.cpp
+  symmetries/fermion_number.cpp
+  symmetries/fermion_parity.cpp
+  symmetries/zn_anyon_category.cpp
+  symmetries/zn_anyon_category2.cpp
+  symmetries/quantum_double_zn_anyon_category.cpp
+  symmetries/toric_code_category.cpp
+  symmetries/fibonacci_anyon_category.cpp
+  symmetries/ising_anyon_category.cpp
+  symmetries/su2_k_anyon_category.cpp
+  symmetries/su3_3_anyon_category.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   version.cpp
