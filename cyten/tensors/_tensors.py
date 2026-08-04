@@ -5900,7 +5900,9 @@ def pinv(tensor: Tensor, cutoff=1e-15) -> Tensor:
     return dagger(U @ cutoff_inverse(S, cutoff=cutoff) @ Vh)
 
 
-def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = False) -> tuple[Tensor, Tensor]:
+def qr(
+    tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = False, charge_leg_top: bool = True
+) -> tuple[Tensor, Tensor]:
     """The QR decomposition of a tensor.
 
     A :ref:`tensor decomposition <decompositions>` ``tensor ~ Q @ R`` with the following
@@ -5933,8 +5935,25 @@ def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
         and ``R.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
     new_leg_dual: bool
         If the new leg should be a ket space (``False``) or bra space (``True``).
+    charge_leg_top: bool
+        Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
+        top tensor ``R`` (``True``) or the bottom tensor ``Q`` (``False``). The corresponding
+        tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
+        `ChargedTensor`.
 
     """
+    if isinstance(tensor, ChargedTensor):
+        inv_part = tensor.invariant_part
+        if not charge_leg_top:
+            inv_part = move_leg(inv_part, tensor._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
+        Q, R = qr(inv_part, new_labels, new_leg_dual)
+        if charge_leg_top:
+            R = ChargedTensor(R, tensor.charged_state)
+        else:
+            Q = move_leg(Q, tensor._CHARGE_LEG_LABEL, domain_pos=0, bend_right=False)
+            Q = ChargedTensor(Q, tensor.charged_state)
+        return Q, R
+
     a, b = _decomposition_labels(new_labels)
     tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
     q_data, r_data = tensor.backend.qr(tensor, new_co_domain=new_co_domain)
@@ -5981,7 +6000,9 @@ def real_if_close[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType,
     return np.real_if_close(x, tol=tol)
 
 
-def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = False) -> tuple[Tensor, Tensor]:
+def lq(
+    tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = False, charge_leg_top: bool = True
+) -> tuple[Tensor, Tensor]:
     """The LQ decomposition of a tensor.
 
     A :ref:`tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
@@ -6014,8 +6035,25 @@ def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
         and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
     new_leg_dual: bool
         If the new leg should be a ket space (``False``) or bra space (``True``).
+    charge_leg_top: bool
+        Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
+        top tensor ``Q`` (``True``) or the bottom tensor ``L`` (``False``). The corresponding
+        tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
+        `ChargedTensor`.
 
     """
+    if isinstance(tensor, ChargedTensor):
+        inv_part = tensor.invariant_part
+        if not charge_leg_top:
+            inv_part = move_leg(inv_part, tensor._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
+        L, Q = lq(inv_part, new_labels, new_leg_dual)
+        if charge_leg_top:
+            Q = ChargedTensor(Q, tensor.charged_state)
+        else:
+            L = move_leg(L, tensor._CHARGE_LEG_LABEL, domain_pos=0, bend_right=False)
+            L = ChargedTensor(L, tensor.charged_state)
+        return L, Q
+
     a, b = _decomposition_labels(new_labels)
     tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
     l_data, q_data = tensor.backend.lq(tensor, new_co_domain=new_co_domain)
@@ -6301,6 +6339,7 @@ def svd(
     tensor: Tensor,
     new_labels: str | list[str] | None = None,
     new_leg_dual: bool = False,
+    charge_leg_top: bool = True,
     algorithm: str | None = None,
 ) -> tuple[Tensor, DiagonalTensor, Tensor]:
     """The singular value decomposition (SVD) of a tensor.
@@ -6349,17 +6388,34 @@ def svd(
         The new legs are unlabelled by default.
     new_leg_dual: bool
         If the new leg should be a ket space (``False``) or bra space (``True``).
+    charge_leg_top: bool
+        Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
+        top tensor ``Vh`` (``True``) or the bottom tensor ``U`` (``False``). The corresponding
+        tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
+        `ChargedTensor`.
     algorithm: str, optional
         The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
         See :meth:`~cyten.block_backends.BlockBackend.possible_svd_algorithms`.
 
     Returns
     -------
-    U: SymmetricTensor
+    U: SymmetricTensor | ChargedTensor
     S: DiagonalTensor
-    Vh: SymmetricTensor
+    Vh: SymmetricTensor | ChargedTensor
 
     """
+    if isinstance(tensor, ChargedTensor):
+        inv_part = tensor.invariant_part
+        if not charge_leg_top:
+            inv_part = move_leg(inv_part, tensor._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
+        U, S, Vh = svd(inv_part, new_labels, new_leg_dual, algorithm)
+        if charge_leg_top:
+            Vh = ChargedTensor(Vh, tensor.charged_state)
+        else:
+            U = move_leg(U, tensor._CHARGE_LEG_LABEL, domain_pos=0, bend_right=False)
+            U = ChargedTensor(U, tensor.charged_state)
+        return U, S, Vh
+
     a, b, c, d = _svd_new_labels(new_labels)
     tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
     u_data, s_data, vh_data = tensor.backend.svd(tensor, new_co_domain=new_co_domain, algorithm=algorithm)
@@ -6387,8 +6443,8 @@ def svd(
 
 
 def svd_apply_mask(
-    U: SymmetricTensor, S: DiagonalTensor, Vh: SymmetricTensor, mask: Mask
-) -> tuple[SymmetricTensor, DiagonalTensor, SymmetricTensor]:
+    U: SymmetricTensor | ChargedTensor, S: DiagonalTensor, Vh: SymmetricTensor | ChargedTensor, mask: Mask
+) -> tuple[SymmetricTensor | ChargedTensor, DiagonalTensor, SymmetricTensor | ChargedTensor]:
     """Truncate an existing SVD"""
     assert mask.is_projection
     assert mask.domain[0] == S.domain[0]
@@ -6979,6 +7035,7 @@ def truncated_svd(
     tensor: Tensor,
     new_labels: str | list[str] | None = None,
     new_leg_dual: bool = False,
+    charge_leg_top: bool = True,
     algorithm: str | None = None,
     normalize_to: float = None,
     chi_max: int = None,
@@ -6991,7 +7048,7 @@ def truncated_svd(
 
     Parameters
     ----------
-    tensor, new_labels, new_leg_dual, algorithm
+    tensor, new_labels, new_leg_dual, charge_leg_top, algorithm
         Same as for the non-truncated :func:`svd`.
     normalize_to: float or None
         If ``None`` (default), the resulting singular values are not renormalized,
@@ -7017,7 +7074,9 @@ def truncated_svd(
     svd
 
     """
-    U, S, Vh = svd(tensor, new_labels=new_labels, new_leg_dual=new_leg_dual, algorithm=algorithm)
+    U, S, Vh = svd(
+        tensor, new_labels=new_labels, new_leg_dual=new_leg_dual, charge_leg_top=charge_leg_top, algorithm=algorithm
+    )
     S_norm = norm(S)
     mask, err, new_norm = truncate_singular_values(
         S / S_norm,
