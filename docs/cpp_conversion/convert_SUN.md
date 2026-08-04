@@ -2,7 +2,7 @@
 
 ## Status
 
-In progress on branch `convert_SUN`.
+**Done for monkey-patch.** C++ `SUN` + bindings; imported from `_core`. `pytest tests/python_tests/test_symmetries.py`: 48 passed, 1 skipped (`test_suN_symmetry` skips without local HDF5 data files).
 
 ## Metadata
 
@@ -19,12 +19,11 @@ In progress on branch `convert_SUN`.
 ## Design notes
 
 - Subclass C++ `Group` with `FusionStyle::general`.
-- Hold `CGfile` / `Ffile` / `Rfile` as `py::object` (`h5py.File`); most symbol lookups stay as Python HDF5 attribute access from C++.
-- Pure C++ for GT validation, `sector_dim`, `dual_sector`, `S_index_irrep_weight`.
-- Tests skip without local HDF5 data files.
+- `CGfile` / `Ffile` / `Rfile` held as `py::object` (`h5py.File`); symbol lookups use HDF5 via the Python API from C++.
+- Pure C++ for GT validation, `sector_dim`, `dual_sector`, `S_index_irrep_weight`, `highest_irrep_in_decomp`.
+- Extra helpers bound: `clebschgordan`, `_f_symbol_from_CG`, `_r_symbol_from_CG`, `dims_of_irreps`, etc.
 
 ## TODO checklist
 
-- [x] setup
-- [ ] declaration / definitions / bindings / monkey-patch / pytest
-- [ ] wrap up
+- [x] setup / plan / declaration / definitions / bindings / monkey-patch / pytest
+- [ ] wrap up / merge or continue (`FermionNumber`, `FermionParity`, anyons, …)

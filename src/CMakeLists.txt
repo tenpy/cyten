@@ -21,6 +21,7 @@ target_sources(cyten
   symmetries/u1.cpp
   symmetries/zn.cpp
   symmetries/su2.cpp
+  symmetries/sun.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   version.cpp
