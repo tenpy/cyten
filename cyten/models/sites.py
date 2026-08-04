@@ -215,6 +215,8 @@ class SpinlessBosonSite(BosonicDOF):
             leg = ElementarySpace.from_basis(sym, np.asarray(sectors, dtype=int))
         else:
             if isinstance(sym, (U1, ZN)):
+                # Check before as_Symmetry(): Symmetry is not a ZN subclass.
+                is_zn = isinstance(sym, ZN)
                 sym = sym.as_Symmetry()
                 # for U(1) and Z_2, iterate over all states in the correct order to
                 # get the correct basis_perm in ElementarySpace.from_basis
@@ -222,7 +224,7 @@ class SpinlessBosonSite(BosonicDOF):
                 for occupations in itproduct(*states):
                     sectors.append(np.sum(occupations))
                 sectors = np.asarray(sectors, dtype=int)[:, None]
-                if isinstance(sym, ZN):
+                if is_zn:
                     sectors = np.mod(sectors, 2)
                 leg = ElementarySpace.from_basis(sym, sectors)
             elif isinstance(sym, NoSymmetry):

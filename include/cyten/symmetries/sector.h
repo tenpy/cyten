@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../cyten.h"
+
 #include <array>
 #include <cassert>
 #include <compare>
@@ -7,6 +9,7 @@
 #include <functional>
 #include <span>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 namespace cyten {
@@ -126,6 +129,10 @@ class Sector
         return a.len_ <=> b.len_;
     }
 
+    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+
+    static Sector from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+
   private:
     std::uint8_t len_ = 0;
 };
@@ -178,7 +185,8 @@ struct SectorArray
     {
         assert(sector_ind_len == N);
         assert(i < num_sectors);
-        return std::span<int16_t, N>{ data.data() + i * N, N };
+        auto const off = i * N;
+        return std::span<int16_t, N>{ data.data() + off, N };
     }
 
     template<std::size_t N>
@@ -186,10 +194,15 @@ struct SectorArray
     {
         assert(sector_ind_len == N);
         assert(i < num_sectors);
-        return std::span<const int16_t, N>{ data.data() + i * N, N };
+        auto const off = i * N;
+        return std::span<const int16_t, N>{ data.data() + off, N };
     }
 
-    Sector operator[](std::size_t i) const { return Sector::from_span(row(i)); }
+    Sector operator[](std::size_t i) const
+    {
+        assert(i < num_sectors);
+        return Sector::from_span(row(i));
+    }
 
     void set(std::size_t i, Sector const& s)
     {
@@ -206,6 +219,12 @@ struct SectorArray
         return a.num_sectors == b.num_sectors && a.sector_ind_len == b.sector_ind_len &&
                a.data == b.data;
     }
+
+    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+
+    static SectorArray from_hdf5(py::object hdf5_loader,
+                                 py::object h5gr,
+                                 std::string const& subpath);
 };
 
 } // namespace cyten

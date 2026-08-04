@@ -528,32 +528,42 @@ bind_base_symmetry(py::module_& m)
            R"pydoc(
            Internal implementation of :meth:`c_symbol`. Can assume that inputs are valid.
            )pydoc")
-      .def("topological_twist",
-           &BaseSymmetry::topological_twist,
-           py::arg("a"),
-           R"pydoc(
-           The prefactor that relates the twist on a single sector to the identity.
+      .def(
+        "topological_twist",
+        [](BaseSymmetry const& self, Sector const& a) -> py::object {
+            complex128 const z = self.topological_twist(a);
+            // Python historically returned int/float for real twists (±1). Returning
+            // complex(±1+0j) makes is_real fusion-tree mappings multiply float blocks
+            // by complex128 and trip ComplexWarning-as-error under pytest.
+            if (z.imag() == 0.0) {
+                return py::cast(z.real());
+            }
+            return py::cast(z);
+        },
+        py::arg("a"),
+        R"pydoc(
+        The prefactor that relates the twist on a single sector to the identity.
 
-           Graphically::
+        Graphically::
 
-               |   │   ╭─╮                |
-               |    ╲ ╱  │                |
-               |     ╱   │   =   theta_a  |
-               |    ╱ ╲  │                |
-               |   │   ╰─╯                |
-               |   a                      a
+            |   │   ╭─╮                |
+            |    ╲ ╱  │                |
+            |     ╱   │   =   theta_a  |
+            |    ╱ ╲  │                |
+            |   │   ╰─╯                |
+            |   a                      a
 
-           Notes
-           -----
-           For a twist with opposite chirality, the prefactor is conjugated.
+        Notes
+        -----
+        For a twist with opposite chirality, the prefactor is conjugated.
 
-               |   │   ╭─╮                      |
-               |    ╲ ╱  │                      |
-               |     ╲   │   =   conj(theta_a)  |
-               |    ╱ ╲  │                      |
-               |   │   ╰─╯                      |
-               |   a                            a
-           )pydoc")
+            |   │   ╭─╮                      |
+            |    ╲ ╱  │                      |
+            |     ╲   │   =   conj(theta_a)  |
+            |    ╱ ╲  │                      |
+            |   │   ╰─╯                      |
+            |   a                            a
+        )pydoc")
       .def("s_matrix_element",
            &BaseSymmetry::s_matrix_element,
            py::arg("a"),

@@ -159,4 +159,31 @@ sector_array_from_numpy(py::handle src)
     return out;
 }
 
+void
+Sector::save_hdf5(py::object hdf5_saver, py::object /*h5gr*/, std::string const& subpath) const
+{
+    // ``subpath`` is the group already created by ``hdf5_saver``; store charges under ``values``.
+    hdf5_saver.attr("save")(sector_to_numpy(*this), subpath + "values");
+}
+
+Sector
+Sector::from_hdf5(py::object hdf5_loader, py::object /*h5gr*/, std::string const& subpath)
+{
+    return sector_from_numpy(hdf5_loader.attr("load")(subpath + "values"));
+}
+
+void
+SectorArray::save_hdf5(py::object hdf5_saver,
+                       py::object /*h5gr*/,
+                       std::string const& subpath) const
+{
+    hdf5_saver.attr("save")(sector_array_to_numpy(*this), subpath + "values");
+}
+
+SectorArray
+SectorArray::from_hdf5(py::object hdf5_loader, py::object /*h5gr*/, std::string const& subpath)
+{
+    return sector_array_from_numpy(hdf5_loader.attr("load")(subpath + "values"));
+}
+
 } // namespace cyten

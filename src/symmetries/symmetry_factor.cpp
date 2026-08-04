@@ -1,5 +1,6 @@
 #include <cyten/symmetries/symmetry_factor.h>
 
+#include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/symmetry.h>
 
 #include <stdexcept>

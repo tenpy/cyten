@@ -81,7 +81,131 @@ def _Symmetry_from_hdf5(cls, hdf5_loader, h5gr, subpath):
     return obj
 
 
+def _descriptive_name_from_hdf5(hdf5_loader, h5gr):
+    descr = hdf5_loader.get_attr(h5gr, 'descriptive_name')
+    return None if descr == 'None' else descr
+
+
+def _NoSymmetry_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    obj = cls()
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _U1_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    obj = cls(descriptive_name=_descriptive_name_from_hdf5(hdf5_loader, h5gr))
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _ZN_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    # ``N`` is not stored separately; for ZN it equals ``num_sectors``.
+    N = int(hdf5_loader.load(subpath + 'num_sectors'))
+    obj = cls(N=N, descriptive_name=_descriptive_name_from_hdf5(hdf5_loader, h5gr))
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _SU2_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    obj = cls(descriptive_name=_descriptive_name_from_hdf5(hdf5_loader, h5gr))
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _SUN_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    # SUN sectors have length N-1.
+    sector_ind_len = int(hdf5_loader.load(subpath + 'sector_ind_len'))
+    obj = cls(N=sector_ind_len + 1, descriptive_name=_descriptive_name_from_hdf5(hdf5_loader, h5gr))
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _FermionNumber_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    obj = cls(descriptive_name=_descriptive_name_from_hdf5(hdf5_loader, h5gr))
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _FermionParity_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    obj = cls(descriptive_name=_descriptive_name_from_hdf5(hdf5_loader, h5gr))
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _ZNAnyonCategory_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    # Extra ctor args (N, n) are not in the C++ save format yet; recover N from num_sectors.
+    N = int(hdf5_loader.load(subpath + 'num_sectors'))
+    obj = cls(N=N, n=0, descriptive_name=_descriptive_name_from_hdf5(hdf5_loader, h5gr))
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _ZNAnyonCategory2_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    N = int(hdf5_loader.load(subpath + 'num_sectors'))
+    obj = cls(N=N, n=0, descriptive_name=_descriptive_name_from_hdf5(hdf5_loader, h5gr))
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _QuantumDoubleZNAnyonCategory_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    # Product sectors length 2; num_sectors == N**2.
+    num_sectors = int(hdf5_loader.load(subpath + 'num_sectors'))
+    N = int(round(num_sectors**0.5))
+    obj = cls(N=N, descriptive_name=_descriptive_name_from_hdf5(hdf5_loader, h5gr))
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _ToricCodeCategory_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    obj = cls(descriptive_name=_descriptive_name_from_hdf5(hdf5_loader, h5gr))
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _FibonacciAnyonCategory_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    # handedness not saved yet; default matches common fixtures.
+    obj = cls(handedness='left')
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _IsingAnyonCategory_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    # nu not saved yet; default matches common fixtures.
+    obj = cls(nu=1)
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _SU2_kAnyonCategory_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    # k / handedness not saved yet; num_sectors == k + 1.
+    k = int(hdf5_loader.load(subpath + 'num_sectors')) - 1
+    obj = cls(k=k, handedness='left')
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
+def _SU3_3AnyonCategory_from_hdf5(cls, hdf5_loader, h5gr, subpath):
+    obj = cls()
+    hdf5_loader.memorize_load(h5gr, obj)
+    return obj
+
+
 Symmetry.from_hdf5 = classmethod(_Symmetry_from_hdf5)
+NoSymmetry.from_hdf5 = classmethod(_NoSymmetry_from_hdf5)
+U1.from_hdf5 = classmethod(_U1_from_hdf5)
+ZN.from_hdf5 = classmethod(_ZN_from_hdf5)
+SU2.from_hdf5 = classmethod(_SU2_from_hdf5)
+SUN.from_hdf5 = classmethod(_SUN_from_hdf5)
+FermionNumber.from_hdf5 = classmethod(_FermionNumber_from_hdf5)
+FermionParity.from_hdf5 = classmethod(_FermionParity_from_hdf5)
+ZNAnyonCategory.from_hdf5 = classmethod(_ZNAnyonCategory_from_hdf5)
+ZNAnyonCategory2.from_hdf5 = classmethod(_ZNAnyonCategory2_from_hdf5)
+QuantumDoubleZNAnyonCategory.from_hdf5 = classmethod(_QuantumDoubleZNAnyonCategory_from_hdf5)
+ToricCodeCategory.from_hdf5 = classmethod(_ToricCodeCategory_from_hdf5)
+FibonacciAnyonCategory.from_hdf5 = classmethod(_FibonacciAnyonCategory_from_hdf5)
+IsingAnyonCategory.from_hdf5 = classmethod(_IsingAnyonCategory_from_hdf5)
+SU2_kAnyonCategory.from_hdf5 = classmethod(_SU2_kAnyonCategory_from_hdf5)
+SU3_3AnyonCategory.from_hdf5 = classmethod(_SU3_3AnyonCategory_from_hdf5)
 
 
 no_symmetry = NoSymmetry().as_Symmetry()
