@@ -3,6 +3,7 @@
 #include <cyten/symmetries/sector_numpy.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <numeric>
@@ -61,15 +62,14 @@ Symmetry::concat_trivial_sectors(std::vector<SymmetryFactor::Ptr> const& factors
     if (len > max_sector_ind_len) {
         throw std::invalid_argument("Symmetry: product sector_ind_len exceeds max_sector_ind_len");
     }
-    Sector out;
-    out.len = static_cast<std::uint8_t>(len);
+    std::array<int16_t, max_sector_ind_len> buf{};
     std::size_t off = 0;
     for (auto const& f : factors) {
         for (std::uint8_t j = 0; j < f->sector_ind_len; ++j) {
-            out.q[off++] = f->trivial_sector.q[j];
+            buf[off++] = f->trivial_sector.q[j];
         }
     }
-    return out;
+    return Sector::from_span(std::span<const int16_t>(buf.data(), len));
 }
 
 float64
@@ -100,7 +100,8 @@ Symmetry::Symmetry(std::vector<SymmetryFactor::Ptr> factors_in)
             throw std::invalid_argument("Symmetry: null factor");
         }
         if (dynamic_cast<Symmetry const*>(f.get()) != nullptr) {
-            throw std::invalid_argument("Symmetry: nested Symmetry factors must be flattened before construct");
+            throw std::invalid_argument(
+              "Symmetry: nested Symmetry factors must be flattened before construct");
         }
     }
 
@@ -110,10 +111,9 @@ Symmetry::Symmetry(std::vector<SymmetryFactor::Ptr> factors_in)
         sector_slices.push_back(next);
     }
 
-    has_complex_topological_data =
-      std::any_of(factors.begin(), factors.end(), [](auto const& f) {
-          return f->has_complex_topological_data;
-      });
+    has_complex_topological_data = std::any_of(factors.begin(), factors.end(), [](auto const& f) {
+        return f->has_complex_topological_data;
+    });
     trivial_shift =
       std::all_of(factors.begin(), factors.end(), [](auto const& f) { return f->trivial_shift; });
 
@@ -139,7 +139,8 @@ Symmetry::Symmetry(std::vector<SymmetryFactor::Ptr> factors_in)
     // Multiple fermionic factors: warn via Python warnings module.
     int num_fermionic = 0;
     for (auto const& f : factors) {
-        // Type check via Python isinstance once bindings exist; use group_name heuristic + RTTI later.
+        // Type check via Python isinstance once bindings exist; use group_name heuristic + RTTI
+        // later.
         auto const& name = f->group_name;
         if (name.find("Fermion") != std::string::npos) {
             ++num_fermionic;
@@ -159,12 +160,7 @@ Symmetry::factor_sector(Sector const& a, std::size_t i) const
 {
     auto const begin = sector_slices[i];
     auto const end = sector_slices[i + 1];
-    Sector out;
-    out.len = static_cast<std::uint8_t>(end - begin);
-    for (std::uint8_t j = 0; j < out.len; ++j) {
-        out.q[j] = a.q[begin + j];
-    }
-    return out;
+    return Sector::from_span(std::span<const int16_t>(a.q.data() + begin, end - begin));
 }
 
 SectorArray
@@ -247,7 +243,7 @@ Symmetry::as_Symmetry()
 bool
 Symmetry::is_valid_sector(Sector a) const
 {
-    if (a.len != sector_ind_len) {
+    if (a.len() != sector_ind_len) {
         return false;
     }
     for (std::size_t i = 0; i < factors.size(); ++i) {
@@ -305,9 +301,8 @@ Symmetry::fusion_outcomes(Sector a, Sector b) const
         for (std::size_t k = 0; k < factors.size(); ++k) {
             res_idx.append(colon);
         }
-        res_idx.append(py::slice(static_cast<int>(sector_slices[i]),
-                                 static_cast<int>(sector_slices[i + 1]),
-                                 1));
+        res_idx.append(py::slice(
+          static_cast<int>(sector_slices[i]), static_cast<int>(sector_slices[i + 1]), 1));
         py::list c_i_idx;
         for (std::size_t k = 0; k < i; ++k) {
             c_i_idx.append(py::none());
@@ -333,7 +328,8 @@ SectorArray
 Symmetry::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const& b) const
 {
     if (!is_abelian()) {
-        PyErr_SetString(PyExc_AssertionError, "fusion_outcomes_broadcast requires an abelian symmetry");
+        PyErr_SetString(PyExc_AssertionError,
+                        "fusion_outcomes_broadcast requires an abelian symmetry");
         throw py::error_already_set();
     }
     std::vector<SectorArray> components;
@@ -349,8 +345,7 @@ Symmetry::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const& b) 
         for (std::size_t i = 0; i < factors.size(); ++i) {
             auto const flen = components[i].sector_ind_len;
             for (std::uint8_t j = 0; j < flen; ++j) {
-                out.data[r * sector_ind_len + off + j] =
-                  components[i].data[r * flen + j];
+                out.data[r * sector_ind_len + off + j] = components[i].data[r * flen + j];
             }
             off += flen;
         }
@@ -378,8 +373,7 @@ Symmetry::_multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) co
         for (std::size_t i = 0; i < factors.size(); ++i) {
             auto const flen = components[i].sector_ind_len;
             for (std::uint8_t j = 0; j < flen; ++j) {
-                out.data[r * sector_ind_len + off + j] =
-                  components[i].data[r * flen + j];
+                out.data[r * sector_ind_len + off + j] = components[i].data[r * flen + j];
             }
             off += flen;
         }
@@ -390,16 +384,15 @@ Symmetry::_multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) co
 Sector
 Symmetry::dual_sector(Sector a) const
 {
-    Sector res;
-    res.len = a.len;
+    std::array<int16_t, max_sector_ind_len> buf{};
     for (std::size_t i = 0; i < factors.size(); ++i) {
         auto d = factors[i]->dual_sector(factor_sector(a, i));
         auto const begin = sector_slices[i];
-        for (std::uint8_t j = 0; j < d.len; ++j) {
-            res.q[begin + j] = d.q[j];
+        for (std::uint8_t j = 0; j < d.len(); ++j) {
+            buf[begin + j] = d.q[j];
         }
     }
-    return res;
+    return Sector::from_span(std::span<const int16_t>(buf.data(), a.len()));
 }
 
 SectorArray
@@ -427,7 +420,8 @@ Symmetry::_n_symbol(Sector a, Sector b, Sector c) const
     }
     int64 res = 1;
     for (std::size_t i = 0; i < factors.size(); ++i) {
-        res *= factors[i]->_n_symbol(factor_sector(a, i), factor_sector(b, i), factor_sector(c, i));
+        res *=
+          factors[i]->_n_symbol(factor_sector(a, i), factor_sector(b, i), factor_sector(c, i));
     }
     return res;
 }
@@ -456,9 +450,8 @@ Symmetry::all_sectors() const
         for (std::size_t k = 0; k < factors.size(); ++k) {
             lhs_idx.append(colon);
         }
-        lhs_idx.append(py::slice(static_cast<int>(sector_slices[i]),
-                                 static_cast<int>(sector_slices[i + 1]),
-                                 1));
+        lhs_idx.append(py::slice(
+          static_cast<int>(sector_slices[i]), static_cast<int>(sector_slices[i + 1]), 1));
         py::list rhs_idx;
         for (std::size_t k = 0; k < i; ++k) {
             rhs_idx.append(py::none());
@@ -499,8 +492,9 @@ Symmetry::batch_sector_dim(SectorArray const& a) const
 {
     auto np = numpy();
     if (is_abelian()) {
-        return np.attr("ones")(py::make_tuple(static_cast<ssize_t>(a.num_sectors)),
-                               py::arg("dtype") = np.attr("int64"))
+        return np
+          .attr("ones")(py::make_tuple(static_cast<ssize_t>(a.num_sectors)),
+                        py::arg("dtype") = np.attr("int64"))
           .cast<py::array>();
     }
     auto dims = np.attr("ones")(py::make_tuple(static_cast<ssize_t>(a.num_sectors)),
@@ -516,8 +510,9 @@ Symmetry::batch_qdim(SectorArray const& a) const
 {
     auto np = numpy();
     if (is_abelian()) {
-        return np.attr("ones")(py::make_tuple(static_cast<ssize_t>(a.num_sectors)),
-                               py::arg("dtype") = np.attr("int64"))
+        return np
+          .attr("ones")(py::make_tuple(static_cast<ssize_t>(a.num_sectors)),
+                        py::arg("dtype") = np.attr("int64"))
           .cast<py::array>();
     }
     auto dims = np.attr("ones")(py::make_tuple(static_cast<ssize_t>(a.num_sectors)));
@@ -577,7 +572,8 @@ Symmetry::_r_symbol(Sector a, Sector b, Sector c) const
     auto np = numpy();
     py::object res = np.attr("ones")(py::make_tuple(1));
     for (std::size_t i = 0; i < factors.size(); ++i) {
-        auto Ri = factors[i]->_r_symbol(factor_sector(a, i), factor_sector(b, i), factor_sector(c, i));
+        auto Ri =
+          factors[i]->_r_symbol(factor_sector(a, i), factor_sector(b, i), factor_sector(c, i));
         res = np.attr("kron")(res, Ri);
     }
     return res.cast<py::array>();
@@ -703,7 +699,8 @@ Symmetry::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& s
     py::array slices = np.attr("array")(sector_slices, py::arg("dtype") = np.attr("int64"));
     hdf5_saver.attr("save")(slices, subpath + "sector_slices");
     if (fusion_tensor_dtype.has_value()) {
-        hdf5_saver.attr("save")(static_cast<int>(*fusion_tensor_dtype), subpath + "fusion_tensor_dtype");
+        hdf5_saver.attr("save")(static_cast<int>(*fusion_tensor_dtype),
+                                subpath + "fusion_tensor_dtype");
     } else {
         hdf5_saver.attr("save")(py::none(), subpath + "fusion_tensor_dtype");
     }

@@ -1,5 +1,6 @@
 #include <cyten/symmetries/sector_numpy.h>
 
+#include <array>
 #include <limits>
 #include <stdexcept>
 
@@ -31,13 +32,14 @@ load_sector_from_buffer(py::buffer_info const& info, Sector& out)
     }
     auto const* ptr = static_cast<T const*>(info.ptr);
     auto const stride = info.strides[0] / static_cast<ssize_t>(sizeof(T));
-    out.len = static_cast<std::uint8_t>(n);
+    std::array<std::int16_t, max_sector_ind_len> buf{};
     for (std::size_t i = 0; i < n; ++i) {
         auto const v = static_cast<std::int64_t>(ptr[static_cast<ssize_t>(i) * stride]);
-        if (!narrow_to_int16(v, out.q[i])) {
+        if (!narrow_to_int16(v, buf[i])) {
             return false;
         }
     }
+    out = Sector::from_span(std::span<const std::int16_t>(buf.data(), n));
     return true;
 }
 
@@ -76,9 +78,9 @@ load_sector_array_from_buffer(py::buffer_info const& info, SectorArray& out)
 py::array
 sector_to_numpy(Sector const& src)
 {
-    py::array_t<std::int64_t> arr(static_cast<ssize_t>(src.len));
+    py::array_t<std::int64_t> arr(static_cast<ssize_t>(src.len()));
     auto r = arr.mutable_unchecked<1>();
-    for (std::uint8_t i = 0; i < src.len; ++i) {
+    for (std::uint8_t i = 0; i < src.len(); ++i) {
         r(i) = src.q[i];
     }
     return arr;
@@ -116,7 +118,8 @@ sector_from_numpy(py::handle src)
     } else if (info.item_type_is_equivalent_to<std::int64_t>()) {
         ok = load_sector_from_buffer<std::int64_t>(info, out);
     } else {
-        auto casted = py::array_t<std::int64_t, py::array::c_style | py::array::forcecast>::ensure(src);
+        auto casted =
+          py::array_t<std::int64_t, py::array::c_style | py::array::forcecast>::ensure(src);
         if (casted) {
             ok = load_sector_from_buffer<std::int64_t>(casted.request(), out);
         }
@@ -144,7 +147,8 @@ sector_array_from_numpy(py::handle src)
     } else if (info.item_type_is_equivalent_to<std::int64_t>()) {
         ok = load_sector_array_from_buffer<std::int64_t>(info, out);
     } else {
-        auto casted = py::array_t<std::int64_t, py::array::c_style | py::array::forcecast>::ensure(src);
+        auto casted =
+          py::array_t<std::int64_t, py::array::c_style | py::array::forcecast>::ensure(src);
         if (casted) {
             ok = load_sector_array_from_buffer<std::int64_t>(casted.request(), out);
         }

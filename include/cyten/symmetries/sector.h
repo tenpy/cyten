@@ -19,10 +19,13 @@ inline constexpr std::size_t max_sector_ind_len = 7;
 /// Python keeps ``Sector`` as a 1D ``ndarray`` of length ``sector_ind_len``.
 /// Factor helpers should view storage via ``as_span<N>()`` / ``subspan<N>()``,
 /// not via a separate owning fixed-N type.
-struct Sector
+///
+/// ``len()`` is always in ``[0, max_sector_ind_len]`` and is fixed at construction
+/// (default, initializer list, or ``from_span``).
+class Sector
 {
+  public:
     std::array<int16_t, max_sector_ind_len> q{};
-    std::uint8_t len = 0;
 
     Sector() = default;
 
@@ -31,40 +34,44 @@ struct Sector
         if (values.size() > max_sector_ind_len) {
             throw std::invalid_argument("Sector length exceeds max_sector_ind_len");
         }
-        len = static_cast<std::uint8_t>(values.size());
+        len_ = static_cast<std::uint8_t>(values.size());
         std::size_t i = 0;
         for (int16_t v : values) {
             q[i++] = v;
         }
     }
 
+    /// Copy ``values`` into a new sector. Throws if ``values.size() > max_sector_ind_len``.
     static Sector from_span(std::span<const int16_t> values)
     {
         if (values.size() > max_sector_ind_len) {
             throw std::invalid_argument("Sector length exceeds max_sector_ind_len");
         }
         Sector s;
-        s.len = static_cast<std::uint8_t>(values.size());
+        s.len_ = static_cast<std::uint8_t>(values.size());
         for (std::size_t i = 0; i < values.size(); ++i) {
             s.q[i] = values[i];
         }
         return s;
     }
 
-    std::span<int16_t> span() { return { q.data(), len }; }
-    std::span<const int16_t> span() const { return { q.data(), len }; }
+    /// Current number of components; always ``<= max_sector_ind_len``.
+    [[nodiscard]] std::uint8_t len() const noexcept { return len_; }
+
+    std::span<int16_t> span() { return { q.data(), len_ }; }
+    std::span<const int16_t> span() const { return { q.data(), len_ }; }
 
     template<std::size_t N>
     std::span<int16_t, N> as_span()
     {
-        assert(len == N);
+        assert(len_ == N);
         return std::span<int16_t, N>{ q.data(), N };
     }
 
     template<std::size_t N>
     std::span<const int16_t, N> as_span() const
     {
-        assert(len == N);
+        assert(len_ == N);
         return std::span<const int16_t, N>{ q.data(), N };
     }
 
@@ -72,35 +79,35 @@ struct Sector
     template<std::size_t N>
     std::span<int16_t, N> subspan(std::size_t offset)
     {
-        assert(offset + N <= len);
+        assert(offset + N <= len_);
         return std::span<int16_t, N>{ q.data() + offset, N };
     }
 
     template<std::size_t N>
     std::span<const int16_t, N> subspan(std::size_t offset) const
     {
-        assert(offset + N <= len);
+        assert(offset + N <= len_);
         return std::span<const int16_t, N>{ q.data() + offset, N };
     }
 
     int16_t& operator[](std::size_t i)
     {
-        assert(i < len);
+        assert(i < len_);
         return q[i];
     }
 
     int16_t operator[](std::size_t i) const
     {
-        assert(i < len);
+        assert(i < len_);
         return q[i];
     }
 
     friend bool operator==(Sector const& a, Sector const& b) noexcept
     {
-        if (a.len != b.len) {
+        if (a.len_ != b.len_) {
             return false;
         }
-        for (std::uint8_t i = 0; i < a.len; ++i) {
+        for (std::uint8_t i = 0; i < a.len_; ++i) {
             if (a.q[i] != b.q[i]) {
                 return false;
             }
@@ -110,14 +117,17 @@ struct Sector
 
     friend std::strong_ordering operator<=>(Sector const& a, Sector const& b) noexcept
     {
-        auto const n = a.len < b.len ? a.len : b.len;
+        auto const n = a.len_ < b.len_ ? a.len_ : b.len_;
         for (std::uint8_t i = 0; i < n; ++i) {
             if (auto cmp = a.q[i] <=> b.q[i]; cmp != 0) {
                 return cmp;
             }
         }
-        return a.len <=> b.len;
+        return a.len_ <=> b.len_;
     }
+
+  private:
+    std::uint8_t len_ = 0;
 };
 
 static_assert(sizeof(Sector) == 16);
@@ -184,7 +194,7 @@ struct SectorArray
     void set(std::size_t i, Sector const& s)
     {
         assert(i < num_sectors);
-        assert(s.len == sector_ind_len);
+        assert(s.len() == sector_ind_len);
         auto r = row(i);
         for (std::uint8_t j = 0; j < sector_ind_len; ++j) {
             r[j] = s.q[j];
@@ -205,8 +215,8 @@ struct std::hash<cyten::Sector>
 {
     std::size_t operator()(cyten::Sector const& s) const noexcept
     {
-        std::size_t h = s.len;
-        for (std::uint8_t i = 0; i < s.len; ++i) {
+        std::size_t h = s.len();
+        for (std::uint8_t i = 0; i < s.len(); ++i) {
             h ^= static_cast<std::size_t>(static_cast<std::uint16_t>(s.q[i]) + 0x9e3779b9u +
                                           (h << 6) + (h >> 2));
         }

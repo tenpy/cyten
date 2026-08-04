@@ -71,7 +71,7 @@ std::string
 AbelianGroup::sector_str(Sector a) const
 {
     // Sectors labelled by a single number.
-    if (a.len == 0) {
+    if (a.len() == 0) {
         return "";
     }
     return std::to_string(a.q[0]);
@@ -158,11 +158,8 @@ AbelianGroup::_c_symbol(Sector /*a*/,
 }
 
 py::array
-AbelianGroup::_fusion_tensor(Sector /*a*/,
-                             Sector /*b*/,
-                             Sector /*c*/,
-                             bool /*Z_a*/,
-                             bool /*Z_b*/) const
+AbelianGroup::_fusion_tensor(Sector /*a*/, Sector /*b*/, Sector /*c*/, bool /*Z_a*/, bool /*Z_b*/)
+  const
 {
     return one_4D_float();
 }

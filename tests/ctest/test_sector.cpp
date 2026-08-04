@@ -1,3 +1,4 @@
+#include <array>
 #include <cassert>
 #include <iostream>
 #include <unordered_set>
@@ -13,7 +14,7 @@ test_sector(int /*argc*/, char** /*args*/)
     static_assert(max_sector_ind_len == 7);
 
     Sector a{ 1, -2, 3 };
-    assert(a.len == 3);
+    assert(a.len() == 3);
     assert(a[0] == 1);
     assert(a[1] == -2);
     assert(a[2] == 3);
@@ -50,6 +51,15 @@ test_sector(int /*argc*/, char** /*args*/)
     try {
         Sector too_long{ 0, 1, 2, 3, 4, 5, 6, 7 };
         (void)too_long;
+    } catch (std::invalid_argument const&) {
+        threw = true;
+    }
+    assert(threw);
+
+    threw = false;
+    try {
+        std::array<int16_t, 8> buf{};
+        (void)Sector::from_span(buf);
     } catch (std::invalid_argument const&) {
         threw = true;
     }

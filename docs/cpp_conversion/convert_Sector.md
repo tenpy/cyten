@@ -19,9 +19,9 @@ Python public API remains `Sector` / `SectorArray` as **NumPy ndarrays**. C++ do
 - Owning value type:
 
 ```cpp
-struct Sector {
+class Sector {
   std::array<int16_t, 7> q{};
-  std::uint8_t len = 0;
+  // private len_; set only by constructors / from_span (n <= max_sector_ind_len)
 };
 static_assert(sizeof(Sector) == 16);  // 128-bit-sized
 ```

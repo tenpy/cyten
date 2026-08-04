@@ -21,12 +21,12 @@ BaseSymmetry::BaseSymmetry(FusionStyle fusion_style_,
   , braiding_style(braiding_style_)
   , trivial_sector(trivial_sector_)
   , num_sectors(num_sectors_)
-  , sector_ind_len(trivial_sector_.len)
-  , empty_sector_array(SectorArray::empty(trivial_sector_.len))
+  , sector_ind_len(trivial_sector_.len())
+  , empty_sector_array(SectorArray::empty(trivial_sector_.len()))
   , has_complex_topological_data(has_complex_topological_data_)
   , trivial_shift(trivial_shift_)
 {
-    if (trivial_sector_.len == 0 || trivial_sector_.len > max_sector_ind_len) {
+    if (trivial_sector_.len() == 0) {
         throw std::invalid_argument("BaseSymmetry: invalid trivial_sector length");
     }
 }
@@ -221,7 +221,7 @@ BaseSymmetry::multiple_fusion(std::vector<Sector> const& sectors) const
     std::vector<SectorArray> as_arrays;
     as_arrays.reserve(sectors.size());
     for (auto const& s : sectors) {
-        SectorArray row(1, s.len);
+        SectorArray row(1, s.len());
         row.set(0, s);
         as_arrays.push_back(std::move(row));
     }
@@ -315,7 +315,7 @@ BaseSymmetry::sector_str(Sector a) const
 {
     std::ostringstream oss;
     oss << '[';
-    for (std::uint8_t i = 0; i < a.len; ++i) {
+    for (std::uint8_t i = 0; i < a.len(); ++i) {
         if (i != 0) {
             oss << ' ';
         }
