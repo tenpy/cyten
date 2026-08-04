@@ -21,6 +21,7 @@ from .._core import (
     FusionStyle,  # noqa: F401
     Group,  # noqa: F401
     NoSymmetry,  # noqa: F401
+    SU2,  # noqa: F401
     Symmetry,  # noqa: F401
     SymmetryError,  # noqa: F401
     SymmetryFactor,  # noqa: F401
@@ -75,129 +76,6 @@ def _Symmetry_from_hdf5(cls, hdf5_loader, h5gr, subpath):
 
 
 Symmetry.from_hdf5 = classmethod(_Symmetry_from_hdf5)
-
-
-class SU2(Group):
-    """SU(2) symmetry.
-
-    Allowed sectors are 1D arrays ``[jj]`` of positive integers `jj` = `0`, `1`, `2`, ...
-    which label the spin `jj/2` irrep of SU(2).
-    This is for convenience so that we can work with `int` objects.
-    E.g. a spin-1/2 degree of freedom is represented by the sector `[1]`.
-    """
-
-    fusion_tensor_dtype = Dtype.float64
-    spin_zero = as_immutable_array(np.array([0], dtype=int))
-    spin_half = as_immutable_array(np.array([1], dtype=int))
-    spin_one = as_immutable_array(np.array([2], dtype=int))
-
-    def __init__(self, descriptive_name: str | None = None):
-        Group.__init__(
-            self,
-            fusion_style=FusionStyle.multiple_unique,
-            trivial_sector=np.array([0], dtype=int),
-            group_name='SU(2)',
-            num_sectors=np.inf,
-            has_complex_topological_data=False,
-            descriptive_name=descriptive_name,
-        )
-
-    def is_valid_sector(self, a: Sector) -> bool:
-        return getattr(a, 'shape', ()) == (1,) and (a >= 0)
-
-    def are_valid_sectors(self, sectors) -> bool:
-        shape = getattr(sectors, 'shape', ())
-        return len(shape) == 2 and shape[1] == 1 and np.all(sectors >= 0)
-
-    def fusion_outcomes(self, a: Sector, b: Sector) -> SectorArray:
-        # J_tot = |J1 - J2|, ..., J1 + J2
-        JJ_min = np.abs(a - b).item()
-        JJ_max = (a + b).item()
-        return np.arange(JJ_min, JJ_max + 2, 2)[:, np.newaxis]
-
-    def can_fuse_to(self, a: Sector, b: Sector, c: Sector) -> bool:
-        return (c <= a + b) and (a <= b + c) and (b <= c + a) and ((a + b + c) % 2 == 0)
-
-    def sector_dim(self, a: Sector) -> int:
-        # dim = 2 * J + 1 = jj + 1
-        return a[0] + 1
-
-    def batch_sector_dim(self, a: SectorArray) -> npt.NDArray[np.int_]:
-        # dim = 2 * J + 1 = jj + 1
-        if len(a) == 0:
-            return np.zeros([0], dtype=int)
-        return a[:, 0] + 1
-
-    def sector_str(self, a: Sector) -> str:
-        jj = a[0]
-        j_str = str(jj // 2) if jj % 2 == 0 else f'{jj}/2'
-        return f'{jj} (J={j_str})'
-
-    def __repr__(self):
-        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
-        return f'SU2Symmetry({name_str})'
-
-    def _is_equivalent_factor(self, other) -> bool:
-        return isinstance(other, SU2)
-
-    def dual_sector(self, a: Sector) -> Sector:
-        # all sectors are self-dual
-        return a
-
-    def dual_sectors(self, sectors: SectorArray) -> SectorArray:
-        return sectors
-
-    def _n_symbol(self, a: Sector, b: Sector, c: Sector) -> int:
-        return 1
-
-    def _f_symbol(self, a: Sector, b: Sector, c: Sector, d: Sector, e: Sector, f: Sector) -> np.ndarray:
-        # OPTIMIZE: jutho has a special case if all sectors are trivial ...?
-        from . import _su2data
-
-        return _su2data.f_symbol(a[0], b[0], c[0], d[0], e[0], f[0])
-
-    def frobenius_schur(self, a: Sector):
-        # +1 for integer spin (i.e. even `a`), -1 for half integer
-        return 1 - 2 * (a[0] % 2)
-
-    def qdim(self, a: Sector) -> float:
-        return a[0] + 1
-
-    # OPTIMIZE implement b symbol? cache it?
-
-    def _r_symbol(self, a: Sector, b: Sector, c: Sector) -> np.ndarray:
-        # R symbol is +1 if ``j_sum = (j_a + j_b - j_c)`` is even, -1 otherwise.
-        # Note that (j_a + j_b - j_c) is integer by fusion rule and that e.g. ``a == 2 * j_a``.
-        # For even (odd) j_sum, we get that ``(a + b - c) % 4`` is 0 (2),
-        # such that ``1 - (a + b - c) % 4`` is 1 (-1). It has shape ``(1,)``.
-        return 1 - (a + b - c) % 4
-
-    # OPTIMIZE implement c symbol? cache it?
-
-    def _fusion_tensor(self, a: Sector, b: Sector, c: Sector, Z_a: bool, Z_b: bool) -> np.ndarray:
-        from . import _su2data
-
-        X = _su2data.fusion_tensor(a[0], b[0], c[0])
-        if Z_a and Z_b:
-            # [µ, m_a, m_b, m_c] @ [m_a, m_abar*] -> [µ, m_b, m_c, m_abar*]
-            X = np.tensordot(X, self.Z_iso(self.dual_sector(a)), (1, 0))
-            # [µ, m_b, m_c, m_abar*] @ [m_b, m_bbar*] -> [µ, m_c, m_abar*, m_bbar*]
-            X = np.tensordot(X, self.Z_iso(self.dual_sector(b)), (1, 0))
-            X = np.transpose(X, [0, 2, 3, 1])
-        elif Z_a:
-            # [µ, m_a, m_b, m_c] @ [m_a, m_abar*] -> [µ, m_b, m_c, m_abar*]
-            X = np.tensordot(X, self.Z_iso(self.dual_sector(a)), (1, 0))
-            X = np.transpose(X, [0, 3, 1, 2])
-        elif Z_b:
-            # [µ, m_a, m_b, m_c] @ [m_b, m_bbar*] -> [µ, m_a, m_c, m_bbar*]
-            X = np.tensordot(X, self.Z_iso(self.dual_sector(b)), (2, 0))
-            X = np.transpose(X, [0, 1, 3, 2])
-        return X
-
-    def Z_iso(self, a: Sector) -> np.ndarray:
-        from . import _su2data
-
-        return _su2data.Z_iso(a[0])
 
 
 class SUN(Group):

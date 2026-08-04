@@ -2,7 +2,9 @@
 
 ## Status
 
-In progress on branch `convert_SU2`.
+**Done for monkey-patch.** C++ `SU2` + bindings; imported from `_core`. `pytest tests/python_tests/test_symmetries.py`: 48 passed, 1 skipped.
+
+Hand-written after codegen drafts. No trampoline (no Python subclasses of `SU2`).
 
 ## Metadata
 
@@ -13,19 +15,17 @@ In progress on branch `convert_SU2`.
 | declaration | `include/cyten/symmetries/su2.h` |
 | definition | `src/symmetries/su2.cpp` |
 | pybind11 binding | `pybind/symmetries/py_su2.cpp` |
-| trampoline | none (no Python subclasses of `SU2` in tree) |
+| trampoline | none |
 | first line of docstring | SU(2) symmetry. |
 
 ## Design notes
 
-- Subclass C++ `Group` with `FusionStyle::multiple_unique`, infinite sectors, bosonic braid (via Group ctor).
-- Class attrs `spin_zero` / `spin_half` / `spin_one` exposed on the pybind class; `fusion_tensor_dtype = Float64` set in ctor.
-- `_f_symbol`, `_fusion_tensor`, `Z_iso` call Python `cyten.symmetries._su2data` (same pattern as NumPy helpers in AbelianGroup). Full `_su2data` C++ conversion is deferred.
-- `_r_symbol` / `frobenius_schur` / `qdim` / fusion combinatorics implemented in C++.
-- Leaf binding: `py::class_<SU2, Group, py::smart_holder>`.
+- Subclass C++ `Group` with `FusionStyle::multiple_unique`, infinite sectors.
+- Class attrs `spin_zero` / `spin_half` / `spin_one` set on the pybind class; `fusion_tensor_dtype = Float64` in ctor.
+- `_f_symbol`, `_fusion_tensor`, `Z_iso` call Python `cyten.symmetries._su2data` (deferred full C++ conversion of that module).
+- Combinatorics (`fusion_outcomes`, `can_fuse_to`, dims, `_r_symbol`, `frobenius_schur`) in C++.
 
 ## TODO checklist
 
-- [x] setup (branch, pytest green)
-- [ ] plan / declaration / definitions / bindings / monkey-patch / pytest
-- [ ] wrap up
+- [x] setup / plan / declaration / definitions / bindings / monkey-patch / pytest
+- [ ] wrap up / merge to `main_cpp` or continue (`SUN`, fermion parity, anyons, …)
