@@ -20,6 +20,7 @@ target_sources(cyten
   symmetries/no_symmetry.cpp
   symmetries/u1.cpp
   symmetries/zn.cpp
+  symmetries/su2.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   version.cpp
