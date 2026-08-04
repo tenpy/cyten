@@ -4688,15 +4688,13 @@ def compose(
     if isinstance(tensor2, DiagonalTensor):
         return scale_axis(tensor1, tensor2, -1).set_labels(res_labels)
 
-    if isinstance(tensor1, ChargedTensor) or isinstance(tensor2, ChargedTensor):
-        # OPTIMIZE dedicated implementation?
-        return tdot(
-            tensor1,
-            tensor2,
-            list(reversed(range(tensor1.num_codomain_legs, tensor1.num_legs))),
-            list(range(tensor2.num_codomain_legs)),
-            relabel1=relabel1,
-            relabel2=relabel2,
+    if isinstance(tensor1, ChargedTensor):
+        return partial_compose(tensor1, tensor2, tensor1.num_codomain_legs, relabel1=relabel1, relabel2=relabel2)
+    if isinstance(tensor2, ChargedTensor):
+        # only tensor2 is ChargedTensor
+        return ChargedTensor(
+            compose(tensor1, tensor2.invariant_part, relabel1=relabel1, relabel2=relabel2),
+            charged_state=tensor2.charged_state,
         )
 
     return _compose_SymmetricTensors(tensor1, tensor2, relabel1=relabel1, relabel2=relabel2)
@@ -5499,6 +5497,39 @@ def partial_compose(
     compose, tdot, apply_mask, scale_axis
 
     """
+    # do these cases first since the charged_legs do not count towards the num_domain_legs
+    # in ChargedTensors, but we need them for the consistency checks below
+    if isinstance(tensor1, ChargedTensor) and isinstance(tensor2, ChargedTensor):
+        if (tensor1.charged_state is None) != (tensor2.charged_state is None):
+            raise ValueError('Mismatched: specified and unspecified ChargedTensor.charged_state')
+        c = ChargedTensor._CHARGE_LEG_LABEL
+        c1 = c + '1'
+        c2 = c + '2'
+        relabel1 = {c: c1} if relabel1 is None else {**relabel1, c: c1}
+        relabel2 = {c: c2} if relabel2 is None else {**relabel2, c: c2}
+        inv_part = tensor2.invariant_part
+        if tensor1_first_leg < tensor1.num_codomain_legs:
+            # need to bend down charge leg first
+            inv_part = move_leg(inv_part, c, codomain_pos=tensor2.num_codomain_legs - 1, bend_right=True)
+        inv_part = partial_compose(tensor1.invariant_part, inv_part, tensor1_first_leg, relabel1, relabel2)
+        # domain_pos 1 since domain_pos 0 would mean braiding with c1
+        inv_part = move_leg(inv_part, c2, domain_pos=1, bend_right=True)
+        return ChargedTensor.from_two_charge_legs(inv_part, state1=tensor1.charged_state, state2=tensor2.charged_state)
+    if isinstance(tensor1, ChargedTensor):
+        inv_part = partial_compose(tensor1.invariant_part, tensor2, tensor1_first_leg, relabel1, relabel2)
+        return ChargedTensor.from_invariant_part(inv_part, tensor1.charged_state)
+    if isinstance(tensor2, ChargedTensor):
+        inv_part = tensor2.invariant_part
+        print(tensor1_first_leg, tensor1.num_codomain_legs)
+        if tensor1_first_leg < tensor1.num_codomain_legs:
+            # need to bend down charge leg first
+            inv_part = move_leg(
+                inv_part, ChargedTensor._CHARGE_LEG_LABEL, codomain_pos=tensor2.num_codomain_legs - 1, bend_right=True
+            )
+        inv_part = partial_compose(tensor1, inv_part, tensor1_first_leg, relabel1, relabel2)
+        inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0, bend_right=True)
+        return ChargedTensor.from_invariant_part(inv_part, tensor2.charged_state)
+
     _ = get_same_device(tensor1, tensor2)
     tensor1_first_leg = tensor1.get_leg_idcs(tensor1_first_leg)[0]
 
@@ -5567,36 +5598,6 @@ def partial_compose(
 
     if isinstance(tensor2, DiagonalTensor):
         return scale_axis(tensor1, tensor2, tensor1_first_leg).set_labels(res_labels)
-
-    if isinstance(tensor1, ChargedTensor) and isinstance(tensor2, ChargedTensor):
-        if (tensor1.charged_state is None) != (tensor2.charged_state is None):
-            raise ValueError('Mismatched: specified and unspecified ChargedTensor.charged_state')
-        c = ChargedTensor._CHARGE_LEG_LABEL
-        c1 = c + '1'
-        c2 = c + '2'
-        relabel1 = {c: c1} if relabel1 is None else {**relabel1, c: c1}
-        relabel2 = {c: c2} if relabel2 is None else {**relabel2, c: c2}
-        inv_part = tensor2.invariant_part
-        if tensor1_first_leg < tensor1.num_codomain_legs:
-            # need to bend down charge leg first
-            inv_part = move_leg(inv_part, c, codomain_pos=tensor2.num_codomain_legs - 1, bend_right=True)
-        inv_part = partial_compose(tensor1.invariant_part, inv_part, tensor1_first_leg, relabel1, relabel2)
-        # domain_pos 1 since domain_pos 0 would mean braiding with c1
-        inv_part = move_leg(inv_part, c2, domain_pos=1, bend_right=True)
-        return ChargedTensor.from_two_charge_legs(inv_part, state1=tensor1.charged_state, state2=tensor2.charged_state)
-    if isinstance(tensor1, ChargedTensor):
-        inv_part = partial_compose(tensor1.invariant_part, tensor2, tensor1_first_leg, relabel1, relabel2)
-        return ChargedTensor.from_invariant_part(inv_part, tensor1.charged_state)
-    if isinstance(tensor2, ChargedTensor):
-        inv_part = tensor2.invariant_part
-        if tensor1_first_leg < tensor1.num_codomain_legs:
-            # need to bend down charge leg first
-            inv_part = move_leg(
-                inv_part, ChargedTensor._CHARGE_LEG_LABEL, codomain_pos=tensor2.num_codomain_legs - 1, bend_right=True
-            )
-        inv_part = partial_compose(tensor1, inv_part, tensor1_first_leg, relabel1, relabel2)
-        inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0, bend_right=True)
-        return ChargedTensor.from_invariant_part(inv_part, tensor2.charged_state)
 
     backend = get_same_backend(tensor1, tensor2)
     data = backend.partial_compose(tensor1, tensor2, tensor1_first_leg, new_codomain, new_domain)
