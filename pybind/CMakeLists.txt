@@ -21,5 +21,6 @@ target_sources(_core
   symmetries/py_no_symmetry.cpp
   symmetries/py_u1.cpp
   symmetries/py_zn.cpp
+  symmetries/py_su2.cpp
   symmetries/py_symmetry.cpp
 )

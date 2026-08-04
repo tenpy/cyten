@@ -11,6 +11,7 @@ void bind_abelian_group(py::module_& m);
 void bind_no_symmetry(py::module_& m);
 void bind_u1(py::module_& m);
 void bind_zn(py::module_& m);
+void bind_su2(py::module_& m);
 void bind_symmetry(py::module_& m);
 
 void
@@ -25,6 +26,7 @@ bind_symmetries(py::module_& m)
     bind_no_symmetry(m);
     bind_u1(m);
     bind_zn(m);
+    bind_su2(m);
     bind_symmetry(m);
 }
 
