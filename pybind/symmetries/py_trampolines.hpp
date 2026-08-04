@@ -333,10 +333,7 @@ class PyGroup
     {
         PYBIND11_OVERRIDE(py::array, Group, swap_gate, a, b);
     }
-    py::array Z_iso(Sector a) const override
-    {
-        PYBIND11_OVERRIDE(py::array, Group, Z_iso, a);
-    }
+    py::array Z_iso(Sector a) const override { PYBIND11_OVERRIDE(py::array, Group, Z_iso, a); }
     SectorArray all_sectors() const override
     {
         PYBIND11_OVERRIDE(SectorArray, Group, all_sectors);
@@ -368,10 +365,7 @@ class PyGroup
     {
         PYBIND11_OVERRIDE(bool, Group, can_fuse_to, a, b, c);
     }
-    int64 sector_dim(Sector a) const override
-    {
-        PYBIND11_OVERRIDE(int64, Group, sector_dim, a);
-    }
+    int64 sector_dim(Sector a) const override { PYBIND11_OVERRIDE(int64, Group, sector_dim, a); }
     py::array batch_sector_dim(SectorArray const& a) const override
     {
         PYBIND11_OVERRIDE(py::array, Group, batch_sector_dim, a);
@@ -393,10 +387,7 @@ class PyGroup
         PYBIND11_OVERRIDE(int64, Group, frobenius_schur, a);
     }
     float64 qdim(Sector a) const override { PYBIND11_OVERRIDE(float64, Group, qdim, a); }
-    float64 sqrt_qdim(Sector a) const override
-    {
-        PYBIND11_OVERRIDE(float64, Group, sqrt_qdim, a);
-    }
+    float64 sqrt_qdim(Sector a) const override { PYBIND11_OVERRIDE(float64, Group, sqrt_qdim, a); }
     float64 inv_sqrt_qdim(Sector a) const override
     {
         PYBIND11_OVERRIDE(float64, Group, inv_sqrt_qdim, a);
@@ -415,7 +406,7 @@ class PyGroup
     }
 };
 
-/// Trampoline for Python subclasses of AbelianGroup (NoSymmetry, U1, ZN, …).
+/// Trampoline for Python subclasses of AbelianGroup (if any remain after concretes).
 class PyAbelianGroup
   : public AbelianGroup
   , public py::trampoline_self_life_support
@@ -427,10 +418,7 @@ class PyAbelianGroup
     {
         PYBIND11_OVERRIDE_PURE(Sector, AbelianGroup, dual_sector, a);
     }
-    py::object as_Symmetry() override
-    {
-        PYBIND11_OVERRIDE(py::object, AbelianGroup, as_Symmetry);
-    }
+    py::object as_Symmetry() override { PYBIND11_OVERRIDE(py::object, AbelianGroup, as_Symmetry); }
     bool is_valid_sector(Sector a) const override
     {
         PYBIND11_OVERRIDE_PURE(bool, AbelianGroup, is_valid_sector, a);
@@ -527,10 +515,7 @@ class PyAbelianGroup
     {
         PYBIND11_OVERRIDE(int64, AbelianGroup, frobenius_schur, a);
     }
-    float64 qdim(Sector a) const override
-    {
-        PYBIND11_OVERRIDE(float64, AbelianGroup, qdim, a);
-    }
+    float64 qdim(Sector a) const override { PYBIND11_OVERRIDE(float64, AbelianGroup, qdim, a); }
     float64 sqrt_qdim(Sector a) const override
     {
         PYBIND11_OVERRIDE(float64, AbelianGroup, sqrt_qdim, a);

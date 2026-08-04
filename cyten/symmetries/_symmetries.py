@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import math
-import warnings
 from itertools import product
 from typing import Literal
 
@@ -13,12 +12,15 @@ from numpy import typing as npt
 
 # implemented in C++
 from .._core import (
+    U1,  # noqa: F401
+    ZN,  # noqa: F401
     AbelianGroup,  # noqa: F401
     BaseSymmetry,  # noqa: F401
     BraidChiralityUnspecifiedError,  # noqa: F401
     BraidingStyle,  # noqa: F401
     FusionStyle,  # noqa: F401
     Group,  # noqa: F401
+    NoSymmetry,  # noqa: F401
     Symmetry,  # noqa: F401
     SymmetryError,  # noqa: F401
     SymmetryFactor,  # noqa: F401
@@ -73,171 +75,6 @@ def _Symmetry_from_hdf5(cls, hdf5_loader, h5gr, subpath):
 
 
 Symmetry.from_hdf5 = classmethod(_Symmetry_from_hdf5)
-
-
-class NoSymmetry(AbelianGroup):
-    """Trivial symmetry group that doesn't do anything.
-
-    The only allowed sector is ``[0]``.
-    """
-
-    def __init__(self):
-        AbelianGroup.__init__(
-            self,
-            trivial_sector=np.array([0], dtype=int),
-            group_name='no_symmetry',
-            num_sectors=1,
-            descriptive_name=None,
-        )
-
-    def is_valid_sector(self, a: Sector) -> bool:
-        return getattr(a, 'shape', ()) == (1,) and a == 0
-
-    def are_valid_sectors(self, sectors) -> bool:
-        shape = getattr(sectors, 'shape', ())
-        return len(shape) == 2 and shape[1] == 1 and np.all(sectors == 0)
-
-    def fusion_outcomes(self, a: Sector, b: Sector) -> SectorArray:
-        return a[np.newaxis, :]
-
-    def fusion_outcomes_broadcast(self, a: SectorArray, b: SectorArray) -> SectorArray:
-        return a
-
-    def _multiple_fusion_broadcast(self, *sectors: SectorArray) -> SectorArray:
-        return sectors[0]
-
-    def dual_sector(self, a: Sector) -> Sector:
-        return a
-
-    def dual_sectors(self, sectors: SectorArray) -> SectorArray:
-        return sectors
-
-    def sector_str(self, a: Sector) -> str:
-        return '0'
-
-    def __repr__(self):
-        return 'NoSymmetry()'
-
-    def _is_equivalent_factor(self, other) -> bool:
-        return isinstance(other, NoSymmetry)
-
-    def all_sectors(self) -> SectorArray:
-        return self.trivial_sector[np.newaxis, :]
-
-
-class U1(AbelianGroup):
-    """U(1) symmetry.
-
-    Allowed sectors are 1D arrays with a single integer entry.
-    ..., `[-2]`, `[-1]`, `[0]`, `[1]`, `[2]`, ...
-    """
-
-    def __init__(self, descriptive_name: str | None = None, trivial_shift: bool = True):
-        AbelianGroup.__init__(
-            self,
-            trivial_sector=np.array([0], dtype=int),
-            group_name='U(1)',
-            num_sectors=np.inf,
-            descriptive_name=descriptive_name,
-            trivial_shift=trivial_shift,
-        )
-
-    def is_valid_sector(self, a: Sector) -> bool:
-        return getattr(a, 'shape', ()) == (1,)
-
-    def are_valid_sectors(self, sectors) -> bool:
-        shape = getattr(sectors, 'shape', ())
-        return len(shape) == 2 and shape[1] == 1
-
-    def fusion_outcomes(self, a: Sector, b: Sector) -> SectorArray:
-        return self.fusion_outcomes_broadcast(a[np.newaxis, :], b[np.newaxis, :])
-
-    def fusion_outcomes_broadcast(self, a: SectorArray, b: SectorArray) -> SectorArray:
-        return a + b
-
-    def _multiple_fusion_broadcast(self, *sectors: SectorArray) -> SectorArray:
-        return sum(sectors)
-
-    def dual_sector(self, a: Sector) -> Sector:
-        return -a
-
-    def dual_sectors(self, sectors: SectorArray) -> SectorArray:
-        return -sectors
-
-    def __repr__(self):
-        name_str = '' if self.descriptive_name is None else f'"{self.descriptive_name}"'
-        return f'U1Symmetry({name_str})'
-
-    def _is_equivalent_factor(self, other) -> bool:
-        return isinstance(other, U1)
-
-
-class ZN(AbelianGroup):
-    """Z_N symmetry.
-
-    Allowed sectors are 1D arrays with a single integer entry between `0` and `N-1`.
-    `[0]`, `[1]`, ..., `[N-1]`
-    """
-
-    def __init__(self, N: int, descriptive_name: str | None = None, trivial_shift: bool = True):
-        assert isinstance(N, int)
-        if not isinstance(N, int) and N > 1:
-            raise ValueError(f'invalid ZNSymmetry(N={N!r},{descriptive_name!s})')
-        self.N = N
-        subscript_map = {
-            '0': '₀',
-            '1': '₁',
-            '2': '₂',
-            '3': '₃',
-            '4': '₄',
-            '5': '₅',
-            '6': '₆',
-            '7': '₇',
-            '8': '₈',
-            '9': '₉',
-        }
-        subscript_N = ''.join(subscript_map[char] for char in str(N))
-        group_name = f'ℤ{subscript_N}'
-        AbelianGroup.__init__(
-            self,
-            trivial_sector=np.array([0], dtype=int),
-            group_name=group_name,
-            num_sectors=N,
-            descriptive_name=descriptive_name,
-            trivial_shift=trivial_shift,
-        )
-
-    def __repr__(self):
-        name_str = '' if self.descriptive_name is None else f', "{self.descriptive_name}"'
-        return f'ZNSymmetry({self.N}{name_str})'
-
-    def _is_equivalent_factor(self, other) -> bool:
-        return isinstance(other, ZN) and other.N == self.N
-
-    def is_valid_sector(self, a: Sector) -> bool:
-        return getattr(a, 'shape', ()) == (1,) and 0 <= a < self.N
-
-    def are_valid_sectors(self, sectors) -> bool:
-        shape = getattr(sectors, 'shape', ())
-        return len(shape) == 2 and shape[1] == 1 and np.all(0 <= sectors) and np.all(0 < self.N)
-
-    def fusion_outcomes(self, a: Sector, b: Sector) -> SectorArray:
-        return self.fusion_outcomes_broadcast(a[np.newaxis, :], b[np.newaxis, :])
-
-    def fusion_outcomes_broadcast(self, a: SectorArray, b: SectorArray) -> SectorArray:
-        return (a + b) % self.N
-
-    def _multiple_fusion_broadcast(self, *sectors: SectorArray) -> SectorArray:
-        return sum(sectors) % self.N
-
-    def dual_sector(self, a: Sector) -> Sector:
-        return (-a) % self.N
-
-    def dual_sectors(self, sectors: SectorArray) -> SectorArray:
-        return (-sectors) % self.N
-
-    def all_sectors(self) -> SectorArray:
-        return np.arange(self.N, dtype=int)[:, None]
 
 
 class SU2(Group):

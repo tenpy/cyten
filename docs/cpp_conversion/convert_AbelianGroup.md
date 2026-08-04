@@ -27,4 +27,4 @@ Hand-written after codegen declaration draft (bindings for bases from `_core` st
 ## TODO checklist
 
 - [x] setup / plan / declaration / definitions / bindings+trampoline / monkey-patch / pytest
-- [ ] wrap up / merge or continue with `NoSymmetry`
+- [x] wrap up / continued with `NoSymmetry` / `U1` / `ZN` on `convert_NoSymmetry`

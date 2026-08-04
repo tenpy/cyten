@@ -18,5 +18,8 @@ target_sources(_core
   symmetries/py_symmetry_factor.cpp
   symmetries/py_group.cpp
   symmetries/py_abelian_group.cpp
+  symmetries/py_no_symmetry.cpp
+  symmetries/py_u1.cpp
+  symmetries/py_zn.cpp
   symmetries/py_symmetry.cpp
 )

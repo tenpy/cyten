@@ -112,12 +112,23 @@ bind_base_symmetry(py::module_& m)
            Internal implementation of :meth:`r_symbol`. Can assume that inputs are valid.
            )pydoc")
       .def("as_Symmetry", &BaseSymmetry::as_Symmetry)
-      .def("is_valid_sector",
-           &BaseSymmetry::is_valid_sector,
-           py::arg("a"),
-           R"pydoc(
-           Whether `a` is a valid sector of this symmetry
-           )pydoc")
+      .def(
+        "is_valid_sector",
+        [](BaseSymmetry const& self, py::object a) {
+            // Match Python: only ndarrays are candidates (lists/scalars → False).
+            if (!py::isinstance<py::array>(a)) {
+                return false;
+            }
+            try {
+                return self.is_valid_sector(py::cast<Sector>(a));
+            } catch (py::cast_error const&) {
+                return false;
+            }
+        },
+        py::arg("a"),
+        R"pydoc(
+        Whether `a` is a valid sector of this symmetry
+        )pydoc")
       .def("fusion_outcomes",
            &BaseSymmetry::fusion_outcomes,
            py::arg("a"),
@@ -364,7 +375,19 @@ bind_base_symmetry(py::module_& m)
                Axis [μ, m_a, m_b, m_c] where μ is the multiplicity index of the fusion tensor and
                m_a goes over a basis for sector a, etc.
            )pydoc")
-      .def("are_valid_sectors", &BaseSymmetry::are_valid_sectors, py::arg("sectors"))
+      .def(
+        "are_valid_sectors",
+        [](BaseSymmetry const& self, py::object sectors) {
+            if (!py::isinstance<py::array>(sectors)) {
+                return false;
+            }
+            try {
+                return self.are_valid_sectors(py::cast<SectorArray>(sectors));
+            } catch (py::cast_error const&) {
+                return false;
+            }
+        },
+        py::arg("sectors"))
       .def("fusion_outcomes_broadcast",
            &BaseSymmetry::fusion_outcomes_broadcast,
            py::arg("a"),

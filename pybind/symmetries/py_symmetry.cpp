@@ -34,58 +34,57 @@ flatten_factors_from_python(py::sequence seq)
 void
 bind_symmetry(py::module_& m)
 {
-    py::class_<Symmetry, BaseSymmetry, py::smart_holder> cls(
-      m,
-      "Symmetry",
-      R"pydoc(
-      Describes a symmetry of a space or tensor.
+    py::class_<Symmetry, BaseSymmetry, py::smart_holder> cls(m,
+                                                             "Symmetry",
+                                                             R"pydoc(
+                                                             Describes a symmetry of a space or tensor.
 
-      A symmetry consists of several :attr:`factors`. For consistency, we always use this product structure,
-      even if there are no factors at all (trivial symmetry), or just a single factor.
+                                                             A symmetry consists of several :attr:`factors`. For consistency, we always use this product structure,
+                                                             even if there are no factors at all (trivial symmetry), or just a single factor.
 
-      The prototypical example of a symmetry comes from the (representation of) a :class:`Group`
-      and leads to conserved quantities. For a concrete example, we could have a :class:`U1`
-      that represents the :math:`S^z` conservation of a spin chain.
-      The framework of symmetries, however, is more general and extends to fermionic or anyonic
-      grading, see e.g. :class:`FermionParity` or :class:`FibonacciAnyonCategory`.
+                                                             The prototypical example of a symmetry comes from the (representation of) a :class:`Group`
+                                                             and leads to conserved quantities. For a concrete example, we could have a :class:`U1`
+                                                             that represents the :math:`S^z` conservation of a spin chain.
+                                                             The framework of symmetries, however, is more general and extends to fermionic or anyonic
+                                                             grading, see e.g. :class:`FermionParity` or :class:`FibonacciAnyonCategory`.
 
-      Attributes
-      ----------
-      factors : list of :class:`SymmetryFactor`
-          The individual symmetries. We do not allow nesting, i.e. the `factors` can not
-          be :class:`Symmetry`\ s themselves.
-      sector_slices : 1D ndarray
-          Describes how the sectors of the `factors` are embedded in a sector of the product.
-          Indicates that the slice ``sector_slices[i]:sector_slices[i + 1]`` of a sector of the
-          product symmetry contains the entries of a sector of ``factors[i]``.
+                                                             Attributes
+                                                             ----------
+                                                             factors : list of :class:`SymmetryFactor`
+                                                                 The individual symmetries. We do not allow nesting, i.e. the `factors` can not
+                                                                 be :class:`Symmetry`\ s themselves.
+                                                             sector_slices : 1D ndarray
+                                                                 Describes how the sectors of the `factors` are embedded in a sector of the product.
+                                                                 Indicates that the slice ``sector_slices[i]:sector_slices[i + 1]`` of a sector of the
+                                                                 product symmetry contains the entries of a sector of ``factors[i]``.
 
-      Parameters
-      ----------
-      factors : list of :class:`SymmetryFactor`
-          The factors that comprise this symmetry. If any are already :class:`Symmetry`s, the
-          nesting is flattened, i.e. ``[*others, symm]`` is translated to ``[*others, *symm.factors]``.
-      )pydoc");
+                                                             Parameters
+                                                             ----------
+                                                             factors : list of :class:`SymmetryFactor`
+                                                                 The factors that comprise this symmetry. If any are already :class:`Symmetry`s, the
+                                                                 nesting is flattened, i.e. ``[*others, symm]`` is translated to ``[*others, *symm.factors]``.
+                                                             )pydoc");
 
     cls.def(py::init([](py::sequence factors) {
                 return std::make_shared<Symmetry>(flatten_factors_from_python(factors));
             }),
             py::arg("factors"));
 
-    cls.def_property_readonly(
-         "factors",
-         [](Symmetry const& self) {
-             py::list out;
-             for (auto const& f : self.factors) {
-                 out.append(py::cast(f));
-             }
-             return out;
-         })
-      .def_property_readonly(
-        "sector_slices",
-        [](Symmetry const& self) {
-            auto np = py::module_::import("numpy");
-            return np.attr("array")(self.sector_slices, py::arg("dtype") = np.attr("int64"));
-        })
+    cls
+      .def_property_readonly("factors",
+                             [](Symmetry const& self) {
+                                 py::list out;
+                                 for (auto const& f : self.factors) {
+                                     out.append(py::cast(f));
+                                 }
+                                 return out;
+                             })
+      .def_property_readonly("sector_slices",
+                             [](Symmetry const& self) {
+                                 auto np = py::module_::import("numpy");
+                                 return np.attr("array")(self.sector_slices,
+                                                         py::arg("dtype") = np.attr("int64"));
+                             })
       .def_readwrite("fusion_tensor_dtype", &Symmetry::fusion_tensor_dtype)
       .def_property_readonly("num_factors", &Symmetry::num_factors);
 
@@ -93,6 +92,10 @@ bind_symmetry(py::module_& m)
       .def(
         "is_valid_sector",
         [](Symmetry const& self, py::object a) {
+            // Match Python: only ndarrays are candidates (lists/scalars → False).
+            if (!py::isinstance<py::array>(a)) {
+                return false;
+            }
             try {
                 return self.is_valid_sector(py::cast<Sector>(a));
             } catch (py::cast_error const&) {
@@ -101,14 +104,17 @@ bind_symmetry(py::module_& m)
         },
         py::arg("a"),
         R"pydoc(
-           Check if `a` is a valid sector.
+        Check if `a` is a valid sector.
 
-           For a :class:`Symmetry`, the valid sectors are 1D integer arrays, which are "stacks" of
-           valid sectors for each of the :attr:`factors`, see :attr:`sector_slices`.
-           )pydoc")
+        For a :class:`Symmetry`, the valid sectors are 1D integer arrays, which are "stacks" of
+        valid sectors for each of the :attr:`factors`, see :attr:`sector_slices`.
+        )pydoc")
       .def(
         "are_valid_sectors",
         [](Symmetry const& self, py::object sectors) {
+            if (!py::isinstance<py::array>(sectors)) {
+                return false;
+            }
             try {
                 return self.are_valid_sectors(py::cast<SectorArray>(sectors));
             } catch (py::cast_error const&) {
@@ -196,25 +202,23 @@ bind_symmetry(py::module_& m)
         )pydoc")
       .def("__repr__", &Symmetry::repr)
       .def("__str__", &Symmetry::str)
-      .def(
-        "__eq__",
-        [](Symmetry const& self, py::object other) {
-            if (!py::isinstance<Symmetry>(other)) {
-                return false;
-            }
-            return self.equals(other.cast<Symmetry const&>());
-        })
-      .def(
-        "__mul__",
-        [](Symmetry const& self, py::object other) -> py::object {
-            if (py::isinstance<Symmetry>(other)) {
-                return py::cast(self.mul(other.cast<Symmetry const&>()));
-            }
-            if (py::isinstance<SymmetryFactor>(other)) {
-                return py::cast(self.mul(other.cast<SymmetryFactor::Ptr>()));
-            }
-            return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
-        })
+      .def("__eq__",
+           [](Symmetry const& self, py::object other) {
+               if (!py::isinstance<Symmetry>(other)) {
+                   return false;
+               }
+               return self.equals(other.cast<Symmetry const&>());
+           })
+      .def("__mul__",
+           [](Symmetry const& self, py::object other) -> py::object {
+               if (py::isinstance<Symmetry>(other)) {
+                   return py::cast(self.mul(other.cast<Symmetry const&>()));
+               }
+               if (py::isinstance<SymmetryFactor>(other)) {
+                   return py::cast(self.mul(other.cast<SymmetryFactor::Ptr>()));
+               }
+               return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
+           })
       .def("save_hdf5",
            &Symmetry::save_hdf5,
            py::arg("hdf5_saver"),
