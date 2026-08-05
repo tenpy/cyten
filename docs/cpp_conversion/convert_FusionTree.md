@@ -21,32 +21,30 @@ Convert objects in dependency order:
 ## Design notes
 
 - Hold `Symmetry::Ptr symmetry` (same pattern as other Layer 2 types).
-- Store `SectorArray uncoupled`, `Sector coupled`, `std::vector<bool> are_dual` (or `std::vector<char>` if mutability/indexing of `vector<bool>` is painful), `SectorArray inner_sectors`, `std::vector<int64> multiplicities`.
+- Store `SectorArray uncoupled`, `Sector coupled`, `std::vector<uint8_t> are_dual`, `SectorArray inner_sectors`, `std::vector<int64> multiplicities`.
 - Cache `num_uncoupled`, `num_vertices`, `num_inner_edges`, and style flags (`fusion_style`, `is_abelian`, `braiding_style`) like Python.
-- Linear-combination returns (`braid`, `bend_leg`, `insert_at`, `outer`, `twist`) → `std::map` / unordered_map with `FusionTree` keys and `complex128` (or `std::complex<double>`) coeffs. `bend_leg` uses pair keys `(Y_i, X_i)`.
-- `to_dense_block`: `TensorBackend` is still Python (Layer 3). Accept optional `BlockBackend*` / `py::object` for backend; default to `NumpyBlockBackend::from_factory("cpu")`. Return `BlockBackend::BlockPtr`.
+- Linear-combination returns → `std::map` with `FusionTree` keys and `complex128` coeffs. `bend_leg` uses pair keys `(Y_i, X_i)`.
+- `to_dense_block`: optional `BlockBackend*`; Python `TensorBackend` resolved in bindings via `.block_backend`.
 - No trampoline: no Python subclasses of `FusionTree` in the library.
-- ASCII helpers (`_ascii_diagram`, `ascii_diagram`, `__str__`) can stay; use `std::vector<std::string>` or a 2D char buffer instead of NumPy string arrays where practical.
+- ASCII grid stores one Unicode codepoint (`std::string`) per cell (UTF-8 box-drawing).
+- Bindings accept SymmetryFactor via `as_Symmetry()`, and SectorArray from lists / empty sequences / ndarrays.
+- Monkey-patch keeps original Python class body in `trees.py`; C++ is imported below it.
 
 ## Dependencies (already in C++)
 
-- `Sector` / `SectorArray`, `sector_ops` (`concat_sector_arrays`, `rows_equal`, `sector_array_from_sector`, …)
-- `Symmetry` / `BaseSymmetry` (F/R/C/B symbols, fusion tensors, qdims, …)
-- `BlockBackend` / `NumpyBlockBackend`, `Dtype`
-- `to_valid_idx` in `tools.h`
-- `SymmetryError`, styles
+- `Sector` / `SectorArray`, `sector_ops`, `Symmetry` / `BaseSymmetry`, `BlockBackend` / `NumpyBlockBackend`, `Dtype`, `to_valid_idx`, `SymmetryError`, styles
 
 ## TODO list for conversion
 
-- [x] initial setup (clean tree, `list_python_names`, pytest `test_trees.py` green: 157 passed, 1 xfailed; branch `convert_trees`)
+- [x] initial setup (clean tree, `list_python_names`, pytest `test_trees.py` green; branch `convert_trees`)
 - [x] planning (this file)
 - [x] generate the declaration draft (`gen_cpp_declaration`)
 - [x] improve and fix the declaration draft (namespace, types, C++23 / pre-commit)
-- [ ] generate the C++ definitions (`gen_cpp_definition`; add to `src/CMakeLists.txt`)
-- [ ] improve and fix the definition drafts (CHECKME/FIXME; compile + ctest)
-- [ ] generate pybind11 bindings (`gen_pyb11_binding`; register in `py_symmetries.cpp` / `pybind/CMakeLists.txt`)
-- [ ] generate pybind11 trampoline — **skip** (no subclasses)
-- [ ] monkey-patch `from .._core import FusionTree` in `trees.py`
-- [ ] run python tests (`test_trees.py`, then broader)
-- [ ] remove original python `FusionTree` class body (keep import)
+- [x] generate the C++ definitions (`gen_cpp_definition`; add to `src/CMakeLists.txt`)
+- [x] improve and fix the definition drafts (CHECKME/FIXME; compile)
+- [x] generate pybind11 bindings (`gen_pyb11_binding`; register in `py_symmetries.cpp` / `pybind/CMakeLists.txt`)
+- [x] generate pybind11 trampoline — **skipped** (no subclasses)
+- [x] monkey-patch `from .._core import FusionTree` in `trees.py` (**original Python class body kept**)
+- [x] run python tests (`test_trees.py`: 157 passed, 1 xfailed)
+- [ ] remove original python `FusionTree` class body (deferred per user request)
 - [ ] wrap up (then convert `fusion_trees`)
