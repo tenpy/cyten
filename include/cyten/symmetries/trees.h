@@ -181,6 +181,37 @@ class FusionTree
       int inner_sector_padding = 0) const;
 };
 
+/// Iterable over all :class:`FusionTree`\ s with given uncoupled and coupled sectors.
+///
+/// Efficient ``len`` and :meth:`index` avoid generating all intermediate trees.
+class fusion_trees
+{
+  public:
+    Symmetry::Ptr symmetry;
+    SectorArray uncoupled;
+    std::size_t num_uncoupled = 0;
+    Sector coupled;
+    std::vector<std::uint8_t> are_dual;
+
+    fusion_trees(Symmetry::Ptr symmetry,
+                 SectorArray uncoupled,
+                 Sector coupled,
+                 std::optional<std::vector<std::uint8_t>> are_dual = std::nullopt);
+
+    /// Materialize all trees (used by Python ``__iter__``).
+    [[nodiscard]] std::vector<FusionTree> all_trees() const;
+
+    [[nodiscard]] std::size_t size() const;
+    [[nodiscard]] std::string str() const;
+    [[nodiscard]] std::string repr() const;
+
+    /// The index of a given tree in the iterator.
+    [[nodiscard]] std::size_t index(FusionTree const& tree) const;
+
+  private:
+    [[nodiscard]] std::size_t compute_index(FusionTree const& tree) const;
+};
+
 } // namespace cyten
 
 template<>
