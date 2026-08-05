@@ -40,8 +40,8 @@ Convert objects in dependency order:
 
 - [x] initial setup (clean tree, `list_python_names`, pytest `test_trees.py` green: 157 passed, 1 xfailed; branch `convert_trees`)
 - [x] planning (this file)
-- [ ] generate the declaration draft (`gen_cpp_declaration`)
-- [ ] improve and fix the declaration draft (namespace, types, C++23 / pre-commit)
+- [x] generate the declaration draft (`gen_cpp_declaration`)
+- [x] improve and fix the declaration draft (namespace, types, C++23 / pre-commit)
 - [ ] generate the C++ definitions (`gen_cpp_definition`; add to `src/CMakeLists.txt`)
 - [ ] improve and fix the definition drafts (CHECKME/FIXME; compile + ctest)
 - [ ] generate pybind11 bindings (`gen_pyb11_binding`; register in `py_symmetries.cpp` / `pybind/CMakeLists.txt`)

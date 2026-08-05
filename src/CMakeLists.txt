@@ -33,6 +33,7 @@ target_sources(cyten
   symmetries/ising_anyon_category.cpp
   symmetries/su2_k_anyon_category.cpp
   symmetries/su3_3_anyon_category.cpp
+  symmetries/trees.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   version.cpp
