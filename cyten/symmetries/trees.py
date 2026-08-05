@@ -1296,3 +1296,6 @@ class fusion_trees(Iterable[FusionTree]):
         if not self.symmetry.is_abelian:
             idx += sum([multi * prod(max_multis[:i]) for i, multi in enumerate(tree.multiplicities)])
         return idx
+
+
+from .._core import FusionTree, fusion_trees  # noqa: E402, F811  # C++ implementations via pybind11

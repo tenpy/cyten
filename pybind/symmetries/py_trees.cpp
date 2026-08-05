@@ -373,6 +373,69 @@ bind_trees(py::module_& m)
            py::arg("idcs"),
            py::arg("overtwist"),
            "Twist some legs above a tree, return the resulting linear combination of trees.");
+
+    py::class_<fusion_trees> ft(
+      m,
+      "fusion_trees",
+      R"pydoc(
+      Iterable over all :class:`FusionTree`\ s with given uncoupled and coupled sectors.
+
+      This custom iterator has efficient implementations of ``len`` and :meth:`index`, which
+      avoid generating all intermediate trees.
+
+      TODO elaborate on canonical order of trees -> reference in module level docstring.
+      )pydoc");
+
+    ft.def(py::init([](py::object symmetry_obj,
+                       py::object uncoupled,
+                       Sector coupled,
+                       py::object are_dual) {
+               auto symmetry = symmetry_from_python(symmetry_obj);
+               SectorArray unc = sector_array_from_python(uncoupled, *symmetry);
+               std::optional<std::vector<std::uint8_t>> dual;
+               if (!are_dual.is_none()) {
+                   dual = are_dual_from_python(are_dual, unc.num_sectors);
+               }
+               return fusion_trees(std::move(symmetry), std::move(unc), coupled, std::move(dual));
+           }),
+           py::arg("symmetry"),
+           py::arg("uncoupled"),
+           py::arg("coupled"),
+           py::arg("are_dual") = py::none());
+
+    ft.def_readwrite("symmetry", &fusion_trees::symmetry)
+      .def_readwrite("uncoupled", &fusion_trees::uncoupled)
+      .def_readwrite("coupled", &fusion_trees::coupled)
+      .def_readonly("num_uncoupled", &fusion_trees::num_uncoupled)
+      .def_property(
+        "are_dual",
+        [](py::object self_obj) {
+            auto& self = self_obj.cast<fusion_trees&>();
+            return py::array(py::dtype::of<bool>(),
+                             { self.are_dual.size() },
+                             { sizeof(std::uint8_t) },
+                             self.are_dual.data(),
+                             self_obj);
+        },
+        [](fusion_trees& self, py::object value) {
+            self.are_dual = are_dual_from_python(value, self.num_uncoupled);
+        });
+
+    ft.def("__iter__",
+           [](fusion_trees const& self) {
+               py::list out;
+               for (auto const& t : self.all_trees()) {
+                   out.append(t);
+               }
+               return py::iter(out);
+           })
+      .def("__len__", &fusion_trees::size)
+      .def("__str__", &fusion_trees::str)
+      .def("__repr__", &fusion_trees::repr)
+      .def("index",
+           &fusion_trees::index,
+           py::arg("tree"),
+           "The index of a given tree in the iterator.");
 }
 
 } // namespace cyten

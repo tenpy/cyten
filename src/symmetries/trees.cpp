@@ -1465,4 +1465,256 @@ FusionTree::twist(std::vector<int64> const& idcs, bool overtwist) const
     throw NotImplemented("FusionTree::twist");
 }
 
+fusion_trees::fusion_trees(Symmetry::Ptr symmetry,
+                           SectorArray uncoupled,
+                           Sector coupled,
+                           std::optional<std::vector<std::uint8_t>> are_dual)
+  : symmetry(std::move(symmetry))
+  , coupled(coupled)
+{
+    assert(this->symmetry);
+    if (uncoupled.num_sectors == 0) {
+        uncoupled = this->symmetry->empty_sector_array;
+    }
+    this->uncoupled = std::move(uncoupled);
+    num_uncoupled = this->uncoupled.num_sectors;
+    if (!are_dual.has_value()) {
+        this->are_dual.assign(num_uncoupled, 0);
+    } else {
+        this->are_dual = std::move(*are_dual);
+    }
+    assert(this->are_dual.size() == num_uncoupled);
+}
+
+std::vector<FusionTree>
+fusion_trees::all_trees() const
+{
+    std::vector<FusionTree> out;
+
+    if (num_uncoupled == 0) {
+        if (coupled == symmetry->trivial_sector) {
+            out.push_back(FusionTree(symmetry,
+                                     uncoupled,
+                                     coupled,
+                                     {},
+                                     symmetry->empty_sector_array,
+                                     std::vector<int64>{}));
+        }
+        return out;
+    }
+
+    if (num_uncoupled == 1) {
+        if (uncoupled[0] == coupled) {
+            out.push_back(FusionTree(symmetry,
+                                     uncoupled,
+                                     coupled,
+                                     are_dual,
+                                     symmetry->empty_sector_array,
+                                     std::vector<int64>{}));
+        }
+        return out;
+    }
+
+    if (num_uncoupled == 2) {
+        int64 const n = symmetry->n_symbol(uncoupled[0], uncoupled[1], coupled);
+        out.reserve(static_cast<std::size_t>(n));
+        for (int64 mu = 0; mu < n; ++mu) {
+            out.push_back(FusionTree(symmetry,
+                                     uncoupled,
+                                     coupled,
+                                     are_dual,
+                                     symmetry->empty_sector_array,
+                                     std::vector<int64>{ mu }));
+        }
+        return out;
+    }
+
+    Sector const a1 = uncoupled[0];
+    Sector const a2 = uncoupled[1];
+    SectorArray const left_unc = slice_rows(uncoupled, 0, 2);
+    std::vector<std::uint8_t> const left_dual = vector_slice(are_dual, 0, 2);
+
+    SectorArray const fusion_bs = symmetry->fusion_outcomes(a1, a2);
+    for (std::size_t ib = 0; ib < fusion_bs.num_sectors; ++ib) {
+        Sector const b = fusion_bs[ib];
+        SectorArray const rest_unc =
+          concat_sector_arrays(sector_array_from_sector(b),
+                               slice_rows(uncoupled, 2, num_uncoupled));
+        std::vector<std::uint8_t> rest_dual =
+          concat_vectors(std::span<std::uint8_t const>(std::vector<std::uint8_t>{ 0 }),
+                         std::span<std::uint8_t const>(vector_slice(are_dual, 2, are_dual.size())));
+        FusionTree const left_tree(symmetry,
+                                   left_unc,
+                                   b,
+                                   left_dual,
+                                   symmetry->empty_sector_array,
+                                   std::vector<int64>{ 0 });
+        fusion_trees const rest(symmetry, rest_unc, coupled, rest_dual);
+        for (FusionTree const& rest_tree : rest.all_trees()) {
+            FusionTree tree = rest_tree.insert(left_tree);
+            int64 const n_mu = symmetry->_n_symbol(a1, a2, b);
+            for (int64 mu = 0; mu < n_mu; ++mu) {
+                FusionTree res = tree.copy(true);
+                res.multiplicities[0] = mu;
+                out.push_back(std::move(res));
+            }
+        }
+    }
+    return out;
+}
+
+std::size_t
+fusion_trees::size() const
+{
+    if (num_uncoupled == 0) {
+        return coupled == symmetry->trivial_sector ? 1 : 0;
+    }
+    if (num_uncoupled == 1) {
+        return uncoupled[0] == coupled ? 1 : 0;
+    }
+    if (num_uncoupled == 2) {
+        return static_cast<std::size_t>(
+          symmetry->n_symbol(uncoupled[0], uncoupled[1], coupled));
+    }
+
+    Sector const a1 = uncoupled[0];
+    Sector const a2 = uncoupled[1];
+    std::size_t count = 0;
+    SectorArray const fusion_bs = symmetry->fusion_outcomes(a1, a2);
+    for (std::size_t ib = 0; ib < fusion_bs.num_sectors; ++ib) {
+        Sector const b = fusion_bs[ib];
+        SectorArray const rest_unc =
+          concat_sector_arrays(sector_array_from_sector(b),
+                               slice_rows(uncoupled, 2, num_uncoupled));
+        // Python ``len(fusion_trees(...))`` omits are_dual → defaults to False
+        std::size_t const num_subtrees = fusion_trees(symmetry, rest_unc, coupled).size();
+        count += static_cast<std::size_t>(symmetry->_n_symbol(a1, a2, b)) * num_subtrees;
+    }
+    return count;
+}
+
+std::string
+fusion_trees::str() const
+{
+    auto const signature =
+      FusionTree::str_uncoupled_coupled(*symmetry, uncoupled, coupled, are_dual);
+    return std::format("fusion_trees[{}]({})", symmetry->str(), signature);
+}
+
+std::string
+fusion_trees::repr() const
+{
+    std::string unc = replace_all(sector_array_str(uncoupled), "\n", ",");
+    std::ostringstream dual_ss;
+    dual_ss << '[';
+    for (std::size_t i = 0; i < are_dual.size(); ++i) {
+        if (i > 0) {
+            dual_ss << ' ';
+        }
+        dual_ss << static_cast<int>(are_dual[i]);
+    }
+    dual_ss << ']';
+    return std::format("fusion_trees({}, {}, {}, {})",
+                       symmetry->repr(),
+                       unc,
+                       symmetry->sector_str(coupled),
+                       dual_ss.str());
+}
+
+std::size_t
+fusion_trees::index(FusionTree const& tree) const
+{
+    if (!symmetry->is_equivalent_to(*tree.symmetry)) {
+        throw std::invalid_argument(
+          std::format("Inconsistent symmetries, {} != {}", symmetry->str(), tree.symmetry->str()));
+    }
+    if (!rows_equal(uncoupled, tree.uncoupled)) {
+        throw std::invalid_argument("Inconsistent uncoupled sectors");
+    }
+    if (coupled != tree.coupled) {
+        throw std::invalid_argument("Inconsistent coupled sector");
+    }
+    if (are_dual.size() != tree.are_dual.size() ||
+        !std::equal(are_dual.begin(), are_dual.end(), tree.are_dual.begin())) {
+        throw std::invalid_argument("Inconsistent dualities");
+    }
+    return compute_index(tree);
+}
+
+std::size_t
+fusion_trees::compute_index(FusionTree const& tree) const
+{
+    if (num_uncoupled < 2) {
+        if (num_uncoupled == 0 && coupled == symmetry->trivial_sector) {
+            return 0;
+        }
+        if (num_uncoupled == 1 && uncoupled[0] == coupled) {
+            return 0;
+        }
+        throw std::invalid_argument("Inconsistent coupled sector.");
+    }
+
+    std::size_t idx = 0;
+    int64 left_multi = 1;
+    std::vector<int64> max_multis;
+    max_multis.reserve(num_uncoupled > 0 ? num_uncoupled - 1 : 0);
+
+    for (std::size_t i = 0; i + 2 < num_uncoupled; ++i) {
+        Sector const target_sec = tree.inner_sectors[i];
+        Sector const left_sec = (i == 0) ? uncoupled[i] : tree.inner_sectors[i - 1];
+        bool sector_found = false;
+        SectorArray const outcomes = symmetry->fusion_outcomes(left_sec, uncoupled[i + 1]);
+        for (std::size_t io = 0; io < outcomes.num_sectors; ++io) {
+            Sector const fusion_sec = outcomes[io];
+            int64 const multi = symmetry->_n_symbol(left_sec, uncoupled[i + 1], fusion_sec);
+            if (fusion_sec == target_sec) {
+                sector_found = true;
+                left_multi *= multi;
+                max_multis.push_back(multi);
+                break;
+            }
+            SectorArray const rest_unc =
+              concat_sector_arrays(sector_array_from_sector(fusion_sec),
+                                   slice_rows(uncoupled, i + 2, num_uncoupled));
+            std::vector<std::uint8_t> rest_dual = concat_vectors(
+              std::span<std::uint8_t const>(std::vector<std::uint8_t>{ 0 }),
+              std::span<std::uint8_t const>(
+                vector_slice(are_dual, i + 2, are_dual.size())));
+            idx += static_cast<std::size_t>(left_multi * multi) *
+                   fusion_trees(symmetry, rest_unc, coupled, rest_dual).size();
+        }
+        if (!sector_found) {
+            throw std::invalid_argument("Inconsistent inner sector.");
+        }
+    }
+
+    Sector const left_sec =
+      (num_uncoupled == 2) ? uncoupled[0] : tree.inner_sectors[tree.inner_sectors.num_sectors - 1];
+    if (!symmetry->can_fuse_to(left_sec, uncoupled[num_uncoupled - 1], coupled)) {
+        throw std::invalid_argument("Inconsistent inner sector.");
+    }
+
+    max_multis.push_back(
+      symmetry->_n_symbol(left_sec, uncoupled[num_uncoupled - 1], coupled));
+    if (tree.multiplicities.size() != max_multis.size()) {
+        throw std::invalid_argument("Inconsistent multiplicity.");
+    }
+    for (std::size_t i = 0; i < tree.multiplicities.size(); ++i) {
+        if (!(tree.multiplicities[i] < max_multis[i])) {
+            throw std::invalid_argument("Inconsistent multiplicity.");
+        }
+    }
+
+    if (!symmetry->is_abelian()) {
+        for (std::size_t i = 0; i < tree.multiplicities.size(); ++i) {
+            int64 prod = 1;
+            for (std::size_t j = 0; j < i; ++j) {
+                prod *= max_multis[j];
+            }
+            idx += static_cast<std::size_t>(tree.multiplicities[i] * prod);
+        }
+    }
+    return idx;
+}
+
 } // namespace cyten
