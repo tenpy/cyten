@@ -58,7 +58,8 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     /// Optimized n_symbol assuming c is a valid fusion outcome.
     virtual int64 _n_symbol(Sector a, Sector b, Sector c) const = 0;
     /// Internal F symbol; inputs assumed valid.
-    virtual py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const = 0;
+    virtual py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
+      const = 0;
     /// Internal R symbol; inputs assumed valid.
     virtual py::array _r_symbol(Sector a, Sector b, Sector c) const = 0;
     /// Wrap as a product :class:`Symmetry` (identity if already a product).

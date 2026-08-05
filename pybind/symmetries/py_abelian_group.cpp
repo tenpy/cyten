@@ -13,12 +13,11 @@ namespace cyten {
 void
 bind_abelian_group(py::module_& m)
 {
-    py::class_<AbelianGroup, Group, PyAbelianGroup, py::smart_holder> cls(
-      m,
-      "AbelianGroup",
-      R"pydoc(
-      Base-class for abelian symmetry groups.
-      )pydoc");
+    py::class_<AbelianGroup, Group, PyAbelianGroup, py::smart_holder> cls(m,
+                                                                          "AbelianGroup",
+                                                                          R"pydoc(
+                                                                          Base-class for abelian symmetry groups.
+                                                                          )pydoc");
 
     cls.def(py::init<Sector, std::string, float64, std::optional<std::string>, bool>(),
             py::arg("trivial_sector"),

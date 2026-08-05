@@ -30,7 +30,8 @@ are_dual_from_python(py::handle obj, std::size_t expected_len)
     if (!arr || arr.ndim() != 1) {
         throw py::type_error("are_dual must be a 1D sequence of bool");
     }
-    auto casted = py::array_t<std::uint8_t, py::array::c_style | py::array::forcecast>::ensure(arr);
+    auto casted =
+      py::array_t<std::uint8_t, py::array::c_style | py::array::forcecast>::ensure(arr);
     auto r = casted.unchecked<1>();
     if (static_cast<std::size_t>(r.shape(0)) != expected_len) {
         throw py::value_error("are_dual length mismatch");
@@ -109,53 +110,52 @@ block_backend_from_python(py::object backend)
 void
 bind_trees(py::module_& m)
 {
-    py::class_<FusionTree> cls(
-      m,
-      "FusionTree",
-      R"pydoc(
-      A fusion tree, which represents the map from uncoupled to coupled sectors.
+    py::class_<FusionTree> cls(m,
+                               "FusionTree",
+                               R"pydoc(
+                               A fusion tree, which represents the map from uncoupled to coupled sectors.
 
-      Consider the following example tree::
+                               Consider the following example tree::
 
-          FusionTree(
-              symmetry=symmetry,
-              coupled=coupled,
-              uncoupled=[a, b, c, d],
-              are_dual=[False, True, True, False],
-              inner_sectors=[x, y],
-              multiplicities=[i, j, k],
-          )
+                                   FusionTree(
+                                       symmetry=symmetry,
+                                       coupled=coupled,
+                                       uncoupled=[a, b, c, d],
+                                       are_dual=[False, True, True, False],
+                                       inner_sectors=[x, y],
+                                       multiplicities=[i, j, k],
+                                   )
 
-      Graphically::
+                               Graphically::
 
-          |    a     b     c     d     <- isomorphic to pre_Z_uncoupled
-          |    v     ^     ^     v        e.g. dual(b) iso to pre_Z_uncoupled[1]
-          |    │     Z     Z     │
-          |    v     v     v     v
-          |    a     b     c     d     <- uncoupled
-          |    ╰──i──╯     │     │
-          |      x│        │     │
-          |       ╰───j────╯     │
-          |          y│          │
-          |           ╰────k─────╯
-          |                │
-          |                coupled
+                                   |    a     b     c     d     <- isomorphic to pre_Z_uncoupled
+                                   |    v     ^     ^     v        e.g. dual(b) iso to pre_Z_uncoupled[1]
+                                   |    │     Z     Z     │
+                                   |    v     v     v     v
+                                   |    a     b     c     d     <- uncoupled
+                                   |    ╰──i──╯     │     │
+                                   |      x│        │     │
+                                   |       ╰───j────╯     │
+                                   |          y│          │
+                                   |           ╰────k─────╯
+                                   |                │
+                                   |                coupled
 
-      Attributes
-      ----------
-      symmetry : Symmetry
-          The symmetry.
-      uncoupled : SectorArray
-          N uncoupled sectors. These are the sectors *below* any Z isos.
-      coupled : Sector
-          The coupled sector at the bottom of the tree.
-      are_dual : 1D array of bool
-          N flags: is there a Z isomorphism above the uncoupled sector.
-      inner_sectors : SectorArray
-          N - 2 internal sectors, at the internal edges of the tree.
-      multiplicities : 1D array of int
-          N - 1 multiplicity labels, at the fusion vertices of the tree.
-      )pydoc");
+                               Attributes
+                               ----------
+                               symmetry : Symmetry
+                                   The symmetry.
+                               uncoupled : SectorArray
+                                   N uncoupled sectors. These are the sectors *below* any Z isos.
+                               coupled : Sector
+                                   The coupled sector at the bottom of the tree.
+                               are_dual : 1D array of bool
+                                   N flags: is there a Z isomorphism above the uncoupled sector.
+                               inner_sectors : SectorArray
+                                   N - 2 internal sectors, at the internal edges of the tree.
+                               multiplicities : 1D array of int
+                                   N - 1 multiplicity labels, at the fusion vertices of the tree.
+                               )pydoc");
 
     cls.def(py::init([](py::object symmetry_obj,
                         py::object uncoupled,
@@ -194,19 +194,20 @@ bind_trees(py::module_& m)
 
     // Writable NumPy views into C++ storage so in-place updates (e.g. fusion_trees)
     // remain visible on the FusionTree instance.
-    cls.def_property(
-         "are_dual",
-         [](py::object self_obj) {
-             auto& self = self_obj.cast<FusionTree&>();
-             return py::array(py::dtype::of<bool>(),
-                              { self.are_dual.size() },
-                              { sizeof(std::uint8_t) },
-                              self.are_dual.data(),
-                              self_obj);
-         },
-         [](FusionTree& self, py::object value) {
-             self.are_dual = are_dual_from_python(value, self.num_uncoupled);
-         })
+    cls
+      .def_property(
+        "are_dual",
+        [](py::object self_obj) {
+            auto& self = self_obj.cast<FusionTree&>();
+            return py::array(py::dtype::of<bool>(),
+                             { self.are_dual.size() },
+                             { sizeof(std::uint8_t) },
+                             self.are_dual.data(),
+                             self_obj);
+        },
+        [](FusionTree& self, py::object value) {
+            self.are_dual = are_dual_from_python(value, self.num_uncoupled);
+        })
       .def_property(
         "multiplicities",
         [](py::object self_obj) {
@@ -292,13 +293,14 @@ bind_trees(py::module_& m)
 
         Is also used by ``fusion_trees.__str__``.
         )pydoc")
-      .def_static("bend_leg",
-                  &FusionTree::bend_leg,
-                  py::arg("X"),
-                  py::arg("Y"),
-                  py::arg("bend_downward"),
-                  py::arg("do_conj") = false,
-                  "Bend a leg on a tree-pair, return the resulting linear combination of tree-pairs.")
+      .def_static(
+        "bend_leg",
+        &FusionTree::bend_leg,
+        py::arg("X"),
+        py::arg("Y"),
+        py::arg("bend_downward"),
+        py::arg("do_conj") = false,
+        "Bend a leg on a tree-pair, return the resulting linear combination of tree-pairs.")
       .def("braid",
            &FusionTree::braid,
            py::arg("j"),
@@ -323,10 +325,8 @@ bind_trees(py::module_& m)
       .def("__repr__", &FusionTree::repr)
       .def(
         "to_dense_block",
-        [](FusionTree const& self,
-           py::object backend,
-           py::object dtype,
-           bool understood_braiding) {
+        [](
+          FusionTree const& self, py::object backend, py::object dtype, bool understood_braiding) {
             std::optional<Dtype> dt;
             if (!dtype.is_none()) {
                 dt = dtype.cast<Dtype>();
@@ -361,47 +361,40 @@ bind_trees(py::module_& m)
            py::arg("right_tree"),
            py::arg("eps") = 1.0e-14,
            "Outer product with another tree.")
-      .def("split",
-           &FusionTree::split,
-           py::arg("n"),
-           "Split into two separate fusion trees.")
-      .def("split_bottom_vertex",
-           &FusionTree::split_bottom_vertex,
-           "Split off the bottom vertex.")
+      .def("split", &FusionTree::split, py::arg("n"), "Split into two separate fusion trees.")
+      .def("split_bottom_vertex", &FusionTree::split_bottom_vertex, "Split off the bottom vertex.")
       .def("twist",
            &FusionTree::twist,
            py::arg("idcs"),
            py::arg("overtwist"),
            "Twist some legs above a tree, return the resulting linear combination of trees.");
 
-    py::class_<fusion_trees> ft(
-      m,
-      "fusion_trees",
-      R"pydoc(
-      Iterable over all :class:`FusionTree`\ s with given uncoupled and coupled sectors.
+    py::class_<fusion_trees> ft(m,
+                                "fusion_trees",
+                                R"pydoc(
+                                Iterable over all :class:`FusionTree`\ s with given uncoupled and coupled sectors.
 
-      This custom iterator has efficient implementations of ``len`` and :meth:`index`, which
-      avoid generating all intermediate trees.
+                                This custom iterator has efficient implementations of ``len`` and :meth:`index`, which
+                                avoid generating all intermediate trees.
 
-      TODO elaborate on canonical order of trees -> reference in module level docstring.
-      )pydoc");
+                                TODO elaborate on canonical order of trees -> reference in module level docstring.
+                                )pydoc");
 
-    ft.def(py::init([](py::object symmetry_obj,
-                       py::object uncoupled,
-                       Sector coupled,
-                       py::object are_dual) {
-               auto symmetry = symmetry_from_python(symmetry_obj);
-               SectorArray unc = sector_array_from_python(uncoupled, *symmetry);
-               std::optional<std::vector<std::uint8_t>> dual;
-               if (!are_dual.is_none()) {
-                   dual = are_dual_from_python(are_dual, unc.num_sectors);
-               }
-               return fusion_trees(std::move(symmetry), std::move(unc), coupled, std::move(dual));
-           }),
-           py::arg("symmetry"),
-           py::arg("uncoupled"),
-           py::arg("coupled"),
-           py::arg("are_dual") = py::none());
+    ft.def(
+      py::init(
+        [](py::object symmetry_obj, py::object uncoupled, Sector coupled, py::object are_dual) {
+            auto symmetry = symmetry_from_python(symmetry_obj);
+            SectorArray unc = sector_array_from_python(uncoupled, *symmetry);
+            std::optional<std::vector<std::uint8_t>> dual;
+            if (!are_dual.is_none()) {
+                dual = are_dual_from_python(are_dual, unc.num_sectors);
+            }
+            return fusion_trees(std::move(symmetry), std::move(unc), coupled, std::move(dual));
+        }),
+      py::arg("symmetry"),
+      py::arg("uncoupled"),
+      py::arg("coupled"),
+      py::arg("are_dual") = py::none());
 
     ft.def_readwrite("symmetry", &fusion_trees::symmetry)
       .def_readwrite("uncoupled", &fusion_trees::uncoupled)

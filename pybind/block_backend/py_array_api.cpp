@@ -30,7 +30,9 @@ bind_block_backend_array_api(py::module_& m)
       "Load an ArrayApiBlockBackend from an HDF5 file (not generally supported).");
 
     py::class_<ArrayApiBlockBackend::Block, BlockBackend::Block, py::smart_holder>(
-      array_api_block_backend, "BlockCls", "Block that holds an Array-API array as a Python object.")
+      array_api_block_backend,
+      "BlockCls",
+      "Block that holds an Array-API array as a Python object.")
       .def("to_numpy", py::overload_cast<>(&ArrayApiBlockBackend::Block::to_numpy, py::const_))
       .def("to_numpy",
            py::overload_cast<Dtype>(&ArrayApiBlockBackend::Block::to_numpy, py::const_),
