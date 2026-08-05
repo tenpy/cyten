@@ -184,6 +184,8 @@ class FusionTree
 /// Iterable over all :class:`FusionTree`\ s with given uncoupled and coupled sectors.
 ///
 /// Efficient ``len`` and :meth:`index` avoid generating all intermediate trees.
+///
+/// TODO elaborate on canonical order of trees -> reference in module level docstring.
 class fusion_trees
 {
   public:

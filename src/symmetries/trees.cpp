@@ -329,11 +329,15 @@ FusionTree::FusionTree(Symmetry::Ptr symmetry,
   , are_dual(std::move(are_dual))
   , inner_sectors(std::move(inner_sectors))
 {
+    // OPTIMIZE demand SectorArray / ndarray (not list) and skip conversions?
+    // C++ ctor already takes SectorArray; Python bindings still accept/convert lists.
     num_uncoupled = this->uncoupled.num_sectors;
     num_vertices = num_uncoupled > 0 ? num_uncoupled - 1 : 0;
     num_inner_edges = num_uncoupled > 1 ? num_uncoupled - 2 : 0;
 
     if (this->inner_sectors.num_sectors == 0) {
+        // empty lists were converted to float arrays in Python, which broke __hash__;
+        // keep a proper empty SectorArray with the right sector_ind_len instead.
         this->inner_sectors = this->symmetry->empty_sector_array;
     }
 
@@ -358,6 +362,7 @@ FusionTree::test_sanity() const
     assert(symmetry->are_valid_sectors(inner_sectors));
     assert(multiplicities.size() == num_vertices);
 
+    // special cases: no vertices
     if (num_uncoupled == 0) {
         assert(coupled == symmetry->trivial_sector);
     }
@@ -469,9 +474,11 @@ FusionTree::hash() const
     hash_combine(seed, hash_sector(coupled));
     hash_combine(seed, hash_sector_array(uncoupled));
 
+    // if abelian: inner sectors are completely determined by uncoupled, all multiplicities are 0
     if (!symmetry->is_abelian()) {
         hash_combine(seed, hash_sector_array(inner_sectors));
     }
+    // if has_unique_fusion: all multiplicities are 0
     if (!symmetry->has_unique_fusion()) {
         hash_combine(seed, hash_int64_vector(multiplicities));
     }
@@ -539,7 +546,8 @@ FusionTree::ascii_diagram_chars(bool dagger,
         pre_Z_uncoupled_strs.push_back(symmetry->sector_str(pre_Z[i]));
     }
 
-    // Pad single-character labels to width 2 (same as Python rjust(2)).
+    // single-letter sectors dont work with the design choice of attaching wires to the
+    // second character of a sector -> make them at least 2 characters
     auto utf8_len = [](std::string_view s) {
         std::size_t n = 0;
         for (std::size_t pos = 0; pos < s.size();) {
@@ -569,6 +577,7 @@ FusionTree::ascii_diagram_chars(bool dagger,
         s = pad_left(std::move(s), 2);
     }
 
+    // pad the uncoupled sectors in a single column to a consistent width
     std::vector<std::size_t> uncoupled_widths(num_uncoupled);
     for (std::size_t i = 0; i < num_uncoupled; ++i) {
         uncoupled_widths[i] = std::max(utf8_len(uncoupled_strs[i]), utf8_len(pre_Z_uncoupled_strs[i]));
@@ -577,6 +586,7 @@ FusionTree::ascii_diagram_chars(bool dagger,
           pad_right(std::move(pre_Z_uncoupled_strs[i]), uncoupled_widths[i]);
     }
 
+    // special cases with no fusion vertices
     if (num_uncoupled == 0) {
         std::string const msg = "empty FusionTree";
         auto grid = make_char_grid(utf8_len(msg), 1);
@@ -678,6 +688,7 @@ FusionTree::ascii_diagram_chars(bool dagger,
         }
         write_utf8_at(right_wire, row, dagger ? "╮" : "╯");
         write_utf8_at(vertex, row - 1, "│");
+        // for next iteration:
         left_wire = vertex;
         row -= 2;
     }
@@ -739,6 +750,7 @@ FusionTree::ascii_diagram_chars(bool dagger,
     }
 
     if (!symmetry->has_unique_fusion()) {
+        // need to print multiplicities
         for (std::size_t i = 0; i < vertex_positions.size(); ++i) {
             auto [x, y] = vertex_positions[i];
             std::string mult = std::to_string(multiplicities[i]);
@@ -809,6 +821,15 @@ FusionTree::bend_leg(FusionTree const& X,
                      bool do_conj)
 {
     if (!bend_downward) {
+        // OPTIMIZE: do it explicitly instead?
+        // bend_up(dagger(Y) @ X)
+        // == dagger(dagger(bend_up(dagger(Y) @ X))
+        // == dagger(bend_down(dagger(dagger(Y) @ X))))
+        // == dagger(bend_down(dagger(X) @ Y))
+        // == dagger(sum_i b_i (dagger(X_i) @ Y_i))
+        // == sum_i conj(b_i) dagger(Y_i) @ X_i
+        // i.e. we need to swap the order of inputs and invert bend_downward,
+        // then for the result, swap the trees back and conj the coefficients (invert do_conj)
         FusionTreePairLinearCombination const other =
           bend_leg(Y, X, true, !do_conj);
         FusionTreePairLinearCombination res;
@@ -818,6 +839,7 @@ FusionTree::bend_leg(FusionTree const& X,
         return res;
     }
 
+    // OPTIMIZE remove input checks?
     assert(Y.symmetry == X.symmetry);
     Symmetry::Ptr const symmetry = Y.symmetry;
     assert(Y.coupled == X.coupled);
@@ -880,7 +902,7 @@ FusionTree::braid(int64 j, bool overbraid, float64 cutoff, bool do_conj) const
 {
     assert(j >= 0 && static_cast<std::size_t>(j) < num_uncoupled - 1);
 
-    if (j == 0) {
+    if (j == 0) { // R-move
         auto [a, b, mu, c] = vertex_labels(0);
         complex128 a_i;
         if (overbraid) {
@@ -900,6 +922,7 @@ FusionTree::braid(int64 j, bool overbraid, float64 cutoff, bool do_conj) const
         return { { X_i, a_i } };
     }
 
+    // C-move
     FusionTreeLinearCombination res;
     auto [a, b, mu, e] = vertex_labels(j - 1);
     auto [_e, c, nu, d] = vertex_labels(j);
@@ -924,6 +947,11 @@ FusionTree::braid(int64 j, bool overbraid, float64 cutoff, bool do_conj) const
                       py::make_tuple(static_cast<py::ssize_t>(mu), static_cast<py::ssize_t>(nu)))
                       .cast<py::array>();
         } else {
+            // underbraid compared to overbraid:
+            //  - conj
+            //  - b <-> c  [in args of c_symbol(...)]
+            //  - e <-> f  [in args of c_symbol(...)]
+            //  - (mu,nu) <-> (kappa,lambda)  [by indexing c_symbol(...) differently]
             py::array const C_full = symmetry->c_symbol(a, c, b, d, f, e);
             C_arr = C_full.attr("__getitem__")(
                       py::make_tuple(py::slice(), py::slice(), mu, nu))
@@ -942,6 +970,7 @@ FusionTree::braid(int64 j, bool overbraid, float64 cutoff, bool do_conj) const
             X_i.inner_sectors.set(static_cast<std::size_t>(j - 1), f);
             X_i.multiplicities[static_cast<std::size_t>(j - 1)] = kappa;
             X_i.multiplicities[static_cast<std::size_t>(j)] = lambda_;
+            assert(!res.contains(X_i)); // OPTIMIZE rm check
             res[X_i] = a_i;
         });
     }
@@ -1079,7 +1108,10 @@ FusionTree::to_dense_block(BlockBackend* backend,
         }
     }
 
+    // handle special cases of small trees
     if (num_uncoupled == 0) {
+        // must be identity on the trivial sector. But since there is no uncoupled sector,
+        // do not even give it an axis.
         return block_backend->ones_block({ 1 }, *dtype);
     }
 
@@ -1087,6 +1119,7 @@ FusionTree::to_dense_block(BlockBackend* backend,
         if (are_dual[0]) {
             py::array const Z = symmetry->Z_iso(symmetry->dual_sector(uncoupled[0]));
             py::array const ZT = Z.attr("T").cast<py::array>();
+            // [m_c, m_a1] -> need to transpose!
             return block_backend->block_from_numpy(ZT, *dtype);
         }
         int64 const dim_c = symmetry->sector_dim(coupled);
@@ -1095,18 +1128,20 @@ FusionTree::to_dense_block(BlockBackend* backend,
 
     if (num_uncoupled == 2) {
         int64 const mu = multiplicities[0];
+        // OPTIMIZE should we offer a symmetry function to compute only the mu slice?
         py::array const tensor = symmetry->fusion_tensor(
           uncoupled[0], uncoupled[1], coupled, are_dual[0] != 0, are_dual[1] != 0);
         py::array const X = tensor.attr("__getitem__")(static_cast<py::ssize_t>(mu)).cast<py::array>();
-        return block_backend->block_from_numpy(X, *dtype);
+        return block_backend->block_from_numpy(X, *dtype); // [a0, a1, c]
     }
 
+    // larger trees: iterate over vertices
     int64 const mu0 = multiplicities[0];
     py::array const tensor0 = symmetry->fusion_tensor(
       uncoupled[0], uncoupled[1], inner_sectors[0], are_dual[0] != 0, are_dual[1] != 0);
     py::array const X0 =
       tensor0.attr("__getitem__")(static_cast<py::ssize_t>(mu0)).cast<py::array>();
-    BlockBackend::BlockPtr res = block_backend->block_from_numpy(X0, *dtype);
+    BlockBackend::BlockPtr res = block_backend->block_from_numpy(X0, *dtype); // [a0, a1, i0]
 
     for (std::size_t vertex = 1; vertex < num_vertices; ++vertex) {
         int64 const mu = multiplicities[vertex];
@@ -1118,6 +1153,7 @@ FusionTree::to_dense_block(BlockBackend* backend,
         py::array const X =
           tensor.attr("__getitem__")(static_cast<py::ssize_t>(mu)).cast<py::array>();
         BlockBackend::BlockPtr const X_block = block_backend->block_from_numpy(X, *dtype);
+        // [a0, a1, ..., an, i{n-1}] & [i{n-1}, a{n+1}, in] -> [a0, a1, ..., a{n+1}, in]
         res = block_backend->tdot(res, X_block, { -1 }, { 0 });
     }
     return res;
@@ -1150,6 +1186,7 @@ FusionTree::extended(Sector new_uncoupled, int64 mu, Sector new_coupled, bool is
 
     SectorArray new_inner = inner_sectors;
     if (num_uncoupled >= 2) {
+        // for num_uncoupled < 2: result has one vertex, and thus no inner sectors
         new_inner = concat_sector_arrays(new_inner, sector_array_from_sector(coupled));
     }
 
@@ -1192,6 +1229,8 @@ FusionTree::insert_at(int64 n, FusionTree const& t2, float64 eps) const
     assert(!are_dual[static_cast<std::size_t>(n)]);
 
     if (t2.num_uncoupled == 0) {
+        // special case: empty tree with trivial coupled sector
+        // -> effectively remove self.uncoupled[n] (replace with empty set of sectors)
         SectorArray const res_unc = concat_sector_arrays(
           slice_rows(uncoupled, 0, static_cast<std::size_t>(n)),
           slice_rows(uncoupled, static_cast<std::size_t>(n) + 1, num_uncoupled));
@@ -1224,9 +1263,11 @@ FusionTree::insert_at(int64 n, FusionTree const& t2, float64 eps) const
     }
 
     if (n == 0) {
+        // result is already a canonical tree -> no need to do F moves
         return { { insert(t2), complex128{ 1.0, 0.0 } } };
     }
 
+    // should be more efficient than using recursion
     Symmetry::Ptr const sym = symmetry;
     FusionTreeLinearCombination coefficients;
 
@@ -1255,13 +1296,14 @@ FusionTree::insert_at(int64 n, FusionTree const& t2, float64 eps) const
     Sector const d_initial =
       static_cast<std::size_t>(n) == num_uncoupled - 1 ? coupled : new_inners_right[0];
 
+    // build the remaining parts (inner and multiplicities) from the right
     using TreePartsKey = std::pair<std::vector<Sector>, std::vector<int64>>;
     std::map<TreePartsKey, complex128> tree_parts;
     tree_parts[{ {}, { multiplicities[static_cast<std::size_t>(n - 1)] } }] =
       complex128{ 1.0, 0.0 };
 
     for (std::size_t i = t2.num_uncoupled - 1; i > 0; --i) {
-        std::map<TreePartsKey, complex128> new_tree_parts;
+        std::map<TreePartsKey, complex128> new_tree_parts; // contains new inner_sectors and multiplicities
         for (auto const& [parts, amplitude] : tree_parts) {
             auto const& [inners, multis] = parts;
             Sector const b = i > 1 ? t2.inner_sectors[i - 2] : t2.uncoupled[0];
@@ -1317,6 +1359,7 @@ FusionTree::insert_at(int64 n, FusionTree const& t2, float64 eps) const
 FusionTreeLinearCombination
 FusionTree::outer(FusionTree const& right_tree, float64 eps) const
 {
+    // trivial cases
     if (num_uncoupled == 0) {
         return { { right_tree, complex128{ 1.0, 0.0 } } };
     }
@@ -1324,6 +1367,8 @@ FusionTree::outer(FusionTree const& right_tree, float64 eps) const
         return { { *this, complex128{ 1.0, 0.0 } } };
     }
 
+    // use self.insert_at(right_tree) -> construct new tree with
+    // right_tree.coupled as uncoupled sector at the end
     Symmetry::Ptr const sym = symmetry;
     FusionTreeLinearCombination res;
 
@@ -1420,6 +1465,7 @@ FusionTree::twist(std::vector<int64> const& idcs, bool overtwist) const
         return { { *this, complex128{ 1.0, 0.0 } } };
     }
     if (idcs.size() == 1) {
+        // single wire twist
         int64 const i = to_valid_idx(idcs[0], static_cast<int64>(num_uncoupled));
         complex128 theta = symmetry->topological_twist(uncoupled[static_cast<std::size_t>(i)]);
         if (!overtwist) {
@@ -1435,10 +1481,12 @@ FusionTree::twist(std::vector<int64> const& idcs, bool overtwist) const
     }
     std::sort(sorted_idcs.begin(), sorted_idcs.end());
     for (std::size_t k = 1; k < sorted_idcs.size(); ++k) {
-        assert(sorted_idcs[k] > sorted_idcs[k - 1]);
+        assert(sorted_idcs[k] > sorted_idcs[k - 1]); // duplicate idcs
     }
 
     if (sorted_idcs.size() == num_uncoupled) {
+        // we can just slide the whole tree through the twist and end up with a twist of the
+        // coupled sector
         complex128 theta = symmetry->topological_twist(coupled);
         if (!overtwist) {
             theta = std::conj(theta);
@@ -1454,6 +1502,8 @@ FusionTree::twist(std::vector<int64> const& idcs, bool overtwist) const
         }
     }
     if (is_initial_range) {
+        // we can slide a subtree through the twist and get a twist on an inner sector
+        // note: have already excluded the special cases where this index would be out of bounds
         Sector const a = inner_sectors[sorted_idcs.back() - 1];
         complex128 theta = symmetry->topological_twist(a);
         if (!overtwist) {
@@ -1462,6 +1512,15 @@ FusionTree::twist(std::vector<int64> const& idcs, bool overtwist) const
         return { { *this, theta } };
     }
 
+    // Not sure what the best strategy is in the general case.
+    // Option A: we could do the twist on range(i, j) as:
+    //           - twist on range(j)
+    //           - inverse twist on range(i)
+    //           - some extra braiding
+    // Option B: break it down recursively
+    //           - twist range(i, mid)
+    //           - twist range(mid, j)
+    //           - braid twice
     throw NotImplemented("FusionTree::twist");
 }
 
@@ -1472,6 +1531,7 @@ fusion_trees::fusion_trees(Symmetry::Ptr symmetry,
   : symmetry(std::move(symmetry))
   , coupled(coupled)
 {
+    // DOC: coupled = None means trivial sector (handled by caller / bindings if needed)
     assert(this->symmetry);
     if (uncoupled.num_sectors == 0) {
         uncoupled = this->symmetry->empty_sector_array;
@@ -1516,6 +1576,8 @@ fusion_trees::all_trees() const
     }
 
     if (num_uncoupled == 2) {
+        // OPTIMIZE does handling of multiplicities introduce significant overhead?
+        //          could do a specialized version for multiplicity-free fusion
         int64 const n = symmetry->n_symbol(uncoupled[0], uncoupled[1], coupled);
         out.reserve(static_cast<std::size_t>(n));
         for (int64 mu = 0; mu < n; ++mu) {
@@ -1543,6 +1605,7 @@ fusion_trees::all_trees() const
         std::vector<std::uint8_t> rest_dual =
           concat_vectors(std::span<std::uint8_t const>(std::vector<std::uint8_t>{ 0 }),
                          std::span<std::uint8_t const>(vector_slice(are_dual, 2, are_dual.size())));
+        // set multiplicity index to 0 for now. will adjust it later.
         FusionTree const left_tree(symmetry,
                                    left_unc,
                                    b,
@@ -1566,6 +1629,8 @@ fusion_trees::all_trees() const
 std::size_t
 fusion_trees::size() const
 {
+    // OPTIMIZE caching ?
+
     if (num_uncoupled == 0) {
         return coupled == symmetry->trivial_sector ? 1 : 0;
     }
@@ -1587,6 +1652,7 @@ fusion_trees::size() const
           concat_sector_arrays(sector_array_from_sector(b),
                                slice_rows(uncoupled, 2, num_uncoupled));
         // Python ``len(fusion_trees(...))`` omits are_dual → defaults to False
+        // no need to check if the fusion is allowed in n_symbol -> use _n_symbol
         std::size_t const num_subtrees = fusion_trees(symmetry, rest_unc, coupled).size();
         count += static_cast<std::size_t>(symmetry->_n_symbol(a1, a2, b)) * num_subtrees;
     }
@@ -1655,11 +1721,14 @@ fusion_trees::compute_index(FusionTree const& tree) const
     }
 
     std::size_t idx = 0;
+    // product of all multiplicities to the left of left_sec in for loop below
     int64 left_multi = 1;
+    // upper limit for the values multiplicities take at each vertex (of the tree)
     std::vector<int64> max_multis;
     max_multis.reserve(num_uncoupled > 0 ? num_uncoupled - 1 : 0);
 
     for (std::size_t i = 0; i + 2 < num_uncoupled; ++i) {
+        // coupled sector is unique, no need to shift idx for target_sec == self.coupled
         Sector const target_sec = tree.inner_sectors[i];
         Sector const left_sec = (i == 0) ? uncoupled[i] : tree.inner_sectors[i - 1];
         bool sector_found = false;
@@ -1705,6 +1774,7 @@ fusion_trees::compute_index(FusionTree const& tree) const
         }
     }
 
+    // idx shift from multiplicities
     if (!symmetry->is_abelian()) {
         for (std::size_t i = 0; i < tree.multiplicities.size(); ++i) {
             int64 prod = 1;
