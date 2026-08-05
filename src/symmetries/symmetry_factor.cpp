@@ -1,6 +1,5 @@
 #include <cyten/symmetries/symmetry_factor.h>
 
-#include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/symmetry.h>
 
 #include <stdexcept>
@@ -100,8 +99,8 @@ SymmetryFactor::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string co
     hdf5_saver.attr("save")(group_name, subpath + "group_name");
     hdf5_saver.attr("save")(static_cast<int>(fusion_style), subpath + "fusion_style");
     hdf5_saver.attr("save")(static_cast<int>(braiding_style), subpath + "braiding_style");
-    // Bound Sector so Hdf5Saver finds Sector.save_hdf5 (libcyten has no type_casters).
-    hdf5_saver.attr("save")(sector_as_hdf5_exportable(trivial_sector), subpath + "trivial_sector");
+    // Bound Sector so Hdf5Saver finds Sector.save_hdf5.
+    hdf5_saver.attr("save")(py::cast(trivial_sector), subpath + "trivial_sector");
     hdf5_saver.attr("save")(num_sectors, subpath + "num_sectors");
     hdf5_saver.attr("save")(static_cast<int>(sector_ind_len), subpath + "sector_ind_len");
     hdf5_saver.attr("save")(trivial_shift, subpath + "trivial_shift");
@@ -120,7 +119,7 @@ SymmetryFactor::load_hdf5_common(py::object hdf5_loader,
       static_cast<FusionStyle>(hdf5_loader.attr("load")(subpath + "fusion_style").cast<int>());
     braiding_style =
       static_cast<BraidingStyle>(hdf5_loader.attr("load")(subpath + "braiding_style").cast<int>());
-    trivial_sector = sector_from_hdf5_object(hdf5_loader.attr("load")(subpath + "trivial_sector"));
+    trivial_sector = hdf5_loader.attr("load")(subpath + "trivial_sector").cast<Sector>();
     num_sectors = hdf5_loader.attr("load")(subpath + "num_sectors").cast<float64>();
     sector_ind_len =
       static_cast<std::uint8_t>(hdf5_loader.attr("load")(subpath + "sector_ind_len").cast<int>());

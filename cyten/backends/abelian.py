@@ -49,6 +49,7 @@ from ..symmetries import (
     Symmetry,
     TensorProduct,
 )
+from ..symmetries.sector_utils import repeat_row
 from ..tools.misc import (
     find_row_differences,
     inverse_permutation,
@@ -74,13 +75,20 @@ def _valid_block_inds(codomain: TensorProduct, domain: TensorProduct):
     #           spaces are sorted, so we can probably reduce that search space quite a bit...
     symmetry = codomain.symmetry
     grid = make_grid([s.num_sectors for s in conventional_leg_order(codomain, domain)], cstyle=False)
-    codomain_coupled = symmetry.multiple_fusion_broadcast(
-        *(space.sector_decomposition[i] for space, i in zip(codomain.factors, grid.T))
-    )
-    domain_coupled = symmetry.multiple_fusion_broadcast(
-        *(space.sector_decomposition[i] for space, i in zip(domain.factors, grid.T[::-1]))
-    )
-    valid = np.all(codomain_coupled == domain_coupled, axis=1)
+    n_combos = len(grid)
+    if codomain.num_factors > 0:
+        codomain_coupled = symmetry.multiple_fusion_broadcast(
+            *(space.sector_decomposition[i] for space, i in zip(codomain.factors, grid.T))
+        )
+    else:
+        codomain_coupled = repeat_row(symmetry.trivial_sector, n_combos)
+    if domain.num_factors > 0:
+        domain_coupled = symmetry.multiple_fusion_broadcast(
+            *(space.sector_decomposition[i] for space, i in zip(domain.factors, grid.T[::-1]))
+        )
+    else:
+        domain_coupled = repeat_row(symmetry.trivial_sector, n_combos)
+    valid = np.array([a == b for a, b in zip(codomain_coupled, domain_coupled)])
     block_inds = grid[valid, :]
     perm = np.lexsort(block_inds.T)
     return block_inds[perm]
@@ -241,7 +249,7 @@ class AbelianBackend(TensorBackend):
             domain_coupled = a.symmetry.multiple_fusion(
                 *(leg.sector_decomposition[i] for leg, i in zip(a.domain.factors, inds[::-1]))
             )
-            assert np.all(codomain_coupled == domain_coupled)
+            assert codomain_coupled == domain_coupled
         # check blocks and charge rule
         for block, b_i in zip(data.blocks, data.block_inds):
             if is_diagonal:
@@ -273,7 +281,7 @@ class AbelianBackend(TensorBackend):
                 bi_large, bi_small = block_inds
             assert bi_large >= bi_small
             # check charge rule
-            assert np.all(a.large_leg.sector_decomposition[bi_large] == a.small_leg.sector_decomposition[bi_small])
+            assert a.large_leg.sector_decomposition[bi_large] == a.small_leg.sector_decomposition[bi_small]
             # check blocks
             expect_len = a.large_leg.multiplicities[bi_large]
             expect_sum = a.small_leg.multiplicities[bi_small]
@@ -621,13 +629,13 @@ class AbelianBackend(TensorBackend):
                 *(leg.sector_decomposition[bi] for leg, bi in zip(new_codomain, a_block_inds_keep.T))
             )
         else:
-            a_charges = np.repeat(symmetry.trivial_sector[None, :], len(a_block_inds_keep), axis=1)
+            a_charges = repeat_row(symmetry.trivial_sector, len(a_block_inds_keep))
         if new_domain.num_factors > 0:
             b_charges = symmetry.multiple_fusion_broadcast(
                 *(leg.sector_decomposition[bi] for leg, bi in zip(new_domain, b_block_inds_keep[:, ::-1].T))
             )
         else:
-            b_charges = np.repeat(symmetry.trivial_sector[None, :], len(b_block_inds_keep), axis=1)
+            b_charges = repeat_row(symmetry.trivial_sector, len(b_block_inds_keep))
         a_charge_lookup = list_to_dict_list(a_charges)  # lookup table ``tuple(sector) -> idcs_in_a_charges``
 
         # rows_a changes faster than cols_b, such that the resulting block_inds are lex-sorted
@@ -990,7 +998,7 @@ class AbelianBackend(TensorBackend):
                     # must be identical to the ones of op
                     left_sector = op.codomain[0].sector_decomposition[op_bi[0]]
                     left_ind = new_codomain[0].sector_decomposition_where(left_sector)
-                    right_sector = op.domain[-1].sector_decomposition[op_bi[len(new_codomain)]]
+                    right_sector = op.domain[-1].sector_decomposition[int(op_bi[len(new_codomain)])]
                     right_ind = new_domain[-1].sector_decomposition_where(right_sector)
                     new_bi = [left_ind, *op_bi[1 : len(new_codomain)], right_ind, *op_bi[len(new_codomain) + 1 :]]
                     new_bi = np.array(new_bi, dtype=int)
@@ -1668,9 +1676,10 @@ class AbelianBackend(TensorBackend):
                 # legs have opposite duality. need to compare sectors explicitly
                 # OPTIMIZE (JU) spaces could store (or cache!) the sector permutation between
                 #               itself and its dual, then we could compare on the level of block_inds
-                s1 = tensor.get_leg_co_domain(idcs1[n]).sector_decomposition[block_inds_1[:, n], :]
-                s2 = tensor.get_leg_co_domain(idcs2[n]).sector_decomposition[block_inds_2[:, n], :]
-                on_diagonal &= np.all(s1 == tensor.symmetry.dual_sectors(s2), axis=1)
+                s1 = tensor.get_leg_co_domain(idcs1[n]).sector_decomposition[block_inds_1[:, n]]
+                s2 = tensor.get_leg_co_domain(idcs2[n]).sector_decomposition[block_inds_2[:, n]]
+                dual_s2 = tensor.symmetry.dual_sectors(s2)
+                on_diagonal &= np.fromiter((a == b for a, b in zip(s1, dual_s2)), dtype=bool, count=len(s1))
 
         res_data = {}  # dictionary res_block_inds_row -> Block
         for block, contributes, bi_rem in zip(blocks, on_diagonal, block_inds_rem):

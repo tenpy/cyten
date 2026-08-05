@@ -19,6 +19,7 @@ from cyten.symmetries import (
     AbelianLegPipe,
     ElementarySpace,
     LegPipe,
+    SectorArray,
     SymmetryError,
     TensorProduct,
     fermion_parity,
@@ -495,7 +496,7 @@ def test_fixes_124(np_random):
 def test_fixes_23():
     # See PR #23
     sym = SU2().as_Symmetry()
-    site = ElementarySpace(sym, SU2.spin_half[None, :])
+    site = ElementarySpace(sym, SectorArray.from_sector(SU2.spin_half))
     block = np.zeros((2,) * 6, float)
     tens = SymmetricTensor.from_dense_block(block, codomain=[site] * 3, domain=[site] * 3)
     tens.test_sanity()
@@ -824,7 +825,7 @@ def test_ChargedTensor_to_dense_block_single_sector(
     make_compatible_sectors, make_compatible_tensor, compatible_symmetry
 ):
     sector = make_compatible_sectors(1)[0]
-    charge_leg = ElementarySpace(compatible_symmetry, sector[None, :])
+    charge_leg = ElementarySpace(compatible_symmetry, SectorArray.from_sector(sector))
     inv_part = make_compatible_tensor(codomain=1, domain=[charge_leg], labels=[None, '!'])
     tens = ChargedTensor(inv_part, charged_state=[1])
     leg = tens.codomain[0]

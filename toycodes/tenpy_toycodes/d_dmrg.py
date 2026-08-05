@@ -171,7 +171,7 @@ class DMRGEngine:
         left_dom = ct.TensorProduct([mps_left_leg, mpo_left_leg], sym)
         tree_pairs = {}
         for tree, _, mults, _ in left_dom.iter_tree_blocks(mps_left_leg.sector_decomposition):
-            if not np.all(tree.uncoupled[1] == sym.trivial_sector):
+            if tree.uncoupled[1] != sym.trivial_sector:
                 continue
             # add the second MPS leg
             shape = np.append(mults[:1], mults[::-1])
@@ -191,7 +191,7 @@ class DMRGEngine:
         right_dom = ct.TensorProduct([mpo_right_leg, mps_right_leg], sym)
         tree_pairs = {}
         for tree, _, mults, _ in right_dom.iter_tree_blocks(mps_right_leg.sector_decomposition):
-            if not np.all(tree.uncoupled[0] == sym.trivial_sector):
+            if tree.uncoupled[0] != sym.trivial_sector:
                 continue
             # add the second MPS leg
             shape = np.append(mults[1:], mults[::-1])

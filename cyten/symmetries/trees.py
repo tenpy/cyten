@@ -13,6 +13,21 @@ from ..block_backends import Block, NumpyBlockBackend
 from ..block_backends.dtypes import Dtype
 from ..tools import to_valid_idx
 from ._symmetries import Sector, SectorArray, Symmetry, SymmetryError
+from .sector_utils import (
+    as_sector,
+    as_sector_array,
+    concat_sector_arrays,
+    rows_equal,
+    sector_array_from_sector,
+)
+
+
+def _concat_sector_arrays(*arrays: SectorArray) -> SectorArray:
+    res = arrays[0]
+    for array in arrays[1:]:
+        res = concat_sector_arrays(res, array)
+    return res
+
 
 if TYPE_CHECKING:
     from ..backends import TensorBackend
@@ -86,16 +101,16 @@ class FusionTree:
         # OPTIMIZE demand SectorArray / ndarray (not list) and skip conversions?
         assert isinstance(symmetry, Symmetry)
         self.symmetry = symmetry
-        self.uncoupled = np.asarray(uncoupled)
+        self.uncoupled = as_sector_array(uncoupled, sector_ind_len=symmetry.sector_ind_len)
         self.num_uncoupled = len(uncoupled)
         self.num_vertices = num_vertices = max(len(uncoupled) - 1, 0)
         self.num_inner_edges = max(len(uncoupled) - 2, 0)
-        self.coupled = coupled
+        self.coupled = as_sector(coupled)
         self.are_dual = np.asarray(are_dual, dtype=bool)
         if len(inner_sectors) == 0:
             inner_sectors = symmetry.empty_sector_array
         # empty lists are by default converted to arrays with dtype=float, which leads to issues in __hash__
-        self.inner_sectors = np.asarray(inner_sectors, dtype=int)
+        self.inner_sectors = as_sector_array(inner_sectors, sector_ind_len=symmetry.sector_ind_len)
         if multiplicities is None:
             multiplicities = np.zeros((num_vertices,), dtype=int)
         self.multiplicities = np.asarray(multiplicities, dtype=int)
@@ -114,9 +129,9 @@ class FusionTree:
 
         # special cases: no vertices
         if self.num_uncoupled == 0:
-            assert np.all(self.coupled == self.symmetry.trivial_sector)
+            assert self.coupled == self.symmetry.trivial_sector
         if self.num_uncoupled == 1:
-            assert np.all(self.uncoupled[0] == self.coupled)
+            assert self.uncoupled[0] == self.coupled
         # otherwise, check fusion rules at every vertex
         for n in range(self.num_vertices):
             a, b, mu, c = self.vertex_labels(n)
@@ -170,7 +185,7 @@ class FusionTree:
         """A tree with a single uncoupled sector and no nodes."""
         return FusionTree(
             symmetry,
-            uncoupled=[sector],
+            uncoupled=sector_array_from_sector(as_sector(sector)),
             coupled=sector,
             are_dual=[is_dual],
             inner_sectors=symmetry.empty_sector_array,
@@ -181,7 +196,9 @@ class FusionTree:
     def pre_Z_uncoupled(self):
         """The uncoupled sectors *above* any Z isomorphisms."""
         res = self.uncoupled.copy()
-        res[self.are_dual, :] = self.symmetry.dual_sectors(res[self.are_dual, :])
+        duals = self.symmetry.dual_sectors(res[self.are_dual])
+        for i, dual in zip(np.flatnonzero(self.are_dual), duals):
+            res[int(i)] = dual
         return res
 
     def __hash__(self) -> int:
@@ -194,16 +211,24 @@ class FusionTree:
         else:
             unique_identifier = [self.are_dual, self.coupled, self.uncoupled, self.inner_sectors, self.multiplicities]
 
-        return hash(tuple(hash(tuple(arr.flatten().tolist())) for arr in unique_identifier))
+        values = []
+        for arr in unique_identifier:
+            if isinstance(arr, SectorArray):
+                values.append(tuple(arr))
+            elif isinstance(arr, Sector):
+                values.append(arr)
+            else:
+                values.append(tuple(np.asarray(arr).tolist()))
+        return hash(tuple(values))
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, FusionTree):
             return False
         return (
             np.all(self.are_dual == other.are_dual)
-            and np.all(self.coupled == other.coupled)
-            and np.all(self.uncoupled == other.uncoupled)
-            and np.all(self.inner_sectors == other.inner_sectors)
+            and self.coupled == other.coupled
+            and rows_equal(self.uncoupled, other.uncoupled)
+            and rows_equal(self.inner_sectors, other.inner_sectors)
             and np.all(self.multiplicities == other.multiplicities)
         )
 
@@ -406,7 +431,7 @@ class FusionTree:
         # OPTIMIZE remove input checks?
         assert Y.symmetry == X.symmetry
         symmetry = Y.symmetry
-        assert np.all(Y.coupled == X.coupled)
+        assert Y.coupled == X.coupled
         c = Y.coupled
 
         if Y.num_uncoupled == 0:
@@ -738,10 +763,10 @@ class FusionTree:
             # result has one vertex, and thus no inner sectors
             inner_sectors = self.inner_sectors
         else:
-            inner_sectors = np.append(self.inner_sectors, self.coupled[None, :], axis=0)
+            inner_sectors = concat_sector_arrays(self.inner_sectors, sector_array_from_sector(self.coupled))
         return FusionTree(
             self.symmetry,
-            uncoupled=np.append(self.uncoupled, new_uncoupled[None, :], axis=0),
+            uncoupled=concat_sector_arrays(self.uncoupled, sector_array_from_sector(as_sector(new_uncoupled))),
             coupled=new_coupled,
             are_dual=np.append(self.are_dual, is_dual),
             inner_sectors=inner_sectors,
@@ -761,10 +786,10 @@ class FusionTree:
         """
         return FusionTree(
             symmetry=self.symmetry,
-            uncoupled=np.concatenate([t2.uncoupled, self.uncoupled[1:]]),
+            uncoupled=concat_sector_arrays(t2.uncoupled, self.uncoupled[1:]),
             coupled=self.coupled,
             are_dual=np.concatenate([t2.are_dual, self.are_dual[1:]]),
-            inner_sectors=np.concatenate([t2.inner_sectors, self.uncoupled[:1], self.inner_sectors]),
+            inner_sectors=_concat_sector_arrays(t2.inner_sectors, self.uncoupled[:1], self.inner_sectors),
             multiplicities=np.concatenate([t2.multiplicities, self.multiplicities]),
         )
 
@@ -802,16 +827,16 @@ class FusionTree:
 
         """
         assert self.symmetry == t2.symmetry
-        assert np.all(self.uncoupled[n] == t2.coupled)
+        assert self.uncoupled[n] == t2.coupled
         assert not self.are_dual[n]
 
         if t2.num_uncoupled == 0:
             # special case: empty tree with trivial coupled sector
             # -> effectively remove self.uncoupled[n] (replace with empty set of sectors)
-            res_unc = np.vstack((self.uncoupled[:n], self.uncoupled[n + 1 :]))
+            res_unc = concat_sector_arrays(self.uncoupled[:n], self.uncoupled[n + 1 :])
             res_dual = np.concatenate([self.are_dual[:n], self.are_dual[n + 1 :]])
             idx = max(0, n - 1)
-            res_inners = np.vstack((self.inner_sectors[:idx], self.inner_sectors[idx + 1 :]))
+            res_inners = concat_sector_arrays(self.inner_sectors[:idx], self.inner_sectors[idx + 1 :])
             res_mults = np.concatenate([self.multiplicities[:idx], self.multiplicities[idx + 1 :]])
             res = FusionTree(self.symmetry, res_unc, self.coupled, res_dual, res_inners, res_mults)
             return {res: 1}
@@ -835,7 +860,7 @@ class FusionTree:
         # should be more efficient than using recursion
         sym = self.symmetry
         coefficients = {}
-        new_unc = np.vstack((self.uncoupled[:n], t2.uncoupled, self.uncoupled[n + 1 :]))
+        new_unc = _concat_sector_arrays(self.uncoupled[:n], t2.uncoupled, self.uncoupled[n + 1 :])
         new_dual = np.concatenate([self.are_dual[:n], t2.are_dual, self.are_dual[n + 1 :]])
         new_inners_left = self.inner_sectors[: n - 1]
         new_inners_right = self.inner_sectors[n - 1 :]
@@ -851,7 +876,7 @@ class FusionTree:
             for (inners, multis), amplitude in tree_parts.items():
                 b = t2.inner_sectors[i - 2] if i > 1 else t2.uncoupled[0]
                 c = t2.uncoupled[i]
-                d = np.asarray(inners[0], dtype=int) if len(inners) > 0 else d_initial
+                d = as_sector(inners[0]) if len(inners) > 0 else d_initial
                 e = t2.coupled if len(inners) == 0 else t2.inner_sectors[i - 1]
                 multi = t2.multiplicities[i - 1]
                 for f in sym.fusion_outcomes(a, b):
@@ -869,8 +894,8 @@ class FusionTree:
             tree_parts = new_tree_parts
 
         for (inners, multis), amplitude in tree_parts.items():
-            inners = np.asarray(inners, dtype=int)
-            new_inners = np.vstack((new_inners_left, inners, new_inners_right))
+            inners = as_sector_array(inners, sector_ind_len=sym.sector_ind_len)
+            new_inners = _concat_sector_arrays(new_inners_left, inners, new_inners_right)
             new_multis = np.concatenate([new_multis_left, multis, new_multis_right])
             new_tree = FusionTree(sym, new_unc, self.coupled, new_dual, new_inners, new_multis)
             coefficients[new_tree] = amplitude
@@ -912,12 +937,12 @@ class FusionTree:
         # right_tree.coupled as uncoupled sector at the end
         sym = self.symmetry
         res = {}
-        unc = np.vstack((self.uncoupled, right_tree.coupled))
+        unc = concat_sector_arrays(self.uncoupled, sector_array_from_sector(right_tree.coupled))
         dual = np.concatenate([self.are_dual, [False]])
         if self.num_uncoupled <= 1:
-            inner = np.zeros((0, unc.shape[1]), dtype=int)
+            inner = sym.empty_sector_array
         else:
-            inner = np.vstack((self.inner_sectors, self.coupled))
+            inner = concat_sector_arrays(self.inner_sectors, sector_array_from_sector(self.coupled))
         for new_coupled in sym.fusion_outcomes(self.coupled, right_tree.coupled):
             for m in range(sym._n_symbol(self.coupled, right_tree.coupled, new_coupled)):
                 multi = np.concatenate([self.multiplicities, [m]])
@@ -953,6 +978,7 @@ class FusionTree:
         insert
 
         """
+        n = int(n)
         if n < 2:
             raise ValueError('Left tree has no vertices (n < 2)')
         if n >= self.num_uncoupled:
@@ -968,7 +994,7 @@ class FusionTree:
         )
         t2 = FusionTree(
             self.symmetry,
-            uncoupled=np.concatenate([cut_sector[None, :], self.uncoupled[n:]]),
+            uncoupled=concat_sector_arrays(sector_array_from_sector(cut_sector), self.uncoupled[n:]),
             coupled=self.coupled,
             are_dual=np.insert(self.are_dual[n:], 0, False),
             inner_sectors=self.inner_sectors[n - 1 :],
@@ -1138,9 +1164,9 @@ class fusion_trees(Iterable[FusionTree]):
         assert isinstance(symmetry, Symmetry)
         if len(uncoupled) == 0:
             uncoupled = symmetry.empty_sector_array
-        self.uncoupled = np.asarray(uncoupled)  # OPTIMIZE demand SectorArray (not list) and skip?
+        self.uncoupled = as_sector_array(uncoupled, sector_ind_len=symmetry.sector_ind_len)
         self.num_uncoupled = num_uncoupled = len(uncoupled)
-        self.coupled = coupled
+        self.coupled = as_sector(coupled)
         if are_dual is None:
             are_dual = np.zeros((num_uncoupled,), bool)
         else:
@@ -1149,12 +1175,12 @@ class fusion_trees(Iterable[FusionTree]):
 
     def __iter__(self):
         if self.num_uncoupled == 0:
-            if np.all(self.coupled == self.symmetry.trivial_sector):
+            if self.coupled == self.symmetry.trivial_sector:
                 yield FusionTree(self.symmetry, self.uncoupled, self.coupled, [], [], [])
             return
 
         if self.num_uncoupled == 1:
-            if np.all(self.uncoupled[0] == self.coupled):
+            if self.uncoupled[0] == self.coupled:
                 yield FusionTree(self.symmetry, self.uncoupled, self.coupled, self.are_dual, [], [])
             return
 
@@ -1168,7 +1194,7 @@ class fusion_trees(Iterable[FusionTree]):
         a1 = self.uncoupled[0]
         a2 = self.uncoupled[1]
         for b in self.symmetry.fusion_outcomes(a1, a2):
-            uncoupled = np.concatenate([b[None, :], self.uncoupled[2:]])
+            uncoupled = concat_sector_arrays(sector_array_from_sector(b), self.uncoupled[2:])
             are_dual = np.concatenate([[False], self.are_dual[2:]])
             # set multiplicity index to 0 for now. will adjust it later.
             left_tree = FusionTree(self.symmetry, self.uncoupled[:2], b, self.are_dual[:2], [], [0])
@@ -1184,12 +1210,12 @@ class fusion_trees(Iterable[FusionTree]):
         # OPTIMIZE caching ?
 
         if self.num_uncoupled == 0:
-            if np.all(self.coupled == self.symmetry.trivial_sector):
+            if self.coupled == self.symmetry.trivial_sector:
                 return 1
             return 0
 
         if self.num_uncoupled == 1:
-            if np.all(self.uncoupled[0] == self.coupled):
+            if self.uncoupled[0] == self.coupled:
                 return 1
             return 0
 
@@ -1200,7 +1226,7 @@ class fusion_trees(Iterable[FusionTree]):
         a2 = self.uncoupled[1]
         count = 0
         for b in self.symmetry.fusion_outcomes(a1, a2):
-            uncoupled = np.concatenate([b[None, :], self.uncoupled[2:]])
+            uncoupled = concat_sector_arrays(sector_array_from_sector(b), self.uncoupled[2:])
             num_subtrees = len(fusion_trees(self.symmetry, uncoupled, self.coupled))
             # no need to check if the fusion is allowed in n_symbol -> use _n_symbol
             count += self.symmetry._n_symbol(a1, a2, b) * num_subtrees
@@ -1219,9 +1245,9 @@ class fusion_trees(Iterable[FusionTree]):
         # check compatibility first (same symmetry, same uncoupled, same coupled, same are_dual)
         if not self.symmetry.is_equivalent_to(tree.symmetry):
             raise ValueError(f'Inconsistent symmetries, {self.symmetry} != {tree.symmetry}')
-        if not np.all(self.uncoupled == tree.uncoupled):
+        if not rows_equal(self.uncoupled, tree.uncoupled):
             raise ValueError(f'Inconsistent uncoupled sectors, {self.uncoupled} != {tree.uncoupled}')
-        if not np.all(self.coupled == tree.coupled):
+        if self.coupled != tree.coupled:
             raise ValueError(f'Inconsistent coupled sector, {self.coupled} != {tree.coupled}')
         if not np.all(self.are_dual == tree.are_dual):
             raise ValueError(f'Inconsistent dualities, {self.are_dual} != {tree.are_dual}')
@@ -1229,9 +1255,9 @@ class fusion_trees(Iterable[FusionTree]):
 
     def _compute_index(self, tree: FusionTree) -> int:
         if self.num_uncoupled < 2:
-            if self.num_uncoupled == 0 and np.all(self.coupled == self.symmetry.trivial_sector):
+            if self.num_uncoupled == 0 and self.coupled == self.symmetry.trivial_sector:
                 return 0
-            elif self.num_uncoupled == 1 and np.all(self.uncoupled[0] == self.coupled):
+            elif self.num_uncoupled == 1 and self.uncoupled[0] == self.coupled:
                 return 0
             raise ValueError(f'Inconsistent coupled sector.')
 
@@ -1247,12 +1273,12 @@ class fusion_trees(Iterable[FusionTree]):
             sector_found = False
             for fusion_sec in self.symmetry.fusion_outcomes(left_sec, self.uncoupled[i + 1]):
                 multi = self.symmetry._n_symbol(left_sec, self.uncoupled[i + 1], fusion_sec)
-                if np.all(fusion_sec == target_sec):
+                if fusion_sec == target_sec:
                     sector_found = True
                     left_multi *= multi
                     max_multis.append(multi)
                     break
-                uncoupled = np.concatenate([fusion_sec[None, :], self.uncoupled[i + 2 :]])
+                uncoupled = concat_sector_arrays(sector_array_from_sector(fusion_sec), self.uncoupled[i + 2 :])
                 are_dual = np.concatenate([[False], self.are_dual[i + 2 :]])
                 idx += left_multi * multi * len(fusion_trees(self.symmetry, uncoupled, self.coupled, are_dual))
             if not sector_found:

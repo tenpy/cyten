@@ -8,6 +8,7 @@ import numpy as np
 from .. import backends, tensors, tools
 from ..block_backends import dtypes
 from ..symmetries import SU2, U1, SectorArray, Symmetry, SymmetryFactor, spaces
+from ..symmetries.sector_utils import as_sector_array, lexsort_indices
 
 
 def random_block(block_backend, size, real=False, np_random=np.random.default_rng(0)):
@@ -29,11 +30,15 @@ def random_symmetry_sectors(
     ]
     combs = np.indices([len(s) for s in factor_sectors]).T.reshape((-1, len(factor_sectors)))
     if len(combs) > num:
-        combs = np_random.choice(combs, replace=False, size=num)
-    res = np.hstack([fs[i] for fs, i in zip(factor_sectors, combs.T)])
+        which = np_random.choice(len(combs), replace=False, size=num)
+        combs = combs[which]
+    rows = []
+    for comb in combs:
+        parts = [factor_sectors[fi][int(comb[fi])].to_numpy() for fi in range(len(factor_sectors))]
+        rows.append(np.concatenate(parts))
+    res = as_sector_array(np.asarray(rows, dtype=int))
     if sort:
-        order = np.lexsort(res.T)
-        res = res[order]
+        res = res[lexsort_indices(res)]
     return res
 
 
@@ -43,18 +48,19 @@ def random_factor_sectors(factor: SymmetryFactor, num: int, np_random=np.random.
     assert isinstance(factor, SymmetryFactor)
     if isinstance(factor, SU2):
         res = np_random.choice(max(int(1.3 * num), 2), replace=False, size=(num, 1))
-    elif isinstance(factor, U1):
+        return as_sector_array(res)
+    if isinstance(factor, U1):
         vals = list(range(-num, num)) + [123]
         res = np_random.choice(vals, replace=False, size=(num, 1))
-    elif factor.num_sectors < np.inf:
+        return as_sector_array(res)
+    if factor.num_sectors < np.inf:
+        all_sec = factor.all_sectors()
         if factor.num_sectors <= num:
-            res = np_random.permutation(factor.all_sectors())
-        else:
-            which = np_random.choice(factor.num_sectors, replace=False, size=num)
-            res = factor.all_sectors()[which, :]
-    else:
-        raise NotImplementedError("don't know how to get symmetry sectors")
-    return res
+            perm = np_random.permutation(len(all_sec))
+            return all_sec[perm]
+        which = np_random.choice(factor.num_sectors, replace=False, size=num)
+        return all_sec[which]
+    raise NotImplementedError("don't know how to get symmetry sectors")
 
 
 def random_ElementarySpace(
@@ -237,26 +243,33 @@ def find_last_leg(
     assert same.num_sectors > 0
     assert opposite.num_sectors > 0
     prod = spaces.TensorProduct.from_partial_products(same.dual, opposite)
-    sectors = prod.sector_decomposition
-    mults = prod.multiplicities
+    sectors = as_sector_array(prod.sector_decomposition)
+    mults = np.asarray(prod.multiplicities, dtype=int)
     if len(sectors) > max_sectors:
         which = np_random.choice(len(sectors), size=max_sectors, replace=False, shuffle=False)
-        sectors = sectors[which, :]
+        sectors = sectors[which]
         mults = mults[which]
     mults = np.minimum(mults, max_mult)
     if extra_sectors is not None:
-        # replace some sectors by extra_sectors
-        duplicates = np.any(np.all(extra_sectors[None, :, :] == sectors[:, None, :], axis=2), axis=0)
-        extra_sectors = extra_sectors[np.logical_not(duplicates)]
-        # replace some sectors
+        extra_sectors = as_sector_array(extra_sectors)
+        # drop extras that already appear
+        keep = []
+        for e in extra_sectors:
+            if sectors.row_where(e) is None:
+                keep.append(e)
+        if keep:
+            extra_np = np.stack([e.to_numpy() for e in keep])
+            extra_sectors = as_sector_array(extra_np)
+        else:
+            extra_sectors = SectorArray.empty(sectors.sector_ind_len)
         min_replace = max(1, int(0.2 * len(sectors)))
         max_replace = min(int(0.5 * len(sectors)), len(extra_sectors))
         if max_replace >= min_replace:
             num_replace = np_random.integers(min_replace, max_replace, endpoint=True)
             which = np_random.choice(len(sectors), size=num_replace, replace=False)
-            sectors[which, :] = extra_sectors[:num_replace, :]
+            sectors[which] = extra_sectors[:num_replace]
     # guarantee sorting
-    order = np.lexsort(sectors.T)
+    order = lexsort_indices(sectors)
     sectors = sectors[order]
     mults = mults[order]
     #

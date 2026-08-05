@@ -34,10 +34,12 @@ from ..symmetries import (
     Leg,
     LegPipe,
     Sector,
+    SectorArray,
     Space,
     Symmetry,
     SymmetryError,
     TensorProduct,
+    rows_equal,
 )
 from ..tools.misc import (
     duplicate_entries,
@@ -1335,7 +1337,7 @@ class SymmetricTensor(Tensor):
         dtype = cls._parse_default_dtype(dtype, symmetry=co_domain.symmetry)
 
         def func(shape: tuple[int, ...], coupled: Sector):
-            if np.all(coupled == sector):
+            if coupled == sector:
                 return backend.block_backend.eye_block([*shape[: len(shape) // 2]], dtype=dtype, device=device)
             return backend.block_backend.zeros(shape, dtype=dtype, device=device)
 
@@ -1399,7 +1401,7 @@ class SymmetricTensor(Tensor):
         X_are_dual = np.array([l.is_dual for l in codomain], bool)
         Y_are_dual = np.array([l.is_dual for l in domain])
         for X, Y in trees.keys():
-            assert np.all(X.coupled == Y.coupled)
+            assert X.coupled == Y.coupled
             assert np.all(X.are_dual == X_are_dual)
             assert np.all(Y.are_dual == Y_are_dual)
             block = trees[X, Y]
@@ -3373,7 +3375,9 @@ class ChargedTensor(Tensor):
         elif isinstance(charge, (Space, Leg)):
             raise TypeError('Invalid type for charge. Expected ElementarySpace or sector')
         else:
-            charge = ElementarySpace(domain.symmetry, np.asarray(charge, int)[None, :])
+            if not isinstance(charge, Sector):
+                charge = Sector(np.asarray(charge, int))
+            charge = ElementarySpace(domain.symmetry, SectorArray.from_sector(charge))
         return domain.left_multiply(charge), charge
 
     @staticmethod
@@ -3612,7 +3616,10 @@ class ChargedTensor(Tensor):
         """Convert to symmetric tensor, if possible."""
         if warning is not None:
             warnings.warn(warning, UserWarning, stacklevel=2)
-        if not np.all(self.charge_leg.sector_decomposition == self.symmetry.trivial_sector[None, :]):
+        if (
+            len(self.charge_leg.sector_decomposition) != 1
+            or self.charge_leg.sector_decomposition[0] != self.symmetry.trivial_sector
+        ):
             raise SymmetryError('Not a symmetric tensor')
         if self.charge_leg.dim == 1:
             res = squeeze_legs(self.invariant_part, -1)
@@ -5158,7 +5165,7 @@ def is_scalar(obj):
             return False
         if obj.codomain.num_sectors != 1:
             return False
-        if not np.all(obj.domain.sector_decomposition == obj.codomain.sector_decomposition):
+        if not rows_equal(obj.domain.sector_decomposition, obj.codomain.sector_decomposition):
             return False
         if not np.all(obj.domain.multiplicities == 1):
             return False
@@ -7168,7 +7175,7 @@ def _convert_abelian_to_FT(tensor: SymmetricTensor, backend: FusionTreeBackend, 
             b_sectors = [leg.sector_decomposition[i] for leg, i in zip(tensor.domain, dom_sector_idcs)]
             b_mults = [leg.multiplicities[i] for leg, i in zip(tensor.domain, dom_sector_idcs)]
             c = tensor.symmetry.multiple_fusion(*b_sectors)
-            if not np.all(c == tensor.symmetry.trivial_sector):
+            if c != tensor.symmetry.trivial_sector:
                 continue
             tree_block_width = np.prod(b_mults, dtype=int)
             ab_block_inds = np.array([*reversed(dom_sector_idcs)])
@@ -7192,7 +7199,7 @@ def _convert_abelian_to_FT(tensor: SymmetricTensor, backend: FusionTreeBackend, 
             a_sectors = [leg.sector_decomposition[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
             a_mults = [leg.multiplicities[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
             c = tensor.symmetry.multiple_fusion(*a_sectors)
-            if not np.all(c == tensor.symmetry.trivial_sector):
+            if c != tensor.symmetry.trivial_sector:
                 continue
             tree_block_height = np.prod(a_mults, dtype=int)
             ab_block_inds = np.array(cod_sector_idcs)
@@ -7230,7 +7237,7 @@ def _convert_abelian_to_FT(tensor: SymmetricTensor, backend: FusionTreeBackend, 
                 a_mults = [leg.multiplicities[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
                 c2 = tensor.symmetry.multiple_fusion(*a_sectors)
                 tree_block_height = np.prod(a_mults, dtype=int)
-                if not np.all(c2 == c):
+                if c2 != c:
                     continue  # sector combination violates fusion rules -> no contributions
 
                 ab_block_inds = np.array([*cod_sector_idcs, *reversed(dom_sector_idcs)])
@@ -7291,7 +7298,7 @@ def _convert_FT_to_abelian(tensor: SymmetricTensor, backend: FusionTreeBackend, 
             b_sectors = [leg.sector_decomposition[i] for leg, i in zip(tensor.domain, dom_sector_idcs)]
             b_mults = [leg.multiplicities[i] for leg, i in zip(tensor.domain, dom_sector_idcs)]
             c = tensor.symmetry.multiple_fusion(*b_sectors)
-            if not np.all(c == tensor.symmetry.trivial_sector):
+            if c != tensor.symmetry.trivial_sector:
                 continue  # fusion rule violated
             ft_bi = tensor.data.block_ind_from_coupled(c, tensor.domain)
             if ft_bi is None:
@@ -7312,7 +7319,7 @@ def _convert_FT_to_abelian(tensor: SymmetricTensor, backend: FusionTreeBackend, 
             a_sectors = [leg.sector_decomposition[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
             a_mults = [leg.multiplicities[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
             c = tensor.symmetry.multiple_fusion(*a_sectors)
-            if not np.all(c == tensor.symmetry.trivial_sector):
+            if c != tensor.symmetry.trivial_sector:
                 continue  # fusion rule violated
             ft_bi = tensor.data.block_ind_from_coupled(c, tensor.domain)
             if ft_bi is None:
@@ -7346,7 +7353,7 @@ def _convert_FT_to_abelian(tensor: SymmetricTensor, backend: FusionTreeBackend, 
                 a_mults = [leg.multiplicities[i] for leg, i in zip(tensor.codomain, cod_sector_idcs)]
                 c2 = tensor.symmetry.multiple_fusion(*a_sectors)
                 tree_block_height = np.prod(a_mults, dtype=int)
-                if not np.all(c2 == c):
+                if c2 != c:
                     continue  # sector combination violates fusion rules -> no contributions
                 tree_block = tensor.data.blocks[ft_bi][i1 : i1 + tree_block_height, i2 : i2 + tree_block_width]
                 ab_block = tensor.backend.block_backend.split_legs(

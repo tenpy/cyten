@@ -92,13 +92,15 @@ bind_symmetry(py::module_& m)
       .def(
         "is_valid_sector",
         [](Symmetry const& self, py::object a) {
-            // Match Python: only ndarrays are candidates (lists/scalars → False).
+            if (py::isinstance<Sector>(a)) {
+                return self.is_valid_sector(a.cast<Sector>());
+            }
             if (!py::isinstance<py::array>(a)) {
                 return false;
             }
             try {
-                return self.is_valid_sector(py::cast<Sector>(a));
-            } catch (py::cast_error const&) {
+                return self.is_valid_sector(sector_from_numpy(a));
+            } catch (...) {
                 return false;
             }
         },
@@ -112,12 +114,15 @@ bind_symmetry(py::module_& m)
       .def(
         "are_valid_sectors",
         [](Symmetry const& self, py::object sectors) {
+            if (py::isinstance<SectorArray>(sectors)) {
+                return self.are_valid_sectors(sectors.cast<SectorArray>());
+            }
             if (!py::isinstance<py::array>(sectors)) {
                 return false;
             }
             try {
-                return self.are_valid_sectors(py::cast<SectorArray>(sectors));
-            } catch (py::cast_error const&) {
+                return self.are_valid_sectors(sector_array_from_numpy(sectors));
+            } catch (...) {
                 return false;
             }
         },

@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import numpy as np
-from numpy import typing as npt
 
 # implemented in C++
 from .._core import (
@@ -24,7 +23,7 @@ from .._core import (
     IsingAnyonCategory,  # noqa: F401
     NoSymmetry,  # noqa: F401
     QuantumDoubleZNAnyonCategory,  # noqa: F401
-    Sector,  # noqa: F401  — HDF5-exportable; public API still uses NumPy ndarrays
+    Sector,  # noqa: F401
     SectorArray,  # noqa: F401
     SU2_kAnyonCategory,  # noqa: F401
     SU3_3AnyonCategory,  # noqa: F401
@@ -34,8 +33,23 @@ from .._core import (
     ToricCodeCategory,  # noqa: F401
     ZNAnyonCategory,  # noqa: F401
     ZNAnyonCategory2,  # noqa: F401
+    concat_sector_arrays,  # noqa: F401
+    find_row_differences,  # noqa: F401
+    lexsort_indices,  # noqa: F401
+    repeat_row,  # noqa: F401
+    row_where,  # noqa: F401
+    rows_equal,  # noqa: F401
+    sector_array_from_sector,  # noqa: F401
+    sorted_sectors,  # noqa: F401
+    unique_sorted_sectors,  # noqa: F401
 )
 from ..tools.misc import as_immutable_array
+from .sector_utils import (  # noqa: F401
+    as_sector,
+    as_sector_array,
+    assert_sectors_equal,
+    iter_common_sorted_sector_arrays,
+)
 
 try:
     import h5py
@@ -63,15 +77,6 @@ def _default_c_symbol(sym, a, b, c, d, e, f):
     F = sym._f_symbol(c, a, b, d, e, f)
     R2 = sym._r_symbol(a, c, f)
     return R1.reshape(1, -1, 1, 1) * F * np.conj(R2).reshape(1, 1, -1, 1)
-
-
-# Public typing aliases (runtime values at the Python boundary are still NumPy ndarrays
-# via pybind type casters; ``Sector`` / ``SectorArray`` from ``_core`` are for HDF5).
-SectorNDArray = npt.NDArray[np.int_]
-"""Type hint for a sector ndarray. Shape ``(sector_ind_len,)``."""
-
-SectorArrayNDArray = npt.NDArray[np.int_]
-"""Type hint for a sector-array ndarray. Shape ``(num_sectors, sector_ind_len)``."""
 
 
 no_symmetry = NoSymmetry().as_Symmetry()
