@@ -3052,6 +3052,7 @@ def test_permute_legs(
     assert tensors.almost_equal(res2, T, allow_different_types=True)
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, dom, cod, new_leg_dual',
     [
@@ -3064,25 +3065,61 @@ def test_permute_legs(
         pytest.param(DiagonalTensor, 1, 1, True, id='Diag-True'),
         pytest.param(Mask, 1, 1, False, id='Mask-False'),
         pytest.param(Mask, 1, 1, True, id='Mask-True'),
+        pytest.param(ChargedTensor, 1, 1, False, id='Charged-1-1-False'),
+        pytest.param(ChargedTensor, 1, 1, True, id='Charged-1-1-True'),
+        pytest.param(ChargedTensor, 2, 1, False, id='Charged-2-1-False'),
+        pytest.param(ChargedTensor, 1, 2, False, id='Charged-1-2-True'),
     ],
 )
 def test_qr_lq(cls, dom, cod, new_leg_dual, make_compatible_tensor):
     T_labels = list('efghijk')[: dom + cod]
     T: Tensor = make_compatible_tensor(dom, cod, cls=cls, labels=T_labels)
 
-    Q, R = tensors.qr(T, new_leg_dual=new_leg_dual)
+    Q, R = tensors.qr(T, new_leg_dual=new_leg_dual, charge_leg_top=True)
     Q.test_sanity()
     R.test_sanity()
     assert tensors.almost_equal(Q @ R, T, allow_different_types=True)
     eye = tensors.SymmetricTensor.from_eye(Q.domain, backend=T.backend)
     assert tensors.almost_equal(Q.hc @ Q, eye, allow_different_types=True)
 
-    L, Q2 = tensors.lq(T, new_leg_dual=new_leg_dual)
+    if isinstance(T, ChargedTensor):
+        assert isinstance(R, ChargedTensor)
+        assert isinstance(Q, SymmetricTensor)
+        # for charge_leg_top = True above; for charge_leg_top = False below
+
+        Q, R = tensors.qr(T, new_leg_dual=new_leg_dual, charge_leg_top=False)
+        Q.test_sanity()
+        R.test_sanity()
+        assert isinstance(Q, ChargedTensor)
+        assert isinstance(R, SymmetricTensor)
+        assert tensors.almost_equal(Q @ R, T, allow_different_types=True)
+        Q_iso = tensors.move_leg(Q.invariant_part, Q._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
+        # different position of charge_leg -> different total charges -> different eye
+        eye = tensors.SymmetricTensor.from_eye(Q_iso.domain, backend=T.backend)
+        assert tensors.almost_equal((Q_iso.hc @ Q_iso), eye, allow_different_types=True)
+
+    L, Q2 = tensors.lq(T, new_leg_dual=new_leg_dual, charge_leg_top=False)
     L.test_sanity()
     Q2.test_sanity()
     assert tensors.almost_equal(L @ Q2, T, allow_different_types=True)
     eye = tensors.SymmetricTensor.from_eye(Q2.codomain, backend=T.backend)
     assert tensors.almost_equal(Q2 @ Q2.hc, eye, allow_different_types=True)
+
+    if isinstance(T, ChargedTensor):
+        assert isinstance(L, ChargedTensor)
+        assert isinstance(Q2, SymmetricTensor)
+        # for charge_leg_top = False above; for charge_leg_top = True below
+
+        L, Q2 = tensors.lq(T, new_leg_dual=new_leg_dual, charge_leg_top=True)
+        L.test_sanity()
+        Q2.test_sanity()
+        assert isinstance(Q2, ChargedTensor)
+        assert isinstance(L, SymmetricTensor)
+        assert tensors.almost_equal(L @ Q2, T, allow_different_types=True)
+        Q2_iso = Q2.invariant_part
+        # compose does not contract the charge legs, which we do contract for the isometry
+        eye = tensors.SymmetricTensor.from_eye(Q2_iso.codomain, backend=T.backend)
+        assert tensors.almost_equal(Q2_iso @ Q2_iso.hc, eye, allow_different_types=True)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases
@@ -3242,6 +3279,7 @@ def test_squeeze_legs(make_compatible_tensor, compatible_symmetry):
         return  # TODO  Need to re-design checks, cant use .to_numpy() etc
 
 
+@pytest.mark.deselect_invalid_ChargedTensor_cases
 @pytest.mark.parametrize(
     'cls, dom, cod, new_leg_dual',
     [
@@ -3254,6 +3292,10 @@ def test_squeeze_legs(make_compatible_tensor, compatible_symmetry):
         pytest.param(DiagonalTensor, 1, 1, True, id='Diag-True'),
         pytest.param(Mask, 1, 1, False, id='Mask-False'),
         pytest.param(Mask, 1, 1, True, id='Mask-True'),
+        pytest.param(ChargedTensor, 1, 1, False, id='Charged-1-1-False'),
+        pytest.param(ChargedTensor, 1, 1, True, id='Charged-1-1-True'),
+        pytest.param(ChargedTensor, 2, 1, False, id='Charged-2-1-False'),
+        pytest.param(ChargedTensor, 1, 2, False, id='Charged-1-2-True'),
     ],
 )
 def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
@@ -3279,12 +3321,49 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
 
     assert isinstance(S, DiagonalTensor)
     assert (S >= 0).all()
-    npt.assert_almost_equal(tensors.norm(S), tensors.norm(T))
+    if isinstance(T, ChargedTensor) and T.charged_state is None:
+        # norm of ChargedTensor needs charged_state
+        npt.assert_almost_equal(tensors.norm(S), tensors.norm(T.invariant_part))
+    else:
+        npt.assert_almost_equal(tensors.norm(S), tensors.norm(T))
 
     assert tensors.almost_equal(U @ S @ Vh, T, allow_different_types=True)
     eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
     assert tensors.almost_equal(U.hc @ U, eye, allow_different_types=True)
-    assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
+    if isinstance(Vh, ChargedTensor):
+        # need to contract charge_leg
+        assert tensors.almost_equal(Vh.invariant_part @ Vh.invariant_part.hc, eye, allow_different_types=True)
+    else:
+        assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
+
+    if isinstance(T, ChargedTensor):
+        assert isinstance(Vh, ChargedTensor)
+        assert isinstance(U, SymmetricTensor)
+
+        # for charge_leg_top = True above; for charge_leg_top = False below
+        U, S, Vh = tensors.svd(T, new_labels=['a', 'b', 'c', 'd'], new_leg_dual=new_leg_dual, charge_leg_top=False)
+        U.test_sanity()
+        S.test_sanity()
+        Vh.test_sanity()
+        assert U.labels == [*T.codomain_labels, 'a']
+        assert S.labels == ['b', 'c']
+        assert Vh.labels == ['d', *reversed(T.domain_labels)]
+
+        assert isinstance(S, DiagonalTensor)
+        assert (S >= 0).all()
+        if T.charged_state is None:
+            npt.assert_almost_equal(tensors.norm(S), tensors.norm(T.invariant_part))
+        else:
+            npt.assert_almost_equal(tensors.norm(S), tensors.norm(T))
+
+        assert isinstance(U, ChargedTensor)
+        assert isinstance(Vh, SymmetricTensor)
+
+        assert tensors.almost_equal(U @ S @ Vh, T, allow_different_types=True)
+        eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
+        U_iso = tensors.move_leg(U.invariant_part, U._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
+        assert tensors.almost_equal(U_iso.hc @ U_iso, eye, allow_different_types=True)
+        assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
 
     if isinstance(T.backend, backends.FusionTreeBackend) and T.has_pipes:
         with pytest.raises(NotImplementedError, match='_mask_contract does not support pipes yet'):
@@ -3301,11 +3380,42 @@ def test_svd(cls, dom, cod, new_leg_dual, make_compatible_tensor):
         Vh.test_sanity()
         # check that U @ S @ Vd recovers the original tensor up to the error incurred
         T_approx = U @ S @ Vh / renormalize
-        npt.assert_almost_equal(err, tensors.norm(T.as_SymmetricTensor() - T_approx))
+        if isinstance(T, ChargedTensor) and T.charged_state is None:
+            npt.assert_almost_equal(err, tensors.norm(T.invariant_part - T_approx.invariant_part))
+        elif isinstance(T, ChargedTensor):
+            npt.assert_almost_equal(err, tensors.norm(T - T_approx))
+        else:
+            npt.assert_almost_equal(err, tensors.norm(T.as_SymmetricTensor() - T_approx))
         # check isometric properties
         eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
         assert tensors.almost_equal(U.hc @ U, eye, allow_different_types=True)
-        assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
+        if isinstance(Vh, ChargedTensor):
+            assert tensors.almost_equal(Vh.invariant_part @ Vh.invariant_part.hc, eye, allow_different_types=True)
+        else:
+            assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
+
+        if isinstance(T, ChargedTensor):
+            assert isinstance(Vh, ChargedTensor)
+            assert isinstance(U, SymmetricTensor)
+
+            # for charge_leg_top = True above; for charge_leg_top = False below
+            U, S, Vh, err, renormalize = tensors.truncated_svd(
+                T, new_leg_dual=new_leg_dual, normalize_to=normalize_to, svd_min=svd_min, charge_leg_top=False
+            )
+            U.test_sanity()
+            S.test_sanity()
+            Vh.test_sanity()
+            assert isinstance(U, ChargedTensor)
+            assert isinstance(Vh, SymmetricTensor)
+            T_approx = U @ S @ Vh / renormalize
+            if T.charged_state is None:
+                npt.assert_almost_equal(err, tensors.norm(T.invariant_part - T_approx.invariant_part))
+            else:
+                npt.assert_almost_equal(err, tensors.norm(T - T_approx))
+            eye = tensors.SymmetricTensor.from_eye(S.domain, backend=T.backend)
+            U_iso = tensors.move_leg(U.invariant_part, U._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
+            assert tensors.almost_equal(U_iso.hc @ U_iso, eye, allow_different_types=True)
+            assert tensors.almost_equal(Vh @ Vh.hc, eye, allow_different_types=True)
 
 
 @pytest.mark.deselect_invalid_ChargedTensor_cases(

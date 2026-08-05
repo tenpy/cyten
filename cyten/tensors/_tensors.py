@@ -4688,15 +4688,13 @@ def compose(
     if isinstance(tensor2, DiagonalTensor):
         return scale_axis(tensor1, tensor2, -1).set_labels(res_labels)
 
-    if isinstance(tensor1, ChargedTensor) or isinstance(tensor2, ChargedTensor):
-        # OPTIMIZE dedicated implementation?
-        return tdot(
-            tensor1,
-            tensor2,
-            list(reversed(range(tensor1.num_codomain_legs, tensor1.num_legs))),
-            list(range(tensor2.num_codomain_legs)),
-            relabel1=relabel1,
-            relabel2=relabel2,
+    if isinstance(tensor1, ChargedTensor):
+        return partial_compose(tensor1, tensor2, tensor1.num_codomain_legs, relabel1=relabel1, relabel2=relabel2)
+    if isinstance(tensor2, ChargedTensor):
+        # only tensor2 is ChargedTensor
+        return ChargedTensor(
+            compose(tensor1, tensor2.invariant_part, relabel1=relabel1, relabel2=relabel2),
+            charged_state=tensor2.charged_state,
         )
 
     return _compose_SymmetricTensors(tensor1, tensor2, relabel1=relabel1, relabel2=relabel2)
@@ -5499,6 +5497,39 @@ def partial_compose(
     compose, tdot, apply_mask, scale_axis
 
     """
+    # do these cases first since the charged_legs do not count towards the num_domain_legs
+    # in ChargedTensors, but we need them for the consistency checks below
+    if isinstance(tensor1, ChargedTensor) and isinstance(tensor2, ChargedTensor):
+        if (tensor1.charged_state is None) != (tensor2.charged_state is None):
+            raise ValueError('Mismatched: specified and unspecified ChargedTensor.charged_state')
+        c = ChargedTensor._CHARGE_LEG_LABEL
+        c1 = c + '1'
+        c2 = c + '2'
+        relabel1 = {c: c1} if relabel1 is None else {**relabel1, c: c1}
+        relabel2 = {c: c2} if relabel2 is None else {**relabel2, c: c2}
+        inv_part = tensor2.invariant_part
+        if tensor1_first_leg < tensor1.num_codomain_legs:
+            # need to bend down charge leg first
+            inv_part = move_leg(inv_part, c, codomain_pos=tensor2.num_codomain_legs - 1, bend_right=True)
+        inv_part = partial_compose(tensor1.invariant_part, inv_part, tensor1_first_leg, relabel1, relabel2)
+        # domain_pos 1 since domain_pos 0 would mean braiding with c1
+        inv_part = move_leg(inv_part, c2, domain_pos=1, bend_right=True)
+        return ChargedTensor.from_two_charge_legs(inv_part, state1=tensor1.charged_state, state2=tensor2.charged_state)
+    if isinstance(tensor1, ChargedTensor):
+        inv_part = partial_compose(tensor1.invariant_part, tensor2, tensor1_first_leg, relabel1, relabel2)
+        return ChargedTensor.from_invariant_part(inv_part, tensor1.charged_state)
+    if isinstance(tensor2, ChargedTensor):
+        inv_part = tensor2.invariant_part
+        print(tensor1_first_leg, tensor1.num_codomain_legs)
+        if tensor1_first_leg < tensor1.num_codomain_legs:
+            # need to bend down charge leg first
+            inv_part = move_leg(
+                inv_part, ChargedTensor._CHARGE_LEG_LABEL, codomain_pos=tensor2.num_codomain_legs - 1, bend_right=True
+            )
+        inv_part = partial_compose(tensor1, inv_part, tensor1_first_leg, relabel1, relabel2)
+        inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0, bend_right=True)
+        return ChargedTensor.from_invariant_part(inv_part, tensor2.charged_state)
+
     _ = get_same_device(tensor1, tensor2)
     tensor1_first_leg = tensor1.get_leg_idcs(tensor1_first_leg)[0]
 
@@ -5567,36 +5598,6 @@ def partial_compose(
 
     if isinstance(tensor2, DiagonalTensor):
         return scale_axis(tensor1, tensor2, tensor1_first_leg).set_labels(res_labels)
-
-    if isinstance(tensor1, ChargedTensor) and isinstance(tensor2, ChargedTensor):
-        if (tensor1.charged_state is None) != (tensor2.charged_state is None):
-            raise ValueError('Mismatched: specified and unspecified ChargedTensor.charged_state')
-        c = ChargedTensor._CHARGE_LEG_LABEL
-        c1 = c + '1'
-        c2 = c + '2'
-        relabel1 = {c: c1} if relabel1 is None else {**relabel1, c: c1}
-        relabel2 = {c: c2} if relabel2 is None else {**relabel2, c: c2}
-        inv_part = tensor2.invariant_part
-        if tensor1_first_leg < tensor1.num_codomain_legs:
-            # need to bend down charge leg first
-            inv_part = move_leg(inv_part, c, codomain_pos=tensor2.num_codomain_legs - 1, bend_right=True)
-        inv_part = partial_compose(tensor1.invariant_part, inv_part, tensor1_first_leg, relabel1, relabel2)
-        # domain_pos 1 since domain_pos 0 would mean braiding with c1
-        inv_part = move_leg(inv_part, c2, domain_pos=1, bend_right=True)
-        return ChargedTensor.from_two_charge_legs(inv_part, state1=tensor1.charged_state, state2=tensor2.charged_state)
-    if isinstance(tensor1, ChargedTensor):
-        inv_part = partial_compose(tensor1.invariant_part, tensor2, tensor1_first_leg, relabel1, relabel2)
-        return ChargedTensor.from_invariant_part(inv_part, tensor1.charged_state)
-    if isinstance(tensor2, ChargedTensor):
-        inv_part = tensor2.invariant_part
-        if tensor1_first_leg < tensor1.num_codomain_legs:
-            # need to bend down charge leg first
-            inv_part = move_leg(
-                inv_part, ChargedTensor._CHARGE_LEG_LABEL, codomain_pos=tensor2.num_codomain_legs - 1, bend_right=True
-            )
-        inv_part = partial_compose(tensor1, inv_part, tensor1_first_leg, relabel1, relabel2)
-        inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0, bend_right=True)
-        return ChargedTensor.from_invariant_part(inv_part, tensor2.charged_state)
 
     backend = get_same_backend(tensor1, tensor2)
     data = backend.partial_compose(tensor1, tensor2, tensor1_first_leg, new_codomain, new_domain)
@@ -5900,7 +5901,9 @@ def pinv(tensor: Tensor, cutoff=1e-15) -> Tensor:
     return dagger(U @ cutoff_inverse(S, cutoff=cutoff) @ Vh)
 
 
-def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = False) -> tuple[Tensor, Tensor]:
+def qr(
+    tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = False, charge_leg_top: bool = True
+) -> tuple[Tensor, Tensor]:
     """The QR decomposition of a tensor.
 
     A :ref:`tensor decomposition <decompositions>` ``tensor ~ Q @ R`` with the following
@@ -5933,8 +5936,25 @@ def qr(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
         and ``R.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
     new_leg_dual: bool
         If the new leg should be a ket space (``False``) or bra space (``True``).
+    charge_leg_top: bool
+        Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
+        top tensor ``R`` (``True``) or the bottom tensor ``Q`` (``False``). The corresponding
+        tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
+        `ChargedTensor`.
 
     """
+    if isinstance(tensor, ChargedTensor):
+        inv_part = tensor.invariant_part
+        if not charge_leg_top:
+            inv_part = move_leg(inv_part, tensor._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
+        Q, R = qr(inv_part, new_labels, new_leg_dual)
+        if charge_leg_top:
+            R = ChargedTensor(R, tensor.charged_state)
+        else:
+            Q = move_leg(Q, tensor._CHARGE_LEG_LABEL, domain_pos=0, bend_right=False)
+            Q = ChargedTensor(Q, tensor.charged_state)
+        return Q, R
+
     a, b = _decomposition_labels(new_labels)
     tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
     q_data, r_data = tensor.backend.qr(tensor, new_co_domain=new_co_domain)
@@ -5981,7 +6001,9 @@ def real_if_close[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType,
     return np.real_if_close(x, tol=tol)
 
 
-def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = False) -> tuple[Tensor, Tensor]:
+def lq(
+    tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = False, charge_leg_top: bool = True
+) -> tuple[Tensor, Tensor]:
     """The LQ decomposition of a tensor.
 
     A :ref:`tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
@@ -6014,8 +6036,25 @@ def lq(tensor: Tensor, new_labels: str | list[str] = None, new_leg_dual: bool = 
         and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
     new_leg_dual: bool
         If the new leg should be a ket space (``False``) or bra space (``True``).
+    charge_leg_top: bool
+        Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
+        top tensor ``Q`` (``True``) or the bottom tensor ``L`` (``False``). The corresponding
+        tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
+        `ChargedTensor`.
 
     """
+    if isinstance(tensor, ChargedTensor):
+        inv_part = tensor.invariant_part
+        if not charge_leg_top:
+            inv_part = move_leg(inv_part, tensor._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
+        L, Q = lq(inv_part, new_labels, new_leg_dual)
+        if charge_leg_top:
+            Q = ChargedTensor(Q, tensor.charged_state)
+        else:
+            L = move_leg(L, tensor._CHARGE_LEG_LABEL, domain_pos=0, bend_right=False)
+            L = ChargedTensor(L, tensor.charged_state)
+        return L, Q
+
     a, b = _decomposition_labels(new_labels)
     tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
     l_data, q_data = tensor.backend.lq(tensor, new_co_domain=new_co_domain)
@@ -6301,6 +6340,7 @@ def svd(
     tensor: Tensor,
     new_labels: str | list[str] | None = None,
     new_leg_dual: bool = False,
+    charge_leg_top: bool = True,
     algorithm: str | None = None,
 ) -> tuple[Tensor, DiagonalTensor, Tensor]:
     """The singular value decomposition (SVD) of a tensor.
@@ -6349,17 +6389,34 @@ def svd(
         The new legs are unlabelled by default.
     new_leg_dual: bool
         If the new leg should be a ket space (``False``) or bra space (``True``).
+    charge_leg_top: bool
+        Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
+        top tensor ``Vh`` (``True``) or the bottom tensor ``U`` (``False``). The corresponding
+        tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
+        `ChargedTensor`.
     algorithm: str, optional
         The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
         See :meth:`~cyten.block_backends.BlockBackend.possible_svd_algorithms`.
 
     Returns
     -------
-    U: SymmetricTensor
+    U: SymmetricTensor | ChargedTensor
     S: DiagonalTensor
-    Vh: SymmetricTensor
+    Vh: SymmetricTensor | ChargedTensor
 
     """
+    if isinstance(tensor, ChargedTensor):
+        inv_part = tensor.invariant_part
+        if not charge_leg_top:
+            inv_part = move_leg(inv_part, tensor._CHARGE_LEG_LABEL, codomain_pos=0, bend_right=False)
+        U, S, Vh = svd(inv_part, new_labels, new_leg_dual, algorithm)
+        if charge_leg_top:
+            Vh = ChargedTensor(Vh, tensor.charged_state)
+        else:
+            U = move_leg(U, tensor._CHARGE_LEG_LABEL, domain_pos=0, bend_right=False)
+            U = ChargedTensor(U, tensor.charged_state)
+        return U, S, Vh
+
     a, b, c, d = _svd_new_labels(new_labels)
     tensor, new_co_domain, combine_codomain, combine_domain = _decomposition_prepare(tensor, new_leg_dual)
     u_data, s_data, vh_data = tensor.backend.svd(tensor, new_co_domain=new_co_domain, algorithm=algorithm)
@@ -6387,8 +6444,8 @@ def svd(
 
 
 def svd_apply_mask(
-    U: SymmetricTensor, S: DiagonalTensor, Vh: SymmetricTensor, mask: Mask
-) -> tuple[SymmetricTensor, DiagonalTensor, SymmetricTensor]:
+    U: SymmetricTensor | ChargedTensor, S: DiagonalTensor, Vh: SymmetricTensor | ChargedTensor, mask: Mask
+) -> tuple[SymmetricTensor | ChargedTensor, DiagonalTensor, SymmetricTensor | ChargedTensor]:
     """Truncate an existing SVD"""
     assert mask.is_projection
     assert mask.domain[0] == S.domain[0]
@@ -6979,6 +7036,7 @@ def truncated_svd(
     tensor: Tensor,
     new_labels: str | list[str] | None = None,
     new_leg_dual: bool = False,
+    charge_leg_top: bool = True,
     algorithm: str | None = None,
     normalize_to: float = None,
     chi_max: int = None,
@@ -6991,7 +7049,7 @@ def truncated_svd(
 
     Parameters
     ----------
-    tensor, new_labels, new_leg_dual, algorithm
+    tensor, new_labels, new_leg_dual, charge_leg_top, algorithm
         Same as for the non-truncated :func:`svd`.
     normalize_to: float or None
         If ``None`` (default), the resulting singular values are not renormalized,
@@ -7017,7 +7075,9 @@ def truncated_svd(
     svd
 
     """
-    U, S, Vh = svd(tensor, new_labels=new_labels, new_leg_dual=new_leg_dual, algorithm=algorithm)
+    U, S, Vh = svd(
+        tensor, new_labels=new_labels, new_leg_dual=new_leg_dual, charge_leg_top=charge_leg_top, algorithm=algorithm
+    )
     S_norm = norm(S)
     mask, err, new_norm = truncate_singular_values(
         S / S_norm,
