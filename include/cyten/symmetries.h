@@ -13,3 +13,4 @@
 #include "symmetries/styles.h"
 #include "symmetries/symmetry.h"
 #include "symmetries/symmetry_factor.h"
+#include "symmetries/trees.h"
