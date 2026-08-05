@@ -216,34 +216,71 @@ iterate_complex2d(py::array const& arr2d,
     }
 }
 
-std::vector<std::vector<char>>
-make_char_grid(std::size_t cols, std::size_t rows, char fill = ' ')
+std::vector<std::vector<std::string>>
+make_char_grid(std::size_t cols, std::size_t rows, std::string fill = " ")
 {
-    return std::vector<std::vector<char>>(cols, std::vector<char>(rows, fill));
+    return std::vector<std::vector<std::string>>(cols, std::vector<std::string>(rows, fill));
+}
+
+/// Advance one UTF-8 codepoint; returns byte length (1–4), or 1 on invalid input.
+std::size_t
+utf8_codepoint_len(std::string_view s, std::size_t pos)
+{
+    if (pos >= s.size()) {
+        return 0;
+    }
+    auto const c = static_cast<unsigned char>(s[pos]);
+    if ((c & 0x80u) == 0) {
+        return 1;
+    }
+    if ((c & 0xE0u) == 0xC0u) {
+        return 2;
+    }
+    if ((c & 0xF0u) == 0xE0u) {
+        return 3;
+    }
+    if ((c & 0xF8u) == 0xF0u) {
+        return 4;
+    }
+    return 1;
 }
 
 void
-write_string_to_col(std::vector<std::vector<char>>& grid,
+write_string_to_col(std::vector<std::vector<std::string>>& grid,
                     std::size_t col_start,
                     std::size_t row,
                     std::string_view s)
 {
-    for (std::size_t k = 0; k < s.size(); ++k) {
-        grid[col_start + k][row] = s[k];
+    std::size_t col = col_start;
+    for (std::size_t pos = 0; pos < s.size();) {
+        auto const n = utf8_codepoint_len(s, pos);
+        assert(col < grid.size());
+        assert(row < grid[col].size());
+        grid[col][row] = std::string(s.substr(pos, n));
+        pos += n;
+        ++col;
     }
 }
 
 void
-reverse_cols(std::vector<std::vector<char>>& grid)
+set_cell(std::vector<std::vector<std::string>>& grid, std::size_t col, std::size_t row, std::string_view s)
+{
+    assert(col < grid.size());
+    assert(row < grid[col].size());
+    grid[col][row] = std::string(s);
+}
+
+void
+reverse_cols(std::vector<std::vector<std::string>>& grid)
 {
     std::reverse(grid.begin(), grid.end());
 }
 
-std::vector<std::vector<char>>
-prepend_rows(std::vector<std::vector<char>> const& extra_left,
-             std::vector<std::vector<char>> const& ascii)
+std::vector<std::vector<std::string>>
+prepend_rows(std::vector<std::vector<std::string>> const& extra_left,
+             std::vector<std::vector<std::string>> const& ascii)
 {
-    std::vector<std::vector<char>> out;
+    std::vector<std::vector<std::string>> out;
     out.reserve(extra_left.size() + ascii.size());
     out.insert(out.end(), extra_left.begin(), extra_left.end());
     out.insert(out.end(), ascii.begin(), ascii.end());
@@ -251,7 +288,7 @@ prepend_rows(std::vector<std::vector<char>> const& extra_left,
 }
 
 std::string
-ascii_grid_to_string(std::vector<std::vector<char>> const& grid)
+ascii_grid_to_string(std::vector<std::vector<std::string>> const& grid)
 {
     if (grid.empty()) {
         return {};
@@ -482,7 +519,7 @@ FusionTree::operator<(FusionTree const& other) const
     return multiplicities < other.multiplicities;
 }
 
-std::vector<std::vector<char>>
+std::vector<std::vector<std::string>>
 FusionTree::ascii_diagram_chars(bool dagger,
                                 int uncoupled_padding,
                                 int inner_sector_padding) const
@@ -502,35 +539,48 @@ FusionTree::ascii_diagram_chars(bool dagger,
         pre_Z_uncoupled_strs.push_back(symmetry->sector_str(pre_Z[i]));
     }
 
-    for (auto& s : uncoupled_strs) {
-        if (s.size() < 2) {
-            s.insert(s.begin(), 2 - s.size(), ' ');
+    // Pad single-character labels to width 2 (same as Python rjust(2)).
+    auto utf8_len = [](std::string_view s) {
+        std::size_t n = 0;
+        for (std::size_t pos = 0; pos < s.size();) {
+            auto const cp = utf8_codepoint_len(s, pos);
+            pos += cp;
+            ++n;
         }
+        return n;
+    };
+    auto pad_left = [&](std::string s, std::size_t width) {
+        while (utf8_len(s) < width) {
+            s.insert(s.begin(), ' ');
+        }
+        return s;
+    };
+    auto pad_right = [&](std::string s, std::size_t width) {
+        while (utf8_len(s) < width) {
+            s.push_back(' ');
+        }
+        return s;
+    };
+
+    for (auto& s : uncoupled_strs) {
+        s = pad_left(std::move(s), 2);
     }
     for (auto& s : pre_Z_uncoupled_strs) {
-        if (s.size() < 2) {
-            s.insert(s.begin(), 2 - s.size(), ' ');
-        }
+        s = pad_left(std::move(s), 2);
     }
 
     std::vector<std::size_t> uncoupled_widths(num_uncoupled);
     for (std::size_t i = 0; i < num_uncoupled; ++i) {
-        uncoupled_widths[i] = std::max(uncoupled_strs[i].size(), pre_Z_uncoupled_strs[i].size());
-        if (uncoupled_strs[i].size() < uncoupled_widths[i]) {
-            uncoupled_strs[i].append(uncoupled_widths[i] - uncoupled_strs[i].size(), ' ');
-        }
-        if (pre_Z_uncoupled_strs[i].size() < uncoupled_widths[i]) {
-            pre_Z_uncoupled_strs[i].append(uncoupled_widths[i] - pre_Z_uncoupled_strs[i].size(),
-                                           ' ');
-        }
+        uncoupled_widths[i] = std::max(utf8_len(uncoupled_strs[i]), utf8_len(pre_Z_uncoupled_strs[i]));
+        uncoupled_strs[i] = pad_right(std::move(uncoupled_strs[i]), uncoupled_widths[i]);
+        pre_Z_uncoupled_strs[i] =
+          pad_right(std::move(pre_Z_uncoupled_strs[i]), uncoupled_widths[i]);
     }
 
     if (num_uncoupled == 0) {
         std::string const msg = "empty FusionTree";
-        auto grid = make_char_grid(msg.size(), 1);
-        for (std::size_t i = 0; i < msg.size(); ++i) {
-            grid[i][0] = msg[i];
-        }
+        auto grid = make_char_grid(utf8_len(msg), 1);
+        write_string_to_col(grid, 0, 0, msg);
         return grid;
     }
 
@@ -538,13 +588,13 @@ FusionTree::ascii_diagram_chars(bool dagger,
         auto ascii = make_char_grid(uncoupled_widths[0], 5);
         write_string_to_col(ascii, 0, 0, uncoupled_strs[0]);
         if (are_dual[0]) {
-            ascii[1][1] = 'v';
-            ascii[1][2] = 'Z';
-            ascii[1][3] = '^';
+            set_cell(ascii, 1, 1, "v");
+            set_cell(ascii, 1, 2, "Z");
+            set_cell(ascii, 1, 3, "^");
         } else {
-            ascii[1][1] = 'v';
-            write_string_to_col(ascii, 1, 2, "│");
-            ascii[1][3] = 'v';
+            set_cell(ascii, 1, 1, "v");
+            set_cell(ascii, 1, 2, "│");
+            set_cell(ascii, 1, 3, "v");
         }
         write_string_to_col(ascii, 0, 4, pre_Z_uncoupled_strs[0]);
         if (!dagger) {
@@ -583,18 +633,15 @@ FusionTree::ascii_diagram_chars(bool dagger,
     }
 
     for (std::size_t i = 0; i < num_uncoupled; ++i) {
-        int const p = uncoupled_pos[i];
+        auto const p = static_cast<std::size_t>(uncoupled_pos[i]);
         if (are_dual[i]) {
-            ascii[static_cast<std::size_t>(p + 1)][static_cast<std::size_t>(num_rows - 4)] = 'v';
-            ascii[static_cast<std::size_t>(p + 1)][static_cast<std::size_t>(num_rows - 3)] = 'Z';
-            ascii[static_cast<std::size_t>(p + 1)][static_cast<std::size_t>(num_rows - 2)] = '^';
+            set_cell(ascii, p + 1, static_cast<std::size_t>(num_rows - 4), "v");
+            set_cell(ascii, p + 1, static_cast<std::size_t>(num_rows - 3), "Z");
+            set_cell(ascii, p + 1, static_cast<std::size_t>(num_rows - 2), "^");
         } else {
-            ascii[static_cast<std::size_t>(p + 1)][static_cast<std::size_t>(num_rows - 4)] = 'v';
-            write_string_to_col(ascii,
-                                static_cast<std::size_t>(p + 1),
-                                static_cast<std::size_t>(num_rows - 3),
-                                "│");
-            ascii[static_cast<std::size_t>(p + 1)][static_cast<std::size_t>(num_rows - 2)] = 'v';
+            set_cell(ascii, p + 1, static_cast<std::size_t>(num_rows - 4), "v");
+            set_cell(ascii, p + 1, static_cast<std::size_t>(num_rows - 3), "│");
+            set_cell(ascii, p + 1, static_cast<std::size_t>(num_rows - 2), "v");
         }
     }
 
@@ -611,7 +658,7 @@ FusionTree::ascii_diagram_chars(bool dagger,
     int row = num_rows - 1 - num_rows_uncoupled;
     int left_wire = uncoupled_pos[0] + 1;
     auto write_utf8_at = [&](int col, int r, std::string_view s) {
-        write_string_to_col(ascii, static_cast<std::size_t>(col), static_cast<std::size_t>(r), s);
+        set_cell(ascii, static_cast<std::size_t>(col), static_cast<std::size_t>(r), s);
     };
 
     for (std::size_t n = 0; n < num_vertices; ++n) {
@@ -647,13 +694,26 @@ FusionTree::ascii_diagram_chars(bool dagger,
         auto [x, y] = vertex_positions[i];
         std::string const& s = inner_sector_strs[i];
         int const inner_row = y - 1;
-        int const start = x - static_cast<int>(s.size());
+        int const start = x - static_cast<int>(utf8_len(s));
         if (start < 0) {
-            left_overhangs[inner_row] = s.substr(0, static_cast<std::size_t>(-start));
-            write_string_to_col(ascii,
-                                0,
-                                static_cast<std::size_t>(inner_row),
-                                s.substr(static_cast<std::size_t>(-start)));
+            // Split by codepoints for overhang.
+            std::vector<std::string> cps;
+            for (std::size_t pos = 0; pos < s.size();) {
+                auto const n = utf8_codepoint_len(s, pos);
+                cps.emplace_back(s.substr(pos, n));
+                pos += n;
+            }
+            auto const abs_start = static_cast<std::size_t>(-start);
+            std::string overhang;
+            for (std::size_t k = 0; k < abs_start && k < cps.size(); ++k) {
+                overhang += cps[k];
+            }
+            left_overhangs[inner_row] = overhang;
+            std::string rest;
+            for (std::size_t k = abs_start; k < cps.size(); ++k) {
+                rest += cps[k];
+            }
+            write_string_to_col(ascii, 0, static_cast<std::size_t>(inner_row), rest);
         } else {
             write_string_to_col(ascii,
                                 static_cast<std::size_t>(start),
@@ -662,17 +722,17 @@ FusionTree::ascii_diagram_chars(bool dagger,
         }
     }
 
-    std::vector<std::vector<char>> extra_left;
+    std::vector<std::vector<std::string>> extra_left;
     if (!left_overhangs.empty()) {
         std::size_t max_len = 0;
         for (auto const& [r, s] : left_overhangs) {
             (void)r;
-            max_len = std::max(max_len, s.size());
+            max_len = std::max(max_len, utf8_len(s));
         }
         extra_left = make_char_grid(max_len, static_cast<std::size_t>(num_rows));
         for (auto const& [r, extra_s] : left_overhangs) {
             write_string_to_col(extra_left,
-                                max_len - extra_s.size(),
+                                max_len - utf8_len(extra_s),
                                 static_cast<std::size_t>(r),
                                 extra_s);
         }
@@ -683,7 +743,7 @@ FusionTree::ascii_diagram_chars(bool dagger,
             auto [x, y] = vertex_positions[i];
             std::string mult = std::to_string(multiplicities[i]);
             if (mult.size() == 1) {
-                ascii[static_cast<std::size_t>(x)][static_cast<std::size_t>(y)] = mult[0];
+                set_cell(ascii, static_cast<std::size_t>(x), static_cast<std::size_t>(y), mult);
             } else if (mult.size() == 2) {
                 write_string_to_col(ascii,
                                     static_cast<std::size_t>(x),

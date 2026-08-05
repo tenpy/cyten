@@ -1146,6 +1146,9 @@ class FusionTree:
         raise NotImplementedError
 
 
+from .._core import FusionTree  # noqa: E402, F811  # C++ implementation via pybind11
+
+
 class fusion_trees(Iterable[FusionTree]):
     r"""Iterable over all :class:`FusionTree`\ s with given uncoupled and coupled sectors.
 

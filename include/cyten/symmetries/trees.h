@@ -173,8 +173,9 @@ class FusionTree
                                                     bool overtwist) const;
 
   private:
-    /// The :meth:`ascii_diagram` as a 2D array of single characters (cols × rows).
-    [[nodiscard]] std::vector<std::vector<char>> ascii_diagram_chars(
+    /// The :meth:`ascii_diagram` as a 2D array of single Unicode characters (cols × rows).
+    /// Each cell is a UTF-8 string of one codepoint (box-drawing / sector labels).
+    [[nodiscard]] std::vector<std::vector<std::string>> ascii_diagram_chars(
       bool dagger,
       int uncoupled_padding = 2,
       int inner_sector_padding = 0) const;
