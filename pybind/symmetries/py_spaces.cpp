@@ -164,8 +164,46 @@ sector_map_from_python(py::function sector_map)
     };
 }
 
+Sector
+sector_from_python(py::handle obj)
+{
+    if (py::isinstance<Sector>(obj)) {
+        return obj.cast<Sector>();
+    }
+    return sector_from_numpy(obj);
+}
+
+py::slice
+index_slice_to_python(IndexSlice const& slc)
+{
+    return py::slice(py::int_(slc.start), py::int_(slc.stop), py::none());
+}
+
+std::vector<py::object>
+objects_from_python(py::handle obj)
+{
+    std::vector<py::object> out;
+    for (py::handle item : obj) {
+        out.push_back(py::reinterpret_borrow<py::object>(item));
+    }
+    return out;
+}
+
+py::list
+objects_to_python(std::vector<py::object> const& objects)
+{
+    py::list out;
+    for (auto const& obj : objects) {
+        out.append(obj);
+    }
+    return out;
+}
+
 void
 bind_elementary_space(py::module_& m);
+
+void
+bind_tensor_product(py::module_& m);
 
 } // namespace
 
@@ -627,6 +665,7 @@ bind_spaces(py::module_& m)
       .def("repr", &LegPipe::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false);
 
     bind_elementary_space(m);
+    bind_tensor_product(m);
 }
 
 namespace {
@@ -1086,6 +1125,389 @@ bind_elementary_space(py::module_& m)
            py::arg("subpath"))
       .def_static("from_hdf5",
                   &ElementarySpace::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
+}
+
+void
+bind_tensor_product(py::module_& m)
+{
+    py::class_<TensorProduct, Space, PyTensorProduct, py::smart_holder> cls(
+      m,
+      "TensorProduct",
+      R"pydoc(
+      Represents a tensor product of :class:`Spaces`\ s, e.g. the (co-)domain of a tensor.
+
+      Attributes
+      ----------
+      factors : list[Space | LegPipe]
+          The factors in the tensor product, e.g. some of the legs of a tensor.
+      num_factors : int
+          The number of :attr:`factors`.
+      _sector_decomposition, _multiplicities
+          If the sectors, multiplicities are already known, recomputation can be skipped.
+          Warning: If given, they are not checked for correctness!
+
+      See Also
+      --------
+      LegPipe
+          A :class:`LegPipe` has the same mathematical idea as the :class:`TensorProduct`.
+          There are two main differences:
+          Firstly, for a :class:`TensorProduct`, we compute the :attr:`sector_decomposition`, which
+          we do not do for a :class`LegPipe`. This is reflected in the fact that only
+          :class:`TensorProduct`s are :class:`Space`s, while :class:`LegPipe`s are not.
+          Secondly, we only keep track of duality with an explicit flag for :class:`Leg`s, to have
+          arrows on our tensor legs. A :class:`TensorProduct` has no ``is_dual`` attribute.
+      )pydoc");
+
+    cls.def(py::init([](py::iterable factors_obj,
+                        py::object symmetry_obj,
+                        py::object sector_decomposition,
+                        py::object multiplicities) {
+                auto factors = objects_from_python(factors_obj);
+                auto symmetry = optional_symmetry_from_python(symmetry_obj);
+                std::optional<SectorArray> sectors;
+                if (!sector_decomposition.is_none()) {
+                    auto sym = symmetry;
+                    if (!sym && !factors.empty()) {
+                        sym = symmetry_from_python(factors.front().attr("symmetry"));
+                    }
+                    if (!sym) {
+                        throw py::value_error(
+                          "If spaces is empty, the symmetry arg is required.");
+                    }
+                    sectors = sector_array_from_python(sector_decomposition, *sym);
+                }
+                return std::make_shared<PyTensorProduct>(std::move(factors),
+                                                         std::move(symmetry),
+                                                         std::move(sectors),
+                                                         multiplicities_from_python(
+                                                           multiplicities));
+            }),
+            py::arg("factors"),
+            py::arg("symmetry") = py::none(),
+            py::arg("_sector_decomposition") = py::none(),
+            py::arg("_multiplicities") = py::none());
+
+    cls
+      .def_property(
+        "factors",
+        [](TensorProduct const& self) { return objects_to_python(self.factors); },
+        [](TensorProduct& self, py::iterable factors_obj) {
+            self.factors = objects_from_python(factors_obj);
+            self.num_factors = static_cast<int64>(self.factors.size());
+        })
+      .def_readonly("num_factors", &TensorProduct::num_factors)
+      .def_property_readonly("dual", &TensorProduct::dual_space)
+      .def_property_readonly("has_pipes",
+                             &TensorProduct::has_pipes,
+                             R"pydoc(
+                             Is any of the :attr:`factors` a pipe?
+                             )pydoc")
+      .def_property_readonly("flat_legs",
+                             &TensorProduct::flat_legs,
+                             R"pydoc(
+                             Flatten until there are no more pipes.
+
+                             See Also
+                             --------
+                             flat_spaces : Keeps :class:`AbelianLegPipes` nested.
+                             )pydoc")
+      .def_property_readonly("flat_spaces",
+                             &TensorProduct::flat_spaces,
+                             R"pydoc(
+                             Flatten until we get spaces.
+
+                             See Also
+                             --------
+                             flat_legs : Also flattens :class:`AbelianLegPipes`.
+                             )pydoc")
+      .def_property_readonly("num_flat_legs",
+                             &TensorProduct::num_flat_legs,
+                             R"pydoc(
+                             The number of :attr:`flat_legs`.
+                             )pydoc");
+
+    cls.def_static(
+      "from_partial_products",
+      [](py::args factors_obj) {
+          std::vector<TensorProduct::Ptr> factors;
+          factors.reserve(static_cast<std::size_t>(factors_obj.size()));
+          for (py::handle item : factors_obj) {
+              factors.push_back(item.cast<TensorProduct::Ptr>());
+          }
+          return TensorProduct::from_partial_products(factors);
+      },
+      R"pydoc(
+      Form the :class:`TensorProduct` of all :attr:`spaces` from partial products.
+
+      The result has as :attr:`spaces` all those spaces that appear on the `factors`.
+      I.e. we form :math:`V_1 \otimes V_2 \otimes W_1 \otimes W_2 \dots` from
+      :math:`V_1 \otimes V_2` and :math:`W_1 \otimes W_2 \dots`.
+      )pydoc");
+
+    cls
+      .def("test_sanity",
+           &TensorProduct::test_sanity,
+           R"pydoc(
+           Perform sanity checks.
+           )pydoc")
+      .def(
+        "block_size",
+        [](TensorProduct const& self, py::object coupled) {
+            if (py::isinstance<py::int_>(coupled)) {
+                return self.block_size(coupled.cast<int64>());
+            }
+            return self.block_size(sector_from_python(coupled));
+        },
+        py::arg("coupled"),
+        R"pydoc(
+        The size of a block.
+
+        Parameters
+        ----------
+        coupled : Sector or int
+            Specify the coupled sector, either directly as a sector or as an integer, which
+            is interpreted as an index, i.e. is equivalent to the sector
+            ``self.sector_decomposition[coupled]``.
+        )pydoc")
+      .def(
+        "change_symmetry",
+        [](TensorProduct& self,
+           py::object symmetry_obj,
+           py::function sector_map,
+           bool injective) {
+            return self.change_symmetry(
+              symmetry_from_python(symmetry_obj), sector_map_from_python(sector_map), injective);
+        },
+        py::arg("symmetry"),
+        py::arg("sector_map"),
+        py::arg("injective") = false)
+      .def(
+        "drop_symmetry",
+        [](TensorProduct& self, py::object which) {
+            return self.drop_symmetry(drop_which_from_python(which));
+        },
+        py::arg("which") = "all")
+      .def("flat_legs_nesting",
+           &TensorProduct::flat_legs_nesting,
+           R"pydoc(
+           The indices into :attr:`flat_legs`, that combine to each :attr:`factor`.
+           )pydoc")
+      .def("flat_leg_idcs",
+           &TensorProduct::flat_leg_idcs,
+           py::arg("i"),
+           R"pydoc(
+           All indices into the :meth:`flat_legs` that the leg ``factors[i]`` flattens to.
+           )pydoc")
+      .def(
+        "forest_block_size",
+        [](TensorProduct const& self, py::object uncoupled, py::object coupled) {
+            return self.forest_block_size(sector_array_from_python(uncoupled, *self.symmetry),
+                                          sector_from_python(coupled));
+        },
+        py::arg("uncoupled"),
+        py::arg("coupled"),
+        R"pydoc(
+        The size of a forest-block
+        )pydoc")
+      .def(
+        "forest_block_slice",
+        [](TensorProduct const& self, py::object uncoupled, py::object coupled) {
+            return index_slice_to_python(
+              self.forest_block_slice(sector_array_from_python(uncoupled, *self.symmetry),
+                                      sector_from_python(coupled)));
+        },
+        py::arg("uncoupled"),
+        py::arg("coupled"),
+        R"pydoc(
+        The range of indices of a forest-block within its block, as a slice.
+        )pydoc")
+      .def("insert_multiply",
+           &TensorProduct::insert_multiply,
+           py::arg("other"),
+           py::arg("pos"),
+           R"pydoc(
+           Insert a new space into the product at position `pos`.
+           )pydoc")
+      .def(
+        "iter_tree_blocks",
+        [](TensorProduct const& self, py::object coupled) {
+            py::list out;
+            for (auto const& item :
+                 self.iter_tree_blocks(sector_array_from_python(coupled, *self.symmetry))) {
+                out.append(py::make_tuple(py::cast(item.tree),
+                                          index_slice_to_python(item.slice),
+                                          perm_to_numpy(item.multiplicities),
+                                          item.coupled_idx));
+            }
+            return py::iter(out);
+        },
+        py::arg("coupled"),
+        R"pydoc(
+        Iterate over tree blocks. Helper function for :class:`FusionTreeBackend`.
+
+        See :ref:`fusion_tree_backend__blocks` for definitions of blocks and tree blocks.
+
+        Yields
+        ------
+        tree : FusionTree
+            A fusion tree whose uncoupled sectors are consistent with `self` and whose
+            coupled sector is ``coupled[i]``
+        slc : slice
+            The slice of the tree-block associated with `tree` in its block.
+        mults : 1D array of int
+            The multiplicities of the uncoupled sectors of `tree` within their ``self.factor``.
+        i : int
+            The index of the current coupled sector in `coupled`
+
+        See Also
+        --------
+        iter_forest_blocks
+        iter_uncoupled
+        )pydoc")
+      .def(
+        "iter_forest_blocks",
+        [](TensorProduct const& self, py::object coupled) {
+            py::list out;
+            for (auto const& item :
+                 self.iter_forest_blocks(sector_array_from_python(coupled, *self.symmetry))) {
+                out.append(py::make_tuple(py::cast(item.uncoupled),
+                                          index_slice_to_python(item.slice),
+                                          item.coupled_idx));
+            }
+            return py::iter(out);
+        },
+        py::arg("coupled"),
+        R"pydoc(
+        Iterate over forest blocks. Helper function for :class:`FusionTreeBackend`.
+
+        See :ref:`fusion_tree_backend__blocks` for definitions of blocks and forest blocks.
+
+        Yields
+        ------
+        uncoupled : tuple of Sector
+            A tuple of uncoupled sectors that can fuse to a coupled sector ``coupled[i]``
+        slc : slice
+            The slice of the tree-block associated with `tree` in its block.
+        i : int
+            The index of the current coupled sector in `coupled`
+
+        See Also
+        --------
+        iter_tree_blocks
+        iter_uncoupled
+        )pydoc")
+      .def(
+        "iter_uncoupled",
+        [](TensorProduct const& self, bool yield_slices) {
+            py::list out;
+            for (auto const& item : self.iter_uncoupled(yield_slices)) {
+                auto uncoupled = py::cast(item.uncoupled);
+                auto mults = perm_to_numpy(item.multiplicities);
+                if (!yield_slices) {
+                    out.append(py::make_tuple(std::move(uncoupled), std::move(mults)));
+                    continue;
+                }
+                py::list slices;
+                for (auto const& slc : *item.slices) {
+                    slices.append(index_slice_to_python(slc));
+                }
+                out.append(
+                  py::make_tuple(std::move(uncoupled), std::move(mults), std::move(slices)));
+            }
+            return py::iter(out);
+        },
+        py::arg("yield_slices") = false,
+        R"pydoc(
+        Iterate over all combinations of sectors from the :attr:`flat_legs`.
+
+        Yields
+        ------
+        uncoupled : 2D array of int
+            A combination of uncoupled sectors, where
+            ``uncoupled[i] == self.flat_legs[i].sector_decomposition[some_idx]``.
+        multiplicities : 1D array of int
+            The corresponding multiplicities
+            ``multiplicities[i] == self.flat_legs[i].multiplicities[some_idx]``.
+        slices : list of slice, optional
+            Only if ``yield_slices``, the corresponding entry of :attr:`Space.slices`, as a slice.
+            I.e. ``slices[i] == slice(*self.flat_legs[i].slices[some_idx])``.
+
+        Notes
+        -----
+        For a TensorProduct of zero spaces, i.e. with ``num_factors == 0``,
+        we *do* yield once, where the yielded arrays are empty (e.g. ``len(uncoupled) == 0``).
+        )pydoc")
+      .def("left_multiply",
+           &TensorProduct::left_multiply,
+           py::arg("other"),
+           R"pydoc(
+           Add a new factor at the left / beginning of the spaces
+           )pydoc")
+      .def("permuted",
+           &TensorProduct::permuted,
+           py::arg("perm"),
+           R"pydoc(
+           A product of the same :attr:`factors` in a different order.
+           )pydoc")
+      .def("right_multiply",
+           &TensorProduct::right_multiply,
+           py::arg("other"),
+           R"pydoc(
+           Add a new factor at the right / end of the spaces
+           )pydoc")
+      .def(
+        "tree_block_size",
+        [](TensorProduct const& self, py::object uncoupled) {
+            return self.tree_block_size(sector_array_from_python(uncoupled, *self.symmetry));
+        },
+        py::arg("uncoupled"),
+        R"pydoc(
+        The size of a tree-block
+        )pydoc")
+      .def(
+        "tree_block_slice",
+        [](TensorProduct const& self, FusionTree const& tree) {
+            return index_slice_to_python(self.tree_block_slice(tree));
+        },
+        py::arg("tree"),
+        R"pydoc(
+        The range of indices of a tree-block within its block, as a slice.
+        )pydoc");
+
+    cls
+      .def("__eq__",
+           [](TensorProduct const& self, py::object other) -> py::object {
+               if (!py::isinstance<TensorProduct>(other)) {
+                   return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
+               }
+               return py::cast(
+                 self.operator==(static_cast<Space const&>(other.cast<TensorProduct const&>())));
+           })
+      .def("__getitem__",
+           [](TensorProduct const& self, py::object idx) -> py::object {
+               if (py::isinstance<py::slice>(idx)) {
+                   return objects_to_python(self.factors)[idx];
+               }
+               return self[idx.cast<int64>()];
+           })
+      .def("__len__", [](TensorProduct const& self) { return self.num_factors; })
+      .def("__iter__",
+           [](TensorProduct const& self) { return py::iter(objects_to_python(self.factors)); })
+      .def("__repr__",
+           &TensorProduct::repr,
+           py::arg("show_symmetry") = true,
+           py::arg("one_line") = false)
+      .def("repr", &TensorProduct::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false)
+      .def("save_hdf5",
+           &TensorProduct::save_hdf5,
+           py::arg("hdf5_saver"),
+           py::arg("h5gr"),
+           py::arg("subpath"))
+      .def_static("from_hdf5",
+                  &TensorProduct::from_hdf5,
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));

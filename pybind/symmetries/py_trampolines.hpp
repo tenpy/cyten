@@ -7,6 +7,7 @@
 #include <cyten/symmetries/spaces.h>
 #include <cyten/symmetries/symmetry_factor.h>
 
+#include <pybind11/functional.h>
 #include <pybind11/pybind11.h>
 
 #include <optional>
@@ -725,6 +726,44 @@ class PyElementarySpace
     bool operator==(Space const& other) const override
     {
         PYBIND11_OVERRIDE_NAME(bool, ElementarySpace, "__eq__", operator==, other);
+    }
+};
+
+/// Trampoline for Python subclasses of TensorProduct.
+///
+/// Note: as for the other trampolines here, only virtuals that are bound as *methods* may be
+/// forwarded. ``dual_space`` is bound as the ``dual`` property and must therefore be left out;
+/// since :class:`TensorProduct` implements it, the trampoline is still concrete.
+class PyTensorProduct
+  : public TensorProduct
+  , public py::trampoline_self_life_support
+{
+  public:
+    using TensorProduct::TensorProduct;
+
+    void test_sanity() const override { PYBIND11_OVERRIDE(void, TensorProduct, test_sanity); }
+
+    py::object change_symmetry(Symmetry::Ptr symmetry,
+                               SectorMapFn sector_map,
+                               bool injective) override
+    {
+        PYBIND11_OVERRIDE(
+          py::object, TensorProduct, change_symmetry, symmetry, sector_map, injective);
+    }
+
+    py::object drop_symmetry(std::optional<std::vector<int64>> which) override
+    {
+        PYBIND11_OVERRIDE(py::object, TensorProduct, drop_symmetry, which);
+    }
+
+    py::object as_ElementarySpace(bool is_dual) override
+    {
+        PYBIND11_OVERRIDE(py::object, TensorProduct, as_ElementarySpace, is_dual);
+    }
+
+    bool operator==(Space const& other) const override
+    {
+        PYBIND11_OVERRIDE_NAME(bool, TensorProduct, "__eq__", operator==, other);
     }
 };
 
