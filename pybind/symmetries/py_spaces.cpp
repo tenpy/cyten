@@ -147,6 +147,26 @@ sector_array_from_python(py::handle obj, Symmetry const& symmetry)
     return arr;
 }
 
+Symmetry::Ptr
+optional_symmetry_from_python(py::handle obj)
+{
+    if (obj.is_none()) {
+        return nullptr;
+    }
+    return symmetry_from_python(py::reinterpret_borrow<py::object>(obj));
+}
+
+SectorMapFn
+sector_map_from_python(py::function sector_map)
+{
+    return [sector_map](SectorArray const& sectors) {
+        return sector_map(sectors).cast<SectorArray>();
+    };
+}
+
+void
+bind_elementary_space(py::module_& m);
+
 } // namespace
 
 void
@@ -605,6 +625,472 @@ bind_spaces(py::module_& m)
         py::keep_alive<0, 1>())
       .def("__repr__", [](LegPipe const& self) { return self.repr(); })
       .def("repr", &LegPipe::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false);
+
+    bind_elementary_space(m);
 }
+
+namespace {
+
+void
+bind_elementary_space(py::module_& m)
+{
+    py::class_<ElementarySpace, Space, Leg, PyElementarySpace, py::smart_holder> cls(
+      m,
+      "ElementarySpace",
+      R"pydoc(
+      A :class:`Space` that is defined as (the dual of) a direct sum of sectors.
+
+      While every :class:`Space` is isomorphic to a direct sum of sectors, an :class:`ElementarySpace`
+      is by definition *equal* to such a direct sum, or to the dual of such a sum. We distinguish
+      "ket" spaces :math:`V_k := a_1 \oplus a_2 \oplus \dots \plus a_N` with ``is_dual=False`` and
+      "bra" spaces :math:`V_b := [b_1 \oplus b_2 \oplus \dots \plus b_N]^*` with ``is_dual=True``.
+      The listed sectors, :math:`\{a_n\}` for the ket space :math:`V_k` and the :math:`\{b_n\}`
+      for the bra space, are the :attr:`defining_sectors` of the space. For a ket space, they coincide
+      with the :attr:`sector_decomposition`, while for a bra space they are mutually dual, since
+      we have :math:`V_b \cong \bar{b}_1 \oplus \bar{b}_2 \oplus \dots \plus \bar{b}_N`.
+
+      We impose a canonical order of sectors, such that the :attr:`defining_sectors` are sorted.
+      This in turn means that the :attr:`sector_order` is ``'sorted'`` for ket spaces and
+      ``'dual_sorted'`` for bra spaces.
+
+      If the symmetry :attr:`Symmetry.can_be_dropped`, there is a notion of a basis for the
+      spaces. We demand the basis to be compatible with the symmetry, i.e. each basis vector
+      needs to lie in one of the sectors of the symmetry. The *internal* basis order that results
+      from demanding that the sectors are contiguous and sorted may, however, not be the desired
+      basis order, e.g. for matrix representations.
+
+      Parameters
+      ----------
+      symmetry, sectors, multiplicities, is_dual, basis_perm
+          Like attributes of the same name, except nested sequences are allowed in place of arrays.
+
+      Attributes
+      ----------
+      is_dual: bool
+          If this is a ket space (``False``) or a bra space (``True``).
+      defining_sectors: 2D array of int
+          The defining sectors, see class docstring of :class:`ElementarySpace`.
+          Is ``np.lexsort( .T)``-ed.
+          The :attr:`sector_decomposition` is equal for ket spaces (``is_dual=False``) or given by
+          the respective :meth:`~cyten.symmetries.Symmetry.dual_sectors` for bra spaces.
+      )pydoc");
+
+    cls.def(py::init([](py::object symmetry_obj,
+                        py::object defining_sectors,
+                        py::object multiplicities,
+                        bool is_dual,
+                        py::object basis_perm) {
+                auto symmetry = symmetry_from_python(symmetry_obj);
+                return std::make_shared<PyElementarySpace>(
+                  symmetry,
+                  sector_array_from_python(defining_sectors, *symmetry),
+                  multiplicities_from_python(multiplicities),
+                  is_dual,
+                  perm_from_python(basis_perm));
+            }),
+            py::arg("symmetry"),
+            py::arg("defining_sectors"),
+            py::arg("multiplicities") = py::none(),
+            py::arg("is_dual") = false,
+            py::arg("basis_perm") = py::none());
+
+    // symmetry and dim exist on both the Space and the Leg base; keep them in sync.
+    cls.def_property(
+         "symmetry",
+         [](ElementarySpace const& self) { return self.Space::symmetry; },
+         [](ElementarySpace& self, py::object symmetry_obj) {
+             auto symmetry = symmetry_from_python(symmetry_obj);
+             self.Space::symmetry = symmetry;
+             self.Leg::symmetry = std::move(symmetry);
+         })
+      .def_property(
+        "dim",
+        [](ElementarySpace const& self) { return dim_to_python(self.Space::dim); },
+        [](ElementarySpace& self, py::object dim_obj) {
+            auto const dim = py::float_(dim_obj).cast<float64>();
+            self.Space::dim = dim;
+            self.Leg::dim = dim;
+        })
+      .def_readwrite("defining_sectors", &ElementarySpace::defining_sectors)
+      .def_property_readonly(
+        "sectors_of_basis",
+        [](ElementarySpace const& self) { return sector_array_to_numpy(self.sectors_of_basis()); },
+        R"pydoc(
+        The sector (from the :attr:`sector_decomposition`) of each basis vector.
+        )pydoc")
+      .def_property_readonly("dual",
+                             &ElementarySpace::dual_es,
+                             R"pydoc(
+                             The dual space, i.e. the same sectors with opposite :attr:`is_dual`.
+                             )pydoc");
+
+    cls.def_static(
+      "from_basis",
+      [](py::object symmetry_obj, py::object sectors_of_basis) {
+          auto symmetry = symmetry_from_python(symmetry_obj);
+          return ElementarySpace::from_basis(symmetry,
+                                            sector_array_from_python(sectors_of_basis, *symmetry));
+      },
+      py::arg("symmetry"),
+      py::arg("sectors_of_basis"),
+      R"pydoc(
+      Create an ElementarySpace by specifying the sector of every basis element.
+
+      This requires that the symmetry :attr:`~cyten.symmetries.Symmetry.can_be_dropped`, such
+      that there is a useful notion of a basis.
+
+      .. note ::
+          Unlike :meth:`from_defining_sectors`, this method expects the same sector to be listed
+          multiple times, if the sector is multi-dimensional.
+
+      .. note ::
+          This classmethod always creates ket-spaces with ``is_dual=False``.
+          Use :attr:`dual` or :meth:`as_bra_space` to create bra spaces.
+
+      Parameters
+      ----------
+      symmetry: Symmetry
+          The symmetry associated with this space.
+      sectors_of_basis : iterable of iterable of int
+          Specifies the basis. ``sectors_of_basis[n]`` is the sector of the ``n``-th basis element.
+          In particular, for a ``d`` dimensional sector, we expect an integer multiple of ``d``
+          occurrences. They need not be contiguous though.
+
+      See Also
+      --------
+      :attr:`sectors_of_basis`
+          Reproduces the `sectors_of_basis` parameter.
+      from_defining_sectors
+          Similar to the constructor, but with fewer requirements.
+      )pydoc");
+
+    cls.def_static(
+      "from_independent_symmetries",
+      [](py::sequence independent_descriptions) {
+          std::vector<ElementarySpace::Ptr> descriptions;
+          descriptions.reserve(static_cast<std::size_t>(independent_descriptions.size()));
+          for (py::handle item : independent_descriptions) {
+              descriptions.push_back(item.cast<ElementarySpace::Ptr>());
+          }
+          return ElementarySpace::from_independent_symmetries(descriptions);
+      },
+      py::arg("independent_descriptions"),
+      R"pydoc(
+      Create an ElementarySpace with multiple independent symmetries.
+
+      Parameters
+      ----------
+      independent_descriptions : list of :class:`ElementarySpace`
+          Each entry describes the resulting :class:`ElementarySpace` in terms of *one* of
+          the independent symmetries. Spaces with a :class:`NoSymmetry` are ignored.
+      )pydoc");
+
+    cls.def_static(
+      "from_largest_common_subspace",
+      [](py::args spaces_obj, bool is_dual) {
+          std::vector<Space::Ptr> spaces;
+          spaces.reserve(static_cast<std::size_t>(spaces_obj.size()));
+          for (py::handle item : spaces_obj) {
+              spaces.push_back(item.cast<Space::Ptr>());
+          }
+          return ElementarySpace::from_largest_common_subspace(spaces, is_dual);
+      },
+      py::arg("is_dual") = false,
+      R"pydoc(
+      The largest common subspace of a list of spaces.
+
+      The largest :class:`ElementarySpace` that :meth:`is_subspace_of` all of the `spaces`.
+      I.e. the :attr:`sector_decomposition` is given by the "sector-wise minimum" of all
+      multiplicities of the `spaces`.
+
+      See Also
+      --------
+      is_subspace_of
+      )pydoc");
+
+    cls.def_static(
+      "from_null_space",
+      [](py::object symmetry_obj, bool is_dual) {
+          return ElementarySpace::from_null_space(symmetry_from_python(symmetry_obj), is_dual);
+      },
+      py::arg("symmetry"),
+      py::arg("is_dual") = false,
+      R"pydoc(
+      The zero-dimensional space, i.e. the span of the empty set.
+      )pydoc");
+
+    cls.def_static(
+      "from_defining_sectors",
+      [](py::object symmetry_obj,
+         py::object defining_sectors,
+         py::object multiplicities,
+         bool is_dual,
+         py::object basis_perm,
+         bool unique_sectors,
+         bool return_sorting_perm) -> py::object {
+          auto symmetry = symmetry_from_python(symmetry_obj);
+          std::vector<std::size_t> sort;
+          auto res = ElementarySpace::from_defining_sectors(
+            symmetry,
+            sector_array_from_python(defining_sectors, *symmetry),
+            multiplicities_from_python(multiplicities),
+            is_dual,
+            perm_from_python(basis_perm),
+            unique_sectors,
+            return_sorting_perm ? &sort : nullptr);
+          if (!return_sorting_perm) {
+              return py::cast(res);
+          }
+          std::vector<int64> const sort_perm(sort.begin(), sort.end());
+          return py::make_tuple(py::cast(res), perm_to_numpy(sort_perm));
+      },
+      py::arg("symmetry"),
+      py::arg("defining_sectors"),
+      py::arg("multiplicities") = py::none(),
+      py::arg("is_dual") = false,
+      py::arg("basis_perm") = py::none(),
+      py::arg("unique_sectors") = false,
+      py::arg("return_sorting_perm") = false,
+      R"pydoc(
+      Similar to the constructor, but with fewer requirements.
+
+      .. note ::
+          Unlike :meth:`from_basis`, this method expects a multi-dimensional sector to be listed
+          only once to mean its entire multiplet of basis states.
+
+      Parameters
+      ----------
+      symmetry: Symmetry
+          The symmetry associated with this space.
+      defining_sectors: 2D array_like of int
+          Like the :attr:`defining_sectors` attribute, but can be in any order and may contain
+          duplicates (see `unique_sectors`).
+      multiplicities: 1D array_like of int, optional
+          How often each of the `defining_sectors` appears. A 1D array of positive integers with
+          axis [s]. ``defining_sectors[i_s, :]`` appears ``multiplicities[i_s]`` times.
+          If not given, a multiplicity ``1`` is assumed for all `defining_sectors`.
+      is_dual: bool
+          If the result is a bra- or a ket space, like the attribute :attr:`is_dual`.
+          Note that this changes the meaning of the `defining_sectors`.
+      basis_perm: ndarray, optional
+          The permutation from the desired public basis to the basis described by
+          `defining_sectors` and `multiplicities`.
+      unique_sectors: bool
+          If ``True``, the `sectors` are assumed to be duplicate-free.
+      return_sorting_perm: bool
+          If ``True``, the permutation ``np.lexsort(sectors.T)`` is returned too.
+
+      Returns
+      -------
+      space: ElementarySpace
+          The new space
+      sector_sort: 1D array, optional
+          Only ``if return_sorting_perm``. The permutation that sorts the `defining_sectors`.
+      )pydoc");
+
+    cls.def_static(
+      "from_sector_decomposition",
+      [](py::object symmetry_obj,
+         py::object sector_decomposition,
+         py::object multiplicities,
+         bool is_dual,
+         py::object basis_perm,
+         bool unique_sectors) {
+          auto symmetry = symmetry_from_python(symmetry_obj);
+          return ElementarySpace::from_sector_decomposition(
+            symmetry,
+            sector_array_from_python(sector_decomposition, *symmetry),
+            multiplicities_from_python(multiplicities),
+            is_dual,
+            perm_from_python(basis_perm),
+            unique_sectors);
+      },
+      py::arg("symmetry"),
+      py::arg("sector_decomposition"),
+      py::arg("multiplicities") = py::none(),
+      py::arg("is_dual") = false,
+      py::arg("basis_perm") = py::none(),
+      py::arg("unique_sectors") = false,
+      R"pydoc(
+      Create a :class:`ElementarySpace` that has a given :attr:`sector_decomposition`.
+
+      Parameters
+      ----------
+      symmetry: Symmetry
+          The symmetry associated with this space.
+      sector_decomposition: 2D array_like of int
+          Like the :attr:`sector_decomposition` attribute, but can be in any order and may contain
+          duplicates (see `unique_sectors`).
+      multiplicities: 1D array_like of int, optional
+          How often each of the `sector_decomposition` appears. A 1D array of positive integers
+          with axis [s]. ``sector_decomposition[i_s, :]`` appears ``multiplicities[i_s]`` times.
+          If not given, a multiplicity ``1`` is assumed for all `sector_decomposition`.
+      is_dual: bool
+          If the result is a bra- or a ket space, like the attribute :attr:`is_dual`.
+      basis_perm: ndarray, optional
+          The permutation from the desired public basis to the basis described by
+          `sector_decomposition` and `multiplicities`.
+      unique_sectors: bool
+          If ``True``, the `sectors` are assumed to be duplicate-free.
+
+      See Also
+      --------
+      from_defining_sectors
+      )pydoc");
+
+    cls.def_static(
+      "from_trivial_sector",
+      [](int64 dim, py::object symmetry_obj, bool is_dual, py::object basis_perm) {
+          return ElementarySpace::from_trivial_sector(dim,
+                                                     optional_symmetry_from_python(symmetry_obj),
+                                                     is_dual,
+                                                     perm_from_python(basis_perm));
+      },
+      py::arg("dim") = 1,
+      py::arg("symmetry") = py::none(),
+      py::arg("is_dual") = false,
+      py::arg("basis_perm") = py::none(),
+      R"pydoc(
+      Create an ElementarySpace that lives in the trivial sector (i.e. it is symmetric).
+
+      Parameters
+      ----------
+      dim : int
+          The dimension of the space.
+      symmetry : :class:`~cyten.Symmetry`
+          The symmetry of the space. Defaults to ``no_symmetry``.
+      is_dual : bool
+          If the space should be bra or a ket space.
+      )pydoc");
+
+    cls.def("test_sanity",
+            &ElementarySpace::test_sanity,
+            R"pydoc(
+            Perform sanity checks.
+            )pydoc")
+      .def("__repr__",
+           [](ElementarySpace const& self) { return self.repr(); })
+      .def("repr",
+           &ElementarySpace::repr,
+           py::arg("show_symmetry") = true,
+           py::arg("one_line") = false)
+      .def("__eq__",
+           [](ElementarySpace const& self, py::object other) -> py::object {
+               if (!py::isinstance<ElementarySpace>(other)) {
+                   return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
+               }
+               return py::cast(self.equals_es(other.cast<ElementarySpace const&>()));
+           })
+      .def("as_Space", &ElementarySpace::as_Space)
+      .def("as_ElementarySpace", &ElementarySpace::as_ElementarySpace, py::arg("is_dual") = false)
+      .def("as_ket_space",
+           &ElementarySpace::as_ket_space,
+           R"pydoc(
+           The ket space (``is_dual=False``) isomorphic or equal to self.
+           )pydoc")
+      .def("as_bra_space",
+           &ElementarySpace::as_bra_space,
+           R"pydoc(
+           The bra space (``is_dual=True``) isomorphic or equal to self.
+           )pydoc")
+      .def(
+        "change_symmetry",
+        [](ElementarySpace& self,
+           py::object symmetry_obj,
+           py::function sector_map,
+           bool injective) {
+            return self.change_symmetry(
+              symmetry_from_python(symmetry_obj), sector_map_from_python(sector_map), injective);
+        },
+        py::arg("symmetry"),
+        py::arg("sector_map"),
+        py::arg("injective") = false)
+      .def(
+        "direct_sum",
+        [](ElementarySpace const& self, py::args others_obj) {
+            std::vector<ElementarySpace::Ptr> others;
+            others.reserve(static_cast<std::size_t>(others_obj.size()));
+            for (py::handle item : others_obj) {
+                others.push_back(item.cast<ElementarySpace::Ptr>());
+            }
+            return self.direct_sum(others);
+        },
+        R"pydoc(
+        Form the direct sum (i.e. stacking).
+
+        The basis of the new space results from concatenating the individual bases.
+
+        Spaces must have the same symmetry and is_dual.
+        The result is a space with the same symmetry and is_dual, whose sectors are those
+        that appear in any of the spaces and multiplicities are the sum of the multiplicities
+        in each of the spaces.
+        )pydoc")
+      .def(
+        "drop_symmetry",
+        [](ElementarySpace& self, py::object which) {
+            return self.drop_symmetry(drop_which_from_python(which));
+        },
+        py::arg("which") = "all")
+      .def(
+        "parse_index",
+        [](ElementarySpace const& self, int64 idx) {
+            auto const [sector_idx, multiplicity_idx] = self.parse_index(idx);
+            return py::make_tuple(sector_idx, multiplicity_idx);
+        },
+        py::arg("idx"),
+        R"pydoc(
+        Utility function to translate an index.
+
+        Parameters
+        ----------
+        idx : int
+            An index of the leg, labelling an element of the public computational basis of self.
+
+        Returns
+        -------
+        sector_idx : int
+            The index of the corresponding sector, indicating that the `idx`-th basis element
+            lives in ``self.sector_decomposition[sector_idx]``.
+        multiplicity_idx : int
+            The index "within the sector", in
+            ``range(sector_dim * self.multiplicities[sector_index])``.
+        )pydoc")
+      .def("idx_to_sector", &ElementarySpace::idx_to_sector, py::arg("idx"))
+      .def("take_slice",
+           &ElementarySpace::take_slice,
+           py::arg("blockmask"),
+           R"pydoc(
+           Take a "slice" of the leg, keeping only some of the basis states.
+
+           Parameters
+           ----------
+           blockmask : 1D array-like of bool
+               For every basis state of self, in the public basis order,
+               if it should be kept (``True``) or discarded (``False``).
+           )pydoc")
+      .def("with_opposite_duality",
+           &ElementarySpace::with_opposite_duality,
+           R"pydoc(
+           A space isomorphic to self with opposite ``is_dual`` attribute.
+           )pydoc")
+      .def("with_is_dual",
+           &ElementarySpace::with_is_dual,
+           py::arg("is_dual"),
+           R"pydoc(
+           A space isomorphic to self with given ``is_dual`` attribute.
+           )pydoc")
+      .def("save_hdf5",
+           &ElementarySpace::save_hdf5,
+           py::arg("hdf5_saver"),
+           py::arg("h5gr"),
+           py::arg("subpath"))
+      .def_static("from_hdf5",
+                  &ElementarySpace::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
+}
+
+} // namespace
 
 } // namespace cyten

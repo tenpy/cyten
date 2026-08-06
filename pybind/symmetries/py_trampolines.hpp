@@ -541,6 +541,11 @@ class PyAbelianGroup
 };
 
 /// Trampoline for Python subclasses of Leg (LegPipe, ElementarySpace, …).
+///
+/// Note: only virtuals that are bound as *methods* may be forwarded. For those bound as
+/// ``def_property`` (``is_trivial``, ``ascii_arrow``, ``flat_legs``, …), PYBIND11_OVERRIDE finds
+/// the property *value* instead of a function and raises a TypeError.
+/// The pure virtuals below are the exception: without them, the trampoline would be abstract.
 class PyLeg
   : public Leg
   , public py::trampoline_self_life_support
@@ -557,7 +562,10 @@ class PyLeg
         PYBIND11_OVERRIDE(py::object, Leg, as_ElementarySpace, is_dual);
     }
 
-    Ptr dual() const override { PYBIND11_OVERRIDE_PURE(Ptr, Leg, dual); }
+    Ptr dual_leg() const override
+    {
+        PYBIND11_OVERRIDE_PURE_NAME(Ptr, Leg, "dual", dual_leg);
+    }
 
     bool is_trivial() const override { PYBIND11_OVERRIDE_PURE(bool, Leg, is_trivial); }
 
@@ -571,21 +579,10 @@ class PyLeg
         PYBIND11_OVERRIDE(void, Leg, set_inverse_basis_perm, inverse_basis_perm);
     }
 
-    std::vector<Ptr> flat_legs() override { PYBIND11_OVERRIDE(std::vector<Ptr>, Leg, flat_legs); }
-
-    std::vector<Ptr> flat_spaces() override
-    {
-        PYBIND11_OVERRIDE(std::vector<Ptr>, Leg, flat_spaces);
-    }
-
-    int64 num_flat_legs() const override { PYBIND11_OVERRIDE(int64, Leg, num_flat_legs); }
-
     std::vector<int64> _flat_leg_permutation(int64 offset) const override
     {
         PYBIND11_OVERRIDE(std::vector<int64>, Leg, _flat_leg_permutation, offset);
     }
-
-    std::string ascii_arrow() const override { PYBIND11_OVERRIDE(std::string, Leg, ascii_arrow); }
 
     bool operator==(Leg const& other) const override
     {
@@ -603,9 +600,10 @@ class PySpace
 
     void test_sanity() const override { PYBIND11_OVERRIDE(void, Space, test_sanity); }
 
-    Ptr dual() const override { PYBIND11_OVERRIDE_PURE(Ptr, Space, dual); }
-
-    bool is_trivial() const override { PYBIND11_OVERRIDE(bool, Space, is_trivial); }
+    Ptr dual_space() const override
+    {
+        PYBIND11_OVERRIDE_PURE_NAME(Ptr, Space, "dual", dual_space);
+    }
 
     bool operator==(Space const& other) const override
     {
@@ -629,8 +627,6 @@ class PySpace
     {
         PYBIND11_OVERRIDE_PURE(py::object, Space, drop_symmetry, which);
     }
-
-    Ptr as_Space() override { PYBIND11_OVERRIDE(Ptr, Space, as_Space); }
 };
 
 /// Trampoline for Python subclasses of LegPipe (AbelianLegPipe, …).
@@ -644,22 +640,6 @@ class PyLegPipe
     void test_sanity() const override { PYBIND11_OVERRIDE(void, LegPipe, test_sanity); }
 
     py::object as_Space() override { PYBIND11_OVERRIDE(py::object, LegPipe, as_Space); }
-
-    Leg::Ptr dual() const override { PYBIND11_OVERRIDE(Leg::Ptr, LegPipe, dual); }
-
-    bool is_trivial() const override { PYBIND11_OVERRIDE(bool, LegPipe, is_trivial); }
-
-    std::vector<Leg::Ptr> flat_legs() override
-    {
-        PYBIND11_OVERRIDE(std::vector<Leg::Ptr>, LegPipe, flat_legs);
-    }
-
-    std::vector<Leg::Ptr> flat_spaces() override
-    {
-        PYBIND11_OVERRIDE(std::vector<Leg::Ptr>, LegPipe, flat_spaces);
-    }
-
-    int64 num_flat_legs() const override { PYBIND11_OVERRIDE(int64, LegPipe, num_flat_legs); }
 
     std::vector<int64> _flat_leg_permutation(int64 offset) const override
     {
@@ -676,11 +656,6 @@ class PyLegPipe
         PYBIND11_OVERRIDE(void, LegPipe, set_inverse_basis_perm, inverse_basis_perm);
     }
 
-    std::string ascii_arrow() const override
-    {
-        PYBIND11_OVERRIDE(std::string, LegPipe, ascii_arrow);
-    }
-
     bool operator==(Leg const& other) const override
     {
         PYBIND11_OVERRIDE_NAME(bool, LegPipe, "__eq__", operator==, other);
@@ -689,6 +664,67 @@ class PyLegPipe
     bool is_abelian_leg_pipe() const override
     {
         PYBIND11_OVERRIDE(bool, LegPipe, is_abelian_leg_pipe);
+    }
+};
+
+/// Trampoline for Python subclasses of ElementarySpace (AbelianLegPipe, …).
+///
+/// Note: as for the other trampolines here, only virtuals that are bound as *methods* may be
+/// forwarded. Those bound as ``def_property`` (``dual``, ``is_trivial``, ``ascii_arrow``,
+/// ``flat_legs``, …) must not be, since PYBIND11_OVERRIDE would find the property value instead
+/// of a function.
+class PyElementarySpace
+  : public ElementarySpace
+  , public py::trampoline_self_life_support
+{
+  public:
+    using ElementarySpace::ElementarySpace;
+
+    void test_sanity() const override { PYBIND11_OVERRIDE(void, ElementarySpace, test_sanity); }
+
+    py::object as_Space() override { PYBIND11_OVERRIDE(py::object, ElementarySpace, as_Space); }
+
+    py::object as_ElementarySpace(bool is_dual) override
+    {
+        PYBIND11_OVERRIDE(py::object, ElementarySpace, as_ElementarySpace, is_dual);
+    }
+
+    py::object change_symmetry(Symmetry::Ptr symmetry,
+                               SectorMapFn sector_map,
+                               bool injective) override
+    {
+        PYBIND11_OVERRIDE(
+          py::object, ElementarySpace, change_symmetry, symmetry, sector_map, injective);
+    }
+
+    py::object drop_symmetry(std::optional<std::vector<int64>> which) override
+    {
+        PYBIND11_OVERRIDE(py::object, ElementarySpace, drop_symmetry, which);
+    }
+
+    std::vector<int64> _flat_leg_permutation(int64 offset) const override
+    {
+        PYBIND11_OVERRIDE(std::vector<int64>, ElementarySpace, _flat_leg_permutation, offset);
+    }
+
+    void set_basis_perm(std::optional<std::vector<int64>> basis_perm) override
+    {
+        PYBIND11_OVERRIDE(void, ElementarySpace, set_basis_perm, basis_perm);
+    }
+
+    void set_inverse_basis_perm(std::optional<std::vector<int64>> inverse_basis_perm) override
+    {
+        PYBIND11_OVERRIDE(void, ElementarySpace, set_inverse_basis_perm, inverse_basis_perm);
+    }
+
+    bool operator==(Leg const& other) const override
+    {
+        PYBIND11_OVERRIDE_NAME(bool, ElementarySpace, "__eq__", operator==, other);
+    }
+
+    bool operator==(Space const& other) const override
+    {
+        PYBIND11_OVERRIDE_NAME(bool, ElementarySpace, "__eq__", operator==, other);
     }
 };
 
