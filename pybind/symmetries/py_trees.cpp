@@ -4,8 +4,8 @@
 
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/dtypes.h>
+#include <cyten/symmetries/sector.h>
 #include <cyten/symmetries/sector_numpy.h>
-#include <cyten/symmetries/sector_ops.h>
 #include <cyten/symmetries/trees.h>
 
 #include <pybind11/numpy.h>
@@ -72,7 +72,7 @@ sector_array_from_python(py::handle obj, Symmetry const& symmetry)
         return obj.cast<SectorArray>();
     }
     if (py::isinstance<Sector>(obj)) {
-        return sector_array_from_sector(obj.cast<Sector>());
+        return SectorArray::from_sector(obj.cast<Sector>());
     }
     // empty list / sequence → empty SectorArray with correct sector_ind_len
     if (py::isinstance<py::sequence>(obj) && !py::isinstance<py::str>(obj)) {
@@ -166,7 +166,7 @@ bind_trees(py::module_& m)
                 auto symmetry = symmetry_from_python(symmetry_obj);
                 SectorArray unc = sector_array_from_python(uncoupled, *symmetry);
                 SectorArray inner = sector_array_from_python(inner_sectors, *symmetry);
-                auto dual = are_dual_from_python(are_dual, unc.num_sectors);
+                auto dual = are_dual_from_python(are_dual, unc.size());
                 return FusionTree(std::move(symmetry),
                                   std::move(unc),
                                   coupled,
@@ -238,7 +238,7 @@ bind_trees(py::module_& m)
         [](py::object symmetry_obj, py::object uncoupled, py::object are_dual) {
             auto symmetry = symmetry_from_python(symmetry_obj);
             SectorArray unc = sector_array_from_python(uncoupled, *symmetry);
-            auto dual = are_dual_from_python(are_dual, unc.num_sectors);
+            auto dual = are_dual_from_python(are_dual, unc.size());
             return FusionTree::from_abelian_symmetry(std::move(symmetry), unc, dual);
         },
         py::arg("symmetry"),
@@ -278,7 +278,7 @@ bind_trees(py::module_& m)
            SectorArray const& uncoupled,
            Sector coupled,
            py::object are_dual) {
-            auto dual = are_dual_from_python(are_dual, uncoupled.num_sectors);
+            auto dual = are_dual_from_python(are_dual, uncoupled.size());
             return FusionTree::str_uncoupled_coupled(symmetry, uncoupled, coupled, dual);
         },
         py::arg("symmetry"),
@@ -387,7 +387,7 @@ bind_trees(py::module_& m)
             SectorArray unc = sector_array_from_python(uncoupled, *symmetry);
             std::optional<std::vector<std::uint8_t>> dual;
             if (!are_dual.is_none()) {
-                dual = are_dual_from_python(are_dual, unc.num_sectors);
+                dual = are_dual_from_python(are_dual, unc.size());
             }
             return fusion_trees(std::move(symmetry), std::move(unc), coupled, std::move(dual));
         }),
