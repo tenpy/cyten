@@ -2,14 +2,18 @@
 
 #include "symmetries/py_trampolines.hpp"
 
+#include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/spaces.h>
 #include <cyten/symmetries/symmetry.h>
 
+#include <pybind11/functional.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 
+#include <array>
 #include <cmath>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace cyten {
@@ -62,6 +66,85 @@ dim_to_python(float64 dim)
         return py::int_(static_cast<long long>(dim));
     }
     return py::float_(dim);
+}
+
+std::optional<std::vector<int64>>
+multiplicities_from_python(py::handle obj)
+{
+    if (obj.is_none()) {
+        return std::nullopt;
+    }
+    return perm_from_python(obj);
+}
+
+std::optional<std::string>
+sector_order_from_python(py::handle obj)
+{
+    if (obj.is_none()) {
+        return std::nullopt;
+    }
+    return obj.cast<std::string>();
+}
+
+py::array_t<float64>
+f64_vector_to_numpy(std::vector<float64> const& v)
+{
+    py::array_t<float64> arr(static_cast<py::ssize_t>(v.size()));
+    auto buf = arr.mutable_unchecked<1>();
+    for (std::size_t i = 0; i < v.size(); ++i) {
+        buf(static_cast<py::ssize_t>(i)) = v[i];
+    }
+    return arr;
+}
+
+py::object
+slices_to_numpy(std::optional<std::vector<std::array<int64, 2>>> const& slices)
+{
+    if (!slices) {
+        return py::none();
+    }
+    py::array_t<int64> arr({ static_cast<py::ssize_t>(slices->size()), py::ssize_t{ 2 } });
+    auto buf = arr.mutable_unchecked<2>();
+    for (std::size_t i = 0; i < slices->size(); ++i) {
+        buf(static_cast<py::ssize_t>(i), 0) = (*slices)[i][0];
+        buf(static_cast<py::ssize_t>(i), 1) = (*slices)[i][1];
+    }
+    return arr;
+}
+
+std::optional<std::vector<int64>>
+drop_which_from_python(py::handle obj)
+{
+    if (obj.is_none()) {
+        return std::nullopt;
+    }
+    if (py::isinstance<py::str>(obj)) {
+        auto s = obj.cast<std::string>();
+        if (s == "all") {
+            return std::nullopt;
+        }
+        throw py::value_error("which must be 'all', an int, or a list of ints");
+    }
+    if (py::isinstance<py::int_>(obj)) {
+        return std::vector<int64>{ obj.cast<int64>() };
+    }
+    return obj.cast<std::vector<int64>>();
+}
+
+SectorArray
+sector_array_from_python(py::handle obj, Symmetry const& symmetry)
+{
+    if (py::isinstance<SectorArray>(obj)) {
+        return obj.cast<SectorArray>();
+    }
+    if (py::isinstance<Sector>(obj)) {
+        return SectorArray::from_sector(obj.cast<Sector>());
+    }
+    auto arr = sector_array_from_numpy(obj);
+    if (arr.sector_ind_len() == 0 && arr.size() == 0) {
+        return SectorArray::empty(symmetry.sector_ind_len);
+    }
+    return arr;
 }
 
 } // namespace
@@ -226,6 +309,238 @@ bind_spaces(py::module_& m)
            pre_compose : bool
                If we should pre-compose instead, i.e. form ``basis_perm[arr]``.
                Note that in that case, `axis` is ignored.
+           )pydoc");
+
+    py::class_<Space, PySpace, py::smart_holder> space(m,
+                                                       "Space",
+                                                       R"pydoc(
+                                                       Base class for symmetry spaces, see :class:`ElementarySpace` for the standard case.
+
+                                                       A symmetry space is e.g. a vector space with a representation of a symmetry group.
+
+                                                       Each symmetry space is equivalent to a direct sum of sectors, that
+                                                       is :math:`V \cong \bigoplus_a \bigoplus_{\mu=1}{N_a} a`.
+                                                       This is e.g. because the representation of the symmetry group is equivalent to a direct sum of
+                                                       irreducible representations. From a different perspective, the vector space decomposes into
+                                                       different charge sectors of the conserved charge. The unique sectors :math:`a` that appear in
+                                                       the decomposition at least once, e.g. with `N_a > 0`, are stored in :attr:`sector_decomposition`
+                                                       in a canonical order, while their multiplicities :math:`N_a` are stored in :attr:`multiplicities`.
+
+                                                       Attributes
+                                                       ----------
+                                                       symmetry: Symmetry
+                                                           The symmetry associated with this space.
+                                                       sector_decomposition : 2D numpy array of int
+                                                           The unique sectors that appear in the sector decomposition. A 2D array of integers with
+                                                           axes [s, q] where s goes over different sectors and q over the (one or more) numbers needed
+                                                           to label a sector. The sectors (to be precise, the rows ``sector_decomposition[i, :]``) are
+                                                           unique. We use :attr:`multiplicities` to  account for duplicates.
+                                                       sector_order : 'sorted' | 'dual_sorted' | None
+                                                           Indicates if (and how) the :attr:`sector_decomposition` is sorted.
+                                                           If ``'sorted'``, indicates that they are sorted by sector, i.e. such that
+                                                           ``np.lexsort(sector_decomposition.T) == np.arange(num_sectors)``.
+                                                           If ``'dual_sorted'``, indicated that the duals are sorted, i.e. such that
+                                                           ``np.lexsort(dual_sectors(sector_decomposition).T) == np.arange(num_sectors)``.
+                                                           If ``None``, no particular order is guaranteed.
+                                                       multiplicities : 1D numpy array of int | None
+                                                           How often each of the sectors in :attr:`sector_decomposition` appears. A 1D array of positive
+                                                           integers with axis [s]. ``sector_decomposition[i, :]`` appears ``multiplicities[i]`` times.
+                                                           ``None`` is equivalent to a sequence of ``1`` of appropriate length.
+                                                       num_sectors : int
+                                                           The number of sectors in the :attr:`sector_decomposition`.
+                                                           This is the number of *unique* sectors, regardless of their multiplicity, and different
+                                                           from the total number of sectors ``sum(multiplicities)``.
+                                                       sector_dims : 1D array of int | None
+                                                           If ``symmetry.can_be_dropped``, the integer dimension of each sector of the
+                                                           :attr:`sector_decomposition`. Otherwise, not defined and set to ``None``.
+                                                       sector_qdims : 1D array of float
+                                                           The (quantum) dimension of each of the sectors. Unlike :attr:`sector_dims` this is always
+                                                           defined, but may not always be integer.
+                                                       dim : int | float
+                                                           The total dimension. Is integer if ``symmetry.can_be_dropped``, otherwise may be float.
+                                                       slices : 2D numpy array of int | None
+                                                           For every sector ``sector_decomposition[n]``, the start ``slices[n, 0]`` and stop
+                                                           ``slices[n, 1]`` of indices (in the *internal* basis order) that belong to this sector.
+                                                           Conversely, ``basis_perm[slices[n, 0]:slices[n, 1]]`` are the elements of the public
+                                                           basis that live in ``sector_decomposition[n]``. Only available if ``symmetry.can_be_dropped``.
+                                                       )pydoc");
+
+    space.def(py::init([](py::object symmetry_obj,
+                          py::object sector_decomposition,
+                          py::object multiplicities,
+                          py::object sector_order) {
+                  auto symmetry = symmetry_from_python(symmetry_obj);
+                  return std::make_shared<PySpace>(
+                    symmetry,
+                    sector_array_from_python(sector_decomposition, *symmetry),
+                    multiplicities_from_python(multiplicities),
+                    sector_order_from_python(sector_order));
+              }),
+              py::arg("symmetry"),
+              py::arg("sector_decomposition"),
+              py::arg("multiplicities") = py::none(),
+              py::arg("sector_order") = py::none());
+
+    space.def_readwrite("symmetry", &Space::symmetry)
+      .def_readwrite("sector_decomposition", &Space::sector_decomposition)
+      .def_readwrite("sector_order", &Space::sector_order)
+      .def_property(
+        "multiplicities",
+        [](Space const& self) { return perm_to_numpy(self.multiplicities); },
+        [](Space& self, py::object obj) {
+            auto m = multiplicities_from_python(obj);
+            if (!m) {
+                self.multiplicities.assign(static_cast<std::size_t>(self.num_sectors), 1);
+            } else {
+                self.multiplicities = std::move(*m);
+            }
+        })
+      .def_readonly("num_sectors", &Space::num_sectors)
+      .def_property_readonly("sector_dims",
+                             [](Space const& self) -> py::object {
+                                 if (!self.sector_dims) {
+                                     return py::none();
+                                 }
+                                 return perm_to_numpy(*self.sector_dims);
+                             })
+      .def_property_readonly(
+        "sector_qdims", [](Space const& self) { return f64_vector_to_numpy(self.sector_qdims); })
+      .def_property_readonly("slices",
+                             [](Space const& self) { return slices_to_numpy(self.slices); })
+      .def_property_readonly("dim", [](Space const& self) { return dim_to_python(self.dim); });
+
+    space
+      .def_property_readonly("dual",
+                             &Space::dual,
+                             R"pydoc(
+                             The dual space of the same type.
+
+                             A dual space necessarily has a :attr:`sector_decomposition` which consists of the
+                             :meth:`Symmetry.dual_sectors` of the original (though not necessarily in order).
+
+                             Strictly speaking, this only guarantees to give one possible choice for a dual space and
+                             might differ from *the* dual space by an irrelevant isomorphism.
+                             )pydoc")
+      .def_property_readonly("is_trivial",
+                             &Space::is_trivial,
+                             R"pydoc(
+                             If the space is trivial, i.e. isomorphic to the one-dimensional trivial sector.
+
+                             A trivial space is one-dimensional and transforms trivially under a symmetry group.
+                             In category speak, it is (isomorphic to) the monoidal unit.
+                             )pydoc");
+
+    space
+      .def("test_sanity",
+           &Space::test_sanity,
+           R"pydoc(
+           Perform sanity checks.
+           )pydoc")
+      .def("__eq__", &Space::operator==, py::arg("other"))
+      .def("is_isomorphic_to",
+           &Space::is_isomorphic_to,
+           py::arg("other"),
+           R"pydoc(
+           If the two spaces are isomorphic, i.e. have the same :attr:`sector_decomposition`.
+           )pydoc")
+      .def("is_subspace_of",
+           &Space::is_subspace_of,
+           py::arg("other"),
+           R"pydoc(
+           Whether self is (isomorphic to) a subspace of other.
+
+           Per convention, self is never a subspace of other, if the :attr:`symmetry` are different.
+
+           See Also
+           --------
+           ElementarySpace.from_largest_common_subspace
+           )pydoc")
+      .def("as_ElementarySpace",
+           &Space::as_ElementarySpace,
+           py::arg("is_dual") = false,
+           R"pydoc(
+           Convert to an isomorphic :class:`ElementarySpace`.
+           )pydoc")
+      .def(
+        "change_symmetry",
+        [](Space& self, py::object symmetry_obj, py::function sector_map, bool injective) {
+            auto symmetry = symmetry_from_python(symmetry_obj);
+            SectorMapFn map = [sector_map](SectorArray const& sectors) {
+                return sector_map(sectors).cast<SectorArray>();
+            };
+            return self.change_symmetry(std::move(symmetry), std::move(map), injective);
+        },
+        py::arg("symmetry"),
+        py::arg("sector_map"),
+        py::arg("injective") = false,
+        R"pydoc(
+        Change the symmetry by specifying how the sectors change.
+
+        .. note ::
+            This interface assumes that a single sector of the old symmetry is mapped to a single
+            sector of the new symmetry, i.e. that the functor that we realize here preserves
+            simple objects. This does e.g. not cover the case of relaxing SU(2) to its U(1)
+            subgroup.
+
+        Parameters
+        ----------
+        symmetry : :class:`~cyten.groups.Symmetry`
+            The symmetry of the new space
+        sector_map : function (SectorArray,) -> (SectorArray,)
+            A map of sectors (2D int arrays), such that ``new_sectors = sector_map(old_sectors)``.
+            The map is assumed to cooperate with duality, i.e. we assume without checking that
+            ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as
+            ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
+        injective: bool
+            If ``True``, the `sector_map` is assumed to be injective, i.e. produce a list of
+            unique outputs, if the inputs are unique.
+
+        Returns
+        -------
+        A space with the new symmetry. The order of the basis is preserved, but every
+        basis element lives in a new sector, according to `sector_map`.
+        )pydoc")
+      .def(
+        "drop_symmetry",
+        [](Space& self, py::object which) {
+            return self.drop_symmetry(drop_which_from_python(which));
+        },
+        py::arg("which") = "all",
+        R"pydoc(
+        Drop some or all symmetries.
+
+        Parameters
+        ----------
+        which : 'all' | (list of) int
+            If ``'all'`` (default) the entire symmetry is dropped and the result has ``no_symmetry``.
+            An integer or list of integers indicates to drop the :attr:`~cyten.Symmetry.factors` with
+            those indices.
+        )pydoc")
+      .def("as_Space", &Space::as_Space)
+      .def(
+        "sector_decomposition_where",
+        [](Space const& self, Sector sector) -> py::object {
+            auto idx = self.sector_decomposition_where(sector);
+            if (!idx) {
+                return py::none();
+            }
+            return py::int_(*idx);
+        },
+        py::arg("sector"),
+        R"pydoc(
+        Find the index of a given sector in the :attr:`sector_decomposition`.
+
+        Returns
+        -------
+        idx : int | None
+            If the `sector` is found the :attr:`sector_decomposition`, its index there such
+            that ``sector_decomposition[idx] == sector``. Otherwise ``None``.
+        )pydoc")
+      .def("sector_multiplicity",
+           &Space::sector_multiplicity,
+           py::arg("sector"),
+           R"pydoc(
+           The multiplicity of a given sector in the :attr:`sector_decomposition`.
            )pydoc");
 }
 

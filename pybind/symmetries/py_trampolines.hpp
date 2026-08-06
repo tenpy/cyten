@@ -593,4 +593,44 @@ class PyLeg
     }
 };
 
+/// Trampoline for Python subclasses of Space (ElementarySpace, TensorProduct, …).
+class PySpace
+  : public Space
+  , public py::trampoline_self_life_support
+{
+  public:
+    using Space::Space;
+
+    void test_sanity() const override { PYBIND11_OVERRIDE(void, Space, test_sanity); }
+
+    Ptr dual() const override { PYBIND11_OVERRIDE_PURE(Ptr, Space, dual); }
+
+    bool is_trivial() const override { PYBIND11_OVERRIDE(bool, Space, is_trivial); }
+
+    bool operator==(Space const& other) const override
+    {
+        PYBIND11_OVERRIDE_NAME(bool, Space, "__eq__", operator==, other);
+    }
+
+    py::object as_ElementarySpace(bool is_dual) override
+    {
+        PYBIND11_OVERRIDE(py::object, Space, as_ElementarySpace, is_dual);
+    }
+
+    py::object change_symmetry(Symmetry::Ptr symmetry,
+                               SectorMapFn sector_map,
+                               bool injective) override
+    {
+        PYBIND11_OVERRIDE_PURE(
+          py::object, Space, change_symmetry, symmetry, sector_map, injective);
+    }
+
+    py::object drop_symmetry(std::optional<std::vector<int64>> which) override
+    {
+        PYBIND11_OVERRIDE_PURE(py::object, Space, drop_symmetry, which);
+    }
+
+    Ptr as_Space() override { PYBIND11_OVERRIDE(Ptr, Space, as_Space); }
+};
+
 } // namespace cyten

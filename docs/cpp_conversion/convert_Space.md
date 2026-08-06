@@ -50,14 +50,14 @@ Keep original Python `Space` until subclasses (`ElementarySpace`, `TensorProduct
 ## TODO list for conversion
 
 - [x] initial setup (clean tree, `Space` listed, pytest green; branch `convert_Space` from `convert_Leg`)
-- [ ] planning (this file)
-- [ ] generate the declaration draft
-- [ ] improve and fix the declaration draft
-- [ ] generate the C++ definitions
-- [ ] improve and fix the definition drafts
-- [ ] generate pybind11 bindings
-- [ ] generate pybind11 trampoline (`PySpace`)
-- [ ] monkey-patch — **deferred**; export from `_core` only
-- [ ] run python tests
+- [x] planning (this file)
+- [x] generate the declaration draft
+- [x] improve and fix the declaration draft
+- [x] generate the C++ definitions
+- [x] improve and fix the definition drafts
+- [x] generate pybind11 bindings
+- [x] generate pybind11 trampoline (`PySpace`)
+- [ ] monkey-patch — **deferred**; exported as `cyten._core.Space`
+- [x] run python tests (`test_spaces.py`; still using Python `Space`)
 - [ ] remove original python `Space` (after subclasses)
 - [ ] wrap up (then `LegPipe` / `ElementarySpace`)
