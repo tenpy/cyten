@@ -247,19 +247,14 @@ class Site:
         """Build an identity MPO tensor for this site with the given virtual legs.
 
         Returns a 4-leg tensor with legs ``[wL, p, wR, p*]``; the physical legs carry :attr:`leg`.
-        Follows the convention of :meth:`~cyten.tensors.SymmetricTensor.from_eye`, which uses
-        ``domain=co_domain`` (the same underlying space, not its dual): `wR` must therefore be
-        the *same* :class:`~cyten.symmetries.ElementarySpace` as `wL` (both the non-dual,
-        codomain-style representative of the virtual bond, as e.g. returned by
-        ``W.get_leg_co_domain('wR')`` / ``W.get_leg_co_domain('wL')`` on adjacent MPO blocks).
-        A :class:`ValueError` is raised if ``wR != wL``.
+        This tensor acts as identity map between wL and wR, and is symmetric under the symmetry of this site.
 
         Parameters
         ----------
         wL, wR : ElementarySpace
             Left and right virtual legs of the returned tensor. Must be equal.
         overbraid : bool
-            Controls the braiding direction when the virtual leg is permuted past the physical
+            Braiding direction when the virtual leg is permuted past the physical
             leg. ``True`` (default) uses an over-braid (``bend_right=False`` in
             :func:`~cyten.tensors.permute_legs`); ``False`` uses an under-braid (``bend_right=True``).
 

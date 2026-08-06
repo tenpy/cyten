@@ -8,17 +8,172 @@ two sites that have a spin degree of freedom.
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 
 from ..backends import get_same_backend
 from ..block_backends import Block, Dtype
-from ..symmetries import FibonacciAnyonCategory, Sector, SymmetryError, TensorProduct, fibonacci_anyon_category
-from ..tensors import SymmetricTensor, add_trivial_leg, compose, horizontal_factorization, permute_legs, squeeze_legs, tdot
+from ..symmetries import (
+    BraidChiralityUnspecifiedError,
+    FermionParity,
+    FibonacciAnyonCategory,
+    IsingAnyonCategory,
+    NoSymmetry,
+    SU2,
+    SU2_kAnyonCategory,
+    Sector,
+    SymmetryError,
+    U1,
+    ZN,
+    fibonacci_anyon_category,
+)
+from ..tensors import (
+    SymmetricTensor, add_trivial_leg, almost_equal, compose, horizontal_factorization, permute_legs,
+    squeeze_legs,
+)
 from .degrees_of_freedom import ALL_SPECIES, BosonicDOF, ClockDOF, FermionicDOF, Site, SpinDOF
-from .sites import GoldenSite
+from .sites import (
+    ClockSite, FibonacciAnyonSite, GoldenSite, IsingAnyonSite, SpinHalfFermionSite, SpinSite,
+    SpinlessBosonSite, SpinlessFermionSite, SU2kSpin1Site,
+)
 
-import base64
-import json
+
+# ---------------------------------------------------------------------------
+# Serialization helpers
+# ---------------------------------------------------------------------------
+
+def _symmetry_factor_to_dict(factor) -> dict:
+    """Serialize a single SymmetryFactor to a dict."""
+    dn = factor.descriptive_name  # included for all types; Symmetry.__eq__ checks this
+    if isinstance(factor, NoSymmetry):
+        return {'type': 'NoSymmetry'}
+    if isinstance(factor, FermionParity):
+        return {'type': 'FermionParity', 'descriptive_name': dn}
+    if isinstance(factor, U1):
+        return {'type': 'U1', 'descriptive_name': dn}
+    if isinstance(factor, SU2):
+        return {'type': 'SU2', 'descriptive_name': dn}
+    if isinstance(factor, ZN):
+        return {'type': 'ZN', 'N': int(factor.N), 'descriptive_name': dn}
+    if isinstance(factor, FibonacciAnyonCategory):
+        return {'type': 'FibonacciAnyonCategory', 'handedness': factor.handedness}
+    if isinstance(factor, IsingAnyonCategory):
+        return {'type': 'IsingAnyonCategory', 'nu': int(factor.nu)}
+    if isinstance(factor, SU2_kAnyonCategory):
+        return {'type': 'SU2_kAnyonCategory', 'k': int(factor.k), 'handedness': factor.handedness}
+    raise NotImplementedError(
+        f'Cannot serialize symmetry factor {type(factor).__name__!r}. '
+        f'Add a branch to _symmetry_factor_to_dict.'
+    )
+
+
+def _symmetry_to_dict(sym) -> dict:
+    """Serialize a (possibly product) Symmetry to a dict."""
+    return {'factors': [_symmetry_factor_to_dict(f) for f in sym.factors]}
+
+
+def _space_to_dict(space) -> dict:
+    """Serialize a single ElementarySpace to a  dict."""
+    sectors = space.defining_sectors
+    if hasattr(sectors, 'tolist'):
+        sectors = sectors.tolist()
+    else:
+        sectors = [[(s.item() if hasattr(s, 'item') else int(s)) for s in row] for row in sectors]
+    bp = space._basis_perm
+    return {
+        'symmetry': _symmetry_to_dict(space.symmetry),
+        'sectors': sectors,
+        'multiplicities': [(m.item() if hasattr(m, 'item') else int(m)) for m in space.multiplicities],
+        'is_dual': bool(space.is_dual),
+        'basis_perm': bp.tolist() if bp is not None else None,
+    }
+
+
+def _site_to_dict(site) -> dict:
+    """Serialize a Site to a dict of {type, constructor-params}.
+
+    Only the parameters needed to reconstruct the site are stored — the physical
+    leg and operators are derived by the constructor, so they are not duplicated.
+    """
+    name = type(site).__name__
+    if isinstance(site, SpinSite):
+        return {'type': name, 'S': float(site.S), 'conserve': site.conserve}
+    if isinstance(site, SpinHalfFermionSite):
+        return {
+            'type': name,
+            'conserve_N': site.conserve_N,
+            'conserve_S': site.conserve_S,
+            'filling': site.filling,
+        }
+    if isinstance(site, SpinlessBosonSite):
+        Nmax = site.Nmax
+        if hasattr(Nmax, 'tolist'):
+            Nmax = Nmax.tolist()
+        elif hasattr(Nmax, '__iter__') and not isinstance(Nmax, (str, int)):
+            Nmax = list(Nmax)
+        return {'type': name, 'Nmax': Nmax, 'conserve': site.conserve, 'filling': site.filling}
+    if isinstance(site, SpinlessFermionSite):
+        return {
+            'type': name,
+            'num_species': site.num_species,
+            'conserve': site.conserve,
+            'filling': site.filling,
+        }
+    if isinstance(site, FibonacciAnyonSite):
+        return {'type': name, 'handedness': site.symmetry.handedness}
+    if isinstance(site, IsingAnyonSite):
+        return {'type': name, 'nu': int(site.symmetry.nu)}
+    if isinstance(site, GoldenSite):
+        return {'type': name, 'handedness': site.symmetry.handedness}
+    if isinstance(site, SU2kSpin1Site):
+        return {'type': name, 'k': int(site.symmetry.k), 'handedness': site.symmetry.handedness}
+    if isinstance(site, ClockSite):
+        return {'type': name, 'q': int(site.q), 'conserve': site.conserve}
+    raise NotImplementedError(
+        f'Cannot serialize site type {name!r}. '
+        f'Add a branch to _site_to_dict.'
+    )
+
+
+def _adjacent_transpositions(permutation: Sequence[int]) -> list[int]:
+    """Decompose a permutation into a sequence of adjacent position swaps.
+
+    Parameters
+    ----------
+    permutation : list of int
+        A permutation of ``range(len(permutation))``; ``permutation[k]`` is the value that ends
+        up at position `k`.
+
+    Returns
+    -------
+    swap_positions : list of int
+        Positions `pos` such that applying the swaps ``(pos, pos + 1)`` in order to
+        ``list(range(len(permutation)))`` produces `permutation`. Realizes `permutation` with the
+        minimal number of adjacent transpositions, i.e. its number of inversions.
+
+    """
+    n = len(permutation)
+    working = list(range(n))
+    swap_positions = []
+    for target_pos in range(n):
+        value = permutation[target_pos]
+        cur = working.index(value, target_pos)
+        while cur > target_pos:
+            swap_positions.append(cur - 1)
+            working[cur - 1], working[cur] = working[cur], working[cur - 1]
+            cur -= 1
+    assert working == list(permutation)
+    return swap_positions
+
+
+def freeze(obj):
+    """Recursively turn the output of the ``_*_to_dict`` helpers into hashable nested tuples."""
+    if isinstance(obj, dict):
+        return tuple((k, freeze(v)) for k, v in sorted(obj.items()))
+    if isinstance(obj, (list, tuple)):
+        return tuple(freeze(v) for v in obj)
+    return obj
 
 
 class Coupling:
@@ -55,9 +210,12 @@ class Coupling:
         self, sites: list[Site], factorization: list[SymmetricTensor], name: str = None, skip_sanity: bool = False
     ):
         self.sites = sites
-        assert len(factorization) == len(sites) or len(factorization) == len(sites) + 1
+        assert len(factorization) == len(sites) #or len(factorization) == len(sites) + 1
         self.factorization = factorization
         self.name = name
+        self._levels: list[int] = list(range(1, len(sites) + 1))
+        # cache of previously computed permutations of this instance, filled by :meth:`permute`.
+        self._permuted: list[tuple[tuple[int, ...], Coupling]] = []
         if not skip_sanity:
             self.test_sanity()
 
@@ -80,6 +238,58 @@ class Coupling:
         for W1, W2 in zip(self.factorization[:-1], self.factorization[1:]):
             assert W1.get_leg_co_domain('wR') == W2.get_leg_co_domain('wL')
         assert self.factorization[-1].get_leg('wR').is_trivial
+
+    def _key(self):
+        """Structural identity used by :meth:`__hash__`/:meth:`__eq__`.
+
+        Contains only hashable metadata, no floating-point tensor
+        data, which is instead compared numerically (via :func:`~cyten.tensors.almost_equal`) in
+        :meth:`__eq__`. This is what determines whether two (distinct) `Coupling` instances may
+        share the same key in an :class:`~tenpy.networks.mpo.MPOGraph`.
+
+        Note that `Coupling` is currently mutable, so this key/``__hash__``/``__eq__`` scheme is
+        only correct as long as a coupling already used as a dict key isn't mutated afterwards;
+        enforcing immutability is left for a future translation of this code to C++.
+        """
+        return (
+            self.name,
+            tuple(freeze(_site_to_dict(s)) for s in self.sites),
+            tuple(
+                (
+                    tuple(t.shape),
+                    tuple(t.labels),
+                    t.dtype.name,
+                    tuple(freeze(_space_to_dict(f)) for f in t.codomain.factors),
+                    tuple(freeze(_space_to_dict(f)) for f in t.domain.factors),
+                )
+                for t in self.factorization
+            ),
+        )
+
+    def __hash__(self):
+        # recomputed on every call (not cached): see the mutability note in :meth:`_key`.
+        return hash(self._key())
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        if not isinstance(other, Coupling):
+            return NotImplemented
+        if self._key() != other._key():
+            return False
+        # `_key()` already guarantees matching legs for corresponding tensors, so `almost_equal`
+        # (which requires identical legs) cannot raise here.
+        for t1, t2 in zip(self.factorization, other.factorization):
+            if t1 is t2:
+                continue
+            if not almost_equal(t1, t2):
+                return False
+        return True
+
+    def __repr__(self):
+        site_names = [type(s).__name__ for s in self.sites]
+        shapes = [tuple(t.shape) for t in self.factorization]
+        return f'Coupling(name={self.name!r}, sites={site_names}, shapes={shapes})'
 
     @classmethod
     def from_dense_block(
@@ -216,10 +426,7 @@ class Coupling:
         return self.to_tensor().to_numpy(leg_order, numpy_dtype, understood_braiding)
 
     def insert_identity_between_sites(self, position: int) -> Coupling:
-        """
-        Insert identity tensor between sites at given position.
-        """
-
+        """Insert identity tensor between sites at given position."""
         if position <= 0 or position >= len(self.sites):
             raise ValueError(f'Position must be between 1 and {len(self.sites) - 1}, got {position}')
 
@@ -250,160 +457,114 @@ class Coupling:
 
         return Coupling(sites=new_sites, factorization=new_factorization, name=self.name, skip_sanity=True)
 
+    def permute(
+        self, permutation: Sequence[int], levels: Sequence[int | None], over_braid: Sequence[bool | None]
+    ) -> Coupling:
+        """Permute the sites of this coupling, braiding through the (possibly anyonic) legs.
 
-    def to_hash(self) -> str:
-        """Compute a hash that uniquely identifies this coupling.
+        Contracts `self` to a single tensor (:meth:`to_tensor`), realizes `permutation` as a
+        sequence of elementary adjacent-site transpositions (each one braiding the full ``(p, p*)``
+        leg pair of one site past that of its neighbour, as a single unit -- the two legs of one
+        site never cross each other), and re-factorizes the result (:meth:`from_tensor`) with the
+        sites reordered accordingly. This is analogous to how
+        :class:`~cyten.backends.fusion_tree_backend.PermuteLegsInstructionEngine` realizes a leg
+        permutation as a sequence of elementary swaps, tracking a `levels` list that is itself
+        reordered as legs move.
 
-        The hash is a base64-encoded JSON string containing all information needed
-        to reconstruct the coupling, including site parameters and tensor data.
-
-        Returns
-        -------
-        str
-            A unique hash string for this coupling.
-        """
-
-        def serialize_space(space):
-            """Serialize a Space (ElementarySpace) to a dict."""
-
-            def to_python_int(x):
-                """Convert numpy int to Python int for JSON serialization."""
-                if hasattr(x, 'item'):
-                    return x.item()
-                return int(x)
-
-            defining_sectors = space.defining_sectors
-            if hasattr(defining_sectors, 'tolist'):
-                defining_sectors = defining_sectors.tolist()
-            defining_sectors = [[to_python_int(s) for s in row] for row in defining_sectors]
-
-            return {
-                'symmetry': str(type(space.symmetry).__name__),
-                'defining_sectors': defining_sectors,
-                'sector_decomposition': [to_python_int(s) for s in space.sector_decomposition],
-                'multiplicities': [to_python_int(m) for m in space.multiplicities],
-                'is_dual': bool(space.is_dual),
-            }
-
-        def serialize_tensor(tensor):
-            """Serialize a SymmetricTensor to a dict."""
-            data_base64 = base64.b64encode(tensor.to_numpy().tobytes()).decode('ascii')
-            codomain_labels = tensor.codomain_labels
-            domain_labels = tensor.domain_labels
-            return {
-                'labels': [*codomain_labels, *domain_labels],
-                'codomain': [serialize_space(f) for f in tensor.codomain.factors],
-                'domain': [serialize_space(f) for f in tensor.domain.factors],
-                'data': data_base64,
-                'dtype': str(tensor.dtype),
-            }
-
-        def serialize_site(site):
-            """Serialize a Site to a dict."""
-            from .sites import SpinSite
-
-            result = {'type': type(site).__name__}
-            if isinstance(site, SpinSite):
-                result['S'] = site.S
-                result['conserve'] = site.conserve
-            else:
-                raise NotImplementedError(f'Serialization of {type(site).__name__} not implemented')
-            return result
-
-        data = {
-            'name': self.name,
-            'sites': [serialize_site(site) for site in self.sites],
-            'factorization': [serialize_tensor(t) for t in self.factorization],
-        }
-
-        json_str = json.dumps(data, sort_keys=True)
-        return base64.b64encode(json_str.encode('utf-8')).decode('ascii')
-
-    @classmethod
-    def from_hash(cls, hash_str: str) -> Coupling:
-        """Reconstruct a coupling from its hash.
+        Results are cached on `self` (not shared with `self`'s other permutations, or with the
+        result of this call): calling ``self.permute(permutation, ...)`` twice with the same
+        `permutation` returns the same (cached) result, using `levels`/`over_braid` only the first
+        time; a different `permutation` triggers a new computation.
 
         Parameters
         ----------
-        hash_str : str
-            The hash string previously returned by :meth:`to_hash`.
+        permutation : list of int
+            A permutation of ``range(len(self.sites))``. ``permutation[k]`` is the index (in
+            `self`'s current order) of the site that ends up at new position `k`.
+        levels : list of int | None
+            One entry per site of `self` (in `self`'s current order): its "height", used to
+            derive the braid chirality (over/under) for any elementary transposition whose
+            `over_braid` entry is ``None``, the same way :attr:`~cyten.symmetries.Symmetry` legs
+            with a higher level braid over those with a lower one. Only needed for symmetries
+            without a symmetric braid (see :attr:`~cyten.symmetries.Symmetry.braiding_style`);
+            ignored otherwise.
+        over_braid : list of bool | None
+            One entry per elementary adjacent-site transposition needed to realize `permutation`
+            (i.e. NOT one entry per site -- the number of transpositions depends on
+            `permutation`, e.g. via the number of its inversions). Explicitly fixes the braid
+            chirality for that transposition (``True`` = the site moving from the lower position
+            over the one moving from the higher position); ``None`` derives it from `levels`.
 
         Returns
         -------
         Coupling
-            The reconstructed coupling.
+            A new coupling with :attr:`sites` (and the represented operator) reordered according
+            to `permutation`.
+
         """
-        import base64
-        import json
-        from ..backends import get_backend
-        from ..symmetries import ElementarySpace, NoSymmetry, SU2Symmetry, U1Symmetry, ZNSymmetry, Symmetry
+        n = len(self.sites)
+        permutation = list(permutation)
+        if sorted(permutation) != list(range(n)):
+            raise ValueError(f'`permutation` must be a permutation of range({n}), got {permutation}')
+        if len(levels) != n:
+            raise ValueError(f'need {n} `levels`, one per site, got {len(levels)}')
 
-        def deserialize_space(data):
-            """Deserialize a dict to a Space (ElementarySpace)."""
-            sym_name = data['symmetry']
-            if sym_name == 'NoSymmetry':
-                sym = NoSymmetry()
-            elif sym_name == 'SU2Symmetry':
-                sym = SU2Symmetry()
-            elif sym_name == 'U1Symmetry':
-                sym = U1Symmetry()
-            elif sym_name == 'ZNSymmetry':
-                sym = ZNSymmetry(n=2)
-            else:
-                raise NotImplementedError(f'Symmetry {sym_name} not implemented')
+        key = tuple(permutation)
+        for cached_key, cached_coupling in self._permuted:
+            if cached_key == key:
+                return cached_coupling
 
-            sectors = data['defining_sectors']
-            mults = data['multiplicities']
-
-            if len(sectors) == 1 and len(sectors[0]) == 1 and sectors[0][0] == 0 and mults[0] > 1 and len(mults) == 1:
-                return ElementarySpace.from_trivial_sector(dim=mults[0], symmetry=sym)
-            return ElementarySpace.from_defining_sectors(sym, sectors, multiplicities=mults)
-
-        def deserialize_tensor(data, backend):
-            """Deserialize a dict to a SymmetricTensor."""
-            data_bytes = base64.b64decode(data['data'])
-            arr = np.frombuffer(data_bytes, dtype=np.complex128).reshape(-1).copy()
-
-            codomain = TensorProduct([deserialize_space(d) for d in data['codomain']])
-            domain = TensorProduct([deserialize_space(d) for d in data['domain']])
-
-            shape = tuple(f.dim for f in codomain.factors) + tuple(f.dim for f in reversed(domain.factors))
-            arr = arr.reshape(shape)
-
-            labels = data['labels']
-            codomain_labels = labels[: len(data['codomain'])]
-            domain_labels = labels[len(data['codomain']) :]
-
-            tensor = SymmetricTensor.from_dense_block(
-                arr,
-                codomain=codomain,
-                domain=domain,
-                labels=[codomain_labels, domain_labels],
-                backend=backend,
-                understood_braiding=True,
+        swap_positions = _adjacent_transpositions(permutation)
+        if len(over_braid) != len(swap_positions):
+            raise ValueError(
+                f'need {len(swap_positions)} entries in `over_braid` (one per elementary '
+                f'adjacent transposition realizing this permutation), got {len(over_braid)}'
             )
-            return tensor
 
-        def deserialize_site(data):
-            """Deserialize a dict to a Site."""
-            site_type = data['type']
-            if site_type == 'SpinSite':
-                from .sites import SpinSite
+        tensor = self.to_tensor()
+        sites = list(self.sites)
+        levels_state = list(levels)
+        # current label (p{original_idx} / p{original_idx}*) at each position; labels are
+        # intrinsic to a leg and travel with it, only their position changes.
+        codomain_labels = [f'p{i}' for i in range(n)]
+        domain_labels = [f'p{i}*' for i in range(n)]
 
-                return SpinSite(S=data['S'], conserve=data['conserve'])
-            else:
-                raise NotImplementedError(f'Deserialization of {site_type} not implemented')
+        for step, pos in enumerate(swap_positions):
+            over = over_braid[step]
+            if over is None:
+                level_1, level_2 = levels_state[pos], levels_state[pos + 1]
+                if level_1 is None or level_2 is None:
+                    raise BraidChiralityUnspecifiedError('Sites that braid must have specified levels.')
+                if level_1 == level_2:
+                    raise BraidChiralityUnspecifiedError('Sites that braid can not have the same level.')
+                over = level_1 > level_2
+            new_codomain = list(codomain_labels)
+            new_codomain[pos], new_codomain[pos + 1] = new_codomain[pos + 1], new_codomain[pos]
+            new_domain = list(domain_labels)
+            new_domain[pos], new_domain[pos + 1] = new_domain[pos + 1], new_domain[pos]
+            # ket and bra of the same site have the same level: they move together and never
+            # cross each other.
+            level_dict = {
+                codomain_labels[pos]: 1 if over else 0,
+                domain_labels[pos]: 1 if over else 0,
+                codomain_labels[pos + 1]: 0 if over else 1,
+                domain_labels[pos + 1]: 0 if over else 1,
+            }
+            tensor = permute_legs(tensor, codomain=new_codomain, domain=new_domain, levels=level_dict)
+            codomain_labels, domain_labels = new_codomain, new_domain
+            sites[pos], sites[pos + 1] = sites[pos + 1], sites[pos]
+            levels_state[pos], levels_state[pos + 1] = levels_state[pos + 1], levels_state[pos]
 
-        json_bytes = base64.b64decode(hash_str.encode('ascii'))
-        data = json.loads(json_bytes.decode('utf-8'))
+        relabelling = {}
+        for new_pos, old_idx in enumerate(permutation):
+            relabelling[f'p{old_idx}'] = f'p{new_pos}'
+            relabelling[f'p{old_idx}*'] = f'p{new_pos}*'
+        tensor = tensor.relabel(relabelling)
 
-        sites = [deserialize_site(s) for s in data['sites']]
-        backend = get_same_backend(*sites)
-
-        factorization = [deserialize_tensor(t, backend) for t in data['factorization']]
-
-        return cls(sites=sites, factorization=factorization, name=data['name'], skip_sanity=True)
-
+        result = Coupling.from_tensor(tensor, sites=sites, name=self.name)
+        result._levels = [self._levels[i] for i in permutation]
+        self._permuted.append((key, result))
+        return result
 
 # SPIN COUPLINGS
 
