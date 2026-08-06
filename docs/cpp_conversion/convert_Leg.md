@@ -60,8 +60,8 @@ Keep original Python `Leg` (and all subclasses) until subclasses are converted. 
 - [x] planning (this file)
 - [x] generate the declaration draft (`gen_cpp_declaration` → `include/cyten/symmetries/spaces.h`)
 - [x] improve and fix the declaration draft (namespace, types, C++23 / pre-commit; protected perms + separate setters)
-- [ ] generate the C++ definitions (`gen_cpp_definition`; add to `src/CMakeLists.txt`)
-- [ ] improve and fix the definition drafts (CHECKME/FIXME; compile + ctest)
+- [x] generate the C++ definitions (`gen_cpp_definition`; add to `src/CMakeLists.txt`)
+- [x] improve and fix the definition drafts (CHECKME/FIXME; compile + ctest)
 - [ ] generate pybind11 bindings (`gen_pyb11_binding` → `py_spaces.cpp`; register in `py_symmetries.cpp` / `pybind/CMakeLists.txt`)
 - [ ] generate pybind11 trampoline (`PyLeg`)
 - [ ] monkey-patch — **likely deferred** until subclasses converted; export from `_core` only
