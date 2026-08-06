@@ -33,9 +33,12 @@ Hard part: abelian path uses `make_grid` (Python `cyten.tools.misc`) + `multiple
 
 Done in `calc_sectors_of_spaces` (works on the flattened `Space::Ptr` list) with `calc_sectors_of_factors` as the entry point. The abelian branch replicates `make_grid` directly in C++ (no Python round-trip needed) and feeds the resulting index grid into `symmetry->multiple_fusion_broadcast`. Empty factor list yields the trivial sector with multiplicity 1.
 
-### `drop_symmetry`
+### Deviations from the Python version
 
-When dropping *all* symmetries, the trivial sector must be taken from the *remaining* symmetry (`no_symmetry`), not from the old one — otherwise `sector_ind_len` mismatches and `test_sanity` fails.
+Two spots where Python raises and C++ does the sensible thing instead. Both are latent bugs of the Python version that only show up for inputs the test suite does not cover; the C++ results were checked to be self-consistent (`test_sanity`, preserved `dim`).
+
+- `change_symmetry`: Python passes `symmetry=self.symmetry` to the constructor although the new factors carry the *new* symmetry. For an actual change of symmetry (e.g. U(1) → ℤ₄) that raises `SymmetryError: Incompatible symmetries`. C++ passes the new symmetry.
+- `drop_symmetry` for `which='all'`: Python takes the trivial sector of the *old* symmetry, whose `sector_ind_len` does not match `no_symmetry` for a product symmetry, and raises `ValueError: Wrong sectors.shape`. C++ uses the trivial sector of the remaining symmetry. Dropping individual factors agrees exactly between the two.
 
 ### Iterators
 
