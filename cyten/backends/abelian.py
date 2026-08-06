@@ -45,11 +45,11 @@ from ..symmetries import (
     FusionTree,
     Leg,
     LegPipe,
+    SectorArray,
     Space,
     Symmetry,
     TensorProduct,
 )
-from ..symmetries.sector_utils import repeat_row
 from ..tools.misc import (
     find_row_differences,
     inverse_permutation,
@@ -81,13 +81,13 @@ def _valid_block_inds(codomain: TensorProduct, domain: TensorProduct):
             *(space.sector_decomposition[i] for space, i in zip(codomain.factors, grid.T))
         )
     else:
-        codomain_coupled = repeat_row(symmetry.trivial_sector, n_combos)
+        codomain_coupled = SectorArray.repeat(symmetry.trivial_sector, n_combos)
     if domain.num_factors > 0:
         domain_coupled = symmetry.multiple_fusion_broadcast(
             *(space.sector_decomposition[i] for space, i in zip(domain.factors, grid.T[::-1]))
         )
     else:
-        domain_coupled = repeat_row(symmetry.trivial_sector, n_combos)
+        domain_coupled = SectorArray.repeat(symmetry.trivial_sector, n_combos)
     valid = np.array([a == b for a, b in zip(codomain_coupled, domain_coupled)])
     block_inds = grid[valid, :]
     perm = np.lexsort(block_inds.T)
@@ -629,13 +629,13 @@ class AbelianBackend(TensorBackend):
                 *(leg.sector_decomposition[bi] for leg, bi in zip(new_codomain, a_block_inds_keep.T))
             )
         else:
-            a_charges = repeat_row(symmetry.trivial_sector, len(a_block_inds_keep))
+            a_charges = SectorArray.repeat(symmetry.trivial_sector, len(a_block_inds_keep))
         if new_domain.num_factors > 0:
             b_charges = symmetry.multiple_fusion_broadcast(
                 *(leg.sector_decomposition[bi] for leg, bi in zip(new_domain, b_block_inds_keep[:, ::-1].T))
             )
         else:
-            b_charges = repeat_row(symmetry.trivial_sector, len(b_block_inds_keep))
+            b_charges = SectorArray.repeat(symmetry.trivial_sector, len(b_block_inds_keep))
         a_charge_lookup = list_to_dict_list(a_charges)  # lookup table ``tuple(sector) -> idcs_in_a_charges``
 
         # rows_a changes faster than cols_b, such that the resulting block_inds are lex-sorted

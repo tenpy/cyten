@@ -76,11 +76,11 @@ QuantumDoubleZNAnyonCategory::is_valid_sector(Sector a) const
 bool
 QuantumDoubleZNAnyonCategory::are_valid_sectors(SectorArray const& sectors) const
 {
-    if (sectors.sector_ind_len != 2) {
+    if (sectors.sector_ind_len() != 2) {
         return false;
     }
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        auto row = sectors.row(i);
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        auto row = sectors[i];
         if (row[0] < 0 || row[0] >= N || row[1] < 0 || row[1] >= N) {
             return false;
         }
@@ -93,8 +93,8 @@ QuantumDoubleZNAnyonCategory::fusion_outcomes(Sector a, Sector b) const
 {
     SectorArray aa(1, 2);
     SectorArray bb(1, 2);
-    aa.set(0, a);
-    bb.set(0, b);
+    aa[0] = a;
+    bb[0] = b;
     return fusion_outcomes_broadcast(aa, bb);
 }
 
@@ -102,12 +102,12 @@ SectorArray
 QuantumDoubleZNAnyonCategory::fusion_outcomes_broadcast(SectorArray const& a,
                                                         SectorArray const& b) const
 {
-    SectorArray out(a.num_sectors, 2);
-    for (std::size_t i = 0; i < a.num_sectors; ++i) {
-        auto ar = a.row(i);
-        auto br = b.row(i);
-        out.row(i)[0] = topo_ones::mod_n(static_cast<int32_t>(ar[0]) + br[0], N);
-        out.row(i)[1] = topo_ones::mod_n(static_cast<int32_t>(ar[1]) + br[1], N);
+    SectorArray out(a.size(), 2);
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        auto ar = a[i];
+        auto br = b[i];
+        out[i][0] = topo_ones::mod_n(static_cast<int32_t>(ar[0]) + br[0], N);
+        out[i][1] = topo_ones::mod_n(static_cast<int32_t>(ar[1]) + br[1], N);
     }
     return out;
 }
@@ -118,11 +118,9 @@ QuantumDoubleZNAnyonCategory::_multiple_fusion_broadcast(
 {
     SectorArray out = sectors[0];
     for (std::size_t s = 1; s < sectors.size(); ++s) {
-        for (std::size_t i = 0; i < out.num_sectors; ++i) {
-            out.row(i)[0] =
-              topo_ones::mod_n(static_cast<int32_t>(out.row(i)[0]) + sectors[s].row(i)[0], N);
-            out.row(i)[1] =
-              topo_ones::mod_n(static_cast<int32_t>(out.row(i)[1]) + sectors[s].row(i)[1], N);
+        for (std::size_t i = 0; i < out.size(); ++i) {
+            out[i][0] = topo_ones::mod_n(static_cast<int32_t>(out[i][0]) + sectors[s][i][0], N);
+            out[i][1] = topo_ones::mod_n(static_cast<int32_t>(out[i][1]) + sectors[s][i][1], N);
         }
     }
     return out;
@@ -138,7 +136,7 @@ py::array
 QuantumDoubleZNAnyonCategory::batch_sector_dim(SectorArray const& a) const
 {
     return topo_ones::numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.num_sectors)),
+      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
                     py::arg("dtype") = topo_ones::numpy().attr("intp"))
       .cast<py::array>();
 }
@@ -147,7 +145,7 @@ py::array
 QuantumDoubleZNAnyonCategory::batch_qdim(SectorArray const& a) const
 {
     return topo_ones::numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.num_sectors)),
+      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
                     py::arg("dtype") = topo_ones::numpy().attr("intp"))
       .cast<py::array>();
 }
@@ -180,11 +178,11 @@ QuantumDoubleZNAnyonCategory::dual_sector(Sector a) const
 SectorArray
 QuantumDoubleZNAnyonCategory::dual_sectors(SectorArray const& sectors) const
 {
-    SectorArray out(sectors.num_sectors, 2);
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        auto row = sectors.row(i);
-        out.row(i)[0] = topo_ones::mod_n(-static_cast<int32_t>(row[0]), N);
-        out.row(i)[1] = topo_ones::mod_n(-static_cast<int32_t>(row[1]), N);
+    SectorArray out(sectors.size(), 2);
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        auto row = sectors[i];
+        out[i][0] = topo_ones::mod_n(-static_cast<int32_t>(row[0]), N);
+        out[i][1] = topo_ones::mod_n(-static_cast<int32_t>(row[1]), N);
     }
     return out;
 }
@@ -245,8 +243,8 @@ QuantumDoubleZNAnyonCategory::all_sectors() const
         for (int j = 0; j < N; ++j) {
             auto idx = static_cast<std::size_t>(i) * static_cast<std::size_t>(N) +
                        static_cast<std::size_t>(j);
-            out.row(idx)[0] = static_cast<int16_t>(j);
-            out.row(idx)[1] = static_cast<int16_t>(i);
+            out[idx][0] = static_cast<int16_t>(j);
+            out[idx][1] = static_cast<int16_t>(i);
         }
     }
     return out;

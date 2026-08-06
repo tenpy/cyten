@@ -21,7 +21,7 @@ SectorArray
 single_sector(int16_t q)
 {
     SectorArray out(1, 1);
-    out.row(0)[0] = q;
+    out[0][0] = q;
     return out;
 }
 
@@ -83,7 +83,7 @@ SU3_3AnyonCategory::fusion_map(int key)
         case 2: {
             SectorArray out(4, 1);
             for (int i = 0; i < 4; ++i) {
-                out.row(static_cast<std::size_t>(i))[0] = static_cast<int16_t>(i);
+                out[static_cast<std::size_t>(i)][0] = static_cast<int16_t>(i);
             }
             return out;
         }
@@ -325,11 +325,11 @@ SU3_3AnyonCategory::is_valid_sector(Sector a) const
 bool
 SU3_3AnyonCategory::are_valid_sectors(SectorArray const& sectors) const
 {
-    if (sectors.sector_ind_len != 1) {
+    if (sectors.sector_ind_len() != 1) {
         return false;
     }
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        auto const q = sectors.row(i)[0];
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        auto const q = sectors[i][0];
         if (q < 0 || q >= 4) {
             return false;
         }
@@ -355,7 +355,7 @@ py::array
 SU3_3AnyonCategory::batch_sector_dim(SectorArray const& a) const
 {
     return topo_ones::numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.num_sectors)),
+      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
                     py::arg("dtype") = topo_ones::numpy().attr("intp"))
       .cast<py::array>();
 }
@@ -396,13 +396,13 @@ SU3_3AnyonCategory::dual_sector(Sector a) const
 SectorArray
 SU3_3AnyonCategory::dual_sectors(SectorArray const& sectors) const
 {
-    SectorArray out(sectors.num_sectors, 1);
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        auto const q = sectors.row(i)[0];
+    SectorArray out(sectors.size(), 1);
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        auto const q = sectors[i][0];
         if (q >= 2) {
-            out.row(i)[0] = topo_ones::mod_n(-static_cast<int32_t>(q), 5);
+            out[i][0] = topo_ones::mod_n(-static_cast<int32_t>(q), 5);
         } else {
-            out.row(i)[0] = q;
+            out[i][0] = q;
         }
     }
     return out;
@@ -472,7 +472,7 @@ SU3_3AnyonCategory::all_sectors() const
 {
     SectorArray out(4, 1);
     for (int i = 0; i < 4; ++i) {
-        out.row(static_cast<std::size_t>(i))[0] = static_cast<int16_t>(i);
+        out[static_cast<std::size_t>(i)][0] = static_cast<int16_t>(i);
     }
     return out;
 }

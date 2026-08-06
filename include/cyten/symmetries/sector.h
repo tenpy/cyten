@@ -7,9 +7,12 @@
 #include <compare>
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <tuple>
+#include <utility>
 #include <vector>
 
 namespace cyten {
@@ -54,6 +57,17 @@ class Sector
         for (std::size_t i = 0; i < values.size(); ++i) {
             s.q[i] = values[i];
         }
+        return s;
+    }
+
+    /// Zero-filled sector of the given length.
+    static Sector zeros(std::uint8_t len)
+    {
+        if (len > max_sector_ind_len) {
+            throw std::invalid_argument("Sector length exceeds max_sector_ind_len");
+        }
+        Sector s;
+        s.len_ = len;
         return s;
     }
 
@@ -139,84 +153,74 @@ class Sector
 static_assert(sizeof(Sector) == 16);
 static_assert(alignof(Sector) <= 16);
 
-/// Contiguous batch of sectors: shape ``(num_sectors, sector_ind_len)``, row-major ``int16_t``.
+/// Batch of sectors with a shared ``sector_ind_len`` (including when empty).
 ///
-/// Prefer this over ``std::vector<Sector>`` for batch ops and NumPy interoperability.
-struct SectorArray
+/// Subclasses ``std::vector<Sector>`` so ``operator[]`` returns ``Sector&``.
+/// All sectors must have the same ``len()``; this is checked at construction /
+/// when appending via the typed mutators below.
+class SectorArray : public std::vector<Sector>
 {
-    std::vector<int16_t> data;
-    std::size_t num_sectors = 0;
-    std::uint8_t sector_ind_len = 0;
+  public:
+    using Base = std::vector<Sector>;
 
     SectorArray() = default;
 
-    SectorArray(std::size_t num_sectors_, std::uint8_t sector_ind_len_)
-      : data(num_sectors_ * static_cast<std::size_t>(sector_ind_len_), 0)
-      , num_sectors(num_sectors_)
-      , sector_ind_len(sector_ind_len_)
-    {
-        if (sector_ind_len_ > max_sector_ind_len) {
-            throw std::invalid_argument("SectorArray sector_ind_len exceeds max_sector_ind_len");
-        }
-    }
+    /// ``n`` zero-filled sectors of length ``sector_ind_len_``.
+    SectorArray(std::size_t n, std::uint8_t sector_ind_len_);
 
-    static SectorArray empty(std::uint8_t sector_ind_len_)
-    {
-        return SectorArray(0, sector_ind_len_);
-    }
+    /// Construct from an existing list of sectors (must share the same length).
+    explicit SectorArray(std::vector<Sector> sectors);
 
-    std::span<int16_t> row(std::size_t i)
-    {
-        assert(i < num_sectors);
-        auto const off = i * static_cast<std::size_t>(sector_ind_len);
-        return { data.data() + off, sector_ind_len };
-    }
+    /// Empty array that still remembers ``sector_ind_len`` (hides ``vector::empty()``).
+    static SectorArray empty(std::uint8_t sector_ind_len_);
 
-    std::span<const int16_t> row(std::size_t i) const
-    {
-        assert(i < num_sectors);
-        auto const off = i * static_cast<std::size_t>(sector_ind_len);
-        return { data.data() + off, sector_ind_len };
-    }
+    static SectorArray from_sector(Sector const& sector);
 
-    template<std::size_t N>
-    std::span<int16_t, N> row_as_span(std::size_t i)
-    {
-        assert(sector_ind_len == N);
-        assert(i < num_sectors);
-        auto const off = i * N;
-        return std::span<int16_t, N>{ data.data() + off, N };
-    }
+    static SectorArray repeat(Sector const& sector, std::size_t n);
 
-    template<std::size_t N>
-    std::span<const int16_t, N> row_as_span(std::size_t i) const
-    {
-        assert(sector_ind_len == N);
-        assert(i < num_sectors);
-        auto const off = i * N;
-        return std::span<const int16_t, N>{ data.data() + off, N };
-    }
+    [[nodiscard]] std::uint8_t sector_ind_len() const noexcept { return sector_ind_len_; }
 
-    Sector operator[](std::size_t i) const
-    {
-        assert(i < num_sectors);
-        return Sector::from_span(row(i));
-    }
+    /// Hide base ``resize`` that would default-construct ``Sector{}`` (len 0).
+    void resize(std::size_t n);
+    void resize(std::size_t n, Sector const& fill);
 
-    void set(std::size_t i, Sector const& s)
-    {
-        assert(i < num_sectors);
-        assert(s.len() == sector_ind_len);
-        auto r = row(i);
-        for (std::uint8_t j = 0; j < sector_ind_len; ++j) {
-            r[j] = s.q[j];
-        }
-    }
+    void push_back(Sector const& s);
+    void push_back(Sector&& s);
+
+    [[nodiscard]] std::vector<std::size_t> lexsort_indices() const;
+
+    /// ``(sorted_sectors, permutation)`` with ``sorted = (*this)[perm]``.
+    [[nodiscard]] std::pair<SectorArray, std::vector<std::size_t>> sorted() const;
+
+    [[nodiscard]] std::vector<std::size_t> find_row_differences(bool include_len = false) const;
+
+    /// Sort then merge duplicate rows; sum multiplicities.
+    /// Returns ``(unique_sorted_sectors, multiplicities, perm)``.
+    [[nodiscard]] std::tuple<SectorArray, std::vector<std::int64_t>, std::vector<std::size_t>>
+    unique_sorted(std::vector<std::int64_t> const& multiplicities) const;
+
+    [[nodiscard]] std::optional<std::size_t> row_where(Sector const& sector) const;
+
+    [[nodiscard]] SectorArray concat(SectorArray const& other) const;
+
+    [[nodiscard]] SectorArray take(std::span<const std::size_t> indices) const;
+
+    [[nodiscard]] SectorArray take_mask(std::vector<bool> const& mask) const;
+
+    [[nodiscard]] SectorArray slice(std::size_t start, std::size_t stop) const;
+
+    /// Merge walk of two lex-sorted SectorArrays (``np.lexsort`` order).
+    static void iter_common_sorted(
+      SectorArray const& a,
+      SectorArray const& b,
+      bool a_strict,
+      bool b_strict,
+      std::function<void(std::ptrdiff_t, std::ptrdiff_t)> const& yield);
 
     friend bool operator==(SectorArray const& a, SectorArray const& b) noexcept
     {
-        return a.num_sectors == b.num_sectors && a.sector_ind_len == b.sector_ind_len &&
-               a.data == b.data;
+        return a.sector_ind_len_ == b.sector_ind_len_ &&
+               static_cast<Base const&>(a) == static_cast<Base const&>(b);
     }
 
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
@@ -224,6 +228,17 @@ struct SectorArray
     static SectorArray from_hdf5(py::object hdf5_loader,
                                  py::object h5gr,
                                  std::string const& subpath);
+
+  private:
+    std::uint8_t sector_ind_len_ = 0;
+
+    void check_sector_len(Sector const& s) const;
+
+    /// Lex compare of rows matching ``np.lexsort(sectors.T)`` (last column primary).
+    static int cmp_lexsort(SectorArray const& a,
+                           std::size_t i,
+                           SectorArray const& b,
+                           std::size_t j) noexcept;
 };
 
 } // namespace cyten

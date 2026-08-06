@@ -20,11 +20,11 @@ NoSymmetry::is_valid_sector(Sector a) const
 bool
 NoSymmetry::are_valid_sectors(SectorArray const& sectors) const
 {
-    if (sectors.sector_ind_len != 1) {
+    if (sectors.sector_ind_len() != 1) {
         return false;
     }
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        if (sectors.row(i)[0] != 0) {
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        if (sectors[i][0] != 0) {
             return false;
         }
     }
@@ -35,7 +35,7 @@ SectorArray
 NoSymmetry::fusion_outcomes(Sector a, Sector /*b*/) const
 {
     SectorArray out(1, 1);
-    out.set(0, a);
+    out[0] = a;
     return out;
 }
 
@@ -85,7 +85,7 @@ SectorArray
 NoSymmetry::all_sectors() const
 {
     SectorArray out(1, 1);
-    out.set(0, trivial_sector);
+    out[0] = trivial_sector;
     return out;
 }
 

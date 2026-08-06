@@ -12,12 +12,6 @@ from .._core import (
     to_iterable,  # noqa
     to_valid_idx,  # noqa
 )
-from .._core import (
-    find_row_differences as _find_sector_row_differences,
-)
-from .._core import (
-    iter_common_sorted_arrays as _iter_common_sorted_sector_arrays,
-)
 
 UNSPECIFIED = object()  # sentinel, also used elsewhere
 _MAX_INT = np.iinfo(int).max
@@ -383,7 +377,7 @@ def find_row_differences(sectors, include_len: bool = False):
 
     """
     if isinstance(sectors, SectorArray):
-        return np.asarray(_find_sector_row_differences(sectors, include_len), dtype=np.intp)
+        return np.asarray(sectors.find_row_differences(include_len), dtype=np.intp)
     # note: by default remove last entry [len(sectors)] compared to old.charges
     len_sectors = len(sectors)
     diff = np.ones(len_sectors + int(include_len), dtype=np.bool_)
@@ -460,7 +454,7 @@ def iter_common_sorted_arrays(a, b, a_strict: bool = True, b_strict: bool = True
     if isinstance(a, SectorArray) or isinstance(b, SectorArray):
         from ..symmetries.sector_utils import as_sector_array
 
-        yield from _iter_common_sorted_sector_arrays(as_sector_array(a), as_sector_array(b), a_strict, b_strict)
+        yield from SectorArray.iter_common_sorted(as_sector_array(a), as_sector_array(b), a_strict, b_strict)
         return
 
     l_a, d_a = a.shape

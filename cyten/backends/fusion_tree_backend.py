@@ -101,7 +101,7 @@ from ..symmetries import (
     TensorProduct,
     fusion_trees,
 )
-from ..symmetries.sector_utils import as_sector_array, lexsort_indices, rows_equal
+from ..symmetries.sector_utils import as_sector_array
 from ..symmetries.spaces import _flat_leg_permutation
 from ..tools.mappings import IdentityMapping, SparseMapping
 from ..tools.misc import (
@@ -269,7 +269,7 @@ class FusionTreeBackend(TensorBackend):
         # check charge rule (matching coupled sectors)
         coupled_codomain = a.codomain.sector_decomposition[data.block_inds[:, 0]]
         coupled_domain = a.domain.sector_decomposition[data.block_inds[:, 1]]
-        assert rows_equal(coupled_codomain, coupled_domain)
+        assert coupled_codomain == coupled_domain
         # blocks
         for (i, j), block in zip(data.block_inds, data.blocks):
             assert 0 <= i < a.codomain.num_sectors
@@ -298,7 +298,7 @@ class FusionTreeBackend(TensorBackend):
         # check charge rule (matching coupled sectors)
         coupled_codomain = a.codomain.sector_decomposition[data.block_inds[:, 0]]
         coupled_domain = a.domain.sector_decomposition[data.block_inds[:, 1]]
-        assert rows_equal(coupled_codomain, coupled_domain)
+        assert coupled_codomain == coupled_domain
         # blocks
         for (i, j), block in zip(data.block_inds, data.blocks):
             if a.is_projection:
@@ -682,7 +682,7 @@ class FusionTreeBackend(TensorBackend):
             sectors = as_sector_array(sectors)
             multiplicities = np.array(multiplicities, int)
             if not is_sorted:
-                perm = lexsort_indices(sectors)
+                perm = sectors.lexsort_indices()
                 sectors = sectors[perm]
                 multiplicities = multiplicities[perm]
             if basis_perm is not None:
@@ -710,7 +710,7 @@ class FusionTreeBackend(TensorBackend):
         # sectors do not appear in the same order.
 
         # OPTIMIZE doing this sorting is duplicate work between here and forming tens.leg.dual
-        perm = lexsort_indices(tens.symmetry.dual_sectors(tens.domain.sector_decomposition))
+        perm = tens.symmetry.dual_sectors(tens.domain.sector_decomposition).lexsort_indices()
         data = FusionTreeData(
             block_inds=inverse_permutation(perm)[tens.data.block_inds],
             blocks=tens.data.blocks,
@@ -1414,7 +1414,7 @@ class FusionTreeBackend(TensorBackend):
         # -> maybe need to do additional sorting and searching if leg is dual
         is_sorted = not large_leg.is_dual
         if not is_sorted:
-            perm = lexsort_indices(large_leg.sector_decomposition)
+            perm = large_leg.sector_decomposition.lexsort_indices()
             sorted_duals = large_leg.sector_decomposition[perm]
             multis = large_leg.multiplicities[perm]
             domain = TensorProduct(
@@ -1493,8 +1493,8 @@ class FusionTreeBackend(TensorBackend):
         # similar implementation to diagonal_transpose
         # OPTIMIZE doing this sorting is duplicate work between here and forming tens.leg.dual
         block_inds = tens.data.block_inds
-        perm_dom = lexsort_indices(tens.symmetry.dual_sectors(tens.domain.sector_decomposition))
-        perm_codom = lexsort_indices(tens.symmetry.dual_sectors(tens.codomain.sector_decomposition))
+        perm_dom = tens.symmetry.dual_sectors(tens.domain.sector_decomposition).lexsort_indices()
+        perm_codom = tens.symmetry.dual_sectors(tens.codomain.sector_decomposition).lexsort_indices()
         block_inds = np.stack(
             [inverse_permutation(perm_dom)[block_inds[:, 1]], inverse_permutation(perm_codom)[block_inds[:, 0]]], axis=1
         )

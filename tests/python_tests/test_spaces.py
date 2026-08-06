@@ -6,12 +6,11 @@ from numpy import testing as npt
 from cyten import SymmetryError, get_backend, symmetries
 from cyten.block_backends import NumpyBlockBackend
 from cyten.symmetries import (
+    SectorArray,
     as_sector_array,
     assert_sectors_equal,
     fermion_parity,
-    lexsort_indices,
     no_symmetry,
-    sector_array_from_sector,
     spaces,
     trees,
     u1_symmetry,
@@ -24,16 +23,16 @@ from cyten.tools import is_permutation, make_grid
 
 def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
     sectors = as_sector_array(make_any_sectors(10))
-    sectors = sectors[lexsort_indices(sectors)]
+    sectors = sectors[sectors.lexsort_indices()]
     dual_sectors = any_symmetry.dual_sectors(sectors)
-    dual_sectors_sort = lexsort_indices(dual_sectors)
+    dual_sectors_sort = dual_sectors.lexsort_indices()
     mults = np_random.integers(1, 10, size=len(sectors))
 
     s1 = spaces.ElementarySpace(symmetry=any_symmetry, defining_sectors=sectors, multiplicities=mults)
     s2 = spaces.ElementarySpace.from_trivial_sector(dim=8)
 
     print('checking ElementarySpace.sector_decomposition')
-    assert_sectors_equal(s2.sector_decomposition, sector_array_from_sector(symmetries.no_symmetry.trivial_sector))
+    assert_sectors_equal(s2.sector_decomposition, SectorArray.from_sector(symmetries.no_symmetry.trivial_sector))
 
     print('checking str and repr')
     _ = str(s1)
@@ -63,7 +62,7 @@ def test_ElementarySpace(any_symmetry, make_any_sectors, np_random):
     assert not s2.is_trivial
     assert spaces.ElementarySpace.from_trivial_sector(dim=1).is_trivial
     assert spaces.ElementarySpace(
-        symmetry=any_symmetry, defining_sectors=sector_array_from_sector(any_symmetry.trivial_sector)
+        symmetry=any_symmetry, defining_sectors=SectorArray.from_sector(any_symmetry.trivial_sector)
     ).is_trivial
 
     print('checking is_subspace_of')
@@ -188,7 +187,7 @@ def test_ElementarySpace_from_defining_sectors(any_symmetry, make_any_sectors, n
     # check sectors and multiplicities
     sectors_np = as_sector_array(sectors).to_numpy()
     expect_sectors = np.unique(sectors_np, axis=0)
-    expect_sectors = expect_sectors[lexsort_indices(as_sector_array(expect_sectors))]
+    expect_sectors = expect_sectors[as_sector_array(expect_sectors).lexsort_indices()]
     mult_contributions = np.where(
         np.all(sectors_np[None, :, :] == expect_sectors[:, None, :], axis=2), multiplicities[None, :], 0
     )
@@ -523,11 +522,11 @@ def test_direct_sum(is_dual, make_any_space, max_mult=5, max_sectors=5):
             sector2mult[key] = sector2mult.get(key, 0) + m
     sectors = np.array(list(sector2mult.keys()))
     mults = np.array(list(sector2mult.values()))
-    sort = lexsort_indices(as_sector_array(sectors))
+    sort = as_sector_array(sectors).lexsort_indices()
     sectors = sectors[sort]
     mults = mults[sort]
     if is_dual:
-        expected_order = lexsort_indices(d.sector_decomposition)
+        expected_order = d.sector_decomposition.lexsort_indices()
     else:
         expected_order = slice(None, None, None)
     assert_sectors_equal(d.sector_decomposition[expected_order], sectors)
@@ -710,5 +709,5 @@ def assert_spaces_equal(space1: spaces.Space, space2: spaces.Space):
 def _sort_sectors(sectors, sym: symmetries.Symmetry, by_duals: bool = False):
     sectors = as_sector_array(sectors)
     sort_by = sym.dual_sectors(sectors) if by_duals else sectors
-    perm = lexsort_indices(sort_by)
+    perm = sort_by.lexsort_indices()
     return sectors[perm], perm

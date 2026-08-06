@@ -169,11 +169,9 @@ Symmetry::factor_sectors(SectorArray const& a, std::size_t i) const
     auto const begin = sector_slices[i];
     auto const end = sector_slices[i + 1];
     auto const flen = static_cast<std::uint8_t>(end - begin);
-    SectorArray out(a.num_sectors, flen);
-    for (std::size_t r = 0; r < a.num_sectors; ++r) {
-        for (std::uint8_t j = 0; j < flen; ++j) {
-            out.data[r * flen + j] = a.data[r * a.sector_ind_len + begin + j];
-        }
+    SectorArray out(a.size(), flen);
+    for (std::size_t r = 0; r < a.size(); ++r) {
+        out[r] = Sector::from_span(a[r].span().subspan(begin, flen));
     }
     return out;
 }
@@ -257,7 +255,7 @@ Symmetry::is_valid_sector(Sector a) const
 bool
 Symmetry::are_valid_sectors(SectorArray const& sectors) const
 {
-    if (sectors.sector_ind_len != sector_ind_len) {
+    if (sectors.sector_ind_len() != sector_ind_len) {
         return false;
     }
     for (std::size_t i = 0; i < factors.size(); ++i) {
@@ -280,7 +278,7 @@ Symmetry::fusion_outcomes(Sector a, Sector b) const
     for (std::size_t i = 0; i < factors.size(); ++i) {
         auto c_i = factors[i]->fusion_outcomes(factor_sector(a, i), factor_sector(b, i));
         all_outcomes.push_back(sector_array_to_numpy(c_i));
-        num_possibilities.push_back(static_cast<ssize_t>(c_i.num_sectors));
+        num_possibilities.push_back(static_cast<ssize_t>(c_i.size()));
     }
 
     if (factors.empty()) {
@@ -339,16 +337,18 @@ Symmetry::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const& b) 
           factors[i]->fusion_outcomes_broadcast(factor_sectors(a, i), factor_sectors(b, i)));
     }
     // concatenate along last axis
-    SectorArray out(a.num_sectors, sector_ind_len);
-    for (std::size_t r = 0; r < a.num_sectors; ++r) {
+    SectorArray out(a.size(), sector_ind_len);
+    for (std::size_t r = 0; r < a.size(); ++r) {
+        std::array<int16_t, max_sector_ind_len> buf{};
         std::size_t off = 0;
         for (std::size_t i = 0; i < factors.size(); ++i) {
-            auto const flen = components[i].sector_ind_len;
+            auto const flen = components[i].sector_ind_len();
             for (std::uint8_t j = 0; j < flen; ++j) {
-                out.data[r * sector_ind_len + off + j] = components[i].data[r * flen + j];
+                buf[off + j] = components[i][r][j];
             }
             off += flen;
         }
+        out[r] = Sector::from_span(std::span<const int16_t>(buf.data(), sector_ind_len));
     }
     return out;
 }
@@ -366,17 +366,19 @@ Symmetry::_multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) co
         }
         components.push_back(factors[i]->_multiple_fusion_broadcast(sectors_i));
     }
-    auto const n = components.empty() ? 0 : components[0].num_sectors;
+    auto const n = components.empty() ? 0 : components[0].size();
     SectorArray out(n, sector_ind_len);
     for (std::size_t r = 0; r < n; ++r) {
+        std::array<int16_t, max_sector_ind_len> buf{};
         std::size_t off = 0;
         for (std::size_t i = 0; i < factors.size(); ++i) {
-            auto const flen = components[i].sector_ind_len;
+            auto const flen = components[i].sector_ind_len();
             for (std::uint8_t j = 0; j < flen; ++j) {
-                out.data[r * sector_ind_len + off + j] = components[i].data[r * flen + j];
+                buf[off + j] = components[i][r][j];
             }
             off += flen;
         }
+        out[r] = Sector::from_span(std::span<const int16_t>(buf.data(), sector_ind_len));
     }
     return out;
 }
@@ -398,14 +400,14 @@ Symmetry::dual_sector(Sector a) const
 SectorArray
 Symmetry::dual_sectors(SectorArray const& sectors) const
 {
-    SectorArray res(sectors.num_sectors, sectors.sector_ind_len);
+    SectorArray res(sectors.size(), sectors.sector_ind_len());
     for (std::size_t i = 0; i < factors.size(); ++i) {
         auto d = factors[i]->dual_sectors(factor_sectors(sectors, i));
         auto const begin = sector_slices[i];
-        auto const flen = d.sector_ind_len;
-        for (std::size_t r = 0; r < sectors.num_sectors; ++r) {
+        auto const flen = d.sector_ind_len();
+        for (std::size_t r = 0; r < sectors.size(); ++r) {
             for (std::uint8_t j = 0; j < flen; ++j) {
-                res.data[r * sector_ind_len + begin + j] = d.data[r * flen + j];
+                res[r][begin + j] = d[r][j];
             }
         }
     }
@@ -493,11 +495,11 @@ Symmetry::batch_sector_dim(SectorArray const& a) const
     auto np = numpy();
     if (is_abelian()) {
         return np
-          .attr("ones")(py::make_tuple(static_cast<ssize_t>(a.num_sectors)),
+          .attr("ones")(py::make_tuple(static_cast<ssize_t>(a.size())),
                         py::arg("dtype") = np.attr("int64"))
           .cast<py::array>();
     }
-    auto dims = np.attr("ones")(py::make_tuple(static_cast<ssize_t>(a.num_sectors)),
+    auto dims = np.attr("ones")(py::make_tuple(static_cast<ssize_t>(a.size())),
                                 py::arg("dtype") = np.attr("int64"));
     for (std::size_t i = 0; i < factors.size(); ++i) {
         dims = np.attr("multiply")(dims, factors[i]->batch_sector_dim(factor_sectors(a, i)));
@@ -511,11 +513,11 @@ Symmetry::batch_qdim(SectorArray const& a) const
     auto np = numpy();
     if (is_abelian()) {
         return np
-          .attr("ones")(py::make_tuple(static_cast<ssize_t>(a.num_sectors)),
+          .attr("ones")(py::make_tuple(static_cast<ssize_t>(a.size())),
                         py::arg("dtype") = np.attr("int64"))
           .cast<py::array>();
     }
-    auto dims = np.attr("ones")(py::make_tuple(static_cast<ssize_t>(a.num_sectors)));
+    auto dims = np.attr("ones")(py::make_tuple(static_cast<ssize_t>(a.size())));
     for (std::size_t i = 0; i < factors.size(); ++i) {
         dims = np.attr("multiply")(dims, factors[i]->batch_qdim(factor_sectors(a, i)));
     }

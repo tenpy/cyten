@@ -188,11 +188,11 @@ SU2_kAnyonCategory::is_valid_sector(Sector a) const
 bool
 SU2_kAnyonCategory::are_valid_sectors(SectorArray const& sectors) const
 {
-    if (sectors.sector_ind_len != 1) {
+    if (sectors.sector_ind_len() != 1) {
         return false;
     }
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        auto const q = sectors.row(i)[0];
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        auto const q = sectors[i][0];
         if (q < 0 || q > k) {
             return false;
         }
@@ -210,7 +210,7 @@ SU2_kAnyonCategory::fusion_outcomes(Sector a, Sector b) const
     auto const n = static_cast<std::size_t>((upper_limit - lower) / 2 + 1);
     SectorArray out(n, 1);
     for (std::size_t i = 0; i < n; ++i) {
-        out.row(i)[0] = static_cast<int16_t>(lower + static_cast<int>(2 * i));
+        out[i][0] = static_cast<int16_t>(lower + static_cast<int>(2 * i));
     }
     return out;
 }
@@ -322,9 +322,9 @@ SU2_kAnyonCategory::qdim(Sector a) const
 py::array
 SU2_kAnyonCategory::batch_qdim(SectorArray const& a) const
 {
-    py::array_t<float64> out(static_cast<py::ssize_t>(a.num_sectors));
+    py::array_t<float64> out(static_cast<py::ssize_t>(a.size()));
     auto r = out.mutable_unchecked<1>();
-    for (std::size_t i = 0; i < a.num_sectors; ++i) {
+    for (std::size_t i = 0; i < a.size(); ++i) {
         r(static_cast<py::ssize_t>(i)) = qdim(a[i]);
     }
     return out;
@@ -350,7 +350,7 @@ SU2_kAnyonCategory::all_sectors() const
 {
     SectorArray out(static_cast<std::size_t>(k + 1), 1);
     for (int i = 0; i <= k; ++i) {
-        out.row(static_cast<std::size_t>(i))[0] = static_cast<int16_t>(i);
+        out[static_cast<std::size_t>(i)][0] = static_cast<int16_t>(i);
     }
     return out;
 }

@@ -47,11 +47,11 @@ FermionParity::is_valid_sector(Sector a) const
 bool
 FermionParity::are_valid_sectors(SectorArray const& sectors) const
 {
-    if (sectors.sector_ind_len != 1) {
+    if (sectors.sector_ind_len() != 1) {
         return false;
     }
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        auto q = sectors.row(i)[0];
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        auto q = sectors[i][0];
         if (q < 0 || q >= 2) {
             return false;
         }
@@ -64,17 +64,17 @@ FermionParity::fusion_outcomes(Sector a, Sector b) const
 {
     SectorArray aa(1, 1);
     SectorArray bb(1, 1);
-    aa.set(0, a);
-    bb.set(0, b);
+    aa[0] = a;
+    bb[0] = b;
     return fusion_outcomes_broadcast(aa, bb);
 }
 
 SectorArray
 FermionParity::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const& b) const
 {
-    SectorArray out(a.num_sectors, 1);
-    for (std::size_t i = 0; i < a.num_sectors; ++i) {
-        out.row(i)[0] = topo_ones::mod_n(static_cast<int32_t>(a.row(i)[0]) + b.row(i)[0], 2);
+    SectorArray out(a.size(), 1);
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        out[i][0] = topo_ones::mod_n(static_cast<int32_t>(a[i][0]) + b[i][0], 2);
     }
     return out;
 }
@@ -84,9 +84,8 @@ FermionParity::_multiple_fusion_broadcast(std::vector<SectorArray> const& sector
 {
     SectorArray out = sectors[0];
     for (std::size_t s = 1; s < sectors.size(); ++s) {
-        for (std::size_t i = 0; i < out.num_sectors; ++i) {
-            out.row(i)[0] =
-              topo_ones::mod_n(static_cast<int32_t>(out.row(i)[0]) + sectors[s].row(i)[0], 2);
+        for (std::size_t i = 0; i < out.size(); ++i) {
+            out[i][0] = topo_ones::mod_n(static_cast<int32_t>(out[i][0]) + sectors[s][i][0], 2);
         }
     }
     return out;
@@ -102,7 +101,7 @@ py::array
 FermionParity::batch_sector_dim(SectorArray const& a) const
 {
     return numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.num_sectors)),
+      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
                     py::arg("dtype") = numpy().attr("intp"))
       .cast<py::array>();
 }
@@ -227,8 +226,8 @@ SectorArray
 FermionParity::all_sectors() const
 {
     SectorArray out(2, 1);
-    out.row(0)[0] = 0;
-    out.row(1)[0] = 1;
+    out[0][0] = 0;
+    out[1][0] = 1;
     return out;
 }
 

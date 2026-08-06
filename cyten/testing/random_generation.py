@@ -8,7 +8,7 @@ import numpy as np
 from .. import backends, tensors, tools
 from ..block_backends import dtypes
 from ..symmetries import SU2, U1, SectorArray, Symmetry, SymmetryFactor, spaces
-from ..symmetries.sector_utils import as_sector_array, lexsort_indices
+from ..symmetries.sector_utils import as_sector_array
 
 
 def random_block(block_backend, size, real=False, np_random=np.random.default_rng(0)):
@@ -38,7 +38,7 @@ def random_symmetry_sectors(
         rows.append(np.concatenate(parts))
     res = as_sector_array(np.asarray(rows, dtype=int))
     if sort:
-        res = res[lexsort_indices(res)]
+        res = res[res.lexsort_indices()]
     return res
 
 
@@ -269,7 +269,7 @@ def find_last_leg(
             which = np_random.choice(len(sectors), size=num_replace, replace=False)
             sectors[which] = extra_sectors[:num_replace]
     # guarantee sorting
-    order = lexsort_indices(sectors)
+    order = sectors.lexsort_indices()
     sectors = sectors[order]
     mults = mults[order]
     #

@@ -68,11 +68,11 @@ ZNAnyonCategory::is_valid_sector(Sector a) const
 bool
 ZNAnyonCategory::are_valid_sectors(SectorArray const& sectors) const
 {
-    if (sectors.sector_ind_len != 1) {
+    if (sectors.sector_ind_len() != 1) {
         return false;
     }
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        auto q = sectors.row(i)[0];
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        auto q = sectors[i][0];
         if (q < 0 || q >= N) {
             return false;
         }
@@ -85,17 +85,17 @@ ZNAnyonCategory::fusion_outcomes(Sector a, Sector b) const
 {
     SectorArray aa(1, 1);
     SectorArray bb(1, 1);
-    aa.set(0, a);
-    bb.set(0, b);
+    aa[0] = a;
+    bb[0] = b;
     return fusion_outcomes_broadcast(aa, bb);
 }
 
 SectorArray
 ZNAnyonCategory::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const& b) const
 {
-    SectorArray out(a.num_sectors, 1);
-    for (std::size_t i = 0; i < a.num_sectors; ++i) {
-        out.row(i)[0] = topo_ones::mod_n(static_cast<int32_t>(a.row(i)[0]) + b.row(i)[0], N);
+    SectorArray out(a.size(), 1);
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        out[i][0] = topo_ones::mod_n(static_cast<int32_t>(a[i][0]) + b[i][0], N);
     }
     return out;
 }
@@ -105,9 +105,8 @@ ZNAnyonCategory::_multiple_fusion_broadcast(std::vector<SectorArray> const& sect
 {
     SectorArray out = sectors[0];
     for (std::size_t s = 1; s < sectors.size(); ++s) {
-        for (std::size_t i = 0; i < out.num_sectors; ++i) {
-            out.row(i)[0] =
-              topo_ones::mod_n(static_cast<int32_t>(out.row(i)[0]) + sectors[s].row(i)[0], N);
+        for (std::size_t i = 0; i < out.size(); ++i) {
+            out[i][0] = topo_ones::mod_n(static_cast<int32_t>(out[i][0]) + sectors[s][i][0], N);
         }
     }
     return out;
@@ -123,7 +122,7 @@ py::array
 ZNAnyonCategory::batch_sector_dim(SectorArray const& a) const
 {
     return topo_ones::numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.num_sectors)),
+      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
                     py::arg("dtype") = topo_ones::numpy().attr("intp"))
       .cast<py::array>();
 }
@@ -132,7 +131,7 @@ py::array
 ZNAnyonCategory::batch_qdim(SectorArray const& a) const
 {
     return topo_ones::numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.num_sectors)),
+      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
                     py::arg("dtype") = topo_ones::numpy().attr("intp"))
       .cast<py::array>();
 }
@@ -165,9 +164,9 @@ ZNAnyonCategory::dual_sector(Sector a) const
 SectorArray
 ZNAnyonCategory::dual_sectors(SectorArray const& sectors) const
 {
-    SectorArray out(sectors.num_sectors, 1);
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        out.row(i)[0] = topo_ones::mod_n(-static_cast<int32_t>(sectors.row(i)[0]), N);
+    SectorArray out(sectors.size(), 1);
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        out[i][0] = topo_ones::mod_n(-static_cast<int32_t>(sectors[i][0]), N);
     }
     return out;
 }
@@ -225,7 +224,7 @@ ZNAnyonCategory::all_sectors() const
 {
     SectorArray out(static_cast<std::size_t>(N), 1);
     for (int i = 0; i < N; ++i) {
-        out.row(static_cast<std::size_t>(i))[0] = static_cast<int16_t>(i);
+        out[static_cast<std::size_t>(i)][0] = static_cast<int16_t>(i);
     }
     return out;
 }

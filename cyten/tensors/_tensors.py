@@ -39,7 +39,6 @@ from ..symmetries import (
     Symmetry,
     SymmetryError,
     TensorProduct,
-    rows_equal,
 )
 from ..tools.misc import (
     duplicate_entries,
@@ -5165,7 +5164,7 @@ def is_scalar(obj):
             return False
         if obj.codomain.num_sectors != 1:
             return False
-        if not rows_equal(obj.domain.sector_decomposition, obj.codomain.sector_decomposition):
+        if not (obj.domain.sector_decomposition == obj.codomain.sector_decomposition):
             return False
         if not np.all(obj.domain.multiplicities == 1):
             return False

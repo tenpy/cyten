@@ -87,7 +87,7 @@ py::array
 AbelianGroup::batch_sector_dim(SectorArray const& a) const
 {
     return numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.num_sectors)),
+      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
                     py::arg("dtype") = numpy().attr("intp"))
       .cast<py::array>();
 }

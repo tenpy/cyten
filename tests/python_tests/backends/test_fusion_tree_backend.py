@@ -18,14 +18,13 @@ from cyten.symmetries import (
     ElementarySpace,
     FibonacciAnyonCategory,
     FusionTree,
+    SectorArray,
     SU2_kAnyonCategory,
     SU3_3AnyonCategory,
     Symmetry,
     TensorProduct,
-    concat_sector_arrays,
     fibonacci_anyon_category,
     ising_anyon_category,
-    sector_array_from_sector,
     u1_symmetry,
     z5_symmetry,
 )
@@ -2364,16 +2363,10 @@ def cross_check_single_b_symbol(
         )
         new_tree2 = FusionTree(
             symmetry,
-            concat_sector_arrays(
-                tree2.uncoupled,
-                sector_array_from_sector(symmetry.dual_sector(tree1.uncoupled[-1])),
-            ),
+            tree2.uncoupled.concat(SectorArray.from_sector(symmetry.dual_sector(tree1.uncoupled[-1]))),
             tree1_in_1,
             np.append(tree2.are_dual, [not tree1.are_dual[-1]]),
-            concat_sector_arrays(
-                tree2.inner_sectors,
-                sector_array_from_sector(tree2.coupled),
-            ),
+            tree2.inner_sectors.concat(SectorArray.from_sector(tree2.coupled)),
             np.append(tree2.multiplicities, [0]),
         )
 

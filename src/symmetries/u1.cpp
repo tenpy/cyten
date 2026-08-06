@@ -24,7 +24,7 @@ U1::is_valid_sector(Sector a) const
 bool
 U1::are_valid_sectors(SectorArray const& sectors) const
 {
-    return sectors.sector_ind_len == 1;
+    return sectors.sector_ind_len() == 1;
 }
 
 SectorArray
@@ -32,17 +32,17 @@ U1::fusion_outcomes(Sector a, Sector b) const
 {
     SectorArray aa(1, 1);
     SectorArray bb(1, 1);
-    aa.set(0, a);
-    bb.set(0, b);
+    aa[0] = a;
+    bb[0] = b;
     return fusion_outcomes_broadcast(aa, bb);
 }
 
 SectorArray
 U1::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const& b) const
 {
-    SectorArray out(a.num_sectors, 1);
-    for (std::size_t i = 0; i < a.num_sectors; ++i) {
-        out.row(i)[0] = static_cast<int16_t>(a.row(i)[0] + b.row(i)[0]);
+    SectorArray out(a.size(), 1);
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        out[i][0] = static_cast<int16_t>(a[i][0] + b[i][0]);
     }
     return out;
 }
@@ -52,8 +52,8 @@ U1::_multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) const
 {
     SectorArray out = sectors[0];
     for (std::size_t s = 1; s < sectors.size(); ++s) {
-        for (std::size_t i = 0; i < out.num_sectors; ++i) {
-            out.row(i)[0] = static_cast<int16_t>(out.row(i)[0] + sectors[s].row(i)[0]);
+        for (std::size_t i = 0; i < out.size(); ++i) {
+            out[i][0] = static_cast<int16_t>(out[i][0] + sectors[s][i][0]);
         }
     }
     return out;
@@ -68,9 +68,9 @@ U1::dual_sector(Sector a) const
 SectorArray
 U1::dual_sectors(SectorArray const& sectors) const
 {
-    SectorArray out(sectors.num_sectors, 1);
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        out.row(i)[0] = static_cast<int16_t>(-sectors.row(i)[0]);
+    SectorArray out(sectors.size(), 1);
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        out[i][0] = static_cast<int16_t>(-sectors[i][0]);
     }
     return out;
 }

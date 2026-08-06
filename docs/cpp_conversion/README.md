@@ -95,7 +95,7 @@ Skip `block_backends/torch.py` per scope.
 
 ### Layer 2 — Symmetries
 
-- **Sector / SectorArray** — C++ foundation first (see [convert_Sector.md](convert_Sector.md)): owning `Sector` (`int16_t[7]` + length, 16 bytes), contiguous `SectorArray`, fixed-extent `std::span` views for factor helpers, pybind casters ↔ NumPy (no Python `Sector` class). Do **not** template `Symmetry` on sector length.
+- **Sector / SectorArray** — C++ foundation (see [convert_Sector.md](convert_Sector.md)): owning `Sector` (`int16_t[7]` + length, 16 bytes), `SectorArray` as `std::vector<Sector>` with stored `sector_ind_len` (including when empty), ops as methods, Python classes + `to_numpy()` / load casters. Do **not** template `Symmetry` on sector length.
 - **cyten/symmetries/_symmetries.py** — Large (~2.6k lines). Convert in order: exceptions → enums → `BaseSymmetry` (virtual API on `Sector` / `SectorArray`) → `SymmetryFactor` / concrete factors → product `Symmetry` → free functions.
 - **cyten/symmetries/_su2data.py** — SU2 data (small).
 - **cyten/symmetries/trees.py** — `FusionTree`, `fusion_trees` (~1k lines).

@@ -107,33 +107,33 @@ fusion_map_lookup(int16_t a, int16_t b)
     switch (a * a + b * b) {
         case 0: {
             SectorArray out(1, 1);
-            out.row(0)[0] = 0;
+            out[0][0] = 0;
             return out;
         }
         case 1: {
             SectorArray out(1, 1);
-            out.row(0)[0] = 1;
+            out[0][0] = 1;
             return out;
         }
         case 2: {
             SectorArray out(2, 1);
-            out.row(0)[0] = 0;
-            out.row(1)[0] = 2;
+            out[0][0] = 0;
+            out[1][0] = 2;
             return out;
         }
         case 4: {
             SectorArray out(1, 1);
-            out.row(0)[0] = 2;
+            out[0][0] = 2;
             return out;
         }
         case 5: {
             SectorArray out(1, 1);
-            out.row(0)[0] = 1;
+            out[0][0] = 1;
             return out;
         }
         case 8: {
             SectorArray out(1, 1);
-            out.row(0)[0] = 0;
+            out[0][0] = 0;
             return out;
         }
         default:
@@ -211,11 +211,11 @@ IsingAnyonCategory::is_valid_sector(Sector a) const
 bool
 IsingAnyonCategory::are_valid_sectors(SectorArray const& sectors) const
 {
-    if (sectors.sector_ind_len != 1) {
+    if (sectors.sector_ind_len() != 1) {
         return false;
     }
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        auto q = sectors.row(i)[0];
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        auto q = sectors[i][0];
         if (q < 0 || q >= 3) {
             return false;
         }
@@ -335,9 +335,9 @@ SectorArray
 IsingAnyonCategory::all_sectors() const
 {
     SectorArray out(3, 1);
-    out.row(0)[0] = 0;
-    out.row(1)[0] = 1;
-    out.row(2)[0] = 2;
+    out[0][0] = 0;
+    out[1][0] = 1;
+    out[2][0] = 2;
     return out;
 }
 

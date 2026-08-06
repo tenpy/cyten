@@ -60,15 +60,15 @@ load_sector_array_from_buffer(py::buffer_info const& info, SectorArray& out)
     auto const stride1 = info.strides[1] / static_cast<ssize_t>(sizeof(T));
     out = SectorArray(num_sectors, static_cast<std::uint8_t>(sector_ind_len));
     for (std::size_t i = 0; i < num_sectors; ++i) {
+        std::array<std::int16_t, max_sector_ind_len> buf{};
         for (std::size_t j = 0; j < sector_ind_len; ++j) {
             auto const v = static_cast<std::int64_t>(
               ptr[static_cast<ssize_t>(i) * stride0 + static_cast<ssize_t>(j) * stride1]);
-            std::int16_t narrow = 0;
-            if (!narrow_to_int16(v, narrow)) {
+            if (!narrow_to_int16(v, buf[j])) {
                 return false;
             }
-            out.data[i * sector_ind_len + j] = narrow;
         }
+        out[i] = Sector::from_span(std::span<const std::int16_t>(buf.data(), sector_ind_len));
     }
     return true;
 }
@@ -90,12 +90,11 @@ py::array
 sector_array_to_numpy(SectorArray const& src)
 {
     py::array_t<std::int64_t> arr(
-      { static_cast<ssize_t>(src.num_sectors), static_cast<ssize_t>(src.sector_ind_len) });
+      { static_cast<ssize_t>(src.size()), static_cast<ssize_t>(src.sector_ind_len()) });
     auto r = arr.mutable_unchecked<2>();
-    for (std::size_t i = 0; i < src.num_sectors; ++i) {
-        for (std::uint8_t j = 0; j < src.sector_ind_len; ++j) {
-            r(static_cast<ssize_t>(i), static_cast<ssize_t>(j)) =
-              src.data[i * src.sector_ind_len + j];
+    for (std::size_t i = 0; i < src.size(); ++i) {
+        for (std::uint8_t j = 0; j < src.sector_ind_len(); ++j) {
+            r(static_cast<ssize_t>(i), static_cast<ssize_t>(j)) = src[i][j];
         }
     }
     return arr;

@@ -15,7 +15,7 @@ target_sources(cyten
   symmetries/symmetry_factor.cpp
   symmetries/symmetry.cpp
   symmetries/sector_numpy.cpp
-  symmetries/sector_ops.cpp
+  symmetries/sector_array.cpp
   symmetries/group.cpp
   symmetries/abelian_group.cpp
   symmetries/no_symmetry.cpp

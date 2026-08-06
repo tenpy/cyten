@@ -31,14 +31,6 @@ from ._symmetries import Sector, SectorArray, Symmetry, SymmetryError, no_symmet
 from .sector_utils import (
     as_sector,
     as_sector_array,
-    concat_sector_arrays,
-    find_row_differences,
-    lexsort_indices,
-    row_where,
-    rows_equal,
-    sector_array_from_sector,
-    sorted_sectors,
-    unique_sorted_sectors,
 )
 from .trees import FusionTree, fusion_trees
 
@@ -527,15 +519,15 @@ class Space(metaclass=ABCMeta):
         if self.sector_decomposition.shape != (self.num_sectors, self.symmetry.sector_ind_len):
             raise AssertionError('wrong sectors.shape')
         assert self.symmetry.are_valid_sectors(self.sector_decomposition), 'invalid sectors'
-        unique, _, _ = unique_sorted_sectors(self.sector_decomposition)
+        unique, _, _ = self.sector_decomposition.unique_sorted()
         assert len(unique) == self.num_sectors, 'duplicate sectors'
         if self.sector_order == 'sorted':
-            assert np.all(lexsort_indices(self.sector_decomposition) == np.arange(self.num_sectors)), (
+            assert np.all(self.sector_decomposition.lexsort_indices() == np.arange(self.num_sectors)), (
                 'wrong sector order'
             )
         elif self.sector_order == 'dual_sorted':
             expect_sorted = self.symmetry.dual_sectors(self.sector_decomposition)
-            assert np.all(lexsort_indices(expect_sorted) == np.arange(self.num_sectors)), 'wrong sector order'
+            assert np.all(expect_sorted.lexsort_indices() == np.arange(self.num_sectors)), 'wrong sector order'
         elif self.sector_order is None:
             pass  # nothing to check
         else:
@@ -600,37 +592,37 @@ class Space(metaclass=ABCMeta):
         # have the same sorting convention and can be directly compared
         if self.sector_order is None:
             if other.sector_order == 'sorted':
-                perm1 = lexsort_indices(self.sector_decomposition)
+                perm1 = self.sector_decomposition.lexsort_indices()
                 perm2 = slice(None, None, None)
             elif other.sector_order == 'dual_sorted':
-                perm1 = lexsort_indices(self.symmetry.dual_sectors(self.sector_decomposition))
+                perm1 = self.symmetry.dual_sectors(self.sector_decomposition).lexsort_indices()
                 perm2 = slice(None, None, None)
             else:
-                perm1 = lexsort_indices(self.sector_decomposition)
-                perm2 = lexsort_indices(other.sector_decomposition)
+                perm1 = self.sector_decomposition.lexsort_indices()
+                perm2 = other.sector_decomposition.lexsort_indices()
         elif other.sector_order is None:
             if self.sector_order == 'sorted':
                 perm1 = slice(None, None, None)
-                perm2 = lexsort_indices(other.sector_decomposition)
+                perm2 = other.sector_decomposition.lexsort_indices()
             elif self.sector_order == 'dual_sorted':
                 perm1 = slice(None, None, None)
-                perm2 = lexsort_indices(self.symmetry.dual_sectors(other.sector_decomposition))
+                perm2 = self.symmetry.dual_sectors(other.sector_decomposition).lexsort_indices()
             else:
                 raise RuntimeError  # case should have been covered above
         elif self.sector_order == other.sector_order:
             perm1 = perm2 = slice(None, None, None)
         elif self.sector_order == 'sorted':
             perm1 = slice(None, None, None)
-            perm2 = lexsort_indices(other.sector_decomposition)
+            perm2 = other.sector_decomposition.lexsort_indices()
         elif other.sector_order == 'sorted':
-            perm1 = lexsort_indices(self.sector_decomposition)
+            perm1 = self.sector_decomposition.lexsort_indices()
             perm2 = slice(None, None, None)
         else:
             raise RuntimeError  # all cases should have been covered.
 
         if not np.all(self.multiplicities[perm1] == other.multiplicities[perm2]):
             return False
-        return rows_equal(self.sector_decomposition[perm1], other.sector_decomposition[perm2])
+        return self.sector_decomposition[perm1] == other.sector_decomposition[perm2]
 
     def is_subspace_of(self, other: Space) -> bool:
         """Whether self is (isomorphic to) a subspace of other.
@@ -759,7 +751,7 @@ class Space(metaclass=ABCMeta):
 
         """
         # OPTIMIZE : if sector_order allows it, use that sectors are sorted to speed up the lookup
-        return row_where(self.sector_decomposition, as_sector(sector))
+        return self.sector_decomposition.row_where(as_sector(sector))
 
     def sector_multiplicity(self, sector: Sector) -> int:
         """The multiplicity of a given sector in the :attr:`sector_decomposition`."""
@@ -893,9 +885,9 @@ class ElementarySpace(Space, Leg):
         sectors_of_basis = as_sector_array(sectors_of_basis, sector_ind_len=symmetry.sector_ind_len)
         assert sectors_of_basis.shape[1] == symmetry.sector_ind_len
         # note: numpy.lexsort is stable, i.e. it preserves the order of equal keys.
-        basis_perm = lexsort_indices(sectors_of_basis)
+        basis_perm = sectors_of_basis.lexsort_indices()
         sectors = sectors_of_basis[basis_perm]
-        diffs = find_row_differences(sectors, include_len=True)
+        diffs = sectors.find_row_differences(include_len=True)
         sectors = sectors[diffs[:-1]]  # [:-1] to exclude len
         dims = symmetry.batch_sector_dim(sectors)
         num_occurrences = diffs[1:] - diffs[:-1]  # how often each appears in the input sectors_of_basis
@@ -1079,7 +1071,7 @@ class ElementarySpace(Space, Leg):
         # combine duplicate sectors (does not affect basis_perm)
         if not unique_sectors:
             mult_slices = np.concatenate([[0], np.cumsum(multiplicities)], axis=0)
-            diffs = find_row_differences(defining_sectors, include_len=True)
+            diffs = defining_sectors.find_row_differences(include_len=True)
             # the convention is that for sectors with dim > 1, all copies of the first
             # state appear, then all copies of the second state, etc. At this point,
             # this order is not yet fully respected
@@ -1188,7 +1180,7 @@ class ElementarySpace(Space, Leg):
             return cls.from_null_space(symmetry=symmetry, is_dual=is_dual)
         return cls(
             symmetry=symmetry,
-            defining_sectors=sector_array_from_sector(symmetry.trivial_sector),
+            defining_sectors=SectorArray.from_sector(symmetry.trivial_sector),
             multiplicities=[dim],
             is_dual=is_dual,
             basis_perm=basis_perm,
@@ -1267,7 +1259,7 @@ class ElementarySpace(Space, Leg):
             return False
         if not np.all(self.multiplicities == other.multiplicities):
             return False
-        if not rows_equal(self.defining_sectors, other.defining_sectors):
+        if not (self.defining_sectors == other.defining_sectors):
             return False
         if (self._basis_perm is not None) or (other._basis_perm is not None):
             if not np.all(self.basis_perm == other.basis_perm):
@@ -1324,7 +1316,7 @@ class ElementarySpace(Space, Leg):
             basis_perm = None
         defining_sectors = self.defining_sectors
         for other in others:
-            defining_sectors = concat_sector_arrays(defining_sectors, other.defining_sectors)
+            defining_sectors = defining_sectors.concat(other.defining_sectors)
         return ElementarySpace.from_defining_sectors(
             symmetry=self.symmetry,
             defining_sectors=defining_sectors,
@@ -1638,7 +1630,7 @@ class TensorProduct(Space):
     def drop_symmetry(self, which='all'):
         which, remaining_symmetry = _parse_inputs_drop_symmetry(which, self.symmetry)
         if which == 'all':
-            sectors = sector_array_from_sector(self.symmetry.trivial_sector)
+            sectors = SectorArray.from_sector(self.symmetry.trivial_sector)
             multiplicities = [self.dim]
         else:
             mask = np.ones((self.symmetry.sector_ind_len,), dtype=bool)
@@ -1973,7 +1965,7 @@ class TensorProduct(Space):
         # LegPipes do not have sectors -> flatten them for the purpose of calculating sectors
         factors = list(it.chain.from_iterable(l.flat_spaces for l in factors))
         if len(factors) == 0:
-            return sector_array_from_sector(self.symmetry.trivial_sector), np.ones([1], int)
+            return SectorArray.from_sector(self.symmetry.trivial_sector), np.ones([1], int)
 
         # need the sector decomposition of each factor. easiest way: convert to Space
         # OPTIMIZE is this optimal? should we store the f.as_Space() for later use?
@@ -1984,7 +1976,7 @@ class TensorProduct(Space):
             mults = factors[0].multiplicities
             if factors[0].sector_order == 'sorted':
                 return sectors, mults
-            perm = lexsort_indices(sectors)
+            perm = sectors.lexsort_indices()
             return sectors[perm], mults[perm]
 
         if self.symmetry.is_abelian:
@@ -2012,7 +2004,7 @@ class TensorProduct(Space):
                 mult_arrays.append(new_mults)
         combined_sectors = sector_arrays[0]
         for sector_array in sector_arrays[1:]:
-            combined_sectors = concat_sector_arrays(combined_sectors, sector_array)
+            combined_sectors = combined_sectors.concat(sector_array)
         sectors, multiplicities, _ = _unique_sorted_sectors(combined_sectors, np.concatenate(mult_arrays, axis=0))
         return sectors, multiplicities
 
@@ -2420,7 +2412,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
             sectors = self.symmetry.dual_sectors(sectors)
 
         # sort sectors
-        self.fusion_outcomes_sort = fusion_outcomes_sort = lexsort_indices(sectors)
+        self.fusion_outcomes_sort = fusion_outcomes_sort = sectors.lexsort_indices()
         block_ind_map = block_ind_map[fusion_outcomes_sort]
         sectors = sectors[fusion_outcomes_sort]
         multiplicities = multiplicities[fusion_outcomes_sort]
@@ -2431,7 +2423,7 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         block_ind_map[:, 1] = slices[1:]
 
         # bunch sectors with equal sectors together
-        diffs = find_row_differences(sectors, include_len=True)  # include len, to index slices
+        diffs = sectors.find_row_differences(include_len=True)  # include len, to index slices
         self.block_ind_map_slices = diffs
         slices = slices[diffs]
         multiplicities = slices[1:] - slices[:-1]
@@ -2689,14 +2681,14 @@ def _unique_sorted_sectors(unsorted_sectors: SectorArray, unsorted_multiplicitie
         The permutation that sorts the input, i.e. ``np.lexsort(unsorted_sectors.T)``.
 
     """
-    sectors, multiplicities, perm = unique_sorted_sectors(
-        as_sector_array(unsorted_sectors), np.asarray(unsorted_multiplicities, dtype=np.int64)
+    sectors, multiplicities, perm = as_sector_array(unsorted_sectors).unique_sorted(
+        np.asarray(unsorted_multiplicities, dtype=np.int64)
     )
     return sectors, np.asarray(multiplicities, dtype=int), np.asarray(perm, dtype=int)
 
 
 def _sort_sectors(sectors: SectorArray, multiplicities: np.ndarray):
-    sectors, perm = sorted_sectors(as_sector_array(sectors))
+    sectors, perm = as_sector_array(sectors).sorted()
     perm = np.asarray(perm, dtype=int)
     return sectors, multiplicities[perm], perm
 

@@ -38,14 +38,25 @@ test_sector(int /*argc*/, char** /*args*/)
     assert(set.contains(b));
 
     SectorArray arr(2, 3);
-    arr.set(0, Sector{ 1, 2, 3 });
-    arr.set(1, Sector{ 4, 5, 6 });
+    arr[0] = Sector{ 1, 2, 3 };
+    arr[1] = Sector{ 4, 5, 6 };
     assert((arr[0] == Sector{ 1, 2, 3 }));
-    assert(arr.row_as_span<3>(1)[2] == 6);
+    assert(arr[1].as_span<3>()[2] == 6);
+    Sector& ref = arr[0];
+    ref[0] = 9;
+    assert(arr[0][0] == 9);
 
     SectorArray empty = SectorArray::empty(2);
-    assert(empty.num_sectors == 0);
-    assert(empty.sector_ind_len == 2);
+    assert(empty.size() == 0);
+    assert(empty.sector_ind_len() == 2);
+
+    auto from_one = SectorArray::from_sector(Sector{ 7, 8 });
+    assert(from_one.size() == 1);
+    assert((from_one[0] == Sector{ 7, 8 }));
+
+    auto cat = from_one.concat(SectorArray::from_sector(Sector{ 1, 2 }));
+    assert(cat.size() == 2);
+    assert((cat[1] == Sector{ 1, 2 }));
 
     bool threw = false;
     try {

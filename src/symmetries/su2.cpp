@@ -48,11 +48,11 @@ SU2::is_valid_sector(Sector a) const
 bool
 SU2::are_valid_sectors(SectorArray const& sectors) const
 {
-    if (sectors.sector_ind_len != 1) {
+    if (sectors.sector_ind_len() != 1) {
         return false;
     }
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        if (sectors.row(i)[0] < 0) {
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        if (sectors[i][0] < 0) {
             return false;
         }
     }
@@ -69,7 +69,7 @@ SU2::fusion_outcomes(Sector a, Sector b) const
     auto const n = static_cast<std::size_t>((jj_max - jj_min) / 2 + 1);
     SectorArray out(n, 1);
     for (std::size_t i = 0; i < n; ++i) {
-        out.row(i)[0] = static_cast<int16_t>(jj_min + static_cast<int16_t>(2 * i));
+        out[i][0] = static_cast<int16_t>(jj_min + static_cast<int16_t>(2 * i));
     }
     return out;
 }
@@ -92,10 +92,10 @@ SU2::sector_dim(Sector a) const
 py::array
 SU2::batch_sector_dim(SectorArray const& a) const
 {
-    py::array_t<int64> out(static_cast<py::ssize_t>(a.num_sectors));
+    py::array_t<int64> out(static_cast<py::ssize_t>(a.size()));
     auto r = out.mutable_unchecked<1>();
-    for (std::size_t i = 0; i < a.num_sectors; ++i) {
-        r(static_cast<py::ssize_t>(i)) = static_cast<int64>(a.row(i)[0]) + 1;
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        r(static_cast<py::ssize_t>(i)) = static_cast<int64>(a[i][0]) + 1;
     }
     return out;
 }

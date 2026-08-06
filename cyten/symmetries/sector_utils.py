@@ -15,24 +15,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .._core import (
-    Sector,
-    SectorArray,
-    concat_sector_arrays,
-    lexsort_indices,
-    repeat_row,
-    row_where,
-    rows_equal,
-    sector_array_from_sector,
-    sorted_sectors,
-    unique_sorted_sectors,
-)
-from .._core import (
-    find_row_differences as _find_row_differences,
-)
-from .._core import (
-    iter_common_sorted_arrays as _iter_common_sorted_arrays_cpp,
-)
+from .._core import Sector, SectorArray
 
 
 def as_sector(obj) -> Sector:
@@ -47,24 +30,19 @@ def as_sector_array(obj, sector_ind_len: int | None = None) -> SectorArray:
     if isinstance(obj, SectorArray):
         return obj
     if isinstance(obj, Sector):
-        return sector_array_from_sector(obj)
+        return SectorArray.from_sector(obj)
     if obj is None:
         if sector_ind_len is None:
             raise TypeError('as_sector_array(None) requires sector_ind_len')
         return SectorArray.empty(sector_ind_len)
     arr = np.asarray(obj, dtype=int)
     if arr.ndim == 1:
-        return sector_array_from_sector(Sector(arr))
+        return SectorArray.from_sector(Sector(arr))
     if arr.ndim != 2:
         raise ValueError(f'Expected 1D or 2D sector data, got shape {arr.shape}')
     if arr.shape[0] == 0 and sector_ind_len is not None:
         return SectorArray.empty(sector_ind_len)
     return SectorArray(arr)
-
-
-def find_row_differences(sectors, include_len: bool = False) -> np.ndarray:
-    """Return row-change indices for a sector table."""
-    return np.asarray(_find_row_differences(as_sector_array(sectors), include_len), dtype=np.intp)
 
 
 def assert_sectors_equal(a, b, msg: str | None = None):
@@ -75,7 +53,7 @@ def assert_sectors_equal(a, b, msg: str | None = None):
             raise AssertionError(msg or f'Sectors differ: {sa!r} != {sb!r}')
         return
     aa, bb = as_sector_array(a), as_sector_array(b)
-    if not rows_equal(aa, bb):
+    if aa != bb:
         raise AssertionError(msg or f'SectorArrays differ: {aa!r} != {bb!r}')
 
 
@@ -83,7 +61,7 @@ def iter_common_sorted_sector_arrays(a, b, a_strict: bool = True, b_strict: bool
     """Yield ``(i, j)`` for matching rows of lex-sorted SectorArrays."""
     aa = as_sector_array(a)
     bb = as_sector_array(b)
-    for i, j in _iter_common_sorted_arrays_cpp(aa, bb, a_strict, b_strict):
+    for i, j in SectorArray.iter_common_sorted(aa, bb, a_strict, b_strict):
         yield int(i), int(j)
 
 
@@ -93,14 +71,5 @@ __all__ = [
     'as_sector',
     'as_sector_array',
     'assert_sectors_equal',
-    'concat_sector_arrays',
-    'find_row_differences',
     'iter_common_sorted_sector_arrays',
-    'lexsort_indices',
-    'repeat_row',
-    'row_where',
-    'rows_equal',
-    'sector_array_from_sector',
-    'sorted_sectors',
-    'unique_sorted_sectors',
 ]

@@ -176,7 +176,7 @@ BaseSymmetry::fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) co
 bool
 BaseSymmetry::are_valid_sectors(SectorArray const& sectors) const
 {
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
         if (!is_valid_sector(sectors[i])) {
             return false;
         }
@@ -193,24 +193,24 @@ BaseSymmetry::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const&
                         "fusion_outcomes_broadcast requires an abelian symmetry");
         throw py::error_already_set();
     }
-    if (a.num_sectors != b.num_sectors) {
+    if (a.size() != b.size()) {
         PyErr_SetString(PyExc_AssertionError, "fusion_outcomes_broadcast: mismatched batch sizes");
         throw py::error_already_set();
     }
-    if (a.sector_ind_len != sector_ind_len || b.sector_ind_len != sector_ind_len) {
+    if (a.sector_ind_len() != sector_ind_len || b.sector_ind_len() != sector_ind_len) {
         PyErr_SetString(PyExc_AssertionError,
                         "fusion_outcomes_broadcast: mismatched sector_ind_len");
         throw py::error_already_set();
     }
-    SectorArray out(a.num_sectors, sector_ind_len);
-    for (std::size_t i = 0; i < a.num_sectors; ++i) {
+    SectorArray out(a.size(), sector_ind_len);
+    for (std::size_t i = 0; i < a.size(); ++i) {
         auto outcomes = fusion_outcomes(a[i], b[i]);
-        if (outcomes.num_sectors != 1) {
+        if (outcomes.size() != 1) {
             PyErr_SetString(PyExc_AssertionError,
                             "fusion_outcomes_broadcast: expected unique fusion outcome");
             throw py::error_already_set();
         }
-        out.set(i, outcomes[0]);
+        out[i] = outcomes[0];
     }
     return out;
 }
@@ -222,7 +222,7 @@ BaseSymmetry::multiple_fusion(std::vector<Sector> const& sectors) const
     as_arrays.reserve(sectors.size());
     for (auto const& s : sectors) {
         SectorArray row(1, s.len());
-        row.set(0, s);
+        row[0] = s;
         as_arrays.push_back(std::move(row));
     }
     return multiple_fusion_broadcast(as_arrays)[0];
@@ -233,7 +233,7 @@ BaseSymmetry::multiple_fusion_broadcast(std::vector<SectorArray> const& sectors)
 {
     if (sectors.empty()) {
         SectorArray out(1, sector_ind_len);
-        out.set(0, trivial_sector);
+        out[0] = trivial_sector;
         return out;
     }
     if (sectors.size() == 1) {
@@ -257,7 +257,7 @@ bool
 BaseSymmetry::can_fuse_to(Sector a, Sector b, Sector c) const
 {
     auto outcomes = fusion_outcomes(a, b);
-    for (std::size_t i = 0; i < outcomes.num_sectors; ++i) {
+    for (std::size_t i = 0; i < outcomes.size(); ++i) {
         if (outcomes[i] == c) {
             return true;
         }
@@ -278,15 +278,15 @@ BaseSymmetry::sector_dim(Sector a) const
 py::array
 BaseSymmetry::batch_sector_dim(SectorArray const& a) const
 {
-    py::array_t<int64> out(static_cast<py::ssize_t>(a.num_sectors));
+    py::array_t<int64> out(static_cast<py::ssize_t>(a.size()));
     auto r = out.mutable_unchecked<1>();
     if (is_abelian()) {
-        for (std::size_t i = 0; i < a.num_sectors; ++i) {
+        for (std::size_t i = 0; i < a.size(); ++i) {
             r(static_cast<py::ssize_t>(i)) = 1;
         }
         return out;
     }
-    for (std::size_t i = 0; i < a.num_sectors; ++i) {
+    for (std::size_t i = 0; i < a.size(); ++i) {
         r(static_cast<py::ssize_t>(i)) = sector_dim(a[i]);
     }
     return out;
@@ -296,15 +296,15 @@ py::array
 BaseSymmetry::batch_qdim(SectorArray const& a) const
 {
     // Python returns dtype=int for abelian; float otherwise. Use float64 always for C++.
-    py::array_t<float64> out(static_cast<py::ssize_t>(a.num_sectors));
+    py::array_t<float64> out(static_cast<py::ssize_t>(a.size()));
     auto r = out.mutable_unchecked<1>();
     if (is_abelian()) {
-        for (std::size_t i = 0; i < a.num_sectors; ++i) {
+        for (std::size_t i = 0; i < a.size(); ++i) {
             r(static_cast<py::ssize_t>(i)) = 1.0;
         }
         return out;
     }
-    for (std::size_t i = 0; i < a.num_sectors; ++i) {
+    for (std::size_t i = 0; i < a.size(); ++i) {
         r(static_cast<py::ssize_t>(i)) = qdim(a[i]);
     }
     return out;
@@ -328,9 +328,9 @@ BaseSymmetry::sector_str(Sector a) const
 SectorArray
 BaseSymmetry::dual_sectors(SectorArray const& sectors) const
 {
-    SectorArray out(sectors.num_sectors, sectors.sector_ind_len);
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
-        out.set(i, dual_sector(sectors[i]));
+    SectorArray out(sectors.size(), sectors.sector_ind_len());
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
+        out[i] = dual_sector(sectors[i]);
     }
     return out;
 }
@@ -369,7 +369,7 @@ BaseSymmetry::total_qdim() const
 {
     auto sectors = all_sectors();
     float64 D2 = 0.0;
-    for (std::size_t i = 0; i < sectors.num_sectors; ++i) {
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
         auto d = qdim(sectors[i]);
         D2 += d * d;
     }
@@ -407,7 +407,7 @@ BaseSymmetry::topological_twist(Sector a) const
     }
     complex128 res{ 0.0, 0.0 };
     auto outcomes = fusion_outcomes(a, a);
-    for (std::size_t i = 0; i < outcomes.num_sectors; ++i) {
+    for (std::size_t i = 0; i < outcomes.size(); ++i) {
         Sector b = outcomes[i];
         auto r = _r_symbol(a, a, b);
         auto sum_r = r.attr("sum")().cast<complex128>();
@@ -426,7 +426,7 @@ BaseSymmetry::s_matrix_element(Sector a, Sector b) const
 {
     complex128 S{ 0.0, 0.0 };
     auto outcomes = fusion_outcomes(a, b);
-    for (std::size_t i = 0; i < outcomes.num_sectors; ++i) {
+    for (std::size_t i = 0; i < outcomes.size(); ++i) {
         Sector c = outcomes[i];
         S += static_cast<float64>(_n_symbol(a, b, c)) * qdim(c) * topological_twist(c);
     }
@@ -442,7 +442,7 @@ py::array
 BaseSymmetry::s_matrix() const
 {
     auto sectors = all_sectors();
-    auto n = static_cast<py::ssize_t>(sectors.num_sectors);
+    auto n = static_cast<py::ssize_t>(sectors.size());
     py::array_t<complex128> S({ n, n });
     auto r = S.mutable_unchecked<2>();
     for (py::ssize_t i = 0; i < n; ++i) {
@@ -462,7 +462,7 @@ BaseSymmetry::s_matrix() const
             Sector b = sectors[static_cast<std::size_t>(ib)];
             complex128 Sab{ 0.0, 0.0 };
             auto outcomes = fusion_outcomes(a, b);
-            for (std::size_t k = 0; k < outcomes.num_sectors; ++k) {
+            for (std::size_t k = 0; k < outcomes.size(); ++k) {
                 Sector c = outcomes[k];
                 Sab += static_cast<float64>(_n_symbol(a, b, c)) * qdim(c) * topological_twist(c);
             }

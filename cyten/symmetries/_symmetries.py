@@ -33,15 +33,6 @@ from .._core import (
     ToricCodeCategory,  # noqa: F401
     ZNAnyonCategory,  # noqa: F401
     ZNAnyonCategory2,  # noqa: F401
-    concat_sector_arrays,  # noqa: F401
-    find_row_differences,  # noqa: F401
-    lexsort_indices,  # noqa: F401
-    repeat_row,  # noqa: F401
-    row_where,  # noqa: F401
-    rows_equal,  # noqa: F401
-    sector_array_from_sector,  # noqa: F401
-    sorted_sectors,  # noqa: F401
-    unique_sorted_sectors,  # noqa: F401
 )
 from ..tools.misc import as_immutable_array
 from .sector_utils import (  # noqa: F401

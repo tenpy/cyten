@@ -312,7 +312,7 @@ SUN::dims_of_irreps(Sector a, Sector b) const
     key = cg_key(N, a, b);
     auto grp = CGfile[py::str(key)];
     py::dict C;
-    for (std::size_t i = 0; i < outcomes.num_sectors; ++i) {
+    for (std::size_t i = 0; i < outcomes.size(); ++i) {
         Sector ir = outcomes[i];
         py::tuple k(ir.len());
         for (std::uint8_t j = 0; j < ir.len(); ++j) {
@@ -331,7 +331,7 @@ SUN::outer_multiplicity_from_CG(Sector a, Sector b) const
     auto key = cg_key(N, a, b);
     auto grp = CGfile[py::str(key)];
     py::dict C;
-    for (std::size_t i = 0; i < outcomes.num_sectors; ++i) {
+    for (std::size_t i = 0; i < outcomes.size(); ++i) {
         Sector ir = outcomes[i];
         py::tuple k(ir.len());
         for (std::uint8_t j = 0; j < ir.len(); ++j) {
