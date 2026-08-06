@@ -35,9 +35,9 @@
 
 - [x] initial setup
 - [x] planning
-- [ ] declaration draft → improve
-- [ ] definitions → improve
-- [ ] bindings + trampoline
-- [ ] monkey-patch deferred
-- [ ] pytest
-- [ ] wrap up
+- [x] declaration draft → improve
+- [x] definitions → improve
+- [x] bindings + trampoline
+- [ ] monkey-patch deferred (until AbelianLegPipe / ElementarySpace)
+- [x] pytest (`test_spaces.py`; still Python LegPipe)
+- [ ] wrap up → next `ElementarySpace`

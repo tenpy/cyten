@@ -1,12 +1,16 @@
 #include <cyten/symmetries/spaces.h>
 
+#include <cyten/config.h>
 #include <cyten/symmetries/exceptions.h>
+#include <cyten/tools.h>
 
 #include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <format>
 #include <numeric>
+#include <ranges>
+#include <sstream>
 #include <stdexcept>
 #include <unordered_set>
 
@@ -540,6 +544,286 @@ Space::sector_multiplicity(Sector sector) const
         return 0;
     }
     return multiplicities[static_cast<std::size_t>(*idx)];
+}
+
+namespace {
+
+[[nodiscard]] std::optional<std::vector<int64>>
+combined_basis_perm(std::vector<Leg::Ptr> const& legs, bool combine_cstyle)
+{
+    bool any_custom = false;
+    for (auto const& leg : legs) {
+        if (leg->has_custom_basis_perm()) {
+            any_custom = true;
+            break;
+        }
+    }
+    if (!any_custom) {
+        return std::nullopt;
+    }
+    auto misc = py::module_::import("cyten.tools.misc");
+    py::list perms;
+    for (auto const& leg : legs) {
+        perms.append(vector_to_array(leg->basis_perm()));
+    }
+    py::array combined =
+      misc.attr("combine_permutations")(perms, py::arg("cstyle") = combine_cstyle);
+    auto casted = py::array_t<int64, py::array::c_style | py::array::forcecast>::ensure(combined);
+    auto r = casted.unchecked<1>();
+    std::vector<int64> out(static_cast<std::size_t>(r.shape(0)));
+    for (py::ssize_t i = 0; i < r.shape(0); ++i) {
+        out[static_cast<std::size_t>(i)] = r(i);
+    }
+    return out;
+}
+
+} // namespace
+
+LegPipe::LegPipe(std::vector<Leg::Ptr> legs_, bool is_dual_, bool combine_cstyle_)
+  : Leg(
+      legs_.at(0)->symmetry,
+      [&legs_] {
+          float64 dim_prod = 1.;
+          for (auto const& leg : legs_) {
+              dim_prod *= leg->dim;
+          }
+          return dim_prod;
+      }(),
+      is_dual_,
+      combined_basis_perm(legs_, combine_cstyle_))
+  , legs(std::move(legs_))
+  , num_legs(static_cast<int64>(legs.size()))
+  , combine_cstyle(combine_cstyle_)
+{
+    assert(num_legs > 0);
+}
+
+void
+LegPipe::test_sanity() const
+{
+    for (auto const& leg : legs) {
+        assert(leg->symmetry->equals(*symmetry));
+        leg->test_sanity();
+    }
+    Leg::test_sanity();
+}
+
+py::object
+LegPipe::as_Space()
+{
+    auto TensorProduct = py::module_::import("cyten.symmetries.spaces").attr("TensorProduct");
+    py::list spaces;
+    for (auto const& leg : legs) {
+        spaces.append(leg->as_Space());
+    }
+    return TensorProduct(spaces, py::arg("symmetry") = symmetry);
+}
+
+Leg::Ptr
+LegPipe::dual() const
+{
+    std::vector<Leg::Ptr> dual_legs;
+    dual_legs.reserve(legs.size());
+    for (auto it = legs.rbegin(); it != legs.rend(); ++it) {
+        dual_legs.push_back((*it)->dual());
+    }
+    return std::make_shared<LegPipe>(std::move(dual_legs), !is_dual, !combine_cstyle);
+}
+
+bool
+LegPipe::is_trivial() const
+{
+    return std::ranges::all_of(legs, [](Leg::Ptr const& leg) { return leg->is_trivial(); });
+}
+
+std::vector<Leg::Ptr>
+LegPipe::flat_legs()
+{
+    std::vector<Leg::Ptr> out;
+    for (auto const& leg : legs) {
+        auto part = leg->flat_legs();
+        out.insert(out.end(), part.begin(), part.end());
+    }
+    return out;
+}
+
+std::vector<Leg::Ptr>
+LegPipe::flat_spaces()
+{
+    std::vector<Leg::Ptr> out;
+    for (auto const& leg : legs) {
+        auto part = leg->flat_spaces();
+        out.insert(out.end(), part.begin(), part.end());
+    }
+    return out;
+}
+
+int64
+LegPipe::num_flat_legs() const
+{
+    int64 n = 0;
+    for (auto const& leg : legs) {
+        n += leg->num_flat_legs();
+    }
+    return n;
+}
+
+std::vector<int64>
+LegPipe::_flat_leg_permutation(int64 offset) const
+{
+    if (num_legs == num_flat_legs()) {
+        std::vector<int64> perm(static_cast<std::size_t>(num_legs));
+        std::iota(perm.begin(), perm.end(), offset);
+        if (!combine_cstyle) {
+            std::reverse(perm.begin(), perm.end());
+        }
+        return perm;
+    }
+    std::vector<Leg::Ptr> ordered = legs;
+    if (!combine_cstyle) {
+        std::reverse(ordered.begin(), ordered.end());
+    }
+    std::vector<int64> offsets;
+    offsets.reserve(ordered.size());
+    int64 running = offset;
+    for (auto const& leg : ordered) {
+        offsets.push_back(running);
+        running += leg->num_flat_legs();
+    }
+    if (!combine_cstyle) {
+        std::reverse(offsets.begin(), offsets.end());
+    }
+    std::vector<int64> perm;
+    for (std::size_t i = 0; i < legs.size(); ++i) {
+        auto part = legs[i]->_flat_leg_permutation(offsets[i]);
+        perm.insert(perm.end(), part.begin(), part.end());
+    }
+    return perm;
+}
+
+void
+LegPipe::set_basis_perm(std::optional<std::vector<int64>> /*basis_perm*/)
+{
+    throw py::type_error(std::format("Can not set basis_perm for {}.", "LegPipe"));
+}
+
+void
+LegPipe::set_inverse_basis_perm(std::optional<std::vector<int64>> /*inverse_basis_perm*/)
+{
+    throw py::type_error(std::format("Can not set basis_perm for {}.", "LegPipe"));
+}
+
+std::string
+LegPipe::ascii_arrow() const
+{
+    return "║";
+}
+
+bool
+LegPipe::operator==(Leg const& other) const
+{
+    auto const* o = dynamic_cast<LegPipe const*>(&other);
+    if (o == nullptr) {
+        return false;
+    }
+    if (is_abelian_leg_pipe() != o->is_abelian_leg_pipe()) {
+        return false;
+    }
+    if (is_dual != o->is_dual) {
+        return false;
+    }
+    if (combine_cstyle != o->combine_cstyle) {
+        return false;
+    }
+    if (num_legs != o->num_legs) {
+        return false;
+    }
+    for (std::size_t i = 0; i < legs.size(); ++i) {
+        if (!(*legs[i] == *o->legs[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+Leg::Ptr
+LegPipe::operator[](int64 idx) const
+{
+    auto const n = static_cast<int64>(legs.size());
+    auto const i = to_valid_idx(idx, n);
+    return legs[static_cast<std::size_t>(i)];
+}
+
+std::string
+LegPipe::repr(bool show_symmetry, bool one_line) const
+{
+    auto const& cfg = get_config();
+    auto const linewidth = cfg.print_linewidth;
+    std::string const indent(static_cast<std::size_t>(cfg.print_indent), ' ');
+    auto const maxlines = cfg.maxlines_spaces;
+    std::string const ClsName = "LegPipe";
+
+    if (one_line) {
+        if (show_symmetry) {
+            auto res = std::format("{}(num_legs={}, is_dual={}, symmetry={}, combine_cstyle={})",
+                                   ClsName,
+                                   num_legs,
+                                   is_dual,
+                                   symmetry->repr(),
+                                   combine_cstyle);
+            if (static_cast<int64>(res.size()) <= linewidth) {
+                return res;
+            }
+            return repr(false, true);
+        }
+        auto res = std::format("{}(num_legs={}, is_dual={}, combine_cstyle={})",
+                               ClsName,
+                               num_legs,
+                               is_dual,
+                               combine_cstyle);
+        if (static_cast<int64>(res.size()) <= linewidth) {
+            return res;
+        }
+        throw std::runtime_error("LegPipe one-line repr exceeds linewidth");
+    }
+
+    for (bool force_children_one_line : { false, true }) {
+        std::vector<std::string> lines;
+        lines.push_back(std::format("{}([", ClsName));
+        for (auto const& leg : legs) {
+            py::object leg_obj = py::cast(leg);
+            std::string rep;
+            try {
+                rep =
+                  py::str(leg_obj.attr("__repr__")(py::arg("show_symmetry") = false,
+                                                   py::arg("one_line") = force_children_one_line));
+            } catch (py::error_already_set&) {
+                rep = py::str(leg_obj.attr("__repr__")());
+            }
+            std::istringstream iss(rep);
+            std::string line;
+            while (std::getline(iss, line)) {
+                lines.push_back(indent + line);
+            }
+        }
+        if (show_symmetry) {
+            lines.push_back(std::format("], is_dual={}, symmetry={})", is_dual, symmetry->repr()));
+        } else {
+            lines.push_back(std::format("], is_dual={})", is_dual));
+        }
+        bool maxlines_ok = static_cast<int64>(lines.size()) <= maxlines;
+        bool linewidth_ok = std::ranges::all_of(
+          lines, [&](std::string const& l) { return static_cast<int64>(l.size()) < linewidth; });
+        if (maxlines_ok && linewidth_ok) {
+            std::string out = lines[0];
+            for (std::size_t i = 1; i < lines.size(); ++i) {
+                out += '\n';
+                out += lines[i];
+            }
+            return out;
+        }
+    }
+    return repr(show_symmetry, true);
 }
 
 } // namespace cyten

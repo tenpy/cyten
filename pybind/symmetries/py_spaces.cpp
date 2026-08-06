@@ -542,6 +542,69 @@ bind_spaces(py::module_& m)
            R"pydoc(
            The multiplicity of a given sector in the :attr:`sector_decomposition`.
            )pydoc");
+
+    py::class_<LegPipe, Leg, PyLegPipe, py::smart_holder> pipe(m,
+                                                               "LegPipe",
+                                                               R"pydoc(
+                                                               A group of legs, i.e. resulting from :func:`~cyten.tensors.combine_legs`.
+
+                                                               Note that the abelian backend defines a custom subclass.
+
+                                                               The :attr:`dual` of a pipe is given by another :class:`LegPipe`, which consists of the
+                                                               dual of each of the :attr:`legs`, *in reverse order*. We also flip the :attr:`is_dual`
+                                                               attribute to keep track of that (but the attribute has no further meaning).
+
+                                                               Attributes
+                                                               ----------
+                                                               legs
+                                                                   The legs that were grouped, and that this pipe can be split into.
+                                                               combine_cstyle : bool
+                                                                   The leg pipe defines an order in which multi-indices (one per leg) are combined into
+                                                                   a single index. This can either be C-style (where the index for the last leg is varied the
+                                                                   fastest) or F-style (where the first index is varied the fastest). For compatibility with
+                                                                   the default behavior of ``np.reshape``, we favor C-style. However, if the `legs` were in
+                                                                   the domain (at the top) of a tensor before combining, the conventional leg order implies
+                                                                   a reversal of their order in ``Tensor.legs``. Thus, pipes in the domain should have F-style
+                                                                   combine. Consistent with this expectation, the style is flipped on taking the :attr:`dual`
+
+                                                               See Also
+                                                               --------
+                                                               TensorProduct
+                                                               )pydoc");
+
+    pipe.def(py::init([](py::sequence legs_obj, bool is_dual, bool combine_cstyle) {
+                 std::vector<Leg::Ptr> legs;
+                 legs.reserve(static_cast<std::size_t>(legs_obj.size()));
+                 for (py::handle item : legs_obj) {
+                     legs.push_back(item.cast<Leg::Ptr>());
+                 }
+                 return std::make_shared<PyLegPipe>(std::move(legs), is_dual, combine_cstyle);
+             }),
+             py::arg("legs"),
+             py::arg("is_dual") = false,
+             py::arg("combine_cstyle") = true);
+
+    pipe.def_readwrite("legs", &LegPipe::legs)
+      .def_readonly("num_legs", &LegPipe::num_legs)
+      .def_readwrite("combine_cstyle", &LegPipe::combine_cstyle);
+
+    pipe.def("test_sanity", &LegPipe::test_sanity)
+      .def("__eq__",
+           [](LegPipe const& self, py::object other) -> py::object {
+               if (!py::isinstance<LegPipe>(other)) {
+                   return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+               }
+               return py::cast(
+                 self.operator==(static_cast<Leg const&>(other.cast<LegPipe const&>())));
+           })
+      .def("__getitem__", &LegPipe::operator[], py::arg("idx"))
+      .def("__len__", [](LegPipe const& self) { return self.num_legs; })
+      .def(
+        "__iter__",
+        [](LegPipe& self) { return py::make_iterator(self.legs.begin(), self.legs.end()); },
+        py::keep_alive<0, 1>())
+      .def("__repr__", [](LegPipe const& self) { return self.repr(); })
+      .def("repr", &LegPipe::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false);
 }
 
 } // namespace cyten

@@ -633,4 +633,63 @@ class PySpace
     Ptr as_Space() override { PYBIND11_OVERRIDE(Ptr, Space, as_Space); }
 };
 
+/// Trampoline for Python subclasses of LegPipe (AbelianLegPipe, …).
+class PyLegPipe
+  : public LegPipe
+  , public py::trampoline_self_life_support
+{
+  public:
+    using LegPipe::LegPipe;
+
+    void test_sanity() const override { PYBIND11_OVERRIDE(void, LegPipe, test_sanity); }
+
+    py::object as_Space() override { PYBIND11_OVERRIDE(py::object, LegPipe, as_Space); }
+
+    Leg::Ptr dual() const override { PYBIND11_OVERRIDE(Leg::Ptr, LegPipe, dual); }
+
+    bool is_trivial() const override { PYBIND11_OVERRIDE(bool, LegPipe, is_trivial); }
+
+    std::vector<Leg::Ptr> flat_legs() override
+    {
+        PYBIND11_OVERRIDE(std::vector<Leg::Ptr>, LegPipe, flat_legs);
+    }
+
+    std::vector<Leg::Ptr> flat_spaces() override
+    {
+        PYBIND11_OVERRIDE(std::vector<Leg::Ptr>, LegPipe, flat_spaces);
+    }
+
+    int64 num_flat_legs() const override { PYBIND11_OVERRIDE(int64, LegPipe, num_flat_legs); }
+
+    std::vector<int64> _flat_leg_permutation(int64 offset) const override
+    {
+        PYBIND11_OVERRIDE(std::vector<int64>, LegPipe, _flat_leg_permutation, offset);
+    }
+
+    void set_basis_perm(std::optional<std::vector<int64>> basis_perm) override
+    {
+        PYBIND11_OVERRIDE(void, LegPipe, set_basis_perm, basis_perm);
+    }
+
+    void set_inverse_basis_perm(std::optional<std::vector<int64>> inverse_basis_perm) override
+    {
+        PYBIND11_OVERRIDE(void, LegPipe, set_inverse_basis_perm, inverse_basis_perm);
+    }
+
+    std::string ascii_arrow() const override
+    {
+        PYBIND11_OVERRIDE(std::string, LegPipe, ascii_arrow);
+    }
+
+    bool operator==(Leg const& other) const override
+    {
+        PYBIND11_OVERRIDE_NAME(bool, LegPipe, "__eq__", operator==, other);
+    }
+
+    bool is_abelian_leg_pipe() const override
+    {
+        PYBIND11_OVERRIDE(bool, LegPipe, is_abelian_leg_pipe);
+    }
+};
+
 } // namespace cyten
