@@ -34,6 +34,7 @@ target_sources(cyten
   symmetries/su2_k_anyon_category.cpp
   symmetries/su3_3_anyon_category.cpp
   symmetries/trees.cpp
+  symmetries/spaces.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   version.cpp
