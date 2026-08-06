@@ -26,6 +26,7 @@ void bind_su2_k_anyon_category(py::module_& m);
 void bind_su3_3_anyon_category(py::module_& m);
 void bind_symmetry(py::module_& m);
 void bind_trees(py::module_& m);
+void bind_spaces(py::module_& m);
 
 void
 bind_symmetries(py::module_& m)
@@ -54,6 +55,7 @@ bind_symmetries(py::module_& m)
     bind_su3_3_anyon_category(m);
     bind_symmetry(m);
     bind_trees(m);
+    bind_spaces(m);
 }
 
 } // namespace cyten

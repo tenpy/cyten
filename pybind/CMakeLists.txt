@@ -36,4 +36,5 @@ target_sources(_core
   symmetries/py_su3_3_anyon_category.cpp
   symmetries/py_symmetry.cpp
   symmetries/py_trees.cpp
+  symmetries/py_spaces.cpp
 )
