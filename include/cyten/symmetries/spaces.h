@@ -3,6 +3,7 @@
 #include "exceptions.h"
 #include "sector.h"
 #include "symmetry.h"
+#include "trees.h"
 
 #include <array>
 #include <cstdint>
@@ -12,6 +13,7 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace cyten {
@@ -330,4 +332,117 @@ class ElementarySpace
     static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
 };
 
+/// Half-open index range ``[start, stop)``, corresponding to a Python ``slice(start, stop)``.
+struct IndexSlice
+{
+    int64 start = 0;
+    int64 stop = 0;
+};
+
+/// One item of :meth:`TensorProduct::iter_uncoupled`.
+struct UncoupledItem
+{
+    SectorArray uncoupled;
+    std::vector<int64> multiplicities;
+    std::optional<std::vector<IndexSlice>> slices;
+};
+
+/// One item of :meth:`TensorProduct::iter_forest_blocks`.
+struct ForestBlockItem
+{
+    SectorArray uncoupled;
+    IndexSlice slice;
+    int64 coupled_idx = 0;
+};
+
+/// One item of :meth:`TensorProduct::iter_tree_blocks`.
+struct TreeBlockItem
+{
+    FusionTree tree;
+    IndexSlice slice;
+    std::vector<int64> multiplicities;
+    int64 coupled_idx = 0;
+};
+
+/// Represents a tensor product of :class:`Space`\ s, e.g. the (co-)domain of a tensor.
+class TensorProduct : public Space
+{
+  public:
+    using Ptr = std::shared_ptr<TensorProduct>;
+    using CPtr = std::shared_ptr<const TensorProduct>;
+
+    /// Factors of the product: each is a :class:`Space` or :class:`LegPipe` (Python or C++).
+    std::vector<py::object> factors;
+    int64 num_factors = 0;
+
+    explicit TensorProduct(std::vector<py::object> factors,
+                           Symmetry::Ptr symmetry = nullptr,
+                           std::optional<SectorArray> sector_decomposition = std::nullopt,
+                           std::optional<std::vector<int64>> multiplicities = std::nullopt);
+    ~TensorProduct() override = default;
+
+    void test_sanity() const override;
+
+    static Ptr from_partial_products(std::vector<Ptr> const& factors);
+
+    Space::Ptr dual_space() const override;
+
+    /// The size of a block (``coupled`` may be a sector index or a sector).
+    [[nodiscard]] int64 block_size(std::variant<int64, Sector> coupled) const;
+
+    py::object change_symmetry(Symmetry::Ptr symmetry,
+                               SectorMapFn sector_map,
+                               bool injective = false) override;
+
+    py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
+
+    [[nodiscard]] bool has_pipes() const;
+
+    [[nodiscard]] std::vector<Leg::Ptr> flat_legs() const;
+
+    [[nodiscard]] std::vector<Leg::Ptr> flat_spaces() const;
+
+    [[nodiscard]] int64 num_flat_legs() const;
+
+    [[nodiscard]] std::vector<std::vector<int64>> flat_legs_nesting() const;
+
+    [[nodiscard]] std::vector<int64> flat_leg_idcs(int64 i) const;
+
+    [[nodiscard]] int64 forest_block_size(SectorArray const& uncoupled, Sector coupled) const;
+
+    [[nodiscard]] IndexSlice forest_block_slice(SectorArray const& uncoupled, Sector coupled) const;
+
+    [[nodiscard]] Ptr insert_multiply(py::object other, int64 pos) const;
+
+    [[nodiscard]] std::vector<TreeBlockItem> iter_tree_blocks(SectorArray const& coupled) const;
+
+    [[nodiscard]] std::vector<ForestBlockItem> iter_forest_blocks(SectorArray const& coupled) const;
+
+    [[nodiscard]] std::vector<UncoupledItem> iter_uncoupled(bool yield_slices = false) const;
+
+    [[nodiscard]] Ptr left_multiply(py::object other) const;
+
+    [[nodiscard]] Ptr permuted(std::vector<int64> const& perm) const;
+
+    [[nodiscard]] Ptr right_multiply(py::object other) const;
+
+    [[nodiscard]] int64 tree_block_size(SectorArray const& uncoupled) const;
+
+    [[nodiscard]] IndexSlice tree_block_slice(FusionTree const& tree) const;
+
+    bool operator==(Space const& other) const override;
+
+    [[nodiscard]] py::object operator[](int64 idx) const;
+
+    [[nodiscard]] std::string repr(bool show_symmetry = true, bool one_line = false) const;
+
+    [[nodiscard]] std::pair<SectorArray, std::vector<int64>> calc_sectors(
+      std::vector<py::object> const& factors) const;
+
+    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+
+    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+};
+
 } // namespace cyten
+
