@@ -442,6 +442,26 @@ class TensorProduct : public Space
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
 
     static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+
+  private:
+    /// Arguments of the :class:`Space` base, which is initialized before the constructor body.
+    ///
+    /// Python sets ``self.symmetry`` first and only then computes the sectors. In C++ the base
+    /// must already know them, so they are computed by :meth:`prepare` and passed on to a
+    /// delegated constructor.
+    struct Prepared
+    {
+        Symmetry::Ptr symmetry;
+        SectorArray sector_decomposition;
+        std::vector<int64> multiplicities;
+    };
+
+    static Prepared prepare(std::vector<py::object> const& factors,
+                            Symmetry::Ptr symmetry,
+                            std::optional<SectorArray> sector_decomposition,
+                            std::optional<std::vector<int64>> multiplicities);
+
+    TensorProduct(std::vector<py::object> factors, Prepared prepared);
 };
 
 } // namespace cyten

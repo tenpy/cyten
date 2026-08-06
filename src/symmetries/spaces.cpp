@@ -49,6 +49,13 @@ inverse_permutation(std::vector<int64> const& perm)
     return inv;
 }
 
+/// ``repr`` of a bool, using the Python spelling.
+[[nodiscard]] char const*
+bool_repr(bool value)
+{
+    return value ? "True" : "False";
+}
+
 [[nodiscard]] py::array_t<int64>
 vector_to_array(std::vector<int64> const& v)
 {
@@ -783,9 +790,9 @@ LegPipe::repr(bool show_symmetry, bool one_line) const
             auto res = std::format("{}(num_legs={}, is_dual={}, symmetry={}, combine_cstyle={})",
                                    ClsName,
                                    num_legs,
-                                   is_dual,
+                                   bool_repr(is_dual),
                                    symmetry->repr(),
-                                   combine_cstyle);
+                                   bool_repr(combine_cstyle));
             if (static_cast<int64>(res.size()) <= linewidth) {
                 return res;
             }
@@ -794,8 +801,8 @@ LegPipe::repr(bool show_symmetry, bool one_line) const
         auto res = std::format("{}(num_legs={}, is_dual={}, combine_cstyle={})",
                                ClsName,
                                num_legs,
-                               is_dual,
-                               combine_cstyle);
+                               bool_repr(is_dual),
+                               bool_repr(combine_cstyle));
         if (static_cast<int64>(res.size()) <= linewidth) {
             return res;
         }
@@ -822,9 +829,10 @@ LegPipe::repr(bool show_symmetry, bool one_line) const
             }
         }
         if (show_symmetry) {
-            lines.push_back(std::format("], is_dual={}, symmetry={})", is_dual, symmetry->repr()));
+            lines.push_back(
+              std::format("], is_dual={}, symmetry={})", bool_repr(is_dual), symmetry->repr()));
         } else {
-            lines.push_back(std::format("], is_dual={})", is_dual));
+            lines.push_back(std::format("], is_dual={})", bool_repr(is_dual)));
         }
         bool maxlines_ok = static_cast<int64>(lines.size()) <= maxlines;
         bool linewidth_ok = std::ranges::all_of(
@@ -958,13 +966,6 @@ optional_perm_from_py(py::object obj)
         return std::nullopt;
     }
     return py_array_to_i64(py::array::ensure(obj));
-}
-
-/// ``repr`` of a bool, using the Python spelling.
-[[nodiscard]] char const*
-bool_repr(bool value)
-{
-    return value ? "True" : "False";
 }
 
 } // namespace
@@ -1791,6 +1792,890 @@ ElementarySpace::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string 
                                                 std::move(basis_perm));
     py::object py_obj = py::cast(obj);
     hdf5_loader.attr("memorize_load")(h5gr, py_obj);
+    return obj;
+}
+
+namespace {
+
+/// The symmetry of a :class:`TensorProduct` factor, i.e. of a :class:`Space` or :class:`Leg`.
+[[nodiscard]] Symmetry::Ptr
+factor_symmetry(py::handle factor)
+{
+    if (py::isinstance<Space>(factor)) {
+        return factor.cast<Space*>()->symmetry;
+    }
+    if (py::isinstance<Leg>(factor)) {
+        return factor.cast<Leg*>()->symmetry;
+    }
+    return factor.attr("symmetry").cast<Symmetry::Ptr>();
+}
+
+/// ``factor.flat_spaces`` if `spaces`, else ``factor.flat_legs``.
+[[nodiscard]] std::vector<Leg::Ptr>
+factor_flat(py::handle factor, bool spaces)
+{
+    if (py::isinstance<TensorProduct>(factor)) {
+        auto const* product = factor.cast<TensorProduct const*>();
+        return spaces ? product->flat_spaces() : product->flat_legs();
+    }
+    if (py::isinstance<Leg>(factor)) {
+        auto leg = factor.cast<Leg::Ptr>();
+        return spaces ? leg->flat_spaces() : leg->flat_legs();
+    }
+    // pure Python factor, e.g. an AbelianLegPipe: the flattened parts must still be C++ Legs
+    std::vector<Leg::Ptr> out;
+    for (py::handle item : factor.attr(spaces ? "flat_spaces" : "flat_legs")) {
+        out.push_back(item.cast<Leg::Ptr>());
+    }
+    return out;
+}
+
+[[nodiscard]] int64
+factor_num_flat_legs(py::handle factor)
+{
+    if (py::isinstance<TensorProduct>(factor)) {
+        return factor.cast<TensorProduct const*>()->num_flat_legs();
+    }
+    if (py::isinstance<Leg>(factor)) {
+        return factor.cast<Leg*>()->num_flat_legs();
+    }
+    return factor.attr("num_flat_legs").cast<int64>();
+}
+
+/// The :class:`Space` described by a (already flattened) leg.
+[[nodiscard]] Space::Ptr
+leg_as_space(Leg::Ptr const& leg)
+{
+    if (auto space = std::dynamic_pointer_cast<Space>(leg)) {
+        return space;
+    }
+    return leg->as_Space().cast<Space::Ptr>();
+}
+
+/// ``factor.change_symmetry(symmetry, sector_map, injective)``.
+[[nodiscard]] py::object
+factor_change_symmetry(py::handle factor,
+                       Symmetry::Ptr const& symmetry,
+                       SectorMapFn const& sector_map,
+                       bool injective)
+{
+    if (py::isinstance<Space>(factor)) {
+        return factor.cast<Space*>()->change_symmetry(symmetry, sector_map, injective);
+    }
+    auto py_sector_map = py::cpp_function([sector_map](py::object sectors) {
+        return py::cast(sector_map(sectors.cast<SectorArray>()));
+    });
+    return factor.attr("change_symmetry")(symmetry, py_sector_map, injective);
+}
+
+/// ``factor.drop_symmetry(which)``, where ``nullopt`` means ``'all'``.
+[[nodiscard]] py::object
+factor_drop_symmetry(py::handle factor, std::optional<std::vector<int64>> const& which)
+{
+    if (py::isinstance<Space>(factor)) {
+        return factor.cast<Space*>()->drop_symmetry(which);
+    }
+    py::object which_obj = which ? py::cast(*which) : py::object(py::str("all"));
+    return factor.attr("drop_symmetry")(which_obj);
+}
+
+/// ``factor.__repr__(show_symmetry=..., one_line=...)``, with fallbacks.
+[[nodiscard]] std::string
+factor_repr(py::handle factor, bool show_symmetry, bool one_line)
+{
+    // the C++ classes bind the parametrized version as ``repr``, the Python ones as ``__repr__``
+    for (char const* name : { "repr", "__repr__" }) {
+        if (!py::hasattr(factor, name)) {
+            continue;
+        }
+        try {
+            return py::str(factor.attr(name)(py::arg("show_symmetry") = show_symmetry,
+                                             py::arg("one_line") = one_line));
+        } catch (py::error_already_set&) {
+            // the attribute does not accept these arguments; fall through
+        }
+    }
+    return py::str(factor.attr("__repr__")());
+}
+
+/// ``np.prod(values)``, i.e. ``1`` for an empty input.
+[[nodiscard]] int64
+product(std::vector<int64> const& values)
+{
+    int64 res = 1;
+    for (auto const v : values) {
+        res *= v;
+    }
+    return res;
+}
+
+/// ``all(a == b for a, b in zip(sectors, other))``, i.e. ignoring surplus entries.
+[[nodiscard]] bool
+sectors_match(SectorArray const& sectors, SectorArray const& other)
+{
+    auto const n = std::min(sectors.size(), other.size());
+    for (std::size_t i = 0; i < n; ++i) {
+        if (!(sectors[i] == other[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+[[nodiscard]] std::string
+join(std::vector<std::string> const& parts, std::string const& sep)
+{
+    std::string out;
+    for (std::size_t i = 0; i < parts.size(); ++i) {
+        if (i > 0) {
+            out += sep;
+        }
+        out += parts[i];
+    }
+    return out;
+}
+
+[[nodiscard]] py::object
+dim_to_py(float64 dim)
+{
+    if (std::floor(dim) == dim) {
+        return py::int_(static_cast<long long>(dim));
+    }
+    return py::float_(dim);
+}
+
+/// ``TensorProduct._calc_sectors``, for factors that are already flattened to spaces.
+[[nodiscard]] std::pair<SectorArray, std::vector<int64>>
+calc_sectors_of_spaces(Symmetry const& symmetry, std::span<const Space::Ptr> spaces)
+{
+    if (spaces.empty()) {
+        return { SectorArray::from_sector(symmetry.trivial_sector), std::vector<int64>{ 1 } };
+    }
+
+    if (spaces.size() == 1) {
+        auto const& space = *spaces.front();
+        if (space.sector_order == "sorted") {
+            return { space.sector_decomposition, space.multiplicities };
+        }
+        auto const perm = space.sector_decomposition.lexsort_indices();
+        return { space.sector_decomposition.take(perm),
+                 gather_or_all(space.multiplicities, perm) };
+    }
+
+    if (symmetry.is_abelian()) {
+        // all combinations of one sector per space, ordered like ``make_grid(_, cstyle=False)``
+        std::vector<std::size_t> num_sectors(spaces.size());
+        std::size_t num_combinations = 1;
+        for (std::size_t n = 0; n < spaces.size(); ++n) {
+            num_sectors[n] = static_cast<std::size_t>(spaces[n]->num_sectors);
+            num_combinations *= num_sectors[n];
+        }
+        std::vector<SectorArray> uncoupled;
+        uncoupled.reserve(spaces.size());
+        std::vector<int64> multiplicities(num_combinations, 1);
+        std::size_t stride = 1;
+        for (std::size_t n = 0; n < spaces.size(); ++n) {
+            SectorArray column(num_combinations, symmetry.sector_ind_len);
+            for (std::size_t m = 0; m < num_combinations; ++m) {
+                auto const i = (m / stride) % num_sectors[n];
+                column[m] = spaces[n]->sector_decomposition[i];
+                multiplicities[m] *= spaces[n]->multiplicities[i];
+            }
+            uncoupled.push_back(std::move(column));
+            stride *= num_sectors[n];
+        }
+        auto const sectors = symmetry.multiple_fusion_broadcast(uncoupled);
+        auto [unique, mults, perm] = sectors.unique_sorted(multiplicities);
+        (void)perm;
+        return { std::move(unique), std::move(mults) };
+    }
+
+    // define recursively
+    auto const [sectors, mults] =
+      calc_sectors_of_spaces(symmetry, spaces.first(spaces.size() - 1));
+    auto const& last = *spaces.back();
+    SectorArray combined = SectorArray::empty(symmetry.sector_ind_len);
+    std::vector<int64> combined_mults;
+    for (std::size_t j = 0; j < last.sector_decomposition.size(); ++j) {
+        auto const s2 = last.sector_decomposition[j];
+        auto const m2 = last.multiplicities[j];
+        for (std::size_t i = 0; i < sectors.size(); ++i) {
+            auto const s1 = sectors[i];
+            auto const m12 = mults[i] * m2;
+            for (auto const& c : symmetry.fusion_outcomes(s1, s2)) {
+                combined.push_back(c);
+                // OPTIMIZE support batched N symbol?
+                combined_mults.push_back(symmetry.has_unique_fusion()
+                                           ? m12
+                                           : m12 * symmetry._n_symbol(s1, s2, c));
+            }
+        }
+    }
+    auto [unique, unique_mults, perm] = combined.unique_sorted(combined_mults);
+    (void)perm;
+    return { std::move(unique), std::move(unique_mults) };
+}
+
+/// ``TensorProduct._calc_sectors``.
+[[nodiscard]] std::pair<SectorArray, std::vector<int64>>
+calc_sectors_of_factors(Symmetry const& symmetry, std::vector<py::object> const& factors)
+{
+    // LegPipes do not have sectors -> flatten them for the purpose of calculating sectors
+    std::vector<Space::Ptr> spaces;
+    for (auto const& factor : factors) {
+        for (auto const& leg : factor_flat(factor, /*spaces=*/true)) {
+            // need the sector decomposition of each factor. easiest way: convert to Space
+            // OPTIMIZE is this optimal? should we store the as_Space() for later use?
+            spaces.push_back(leg_as_space(leg));
+        }
+    }
+    return calc_sectors_of_spaces(symmetry, spaces);
+}
+
+} // namespace
+
+TensorProduct::Prepared
+TensorProduct::prepare(std::vector<py::object> const& factors,
+                       Symmetry::Ptr symmetry,
+                       std::optional<SectorArray> sector_decomposition,
+                       std::optional<std::vector<int64>> multiplicities)
+{
+    if (!symmetry) {
+        if (factors.empty()) {
+            throw std::invalid_argument("If spaces is empty, the symmetry arg is required.");
+        }
+        symmetry = factor_symmetry(factors.front());
+    }
+    for (auto const& factor : factors) {
+        if (!factor_symmetry(factor)->equals(*symmetry)) {
+            throw SymmetryError("Incompatible symmetries.");
+        }
+    }
+    if (!sector_decomposition || !multiplicities) {
+        if (sector_decomposition || multiplicities) {
+            PyErr_WarnEx(PyExc_UserWarning,
+                         "Need both _sectors and _multiplicities to skip recomputation. "
+                         "Got just one.",
+                         1);
+        }
+        auto [sectors, mults] = calc_sectors_of_factors(*symmetry, factors);
+        sector_decomposition = std::move(sectors);
+        multiplicities = std::move(mults);
+    }
+    return { std::move(symmetry),
+             std::move(*sector_decomposition),
+             std::move(*multiplicities) };
+}
+
+TensorProduct::TensorProduct(std::vector<py::object> factors_, Prepared prepared)
+  : Space(std::move(prepared.symmetry),
+          std::move(prepared.sector_decomposition),
+          std::move(prepared.multiplicities),
+          "sorted")
+  , factors(std::move(factors_))
+  , num_factors(static_cast<int64>(factors.size()))
+{
+}
+
+TensorProduct::TensorProduct(std::vector<py::object> factors_,
+                             Symmetry::Ptr symmetry_,
+                             std::optional<SectorArray> sector_decomposition_,
+                             std::optional<std::vector<int64>> multiplicities_)
+  : TensorProduct(factors_,
+                  prepare(factors_,
+                          std::move(symmetry_),
+                          std::move(sector_decomposition_),
+                          std::move(multiplicities_)))
+{
+}
+
+void
+TensorProduct::test_sanity() const
+{
+    assert(static_cast<int64>(factors.size()) == num_factors);
+    for (auto const& factor : factors) {
+        factor.attr("test_sanity")();
+    }
+    Space::test_sanity();
+}
+
+TensorProduct::Ptr
+TensorProduct::from_partial_products(std::vector<Ptr> const& factors)
+{
+    if (factors.empty()) {
+        throw std::invalid_argument("Need at least one TensorProduct");
+    }
+    auto spaces = factors.front()->factors;
+    auto symmetry = factors.front()->symmetry;
+    std::vector<py::object> partial;
+    partial.reserve(factors.size());
+    partial.push_back(py::cast(factors.front()));
+    for (std::size_t i = 1; i < factors.size(); ++i) {
+        spaces.insert(spaces.end(), factors[i]->factors.begin(), factors[i]->factors.end());
+        if (!factors[i]->symmetry->equals(*symmetry)) {
+            throw SymmetryError("Mismatched symmetries");
+        }
+        partial.push_back(py::cast(factors[i]));
+    }
+    // forming isomorphic performs the fusion on the partially fused factors
+    auto const isomorphic = std::make_shared<TensorProduct>(std::move(partial), symmetry);
+    return std::make_shared<TensorProduct>(std::move(spaces),
+                                           std::move(symmetry),
+                                           isomorphic->sector_decomposition,
+                                           isomorphic->multiplicities);
+}
+
+Space::Ptr
+TensorProduct::dual_space() const
+{
+    auto const dual = symmetry->dual_sectors(sector_decomposition);
+    auto [sectors, mults, perm] = sort_sectors(dual, multiplicities);
+    (void)perm;
+    std::vector<py::object> dual_factors;
+    dual_factors.reserve(factors.size());
+    for (auto it = factors.rbegin(); it != factors.rend(); ++it) {
+        dual_factors.push_back(it->attr("dual"));
+    }
+    return std::make_shared<TensorProduct>(
+      std::move(dual_factors), symmetry, std::move(sectors), std::move(mults));
+}
+
+int64
+TensorProduct::block_size(std::variant<int64, Sector> coupled) const
+{
+    if (auto const* idx = std::get_if<int64>(&coupled)) {
+        return multiplicities[static_cast<std::size_t>(to_valid_idx(*idx, num_sectors))];
+    }
+    return sector_multiplicity(std::get<Sector>(coupled));
+}
+
+py::object
+TensorProduct::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map, bool injective)
+{
+    auto sectors = sector_map(sector_decomposition);
+    auto mults = multiplicities;
+    std::vector<std::size_t> perm;
+    if (!injective) {
+        std::tie(sectors, mults, perm) = sectors.unique_sorted(mults);
+    } else {
+        std::tie(sectors, mults, perm) = sort_sectors(sectors, mults);
+    }
+    std::vector<py::object> new_factors;
+    new_factors.reserve(factors.size());
+    for (auto const& factor : factors) {
+        new_factors.push_back(factor_change_symmetry(factor, symmetry_, sector_map, injective));
+    }
+    // note: unlike the Python version, which passes ``self.symmetry``, we pass the *new*
+    // symmetry here. Otherwise the constructor rejects the new factors.
+    return py::cast(std::make_shared<TensorProduct>(
+      std::move(new_factors), std::move(symmetry_), std::move(sectors), std::move(mults)));
+}
+
+py::object
+TensorProduct::drop_symmetry(std::optional<std::vector<int64>> which)
+{
+    auto const [which_factors, remaining_symmetry] = parse_inputs_drop_symmetry(which, *symmetry);
+    SectorArray sectors;
+    std::vector<int64> mults;
+    if (!which_factors) {
+        // note: unlike the Python version, we use the trivial sector of the *remaining*
+        // symmetry, which is the only one with the right sector_ind_len.
+        sectors = SectorArray::from_sector(remaining_symmetry->trivial_sector);
+        mults = { static_cast<int64>(dim) };
+    } else {
+        // the sector components that are kept
+        std::vector<bool> mask(symmetry->sector_ind_len, true);
+        for (auto const i : *which_factors) {
+            auto const idx = static_cast<std::size_t>(i);
+            for (auto k = symmetry->sector_slices[idx]; k < symmetry->sector_slices[idx + 1];
+                 ++k) {
+                mask[k] = false;
+            }
+        }
+        std::vector<std::size_t> keep;
+        for (std::size_t k = 0; k < mask.size(); ++k) {
+            if (mask[k]) {
+                keep.push_back(k);
+            }
+        }
+        SectorArray kept(sector_decomposition.size(), static_cast<std::uint8_t>(keep.size()));
+        for (std::size_t i = 0; i < sector_decomposition.size(); ++i) {
+            auto sector = Sector::zeros(static_cast<std::uint8_t>(keep.size()));
+            for (std::size_t k = 0; k < keep.size(); ++k) {
+                sector[k] = sector_decomposition[i][keep[k]];
+            }
+            kept[i] = sector;
+        }
+        std::vector<std::size_t> perm;
+        std::tie(sectors, mults, perm) = kept.unique_sorted(multiplicities);
+    }
+    std::vector<py::object> new_factors;
+    new_factors.reserve(factors.size());
+    for (auto const& factor : factors) {
+        new_factors.push_back(factor_drop_symmetry(factor, which_factors));
+    }
+    return py::cast(std::make_shared<TensorProduct>(
+      std::move(new_factors), remaining_symmetry, std::move(sectors), std::move(mults)));
+}
+
+bool
+TensorProduct::has_pipes() const
+{
+    return std::ranges::any_of(factors,
+                               [](py::object const& f) { return py::isinstance<LegPipe>(f); });
+}
+
+std::vector<Leg::Ptr>
+TensorProduct::flat_legs() const
+{
+    std::vector<Leg::Ptr> out;
+    for (auto const& factor : factors) {
+        auto part = factor_flat(factor, /*spaces=*/false);
+        out.insert(out.end(), part.begin(), part.end());
+    }
+    return out;
+}
+
+std::vector<Leg::Ptr>
+TensorProduct::flat_spaces() const
+{
+    std::vector<Leg::Ptr> out;
+    for (auto const& factor : factors) {
+        auto part = factor_flat(factor, /*spaces=*/true);
+        out.insert(out.end(), part.begin(), part.end());
+    }
+    return out;
+}
+
+int64
+TensorProduct::num_flat_legs() const
+{
+    int64 n = 0;
+    for (auto const& factor : factors) {
+        n += factor_num_flat_legs(factor);
+    }
+    return n;
+}
+
+std::vector<std::vector<int64>>
+TensorProduct::flat_legs_nesting() const
+{
+    int64 i = 0;
+    std::vector<std::vector<int64>> res;
+    res.reserve(factors.size());
+    for (auto const& factor : factors) {
+        auto const num = factor_num_flat_legs(factor);
+        std::vector<int64> idcs(static_cast<std::size_t>(num));
+        std::iota(idcs.begin(), idcs.end(), i);
+        res.push_back(std::move(idcs));
+        i += num;
+    }
+    return res;
+}
+
+std::vector<int64>
+TensorProduct::flat_leg_idcs(int64 i) const
+{
+    i = to_valid_idx(i, num_factors);
+    int64 start = 0;
+    for (int64 k = 0; k < i; ++k) {
+        start += factor_num_flat_legs(factors[static_cast<std::size_t>(k)]);
+    }
+    auto const num = factor_num_flat_legs(factors[static_cast<std::size_t>(i)]);
+    std::vector<int64> res(static_cast<std::size_t>(num));
+    std::iota(res.begin(), res.end(), start);
+    return res;
+}
+
+int64
+TensorProduct::forest_block_size(SectorArray const& uncoupled, Sector coupled) const
+{
+    // OPTIMIZE ?
+    auto const num_trees = static_cast<int64>(fusion_trees(symmetry, uncoupled, coupled).size());
+    return num_trees * tree_block_size(uncoupled);
+}
+
+IndexSlice
+TensorProduct::forest_block_slice(SectorArray const& uncoupled, Sector coupled) const
+{
+    int64 offset = 0;
+    bool found = false;
+    for (auto const& item : iter_uncoupled()) {
+        if (sectors_match(item.uncoupled, uncoupled)) {
+            found = true;
+            break;
+        }
+        auto const tree_block = product(item.multiplicities);
+        auto const num_trees =
+          static_cast<int64>(fusion_trees(symmetry, item.uncoupled, coupled).size());
+        offset += num_trees * tree_block;
+    }
+    if (!found) {
+        throw std::invalid_argument("Uncoupled sectors incompatible");
+    }
+    auto const size = forest_block_size(uncoupled, coupled);
+    return { offset, offset + size };
+}
+
+TensorProduct::Ptr
+TensorProduct::insert_multiply(py::object other, int64 pos) const
+{
+    auto const self_ptr = std::const_pointer_cast<TensorProduct>(
+      std::dynamic_pointer_cast<TensorProduct const>(shared_from_this()));
+    auto const isomorphic = std::make_shared<TensorProduct>(
+      std::vector<py::object>{ py::cast(self_ptr), other });
+    // Python uses list slicing, i.e. ``factors[:pos] + [other] + factors[pos:]``.
+    // In particular, ``pos == -1`` (as used by right_multiply) inserts before the last factor.
+    auto const n = static_cast<int64>(factors.size());
+    auto const at = static_cast<std::ptrdiff_t>(pos < 0 ? std::max<int64>(0, n + pos)
+                                                        : std::min(pos, n));
+    std::vector<py::object> new_factors;
+    new_factors.reserve(factors.size() + 1);
+    new_factors.insert(new_factors.end(), factors.begin(), factors.begin() + at);
+    new_factors.push_back(std::move(other));
+    new_factors.insert(new_factors.end(), factors.begin() + at, factors.end());
+    return std::make_shared<TensorProduct>(std::move(new_factors),
+                                           symmetry,
+                                           isomorphic->sector_decomposition,
+                                           isomorphic->multiplicities);
+}
+
+std::vector<TreeBlockItem>
+TensorProduct::iter_tree_blocks(SectorArray const& coupled) const
+{
+    // OPTIMIZE some users in FTBackend ignore some of the yielded values.
+    //          is that ok performance wise or should we have special case iterators?
+    std::vector<std::uint8_t> are_dual;
+    for (auto const& leg : flat_legs()) {
+        are_dual.push_back(leg->is_dual ? 1 : 0);
+    }
+    auto const uncoupled_items = iter_uncoupled();
+    std::vector<TreeBlockItem> out;
+    for (std::size_t i = 0; i < coupled.size(); ++i) {
+        int64 start = 0; // start index of the current tree block within the block
+        for (auto const& item : uncoupled_items) {
+            auto const tree_block = product(item.multiplicities);
+            for (auto const& tree :
+                 fusion_trees(symmetry, item.uncoupled, coupled[i], are_dual).all_trees()) {
+                out.push_back({ tree,
+                                { start, start + tree_block },
+                                item.multiplicities,
+                                static_cast<int64>(i) });
+                start += tree_block;
+            }
+        }
+    }
+    return out;
+}
+
+std::vector<ForestBlockItem>
+TensorProduct::iter_forest_blocks(SectorArray const& coupled) const
+{
+    auto const uncoupled_items = iter_uncoupled();
+    std::vector<ForestBlockItem> out;
+    for (std::size_t i = 0; i < coupled.size(); ++i) {
+        int64 start = 0;
+        for (auto const& item : uncoupled_items) {
+            auto const tree_block = product(item.multiplicities);
+            auto const num_trees =
+              static_cast<int64>(fusion_trees(symmetry, item.uncoupled, coupled[i]).size());
+            auto const width = num_trees * tree_block;
+            if (width == 0) {
+                continue;
+            }
+            out.push_back({ item.uncoupled, { start, start + width }, static_cast<int64>(i) });
+            start += width;
+        }
+    }
+    return out;
+}
+
+std::vector<UncoupledItem>
+TensorProduct::iter_uncoupled(bool yield_slices) const
+{
+    auto const legs = flat_legs();
+    std::vector<UncoupledItem> out;
+
+    if (legs.empty()) {
+        // note: for a TensorProduct of zero spaces we *do* yield once, with empty arrays.
+        UncoupledItem item{ symmetry->empty_sector_array, {}, std::nullopt };
+        if (yield_slices) {
+            item.slices = std::vector<IndexSlice>{};
+        }
+        out.push_back(std::move(item));
+        return out;
+    }
+
+    std::vector<Space::Ptr> spaces;
+    spaces.reserve(legs.size());
+    for (auto const& leg : legs) {
+        spaces.push_back(leg_as_space(leg));
+    }
+    // ``it.product``, i.e. the last index varies the fastest
+    std::vector<std::size_t> strides(spaces.size());
+    std::size_t total = 1;
+    for (std::size_t n = spaces.size(); n-- > 0;) {
+        strides[n] = total;
+        total *= static_cast<std::size_t>(spaces[n]->num_sectors);
+    }
+    out.reserve(total);
+    for (std::size_t m = 0; m < total; ++m) {
+        SectorArray uncoupled(spaces.size(), symmetry->sector_ind_len);
+        std::vector<int64> mults(spaces.size());
+        std::optional<std::vector<IndexSlice>> slices_;
+        if (yield_slices) {
+            slices_.emplace(spaces.size());
+        }
+        for (std::size_t n = 0; n < spaces.size(); ++n) {
+            auto const i = (m / strides[n]) % static_cast<std::size_t>(spaces[n]->num_sectors);
+            uncoupled[n] = spaces[n]->sector_decomposition[i];
+            mults[n] = spaces[n]->multiplicities[i];
+            if (yield_slices) {
+                auto const& slc = (*spaces[n]->slices)[i];
+                (*slices_)[n] = IndexSlice{ slc[0], slc[1] };
+            }
+        }
+        out.push_back({ std::move(uncoupled), std::move(mults), std::move(slices_) });
+    }
+    return out;
+}
+
+TensorProduct::Ptr
+TensorProduct::left_multiply(py::object other) const
+{
+    return insert_multiply(std::move(other), 0);
+}
+
+TensorProduct::Ptr
+TensorProduct::permuted(std::vector<int64> const& perm) const
+{
+    if (static_cast<int64>(perm.size()) != num_factors) {
+        throw std::invalid_argument("perm has wrong length");
+    }
+    std::vector<bool> seen(perm.size(), false);
+    std::vector<py::object> new_factors;
+    new_factors.reserve(perm.size());
+    for (auto const i : perm) {
+        auto const idx = static_cast<std::size_t>(to_valid_idx(i, num_factors));
+        if (seen[idx]) {
+            throw std::invalid_argument("perm is not a permutation");
+        }
+        seen[idx] = true;
+        new_factors.push_back(factors[idx]);
+    }
+    return std::make_shared<TensorProduct>(
+      std::move(new_factors), symmetry, sector_decomposition, multiplicities);
+}
+
+TensorProduct::Ptr
+TensorProduct::right_multiply(py::object other) const
+{
+    return insert_multiply(std::move(other), -1);
+}
+
+int64
+TensorProduct::tree_block_size(SectorArray const& uncoupled) const
+{
+    // OPTIMIZE ?
+    auto const legs = flat_legs();
+    auto const n = std::min(legs.size(), uncoupled.size());
+    int64 res = 1;
+    for (std::size_t i = 0; i < n; ++i) {
+        res *= leg_as_space(legs[i])->sector_multiplicity(uncoupled[i]);
+    }
+    return res;
+}
+
+IndexSlice
+TensorProduct::tree_block_slice(FusionTree const& tree) const
+{
+    // OPTIMIZE ?
+    int64 start = 0;
+    int64 tree_block = 1;
+    bool found = false;
+    for (auto const& item : iter_uncoupled()) {
+        tree_block = product(item.multiplicities);
+        if (sectors_match(item.uncoupled, tree.uncoupled)) {
+            found = true;
+            break;
+        }
+        auto const num_trees =
+          static_cast<int64>(fusion_trees(symmetry, item.uncoupled, tree.coupled).size());
+        start += num_trees * tree_block;
+    }
+    if (!found) {
+        throw std::invalid_argument("Uncoupled sectors incompatible");
+    }
+    auto const tree_idx =
+      fusion_trees(symmetry, tree.uncoupled, tree.coupled, tree.are_dual).index(tree);
+    start += tree_block * static_cast<int64>(tree_idx);
+    return { start, start + tree_block };
+}
+
+bool
+TensorProduct::operator==(Space const& other) const
+{
+    auto const* o = dynamic_cast<TensorProduct const*>(&other);
+    if (o == nullptr) {
+        return false;
+    }
+    if (num_factors != o->num_factors) {
+        return false;
+    }
+    if (!symmetry->equals(*o->symmetry)) {
+        return false;
+    }
+    for (std::size_t i = 0; i < factors.size(); ++i) {
+        if (!factors[i].equal(o->factors[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+py::object
+TensorProduct::operator[](int64 idx) const
+{
+    return factors[static_cast<std::size_t>(to_valid_idx(idx, num_factors))];
+}
+
+std::string
+TensorProduct::repr(bool show_symmetry, bool one_line) const
+{
+    auto const& cfg = get_config();
+    auto const linewidth = cfg.print_linewidth;
+    std::string const indent(static_cast<std::size_t>(cfg.print_indent), ' ');
+    auto const maxlines = cfg.maxlines_spaces;
+    std::string const ClsName = "TensorProduct";
+
+    struct Options
+    {
+        bool full_sectors;
+        bool summarized_sectors;
+        bool show_all_factors;
+        bool symmetry;
+    };
+    std::array<Options, 6> const options{ { { true, false, true, show_symmetry },
+                                            { false, true, true, show_symmetry },
+                                            { true, false, false, show_symmetry },
+                                            { false, true, false, show_symmetry },
+                                            { false, false, false, show_symmetry },
+                                            { false, false, false, false } } };
+    for (auto const& opt : options) {
+        if (opt.full_sectors && 3 * static_cast<int64>(sector_decomposition.size()) *
+                                    static_cast<int64>(sector_decomposition.sector_ind_len()) >
+                                  linewidth) {
+            // there is no chance to print all sectors in one line
+            continue;
+        }
+
+        // populate two lists; one intended for single line, one for multiline
+        std::vector<std::string> one_line_items;
+        std::vector<std::string> lines{ ClsName + "(" };
+        if (opt.symmetry) {
+            one_line_items.push_back(std::format("symmetry={}", symmetry->repr()));
+            lines.push_back(std::format("{}symmetry={},", indent, symmetry->repr()));
+        }
+        if (opt.show_all_factors) {
+            std::vector<std::string> reprs;
+            reprs.reserve(factors.size());
+            for (auto const& factor : factors) {
+                reprs.push_back(factor_repr(factor, /*show_symmetry=*/false, /*one_line=*/true));
+            }
+            one_line_items.push_back(std::format("factors=[{}]", join(reprs, ", ")));
+            lines.push_back(std::format("{}factors=[", indent));
+            for (auto const& r : reprs) {
+                lines.push_back(std::format("{}{}{},", indent, indent, r));
+            }
+            lines.push_back(std::format("{}],", indent));
+        } else {
+            one_line_items.push_back(std::format("num_factors={}", num_factors));
+            lines.push_back(std::format("{}num_factors={},", indent, num_factors));
+        }
+        if (opt.full_sectors) {
+            py::list sector_strs;
+            for (auto const& a : sector_decomposition) {
+                sector_strs.append(symmetry->sector_str(a));
+            }
+            std::vector<std::string> const new_items{
+                std::format("sector_decomposition={}", format_like_list(sector_strs)),
+                std::format("multiplicities={}", format_like_list(py::cast(multiplicities)))
+            };
+            one_line_items.insert(one_line_items.end(), new_items.begin(), new_items.end());
+            for (auto const& item : new_items) {
+                lines.push_back(indent + item + ",");
+            }
+        }
+        if (opt.summarized_sectors) {
+            one_line_items.push_back(std::format("num_sectors={}", num_sectors));
+            lines.push_back(std::format("{}num_sectors={},", indent, num_sectors));
+        }
+        lines.emplace_back(")");
+
+        // try one line
+        auto const res = std::format("{}({})", ClsName, join(one_line_items, ", "));
+        if (static_cast<int64>(res.size()) <= linewidth) {
+            return res;
+        }
+
+        if (!one_line) {
+            // try multi line
+            bool const maxlines_ok = static_cast<int64>(lines.size()) <= maxlines;
+            bool const linewidth_ok = std::ranges::all_of(
+              lines, [&](std::string const& l) { return static_cast<int64>(l.size()) < linewidth; });
+            if (maxlines_ok && linewidth_ok) {
+                return join(lines, "\n");
+            }
+        }
+    }
+    // one of the above returns should have triggered
+    throw std::runtime_error("TensorProduct repr: no suitable format found");
+}
+
+std::pair<SectorArray, std::vector<int64>>
+TensorProduct::calc_sectors(std::vector<py::object> const& factors_) const
+{
+    return calc_sectors_of_factors(*symmetry, factors_);
+}
+
+void
+TensorProduct::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+{
+    (void)h5gr;
+    auto save = hdf5_saver.attr("save");
+    py::list factor_list;
+    for (auto const& factor : factors) {
+        factor_list.append(factor);
+    }
+    save(factor_list, subpath + "factors");
+    save(slices_to_py(slices), subpath + "slices");
+    save(py::cast(symmetry), subpath + "symmetry");
+    save(py::int_(num_sectors), subpath + "num_sectors");
+    save(py::int_(num_factors), subpath + "num_factors");
+    save(py::cast(sector_decomposition), subpath + "sector_decomposition");
+    save(sector_order ? py::cast(*sector_order) : py::none(), subpath + "sector_order");
+    save(dim_to_py(dim), subpath + "dim");
+    save(vector_to_array(multiplicities), subpath + "multiplicities");
+    save(sector_dims ? py::object(vector_to_array(*sector_dims)) : py::none(),
+         subpath + "sector_dims");
+}
+
+TensorProduct::Ptr
+TensorProduct::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    auto load = hdf5_loader.attr("load");
+    auto symmetry = load(subpath + "symmetry").cast<Symmetry::Ptr>();
+    std::vector<py::object> factors;
+    for (py::handle factor : load(subpath + "factors")) {
+        factors.push_back(py::reinterpret_borrow<py::object>(factor));
+    }
+    auto sector_decomposition = load(subpath + "sector_decomposition").cast<SectorArray>();
+    auto multiplicities = py_array_to_i64(py::array::ensure(load(subpath + "multiplicities")));
+    auto obj = std::make_shared<TensorProduct>(std::move(factors),
+                                              std::move(symmetry),
+                                              std::move(sector_decomposition),
+                                              std::move(multiplicities));
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
     return obj;
 }
 
