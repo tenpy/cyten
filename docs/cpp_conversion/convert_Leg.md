@@ -30,15 +30,16 @@ Keep original Python `Leg` (and all subclasses) until subclasses are converted. 
 - Hold `Symmetry::Ptr symmetry` (same pattern as `FusionTree`).
 - `dim` is `float64` (Python `int | float`; non-droppable symmetries may have non-integer qdim).
 - `is_dual: bool`.
-- `_basis_perm` / `_inverse_basis_perm`: `std::optional<std::vector<int64>>` (or `py::array_t<int64>` optional). Public `basis_perm` / `inverse_basis_perm` return identity `arange(dim)` when optional is empty; raise `SymmetryError` if `!symmetry->can_be_dropped()`.
+- `_basis_perm` / `_inverse_basis_perm`: **protected** `std::optional<std::vector<int64>>`. Getters return identity `arange(dim)` when empty; raise `SymmetryError` if `!symmetry->can_be_dropped()`.
 - Pure virtual: `as_Space()`, `dual()`, `is_trivial()`, `operator==`.
-- `as_Space` / `as_ElementarySpace` / `flat_legs` / `flat_spaces`: until `Space` / `ElementarySpace` exist in C++, return `py::object` / `std::vector<py::object>` (same temporary pattern as early `BaseSymmetry::as_Symmetry()`), or forward-declare and use `Leg::Ptr` where the result is always a `Leg`.
-- `set_basis_perm`: replace Python `UNSPECIFIED` sentinel with overloads / `std::optional` / two-argument API with clear “not passed” semantics (e.g. optional of optional, or separate setters). Prefer a clean C++ API + bindings that preserve Python `UNSPECIFIED` behavior.
-- `apply_basis_perm`: use NumPy (`py::array`) for now to match Python; later can align with `BlockBackend`.
-- `ascii_arrow`: uses `isinstance(LegPipe)` / `ElementarySpace` — implement via virtuals or RTTI once subclasses exist; for base `Leg` alone may `throw` / default.
+- `as_Space` / `as_ElementarySpace`: `py::object` until those types exist in C++.
+- `flat_legs` / `flat_spaces`: `std::vector<Leg::Ptr>`.
+- No combined `set_basis_perm(basis, inverse)`: Python only ever sets one side via property setters. C++ has `set_basis_perm(optional)` and `set_inverse_basis_perm(optional)` (each derives the other). Pipes override both to forbid changes.
+- `apply_basis_perm`: NumPy (`py::array`) for now.
+- `ascii_arrow`: default throws; subclasses override (pipes / ElementarySpace).
 - Trampoline **required** (`LegPipe`, `ElementarySpace`, `AbelianLegPipe` still Python).
 - `enable_shared_from_this` + `py::smart_holder` like other Layer 2 bases.
-- Helper `inverse_permutation` is still Python-only (`cyten.tools.misc`); implement a small C++ helper in `spaces.cpp` or `tools` if needed.
+- Helper `inverse_permutation`: small C++ helper in `spaces.cpp` or `tools` (Python `cyten.tools.misc` not yet in C++).
 
 ## Dependencies (already in C++)
 
@@ -57,8 +58,8 @@ Keep original Python `Leg` (and all subclasses) until subclasses are converted. 
 
 - [x] initial setup (clean tree, `Leg` in `list_python_names`, pytest `test_spaces.py` 867 passed; branch `convert_Leg` from `convert_trees`)
 - [x] planning (this file)
-- [ ] generate the declaration draft (`gen_cpp_declaration` → `include/cyten/symmetries/spaces.h`)
-- [ ] improve and fix the declaration draft (namespace, types, C++23 / pre-commit)
+- [x] generate the declaration draft (`gen_cpp_declaration` → `include/cyten/symmetries/spaces.h`)
+- [x] improve and fix the declaration draft (namespace, types, C++23 / pre-commit; protected perms + separate setters)
 - [ ] generate the C++ definitions (`gen_cpp_definition`; add to `src/CMakeLists.txt`)
 - [ ] improve and fix the definition drafts (CHECKME/FIXME; compile + ctest)
 - [ ] generate pybind11 bindings (`gen_pyb11_binding` → `py_spaces.cpp`; register in `py_symmetries.cpp` / `pybind/CMakeLists.txt`)
