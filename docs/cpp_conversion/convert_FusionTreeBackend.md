@@ -44,8 +44,8 @@
 ## TODO checklist
 
 - [x] planning (this file)
-- [ ] declaration
-- [ ] definitions + compile
-- [ ] bindings + factory
+- [x] declaration
+- [x] definitions + compile
+- [x] bindings + factory
 - [ ] monkey-patch — deferred
 - [ ] pytest — deferred
