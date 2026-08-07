@@ -1,6 +1,8 @@
 #include "../py_cyten_pybind11.h"
 
 #include <cyten/backends/abelian.h>
+#include <cyten/block_backend/numpy.h>
+#include <cyten/block_backend/torch.h>
 
 #include <memory>
 #include <optional>
@@ -8,6 +10,25 @@
 #include <vector>
 
 namespace cyten {
+
+namespace {
+
+std::shared_ptr<BlockBackend>
+as_shared_block_backend(py::object obj)
+{
+    if (py::isinstance<NumpyBlockBackend>(obj)) {
+        auto* p = obj.cast<NumpyBlockBackend*>();
+        return NumpyBlockBackend::from_factory_shared(p->default_device);
+    }
+    if (py::isinstance<TorchBlockBackend>(obj)) {
+        auto* p = obj.cast<TorchBlockBackend*>();
+        return TorchBlockBackend::from_factory_shared(p->default_device);
+    }
+    auto* raw = obj.cast<BlockBackend*>();
+    return std::shared_ptr<BlockBackend>(raw, [](BlockBackend*) {});
+}
+
+} // namespace
 
 void
 bind_abelian_backend_data(py::module_& m)
@@ -115,6 +136,63 @@ or None if no such block exists
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
+}
+
+void
+bind_abelian_backend(py::module_& m)
+{
+    // AbelianBackendData must already be registered (bind_abelian_backend_data).
+    py::class_<AbelianBackend, TensorBackend, py::smart_holder> cls(m, "AbelianBackend");
+    cls.doc() = R"pydoc(
+Backend for Abelian group symmetries.
+
+Notes
+-----
+The data stored for the various tensor classes defined in ``cyten.tensors`` is::
+
+    - ``SymmetricTensor``:
+        An ``AbelianBackendData`` instance whose blocks have as many axes as the tensor has legs.
+
+    - ``DiagonalTensor`` :
+        An ``AbelianBackendData`` instance whose blocks have only a single axis.
+        This is the diagonal of the corresponding 2D block in a ``Tensor``.
+
+    - ``Mask`` :
+        An ``AbelianBackendData`` instance whose blocks have only a single axis and bool values.
+)pydoc";
+
+    cls.def(py::init([](py::object block_backend) {
+                auto backend =
+                  std::make_shared<AbelianBackend>(as_shared_block_backend(block_backend));
+                backend->DataCls = py::type::of<AbelianBackendData>();
+                return backend;
+            }),
+            py::arg("block_backend"));
+
+    cls.def_static("wrap", &AbelianBackend::wrap, py::arg("data"));
+    cls.def_static("unwrap", &AbelianBackend::unwrap, py::arg("data"));
+
+    cls.def("leg_pipe_map_incoming_block_inds",
+            &AbelianBackend::leg_pipe_map_incoming_block_inds,
+            py::arg("pipe"),
+            py::arg("incoming_block_inds"));
+
+    // Override static from_hdf5 (base throws NotImplemented).
+    cls.def_static("from_hdf5",
+                   &AbelianBackend::from_hdf5,
+                   py::arg("hdf5_loader"),
+                   py::arg("h5gr"),
+                   py::arg("subpath"));
+
+    // Expose under both the C++ name and the Python private name.
+    m.def("valid_block_inds",
+          &valid_block_inds,
+          py::arg("codomain"),
+          py::arg("domain"),
+          R"pydoc(
+Charge-allowed block index combinations for ``codomain`` / ``domain``, lexsorted.
+)pydoc");
+    m.attr("_valid_block_inds") = m.attr("valid_block_inds");
 }
 
 } // namespace cyten

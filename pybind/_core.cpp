@@ -15,6 +15,7 @@ PYBIND11_MODULE(_core, m)
     bind_tensor_backend(m);
     bind_no_symmetry_backend(m);
     bind_abelian_backend_data(m);
+    bind_abelian_backend(m);
     bind_fusion_tree_data(m);
     bind_backend_factory(m);
 

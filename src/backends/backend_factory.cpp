@@ -1,4 +1,5 @@
 #include <cyten/backends/backend_factory.h>
+#include <cyten/backends/abelian.h>
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/block_backend/numpy.h>
 #include <cyten/block_backend/torch.h>
@@ -38,14 +39,11 @@ py::object
 make_python_tensor_backend(std::string const& tensor_backend,
                            std::shared_ptr<BlockBackend> block_backend_instance)
 {
-    py::object cls;
-    if (tensor_backend == "abelian") {
-        cls = py::module_::import("cyten.backends.abelian").attr("AbelianBackend");
-    } else if (tensor_backend == "fusion_tree") {
-        cls = py::module_::import("cyten.backends.fusion_tree_backend").attr("FusionTreeBackend");
-    } else {
+    if (tensor_backend != "fusion_tree") {
         throw std::invalid_argument("Unknown tensor_backend: " + tensor_backend);
     }
+    py::object cls =
+      py::module_::import("cyten.backends.fusion_tree_backend").attr("FusionTreeBackend");
     return cls(py::arg("block_backend") = block_backend_instance);
 }
 
@@ -105,7 +103,17 @@ get_backend(py::object symmetry, py::object block_backend)
     py::object backend;
     if (tensor_backend == "no_symmetry") {
         backend = py::cast(std::make_shared<NoSymmetryBackend>(block_backend_instance));
-    } else if (tensor_backend == "abelian" || tensor_backend == "fusion_tree") {
+    } else if (tensor_backend == "abelian") {
+        auto ab = std::make_shared<AbelianBackend>(block_backend_instance);
+        // DataCls is filled when the type object exists (bindings); factory may run before
+        // AbelianBackendData is fully usable from Python — set via py::type if available.
+        try {
+            ab->DataCls = py::type::of<AbelianBackendData>();
+        } catch (py::error_already_set const&) {
+            ab->DataCls = py::none();
+        }
+        backend = py::cast(std::move(ab));
+    } else if (tensor_backend == "fusion_tree") {
         backend = make_python_tensor_backend(tensor_backend, block_backend_instance);
     } else {
         throw std::invalid_argument("Unknown tensor_backend: " + tensor_backend);
