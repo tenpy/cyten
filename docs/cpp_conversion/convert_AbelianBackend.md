@@ -2,9 +2,9 @@
 
 ## Status
 
-**Mostly complete** on branch `convert_backends`. `AbelianBackendData` already in C++ — [convert_AbelianBackendData.md](convert_AbelianBackendData.md). Do **not** monkey-patch until FusionTreeBackend is ready or trampoline inheritance is proven for mixed use.
+**C++ declaration + definitions + bindings done** on branch `convert_backends`. Exported as `cyten._core.AbelianBackend` (+ `valid_block_inds` / `_valid_block_inds`). `get_backend('abelian', …)` constructs the C++ backend. **Not monkey-patched** into `cyten.backends` yet.
 
-C++ `AbelianBackend` + `valid_block_inds` are defined in `src/backends/abelian.cpp` and the library builds. Nearly all TensorBackend methods are **native C++ ports** from `cyten/backends/abelian.py`. Remaining work is bindings + pytest, not Python delegation.
+`AbelianBackendData`: [convert_AbelianBackendData.md](convert_AbelianBackendData.md).
 
 ## Metadata
 
@@ -50,7 +50,7 @@ C++ `AbelianBackend` + `valid_block_inds` are defined in `src/backends/abelian.c
 - [x] declaration
 - [x] definitions + compile (native ports; no remaining `py_call_data` / `py_abelian` delegations)
 - [x] replace Python-delegated methods with native C++ ports
-- [ ] bindings
+- [x] bindings (`cyten._core.AbelianBackend`, `valid_block_inds`; factory wired)
 - [ ] monkey-patch — deferred
 - [ ] pytest — deferred
 

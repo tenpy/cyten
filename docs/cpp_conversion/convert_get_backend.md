@@ -4,9 +4,9 @@
 
 **C++ hybrid factory done** — exported as `cyten._core.get_backend`. Not monkey-patched into Python yet.
 
-- `no_symmetry` path constructs C++ `NoSymmetryBackend`
-- `abelian` / `fusion_tree` still construct the Python classes (until those backends are converted)
-- Cache keyed by `(tensor_backend, block_backend)` strings
+- `no_symmetry` / `abelian` paths construct C++ backends
+- `fusion_tree` still constructs the Python class (until FusionTreeBackend is converted)
+- Cache keyed by `(tensor_backend, block_backend)` strings on `cyten._core._tensor_backend_cache`
 
 ## Metadata
 

@@ -9,12 +9,12 @@ Done so far (exported from `cyten._core`, **not** monkey-patched into `cyten.bac
 - `TensorBackend` + `conventional_leg_order` + `get_same_backend` — [convert_TensorBackend.md](convert_TensorBackend.md)
 - `NoSymmetryBackend` — [convert_NoSymmetryBackend.md](convert_NoSymmetryBackend.md)
 - `AbelianBackendData` — [convert_AbelianBackendData.md](convert_AbelianBackendData.md)
+- `AbelianBackend` + `valid_block_inds` — [convert_AbelianBackend.md](convert_AbelianBackend.md)
 - `FusionTreeData` — [convert_FusionTreeData.md](convert_FusionTreeData.md)
-- `get_backend` (hybrid: C++ NoSymmetry, Python abelian/fusion_tree) — [convert_get_backend.md](convert_get_backend.md)
+- `get_backend` (C++ NoSymmetry + Abelian; Python fusion_tree) — [convert_get_backend.md](convert_get_backend.md)
 
 Still Python (full backends):
 
-- `AbelianBackend` — [convert_AbelianBackend.md](convert_AbelianBackend.md)
 - `FusionTreeBackend` (+ helpers) — [convert_FusionTreeBackend.md](convert_FusionTreeBackend.md)
 
 ## Conversion order
