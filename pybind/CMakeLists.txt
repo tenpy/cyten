@@ -37,4 +37,5 @@ target_sources(_core
   symmetries/py_symmetry.cpp
   symmetries/py_trees.cpp
   symmetries/py_spaces.cpp
+  backends/py_tensor_backend.cpp
 )

@@ -2,9 +2,9 @@
 
 ## Status
 
-**Planning / in progress** on branch `convert_backends`. Layer overview: [convert_backends.md](convert_backends.md).
+**C++ declaration + definitions + bindings/trampoline done** on branch `convert_backends`. Exported as `cyten._core.TensorBackend` (plus `conventional_leg_order`, `get_same_backend`). **Not monkey-patched** into `cyten.backends` yet — wait for concrete backends.
 
-Do **not** monkey-patch into Python until concrete backends (`NoSymmetryBackend`, `AbelianBackend`, `FusionTreeBackend`) are converted or trampoline inheritance is proven. Export C++ as `cyten._core.TensorBackend` for intermediate work.
+Layer overview: [convert_backends.md](convert_backends.md).
 
 ## Metadata
 
@@ -39,12 +39,12 @@ Skip binding `HasBackend` (typing `Protocol` only).
 
 - [x] initial setup (clean tree on `convert_backends`; no new branch; list_python_names; pytest smoke)
 - [x] planning (this file + convert_backends.md)
-- [ ] generate the declaration draft (`gen_cpp_declaration`)
-- [ ] improve and fix the declaration draft (namespaces, types, `Data` nested type, C++23 / pre-commit)
-- [ ] generate the C++ definitions (`gen_cpp_definition` + CMake)
-- [ ] improve and fix the definition drafts (concrete methods; pure virtuals stay `= 0`; compile + ctest)
-- [ ] generate pybind11 bindings
-- [ ] generate pybind11 trampoline
+- [x] generate the declaration draft (`gen_cpp_declaration`)
+- [x] improve and fix the declaration draft (namespaces, types, `Data` nested type, C++23 / pre-commit)
+- [x] generate the C++ definitions (`gen_cpp_definition` + CMake)
+- [x] improve and fix the definition drafts (concrete methods; pure virtuals stay `= 0`; compile + ctest)
+- [x] generate pybind11 bindings
+- [x] generate pybind11 trampoline
 - [ ] monkey-patch — **deferred** until concrete backends converted
 - [ ] run python tests with pytest
 - [ ] remove original python code — deferred with monkey-patch
