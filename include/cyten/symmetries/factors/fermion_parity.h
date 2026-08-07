@@ -1,6 +1,6 @@
 #pragma once
 
-#include "symmetry_factor.h"
+#include "../symmetry_factor.h"
 
 #include <optional>
 #include <string>

@@ -1,4 +1,4 @@
-#include <cyten/symmetries/fibonacci_anyon_category.h>
+#include <cyten/symmetries/factors/fibonacci_anyon_category.h>
 
 #include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/topo_ones.h>

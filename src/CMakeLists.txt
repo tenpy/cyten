@@ -18,21 +18,21 @@ target_sources(cyten
   symmetries/sector_array.cpp
   symmetries/group.cpp
   symmetries/abelian_group.cpp
-  symmetries/no_symmetry.cpp
-  symmetries/u1.cpp
-  symmetries/zn.cpp
-  symmetries/su2.cpp
-  symmetries/sun.cpp
-  symmetries/fermion_number.cpp
-  symmetries/fermion_parity.cpp
-  symmetries/zn_anyon_category.cpp
-  symmetries/zn_anyon_category2.cpp
-  symmetries/quantum_double_zn_anyon_category.cpp
-  symmetries/toric_code_category.cpp
-  symmetries/fibonacci_anyon_category.cpp
-  symmetries/ising_anyon_category.cpp
-  symmetries/su2_k_anyon_category.cpp
-  symmetries/su3_3_anyon_category.cpp
+  symmetries/factors/no_symmetry.cpp
+  symmetries/factors/u1.cpp
+  symmetries/factors/zn.cpp
+  symmetries/factors/su2.cpp
+  symmetries/factors/sun.cpp
+  symmetries/factors/fermion_number.cpp
+  symmetries/factors/fermion_parity.cpp
+  symmetries/factors/zn_anyon_category.cpp
+  symmetries/factors/zn_anyon_category2.cpp
+  symmetries/factors/quantum_double_zn_anyon_category.cpp
+  symmetries/factors/toric_code_category.cpp
+  symmetries/factors/fibonacci_anyon_category.cpp
+  symmetries/factors/ising_anyon_category.cpp
+  symmetries/factors/su2_k_anyon_category.cpp
+  symmetries/factors/su3_3_anyon_category.cpp
   symmetries/trees.cpp
   symmetries/spaces.cpp
   tools.cpp

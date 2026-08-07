@@ -12,9 +12,9 @@ Hand-written after codegen drafts. No trampoline (no Python subclasses of `SU2`)
 | --- | --- |
 | original python name | `SU2` |
 | original python file | `cyten/symmetries/_symmetries.py` |
-| declaration | `include/cyten/symmetries/su2.h` |
-| definition | `src/symmetries/su2.cpp` |
-| pybind11 binding | `pybind/symmetries/py_su2.cpp` |
+| declaration | `include/cyten/symmetries/factors/su2.h` |
+| definition | `src/symmetries/factors/su2.cpp` |
+| pybind11 binding | `pybind/symmetries/factors/py_su2.cpp` |
 | trampoline | none |
 | first line of docstring | SU(2) symmetry. |
 

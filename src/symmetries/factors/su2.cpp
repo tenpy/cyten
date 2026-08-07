@@ -1,4 +1,4 @@
-#include <cyten/symmetries/su2.h>
+#include <cyten/symmetries/factors/su2.h>
 
 #include <cmath>
 #include <cstdlib>

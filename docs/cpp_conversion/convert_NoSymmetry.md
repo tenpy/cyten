@@ -14,7 +14,7 @@ Hand-written after codegen declaration drafts (types were placeholders).
 | original python file | `cyten/symmetries/_symmetries.py` |
 | declaration | `include/cyten/symmetries/{no_symmetry,u1,zn}.h` |
 | definition | `src/symmetries/{no_symmetry,u1,zn}.cpp` |
-| pybind11 binding | `pybind/symmetries/py_{no_symmetry,u1,zn}.cpp` |
+| pybind11 binding | `pybind/symmetries/factors/py_{no_symmetry,u1,zn}.cpp` |
 | trampoline | none (no further Python subclasses in tree) |
 | first line of docstring | Trivial symmetry group that doesn't do anything. |
 

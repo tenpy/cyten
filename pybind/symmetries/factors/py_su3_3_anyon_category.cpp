@@ -2,7 +2,7 @@
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/su3_3_anyon_category.h>
+#include <cyten/symmetries/factors/su3_3_anyon_category.h>
 
 namespace cyten {
 

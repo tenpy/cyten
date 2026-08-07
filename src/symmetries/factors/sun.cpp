@@ -1,4 +1,4 @@
-#include <cyten/symmetries/sun.h>
+#include <cyten/symmetries/factors/sun.h>
 
 #include <cyten/symmetries/sector_numpy.h>
 

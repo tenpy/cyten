@@ -2,7 +2,7 @@
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/quantum_double_zn_anyon_category.h>
+#include <cyten/symmetries/factors/quantum_double_zn_anyon_category.h>
 
 #include <optional>
 #include <string>

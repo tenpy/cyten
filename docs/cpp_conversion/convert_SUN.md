@@ -10,9 +10,9 @@
 | --- | --- |
 | original python name | `SUN` |
 | original python file | `cyten/symmetries/_symmetries.py` |
-| declaration | `include/cyten/symmetries/sun.h` |
-| definition | `src/symmetries/sun.cpp` |
-| pybind11 binding | `pybind/symmetries/py_sun.cpp` |
+| declaration | `include/cyten/symmetries/factors/sun.h` |
+| definition | `src/symmetries/factors/sun.cpp` |
+| pybind11 binding | `pybind/symmetries/factors/py_sun.cpp` |
 | trampoline | none |
 | first line of docstring | SU(N) group symmetry |
 

@@ -2,7 +2,7 @@
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/fermion_number.h>
+#include <cyten/symmetries/factors/fermion_number.h>
 
 #include <optional>
 #include <string>

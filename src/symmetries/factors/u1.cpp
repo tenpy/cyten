@@ -1,4 +1,4 @@
-#include <cyten/symmetries/u1.h>
+#include <cyten/symmetries/factors/u1.h>
 
 #include <cmath>
 #include <limits>

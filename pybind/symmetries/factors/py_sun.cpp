@@ -2,7 +2,7 @@
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/sun.h>
+#include <cyten/symmetries/factors/sun.h>
 
 #include <optional>
 #include <string>

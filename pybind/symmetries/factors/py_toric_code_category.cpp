@@ -2,7 +2,7 @@
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/toric_code_category.h>
+#include <cyten/symmetries/factors/toric_code_category.h>
 
 #include <optional>
 #include <string>

@@ -2,7 +2,7 @@
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/fibonacci_anyon_category.h>
+#include <cyten/symmetries/factors/fibonacci_anyon_category.h>
 
 #include <string>
 

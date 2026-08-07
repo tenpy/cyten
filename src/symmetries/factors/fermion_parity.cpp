@@ -1,4 +1,4 @@
-#include <cyten/symmetries/fermion_parity.h>
+#include <cyten/symmetries/factors/fermion_parity.h>
 
 #include <cyten/symmetries/topo_ones.h>
 

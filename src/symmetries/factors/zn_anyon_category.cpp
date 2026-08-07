@@ -1,4 +1,4 @@
-#include <cyten/symmetries/zn_anyon_category.h>
+#include <cyten/symmetries/factors/zn_anyon_category.h>
 
 #include <cyten/symmetries/topo_ones.h>
 

@@ -1,4 +1,4 @@
-#include <cyten/symmetries/ising_anyon_category.h>
+#include <cyten/symmetries/factors/ising_anyon_category.h>
 
 #include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/topo_ones.h>

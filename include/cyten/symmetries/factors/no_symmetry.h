@@ -1,6 +1,6 @@
 #pragma once
 
-#include "abelian_group.h"
+#include "../abelian_group.h"
 
 #include <vector>
 

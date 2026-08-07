@@ -2,7 +2,7 @@
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/ising_anyon_category.h>
+#include <cyten/symmetries/factors/ising_anyon_category.h>
 
 namespace cyten {
 

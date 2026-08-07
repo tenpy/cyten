@@ -2,7 +2,7 @@
 
 #include "symmetries/casters.hpp"
 
-#include <cyten/symmetries/no_symmetry.h>
+#include <cyten/symmetries/factors/no_symmetry.h>
 
 namespace cyten {
 

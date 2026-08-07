@@ -1,4 +1,4 @@
-#include <cyten/symmetries/zn.h>
+#include <cyten/symmetries/factors/zn.h>
 
 #include <stdexcept>
 #include <string>

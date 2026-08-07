@@ -2,7 +2,7 @@
 
 #include <cyten/config.h>
 #include <cyten/symmetries/exceptions.h>
-#include <cyten/symmetries/no_symmetry.h>
+#include <cyten/symmetries/factors/no_symmetry.h>
 #include <cyten/tools.h>
 
 #include <algorithm>

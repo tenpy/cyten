@@ -1,4 +1,4 @@
-#include <cyten/symmetries/su2_k_anyon_category.h>
+#include <cyten/symmetries/factors/su2_k_anyon_category.h>
 
 #include <cyten/symmetries/topo_ones.h>
 
