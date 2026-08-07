@@ -41,4 +41,5 @@ target_sources(_core
   backends/py_no_symmetry.cpp
   backends/py_abelian.cpp
   backends/py_fusion_tree_backend.cpp
+  backends/py_backend_factory.cpp
 )

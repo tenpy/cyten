@@ -2,9 +2,20 @@
 
 ## Status
 
-**In progress** on branch `convert_backends`. Start with abstract `TensorBackend` (+ helpers from `_backend.py`); concrete backends and factory follow. Do **not** create further per-object git branches — stay on `convert_backends`.
+**In progress** on branch `convert_backends`.
 
-See also: [convert_TensorBackend.md](convert_TensorBackend.md).
+Done so far (exported from `cyten._core`, **not** monkey-patched into `cyten.backends` yet):
+
+- `TensorBackend` + `conventional_leg_order` + `get_same_backend` — [convert_TensorBackend.md](convert_TensorBackend.md)
+- `NoSymmetryBackend` — [convert_NoSymmetryBackend.md](convert_NoSymmetryBackend.md)
+- `AbelianBackendData` — [convert_AbelianBackendData.md](convert_AbelianBackendData.md)
+- `FusionTreeData` — [convert_FusionTreeData.md](convert_FusionTreeData.md)
+- `get_backend` (hybrid: C++ NoSymmetry, Python abelian/fusion_tree) — [convert_get_backend.md](convert_get_backend.md)
+
+Still Python (full backends):
+
+- `AbelianBackend` — [convert_AbelianBackend.md](convert_AbelianBackend.md)
+- `FusionTreeBackend` (+ helpers) — [convert_FusionTreeBackend.md](convert_FusionTreeBackend.md)
 
 ## Conversion order
 

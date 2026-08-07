@@ -16,6 +16,7 @@ PYBIND11_MODULE(_core, m)
     bind_no_symmetry_backend(m);
     bind_abelian_backend_data(m);
     bind_fusion_tree_data(m);
+    bind_backend_factory(m);
 
     bind_check(m); // TODO: remove check
 }
