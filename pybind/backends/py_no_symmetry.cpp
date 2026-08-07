@@ -1,0 +1,659 @@
+#include "../py_cyten_pybind11.h"
+
+#include <cyten/backends/no_symmetry.h>
+#include <cyten/block_backend/numpy.h>
+#include <cyten/block_backend/torch.h>
+
+#include <memory>
+#include <optional>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
+
+namespace cyten {
+
+namespace {
+
+/// Convert a Python BlockBackend (often a non-owning factory singleton) to shared_ptr.
+std::shared_ptr<BlockBackend>
+as_shared_block_backend(py::object obj)
+{
+    if (py::isinstance<NumpyBlockBackend>(obj)) {
+        auto* p = obj.cast<NumpyBlockBackend*>();
+        return NumpyBlockBackend::from_factory_shared(p->default_device);
+    }
+    if (py::isinstance<TorchBlockBackend>(obj)) {
+        auto* p = obj.cast<TorchBlockBackend*>();
+        return TorchBlockBackend::from_factory_shared(p->default_device);
+    }
+    // Other backends (e.g. ArrayApi): keep a non-owning shared_ptr.
+    auto* raw = obj.cast<BlockBackend*>();
+    return std::shared_ptr<BlockBackend>(raw, [](BlockBackend*) {});
+}
+
+/// Return Block to Python for NoSymmetry ``Data`` results.
+BlockBackend::BlockPtr
+py_block(TensorBackend::DataPtr d)
+{
+    return NoSymmetryBackend::unwrap(std::move(d));
+}
+
+TensorBackend::DataPtr
+py_data(py::object obj)
+{
+    if (py::isinstance<TensorBackend::Data>(obj))
+        return obj.cast<TensorBackend::DataPtr>();
+    return NoSymmetryBackend::wrap(obj.cast<BlockBackend::BlockPtr>());
+}
+
+} // namespace
+
+void
+bind_no_symmetry_backend(py::module_& m)
+{
+    py::class_<NoSymmetryBackend::BlockData, TensorBackend::Data, py::smart_holder>(
+      m, "NoSymmetryBackendBlockData")
+      .def(py::init<BlockBackend::BlockPtr>(), py::arg("block"))
+      .def_readwrite("block", &NoSymmetryBackend::BlockData::block);
+
+    py::class_<NoSymmetryBackend, TensorBackend, py::smart_holder> cls(m, "NoSymmetryBackend");
+    cls.doc() = R"pydoc(
+Abstract base class for backends that do not enforce any symmetry.
+
+Notes
+-----
+The data stored for the various tensor classes defined in ``cyten.tensors`` is::
+
+    - ``SymmetricTensor``:
+        A single Block with as many axes as there a legs on the tensor.
+        Same leg order as ``Tensor.legs``, i.e. ``[*codomain, *reversed(domain)]``.
+
+    - ``DiagonalTensor`` :
+        A single 1D Block. The diagonal of the corresponding 2D block of a ``Tensor``.
+
+    - ``Mask``:
+        The bool values indicate which indices of the large leg are kept for the small leg.
+)pydoc";
+
+    cls.def(py::init([](py::object block_backend) {
+                return std::make_shared<NoSymmetryBackend>(as_shared_block_backend(block_backend));
+            }),
+            py::arg("block_backend"));
+
+    // Static helpers (useful for tests / debugging; not in original Python API).
+    cls.def_static("wrap", &NoSymmetryBackend::wrap, py::arg("block"));
+    cls.def_static("unwrap", &NoSymmetryBackend::unwrap, py::arg("data"));
+
+    // Overrides that return Data → expose Block to Python (match current Python storage).
+    cls.def(
+      "act_block_diagonal_square_matrix",
+      [](NoSymmetryBackend& self, py::object a, py::function block_method, py::object dtype_map) {
+          return py_block(self.act_block_diagonal_square_matrix(a, block_method, dtype_map));
+      },
+      py::arg("a"),
+      py::arg("block_method"),
+      py::arg("dtype_map"));
+    cls.def(
+      "add_trivial_leg",
+      [](NoSymmetryBackend& self,
+         py::object a,
+         int64 legs_pos,
+         bool add_to_domain,
+         int64 co_domain_pos,
+         TensorProduct::Ptr new_codomain,
+         TensorProduct::Ptr new_domain) {
+          return py_block(self.add_trivial_leg(
+            a, legs_pos, add_to_domain, co_domain_pos, new_codomain, new_domain));
+      },
+      py::arg("a"),
+      py::arg("legs_pos"),
+      py::arg("add_to_domain"),
+      py::arg("co_domain_pos"),
+      py::arg("new_codomain"),
+      py::arg("new_domain"));
+    cls.def(
+      "apply_mask_to_DiagonalTensor",
+      [](NoSymmetryBackend& self, py::object tensor, py::object mask) {
+          return py_block(self.apply_mask_to_DiagonalTensor(tensor, mask));
+      },
+      py::arg("tensor"),
+      py::arg("mask"));
+    cls.def(
+      "combine_legs",
+      [](NoSymmetryBackend& self,
+         py::object tensor,
+         std::vector<std::vector<int64>> leg_idcs_combine,
+         std::vector<LegPipe::Ptr> pipes,
+         TensorProduct::Ptr new_codomain,
+         TensorProduct::Ptr new_domain) {
+          return py_block(
+            self.combine_legs(tensor, std::move(leg_idcs_combine), std::move(pipes), new_codomain, new_domain));
+      },
+      py::arg("tensor"),
+      py::arg("leg_idcs_combine"),
+      py::arg("pipes"),
+      py::arg("new_codomain"),
+      py::arg("new_domain"));
+    cls.def(
+      "compose",
+      [](NoSymmetryBackend& self, py::object a, py::object b) {
+          return py_block(self.compose(a, b));
+      },
+      py::arg("a"),
+      py::arg("b"));
+    cls.def(
+      "copy_data",
+      [](NoSymmetryBackend& self, py::object a, std::optional<std::string> device) {
+          return py_block(self.copy_data(a, std::move(device)));
+      },
+      py::arg("a"),
+      py::arg("device") = py::none());
+    cls.def(
+      "dagger",
+      [](NoSymmetryBackend& self, py::object a) { return py_block(self.dagger(a)); },
+      py::arg("a"));
+    cls.def(
+      "data_item",
+      [](NoSymmetryBackend& self, py::object a) { return self.data_item(py_data(a)); },
+      py::arg("a"));
+    cls.def(
+      "diagonal_elementwise_binary",
+      [](NoSymmetryBackend& self,
+         py::object a,
+         py::object b,
+         py::function func,
+         py::dict func_kwargs,
+         bool partial_zero_is_zero) {
+          return py_block(
+            self.diagonal_elementwise_binary(a, b, func, func_kwargs, partial_zero_is_zero));
+      },
+      py::arg("a"),
+      py::arg("b"),
+      py::arg("func"),
+      py::arg("func_kwargs"),
+      py::arg("partial_zero_is_zero"));
+    cls.def(
+      "diagonal_elementwise_unary",
+      [](NoSymmetryBackend& self,
+         py::object a,
+         py::function func,
+         py::dict func_kwargs,
+         bool maps_zero_to_zero) {
+          return py_block(self.diagonal_elementwise_unary(a, func, func_kwargs, maps_zero_to_zero));
+      },
+      py::arg("a"),
+      py::arg("func"),
+      py::arg("func_kwargs"),
+      py::arg("maps_zero_to_zero"));
+    cls.def(
+      "diagonal_from_block",
+      [](NoSymmetryBackend& self, BlockBackend::BlockPtr a, TensorProduct::Ptr co_domain, float64 tol) {
+          return py_block(self.diagonal_from_block(std::move(a), co_domain, tol));
+      },
+      py::arg("a"),
+      py::arg("co_domain"),
+      py::arg("tol"));
+    cls.def(
+      "diagonal_from_sector_block_func",
+      [](NoSymmetryBackend& self, py::function func, TensorProduct::Ptr co_domain) {
+          return py_block(self.diagonal_from_sector_block_func(func, co_domain));
+      },
+      py::arg("func"),
+      py::arg("co_domain"));
+    cls.def(
+      "diagonal_tensor_from_full_tensor",
+      [](NoSymmetryBackend& self, py::object a, std::optional<float64> tol) {
+          return py_block(self.diagonal_tensor_from_full_tensor(a, tol));
+      },
+      py::arg("a"),
+      py::arg("tol") = 1e-12);
+    cls.def(
+      "diagonal_to_mask",
+      [](NoSymmetryBackend& self, py::object tens) {
+          auto [data, leg] = self.diagonal_to_mask(tens);
+          return std::make_tuple(py_block(std::move(data)), std::move(leg));
+      },
+      py::arg("tens"));
+    cls.def(
+      "diagonal_transpose",
+      [](NoSymmetryBackend& self, py::object tens) {
+          auto [leg, data] = self.diagonal_transpose(tens);
+          return std::make_tuple(std::move(leg), py_block(std::move(data)));
+      },
+      py::arg("tens"));
+    cls.def(
+      "eigh",
+      [](NoSymmetryBackend& self, py::object a, bool new_leg_dual, std::optional<std::string> sort) {
+          auto [w, v, leg] = self.eigh(a, new_leg_dual, std::move(sort));
+          return std::make_tuple(py_block(std::move(w)), py_block(std::move(v)), std::move(leg));
+      },
+      py::arg("a"),
+      py::arg("new_leg_dual"),
+      py::arg("sort") = py::none());
+    cls.def(
+      "eye_data",
+      [](NoSymmetryBackend& self, TensorProduct::Ptr co_domain, Dtype dtype, std::string device) {
+          return py_block(self.eye_data(co_domain, dtype, std::move(device)));
+      },
+      py::arg("co_domain"),
+      py::arg("dtype"),
+      py::arg("device"));
+    cls.def(
+      "from_dense_block",
+      [](NoSymmetryBackend& self,
+         BlockBackend::BlockPtr a,
+         TensorProduct::Ptr codomain,
+         TensorProduct::Ptr domain,
+         float64 tol) {
+          return py_block(self.from_dense_block(std::move(a), codomain, domain, tol));
+      },
+      py::arg("a"),
+      py::arg("codomain"),
+      py::arg("domain"),
+      py::arg("tol"));
+    cls.def(
+      "from_dense_block_trivial_sector",
+      [](NoSymmetryBackend& self, BlockBackend::BlockPtr block, Space::Ptr leg) {
+          return py_block(self.from_dense_block_trivial_sector(std::move(block), leg));
+      },
+      py::arg("block"),
+      py::arg("leg"));
+    cls.def(
+      "from_grid",
+      [](NoSymmetryBackend& self,
+         std::vector<std::vector<py::object>> grid,
+         TensorProduct::Ptr new_codomain,
+         TensorProduct::Ptr new_domain,
+         std::vector<std::vector<int64>> left_mult_slices,
+         std::vector<std::vector<int64>> right_mult_slices,
+         Dtype dtype,
+         std::string device) {
+          return py_block(self.from_grid(std::move(grid),
+                                         new_codomain,
+                                         new_domain,
+                                         std::move(left_mult_slices),
+                                         std::move(right_mult_slices),
+                                         dtype,
+                                         std::move(device)));
+      },
+      py::arg("grid"),
+      py::arg("new_codomain"),
+      py::arg("new_domain"),
+      py::arg("left_mult_slices"),
+      py::arg("right_mult_slices"),
+      py::arg("dtype"),
+      py::arg("device"));
+    cls.def(
+      "from_random_normal",
+      [](NoSymmetryBackend& self,
+         TensorProduct::Ptr codomain,
+         TensorProduct::Ptr domain,
+         float64 sigma,
+         Dtype dtype,
+         std::string device) {
+          return py_block(self.from_random_normal(codomain, domain, sigma, dtype, std::move(device)));
+      },
+      py::arg("codomain"),
+      py::arg("domain"),
+      py::arg("sigma"),
+      py::arg("dtype"),
+      py::arg("device"));
+    cls.def(
+      "from_sector_block_func",
+      [](NoSymmetryBackend& self,
+         py::function func,
+         TensorProduct::Ptr codomain,
+         TensorProduct::Ptr domain) {
+          return py_block(self.from_sector_block_func(func, codomain, domain));
+      },
+      py::arg("func"),
+      py::arg("codomain"),
+      py::arg("domain"),
+      R"pydoc(Generate tensor data from a function ``func(shape: tuple[int], coupled: Sector) -> Block``.)pydoc");
+    cls.def(
+      "from_tree_pairs",
+      [](NoSymmetryBackend& self,
+         std::map<std::pair<FusionTree, FusionTree>, BlockBackend::BlockPtr> trees,
+         TensorProduct::Ptr codomain,
+         TensorProduct::Ptr domain,
+         Dtype dtype,
+         std::string device) {
+          return py_block(
+            self.from_tree_pairs(std::move(trees), codomain, domain, dtype, std::move(device)));
+      },
+      py::arg("trees"),
+      py::arg("codomain"),
+      py::arg("domain"),
+      py::arg("dtype"),
+      py::arg("device"));
+    cls.def(
+      "full_data_from_diagonal_tensor",
+      [](NoSymmetryBackend& self, py::object a) {
+          return py_block(self.full_data_from_diagonal_tensor(a));
+      },
+      py::arg("a"));
+    cls.def(
+      "full_data_from_mask",
+      [](NoSymmetryBackend& self, py::object a, Dtype dtype) {
+          return py_block(self.full_data_from_mask(a, dtype));
+      },
+      py::arg("a"),
+      py::arg("dtype"));
+    cls.def(
+      "get_device_from_data",
+      [](NoSymmetryBackend& self, py::object a) { return self.get_device_from_data(py_data(a)); },
+      py::arg("a"));
+    cls.def(
+      "get_dtype_from_data",
+      [](NoSymmetryBackend& self, py::object a) { return self.get_dtype_from_data(py_data(a)); },
+      py::arg("a"));
+    cls.def(
+      "inv_part_from_dense_block_single_sector",
+      [](NoSymmetryBackend& self,
+         BlockBackend::BlockPtr vector,
+         Space::Ptr space,
+         ElementarySpace::Ptr charge_leg) {
+          return py_block(
+            self.inv_part_from_dense_block_single_sector(std::move(vector), space, charge_leg));
+      },
+      py::arg("vector"),
+      py::arg("space"),
+      py::arg("charge_leg"));
+    cls.def(
+      "linear_combination",
+      [](NoSymmetryBackend& self,
+         BlockBackend::Scalar a,
+         py::object v,
+         BlockBackend::Scalar b,
+         py::object w) { return py_block(self.linear_combination(a, v, b, w)); },
+      py::arg("a"),
+      py::arg("v"),
+      py::arg("b"),
+      py::arg("w"));
+    cls.def(
+      "lq",
+      [](NoSymmetryBackend& self, py::object tensor, TensorProduct::Ptr new_co_domain) {
+          auto [l, q] = self.lq(tensor, new_co_domain);
+          return std::make_tuple(py_block(std::move(l)), py_block(std::move(q)));
+      },
+      py::arg("tensor"),
+      py::arg("new_co_domain"));
+    cls.def(
+      "mask_binary_operand",
+      [](NoSymmetryBackend& self, py::object mask1, py::object mask2, py::function func) {
+          auto [data, leg] = self.mask_binary_operand(mask1, mask2, func);
+          return std::make_tuple(py_block(std::move(data)), std::move(leg));
+      },
+      py::arg("mask1"),
+      py::arg("mask2"),
+      py::arg("func"));
+    cls.def(
+      "mask_contract_large_leg",
+      [](NoSymmetryBackend& self, py::object tensor, py::object mask, int64 leg_idx) {
+          auto [data, codomain, domain] = self.mask_contract_large_leg(tensor, mask, leg_idx);
+          return std::make_tuple(py_block(std::move(data)), std::move(codomain), std::move(domain));
+      },
+      py::arg("tensor"),
+      py::arg("mask"),
+      py::arg("leg_idx"));
+    cls.def(
+      "mask_contract_small_leg",
+      [](NoSymmetryBackend& self, py::object tensor, py::object mask, int64 leg_idx) {
+          auto [data, codomain, domain] = self.mask_contract_small_leg(tensor, mask, leg_idx);
+          return std::make_tuple(py_block(std::move(data)), std::move(codomain), std::move(domain));
+      },
+      py::arg("tensor"),
+      py::arg("mask"),
+      py::arg("leg_idx"));
+    cls.def(
+      "mask_dagger",
+      [](NoSymmetryBackend& self, py::object mask) { return py_block(self.mask_dagger(mask)); },
+      py::arg("mask"));
+    cls.def(
+      "mask_from_block",
+      [](NoSymmetryBackend& self, BlockBackend::BlockPtr a, Space::Ptr large_leg) {
+          auto [data, leg] = self.mask_from_block(std::move(a), large_leg);
+          return std::make_tuple(py_block(std::move(data)), std::move(leg));
+      },
+      py::arg("a"),
+      py::arg("large_leg"));
+    cls.def(
+      "mask_to_diagonal",
+      [](NoSymmetryBackend& self, py::object a, Dtype dtype) {
+          return py_block(self.mask_to_diagonal(a, dtype));
+      },
+      py::arg("a"),
+      py::arg("dtype"));
+    cls.def(
+      "mask_transpose",
+      [](NoSymmetryBackend& self, py::object tens) {
+          auto [s_in, s_out, data] = self.mask_transpose(tens);
+          return std::make_tuple(std::move(s_in), std::move(s_out), py_block(std::move(data)));
+      },
+      py::arg("tens"));
+    cls.def(
+      "mask_unary_operand",
+      [](NoSymmetryBackend& self, py::object mask, py::function func) {
+          auto [data, leg] = self.mask_unary_operand(mask, func);
+          return std::make_tuple(py_block(std::move(data)), std::move(leg));
+      },
+      py::arg("mask"),
+      py::arg("func"));
+    cls.def(
+      "move_to_device",
+      [](NoSymmetryBackend& self, py::object a, std::string device) {
+          return py_block(self.move_to_device(a, std::move(device)));
+      },
+      py::arg("a"),
+      py::arg("device"));
+    cls.def(
+      "mul",
+      [](NoSymmetryBackend& self, BlockBackend::Scalar a, py::object b) {
+          return py_block(self.mul(a, b));
+      },
+      py::arg("a"),
+      py::arg("b"));
+    cls.def(
+      "outer",
+      [](NoSymmetryBackend& self, py::object a, py::object b) {
+          return py_block(self.outer(a, b));
+      },
+      py::arg("a"),
+      py::arg("b"));
+    cls.def(
+      "partial_compose",
+      [](NoSymmetryBackend& self,
+         py::object a,
+         py::object b,
+         int64 a_first_leg,
+         TensorProduct::Ptr new_codomain,
+         TensorProduct::Ptr new_domain) {
+          return py_block(self.partial_compose(a, b, a_first_leg, new_codomain, new_domain));
+      },
+      py::arg("a"),
+      py::arg("b"),
+      py::arg("a_first_leg"),
+      py::arg("new_codomain"),
+      py::arg("new_domain"));
+    cls.def(
+      "partial_trace",
+      [](NoSymmetryBackend& self,
+         py::object tensor,
+         std::vector<std::pair<int64, int64>> pairs,
+         std::optional<std::vector<int64>> levels) -> py::object {
+          auto [data, codomain, domain] =
+            self.partial_trace(tensor, std::move(pairs), std::move(levels));
+          if (!codomain && !domain) {
+              // Match Python: return scalar item when fully traced.
+              return py::make_tuple(
+                self.block_backend->item(py_block(data)), py::none(), py::none());
+          }
+          return py::make_tuple(py_block(std::move(data)), std::move(codomain), std::move(domain));
+      },
+      py::arg("tensor"),
+      py::arg("pairs"),
+      py::arg("levels") = py::none());
+    cls.def(
+      "permute_legs",
+      [](NoSymmetryBackend& self,
+         py::object a,
+         std::vector<int64> codomain_idcs,
+         std::vector<int64> domain_idcs,
+         TensorProduct::Ptr new_codomain,
+         TensorProduct::Ptr new_domain,
+         bool mixes_codomain_domain,
+         std::vector<std::optional<int64>> levels,
+         std::vector<std::optional<bool>> bend_right) {
+          return py_block(self.permute_legs(a,
+                                            std::move(codomain_idcs),
+                                            std::move(domain_idcs),
+                                            new_codomain,
+                                            new_domain,
+                                            mixes_codomain_domain,
+                                            std::move(levels),
+                                            std::move(bend_right)));
+      },
+      py::arg("a"),
+      py::arg("codomain_idcs"),
+      py::arg("domain_idcs"),
+      py::arg("new_codomain"),
+      py::arg("new_domain"),
+      py::arg("mixes_codomain_domain"),
+      py::arg("levels"),
+      py::arg("bend_right"));
+    cls.def(
+      "qr",
+      [](NoSymmetryBackend& self, py::object a, TensorProduct::Ptr new_co_domain) {
+          auto [q, r] = self.qr(a, new_co_domain);
+          return std::make_tuple(py_block(std::move(q)), py_block(std::move(r)));
+      },
+      py::arg("a"),
+      py::arg("new_co_domain"));
+    cls.def(
+      "scale_axis",
+      [](NoSymmetryBackend& self, py::object a, py::object b, int64 leg) {
+          return py_block(self.scale_axis(a, b, leg));
+      },
+      py::arg("a"),
+      py::arg("b"),
+      py::arg("leg"));
+    cls.def(
+      "split_legs",
+      [](NoSymmetryBackend& self,
+         py::object a,
+         std::vector<int64> leg_idcs,
+         TensorProduct::Ptr new_codomain,
+         TensorProduct::Ptr new_domain) {
+          return py_block(self.split_legs(a, std::move(leg_idcs), new_codomain, new_domain));
+      },
+      py::arg("a"),
+      py::arg("leg_idcs"),
+      py::arg("new_codomain"),
+      py::arg("new_domain"));
+    cls.def(
+      "squeeze_legs",
+      [](NoSymmetryBackend& self, py::object a, std::vector<int64> idcs) {
+          return py_block(self.squeeze_legs(a, std::move(idcs)));
+      },
+      py::arg("a"),
+      py::arg("idcs"));
+    cls.def(
+      "svd",
+      [](NoSymmetryBackend& self,
+         py::object a,
+         TensorProduct::Ptr new_co_domain,
+         std::optional<std::string> algorithm) {
+          auto [u, s, vh] = self.svd(a, new_co_domain, std::move(algorithm));
+          return std::make_tuple(
+            py_block(std::move(u)), py_block(std::move(s)), py_block(std::move(vh)));
+      },
+      py::arg("a"),
+      py::arg("new_co_domain"),
+      py::arg("algorithm") = py::none());
+    cls.def(
+      "to_block_backend",
+      [](NoSymmetryBackend& self,
+         py::object data,
+         py::object block_backend,
+         std::optional<Dtype> dtype,
+         std::optional<std::string> device) {
+          return py_block(self.to_block_backend(
+            py_data(data), as_shared_block_backend(block_backend), dtype, std::move(device)));
+      },
+      py::arg("data"),
+      py::arg("block_backend"),
+      py::arg("dtype") = py::none(),
+      py::arg("device") = py::none());
+    cls.def(
+      "to_dtype",
+      [](NoSymmetryBackend& self, py::object a, Dtype dtype) {
+          return py_block(self.to_dtype(a, dtype));
+      },
+      py::arg("a"),
+      py::arg("dtype"));
+    cls.def(
+      "trace_full",
+      [](NoSymmetryBackend& self,
+         py::object a,
+         std::vector<int64> idcs1,
+         std::vector<int64> idcs2) {
+          return self.trace_full(a, std::move(idcs1), std::move(idcs2));
+      },
+      py::arg("a"),
+      py::arg("idcs1"),
+      py::arg("idcs2"));
+    cls.def(
+      "truncate_singular_values",
+      [](NoSymmetryBackend& self,
+         py::object S,
+         std::optional<int64> chi_max,
+         int64 chi_min,
+         float64 degeneracy_tol,
+         float64 trunc_cut,
+         float64 svd_min,
+         bool minimize_error) {
+          auto [mask, leg, err, new_norm] = self.truncate_singular_values(
+            S, chi_max, chi_min, degeneracy_tol, trunc_cut, svd_min, minimize_error);
+          return std::make_tuple(py_block(std::move(mask)), std::move(leg), err, new_norm);
+      },
+      py::arg("S"),
+      py::arg("chi_max"),
+      py::arg("chi_min"),
+      py::arg("degeneracy_tol"),
+      py::arg("trunc_cut"),
+      py::arg("svd_min"),
+      py::arg("minimize_error") = true);
+    cls.def(
+      "zero_data",
+      [](NoSymmetryBackend& self,
+         TensorProduct::Ptr codomain,
+         TensorProduct::Ptr domain,
+         Dtype dtype,
+         std::string device,
+         bool all_blocks) {
+          return py_block(self.zero_data(codomain, domain, dtype, std::move(device), all_blocks));
+      },
+      py::arg("codomain"),
+      py::arg("domain"),
+      py::arg("dtype"),
+      py::arg("device"),
+      py::arg("all_blocks") = false);
+    cls.def(
+      "zero_diagonal_data",
+      [](NoSymmetryBackend& self, TensorProduct::Ptr co_domain, Dtype dtype, std::string device) {
+          return py_block(self.zero_diagonal_data(co_domain, dtype, std::move(device)));
+      },
+      py::arg("co_domain"),
+      py::arg("dtype"),
+      py::arg("device"));
+    cls.def(
+      "zero_mask_data",
+      [](NoSymmetryBackend& self, Space::Ptr large_leg, std::string device) {
+          return py_block(self.zero_mask_data(large_leg, std::move(device)));
+      },
+      py::arg("large_leg"),
+      py::arg("device"));
+}
+
+} // namespace cyten

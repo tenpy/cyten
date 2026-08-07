@@ -13,6 +13,7 @@ PYBIND11_MODULE(_core, m)
     bind_block_backend(m);
     bind_symmetries(m);
     bind_tensor_backend(m);
+    bind_no_symmetry_backend(m);
 
     bind_check(m); // TODO: remove check
 }

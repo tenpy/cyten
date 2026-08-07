@@ -2,7 +2,7 @@
 
 ## Status
 
-**In progress** on branch `convert_backends`. Declaration / definition / bindings underway. **Not monkey-patched** into `cyten.backends` yet.
+**C++ declaration + definitions + bindings done** on branch `convert_backends`. Exported as `cyten._core.NoSymmetryBackend`. **Not monkey-patched** into `cyten.backends` yet.
 
 Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [convert_TensorBackend.md](convert_TensorBackend.md).
 
@@ -53,13 +53,13 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 
 - [x] initial setup (on `convert_backends`; list_python_names; read Python source)
 - [x] planning (this file)
-- [ ] generate the declaration draft (`gen_cpp_declaration`)
-- [ ] improve and fix the declaration draft (namespaces, `BlockData`, exact override signatures)
-- [ ] generate the C++ definitions (`gen_cpp_definition` + CMake)
-- [ ] improve and fix the definition drafts (implement all methods; compile)
-- [ ] generate pybind11 bindings (+ register in CMake / `_core` / header)
-- [ ] fix bindings (return Block where Data is exposed to Python)
-- [ ] trampoline — skip (leaf class)
+- [x] generate the declaration draft (`gen_cpp_declaration`)
+- [x] improve and fix the declaration draft (namespaces, `BlockData`, exact override signatures)
+- [x] generate the C++ definitions (`gen_cpp_definition` + CMake)
+- [x] improve and fix the definition drafts (implement all methods; compile)
+- [x] generate pybind11 bindings (+ register in CMake / `_core` / header)
+- [x] fix bindings (return Block where Data is exposed to Python; factory shared_ptr ctor)
+- [x] trampoline — skip (leaf class)
 - [ ] monkey-patch — **deferred**
 - [ ] run python tests with pytest
 - [ ] remove original python code — deferred with monkey-patch
