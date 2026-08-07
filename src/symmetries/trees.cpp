@@ -824,7 +824,9 @@ FusionTree::bend_leg(FusionTree const& X, FusionTree const& Y, bool bend_downwar
     }
 
     // OPTIMIZE remove input checks?
-    assert(Y.symmetry == X.symmetry);
+    // Compare by value: trees from different TensorProducts may hold distinct Symmetry
+    // shared_ptrs that are mathematically equal (Python used ``==``, not ``is``).
+    assert(Y.symmetry && X.symmetry && Y.symmetry->equals(*X.symmetry));
     Symmetry::Ptr const symmetry = Y.symmetry;
     assert(Y.coupled == X.coupled);
     Sector const c = Y.coupled;
@@ -1190,7 +1192,7 @@ FusionTree::insert(FusionTree const& t2) const
 FusionTreeLinearCombination
 FusionTree::insert_at(int64 n, FusionTree const& t2, float64 eps) const
 {
-    assert(symmetry == t2.symmetry);
+    assert(symmetry && t2.symmetry && symmetry->equals(*t2.symmetry));
     assert(uncoupled[static_cast<std::size_t>(n)] == t2.coupled);
     assert(!are_dual[static_cast<std::size_t>(n)]);
 
