@@ -729,6 +729,73 @@ class PyElementarySpace
     }
 };
 
+/// Trampoline for Python subclasses of AbelianLegPipe.
+///
+/// Note: as for the other trampolines here, only virtuals that are bound as *methods* may be
+/// forwarded. Those bound as ``def_property`` (``dual``, ``is_trivial``, ``flat_spaces``,
+/// ``ascii_arrow``) must not be, since PYBIND11_OVERRIDE would find the property value instead
+/// of a function. ``is_abelian_leg_pipe`` is deliberately not forwarded either; it must stay
+/// ``true``.
+class PyAbelianLegPipe
+  : public AbelianLegPipe
+  , public py::trampoline_self_life_support
+{
+  public:
+    using AbelianLegPipe::AbelianLegPipe;
+
+    void test_sanity() const override { PYBIND11_OVERRIDE(void, AbelianLegPipe, test_sanity); }
+
+    py::object as_Space() override { PYBIND11_OVERRIDE(py::object, AbelianLegPipe, as_Space); }
+
+    py::object as_ElementarySpace(bool is_dual) override
+    {
+        PYBIND11_OVERRIDE(py::object, AbelianLegPipe, as_ElementarySpace, is_dual);
+    }
+
+    py::object change_symmetry(Symmetry::Ptr symmetry,
+                               SectorMapFn sector_map,
+                               bool injective) override
+    {
+        PYBIND11_OVERRIDE(
+          py::object, AbelianLegPipe, change_symmetry, symmetry, sector_map, injective);
+    }
+
+    py::object drop_symmetry(std::optional<std::vector<int64>> which) override
+    {
+        PYBIND11_OVERRIDE(py::object, AbelianLegPipe, drop_symmetry, which);
+    }
+
+    std::vector<int64> _flat_leg_permutation(int64 offset) const override
+    {
+        PYBIND11_OVERRIDE(std::vector<int64>, AbelianLegPipe, _flat_leg_permutation, offset);
+    }
+
+    void set_basis_perm(std::optional<std::vector<int64>> basis_perm) override
+    {
+        PYBIND11_OVERRIDE(void, AbelianLegPipe, set_basis_perm, basis_perm);
+    }
+
+    void set_inverse_basis_perm(std::optional<std::vector<int64>> inverse_basis_perm) override
+    {
+        PYBIND11_OVERRIDE(void, AbelianLegPipe, set_inverse_basis_perm, inverse_basis_perm);
+    }
+
+    ElementarySpace::Ptr take_slice(py::array blockmask) const override
+    {
+        PYBIND11_OVERRIDE(ElementarySpace::Ptr, AbelianLegPipe, take_slice, blockmask);
+    }
+
+    bool operator==(Leg const& other) const override
+    {
+        PYBIND11_OVERRIDE_NAME(bool, AbelianLegPipe, "__eq__", operator==, other);
+    }
+
+    bool operator==(Space const& other) const override
+    {
+        PYBIND11_OVERRIDE_NAME(bool, AbelianLegPipe, "__eq__", operator==, other);
+    }
+};
+
 /// Trampoline for Python subclasses of TensorProduct.
 ///
 /// Note: as for the other trampolines here, only virtuals that are bound as *methods* may be

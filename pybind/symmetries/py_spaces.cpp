@@ -199,11 +199,28 @@ objects_to_python(std::vector<py::object> const& objects)
     return out;
 }
 
+py::array_t<int64>
+int_matrix_to_numpy(std::vector<std::vector<int64>> const& rows, py::ssize_t num_columns)
+{
+    auto const num_rows = static_cast<py::ssize_t>(rows.size());
+    py::array_t<int64> arr({ num_rows, num_columns });
+    auto buf = arr.mutable_unchecked<2>();
+    for (py::ssize_t i = 0; i < num_rows; ++i) {
+        for (py::ssize_t j = 0; j < num_columns; ++j) {
+            buf(i, j) = rows[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)];
+        }
+    }
+    return arr;
+}
+
 void
 bind_elementary_space(py::module_& m);
 
 void
 bind_tensor_product(py::module_& m);
+
+void
+bind_abelian_leg_pipe(py::module_& m);
 
 } // namespace
 
@@ -666,6 +683,7 @@ bind_spaces(py::module_& m)
 
     bind_elementary_space(m);
     bind_tensor_product(m);
+    bind_abelian_leg_pipe(m);
 }
 
 namespace {
@@ -1508,6 +1526,224 @@ bind_tensor_product(py::module_& m)
            py::arg("subpath"))
       .def_static("from_hdf5",
                   &TensorProduct::from_hdf5,
+                  py::arg("hdf5_loader"),
+                  py::arg("h5gr"),
+                  py::arg("subpath"));
+}
+
+void
+bind_abelian_leg_pipe(py::module_& m)
+{
+    // Diamond MI: the Python MRO is AbelianLegPipe, LegPipe, ElementarySpace, Space, Leg.
+    py::class_<AbelianLegPipe, LegPipe, ElementarySpace, PyAbelianLegPipe, py::smart_holder> cls(
+      m,
+      "AbelianLegPipe",
+      R"pydoc(
+      Special case of a :class:`LegPipe` for abelian group symmetries.
+
+      This class essentially exists to allow specialized handling of combined legs in the
+      :class:`AbelianBackend`. For this backend, we want to treat combined legs, i.e. pipes, exactly
+      the same as regular legs. This is why this class also inherits from :class:`ElementarySpace`,
+      which are the "uncombined" legs. Crucially, this allows the pipe to have
+      :attr:`defining_sectors` for the :attr:`cyten.backends.abelian.AbelianBackendData.block_inds`
+      to point to, to have a well-behaved :attr:`is_dual` attribute and to have a :attr:`basis_perm`,
+      which can account for the basis permutation that is induced by going from sectors of the
+      individual legs to a sorted list of coupled sectors on the pipe.
+
+      Attributes
+      ----------
+      legs:
+          The individual legs that form this pipe, and that the pipe can be split into.
+          In particular, these are such that the pipe, as an :class:`ElementarySpace`, is isomorphic
+          to their tensor product ``TensorProduct(legs)``, i.e. has the same
+          :attr:`sector_decomposition`.
+      sector_strides : 1D numpy array of int
+          Strides for the shape ``[leg.num_sectors for leg in self.legs]``. Is either C-style or
+          F-style, depending on `combine_cstyle`. This allows one-to-one mapping between
+          multi-indices (one block_ind per space) to a single index.
+          Used in :meth:`AbelianBackend.combine_legs`.
+      fusion_outcomes_sort : 1D numpy array of int
+          The permutation that sorts the list of fusion outcomes.
+          To calculate the :attr:`sector_decomposition` of the pipe, we go through all combinations
+          of sectors from the :attr:`legs` in F-style order, i.e. varying sectors from the first leg
+          the fastest. For each combination of sectors, we perform their fusion, which yields a
+          single sector in the abelian case assumed here. The resulting list of fused sectors is in
+          general neither sorted nor unique. This permutation (stable) sorts the resulting list.
+          We use F-style to match the sorting convention of :attr:`block_ind_map`.
+      block_ind_map_slices : 1D numpy array of int
+          Slices for embedding the unique fused sectors in the sorted list of all fusion outcomes.
+          Shape is ``(K,)`` where ``K == pipe.num_sectors + 1``.
+          Fusing all sectors from the :attr:`sector_decomposition` of all legs and sorting the
+          outcomes gives a list which contains (in general) duplicates.
+          The slice ``block_ind_map_slices[n]:block_ind_map_slices[n + 1]`` within this sorted list
+          contains the same entry, namely ``pipe.sector_decomposition[n]``.
+          Used in :math:`AbelianBackend.split_legs`.
+      block_ind_map : 2D numpy array of int
+          Map for the embedding of uncoupled to coupled indices, see notes of the Python class.
+          Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
+          i.e. ``M == prod(leg.num_sectors for leg in legs)`` and ``N == 3 + len(legs)``.
+      )pydoc");
+
+    cls.def(py::init([](py::sequence legs_obj, bool is_dual, bool combine_cstyle) {
+                std::vector<ElementarySpace::Ptr> legs;
+                legs.reserve(static_cast<std::size_t>(legs_obj.size()));
+                for (py::handle item : legs_obj) {
+                    legs.push_back(item.cast<ElementarySpace::Ptr>());
+                }
+                return std::make_shared<PyAbelianLegPipe>(
+                  std::move(legs), is_dual, combine_cstyle);
+            }),
+            py::arg("legs"),
+            py::arg("is_dual") = false,
+            py::arg("combine_cstyle") = true);
+
+    cls
+      .def_property_readonly(
+        "sector_strides",
+        [](AbelianLegPipe const& self) { return perm_to_numpy(self.sector_strides); })
+      .def_property_readonly(
+        "fusion_outcomes_sort",
+        [](AbelianLegPipe const& self) { return perm_to_numpy(self.fusion_outcomes_sort); })
+      .def_property_readonly(
+        "block_ind_map_slices",
+        [](AbelianLegPipe const& self) { return perm_to_numpy(self.block_ind_map_slices); })
+      .def_property_readonly("block_ind_map",
+                             [](AbelianLegPipe const& self) {
+                                 return int_matrix_to_numpy(self.block_ind_map,
+                                                            3 + self.num_legs);
+                             });
+
+    cls
+      .def_property_readonly("dual",
+                             &AbelianLegPipe::dual_pipe,
+                             R"pydoc(
+                             The dual pipe, i.e. the dual of each leg in reverse order.
+                             )pydoc")
+      .def_property_readonly("is_trivial", &AbelianLegPipe::is_trivial)
+      .def_property_readonly("flat_spaces",
+                             &AbelianLegPipe::flat_spaces,
+                             R"pydoc(
+                             ``[self]`` -- unlike a plain :class:`LegPipe`, an
+                             :class:`AbelianLegPipe` is already a space.
+                             )pydoc")
+      .def_property_readonly("ascii_arrow", &AbelianLegPipe::ascii_arrow);
+
+    cls.def_static(
+      "from_independent_symmetries",
+      [](py::sequence independent_descriptions) {
+          std::vector<AbelianLegPipe::Ptr> descriptions;
+          descriptions.reserve(static_cast<std::size_t>(independent_descriptions.size()));
+          for (py::handle item : independent_descriptions) {
+              descriptions.push_back(item.cast<AbelianLegPipe::Ptr>());
+          }
+          return AbelianLegPipe::from_independent_symmetries(descriptions);
+      },
+      py::arg("independent_descriptions"),
+      R"pydoc(
+      Create an AbelianLegPipe with multiple independent symmetries.
+
+      Parameters
+      ----------
+      independent_descriptions : list of :class:`AbelianLegPipe`
+          Each entry describes the resulting pipe in terms of *one* of the independent symmetries.
+      )pydoc");
+
+    // The unsupported ElementarySpace factories. They are bound (and raise) such that they
+    // shadow the inherited versions, which would silently return a plain ElementarySpace.
+    cls
+      .def_static("from_basis",
+                  [](py::args, py::kwargs) -> py::object {
+                      throw py::type_error("from_basis is not supported for AbelianLegPipe");
+                  })
+      .def_static("from_null_space",
+                  [](py::args, py::kwargs) -> py::object {
+                      throw py::type_error("from_null_space is not supported for AbelianLegPipe");
+                  })
+      .def_static("from_defining_sectors",
+                  [](py::args, py::kwargs) -> py::object {
+                      throw py::type_error(
+                        "from_defining_sectors is not supported for AbelianLegPipe");
+                  })
+      .def_static("from_trivial_sector", [](py::args, py::kwargs) -> py::object {
+          throw py::type_error("from_trivial_sector is not supported for AbelianLegPipe");
+      });
+
+    cls
+      .def("test_sanity",
+           &AbelianLegPipe::test_sanity,
+           R"pydoc(
+           Perform sanity checks.
+           )pydoc")
+      .def("as_Space", &AbelianLegPipe::as_Space)
+      .def("as_ElementarySpace", &AbelianLegPipe::as_ElementarySpace, py::arg("is_dual") = false)
+      .def(
+        "change_symmetry",
+        [](AbelianLegPipe& self,
+           py::object symmetry_obj,
+           py::function sector_map,
+           bool injective) {
+            return self.change_symmetry(
+              symmetry_from_python(symmetry_obj), sector_map_from_python(sector_map), injective);
+        },
+        py::arg("symmetry"),
+        py::arg("sector_map"),
+        py::arg("injective") = false)
+      .def(
+        "drop_symmetry",
+        [](AbelianLegPipe& self, py::object which) {
+            return self.drop_symmetry(drop_which_from_python(which));
+        },
+        py::arg("which") = "all")
+      .def(
+        "set_basis_perm",
+        [](AbelianLegPipe& self, py::args, py::kwargs) { self.set_basis_perm(std::nullopt); },
+        R"pydoc(
+        Not supported: an :class:`AbelianLegPipe` determines its own ``basis_perm``.
+        )pydoc")
+      .def("take_slice",
+           &AbelianLegPipe::take_slice,
+           py::arg("blockmask"),
+           R"pydoc(
+           Take a "slice" of the leg, keeping only some of the basis states.
+
+           Loses the product (pipe) structure and results in a plain :class:`ElementarySpace`.
+           )pydoc")
+      .def("with_opposite_duality",
+           &AbelianLegPipe::with_opposite_duality,
+           R"pydoc(
+           A pipe of the same legs with opposite ``is_dual`` attribute.
+           )pydoc")
+      .def(
+        "_get_fusion_outcomes_perm",
+        [](AbelianLegPipe const& self, py::object multiplicities) {
+            auto mults = multiplicities_from_python(multiplicities);
+            return perm_to_numpy(
+              self.get_fusion_outcomes_perm(mults.value_or(self.multiplicities)));
+        },
+        py::arg("multiplicities"),
+        R"pydoc(
+        Get the permutation of basis elements that is introduced by the fusion.
+        )pydoc")
+      .def("__eq__",
+           [](AbelianLegPipe const& self, py::object other) -> py::object {
+               if (!py::isinstance<LegPipe>(other)) {
+                   return py::reinterpret_borrow<py::object>(py::handle(Py_NotImplemented));
+               }
+               return py::cast(
+                 self.operator==(static_cast<Leg const&>(other.cast<LegPipe const&>())));
+           })
+      .def("__repr__", [](AbelianLegPipe const& self) { return self.repr(); })
+      .def("repr",
+           &AbelianLegPipe::repr,
+           py::arg("show_symmetry") = true,
+           py::arg("one_line") = false)
+      .def("save_hdf5",
+           &AbelianLegPipe::save_hdf5,
+           py::arg("hdf5_saver"),
+           py::arg("h5gr"),
+           py::arg("subpath"))
+      .def_static("from_hdf5",
+                  &AbelianLegPipe::from_hdf5,
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
