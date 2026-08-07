@@ -2,7 +2,7 @@
 
 ## Status
 
-**In progress** on branch `convert_backends`. C++ `FusionTreeData` only (not `FusionTreeBackend`). Exported as `cyten._core.FusionTreeData`. **Not monkey-patched** into `cyten.backends`.
+**C++ declaration + definitions + bindings done** on branch `convert_backends`. Exported as `cyten._core.FusionTreeData`. **Not monkey-patched** into `cyten.backends`. `FusionTreeBackend` not converted yet.
 
 Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [convert_TensorBackend.md](convert_TensorBackend.md).
 
@@ -36,14 +36,14 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 | `dtype` | `Dtype dtype` |
 | `device` | `std::string device` |
 
-Ctor takes `is_sorted`; if false, lexsort `block_inds` (like `np.lexsort(block_inds.T)`) and permute `blocks`.
+Ctor takes `is_sorted`; if false, lexsort `block_inds` (like `np.lexsort(block_inds.T)`) and permute `blocks` (via numpy).
 
 ### Methods
 
 - `block_ind_from_coupled(Sector, TensorProduct::Ptr) -> optional<int64>` — uses `domain->sector_decomposition_where`.
-- `block_ind_from_domain_sector_ind(int64) -> optional<int64>` — `searchsorted` on column 1.
-- `discard_zero_blocks(shared_ptr<BlockBackend>, float64 eps)`.
-- `save_hdf5` / `from_hdf5` via Python `hdf5_saver` / `hdf5_loader` (`py::object`).
+- `block_ind_from_domain_sector_ind(int64) -> optional<int64>` — `np.searchsorted` on column 1.
+- `discard_zero_blocks(shared_ptr<BlockBackend>, float64 eps)` — binding converts factory backends via `as_shared_block_backend`.
+- `save_hdf5` / `from_hdf5` via Python `hdf5_saver` / `hdf5_loader` (`py::object`); saves `dtype` as C++ `Dtype` (has `save_hdf5`).
 
 ### Out of scope
 
@@ -58,15 +58,22 @@ Ctor takes `is_sorted`; if false, lexsort `block_inds` (like `np.lexsort(block_i
 ## TODO checklist
 
 - [x] initial setup (on `convert_backends`; list_python_names)
-- [ ] planning (this file)
-- [ ] generate the declaration draft (`gen_cpp_declaration`)
-- [ ] improve and fix the declaration draft
-- [ ] generate the C++ definitions (`gen_cpp_definition` + CMake)
-- [ ] improve and fix the definition drafts (compile)
-- [ ] generate pybind11 bindings (+ register in CMake / `_core` / header)
-- [ ] fix bindings
-- [ ] trampoline — skip
+- [x] planning (this file)
+- [x] generate the declaration draft (`gen_cpp_declaration`)
+- [x] improve and fix the declaration draft
+- [x] generate the C++ definitions (`gen_cpp_definition` + CMake)
+- [x] improve and fix the definition drafts (compile)
+- [x] generate pybind11 bindings (+ register in CMake / `_core` / header)
+- [x] fix bindings (BlockBackend shared_ptr helper for `discard_zero_blocks`)
+- [x] trampoline — skip
 - [ ] monkey-patch — **deferred**
 - [ ] run python tests — deferred (not monkey-patched)
 - [ ] remove original python code — deferred
 - [ ] wrap up / continue with FusionTreeBackend
+
+## Remaining issues
+
+- Not monkey-patched; Python still uses pure-Python `FusionTreeData`.
+- `block_ind_from_coupled` smoke-tested only via domain-sector path; full Sector/TensorProduct path not exercised in the quick import test.
+- HDF5 roundtrip not exercised in the smoke test (Dtype save path differs from Abelian’s `to_numpy_dtype`).
+- `FusionTreeBackend` still entirely Python.
