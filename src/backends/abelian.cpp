@@ -12,6 +12,7 @@
 #include <cmath>
 #include <format>
 #include <map>
+#include <set>
 #include <numeric>
 #include <stdexcept>
 #include <typeinfo>
@@ -1018,6 +1019,7 @@ AbelianBackend::_compose_no_contraction(py::object a, py::object b)
     return wrap(make_data(res_dtype, a_data->device, std::move(res_blocks), res_bi, true));
 }
 
+
 TensorBackend::DataPtr
 AbelianBackend::diagonal_elementwise_binary(py::object a,
                                             py::object b,
@@ -1025,8 +1027,59 @@ AbelianBackend::diagonal_elementwise_binary(py::object a,
                                             py::dict func_kwargs,
                                             bool partial_zero_is_zero)
 {
-    return wrap(py_call_data(block_backend, "diagonal_elementwise_binary", a, b, func, func_kwargs,
-                             partial_zero_is_zero));
+    auto a_data = data_from_tensor(a);
+    auto b_data = data_from_tensor(b);
+    auto leg = a.attr("leg");
+    auto mults = mults_of(leg);
+    auto a_blocks = a_data->blocks;
+    auto b_blocks = b_data->blocks;
+    auto a_bi = a_data->block_inds;
+    auto b_bi = b_data->block_inds;
+    py::ssize_t ia = 0, ib = 0;
+    int64 bi_a = a_bi.shape(0) == 0 ? -1 : a_bi.at(0, 0);
+    int64 bi_b = b_bi.shape(0) == 0 ? -1 : b_bi.at(0, 0);
+    std::vector<BlockBackend::BlockPtr> blocks;
+    std::vector<int64> block_ind_list;
+    Dtype a_dtype = a.attr("dtype").cast<Dtype>();
+    for (std::size_t i = 0; i < mults.size(); ++i) {
+        BlockBackend::BlockPtr block_a;
+        if (static_cast<int64>(i) == bi_a) {
+            block_a = a_blocks[static_cast<std::size_t>(ia)];
+            ++ia;
+            bi_a = (ia >= a_bi.shape(0)) ? -1 : a_bi.at(ia, 0);
+        } else if (partial_zero_is_zero) {
+            continue;
+        } else {
+            block_a = block_backend->zeros({ mults[i] }, a_dtype);
+        }
+        BlockBackend::BlockPtr block_b;
+        if (static_cast<int64>(i) == bi_b) {
+            block_b = b_blocks[static_cast<std::size_t>(ib)];
+            ++ib;
+            bi_b = (ib >= b_bi.shape(0)) ? -1 : b_bi.at(ib, 0);
+        } else if (partial_zero_is_zero) {
+            continue;
+        } else {
+            block_b = block_backend->zeros({ mults[i] }, a_dtype);
+        }
+        py::object res = func(py::cast(block_a), py::cast(block_b), **func_kwargs);
+        blocks.push_back(res.cast<BlockBackend::BlockPtr>());
+        block_ind_list.push_back(static_cast<int64>(i));
+    }
+    auto np = numpy();
+    py::array_t<int64> block_inds;
+    Dtype dt;
+    if (blocks.empty()) {
+        block_inds = zeros_i64(0, 2);
+        auto sample = func(py::cast(block_backend->ones_block({ 1 }, a_dtype)),
+                           py::cast(block_backend->ones_block({ 1 }, b.attr("dtype").cast<Dtype>())));
+        dt = block_backend->get_dtype(sample.cast<BlockBackend::BlockPtr>());
+    } else {
+        block_inds = asarray_i64(np.attr("column_stack")(
+          py::make_tuple(block_ind_list, block_ind_list)));
+        dt = block_backend->get_dtype(blocks[0]);
+    }
+    return wrap(make_data(dt, a_data->device, std::move(blocks), block_inds, true));
 }
 
 TensorBackend::DataPtr
@@ -1086,23 +1139,95 @@ AbelianBackend::diagonal_tensor_to_block(py::object a)
     return res;
 }
 
+
 std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
 AbelianBackend::diagonal_to_mask(py::object tens)
 {
-    py::object tup = py_abelian(block_backend).attr("diagonal_to_mask")(tens);
-    return { wrap(py_data(tup.attr("__getitem__")(0))),
-             tup.attr("__getitem__")(1).cast<ElementarySpace::Ptr>() };
+    auto tens_data = data_from_tensor(tens);
+    py::object large_leg = tens.attr("leg");
+    py::object basis_perm = large_leg.attr("_basis_perm");
+    std::vector<BlockBackend::BlockPtr> blocks;
+    std::vector<int64> large_leg_block_inds;
+    std::vector<Sector> sectors_vec;
+    std::vector<int64> multiplicities;
+    py::list basis_perm_ranks;
+    auto defining = large_leg.attr("defining_sectors").cast<SectorArray>();
+    auto bi = tens_data->block_inds.unchecked<2>();
+    for (std::size_t n = 0; n < tens_data->blocks.size(); ++n) {
+        auto const& diag_block = tens_data->blocks[n];
+        if (!block_backend->any(diag_block))
+            continue;
+        int64 bii = bi(static_cast<py::ssize_t>(n), 0);
+        blocks.push_back(diag_block);
+        large_leg_block_inds.push_back(bii);
+        sectors_vec.push_back(defining[static_cast<std::size_t>(bii)]);
+        multiplicities.push_back(block_backend->sum_all(diag_block).as_int64());
+        if (!basis_perm.is_none()) {
+            py::array mask = block_backend->to_numpy(diag_block, py::module_::import("builtins").attr("bool"));
+            // fallback: to_numpy with bool dtype
+            try {
+                mask = block_backend->to_numpy(diag_block, dtype::to_numpy_dtype(Dtype::Bool)).cast<py::array>();
+            } catch (...) {
+                mask = block_backend->to_numpy(diag_block).cast<py::array>();
+            }
+            auto slc = slice_pair(large_leg.attr("slices").attr("__getitem__")(bii));
+            basis_perm_ranks.append(basis_perm.attr("__getitem__")(slc).attr("__getitem__")(mask));
+        }
+    }
+    auto np = numpy();
+    SectorArray sectors = tens.attr("symmetry").attr("empty_sector_array").cast<SectorArray>();
+    std::optional<std::vector<int64>> basis_perm_opt = std::nullopt;
+    py::array_t<int64> block_inds;
+    if (blocks.empty()) {
+        multiplicities.clear();
+        block_inds = zeros_i64(0, 2);
+    } else {
+        sectors = SectorArray::empty(sectors_vec[0].len());
+        for (auto const& s : sectors_vec)
+            sectors.push_back(s);
+        if (!basis_perm.is_none()) {
+            auto ranked = misc().attr("rank_data")(np.attr("concatenate")(basis_perm_ranks));
+            basis_perm_opt = ranked.cast<std::vector<int64>>();
+        }
+        block_inds = asarray_i64(np.attr("column_stack")(
+          py::make_tuple(np.attr("arange")(sectors.size()), large_leg_block_inds)));
+    }
+    auto data = make_data(Dtype::Bool, tens_data->device, std::move(blocks), block_inds, true);
+    auto small_leg = std::make_shared<ElementarySpace>(
+      tens.attr("symmetry").cast<Symmetry::Ptr>(),
+      std::move(sectors),
+      multiplicities,
+      large_leg.attr("is_dual").cast<bool>(),
+      basis_perm_opt);
+    return { wrap(data), small_leg };
 }
+
 
 std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr, ElementarySpace::Ptr>
 AbelianBackend::eigh(py::object a, bool new_leg_dual, std::optional<std::string> sort)
 {
-    py::object tup = py_abelian(block_backend).attr("eigh")(a, new_leg_dual, sort.has_value() ? py::cast(*sort) : py::none());
-    return { wrap(py_data(tup.attr("__getitem__")(0))),
-             wrap(py_data(tup.attr("__getitem__")(1))),
-             tup.attr("__getitem__")(2).cast<ElementarySpace::Ptr>() };
+    assert(a.attr("num_codomain_legs").cast<int64>() == 1);
+    assert(a.attr("num_domain_legs").cast<int64>() == 1);
+    auto a_data = data_from_tensor(a);
+    auto domain = a.attr("domain").cast<TensorProduct::Ptr>();
+    auto new_leg = domain->as_ElementarySpace(new_leg_dual).cast<ElementarySpace::Ptr>();
+    auto v_wrapped = eye_data(domain, a.attr("dtype").cast<Dtype>(), a_data->device);
+    auto v_data = unwrap(v_wrapped);
+    std::vector<BlockBackend::BlockPtr> w_blocks;
+    auto bi = a_data->block_inds.unchecked<2>();
+    std::optional<std::string> sort_opt = sort;
+    for (std::size_t n = 0; n < a_data->blocks.size(); ++n) {
+        auto [vals, vects] = block_backend->eigh(a_data->blocks[n], sort_opt);
+        w_blocks.push_back(vals);
+        v_data->blocks[static_cast<std::size_t>(bi(static_cast<py::ssize_t>(n), 0))] = vects;
+    }
+    auto w_data = make_data(dtype::to_real(a.attr("dtype").cast<Dtype>()),
+                            a_data->device,
+                            std::move(w_blocks),
+                            a_data->block_inds,
+                            true);
+    return { wrap(w_data), wrap(v_data), new_leg };
 }
-
 
 TensorBackend::DataPtr
 AbelianBackend::eye_data(TensorProduct::Ptr co_domain, Dtype dtype, std::string device)
@@ -1244,6 +1369,7 @@ AbelianBackend::from_sector_block_func(py::function func,
                           true));
 }
 
+
 TensorBackend::DataPtr
 AbelianBackend::from_tree_pairs(
   std::map<std::pair<FusionTree, FusionTree>, BlockBackend::BlockPtr> trees,
@@ -1252,15 +1378,49 @@ AbelianBackend::from_tree_pairs(
   Dtype dtype,
   std::string device)
 {
-    // Convert map to Python dict for reference impl
-    py::dict py_trees;
-    for (auto const& [k, v] : trees)
-        py_trees[py::make_tuple(py::cast(k.first), py::cast(k.second))] = py::cast(v);
-    return wrap(py_call_data(block_backend, "from_tree_pairs", py_trees, codomain, domain, dtype, device));
+    auto block_inds_all = valid_block_inds(codomain, domain);
+    std::vector<BlockBackend::BlockPtr> blocks;
+    py::list bi_rows;
+    std::set<std::pair<FusionTree, FusionTree>> pairs_done;
+    auto bi = block_inds_all.unchecked<2>();
+    for (py::ssize_t r = 0; r < bi.shape(0); ++r) {
+        SectorArray unc_c = SectorArray::empty(codomain->symmetry->sector_ind_len);
+        std::vector<std::uint8_t> dual_c;
+        for (int64 n = 0; n < codomain->num_factors; ++n) {
+            auto f = codomain->factors[static_cast<std::size_t>(n)];
+            auto secs = f.attr("sector_decomposition").cast<SectorArray>();
+            unc_c.push_back(secs[static_cast<std::size_t>(bi(r, n))]);
+            dual_c.push_back(static_cast<std::uint8_t>(f.attr("is_dual").cast<bool>()));
+        }
+        SectorArray unc_d = SectorArray::empty(domain->symmetry->sector_ind_len);
+        std::vector<std::uint8_t> dual_d;
+        for (int64 n = 0; n < domain->num_factors; ++n) {
+            auto f = domain->factors[static_cast<std::size_t>(n)];
+            auto secs = f.attr("sector_decomposition").cast<SectorArray>();
+            unc_d.push_back(secs[static_cast<std::size_t>(bi(r, bi.shape(1) - 1 - n))]);
+            dual_d.push_back(static_cast<std::uint8_t>(f.attr("is_dual").cast<bool>()));
+        }
+        FusionTree X = FusionTree::from_abelian_symmetry(codomain->symmetry, unc_c, dual_c);
+        FusionTree Y = FusionTree::from_abelian_symmetry(domain->symmetry, unc_d, dual_d);
+        auto pair = std::make_pair(X, Y);
+        pairs_done.insert(pair);
+        auto it = trees.find(pair);
+        if (it == trees.end())
+            continue;
+        bi_rows.append(block_inds_all.attr("__getitem__")(r));
+        blocks.push_back(it->second);
+    }
+    for (auto const& kv : trees) {
+        if (pairs_done.find(kv.first) == pairs_done.end())
+            throw std::runtime_error("from_tree_pairs: unexpected tree pair");
+    }
+    py::array_t<int64> block_inds;
+    if (bi_rows.size() == 0)
+        block_inds = zeros_i64(0, codomain->num_factors + domain->num_factors);
+    else
+        block_inds = asarray_i64(numpy().attr("array")(bi_rows));
+    return wrap(make_data(dtype, std::move(device), std::move(blocks), block_inds, false));
 }
-
-// ---- 05_rest.cpp ----
-
 
 BlockBackend::Scalar
 AbelianBackend::get_element(py::object a, std::vector<int64> idcs)
@@ -1502,25 +1662,56 @@ AbelianBackend::mask_from_block(BlockBackend::BlockPtr a, Space::Ptr large_leg)
              tup.attr("__getitem__")(1).cast<ElementarySpace::Ptr>() };
 }
 
+
 BlockBackend::BlockPtr
 AbelianBackend::mask_to_block(py::object a)
 {
-    return py_abelian(block_backend).attr("mask_to_block")(a).cast<BlockBackend::BlockPtr>();
+    auto a_data = data_from_tensor(a);
+    auto large_leg = a.attr("large_leg");
+    auto res = block_backend->zeros(
+      { static_cast<int64>(large_leg.attr("dim").cast<float64>()) }, Dtype::Bool);
+    bool is_projection = a.attr("is_projection").cast<bool>();
+    auto bi = a_data->block_inds.unchecked<2>();
+    for (std::size_t i = 0; i < a_data->blocks.size(); ++i) {
+        int64 bi_large = is_projection ? bi(static_cast<py::ssize_t>(i), 1)
+                                       : bi(static_cast<py::ssize_t>(i), 0);
+        auto slc = slice_pair(large_leg.attr("slices").attr("__getitem__")(bi_large));
+        b_set(res, slc, a_data->blocks[i]);
+    }
+    return res;
 }
+
 
 TensorBackend::DataPtr
 AbelianBackend::mask_to_diagonal(py::object a, Dtype dtype)
 {
-    return wrap(py_call_data(block_backend, "mask_to_diagonal", a, dtype));
+    auto a_data = data_from_tensor(a);
+    std::vector<BlockBackend::BlockPtr> blocks;
+    blocks.reserve(a_data->blocks.size());
+    for (auto const& b : a_data->blocks)
+        blocks.push_back(block_backend->to_dtype(b, dtype));
+    auto np = numpy();
+    py::array large_leg_bi =
+      a.attr("is_projection").cast<bool>()
+        ? a_data->block_inds.attr("__getitem__")(py::make_tuple(py::ellipsis(), 1))
+        : a_data->block_inds.attr("__getitem__")(py::make_tuple(py::ellipsis(), 0));
+    auto block_inds = asarray_i64(np.attr("column_stack")(py::make_tuple(large_leg_bi, large_leg_bi)));
+    return wrap(make_data(dtype, a_data->device, std::move(blocks), block_inds));
 }
+
 
 std::tuple<Space::Ptr, Space::Ptr, TensorBackend::DataPtr>
 AbelianBackend::mask_transpose(py::object tens)
 {
-    py::object tup = py_abelian(block_backend).attr("mask_transpose")(tens);
-    return { tup.attr("__getitem__")(0).cast<Space::Ptr>(),
-             tup.attr("__getitem__")(1).cast<Space::Ptr>(),
-             wrap(py_data(tup.attr("__getitem__")(2))) };
+    auto data = data_from_tensor(tens);
+    auto np = numpy();
+    auto block_inds = asarray_i64(data->block_inds.attr("__getitem__")(
+      py::make_tuple(py::ellipsis(),
+                     py::slice(std::nullopt, std::nullopt, static_cast<py::ssize_t>(-1)))));
+    auto out = make_data(tens.attr("dtype").cast<Dtype>(), data->device, data->blocks, block_inds, false);
+    auto cod = tens.attr("codomain").attr("__getitem__")(0).attr("dual").cast<Space::Ptr>();
+    auto dom = tens.attr("domain").attr("__getitem__")(0).attr("dual").cast<Space::Ptr>();
+    return { cod, dom, wrap(out) };
 }
 
 std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
