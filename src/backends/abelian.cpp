@@ -947,6 +947,7 @@ py_call_data(std::shared_ptr<BlockBackend> const& bb, char const* method, Args&&
 // py_abelian for correct semantics while the native C++ ports are unfinished. Replace those
 // with direct translations (see docs/cpp_conversion/convert_AbelianBackend.md).
 
+
 TensorBackend::DataPtr
 AbelianBackend::combine_legs(py::object tensor,
                              std::vector<std::vector<int64>> leg_idcs_combine,
@@ -954,8 +955,153 @@ AbelianBackend::combine_legs(py::object tensor,
                              TensorProduct::Ptr new_codomain,
                              TensorProduct::Ptr new_domain)
 {
-    return wrap(py_call_data(block_backend, "combine_legs", tensor, leg_idcs_combine, pipes,
-                             new_codomain, new_domain));
+    for (auto const& p : pipes) {
+        if (!std::dynamic_pointer_cast<AbelianLegPipe>(p))
+            throw std::invalid_argument("abelian backend requires AbelianLegPipe");
+    }
+    auto t_data = data_from_tensor(tensor);
+    auto np = numpy();
+    int64 num_result_legs = tensor.attr("num_legs").cast<int64>();
+    for (auto const& group : leg_idcs_combine)
+        num_result_legs -= static_cast<int64>(group.size()) - 1;
+    auto old_blocks = t_data->blocks;
+    std::vector<bool> cstyles;
+    py::array_t<int64> res_block_inds = asarray_i64(
+      np.attr("empty")(py::make_tuple(t_data->block_inds.shape(0), num_result_legs),
+                       py::arg("dtype") = np.attr("intp")));
+    int64 i = 0, j = 0;
+    py::list map_inds;
+    int64 num_codomain = tensor.attr("num_codomain_legs").cast<int64>();
+    for (std::size_t gi = 0; gi < leg_idcs_combine.size(); ++gi) {
+        auto const& group = leg_idcs_combine[gi];
+        auto pipe = std::dynamic_pointer_cast<AbelianLegPipe>(pipes[gi]);
+        py::object pipe_py = py::cast(pipe);
+        int64 num_uncombined = group[0] - j;
+        if (num_uncombined > 0) {
+            res_block_inds.attr("__setitem__")(
+              py::make_tuple(py::ellipsis(), py::slice(i, i + num_uncombined, 1)),
+              t_data->block_inds.attr("__getitem__")(
+                py::make_tuple(py::ellipsis(), py::slice(j, j + num_uncombined, 1))));
+        }
+        i += num_uncombined;
+        j += num_uncombined;
+        bool in_domain = group[0] >= num_codomain;
+        cstyles.push_back(pipe->combine_cstyle != in_domain);
+        py::array block_inds = t_data->block_inds.attr("__getitem__")(
+          py::make_tuple(py::ellipsis(), py::slice(group.front(), group.back() + 1, 1)));
+        if (in_domain)
+            block_inds = block_inds.attr("__getitem__")(
+              py::make_tuple(py::ellipsis(),
+                             py::slice(std::nullopt, std::nullopt, static_cast<py::ssize_t>(-1))));
+        py::array strides = pipe_py.attr("sector_strides");
+        py::array multi_indices = np.attr("sum")(
+          block_inds.attr("__mul__")(strides.attr("__getitem__")(py::make_tuple(np.attr("newaxis"), py::ellipsis()))),
+          py::arg("axis") = 1);
+        py::array block_ind_map_rows =
+          misc().attr("inverse_permutation")(pipe_py.attr("fusion_outcomes_sort")).attr("__getitem__")(multi_indices);
+        map_inds.append(block_ind_map_rows);
+        res_block_inds.attr("__setitem__")(
+          py::make_tuple(py::ellipsis(), i),
+          pipe_py.attr("block_ind_map").attr("__getitem__")(
+            py::make_tuple(block_ind_map_rows, -1)));
+        i += 1;
+        j += static_cast<int64>(group.size());
+    }
+    if (i < num_result_legs) {
+        res_block_inds.attr("__setitem__")(
+          py::make_tuple(py::ellipsis(), py::slice(i, std::nullopt, 1)),
+          t_data->block_inds.attr("__getitem__")(
+            py::make_tuple(py::ellipsis(), py::slice(j, std::nullopt, 1))));
+    }
+    auto sort = np.attr("lexsort")(res_block_inds.attr("T"));
+    res_block_inds = take_rows(asarray_i64(res_block_inds), sort.cast<py::array>());
+    old_blocks = permute_blocks(old_blocks, sort.cast<py::array>());
+    py::list map_inds_sorted;
+    for (py::handle rows : map_inds)
+        map_inds_sorted.append(rows.attr("__getitem__")(sort));
+    map_inds = map_inds_sorted;
+
+    py::array block_slices = np.attr("zeros")(
+      py::make_tuple(old_blocks.size(), num_result_legs, 2), py::arg("dtype") = np.attr("intp"));
+    i = 0;
+    j = 0;
+    for (std::size_t gi = 0; gi < leg_idcs_combine.size(); ++gi) {
+        auto const& group = leg_idcs_combine[gi];
+        auto pipe = std::dynamic_pointer_cast<AbelianLegPipe>(pipes[gi]);
+        py::object pipe_py = py::cast(pipe);
+        py::object block_ind_map_rows = map_inds[gi];
+        int64 num_uncombined = group[0] - j;
+        for (int64 u = 0; u < num_uncombined; ++u) {
+            py::object mults = tensor.attr("get_leg_co_domain")(j).attr("multiplicities");
+            block_slices.attr("__setitem__")(
+              py::make_tuple(py::ellipsis(), i, 1),
+              mults.attr("__getitem__")(res_block_inds.attr("__getitem__")(py::make_tuple(py::ellipsis(), i))));
+            ++i;
+            ++j;
+        }
+        block_slices.attr("__setitem__")(
+          py::make_tuple(py::ellipsis(), i, py::ellipsis()),
+          pipe_py.attr("block_ind_map").attr("__getitem__")(
+            py::make_tuple(block_ind_map_rows, py::slice(0, 2, 1))));
+        ++i;
+        j += static_cast<int64>(group.size());
+    }
+    int64 num_legs = tensor.attr("num_legs").cast<int64>();
+    while (j < num_legs) {
+        py::object mults = tensor.attr("get_leg_co_domain")(j).attr("multiplicities");
+        block_slices.attr("__setitem__")(
+          py::make_tuple(py::ellipsis(), i, 1),
+          mults.attr("__getitem__")(res_block_inds.attr("__getitem__")(py::make_tuple(py::ellipsis(), i))));
+        ++i;
+        ++j;
+    }
+
+    py::array diffs = misc().attr("find_row_differences")(res_block_inds, py::arg("include_len") = true);
+    py::ssize_t res_num_blocks = py::len(diffs) - 1;
+    res_block_inds = take_rows(
+      asarray_i64(res_block_inds),
+      diffs.attr("__getitem__")(py::slice(0, -1, 1)).cast<py::array>());
+    py::array res_block_shapes =
+      np.attr("zeros")(py::make_tuple(res_num_blocks, num_result_legs), py::arg("dtype") = np.attr("intp"));
+    auto legs = conventional_leg_order(new_codomain, new_domain);
+    for (std::size_t li = 0; li < legs.size(); ++li) {
+        res_block_shapes.attr("__setitem__")(
+          py::make_tuple(py::ellipsis(), static_cast<py::ssize_t>(li)),
+          legs[li].attr("multiplicities").attr("__getitem__")(
+            res_block_inds.attr("__getitem__")(py::make_tuple(py::ellipsis(), static_cast<py::ssize_t>(li)))));
+    }
+    std::vector<BlockBackend::BlockPtr> res_blocks;
+    auto diffs_i = asarray_i64(diffs);
+    auto dbuf = diffs_i.unchecked<1>();
+    auto shapes = asarray_i64(res_block_shapes);
+    auto sbuf = shapes.unchecked<2>();
+    auto slices_arr = asarray_i64(block_slices);
+    // block_slices may be 3D - use numpy indexing instead
+    Dtype dt = tensor.attr("dtype").cast<Dtype>();
+    std::string device = tensor.attr("device").cast<std::string>();
+    for (py::ssize_t n = 0; n < res_num_blocks; ++n) {
+        std::vector<int64> shape;
+        for (py::ssize_t c = 0; c < sbuf.shape(1); ++c)
+            shape.push_back(sbuf(n, c));
+        auto new_block = block_backend->zeros(shape, dt, device);
+        int64 start = dbuf(n);
+        int64 stop = dbuf(n + 1);
+        for (int64 row = start; row < stop; ++row) {
+            py::list slc_list;
+            py::object row_slices = block_slices.attr("__getitem__")(row);
+            for (py::ssize_t ax = 0; ax < num_result_legs; ++ax) {
+                py::object be = row_slices.attr("__getitem__")(ax);
+                slc_list.append(py::slice(be.attr("__getitem__")(0).cast<py::ssize_t>(),
+                                          be.attr("__getitem__")(1).cast<py::ssize_t>(),
+                                          1));
+            }
+            auto combined = block_backend->combine_legs(
+              old_blocks[static_cast<std::size_t>(row)], leg_idcs_combine, cstyles);
+            b_set(new_block, py::tuple(slc_list), combined);
+        }
+        res_blocks.push_back(new_block);
+    }
+    return wrap(make_data(dt, t_data->device, std::move(res_blocks), res_block_inds, true));
 }
 
 TensorBackend::DataPtr
@@ -976,11 +1122,245 @@ AbelianBackend::compose(py::object a, py::object b)
     return _compose_worker(a, b);
 }
 
+
+namespace {
+
+AbelianBackendData::Ptr
+abelian_compose_worker(AbelianBackend& self,
+                       AbelianBackendData::Ptr a_data,
+                       AbelianBackendData::Ptr b_data,
+                       TensorProduct::Ptr new_codomain,
+                       std::vector<py::object> const& contr_spaces,
+                       TensorProduct::Ptr new_domain)
+{
+    auto& bb = *self.block_backend;
+    auto np = numpy();
+    Dtype a_dtype = a_data->dtype;
+    Dtype b_dtype = b_data->dtype;
+    Dtype res_dtype = dtype::common({ a_dtype, b_dtype });
+    if (a_data->blocks.empty() || b_data->blocks.empty())
+        return AbelianBackend::unwrap(
+          self.zero_data(new_codomain, new_domain, res_dtype, a_data->device));
+
+    auto a_blocks = a_data->blocks;
+    auto b_blocks = b_data->blocks;
+    if (a_dtype != res_dtype)
+        for (auto& B : a_blocks)
+            B = bb.to_dtype(B, res_dtype);
+    if (b_dtype != res_dtype)
+        for (auto& B : b_blocks)
+            B = bb.to_dtype(B, res_dtype);
+
+    int64 num_contr = static_cast<int64>(contr_spaces.size());
+    py::object a_keep_contr = np.attr("hsplit")(a_data->block_inds, py::make_tuple(new_codomain->num_factors));
+    py::object b_contr_keep = np.attr("hsplit")(b_data->block_inds, py::make_tuple(num_contr));
+    py::array a_block_inds_keep = a_keep_contr.attr("__getitem__")(0).cast<py::array>();
+    py::array a_block_inds_contr = a_keep_contr.attr("__getitem__")(1).cast<py::array>();
+    py::array b_block_inds_contr = b_contr_keep.attr("__getitem__")(0).cast<py::array>();
+    py::array b_block_inds_keep = b_contr_keep.attr("__getitem__")(1).cast<py::array>();
+
+    py::list nsecs;
+    for (auto const& l : contr_spaces)
+        nsecs.append(l.attr("num_sectors"));
+    py::array strides = misc().attr("make_stride")(nsecs, py::arg("cstyle") = false);
+    a_block_inds_contr = np.attr("sum")(
+      a_block_inds_contr.attr("__mul__")(
+        strides.attr("__getitem__")(py::slice(std::nullopt, std::nullopt, static_cast<py::ssize_t>(-1)))),
+      py::arg("axis") = 1);
+    b_block_inds_contr =
+      np.attr("sum")(b_block_inds_contr.attr("__mul__")(strides), py::arg("axis") = 1);
+
+    py::array a_sort = np.attr("lexsort")(
+      np.attr("hstack")(py::make_tuple(
+                          a_block_inds_contr.attr("__getitem__")(
+                            py::make_tuple(py::ellipsis(), np.attr("newaxis"))),
+                          a_block_inds_keep))
+        .attr("T"));
+    a_block_inds_keep = take_rows_obj(a_block_inds_keep, a_sort).cast<py::array>();
+    a_block_inds_contr = a_block_inds_contr.attr("__getitem__")(a_sort);
+    a_blocks = permute_blocks(a_blocks, a_sort.cast<py::array>());
+
+    py::array a_slices = misc().attr("find_row_differences")(a_block_inds_keep, py::arg("include_len") = true);
+    py::array b_slices = misc().attr("find_row_differences")(b_block_inds_keep, py::arg("include_len") = true);
+    auto a_sl = asarray_i64(a_slices);
+    auto b_sl = asarray_i64(b_slices);
+    auto a_sl_b = a_sl.unchecked<1>();
+    auto b_sl_b = b_sl.unchecked<1>();
+
+    std::vector<std::vector<BlockBackend::BlockPtr>> a_blocks_g, b_blocks_g;
+    std::vector<py::array> a_contr_g, b_contr_g;
+    for (py::ssize_t g = 0; g + 1 < a_sl_b.shape(0); ++g) {
+        int64 i0 = a_sl_b(g), i1 = a_sl_b(g + 1);
+        std::vector<BlockBackend::BlockPtr> grp;
+        for (int64 k = i0; k < i1; ++k)
+            grp.push_back(a_blocks[static_cast<std::size_t>(k)]);
+        a_blocks_g.push_back(std::move(grp));
+        a_contr_g.push_back(a_block_inds_contr.attr("__getitem__")(py::slice(i0, i1, 1)).cast<py::array>());
+    }
+    for (py::ssize_t g = 0; g + 1 < b_sl_b.shape(0); ++g) {
+        int64 j0 = b_sl_b(g), j1 = b_sl_b(g + 1);
+        std::vector<BlockBackend::BlockPtr> grp;
+        for (int64 k = j0; k < j1; ++k)
+            grp.push_back(b_blocks[static_cast<std::size_t>(k)]);
+        b_blocks_g.push_back(std::move(grp));
+        b_contr_g.push_back(b_block_inds_contr.attr("__getitem__")(py::slice(j0, j1, 1)).cast<py::array>());
+    }
+    a_block_inds_keep = a_block_inds_keep.attr("__getitem__")(a_slices.attr("__getitem__")(py::slice(0, -1, 1)));
+    b_block_inds_keep = b_block_inds_keep.attr("__getitem__")(b_slices.attr("__getitem__")(py::slice(0, -1, 1)));
+
+    std::vector<std::vector<int64>> a_shape_keep, b_shape_keep;
+    a_shape_keep.reserve(a_blocks_g.size());
+    b_shape_keep.reserve(b_blocks_g.size());
+    for (auto const& grp : a_blocks_g) {
+        auto sh = bb.get_shape(grp[0]);
+        a_shape_keep.emplace_back(sh.begin(), sh.begin() + new_codomain->num_factors);
+    }
+    for (auto const& grp : b_blocks_g) {
+        auto sh = bb.get_shape(grp[0]);
+        b_shape_keep.emplace_back(sh.begin() + num_contr, sh.end());
+    }
+
+    if (new_codomain->num_factors == 0) {
+        for (auto& grp : a_blocks_g)
+            for (auto& B : grp)
+                B = bb.reshape(B, { -1 });
+    } else {
+        for (std::size_t g = 0; g < a_blocks_g.size(); ++g) {
+            int64 prod = 1;
+            for (auto s : a_shape_keep[g])
+                prod *= s;
+            for (auto& B : a_blocks_g[g])
+                B = bb.reshape(B, { prod, -1 });
+        }
+    }
+    if (new_domain->num_factors == 0) {
+        std::vector<int64> perm;
+        for (int64 p = num_contr - 1; p >= 0; --p)
+            perm.push_back(p);
+        for (auto& grp : b_blocks_g)
+            for (auto& B : grp)
+                B = bb.reshape(bb.permute_axes(B, perm), { -1 });
+    } else {
+        std::vector<int64> perm;
+        for (int64 p = num_contr - 1; p >= 0; --p)
+            perm.push_back(p);
+        for (int64 p = num_contr; p < num_contr + new_domain->num_factors; ++p)
+            perm.push_back(p);
+        for (std::size_t g = 0; g < b_blocks_g.size(); ++g) {
+            int64 prod = 1;
+            for (auto s : b_shape_keep[g])
+                prod *= s;
+            for (auto& B : b_blocks_g[g])
+                B = bb.reshape(bb.permute_axes(B, perm), { -1, prod });
+        }
+    }
+
+    SectorArray a_charges;
+    if (new_codomain->num_factors > 0) {
+        std::vector<SectorArray> parts;
+        auto keep = asarray_i64(a_block_inds_keep);
+        auto kb = keep.unchecked<2>();
+        for (int64 f = 0; f < new_codomain->num_factors; ++f) {
+            auto secs = new_codomain->factors[static_cast<std::size_t>(f)]
+                          .attr("sector_decomposition")
+                          .cast<SectorArray>();
+            SectorArray selected = SectorArray::empty(secs.sector_ind_len());
+            for (py::ssize_t r = 0; r < kb.shape(0); ++r)
+                selected.push_back(secs[static_cast<std::size_t>(kb(r, f))]);
+            parts.push_back(std::move(selected));
+        }
+        a_charges = new_codomain->symmetry->multiple_fusion_broadcast(parts);
+    } else {
+        a_charges = SectorArray::repeat(new_codomain->symmetry->trivial_sector,
+                                        static_cast<std::size_t>(py::len(a_block_inds_keep)));
+    }
+    SectorArray b_charges;
+    if (new_domain->num_factors > 0) {
+        std::vector<SectorArray> parts;
+        auto keep = asarray_i64(b_block_inds_keep);
+        auto kb = keep.unchecked<2>();
+        for (int64 f = 0; f < new_domain->num_factors; ++f) {
+            auto secs = new_domain->factors[static_cast<std::size_t>(f)]
+                          .attr("sector_decomposition")
+                          .cast<SectorArray>();
+            SectorArray selected = SectorArray::empty(secs.sector_ind_len());
+            // b_block_inds_keep[:, ::-1].T column f corresponds to domain factor f from reversed cols
+            for (py::ssize_t r = 0; r < kb.shape(0); ++r)
+                selected.push_back(secs[static_cast<std::size_t>(kb(r, kb.shape(1) - 1 - f))]);
+            parts.push_back(std::move(selected));
+        }
+        b_charges = new_domain->symmetry->multiple_fusion_broadcast(parts);
+    } else {
+        b_charges = SectorArray::repeat(new_domain->symmetry->trivial_sector,
+                                        static_cast<std::size_t>(py::len(b_block_inds_keep)));
+    }
+
+    py::object a_charge_lookup = misc().attr("list_to_dict_list")(py::cast(a_charges));
+
+    std::vector<BlockBackend::BlockPtr> res_blocks;
+    py::list res_bi_a, res_bi_b;
+    for (std::size_t col_b = 0; col_b < b_charges.size(); ++col_b) {
+        py::object key = py::tuple(py::cast(b_charges[col_b]));
+        py::object rows_a_obj = a_charge_lookup.attr("get")(key, py::list());
+        for (py::handle row_h : rows_a_obj) {
+            int64 row_a = row_h.cast<int64>();
+            py::object common_iter =
+              misc().attr("iter_common_sorted")(a_contr_g[static_cast<std::size_t>(row_a)],
+                                                b_contr_g[col_b]);
+            auto it = py::iter(common_iter);
+            py::object first;
+            try {
+                first = py::reinterpret_borrow<py::object>(*it);
+                ++it;
+            } catch (py::stop_iteration const&) {
+                continue;
+            }
+            auto pair0 = first.cast<py::tuple>();
+            int64 k1 = pair0[0].cast<int64>();
+            int64 k2 = pair0[1].cast<int64>();
+            auto block = bb.matrix_dot(a_blocks_g[static_cast<std::size_t>(row_a)][static_cast<std::size_t>(k1)],
+                                       b_blocks_g[col_b][static_cast<std::size_t>(k2)]);
+            for (py::handle item : it) {
+                auto pair = item.cast<py::tuple>();
+                k1 = pair[0].cast<int64>();
+                k2 = pair[1].cast<int64>();
+                auto add = bb.matrix_dot(a_blocks_g[static_cast<std::size_t>(row_a)][static_cast<std::size_t>(k1)],
+                                         b_blocks_g[col_b][static_cast<std::size_t>(k2)]);
+                block = (*block) + (*add);
+            }
+            std::vector<int64> out_shape = a_shape_keep[static_cast<std::size_t>(row_a)];
+            out_shape.insert(out_shape.end(), b_shape_keep[col_b].begin(), b_shape_keep[col_b].end());
+            block = bb.reshape(block, out_shape);
+            res_blocks.push_back(block);
+            res_bi_a.append(a_block_inds_keep.attr("__getitem__")(row_a));
+            res_bi_b.append(b_block_inds_keep.attr("__getitem__")(static_cast<py::ssize_t>(col_b)));
+        }
+    }
+
+    py::array_t<int64> block_inds;
+    if (res_blocks.empty()) {
+        block_inds = zeros_i64(0, new_codomain->num_factors + new_domain->num_factors);
+    } else {
+        block_inds = asarray_i64(np.attr("hstack")(py::make_tuple(np.attr("array")(res_bi_a), np.attr("array")(res_bi_b))));
+    }
+    return make_data(res_dtype, a_data->device, std::move(res_blocks), block_inds, true);
+}
+
+} // namespace
+
+
 TensorBackend::DataPtr
 AbelianBackend::_compose_worker(py::object a, py::object b)
 {
-    // Delegate full worker (also used with custom domains via partial_compose path in Python).
-    return wrap(py_call_data(block_backend, "compose", a, b));
+    std::vector<py::object> contr_spaces;
+    for (py::handle h : b.attr("codomain").attr("factors"))
+        contr_spaces.push_back(py::reinterpret_borrow<py::object>(h));
+    return wrap(abelian_compose_worker(*this,
+                                       data_from_tensor(a),
+                                       data_from_tensor(b),
+                                       a.attr("codomain").cast<TensorProduct::Ptr>(),
+                                       contr_spaces,
+                                       b.attr("domain").cast<TensorProduct::Ptr>()));
 }
 
 TensorBackend::DataPtr
@@ -1927,13 +2307,166 @@ AbelianBackend::scale_axis(py::object a, py::object b, int64 leg)
     return wrap(make_data(common_dtype, a_data->device, std::move(res_blocks), res_block_inds, false));
 }
 
+
 TensorBackend::DataPtr
 AbelianBackend::split_legs(py::object a,
                            std::vector<int64> leg_idcs,
                            TensorProduct::Ptr new_codomain,
                            TensorProduct::Ptr new_domain)
 {
-    return wrap(py_call_data(block_backend, "split_legs", a, leg_idcs, new_codomain, new_domain));
+    auto a_data = data_from_tensor(a);
+    if (a_data->blocks.empty())
+        return zero_data(new_codomain, new_domain, a_data->dtype, a_data->device);
+    auto np = numpy();
+    int64 n_split = static_cast<int64>(leg_idcs.size());
+    py::list pipes;
+    for (auto i : leg_idcs)
+        pipes.append(a.attr("get_leg_co_domain")(i));
+    int64 res_num_legs = new_codomain->num_factors + new_domain->num_factors;
+    auto old_blocks = a_data->blocks;
+    auto old_block_inds = a_data->block_inds;
+    py::array map_slices_beg =
+      np.attr("zeros")(py::make_tuple(old_blocks.size(), n_split), py::arg("dtype") = np.attr("intp"));
+    py::array map_slices_shape =
+      np.attr("zeros")(py::make_tuple(old_blocks.size(), n_split), py::arg("dtype") = np.attr("intp"));
+    for (py::ssize_t j = 0; j < n_split; ++j) {
+        py::object pipe = pipes[j];
+        py::array block_inds_j =
+          old_block_inds.attr("__getitem__")(py::make_tuple(py::ellipsis(), leg_idcs[static_cast<std::size_t>(j)]));
+        map_slices_beg.attr("__setitem__")(
+          py::make_tuple(py::ellipsis(), j),
+          pipe.attr("block_ind_map_slices").attr("__getitem__")(block_inds_j));
+        py::array slices = pipe.attr("block_ind_map_slices");
+        py::array sizes = slices.attr("__getitem__")(py::slice(1, std::nullopt, 1)).attr("__sub__")(
+          slices.attr("__getitem__")(py::slice(0, -1, 1)));
+        map_slices_shape.attr("__setitem__")(
+          py::make_tuple(py::ellipsis(), j), sizes.attr("__getitem__")(block_inds_j));
+    }
+    py::array new_data_blocks_per_old_block = np.attr("prod")(map_slices_shape, py::arg("axis") = 1);
+    py::list old_rows_list;
+    auto per = asarray_i64(new_data_blocks_per_old_block);
+    auto per_b = per.unchecked<1>();
+    for (py::ssize_t i = 0; i < per_b.shape(0); ++i)
+        for (int64 s = 0; s < per_b(i); ++s)
+            old_rows_list.append(i);
+    py::array old_rows = np.attr("array")(old_rows_list, py::arg("dtype") = np.attr("intp"));
+    py::ssize_t res_num_blocks = py::len(old_rows);
+
+    py::list map_rows_list;
+    auto beg_a = asarray_i64(map_slices_beg);
+    auto shp_a = asarray_i64(map_slices_shape);
+    auto beg_b = beg_a.unchecked<2>();
+    auto shp_b = shp_a.unchecked<2>();
+    for (py::ssize_t r = 0; r < beg_b.shape(0); ++r) {
+        py::list shape_l;
+        for (py::ssize_t c = 0; c < n_split; ++c)
+            shape_l.append(shp_b(r, c));
+        py::array inds = np.attr("indices")(shape_l, np.attr("intp")).attr("reshape")(n_split, -1).attr("T");
+        py::list beg_row;
+        for (py::ssize_t c = 0; c < n_split; ++c)
+            beg_row.append(beg_b(r, c));
+        map_rows_list.append(inds.attr("__add__")(np.attr("array")(beg_row).attr("__getitem__")(
+          py::make_tuple(np.attr("newaxis"), py::ellipsis()))));
+    }
+    py::array map_rows = np.attr("concatenate")(map_rows_list, py::arg("axis") = 0);
+
+    py::array new_block_inds =
+      np.attr("empty")(py::make_tuple(res_num_blocks, res_num_legs), py::arg("dtype") = np.attr("intp"));
+    py::array old_block_beg =
+      np.attr("zeros")(py::make_tuple(res_num_blocks, a.attr("num_legs").cast<int64>()),
+                       py::arg("dtype") = np.attr("intp"));
+    py::array old_block_shapes =
+      np.attr("empty")(py::make_tuple(res_num_blocks, a.attr("num_legs").cast<int64>()),
+                       py::arg("dtype") = np.attr("intp"));
+    py::list axes_perm_l;
+    for (int64 ax = 0; ax < res_num_legs; ++ax)
+        axes_perm_l.append(ax);
+    std::vector<int64> axes_perm(static_cast<std::size_t>(res_num_legs));
+    std::iota(axes_perm.begin(), axes_perm.end(), 0);
+    int64 shift = 0;
+    int64 jp = 0;
+    int64 num_codomain = a.attr("num_codomain_legs").cast<int64>();
+    int64 a_num_legs = a.attr("num_legs").cast<int64>();
+    std::vector<bool> is_split(static_cast<std::size_t>(a_num_legs), false);
+    for (auto li : leg_idcs)
+        is_split[static_cast<std::size_t>(li)] = true;
+
+    for (int64 i_leg = 0; i_leg < a_num_legs; ++i_leg) {
+        if (is_split[static_cast<std::size_t>(i_leg)]) {
+            bool in_domain = i_leg >= num_codomain;
+            py::object pipe = pipes[jp];
+            int64 k = i_leg + shift;
+            int64 k2 = k + pipe.attr("num_legs").cast<int64>();
+            if (pipe.attr("combine_cstyle").cast<bool>() == in_domain) {
+                std::reverse(axes_perm.begin() + k, axes_perm.begin() + k2);
+            }
+            py::array block_ind_map = pipe.attr("block_ind_map").attr("__getitem__")(
+              py::make_tuple(map_rows.attr("__getitem__")(py::make_tuple(py::ellipsis(), jp)), py::ellipsis()));
+            if (in_domain) {
+                new_block_inds.attr("__setitem__")(
+                  py::make_tuple(py::ellipsis(), py::slice(k, k2, 1)),
+                  block_ind_map.attr("__getitem__")(
+                    py::make_tuple(py::ellipsis(),
+                                   py::slice(-2, 1, -1))));  // -2:1:-1
+            } else {
+                new_block_inds.attr("__setitem__")(
+                  py::make_tuple(py::ellipsis(), py::slice(k, k2, 1)),
+                  block_ind_map.attr("__getitem__")(
+                    py::make_tuple(py::ellipsis(), py::slice(2, -1, 1))));
+            }
+            old_block_beg.attr("__setitem__")(
+              py::make_tuple(py::ellipsis(), i_leg),
+              block_ind_map.attr("__getitem__")(py::make_tuple(py::ellipsis(), 0)));
+            old_block_shapes.attr("__setitem__")(
+              py::make_tuple(py::ellipsis(), i_leg),
+              block_ind_map.attr("__getitem__")(py::make_tuple(py::ellipsis(), 1))
+                .attr("__sub__")(block_ind_map.attr("__getitem__")(py::make_tuple(py::ellipsis(), 0))));
+            shift += pipe.attr("num_legs").cast<int64>() - 1;
+            ++jp;
+        } else {
+            py::array nbi = old_block_inds.attr("__getitem__")(
+              py::make_tuple(old_rows, i_leg));
+            new_block_inds.attr("__setitem__")(
+              py::make_tuple(py::ellipsis(), i_leg + shift), nbi);
+            old_block_shapes.attr("__setitem__")(
+              py::make_tuple(py::ellipsis(), i_leg),
+              a.attr("get_leg_co_domain")(i_leg).attr("multiplicities").attr("__getitem__")(nbi));
+        }
+    }
+
+    py::array new_block_shapes =
+      np.attr("empty")(py::make_tuple(res_num_blocks, res_num_legs), py::arg("dtype") = np.attr("intp"));
+    auto legs = conventional_leg_order(new_codomain, new_domain);
+    for (std::size_t li = 0; li < legs.size(); ++li) {
+        new_block_shapes.attr("__setitem__")(
+          py::make_tuple(py::ellipsis(), static_cast<py::ssize_t>(li)),
+          legs[li].attr("multiplicities").attr("__getitem__")(
+            new_block_inds.attr("__getitem__")(py::make_tuple(py::ellipsis(), static_cast<py::ssize_t>(li)))));
+    }
+    new_block_shapes = new_block_shapes.attr("__getitem__")(py::make_tuple(py::ellipsis(), axes_perm));
+
+    std::vector<BlockBackend::BlockPtr> new_blocks;
+    new_blocks.reserve(static_cast<std::size_t>(res_num_blocks));
+    auto old_rows_i = asarray_i64(old_rows);
+    auto orb = old_rows_i.unchecked<1>();
+    for (py::ssize_t i = 0; i < res_num_blocks; ++i) {
+        auto old_block = old_blocks[static_cast<std::size_t>(orb(i))];
+        py::list slc_list;
+        py::object beg_row = old_block_beg.attr("__getitem__")(i);
+        py::object shp_row = old_block_shapes.attr("__getitem__")(i);
+        for (int64 ax = 0; ax < a_num_legs; ++ax) {
+            int64 b = beg_row.attr("__getitem__")(ax).cast<int64>();
+            int64 s = shp_row.attr("__getitem__")(ax).cast<int64>();
+            slc_list.append(py::slice(b, b + s, 1));
+        }
+        auto new_block = b_get(old_block, py::tuple(slc_list));
+        auto shape_i = new_block_shapes.attr("__getitem__")(i).cast<std::vector<int64>>();
+        new_blocks.push_back(block_backend->reshape(new_block, shape_i));
+    }
+    for (auto& blk : new_blocks)
+        blk = block_backend->permute_axes(blk, axes_perm);
+    return wrap(make_data(a_data->dtype, a_data->device, std::move(new_blocks),
+                          asarray_i64(new_block_inds), false));
 }
 
 TensorBackend::DataPtr
