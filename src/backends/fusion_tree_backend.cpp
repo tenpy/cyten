@@ -112,7 +112,16 @@ FusionTreeData::discard_zero_blocks(std::shared_ptr<BlockBackend> backend, float
         kept_blocks.push_back(blocks[static_cast<std::size_t>(i)]);
     }
     blocks = std::move(kept_blocks);
-    block_inds = take_rows(block_inds, py::cast(keep));
+
+    // Explicit int64 indices: empty default arrays are float64 and break np.take.
+    py::array_t<int64> keep_arr(static_cast<py::ssize_t>(keep.size()));
+    {
+        auto buf = keep_arr.mutable_unchecked<1>();
+        for (std::size_t i = 0; i < keep.size(); ++i) {
+            buf(static_cast<py::ssize_t>(i)) = keep[i];
+        }
+    }
+    block_inds = take_rows(block_inds, keep_arr);
 }
 
 void
