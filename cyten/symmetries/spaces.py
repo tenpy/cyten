@@ -2538,6 +2538,18 @@ class AbelianLegPipe(LegPipe, ElementarySpace):
         return perm
 
 
+# C++ replacements (keep Python class bodies above for documentation / fallback until
+# free functions and remaining helpers are also converted).
+from .._core import (  # noqa: F401
+    AbelianLegPipe,
+    ElementarySpace,
+    Leg,
+    LegPipe,
+    Space,
+    TensorProduct,
+)
+
+
 def swap_gate(V: ElementarySpace, W: ElementarySpace) -> np.ndarray:
     """The swap gate (numpy representation of the braid).
 

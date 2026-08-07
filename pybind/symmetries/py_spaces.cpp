@@ -297,6 +297,14 @@ bind_spaces(py::module_& m)
         ``_basis_perm`` is the internal version which may be ``None`` if the permutation is trivial.
         See also :meth:`apply_basis_perm`.
         )pydoc")
+      .def_property_readonly(
+        "_basis_perm",
+        [](Leg const& self) -> py::object {
+            if (!self.has_custom_basis_perm()) {
+                return py::none();
+            }
+            return perm_to_numpy(self.basis_perm());
+        })
       .def_property(
         "inverse_basis_perm",
         [](Leg const& self) { return perm_to_numpy(self.inverse_basis_perm()); },
@@ -306,6 +314,14 @@ bind_spaces(py::module_& m)
         R"pydoc(
         Inverse permutation of :attr:`basis_perm`.
         )pydoc")
+      .def_property_readonly(
+        "_inverse_basis_perm",
+        [](Leg const& self) -> py::object {
+            if (!self.has_custom_basis_perm()) {
+                return py::none();
+            }
+            return perm_to_numpy(self.inverse_basis_perm());
+        })
       .def_property_readonly("flat_legs",
                              &Leg::flat_legs,
                              R"pydoc(
@@ -1113,10 +1129,13 @@ bind_elementary_space(py::module_& m)
             ``range(sector_dim * self.multiplicities[sector_index])``.
         )pydoc")
       .def("idx_to_sector", &ElementarySpace::idx_to_sector, py::arg("idx"))
-      .def("take_slice",
-           &ElementarySpace::take_slice,
-           py::arg("blockmask"),
-           R"pydoc(
+      .def(
+        "take_slice",
+        [](ElementarySpace& self, py::object blockmask) {
+            return self.take_slice(py::array::ensure(blockmask));
+        },
+        py::arg("blockmask"),
+        R"pydoc(
            Take a "slice" of the leg, keeping only some of the basis states.
 
            Parameters
@@ -1700,9 +1719,12 @@ bind_abelian_leg_pipe(py::module_& m)
         R"pydoc(
         Not supported: an :class:`AbelianLegPipe` determines its own ``basis_perm``.
         )pydoc")
-      .def("take_slice",
-           &AbelianLegPipe::take_slice,
-           py::arg("blockmask"),
+      .def(
+        "take_slice",
+        [](AbelianLegPipe& self, py::object blockmask) {
+            return self.take_slice(py::array::ensure(blockmask));
+        },
+        py::arg("blockmask"),
            R"pydoc(
            Take a "slice" of the leg, keeping only some of the basis states.
 
