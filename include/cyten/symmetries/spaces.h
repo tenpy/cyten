@@ -599,5 +599,38 @@ class AbelianLegPipe
       std::vector<std::vector<int64>> const& block_ind_map);
 };
 
+/// The swap gate (numpy representation of the braid) between two legs.
+///
+/// Axes of the result are ``[W, V, W*, V*]``. Accepts plain :class:`LegPipe`\ s (recursively)
+/// as well as :class:`ElementarySpace`\ s; an :class:`AbelianLegPipe` is treated as an
+/// :class:`ElementarySpace` (matching Python ``isinstance``).
+[[nodiscard]] py::array swap_gate(Leg::Ptr V, Leg::Ptr W);
+
+/// The topological twist on a whole space, as a numpy matrix with axes ``[V, V*]``.
+[[nodiscard]] py::array twist_gate(Leg::Ptr V);
+
+/// Diagonal of :func:`twist_gate` (public basis order).
+[[nodiscard]] py::array twist_gate_diag(Leg::Ptr V);
+
+/// Leg permutation such that combining / splitting legs would be in C style.
+[[nodiscard]] std::vector<int64> flat_leg_permutation(std::vector<Leg::Ptr> const& legs);
+
+/// Sort sectors and merge duplicates; returns ``(sectors, multiplicities, perm)``.
+[[nodiscard]] std::tuple<SectorArray, std::vector<int64>, std::vector<std::size_t>>
+unique_sorted_sectors(SectorArray const& unsorted_sectors,
+                      std::vector<int64> const& unsorted_multiplicities);
+
+/// Lex-sort sectors, applying the same permutation to multiplicities.
+[[nodiscard]] std::tuple<SectorArray, std::vector<int64>, std::vector<std::size_t>>
+sort_sectors_public(SectorArray const& sectors, std::vector<int64> const& multiplicities);
+
+/// Input parsing for :meth:`Space.drop_symmetry`.
+///
+/// Returns ``(which_factors, remaining_symmetry)`` where ``which_factors`` is ``nullopt`` for
+/// ``'all'``.
+[[nodiscard]] std::pair<std::optional<std::vector<int64>>, Symmetry::Ptr>
+parse_inputs_drop_symmetry_public(std::optional<std::vector<int64>> which,
+                                  Symmetry::Ptr symmetry);
+
 } // namespace cyten
 
