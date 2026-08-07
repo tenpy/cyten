@@ -108,7 +108,7 @@ Overview: [convert_backends.md](convert_backends.md). Branch: `convert_backends`
 - **cyten/backends/_backend.py** — `TensorBackend` (abstract), helpers. **C++ in `_core`** — [convert_TensorBackend.md](convert_TensorBackend.md) (not monkey-patched).
 - **cyten/backends/no_symmetry.py** — `NoSymmetryBackend`. **C++ in `_core`** — [convert_NoSymmetryBackend.md](convert_NoSymmetryBackend.md) (not monkey-patched).
 - **cyten/backends/abelian.py** — `AbelianBackendData` + `AbelianBackend` **C++ in `_core`** — [convert_AbelianBackendData.md](convert_AbelianBackendData.md), [convert_AbelianBackend.md](convert_AbelianBackend.md) (not monkey-patched).
-- **cyten/backends/fusion_tree_backend.py** — `FusionTreeData` **C++ in `_core`**; `FusionTreeBackend` still Python — [convert_FusionTreeData.md](convert_FusionTreeData.md), [convert_FusionTreeBackend.md](convert_FusionTreeBackend.md).
+- **cyten/backends/fusion_tree_backend.py** — `FusionTreeData` + `FusionTreeBackend` **C++ in `_core`** (`get_backend('fusion_tree')` wired); Instruction/Mapping stack still Python — [convert_FusionTreeData.md](convert_FusionTreeData.md), [convert_FusionTreeBackend.md](convert_FusionTreeBackend.md).
 - **cyten/backends/backend_factory.py** — `get_backend` hybrid **C++ in `_core`** — [convert_get_backend.md](convert_get_backend.md) (not monkey-patched).
 
 ### Layer 4 — Tensors
