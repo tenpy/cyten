@@ -4,6 +4,16 @@
 
 **In progress** on branch `convert_backends`. `FusionTreeData` already in C++ — [convert_FusionTreeData.md](convert_FusionTreeData.md). Do **not** monkey-patch until the full permute/mapping stack is solid and pytest is green.
 
+### Python delegation remaining (intentional)
+
+| Method / helper | Delegates to |
+| --- | --- |
+| `apply_instructions` | Python `TreePairMapping` / `FactorizedTreeMapping` |
+| `permute_legs` | Python `PermuteLegsInstructionEngine` + `apply_instructions` |
+| `_partial_trace_helper` | Python module function (called from native `partial_trace`) |
+
+All other former `ft_py().FusionTreeBackend(...)` stubs (outer, partial_compose, partial_trace body, from_tree_pairs, get_element, from_grid, scale_axis, mask_*, diagonal_to_mask) are **native C++** in `src/backends/_ft_native_methods.inc` (included from `fusion_tree_backend.cpp`).
+
 ## Metadata
 
 | Field | Value |
@@ -38,7 +48,7 @@
 3. Instruction + Engine (+ bind for existing unit tests)
 4. TensorMapping hierarchy (or Python-delegate `apply_instructions` / `permute_legs` initially)
 5. Forest dense↔sparse helpers
-6. Remaining complex methods; replace any Python delegation
+6. Remaining complex methods; replace any Python delegation — **done** (except permute/mapping stack + `_partial_trace_helper`)
 7. Bindings + wire `get_backend('fusion_tree', …)`; smoke test; no monkey-patch yet
 
 ## TODO checklist
