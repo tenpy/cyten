@@ -315,9 +315,10 @@ class ElementarySpace
 
     Sector idx_to_sector(int64 idx) const;
 
-    [[nodiscard]] Ptr take_slice(py::array blockmask) const;
+    [[nodiscard]] virtual Ptr take_slice(py::array blockmask) const;
 
-    [[nodiscard]] Ptr with_opposite_duality() const;
+    /// Virtual so :class:`AbelianLegPipe` can keep the pipe structure.
+    [[nodiscard]] virtual Ptr with_opposite_duality() const;
 
     [[nodiscard]] Ptr with_is_dual(bool is_dual) const;
 
@@ -462,6 +463,123 @@ class TensorProduct : public Space
                             std::optional<std::vector<int64>> multiplicities);
 
     TensorProduct(std::vector<py::object> factors, Prepared prepared);
+};
+
+/// Special case of a :class:`LegPipe` for abelian group symmetries.
+///
+/// Diamond MI: :class:`LegPipe` + :class:`ElementarySpace`, with a single virtual :class:`Leg`.
+class AbelianLegPipe
+  : public LegPipe
+  , public ElementarySpace
+{
+  public:
+    using Ptr = std::shared_ptr<AbelianLegPipe>;
+    using CPtr = std::shared_ptr<const AbelianLegPipe>;
+
+    /// Strides for ``[leg.num_sectors for leg in legs]`` (C- or F-style).
+    std::vector<int64> sector_strides;
+    /// Permutation that sorts unsorted fusion outcomes (F-style combinations).
+    std::vector<int64> fusion_outcomes_sort;
+    /// Slice starts into the sorted fusion-outcome list; length ``num_sectors + 1``.
+    std::vector<int64> block_ind_map_slices;
+    /// Rows ``[b0, b1, i_0, ..., i_{n-1}, J]``; shape ``(M, 3 + num_legs)``.
+    std::vector<std::vector<int64>> block_ind_map;
+
+    explicit AbelianLegPipe(std::vector<ElementarySpace::Ptr> legs,
+                            bool is_dual = false,
+                            bool combine_cstyle = true);
+    ~AbelianLegPipe() override = default;
+
+    void test_sanity() const override;
+
+    py::object as_Space() override;
+
+    py::object as_ElementarySpace(bool is_dual = false) override;
+
+    Space::Ptr dual_space() const override;
+    Leg::Ptr dual_leg() const override;
+
+    [[nodiscard]] Ptr dual_pipe() const;
+
+    bool is_trivial() const override;
+
+    std::vector<Leg::Ptr> flat_spaces() override;
+
+    [[nodiscard]] bool is_abelian_leg_pipe() const override { return true; }
+
+    static Ptr from_independent_symmetries(std::vector<Ptr> const& independent_descriptions);
+
+    // Unsupported ElementarySpace factories (raise TypeError).
+    static Ptr from_basis(Symmetry::Ptr symmetry, SectorArray sectors_of_basis);
+    static Ptr from_null_space(Symmetry::Ptr symmetry, bool is_dual = false);
+    static Ptr from_defining_sectors(Symmetry::Ptr symmetry,
+                                     SectorArray defining_sectors,
+                                     std::optional<std::vector<int64>> multiplicities = std::nullopt,
+                                     bool is_dual = false,
+                                     std::optional<std::vector<int64>> basis_perm = std::nullopt,
+                                     bool unique_sectors = false,
+                                     std::vector<std::size_t>* return_sorting_perm = nullptr);
+    static Ptr from_trivial_sector(int64 dim = 1,
+                                   Symmetry::Ptr symmetry = nullptr,
+                                   bool is_dual = false,
+                                   std::optional<std::vector<int64>> basis_perm = std::nullopt);
+
+    py::object change_symmetry(Symmetry::Ptr symmetry,
+                               SectorMapFn sector_map,
+                               bool injective = false) override;
+
+    py::object drop_symmetry(std::optional<std::vector<int64>> which = std::nullopt) override;
+
+    void set_basis_perm(std::optional<std::vector<int64>> basis_perm) override;
+
+    void set_inverse_basis_perm(std::optional<std::vector<int64>> inverse_basis_perm) override;
+
+    ElementarySpace::Ptr take_slice(py::array blockmask) const override;
+
+    ElementarySpace::Ptr with_opposite_duality() const override;
+
+    bool operator==(Leg const& other) const override;
+    bool operator==(Space const& other) const override;
+
+    [[nodiscard]] std::string repr(bool show_symmetry = true, bool one_line = false) const;
+
+    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+
+    static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath);
+
+  private:
+    struct Prepared
+    {
+        std::vector<Leg::Ptr> legs;
+        Symmetry::Ptr symmetry;
+        SectorArray defining_sectors;
+        std::vector<int64> multiplicities;
+        std::optional<std::vector<int64>> basis_perm;
+        std::vector<int64> sector_strides;
+        std::vector<int64> fusion_outcomes_sort;
+        std::vector<int64> block_ind_map_slices;
+        std::vector<std::vector<int64>> block_ind_map;
+    };
+
+    static Prepared prepare(std::vector<ElementarySpace::Ptr> const& legs,
+                            bool is_dual,
+                            bool combine_cstyle);
+
+    AbelianLegPipe(Prepared prepared, bool is_dual, bool combine_cstyle);
+
+    [[nodiscard]] static std::vector<int64> calc_basis_perm(
+      std::vector<ElementarySpace::Ptr> const& legs,
+      bool combine_cstyle,
+      float64 dim,
+      std::vector<int64> const& multiplicities,
+      std::vector<std::vector<int64>> const& block_ind_map);
+
+    [[nodiscard]] static std::vector<int64> fusion_outcomes_perm(
+      std::vector<ElementarySpace::Ptr> const& legs,
+      bool combine_cstyle,
+      float64 dim,
+      std::vector<int64> const& multiplicities,
+      std::vector<std::vector<int64>> const& block_ind_map);
 };
 
 } // namespace cyten
