@@ -2,9 +2,9 @@
 
 ## Status
 
-**In progress** on branch `convert_backends`. `AbelianBackendData` already in C++ — [convert_AbelianBackendData.md](convert_AbelianBackendData.md). Do **not** monkey-patch until FusionTreeBackend is ready or trampoline inheritance is proven for mixed use.
+**Mostly complete** on branch `convert_backends`. `AbelianBackendData` already in C++ — [convert_AbelianBackendData.md](convert_AbelianBackendData.md). Do **not** monkey-patch until FusionTreeBackend is ready or trampoline inheritance is proven for mixed use.
 
-C++ `AbelianBackend` + `valid_block_inds` are defined in `src/backends/abelian.cpp` and the library builds / ctest passes. Many complex methods still **delegate to the Python `AbelianBackend`** via `py_call_data` / `py_abelian` (WIP); thin methods and helpers are native.
+C++ `AbelianBackend` + `valid_block_inds` are defined in `src/backends/abelian.cpp` and the library builds. Nearly all TensorBackend methods are **native C++ ports** from `cyten/backends/abelian.py`. Remaining work is bindings + pytest, not Python delegation.
 
 ## Metadata
 
@@ -24,11 +24,15 @@ C++ `AbelianBackend` + `valid_block_inds` are defined in `src/backends/abelian.c
 - Inherit `TensorBackend`; `DataCls` = pybind type of `AbelianBackendData` (set in bindings; ctor leaves `py::none()` for now).
 - Helpers: `wrap` / `unwrap` / `data_from_tensor` for `AbelianBackendData::Ptr` (also accepts Python duck-typed data).
 - Free function `valid_block_inds(codomain, domain)` (native; uses `make_grid` + fusion broadcast).
+- Free helper `abelian_compose_worker` (anonymous namespace) used by `_compose_worker` and `partial_compose`.
 - Override `make_pipe` → `AbelianLegPipe`; override `save_hdf5` / `from_hdf5` (Python only saves `DataCls` — match that).
 - Tensor args stay interim `py::object`; callables → `py::function`.
+- Call `cyten.tools.misc` via `py::module_::import` for helpers (`make_grid`, `iter_common_*`, `list_to_dict_list`, `find_row_differences`, `rank_data`, `make_stride`, `inverse_permutation`).
 - Stubs matching Python: `state_tensor_product`, `to_dense_block_trivial_sector` → `NotImplemented`.
 - `partial_trace` scalar path returns `Data` with one scalar block + `nullptr` domains.
 - Bindings return `AbelianBackendData` (not unwrapped Block) — Python already stores Data objects.
+- `mask_binary_operand`: C++ advances `mask2` block_inds correctly (Python had a typo using `mask1_block_inds`).
+- `mask_unary_operand`: uses `block_inds` (Python typo was `blocks_inds`).
 
 ## Suggested implementation order
 
@@ -44,12 +48,17 @@ C++ `AbelianBackend` + `valid_block_inds` are defined in `src/backends/abelian.c
 
 - [x] planning (this file)
 - [x] declaration
-- [x] definitions + compile + ctest (native thin methods; heavy kernels still Python-delegated — see FIXMEs in `abelian.cpp`)
-- [ ] replace Python-delegated methods with native C++ ports
+- [x] definitions + compile (native ports; no remaining `py_call_data` / `py_abelian` delegations)
+- [x] replace Python-delegated methods with native C++ ports
 - [ ] bindings
 - [ ] monkey-patch — deferred
 - [ ] pytest — deferred
 
 ## Methods still Python-delegated (FIXME)
 
-`combine_legs`, `_compose_worker` (via Python `compose`), `diagonal_elementwise_binary`, `diagonal_to_mask`, `eigh`, `eye_data`, `from_dense_block`, `from_grid`, `from_tree_pairs`, `get_element*`, `inner`, `inv_part_*`, `linear_combination`, `lq`, `mask_binary_operand`, `_mask_contract`, `mask_from_block`, `mask_to_block`, `mask_to_diagonal`, `mask_transpose`, `mask_unary_operand`, `outer`, `partial_compose`, `partial_trace`, `qr`, `reduce_DiagonalTensor`, `scale_axis`, `split_legs`, `svd`, `to_dense_block`, `trace_full`, `truncate_singular_values`.
+None. All previously delegated methods are native.
+
+## Intentionally not implemented (match Python)
+
+- `state_tensor_product` → `NotImplemented`
+- `to_dense_block_trivial_sector` → `NotImplemented`
