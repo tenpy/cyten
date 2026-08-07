@@ -39,4 +39,5 @@ target_sources(_core
   symmetries/py_spaces.cpp
   backends/py_tensor_backend.cpp
   backends/py_no_symmetry.cpp
+  backends/py_abelian.cpp
 )

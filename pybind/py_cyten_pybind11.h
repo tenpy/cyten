@@ -23,6 +23,7 @@ void bind_block_backend(py::module_& m);
 void bind_symmetries(py::module_& m);
 void bind_tensor_backend(py::module_& m);
 void bind_no_symmetry_backend(py::module_& m);
+void bind_abelian_backend_data(py::module_& m);
 void bind_check(py::module_& m);
 
 } // namespace cyten
