@@ -52,7 +52,7 @@ Keep original Python `Leg` (and all subclasses) until subclasses are converted. 
 
 ## Related notes
 
-- [convert_Spaces.md](convert_Spaces.md) — `BlockBackend::apply_basis_perm` still takes `std::vector<py::object>` legs; later switch to C++ `Leg` / `Space`.
+- [convert_Spaces.md](convert_Spaces.md) — `BlockBackend::apply_basis_perm` uses C++ `Leg`.
 
 ## TODO list for conversion
 

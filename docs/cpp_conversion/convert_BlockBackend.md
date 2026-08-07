@@ -6,7 +6,7 @@
 
 The original Python sources `cyten/block_backends/_block_backend.py` and `cyten/block_backends/numpy.py` are still present: `ArrayApiBlockBackend` and `TorchBlockBackend` still subclass the Python ABC. Public users of `BlockBackend` / `NumpyBlockBackend` get the C++ implementations.
 
-Related forward-looking notes: [convert_Spaces.md](convert_Spaces.md) (`apply_basis_perm` still talks to Python `Space` via `py::object`).
+Related notes: [convert_Spaces.md](convert_Spaces.md) — `apply_basis_perm` now uses C++ `Leg`.
 
 ## Metadata
 
@@ -50,7 +50,7 @@ Python still accepts `numbers.Number` in many tensor APIs; those call sites were
 - **Renames to match Python public API.** `block_all` / `block_any` → `all` / `any`.
 - **Elementwise comparisons on blocks.** `Block` supports `<`, `<=`, `>`, `>=`, `==`, `!=` (and mixed Block/Scalar/float overloads) so mask-style logic stays on the C++ side.
 - **Block × Scalar.** `Block * Scalar`, `Scalar * Block`, `Block / Scalar`, etc., are first-class; Python bindings also overload with bare `float64` / `complex128` via `as_scalar`.
-- **`apply_basis_perm`.** Implemented in C++, but legs are still `std::vector<py::object>` until `Space` is converted (see [convert_Spaces.md](convert_Spaces.md)).
+- **`apply_basis_perm`.** Uses C++ `Leg::basis_perm` / `inverse_basis_perm` (see [convert_Spaces.md](convert_Spaces.md)).
 - **Default implementations on the base.** Combinators such as `combine_legs` / `split_legs`, `dagger`, `linear_combination`, `mul`, `permute_combined_*`, `eye_block`, `argsort` (wrapper around `_argsort`), etc., live on `BlockBackend` and call pure-virtual primitives implemented by `NumpyBlockBackend`.
 - **HDF5.** `Block`, `Scalar`, and backends implement `save_hdf5` / `from_hdf5` and round-trip through the existing Python HDF5 helpers (covered by pytest).
 - **Native C++ indexing.** `BlockBackend::AxisSlice` and `BlockIndex` (`variant` of `int64` / `AxisSlice` / `vector<int64>` / `BlockCPtr`) provide `get_item` / `set_item` / `operator[]` without constructing `py::slice`. Torch implements this with libtorch; numpy/Array API convert `BlockIndex` to Python keys at the backend boundary.
@@ -78,4 +78,4 @@ Python still accepts `numbers.Number` in many tensor APIs; those call sites were
 - [x] adjust tensor/backend Python for `Scalar` where needed
 - [x] pytest green with C++ BlockBackend
 - [ ] remove leftover Python `NumpyBlockBackend` / abstract `BlockBackend` once ArrayApi/Torch are ported or otherwise decoupled
-- [ ] tighten `apply_basis_perm` when `Space` exists in C++ ([convert_Spaces.md](convert_Spaces.md))
+- [x] tighten `apply_basis_perm` when `Space`/`Leg` exists in C++ ([convert_Spaces.md](convert_Spaces.md))

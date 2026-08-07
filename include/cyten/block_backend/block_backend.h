@@ -12,6 +12,8 @@
 
 namespace cyten {
 
+class Leg; // for apply_basis_perm; defined in symmetries/spaces.h
+
 /// Abstract base class that defines the operation on dense blocks.
 class BlockBackend
 {
@@ -22,6 +24,7 @@ class BlockBackend
 
     using BlockPtr = std::shared_ptr<Block>;
     using BlockCPtr = std::shared_ptr<const Block>;
+    using LegCPtr = std::shared_ptr<const Leg>;
 
     /// C++ slice for one axis (``std::nullopt`` = open end / default step), like Python
     /// ``slice(start, stop, step)``.
@@ -269,9 +272,9 @@ class BlockBackend
 
     /// The absolute value of a complex number, elementwise.
     virtual BlockPtr abs(const BlockCPtr& a) = 0;
-    /// Apply basis_perm of a ElementarySpace (or its inverse) on every axis of a dense block
+    /// Apply :attr:`~cyten.symmetries.spaces.Leg.basis_perm` (or its inverse) on every axis.
     BlockPtr apply_basis_perm(const BlockCPtr& block,
-                              const std::vector<py::object>& legs,
+                              const std::vector<LegCPtr>& legs,
                               bool inv = false);
     /// Apply permutations to every axis of a dense block
     virtual BlockPtr apply_leg_permutations(const BlockCPtr& block,
