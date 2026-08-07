@@ -103,11 +103,13 @@ Skip `block_backends/torch.py` per scope.
 
 ### Layer 3 — Backends
 
-- **cyten/backends/_backend.py** — `TensorBackend` (abstract), `Data`/`DiagonalData`/`MaskData`, `conventional_leg_order`, `get_same_backend`, etc. (~787 lines).
-- **cyten/backends/no_symmetry.py** — `NoSymmetryBackend` (~476 lines).
-- **cyten/backends/abelian.py** — `AbelianBackend`, `AbelianBackendData` (~1.9k lines).
-- **cyten/backends/fusion_tree_backend.py** — `FusionTreeBackend`, `FusionTreeData` (~3.3k lines).
-- **cyten/backends/backend_factory.py** — `get_backend` (~65 lines).
+Overview: [convert_backends.md](convert_backends.md). Branch: `convert_backends`.
+
+- **cyten/backends/_backend.py** — `TensorBackend` (abstract), `Data`/`DiagonalData`/`MaskData`, `conventional_leg_order`, `get_same_backend`, etc. (~981 lines). **In progress** — see [convert_TensorBackend.md](convert_TensorBackend.md).
+- **cyten/backends/no_symmetry.py** — `NoSymmetryBackend` (~566 lines).
+- **cyten/backends/abelian.py** — `AbelianBackend`, `AbelianBackendData` (~2.1k lines).
+- **cyten/backends/fusion_tree_backend.py** — `FusionTreeBackend`, `FusionTreeData` (~3.7k lines).
+- **cyten/backends/backend_factory.py** — `get_backend` (~87 lines).
 
 ### Layer 4 — Tensors
 
