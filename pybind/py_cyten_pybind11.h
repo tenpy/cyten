@@ -26,6 +26,7 @@ void bind_no_symmetry_backend(py::module_& m);
 void bind_abelian_backend_data(py::module_& m);
 void bind_abelian_backend(py::module_& m);
 void bind_fusion_tree_data(py::module_& m);
+void bind_fusion_tree_backend(py::module_& m);
 void bind_backend_factory(py::module_& m);
 void bind_check(py::module_& m);
 

@@ -121,4 +121,30 @@ are sorted.
                   py::arg("subpath"));
 }
 
+void
+bind_fusion_tree_backend(py::module_& m)
+{
+    py::class_<FusionTreeBackend, TensorBackend, py::smart_holder> cls(m, "FusionTreeBackend");
+    cls.doc() = R"pydoc(
+A backend based on fusion trees.
+
+Notes
+-----
+Data is :class:`FusionTreeData` (coupled-sector ``block_inds`` + forest blocks).
+)pydoc";
+
+    cls.def(py::init([](py::object block_backend, float64 eps) {
+                auto backend = std::make_shared<FusionTreeBackend>(
+                  as_shared_block_backend(block_backend), eps);
+                backend->DataCls = py::type::of<FusionTreeData>();
+                return backend;
+            }),
+            py::arg("block_backend"),
+            py::arg("eps") = 5.0e-14);
+
+    cls.def_readwrite("eps", &FusionTreeBackend::eps);
+    cls.def_static("wrap", &FusionTreeBackend::wrap, py::arg("data"));
+    cls.def_static("unwrap", &FusionTreeBackend::unwrap, py::arg("data"));
+}
+
 } // namespace cyten

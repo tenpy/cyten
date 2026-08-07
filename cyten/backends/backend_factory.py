@@ -69,6 +69,15 @@ def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> T
     if backend is not None:
         return backend
 
+    if tensor_backend == 'fusion_tree':
+        from .. import _core
+
+        backend = _core.get_backend(tensor_backend, block_backend)
+        _instantiated_backends[key] = backend
+        if isinstance(symmetry, Symmetry):
+            assert backend.supports_symmetry(symmetry)
+        return backend
+
     BlockBackendCls, block_kwargs = _block_backends[block_backend]
     TensorBackendCls, tensor_kwargs = _tensor_backend_classes[tensor_backend]
     if BlockBackendCls is NumpyBlockBackend and not block_kwargs:

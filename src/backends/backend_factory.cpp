@@ -1,5 +1,6 @@
 #include <cyten/backends/backend_factory.h>
 #include <cyten/backends/abelian.h>
+#include <cyten/backends/fusion_tree_backend.h>
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/block_backend/numpy.h>
 #include <cyten/block_backend/torch.h>
@@ -114,7 +115,13 @@ get_backend(py::object symmetry, py::object block_backend)
         }
         backend = py::cast(std::move(ab));
     } else if (tensor_backend == "fusion_tree") {
-        backend = make_python_tensor_backend(tensor_backend, block_backend_instance);
+        auto ft = std::make_shared<FusionTreeBackend>(block_backend_instance);
+        try {
+            ft->DataCls = py::type::of<FusionTreeData>();
+        } catch (py::error_already_set const&) {
+            ft->DataCls = py::none();
+        }
+        backend = py::cast(std::move(ft));
     } else {
         throw std::invalid_argument("Unknown tensor_backend: " + tensor_backend);
     }
