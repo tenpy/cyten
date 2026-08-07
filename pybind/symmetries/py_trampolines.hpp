@@ -563,10 +563,7 @@ class PyLeg
         PYBIND11_OVERRIDE(py::object, Leg, as_ElementarySpace, is_dual);
     }
 
-    Ptr dual_leg() const override
-    {
-        PYBIND11_OVERRIDE_PURE_NAME(Ptr, Leg, "dual", dual_leg);
-    }
+    Ptr dual_leg() const override { PYBIND11_OVERRIDE_PURE_NAME(Ptr, Leg, "dual", dual_leg); }
 
     bool is_trivial() const override { PYBIND11_OVERRIDE_PURE(bool, Leg, is_trivial); }
 

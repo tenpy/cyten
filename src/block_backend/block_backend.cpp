@@ -708,9 +708,7 @@ BlockBackend::to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype
 }
 
 BlockPtr
-BlockBackend::apply_basis_perm(const BlockCPtr& block,
-                               const std::vector<LegCPtr>& legs,
-                               bool inv)
+BlockBackend::apply_basis_perm(const BlockCPtr& block, const std::vector<LegCPtr>& legs, bool inv)
 {
     std::vector<py::array_t<int64>> perms;
     perms.reserve(legs.size());

@@ -616,8 +616,7 @@ LegPipe::LegPipe(std::vector<Leg::Ptr> legs_, bool is_dual_, bool combine_cstyle
     for (auto const& leg : legs) {
         dim_prod *= leg->dim;
     }
-    init_leg(
-      legs.at(0)->symmetry, dim_prod, is_dual_, combined_basis_perm(legs, combine_cstyle));
+    init_leg(legs.at(0)->symmetry, dim_prod, is_dual_, combined_basis_perm(legs, combine_cstyle));
 }
 
 void
@@ -1026,12 +1025,12 @@ ElementarySpace::from_basis(Symmetry::Ptr symmetry, SectorArray sectors_of_basis
         }
         multiplicities[i] = num_occurrences / dims[i];
     }
-    return std::make_shared<ElementarySpace>(std::move(symmetry),
-                                            std::move(sectors),
-                                            std::move(multiplicities),
-                                            false,
-                                            std::vector<int64>(basis_perm.begin(),
-                                                               basis_perm.end()));
+    return std::make_shared<ElementarySpace>(
+      std::move(symmetry),
+      std::move(sectors),
+      std::move(multiplicities),
+      false,
+      std::vector<int64>(basis_perm.begin(), basis_perm.end()));
 }
 
 ElementarySpace::Ptr
@@ -1067,8 +1066,8 @@ ElementarySpace::from_independent_symmetries(std::vector<Ptr> const& independent
         //      note: this interface is more general than it needs to be. The use case in
         //            GroupedSite would allow us to specialize, if that is easier. A given state
         //            is in the trivial sector for all but one of the independent_descriptions.
-        throw SymmetryError(std::format("from_independent_symmetries is not supported for {}.",
-                                        symmetry->str()));
+        throw SymmetryError(
+          std::format("from_independent_symmetries is not supported for {}.", symmetry->str()));
     }
     // concatenate the sectors_of_basis of all descriptions along the sector axis
     std::vector<SectorArray> parts;
@@ -1210,10 +1209,9 @@ ElementarySpace::from_defining_sectors(Symmetry::Ptr symmetry,
                 if (sector_dim == 1) {
                     continue;
                 }
-                std::vector<int64> const mults(multiplicities.begin() +
-                                                 static_cast<std::ptrdiff_t>(diffs[i]),
-                                               multiplicities.begin() +
-                                                 static_cast<std::ptrdiff_t>(diffs[i + 1]));
+                std::vector<int64> const mults(
+                  multiplicities.begin() + static_cast<std::ptrdiff_t>(diffs[i]),
+                  multiplicities.begin() + static_cast<std::ptrdiff_t>(diffs[i + 1]));
                 std::vector<int64> offsets(mults.size() + 1, 0);
                 for (std::size_t j = 0; j < mults.size(); ++j) {
                     offsets[j + 1] = offsets[j] + mults[j] * sector_dim;
@@ -1249,10 +1247,10 @@ ElementarySpace::from_defining_sectors(Symmetry::Ptr symmetry,
         multiplicities = std::move(unique_mults);
     }
     auto res = std::make_shared<ElementarySpace>(std::move(symmetry),
-                                                std::move(defining_sectors),
-                                                std::move(multiplicities),
-                                                is_dual,
-                                                std::move(basis_perm));
+                                                 std::move(defining_sectors),
+                                                 std::move(multiplicities),
+                                                 is_dual,
+                                                 std::move(basis_perm));
     if (return_sorting_perm != nullptr) {
         *return_sorting_perm = std::move(sort);
     }
@@ -1291,10 +1289,10 @@ ElementarySpace::from_trivial_sector(int64 dim,
     }
     auto sectors = SectorArray::from_sector(symmetry->trivial_sector);
     return std::make_shared<ElementarySpace>(std::move(symmetry),
-                                            std::move(sectors),
-                                            std::vector<int64>{ dim },
-                                            is_dual,
-                                            std::move(basis_perm));
+                                             std::move(sectors),
+                                             std::vector<int64>{ dim },
+                                             is_dual,
+                                             std::move(basis_perm));
 }
 
 ElementarySpace::Ptr
@@ -1347,10 +1345,9 @@ ElementarySpace::repr(bool show_symmetry, bool one_line) const
                                             { false, false, show_symmetry },
                                             { false, false, false } } };
     for (auto const& opt : options) {
-        if (opt.full_sectors &&
-            3 * static_cast<int64>(defining_sectors.size()) *
-                static_cast<int64>(defining_sectors.sector_ind_len()) >
-              linewidth) {
+        if (opt.full_sectors && 3 * static_cast<int64>(defining_sectors.size()) *
+                                    static_cast<int64>(defining_sectors.sector_ind_len()) >
+                                  linewidth) {
             // there is no chance to print all sectors in one line
             continue;
         }
@@ -1368,8 +1365,7 @@ ElementarySpace::repr(bool show_symmetry, bool one_line) const
             for (auto const& a : sector_decomposition) {
                 sector_dec_strs.append(Space::symmetry->sector_str(a));
             }
-            items.push_back(
-              std::format("defining_sectors={}", format_like_list(def_sector_strs)));
+            items.push_back(std::format("defining_sectors={}", format_like_list(def_sector_strs)));
             items.push_back(
               std::format("sector_decomposition={}", format_like_list(sector_dec_strs)));
             items.push_back(
@@ -1512,9 +1508,8 @@ ElementarySpace::direct_sum(std::vector<Ptr> const& others) const
     if (others.empty()) {
         return shared_es();
     }
-    assert(std::ranges::all_of(others, [this](Ptr const& o) {
-        return o->Space::symmetry->equals(*Space::symmetry);
-    }));
+    assert(std::ranges::all_of(
+      others, [this](Ptr const& o) { return o->Space::symmetry->equals(*Space::symmetry); }));
     assert(std::ranges::all_of(others, [this](Ptr const& o) { return o->is_dual == is_dual; }));
     std::optional<std::vector<int64>> basis_perm_;
     if (Space::symmetry->can_be_dropped()) {
@@ -1534,11 +1529,8 @@ ElementarySpace::direct_sum(std::vector<Ptr> const& others) const
         sectors = sectors.concat(other->defining_sectors);
         mults.insert(mults.end(), other->multiplicities.begin(), other->multiplicities.end());
     }
-    return from_defining_sectors(Space::symmetry,
-                                std::move(sectors),
-                                std::move(mults),
-                                is_dual,
-                                std::move(basis_perm_));
+    return from_defining_sectors(
+      Space::symmetry, std::move(sectors), std::move(mults), is_dual, std::move(basis_perm_));
 }
 
 py::object
@@ -1757,7 +1749,9 @@ ElementarySpace::ascii_arrow() const
 }
 
 void
-ElementarySpace::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+ElementarySpace::save_hdf5(py::object hdf5_saver,
+                           py::object h5gr,
+                           std::string const& subpath) const
 {
     auto save = hdf5_saver.attr("save");
     save(py::cast(defining_sectors), subpath + "defining_sectors");
@@ -1786,10 +1780,10 @@ ElementarySpace::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string 
     auto basis_perm = optional_perm_from_py(load(subpath + "_basis_perm"));
     auto const is_dual = hdf5_loader.attr("get_attr")(h5gr, "is_dual").cast<bool>();
     auto obj = std::make_shared<ElementarySpace>(std::move(symmetry),
-                                                std::move(defining_sectors),
-                                                std::move(multiplicities),
-                                                is_dual,
-                                                std::move(basis_perm));
+                                                 std::move(defining_sectors),
+                                                 std::move(multiplicities),
+                                                 is_dual,
+                                                 std::move(basis_perm));
     py::object py_obj = py::cast(obj);
     hdf5_loader.attr("memorize_load")(h5gr, py_obj);
     return obj;
@@ -2005,9 +1999,8 @@ calc_sectors_of_spaces(Symmetry const& symmetry, std::span<const Space::Ptr> spa
             for (auto const& c : symmetry.fusion_outcomes(s1, s2)) {
                 combined.push_back(c);
                 // OPTIMIZE support batched N symbol?
-                combined_mults.push_back(symmetry.has_unique_fusion()
-                                           ? m12
-                                           : m12 * symmetry._n_symbol(s1, s2, c));
+                combined_mults.push_back(
+                  symmetry.has_unique_fusion() ? m12 : m12 * symmetry._n_symbol(s1, s2, c));
             }
         }
     }
@@ -2062,9 +2055,7 @@ TensorProduct::prepare(std::vector<py::object> const& factors,
         sector_decomposition = std::move(sectors);
         multiplicities = std::move(mults);
     }
-    return { std::move(symmetry),
-             std::move(*sector_decomposition),
-             std::move(*multiplicities) };
+    return { std::move(symmetry), std::move(*sector_decomposition), std::move(*multiplicities) };
 }
 
 TensorProduct::TensorProduct(std::vector<py::object> factors_, Prepared prepared)
@@ -2322,13 +2313,13 @@ TensorProduct::insert_multiply(py::object other, int64 pos) const
 {
     auto const self_ptr = std::const_pointer_cast<TensorProduct>(
       std::dynamic_pointer_cast<TensorProduct const>(shared_from_this()));
-    auto const isomorphic = std::make_shared<TensorProduct>(
-      std::vector<py::object>{ py::cast(self_ptr), other });
+    auto const isomorphic =
+      std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(self_ptr), other });
     // Python uses list slicing, i.e. ``factors[:pos] + [other] + factors[pos:]``.
     // In particular, ``pos == -1`` (as used by right_multiply) inserts before the last factor.
     auto const n = static_cast<int64>(factors.size());
-    auto const at = static_cast<std::ptrdiff_t>(pos < 0 ? std::max<int64>(0, n + pos)
-                                                        : std::min(pos, n));
+    auto const at =
+      static_cast<std::ptrdiff_t>(pos < 0 ? std::max<int64>(0, n + pos) : std::min(pos, n));
     std::vector<py::object> new_factors;
     new_factors.reserve(factors.size() + 1);
     new_factors.insert(new_factors.end(), factors.begin(), factors.begin() + at);
@@ -2621,8 +2612,9 @@ TensorProduct::repr(bool show_symmetry, bool one_line) const
         if (!one_line) {
             // try multi line
             bool const maxlines_ok = static_cast<int64>(lines.size()) <= maxlines;
-            bool const linewidth_ok = std::ranges::all_of(
-              lines, [&](std::string const& l) { return static_cast<int64>(l.size()) < linewidth; });
+            bool const linewidth_ok = std::ranges::all_of(lines, [&](std::string const& l) {
+                return static_cast<int64>(l.size()) < linewidth;
+            });
             if (maxlines_ok && linewidth_ok) {
                 return join(lines, "\n");
             }
@@ -2672,9 +2664,9 @@ TensorProduct::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string co
     auto sector_decomposition = load(subpath + "sector_decomposition").cast<SectorArray>();
     auto multiplicities = py_array_to_i64(py::array::ensure(load(subpath + "multiplicities")));
     auto obj = std::make_shared<TensorProduct>(std::move(factors),
-                                              std::move(symmetry),
-                                              std::move(sector_decomposition),
-                                              std::move(multiplicities));
+                                               std::move(symmetry),
+                                               std::move(sector_decomposition),
+                                               std::move(multiplicities));
     hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
     return obj;
 }
@@ -2760,8 +2752,7 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
 
     // determine block_ind_map -- it's essentially the grid.
     // block_ind_map[:, :2] and [:, -1] are set later.
-    std::vector<std::vector<int64>> block_ind_map(num_blocks,
-                                                 std::vector<int64>(3 + num_legs, 0));
+    std::vector<std::vector<int64>> block_ind_map(num_blocks, std::vector<int64>(3 + num_legs, 0));
     // the multiplicity for given (i1, i2, ...) is the product of ``multiplicities[il]``
     std::vector<int64> multiplicities(num_blocks, 1);
     std::vector<SectorArray> uncoupled;
@@ -2833,8 +2824,7 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
         }
     }
 
-    auto basis_perm =
-      calc_basis_perm(legs, combine_cstyle, dim, unique_mults, block_ind_map);
+    auto basis_perm = calc_basis_perm(legs, combine_cstyle, dim, unique_mults, block_ind_map);
 
     std::vector<Leg::Ptr> leg_ptrs(legs.begin(), legs.end());
     return { std::move(leg_ptrs),
@@ -2918,8 +2908,8 @@ AbelianLegPipe::fusion_outcomes_perm(std::vector<ElementarySpace::Ptr> const& le
         for (int64 k = 0; k < count; ++k) {
             int64 flat = 0;
             for (std::size_t n = 0; n < num_legs; ++n) {
-                flat += (grid_entry(k, mult_strides, mult_shape, n) + sector_starts[n]) *
-                        dim_strides[n];
+                flat +=
+                  (grid_entry(k, mult_strides, mult_shape, n) + sector_starts[n]) * dim_strides[n];
             }
             perm[static_cast<std::size_t>(start + k)] = flat;
         }
@@ -3273,8 +3263,8 @@ AbelianLegPipe::repr(bool show_symmetry, bool one_line) const
                                             { 2, 2, true, false } } };
     for (auto const& opt : options) {
         if (opt.sector_mode == 0 && 3 * static_cast<int64>(sector_decomposition.size()) *
-                                       static_cast<int64>(sector_decomposition.sector_ind_len()) >
-                                     linewidth) {
+                                        static_cast<int64>(sector_decomposition.sector_ind_len()) >
+                                      linewidth) {
             // there is no chance to print all sectors in one line
             continue;
         }
@@ -3354,8 +3344,9 @@ AbelianLegPipe::repr(bool show_symmetry, bool one_line) const
         if (!one_line) {
             // try multi line
             bool const maxlines_ok = static_cast<int64>(lines.size()) <= maxlines;
-            bool const linewidth_ok = std::ranges::all_of(
-              lines, [&](std::string const& l) { return static_cast<int64>(l.size()) < linewidth; });
+            bool const linewidth_ok = std::ranges::all_of(lines, [&](std::string const& l) {
+                return static_cast<int64>(l.size()) < linewidth;
+            });
             if (maxlines_ok && linewidth_ok) {
                 return join(lines, "\n");
             }
@@ -3480,15 +3471,13 @@ swap_gate(Leg::Ptr V, Leg::Ptr W)
     for (std::size_t ia = 0; ia < Ves->defining_sectors.size(); ++ia) {
         auto const& a = Ves->defining_sectors[ia];
         auto const ma = Ves->multiplicities[ia];
-        auto const da =
-          static_cast<int64>(Ves->Space::symmetry->sector_dim(a));
+        auto const da = static_cast<int64>(Ves->Space::symmetry->sector_dim(a));
         int64 j = 0;
         for (std::size_t ib = 0; ib < Wes->defining_sectors.size(); ++ib) {
             auto const& b = Wes->defining_sectors[ib];
             auto const mb = Wes->multiplicities[ib];
             py::array swap = Ves->Space::symmetry->swap_gate(a, b);
-            auto const db =
-              static_cast<int64>(Wes->Space::symmetry->sector_dim(b));
+            auto const db = static_cast<int64>(Wes->Space::symmetry->sector_dim(b));
             int64 i2 = i;
             for (int64 na = 0; na < ma; ++na) {
                 int64 j2 = j;
@@ -3594,9 +3583,7 @@ unique_sorted_sectors(SectorArray const& unsorted_sectors,
                       std::vector<int64> const& unsorted_multiplicities)
 {
     auto [sectors, mults, perm] = unsorted_sectors.unique_sorted(unsorted_multiplicities);
-    return { std::move(sectors),
-             std::vector<int64>(mults.begin(), mults.end()),
-             std::move(perm) };
+    return { std::move(sectors), std::vector<int64>(mults.begin(), mults.end()), std::move(perm) };
 }
 
 std::tuple<SectorArray, std::vector<int64>, std::vector<std::size_t>>
@@ -3606,8 +3593,7 @@ sort_sectors_public(SectorArray const& sectors, std::vector<int64> const& multip
 }
 
 std::pair<std::optional<std::vector<int64>>, Symmetry::Ptr>
-parse_inputs_drop_symmetry_public(std::optional<std::vector<int64>> which,
-                                  Symmetry::Ptr symmetry)
+parse_inputs_drop_symmetry_public(std::optional<std::vector<int64>> which, Symmetry::Ptr symmetry)
 {
     if (!symmetry) {
         throw py::type_error("parse_inputs_drop_symmetry requires a symmetry");

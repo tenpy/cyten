@@ -257,13 +257,14 @@ class ElementarySpace
 
     static Ptr from_null_space(Symmetry::Ptr symmetry, bool is_dual = false);
 
-    static Ptr from_defining_sectors(Symmetry::Ptr symmetry,
-                                     SectorArray defining_sectors,
-                                     std::optional<std::vector<int64>> multiplicities = std::nullopt,
-                                     bool is_dual = false,
-                                     std::optional<std::vector<int64>> basis_perm = std::nullopt,
-                                     bool unique_sectors = false,
-                                     std::vector<std::size_t>* return_sorting_perm = nullptr);
+    static Ptr from_defining_sectors(
+      Symmetry::Ptr symmetry,
+      SectorArray defining_sectors,
+      std::optional<std::vector<int64>> multiplicities = std::nullopt,
+      bool is_dual = false,
+      std::optional<std::vector<int64>> basis_perm = std::nullopt,
+      bool unique_sectors = false,
+      std::vector<std::size_t>* return_sorting_perm = nullptr);
 
     static Ptr from_sector_decomposition(
       Symmetry::Ptr symmetry,
@@ -411,13 +412,15 @@ class TensorProduct : public Space
 
     [[nodiscard]] int64 forest_block_size(SectorArray const& uncoupled, Sector coupled) const;
 
-    [[nodiscard]] IndexSlice forest_block_slice(SectorArray const& uncoupled, Sector coupled) const;
+    [[nodiscard]] IndexSlice forest_block_slice(SectorArray const& uncoupled,
+                                                Sector coupled) const;
 
     [[nodiscard]] Ptr insert_multiply(py::object other, int64 pos) const;
 
     [[nodiscard]] std::vector<TreeBlockItem> iter_tree_blocks(SectorArray const& coupled) const;
 
-    [[nodiscard]] std::vector<ForestBlockItem> iter_forest_blocks(SectorArray const& coupled) const;
+    [[nodiscard]] std::vector<ForestBlockItem> iter_forest_blocks(
+      SectorArray const& coupled) const;
 
     [[nodiscard]] std::vector<UncoupledItem> iter_uncoupled(bool yield_slices = false) const;
 
@@ -518,13 +521,14 @@ class AbelianLegPipe
     // Unsupported ElementarySpace factories (raise TypeError).
     static Ptr from_basis(Symmetry::Ptr symmetry, SectorArray sectors_of_basis);
     static Ptr from_null_space(Symmetry::Ptr symmetry, bool is_dual = false);
-    static Ptr from_defining_sectors(Symmetry::Ptr symmetry,
-                                     SectorArray defining_sectors,
-                                     std::optional<std::vector<int64>> multiplicities = std::nullopt,
-                                     bool is_dual = false,
-                                     std::optional<std::vector<int64>> basis_perm = std::nullopt,
-                                     bool unique_sectors = false,
-                                     std::vector<std::size_t>* return_sorting_perm = nullptr);
+    static Ptr from_defining_sectors(
+      Symmetry::Ptr symmetry,
+      SectorArray defining_sectors,
+      std::optional<std::vector<int64>> multiplicities = std::nullopt,
+      bool is_dual = false,
+      std::optional<std::vector<int64>> basis_perm = std::nullopt,
+      bool unique_sectors = false,
+      std::vector<std::size_t>* return_sorting_perm = nullptr);
     static Ptr from_trivial_sector(int64 dim = 1,
                                    Symmetry::Ptr symmetry = nullptr,
                                    bool is_dual = false,
@@ -629,8 +633,6 @@ sort_sectors_public(SectorArray const& sectors, std::vector<int64> const& multip
 /// Returns ``(which_factors, remaining_symmetry)`` where ``which_factors`` is ``nullopt`` for
 /// ``'all'``.
 [[nodiscard]] std::pair<std::optional<std::vector<int64>>, Symmetry::Ptr>
-parse_inputs_drop_symmetry_public(std::optional<std::vector<int64>> which,
-                                  Symmetry::Ptr symmetry);
+parse_inputs_drop_symmetry_public(std::optional<std::vector<int64>> which, Symmetry::Ptr symmetry);
 
 } // namespace cyten
-

@@ -159,9 +159,8 @@ optional_symmetry_from_python(py::handle obj)
 SectorMapFn
 sector_map_from_python(py::function sector_map)
 {
-    return [sector_map](SectorArray const& sectors) {
-        return sector_map(sectors).cast<SectorArray>();
-    };
+    return
+      [sector_map](SectorArray const& sectors) { return sector_map(sectors).cast<SectorArray>(); };
 }
 
 Sector
@@ -213,14 +212,11 @@ int_matrix_to_numpy(std::vector<std::vector<int64>> const& rows, py::ssize_t num
     return arr;
 }
 
-void
-bind_elementary_space(py::module_& m);
+void bind_elementary_space(py::module_& m);
 
-void
-bind_tensor_product(py::module_& m);
+void bind_tensor_product(py::module_& m);
 
-void
-bind_abelian_leg_pipe(py::module_& m);
+void bind_abelian_leg_pipe(py::module_& m);
 
 } // namespace
 
@@ -297,14 +293,13 @@ bind_spaces(py::module_& m)
         ``_basis_perm`` is the internal version which may be ``None`` if the permutation is trivial.
         See also :meth:`apply_basis_perm`.
         )pydoc")
-      .def_property_readonly(
-        "_basis_perm",
-        [](Leg const& self) -> py::object {
-            if (!self.has_custom_basis_perm()) {
-                return py::none();
-            }
-            return perm_to_numpy(self.basis_perm());
-        })
+      .def_property_readonly("_basis_perm",
+                             [](Leg const& self) -> py::object {
+                                 if (!self.has_custom_basis_perm()) {
+                                     return py::none();
+                                 }
+                                 return perm_to_numpy(self.basis_perm());
+                             })
       .def_property(
         "inverse_basis_perm",
         [](Leg const& self) { return perm_to_numpy(self.inverse_basis_perm()); },
@@ -314,14 +309,13 @@ bind_spaces(py::module_& m)
         R"pydoc(
         Inverse permutation of :attr:`basis_perm`.
         )pydoc")
-      .def_property_readonly(
-        "_inverse_basis_perm",
-        [](Leg const& self) -> py::object {
-            if (!self.has_custom_basis_perm()) {
-                return py::none();
-            }
-            return perm_to_numpy(self.inverse_basis_perm());
-        })
+      .def_property_readonly("_inverse_basis_perm",
+                             [](Leg const& self) -> py::object {
+                                 if (!self.has_custom_basis_perm()) {
+                                     return py::none();
+                                 }
+                                 return perm_to_numpy(self.inverse_basis_perm());
+                             })
       .def_property_readonly("flat_legs",
                              &Leg::flat_legs,
                              R"pydoc(
@@ -768,14 +762,15 @@ bind_elementary_space(py::module_& m)
             py::arg("basis_perm") = py::none());
 
     // symmetry and dim exist on both the Space and the Leg base; keep them in sync.
-    cls.def_property(
-         "symmetry",
-         [](ElementarySpace const& self) { return self.Space::symmetry; },
-         [](ElementarySpace& self, py::object symmetry_obj) {
-             auto symmetry = symmetry_from_python(symmetry_obj);
-             self.Space::symmetry = symmetry;
-             self.Leg::symmetry = std::move(symmetry);
-         })
+    cls
+      .def_property(
+        "symmetry",
+        [](ElementarySpace const& self) { return self.Space::symmetry; },
+        [](ElementarySpace& self, py::object symmetry_obj) {
+            auto symmetry = symmetry_from_python(symmetry_obj);
+            self.Space::symmetry = symmetry;
+            self.Leg::symmetry = std::move(symmetry);
+        })
       .def_property(
         "dim",
         [](ElementarySpace const& self) { return dim_to_python(self.Space::dim); },
@@ -801,8 +796,8 @@ bind_elementary_space(py::module_& m)
       "from_basis",
       [](py::object symmetry_obj, py::object sectors_of_basis) {
           auto symmetry = symmetry_from_python(symmetry_obj);
-          return ElementarySpace::from_basis(symmetry,
-                                            sector_array_from_python(sectors_of_basis, *symmetry));
+          return ElementarySpace::from_basis(
+            symmetry, sector_array_from_python(sectors_of_basis, *symmetry));
       },
       py::arg("symmetry"),
       py::arg("sectors_of_basis"),
@@ -1015,9 +1010,9 @@ bind_elementary_space(py::module_& m)
       "from_trivial_sector",
       [](int64 dim, py::object symmetry_obj, bool is_dual, py::object basis_perm) {
           return ElementarySpace::from_trivial_sector(dim,
-                                                     optional_symmetry_from_python(symmetry_obj),
-                                                     is_dual,
-                                                     perm_from_python(basis_perm));
+                                                      optional_symmetry_from_python(symmetry_obj),
+                                                      is_dual,
+                                                      perm_from_python(basis_perm));
       },
       py::arg("dim") = 1,
       py::arg("symmetry") = py::none(),
@@ -1036,13 +1031,13 @@ bind_elementary_space(py::module_& m)
           If the space should be bra or a ket space.
       )pydoc");
 
-    cls.def("test_sanity",
-            &ElementarySpace::test_sanity,
-            R"pydoc(
-            Perform sanity checks.
-            )pydoc")
-      .def("__repr__",
-           [](ElementarySpace const& self) { return self.repr(); })
+    cls
+      .def("test_sanity",
+           &ElementarySpace::test_sanity,
+           R"pydoc(
+           Perform sanity checks.
+           )pydoc")
+      .def("__repr__", [](ElementarySpace const& self) { return self.repr(); })
       .def("repr",
            &ElementarySpace::repr,
            py::arg("show_symmetry") = true,
@@ -1136,14 +1131,14 @@ bind_elementary_space(py::module_& m)
         },
         py::arg("blockmask"),
         R"pydoc(
-           Take a "slice" of the leg, keeping only some of the basis states.
+        Take a "slice" of the leg, keeping only some of the basis states.
 
-           Parameters
-           ----------
-           blockmask : 1D array-like of bool
-               For every basis state of self, in the public basis order,
-               if it should be kept (``True``) or discarded (``False``).
-           )pydoc")
+        Parameters
+        ----------
+        blockmask : 1D array-like of bool
+            For every basis state of self, in the public basis order,
+            if it should be kept (``True``) or discarded (``False``).
+        )pydoc")
       .def("with_opposite_duality",
            &ElementarySpace::with_opposite_duality,
            R"pydoc(
@@ -1170,33 +1165,32 @@ bind_elementary_space(py::module_& m)
 void
 bind_tensor_product(py::module_& m)
 {
-    py::class_<TensorProduct, Space, PyTensorProduct, py::smart_holder> cls(
-      m,
-      "TensorProduct",
-      R"pydoc(
-      Represents a tensor product of :class:`Spaces`\ s, e.g. the (co-)domain of a tensor.
+    py::class_<TensorProduct, Space, PyTensorProduct, py::smart_holder> cls(m,
+                                                                            "TensorProduct",
+                                                                            R"pydoc(
+                                                                            Represents a tensor product of :class:`Spaces`\ s, e.g. the (co-)domain of a tensor.
 
-      Attributes
-      ----------
-      factors : list[Space | LegPipe]
-          The factors in the tensor product, e.g. some of the legs of a tensor.
-      num_factors : int
-          The number of :attr:`factors`.
-      _sector_decomposition, _multiplicities
-          If the sectors, multiplicities are already known, recomputation can be skipped.
-          Warning: If given, they are not checked for correctness!
+                                                                            Attributes
+                                                                            ----------
+                                                                            factors : list[Space | LegPipe]
+                                                                                The factors in the tensor product, e.g. some of the legs of a tensor.
+                                                                            num_factors : int
+                                                                                The number of :attr:`factors`.
+                                                                            _sector_decomposition, _multiplicities
+                                                                                If the sectors, multiplicities are already known, recomputation can be skipped.
+                                                                                Warning: If given, they are not checked for correctness!
 
-      See Also
-      --------
-      LegPipe
-          A :class:`LegPipe` has the same mathematical idea as the :class:`TensorProduct`.
-          There are two main differences:
-          Firstly, for a :class:`TensorProduct`, we compute the :attr:`sector_decomposition`, which
-          we do not do for a :class`LegPipe`. This is reflected in the fact that only
-          :class:`TensorProduct`s are :class:`Space`s, while :class:`LegPipe`s are not.
-          Secondly, we only keep track of duality with an explicit flag for :class:`Leg`s, to have
-          arrows on our tensor legs. A :class:`TensorProduct` has no ``is_dual`` attribute.
-      )pydoc");
+                                                                            See Also
+                                                                            --------
+                                                                            LegPipe
+                                                                                A :class:`LegPipe` has the same mathematical idea as the :class:`TensorProduct`.
+                                                                                There are two main differences:
+                                                                                Firstly, for a :class:`TensorProduct`, we compute the :attr:`sector_decomposition`, which
+                                                                                we do not do for a :class`LegPipe`. This is reflected in the fact that only
+                                                                                :class:`TensorProduct`s are :class:`Space`s, while :class:`LegPipe`s are not.
+                                                                                Secondly, we only keep track of duality with an explicit flag for :class:`Leg`s, to have
+                                                                                arrows on our tensor legs. A :class:`TensorProduct` has no ``is_dual`` attribute.
+                                                                            )pydoc");
 
     cls.def(py::init([](py::iterable factors_obj,
                         py::object symmetry_obj,
@@ -1211,16 +1205,15 @@ bind_tensor_product(py::module_& m)
                         sym = symmetry_from_python(factors.front().attr("symmetry"));
                     }
                     if (!sym) {
-                        throw py::value_error(
-                          "If spaces is empty, the symmetry arg is required.");
+                        throw py::value_error("If spaces is empty, the symmetry arg is required.");
                     }
                     sectors = sector_array_from_python(sector_decomposition, *sym);
                 }
-                return std::make_shared<PyTensorProduct>(std::move(factors),
-                                                         std::move(symmetry),
-                                                         std::move(sectors),
-                                                         multiplicities_from_python(
-                                                           multiplicities));
+                return std::make_shared<PyTensorProduct>(
+                  std::move(factors),
+                  std::move(symmetry),
+                  std::move(sectors),
+                  multiplicities_from_python(multiplicities));
             }),
             py::arg("factors"),
             py::arg("symmetry") = py::none(),
@@ -1311,10 +1304,7 @@ bind_tensor_product(py::module_& m)
         )pydoc")
       .def(
         "change_symmetry",
-        [](TensorProduct& self,
-           py::object symmetry_obj,
-           py::function sector_map,
-           bool injective) {
+        [](TensorProduct& self, py::object symmetry_obj, py::function sector_map, bool injective) {
             return self.change_symmetry(
               symmetry_from_python(symmetry_obj), sector_map_from_python(sector_map), injective);
         },
@@ -1352,9 +1342,8 @@ bind_tensor_product(py::module_& m)
       .def(
         "forest_block_slice",
         [](TensorProduct const& self, py::object uncoupled, py::object coupled) {
-            return index_slice_to_python(
-              self.forest_block_slice(sector_array_from_python(uncoupled, *self.symmetry),
-                                      sector_from_python(coupled)));
+            return index_slice_to_python(self.forest_block_slice(
+              sector_array_from_python(uncoupled, *self.symmetry), sector_from_python(coupled)));
         },
         py::arg("uncoupled"),
         py::arg("coupled"),
@@ -1410,9 +1399,8 @@ bind_tensor_product(py::module_& m)
             py::list out;
             for (auto const& item :
                  self.iter_forest_blocks(sector_array_from_python(coupled, *self.symmetry))) {
-                out.append(py::make_tuple(py::cast(item.uncoupled),
-                                          index_slice_to_python(item.slice),
-                                          item.coupled_idx));
+                out.append(py::make_tuple(
+                  py::cast(item.uncoupled), index_slice_to_python(item.slice), item.coupled_idx));
             }
             return py::iter(out);
         },
@@ -1537,7 +1525,8 @@ bind_tensor_product(py::module_& m)
            &TensorProduct::repr,
            py::arg("show_symmetry") = true,
            py::arg("one_line") = false)
-      .def("repr", &TensorProduct::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false)
+      .def(
+        "repr", &TensorProduct::repr, py::arg("show_symmetry") = true, py::arg("one_line") = false)
       .def("save_hdf5",
            &TensorProduct::save_hdf5,
            py::arg("hdf5_saver"),
@@ -1626,11 +1615,9 @@ bind_abelian_leg_pipe(py::module_& m)
       .def_property_readonly(
         "block_ind_map_slices",
         [](AbelianLegPipe const& self) { return perm_to_numpy(self.block_ind_map_slices); })
-      .def_property_readonly("block_ind_map",
-                             [](AbelianLegPipe const& self) {
-                                 return int_matrix_to_numpy(self.block_ind_map,
-                                                            3 + self.num_legs);
-                             });
+      .def_property_readonly("block_ind_map", [](AbelianLegPipe const& self) {
+          return int_matrix_to_numpy(self.block_ind_map, 3 + self.num_legs);
+      });
 
     cls
       .def_property_readonly("dual",
@@ -1697,10 +1684,8 @@ bind_abelian_leg_pipe(py::module_& m)
       .def("as_ElementarySpace", &AbelianLegPipe::as_ElementarySpace, py::arg("is_dual") = false)
       .def(
         "change_symmetry",
-        [](AbelianLegPipe& self,
-           py::object symmetry_obj,
-           py::function sector_map,
-           bool injective) {
+        [](
+          AbelianLegPipe& self, py::object symmetry_obj, py::function sector_map, bool injective) {
             return self.change_symmetry(
               symmetry_from_python(symmetry_obj), sector_map_from_python(sector_map), injective);
         },
@@ -1725,11 +1710,11 @@ bind_abelian_leg_pipe(py::module_& m)
             return self.take_slice(py::array::ensure(blockmask));
         },
         py::arg("blockmask"),
-           R"pydoc(
-           Take a "slice" of the leg, keeping only some of the basis states.
+        R"pydoc(
+        Take a "slice" of the leg, keeping only some of the basis states.
 
-           Loses the product (pipe) structure and results in a plain :class:`ElementarySpace`.
-           )pydoc")
+        Loses the product (pipe) structure and results in a plain :class:`ElementarySpace`.
+        )pydoc")
       .def("with_opposite_duality",
            &AbelianLegPipe::with_opposite_duality,
            R"pydoc(
@@ -1844,8 +1829,8 @@ bind_abelian_leg_pipe(py::module_& m)
       [](SectorArray const& sectors, py::object multiplicities) {
           auto mults = multiplicities_from_python(multiplicities).value_or(std::vector<int64>{});
           auto [s, m, perm] = unique_sorted_sectors(sectors, mults);
-          return py::make_tuple(s, perm_to_numpy(m), perm_to_numpy(
-            std::vector<int64>(perm.begin(), perm.end())));
+          return py::make_tuple(
+            s, perm_to_numpy(m), perm_to_numpy(std::vector<int64>(perm.begin(), perm.end())));
       },
       py::arg("unsorted_sectors"),
       py::arg("unsorted_multiplicities"),
@@ -1858,8 +1843,8 @@ bind_abelian_leg_pipe(py::module_& m)
       [](SectorArray const& sectors, py::object multiplicities) {
           auto mults = multiplicities_from_python(multiplicities).value_or(std::vector<int64>{});
           auto [s, m, perm] = sort_sectors_public(sectors, mults);
-          return py::make_tuple(s, perm_to_numpy(m), perm_to_numpy(
-            std::vector<int64>(perm.begin(), perm.end())));
+          return py::make_tuple(
+            s, perm_to_numpy(m), perm_to_numpy(std::vector<int64>(perm.begin(), perm.end())));
       },
       py::arg("sectors"),
       py::arg("multiplicities"));
