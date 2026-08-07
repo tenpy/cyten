@@ -70,4 +70,4 @@ Deferred until `AbelianLegPipe` (and remaining free fns) if following the spaces
 - [x] bindings (+ trampoline)
 - [x] build / pytest
 - [x] parity script vs. Python `TensorProduct` (`tmp/check_tensor_product.py`)
-- [ ] monkey-patch deferred (until `AbelianLegPipe`); only `cyten._core.TensorProduct` is exported for now
+- [x] monkey-patch — done with full `spaces.py` cleanup

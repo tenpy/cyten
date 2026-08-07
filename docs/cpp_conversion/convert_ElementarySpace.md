@@ -83,4 +83,4 @@ Deferred until `AbelianLegPipe` is converted (MI). Export `cyten._core.Elementar
 - [x] bindings + trampoline
 - [x] build / pytest (`test_spaces.py`: 867 passed; parity checked against the Python class with
       `tmp/check_elementary_space.py`)
-- [ ] monkey-patch deferred
+- [x] monkey-patch — done with full `spaces.py` cleanup

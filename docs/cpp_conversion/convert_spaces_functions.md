@@ -13,11 +13,7 @@
 - `_sort_sectors` / `_parse_inputs_drop_symmetry` already existed as anonymous helpers; exposed as `sort_sectors_public` / `parse_inputs_drop_symmetry_public`.
 - `swap_gate` / `twist_gate` take `Leg::Ptr`. Plain `LegPipe` (not also `ElementarySpace`) uses the recursive pipe path; `AbelianLegPipe` follows the ES path (Python `isinstance`).
 - Module-level `_flat_leg_permutation` is imported by `fusion_tree_backend.py`.
-- Monkey-patch replaces all of the above via `from .._core import ...` at the end of `spaces.py` (Python function bodies removed).
+## Monkey-patch / cleanup
 
-## TODO
-
-- [x] declaration
-- [x] definitions
-- [x] bindings + monkey-patch
-- [x] pytest (`test_spaces.py`: 867 passed)
+Python class and free-function bodies were removed from `cyten/symmetries/spaces.py`.
+The module is now a thin re-export of the C++ types and functions from `cyten._core`.

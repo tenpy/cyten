@@ -57,7 +57,7 @@ Keep original Python `Space` until subclasses (`ElementarySpace`, `TensorProduct
 - [x] improve and fix the definition drafts
 - [x] generate pybind11 bindings
 - [x] generate pybind11 trampoline (`PySpace`)
-- [ ] monkey-patch — **deferred**; exported as `cyten._core.Space`
+- [x] monkey-patch — done with full `spaces.py` cleanup (see convert_spaces_functions.md)
 - [x] run python tests (`test_spaces.py`; still using Python `Space`)
-- [ ] remove original python `Space` (after subclasses)
+- [x] remove original python `Space`
 - [ ] wrap up (then `LegPipe` / `ElementarySpace`)

@@ -38,6 +38,6 @@
 - [x] declaration draft → improve
 - [x] definitions → improve
 - [x] bindings + trampoline
-- [ ] monkey-patch deferred (until AbelianLegPipe / ElementarySpace)
+- [x] monkey-patch — done with full `spaces.py` cleanup
 - [x] pytest (`test_spaces.py`; still Python LegPipe)
 - [ ] wrap up → next `ElementarySpace`

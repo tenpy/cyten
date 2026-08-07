@@ -64,7 +64,7 @@ Keep original Python `Leg` (and all subclasses) until subclasses are converted. 
 - [x] improve and fix the definition drafts (CHECKME/FIXME; compile + ctest)
 - [x] generate pybind11 bindings (`gen_pyb11_binding` → `py_spaces.cpp`; register in `py_symmetries.cpp` / `pybind/CMakeLists.txt`)
 - [x] generate pybind11 trampoline (`PyLeg`)
-- [ ] monkey-patch — **deferred** until subclasses converted; exported as `cyten._core.Leg`
+- [x] monkey-patch — done with full `spaces.py` cleanup (see convert_spaces_functions.md)
 - [x] run python tests (`test_spaces.py` 867 passed; still using Python `Leg`)
 - [ ] remove original python `Leg` class body (only after subclasses converted)
 - [ ] wrap up (then convert `Space` / `LegPipe`)
