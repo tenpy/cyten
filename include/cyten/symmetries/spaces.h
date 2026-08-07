@@ -505,8 +505,10 @@ class AbelianLegPipe
 
     std::vector<Leg::Ptr> flat_spaces() override;
 
-    /// Resolve the ambiguity between :meth:`LegPipe::ascii_arrow` and
-    /// :meth:`ElementarySpace::ascii_arrow` the same way as the Python MRO: the pipe wins.
+    /// A filled arrow: unlike its two bases, a pipe that is also a space has its own symbol.
+    ///
+    /// Also resolves the ambiguity between :meth:`LegPipe::ascii_arrow` and
+    /// :meth:`ElementarySpace::ascii_arrow`.
     std::string ascii_arrow() const override;
 
     [[nodiscard]] bool is_abelian_leg_pipe() const override { return true; }

@@ -3099,7 +3099,8 @@ AbelianLegPipe::flat_spaces()
 std::string
 AbelianLegPipe::ascii_arrow() const
 {
-    return LegPipe::ascii_arrow();
+    // ``Leg.ascii_arrow`` in Python: a filled arrow for a pipe that is also an ElementarySpace
+    return is_dual ? "▲" : "▼";
 }
 
 AbelianLegPipe::Ptr
