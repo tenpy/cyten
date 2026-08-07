@@ -1769,6 +1769,125 @@ bind_abelian_leg_pipe(py::module_& m)
                   py::arg("hdf5_loader"),
                   py::arg("h5gr"),
                   py::arg("subpath"));
+
+    m.def("swap_gate",
+          &swap_gate,
+          py::arg("V"),
+          py::arg("W"),
+          R"pydoc(
+          The swap gate (numpy representation of the braid).
+
+              |   V   W
+              |   │   │
+              |   v   v
+              |    ╲ ╱
+              |     ╲          <-  overbraid == underbraid is assumed
+              |    ╱ ╲
+              |   v   v
+              |   │   │
+              |   W   V
+
+          Returns
+          -------
+          A numpy representation of the above tensor with axes ``[W, V, W*, V*]``.
+
+          See Also
+          --------
+          :meth:`cyten.Symmetry.swap_gate`
+              The swap gate for single sectors.
+          )pydoc");
+
+    m.def("twist_gate",
+          &twist_gate,
+          py::arg("V"),
+          R"pydoc(
+          The topological twist on a whole space, as numpy representation.
+
+          Returns
+          -------
+          A numpy representation of the above tensor with axes ``[V, V*]``.
+
+          See Also
+          --------
+          :meth:`cyten.Symmetry.topological_twist`
+              The twist on a single sector, given in the form of a prefactor for the identity map.
+          )pydoc");
+
+    m.def("_twist_gate_diag", &twist_gate_diag, py::arg("V"));
+
+    m.def(
+      "_flat_leg_permutation",
+      [](py::sequence legs_obj) {
+          std::vector<Leg::Ptr> legs;
+          legs.reserve(static_cast<std::size_t>(legs_obj.size()));
+          for (py::handle item : legs_obj) {
+              legs.push_back(item.cast<Leg::Ptr>());
+          }
+          return flat_leg_permutation(legs);
+      },
+      py::arg("legs"),
+      R"pydoc(
+      Leg permutation such that combining / splitting legs would be in C style.
+
+      Returns
+      -------
+      perm
+          The permutation of the flat legs such that combining or splitting them in C style after
+          applying this permutation corresponds to combining / splitting them with respect to their
+          :attr:`combine_c_style` without applying this permuatation.
+          This is useful when working with the flat legs of nested pipes that may have different
+          :attr:`combine_c_style`, as done in the fusion tree backend.
+      )pydoc");
+
+    m.def(
+      "_unique_sorted_sectors",
+      [](SectorArray const& sectors, py::object multiplicities) {
+          auto mults = multiplicities_from_python(multiplicities).value_or(std::vector<int64>{});
+          auto [s, m, perm] = unique_sorted_sectors(sectors, mults);
+          return py::make_tuple(s, perm_to_numpy(m), perm_to_numpy(
+            std::vector<int64>(perm.begin(), perm.end())));
+      },
+      py::arg("unsorted_sectors"),
+      py::arg("unsorted_multiplicities"),
+      R"pydoc(
+      Sort sectors and merge duplicates.
+      )pydoc");
+
+    m.def(
+      "_sort_sectors",
+      [](SectorArray const& sectors, py::object multiplicities) {
+          auto mults = multiplicities_from_python(multiplicities).value_or(std::vector<int64>{});
+          auto [s, m, perm] = sort_sectors_public(sectors, mults);
+          return py::make_tuple(s, perm_to_numpy(m), perm_to_numpy(
+            std::vector<int64>(perm.begin(), perm.end())));
+      },
+      py::arg("sectors"),
+      py::arg("multiplicities"));
+
+    m.def(
+      "_parse_inputs_drop_symmetry",
+      [](py::object which, py::object symmetry_obj) -> py::tuple {
+          auto symmetry = symmetry_from_python(symmetry_obj);
+          auto [factors, remaining] =
+            parse_inputs_drop_symmetry_public(drop_which_from_python(which), std::move(symmetry));
+          if (!factors) {
+              return py::make_tuple(py::str("all"), remaining);
+          }
+          return py::make_tuple(perm_to_numpy(*factors), remaining);
+      },
+      py::arg("which"),
+      py::arg("symmetry"),
+      R"pydoc(
+      Input parsing for :meth:`Space.drop_symmetry`.
+
+      Returns
+      -------
+      which : 'all' | list of int
+          Which symmetries to drop, as integers in ``range(symmetry.num_factors)``.
+          ``'all'`` indicates to drop all.
+      remaining_symmetry : Symmetry
+          The symmetry that remains.
+      )pydoc");
 }
 
 } // namespace

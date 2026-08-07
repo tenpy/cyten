@@ -3394,4 +3394,225 @@ AbelianLegPipe::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string c
     return obj;
 }
 
+namespace {
+
+[[nodiscard]] bool
+is_plain_leg_pipe(Leg::Ptr const& leg)
+{
+    // Python: ``not isinstance(leg, ElementarySpace) and isinstance(leg, LegPipe)``.
+    // AbelianLegPipe is both, so it takes the ElementarySpace path.
+    return static_cast<bool>(std::dynamic_pointer_cast<LegPipe>(leg)) &&
+           !static_cast<bool>(std::dynamic_pointer_cast<ElementarySpace>(leg));
+}
+
+[[nodiscard]] std::size_t
+leg_dim_as_size(Leg const& leg)
+{
+    assert(leg.dim >= 0.);
+    assert(std::floor(leg.dim) == leg.dim);
+    return static_cast<std::size_t>(leg.dim);
+}
+
+} // namespace
+
+py::array
+swap_gate(Leg::Ptr V, Leg::Ptr W)
+{
+    if (!V || !W) {
+        throw py::type_error("swap_gate requires two legs");
+    }
+    if (!V->symmetry->equals(*W->symmetry)) {
+        throw SymmetryError("Incompatible symmetries.");
+    }
+    if (!V->symmetry->can_be_dropped()) {
+        throw SymmetryError(
+          std::format("braid can not be written as array for {}.", V->symmetry->str()));
+    }
+    auto const dV = static_cast<py::ssize_t>(leg_dim_as_size(*V));
+    auto const dW = static_cast<py::ssize_t>(leg_dim_as_size(*W));
+    auto np = py::module_::import("numpy");
+
+    if (is_plain_leg_pipe(V)) {
+        auto pipe = std::dynamic_pointer_cast<LegPipe>(V);
+        auto const& legs = pipe->legs;
+        py::object res = swap_gate(legs.back(), W);
+        int n = 0;
+        for (auto it = legs.rbegin() + 1; it != legs.rend(); ++it, ++n) {
+            py::object sw = swap_gate(*it, W);
+            res = np.attr("tensordot")(sw, res, py::make_tuple(2, 0));
+            res = np.attr("moveaxis")(res, 2, -2 - n);
+        }
+        char const* order = pipe->combine_cstyle ? "C" : "F";
+        return np.attr("reshape")(res, py::make_tuple(dW, dV, dW, dV), py::arg("order") = order);
+    }
+    if (is_plain_leg_pipe(W)) {
+        auto pipe = std::dynamic_pointer_cast<LegPipe>(W);
+        auto const& legs = pipe->legs;
+        py::object res = swap_gate(V, legs.front());
+        for (std::size_t n = 1; n < legs.size(); ++n) {
+            py::object sw = swap_gate(V, legs[n]);
+            res = np.attr("tensordot")(res, sw, py::make_tuple(static_cast<int>(n), -1));
+            py::list axes;
+            for (std::size_t i = 0; i < n; ++i) {
+                axes.append(static_cast<int>(i));
+            }
+            axes.append(-3);
+            axes.append(-2);
+            for (std::size_t i = n; i < 2 * n; ++i) {
+                axes.append(static_cast<int>(i));
+            }
+            axes.append(-1);
+            axes.append(-4);
+            res = np.attr("transpose")(res, axes);
+        }
+        char const* order = pipe->combine_cstyle ? "C" : "F";
+        return np.attr("reshape")(res, py::make_tuple(dW, dV, dW, dV), py::arg("order") = order);
+    }
+
+    auto Ves = std::dynamic_pointer_cast<ElementarySpace>(V);
+    auto Wes = std::dynamic_pointer_cast<ElementarySpace>(W);
+    if (!Ves || !Wes) {
+        throw py::type_error("swap_gate expects ElementarySpace or LegPipe legs");
+    }
+
+    py::object res = np.attr("zeros")(py::make_tuple(dW, dV, dW, dV));
+    int64 i = 0;
+    for (std::size_t ia = 0; ia < Ves->defining_sectors.size(); ++ia) {
+        auto const& a = Ves->defining_sectors[ia];
+        auto const ma = Ves->multiplicities[ia];
+        auto const da =
+          static_cast<int64>(Ves->Space::symmetry->sector_dim(a));
+        int64 j = 0;
+        for (std::size_t ib = 0; ib < Wes->defining_sectors.size(); ++ib) {
+            auto const& b = Wes->defining_sectors[ib];
+            auto const mb = Wes->multiplicities[ib];
+            py::array swap = Ves->Space::symmetry->swap_gate(a, b);
+            auto const db =
+              static_cast<int64>(Wes->Space::symmetry->sector_dim(b));
+            int64 i2 = i;
+            for (int64 na = 0; na < ma; ++na) {
+                int64 j2 = j;
+                for (int64 nb = 0; nb < mb; ++nb) {
+                    res[py::make_tuple(py::slice(j2, j2 + db, 1),
+                                       py::slice(i2, i2 + da, 1),
+                                       py::slice(j2, j2 + db, 1),
+                                       py::slice(i2, i2 + da, 1))] = swap;
+                    j2 += db;
+                }
+                i2 += da;
+            }
+            j += db * mb;
+        }
+        i += da * ma;
+    }
+    auto Winv = vector_to_array(Wes->inverse_basis_perm());
+    auto Vinv = vector_to_array(Ves->inverse_basis_perm());
+    return res[np.attr("ix_")(Winv, Vinv, Winv, Vinv)];
+}
+
+py::array
+twist_gate_diag(Leg::Ptr V)
+{
+    if (!V) {
+        throw py::type_error("twist_gate_diag requires a leg");
+    }
+    if (!V->symmetry->can_be_dropped()) {
+        throw SymmetryError(
+          std::format("twist can not be written as array for {}.", V->symmetry->str()));
+    }
+    auto np = py::module_::import("numpy");
+
+    if (is_plain_leg_pipe(V)) {
+        auto pipe = std::dynamic_pointer_cast<LegPipe>(V);
+        char const* order = pipe->combine_cstyle ? "C" : "F";
+        py::object res = twist_gate_diag(pipe->legs.front());
+        auto newaxis = np.attr("newaxis");
+        for (std::size_t n = 1; n < pipe->legs.size(); ++n) {
+            py::object next = twist_gate_diag(pipe->legs[n]);
+            res = np.attr("reshape")(res[py::make_tuple(py::slice(), newaxis)] *
+                                       next[py::make_tuple(newaxis, py::slice())],
+                                     -1,
+                                     py::arg("order") = order);
+        }
+        return res;
+    }
+
+    // ElementarySpace or AbelianLegPipe
+    auto Ves = std::dynamic_pointer_cast<ElementarySpace>(V);
+    if (!Ves) {
+        throw py::type_error("twist_gate_diag expects ElementarySpace or LegPipe");
+    }
+    auto const dV = static_cast<py::ssize_t>(leg_dim_as_size(*Ves));
+    py::object res_diag = np.attr("zeros")(dV);
+    if (!Ves->slices) {
+        throw SymmetryError(
+          std::format("twist can not be written as array for {}.", Ves->Space::symmetry->str()));
+    }
+    for (std::size_t n = 0; n < Ves->sector_decomposition.size(); ++n) {
+        auto const& a = Ves->sector_decomposition[n];
+        auto const i = (*Ves->slices)[n][0];
+        auto const j = (*Ves->slices)[n][1];
+        auto twist = Ves->Space::symmetry->topological_twist(a);
+        res_diag[py::slice(i, j, 1)] = twist;
+    }
+    return res_diag[vector_to_array(Ves->inverse_basis_perm())];
+}
+
+py::array
+twist_gate(Leg::Ptr V)
+{
+    if (!V) {
+        throw py::type_error("twist_gate requires a leg");
+    }
+    if (!V->symmetry->can_be_dropped()) {
+        throw SymmetryError(
+          std::format("twist can not be written as array for {}.", V->symmetry->str()));
+    }
+    return py::module_::import("numpy").attr("diag")(twist_gate_diag(std::move(V)));
+}
+
+std::vector<int64>
+flat_leg_permutation(std::vector<Leg::Ptr> const& legs)
+{
+    std::vector<int64> offsets(legs.size(), 0);
+    int64 running = 0;
+    for (std::size_t i = 0; i < legs.size(); ++i) {
+        offsets[i] = running;
+        running += legs[i]->num_flat_legs();
+    }
+    std::vector<int64> perm;
+    perm.reserve(static_cast<std::size_t>(running));
+    for (std::size_t i = 0; i < legs.size(); ++i) {
+        auto part = legs[i]->_flat_leg_permutation(offsets[i]);
+        perm.insert(perm.end(), part.begin(), part.end());
+    }
+    return perm;
+}
+
+std::tuple<SectorArray, std::vector<int64>, std::vector<std::size_t>>
+unique_sorted_sectors(SectorArray const& unsorted_sectors,
+                      std::vector<int64> const& unsorted_multiplicities)
+{
+    auto [sectors, mults, perm] = unsorted_sectors.unique_sorted(unsorted_multiplicities);
+    return { std::move(sectors),
+             std::vector<int64>(mults.begin(), mults.end()),
+             std::move(perm) };
+}
+
+std::tuple<SectorArray, std::vector<int64>, std::vector<std::size_t>>
+sort_sectors_public(SectorArray const& sectors, std::vector<int64> const& multiplicities)
+{
+    return sort_sectors(sectors, multiplicities);
+}
+
+std::pair<std::optional<std::vector<int64>>, Symmetry::Ptr>
+parse_inputs_drop_symmetry_public(std::optional<std::vector<int64>> which,
+                                  Symmetry::Ptr symmetry)
+{
+    if (!symmetry) {
+        throw py::type_error("parse_inputs_drop_symmetry requires a symmetry");
+    }
+    return parse_inputs_drop_symmetry(std::move(which), *symmetry);
+}
+
 } // namespace cyten

@@ -10,15 +10,14 @@
 
 ## Notes
 
-- `_sort_sectors` / `_parse_inputs_drop_symmetry` already exist as anonymous helpers used by class methods; expose thin public wrappers for bindings.
-- `_unique_sorted_sectors` → `SectorArray::unique_sorted`.
-- `swap_gate` / `twist_gate` take `Leg::Ptr`; plain `LegPipe` (not also `ElementarySpace`) uses the recursive pipe path — `AbelianLegPipe` follows the ES path (Python `isinstance`).
-- Module-level `_flat_leg_permutation` is imported by `fusion_tree_backend.py` — must monkey-patch.
-- Public exports: `swap_gate`, `twist_gate`; underscore names bound to match Python.
+- `_sort_sectors` / `_parse_inputs_drop_symmetry` already existed as anonymous helpers; exposed as `sort_sectors_public` / `parse_inputs_drop_symmetry_public`.
+- `swap_gate` / `twist_gate` take `Leg::Ptr`. Plain `LegPipe` (not also `ElementarySpace`) uses the recursive pipe path; `AbelianLegPipe` follows the ES path (Python `isinstance`).
+- Module-level `_flat_leg_permutation` is imported by `fusion_tree_backend.py`.
+- Monkey-patch replaces all of the above via `from .._core import ...` at the end of `spaces.py` (Python function bodies removed).
 
 ## TODO
 
-- [ ] declaration
-- [ ] definitions
-- [ ] bindings + monkey-patch
-- [ ] pytest
+- [x] declaration
+- [x] definitions
+- [x] bindings + monkey-patch
+- [x] pytest (`test_spaces.py`: 867 passed)
