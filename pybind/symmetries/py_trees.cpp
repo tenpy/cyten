@@ -105,6 +105,38 @@ block_backend_from_python(py::object backend)
     return backend.attr("block_backend").cast<BlockBackend*>();
 }
 
+/// Match historical Python: real topological coeffs as float, not complex(x+0j).
+/// Complex coeffs make is_real fusion-tree mappings multiply float blocks by
+/// complex128 and trip ComplexWarning-as-error under pytest.
+py::object
+scalar_to_python(complex128 z)
+{
+    if (z.imag() == 0.0) {
+        return py::cast(z.real());
+    }
+    return py::cast(z);
+}
+
+py::dict
+linear_combination_to_python(FusionTreeLinearCombination const& lc)
+{
+    py::dict out;
+    for (auto const& [tree, coeff] : lc) {
+        out[py::cast(tree)] = scalar_to_python(coeff);
+    }
+    return out;
+}
+
+py::dict
+pair_linear_combination_to_python(FusionTreePairLinearCombination const& lc)
+{
+    py::dict out;
+    for (auto const& [pair, coeff] : lc) {
+        out[py::cast(pair)] = scalar_to_python(coeff);
+    }
+    return out;
+}
+
 } // namespace
 
 void
@@ -295,19 +327,25 @@ bind_trees(py::module_& m)
         )pydoc")
       .def_static(
         "bend_leg",
-        &FusionTree::bend_leg,
+        [](FusionTree const& X, FusionTree const& Y, bool bend_downward, bool do_conj) {
+            return pair_linear_combination_to_python(
+              FusionTree::bend_leg(X, Y, bend_downward, do_conj));
+        },
         py::arg("X"),
         py::arg("Y"),
         py::arg("bend_downward"),
         py::arg("do_conj") = false,
         "Bend a leg on a tree-pair, return the resulting linear combination of tree-pairs.")
-      .def("braid",
-           &FusionTree::braid,
-           py::arg("j"),
-           py::arg("overbraid"),
-           py::arg("cutoff") = 1e-16,
-           py::arg("do_conj") = false,
-           "Braid a leg on a fusion tree, return the resulting linear combination of trees.")
+      .def(
+        "braid",
+        [](FusionTree const& self, int64 j, bool overbraid, float64 cutoff, bool do_conj) {
+            return linear_combination_to_python(self.braid(j, overbraid, cutoff, do_conj));
+        },
+        py::arg("j"),
+        py::arg("overbraid"),
+        py::arg("cutoff") = 1e-16,
+        py::arg("do_conj") = false,
+        "Braid a leg on a fusion tree, return the resulting linear combination of trees.")
       .def("vertex_labels",
            &FusionTree::vertex_labels,
            py::arg("n"),
@@ -350,24 +388,33 @@ bind_trees(py::module_& m)
            &FusionTree::insert,
            py::arg("t2"),
            "Insert a tree `t2` above the first uncoupled sector.")
-      .def("insert_at",
-           &FusionTree::insert_at,
-           py::arg("n"),
-           py::arg("t2"),
-           py::arg("eps") = 1.0e-14,
-           "Insert a tree `t2` above the `n`-th uncoupled sector.")
-      .def("outer",
-           &FusionTree::outer,
-           py::arg("right_tree"),
-           py::arg("eps") = 1.0e-14,
-           "Outer product with another tree.")
+      .def(
+        "insert_at",
+        [](FusionTree const& self, int64 n, FusionTree const& t2, float64 eps) {
+            return linear_combination_to_python(self.insert_at(n, t2, eps));
+        },
+        py::arg("n"),
+        py::arg("t2"),
+        py::arg("eps") = 1.0e-14,
+        "Insert a tree `t2` above the `n`-th uncoupled sector.")
+      .def(
+        "outer",
+        [](FusionTree const& self, FusionTree const& right_tree, float64 eps) {
+            return linear_combination_to_python(self.outer(right_tree, eps));
+        },
+        py::arg("right_tree"),
+        py::arg("eps") = 1.0e-14,
+        "Outer product with another tree.")
       .def("split", &FusionTree::split, py::arg("n"), "Split into two separate fusion trees.")
       .def("split_bottom_vertex", &FusionTree::split_bottom_vertex, "Split off the bottom vertex.")
-      .def("twist",
-           &FusionTree::twist,
-           py::arg("idcs"),
-           py::arg("overtwist"),
-           "Twist some legs above a tree, return the resulting linear combination of trees.");
+      .def(
+        "twist",
+        [](FusionTree const& self, std::vector<int64> const& idcs, bool overtwist) {
+            return linear_combination_to_python(self.twist(idcs, overtwist));
+        },
+        py::arg("idcs"),
+        py::arg("overtwist"),
+        "Twist some legs above a tree, return the resulting linear combination of trees.");
 
     py::class_<fusion_trees> ft(m,
                                 "fusion_trees",

@@ -635,9 +635,9 @@ bind_block_backend(py::module_& m)
            "The absolute value of a complex number, elementwise.")
       .def(
         "apply_basis_perm",
-        [](BlockBackend& self, BlockBackend::BlockCPtr block, py::sequence legs_obj, bool inv) {
+        [](BlockBackend& self, BlockBackend::BlockCPtr block, py::iterable legs_obj, bool inv) {
+            // Accept sequences or generators (e.g. conventional_leg_order(...)).
             std::vector<BlockBackend::LegCPtr> legs;
-            legs.reserve(static_cast<std::size_t>(legs_obj.size()));
             for (py::handle item : legs_obj) {
                 // Legs may be ElementarySpace / LegPipe / AbelianLegPipe; all register as Leg.
                 legs.push_back(item.cast<Leg::Ptr>());

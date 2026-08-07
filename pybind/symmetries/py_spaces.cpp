@@ -140,6 +140,15 @@ sector_array_from_python(py::handle obj, Symmetry const& symmetry)
     if (py::isinstance<Sector>(obj)) {
         return SectorArray::from_sector(obj.cast<Sector>());
     }
+    // empty list / sequence → empty SectorArray with correct sector_ind_len
+    // (np.asarray([]) is 1D and rejected by sector_array_from_numpy)
+    if (py::isinstance<py::sequence>(obj) && !py::isinstance<py::str>(obj) &&
+        !py::isinstance<py::array>(obj)) {
+        auto seq = py::reinterpret_borrow<py::sequence>(obj);
+        if (seq.size() == 0) {
+            return SectorArray::empty(symmetry.sector_ind_len);
+        }
+    }
     auto arr = sector_array_from_numpy(obj);
     if (arr.sector_ind_len() == 0 && arr.size() == 0) {
         return SectorArray::empty(symmetry.sector_ind_len);
@@ -293,13 +302,17 @@ bind_spaces(py::module_& m)
         ``_basis_perm`` is the internal version which may be ``None`` if the permutation is trivial.
         See also :meth:`apply_basis_perm`.
         )pydoc")
-      .def_property_readonly("_basis_perm",
-                             [](Leg const& self) -> py::object {
-                                 if (!self.has_custom_basis_perm()) {
-                                     return py::none();
-                                 }
-                                 return perm_to_numpy(self.basis_perm());
-                             })
+      .def_property(
+        "_basis_perm",
+        [](Leg const& self) -> py::object {
+            if (!self.has_custom_basis_perm()) {
+                return py::none();
+            }
+            return perm_to_numpy(self.basis_perm());
+        },
+        [](Leg& self, py::object basis_perm) {
+            self.set_basis_perm(perm_from_python(basis_perm));
+        })
       .def_property(
         "inverse_basis_perm",
         [](Leg const& self) { return perm_to_numpy(self.inverse_basis_perm()); },
@@ -309,13 +322,17 @@ bind_spaces(py::module_& m)
         R"pydoc(
         Inverse permutation of :attr:`basis_perm`.
         )pydoc")
-      .def_property_readonly("_inverse_basis_perm",
-                             [](Leg const& self) -> py::object {
-                                 if (!self.has_custom_basis_perm()) {
-                                     return py::none();
-                                 }
-                                 return perm_to_numpy(self.inverse_basis_perm());
-                             })
+      .def_property(
+        "_inverse_basis_perm",
+        [](Leg const& self) -> py::object {
+            if (!self.has_custom_basis_perm()) {
+                return py::none();
+            }
+            return perm_to_numpy(self.inverse_basis_perm());
+        },
+        [](Leg& self, py::object inverse_basis_perm) {
+            self.set_inverse_basis_perm(perm_from_python(inverse_basis_perm));
+        })
       .def_property_readonly("flat_legs",
                              &Leg::flat_legs,
                              R"pydoc(

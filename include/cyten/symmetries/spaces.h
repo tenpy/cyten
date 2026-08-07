@@ -90,10 +90,11 @@ class Leg : public virtual LegOrSpace
 
     virtual bool operator==(Leg const& other) const = 0;
 
-    py::array apply_basis_perm(py::array arr,
-                               int64 axis = 0,
-                               bool inverse = false,
-                               bool pre_compose = false) const;
+    /// Apply ``basis_perm`` (or its inverse) to ``arr`` (array or index / index array).
+    py::object apply_basis_perm(py::object arr,
+                                int64 axis = 0,
+                                bool inverse = false,
+                                bool pre_compose = false) const;
 
     [[nodiscard]] bool has_custom_basis_perm() const noexcept { return _basis_perm.has_value(); }
 

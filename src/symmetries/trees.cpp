@@ -85,8 +85,12 @@ template<typename T>
 std::vector<T>
 vector_slice(std::vector<T> const& v, std::size_t start, std::size_t stop)
 {
-    if (start > stop || stop > v.size()) {
-        throw std::out_of_range("vector_slice: invalid range");
+    // Match NumPy ``arr[start:stop]``: clamp ``stop``, empty if ``start >= stop``.
+    if (stop > v.size()) {
+        stop = v.size();
+    }
+    if (start >= stop) {
+        return {};
     }
     return std::vector<T>(v.begin() + static_cast<std::ptrdiff_t>(start),
                           v.begin() + static_cast<std::ptrdiff_t>(stop));

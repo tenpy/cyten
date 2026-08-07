@@ -268,8 +268,12 @@ SectorArray::take_mask(std::vector<bool> const& mask) const
 SectorArray
 SectorArray::slice(std::size_t start, std::size_t stop) const
 {
-    if (start > stop || stop > size()) {
-        throw std::out_of_range("SectorArray::slice: invalid range");
+    // Match NumPy ``arr[start:stop]``: clamp ``stop``, empty if ``start >= stop``.
+    if (stop > size()) {
+        stop = size();
+    }
+    if (start >= stop) {
+        return SectorArray::empty(sector_ind_len_);
     }
     std::vector<std::size_t> idx(stop - start);
     std::iota(idx.begin(), idx.end(), start);

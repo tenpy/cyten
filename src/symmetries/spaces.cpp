@@ -217,8 +217,8 @@ Leg::ascii_arrow() const
     throw std::runtime_error("ascii_arrow not implemented for this Leg subclass");
 }
 
-py::array
-Leg::apply_basis_perm(py::array arr, int64 axis, bool inverse, bool pre_compose) const
+py::object
+Leg::apply_basis_perm(py::object arr, int64 axis, bool inverse, bool pre_compose) const
 {
     // this implementation assumes _basis_perm. AbelianLegPipe overrides this method.
     auto const& perm = inverse ? _inverse_basis_perm : _basis_perm;
@@ -3541,8 +3541,14 @@ twist_gate_diag(Leg::Ptr V)
         auto const& a = Ves->sector_decomposition[n];
         auto const i = (*Ves->slices)[n][0];
         auto const j = (*Ves->slices)[n][1];
-        auto twist = Ves->Space::symmetry->topological_twist(a);
-        res_diag[py::slice(i, j, 1)] = twist;
+        complex128 const twist = Ves->Space::symmetry->topological_twist(a);
+        // Assign as float when real so ``np.zeros(dV)`` (float64) stays real for
+        // symmetries with real twists (e.g. U(1)); matches Python historical dtype.
+        if (twist.imag() == 0.0) {
+            res_diag[py::slice(i, j, 1)] = twist.real();
+        } else {
+            res_diag[py::slice(i, j, 1)] = twist;
+        }
     }
     return res_diag[vector_to_array(Ves->inverse_basis_perm())];
 }
