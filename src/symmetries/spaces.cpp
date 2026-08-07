@@ -2679,4 +2679,718 @@ TensorProduct::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string co
     return obj;
 }
 
+namespace {
+
+/// ``cyten.tools.misc.make_stride``: the strides of a C- (or F-) style array of the given shape.
+[[nodiscard]] std::vector<int64>
+make_stride(std::vector<int64> const& shape, bool cstyle)
+{
+    auto const L = shape.size();
+    std::vector<int64> res(L, 1);
+    int64 stride = 1;
+    if (cstyle) {
+        for (std::size_t a = L; a-- > 1;) {
+            stride *= shape[a];
+            res[a - 1] = stride;
+        }
+    } else {
+        for (std::size_t a = 0; a + 1 < L; ++a) {
+            stride *= shape[a];
+            res[a + 1] = stride;
+        }
+    }
+    return res;
+}
+
+/// Entry ``n`` of row ``m`` of ``cyten.tools.misc.make_grid(shape, cstyle)``.
+///
+/// `strides` must be ``make_stride(shape, cstyle)``. Since the grid enumerates all multi-indices
+/// exactly once, the row index is just the flat index for those strides.
+[[nodiscard]] int64
+grid_entry(int64 m,
+           std::vector<int64> const& strides,
+           std::vector<int64> const& shape,
+           std::size_t n)
+{
+    return (m / strides[n]) % shape[n];
+}
+
+/// The legs of an :class:`AbelianLegPipe` must all be :class:`ElementarySpace`\ s.
+[[nodiscard]] ElementarySpace::Ptr
+as_es_leg(Leg::Ptr const& leg)
+{
+    auto es = std::dynamic_pointer_cast<ElementarySpace>(leg);
+    if (!es) {
+        throw py::type_error("The legs of an AbelianLegPipe must be ElementarySpaces.");
+    }
+    return es;
+}
+
+} // namespace
+
+AbelianLegPipe::Prepared
+AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
+                        bool is_dual,
+                        bool combine_cstyle)
+{
+    if (legs.empty()) {
+        throw std::invalid_argument("Need at least one leg");
+    }
+    auto symmetry = legs.front()->Space::symmetry;
+    if (!symmetry->is_abelian() || !symmetry->can_be_dropped()) {
+        throw SymmetryError(
+          std::format("AbelianLegPipe is not supported for {}.", symmetry->str()));
+    }
+    auto const num_legs = legs.size();
+
+    std::vector<int64> legs_num_sectors(num_legs);
+    float64 dim = 1.;
+    for (std::size_t n = 0; n < num_legs; ++n) {
+        legs_num_sectors[n] = legs[n]->num_sectors;
+        dim *= legs[n]->Space::dim;
+    }
+    auto sector_strides = make_stride(legs_num_sectors, combine_cstyle);
+
+    // number of blocks in the pipe, ``prod(legs_num_sectors)``. Different from num_sectors.
+    int64 nblocks = 1;
+    for (auto const num : legs_num_sectors) {
+        nblocks *= num;
+    }
+    auto const num_blocks = static_cast<std::size_t>(nblocks);
+
+    // determine block_ind_map -- it's essentially the grid.
+    // block_ind_map[:, :2] and [:, -1] are set later.
+    std::vector<std::vector<int64>> block_ind_map(num_blocks,
+                                                 std::vector<int64>(3 + num_legs, 0));
+    // the multiplicity for given (i1, i2, ...) is the product of ``multiplicities[il]``
+    std::vector<int64> multiplicities(num_blocks, 1);
+    std::vector<SectorArray> uncoupled;
+    uncoupled.reserve(num_legs);
+    for (std::size_t n = 0; n < num_legs; ++n) {
+        SectorArray column(num_blocks, symmetry->sector_ind_len);
+        for (std::size_t m = 0; m < num_blocks; ++m) {
+            auto const i = static_cast<std::size_t>(
+              grid_entry(static_cast<int64>(m), sector_strides, legs_num_sectors, n));
+            block_ind_map[m][2 + n] = static_cast<int64>(i);
+            multiplicities[m] *= legs[n]->multiplicities[i];
+            column[m] = legs[n]->sector_decomposition[i];
+        }
+        uncoupled.push_back(std::move(column));
+    }
+
+    // calculate new defining_sectors. At this point, they have duplicates and are not sorted.
+    auto sectors = symmetry->multiple_fusion_broadcast(uncoupled);
+    if (is_dual) {
+        // the above are the future sector_decomposition, but we want to compute
+        // (and in particular sort according to) the defining_sectors
+        sectors = symmetry->dual_sectors(sectors);
+    }
+
+    // sort sectors
+    auto const sort = sectors.lexsort_indices();
+    std::vector<int64> fusion_outcomes_sort(sort.begin(), sort.end());
+    {
+        std::vector<std::vector<int64>> sorted_map(num_blocks);
+        std::vector<int64> sorted_mults(num_blocks);
+        for (std::size_t m = 0; m < num_blocks; ++m) {
+            sorted_map[m] = std::move(block_ind_map[sort[m]]);
+            sorted_mults[m] = multiplicities[sort[m]];
+        }
+        block_ind_map = std::move(sorted_map);
+        multiplicities = std::move(sorted_mults);
+        sectors = sectors.take(sort);
+    }
+
+    // compute slices in the whole internal basis (we subtract the start of each block below)
+    auto const slices = slice_boundaries(multiplicities);
+    for (std::size_t m = 0; m < num_blocks; ++m) {
+        block_ind_map[m][0] = slices[m];
+        block_ind_map[m][1] = slices[m + 1];
+    }
+
+    // bunch sectors with equal sectors together
+    auto const diffs = sectors.find_row_differences(/*include_len=*/true);
+    std::vector<int64> block_ind_map_slices(diffs.begin(), diffs.end());
+    auto const num_unique = diffs.size() - 1;
+    std::vector<int64> block_starts(diffs.size());
+    for (std::size_t k = 0; k < diffs.size(); ++k) {
+        block_starts[k] = slices[diffs[k]];
+    }
+    std::vector<int64> unique_mults(num_unique);
+    for (std::size_t k = 0; k < num_unique; ++k) {
+        unique_mults[k] = block_starts[k + 1] - block_starts[k];
+    }
+    // [:-1] to exclude len
+    auto unique_sectors =
+      sectors.take(std::span<const std::size_t>(diffs.data(), diffs.size() - 1));
+
+    // the new block index J, plus the slices within blocks (subtract the start of each block)
+    for (std::size_t k = 0; k < num_unique; ++k) {
+        for (std::size_t m = diffs[k]; m < diffs[k + 1]; ++m) {
+            block_ind_map[m][2 + num_legs] = static_cast<int64>(k);
+            block_ind_map[m][0] -= block_starts[k];
+            block_ind_map[m][1] -= block_starts[k];
+        }
+    }
+
+    auto basis_perm =
+      calc_basis_perm(legs, combine_cstyle, dim, unique_mults, block_ind_map);
+
+    std::vector<Leg::Ptr> leg_ptrs(legs.begin(), legs.end());
+    return { std::move(leg_ptrs),
+             std::move(symmetry),
+             std::move(unique_sectors),
+             std::move(unique_mults),
+             std::move(basis_perm),
+             std::move(sector_strides),
+             std::move(fusion_outcomes_sort),
+             std::move(block_ind_map_slices),
+             std::move(block_ind_map) };
+}
+
+// note: the LegPipe base sets a combined basis_perm, which the ElementarySpace base then
+// overwrites with the fusion basis_perm. This matches the order of the Python constructor.
+AbelianLegPipe::AbelianLegPipe(Prepared prepared, bool is_dual_, bool combine_cstyle_)
+  : LegPipe(prepared.legs, is_dual_, combine_cstyle_)
+  , ElementarySpace(prepared.symmetry,
+                    prepared.defining_sectors,
+                    prepared.multiplicities,
+                    is_dual_,
+                    prepared.basis_perm)
+  , sector_strides(std::move(prepared.sector_strides))
+  , fusion_outcomes_sort(std::move(prepared.fusion_outcomes_sort))
+  , block_ind_map_slices(std::move(prepared.block_ind_map_slices))
+  , block_ind_map(std::move(prepared.block_ind_map))
+{
+}
+
+AbelianLegPipe::AbelianLegPipe(std::vector<ElementarySpace::Ptr> legs_,
+                               bool is_dual_,
+                               bool combine_cstyle_)
+  : AbelianLegPipe(prepare(legs_, is_dual_, combine_cstyle_), is_dual_, combine_cstyle_)
+{
+}
+
+std::vector<int64>
+AbelianLegPipe::fusion_outcomes_perm(std::vector<ElementarySpace::Ptr> const& legs,
+                                     bool combine_cstyle,
+                                     float64 dim,
+                                     std::vector<int64> const& multiplicities,
+                                     std::vector<std::vector<int64>> const& block_ind_map)
+{
+    auto const num_legs = legs.size();
+    std::vector<int64> legs_dims(num_legs);
+    for (std::size_t n = 0; n < num_legs; ++n) {
+        legs_dims[n] = static_cast<int64>(legs[n]->Space::dim);
+    }
+    auto const dim_strides = make_stride(legs_dims, combine_cstyle);
+    std::vector<int64> perm(dim_as_size(dim));
+
+    // slices_starts is slices[:, 0], but we need to compute it here, since the
+    // ElementarySpace base may not be initialized yet at this point
+    auto const slices_starts = slice_boundaries(multiplicities);
+
+    std::vector<int64> mult_shape(num_legs);
+    std::vector<int64> sector_starts(num_legs);
+    for (auto const& row : block_ind_map) {
+        // shift the slice start:stop from within the block back to the whole internal basis
+        auto const J = static_cast<std::size_t>(row[2 + num_legs]);
+        auto const start = row[0] + slices_starts[J];
+
+        // Now for each basis element in start:stop, we construct where it was before sorting.
+        // multiplicity_grid :: each row stands for a combination of uncoupled basis elements;
+        //                     they are the indices of that basis element *within* the sector.
+        // sector_starts[n] is the index of the first basis vector for legs[n] that is in the
+        // current sector, namely legs[n].sector_decomposition[idcs[n]]
+        int64 count = 1;
+        for (std::size_t n = 0; n < num_legs; ++n) {
+            auto const idx = static_cast<std::size_t>(row[2 + n]);
+            mult_shape[n] = legs[n]->multiplicities[idx];
+            sector_starts[n] = (*legs[n]->slices)[idx][0];
+            count *= mult_shape[n];
+        }
+        assert(count == row[1] - row[0]);
+        auto const mult_strides = make_stride(mult_shape, combine_cstyle);
+        // basis_grid :: each row stands for a combination of uncoupled basis elements; they are
+        //               the indices of that basis element within its legs internal basis.
+        // Note that the relevant strides are ``dim_strides``, which come from a *different*
+        // shape than the multiplicity_grid.
+        for (int64 k = 0; k < count; ++k) {
+            int64 flat = 0;
+            for (std::size_t n = 0; n < num_legs; ++n) {
+                flat += (grid_entry(k, mult_strides, mult_shape, n) + sector_starts[n]) *
+                        dim_strides[n];
+            }
+            perm[static_cast<std::size_t>(start + k)] = flat;
+        }
+    }
+    return perm;
+}
+
+std::vector<int64>
+AbelianLegPipe::calc_basis_perm(std::vector<ElementarySpace::Ptr> const& legs,
+                                bool combine_cstyle,
+                                float64 dim,
+                                std::vector<int64> const& multiplicities,
+                                std::vector<std::vector<int64>> const& block_ind_map)
+{
+    // see the diagram in the docstring of the Python ``_calc_basis_perm``; we follow the path
+    // parallel to ``pipe.basis_perm``: inverse of fusion, basis_perm of each leg, fusion, sort.
+    auto const num_legs = legs.size();
+    std::vector<int64> legs_dims(num_legs);
+    std::vector<std::vector<int64>> perms(num_legs);
+    for (std::size_t n = 0; n < num_legs; ++n) {
+        legs_dims[n] = static_cast<int64>(legs[n]->Space::dim);
+        perms[n] = legs[n]->basis_perm();
+    }
+    auto const dim_strides = make_stride(legs_dims, combine_cstyle);
+    auto const num_basis_states = dim_as_size(dim);
+
+    // ``np.reshape(np.arange(dim), dims, order)[np.ix_(*perms)].reshape(dim, order)``
+    std::vector<int64> combined(num_basis_states);
+    for (std::size_t m = 0; m < num_basis_states; ++m) {
+        int64 flat = 0;
+        for (std::size_t n = 0; n < num_legs; ++n) {
+            auto const i = static_cast<std::size_t>(
+              grid_entry(static_cast<int64>(m), dim_strides, legs_dims, n));
+            flat += perms[n][i] * dim_strides[n];
+        }
+        combined[m] = flat;
+    }
+
+    auto const fusion_perm =
+      fusion_outcomes_perm(legs, combine_cstyle, dim, multiplicities, block_ind_map);
+    std::vector<int64> res(num_basis_states);
+    for (std::size_t i = 0; i < num_basis_states; ++i) {
+        res[i] = combined[static_cast<std::size_t>(fusion_perm[i])];
+    }
+    return res;
+}
+
+std::vector<ElementarySpace::Ptr>
+AbelianLegPipe::es_legs() const
+{
+    std::vector<ElementarySpace::Ptr> out;
+    out.reserve(legs.size());
+    for (auto const& leg : legs) {
+        out.push_back(as_es_leg(leg));
+    }
+    return out;
+}
+
+std::vector<int64>
+AbelianLegPipe::get_fusion_outcomes_perm(std::vector<int64> const& multiplicities_) const
+{
+    return fusion_outcomes_perm(
+      es_legs(), combine_cstyle, Space::dim, multiplicities_, block_ind_map);
+}
+
+void
+AbelianLegPipe::test_sanity() const
+{
+    auto const es = es_legs();
+    for (auto const& leg : es) {
+        if (auto const* nested = dynamic_cast<LegPipe const*>(leg.get()); nested != nullptr) {
+            assert(nested->is_abelian_leg_pipe());
+        }
+        leg->test_sanity();
+    }
+    auto const n = static_cast<std::size_t>(num_legs);
+    // check sector_strides
+    assert(sector_strides.size() == n);
+    std::vector<int64> legs_num_sectors(n);
+    int64 nblocks = 1;
+    for (std::size_t i = 0; i < n; ++i) {
+        legs_num_sectors[i] = es[i]->num_sectors;
+        nblocks *= legs_num_sectors[i];
+    }
+    assert(sector_strides == make_stride(legs_num_sectors, combine_cstyle));
+    // check block_ind_map_slices
+    // note: we do not check for full correctness, just for consistency as slices
+    assert(block_ind_map_slices.size() == static_cast<std::size_t>(num_sectors) + 1);
+    assert(block_ind_map_slices.front() == 0);
+    assert(block_ind_map_slices.back() == nblocks);
+    assert(std::ranges::is_sorted(block_ind_map_slices));
+    // check block_ind_map
+    assert(block_ind_map.size() == static_cast<std::size_t>(nblocks));
+    // the rows are sorted first by J, then by the i, in C-style order if combine_cstyle
+    // (see the class docstring). Equivalently, the keys built below are non-decreasing.
+    auto const sort_key = [&](std::vector<int64> const& row) {
+        std::vector<int64> key{ row[2 + n] };
+        for (std::size_t i = 0; i < n; ++i) {
+            key.push_back(combine_cstyle ? row[2 + i] : row[1 + n - i]);
+        }
+        return key;
+    };
+    for (std::size_t m = 0; m < block_ind_map.size(); ++m) {
+        auto const& row = block_ind_map[m];
+        assert(row.size() == 3 + n);
+        auto const J = static_cast<std::size_t>(row[2 + n]);
+        if (m > 0) {
+            auto const prev = sort_key(block_ind_map[m - 1]);
+            auto const cur = sort_key(row);
+            assert(std::ranges::lexicographical_compare(prev, cur));
+        }
+        if (m > 0 && row[2 + n] == block_ind_map[m - 1][2 + n]) {
+            assert(row[0] == block_ind_map[m - 1][1]);
+        } else {
+            assert(row[0] == 0);
+        }
+        std::vector<Sector> uncoupled(n);
+        for (std::size_t i = 0; i < n; ++i) {
+            uncoupled[i] = es[i]->sector_decomposition[static_cast<std::size_t>(row[2 + i])];
+        }
+        assert(Space::symmetry->multiple_fusion(uncoupled) == sector_decomposition[J]);
+    }
+    // call to super class(es)
+    LegPipe::test_sanity();
+    ElementarySpace::test_sanity();
+}
+
+py::object
+AbelianLegPipe::as_Space()
+{
+    return py::cast(shared_es());
+}
+
+py::object
+AbelianLegPipe::as_ElementarySpace(bool is_dual_)
+{
+    return py::cast(with_is_dual(is_dual_));
+}
+
+Space::Ptr
+AbelianLegPipe::dual_space() const
+{
+    return dual_pipe();
+}
+
+Leg::Ptr
+AbelianLegPipe::dual_leg() const
+{
+    return dual_pipe();
+}
+
+AbelianLegPipe::Ptr
+AbelianLegPipe::dual_pipe() const
+{
+    std::vector<ElementarySpace::Ptr> dual_legs;
+    dual_legs.reserve(legs.size());
+    for (auto it = legs.rbegin(); it != legs.rend(); ++it) {
+        dual_legs.push_back(as_es_leg((*it)->dual_leg()));
+    }
+    return std::make_shared<AbelianLegPipe>(std::move(dual_legs), !is_dual, !combine_cstyle);
+}
+
+bool
+AbelianLegPipe::is_trivial() const
+{
+    return ElementarySpace::is_trivial();
+}
+
+std::vector<Leg::Ptr>
+AbelianLegPipe::flat_spaces()
+{
+    // Unlike the plain LegPipe, we do not need to flatten AbelianLegPipes, if we just
+    // want to flatten until we get spaces
+    return { shared_leg() };
+}
+
+std::string
+AbelianLegPipe::ascii_arrow() const
+{
+    return LegPipe::ascii_arrow();
+}
+
+AbelianLegPipe::Ptr
+AbelianLegPipe::from_independent_symmetries(std::vector<Ptr> const& independent_descriptions)
+{
+    assert(!independent_descriptions.empty());
+    auto const is_dual = independent_descriptions.front()->is_dual;
+    assert(std::ranges::all_of(independent_descriptions,
+                               [is_dual](Ptr const& i) { return i->is_dual == is_dual; }));
+    auto const num_legs = independent_descriptions.front()->num_legs;
+    assert(std::ranges::all_of(independent_descriptions,
+                               [num_legs](Ptr const& i) { return i->num_legs == num_legs; }));
+    std::vector<ElementarySpace::Ptr> legs;
+    legs.reserve(static_cast<std::size_t>(num_legs));
+    for (std::size_t k = 0; k < static_cast<std::size_t>(num_legs); ++k) {
+        std::vector<ElementarySpace::Ptr> group;
+        std::vector<Ptr> pipes;
+        group.reserve(independent_descriptions.size());
+        for (auto const& description : independent_descriptions) {
+            auto leg = as_es_leg(description->legs[k]);
+            if (auto pipe = std::dynamic_pointer_cast<AbelianLegPipe>(leg)) {
+                pipes.push_back(std::move(pipe));
+            }
+            group.push_back(std::move(leg));
+        }
+        if (pipes.size() == group.size()) {
+            legs.push_back(from_independent_symmetries(pipes));
+        } else {
+            legs.push_back(ElementarySpace::from_independent_symmetries(group));
+        }
+    }
+    return std::make_shared<AbelianLegPipe>(std::move(legs), is_dual);
+}
+
+AbelianLegPipe::Ptr
+AbelianLegPipe::from_basis(Symmetry::Ptr /*symmetry*/, SectorArray /*sectors_of_basis*/)
+{
+    throw py::type_error("from_basis is not supported for AbelianLegPipe");
+}
+
+AbelianLegPipe::Ptr
+AbelianLegPipe::from_null_space(Symmetry::Ptr /*symmetry*/, bool /*is_dual*/)
+{
+    throw py::type_error("from_null_space is not supported for AbelianLegPipe");
+}
+
+AbelianLegPipe::Ptr
+AbelianLegPipe::from_defining_sectors(Symmetry::Ptr /*symmetry*/,
+                                      SectorArray /*defining_sectors*/,
+                                      std::optional<std::vector<int64>> /*multiplicities*/,
+                                      bool /*is_dual*/,
+                                      std::optional<std::vector<int64>> /*basis_perm*/,
+                                      bool /*unique_sectors*/,
+                                      std::vector<std::size_t>* /*return_sorting_perm*/)
+{
+    throw py::type_error("from_defining_sectors is not supported for AbelianLegPipe");
+}
+
+AbelianLegPipe::Ptr
+AbelianLegPipe::from_trivial_sector(int64 /*dim*/,
+                                    Symmetry::Ptr /*symmetry*/,
+                                    bool /*is_dual*/,
+                                    std::optional<std::vector<int64>> /*basis_perm*/)
+{
+    throw py::type_error("from_trivial_sector is not supported for AbelianLegPipe");
+}
+
+py::object
+AbelianLegPipe::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map, bool injective)
+{
+    std::vector<ElementarySpace::Ptr> new_legs;
+    new_legs.reserve(legs.size());
+    for (auto const& leg : es_legs()) {
+        new_legs.push_back(
+          leg->change_symmetry(symmetry_, sector_map, injective).cast<ElementarySpace::Ptr>());
+    }
+    return py::cast(
+      std::make_shared<AbelianLegPipe>(std::move(new_legs), is_dual, combine_cstyle));
+}
+
+py::object
+AbelianLegPipe::drop_symmetry(std::optional<std::vector<int64>> which)
+{
+    // OPTIMIZE can we avoid recomputation of fusion?
+    std::vector<ElementarySpace::Ptr> new_legs;
+    new_legs.reserve(legs.size());
+    for (auto const& leg : es_legs()) {
+        new_legs.push_back(leg->drop_symmetry(which).cast<ElementarySpace::Ptr>());
+    }
+    return py::cast(
+      std::make_shared<AbelianLegPipe>(std::move(new_legs), is_dual, combine_cstyle));
+}
+
+void
+AbelianLegPipe::set_basis_perm(std::optional<std::vector<int64>> /*basis_perm*/)
+{
+    throw py::type_error("Can not set basis_perm for AbelianLegPipe.");
+}
+
+void
+AbelianLegPipe::set_inverse_basis_perm(std::optional<std::vector<int64>> /*inverse_basis_perm*/)
+{
+    throw py::type_error("Can not set basis_perm for AbelianLegPipe.");
+}
+
+ElementarySpace::Ptr
+AbelianLegPipe::take_slice(py::array blockmask) const
+{
+    char const* msg =
+      "Using `AbelianLegPipe.take_slice` loses the product (pipe) structure and results in "
+      "a plain ElementarySpace. Explicitly convert using `as_ElementarySpace` to suppress "
+      "this warning.";
+    if (PyErr_WarnEx(PyExc_UserWarning, msg, 2) < 0) {
+        throw py::error_already_set();
+    }
+    // note: unlike the Python version, we call the ElementarySpace implementation directly.
+    // Python goes through ``as_ElementarySpace(is_dual=self.is_dual)``, which returns ``self``
+    // and therefore recurses infinitely.
+    return ElementarySpace::take_slice(std::move(blockmask));
+}
+
+ElementarySpace::Ptr
+AbelianLegPipe::with_opposite_duality() const
+{
+    return std::make_shared<AbelianLegPipe>(es_legs(), !is_dual, combine_cstyle);
+}
+
+bool
+AbelianLegPipe::operator==(Leg const& other) const
+{
+    // note: LegPipe::operator== already compares combine_cstyle and checks that both sides
+    // are (not) AbelianLegPipes.
+    return LegPipe::operator==(other);
+}
+
+bool
+AbelianLegPipe::operator==(Space const& other) const
+{
+    auto const* o = dynamic_cast<LegPipe const*>(&other);
+    if (o == nullptr) {
+        return false;
+    }
+    return LegPipe::operator==(*o);
+}
+
+std::string
+AbelianLegPipe::repr(bool show_symmetry, bool one_line) const
+{
+    auto const& cfg = get_config();
+    auto const linewidth = cfg.print_linewidth;
+    std::string const indent(static_cast<std::size_t>(cfg.print_indent), ' ');
+    auto const maxlines = cfg.maxlines_spaces;
+    std::string const ClsName = "AbelianLegPipe";
+
+    struct Options
+    {
+        /// 0=show full arrays, 1=show only nums, 2=dont show
+        int sector_mode;
+        /// 0=show full, 1=force one-line each, 2=show only num
+        int child_mode;
+        bool summarize_basis_perm;
+        bool symmetry;
+    };
+    std::array<Options, 7> const options{ { { 0, 0, false, show_symmetry },
+                                            { 0, 0, true, show_symmetry },
+                                            { 0, 1, true, show_symmetry },
+                                            { 0, 2, true, show_symmetry },
+                                            { 1, 2, true, show_symmetry },
+                                            { 2, 2, true, show_symmetry },
+                                            { 2, 2, true, false } } };
+    for (auto const& opt : options) {
+        if (opt.sector_mode == 0 && 3 * static_cast<int64>(sector_decomposition.size()) *
+                                       static_cast<int64>(sector_decomposition.sector_ind_len()) >
+                                     linewidth) {
+            // there is no chance to print all sectors in one line
+            continue;
+        }
+
+        // populate two lists; one intended for single line, one for multiline.
+        // this is because lines behaves differently when dealing with the children / legs
+        std::vector<std::string> one_line_items;
+        std::vector<std::string> lines{ ClsName + "(" };
+
+        if (opt.symmetry) {
+            one_line_items.push_back(std::format("symmetry={}", Space::symmetry->repr()));
+            lines.push_back(std::format("{}symmetry={},", indent, Space::symmetry->repr()));
+        }
+
+        if (opt.child_mode < 2) {
+            std::vector<std::string> reprs;
+            reprs.reserve(legs.size());
+            for (auto const& leg : legs) {
+                reprs.push_back(factor_repr(
+                  py::cast(leg), /*show_symmetry=*/false, /*one_line=*/opt.child_mode > 0));
+            }
+            one_line_items.push_back(std::format("factors=[{}]", join(reprs, ", ")));
+            lines.push_back(std::format("{}factors=[", indent));
+            for (auto const& r : reprs) {
+                lines.push_back(std::format("{}{}{},", indent, indent, r));
+            }
+            lines.push_back(std::format("{}],", indent));
+        } else {
+            one_line_items.push_back(std::format("num_legs={}", num_legs));
+            lines.push_back(std::format("{}num_legs={},", indent, num_legs));
+        }
+
+        if (opt.sector_mode == 0) {
+            py::list sector_dec_strs;
+            for (auto const& a : sector_decomposition) {
+                sector_dec_strs.append(Space::symmetry->sector_str(a));
+            }
+            py::list def_sector_strs;
+            for (auto const& a : defining_sectors) {
+                def_sector_strs.append(Space::symmetry->sector_str(a));
+            }
+            std::vector<std::string> const new_items{
+                std::format("sector_decomposition={}", format_like_list(sector_dec_strs)),
+                std::format("defining_sectors={}", format_like_list(def_sector_strs)),
+                std::format("multiplicities={}", format_like_list(py::cast(multiplicities)))
+            };
+            one_line_items.insert(one_line_items.end(), new_items.begin(), new_items.end());
+            for (auto const& item : new_items) {
+                lines.push_back(indent + item + ",");
+            }
+        } else if (opt.sector_mode == 1) {
+            one_line_items.push_back(std::format("num_sectors={}", num_sectors));
+            lines.push_back(std::format("{}num_sectors={},", indent, num_sectors));
+        }
+
+        if (_basis_perm) {
+            if (opt.summarize_basis_perm) {
+                one_line_items.emplace_back("basis_perm=[...]");
+                lines.push_back(std::format("{}basis_perm=[...],", indent));
+            } else {
+                auto const perm = format_like_list(py::cast(*_basis_perm));
+                one_line_items.push_back(std::format("basis_perm={}", perm));
+                lines.push_back(std::format("{}basis_perm={},", indent, perm));
+            }
+        }
+
+        one_line_items.push_back(std::format("is_dual={}", bool_repr(is_dual)));
+        lines.push_back(std::format("{}is_dual={},", indent, bool_repr(is_dual)));
+        lines.emplace_back(")");
+
+        // try one line
+        auto const res = std::format("{}({})", ClsName, join(one_line_items, ", "));
+        if (static_cast<int64>(res.size()) <= linewidth) {
+            return res;
+        }
+
+        if (!one_line) {
+            // try multi line
+            bool const maxlines_ok = static_cast<int64>(lines.size()) <= maxlines;
+            bool const linewidth_ok = std::ranges::all_of(
+              lines, [&](std::string const& l) { return static_cast<int64>(l.size()) < linewidth; });
+            if (maxlines_ok && linewidth_ok) {
+                return join(lines, "\n");
+            }
+        }
+    }
+    // one of the above returns should have triggered
+    throw std::runtime_error("AbelianLegPipe repr: no suitable format found");
+}
+
+void
+AbelianLegPipe::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+{
+    // note: the Python class inherits ElementarySpace.save_hdf5, which does not store the pipe
+    // structure. We additionally store the legs and combine_cstyle, such that from_hdf5 can
+    // reconstruct the pipe.
+    ElementarySpace::save_hdf5(hdf5_saver, h5gr, subpath);
+    py::list leg_list;
+    for (auto const& leg : legs) {
+        leg_list.append(py::cast(leg));
+    }
+    hdf5_saver.attr("save")(leg_list, subpath + "legs");
+    h5gr.attr("attrs")["combine_cstyle"] = combine_cstyle;
+}
+
+AbelianLegPipe::Ptr
+AbelianLegPipe::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    std::vector<ElementarySpace::Ptr> legs;
+    for (py::handle item : hdf5_loader.attr("load")(subpath + "legs")) {
+        legs.push_back(item.cast<ElementarySpace::Ptr>());
+    }
+    auto const is_dual = hdf5_loader.attr("get_attr")(h5gr, "is_dual").cast<bool>();
+    auto const combine_cstyle = hdf5_loader.attr("get_attr")(h5gr, "combine_cstyle").cast<bool>();
+    auto obj = std::make_shared<AbelianLegPipe>(std::move(legs), is_dual, combine_cstyle);
+    hdf5_loader.attr("memorize_load")(h5gr, py::cast(obj));
+    return obj;
+}
+
 } // namespace cyten

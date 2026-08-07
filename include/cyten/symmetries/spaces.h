@@ -505,6 +505,10 @@ class AbelianLegPipe
 
     std::vector<Leg::Ptr> flat_spaces() override;
 
+    /// Resolve the ambiguity between :meth:`LegPipe::ascii_arrow` and
+    /// :meth:`ElementarySpace::ascii_arrow` the same way as the Python MRO: the pipe wins.
+    std::string ascii_arrow() const override;
+
     [[nodiscard]] bool is_abelian_leg_pipe() const override { return true; }
 
     static Ptr from_independent_symmetries(std::vector<Ptr> const& independent_descriptions);
@@ -542,6 +546,17 @@ class AbelianLegPipe
     bool operator==(Space const& other) const override;
 
     [[nodiscard]] std::string repr(bool show_symmetry = true, bool one_line = false) const;
+
+    /// The permutation of basis elements that is introduced by the fusion.
+    ///
+    /// ``_get_fusion_outcomes_perm`` in Python. Only depends on the :attr:`multiplicities`, which
+    /// are passed explicitly since Python calls this before the :class:`ElementarySpace` base is
+    /// initialized.
+    [[nodiscard]] std::vector<int64> get_fusion_outcomes_perm(
+      std::vector<int64> const& multiplicities) const;
+
+    /// The :attr:`legs`, downcast to :class:`ElementarySpace`.
+    [[nodiscard]] std::vector<ElementarySpace::Ptr> es_legs() const;
 
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
 
