@@ -2,7 +2,7 @@
 
 ## Status
 
-**In progress** on branch `convert_backends`. Export as `cyten._core.AbelianBackendData`. **Not monkey-patched** into `cyten.backends`. `AbelianBackend` deferred.
+**C++ declaration + definitions + bindings done** on branch `convert_backends`. Exported as `cyten._core.AbelianBackendData`. **Not monkey-patched** into `cyten.backends`. `AbelianBackend` deferred.
 
 Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [convert_TensorBackend.md](convert_TensorBackend.md).
 
@@ -34,14 +34,15 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 ### Methods
 
 - Ctor `(dtype, device, blocks, block_inds, is_sorted=false)` — if not sorted, permute via `np.lexsort(block_inds.T)`.
-- `get_block_num(block_inds) -> optional<int64>`
-- `get_block(block_inds) -> BlockPtr` (nullable / optional)
+- `get_block_num(block_inds) -> optional<int64>` (Python returns `None`)
+- `get_block(block_inds) -> BlockPtr` (nullable)
 - `save_hdf5` / `from_hdf5` via `py::object` hdf5 loader/saver (same pattern as symmetries / Dtype).
 
 ### HDF5
 
 - Save `block_inds`, `blocks`, `dtype.to_numpy_dtype()`, `device` (match Python).
 - Load and reconstruct with `Dtype.from_numpy_dtype`; call `memorize_load`.
+- `from_hdf5` constructs with `is_sorted=true` (data was sorted when saved).
 
 ## Dependencies
 
@@ -52,13 +53,14 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 
 - [x] initial setup (on `convert_backends`; list_python_names; read Python source)
 - [x] planning (this file)
-- [ ] generate the declaration draft (`gen_cpp_declaration`)
-- [ ] improve and fix the declaration draft
-- [ ] generate the C++ definitions (`gen_cpp_definition` + CMake)
-- [ ] improve and fix the definition drafts (implement; compile)
-- [ ] generate pybind11 bindings (+ register in CMake / `_core` / header)
-- [ ] fix bindings
-- [ ] trampoline — skip
+- [x] generate the declaration draft (`gen_cpp_declaration`)
+- [x] improve and fix the declaration draft
+- [x] generate the C++ definitions (`gen_cpp_definition` + CMake)
+- [x] improve and fix the definition drafts (implement; compile)
+- [x] generate pybind11 bindings (+ register in CMake / `_core` / header)
+- [x] fix bindings (`shared_ptr` ctor, inherit `TensorBackend::Data`, members, static `from_hdf5`)
+- [x] trampoline — skip
 - [ ] monkey-patch — **deferred** (per convert_backends / user)
 - [ ] run python tests — deferred until monkey-patch / AbelianBackend
 - [ ] remove original python code — deferred
+- [ ] convert `AbelianBackend` next
