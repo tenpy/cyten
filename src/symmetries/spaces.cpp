@@ -320,7 +320,7 @@ Space::Space(Symmetry::Ptr symmetry_,
         assert(multiplicities.size() == n);
     }
     if (symmetry->can_be_dropped()) {
-        sector_dims = py_array_to_i64(symmetry->batch_sector_dim(sector_decomposition));
+        sector_dims = symmetry->batch_sector_dim(sector_decomposition);
         sector_qdims.assign(sector_dims->begin(), sector_dims->end());
         std::vector<std::array<int64, 2>> sl(n);
         int64 running = 0;
@@ -333,7 +333,7 @@ Space::Space(Symmetry::Ptr symmetry_,
         dim = static_cast<float64>(running);
     } else {
         sector_dims = std::nullopt;
-        sector_qdims = py_array_to_f64(symmetry->batch_qdim(sector_decomposition));
+        sector_qdims = symmetry->batch_qdim(sector_decomposition);
         slices = std::nullopt;
         float64 total = 0.;
         for (std::size_t i = 0; i < n; ++i) {
@@ -377,7 +377,7 @@ Space::test_sanity() const
         assert(slices);
         assert(sector_dims);
         assert(slices->size() == static_cast<std::size_t>(num_sectors));
-        auto expect_dims = py_array_to_i64(symmetry->batch_sector_dim(sector_decomposition));
+        auto expect_dims = symmetry->batch_sector_dim(sector_decomposition);
         assert(*sector_dims == expect_dims);
         for (std::size_t i = 0; i < static_cast<std::size_t>(num_sectors); ++i) {
             assert((*slices)[i][1] - (*slices)[i][0] == (*sector_dims)[i] * multiplicities[i]);
@@ -901,7 +901,7 @@ num_states_per_sector(Symmetry const& symmetry,
                       SectorArray const& sectors,
                       std::vector<int64> const& multiplicities)
 {
-    auto num_states = py_array_to_i64(symmetry.batch_sector_dim(sectors));
+    auto num_states = symmetry.batch_sector_dim(sectors);
     for (std::size_t i = 0; i < num_states.size(); ++i) {
         num_states[i] *= multiplicities[i];
     }
@@ -1013,7 +1013,7 @@ ElementarySpace::from_basis(Symmetry::Ptr symmetry, SectorArray sectors_of_basis
     auto const diffs = sorted.find_row_differences(/*include_len=*/true);
     // [:-1] to exclude len
     auto sectors = sorted.take(std::span<const std::size_t>(diffs.data(), diffs.size() - 1));
-    auto const dims = py_array_to_i64(symmetry->batch_sector_dim(sectors));
+    auto const dims = symmetry->batch_sector_dim(sectors);
     std::vector<int64> multiplicities(sectors.size());
     for (std::size_t i = 0; i < sectors.size(); ++i) {
         // how often the sector appears in the input sectors_of_basis
@@ -3406,7 +3406,7 @@ leg_dim_as_size(Leg const& leg)
 
 } // namespace
 
-py::array
+FusionSymbol
 swap_gate(Leg::Ptr V, Leg::Ptr W)
 {
     if (!V || !W) {
@@ -3426,22 +3426,24 @@ swap_gate(Leg::Ptr V, Leg::Ptr W)
     if (is_plain_leg_pipe(V)) {
         auto pipe = std::dynamic_pointer_cast<LegPipe>(V);
         auto const& legs = pipe->legs;
-        py::object res = swap_gate(legs.back(), W);
+        py::object res = fusion_symbol_to_numpy(swap_gate(legs.back(), W));
         int n = 0;
         for (auto it = legs.rbegin() + 1; it != legs.rend(); ++it, ++n) {
-            py::object sw = swap_gate(*it, W);
+            py::object sw = fusion_symbol_to_numpy(swap_gate(*it, W));
             res = np.attr("tensordot")(sw, res, py::make_tuple(2, 0));
             res = np.attr("moveaxis")(res, 2, -2 - n);
         }
         char const* order = pipe->combine_cstyle ? "C" : "F";
-        return np.attr("reshape")(res, py::make_tuple(dW, dV, dW, dV), py::arg("order") = order);
+        return fusion_symbol_from_numpy(
+          np.attr("reshape")(res, py::make_tuple(dW, dV, dW, dV), py::arg("order") = order)
+            .cast<py::array>());
     }
     if (is_plain_leg_pipe(W)) {
         auto pipe = std::dynamic_pointer_cast<LegPipe>(W);
         auto const& legs = pipe->legs;
-        py::object res = swap_gate(V, legs.front());
+        py::object res = fusion_symbol_to_numpy(swap_gate(V, legs.front()));
         for (std::size_t n = 1; n < legs.size(); ++n) {
-            py::object sw = swap_gate(V, legs[n]);
+            py::object sw = fusion_symbol_to_numpy(swap_gate(V, legs[n]));
             res = np.attr("tensordot")(res, sw, py::make_tuple(static_cast<int>(n), -1));
             py::list axes;
             for (std::size_t i = 0; i < n; ++i) {
@@ -3457,7 +3459,9 @@ swap_gate(Leg::Ptr V, Leg::Ptr W)
             res = np.attr("transpose")(res, axes);
         }
         char const* order = pipe->combine_cstyle ? "C" : "F";
-        return np.attr("reshape")(res, py::make_tuple(dW, dV, dW, dV), py::arg("order") = order);
+        return fusion_symbol_from_numpy(
+          np.attr("reshape")(res, py::make_tuple(dW, dV, dW, dV), py::arg("order") = order)
+            .cast<py::array>());
     }
 
     auto Ves = std::dynamic_pointer_cast<ElementarySpace>(V);
@@ -3476,7 +3480,7 @@ swap_gate(Leg::Ptr V, Leg::Ptr W)
         for (std::size_t ib = 0; ib < Wes->defining_sectors.size(); ++ib) {
             auto const& b = Wes->defining_sectors[ib];
             auto const mb = Wes->multiplicities[ib];
-            py::array swap = Ves->Space::symmetry->swap_gate(a, b);
+            py::array swap = fusion_symbol_to_numpy(Ves->Space::symmetry->swap_gate(a, b));
             auto const db = static_cast<int64>(Wes->Space::symmetry->sector_dim(b));
             int64 i2 = i;
             for (int64 na = 0; na < ma; ++na) {
@@ -3496,10 +3500,10 @@ swap_gate(Leg::Ptr V, Leg::Ptr W)
     }
     auto Winv = vector_to_array(Wes->inverse_basis_perm());
     auto Vinv = vector_to_array(Ves->inverse_basis_perm());
-    return res[np.attr("ix_")(Winv, Vinv, Winv, Vinv)];
+    return fusion_symbol_from_numpy(res[np.attr("ix_")(Winv, Vinv, Winv, Vinv)].cast<py::array>());
 }
 
-py::array
+FusionSymbol
 twist_gate_diag(Leg::Ptr V)
 {
     if (!V) {
@@ -3514,16 +3518,16 @@ twist_gate_diag(Leg::Ptr V)
     if (is_plain_leg_pipe(V)) {
         auto pipe = std::dynamic_pointer_cast<LegPipe>(V);
         char const* order = pipe->combine_cstyle ? "C" : "F";
-        py::object res = twist_gate_diag(pipe->legs.front());
+        py::object res = fusion_symbol_to_numpy(twist_gate_diag(pipe->legs.front()));
         auto newaxis = np.attr("newaxis");
         for (std::size_t n = 1; n < pipe->legs.size(); ++n) {
-            py::object next = twist_gate_diag(pipe->legs[n]);
+            py::object next = fusion_symbol_to_numpy(twist_gate_diag(pipe->legs[n]));
             res = np.attr("reshape")(res[py::make_tuple(py::slice(), newaxis)] *
                                        next[py::make_tuple(newaxis, py::slice())],
                                      -1,
                                      py::arg("order") = order);
         }
-        return res;
+        return fusion_symbol_from_numpy(res.cast<py::array>());
     }
 
     // ElementarySpace or AbelianLegPipe
@@ -3531,29 +3535,43 @@ twist_gate_diag(Leg::Ptr V)
     if (!Ves) {
         throw py::type_error("twist_gate_diag expects ElementarySpace or LegPipe");
     }
-    auto const dV = static_cast<py::ssize_t>(leg_dim_as_size(*Ves));
-    py::object res_diag = np.attr("zeros")(dV);
+    auto const dV = static_cast<std::size_t>(leg_dim_as_size(*Ves));
     if (!Ves->slices) {
         throw SymmetryError(
           std::format("twist can not be written as array for {}.", Ves->Space::symmetry->str()));
     }
+
+    bool any_complex = false;
+    std::vector<complex128> values(dV, complex128{ 0.0, 0.0 });
     for (std::size_t n = 0; n < Ves->sector_decomposition.size(); ++n) {
         auto const& a = Ves->sector_decomposition[n];
-        auto const i = (*Ves->slices)[n][0];
-        auto const j = (*Ves->slices)[n][1];
+        auto const i = static_cast<std::size_t>((*Ves->slices)[n][0]);
+        auto const j = static_cast<std::size_t>((*Ves->slices)[n][1]);
         complex128 const twist = Ves->Space::symmetry->topological_twist(a);
-        // Assign as float when real so ``np.zeros(dV)`` (float64) stays real for
-        // symmetries with real twists (e.g. U(1)); matches Python historical dtype.
-        if (twist.imag() == 0.0) {
-            res_diag[py::slice(i, j, 1)] = twist.real();
-        } else {
-            res_diag[py::slice(i, j, 1)] = twist;
+        if (twist.imag() != 0.0) {
+            any_complex = true;
+        }
+        for (std::size_t k = i; k < j; ++k) {
+            values[k] = twist;
         }
     }
-    return res_diag[vector_to_array(Ves->inverse_basis_perm())];
+    auto const& perm = Ves->inverse_basis_perm();
+    if (any_complex) {
+        std::vector<complex128> out(dV);
+        for (std::size_t i = 0; i < dV; ++i) {
+            out[i] = values[static_cast<std::size_t>(perm[i])];
+        }
+        return FusionSymbol::from_complex128(
+          1, FusionSymbol::Shape{ { dV, 1, 1, 1 } }, std::move(out));
+    }
+    std::vector<float64> out(dV);
+    for (std::size_t i = 0; i < dV; ++i) {
+        out[i] = values[static_cast<std::size_t>(perm[i])].real();
+    }
+    return FusionSymbol::from_float64(1, FusionSymbol::Shape{ { dV, 1, 1, 1 } }, std::move(out));
 }
 
-py::array
+FusionSymbol
 twist_gate(Leg::Ptr V)
 {
     if (!V) {
@@ -3563,7 +3581,13 @@ twist_gate(Leg::Ptr V)
         throw SymmetryError(
           std::format("twist can not be written as array for {}.", V->symmetry->str()));
     }
-    return py::module_::import("numpy").attr("diag")(twist_gate_diag(std::move(V)));
+    auto diag = twist_gate_diag(std::move(V));
+    auto const n = diag.extent(0);
+    FusionSymbol out(2, FusionSymbol::Shape{ { n, n, 1, 1 } }, diag.dtype());
+    for (std::size_t i = 0; i < n; ++i) {
+        out.set(i, i, diag.get_complex(i));
+    }
+    return out;
 }
 
 std::vector<int64>

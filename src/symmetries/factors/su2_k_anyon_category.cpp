@@ -22,20 +22,16 @@ iround(float64 x)
     return static_cast<int>(std::llround(x));
 }
 
-py::array
+FusionSymbol
 scale_one_1D(complex128 factor)
 {
-    return topo_ones::numpy()
-      .attr("multiply")(py::cast(factor), topo_ones::one_1D())
-      .cast<py::array>();
+    return FusionSymbol::scalar1d(factor, Dtype::Complex128);
 }
 
-py::array
+FusionSymbol
 scale_one_4D(complex128 factor)
 {
-    return topo_ones::numpy()
-      .attr("multiply")(py::cast(factor), topo_ones::one_4D())
-      .cast<py::array>();
+    return topo_ones::one_4D() * factor;
 }
 
 int
@@ -256,7 +252,7 @@ SU2_kAnyonCategory::_n_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
     return 1;
 }
 
-py::array
+FusionSymbol
 SU2_kAnyonCategory::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     int ja = a.q[0];
@@ -319,18 +315,17 @@ SU2_kAnyonCategory::qdim(Sector a) const
            denom;
 }
 
-py::array
+std::vector<float64>
 SU2_kAnyonCategory::batch_qdim(SectorArray const& a) const
 {
-    py::array_t<float64> out(static_cast<py::ssize_t>(a.size()));
-    auto r = out.mutable_unchecked<1>();
+    std::vector<float64> out(a.size());
     for (std::size_t i = 0; i < a.size(); ++i) {
-        r(static_cast<py::ssize_t>(i)) = qdim(a[i]);
+        out[i] = qdim(a[i]);
     }
     return out;
 }
 
-py::array
+FusionSymbol
 SU2_kAnyonCategory::_r_symbol(Sector a, Sector b, Sector c) const
 {
     int ja = a.q[0];

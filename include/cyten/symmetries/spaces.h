@@ -1,6 +1,7 @@
 #pragma once
 
 #include "exceptions.h"
+#include "fusion_symbol.h"
 #include "sector.h"
 #include "symmetry.h"
 #include "trees.h"
@@ -609,13 +610,13 @@ class AbelianLegPipe
 /// Axes of the result are ``[W, V, W*, V*]``. Accepts plain :class:`LegPipe`\ s (recursively)
 /// as well as :class:`ElementarySpace`\ s; an :class:`AbelianLegPipe` is treated as an
 /// :class:`ElementarySpace` (matching Python ``isinstance``).
-[[nodiscard]] py::array swap_gate(Leg::Ptr V, Leg::Ptr W);
+[[nodiscard]] FusionSymbol swap_gate(Leg::Ptr V, Leg::Ptr W);
 
 /// The topological twist on a whole space, as a numpy matrix with axes ``[V, V*]``.
-[[nodiscard]] py::array twist_gate(Leg::Ptr V);
+[[nodiscard]] FusionSymbol twist_gate(Leg::Ptr V);
 
 /// Diagonal of :func:`twist_gate` (public basis order).
-[[nodiscard]] py::array twist_gate_diag(Leg::Ptr V);
+[[nodiscard]] FusionSymbol twist_gate_diag(Leg::Ptr V);
 
 /// Leg permutation such that combining / splitting legs would be in C style.
 [[nodiscard]] std::vector<int64> flat_leg_permutation(std::vector<Leg::Ptr> const& legs);

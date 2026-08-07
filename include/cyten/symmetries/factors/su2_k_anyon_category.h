@@ -41,11 +41,12 @@ class SU2_kAnyonCategory : public SymmetryFactor
     Sector dual_sector(Sector a) const override;
     SectorArray dual_sectors(SectorArray const& sectors) const override;
     int64 _n_symbol(Sector a, Sector b, Sector c) const override;
-    py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override;
+    FusionSymbol _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
+      const override;
     int64 frobenius_schur(Sector a) const override;
     float64 qdim(Sector a) const override;
-    py::array batch_qdim(SectorArray const& a) const override;
-    py::array _r_symbol(Sector a, Sector b, Sector c) const override;
+    std::vector<float64> batch_qdim(SectorArray const& a) const override;
+    FusionSymbol _r_symbol(Sector a, Sector b, Sector c) const override;
     SectorArray all_sectors() const override;
 
     void save_hdf5(py::object hdf5_saver,
@@ -57,7 +58,7 @@ class SU2_kAnyonCategory : public SymmetryFactor
     using RKey = std::tuple<int, int, int>;
     using SixJKey = std::tuple<int, int, int, int, int, int>;
 
-    std::map<RKey, py::array> _r;
+    std::map<RKey, FusionSymbol> _r;
     std::map<SixJKey, float64> _6j;
 
     float64 _n_q(int n) const;

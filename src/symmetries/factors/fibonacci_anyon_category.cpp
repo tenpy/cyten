@@ -1,12 +1,12 @@
 #include <cyten/symmetries/factors/fibonacci_anyon_category.h>
 
-#include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/topo_ones.h>
 
 #include <cmath>
 #include <numbers>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace cyten {
 
@@ -21,7 +21,7 @@ sector1(int16_t q)
     return Sector{ q };
 }
 
-py::array
+FusionSymbol
 default_c_symbol(BaseSymmetry const& sym,
                  Sector a,
                  Sector b,
@@ -32,20 +32,10 @@ default_c_symbol(BaseSymmetry const& sym,
 {
     auto R1 = sym._r_symbol(e, c, d);
     auto F = sym._f_symbol(c, a, b, d, e, f);
-    auto R2 = sym._r_symbol(a, c, f);
-    auto np = topo_ones::numpy();
-    return (R1.attr("reshape")(py::make_tuple(1, -1, 1, 1)) * F *
-            np.attr("conj")(R2).attr("reshape")(py::make_tuple(1, 1, -1, 1)))
-      .cast<py::array>();
-}
-
-py::array
-c_entry_to_array(py::object const& entry)
-{
-    if (py::isinstance<py::array>(entry)) {
-        return entry.cast<py::array>();
-    }
-    return topo_ones::numpy().attr("array")(entry).cast<py::array>();
+    auto R2 = sym._r_symbol(a, c, f).conj();
+    auto R1e = R1.reshaped(4, FusionSymbol::Shape{ { 1, R1.size(), 1, 1 } });
+    auto R2e = R2.reshaped(4, FusionSymbol::Shape{ { 1, 1, R2.size(), 1 } });
+    return R1e.multiply(F).multiply(R2e);
 }
 
 float64
@@ -54,28 +44,25 @@ golden_ratio()
     return 0.5 * (1.0 + std::sqrt(5.0));
 }
 
-py::array
+FusionSymbol
 make_f_table(float64 phi)
 {
-    auto np = topo_ones::numpy();
-    py::list vals;
-    vals.append(std::pow(phi, -1.0));
-    vals.append(std::pow(phi, -0.5));
-    vals.append(-std::pow(phi, -1.0));
-    return np.attr("expand_dims")(vals, py::make_tuple(1, 2, 3, 4)).cast<py::array>();
+    return FusionSymbol::from_float64(
+      1,
+      FusionSymbol::Shape{ { 3, 1, 1, 1 } },
+      { std::pow(phi, -1.0), std::pow(phi, -0.5), -std::pow(phi, -1.0) });
 }
 
-py::array
+FusionSymbol
 make_r_table(std::string const& handedness)
 {
-    auto np = topo_ones::numpy();
     auto const pi = std::numbers::pi_v<float64>;
-    py::list vals;
-    vals.append(std::exp(complex128{ 0.0, -4.0 * pi / 5.0 }));
-    vals.append(std::exp(complex128{ 0.0, 3.0 * pi / 5.0 }));
-    auto arr = np.attr("expand_dims")(vals, 1).cast<py::array>();
+    std::vector<complex128> vals{ std::exp(complex128{ 0.0, -4.0 * pi / 5.0 }),
+                                  std::exp(complex128{ 0.0, 3.0 * pi / 5.0 }) };
+    auto arr =
+      FusionSymbol::from_complex128(1, FusionSymbol::Shape{ { 2, 1, 1, 1 } }, std::move(vals));
     if (handedness == "right") {
-        arr = np.attr("conj")(arr).cast<py::array>();
+        return arr.conj();
     }
     return arr;
 }
@@ -117,6 +104,12 @@ all_tau4(Sector a, Sector b, Sector c, Sector d)
     return a.q[0] == 1 && b.q[0] == 1 && c.q[0] == 1 && d.q[0] == 1;
 }
 
+FusionSymbol
+zero_c_entry()
+{
+    return FusionSymbol::zeros(4, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, Dtype::Complex128);
+}
+
 } // namespace
 
 FibonacciAnyonCategory::FibonacciAnyonCategory(std::string handedness_)
@@ -137,12 +130,12 @@ FibonacciAnyonCategory::FibonacciAnyonCategory(std::string handedness_)
     _c = {
         default_c_symbol(
           *this, sector1(0), sector1(1), sector1(1), sector1(0), sector1(1), sector1(1)),
-        py::int_(0),
-        py::int_(0),
+        zero_c_entry(),
+        zero_c_entry(),
         default_c_symbol(
           *this, sector1(0), sector1(1), sector1(1), sector1(1), sector1(1), sector1(1)),
-        py::int_(0),
-        py::int_(0),
+        zero_c_entry(),
+        zero_c_entry(),
         default_c_symbol(
           *this, sector1(1), sector1(1), sector1(1), sector1(0), sector1(1), sector1(1)),
         default_c_symbol(
@@ -220,12 +213,13 @@ FibonacciAnyonCategory::_n_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) cons
     return 1;
 }
 
-py::array
+FusionSymbol
 FibonacciAnyonCategory::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     if (all_tau4(a, b, c, d)) {
-        auto idx = static_cast<py::ssize_t>(e.q[0] + f.q[0]);
-        return _f.attr("__getitem__")(idx).cast<py::array>();
+        auto idx = static_cast<std::size_t>(e.q[0] + f.q[0]);
+        return FusionSymbol::full(
+          4, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, _f.get_complex(idx), Dtype::Float64);
     }
     return topo_ones::one_4D();
 }
@@ -242,30 +236,32 @@ FibonacciAnyonCategory::qdim(Sector a) const
     return a.q[0] == 0 ? 1.0 : _phi;
 }
 
-py::array
+std::vector<float64>
 FibonacciAnyonCategory::batch_qdim(SectorArray const& a) const
 {
-    auto np = topo_ones::numpy();
-    return np.attr("where")(sector_array_to_numpy(a).attr("__eq__")(1), _phi, 1)
-      .attr("flatten")()
-      .cast<py::array>();
+    std::vector<float64> out(a.size());
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        out[i] = (a[i][0] == 1) ? _phi : 1.0;
+    }
+    return out;
 }
 
-py::array
+FusionSymbol
 FibonacciAnyonCategory::_r_symbol(Sector a, Sector b, Sector c) const
 {
     if (all_tau(a, b)) {
-        return _r.attr("__getitem__")(py::make_tuple(c.q[0], py::slice())).cast<py::array>();
+        return FusionSymbol::scalar1d(_r.get_complex(static_cast<std::size_t>(c.q[0])),
+                                      Dtype::Complex128);
     }
     return topo_ones::one_1D();
 }
 
-py::array
+FusionSymbol
 FibonacciAnyonCategory::_c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     if (all_tau(b, c)) {
         auto const idx = static_cast<std::size_t>(6 * a.q[0] + 3 * d.q[0] + e.q[0] + f.q[0] - 2);
-        return c_entry_to_array(_c.at(idx));
+        return _c.at(idx);
     }
     return topo_ones::one_4D();
 }

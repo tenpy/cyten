@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace cyten {
 
@@ -32,10 +33,10 @@ parity_sign(int exp)
     return (exp % 2 == 0) ? 1 : -1;
 }
 
-py::array
+FusionSymbol
 signed_one_4D(int sign)
 {
-    return topo_ones::numpy().attr("multiply")(sign, topo_ones::one_4D()).cast<py::array>();
+    return topo_ones::one_4D() * static_cast<float64>(sign);
 }
 
 } // namespace
@@ -124,22 +125,16 @@ ZNAnyonCategory2::sector_dim(Sector /*a*/) const
     return 1;
 }
 
-py::array
+std::vector<int64>
 ZNAnyonCategory2::batch_sector_dim(SectorArray const& a) const
 {
-    return topo_ones::numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
-                    py::arg("dtype") = topo_ones::numpy().attr("intp"))
-      .cast<py::array>();
+    return std::vector<int64>(a.size(), 1);
 }
 
-py::array
+std::vector<float64>
 ZNAnyonCategory2::batch_qdim(SectorArray const& a) const
 {
-    return topo_ones::numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
-                    py::arg("dtype") = topo_ones::numpy().attr("intp"))
-      .cast<py::array>();
+    return std::vector<float64>(a.size(), 1.0);
 }
 
 std::string
@@ -183,7 +178,7 @@ ZNAnyonCategory2::_n_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
     return 1;
 }
 
-py::array
+FusionSymbol
 ZNAnyonCategory2::_f_symbol(Sector a, Sector b, Sector c, Sector /*d*/, Sector /*e*/, Sector /*f*/)
   const
 {
@@ -204,17 +199,14 @@ ZNAnyonCategory2::qdim(Sector /*a*/) const
     return 1.0;
 }
 
-py::array
+FusionSymbol
 ZNAnyonCategory2::_r_symbol(Sector a, Sector b, Sector /*c*/) const
 {
     int const exp = static_cast<int>(a.q[0]) * static_cast<int>(b.q[0]);
-    auto val = phase_pow(_phase, exp);
-    return topo_ones::numpy()
-      .attr("multiply")(py::cast(val), topo_ones::one_1D())
-      .cast<py::array>();
+    return FusionSymbol::scalar1d(phase_pow(_phase, exp), Dtype::Complex128);
 }
 
-py::array
+FusionSymbol
 ZNAnyonCategory2::_c_symbol(Sector /*a*/,
                             Sector b,
                             Sector c,
@@ -223,10 +215,7 @@ ZNAnyonCategory2::_c_symbol(Sector /*a*/,
                             Sector /*f*/) const
 {
     int const exp = static_cast<int>(b.q[0]) * static_cast<int>(c.q[0]);
-    auto val = phase_pow(_phase, exp);
-    return topo_ones::numpy()
-      .attr("multiply")(py::cast(val), topo_ones::one_4D())
-      .cast<py::array>();
+    return topo_ones::one_4D() * phase_pow(_phase, exp);
 }
 
 SectorArray

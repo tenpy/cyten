@@ -22,9 +22,9 @@ class FibonacciAnyonCategory : public SymmetryFactor
 
     std::string handedness;
     float64 _phi;
-    py::array _f;
-    py::array _r;
-    std::vector<py::object> _c;
+    FusionSymbol _f;
+    FusionSymbol _r;
+    std::vector<FusionSymbol> _c;
 
     explicit FibonacciAnyonCategory(std::string handedness = "left");
     ~FibonacciAnyonCategory() override = default;
@@ -38,12 +38,14 @@ class FibonacciAnyonCategory : public SymmetryFactor
     Sector dual_sector(Sector a) const override;
     SectorArray dual_sectors(SectorArray const& sectors) const override;
     int64 _n_symbol(Sector a, Sector b, Sector c) const override;
-    py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override;
+    FusionSymbol _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
+      const override;
     int64 frobenius_schur(Sector a) const override;
     float64 qdim(Sector a) const override;
-    py::array batch_qdim(SectorArray const& a) const override;
-    py::array _r_symbol(Sector a, Sector b, Sector c) const override;
-    py::array _c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override;
+    std::vector<float64> batch_qdim(SectorArray const& a) const override;
+    FusionSymbol _r_symbol(Sector a, Sector b, Sector c) const override;
+    FusionSymbol _c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
+      const override;
     SectorArray all_sectors() const override;
 
     void save_hdf5(py::object hdf5_saver,

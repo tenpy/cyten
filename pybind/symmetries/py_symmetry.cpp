@@ -162,8 +162,18 @@ bind_symmetry(py::module_& m)
            )pydoc")
       .def("qdim", &Symmetry::qdim, py::arg("a"))
       .def("sector_dim", &Symmetry::sector_dim, py::arg("a"))
-      .def("batch_sector_dim", &Symmetry::batch_sector_dim, py::arg("a"))
-      .def("batch_qdim", &Symmetry::batch_qdim, py::arg("a"))
+      .def(
+        "batch_sector_dim",
+        [](Symmetry const& self, SectorArray const& a) {
+            return vector_i64_to_numpy(self.batch_sector_dim(a));
+        },
+        py::arg("a"))
+      .def(
+        "batch_qdim",
+        [](Symmetry const& self, SectorArray const& a) {
+            return vector_f64_to_numpy(self.batch_qdim(a));
+        },
+        py::arg("a"))
       .def("sector_str", &Symmetry::sector_str, py::arg("a"))
       .def("_f_symbol",
            &Symmetry::_f_symbol,

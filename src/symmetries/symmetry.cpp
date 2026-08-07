@@ -1,5 +1,6 @@
 #include <cyten/symmetries/symmetry.h>
 
+#include <cyten/symmetries/fusion_symbol.h>
 #include <cyten/symmetries/sector_numpy.h>
 
 #include <algorithm>
@@ -489,39 +490,36 @@ Symmetry::sector_dim(Sector a) const
     return dim;
 }
 
-py::array
+std::vector<int64>
 Symmetry::batch_sector_dim(SectorArray const& a) const
 {
-    auto np = numpy();
     if (is_abelian()) {
-        return np
-          .attr("ones")(py::make_tuple(static_cast<ssize_t>(a.size())),
-                        py::arg("dtype") = np.attr("int64"))
-          .cast<py::array>();
+        return std::vector<int64>(a.size(), 1);
     }
-    auto dims = np.attr("ones")(py::make_tuple(static_cast<ssize_t>(a.size())),
-                                py::arg("dtype") = np.attr("int64"));
+    std::vector<int64> dims(a.size(), 1);
     for (std::size_t i = 0; i < factors.size(); ++i) {
-        dims = np.attr("multiply")(dims, factors[i]->batch_sector_dim(factor_sectors(a, i)));
+        auto fi = factors[i]->batch_sector_dim(factor_sectors(a, i));
+        for (std::size_t j = 0; j < dims.size(); ++j) {
+            dims[j] *= fi[j];
+        }
     }
-    return dims.cast<py::array>();
+    return dims;
 }
 
-py::array
+std::vector<float64>
 Symmetry::batch_qdim(SectorArray const& a) const
 {
-    auto np = numpy();
     if (is_abelian()) {
-        return np
-          .attr("ones")(py::make_tuple(static_cast<ssize_t>(a.size())),
-                        py::arg("dtype") = np.attr("int64"))
-          .cast<py::array>();
+        return std::vector<float64>(a.size(), 1.0);
     }
-    auto dims = np.attr("ones")(py::make_tuple(static_cast<ssize_t>(a.size())));
+    std::vector<float64> dims(a.size(), 1.0);
     for (std::size_t i = 0; i < factors.size(); ++i) {
-        dims = np.attr("multiply")(dims, factors[i]->batch_qdim(factor_sectors(a, i)));
+        auto fi = factors[i]->batch_qdim(factor_sectors(a, i));
+        for (std::size_t j = 0; j < dims.size(); ++j) {
+            dims[j] *= fi[j];
+        }
     }
-    return dims.cast<py::array>();
+    return dims;
 }
 
 float64
@@ -551,11 +549,10 @@ Symmetry::sector_str(Sector a) const
     return out;
 }
 
-py::array
+FusionSymbol
 Symmetry::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
-    auto np = numpy();
-    py::object res = np.attr("ones")(py::make_tuple(1, 1, 1, 1));
+    FusionSymbol res = FusionSymbol::one_4D();
     for (std::size_t i = 0; i < factors.size(); ++i) {
         auto Fi = factors[i]->_f_symbol(factor_sector(a, i),
                                         factor_sector(b, i),
@@ -563,68 +560,64 @@ Symmetry::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) 
                                         factor_sector(d, i),
                                         factor_sector(e, i),
                                         factor_sector(f, i));
-        res = np.attr("kron")(res, Fi);
+        res = kron(res, Fi);
     }
-    return res.cast<py::array>();
+    return res;
 }
 
-py::array
+FusionSymbol
 Symmetry::_r_symbol(Sector a, Sector b, Sector c) const
 {
-    auto np = numpy();
-    py::object res = np.attr("ones")(py::make_tuple(1));
+    FusionSymbol res = FusionSymbol::one_1D();
     for (std::size_t i = 0; i < factors.size(); ++i) {
         auto Ri =
           factors[i]->_r_symbol(factor_sector(a, i), factor_sector(b, i), factor_sector(c, i));
-        res = np.attr("kron")(res, Ri);
+        res = kron(res, Ri);
     }
-    return res.cast<py::array>();
+    return res;
 }
 
-py::array
+FusionSymbol
 Symmetry::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
 {
     if (!can_be_dropped()) {
         throw SymmetryError("fusion tensor can not be written as array for this symmetry");
     }
-    auto np = numpy();
-    py::object res = np.attr("ones")(py::make_tuple(1, 1, 1, 1));
+    FusionSymbol res = FusionSymbol::one_4D();
     for (std::size_t i = 0; i < factors.size(); ++i) {
         auto Xi = factors[i]->_fusion_tensor(
           factor_sector(a, i), factor_sector(b, i), factor_sector(c, i), Z_a, Z_b);
-        res = np.attr("kron")(res, Xi);
+        res = kron(res, Xi);
     }
-    return res.cast<py::array>();
+    return res;
 }
 
-py::array
+FusionSymbol
 Symmetry::swap_gate(Sector a, Sector b) const
 {
     if (!can_be_dropped()) {
         throw SymmetryError("fusion tensor can not be written as array for this symmetry");
     }
-    auto np = numpy();
-    py::object res = np.attr("ones")(py::make_tuple(1, 1, 1, 1));
+    FusionSymbol res = FusionSymbol::one_4D();
     for (std::size_t i = 0; i < factors.size(); ++i) {
         auto Si = factors[i]->swap_gate(factor_sector(a, i), factor_sector(b, i));
-        res = np.attr("kron")(res, Si);
+        res = kron(res, Si);
     }
-    return res.cast<py::array>();
+    return res;
 }
 
-py::array
+FusionSymbol
 Symmetry::Z_iso(Sector a) const
 {
     if (!can_be_dropped()) {
         throw SymmetryError("Z iso can not be written as array for this symmetry");
     }
-    auto np = numpy();
-    py::object res = np.attr("ones")(py::make_tuple(1, 1));
+    FusionSymbol res = FusionSymbol::one_2D();
     for (std::size_t i = 0; i < factors.size(); ++i) {
         auto Zi = factors[i]->Z_iso(factor_sector(a, i));
-        res = np.attr("kron")(res, Zi);
+        res = kron(res, Zi);
     }
-    return res.cast<py::array>();
+    return res;
 }
 
 std::string

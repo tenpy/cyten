@@ -4,6 +4,7 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace cyten {
 
@@ -27,11 +28,12 @@ class Group : public SymmetryFactor
     ~Group() override = default;
 
     /// Subclasses must implement; for groups it is always possible.
-    py::array _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const override = 0;
+    FusionSymbol _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const override =
+      0;
 
-    py::array swap_gate(Sector a, Sector b) const override;
+    FusionSymbol swap_gate(Sector a, Sector b) const override;
     float64 qdim(Sector a) const override;
-    py::array batch_qdim(SectorArray const& a) const override;
+    std::vector<float64> batch_qdim(SectorArray const& a) const override;
     complex128 topological_twist(Sector a) const override;
 };
 

@@ -2,6 +2,7 @@
 
 #include <cyten/block_backend/numpy.h>
 #include <cyten/symmetries/exceptions.h>
+#include <cyten/symmetries/fusion_symbol.h>
 #include <cyten/tools.h>
 
 #include <algorithm>
@@ -186,36 +187,20 @@ hash_uint8_vector(std::vector<std::uint8_t> const& v) noexcept
     return seed;
 }
 
-complex128
-py_array_get_complex(py::array const& arr, py::ssize_t i0)
+/// ``tensor[mu, :, :, :]`` for fusion tensors shaped ``[μ, a0, a1, c]``.
+FusionSymbol
+fusion_tensor_slice_mu(FusionSymbol const& tensor, std::size_t mu)
 {
-    return arr.attr("__getitem__")(i0).cast<complex128>();
-}
-
-complex128
-py_array_get_complex(py::array const& arr, py::ssize_t i0, py::ssize_t i1)
-{
-    return arr.attr("__getitem__")(py::make_tuple(i0, i1)).cast<complex128>();
-}
-
-py::array
-py_array_get_slice2d(py::array const& arr, py::ssize_t i0, py::ssize_t i1)
-{
-    return arr.attr("__getitem__")(py::make_tuple(i0, i1, py::slice(), py::slice()))
-      .cast<py::array>();
-}
-
-void
-iterate_complex2d(py::array const& arr2d,
-                  std::function<void(py::ssize_t, py::ssize_t, complex128)> const& fn)
-{
-    auto a = arr2d.cast<py::array_t<complex128>>();
-    auto r = a.unchecked<2>();
-    for (py::ssize_t i0 = 0; i0 < r.shape(0); ++i0) {
-        for (py::ssize_t i1 = 0; i1 < r.shape(1); ++i1) {
-            fn(i0, i1, r(i0, i1));
+    FusionSymbol::Shape const sh{ { tensor.extent(1), tensor.extent(2), tensor.extent(3), 1 } };
+    FusionSymbol out(3, sh, tensor.dtype());
+    for (std::size_t i1 = 0; i1 < sh[0]; ++i1) {
+        for (std::size_t i2 = 0; i2 < sh[1]; ++i2) {
+            for (std::size_t i3 = 0; i3 < sh[2]; ++i3) {
+                out.set(i1, i2, i3, tensor.get_complex(mu, i1, i2, i3));
+            }
         }
     }
+    return out;
 }
 
 std::vector<std::vector<std::string>>
@@ -861,15 +846,15 @@ FusionTree::bend_leg(FusionTree const& X, FusionTree const& Y, bool bend_downwar
         return { { { Y_i, X_i }, b_i } };
     }
 
-    py::array const B = symmetry->b_symbol(X_i.coupled, z, c);
+    FusionSymbol const B = symmetry->b_symbol(X_i.coupled, z, c);
     complex128 const chi_z = static_cast<complex128>(symmetry->frobenius_schur(z));
     Sector const zbar = symmetry->dual_sector(z);
 
     FusionTreePairLinearCombination res;
-    py::ssize_t const n_nu = B.attr("shape").attr("__getitem__")(1).cast<py::ssize_t>();
-    for (py::ssize_t nu = 0; nu < n_nu; ++nu) {
-        complex128 b_i = py_array_get_complex(B, mu, nu);
-        FusionTree const Y_i = X.extended(zbar, nu, X_i.coupled, !is_dual);
+    std::size_t const n_nu = B.extent(1);
+    for (std::size_t nu = 0; nu < n_nu; ++nu) {
+        complex128 b_i = B.get_complex(static_cast<std::size_t>(mu), nu);
+        FusionTree const Y_i = X.extended(zbar, static_cast<int64>(nu), X_i.coupled, !is_dual);
         if (is_dual) {
             b_i *= chi_z;
         }
@@ -890,11 +875,11 @@ FusionTree::braid(int64 j, bool overbraid, float64 cutoff, bool do_conj) const
         auto [a, b, mu, c] = vertex_labels(0);
         complex128 a_i;
         if (overbraid) {
-            py::array const R = symmetry->r_symbol(a, b, c);
-            a_i = py_array_get_complex(R, static_cast<py::ssize_t>(mu));
+            FusionSymbol const R = symmetry->r_symbol(a, b, c);
+            a_i = R.get_complex(static_cast<std::size_t>(mu));
         } else {
-            py::array const R = symmetry->r_symbol(b, a, c);
-            a_i = std::conj(py_array_get_complex(R, static_cast<py::ssize_t>(mu)));
+            FusionSymbol const R = symmetry->r_symbol(b, a, c);
+            a_i = std::conj(R.get_complex(static_cast<std::size_t>(mu)));
         }
         if (do_conj) {
             a_i = std::conj(a_i);
@@ -924,36 +909,32 @@ FusionTree::braid(int64 j, bool overbraid, float64 cutoff, bool do_conj) const
             continue;
         }
 
-        py::array C_arr;
+        FusionSymbol C_arr;
         if (overbraid) {
-            C_arr = symmetry->c_symbol(a, b, c, d, e, f);
-            C_arr = C_arr
-                      .attr("__getitem__")(
-                        py::make_tuple(static_cast<py::ssize_t>(mu), static_cast<py::ssize_t>(nu)))
-                      .cast<py::array>();
+            C_arr = symmetry->c_symbol(a, b, c, d, e, f)
+                      .slice2d(static_cast<std::size_t>(mu), static_cast<std::size_t>(nu));
         } else {
             // underbraid compared to overbraid:
             //  - conj
             //  - b <-> c  [in args of c_symbol(...)]
             //  - e <-> f  [in args of c_symbol(...)]
             //  - (mu,nu) <-> (kappa,lambda)  [by indexing c_symbol(...) differently]
-            py::array const C_full = symmetry->c_symbol(a, c, b, d, f, e);
-            C_arr = C_full.attr("__getitem__")(py::make_tuple(py::slice(), py::slice(), mu, nu))
-                      .cast<py::array>();
-            C_arr = py::module_::import("numpy").attr("conj")(C_arr).cast<py::array>();
+            C_arr = symmetry->c_symbol(a, c, b, d, f, e)
+                      .slice2d_trailing(static_cast<std::size_t>(mu), static_cast<std::size_t>(nu))
+                      .conj();
         }
         if (do_conj) {
-            C_arr = py::module_::import("numpy").attr("conj")(C_arr).cast<py::array>();
+            C_arr = C_arr.conj();
         }
 
-        iterate_complex2d(C_arr, [&](py::ssize_t kappa, py::ssize_t lambda_, complex128 a_i) {
+        C_arr.for_each2d([&](std::size_t kappa, std::size_t lambda_, complex128 a_i) {
             if (std::abs(a_i) < cutoff) {
                 return;
             }
             FusionTree X_i = X_new.copy(true);
             X_i.inner_sectors[static_cast<std::size_t>(j - 1)] = f;
-            X_i.multiplicities[static_cast<std::size_t>(j - 1)] = kappa;
-            X_i.multiplicities[static_cast<std::size_t>(j)] = lambda_;
+            X_i.multiplicities[static_cast<std::size_t>(j - 1)] = static_cast<int64>(kappa);
+            X_i.multiplicities[static_cast<std::size_t>(j)] = static_cast<int64>(lambda_);
             assert(!res.contains(X_i)); // OPTIMIZE rm check
             res[X_i] = a_i;
         });
@@ -1096,10 +1077,10 @@ FusionTree::to_dense_block(BlockBackend* backend,
 
     if (num_uncoupled == 1) {
         if (are_dual[0]) {
-            py::array const Z = symmetry->Z_iso(symmetry->dual_sector(uncoupled[0]));
-            py::array const ZT = Z.attr("T").cast<py::array>();
+            FusionSymbol const Z = symmetry->Z_iso(symmetry->dual_sector(uncoupled[0]));
             // [m_c, m_a1] -> need to transpose!
-            return block_backend->block_from_numpy(ZT, *dtype);
+            FusionSymbol const ZT = Z.transpose(std::array<std::uint8_t, 4>{ { 1, 0, 2, 3 } });
+            return block_from_fusion_symbol(*block_backend, ZT, *dtype);
         }
         int64 const dim_c = symmetry->sector_dim(coupled);
         return block_backend->eye_block({ dim_c }, *dtype);
@@ -1108,31 +1089,29 @@ FusionTree::to_dense_block(BlockBackend* backend,
     if (num_uncoupled == 2) {
         int64 const mu = multiplicities[0];
         // OPTIMIZE should we offer a symmetry function to compute only the mu slice?
-        py::array const tensor = symmetry->fusion_tensor(
+        FusionSymbol const tensor = symmetry->fusion_tensor(
           uncoupled[0], uncoupled[1], coupled, are_dual[0] != 0, are_dual[1] != 0);
-        py::array const X =
-          tensor.attr("__getitem__")(static_cast<py::ssize_t>(mu)).cast<py::array>();
-        return block_backend->block_from_numpy(X, *dtype); // [a0, a1, c]
+        FusionSymbol const X = fusion_tensor_slice_mu(tensor, static_cast<std::size_t>(mu));
+        return block_from_fusion_symbol(*block_backend, X, *dtype); // [a0, a1, c]
     }
 
     // larger trees: iterate over vertices
     int64 const mu0 = multiplicities[0];
-    py::array const tensor0 = symmetry->fusion_tensor(
+    FusionSymbol const tensor0 = symmetry->fusion_tensor(
       uncoupled[0], uncoupled[1], inner_sectors[0], are_dual[0] != 0, are_dual[1] != 0);
-    py::array const X0 =
-      tensor0.attr("__getitem__")(static_cast<py::ssize_t>(mu0)).cast<py::array>();
-    BlockBackend::BlockPtr res = block_backend->block_from_numpy(X0, *dtype); // [a0, a1, i0]
+    FusionSymbol const X0 = fusion_tensor_slice_mu(tensor0, static_cast<std::size_t>(mu0));
+    BlockBackend::BlockPtr res =
+      block_from_fusion_symbol(*block_backend, X0, *dtype); // [a0, a1, i0]
 
     for (std::size_t vertex = 1; vertex < num_vertices; ++vertex) {
         int64 const mu = multiplicities[vertex];
         Sector const a = inner_sectors[vertex - 1];
         Sector const b = uncoupled[vertex + 1];
         Sector const c = vertex < num_inner_edges ? inner_sectors[vertex] : coupled;
-        py::array const tensor =
+        FusionSymbol const tensor =
           symmetry->fusion_tensor(a, b, c, false, are_dual[vertex + 1] != 0);
-        py::array const X =
-          tensor.attr("__getitem__")(static_cast<py::ssize_t>(mu)).cast<py::array>();
-        BlockBackend::BlockPtr const X_block = block_backend->block_from_numpy(X, *dtype);
+        FusionSymbol const X = fusion_tensor_slice_mu(tensor, static_cast<std::size_t>(mu));
+        BlockBackend::BlockPtr const X_block = block_from_fusion_symbol(*block_backend, X, *dtype);
         // [a0, a1, ..., an, i{n-1}] & [i{n-1}, a{n+1}, in] -> [a0, a1, ..., a{n+1}, in]
         res = block_backend->tdot(res, X_block, { -1 }, { 0 });
     }
@@ -1284,18 +1263,19 @@ FusionTree::insert_at(int64 n, FusionTree const& t2, float64 eps) const
                 if (!sym->can_fuse_to(f, c, d)) {
                     continue;
                 }
-                py::array const fs_full = sym->_f_symbol(a, b, c, d, e, f);
-                py::array const fs = py_array_get_slice2d(
-                  fs_full, static_cast<py::ssize_t>(multi), static_cast<py::ssize_t>(multis[0]));
+                FusionSymbol const fs =
+                  sym->_f_symbol(a, b, c, d, e, f)
+                    .slice2d(static_cast<std::size_t>(multi), static_cast<std::size_t>(multis[0]));
 
-                iterate_complex2d(fs, [&](py::ssize_t kap, py::ssize_t lam, complex128 factor) {
+                fs.for_each2d([&](std::size_t kap, std::size_t lam, complex128 factor) {
                     if (std::abs(factor) < eps) {
                         return;
                     }
                     std::vector<Sector> new_inners_vec;
                     new_inners_vec.push_back(f);
                     new_inners_vec.insert(new_inners_vec.end(), inners.begin(), inners.end());
-                    std::vector<int64> new_multis_vec = { kap, lam };
+                    std::vector<int64> new_multis_vec = { static_cast<int64>(kap),
+                                                          static_cast<int64>(lam) };
                     new_multis_vec.insert(new_multis_vec.end(), multis.begin() + 1, multis.end());
                     TreePartsKey const key{ new_inners_vec, new_multis_vec };
                     new_tree_parts[key] += amplitude * factor;

@@ -1,5 +1,7 @@
 #include <cyten/symmetries/factors/sun.h>
 
+#include <cyten/block_backend/numpy.h>
+#include <cyten/symmetries/fusion_symbol.h>
 #include <cyten/symmetries/sector_numpy.h>
 
 #include <algorithm>
@@ -10,6 +12,7 @@
 #include <span>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace cyten {
 
@@ -380,7 +383,7 @@ SUN::clebschgordan(Sector a, int64 q_a, Sector b, int64 q_b, Sector c, int64 q_c
     return 0.0;
 }
 
-py::array
+FusionSymbol
 SUN::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
 {
     if (Z_a || Z_b) {
@@ -392,33 +395,37 @@ SUN::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
         throw std::invalid_argument(
           "Input irreps have higher weight than highest weight irrep in HDF5-file");
     }
-    auto dim_Sa = sector_dim(a);
-    auto dim_Sb = sector_dim(b);
-    auto dim_Sc = sector_dim(c);
+    auto dim_Sa = static_cast<std::size_t>(sector_dim(a));
+    auto dim_Sb = static_cast<std::size_t>(sector_dim(b));
+    auto dim_Sc = static_cast<std::size_t>(sector_dim(c));
     auto dim_mu = _n_symbol(a, b, c);
-    auto np = numpy();
     if (dim_mu == 0) {
-        return np
-          .attr("zeros")(py::make_tuple(dim_Sa, dim_Sb, dim_Sc, 1),
-                         py::arg("dtype") = np.attr("float64"))
-          .cast<py::array>();
+        return FusionSymbol::zeros(
+          4, FusionSymbol::Shape{ { dim_Sa, dim_Sb, dim_Sc, 1 } }, Dtype::Float64);
     }
-    auto X = np.attr("zeros")(py::make_tuple(dim_Sa, dim_Sb, dim_Sc, dim_mu),
-                              py::arg("dtype") = np.attr("float64"));
-    for (int64 m_a = 1; m_a <= dim_Sa; ++m_a) {
-        for (int64 m_b = 1; m_b <= dim_Sb; ++m_b) {
-            for (int64 m_c = 1; m_c <= dim_Sc; ++m_c) {
+    // Build in (Sa, Sb, Sc, mu) then transpose to (mu, Sa, Sb, Sc).
+    FusionSymbol X(
+      4,
+      FusionSymbol::Shape{ { dim_Sa, dim_Sb, dim_Sc, static_cast<std::size_t>(dim_mu) } },
+      Dtype::Float64);
+    for (int64 m_a = 1; m_a <= static_cast<int64>(dim_Sa); ++m_a) {
+        for (int64 m_b = 1; m_b <= static_cast<int64>(dim_Sb); ++m_b) {
+            for (int64 m_c = 1; m_c <= static_cast<int64>(dim_Sc); ++m_c) {
                 for (int64 mu = 1; mu <= dim_mu; ++mu) {
                     auto rr = clebschgordan(a, m_a, b, m_b, c, m_c, mu);
-                    X[py::make_tuple(m_a - 1, m_b - 1, m_c - 1, mu - 1)] = rr;
+                    X.set(static_cast<std::size_t>(m_a - 1),
+                          static_cast<std::size_t>(m_b - 1),
+                          static_cast<std::size_t>(m_c - 1),
+                          static_cast<std::size_t>(mu - 1),
+                          complex128{ rr, 0.0 });
                 }
             }
         }
     }
-    return X.attr("transpose")(py::make_tuple(3, 0, 1, 2)).cast<py::array>();
+    return X.transpose(std::array<std::uint8_t, 4>{ { 3, 0, 1, 2 } });
 }
 
-py::array
+FusionSymbol
 SUN::_f_symbol_from_CG(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     auto const hw = hweight_from_CG_hdf5();
@@ -426,32 +433,45 @@ SUN::_f_symbol_from_CG(Sector a, Sector b, Sector c, Sector d, Sector e, Sector 
         throw std::invalid_argument(
           "Input irreps have higher weight than highest weight irrep in HDF5-file");
     }
-    auto np = numpy();
-    auto X1 = _fusion_tensor(a, b, f, false, false).attr("transpose")(py::make_tuple(1, 2, 3, 0));
-    auto X2 = _fusion_tensor(f, c, d, false, false).attr("transpose")(py::make_tuple(1, 2, 3, 0));
-    auto X3 = _fusion_tensor(b, c, e, false, false).attr("transpose")(py::make_tuple(1, 2, 3, 0));
-    auto X4 = _fusion_tensor(a, e, d, false, false).attr("transpose")(py::make_tuple(1, 2, 3, 0));
-    if (!py::bool_(X1.attr("any")()) || !py::bool_(X2.attr("any")()) ||
-        !py::bool_(X3.attr("any")()) || !py::bool_(X4.attr("any")())) {
-        return np
-          .attr("zeros")(py::make_tuple(1, 1, 1, 1), py::arg("dtype") = np.attr("complex128"))
-          .cast<py::array>();
+    auto& be = *static_cast<BlockBackend*>(NumpyBlockBackend::from_factory("cpu"));
+    auto X1 =
+      block_from_fusion_symbol(be,
+                               _fusion_tensor(a, b, f, false, false)
+                                 .transpose(std::array<std::uint8_t, 4>{ { 1, 2, 3, 0 } }));
+    auto X2 =
+      block_from_fusion_symbol(be,
+                               _fusion_tensor(f, c, d, false, false)
+                                 .transpose(std::array<std::uint8_t, 4>{ { 1, 2, 3, 0 } }));
+    auto X3 =
+      block_from_fusion_symbol(be,
+                               _fusion_tensor(b, c, e, false, false)
+                                 .transpose(std::array<std::uint8_t, 4>{ { 1, 2, 3, 0 } }));
+    auto X4 =
+      block_from_fusion_symbol(be,
+                               _fusion_tensor(a, e, d, false, false)
+                                 .transpose(std::array<std::uint8_t, 4>{ { 1, 2, 3, 0 } }));
+    if (!be.any(X1) || !be.any(X2) || !be.any(X3) || !be.any(X4)) {
+        return FusionSymbol::zeros(4, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, Dtype::Complex128);
     }
-    auto X12 = np.attr("tensordot")(X1, X2, py::arg("axes") = py::make_tuple(2, 0));
-    X12 = X12.attr("transpose")(py::make_tuple(0, 1, 3, 4, 2, 5));
-    auto X34 = np.attr("tensordot")(X3, X4, py::arg("axes") = py::make_tuple(2, 1));
-    X34 = X34.attr("transpose")(py::make_tuple(3, 0, 1, 4, 2, 5));
-    auto F = np.attr("tensordot")(
-      X12,
-      np.attr("conj")(X34),
-      py::arg("axes") = py::make_tuple(py::make_tuple(0, 1, 2, 3), py::make_tuple(0, 1, 2, 3)));
-    F = F.attr("transpose")(py::make_tuple(2, 3, 0, 1));
-    F = np.attr("where")(np.attr("abs")(F).attr("__lt__")(1e-12), 0, F);
-    auto denom = complex128{ static_cast<float64>(sector_dim(d)), 0.0 };
-    return F.attr("__truediv__")(denom).cast<py::array>();
+    auto X12 = be.tdot(X1, X2, { 2 }, { 0 });
+    X12 = be.permute_axes(X12, { 0, 1, 3, 4, 2, 5 });
+    auto X34 = be.tdot(X3, X4, { 2 }, { 1 });
+    X34 = be.permute_axes(X34, { 3, 0, 1, 4, 2, 5 });
+    auto F = be.tdot(X12, be.conj(X34), { 0, 1, 2, 3 }, { 0, 1, 2, 3 });
+    F = be.permute_axes(F, { 2, 3, 0, 1 });
+    auto out = fusion_symbol_from_block(F).as_complex();
+    // Zero tiny entries (match np.where(abs(F) < 1e-12, 0, F)).
+    auto span = out.as_complex128();
+    for (auto& v : span) {
+        if (std::abs(v) < 1e-12) {
+            v = complex128{ 0.0, 0.0 };
+        }
+    }
+    auto denom = static_cast<float64>(sector_dim(d));
+    return out * (1.0 / denom);
 }
 
-py::array
+FusionSymbol
 SUN::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     auto const hmax = hweight_from_F_hdf5();
@@ -470,17 +490,15 @@ SUN::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
     }
     auto fsym = Ffile[py::str("/F_sym/")];
     if (fsym.contains(key)) {
-        return py::array(fsym[py::str(key)]);
+        return fusion_symbol_from_numpy(py::array(fsym[py::str(key)]));
     }
     if (fsym.contains(keybar)) {
-        return py::array(fsym[py::str(keybar)]);
+        return fusion_symbol_from_numpy(py::array(fsym[py::str(keybar)]));
     }
-    auto np = numpy();
-    return np.attr("zeros")(py::make_tuple(1, 1, 1, 1), py::arg("dtype") = np.attr("complex128"))
-      .cast<py::array>();
+    return FusionSymbol::zeros(4, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, Dtype::Complex128);
 }
 
-py::array
+FusionSymbol
 SUN::_r_symbol_from_CG(Sector a, Sector b, Sector c) const
 {
     auto const hw = hweight_from_CG_hdf5();
@@ -488,22 +506,20 @@ SUN::_r_symbol_from_CG(Sector a, Sector b, Sector c) const
         throw std::invalid_argument(
           "Input irreps have higher weight than highest weight irrep in HDF5-file");
     }
-    auto np = numpy();
-    auto X1 = fusion_tensor(a, b, c);
-    auto Y1 = fusion_tensor(b, a, c).attr("conj")();
-    if (!py::bool_(X1.attr("any")()) || !py::bool_(Y1.attr("any")())) {
-        auto mult = n_symbol(a, b, c);
-        return np.attr("zeros")(py::make_tuple(mult), py::arg("dtype") = np.attr("complex128"))
-          .cast<py::array>();
+    BlockBackend& be = *NumpyBlockBackend::from_factory("cpu");
+    auto X1 = block_from_fusion_symbol(be, fusion_tensor(a, b, c));
+    auto Y1 = be.conj(block_from_fusion_symbol(be, fusion_tensor(b, a, c)));
+    if (!be.any(X1) || !be.any(Y1)) {
+        auto mult = static_cast<std::size_t>(n_symbol(a, b, c));
+        return FusionSymbol::zeros(1, FusionSymbol::Shape{ { mult, 1, 1, 1 } }, Dtype::Complex128);
     }
-    auto R = np.attr("tensordot")(
-      X1, Y1, py::arg("axes") = py::make_tuple(py::make_tuple(0, 1, 2), py::make_tuple(1, 0, 2)));
-    auto denom = complex128{ static_cast<float64>(sector_dim(c)), 0.0 };
-    R = R.attr("transpose")(py::make_tuple(1, 0)).attr("__truediv__")(denom);
-    return np.attr("diag")(R).cast<py::array>();
+    auto R = be.tdot(X1, Y1, { 0, 1, 2 }, { 1, 0, 2 });
+    auto denom = static_cast<float64>(sector_dim(c));
+    R = be.mul(1.0 / denom, be.permute_axes(R, { 1, 0 }));
+    return fusion_symbol_from_block(be.get_diagonal(R, std::nullopt));
 }
 
-py::array
+FusionSymbol
 SUN::_r_symbol(Sector a, Sector b, Sector c) const
 {
     auto const hmax = hweight_from_R_hdf5();
@@ -517,11 +533,9 @@ SUN::_r_symbol(Sector a, Sector b, Sector c) const
     }
     auto rsym = Rfile[py::str("/R_sym/")];
     if (rsym.contains(key)) {
-        return py::array(rsym[py::str(key)]);
+        return fusion_symbol_from_numpy(py::array(rsym[py::str(key)]));
     }
-    auto np = numpy();
-    return np.attr("zeros")(py::make_tuple(1), py::arg("dtype") = np.attr("complex128"))
-      .cast<py::array>();
+    return FusionSymbol::zeros(1, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, Dtype::Complex128);
 }
 
 int64
@@ -531,9 +545,10 @@ SUN::frobenius_schur(Sector a) const
         return 1 - 2 * (static_cast<int64>(a.q[0]) % 2);
     }
     auto F = _f_symbol(a, dual_sector(a), a, a, trivial_sector, trivial_sector);
-    auto val = F[py::make_tuple(0, 0, 0, 0)];
-    // Match Python ``int(np.sign(F))``.
-    return py::int_(numpy().attr("sign")(val)).cast<int64>();
+    auto const val = F.get_complex(0, 0, 0, 0);
+    // Match Python ``int(np.sign(F))`` for real-valued F symbols.
+    float64 const r = val.real();
+    return static_cast<int64>((r > 0.0) - (r < 0.0));
 }
 
 bool

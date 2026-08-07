@@ -32,18 +32,20 @@ class ZNAnyonCategory2 : public SymmetryFactor
                                           SectorArray const& b) const override;
     SectorArray _multiple_fusion_broadcast(std::vector<SectorArray> const& sectors) const override;
     int64 sector_dim(Sector a) const override;
-    py::array batch_sector_dim(SectorArray const& a) const override;
-    py::array batch_qdim(SectorArray const& a) const override;
+    std::vector<int64> batch_sector_dim(SectorArray const& a) const override;
+    std::vector<float64> batch_qdim(SectorArray const& a) const override;
     std::string repr() const override;
     bool _is_equivalent_factor(SymmetryFactor const& other) const override;
     Sector dual_sector(Sector a) const override;
     SectorArray dual_sectors(SectorArray const& sectors) const override;
     int64 _n_symbol(Sector a, Sector b, Sector c) const override;
-    py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override;
+    FusionSymbol _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
+      const override;
     int64 frobenius_schur(Sector a) const override;
     float64 qdim(Sector a) const override;
-    py::array _r_symbol(Sector a, Sector b, Sector c) const override;
-    py::array _c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override;
+    FusionSymbol _r_symbol(Sector a, Sector b, Sector c) const override;
+    FusionSymbol _c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
+      const override;
     SectorArray all_sectors() const override;
 
     void save_hdf5(py::object hdf5_saver,

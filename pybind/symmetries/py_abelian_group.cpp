@@ -29,7 +29,12 @@ bind_abelian_group(py::module_& m)
     // Abelian defaults (subclasses may override via trampoline).
     cls.def("sector_str", &AbelianGroup::sector_str, py::arg("a"))
       .def("sector_dim", &AbelianGroup::sector_dim, py::arg("a"))
-      .def("batch_sector_dim", &AbelianGroup::batch_sector_dim, py::arg("a"))
+      .def(
+        "batch_sector_dim",
+        [](AbelianGroup const& self, SectorArray const& a) {
+            return vector_i64_to_numpy(self.batch_sector_dim(a));
+        },
+        py::arg("a"))
       .def("_n_symbol", &AbelianGroup::_n_symbol, py::arg("a"), py::arg("b"), py::arg("c"))
       .def("_f_symbol",
            &AbelianGroup::_f_symbol,

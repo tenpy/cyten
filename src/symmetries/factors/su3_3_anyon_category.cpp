@@ -1,12 +1,12 @@
 #include <cyten/symmetries/factors/su3_3_anyon_category.h>
 
-#include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/topo_ones.h>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <utility>
+#include <vector>
 
 namespace cyten {
 
@@ -25,7 +25,7 @@ single_sector(int16_t q)
     return out;
 }
 
-py::array
+FusionSymbol
 default_c_symbol(SU3_3AnyonCategory const& sym,
                  Sector a,
                  Sector b,
@@ -34,19 +34,19 @@ default_c_symbol(SU3_3AnyonCategory const& sym,
                  Sector e,
                  Sector f)
 {
-    auto np = topo_ones::numpy();
-    py::array R1 = sym._r_symbol(e, c, d);
+    auto R1 = sym._r_symbol(e, c, d);
     // Match ``_default_c_symbol``: F^{c a b}_{d e f}, not F^{a b c}_{d e f}.
-    py::array F = sym._f_symbol(c, a, b, d, e, f);
-    py::array R2 = sym._r_symbol(a, c, f);
-    return R1.attr("reshape")(py::make_tuple(1, -1, 1, 1)) * F *
-           np.attr("conj")(R2).attr("reshape")(py::make_tuple(1, 1, -1, 1));
+    auto F = sym._f_symbol(c, a, b, d, e, f);
+    auto R2 = sym._r_symbol(a, c, f).conj();
+    auto R1e = R1.reshaped(4, FusionSymbol::Shape{ { 1, R1.size(), 1, 1 } });
+    auto R2e = R2.reshaped(4, FusionSymbol::Shape{ { 1, 1, R2.size(), 1 } });
+    return R1e.multiply(F).multiply(R2e);
 }
 
-py::array
+FusionSymbol
 neg_one_4D()
 {
-    return topo_ones::numpy().attr("negative")(topo_ones::one_4D()).cast<py::array>();
+    return topo_ones::one_4D() * -1.0;
 }
 
 std::pair<int, int>
@@ -68,6 +68,29 @@ bool
 all_non_trivial(std::array<int, 4> const& charges)
 {
     return charges[0] != 0 && charges[1] != 0 && charges[2] != 0 && charges[3] != 0;
+}
+
+FusionSymbol
+reshape_to_nsym(FusionSymbol const& mat, FusionSymbol::Shape const& shape)
+{
+    return mat.reshaped(4, shape);
+}
+
+FusionSymbol
+slice2d_block(FusionSymbol const& m, int r0, int r1, int c0, int c1)
+{
+    auto const nr = static_cast<std::size_t>(r1 - r0);
+    auto const nc = static_cast<std::size_t>(c1 - c0);
+    FusionSymbol out(2, FusionSymbol::Shape{ { nr, nc, 1, 1 } }, m.dtype());
+    for (std::size_t i = 0; i < nr; ++i) {
+        for (std::size_t j = 0; j < nc; ++j) {
+            out.set(
+              i,
+              j,
+              m.get_complex(static_cast<std::size_t>(r0) + i, static_cast<std::size_t>(c0) + j));
+        }
+    }
+    return out;
 }
 
 } // namespace
@@ -117,53 +140,75 @@ SU3_3AnyonCategory::dual_map(int j)
     }
 }
 
-py::array
+FusionSymbol
 SU3_3AnyonCategory::_f1()
 {
-    return topo_ones::numpy().attr("identity")(2).cast<py::array>();
+    return FusionSymbol::from_float64(
+      2, FusionSymbol::Shape{ { 2, 2, 1, 1 } }, { 1.0, 0.0, 0.0, 1.0 });
 }
 
-py::array
+FusionSymbol
 SU3_3AnyonCategory::_f2()
 {
-    auto np = topo_ones::numpy();
     auto sqrt3 = std::sqrt(3.0);
-    py::list row0;
-    row0.append(-0.5);
-    row0.append(-sqrt3 / 2.0);
-    py::list row1;
-    row1.append(sqrt3 / 2.0);
-    row1.append(-0.5);
-    py::list rows;
-    rows.append(row0);
-    rows.append(row1);
-    return np.attr("array")(rows).cast<py::array>();
+    return FusionSymbol::from_float64(
+      2, FusionSymbol::Shape{ { 2, 2, 1, 1 } }, { -0.5, -sqrt3 / 2.0, sqrt3 / 2.0, -0.5 });
 }
 
-py::array
+FusionSymbol
 SU3_3AnyonCategory::_f3()
 {
-    return _f2().attr("T").cast<py::array>();
+    return _f2().transpose(std::array<std::uint8_t, 4>{ { 1, 0, 2, 3 } });
 }
 
-py::array
+FusionSymbol
 SU3_3AnyonCategory::_f4()
 {
-    auto np = topo_ones::numpy();
     auto sqrt3 = std::sqrt(3.0);
     auto sqrt12 = std::sqrt(12.0);
-    auto f4 = np.attr("zeros")(py::make_tuple(7, 7)).cast<py::array>();
-    auto r = f4.mutable_unchecked<double, 2>();
+    auto f4 = FusionSymbol::zeros(2, FusionSymbol::Shape{ { 7, 7, 1, 1 } }, Dtype::Float64);
 
-    r(0, 0) = r(5, 5) = r(6, 5) = r(5, 6) = r(6, 6) = 1.0 / 3.0;
-    r(0, 5) = r(0, 6) = r(5, 0) = r(6, 0) = -1.0 / 3.0;
-    r(0, 1) = r(1, 0) = r(0, 4) = r(4, 0) = 1.0 / sqrt3;
-    r(2, 2) = r(3, 2) = r(2, 3) = r(3, 3) = r(1, 4) = r(4, 1) = 0.5;
-    r(2, 6) = r(6, 3) = r(3, 5) = r(5, 2) = 0.5;
-    r(2, 5) = r(5, 3) = r(3, 6) = r(6, 2) = -0.5;
-    r(1, 1) = r(4, 4) = -0.5;
-    r(1, 5) = r(1, 6) = r(5, 1) = r(6, 1) = 1.0 / sqrt12;
-    r(4, 5) = r(4, 6) = r(5, 4) = r(6, 4) = 1.0 / sqrt12;
+    auto set = [&](std::size_t i, std::size_t j, float64 v) {
+        f4.set(i, j, complex128{ v, 0.0 });
+    };
+
+    set(0, 0, 1.0 / 3.0);
+    set(5, 5, 1.0 / 3.0);
+    set(6, 5, 1.0 / 3.0);
+    set(5, 6, 1.0 / 3.0);
+    set(6, 6, 1.0 / 3.0);
+    set(0, 5, -1.0 / 3.0);
+    set(0, 6, -1.0 / 3.0);
+    set(5, 0, -1.0 / 3.0);
+    set(6, 0, -1.0 / 3.0);
+    set(0, 1, 1.0 / sqrt3);
+    set(1, 0, 1.0 / sqrt3);
+    set(0, 4, 1.0 / sqrt3);
+    set(4, 0, 1.0 / sqrt3);
+    set(2, 2, 0.5);
+    set(3, 2, 0.5);
+    set(2, 3, 0.5);
+    set(3, 3, 0.5);
+    set(1, 4, 0.5);
+    set(4, 1, 0.5);
+    set(2, 6, 0.5);
+    set(6, 3, 0.5);
+    set(3, 5, 0.5);
+    set(5, 2, 0.5);
+    set(2, 5, -0.5);
+    set(5, 3, -0.5);
+    set(3, 6, -0.5);
+    set(6, 2, -0.5);
+    set(1, 1, -0.5);
+    set(4, 4, -0.5);
+    set(1, 5, 1.0 / sqrt12);
+    set(1, 6, 1.0 / sqrt12);
+    set(5, 1, 1.0 / sqrt12);
+    set(6, 1, 1.0 / sqrt12);
+    set(4, 5, 1.0 / sqrt12);
+    set(4, 6, 1.0 / sqrt12);
+    set(5, 4, 1.0 / sqrt12);
+    set(6, 4, 1.0 / sqrt12);
     return f4;
 }
 
@@ -223,7 +268,7 @@ SU3_3AnyonCategory::SU3_3AnyonCategory()
     }
 }
 
-py::array
+FusionSymbol
 SU3_3AnyonCategory::_compute_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
   const
 {
@@ -235,16 +280,15 @@ SU3_3AnyonCategory::_compute_f_symbol(Sector a, Sector b, Sector c, Sector d, Se
     std::array<int, 4> abcd = { a.q[0], b.q[0], c.q[0], d.q[0] };
     int const n8 =
       static_cast<int>(std::count_if(abcd.begin(), abcd.end(), [](int q) { return q == 1; }));
-    auto const shape = py::make_tuple(
-      _n_symbol(b, c, e), _n_symbol(a, e, d), _n_symbol(a, b, f), _n_symbol(f, c, d));
+    FusionSymbol::Shape const shape{ { static_cast<std::size_t>(_n_symbol(b, c, e)),
+                                       static_cast<std::size_t>(_n_symbol(a, e, d)),
+                                       static_cast<std::size_t>(_n_symbol(a, b, f)),
+                                       static_cast<std::size_t>(_n_symbol(f, c, d)) } };
 
     if (n8 == 4) {
         auto [e0, e1] = f4_slices(e.q[0]);
         auto [f0, f1] = f4_slices(f.q[0]);
-        return _f4()
-          .attr("__getitem__")(py::make_tuple(py::slice(f0, f1, 1), py::slice(e0, e1, 1)))
-          .attr("reshape")(shape)
-          .cast<py::array>();
+        return reshape_to_nsym(slice2d_block(_f4(), f0, f1, e0, e1), shape);
     }
 
     if (n8 == 3) {
@@ -257,12 +301,12 @@ SU3_3AnyonCategory::_compute_f_symbol(Sector a, Sector b, Sector c, Sector d, Se
         }
         int const not_8 = abcd[static_cast<std::size_t>(index)];
         if (not_8 == 0) {
-            return _f1().attr("reshape")(shape).cast<py::array>();
+            return reshape_to_nsym(_f1(), shape);
         }
         if ((not_8 == 2 && index != 1) || (not_8 == 3 && index == 1)) {
-            return _f2().attr("reshape")(shape).cast<py::array>();
+            return reshape_to_nsym(_f2(), shape);
         }
-        return _f3().attr("reshape")(shape).cast<py::array>();
+        return reshape_to_nsym(_f3(), shape);
     }
 
     if (n8 == 2 && all_non_trivial(abcd)) {
@@ -351,13 +395,10 @@ SU3_3AnyonCategory::sector_dim(Sector /*a*/) const
     return 1;
 }
 
-py::array
+std::vector<int64>
 SU3_3AnyonCategory::batch_sector_dim(SectorArray const& a) const
 {
-    return topo_ones::numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
-                    py::arg("dtype") = topo_ones::numpy().attr("intp"))
-      .cast<py::array>();
+    return std::vector<int64>(a.size(), 1);
 }
 
 std::string
@@ -414,7 +455,7 @@ SU3_3AnyonCategory::_n_symbol(Sector a, Sector b, Sector c) const
     return (a.q[0] == 1 && b.q[0] == 1 && c.q[0] == 1) ? 2 : 1;
 }
 
-py::array
+FusionSymbol
 SU3_3AnyonCategory::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     FSymKey key{ a.q[0], b.q[0], c.q[0], d.q[0], e.q[0], f.q[0] };
@@ -433,30 +474,32 @@ SU3_3AnyonCategory::qdim(Sector a) const
     return (a.q[0] == 1) ? 3.0 : 1.0;
 }
 
-py::array
+std::vector<float64>
 SU3_3AnyonCategory::batch_qdim(SectorArray const& a) const
 {
-    auto np = topo_ones::numpy();
-    py::array charges = sector_array_to_numpy(a);
-    return np.attr("where")(charges.attr("__eq__")(1), 3, 1).attr("flatten")().cast<py::array>();
+    std::vector<float64> out(a.size());
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        out[i] = (a[i][0] == 1) ? 3.0 : 1.0;
+    }
+    return out;
 }
 
-py::array
+FusionSymbol
 SU3_3AnyonCategory::_r_symbol(Sector a, Sector b, Sector c) const
 {
     if (a.q[0] == 1 && b.q[0] == 1) {
         if (c.q[0] == 1) {
-            py::list vals;
-            vals.append(std::complex<float64>{ 0.0, -1.0 });
-            vals.append(std::complex<float64>{ 0.0, 1.0 });
-            return topo_ones::numpy().attr("array")(vals).cast<py::array>();
+            return FusionSymbol::from_complex128(
+              1,
+              FusionSymbol::Shape{ { 2, 1, 1, 1 } },
+              { complex128{ 0.0, -1.0 }, complex128{ 0.0, 1.0 } });
         }
-        return topo_ones::numpy().attr("negative")(topo_ones::one_1D()).cast<py::array>();
+        return topo_ones::one_1D() * -1.0;
     }
     return topo_ones::one_1D();
 }
 
-py::array
+FusionSymbol
 SU3_3AnyonCategory::_c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     FSymKey key{ a.q[0], b.q[0], c.q[0], d.q[0], e.q[0], f.q[0] };

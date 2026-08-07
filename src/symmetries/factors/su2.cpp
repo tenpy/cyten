@@ -1,9 +1,13 @@
 #include <cyten/symmetries/factors/su2.h>
 
+#include <cyten/block_backend/numpy.h>
+#include <cyten/symmetries/fusion_symbol.h>
+
 #include <cmath>
 #include <cstdlib>
 #include <limits>
 #include <utility>
+#include <vector>
 
 namespace cyten {
 
@@ -17,12 +21,6 @@ py::module_
 su2data()
 {
     return py::module_::import("cyten.symmetries._su2data");
-}
-
-py::module_
-numpy()
-{
-    return py::module_::import("numpy");
 }
 
 } // namespace
@@ -89,13 +87,12 @@ SU2::sector_dim(Sector a) const
     return static_cast<int64>(a.q[0]) + 1;
 }
 
-py::array
+std::vector<int64>
 SU2::batch_sector_dim(SectorArray const& a) const
 {
-    py::array_t<int64> out(static_cast<py::ssize_t>(a.size()));
-    auto r = out.mutable_unchecked<1>();
+    std::vector<int64> out(a.size());
     for (std::size_t i = 0; i < a.size(); ++i) {
-        r(static_cast<py::ssize_t>(i)) = static_cast<int64>(a[i][0]) + 1;
+        out[i] = static_cast<int64>(a[i][0]) + 1;
     }
     return out;
 }
@@ -141,12 +138,13 @@ SU2::_n_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
     return 1;
 }
 
-py::array
+FusionSymbol
 SU2::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
-    return su2data()
-      .attr("f_symbol")(a.q[0], b.q[0], c.q[0], d.q[0], e.q[0], f.q[0])
-      .cast<py::array>();
+    return fusion_symbol_from_numpy(
+      su2data()
+        .attr("f_symbol")(a.q[0], b.q[0], c.q[0], d.q[0], e.q[0], f.q[0])
+        .cast<py::array>());
 }
 
 int64
@@ -161,39 +159,47 @@ SU2::qdim(Sector a) const
     return static_cast<float64>(a.q[0]) + 1.0;
 }
 
-py::array
+FusionSymbol
 SU2::_r_symbol(Sector a, Sector b, Sector c) const
 {
     // Shape ``(1,)``: +1 if ``(a+b-c)%4==0``, else -1 (when ==2).
-    auto const val = static_cast<int64>(1 - ((a.q[0] + b.q[0] - c.q[0]) % 4));
-    py::array_t<int64> out(1);
-    out.mutable_at(0) = val;
-    return out;
+    auto const val = static_cast<float64>(1 - ((a.q[0] + b.q[0] - c.q[0]) % 4));
+    return FusionSymbol::scalar1d(val);
 }
 
-py::array
+FusionSymbol
 SU2::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
 {
-    auto np = numpy();
-    py::object X = su2data().attr("fusion_tensor")(a.q[0], b.q[0], c.q[0]);
-    if (Z_a && Z_b) {
-        X = np.attr("tensordot")(X, Z_iso(dual_sector(a)), py::make_tuple(1, 0));
-        X = np.attr("tensordot")(X, Z_iso(dual_sector(b)), py::make_tuple(1, 0));
-        X = np.attr("transpose")(X, py::make_tuple(0, 2, 3, 1));
-    } else if (Z_a) {
-        X = np.attr("tensordot")(X, Z_iso(dual_sector(a)), py::make_tuple(1, 0));
-        X = np.attr("transpose")(X, py::make_tuple(0, 3, 1, 2));
-    } else if (Z_b) {
-        X = np.attr("tensordot")(X, Z_iso(dual_sector(b)), py::make_tuple(2, 0));
-        X = np.attr("transpose")(X, py::make_tuple(0, 1, 3, 2));
+    auto X = fusion_symbol_from_numpy(
+      su2data().attr("fusion_tensor")(a.q[0], b.q[0], c.q[0]).cast<py::array>());
+    if (!Z_a && !Z_b) {
+        return X;
     }
-    return X.cast<py::array>();
+
+    auto& be = *static_cast<BlockBackend*>(NumpyBlockBackend::from_factory("cpu"));
+    auto Xb = block_from_fusion_symbol(be, X);
+    if (Z_a && Z_b) {
+        auto Za = block_from_fusion_symbol(be, Z_iso(dual_sector(a)));
+        auto Zb = block_from_fusion_symbol(be, Z_iso(dual_sector(b)));
+        Xb = be.tdot(Xb, Za, { 1 }, { 0 });
+        Xb = be.tdot(Xb, Zb, { 1 }, { 0 });
+        Xb = be.permute_axes(Xb, { 0, 2, 3, 1 });
+    } else if (Z_a) {
+        auto Za = block_from_fusion_symbol(be, Z_iso(dual_sector(a)));
+        Xb = be.tdot(Xb, Za, { 1 }, { 0 });
+        Xb = be.permute_axes(Xb, { 0, 3, 1, 2 });
+    } else {
+        auto Zb = block_from_fusion_symbol(be, Z_iso(dual_sector(b)));
+        Xb = be.tdot(Xb, Zb, { 2 }, { 0 });
+        Xb = be.permute_axes(Xb, { 0, 1, 3, 2 });
+    }
+    return fusion_symbol_from_block(Xb);
 }
 
-py::array
+FusionSymbol
 SU2::Z_iso(Sector a) const
 {
-    return su2data().attr("Z_iso")(a.q[0]).cast<py::array>();
+    return fusion_symbol_from_numpy(su2data().attr("Z_iso")(a.q[0]).cast<py::array>());
 }
 
 SU2::Ptr

@@ -1,6 +1,7 @@
 #include <cyten/symmetries/group.h>
 
 #include <utility>
+#include <vector>
 
 namespace cyten {
 
@@ -22,19 +23,19 @@ Group::Group(FusionStyle fusion_style,
 {
 }
 
-py::array
+FusionSymbol
 Group::swap_gate(Sector a, Sector b) const
 {
     // [b, a, b*, a*] = eye(dim_a)[None, :, None, :] * eye(dim_b)[:, None, :, None]
-    auto np = py::module_::import("numpy");
-    py::object colon = py::slice(py::none(), py::none(), py::none());
-    py::array eye_a = np.attr("eye")(static_cast<py::ssize_t>(sector_dim(a)));
-    py::array eye_b = np.attr("eye")(static_cast<py::ssize_t>(sector_dim(b)));
-    py::object ea =
-      eye_a.attr("__getitem__")(py::make_tuple(py::none(), colon, py::none(), colon));
-    py::object eb =
-      eye_b.attr("__getitem__")(py::make_tuple(colon, py::none(), colon, py::none()));
-    return (ea.attr("__mul__")(eb)).cast<py::array>();
+    auto const da = static_cast<std::size_t>(sector_dim(a));
+    auto const db = static_cast<std::size_t>(sector_dim(b));
+    FusionSymbol out(4, FusionSymbol::Shape{ { db, da, db, da } }, Dtype::Float64);
+    for (std::size_t ib = 0; ib < db; ++ib) {
+        for (std::size_t ia = 0; ia < da; ++ia) {
+            out.set(ib, ia, ib, ia, complex128{ 1.0, 0.0 });
+        }
+    }
+    return out;
 }
 
 float64
@@ -43,10 +44,11 @@ Group::qdim(Sector a) const
     return static_cast<float64>(sector_dim(a));
 }
 
-py::array
+std::vector<float64>
 Group::batch_qdim(SectorArray const& a) const
 {
-    return batch_sector_dim(a);
+    auto dims = batch_sector_dim(a);
+    return std::vector<float64>(dims.begin(), dims.end());
 }
 
 complex128

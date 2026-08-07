@@ -57,16 +57,17 @@ class Symmetry : public BaseSymmetry
     SectorArray all_sectors() const override;
 
     int64 sector_dim(Sector a) const override;
-    py::array batch_sector_dim(SectorArray const& a) const override;
-    py::array batch_qdim(SectorArray const& a) const override;
+    std::vector<int64> batch_sector_dim(SectorArray const& a) const override;
+    std::vector<float64> batch_qdim(SectorArray const& a) const override;
     float64 qdim(Sector a) const override;
     std::string sector_str(Sector a) const override;
 
-    py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override;
-    py::array _r_symbol(Sector a, Sector b, Sector c) const override;
-    py::array _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const override;
-    py::array swap_gate(Sector a, Sector b) const override;
-    py::array Z_iso(Sector a) const override;
+    FusionSymbol _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
+      const override;
+    FusionSymbol _r_symbol(Sector a, Sector b, Sector c) const override;
+    FusionSymbol _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const override;
+    FusionSymbol swap_gate(Sector a, Sector b) const override;
+    FusionSymbol Z_iso(Sector a) const override;
 
     std::string repr() const;
     std::string str() const;

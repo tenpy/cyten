@@ -1,51 +1,39 @@
 #pragma once
 
-/// Cached NumPy ones arrays matching Python ``one_1D`` … ``one_4D_float`` in ``_symmetries.py``.
+/// Trivial ones FusionSymbols and small helpers formerly backed by NumPy.
 
-#include "../cyten.h"
+#include "fusion_symbol.h"
 
 namespace cyten::topo_ones {
 
-inline py::module_
-numpy()
-{
-    return py::module_::import("numpy");
-}
-
-inline py::array
-ones_array(py::tuple shape, py::object dtype)
-{
-    return numpy().attr("ones")(shape, py::arg("dtype") = dtype).cast<py::array>();
-}
-
-inline py::array
+inline FusionSymbol
 one_1D()
 {
-    return ones_array(py::make_tuple(1), numpy().attr("intp"));
+    return FusionSymbol::one_1D();
 }
 
-inline py::array
+inline FusionSymbol
 one_2D()
 {
-    return ones_array(py::make_tuple(1, 1), numpy().attr("intp"));
+    return FusionSymbol::one_2D();
 }
 
-inline py::array
+inline FusionSymbol
 one_2D_float()
 {
-    return ones_array(py::make_tuple(1, 1), numpy().attr("float64"));
+    return FusionSymbol::one_2D();
 }
 
-inline py::array
+inline FusionSymbol
 one_4D()
 {
-    return ones_array(py::make_tuple(1, 1, 1, 1), numpy().attr("intp"));
+    return FusionSymbol::one_4D();
 }
 
-inline py::array
+inline FusionSymbol
 one_4D_float()
 {
-    return ones_array(py::make_tuple(1, 1, 1, 1), numpy().attr("float64"));
+    return FusionSymbol::one_4D();
 }
 
 inline int16_t

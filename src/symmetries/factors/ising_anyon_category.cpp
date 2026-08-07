@@ -1,12 +1,12 @@
 #include <cyten/symmetries/factors/ising_anyon_category.h>
 
-#include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/topo_ones.h>
 
 #include <cmath>
 #include <numbers>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace cyten {
 
@@ -22,7 +22,7 @@ sector1(int16_t q)
     return Sector{ q };
 }
 
-py::array
+FusionSymbol
 default_c_symbol(BaseSymmetry const& sym,
                  Sector a,
                  Sector b,
@@ -33,72 +33,51 @@ default_c_symbol(BaseSymmetry const& sym,
 {
     auto R1 = sym._r_symbol(e, c, d);
     auto F = sym._f_symbol(c, a, b, d, e, f);
-    auto R2 = sym._r_symbol(a, c, f);
-    auto np = topo_ones::numpy();
-    return (R1.attr("reshape")(py::make_tuple(1, -1, 1, 1)) * F *
-            np.attr("conj")(R2).attr("reshape")(py::make_tuple(1, 1, -1, 1)))
-      .cast<py::array>();
+    auto R2 = sym._r_symbol(a, c, f).conj();
+    auto R1e = R1.reshaped(4, FusionSymbol::Shape{ { 1, R1.size(), 1, 1 } });
+    auto R2e = R2.reshaped(4, FusionSymbol::Shape{ { 1, 1, R2.size(), 1 } });
+    return R1e.multiply(F).multiply(R2e);
 }
 
-py::array
-c_entry_to_array(py::object const& entry)
+FusionSymbol
+scaled_one_4D(complex128 factor)
 {
-    if (py::isinstance<py::array>(entry)) {
-        return entry.cast<py::array>();
-    }
-    return topo_ones::numpy().attr("array")(entry).cast<py::array>();
+    return topo_ones::one_4D() * factor;
 }
 
-py::array
-scaled_one_4D(py::object factor)
-{
-    return (factor * topo_ones::one_4D()).cast<py::array>();
-}
-
-py::array
+std::array<int64, 3>
 make_frobenius_array(int nu)
 {
-    auto np = topo_ones::numpy();
     int64_t const exp = (static_cast<int64_t>(nu) * nu - 1) / 8;
     int64_t const fs1 = (exp % 2 == 0) ? 1 : -1;
-    py::list vals;
-    vals.append(1);
-    vals.append(fs1);
-    vals.append(1);
-    return np.attr("array")(vals).cast<py::array>();
+    return { 1, fs1, 1 };
 }
 
-py::array
-make_f_table(py::array const& frobenius)
+FusionSymbol
+make_f_table(std::array<int64, 3> const& frobenius)
 {
-    auto np = topo_ones::numpy();
-    auto const fs1 = frobenius.attr("__getitem__")(1);
-    py::list vals;
-    vals.append(1);
-    vals.append(0);
-    vals.append(1);
-    vals.append(0);
-    vals.append(-1);
-    return np
-      .attr("expand_dims")((np.attr("array")(vals) * fs1).attr("__truediv__")(std::sqrt(2.0)),
-                           py::make_tuple(1, 2, 3, 4))
-      .cast<py::array>();
+    auto const fs1 = static_cast<float64>(frobenius[1]);
+    auto const inv_sqrt2 = 1.0 / std::sqrt(2.0);
+    return FusionSymbol::from_float64(
+      1,
+      FusionSymbol::Shape{ { 5, 1, 1, 1 } },
+      { 1.0 * fs1 * inv_sqrt2, 0.0, 1.0 * fs1 * inv_sqrt2, 0.0, -1.0 * fs1 * inv_sqrt2 });
 }
 
-py::array
-make_r_table(int nu, py::array const& frobenius)
+FusionSymbol
+make_r_table(int nu, std::array<int64, 3> const& frobenius)
 {
-    auto np = topo_ones::numpy();
-    auto const fs1 = frobenius.attr("__getitem__")(1);
+    auto const fs1 = static_cast<float64>(frobenius[1]);
     auto const pi = std::numbers::pi_v<float64>;
-    py::list vals;
-    vals.append(np.attr("power")(py::cast(complex128{ 0.0, -1.0 }), nu));
-    vals.append(-1);
-    vals.append(np.attr("exp")(py::cast(complex128{ 0.0, 3.0 * nu * pi / 8.0 })) * fs1);
-    vals.append(np.attr("exp")(py::cast(complex128{ 0.0, -static_cast<float64>(nu) * pi / 8.0 })) *
-                fs1);
-    vals.append(0);
-    return np.attr("expand_dims")(vals, 1).cast<py::array>();
+    std::vector<complex128> vals{
+        std::pow(complex128{ 0.0, -1.0 }, nu),
+        complex128{ -1.0, 0.0 },
+        std::exp(complex128{ 0.0, 3.0 * nu * pi / 8.0 }) * fs1,
+        std::exp(complex128{ 0.0, -static_cast<float64>(nu) * pi / 8.0 }) * fs1,
+        complex128{ 0.0, 0.0 },
+    };
+    return FusionSymbol::from_complex128(
+      1, FusionSymbol::Shape{ { 5, 1, 1, 1 } }, std::move(vals));
 }
 
 SectorArray
@@ -150,7 +129,6 @@ all_sigma(Sector b, Sector c)
 bool
 all_nontrivial(Sector a, Sector b)
 {
-    // Match Python ``np.all(np.concatenate([a, b]))``: both charges nonzero.
     return a.q[0] != 0 && b.q[0] != 0;
 }
 
@@ -158,6 +136,12 @@ bool
 sectors_are(Sector a, Sector b, Sector c, Sector d, int16_t va, int16_t vb, int16_t vc, int16_t vd)
 {
     return a.q[0] == va && b.q[0] == vb && c.q[0] == vc && d.q[0] == vd;
+}
+
+FusionSymbol
+zero_c_entry()
+{
+    return FusionSymbol::zeros(4, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, Dtype::Complex128);
 }
 
 } // namespace
@@ -177,9 +161,8 @@ IsingAnyonCategory::IsingAnyonCategory(int nu_)
     if (nu_ % 2 == 0) {
         throw std::invalid_argument("IsingAnyonCategory nu must be odd");
     }
-    auto np = topo_ones::numpy();
-    auto const phase = np.attr("power")(py::cast(complex128{ 0.0, -1.0 }), nu);
-    auto const neg_phase = py::cast(-1) * phase;
+    auto const phase = std::pow(complex128{ 0.0, -1.0 }, nu);
+    auto const neg_phase = -phase;
     _c = {
         scaled_one_4D(phase),
         scaled_one_4D(neg_phase),
@@ -193,12 +176,12 @@ IsingAnyonCategory::IsingAnyonCategory(int nu_)
           *this, sector1(1), sector1(1), sector1(1), sector1(1), sector1(0), sector1(2)),
         default_c_symbol(
           *this, sector1(1), sector1(1), sector1(1), sector1(1), sector1(2), sector1(2)),
-        py::int_(0),
+        zero_c_entry(),
         default_c_symbol(
           *this, sector1(2), sector1(1), sector1(1), sector1(0), sector1(1), sector1(1)),
         default_c_symbol(
           *this, sector1(2), sector1(1), sector1(1), sector1(2), sector1(1), sector1(1)),
-        scaled_one_4D(py::cast(-1)),
+        scaled_one_4D(complex128{ -1.0, 0.0 }),
     };
 }
 
@@ -271,18 +254,19 @@ IsingAnyonCategory::_n_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
     return 1;
 }
 
-py::array
+FusionSymbol
 IsingAnyonCategory::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     if (sectors_are(a, b, c, d, 1, 1, 1, 1)) {
-        auto idx = static_cast<py::ssize_t>(e.q[0] + f.q[0]);
-        return _f.attr("__getitem__")(idx).cast<py::array>();
+        auto idx = static_cast<std::size_t>(e.q[0] + f.q[0]);
+        return FusionSymbol::full(
+          4, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, _f.get_complex(idx), Dtype::Float64);
     }
     if (sectors_are(a, b, c, d, 2, 1, 2, 1)) {
-        return scaled_one_4D(py::cast(-1));
+        return scaled_one_4D(complex128{ -1.0, 0.0 });
     }
     if (sectors_are(a, b, c, d, 1, 2, 1, 2)) {
-        return scaled_one_4D(py::cast(-1));
+        return scaled_one_4D(complex128{ -1.0, 0.0 });
     }
     return topo_ones::one_4D();
 }
@@ -290,7 +274,7 @@ IsingAnyonCategory::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, 
 int64
 IsingAnyonCategory::frobenius_schur(Sector a) const
 {
-    return frobenius.attr("__getitem__")(a.q[0]).cast<int64>();
+    return frobenius.at(static_cast<std::size_t>(a.q[0]));
 }
 
 float64
@@ -299,26 +283,34 @@ IsingAnyonCategory::qdim(Sector a) const
     return a.q[0] == 1 ? std::sqrt(2.0) : 1.0;
 }
 
-py::array
+std::vector<float64>
 IsingAnyonCategory::batch_qdim(SectorArray const& a) const
 {
-    auto np = topo_ones::numpy();
-    return np.attr("where")(sector_array_to_numpy(a).attr("__eq__")(1), std::sqrt(2.0), 1)
-      .attr("flatten")()
-      .cast<py::array>();
+    std::vector<float64> out(a.size());
+    auto const sqrt2 = std::sqrt(2.0);
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        out[i] = (a[i][0] == 1) ? sqrt2 : 1.0;
+    }
+    return out;
 }
 
-py::array
+FusionSymbol
 IsingAnyonCategory::_r_symbol(Sector a, Sector b, Sector c) const
 {
     if (all_nontrivial(a, b)) {
-        auto const row = static_cast<py::ssize_t>((a.q[0] + b.q[0]) * (c.q[0] - 1));
-        return _r.attr("__getitem__")(py::make_tuple(row, py::slice())).cast<py::array>();
+        // Match NumPy negative indexing used by the original formula.
+        auto row = static_cast<std::ptrdiff_t>((a.q[0] + b.q[0]) * (c.q[0] - 1));
+        auto const n = static_cast<std::ptrdiff_t>(_r.extent(0));
+        if (row < 0) {
+            row += n;
+        }
+        return FusionSymbol::scalar1d(_r.get_complex(static_cast<std::size_t>(row)),
+                                      Dtype::Complex128);
     }
     return topo_ones::one_1D();
 }
 
-py::array
+FusionSymbol
 IsingAnyonCategory::_c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
     if (all_sigma(b, c)) {
@@ -326,7 +318,7 @@ IsingAnyonCategory::_c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, 
         factor *= (1 - a.q[0] / 2 - d.q[0] / 2 + 9 * (b.q[0] - 1) +
                    (2 - b.q[0]) * ((e.q[0] + f.q[0]) / 2 + d.q[0] / 2 + 3 * a.q[0]));
         auto const idx = static_cast<std::size_t>(factor + a.q[0] / 2 + d.q[0] / 2);
-        return c_entry_to_array(_c.at(idx));
+        return _c.at(idx);
     }
     return topo_ones::one_4D();
 }

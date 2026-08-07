@@ -2,6 +2,7 @@
 
 #include "../cyten.h"
 #include "exceptions.h"
+#include "fusion_symbol.h"
 #include "sector.h"
 #include "styles.h"
 
@@ -58,10 +59,10 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     /// Optimized n_symbol assuming c is a valid fusion outcome.
     virtual int64 _n_symbol(Sector a, Sector b, Sector c) const = 0;
     /// Internal F symbol; inputs assumed valid.
-    virtual py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
+    virtual FusionSymbol _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
       const = 0;
     /// Internal R symbol; inputs assumed valid.
-    virtual py::array _r_symbol(Sector a, Sector b, Sector c) const = 0;
+    virtual FusionSymbol _r_symbol(Sector a, Sector b, Sector c) const = 0;
     /// Wrap as a product :class:`Symmetry` (identity if already a product).
     /// Returns a Python object until :class:`Symmetry` is converted to C++.
     virtual py::object as_Symmetry() = 0;
@@ -71,24 +72,24 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     // --- defaults (may override) ---
 
     /// Internal fusion tensor; inputs assumed valid.
-    virtual py::array _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const;
+    virtual FusionSymbol _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const;
     /// Swap gate (numpy braid) of single sectors.
-    virtual py::array swap_gate(Sector a, Sector b) const;
+    virtual FusionSymbol swap_gate(Sector a, Sector b) const;
     /// Z isomorphism :math:`Z_{\bar{a}} : \bar{a}^* \to a`.
-    virtual py::array Z_iso(Sector a) const;
+    virtual FusionSymbol Z_iso(Sector a) const;
     /// All sectors if finitely many.
     virtual SectorArray all_sectors() const;
 
     int64 n_symbol(Sector a, Sector b, Sector c) const;
-    py::array f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
-    py::array b_symbol(Sector a, Sector b, Sector c) const;
-    py::array r_symbol(Sector a, Sector b, Sector c) const;
-    py::array c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
-    py::array fusion_tensor(Sector a,
-                            Sector b,
-                            Sector c,
-                            bool Z_a = false,
-                            bool Z_b = false) const;
+    FusionSymbol f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
+    FusionSymbol b_symbol(Sector a, Sector b, Sector c) const;
+    FusionSymbol r_symbol(Sector a, Sector b, Sector c) const;
+    FusionSymbol c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
+    FusionSymbol fusion_tensor(Sector a,
+                               Sector b,
+                               Sector c,
+                               bool Z_a = false,
+                               bool Z_b = false) const;
 
     virtual bool are_valid_sectors(SectorArray const& sectors) const;
     /// Element-wise fusion for FusionStyle.single.
@@ -101,8 +102,8 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     virtual bool can_fuse_to(Sector a, Sector b, Sector c) const;
     /// Dimension as unstructured space (if symmetry can be dropped).
     virtual int64 sector_dim(Sector a) const;
-    virtual py::array batch_sector_dim(SectorArray const& a) const;
-    virtual py::array batch_qdim(SectorArray const& a) const;
+    virtual std::vector<int64> batch_sector_dim(SectorArray const& a) const;
+    virtual std::vector<float64> batch_qdim(SectorArray const& a) const;
     virtual std::string sector_str(Sector a) const;
     virtual SectorArray dual_sectors(SectorArray const& sectors) const;
     virtual int64 frobenius_schur(Sector a) const;
@@ -110,11 +111,12 @@ class BaseSymmetry : public std::enable_shared_from_this<BaseSymmetry>
     virtual float64 sqrt_qdim(Sector a) const;
     virtual float64 inv_sqrt_qdim(Sector a) const;
     float64 total_qdim() const;
-    virtual py::array _b_symbol(Sector a, Sector b, Sector c) const;
-    virtual py::array _c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
+    virtual FusionSymbol _b_symbol(Sector a, Sector b, Sector c) const;
+    virtual FusionSymbol _c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
+      const;
     virtual complex128 topological_twist(Sector a) const;
     complex128 s_matrix_element(Sector a, Sector b) const;
-    py::array s_matrix() const;
+    FusionSymbol s_matrix() const;
 };
 
 } // namespace cyten

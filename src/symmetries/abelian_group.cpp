@@ -1,55 +1,11 @@
 #include <cyten/symmetries/abelian_group.h>
 
+#include <cyten/symmetries/topo_ones.h>
+
 #include <utility>
+#include <vector>
 
 namespace cyten {
-
-namespace {
-
-py::module_
-numpy()
-{
-    return py::module_::import("numpy");
-}
-
-/// Cached ones arrays matching Python ``one_1D`` / ``one_2D`` / … in ``_symmetries.py``.
-py::array
-ones_array(py::tuple shape, py::object dtype)
-{
-    return numpy().attr("ones")(shape, py::arg("dtype") = dtype).cast<py::array>();
-}
-
-py::array
-one_1D()
-{
-    return ones_array(py::make_tuple(1), numpy().attr("intp"));
-}
-
-py::array
-one_2D()
-{
-    return ones_array(py::make_tuple(1, 1), numpy().attr("intp"));
-}
-
-py::array
-one_2D_float()
-{
-    return ones_array(py::make_tuple(1, 1), numpy().attr("float64"));
-}
-
-py::array
-one_4D()
-{
-    return ones_array(py::make_tuple(1, 1, 1, 1), numpy().attr("intp"));
-}
-
-py::array
-one_4D_float()
-{
-    return ones_array(py::make_tuple(1, 1, 1, 1), numpy().attr("float64"));
-}
-
-} // namespace
 
 AbelianGroup::AbelianGroup(Sector trivial_sector,
                            std::string group_name,
@@ -83,13 +39,10 @@ AbelianGroup::sector_dim(Sector /*a*/) const
     return 1;
 }
 
-py::array
+std::vector<int64>
 AbelianGroup::batch_sector_dim(SectorArray const& a) const
 {
-    return numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
-                    py::arg("dtype") = numpy().attr("intp"))
-      .cast<py::array>();
+    return std::vector<int64>(a.size(), 1);
 }
 
 int64
@@ -98,7 +51,7 @@ AbelianGroup::_n_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
     return 1;
 }
 
-py::array
+FusionSymbol
 AbelianGroup::_f_symbol(Sector /*a*/,
                         Sector /*b*/,
                         Sector /*c*/,
@@ -106,7 +59,7 @@ AbelianGroup::_f_symbol(Sector /*a*/,
                         Sector /*e*/,
                         Sector /*f*/) const
 {
-    return one_4D();
+    return topo_ones::one_4D();
 }
 
 int64
@@ -133,20 +86,20 @@ AbelianGroup::inv_sqrt_qdim(Sector /*a*/) const
     return 1.0;
 }
 
-py::array
+FusionSymbol
 AbelianGroup::_b_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
 {
-    return one_2D();
+    return topo_ones::one_2D();
 }
 
-py::array
+FusionSymbol
 AbelianGroup::_r_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
 {
     // For abelian groups, the R symbol is always 1.
-    return one_1D();
+    return topo_ones::one_1D();
 }
 
-py::array
+FusionSymbol
 AbelianGroup::_c_symbol(Sector /*a*/,
                         Sector /*b*/,
                         Sector /*c*/,
@@ -154,20 +107,20 @@ AbelianGroup::_c_symbol(Sector /*a*/,
                         Sector /*e*/,
                         Sector /*f*/) const
 {
-    return one_4D();
+    return topo_ones::one_4D();
 }
 
-py::array
+FusionSymbol
 AbelianGroup::_fusion_tensor(Sector /*a*/, Sector /*b*/, Sector /*c*/, bool /*Z_a*/, bool /*Z_b*/)
   const
 {
-    return one_4D_float();
+    return topo_ones::one_4D_float();
 }
 
-py::array
+FusionSymbol
 AbelianGroup::Z_iso(Sector /*a*/) const
 {
-    return one_2D_float();
+    return topo_ones::one_2D_float();
 }
 
 } // namespace cyten

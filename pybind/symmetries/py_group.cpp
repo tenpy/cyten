@@ -44,7 +44,12 @@ bind_group(py::module_& m)
            py::arg("Z_b"))
       .def("swap_gate", &Group::swap_gate, py::arg("a"), py::arg("b"))
       .def("qdim", &Group::qdim, py::arg("a"))
-      .def("batch_qdim", &Group::batch_qdim, py::arg("a"))
+      .def(
+        "batch_qdim",
+        [](Group const& self, SectorArray const& a) {
+            return vector_f64_to_numpy(self.batch_qdim(a));
+        },
+        py::arg("a"))
       .def("topological_twist", &Group::topological_twist, py::arg("a"));
 }
 

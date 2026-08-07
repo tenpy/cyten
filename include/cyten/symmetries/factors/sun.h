@@ -54,11 +54,13 @@ class SUN : public Group
     float64 clebschgordan(Sector a, int64 q_a, Sector b, int64 q_b, Sector c, int64 q_c, int64 mu)
       const;
 
-    py::array _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const override;
-    py::array _f_symbol_from_CG(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const;
-    py::array _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const override;
-    py::array _r_symbol_from_CG(Sector a, Sector b, Sector c) const;
-    py::array _r_symbol(Sector a, Sector b, Sector c) const override;
+    FusionSymbol _fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const override;
+    FusionSymbol _f_symbol_from_CG(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
+      const;
+    FusionSymbol _f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
+      const override;
+    FusionSymbol _r_symbol_from_CG(Sector a, Sector b, Sector c) const;
+    FusionSymbol _r_symbol(Sector a, Sector b, Sector c) const override;
     int64 frobenius_schur(Sector a) const override;
 
     bool has_data_in_group(py::object group) const;

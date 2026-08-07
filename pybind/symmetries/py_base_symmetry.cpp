@@ -460,18 +460,24 @@ bind_base_symmetry(py::module_& m)
            dimension computed by :meth:`qdim`.
            For other braiding styles,
            )pydoc")
-      .def("batch_sector_dim",
-           &BaseSymmetry::batch_sector_dim,
-           py::arg("a"),
-           R"pydoc(
-           sector_dim of every sector (row) in a
-           )pydoc")
-      .def("batch_qdim",
-           &BaseSymmetry::batch_qdim,
-           py::arg("a"),
-           R"pydoc(
-           Quantum dimension of every sector (row) in `a`
-           )pydoc")
+      .def(
+        "batch_sector_dim",
+        [](BaseSymmetry const& self, SectorArray const& a) {
+            return vector_i64_to_numpy(self.batch_sector_dim(a));
+        },
+        py::arg("a"),
+        R"pydoc(
+        sector_dim of every sector (row) in a
+        )pydoc")
+      .def(
+        "batch_qdim",
+        [](BaseSymmetry const& self, SectorArray const& a) {
+            return vector_f64_to_numpy(self.batch_qdim(a));
+        },
+        py::arg("a"),
+        R"pydoc(
+        Quantum dimension of every sector (row) in `a`
+        )pydoc")
       .def("sector_str",
            &BaseSymmetry::sector_str,
            py::arg("a"),

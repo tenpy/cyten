@@ -3,6 +3,7 @@
 #include <cyten/symmetries/topo_ones.h>
 
 #include <utility>
+#include <vector>
 
 namespace cyten {
 
@@ -15,12 +16,6 @@ int64_t
 fermion_sign(int16_t a, int16_t b)
 {
     return 1 - 2 * static_cast<int64_t>(a) * static_cast<int64_t>(b);
-}
-
-py::module_
-numpy()
-{
-    return py::module_::import("numpy");
 }
 
 } // namespace
@@ -97,19 +92,16 @@ FermionParity::sector_dim(Sector /*a*/) const
     return 1;
 }
 
-py::array
+std::vector<int64>
 FermionParity::batch_sector_dim(SectorArray const& a) const
 {
-    return numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
-                    py::arg("dtype") = numpy().attr("intp"))
-      .cast<py::array>();
+    return std::vector<int64>(a.size(), 1);
 }
 
-py::array
+std::vector<float64>
 FermionParity::batch_qdim(SectorArray const& a) const
 {
-    return batch_sector_dim(a);
+    return std::vector<float64>(a.size(), 1.0);
 }
 
 std::string
@@ -142,7 +134,7 @@ FermionParity::_n_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
     return 1;
 }
 
-py::array
+FusionSymbol
 FermionParity::_f_symbol(Sector /*a*/,
                          Sector /*b*/,
                          Sector /*c*/,
@@ -177,42 +169,39 @@ FermionParity::inv_sqrt_qdim(Sector /*a*/) const
     return 1.0;
 }
 
-py::array
+FusionSymbol
 FermionParity::_b_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
 {
     return topo_ones::one_2D();
 }
 
-py::array
+FusionSymbol
 FermionParity::_r_symbol(Sector a, Sector b, Sector /*c*/) const
 {
-    py::array_t<int64_t> out(1);
-    out.mutable_at(0) = fermion_sign(a.q[0], b.q[0]);
-    return out;
+    return FusionSymbol::scalar1d(static_cast<float64>(fermion_sign(a.q[0], b.q[0])));
 }
 
-py::array
+FusionSymbol
 FermionParity::_c_symbol(Sector a, Sector /*b*/, Sector c, Sector /*d*/, Sector e, Sector /*f*/)
   const
 {
     auto const C = fermion_sign(e.q[0], c.q[0]) * fermion_sign(a.q[0], c.q[0]);
-    py::array_t<int64_t> out({ 1, 1, 1, 1 });
-    out.mutable_at(0, 0, 0, 0) = C;
-    return out;
+    return FusionSymbol::full(
+      4, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, static_cast<float64>(C), Dtype::Float64);
 }
 
-py::array
+FusionSymbol
 FermionParity::_fusion_tensor(Sector /*a*/, Sector /*b*/, Sector /*c*/, bool /*Z_a*/, bool /*Z_b*/)
   const
 {
     return topo_ones::one_4D_float();
 }
 
-py::array
+FusionSymbol
 FermionParity::swap_gate(Sector a, Sector b) const
 {
-    auto const sign = fermion_sign(a.q[0], b.q[0]);
-    return (py::cast(sign) * topo_ones::one_4D_float()).cast<py::array>();
+    auto const sign = static_cast<float64>(fermion_sign(a.q[0], b.q[0]));
+    return topo_ones::one_4D_float() * sign;
 }
 
 complex128
@@ -231,7 +220,7 @@ FermionParity::all_sectors() const
     return out;
 }
 
-py::array
+FusionSymbol
 FermionParity::Z_iso(Sector /*a*/) const
 {
     return topo_ones::one_2D_float();

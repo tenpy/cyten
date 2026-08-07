@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace cyten {
 
@@ -25,18 +26,16 @@ phase_pow(complex128 phase, int exp)
     return std::pow(phase, static_cast<float64>(exp));
 }
 
-py::array
+FusionSymbol
 phase_r_symbol(complex128 val)
 {
-    return topo_ones::numpy().attr("array")(py::make_tuple(py::cast(val))).cast<py::array>();
+    return FusionSymbol::scalar1d(val, Dtype::Complex128);
 }
 
-py::array
+FusionSymbol
 phase_c_symbol(complex128 val)
 {
-    return topo_ones::numpy()
-      .attr("multiply")(py::cast(val), topo_ones::one_4D())
-      .cast<py::array>();
+    return topo_ones::one_4D() * val;
 }
 
 Sector
@@ -132,22 +131,16 @@ QuantumDoubleZNAnyonCategory::sector_dim(Sector /*a*/) const
     return 1;
 }
 
-py::array
+std::vector<int64>
 QuantumDoubleZNAnyonCategory::batch_sector_dim(SectorArray const& a) const
 {
-    return topo_ones::numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
-                    py::arg("dtype") = topo_ones::numpy().attr("intp"))
-      .cast<py::array>();
+    return std::vector<int64>(a.size(), 1);
 }
 
-py::array
+std::vector<float64>
 QuantumDoubleZNAnyonCategory::batch_qdim(SectorArray const& a) const
 {
-    return topo_ones::numpy()
-      .attr("ones")(py::make_tuple(static_cast<py::ssize_t>(a.size())),
-                    py::arg("dtype") = topo_ones::numpy().attr("intp"))
-      .cast<py::array>();
+    return std::vector<float64>(a.size(), 1.0);
 }
 
 std::string
@@ -193,7 +186,7 @@ QuantumDoubleZNAnyonCategory::_n_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/
     return 1;
 }
 
-py::array
+FusionSymbol
 QuantumDoubleZNAnyonCategory::_f_symbol(Sector /*a*/,
                                         Sector /*b*/,
                                         Sector /*c*/,
@@ -216,14 +209,14 @@ QuantumDoubleZNAnyonCategory::qdim(Sector /*a*/) const
     return 1.0;
 }
 
-py::array
+FusionSymbol
 QuantumDoubleZNAnyonCategory::_r_symbol(Sector a, Sector b, Sector /*c*/) const
 {
     int const exp = static_cast<int>(a.q[0]) * static_cast<int>(b.q[1]);
     return phase_r_symbol(phase_pow(_phase, exp));
 }
 
-py::array
+FusionSymbol
 QuantumDoubleZNAnyonCategory::_c_symbol(Sector /*a*/,
                                         Sector b,
                                         Sector c,
