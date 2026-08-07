@@ -47,7 +47,7 @@ AbelianBackendData::AbelianBackendData(Dtype dtype_,
     if (!is_sorted) {
         auto np = numpy();
         // ``np.lexsort(block_inds.T)`` — last row is primary key (numpy convention).
-        py::array perm = np.attr("lexsort")(block_inds.attr("T")).cast<py::array>();
+        auto perm = np.attr("lexsort")(block_inds.attr("T")).cast<py::array_t<int64>>();
         block_inds = take_rows(block_inds, perm);
 
         auto perm_buf = perm.unchecked<1>();
