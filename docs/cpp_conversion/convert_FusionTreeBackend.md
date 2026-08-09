@@ -8,9 +8,9 @@
 
 | Method / helper | Delegates to |
 | --- | --- |
-| `apply_instructions` | Python `TreePairMapping` / `FactorizedTreeMapping` |
-| `permute_legs` | Python `PermuteLegsInstructionEngine` + `apply_instructions` |
 | `_partial_trace_helper` | Python module function (called from native `partial_trace`) |
+
+`apply_instructions` and `permute_legs` are **native C++** (TreePairMapping / FactorizedTreeMapping / PermuteLegsInstructionEngine). See [convert_TreePairMapping.md](convert_TreePairMapping.md).
 
 All other former `ft_py().FusionTreeBackend(...)` stubs (outer, partial_compose, partial_trace body, from_tree_pairs, get_element, from_grid, scale_axis, mask_*, diagonal_to_mask) are **native C++** in `src/backends/_ft_native_methods.inc` (included from `fusion_tree_backend.cpp`).
 
@@ -37,7 +37,7 @@ All other former `ft_py().FusionTreeBackend(...)` stubs (outer, partial_compose,
 - **Permute stack** (required by `permute_legs` / `partial_trace`):
   1. Instruction POD (`Braid` / `Bend` / `Twist`)
   2. `PermuteLegsInstructionEngine`
-  3. `TensorMapping` / `TreePairMapping` / `FactorizedTreeMapping` (can use C++ `SparseMapping` — [convert_SparseMapping.md](convert_SparseMapping.md); mapping classes themselves still Python-delegated)
+  3. `TensorMapping` / `TreePairMapping` / `FactorizedTreeMapping` — **done** ([convert_TreePairMapping.md](convert_TreePairMapping.md))
 - Forest helpers `_add_forest_block_entries` / `_get_forest_block_contribution` for dense I/O.
 - Prefer calling `cyten.tools.misc` / mappings via pybind for iterators when clearer than a full port.
 - **SparseMapping** is available in C++ (`include/cyten/tools/mappings.h`); next step for removing `ft_py()` Mapping delegation.

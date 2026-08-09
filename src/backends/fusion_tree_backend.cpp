@@ -1,4 +1,6 @@
 #include <cyten/backends/fusion_tree_backend.h>
+#include <cyten/backends/fusion_tree_mapping.h>
+#include <cyten/backends/fusion_tree_permute.h>
 
 #include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/trees.h>
@@ -544,25 +546,35 @@ FusionTreeBackend::apply_instructions(py::object tensor,
                                       TensorProduct::Ptr new_domain,
                                       bool mixes_codomain_domain)
 {
-    // FIXME: native port
-    py::object cls = mixes_codomain_domain ? ft_py().attr("TreePairMapping")
-                                           : ft_py().attr("FactorizedTreeMapping");
     auto t_data = data_from_tensor(tensor);
-    py::object mapping = cls.attr("from_instructions")(
-      py::arg("instructions") = instructions,
-      py::arg("codomain") = tensor.attr("codomain"),
-      py::arg("domain") = tensor.attr("domain"),
-      py::arg("block_inds") = t_data->block_inds);
-    py::object data = mapping.attr("transform_tensor")(
-      py::cast(t_data),
-      py::arg("codomain") = tensor.attr("codomain"),
-      py::arg("domain") = tensor.attr("domain"),
-      py::arg("new_codomain") = py::cast(new_codomain),
-      py::arg("new_domain") = py::cast(new_domain),
-      py::arg("codomain_idcs") = codomain_idcs,
-      py::arg("domain_idcs") = domain_idcs,
-      py::arg("block_backend") = py::cast(block_backend));
-    auto res = data.cast<FusionTreeData::Ptr>();
+    auto codomain = tensor.attr("codomain").cast<TensorProduct::Ptr>();
+    auto domain = tensor.attr("domain").cast<TensorProduct::Ptr>();
+    auto instructions_vec = instructions_from_python(instructions);
+
+    FusionTreeData::Ptr res;
+    if (mixes_codomain_domain) {
+        auto mapping = TreePairMapping::from_instructions(
+          instructions_vec, codomain, domain, t_data->block_inds);
+        res = mapping->transform_tensor(*t_data,
+                                        codomain,
+                                        domain,
+                                        new_codomain,
+                                        new_domain,
+                                        codomain_idcs,
+                                        domain_idcs,
+                                        block_backend);
+    } else {
+        auto mapping = FactorizedTreeMapping::from_instructions(
+          instructions_vec, codomain, domain, t_data->block_inds);
+        res = mapping->transform_tensor(*t_data,
+                                        codomain,
+                                        domain,
+                                        new_codomain,
+                                        new_domain,
+                                        codomain_idcs,
+                                        domain_idcs,
+                                        block_backend);
+    }
     res->discard_zero_blocks(block_backend, eps);
     return wrap(res);
 }
@@ -1345,9 +1357,8 @@ FusionTreeBackend::permute_legs(py::object a,
                                 std::vector<std::optional<int64>> levels,
                                 std::vector<std::optional<bool>> bend_right)
 {
-    // FIXME: native port — delegate to Python PermuteLegsInstructionEngine
-    py::list flat_levels;
-    py::list flat_bend_right;
+    std::vector<std::optional<int64>> flat_levels;
+    std::vector<std::optional<bool>> flat_bend_right;
     py::list codomain_pipe_inds;
     py::list domain_pipe_inds;
     int64 flat_index = 0;
@@ -1367,8 +1378,8 @@ FusionTreeBackend::permute_legs(py::object a,
                 domain_pipe_inds.append(indices);
             flat_index += num;
             for (int64 k = 0; k < num; ++k) {
-                flat_levels.append(levels[static_cast<std::size_t>(i)]);
-                flat_bend_right.append(bend_right[static_cast<std::size_t>(i)]);
+                flat_levels.push_back(levels[static_cast<std::size_t>(i)]);
+                flat_bend_right.push_back(bend_right[static_cast<std::size_t>(i)]);
             }
         } else {
             py::list indices = py::make_tuple(flat_index);
@@ -1377,8 +1388,8 @@ FusionTreeBackend::permute_legs(py::object a,
             else
                 domain_pipe_inds.append(indices);
             ++flat_index;
-            flat_levels.append(levels[static_cast<std::size_t>(i)]);
-            flat_bend_right.append(bend_right[static_cast<std::size_t>(i)]);
+            flat_levels.push_back(levels[static_cast<std::size_t>(i)]);
+            flat_bend_right.push_back(bend_right[static_cast<std::size_t>(i)]);
         }
     }
     py::list leg_comb;
@@ -1386,37 +1397,34 @@ FusionTreeBackend::permute_legs(py::object a,
         leg_comb.append(x);
     for (py::handle x : domain_pipe_inds)
         leg_comb.append(x);
-    py::list new_domain_idcs;
+    std::vector<int64> new_domain_idcs;
     for (int64 idx : domain_idcs) {
         py::list rev = leg_comb[static_cast<py::ssize_t>(idx)].cast<py::list>();
-        std::vector<int64> rev_vec;
         for (py::ssize_t ri = py::len(rev) - 1; ri >= 0; --ri)
-            rev_vec.push_back(rev[ri].cast<int64>());
-        for (int64 k : rev_vec)
-            new_domain_idcs.append(k);
+            new_domain_idcs.push_back(rev[ri].cast<int64>());
     }
-    py::list new_codomain_idcs;
+    std::vector<int64> new_codomain_idcs;
     for (int64 idx : codomain_idcs) {
         for (py::handle k : leg_comb[static_cast<py::ssize_t>(idx)])
-            new_codomain_idcs.append(k);
+            new_codomain_idcs.push_back(k.cast<int64>());
     }
-    py::object h = ft_py().attr("PermuteLegsInstructionEngine")(
-      py::arg("num_codomain_legs") = num_codomain_flat_legs,
-      py::arg("num_domain_legs") = a.attr("num_domain_flat_legs"),
-      py::arg("codomain_idcs") = new_codomain_idcs,
-      py::arg("domain_idcs") = new_domain_idcs,
-      py::arg("levels") = flat_levels,
-      py::arg("bend_right") = flat_bend_right,
-      py::arg("has_symmetric_braid") = a.attr("symmetry").attr("has_symmetric_braid"));
-    py::object instructions = h.attr("evaluate_instructions")();
-    std::vector<int64> new_cod_vec;
-    for (py::handle x : new_codomain_idcs)
-        new_cod_vec.push_back(x.cast<int64>());
-    std::vector<int64> new_dom_vec;
-    for (py::handle x : new_domain_idcs)
-        new_dom_vec.push_back(x.cast<int64>());
+    int64 const num_domain_flat_legs = a.attr("num_domain_flat_legs").cast<int64>();
+    bool const has_symmetric_braid = a.attr("symmetry").attr("has_symmetric_braid").cast<bool>();
+    PermuteLegsInstructionEngine engine(num_codomain_flat_legs,
+                                        num_domain_flat_legs,
+                                        new_codomain_idcs,
+                                        new_domain_idcs,
+                                        flat_levels,
+                                        flat_bend_right,
+                                        has_symmetric_braid);
+    auto instructions = engine.evaluate_instructions();
+    py::list instructions_py;
+    for (Instruction const& inst : instructions) {
+        std::visit(
+          [&](auto const& i) { instructions_py.append(py::cast(i)); }, inst);
+    }
     return apply_instructions(
-      a, instructions, new_cod_vec, new_dom_vec, new_codomain, new_domain, mixes_codomain_domain);
+      a, instructions_py, new_codomain_idcs, new_domain_idcs, new_codomain, new_domain, mixes_codomain_domain);
 }
 
 std::tuple<BlockBackend::BlockPtr, int64, int64>

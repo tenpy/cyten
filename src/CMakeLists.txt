@@ -8,6 +8,8 @@ target_sources(cyten
   backends/no_symmetry.cpp
   backends/abelian.cpp
   backends/fusion_tree_backend.cpp
+  backends/fusion_tree_mapping.cpp
+  backends/fusion_tree_permute.cpp
   backends/backend_factory.cpp
   block_backend/array_api.cpp
   block_backend/block_backend.cpp
