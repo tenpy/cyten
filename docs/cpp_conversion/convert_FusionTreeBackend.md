@@ -4,11 +4,9 @@
 
 **In progress** on branch `convert_backends`. `FusionTreeData` already in C++ — [convert_FusionTreeData.md](convert_FusionTreeData.md). Do **not** monkey-patch until the full permute/mapping stack is solid and pytest is green.
 
-### Python delegation remaining (intentional)
+### Python delegation remaining
 
-| Method / helper | Delegates to |
-| --- | --- |
-| `_partial_trace_helper` | Python module function (called from native `partial_trace`) |
+None for the FusionTreeBackend method surface. Original Python `_partial_trace_helper` remains in `fusion_tree_backend.py` for reference until monkey-patch; the C++ `partial_trace` path uses a native port in `_ft_native_methods.inc`.
 
 `apply_instructions` and `permute_legs` are **native C++** (TreePairMapping / FactorizedTreeMapping / PermuteLegsInstructionEngine). See [convert_TreePairMapping.md](convert_TreePairMapping.md).
 
@@ -40,7 +38,7 @@ All other former `ft_py().FusionTreeBackend(...)` stubs (outer, partial_compose,
   3. `TensorMapping` / `TreePairMapping` / `FactorizedTreeMapping` — **done** ([convert_TreePairMapping.md](convert_TreePairMapping.md))
 - Forest helpers `_add_forest_block_entries` / `_get_forest_block_contribution` for dense I/O.
 - Prefer calling `cyten.tools.misc` / mappings via pybind for iterators when clearer than a full port.
-- **SparseMapping** / **TreePairMapping** / **FactorizedTreeMapping** / **PermuteLegsInstructionEngine** are native C++; only `_partial_trace_helper` still delegates to Python.
+- **SparseMapping** / **TreePairMapping** / **FactorizedTreeMapping** / **PermuteLegsInstructionEngine** / **`_partial_trace_helper`** are native C++.
 
 ## Suggested implementation order
 
@@ -49,7 +47,7 @@ All other former `ft_py().FusionTreeBackend(...)` stubs (outer, partial_compose,
 3. Instruction + Engine (+ bind for existing unit tests)
 4. TensorMapping hierarchy (or Python-delegate `apply_instructions` / `permute_legs` initially)
 5. Forest dense↔sparse helpers
-6. Remaining complex methods; replace any Python delegation — **done** (except permute/mapping stack + `_partial_trace_helper`)
+6. Remaining complex methods; replace any Python delegation — **done**
 7. Bindings + wire `get_backend('fusion_tree', …)`; smoke test; no monkey-patch yet
 
 ## TODO checklist

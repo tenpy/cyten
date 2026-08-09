@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <cstddef>
 #include <format>
 #include <functional>
@@ -18,6 +19,8 @@
 #include <typeinfo>
 #include <utility>
 #include <vector>
+
+#include <cyten/symmetries/fusion_symbol.h>
 
 namespace cyten {
 
@@ -177,12 +180,6 @@ py::module_
 sector_utils()
 {
     return py::module_::import("cyten.symmetries.sector_utils");
-}
-
-py::module_
-ft_py()
-{
-    return py::module_::import("cyten.backends.fusion_tree_backend");
 }
 
 py::array_t<int64>

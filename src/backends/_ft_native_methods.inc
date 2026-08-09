@@ -58,9 +58,49 @@ as_sector_array_from_list(py::list const& sectors)
 std::tuple<bool, complex128>
 partial_trace_helper(FusionTree const& tree, std::vector<int64> const& idcs)
 {
-    py::object res = ft_py().attr("_partial_trace_helper")(py::cast(tree), idcs);
-    auto tup = res.cast<py::tuple>();
-    return { tup[0].cast<bool>(), tup[1].cast<complex128>() };
+    // Native port of cyten.backends.fusion_tree_backend._partial_trace_helper
+    Symmetry::Ptr const& sym = tree.symmetry;
+    complex128 b_symbols = 1.0;
+    for (int64 idx : idcs) {
+        auto const i = static_cast<std::size_t>(idx);
+        if (tree.uncoupled[i] != sym->dual_sector(tree.uncoupled[i + 1])) {
+            return { false, 0.0 };
+        }
+        Sector left_sec;
+        if (idx == 0) {
+            left_sec = sym->trivial_sector;
+        } else if (idx == 1) {
+            left_sec = tree.uncoupled[0];
+        } else {
+            left_sec = tree.inner_sectors[static_cast<std::size_t>(idx - 2)];
+        }
+        Sector center_sec =
+          (idx == 0) ? tree.uncoupled[0]
+                     : tree.inner_sectors[static_cast<std::size_t>(idx - 1)];
+        Sector right_sec =
+          (static_cast<std::size_t>(idx) < tree.num_inner_edges)
+            ? tree.inner_sectors[i]
+            : tree.coupled;
+        if (left_sec != right_sec) {
+            return { false, 0.0 };
+        }
+        if (idx == 0) {
+            // Must have multiplicities[:2] == [0, 0] when only one way to fuse to trivial.
+            if (tree.multiplicities.size() < 2 || tree.multiplicities[0] != 0
+                || tree.multiplicities[1] != 0) {
+                return { false, 0.0 };
+            }
+        }
+        int64 mu = (idx == 0) ? 0 : tree.multiplicities[static_cast<std::size_t>(idx - 1)];
+        int64 nu = tree.multiplicities[i];
+        FusionSymbol B = sym->b_symbol(left_sec, tree.uncoupled[i], center_sec);
+        b_symbols *= std::conj(B.get_complex(static_cast<std::size_t>(mu),
+                                             static_cast<std::size_t>(nu)));
+        if (tree.are_dual[i]) {
+            b_symbols *= static_cast<complex128>(sym->frobenius_schur(tree.uncoupled[i]));
+        }
+    }
+    return { true, b_symbols };
 }
 
 } // namespace
