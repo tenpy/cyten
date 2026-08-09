@@ -10,7 +10,7 @@ None for the FusionTreeBackend method surface. Original Python `_partial_trace_h
 
 `apply_instructions` and `permute_legs` are **native C++** (TreePairMapping / FactorizedTreeMapping / PermuteLegsInstructionEngine). See [convert_TreePairMapping.md](convert_TreePairMapping.md).
 
-All other former `ft_py().FusionTreeBackend(...)` stubs (outer, partial_compose, partial_trace body, from_tree_pairs, get_element, from_grid, scale_axis, mask_*, diagonal_to_mask) are **native C++** in `src/backends/_ft_native_methods.inc` (included from `fusion_tree_backend.cpp`).
+All other former `ft_py().FusionTreeBackend(...)` stubs (outer, partial_compose, partial_trace body, from_tree_pairs, get_element, from_grid, scale_axis, mask_*, diagonal_to_mask) are **native C++** in `src/backends/_ft_native_methods.inc` (hand-maintained; included from `fusion_tree_backend.cpp`).
 
 ## Metadata
 
