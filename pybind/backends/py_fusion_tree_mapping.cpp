@@ -3,8 +3,10 @@
 
 #include "../py_cyten_pybind11.h"
 
+#include <format>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace cyten {
@@ -19,11 +21,22 @@ bind_fusion_tree_mapping(py::module_& m)
            py::arg("overbraid"))
       .def_readwrite("codomain", &BraidInstruction::codomain)
       .def_readwrite("idx", &BraidInstruction::idx)
-      .def_readwrite("overbraid", &BraidInstruction::overbraid);
+      .def_readwrite("overbraid", &BraidInstruction::overbraid)
+      .def(py::self == py::self)
+      .def("__repr__", [](BraidInstruction const& i) {
+          return std::format("BraidInstruction(codomain={}, idx={}, overbraid={})",
+                             i.codomain,
+                             i.idx,
+                             i.overbraid);
+      });
 
     py::class_<BendInstruction>(m, "BendInstruction")
       .def(py::init<bool>(), py::arg("bend_down"))
-      .def_readwrite("bend_down", &BendInstruction::bend_down);
+      .def_readwrite("bend_down", &BendInstruction::bend_down)
+      .def(py::self == py::self)
+      .def("__repr__", [](BendInstruction const& i) {
+          return std::format("BendInstruction(bend_down={})", i.bend_down);
+      });
 
     py::class_<TwistInstruction>(m, "TwistInstruction")
       .def(py::init<bool, std::vector<int64>, bool>(),
@@ -32,7 +45,22 @@ bind_fusion_tree_mapping(py::module_& m)
            py::arg("overtwist"))
       .def_readwrite("codomain", &TwistInstruction::codomain)
       .def_readwrite("idcs", &TwistInstruction::idcs)
-      .def_readwrite("overtwist", &TwistInstruction::overtwist);
+      .def_readwrite("overtwist", &TwistInstruction::overtwist)
+      .def(py::self == py::self)
+      .def("__repr__", [](TwistInstruction const& i) {
+          std::string idcs_str = "[";
+          for (std::size_t k = 0; k < i.idcs.size(); ++k) {
+              if (k > 0) {
+                  idcs_str += ", ";
+              }
+              idcs_str += std::to_string(i.idcs[k]);
+          }
+          idcs_str += "]";
+          return std::format("TwistInstruction(codomain={}, idcs={}, overtwist={})",
+                             i.codomain,
+                             idcs_str,
+                             i.overtwist);
+      });
 
     py::class_<TreePairMapping> tree_pair(m, "TreePairMapping");
     tree_pair.def(py::init<SparseMappingFusionTreePair, bool>(),
