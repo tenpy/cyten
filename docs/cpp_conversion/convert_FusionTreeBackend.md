@@ -37,9 +37,10 @@ All other former `ft_py().FusionTreeBackend(...)` stubs (outer, partial_compose,
 - **Permute stack** (required by `permute_legs` / `partial_trace`):
   1. Instruction POD (`Braid` / `Bend` / `Twist`)
   2. `PermuteLegsInstructionEngine`
-  3. `TensorMapping` / `TreePairMapping` / `FactorizedTreeMapping` (depend on `SparseMapping` — still Python `cyten.tools.mappings` via pybind if needed)
+  3. `TensorMapping` / `TreePairMapping` / `FactorizedTreeMapping` (can use C++ `SparseMapping` — [convert_SparseMapping.md](convert_SparseMapping.md); mapping classes themselves still Python-delegated)
 - Forest helpers `_add_forest_block_entries` / `_get_forest_block_contribution` for dense I/O.
 - Prefer calling `cyten.tools.misc` / mappings via pybind for iterators when clearer than a full port.
+- **SparseMapping** is available in C++ (`include/cyten/tools/mappings.h`); next step for removing `ft_py()` Mapping delegation.
 
 ## Suggested implementation order
 

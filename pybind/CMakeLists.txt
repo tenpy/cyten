@@ -9,6 +9,7 @@ target_sources(_core
   py_config.cpp
   py_tools.cpp
   tools/py_cost_polynomials.cpp
+  tools/py_mappings.cpp
   py_version.cpp
   py_check.cpp
   symmetries/py_symmetries.cpp

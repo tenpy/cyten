@@ -2,7 +2,7 @@
 
 ## Status
 
-**In progress** on branch `convert_backends`. Templated C++ `SparseMapping` / `IdentityMapping` with `std::unordered_map` storage. Exported as concrete `_core` aliases only — **not** monkey-patched into `cyten.tools`. Used by the FusionTreeBackend mapping stack (still Python until that stack is ported).
+**C++ declaration + definitions + bindings done** on branch `convert_backends`. Exported as concrete aliases on `cyten._core` (`SparseMappingFusionTree`, `SparseMappingFusionTreePair`, `IdentityMappingFusionTree`, `IdentityMappingFusionTreePair`). **Not monkey-patched** into `cyten.tools`.
 
 ## Metadata
 
@@ -26,14 +26,14 @@
 - Concrete aliases (and only these are bound):
   - `SparseMappingFusionTree` / `IdentityMappingFusionTree` — `KT = FusionTree`
   - `SparseMappingFusionTreePair` / `IdentityMappingFusionTreePair` — `KT = std::pair<FusionTree, FusionTree>`
-- Need `std::hash` for `std::pair<FusionTree, FusionTree>` (combine of tree hashes).
+- `std::hash` for `std::pair<FusionTree, FusionTree>` in `trees.h`.
 - No generic `SparseMapping<py::object>` binding.
 
 ## TODO checklist
 
 - [x] planning (this file)
-- [ ] declaration (templated header + pair hash)
-- [ ] definitions + explicit instantiations + compile
-- [ ] bindings + smoke
+- [x] declaration (templated header + pair hash)
+- [x] definitions + explicit instantiations + compile
+- [x] bindings + smoke
 - [ ] monkey-patch — deferred
 - [ ] pytest — deferred (covered indirectly by FT backend tests later)
