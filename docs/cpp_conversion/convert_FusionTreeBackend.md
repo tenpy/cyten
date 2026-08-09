@@ -40,7 +40,7 @@ All other former `ft_py().FusionTreeBackend(...)` stubs (outer, partial_compose,
   3. `TensorMapping` / `TreePairMapping` / `FactorizedTreeMapping` — **done** ([convert_TreePairMapping.md](convert_TreePairMapping.md))
 - Forest helpers `_add_forest_block_entries` / `_get_forest_block_contribution` for dense I/O.
 - Prefer calling `cyten.tools.misc` / mappings via pybind for iterators when clearer than a full port.
-- **SparseMapping** is available in C++ (`include/cyten/tools/mappings.h`); next step for removing `ft_py()` Mapping delegation.
+- **SparseMapping** / **TreePairMapping** / **FactorizedTreeMapping** / **PermuteLegsInstructionEngine** are native C++; only `_partial_trace_helper` still delegates to Python.
 
 ## Suggested implementation order
 
