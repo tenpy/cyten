@@ -145,6 +145,19 @@ Data is :class:`FusionTreeData` (coupled-sector ``block_inds`` + forest blocks).
     cls.def_readwrite("eps", &FusionTreeBackend::eps);
     cls.def_static("wrap", &FusionTreeBackend::wrap, py::arg("data"));
     cls.def_static("unwrap", &FusionTreeBackend::unwrap, py::arg("data"));
+
+    cls.def("apply_instructions",
+            &FusionTreeBackend::apply_instructions,
+            py::arg("tensor"),
+            py::arg("instructions"),
+            py::arg("codomain_idcs"),
+            py::arg("domain_idcs"),
+            py::arg("new_codomain"),
+            py::arg("new_domain"),
+            py::arg("mixes_codomain_domain"),
+            R"pydoc(
+Apply a sequence of braid/bend/twist instructions (used by :meth:`permute_legs`).
+)pydoc");
 }
 
 } // namespace cyten

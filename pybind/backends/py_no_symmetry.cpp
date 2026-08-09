@@ -481,7 +481,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       [](NoSymmetryBackend& self,
          py::object tensor,
          std::vector<std::pair<int64, int64>> pairs,
-         std::optional<std::vector<int64>> levels) -> py::object {
+         std::vector<std::optional<int64>> levels) -> py::object {
           auto [data, codomain, domain] =
             self.partial_trace(tensor, std::move(pairs), std::move(levels));
           if (!codomain && !domain) {

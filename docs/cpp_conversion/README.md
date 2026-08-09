@@ -105,11 +105,11 @@ Skip `block_backends/torch.py` per scope.
 
 Overview: [convert_backends.md](convert_backends.md). Branch: `convert_backends`.
 
-- **cyten/backends/_backend.py** — `TensorBackend` (abstract), helpers. **C++ in `_core`** — [convert_TensorBackend.md](convert_TensorBackend.md) (not monkey-patched).
-- **cyten/backends/no_symmetry.py** — `NoSymmetryBackend`. **C++ in `_core`** — [convert_NoSymmetryBackend.md](convert_NoSymmetryBackend.md) (not monkey-patched).
-- **cyten/backends/abelian.py** — `AbelianBackendData` + `AbelianBackend` **C++ in `_core`** — [convert_AbelianBackendData.md](convert_AbelianBackendData.md), [convert_AbelianBackend.md](convert_AbelianBackend.md) (not monkey-patched).
-- **cyten/backends/fusion_tree_backend.py** — `FusionTreeData` + `FusionTreeBackend` + Instruction/Mapping/Engine + `_partial_trace_helper` **C++ in `_core`**; no monkey-patch — [convert_FusionTreeData.md](convert_FusionTreeData.md), [convert_FusionTreeBackend.md](convert_FusionTreeBackend.md), [convert_TreePairMapping.md](convert_TreePairMapping.md).
-- **cyten/backends/backend_factory.py** — `get_backend` hybrid **C++ in `_core`** — [convert_get_backend.md](convert_get_backend.md) (not monkey-patched).
+- **cyten/backends/_backend.py** — `TensorBackend` (abstract), helpers. **Monkey-patched** from `_core` — [convert_TensorBackend.md](convert_TensorBackend.md).
+- **cyten/backends/no_symmetry.py** — `NoSymmetryBackend`. **Monkey-patched** — [convert_NoSymmetryBackend.md](convert_NoSymmetryBackend.md).
+- **cyten/backends/abelian.py** — `AbelianBackendData` + `AbelianBackend`. **Monkey-patched** — [convert_AbelianBackendData.md](convert_AbelianBackendData.md), [convert_AbelianBackend.md](convert_AbelianBackend.md).
+- **cyten/backends/fusion_tree_backend.py** — FT stack **monkey-patched** from `_core` (keeps `_tree_block_iter`). See [convert_FusionTreeBackend.md](convert_FusionTreeBackend.md); 2 `test_ftb_partial_trace` cases still fail.
+- **cyten/backends/backend_factory.py** — `get_backend` **monkey-patched** from `_core` — [convert_get_backend.md](convert_get_backend.md).
 
 ### Layer 4 — Tensors
 

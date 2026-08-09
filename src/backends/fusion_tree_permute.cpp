@@ -340,11 +340,13 @@ PermuteLegsInstructionEngine::move_leg(int64 start, int64 goal, std::optional<bo
             swap(j, over);
         }
     } else if (start > goal) {
+        // Match Python: reversed(range(goal, start)) so the leg at `start` moves left.
         std::optional<bool> over_rev = over;
         if (over_rev.has_value()) {
+            // the leg that `over` refers to is always `j + 1` in these swaps
             over_rev = !*over_rev;
         }
-        for (int64 j = goal; j < start; ++j) {
+        for (int64 j = start - 1; j >= goal; --j) {
             swap(j, over_rev);
         }
     }

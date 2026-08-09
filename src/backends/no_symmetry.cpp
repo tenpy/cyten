@@ -768,7 +768,7 @@ NoSymmetryBackend::partial_compose(py::object a,
 std::tuple<TensorBackend::DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
 NoSymmetryBackend::partial_trace(py::object tensor,
                                  std::vector<std::pair<int64, int64>> pairs,
-                                 std::optional<std::vector<int64>> /*levels*/)
+                                 std::vector<std::optional<int64>> /*levels*/)
 {
     int64 N = tensor.attr("num_legs").cast<int64>();
     std::vector<int64> idcs1;

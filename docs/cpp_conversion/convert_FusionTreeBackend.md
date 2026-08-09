@@ -2,16 +2,13 @@
 
 ## Status
 
-**In progress** on branch `convert_backends`. `FusionTreeData` already in C++ — [convert_FusionTreeData.md](convert_FusionTreeData.md). Do **not** monkey-patch until the full permute/mapping stack is solid and pytest is green.
+**Monkey-patched** on branch `convert_backends`. `cyten.backends.fusion_tree_backend` re-exports C++ types from `cyten._core` and keeps `_tree_block_iter` for tests.
 
 ### Python delegation remaining
 
-None for the FusionTreeBackend method surface. Original Python `_partial_trace_helper` remains in `fusion_tree_backend.py` for reference until monkey-patch; the C++ `partial_trace` path uses a native port in `fusion_tree_backend.cpp`.
+None for the FusionTreeBackend method surface. `partial_trace` / `permute_legs` / `apply_instructions` are native C++.
 
-`apply_instructions` and `permute_legs` are **native C++** (TreePairMapping / FactorizedTreeMapping / PermuteLegsInstructionEngine). See [convert_TreePairMapping.md](convert_TreePairMapping.md).
-
-All other former `ft_py().FusionTreeBackend(...)` stubs (outer, partial_compose, partial_trace body, from_tree_pairs, get_element, from_grid, scale_axis, mask_*, diagonal_to_mask) are **native C++** in `src/backends/fusion_tree_backend.cpp`.
-
+`tests/python_tests/backends/test_fusion_tree_backend.py`: **19 passed, 2 failed** (`test_ftb_partial_trace` for fibonacci / ising). Failure mode: C++ `partial_trace` returns empty data when pairs sit in the domain after an alternate permute (Python reference `partial_trace` on the same input is correct). Open bug in the domain-side tracing index / contribution path.
 ## Metadata
 
 | Field | Value |

@@ -2416,7 +2416,7 @@ FusionTreeBackend::partial_compose(py::object a,
 std::tuple<TensorBackend::DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
 FusionTreeBackend::partial_trace(py::object tensor,
                                  std::vector<std::pair<int64, int64>> pairs,
-                                 std::optional<std::vector<int64>> levels)
+                                 std::vector<std::optional<int64>> levels)
 {
     std::sort(pairs.begin(), pairs.end(), [](auto const& a, auto const& b) {
         if (a.first != b.first)
@@ -2441,18 +2441,23 @@ FusionTreeBackend::partial_trace(py::object tensor,
         if (!traced.count(n))
             remaining.push_back(n);
 
-    py::list new_cod_factors, new_dom_factors;
-    for (int64 n : remaining) {
-        if (n < num_codom_legs)
-            new_cod_factors.append(tensor.attr("codomain").attr("__getitem__")(n));
-        if (N - 1 - n < tensor.attr("domain").attr("num_factors").cast<int64>())
-            new_dom_factors.append(tensor.attr("domain").attr("__getitem__")(N - 1 - n));
-    }
     auto sym = tensor.attr("symmetry").cast<Symmetry::Ptr>();
+    auto codomain_tp = tensor.attr("codomain").cast<TensorProduct::Ptr>();
+    auto domain_tp = tensor.attr("domain").cast<TensorProduct::Ptr>();
+    py::list new_cod_factors, new_dom_factors;
+    for (int64 n = 0; n < codomain_tp->num_factors; ++n) {
+        if (traced.count(n))
+            continue;
+        new_cod_factors.append(tensor.attr("codomain").attr("__getitem__")(n));
+    }
+    for (int64 n = 0; n < domain_tp->num_factors; ++n) {
+        if (traced.count(N - 1 - n))
+            continue;
+        new_dom_factors.append(tensor.attr("domain").attr("__getitem__")(n));
+    }
     auto new_codomain = std::make_shared<TensorProduct>(new_cod_factors.cast<std::vector<py::object>>(), sym);
     auto new_domain = std::make_shared<TensorProduct>(new_dom_factors.cast<std::vector<py::object>>(), sym);
 
-    auto np = numpy();
     py::list insert_idcs;
     for (std::size_t i = 0; i < pairs.size(); ++i) {
         int64 pos = 0;
@@ -2472,23 +2477,26 @@ FusionTreeBackend::partial_trace(py::object tensor,
     }
     int64 num_dom_legs = static_cast<int64>(idcs.size()) - codom_count;
 
-    if (levels.has_value()) {
-        for (auto const& pair : pairs) {
-            if (pair.first >= static_cast<int64>(levels->size())
-                || pair.second >= static_cast<int64>(levels->size()))
+    for (auto const& pair : pairs) {
+        if (pair.first >= static_cast<int64>(levels.size())
+            || pair.second >= static_cast<int64>(levels.size()))
+            continue;
+        auto const& lp0 = levels[static_cast<std::size_t>(pair.first)];
+        auto const& lp1 = levels[static_cast<std::size_t>(pair.second)];
+        if (!lp0.has_value() || !lp1.has_value())
+            continue;
+        for (int64 i = 0; i < N; ++i) {
+            if (i == pair.first || i == pair.second)
                 continue;
-            for (int64 i = 0; i < N; ++i) {
-                if (i == pair.first || i == pair.second)
-                    continue;
-                if (i >= static_cast<int64>(levels->size()))
-                    continue;
-                bool l1 = (*levels)[static_cast<std::size_t>(i)]
-                          < (*levels)[static_cast<std::size_t>(pair.first)];
-                bool l2 = (*levels)[static_cast<std::size_t>(i)]
-                          < (*levels)[static_cast<std::size_t>(pair.second)];
-                if (l1 != l2)
-                    throw std::invalid_argument("Inconsistent levels for partial_trace");
-            }
+            if (i >= static_cast<int64>(levels.size()))
+                continue;
+            auto const& li = levels[static_cast<std::size_t>(i)];
+            if (!li.has_value())
+                continue;
+            bool l1 = *li < *lp0;
+            bool l2 = *li < *lp1;
+            if (l1 != l2)
+                throw std::invalid_argument("Inconsistent levels for partial_trace");
         }
     }
 
@@ -2512,18 +2520,16 @@ FusionTreeBackend::partial_trace(py::object tensor,
         codom = std::make_shared<TensorProduct>(cf.cast<std::vector<py::object>>(), sym);
         dom = std::make_shared<TensorProduct>(df.cast<std::vector<py::object>>(), sym);
     } else {
-        codom = tensor.attr("codomain").cast<TensorProduct::Ptr>()->permuted(codomain_idcs);
+        codom = codomain_tp->permuted(codomain_idcs);
         std::vector<int64> dom_perm;
         for (int64 i : domain_idcs)
             dom_perm.push_back(N - 1 - i);
-        dom = tensor.attr("domain").cast<TensorProduct::Ptr>()->permuted(dom_perm);
+        dom = domain_tp->permuted(dom_perm);
     }
 
-    std::vector<std::optional<int64>> level_vec(static_cast<std::size_t>(N), std::nullopt);
-    if (levels.has_value()) {
-        for (std::size_t i = 0; i < levels->size() && i < level_vec.size(); ++i)
-            level_vec[i] = (*levels)[i];
-    }
+    std::vector<std::optional<int64>> level_vec = levels;
+    if (level_vec.size() < static_cast<std::size_t>(N))
+        level_vec.resize(static_cast<std::size_t>(N), std::nullopt);
     std::vector<std::optional<bool>> bend(static_cast<std::size_t>(N), true);
     auto data_ptr = permute_legs(tensor, codomain_idcs, domain_idcs, codom, dom, mixes, level_vec, bend);
     auto data = unwrap(data_ptr);
@@ -2552,34 +2558,38 @@ FusionTreeBackend::partial_trace(py::object tensor,
     }
 
     std::vector<int64> codom_unc_idcs, codom_inner_idcs, codom_multi_idcs, codom_tree_idcs;
-    for (std::size_t i = 0; i < codomain_idcs.size(); ++i)
-        if (std::find(remaining.begin(), remaining.end(), codomain_idcs[i]) != remaining.end())
-            codom_unc_idcs.push_back(static_cast<int64>(i));
+    for (int64 i = 0; i < codom_count; ++i) {
+        int64 const idx = idcs[static_cast<std::size_t>(i)];
+        if (std::find(remaining.begin(), remaining.end(), idx) != remaining.end())
+            codom_unc_idcs.push_back(i);
+        if (std::find(idcs1.begin(), idcs1.end(), idx) != idcs1.end())
+            codom_tree_idcs.push_back(i);
+    }
     for (std::size_t k = 2; k < codom_unc_idcs.size(); ++k)
         codom_inner_idcs.push_back(codom_unc_idcs[k] - 2);
     for (std::size_t k = 1; k < codom_unc_idcs.size(); ++k)
         codom_multi_idcs.push_back(codom_unc_idcs[k] - 1);
-    for (std::size_t i = 0; i < codomain_idcs.size(); ++i)
-        if (std::find(idcs1.begin(), idcs1.end(), codomain_idcs[i]) != idcs1.end())
-            codom_tree_idcs.push_back(static_cast<int64>(i));
 
-    std::vector<int64> dom_unc_idcs;
-    for (std::size_t i = 0; i < domain_idcs.size(); ++i)
-        if (std::find(remaining.begin(), remaining.end(), domain_idcs[i]) != remaining.end())
-            dom_unc_idcs.push_back(static_cast<int64>(num_dom_legs - 1 - i));
+    // Match Python: enumerate idcs[num_codom:] (not the reversed domain_idcs).
+    std::vector<int64> dom_unc_idcs, dom_tree_idcs;
+    for (int64 i = 0; i < num_dom_legs; ++i) {
+        int64 const idx = idcs[static_cast<std::size_t>(codom_count + i)];
+        if (std::find(remaining.begin(), remaining.end(), idx) != remaining.end())
+            dom_unc_idcs.push_back(num_dom_legs - 1 - i);
+        if (std::find(idcs2.begin(), idcs2.end(), idx) != idcs2.end())
+            dom_tree_idcs.push_back(num_dom_legs - 1 - i);
+    }
     std::reverse(dom_unc_idcs.begin(), dom_unc_idcs.end());
-    std::vector<int64> dom_inner_idcs, dom_multi_idcs, dom_tree_idcs;
+    std::reverse(dom_tree_idcs.begin(), dom_tree_idcs.end());
+    std::vector<int64> dom_inner_idcs, dom_multi_idcs;
     for (std::size_t k = 2; k < dom_unc_idcs.size(); ++k)
         dom_inner_idcs.push_back(dom_unc_idcs[k] - 2);
     for (std::size_t k = 1; k < dom_unc_idcs.size(); ++k)
         dom_multi_idcs.push_back(dom_unc_idcs[k] - 1);
-    for (std::size_t i = 0; i < domain_idcs.size(); ++i)
-        if (std::find(idcs2.begin(), idcs2.end(), domain_idcs[i]) != idcs2.end())
-            dom_tree_idcs.push_back(num_dom_legs - 1 - static_cast<int64>(i));
-    std::reverse(dom_tree_idcs.begin(), dom_tree_idcs.end());
 
+    // Python: tr_idcs = idcs[:num_codom] + idcs[num_codom:][::-1] == codomain_idcs + domain_idcs
     std::vector<int64> tr_idcs = codomain_idcs;
-    tr_idcs.insert(tr_idcs.end(), domain_idcs.rbegin(), domain_idcs.rend());
+    tr_idcs.insert(tr_idcs.end(), domain_idcs.begin(), domain_idcs.end());
     std::vector<int64> tr_idcs1, tr_idcs2, remain_idcs;
     for (std::size_t i = 0; i < tr_idcs.size(); ++i) {
         if (std::find(idcs1.begin(), idcs1.end(), tr_idcs[i]) != idcs1.end())

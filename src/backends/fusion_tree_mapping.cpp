@@ -381,8 +381,8 @@ TreePairMapping::transform_tensor(FusionTreeData const& data,
                                   std::vector<int64> const& domain_idcs,
                                   std::shared_ptr<BlockBackend> block_backend) const
 {
-    int64 const J = new_codomain->num_flat_legs();
-    int64 const K = new_domain->num_flat_legs();
+    int64 const J = codomain->num_flat_legs();
+    int64 const K = domain->num_flat_legs();
     int64 const N = J + K;
 
     std::vector<int64> tree_block_axes_1;
@@ -464,12 +464,14 @@ TreePairMapping::transform_tensor(FusionTreeData const& data,
                     old_mults.push_back(leg_mults[static_cast<std::size_t>(idx)]);
                 }
 
+                std::vector<int64> old_mults_cod(old_mults.begin(),
+                                                old_mults.begin() + static_cast<std::size_t>(J));
+                std::vector<int64> old_mults_dom(old_mults.begin() + static_cast<std::size_t>(J),
+                                                old_mults.end());
+                std::reverse(old_mults_dom.begin(), old_mults_dom.end());
+
                 auto permuted = block_backend->permute_combined_matrix(
-                  tree_block,
-                  std::vector<int64>(old_mults.begin(), old_mults.begin() + static_cast<std::size_t>(J)),
-                  tree_block_axes_1,
-                  std::vector<int64>(old_mults.begin() + static_cast<std::size_t>(J), old_mults.end()),
-                  tree_block_axes_2);
+                  tree_block, old_mults_cod, tree_block_axes_1, old_mults_dom, tree_block_axes_2);
                 b_set(block,
                       py::make_tuple(slice_from_index_slice(xb.slice),
                                      slice_from_index_slice(yb.slice)),

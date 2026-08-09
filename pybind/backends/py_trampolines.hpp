@@ -324,7 +324,7 @@ class PyTensorBackend
         std::tuple<TensorBackend::DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> partial_trace(
             py::object tensor,
             std::vector<std::pair<int64, int64>> pairs,
-            std::optional<std::vector<int64>> levels
+            std::vector<std::optional<int64>> levels
         ) override {
             PYBIND11_OVERRIDE_PURE(PYBIND11_TYPE(std::tuple<TensorBackend::DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>), TensorBackend, partial_trace,
                 tensor, pairs, levels);

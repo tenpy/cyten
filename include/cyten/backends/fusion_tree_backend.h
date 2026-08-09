@@ -274,7 +274,7 @@ class FusionTreeBackend : public TensorBackend
     std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> partial_trace(
       py::object tensor,
       std::vector<std::pair<int64, int64>> pairs,
-      std::optional<std::vector<int64>> levels) override;
+      std::vector<std::optional<int64>> levels) override;
 
     DataPtr permute_legs(py::object a,
                          std::vector<int64> codomain_idcs,

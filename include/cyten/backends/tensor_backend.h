@@ -303,7 +303,7 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     virtual std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> partial_trace(
       py::object tensor,
       std::vector<std::pair<int64, int64>> pairs,
-      std::optional<std::vector<int64>> levels) = 0;
+      std::vector<std::optional<int64>> levels) = 0;
 
     /// Permute legs on the tensors.
     virtual DataPtr permute_legs(py::object a,
