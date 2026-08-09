@@ -8,7 +8,7 @@
 
 None for the FusionTreeBackend method surface. `partial_trace` / `permute_legs` / `apply_instructions` are native C++.
 
-`tests/python_tests/backends/test_fusion_tree_backend.py`: **19 passed, 2 failed** (`test_ftb_partial_trace` for fibonacci / ising). Failure mode: C++ `partial_trace` returns empty data when pairs sit in the domain after an alternate permute (Python reference `partial_trace` on the same input is correct). Open bug in the domain-side tracing index / contribution path.
+`tests/python_tests/backends/test_fusion_tree_backend.py`: **21 passed**. Fixed `partial_trace_helper` multiplicity check for 2-leg trees (must match numpy broadcast of `multiplicities[:2] == [0, 0]`).
 ## Metadata
 
 | Field | Value |
