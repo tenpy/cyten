@@ -43,6 +43,7 @@ target_sources(cyten
   symmetries/spaces.cpp
   tools.cpp
   tools/cost_polynomials.cpp
+  tools/mappings.cpp
   version.cpp
 )
 
