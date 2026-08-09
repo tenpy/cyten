@@ -2165,10 +2165,12 @@ partial_trace_helper(FusionTree const& tree, std::vector<int64> const& idcs)
             return { false, 0.0 };
         }
         if (idx == 0) {
-            // Must have multiplicities[:2] == [0, 0] when only one way to fuse to trivial.
-            if (tree.multiplicities.size() < 2 || tree.multiplicities[0] != 0
-                || tree.multiplicities[1] != 0) {
-                return { false, 0.0 };
+            // Match Python ``np.all(tree.multiplicities[:2] == [0, 0])``.
+            // For a 2-leg tree, multiplicities has length 1; numpy broadcasts so only
+            // multiplicities[0] must be 0. Requiring size >= 2 incorrectly rejects these.
+            for (std::size_t k = 0; k < std::min<std::size_t>(2, tree.multiplicities.size()); ++k) {
+                if (tree.multiplicities[k] != 0)
+                    return { false, 0.0 };
             }
         }
         int64 mu = (idx == 0) ? 0 : tree.multiplicities[static_cast<std::size_t>(idx - 1)];
