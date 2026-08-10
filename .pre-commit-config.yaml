@@ -1,3 +1,7 @@
+# Stop after the first failing hook so the expensive cmake build (last) is
+# only attempted when all cheaper checks already passed.
+fail_fast: true
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
@@ -70,8 +74,11 @@ repos:
         entry: tests/linting/cpp_docstring_indent.py
         language: unsupported_script
         files: ^pybind/.*\.cpp$
-      # TODO: setup only-if-no-fails along logfile idea of https://stackoverflow.com/questions/67195842/run-a-pre-commit-hook-only-if-all-other-hooks-are-successful
-      # - id: cmake-build
-      #   name: cmake --build build
-      #   language: unsupported_script
-      #   entry: tests/linting/run_local_cmake_build.py
+      # Last and most expensive: only runs if earlier hooks passed (fail_fast)
+      # and a local editable build/ directory already exists.
+      - id: cmake-build
+        name: cmake --build build
+        language: unsupported_script
+        entry: tests/linting/run_local_cmake_build.py
+        pass_filenames: false
+        always_run: true
