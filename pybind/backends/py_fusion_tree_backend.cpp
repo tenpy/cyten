@@ -174,7 +174,12 @@ bind_fusion_tree_backend(py::module_& m)
       },
       py::arg("tensor"),
       py::arg("pairs"),
-      py::arg("levels") = py::none());
+      py::arg("levels") = py::none(),
+      R"pydoc(
+      Perform an arbitrary number of traces. Pairs are converted to leg idcs.
+      
+      Returns ``data, codomain, domain``.
+      )pydoc");
 
     cls.def("apply_instructions",
             &FusionTreeBackend::apply_instructions,
