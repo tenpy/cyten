@@ -26,6 +26,9 @@ AbelianGroup::AbelianGroup(Sector trivial_sector,
 std::string
 AbelianGroup::sector_str(Sector a) const
 {
+    // --- hints from Python AbelianGroup.sector_str ---
+    // we know sectors are labelled by a single number
+    // ---
     // Sectors labelled by a single number.
     if (a.len() == 0) {
         return "";
@@ -95,6 +98,9 @@ AbelianGroup::_b_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
 FusionSymbol
 AbelianGroup::_r_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
 {
+    // --- hints from Python AbelianGroup._r_symbol ---
+    // For abelian groups, the R symbol is always 1.
+    // ---
     // For abelian groups, the R symbol is always 1.
     return topo_ones::one_1D();
 }

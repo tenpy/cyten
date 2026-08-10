@@ -36,6 +36,12 @@ BaseSymmetry::BaseSymmetry(FusionStyle fusion_style_,
 bool
 BaseSymmetry::can_be_dropped() const
 {
+    // --- hints from Python BaseSymmetry.can_be_dropped ---
+    // trivial braid -> can be dropped, clearly
+    // symmetry braid -> we choose to allow it, but converting to/from numpy loses the braid
+    // and makes swap gates necessary
+    // general braid would break compatibility even with the tensor product, so we dont allow it
+    // ---
     return has_symmetric_braid();
 }
 
@@ -85,6 +91,15 @@ BaseSymmetry::swap_gate(Sector /*a*/, Sector /*b*/) const
 FusionSymbol
 BaseSymmetry::Z_iso(Sector a) const
 {
+    // --- hints from Python BaseSymmetry.Z_iso ---
+    // fallback implementation: solve [Jakob thesis, (5.84)] for Z_a
+    // Note: leg order might be unintuitive at first!
+    // [1] [2]     ;     [0]                 .--.  [0]
+    // |   |      ;      |                  |  |   |
+    // Y[0]Y      ;      Z   =   sqrt(d_a)  |  YYYYY   = sqrt(d_a) np.transpose(Y[0, :, :, 0])
+    // |        ;      |                  |
+    // [3]       ;     [1]                [1]
+    // ---
     if (!can_be_dropped()) {
         throw SymmetryError("Z iso can not be written as array for this symmetry");
     }
@@ -193,6 +208,10 @@ BaseSymmetry::are_valid_sectors(SectorArray const& sectors) const
 SectorArray
 BaseSymmetry::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const& b) const
 {
+    // --- hints from Python BaseSymmetry.fusion_outcomes_broadcast ---
+    // self.fusion_outcomes(s_a, s_b) is a 2D array with with shape [1, num_q]
+    // stack the outcomes along the trivial first axis
+    // ---
     // Use Python AssertionError (not C assert) so callers can catch with pytest.raises.
     if (!is_abelian()) {
         PyErr_SetString(PyExc_AssertionError,
@@ -224,6 +243,9 @@ BaseSymmetry::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const&
 Sector
 BaseSymmetry::multiple_fusion(std::vector<Sector> const& sectors) const
 {
+    // --- hints from Python BaseSymmetry.multiple_fusion ---
+    // OPTIMIZE ?
+    // ---
     std::vector<SectorArray> as_arrays;
     as_arrays.reserve(sectors.size());
     for (auto const& s : sectors) {
@@ -384,6 +406,9 @@ BaseSymmetry::_b_symbol(Sector a, Sector b, Sector c) const
 FusionSymbol
 BaseSymmetry::_c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
+    // --- hints from Python BaseSymmetry._c_symbol ---
+    // axis [mu, nu, kap, lam] ; R symbols are diagonal
+    // ---
     auto R1 = _r_symbol(e, c, d);
     auto F = _f_symbol(c, a, b, d, e, f);
     auto R2 = _r_symbol(a, c, f).conj();
@@ -396,6 +421,11 @@ BaseSymmetry::_c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector
 complex128
 BaseSymmetry::topological_twist(Sector a) const
 {
+    // --- hints from Python BaseSymmetry.topological_twist ---
+    // OPTIMIZE implement concrete formulae for anyons? or just cache?
+    // sum_b sum_mu d_b / d_a * [R^aa_b]^mu_mu
+    // must be +1 or -1
+    // ---
     if (has_trivial_braid()) {
         return complex128{ +1.0, 0.0 };
     }
@@ -463,3 +493,15 @@ BaseSymmetry::s_matrix() const
 }
 
 } // namespace cyten
+
+// =============================================================================
+// ORPHANED PYTHON COMMENT HINTS (no matching C++ function body found)
+// =============================================================================
+// --- Symmetry.__init__ ---
+// avoid unnecessary nesting
+// sanity check: multiple fermion symmetries probably dont do what you expect
+// --- SymmetryFactor.__repr__ ---
+// Convention: valid syntax for the constructor, i.e. "ClassName(..., name='...')"
+// --- Group._fusion_tensor ---
+// subclasses must implement. for groups it is always possible.
+// =============================================================================

@@ -60,6 +60,9 @@ SU2::are_valid_sectors(SectorArray const& sectors) const
 SectorArray
 SU2::fusion_outcomes(Sector a, Sector b) const
 {
+    // --- hints from Python SU2.fusion_outcomes ---
+    // J_tot = |J1 - J2|, ..., J1 + J2
+    // ---
     auto const aa = a.q[0];
     auto const bb = b.q[0];
     auto const jj_min = static_cast<int16_t>(std::abs(aa - bb));
@@ -84,12 +87,18 @@ SU2::can_fuse_to(Sector a, Sector b, Sector c) const
 int64
 SU2::sector_dim(Sector a) const
 {
+    // --- hints from Python SU2.sector_dim ---
+    // dim = 2 * J + 1 = jj + 1
+    // ---
     return static_cast<int64>(a.q[0]) + 1;
 }
 
 std::vector<int64>
 SU2::batch_sector_dim(SectorArray const& a) const
 {
+    // --- hints from Python SU2.batch_sector_dim ---
+    // dim = 2 * J + 1 = jj + 1
+    // ---
     std::vector<int64> out(a.size());
     for (std::size_t i = 0; i < a.size(); ++i) {
         out[i] = static_cast<int64>(a[i][0]) + 1;
@@ -123,6 +132,9 @@ SU2::_is_equivalent_factor(SymmetryFactor const& other) const
 Sector
 SU2::dual_sector(Sector a) const
 {
+    // --- hints from Python SU2.dual_sector ---
+    // all sectors are self-dual
+    // ---
     return a;
 }
 
@@ -141,6 +153,9 @@ SU2::_n_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
 FusionSymbol
 SU2::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
+    // --- hints from Python SU2._f_symbol ---
+    // OPTIMIZE: jutho has a special case if all sectors are trivial ...?
+    // ---
     return fusion_symbol_from_numpy(
       su2data()
         .attr("f_symbol")(a.q[0], b.q[0], c.q[0], d.q[0], e.q[0], f.q[0])
@@ -150,6 +165,9 @@ SU2::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 int64
 SU2::frobenius_schur(Sector a) const
 {
+    // --- hints from Python SU2.frobenius_schur ---
+    // +1 for integer spin (i.e. even `a`), -1 for half integer
+    // ---
     return 1 - 2 * (static_cast<int64>(a.q[0]) % 2);
 }
 
@@ -162,6 +180,12 @@ SU2::qdim(Sector a) const
 FusionSymbol
 SU2::_r_symbol(Sector a, Sector b, Sector c) const
 {
+    // --- hints from Python SU2._r_symbol ---
+    // R symbol is +1 if ``j_sum = (j_a + j_b - j_c)`` is even, -1 otherwise.
+    // Note that (j_a + j_b - j_c) is integer by fusion rule and that e.g. ``a == 2 * j_a``.
+    // For even (odd) j_sum, we get that ``(a + b - c) % 4`` is 0 (2),
+    // such that ``1 - (a + b - c) % 4`` is 1 (-1). It has shape ``(1,)``.
+    // ---
     // Shape ``(1,)``: +1 if ``(a+b-c)%4==0``, else -1 (when ==2).
     auto const val = static_cast<float64>(1 - ((a.q[0] + b.q[0] - c.q[0]) % 4));
     return FusionSymbol::scalar1d(val);
@@ -170,6 +194,11 @@ SU2::_r_symbol(Sector a, Sector b, Sector c) const
 FusionSymbol
 SU2::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
 {
+    // --- hints from Python SU2._fusion_tensor ---
+    // [µ, m_a, m_b, m_c] @ [m_a, m_abar*] -> [µ, m_b, m_c, m_abar*]
+    // [µ, m_b, m_c, m_abar*] @ [m_b, m_bbar*] -> [µ, m_c, m_abar*, m_bbar*]
+    // [µ, m_a, m_b, m_c] @ [m_b, m_bbar*] -> [µ, m_a, m_c, m_bbar*]
+    // ---
     auto X = fusion_symbol_from_numpy(
       su2data().attr("fusion_tensor")(a.q[0], b.q[0], c.q[0]).cast<py::array>());
     if (!Z_a && !Z_b) {

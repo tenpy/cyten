@@ -67,6 +67,10 @@ FermionParity::fusion_outcomes(Sector a, Sector b) const
 SectorArray
 FermionParity::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const& b) const
 {
+    // --- hints from Python FermionParity.fusion_outcomes_broadcast ---
+    // equal sectors fuse to even parity, i.e. to `0 == (0 + 0) % 2 == (1 + 1) % 2`
+    // unequal sectors fuse to odd parity i.e. to `1 == (0 + 1) % 2 == (1 + 0) % 2`
+    // ---
     SectorArray out(a.size(), 1);
     for (std::size_t i = 0; i < a.size(); ++i) {
         out[i][0] = topo_ones::mod_n(static_cast<int32_t>(a[i][0]) + b[i][0], 2);
@@ -172,12 +176,19 @@ FermionParity::inv_sqrt_qdim(Sector /*a*/) const
 FusionSymbol
 FermionParity::_b_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
 {
+    // --- hints from Python FermionParity._b_symbol ---
+    // sqrt(d_b) [F^{a b dual(b)}_a]^{111}_{c,mu,nu} = sqrt(1) * 1 = 1
+    // ---
     return topo_ones::one_2D();
 }
 
 FusionSymbol
 FermionParity::_r_symbol(Sector a, Sector b, Sector /*c*/) const
 {
+    // --- hints from Python FermionParity._r_symbol ---
+    // if a and b are fermionic -1, otherwise +1
+    // in the first (second) case above, we have ``a * b`` equal to 1 (0).
+    // ---
     return FusionSymbol::scalar1d(static_cast<float64>(fermion_sign(a.q[0], b.q[0])));
 }
 
@@ -185,6 +196,9 @@ FusionSymbol
 FermionParity::_c_symbol(Sector a, Sector /*b*/, Sector c, Sector /*d*/, Sector e, Sector /*f*/)
   const
 {
+    // --- hints from Python FermionParity._c_symbol ---
+    // R^{ec}_d conj(R)^{ca}_f
+    // ---
     auto const C = fermion_sign(e.q[0], c.q[0]) * fermion_sign(a.q[0], c.q[0]);
     return FusionSymbol::full(
       4, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, static_cast<float64>(C), Dtype::Float64);
@@ -200,6 +214,10 @@ FermionParity::_fusion_tensor(Sector /*a*/, Sector /*b*/, Sector /*c*/, bool /*Z
 FusionSymbol
 FermionParity::swap_gate(Sector a, Sector b) const
 {
+    // --- hints from Python FermionParity.swap_gate ---
+    // if a and b are fermionic -1, otherwise +1
+    // in the first (second) case above, we have ``a * b`` equal to 1 (0).
+    // ---
     auto const sign = static_cast<float64>(fermion_sign(a.q[0], b.q[0]));
     return topo_ones::one_4D_float() * sign;
 }

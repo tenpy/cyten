@@ -150,6 +150,11 @@ IsingAnyonCategory::IsingAnyonCategory(int nu_)
   : SymmetryFactor(FusionStyle::multiple_unique,
                    BraidingStyle::anyonic,
                    Sector{ 0 },
+                   // --- hints from Python IsingAnyonCategory.__init__ ---
+                   // nontrivial F-symbols
+                   // nontrivial R-symbols
+                   // nontrivial C-symbols
+                   // ---
                    "IsingAnyonCategory",
                    3.0,
                    true)
@@ -313,6 +318,9 @@ IsingAnyonCategory::_r_symbol(Sector a, Sector b, Sector c) const
 FusionSymbol
 IsingAnyonCategory::_c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
+    // --- hints from Python IsingAnyonCategory._c_symbol ---
+    // = 0 if σ and ψ or σ and ψ, 1 otherwise
+    // ---
     if (all_sigma(b, c)) {
         int64_t factor = -1 * (b.q[0] - c.q[0] - 1) * (b.q[0] - c.q[0] + 1);
         factor *= (1 - a.q[0] / 2 - d.q[0] / 2 + 9 * (b.q[0] - 1) +

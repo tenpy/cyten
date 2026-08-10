@@ -319,6 +319,13 @@ FusionTree::FusionTree(Symmetry::Ptr symmetry,
   , are_dual(std::move(are_dual))
   , inner_sectors(std::move(inner_sectors))
 {
+    // --- hints from Python FusionTree.__init__ ---
+    // N uncoupled sectors
+    // N flags: is there a Z isomorphism above the uncoupled sector
+    // N - 2 internal sectors
+    // N - 1 multiplicity labels; all 0 per default
+    // empty lists are by default converted to arrays with dtype=float, which leads to issues in __hash__
+    // ---
     // OPTIMIZE demand SectorArray / ndarray (not list) and skip conversions?
     // C++ ctor already takes SectorArray; Python bindings still accept/convert lists.
     num_uncoupled = this->uncoupled.size();
@@ -345,6 +352,9 @@ FusionTree::FusionTree(Symmetry::Ptr symmetry,
 void
 FusionTree::test_sanity() const
 {
+    // --- hints from Python FusionTree.test_sanity ---
+    // otherwise, check fusion rules at every vertex
+    // ---
     assert(symmetry->are_valid_sectors(uncoupled));
     assert(symmetry->is_valid_sector(coupled));
     assert(are_dual.size() == num_uncoupled);
@@ -790,6 +800,18 @@ FusionTree::str_uncoupled_coupled(Symmetry const& symmetry,
 FusionTreePairLinearCombination
 FusionTree::bend_leg(FusionTree const& X, FusionTree const& Y, bool bend_downward, bool do_conj)
 {
+    // --- hints from Python FusionTree.bend_leg ---
+    // OPTIMIZE: do it explicitly instead?
+    // bend_up(dagger(Y) @ X)
+    // == dagger(dagger(bend_up(dagger(Y) @ X))
+    // == dagger(bend_down(dagger(dagger(Y) @ X))))
+    // == dagger(bend_down(dagger(X) @ Y))
+    // == dagger(sum_i b_i (dagger(X_i) @ Y_i))
+    // == sum_i conj(b_i) dagger(Y_i) @ X_i
+    // i.e. we need to swap the order of inputs and invert bend_downward,
+    // then for the result, swap the trees back and conj the coefficients (invert do_conj)
+    // OPTIMIZE remove input checks?
+    // ---
     if (!bend_downward) {
         // OPTIMIZE: do it explicitly instead?
         // bend_up(dagger(Y) @ X)
@@ -869,6 +891,16 @@ FusionTree::bend_leg(FusionTree const& X, FusionTree const& Y, bool bend_downwar
 FusionTreeLinearCombination
 FusionTree::braid(int64 j, bool overbraid, float64 cutoff, bool do_conj) const
 {
+    // --- hints from Python FusionTree.braid ---
+    // R-move
+    // C-move
+    // underbraid compared to overbraid:
+    // - conj
+    // - b <-> c  [in args of c_symbol(...)]
+    // - e <-> f  [in args of c_symbol(...)]
+    // - (mu,nu) <-> (kappa,lambda)  [by indexing c_symbol(...) differently]
+    // OPTIMIZE rm check
+    // ---
     assert(j >= 0 && static_cast<std::size_t>(j) < num_uncoupled - 1);
 
     if (j == 0) { // R-move
@@ -1043,6 +1075,17 @@ FusionTree::to_dense_block(BlockBackend* backend,
                            std::optional<Dtype> dtype,
                            bool understood_braiding) const
 {
+    // --- hints from Python FusionTree.to_dense_block ---
+    // handle special cases of small trees
+    // must be identity on the trivial sector. But since there is no uncoupled sector,
+    // do not even give it an axis.
+    // [m_c, m_a1] -> need to transpose!
+    // OPTIMIZE should we offer a symmetry function to compute only the mu slice?
+    // [a0, a1, c]
+    // larger trees: iterate over vertices
+    // [a0, a1, i0]
+    // [a0, a1, ..., an, i{n-1}] & [i{n-1}, a{n+1}, in] -> [a0, a1, ..., a{n+1}, in]
+    // ---
     if (!symmetry->can_be_dropped()) {
         throw SymmetryError(
           std::format("Can not convert to block for symmetry {}", symmetry->str()));
@@ -1130,6 +1173,9 @@ FusionTree::copy(bool deep) const
 FusionTree
 FusionTree::extended(Sector new_uncoupled, int64 mu, Sector new_coupled, bool is_dual) const
 {
+    // --- hints from Python FusionTree.extended ---
+    // result has one vertex, and thus no inner sectors
+    // ---
     std::vector<int64> new_multiplicities;
     if (num_uncoupled == 0) {
         assert(mu == 0);
@@ -1171,6 +1217,9 @@ FusionTree::insert(FusionTree const& t2) const
 FusionTreeLinearCombination
 FusionTree::insert_at(int64 n, FusionTree const& t2, float64 eps) const
 {
+    // --- hints from Python FusionTree.insert_at ---
+    // t2 has no actual fusion, it is either identity or a Z iso
+    // ---
     assert(symmetry && t2.symmetry && symmetry->equals(*t2.symmetry));
     assert(uncoupled[static_cast<std::size_t>(n)] == t2.coupled);
     assert(!are_dual[static_cast<std::size_t>(n)]);
@@ -1303,6 +1352,11 @@ FusionTree::insert_at(int64 n, FusionTree const& t2, float64 eps) const
 FusionTreeLinearCombination
 FusionTree::outer(FusionTree const& right_tree, float64 eps) const
 {
+    // --- hints from Python FusionTree.outer ---
+    // trivial cases
+    // use self.insert_at(right_tree) -> construct new tree with
+    // right_tree.coupled as uncoupled sector at the end
+    // ---
     // trivial cases
     if (num_uncoupled == 0) {
         return { { right_tree, complex128{ 1.0, 0.0 } } };
@@ -1399,6 +1453,9 @@ FusionTree::split_bottom_vertex() const
 FusionTreeLinearCombination
 FusionTree::twist(std::vector<int64> const& idcs, bool overtwist) const
 {
+    // --- hints from Python FusionTree.twist ---
+    // twists are trivial
+    // ---
     if (symmetry->has_trivial_braid()) {
         return { { *this, complex128{ 1.0, 0.0 } } };
     }
@@ -1472,6 +1529,9 @@ fusion_trees::fusion_trees(Symmetry::Ptr symmetry,
   : symmetry(std::move(symmetry))
   , coupled(coupled)
 {
+    // --- hints from Python fusion_trees.__init__ ---
+    // OPTIMIZE demand SectorArray (not list) and skip?
+    // ---
     // DOC: coupled = None means trivial sector (handled by caller / bindings if needed)
     assert(this->symmetry);
     if (uncoupled.size() == 0) {
@@ -1624,6 +1684,9 @@ fusion_trees::repr() const
 std::size_t
 fusion_trees::index(FusionTree const& tree) const
 {
+    // --- hints from Python fusion_trees.index ---
+    // check compatibility first (same symmetry, same uncoupled, same coupled, same are_dual)
+    // ---
     if (!symmetry->is_equivalent_to(*tree.symmetry)) {
         throw std::invalid_argument(
           std::format("Inconsistent symmetries, {} != {}", symmetry->str(), tree.symmetry->str()));
@@ -1719,3 +1782,23 @@ fusion_trees::compute_index(FusionTree const& tree) const
 }
 
 } // namespace cyten
+
+// =============================================================================
+// ORPHANED PYTHON COMMENT HINTS (no matching C++ function body found)
+// =============================================================================
+// --- FusionTree._ascii_diagram ---
+// We build a splitting tree (dagger=True), and if dagger=False, we mirror it at the end
+// note: arrows are the same no matter if dagger or not
+// step 1: build just the bare tree without inner sectors or multiplicity labels
+// only remember where they would go
+// positions of the ┴
+// last line: pre_Z_uncoupled
+// line -2: Z or vertical wires
+// line -3: uncoupled
+// {row: extra_str}
+// one above the vertex
+// finalize
+// --- FusionTree._str_uncoupled_coupled ---
+// before Zs
+// after Zs
+// =============================================================================

@@ -116,6 +116,9 @@ FibonacciAnyonCategory::FibonacciAnyonCategory(std::string handedness_)
   : SymmetryFactor(FusionStyle::multiple_unique,
                    BraidingStyle::anyonic,
                    Sector{ 0 },
+                   // --- hints from Python FibonacciAnyonCategory.__init__ ---
+                   // nontrivial C-symbols
+                   // ---
                    "FibonacciAnyonCategory",
                    2.0,
                    true)

@@ -272,6 +272,9 @@ FusionSymbol
 SU3_3AnyonCategory::_compute_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f)
   const
 {
+    // --- hints from Python SU3_3AnyonCategory._compute_f_symbol ---
+    // two 8 and no 1
+    // ---
     if (!can_fuse_to(b, c, e) || !can_fuse_to(a, e, d) || !can_fuse_to(a, b, f) ||
         !can_fuse_to(f, c, d)) {
         return topo_ones::one_4D();
@@ -502,6 +505,9 @@ SU3_3AnyonCategory::_r_symbol(Sector a, Sector b, Sector c) const
 FusionSymbol
 SU3_3AnyonCategory::_c_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
+    // --- hints from Python SU3_3AnyonCategory._c_symbol ---
+    // inconsistent fusion
+    // ---
     FSymKey key{ a.q[0], b.q[0], c.q[0], d.q[0], e.q[0], f.q[0] };
     auto it = _c.find(key);
     if (it != _c.end()) {
