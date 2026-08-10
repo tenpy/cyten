@@ -16,61 +16,26 @@ from ..backends import get_same_backend
 from ..block_backends import Block, Dtype
 from ..symmetries import (
     BraidChiralityUnspecifiedError,
-    FermionParity,
     FibonacciAnyonCategory,
-    IsingAnyonCategory,
-    NoSymmetry,
-    SU2,
-    SU2_kAnyonCategory,
     Sector,
     SymmetryError,
-    U1,
-    ZN,
     fibonacci_anyon_category,
 )
 from ..tensors import (
-    SymmetricTensor, add_trivial_leg, almost_equal, compose, horizontal_factorization, permute_legs,
+    SymmetricTensor,
+    add_trivial_leg,
+    almost_equal,
+    compose,
+    horizontal_factorization,
+    permute_legs,
     squeeze_legs,
 )
 from .degrees_of_freedom import ALL_SPECIES, BosonicDOF, ClockDOF, FermionicDOF, Site, SpinDOF
-from .sites import (
-    ClockSite, FibonacciAnyonSite, GoldenSite, IsingAnyonSite, SpinHalfFermionSite, SpinSite,
-    SpinlessBosonSite, SpinlessFermionSite, SU2kSpin1Site,
-)
-
+from .sites import GoldenSite
 
 # ---------------------------------------------------------------------------
 # Serialization helpers
 # ---------------------------------------------------------------------------
-
-def _symmetry_factor_to_dict(factor) -> dict:
-    """Serialize a single SymmetryFactor to a dict."""
-    dn = factor.descriptive_name  # included for all types; Symmetry.__eq__ checks this
-    if isinstance(factor, NoSymmetry):
-        return {'type': 'NoSymmetry'}
-    if isinstance(factor, FermionParity):
-        return {'type': 'FermionParity', 'descriptive_name': dn}
-    if isinstance(factor, U1):
-        return {'type': 'U1', 'descriptive_name': dn}
-    if isinstance(factor, SU2):
-        return {'type': 'SU2', 'descriptive_name': dn}
-    if isinstance(factor, ZN):
-        return {'type': 'ZN', 'N': int(factor.N), 'descriptive_name': dn}
-    if isinstance(factor, FibonacciAnyonCategory):
-        return {'type': 'FibonacciAnyonCategory', 'handedness': factor.handedness}
-    if isinstance(factor, IsingAnyonCategory):
-        return {'type': 'IsingAnyonCategory', 'nu': int(factor.nu)}
-    if isinstance(factor, SU2_kAnyonCategory):
-        return {'type': 'SU2_kAnyonCategory', 'k': int(factor.k), 'handedness': factor.handedness}
-    raise NotImplementedError(
-        f'Cannot serialize symmetry factor {type(factor).__name__!r}. '
-        f'Add a branch to _symmetry_factor_to_dict.'
-    )
-
-
-def _symmetry_to_dict(sym) -> dict:
-    """Serialize a (possibly product) Symmetry to a dict."""
-    return {'factors': [_symmetry_factor_to_dict(f) for f in sym.factors]}
 
 
 def _space_to_dict(space) -> dict:
@@ -82,58 +47,12 @@ def _space_to_dict(space) -> dict:
         sectors = [[(s.item() if hasattr(s, 'item') else int(s)) for s in row] for row in sectors]
     bp = space._basis_perm
     return {
-        'symmetry': _symmetry_to_dict(space.symmetry),
+        'symmetry': repr(space.symmetry),
         'sectors': sectors,
         'multiplicities': [(m.item() if hasattr(m, 'item') else int(m)) for m in space.multiplicities],
         'is_dual': bool(space.is_dual),
         'basis_perm': bp.tolist() if bp is not None else None,
     }
-
-
-def _site_to_dict(site) -> dict:
-    """Serialize a Site to a dict of {type, constructor-params}.
-
-    Only the parameters needed to reconstruct the site are stored — the physical
-    leg and operators are derived by the constructor, so they are not duplicated.
-    """
-    name = type(site).__name__
-    if isinstance(site, SpinSite):
-        return {'type': name, 'S': float(site.S), 'conserve': site.conserve}
-    if isinstance(site, SpinHalfFermionSite):
-        return {
-            'type': name,
-            'conserve_N': site.conserve_N,
-            'conserve_S': site.conserve_S,
-            'filling': site.filling,
-        }
-    if isinstance(site, SpinlessBosonSite):
-        Nmax = site.Nmax
-        if hasattr(Nmax, 'tolist'):
-            Nmax = Nmax.tolist()
-        elif hasattr(Nmax, '__iter__') and not isinstance(Nmax, (str, int)):
-            Nmax = list(Nmax)
-        return {'type': name, 'Nmax': Nmax, 'conserve': site.conserve, 'filling': site.filling}
-    if isinstance(site, SpinlessFermionSite):
-        return {
-            'type': name,
-            'num_species': site.num_species,
-            'conserve': site.conserve,
-            'filling': site.filling,
-        }
-    if isinstance(site, FibonacciAnyonSite):
-        return {'type': name, 'handedness': site.symmetry.handedness}
-    if isinstance(site, IsingAnyonSite):
-        return {'type': name, 'nu': int(site.symmetry.nu)}
-    if isinstance(site, GoldenSite):
-        return {'type': name, 'handedness': site.symmetry.handedness}
-    if isinstance(site, SU2kSpin1Site):
-        return {'type': name, 'k': int(site.symmetry.k), 'handedness': site.symmetry.handedness}
-    if isinstance(site, ClockSite):
-        return {'type': name, 'q': int(site.q), 'conserve': site.conserve}
-    raise NotImplementedError(
-        f'Cannot serialize site type {name!r}. '
-        f'Add a branch to _site_to_dict.'
-    )
 
 
 def _adjacent_transpositions(permutation: Sequence[int]) -> list[int]:
@@ -210,7 +129,7 @@ class Coupling:
         self, sites: list[Site], factorization: list[SymmetricTensor], name: str = None, skip_sanity: bool = False
     ):
         self.sites = sites
-        assert len(factorization) == len(sites) #or len(factorization) == len(sites) + 1
+        assert len(factorization) == len(sites)
         self.factorization = factorization
         self.name = name
         self._levels: list[int] = list(range(1, len(sites) + 1))
@@ -253,7 +172,7 @@ class Coupling:
         """
         return (
             self.name,
-            tuple(freeze(_site_to_dict(s)) for s in self.sites),
+            tuple(repr(s) for s in self.sites),
             tuple(
                 (
                     tuple(t.shape),
@@ -425,37 +344,51 @@ class Coupling:
         """Convert to a numpy array."""
         return self.to_tensor().to_numpy(leg_order, numpy_dtype, understood_braiding)
 
-    def insert_identity_between_sites(self, position: int) -> Coupling:
-        """Insert identity tensor between sites at given position."""
-        if position <= 0 or position >= len(self.sites):
-            raise ValueError(f'Position must be between 1 and {len(self.sites) - 1}, got {position}')
+    def stretch_with_identities(self, all_sites: list[Site], coupling_positions: Sequence[int]) -> Coupling:
+        """Place this coupling's tensors among `all_sites`, filling the gaps with identities.
 
-        site_left = self.sites[position - 1]
-        site_right = self.sites[position]
+        Returns a new coupling spanning `all_sites` from the first to the last of
+        `coupling_positions` (inclusive). `self`'s tensors sit at those positions and every site in
+        between gets an identity tensor independent of what site it is.
 
-        left_block = self.factorization[position - 1]
-        right_block = self.factorization[position]
+        Parameters
+        ----------
+        all_sites : list of Site
+            The sites the returned coupling should be based on.
+            Only the positions defined by `coupling_positions` are used.
+        coupling_positions : list of int
+            Strictly ascending, one entry per :attr:`factorization` tensor: the index into
+            `all_sites` where that tensor should sit.
 
-        wR_space = left_block.domain.factors[-1]
-        wL_space = right_block.codomain.factors[0]
+        Returns
+        -------
+        Coupling
+            Spans all_sites[coupling_positions[0] to coupling_positions[-1] + 1].
 
-        if isinstance(wR_space, list) or isinstance(wL_space, list):
-            raise NotImplementedError('Multi-bond insertions not yet supported')
+        """
+        n = len(self.factorization)
+        if len(coupling_positions) != n:
+            raise ValueError(f'need {n} positions (one per coupling tensor), got {len(coupling_positions)}')
+        if any(p2 <= p1 for p1, p2 in zip(coupling_positions, coupling_positions[1:])):
+            raise ValueError('`coupling_positions` must be strictly ascending')
+        for site, pos in zip(self.sites, coupling_positions):
+            if site.leg != all_sites[pos].leg:
+                raise ValueError(f'physical leg mismatch at position {pos}')
 
-        if site_left.leg != site_right.leg:
-            raise ValueError('Sites must have same physical leg.')
+        start, stop = coupling_positions[0], coupling_positions[-1] + 1
+        by_position = dict(zip(coupling_positions, self.factorization))
 
-        # delegates to Site.identity_tensor, which also checks wR_space == wL_space
-        identity = site_left.identity_tensor(wR_space, wL_space)
+        factorization = []
+        wR_space = None
+        for pos in range(start, stop):
+            tensor = by_position.get(pos)
+            if tensor is None:
+                # identity on site here, keeps virtual leg.
+                tensor = all_sites[pos].identity_tensor(wR_space, wR_space)
+            factorization.append(tensor)
+            wR_space = tensor.get_leg_co_domain('wR')
 
-        new_sites = self.sites[:position] + [site_left] + self.sites[position:]
-        new_factorization = (
-            self.factorization[:position]
-            + [identity]
-            + self.factorization[position:]
-        )
-
-        return Coupling(sites=new_sites, factorization=new_factorization, name=self.name, skip_sanity=True)
+        return Coupling(sites=list(all_sites[start:stop]), factorization=factorization, name=self.name)
 
     def permute(
         self, permutation: Sequence[int], levels: Sequence[int | None], over_braid: Sequence[bool | None]
@@ -565,6 +498,7 @@ class Coupling:
         result._levels = [self._levels[i] for i in permutation]
         self._permuted.append((key, result))
         return result
+
 
 # SPIN COUPLINGS
 

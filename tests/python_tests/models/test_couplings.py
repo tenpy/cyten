@@ -11,12 +11,12 @@ from numpy import testing as npt
 
 import cyten
 from cyten import SymmetryError, backends, tensors
-from cyten.symmetries import BraidChiralityUnspecifiedError
 from cyten.models import couplings, degrees_of_freedom, sites
-
-from cyten.models.sites import SpinSite
 from cyten.models.couplings import heisenberg_coupling, spin_field_coupling
+from cyten.models.sites import SpinSite
+from cyten.symmetries import BraidChiralityUnspecifiedError
 from cyten.tensors import permute_legs
+
 
 def check_coupling(coupling_cls, site_num: int, invalid_site_nums: list[int], boson_fermion_mixing: bool, **kwargs):
     """Perform common checks that make sense for any coupling"""
@@ -763,31 +763,39 @@ def test_coupling_eq_hash_numeric_closeness():
 
 
 @pytest.mark.parametrize(
-    "coupling_factory,site_args,coupling_kwargs,valid_positions",
+    'coupling_factory,site_args,coupling_kwargs,valid_positions',
     [
         # 2-site Heisenberg
-        (couplings.heisenberg_coupling,
-         [lambda backend: [sites.SpinSite(S=0.5, conserve='None', backend=backend)] * 2],
-         {"J": 1.0},
-         [1]),
+        (
+            couplings.heisenberg_coupling,
+            [lambda backend: [sites.SpinSite(S=0.5, conserve='None', backend=backend)] * 2],
+            {'J': 1.0},
+            [1],
+        ),
         # 3-site chiral
-        (couplings.chiral_3spin_coupling,
-         [lambda backend: [sites.SpinSite(S=0.5, conserve='None', backend=backend)] * 3],
-         {"chi": 1.0},
-         [1, 2]),
+        (
+            couplings.chiral_3spin_coupling,
+            [lambda backend: [sites.SpinSite(S=0.5, conserve='None', backend=backend)] * 3],
+            {'chi': 1.0},
+            [1, 2],
+        ),
         # 2-site AKLT
-        (couplings.aklt_coupling,
-         [lambda backend: [sites.SpinSite(S=1, conserve='None', backend=backend)] * 2],
-         {"J": 1.0},
-         [1]),
+        (
+            couplings.aklt_coupling,
+            [lambda backend: [sites.SpinSite(S=1, conserve='None', backend=backend)] * 2],
+            {'J': 1.0},
+            [1],
+        ),
         # 2-site clock
         # (couplings.clock_clock_coupling,
         #  [lambda backend: [sites.ClockSite(3, conserve='None', backend=backend)] * 2],
         #  {"Jx": 1.0, "Jz": 1.0},
         #  [1]),
-    ]
+    ],
 )
-def test_identity_insertion_parametrized(block_backend, coupling_factory, site_args, coupling_kwargs, valid_positions):
+def test_stretch_with_identities_parametrized(
+    block_backend, coupling_factory, site_args, coupling_kwargs, valid_positions
+):
     backend = backends.get_backend(block_backend=block_backend)
     sites_list = site_args[0](backend)
     coupling = coupling_factory(sites_list, **coupling_kwargs)
@@ -795,34 +803,41 @@ def test_identity_insertion_parametrized(block_backend, coupling_factory, site_a
     orig_num_factors = len(coupling.factorization)
 
     for pos in valid_positions:
-        new_coupling = coupling.insert_identity_between_sites(position=pos)
+        # insert a gap right before original index `pos`, filled by a copy of its left neighbor
+        all_sites = sites_list[:pos] + [sites_list[pos - 1]] + sites_list[pos:]
+        coupling_positions = [*range(pos), *range(pos + 1, orig_num_sites + 1)]
+        new_coupling = coupling.stretch_with_identities(all_sites, coupling_positions)
         # Number of sites should increase by 1 (a copy of the left neighbor is inserted)
         assert len(new_coupling.sites) == orig_num_sites + 1
         # Number of factors should increase by 1
         assert len(new_coupling.factorization) == orig_num_factors + 1
-        # structurally (and hence via __eq__/__hash__) distinct from the original
+        # By __eq__/__hash__ distinct from the original
         assert new_coupling != coupling
+        new_coupling.test_sanity()
 
-    # Test invalid positions
-    for invalid_pos in [0, -1, orig_num_factors + 2]:
+    # too few / too many positions
+    with pytest.raises(ValueError):
+        coupling.stretch_with_identities(sites_list, list(range(orig_num_factors - 1)))
+    with pytest.raises(ValueError):
+        coupling.stretch_with_identities(sites_list, list(range(orig_num_factors + 1)))
+    # not strictly ascending
+    if orig_num_factors > 1:
         with pytest.raises(ValueError):
-            coupling.insert_identity_between_sites(position=invalid_pos)
+            coupling.stretch_with_identities(sites_list, list(range(orig_num_factors))[::-1])
 
 
 def test_identity_tensor_site():
-    """Test sites.identity_tensor: structural correctness and ValueError guard."""
+    """Test Site.identity_tensor: structural correctness and ValueError guard."""
 
     site = SpinSite(S=0.5, conserve='Sz')
     coupling = heisenberg_coupling([site, site])
 
-    # wL / wR are the co-domain-style representatives of the shared virtual bond;
-    # the coupling sanity guarantee ensures they are the same ElementarySpace.
     wL = coupling.factorization[0].get_leg_co_domain('wR')
     wR = coupling.factorization[1].get_leg_co_domain('wL')
-    assert wL == wR, 'coupling internal sanity: virtual bond spaces must match'
+    assert wL == wR, 'coupling virtual bonds must match'
 
-    # --- overbraid=True (default) ---
-    tensor = sites.identity_tensor(site, wL, wR, overbraid=True)
+    # overbraid=True
+    tensor = site.identity_tensor(wL, wR, overbraid=True)
 
     assert tensor.labels == ['wL', 'p', 'wR', 'p*']
     assert tensor.num_codomain_legs == 2
@@ -833,96 +848,101 @@ def test_identity_tensor_site():
     assert tensor.get_leg_co_domain('wR') == wR
     tensor.test_sanity()
 
-    # --- overbraid=False ---
+    # overbraid=False
     # For a group symmetry (U(1)) braiding is symmetric, so the result is the same tensor.
-    tensor_under = sites.identity_tensor(site, wL, wR, overbraid=False)
+    tensor_under = site.identity_tensor(wL, wR, overbraid=False)
     assert tensor_under.labels == ['wL', 'p', 'wR', 'p*']
     tensor_under.test_sanity()
 
-    # --- ValueError: wR != wL ---
-    # The first block's wL is the trivial (1-D) boundary space, which differs from the bond.
+    # ValueError: wR != wL
     trivial_space = coupling.factorization[0].get_leg_co_domain('wL')
     assert trivial_space != wL, 'trivial boundary space must differ from the bond space'
     with pytest.raises(ValueError):
-        sites.identity_tensor(site, wL, trivial_space)
+        site.identity_tensor(wL, trivial_space)
 
-    # --- Non-trivial physical leg: spin-1 site, same bond ---
+    # Non-trivial physical leg: spin-1 site, same bond
     site_s1 = SpinSite(S=1.0, conserve='Sz')
     coupling_s1 = heisenberg_coupling([site_s1, site_s1])
     wL_s1 = coupling_s1.factorization[0].get_leg_co_domain('wR')
     wR_s1 = coupling_s1.factorization[1].get_leg_co_domain('wL')
-    tensor_s1 = sites.identity_tensor(site_s1, wL_s1, wR_s1)
+    tensor_s1 = site_s1.identity_tensor(wL_s1, wR_s1)
     assert tensor_s1.get_leg_co_domain('p') == site_s1.leg
     tensor_s1.test_sanity()
 
 
-def test_insert_identity_between_sites():
-    # insert_identity_between_sites(position) does not take an explicit site to insert: it
-    # auto-derives the inserted site as sites[position - 1] (the left neighbor), and requires
-    # sites[position - 1].leg == sites[position].leg.
+def test_stretch_with_identities():
+    # stretch_with_identities(all_sites, coupling_positions) places this coupling's own tensors
+    # at `coupling_positions` within `all_sites`, filling any gaps with identities on whatever
+    # site actually lives there -- which need not be one of the coupling's own sites.
 
     # ------------------------------------------------------------------ structure
     site_a = SpinSite(S=0.5, conserve='Sz')
     site_b = SpinSite(S=0.5, conserve='Sz')
     original = heisenberg_coupling([site_a, site_b])
 
-    result = original.insert_identity_between_sites(1)
+    result = original.stretch_with_identities([site_a, site_a, site_b], [0, 2])
 
     assert len(result.sites) == 3
     assert len(result.factorization) == 3
     assert result.sites[0] is site_a
-    assert result.sites[1] is site_a  # auto-derived: the left neighbor of the insertion point
+    assert result.sites[1] is site_a  # fill with an identity
     assert result.sites[2] is site_b
-    # The inserted tensor must carry the right labels..
     assert result.factorization[1].labels == ['wL', 'p', 'wR', 'p*']
     result.test_sanity()
 
     with pytest.raises(ValueError):
-        original.insert_identity_between_sites(0)   # position=0 is out of range
+        original.stretch_with_identities([site_a, site_b], [0])  # wrong number of positions
     with pytest.raises(ValueError):
-        original.insert_identity_between_sites(2)   # position=len(sites) is out of range
+        original.stretch_with_identities([site_b, site_a], [1, 0])  # not strictly ascending
 
-    # sites with different physical legs are rejected
+    # a coupling placed at a position whose site doesn't match the coupling's own site is invalid
     site_half_ns = SpinSite(S=0.5, conserve='None')
     site_one_ns = SpinSite(S=1.0, conserve='None')
-    mixed = couplings.Coupling(
-        sites=[site_half_ns, site_one_ns],
-        factorization=heisenberg_coupling([site_half_ns, site_half_ns]).factorization,
-        skip_sanity=True,
-    )
+    original_ns = heisenberg_coupling([site_half_ns, site_half_ns])
     with pytest.raises(ValueError):
-        mixed.insert_identity_between_sites(1)
+        original_ns.stretch_with_identities([site_half_ns, site_one_ns], [0, 1])
 
     # ------------------------------------------------------------------ content check (NoSymmetry)
-    # For a coupling C2 on [s0, s1] (same site s0 == s1 == site_half_ns), inserting an identity
-    # at position 1 produces a 3-site coupling C3 satisfying:
+    # For a coupling C2 on [s0, s1] (same site s0 == s1 == site_half_ns), stretching in a gap
+    # site at position 1 produces a 3-site coupling C3 satisfying:
     #   C3[p0, pi, p1, p1*, pi*, p0*] = C2[p0, p1, p1*, p0*] * delta(pi, pi*)
     #
     # Numpy leg order (domain labels are stored reversed in the label list):
     #   C2: [p0, p1, p1*, p0*]  → shape [d0, d1, d1, d0]
     #   C3: [p0, pi, p1, p1*, pi*, p0*] → shape [d0, di, d1, d1, di, d0]
-    original_ns = heisenberg_coupling([site_half_ns, site_half_ns])
-    result_ns = original_ns.insert_identity_between_sites(1)
+    result_ns = original_ns.stretch_with_identities([site_half_ns, site_half_ns, site_half_ns], [0, 2])
     assert result_ns.sites[1] is site_half_ns
     result_ns.test_sanity()
 
-    C2 = original_ns.to_numpy(understood_braiding=True)   # [d0, d1, d1, d0]
-    C3 = result_ns.to_numpy(understood_braiding=True)      # [d0, di, d1, d1, di, d0]
+    C2 = original_ns.to_numpy(understood_braiding=True)  # [d0, d1, d1, d0]
+    C3 = result_ns.to_numpy(understood_braiding=True)  # [d0, di, d1, d1, di, d0]
 
-    di = site_half_ns.dim   # 2 for spin-1/2
+    di = site_half_ns.dim  # 2 for spin-1/2
     assert C3.shape == (C2.shape[0], di, C2.shape[1], C2.shape[2], di, C2.shape[3])
 
     for pi in range(di):
-        # Diagonal block: matches original coupling.
-        np.testing.assert_allclose(C3[:, pi, :, :, pi, :], C2, atol=1e-13,
-                                   err_msg=f'diagonal block pi={pi} does not match original coupling')
+        # Diagonal block matches original coupling.
+        np.testing.assert_allclose(
+            C3[:, pi, :, :, pi, :], C2, atol=1e-13, err_msg=f'diagonal block pi={pi} does not match original coupling'
+        )
     for pi in range(di):
         for pi_star in range(di):
             if pi != pi_star:
                 # Off-diagonal blocks: must vanish (identity in physical space).
-                np.testing.assert_allclose(C3[:, pi, :, :, pi_star, :], 0, atol=1e-13,
-                                           err_msg=f'off-diagonal block pi={pi}, pi*={pi_star} is non-zero')
+                np.testing.assert_allclose(
+                    C3[:, pi, :, :, pi_star, :],
+                    0,
+                    atol=1e-13,
+                    err_msg=f'off-diagonal block pi={pi}, pi*={pi_star} is non-zero',
+                )
 
+    # gap site with a different physical leg than the coupling's own sites
+    site_one = SpinSite(S=1.0, conserve='Sz')
+    stretched = original.stretch_with_identities([site_a, site_one, site_one, site_b], [0, 3])
+    stretched.test_sanity()
+    assert [s.S for s in stretched.sites] == [0.5, 1.0, 1.0, 0.5]
+    for factor, site in zip(stretched.factorization[1:-1], stretched.sites[1:-1]):
+        assert factor.get_leg_co_domain('p') == site.leg
 
 
 def test_adjacent_transpositions():
@@ -1096,9 +1116,7 @@ def test_coupling_permute_matches_direct_permute_legs(site_factory, label):
         codomain_labels[1]: 0 if over else 1,
         domain_labels[1]: 0 if over else 1,
     }
-    tensor_direct = permute_legs(
-        coupling.to_tensor(), codomain=['p1', 'p0'], domain=['p1*', 'p0*'], levels=level_dict
-    )
+    tensor_direct = permute_legs(coupling.to_tensor(), codomain=['p1', 'p0'], domain=['p1*', 'p0*'], levels=level_dict)
     # relabel to the same p{new_pos} convention Coupling.permute uses (site formerly at 1 is now p0)
     tensor_direct = tensor_direct.relabel({'p0': 'q1', 'p1': 'q0', 'p0*': 'q1*', 'p1*': 'q0*'})
     tensor_direct = tensor_direct.relabel({'q0': 'p0', 'q1': 'p1', 'q0*': 'p0*', 'q1*': 'p1*'})
