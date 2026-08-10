@@ -2190,7 +2190,8 @@ TensorProduct::from_partial_products(std::vector<Ptr> const& factors)
 {
     // --- hints from Python TensorProduct.from_partial_products ---
     // forming isomorphic performs the fusion more efficiently, since it uses the partially
-    // fused [f.sectors for f in factors] instead of the flat [s.factors for f in factors for s in f.factors]
+    // fused [f.sectors for f in factors] instead of the flat [s.factors for f in factors for s in
+    // f.factors]
     // ---
     if (factors.empty()) {
         throw std::invalid_argument("Need at least one TensorProduct");
@@ -2857,11 +2858,9 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
     // this is different from num_sectors
     // possible combinations of indices
     // advanced indexing:
-    // ``grid.T[li]`` is a 1D array containing the block_indices `b_li` of leg ``li`` for all blocks
-    // the above are the future self.sector_decomposition
-    // but we want to compute (and in particular sort according to) the defining_sectors
-    // start with 0
-    // include len, to index slices
+    // ``grid.T[li]`` is a 1D array containing the block_indices `b_li` of leg ``li`` for all
+    // blocks the above are the future self.sector_decomposition but we want to compute (and in
+    // particular sort according to) the defining_sectors start with 0 include len, to index slices
     // now exclude len, to index sectors by diffs
     // not for the first entry => np.cumsum starts with 0
     // calculate the slices within blocks: subtract the start of each block
@@ -2998,9 +2997,9 @@ AbelianLegPipe::AbelianLegPipe(std::vector<ElementarySpace::Ptr> legs_,
                                bool combine_cstyle_)
   : AbelianLegPipe(prepare(legs_, is_dual_, combine_cstyle_), is_dual_, combine_cstyle_)
 {
-// --- hints from Python AbelianLegPipe.__init__ ---
-// also sets some attributes
-// ---
+    // --- hints from Python AbelianLegPipe.__init__ ---
+    // also sets some attributes
+    // ---
 }
 
 std::vector<int64>
@@ -3588,18 +3587,16 @@ swap_gate(Leg::Ptr V, Leg::Ptr W)
 {
     // --- hints from Python swap_gate ---
     // special case: pipes
-    // since we call this function recursively, we do not need to distinguish if W is a pipe at this point
-    // [W, Vz, W*, Vz*]
-    // [W, Vi, W*, Vi*]
-    // [W, Vi, (W*), Vi*] @ [(W), {Vs}, W*, {Vs}*] -> [W, Vi, Vi*, {Vs}, W*, {Vs}*]
-    // [W, Vi, (Vi*), {Vs}, W*, {Vs}*] -> [W, Vi, {Vs}, W*, (Vi*), {Vs}*]
-    // since we call this function recursively, we do not need to distinguish if V is a pipe at this point
-    // [Wa, V, Wa*, V*]
-    // [Wi, V, Wi*, V]
+    // since we call this function recursively, we do not need to distinguish if W is a pipe at
+    // this point [W, Vz, W*, Vz*] [W, Vi, W*, Vi*] [W, Vi, (W*), Vi*] @ [(W), {Vs}, W*, {Vs}*] ->
+    // [W, Vi, Vi*, {Vs}, W*, {Vs}*] [W, Vi, (Vi*), {Vs}, W*, {Vs}*] -> [W, Vi, {Vs}, W*, (Vi*),
+    // {Vs}*] since we call this function recursively, we do not need to distinguish if V is a pipe
+    // at this point [Wa, V, Wa*, V*] [Wi, V, Wi*, V]
     // [{Ws}, (V), {Ws}*, V*] @ [Wi, V, Wi*, (V*)] -> [{Ws}, {Ws*}, V*, Wi, V, Wi*]
     // [{Ws}, {Ws*}, V*, Wi, V, Wi*] -> [{Ws}, Wi, V, {Ws*}, Wi*, V*]
     // build in internal basis order, permute after
-    // OPTIMIZE these loops are probably inefficient, and there may be some numpy magic that does it better...
+    // OPTIMIZE these loops are probably inefficient, and there may be some numpy magic that does
+    // it better...
     // ---
     if (!V || !W) {
         throw py::type_error("swap_gate requires two legs");

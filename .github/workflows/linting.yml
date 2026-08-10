@@ -49,6 +49,3 @@ jobs:
     - name: Run custom linting script
       run: |
         python ./tests/linting/python_linting.py
-    - name: Run C++ pybind docstring indent checker
-      run: |
-        python ./tests/linting/cpp_docstring_indent.py

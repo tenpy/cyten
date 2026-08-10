@@ -8,6 +8,7 @@ Usage:
   python scripts/recover_py_comments.py apply-docstrings [--dry-run]
   python scripts/recover_py_comments.py apply-hints [--dry-run]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -23,64 +24,64 @@ from pathlib import Path
 try:
     import yaml
 except ImportError as e:  # pragma: no cover
-    raise SystemExit("PyYAML is required") from e
+    raise SystemExit('PyYAML is required') from e
 
 # Python method name → C++ method name when renamed during conversion.
 METHOD_NAME_ALIASES: dict[str, list[str]] = {
-    "_valid_block_inds": ["valid_block_inds"],
-    "_calc_basis_perm": ["calc_basis_perm"],
-    "_calc_sectors": ["calc_sectors", "prepare"],
-    "_get_fusion_outcomes_perm": ["get_fusion_outcomes_perm", "fusion_outcomes_perm"],
-    "__repr__": ["repr", "operator<<"],
-    "__str__": ["str"],
-    "__eq__": ["operator=="],
-    "__init__": [],  # handled specially as constructors
+    '_valid_block_inds': ['valid_block_inds'],
+    '_calc_basis_perm': ['calc_basis_perm'],
+    '_calc_sectors': ['calc_sectors', 'prepare'],
+    '_get_fusion_outcomes_perm': ['get_fusion_outcomes_perm', 'fusion_outcomes_perm'],
+    '__repr__': ['repr', 'operator<<'],
+    '__str__': ['str'],
+    '__eq__': ['operator=='],
+    '__init__': [],  # handled specially as constructors
 }
 
 REPO = Path(__file__).resolve().parents[1]
-DEFAULT_MAP = REPO / "scripts" / "py_cpp_comment_map.yaml"
-DEFAULT_ORIG = REPO / "tmp" / "orig_cyten"
-DEFAULT_REPORT = REPO / "docs" / "cpp_conversion" / "comment_recovery_report.md"
+DEFAULT_MAP = REPO / 'scripts' / 'py_cpp_comment_map.yaml'
+DEFAULT_ORIG = REPO / 'tmp' / 'orig_cyten'
+DEFAULT_REPORT = REPO / 'docs' / 'cpp_conversion' / 'comment_recovery_report.md'
 
-SEPARATOR_RE = re.compile(r"^#?\s*[-=*]{3,}\s*$")
-HASH_BANG_ONLY = re.compile(r"^#+\s*$")
+SEPARATOR_RE = re.compile(r'^#?\s*[-=*]{3,}\s*$')
+HASH_BANG_ONLY = re.compile(r'^#+\s*$')
 PYDOC_START = 'R"pydoc('
 PYDOC_END = ')pydoc"'
 
 
 def normalize_text(s: str) -> str:
     """Collapse whitespace for fuzzy presence checks."""
-    s = s.replace("\r\n", "\n").replace("\r", "\n")
-    s = re.sub(r"[ \t]+", " ", s)
-    s = re.sub(r"\n\s*\n+", "\n", s)
+    s = s.replace('\r\n', '\n').replace('\r', '\n')
+    s = re.sub(r'[ \t]+', ' ', s)
+    s = re.sub(r'\n\s*\n+', '\n', s)
     return s.strip().lower()
 
 
 def distinctive_snippet(comment: str, max_len: int = 60) -> str:
     """Pick a searchable substring from a comment (drop leading #/OPTIMIZE tags)."""
-    t = comment.lstrip("#").strip()
-    t = re.sub(r"^(OPTIMIZE|FIXME|TODO|NOTE|HACK)\s*[:?]?\s*", "", t, flags=re.I)
-    t = re.sub(r"\s+", " ", t).strip()
+    t = comment.lstrip('#').strip()
+    t = re.sub(r'^(OPTIMIZE|FIXME|TODO|NOTE|HACK)\s*[:?]?\s*', '', t, flags=re.I)
+    t = re.sub(r'\s+', ' ', t).strip()
     if len(t) > max_len:
         t = t[:max_len]
     return t
 
 
 def is_noise_comment(text: str) -> bool:
-    body = text.lstrip("#").strip()
+    body = text.lstrip('#').strip()
     if not body:
         return True
     if SEPARATOR_RE.match(text) or HASH_BANG_ONLY.match(text):
         return True
-    if body.startswith("type:"):
+    if body.startswith('type:'):
         return True
     # Tiny label fragments left over from diagrams / math scribbles
-    if len(body) <= 8 and not re.search(r"OPTIMIZE|FIXME|TODO|NOTE\b|HACK", body, re.I):
+    if len(body) <= 8 and not re.search(r'OPTIMIZE|FIXME|TODO|NOTE\b|HACK', body, re.I):
         return True
     # Commented-out code: starts like an assignment/call with no spaces of prose
-    if re.match(r"^[a-zA-Z_][\w.]*\s*[=(]", body) and " " not in body.split("=")[0]:
+    if re.match(r'^[a-zA-Z_][\w.]*\s*[=(]', body) and ' ' not in body.split('=')[0]:
         # still keep if it has OPTIMIZE/TODO embedded
-        if not re.search(r"OPTIMIZE|FIXME|TODO|NOTE\b", body, re.I):
+        if not re.search(r'OPTIMIZE|FIXME|TODO|NOTE\b', body, re.I):
             return True
     return False
 
@@ -114,12 +115,12 @@ class ModuleMap:
 def load_map(path: Path) -> list[ModuleMap]:
     data = yaml.safe_load(path.read_text())
     out = []
-    for m in data["modules"]:
+    for m in data['modules']:
         out.append(
             ModuleMap(
-                py=m["py"],
-                cpp=list(m.get("cpp") or []),
-                pybind=list(m.get("pybind") or []),
+                py=m['py'],
+                cpp=list(m.get('cpp') or []),
+                pybind=list(m.get('pybind') or []),
             )
         )
     return out
@@ -148,7 +149,7 @@ class SymbolCollector(ast.NodeVisitor):
         doc = ast.get_docstring(node)
         info = SymbolInfo(
             qualname=node.name,
-            kind="class",
+            kind='class',
             lineno=node.lineno,
             end_lineno=node.end_lineno or node.lineno,
             docstring=doc,
@@ -171,19 +172,19 @@ class SymbolCollector(ast.NodeVisitor):
     def _add_function(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         class_name = self._class_stack[-1] if self._class_stack else None
         if class_name:
-            qualname = f"{class_name}.{node.name}"
-            kind = "method"
+            qualname = f'{class_name}.{node.name}'
+            kind = 'method'
         else:
             qualname = node.name
-            kind = "function"
+            kind = 'function'
         for dec in node.decorator_list:
-            dec_name = ""
+            dec_name = ''
             if isinstance(dec, ast.Name):
                 dec_name = dec.id
             elif isinstance(dec, ast.Attribute):
                 dec_name = dec.attr
-            if dec_name in ("property", "cached_property"):
-                kind = "property"
+            if dec_name in ('property', 'cached_property'):
+                kind = 'property'
         doc = ast.get_docstring(node)
         end = node.end_lineno or node.lineno
         comments = self._comments_in_span(node.lineno, end)
@@ -214,7 +215,7 @@ class SymbolCollector(ast.NodeVisitor):
 
 
 def parse_python_module(path: Path) -> list[SymbolInfo]:
-    source = path.read_text(encoding="utf-8")
+    source = path.read_text(encoding='utf-8')
     tree = ast.parse(source, filename=str(path))
     comments_by_line = collect_comments_by_line(source)
     collector = SymbolCollector(comments_by_line)
@@ -223,11 +224,11 @@ def parse_python_module(path: Path) -> list[SymbolInfo]:
     # strip method-span comments from class-level list.
     method_lines = set()
     for s in collector.symbols:
-        if s.kind in ("method", "property", "function"):
+        if s.kind in ('method', 'property', 'function'):
             for c in s.comments:
                 method_lines.add(c.lineno)
     for s in collector.symbols:
-        if s.kind == "class":
+        if s.kind == 'class':
             s.comments = [c for c in s.comments if c.lineno not in method_lines]
     return collector.symbols
 
@@ -237,14 +238,14 @@ def read_files(paths: list[str]) -> dict[str, str]:
     for p in paths:
         fp = REPO / p
         if fp.is_file():
-            out[p] = fp.read_text(encoding="utf-8")
+            out[p] = fp.read_text(encoding='utf-8')
         else:
-            out[p] = ""
+            out[p] = ''
     return out
 
 
 def combined_text(files: dict[str, str]) -> str:
-    return "\n".join(files.values())
+    return '\n'.join(files.values())
 
 
 def extract_pydoc_blocks(text: str) -> list[str]:
@@ -274,7 +275,7 @@ def docstring_present(doc: str, pybind_text: str) -> bool:
     # Prefer checking first non-empty line + maybe second
     probes = [first_lines[0]]
     if len(first_lines) > 1 and len(first_lines[0]) < 40:
-        probes.append(first_lines[0] + " " + first_lines[1])
+        probes.append(first_lines[0] + ' ' + first_lines[1])
     pybind_norm = normalize_text(pybind_text)
     for probe in probes:
         if normalize_text(probe) in pybind_norm:
@@ -287,13 +288,13 @@ def docstring_present(doc: str, pybind_text: str) -> bool:
 
 def comment_present(comment: str, cpp_text: str) -> bool:
     snippet = distinctive_snippet(comment)
-    raw = comment.lstrip("#").strip()
+    raw = comment.lstrip('#').strip()
     if len(snippet) < 12:
         # Short comments: require exact-ish presence of the raw phrase
         if len(raw) < 8:
             # very short ("blocks", "OPTIMIZE?") — too ambiguous; treat as present
             # only if the full `// raw` or `# raw` form exists
-            return f"// {raw}" in cpp_text or f"// {raw.lower()}" in cpp_text.lower()
+            return f'// {raw}' in cpp_text or f'// {raw.lower()}' in cpp_text.lower()
         snippet = raw
     return normalize_text(snippet) in normalize_text(cpp_text)
 
@@ -319,7 +320,7 @@ def find_def_sites(pybind_text: str, name: str) -> list[tuple[int, int, bool]]:
             start = m.start()
             # scan forward for matching paren of .def(
             # find the '(' right after .def
-            open_paren = pybind_text.find("(", start)
+            open_paren = pybind_text.find('(', start)
             depth = 0
             i = open_paren
             in_str = None
@@ -335,7 +336,7 @@ def find_def_sites(pybind_text: str, name: str) -> list[tuple[int, int, bool]]:
                     i = end_pd + len(PYDOC_END)
                     continue
                 if in_str:
-                    if ch == "\\" and i + 1 < len(pybind_text):
+                    if ch == '\\' and i + 1 < len(pybind_text):
                         i += 2
                         continue
                     if ch == in_str:
@@ -347,9 +348,9 @@ def find_def_sites(pybind_text: str, name: str) -> list[tuple[int, int, bool]]:
                     in_str = ch
                     i += 1
                     continue
-                if ch == "(":
+                if ch == '(':
                     depth += 1
-                elif ch == ")":
+                elif ch == ')':
                     depth -= 1
                     if depth == 0:
                         sites.append((start, i, has_pydoc))
@@ -362,9 +363,10 @@ def find_class_binding(pybind_text: str, class_name: str) -> list[tuple[int, int
     """Find py::class_ bindings for class_name.
 
     Returns list of (start_idx, end_of_ctor_call_idx, var_name, has_doc).
-    Supports both:
-      py::class_<Foo>(m, "Foo")
-      py::class_<Foo> var(m, "Foo");
+    Supports both::
+
+        py::class_<Foo>(m, "Foo")
+        py::class_<Foo> var(m, "Foo");
     """
     results = []
     # Allow optional C++ variable name between > and (
@@ -373,15 +375,15 @@ def find_class_binding(pybind_text: str, class_name: str) -> list[tuple[int, int
         rf'(?:(?P<var1>\w+)\s*)?\(\s*m\s*,\s*"{re.escape(class_name)}"'
     )
     for m in re.finditer(pat, pybind_text):
-        var = m.group("var1") or "cls"
+        var = m.group('var1') or 'cls'
         # find end of the (m, "Name", ...) call that starts at m's '('
-        open_paren = pybind_text.find("(", m.start())
+        open_paren = pybind_text.find('(', m.start())
         depth = 0
         i = open_paren
         while i < len(pybind_text):
-            if pybind_text[i] == "(":
+            if pybind_text[i] == '(':
                 depth += 1
-            elif pybind_text[i] == ")":
+            elif pybind_text[i] == ')':
                 depth -= 1
                 if depth == 0:
                     break
@@ -389,10 +391,10 @@ def find_class_binding(pybind_text: str, class_name: str) -> list[tuple[int, int
         else:
             continue
         # Look for .doc() = after ctor, before next py::class_
-        next_class = pybind_text.find("py::class_<", i + 1)
+        next_class = pybind_text.find('py::class_<', i + 1)
         window_end = next_class if next_class >= 0 else min(len(pybind_text), i + 2500)
         window = pybind_text[m.start() : window_end]
-        has_doc = f"{var}.doc()" in window and PYDOC_START in window
+        has_doc = f'{var}.doc()' in window and PYDOC_START in window
         # Also docstring as third ctor arg
         ctor = pybind_text[open_paren : i + 1]
         if PYDOC_START in ctor:
@@ -401,29 +403,25 @@ def find_class_binding(pybind_text: str, class_name: str) -> list[tuple[int, int
     return results
 
 
-def find_method_def_for_class(
-    pybind_text: str, class_name: str, method_name: str
-) -> list[tuple[int, int, bool]]:
+def find_method_def_for_class(pybind_text: str, class_name: str, method_name: str) -> list[tuple[int, int, bool]]:
     """Find .def("method"...) sites that clearly belong to class_name via &Class::method."""
     sites = []
     # Require &ClassName::method somewhere in the .def(...) call
     for start, end, has_pydoc in find_def_sites(pybind_text, method_name):
         chunk = pybind_text[start : end + 1]
-        if re.search(rf"&{re.escape(class_name)}\s*::\s*{re.escape(method_name)}\b", chunk):
+        if re.search(rf'&{re.escape(class_name)}\s*::\s*{re.escape(method_name)}\b', chunk):
             sites.append((start, end, has_pydoc))
             continue
         # Lambdas / free wrappers: still OK if within class binding region that uses this class
         # Heuristic: previous py::class_ mentioning ClassName and no intervening other class_
-        prev = pybind_text.rfind("py::class_<", 0, start)
+        prev = pybind_text.rfind('py::class_<', 0, start)
         if prev < 0:
             continue
         region = pybind_text[prev:start]
-        if f'"{class_name}"' not in region and not re.search(
-            rf"py::class_<\s*{re.escape(class_name)}\s*[,>]", region
-        ):
+        if f'"{class_name}"' not in region and not re.search(rf'py::class_<\s*{re.escape(class_name)}\s*[,>]', region):
             continue
         # ensure no other class_ between
-        if region.count("py::class_<") != 1:
+        if region.count('py::class_<') != 1:
             continue
         # accept readwrite/property without &Class:: as well
         sites.append((start, end, has_pydoc))
@@ -432,12 +430,12 @@ def find_method_def_for_class(
 
 def format_pydoc(doc: str, indent: str) -> str:
     """Format docstring as R\"pydoc block with given indent for the R\" line."""
-    lines = doc.strip("\n").splitlines()
+    lines = doc.strip('\n').splitlines()
     non_empty = [ln for ln in lines if ln.strip()]
     if non_empty:
-        common = min(len(ln) - len(ln.lstrip(" ")) for ln in non_empty)
+        common = min(len(ln) - len(ln.lstrip(' ')) for ln in non_empty)
         lines = [ln[common:] if len(ln) >= common else ln for ln in lines]
-    body = "\n".join(indent + (ln if ln.strip() else "") for ln in lines)
+    body = '\n'.join(indent + (ln if ln.strip() else '') for ln in lines)
     return f'{indent}R"pydoc(\n{body}\n{indent})pydoc"'
 
 
@@ -462,22 +460,21 @@ def apply_docstring_to_pybind(
             return text, False
         # If this is a chained temporary `py::class_<T>(m, "T").def...`
         # without a variable, rewrite to a named binding first.
-        line_start = text.rfind("\n", 0, idx) + 1
+        line_start = text.rfind('\n', 0, idx) + 1
         header = text[line_start : end_ctor + 1]
-        needs_named = f"> {var_name}(" not in text[max(0, idx - 80) : end_ctor + 1] and (
-            re.search(rf'py::class_<[^>]*>\s*\(\s*m\s*,\s*"{re.escape(bind_name)}"', header)
-            is not None
+        needs_named = f'> {var_name}(' not in text[max(0, idx - 80) : end_ctor + 1] and (
+            re.search(rf'py::class_<[^>]*>\s*\(\s*m\s*,\s*"{re.escape(bind_name)}"', header) is not None
         )
-        if needs_named or var_name == "cls":
+        if needs_named or var_name == 'cls':
             # Choose a stable variable name
-            var_name = f"{bind_name[0].lower()}{bind_name[1:]}_cls" if bind_name else "cls"
+            var_name = f'{bind_name[0].lower()}{bind_name[1:]}_cls' if bind_name else 'cls'
             # Avoid keywords / collisions
-            if var_name in ("class_cls",):
-                var_name = "cls"
+            if var_name in ('class_cls',):
+                var_name = 'cls'
             old_ctor = text[idx : end_ctor + 1]
             # Build named declaration
             # Extract template args from py::class_<...>
-            tm = re.match(r"(py::class_<[^>]*>)", old_ctor)
+            tm = re.match(r'(py::class_<[^>]*>)', old_ctor)
             if not tm:
                 return text, False
             named = f'{tm.group(1)} {var_name}(m, "{bind_name}");'
@@ -487,40 +484,40 @@ def apply_docstring_to_pybind(
             # Recompute insert_at after named decl
             insert_at = idx + len(named)
             j = insert_at
-            while j < len(text) and text[j] in " \t":
+            while j < len(text) and text[j] in ' \t':
                 j += 1
             # If chaining `.def` follows immediately, insert `var_name\n` before it later via doc insert
-            if j < len(text) and text[j] == ".":
+            if j < len(text) and text[j] == '.':
                 # Will insert doc then need `var_name` before `.def` — handle below
                 pass
         else:
             insert_at = end_ctor + 1
             j = insert_at
-            while j < len(text) and text[j] in " \t":
+            while j < len(text) and text[j] in ' \t':
                 j += 1
-            if j < len(text) and text[j] == ";":
+            if j < len(text) and text[j] == ';':
                 insert_at = j + 1
 
-        next_nl = text.find("\n", insert_at)
-        indent = "    "
+        next_nl = text.find('\n', insert_at)
+        indent = '    '
         if next_nl >= 0:
             rest = text[next_nl + 1 :]
-            m_ind = re.match(r"([ \t]*)\S", rest)
+            m_ind = re.match(r'([ \t]*)\S', rest)
             if m_ind:
-                indent = m_ind.group(1) or "    "
+                indent = m_ind.group(1) or '    '
         block = format_pydoc(doc, indent)
-        insertion = f"\n{indent}{var_name}.doc() = {block[len(indent):]};\n"
+        insertion = f'\n{indent}{var_name}.doc() = {block[len(indent) :]};\n'
         # If the next token is a chained `.def`, prefix with `var_name`
         k = insert_at + len(insertion)
-        while k < len(text) and text[k] in " \t\n\r":
+        while k < len(text) and text[k] in ' \t\n\r':
             k += 1
         new_text = text[:insert_at] + insertion + text[insert_at:]
         # After insertion, if we see `.def` without receiver, add var_name
         k2 = insert_at + len(insertion)
-        while k2 < len(new_text) and new_text[k2] in " \t\n\r":
+        while k2 < len(new_text) and new_text[k2] in ' \t\n\r':
             k2 += 1
-        if new_text.startswith(".def", k2) or new_text.startswith(".def_", k2):
-            new_text = new_text[:k2] + f"{var_name}\n{indent}  " + new_text[k2:]
+        if new_text.startswith('.def', k2) or new_text.startswith('.def_', k2):
+            new_text = new_text[:k2] + f'{var_name}\n{indent}  ' + new_text[k2:]
         return new_text, True
 
     # Methods / properties / free functions
@@ -537,10 +534,10 @@ def apply_docstring_to_pybind(
         chunk = text[start : end + 1]
         if docstring_present(doc, chunk):
             continue
-        line_start = text.rfind("\n", 0, end) + 1
-        indent = re.match(r"[ \t]*", text[line_start:end]).group(0) or "      "
+        line_start = text.rfind('\n', 0, end) + 1
+        indent = re.match(r'[ \t]*', text[line_start:end]).group(0) or '      '
         block = format_pydoc(doc, indent)
-        insertion = ",\n" + block
+        insertion = ',\n' + block
         return text[:end] + insertion + text[end:], True
     return text, False
 
@@ -548,24 +545,22 @@ def apply_docstring_to_pybind(
 def find_cpp_function_body_start(cpp_text: str, qualname: str) -> int | None:
     """Return index of '{' opening the function body for Class::method or free function."""
     candidates: list[str] = []
-    if "." in qualname:
-        class_name, method = qualname.split(".", 1)
-        if method == "__init__":
+    if '.' in qualname:
+        class_name, method = qualname.split('.', 1)
+        if method == '__init__':
             # constructors: Class::Class(
-            candidates.append(rf"\b{re.escape(class_name)}\s*::\s*{re.escape(class_name)}\s*\(")
+            candidates.append(rf'\b{re.escape(class_name)}\s*::\s*{re.escape(class_name)}\s*\(')
         else:
             methods = [method] + METHOD_NAME_ALIASES.get(method, [])
             for meth in methods:
                 if not meth:
                     continue
-                candidates.append(
-                    rf"\b{re.escape(class_name)}\s*::\s*{re.escape(meth)}\s*\("
-                )
+                candidates.append(rf'\b{re.escape(class_name)}\s*::\s*{re.escape(meth)}\s*\(')
     else:
         methods = [qualname] + METHOD_NAME_ALIASES.get(qualname, [])
         for meth in methods:
             if meth:
-                candidates.append(rf"\b{re.escape(meth)}\s*\(")
+                candidates.append(rf'\b{re.escape(meth)}\s*\(')
 
     for pat in candidates:
         for m in re.finditer(pat, cpp_text):
@@ -574,15 +569,15 @@ def find_cpp_function_body_start(cpp_text: str, qualname: str) -> int | None:
             depth = 0
             i = 0
             while i < len(rest):
-                if rest[i] == "(":
+                if rest[i] == '(':
                     depth += 1
-                elif rest[i] == ")":
+                elif rest[i] == ')':
                     depth -= 1
                     if depth == 0:
                         after = rest[i + 1 : i + 200]
                         # skip override/const/final/noexcept/try
                         bm = re.search(
-                            r"(?:(?:const|override|final|noexcept|volatile|&\s*&?)\s*)*\{",
+                            r'(?:(?:const|override|final|noexcept|volatile|&\s*&?)\s*)*\{',
                             after,
                         )
                         if bm:
@@ -593,39 +588,37 @@ def find_cpp_function_body_start(cpp_text: str, qualname: str) -> int | None:
 
 
 def make_hint_block(qualname: str, comments: list[CommentItem], indent: str) -> str:
-    lines = [f"{indent}// --- hints from Python {qualname} ---"]
+    lines = [f'{indent}// --- hints from Python {qualname} ---']
     seen = set()
     for c in comments:
-        t = c.text.lstrip("#").strip()
+        t = c.text.lstrip('#').strip()
         # convert to // comment
         key = normalize_text(t)
         if key in seen:
             continue
         seen.add(key)
-        lines.append(f"{indent}// {t}")
-    lines.append(f"{indent}// ---")
-    return "\n".join(lines) + "\n"
+        lines.append(f'{indent}// {t}')
+    lines.append(f'{indent}// ---')
+    return '\n'.join(lines) + '\n'
 
 
-def apply_hints_to_cpp(
-    path: str, text: str, qualname: str, missing_comments: list[CommentItem]
-) -> tuple[str, bool]:
+def apply_hints_to_cpp(path: str, text: str, qualname: str, missing_comments: list[CommentItem]) -> tuple[str, bool]:
     if not missing_comments:
         return text, False
     # Skip if hint block already present
-    marker = f"hints from Python {qualname}"
+    marker = f'hints from Python {qualname}'
     if marker in text:
         return text, False
 
     brace_idx = find_cpp_function_body_start(text, qualname)
     if brace_idx is None:
         return text, False
-    nl = text.find("\n", brace_idx)
+    nl = text.find('\n', brace_idx)
     if nl < 0:
         return text, False
     rest = text[nl + 1 :]
-    m_ind = re.match(r"([ \t]*)\S", rest)
-    indent = m_ind.group(1) if m_ind else "    "
+    m_ind = re.match(r'([ \t]*)\S', rest)
+    indent = m_ind.group(1) if m_ind else '    '
     block = make_hint_block(qualname, missing_comments, indent)
     return text[: nl + 1] + block + text[nl + 1 :], True
 
@@ -644,7 +637,7 @@ class AuditResult:
 def audit_module(mod: ModuleMap, orig_root: Path) -> list[AuditResult]:
     py_path = orig_root / mod.py
     if not py_path.is_file():
-        print(f"WARNING: missing {py_path}", file=sys.stderr)
+        print(f'WARNING: missing {py_path}', file=sys.stderr)
         return []
     symbols = parse_python_module(py_path)
     pybind_files = read_files(mod.pybind)
@@ -656,52 +649,46 @@ def audit_module(mod: ModuleMap, orig_root: Path) -> list[AuditResult]:
     for sym in symbols:
         # Docstring status
         if not sym.docstring or not sym.docstring.strip():
-            doc_status = "N/A"
+            doc_status = 'N/A'
         else:
             bound = False
-            if sym.kind == "class":
+            if sym.kind == 'class':
                 bound = bool(find_class_binding(pybind_text, sym.bind_name or sym.qualname))
             else:
-                owner = sym.class_name or ""
+                owner = sym.class_name or ''
                 if owner:
-                    bound = bool(
-                        find_method_def_for_class(pybind_text, owner, sym.bind_name or "")
-                    )
+                    bound = bool(find_method_def_for_class(pybind_text, owner, sym.bind_name or ''))
                 if not bound:
                     # inherited binding on a base class (.def name only)
-                    bound = bool(find_def_sites(pybind_text, sym.bind_name or ""))
-            if not bound and (sym.bind_name or "").startswith("_"):
-                if sym.qualname.split(".")[-1] in cpp_text:
-                    doc_status = "N/A"
+                    bound = bool(find_def_sites(pybind_text, sym.bind_name or ''))
+            if not bound and (sym.bind_name or '').startswith('_'):
+                if sym.qualname.split('.')[-1] in cpp_text:
+                    doc_status = 'N/A'
                 else:
-                    doc_status = "NO_BINDING"
+                    doc_status = 'NO_BINDING'
             elif not bound:
-                doc_status = "NO_BINDING"
+                doc_status = 'NO_BINDING'
             elif docstring_present(sym.docstring, pybind_text):
-                doc_status = "PRESENT"
+                doc_status = 'PRESENT'
             else:
                 # Bound on this class specifically without docstring?
-                owner = sym.class_name or (sym.bind_name if sym.kind == "class" else "")
-                if sym.kind == "class":
-                    doc_status = "MISSING"
-                elif owner and find_method_def_for_class(
-                    pybind_text, owner, sym.bind_name or ""
-                ):
+                owner = sym.class_name or (sym.bind_name if sym.kind == 'class' else '')
+                if sym.kind == 'class':
+                    doc_status = 'MISSING'
+                elif owner and find_method_def_for_class(pybind_text, owner, sym.bind_name or ''):
                     # Check if those sites lack pydoc
-                    sites = find_method_def_for_class(
-                        pybind_text, owner, sym.bind_name or ""
-                    )
+                    sites = find_method_def_for_class(pybind_text, owner, sym.bind_name or '')
                     if any(not hp for _, _, hp in sites):
-                        doc_status = "MISSING"
+                        doc_status = 'MISSING'
                     else:
-                        doc_status = "PRESENT"
+                        doc_status = 'PRESENT'
                 else:
                     # Only inherited base binding — treat as present if base has any doc,
                     # else MISSING_INHERITED (report as MISSING only if no doc at all)
-                    if docstring_present(sym.docstring.split("\n")[0], pybind_text):
-                        doc_status = "PRESENT"
+                    if docstring_present(sym.docstring.split('\n')[0], pybind_text):
+                        doc_status = 'PRESENT'
                     else:
-                        doc_status = "INHERITED"  # docstring lives on base binding / absent
+                        doc_status = 'INHERITED'  # docstring lives on base binding / absent
 
         missing_c = []
         present_c = []
@@ -731,61 +718,59 @@ def write_report(results: list[AuditResult], path: Path) -> None:
         by_mod[r.module_py].append(r)
 
     lines = [
-        "# Comment / docstring recovery report",
-        "",
-        "Generated by `scripts/recover_py_comments.py`.",
-        "",
+        '# Comment / docstring recovery report',
+        '',
+        'Generated by `scripts/recover_py_comments.py`.',
+        '',
     ]
-    total_doc_missing = sum(1 for r in results if r.doc_status == "MISSING")
-    total_doc_present = sum(1 for r in results if r.doc_status == "PRESENT")
-    total_doc_inherited = sum(1 for r in results if r.doc_status == "INHERITED")
+    total_doc_missing = sum(1 for r in results if r.doc_status == 'MISSING')
+    total_doc_present = sum(1 for r in results if r.doc_status == 'PRESENT')
+    total_doc_inherited = sum(1 for r in results if r.doc_status == 'INHERITED')
     total_c_missing = sum(len(r.missing_comments) for r in results)
     total_c_present = sum(len(r.present_comments) for r in results)
     lines += [
-        "## Summary",
-        "",
-        f"- Docstrings PRESENT: **{total_doc_present}**",
-        f"- Docstrings MISSING: **{total_doc_missing}**",
-        f"- Docstrings INHERITED (bound only on base): **{total_doc_inherited}**",
-        f"- Comments PRESENT: **{total_c_present}**",
-        f"- Comments MISSING: **{total_c_missing}**",
-        "",
+        '## Summary',
+        '',
+        f'- Docstrings PRESENT: **{total_doc_present}**',
+        f'- Docstrings MISSING: **{total_doc_missing}**',
+        f'- Docstrings INHERITED (bound only on base): **{total_doc_inherited}**',
+        f'- Comments PRESENT: **{total_c_present}**',
+        f'- Comments MISSING: **{total_c_missing}**',
+        '',
     ]
 
     for mod, items in by_mod.items():
-        lines += [f"## `{mod}`", ""]
-        doc_miss = [r for r in items if r.doc_status == "MISSING"]
+        lines += [f'## `{mod}`', '']
+        doc_miss = [r for r in items if r.doc_status == 'MISSING']
         if doc_miss:
-            lines += ["### Missing docstrings", ""]
+            lines += ['### Missing docstrings', '']
             for r in doc_miss:
-                first = (r.symbol.docstring or "").strip().splitlines()[0][:80]
-                lines.append(
-                    f"- `{r.symbol.qualname}` ({r.symbol.kind}, L{r.symbol.lineno}): {first!r}"
-                )
-                lines.append(f"  - pybind: {', '.join(r.pybind_files)}")
-            lines.append("")
+                first = (r.symbol.docstring or '').strip().splitlines()[0][:80]
+                lines.append(f'- `{r.symbol.qualname}` ({r.symbol.kind}, L{r.symbol.lineno}): {first!r}')
+                lines.append(f'  - pybind: {", ".join(r.pybind_files)}')
+            lines.append('')
 
         c_miss = [r for r in items if r.missing_comments]
         if c_miss:
-            lines += ["### Missing comments", ""]
+            lines += ['### Missing comments', '']
             for r in c_miss:
                 lines.append(
-                    f"- `{r.symbol.qualname}` ({len(r.missing_comments)} missing / "
-                    f"{len(r.present_comments)} present) → cpp: {', '.join(r.cpp_files)}"
+                    f'- `{r.symbol.qualname}` ({len(r.missing_comments)} missing / '
+                    f'{len(r.present_comments)} present) → cpp: {", ".join(r.cpp_files)}'
                 )
                 for c in r.missing_comments[:40]:
-                    lines.append(f"  - L{c.lineno}: `{c.text[:100]}`")
+                    lines.append(f'  - L{c.lineno}: `{c.text[:100]}`')
                 if len(r.missing_comments) > 40:
-                    lines.append(f"  - … +{len(r.missing_comments) - 40} more")
-            lines.append("")
+                    lines.append(f'  - … +{len(r.missing_comments) - 40} more')
+            lines.append('')
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"Wrote {path}")
+    path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    print(f'Wrote {path}')
     print(
-        f"Summary: docs missing={total_doc_missing} present={total_doc_present} "
-        f"inherited={total_doc_inherited}; "
-        f"comments missing={total_c_missing} present={total_c_present}"
+        f'Summary: docs missing={total_doc_missing} present={total_doc_present} '
+        f'inherited={total_doc_inherited}; '
+        f'comments missing={total_c_missing} present={total_c_present}'
     )
 
 
@@ -812,10 +797,10 @@ def cmd_apply_docstrings(args: argparse.Namespace) -> int:
                 continue
             # Apply for MISSING, and also retry PRESENT/INHERITED in case class-owned
             # binding still lacks an attached R"pydoc (idempotent).
-            if r.doc_status in ("N/A", "NO_BINDING"):
+            if r.doc_status in ('N/A', 'NO_BINDING'):
                 continue
             owners: list[str | None]
-            if sym.kind == "class":
+            if sym.kind == 'class':
                 owners = [sym.bind_name]
             elif sym.class_name:
                 owners = [sym.class_name]
@@ -829,27 +814,27 @@ def cmd_apply_docstrings(args: argparse.Namespace) -> int:
                     new_text, changed = apply_docstring_to_pybind(
                         p,
                         text,
-                        sym.bind_name or sym.qualname.split(".")[-1],
-                        sym.docstring or "",
-                        is_class=(sym.kind == "class" and owner == sym.bind_name),
-                        class_name=owner if sym.kind != "class" else owner,
+                        sym.bind_name or sym.qualname.split('.')[-1],
+                        sym.docstring or '',
+                        is_class=(sym.kind == 'class' and owner == sym.bind_name),
+                        class_name=owner if sym.kind != 'class' else owner,
                     )
                     if changed:
                         changed_files[p] = new_text
                         file_texts[p] = new_text
                         applied_any = True
                         n_applied += 1
-                        print(f"  + docstring {sym.qualname} → {p} (as {owner})")
-            if not applied_any and r.doc_status == "MISSING":
+                        print(f'  + docstring {sym.qualname} → {p} (as {owner})')
+            if not applied_any and r.doc_status == 'MISSING':
                 n_skip += 1
-                print(f"  ! could not place docstring for {sym.qualname}")
+                print(f'  ! could not place docstring for {sym.qualname}')
     if args.dry_run:
-        print(f"DRY-RUN: would update {len(changed_files)} files, applied={n_applied}, skip={n_skip}")
+        print(f'DRY-RUN: would update {len(changed_files)} files, applied={n_applied}, skip={n_skip}')
         return 0
     for p, text in changed_files.items():
-        (REPO / p).write_text(text, encoding="utf-8")
-        print(f"Updated {p}")
-    print(f"Applied {n_applied} docstrings; skipped {n_skip}")
+        (REPO / p).write_text(text, encoding='utf-8')
+        print(f'Updated {p}')
+    print(f'Applied {n_applied} docstrings; skipped {n_skip}')
     return 0
 
 
@@ -863,44 +848,42 @@ def build_doc_index(orig_root: Path, mods: list[ModuleMap]) -> dict[tuple[str | 
         for sym in parse_python_module(py_path):
             if not sym.docstring or not sym.docstring.strip():
                 continue
-            if sym.kind == "class":
-                index[(sym.bind_name, "")] = sym.docstring  # class doc under ("Class", "")
+            if sym.kind == 'class':
+                index[(sym.bind_name, '')] = sym.docstring  # class doc under ("Class", "")
             else:
-                index[(sym.class_name, sym.bind_name or "")] = sym.docstring
+                index[(sym.class_name, sym.bind_name or '')] = sym.docstring
     return index
 
 
 # Subclass → Python base class names to fall back to for method docs
 DOC_BASE_CLASSES: dict[str, list[str]] = {
-    "AbelianBackend": ["TensorBackend"],
-    "NoSymmetryBackend": ["TensorBackend"],
-    "FusionTreeBackend": ["TensorBackend"],
-    "AbelianLegPipe": ["LegPipe", "Space", "Leg"],
-    "LegPipe": ["Space", "Leg"],
-    "ElementarySpace": ["Leg", "Space"],
-    "TensorProduct": ["Space"],
-    "Space": ["Leg"],
-    "Symmetry": ["BaseSymmetry", "SymmetryFactor"],
-    "SymmetryFactor": ["BaseSymmetry"],
-    "Group": ["SymmetryFactor", "BaseSymmetry"],
-    "AbelianGroup": ["Group", "SymmetryFactor", "BaseSymmetry"],
-    "SUN": ["Group", "SymmetryFactor", "BaseSymmetry"],
-    "SU2": ["Group", "SymmetryFactor", "BaseSymmetry"],
-    "U1": ["AbelianGroup", "Group", "SymmetryFactor", "BaseSymmetry"],
-    "ZN": ["AbelianGroup", "Group", "SymmetryFactor", "BaseSymmetry"],
-    "NoSymmetry": ["AbelianGroup", "Group", "SymmetryFactor", "BaseSymmetry"],
-    "TreePairMapping": ["TensorMapping"],
-    "FactorizedTreeMapping": ["TensorMapping"],
+    'AbelianBackend': ['TensorBackend'],
+    'NoSymmetryBackend': ['TensorBackend'],
+    'FusionTreeBackend': ['TensorBackend'],
+    'AbelianLegPipe': ['LegPipe', 'Space', 'Leg'],
+    'LegPipe': ['Space', 'Leg'],
+    'ElementarySpace': ['Leg', 'Space'],
+    'TensorProduct': ['Space'],
+    'Space': ['Leg'],
+    'Symmetry': ['BaseSymmetry', 'SymmetryFactor'],
+    'SymmetryFactor': ['BaseSymmetry'],
+    'Group': ['SymmetryFactor', 'BaseSymmetry'],
+    'AbelianGroup': ['Group', 'SymmetryFactor', 'BaseSymmetry'],
+    'SUN': ['Group', 'SymmetryFactor', 'BaseSymmetry'],
+    'SU2': ['Group', 'SymmetryFactor', 'BaseSymmetry'],
+    'U1': ['AbelianGroup', 'Group', 'SymmetryFactor', 'BaseSymmetry'],
+    'ZN': ['AbelianGroup', 'Group', 'SymmetryFactor', 'BaseSymmetry'],
+    'NoSymmetry': ['AbelianGroup', 'Group', 'SymmetryFactor', 'BaseSymmetry'],
+    'TreePairMapping': ['TensorMapping'],
+    'FactorizedTreeMapping': ['TensorMapping'],
 }
 
 
-def lookup_doc(
-    index: dict[tuple[str | None, str], str], class_name: str | None, method: str
-) -> str | None:
+def lookup_doc(index: dict[tuple[str | None, str], str], class_name: str | None, method: str) -> str | None:
     if class_name is None:
         return index.get((None, method))
-    if method == "":
-        return index.get((class_name, ""))
+    if method == '':
+        return index.get((class_name, ''))
     doc = index.get((class_name, method))
     if doc:
         return doc
@@ -919,25 +902,19 @@ def iter_class_regions(text: str) -> list[tuple[str, int, int]]:
     for i, m in enumerate(matches):
         start = m.start()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        regions.append((m.group("name"), start, end))
+        regions.append((m.group('name'), start, end))
     return regions
 
 
-def fill_docs_in_region(
-    text: str, region_start: int, region_end: int, class_name: str, index
-) -> tuple[str, int]:
+def fill_docs_in_region(text: str, region_start: int, region_end: int, class_name: str, index) -> tuple[str, int]:
     """Fill missing pydocs for .def bindings inside [region_start, region_end)."""
     region = text[region_start:region_end]
     # class docstring via .doc() or ctor
     n = 0
-    class_doc = lookup_doc(index, class_name, "")
-    if class_doc and not (
-        f'.doc() = {PYDOC_START}' in region[:1500] or region[:800].count(PYDOC_START) > 0
-    ):
+    class_doc = lookup_doc(index, class_name, '')
+    if class_doc and not (f'.doc() = {PYDOC_START}' in region[:1500] or region[:800].count(PYDOC_START) > 0):
         # try apply class doc on full text via apply_docstring
-        new_text, changed = apply_docstring_to_pybind(
-            "", text, class_name, class_doc, True, class_name
-        )
+        new_text, changed = apply_docstring_to_pybind('', text, class_name, class_doc, True, class_name)
         if changed:
             text = new_text
             n += 1
@@ -954,12 +931,12 @@ def fill_docs_in_region(
         r'\.def(?:_static|_prop_ro|_property_readonly|_readwrite|_readonly)?\(\s*"(?P<name>[^"]+)"',
         region,
     ):
-        name = m.group("name")
-        if name.startswith("__") and name.endswith("__"):
+        name = m.group('name')
+        if name.startswith('__') and name.endswith('__'):
             continue  # skip most dunders
         abs_start = region_start + m.start()
         # find end of this def call in full text
-        open_paren = text.find("(", abs_start)
+        open_paren = text.find('(', abs_start)
         depth = 0
         i = open_paren
         has_pydoc = False
@@ -970,9 +947,9 @@ def fill_docs_in_region(
                 i = j + len(PYDOC_END) if j >= 0 else i + 1
                 continue
             ch = text[i]
-            if ch == "(":
+            if ch == '(':
                 depth += 1
-            elif ch == ")":
+            elif ch == ')':
                 depth -= 1
                 if depth == 0:
                     sites_abs.append((abs_start, i, name, has_pydoc))
@@ -985,13 +962,13 @@ def fill_docs_in_region(
         doc = lookup_doc(index, class_name, name)
         if not doc:
             continue
-        line_start = text.rfind("\n", 0, end) + 1
-        indent = re.match(r"[ \t]*", text[line_start:end]).group(0) or "      "
+        line_start = text.rfind('\n', 0, end) + 1
+        indent = re.match(r'[ \t]*', text[line_start:end]).group(0) or '      '
         block = format_pydoc(doc, indent)
-        insertion = ",\n" + block
+        insertion = ',\n' + block
         text = text[:end] + insertion + text[end:]
         n += 1
-        print(f"  + fill {class_name}.{name}")
+        print(f'  + fill {class_name}.{name}')
     return text, n
 
 
@@ -1011,7 +988,7 @@ def cmd_fill_bound_docs(args: argparse.Namespace) -> int:
     changed_files: dict[str, str] = {}
     total = 0
     for p in pybind_paths:
-        text = (REPO / p).read_text(encoding="utf-8") if (REPO / p).is_file() else ""
+        text = (REPO / p).read_text(encoding='utf-8') if (REPO / p).is_file() else ''
         if not text:
             continue
         n_file = 0
@@ -1021,11 +998,9 @@ def cmd_fill_bound_docs(args: argparse.Namespace) -> int:
             text, n = fill_docs_in_region(text, start, end, class_name, index)
             n_file += n
         # Module-level m.def("...")
-        for m in reversed(
-            list(re.finditer(r'\bm\.def\(\s*"(?P<name>[^"]+)"', text))
-        ):
-            name = m.group("name")
-            open_paren = text.find("(", m.start())
+        for m in reversed(list(re.finditer(r'\bm\.def\(\s*"(?P<name>[^"]+)"', text))):
+            name = m.group('name')
+            open_paren = text.find('(', m.start())
             depth = 0
             i = open_paren
             has_pydoc = False
@@ -1035,9 +1010,9 @@ def cmd_fill_bound_docs(args: argparse.Namespace) -> int:
                     j = text.find(PYDOC_END, i)
                     i = j + len(PYDOC_END) if j >= 0 else i + 1
                     continue
-                if text[i] == "(":
+                if text[i] == '(':
                     depth += 1
-                elif text[i] == ")":
+                elif text[i] == ')':
                     depth -= 1
                     if depth == 0:
                         break
@@ -1049,24 +1024,24 @@ def cmd_fill_bound_docs(args: argparse.Namespace) -> int:
             doc = lookup_doc(index, None, name)
             if not doc:
                 continue
-            line_start = text.rfind("\n", 0, i) + 1
-            indent = re.match(r"[ \t]*", text[line_start:i]).group(0) or "    "
+            line_start = text.rfind('\n', 0, i) + 1
+            indent = re.match(r'[ \t]*', text[line_start:i]).group(0) or '    '
             block = format_pydoc(doc, indent)
-            text = text[:i] + ",\n" + block + text[i:]
+            text = text[:i] + ',\n' + block + text[i:]
             n_file += 1
-            print(f"  + fill module.{name} → {p}")
+            print(f'  + fill module.{name} → {p}')
         if n_file:
             changed_files[p] = text
             total += n_file
-            print(f"  ({n_file} fills in {p})")
+            print(f'  ({n_file} fills in {p})')
 
     if args.dry_run:
-        print(f"DRY-RUN: would update {len(changed_files)} files, fills={total}")
+        print(f'DRY-RUN: would update {len(changed_files)} files, fills={total}')
         return 0
     for p, text in changed_files.items():
-        (REPO / p).write_text(text, encoding="utf-8")
-        print(f"Updated {p}")
-    print(f"Filled {total} docstrings across {len(changed_files)} files")
+        (REPO / p).write_text(text, encoding='utf-8')
+        print(f'Updated {p}')
+    print(f'Filled {total} docstrings across {len(changed_files)} files')
     return 0
 
 
@@ -1081,37 +1056,29 @@ def cmd_apply_hints(args: argparse.Namespace) -> int:
     for mod in mods:
         results = audit_module(mod, Path(args.orig))
         file_texts = read_files(mod.cpp)
-        primary_cpp = next((p for p in mod.cpp if p.endswith(".cpp")), None)
+        primary_cpp = next((p for p in mod.cpp if p.endswith('.cpp')), None)
         for r in results:
             comments = r.symbol.comments
             if not comments:
                 continue
             # Skip if already have a dedicated hint block anywhere in mapped cpp
-            marker = f"hints from Python {r.symbol.qualname}"
-            combined_now = "\n".join(
-                changed_files.get(p, file_texts.get(p, "")) for p in mod.cpp
-            )
+            marker = f'hints from Python {r.symbol.qualname}'
+            combined_now = '\n'.join(changed_files.get(p, file_texts.get(p, '')) for p in mod.cpp)
             if marker in combined_now:
                 continue
-            cpp_paths = [p for p in mod.cpp if p.endswith(".cpp")] + [
-                p for p in mod.cpp if not p.endswith(".cpp")
-            ]
+            cpp_paths = [p for p in mod.cpp if p.endswith('.cpp')] + [p for p in mod.cpp if not p.endswith('.cpp')]
             placed = False
             for p in cpp_paths:
-                text = changed_files.get(p, file_texts.get(p, ""))
+                text = changed_files.get(p, file_texts.get(p, ''))
                 if not text:
                     continue
-                new_text, changed = apply_hints_to_cpp(
-                    p, text, r.symbol.qualname, comments
-                )
+                new_text, changed = apply_hints_to_cpp(p, text, r.symbol.qualname, comments)
                 if changed:
                     changed_files[p] = new_text
                     file_texts[p] = new_text
                     n_applied += 1
                     placed = True
-                    print(
-                        f"  + hints {r.symbol.qualname} → {p} ({len(comments)} comments)"
-                    )
+                    print(f'  + hints {r.symbol.qualname} → {p} ({len(comments)} comments)')
                     break
             if not placed:
                 # Only orphan comments that are still truly missing from cpp
@@ -1120,80 +1087,76 @@ def cmd_apply_hints(args: argparse.Namespace) -> int:
                     continue
                 n_skip += 1
                 if args.verbose:
-                    print(f"  ! could not place hints for {r.symbol.qualname}")
+                    print(f'  ! could not place hints for {r.symbol.qualname}')
                 if primary_cpp:
                     leftovers[primary_cpp].append((r.symbol.qualname, still))
 
     # Append leftover hint catalogs at end of primary cpp files
     for p, items in leftovers.items():
-        text = changed_files.get(p, (REPO / p).read_text(encoding="utf-8"))
-        if "ORPHANED PYTHON COMMENT HINTS" in text:
+        text = changed_files.get(p, (REPO / p).read_text(encoding='utf-8'))
+        if 'ORPHANED PYTHON COMMENT HINTS' in text:
             continue
         block_lines = [
-            "",
-            "// =============================================================================",
-            "// ORPHANED PYTHON COMMENT HINTS (no matching C++ function body found)",
-            "// =============================================================================",
+            '',
+            '// =============================================================================',
+            '// ORPHANED PYTHON COMMENT HINTS (no matching C++ function body found)',
+            '// =============================================================================',
         ]
         for qualname, comments in items:
-            block_lines.append(f"// --- {qualname} ---")
+            block_lines.append(f'// --- {qualname} ---')
             seen = set()
             for c in comments:
-                t = c.text.lstrip("#").strip()
+                t = c.text.lstrip('#').strip()
                 key = normalize_text(t)
                 if key in seen:
                     continue
                 seen.add(key)
-                block_lines.append(f"// {t}")
-        block_lines.append(
-            "// ============================================================================="
-        )
-        text = text.rstrip() + "\n" + "\n".join(block_lines) + "\n"
+                block_lines.append(f'// {t}')
+        block_lines.append('// =============================================================================')
+        text = text.rstrip() + '\n' + '\n'.join(block_lines) + '\n'
         changed_files[p] = text
-        print(f"  + orphaned hints catalog → {p} ({len(items)} symbols)")
+        print(f'  + orphaned hints catalog → {p} ({len(items)} symbols)')
 
     if args.dry_run:
-        print(
-            f"DRY-RUN: would update {len(changed_files)} files, applied={n_applied}, skip={n_skip}"
-        )
+        print(f'DRY-RUN: would update {len(changed_files)} files, applied={n_applied}, skip={n_skip}')
         return 0
     for p, text in changed_files.items():
-        (REPO / p).write_text(text, encoding="utf-8")
-        print(f"Updated {p}")
-    print(f"Applied hint blocks to {n_applied} symbols; skipped {n_skip}")
+        (REPO / p).write_text(text, encoding='utf-8')
+        print(f'Updated {p}')
+    print(f'Applied hint blocks to {n_applied} symbols; skipped {n_skip}')
     return 0
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--map", default=str(DEFAULT_MAP))
-    ap.add_argument("--orig", default=str(DEFAULT_ORIG))
-    ap.add_argument("--report", default=str(DEFAULT_REPORT))
-    sub = ap.add_subparsers(dest="cmd", required=True)
+    ap.add_argument('--map', default=str(DEFAULT_MAP))
+    ap.add_argument('--orig', default=str(DEFAULT_ORIG))
+    ap.add_argument('--report', default=str(DEFAULT_REPORT))
+    sub = ap.add_subparsers(dest='cmd', required=True)
 
-    p_report = sub.add_parser("report", help="Write markdown audit report")
+    p_report = sub.add_parser('report', help='Write markdown audit report')
     p_report.set_defaults(func=cmd_report)
 
-    p_doc = sub.add_parser("apply-docstrings", help="Insert missing R\"pydoc into pybind files")
-    p_doc.add_argument("--dry-run", action="store_true")
+    p_doc = sub.add_parser('apply-docstrings', help='Insert missing R"pydoc into pybind files')
+    p_doc.add_argument('--dry-run', action='store_true')
     p_doc.set_defaults(func=cmd_apply_docstrings)
 
     p_fill = sub.add_parser(
-        "fill-bound-docs",
-        help="Fill R\"pydoc on all bound defs lacking docs (uses base-class docs)",
+        'fill-bound-docs',
+        help='Fill R"pydoc on all bound defs lacking docs (uses base-class docs)',
     )
-    p_fill.add_argument("--dry-run", action="store_true")
+    p_fill.add_argument('--dry-run', action='store_true')
     p_fill.set_defaults(func=cmd_fill_bound_docs)
 
-    p_hints = sub.add_parser("apply-hints", help="Insert function-top hint blocks for missing comments")
-    p_hints.add_argument("--dry-run", action="store_true")
-    p_hints.add_argument("-v", "--verbose", action="store_true")
+    p_hints = sub.add_parser('apply-hints', help='Insert function-top hint blocks for missing comments')
+    p_hints.add_argument('--dry-run', action='store_true')
+    p_hints.add_argument('-v', '--verbose', action='store_true')
     p_hints.set_defaults(func=cmd_apply_hints)
 
     args = ap.parse_args()
     return args.func(args)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     # Fix duplicate visit_FunctionDef from editing — clean class at runtime if needed
     sys.exit(main())

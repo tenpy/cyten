@@ -324,7 +324,8 @@ FusionTree::FusionTree(Symmetry::Ptr symmetry,
     // N flags: is there a Z isomorphism above the uncoupled sector
     // N - 2 internal sectors
     // N - 1 multiplicity labels; all 0 per default
-    // empty lists are by default converted to arrays with dtype=float, which leads to issues in __hash__
+    // empty lists are by default converted to arrays with dtype=float, which leads to issues in
+    // __hash__
     // ---
     // OPTIMIZE demand SectorArray / ndarray (not list) and skip conversions?
     // C++ ctor already takes SectorArray; Python bindings still accept/convert lists.

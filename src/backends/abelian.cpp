@@ -2905,9 +2905,9 @@ AbelianBackend::partial_compose(py::object a,
                                 TensorProduct::Ptr /*new_domain*/)
 {
     // --- hints from Python AbelianBackend.partial_compose ---
-    // construct new data and spaces with the legs to be contracted at the end of a and the beginning of b
-    // the computation of these modified tensorproducts cannot be avoided
-    // since they may differ from the ones computed in _tensors.py by bending
+    // construct new data and spaces with the legs to be contracted at the end of a and the
+    // beginning of b the computation of these modified tensorproducts cannot be avoided since they
+    // may differ from the ones computed in _tensors.py by bending
     // ---
     auto a_data0 = data_from_tensor(a);
     auto b_data0 = data_from_tensor(b);

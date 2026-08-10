@@ -1726,13 +1726,12 @@ FusionTreeBackend::from_dense_block(BlockBackend::BlockPtr a,
                                     float64 tol)
 {
     // --- hints from Python FusionTreeBackend.from_dense_block ---
-    // we cannot simply use cstyles as argument in combine_legs since we potentially need to deal with
-    // nested pipes with different cstyles -> choose to combine in C style and do axis permutation explicitly
-    // use inverse permutation here s.t. it the dims agree with the flat dims after permute_axes below
-    // convert to internal basis order, where the sectors are sorted and contiguous
-    // [i1,...,iJ,jK,...,j1] -> [i1,...,iJ,j1,...,jK]
-    // main loop: iterate over coupled sectors and construct the respective block.
-    // OPTIMIZE could be sth like np.empty
+    // we cannot simply use cstyles as argument in combine_legs since we potentially need to deal
+    // with nested pipes with different cstyles -> choose to combine in C style and do axis
+    // permutation explicitly use inverse permutation here s.t. it the dims agree with the flat
+    // dims after permute_axes below convert to internal basis order, where the sectors are sorted
+    // and contiguous [i1,...,iJ,jK,...,j1] -> [i1,...,iJ,j1,...,jK] main loop: iterate over
+    // coupled sectors and construct the respective block. OPTIMIZE could be sth like np.empty
     // iterate over uncoupled sectors / forest-blocks within the block
     // start row index of the current forest block
     // start column index of the current forest block
@@ -1901,10 +1900,10 @@ FusionTreeBackend::to_dense_block(py::object a)
 {
     // --- hints from Python FusionTreeBackend.to_dense_block ---
     // first build it with the flattened legs, and if there are pipes, combine at the very end
-    // build in internal basis order, is converted to public basis order in SymmetricTensor.to_dense_block
-    // build in codomain/domain leg order first, then permute legs in the end
-    // permute leg order [i1,...,iJ,j1,...,jK] -> [i1,...,iJ,jK,...,j1]
-    // need to cast to a list here since numpy arrays leads errors in the torch block backend
+    // build in internal basis order, is converted to public basis order in
+    // SymmetricTensor.to_dense_block build in codomain/domain leg order first, then permute legs
+    // in the end permute leg order [i1,...,iJ,j1,...,jK] -> [i1,...,iJ,jK,...,j1] need to cast to
+    // a list here since numpy arrays leads errors in the torch block backend
     // ---
     assert(a.attr("symmetry").attr("can_be_dropped").cast<bool>());
     auto a_data = data_from_tensor(a);
@@ -2743,11 +2742,11 @@ FusionTreeBackend::partial_compose(py::object a,
     // relevant coupled sectors for the legs that are contracted
     // we do not want to recompute the transformations for the fusion trees, so cache them here
     // the new space (of b) only has sectors incompatible with the coupled sector of a
-    // the corresponding block in b is trivial, but we only iterate over nontrivial blocks (eff_space)
-    // since this is not the original (co)domain, the slices are different
-    // parts of the multiplicities can be reused anyway
-    // reuse the tree transformations using that they only depend on the vertex sectors
-    // the Ys in the domain of tensor a fit the Xs in the codomain of tensor b
+    // the corresponding block in b is trivial, but we only iterate over nontrivial blocks
+    // (eff_space) since this is not the original (co)domain, the slices are different parts of the
+    // multiplicities can be reused anyway reuse the tree transformations using that they only
+    // depend on the vertex sectors the Ys in the domain of tensor a fit the Xs in the codomain of
+    // tensor b
     // TODO check if the complex conjugation here is correct or if we need to do it as
     // currently done in the codomain; check this when we have a symmetry with complex
     // F symbols and verify that the incorrect way actually has test cases failing
@@ -3454,9 +3453,8 @@ FusionTreeBackend::from_grid(std::vector<std::vector<py::object>> grid,
     // contiguous except in the case where contributions to the same forest block comes from
     // different operators -> reshape such that the legs along which we stack are isolated
     // goal: reshape co_domain part such that it has 3 axes:
-    // for the trees, for the multiplicity of codomain[0] / domain[-1], for all other multiplicities
-    // only the first space is different
-    // only the last space is different
+    // for the trees, for the multiplicity of codomain[0] / domain[-1], for all other
+    // multiplicities only the first space is different only the last space is different
     // ---
     auto data = unwrap(zero_data(new_codomain, new_domain, dtype, device, true));
     auto new_codomain_legs = new_codomain->flat_legs();
