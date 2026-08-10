@@ -1,5 +1,7 @@
 #include "../py_cyten_pybind11.h"
 
+#include "backends/casters.hpp"
+
 #include <cyten/backends/fusion_tree_backend.h>
 #include <cyten/block_backend/numpy.h>
 #include <cyten/block_backend/torch.h>
@@ -41,10 +43,11 @@ Data stored in a Tensor for :class:`FusionTreeBackend`.
 
 Attributes
 ----------
-block_inds : 2D array
+block_inds : BlockInds
     Indices that specify the coupled sectors of the non-zero blocks.
-    ``block_inds[n] == [i, j]`` indicates that the coupled sector for ``blocks[n]`` is given by
-    ``tensor.codomain.sector_decomposition[i] == coupled == tensor.domain.sector_decomposition[j]``.
+    Shape ``(N, 2)``. ``block_inds[n] == [i, j]`` indicates that the coupled sector for
+    ``blocks[n]`` is given by ``tensor.codomain.sector_decomposition[i] == coupled ==
+    tensor.domain.sector_decomposition[j]``.
 blocks : list of 2D Block
     The nonzero blocks, ``blocks[n]`` corresponding to ``coupled_sectors[n]``.
 dtype : Dtype
@@ -59,7 +62,7 @@ is_sorted : bool
     If ``True``, we assume they are sorted *without* checking.
 )pydoc";
 
-    cls.def(py::init([](py::array block_inds,
+    cls.def(py::init([](BlockInds block_inds,
                         std::vector<BlockBackend::BlockPtr> blocks,
                         Dtype dtype,
                         std::string device,

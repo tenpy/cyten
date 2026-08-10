@@ -1,5 +1,6 @@
 #include <cyten/backends/fusion_tree_mapping.h>
 
+#include <cyten/backends/block_inds_numpy.h>
 #include <cyten/block_backend/dtypes.h>
 #include <cyten/tools.h>
 
@@ -15,23 +16,18 @@ namespace cyten {
 namespace {
 
 py::module_
-numpy()
-{
-    return py::module_::import("numpy");
-}
-
-py::module_
 misc()
 {
     return py::module_::import("cyten.tools.misc");
 }
 
-py::array_t<int64>
-zeros_i64(py::ssize_t rows, py::ssize_t cols)
+BlockInds
+as_block_inds(py::object obj)
 {
-    auto np = numpy();
-    return np.attr("zeros")(py::make_tuple(rows, cols), py::arg("dtype") = np.attr("intp"))
-      .cast<py::array_t<int64>>();
+    if (py::isinstance<BlockInds>(obj)) {
+        return obj.cast<BlockInds>();
+    }
+    return block_inds_from_numpy(obj);
 }
 
 py::slice
@@ -91,11 +87,9 @@ collect_tree_pair_keys(TensorProduct::Ptr codomain,
             process(tup[0].cast<int64>());
         }
     } else {
-        auto bi =
-          py::array_t<int64, py::array::c_style | py::array::forcecast>::ensure(block_inds);
-        auto buf = bi.unchecked<2>();
-        for (py::ssize_t row = 0; row < buf.shape(0); ++row) {
-            process(buf(row, 0));
+        BlockInds bi = as_block_inds(block_inds);
+        for (std::size_t row = 0; row < bi.nrows(); ++row) {
+            process(bi(row, 0));
         }
     }
 }
@@ -125,11 +119,9 @@ collect_splitting_and_fusion_trees(TensorProduct::Ptr codomain,
             process(tup[0].cast<int64>());
         }
     } else {
-        auto bi =
-          py::array_t<int64, py::array::c_style | py::array::forcecast>::ensure(block_inds);
-        auto buf = bi.unchecked<2>();
-        for (py::ssize_t row = 0; row < buf.shape(0); ++row) {
-            process(buf(row, 0));
+        BlockInds bi = as_block_inds(block_inds);
+        for (std::size_t row = 0; row < bi.nrows(); ++row) {
+            process(bi(row, 0));
         }
     }
 }
@@ -489,14 +481,10 @@ TreePairMapping::transform_tensor(FusionTreeData const& data,
         blocks.push_back(block);
     }
 
-    py::array block_inds;
-    if (block_inds_rows.empty()) {
-        block_inds = zeros_i64(0, 2);
-    } else {
-        block_inds = numpy().attr("array")(block_inds_rows).cast<py::array>();
-    }
+    BlockInds block_inds =
+      block_inds_rows.empty() ? BlockInds::zeros(0, 2) : BlockInds::from_rows(block_inds_rows);
     return std::make_shared<FusionTreeData>(
-      block_inds, std::move(blocks), dtype, data.device, true);
+      std::move(block_inds), std::move(blocks), dtype, data.device, true);
 }
 
 FactorizedTreeMapping::FactorizedTreeMapping(FusionTreeMappingVariant splitting_tree_mapping_,
@@ -757,14 +745,10 @@ FactorizedTreeMapping::transform_tensor(FusionTreeData const& data,
         blocks.push_back(final_block);
     }
 
-    py::array block_inds;
-    if (block_inds_rows.empty()) {
-        block_inds = zeros_i64(0, 2);
-    } else {
-        block_inds = numpy().attr("array")(block_inds_rows).cast<py::array>();
-    }
+    BlockInds block_inds =
+      block_inds_rows.empty() ? BlockInds::zeros(0, 2) : BlockInds::from_rows(block_inds_rows);
     return std::make_shared<FusionTreeData>(
-      block_inds, std::move(blocks), dtype, data.device, true);
+      std::move(block_inds), std::move(blocks), dtype, data.device, true);
 }
 
 } // namespace cyten

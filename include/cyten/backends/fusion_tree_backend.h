@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cyten/backends/block_inds.h>
 #include <cyten/backends/tensor_backend.h>
 #include <cyten/symmetries/spaces.h>
 #include <cyten/symmetries/trees.h>
@@ -18,10 +19,10 @@ namespace cyten {
 ///
 /// Attributes
 /// ----------
-/// block_inds : 2D array
+/// block_inds : BlockInds
 ///     Indices that specify the coupled sectors of the non-zero blocks.
-///     ``block_inds[n] == [i, j]`` indicates that the coupled sector for ``blocks[n]`` is given by
-///     ``tensor.codomain.sector_decomposition[i] == coupled ==
+///     Shape ``(N, 2)``. ``block_inds[n] == [i, j]`` indicates that the coupled sector for
+///     ``blocks[n]`` is given by ``tensor.codomain.sector_decomposition[i] == coupled ==
 ///     tensor.domain.sector_decomposition[j]``.
 /// blocks : list of 2D Block
 ///     The nonzero blocks, ``blocks[n]`` corresponding to ``coupled_sectors[n]``.
@@ -41,12 +42,12 @@ class FusionTreeData : public TensorBackend::Data
     using Ptr = std::shared_ptr<FusionTreeData>;
     using CPtr = std::shared_ptr<const FusionTreeData>;
 
-    py::array block_inds;
+    BlockInds block_inds;
     std::vector<BlockBackend::BlockPtr> blocks;
     Dtype dtype;
     std::string device;
 
-    FusionTreeData(py::array block_inds,
+    FusionTreeData(BlockInds block_inds,
                    std::vector<BlockBackend::BlockPtr> blocks,
                    Dtype dtype,
                    std::string device,
