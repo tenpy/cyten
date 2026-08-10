@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace cyten {
@@ -33,8 +34,8 @@ as_shared_block_backend(py::object obj)
 void
 bind_abelian_backend_data(py::module_& m)
 {
-    py::class_<AbelianBackendData, TensorBackend::Data, py::smart_holder> cls(m,
-                                                                              "AbelianBackendData");
+    py::class_<AbelianBackendData, TensorBackend::Data, py::smart_holder> cls(
+      m, "AbelianBackendData");
     cls.doc() = R"pydoc(
 Data stored in a Tensor for :class:`AbelianBackend`.
 
@@ -107,10 +108,11 @@ is_sorted : bool
       .def_readwrite("blocks", &AbelianBackendData::blocks)
       .def_readwrite("block_inds", &AbelianBackendData::block_inds);
 
-    cls.def("get_block_num",
-            &AbelianBackendData::get_block_num,
-            py::arg("block_inds"),
-            R"pydoc(
+    cls
+      .def("get_block_num",
+           &AbelianBackendData::get_block_num,
+           py::arg("block_inds"),
+           R"pydoc(
 Return the index ``n`` of the block which matches the block_inds.
 
 I.e. such that ``all(self.block_inds[n, :] == block_inds)``.
@@ -176,6 +178,32 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
             &AbelianBackend::leg_pipe_map_incoming_block_inds,
             py::arg("pipe"),
             py::arg("incoming_block_inds"));
+
+    cls.def(
+      "partial_trace",
+      [](AbelianBackend& self,
+         py::object tensor,
+         std::vector<std::pair<int64, int64>> pairs,
+         std::vector<std::optional<int64>> levels) -> py::object {
+          auto [data, codomain, domain] =
+            self.partial_trace(tensor, std::move(pairs), std::move(levels));
+          if (!codomain && !domain) {
+              // Match Python: return (scalar, None, None) for a full trace.
+              auto abd = AbelianBackend::unwrap(data);
+              if (abd->blocks.empty()) {
+                  return py::make_tuple(
+                    self.block_backend->as_scalar(dtype::zero_scalar(abd->dtype), abd->dtype),
+                    py::none(),
+                    py::none());
+              }
+              return py::make_tuple(
+                self.block_backend->item(abd->blocks[0]), py::none(), py::none());
+          }
+          return py::make_tuple(std::move(data), std::move(codomain), std::move(domain));
+      },
+      py::arg("tensor"),
+      py::arg("pairs"),
+      py::arg("levels") = py::none());
 
     // Override static from_hdf5 (base throws NotImplemented).
     cls.def_static("from_hdf5",

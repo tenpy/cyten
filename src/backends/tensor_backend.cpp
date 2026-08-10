@@ -120,7 +120,7 @@ TensorBackend::_truncate_singular_values_selection(py::array S,
                                                    int64 chi_min,
                                                    float64 degeneracy_tol,
                                                    float64 trunc_cut,
-                                                   float64 svd_min,
+                                                   std::optional<float64> svd_min,
                                                    bool minimize_error)
 {
     // contributions ``err[i] = d[i] * S[i] ** 2`` to the error, if S[i] would be truncated.
@@ -141,8 +141,8 @@ TensorBackend::_truncate_singular_values_selection(py::array S,
     // take safe logarithm, clipping small values to log(1e-100).
     // this is only used for degeneracy tol.
     py::object ones = np.attr("ones")(py::len(S_obj));
-    py::object clipped = np.attr("choose")(
-      S_obj.attr("__le__")(1.0e-100), py::make_tuple(S_obj, ones.attr("__mul__")(1.0e-100)));
+    py::object clipped = np.attr("choose")(S_obj.attr("__le__")(1.0e-100),
+                                           py::make_tuple(S_obj, ones.attr("__mul__")(1.0e-100)));
     py::object logS = np.attr("log")(clipped);
 
     // goal: find an index 'cut' such that we keep piv[cut:], i.e. cut between `cut-1` and `cut`.
@@ -179,8 +179,8 @@ TensorBackend::_truncate_singular_values_selection(py::array S,
         good = combine_constraints_py(good, good2, "degeneracy_tol");
     }
 
-    {
-        py::array good2 = np.attr("greater_equal")(S_obj, svd_min).cast<py::array>();
+    if (svd_min.has_value()) {
+        py::array good2 = np.attr("greater_equal")(S_obj, *svd_min).cast<py::array>();
         good = combine_constraints_py(good, good2, "svd_min");
     }
 

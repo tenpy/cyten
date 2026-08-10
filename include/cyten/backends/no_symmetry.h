@@ -288,7 +288,7 @@ class NoSymmetryBackend : public TensorBackend
       int64 chi_min,
       float64 degeneracy_tol,
       float64 trunc_cut,
-      float64 svd_min,
+      std::optional<float64> svd_min,
       bool minimize_error = true) override;
 
     DataPtr zero_data(TensorProduct::Ptr codomain,

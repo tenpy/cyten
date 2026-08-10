@@ -829,6 +829,15 @@ class Hdf5Saver:
     dispatch_save[types.FunctionType] = (save_global, REPR_FUNCTION)
     dispatch_save[types.BuiltinFunctionType] = (save_global, REPR_FUNCTION)
     dispatch_save[type] = (save_global, REPR_CLASS)
+    # pybind11-exposed C++ classes have metaclass pybind11_type, not type.
+    try:
+        from cyten._core import AbelianBackendData as _abd
+
+        _pybind11_type = type(_abd)
+        if _pybind11_type is not type:
+            dispatch_save[_pybind11_type] = (save_global, REPR_CLASS)
+    except Exception:
+        pass
 
     # clean up temporary variables
     del _t

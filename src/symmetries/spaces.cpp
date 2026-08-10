@@ -1907,8 +1907,10 @@ product(std::vector<int64> const& values)
 [[nodiscard]] bool
 sectors_match(SectorArray const& sectors, SectorArray const& other)
 {
-    auto const n = std::min(sectors.size(), other.size());
-    for (std::size_t i = 0; i < n; ++i) {
+    if (sectors.size() != other.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
         if (!(sectors[i] == other[i])) {
             return false;
         }

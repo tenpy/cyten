@@ -21,7 +21,8 @@ namespace cyten {
 /// block_inds : 2D array
 ///     Indices that specify the coupled sectors of the non-zero blocks.
 ///     ``block_inds[n] == [i, j]`` indicates that the coupled sector for ``blocks[n]`` is given by
-///     ``tensor.codomain.sector_decomposition[i] == coupled == tensor.domain.sector_decomposition[j]``.
+///     ``tensor.codomain.sector_decomposition[i] == coupled ==
+///     tensor.domain.sector_decomposition[j]``.
 /// blocks : list of 2D Block
 ///     The nonzero blocks, ``blocks[n]`` corresponding to ``coupled_sectors[n]``.
 /// dtype : Dtype
@@ -98,8 +99,7 @@ class FusionTreeBackend : public TensorBackend
     /// Read ``tensor.data`` as ``FusionTreeData``.
     static FusionTreeData::Ptr data_from_tensor(py::object tensor);
 
-    explicit FusionTreeBackend(std::shared_ptr<BlockBackend> block_backend,
-                               float64 eps = 5.0e-14);
+    explicit FusionTreeBackend(std::shared_ptr<BlockBackend> block_backend, float64 eps = 5.0e-14);
     ~FusionTreeBackend() override = default;
 
     void test_tensor_sanity(py::object a, bool is_diagonal) override;
@@ -331,7 +331,7 @@ class FusionTreeBackend : public TensorBackend
       int64 chi_min,
       float64 degeneracy_tol,
       float64 trunc_cut,
-      float64 svd_min,
+      std::optional<float64> svd_min,
       bool minimize_error = true) override;
 
     DataPtr zero_data(TensorProduct::Ptr codomain,
@@ -356,8 +356,10 @@ class FusionTreeBackend : public TensorBackend
                                bool mixes_codomain_domain);
 
   private:
-    std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
-    _mask_contract(py::object tensor, py::object mask, int64 leg_idx, bool large_leg);
+    std::tuple<DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> _mask_contract(py::object tensor,
+                                                                               py::object mask,
+                                                                               int64 leg_idx,
+                                                                               bool large_leg);
 
     /// Helper for :meth:`to_dense_block` — contribution of one forest block.
     std::tuple<BlockBackend::BlockPtr, int64, int64> _get_forest_block_contribution(
@@ -379,23 +381,24 @@ class FusionTreeBackend : public TensorBackend
       Dtype dtype) const;
 
     /// Helper for :meth:`from_dense_block` — accumulate one forest block into ``block``.
-    void _add_forest_block_entries(BlockBackend::BlockPtr block,
-                                   BlockBackend::BlockPtr entries,
-                                   Symmetry::Ptr sym,
-                                   TensorProduct::Ptr codomain,
-                                   TensorProduct::Ptr domain,
-                                   Sector coupled,
-                                   float64 dim_c,
-                                   py::object a_sectors,
-                                   py::object b_sectors,
-                                   std::vector<int64> a_dims,
-                                   std::vector<int64> b_dims,
-                                   int64 tree_block_width,
-                                   int64 tree_block_height,
-                                   int64 i1_init,
-                                   int64 i2_init,
-                                   std::vector<int64> m_mults,
-                                   std::vector<int64> n_mults) const;
+    /// Returns ``(num_alpha_trees, num_beta_trees)``.
+    std::tuple<int64, int64> _add_forest_block_entries(BlockBackend::BlockPtr block,
+                                                       BlockBackend::BlockPtr entries,
+                                                       Symmetry::Ptr sym,
+                                                       TensorProduct::Ptr codomain,
+                                                       TensorProduct::Ptr domain,
+                                                       Sector coupled,
+                                                       float64 dim_c,
+                                                       py::object a_sectors,
+                                                       py::object b_sectors,
+                                                       std::vector<int64> a_dims,
+                                                       std::vector<int64> b_dims,
+                                                       int64 tree_block_width,
+                                                       int64 tree_block_height,
+                                                       int64 i1_init,
+                                                       int64 i2_init,
+                                                       std::vector<int64> m_mults,
+                                                       std::vector<int64> n_mults) const;
 };
 
 } // namespace cyten

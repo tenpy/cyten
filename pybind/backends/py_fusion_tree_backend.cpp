@@ -7,6 +7,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace cyten {
@@ -63,11 +64,8 @@ is_sorted : bool
                         Dtype dtype,
                         std::string device,
                         bool is_sorted) {
-                return std::make_shared<FusionTreeData>(std::move(block_inds),
-                                                        std::move(blocks),
-                                                        dtype,
-                                                        std::move(device),
-                                                        is_sorted);
+                return std::make_shared<FusionTreeData>(
+                  std::move(block_inds), std::move(blocks), dtype, std::move(device), is_sorted);
             }),
             py::arg("block_inds"),
             py::arg("blocks"),
@@ -80,11 +78,12 @@ is_sorted : bool
       .def_readwrite("dtype", &FusionTreeData::dtype)
       .def_readwrite("device", &FusionTreeData::device);
 
-    cls.def("block_ind_from_coupled",
-            &FusionTreeData::block_ind_from_coupled,
-            py::arg("coupled"),
-            py::arg("domain"),
-            R"pydoc(
+    cls
+      .def("block_ind_from_coupled",
+           &FusionTreeData::block_ind_from_coupled,
+           py::arg("coupled"),
+           py::arg("domain"),
+           R"pydoc(
 Return `ind` such that ``blocks[ind]`` is associated with the `coupled` sector.
 
 This is such that ``domain.sector_decomposition[block_inds[res][1]] == coupled``.
@@ -108,7 +107,9 @@ are sorted.
         },
         py::arg("backend"),
         py::arg("eps"),
-        R"pydoc(Discard blocks whose norm is below the threshold `eps`)pydoc")
+        R"pydoc(
+        Discard blocks whose norm is below the threshold `eps`
+        )pydoc")
       .def("save_hdf5",
            &FusionTreeData::save_hdf5,
            py::arg("hdf5_saver"),
@@ -126,16 +127,16 @@ bind_fusion_tree_backend(py::module_& m)
 {
     py::class_<FusionTreeBackend, TensorBackend, py::smart_holder> cls(m, "FusionTreeBackend");
     cls.doc() = R"pydoc(
-A backend based on fusion trees.
+        A backend based on fusion trees.
 
-Notes
------
-Data is :class:`FusionTreeData` (coupled-sector ``block_inds`` + forest blocks).
-)pydoc";
+        Notes
+        -----
+        Data is :class:`FusionTreeData` (coupled-sector ``block_inds`` + forest blocks).
+        )pydoc";
 
     cls.def(py::init([](py::object block_backend, float64 eps) {
-                auto backend = std::make_shared<FusionTreeBackend>(
-                  as_shared_block_backend(block_backend), eps);
+                auto backend =
+                  std::make_shared<FusionTreeBackend>(as_shared_block_backend(block_backend), eps);
                 backend->DataCls = py::type::of<FusionTreeData>();
                 return backend;
             }),
@@ -145,6 +146,32 @@ Data is :class:`FusionTreeData` (coupled-sector ``block_inds`` + forest blocks).
     cls.def_readwrite("eps", &FusionTreeBackend::eps);
     cls.def_static("wrap", &FusionTreeBackend::wrap, py::arg("data"));
     cls.def_static("unwrap", &FusionTreeBackend::unwrap, py::arg("data"));
+
+    cls.def(
+      "partial_trace",
+      [](FusionTreeBackend& self,
+         py::object tensor,
+         std::vector<std::pair<int64, int64>> pairs,
+         std::vector<std::optional<int64>> levels) -> py::object {
+          auto [data, codomain, domain] =
+            self.partial_trace(tensor, std::move(pairs), std::move(levels));
+          if (!codomain && !domain) {
+              // Match Python: return (scalar, None, None) for a full trace.
+              auto ftd = FusionTreeBackend::unwrap(data);
+              if (ftd->blocks.empty()) {
+                  return py::make_tuple(
+                    self.block_backend->as_scalar(dtype::zero_scalar(ftd->dtype), ftd->dtype),
+                    py::none(),
+                    py::none());
+              }
+              return py::make_tuple(
+                self.block_backend->item(ftd->blocks[0]), py::none(), py::none());
+          }
+          return py::make_tuple(std::move(data), std::move(codomain), std::move(domain));
+      },
+      py::arg("tensor"),
+      py::arg("pairs"),
+      py::arg("levels") = py::none());
 
     cls.def("apply_instructions",
             &FusionTreeBackend::apply_instructions,

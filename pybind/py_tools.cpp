@@ -8,6 +8,15 @@ namespace cyten {
 void
 bind_tools(py::module_& m)
 {
+    // Translate C++ NotImplemented into Python's builtin NotImplementedError.
+    py::register_exception_translator([](std::exception_ptr p) {
+        try {
+            if (p)
+                std::rethrow_exception(p);
+        } catch (NotImplemented const& e) {
+            PyErr_SetString(PyExc_NotImplementedError, e.what());
+        }
+    });
 
     m.def("format_like_list",
           &cyten::format_like_list,

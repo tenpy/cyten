@@ -371,7 +371,7 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
       int64 chi_min,
       float64 degeneracy_tol,
       float64 trunc_cut,
-      float64 svd_min,
+      std::optional<float64> svd_min,
       bool minimize_error = true) = 0;
 
     /// Helper function for :meth:`truncate_singular_values`.
@@ -382,7 +382,7 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
       int64 chi_min,
       float64 degeneracy_tol,
       float64 trunc_cut,
-      float64 svd_min,
+      std::optional<float64> svd_min,
       bool minimize_error = true);
 
     /// Data for a zero tensor.
