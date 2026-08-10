@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cyten/backends/block_inds.h>
 #include <cyten/backends/tensor_backend.h>
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/dtypes.h>
@@ -43,7 +44,7 @@ namespace cyten {
 /// blocks : list of block
 ///     A list of blocks containing the actual entries of the tensor.
 ///     Leg order is ``[*codomain, *reversed(domain()]``, like ``Tensor.legs``.
-/// block_inds : 2D ndarray
+/// block_inds : BlockInds
 ///     A 2D array of positive integers with shape (len(blocks), num_legs).
 ///     The block `blocks[n]` belongs to the `block_inds[n, m]`-th sector of ``leg``.
 ///     By convention, ``np.lexsort(block_inds.T)`` is sorted.
@@ -56,14 +57,14 @@ class AbelianBackendData : public TensorBackend::Data
     Dtype dtype;
     std::string device;
     std::vector<BlockBackend::BlockPtr> blocks;
-    py::array_t<int64> block_inds;
+    BlockInds block_inds;
 
     /// Construct data. If ``is_sorted`` is false, permute ``blocks`` / ``block_inds``
     /// according to ``np.lexsort(block_inds.T)``.
     AbelianBackendData(Dtype dtype,
                        std::string device,
                        std::vector<BlockBackend::BlockPtr> blocks,
-                       py::array_t<int64> block_inds,
+                       BlockInds block_inds,
                        bool is_sorted = false);
 
     ~AbelianBackendData() override = default;
@@ -71,10 +72,10 @@ class AbelianBackendData : public TensorBackend::Data
     /// Return the index ``n`` of the block which matches ``block_inds``,
     /// i.e. such that ``all(self.block_inds[n, :] == block_inds)``.
     /// Return ``nullopt`` if no such ``n`` exists.
-    std::optional<int64> get_block_num(py::array_t<int64> block_inds) const;
+    std::optional<int64> get_block_num(BlockInds const& block_inds) const;
 
     /// Get the block at given block indices, or ``nullptr`` if none exists.
-    BlockBackend::BlockPtr get_block(py::array_t<int64> block_inds) const;
+    BlockBackend::BlockPtr get_block(BlockInds const& block_inds) const;
 
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
 
@@ -82,7 +83,7 @@ class AbelianBackendData : public TensorBackend::Data
 };
 
 /// Charge-allowed block index combinations for ``codomain`` / ``domain``, lexsorted.
-py::array_t<int64> valid_block_inds(TensorProduct::Ptr codomain, TensorProduct::Ptr domain);
+BlockInds valid_block_inds(TensorProduct::Ptr codomain, TensorProduct::Ptr domain);
 
 /// Backend for Abelian group symmetries.
 ///
@@ -371,9 +372,8 @@ class AbelianBackend : public TensorBackend
     static Ptr from_hdf5(py::object hdf5_loader, py::object h5gr, std::string subpath);
 
     /// Map incoming multi-leg block indices through a pipe ``block_ind_map``.
-    py::array_t<int64> leg_pipe_map_incoming_block_inds(
-      AbelianLegPipe const& pipe,
-      py::array_t<int64> incoming_block_inds) const;
+    BlockInds leg_pipe_map_incoming_block_inds(AbelianLegPipe const& pipe,
+                                               BlockInds const& incoming_block_inds) const;
 
   private:
     DataPtr _compose_worker(py::object a, py::object b);

@@ -40,6 +40,7 @@ target_sources(_core
   symmetries/py_spaces.cpp
   backends/py_tensor_backend.cpp
   backends/py_no_symmetry.cpp
+  backends/py_block_inds.cpp
   backends/py_abelian.cpp
   backends/py_fusion_tree_backend.cpp
   backends/py_fusion_tree_mapping.cpp

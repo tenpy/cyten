@@ -6,6 +6,8 @@ target_sources(cyten
   PRIVATE
   backends/tensor_backend.cpp
   backends/no_symmetry.cpp
+  backends/block_inds.cpp
+  backends/block_inds_numpy.cpp
   backends/abelian.cpp
   backends/fusion_tree_backend.cpp
   backends/fusion_tree_mapping.cpp

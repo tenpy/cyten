@@ -1,6 +1,9 @@
 #include "../py_cyten_pybind11.h"
 
+#include "backends/casters.hpp"
+
 #include <cyten/backends/abelian.h>
+#include <cyten/backends/block_inds_numpy.h>
 #include <cyten/block_backend/numpy.h>
 #include <cyten/block_backend/torch.h>
 
@@ -64,7 +67,7 @@ device : str
 blocks : list of block
     A list of blocks containing the actual entries of the tensor.
     Leg order is ``[*codomain, *reversed(domain()]``, like ``Tensor.legs``.
-block_inds : 2D ndarray
+block_inds : BlockInds
     A 2D array of positive integers with shape (len(blocks), num_legs).
     The block `blocks[n]` belongs to the `block_inds[n, m]`-th sector of ``leg``,
     that is to ``leg.sector_decomposition[block_inds[n, m]]``, where::
@@ -89,7 +92,7 @@ is_sorted : bool
     cls.def(py::init([](Dtype dtype,
                         std::string device,
                         std::vector<BlockBackend::BlockPtr> blocks,
-                        py::array_t<int64> block_inds,
+                        BlockInds block_inds,
                         bool is_sorted) {
                 return std::make_shared<AbelianBackendData>(std::move(dtype),
                                                             std::move(device),
