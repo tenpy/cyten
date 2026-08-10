@@ -101,6 +101,7 @@ from ..symmetries import (
     TensorProduct,
     fusion_trees,
 )
+from ..symmetries.sector_utils import as_sector_array
 from ..symmetries.spaces import _flat_leg_permutation
 from ..tools.mappings import IdentityMapping, SparseMapping
 from ..tools.misc import (
@@ -268,7 +269,7 @@ class FusionTreeBackend(TensorBackend):
         # check charge rule (matching coupled sectors)
         coupled_codomain = a.codomain.sector_decomposition[data.block_inds[:, 0]]
         coupled_domain = a.domain.sector_decomposition[data.block_inds[:, 1]]
-        assert np.all(coupled_codomain == coupled_domain)
+        assert coupled_codomain == coupled_domain
         # blocks
         for (i, j), block in zip(data.block_inds, data.blocks):
             assert 0 <= i < a.codomain.num_sectors
@@ -297,7 +298,7 @@ class FusionTreeBackend(TensorBackend):
         # check charge rule (matching coupled sectors)
         coupled_codomain = a.codomain.sector_decomposition[data.block_inds[:, 0]]
         coupled_domain = a.domain.sector_decomposition[data.block_inds[:, 1]]
-        assert np.all(coupled_codomain == coupled_domain)
+        assert coupled_codomain == coupled_domain
         # blocks
         for (i, j), block in zip(data.block_inds, data.blocks):
             if a.is_projection:
@@ -678,10 +679,10 @@ class FusionTreeBackend(TensorBackend):
             basis_perm = None
             block_inds = np.zeros((0, 2), int)
         else:
-            sectors = np.array(sectors, int)
+            sectors = as_sector_array(sectors)
             multiplicities = np.array(multiplicities, int)
             if not is_sorted:
-                perm = np.lexsort(sectors.T)
+                perm = sectors.lexsort_indices()
                 sectors = sectors[perm]
                 multiplicities = multiplicities[perm]
             if basis_perm is not None:
@@ -709,7 +710,7 @@ class FusionTreeBackend(TensorBackend):
         # sectors do not appear in the same order.
 
         # OPTIMIZE doing this sorting is duplicate work between here and forming tens.leg.dual
-        perm = np.lexsort(tens.symmetry.dual_sectors(tens.domain.sector_decomposition).T)
+        perm = tens.symmetry.dual_sectors(tens.domain.sector_decomposition).lexsort_indices()
         data = FusionTreeData(
             block_inds=inverse_permutation(perm)[tens.data.block_inds],
             blocks=tens.data.blocks,
@@ -1045,7 +1046,7 @@ class FusionTreeBackend(TensorBackend):
         pos = np.array([l.parse_index(idx) for l, idx in zip(a_legs, flat_idcs, strict=True)])
         sector_idcs = pos[:, 0]
 
-        uncoupled = np.array([l.sector_decomposition[sector_idcs[i]] for i, l in enumerate(a_legs)])
+        uncoupled = as_sector_array([l.sector_decomposition[sector_idcs[i]] for i, l in enumerate(a_legs)])
         codom_uncoupled = uncoupled[:num_cod_legs, :]
         dom_uncoupled = uncoupled[num_cod_legs:, :]
         mults = [l.multiplicities[sector_idcs[i]] for i, l in enumerate(a_legs)]
@@ -1108,7 +1109,7 @@ class FusionTreeBackend(TensorBackend):
         pos = np.array([l.parse_index(idx) for l, idx in zip(conventional_leg_order(a), idcs)])
         sector_idx = pos[1, 0]  # domain leg index
         sector = a.domain[0].sector_decomposition[sector_idx]
-        if not all(sector == a.codomain[0].sector_decomposition[pos[0, 0]]):
+        if sector != a.codomain[0].sector_decomposition[pos[0, 0]]:
             return self.block_backend.as_scalar(False)
         if a.domain[0].is_dual:
             sector_idx = a.domain.sector_decomposition_where(sector)
@@ -1288,7 +1289,7 @@ class FusionTreeBackend(TensorBackend):
             basis_perm = None
             block_inds = np.zeros((0, 2), int)
         else:
-            sectors = np.array(sectors, int)
+            sectors = as_sector_array(sectors)
             multiplicities = np.array(multiplicities, int)
             if basis_perm is not None:
                 basis_perm = rank_data(np.concatenate(basis_perm_ranks))
@@ -1413,7 +1414,7 @@ class FusionTreeBackend(TensorBackend):
         # -> maybe need to do additional sorting and searching if leg is dual
         is_sorted = not large_leg.is_dual
         if not is_sorted:
-            perm = np.lexsort(large_leg.sector_decomposition.T)
+            perm = large_leg.sector_decomposition.lexsort_indices()
             sorted_duals = large_leg.sector_decomposition[perm]
             multis = large_leg.multiplicities[perm]
             domain = TensorProduct(
@@ -1443,7 +1444,7 @@ class FusionTreeBackend(TensorBackend):
             basis_perm = None
             block_inds = np.zeros((0, 2), int)
         else:
-            sectors = np.array(sectors, int)
+            sectors = as_sector_array(sectors)
             multiplicities = np.array(multiplicities, int)
             if basis_perm is not None:
                 basis_perm = rank_data(np.concatenate(basis_perm_ranks))
@@ -1492,8 +1493,8 @@ class FusionTreeBackend(TensorBackend):
         # similar implementation to diagonal_transpose
         # OPTIMIZE doing this sorting is duplicate work between here and forming tens.leg.dual
         block_inds = tens.data.block_inds
-        perm_dom = np.lexsort(tens.symmetry.dual_sectors(tens.domain.sector_decomposition).T)
-        perm_codom = np.lexsort(tens.symmetry.dual_sectors(tens.codomain.sector_decomposition).T)
+        perm_dom = tens.symmetry.dual_sectors(tens.domain.sector_decomposition).lexsort_indices()
+        perm_codom = tens.symmetry.dual_sectors(tens.codomain.sector_decomposition).lexsort_indices()
         block_inds = np.stack(
             [inverse_permutation(perm_dom)[block_inds[:, 1]], inverse_permutation(perm_codom)[block_inds[:, 0]]], axis=1
         )
@@ -1558,7 +1559,7 @@ class FusionTreeBackend(TensorBackend):
             basis_perm = None
             block_inds = np.zeros((0, 2), int)
         else:
-            sectors = np.array(sectors, int)
+            sectors = as_sector_array(sectors)
             multiplicities = np.array(multiplicities, int)
             if basis_perm is not None:
                 basis_perm = rank_data(np.concatenate(basis_perm_ranks))
@@ -1629,7 +1630,7 @@ class FusionTreeBackend(TensorBackend):
                     dom_slc = new_domain.tree_block_slice(new_dom_tree)
                     block_idx = new_data.block_ind_from_coupled(new_dom_tree.coupled, new_domain)
                     for new_codom_tree, codom_amp in new_codom_trees.items():
-                        if not all(new_codom_tree.coupled == new_dom_tree.coupled):
+                        if new_codom_tree.coupled != new_dom_tree.coupled:
                             continue
                         codom_slc = new_codomain.tree_block_slice(new_codom_tree)
                         factor = self.block_backend.as_scalar(np.conj(codom_amp) * dom_amp)
@@ -2097,7 +2098,7 @@ class FusionTreeBackend(TensorBackend):
         blocks = []
         block_inds = np.zeros((0, 2), int)
         # potential coupled sectors
-        coupled_sectors = np.array([a.codomain.sector_decomposition[ind[0]] for ind in a_block_inds])
+        coupled_sectors = as_sector_array([a.codomain.sector_decomposition[ind[0]] for ind in a_block_inds])
         ind_mapping = {}  # mapping between index in coupled sectors and index in blocks
         for uncoupled, slc, coupled_ind in iter_space.iter_forest_blocks(coupled_sectors):
             ind = a_block_inds[coupled_ind, 1]
@@ -3230,11 +3231,11 @@ class TreePairMapping(TensorMapping):
         for (X_i, Y_i), self_i in self.mapping.items():
             X_i.test_sanity()
             Y_i.test_sanity()
-            assert np.all(Y_i.coupled == X_i.coupled)
+            assert Y_i.coupled == X_i.coupled
             for X_j, Y_j in self_i.keys():
                 X_j.test_sanity()
                 Y_j.test_sanity()
-                assert np.all(Y_j.coupled == X_j.coupled)
+                assert Y_j.coupled == X_j.coupled
 
     def pre_compose_braid_instruction(self, instruction: BraidInstruction, is_real: bool):
         braid_mapping = SparseMapping[FusionTree]()
@@ -3660,7 +3661,7 @@ def _partial_trace_helper(tree: FusionTree, idcs: list[int]) -> tuple[bool, floa
     sym = tree.symmetry
     b_symbols = 1.0
     for idx in idcs:
-        if not np.all(tree.uncoupled[idx] == sym.dual_sector(tree.uncoupled[idx + 1])):
+        if tree.uncoupled[idx] != sym.dual_sector(tree.uncoupled[idx + 1]):
             return False, 0.0
         if idx == 0:
             left_sec = sym.trivial_sector
@@ -3668,7 +3669,7 @@ def _partial_trace_helper(tree: FusionTree, idcs: list[int]) -> tuple[bool, floa
             left_sec = tree.uncoupled[0] if idx == 1 else tree.inner_sectors[idx - 2]
         center_sec = tree.uncoupled[0] if idx == 0 else tree.inner_sectors[idx - 1]
         right_sec = tree.inner_sectors[idx] if idx < tree.num_inner_edges else tree.coupled
-        if not np.all(left_sec == right_sec):
+        if left_sec != right_sec:
             return False, 0.0
         if idx == 0 and not np.all(tree.multiplicities[:2] == [0, 0]):
             # this must be the case if there is only one way to fuse to the trivial sector

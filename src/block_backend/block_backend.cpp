@@ -2,6 +2,7 @@
 #include <cyten/block_backend/dtypes.h>
 #include <cyten/block_backend/numpy.h>
 #include <cyten/cyten.h>
+#include <cyten/symmetries/spaces.h>
 #include <cyten/tools.h>
 
 #include <algorithm>
@@ -707,15 +708,21 @@ BlockBackend::to_numpy(const BlockCPtr& a, std::optional<py::object> numpy_dtype
 }
 
 BlockPtr
-BlockBackend::apply_basis_perm(const BlockCPtr& block,
-                               const std::vector<py::object>& legs,
-                               bool inv)
+BlockBackend::apply_basis_perm(const BlockCPtr& block, const std::vector<LegCPtr>& legs, bool inv)
 {
     std::vector<py::array_t<int64>> perms;
     perms.reserve(legs.size());
-    for (const py::object& leg : legs) {
-        py::object perm = inv ? leg.attr("inverse_basis_perm") : leg.attr("basis_perm");
-        perms.push_back(py::array_t<int64>::ensure(perm));
+    for (LegCPtr const& leg : legs) {
+        if (!leg) {
+            throw std::invalid_argument("apply_basis_perm: leg must not be None");
+        }
+        auto const& perm_vec = inv ? leg->inverse_basis_perm() : leg->basis_perm();
+        py::array_t<int64> arr(static_cast<py::ssize_t>(perm_vec.size()));
+        auto buf = arr.mutable_unchecked<1>();
+        for (std::size_t i = 0; i < perm_vec.size(); ++i) {
+            buf(static_cast<py::ssize_t>(i)) = perm_vec[i];
+        }
+        perms.push_back(std::move(arr));
     }
     return apply_leg_permutations(block, perms);
 }

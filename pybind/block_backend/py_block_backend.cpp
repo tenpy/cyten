@@ -9,6 +9,7 @@
 #include <cyten/block_backend/block_backend.h>
 #include <cyten/block_backend/numpy.h>
 #include <cyten/block_backend/torch.h>
+#include <cyten/symmetries/spaces.h>
 #include <pybind11/detail/common.h>
 #include <span>
 #include <sstream>
@@ -632,12 +633,24 @@ bind_block_backend(py::module_& m)
            &BlockBackend::abs,
            py::arg("a"),
            "The absolute value of a complex number, elementwise.")
-      .def("apply_basis_perm",
-           &BlockBackend::apply_basis_perm,
-           py::arg("block"),
-           py::arg("legs"),
-           py::arg("inv") = false,
-           "Apply basis_perm of a ElementarySpace (or its inverse) on every axis of a dense block")
+      .def(
+        "apply_basis_perm",
+        [](BlockBackend& self, BlockBackend::BlockCPtr block, py::iterable legs_obj, bool inv) {
+            // Accept sequences or generators (e.g. conventional_leg_order(...)).
+            std::vector<BlockBackend::LegCPtr> legs;
+            for (py::handle item : legs_obj) {
+                // Legs may be ElementarySpace / LegPipe / AbelianLegPipe; all register as Leg.
+                legs.push_back(item.cast<Leg::Ptr>());
+            }
+            return self.apply_basis_perm(block, legs, inv);
+        },
+        py::arg("block"),
+        py::arg("legs"),
+        py::arg("inv") = false,
+        R"pydoc(
+        Apply ``basis_perm`` of a :class:`~cyten.symmetries.spaces.Leg` (or its inverse)
+        on every axis of a dense block.
+        )pydoc")
       .def("apply_leg_permutations",
            &BlockBackend::apply_leg_permutations,
            py::arg("block"),

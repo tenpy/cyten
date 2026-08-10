@@ -2,10 +2,10 @@
 [clang]
 parse_args = ["-x", "c++", "--driver-mode=g++", "-v", "--std=c++23",
   "-I/usr/lib/clang/21/include/",
-  "-I/usr/include/python3.12",
-  "-I/home/ga93non/ai-coding/cyten_cpp/include",
-  "-I/home/ga93non/ai-coding/cyten_cpp/src",
-  "-I/home/ga93non/ai-coding/cyten_cpp/pybind",
+  "-I/opt/micromamba/envs/cyten_py314/include/python3.14",
+  "-I/home/johannes/sync/Nextcloud/nc.tnqf-jh.duckdns.org/work/tenpy/cyten_cpp/include",
+  "-I/home/johannes/sync/Nextcloud/nc.tnqf-jh.duckdns.org/work/tenpy/cyten_cpp/src",
+  "-I/home/johannes/sync/Nextcloud/nc.tnqf-jh.duckdns.org/work/tenpy/cyten_cpp/pybind",
 ]
 library_path = "/usr/lib64"
 # library_file = "/usr/lib64/libclang.so.21.4"
@@ -20,8 +20,27 @@ int = "int64"
 float = "float64"
 complex = "complex128"
 "npt.NDArray[float]" = "xt::xarray<float64>"
-Block = "BlockPtr"
+Block = "BlockBackend::BlockPtr"
 "dict[str, int]" = "std::map<std::string, int64>"
 "list[BigOMonomial]" = "std::set<BigOMonomial>"
 "set[BigOMonomial]" = "std::set<BigOMonomial>"
-"list[tuple[BigOMonomial, BigOMonomial]]" = "std::vector<std::pair<BigOMonomial, BigOMonomial>>"
+Sector = "Sector"
+SectorArray = "SectorArray"
+FusionStyle = "FusionStyle"
+BraidingStyle = "BraidingStyle"
+SymmetryError = "SymmetryError"
+Symmetry = "Symmetry::Ptr"
+FusionTree = "FusionTree"
+"dict[FusionTree, float | complex]" = "FusionTreeLinearCombination"
+"dict[FusionTree, complex]" = "FusionTreeLinearCombination"
+"dict[tuple[FusionTree, FusionTree], float | complex]" = "FusionTreePairLinearCombination"
+Dtype = "Dtype"
+Leg = "Leg::Ptr"
+Space = "Space::Ptr"
+"list[ElementarySpace]" = "std::vector<Leg::Ptr>"
+"list[Leg]" = "std::vector<Leg::Ptr>"
+"ndarray | None" = "std::optional<std::vector<int64>>"
+"Sequence[int] | None" = "std::optional<std::vector<int64>>"
+"SectorArray | Sequence[Sequence[int]]" = "SectorArray"
+"Literal['sorted'] | Literal['dual_sorted'] | None" = "std::optional<std::string>"
+"callable" = "SectorMapFn"

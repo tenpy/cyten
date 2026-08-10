@@ -11,6 +11,7 @@ PYBIND11_MODULE(_core, m)
     bind_cost_polynomials(m);
     bind_config(m);
     bind_block_backend(m);
+    bind_symmetries(m);
 
     bind_check(m); // TODO: remove check
 }

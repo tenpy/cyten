@@ -18,6 +18,7 @@ from cyten.symmetries import (
     ElementarySpace,
     FibonacciAnyonCategory,
     FusionTree,
+    SectorArray,
     SU2_kAnyonCategory,
     SU3_3AnyonCategory,
     Symmetry,
@@ -2362,10 +2363,10 @@ def cross_check_single_b_symbol(
         )
         new_tree2 = FusionTree(
             symmetry,
-            np.append(tree2.uncoupled, [symmetry.dual_sector(tree1.uncoupled[-1])], axis=0),
+            tree2.uncoupled.concat(SectorArray.from_sector(symmetry.dual_sector(tree1.uncoupled[-1]))),
             tree1_in_1,
             np.append(tree2.are_dual, [not tree1.are_dual[-1]]),
-            np.append(tree2.inner_sectors, [tree2.coupled], axis=0),
+            tree2.inner_sectors.concat(SectorArray.from_sector(tree2.coupled)),
             np.append(tree2.multiplicities, [0]),
         )
 

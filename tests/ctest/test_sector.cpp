@@ -1,0 +1,81 @@
+#include <array>
+#include <cassert>
+#include <iostream>
+#include <unordered_set>
+
+#include <cyten/symmetries/sector.h>
+
+using namespace cyten;
+
+int
+test_sector(int /*argc*/, char** /*args*/)
+{
+    static_assert(sizeof(Sector) == 16);
+    static_assert(max_sector_ind_len == 7);
+
+    Sector a{ 1, -2, 3 };
+    assert(a.len() == 3);
+    assert(a[0] == 1);
+    assert(a[1] == -2);
+    assert(a[2] == 3);
+
+    auto sp = a.as_span<3>();
+    assert(sp[0] == 1);
+    assert(sp.size() == 3);
+
+    Sector prod{ 10, 20, 30, 40 };
+    auto factor = prod.subspan<2>(1);
+    assert(factor[0] == 20);
+    assert(factor[1] == 30);
+
+    Sector b{ 1, -2, 3 };
+    assert(a == b);
+    assert((a <=> b) == 0);
+    assert((a < Sector{ 1, -2, 4 }));
+
+    std::unordered_set<Sector> set;
+    set.insert(a);
+    assert(set.contains(b));
+
+    SectorArray arr(2, 3);
+    arr[0] = Sector{ 1, 2, 3 };
+    arr[1] = Sector{ 4, 5, 6 };
+    assert((arr[0] == Sector{ 1, 2, 3 }));
+    assert(arr[1].as_span<3>()[2] == 6);
+    Sector& ref = arr[0];
+    ref[0] = 9;
+    assert(arr[0][0] == 9);
+
+    SectorArray empty = SectorArray::empty(2);
+    assert(empty.size() == 0);
+    assert(empty.sector_ind_len() == 2);
+
+    auto from_one = SectorArray::from_sector(Sector{ 7, 8 });
+    assert(from_one.size() == 1);
+    assert((from_one[0] == Sector{ 7, 8 }));
+
+    auto cat = from_one.concat(SectorArray::from_sector(Sector{ 1, 2 }));
+    assert(cat.size() == 2);
+    assert((cat[1] == Sector{ 1, 2 }));
+
+    bool threw = false;
+    try {
+        Sector too_long{ 0, 1, 2, 3, 4, 5, 6, 7 };
+        (void)too_long;
+    } catch (std::invalid_argument const&) {
+        threw = true;
+    }
+    assert(threw);
+
+    threw = false;
+    try {
+        std::array<int16_t, 8> buf{};
+        (void)Sector::from_span(buf);
+    } catch (std::invalid_argument const&) {
+        threw = true;
+    }
+    assert(threw);
+
+    std::cout << "test_sector passed." << std::endl;
+    return 0;
+}

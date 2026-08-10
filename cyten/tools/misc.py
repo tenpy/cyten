@@ -7,6 +7,7 @@ from collections.abc import Generator, Sequence
 import numpy as np
 
 from .._core import (
+    SectorArray,
     is_iterable,  # noqa
     to_iterable,  # noqa
     to_valid_idx,  # noqa
@@ -375,6 +376,8 @@ def find_row_differences(sectors, include_len: bool = False):
         ``[0] + [i for i in range(1, len(sectors)) if np.any(sectors[i-1] != sectors[i])]``
 
     """
+    if isinstance(sectors, SectorArray):
+        return np.asarray(sectors.find_row_differences(include_len), dtype=np.intp)
     # note: by default remove last entry [len(sectors)] compared to old.charges
     len_sectors = len(sectors)
     diff = np.ones(len_sectors + int(include_len), dtype=np.bool_)
@@ -448,6 +451,11 @@ def iter_common_sorted_arrays(a, b, a_strict: bool = True, b_strict: bool = True
     """
     if (not a_strict) and (not b_strict):
         raise ValueError('One of the two arrays must be strictly sorted.')
+    if isinstance(a, SectorArray) or isinstance(b, SectorArray):
+        from ..symmetries.sector_utils import as_sector_array
+
+        yield from SectorArray.iter_common_sorted(as_sector_array(a), as_sector_array(b), a_strict, b_strict)
+        return
 
     l_a, d_a = a.shape
     l_b, d_b = b.shape

@@ -16,6 +16,7 @@ static_assert(std::numeric_limits<double>::is_iec559); // double is indeed 64 bi
 namespace cyten {
 
 namespace py = ::pybind11;
+using int16 = std::int16_t;
 using int32 = std::int32_t;
 using int64 = std::int64_t;
 using float32 = float;

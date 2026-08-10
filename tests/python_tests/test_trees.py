@@ -13,9 +13,12 @@ from cyten.block_backends.dtypes import Dtype
 from cyten.symmetries import (
     ElementarySpace,
     Sector,
+    SectorArray,
     Symmetry,
     SymmetryError,
     TensorProduct,
+    as_sector_array,
+    assert_sectors_equal,
     trees,
     u1_symmetry,
     z3_symmetry,
@@ -109,10 +112,10 @@ def test_FusionTree_braid(overbraid, j, any_symmetry, make_any_sectors, np_rando
     )
     braided1 = list(tree.braid(j, overbraid=overbraid).items())
     for t, _ in braided1:
-        npt.assert_array_equal(t.uncoupled[:j], tree.uncoupled[:j])
-        npt.assert_array_equal(t.uncoupled[j], tree.uncoupled[j + 1])
-        npt.assert_array_equal(t.uncoupled[j + 1], tree.uncoupled[j])
-        npt.assert_array_equal(t.uncoupled[j + 2 :], tree.uncoupled[j + 2 :])
+        assert_sectors_equal(t.uncoupled[:j], tree.uncoupled[:j])
+        assert_sectors_equal(t.uncoupled[j], tree.uncoupled[j + 1])
+        assert_sectors_equal(t.uncoupled[j + 1], tree.uncoupled[j])
+        assert_sectors_equal(t.uncoupled[j + 2 :], tree.uncoupled[j + 2 :])
         #
         npt.assert_array_equal(t.are_dual[:j], tree.are_dual[:j])
         assert t.are_dual[j] == tree.are_dual[j + 1]
@@ -203,15 +206,15 @@ def test_FusionTree_bend_leg(bend_down, any_symmetry, make_any_sectors, np_rando
     for (X_i, Y_i), _ in res:
         X_i.test_sanity()
         Y_i.test_sanity()
-        npt.assert_array_equal(X_i.coupled, Y_i.coupled)
+        assert_sectors_equal(X_i.coupled, Y_i.coupled)
         if bend_down:
-            npt.assert_array_equal(X_i.uncoupled[:-1], X.uncoupled)
-            npt.assert_array_equal(Y_i.uncoupled, Y.uncoupled[:-1])
-            npt.assert_array_equal(X_i.uncoupled[-1], any_symmetry.dual_sector(Y.uncoupled[-1]))
+            assert_sectors_equal(X_i.uncoupled[:-1], X.uncoupled)
+            assert_sectors_equal(Y_i.uncoupled, Y.uncoupled[:-1])
+            assert_sectors_equal(X_i.uncoupled[-1], any_symmetry.dual_sector(Y.uncoupled[-1]))
         else:
-            npt.assert_array_equal(X_i.uncoupled, X.uncoupled[:-1])
-            npt.assert_array_equal(Y_i.uncoupled[:-1], Y.uncoupled)
-            npt.assert_array_equal(Y_i.uncoupled[-1], any_symmetry.dual_sector(X.uncoupled[-1]))
+            assert_sectors_equal(X_i.uncoupled, X.uncoupled[:-1])
+            assert_sectors_equal(Y_i.uncoupled[:-1], Y.uncoupled)
+            assert_sectors_equal(Y_i.uncoupled[-1], any_symmetry.dual_sector(X.uncoupled[-1]))
 
     # compare to matrix representation
     if any_symmetry.can_be_dropped:
@@ -246,7 +249,7 @@ def test_FusionTree_manipulations(compatible_symmetry, compatible_backend, make_
     all_trees = random_trees_from_uncoupled(sym, uncoupled, np_random)
     random_trees = np_random.choice(all_trees, size=10)
     for tree in random_trees:
-        n_split = np_random.integers(0, num_uncoupled + 1)
+        n_split = int(np_random.integers(0, num_uncoupled + 1))
 
         # test errors
         if n_split == num_uncoupled or n_split < 2:
@@ -262,17 +265,17 @@ def test_FusionTree_manipulations(compatible_symmetry, compatible_backend, make_
         split_sector = tree.inner_sectors[n_split - 2]
 
         # test left tree
-        npt.assert_array_equal(left_tree.uncoupled, tree.uncoupled[:n_split])
+        assert_sectors_equal(left_tree.uncoupled, tree.uncoupled[:n_split])
         npt.assert_array_equal(left_tree.are_dual, tree.are_dual[:n_split])
-        npt.assert_array_equal(left_tree.inner_sectors, tree.inner_sectors[: n_split - 2])
-        npt.assert_array_equal(left_tree.coupled, split_sector)
+        assert_sectors_equal(left_tree.inner_sectors, tree.inner_sectors[: n_split - 2])
+        assert_sectors_equal(left_tree.coupled, split_sector)
         npt.assert_array_equal(left_tree.multiplicities, tree.multiplicities[: n_split - 1])
 
         # test right tree
-        npt.assert_array_equal(right_tree.uncoupled, np.vstack((split_sector, tree.uncoupled[n_split:])))
+        assert_sectors_equal(right_tree.uncoupled, as_sector_array([split_sector, *tree.uncoupled[n_split:]]))
         npt.assert_array_equal(right_tree.are_dual, np.append([False], tree.are_dual[n_split:]))
-        npt.assert_array_equal(right_tree.inner_sectors, tree.inner_sectors[n_split - 1 :])
-        npt.assert_array_equal(right_tree.coupled, tree.coupled)
+        assert_sectors_equal(right_tree.inner_sectors, tree.inner_sectors[n_split - 1 :])
+        assert_sectors_equal(right_tree.coupled, tree.coupled)
         npt.assert_array_equal(right_tree.multiplicities, tree.multiplicities[n_split - 1 :])
 
         # test insert
@@ -292,7 +295,7 @@ def test_FusionTree_manipulations(compatible_symmetry, compatible_backend, make_
     random_trees2 = np_random.choice(all_trees2, size=5)
 
     for i in range(num_uncoupled[0]):
-        if not all(coupled2 == uncoupled1[i]):
+        if coupled2 != uncoupled1[i]:
             continue  # make sure inserting is possible
         perm = list(range(i))
         perm.extend(list(range(num_uncoupled[0], sum(num_uncoupled))))
@@ -332,19 +335,19 @@ def check_insert_at_via_f_symbols(tree1: trees.FusionTree, tree2: trees.FusionTr
     inner sectors, coupled sectors and multilcities.
     """
     combined_tree = tree1.insert_at(i, tree2)
-    uncoupled = np.vstack((tree1.uncoupled[:i], tree2.uncoupled, tree1.uncoupled[i + 1 :]))
+    uncoupled = as_sector_array([*tree1.uncoupled[:i], *tree2.uncoupled, *tree1.uncoupled[i + 1 :]])
     are_dual = np.concatenate([tree1.are_dual[:i], tree2.are_dual, tree1.are_dual[i + 1 :]])
     coupled = tree1.coupled
     norm = 0
     for tree, amp in combined_tree.items():
         tree.test_sanity()
-        npt.assert_array_equal(tree.uncoupled, uncoupled)
+        assert_sectors_equal(tree.uncoupled, uncoupled)
         npt.assert_array_equal(tree.are_dual, are_dual)
-        npt.assert_array_equal(tree.coupled, coupled)
+        assert_sectors_equal(tree.coupled, coupled)
         npt.assert_array_equal(tree.multiplicities[i + tree2.num_vertices :], tree1.multiplicities[i:])
         if i > 0:
-            npt.assert_array_equal(tree.inner_sectors[i - 1 + tree2.num_vertices :], tree1.inner_sectors[i - 1 :])
-            npt.assert_array_equal(tree.inner_sectors[: i - 1], tree1.inner_sectors[: i - 1])
+            assert_sectors_equal(tree.inner_sectors[i - 1 + tree2.num_vertices :], tree1.inner_sectors[i - 1 :])
+            assert_sectors_equal(tree.inner_sectors[: i - 1], tree1.inner_sectors[: i - 1])
             npt.assert_array_equal(tree.multiplicities[: i - 1], tree1.multiplicities[: i - 1])
 
         if i == 0 or tree2.num_uncoupled == 1:
@@ -381,7 +384,7 @@ def check_outer_via_f_symbols(tree1: trees.FusionTree, tree2: trees.FusionTree):
     inner sectors, coupled sectors and multilcities.
     """
     combined_tree = tree1.outer(tree2)
-    uncoupled = np.vstack((tree1.uncoupled, tree2.uncoupled))
+    uncoupled = as_sector_array([*tree1.uncoupled, *tree2.uncoupled])
     are_dual = np.concatenate([tree1.are_dual, tree2.are_dual])
     coupled = tree1.symmetry.fusion_outcomes(tree1.coupled, tree2.coupled)
     # one normalized tree for each new consistent coupled sector
@@ -389,10 +392,10 @@ def check_outer_via_f_symbols(tree1: trees.FusionTree, tree2: trees.FusionTree):
     norm = 0
     for tree, amp in combined_tree.items():
         tree.test_sanity()
-        npt.assert_array_equal(tree.uncoupled, uncoupled)
+        assert_sectors_equal(tree.uncoupled, uncoupled)
         npt.assert_array_equal(tree.are_dual, are_dual)
-        npt.assert_array_equal(tree.inner_sectors[: tree1.num_inner_edges], tree1.inner_sectors)
-        npt.assert_array_equal(tree.inner_sectors[tree1.num_inner_edges], tree1.coupled)
+        assert_sectors_equal(tree.inner_sectors[: tree1.num_inner_edges], tree1.inner_sectors)
+        assert_sectors_equal(tree.inner_sectors[tree1.num_inner_edges], tree1.coupled)
         npt.assert_array_equal(tree.multiplicities[: tree1.num_inner_edges], tree1.multiplicities[:-1])
 
         if tree1.num_uncoupled == 0 or tree2.num_uncoupled <= 1:
@@ -471,7 +474,10 @@ def check_fusion_trees(it: trees.fusion_trees, expect_len: int = None):
 def test_fusion_trees(any_symmetry: Symmetry, make_any_sectors, np_random):
     """test the ``fusion_trees`` iterator"""
     some_sectors = make_any_sectors(20)  # generates unique sectors
-    non_trivial_sectors = some_sectors[np.any(some_sectors != any_symmetry.trivial_sector[None, :], axis=1)]
+    non_trivial = [sector for sector in some_sectors if sector != any_symmetry.trivial_sector]
+    non_trivial_sectors = (
+        as_sector_array(non_trivial) if non_trivial else SectorArray.empty(any_symmetry.sector_ind_len)
+    )
     i = any_symmetry.trivial_sector
 
     print('consistent fusion: [] -> i')
@@ -494,7 +500,7 @@ def test_fusion_trees(any_symmetry: Symmetry, make_any_sectors, np_random):
 
     print('large inconsistent fusion')
     # find a forbidden coupled sector
-    are_allowed = np.any(np.all(some_sectors[:, None, :] == allowed[None, :, :], axis=2), axis=1)
+    are_allowed = np.array([any(sector == candidate for candidate in allowed) for sector in some_sectors])
     forbidden_idcs = np.where(np.logical_not(are_allowed))[0]
     if len(forbidden_idcs) > 0:
         forbidden = some_sectors[np_random.choice(forbidden_idcs)]
