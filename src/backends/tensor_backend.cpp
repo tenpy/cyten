@@ -80,6 +80,9 @@ TensorBackend::item(py::object a)
 void
 TensorBackend::test_tensor_sanity(py::object a, bool /*is_diagonal*/)
 {
+    // --- hints from Python TensorBackend.test_tensor_sanity ---
+    // subclasses will typically call super().test_tensor_sanity(a)
+    // ---
     // subclasses will typically call super().test_tensor_sanity(a)
     py::object data = a.attr("data");
     if (!DataCls.is_none() && !py::isinstance(data, DataCls)) {
@@ -92,6 +95,9 @@ TensorBackend::test_tensor_sanity(py::object a, bool /*is_diagonal*/)
 void
 TensorBackend::test_mask_sanity(py::object a)
 {
+    // --- hints from Python TensorBackend.test_mask_sanity ---
+    // subclasses will typically call super().test_mask_sanity(a)
+    // ---
     // subclasses will typically call super().test_mask_sanity(a)
     py::object data = a.attr("data");
     if (!DataCls.is_none() && !py::isinstance(data, DataCls)) {
@@ -123,6 +129,14 @@ TensorBackend::_truncate_singular_values_selection(py::array S,
                                                    std::optional<float64> svd_min,
                                                    bool minimize_error)
 {
+    // --- hints from Python TensorBackend._truncate_singular_values_selection ---
+    // qdims = qdims[piv]  # not needed again.
+    // this is equivalent to
+    // ``(S[cut] - S[cut-1])/S[cut-1] < exp(deg_tol) - 1 = deg_tol + O(deg_tol^2)``
+    // keep only values S[i] >= svd_min
+    // smallest cut for which good[cut] is True
+    // largest cut for which good[cut] is True
+    // ---
     // contributions ``err[i] = d[i] * S[i] ** 2`` to the error, if S[i] would be truncated.
     py::module_ np = py::module_::import("numpy");
     py::object S_obj = S;
@@ -214,6 +228,9 @@ TensorBackend::_truncate_singular_values_selection(py::array S,
 bool
 TensorBackend::is_real(py::object a)
 {
+    // --- hints from Python TensorBackend.is_real ---
+    // FusionTree backend might implement this differently.
+    // ---
     // FusionTree backend might implement this differently.
     return a.attr("dtype").attr("is_real").cast<bool>();
 }

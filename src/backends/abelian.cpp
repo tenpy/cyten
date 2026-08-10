@@ -80,6 +80,9 @@ AbelianBackendData::AbelianBackendData(Dtype dtype_,
 std::optional<int64>
 AbelianBackendData::get_block_num(BlockInds const& query) const
 {
+    // --- hints from Python AbelianBackendData.get_block_num ---
+    // OPTIMIZE use sorted for lookup?
+    // ---
     if (query.nrows() != 1) {
         throw std::invalid_argument("AbelianBackendData::get_block_num: expected a single row");
     }
@@ -306,6 +309,10 @@ permute_blocks(std::vector<BlockBackend::BlockPtr> const& blocks, py::array cons
 BlockInds
 valid_block_inds(TensorProduct::Ptr codomain, TensorProduct::Ptr domain)
 {
+    // --- hints from Python _valid_block_inds ---
+    // OPTIMIZE: this is brute-force going through all possible combinations of block indices
+    // spaces are sorted, so we can probably reduce that search space quite a bit...
+    // ---
     // Prefer calling the Python reference for exact fusion broadcast semantics via numpy zip,
     // but implement locally with make_grid + Symmetry::multiple_fusion_broadcast.
     auto np = numpy();
@@ -420,6 +427,15 @@ AbelianBackend::AbelianBackend(std::shared_ptr<BlockBackend> block_backend_)
 void
 AbelianBackend::test_tensor_sanity(py::object a, bool is_diagonal)
 {
+    // --- hints from Python AbelianBackend.test_tensor_sanity ---
+    // check device and dtype
+    // check leg types
+    // recursion into nested pipes is handled via AbelianLegPipe.test_sanity(), which
+    // is called via (co)domain.test_sanity() during Tensor.test_sanity()
+    // check block_inds
+    // check block_inds fulfill charge rule
+    // check blocks and charge rule
+    // ---
     TensorBackend::test_tensor_sanity(a, is_diagonal);
     // When DataCls is unset, skip deep checks that require C++ AbelianBackendData on the tensor.
     // Full checks run once bindings/monkey-patch store C++ Data.
@@ -476,6 +492,9 @@ AbelianBackend::test_tensor_sanity(py::object a, bool is_diagonal)
 void
 AbelianBackend::test_mask_sanity(py::object a)
 {
+    // --- hints from Python AbelianBackend.test_mask_sanity ---
+    // check charge rule
+    // ---
     TensorBackend::test_mask_sanity(a);
     py::object raw = a.attr("data");
     AbelianBackendData::Ptr data;
@@ -507,6 +526,9 @@ AbelianBackend::test_mask_sanity(py::object a)
 LegPipe::Ptr
 AbelianBackend::make_pipe(std::vector<Leg::Ptr> legs, bool is_dual, LegPipe::Ptr pipe)
 {
+    // --- hints from Python AbelianBackend.make_pipe ---
+    // OPTIMIZE rm check
+    // ---
     std::vector<ElementarySpace::Ptr> es;
     es.reserve(legs.size());
     for (auto const& l : legs) {
@@ -528,6 +550,9 @@ AbelianBackend::act_block_diagonal_square_matrix(py::object a,
                                                  py::function block_method,
                                                  py::object dtype_map)
 {
+    // --- hints from Python AbelianBackend.act_block_diagonal_square_matrix ---
+    // use that all_block_inds is just ascending -> all_block_inds[j, 0] == j
+    // ---
     auto a_data = data_from_tensor(a);
     auto leg = a.attr("domain").attr("factors").attr("__getitem__")(0);
     BlockInds all_block_inds = BlockInds::arange_diag(static_cast<std::size_t>(nsec(leg)));
@@ -561,6 +586,9 @@ AbelianBackend::add_trivial_leg(py::object a,
                                 TensorProduct::Ptr /*new_codomain*/,
                                 TensorProduct::Ptr /*new_domain*/)
 {
+    // --- hints from Python AbelianBackend.add_trivial_leg ---
+    // since the new column is constant, block_inds are still sorted.
+    // ---
     auto a_data = data_from_tensor(a);
     std::vector<BlockBackend::BlockPtr> blocks;
     blocks.reserve(a_data->blocks.size());
@@ -603,6 +631,9 @@ AbelianBackend::almost_equal(py::object a, py::object b, float64 rtol, float64 a
 TensorBackend::DataPtr
 AbelianBackend::apply_mask_to_DiagonalTensor(py::object tensor, py::object mask)
 {
+    // --- hints from Python AbelianBackend.apply_mask_to_DiagonalTensor ---
+    // append only for one leg, repeat later
+    // ---
     auto t_data = data_from_tensor(tensor);
     auto m_data = data_from_tensor(mask);
     BlockInds t_contr = t_data->block_inds.take_columns(std::array<std::size_t, 1>{ 0 });
@@ -635,6 +666,9 @@ AbelianBackend::apply_mask_to_DiagonalTensor(py::object tensor, py::object mask)
 TensorBackend::DataPtr
 AbelianBackend::copy_data(py::object a, std::optional<std::string> device)
 {
+    // --- hints from Python AbelianBackend.copy_data ---
+    // OPTIMIZE do we need to copy the block_inds ??
+    // ---
     auto a_data = data_from_tensor(a);
     std::vector<BlockBackend::BlockPtr> blocks;
     blocks.reserve(a_data->blocks.size());
@@ -672,6 +706,10 @@ AbelianBackend::data_item(DataPtr a)
 bool
 AbelianBackend::diagonal_all(py::object a)
 {
+    // --- hints from Python AbelianBackend.diagonal_all ---
+    // missing blocks are filled with False
+    // now it is enough to check that all existing blocks are all-True
+    // ---
     auto data = data_from_tensor(a);
     if (static_cast<int64>(data->block_inds.nrows()) < nsec(a.attr("leg")))
         return false;
@@ -697,6 +735,9 @@ AbelianBackend::diagonal_elementwise_unary(py::object a,
                                            py::dict func_kwargs,
                                            bool maps_zero_to_zero)
 {
+    // --- hints from Python AbelianBackend.diagonal_elementwise_unary ---
+    // use that block_inds is just arange -> block_inds[i, 0] == i
+    // ---
     auto a_data = data_from_tensor(a);
     auto np = numpy();
     std::vector<BlockBackend::BlockPtr> blocks;
@@ -760,12 +801,19 @@ AbelianBackend::state_tensor_product(BlockBackend::BlockPtr /*state1*/,
                                      BlockBackend::BlockPtr /*state2*/,
                                      LegPipe::Ptr /*pipe*/)
 {
+    // --- hints from Python AbelianBackend.state_tensor_product ---
+    // clearly define what this should do in tensors.py first!
+    // ---
     throw NotImplemented("state_tensor_product not implemented");
 }
 
 BlockBackend::BlockPtr
 AbelianBackend::to_dense_block_trivial_sector(py::object /*tensor*/)
 {
+    // --- hints from Python AbelianBackend.to_dense_block_trivial_sector ---
+    // TODO not yet reviewed
+    // this should not happen for single-leg tensors
+    // ---
     throw NotImplemented("to_dense_block_trivial_sector");
 }
 
@@ -828,6 +876,10 @@ BlockInds
 AbelianBackend::leg_pipe_map_incoming_block_inds(AbelianLegPipe const& pipe,
                                                  BlockInds const& incoming_block_inds) const
 {
+    // --- hints from Python AbelianBackend.leg_pipe_map_incoming_block_inds ---
+    // calculate indices of _block_ind_map by using the appropriate strides
+    // now permute them to indices in _block_ind_map
+    // ---
     assert(static_cast<int64>(incoming_block_inds.ncols()) == pipe.num_legs);
     // Pack multi-leg sector indices with pipe sector_strides, then apply inverse fusion sort.
     std::vector<int64> strides = pipe.sector_strides;
@@ -846,6 +898,9 @@ AbelianBackend::leg_pipe_map_incoming_block_inds(AbelianLegPipe const& pipe,
 TensorBackend::DataPtr
 AbelianBackend::to_dtype(py::object a, Dtype dtype)
 {
+    // --- hints from Python AbelianBackend.to_dtype ---
+    // shallow copy if dtype stays same
+    // ---
     auto a_data = data_from_tensor(a);
     std::vector<BlockBackend::BlockPtr> blocks;
     blocks.reserve(a_data->blocks.size());
@@ -927,6 +982,10 @@ AbelianBackend::diagonal_tensor_trace_full(py::object a)
 TensorBackend::DataPtr
 AbelianBackend::mask_dagger(py::object mask)
 {
+    // --- hints from Python AbelianBackend.mask_dagger ---
+    // the legs swap between domain and codomain. need to swap the two columns of block_inds.
+    // since both columns are unique and ascending, the resulting block_inds are still sorted.
+    // ---
     auto data = data_from_tensor(mask);
     BlockInds block_inds = data->block_inds.reverse_columns();
     return wrap(make_data(mask.attr("dtype").cast<Dtype>(),
@@ -961,6 +1020,9 @@ AbelianBackend::permute_legs(py::object a,
 std::tuple<Space::Ptr, TensorBackend::DataPtr>
 AbelianBackend::diagonal_transpose(py::object tens)
 {
+    // --- hints from Python AbelianBackend.diagonal_transpose ---
+    // OPTIMIZE copy needed?
+    // ---
     auto leg = tens.attr("leg").cast<Space::Ptr>();
     return { leg->dual_space(), copy_data(tens) };
 }
@@ -975,6 +1037,31 @@ AbelianBackend::combine_legs(py::object tensor,
                              TensorProduct::Ptr new_codomain,
                              TensorProduct::Ptr new_domain)
 {
+    // --- hints from Python AbelianBackend.combine_legs ---
+    // which combined legs are formed in C and F style
+    // build new block_inds, compatible with old_blocks, but contain duplicates and are not sorted
+    // res_block_inds[:, :i] is already set
+    // old_block_inds[:, :j] are already considered
+    // uncombined legs since last group: block_inds are simply unchanged
+    // current combined group
+    // product space in the domain has opposite order of its spaces compared to the
+    // convention in block_inds
+    // for each row of block_inds, find the corresponding row of pipe.block_ind_map
+    // trailing uncombined legs:
+    // sort the new block_inds
+    // determine, for each old block, which slices of the new block it should occupy
+    // have already set info for new_legs[:i]
+    // have already considered old_legs[:j]
+    // uncombined legs since last group: slice is all of 0:mult
+    // block_slices[:, i, 0] = 0 is already set
+    // trailing uncombined legs
+    // identify the duplicates in res_block_inds
+    // all those old_blocks are embedded into a single new block
+    // includes both 0 and len, to have slices later
+    // build the new blocks
+    // we lexsort( .T)-ed res_block_inds while it still had duplicates, and then indexed by diffs,
+    // which is sorted and thus preserves lexsort( .T)-ing of res_block_inds
+    // ---
     for (auto const& p : pipes) {
         if (!std::dynamic_pointer_cast<AbelianLegPipe>(p))
             throw std::invalid_argument("abelian backend requires AbelianLegPipe");
@@ -1403,6 +1490,42 @@ abelian_compose_worker(AbelianBackend& self,
 TensorBackend::DataPtr
 AbelianBackend::_compose_worker(py::object a, py::object b)
 {
+    // --- hints from Python AbelianBackend._compose_worker ---
+    // if there are no actual blocks to contract, we can directly return 0
+    // convert blocks to common dtype
+    // need to contract the domain legs of a with the codomain legs of b.
+    // due to the leg ordering
+    // Deal with the columns of the block inds that are kept/contracted separately
+    // Merge the block_inds on the contracted legs to a single column, using strides.
+    // Note: The order in a.data.block_inds is opposite from the order in b.data.block_inds!
+    // I.e. a.data.block_inds[-1-n] and b.data.block_inds[n] describe one leg to contract
+    // We choose F-style strides, by appearance in b.data.block_inds.
+    // This guarantees that the b.data.block_inds sorting is preserved.
+    // We do not care about the sorting of the a.data.block_inds, since we need to re-sort anyway,
+    // to group by a_block_inds_keep.
+    // 1D array
+    // sort the a.data.block_inds *first* by the _keep, *then* by the _contr columns
+    // The b_block_inds_* and b_blocks are already sorted like that.
+    // now group everything that has matching *_block_inds_keep
+    // Reshape blocks to matrices.
+    // Reason: We could use block_tdot to do the pairwise block contractions.
+    // This would then internally reshape to matrices, to use e.g. GEMM.
+    // One of the a_blocks may be contracted with many different b_blocks, and require
+    // the same reshape every time. Instead, we do it once at this point.
+    // All blocks in a_blocks[n] have the same kept legs -> same kept shape
+    // special case: reshape to vector.
+    // need to permute the leg order of one group of permuted legs.
+    // OPTIMIZE does it matter, which?
+    // choose to permute the legs of the b-blocks
+    // special case: reshape to vector
+    // compute coupled sectors for all rows of the block inds // for all blocks
+    // lookup table ``tuple(sector) -> idcs_in_a_charges``
+    // rows_a changes faster than cols_b, such that the resulting block_inds are lex-sorted
+    // empty list if no match
+    // Use first pair of common indices to initialize a block.
+    // for further pairs of common indices, add the result onto the existing block
+    // finish up:
+    // ---
     std::vector<py::object> contr_spaces;
     for (py::handle h : b.attr("codomain").attr("factors"))
         contr_spaces.push_back(py::reinterpret_borrow<py::object>(h));
@@ -1417,6 +1540,11 @@ AbelianBackend::_compose_worker(py::object a, py::object b)
 TensorBackend::DataPtr
 AbelianBackend::_compose_no_contraction(py::object a, py::object b)
 {
+    // --- hints from Python AbelianBackend._compose_no_contraction ---
+    // grid is lexsorted, with rows as all combinations of a/b block indices.
+    // Since the grid was in F-style, and the a_block_inds, b_block_inds are sorted,
+    // the res_block_inds are sorted.
+    // ---
     auto a_data = data_from_tensor(a);
     auto b_data = data_from_tensor(b);
     Dtype res_dtype = dtype::common({ a_data->dtype, b_data->dtype });
@@ -1466,6 +1594,15 @@ AbelianBackend::diagonal_elementwise_binary(py::object a,
                                             py::dict func_kwargs,
                                             bool partial_zero_is_zero)
 {
+    // --- hints from Python AbelianBackend.diagonal_elementwise_binary ---
+    // OPTIMIZE should we drop zero blocks after?
+    // next block of a to process
+    // block_ind of that block => it belongs to leg.sector_decomposition[bi_a]
+    // next block of b to process
+    // block_ind of that block => it belongs to leg.sector_decomposition[bi_b]
+    // a has no further blocks
+    // b has no further blocks
+    // ---
     auto a_data = data_from_tensor(a);
     auto b_data = data_from_tensor(b);
     auto leg = a.attr("leg");
@@ -1647,6 +1784,15 @@ AbelianBackend::diagonal_to_mask(py::object tens)
 std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr, ElementarySpace::Ptr>
 AbelianBackend::eigh(py::object a, bool new_leg_dual, std::optional<std::string> sort)
 {
+    // --- hints from Python AbelianBackend.eigh ---
+    // in tensors.py, we do pre-processing such that the following holds:
+    // such that we can use the same block_inds
+    // for missing blocks, i.e. a zero block, the eigenvalues are zero, so we can just skip
+    // adding that block to the eigenvalues.
+    // for the eigenvectors, we choose the computational basis vectors, i.e. the matrix
+    // representation within that block is the identity matrix.
+    // we initialize all blocks to eye and override those where `a` has blocks.
+    // ---
     assert(a.attr("num_codomain_legs").cast<int64>() == 1);
     assert(a.attr("num_domain_legs").cast<int64>() == 1);
     auto a_data = data_from_tensor(a);
@@ -1673,6 +1819,16 @@ AbelianBackend::eigh(py::object a, bool new_leg_dual, std::optional<std::string>
 TensorBackend::DataPtr
 AbelianBackend::eye_data(TensorProduct::Ptr co_domain, Dtype dtype, std::string device)
 {
+    // --- hints from Python AbelianBackend.eye_data ---
+    // Note: the identity has the same matrix elements in all ONB, so ne need to consider
+    // the basis perms.
+    // results[i1,...im,jm,...,j1] = delta_{i1,j1} ... delta{im,jm}
+    // need exactly the "diagonal" blocks, where sector of i1 matches the one of j1 etc.
+    // to guarantee sorting later, it is easier to generate the block inds of the domain
+    // domain_block_inds is by construction np.lexsort( .T)-ed.
+    // since the last co_domain.num_spaces columns of block_inds are already unique, the first
+    // columns are not relevant to np.lexsort( .T)-ing, thus the block_inds above is sorted.
+    // ---
     auto np = numpy();
     py::list domain_dims;
     for (auto it = co_domain->factors.rbegin(); it != co_domain->factors.rend(); ++it)
@@ -1752,6 +1908,11 @@ AbelianBackend::from_grid(std::vector<std::vector<py::object>> grid,
                           Dtype dtype,
                           std::string device)
 {
+    // --- hints from Python AbelianBackend.from_grid ---
+    // all block inds apart from the ones for the row and col
+    // must be identical to the ones of op
+    // find block or create it if it does not exist yet
+    // ---
     auto np = numpy();
     std::vector<BlockBackend::BlockPtr> blocks;
     auto block_inds = zeros_i64(0, new_codomain->num_factors + new_domain->num_factors);
@@ -1907,6 +2068,11 @@ AbelianBackend::from_tree_pairs(
   Dtype dtype,
   std::string device)
 {
+    // --- hints from Python AbelianBackend.from_tree_pairs ---
+    // check if we covered all keys in the dict
+    // SymmetricTensor.from_tree_pairs should have done enough input checks to prevent this
+    // OPTIMIZE if the code works, we could remove this check
+    // ---
     auto block_inds_all = valid_block_inds(codomain, domain);
     std::vector<BlockBackend::BlockPtr> blocks;
     py::list bi_rows;
@@ -2021,6 +2187,10 @@ AbelianBackend::get_element_mask(py::object a, std::vector<int64> idcs)
 BlockBackend::Scalar
 AbelianBackend::inner(py::object a, py::object b, bool do_dagger)
 {
+    // --- hints from Python AbelianBackend.inner ---
+    // F-style strides for block_inds -> preserve sorting
+    // these are not sorted:
+    // ---
     auto a_data = data_from_tensor(a);
     auto b_data = data_from_tensor(b);
     auto a_blocks = a_data->blocks;
@@ -2115,6 +2285,9 @@ AbelianBackend::linear_combination(BlockBackend::Scalar a,
                                    BlockBackend::Scalar b,
                                    py::object w)
 {
+    // --- hints from Python AbelianBackend.linear_combination ---
+    // ensure common dtypes
+    // ---
     auto v_data = data_from_tensor(v);
     auto w_data = data_from_tensor(w);
     auto v_blocks = v_data->blocks;
@@ -2160,6 +2333,20 @@ AbelianBackend::linear_combination(BlockBackend::Scalar a,
 std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr>
 AbelianBackend::lq(py::object tensor, TensorProduct::Ptr new_co_domain)
 {
+    // --- hints from Python AbelianBackend.lq ---
+    // since self.can_decompose_tensors is False
+    // running index, indicating we have already processed a_blocks[:i]
+    // due to the loop setup we have:
+    // a.codomain.sector_decomposition[j] == new_leg.sector_decomposition[n]
+    // a.domain.sector_decomposition[k] == new_leg.sector_decomposition[n]
+    // but we still need the leg indices (which may differ depending on the sector_order)
+    // block_inds is lexsorted and in this case duplicate-free
+    // -> running index i is correct iff domain is correctly sorted
+    // we have a block for that sector -> decompose it
+    // we do not have a block for that sector
+    // => L_block == 0 and we dont even set it.
+    // can choose arbitrary blocks for q, as long as they are isometric
+    // ---
     assert(tensor.attr("num_codomain_legs").cast<int64>() == 1);
     assert(tensor.attr("num_domain_legs").cast<int64>() == 1);
     auto a_data = data_from_tensor(tensor);
@@ -2235,6 +2422,12 @@ AbelianBackend::lq(py::object tensor, TensorProduct::Ptr new_co_domain)
 std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
 AbelianBackend::mask_binary_operand(py::object mask1, py::object mask2, py::function func)
 {
+    // --- hints from Python AbelianBackend.mask_binary_operand ---
+    // next block of mask1 to process
+    // its block_ind for the large leg.
+    // mask1 has no further blocks
+    // mask2 has no further blocks
+    // ---
     py::object large_leg = mask1.attr("large_leg");
     py::object basis_perm = large_leg.attr("_basis_perm");
     auto mask1_data = data_from_tensor(mask1);
@@ -2329,6 +2522,13 @@ AbelianBackend::mask_contract_small_leg(py::object tensor, py::object mask, int6
 std::tuple<TensorBackend::DataPtr, TensorProduct::Ptr, TensorProduct::Ptr>
 AbelianBackend::_mask_contract(py::object tensor, py::object mask, int64 leg_idx, bool large_leg)
 {
+    // --- hints from Python AbelianBackend._mask_contract ---
+    // sort by the contracted rows
+    // otherwise, if leg_idx == -1, the tensor_block_inds_contr are sorted
+    // otherwise it is already sorted
+    // need to iterate only over the "common" blocks. If either block is zero, so is the result
+    // OPTIMIZE (JU) block_inds might actually be sorted but i am not sure right now
+    // ---
     py::object parsed = tensor.attr("_parse_leg_idx")(leg_idx);
     bool in_domain = parsed.attr("__getitem__")(0).cast<bool>();
     int64 co_domain_idx = parsed.attr("__getitem__")(1).cast<int64>();
@@ -2533,6 +2733,9 @@ AbelianBackend::mask_transpose(py::object tens)
 std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
 AbelianBackend::mask_unary_operand(py::object mask, py::function func)
 {
+    // --- hints from Python AbelianBackend.mask_unary_operand ---
+    // mask has no further blocks
+    // ---
     py::object large_leg = mask.attr("large_leg");
     py::object basis_perm = large_leg.attr("_basis_perm");
     auto mask_data = data_from_tensor(mask);
@@ -2637,6 +2840,10 @@ AbelianBackend::norm(py::object a)
 TensorBackend::DataPtr
 AbelianBackend::outer(py::object a, py::object b)
 {
+    // --- hints from Python AbelianBackend.outer ---
+    // convert to common dtype
+    // res_block_inds are in general not sorted.
+    // ---
     auto a_data = data_from_tensor(a);
     auto b_data = data_from_tensor(b);
     auto a_blocks = a_data->blocks;
@@ -2697,6 +2904,11 @@ AbelianBackend::partial_compose(py::object a,
                                 TensorProduct::Ptr /*new_codomain*/,
                                 TensorProduct::Ptr /*new_domain*/)
 {
+    // --- hints from Python AbelianBackend.partial_compose ---
+    // construct new data and spaces with the legs to be contracted at the end of a and the beginning of b
+    // the computation of these modified tensorproducts cannot be avoided
+    // since they may differ from the ones computed in _tensors.py by bending
+    // ---
     auto a_data0 = data_from_tensor(a);
     auto b_data0 = data_from_tensor(b);
     int64 a_n_cod = a.attr("num_codomain_legs").cast<int64>();
@@ -2789,6 +3001,18 @@ AbelianBackend::partial_trace(py::object tensor,
                               std::vector<std::pair<int64, int64>> pairs,
                               std::vector<std::optional<int64>> /*levels*/)
 {
+    // --- hints from Python AbelianBackend.partial_trace ---
+    // if pairs[n] has one leg each in codomain and domain or if they are both on the same side
+    // only blocks "on the diagonal" of the trace contribute.
+    // figure out which blocks are on the diagonal.
+    // we do logical_and, so we start with all true
+    // legs are the same -> can compare the block_inds
+    // legs have opposite duality. need to compare sectors explicitly
+    // OPTIMIZE (JU) spaces could store (or cache!) the sector permutation between
+    // itself and its dual, then we could compare on the level of block_inds
+    // dictionary res_block_inds_row -> Block
+    // by charge rule, should be impossible to get multiple blocks.
+    // ---
     int64 N = tensor.attr("num_legs").cast<int64>();
     int64 K = tensor.attr("num_codomain_legs").cast<int64>();
     std::vector<int64> idcs1, idcs2;
@@ -2906,6 +3130,9 @@ AbelianBackend::partial_trace(py::object tensor,
 std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr>
 AbelianBackend::qr(py::object a, TensorProduct::Ptr new_co_domain)
 {
+    // --- hints from Python AbelianBackend.qr ---
+    // => R_block == 0 and we dont even set it.
+    // ---
     assert(a.attr("num_codomain_legs").cast<int64>() == 1);
     assert(a.attr("num_domain_legs").cast<int64>() == 1);
     auto a_data = data_from_tensor(a);
@@ -3001,6 +3228,15 @@ AbelianBackend::reduce_DiagonalTensor(py::object tensor,
 TensorBackend::DataPtr
 AbelianBackend::scale_axis(py::object a, py::object b, int64 leg)
 {
+    // --- hints from Python AbelianBackend.scale_axis ---
+    // due to lexsort(a_block_inds.T), a_block_inds_cont is already sorted in this case
+    // only need to iterate over common blocks, the non-common multiply to 0.
+    // note: unlike the tdot implementation, we do not combine and reshape here.
+    // this is because we know the result will have the same block-structure as `a`, and
+    // we only need to scale the blocks on one axis, not perform a general tensordot.
+    // but this also means that we may encounter duplicates in a_block_inds_cont,
+    // i.e. multiple blocks of `a` which have the same sector on the leg to be scaled.
+    // ---
     auto a_data = data_from_tensor(a);
     auto b_data = data_from_tensor(b);
     auto a_blocks = a_data->blocks;
@@ -3053,6 +3289,23 @@ AbelianBackend::split_legs(py::object a,
                            TensorProduct::Ptr new_codomain,
                            TensorProduct::Ptr new_domain)
 {
+    // --- hints from Python AbelianBackend.split_legs ---
+    // = end - beg
+    // shape (res_num_blocks, n_split)
+    // generate new block_inds and figure out slices within old blocks to be extracted
+    // splitting pipes in F style is done by splitting them in C style and permuting the axes
+    // = i - k for indices below
+    // index within pipes
+    // i = index in old tensor
+    // = a.legs[i]
+    // = index where split legs begin in new tensor
+    // = until where spaces go in new tensor
+    // if the leg to be split is in the domain, the order of block_inds and of its
+    // block_ind_map are opposite -> need to reverse
+    // need to permute these shapes here to compensate the permute_axes on the blocks below
+    // (only relevant for F style combining, i.e., dual pipes)
+    // the actual loop to split the blocks
+    // ---
     auto a_data = data_from_tensor(a);
     if (a_data->blocks.empty())
         return zero_data(new_codomain, new_domain, a_data->dtype, a_data->device);
@@ -3261,6 +3514,24 @@ AbelianBackend::svd(py::object a,
                     TensorProduct::Ptr new_co_domain,
                     std::optional<std::string> algorithm)
 {
+    // --- hints from Python AbelianBackend.svd ---
+    // The issue here is that sector_decomposition of the (co)domain is sorted, but may be
+    // dual_sorted for the single leg in the (co)domain. The block_inds do contain the indices
+    // of the legs, i.e., either we (generically) cannot iterate over sorted arrays (= iterate
+    // over legs) or we iterate over sorted arrays (= iterate over (co)domain) and then need an
+    // additional step to find the correct indices.
+    // We do the latter, i.e., assuming that sector_decomposition_where is efficient.
+    // Additionally, the block_inds of u, s, vh are in general no longer lexsorted.
+    // In the special case in which the sector_decomposition of all legs is sorted, it reduces
+    // to the previous case, where we do not need to find any indices and the block_inds are
+    // constructed in a lexsorted way.
+    // we do not have a block for that sector.
+    // => S_block == 0, dont even set it.
+    // can choose arbitrary blocks for u and vh, as long as they are isometric / orthogonal
+    // for all block_inds, the last column is sorted and duplicate-free,
+    // thus the block_inds are np.lexsort( .T)-ed if the sector_order of
+    // the corresponding leg is sorted
+    // ---
     assert(a.attr("num_codomain_legs").cast<int64>() == 1);
     assert(a.attr("num_domain_legs").cast<int64>() == 1);
     auto a_data = data_from_tensor(a);
@@ -3373,6 +3644,9 @@ AbelianBackend::trace_full(py::object a,
                            std::vector<int64> /*idcs1*/,
                            std::vector<int64> /*idcs2*/)
 {
+    // --- hints from Python AbelianBackend.trace_full ---
+    // else: block is entirely off-diagonal and does not contribute to the trace
+    // ---
     auto a_data = data_from_tensor(a);
     int64 K = a.attr("num_codomain_legs").cast<int64>();
     auto res = block_backend->as_scalar(dtype::zero_scalar(a_data->dtype), a_data->dtype);

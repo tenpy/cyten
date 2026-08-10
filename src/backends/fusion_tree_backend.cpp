@@ -409,6 +409,11 @@ FusionTreeBackend::FusionTreeBackend(std::shared_ptr<BlockBackend> block_backend
   : TensorBackend(std::move(block_backend_))
   , eps(eps_)
 {
+    // --- hints from Python FusionTreeBackend.__init__ ---
+    // the default value for eps is based on tests for 4-leg tensors. For smaller values of eps,
+    // we obtained additional blocks above this threshold (from numerical imprecisions) when
+    // bending some legs and then going back to the initial configuration.
+    // ---
     can_decompose_tensors = true;
     DataCls = py::none();
 }
@@ -416,6 +421,10 @@ FusionTreeBackend::FusionTreeBackend(std::shared_ptr<BlockBackend> block_backend
 void
 FusionTreeBackend::test_tensor_sanity(py::object a, bool is_diagonal)
 {
+    // --- hints from Python FusionTreeBackend.test_tensor_sanity ---
+    // check device and dtype
+    // check charge rule (matching coupled sectors)
+    // ---
     TensorBackend::test_tensor_sanity(a, is_diagonal);
     py::object raw = a.attr("data");
     FusionTreeData::Ptr data;
@@ -464,6 +473,12 @@ FusionTreeBackend::test_tensor_sanity(py::object a, bool is_diagonal)
 void
 FusionTreeBackend::test_mask_sanity(py::object a)
 {
+    // --- hints from Python FusionTreeBackend.test_mask_sanity ---
+    // check device and dtype
+    // block_inds
+    // check charge rule (matching coupled sectors)
+    // blocks
+    // ---
     TensorBackend::test_mask_sanity(a);
     py::object raw = a.attr("data");
     FusionTreeData::Ptr data;
@@ -502,6 +517,9 @@ FusionTreeBackend::act_block_diagonal_square_matrix(py::object a,
                                                     py::function block_method,
                                                     py::object dtype_map)
 {
+    // --- hints from Python FusionTreeBackend.act_block_diagonal_square_matrix ---
+    // square matrix => codomain == domain have the same sectors
+    // ---
     auto a_data = data_from_tensor(a);
     auto block_inds_col0 = a_data->block_inds.column(0);
     std::vector<BlockBackend::BlockPtr> res_blocks;
@@ -539,12 +557,18 @@ FusionTreeBackend::add_trivial_leg(py::object a,
                                    TensorProduct::Ptr /*new_codomain*/,
                                    TensorProduct::Ptr /*new_domain*/)
 {
+    // --- hints from Python FusionTreeBackend.add_trivial_leg ---
+    // does not change blocks or coupled sectors at all.
+    // ---
     return wrap(data_from_tensor(a));
 }
 
 bool
 FusionTreeBackend::almost_equal(py::object a, py::object b, float64 rtol, float64 atol)
 {
+    // --- hints from Python FusionTreeBackend.almost_equal ---
+    // since the coupled sector must agree, it is enough to compare block_inds[:, 0]
+    // ---
     auto a_data = data_from_tensor(a);
     auto b_data = data_from_tensor(b);
     bool ok = true;
@@ -617,6 +641,9 @@ FusionTreeBackend::apply_instructions(py::object tensor,
 TensorBackend::DataPtr
 FusionTreeBackend::apply_mask_to_DiagonalTensor(py::object tensor, py::object mask)
 {
+    // --- hints from Python FusionTreeBackend.apply_mask_to_DiagonalTensor ---
+    // append only for one leg, repeat later
+    // ---
     auto t_data = data_from_tensor(tensor);
     auto m_data = data_from_tensor(mask);
     auto t_col = t_data->block_inds.column(0);
@@ -684,6 +711,9 @@ FusionTreeBackend::compose(py::object a, py::object b)
 TensorBackend::DataPtr
 FusionTreeBackend::copy_data(py::object a, std::optional<std::string> device)
 {
+    // --- hints from Python FusionTreeBackend.copy_data ---
+    // OPTIMIZE do we need to copy these?
+    // ---
     auto a_data = data_from_tensor(a);
     std::vector<BlockBackend::BlockPtr> blocks;
     blocks.reserve(a_data->blocks.size());
@@ -697,6 +727,9 @@ FusionTreeBackend::copy_data(py::object a, std::optional<std::string> device)
 TensorBackend::DataPtr
 FusionTreeBackend::dagger(py::object a)
 {
+    // --- hints from Python FusionTreeBackend.dagger ---
+    // domain and codomain have swapped
+    // ---
     auto a_data = data_from_tensor(a);
     std::vector<BlockBackend::BlockPtr> blocks;
     blocks.reserve(a_data->blocks.size());
@@ -721,6 +754,10 @@ FusionTreeBackend::data_item(DataPtr a)
 bool
 FusionTreeBackend::diagonal_all(py::object a)
 {
+    // --- hints from Python FusionTreeBackend.diagonal_all ---
+    // there are missing blocks. -> they contain False -> all(a) == False
+    // now it is enough to check the existing blocks
+    // ---
     auto data = data_from_tensor(a);
     if (static_cast<int64>(data->blocks.size()) < nsec(a.attr("domain")))
         return false;
@@ -747,6 +784,10 @@ FusionTreeBackend::diagonal_elementwise_binary(py::object a,
                                                py::dict func_kwargs,
                                                bool partial_zero_is_zero)
 {
+    // --- hints from Python FusionTreeBackend.diagonal_elementwise_binary ---
+    // a_block_inds[:n_a] already visited
+    // b_block_inds[:n_b] already visited
+    // ---
     auto a_data = data_from_tensor(a);
     auto b_data = data_from_tensor(b);
     std::vector<BlockBackend::BlockPtr> blocks;
@@ -861,6 +902,12 @@ FusionTreeBackend::diagonal_from_block(BlockBackend::BlockPtr a,
                                        TensorProduct::Ptr co_domain,
                                        float64 tol)
 {
+    // --- hints from Python FusionTreeBackend.diagonal_from_block ---
+    // OPTIMIZE (JU) this lookup is annoying, but currently needed because of potentially
+    // different sorting order of the ``a.domain == TensorProduct(a.leg)``
+    // versus the ``a.leg`` itself
+    // project onto the identity on the coupled sector
+    // ---
     auto leg = co_domain->factors[0];
     Dtype dt = block_backend->get_dtype(a);
     BlockInds block_inds =
@@ -936,6 +983,11 @@ FusionTreeBackend::diagonal_tensor_trace_full(py::object a)
 BlockBackend::BlockPtr
 FusionTreeBackend::diagonal_tensor_to_block(py::object a)
 {
+    // --- hints from Python FusionTreeBackend.diagonal_tensor_to_block ---
+    // OPTIMIZE (JU) this lookup is annoying, but currently needed because of potentially
+    // different sorting order of the ``a.domain == TensorProduct(a.leg)``
+    // versus the ``a.leg`` itself
+    // ---
     assert(a.attr("symmetry").attr("can_be_dropped").cast<bool>());
     auto a_data = data_from_tensor(a);
     auto res = block_backend->zeros({ a.attr("leg").attr("dim").cast<int64>() },
@@ -976,6 +1028,9 @@ FusionTreeBackend::get_dtype_from_data(DataPtr a)
 bool
 FusionTreeBackend::supports_symmetry(Symmetry::Ptr symmetry)
 {
+    // --- hints from Python FusionTreeBackend.supports_symmetry ---
+    // supports all symmetries
+    // ---
     return symmetry != nullptr;
 }
 
@@ -1038,6 +1093,10 @@ FusionTreeBackend::full_data_from_mask(py::object a, Dtype dtype)
 TensorBackend::DataPtr
 FusionTreeBackend::mask_dagger(py::object mask)
 {
+    // --- hints from Python FusionTreeBackend.mask_dagger ---
+    // the legs swap between domain and codomain. need to swap the two columns of block_inds.
+    // since both columns are unique and ascending, the resulting block_inds are still sorted.
+    // ---
     auto data = data_from_tensor(mask);
     BlockInds block_inds = data->block_inds.reverse_columns();
     return wrap(make_data(mask.attr("dtype").cast<Dtype>(),
@@ -1102,6 +1161,9 @@ FusionTreeBackend::state_tensor_product(BlockBackend::BlockPtr /*state1*/,
                                         BlockBackend::BlockPtr /*state2*/,
                                         LegPipe::Ptr /*pipe*/)
 {
+    // --- hints from Python FusionTreeBackend.state_tensor_product ---
+    // TODO clearly define what this should do in tensors.py first!
+    // ---
     throw NotImplemented("state_tensor_product not implemented");
 }
 
@@ -1153,6 +1215,10 @@ FusionTreeBackend::zero_data(TensorProduct::Ptr codomain,
 TensorBackend::DataPtr
 FusionTreeBackend::eye_data(TensorProduct::Ptr co_domain, Dtype dtype, std::string device)
 {
+    // --- hints from Python FusionTreeBackend.eye_data ---
+    // Note: the identity has the same matrix elements in all ONB, so no need to consider
+    // the basis perms.
+    // ---
     std::vector<BlockBackend::BlockPtr> blocks;
     for (int64 c_idx = 0; c_idx < co_domain->num_sectors; ++c_idx)
         blocks.push_back(block_backend->eye_matrix(co_domain->block_size(c_idx), dtype, device));
@@ -1211,6 +1277,10 @@ FusionTreeBackend::from_random_normal(TensorProduct::Ptr codomain,
 BlockBackend::Scalar
 FusionTreeBackend::inner(py::object a, py::object b, bool do_dagger)
 {
+    // --- hints from Python FusionTreeBackend.inner ---
+    // need to match a.codomain == b.codomain
+    // need to math a.codomain == b.domain
+    // ---
     auto a_data = data_from_tensor(a);
     auto b_data = data_from_tensor(b);
     auto qdims = a.attr("codomain").attr("sector_qdims").cast<std::vector<float64>>();
@@ -1251,6 +1321,9 @@ FusionTreeBackend::trace_full(py::object a,
 BlockBackend::Scalar
 FusionTreeBackend::norm(py::object a)
 {
+    // --- hints from Python FusionTreeBackend.norm ---
+    // OPTIMIZE should we offer the square-norm instead?
+    // ---
     auto a_data = data_from_tensor(a);
     auto qdims = a.attr("codomain").attr("sector_qdims").cast<std::vector<float64>>();
     float64 norm_sq = 0.;
@@ -1355,6 +1428,9 @@ FusionTreeBackend::get_element_diagonal(py::object a, int64 idx)
 BlockBackend::Scalar
 FusionTreeBackend::get_element_mask(py::object a, std::vector<int64> idcs)
 {
+    // --- hints from Python FusionTreeBackend.get_element_mask ---
+    // domain leg index
+    // ---
     auto legs = conventional_leg_order(a);
     auto np = numpy();
     py::list rows;
@@ -1414,6 +1490,10 @@ FusionTreeBackend::permute_legs(py::object a,
                                 std::vector<std::optional<int64>> levels,
                                 std::vector<std::optional<bool>> bend_right)
 {
+    // --- hints from Python FusionTreeBackend.permute_legs ---
+    // mapping to flat indices for TreeMappingDict.from_permute_legs
+    // OPTIMIZE rm check?
+    // ---
     std::vector<std::optional<int64>> flat_levels;
     std::vector<std::optional<bool>> flat_bend_right;
     py::list codomain_pipe_inds;
@@ -1510,6 +1590,18 @@ FusionTreeBackend::_get_forest_block_contribution(BlockBackend::BlockPtr block,
                                                   std::vector<int64> n_mults,
                                                   Dtype dtype) const
 {
+    // --- hints from Python FusionTreeBackend._get_forest_block_contribution ---
+    // OPTIMIZE do one loop per vertex in the tree instead.
+    // i1: start row index of the current tree block within the block
+    // i2: start column index of the current tree block within the block
+    // [a1,...,aJ,c]
+    // [b1,...,bK,c]
+    // [a1,...,aJ,b1,...,bK]
+    // [M, N] -> [m1,...,mJ,n1,...,nK]
+    // [{aj} {bk} {mj} {nk}]
+    // reset to the left of the current forest-block
+    // OPTIMIZE count loop iterations above instead?  (same in _add_forest_block_entries)
+    // ---
     SectorArray a_sectors = a_sectors_obj.cast<SectorArray>();
     SectorArray b_sectors = b_sectors_obj.cast<SectorArray>();
     auto codomain_are_dual = flat_are_dual(codomain);
@@ -1573,6 +1665,16 @@ FusionTreeBackend::_add_forest_block_entries(BlockBackend::BlockPtr block,
                                              std::vector<int64> /*m_mults*/,
                                              std::vector<int64> /*n_mults*/) const
 {
+    // --- hints from Python FusionTreeBackend._add_forest_block_entries ---
+    // used in tdot calls below
+    // entries: [a1,...,aJ,b1,...,bK,m1,...,mJ,n1,...,nK]
+    // [{bk}, {mj}, {nk}, c]
+    // [{mj}, {nk}, c, c']
+    // projected onto the identity on [c, c']
+    // make sure we set in-range elements! otherwise item assignment silently does nothing.
+    // move right by one tree-block
+    // move down by one tree-block (we reset to the left at start of the loop)
+    // ---
     SectorArray a_sectors = a_sectors_obj.cast<SectorArray>();
     SectorArray b_sectors = b_sectors_obj.cast<SectorArray>();
     int64 J = codomain->num_flat_legs();
@@ -1623,6 +1725,27 @@ FusionTreeBackend::from_dense_block(BlockBackend::BlockPtr a,
                                     TensorProduct::Ptr domain,
                                     float64 tol)
 {
+    // --- hints from Python FusionTreeBackend.from_dense_block ---
+    // we cannot simply use cstyles as argument in combine_legs since we potentially need to deal with
+    // nested pipes with different cstyles -> choose to combine in C style and do axis permutation explicitly
+    // use inverse permutation here s.t. it the dims agree with the flat dims after permute_axes below
+    // convert to internal basis order, where the sectors are sorted and contiguous
+    // [i1,...,iJ,jK,...,j1] -> [i1,...,iJ,j1,...,jK]
+    // main loop: iterate over coupled sectors and construct the respective block.
+    // OPTIMIZE could be sth like np.empty
+    // iterate over uncoupled sectors / forest-blocks within the block
+    // start row index of the current forest block
+    // start column index of the current forest block
+    // [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
+    // reshape to [a1,m1,...,aJ,mJ, b1,n1,...,bK,nK]
+    // permute to [a1,...,aJ, b1,...,bK, m1,...,mJ, n1,...nK]
+    // move down by one forest-block
+    // reset to the top of the block
+    // move right by one forest-block
+    // since the symmetric and non-symmetric components of ``a = a_sym + a_rest`` are mutually
+    // orthogonal, we have  ``norm(a) ** 2 = norm(a_sym) ** 2 + norm(a_rest) ** 2``.
+    // thus ``abs_err = norm(a - a_sym) = norm(a_rest) = sqrt(norm(a) ** 2 - norm(a_sym) ** 2)``
+    // ---
     if (codomain->has_pipes() || domain->has_pipes()) {
         // Match Python: split pipes on the dense block, then apply flat-leg permute.
         py::list idcs;
@@ -1776,6 +1899,13 @@ FusionTreeBackend::from_dense_block(BlockBackend::BlockPtr a,
 BlockBackend::BlockPtr
 FusionTreeBackend::to_dense_block(py::object a)
 {
+    // --- hints from Python FusionTreeBackend.to_dense_block ---
+    // first build it with the flattened legs, and if there are pipes, combine at the very end
+    // build in internal basis order, is converted to public basis order in SymmetricTensor.to_dense_block
+    // build in codomain/domain leg order first, then permute legs in the end
+    // permute leg order [i1,...,iJ,j1,...,jK] -> [i1,...,iJ,jK,...,j1]
+    // need to cast to a list here since numpy arrays leads errors in the torch block backend
+    // ---
     assert(a.attr("symmetry").attr("can_be_dropped").cast<bool>());
     auto a_data = data_from_tensor(a);
     auto codomain = a.attr("codomain").cast<TensorProduct::Ptr>();
@@ -1916,6 +2046,13 @@ FusionTreeBackend::reduce_DiagonalTensor(py::object tensor,
 std::tuple<Space::Ptr, TensorBackend::DataPtr>
 FusionTreeBackend::diagonal_transpose(py::object tens)
 {
+    // --- hints from Python FusionTreeBackend.diagonal_transpose ---
+    // result has block associated with coupled sector c that is given by the block of tens
+    // with coupled sector dual(c).
+    // since the TensorProduct.sector_decomposition is always sorted, those corresponding
+    // sectors do not appear in the same order.
+    // OPTIMIZE doing this sorting is duplicate work between here and forming tens.leg.dual
+    // ---
     auto perm = tens.attr("symmetry")
                   .attr("dual_sectors")(tens.attr("domain").attr("sector_decomposition"))
                   .attr("lexsort_indices")();
@@ -1940,6 +2077,10 @@ FusionTreeBackend::diagonal_transpose(py::object tens)
 std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr, ElementarySpace::Ptr>
 FusionTreeBackend::eigh(py::object a, bool new_leg_dual, std::optional<std::string> sort)
 {
+    // --- hints from Python FusionTreeBackend.eigh ---
+    // there is not block for that sector. => eigenvalues are 0.
+    // choose eigenvectors as standard basis vectors (eye matrix)
+    // ---
     auto a_data = data_from_tensor(a);
     auto new_leg =
       a.attr("domain").attr("as_ElementarySpace")(new_leg_dual).cast<ElementarySpace::Ptr>();
@@ -2035,6 +2176,11 @@ FusionTreeBackend::lq(py::object a, TensorProduct::Ptr new_co_domain)
 std::tuple<TensorBackend::DataPtr, TensorBackend::DataPtr>
 FusionTreeBackend::qr(py::object a, TensorProduct::Ptr new_co_domain)
 {
+    // --- hints from Python FusionTreeBackend.qr ---
+    // running index, indicating we have already processed a_blocks[:n]
+    // there is no block for that sector. => r=0, no need to set it.
+    // choose basis vectors for q as standard basis vectors (cols/rows of eye)
+    // ---
     auto a_data = data_from_tensor(a);
     py::list q_block_inds;
     py::list r_block_inds;
@@ -2093,6 +2239,10 @@ FusionTreeBackend::svd(py::object a,
                        TensorProduct::Ptr new_co_domain,
                        std::optional<std::string> algorithm)
 {
+    // --- hints from Python FusionTreeBackend.svd ---
+    // there is no block for that sector. => s=0, no need to set it.
+    // choose basis vectors for u/vh as standard basis vectors (cols/rows of eye)
+    // ---
     auto a_data = data_from_tensor(a);
     py::list u_block_inds;
     py::list s_block_inds;
@@ -2170,6 +2320,17 @@ FusionTreeBackend::truncate_singular_values(py::object S,
                                             std::optional<float64> svd_min,
                                             bool minimize_error)
 {
+    // --- hints from Python FusionTreeBackend.truncate_singular_values ---
+    // build a numpy array of the singular values and a numpy array of the qdims
+    // have already considered blocks[:i]
+    // we have a block for that coupled sector
+    // select which to keep
+    // build the Mask
+    // TODO not sure how to deal with the basis perm here...
+    // but ideally the new leg of an SVD has no basis_perm anyway
+    // all False. skip this block.
+    // OPTIMIZE avoid computing it, if we reset it anyway
+    // ---
     // Port of Python FusionTreeBackend.truncate_singular_values — builds a dense
     // S array from block multiplicities/qdims (works when can_be_dropped is False).
     auto np = numpy();
@@ -2273,6 +2434,12 @@ FusionTreeBackend::_mask_contract(py::object tensor,
                                   int64 leg_idx,
                                   bool large_leg)
 {
+    // --- hints from Python FusionTreeBackend._mask_contract ---
+    // sector decomposition changes, need to adjust res_block_inds
+    // some coupled sectors may no longer be allowed if uncoupled sectors are projected out
+    // -> the corresponding shape has a zero entry -> remove later using discard_zero_blocks
+    // uncoupled sector not in mask
+    // ---
     if (tensor.attr("has_pipes").cast<bool>())
         throw NotImplemented("_mask_contract does not support pipes yet");
     py::object parsed = tensor.attr("_parse_leg_idx")(leg_idx);
@@ -2505,6 +2672,12 @@ partial_trace_helper(FusionTree const& tree, std::vector<int64> const& idcs)
 TensorBackend::DataPtr
 FusionTreeBackend::outer(py::object a, py::object b)
 {
+    // --- hints from Python FusionTreeBackend.outer ---
+    // idea: get the fusion trees in the combined (co)domain by inserting an identity
+    // = summing over all fusion products of the coupled sectors of tensors a and b
+    // OPTIMIZE new_codomain and new_domain are already computed in tensors.py -> reuse here
+    // axes of new_tree_block after outer: (a.codomain, a.domain, b.codomain, b.domain)
+    // ---
     auto a_data = data_from_tensor(a);
     auto new_codomain =
       TensorProduct::from_partial_products({ a.attr("codomain").cast<TensorProduct::Ptr>(),
@@ -2564,6 +2737,21 @@ FusionTreeBackend::partial_compose(py::object a,
                                    TensorProduct::Ptr new_codomain,
                                    TensorProduct::Ptr new_domain)
 {
+    // --- hints from Python FusionTreeBackend.partial_compose ---
+    // OPTIMIZE ?
+    // space used to iterate over dummy fusion trees containing the
+    // relevant coupled sectors for the legs that are contracted
+    // we do not want to recompute the transformations for the fusion trees, so cache them here
+    // the new space (of b) only has sectors incompatible with the coupled sector of a
+    // the corresponding block in b is trivial, but we only iterate over nontrivial blocks (eff_space)
+    // since this is not the original (co)domain, the slices are different
+    // parts of the multiplicities can be reused anyway
+    // reuse the tree transformations using that they only depend on the vertex sectors
+    // the Ys in the domain of tensor a fit the Xs in the codomain of tensor b
+    // TODO check if the complex conjugation here is correct or if we need to do it as
+    // currently done in the codomain; check this when we have a symmetry with complex
+    // F symbols and verify that the incorrect way actually has test cases failing
+    // ---
     Dtype dtype = dtype::common({ a.attr("dtype").cast<Dtype>(), b.attr("dtype").cast<Dtype>() });
     auto a_data = data_from_tensor(a);
     auto b_data = data_from_tensor(b);
@@ -2760,6 +2948,27 @@ FusionTreeBackend::partial_trace(py::object tensor,
                                  std::vector<std::pair<int64, int64>> pairs,
                                  std::vector<std::optional<int64>> levels)
 {
+    // --- hints from Python FusionTreeBackend.partial_trace ---
+    // step 1: permute legs such that the paired legs are next to each other
+    // it does not matter which leg is moved; the partial trace implies that
+    // the fusion channel of each pair is trivial. It is however crucial that
+    // we keep the ordering within each pair.
+    // OPTIMIZE decide if we want to optimize: There is in principle no need to
+    // braid when tracing out two pairs of the form [1, 4] and [2, 3]
+    // permute legs such that the ones with the smaller index do not move
+    // leg at pair[1] is bent up
+    // Build new codomain and domain
+    // TODO (JU) this is duplicate code with tensors._permute_legs, but we cant import that
+    // here (cyclic)
+    // (co)domain has the same factor as before, only permuted -> can re-use sectors!
+    // note: we bend to the right *by definition*
+    // only consider coupled sectors in data that are consistent with co(domain) after tracing
+    // OPTIMIZE use sorted properties to speed this up.
+    // block indices
+    // step 2: compute new entries: iterate over all trees in the untraced
+    // spaces and construct the consistent trees in the traced spaces
+    // need to get updated indices after permuting the legs
+    // ---
     std::sort(pairs.begin(), pairs.end(), [](auto const& a, auto const& b) {
         if (a.first != b.first)
             return a.first < b.first;
@@ -3045,6 +3254,12 @@ FusionTreeBackend::from_tree_pairs(
   Dtype dtype,
   std::string device)
 {
+    // --- hints from Python FusionTreeBackend.from_tree_pairs ---
+    // [m1,...,mJ,nK,...,n1] -> [m1,...,mJ,n1,...,nK]
+    // [m1,...,mJ,n1,...,nK] -> [M, N]
+    // check if we covered all keys in the dict
+    // OPTIMIZE if the code works, we could remove this check
+    // ---
     int64 J = codomain->num_flat_legs();
     int64 K = domain->num_flat_legs();
     py::list block_inds_rows;
@@ -3114,6 +3329,11 @@ FusionTreeBackend::from_tree_pairs(
 BlockBackend::Scalar
 FusionTreeBackend::get_element(py::object a, std::vector<int64> idcs)
 {
+    // --- hints from Python FusionTreeBackend.get_element ---
+    // reverse domain idcs -> work in the non-conventional leg order [i1,...,iJ,j1,...,jK]
+    // build the correct forest block to get the element
+    // reshape to [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
+    // ---
     py::module_::import("warnings")
       .attr("warn")(
         "Accessing individual entries in the FusionTreeBackend is comparably expensive.",
@@ -3229,6 +3449,15 @@ FusionTreeBackend::from_grid(std::vector<std::vector<py::object>> grid,
                              Dtype dtype,
                              std::string device)
 {
+    // --- hints from Python FusionTreeBackend.from_grid ---
+    // idea: iterate over forest blocks of the operators in the grid; forest blocks are always
+    // contiguous except in the case where contributions to the same forest block comes from
+    // different operators -> reshape such that the legs along which we stack are isolated
+    // goal: reshape co_domain part such that it has 3 axes:
+    // for the trees, for the multiplicity of codomain[0] / domain[-1], for all other multiplicities
+    // only the first space is different
+    // only the last space is different
+    // ---
     auto data = unwrap(zero_data(new_codomain, new_domain, dtype, device, true));
     auto new_codomain_legs = new_codomain->flat_legs();
     auto new_domain_legs = new_domain->flat_legs();
@@ -3360,6 +3589,16 @@ FusionTreeBackend::from_grid(std::vector<std::vector<py::object>> grid,
 TensorBackend::DataPtr
 FusionTreeBackend::scale_axis(py::object a, py::object b, int64 leg)
 {
+    // --- hints from Python FusionTreeBackend.scale_axis ---
+    // 1 if in_domain, 0 else
+    // [:, 1] must be equal
+    // special case where it is essentially compose.
+    // use flattened tensor product -> need to shift co_domain_idx
+    // potential coupled sectors
+    // mapping between index in coupled sectors and index in blocks
+    // add -1 for reshaping to take care of multiple trees within the same forest
+    // + 1 for axis comes from adding -1 to the reshaping
+    // ---
     Dtype dtype = dtype::common({ a.attr("dtype").cast<Dtype>(), b.attr("dtype").cast<Dtype>() });
     py::object parsed = a.attr("_parse_leg_idx")(leg);
     bool in_domain = parsed.attr("__getitem__")(0).cast<bool>();
@@ -3476,6 +3715,11 @@ FusionTreeBackend::scale_axis(py::object a, py::object b, int64 leg)
 std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
 FusionTreeBackend::diagonal_to_mask(py::object tens)
 {
+    // --- hints from Python FusionTreeBackend.diagonal_to_mask ---
+    // block_inds are w.r.t. TensorProducts, not the legs
+    // -> maybe need to do additional sorting if leg is dual
+    // get the defining sector
+    // ---
     // Match Python FusionTreeBackend.diagonal_to_mask: defining sectors + ElementarySpace ctor.
     auto tens_data = data_from_tensor(tens);
     py::object large_leg = tens.attr("leg");
@@ -3566,6 +3810,14 @@ FusionTreeBackend::diagonal_to_mask(py::object tens)
 std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
 FusionTreeBackend::mask_binary_operand(py::object mask1, py::object mask2, py::function func)
 {
+    // --- hints from Python FusionTreeBackend.mask_binary_operand ---
+    // -> maybe need to do additional sorting and searching if leg is dual
+    // next block of mask1 to process; iterating like this only works if is_sorted.
+    // its block_ind for the large leg.
+    // do this here for both masks
+    // mask1 has no further blocks
+    // mask2 has no further blocks
+    // ---
     py::object large_leg = mask1.attr("large_leg");
     py::object basis_perm = large_leg.attr("_basis_perm");
     bool is_sorted = !large_leg.attr("is_dual").cast<bool>();
@@ -3682,6 +3934,10 @@ FusionTreeBackend::mask_binary_operand(py::object mask1, py::object mask2, py::f
 std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
 FusionTreeBackend::mask_from_block(BlockBackend::BlockPtr a, Space::Ptr large_leg)
 {
+    // --- hints from Python FusionTreeBackend.mask_from_block ---
+    // block_inds are w.r.t. TensorProducts, not the legs
+    // -> maybe need to do additional sorting and searching if leg is dual
+    // ---
     py::object large_leg_obj = py::cast(large_leg);
     py::object basis_perm = large_leg_obj.attr("_basis_perm");
     bool is_sorted = !large_leg_obj.attr("is_dual").cast<bool>();
@@ -3799,6 +4055,9 @@ FusionTreeBackend::mask_to_block(py::object a)
 std::tuple<Space::Ptr, Space::Ptr, TensorBackend::DataPtr>
 FusionTreeBackend::mask_transpose(py::object tens)
 {
+    // --- hints from Python FusionTreeBackend.mask_transpose ---
+    // similar implementation to diagonal_transpose
+    // ---
     auto data = data_from_tensor(tens);
     auto sym = tens.attr("symmetry").cast<Symmetry::Ptr>();
     auto perm_dom =
@@ -3830,6 +4089,10 @@ FusionTreeBackend::mask_transpose(py::object tens)
 std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
 FusionTreeBackend::mask_unary_operand(py::object mask, py::function func)
 {
+    // --- hints from Python FusionTreeBackend.mask_unary_operand ---
+    // next block of mask to process; iterating like this only works if is_sorted.
+    // mask has no further blocks
+    // ---
     py::object large_leg = mask.attr("large_leg");
     py::object basis_perm = large_leg.attr("_basis_perm");
     bool is_sorted = !large_leg.attr("is_dual").cast<bool>();
@@ -3918,3 +4181,20 @@ FusionTreeBackend::mask_unary_operand(py::object mask, py::function func)
 }
 
 } // namespace cyten
+
+// =============================================================================
+// ORPHANED PYTHON COMMENT HINTS (no matching C++ function body found)
+// =============================================================================
+// --- _tree_block_iter ---
+// reset to the left of the current forest block
+// move right by one tree block
+// move down by one tree block
+// --- PermuteLegsInstructionEngine.__init__ ---
+// should have raised in tensors.py already
+// stateful attributes (need to be kept up to date!):
+// --- FactorizedTreeMapping._transform_splitting_trees ---
+// note: we first add all contributions to the new rows, and then do the
+// axes permutation only once to the result.
+// --- _partial_trace_helper ---
+// this must be the case if there is only one way to fuse to the trivial sector
+// =============================================================================

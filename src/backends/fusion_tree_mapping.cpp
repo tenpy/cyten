@@ -197,6 +197,9 @@ TensorMapping::pre_compose_instruction(Instruction const& instruction,
                                        bool instruction_is_real,
                                        std::optional<float64> prune_tol) const
 {
+    // --- hints from Python TensorMapping.pre_compose_instruction ---
+    // this should never happen
+    // ---
     std::unique_ptr<TensorMapping> res;
     std::visit(
       [&](auto const& inst) {
@@ -252,6 +255,10 @@ std::unique_ptr<TensorMapping>
 TreePairMapping::pre_compose_bend_instruction(BendInstruction const& instruction,
                                               bool instruction_is_real) const
 {
+    // --- hints from Python TreePairMapping.pre_compose_bend_instruction ---
+    // to pre-compose the bend_mapping, we only need to compute the ``bend_mapping[j][i]``
+    // for those ``j`` for which an entry ``self.mapping[k][j]`` exists.
+    // ---
     SparseMappingFusionTreePair bend_mapping;
     for (auto const& key : mapping.nonzero_rows()) {
         auto const& [X, Y] = key;
@@ -309,6 +316,15 @@ std::unique_ptr<TensorMapping>
 TreePairMapping::pre_compose_braid_instruction(BraidInstruction const& instruction,
                                                bool instruction_is_real) const
 {
+    // --- hints from Python TreePairMapping.pre_compose_braid_instruction ---
+    // the splitting tree in the codomain is represented by a FusionTree and::
+    // res_fusion_tree = dagger(res_splitting_tree)
+    // = dagger(braid(splitting_tree))
+    // = opposite_braid(dagger(splitting_tree))
+    // = opposite_braid(fusion_tree)
+    // additionally, since we represent t = dagger(t_fusion), coefficients get a conj
+    // a t + b t2 = dagger(conj(a) t_fusion + conj(b) t2_fusion)
+    // ---
     SparseMappingFusionTree braid_mapping;
     if (instruction.codomain) {
         std::set<FusionTree> trees;
@@ -337,6 +353,11 @@ std::unique_ptr<TensorMapping>
 TreePairMapping::pre_compose_twist_instruction(TwistInstruction const& instruction,
                                                bool instruction_is_real) const
 {
+    // --- hints from Python TreePairMapping.pre_compose_twist_instruction ---
+    // because this is a splitting tree, we need to do the opposite twist to its
+    // fusiontree representative, giving us one conj.
+    // then, we need to conj the resulting coefficient, cancelling that conj again.
+    // ---
     SparseMappingFusionTree twist_mapping;
     if (instruction.codomain) {
         std::set<FusionTree> trees;
@@ -376,6 +397,17 @@ TreePairMapping::transform_tensor(FusionTreeData const& data,
                                   std::vector<int64> const& domain_idcs,
                                   std::shared_ptr<BlockBackend> block_backend) const
 {
+    // --- hints from Python TreePairMapping.transform_tensor ---
+    // f(T)_{Jm} = sum_I f_{JI} T_{Im} = sum_I mapping[I][J] T_{Im}
+    // note: we first add all contributions to the new tree block, and do the axes
+    // permutation only once to the result
+    // ie old block is not set / is zero
+    // OPTIMIZE cache these?
+    // from the iterator, we get mults1, mults2 in the new axis order, but wee need
+    // them in the old order. OPTIMIZE can we do better than this??
+    // 0   1      J-1  J   J+1      J+K-1
+    // tree_block [m1, m2, ..., mJ, n1, n2, ..., nK]
+    // ---
     int64 const J = codomain->num_flat_legs();
     int64 const K = domain->num_flat_legs();
     int64 const N = J + K;
@@ -536,6 +568,9 @@ std::unique_ptr<TensorMapping>
 FactorizedTreeMapping::pre_compose_braid_instruction(BraidInstruction const& instruction,
                                                      bool instruction_is_real) const
 {
+    // --- hints from Python FactorizedTreeMapping.pre_compose_braid_instruction ---
+    // (see notes in TreePairMapping.pre_compose_braid_instruction)
+    // ---
     SparseMappingFusionTree braid_mapping;
     FusionTreeMappingVariant splitting = splitting_tree_mapping;
     FusionTreeMappingVariant fusion = fusion_tree_mapping;
@@ -559,6 +594,11 @@ std::unique_ptr<TensorMapping>
 FactorizedTreeMapping::pre_compose_twist_instruction(TwistInstruction const& instruction,
                                                      bool instruction_is_real) const
 {
+    // --- hints from Python FactorizedTreeMapping.pre_compose_twist_instruction ---
+    // because this is a splitting tree, we need to do the opposite twist to its
+    // fusiontree representative, giving us one conj.
+    // then, we need to conj the resulting coefficient, cancelling that conj again.
+    // ---
     SparseMappingFusionTree twist_mapping;
     FusionTreeMappingVariant splitting = splitting_tree_mapping;
     FusionTreeMappingVariant fusion = fusion_tree_mapping;

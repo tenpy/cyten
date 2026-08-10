@@ -106,6 +106,13 @@ PermuteLegsInstructionEngine::PermuteLegsInstructionEngine(
 std::vector<Instruction>
 PermuteLegsInstructionEngine::evaluate_instructions()
 {
+    // --- hints from Python PermuteLegsInstructionEngine.evaluate_instructions ---
+    // 5 main steps:
+    // make sure we are actually done
+    // OPTIMIZE can we apply some simple rules to simplify instructions? e.g.
+    // detect if a braid is undone by a different braid?
+    // this can happen if there are left bends
+    // ---
     assert(instructions.empty());
 
     auto [num_left_cod, num_right_cod] = do_initial_codomain_permutation();
@@ -130,6 +137,9 @@ PermuteLegsInstructionEngine::verify(int64 num_codomain_legs_,
                                      std::vector<int64> const& codomain_idcs,
                                      std::vector<int64> const& domain_idcs) const
 {
+    // --- hints from Python PermuteLegsInstructionEngine.verify ---
+    // this should never happen
+    // ---
     std::vector<int64> codomain(num_codomain_legs_);
     std::iota(codomain.begin(), codomain.end(), 0);
     std::vector<int64> domain(num_domain_legs_);
@@ -202,6 +212,10 @@ PermuteLegsInstructionEngine::compare_levels(int64 idx_1, int64 idx_2) const
 std::pair<int64, int64>
 PermuteLegsInstructionEngine::do_initial_codomain_permutation()
 {
+    // --- hints from Python PermuteLegsInstructionEngine.do_initial_codomain_permutation ---
+    // note: reversed is to keep relative order
+    // check goal
+    // ---
     int64 num_left_bends = 0;
     for (int64 leg = 0; leg < num_codomain_legs; ++leg) {
         if (should_bend[static_cast<std::size_t>(leg)] == ShouldBend::Left) {
@@ -222,6 +236,18 @@ PermuteLegsInstructionEngine::do_initial_codomain_permutation()
 void
 PermuteLegsInstructionEngine::do_codomain_bends(int64 num_left_bends, int64 num_right_bends)
 {
+    // --- hints from Python PermuteLegsInstructionEngine.do_codomain_bends ---
+    // to understand whats going on, draw the following:
+    // on a tensor, twist the N leftmost domain legs *together*, then overbraid them to the right
+    // together, bend them all down, then overbraid them to the very left together.
+    // this is equivalent to left-bending them all, by coherence.
+    // OPTIMIZE have arbitrarily chosen a chirality, i.e. we twist over the other legs
+    // to do the left bend. there are situations where one choice is better than the
+    // other for the subsequent permutation after bending
+    // note: we always overbraid, no matter the levels, to match the overtwist we did.
+    // OPTIMIZE possibly this is moving the leg "to far", but we cant simply stop earlier,
+    // because we might need to move it left over the others but back under the others!
+    // ---
     for (int64 n = 0; n < num_right_bends; ++n) {
         bend(false);
     }
@@ -240,6 +266,13 @@ PermuteLegsInstructionEngine::do_codomain_bends(int64 num_left_bends, int64 num_
 std::pair<int64, int64>
 PermuteLegsInstructionEngine::do_domain_permutation()
 {
+    // --- hints from Python PermuteLegsInstructionEngine.do_domain_permutation ---
+    // 1) build perm (in terms of leg idcs)
+    // 1a) codomain (unchanged)
+    // 1b) right bending
+    // 1c) non bending (but put in correct order)
+    // 1d) left bending
+    // ---
     std::vector<int64> perm;
     perm.reserve(static_cast<std::size_t>(num_legs));
     for (int64 i = 0; i < num_codomain_legs; ++i) {
@@ -284,6 +317,10 @@ PermuteLegsInstructionEngine::do_domain_permutation()
 void
 PermuteLegsInstructionEngine::do_domain_bends(int64 num_left_bends, int64 num_right_bends)
 {
+    // --- hints from Python PermuteLegsInstructionEngine.do_domain_bends ---
+    // see notes in :meth:`do_codomain_bends`. we also go over the other legs.
+    // note: we always overbraid, no matter the levels, to match the twist we did.
+    // ---
     for (int64 n = 0; n < num_right_bends; ++n) {
         bend(true);
     }
@@ -333,6 +370,10 @@ PermuteLegsInstructionEngine::bend(bool bend_down)
 void
 PermuteLegsInstructionEngine::move_leg(int64 start, int64 goal, std::optional<bool> over)
 {
+    // --- hints from Python PermuteLegsInstructionEngine.move_leg ---
+    // figure out swaps st. we should exchange legs[j] with legs[j + 1] for j in swaps in order
+    // nothing to do
+    // ---
     start = to_valid_idx(start, num_legs);
     goal = to_valid_idx(goal, num_legs);
     assert((start < num_codomain_legs) == (goal < num_codomain_legs));
@@ -357,6 +398,10 @@ PermuteLegsInstructionEngine::move_leg(int64 start, int64 goal, std::optional<bo
 void
 PermuteLegsInstructionEngine::swap(int64 idx, std::optional<bool> over)
 {
+    // --- hints from Python PermuteLegsInstructionEngine.swap ---
+    // note: ``-2`` because leg idcs [idx, idx + 1] map to dom idcs [N - 1 - idx, N - 2 - idx]
+    // need to reflect the swap in the stateful attributes (meaning of leg indices has changed)
+    // ---
     idx = to_valid_idx(idx, num_legs);
     bool const over_val = over.has_value() ? *over : compare_levels(idx, idx + 1);
     if (idx < num_codomain_legs) {

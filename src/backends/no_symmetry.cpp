@@ -354,6 +354,9 @@ NoSymmetryBackend::eigh(py::object a, bool new_leg_dual, std::optional<std::stri
 TensorBackend::DataPtr
 NoSymmetryBackend::eye_data(TensorProduct::Ptr co_domain, Dtype dtype, std::string device)
 {
+    // --- hints from Python NoSymmetryBackend.eye_data ---
+    // Note: the identity has the same matrix elements in all ONB, so ne need to consider
+    // ---
     // Note: the identity has the same matrix elements in all ONB, so no need to consider
     //       the basis perms.
     std::vector<int64> legs;
@@ -375,6 +378,9 @@ NoSymmetryBackend::from_dense_block(BlockBackend::BlockPtr a,
 TensorBackend::DataPtr
 NoSymmetryBackend::from_dense_block_trivial_sector(BlockBackend::BlockPtr block, Space::Ptr leg)
 {
+    // --- hints from Python NoSymmetryBackend.from_dense_block_trivial_sector ---
+    // there are no other sectors, so this is just the unmodified block.
+    // ---
     // there are no other sectors, so this is just the unmodified block.
     assert(block_backend->get_shape(block) == std::vector<int64>{ space_dim_i64(*leg) });
     return wrap(std::move(block));
@@ -496,6 +502,9 @@ NoSymmetryBackend::get_element(py::object a, std::vector<int64> idcs)
 BlockBackend::Scalar
 NoSymmetryBackend::get_element_diagonal(py::object a, int64 idx)
 {
+    // --- hints from Python NoSymmetryBackend.get_element_diagonal ---
+    // a.data is a single 1D block
+    // ---
     // a.data is a single 1D block
     auto parsed = a.attr("leg").attr("parse_index")(idx);
     idx = parsed.attr("__getitem__")(1).cast<int64>();
@@ -922,6 +931,9 @@ NoSymmetryBackend::state_tensor_product(BlockBackend::BlockPtr /*state1*/,
                                         BlockBackend::BlockPtr /*state2*/,
                                         LegPipe::Ptr /*pipe*/)
 {
+    // --- hints from Python NoSymmetryBackend.state_tensor_product ---
+    // TODO clearly define what this should do in tensors.py first!
+    // ---
     // TODO clearly define what this should do in tensors.py first!
     throw NotImplemented("state_tensor_product not implemented");
 }
@@ -944,6 +956,9 @@ NoSymmetryBackend::to_dense_block(py::object a)
 BlockBackend::BlockPtr
 NoSymmetryBackend::to_dense_block_trivial_sector(py::object tensor)
 {
+    // --- hints from Python NoSymmetryBackend.to_dense_block_trivial_sector ---
+    // there are no other sectors, so this is essentially the same as to_dense_block.
+    // ---
     // there are no other sectors, so this is essentially the same as to_dense_block.
     return block_from_tensor(tensor);
 }

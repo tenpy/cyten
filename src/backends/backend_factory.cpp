@@ -71,6 +71,9 @@ backend_cache()
 py::object
 get_backend(py::object symmetry, py::object block_backend)
 {
+    // --- hints from Python get_backend ---
+    // figure out minimal symmetry_backend that supports that symmetry
+    // ---
     if (symmetry.is_none()) {
         symmetry = py::cast(get_config().default_tensor_backend);
     }
