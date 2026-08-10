@@ -37,12 +37,14 @@ I.e. we pre-compose self with other, i.e. compose other with self, i.e.::
 
     pre_compose(self, other) : x ↦ other(self(x)) = (other ∘ self)(x)
 )pydoc")
-      .def("nonzero_rows",
-           &Mapping::nonzero_rows,
-           R"pydoc(The idcs ``i`` for which there are entries ``self_{ij} = self[j][i]`` set.)pydoc")
-      .def("nonzero_cols",
-           &Mapping::nonzero_cols,
-           R"pydoc(The idcs ``j`` for which there are entries ``self_{ij} = self[j][i]`` set.)pydoc")
+      .def(
+        "nonzero_rows",
+        &Mapping::nonzero_rows,
+        R"pydoc(The idcs ``i`` for which there are entries ``self_{ij} = self[j][i]`` set.)pydoc")
+      .def(
+        "nonzero_cols",
+        &Mapping::nonzero_cols,
+        R"pydoc(The idcs ``j`` for which there are entries ``self_{ij} = self[j][i]`` set.)pydoc")
       .def("prune",
            &Mapping::prune,
            py::arg("tol"),
@@ -59,7 +61,7 @@ I.e. we pre-compose self with other, i.e. compose other with self, i.e.::
             if (it == self.data.end()) {
                 throw py::key_error("SparseMapping key not found");
             }
-            return it->second;  // copy to Python dict
+            return it->second; // copy to Python dict
         },
         py::arg("j"))
       .def(
@@ -67,35 +69,31 @@ I.e. we pre-compose self with other, i.e. compose other with self, i.e.::
         [](Mapping& self, KT const& j, Inner const& inner) { self.data[j] = inner; },
         py::arg("j"),
         py::arg("value"))
-      .def(
-        "items",
-        [](Mapping const& self) {
-            py::list out;
-            for (auto const& [j, inner] : self.data) {
-                out.append(py::make_tuple(j, inner));
-            }
-            return out;
-        })
-      .def(
-        "keys",
-        [](Mapping const& self) {
-            py::list out;
-            for (auto const& [j, inner] : self.data) {
-                (void)inner;
-                out.append(j);
-            }
-            return out;
-        })
-      .def(
-        "values",
-        [](Mapping const& self) {
-            py::list out;
-            for (auto const& [j, inner] : self.data) {
-                (void)j;
-                out.append(inner);
-            }
-            return out;
-        });
+      .def("items",
+           [](Mapping const& self) {
+               py::list out;
+               for (auto const& [j, inner] : self.data) {
+                   out.append(py::make_tuple(j, inner));
+               }
+               return out;
+           })
+      .def("keys",
+           [](Mapping const& self) {
+               py::list out;
+               for (auto const& [j, inner] : self.data) {
+                   (void)inner;
+                   out.append(j);
+               }
+               return out;
+           })
+      .def("values", [](Mapping const& self) {
+          py::list out;
+          for (auto const& [j, inner] : self.data) {
+              (void)j;
+              out.append(inner);
+          }
+          return out;
+      });
 }
 
 template<typename IdMapping>
@@ -105,7 +103,8 @@ bind_identity_mapping(py::module_& m, char const* name)
     using KT = typename IdMapping::Key;
 
     py::class_<IdMapping> cls(m, name);
-    cls.doc() = R"pydoc(An identity mapping with same call structure as :class:`SparseMapping`)pydoc";
+    cls.doc() =
+      R"pydoc(An identity mapping with same call structure as :class:`SparseMapping`)pydoc";
 
     cls.def(py::init<>())
       .def(py::init<std::vector<KT> const&>(), py::arg("keys"))
@@ -133,10 +132,9 @@ I.e. we pre-compose self with other, i.e. compose other with self, i.e.::
 void
 bind_mappings(py::module_& m)
 {
-    bind_sparse_mapping<SparseMappingFusionTree>(
-      m,
-      "SparseMappingFusionTree",
-      R"pydoc(
+    bind_sparse_mapping<SparseMappingFusionTree>(m,
+                                                 "SparseMappingFusionTree",
+                                                 R"pydoc(
 A sparse matrix, where the labels of basis states are a structured type, not just int.
 
 Used in :class:`cyten.backends.fusion_tree_backend.TreePairMapping` and related objects.
@@ -147,10 +145,9 @@ I.e. a single entry ``self[j][i] = a`` represents the contribution ``e_j -> a e_
 Concrete instantiation with :class:`FusionTree` keys and ``complex128`` coefficients.
 )pydoc");
 
-    bind_sparse_mapping<SparseMappingFusionTreePair>(
-      m,
-      "SparseMappingFusionTreePair",
-      R"pydoc(
+    bind_sparse_mapping<SparseMappingFusionTreePair>(m,
+                                                     "SparseMappingFusionTreePair",
+                                                     R"pydoc(
 SparseMapping with ``(FusionTree, FusionTree)`` keys (tree pairs) and ``complex128`` coefficients.
 )pydoc");
 

@@ -15,19 +15,15 @@ void
 bind_fusion_tree_mapping(py::module_& m)
 {
     py::class_<BraidInstruction>(m, "BraidInstruction")
-      .def(py::init<bool, int64, bool>(),
-           py::arg("codomain"),
-           py::arg("idx"),
-           py::arg("overbraid"))
+      .def(
+        py::init<bool, int64, bool>(), py::arg("codomain"), py::arg("idx"), py::arg("overbraid"))
       .def_readwrite("codomain", &BraidInstruction::codomain)
       .def_readwrite("idx", &BraidInstruction::idx)
       .def_readwrite("overbraid", &BraidInstruction::overbraid)
       .def(py::self == py::self)
       .def("__repr__", [](BraidInstruction const& i) {
-          return std::format("BraidInstruction(codomain={}, idx={}, overbraid={})",
-                             i.codomain,
-                             i.idx,
-                             i.overbraid);
+          return std::format(
+            "BraidInstruction(codomain={}, idx={}, overbraid={})", i.codomain, i.idx, i.overbraid);
       });
 
     py::class_<BendInstruction>(m, "BendInstruction")
@@ -63,9 +59,8 @@ bind_fusion_tree_mapping(py::module_& m)
       });
 
     py::class_<TreePairMapping> tree_pair(m, "TreePairMapping");
-    tree_pair.def(py::init<SparseMappingFusionTreePair, bool>(),
-                  py::arg("mapping"),
-                  py::arg("is_real"))
+    tree_pair
+      .def(py::init<SparseMappingFusionTreePair, bool>(), py::arg("mapping"), py::arg("is_real"))
       .def_readwrite("is_real", &TreePairMapping::is_real)
       .def_readwrite("mapping", &TreePairMapping::mapping)
       .def_static("from_identity",
@@ -111,10 +106,11 @@ bind_fusion_tree_mapping(py::module_& m)
         py::arg("block_backend"));
 
     py::class_<FactorizedTreeMapping> fact(m, "FactorizedTreeMapping");
-    fact.def(py::init<FusionTreeMappingVariant, FusionTreeMappingVariant, bool>(),
-             py::arg("splitting_tree_mapping"),
-             py::arg("fusion_tree_mapping"),
-             py::arg("is_real"))
+    fact
+      .def(py::init<FusionTreeMappingVariant, FusionTreeMappingVariant, bool>(),
+           py::arg("splitting_tree_mapping"),
+           py::arg("fusion_tree_mapping"),
+           py::arg("is_real"))
       .def_readwrite("is_real", &FactorizedTreeMapping::is_real)
       .def_readwrite("splitting_tree_mapping", &FactorizedTreeMapping::splitting_tree_mapping)
       .def_readwrite("fusion_tree_mapping", &FactorizedTreeMapping::fusion_tree_mapping)
@@ -181,16 +177,15 @@ bind_fusion_tree_mapping(py::module_& m)
       .def_readwrite("num_domain_legs", &PermuteLegsInstructionEngine::num_domain_legs)
       .def_readwrite("target_positions", &PermuteLegsInstructionEngine::target_positions)
       .def_readwrite("levels", &PermuteLegsInstructionEngine::levels)
-      .def(
-        "evaluate_instructions",
-        [](PermuteLegsInstructionEngine& self) {
-            auto inst = self.evaluate_instructions();
-            py::list out;
-            for (Instruction const& i : inst) {
-                std::visit([&](auto const& x) { out.append(py::cast(x)); }, i);
-            }
-            return out;
-        })
+      .def("evaluate_instructions",
+           [](PermuteLegsInstructionEngine& self) {
+               auto inst = self.evaluate_instructions();
+               py::list out;
+               for (Instruction const& i : inst) {
+                   std::visit([&](auto const& x) { out.append(py::cast(x)); }, i);
+               }
+               return out;
+           })
       .def("verify",
            &PermuteLegsInstructionEngine::verify,
            py::arg("num_codomain_legs"),

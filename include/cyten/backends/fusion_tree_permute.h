@@ -7,7 +7,12 @@
 
 namespace cyten {
 
-enum class ShouldBend { None, Left, Right };
+enum class ShouldBend
+{
+    None,
+    Left,
+    Right
+};
 
 /// Helper class to build the basic instructions that realize a leg permutation.
 class PermuteLegsInstructionEngine

@@ -12,7 +12,7 @@ PYBIND11_MODULE(_core, m)
     bind_config(m);
     bind_block_backend(m);
     bind_symmetries(m);
-    bind_mappings(m);  // after FusionTree registration
+    bind_mappings(m); // after FusionTree registration
     bind_tensor_backend(m);
     bind_no_symmetry_backend(m);
     bind_abelian_backend_data(m);

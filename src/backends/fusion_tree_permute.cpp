@@ -87,15 +87,18 @@ PermuteLegsInstructionEngine::PermuteLegsInstructionEngine(
         target_positions[static_cast<std::size_t>(old_idx)] = static_cast<int64>(new_codom_idx);
         if (old_idx >= num_codomain_legs_) {
             should_bend[static_cast<std::size_t>(old_idx)] =
-              bend_right[static_cast<std::size_t>(old_idx)].value() ? ShouldBend::Right : ShouldBend::Left;
+              bend_right[static_cast<std::size_t>(old_idx)].value() ? ShouldBend::Right
+                                                                    : ShouldBend::Left;
         }
     }
     for (std::size_t new_dom_idx = 0; new_dom_idx < domain_idcs.size(); ++new_dom_idx) {
         int64 const old_idx = domain_idcs[new_dom_idx];
-        target_positions[static_cast<std::size_t>(old_idx)] = num_legs - 1 - static_cast<int64>(new_dom_idx);
+        target_positions[static_cast<std::size_t>(old_idx)] =
+          num_legs - 1 - static_cast<int64>(new_dom_idx);
         if (old_idx < static_cast<std::size_t>(num_codomain_legs_)) {
             should_bend[static_cast<std::size_t>(old_idx)] =
-              bend_right[static_cast<std::size_t>(old_idx)].value() ? ShouldBend::Right : ShouldBend::Left;
+              bend_right[static_cast<std::size_t>(old_idx)].value() ? ShouldBend::Right
+                                                                    : ShouldBend::Left;
         }
     }
 }
@@ -115,9 +118,8 @@ PermuteLegsInstructionEngine::evaluate_instructions()
         assert(target_positions[i].has_value());
         assert(*target_positions[i] == static_cast<int64>(i));
     }
-    assert(std::all_of(should_bend.begin(), should_bend.end(), [](ShouldBend b) {
-        return b == ShouldBend::None;
-    }));
+    assert(std::all_of(
+      should_bend.begin(), should_bend.end(), [](ShouldBend b) { return b == ShouldBend::None; }));
 
     return instructions;
 }
@@ -163,13 +165,13 @@ PermuteLegsInstructionEngine::verify(int64 num_codomain_legs_,
                   if (i.codomain) {
                       assert(!i.idcs.empty());
                       assert(*std::min_element(i.idcs.begin(), i.idcs.end()) >= 0);
-                      assert(*std::max_element(i.idcs.begin(), i.idcs.end())
-                             < static_cast<int64>(codomain.size()));
+                      assert(*std::max_element(i.idcs.begin(), i.idcs.end()) <
+                             static_cast<int64>(codomain.size()));
                   } else {
                       assert(!i.idcs.empty());
                       assert(*std::min_element(i.idcs.begin(), i.idcs.end()) >= 0);
-                      assert(*std::max_element(i.idcs.begin(), i.idcs.end())
-                             < static_cast<int64>(domain.size()));
+                      assert(*std::max_element(i.idcs.begin(), i.idcs.end()) <
+                             static_cast<int64>(domain.size()));
                   }
               }
           },
@@ -259,8 +261,8 @@ PermuteLegsInstructionEngine::do_domain_permutation()
     std::vector<std::size_t> order(remain_in_domain.size());
     std::iota(order.begin(), order.end(), 0);
     std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b) {
-        return *target_positions[static_cast<std::size_t>(remain_in_domain[a])]
-             < *target_positions[static_cast<std::size_t>(remain_in_domain[b])];
+        return *target_positions[static_cast<std::size_t>(remain_in_domain[a])] <
+               *target_positions[static_cast<std::size_t>(remain_in_domain[b])];
     });
     for (std::size_t n : order) {
         perm.push_back(remain_in_domain[n]);
@@ -361,8 +363,7 @@ PermuteLegsInstructionEngine::swap(int64 idx, std::optional<bool> over)
         assert(idx + 1 < num_codomain_legs);
         instructions.push_back(BraidInstruction{ true, idx, over_val });
     } else {
-        instructions.push_back(
-          BraidInstruction{ false, num_legs - 2 - idx, over_val });
+        instructions.push_back(BraidInstruction{ false, num_legs - 2 - idx, over_val });
     }
 
     std::size_t const ia = static_cast<std::size_t>(idx);

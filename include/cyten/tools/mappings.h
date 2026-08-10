@@ -151,7 +151,8 @@ class IdentityMapping
     }
 
     /// The composite ``res_{ik} = \sum_j other_{ij} self_{jk}``, such that self acts first.
-    [[nodiscard]] SparseMapping<KT, Scalar> pre_compose(SparseMapping<KT, Scalar> const& other) const
+    [[nodiscard]] SparseMapping<KT, Scalar> pre_compose(
+      SparseMapping<KT, Scalar> const& other) const
     {
         // res[k] = other[k] for k in self.keys
         SparseMapping<KT, Scalar> res;
@@ -173,8 +174,7 @@ class IdentityMapping
 };
 
 using SparseMappingFusionTree = SparseMapping<FusionTree, complex128>;
-using SparseMappingFusionTreePair =
-  SparseMapping<std::pair<FusionTree, FusionTree>, complex128>;
+using SparseMappingFusionTreePair = SparseMapping<std::pair<FusionTree, FusionTree>, complex128>;
 using IdentityMappingFusionTree = IdentityMapping<FusionTree, complex128>;
 using IdentityMappingFusionTreePair =
   IdentityMapping<std::pair<FusionTree, FusionTree>, complex128>;

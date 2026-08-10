@@ -45,14 +45,12 @@ using Instruction = std::variant<BraidInstruction, BendInstruction, TwistInstruc
 [[nodiscard]] std::vector<Instruction> instructions_from_python(py::object instructions);
 
 /// Convert linear combinations from fusion-tree operations to sparse mapping rows.
-[[nodiscard]] SparseMappingFusionTree::Inner
-to_inner(FusionTreeLinearCombination const& lc);
+[[nodiscard]] SparseMappingFusionTree::Inner to_inner(FusionTreeLinearCombination const& lc);
 
-[[nodiscard]] SparseMappingFusionTreePair::Inner
-to_inner_pair(FusionTreePairLinearCombination const& lc);
+[[nodiscard]] SparseMappingFusionTreePair::Inner to_inner_pair(
+  FusionTreePairLinearCombination const& lc);
 
-using FusionTreeMappingVariant =
-  std::variant<IdentityMappingFusionTree, SparseMappingFusionTree>;
+using FusionTreeMappingVariant = std::variant<IdentityMappingFusionTree, SparseMappingFusionTree>;
 
 /// Symbolic representation of a map on tensors, defined by the action on tree pairs.
 class TensorMapping
@@ -67,19 +65,22 @@ class TensorMapping
 
     virtual ~TensorMapping() = default;
 
-    [[nodiscard]] std::unique_ptr<TensorMapping>
-    pre_compose_instruction(Instruction const& instruction,
-                            bool instruction_is_real,
-                            std::optional<float64> prune_tol = 1e-15) const;
+    [[nodiscard]] std::unique_ptr<TensorMapping> pre_compose_instruction(
+      Instruction const& instruction,
+      bool instruction_is_real,
+      std::optional<float64> prune_tol = 1e-15) const;
 
-    [[nodiscard]] virtual std::unique_ptr<TensorMapping>
-    pre_compose_bend_instruction(BendInstruction const& instruction, bool instruction_is_real) const = 0;
+    [[nodiscard]] virtual std::unique_ptr<TensorMapping> pre_compose_bend_instruction(
+      BendInstruction const& instruction,
+      bool instruction_is_real) const = 0;
 
-    [[nodiscard]] virtual std::unique_ptr<TensorMapping>
-    pre_compose_braid_instruction(BraidInstruction const& instruction, bool instruction_is_real) const = 0;
+    [[nodiscard]] virtual std::unique_ptr<TensorMapping> pre_compose_braid_instruction(
+      BraidInstruction const& instruction,
+      bool instruction_is_real) const = 0;
 
-    [[nodiscard]] virtual std::unique_ptr<TensorMapping>
-    pre_compose_twist_instruction(TwistInstruction const& instruction, bool instruction_is_real) const = 0;
+    [[nodiscard]] virtual std::unique_ptr<TensorMapping> pre_compose_twist_instruction(
+      TwistInstruction const& instruction,
+      bool instruction_is_real) const = 0;
 
     virtual void prune(float64 tol = 1e-15) = 0;
 
@@ -101,25 +102,28 @@ class TreePairMapping : public TensorMapping
 
     TreePairMapping(SparseMappingFusionTreePair mapping_, bool is_real_);
 
-    [[nodiscard]] static std::unique_ptr<TreePairMapping>
-    from_identity(TensorProduct::Ptr codomain,
-                  TensorProduct::Ptr domain,
-                  py::object block_inds = py::none());
+    [[nodiscard]] static std::unique_ptr<TreePairMapping> from_identity(
+      TensorProduct::Ptr codomain,
+      TensorProduct::Ptr domain,
+      py::object block_inds = py::none());
 
-    [[nodiscard]] static std::unique_ptr<TreePairMapping>
-    from_instructions(std::vector<Instruction> const& instructions,
-                      TensorProduct::Ptr codomain,
-                      TensorProduct::Ptr domain,
-                      py::object block_inds = py::none());
+    [[nodiscard]] static std::unique_ptr<TreePairMapping> from_instructions(
+      std::vector<Instruction> const& instructions,
+      TensorProduct::Ptr codomain,
+      TensorProduct::Ptr domain,
+      py::object block_inds = py::none());
 
-    [[nodiscard]] std::unique_ptr<TensorMapping>
-    pre_compose_bend_instruction(BendInstruction const& instruction, bool instruction_is_real) const override;
+    [[nodiscard]] std::unique_ptr<TensorMapping> pre_compose_bend_instruction(
+      BendInstruction const& instruction,
+      bool instruction_is_real) const override;
 
-    [[nodiscard]] std::unique_ptr<TensorMapping>
-    pre_compose_braid_instruction(BraidInstruction const& instruction, bool instruction_is_real) const override;
+    [[nodiscard]] std::unique_ptr<TensorMapping> pre_compose_braid_instruction(
+      BraidInstruction const& instruction,
+      bool instruction_is_real) const override;
 
-    [[nodiscard]] std::unique_ptr<TensorMapping>
-    pre_compose_twist_instruction(TwistInstruction const& instruction, bool instruction_is_real) const override;
+    [[nodiscard]] std::unique_ptr<TensorMapping> pre_compose_twist_instruction(
+      TwistInstruction const& instruction,
+      bool instruction_is_real) const override;
 
     void prune(float64 tol = 1e-15) override;
 
@@ -134,13 +138,13 @@ class TreePairMapping : public TensorMapping
       std::shared_ptr<BlockBackend> block_backend) const override;
 
   private:
-    [[nodiscard]] TreePairMapping
-    pre_compose_fusion_tree_mapping(SparseMappingFusionTree const& tree_mapping,
-                                      bool instruction_is_real) const;
+    [[nodiscard]] TreePairMapping pre_compose_fusion_tree_mapping(
+      SparseMappingFusionTree const& tree_mapping,
+      bool instruction_is_real) const;
 
-    [[nodiscard]] TreePairMapping
-    pre_compose_splitting_tree_mapping(SparseMappingFusionTree const& tree_mapping,
-                                       bool instruction_is_real) const;
+    [[nodiscard]] TreePairMapping pre_compose_splitting_tree_mapping(
+      SparseMappingFusionTree const& tree_mapping,
+      bool instruction_is_real) const;
 };
 
 class FactorizedTreeMapping : public TensorMapping
@@ -153,25 +157,28 @@ class FactorizedTreeMapping : public TensorMapping
                           FusionTreeMappingVariant fusion_tree_mapping_,
                           bool is_real_);
 
-    [[nodiscard]] static std::unique_ptr<FactorizedTreeMapping>
-    from_identity(TensorProduct::Ptr codomain,
-                  TensorProduct::Ptr domain,
-                  py::object block_inds = py::none());
+    [[nodiscard]] static std::unique_ptr<FactorizedTreeMapping> from_identity(
+      TensorProduct::Ptr codomain,
+      TensorProduct::Ptr domain,
+      py::object block_inds = py::none());
 
-    [[nodiscard]] static std::unique_ptr<FactorizedTreeMapping>
-    from_instructions(std::vector<Instruction> const& instructions,
-                      TensorProduct::Ptr codomain,
-                      TensorProduct::Ptr domain,
-                      py::object block_inds = py::none());
+    [[nodiscard]] static std::unique_ptr<FactorizedTreeMapping> from_instructions(
+      std::vector<Instruction> const& instructions,
+      TensorProduct::Ptr codomain,
+      TensorProduct::Ptr domain,
+      py::object block_inds = py::none());
 
-    [[nodiscard]] std::unique_ptr<TensorMapping>
-    pre_compose_bend_instruction(BendInstruction const& instruction, bool instruction_is_real) const override;
+    [[nodiscard]] std::unique_ptr<TensorMapping> pre_compose_bend_instruction(
+      BendInstruction const& instruction,
+      bool instruction_is_real) const override;
 
-    [[nodiscard]] std::unique_ptr<TensorMapping>
-    pre_compose_braid_instruction(BraidInstruction const& instruction, bool instruction_is_real) const override;
+    [[nodiscard]] std::unique_ptr<TensorMapping> pre_compose_braid_instruction(
+      BraidInstruction const& instruction,
+      bool instruction_is_real) const override;
 
-    [[nodiscard]] std::unique_ptr<TensorMapping>
-    pre_compose_twist_instruction(TwistInstruction const& instruction, bool instruction_is_real) const override;
+    [[nodiscard]] std::unique_ptr<TensorMapping> pre_compose_twist_instruction(
+      TwistInstruction const& instruction,
+      bool instruction_is_real) const override;
 
     void prune(float64 tol = 1e-15) override;
 
@@ -186,23 +193,23 @@ class FactorizedTreeMapping : public TensorMapping
       std::shared_ptr<BlockBackend> block_backend) const override;
 
   private:
-    [[nodiscard]] std::pair<BlockBackend::BlockPtr, bool>
-    transform_splitting_trees(BlockBackend::BlockPtr const& old_block,
-                              BlockBackend::BlockPtr const& out,
-                              Sector coupled,
-                              TensorProduct::Ptr codomain,
-                              TensorProduct::Ptr new_codomain,
-                              std::vector<int64> const& tree_block_axes_1,
-                              std::shared_ptr<BlockBackend> block_backend) const;
+    [[nodiscard]] std::pair<BlockBackend::BlockPtr, bool> transform_splitting_trees(
+      BlockBackend::BlockPtr const& old_block,
+      BlockBackend::BlockPtr const& out,
+      Sector coupled,
+      TensorProduct::Ptr codomain,
+      TensorProduct::Ptr new_codomain,
+      std::vector<int64> const& tree_block_axes_1,
+      std::shared_ptr<BlockBackend> block_backend) const;
 
-    [[nodiscard]] std::pair<BlockBackend::BlockPtr, bool>
-    transform_fusion_trees(BlockBackend::BlockPtr const& old_block,
-                           BlockBackend::BlockPtr const& out,
-                           Sector coupled,
-                           TensorProduct::Ptr domain,
-                           TensorProduct::Ptr new_domain,
-                           std::vector<int64> const& tree_block_axes_2,
-                           std::shared_ptr<BlockBackend> block_backend) const;
+    [[nodiscard]] std::pair<BlockBackend::BlockPtr, bool> transform_fusion_trees(
+      BlockBackend::BlockPtr const& old_block,
+      BlockBackend::BlockPtr const& out,
+      Sector coupled,
+      TensorProduct::Ptr domain,
+      TensorProduct::Ptr new_domain,
+      std::vector<int64> const& tree_block_axes_2,
+      std::shared_ptr<BlockBackend> block_backend) const;
 };
 
 } // namespace cyten

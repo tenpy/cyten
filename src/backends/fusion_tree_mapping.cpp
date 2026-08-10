@@ -85,14 +85,14 @@ collect_tree_pair_keys(TensorProduct::Ptr codomain,
     };
 
     if (block_inds.is_none()) {
-        for (py::handle item :
-             misc().attr("iter_common_sorted_arrays")(codomain->sector_decomposition,
-                                                      domain->sector_decomposition)) {
+        for (py::handle item : misc().attr("iter_common_sorted_arrays")(
+               codomain->sector_decomposition, domain->sector_decomposition)) {
             auto tup = item.cast<py::tuple>();
             process(tup[0].cast<int64>());
         }
     } else {
-        auto bi = py::array_t<int64, py::array::c_style | py::array::forcecast>::ensure(block_inds);
+        auto bi =
+          py::array_t<int64, py::array::c_style | py::array::forcecast>::ensure(block_inds);
         auto buf = bi.unchecked<2>();
         for (py::ssize_t row = 0; row < buf.shape(0); ++row) {
             process(buf(row, 0));
@@ -119,14 +119,14 @@ collect_splitting_and_fusion_trees(TensorProduct::Ptr codomain,
     };
 
     if (block_inds.is_none()) {
-        for (py::handle item :
-             misc().attr("iter_common_sorted_arrays")(codomain->sector_decomposition,
-                                                      domain->sector_decomposition)) {
+        for (py::handle item : misc().attr("iter_common_sorted_arrays")(
+               codomain->sector_decomposition, domain->sector_decomposition)) {
             auto tup = item.cast<py::tuple>();
             process(tup[0].cast<int64>());
         }
     } else {
-        auto bi = py::array_t<int64, py::array::c_style | py::array::forcecast>::ensure(block_inds);
+        auto bi =
+          py::array_t<int64, py::array::c_style | py::array::forcecast>::ensure(block_inds);
         auto buf = bi.unchecked<2>();
         for (py::ssize_t row = 0; row < buf.shape(0); ++row) {
             process(buf(row, 0));
@@ -135,7 +135,8 @@ collect_splitting_and_fusion_trees(TensorProduct::Ptr codomain,
 }
 
 FusionTreeMappingVariant
-pre_compose_tree_mapping(FusionTreeMappingVariant const& self, SparseMappingFusionTree const& other)
+pre_compose_tree_mapping(FusionTreeMappingVariant const& self,
+                         SparseMappingFusionTree const& other)
 {
     return std::visit(
       [&](auto const& m) -> FusionTreeMappingVariant { return m.pre_compose(other); }, self);
@@ -192,7 +193,8 @@ instructions_from_python(py::object instructions)
         } else if (py::isinstance<TwistInstruction>(h)) {
             out.push_back(h.cast<TwistInstruction>());
         } else {
-            throw py::type_error("instruction entries must be BraidInstruction, BendInstruction, or TwistInstruction");
+            throw py::type_error("instruction entries must be BraidInstruction, BendInstruction, "
+                                 "or TwistInstruction");
         }
     }
     return out;
@@ -235,7 +237,8 @@ TreePairMapping::from_identity(TensorProduct::Ptr codomain,
 {
     std::vector<std::pair<FusionTree, FusionTree>> keys;
     collect_tree_pair_keys(codomain, domain, block_inds, keys);
-    return std::make_unique<TreePairMapping>(SparseMappingFusionTreePair::from_identity(keys), true);
+    return std::make_unique<TreePairMapping>(SparseMappingFusionTreePair::from_identity(keys),
+                                             true);
 }
 
 std::unique_ptr<TreePairMapping>
@@ -411,9 +414,8 @@ TreePairMapping::transform_tensor(FusionTreeData const& data,
     std::vector<std::vector<int64>> block_inds_rows;
     std::vector<BlockBackend::BlockPtr> blocks;
 
-    for (py::handle item :
-         misc().attr("iter_common_sorted_arrays")(new_codomain->sector_decomposition,
-                                                  new_domain->sector_decomposition)) {
+    for (py::handle item : misc().attr("iter_common_sorted_arrays")(
+           new_codomain->sector_decomposition, new_domain->sector_decomposition)) {
         auto tup = item.cast<py::tuple>();
         int64 i = tup[0].cast<int64>();
         int64 j = tup[1].cast<int64>();
@@ -439,11 +441,11 @@ TreePairMapping::transform_tensor(FusionTreeData const& data,
                     auto old_block = data.blocks[static_cast<std::size_t>(*which_block)];
                     auto i1 = codomain->tree_block_slice(pair_I.first);
                     auto i2 = domain->tree_block_slice(pair_I.second);
-                    auto sub = b_get(old_block,
-                                     py::make_tuple(slice_from_index_slice(i1),
-                                                    slice_from_index_slice(i2)));
-                    auto add_block = block_backend->mul(
-                      block_backend->as_scalar(it->second, dtype), sub);
+                    auto sub = b_get(
+                      old_block,
+                      py::make_tuple(slice_from_index_slice(i1), slice_from_index_slice(i2)));
+                    auto add_block =
+                      block_backend->mul(block_backend->as_scalar(it->second, dtype), sub);
                     if (!tree_block) {
                         tree_block = add_block;
                     } else {
@@ -456,8 +458,10 @@ TreePairMapping::transform_tensor(FusionTreeData const& data,
                 is_zero_block = false;
 
                 std::vector<int64> leg_mults;
-                leg_mults.insert(leg_mults.end(), xb.multiplicities.begin(), xb.multiplicities.end());
-                leg_mults.insert(leg_mults.end(), yb.multiplicities.rbegin(), yb.multiplicities.rend());
+                leg_mults.insert(
+                  leg_mults.end(), xb.multiplicities.begin(), xb.multiplicities.end());
+                leg_mults.insert(
+                  leg_mults.end(), yb.multiplicities.rbegin(), yb.multiplicities.rend());
                 std::vector<int64> old_mults;
                 old_mults.reserve(inv_leg_perm.size());
                 for (int64 idx : inv_leg_perm) {
@@ -465,9 +469,9 @@ TreePairMapping::transform_tensor(FusionTreeData const& data,
                 }
 
                 std::vector<int64> old_mults_cod(old_mults.begin(),
-                                                old_mults.begin() + static_cast<std::size_t>(J));
+                                                 old_mults.begin() + static_cast<std::size_t>(J));
                 std::vector<int64> old_mults_dom(old_mults.begin() + static_cast<std::size_t>(J),
-                                                old_mults.end());
+                                                 old_mults.end());
                 std::reverse(old_mults_dom.begin(), old_mults_dom.end());
 
                 auto permuted = block_backend->permute_combined_matrix(
@@ -511,11 +515,10 @@ FactorizedTreeMapping::from_identity(TensorProduct::Ptr codomain,
 {
     std::vector<FusionTree> splitting_trees;
     std::vector<FusionTree> fusion_trees;
-    collect_splitting_and_fusion_trees(codomain, domain, block_inds, splitting_trees, fusion_trees);
+    collect_splitting_and_fusion_trees(
+      codomain, domain, block_inds, splitting_trees, fusion_trees);
     return std::make_unique<FactorizedTreeMapping>(
-      IdentityMappingFusionTree(splitting_trees),
-      IdentityMappingFusionTree(fusion_trees),
-      true);
+      IdentityMappingFusionTree(splitting_trees), IdentityMappingFusionTree(fusion_trees), true);
 }
 
 std::unique_ptr<FactorizedTreeMapping>
@@ -594,14 +597,13 @@ FactorizedTreeMapping::prune(float64 tol)
 }
 
 std::pair<BlockBackend::BlockPtr, bool>
-FactorizedTreeMapping::transform_splitting_trees(
-  BlockBackend::BlockPtr const& old_block,
-  BlockBackend::BlockPtr const& out,
-  Sector coupled,
-  TensorProduct::Ptr codomain,
-  TensorProduct::Ptr new_codomain,
-  std::vector<int64> const& tree_block_axes_1,
-  std::shared_ptr<BlockBackend> block_backend) const
+FactorizedTreeMapping::transform_splitting_trees(BlockBackend::BlockPtr const& old_block,
+                                                 BlockBackend::BlockPtr const& out,
+                                                 Sector coupled,
+                                                 TensorProduct::Ptr codomain,
+                                                 TensorProduct::Ptr new_codomain,
+                                                 std::vector<int64> const& tree_block_axes_1,
+                                                 std::shared_ptr<BlockBackend> block_backend) const
 {
     if (std::holds_alternative<IdentityMappingFusionTree>(splitting_tree_mapping)) {
         return { old_block, false };
@@ -618,8 +620,8 @@ FactorizedTreeMapping::transform_splitting_trees(
             }
             auto i1 = codomain->tree_block_slice(X);
             auto part = b_get(old_block, py::make_tuple(slice_from_index_slice(i1), py::slice()));
-            auto scaled = block_backend->mul(block_backend->as_scalar(it->second, block_backend->get_dtype(old_block)),
-                                             part);
+            auto scaled = block_backend->mul(
+              block_backend->as_scalar(it->second, block_backend->get_dtype(old_block)), part);
             if (!tree_row) {
                 tree_row = scaled;
             } else {
@@ -636,22 +638,21 @@ FactorizedTreeMapping::transform_splitting_trees(
         for (int64 idx : inv_axes) {
             mults_old_order.push_back(x2.multiplicities[static_cast<std::size_t>(idx)]);
         }
-        auto permuted = block_backend->permute_combined_idx(
-          tree_row, 0, mults_old_order, tree_block_axes_1);
+        auto permuted =
+          block_backend->permute_combined_idx(tree_row, 0, mults_old_order, tree_block_axes_1);
         b_set(out, py::make_tuple(slice_from_index_slice(x2.slice), py::slice()), permuted);
     }
     return { out, is_zero };
 }
 
 std::pair<BlockBackend::BlockPtr, bool>
-FactorizedTreeMapping::transform_fusion_trees(
-  BlockBackend::BlockPtr const& old_block,
-  BlockBackend::BlockPtr const& out,
-  Sector coupled,
-  TensorProduct::Ptr domain,
-  TensorProduct::Ptr new_domain,
-  std::vector<int64> const& tree_block_axes_2,
-  std::shared_ptr<BlockBackend> block_backend) const
+FactorizedTreeMapping::transform_fusion_trees(BlockBackend::BlockPtr const& old_block,
+                                              BlockBackend::BlockPtr const& out,
+                                              Sector coupled,
+                                              TensorProduct::Ptr domain,
+                                              TensorProduct::Ptr new_domain,
+                                              std::vector<int64> const& tree_block_axes_2,
+                                              std::shared_ptr<BlockBackend> block_backend) const
 {
     if (std::holds_alternative<IdentityMappingFusionTree>(fusion_tree_mapping)) {
         return { old_block, false };
@@ -669,8 +670,8 @@ FactorizedTreeMapping::transform_fusion_trees(
             }
             auto i2 = domain->tree_block_slice(Y);
             auto part = b_get(old_block, py::make_tuple(py::slice(), slice_from_index_slice(i2)));
-            auto scaled = block_backend->mul(block_backend->as_scalar(it->second, block_backend->get_dtype(old_block)),
-                                             part);
+            auto scaled = block_backend->mul(
+              block_backend->as_scalar(it->second, block_backend->get_dtype(old_block)), part);
             if (is_zero_tree_col) {
                 is_zero_tree_col = false;
                 tree_col = scaled;
@@ -688,8 +689,8 @@ FactorizedTreeMapping::transform_fusion_trees(
         for (int64 idx : inv_axes) {
             mults_old_order.push_back(y2.multiplicities[static_cast<std::size_t>(idx)]);
         }
-        auto permuted = block_backend->permute_combined_idx(
-          tree_col, 1, mults_old_order, tree_block_axes_2);
+        auto permuted =
+          block_backend->permute_combined_idx(tree_col, 1, mults_old_order, tree_block_axes_2);
         b_set(out, py::make_tuple(py::slice(), slice_from_index_slice(y2.slice)), permuted);
     }
     return { out, is_zero_block };
@@ -723,9 +724,8 @@ FactorizedTreeMapping::transform_tensor(FusionTreeData const& data,
     std::vector<std::vector<int64>> block_inds_rows;
     std::vector<BlockBackend::BlockPtr> blocks;
 
-    for (py::handle item :
-         misc().attr("iter_common_sorted_arrays")(new_codomain->sector_decomposition,
-                                                  new_domain->sector_decomposition)) {
+    for (py::handle item : misc().attr("iter_common_sorted_arrays")(
+           new_codomain->sector_decomposition, new_domain->sector_decomposition)) {
         auto tup = item.cast<py::tuple>();
         int64 i = tup[0].cast<int64>();
         int64 j = tup[1].cast<int64>();
