@@ -45,28 +45,33 @@ bind_group(py::module_& m)
            R"pydoc(
            Internal implementation of :meth:`fusion_tensor`. Can assume that inputs are valid.
            )pydoc")
-      .def("swap_gate", &Group::swap_gate, py::arg("a"), py::arg("b"),
-      R"pydoc(
-      The swap gate (numpy representation of the braid) of single sectors.
-      
-          |   a   b
-          |   │   │
-          |   v   v
-          |    ╲ ╱
-          |     ╲          <-  overbraid == underbraid is assumed
-          |    ╱ ╲
-          |   v   v
-          |   │   │
-          |   b   a
-      
-      Returns
-      -------
-      A numpy representation of the above tensor with axes ``[b, a, b*, a*]``.
-      )pydoc")
-      .def("qdim", &Group::qdim, py::arg("a"),
-      R"pydoc(
-      The quantum dimension ``Tr(id_a)`` of a sector
-      )pydoc")
+      .def("swap_gate",
+           &Group::swap_gate,
+           py::arg("a"),
+           py::arg("b"),
+           R"pydoc(
+           The swap gate (numpy representation of the braid) of single sectors.
+
+               |   a   b
+               |   │   │
+               |   v   v
+               |    ╲ ╱
+               |     ╲          <-  overbraid == underbraid is assumed
+               |    ╱ ╲
+               |   v   v
+               |   │   │
+               |   b   a
+
+           Returns
+           -------
+           A numpy representation of the above tensor with axes ``[b, a, b*, a*]``.
+           )pydoc")
+      .def("qdim",
+           &Group::qdim,
+           py::arg("a"),
+           R"pydoc(
+           The quantum dimension ``Tr(id_a)`` of a sector
+           )pydoc")
       .def(
         "batch_qdim",
         [](Group const& self, SectorArray const& a) {
@@ -76,30 +81,32 @@ bind_group(py::module_& m)
         R"pydoc(
         Quantum dimension of every sector (row) in `a`
         )pydoc")
-      .def("topological_twist", &Group::topological_twist, py::arg("a"),
-      R"pydoc(
-      The prefactor that relates the twist on a single sector to the identity.
-      
-      Graphically::
-      
-          |   │   ╭─╮                |
-          |    ╲ ╱  │                |
-          |     ╱   │   =   theta_a  |
-          |    ╱ ╲  │                |
-          |   │   ╰─╯                |
-          |   a                      a
-      
-      Notes
-      -----
-      For a twist with opposite chirality, the prefactor is conjugated.
-      
-          |   │   ╭─╮                      |
-          |    ╲ ╱  │                      |
-          |     ╲   │   =   conj(theta_a)  |
-          |    ╱ ╲  │                      |
-          |   │   ╰─╯                      |
-          |   a                            a
-      )pydoc");
+      .def("topological_twist",
+           &Group::topological_twist,
+           py::arg("a"),
+           R"pydoc(
+           The prefactor that relates the twist on a single sector to the identity.
+
+           Graphically::
+
+               |   │   ╭─╮                |
+               |    ╲ ╱  │                |
+               |     ╱   │   =   theta_a  |
+               |    ╱ ╲  │                |
+               |   │   ╰─╯                |
+               |   a                      a
+
+           Notes
+           -----
+           For a twist with opposite chirality, the prefactor is conjugated.
+
+               |   │   ╭─╮                      |
+               |    ╲ ╱  │                      |
+               |     ╲   │   =   conj(theta_a)  |
+               |    ╱ ╲  │                      |
+               |   │   ╰─╯                      |
+               |   a                            a
+           )pydoc");
 }
 
 } // namespace cyten

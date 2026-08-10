@@ -96,9 +96,9 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("dtype_map"),
       R"pydoc(
       Apply functions like exp() and log() on a (square) block-diagonal `a`.
-      
+
       Assumes the block_method returns blocks on the same device.
-      
+
       Parameters
       ----------
       a : Tensor
@@ -152,12 +152,12 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("new_domain"),
       R"pydoc(
       Implementation of :func:`cyten.tensors.combine_legs`.
-      
+
       Assumptions:
-      
+
       - Legs have been permuted, such that each group of legs to be combined appears contiguously
         and either entirely in the codomain or entirely in the domain
-      
+
       Parameters
       ----------
       tensor: SymmetricTensor
@@ -188,7 +188,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("b"),
       R"pydoc(
       Assumes ``a.domain == b.codomain`` and performs contraction over those legs.
-      
+
       Assumes there is at least one open leg, i.e. the codomain of `a` and the domain of `b` are
       not both empty. Assumes both input tensors are on the same device.
       )pydoc");
@@ -201,17 +201,17 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("device") = py::none(),
       R"pydoc(
       Return a copy.
-      
+
       The main requirement is that future in-place operations on the output data do not affect
       the input data
-      
+
       Parameters
       ----------
       a : Tensor
           The tensor to copy
       device : str, optional
           The device for the result. Per default (or if ``None``), use the same device as `a`.
-      
+
       See Also
       --------
       move_to_device
@@ -229,7 +229,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("a"),
       R"pydoc(
       Convert tensor to a python scalar.
-      
+
       Assumes that tensor is a scalar (i.e. has only one entry).
       )pydoc");
     cls.def(
@@ -238,7 +238,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("a"),
       R"pydoc(
       Assumes that data is a scalar (as defined in tensors.is_scalar).
-      
+
       Return that scalar as python float or complex
       )pydoc");
     cls.def(
@@ -259,13 +259,13 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("partial_zero_is_zero"),
       R"pydoc(
       Return a modified copy of the data, resulting from applying an elementwise function.
-      
+
       Apply a function ``func(a_block: Block, b_block: Block, **kwargs) -> Block`` to all
       pairs of elements.
       Input tensors are both DiagonalTensor and have equal legs.
       ``partial_zero_is_zero=True`` promises that ``func(any_block, zero_block) == zero_block``,
       and similarly for the second argument.
-      
+
       Assumes both tensors are on the same device.
       )pydoc");
     cls.def(
@@ -284,7 +284,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("maps_zero_to_zero"),
       R"pydoc(
       Return a modified copy of the data, resulting from applying an elementwise function.
-      
+
       Apply ``func(block: Block, **kwargs) -> Block`` to all elements of a diagonal tensor.
       ``maps_zero_to_zero=True`` promises that ``func(zero_block) == zero_block``.
       )pydoc");
@@ -309,7 +309,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("co_domain"),
       R"pydoc(
       Generate diagonal data from a function.
-      
+
       Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
       Assumes all generated blocks are on the same device.
       )pydoc");
@@ -322,7 +322,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("tol") = 1e-12,
       R"pydoc(
       Get the DiagonalData corresponding to a tensor with two legs.
-      
+
       Can assume that domain and codomain consist of the same single leg.
       )pydoc");
     cls.def(
@@ -334,7 +334,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("tens"),
       R"pydoc(
       Convert a DiagonalTensor to a Mask.
-      
+
       May assume that dtype is bool.
       Returns ``mask_data, small_leg``.
       )pydoc");
@@ -362,10 +362,10 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("sort") = py::none(),
       R"pydoc(
       Eigenvalue decomposition of a hermitian tensor
-      
+
       Note that this does *not* guarantee to return the duality given by `new_leg_dual`.
       In particular, for the abelian backend, the duality is fixed.
-      
+
       Parameters
       ----------
       a
@@ -375,7 +375,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       sort : {'m>', 'm<', '>', '<'}
           How the eigenvalues are sorted *within* each charge block.
           See :func:`argsort` for details.
-      
+
       Returns
       -------
       w_data
@@ -395,7 +395,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("device"),
       R"pydoc(
       Data for :meth:``SymmetricTensor.eye``.
-      
+
       The result has legs ``first_legs + [l.dual for l in reversed(firs_legs)]``.
       )pydoc");
     cls.def(
@@ -413,10 +413,10 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("tol"),
       R"pydoc(
       Convert a dense block to the data for a symmetric tensor.
-      
+
       Block is in the *internal* basis order of the respective legs and the leg order is
       ``[*codomain, *reversed(domain)]``.
-      
+
       If the block is not symmetric, measured by ``allclose(a, projected, atol, rtol)``,
       where ``projected`` is `a` projected to the space of symmetric tensors, raise a ``ValueError``.
       )pydoc");
@@ -429,7 +429,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("leg"),
       R"pydoc(
       Data of a single-leg `Tensor` from the *part of* the coefficients in the trivial sector.
-      
+
       Is given in the *internal* basis order.
       )pydoc");
     cls.def(
@@ -459,7 +459,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("device"),
       R"pydoc(
       Data from a grid of tensors.
-      
+
       Parameters
       ----------
       grid: list[list[SymmetricTensor | None]]
@@ -574,7 +574,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("charge_leg"),
       R"pydoc(
       Data for the invariant part used in ChargedTensor.from_dense_block_single_sector
-      
+
       The vector is given in the *internal* basis order of `spaces`.
       )pydoc");
     cls.def(
@@ -590,7 +590,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("w"),
       R"pydoc(
       Form the linear combinations ``a * v + b * w``.
-      
+
       Assumes `v` and `w` are on the same device.
       )pydoc");
     cls.def(
@@ -612,12 +612,12 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("func"),
       R"pydoc(
       Elementwise binary function acting on two masks.
-      
+
       May assume that both masks are a projection (from large to small leg)
       and that the large legs match.
-      
+
       Assumes that `mask1` and `mask2` are on the same device.
-      
+
       returns ``mask_data, new_small_leg``
       )pydoc");
     cls.def(
@@ -632,7 +632,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("leg_idx"),
       R"pydoc(
       Contraction with the large leg of a Mask.
-      
+
       Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
       the large leg of the mask is contracted.
       Note that the mask may be a projection to be applied to the codomain or an inclusion
@@ -650,7 +650,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("leg_idx"),
       R"pydoc(
       Contraction with the small leg of a Mask.
-      
+
       Implementation of :func:`cyten.tensors._compose_with_Mask` in the case where
       the small leg of the mask is contracted.
       Note that the mask may be an inclusion to be applied to the codomain or a projection
@@ -670,7 +670,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("large_leg"),
       R"pydoc(
       Data for a *projection* Mask, and the resulting small leg, from a 1D block.
-      
+
       a: 1D block, the Mask in *internal* basis order of `large_leg`.
       )pydoc");
     cls.def(
@@ -689,7 +689,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("tens"),
       R"pydoc(
       Transpose a mask. Also return the new ``space_in`` and ``space_out``.
-      
+
       Those spaces are the duals of the respective other in the old mask.
       )pydoc");
     cls.def(
@@ -702,7 +702,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("func"),
       R"pydoc(
       Elementwise function acting on a mask.
-      
+
       May assume that mask is a projection (from large to small leg).
       Returns ``mask_data, new_small_leg``
       )pydoc");
@@ -715,10 +715,10 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("device"),
       R"pydoc(
       Move tensor to a given device.
-      
+
       The result is *not* guaranteed to be a copy. In particular, if `a` already is on the
       target device, it is returned without modification.
-      
+
       See Also
       --------
       copy_data
@@ -739,7 +739,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("b"),
       R"pydoc(
       Form the outer product, or tensor product of maps.
-      
+
       Assumes that `a` and `b` are on the same device.
       )pydoc");
     cls.def(
@@ -759,7 +759,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("new_domain"),
       R"pydoc(
       Contract the codomain (domain) of `b` with the a part of the domain (codomain) of `a`.
-      
+
       Assumes that there is at least one open leg in the domain (codomain) of the resulting
       tensor. Assumes both input tensors are on the same device.
       )pydoc");
@@ -783,7 +783,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("levels") = py::none(),
       R"pydoc(
       Perform an arbitrary number of traces. Pairs are converted to leg idcs.
-      
+
       Returns ``data, codomain, domain``.
       )pydoc");
     cls.def(
@@ -816,7 +816,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("bend_right"),
       R"pydoc(
       Permute legs on the tensors.
-      
+
       Parameters
       ----------
       a : SymmetricTensor
@@ -834,7 +834,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
           For each leg, whether it bends to the left or right of the tensor.
           ``None`` is allowed as a placeholder, only if that leg does not bend at all.
           Note that non-bending legs do not necessarily have a ``None`` entry, however.
-      
+
       Returns
       -------
       data:
@@ -853,7 +853,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("new_co_domain"),
       R"pydoc(
       Perform a QR decomposition.
-      
+
       With ``a == Q @ R``
       ``Q.domain == a.domain``, ``Q.codomain == new_codomain``
       ``R.domain == new_codomain``, ``R.codomain == a.codomain``
@@ -868,7 +868,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("leg"),
       R"pydoc(
       Scale axis ``leg`` of ``a`` with ``b``.
-      
+
       Can assume ``a.get_leg_co_domain(leg) == b.leg``.
       Assumes that `a` and `b` are on the same device.
       )pydoc");
@@ -887,7 +887,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("new_domain"),
       R"pydoc(
       Split (multiple) product space legs.
-      
+
       Parameters
       ----------
       a
@@ -979,7 +979,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("minimize_error") = true,
       R"pydoc(
       Implementation of :func:`cyten.tensors.truncate_singular_values`.
-      
+
       Returns
       -------
       mask_data
@@ -1008,7 +1008,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("all_blocks") = false,
       R"pydoc(
       Data for a zero tensor.
-      
+
       Parameters
       ----------
       all_blocks: bool

@@ -262,15 +262,19 @@ bind_trees(py::module_& m)
             }
         });
 
-    cls.def_property_readonly("pre_Z_uncoupled", &FusionTree::pre_Z_uncoupled,
-    R"pydoc(
-    The uncoupled sectors *above* any Z isomorphisms.
-    )pydoc");
+    cls.def_property_readonly("pre_Z_uncoupled",
+                              &FusionTree::pre_Z_uncoupled,
+                              R"pydoc(
+                              The uncoupled sectors *above* any Z isomorphisms.
+                              )pydoc");
 
-    cls.def("test_sanity", &FusionTree::test_sanity, "Perform sanity checks.",
-    R"pydoc(
-    Perform sanity checks.
-    )pydoc")
+    cls
+      .def("test_sanity",
+           &FusionTree::test_sanity,
+           "Perform sanity checks.",
+           R"pydoc(
+           Perform sanity checks.
+           )pydoc")
       .def_static(
         "from_abelian_symmetry",
         [](py::object symmetry_obj, py::object uncoupled, py::object are_dual) {
@@ -353,9 +357,9 @@ bind_trees(py::module_& m)
         "Bend a leg on a tree-pair, return the resulting linear combination of tree-pairs.",
         R"pydoc(
         Bend a leg on a tree-pair, return the resulting linear combination of tree-pairs.
-        
+
         Graphically::
-        
+
             |    bend_downward=True                    bend_downward=False
             |
             |   │   │   │   ╭────╮                    │   │   │   │    │
@@ -365,7 +369,7 @@ bind_trees(py::module_& m)
             |   ┢━━━━━━━━━━━━━┓  │                    ┢━━━━━━━━━━━━━┓  │
             |   ┡━━━┯━━━┯━━━┯━┛  │                    ┡━━━┯━━━┯━━━┯━┛  │
             |   │   │   │   │    │                    │   │   │   ╰────╯
-        
+
         Parameters
         ----------
         X, Y : FusionTree
@@ -376,7 +380,7 @@ bind_trees(py::module_& m)
             leg of ``hconj(X)`` is bent up (``bend_downward == False``).
         do_conj : bool
             If ``True``, return the conjugate of the coefficients instead.
-        
+
         Returns
         -------
         linear_combination : dict {FusionTree: complex}
@@ -398,9 +402,9 @@ bind_trees(py::module_& m)
         "Braid a leg on a fusion tree, return the resulting linear combination of trees.",
         R"pydoc(
         Braid a leg on a fusion tree, return the resulting linear combination of trees.
-        
+
         Graphically::
-        
+
             |   overbraid:                  underbraid
             |
             |   │   │   │   │               │   │   │   │
@@ -411,10 +415,10 @@ bind_trees(py::module_& m)
             |   ┢━━━┷━━━┷━━━┷━┓             ┢━━━┷━━━┷━━━┷━┓
             |   ┡━━━━━━━━━━━━━┛             ┡━━━━━━━━━━━━━┛
             |   │                           │
-        
+
         .. warning ::
             When braiding splitting trees (daggers of fusion trees), consider the notes below.
-        
+
         Parameters
         ----------
         j : int
@@ -425,7 +429,7 @@ bind_trees(py::module_& m)
             We skip contributions with a prefactor below this.
         do_conj : bool
             If ``True``, return the conjugate of the coefficients instead.
-        
+
         Returns
         -------
         linear_combination : dict {FusionTree: complex}
@@ -440,12 +444,12 @@ bind_trees(py::module_& m)
            "For the ``n``-th fusion vertex, get the respective sectors.",
            R"pydoc(
            For the ``n``-th fusion vertex, get the respective sectors.
-           
+
            Returns
            -------
            a, b, mu, c
                The sectors and multiplicity label around the ``n``-th vertex of the tree::
-           
+
                    |   (n-1 higher vertices)      │
                    |                      │       │
                    |                      a       b
@@ -465,7 +469,7 @@ bind_trees(py::module_& m)
            "Update the multiplicity and the three sectors around the ``n``-th vertex.",
            R"pydoc(
            Update the multiplicity and the three sectors around the ``n``-th vertex.
-           
+
            Parameters
            ----------
            n : int
@@ -496,7 +500,7 @@ bind_trees(py::module_& m)
         "Get the matrix elements of the map as a backend Block.",
         R"pydoc(
         Get the matrix elements of the map as a backend Block.
-        
+
         Parameters
         ----------
         backend : TensorBackend, optional
@@ -512,15 +516,18 @@ bind_trees(py::module_& m)
             To avoid this pitfall, we raise an error by default. Set this flag to ``True`` to
             disable the error. It is then your responsibility to take care of leg orders and braids.
             See :mod:`cyten.testing.swap_gate_numpy` for manipulations on these dense blocks.
-        
+
         Returns
         -------
         The matrix elements with axes ``[m_a1, m_a2, ..., m_aJ, m_c]``.
         )pydoc")
-      .def("copy", &FusionTree::copy, py::arg("deep") = true, "Return a shallow (or deep) copy.",
-      R"pydoc(
-      Return a shallow (or deep) copy.
-      )pydoc")
+      .def("copy",
+           &FusionTree::copy,
+           py::arg("deep") = true,
+           "Return a shallow (or deep) copy.",
+           R"pydoc(
+           Return a shallow (or deep) copy.
+           )pydoc")
       .def("extended",
            &FusionTree::extended,
            py::arg("new_uncoupled"),
@@ -530,9 +537,9 @@ bind_trees(py::module_& m)
            "A new tree, from adding a new fusion node at the bottom, below the coupled sector.",
            R"pydoc(
            A new tree, from adding a new fusion node at the bottom, below the coupled sector.
-           
+
            Graphically::
-           
+
                |               │
                |              (Z)
                |               v
@@ -541,7 +548,7 @@ bind_trees(py::module_& m)
                |       ╰───µ───╯
                |           │
                |          new_coupled
-           
+
            See Also
            --------
            insert
@@ -555,7 +562,7 @@ bind_trees(py::module_& m)
            "Insert a tree `t2` above the first uncoupled sector.",
            R"pydoc(
            Insert a tree `t2` above the first uncoupled sector.
-           
+
            See Also
            --------
            insert_at
@@ -574,12 +581,12 @@ bind_trees(py::module_& m)
         "Insert a tree `t2` above the `n`-th uncoupled sector.",
         R"pydoc(
         Insert a tree `t2` above the `n`-th uncoupled sector.
-        
+
         The result is (in general) not a canonical tree.
         We transform it to canonical form via a series of F moves.
         This yields the result as a linear combination of canonical trees.
         We return a dictionary, with those trees as keys and the prefactors as values.
-        
+
         Parameters
         ----------
         n : int
@@ -589,14 +596,14 @@ bind_trees(py::module_& m)
             The fusion tree to insert
         eps : float
             F symbols whose absolute values are smaller than this number are treated as zero.
-        
+
         Returns
         -------
         coefficients : dict
             Trees and coefficients that form the composite map as a linear combination.
             Abusing notation (``FusionTree`` instances can not actually be scaled or added),
             this means ``map = sum(c * t for t, c in coefficient.items())``.
-        
+
         See Also
         --------
         insert
@@ -614,82 +621,87 @@ bind_trees(py::module_& m)
         "Outer product with another tree.",
         R"pydoc(
         Outer product with another tree.
-        
+
         Fuse with `right_tree` at the coupled sector (-> new coupled sectors are all sectors that
         are allowed fusion channels of the coupled sectors).
-        
+
         Parameters
         ----------
         right_tree : FusionTree
             Tree to be combined with at the coupled sector from the right.
         eps : float
             F symbols whose absolute values are smaller than this number are treated as zero.
-        
+
         Returns
         -------
         linear_combination : dict {FusionTree: complex}
             Result expressed as linear combination of fusion trees in the canonical basis with the
             corresponding coefficients.
-        
+
         See Also
         --------
         insert_at
             Similar insertion, but the tree is inserted above of an uncoupled sector rather than
             fused with the coupled sector.
         )pydoc")
-      .def("split", &FusionTree::split, py::arg("n"), "Split into two separate fusion trees.",
-      R"pydoc(
-      Split into two separate fusion trees.
-      
-      Parameters
-      ----------
-      n : int
-          Where to split. Must fulfill ``2 <= n < self.num_uncoupled``.
-      
-      Returns
-      -------
-      t1 : :class:`FusionTree`
-          The part that fuses the ``uncoupled_sectors[:n]`` to ``inner_sectors[n - 2]``
-      t2 : :class:`FusionTree`
-          The part that fuses ``inner_sectors[n - 2]`` and ``uncoupled_sectors[n:]``
-          to ``coupled``.
-      
-      See Also
-      --------
-      insert
-      )pydoc")
-      .def("split_bottom_vertex", &FusionTree::split_bottom_vertex, "Split off the bottom vertex.",
-      R"pydoc(
-      Split off the bottom vertex.
-      
-      Graphically::
-      
-          |   a b x y z           a  b  x  y     z
-          |   │ │ │ │ │           │  │  │  │     │
-          |   (self_tree)    =    (rest_tree)    │
-          |       │                    │         │
-          |       c                    ╰────µ────╯
-          |                                 │
-          |                                 c
-      
-      where `rest_tree` might be empty if ``self.num_uncoupled == 1`` or consist of
-      only a single sector with no fusion vertex if ``self.num_uncoupled == 2``.
-      
-      Returns
-      -------
-      rest_tree : FusionTree
-          The remaining tree, with one fewer vertex.
-      c : Sector
-          The old coupled sector.
-      mu : int
-          The old bottom multiplicity label.
-      z : Sector
-          The old last uncoupled sector.
-      
-      See Also
-      --------
-      extended
-      )pydoc")
+      .def("split",
+           &FusionTree::split,
+           py::arg("n"),
+           "Split into two separate fusion trees.",
+           R"pydoc(
+           Split into two separate fusion trees.
+
+           Parameters
+           ----------
+           n : int
+               Where to split. Must fulfill ``2 <= n < self.num_uncoupled``.
+
+           Returns
+           -------
+           t1 : :class:`FusionTree`
+               The part that fuses the ``uncoupled_sectors[:n]`` to ``inner_sectors[n - 2]``
+           t2 : :class:`FusionTree`
+               The part that fuses ``inner_sectors[n - 2]`` and ``uncoupled_sectors[n:]``
+               to ``coupled``.
+
+           See Also
+           --------
+           insert
+           )pydoc")
+      .def("split_bottom_vertex",
+           &FusionTree::split_bottom_vertex,
+           "Split off the bottom vertex.",
+           R"pydoc(
+           Split off the bottom vertex.
+
+           Graphically::
+
+               |   a b x y z           a  b  x  y     z
+               |   │ │ │ │ │           │  │  │  │     │
+               |   (self_tree)    =    (rest_tree)    │
+               |       │                    │         │
+               |       c                    ╰────µ────╯
+               |                                 │
+               |                                 c
+
+           where `rest_tree` might be empty if ``self.num_uncoupled == 1`` or consist of
+           only a single sector with no fusion vertex if ``self.num_uncoupled == 2``.
+
+           Returns
+           -------
+           rest_tree : FusionTree
+               The remaining tree, with one fewer vertex.
+           c : Sector
+               The old coupled sector.
+           mu : int
+               The old bottom multiplicity label.
+           z : Sector
+               The old last uncoupled sector.
+
+           See Also
+           --------
+           extended
+           )pydoc")
       .def(
         "twist",
         [](FusionTree const& self, std::vector<int64> const& idcs, bool overtwist) {
@@ -700,7 +712,7 @@ bind_trees(py::module_& m)
         "Twist some legs above a tree, return the resulting linear combination of trees.",
         R"pydoc(
         Twist some legs above a tree, return the resulting linear combination of trees.
-        
+
         Parameters
         ----------
         idcs : list of int
@@ -708,7 +720,7 @@ bind_trees(py::module_& m)
         overtwist : bool
             The chirality of the twist. If the loop is to the right of the wires, an overtwist is
             such that the free end is on top. See notes below.
-        
+
         Returns
         -------
         linear_combination : dict {FusionTree: complex}
@@ -716,11 +728,11 @@ bind_trees(py::module_& m)
             ``twisted_self = sum_i a_i X_i``. The returned dictionary has entries
             ``linear_combination[X_i] = a_i`` for the contributions to this linear combination
             (i.e. trees for which the coefficient vanishes may be omitted).
-        
+
         Notes
         -----
         See the following graphical examples for braid chiralities::
-        
+
             |   idcs = [-1]                    idcs = [-1]
             |   overtwist = True               overtwist = False
             |
@@ -732,10 +744,10 @@ bind_trees(py::module_& m)
             |   ┢━━━┷━━━┷━━━┷━┓ ╰─╯            ┢━━━┷━━━┷━━━┷━┓ ╰─╯
             |   ┡━━━━━━━━━━━━━┛                ┡━━━━━━━━━━━━━┛
             |   │                              │
-        
+
         For multiple legs (``len(idcs) > 1``), we twist the together, e.g. here for
         ``idcs=[-2, -1]`` and ``overtwist=True``::
-        
+
             |   │   │   │   │   ╭──────╮
             |   │   │    ╲   ╲ ╱       │
             |   │   │     ╲   ╱   ╭─╮  │

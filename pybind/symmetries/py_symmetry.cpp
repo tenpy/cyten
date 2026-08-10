@@ -88,10 +88,13 @@ bind_symmetry(py::module_& m)
       .def_readwrite("fusion_tensor_dtype", &Symmetry::fusion_tensor_dtype)
       .def_property_readonly("num_factors", &Symmetry::num_factors);
 
-    cls.def("as_Symmetry", [](py::object self) { return self; },
-    R"pydoc(
-    Convert any :class:`SymmetryFactor` to a :class:`Symmetry` with that single factor.
-    )pydoc")
+    cls
+      .def(
+        "as_Symmetry",
+        [](py::object self) { return self; },
+        R"pydoc(
+        Convert any :class:`SymmetryFactor` to a :class:`Symmetry` with that single factor.
+        )pydoc")
       .def(
         "is_valid_sector",
         [](Symmetry const& self, py::object a) {
@@ -130,19 +133,22 @@ bind_symmetry(py::module_& m)
             }
         },
         py::arg("sectors"))
-      .def("fusion_outcomes", &Symmetry::fusion_outcomes, py::arg("a"), py::arg("b"),
-      R"pydoc(
-      Returns all outcomes for the fusion of sectors
-      
-      Each sector appears only once, regardless of its multiplicity (given by n_symbol) in the fusion
-      )pydoc")
+      .def("fusion_outcomes",
+           &Symmetry::fusion_outcomes,
+           py::arg("a"),
+           py::arg("b"),
+           R"pydoc(
+           Returns all outcomes for the fusion of sectors
+
+           Each sector appears only once, regardless of its multiplicity (given by n_symbol) in the fusion
+           )pydoc")
       .def("fusion_outcomes_broadcast",
            &Symmetry::fusion_outcomes_broadcast,
            py::arg("a"),
            py::arg("b"),
            R"pydoc(
            Allows optimized fusion in the case of FusionStyle.single.
-           
+
            For two SectorArrays, return the element-wise fusion outcome of each pair of Sectors,
            which is a single unique Sector, as a new SectorArray.
            Subclasses may override this with more efficient implementations.
@@ -165,56 +171,69 @@ bind_symmetry(py::module_& m)
             throw py::type_error("Expected instance or subclass of SymmetryFactor.");
         },
         py::arg("other"))
-      .def("dual_sector", &Symmetry::dual_sector, py::arg("a"),
-      R"pydoc(
-      The sector dual to a, such that N^{a,dual(a)}_u = 1.
-      
-      Note that the dual space :math:`a^\star` to a sector :math:`a` may not itself be one of
-      the sectors, but it must be isomorphic to one of the sectors. This method returns that
-      representative :math:`\bar{a}` of the equivalence class.
-      )pydoc")
-      .def("dual_sectors", &Symmetry::dual_sectors, py::arg("sectors"),
-      R"pydoc(
-      dual_sector for multiple sectors
-      
-      subclasses my override this.
-      )pydoc")
-      .def("_n_symbol", &Symmetry::_n_symbol, py::arg("a"), py::arg("b"), py::arg("c"),
-      R"pydoc(
-      Optimized version of self.n_symbol that assumes that c is a valid fusion outcome.
-      
-      If it is not, the results may be nonsensical. We do this for optimization purposes
-      )pydoc")
-      .def("all_sectors", &Symmetry::all_sectors,
-      R"pydoc(
-      Assume there are finitely many sectors, return all of them.
-      
-      .. warning ::
-          Do not perform inplace operations on the output. That may invalidate caches.
-      )pydoc")
+      .def("dual_sector",
+           &Symmetry::dual_sector,
+           py::arg("a"),
+           R"pydoc(
+           The sector dual to a, such that N^{a,dual(a)}_u = 1.
+
+           Note that the dual space :math:`a^\star` to a sector :math:`a` may not itself be one of
+           the sectors, but it must be isomorphic to one of the sectors. This method returns that
+           representative :math:`\bar{a}` of the equivalence class.
+           )pydoc")
+      .def("dual_sectors",
+           &Symmetry::dual_sectors,
+           py::arg("sectors"),
+           R"pydoc(
+           dual_sector for multiple sectors
+
+           subclasses my override this.
+           )pydoc")
+      .def("_n_symbol",
+           &Symmetry::_n_symbol,
+           py::arg("a"),
+           py::arg("b"),
+           py::arg("c"),
+           R"pydoc(
+           Optimized version of self.n_symbol that assumes that c is a valid fusion outcome.
+
+           If it is not, the results may be nonsensical. We do this for optimization purposes
+           )pydoc")
+      .def("all_sectors",
+           &Symmetry::all_sectors,
+           R"pydoc(
+           Assume there are finitely many sectors, return all of them.
+
+           .. warning ::
+               Do not perform inplace operations on the output. That may invalidate caches.
+           )pydoc")
       .def("factor_where",
            &Symmetry::factor_where,
            py::arg("descriptive_name"),
            R"pydoc(
            Return the index of the first factor with that name. Raises if not found.
            )pydoc")
-      .def("qdim", &Symmetry::qdim, py::arg("a"),
-      R"pydoc(
-      The quantum dimension ``Tr(id_a)`` of a sector
-      )pydoc")
-      .def("sector_dim", &Symmetry::sector_dim, py::arg("a"),
-      R"pydoc(
-      The dimension of a sector, as an unstructured space (i.e. if we drop the symmetry).
-      
-      For bosonic braiding style, e.g. for group symmetries, this coincides with the quantum
-      dimension computed by :meth:`qdim`.
-      For other braiding styles,
-      
-      See Also
-      --------
-      :func:`cyten.swap_gate`
-          Similar method for braiding general spaces, not just single sectors.
-      )pydoc")
+      .def("qdim",
+           &Symmetry::qdim,
+           py::arg("a"),
+           R"pydoc(
+           The quantum dimension ``Tr(id_a)`` of a sector
+           )pydoc")
+      .def("sector_dim",
+           &Symmetry::sector_dim,
+           py::arg("a"),
+           R"pydoc(
+           The dimension of a sector, as an unstructured space (i.e. if we drop the symmetry).
+
+           For bosonic braiding style, e.g. for group symmetries, this coincides with the quantum
+           dimension computed by :meth:`qdim`.
+           For other braiding styles,
+
+           See Also
+           --------
+           :func:`cyten.swap_gate`
+               Similar method for braiding general spaces, not just single sectors.
+           )pydoc")
       .def(
         "batch_sector_dim",
         [](Symmetry const& self, SectorArray const& a) {
@@ -233,10 +252,12 @@ bind_symmetry(py::module_& m)
         R"pydoc(
         Quantum dimension of every sector (row) in `a`
         )pydoc")
-      .def("sector_str", &Symmetry::sector_str, py::arg("a"),
-      R"pydoc(
-      Short and readable string for the sector. Is used in __str__ of symmetry-related objects.
-      )pydoc")
+      .def("sector_str",
+           &Symmetry::sector_str,
+           py::arg("a"),
+           R"pydoc(
+           Short and readable string for the sector. Is used in __str__ of symmetry-related objects.
+           )pydoc")
       .def("_f_symbol",
            &Symmetry::_f_symbol,
            py::arg("a"),
@@ -248,10 +269,14 @@ bind_symmetry(py::module_& m)
            R"pydoc(
            Internal implementation of :meth:`f_symbol`. Can assume that inputs are valid.
            )pydoc")
-      .def("_r_symbol", &Symmetry::_r_symbol, py::arg("a"), py::arg("b"), py::arg("c"),
-      R"pydoc(
-      Internal implementation of :meth:`r_symbol`. Can assume that inputs are valid.
-      )pydoc")
+      .def("_r_symbol",
+           &Symmetry::_r_symbol,
+           py::arg("a"),
+           py::arg("b"),
+           py::arg("c"),
+           R"pydoc(
+           Internal implementation of :meth:`r_symbol`. Can assume that inputs are valid.
+           )pydoc")
       .def("_fusion_tensor",
            &Symmetry::_fusion_tensor,
            py::arg("a"),
@@ -262,50 +287,55 @@ bind_symmetry(py::module_& m)
            R"pydoc(
            Internal implementation of :meth:`fusion_tensor`. Can assume that inputs are valid.
            )pydoc")
-      .def("swap_gate", &Symmetry::swap_gate, py::arg("a"), py::arg("b"),
-      R"pydoc(
-      The swap gate (numpy representation of the braid) of single sectors.
-      
-          |   a   b
-          |   │   │
-          |   v   v
-          |    ╲ ╱
-          |     ╲          <-  overbraid == underbraid is assumed
-          |    ╱ ╲
-          |   v   v
-          |   │   │
-          |   b   a
-      
-      Returns
-      -------
-      A numpy representation of the above tensor with axes ``[b, a, b*, a*]``.
-      )pydoc")
-      .def("Z_iso", &Symmetry::Z_iso, py::arg("a"),
-      R"pydoc(
-      The Z isomorphism :math:`Z_{\bar{a}} : \bar{a}^* \to a`.
-      
-      The dual :math:`a^*` of a sector :math:`a` is another irreducible space.
-      However, it may not be itself a sector. It must be isomorphic to one of the sector
-      representatives though, which we call :math:`\bar{a}`.
-      The Z isomorphism :math:`Z_a : a^* \to \bar{a}` is that isomorphism.
-      
-      We return the matrix elements
-      
-      .. math ::
-          (Z_{\bar{a}})_{mn} = \langle m \vert Z_{\bar{a}}(\langle n \vert)
-      
-      where :math:`m` goes over a (dual) basis of :math:`\bar{a}` and :math:`n` over a basis of
-      :math:`a`.
-      
-      Parameters
-      ----------
-      a : Sector
-          Note that this is the target sector of the map, not its subscript!
-      
-      Returns
-      -------
-      The matrix elements as a [d_a, d_a] numpy array.
-      )pydoc")
+      .def("swap_gate",
+           &Symmetry::swap_gate,
+           py::arg("a"),
+           py::arg("b"),
+           R"pydoc(
+           The swap gate (numpy representation of the braid) of single sectors.
+
+               |   a   b
+               |   │   │
+               |   v   v
+               |    ╲ ╱
+               |     ╲          <-  overbraid == underbraid is assumed
+               |    ╱ ╲
+               |   v   v
+               |   │   │
+               |   b   a
+
+           Returns
+           -------
+           A numpy representation of the above tensor with axes ``[b, a, b*, a*]``.
+           )pydoc")
+      .def("Z_iso",
+           &Symmetry::Z_iso,
+           py::arg("a"),
+           R"pydoc(
+           The Z isomorphism :math:`Z_{\bar{a}} : \bar{a}^* \to a`.
+
+           The dual :math:`a^*` of a sector :math:`a` is another irreducible space.
+           However, it may not be itself a sector. It must be isomorphic to one of the sector
+           representatives though, which we call :math:`\bar{a}`.
+           The Z isomorphism :math:`Z_a : a^* \to \bar{a}` is that isomorphism.
+
+           We return the matrix elements
+
+           .. math ::
+               (Z_{\bar{a}})_{mn} = \langle m \vert Z_{\bar{a}}(\langle n \vert)
+
+           where :math:`m` goes over a (dual) basis of :math:`\bar{a}` and :math:`n` over a basis of
+           :math:`a`.
+
+           Parameters
+           ----------
+           a : Sector
+               Note that this is the target sector of the map, not its subscript!
+
+           Returns
+           -------
+           The matrix elements as a [d_a, d_a] numpy array.
+           )pydoc")
       .def(
         "is_equivalent_to",
         [](Symmetry const& self, py::object other, bool strict_ordering) {

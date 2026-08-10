@@ -183,16 +183,16 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
             py::arg("incoming_block_inds"),
             R"pydoc(
             Map incoming block indices to indices of :attr:`block_ind_map`.
-            
+
             Needed for `combine_legs`.
-            
+
             Parameters
             ----------
             pipe : AbelianLegPipe
                 The pipe which indices are to be mapped
             incoming_block_inds : 2D array
                 Rows are block indices :math:`(i_1, i_2, ... i_{nlegs})` for incoming legs.
-            
+
             Returns
             -------
             block_inds: 1D array
@@ -227,7 +227,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("levels") = py::none(),
       R"pydoc(
       Perform an arbitrary number of traces. Pairs are converted to leg idcs.
-      
+
       Returns ``data, codomain, domain``.
       )pydoc");
 
