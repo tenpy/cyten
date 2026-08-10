@@ -244,8 +244,11 @@ bind_block_inds(py::module_& m)
                                    c += static_cast<std::ptrdiff_t>(taken.ncols());
                                }
                                auto col = taken.column(static_cast<std::size_t>(c));
-                               return block_inds_to_numpy(
-                                 BlockInds(std::move(col), taken.nrows(), 1));
+                               py::array_t<int64> arr(static_cast<py::ssize_t>(col.size()));
+                               if (!col.empty()) {
+                                   std::copy(col.begin(), col.end(), arr.mutable_data());
+                               }
+                               return arr;
                            }
                            throw py::type_error("unsupported BlockInds column index");
                        }
@@ -324,7 +327,27 @@ bind_block_inds(py::module_& m)
                        }
                        return py::cast(taken.take_columns(cols));
                    }
-                   // single row + single column already handled; row + fancy columns
+                   // single row + single column already handled; fancy/int row + columns
+                   if (py::isinstance<py::int_>(t[1])) {
+                       auto rows = indices_from_py(t[0], self.nrows());
+                       BlockInds taken = self.take(rows);
+                       auto c = t[1].cast<std::ptrdiff_t>();
+                       if (c < 0) {
+                           c += static_cast<std::ptrdiff_t>(taken.ncols());
+                       }
+                       if (c < 0 || static_cast<std::size_t>(c) >= taken.ncols()) {
+                           throw py::index_error("BlockInds index out of range");
+                       }
+                       auto col = taken.column(static_cast<std::size_t>(c));
+                       if (rows.size() == 1 && py::isinstance<py::int_>(t[0])) {
+                           return py::int_(col[0]);
+                       }
+                       py::array_t<int64> arr(static_cast<py::ssize_t>(col.size()));
+                       if (!col.empty()) {
+                           std::copy(col.begin(), col.end(), arr.mutable_data());
+                       }
+                       return arr;
+                   }
                    if (py::isinstance<py::int_>(t[0])) {
                        auto rows = indices_from_py(t[0], self.nrows());
                        BlockInds taken = self.take(rows);
@@ -334,7 +357,13 @@ bind_block_inds(py::module_& m)
                        }
                        return py::cast(taken.take_columns(cols));
                    }
-                   throw py::type_error("unsupported BlockInds indexing");
+                   // fancy rows + fancy columns
+                   {
+                       auto rows = indices_from_py(t[0], self.nrows());
+                       BlockInds taken = self.take(rows);
+                       auto cols = indices_from_py(t[1], taken.ncols());
+                       return py::cast(taken.take_columns(cols));
+                   }
                }
                auto idx = indices_from_py(key, self.nrows());
                // scalar → 1D numpy row (matches ndarray[i] for 2D array)

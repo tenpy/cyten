@@ -1,5 +1,6 @@
 #include "py_cyten_pybind11.h"
 
+#include "backends/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
 
 #include <cyten/symmetries/sector_numpy.h>
@@ -205,20 +206,6 @@ objects_to_python(std::vector<py::object> const& objects)
         out.append(obj);
     }
     return out;
-}
-
-py::array_t<int64>
-int_matrix_to_numpy(std::vector<std::vector<int64>> const& rows, py::ssize_t num_columns)
-{
-    auto const num_rows = static_cast<py::ssize_t>(rows.size());
-    py::array_t<int64> arr({ num_rows, num_columns });
-    auto buf = arr.mutable_unchecked<2>();
-    for (py::ssize_t i = 0; i < num_rows; ++i) {
-        for (py::ssize_t j = 0; j < num_columns; ++j) {
-            buf(i, j) = rows[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)];
-        }
-    }
-    return arr;
 }
 
 void bind_elementary_space(py::module_& m);
@@ -1603,7 +1590,7 @@ bind_abelian_leg_pipe(py::module_& m)
           The slice ``block_ind_map_slices[n]:block_ind_map_slices[n + 1]`` within this sorted list
           contains the same entry, namely ``pipe.sector_decomposition[n]``.
           Used in :math:`AbelianBackend.split_legs`.
-      block_ind_map : 2D numpy array of int
+      block_ind_map : BlockInds
           Map for the embedding of uncoupled to coupled indices, see notes of the Python class.
           Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
           i.e. ``M == prod(leg.num_sectors for leg in legs)`` and ``N == 3 + len(legs)``.
@@ -1632,9 +1619,8 @@ bind_abelian_leg_pipe(py::module_& m)
       .def_property_readonly(
         "block_ind_map_slices",
         [](AbelianLegPipe const& self) { return perm_to_numpy(self.block_ind_map_slices); })
-      .def_property_readonly("block_ind_map", [](AbelianLegPipe const& self) {
-          return int_matrix_to_numpy(self.block_ind_map, 3 + self.num_legs);
-      });
+      .def_property_readonly("block_ind_map",
+                             [](AbelianLegPipe const& self) { return self.block_ind_map; });
 
     cls
       .def_property_readonly("dual",

@@ -989,13 +989,12 @@ AbelianBackend::combine_legs(py::object tensor,
     BlockInds res_block_inds(t_data->block_inds.nrows(),
                              static_cast<std::size_t>(num_result_legs));
     int64 i = 0, j = 0;
-    py::list map_inds;
+    std::vector<std::vector<int64>> map_inds;
     int64 num_codomain = tensor.attr("num_codomain_legs").cast<int64>();
     auto const& t_bi = t_data->block_inds;
     for (std::size_t gi = 0; gi < leg_idcs_combine.size(); ++gi) {
         auto const& group = leg_idcs_combine[gi];
         auto pipe = std::dynamic_pointer_cast<AbelianLegPipe>(pipes[gi]);
-        py::object pipe_py = py::cast(pipe);
         int64 num_uncombined = group[0] - j;
         if (num_uncombined > 0) {
             std::vector<std::size_t> src_cols(static_cast<std::size_t>(num_uncombined));
@@ -1014,29 +1013,20 @@ AbelianBackend::combine_legs(py::object tensor,
         BlockInds bi_group = t_bi.take_columns(group_cols);
         if (in_domain)
             bi_group = bi_group.reverse_columns();
-        auto strides_np = asarray_i64_1d(pipe_py.attr("sector_strides"));
-        std::vector<int64> strides_vec(static_cast<std::size_t>(strides_np.shape(0)));
-        {
-            auto sb = strides_np.unchecked<1>();
-            for (py::ssize_t s = 0; s < sb.shape(0); ++s)
-                strides_vec[static_cast<std::size_t>(s)] = sb(s);
+        auto multi_indices = bi_group.pack(pipe->sector_strides);
+        std::vector<int64> inv_fusion(pipe->fusion_outcomes_sort.size());
+        for (std::size_t k = 0; k < pipe->fusion_outcomes_sort.size(); ++k) {
+            inv_fusion[static_cast<std::size_t>(pipe->fusion_outcomes_sort[k])] =
+              static_cast<int64>(k);
         }
-        auto multi_indices = bi_group.pack(strides_vec);
-        py::array block_ind_map_rows =
-          misc()
-            .attr("inverse_permutation")(pipe_py.attr("fusion_outcomes_sort"))
-            .attr("__getitem__")(i64_vec_to_numpy(multi_indices));
-        map_inds.append(block_ind_map_rows);
-        auto map_col =
-          asarray_i64_1d(pipe_py.attr("block_ind_map")
-                           .attr("__getitem__")(py::make_tuple(block_ind_map_rows, -1)));
-        {
-            auto mb = map_col.unchecked<1>();
-            std::vector<int64> col(static_cast<std::size_t>(mb.shape(0)));
-            for (py::ssize_t r = 0; r < mb.shape(0); ++r)
-                col[static_cast<std::size_t>(r)] = mb(r);
-            res_block_inds.set_column(static_cast<std::size_t>(i), col);
+        std::vector<int64> block_ind_map_rows(multi_indices.size());
+        for (std::size_t k = 0; k < multi_indices.size(); ++k) {
+            block_ind_map_rows[k] = inv_fusion[static_cast<std::size_t>(multi_indices[k])];
         }
+        map_inds.push_back(block_ind_map_rows);
+        res_block_inds.set_column(static_cast<std::size_t>(i),
+                                  pipe->block_ind_map.take_i64(block_ind_map_rows)
+                                    .column(pipe->block_ind_map.ncols() - 1));
         i += 1;
         j += static_cast<int64>(group.size());
     }
@@ -1055,14 +1045,17 @@ AbelianBackend::combine_legs(py::object tensor,
             sorted_blocks.push_back(old_blocks[idx]);
         old_blocks = std::move(sorted_blocks);
     }
-    py::list map_inds_sorted;
-    std::vector<int64> sort_i64(sort.size());
-    for (std::size_t k = 0; k < sort.size(); ++k)
-        sort_i64[k] = static_cast<int64>(sort[k]);
-    auto sort_np = i64_vec_to_numpy(sort_i64);
-    for (py::handle rows : map_inds)
-        map_inds_sorted.append(rows.attr("__getitem__")(sort_np));
-    map_inds = map_inds_sorted;
+    {
+        std::vector<std::vector<int64>> map_inds_sorted;
+        map_inds_sorted.reserve(map_inds.size());
+        for (auto const& rows : map_inds) {
+            std::vector<int64> sorted_rows(sort.size());
+            for (std::size_t k = 0; k < sort.size(); ++k)
+                sorted_rows[k] = rows[sort[k]];
+            map_inds_sorted.push_back(std::move(sorted_rows));
+        }
+        map_inds = std::move(map_inds_sorted);
+    }
 
     py::array block_slices = np.attr("zeros")(
       py::make_tuple(old_blocks.size(), num_result_legs, 2), py::arg("dtype") = np.attr("intp"));
@@ -1071,8 +1064,7 @@ AbelianBackend::combine_legs(py::object tensor,
     for (std::size_t gi = 0; gi < leg_idcs_combine.size(); ++gi) {
         auto const& group = leg_idcs_combine[gi];
         auto pipe = std::dynamic_pointer_cast<AbelianLegPipe>(pipes[gi]);
-        py::object pipe_py = py::cast(pipe);
-        py::object block_ind_map_rows = map_inds[gi];
+        auto const& block_ind_map_rows = map_inds[gi];
         int64 num_uncombined = group[0] - j;
         for (int64 u = 0; u < num_uncombined; ++u) {
             py::object mults = tensor.attr("get_leg_co_domain")(j).attr("multiplicities");
@@ -1083,11 +1075,12 @@ AbelianBackend::combine_legs(py::object tensor,
             ++i;
             ++j;
         }
-        block_slices.attr("__setitem__")(
-          py::make_tuple(
-            py::slice(std::nullopt, std::nullopt, 1), i, py::slice(std::nullopt, std::nullopt, 1)),
-          pipe_py.attr("block_ind_map")
-            .attr("__getitem__")(py::make_tuple(block_ind_map_rows, py::slice(0, 2, 1))));
+        BlockInds slice_cols = pipe->block_ind_map.take_i64(block_ind_map_rows)
+                                 .take_columns(std::array<std::size_t, 2>{ 0, 1 });
+        block_slices.attr("__setitem__")(py::make_tuple(py::slice(std::nullopt, std::nullopt, 1),
+                                                        i,
+                                                        py::slice(std::nullopt, std::nullopt, 1)),
+                                         block_inds_to_numpy(slice_cols));
         ++i;
         j += static_cast<int64>(group.size());
     }
@@ -3076,17 +3069,21 @@ AbelianBackend::split_legs(py::object a,
     py::array map_slices_shape = np.attr("zeros")(py::make_tuple(old_blocks.size(), n_split),
                                                   py::arg("dtype") = np.attr("intp"));
     for (py::ssize_t j = 0; j < n_split; ++j) {
-        py::object pipe = pipes[j];
-        auto block_inds_j = i64_vec_to_numpy(
-          old_block_inds.column(static_cast<std::size_t>(leg_idcs[static_cast<std::size_t>(j)])));
-        map_slices_beg.attr("__setitem__")(
-          py::make_tuple(py::ellipsis(), j),
-          pipe.attr("block_ind_map_slices").attr("__getitem__")(block_inds_j));
-        py::array slices = pipe.attr("block_ind_map_slices");
-        py::array sizes = slices.attr("__getitem__")(py::slice(1, std::nullopt, 1))
-                            .attr("__sub__")(slices.attr("__getitem__")(py::slice(0, -1, 1)));
+        auto pipe = pipes[j].cast<AbelianLegPipe::Ptr>();
+        auto block_inds_j =
+          old_block_inds.column(static_cast<std::size_t>(leg_idcs[static_cast<std::size_t>(j)]));
+        std::vector<int64> beg_col(block_inds_j.size());
+        std::vector<int64> shape_col(block_inds_j.size());
+        auto const& slices = pipe->block_ind_map_slices;
+        for (std::size_t r = 0; r < block_inds_j.size(); ++r) {
+            auto const bi = static_cast<std::size_t>(block_inds_j[r]);
+            beg_col[r] = slices[bi];
+            shape_col[r] = slices[bi + 1] - slices[bi];
+        }
+        map_slices_beg.attr("__setitem__")(py::make_tuple(py::ellipsis(), j),
+                                           i64_vec_to_numpy(beg_col));
         map_slices_shape.attr("__setitem__")(py::make_tuple(py::ellipsis(), j),
-                                             sizes.attr("__getitem__")(block_inds_j));
+                                             i64_vec_to_numpy(shape_col));
     }
     py::array new_data_blocks_per_old_block =
       np.attr("prod")(map_slices_shape, py::arg("axis") = 1);
@@ -3142,37 +3139,47 @@ AbelianBackend::split_legs(py::object a,
     for (int64 i_leg = 0; i_leg < a_num_legs; ++i_leg) {
         if (is_split[static_cast<std::size_t>(i_leg)]) {
             bool in_domain = i_leg >= num_codomain;
-            py::object pipe = pipes[jp];
+            auto pipe = pipes[jp].cast<AbelianLegPipe::Ptr>();
             int64 k = i_leg + shift;
-            int64 k2 = k + pipe.attr("num_legs").cast<int64>();
-            if (pipe.attr("combine_cstyle").cast<bool>() == in_domain) {
+            int64 k2 = k + pipe->num_legs;
+            if (pipe->combine_cstyle == in_domain) {
                 std::reverse(axes_perm.begin() + k, axes_perm.begin() + k2);
             }
-            py::array block_ind_map =
-              pipe.attr("block_ind_map")
-                .attr("__getitem__")(
-                  py::make_tuple(map_rows.attr("__getitem__")(py::make_tuple(py::ellipsis(), jp)),
-                                 py::ellipsis()));
+            auto map_rows_jp =
+              asarray_i64_1d(map_rows.attr("__getitem__")(py::make_tuple(py::ellipsis(), jp)));
+            auto mrb = map_rows_jp.unchecked<1>();
+            std::vector<int64> map_row_idx(static_cast<std::size_t>(mrb.shape(0)));
+            for (py::ssize_t r = 0; r < mrb.shape(0); ++r)
+                map_row_idx[static_cast<std::size_t>(r)] = mrb(r);
+            BlockInds block_ind_map = pipe->block_ind_map.take_i64(map_row_idx);
             if (in_domain) {
+                // columns -2:1:-1 → leg columns reversed (excluding b0,b1 and J)
+                std::vector<std::size_t> cols;
+                cols.reserve(static_cast<std::size_t>(pipe->num_legs));
+                for (int64 c = static_cast<int64>(pipe->num_legs) + 1; c >= 2; --c)
+                    cols.push_back(static_cast<std::size_t>(c));
                 new_block_inds.attr("__setitem__")(
                   py::make_tuple(py::ellipsis(), py::slice(k, k2, 1)),
-                  block_ind_map.attr("__getitem__")(
-                    py::make_tuple(py::ellipsis(), py::slice(-2, 1, -1)))); // -2:1:-1
+                  block_inds_to_numpy(block_ind_map.take_columns(cols)));
             } else {
+                std::vector<std::size_t> cols;
+                cols.reserve(static_cast<std::size_t>(pipe->num_legs));
+                for (std::size_t c = 2; c < 2 + static_cast<std::size_t>(pipe->num_legs); ++c)
+                    cols.push_back(c);
                 new_block_inds.attr("__setitem__")(
                   py::make_tuple(py::ellipsis(), py::slice(k, k2, 1)),
-                  block_ind_map.attr("__getitem__")(
-                    py::make_tuple(py::ellipsis(), py::slice(2, -1, 1))));
+                  block_inds_to_numpy(block_ind_map.take_columns(cols)));
             }
-            old_block_beg.attr("__setitem__")(
-              py::make_tuple(py::ellipsis(), i_leg),
-              block_ind_map.attr("__getitem__")(py::make_tuple(py::ellipsis(), 0)));
-            old_block_shapes.attr("__setitem__")(
-              py::make_tuple(py::ellipsis(), i_leg),
-              block_ind_map.attr("__getitem__")(py::make_tuple(py::ellipsis(), 1))
-                .attr("__sub__")(
-                  block_ind_map.attr("__getitem__")(py::make_tuple(py::ellipsis(), 0))));
-            shift += pipe.attr("num_legs").cast<int64>() - 1;
+            auto col0 = block_ind_map.column(0);
+            auto col1 = block_ind_map.column(1);
+            old_block_beg.attr("__setitem__")(py::make_tuple(py::ellipsis(), i_leg),
+                                              i64_vec_to_numpy(col0));
+            std::vector<int64> shapes(col0.size());
+            for (std::size_t r = 0; r < col0.size(); ++r)
+                shapes[r] = col1[r] - col0[r];
+            old_block_shapes.attr("__setitem__")(py::make_tuple(py::ellipsis(), i_leg),
+                                                 i64_vec_to_numpy(shapes));
+            shift += pipe->num_legs - 1;
             ++jp;
         } else {
             auto col = old_block_inds.column(static_cast<std::size_t>(i_leg));

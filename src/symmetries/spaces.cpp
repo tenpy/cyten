@@ -2754,7 +2754,7 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
 
     // determine block_ind_map -- it's essentially the grid.
     // block_ind_map[:, :2] and [:, -1] are set later.
-    std::vector<std::vector<int64>> block_ind_map(num_blocks, std::vector<int64>(3 + num_legs, 0));
+    BlockInds block_ind_map = BlockInds::zeros(num_blocks, 3 + num_legs);
     // the multiplicity for given (i1, i2, ...) is the product of ``multiplicities[il]``
     std::vector<int64> multiplicities(num_blocks, 1);
     std::vector<SectorArray> uncoupled;
@@ -2764,7 +2764,7 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
         for (std::size_t m = 0; m < num_blocks; ++m) {
             auto const i = static_cast<std::size_t>(
               grid_entry(static_cast<int64>(m), sector_strides, legs_num_sectors, n));
-            block_ind_map[m][2 + n] = static_cast<int64>(i);
+            block_ind_map(m, 2 + n) = static_cast<int64>(i);
             multiplicities[m] *= legs[n]->multiplicities[i];
             column[m] = legs[n]->sector_decomposition[i];
         }
@@ -2783,13 +2783,11 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
     auto const sort = sectors.lexsort_indices();
     std::vector<int64> fusion_outcomes_sort(sort.begin(), sort.end());
     {
-        std::vector<std::vector<int64>> sorted_map(num_blocks);
         std::vector<int64> sorted_mults(num_blocks);
         for (std::size_t m = 0; m < num_blocks; ++m) {
-            sorted_map[m] = std::move(block_ind_map[sort[m]]);
             sorted_mults[m] = multiplicities[sort[m]];
         }
-        block_ind_map = std::move(sorted_map);
+        block_ind_map = block_ind_map.take(sort);
         multiplicities = std::move(sorted_mults);
         sectors = sectors.take(sort);
     }
@@ -2797,8 +2795,8 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
     // compute slices in the whole internal basis (we subtract the start of each block below)
     auto const slices = slice_boundaries(multiplicities);
     for (std::size_t m = 0; m < num_blocks; ++m) {
-        block_ind_map[m][0] = slices[m];
-        block_ind_map[m][1] = slices[m + 1];
+        block_ind_map(m, 0) = slices[m];
+        block_ind_map(m, 1) = slices[m + 1];
     }
 
     // bunch sectors with equal sectors together
@@ -2820,9 +2818,9 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
     // the new block index J, plus the slices within blocks (subtract the start of each block)
     for (std::size_t k = 0; k < num_unique; ++k) {
         for (std::size_t m = diffs[k]; m < diffs[k + 1]; ++m) {
-            block_ind_map[m][2 + num_legs] = static_cast<int64>(k);
-            block_ind_map[m][0] -= block_starts[k];
-            block_ind_map[m][1] -= block_starts[k];
+            block_ind_map(m, 2 + num_legs) = static_cast<int64>(k);
+            block_ind_map(m, 0) -= block_starts[k];
+            block_ind_map(m, 1) -= block_starts[k];
         }
     }
 
@@ -2868,7 +2866,7 @@ AbelianLegPipe::fusion_outcomes_perm(std::vector<ElementarySpace::Ptr> const& le
                                      bool combine_cstyle,
                                      float64 dim,
                                      std::vector<int64> const& multiplicities,
-                                     std::vector<std::vector<int64>> const& block_ind_map)
+                                     BlockInds const& block_ind_map)
 {
     auto const num_legs = legs.size();
     std::vector<int64> legs_dims(num_legs);
@@ -2884,7 +2882,8 @@ AbelianLegPipe::fusion_outcomes_perm(std::vector<ElementarySpace::Ptr> const& le
 
     std::vector<int64> mult_shape(num_legs);
     std::vector<int64> sector_starts(num_legs);
-    for (auto const& row : block_ind_map) {
+    for (std::size_t m = 0; m < block_ind_map.nrows(); ++m) {
+        auto const row = block_ind_map.row(m);
         // shift the slice start:stop from within the block back to the whole internal basis
         auto const J = static_cast<std::size_t>(row[2 + num_legs]);
         auto const start = row[0] + slices_starts[J];
@@ -2924,7 +2923,7 @@ AbelianLegPipe::calc_basis_perm(std::vector<ElementarySpace::Ptr> const& legs,
                                 bool combine_cstyle,
                                 float64 dim,
                                 std::vector<int64> const& multiplicities,
-                                std::vector<std::vector<int64>> const& block_ind_map)
+                                BlockInds const& block_ind_map)
 {
     // see the diagram in the docstring of the Python ``_calc_basis_perm``; we follow the path
     // parallel to ``pipe.basis_perm``: inverse of fusion, basis_perm of each leg, fusion, sort.
@@ -3004,33 +3003,33 @@ AbelianLegPipe::test_sanity() const
     assert(block_ind_map_slices.back() == nblocks);
     assert(std::ranges::is_sorted(block_ind_map_slices));
     // check block_ind_map
-    assert(block_ind_map.size() == static_cast<std::size_t>(nblocks));
+    assert(block_ind_map.nrows() == static_cast<std::size_t>(nblocks));
+    assert(block_ind_map.ncols() == 3 + n);
     // the rows are sorted first by J, then by the i, in C-style order if combine_cstyle
     // (see the class docstring). Equivalently, the keys built below are non-decreasing.
-    auto const sort_key = [&](std::vector<int64> const& row) {
-        std::vector<int64> key{ row[2 + n] };
+    auto const sort_key = [&](std::size_t m) {
+        std::vector<int64> key{ block_ind_map(m, 2 + n) };
         for (std::size_t i = 0; i < n; ++i) {
-            key.push_back(combine_cstyle ? row[2 + i] : row[1 + n - i]);
+            key.push_back(combine_cstyle ? block_ind_map(m, 2 + i) : block_ind_map(m, 1 + n - i));
         }
         return key;
     };
-    for (std::size_t m = 0; m < block_ind_map.size(); ++m) {
-        auto const& row = block_ind_map[m];
-        assert(row.size() == 3 + n);
-        auto const J = static_cast<std::size_t>(row[2 + n]);
+    for (std::size_t m = 0; m < block_ind_map.nrows(); ++m) {
+        auto const J = static_cast<std::size_t>(block_ind_map(m, 2 + n));
         if (m > 0) {
-            auto const prev = sort_key(block_ind_map[m - 1]);
-            auto const cur = sort_key(row);
+            auto const prev = sort_key(m - 1);
+            auto const cur = sort_key(m);
             assert(std::ranges::lexicographical_compare(prev, cur));
         }
-        if (m > 0 && row[2 + n] == block_ind_map[m - 1][2 + n]) {
-            assert(row[0] == block_ind_map[m - 1][1]);
+        if (m > 0 && block_ind_map(m, 2 + n) == block_ind_map(m - 1, 2 + n)) {
+            assert(block_ind_map(m, 0) == block_ind_map(m - 1, 1));
         } else {
-            assert(row[0] == 0);
+            assert(block_ind_map(m, 0) == 0);
         }
         std::vector<Sector> uncoupled(n);
         for (std::size_t i = 0; i < n; ++i) {
-            uncoupled[i] = es[i]->sector_decomposition[static_cast<std::size_t>(row[2 + i])];
+            uncoupled[i] =
+              es[i]->sector_decomposition[static_cast<std::size_t>(block_ind_map(m, 2 + i))];
         }
         assert(Space::symmetry->multiple_fusion(uncoupled) == sector_decomposition[J]);
     }

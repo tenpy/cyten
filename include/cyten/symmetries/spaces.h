@@ -6,6 +6,8 @@
 #include "symmetry.h"
 #include "trees.h"
 
+#include <cyten/backends/block_inds.h>
+
 #include <array>
 #include <cstdint>
 #include <functional>
@@ -488,7 +490,7 @@ class AbelianLegPipe
     /// Slice starts into the sorted fusion-outcome list; length ``num_sectors + 1``.
     std::vector<int64> block_ind_map_slices;
     /// Rows ``[b0, b1, i_0, ..., i_{n-1}, J]``; shape ``(M, 3 + num_legs)``.
-    std::vector<std::vector<int64>> block_ind_map;
+    BlockInds block_ind_map;
 
     explicit AbelianLegPipe(std::vector<ElementarySpace::Ptr> legs,
                             bool is_dual = false,
@@ -581,7 +583,7 @@ class AbelianLegPipe
         std::vector<int64> sector_strides;
         std::vector<int64> fusion_outcomes_sort;
         std::vector<int64> block_ind_map_slices;
-        std::vector<std::vector<int64>> block_ind_map;
+        BlockInds block_ind_map;
     };
 
     static Prepared prepare(std::vector<ElementarySpace::Ptr> const& legs,
@@ -595,14 +597,14 @@ class AbelianLegPipe
       bool combine_cstyle,
       float64 dim,
       std::vector<int64> const& multiplicities,
-      std::vector<std::vector<int64>> const& block_ind_map);
+      BlockInds const& block_ind_map);
 
     [[nodiscard]] static std::vector<int64> fusion_outcomes_perm(
       std::vector<ElementarySpace::Ptr> const& legs,
       bool combine_cstyle,
       float64 dim,
       std::vector<int64> const& multiplicities,
-      std::vector<std::vector<int64>> const& block_ind_map);
+      BlockInds const& block_ind_map);
 };
 
 /// The swap gate (numpy representation of the braid) between two legs.
