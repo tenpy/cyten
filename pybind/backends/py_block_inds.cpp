@@ -161,16 +161,22 @@ bind_block_inds(py::module_& m)
       .def("__len__", [](BlockInds const& self) { return self.nrows(); })
       .def("__repr__", &block_inds_repr)
       .def("__str__", &block_inds_repr)
+      // Element-wise like ndarray; do not return a scalar bool (breaks broadcasting).
       .def("__eq__",
-           [](BlockInds const& self, py::object other) {
+           [](BlockInds const& self, py::object other) -> py::object {
+               py::object self_np = block_inds_to_numpy(self);
                if (py::isinstance<BlockInds>(other)) {
-                   return self == other.cast<BlockInds>();
+                   other = block_inds_to_numpy(other.cast<BlockInds>());
                }
-               try {
-                   return self == block_inds_from_numpy(other);
-               } catch (...) {
-                   return false;
+               return self_np.attr("__eq__")(other);
+           })
+      .def("__ne__",
+           [](BlockInds const& self, py::object other) -> py::object {
+               py::object self_np = block_inds_to_numpy(self);
+               if (py::isinstance<BlockInds>(other)) {
+                   other = block_inds_to_numpy(other.cast<BlockInds>());
                }
+               return self_np.attr("__ne__")(other);
            })
       .def(
         "__array__",
@@ -272,9 +278,61 @@ bind_block_inds(py::module_& m)
                            return arr;
                        }
                    }
-                   // row fancy + optional full columns
+                   // scalar element: arr[i, j]
+                   if (py::isinstance<py::int_>(t[0]) && py::isinstance<py::int_>(t[1])) {
+                       auto r = t[0].cast<std::ptrdiff_t>();
+                       auto c = t[1].cast<std::ptrdiff_t>();
+                       if (r < 0) {
+                           r += static_cast<std::ptrdiff_t>(self.nrows());
+                       }
+                       if (c < 0) {
+                           c += static_cast<std::ptrdiff_t>(self.ncols());
+                       }
+                       if (r < 0 || static_cast<std::size_t>(r) >= self.nrows() || c < 0 ||
+                           static_cast<std::size_t>(c) >= self.ncols()) {
+                           throw py::index_error("BlockInds index out of range");
+                       }
+                       return py::int_(
+                         self(static_cast<std::size_t>(r), static_cast<std::size_t>(c)));
+                   }
+                   // row fancy + optional full columns / column slice
                    if (py::isinstance<py::slice>(t[1]) || py::isinstance<py::ellipsis>(t[1])) {
-                       return py::cast(self.take(indices_from_py(t[0], self.nrows())));
+                       auto rows = indices_from_py(t[0], self.nrows());
+                       BlockInds taken = self.take(rows);
+                       if (py::isinstance<py::ellipsis>(t[1])) {
+                           // single row → 1D numpy, matching ndarray[i, ...] / ndarray[i, :]
+                           if (rows.size() == 1 && py::isinstance<py::int_>(t[0])) {
+                               auto row = taken.row(0);
+                               py::array_t<int64> arr(static_cast<py::ssize_t>(row.size()));
+                               if (!row.empty()) {
+                                   std::copy(row.begin(), row.end(), arr.mutable_data());
+                               }
+                               return arr;
+                           }
+                           return py::cast(taken);
+                       }
+                       auto cols = col_indices_from_slice(t[1].cast<py::slice>(), taken.ncols());
+                       // full column range on a single integer row → 1D numpy
+                       if (rows.size() == 1 && py::isinstance<py::int_>(t[0]) &&
+                           cols.size() == taken.ncols()) {
+                           auto row = taken.row(0);
+                           py::array_t<int64> arr(static_cast<py::ssize_t>(row.size()));
+                           if (!row.empty()) {
+                               std::copy(row.begin(), row.end(), arr.mutable_data());
+                           }
+                           return arr;
+                       }
+                       return py::cast(taken.take_columns(cols));
+                   }
+                   // single row + single column already handled; row + fancy columns
+                   if (py::isinstance<py::int_>(t[0])) {
+                       auto rows = indices_from_py(t[0], self.nrows());
+                       BlockInds taken = self.take(rows);
+                       auto cols = indices_from_py(t[1], taken.ncols());
+                       if (cols.size() == 1 && py::isinstance<py::int_>(t[1])) {
+                           return py::int_(taken(0, cols[0]));
+                       }
+                       return py::cast(taken.take_columns(cols));
                    }
                    throw py::type_error("unsupported BlockInds indexing");
                }

@@ -65,6 +65,136 @@ BlockInds::from_row(std::span<const int64> row)
 }
 
 BlockInds
+BlockInds::from_rows(std::vector<std::vector<int64>> const& rows)
+{
+    if (rows.empty()) {
+        return BlockInds{};
+    }
+    auto const ncols = rows[0].size();
+    BlockInds out(rows.size(), ncols);
+    for (std::size_t i = 0; i < rows.size(); ++i) {
+        if (rows[i].size() != ncols) {
+            throw std::invalid_argument("BlockInds::from_rows: inconsistent row lengths");
+        }
+        std::copy(rows[i].begin(),
+                  rows[i].end(),
+                  out.data_.begin() + static_cast<std::ptrdiff_t>(i * ncols));
+    }
+    return out;
+}
+
+BlockInds
+BlockInds::arange_diag(std::size_t n, std::size_t n_cols)
+{
+    BlockInds out(n, n_cols);
+    for (std::size_t i = 0; i < n; ++i) {
+        for (std::size_t j = 0; j < n_cols; ++j) {
+            out(i, j) = static_cast<int64>(i);
+        }
+    }
+    return out;
+}
+
+bool
+BlockInds::is_lexsorted() const
+{
+    for (std::size_t i = 1; i < nrows_; ++i) {
+        if (cmp_lexsort(*this, i - 1, *this, i) > 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool
+BlockInds::all_ge(int64 value) const
+{
+    for (int64 v : data_) {
+        if (v < value) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool
+BlockInds::all_lt_per_column(std::span<const int64> maxes) const
+{
+    if (maxes.size() != ncols_) {
+        throw std::invalid_argument("BlockInds::all_lt_per_column: maxes length mismatch");
+    }
+    for (std::size_t i = 0; i < nrows_; ++i) {
+        for (std::size_t j = 0; j < ncols_; ++j) {
+            if ((*this)(i, j) >= maxes[j]) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool
+BlockInds::columns_equal(std::size_t c0, std::size_t c1) const
+{
+    if (c0 >= ncols_ || c1 >= ncols_) {
+        throw std::out_of_range("BlockInds::columns_equal: column out of range");
+    }
+    for (std::size_t i = 0; i < nrows_; ++i) {
+        if ((*this)(i, c0) != (*this)(i, c1)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+BlockInds
+BlockInds::take_columns_i64(std::span<const int64> col_perm) const
+{
+    std::vector<std::size_t> cols(col_perm.size());
+    for (std::size_t j = 0; j < col_perm.size(); ++j) {
+        auto c = col_perm[j];
+        if (c < 0) {
+            c += static_cast<int64>(ncols_);
+        }
+        if (c < 0 || static_cast<std::size_t>(c) >= ncols_) {
+            throw std::out_of_range("BlockInds::take_columns_i64: column out of range");
+        }
+        cols[j] = static_cast<std::size_t>(c);
+    }
+    return take_columns(cols);
+}
+
+void
+BlockInds::set_column(std::size_t col, std::span<const int64> values)
+{
+    if (col >= ncols_) {
+        throw std::out_of_range("BlockInds::set_column: column out of range");
+    }
+    if (values.size() != nrows_) {
+        throw std::invalid_argument("BlockInds::set_column: values length mismatch");
+    }
+    for (std::size_t i = 0; i < nrows_; ++i) {
+        (*this)(i, col) = values[i];
+    }
+}
+
+void
+BlockInds::assign_columns(std::size_t dest_col0, BlockInds const& src)
+{
+    if (src.nrows_ != nrows_) {
+        throw std::invalid_argument("BlockInds::assign_columns: nrows mismatch");
+    }
+    if (dest_col0 + src.ncols_ > ncols_) {
+        throw std::out_of_range("BlockInds::assign_columns: columns out of range");
+    }
+    for (std::size_t i = 0; i < nrows_; ++i) {
+        for (std::size_t j = 0; j < src.ncols_; ++j) {
+            (*this)(i, dest_col0 + j) = src(i, j);
+        }
+    }
+}
+
+BlockInds
 BlockInds::column_stack(std::vector<std::span<const int64>> const& cols)
 {
     if (cols.empty()) {

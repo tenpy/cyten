@@ -39,6 +39,26 @@ class BlockInds
     /// Single row from a span of length ``ncols``.
     static BlockInds from_row(std::span<const int64> row);
 
+    /// Build from a list of equal-length rows.
+    static BlockInds from_rows(std::vector<std::vector<int64>> const& rows);
+
+    /// ``column_stack(arange(n), arange(n), ...)`` with ``n_cols`` copies (default 2).
+    static BlockInds arange_diag(std::size_t n, std::size_t n_cols = 2);
+
+    [[nodiscard]] bool is_lexsorted() const;
+    [[nodiscard]] bool all_ge(int64 value) const;
+    /// ``all(bi[:, j] < maxes[j])`` for every column.
+    [[nodiscard]] bool all_lt_per_column(std::span<const int64> maxes) const;
+    [[nodiscard]] bool columns_equal(std::size_t c0, std::size_t c1) const;
+
+    [[nodiscard]] BlockInds take_columns_i64(std::span<const int64> col_perm) const;
+
+    /// Write ``values`` (length ``nrows``) into column ``col``.
+    void set_column(std::size_t col, std::span<const int64> values);
+
+    /// Copy all columns of ``src`` into ``*this`` starting at ``dest_col0`` (same nrows).
+    void assign_columns(std::size_t dest_col0, BlockInds const& src);
+
     /// Stack 1D columns of equal length into shape ``(n, n_cols)``.
     static BlockInds column_stack(std::vector<std::span<const int64>> const& cols);
 
