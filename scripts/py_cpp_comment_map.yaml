@@ -1,0 +1,141 @@
+# Python (main_orig_python) → C++ / pybind mapping for layers 2–3.
+# Paths under `py:` are relative to tmp/orig_cyten/.
+# Paths under cpp/pybind are relative to the repo root.
+#
+# Derived from docs/cpp_conversion/convert_*.md metadata (path fields only).
+
+modules:
+  # --- Layer 3: backends ---
+  - py: backends/_backend.py
+    cpp:
+      - src/backends/tensor_backend.cpp
+      - include/cyten/backends/tensor_backend.h
+    pybind:
+      - pybind/backends/py_tensor_backend.cpp
+
+  - py: backends/no_symmetry.py
+    cpp:
+      - src/backends/no_symmetry.cpp
+      - include/cyten/backends/no_symmetry.h
+    pybind:
+      - pybind/backends/py_no_symmetry.cpp
+
+  - py: backends/abelian.py
+    cpp:
+      - src/backends/abelian.cpp
+      - include/cyten/backends/abelian.h
+      - src/backends/block_inds.cpp
+      - include/cyten/backends/block_inds.h
+    pybind:
+      - pybind/backends/py_abelian.cpp
+      - pybind/backends/py_block_inds.cpp
+
+  - py: backends/fusion_tree_backend.py
+    cpp:
+      - src/backends/fusion_tree_backend.cpp
+      - include/cyten/backends/fusion_tree_backend.h
+      - src/backends/fusion_tree_mapping.cpp
+      - include/cyten/backends/fusion_tree_mapping.h
+      - src/backends/fusion_tree_permute.cpp
+      - include/cyten/backends/fusion_tree_permute.h
+    pybind:
+      - pybind/backends/py_fusion_tree_backend.cpp
+      - pybind/backends/py_fusion_tree_mapping.cpp
+
+  - py: backends/backend_factory.py
+    cpp:
+      - src/backends/backend_factory.cpp
+      - include/cyten/backends/backend_factory.h
+    pybind:
+      - pybind/backends/py_backend_factory.cpp
+
+  # --- Layer 2: spaces / trees ---
+  - py: symmetries/spaces.py
+    cpp:
+      - src/symmetries/spaces.cpp
+      - include/cyten/symmetries/spaces.h
+    pybind:
+      - pybind/symmetries/py_spaces.cpp
+
+  - py: symmetries/trees.py
+    cpp:
+      - src/symmetries/trees.cpp
+      - include/cyten/symmetries/trees.h
+    pybind:
+      - pybind/symmetries/py_trees.cpp
+
+  # --- Layer 2: _symmetries.py (split across many C++ units) ---
+  - py: symmetries/_symmetries.py
+    cpp:
+      - src/symmetries/base_symmetry.cpp
+      - include/cyten/symmetries/base_symmetry.h
+      - src/symmetries/symmetry_factor.cpp
+      - include/cyten/symmetries/symmetry_factor.h
+      - src/symmetries/group.cpp
+      - include/cyten/symmetries/group.h
+      - src/symmetries/abelian_group.cpp
+      - include/cyten/symmetries/abelian_group.h
+      - src/symmetries/symmetry.cpp
+      - include/cyten/symmetries/symmetry.h
+      - src/symmetries/fusion_symbol.cpp
+      - include/cyten/symmetries/fusion_symbol.h
+      - include/cyten/symmetries/exceptions.h
+      - include/cyten/symmetries/styles.h
+      - include/cyten/symmetries/sector.h
+      - src/symmetries/sector_array.cpp
+      - include/cyten/symmetries/topo_ones.h
+      - src/symmetries/factors/no_symmetry.cpp
+      - include/cyten/symmetries/factors/no_symmetry.h
+      - src/symmetries/factors/u1.cpp
+      - include/cyten/symmetries/factors/u1.h
+      - src/symmetries/factors/zn.cpp
+      - include/cyten/symmetries/factors/zn.h
+      - src/symmetries/factors/su2.cpp
+      - include/cyten/symmetries/factors/su2.h
+      - src/symmetries/factors/sun.cpp
+      - include/cyten/symmetries/factors/sun.h
+      - src/symmetries/factors/fermion_number.cpp
+      - include/cyten/symmetries/factors/fermion_number.h
+      - src/symmetries/factors/fermion_parity.cpp
+      - include/cyten/symmetries/factors/fermion_parity.h
+      - src/symmetries/factors/zn_anyon_category.cpp
+      - include/cyten/symmetries/factors/zn_anyon_category.h
+      - src/symmetries/factors/zn_anyon_category2.cpp
+      - include/cyten/symmetries/factors/zn_anyon_category2.h
+      - src/symmetries/factors/quantum_double_zn_anyon_category.cpp
+      - include/cyten/symmetries/factors/quantum_double_zn_anyon_category.h
+      - src/symmetries/factors/toric_code_category.cpp
+      - include/cyten/symmetries/factors/toric_code_category.h
+      - src/symmetries/factors/fibonacci_anyon_category.cpp
+      - include/cyten/symmetries/factors/fibonacci_anyon_category.h
+      - src/symmetries/factors/ising_anyon_category.cpp
+      - include/cyten/symmetries/factors/ising_anyon_category.h
+      - src/symmetries/factors/su2_k_anyon_category.cpp
+      - include/cyten/symmetries/factors/su2_k_anyon_category.h
+      - src/symmetries/factors/su3_3_anyon_category.cpp
+      - include/cyten/symmetries/factors/su3_3_anyon_category.h
+    pybind:
+      - pybind/symmetries/py_base_symmetry.cpp
+      - pybind/symmetries/py_symmetry_factor.cpp
+      - pybind/symmetries/py_group.cpp
+      - pybind/symmetries/py_abelian_group.cpp
+      - pybind/symmetries/py_symmetry.cpp
+      - pybind/symmetries/py_exceptions.cpp
+      - pybind/symmetries/py_styles.cpp
+      - pybind/symmetries/py_sector.cpp
+      - pybind/symmetries/py_symmetries.cpp
+      - pybind/symmetries/factors/py_no_symmetry.cpp
+      - pybind/symmetries/factors/py_u1.cpp
+      - pybind/symmetries/factors/py_zn.cpp
+      - pybind/symmetries/factors/py_su2.cpp
+      - pybind/symmetries/factors/py_sun.cpp
+      - pybind/symmetries/factors/py_fermion_number.cpp
+      - pybind/symmetries/factors/py_fermion_parity.cpp
+      - pybind/symmetries/factors/py_zn_anyon_category.cpp
+      - pybind/symmetries/factors/py_zn_anyon_category2.cpp
+      - pybind/symmetries/factors/py_quantum_double_zn_anyon_category.cpp
+      - pybind/symmetries/factors/py_toric_code_category.cpp
+      - pybind/symmetries/factors/py_fibonacci_anyon_category.cpp
+      - pybind/symmetries/factors/py_ising_anyon_category.cpp
+      - pybind/symmetries/factors/py_su2_k_anyon_category.cpp
+      - pybind/symmetries/factors/py_su3_3_anyon_category.cpp
