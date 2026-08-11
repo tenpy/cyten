@@ -8,14 +8,91 @@ two sites that have a spin degree of freedom.
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 
 from ..backends import get_same_backend
 from ..block_backends import Block, Dtype
-from ..symmetries import FibonacciAnyonCategory, Sector, SymmetryError, fibonacci_anyon_category
-from ..tensors import SymmetricTensor, add_trivial_leg, compose, horizontal_factorization, permute_legs, squeeze_legs
+from ..symmetries import (
+    BraidChiralityUnspecifiedError,
+    FibonacciAnyonCategory,
+    Sector,
+    SymmetryError,
+    fibonacci_anyon_category,
+)
+from ..tensors import (
+    SymmetricTensor,
+    add_trivial_leg,
+    almost_equal,
+    compose,
+    horizontal_factorization,
+    permute_legs,
+    squeeze_legs,
+)
 from .degrees_of_freedom import ALL_SPECIES, BosonicDOF, ClockDOF, FermionicDOF, Site, SpinDOF
 from .sites import GoldenSite
+
+# ---------------------------------------------------------------------------
+# Serialization helpers
+# ---------------------------------------------------------------------------
+
+
+def _space_to_dict(space) -> dict:
+    """Serialize a single ElementarySpace to a  dict."""
+    sectors = space.defining_sectors
+    if hasattr(sectors, 'tolist'):
+        sectors = sectors.tolist()
+    else:
+        sectors = [[(s.item() if hasattr(s, 'item') else int(s)) for s in row] for row in sectors]
+    bp = space._basis_perm
+    return {
+        'symmetry': repr(space.symmetry),
+        'sectors': sectors,
+        'multiplicities': [(m.item() if hasattr(m, 'item') else int(m)) for m in space.multiplicities],
+        'is_dual': bool(space.is_dual),
+        'basis_perm': bp.tolist() if bp is not None else None,
+    }
+
+
+def _adjacent_transpositions(permutation: Sequence[int]) -> list[int]:
+    """Decompose a permutation into a sequence of adjacent position swaps.
+
+    Parameters
+    ----------
+    permutation : list of int
+        A permutation of ``range(len(permutation))``; ``permutation[k]`` is the value that ends
+        up at position `k`.
+
+    Returns
+    -------
+    swap_positions : list of int
+        Positions `pos` such that applying the swaps ``(pos, pos + 1)`` in order to
+        ``list(range(len(permutation)))`` produces `permutation`. Realizes `permutation` with the
+        minimal number of adjacent transpositions, i.e. its number of inversions.
+
+    """
+    n = len(permutation)
+    working = list(range(n))
+    swap_positions = []
+    for target_pos in range(n):
+        value = permutation[target_pos]
+        cur = working.index(value, target_pos)
+        while cur > target_pos:
+            swap_positions.append(cur - 1)
+            working[cur - 1], working[cur] = working[cur], working[cur - 1]
+            cur -= 1
+    assert working == list(permutation)
+    return swap_positions
+
+
+def freeze(obj):
+    """Recursively turn the output of the ``_*_to_dict`` helpers into hashable nested tuples."""
+    if isinstance(obj, dict):
+        return tuple((k, freeze(v)) for k, v in sorted(obj.items()))
+    if isinstance(obj, (list, tuple)):
+        return tuple(freeze(v) for v in obj)
+    return obj
 
 
 class Coupling:
@@ -48,29 +125,90 @@ class Coupling:
 
     """
 
-    def __init__(self, sites: list[Site], factorization: list[SymmetricTensor], name: str = None):
+    def __init__(
+        self, sites: list[Site], factorization: list[SymmetricTensor], name: str = None, skip_sanity: bool = False
+    ):
         self.sites = sites
         assert len(factorization) == len(sites)
         self.factorization = factorization
         self.name = name
-        self.test_sanity()  # OPTIMIZE
+        self._levels: list[int] = list(range(1, len(sites) + 1))
+        # cache of previously computed permutations of this instance, filled by :meth:`permute`.
+        self._permuted: list[tuple[tuple[int, ...], Coupling]] = []
+        if not skip_sanity:
+            self.test_sanity()
 
     def test_sanity(self):
         """Perform sanity checks."""
         backend = get_same_backend(*self.sites)
-        for s, W in zip(self.sites, self.factorization):
-            s.test_sanity()
+        site_idx = 0
+        for W in self.factorization:
             W.test_sanity()
             assert W.backend == backend
             assert W.num_codomain_legs == 2
             assert W.num_domain_legs == 2
             assert W.labels == ['wL', 'p', 'wR', 'p*']
-            assert W.get_leg_co_domain('p') == s.leg
-            assert W.get_leg_co_domain('p*') == s.leg
+            if site_idx < len(self.sites):
+                s = self.sites[site_idx]
+                assert W.get_leg_co_domain('p') == s.leg
+                assert W.get_leg_co_domain('p*') == s.leg
+                site_idx += 1
         assert self.factorization[0].get_leg('wL').is_trivial
         for W1, W2 in zip(self.factorization[:-1], self.factorization[1:]):
             assert W1.get_leg_co_domain('wR') == W2.get_leg_co_domain('wL')
         assert self.factorization[-1].get_leg('wR').is_trivial
+
+    def _key(self):
+        """Structural identity used by :meth:`__hash__`/:meth:`__eq__`.
+
+        Contains only hashable metadata, no floating-point tensor
+        data, which is instead compared numerically (via :func:`~cyten.tensors.almost_equal`) in
+        :meth:`__eq__`. This is what determines whether two (distinct) `Coupling` instances may
+        share the same key in an :class:`~tenpy.networks.mpo.MPOGraph`.
+
+        Note that `Coupling` is currently mutable, so this key/``__hash__``/``__eq__`` scheme is
+        only correct as long as a coupling already used as a dict key isn't mutated afterwards;
+        enforcing immutability is left for a future translation of this code to C++.
+        """
+        return (
+            self.name,
+            tuple(repr(s) for s in self.sites),
+            tuple(
+                (
+                    tuple(t.shape),
+                    tuple(t.labels),
+                    t.dtype.name,
+                    tuple(freeze(_space_to_dict(f)) for f in t.codomain.factors),
+                    tuple(freeze(_space_to_dict(f)) for f in t.domain.factors),
+                )
+                for t in self.factorization
+            ),
+        )
+
+    def __hash__(self):
+        # recomputed on every call (not cached): see the mutability note in :meth:`_key`.
+        return hash(self._key())
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        if not isinstance(other, Coupling):
+            return NotImplemented
+        if self._key() != other._key():
+            return False
+        # `_key()` already guarantees matching legs for corresponding tensors, so `almost_equal`
+        # (which requires identical legs) cannot raise here.
+        for t1, t2 in zip(self.factorization, other.factorization):
+            if t1 is t2:
+                continue
+            if not almost_equal(t1, t2):
+                return False
+        return True
+
+    def __repr__(self):
+        site_names = [type(s).__name__ for s in self.sites]
+        shapes = [tuple(t.shape) for t in self.factorization]
+        return f'Coupling(name={self.name!r}, sites={site_names}, shapes={shapes})'
 
     @classmethod
     def from_dense_block(
@@ -205,6 +343,161 @@ class Coupling:
     ) -> np.ndarray:
         """Convert to a numpy array."""
         return self.to_tensor().to_numpy(leg_order, numpy_dtype, understood_braiding)
+
+    def stretch_with_identities(self, all_sites: list[Site], coupling_positions: Sequence[int]) -> Coupling:
+        """Place this coupling's tensors among `all_sites`, filling the gaps with identities.
+
+        Returns a new coupling spanning `all_sites` from the first to the last of
+        `coupling_positions` (inclusive). `self`'s tensors sit at those positions and every site in
+        between gets an identity tensor independent of what site it is.
+
+        Parameters
+        ----------
+        all_sites : list of Site
+            The sites the returned coupling should be based on.
+            Only the positions defined by `coupling_positions` are used.
+        coupling_positions : list of int
+            Strictly ascending, one entry per :attr:`factorization` tensor: the index into
+            `all_sites` where that tensor should sit.
+
+        Returns
+        -------
+        Coupling
+            Spans all_sites[coupling_positions[0] to coupling_positions[-1] + 1].
+
+        """
+        n = len(self.factorization)
+        if len(coupling_positions) != n:
+            raise ValueError(f'need {n} positions (one per coupling tensor), got {len(coupling_positions)}')
+        if any(p2 <= p1 for p1, p2 in zip(coupling_positions, coupling_positions[1:])):
+            raise ValueError('`coupling_positions` must be strictly ascending')
+        for site, pos in zip(self.sites, coupling_positions):
+            if site.leg != all_sites[pos].leg:
+                raise ValueError(f'physical leg mismatch at position {pos}')
+
+        start, stop = coupling_positions[0], coupling_positions[-1] + 1
+        by_position = dict(zip(coupling_positions, self.factorization))
+
+        factorization = []
+        wR_space = None
+        for pos in range(start, stop):
+            tensor = by_position.get(pos)
+            if tensor is None:
+                # identity on site here, keeps virtual leg.
+                tensor = all_sites[pos].identity_tensor(wR_space, wR_space)
+            factorization.append(tensor)
+            wR_space = tensor.get_leg_co_domain('wR')
+
+        return Coupling(sites=list(all_sites[start:stop]), factorization=factorization, name=self.name)
+
+    def permute(
+        self, permutation: Sequence[int], levels: Sequence[int | None], over_braid: Sequence[bool | None]
+    ) -> Coupling:
+        """Permute the sites of this coupling, braiding through the (possibly anyonic) legs.
+
+        Contracts `self` to a single tensor (:meth:`to_tensor`), realizes `permutation` as a
+        sequence of elementary adjacent-site transpositions (each one braiding the full ``(p, p*)``
+        leg pair of one site past that of its neighbour, as a single unit -- the two legs of one
+        site never cross each other), and re-factorizes the result (:meth:`from_tensor`) with the
+        sites reordered accordingly. This is analogous to how
+        :class:`~cyten.backends.fusion_tree_backend.PermuteLegsInstructionEngine` realizes a leg
+        permutation as a sequence of elementary swaps, tracking a `levels` list that is itself
+        reordered as legs move.
+
+        Results are cached on `self` (not shared with `self`'s other permutations, or with the
+        result of this call): calling ``self.permute(permutation, ...)`` twice with the same
+        `permutation` returns the same (cached) result, using `levels`/`over_braid` only the first
+        time; a different `permutation` triggers a new computation.
+
+        Parameters
+        ----------
+        permutation : list of int
+            A permutation of ``range(len(self.sites))``. ``permutation[k]`` is the index (in
+            `self`'s current order) of the site that ends up at new position `k`.
+        levels : list of int | None
+            One entry per site of `self` (in `self`'s current order): its "height", used to
+            derive the braid chirality (over/under) for any elementary transposition whose
+            `over_braid` entry is ``None``, the same way :attr:`~cyten.symmetries.Symmetry` legs
+            with a higher level braid over those with a lower one. Only needed for symmetries
+            without a symmetric braid (see :attr:`~cyten.symmetries.Symmetry.braiding_style`);
+            ignored otherwise.
+        over_braid : list of bool | None
+            One entry per elementary adjacent-site transposition needed to realize `permutation`
+            (i.e. NOT one entry per site -- the number of transpositions depends on
+            `permutation`, e.g. via the number of its inversions). Explicitly fixes the braid
+            chirality for that transposition (``True`` = the site moving from the lower position
+            over the one moving from the higher position); ``None`` derives it from `levels`.
+
+        Returns
+        -------
+        Coupling
+            A new coupling with :attr:`sites` (and the represented operator) reordered according
+            to `permutation`.
+
+        """
+        n = len(self.sites)
+        permutation = list(permutation)
+        if sorted(permutation) != list(range(n)):
+            raise ValueError(f'`permutation` must be a permutation of range({n}), got {permutation}')
+        if len(levels) != n:
+            raise ValueError(f'need {n} `levels`, one per site, got {len(levels)}')
+
+        key = tuple(permutation)
+        for cached_key, cached_coupling in self._permuted:
+            if cached_key == key:
+                return cached_coupling
+
+        swap_positions = _adjacent_transpositions(permutation)
+        if len(over_braid) != len(swap_positions):
+            raise ValueError(
+                f'need {len(swap_positions)} entries in `over_braid` (one per elementary '
+                f'adjacent transposition realizing this permutation), got {len(over_braid)}'
+            )
+
+        tensor = self.to_tensor()
+        sites = list(self.sites)
+        levels_state = list(levels)
+        # current label (p{original_idx} / p{original_idx}*) at each position; labels are
+        # intrinsic to a leg and travel with it, only their position changes.
+        codomain_labels = [f'p{i}' for i in range(n)]
+        domain_labels = [f'p{i}*' for i in range(n)]
+
+        for step, pos in enumerate(swap_positions):
+            over = over_braid[step]
+            if over is None:
+                level_1, level_2 = levels_state[pos], levels_state[pos + 1]
+                if level_1 is None or level_2 is None:
+                    raise BraidChiralityUnspecifiedError('Sites that braid must have specified levels.')
+                if level_1 == level_2:
+                    raise BraidChiralityUnspecifiedError('Sites that braid can not have the same level.')
+                over = level_1 > level_2
+            new_codomain = list(codomain_labels)
+            new_codomain[pos], new_codomain[pos + 1] = new_codomain[pos + 1], new_codomain[pos]
+            new_domain = list(domain_labels)
+            new_domain[pos], new_domain[pos + 1] = new_domain[pos + 1], new_domain[pos]
+            # ket and bra of the same site have the same level: they move together and never
+            # cross each other.
+            level_dict = {
+                codomain_labels[pos]: 1 if over else 0,
+                domain_labels[pos]: 1 if over else 0,
+                codomain_labels[pos + 1]: 0 if over else 1,
+                domain_labels[pos + 1]: 0 if over else 1,
+            }
+            tensor = permute_legs(tensor, codomain=new_codomain, domain=new_domain, levels=level_dict)
+            codomain_labels, domain_labels = new_codomain, new_domain
+            sites[pos], sites[pos + 1] = sites[pos + 1], sites[pos]
+            levels_state[pos], levels_state[pos + 1] = levels_state[pos + 1], levels_state[pos]
+
+        relabelling = {}
+        for new_pos, old_idx in enumerate(permutation):
+            relabelling[f'p{old_idx}'] = f'p{new_pos}'
+            relabelling[f'p{old_idx}*'] = f'p{new_pos}*'
+        tensor = tensor.relabel(relabelling)
+
+        result = Coupling.from_tensor(tensor, sites=sites, name=self.name)
+        result._levels = [self._levels[i] for i in permutation]
+        self._permuted.append((key, result))
+        return result
 
 
 # SPIN COUPLINGS
