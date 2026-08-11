@@ -44,12 +44,13 @@ Keep original Python `DiagonalTensor` until `Identity` is converted. Export `cyt
 
 ## TODO list for conversion
 
-- [x] initial setup (branch `convert_tensors`, listed, pytest smoke 504 Diagonal-related passed)
-- [ ] planning (this file)
-- [ ] generate / improve declaration
-- [ ] generate / improve definitions
-- [ ] pybind11 bindings + trampoline
-- [ ] monkey-patch — deferred
-- [ ] pytest (Python DiagonalTensor still used)
+- [x] initial setup (branch `convert_tensors`, listed, pytest smoke)
+- [x] planning (this file)
+- [x] generate / improve declaration
+- [x] generate / improve definitions
+- [x] pybind11 bindings + trampoline (`PyDiagonalTensor`)
+- [x] monkey-patch — **deferred** (Python `DiagonalTensor` still used; `Identity` still Python)
+- [x] pytest (Python DiagonalTensor; 4341 passed, 596 xfailed with `-m "not slow"`)
+- [x] C++ smoke: `_core.DiagonalTensor.from_zero` / `from_eye` / `from_random_uniform`
 - [ ] remove Python body — later (after Identity)
 - [ ] wrap up → Identity
