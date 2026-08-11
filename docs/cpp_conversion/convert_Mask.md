@@ -45,10 +45,11 @@ Stay on branch **`convert_tensors`**. Defer monkey-patch until ChargedTensor (or
 
 - [x] initial setup (branch `convert_tensors`, listed, pytest `-k Mask`)
 - [x] planning (this file)
-- [ ] generate / improve declaration
-- [ ] generate / improve definitions
-- [ ] pybind11 bindings (no trampoline)
-- [ ] monkey-patch — deferred
-- [ ] pytest
+- [x] generate / improve declaration
+- [x] generate / improve definitions
+- [x] pybind11 bindings (no trampoline)
+- [x] monkey-patch — **deferred** (Python Mask still used by library)
+- [x] pytest (4341 passed, 596 xfailed with `-m "not slow"`; Python Mask still used)
+- [x] C++ smoke: `_core.Mask.from_eye` / `from_indices` / `orthogonal_complement` / `dagger`
 - [ ] remove Python body — later with other Tensor subclasses
 - [ ] wrap up → ChargedTensor
