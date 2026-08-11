@@ -148,41 +148,144 @@ class DiagonalTensor : public SymmetricTensor
 
     // --- Diagonal-specific API ---
 
-    [[nodiscard]] Ptr as_DiagonalTensor(bool guarantee_copy = false,
-                                        std::optional<std::string> warning = std::nullopt);
+    [[nodiscard]] virtual Ptr as_DiagonalTensor(bool guarantee_copy = false,
+                                                std::optional<std::string> warning = std::nullopt);
 
-    [[nodiscard]] BlockBackend::BlockPtr diagonal_as_block(
+    [[nodiscard]] virtual BlockBackend::BlockPtr diagonal_as_block(
       std::optional<Dtype> dtype = std::nullopt);
 
-    [[nodiscard]] py::array diagonal_as_numpy(py::object numpy_dtype = py::none());
+    [[nodiscard]] virtual py::array diagonal_as_numpy(py::object numpy_dtype = py::none());
 
-    [[nodiscard]] Ptr elementwise_almost_equal(py::object other,
-                                               float64 rtol = 1e-5,
-                                               float64 atol = 1e-8);
+    [[nodiscard]] virtual Ptr elementwise_almost_equal(py::object other,
+                                                       float64 rtol = 1e-5,
+                                                       float64 atol = 1e-8);
 
-    [[nodiscard]] Ptr _elementwise_unary(py::function func,
-                                         py::object func_kwargs = py::none(),
-                                         bool maps_zero_to_zero = false);
+    [[nodiscard]] virtual Ptr _elementwise_unary(py::function func,
+                                                 py::object func_kwargs = py::none(),
+                                                 bool maps_zero_to_zero = false);
 
-    [[nodiscard]] Ptr _elementwise_binary(py::object other,
-                                          py::function func,
-                                          py::object func_kwargs = py::none(),
-                                          bool partial_zero_is_zero = false);
+    [[nodiscard]] virtual Ptr _elementwise_binary(py::object other,
+                                                  py::function func,
+                                                  py::object func_kwargs = py::none(),
+                                                  bool partial_zero_is_zero = false);
 
     /// Common implementation for the binary dunder methods ``__mul__`` etc.
+    [[nodiscard]] virtual py::object _binary_operand(py::object other,
+                                                     py::function func,
+                                                     std::string const& operand,
+                                                     bool return_NotImplemented = false,
+                                                     bool right = false);
+
+    [[nodiscard]] virtual bool all() const;
+    [[nodiscard]] virtual bool any() const;
+
+    [[nodiscard]] virtual BlockBackend::Scalar max() const;
+    [[nodiscard]] virtual BlockBackend::Scalar min() const;
+
+    [[nodiscard]] virtual Ptr abs() const;
+
+  protected:
+    [[nodiscard]] py::object as_py_object() override;
+    [[nodiscard]] py::object as_py_object() const override;
+};
+
+/// Special case of a :class:`DiagonalTensor` that is exactly the identity map.
+class Identity : public DiagonalTensor
+{
+  public:
+    using Ptr = std::shared_ptr<Identity>;
+    using CPtr = std::shared_ptr<const Identity>;
+
+    /// Construct from flexible Python-style inputs.
+    explicit Identity(py::object leg,
+                      TensorBackend::Ptr backend = nullptr,
+                      std::optional<Dtype> dtype = std::nullopt,
+                      std::optional<std::string> device = std::nullopt,
+                      py::object labels = py::none());
+
+    /// Construct from already-parsed C++ inputs.
+    Identity(Space::Ptr leg,
+             TensorBackend::Ptr backend,
+             Symmetry::Ptr symmetry,
+             LegLabels labels,
+             Dtype dtype,
+             std::string device);
+
+    ~Identity() override = default;
+
+    void test_sanity() const override;
+
+    [[nodiscard]] std::string class_name() const override;
+
+    // Unsupported factories (TypeError in Python)
+    static void unsupported_factory(char const* name);
+
+    [[nodiscard]] static Ptr from_eye(py::object leg,
+                                      TensorBackend::Ptr backend = nullptr,
+                                      py::object labels = py::none(),
+                                      Dtype dtype = Dtype::Float64,
+                                      std::optional<std::string> device = std::nullopt);
+
+    [[nodiscard]] Tensor::Ptr as_dtype(Dtype dtype) override;
+
+    [[nodiscard]] py::object as_SymmetricTensor(
+      bool guarantee_copy = false,
+      std::optional<std::string> warning = std::nullopt) override;
+
+    [[nodiscard]] DiagonalTensor::Ptr as_DiagonalTensor(
+      bool guarantee_copy = false,
+      std::optional<std::string> warning = std::nullopt) override;
+
     [[nodiscard]] py::object _binary_operand(py::object other,
                                              py::function func,
                                              std::string const& operand,
                                              bool return_NotImplemented = false,
-                                             bool right = false);
+                                             bool right = false) override;
 
-    [[nodiscard]] bool all() const;
-    [[nodiscard]] bool any() const;
+    [[nodiscard]] Tensor::Ptr copy(bool deep = true,
+                                   std::optional<std::string> device = std::nullopt,
+                                   std::optional<Dtype> dtype = std::nullopt) override;
 
-    [[nodiscard]] BlockBackend::Scalar max() const;
-    [[nodiscard]] BlockBackend::Scalar min() const;
+    [[nodiscard]] py::object diagonal(bool check_offdiagonal = false) const;
 
-    [[nodiscard]] Ptr abs() const;
+    [[nodiscard]] BlockBackend::BlockPtr diagonal_as_block(
+      std::optional<Dtype> dtype = std::nullopt) override;
+
+    [[nodiscard]] py::array diagonal_as_numpy(py::object numpy_dtype = py::none()) override;
+
+    [[nodiscard]] DiagonalTensor::Ptr elementwise_almost_equal(py::object other,
+                                                               float64 rtol = 1e-5,
+                                                               float64 atol = 1e-8) override;
+
+    [[nodiscard]] DiagonalTensor::Ptr _elementwise_unary(py::function func,
+                                                         py::object func_kwargs = py::none(),
+                                                         bool maps_zero_to_zero = false) override;
+
+    [[nodiscard]] DiagonalTensor::Ptr _elementwise_binary(py::object other,
+                                                          py::function func,
+                                                          py::object func_kwargs = py::none(),
+                                                          bool partial_zero_is_zero = false) override;
+
+    [[nodiscard]] BlockBackend::Scalar _get_item(std::vector<int64> const& idx) override;
+
+    [[nodiscard]] bool all() const override;
+    [[nodiscard]] bool any() const override;
+
+    [[nodiscard]] BlockBackend::Scalar max() const override;
+    [[nodiscard]] BlockBackend::Scalar min() const override;
+
+    [[nodiscard]] DiagonalTensor::Ptr abs() const override;
+
+    void move_to_device(std::string device) override;
+
+    [[nodiscard]] Tensor::Ptr to_backend(TensorBackend::Ptr backend,
+                                         std::optional<Dtype> dtype = std::nullopt,
+                                         std::optional<std::string> device = std::nullopt) override;
+
+    [[nodiscard]] BlockBackend::BlockPtr to_dense_block(
+      std::optional<std::vector<std::variant<int64, std::string>>> leg_order = std::nullopt,
+      std::optional<Dtype> dtype = std::nullopt,
+      bool understood_braiding = false) override;
 
   protected:
     [[nodiscard]] py::object as_py_object() override;
