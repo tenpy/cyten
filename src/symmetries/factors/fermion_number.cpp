@@ -165,12 +165,19 @@ FermionNumber::inv_sqrt_qdim(Sector /*a*/) const
 FusionSymbol
 FermionNumber::_b_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
 {
+    // --- hints from Python FermionNumber._b_symbol ---
+    // sqrt(d_b) [F^{a b dual(b)}_a]^{111}_{c,mu,nu} = sqrt(1) * 1 = 1
+    // ---
     return topo_ones::one_2D();
 }
 
 FusionSymbol
 FermionNumber::_r_symbol(Sector a, Sector b, Sector /*c*/) const
 {
+    // --- hints from Python FermionNumber._r_symbol ---
+    // if a and b are odd -1, otherwise +1
+    // in the first (second) case above, we have ``a * b`` equal to 1 (0).
+    // ---
     return FusionSymbol::scalar1d(static_cast<float64>(fermion_sign(a.q[0], b.q[0])));
 }
 
@@ -178,6 +185,9 @@ FusionSymbol
 FermionNumber::_c_symbol(Sector a, Sector /*b*/, Sector c, Sector /*d*/, Sector e, Sector /*f*/)
   const
 {
+    // --- hints from Python FermionNumber._c_symbol ---
+    // F = 1  -->  C = R^{ec}_d conj(R)^{ca}_f
+    // ---
     auto const C = fermion_sign(c.q[0], e.q[0]) * fermion_sign(a.q[0], c.q[0]);
     return FusionSymbol::full(
       4, FusionSymbol::Shape{ { 1, 1, 1, 1 } }, static_cast<float64>(C), Dtype::Float64);
@@ -193,6 +203,10 @@ FermionNumber::_fusion_tensor(Sector /*a*/, Sector /*b*/, Sector /*c*/, bool /*Z
 FusionSymbol
 FermionNumber::swap_gate(Sector a, Sector b) const
 {
+    // --- hints from Python FermionNumber.swap_gate ---
+    // if a and b are odd -1, otherwise +1
+    // in the first (second) case above, we have ``a * b`` equal to 1 (0).
+    // ---
     auto const sign = static_cast<float64>(fermion_sign(a.q[0], b.q[0]));
     return topo_ones::one_4D_float() * sign;
 }
@@ -200,6 +214,9 @@ FermionNumber::swap_gate(Sector a, Sector b) const
 complex128
 FermionNumber::topological_twist(Sector a) const
 {
+    // --- hints from Python FermionNumber.topological_twist ---
+    // +1 for even parity, -1 for odd
+    // ---
     auto const sign = static_cast<float64>(1 - 2 * mod2(a.q[0]));
     return complex128{ sign, 0.0 };
 }

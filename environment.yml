@@ -43,6 +43,6 @@ dependencies:
   #   - breathe  # conda-forge version seems incompatible
 
   # I/O
-  - hdf5
-  - h5py
+  - hdf5=2.1  # temporary pin to avoid incompatible version
+  - h5py=3.16
   - pyyaml

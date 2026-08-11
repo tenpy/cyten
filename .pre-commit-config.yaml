@@ -21,6 +21,7 @@ repos:
     hooks:
       # Run the linter.
       - id: ruff-check
+        exclude: ^(scripts/)
         types_or: [ python, pyi ]
         args: [ --fix , --exit-non-zero-on-fix ]
       # Run the formatter.
@@ -64,14 +65,17 @@ repos:
         language: pygrep
         types: [text]
         # this file needs to include the forbidden patterns, so we need to exclude it.
-        exclude: ^(\.pre-commit-config\.yaml|docs/guidelines/code_style.rst|docs/cpp_conversion)
+        exclude: ^(\.pre-commit-config\.yaml|docs/guidelines/code_style.rst|docs/cpp_conversion|scripts/recover_py_comments.py)
       - id: cpp-docstring-indent
         name: C++ docstring indentation
         entry: tests/linting/cpp_docstring_indent.py
         language: unsupported_script
         files: ^pybind/.*\.cpp$
-      # TODO: setup only-if-no-fails along logfile idea of https://stackoverflow.com/questions/67195842/run-a-pre-commit-hook-only-if-all-other-hooks-are-successful
-      # - id: cmake-build
-      #   name: cmake --build build
-      #   language: unsupported_script
-      #   entry: tests/linting/run_local_cmake_build.py
+      # Last and most expensive: only runs if earlier hooks passed (fail_fast)
+      # and a local editable build/ directory already exists.
+      - id: cmake-build
+        name: cmake --build build
+        language: unsupported_script
+        entry: tests/linting/run_local_cmake_build.py
+        pass_filenames: false
+        always_run: true

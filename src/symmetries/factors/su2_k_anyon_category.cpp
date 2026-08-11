@@ -47,6 +47,9 @@ SU2_kAnyonCategory::SU2_kAnyonCategory(int k_, std::string handedness_)
   : SymmetryFactor(FusionStyle::multiple_unique,
                    BraidingStyle::anyonic,
                    Sector{ 0 },
+                   // --- hints from Python SU2_kAnyonCategory.__init__ ---
+                   // do not save trivial R-symbols and use symmetry jj1 <-> jj2
+                   // ---
                    "SU2_kAnyonCategory",
                    static_cast<float64>(k_ + 1),
                    true,
@@ -144,6 +147,9 @@ SU2_kAnyonCategory::_delta(int jj1, int jj2, int jj3) const
 float64
 SU2_kAnyonCategory::_j_symbol(int jj1, int jj2, int jj12, int jj3, int jj, int jj23) const
 {
+    // --- hints from Python SU2_kAnyonCategory._j_symbol ---
+    // runs over all integers for which the factorials have non-negative arguments
+    // ---
     int const triads[4][3] = {
         { jj1, jj2, jj12 }, { jj1, jj, jj23 }, { jj3, jj2, jj23 }, { jj3, jj, jj12 }
     };
@@ -255,6 +261,14 @@ SU2_kAnyonCategory::_n_symbol(Sector /*a*/, Sector /*b*/, Sector /*c*/) const
 FusionSymbol
 SU2_kAnyonCategory::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
+    // --- hints from Python SU2_kAnyonCategory._f_symbol ---
+    // The q-deformed 6j symbols have the same symmetries as the usual SU(2) 6j symbols.
+    // We can get all f symbols from the cases 6j symbols for
+    // a == np.max([a, b, c, d, e, f]) and b == np.max([b, c, e, f]).
+    // I.e., we need to exchange the charges accordingly
+    // need to compute before exchanging charges
+    // nontrivial F-symbols
+    // ---
     int ja = a.q[0];
     int jb = b.q[0];
     int jc = c.q[0];
@@ -328,6 +342,9 @@ SU2_kAnyonCategory::batch_qdim(SectorArray const& a) const
 FusionSymbol
 SU2_kAnyonCategory::_r_symbol(Sector a, Sector b, Sector c) const
 {
+    // --- hints from Python SU2_kAnyonCategory._r_symbol ---
+    // nontrivial R-symbols
+    // ---
     int ja = a.q[0];
     int jb = b.q[0];
     if (ja < jb) {

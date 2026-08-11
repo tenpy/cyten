@@ -1,8 +1,10 @@
 #include <cyten/config.h>
+#include <cyten/warn.h>
 
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <ranges>
 #include <sstream>
@@ -134,13 +136,9 @@ try_update_from_file(CytenConfig& config, const std::string& path)
     } catch (py::error_already_set& e) {
         std::string msg = e.what();
         e.discard_as_unraisable(__func__);
-        py::module_::import("warnings")
-          .attr("warn")(
-            py::str("Invalid config in {}. Ignoring the file. Reason: {}").format(path, msg));
+        warn(std::format("Invalid config in {}. Ignoring the file. Reason: {}", path, msg));
     } catch (const std::exception& e) {
-        py::module_::import("warnings")
-          .attr("warn")(
-            py::str("Invalid config in {}. Ignoring the file. Reason: {}").format(path, e.what()));
+        warn(std::format("Invalid config in {}. Ignoring the file. Reason: {}", path, e.what()));
     }
 }
 
@@ -262,13 +260,11 @@ CytenConfig::update_from_env()
         } catch (py::error_already_set& e) {
             std::string msg = e.what();
             e.discard_as_unraisable(__func__);
-            py::module_::import("warnings")
-              .attr("warn")(py::str("Invalid config option in envvar {}. Reason {}")
-                              .format(env_var_name(key), msg));
+            warn(std::format(
+              "Invalid config option in envvar {}. Reason {}", env_var_name(key), msg));
         } catch (const std::exception& e) {
-            py::module_::import("warnings")
-              .attr("warn")(py::str("Invalid config option in envvar {}. Reason {}")
-                              .format(env_var_name(key), e.what()));
+            warn(std::format(
+              "Invalid config option in envvar {}. Reason {}", env_var_name(key), e.what()));
         }
     }
 }

@@ -29,3 +29,6 @@ docs/reference
 .venv
 src/version.h
 .cursor/plans
+
+# Local checkouts / scratch (not for commit)
+tmp/

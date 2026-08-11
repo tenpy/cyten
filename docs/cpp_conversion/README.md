@@ -76,7 +76,7 @@ flowchart LR
 
 ### Layer 0 — Minimal tools
 
-- **cyten/tools/mappings.py** — `IdentityMapping`, `SparseMapping`, etc. (small).
+- **SparseMapping / IdentityMapping** — **C++ templates** in `_core` as `SparseMappingFusionTree` / `…Pair` (+ Identity aliases); Python `cyten/tools/mappings.py` removed — [convert_SparseMapping.md](convert_SparseMapping.md).
 - **cyten/tools/misc.py** — `to_iterable`, `rank_data`, `argsort`, `combine_constraints`, `as_immutable_array`, `duplicate_entries`, `inverse_permutation`, `iter_common_sorted_arrays`, `to_valid_idx`, `is_iterable` (used everywhere).
 - **cyten/tools/string.py** — `format_like_list` (tiny).
 - **cyten/block_backends/dtypes.py** — `Dtype`, numpy/cyten dtype mapping (needed by block_backends).
@@ -103,11 +103,13 @@ Skip `block_backends/torch.py` per scope.
 
 ### Layer 3 — Backends
 
-- **cyten/backends/_backend.py** — `TensorBackend` (abstract), `Data`/`DiagonalData`/`MaskData`, `conventional_leg_order`, `get_same_backend`, etc. (~787 lines).
-- **cyten/backends/no_symmetry.py** — `NoSymmetryBackend` (~476 lines).
-- **cyten/backends/abelian.py** — `AbelianBackend`, `AbelianBackendData` (~1.9k lines).
-- **cyten/backends/fusion_tree_backend.py** — `FusionTreeBackend`, `FusionTreeData` (~3.3k lines).
-- **cyten/backends/backend_factory.py** — `get_backend` (~65 lines).
+Overview: [convert_backends.md](convert_backends.md). Branch: `convert_backends`.
+
+- **cyten/backends/_backend.py** — `TensorBackend` (abstract), helpers. **Monkey-patched** from `_core` — [convert_TensorBackend.md](convert_TensorBackend.md).
+- **cyten/backends/no_symmetry.py** — `NoSymmetryBackend`. **Monkey-patched** — [convert_NoSymmetryBackend.md](convert_NoSymmetryBackend.md).
+- **cyten/backends/abelian.py** — `AbelianBackendData` + `AbelianBackend`. **Monkey-patched** — [convert_AbelianBackendData.md](convert_AbelianBackendData.md), [convert_AbelianBackend.md](convert_AbelianBackend.md).
+- **cyten/backends/fusion_tree_backend.py** — FT stack **monkey-patched** from `_core` (keeps `_tree_block_iter`). See [convert_FusionTreeBackend.md](convert_FusionTreeBackend.md).
+- **cyten/backends/backend_factory.py** — `get_backend` **monkey-patched** from `_core` — [convert_get_backend.md](convert_get_backend.md).
 
 ### Layer 4 — Tensors
 

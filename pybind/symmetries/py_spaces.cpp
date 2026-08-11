@@ -1,5 +1,6 @@
 #include "py_cyten_pybind11.h"
 
+#include "backends/casters.hpp"
 #include "symmetries/py_trampolines.hpp"
 
 #include <cyten/symmetries/sector_numpy.h>
@@ -205,20 +206,6 @@ objects_to_python(std::vector<py::object> const& objects)
         out.append(obj);
     }
     return out;
-}
-
-py::array_t<int64>
-int_matrix_to_numpy(std::vector<std::vector<int64>> const& rows, py::ssize_t num_columns)
-{
-    auto const num_rows = static_cast<py::ssize_t>(rows.size());
-    py::array_t<int64> arr({ num_rows, num_columns });
-    auto buf = arr.mutable_unchecked<2>();
-    for (py::ssize_t i = 0; i < num_rows; ++i) {
-        for (py::ssize_t j = 0; j < num_columns; ++j) {
-            buf(i, j) = rows[static_cast<std::size_t>(i)][static_cast<std::size_t>(j)];
-        }
-    }
-    return arr;
 }
 
 void bind_elementary_space(py::module_& m);
@@ -618,7 +605,11 @@ bind_spaces(py::module_& m)
             An integer or list of integers indicates to drop the :attr:`~cyten.Symmetry.factors` with
             those indices.
         )pydoc")
-      .def("as_Space", &Space::as_Space)
+      .def("as_Space",
+           &Space::as_Space,
+           R"pydoc(
+           Convert to (an appropriate subclass of) :class:`Space`.
+           )pydoc")
       .def(
         "sector_decomposition_where",
         [](Space const& self, Sector sector) -> py::object {
@@ -690,7 +681,12 @@ bind_spaces(py::module_& m)
       .def_readonly("num_legs", &LegPipe::num_legs)
       .def_readwrite("combine_cstyle", &LegPipe::combine_cstyle);
 
-    pipe.def("test_sanity", &LegPipe::test_sanity)
+    pipe
+      .def("test_sanity",
+           &LegPipe::test_sanity,
+           R"pydoc(
+           Perform sanity checks.
+           )pydoc")
       .def("__eq__",
            [](LegPipe const& self, py::object other) -> py::object {
                if (!py::isinstance<LegPipe>(other)) {
@@ -1066,8 +1062,17 @@ bind_elementary_space(py::module_& m)
                }
                return py::cast(self.equals_es(other.cast<ElementarySpace const&>()));
            })
-      .def("as_Space", &ElementarySpace::as_Space)
-      .def("as_ElementarySpace", &ElementarySpace::as_ElementarySpace, py::arg("is_dual") = false)
+      .def("as_Space",
+           &ElementarySpace::as_Space,
+           R"pydoc(
+           Convert to (an appropriate subclass of) :class:`Space`.
+           )pydoc")
+      .def("as_ElementarySpace",
+           &ElementarySpace::as_ElementarySpace,
+           py::arg("is_dual") = false,
+           R"pydoc(
+           Convert to an isomorphic :class:`ElementarySpace`.
+           )pydoc")
       .def("as_ket_space",
            &ElementarySpace::as_ket_space,
            R"pydoc(
@@ -1089,7 +1094,34 @@ bind_elementary_space(py::module_& m)
         },
         py::arg("symmetry"),
         py::arg("sector_map"),
-        py::arg("injective") = false)
+        py::arg("injective") = false,
+        R"pydoc(
+        Change the symmetry by specifying how the sectors change.
+
+        .. note ::
+            This interface assumes that a single sector of the old symmetry is mapped to a single
+            sector of the new symmetry, i.e. that the functor that we realize here preserves
+            simple objects. This does e.g. not cover the case of relaxing SU(2) to its U(1)
+            subgroup.
+
+        Parameters
+        ----------
+        symmetry : :class:`~cyten.groups.Symmetry`
+            The symmetry of the new space
+        sector_map : function (SectorArray,) -> (SectorArray,)
+            A map of sectors (2D int arrays), such that ``new_sectors = sector_map(old_sectors)``.
+            The map is assumed to cooperate with duality, i.e. we assume without checking that
+            ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as
+            ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
+        injective: bool
+            If ``True``, the `sector_map` is assumed to be injective, i.e. produce a list of
+            unique outputs, if the inputs are unique.
+
+        Returns
+        -------
+        A space with the new symmetry. The order of the basis is preserved, but every
+        basis element lives in a new sector, according to `sector_map`.
+        )pydoc")
       .def(
         "direct_sum",
         [](ElementarySpace const& self, py::args others_obj) {
@@ -1115,7 +1147,17 @@ bind_elementary_space(py::module_& m)
         [](ElementarySpace& self, py::object which) {
             return self.drop_symmetry(drop_which_from_python(which));
         },
-        py::arg("which") = "all")
+        py::arg("which") = "all",
+        R"pydoc(
+        Drop some or all symmetries.
+
+        Parameters
+        ----------
+        which : 'all' | (list of) int
+            If ``'all'`` (default) the entire symmetry is dropped and the result has ``no_symmetry``.
+            An integer or list of integers indicates to drop the :attr:`~cyten.Symmetry.factors` with
+            those indices.
+        )pydoc")
       .def(
         "parse_index",
         [](ElementarySpace const& self, int64 idx) {
@@ -1246,7 +1288,17 @@ bind_tensor_product(py::module_& m)
             self.num_factors = static_cast<int64>(self.factors.size());
         })
       .def_readonly("num_factors", &TensorProduct::num_factors)
-      .def_property_readonly("dual", &TensorProduct::dual_space)
+      .def_property_readonly("dual",
+                             &TensorProduct::dual_space,
+                             R"pydoc(
+                             The dual space of the same type.
+
+                             A dual space necessarily has a :attr:`sector_decomposition` which consists of the
+                             :meth:`Symmetry.dual_sectors` of the original (though not necessarily in order).
+
+                             Strictly speaking, this only guarantees to give one possible choice for a dual space and
+                             might differ from *the* dual space by an irrelevant isomorphism.
+                             )pydoc")
       .def_property_readonly("has_pipes",
                              &TensorProduct::has_pipes,
                              R"pydoc(
@@ -1327,13 +1379,50 @@ bind_tensor_product(py::module_& m)
         },
         py::arg("symmetry"),
         py::arg("sector_map"),
-        py::arg("injective") = false)
+        py::arg("injective") = false,
+        R"pydoc(
+        Change the symmetry by specifying how the sectors change.
+
+        .. note ::
+            This interface assumes that a single sector of the old symmetry is mapped to a single
+            sector of the new symmetry, i.e. that the functor that we realize here preserves
+            simple objects. This does e.g. not cover the case of relaxing SU(2) to its U(1)
+            subgroup.
+
+        Parameters
+        ----------
+        symmetry : :class:`~cyten.groups.Symmetry`
+            The symmetry of the new space
+        sector_map : function (SectorArray,) -> (SectorArray,)
+            A map of sectors (2D int arrays), such that ``new_sectors = sector_map(old_sectors)``.
+            The map is assumed to cooperate with duality, i.e. we assume without checking that
+            ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as
+            ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
+        injective: bool
+            If ``True``, the `sector_map` is assumed to be injective, i.e. produce a list of
+            unique outputs, if the inputs are unique.
+
+        Returns
+        -------
+        A space with the new symmetry. The order of the basis is preserved, but every
+        basis element lives in a new sector, according to `sector_map`.
+        )pydoc")
       .def(
         "drop_symmetry",
         [](TensorProduct& self, py::object which) {
             return self.drop_symmetry(drop_which_from_python(which));
         },
-        py::arg("which") = "all")
+        py::arg("which") = "all",
+        R"pydoc(
+        Drop some or all symmetries.
+
+        Parameters
+        ----------
+        which : 'all' | (list of) int
+            If ``'all'`` (default) the entire symmetry is dropped and the result has ``no_symmetry``.
+            An integer or list of integers indicates to drop the :attr:`~cyten.Symmetry.factors` with
+            those indices.
+        )pydoc")
       .def("flat_legs_nesting",
            &TensorProduct::flat_legs_nesting,
            R"pydoc(
@@ -1603,7 +1692,7 @@ bind_abelian_leg_pipe(py::module_& m)
           The slice ``block_ind_map_slices[n]:block_ind_map_slices[n + 1]`` within this sorted list
           contains the same entry, namely ``pipe.sector_decomposition[n]``.
           Used in :math:`AbelianBackend.split_legs`.
-      block_ind_map : 2D numpy array of int
+      block_ind_map : BlockInds
           Map for the embedding of uncoupled to coupled indices, see notes of the Python class.
           Shape is ``(M, N)`` where ``M`` is the number of combinations of sectors,
           i.e. ``M == prod(leg.num_sectors for leg in legs)`` and ``N == 3 + len(legs)``.
@@ -1632,9 +1721,8 @@ bind_abelian_leg_pipe(py::module_& m)
       .def_property_readonly(
         "block_ind_map_slices",
         [](AbelianLegPipe const& self) { return perm_to_numpy(self.block_ind_map_slices); })
-      .def_property_readonly("block_ind_map", [](AbelianLegPipe const& self) {
-          return int_matrix_to_numpy(self.block_ind_map, 3 + self.num_legs);
-      });
+      .def_property_readonly("block_ind_map",
+                             [](AbelianLegPipe const& self) { return self.block_ind_map; });
 
     cls
       .def_property_readonly("dual",
@@ -1642,14 +1730,27 @@ bind_abelian_leg_pipe(py::module_& m)
                              R"pydoc(
                              The dual pipe, i.e. the dual of each leg in reverse order.
                              )pydoc")
-      .def_property_readonly("is_trivial", &AbelianLegPipe::is_trivial)
+      .def_property_readonly("is_trivial",
+                             &AbelianLegPipe::is_trivial,
+                             R"pydoc(
+                             If the space is trivial, i.e. isomorphic to the one-dimensional trivial sector.
+
+                             A trivial space is one-dimensional and transforms trivially under a symmetry group.
+                             In category speak, it is (isomorphic to) the monoidal unit.
+                             )pydoc")
       .def_property_readonly("flat_spaces",
                              &AbelianLegPipe::flat_spaces,
                              R"pydoc(
                              ``[self]`` -- unlike a plain :class:`LegPipe`, an
                              :class:`AbelianLegPipe` is already a space.
                              )pydoc")
-      .def_property_readonly("ascii_arrow", &AbelianLegPipe::ascii_arrow);
+      .def_property_readonly("ascii_arrow",
+                             &AbelianLegPipe::ascii_arrow,
+                             R"pydoc(
+                             A single character arrow, for use in tensor diagrams
+
+                             Indicates (a) if the leg is a pipe and (b) for ElementarySpaces, the duality
+                             )pydoc");
 
     cls.def_static(
       "from_independent_symmetries",
@@ -1674,22 +1775,117 @@ bind_abelian_leg_pipe(py::module_& m)
     // The unsupported ElementarySpace factories. They are bound (and raise) such that they
     // shadow the inherited versions, which would silently return a plain ElementarySpace.
     cls
-      .def_static("from_basis",
-                  [](py::args, py::kwargs) -> py::object {
-                      throw py::type_error("from_basis is not supported for AbelianLegPipe");
-                  })
-      .def_static("from_null_space",
-                  [](py::args, py::kwargs) -> py::object {
-                      throw py::type_error("from_null_space is not supported for AbelianLegPipe");
-                  })
-      .def_static("from_defining_sectors",
-                  [](py::args, py::kwargs) -> py::object {
-                      throw py::type_error(
-                        "from_defining_sectors is not supported for AbelianLegPipe");
-                  })
-      .def_static("from_trivial_sector", [](py::args, py::kwargs) -> py::object {
-          throw py::type_error("from_trivial_sector is not supported for AbelianLegPipe");
-      });
+      .def_static(
+        "from_basis",
+        [](py::args, py::kwargs) -> py::object {
+            throw py::type_error("from_basis is not supported for AbelianLegPipe");
+        },
+        R"pydoc(
+        Create an ElementarySpace by specifying the sector of every basis element.
+
+        This requires that the symmetry :attr:`~cyten.symmetries.Symmetry.can_be_dropped`, such
+        that there is a useful notion of a basis.
+
+        .. note ::
+            Unlike :meth:`from_defining_sectors`, this method expects the same sector to be listed
+            multiple times, if the sector is multi-dimensional. The Hilbert Space of a spin-one-half
+            D.O.F. can e.g. be created as ``ElementarySpace.from_basis(su2, [spin_half, spin_half])``
+            or as ``ElementarySpace.from_defining_sectors(su2, [spin_half])``. In the former case
+            we need to list the same sector both for the spin up and spin down state.
+
+        .. note ::
+            This classmethod always creates ket-spaces with ``is_dual=False``. This is to make
+            it unambiguous if `sectors_of_basis` refers to the :attr:`sector_decomposition` or the
+            :attr:`defining_sectors`, since they coincide for ket spaces.
+            Use :attr:`dual` or :meth:`as_bra_space` to create bra spaces.
+
+        Parameters
+        ----------
+        symmetry: Symmetry
+            The symmetry associated with this space.
+        sectors_of_basis : iterable of iterable of int
+            Specifies the basis. ``sectors_of_basis[n]`` is the sector of the ``n``-th basis element.
+            In particular, for a ``d`` dimensional sector, we expect an integer multiple of ``d``
+            occurrences. They need not be contiguous though. They will be grouped by order of
+            appearance, such that they ``m``-th time a sector appears, that basis state is interpreted
+            as the ``(m % d)``-th state of the multiplet.
+
+        See Also
+        --------
+        :attr:`sectors_of_basis`
+            Reproduces the `sectors_of_basis` parameter.
+        from_defining_sectors
+            Similar to the constructor, but with fewer requirements.
+        )pydoc")
+      .def_static(
+        "from_null_space",
+        [](py::args, py::kwargs) -> py::object {
+            throw py::type_error("from_null_space is not supported for AbelianLegPipe");
+        },
+        R"pydoc(
+        The zero-dimensional space, i.e. the span of the empty set.
+        )pydoc")
+      .def_static(
+        "from_defining_sectors",
+        [](py::args, py::kwargs) -> py::object {
+            throw py::type_error("from_defining_sectors is not supported for AbelianLegPipe");
+        },
+        R"pydoc(
+        Similar to the constructor, but with fewer requirements.
+
+        .. note ::
+            Unlike :meth:`from_basis`, this method expects a multi-dimensional sector to be listed
+            only once to mean its entire multiplet of basis states. The Hilbert Space of a spin-1/2
+            D.O.F. can e.g. be created as ``ElementarySpace.from_basis(su2, [spin_half, spin_half])``
+            or as ``ElementarySpace.from_defining_sectors(su2, [spin_half])``. In the former case
+            we need to list the same sector both for the spin up and spin down state.
+
+        Parameters
+        ----------
+        symmetry: Symmetry
+            The symmetry associated with this space.
+        defining_sectors: 2D array_like of int
+            Like the :attr:`defining_sectors` attribute, but can be in any order and may contain
+            duplicates (see `unique_sectors`).
+        multiplicities: 1D array_like of int, optional
+            How often each of the `defining_sectors` appears. A 1D array of positive integers with
+            axis [s]. ``defining_sectors[i_s, :]`` appears ``multiplicities[i_s]`` times.
+            If not given, a multiplicity ``1`` is assumed for all `defining_sectors`.
+        is_dual: bool
+            If the result is a bra- or a ket space, like the attribute :attr:`is_dual`.
+            Note that this changes the meaning of the `defining_sectors`.
+        basis_perm: ndarray, optional
+            The permutation from the desired public basis to the basis described by
+            `defining_sectors` and `multiplicities`.
+        unique_sectors: bool
+            If ``True``, the `sectors` are assumed to be duplicate-free.
+        return_sorting_perm: bool
+            If ``True``, the permutation ``np.lexsort(sectors.T)`` is returned too.
+
+        Returns
+        -------
+        space: ElementarySpace
+            The new space
+        sector_sort: 1D array, optional
+            Only ``if return_sorting_perm``. The permutation that sorts the `defining_sectors`.
+        )pydoc")
+      .def_static(
+        "from_trivial_sector",
+        [](py::args, py::kwargs) -> py::object {
+            throw py::type_error("from_trivial_sector is not supported for AbelianLegPipe");
+        },
+        R"pydoc(
+        Create an ElementarySpace that lives in the trivial sector (i.e. it is symmetric).
+
+        Parameters
+        ----------
+        dim : int
+            The dimension of the space.
+        symmetry : :class:`~cyten.Symmetry`
+            The symmetry of the space.
+        is_dual : bool
+            If the space should be bra or a ket space.
+        )pydoc");
 
     cls
       .def("test_sanity",
@@ -1697,8 +1893,17 @@ bind_abelian_leg_pipe(py::module_& m)
            R"pydoc(
            Perform sanity checks.
            )pydoc")
-      .def("as_Space", &AbelianLegPipe::as_Space)
-      .def("as_ElementarySpace", &AbelianLegPipe::as_ElementarySpace, py::arg("is_dual") = false)
+      .def("as_Space",
+           &AbelianLegPipe::as_Space,
+           R"pydoc(
+           Convert to (an appropriate subclass of) :class:`Space`.
+           )pydoc")
+      .def("as_ElementarySpace",
+           &AbelianLegPipe::as_ElementarySpace,
+           py::arg("is_dual") = false,
+           R"pydoc(
+           Convert to an isomorphic :class:`ElementarySpace`.
+           )pydoc")
       .def(
         "change_symmetry",
         [](
@@ -1708,13 +1913,50 @@ bind_abelian_leg_pipe(py::module_& m)
         },
         py::arg("symmetry"),
         py::arg("sector_map"),
-        py::arg("injective") = false)
+        py::arg("injective") = false,
+        R"pydoc(
+        Change the symmetry by specifying how the sectors change.
+
+        .. note ::
+            This interface assumes that a single sector of the old symmetry is mapped to a single
+            sector of the new symmetry, i.e. that the functor that we realize here preserves
+            simple objects. This does e.g. not cover the case of relaxing SU(2) to its U(1)
+            subgroup.
+
+        Parameters
+        ----------
+        symmetry : :class:`~cyten.groups.Symmetry`
+            The symmetry of the new space
+        sector_map : function (SectorArray,) -> (SectorArray,)
+            A map of sectors (2D int arrays), such that ``new_sectors = sector_map(old_sectors)``.
+            The map is assumed to cooperate with duality, i.e. we assume without checking that
+            ``symmetry.dual_sectors(sector_map(old_sectors))`` is the same as
+            ``sector_map(old_symmetry.dual_sectors(old_sectors))``.
+        injective: bool
+            If ``True``, the `sector_map` is assumed to be injective, i.e. produce a list of
+            unique outputs, if the inputs are unique.
+
+        Returns
+        -------
+        A space with the new symmetry. The order of the basis is preserved, but every
+        basis element lives in a new sector, according to `sector_map`.
+        )pydoc")
       .def(
         "drop_symmetry",
         [](AbelianLegPipe& self, py::object which) {
             return self.drop_symmetry(drop_which_from_python(which));
         },
-        py::arg("which") = "all")
+        py::arg("which") = "all",
+        R"pydoc(
+        Drop some or all symmetries.
+
+        Parameters
+        ----------
+        which : 'all' | (list of) int
+            If ``'all'`` (default) the entire symmetry is dropped and the result has ``no_symmetry``.
+            An integer or list of integers indicates to drop the :attr:`~cyten.Symmetry.factors` with
+            those indices.
+        )pydoc")
       .def(
         "set_basis_perm",
         [](AbelianLegPipe& self, py::args, py::kwargs) { self.set_basis_perm(std::nullopt); },

@@ -19,8 +19,18 @@ void bind_version(py::module_& m);
 void bind_config(py::module_& m);
 void bind_tools(py::module_& m);
 void bind_cost_polynomials(py::module_& m);
+void bind_mappings(py::module_& m);
 void bind_block_backend(py::module_& m);
 void bind_symmetries(py::module_& m);
+void bind_tensor_backend(py::module_& m);
+void bind_no_symmetry_backend(py::module_& m);
+void bind_block_inds(py::module_& m);
+void bind_abelian_backend_data(py::module_& m);
+void bind_abelian_backend(py::module_& m);
+void bind_fusion_tree_data(py::module_& m);
+void bind_fusion_tree_backend(py::module_& m);
+void bind_fusion_tree_mapping(py::module_& m);
+void bind_backend_factory(py::module_& m);
 void bind_check(py::module_& m);
 
 } // namespace cyten

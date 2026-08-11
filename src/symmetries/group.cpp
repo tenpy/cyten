@@ -26,6 +26,9 @@ Group::Group(FusionStyle fusion_style,
 FusionSymbol
 Group::swap_gate(Sector a, Sector b) const
 {
+    // --- hints from Python Group.swap_gate ---
+    // [b, a, b*, a*]
+    // ---
     // [b, a, b*, a*] = eye(dim_a)[None, :, None, :] * eye(dim_b)[:, None, :, None]
     auto const da = static_cast<std::size_t>(sector_dim(a));
     auto const db = static_cast<std::size_t>(sector_dim(b));

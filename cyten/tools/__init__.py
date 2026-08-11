@@ -1,9 +1,8 @@
 """TODO write docs"""
 # Copyright (C) TeNPy Developers, Apache license
 
-from . import cost_polynomials, mappings, math, misc, string
+from . import cost_polynomials, math, misc, string
 from .cost_polynomials import BigOPolynomial
-from .mappings import SparseMapping
 from .math import speigs, speigsh
 from .misc import (
     argsort,

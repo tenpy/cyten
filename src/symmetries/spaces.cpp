@@ -4,6 +4,7 @@
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/symmetries/factors/no_symmetry.h>
 #include <cyten/tools.h>
+#include <cyten/warn.h>
 
 #include <algorithm>
 #include <cassert>
@@ -102,6 +103,9 @@ Leg::init_leg(Symmetry::Ptr symmetry_,
 void
 Leg::test_sanity() const
 {
+    // --- hints from Python Leg.test_sanity ---
+    // is a permutation
+    // ---
     if (!symmetry->can_be_dropped()) {
         assert(!_basis_perm);
     }
@@ -126,6 +130,9 @@ Leg::test_sanity() const
 py::object
 Leg::as_ElementarySpace(bool is_dual_)
 {
+    // --- hints from Python Leg.as_ElementarySpace ---
+    // can be overridden for performance
+    // ---
     // can be overridden for performance
     return as_Space().attr("as_ElementarySpace")(py::arg("is_dual") = is_dual_);
 }
@@ -213,6 +220,9 @@ Leg::_flat_leg_permutation(int64 offset) const
 std::string
 Leg::ascii_arrow() const
 {
+    // --- hints from Python Leg.ascii_arrow ---
+    // should have already covered all cases
+    // ---
     // Subclasses (ElementarySpace / LegPipe) override. Pure Leg should not appear in diagrams.
     throw std::runtime_error("ascii_arrow not implemented for this Leg subclass");
 }
@@ -220,6 +230,10 @@ Leg::ascii_arrow() const
 py::object
 Leg::apply_basis_perm(py::object arr, int64 axis, bool inverse, bool pre_compose) const
 {
+    // --- hints from Python Leg.apply_basis_perm ---
+    // this implementation assumes _basis_perm. AbelianLegPipe overrides this method.
+    // perm is identity permutation
+    // ---
     // this implementation assumes _basis_perm. AbelianLegPipe overrides this method.
     auto const& perm = inverse ? _inverse_basis_perm : _basis_perm;
     if (!perm) {
@@ -304,6 +318,9 @@ Space::Space(Symmetry::Ptr symmetry_,
   , sector_decomposition(std::move(sector_decomposition_))
   , sector_order(std::move(sector_order_))
 {
+    // --- hints from Python Space.__init__ ---
+    // slices[0, 0] remains 0, which is correct
+    // ---
     if (sector_decomposition.sector_ind_len() != symmetry->sector_ind_len) {
         throw std::invalid_argument(
           std::format("Wrong sectors.shape: Expected (*, {}), got ({}, {}).",
@@ -346,6 +363,13 @@ Space::Space(Symmetry::Ptr symmetry_,
 void
 Space::test_sanity() const
 {
+    // --- hints from Python Space.test_sanity ---
+    // sectors
+    // nothing to check
+    // multiplicities
+    // slices
+    // slices should be consecutive
+    // ---
     assert(dim >= 0.);
     // sectors
     if (static_cast<int64>(sector_decomposition.size()) != num_sectors ||
@@ -416,6 +440,11 @@ Space::operator==(Space const& /*other*/) const
 bool
 Space::is_isomorphic_to(Space const& other) const
 {
+    // --- hints from Python Space.is_isomorphic_to ---
+    // have the same sorting convention and can be directly compared
+    // case should have been covered above
+    // all cases should have been covered.
+    // ---
     if (!symmetry->equals(*other.symmetry)) {
         throw SymmetryError("Incompatible symmetries");
     }
@@ -471,6 +500,13 @@ Space::is_isomorphic_to(Space const& other) const
 bool
 Space::is_subspace_of(Space const& other) const
 {
+    // --- hints from Python Space.is_subspace_of ---
+    // sectors are sorted, so we can just iterate over both of them
+    // have checked all sectors of self
+    // reaching this line means self has sectors which other does not have
+    // OPTIMIZE sort once instead of looking up each time
+    // this means self has some sectors that other doesn't have
+    // ---
     if (!symmetry->is_equivalent_to(*other.symmetry)) {
         return false;
     }
@@ -542,6 +578,17 @@ Space::as_ElementarySpace(bool is_dual_)
 Space::Ptr
 Space::shared_space()
 {
+    // --- hints from Python ElementarySpace.from_defining_sectors ---
+    // sort sectors
+    // combine duplicate sectors (does not affect basis_perm)
+    // the convention is that for sectors with dim > 1, all copies of the first
+    // state appear, then all copies of the second state, etc. At this point,
+    // this order is not yet fully respected
+    // updated basis_slices after sorting defining_sectors
+    // take the basis_perm associated with the first states and make them contiguous,
+    // then go to the second state, etc.
+    // [:-1] to exclude len
+    // ---
     return std::dynamic_pointer_cast<Space>(shared_from_this());
 }
 
@@ -554,6 +601,11 @@ Space::as_Space()
 std::optional<int64>
 Space::sector_decomposition_where(Sector sector) const
 {
+    // --- hints from Python Space.sector_decomposition_where ---
+    // sector_decomposition should be unique, so one of the above if statements should trigger.
+    // If we get here, something is wrong / inconsistent.
+    // this should raise an informative error
+    // ---
     // OPTIMIZE : if sector_order allows it, use that sectors are sorted to speed up the lookup
     auto idx = sector_decomposition.row_where(sector);
     if (!idx) {
@@ -778,6 +830,9 @@ LegPipe::operator[](int64 idx) const
 std::string
 LegPipe::repr(bool show_symmetry, bool one_line) const
 {
+    // --- hints from Python LegPipe.__repr__ ---
+    // the above should always fit in linewidth ...
+    // ---
     auto const& cfg = get_config();
     auto const linewidth = cfg.print_linewidth;
     std::string const indent(static_cast<std::size_t>(cfg.print_indent), ' ');
@@ -1004,6 +1059,10 @@ ElementarySpace::test_sanity() const
 ElementarySpace::Ptr
 ElementarySpace::from_basis(Symmetry::Ptr symmetry, SectorArray sectors_of_basis)
 {
+    // --- hints from Python ElementarySpace.from_basis ---
+    // note: numpy.lexsort is stable, i.e. it preserves the order of equal keys.
+    // how often each appears in the input sectors_of_basis
+    // ---
     if (!symmetry->can_be_dropped()) {
         throw SymmetryError(std::format("from_basis is meaningless for {}.", symmetry->str()));
     }
@@ -1036,6 +1095,17 @@ ElementarySpace::from_basis(Symmetry::Ptr symmetry, SectorArray sectors_of_basis
 ElementarySpace::Ptr
 ElementarySpace::from_independent_symmetries(std::vector<Ptr> const& independent_descriptions)
 {
+    // --- hints from Python ElementarySpace.from_independent_symmetries ---
+    // OPTIMIZE this can be implemented better. if many consecutive basis elements have the same
+    // resulting sector, we can skip over all of them.
+    // ignore those with no_symmetry
+    // all descriptions had no_symmetry
+    // TODO is there a way to define this? the straight-forward picture works only if we have
+    // a vector space and can identify states.
+    // note: this interface is more general than it needs to be. The use case in
+    // GroupedSite would allow us to specialize, if that is easier. A given state
+    // is in the trivial sector for all but one of the independent_descriptions.
+    // ---
     // OPTIMIZE this can be implemented better. if many consecutive basis elements have the same
     //          resulting sector, we can skip over all of them.
     assert(!independent_descriptions.empty());
@@ -1094,6 +1164,9 @@ ElementarySpace::from_independent_symmetries(std::vector<Ptr> const& independent
 ElementarySpace::Ptr
 ElementarySpace::from_largest_common_subspace(std::vector<Space::Ptr> const& spaces, bool is_dual)
 {
+    // --- hints from Python ElementarySpace.from_largest_common_subspace ---
+    // OPTIMIZE implementation for mixed orders? or just override this in ElementarySpace?
+    // ---
     if (spaces.empty()) {
         throw std::invalid_argument("Need at least one space");
     }
@@ -1305,6 +1378,9 @@ ElementarySpace::shared_es() const
 SectorArray
 ElementarySpace::sectors_of_basis() const
 {
+    // --- hints from Python ElementarySpace.sectors_of_basis ---
+    // build in internal basis, then permute
+    // ---
     if (!Space::symmetry->can_be_dropped()) {
         throw SymmetryError(
           std::format("sectors_of_basis is meaningless for {}.", Space::symmetry->str()));
@@ -1327,6 +1403,13 @@ ElementarySpace::sectors_of_basis() const
 std::string
 ElementarySpace::repr(bool show_symmetry, bool one_line) const
 {
+    // --- hints from Python ElementarySpace.__repr__ ---
+    // try to show everything, then less and less
+    // there is no chance to print all sectors in one line
+    // try one line
+    // try multi line
+    // one of the above returns should have triggered
+    // ---
     auto const& cfg = get_config();
     auto const linewidth = cfg.print_linewidth;
     std::string const indent(static_cast<std::size_t>(cfg.print_indent), ' ');
@@ -1419,6 +1502,10 @@ ElementarySpace::repr(bool show_symmetry, bool one_line) const
 bool
 ElementarySpace::operator==(Leg const& other) const
 {
+    // --- hints from Python ElementarySpace.__eq__ ---
+    // check this first to safely compare later
+    // both permutations are trivial, thus equal
+    // ---
     auto const* o = dynamic_cast<ElementarySpace const*>(&other);
     if (o == nullptr) {
         return false;
@@ -1630,6 +1717,10 @@ ElementarySpace::idx_to_sector(int64 idx) const
 ElementarySpace::Ptr
 ElementarySpace::take_slice(py::array blockmask) const
 {
+    // --- hints from Python ElementarySpace.take_slice ---
+    // should be guaranteed by check above already, but to be sure...
+    // note blockmask is in the private basis order.
+    // ---
     if (!Space::symmetry->can_be_dropped()) {
         throw SymmetryError(
           std::format("take_slice is meaningless for {}.", Space::symmetry->str()));
@@ -1705,6 +1796,9 @@ ElementarySpace::take_slice(py::array blockmask) const
 ElementarySpace::Ptr
 ElementarySpace::with_opposite_duality() const
 {
+    // --- hints from Python ElementarySpace.with_opposite_duality ---
+    // already have the self.symmetry.dual_sectors(self.defining_sectors)
+    // ---
     SectorArray dual_defining_sectors;
     if (is_dual) {
         // already have the symmetry->dual_sectors(defining_sectors)
@@ -1907,8 +2001,10 @@ product(std::vector<int64> const& values)
 [[nodiscard]] bool
 sectors_match(SectorArray const& sectors, SectorArray const& other)
 {
-    auto const n = std::min(sectors.size(), other.size());
-    for (std::size_t i = 0; i < n; ++i) {
+    if (sectors.size() != other.size()) {
+        return false;
+    }
+    for (std::size_t i = 0; i < sectors.size(); ++i) {
         if (!(sectors[i] == other[i])) {
             return false;
         }
@@ -2046,10 +2142,9 @@ TensorProduct::prepare(std::vector<py::object> const& factors,
     }
     if (!sector_decomposition || !multiplicities) {
         if (sector_decomposition || multiplicities) {
-            PyErr_WarnEx(PyExc_UserWarning,
-                         "Need both _sectors and _multiplicities to skip recomputation. "
-                         "Got just one.",
-                         1);
+            warn("Need both _sectors and _multiplicities to skip recomputation. "
+                 "Got just one.",
+                 /*stack_level=*/1);
         }
         auto [sectors, mults] = calc_sectors_of_factors(*symmetry, factors);
         sector_decomposition = std::move(sectors);
@@ -2093,6 +2188,11 @@ TensorProduct::test_sanity() const
 TensorProduct::Ptr
 TensorProduct::from_partial_products(std::vector<Ptr> const& factors)
 {
+    // --- hints from Python TensorProduct.from_partial_products ---
+    // forming isomorphic performs the fusion more efficiently, since it uses the partially
+    // fused [f.sectors for f in factors] instead of the flat [s.factors for f in factors for s in
+    // f.factors]
+    // ---
     if (factors.empty()) {
         throw std::invalid_argument("Need at least one TensorProduct");
     }
@@ -2281,6 +2381,9 @@ TensorProduct::flat_leg_idcs(int64 i) const
 int64
 TensorProduct::forest_block_size(SectorArray const& uncoupled, Sector coupled) const
 {
+    // --- hints from Python TensorProduct.forest_block_size ---
+    // OPTIMIZE ?
+    // ---
     // OPTIMIZE ?
     auto const num_trees = static_cast<int64>(fusion_trees(symmetry, uncoupled, coupled).size());
     return num_trees * tree_block_size(uncoupled);
@@ -2289,6 +2392,9 @@ TensorProduct::forest_block_size(SectorArray const& uncoupled, Sector coupled) c
 IndexSlice
 TensorProduct::forest_block_slice(SectorArray const& uncoupled, Sector coupled) const
 {
+    // --- hints from Python TensorProduct.forest_block_slice ---
+    // no break occurred
+    // ---
     int64 offset = 0;
     bool found = false;
     for (auto const& item : iter_uncoupled()) {
@@ -2334,6 +2440,11 @@ TensorProduct::insert_multiply(py::object other, int64 pos) const
 std::vector<TreeBlockItem>
 TensorProduct::iter_tree_blocks(SectorArray const& coupled) const
 {
+    // --- hints from Python TensorProduct.iter_tree_blocks ---
+    // OPTIMIZE some users in FTBackend ignore some of the yielded values.
+    // is that ok performance wise or should we have special case iterators?
+    // start index of the current tree block within the block
+    // ---
     // OPTIMIZE some users in FTBackend ignore some of the yielded values.
     //          is that ok performance wise or should we have special case iterators?
     std::vector<std::uint8_t> are_dual;
@@ -2467,6 +2578,9 @@ TensorProduct::right_multiply(py::object other) const
 int64
 TensorProduct::tree_block_size(SectorArray const& uncoupled) const
 {
+    // --- hints from Python TensorProduct.tree_block_size ---
+    // OPTIMIZE ?
+    // ---
     // OPTIMIZE ?
     auto const legs = flat_legs();
     auto const n = std::min(legs.size(), uncoupled.size());
@@ -2480,6 +2594,10 @@ TensorProduct::tree_block_size(SectorArray const& uncoupled) const
 IndexSlice
 TensorProduct::tree_block_slice(FusionTree const& tree) const
 {
+    // --- hints from Python TensorProduct.tree_block_slice ---
+    // OPTIMIZE ?
+    // no break occurred
+    // ---
     // OPTIMIZE ?
     int64 start = 0;
     int64 tree_block = 1;
@@ -2533,6 +2651,13 @@ TensorProduct::operator[](int64 idx) const
 std::string
 TensorProduct::repr(bool show_symmetry, bool one_line) const
 {
+    // --- hints from Python TensorProduct.__repr__ ---
+    // there is no chance to print all sectors in one line
+    // populate two lists; one intended for single line, one for multiline
+    // try one line
+    // try multi line
+    // one of the above returns should have triggered
+    // ---
     auto const& cfg = get_config();
     auto const linewidth = cfg.print_linewidth;
     std::string const indent(static_cast<std::size_t>(cfg.print_indent), ' ');
@@ -2627,6 +2752,9 @@ TensorProduct::repr(bool show_symmetry, bool one_line) const
 std::pair<SectorArray, std::vector<int64>>
 TensorProduct::calc_sectors(std::vector<py::object> const& factors_) const
 {
+    // --- hints from Python TensorProduct._calc_sectors ---
+    // OPTIMIZE is this optimal? should we store the f.as_Space() for later use?
+    // ---
     return calc_sectors_of_factors(*symmetry, factors_);
 }
 
@@ -2725,6 +2853,18 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
                         bool is_dual,
                         bool combine_cstyle)
 {
+    // --- hints from Python AbelianLegPipe._calc_sectors ---
+    // number of blocks in pipe = np.product(legs_num_sectors)
+    // this is different from num_sectors
+    // possible combinations of indices
+    // advanced indexing:
+    // ``grid.T[li]`` is a 1D array containing the block_indices `b_li` of leg ``li`` for all
+    // blocks the above are the future self.sector_decomposition but we want to compute (and in
+    // particular sort according to) the defining_sectors start with 0 include len, to index slices
+    // now exclude len, to index sectors by diffs
+    // not for the first entry => np.cumsum starts with 0
+    // calculate the slices within blocks: subtract the start of each block
+    // ---
     if (legs.empty()) {
         throw std::invalid_argument("Need at least one leg");
     }
@@ -2752,7 +2892,7 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
 
     // determine block_ind_map -- it's essentially the grid.
     // block_ind_map[:, :2] and [:, -1] are set later.
-    std::vector<std::vector<int64>> block_ind_map(num_blocks, std::vector<int64>(3 + num_legs, 0));
+    BlockInds block_ind_map = BlockInds::zeros(num_blocks, 3 + num_legs);
     // the multiplicity for given (i1, i2, ...) is the product of ``multiplicities[il]``
     std::vector<int64> multiplicities(num_blocks, 1);
     std::vector<SectorArray> uncoupled;
@@ -2762,7 +2902,7 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
         for (std::size_t m = 0; m < num_blocks; ++m) {
             auto const i = static_cast<std::size_t>(
               grid_entry(static_cast<int64>(m), sector_strides, legs_num_sectors, n));
-            block_ind_map[m][2 + n] = static_cast<int64>(i);
+            block_ind_map(m, 2 + n) = static_cast<int64>(i);
             multiplicities[m] *= legs[n]->multiplicities[i];
             column[m] = legs[n]->sector_decomposition[i];
         }
@@ -2781,13 +2921,11 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
     auto const sort = sectors.lexsort_indices();
     std::vector<int64> fusion_outcomes_sort(sort.begin(), sort.end());
     {
-        std::vector<std::vector<int64>> sorted_map(num_blocks);
         std::vector<int64> sorted_mults(num_blocks);
         for (std::size_t m = 0; m < num_blocks; ++m) {
-            sorted_map[m] = std::move(block_ind_map[sort[m]]);
             sorted_mults[m] = multiplicities[sort[m]];
         }
-        block_ind_map = std::move(sorted_map);
+        block_ind_map = block_ind_map.take(sort);
         multiplicities = std::move(sorted_mults);
         sectors = sectors.take(sort);
     }
@@ -2795,8 +2933,8 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
     // compute slices in the whole internal basis (we subtract the start of each block below)
     auto const slices = slice_boundaries(multiplicities);
     for (std::size_t m = 0; m < num_blocks; ++m) {
-        block_ind_map[m][0] = slices[m];
-        block_ind_map[m][1] = slices[m + 1];
+        block_ind_map(m, 0) = slices[m];
+        block_ind_map(m, 1) = slices[m + 1];
     }
 
     // bunch sectors with equal sectors together
@@ -2818,9 +2956,9 @@ AbelianLegPipe::prepare(std::vector<ElementarySpace::Ptr> const& legs,
     // the new block index J, plus the slices within blocks (subtract the start of each block)
     for (std::size_t k = 0; k < num_unique; ++k) {
         for (std::size_t m = diffs[k]; m < diffs[k + 1]; ++m) {
-            block_ind_map[m][2 + num_legs] = static_cast<int64>(k);
-            block_ind_map[m][0] -= block_starts[k];
-            block_ind_map[m][1] -= block_starts[k];
+            block_ind_map(m, 2 + num_legs) = static_cast<int64>(k);
+            block_ind_map(m, 0) -= block_starts[k];
+            block_ind_map(m, 1) -= block_starts[k];
         }
     }
 
@@ -2859,6 +2997,9 @@ AbelianLegPipe::AbelianLegPipe(std::vector<ElementarySpace::Ptr> legs_,
                                bool combine_cstyle_)
   : AbelianLegPipe(prepare(legs_, is_dual_, combine_cstyle_), is_dual_, combine_cstyle_)
 {
+    // --- hints from Python AbelianLegPipe.__init__ ---
+    // also sets some attributes
+    // ---
 }
 
 std::vector<int64>
@@ -2866,7 +3007,7 @@ AbelianLegPipe::fusion_outcomes_perm(std::vector<ElementarySpace::Ptr> const& le
                                      bool combine_cstyle,
                                      float64 dim,
                                      std::vector<int64> const& multiplicities,
-                                     std::vector<std::vector<int64>> const& block_ind_map)
+                                     BlockInds const& block_ind_map)
 {
     auto const num_legs = legs.size();
     std::vector<int64> legs_dims(num_legs);
@@ -2882,7 +3023,8 @@ AbelianLegPipe::fusion_outcomes_perm(std::vector<ElementarySpace::Ptr> const& le
 
     std::vector<int64> mult_shape(num_legs);
     std::vector<int64> sector_starts(num_legs);
-    for (auto const& row : block_ind_map) {
+    for (std::size_t m = 0; m < block_ind_map.nrows(); ++m) {
+        auto const row = block_ind_map.row(m);
         // shift the slice start:stop from within the block back to the whole internal basis
         auto const J = static_cast<std::size_t>(row[2 + num_legs]);
         auto const start = row[0] + slices_starts[J];
@@ -2922,8 +3064,13 @@ AbelianLegPipe::calc_basis_perm(std::vector<ElementarySpace::Ptr> const& legs,
                                 bool combine_cstyle,
                                 float64 dim,
                                 std::vector<int64> const& multiplicities,
-                                std::vector<std::vector<int64>> const& block_ind_map)
+                                BlockInds const& block_ind_map)
 {
+    // --- hints from Python AbelianLegPipe._calc_basis_perm ---
+    // see diagram in docstring, we follow the path parallel to ``pipe.basis_perm``.
+    // apply basis perm of each leg
+    // apply fusion_outcomes_perm (``sort`` in the diagram)
+    // ---
     // see the diagram in the docstring of the Python ``_calc_basis_perm``; we follow the path
     // parallel to ``pipe.basis_perm``: inverse of fusion, basis_perm of each leg, fusion, sort.
     auto const num_legs = legs.size();
@@ -2971,6 +3118,16 @@ AbelianLegPipe::es_legs() const
 std::vector<int64>
 AbelianLegPipe::get_fusion_outcomes_perm(std::vector<int64> const& multiplicities_) const
 {
+    // --- hints from Python AbelianLegPipe._get_fusion_outcomes_perm ---
+    // since ElementarySpace.__init__ was not called yet at this point
+    // shift the slice start:stop from within the block back to within the whole internal basis
+    // they are the indices of that basis element within its legs internal basis
+    // now we need to map the multi-indices (rows of basis_grid) to single indices into
+    // the unsorted list of fusion outcomes. Note that the relevant strides are ``dim_strides``,
+    // and that these strides come from a *different* shape than the multiplicity_grid.
+    // That is, we want to do ``perm[start + n] = np.sum(basis_grid[n] * dim_strides)``.
+    // Turns out we can do it batched:
+    // ---
     return fusion_outcomes_perm(
       es_legs(), combine_cstyle, Space::dim, multiplicities_, block_ind_map);
 }
@@ -2978,6 +3135,11 @@ AbelianLegPipe::get_fusion_outcomes_perm(std::vector<int64> const& multiplicitie
 void
 AbelianLegPipe::test_sanity() const
 {
+    // --- hints from Python AbelianLegPipe.test_sanity ---
+    // check self.sector_strides
+    // C style grid -> lexsorted after reversing column order (see notes)
+    // F style grid -> is lexsorted
+    // ---
     auto const es = es_legs();
     for (auto const& leg : es) {
         if (auto const* nested = dynamic_cast<LegPipe const*>(leg.get()); nested != nullptr) {
@@ -3002,33 +3164,33 @@ AbelianLegPipe::test_sanity() const
     assert(block_ind_map_slices.back() == nblocks);
     assert(std::ranges::is_sorted(block_ind_map_slices));
     // check block_ind_map
-    assert(block_ind_map.size() == static_cast<std::size_t>(nblocks));
+    assert(block_ind_map.nrows() == static_cast<std::size_t>(nblocks));
+    assert(block_ind_map.ncols() == 3 + n);
     // the rows are sorted first by J, then by the i, in C-style order if combine_cstyle
     // (see the class docstring). Equivalently, the keys built below are non-decreasing.
-    auto const sort_key = [&](std::vector<int64> const& row) {
-        std::vector<int64> key{ row[2 + n] };
+    auto const sort_key = [&](std::size_t m) {
+        std::vector<int64> key{ block_ind_map(m, 2 + n) };
         for (std::size_t i = 0; i < n; ++i) {
-            key.push_back(combine_cstyle ? row[2 + i] : row[1 + n - i]);
+            key.push_back(combine_cstyle ? block_ind_map(m, 2 + i) : block_ind_map(m, 1 + n - i));
         }
         return key;
     };
-    for (std::size_t m = 0; m < block_ind_map.size(); ++m) {
-        auto const& row = block_ind_map[m];
-        assert(row.size() == 3 + n);
-        auto const J = static_cast<std::size_t>(row[2 + n]);
+    for (std::size_t m = 0; m < block_ind_map.nrows(); ++m) {
+        auto const J = static_cast<std::size_t>(block_ind_map(m, 2 + n));
         if (m > 0) {
-            auto const prev = sort_key(block_ind_map[m - 1]);
-            auto const cur = sort_key(row);
+            auto const prev = sort_key(m - 1);
+            auto const cur = sort_key(m);
             assert(std::ranges::lexicographical_compare(prev, cur));
         }
-        if (m > 0 && row[2 + n] == block_ind_map[m - 1][2 + n]) {
-            assert(row[0] == block_ind_map[m - 1][1]);
+        if (m > 0 && block_ind_map(m, 2 + n) == block_ind_map(m - 1, 2 + n)) {
+            assert(block_ind_map(m, 0) == block_ind_map(m - 1, 1));
         } else {
-            assert(row[0] == 0);
+            assert(block_ind_map(m, 0) == 0);
         }
         std::vector<Sector> uncoupled(n);
         for (std::size_t i = 0; i < n; ++i) {
-            uncoupled[i] = es[i]->sector_decomposition[static_cast<std::size_t>(row[2 + i])];
+            uncoupled[i] =
+              es[i]->sector_decomposition[static_cast<std::size_t>(block_ind_map(m, 2 + i))];
         }
         assert(Space::symmetry->multiple_fusion(uncoupled) == sector_decomposition[J]);
     }
@@ -3081,6 +3243,10 @@ AbelianLegPipe::is_trivial() const
 std::vector<Leg::Ptr>
 AbelianLegPipe::flat_spaces()
 {
+    // --- hints from Python AbelianLegPipe.flat_spaces ---
+    // Unlike the plain LegPipe, we do not need to flatten AbelianLegPipes, if we just
+    // want to flatten until we get spaces
+    // ---
     // Unlike the plain LegPipe, we do not need to flatten AbelianLegPipes, if we just
     // want to flatten until we get spaces
     return { shared_leg() };
@@ -3174,6 +3340,9 @@ AbelianLegPipe::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map,
 py::object
 AbelianLegPipe::drop_symmetry(std::optional<std::vector<int64>> which)
 {
+    // --- hints from Python AbelianLegPipe.drop_symmetry ---
+    // OPTIMIZE can we avoid recomputation of fusion?
+    // ---
     // OPTIMIZE can we avoid recomputation of fusion?
     std::vector<ElementarySpace::Ptr> new_legs;
     new_legs.reserve(legs.size());
@@ -3199,13 +3368,9 @@ AbelianLegPipe::set_inverse_basis_perm(std::optional<std::vector<int64>> /*inver
 ElementarySpace::Ptr
 AbelianLegPipe::take_slice(py::array blockmask) const
 {
-    char const* msg =
-      "Using `AbelianLegPipe.take_slice` loses the product (pipe) structure and results in "
-      "a plain ElementarySpace. Explicitly convert using `as_ElementarySpace` to suppress "
-      "this warning.";
-    if (PyErr_WarnEx(PyExc_UserWarning, msg, 2) < 0) {
-        throw py::error_already_set();
-    }
+    warn("Using `AbelianLegPipe.take_slice` loses the product (pipe) structure and results in "
+         "a plain ElementarySpace. Explicitly convert using `as_ElementarySpace` to suppress "
+         "this warning.");
     // note: unlike the Python version, we call the ElementarySpace implementation directly.
     // Python goes through ``as_ElementarySpace(is_dual=self.is_dual)``, which returns ``self``
     // and therefore recurses infinitely.
@@ -3239,6 +3404,13 @@ AbelianLegPipe::operator==(Space const& other) const
 std::string
 AbelianLegPipe::repr(bool show_symmetry, bool one_line) const
 {
+    // --- hints from Python AbelianLegPipe.__repr__ ---
+    // sector_mode:  0=show full arrays , 1=show only nums, 2=dont show
+    // child_mode: 0=show full , 1=force one-line each, 2=show only num
+    // summarize_basis_perm: bool
+    // this should not happen
+    // dont add anything
+    // ---
     auto const& cfg = get_config();
     auto const linewidth = cfg.print_linewidth;
     std::string const indent(static_cast<std::size_t>(cfg.print_indent), ' ');
@@ -3409,6 +3581,19 @@ leg_dim_as_size(Leg const& leg)
 FusionSymbol
 swap_gate(Leg::Ptr V, Leg::Ptr W)
 {
+    // --- hints from Python swap_gate ---
+    // special case: pipes
+    // since we call this function recursively, we do not need to distinguish if W is a pipe at
+    // this point [W, Vz, W*, Vz*] [W, Vi, W*, Vi*] [W, Vi, (W*), Vi*] @ [(W), {Vs}, W*, {Vs}*] ->
+    // [W, Vi, Vi*, {Vs}, W*, {Vs}*] [W, Vi, (Vi*), {Vs}, W*, {Vs}*] -> [W, Vi, {Vs}, W*, (Vi*),
+    // {Vs}*] since we call this function recursively, we do not need to distinguish if V is a pipe
+    // at this point [Wa, V, Wa*, V*] [Wi, V, Wi*, V]
+    // [{Ws}, (V), {Ws}*, V*] @ [Wi, V, Wi*, (V*)] -> [{Ws}, {Ws*}, V*, Wi, V, Wi*]
+    // [{Ws}, {Ws*}, V*, Wi, V, Wi*] -> [{Ws}, Wi, V, {Ws*}, Wi*, V*]
+    // build in internal basis order, permute after
+    // OPTIMIZE these loops are probably inefficient, and there may be some numpy magic that does
+    // it better...
+    // ---
     if (!V || !W) {
         throw py::type_error("swap_gate requires two legs");
     }
@@ -3632,3 +3817,10 @@ parse_inputs_drop_symmetry_public(std::optional<std::vector<int64>> which, Symme
 }
 
 } // namespace cyten
+
+// =============================================================================
+// ORPHANED PYTHON COMMENT HINTS (no matching C++ function body found)
+// =============================================================================
+// --- TensorProduct.__init__ ---
+// need to set this early, for use in _calc_sectors
+// =============================================================================

@@ -2,6 +2,7 @@
 
 #include <cyten/symmetries/fusion_symbol.h>
 #include <cyten/symmetries/sector_numpy.h>
+#include <cyten/warn.h>
 
 #include <algorithm>
 #include <array>
@@ -148,11 +149,8 @@ Symmetry::Symmetry(std::vector<SymmetryFactor::Ptr> factors_in)
         }
     }
     if (num_fermionic > 1) {
-        auto warnings = py::module_::import("warnings");
-        warnings.attr("warn")(
-          "Symmetry with multiple fermionic factors probably does not do what you "
-          "expect. See docstring of FermionParity for details.",
-          py::arg("stacklevel") = 2);
+        warn("Symmetry with multiple fermionic factors probably does not do what you "
+             "expect. See docstring of FermionParity for details.");
     }
 }
 
@@ -202,6 +200,10 @@ Symmetry::has_factor(SymmetryFactor const& other) const
 bool
 Symmetry::is_equivalent_to(Symmetry const& other, bool strict_ordering) const
 {
+    // --- hints from Python Symmetry.is_equivalent_to ---
+    // no break occurred
+    // if the loop terminates without returning False, every f1 found a match
+    // ---
     if (num_factors() != other.num_factors()) {
         return false;
     }
@@ -270,6 +272,17 @@ Symmetry::are_valid_sectors(SectorArray const& sectors) const
 SectorArray
 Symmetry::fusion_outcomes(Sector a, Sector b) const
 {
+    // --- hints from Python Symmetry.fusion_outcomes ---
+    // form an array of all combinations of the c_i
+    // e.g. if we have 3 factors, we want
+    // result[n1, n2, n3, :] = np.concatenate([c_1[n1, :], c_2[n2, :], c_3[n3, :]], axis=-1)
+    // we set the following elements:
+    // |                                                       i-th axis
+    // |                                                       v
+    // | results[:, :, ..., :, slice_i] = c_i[None, None, ..., :, ..., None, :]
+    // now reshape so that we get a 2D array where the first index (axis=0) runs over all those
+    // combinations
+    // ---
     auto np = numpy();
     std::vector<py::array> all_outcomes;
     std::vector<ssize_t> num_possibilities;
@@ -326,6 +339,10 @@ Symmetry::fusion_outcomes(Sector a, Sector b) const
 SectorArray
 Symmetry::fusion_outcomes_broadcast(SectorArray const& a, SectorArray const& b) const
 {
+    // --- hints from Python Symmetry.fusion_outcomes_broadcast ---
+    // the c_i have the same first axis as a and b.
+    // it remains to concatenate them along the last axis
+    // ---
     if (!is_abelian()) {
         PyErr_SetString(PyExc_AssertionError,
                         "fusion_outcomes_broadcast requires an abelian symmetry");
@@ -432,6 +449,9 @@ Symmetry::_n_symbol(Sector a, Sector b, Sector c) const
 SectorArray
 Symmetry::all_sectors() const
 {
+    // --- hints from Python Symmetry.all_sectors ---
+    // construct like in fusion_outcomes
+    // ---
     if (!std::isfinite(num_sectors)) {
         throw SymmetryError("symmetry has infinitely many sectors.");
     }

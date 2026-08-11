@@ -1,87 +1,23 @@
-"""Utility functions to access backend instances."""
+"""Utility functions to access backend instances.
+
+C++ ``get_backend`` via pybind11 (``cyten._core``).
+"""
 
 # Copyright (C) TeNPy Developers, Apache license
 from __future__ import annotations
 
-import logging
+from .._core import get_backend  # noqa: F401
 
-from ..block_backends import NumpyBlockBackend, TorchBlockBackend
-from ..config import get_config
-from ..symmetries import Symmetry, no_symmetry
-from ._backend import TensorBackend
-from .abelian import AbelianBackend
-from .fusion_tree_backend import FusionTreeBackend
-from .no_symmetry import NoSymmetryBackend
+# Re-exports kept for call sites that look up backend classes on this module.
+from ._backend import TensorBackend  # noqa: F401
+from .abelian import AbelianBackend  # noqa: F401
+from .fusion_tree_backend import FusionTreeBackend  # noqa: F401
+from .no_symmetry import NoSymmetryBackend  # noqa: F401
 
-logger = logging.getLogger(__name__)
-
-_tensor_backend_classes = dict(  # values: (cls, kwargs)
-    no_symmetry=(NoSymmetryBackend, {}), abelian=(AbelianBackend, {}), fusion_tree=(FusionTreeBackend, {})
-)
-_block_backends = dict(  # values: (cls, kwargs)
-    numpy=(NumpyBlockBackend, {}),
-    torch=(TorchBlockBackend, {}),
-    tensorflow=None,
-    jax=None,
-    cpu=(NumpyBlockBackend, {}),
-    gpu=(TorchBlockBackend, dict(default_device='cuda')),
-    apple_silicon=(TorchBlockBackend, dict(default_device='mps')),
-    tpu=None,
-)
-_instantiated_backends = {}  # keys: (tensor_backend: str, block_backend: str)
-
-
-def get_backend(symmetry: Symmetry | str = None, block_backend: str = None) -> TensorBackend:
-    """Get an instance of an appropriate backend.
-
-    Backends are instantiated only once and then cached. If a suitable backend instance is in
-    the cache, that same instance is returned.
-
-    Parameters
-    ----------
-    symmetry : {'no_symmetry', 'abelian', 'fusion_tree'} | Symmetry
-        Specifies which subclass of :class:`TensorBackend` to use, either directly via string,
-        or as the minimal version which supports the given symmetry.
-    block_backend : {None, 'numpy', 'torch', 'tensorflow', 'jax', 'cpu', 'gpu', 'tpu'}
-        Specify which block backend to use.
-
-    """
-    if symmetry is None:
-        symmetry = get_config().default_tensor_backend
-    if block_backend is None:
-        block_backend = get_config().default_block_backend
-
-    if isinstance(symmetry, Symmetry):
-        # figure out minimal symmetry_backend that supports that symmetry
-        if symmetry.is_equivalent_to(no_symmetry):
-            tensor_backend = 'no_symmetry'
-        elif symmetry.is_abelian and symmetry.has_trivial_braid:
-            tensor_backend = 'abelian'
-        else:
-            tensor_backend = 'fusion_tree'
-    elif isinstance(symmetry, str):
-        tensor_backend = symmetry
-    else:
-        raise TypeError('Invalid type for symmetry. Expected Symmetry or str')
-
-    key = (tensor_backend, block_backend)
-    backend = _instantiated_backends.get(key, None)
-    if backend is not None:
-        return backend
-
-    BlockBackendCls, block_kwargs = _block_backends[block_backend]
-    TensorBackendCls, tensor_kwargs = _tensor_backend_classes[tensor_backend]
-    if BlockBackendCls is NumpyBlockBackend and not block_kwargs:
-        block_backend_instance = NumpyBlockBackend.from_factory('cpu')
-    elif BlockBackendCls is TorchBlockBackend:
-        device = block_kwargs.get('default_device', 'cpu:0')
-        block_backend_instance = TorchBlockBackend.from_factory(device)
-    else:
-        block_backend_instance = BlockBackendCls(**block_kwargs)
-    backend = TensorBackendCls(block_backend=block_backend_instance, **tensor_kwargs)
-
-    if isinstance(symmetry, Symmetry):
-        assert backend.supports_symmetry(symmetry)
-
-    _instantiated_backends[key] = backend
-    return backend
+__all__ = [
+    'get_backend',
+    'TensorBackend',
+    'NoSymmetryBackend',
+    'AbelianBackend',
+    'FusionTreeBackend',
+]

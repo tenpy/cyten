@@ -140,6 +140,10 @@ SUN::SUN(int N_,
 bool
 SUN::is_valid_sector(Sector a) const
 {
+    // --- hints from Python SUN.is_valid_sector ---
+    // check for negative entries
+    // check that integer numbers in GT sequence are non increasing
+    // ---
     if (a.len() != static_cast<std::uint8_t>(N)) {
         return false;
     }
@@ -349,6 +353,10 @@ SUN::outer_multiplicity_from_CG(Sector a, Sector b) const
 float64
 SUN::clebschgordan(Sector a, int64 q_a, Sector b, int64 q_b, Sector c, int64 q_c, int64 mu) const
 {
+    // --- hints from Python SUN.clebschgordan ---
+    // we only save a x b  and not also b x a since the clebsch gordan coefficients are
+    // the same in both cases
+    // ---
     auto const hw = hweight_from_CG_hdf5();
     if (a.q[0] > hw || b.q[0] > hw || c.q[0] > hw) {
         throw std::invalid_argument(
@@ -428,6 +436,18 @@ SUN::_fusion_tensor(Sector a, Sector b, Sector c, bool Z_a, bool Z_b) const
 FusionSymbol
 SUN::_f_symbol_from_CG(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 {
+    // --- hints from Python SUN._f_symbol_from_CG ---
+    // [a,b,f, kappa]
+    // [f,c,d, lambda]
+    // [b,c,e, mu]
+    // [a,e,d, nu]
+    // [a,b,[f], kappa] ; [[f],c,d, lambda] --> [a,b,kappa,c,d, lambda]
+    // [a,b,c,d,kappa,lambda]
+    // [b,c,[e], mu] ; [a,[e],d, nu] --> [b,c,mu,a,d,nu]
+    // [a,b,c,d,mu,nu]
+    // [a,b,c,d,kappa,lambda] ; [a,b,c,d,mu,nu] --> [kappa,lambda,mu,nu]
+    // [mu, nu, kappa, lambda]
+    // ---
     auto const hw = hweight_from_CG_hdf5();
     if (a.q[0] > hw || b.q[0] > hw || c.q[0] > hw || d.q[0] > hw || e.q[0] > hw || f.q[0] > hw) {
         throw std::invalid_argument(
@@ -501,6 +521,13 @@ SUN::_f_symbol(Sector a, Sector b, Sector c, Sector d, Sector e, Sector f) const
 FusionSymbol
 SUN::_r_symbol_from_CG(Sector a, Sector b, Sector c) const
 {
+    // --- hints from Python SUN._r_symbol_from_CG ---
+    // [a,b,c, nu]
+    // [b,a,c,mu]
+    // OPTIMIZE (JU) I think this case is impossible (should never be called this way)
+    // and can be removed?
+    // [[a],(b),{c}, nu] , [(b),[a],{c},mu] --> [nu,mu]
+    // ---
     auto const hw = hweight_from_CG_hdf5();
     if (a.q[0] > hw || b.q[0] > hw || c.q[0] > hw) {
         throw std::invalid_argument(
@@ -554,6 +581,10 @@ SUN::frobenius_schur(Sector a) const
 bool
 SUN::has_data_in_group(py::object group) const
 {
+    // --- hints from Python SUN.has_data_in_group ---
+    // Dataset is not empty
+    // Iterate through all items in the group and check if any of them has data
+    // ---
     auto h5py = py::module_::import("h5py");
     if (py::isinstance(group, h5py.attr("Dataset"))) {
         return group.attr("size").cast<py::ssize_t>() > 0;
@@ -571,6 +602,17 @@ SUN::has_data_in_group(py::object group) const
 void
 SUN::sanity_check_hdf5(py::object file) const
 {
+    // --- hints from Python SUN.sanity_check_hdf5 ---
+    // Check if /F_sym/ group exists
+    // Ensure all keys start with 'F['
+    // Determine list length
+    // Check for all-zero key
+    // Check for at least one entry containing [H, H, 0]
+    // Check if /R_sym/ group exists
+    // Ensure all keys start with 'R['
+    // Contains all the keys up to the highest weight
+    // Assert key for loop weight is non-empty
+    // ---
     auto H = file.attr("attrs")["Highest_Weight"];
     auto Nattr = file.attr("attrs")["N"];
     auto keys0 = py::list(file.attr("keys")());

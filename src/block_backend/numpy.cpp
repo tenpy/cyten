@@ -337,6 +337,12 @@ NumpyBlockBackend::as_scalar(py::array value)
 BlockBackend::Scalar
 NumpyBlockBackend::as_scalar(complex128 value, Dtype dtype)
 {
+    // np.array(complex, dtype=float) raises TypeError even for 0j; take the real part
+    // when the target dtype is real (mapping amplitudes are stored as complex128).
+    if (dtype::is_real(dtype)) {
+        py::array arr = np_attr("array")(py::cast(value.real()), dtype::to_numpy_dtype(dtype));
+        return as_scalar(arr);
+    }
     py::array arr = np_attr("array")(py::cast(value), dtype::to_numpy_dtype(dtype));
     return as_scalar(arr);
 }

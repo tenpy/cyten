@@ -434,6 +434,10 @@ ArrayApiBlockBackend::as_scalar(py::object value)
 BlockBackend::Scalar
 ArrayApiBlockBackend::as_scalar(complex128 value, Dtype dt)
 {
+    if (dtype::is_real(dt)) {
+        return as_scalar(
+          api_.attr("asarray")(py::cast(value.real()), py::arg("dtype") = dtype_to_api(dt)));
+    }
     return as_scalar(api_.attr("asarray")(py::cast(value), py::arg("dtype") = dtype_to_api(dt)));
 }
 

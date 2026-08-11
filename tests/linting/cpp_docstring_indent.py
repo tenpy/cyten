@@ -11,6 +11,8 @@ import sys
 
 def find_pydoc_blocks(content):
     """Find all R\"pydoc( ... )pydoc\" blocks; yield (start_idx, end_idx, start_line_no)."""
+    # this simple code doesn't work for multiple start patterns on same line,
+    # but that's hopefully okay for our purposes
     pattern_start = 'R"pydoc('
     pattern_end = ')pydoc"'
     line = 0
@@ -23,11 +25,13 @@ def find_pydoc_blocks(content):
             if pattern_end in line_i:
                 line += i
                 if i == 0:
-                    continue  # skip: pydoc ends on the same line
+                    # pydoc ends on the same line -> continue with next line
+                    break
                 yield start, line
                 break
         else:
             raise ValueError(f'No closing )pydoc" found for R"pydoc( on line {line}')
+        line += 1  # move on to next line
 
 
 def get_indent_level(line):
@@ -37,6 +41,8 @@ def get_indent_level(line):
 def fix_docstring_alignment(content):
     updated = False
     for start, end in find_pydoc_blocks(content):
+        if start == end:
+            continue
         assert start < end
         indent_level_start = get_indent_level(content[start])
         if not content[start].lstrip().startswith('R"pydoc('):
@@ -64,13 +70,19 @@ def main():
     for path in sys.argv[1:]:
         with open(path, 'r') as f:
             content = f.readlines()
-        if fix_docstring_alignment(content):
+        try:
+            updated = fix_docstring_alignment(content)
+        except ValueError:
+            print(f'error happened in file {path}')
+            raise
+        if updated:
             print(f'Fixed docstring alignment in {path}')
             with open(path, 'w') as f:
                 f.writelines(content)
 
             exit = 1
-        print(f'No docstring alignment issues found in {path}')
+        else:
+            print(f'No docstring alignment issues found in {path}')
     raise SystemExit(exit)
 
 

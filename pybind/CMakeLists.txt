@@ -9,6 +9,7 @@ target_sources(_core
   py_config.cpp
   py_tools.cpp
   tools/py_cost_polynomials.cpp
+  tools/py_mappings.cpp
   py_version.cpp
   py_check.cpp
   symmetries/py_symmetries.cpp
@@ -37,4 +38,11 @@ target_sources(_core
   symmetries/py_symmetry.cpp
   symmetries/py_trees.cpp
   symmetries/py_spaces.cpp
+  backends/py_tensor_backend.cpp
+  backends/py_no_symmetry.cpp
+  backends/py_block_inds.cpp
+  backends/py_abelian.cpp
+  backends/py_fusion_tree_backend.cpp
+  backends/py_fusion_tree_mapping.cpp
+  backends/py_backend_factory.cpp
 )

@@ -221,3 +221,17 @@ struct std::hash<cyten::FusionTree>
 {
     std::size_t operator()(cyten::FusionTree const& t) const noexcept { return t.hash(); }
 };
+
+/// Hash for tree-pair keys used by :class:`cyten::SparseMappingFusionTreePair`.
+template<>
+struct std::hash<std::pair<cyten::FusionTree, cyten::FusionTree>>
+{
+    std::size_t operator()(std::pair<cyten::FusionTree, cyten::FusionTree> const& p) const noexcept
+    {
+        // Boost-style hash_combine of the two tree hashes.
+        std::size_t seed = std::hash<cyten::FusionTree>{}(p.first);
+        std::size_t h2 = std::hash<cyten::FusionTree>{}(p.second);
+        seed ^= h2 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        return seed;
+    }
+};
