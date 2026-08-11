@@ -4742,6 +4742,9 @@ def _compose_with_Mask(tensor: Tensor, mask: Mask, leg_idx: int) -> Tensor:
     return SymmetricTensor(data, codomain, domain, backend=backend, labels=tensor.labels)
 
 
+from .._core import _compose_with_Mask  # noqa: F401
+
+
 def _compose_SymmetricTensors(
     tensor1: SymmetricTensor, tensor2: SymmetricTensor, relabel1: dict[str, str] = None, relabel2: dict[str, str] = None
 ) -> SymmetricTensor:
@@ -4773,6 +4776,9 @@ def _compose_SymmetricTensors(
     backend = get_same_backend(tensor1, tensor2)
     data = backend.compose(tensor1, tensor2)
     return SymmetricTensor(data=data, codomain=tensor1.codomain, domain=tensor2.domain, backend=backend, labels=labels)
+
+
+from .._core import _compose_SymmetricTensors  # noqa: F401
 
 
 def eigh(
@@ -7144,6 +7150,9 @@ def _check_compatible_legs(legs1: Sequence[Leg], legs2: Sequence[Leg], expect_eq
             raise ValueError('Incompatible legs.')
 
 
+from .._core import _check_compatible_legs  # noqa: F401
+
+
 def _convert_abelian_to_FT(tensor: SymmetricTensor, backend: FusionTreeBackend, dtype: Dtype, device: str):
     """Convert tensor from abelian backend to FT backend. Return the data
 
@@ -7257,6 +7266,9 @@ def _convert_abelian_to_FT(tensor: SymmetricTensor, backend: FusionTreeBackend, 
     return FusionTreeData(block_inds, blocks, dtype=dtype, device=device, is_sorted=True)
 
 
+from .._core import _convert_abelian_to_FT  # noqa: F401
+
+
 def _convert_FT_to_abelian(tensor: SymmetricTensor, backend: FusionTreeBackend, dtype: Dtype, device: str):
     """Convert tensor from abelian backend to FT backend. Return the data
 
@@ -7362,6 +7374,9 @@ def _convert_FT_to_abelian(tensor: SymmetricTensor, backend: FusionTreeBackend, 
     return AbelianBackendData(dtype=dtype, device=device, blocks=res_blocks, block_inds=res_block_inds)
 
 
+from .._core import _convert_FT_to_abelian  # noqa: F401
+
+
 def _decomposition_prepare(tensor: Tensor, new_leg_dual: bool) -> tuple[SymmetricTensor, ElementarySpace, bool, bool]:
     """Common steps to prepare a SymmetricTensor before a decomposition"""
     assert tensor.num_codomain_legs > 0, 'empty codomain'
@@ -7390,6 +7405,9 @@ def _decomposition_prepare(tensor: Tensor, new_leg_dual: bool) -> tuple[Symmetri
     return tensor, new_co_domain, combine_codomain, combine_domain
 
 
+from .._core import _decomposition_prepare  # noqa: F401
+
+
 def _decomposition_labels(new_labels: str | None | list[str]) -> tuple[str, str]:
     new_labels = to_iterable(new_labels)
     if len(new_labels) == 1:
@@ -7400,6 +7418,9 @@ def _decomposition_labels(new_labels: str | None | list[str]) -> tuple[str, str]
     else:
         raise ValueError(f'Expected 1 or 2 labels. Got {len(new_labels)}')
     return a, b
+
+
+from .._core import _decomposition_labels  # noqa: F401
 
 
 def _svd_new_labels(new_labels: str | Sequence[str]) -> tuple[str, str, str, str]:
@@ -7420,3 +7441,6 @@ def _svd_new_labels(new_labels: str | Sequence[str]) -> tuple[str, str, str, str
             raise ValueError(f'Expected 1, 2 or 4 new_labels. Got {len(new_labels)}')
         assert (b is None) or b != c
     return a, b, c, d
+
+
+from .._core import _svd_new_labels  # noqa: F401

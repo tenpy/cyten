@@ -54,7 +54,12 @@ flowchart TD
 | 6 | `Identity` | **C++ + bindings** (no trampoline); monkey-patch deferred — [convert_Identity.md](convert_Identity.md) |
 | 7 | `Mask` | **C++ + bindings** (no trampoline); monkey-patch deferred — [convert_Mask.md](convert_Mask.md) |
 | 8 | `ChargedTensor` | **C++ + bindings** (no trampoline); monkey-patch deferred — [convert_ChargedTensor.md](convert_ChargedTensor.md) |
-| 9–14 | Free-function batches | pending |
+| 9 | Private helpers (`_check_compatible_legs`, `_compose_*`, `_convert_*`, `_decomposition_*`, `_svd_new_labels`) | **C++ + bindings + monkey-patched** — [convert_tensor_helpers.md](convert_tensor_helpers.md) |
+| 10 | Constructors (`eye`, `tensor`, `add_trivial_leg`, …) | pending |
+| 11 | Elementwise ops | pending |
+| 12 | Algebra ops | pending |
+| 13 | Leg permutation ops | pending |
+| 14 | Decompositions | pending |
 | 15 | Backend `py::object` cleanup | pending |
 
 Keep Python class bodies until **all** `Tensor` subclasses are converted (skill rule). `LabelledLegs` / label helpers may be monkey-patched earlier once bindings work; keep Python `LabelledLegs` until `Tensor` subclasses no longer need it, or monkey-patch carefully so `Tensor` still subclasses the C++ type.

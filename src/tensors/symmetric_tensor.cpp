@@ -1,3 +1,4 @@
+#include <cyten/tensors/helpers.h>
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tensors/diagonal_tensor.h>
 
@@ -705,19 +706,20 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
         if (std::dynamic_pointer_cast<AbelianBackend>(backend)) {
             new_data = backend->to_block_backend(data, new_backend->block_backend, dt, device_s);
         } else if (std::dynamic_pointer_cast<FusionTreeBackend>(backend)) {
-            new_data = py::module_::import("cyten.tensors._tensors")
-                         .attr("_convert_FT_to_abelian")(
-                           as_py_object(), py::cast(new_backend), py::cast(dt), py::cast(device_s))
-                         .cast<TensorBackend::DataPtr>();
+            new_data = _convert_FT_to_abelian(as_py_object(),
+                                              std::dynamic_pointer_cast<AbelianBackend>(new_backend),
+                                              dt,
+                                              device_s);
         } else {
             throw std::runtime_error("Unexpected backend combination");
         }
     } else if (std::dynamic_pointer_cast<FusionTreeBackend>(new_backend)) {
         if (std::dynamic_pointer_cast<AbelianBackend>(backend)) {
-            new_data = py::module_::import("cyten.tensors._tensors")
-                         .attr("_convert_abelian_to_FT")(
-                           as_py_object(), py::cast(new_backend), py::cast(dt), py::cast(device_s))
-                         .cast<TensorBackend::DataPtr>();
+            new_data =
+              _convert_abelian_to_FT(as_py_object(),
+                                     std::dynamic_pointer_cast<FusionTreeBackend>(new_backend),
+                                     dt,
+                                     device_s);
         } else if (std::dynamic_pointer_cast<FusionTreeBackend>(backend)) {
             new_data = backend->to_block_backend(data, new_backend->block_backend, dt, device_s);
         } else {

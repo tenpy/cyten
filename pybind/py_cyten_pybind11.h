@@ -37,6 +37,7 @@ void bind_tensors_symmetric_tensor(py::module_& m);
 void bind_tensors_diagonal_tensor(py::module_& m);
 void bind_tensors_mask(py::module_& m);
 void bind_tensors_charged_tensor(py::module_& m);
+void bind_tensors_helpers(py::module_& m);
 void bind_check(py::module_& m);
 
 } // namespace cyten
