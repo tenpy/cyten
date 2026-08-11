@@ -52,7 +52,7 @@ flowchart TD
 | 4 | `SymmetricTensor` | **C++ + bindings + trampoline**; monkey-patch deferred — [convert_SymmetricTensor.md](convert_SymmetricTensor.md) |
 | 5 | `DiagonalTensor` | **C++ + bindings + trampoline**; monkey-patch deferred — [convert_DiagonalTensor.md](convert_DiagonalTensor.md) |
 | 6 | `Identity` | **C++ + bindings** (no trampoline); monkey-patch deferred — [convert_Identity.md](convert_Identity.md) |
-| 7 | `Mask` | pending |
+| 7 | `Mask` | in progress — [convert_Mask.md](convert_Mask.md) |
 | 8 | `ChargedTensor` | pending |
 | 9–14 | Free-function batches | pending |
 | 15 | Backend `py::object` cleanup | pending |
