@@ -478,8 +478,9 @@ DiagonalTensor::_binary_operand(py::object other,
               as_py_object(), wrapped, py::dict(), /*maps_zero_to_zero=*/false);
         }
     } else if (py::isinstance(other, tensors_mod.attr("DiagonalTensor")) ||
-               py::isinstance(other, py::type::of(as_py_object()))) {
-        if (py::isinstance(other, tensors_mod.attr("Identity"))) {
+               py::isinstance(other, py::type::of(as_py_object())) ||
+               py::isinstance<DiagonalTensor>(other)) {
+        if (py::isinstance(other, tensors_mod.attr("Identity")) || py::isinstance<Identity>(other)) {
             other = other.attr("as_DiagonalTensor")();
         }
         auto same = get_same_backend({ as_py_object(), other });
@@ -753,6 +754,284 @@ DiagonalTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string c
     auto sym = SymmetricTensor::from_hdf5(hdf5_loader, h5gr, subpath);
     return std::make_shared<DiagonalTensor>(
       sym->data, sym->codomain->factors[0].cast<Space::Ptr>(), sym->backend, sym->symmetry, sym->labels());
+}
+
+// ---------------------------------------------------------------------------
+// Identity
+// ---------------------------------------------------------------------------
+
+void
+Identity::unsupported_factory(char const* name)
+{
+    throw std::invalid_argument(std::format("{} is not supported for Identity", name));
+}
+
+Identity::Identity(py::object leg_obj,
+                   TensorBackend::Ptr backend_in,
+                   std::optional<Dtype> dtype_in,
+                   std::optional<std::string> device_in,
+                   py::object labels_obj)
+  : DiagonalTensor(
+      [&]() -> TensorBackend::DataPtr {
+          // Note: SymmetricTensor.__init__ assumes that there is data, which we do not have here,
+          //       so we need to skip it and go straigth to Tensor.__init__
+          auto [codomain, domain, backend, _] =
+            _init_parse_args(py::make_tuple(leg_obj), py::make_tuple(leg_obj), backend_in);
+          (void)domain;
+          (void)_;
+          auto dtype = _parse_default_dtype(dtype_in, as_space_leg(leg_obj)->symmetry);
+          if (!dtype.has_value()) {
+              dtype = Dtype::Float64;
+          }
+          std::string device_s;
+          if (!device_in.has_value()) {
+              device_s = backend->block_backend->default_device;
+          } else {
+              device_s = *device_in;
+          }
+          // we give it dummy data here (that is not used in contractions etc.)
+          // this is important since there is a potential change in the device matching
+          // the same effect for the other tensor classes (happens e.g. for torch)
+          // using backend.block_backend.as_device() is not sufficient? Why?
+          return backend->eye_data(codomain, *dtype, device_s);
+      }(),
+      leg_obj,
+      backend_in,
+      labels_obj)
+{
+}
+
+Identity::Identity(Space::Ptr leg_in,
+                   TensorBackend::Ptr backend_in,
+                   Symmetry::Ptr symmetry_in,
+                   LegLabels labels_in,
+                   Dtype dtype_in,
+                   std::string device_in)
+  : DiagonalTensor(
+      backend_in->eye_data(
+        std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(leg_in) }),
+        dtype_in,
+        device_in),
+      std::move(leg_in),
+      std::move(backend_in),
+      std::move(symmetry_in),
+      std::move(labels_in))
+{
+}
+
+void
+Identity::test_sanity() const
+{
+    Tensor::test_sanity();
+    verify_dtype();
+}
+
+std::string
+Identity::class_name() const
+{
+    return "Identity";
+}
+
+py::object
+Identity::as_py_object()
+{
+    return py::cast(std::static_pointer_cast<Identity>(shared_from_this()));
+}
+
+py::object
+Identity::as_py_object() const
+{
+    return const_cast<Identity*>(this)->as_py_object();
+}
+
+Identity::Ptr
+Identity::from_eye(py::object leg,
+                   TensorBackend::Ptr backend,
+                   py::object labels,
+                   Dtype /*dtype*/,
+                   std::optional<std::string> /*device*/)
+{
+    return std::make_shared<Identity>(leg, std::move(backend), std::nullopt, std::nullopt, labels);
+}
+
+Tensor::Ptr
+Identity::as_dtype(Dtype new_dtype)
+{
+    if (new_dtype == dtype) {
+        return shared_from_this();
+    }
+    return std::make_shared<Identity>(leg(), backend, symmetry, labels(), new_dtype, device);
+}
+
+py::object
+Identity::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::string> warning)
+{
+    if (warning.has_value()) {
+        warn(*warning);
+    }
+    return py::cast(SymmetricTensor::from_eye(
+      py::cast(codomain), backend, py::cast(labels()), dtype, device));
+}
+
+DiagonalTensor::Ptr
+Identity::as_DiagonalTensor(bool /*guarantee_copy*/, std::optional<std::string> warning)
+{
+    if (warning.has_value()) {
+        warn(*warning);
+    }
+    return DiagonalTensor::from_eye(py::cast(leg()), backend, py::cast(labels()), dtype, device);
+}
+
+py::object
+Identity::_binary_operand(py::object other,
+                          py::function func,
+                          std::string const& operand,
+                          bool return_NotImplemented,
+                          bool right)
+{
+    auto substitute = as_DiagonalTensor();
+    return substitute->_binary_operand(other, func, operand, return_NotImplemented, right);
+}
+
+Tensor::Ptr
+Identity::copy(bool /*deep*/,
+               std::optional<std::string> /*device_opt*/,
+               std::optional<Dtype> dtype_opt)
+{
+    if (dtype_opt.has_value() && *dtype_opt != dtype) {
+        // Python: ``return self.as_dtype(dtype, device=device)`` — as_dtype ignores device.
+        return as_dtype(*dtype_opt);
+    }
+    return shared_from_this();
+}
+
+py::object
+Identity::diagonal(bool /*check_offdiagonal*/) const
+{
+    return py::cast(const_cast<Identity*>(this)->as_DiagonalTensor());
+}
+
+BlockBackend::BlockPtr
+Identity::diagonal_as_block(std::optional<Dtype> dtype_opt)
+{
+    if (!symmetry->can_be_dropped()) {
+        throw SymmetryError(
+          std::format("Dense block representation is not supported for symmetry {}", symmetry->repr()));
+    }
+    return backend->block_backend->ones_block(
+      { static_cast<int64>(leg()->dim) },
+      dtype_opt.value_or(dtype),
+      device);
+}
+
+py::array
+Identity::diagonal_as_numpy(py::object numpy_dtype)
+{
+    if (numpy_dtype.is_none()) {
+        numpy_dtype = dtype::to_numpy_dtype(dtype);
+    }
+    return py::module_::import("numpy").attr("ones")(static_cast<int64>(leg()->dim), numpy_dtype);
+}
+
+DiagonalTensor::Ptr
+Identity::elementwise_almost_equal(py::object other, float64 rtol, float64 atol)
+{
+    return as_DiagonalTensor()->elementwise_almost_equal(other, rtol, atol);
+}
+
+DiagonalTensor::Ptr
+Identity::_elementwise_unary(py::function func, py::object func_kwargs, bool maps_zero_to_zero)
+{
+    return as_DiagonalTensor()->_elementwise_unary(func, func_kwargs, maps_zero_to_zero);
+}
+
+DiagonalTensor::Ptr
+Identity::_elementwise_binary(py::object other,
+                              py::function func,
+                              py::object func_kwargs,
+                              bool partial_zero_is_zero)
+{
+    return as_DiagonalTensor()->_elementwise_binary(other, func, func_kwargs, partial_zero_is_zero);
+}
+
+BlockBackend::Scalar
+Identity::_get_item(std::vector<int64> const& idx)
+{
+    assert(idx.size() == 2);
+    if (idx[0] != idx[1]) {
+        return backend->block_backend->as_scalar(dtype::zero_scalar(dtype), dtype);
+    }
+    return backend->block_backend->as_scalar(dtype::one_scalar(dtype), dtype);
+}
+
+bool
+Identity::all() const
+{
+    if (dtype != Dtype::Bool) {
+        throw std::invalid_argument(
+          std::format("all is not defined for dtype {}", dtype::repr(dtype)));
+    }
+    return true;
+}
+
+bool
+Identity::any() const
+{
+    if (dtype != Dtype::Bool) {
+        throw std::invalid_argument(
+          std::format("any is not defined for dtype {}", dtype::repr(dtype)));
+    }
+    return leg()->dim > 0;
+}
+
+BlockBackend::Scalar
+Identity::max() const
+{
+    assert(dtype::is_real(dtype));
+    return backend->block_backend->as_scalar(dtype::one_scalar(dtype), dtype);
+}
+
+BlockBackend::Scalar
+Identity::min() const
+{
+    assert(dtype::is_real(dtype));
+    return backend->block_backend->as_scalar(dtype::one_scalar(dtype), dtype);
+}
+
+DiagonalTensor::Ptr
+Identity::abs() const
+{
+    return std::const_pointer_cast<Identity>(
+      std::static_pointer_cast<Identity const>(shared_from_this()));
+}
+
+void
+Identity::move_to_device(std::string device_in)
+{
+    device = backend->block_backend->as_device(device_in);
+}
+
+Tensor::Ptr
+Identity::to_backend(TensorBackend::Ptr new_backend,
+                     std::optional<Dtype> dtype_opt,
+                     std::optional<std::string> device_opt)
+{
+    if (!new_backend->supports_symmetry(symmetry)) {
+        throw SymmetryError("backend does not support symmetry");
+    }
+    Dtype dt = dtype_opt.value_or(dtype);
+    auto device_s = new_backend->block_backend->as_device(
+      device_opt.has_value() ? device_opt : std::optional<std::string>{ device });
+    return std::make_shared<Identity>(leg(), new_backend, symmetry, labels(), dt, device_s);
+}
+
+BlockBackend::BlockPtr
+Identity::to_dense_block(
+  std::optional<std::vector<std::variant<int64, std::string>>> leg_order,
+  std::optional<Dtype> dtype_opt,
+  bool understood_braiding)
+{
+    return as_DiagonalTensor()->to_dense_block(leg_order, dtype_opt, understood_braiding);
 }
 
 } // namespace cyten

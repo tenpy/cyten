@@ -131,7 +131,7 @@ class DiagonalTensor : public SymmetricTensor
                                    std::optional<std::string> device = std::nullopt,
                                    std::optional<Dtype> dtype = std::nullopt) override;
 
-    [[nodiscard]] py::object diagonal(bool check_offdiagonal = false) const;
+    [[nodiscard]] virtual py::object diagonal(bool check_offdiagonal = false) const;
 
     [[nodiscard]] BlockBackend::Scalar _get_item(std::vector<int64> const& idx) override;
 
@@ -246,7 +246,7 @@ class Identity : public DiagonalTensor
                                    std::optional<std::string> device = std::nullopt,
                                    std::optional<Dtype> dtype = std::nullopt) override;
 
-    [[nodiscard]] py::object diagonal(bool check_offdiagonal = false) const;
+    [[nodiscard]] py::object diagonal(bool check_offdiagonal = false) const override;
 
     [[nodiscard]] BlockBackend::BlockPtr diagonal_as_block(
       std::optional<Dtype> dtype = std::nullopt) override;
