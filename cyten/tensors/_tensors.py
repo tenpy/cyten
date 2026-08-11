@@ -54,31 +54,17 @@ from ..tools.string import vert_join
 logger = logging.getLogger(__name__)
 _USE_PERMUTE_LEGS_ERR_MSG = 'Legs can not be permuted automatically. Explicitly use permute_legs()'
 
-
-CONTRACT_SYMBOL = '@'
-"""Reserved character to indicate contractions in :mod:`~cyten.planar` diagrams."""
-
-LEG_SELECT_SYMBOL = ':'
-"""Reserved character to select a leg of a tensor in :mod:`~cyten.planar` diagrams."""
-
-OPEN_LEG_SYMBOL = '->'
-"""Reserved character to indicate an open leg in :mod:`~cyten.planar` diagrams."""
-
-FORBIDDEN_LEG_LABEL_CHARS = [
-    ' ',
-    '\t',
-    '\n',  # whitespace
-    CONTRACT_SYMBOL,
-    LEG_SELECT_SYMBOL,
-    *OPEN_LEG_SYMBOL,
-]
-"""List of characters that are forbidden in leg labels"""
-
-from .._core import (  # noqa: E402, F401
+from .._core import (  # noqa: F401
     CONTRACT_SYMBOL,
     FORBIDDEN_LEG_LABEL_CHARS,
     LEG_SELECT_SYMBOL,
     OPEN_LEG_SYMBOL,
+    _combine_leg_labels,
+    _dual_label_list,
+    _dual_leg_label,
+    _get_matching_labels,
+    _split_leg_label,
+    is_valid_leg_label,
 )
 
 
@@ -7158,14 +7144,6 @@ def _check_compatible_legs(legs1: Sequence[Leg], legs2: Sequence[Leg], expect_eq
             raise ValueError('Incompatible legs.')
 
 
-def _combine_leg_labels(labels: list[str | None], offset: int) -> str:
-    """The label that a combined leg should have"""
-    return '(' + '.'.join(f'?{n + offset}' if l is None else l for n, l in enumerate(labels)) + ')'
-
-
-from .._core import _combine_leg_labels  # noqa: E402, F811
-
-
 def _convert_abelian_to_FT(tensor: SymmetricTensor, backend: FusionTreeBackend, dtype: Dtype, device: str):
     """Convert tensor from abelian backend to FT backend. Return the data
 
@@ -7422,88 +7400,6 @@ def _decomposition_labels(new_labels: str | None | list[str]) -> tuple[str, str]
     else:
         raise ValueError(f'Expected 1 or 2 labels. Got {len(new_labels)}')
     return a, b
-
-
-def _dual_label_list(labels: list[str | None]) -> list[str | None]:
-    return [_dual_leg_label(l) for l in reversed(labels)]
-
-
-from .._core import _dual_label_list  # noqa: E402, F811
-
-
-def _dual_leg_label(label: str | None) -> str | None:
-    """The label that a leg should have after conjugation"""
-    if label is None:
-        return None
-    if label.startswith('(') and label.endswith(')'):
-        return _combine_leg_labels(_dual_label_list(_split_leg_label(label)))
-    if label.endswith('*'):
-        return label[:-1]
-    else:
-        return label + '*'
-
-
-from .._core import _dual_leg_label  # noqa: E402, F811
-
-
-def _get_matching_labels(labels1: list[str | None], labels2: list[str | None], stacklevel: int = 1) -> list[str | None]:
-    """Utility function to combine two lists of labels that should match.
-
-    Per pair of labels::
-        - If one is ``None``, use the other.
-        - If they are equal, use that label.
-        - If they are different, emit DEBUG message to the logger and choose ``None``.
-          ``stacklevel=1`` refers to the line that calls this function. Increment to skip to
-          higher frames.
-    """
-    labels = []
-    conflicts = []
-    for n, (l1, l2) in enumerate(zip(labels1, labels2)):
-        if l1 is None:
-            labels.append(l2)
-        elif (l2 is None) or (l1 == l2):
-            labels.append(l1)
-        else:
-            conflicts.append(n)
-            labels.append(None)
-    if conflicts:
-        msg = f'Conflicting labels at positions {", ".join(map(str, conflicts))} are dropped. {labels1=}, {labels2=}.'
-        logger.debug(msg, stacklevel=stacklevel + 1)
-    return labels
-
-
-from .._core import _get_matching_labels  # noqa: E402, F811
-
-
-def is_valid_leg_label(label) -> bool:
-    """If the given string is a valid leg label."""
-    if label is None:
-        return True
-    if not isinstance(label, str):
-        return False
-    # TODO extend: check for valid syntax of combined / conjugated labels?
-    if any(f in label for f in FORBIDDEN_LEG_LABEL_CHARS):
-        return False
-    return True
-
-
-from .._core import is_valid_leg_label  # noqa: E402, F811
-
-
-def _split_leg_label(label: str | None, num: int = None) -> list[str | None]:
-    """Undo _combine_leg_labels, i.e. recover the original labels"""
-    if label is None:
-        assert num is not None
-        return [None] * num
-    if label.startswith('(') and label.endswith(')'):
-        labels = label[1:-1].split('.')
-        assert num is None or len(labels) == num
-        return [None if l.startswith('?') else l for l in labels]
-    else:
-        raise ValueError('Invalid format for a combined label')
-
-
-from .._core import _split_leg_label  # noqa: E402, F811
 
 
 def _svd_new_labels(new_labels: str | Sequence[str]) -> tuple[str, str, str, str]:

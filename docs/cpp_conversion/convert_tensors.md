@@ -47,7 +47,7 @@ flowchart TD
 
 | # | Object(s) | Status |
 | --- | --- | --- |
-| 1–2 | Label helpers + `LabelledLegs` | in progress — [convert_LabelledLegs.md](convert_LabelledLegs.md) |
+| 1–2 | Label helpers + `LabelledLegs` | **C++ + bindings**; helpers monkey-patched; Python `LabelledLegs` kept — [convert_LabelledLegs.md](convert_LabelledLegs.md) |
 | 3 | `Tensor` ABC + trampoline | pending |
 | 4 | `SymmetricTensor` | pending |
 | 5 | `DiagonalTensor` | pending |

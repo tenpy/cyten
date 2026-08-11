@@ -53,6 +53,6 @@
 - [x] generate pybind11 bindings
 - [x] generate pybind11 trampoline — skipped (defer monkey-patch of `LabelledLegs`)
 - [x] monkey-patch free helpers + constants; keep Python `LabelledLegs` until Tensor
-- [ ] run python tests with pytest (in progress)
-- [ ] remove original python code — helpers after tests; class later
-- [ ] wrap up
+- [x] run python tests with pytest (`test_tensors.py`: 4341 passed, 596 xfailed)
+- [x] remove original python code for helpers/constants (class `LabelledLegs` kept)
+- [x] wrap up (batch 1–2); next: `Tensor` ABC
