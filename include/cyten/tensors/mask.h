@@ -2,127 +2,182 @@
 
 #include <cyten/tensors/diagonal_tensor.h>
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <variant>
+#include <vector>
+
 namespace cyten {
 
-// Mask declaration will be appended by codegen.
+/// A boolean mask that can be used to project or enlarge a leg.
+///
+/// Masks come in two versions: projections and inclusions. A projection Mask has a single leg, the
+/// :attr:`large_leg` in its domain and maps it to a single leg, the :attr:`small_leg` in the
+/// codomain. An inclusion Mask is the dagger of this projection Mask and maps from the small leg
+/// in the domain to the large leg in the codomain.
+class Mask : public Tensor
+{
+  public:
+    using Ptr = std::shared_ptr<Mask>;
+    using CPtr = std::shared_ptr<const Mask>;
+
+    /// Float / complex dtypes are forbidden (bool only). Matches Python ``_forbidden_dtypes``.
+    static std::vector<Dtype> _forbidden_dtypes;
+
+    bool is_projection = true;
+    TensorBackend::DataPtr data;
+
+    /// Construct from flexible Python-style inputs.
+    Mask(TensorBackend::DataPtr data,
+         py::object space_in,
+         py::object space_out,
+         std::optional<bool> is_projection = std::nullopt,
+         TensorBackend::Ptr backend = nullptr,
+         py::object labels = py::none());
+
+    /// Construct from already-parsed C++ inputs.
+    Mask(TensorBackend::DataPtr data,
+         Space::Ptr space_in,
+         Space::Ptr space_out,
+         bool is_projection,
+         TensorBackend::Ptr backend,
+         Symmetry::Ptr symmetry,
+         LegLabels labels,
+         std::string device);
+
+    ~Mask() override = default;
+
+    [[nodiscard]] std::vector<Dtype> const& forbidden_dtypes() const override;
+
+    void test_sanity() const override;
+
+    [[nodiscard]] std::string ascii_diagram_type_name() const override;
+    [[nodiscard]] std::string class_name() const override;
+
+    /// The large leg (domain for projection, codomain for inclusion).
+    [[nodiscard]] ElementarySpace::Ptr large_leg() const;
+
+    /// The small leg (codomain for projection, domain for inclusion).
+    [[nodiscard]] ElementarySpace::Ptr small_leg() const;
+
+    // --- factories ---
+
+    /// The identity map as a Mask, i.e. the mask that keeps all states and discards none.
+    [[nodiscard]] static Ptr from_eye(py::object leg,
+                                      bool is_projection = true,
+                                      TensorBackend::Ptr backend = nullptr,
+                                      py::object labels = py::none(),
+                                      std::optional<std::string> device = std::nullopt);
+
+    /// Create a projection Mask from a boolean block.
+    [[nodiscard]] static Ptr from_block_mask(BlockBackend::BlockPtr block_mask,
+                                             py::object large_leg,
+                                             TensorBackend::Ptr backend = nullptr,
+                                             py::object labels = py::none(),
+                                             std::optional<std::string> device = std::nullopt);
+
+    /// Create a projection Mask from a boolean DiagonalTensor.
+    [[nodiscard]] static Ptr from_DiagonalTensor(py::object diag);
+
+    /// Create a projection Mask from the indices that are kept.
+    [[nodiscard]] static Ptr from_indices(py::object indices,
+                                          py::object large_leg,
+                                          TensorBackend::Ptr backend = nullptr,
+                                          py::object labels = py::none(),
+                                          std::optional<std::string> device = std::nullopt);
+
+    /// Create a random projection Mask.
+    [[nodiscard]] static Ptr from_random(py::object large_leg,
+                                         py::object small_leg = py::none(),
+                                         TensorBackend::Ptr backend = nullptr,
+                                         float64 p_keep = 0.5,
+                                         int64 min_keep = 0,
+                                         py::object labels = py::none(),
+                                         std::optional<std::string> device = std::nullopt,
+                                         py::object np_random = py::none());
+
+    /// The zero projection Mask, that discards all states and keeps none.
+    [[nodiscard]] static Ptr from_zero(py::object large_leg,
+                                       TensorBackend::Ptr backend = nullptr,
+                                       py::object labels = py::none(),
+                                       std::optional<std::string> device = std::nullopt);
+
+    [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
+                                       py::object h5gr,
+                                       std::string const& subpath);
+
+    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+
+    // --- Tensor overrides ---
+
+    [[nodiscard]] Tensor::Ptr as_dtype(Dtype dtype) override;
+
+    [[nodiscard]] py::object as_SymmetricTensor(
+      bool guarantee_copy = false,
+      std::optional<std::string> warning = std::nullopt) override;
+
+    /// Like :meth:`as_SymmetricTensor`, with an explicit result dtype (Python Mask API).
+    [[nodiscard]] py::object as_SymmetricTensor(bool guarantee_copy,
+                                                std::optional<std::string> warning,
+                                                Dtype dtype);
+
+    [[nodiscard]] Tensor::Ptr copy(bool deep = true,
+                                   std::optional<std::string> device = std::nullopt,
+                                   std::optional<Dtype> dtype = std::nullopt) override;
+
+    [[nodiscard]] Tensor::Ptr dagger() const override;
+
+    [[nodiscard]] BlockBackend::Scalar _get_item(std::vector<int64> const& idx) override;
+
+    void move_to_device(std::string device) override;
+
+    [[nodiscard]] Tensor::Ptr to_backend(TensorBackend::Ptr backend,
+                                         std::optional<Dtype> dtype = std::nullopt,
+                                         std::optional<std::string> device = std::nullopt) override;
+
+    [[nodiscard]] BlockBackend::BlockPtr to_dense_block(
+      std::optional<std::vector<std::variant<int64, std::string>>> leg_order = std::nullopt,
+      std::optional<Dtype> dtype = std::nullopt,
+      bool understood_braiding = false) override;
+
+    /// Override of :meth:`Tensor::to_numpy` (non-virtual on base; Mask has its own dense layout).
+    [[nodiscard]] py::array to_numpy(
+      std::optional<std::vector<std::variant<int64, std::string>>> leg_order = std::nullopt,
+      py::object numpy_dtype = py::none(),
+      bool understood_braiding = false);
+
+    // --- Mask-specific API ---
+
+    [[nodiscard]] DiagonalTensor::Ptr as_DiagonalTensor(Dtype dtype = Dtype::Complex128);
+
+    [[nodiscard]] BlockBackend::BlockPtr as_block_mask();
+
+    [[nodiscard]] py::array as_numpy_mask();
+
+    [[nodiscard]] bool all() const;
+
+    [[nodiscard]] bool any() const;
+
+    /// Alias for :meth:`orthogonal_complement`.
+    [[nodiscard]] Ptr logical_not();
+
+    /// The "opposite" Mask, that keeps exactly what self discards and vv.
+    [[nodiscard]] Ptr orthogonal_complement();
+
+    /// Utility for binary boolean ops (``&``, ``|``, ``^``, ``==``, ``!=``).
+    ///
+    /// ``other`` is a bool or Mask. Returns a Mask, or ``NotImplemented`` when appropriate.
+    [[nodiscard]] py::object _binary_operand(py::object other,
+                                             py::function func,
+                                             std::string const& operand,
+                                             bool return_NotImplemented = true);
+
+    [[nodiscard]] Ptr _unary_operand(py::function func);
+
+    /// ``py::cast`` of ``shared_from_this`` as Mask (for backend APIs taking ``py::object``).
+    [[nodiscard]] py::object as_py_object();
+    [[nodiscard]] py::object as_py_object() const;
+};
 
 } // namespace cyten
-// CHECKME: the following was generated by .cursor/skills/pybind11-codegen/pybind11_codegen.py gen_cpp_declaration --py-name Mask --header-file include/cyten/tensors/mask.h
-
-/// A boolean mask that can be used to project or enlarge a leg.
-class Mask : public Tensor {
-public:
-    static TYPEOF__forbidden_dtypes _forbidden_dtypes;
-public:
-    Mask(
-        TYPEOF_data data,
-        ElementarySpace::Ptr space_in,
-        ElementarySpace::Ptr space_out,
-        bool is_projection=py::none(),
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none()
-    );
-    virtual ~Mask() = default;
-    /// property getter
-    ElementarySpace::Ptr get_large_leg();
-    /// property getter
-    ElementarySpace::Ptr get_small_leg();
-    /// Perform sanity checks.
-    virtual TYPEOF_return test_sanity() override;
-    /// property getter
-    ElementarySpace::Ptr get_large_leg();
-    /// property getter
-    ElementarySpace::Ptr get_small_leg();
-    /// The identity map as a Mask, i.e. the mask that keeps all states and discards none.
-    TYPEOF_return from_eye(
-        ElementarySpace::Ptr leg,
-        bool is_projection=true,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        std::string device=py::none()
-    );
-    /// Create a projection Mask from a boolean block.
-    TYPEOF_return from_block_mask(
-        BlockBackend::BlockPtr block_mask,
-        Space::Ptr large_leg,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        std::string device=py::none()
-    );
-    /// Create a projection Mask from a boolean DiagonalTensor.
-    TYPEOF_return from_DiagonalTensor(DiagonalTensor::Ptr diag);
-    /// Create a projection Mask from the indices that are kept.
-    TYPEOF_return from_indices(
-        int64 indices,
-        Space::Ptr large_leg,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        std::string device=py::none()
-    );
-    /// Create a random projection Mask.
-    TYPEOF_return from_random(
-        Space::Ptr large_leg,
-        Space::Ptr small_leg=py::none(),
-        TensorBackend::Ptr backend=py::none(),
-        float64 p_keep=0.5,
-        int64 min_keep=0,
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        std::string device=py::none(),
-        np_random_Generator np_random=np.random.default_rng()
-    );
-    /// The zero projection Mask, that discards all states and keeps none.
-    TYPEOF_return from_zero(
-        Space::Ptr large_leg,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        std::string device=py::none()
-    );
-    TYPEOF_return operator&(TYPEOF_other other);
-    bool operator bool();
-    virtual bool operator==(TYPEOF_other other) override;
-    TYPEOF_return operator~();
-    bool operator!=(TYPEOF_other other);
-    TYPEOF_return operator|(TYPEOF_other other);
-    TYPEOF_return __rand__(TYPEOF_other other);
-    TYPEOF_return __ror__(TYPEOF_other other);
-    TYPEOF_return __rxor__(TYPEOF_other other);
-    TYPEOF_return operator^(TYPEOF_other other);
-    /// If the mask keeps all basis elements
-    bool all();
-    /// If the mask keeps any basis elements
-    bool any();
-    BlockBackend::BlockPtr as_block_mask();
-    np_NDArray as_numpy_mask();
-    virtual Mask::Ptr as_dtype(Dtype dtype) override;
-    DiagonalTensor::Ptr as_DiagonalTensor(TYPEOF_dtype dtype=Dtype.complex128);
-    virtual SymmetricTensor::Ptr as_SymmetricTensor(
-        bool guarantee_copy=false,
-        std::string warning=py::none(),
-        TYPEOF_dtype dtype=Dtype.complex128
-    ) override;
-    /// Utility function for a shared implementation of binary functions.
-    Mask::Ptr _binary_operand(bool_Mask other, TYPEOF_func func, std::string operand, bool return_NotImplemented=true);
-    virtual Mask::Ptr copy(bool deep=true, std::string device=py::none(), Dtype dtype=py::none()) override;
-    virtual Scalar _get_item(list_int_ idx) override;
-    /// Alias for :meth:`orthogonal_complement`
-    TYPEOF_return logical_not();
-    virtual TYPEOF_return move_to_device(std::string device) override;
-    /// The "opposite" Mask, that keeps exactly what self discards and vv.
-    TYPEOF_return orthogonal_complement();
-    virtual Mask::Ptr to_backend(TensorBackend::Ptr backend, Dtype dtype=py::none(), std::string device=py::none()) override;
-    virtual BlockBackend::BlockPtr to_dense_block(
-        list_int_str_ leg_order=py::none(),
-        Dtype dtype=py::none(),
-        bool understood_braiding=false
-    ) override;
-    virtual np_NDArray to_numpy(
-        list_int_str_ leg_order=py::none(),
-        TYPEOF_numpy_dtype numpy_dtype=py::none(),
-        bool understood_braiding=false
-    ) override;
-    Mask::Ptr _unary_operand(TYPEOF_func func);
-    /// Export Mask to hdf5 such that it can be re-imported with from_hdf5
-    TYPEOF_return save_hdf5(TYPEOF_hdf5_saver hdf5_saver, TYPEOF_h5gr h5gr, TYPEOF_subpath subpath);
-    /// Import Mask from hdf5
-    TYPEOF_return from_hdf5(TYPEOF_hdf5_loader hdf5_loader, TYPEOF_h5gr h5gr, TYPEOF_subpath subpath);
-};
