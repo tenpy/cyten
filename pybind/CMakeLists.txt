@@ -47,4 +47,5 @@ target_sources(_core
   backends/py_backend_factory.cpp
   tensors/py_labels.cpp
   tensors/py_tensor.cpp
+  tensors/py_symmetric_tensor.cpp
 )

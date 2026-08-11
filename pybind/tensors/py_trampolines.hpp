@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tensors/tensor.h>
 
 #include <pybind11/pybind11.h>
@@ -113,6 +114,79 @@ class PyTensor
     Tensor& set_labels(LegLabels labels) override
     {
         PYBIND11_OVERRIDE(Tensor&, Tensor, set_labels, labels);
+    }
+};
+
+/// pybind11 trampoline for :class:`SymmetricTensor` (Python subclasses e.g. DiagonalTensor).
+class PySymmetricTensor
+  : public SymmetricTensor
+  , public py::trampoline_self_life_support
+{
+  public:
+    using SymmetricTensor::SymmetricTensor;
+
+    void test_sanity() const override
+    {
+        PYBIND11_OVERRIDE(void, SymmetricTensor, test_sanity);
+    }
+
+    Tensor::Ptr as_dtype(Dtype dtype) override
+    {
+        PYBIND11_OVERRIDE(Tensor::Ptr, SymmetricTensor, as_dtype, dtype);
+    }
+
+    py::object as_SymmetricTensor(bool guarantee_copy,
+                                  std::optional<std::string> warning) override
+    {
+        PYBIND11_OVERRIDE(
+          py::object, SymmetricTensor, as_SymmetricTensor, guarantee_copy, warning);
+    }
+
+    Tensor::Ptr copy(bool deep,
+                     std::optional<std::string> device,
+                     std::optional<Dtype> dtype) override
+    {
+        PYBIND11_OVERRIDE(Tensor::Ptr, SymmetricTensor, copy, deep, device, dtype);
+    }
+
+    BlockBackend::Scalar _get_item(std::vector<int64> const& idx) override
+    {
+        PYBIND11_OVERRIDE(BlockBackend::Scalar, SymmetricTensor, _get_item, idx);
+    }
+
+    void move_to_device(std::string device) override
+    {
+        PYBIND11_OVERRIDE(void, SymmetricTensor, move_to_device, device);
+    }
+
+    Tensor::Ptr to_backend(TensorBackend::Ptr backend,
+                           std::optional<Dtype> dtype,
+                           std::optional<std::string> device) override
+    {
+        PYBIND11_OVERRIDE(Tensor::Ptr, SymmetricTensor, to_backend, backend, dtype, device);
+    }
+
+    BlockBackend::BlockPtr to_dense_block(
+      std::optional<std::vector<std::variant<int64, std::string>>> leg_order,
+      std::optional<Dtype> dtype,
+      bool understood_braiding) override
+    {
+        PYBIND11_OVERRIDE(BlockBackend::BlockPtr,
+                          SymmetricTensor,
+                          to_dense_block,
+                          leg_order,
+                          dtype,
+                          understood_braiding);
+    }
+
+    std::string ascii_diagram_type_name() const override
+    {
+        PYBIND11_OVERRIDE(std::string, SymmetricTensor, ascii_diagram_type_name);
+    }
+
+    std::string class_name() const override
+    {
+        PYBIND11_OVERRIDE(std::string, SymmetricTensor, class_name);
     }
 };
 

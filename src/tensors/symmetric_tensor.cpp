@@ -318,11 +318,11 @@ SymmetricTensor::from_dense_block_trivial_sector(py::object vector,
         backend = get_backend(py::cast(space->symmetry)).cast<TensorBackend::Ptr>();
     }
     auto vec = backend->block_backend->as_block(vector, std::nullopt, device);
-    if (space->_basis_perm.has_value()) {
+    // Python checks ``space._basis_perm is not None`` then applies a perm; unfinished below.
+    if (py::isinstance<Leg>(py::cast(space)) &&
+        py::cast(space).cast<Leg::Ptr>()->has_custom_basis_perm()) {
         auto i = space->sector_decomposition_where(space->symmetry->trivial_sector);
         assert(i.has_value());
-        // Python: perm = rank_data(space.basis_perm[slice(*space.slices[i])])
-        // then apply_leg_permutations — keep unfinished like the Python body.
         (void)vec;
         (void)i;
     }
@@ -349,17 +349,17 @@ SymmetricTensor::from_random_normal(py::object codomain,
         if (codomain.is_none()) {
             codomain = mean.attr("codomain");
         } else {
-            assert(mean.attr("codomain").equal(codomain));
+            assert(py::object(mean.attr("codomain")).equal(codomain));
         }
         if (domain.is_none()) {
             domain = mean.attr("domain");
         } else {
-            assert(mean.attr("domain").equal(domain));
+            assert(py::object(mean.attr("domain")).equal(domain));
         }
         if (!backend) {
             backend = mean.attr("backend").cast<TensorBackend::Ptr>();
         } else {
-            assert(mean.attr("backend").is(py::cast(backend)));
+            assert(py::object(mean.attr("backend")).is(py::cast(backend)));
         }
         auto [c, d, b, s] = _init_parse_args(codomain, domain, backend);
         codomain_tp = std::move(c);
@@ -660,16 +660,16 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
         std::vector<py::object> combine;
         std::vector<bool> pipe_dualities;
         int64 flat_leg_counter = 0;
-        for (auto const& leg : legs()) {
-            if (std::dynamic_pointer_cast<LegPipe>(leg)) {
-                auto pipe = std::static_pointer_cast<LegPipe>(leg);
+        for (auto leg : as_py_object().attr("legs")) {
+            if (py::isinstance<LegPipe>(leg)) {
+                auto num = leg.attr("num_legs").cast<int64>();
                 py::list group;
-                for (int64 i = flat_leg_counter; i < flat_leg_counter + pipe->num_legs; ++i) {
+                for (int64 i = flat_leg_counter; i < flat_leg_counter + num; ++i) {
                     group.append(i);
                 }
                 combine.push_back(group);
-                pipe_dualities.push_back(pipe->is_dual);
-                flat_leg_counter += pipe->num_legs;
+                pipe_dualities.push_back(leg.attr("is_dual").cast<bool>());
+                flat_leg_counter += num;
             } else {
                 flat_leg_counter += 1;
             }
@@ -763,19 +763,21 @@ SymmetricTensor::to_dense_block_trivial_sector() const
     assert(num_legs == 1);
     auto block = backend->to_dense_block_trivial_sector(as_py_object());
     assert(num_codomain_legs() == 1); // TODO assuming this for now to construct the perm. should we keep that?
-    auto leg = codomain->factors[0].cast<Space::Ptr>();
-    if (leg->_basis_perm.has_value()) {
-        auto i = leg->sector_decomposition_where(symmetry->trivial_sector);
+    auto space = codomain->factors[0].cast<Space::Ptr>();
+    auto leg = codomain->factors[0].cast<Leg::Ptr>();
+    if (leg->has_custom_basis_perm()) {
+        auto i = space->sector_decomposition_where(symmetry->trivial_sector);
         assert(i.has_value());
-        assert(leg->slices.has_value());
-        auto const& sl = (*leg->slices)[static_cast<std::size_t>(*i)];
-        auto const& basis_perm = *leg->_basis_perm;
+        assert(space->slices.has_value());
+        auto const& sl = (*space->slices)[static_cast<std::size_t>(*i)];
+        auto basis_perm = leg->basis_perm();
         std::vector<int64> segment(basis_perm.begin() + sl[0], basis_perm.begin() + sl[1]);
         // Python: perm = np.argsort(leg.basis_perm[slice(*leg.slices[i])])
         std::vector<int64> order(segment.size());
         std::iota(order.begin(), order.end(), 0);
-        std::ranges::sort(order, [&](int64 a, int64 b) { return segment[static_cast<std::size_t>(a)] <
-                                                                segment[static_cast<std::size_t>(b)]; });
+        std::ranges::sort(order, [&](int64 a, int64 b) {
+            return segment[static_cast<std::size_t>(a)] < segment[static_cast<std::size_t>(b)];
+        });
         block = backend->block_backend->apply_leg_permutations(
           block, { py::array_t<int64>(static_cast<py::ssize_t>(order.size()), order.data()) });
     }
