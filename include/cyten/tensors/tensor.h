@@ -46,10 +46,20 @@ class Tensor
     /// Dimension of each of the :attr:`legs` (codomain dims, then reversed domain dims).
     std::vector<float64> shape;
 
+    /// Construct from flexible Python-style inputs (used by trampoline / bindings).
+    Tensor(py::object codomain,
+           py::object domain,
+           TensorBackend::Ptr backend,
+           py::object labels,
+           Dtype dtype,
+           std::string device);
+
+    /// Construct from already-parsed C++ inputs (concrete subclasses).
     Tensor(TensorProduct::Ptr codomain,
            TensorProduct::Ptr domain,
            TensorBackend::Ptr backend,
-           std::optional<LegLabels> labels,
+           Symmetry::Ptr symmetry,
+           LegLabels labels,
            Dtype dtype,
            std::string device);
 
@@ -213,15 +223,8 @@ class Tensor
     /// Subclass short name for :meth:`ascii_diagram` (``Symm``, ``Diag``, …).
     [[nodiscard]] virtual std::string ascii_diagram_type_name() const;
 
-  protected:
-    /// Construct after args are already parsed (for concrete subclasses).
-    Tensor(TensorProduct::Ptr codomain,
-           TensorProduct::Ptr domain,
-           TensorBackend::Ptr backend,
-           Symmetry::Ptr symmetry,
-           LegLabels labels,
-           Dtype dtype,
-           std::string device);
+    /// Python ``type(self).__name__`` for ``__repr__`` / ``__str__``.
+    [[nodiscard]] virtual std::string class_name() const;
 };
 
 } // namespace cyten
