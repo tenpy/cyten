@@ -2,7 +2,7 @@
 
 ## Status
 
-**C++ declaration + definitions + bindings done** on branch `convert_backends`. Exported as `cyten._core.NoSymmetryBackend`. **Not monkey-patched** into `cyten.backends` yet.
+**Done / monkey-patched** on branch `convert_backends`. Exported as `cyten._core.NoSymmetryBackend`. Imported in `cyten/backends/no_symmetry.py` from `_core`.
 
 Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [convert_TensorBackend.md](convert_TensorBackend.md).
 
@@ -27,6 +27,7 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 - Helpers: `wrap(BlockPtr) -> DataPtr`, `unwrap(DataPtr) -> BlockPtr` (throws if wrong type), `block_from_tensor(py::object) -> BlockPtr` via `tensor.attr("data").cast<BlockPtr>()`.
 - Python tensors still store a `Block` in `.data`. Read with `cast<BlockPtr>`; return `DataPtr` via `wrap()` for the abstract C++ API.
 - For Python bindings of methods that return `Data`, prefer returning the unwrapped `BlockPtr` (custom lambdas / caster) so the Python surface stays Block-based.
+- `item` / `data_item` bindings wrap a Python `Block` into `DataPtr` before calling C++ (`py_data`).
 
 ### Types (match `TensorBackend` overrides)
 
@@ -42,7 +43,6 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 - Most methods are one-liners delegating to `block_backend->*`.
 - Access tensor attributes via `py::object` `.attr(...)`.
 - Match C++23 style of `tensor_backend.cpp`.
-- Do **not** monkey-patch Python until concrete backends are green.
 
 ## Dependencies
 
@@ -60,7 +60,6 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 - [x] generate pybind11 bindings (+ register in CMake / `_core` / header)
 - [x] fix bindings (return Block where Data is exposed to Python; factory shared_ptr ctor)
 - [x] trampoline — skip (leaf class)
-- [ ] monkey-patch — **deferred**
-- [ ] run python tests with pytest
-- [ ] remove original python code — deferred with monkey-patch
-- [ ] wrap up / continue with AbelianBackend
+- [x] monkey-patch via `no_symmetry.py`
+- [x] run python tests with pytest
+- [x] remove original python class body — module re-exports from `_core`

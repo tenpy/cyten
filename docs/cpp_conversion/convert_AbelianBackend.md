@@ -2,7 +2,7 @@
 
 ## Status
 
-**C++ declaration + definitions + bindings done** on branch `convert_backends`. Exported as `cyten._core.AbelianBackend` (+ `valid_block_inds` / `_valid_block_inds`). `get_backend('abelian', …)` constructs the C++ backend. **Not monkey-patched** into `cyten.backends` yet.
+**Done / monkey-patched** on branch `convert_backends`. Exported as `cyten._core.AbelianBackend` (+ `valid_block_inds` / `_valid_block_inds`). Imported in `cyten/backends/abelian.py` from `_core`. `get_backend('abelian', …)` constructs the C++ backend.
 
 `AbelianBackendData`: [convert_AbelianBackendData.md](convert_AbelianBackendData.md).
 
@@ -29,7 +29,7 @@
 - Tensor args stay interim `py::object`; callables → `py::function`.
 - Call `cyten.tools.misc` via `py::module_::import` for helpers (`make_grid`, `iter_common_*`, `list_to_dict_list`, `find_row_differences`, `rank_data`, `make_stride`, `inverse_permutation`).
 - Stubs matching Python: `state_tensor_product`, `to_dense_block_trivial_sector` → `NotImplemented`.
-- `partial_trace` scalar path returns `Data` with one scalar block + `nullptr` domains.
+- `partial_trace` full-trace path: binding returns `(scalar, None, None)` (unwraps `Data` to a BlockBackend scalar).
 - Bindings return `AbelianBackendData` (not unwrapped Block) — Python already stores Data objects.
 - `mask_binary_operand`: C++ advances `mask2` block_inds correctly (Python had a typo using `mask1_block_inds`).
 - `mask_unary_operand`: uses `block_inds` (Python typo was `blocks_inds`).
@@ -42,7 +42,7 @@
 4. Diagonal / mask ops
 5. `combine_legs` / `split_legs` / `_compose_worker`
 6. Decompositions
-7. Bindings + smoke test; no monkey-patch yet
+7. Bindings + smoke test + monkey-patch — **done**
 
 ## TODO checklist
 
@@ -51,8 +51,8 @@
 - [x] definitions + compile (native ports; no remaining `py_call_data` / `py_abelian` delegations)
 - [x] replace Python-delegated methods with native C++ ports
 - [x] bindings (`cyten._core.AbelianBackend`, `valid_block_inds`; factory wired)
-- [ ] monkey-patch — deferred
-- [ ] pytest — deferred
+- [x] monkey-patch via `abelian.py`
+- [x] pytest
 
 ## Methods still Python-delegated (FIXME)
 

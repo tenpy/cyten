@@ -2,20 +2,20 @@
 
 ## Status
 
-**In progress** on branch `convert_backends`.
+**Done / monkey-patched** on branch `convert_backends`. Layer 3 backends and `get_backend` are imported from `cyten._core` into `cyten.backends`.
 
-Done so far (exported from `cyten._core`, **not** monkey-patched into `cyten.backends` yet):
+Monkey-patched:
 
 - `TensorBackend` + `conventional_leg_order` + `get_same_backend` — [convert_TensorBackend.md](convert_TensorBackend.md)
 - `NoSymmetryBackend` — [convert_NoSymmetryBackend.md](convert_NoSymmetryBackend.md)
-- `AbelianBackendData` — [convert_AbelianBackendData.md](convert_AbelianBackendData.md)
-- `AbelianBackend` + `valid_block_inds` — [convert_AbelianBackend.md](convert_AbelianBackend.md)
-- `FusionTreeData` — [convert_FusionTreeData.md](convert_FusionTreeData.md)
-- `get_backend` (C++ NoSymmetry + Abelian; Python fusion_tree) — [convert_get_backend.md](convert_get_backend.md)
+- `AbelianBackendData` + `AbelianBackend` + `valid_block_inds` — [convert_AbelianBackendData.md](convert_AbelianBackendData.md), [convert_AbelianBackend.md](convert_AbelianBackend.md)
+- `FusionTreeData` + `FusionTreeBackend` (+ Instruction / Mapping helpers; keeps `_tree_block_iter` in Python) — [convert_FusionTreeData.md](convert_FusionTreeData.md), [convert_FusionTreeBackend.md](convert_FusionTreeBackend.md), [convert_TreePairMapping.md](convert_TreePairMapping.md)
+- `get_backend` — [convert_get_backend.md](convert_get_backend.md)
 
-Still Python (full backends):
+Still Python (not Layer 3 backends):
 
-- `FusionTreeBackend` (+ helpers) — [convert_FusionTreeBackend.md](convert_FusionTreeBackend.md)
+- `cyten.tools.mappings.SparseMapping` / `IdentityMapping` — generic Python helpers; C++ has typed aliases used by the FT mapping stack ([convert_SparseMapping.md](convert_SparseMapping.md))
+- Layer 4 tensor classes — backends reach them via `py::object`
 
 ## Conversion order
 
@@ -43,8 +43,6 @@ flowchart TD
 | 3 | `AbelianBackendData` then `AbelianBackend` (+ `_valid_block_inds`) | `cyten/backends/abelian.py` | |
 | 4 | `FusionTreeData` then `FusionTreeBackend` (+ Instruction/Mapping helpers as needed) | `cyten/backends/fusion_tree_backend.py` | Largest; may split headers |
 | 5 | `get_backend` | `cyten/backends/backend_factory.py` | |
-
-Wire public imports via `cyten/backends/__init__.py` only after the relevant C++ types are green.
 
 ## File layout
 
@@ -74,8 +72,8 @@ Wire public imports via `cyten/backends/__init__.py` only after the relevant C++
 ### Trampoline + monkey-patch timing
 
 - Generate trampoline so Python subclasses can remain until converted.
-- **Do not monkey-patch** `TensorBackend` into `cyten.backends` until concrete backends are C++ (or trampoline inheritance is proven). Export as `cyten._core.TensorBackend` for intermediate work.
-- Keep original Python `_backend.py` until the layer’s backends are converted and pytest is green.
+- Monkey-patch of `TensorBackend` and concrete backends into `cyten.backends` is **done** (concrete backends are C++).
+- Original Python backend bodies were removed; modules re-export from `_core` (FT keeps `_tree_block_iter`).
 
 ## Codegen
 

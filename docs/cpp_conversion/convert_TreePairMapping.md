@@ -2,7 +2,7 @@
 
 ## Status
 
-**C++ implementation + bindings done** on branch `convert_backends`. Exported on `cyten._core` (not monkey-patched into `cyten.backends`).
+**Done / monkey-patched** on branch `convert_backends`. Exported on `cyten._core` and re-exported from `cyten.backends.fusion_tree_backend` (`TreePairMapping`, `FactorizedTreeMapping`, Instructions, `PermuteLegsInstructionEngine`).
 
 | Component | C++ location |
 | --- | --- |
@@ -27,5 +27,5 @@
 - [x] headers + sources + CMake
 - [x] wire `apply_instructions` / `permute_legs`
 - [x] bindings + smoke
-- [ ] monkey-patch — deferred
-- [ ] pytest fusion_tree permute suite — deferred
+- [x] monkey-patch via `fusion_tree_backend.py`
+- [x] pytest fusion_tree permute suite

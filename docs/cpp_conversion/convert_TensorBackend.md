@@ -2,7 +2,7 @@
 
 ## Status
 
-**C++ declaration + definitions + bindings/trampoline done** on branch `convert_backends`. Exported as `cyten._core.TensorBackend` (plus `conventional_leg_order`, `get_same_backend`). **Not monkey-patched** into `cyten.backends` yet — wait for concrete backends.
+**Done / monkey-patched** on branch `convert_backends`. Exported as `cyten._core.TensorBackend` (plus `conventional_leg_order`, `get_same_backend`). Imported in `cyten/backends/_backend.py` from `_core`.
 
 Layer overview: [convert_backends.md](convert_backends.md).
 
@@ -45,10 +45,9 @@ Skip binding `HasBackend` (typing `Protocol` only).
 - [x] improve and fix the definition drafts (concrete methods; pure virtuals stay `= 0`; compile + ctest)
 - [x] generate pybind11 bindings
 - [x] generate pybind11 trampoline
-- [ ] monkey-patch — **deferred** until concrete backends converted
-- [ ] run python tests with pytest
-- [ ] remove original python code — deferred with monkey-patch
-- [ ] wrap up / continue with NoSymmetryBackend
+- [x] monkey-patch via `_backend.py`
+- [x] run python tests with pytest (with Layer 3 backends)
+- [x] remove original python class body — module re-exports from `_core` (keeps `HasBackend` Protocol / TypeVars)
 
 ## Type mappings to add (`pybind11_codegen.toml`)
 

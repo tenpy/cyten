@@ -2,9 +2,9 @@
 
 ## Status
 
-**C++ declaration + definitions + bindings done** on branch `convert_backends`. Exported as `cyten._core.AbelianBackendData`. **Not monkey-patched** into `cyten.backends`. `AbelianBackend` deferred.
+**Done / monkey-patched** on branch `convert_backends`. Exported as `cyten._core.AbelianBackendData`. Imported in `cyten/backends/abelian.py` from `_core` (with `AbelianBackend`).
 
-Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [convert_TensorBackend.md](convert_TensorBackend.md).
+Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [convert_TensorBackend.md](convert_TensorBackend.md). Backend: [convert_AbelianBackend.md](convert_AbelianBackend.md).
 
 ## Metadata
 
@@ -24,7 +24,6 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 ### Class layout
 
 - Top-level `AbelianBackendData : TensorBackend::Data` (not nested under `AbelianBackend`).
-- Forward-declare `AbelianBackend` in the same header for later; do **not** convert the backend class yet.
 - Members:
   - `Dtype dtype`
   - `std::string device`
@@ -46,8 +45,7 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 
 ## Dependencies
 
-- Done: `TensorBackend::Data`, `BlockBackend::BlockPtr`, `Dtype`.
-- Deferred: `AbelianBackend` itself.
+- Done: `TensorBackend::Data`, `BlockBackend::BlockPtr`, `Dtype`, `AbelianBackend`.
 
 ## TODO checklist
 
@@ -60,7 +58,6 @@ Layer overview: [convert_backends.md](convert_backends.md). Abstract base: [conv
 - [x] generate pybind11 bindings (+ register in CMake / `_core` / header)
 - [x] fix bindings (`shared_ptr` ctor, inherit `TensorBackend::Data`, members, static `from_hdf5`)
 - [x] trampoline — skip
-- [ ] monkey-patch — **deferred** (per convert_backends / user)
-- [ ] run python tests — deferred until monkey-patch / AbelianBackend
-- [ ] remove original python code — deferred
-- [ ] convert `AbelianBackend` next
+- [x] monkey-patch via `abelian.py`
+- [x] run python tests
+- [x] remove original python class body — module re-exports from `_core`

@@ -2,13 +2,16 @@
 
 ## Status
 
-**Monkey-patched** on branch `convert_backends`. `cyten.backends.fusion_tree_backend` re-exports C++ types from `cyten._core` and keeps `_tree_block_iter` for tests.
+**Done / monkey-patched** on branch `convert_backends`. `cyten.backends.fusion_tree_backend` re-exports C++ types from `cyten._core` and keeps `_tree_block_iter` for tests.
 
-### Python delegation remaining
+### Python leftovers
 
-None for the FusionTreeBackend method surface. `partial_trace` / `permute_legs` / `apply_instructions` are native C++.
+- `_tree_block_iter` — Python helper used by tests / cross-checks (not part of the backend method surface).
+
+None of the FusionTreeBackend method surface is Python-delegated. `partial_trace` / `permute_legs` / `apply_instructions` are native C++.
 
 `tests/python_tests/backends/test_fusion_tree_backend.py`: **21 passed**. Fixed `partial_trace_helper` multiplicity check for 2-leg trees (must match numpy broadcast of `multiplicities[:2] == [0, 0]`).
+
 ## Metadata
 
 | Field | Value |
@@ -36,16 +39,18 @@ None for the FusionTreeBackend method surface. `partial_trace` / `permute_legs` 
 - Forest helpers `_add_forest_block_entries` / `_get_forest_block_contribution` for dense I/O.
 - Prefer calling `cyten.tools.misc` / mappings via pybind for iterators when clearer than a full port.
 - **SparseMapping** / **TreePairMapping** / **FactorizedTreeMapping** / **PermuteLegsInstructionEngine** / **`_partial_trace_helper`** are native C++.
+- `partial_trace` full-trace path: binding returns `(scalar, None, None)`; scalar data uses `block_inds` shape `(1, 2)`.
+- QR / LQ / SVD new-leg multiplicities come from `new_co_domain->multiplicities` (TensorProduct mults), not `factors[0]`.
 
 ## Suggested implementation order
 
 1. Header: `FusionTreeBackend` + all TensorBackend overrides + `eps`
 2. Thin native methods (compose, dagger, eye, zeros, QR/SVD/LQ, …)
 3. Instruction + Engine (+ bind for existing unit tests)
-4. TensorMapping hierarchy (or Python-delegate `apply_instructions` / `permute_legs` initially)
+4. TensorMapping hierarchy
 5. Forest dense↔sparse helpers
 6. Remaining complex methods; replace any Python delegation — **done**
-7. Bindings + wire `get_backend('fusion_tree', …)`; smoke test; no monkey-patch yet
+7. Bindings + wire `get_backend('fusion_tree', …)` + monkey-patch — **done**
 
 ## TODO checklist
 
@@ -53,5 +58,5 @@ None for the FusionTreeBackend method surface. `partial_trace` / `permute_legs` 
 - [x] declaration
 - [x] definitions + compile
 - [x] bindings + factory
-- [ ] monkey-patch — deferred
-- [ ] pytest — deferred
+- [x] monkey-patch via `fusion_tree_backend.py` (keeps `_tree_block_iter`)
+- [x] pytest
