@@ -47,6 +47,7 @@ target_sources(cyten
   symmetries/spaces.cpp
   tensors/labels.cpp
   tensors/tensor.cpp
+  tensors/symmetric_tensor.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   tools/mappings.cpp

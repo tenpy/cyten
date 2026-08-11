@@ -184,6 +184,7 @@ class SymmetricTensor : public Tensor
     /// ``py::cast`` of ``shared_from_this`` as SymmetricTensor (for backend APIs taking
     /// ``py::object``).
     [[nodiscard]] py::object as_py_object();
+    [[nodiscard]] py::object as_py_object() const;
 };
 
 } // namespace cyten
