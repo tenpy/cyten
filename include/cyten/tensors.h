@@ -5,3 +5,4 @@
 #include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tensors/diagonal_tensor.h>
 #include <cyten/tensors/mask.h>
+#include <cyten/tensors/charged_tensor.h>
