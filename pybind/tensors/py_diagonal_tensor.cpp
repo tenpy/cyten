@@ -414,6 +414,116 @@ device: str
     bind_binop("__le__", "le");
     bind_binop("__gt__", "gt");
     bind_binop("__ge__", "ge");
+
+    // --- Identity ---
+    py::class_<Identity, DiagonalTensor, py::smart_holder> id_cls(m, "Identity");
+    id_cls.doc() = R"pydoc(
+Special case of a :class:`DiagonalTensor` that is exactly the identity map on its leg.
+)pydoc";
+
+    id_cls.def(py::init<py::object, TensorBackend::Ptr, std::optional<Dtype>, std::optional<std::string>, py::object>(),
+               py::arg("leg"),
+               py::arg("backend") = nullptr,
+               py::arg("dtype") = py::none(),
+               py::arg("device") = py::none(),
+               py::arg("labels") = py::none());
+
+    id_cls.def("test_sanity", &Identity::test_sanity, "Perform sanity checks.");
+
+    auto bind_unsupported = [&](char const* name) {
+        id_cls.def_static(
+          name,
+          [name](py::args, py::kwargs) {
+              Identity::unsupported_factory(name);
+              return Identity::Ptr{};
+          });
+    };
+    bind_unsupported("from_block_func");
+    bind_unsupported("from_dense_block");
+    bind_unsupported("from_diag_block");
+    bind_unsupported("from_random_normal");
+    bind_unsupported("from_random_uniform");
+    bind_unsupported("from_sector_block_func");
+    bind_unsupported("from_tensor");
+    bind_unsupported("from_zero");
+
+    id_cls.def_static("from_eye",
+                      &Identity::from_eye,
+                      py::arg("leg"),
+                      py::arg("backend") = nullptr,
+                      py::arg("labels") = py::none(),
+                      py::arg("dtype") = Dtype::Float64,
+                      py::arg("device") = py::none());
+
+    id_cls.def("as_dtype", &Identity::as_dtype, py::arg("dtype"));
+    id_cls.def("as_SymmetricTensor",
+               &Identity::as_SymmetricTensor,
+               py::arg("guarantee_copy") = false,
+               py::arg("warning") = py::none());
+    id_cls.def("as_DiagonalTensor",
+               &Identity::as_DiagonalTensor,
+               py::arg("guarantee_copy") = false,
+               py::arg("warning") = py::none());
+    id_cls.def("copy",
+               &Identity::copy,
+               py::arg("deep") = true,
+               py::arg("device") = py::none(),
+               py::arg("dtype") = py::none());
+    id_cls.def("diagonal", &Identity::diagonal, py::arg("check_offdiagonal") = false);
+    id_cls.def("diagonal_as_block", &Identity::diagonal_as_block, py::arg("dtype") = py::none());
+    id_cls.def("diagonal_as_numpy", &Identity::diagonal_as_numpy, py::arg("numpy_dtype") = py::none());
+    id_cls.def("elementwise_almost_equal",
+               &Identity::elementwise_almost_equal,
+               py::arg("other"),
+               py::arg("rtol") = 1e-5,
+               py::arg("atol") = 1e-8);
+    id_cls.def("_elementwise_unary",
+               &Identity::_elementwise_unary,
+               py::arg("func"),
+               py::arg("func_kwargs") = py::none(),
+               py::arg("maps_zero_to_zero") = false);
+    id_cls.def("_elementwise_binary",
+               &Identity::_elementwise_binary,
+               py::arg("other"),
+               py::arg("func"),
+               py::arg("func_kwargs") = py::none(),
+               py::arg("partial_zero_is_zero") = false);
+    id_cls.def("_binary_operand",
+               &Identity::_binary_operand,
+               py::arg("other"),
+               py::arg("func"),
+               py::arg("operand"),
+               py::arg("return_NotImplemented") = false,
+               py::arg("right") = false);
+    id_cls.def("_get_item", &Identity::_get_item, py::arg("idx"));
+    id_cls.def("all", &Identity::all);
+    id_cls.def("any", &Identity::any);
+    id_cls.def("max", &Identity::max);
+    id_cls.def("min", &Identity::min);
+    id_cls.def("move_to_device", &Identity::move_to_device, py::arg("device"));
+    id_cls.def("to_backend",
+               &Identity::to_backend,
+               py::arg("backend"),
+               py::arg("dtype") = py::none(),
+               py::arg("device") = py::none());
+    id_cls.def(
+      "to_dense_block",
+      [](Identity& self, py::object leg_order, std::optional<Dtype> dtype, bool understood_braiding) {
+          return self.to_dense_block(optional_leg_order(leg_order), dtype, understood_braiding);
+      },
+      py::arg("leg_order") = py::none(),
+      py::arg("dtype") = py::none(),
+      py::arg("understood_braiding") = false);
+
+    id_cls.def("__abs__", &Identity::abs);
+    id_cls.def("__bool__", [](Identity& self) {
+        auto tensors_mod = py::module_::import("cyten.tensors._tensors");
+        if (self.dtype == Dtype::Bool && tensors_mod.attr("is_scalar")(self).cast<bool>()) {
+            return true;
+        }
+        throw std::invalid_argument(
+          "The truth value of a non-scalar DiagonalTensor is ambiguous. Use a.any() or a.all()");
+    });
 }
 
 } // namespace cyten
