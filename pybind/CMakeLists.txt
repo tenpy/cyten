@@ -56,4 +56,5 @@ target_sources(_core
   tensors/py_ops_elementwise.cpp
   tensors/py_ops_algebra.cpp
   tensors/py_ops_legs.cpp
+  tensors/py_decompositions.cpp
 )

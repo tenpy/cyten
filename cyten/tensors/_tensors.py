@@ -4205,6 +4205,9 @@ def apply_mask_DiagonalTensor(tensor: DiagonalTensor, mask: Mask) -> DiagonalTen
     )
 
 
+from .._core import apply_mask_DiagonalTensor  # noqa: F401
+
+
 def bend_legs(tensor: Tensor, num_codomain_legs: int = None, num_domain_legs: int = None) -> Tensor:
     """Move legs between codomain and domain without changing the order of ``tensor.legs``.
 
@@ -4928,6 +4931,9 @@ def eigh(
     return W, V
 
 
+from .._core import eigh  # noqa: F401
+
+
 def enlarge_leg(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
     """Apply an inclusion Mask to one leg of a tensor *embedding* it into a larger leg.
 
@@ -5015,6 +5021,9 @@ def entropy(p: DiagonalTensor | Sequence[float], n=1):
     if n == np.inf:
         return -np.log(np.max(p))
     return np.log(np.sum(p**n)) / (1.0 - n)
+
+
+from .._core import entropy  # noqa: F401
 
 
 def exp(obj: Tensor | complex | float) -> Tensor | complex | float:
@@ -6061,6 +6070,9 @@ def qr(
     return Q, R
 
 
+from .._core import qr  # noqa: F401
+
+
 @_elementwise_function(block_func='real', maps_zero_to_zero=True)
 def real[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """The real part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""
@@ -6165,6 +6177,9 @@ def lq(
     if combine_domain:
         Q = split_legs(Q, -1)
     return L, Q
+
+
+from .._core import lq  # noqa: F401
 
 
 def scalar_multiply(a: Number | Scalar, v: Tensor) -> Tensor:
@@ -6553,6 +6568,9 @@ def svd(
     return U, S, Vh
 
 
+from .._core import svd  # noqa: F401
+
+
 def svd_apply_mask(
     U: SymmetricTensor | ChargedTensor, S: DiagonalTensor, Vh: SymmetricTensor | ChargedTensor, mask: Mask
 ) -> tuple[SymmetricTensor | ChargedTensor, DiagonalTensor, SymmetricTensor | ChargedTensor]:
@@ -6564,6 +6582,9 @@ def svd_apply_mask(
     S = apply_mask_DiagonalTensor(S, mask)
     Vh = _compose_with_Mask(Vh, mask, 0)
     return U, S, Vh
+
+
+from .._core import svd_apply_mask  # noqa: F401
 
 
 def tensor_from_grid(
@@ -7154,6 +7175,9 @@ def truncate_singular_values(
     return mask, err, new_norm
 
 
+from .._core import truncate_singular_values  # noqa: F401
+
+
 def truncated_svd(
     tensor: Tensor,
     new_labels: str | list[str] | None = None,
@@ -7217,6 +7241,9 @@ def truncated_svd(
         renormalize = normalize_to / S_norm / new_norm
         S = renormalize * S
     return U, S, Vh, err, renormalize
+
+
+from .._core import truncated_svd  # noqa: F401
 
 
 def zero_like(tensor: Tensor) -> Tensor:

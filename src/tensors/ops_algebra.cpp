@@ -1,4 +1,5 @@
 #include <cyten/tensors/ops_algebra.h>
+#include <cyten/tensors/decompositions.h>
 
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/backends/tensor_backend.h>
@@ -1365,13 +1366,20 @@ pinv(py::object tensor, float64 cutoff)
     if (is_DiagonalTensor(tensor)) {
         return cutoff_inverse(tensor, cutoff);
     }
-    py::dict options;
-    options["svd_min"] = cutoff;
-    py::object usv =
-      tensors_mod().attr("truncated_svd")(tensor, py::arg("options") = options);
-    py::object U = usv.attr("__getitem__")(0);
-    py::object S = usv.attr("__getitem__")(1);
-    py::object Vh = usv.attr("__getitem__")(2);
+    auto [U, S, Vh, err, renormalize] =
+      truncated_svd(tensor,
+                    /*new_labels=*/py::none(),
+                    /*new_leg_dual=*/false,
+                    /*charge_leg_top=*/true,
+                    /*algorithm=*/py::none(),
+                    /*normalize_to=*/std::nullopt,
+                    /*chi_max=*/std::nullopt,
+                    /*chi_min=*/1,
+                    /*degeneracy_tol=*/0.,
+                    /*trunc_cut=*/0.,
+                    /*svd_min=*/cutoff);
+    (void)err;
+    (void)renormalize;
     return dagger(compose(compose(U, cutoff_inverse(S, cutoff)), Vh));
 }
 
