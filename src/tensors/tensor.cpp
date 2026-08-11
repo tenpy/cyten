@@ -91,6 +91,12 @@ join_spaced(std::vector<std::string> const& parts)
 
 std::vector<Dtype> Tensor::_forbidden_dtypes = { Dtype::Bool };
 
+std::vector<Dtype> const&
+Tensor::forbidden_dtypes() const
+{
+    return _forbidden_dtypes;
+}
+
 Tensor::Tensor(py::object codomain_obj,
                py::object domain_obj,
                TensorBackend::Ptr backend_in,
@@ -319,8 +325,8 @@ Tensor::test_sanity() const
 {
     domain->test_sanity();    // this checks all legs, and recursively through pipes
     codomain->test_sanity(); // this checks all legs, and recursively through pipes
-    assert(std::find(_forbidden_dtypes.begin(), _forbidden_dtypes.end(), dtype) ==
-           _forbidden_dtypes.end());
+    assert(std::find(forbidden_dtypes().begin(), forbidden_dtypes().end(), dtype) ==
+           forbidden_dtypes().end());
     for (auto const& leg : domain->factors) {
         assert(py::isinstance<Leg>(leg));
     }

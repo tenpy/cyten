@@ -111,6 +111,11 @@ class PyTensor
         PYBIND11_OVERRIDE(void, Tensor, test_sanity);
     }
 
+    std::vector<Dtype> const& forbidden_dtypes() const override
+    {
+        PYBIND11_OVERRIDE(std::vector<Dtype> const&, Tensor, forbidden_dtypes);
+    }
+
     Tensor& set_labels(LegLabels labels) override
     {
         PYBIND11_OVERRIDE(Tensor&, Tensor, set_labels, labels);

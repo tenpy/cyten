@@ -2,166 +2,191 @@
 
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <variant>
+#include <vector>
+
 namespace cyten {
 
-// DiagonalTensor declaration follows (codegen + manual improvements).
+/// Special case of a :class:`SymmetricTensor` that is diagonal in the computational basis.
+///
+/// The domain and codomain of a diagonal tensor are the same and consist of a single leg.
+class DiagonalTensor : public SymmetricTensor
+{
+  public:
+    using Ptr = std::shared_ptr<DiagonalTensor>;
+    using CPtr = std::shared_ptr<const DiagonalTensor>;
+
+    /// Empty — bool dtype is allowed for diagonal tensors (Python ``_forbidden_dtypes = []``).
+    static std::vector<Dtype> _forbidden_dtypes;
+
+    /// Construct from flexible Python-style inputs.
+    DiagonalTensor(TensorBackend::DataPtr data,
+                   py::object leg,
+                   TensorBackend::Ptr backend = nullptr,
+                   py::object labels = py::none());
+
+    /// Construct from already-parsed C++ inputs.
+    DiagonalTensor(TensorBackend::DataPtr data,
+                   Space::Ptr leg,
+                   TensorBackend::Ptr backend,
+                   Symmetry::Ptr symmetry,
+                   LegLabels labels);
+
+    ~DiagonalTensor() override = default;
+
+    [[nodiscard]] std::vector<Dtype> const& forbidden_dtypes() const override;
+
+    void test_sanity() const override;
+    void verify_dtype() const override;
+
+    [[nodiscard]] std::string ascii_diagram_type_name() const override;
+    [[nodiscard]] std::string class_name() const override;
+
+    /// The single space that makes up the domain and codomain.
+    [[nodiscard]] Space::Ptr leg() const;
+
+    // --- factories ---
+
+    [[nodiscard]] static Ptr from_block_func(py::function func,
+                                             py::object leg,
+                                             TensorBackend::Ptr backend = nullptr,
+                                             py::object labels = py::none(),
+                                             py::object func_kwargs = py::none(),
+                                             std::optional<std::string> shape_kw = std::nullopt,
+                                             std::optional<Dtype> dtype = std::nullopt,
+                                             std::optional<std::string> device = std::nullopt);
+
+    [[nodiscard]] static Ptr from_dense_block(py::object block,
+                                              py::object leg,
+                                              TensorBackend::Ptr backend = nullptr,
+                                              py::object labels = py::none(),
+                                              std::optional<Dtype> dtype = std::nullopt,
+                                              float64 tol = 1e-6,
+                                              std::optional<std::string> device = std::nullopt,
+                                              bool understood_braiding = false);
+
+    [[nodiscard]] static Ptr from_diag_block(py::object diag,
+                                             py::object leg,
+                                             TensorBackend::Ptr backend = nullptr,
+                                             py::object labels = py::none(),
+                                             std::optional<Dtype> dtype = std::nullopt,
+                                             std::optional<std::string> device = std::nullopt,
+                                             float64 tol = 1e-6);
+
+    [[nodiscard]] static Ptr from_eye(py::object leg,
+                                      TensorBackend::Ptr backend = nullptr,
+                                      py::object labels = py::none(),
+                                      Dtype dtype = Dtype::Float64,
+                                      std::optional<std::string> device = std::nullopt);
+
+    [[nodiscard]] static Ptr from_random_normal(py::object leg,
+                                                py::object mean = py::none(),
+                                                float64 sigma = 1.0,
+                                                TensorBackend::Ptr backend = nullptr,
+                                                py::object labels = py::none(),
+                                                Dtype dtype = Dtype::Complex128,
+                                                std::optional<std::string> device = std::nullopt);
+
+    [[nodiscard]] static Ptr from_random_uniform(py::object leg,
+                                                 TensorBackend::Ptr backend = nullptr,
+                                                 py::object labels = py::none(),
+                                                 Dtype dtype = Dtype::Complex128,
+                                                 std::optional<std::string> device = std::nullopt);
+
+    [[nodiscard]] static Ptr from_sector_block_func(
+      py::function func,
+      py::object leg,
+      TensorBackend::Ptr backend = nullptr,
+      py::object labels = py::none(),
+      py::object func_kwargs = py::none(),
+      std::optional<Dtype> dtype = std::nullopt,
+      std::optional<std::string> device = std::nullopt);
+
+    [[nodiscard]] static Ptr from_tensor(py::object tens, std::optional<float64> tol = 1e-12);
+
+    [[nodiscard]] static Ptr from_zero(py::object leg,
+                                       TensorBackend::Ptr backend = nullptr,
+                                       py::object labels = py::none(),
+                                       Dtype dtype = Dtype::Complex128,
+                                       std::optional<std::string> device = std::nullopt);
+
+    [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,
+                                       py::object h5gr,
+                                       std::string const& subpath);
+
+    void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
+
+    // --- Tensor / SymmetricTensor overrides ---
+
+    [[nodiscard]] Tensor::Ptr as_dtype(Dtype dtype) override;
+
+    [[nodiscard]] py::object as_SymmetricTensor(
+      bool guarantee_copy = false,
+      std::optional<std::string> warning = std::nullopt) override;
+
+    [[nodiscard]] Tensor::Ptr copy(bool deep = true,
+                                   std::optional<std::string> device = std::nullopt,
+                                   std::optional<Dtype> dtype = std::nullopt) override;
+
+    [[nodiscard]] py::object diagonal(bool check_offdiagonal = false) const;
+
+    [[nodiscard]] BlockBackend::Scalar _get_item(std::vector<int64> const& idx) override;
+
+    void move_to_device(std::string device) override;
+
+    [[nodiscard]] Tensor::Ptr to_backend(TensorBackend::Ptr backend,
+                                         std::optional<Dtype> dtype = std::nullopt,
+                                         std::optional<std::string> device = std::nullopt) override;
+
+    [[nodiscard]] BlockBackend::BlockPtr to_dense_block(
+      std::optional<std::vector<std::variant<int64, std::string>>> leg_order = std::nullopt,
+      std::optional<Dtype> dtype = std::nullopt,
+      bool understood_braiding = false) override;
+
+    // --- Diagonal-specific API ---
+
+    [[nodiscard]] Ptr as_DiagonalTensor(bool guarantee_copy = false,
+                                        std::optional<std::string> warning = std::nullopt);
+
+    [[nodiscard]] BlockBackend::BlockPtr diagonal_as_block(
+      std::optional<Dtype> dtype = std::nullopt);
+
+    [[nodiscard]] py::array diagonal_as_numpy(py::object numpy_dtype = py::none());
+
+    [[nodiscard]] Ptr elementwise_almost_equal(py::object other,
+                                               float64 rtol = 1e-5,
+                                               float64 atol = 1e-8);
+
+    [[nodiscard]] Ptr _elementwise_unary(py::function func,
+                                         py::object func_kwargs = py::none(),
+                                         bool maps_zero_to_zero = false);
+
+    [[nodiscard]] Ptr _elementwise_binary(py::object other,
+                                          py::function func,
+                                          py::object func_kwargs = py::none(),
+                                          bool partial_zero_is_zero = false);
+
+    /// Common implementation for the binary dunder methods ``__mul__`` etc.
+    [[nodiscard]] py::object _binary_operand(py::object other,
+                                             py::function func,
+                                             std::string const& operand,
+                                             bool return_NotImplemented = false,
+                                             bool right = false);
+
+    [[nodiscard]] bool all() const;
+    [[nodiscard]] bool any() const;
+
+    [[nodiscard]] BlockBackend::Scalar max() const;
+    [[nodiscard]] BlockBackend::Scalar min() const;
+
+    [[nodiscard]] Ptr abs() const;
+
+  protected:
+    [[nodiscard]] py::object as_py_object();
+    [[nodiscard]] py::object as_py_object() const;
+};
 
 } // namespace cyten
-// CHECKME: the following was generated by .cursor/skills/pybind11-codegen/pybind11_codegen.py gen_cpp_declaration --py-name DiagonalTensor --header-file include/cyten/tensors/diagonal_tensor.h
-
-/// Special case of a :class:`SymmetricTensor` that is diagonal in the computational basis.
-class DiagonalTensor : public SymmetricTensor {
-public:
-    static TYPEOF__forbidden_dtypes _forbidden_dtypes;
-public:
-    DiagonalTensor(
-        TYPEOF_data data,
-        Space::Ptr leg,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none()
-    );
-    virtual ~DiagonalTensor() = default;
-    /// Return the single space that makes up to domain and codomain.
-    /// property getter
-    Space::Ptr get_leg();
-    /// Perform sanity checks.
-    virtual TYPEOF_return test_sanity() override;
-    virtual TYPEOF_return verify_dtype() override;
-    virtual TYPEOF_return from_block_func(
-        TYPEOF_func func,
-        Space::Ptr leg,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        dict func_kwargs=py::none(),
-        std::string shape_kw=py::none(),
-        Dtype dtype=py::none(),
-        std::string device=py::none()
-    ) override;
-    virtual TYPEOF_return from_dense_block(
-        BlockBackend::BlockPtr block,
-        Space::Ptr leg,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        Dtype dtype=py::none(),
-        float64 tol=1e-06,
-        std::string device=py::none(),
-        bool understood_braiding=false
-    ) override;
-    /// Convert a dense 1D block containing the diagonal entries to a DiagonalTensor.
-    virtual TYPEOF_return from_diag_block(
-        BlockBackend::BlockPtr diag,
-        Space::Ptr leg,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        Dtype dtype=py::none(),
-        std::string device=py::none(),
-        float64 tol=1e-06
-    );
-    /// The identity map as a DiagonalTensor.
-    virtual TYPEOF_return from_eye(
-        Space::Ptr leg,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        Dtype dtype=Dtype.float64,
-        std::string device=py::none()
-    ) override;
-    /// Generate a sample from the complex normal distribution.
-    virtual TYPEOF_return from_random_normal(
-        Space::Ptr leg,
-        py::object mean=py::none(),
-        float64 sigma=1.0,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        Dtype dtype=Dtype.complex128,
-        std::string device=py::none()
-    ) override;
-    /// Generate a tensor with uniformly random block-entries.
-    virtual TYPEOF_return from_random_uniform(
-        Space::Ptr leg,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        Dtype dtype=Dtype.complex128,
-        std::string device=py::none()
-    ) override;
-    virtual TYPEOF_return from_sector_block_func(
-        TYPEOF_func func,
-        Space::Ptr leg,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        dict func_kwargs=py::none(),
-        Dtype dtype=py::none(),
-        std::string device=py::none()
-    ) override;
-    /// Create DiagonalTensor from a Tensor.
-    virtual py::object from_tensor(SymmetricTensor::Ptr tens, float64 tol=1e-12);
-    /// A zero tensor.
-    virtual TYPEOF_return from_zero(
-        Space::Ptr leg,
-        TensorBackend::Ptr backend=py::none(),
-        Sequence_list_str_None__None__list_str_None__None labels=py::none(),
-        Dtype dtype=Dtype.complex128,
-        std::string device=py::none()
-    ) override;
-    /// Return the single space that makes up to domain and codomain.
-    /// property getter
-    Space::Ptr get_leg();
-    virtual TYPEOF_return __abs__();
-    virtual bool operator bool();
-    virtual TYPEOF_return operator+(TYPEOF_other other) override;
-    bool operator>=(TYPEOF_other other);
-    bool operator>(TYPEOF_other other);
-    bool operator<=(TYPEOF_other other);
-    bool operator<(TYPEOF_other other);
-    virtual TYPEOF_return operator*(TYPEOF_other other) override;
-    TYPEOF_return __pow__(TYPEOF_other other);
-    TYPEOF_return __radd__(TYPEOF_other other);
-    virtual TYPEOF_return __rmul__(TYPEOF_other other) override;
-    TYPEOF_return __rpow__(TYPEOF_other other);
-    TYPEOF_return __rsub__(TYPEOF_other other);
-    TYPEOF_return __rtruediv__(TYPEOF_other other);
-    virtual TYPEOF_return operator-(TYPEOF_other other) override;
-    virtual TYPEOF_return operator/(TYPEOF_other other) override;
-    /// For a bool dtype, if all values are True. Raises for other dtypes.
-    virtual bool all();
-    /// For a bool dtype, if any value is True. Raises for other dtypes.
-    virtual bool any();
-    virtual py::object as_dtype(Dtype dtype) override;
-    virtual TYPEOF_return as_DiagonalTensor(TYPEOF_guarantee_copy guarantee_copy=false, TYPEOF_warning warning=py::none());
-    virtual SymmetricTensor::Ptr as_SymmetricTensor(bool guarantee_copy=false, std::string warning=py::none()) override;
-    /// Common implementation for the binary dunder methods ``__mul__`` etc.
-    virtual TYPEOF_return _binary_operand(
-        Number_Scalar_DiagonalTensor other,
-        TYPEOF_func func,
-        std::string operand,
-        bool return_NotImplemented=false,
-        bool right=false
-    );
-    virtual py::object copy(bool deep=true, std::string device=py::none(), Dtype dtype=py::none()) override;
-    virtual py::object diagonal() override;
-    virtual BlockBackend::BlockPtr diagonal_as_block(Dtype dtype=py::none());
-    virtual np_NDArray diagonal_as_numpy(TYPEOF_numpy_dtype numpy_dtype=py::none());
-    virtual py::object elementwise_almost_equal(py::object other, float64 rtol=1e-05, TYPEOF_atol atol=1e-08);
-    /// An elementwise function acting on two diagonal tensors.
-    virtual py::object _elementwise_binary(
-        py::object other,
-        TYPEOF_func func,
-        dict func_kwargs=py::none(),
-        bool partial_zero_is_zero=false
-    );
-    /// An elementwise function acting on a diagonal tensor.
-    virtual py::object _elementwise_unary(TYPEOF_func func, dict func_kwargs=py::none(), bool maps_zero_to_zero=false);
-    virtual Scalar _get_item(list_int_ idx) override;
-    virtual TYPEOF_return max();
-    virtual TYPEOF_return min();
-    virtual TYPEOF_return move_to_device(std::string device) override;
-    virtual py::object to_backend(TensorBackend::Ptr backend, Dtype dtype=py::none(), std::string device=py::none()) override;
-    virtual BlockBackend::BlockPtr to_dense_block(
-        list_int_str_ leg_order=py::none(),
-        Dtype dtype=py::none(),
-        bool understood_braiding=false
-    ) override;
-    /// Export DiagonalTensor to hdf5 such that it can be re-imported with from_hdf5
-    virtual TYPEOF_return save_hdf5(TYPEOF_hdf5_saver hdf5_saver, TYPEOF_h5gr h5gr, TYPEOF_subpath subpath) override;
-    /// Import DiagonalTensor from hdf5
-    virtual TYPEOF_return from_hdf5(TYPEOF_hdf5_loader hdf5_loader, TYPEOF_h5gr h5gr, TYPEOF_subpath subpath) override;
-};

@@ -37,6 +37,9 @@ class Tensor
     /// Dtypes rejected by :meth:`test_sanity` (Python ``_forbidden_dtypes``).
     static std::vector<Dtype> _forbidden_dtypes;
 
+    /// Subclass-overridable forbidden dtypes (e.g. DiagonalTensor allows bool).
+    [[nodiscard]] virtual std::vector<Dtype> const& forbidden_dtypes() const;
+
     TensorProduct::Ptr codomain;
     TensorProduct::Ptr domain;
     TensorBackend::Ptr backend;

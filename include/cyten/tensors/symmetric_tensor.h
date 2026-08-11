@@ -52,7 +52,7 @@ class SymmetricTensor : public Tensor
 
     void test_sanity() const override;
 
-    void verify_dtype() const;
+    virtual void verify_dtype() const;
 
     [[nodiscard]] std::string ascii_diagram_type_name() const override;
     [[nodiscard]] std::string class_name() const override;
