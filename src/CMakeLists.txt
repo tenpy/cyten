@@ -48,6 +48,7 @@ target_sources(cyten
   tensors/labels.cpp
   tensors/tensor.cpp
   tensors/symmetric_tensor.cpp
+  tensors/diagonal_tensor.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   tools/mappings.cpp

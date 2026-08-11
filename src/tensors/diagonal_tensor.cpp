@@ -1,0 +1,758 @@
+#include <cyten/tensors/diagonal_tensor.h>
+
+#include <cyten/backends/backend_factory.h>
+#include <cyten/backends/fusion_tree_backend.h>
+#include <cyten/symmetries/exceptions.h>
+#include <cyten/tools.h>
+#include <cyten/warn.h>
+
+#include <cassert>
+#include <format>
+#include <stdexcept>
+#include <utility>
+#include <vector>
+
+namespace cyten {
+
+namespace {
+
+py::dict
+copy_dict(py::object obj)
+{
+    if (obj.is_none()) {
+        return py::dict();
+    }
+    return py::dict(obj);
+}
+
+Space::Ptr
+as_space_leg(py::object leg)
+{
+    if (py::isinstance<LegPipe>(leg)) {
+        throw std::invalid_argument("DiagonalTensor is not defined on LegPipes.");
+    }
+    return leg.cast<Space::Ptr>();
+}
+
+BlockBackend::LegCPtr
+as_leg_cptr(py::object leg)
+{
+    return leg.cast<Leg::Ptr>();
+}
+
+} // namespace
+
+std::vector<Dtype> DiagonalTensor::_forbidden_dtypes = {};
+
+DiagonalTensor::DiagonalTensor(TensorBackend::DataPtr data_in,
+                               py::object leg_obj,
+                               TensorBackend::Ptr backend_in,
+                               py::object labels_obj)
+  : SymmetricTensor(std::move(data_in),
+                    py::make_tuple(leg_obj),
+                    py::make_tuple(leg_obj),
+                    std::move(backend_in),
+                    labels_obj)
+{
+    if (py::isinstance<LegPipe>(leg_obj)) {
+        throw std::invalid_argument("DiagonalTensor is not defined on LegPipes.");
+    }
+}
+
+DiagonalTensor::DiagonalTensor(TensorBackend::DataPtr data_in,
+                               Space::Ptr leg_in,
+                               TensorBackend::Ptr backend_in,
+                               Symmetry::Ptr symmetry_in,
+                               LegLabels labels_in)
+  : SymmetricTensor(
+      std::move(data_in),
+      std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(leg_in) }),
+      std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(leg_in) }),
+      std::move(backend_in),
+      std::move(symmetry_in),
+      std::move(labels_in))
+{
+    if (py::isinstance<LegPipe>(py::cast(leg_in))) {
+        throw std::invalid_argument("DiagonalTensor is not defined on LegPipes.");
+    }
+}
+
+std::vector<Dtype> const&
+DiagonalTensor::forbidden_dtypes() const
+{
+    return _forbidden_dtypes;
+}
+
+void
+DiagonalTensor::test_sanity() const
+{
+    SymmetricTensor::test_sanity();
+    assert(domain->operator==(*codomain));
+    assert(domain->num_factors == 1);
+}
+
+void
+DiagonalTensor::verify_dtype() const
+{
+    // for diagonal tensors, we always allow real dtypes
+}
+
+std::string
+DiagonalTensor::ascii_diagram_type_name() const
+{
+    return "Diag";
+}
+
+std::string
+DiagonalTensor::class_name() const
+{
+    return "DiagonalTensor";
+}
+
+Space::Ptr
+DiagonalTensor::leg() const
+{
+    return codomain->factors[0].cast<Space::Ptr>();
+}
+
+py::object
+DiagonalTensor::as_py_object()
+{
+    return py::cast(std::static_pointer_cast<DiagonalTensor>(shared_from_this()));
+}
+
+py::object
+DiagonalTensor::as_py_object() const
+{
+    return const_cast<DiagonalTensor*>(this)->as_py_object();
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::from_block_func(py::function func,
+                                py::object leg,
+                                TensorBackend::Ptr backend,
+                                py::object labels,
+                                py::object func_kwargs,
+                                std::optional<std::string> shape_kw,
+                                std::optional<Dtype> dtype,
+                                std::optional<std::string> device)
+{
+    auto leg_sp = as_space_leg(leg);
+    auto [co_domain, unused_domain, backend_tp, symmetry] =
+      _init_parse_args(py::make_tuple(leg), py::make_tuple(leg), std::move(backend));
+    (void)unused_domain;
+    (void)symmetry;
+
+    // wrap func to consider func_kwargs, shape_kw, dtype
+    py::dict kwargs = copy_dict(func_kwargs);
+    py::object shape_kw_obj = shape_kw.has_value() ? py::cast(*shape_kw) : py::none();
+    std::optional<Dtype> dtype_cap = dtype;
+    std::optional<std::string> device_cap = device;
+    auto bb = backend_tp->block_backend;
+
+    py::cpp_function block_func(
+      [func, kwargs, shape_kw_obj, dtype_cap, device_cap, bb](py::object shape,
+                                                              py::object /*coupled*/) {
+          // use same backend function as from_sector_block_func, so we include the coupled arg
+          // but just ignore it.
+          py::object block;
+          if (shape_kw_obj.is_none()) {
+              block = func(shape, **kwargs);
+          } else {
+              py::dict call_kwargs = py::dict(kwargs);
+              call_kwargs[shape_kw_obj] = shape;
+              block = func(**call_kwargs);
+          }
+          return bb->as_block(block, dtype_cap, device_cap);
+      });
+
+    auto data = backend_tp->diagonal_from_sector_block_func(block_func, co_domain);
+    auto res = std::make_shared<DiagonalTensor>(
+      data, leg_sp, backend_tp, co_domain->symmetry, _init_parse_labels(labels, co_domain, co_domain));
+    res->test_sanity();
+    return res;
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::from_dense_block(py::object block,
+                                 py::object leg,
+                                 TensorBackend::Ptr backend,
+                                 py::object labels,
+                                 std::optional<Dtype> dtype,
+                                 float64 tol,
+                                 std::optional<std::string> device,
+                                 bool understood_braiding)
+{
+    auto leg_sp = as_space_leg(leg);
+    if (!leg_sp->symmetry->can_be_dropped()) {
+        throw SymmetryError(std::format("Dense block representation is not supported for symmetry {}",
+                                        leg_sp->symmetry->repr()));
+    }
+    if (!leg_sp->symmetry->has_symmetric_braid() && !understood_braiding) {
+        throw SymmetryError(
+          "If the symmetry has non-trivial braids, dense block representations do not "
+          "consistently reproduce the braiding statistics. Make sure you understand what "
+          "that means (read the docstring of from_dense_block). Then you can disable "
+          "this error by setting ``understood_braiding=True``.");
+    }
+    if (!backend) {
+        backend = get_backend(py::cast(leg_sp->symmetry)).cast<TensorBackend::Ptr>();
+    }
+    auto block_ptr = backend->block_backend->as_block(block, dtype, device);
+    auto diag = backend->block_backend->get_diagonal(block_ptr, 1e-10);
+    return from_diag_block(py::cast(diag), leg, backend, labels, dtype, device, tol);
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::from_diag_block(py::object diag,
+                                py::object leg,
+                                TensorBackend::Ptr backend,
+                                py::object labels,
+                                std::optional<Dtype> dtype,
+                                std::optional<std::string> device,
+                                float64 tol)
+{
+    auto leg_sp = as_space_leg(leg);
+    auto [co_domain, unused_domain, backend_tp, symmetry] =
+      _init_parse_args(py::make_tuple(leg), py::make_tuple(leg), std::move(backend));
+    (void)unused_domain;
+    (void)symmetry;
+    auto diag_ptr = backend_tp->block_backend->as_block(diag, dtype, device);
+    diag_ptr = backend_tp->block_backend->apply_basis_perm(diag_ptr, { as_leg_cptr(leg) });
+    auto data = backend_tp->diagonal_from_block(diag_ptr, co_domain, tol);
+    return std::make_shared<DiagonalTensor>(
+      data, leg_sp, backend_tp, co_domain->symmetry, _init_parse_labels(labels, co_domain, co_domain));
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::from_eye(py::object leg,
+                         TensorBackend::Ptr backend,
+                         py::object labels,
+                         Dtype dtype,
+                         std::optional<std::string> device)
+{
+    auto [co_domain, unused_domain, backend_tp, symmetry] =
+      _init_parse_args(py::make_tuple(leg), py::make_tuple(leg), std::move(backend));
+    (void)co_domain;
+    (void)unused_domain;
+    (void)symmetry;
+    auto bb = backend_tp->block_backend;
+    py::cpp_function ones([bb](py::object shape, py::kwargs kwargs) {
+        std::optional<std::string> dev;
+        if (kwargs.contains("device") && !kwargs["device"].is_none()) {
+            dev = kwargs["device"].cast<std::string>();
+        }
+        return bb->ones_block(shape.cast<std::vector<int64>>(), kwargs["dtype"].cast<Dtype>(), dev);
+    });
+    py::dict func_kwargs;
+    func_kwargs["dtype"] = py::cast(dtype);
+    if (device.has_value()) {
+        func_kwargs["device"] = py::cast(*device);
+    } else {
+        func_kwargs["device"] = py::none();
+    }
+    return from_block_func(ones, leg, backend_tp, labels, func_kwargs, std::nullopt, dtype, device);
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::from_random_normal(py::object leg,
+                                   py::object mean,
+                                   float64 sigma,
+                                   TensorBackend::Ptr backend,
+                                   py::object labels,
+                                   Dtype dtype,
+                                   std::optional<std::string> device)
+{
+    assert(dtype::is_complex(dtype));
+    assert(sigma > 0.0);
+    if (!mean.is_none()) {
+        if (leg.is_none()) {
+            leg = mean.attr("leg");
+        } else {
+            assert(py::object(mean.attr("leg")).equal(leg));
+        }
+        if (!backend) {
+            backend = mean.attr("backend").cast<TensorBackend::Ptr>();
+        } else {
+            assert(py::object(mean.attr("backend")).is(py::cast(backend)));
+        }
+        if (labels.is_none()) {
+            labels = mean.attr("labels");
+        }
+        if (!device.has_value()) {
+            device = mean.attr("device").cast<std::string>();
+        }
+    } else {
+        if (leg.is_none()) {
+            throw std::invalid_argument("Must specify the leg if mean is not given.");
+        }
+        auto [co_domain, unused_domain, backend_tp, symmetry] =
+          _init_parse_args(py::make_tuple(leg), py::make_tuple(leg), std::move(backend));
+        (void)co_domain;
+        (void)unused_domain;
+        (void)symmetry;
+        backend = std::move(backend_tp);
+        if (!device.has_value()) {
+            device = backend->block_backend->default_device;
+        }
+    }
+
+    auto bb = backend->block_backend;
+    py::cpp_function randn([bb](py::object shape, py::kwargs kwargs) {
+        return bb->random_normal(shape.cast<std::vector<int64>>(),
+                                 kwargs["dtype"].cast<Dtype>(),
+                                 kwargs["sigma"].cast<float64>(),
+                                 std::nullopt);
+    });
+    py::dict func_kwargs;
+    func_kwargs["dtype"] = py::cast(dtype);
+    func_kwargs["sigma"] = py::cast(sigma);
+    auto with_zero_mean =
+      from_block_func(randn, leg, backend, labels, func_kwargs, std::nullopt, dtype, device);
+
+    if (!mean.is_none()) {
+        auto one = backend->block_backend->as_scalar(1.0);
+        auto new_data =
+          backend->linear_combination(one, mean, one, with_zero_mean->as_py_object());
+        return std::make_shared<DiagonalTensor>(
+          new_data, with_zero_mean->leg(), backend, with_zero_mean->symmetry, with_zero_mean->labels());
+    }
+    return with_zero_mean;
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::from_random_uniform(py::object leg,
+                                    TensorBackend::Ptr backend,
+                                    py::object labels,
+                                    Dtype dtype,
+                                    std::optional<std::string> device)
+{
+    auto [co_domain, unused_domain, backend_tp, symmetry] =
+      _init_parse_args(py::make_tuple(leg), py::make_tuple(leg), std::move(backend));
+    (void)co_domain;
+    (void)unused_domain;
+    (void)symmetry;
+    auto bb = backend_tp->block_backend;
+    py::cpp_function func([bb](py::object shape, py::kwargs kwargs) {
+        auto dims = shape.cast<std::vector<int64>>();
+        auto d = kwargs["dtype"].cast<Dtype>();
+        std::optional<std::string> dev;
+        if (!kwargs["device"].is_none()) {
+            dev = kwargs["device"].cast<std::string>();
+        }
+        return bb->random_uniform(dims, d, dev);
+    });
+    py::dict func_kwargs;
+    func_kwargs["dtype"] = py::cast(dtype);
+    if (device.has_value()) {
+        func_kwargs["device"] = py::cast(*device);
+    } else {
+        func_kwargs["device"] = py::none();
+    }
+    return from_block_func(func, leg, backend_tp, labels, func_kwargs, std::nullopt, dtype, device);
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::from_sector_block_func(py::function func,
+                                       py::object leg,
+                                       TensorBackend::Ptr backend,
+                                       py::object labels,
+                                       py::object func_kwargs,
+                                       std::optional<Dtype> dtype,
+                                       std::optional<std::string> device)
+{
+    auto leg_sp = as_space_leg(leg);
+    auto [co_domain, unused_domain, backend_tp, unused_symm] =
+      _init_parse_args(py::make_tuple(leg), py::make_tuple(leg), std::move(backend));
+    (void)unused_domain;
+    (void)unused_symm;
+
+    // wrap func to consider func_kwargs and dtype
+    py::dict kwargs = copy_dict(func_kwargs);
+    std::optional<Dtype> dtype_cap = dtype;
+    std::optional<std::string> device_cap = device;
+    auto bb = backend_tp->block_backend;
+
+    py::cpp_function block_func(
+      [func, kwargs, dtype_cap, device_cap, bb](py::object shape, py::object coupled) {
+          py::object block = func(shape, coupled, **kwargs);
+          return bb->as_block(block, dtype_cap, device_cap);
+      });
+
+    auto data = backend_tp->diagonal_from_sector_block_func(block_func, co_domain);
+    auto res = std::make_shared<DiagonalTensor>(
+      data, leg_sp, backend_tp, co_domain->symmetry, _init_parse_labels(labels, co_domain, co_domain));
+    res->test_sanity();
+    return res;
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::from_tensor(py::object tens, std::optional<float64> tol)
+{
+    assert(tens.attr("num_legs").cast<int64>() == 2);
+    assert(py::object(tens.attr("domain")).equal(tens.attr("codomain")));
+    auto backend = tens.attr("backend").cast<TensorBackend::Ptr>();
+    auto data = backend->diagonal_tensor_from_full_tensor(tens, tol);
+    auto leg = tens.attr("codomain").attr("factors").attr("__getitem__")(0).cast<Space::Ptr>();
+    return std::make_shared<DiagonalTensor>(data,
+                                            leg,
+                                            backend,
+                                            tens.attr("symmetry").cast<Symmetry::Ptr>(),
+                                            tens.attr("labels").cast<LegLabels>());
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::from_zero(py::object leg,
+                          TensorBackend::Ptr backend,
+                          py::object labels,
+                          Dtype dtype,
+                          std::optional<std::string> device)
+{
+    auto leg_sp = as_space_leg(leg);
+    auto [co_domain, unused_domain, backend_tp, symmetry] =
+      _init_parse_args(py::make_tuple(leg), py::make_tuple(leg), std::move(backend));
+    (void)unused_domain;
+    (void)symmetry;
+    auto device_s = backend_tp->block_backend->as_device(device);
+    auto data = backend_tp->zero_diagonal_data(co_domain, dtype, device_s);
+    return std::make_shared<DiagonalTensor>(
+      data, leg_sp, backend_tp, co_domain->symmetry, _init_parse_labels(labels, co_domain, co_domain));
+}
+
+Tensor::Ptr
+DiagonalTensor::as_dtype(Dtype new_dtype)
+{
+    if (new_dtype == dtype) {
+        return shared_from_this();
+    }
+    auto new_data = backend->to_dtype(as_py_object(), new_dtype);
+    return std::make_shared<DiagonalTensor>(new_data, leg(), backend, symmetry, labels());
+}
+
+py::object
+DiagonalTensor::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::string> warning)
+{
+    if (warning.has_value()) {
+        warn(*warning);
+    }
+    auto new_data = backend->full_data_from_diagonal_tensor(as_py_object());
+    return py::cast(
+      std::make_shared<SymmetricTensor>(new_data, codomain, domain, backend, symmetry, labels()));
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::as_DiagonalTensor(bool guarantee_copy, std::optional<std::string> /*warning*/)
+{
+    if (guarantee_copy) {
+        return std::static_pointer_cast<DiagonalTensor>(copy());
+    }
+    return std::static_pointer_cast<DiagonalTensor>(shared_from_this());
+}
+
+py::object
+DiagonalTensor::_binary_operand(py::object other,
+                                py::function func,
+                                std::string const& operand,
+                                bool return_NotImplemented,
+                                bool right)
+{
+    TensorBackend::DataPtr new_data;
+    LegLabels out_labels = labels();
+    auto bb = backend->block_backend;
+    auto tensors_mod = py::module_::import("cyten.tensors._tensors");
+    py::object numbers_Number = py::module_::import("numbers").attr("Number");
+    py::object ScalarCls = py::type::of(py::cast(bb)).attr("Scalar");
+
+    if (py::isinstance(other, numbers_Number) || py::isinstance(other, ScalarCls)) {
+        auto other_scalar = bb->as_scalar(other, dtype);
+        py::object other_block = py::cast(std::const_pointer_cast<BlockBackend::Block>(other_scalar._block()));
+        if (right) {
+            py::cpp_function wrapped(
+              [func, other_block](py::object block) { return func(other_block, block); });
+            new_data = backend->diagonal_elementwise_unary(
+              as_py_object(), wrapped, py::dict(), /*maps_zero_to_zero=*/false);
+        } else {
+            py::cpp_function wrapped(
+              [func, other_block](py::object block) { return func(block, other_block); });
+            new_data = backend->diagonal_elementwise_unary(
+              as_py_object(), wrapped, py::dict(), /*maps_zero_to_zero=*/false);
+        }
+    } else if (py::isinstance(other, tensors_mod.attr("DiagonalTensor")) ||
+               py::isinstance(other, py::type::of(as_py_object()))) {
+        if (py::isinstance(other, tensors_mod.attr("Identity"))) {
+            other = other.attr("as_DiagonalTensor")();
+        }
+        auto same = get_same_backend({ as_py_object(), other });
+        if (!py::object(as_py_object().attr("leg")).equal(other.attr("leg"))) {
+            throw std::invalid_argument("Incompatible legs!");
+        }
+        if (right) {
+            new_data = same->diagonal_elementwise_binary(
+              other, as_py_object(), func, py::dict(), /*partial_zero_is_zero=*/false);
+        } else {
+            new_data = same->diagonal_elementwise_binary(
+              as_py_object(), other, func, py::dict(), /*partial_zero_is_zero=*/false);
+        }
+        out_labels = _get_matching_labels(labels(), other.attr("labels").cast<LegLabels>());
+    } else if (return_NotImplemented && !py::isinstance(other, tensors_mod.attr("Tensor")) &&
+               !py::isinstance<Tensor>(other)) {
+        return py::reinterpret_borrow<py::object>(Py_NotImplemented);
+    } else {
+        if (right) {
+            throw std::invalid_argument(
+              std::format("Invalid types for operand \"{}\": {} and {}",
+                          operand,
+                          py::str(py::type::of(other)).cast<std::string>(),
+                          class_name()));
+        }
+        throw std::invalid_argument(
+          std::format("Invalid types for operand \"{}\": {} and {}",
+                      operand,
+                      class_name(),
+                      py::str(py::type::of(other)).cast<std::string>()));
+    }
+
+    return py::cast(std::make_shared<DiagonalTensor>(new_data, leg(), backend, symmetry, out_labels));
+}
+
+Tensor::Ptr
+DiagonalTensor::copy(bool deep, std::optional<std::string> device_opt, std::optional<Dtype> dtype_opt)
+{
+    TensorBackend::DataPtr new_data;
+    // Match Python: dtype change effectively always takes as_dtype branch
+    if (dtype_opt.has_value() && *dtype_opt != dtype) {
+        return as_dtype(*dtype_opt);
+    }
+    if (deep) {
+        new_data = backend->copy_data(as_py_object(), device_opt);
+    } else if (device_opt.has_value()) {
+        new_data = backend->move_to_device(as_py_object(), *device_opt);
+    } else {
+        new_data = data;
+    }
+    return std::make_shared<DiagonalTensor>(new_data, leg(), backend, symmetry, labels());
+}
+
+py::object
+DiagonalTensor::diagonal(bool /*check_offdiagonal*/) const
+{
+    return as_py_object();
+}
+
+BlockBackend::BlockPtr
+DiagonalTensor::diagonal_as_block(std::optional<Dtype> dtype_opt)
+{
+    if (!symmetry->can_be_dropped()) {
+        throw SymmetryError(
+          std::format("Dense block representation is not supported for symmetry {}", symmetry->repr()));
+    }
+    auto res = backend->diagonal_tensor_to_block(as_py_object());
+    res = backend->block_backend->apply_basis_perm(
+      res, { as_leg_cptr(codomain->factors[0]) }, /*inv=*/true);
+    if (dtype_opt.has_value()) {
+        res = backend->block_backend->to_dtype(res, *dtype_opt);
+    }
+    return res;
+}
+
+py::array
+DiagonalTensor::diagonal_as_numpy(py::object numpy_dtype)
+{
+    std::optional<Dtype> dt;
+    if (!numpy_dtype.is_none()) {
+        dt = dtype::from_numpy_dtype(numpy_dtype);
+    }
+    auto block = diagonal_as_block(dt);
+    std::optional<py::object> np_dt = numpy_dtype.is_none() ? std::nullopt : std::optional<py::object>{ numpy_dtype };
+    return py::reinterpret_borrow<py::array>(backend->block_backend->to_numpy(block, np_dt));
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::elementwise_almost_equal(py::object other, float64 rtol, float64 atol)
+{
+    other = other.attr("as_DiagonalTensor")();
+    // no (Scalar + Block) operation defined, so requires explicit casting
+    auto ones = from_eye(py::cast(leg()), backend, py::cast(labels()), dtype::to_real(dtype), device);
+    py::object diff = as_py_object().attr("__sub__")(other);
+    py::object left = diff.attr("__abs__")();
+    py::object right = (py::float_(atol) * py::cast(ones)) + (py::float_(rtol) * as_py_object().attr("__abs__")());
+    return left.attr("__le__")(right).cast<Ptr>();
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::_elementwise_binary(py::object other,
+                                    py::function func,
+                                    py::object func_kwargs,
+                                    bool partial_zero_is_zero)
+{
+    auto tensors_mod = py::module_::import("cyten.tensors._tensors");
+    if (!py::isinstance(other, tensors_mod.attr("DiagonalTensor")) &&
+        !py::isinstance(other, py::type::of(as_py_object()))) {
+        throw std::invalid_argument("Expected a DiagonalTensor");
+    }
+    other = other.attr("as_DiagonalTensor")();
+    if (!py::object(as_py_object().attr("leg")).equal(other.attr("leg"))) {
+        throw std::invalid_argument("Incompatible legs");
+    }
+    auto same = get_same_backend({ as_py_object(), other });
+    auto data_out = same->diagonal_elementwise_binary(
+      as_py_object(), other, func, copy_dict(func_kwargs), partial_zero_is_zero);
+    auto labs = _get_matching_labels(labels(), other.attr("labels").cast<LegLabels>());
+    return std::make_shared<DiagonalTensor>(data_out, leg(), same, symmetry, labs);
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::_elementwise_unary(py::function func, py::object func_kwargs, bool maps_zero_to_zero)
+{
+    auto data_out = backend->diagonal_elementwise_unary(
+      as_py_object(), func, copy_dict(func_kwargs), maps_zero_to_zero);
+    return std::make_shared<DiagonalTensor>(data_out, leg(), backend, symmetry, labels());
+}
+
+BlockBackend::Scalar
+DiagonalTensor::_get_item(std::vector<int64> const& idx)
+{
+    assert(idx.size() == 2);
+    int64 i1 = idx[0];
+    int64 i2 = idx[1];
+    if (i1 != i2) {
+        return backend->block_backend->as_scalar(dtype::zero_scalar(dtype), dtype);
+    }
+    return backend->get_element_diagonal(as_py_object(), i1);
+}
+
+bool
+DiagonalTensor::all() const
+{
+    if (dtype != Dtype::Bool) {
+        throw std::invalid_argument(
+          std::format("all is not defined for dtype {}", dtype::repr(dtype)));
+    }
+    return backend->diagonal_all(as_py_object());
+}
+
+bool
+DiagonalTensor::any() const
+{
+    if (dtype != Dtype::Bool) {
+        throw std::invalid_argument(
+          std::format("any is not defined for dtype {}", dtype::repr(dtype)));
+    }
+    return backend->diagonal_any(as_py_object());
+}
+
+BlockBackend::Scalar
+DiagonalTensor::max() const
+{
+    assert(dtype::is_real(dtype));
+    auto bb = backend->block_backend;
+    return backend->reduce_DiagonalTensor(
+      as_py_object(),
+      py::cpp_function([bb](py::object block) { return bb->max(block.cast<BlockBackend::BlockPtr>()); }),
+      py::module_::import("builtins").attr("max"));
+}
+
+BlockBackend::Scalar
+DiagonalTensor::min() const
+{
+    assert(dtype::is_real(dtype));
+    auto bb = backend->block_backend;
+    return backend->reduce_DiagonalTensor(
+      as_py_object(),
+      py::cpp_function([bb](py::object block) { return bb->min(block.cast<BlockBackend::BlockPtr>()); }),
+      py::module_::import("builtins").attr("min"));
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::abs() const
+{
+    auto bb = backend->block_backend;
+    return const_cast<DiagonalTensor*>(this)->_elementwise_unary(
+      py::cpp_function([bb](py::object block) { return bb->abs(block.cast<BlockBackend::BlockPtr>()); }),
+      py::none(),
+      /*maps_zero_to_zero=*/true);
+}
+
+void
+DiagonalTensor::move_to_device(std::string device_in)
+{
+    data = backend->move_to_device(as_py_object(), device_in);
+    device = backend->block_backend->as_device(device_in);
+}
+
+Tensor::Ptr
+DiagonalTensor::to_backend(TensorBackend::Ptr new_backend,
+                           std::optional<Dtype> dtype_opt,
+                           std::optional<std::string> device_opt)
+{
+    if (!new_backend->supports_symmetry(symmetry)) {
+        throw SymmetryError("backend does not support symmetry");
+    }
+
+    // In most cases, we can just go via a single block for the diagonal
+    // exceptions:
+    //   - for non-abelian symmetries this is inefficient (needs to expand sectors into multiplets)
+    //   - for symmetries that can not be dropped, this is not possible
+    // Both of these exceptions can only ocurr if both backends are FusionTreeBackend, which is then also simple
+
+    // OPTIMIZE
+    //   for abelian <-> fusion tree, this might be slightly inefficient.
+    //   I think the blocks should be the same already, so we could get away without first
+    //   concatenating all of them and them splitting them back up
+
+    auto device_s = new_backend->block_backend->as_device(
+      device_opt.has_value() ? device_opt : std::optional<std::string>{ device });
+    TensorBackend::DataPtr new_data;
+    if (std::dynamic_pointer_cast<FusionTreeBackend>(backend) &&
+        std::dynamic_pointer_cast<FusionTreeBackend>(new_backend)) {
+        new_data = backend->to_block_backend(data, new_backend->block_backend, dtype_opt, device_s);
+    } else {
+        auto old_diag = backend->diagonal_tensor_to_block(as_py_object());
+        auto new_diag = new_backend->block_backend->as_block(py::cast(old_diag), dtype_opt, device_s);
+        new_data = new_backend->diagonal_from_block(new_diag, codomain, 0.);
+    }
+    return std::make_shared<DiagonalTensor>(new_data, leg(), new_backend, symmetry, labels());
+}
+
+BlockBackend::BlockPtr
+DiagonalTensor::to_dense_block(
+  std::optional<std::vector<std::variant<int64, std::string>>> leg_order,
+  std::optional<Dtype> dtype_opt,
+  bool understood_braiding)
+{
+    if (!symmetry->can_be_dropped()) {
+        throw SymmetryError(
+          std::format("Dense block representation is not supported for symmetry {}", symmetry->repr()));
+    }
+    if (!symmetry->has_trivial_braid() && !understood_braiding) {
+        throw SymmetryError(
+          "If the symmetry has non-trivial braids, dense block representations do not "
+          "consistently reproduce the braiding statistics. Make sure you understand what "
+          "that means (read the docstring of to_dense_block). Then you can disable "
+          "this error by setting ``understood_braiding=True``.");
+    }
+    auto diag = diagonal_as_block(dtype_opt);
+    auto res = backend->block_backend->block_from_diagonal(diag);
+    if (leg_order.has_value()) {
+        res = backend->block_backend->permute_axes(res, get_leg_idcs(*leg_order));
+    }
+    return res;
+}
+
+void
+DiagonalTensor::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+{
+    /// Export DiagonalTensor to hdf5 such that it can be re-imported with from_hdf5
+    SymmetricTensor::save_hdf5(hdf5_saver, h5gr, subpath);
+}
+
+DiagonalTensor::Ptr
+DiagonalTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subpath)
+{
+    /// Import DiagonalTensor from hdf5
+    auto sym = SymmetricTensor::from_hdf5(hdf5_loader, h5gr, subpath);
+    return std::make_shared<DiagonalTensor>(
+      sym->data, sym->codomain->factors[0].cast<Space::Ptr>(), sym->backend, sym->symmetry, sym->labels());
+}
+
+} // namespace cyten

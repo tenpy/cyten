@@ -185,8 +185,8 @@ class DiagonalTensor : public SymmetricTensor
     [[nodiscard]] Ptr abs() const;
 
   protected:
-    [[nodiscard]] py::object as_py_object();
-    [[nodiscard]] py::object as_py_object() const;
+    [[nodiscard]] py::object as_py_object() override;
+    [[nodiscard]] py::object as_py_object() const override;
 };
 
 } // namespace cyten
