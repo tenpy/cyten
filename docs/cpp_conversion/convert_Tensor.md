@@ -53,6 +53,6 @@ Keep original Python `Tensor` until all subclasses are converted. Export `cyten.
 - [x] generate pybind11 bindings
 - [x] generate pybind11 trampoline (`PyTensor`)
 - [x] monkey-patch — **deferred** until subclasses converted
-- [ ] run python tests (still using Python `Tensor`)
+- [x] run python tests (still using Python `Tensor`; 4341 passed)
 - [ ] remove original python `Tensor` — later
 - [ ] wrap up (then `SymmetricTensor`)
