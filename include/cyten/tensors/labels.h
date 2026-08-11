@@ -33,7 +33,10 @@ inline constexpr char const* FORBIDDEN_LEG_LABEL_CHARS[] = {
 [[nodiscard]] bool is_valid_leg_label(LegLabel const& label);
 
 /// The label that a combined leg should have.
-[[nodiscard]] std::string _combine_leg_labels(LegLabels const& labels, int64 offset);
+///
+/// ``offset`` is added to the index used for anonymous ``?n`` placeholders.
+/// Defaults to ``0`` (needed by :func:`_dual_leg_label` for nested combined labels).
+[[nodiscard]] std::string _combine_leg_labels(LegLabels const& labels, int64 offset = 0);
 
 /// Undo :func:`_combine_leg_labels`, i.e. recover the original labels.
 [[nodiscard]] LegLabels _split_leg_label(LegLabel const& label,
