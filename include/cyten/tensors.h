@@ -10,3 +10,4 @@
 #include <cyten/tensors/constructors.h>
 #include <cyten/tensors/ops_elementwise.h>
 #include <cyten/tensors/ops_algebra.h>
+#include <cyten/tensors/ops_legs.h>

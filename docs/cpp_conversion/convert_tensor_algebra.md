@@ -22,7 +22,7 @@ Stay on branch **`convert_tensors`**.
 - Args/returns are `py::object` so Python Tensor subclasses work before class monkey-patch.
 - Build result tensors via Python ctors + NoSymmetry `data_as_python` unwrap (same as helpers/constructors).
 - Call C++ for same-batch / already-converted helpers (`_check_compatible_legs`, `_compose_*`, `complex_conj`, `cutoff_inverse`, …).
-- Call Python for leg-ops batch still pending: `permute_legs`, `bend_legs`, `move_leg`, `check_same_legs`.
+- Call C++ for leg ops: `permute_legs`, `bend_legs`, `move_leg`, `check_same_legs` (via monkey-patch / direct).
 - Call Python for decompositions still pending: `truncated_svd` (used by `pinv`).
 - `get_same_backend` via C++ `get_same_backend({…})`.
 - Relabel maps: `std::optional<std::map<std::string, std::string>>` with pybind None ↔ nullopt.

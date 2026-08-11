@@ -32,6 +32,7 @@ PYBIND11_MODULE(_core, m)
     bind_tensors_constructors(m);
     bind_tensors_ops_elementwise(m);
     bind_tensors_ops_algebra(m);
+    bind_tensors_ops_legs(m);
 
     bind_check(m); // TODO: remove check
 }

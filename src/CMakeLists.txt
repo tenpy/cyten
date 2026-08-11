@@ -55,6 +55,7 @@ target_sources(cyten
   tensors/constructors.cpp
   tensors/ops_elementwise.cpp
   tensors/ops_algebra.cpp
+  tensors/ops_legs.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   tools/mappings.cpp

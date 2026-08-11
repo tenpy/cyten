@@ -4257,6 +4257,9 @@ def bend_legs(tensor: Tensor, num_codomain_legs: int = None, num_domain_legs: in
     )
 
 
+from .._core import bend_legs  # noqa: F401
+
+
 def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | None:
     """Check if two tensors have the same legs.
 
@@ -4284,6 +4287,9 @@ def check_same_legs(t1: Tensor, t2: Tensor) -> tuple[list[int], list[int]] | Non
     if incompatible_labels:
         logger.warning('Compatible legs with permuted labels detected. Double check your leg order!', stacklevel=3)
     # done
+
+
+from .._core import check_same_legs  # noqa: F401
 
 
 def combine_legs(
@@ -4506,6 +4512,9 @@ def combine_legs(
     )
 
 
+from .._core import combine_legs  # noqa: F401
+
+
 def combine_to_matrix(
     tensor: Tensor,
     codomain: int | str | list[int | str] | None = None,
@@ -4556,6 +4565,9 @@ def combine_to_matrix(
     """
     res = permute_legs(tensor, codomain=codomain, domain=domain, levels=levels)
     return combine_legs(res, range(res.num_codomain_legs), range(res.num_codomain_legs, res.num_legs))
+
+
+from .._core import combine_to_matrix  # noqa: F401
 
 
 @_elementwise_function(block_func='cutoff_inverse', maps_zero_to_zero=True)
@@ -5354,6 +5366,9 @@ def move_leg(
     return permute_legs(tensor, new_codomain, new_domain, levels=levels, bend_right=bend_right)
 
 
+from .._core import move_leg  # noqa: F401
+
+
 def norm(tensor: Tensor) -> Scalar:
     r"""The Frobenius norm of a Tensor.
 
@@ -5956,6 +5971,9 @@ def permute_legs(
     return SymmetricTensor(data, new_codomain, new_domain, backend=tensor.backend, labels=labels)
 
 
+from .._core import permute_legs  # noqa: F401
+
+
 def pinv(tensor: Tensor, cutoff=1e-15) -> Tensor:
     """The Moore-Penrose pseudo-inverse of a tensor."""
     if isinstance(tensor, Identity):
@@ -6346,6 +6364,9 @@ def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
     return SymmetricTensor(data, codomain, domain, backend=tensor.backend, labels=labels)
 
 
+from .._core import split_legs  # noqa: F401
+
+
 @_elementwise_function(block_func='sqrt', maps_zero_to_zero=True)
 def sqrt[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """The square root of a number, :ref:`elementwise <diagonal_elementwise>`."""
@@ -6406,6 +6427,9 @@ def squeeze_legs(tensor: Tensor, legs: int | str | list[int | str] = None) -> Te
     return SymmetricTensor(
         data, codomain, domain, backend=tensor.backend, labels=[tensor._labels[n] for n in remaining]
     )
+
+
+from .._core import squeeze_legs  # noqa: F401
 
 
 @_elementwise_function(block_func='stable_log', func_kwargs=dict(cutoff=1e-30), maps_zero_to_zero=True)
