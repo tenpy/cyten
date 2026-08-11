@@ -50,6 +50,7 @@ target_sources(cyten
   tensors/symmetric_tensor.cpp
   tensors/diagonal_tensor.cpp
   tensors/mask.cpp
+  tensors/charged_tensor.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   tools/mappings.cpp

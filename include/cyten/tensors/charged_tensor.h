@@ -139,9 +139,7 @@ class ChargedTensor : public Tensor
                                                               bool use_symm_str = false) const override;
 
     LabelledLegs& set_label(int64 pos, LegLabel label) override;
-    LabelledLegs& set_labels(LegLabels labels) override;
-    using Tensor::set_labels; // keep Tensor::set_labels(py::object) via override below
-    Tensor& set_labels(py::object labels);
+    Tensor& set_labels(LegLabels labels) override;
 
     [[nodiscard]] Tensor::Ptr to_backend(TensorBackend::Ptr backend,
                                          std::optional<Dtype> dtype = std::nullopt,
