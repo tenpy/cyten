@@ -45,14 +45,14 @@
 ## TODO list for conversion
 
 - [x] initial setup (branch `convert_tensors`, names listed, planning docs)
-- [ ] planning (this file + convert_tensors.md)
-- [ ] generate the declaration draft
-- [ ] improve and fix the declaration draft
-- [ ] generate the C++ definitions
-- [ ] improve and fix the definition drafts
-- [ ] generate pybind11 bindings
-- [ ] generate pybind11 trampoline — skip for now (defer monkey-patch of class)
-- [ ] monkey-patch free helpers only; keep Python `LabelledLegs` until Tensor
-- [ ] run python tests with pytest
-- [ ] remove original python code — only helpers after tests; class later
+- [x] planning (this file + convert_tensors.md)
+- [x] generate the declaration draft
+- [x] improve and fix the declaration draft
+- [x] generate the C++ definitions
+- [x] improve and fix the definition drafts
+- [x] generate pybind11 bindings
+- [x] generate pybind11 trampoline — skipped (defer monkey-patch of `LabelledLegs`)
+- [x] monkey-patch free helpers + constants; keep Python `LabelledLegs` until Tensor
+- [ ] run python tests with pytest (in progress)
+- [ ] remove original python code — helpers after tests; class later
 - [ ] wrap up

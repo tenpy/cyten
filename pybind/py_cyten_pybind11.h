@@ -31,6 +31,7 @@ void bind_fusion_tree_data(py::module_& m);
 void bind_fusion_tree_backend(py::module_& m);
 void bind_fusion_tree_mapping(py::module_& m);
 void bind_backend_factory(py::module_& m);
+void bind_tensors_labels(py::module_& m);
 void bind_check(py::module_& m);
 
 } // namespace cyten

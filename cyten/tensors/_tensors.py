@@ -74,6 +74,13 @@ FORBIDDEN_LEG_LABEL_CHARS = [
 ]
 """List of characters that are forbidden in leg labels"""
 
+from .._core import (  # noqa: E402, F401
+    CONTRACT_SYMBOL,
+    FORBIDDEN_LEG_LABEL_CHARS,
+    LEG_SELECT_SYMBOL,
+    OPEN_LEG_SYMBOL,
+)
+
 
 # TENSOR CLASSES
 
@@ -7156,6 +7163,9 @@ def _combine_leg_labels(labels: list[str | None], offset: int) -> str:
     return '(' + '.'.join(f'?{n + offset}' if l is None else l for n, l in enumerate(labels)) + ')'
 
 
+from .._core import _combine_leg_labels  # noqa: E402, F811
+
+
 def _convert_abelian_to_FT(tensor: SymmetricTensor, backend: FusionTreeBackend, dtype: Dtype, device: str):
     """Convert tensor from abelian backend to FT backend. Return the data
 
@@ -7418,6 +7428,9 @@ def _dual_label_list(labels: list[str | None]) -> list[str | None]:
     return [_dual_leg_label(l) for l in reversed(labels)]
 
 
+from .._core import _dual_label_list  # noqa: E402, F811
+
+
 def _dual_leg_label(label: str | None) -> str | None:
     """The label that a leg should have after conjugation"""
     if label is None:
@@ -7428,6 +7441,9 @@ def _dual_leg_label(label: str | None) -> str | None:
         return label[:-1]
     else:
         return label + '*'
+
+
+from .._core import _dual_leg_label  # noqa: E402, F811
 
 
 def _get_matching_labels(labels1: list[str | None], labels2: list[str | None], stacklevel: int = 1) -> list[str | None]:
@@ -7456,6 +7472,9 @@ def _get_matching_labels(labels1: list[str | None], labels2: list[str | None], s
     return labels
 
 
+from .._core import _get_matching_labels  # noqa: E402, F811
+
+
 def is_valid_leg_label(label) -> bool:
     """If the given string is a valid leg label."""
     if label is None:
@@ -7466,6 +7485,9 @@ def is_valid_leg_label(label) -> bool:
     if any(f in label for f in FORBIDDEN_LEG_LABEL_CHARS):
         return False
     return True
+
+
+from .._core import is_valid_leg_label  # noqa: E402, F811
 
 
 def _split_leg_label(label: str | None, num: int = None) -> list[str | None]:
@@ -7479,6 +7501,9 @@ def _split_leg_label(label: str | None, num: int = None) -> list[str | None]:
         return [None if l.startswith('?') else l for l in labels]
     else:
         raise ValueError('Invalid format for a combined label')
+
+
+from .._core import _split_leg_label  # noqa: E402, F811
 
 
 def _svd_new_labels(new_labels: str | Sequence[str]) -> tuple[str, str, str, str]:
