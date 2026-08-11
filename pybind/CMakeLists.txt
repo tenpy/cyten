@@ -46,4 +46,5 @@ target_sources(_core
   backends/py_fusion_tree_mapping.cpp
   backends/py_backend_factory.cpp
   tensors/py_labels.cpp
+  tensors/py_tensor.cpp
 )

@@ -45,14 +45,14 @@ Keep original Python `Tensor` until all subclasses are converted. Export `cyten.
 ## TODO list for conversion
 
 - [x] initial setup (branch `convert_tensors`, Tensor listed, pytest smoke)
-- [ ] planning (this file)
-- [ ] generate the declaration draft
-- [ ] improve and fix the declaration draft
-- [ ] generate the C++ definitions
-- [ ] improve and fix the definition drafts
-- [ ] generate pybind11 bindings
-- [ ] generate pybind11 trampoline (`PyTensor`)
-- [ ] monkey-patch — **deferred** until subclasses converted
+- [x] planning (this file)
+- [x] generate the declaration draft
+- [x] improve and fix the declaration draft
+- [x] generate the C++ definitions
+- [x] improve and fix the definition drafts
+- [x] generate pybind11 bindings
+- [x] generate pybind11 trampoline (`PyTensor`)
+- [x] monkey-patch — **deferred** until subclasses converted
 - [ ] run python tests (still using Python `Tensor`)
 - [ ] remove original python `Tensor` — later
 - [ ] wrap up (then `SymmetricTensor`)

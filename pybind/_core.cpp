@@ -23,6 +23,7 @@ PYBIND11_MODULE(_core, m)
     bind_fusion_tree_mapping(m);
     bind_backend_factory(m);
     bind_tensors_labels(m);
+    bind_tensors_tensor(m);
 
     bind_check(m); // TODO: remove check
 }
