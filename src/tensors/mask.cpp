@@ -61,6 +61,39 @@ as_leg_cptr(Space::Ptr const& space)
     return std::static_pointer_cast<Leg const>(es);
 }
 
+/// Adapt a numpy-oriented bool function so backends can call it on Block objects.
+py::function
+adapt_block_bool_unary(py::function func, std::shared_ptr<BlockBackend> bb)
+{
+    return py::cpp_function([func, bb](py::object block_obj) {
+        auto block = block_obj.cast<BlockBackend::BlockPtr>();
+        auto arr = bb->to_numpy(block, py::module_::import("builtins").attr("bool"));
+        auto out = func(arr);
+        return bb->as_block(out, Dtype::Bool, block->device());
+    });
+}
+
+py::function
+adapt_block_bool_binary(py::function func, std::shared_ptr<BlockBackend> bb)
+{
+    return py::cpp_function([func, bb](py::object a_obj, py::object b_obj) {
+        // ``b`` may be a bool scalar (unary-via-binary path) or a Block.
+        if (py::isinstance<py::bool_>(b_obj) ||
+            py::isinstance(b_obj, py::module_::import("numpy").attr("bool_"))) {
+            auto a = a_obj.cast<BlockBackend::BlockPtr>();
+            auto arr = bb->to_numpy(a, py::module_::import("builtins").attr("bool"));
+            auto out = func(arr, b_obj);
+            return bb->as_block(out, Dtype::Bool, a->device());
+        }
+        auto a = a_obj.cast<BlockBackend::BlockPtr>();
+        auto b = b_obj.cast<BlockBackend::BlockPtr>();
+        auto arr_a = bb->to_numpy(a, py::module_::import("builtins").attr("bool"));
+        auto arr_b = bb->to_numpy(b, py::module_::import("builtins").attr("bool"));
+        auto out = func(arr_a, arr_b);
+        return bb->as_block(out, Dtype::Bool, a->device());
+    });
+}
+
 int64
 space_dim(Space const& space)
 {
@@ -261,7 +294,8 @@ Mask::test_sanity() const
     } else {
         auto np = py::module_::import("numpy");
         auto mask_in_internal_basis =
-          backend->block_backend->to_numpy(backend->mask_to_block(as_py_object()), py::bool_(true));
+          backend->block_backend->to_numpy(backend->mask_to_block(as_py_object()),
+                                            py::module_::import("builtins").attr("bool"));
         auto pi_1 = py::cast(large->basis_perm());
         auto pi_2_inv = py::cast(small->inverse_basis_perm());
         auto ranks = pi_1[py::make_tuple(mask_in_internal_basis)][py::make_tuple(pi_2_inv)];
@@ -530,7 +564,8 @@ Mask::_binary_operand(py::object other,
     if (!as_py_object().attr("domain").equal(other.attr("domain"))) {
         throw std::invalid_argument("Incompatible domain.");
     }
-    auto [data_out, small] = same->mask_binary_operand(as_py_object(), other, func);
+    auto adapted = adapt_block_bool_binary(func, same->block_backend);
+    auto [data_out, small] = same->mask_binary_operand(as_py_object(), other, adapted);
     auto labs = _get_matching_labels(labels(), other.attr("labels").cast<LegLabels>());
     return py::cast(std::make_shared<Mask>(data_out,
                                            py::cast(large_leg()),
@@ -550,7 +585,8 @@ Mask::_unary_operand(py::function func)
         return std::static_pointer_cast<Mask>(proj->_unary_operand(func)->dagger());
     }
 
-    auto [data_out, small] = backend->mask_unary_operand(as_py_object(), func);
+    auto [data_out, small] =
+      backend->mask_unary_operand(as_py_object(), adapt_block_bool_unary(func, backend->block_backend));
     return std::make_shared<Mask>(
       data_out, py::cast(large_leg()), py::cast(small), true, backend, py::cast(labels()));
 }
@@ -649,7 +685,8 @@ Mask::as_block_mask()
 py::array
 Mask::as_numpy_mask()
 {
-    return backend->block_backend->to_numpy(as_block_mask(), py::bool_(true));
+    return backend->block_backend->to_numpy(as_block_mask(),
+                                             py::module_::import("builtins").attr("bool"));
 }
 
 Tensor::Ptr
