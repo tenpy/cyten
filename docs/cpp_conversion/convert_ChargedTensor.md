@@ -45,10 +45,11 @@ Stay on branch **`convert_tensors`**. Defer monkey-patch until all Tensor subcla
 
 - [x] initial setup (branch `convert_tensors`, listed)
 - [x] planning (this file)
-- [ ] generate / improve declaration
-- [ ] generate / improve definitions
-- [ ] pybind11 bindings (no trampoline)
-- [ ] monkey-patch — deferred
-- [ ] pytest
-- [ ] remove Python body — later with other Tensor subclasses
-- [ ] wrap up → free functions
+- [x] generate / improve declaration
+- [x] generate / improve definitions
+- [x] pybind11 bindings (no trampoline)
+- [x] monkey-patch — **deferred** (Python ChargedTensor still used by library)
+- [x] pytest (4341 passed, 596 xfailed with `-m "not slow"`; Python ChargedTensor still used)
+- [x] C++ smoke: `_core.ChargedTensor.from_zero` / `dagger` / `test_sanity`
+- [ ] remove Python body — later with other Tensor subclasses / free functions
+- [ ] wrap up → free-function batches
