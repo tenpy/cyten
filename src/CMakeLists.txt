@@ -53,6 +53,7 @@ target_sources(cyten
   tensors/charged_tensor.cpp
   tensors/helpers.cpp
   tensors/constructors.cpp
+  tensors/ops_elementwise.cpp
   tools.cpp
   tools/cost_polynomials.cpp
   tools/mappings.cpp

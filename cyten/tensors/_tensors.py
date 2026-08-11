@@ -4010,6 +4010,9 @@ def angle[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> Elem
     return np.angle(x)
 
 
+from .._core import angle  # noqa: F401
+
+
 def almost_equal(
     tensor_1: Tensor, tensor_2: Tensor, rtol: float = 1e-5, atol: float = 1e-8, allow_different_types: bool = False
 ) -> bool:
@@ -4565,10 +4568,16 @@ def cutoff_inverse[ElementwiseType: (Number, DiagonalTensor)](
     return 1.0 / x
 
 
+from .._core import cutoff_inverse  # noqa: F401
+
+
 @_elementwise_function(block_func='conj', maps_zero_to_zero=True)
 def complex_conj[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """Complex conjugation, :ref:`elementwise <diagonal_elementwise>`."""
     return np.conj(x)
+
+
+from .._core import complex_conj  # noqa: F401
 
 
 def dagger(tensor: Tensor) -> Tensor:
@@ -5029,6 +5038,9 @@ def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') 
 def imag[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""
     return np.imag(x)
+
+
+from .._core import imag  # noqa: F401
 
 
 def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> Scalar:
@@ -5995,6 +6007,9 @@ def real[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> Eleme
     return np.real(x)
 
 
+from .._core import real  # noqa: F401
+
+
 @_elementwise_function(block_func='real_if_close', func_kwargs=dict(tol=100), maps_zero_to_zero=True)
 def real_if_close[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType, tol: float = 100) -> ElementwiseType:
     """If close to real, return the :func:`real` part, :ref:`elementwise <diagonal_elementwise>`.
@@ -6013,6 +6028,9 @@ def real_if_close[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType,
 
     """
     return np.real_if_close(x, tol=tol)
+
+
+from .._core import real_if_close  # noqa: F401
 
 
 def lq(
@@ -6286,6 +6304,9 @@ def sqrt[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> Eleme
     return np.sqrt(x)
 
 
+from .._core import sqrt  # noqa: F401
+
+
 def squeeze_legs(tensor: Tensor, legs: int | str | list[int | str] = None) -> Tensor:
     """Remove trivial legs.
 
@@ -6348,6 +6369,9 @@ def stable_log[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType, cu
     """
     assert cutoff > 0
     return np.where(x > cutoff, np.log(x), 0.0)
+
+
+from .._core import stable_log  # noqa: F401
 
 
 def svd(
