@@ -4105,6 +4105,9 @@ def almost_equal(
     raise TypeError(msg)
 
 
+from .._core import almost_equal  # noqa: F401
+
+
 def apply_mask(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
     """Apply a projection Mask to one leg of a tensor, *projecting* it to a smaller leg.
 
@@ -4651,6 +4654,9 @@ def dagger(tensor: Tensor) -> Tensor:
     raise TypeError('Invalid type for tensor. Expected a Tensor subtype')
 
 
+from .._core import dagger  # noqa: F401
+
+
 def compose(
     tensor1: Tensor, tensor2: Tensor, relabel1: dict[str, str] = None, relabel2: dict[str, str] = None
 ) -> Tensor:
@@ -4715,6 +4721,9 @@ def compose(
         )
 
     return _compose_SymmetricTensors(tensor1, tensor2, relabel1=relabel1, relabel2=relabel2)
+
+
+from .._core import compose  # noqa: F401
 
 
 def _compose_with_Mask(tensor: Tensor, mask: Mask, leg_idx: int) -> Tensor:
@@ -5034,6 +5043,9 @@ def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') 
     return device
 
 
+from .._core import get_same_device  # noqa: F401
+
+
 @_elementwise_function(block_func='imag', maps_zero_to_zero=True)
 def imag[ElementwiseType: (Number, DiagonalTensor)](x: ElementwiseType) -> ElementwiseType:
     """The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`."""
@@ -5165,6 +5177,9 @@ def inner(A: Tensor, B: Tensor, do_dagger: bool = True) -> Scalar:
     return backend.inner(A, B, do_dagger=do_dagger)
 
 
+from .._core import inner  # noqa: F401
+
+
 def is_scalar(obj):
     """If an object is a scalar.
 
@@ -5194,6 +5209,9 @@ def is_scalar(obj):
     return isinstance(obj, Number)
 
 
+from .._core import is_scalar  # noqa: F401
+
+
 def item(tensor: Tensor) -> Scalar:
     """If the tensor is a scalar (with only trivial legs), convert to a Scalar."""
     if not is_scalar(tensor):
@@ -5211,6 +5229,9 @@ def item(tensor: Tensor) -> Scalar:
         res = tensor.backend.block_backend.tdot(tensor.charged_state, inv_block, 0, -1)
         return tensor.backend.block_backend.item(res)
     raise TypeError('Invalid type for tensor.')
+
+
+from .._core import item  # noqa: F401
 
 
 def linear_combination(a: Number | Scalar, v: Tensor, b: Number | Scalar, w: Tensor):
@@ -5260,6 +5281,9 @@ def linear_combination(a: Number | Scalar, v: Tensor, b: Number | Scalar, w: Ten
         backend=backend,
         labels=_get_matching_labels(v._labels, w._labels),
     )
+
+
+from .._core import linear_combination  # noqa: F401
 
 
 def move_leg(
@@ -5362,6 +5386,9 @@ def norm(tensor: Tensor) -> Scalar:
     raise TypeError('Invalid type for tensor.')
 
 
+from .._core import norm  # noqa: F401
+
+
 def on_device(tensor: Tensor, device: str, copy: bool = True) -> Tensor:
     """An equivalent tensor (with the same entries) on another device.
 
@@ -5384,6 +5411,9 @@ def on_device(tensor: Tensor, device: str, copy: bool = True) -> Tensor:
         return tensor.copy(device=device)
     tensor.move_to_device(device)
     return tensor
+
+
+from .._core import on_device  # noqa: F401
 
 
 def outer(tensor1: Tensor, tensor2: Tensor, relabel1: dict[str, str] = None, relabel2: dict[str, str] = None) -> Tensor:
@@ -5461,6 +5491,9 @@ def outer(tensor1: Tensor, tensor2: Tensor, relabel1: dict[str, str] = None, rel
         domain_labels.extend(relabel2.get(l, l) for l in tensor2.domain_labels)
     #
     return SymmetricTensor(data, codomain, domain, backend, [codomain_labels, domain_labels])
+
+
+from .._core import outer  # noqa: F401
 
 
 def partial_compose(
@@ -5630,6 +5663,9 @@ def partial_compose(
     return SymmetricTensor(data=data, codomain=new_codomain, domain=new_domain, backend=backend, labels=res_labels)
 
 
+from .._core import partial_compose  # noqa: F401
+
+
 def partial_trace(
     tensor: Tensor, *pairs: Sequence[int | str], levels: list[int] | dict[str | int, int] | None = None
 ) -> Tensor:
@@ -5721,6 +5757,9 @@ def partial_trace(
         return data
     labels = [l for n, l in enumerate(tensor._labels) if n not in traced_idcs]
     return SymmetricTensor(data=data, codomain=codomain, domain=domain, backend=tensor.backend, labels=labels)
+
+
+from .._core import partial_trace  # noqa: F401
 
 
 def permute_legs(
@@ -5925,6 +5964,9 @@ def pinv(tensor: Tensor, cutoff=1e-15) -> Tensor:
         return cutoff_inverse(tensor, cutoff=cutoff)
     U, S, Vh = truncated_svd(tensor, options=dict(svd_min=cutoff))
     return dagger(U @ cutoff_inverse(S, cutoff=cutoff) @ Vh)
+
+
+from .._core import pinv  # noqa: F401
 
 
 def qr(
@@ -6135,6 +6177,9 @@ def scalar_multiply(a: Number | Scalar, v: Tensor) -> Tensor:
     )
 
 
+from .._core import scalar_multiply  # noqa: F401
+
+
 def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
     """Contract one `leg` of  `tensor` with a diagonal tensor.
 
@@ -6202,6 +6247,9 @@ def scale_axis(tensor: Tensor, diag: DiagonalTensor, leg: int | str) -> Tensor:
     backend = get_same_backend(tensor, diag)
     data = backend.scale_axis(tensor, diag, leg_idx)
     return SymmetricTensor(data, codomain=tensor.codomain, domain=tensor.domain, backend=backend, labels=tensor._labels)
+
+
+from .._core import scale_axis  # noqa: F401
 
 
 def split_legs(tensor: Tensor, legs: int | str | list[int | str] | None = None):
@@ -6864,6 +6912,9 @@ def tdot(
     return _compose_SymmetricTensors(tensor1, tensor2)
 
 
+from .._core import tdot  # noqa: F401
+
+
 def trace(tensor: Tensor):
     """Perform the trace.
 
@@ -6910,6 +6961,9 @@ def trace(tensor: Tensor):
         res = tensor.backend.block_backend.tdot(inv_block, tensor.charged_state, [0], [0])
         return tensor.backend.block_backend.item(res)
     return tensor.backend.trace_full(tensor)
+
+
+from .._core import trace  # noqa: F401
 
 
 def transpose(tensor: Tensor) -> Tensor:
@@ -6978,6 +7032,9 @@ def transpose(tensor: Tensor) -> Tensor:
         inv_part = move_leg(inv_part, ChargedTensor._CHARGE_LEG_LABEL, domain_pos=0)
         return ChargedTensor(inv_part, tensor.charged_state)
     raise TypeError('Invalid type for tensor.')
+
+
+from .._core import transpose  # noqa: F401
 
 
 def truncate_singular_values(

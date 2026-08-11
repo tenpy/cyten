@@ -2,6 +2,7 @@
 
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/charged_tensor.h>
+#include <cyten/tensors/ops_algebra.h>
 #include <cyten/tools.h>
 
 #include <cassert>
@@ -301,7 +302,7 @@ _compose_SymmetricTensors(py::object tensor1,
 {
     if (tensor1.attr("num_codomain_legs").cast<int64>() == 0
         && tensor2.attr("num_domain_legs").cast<int64>() == 0) {
-        return tensors_mod().attr("inner")(tensor1, tensor2, py::arg("do_dagger") = false);
+        return inner(tensor1, tensor2, /*do_dagger=*/false);
     }
 
     LegLabels labels_codomain =

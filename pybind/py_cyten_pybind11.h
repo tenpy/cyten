@@ -40,6 +40,7 @@ void bind_tensors_charged_tensor(py::module_& m);
 void bind_tensors_helpers(py::module_& m);
 void bind_tensors_constructors(py::module_& m);
 void bind_tensors_ops_elementwise(py::module_& m);
+void bind_tensors_ops_algebra(py::module_& m);
 void bind_check(py::module_& m);
 
 } // namespace cyten

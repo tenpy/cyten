@@ -54,4 +54,5 @@ target_sources(_core
   tensors/py_helpers.cpp
   tensors/py_constructors.cpp
   tensors/py_ops_elementwise.cpp
+  tensors/py_ops_algebra.cpp
 )
