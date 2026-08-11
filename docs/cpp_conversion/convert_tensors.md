@@ -55,7 +55,7 @@ flowchart TD
 | 7 | `Mask` | **C++ + bindings** (no trampoline); monkey-patch deferred — [convert_Mask.md](convert_Mask.md) |
 | 8 | `ChargedTensor` | **C++ + bindings** (no trampoline); monkey-patch deferred — [convert_ChargedTensor.md](convert_ChargedTensor.md) |
 | 9 | Private helpers (`_check_compatible_legs`, `_compose_*`, `_convert_*`, `_decomposition_*`, `_svd_new_labels`) | **C++ + bindings + monkey-patched** — [convert_tensor_helpers.md](convert_tensor_helpers.md) |
-| 10 | Constructors (`eye`, `tensor`, `add_trivial_leg`, …) | pending |
+| 10 | Constructors (`eye`, `tensor`, `add_trivial_leg`, `zero_like`, `tensor_from_grid`) | **C++ + bindings + monkey-patched** — [convert_tensor_constructors.md](convert_tensor_constructors.md) |
 | 11 | Elementwise ops | pending |
 | 12 | Algebra ops | pending |
 | 13 | Leg permutation ops | pending |

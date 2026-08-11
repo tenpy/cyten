@@ -7,3 +7,4 @@
 #include <cyten/tensors/mask.h>
 #include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/helpers.h>
+#include <cyten/tensors/constructors.h>

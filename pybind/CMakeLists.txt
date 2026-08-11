@@ -52,4 +52,5 @@ target_sources(_core
   tensors/py_mask.cpp
   tensors/py_charged_tensor.cpp
   tensors/py_helpers.cpp
+  tensors/py_constructors.cpp
 )

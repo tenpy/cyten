@@ -3838,6 +3838,9 @@ def eye(
     return res.as_SymmetricTensor()
 
 
+from .._core import eye  # noqa: F401
+
+
 def tensor(
     obj,
     codomain: Sequence[Leg],
@@ -3877,6 +3880,9 @@ def tensor(
         device=device,
         understood_braiding=understood_braiding,
     )
+
+
+from .._core import tensor  # noqa: F401
 
 
 # FUNCTIONS ON TENSORS
@@ -3989,6 +3995,9 @@ def add_trivial_leg(
         backend=tens.backend,
         labels=[*tens.labels[:legs_pos], label, *tens.labels[legs_pos:]],
     )
+
+
+from .._core import add_trivial_leg  # noqa: F401
 
 
 @_elementwise_function(block_func='angle', maps_zero_to_zero=True)
@@ -6587,6 +6596,9 @@ def tensor_from_grid(
     return SymmetricTensor(data, codomain=codomain, domain=domain, backend=backend, labels=labels)
 
 
+from .._core import tensor_from_grid  # noqa: F401
+
+
 def tdot(
     tensor1: Tensor,
     tensor2: Tensor,
@@ -7133,6 +7145,9 @@ def zero_like(tensor: Tensor) -> Tensor:
             device=tensor.device,
         )
     raise TypeError('Invalid type for tensor.')
+
+
+from .._core import zero_like  # noqa: F401
 
 
 # INTERNAL HELPER FUNCTIONS

@@ -29,6 +29,7 @@ PYBIND11_MODULE(_core, m)
     bind_tensors_mask(m);
     bind_tensors_charged_tensor(m);
     bind_tensors_helpers(m);
+    bind_tensors_constructors(m);
 
     bind_check(m); // TODO: remove check
 }
