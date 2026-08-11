@@ -76,7 +76,7 @@ flowchart LR
 
 ### Layer 0 — Minimal tools
 
-- **cyten/tools/mappings.py** — `SparseMapping` / `IdentityMapping` **C++ templates** in `_core` as `SparseMappingFusionTree` / `…Pair` (+ Identity aliases); Python module still present — [convert_SparseMapping.md](convert_SparseMapping.md).
+- **SparseMapping / IdentityMapping** — **C++ templates** in `_core` as `SparseMappingFusionTree` / `…Pair` (+ Identity aliases); Python `cyten/tools/mappings.py` removed — [convert_SparseMapping.md](convert_SparseMapping.md).
 - **cyten/tools/misc.py** — `to_iterable`, `rank_data`, `argsort`, `combine_constraints`, `as_immutable_array`, `duplicate_entries`, `inverse_permutation`, `iter_common_sorted_arrays`, `to_valid_idx`, `is_iterable` (used everywhere).
 - **cyten/tools/string.py** — `format_like_list` (tiny).
 - **cyten/block_backends/dtypes.py** — `Dtype`, numpy/cyten dtype mapping (needed by block_backends).

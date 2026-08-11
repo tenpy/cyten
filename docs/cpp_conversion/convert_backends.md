@@ -14,8 +14,9 @@ Monkey-patched:
 
 Still Python (not Layer 3 backends):
 
-- `cyten.tools.mappings.SparseMapping` / `IdentityMapping` — generic Python helpers; C++ has typed aliases used by the FT mapping stack ([convert_SparseMapping.md](convert_SparseMapping.md))
 - Layer 4 tensor classes — backends reach them via `py::object`
+
+Related (not a backend; C++ only, Python module removed): [convert_SparseMapping.md](convert_SparseMapping.md).
 
 ## Conversion order
 
