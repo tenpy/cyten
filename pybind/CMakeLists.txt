@@ -50,4 +50,5 @@ target_sources(_core
   tensors/py_symmetric_tensor.cpp
   tensors/py_diagonal_tensor.cpp
   tensors/py_mask.cpp
+  tensors/py_charged_tensor.cpp
 )

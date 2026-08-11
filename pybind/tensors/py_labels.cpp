@@ -144,6 +144,11 @@ The labels that refer to the :attr:`legs`.
 Thus, ``labels[:K]`` are the ``codomain_labels`` and ``labels[K:][::-1]`` are the
 ``domain_labels`` where ``K == num_codomain_legs``.
 )pydoc")
+      // Python free functions often access ``_labels``; keep as alias until those are converted.
+      .def_property(
+        "_labels",
+        &LabelledLegs::labels,
+        [](LabelledLegs& self, LegLabels labels) { self.set_labels(std::move(labels)); })
       .def("test_sanity", &LabelledLegs::test_sanity, R"pydoc(Perform sanity checks.)pydoc")
       .def("get_leg_idcs",
            &py_get_leg_idcs,

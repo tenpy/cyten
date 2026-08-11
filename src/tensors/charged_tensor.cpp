@@ -1,6 +1,7 @@
 #include <cyten/tensors/charged_tensor.h>
 
 #include <cyten/backends/backend_factory.h>
+#include <cyten/backends/no_symmetry.h>
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/tools.h>
 #include <cyten/warn.h>
@@ -23,21 +24,25 @@ as_symmetric_tensor(py::object obj)
     if (py::isinstance<SymmetricTensor>(obj)) {
         return obj.cast<SymmetricTensor::Ptr>();
     }
-    // Python SymmetricTensor until monkey-patch
-    throw std::invalid_argument("Expected SymmetricTensor for ChargedTensor.invariant_part");
-}
-
-BlockBackend::BlockPtr
-optional_block(py::object obj)
-{
-    if (obj.is_none()) {
-        return nullptr;
+    // Coerce Python SymmetricTensor (e.g. from free functions) into C++.
+    auto backend = obj.attr("backend").cast<TensorBackend::Ptr>();
+    TensorBackend::DataPtr data;
+    py::object data_obj = obj.attr("data");
+    try {
+        data = data_obj.cast<TensorBackend::DataPtr>();
+    } catch (py::cast_error const&) {
+        if (std::dynamic_pointer_cast<NoSymmetryBackend>(backend)) {
+            data = NoSymmetryBackend::wrap(data_obj.cast<BlockBackend::BlockPtr>());
+        } else {
+            throw;
+        }
     }
-    if (py::isinstance<BlockBackend::Block>(obj)) {
-        return obj.cast<BlockBackend::BlockPtr>();
-    }
-    // leave conversion to caller via as_block
-    return nullptr;
+    return std::make_shared<SymmetricTensor>(data,
+                                             obj.attr("codomain").cast<TensorProduct::Ptr>(),
+                                             obj.attr("domain").cast<TensorProduct::Ptr>(),
+                                             backend,
+                                             obj.attr("symmetry").cast<Symmetry::Ptr>(),
+                                             obj.attr("labels").cast<LegLabels>());
 }
 
 py::object
@@ -50,21 +55,15 @@ tensors_mod()
 
 ChargedTensor::ChargedTensor(py::object invariant_part_obj, py::object charged_state_obj)
   : ChargedTensor(
-      [&]() {
-          if (py::isinstance<SymmetricTensor>(invariant_part_obj)) {
-              return invariant_part_obj.cast<SymmetricTensor::Ptr>();
-          }
-          throw std::invalid_argument("Expected SymmetricTensor for ChargedTensor.invariant_part");
-      }(),
+      as_symmetric_tensor(invariant_part_obj),
       [&]() -> BlockBackend::BlockPtr {
           if (charged_state_obj.is_none()) {
               return nullptr;
           }
-          // May be a Block already; otherwise leave as_block to C++ ctor via temporary path
           try {
               return charged_state_obj.cast<BlockBackend::BlockPtr>();
           } catch (py::cast_error const&) {
-              auto inv = invariant_part_obj.cast<SymmetricTensor::Ptr>();
+              auto inv = as_symmetric_tensor(invariant_part_obj);
               return inv->backend->block_backend->as_block(
                 charged_state_obj, inv->dtype, inv->device);
           }
@@ -288,14 +287,7 @@ ChargedTensor::from_dense_block_single_sector(py::object /*vector*/,
 py::object
 ChargedTensor::from_invariant_part(py::object invariant_part_obj, py::object charged_state)
 {
-    SymmetricTensor::Ptr inv;
-    if (py::isinstance<SymmetricTensor>(invariant_part_obj)) {
-        inv = invariant_part_obj.cast<SymmetricTensor::Ptr>();
-    } else {
-        // Fall back to Python constructor path for Python SymmetricTensor
-        return tensors_mod().attr("ChargedTensor").attr("from_invariant_part")(invariant_part_obj,
-                                                                               charged_state);
-    }
+    auto inv = as_symmetric_tensor(invariant_part_obj);
     if (inv->num_legs == 1) {
         if (charged_state.is_none()) {
             throw std::invalid_argument(
@@ -306,7 +298,16 @@ ChargedTensor::from_invariant_part(py::object invariant_part_obj, py::object cha
         auto state = inv->backend->block_backend->as_block(charged_state, inv->dtype, inv->device);
         return py::cast(inv->backend->block_backend->inner(inv_block, state, /*do_dagger=*/false));
     }
-    return py::cast(std::make_shared<ChargedTensor>(py::cast(inv), charged_state));
+    return py::cast(std::make_shared<ChargedTensor>(inv, [&]() -> BlockBackend::BlockPtr {
+        if (charged_state.is_none()) {
+            return nullptr;
+        }
+        try {
+            return charged_state.cast<BlockBackend::BlockPtr>();
+        } catch (py::cast_error const&) {
+            return inv->backend->block_backend->as_block(charged_state, inv->dtype, inv->device);
+        }
+    }()));
 }
 
 py::object
@@ -445,8 +446,17 @@ ChargedTensor::copy(bool deep, std::optional<std::string> device_opt, std::optio
 Tensor::Ptr
 ChargedTensor::dagger() const
 {
-    // Match free-function dagger(ChargedTensor)
-    auto inv_part = tensors_mod().attr("dagger")(py::cast(invariant_part));
+    // Match free-function dagger(ChargedTensor); dagger the invariant part in C++.
+    auto labs = invariant_part->labels();
+    LegLabels dual_rev;
+    dual_rev.reserve(labs.size());
+    for (auto it = labs.rbegin(); it != labs.rend(); ++it) {
+        dual_rev.push_back(_dual_leg_label(*it));
+    }
+    auto inv_data = backend->dagger(py::cast(invariant_part));
+    auto inv_sym = std::make_shared<SymmetricTensor>(
+      inv_data, invariant_part->domain, invariant_part->codomain, backend, symmetry, std::move(dual_rev));
+    auto inv_part = py::cast(inv_sym);
     inv_part.attr("set_label")(0, _CHARGE_LEG_LABEL);
     inv_part = tensors_mod().attr("move_leg")(
       inv_part, 0, py::arg("domain_pos") = 0, py::arg("bend_right") = true);
