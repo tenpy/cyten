@@ -71,7 +71,7 @@ class Mask : public Tensor
                                       std::optional<std::string> device = std::nullopt);
 
     /// Create a projection Mask from a boolean block.
-    [[nodiscard]] static Ptr from_block_mask(BlockBackend::BlockPtr block_mask,
+    [[nodiscard]] static Ptr from_block_mask(py::object block_mask,
                                              py::object large_leg,
                                              TensorBackend::Ptr backend = nullptr,
                                              py::object labels = py::none(),
