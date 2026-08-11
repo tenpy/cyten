@@ -51,7 +51,7 @@ flowchart TD
 | 3 | `Tensor` ABC + trampoline | **C++ + bindings + trampoline**; monkey-patch deferred — [convert_Tensor.md](convert_Tensor.md) |
 | 4 | `SymmetricTensor` | **C++ + bindings + trampoline**; monkey-patch deferred — [convert_SymmetricTensor.md](convert_SymmetricTensor.md) |
 | 5 | `DiagonalTensor` | **C++ + bindings + trampoline**; monkey-patch deferred — [convert_DiagonalTensor.md](convert_DiagonalTensor.md) |
-| 6 | `Identity` | pending (same files as Diagonal) |
+| 6 | `Identity` | **C++ + bindings** (no trampoline); monkey-patch deferred — [convert_Identity.md](convert_Identity.md) |
 | 7 | `Mask` | pending |
 | 8 | `ChargedTensor` | pending |
 | 9–14 | Free-function batches | pending |

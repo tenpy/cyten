@@ -40,11 +40,12 @@ After Identity, DiagonalTensor has no remaining Python subclasses → can monkey
 ## TODO list for conversion
 
 - [x] initial setup
-- [ ] planning (this file)
-- [ ] generate / improve declaration
-- [ ] generate / improve definitions
-- [ ] pybind11 bindings (no trampoline)
-- [ ] monkey-patch — deferred (with DiagonalTensor)
-- [ ] pytest
+- [x] planning (this file)
+- [x] generate / improve declaration
+- [x] generate / improve definitions
+- [x] pybind11 bindings (no trampoline)
+- [x] monkey-patch — **deferred** (with DiagonalTensor / SymmetricTensor)
+- [x] pytest (4341 passed, 596 xfailed with `-m "not slow"`; Python Identity still used)
+- [x] C++ smoke: `_core.Identity(leg, backend=…)` / `as_DiagonalTensor` / `as_SymmetricTensor`
 - [ ] remove Python body — later with DiagonalTensor
 - [ ] wrap up → Mask

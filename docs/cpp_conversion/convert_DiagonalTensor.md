@@ -8,7 +8,7 @@
 - declaration in C++ header file: `include/cyten/tensors/diagonal_tensor.h`
 - definition in C++ file: `src/tensors/diagonal_tensor.cpp`
 - pybind11 binding: `pybind/tensors/py_diagonal_tensor.cpp`
-- trampoline: `PyDiagonalTensor` in `pybind/tensors/py_trampolines.hpp` (required — `Identity` still Python)
+- trampoline: `PyDiagonalTensor` in `pybind/tensors/py_trampolines.hpp` (kept while Python `Identity` / `DiagonalTensor` remain)
 - first line of docstring: Special case of a SymmetricTensor that is diagonal in the computational basis.
 
 ## Module context
@@ -16,10 +16,11 @@
 1. Label helpers + `LabelledLegs` — done
 2. `Tensor` ABC — done (monkey-patch deferred)
 3. `SymmetricTensor` — done (monkey-patch deferred)
-4. **`DiagonalTensor`** — this conversion
-5. Next: `Identity` → `Mask` → `ChargedTensor`
+4. **`DiagonalTensor`** — done (monkey-patch deferred)
+5. `Identity` — done (monkey-patch deferred)
+6. Next: `Mask` → `ChargedTensor`
 
-Keep original Python `DiagonalTensor` until `Identity` is converted. Export `cyten._core.DiagonalTensor`; **defer monkey-patch**.
+Export `cyten._core.DiagonalTensor`; **defer monkey-patch** until wrap-up with SymmetricTensor / Identity (optional) or after Mask/ChargedTensor.
 
 ## Design notes
 
@@ -40,7 +41,8 @@ Keep original Python `DiagonalTensor` until `Identity` is converted. Export `cyt
 ## Dependencies
 
 - Done: `SymmetricTensor`, `Tensor`, backends (`diagonal_*` APIs), spaces, `Dtype`
-- Still Python: `Identity`, free ops (`linear_combination`, `is_scalar`, `item`), Mask
+- Still Python: free ops (`linear_combination`, `is_scalar`, `item`), Mask, ChargedTensor
+- C++ also: `Identity` (same files; Python body kept)
 
 ## TODO list for conversion
 
@@ -49,8 +51,8 @@ Keep original Python `DiagonalTensor` until `Identity` is converted. Export `cyt
 - [x] generate / improve declaration
 - [x] generate / improve definitions
 - [x] pybind11 bindings + trampoline (`PyDiagonalTensor`)
-- [x] monkey-patch — **deferred** (Python `DiagonalTensor` still used; `Identity` still Python)
+- [x] monkey-patch — **deferred** (Python `DiagonalTensor` / `Identity` still used by library)
 - [x] pytest (Python DiagonalTensor; 4341 passed, 596 xfailed with `-m "not slow"`)
 - [x] C++ smoke: `_core.DiagonalTensor.from_zero` / `from_eye` / `from_random_uniform`
-- [ ] remove Python body — later (after Identity)
-- [ ] wrap up → Identity
+- [ ] remove Python body — later (after Mask/Charged or optional Symm+Diag+Id wrap-up)
+- [x] wrap up → Identity

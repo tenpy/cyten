@@ -8,7 +8,7 @@
 - declaration in C++ header file: `include/cyten/tensors/symmetric_tensor.h`
 - definition in C++ file: `src/tensors/symmetric_tensor.cpp`
 - pybind11 binding: `pybind/tensors/py_symmetric_tensor.cpp`
-- trampoline: `PySymmetricTensor` in `pybind/tensors/py_trampolines.hpp` (required — `DiagonalTensor` / `Identity` still Python)
+- trampoline: `PySymmetricTensor` in `pybind/tensors/py_trampolines.hpp` (kept while Python tensor subclasses remain)
 - first line of docstring: A tensor that is symmetric, i.e. invariant under the symmetry.
 
 ## Module context
@@ -16,9 +16,10 @@
 1. Label helpers + `LabelledLegs` — done
 2. `Tensor` ABC — done (monkey-patch deferred)
 3. **`SymmetricTensor`** — this conversion
-4. Next: `DiagonalTensor` → `Identity` → `Mask` → `ChargedTensor`
+4. `DiagonalTensor` / `Identity` — done (monkey-patch deferred)
+5. Next: `Mask` → `ChargedTensor`
 
-Keep original Python `SymmetricTensor` until `DiagonalTensor` / `Identity` are converted. Export `cyten._core.SymmetricTensor`; **defer monkey-patch**.
+Export `cyten._core.SymmetricTensor`; **defer monkey-patch** until Mask/ChargedTensor or optional Symm+Diag+Id wrap-up.
 
 ## Design notes
 
@@ -37,7 +38,8 @@ Keep original Python `SymmetricTensor` until `DiagonalTensor` / `Identity` are c
 ## Dependencies
 
 - Done: `Tensor`, `LabelledLegs`, `TensorBackend` (+ `conventional_leg_order`), spaces, `Dtype`, backends
-- Still Python: `DiagonalTensor`, free ops (`split_legs`, `combine_legs`, `_convert_*`), hdf5 stack
+- Still Python: free ops (`split_legs`, `combine_legs`, `_convert_*`), hdf5 stack, Mask, ChargedTensor
+- C++ also: `DiagonalTensor`, `Identity` (Python bodies kept)
 
 ## TODO list for conversion
 
@@ -49,5 +51,5 @@ Keep original Python `SymmetricTensor` until `DiagonalTensor` / `Identity` are c
 - [x] monkey-patch — **deferred** (Python `SymmetricTensor` still used by library)
 - [x] pytest (Python SymmetricTensor; 4341 passed, 596 xfailed with `-m "not slow"`)
 - [x] C++ smoke: `_core.SymmetricTensor.from_zero` / `from_eye` / `from_random_uniform`
-- [ ] remove Python body — later (after DiagonalTensor / Identity)
-- [ ] wrap up → DiagonalTensor
+- [ ] remove Python body — later (after Mask/Charged or optional Symm+Diag+Id wrap-up)
+- [x] wrap up → DiagonalTensor / Identity
