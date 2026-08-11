@@ -42,11 +42,12 @@ Keep original Python `SymmetricTensor` until `DiagonalTensor` / `Identity` are c
 ## TODO list for conversion
 
 - [x] initial setup
-- [ ] planning (this file)
-- [ ] generate / improve declaration
-- [ ] generate / improve definitions
-- [ ] pybind11 bindings + trampoline
-- [ ] monkey-patch — deferred
-- [ ] pytest (Python SymmetricTensor still used)
-- [ ] remove Python body — later
+- [x] planning (this file)
+- [x] generate / improve declaration
+- [x] generate / improve definitions
+- [x] pybind11 bindings + trampoline (`PySymmetricTensor`)
+- [x] monkey-patch — **deferred** (Python `SymmetricTensor` still used by library)
+- [x] pytest (Python SymmetricTensor; 4341 passed, 596 xfailed with `-m "not slow"`)
+- [x] C++ smoke: `_core.SymmetricTensor.from_zero` / `from_eye` / `from_random_uniform`
+- [ ] remove Python body — later (after DiagonalTensor / Identity)
 - [ ] wrap up → DiagonalTensor

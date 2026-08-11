@@ -30,7 +30,13 @@ space_dim_i64(Space const& space)
 std::vector<int64>
 shape_from_tensor(py::object a)
 {
-    return a.attr("shape").cast<std::vector<int64>>();
+    // Tensor.shape is float64 in C++ (non-integer dims for some symmetries); NoSymmetry
+    // still expects integer block shapes.
+    std::vector<int64> out;
+    for (auto item : a.attr("shape")) {
+        out.push_back(static_cast<int64>(py::reinterpret_borrow<py::object>(item).cast<float64>()));
+    }
+    return out;
 }
 
 std::vector<int64>

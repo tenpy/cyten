@@ -1,3 +1,4 @@
+#include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/symmetric_tensor.h>
 
 #include "py_trampolines.hpp"
@@ -91,7 +92,22 @@ data:
             py::arg("backend") = nullptr,
             py::arg("labels") = py::none());
 
-    cls.def_readwrite("data", &SymmetricTensor::data);
+    cls.def_property(
+      "data",
+      [](SymmetricTensor& self) -> py::object {
+          // Match Python NoSymmetryBackend: expose the raw Block, not BlockData wrapper.
+          if (std::dynamic_pointer_cast<NoSymmetryBackend>(self.backend)) {
+              return py::cast(NoSymmetryBackend::unwrap(self.data));
+          }
+          return py::cast(self.data);
+      },
+      [](SymmetricTensor& self, py::object obj) {
+          if (std::dynamic_pointer_cast<NoSymmetryBackend>(self.backend)) {
+              self.data = NoSymmetryBackend::wrap(obj.cast<BlockBackend::BlockPtr>());
+          } else {
+              self.data = obj.cast<TensorBackend::DataPtr>();
+          }
+      });
 
     cls.def("test_sanity", &SymmetricTensor::test_sanity, "Perform sanity checks.");
     cls.def("verify_dtype", &SymmetricTensor::verify_dtype);
