@@ -2,6 +2,7 @@
 
 #include <cyten/symmetries/fusion_symbol.h>
 #include <cyten/symmetries/sector_numpy.h>
+#include <cyten/warn.h>
 
 #include <algorithm>
 #include <array>
@@ -148,11 +149,8 @@ Symmetry::Symmetry(std::vector<SymmetryFactor::Ptr> factors_in)
         }
     }
     if (num_fermionic > 1) {
-        auto warnings = py::module_::import("warnings");
-        warnings.attr("warn")(
-          "Symmetry with multiple fermionic factors probably does not do what you "
-          "expect. See docstring of FermionParity for details.",
-          py::arg("stacklevel") = 2);
+        warn("Symmetry with multiple fermionic factors probably does not do what you "
+             "expect. See docstring of FermionParity for details.");
     }
 }
 

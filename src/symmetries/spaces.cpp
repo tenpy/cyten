@@ -4,6 +4,7 @@
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/symmetries/factors/no_symmetry.h>
 #include <cyten/tools.h>
+#include <cyten/warn.h>
 
 #include <algorithm>
 #include <cassert>
@@ -2141,10 +2142,9 @@ TensorProduct::prepare(std::vector<py::object> const& factors,
     }
     if (!sector_decomposition || !multiplicities) {
         if (sector_decomposition || multiplicities) {
-            PyErr_WarnEx(PyExc_UserWarning,
-                         "Need both _sectors and _multiplicities to skip recomputation. "
-                         "Got just one.",
-                         1);
+            warn("Need both _sectors and _multiplicities to skip recomputation. "
+                 "Got just one.",
+                 /*stack_level=*/1);
         }
         auto [sectors, mults] = calc_sectors_of_factors(*symmetry, factors);
         sector_decomposition = std::move(sectors);
@@ -3368,13 +3368,9 @@ AbelianLegPipe::set_inverse_basis_perm(std::optional<std::vector<int64>> /*inver
 ElementarySpace::Ptr
 AbelianLegPipe::take_slice(py::array blockmask) const
 {
-    char const* msg =
-      "Using `AbelianLegPipe.take_slice` loses the product (pipe) structure and results in "
-      "a plain ElementarySpace. Explicitly convert using `as_ElementarySpace` to suppress "
-      "this warning.";
-    if (PyErr_WarnEx(PyExc_UserWarning, msg, 2) < 0) {
-        throw py::error_already_set();
-    }
+    warn("Using `AbelianLegPipe.take_slice` loses the product (pipe) structure and results in "
+         "a plain ElementarySpace. Explicitly convert using `as_ElementarySpace` to suppress "
+         "this warning.");
     // note: unlike the Python version, we call the ElementarySpace implementation directly.
     // Python goes through ``as_ElementarySpace(is_dual=self.is_dual)``, which returns ``self``
     // and therefore recurses infinitely.

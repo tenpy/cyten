@@ -6,6 +6,7 @@
 #include <cyten/symmetries/sector_numpy.h>
 #include <cyten/symmetries/trees.h>
 #include <cyten/tools.h>
+#include <cyten/warn.h>
 
 #include <algorithm>
 #include <cassert>
@@ -3333,11 +3334,7 @@ FusionTreeBackend::get_element(py::object a, std::vector<int64> idcs)
     // build the correct forest block to get the element
     // reshape to [(a1,m1),...,(aJ,mJ), (b1,n1),...,(bK,nK)]
     // ---
-    py::module_::import("warnings")
-      .attr("warn")(
-        "Accessing individual entries in the FusionTreeBackend is comparably expensive.",
-        py::arg("category") = py::module_::import("builtins").attr("UserWarning"),
-        py::arg("stacklevel") = 2);
+    warn("Accessing individual entries in the FusionTreeBackend is comparably expensive.");
     auto np = numpy();
     py::list flat_idcs;
     py::list legs = a.attr("legs");
