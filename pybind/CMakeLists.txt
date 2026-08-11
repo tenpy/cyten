@@ -48,4 +48,5 @@ target_sources(_core
   tensors/py_labels.cpp
   tensors/py_tensor.cpp
   tensors/py_symmetric_tensor.cpp
+  tensors/py_diagonal_tensor.cpp
 )

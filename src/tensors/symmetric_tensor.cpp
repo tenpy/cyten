@@ -1,4 +1,5 @@
 #include <cyten/tensors/symmetric_tensor.h>
+#include <cyten/tensors/diagonal_tensor.h>
 
 #include <cyten/backends/backend_factory.h>
 #include <cyten/tools.h>
@@ -88,8 +89,9 @@ SymmetricTensor::test_sanity() const
     Tensor::test_sanity();
     assert(dtype == backend->get_dtype_from_data(data));
     assert(device == backend->get_device_from_data(data));
-    bool is_diagonal = false;
-    if (Py_IsInitialized()) {
+    // Prefer C++ RTTI so _core.DiagonalTensor is recognized before monkey-patch.
+    bool is_diagonal = dynamic_cast<DiagonalTensor const*>(this) != nullptr;
+    if (!is_diagonal && Py_IsInitialized()) {
         try {
             is_diagonal = py::isinstance(
               as_py_object(), py::module_::import("cyten.tensors._tensors").attr("DiagonalTensor"));
@@ -623,9 +625,10 @@ SymmetricTensor::copy(bool deep, std::optional<std::string> device_opt, std::opt
 py::object
 SymmetricTensor::diagonal(bool check_offdiagonal) const
 {
-    return py::module_::import("cyten.tensors._tensors")
-      .attr("DiagonalTensor")
-      .attr("from_tensor")(as_py_object(), py::arg("check_offdiagonal") = check_offdiagonal);
+    // Python passes check_offdiagonal as a kwarg name mismatch to from_tensor(tol=...);
+    // Map True -> default tol, False -> None (skip check), matching intended semantics.
+    std::optional<float64> tol = check_offdiagonal ? std::optional<float64>{ 1e-12 } : std::nullopt;
+    return py::cast(DiagonalTensor::from_tensor(as_py_object(), tol));
 }
 
 BlockBackend::Scalar

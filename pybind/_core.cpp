@@ -25,6 +25,7 @@ PYBIND11_MODULE(_core, m)
     bind_tensors_labels(m);
     bind_tensors_tensor(m);
     bind_tensors_symmetric_tensor(m);
+    bind_tensors_diagonal_tensor(m);
 
     bind_check(m); // TODO: remove check
 }
