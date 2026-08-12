@@ -158,20 +158,20 @@ Such that the result is ordered.
     cls.def_property_readonly("large_leg", &Mask::large_leg);
     cls.def_property_readonly("small_leg", &Mask::small_leg);
 
-    cls.def("test_sanity", &Mask::test_sanity,
-    R"pydoc(
-    Perform sanity checks.
-    )pydoc");
+    cls.def("test_sanity",
+            &Mask::test_sanity,
+            R"pydoc(
+            Perform sanity checks.
+            )pydoc");
 
-    cls.def_static(
-      "from_eye",
-      &Mask::from_eye,
-      py::arg("leg"),
-      py::arg("is_projection") = true,
-      py::arg("backend") = nullptr,
-      py::arg("labels") = py::none(),
-      py::arg("device") = py::none(),
-      R"pydoc(
+    cls.def_static("from_eye",
+                   &Mask::from_eye,
+                   py::arg("leg"),
+                   py::arg("is_projection") = true,
+                   py::arg("backend") = nullptr,
+                   py::arg("labels") = py::none(),
+                   py::arg("device") = py::none(),
+                   R"pydoc(
 The identity map as a Mask, i.e. the mask that keeps all states and discards none.
 
 Parameters
@@ -187,15 +187,14 @@ from_zero
     The projection Mask that discards all states and keeps none.
 )pydoc");
 
-    cls.def_static(
-      "from_block_mask",
-      &Mask::from_block_mask,
-      py::arg("block_mask"),
-      py::arg("large_leg"),
-      py::arg("backend") = nullptr,
-      py::arg("labels") = py::none(),
-      py::arg("device") = py::none(),
-      R"pydoc(
+    cls.def_static("from_block_mask",
+                   &Mask::from_block_mask,
+                   py::arg("block_mask"),
+                   py::arg("large_leg"),
+                   py::arg("backend") = nullptr,
+                   py::arg("labels") = py::none(),
+                   py::arg("device") = py::none(),
+                   R"pydoc(
 Create a projection Mask from a boolean block.
 
 To get the related inclusion Mask, use :func:`dagger`.
@@ -214,11 +213,10 @@ backend, labels
     Arguments, like for the constructor
 )pydoc");
 
-    cls.def_static(
-      "from_DiagonalTensor",
-      &Mask::from_DiagonalTensor,
-      py::arg("diag"),
-      R"pydoc(
+    cls.def_static("from_DiagonalTensor",
+                   &Mask::from_DiagonalTensor,
+                   py::arg("diag"),
+                   R"pydoc(
 Create a projection Mask from a boolean DiagonalTensor.
 
 The resulting mask keeps exactly those basis elements for which the entry of `diag` is
@@ -229,15 +227,14 @@ In particular, its basis permutation is such that those basis elements from the 
 that are kept appear in order.
 )pydoc");
 
-    cls.def_static(
-      "from_indices",
-      &Mask::from_indices,
-      py::arg("indices"),
-      py::arg("large_leg"),
-      py::arg("backend") = nullptr,
-      py::arg("labels") = py::none(),
-      py::arg("device") = py::none(),
-      R"pydoc(
+    cls.def_static("from_indices",
+                   &Mask::from_indices,
+                   py::arg("indices"),
+                   py::arg("large_leg"),
+                   py::arg("backend") = nullptr,
+                   py::arg("labels") = py::none(),
+                   py::arg("device") = py::none(),
+                   R"pydoc(
 Create a projection Mask from the indices that are kept.
 
 To get the related inclusion Mask, use :func:`dagger`.
@@ -255,18 +252,17 @@ large_leg, backend, labels
     Same as for :meth:`Mask.__init__`.
 )pydoc");
 
-    cls.def_static(
-      "from_random",
-      &Mask::from_random,
-      py::arg("large_leg"),
-      py::arg("small_leg") = py::none(),
-      py::arg("backend") = nullptr,
-      py::arg("p_keep") = 0.5,
-      py::arg("min_keep") = 0,
-      py::arg("labels") = py::none(),
-      py::arg("device") = py::none(),
-      py::arg("np_random") = py::none(),
-      R"pydoc(
+    cls.def_static("from_random",
+                   &Mask::from_random,
+                   py::arg("large_leg"),
+                   py::arg("small_leg") = py::none(),
+                   py::arg("backend") = nullptr,
+                   py::arg("p_keep") = 0.5,
+                   py::arg("min_keep") = 0,
+                   py::arg("labels") = py::none(),
+                   py::arg("device") = py::none(),
+                   py::arg("np_random") = py::none(),
+                   R"pydoc(
 Create a random projection Mask.
 
 To get the related inclusion Mask, use :func:`dagger`.
@@ -289,14 +285,13 @@ min_keep: int, optional
     Is ignored of `small_leg` is given.
 )pydoc");
 
-    cls.def_static(
-      "from_zero",
-      &Mask::from_zero,
-      py::arg("large_leg"),
-      py::arg("backend") = nullptr,
-      py::arg("labels") = py::none(),
-      py::arg("device") = py::none(),
-      R"pydoc(
+    cls.def_static("from_zero",
+                   &Mask::from_zero,
+                   py::arg("large_leg"),
+                   py::arg("backend") = nullptr,
+                   py::arg("labels") = py::none(),
+                   py::arg("device") = py::none(),
+                   R"pydoc(
 The zero projection Mask, that discards all states and keeps none.
 
 To get the related inclusion Mask, use :func:`dagger`.
@@ -335,19 +330,24 @@ from_eye
             Export Mask to hdf5 such that it can be re-imported with from_hdf5
             )pydoc");
 
-    cls.def("as_dtype", &Mask::as_dtype, py::arg("dtype"),
-    R"pydoc(
-    Convert to a tensor of the given dtype on the same device.
-    
-    Parameters
-    ----------
-    dtype: Dtype
-        The dtype of the result.
-    )pydoc");
+    cls.def("as_dtype",
+            &Mask::as_dtype,
+            py::arg("dtype"),
+            R"pydoc(
+            Convert to a tensor of the given dtype on the same device.
+
+            Parameters
+            ----------
+            dtype: Dtype
+                The dtype of the result.
+            )pydoc");
 
     cls.def(
       "as_SymmetricTensor",
-      [](Mask& self, bool guarantee_copy, std::optional<std::string> warning, std::optional<Dtype> dtype) {
+      [](Mask& self,
+         bool guarantee_copy,
+         std::optional<std::string> warning,
+         std::optional<Dtype> dtype) {
           if (dtype.has_value()) {
               return self.as_SymmetricTensor(guarantee_copy, warning, *dtype);
           }
@@ -358,7 +358,7 @@ from_eye
       py::arg("dtype") = Dtype::Complex128,
       R"pydoc(
       Convert to a :class:`SymmetricTensor`, if possible.
-      
+
       Parameters
       ----------
       guarantee_copy : bool
@@ -369,21 +369,21 @@ from_eye
           SymmetricTensor to begin with), a warning with this text is issued.
       )pydoc");
 
-    cls.def("as_DiagonalTensor",
-            &Mask::as_DiagonalTensor,
-            py::arg("dtype") = Dtype::Complex128);
+    cls.def("as_DiagonalTensor", &Mask::as_DiagonalTensor, py::arg("dtype") = Dtype::Complex128);
 
     cls.def("as_block_mask", &Mask::as_block_mask);
     cls.def("as_numpy_mask", &Mask::as_numpy_mask);
 
-    cls.def("all", &Mask::all,
-    R"pydoc(
-    If the mask keeps all basis elements
-    )pydoc");
-    cls.def("any", &Mask::any,
-    R"pydoc(
-    If the mask keeps any basis elements
-    )pydoc");
+    cls.def("all",
+            &Mask::all,
+            R"pydoc(
+            If the mask keeps all basis elements
+            )pydoc");
+    cls.def("any",
+            &Mask::any,
+            R"pydoc(
+            If the mask keeps any basis elements
+            )pydoc");
 
     cls.def("copy",
             &Mask::copy,
@@ -392,7 +392,7 @@ from_eye
             py::arg("dtype") = py::none(),
             R"pydoc(
             Copy the tensor.
-            
+
             Parameters
             ----------
             deep: bool
@@ -404,65 +404,72 @@ from_eye
             )pydoc");
 
     // Override Tensor.dagger / hc properties (which delegate to the Python free function).
-    cls.def_property_readonly("dagger", &Mask::dagger,
-    R"pydoc(
-    The hermitian conjugate tensor, a.k.a the dagger of a tensor.
-    
-    For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
-    the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
-    For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
-    Graphically::
-    
-        |          e   d             a   b   c
-        |          │   │             │   │   │
-        |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
-        |       ┃    A    ┃         ┃dagger(A)┃
-        |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
-        |        │   │   │             │   │
-        |        a   b   c             e   d
-    
-    Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
-    
-    Returns
-    -------
-    The hermitian conjugate tensor. Its legs and labels are::
-    
-        dagger(A).codomain == A.domain
-        dagger(A).domain == A.codomain
-        dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
-        dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
-    
-    Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
-    on their bipartition into domain and codomain.
-    For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
-    then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*']``.
-    )pydoc");
-    cls.def_property_readonly("hc", &Mask::dagger,
-    R"pydoc(
-    The :func:`dagger`
-    )pydoc");
+    cls.def_property_readonly("dagger",
+                              &Mask::dagger,
+                              R"pydoc(
+                              The hermitian conjugate tensor, a.k.a the dagger of a tensor.
 
-    cls.def("_get_item", &Mask::_get_item, py::arg("idx"),
-    R"pydoc(
-    Implementation of :meth:`__getitem__`.
-    
-    Can assume we have one non-negative integer index per leg.
-    )pydoc");
+                              For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
+                              the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
+                              For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
+                              Graphically::
 
-    cls.def("logical_not", &Mask::logical_not,
-    R"pydoc(
-    Alias for :meth:`orthogonal_complement`
-    )pydoc");
+                                  |          e   d             a   b   c
+                                  |          │   │             │   │   │
+                                  |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
+                                  |       ┃    A    ┃         ┃dagger(A)┃
+                                  |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
+                                  |        │   │   │             │   │
+                                  |        a   b   c             e   d
+
+                              Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
+
+                              Returns
+                              -------
+                              The hermitian conjugate tensor. Its legs and labels are::
+
+                                  dagger(A).codomain == A.domain
+                                  dagger(A).domain == A.codomain
+                                  dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
+                                  dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
+
+                              Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
+                              on their bipartition into domain and codomain.
+                              For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
+                              then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*']``.
+                              )pydoc");
+    cls.def_property_readonly("hc",
+                              &Mask::dagger,
+                              R"pydoc(
+                              The :func:`dagger`
+                              )pydoc");
+
+    cls.def("_get_item",
+            &Mask::_get_item,
+            py::arg("idx"),
+            R"pydoc(
+            Implementation of :meth:`__getitem__`.
+
+            Can assume we have one non-negative integer index per leg.
+            )pydoc");
+
+    cls.def("logical_not",
+            &Mask::logical_not,
+            R"pydoc(
+            Alias for :meth:`orthogonal_complement`
+            )pydoc");
     cls.def("orthogonal_complement",
             &Mask::orthogonal_complement,
             R"pydoc(
             The "opposite" Mask, that keeps exactly what self discards and vv.
             )pydoc");
 
-    cls.def("move_to_device", &Mask::move_to_device, py::arg("device"),
-    R"pydoc(
-    Move tensor to a given device, *in place*.
-    )pydoc");
+    cls.def("move_to_device",
+            &Mask::move_to_device,
+            py::arg("device"),
+            R"pydoc(
+            Move tensor to a given device, *in place*.
+            )pydoc");
 
     cls.def("to_backend",
             &Mask::to_backend,
@@ -471,7 +478,7 @@ from_eye
             py::arg("device") = py::none(),
             R"pydoc(
             Convert to a tensor with a different backend.
-            
+
             Parameters
             ----------
             backend: TensorBackend
@@ -492,12 +499,12 @@ from_eye
       py::arg("understood_braiding") = false,
       R"pydoc(
       Convert to a dense block of the backend, if possible.
-      
+
       This corresponds to "forgetting" the symmetry structure and is only possible if the
       symmetry :attr:`Symmetry.can_be_dropped`.
       The result is a backend-specific block, e.g. a numpy array if the block backend is a
       :class:`NumpyBlockBackend` or a torch Tensor if the backend is a :class:`TorchBlockBackend`.
-      
+
       Parameters
       ----------
       leg_order: list of (int | str), optional
@@ -536,7 +543,7 @@ from_eye
             py::arg("return_NotImplemented") = true,
             R"pydoc(
             Utility function for a shared implementation of binary functions.
-            
+
             Parameters
             ----------
             other
@@ -556,8 +563,9 @@ from_eye
         throw py::type_error("The truth value of a Mask is ambiguous. Use a.any() or a.all()");
     });
 
-    cls.def("__invert__",
-            [](Mask& self) { return self._unary_operand(py::module_::import("operator").attr("invert")); });
+    cls.def("__invert__", [](Mask& self) {
+        return self._unary_operand(py::module_::import("operator").attr("invert"));
+    });
 
     auto bind_bool_binop = [&](char const* name, char const* op_name, char const* operand) {
         cls.def(

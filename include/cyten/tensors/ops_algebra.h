@@ -34,7 +34,7 @@ namespace cyten {
 
 /// If the given tensors have the same device, return it. Raise otherwise.
 [[nodiscard]] std::string get_same_device(py::args tensors,
-                                         std::string const& error_msg = "Incompatible devices.");
+                                          std::string const& error_msg = "Incompatible devices.");
 
 /// The Frobenius inner product of two tensors.
 [[nodiscard]] py::object inner(py::object A, py::object B, bool do_dagger = true);

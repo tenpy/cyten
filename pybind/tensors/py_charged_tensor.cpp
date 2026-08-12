@@ -90,10 +90,11 @@ charged_state: block | None
       });
     cls.def_readonly("charge_leg", &ChargedTensor::charge_leg);
 
-    cls.def("test_sanity", &ChargedTensor::test_sanity,
-    R"pydoc(
-    Perform sanity checks.
-    )pydoc");
+    cls.def("test_sanity",
+            &ChargedTensor::test_sanity,
+            R"pydoc(
+            Perform sanity checks.
+            )pydoc");
 
     cls.def_static("_parse_inv_domain",
                    &ChargedTensor::_parse_inv_domain,
@@ -101,14 +102,14 @@ charged_state: block | None
                    py::arg("charge"),
                    R"pydoc(
                    Helper function to build the domain of the invariant part.
-                   
+
                    Parameters
                    ----------
                    domain: TensorProduct
                        The domain of the ChargedTensor
                    charge: Space | SectorLike
                        Specification for the charge_leg, either as a space or a single sector
-                   
+
                    Returns
                    -------
                    inv_domain: TensorProduct
@@ -207,7 +208,7 @@ In that case, we return a scalar if the charged_state is specified and raise oth
                    py::arg("device") = py::none(),
                    R"pydoc(
                    A zero tensor.
-                   
+
                    Parameters
                    ----------
                    device: str, optional
@@ -232,15 +233,17 @@ In that case, we return a scalar if the charged_state is specified and raise oth
             Export ChargedTensor to hdf5 such that it can be re-imported with from_hdf5
             )pydoc");
 
-    cls.def("as_dtype", &ChargedTensor::as_dtype, py::arg("dtype"),
-    R"pydoc(
-    Convert to a tensor of the given dtype on the same device.
-    
-    Parameters
-    ----------
-    dtype: Dtype
-        The dtype of the result.
-    )pydoc");
+    cls.def("as_dtype",
+            &ChargedTensor::as_dtype,
+            py::arg("dtype"),
+            R"pydoc(
+            Convert to a tensor of the given dtype on the same device.
+
+            Parameters
+            ----------
+            dtype: Dtype
+                The dtype of the result.
+            )pydoc");
     cls.def("as_SymmetricTensor",
             &ChargedTensor::as_SymmetricTensor,
             py::arg("guarantee_copy") = false,
@@ -256,7 +259,7 @@ In that case, we return a scalar if the charged_state is specified and raise oth
             py::arg("dtype") = py::none(),
             R"pydoc(
             Copy the tensor.
-            
+
             Parameters
             ----------
             deep: bool
@@ -267,59 +270,66 @@ In that case, we return a scalar if the charged_state is specified and raise oth
                 The dtype of the result. Per default, use the same dtype as `self`.
             )pydoc");
 
-    cls.def_property_readonly("dagger", &ChargedTensor::dagger,
-    R"pydoc(
-    The hermitian conjugate tensor, a.k.a the dagger of a tensor.
-    
-    For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
-    the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
-    For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
-    Graphically::
-    
-        |          e   d             a   b   c
-        |          │   │             │   │   │
-        |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
-        |       ┃    A    ┃         ┃dagger(A)┃
-        |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
-        |        │   │   │             │   │
-        |        a   b   c             e   d
-    
-    Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
-    
-    Returns
-    -------
-    The hermitian conjugate tensor. Its legs and labels are::
-    
-        dagger(A).codomain == A.domain
-        dagger(A).domain == A.codomain
-        dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
-        dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
-    
-    Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
-    on their bipartition into domain and codomain.
-    For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
-    then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*']``.
-    )pydoc");
-    cls.def_property_readonly("hc", &ChargedTensor::dagger,
-    R"pydoc(
-    The :func:`dagger`
-    )pydoc");
+    cls.def_property_readonly("dagger",
+                              &ChargedTensor::dagger,
+                              R"pydoc(
+                              The hermitian conjugate tensor, a.k.a the dagger of a tensor.
 
-    cls.def("_get_item", &ChargedTensor::_get_item, py::arg("idx"),
-    R"pydoc(
-    Implementation of :meth:`__getitem__`.
-    
-    Can assume we have one non-negative integer index per leg.
-    )pydoc");
-    cls.def("move_to_device", &ChargedTensor::move_to_device, py::arg("device"),
-    R"pydoc(
-    Move tensor to a given device, *in place*.
-    )pydoc");
+                              For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
+                              the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
+                              For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
+                              Graphically::
+
+                                  |          e   d             a   b   c
+                                  |          │   │             │   │   │
+                                  |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
+                                  |       ┃    A    ┃         ┃dagger(A)┃
+                                  |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
+                                  |        │   │   │             │   │
+                                  |        a   b   c             e   d
+
+                              Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
+
+                              Returns
+                              -------
+                              The hermitian conjugate tensor. Its legs and labels are::
+
+                                  dagger(A).codomain == A.domain
+                                  dagger(A).domain == A.codomain
+                                  dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
+                                  dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
+
+                              Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
+                              on their bipartition into domain and codomain.
+                              For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
+                              then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*']``.
+                              )pydoc");
+    cls.def_property_readonly("hc",
+                              &ChargedTensor::dagger,
+                              R"pydoc(
+                              The :func:`dagger`
+                              )pydoc");
+
+    cls.def("_get_item",
+            &ChargedTensor::_get_item,
+            py::arg("idx"),
+            R"pydoc(
+            Implementation of :meth:`__getitem__`.
+
+            Can assume we have one non-negative integer index per leg.
+            )pydoc");
+    cls.def("move_to_device",
+            &ChargedTensor::move_to_device,
+            py::arg("device"),
+            R"pydoc(
+            Move tensor to a given device, *in place*.
+            )pydoc");
 
     cls.def(
       "set_label",
       [](ChargedTensor& self, int64 pos, py::object label) -> ChargedTensor& {
-          LegLabel lab = label.is_none() ? std::nullopt : std::optional<std::string>{ label.cast<std::string>() };
+          LegLabel lab = label.is_none() ? std::nullopt
+                                         : std::optional<std::string>{ label.cast<std::string>() };
           self.set_label(pos, lab);
           return self;
       },
@@ -347,7 +357,7 @@ In that case, we return a scalar if the charged_state is specified and raise oth
             py::arg("device") = py::none(),
             R"pydoc(
             Convert to a tensor with a different backend.
-            
+
             Parameters
             ----------
             backend: TensorBackend
@@ -360,7 +370,10 @@ In that case, we return a scalar if the charged_state is specified and raise oth
 
     cls.def(
       "to_dense_block",
-      [](ChargedTensor& self, py::object leg_order, std::optional<Dtype> dtype, bool understood_braiding) {
+      [](ChargedTensor& self,
+         py::object leg_order,
+         std::optional<Dtype> dtype,
+         bool understood_braiding) {
           return self.to_dense_block(optional_leg_order(leg_order), dtype, understood_braiding);
       },
       py::arg("leg_order") = py::none(),
@@ -368,12 +381,12 @@ In that case, we return a scalar if the charged_state is specified and raise oth
       py::arg("understood_braiding") = false,
       R"pydoc(
       Convert to a dense block of the backend, if possible.
-      
+
       This corresponds to "forgetting" the symmetry structure and is only possible if the
       symmetry :attr:`Symmetry.can_be_dropped`.
       The result is a backend-specific block, e.g. a numpy array if the block backend is a
       :class:`NumpyBlockBackend` or a torch Tensor if the backend is a :class:`TorchBlockBackend`.
-      
+
       Parameters
       ----------
       leg_order: list of (int | str), optional

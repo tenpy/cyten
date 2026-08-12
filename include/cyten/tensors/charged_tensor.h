@@ -101,8 +101,8 @@ class ChargedTensor : public Tensor
                                                         py::object charged_state = py::none());
 
     [[nodiscard]] static py::object from_two_charge_legs(py::object invariant_part,
-                                                        py::object state1 = py::none(),
-                                                        py::object state2 = py::none());
+                                                         py::object state1 = py::none(),
+                                                         py::object state2 = py::none());
 
     [[nodiscard]] static Ptr from_zero(py::object codomain,
                                        py::object domain = py::none(),
@@ -137,15 +137,17 @@ class ChargedTensor : public Tensor
 
     void move_to_device(std::string device) override;
 
-    [[nodiscard]] std::vector<std::string> _repr_header_lines(std::string const& indent,
-                                                              bool use_symm_str = false) const override;
+    [[nodiscard]] std::vector<std::string> _repr_header_lines(
+      std::string const& indent,
+      bool use_symm_str = false) const override;
 
     LabelledLegs& set_label(int64 pos, LegLabel label) override;
     Tensor& set_labels(LegLabels labels) override;
 
-    [[nodiscard]] Tensor::Ptr to_backend(TensorBackend::Ptr backend,
-                                         std::optional<Dtype> dtype = std::nullopt,
-                                         std::optional<std::string> device = std::nullopt) override;
+    [[nodiscard]] Tensor::Ptr to_backend(
+      TensorBackend::Ptr backend,
+      std::optional<Dtype> dtype = std::nullopt,
+      std::optional<std::string> device = std::nullopt) override;
 
     [[nodiscard]] BlockBackend::BlockPtr to_dense_block(
       std::optional<std::vector<std::variant<int64, std::string>>> leg_order = std::nullopt,

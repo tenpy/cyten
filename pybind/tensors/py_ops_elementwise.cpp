@@ -32,15 +32,17 @@ The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, othe
           py::arg("x"),
           R"pydoc(Complex conjugation, :ref:`elementwise <diagonal_elementwise>`.)pydoc");
 
-    m.def("imag",
-          &imag,
-          py::arg("x"),
-          R"pydoc(The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`.)pydoc");
+    m.def(
+      "imag",
+      &imag,
+      py::arg("x"),
+      R"pydoc(The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`.)pydoc");
 
-    m.def("real",
-          &real,
-          py::arg("x"),
-          R"pydoc(The real part of a complex number, :ref:`elementwise <diagonal_elementwise>`.)pydoc");
+    m.def(
+      "real",
+      &real,
+      py::arg("x"),
+      R"pydoc(The real part of a complex number, :ref:`elementwise <diagonal_elementwise>`.)pydoc");
 
     m.def("real_if_close",
           &real_if_close,

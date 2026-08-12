@@ -201,7 +201,8 @@ Mask::Mask(TensorBackend::DataPtr data_in,
   , is_projection(is_projection_in)
   , data(std::move(data_in))
 {
-    if (py::isinstance<LegPipe>(py::cast(space_in)) || py::isinstance<LegPipe>(py::cast(space_out))) {
+    if (py::isinstance<LegPipe>(py::cast(space_in)) ||
+        py::isinstance<LegPipe>(py::cast(space_out))) {
         throw std::invalid_argument("Mask is not defined on LegPipes.");
     }
     if (!std::dynamic_pointer_cast<ElementarySpace>(space_in) ||
@@ -302,16 +303,16 @@ Mask::test_sanity() const
         }
     } else {
         auto np = py::module_::import("numpy");
-        auto mask_in_internal_basis =
-          backend->block_backend->to_numpy(backend->mask_to_block(as_py_object()),
-                                            py::module_::import("builtins").attr("bool"));
+        auto mask_in_internal_basis = backend->block_backend->to_numpy(
+          backend->mask_to_block(as_py_object()), py::module_::import("builtins").attr("bool"));
         // Use Leg Python properties (perm_to_numpy) so empty perms stay integer dtype.
         // np.asarray([]) defaults to float64 and breaks advanced indexing.
         auto large_py = py::cast(large);
         auto small_py = py::cast(small);
         auto pi_1 = large_py.attr("basis_perm");
         auto pi_2_inv = small_py.attr("inverse_basis_perm");
-        auto ranks = pi_1.attr("__getitem__")(mask_in_internal_basis).attr("__getitem__")(pi_2_inv);
+        auto ranks =
+          pi_1.attr("__getitem__")(mask_in_internal_basis).attr("__getitem__")(pi_2_inv);
         // check if ranks is sorted (strictly increasing)
         if (!np.attr("all")(np.attr("diff")(ranks).attr("__gt__")(0)).cast<bool>()) {
             throw std::logic_error("Mask.test_sanity: kept basis ranks are not sorted");
@@ -343,14 +344,14 @@ Mask::from_block_mask(py::object block_mask,
 {
     auto large_leg = as_space(large_leg_obj);
     if (!large_leg->symmetry->can_be_dropped()) {
-        throw SymmetryError(std::format("Dense block representation is not supported for symmetry {}",
-                                        large_leg->symmetry->repr()));
+        throw SymmetryError(
+          std::format("Dense block representation is not supported for symmetry {}",
+                      large_leg->symmetry->repr()));
     }
     backend = resolve_backend(std::move(backend), large_leg);
-    auto block =
-      backend->block_backend->as_block(block_mask, Dtype::Bool, device);
-    block = backend->block_backend->apply_basis_perm(
-      block, { as_leg_cptr(large_leg) }, /*inv=*/false);
+    auto block = backend->block_backend->as_block(block_mask, Dtype::Bool, device);
+    block =
+      backend->block_backend->apply_basis_perm(block, { as_leg_cptr(large_leg) }, /*inv=*/false);
     auto [data_out, small_leg] = backend->mask_from_block(block, large_leg);
     return std::make_shared<Mask>(
       data_out, large_leg_obj, py::cast(small_leg), true, backend, labels);
@@ -442,7 +443,8 @@ Mask::from_random(py::object large_leg_obj,
         // quite annoying bc of basis_perm. Instead we increase p_keep until we get there.
         // first, try a heuristic
         auto np = py::module_::import("numpy");
-        p_keep = py::float_(np.attr("ceil")(1.05 * min_keep / large_leg_sector_num)).cast<float64>();
+        p_keep =
+          py::float_(np.attr("ceil")(1.05 * min_keep / large_leg_sector_num)).cast<float64>();
         res = from_DiagonalTensor(py::cast(diag).attr("__lt__")(2. * p_keep - 1.));
         for (int i = 0; i < 20; ++i) {
             if (sum_multiplicities(*res->small_leg()) >= min_keep) {
@@ -468,12 +470,12 @@ Mask::from_random(py::object large_leg_obj,
     auto small_leg_cap = small_leg;
     auto np_random_cap = np_random;
     auto np = py::module_::import("numpy");
-    py::function func = py::cpp_function(
-      [small_leg_cap, np_random_cap, np](py::object shape, py::object coupled) {
+    py::function func =
+      py::cpp_function([small_leg_cap, np_random_cap, np](py::object shape, py::object coupled) {
           int64 num_keep = small_leg_cap->sector_multiplicity(coupled.cast<Sector>());
           auto block = np.attr("zeros")(shape, np.attr("bool_"));
-          auto which =
-            np_random_cap.attr("choice")(shape[py::int_(0)], py::arg("size") = num_keep, py::arg("replace") = false);
+          auto which = np_random_cap.attr("choice")(
+            shape[py::int_(0)], py::arg("size") = num_keep, py::arg("replace") = false);
           block.attr("__setitem__")(which, true);
           return block;
       });
@@ -534,7 +536,9 @@ Mask::as_SymmetricTensor(bool guarantee_copy, std::optional<std::string> warning
 }
 
 py::object
-Mask::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::string> warning, Dtype out_dtype)
+Mask::as_SymmetricTensor(bool /*guarantee_copy*/,
+                         std::optional<std::string> warning,
+                         Dtype out_dtype)
 {
     if (warning.has_value()) {
         warn(*warning);
@@ -546,8 +550,8 @@ Mask::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::string> war
         return py::module_::import("cyten.tensors._tensors").attr("dagger")(sym);
     }
     auto new_data = backend->full_data_from_mask(as_py_object(), out_dtype);
-    return py::cast(std::make_shared<SymmetricTensor>(
-      new_data, codomain, domain, backend, symmetry, labels()));
+    return py::cast(
+      std::make_shared<SymmetricTensor>(new_data, codomain, domain, backend, symmetry, labels()));
 }
 
 py::object
@@ -569,12 +573,14 @@ Mask::_binary_operand(py::object other,
     }
     if (is_mask_obj(other)) {
         // remaining case: other is Mask
-    } else if (return_NotImplemented && !(py::isinstance<Tensor>(other) ||
-                                          py::isinstance(other, py::module_::import("numbers").attr("Number")))) {
+    } else if (return_NotImplemented &&
+               !(py::isinstance<Tensor>(other) ||
+                 py::isinstance(other, py::module_::import("numbers").attr("Number")))) {
         return py::cast(Py_NotImplemented);
     } else {
-        throw std::invalid_argument(
-          std::format("Invalid types for operand \"{}\": Mask and {}", operand, std::string(py::str(py::type::of(other)))));
+        throw std::invalid_argument(std::format("Invalid types for operand \"{}\": Mask and {}",
+                                                operand,
+                                                std::string(py::str(py::type::of(other)))));
     }
 
     bool other_is_projection = other.attr("is_projection").cast<bool>();
@@ -598,12 +604,8 @@ Mask::_binary_operand(py::object other,
     auto adapted = adapt_block_bool_binary(func, same->block_backend);
     auto [data_out, small] = same->mask_binary_operand(as_py_object(), other, adapted);
     auto labs = _get_matching_labels(labels(), other.attr("labels").cast<LegLabels>());
-    return py::cast(std::make_shared<Mask>(data_out,
-                                           py::cast(large_leg()),
-                                           py::cast(small),
-                                           is_projection,
-                                           same,
-                                           py::cast(labs)));
+    return py::cast(std::make_shared<Mask>(
+      data_out, py::cast(large_leg()), py::cast(small), is_projection, same, py::cast(labs)));
 }
 
 Mask::Ptr
@@ -620,8 +622,8 @@ Mask::_unary_operand(py::function func)
         return std::static_pointer_cast<Mask>(proj->_unary_operand(func)->dagger());
     }
 
-    auto [data_out, small] =
-      backend->mask_unary_operand(as_py_object(), adapt_block_bool_unary(func, backend->block_backend));
+    auto [data_out, small] = backend->mask_unary_operand(
+      as_py_object(), adapt_block_bool_unary(func, backend->block_backend));
     return std::make_shared<Mask>(
       data_out, py::cast(large_leg()), py::cast(small), true, backend, py::cast(labels()));
 }
@@ -647,8 +649,12 @@ Mask::copy(bool deep, std::optional<std::string> device_opt, std::optional<Dtype
     // domain is space_in, codomain is space_out
     space_in = domain->factors[0].cast<ElementarySpace::Ptr>();
     space_out = codomain->factors[0].cast<ElementarySpace::Ptr>();
-    return std::make_shared<Mask>(
-      new_data, py::cast(space_in), py::cast(space_out), is_projection, backend, py::cast(labels()));
+    return std::make_shared<Mask>(new_data,
+                                  py::cast(space_in),
+                                  py::cast(space_out),
+                                  is_projection,
+                                  backend,
+                                  py::cast(labels()));
 }
 
 Tensor::Ptr
@@ -724,7 +730,7 @@ py::array
 Mask::as_numpy_mask()
 {
     return backend->block_backend->to_numpy(as_block_mask(),
-                                             py::module_::import("builtins").attr("bool"));
+                                            py::module_::import("builtins").attr("bool"));
 }
 
 Tensor::Ptr
@@ -791,8 +797,8 @@ Mask::to_dense_block(std::optional<std::vector<std::variant<int64, std::string>>
     // for Mask, defining via numpy is actually easier, to use numpy indexing
     // ---
     if (!symmetry->can_be_dropped()) {
-        throw SymmetryError(
-          std::format("Dense block representation is not supported for symmetry {}", symmetry->repr()));
+        throw SymmetryError(std::format(
+          "Dense block representation is not supported for symmetry {}", symmetry->repr()));
     }
     if (!symmetry->has_trivial_braid() && !understood_braiding) {
         throw SymmetryError(
@@ -819,8 +825,8 @@ Mask::to_numpy(std::optional<std::vector<std::variant<int64, std::string>>> leg_
     // sets the appropriate dtype. e.g. sets ``True`` for bool.
     // ---
     if (!symmetry->can_be_dropped()) {
-        throw SymmetryError(
-          std::format("Dense block representation is not supported for symmetry {}", symmetry->repr()));
+        throw SymmetryError(std::format(
+          "Dense block representation is not supported for symmetry {}", symmetry->repr()));
     }
     if (!symmetry->has_trivial_braid() && !understood_braiding) {
         throw SymmetryError(
@@ -834,9 +840,9 @@ Mask::to_numpy(std::optional<std::vector<std::variant<int64, std::string>>> leg_
     auto mask = as_numpy_mask();
     // Use Python shape property (int dims) — np.zeros rejects float dims.
     // Match Python: ``numpy_dtype or bool`` (the type, not the value False).
-    auto res = np.attr("zeros")(as_py_object().attr("shape"),
-                                numpy_dtype.is_none() ? py::module_::import("builtins").attr("bool")
-                                                      : numpy_dtype);
+    auto res = np.attr("zeros")(
+      as_py_object().attr("shape"),
+      numpy_dtype.is_none() ? py::module_::import("builtins").attr("bool") : numpy_dtype);
     // shape is [m, n] for Mask
     assert(shape.size() == 2);
     auto m = static_cast<int64>(shape[0]);
@@ -864,8 +870,8 @@ Mask::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpa
     hdf5_saver.attr("save")(py::cast(symmetry), subpath + "symmetry");
     h5gr.attr("attrs")["dtype"] = dtype::repr(dtype);
     h5gr.attr("attrs")["num_legs"] = num_legs;
-    h5gr.attr("attrs")["shape"] = py::module_::import("numpy").attr("array")(py::cast(shape),
-                                                                             py::module_::import("numpy").attr("intp"));
+    h5gr.attr("attrs")["shape"] = py::module_::import("numpy").attr("array")(
+      py::cast(shape), py::module_::import("numpy").attr("intp"));
     h5gr.attr("attrs")["is_projection"] = is_projection;
     if (std::ranges::all_of(_labels, [](LegLabel const& l) { return !l; })) {
         h5gr.attr("attrs")["labels"] = py::list();

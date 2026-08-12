@@ -66,7 +66,7 @@ class SymmetricTensor : public Tensor
     [[nodiscard]] std::string class_name() const override;
 
     [[nodiscard]] static std::optional<Dtype> _parse_default_dtype(std::optional<Dtype> dtype,
-                                                                  Symmetry::Ptr const& symmetry);
+                                                                   Symmetry::Ptr const& symmetry);
 
     // --- factories ---
 
@@ -137,14 +137,13 @@ class SymmetricTensor : public Tensor
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt);
 
-    [[nodiscard]] static Ptr from_tree_pairs(
-      py::object trees,
-      py::object codomain,
-      py::object domain = py::none(),
-      TensorBackend::Ptr backend = nullptr,
-      py::object labels = py::none(),
-      std::optional<Dtype> dtype = std::nullopt,
-      std::optional<std::string> device = std::nullopt);
+    [[nodiscard]] static Ptr from_tree_pairs(py::object trees,
+                                             py::object codomain,
+                                             py::object domain = py::none(),
+                                             TensorBackend::Ptr backend = nullptr,
+                                             py::object labels = py::none(),
+                                             std::optional<Dtype> dtype = std::nullopt,
+                                             std::optional<std::string> device = std::nullopt);
 
     [[nodiscard]] static Ptr from_zero(py::object codomain,
                                        py::object domain = py::none(),
@@ -177,9 +176,10 @@ class SymmetricTensor : public Tensor
 
     void move_to_device(std::string device) override;
 
-    [[nodiscard]] Tensor::Ptr to_backend(TensorBackend::Ptr backend,
-                                         std::optional<Dtype> dtype = std::nullopt,
-                                         std::optional<std::string> device = std::nullopt) override;
+    [[nodiscard]] Tensor::Ptr to_backend(
+      TensorBackend::Ptr backend,
+      std::optional<Dtype> dtype = std::nullopt,
+      std::optional<std::string> device = std::nullopt) override;
 
     [[nodiscard]] BlockBackend::BlockPtr to_dense_block(
       std::optional<std::vector<std::variant<int64, std::string>>> leg_order = std::nullopt,

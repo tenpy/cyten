@@ -11,12 +11,13 @@ namespace cyten {
 void
 bind_tensors_helpers(py::module_& m)
 {
-    m.def("_check_compatible_legs",
-          &_check_compatible_legs,
-          py::arg("legs1"),
-          py::arg("legs2"),
-          py::arg("expect_equal") = true,
-          R"pydoc(Check if legs are compatible (equal if `expect_equal`, otherwise mutually dual).)pydoc");
+    m.def(
+      "_check_compatible_legs",
+      &_check_compatible_legs,
+      py::arg("legs1"),
+      py::arg("legs2"),
+      py::arg("expect_equal") = true,
+      R"pydoc(Check if legs are compatible (equal if `expect_equal`, otherwise mutually dual).)pydoc");
 
     m.def("_compose_with_Mask",
           &_compose_with_Mask,
@@ -47,10 +48,7 @@ The result hast the same leg order and labels as `tensor`.
 
     m.def(
       "_compose_SymmetricTensors",
-      [](py::object tensor1,
-         py::object tensor2,
-         py::object relabel1,
-         py::object relabel2) {
+      [](py::object tensor1, py::object tensor2, py::object relabel1, py::object relabel2) {
           std::optional<std::map<std::string, std::string>> r1;
           std::optional<std::map<std::string, std::string>> r2;
           if (!relabel1.is_none()) {

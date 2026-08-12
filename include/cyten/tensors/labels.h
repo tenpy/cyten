@@ -100,7 +100,10 @@ class LabelledLegs
     virtual LabelledLegs& set_labels(LegLabels labels);
 
     /// Label → leg-index map (excludes ``None`` labels). Exposed to Python as ``_labelmap``.
-    [[nodiscard]] std::unordered_map<std::string, int64> const& labelmap() const { return _labelmap; }
+    [[nodiscard]] std::unordered_map<std::string, int64> const& labelmap() const
+    {
+        return _labelmap;
+    }
 
   protected:
     LegLabels _labels;

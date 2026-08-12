@@ -99,9 +99,9 @@ blocks.
            py::arg("new_domain"),
            R"pydoc(
            Add a trivial leg to a tensor.
-           
+
            A trivial leg is one-dimensional and consists only of the trivial sector of the symmetry.
-           
+
            Parameters
            ----------
            tens: Tensor
@@ -132,13 +132,13 @@ blocks.
            py::arg("atol"),
            R"pydoc(
            Checks if two tensors are equal up to numerical tolerance.
-           
+
            We compare the blocks, i.e. the free parameters of the tensors.
            The tensors count as almost equal if all block-entries, i.e. all their free parameters
            individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
            Note that this is a basis-dependent and backend-dependent notion of distance, which does
            not come from a norm in the strict mathematical sense.
-           
+
            Parameters
            ----------
            tensor_1, tensor_2
@@ -148,11 +148,11 @@ blocks.
            allow_different_types: bool
                If ``True``, we convert types, e.g. via :meth:`DiagonalTensor.as_SymmetricTensor`
                to allow comparison. If ``False``, we raise on mismatching types.
-           
+
            Notes
            -----
            Unlike numpy, our definition is symmetric under exchanging.
-           
+
            See Also
            --------
            planar_almost_equal
@@ -229,39 +229,41 @@ blocks.
            --------
            move_to_device
            )pydoc")
-      .def("dagger", &TensorBackend::dagger, py::arg("a"),
-      R"pydoc(
-      The hermitian conjugate tensor, a.k.a the dagger of a tensor.
-      
-      For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
-      the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
-      For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
-      Graphically::
-      
-          |          e   d             a   b   c
-          |          │   │             │   │   │
-          |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
-          |       ┃    A    ┃         ┃dagger(A)┃
-          |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
-          |        │   │   │             │   │
-          |        a   b   c             e   d
-      
-      Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
-      
-      Returns
-      -------
-      The hermitian conjugate tensor. Its legs and labels are::
-      
-          dagger(A).codomain == A.domain
-          dagger(A).domain == A.codomain
-          dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
-          dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
-      
-      Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
-      on their bipartition into domain and codomain.
-      For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
-      then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*']``.
-      )pydoc")
+      .def("dagger",
+           &TensorBackend::dagger,
+           py::arg("a"),
+           R"pydoc(
+           The hermitian conjugate tensor, a.k.a the dagger of a tensor.
+
+           For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
+           the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
+           For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
+           Graphically::
+
+               |          e   d             a   b   c
+               |          │   │             │   │   │
+               |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
+               |       ┃    A    ┃         ┃dagger(A)┃
+               |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
+               |        │   │   │             │   │
+               |        a   b   c             e   d
+
+           Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
+
+           Returns
+           -------
+           The hermitian conjugate tensor. Its legs and labels are::
+
+               dagger(A).codomain == A.domain
+               dagger(A).domain == A.codomain
+               dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
+               dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
+
+           Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
+           on their bipartition into domain and codomain.
+           For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
+           then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*']``.
+           )pydoc")
       .def("data_item",
            &TensorBackend::data_item,
            py::arg("a"),
@@ -593,46 +595,49 @@ blocks.
 
            Assumes `v` and `w` are on the same device.
            )pydoc")
-      .def("lq", &TensorBackend::lq, py::arg("tensor"), py::arg("new_co_domain"),
-      R"pydoc(
-      The LQ decomposition of a tensor.
-      
-      A :ref:`tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
-      properties:
-      
-      - ``L`` has a lower triangular structure *in the coupled basis*.
-      - ``Q`` is an isometry: ``dagger(Q) @ Q ~ eye``.
-      
-      Graphically::
-      
-          |                                 │   │   │   │
-          |                                ┏┷━━━┷━━━┷━━━┷┓
-          |        │   │   │   │           ┃      Q      ┃
-          |       ┏┷━━━┷━━━┷━━━┷┓          ┗━━━━━━┯━━━━━━┛
-          |       ┃   tensor    ┃    ==           │
-          |       ┗━━┯━━━┯━━━┯━━┛          ┏━━━━━━┷━━━━━━┓
-          |          │   │   │             ┃      L      ┃
-          |                                ┗━━┯━━━┯━━━┯━━┛
-          |                                   │   │   │
-      
-      We always compute the "reduced", a.k.a. "economic" version.
-      To group the legs differently, use :func:`permute_legs` or `combine_to_matrix` first.
-      
-      Parameters
-      ----------
-      tensor: :class:`Tensor`
-          The tensor to decompose.
-      new_labels: (list of) str
-          Labels for the new legs. Either two legs ``[a, b]`` s.t. ``L.labels[-1] == a``
-          and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
-      new_leg_dual: bool
-          If the new leg should be a ket space (``False``) or bra space (``True``).
-      charge_leg_top: bool
-          Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
-          top tensor ``Q`` (``True``) or the bottom tensor ``L`` (``False``). The corresponding
-          tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
-          `ChargedTensor`.
-      )pydoc")
+      .def("lq",
+           &TensorBackend::lq,
+           py::arg("tensor"),
+           py::arg("new_co_domain"),
+           R"pydoc(
+           The LQ decomposition of a tensor.
+
+           A :ref:`tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
+           properties:
+
+           - ``L`` has a lower triangular structure *in the coupled basis*.
+           - ``Q`` is an isometry: ``dagger(Q) @ Q ~ eye``.
+
+           Graphically::
+
+               |                                 │   │   │   │
+               |                                ┏┷━━━┷━━━┷━━━┷┓
+               |        │   │   │   │           ┃      Q      ┃
+               |       ┏┷━━━┷━━━┷━━━┷┓          ┗━━━━━━┯━━━━━━┛
+               |       ┃   tensor    ┃    ==           │
+               |       ┗━━┯━━━┯━━━┯━━┛          ┏━━━━━━┷━━━━━━┓
+               |          │   │   │             ┃      L      ┃
+               |                                ┗━━┯━━━┯━━━┯━━┛
+               |                                   │   │   │
+
+           We always compute the "reduced", a.k.a. "economic" version.
+           To group the legs differently, use :func:`permute_legs` or `combine_to_matrix` first.
+
+           Parameters
+           ----------
+           tensor: :class:`Tensor`
+               The tensor to decompose.
+           new_labels: (list of) str
+               Labels for the new legs. Either two legs ``[a, b]`` s.t. ``L.labels[-1] == a``
+               and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
+           new_leg_dual: bool
+               If the new leg should be a ket space (``False``) or bra space (``True``).
+           charge_leg_top: bool
+               Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
+               top tensor ``Q`` (``True``) or the bottom tensor ``L`` (``False``). The corresponding
+               tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
+               `ChargedTensor`.
+           )pydoc")
       .def("mask_binary_operand",
            &TensorBackend::mask_binary_operand,
            py::arg("mask1"),
@@ -862,70 +867,73 @@ blocks.
            Assume the legs at given indices are trivial and get rid of them
            )pydoc")
       .def("supports_symmetry", &TensorBackend::supports_symmetry, py::arg("symmetry"))
-      .def(
-        "svd", &TensorBackend::svd, py::arg("a"), py::arg("new_co_domain"), py::arg("algorithm"),
-        R"pydoc(
-        The singular value decomposition (SVD) of a tensor.
-        
-        A :ref:`tensor decomposition <decompositions>` ``tensor ~ U @ S @ Vh`` with the following
-        properties:
-        
-        - ``Vh`` and ``U`` are isometries: ``dagger(U) @ U ~ eye ~ Vh @ dagger(Vh)``.
-        - ``S`` is a :class:`DiagonalTensor` with real, non-negative entries.
-        - If `tensor` is a matrix (i.e. if it has exactly one leg each in domain and codomain), it
-          reproduces the usual matrix SVD.
-        
-        .. note ::
-            The basis for the newly generated leg is chosen arbitrarily, and in particular, unlike,
-            e.g., :func:`numpy.linalg.svd` it is not guaranteed that ``S.diag_numpy`` is sorted.
-        
-        Graphically::
-        
-            |                                 │   │   │   │
-            |                                ┏┷━━━┷━━━┷━━━┷┓
-            |                                ┃      Vh     ┃
-            |        │   │   │   │           ┗━━━━━━┯━━━━━━┛
-            |       ┏┷━━━┷━━━┷━━━┷┓               ┏━┷━┓
-            |       ┃   tensor    ┃    ==         ┃ S ┃
-            |       ┗━━┯━━━┯━━━┯━━┛               ┗━┯━┛
-            |          │   │   │             ┏━━━━━━┷━━━━━━┓
-            |                                ┃      U      ┃
-            |                                ┗━━┯━━━┯━━━┯━━┛
-            |                                   │   │   │
-        
-        We always compute the "reduced", a.k.a. "economic" version of SVD, where the isometries are
-        (in general) not full unitaries.
-        
-        To group the legs differently, use :func:`permute_legs` or `combine_to_matrix` first.
-        
-        Parameters
-        ----------
-        tensor: :class:`Tensor`
-            The tensor to decompose.
-        new_labels: (list of) str, optional
-            The labels for the new legs can be specified in the following three ways;
-            Four labels ``[a, b, c, d]`` result in ``U.labels[-1] == a``, ``S.labels == [b, c]`` and
-            ``Vh.labels[0] == d``.
-            Two labels ``[a, b]`` are equivalent to ``[a, b, a, b]``.
-            A single label ``a`` is equivalent to ``[a, a*, a, a*]``.
-            The new legs are unlabelled by default.
-        new_leg_dual: bool
-            If the new leg should be a ket space (``False``) or bra space (``True``).
-        charge_leg_top: bool
-            Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
-            top tensor ``Vh`` (``True``) or the bottom tensor ``U`` (``False``). The corresponding
-            tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
-            `ChargedTensor`.
-        algorithm: str, optional
-            The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
-            See :meth:`~cyten.block_backends.BlockBackend.possible_svd_algorithms`.
-        
-        Returns
-        -------
-        U: SymmetricTensor | ChargedTensor
-        S: DiagonalTensor
-        Vh: SymmetricTensor | ChargedTensor
-        )pydoc")
+      .def("svd",
+           &TensorBackend::svd,
+           py::arg("a"),
+           py::arg("new_co_domain"),
+           py::arg("algorithm"),
+           R"pydoc(
+           The singular value decomposition (SVD) of a tensor.
+
+           A :ref:`tensor decomposition <decompositions>` ``tensor ~ U @ S @ Vh`` with the following
+           properties:
+
+           - ``Vh`` and ``U`` are isometries: ``dagger(U) @ U ~ eye ~ Vh @ dagger(Vh)``.
+           - ``S`` is a :class:`DiagonalTensor` with real, non-negative entries.
+           - If `tensor` is a matrix (i.e. if it has exactly one leg each in domain and codomain), it
+             reproduces the usual matrix SVD.
+
+           .. note ::
+               The basis for the newly generated leg is chosen arbitrarily, and in particular, unlike,
+               e.g., :func:`numpy.linalg.svd` it is not guaranteed that ``S.diag_numpy`` is sorted.
+
+           Graphically::
+
+               |                                 │   │   │   │
+               |                                ┏┷━━━┷━━━┷━━━┷┓
+               |                                ┃      Vh     ┃
+               |        │   │   │   │           ┗━━━━━━┯━━━━━━┛
+               |       ┏┷━━━┷━━━┷━━━┷┓               ┏━┷━┓
+               |       ┃   tensor    ┃    ==         ┃ S ┃
+               |       ┗━━┯━━━┯━━━┯━━┛               ┗━┯━┛
+               |          │   │   │             ┏━━━━━━┷━━━━━━┓
+               |                                ┃      U      ┃
+               |                                ┗━━┯━━━┯━━━┯━━┛
+               |                                   │   │   │
+
+           We always compute the "reduced", a.k.a. "economic" version of SVD, where the isometries are
+           (in general) not full unitaries.
+
+           To group the legs differently, use :func:`permute_legs` or `combine_to_matrix` first.
+
+           Parameters
+           ----------
+           tensor: :class:`Tensor`
+               The tensor to decompose.
+           new_labels: (list of) str, optional
+               The labels for the new legs can be specified in the following three ways;
+               Four labels ``[a, b, c, d]`` result in ``U.labels[-1] == a``, ``S.labels == [b, c]`` and
+               ``Vh.labels[0] == d``.
+               Two labels ``[a, b]`` are equivalent to ``[a, b, a, b]``.
+               A single label ``a`` is equivalent to ``[a, a*, a, a*]``.
+               The new legs are unlabelled by default.
+           new_leg_dual: bool
+               If the new leg should be a ket space (``False``) or bra space (``True``).
+           charge_leg_top: bool
+               Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
+               top tensor ``Vh`` (``True``) or the bottom tensor ``U`` (``False``). The corresponding
+               tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
+               `ChargedTensor`.
+           algorithm: str, optional
+               The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
+               See :meth:`~cyten.block_backends.BlockBackend.possible_svd_algorithms`.
+
+           Returns
+           -------
+           U: SymmetricTensor | ChargedTensor
+           S: DiagonalTensor
+           Vh: SymmetricTensor | ChargedTensor
+           )pydoc")
       .def("state_tensor_product",
            &TensorBackend::state_tensor_product,
            py::arg("state1"),

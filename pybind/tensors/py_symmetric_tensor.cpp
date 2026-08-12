@@ -40,7 +40,8 @@ optional_leg_order(py::object obj)
 void
 bind_tensors_symmetric_tensor(py::module_& m)
 {
-    py::class_<SymmetricTensor, Tensor, PySymmetricTensor, py::smart_holder> cls(m, "SymmetricTensor");
+    py::class_<SymmetricTensor, Tensor, PySymmetricTensor, py::smart_holder> cls(
+      m, "SymmetricTensor");
     cls.doc() = R"pydoc(
 A tensor that is symmetric, i.e. invariant under the symmetry.
 
@@ -72,12 +73,13 @@ data:
     of tensors with the given symmetry.
 )pydoc";
 
-    cls.def(py::init<TensorBackend::DataPtr, py::object, py::object, TensorBackend::Ptr, py::object>(),
-            py::arg("data"),
-            py::arg("codomain"),
-            py::arg("domain") = py::none(),
-            py::arg("backend") = nullptr,
-            py::arg("labels") = py::none());
+    cls.def(
+      py::init<TensorBackend::DataPtr, py::object, py::object, TensorBackend::Ptr, py::object>(),
+      py::arg("data"),
+      py::arg("codomain"),
+      py::arg("domain") = py::none(),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none());
 
     cls.def_property(
       "data",
@@ -96,25 +98,25 @@ data:
           }
       });
 
-    cls.def("test_sanity", &SymmetricTensor::test_sanity,
-    R"pydoc(
-    Perform sanity checks.
-    )pydoc");
+    cls.def("test_sanity",
+            &SymmetricTensor::test_sanity,
+            R"pydoc(
+            Perform sanity checks.
+            )pydoc");
     cls.def("verify_dtype", &SymmetricTensor::verify_dtype);
 
-    cls.def_static(
-      "from_block_func",
-      &SymmetricTensor::from_block_func,
-      py::arg("func"),
-      py::arg("codomain"),
-      py::arg("domain") = py::none(),
-      py::arg("backend") = nullptr,
-      py::arg("labels") = py::none(),
-      py::arg("func_kwargs") = py::none(),
-      py::arg("shape_kw") = py::none(),
-      py::arg("dtype") = py::none(),
-      py::arg("device") = py::none(),
-      R"pydoc(
+    cls.def_static("from_block_func",
+                   &SymmetricTensor::from_block_func,
+                   py::arg("func"),
+                   py::arg("codomain"),
+                   py::arg("domain") = py::none(),
+                   py::arg("backend") = nullptr,
+                   py::arg("labels") = py::none(),
+                   py::arg("func_kwargs") = py::none(),
+                   py::arg("shape_kw") = py::none(),
+                   py::arg("dtype") = py::none(),
+                   py::arg("device") = py::none(),
+                   R"pydoc(
 Initialize a :class:`SymmetricTensor` by generating its blocks from a function.
 
 Here "the blocks of a tensor" are the backend-specific blocks that contain the free
@@ -154,19 +156,18 @@ from_sector_block_func
     Allows the `func` to take the current coupled sectors as an argument.
 )pydoc");
 
-    cls.def_static(
-      "from_dense_block",
-      &SymmetricTensor::from_dense_block,
-      py::arg("block"),
-      py::arg("codomain"),
-      py::arg("domain") = py::none(),
-      py::arg("backend") = nullptr,
-      py::arg("labels") = py::none(),
-      py::arg("dtype") = py::none(),
-      py::arg("device") = py::none(),
-      py::arg("tol") = 1e-6,
-      py::arg("understood_braiding") = false,
-      R"pydoc(
+    cls.def_static("from_dense_block",
+                   &SymmetricTensor::from_dense_block,
+                   py::arg("block"),
+                   py::arg("codomain"),
+                   py::arg("domain") = py::none(),
+                   py::arg("backend") = nullptr,
+                   py::arg("labels") = py::none(),
+                   py::arg("dtype") = py::none(),
+                   py::arg("device") = py::none(),
+                   py::arg("tol") = 1e-6,
+                   py::arg("understood_braiding") = false,
+                   R"pydoc(
 Convert a dense block of the backend to a Tensor.
 
 Parameters
@@ -209,15 +210,14 @@ understood_braiding : bool
                    Inverse of to_dense_block_trivial_sector.
                    )pydoc");
 
-    cls.def_static(
-      "from_eye",
-      &SymmetricTensor::from_eye,
-      py::arg("co_domain"),
-      py::arg("backend") = nullptr,
-      py::arg("labels") = py::none(),
-      py::arg("dtype") = Dtype::Complex128,
-      py::arg("device") = py::none(),
-      R"pydoc(
+    cls.def_static("from_eye",
+                   &SymmetricTensor::from_eye,
+                   py::arg("co_domain"),
+                   py::arg("backend") = nullptr,
+                   py::arg("labels") = py::none(),
+                   py::arg("dtype") = Dtype::Complex128,
+                   py::arg("device") = py::none(),
+                   R"pydoc(
 The identity map as a SymmetricTensor.
 
 Parameters
@@ -238,18 +238,17 @@ device: str
     the block backend.
 )pydoc");
 
-    cls.def_static(
-      "from_random_normal",
-      &SymmetricTensor::from_random_normal,
-      py::arg("codomain"),
-      py::arg("domain") = py::none(),
-      py::arg("mean") = py::none(),
-      py::arg("sigma") = 1.0,
-      py::arg("backend") = nullptr,
-      py::arg("labels") = py::none(),
-      py::arg("dtype") = Dtype::Complex128,
-      py::arg("device") = py::none(),
-      R"pydoc(
+    cls.def_static("from_random_normal",
+                   &SymmetricTensor::from_random_normal,
+                   py::arg("codomain"),
+                   py::arg("domain") = py::none(),
+                   py::arg("mean") = py::none(),
+                   py::arg("sigma") = 1.0,
+                   py::arg("backend") = nullptr,
+                   py::arg("labels") = py::none(),
+                   py::arg("dtype") = Dtype::Complex128,
+                   py::arg("device") = py::none(),
+                   R"pydoc(
 Generate a sample from the normal distribution.
 
 The probability density is
@@ -278,16 +277,15 @@ sigma: float
     The standard deviation of the distribution
 )pydoc");
 
-    cls.def_static(
-      "from_random_uniform",
-      &SymmetricTensor::from_random_uniform,
-      py::arg("codomain"),
-      py::arg("domain") = py::none(),
-      py::arg("backend") = nullptr,
-      py::arg("labels") = py::none(),
-      py::arg("dtype") = Dtype::Complex128,
-      py::arg("device") = py::none(),
-      R"pydoc(
+    cls.def_static("from_random_uniform",
+                   &SymmetricTensor::from_random_uniform,
+                   py::arg("codomain"),
+                   py::arg("domain") = py::none(),
+                   py::arg("backend") = nullptr,
+                   py::arg("labels") = py::none(),
+                   py::arg("dtype") = Dtype::Complex128,
+                   py::arg("device") = py::none(),
+                   R"pydoc(
 Generate a tensor with uniformly random block-entries.
 
 The block entries, i.e. the free parameters of the tensor are drawn independently and
@@ -307,18 +305,17 @@ dtype: Dtype
     The dtype for the tensor.
 )pydoc");
 
-    cls.def_static(
-      "from_sector_block_func",
-      &SymmetricTensor::from_sector_block_func,
-      py::arg("func"),
-      py::arg("codomain"),
-      py::arg("domain") = py::none(),
-      py::arg("backend") = nullptr,
-      py::arg("labels") = py::none(),
-      py::arg("func_kwargs") = py::none(),
-      py::arg("dtype") = py::none(),
-      py::arg("device") = py::none(),
-      R"pydoc(
+    cls.def_static("from_sector_block_func",
+                   &SymmetricTensor::from_sector_block_func,
+                   py::arg("func"),
+                   py::arg("codomain"),
+                   py::arg("domain") = py::none(),
+                   py::arg("backend") = nullptr,
+                   py::arg("labels") = py::none(),
+                   py::arg("func_kwargs") = py::none(),
+                   py::arg("dtype") = py::none(),
+                   py::arg("device") = py::none(),
+                   R"pydoc(
 Initialize a :class:`SymmetricTensor` by generating its blocks from a function.
 
 Here "the blocks of a tensor" are the backend-specific blocks that contain the free
@@ -373,17 +370,16 @@ from_block_func
                    A tensor that projects onto a given coupled sector of it domain.
                    )pydoc");
 
-    cls.def_static(
-      "from_tree_pairs",
-      &SymmetricTensor::from_tree_pairs,
-      py::arg("trees"),
-      py::arg("codomain"),
-      py::arg("domain") = py::none(),
-      py::arg("backend") = nullptr,
-      py::arg("labels") = py::none(),
-      py::arg("dtype") = py::none(),
-      py::arg("device") = py::none(),
-      R"pydoc(
+    cls.def_static("from_tree_pairs",
+                   &SymmetricTensor::from_tree_pairs,
+                   py::arg("trees"),
+                   py::arg("codomain"),
+                   py::arg("domain") = py::none(),
+                   py::arg("backend") = nullptr,
+                   py::arg("labels") = py::none(),
+                   py::arg("dtype") = py::none(),
+                   py::arg("device") = py::none(),
+                   R"pydoc(
 Create a tensor from a linear combination of fusion-tree splitting-tree pairs.
 
 Parameters
@@ -410,16 +406,15 @@ codomain, domain, backend, labels
     Arguments, like for constructor of :class:`SymmetricTensor`.
 )pydoc");
 
-    cls.def_static(
-      "from_zero",
-      &SymmetricTensor::from_zero,
-      py::arg("codomain"),
-      py::arg("domain") = py::none(),
-      py::arg("backend") = nullptr,
-      py::arg("labels") = py::none(),
-      py::arg("dtype") = Dtype::Complex128,
-      py::arg("device") = py::none(),
-      R"pydoc(
+    cls.def_static("from_zero",
+                   &SymmetricTensor::from_zero,
+                   py::arg("codomain"),
+                   py::arg("domain") = py::none(),
+                   py::arg("backend") = nullptr,
+                   py::arg("labels") = py::none(),
+                   py::arg("dtype") = Dtype::Complex128,
+                   py::arg("device") = py::none(),
+                   R"pydoc(
 A zero tensor.
 
 Parameters
@@ -438,22 +433,24 @@ device: str
                    py::arg("dtype"),
                    py::arg("symmetry"));
 
-    cls.def("as_dtype", &SymmetricTensor::as_dtype, py::arg("dtype"),
-    R"pydoc(
-    Convert to a tensor of the given dtype on the same device.
-    
-    Parameters
-    ----------
-    dtype: Dtype
-        The dtype of the result.
-    )pydoc");
+    cls.def("as_dtype",
+            &SymmetricTensor::as_dtype,
+            py::arg("dtype"),
+            R"pydoc(
+            Convert to a tensor of the given dtype on the same device.
+
+            Parameters
+            ----------
+            dtype: Dtype
+                The dtype of the result.
+            )pydoc");
     cls.def("as_SymmetricTensor",
             &SymmetricTensor::as_SymmetricTensor,
             py::arg("guarantee_copy") = false,
             py::arg("warning") = py::none(),
             R"pydoc(
             Convert to a :class:`SymmetricTensor`, if possible.
-            
+
             Parameters
             ----------
             guarantee_copy : bool
@@ -470,7 +467,7 @@ device: str
             py::arg("dtype") = py::none(),
             R"pydoc(
             Copy the tensor.
-            
+
             Parameters
             ----------
             deep: bool
@@ -491,16 +488,20 @@ Parameters
 check_offdiagonal: bool
     If we should check that the off-diagonal parts vanish.
 )pydoc");
-    cls.def("_get_item", &SymmetricTensor::_get_item, py::arg("idx"),
-    R"pydoc(
-    Implementation of :meth:`__getitem__`.
-    
-    Can assume we have one non-negative integer index per leg.
-    )pydoc");
-    cls.def("move_to_device", &SymmetricTensor::move_to_device, py::arg("device"),
-    R"pydoc(
-    Move tensor to a given device, *in place*.
-    )pydoc");
+    cls.def("_get_item",
+            &SymmetricTensor::_get_item,
+            py::arg("idx"),
+            R"pydoc(
+            Implementation of :meth:`__getitem__`.
+
+            Can assume we have one non-negative integer index per leg.
+            )pydoc");
+    cls.def("move_to_device",
+            &SymmetricTensor::move_to_device,
+            py::arg("device"),
+            R"pydoc(
+            Move tensor to a given device, *in place*.
+            )pydoc");
     cls.def("to_backend",
             &SymmetricTensor::to_backend,
             py::arg("backend"),
@@ -508,7 +509,7 @@ check_offdiagonal: bool
             py::arg("device") = py::none(),
             R"pydoc(
             Convert to a tensor with a different backend.
-            
+
             Parameters
             ----------
             backend: TensorBackend
@@ -520,7 +521,10 @@ check_offdiagonal: bool
             )pydoc");
     cls.def(
       "to_dense_block",
-      [](SymmetricTensor& self, py::object leg_order, std::optional<Dtype> dtype, bool understood_braiding) {
+      [](SymmetricTensor& self,
+         py::object leg_order,
+         std::optional<Dtype> dtype,
+         bool understood_braiding) {
           return self.to_dense_block(optional_leg_order(leg_order), dtype, understood_braiding);
       },
       py::arg("leg_order") = py::none(),
@@ -528,12 +532,12 @@ check_offdiagonal: bool
       py::arg("understood_braiding") = false,
       R"pydoc(
       Convert to a dense block of the backend, if possible.
-      
+
       This corresponds to "forgetting" the symmetry structure and is only possible if the
       symmetry :attr:`Symmetry.can_be_dropped`.
       The result is a backend-specific block, e.g. a numpy array if the block backend is a
       :class:`NumpyBlockBackend` or a torch Tensor if the backend is a :class:`TorchBlockBackend`.
-      
+
       Parameters
       ----------
       leg_order: list of (int | str), optional

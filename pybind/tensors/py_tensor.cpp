@@ -322,12 +322,12 @@ understood_braiding : bool
       },
       R"pydoc(
       The hermitian conjugate tensor, a.k.a the dagger of a tensor.
-      
+
       For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
       the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
       For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
       Graphically::
-      
+
           |          e   d             a   b   c
           |          │   │             │   │   │
           |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
@@ -335,18 +335,18 @@ understood_braiding : bool
           |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
           |        │   │   │             │   │
           |        a   b   c             e   d
-      
+
       Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
-      
+
       Returns
       -------
       The hermitian conjugate tensor. Its legs and labels are::
-      
+
           dagger(A).codomain == A.domain
           dagger(A).domain == A.codomain
           dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
           dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
-      
+
       Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
       on their bipartition into domain and codomain.
       For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
@@ -355,19 +355,17 @@ understood_braiding : bool
     cls.def_property_readonly("domain_labels",
                               &Tensor::domain_labels,
                               R"pydoc(The labels that refer to legs in the domain.)pydoc");
-    cls.def_property_readonly("has_pipes",
-                              &Tensor::has_pipes,
-                              R"pydoc(If any of the legs is a pipe)pydoc");
+    cls.def_property_readonly(
+      "has_pipes", &Tensor::has_pipes, R"pydoc(If any of the legs is a pipe)pydoc");
     cls.def_property_readonly(
       "hc",
       [](py::object self) {
           return py::module_::import("cyten.tensors._tensors").attr("dagger")(self);
       },
       R"pydoc(The :func:`dagger`)pydoc");
-    cls.def_property_readonly(
-      "legs",
-      &Tensor::legs,
-      R"pydoc(
+    cls.def_property_readonly("legs",
+                              &Tensor::legs,
+                              R"pydoc(
 All legs of the tensor.
 
 These the spaces of the codomain, followed by the duals of the domain spaces
@@ -398,21 +396,18 @@ See :ref:`tensors_as_maps`.
     cls.def_property_readonly("num_domain_flat_legs",
                               &Tensor::num_domain_flat_legs,
                               R"pydoc(Number of flat legs in the domain.)pydoc");
-    cls.def_property_readonly("num_flat_legs",
-                              &Tensor::num_flat_legs,
-                              R"pydoc(Total number of flat legs of self.)pydoc");
     cls.def_property_readonly(
-      "num_parameters",
-      &Tensor::num_parameters,
-      R"pydoc(
+      "num_flat_legs", &Tensor::num_flat_legs, R"pydoc(Total number of flat legs of self.)pydoc");
+    cls.def_property_readonly("num_parameters",
+                              &Tensor::num_parameters,
+                              R"pydoc(
 The number of free parameters for the given legs.
 
 This is the dimension of the space of symmetry-preserving tensors with the given legs.
 )pydoc");
-    cls.def_property_readonly(
-      "size",
-      &Tensor::size,
-      R"pydoc(
+    cls.def_property_readonly("size",
+                              &Tensor::size,
+                              R"pydoc(
 The number of entries of a dense block representation of self.
 
 This is only defined if ``self.symmetry.can_be_dropped``.
@@ -448,10 +443,11 @@ In that case, it is the number of entries of :func:`to_dense_block`.
       },
       py::arg("idx"));
 
-    cls.def("__setitem__",
-            [](Tensor&, py::object, py::object) {
-                throw py::type_error("Tensors do not support item assignment.");
-            })
+    cls
+      .def("__setitem__",
+           [](Tensor&, py::object, py::object) {
+               throw py::type_error("Tensors do not support item assignment.");
+           })
       .def("__eq__",
            [](Tensor& self, py::object) -> bool {
                throw py::type_error(
@@ -468,11 +464,12 @@ In that case, it is the number of entries of :func:`to_dense_block`.
       });
 
     // Arithmetic / composition: defer to Python free functions until those are converted.
-    cls.def("__add__",
-            [](py::object self, py::object other) {
-                return py::module_::import("cyten.tensors._tensors")
-                  .attr("linear_combination")(1.0, self, 1.0, other);
-            })
+    cls
+      .def("__add__",
+           [](py::object self, py::object other) {
+               return py::module_::import("cyten.tensors._tensors")
+                 .attr("linear_combination")(1.0, self, 1.0, other);
+           })
       .def("__sub__",
            [](py::object self, py::object other) {
                return py::module_::import("cyten.tensors._tensors")
@@ -499,11 +496,11 @@ In that case, it is the number of entries of :func:`to_dense_block`.
                return py::module_::import("cyten.tensors._tensors")
                  .attr("scalar_multiply")(inv, self);
            })
-      .def("__neg__",
-           [](py::object self) {
-               return py::module_::import("cyten.tensors._tensors")
-                 .attr("scalar_multiply")(-1, self);
-           })
+      .def(
+        "__neg__",
+        [](py::object self) {
+            return py::module_::import("cyten.tensors._tensors").attr("scalar_multiply")(-1, self);
+        })
       .def("__pos__", [](Tensor::Ptr self) { return self; })
       .def("__matmul__", [](py::object self, py::object other) {
           return py::module_::import("cyten.tensors._tensors").attr("compose")(self, other);
@@ -511,11 +508,12 @@ In that case, it is the number of entries of :func:`to_dense_block`.
 
     cls.def("__repr__", &Tensor::__repr__).def("__str__", &Tensor::__str__);
 
-    cls.def(
-         "_as_codomain_leg",
-         [](Tensor const& self, py::object idx) { return self._as_codomain_leg(as_leg_ref(idx)); },
-         py::arg("idx"),
-         R"pydoc(Return the leg, as if it was moved to the codomain.)pydoc")
+    cls
+      .def(
+        "_as_codomain_leg",
+        [](Tensor const& self, py::object idx) { return self._as_codomain_leg(as_leg_ref(idx)); },
+        py::arg("idx"),
+        R"pydoc(Return the leg, as if it was moved to the codomain.)pydoc")
       .def(
         "_as_domain_leg",
         [](Tensor const& self, py::object idx) { return self._as_domain_leg(as_leg_ref(idx)); },
@@ -559,24 +557,25 @@ legs_idx: int
            py::arg("indent"),
            py::arg("use_symm_str") = false);
 
-    cls.def(
-         "get_leg",
-         [](Tensor const& self, py::object which_leg) -> py::object {
-             if (!(py::isinstance<py::int_>(which_leg) || py::isinstance<py::str>(which_leg))) {
-                 std::vector<std::variant<int64, std::string>> refs;
-                 for (auto item : which_leg) {
-                     refs.push_back(as_leg_ref(item));
-                 }
-                 py::list out;
-                 for (auto const& leg : self.get_leg(refs)) {
-                     out.append(leg);
-                 }
-                 return out;
-             }
-             return self.get_leg(as_leg_ref(which_leg));
-         },
-         py::arg("which_leg"),
-         R"pydoc(Basically ``self.legs[which_leg]``, but allows labels and multiple indices.)pydoc")
+    cls
+      .def(
+        "get_leg",
+        [](Tensor const& self, py::object which_leg) -> py::object {
+            if (!(py::isinstance<py::int_>(which_leg) || py::isinstance<py::str>(which_leg))) {
+                std::vector<std::variant<int64, std::string>> refs;
+                for (auto item : which_leg) {
+                    refs.push_back(as_leg_ref(item));
+                }
+                py::list out;
+                for (auto const& leg : self.get_leg(refs)) {
+                    out.append(leg);
+                }
+                return out;
+            }
+            return self.get_leg(as_leg_ref(which_leg));
+        },
+        py::arg("which_leg"),
+        R"pydoc(Basically ``self.legs[which_leg]``, but allows labels and multiple indices.)pydoc")
       .def(
         "get_leg_co_domain",
         [](Tensor const& self, py::object which_leg) -> py::object {
@@ -601,12 +600,13 @@ This is the same as :meth:`get_leg` if the leg is in the codomain, and the respe
 dual if the leg is in the domain.
 )pydoc");
 
-    cls.def(
-         "set_labels",
-         [](Tensor& self, py::object labels) -> Tensor& { return self.set_labels(labels); },
-         py::arg("labels"),
-         py::return_value_policy::reference,
-         R"pydoc(Set the given labels, in-place. Return the modified instance.)pydoc")
+    cls
+      .def(
+        "set_labels",
+        [](Tensor& self, py::object labels) -> Tensor& { return self.set_labels(labels); },
+        py::arg("labels"),
+        py::return_value_policy::reference,
+        R"pydoc(Set the given labels, in-place. Return the modified instance.)pydoc")
       .def(
         "to_numpy",
         [](Tensor& self, py::object leg_order, py::object numpy_dtype, bool understood_braiding) {

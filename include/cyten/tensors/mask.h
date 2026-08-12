@@ -132,9 +132,10 @@ class Mask : public Tensor
 
     void move_to_device(std::string device) override;
 
-    [[nodiscard]] Tensor::Ptr to_backend(TensorBackend::Ptr backend,
-                                         std::optional<Dtype> dtype = std::nullopt,
-                                         std::optional<std::string> device = std::nullopt) override;
+    [[nodiscard]] Tensor::Ptr to_backend(
+      TensorBackend::Ptr backend,
+      std::optional<Dtype> dtype = std::nullopt,
+      std::optional<std::string> device = std::nullopt) override;
 
     [[nodiscard]] BlockBackend::BlockPtr to_dense_block(
       std::optional<std::vector<std::variant<int64, std::string>>> leg_order = std::nullopt,

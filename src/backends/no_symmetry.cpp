@@ -34,7 +34,8 @@ shape_from_tensor(py::object a)
     // still expects integer block shapes.
     std::vector<int64> out;
     for (auto item : a.attr("shape")) {
-        out.push_back(static_cast<int64>(py::reinterpret_borrow<py::object>(item).cast<float64>()));
+        out.push_back(
+          static_cast<int64>(py::reinterpret_borrow<py::object>(item).cast<float64>()));
     }
     return out;
 }

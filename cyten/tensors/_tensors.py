@@ -67,7 +67,6 @@ from .._core import (  # noqa: F401
     is_valid_leg_label,
 )
 
-
 # TENSOR CLASSES
 
 
@@ -3767,13 +3766,13 @@ class ChargedTensor(Tensor):
 # Monkey-patch C++ tensor hierarchy (must be after all Python class bodies so planar.TensorPlaceholder
 # and free functions see the C++ types once this module finishes importing).
 from .._core import (  # noqa: F401, E402
-    LabelledLegs,
-    Tensor,
-    SymmetricTensor,
+    ChargedTensor,
     DiagonalTensor,
     Identity,
+    LabelledLegs,
     Mask,
-    ChargedTensor,
+    SymmetricTensor,
+    Tensor,
 )
 
 
@@ -3896,7 +3895,6 @@ def tensor(
 
 
 from .._core import tensor  # noqa: F401
-
 
 # FUNCTIONS ON TENSORS
 
@@ -7302,7 +7300,6 @@ def zero_like(tensor: Tensor) -> Tensor:
 
 
 from .._core import zero_like  # noqa: F401
-
 
 # INTERNAL HELPER FUNCTIONS
 

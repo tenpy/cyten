@@ -1,7 +1,7 @@
 #pragma once
 
-#include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tensors/tensor.h>
 
 #include <pybind11/pybind11.h>
@@ -27,16 +27,11 @@ class PyTensor
         PYBIND11_OVERRIDE(std::string, Tensor, ascii_diagram);
     }
 
-    Ptr as_dtype(Dtype dtype) override
-    {
-        PYBIND11_OVERRIDE_PURE(Ptr, Tensor, as_dtype, dtype);
-    }
+    Ptr as_dtype(Dtype dtype) override { PYBIND11_OVERRIDE_PURE(Ptr, Tensor, as_dtype, dtype); }
 
-    py::object as_SymmetricTensor(bool guarantee_copy,
-                                  std::optional<std::string> warning) override
+    py::object as_SymmetricTensor(bool guarantee_copy, std::optional<std::string> warning) override
     {
-        PYBIND11_OVERRIDE_PURE(
-          py::object, Tensor, as_SymmetricTensor, guarantee_copy, warning);
+        PYBIND11_OVERRIDE_PURE(py::object, Tensor, as_SymmetricTensor, guarantee_copy, warning);
     }
 
     Ptr copy(bool deep, std::optional<std::string> device, std::optional<Dtype> dtype) override
@@ -70,35 +65,20 @@ class PyTensor
         PYBIND11_OVERRIDE_PURE(BlockBackend::Scalar, Tensor, _get_item, idx);
     }
 
-    Ptr dagger() const override
-    {
-        PYBIND11_OVERRIDE(Ptr, Tensor, dagger);
-    }
+    Ptr dagger() const override { PYBIND11_OVERRIDE(Ptr, Tensor, dagger); }
 
-    Ptr T() const override
-    {
-        PYBIND11_OVERRIDE(Ptr, Tensor, T);
-    }
+    Ptr T() const override { PYBIND11_OVERRIDE(Ptr, Tensor, T); }
 
     std::string ascii_diagram_type_name() const override
     {
         PYBIND11_OVERRIDE(std::string, Tensor, ascii_diagram_type_name);
     }
 
-    std::string class_name() const override
-    {
-        PYBIND11_OVERRIDE(std::string, Tensor, class_name);
-    }
+    std::string class_name() const override { PYBIND11_OVERRIDE(std::string, Tensor, class_name); }
 
-    std::string __repr__() const override
-    {
-        PYBIND11_OVERRIDE(std::string, Tensor, __repr__);
-    }
+    std::string __repr__() const override { PYBIND11_OVERRIDE(std::string, Tensor, __repr__); }
 
-    std::string __str__() const override
-    {
-        PYBIND11_OVERRIDE(std::string, Tensor, __str__);
-    }
+    std::string __str__() const override { PYBIND11_OVERRIDE(std::string, Tensor, __str__); }
 
     std::vector<std::string> _repr_header_lines(std::string const& indent,
                                                 bool use_symm_str) const override
@@ -107,10 +87,7 @@ class PyTensor
           std::vector<std::string>, Tensor, _repr_header_lines, indent, use_symm_str);
     }
 
-    void test_sanity() const override
-    {
-        PYBIND11_OVERRIDE(void, Tensor, test_sanity);
-    }
+    void test_sanity() const override { PYBIND11_OVERRIDE(void, Tensor, test_sanity); }
 
     std::vector<Dtype> const& forbidden_dtypes() const override
     {
@@ -131,18 +108,14 @@ class PySymmetricTensor
   public:
     using SymmetricTensor::SymmetricTensor;
 
-    void test_sanity() const override
-    {
-        PYBIND11_OVERRIDE(void, SymmetricTensor, test_sanity);
-    }
+    void test_sanity() const override { PYBIND11_OVERRIDE(void, SymmetricTensor, test_sanity); }
 
     Tensor::Ptr as_dtype(Dtype dtype) override
     {
         PYBIND11_OVERRIDE(Tensor::Ptr, SymmetricTensor, as_dtype, dtype);
     }
 
-    py::object as_SymmetricTensor(bool guarantee_copy,
-                                  std::optional<std::string> warning) override
+    py::object as_SymmetricTensor(bool guarantee_copy, std::optional<std::string> warning) override
     {
         PYBIND11_OVERRIDE(
           py::object, SymmetricTensor, as_SymmetricTensor, guarantee_copy, warning);
@@ -195,10 +168,7 @@ class PySymmetricTensor
         PYBIND11_OVERRIDE(std::string, SymmetricTensor, class_name);
     }
 
-    void verify_dtype() const override
-    {
-        PYBIND11_OVERRIDE(void, SymmetricTensor, verify_dtype);
-    }
+    void verify_dtype() const override { PYBIND11_OVERRIDE(void, SymmetricTensor, verify_dtype); }
 };
 
 /// pybind11 trampoline for :class:`DiagonalTensor` (Python subclasses e.g. Identity).
@@ -209,15 +179,9 @@ class PyDiagonalTensor
   public:
     using DiagonalTensor::DiagonalTensor;
 
-    void test_sanity() const override
-    {
-        PYBIND11_OVERRIDE(void, DiagonalTensor, test_sanity);
-    }
+    void test_sanity() const override { PYBIND11_OVERRIDE(void, DiagonalTensor, test_sanity); }
 
-    void verify_dtype() const override
-    {
-        PYBIND11_OVERRIDE(void, DiagonalTensor, verify_dtype);
-    }
+    void verify_dtype() const override { PYBIND11_OVERRIDE(void, DiagonalTensor, verify_dtype); }
 
     std::vector<Dtype> const& forbidden_dtypes() const override
     {
@@ -229,11 +193,9 @@ class PyDiagonalTensor
         PYBIND11_OVERRIDE(Tensor::Ptr, DiagonalTensor, as_dtype, dtype);
     }
 
-    py::object as_SymmetricTensor(bool guarantee_copy,
-                                  std::optional<std::string> warning) override
+    py::object as_SymmetricTensor(bool guarantee_copy, std::optional<std::string> warning) override
     {
-        PYBIND11_OVERRIDE(
-          py::object, DiagonalTensor, as_SymmetricTensor, guarantee_copy, warning);
+        PYBIND11_OVERRIDE(py::object, DiagonalTensor, as_SymmetricTensor, guarantee_copy, warning);
     }
 
     Tensor::Ptr copy(bool deep,

@@ -129,9 +129,9 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("new_domain"),
       R"pydoc(
       Add a trivial leg to a tensor.
-      
+
       A trivial leg is one-dimensional and consists only of the trivial sector of the symmetry.
-      
+
       Parameters
       ----------
       tens: Tensor
@@ -249,12 +249,12 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("a"),
       R"pydoc(
       The hermitian conjugate tensor, a.k.a the dagger of a tensor.
-      
+
       For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
       the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
       For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
       Graphically::
-      
+
           |          e   d             a   b   c
           |          │   │             │   │   │
           |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
@@ -262,18 +262,18 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
           |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
           |        │   │   │             │   │
           |        a   b   c             e   d
-      
+
       Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
-      
+
       Returns
       -------
       The hermitian conjugate tensor. Its legs and labels are::
-      
+
           dagger(A).codomain == A.domain
           dagger(A).domain == A.codomain
           dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
           dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
-      
+
       Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
       on their bipartition into domain and codomain.
       For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
@@ -662,15 +662,15 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("new_co_domain"),
       R"pydoc(
       The LQ decomposition of a tensor.
-      
+
       A :ref:`tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
       properties:
-      
+
       - ``L`` has a lower triangular structure *in the coupled basis*.
       - ``Q`` is an isometry: ``dagger(Q) @ Q ~ eye``.
-      
+
       Graphically::
-      
+
           |                                 │   │   │   │
           |                                ┏┷━━━┷━━━┷━━━┷┓
           |        │   │   │   │           ┃      Q      ┃
@@ -680,10 +680,10 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
           |          │   │   │             ┃      L      ┃
           |                                ┗━━┯━━━┯━━━┯━━┛
           |                                   │   │   │
-      
+
       We always compute the "reduced", a.k.a. "economic" version.
       To group the legs differently, use :func:`permute_legs` or `combine_to_matrix` first.
-      
+
       Parameters
       ----------
       tensor: :class:`Tensor`
@@ -1021,21 +1021,21 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("algorithm") = py::none(),
       R"pydoc(
       The singular value decomposition (SVD) of a tensor.
-      
+
       A :ref:`tensor decomposition <decompositions>` ``tensor ~ U @ S @ Vh`` with the following
       properties:
-      
+
       - ``Vh`` and ``U`` are isometries: ``dagger(U) @ U ~ eye ~ Vh @ dagger(Vh)``.
       - ``S`` is a :class:`DiagonalTensor` with real, non-negative entries.
       - If `tensor` is a matrix (i.e. if it has exactly one leg each in domain and codomain), it
         reproduces the usual matrix SVD.
-      
+
       .. note ::
           The basis for the newly generated leg is chosen arbitrarily, and in particular, unlike,
           e.g., :func:`numpy.linalg.svd` it is not guaranteed that ``S.diag_numpy`` is sorted.
-      
+
       Graphically::
-      
+
           |                                 │   │   │   │
           |                                ┏┷━━━┷━━━┷━━━┷┓
           |                                ┃      Vh     ┃
@@ -1047,12 +1047,12 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
           |                                ┃      U      ┃
           |                                ┗━━┯━━━┯━━━┯━━┛
           |                                   │   │   │
-      
+
       We always compute the "reduced", a.k.a. "economic" version of SVD, where the isometries are
       (in general) not full unitaries.
-      
+
       To group the legs differently, use :func:`permute_legs` or `combine_to_matrix` first.
-      
+
       Parameters
       ----------
       tensor: :class:`Tensor`
@@ -1074,7 +1074,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       algorithm: str, optional
           The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
           See :meth:`~cyten.block_backends.BlockBackend.possible_svd_algorithms`.
-      
+
       Returns
       -------
       U: SymmetricTensor | ChargedTensor

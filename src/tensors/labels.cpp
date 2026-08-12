@@ -187,11 +187,11 @@ _get_matching_labels(LegLabels const& labels1, LegLabels const& labels2)
             }
             positions += std::to_string(conflicts[i]);
         }
-        auto const msg = std::format(
-          "Conflicting labels at positions {} are dropped. labels1={}, labels2={}.",
-          positions,
-          format_leg_labels(labels1),
-          format_leg_labels(labels2));
+        auto const msg =
+          std::format("Conflicting labels at positions {} are dropped. labels1={}, labels2={}.",
+                      positions,
+                      format_leg_labels(labels1),
+                      format_leg_labels(labels2));
         py::module_::import("logging")
           .attr("getLogger")("cyten.tensors._tensors")
           .attr("debug")(msg);
@@ -246,7 +246,7 @@ LabelledLegs::labels() const
 std::vector<int64>
 LabelledLegs::get_leg_idcs(int64 idx) const
 {
-    return {to_valid_idx(idx, num_legs)};
+    return { to_valid_idx(idx, num_legs) };
 }
 
 std::vector<int64>
@@ -257,7 +257,7 @@ LabelledLegs::get_leg_idcs(std::string const& label) const
         throw std::invalid_argument(
           std::format("No leg with label {}. Labels are {}", label, format_leg_labels(_labels)));
     }
-    return {it->second};
+    return { it->second };
 }
 
 std::vector<int64>
@@ -284,14 +284,14 @@ LabelledLegs::get_leg_idcs(std::vector<std::variant<int64, std::string>> const& 
 bool
 LabelledLegs::has_label(std::string const& label) const
 {
-    return leg_labels_contain(_labels, LegLabel{label});
+    return leg_labels_contain(_labels, LegLabel{ label });
 }
 
 bool
 LabelledLegs::has_label(std::vector<std::string> const& more) const
 {
     return std::ranges::all_of(
-      more, [this](std::string const& l) { return leg_labels_contain(_labels, LegLabel{l}); });
+      more, [this](std::string const& l) { return leg_labels_contain(_labels, LegLabel{ l }); });
 }
 
 bool
@@ -323,7 +323,7 @@ LabelledLegs::relabel(std::map<std::string, std::string> const& mapping)
     for (auto const& l : _labels) {
         if (l) {
             auto it = mapping.find(*l);
-            next.push_back(it == mapping.end() ? l : LegLabel{it->second});
+            next.push_back(it == mapping.end() ? l : LegLabel{ it->second });
         } else {
             next.push_back(std::nullopt);
         }

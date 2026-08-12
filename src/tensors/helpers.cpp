@@ -228,13 +228,12 @@ _check_compatible_legs(py::sequence legs1, py::sequence legs2, bool expect_equal
     for (py::ssize_t i = 0; i < n; ++i) {
         py::object l1 = legs1[i];
         py::object l2 = legs2[i];
-        if (!l1.attr("symmetry")
-               .attr("is_equivalent_to")(l2.attr("symmetry"))
-               .cast<bool>()) {
+        if (!l1.attr("symmetry").attr("is_equivalent_to")(l2.attr("symmetry")).cast<bool>()) {
             throw std::invalid_argument("Different symmetries");
         }
         py::object rhs = expect_equal ? l2 : py::object(l2.attr("dual"));
-        // Use Python ``__eq__`` so Space/Leg bindings apply (``py::object::operator==`` is pointer identity).
+        // Use Python ``__eq__`` so Space/Leg bindings apply (``py::object::operator==`` is pointer
+        // identity).
         py::object eq = l1.attr("__eq__")(rhs);
         if (eq.is(py::reinterpret_borrow<py::object>(Py_NotImplemented)) || !eq.cast<bool>()) {
             throw std::invalid_argument("Incompatible legs.");
@@ -276,7 +275,8 @@ _compose_with_Mask(py::object tensor, py::object mask, int64 leg_idx)
     if (is_python_instance(tensor, "Mask") || py::isinstance<Mask>(tensor)) {
         throw NotImplemented("tensors._compose_with_Mask not implemented for Mask");
     }
-    tensor = tensor.attr("as_SymmetricTensor")(py::arg("warning") = "Converting to SymmetricTensor.");
+    tensor =
+      tensor.attr("as_SymmetricTensor")(py::arg("warning") = "Converting to SymmetricTensor.");
 
     auto backend = get_same_backend({ tensor, mask });
     bool mask_is_projection = mask.attr("is_projection").cast<bool>();
@@ -287,11 +287,8 @@ _compose_with_Mask(py::object tensor, py::object mask, int64 leg_idx)
         contracted = backend->mask_contract_large_leg(tensor, mask, leg_idx);
     }
     auto& [data, codomain, domain] = contracted;
-    return make_python_symmetric_tensor(std::move(data),
-                                        py::cast(codomain),
-                                        py::cast(domain),
-                                        backend,
-                                        tensor.attr("labels"));
+    return make_python_symmetric_tensor(
+      std::move(data), py::cast(codomain), py::cast(domain), backend, tensor.attr("labels"));
 }
 
 py::object
@@ -304,8 +301,8 @@ _compose_SymmetricTensors(py::object tensor1,
     // no remaining open legs
     // drop duplicate labels
     // ---
-    if (tensor1.attr("num_codomain_legs").cast<int64>() == 0
-        && tensor2.attr("num_domain_legs").cast<int64>() == 0) {
+    if (tensor1.attr("num_codomain_legs").cast<int64>() == 0 &&
+        tensor2.attr("num_domain_legs").cast<int64>() == 0) {
         return inner(tensor1, tensor2, /*do_dagger=*/false);
     }
 
@@ -347,7 +344,8 @@ _convert_abelian_to_FT(py::object tensor,
     auto domain = tensor.attr("domain").cast<TensorProduct::Ptr>();
     auto symmetry = tensor.attr("symmetry").cast<Symmetry::Ptr>();
     auto ab_data = AbelianBackend::data_from_tensor(tensor);
-    auto old_bb = tensor.attr("backend").attr("block_backend").cast<std::shared_ptr<BlockBackend>>();
+    auto old_bb =
+      tensor.attr("backend").attr("block_backend").cast<std::shared_ptr<BlockBackend>>();
 
     int64 num_codomain_legs = tensor.attr("num_codomain_legs").cast<int64>();
     int64 num_domain_legs = tensor.attr("num_domain_legs").cast<int64>();
@@ -446,7 +444,8 @@ _convert_abelian_to_FT(py::object tensor,
             Sector c = symmetry->multiple_fusion(b_sectors);
             auto ft_bi = res->block_ind_from_coupled(c, domain);
             if (!ft_bi.has_value()) {
-                continue; // this can happen if c does not appear in the codomain at all -> no block
+                continue; // this can happen if c does not appear in the codomain at all -> no
+                          // block
             }
             int64 tree_block_width = prod_i64(b_mults);
             int64 i2 = i2_per_coupled[static_cast<std::size_t>(*ft_bi)];
@@ -463,9 +462,8 @@ _convert_abelian_to_FT(py::object tensor,
                 }
 
                 std::vector<int64> ab_block_inds = cod_sector_idcs;
-                ab_block_inds.insert(ab_block_inds.end(),
-                                     dom_sector_idcs.rbegin(),
-                                     dom_sector_idcs.rend());
+                ab_block_inds.insert(
+                  ab_block_inds.end(), dom_sector_idcs.rbegin(), dom_sector_idcs.rend());
 
                 // OPTIMIZE use that the data.block_inds are lexsorted for this lookup (also above)
                 auto ab_i = ab_data->get_block_num(BlockInds::from_row(ab_block_inds));
@@ -479,11 +477,10 @@ _convert_abelian_to_FT(py::object tensor,
                 // cstyle combine in the codomain, Fstyle in the domain
                 auto tree_block = old_bb->combine_legs(ab_block, combine, cstyles);
                 tree_block = backend->block_backend->as_block(py::cast(tree_block), dtype, device);
-                assign_block_slice(
-                  res->blocks[static_cast<std::size_t>(*ft_bi)],
-                  { AxisSlice{ i1, i1 + tree_block_height, {} },
-                    AxisSlice{ i2, i2 + tree_block_width, {} } },
-                  tree_block);
+                assign_block_slice(res->blocks[static_cast<std::size_t>(*ft_bi)],
+                                   { AxisSlice{ i1, i1 + tree_block_height, {} },
+                                     AxisSlice{ i2, i2 + tree_block_width, {} } },
+                                   tree_block);
                 blocks_touched[static_cast<std::size_t>(*ft_bi)] = true;
 
                 i1 += tree_block_height; // move down by one tree-block
@@ -517,7 +514,8 @@ _convert_FT_to_abelian(py::object tensor,
     auto codomain = tensor.attr("codomain").cast<TensorProduct::Ptr>();
     auto symmetry = tensor.attr("symmetry").cast<Symmetry::Ptr>();
     auto ft_data = FusionTreeBackend::data_from_tensor(tensor);
-    auto old_bb = tensor.attr("backend").attr("block_backend").cast<std::shared_ptr<BlockBackend>>();
+    auto old_bb =
+      tensor.attr("backend").attr("block_backend").cast<std::shared_ptr<BlockBackend>>();
 
     int64 num_codomain_legs = tensor.attr("num_codomain_legs").cast<int64>();
     int64 num_domain_legs = tensor.attr("num_domain_legs").cast<int64>();
@@ -541,15 +539,15 @@ _convert_FT_to_abelian(py::object tensor,
             }
             auto ft_bi = ft_data->block_ind_from_coupled(c, domain);
             if (!ft_bi.has_value()) {
-                continue; // no block for this coupled sector -> dont need to add a result block either
+                continue; // no block for this coupled sector -> dont need to add a result block
+                          // either
             }
             int64 tree_block_width = prod_i64(b_mults);
             int64 i2 = i2_per_coupled[static_cast<std::size_t>(*ft_bi)];
-            auto tree_block = get_block_slice(
-              ft_data->blocks[static_cast<std::size_t>(*ft_bi)],
-              { int64{ 0 }, AxisSlice{ i2, i2 + tree_block_width, {} } });
-            auto ab_block =
-              old_bb->split_legs(tree_block, { 0 }, { b_mults }, false);
+            auto tree_block =
+              get_block_slice(ft_data->blocks[static_cast<std::size_t>(*ft_bi)],
+                              { int64{ 0 }, AxisSlice{ i2, i2 + tree_block_width, {} } });
+            auto ab_block = old_bb->split_legs(tree_block, { 0 }, { b_mults }, false);
             // convert to new block_backend
             ab_block = backend->block_backend->as_block(py::cast(ab_block), dtype, device);
             res_blocks.push_back(ab_block);
@@ -568,15 +566,15 @@ _convert_FT_to_abelian(py::object tensor,
             }
             auto ft_bi = ft_data->block_ind_from_coupled(c, domain);
             if (!ft_bi.has_value()) {
-                continue; // no block for this coupled sector -> dont need to add a result block either
+                continue; // no block for this coupled sector -> dont need to add a result block
+                          // either
             }
             int64 tree_block_height = prod_i64(a_mults);
             int64 i1 = i1_per_coupled[static_cast<std::size_t>(*ft_bi)];
-            auto tree_block = get_block_slice(
-              ft_data->blocks[static_cast<std::size_t>(*ft_bi)],
-              { AxisSlice{ i1, i1 + tree_block_height, {} }, int64{ 0 } });
-            auto ab_block =
-              old_bb->split_legs(tree_block, { 0 }, { a_mults }, true);
+            auto tree_block =
+              get_block_slice(ft_data->blocks[static_cast<std::size_t>(*ft_bi)],
+                              { AxisSlice{ i1, i1 + tree_block_height, {} }, int64{ 0 } });
+            auto ab_block = old_bb->split_legs(tree_block, { 0 }, { a_mults }, true);
             // convert to new block_backend
             ab_block = backend->block_backend->as_block(py::cast(ab_block), dtype, device);
             res_blocks.push_back(ab_block);
@@ -594,7 +592,8 @@ _convert_FT_to_abelian(py::object tensor,
             Sector c = symmetry->multiple_fusion(b_sectors);
             auto ft_bi = ft_data->block_ind_from_coupled(c, domain);
             if (!ft_bi.has_value()) {
-                continue; // no block for this coupled sector -> dont need to add a result block either
+                continue; // no block for this coupled sector -> dont need to add a result block
+                          // either
             }
             int64 tree_block_width = prod_i64(b_mults);
             int64 i2 = i2_per_coupled[static_cast<std::size_t>(*ft_bi)];
@@ -608,10 +607,10 @@ _convert_FT_to_abelian(py::object tensor,
                 if (c2 != c) {
                     continue; // sector combination violates fusion rules -> no contributions
                 }
-                auto tree_block = get_block_slice(
-                  ft_data->blocks[static_cast<std::size_t>(*ft_bi)],
-                  { AxisSlice{ i1, i1 + tree_block_height, {} },
-                    AxisSlice{ i2, i2 + tree_block_width, {} } });
+                auto tree_block =
+                  get_block_slice(ft_data->blocks[static_cast<std::size_t>(*ft_bi)],
+                                  { AxisSlice{ i1, i1 + tree_block_height, {} },
+                                    AxisSlice{ i2, i2 + tree_block_width, {} } });
                 auto ab_block = old_bb->split_legs(
                   tree_block, { 0, 1 }, { a_mults, b_mults }, std::vector<bool>{ true, false });
                 // convert to new block_backend
@@ -659,7 +658,8 @@ _decomposition_prepare(py::object tensor, bool new_leg_dual)
     auto domain = tensor.attr("domain").cast<Space::Ptr>();
     auto new_leg =
       ElementarySpace::from_largest_common_subspace({ codomain, domain }, new_leg_dual);
-    auto new_co_domain = std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(new_leg) });
+    auto new_co_domain =
+      std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(new_leg) });
 
     bool combine_codomain = false;
     bool combine_domain = false;
@@ -708,8 +708,7 @@ _decomposition_labels(py::object new_labels)
     if (labels.size() == 2) {
         return { labels[0], labels[1] };
     }
-    throw std::invalid_argument(
-      std::format("Expected 1 or 2 labels. Got {}", labels.size()));
+    throw std::invalid_argument(std::format("Expected 1 or 2 labels. Got {}", labels.size()));
 }
 
 std::tuple<LegLabel, LegLabel, LegLabel, LegLabel>

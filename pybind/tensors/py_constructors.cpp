@@ -22,7 +22,8 @@ bind_tensors_constructors(py::module_& m)
           if (!device.is_none()) {
               device_opt = device.cast<std::string>();
           }
-          return eye(std::move(leg), std::move(backend), std::move(labels), dtype, device_opt, diagonal);
+          return eye(
+            std::move(leg), std::move(backend), std::move(labels), dtype, device_opt, diagonal);
       },
       py::arg("leg"),
       py::arg("backend") = py::none(),

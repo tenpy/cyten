@@ -74,7 +74,7 @@ bind_tensors_labels(py::module_& m)
           if (!py::isinstance<py::str>(label)) {
               return false;
           }
-          return is_valid_leg_label(LegLabel{label.cast<std::string>()});
+          return is_valid_leg_label(LegLabel{ label.cast<std::string>() });
       },
       py::arg("label"),
       R"pydoc(If the given string is a valid leg label.)pydoc");
@@ -149,16 +149,16 @@ Thus, ``labels[:K]`` are the ``codomain_labels`` and ``labels[K:][::-1]`` are th
         "_labels",
         &LabelledLegs::labels,
         [](LabelledLegs& self, LegLabels labels) { self.set_labels(std::move(labels)); })
-      .def_property_readonly(
-        "_labelmap",
-        [](LabelledLegs const& self) {
-            // Expose the C++ label→index map to Python (used by free functions / tests).
-            py::dict out;
-            for (auto const& [lab, idx] : self.labelmap()) {
-                out[py::cast(lab)] = idx;
-            }
-            return out;
-        })
+      .def_property_readonly("_labelmap",
+                             [](LabelledLegs const& self) {
+                                 // Expose the C++ label→index map to Python (used by free
+                                 // functions / tests).
+                                 py::dict out;
+                                 for (auto const& [lab, idx] : self.labelmap()) {
+                                     out[py::cast(lab)] = idx;
+                                 }
+                                 return out;
+                             })
       .def("test_sanity", &LabelledLegs::test_sanity, R"pydoc(Perform sanity checks.)pydoc")
       .def("get_leg_idcs",
            &py_get_leg_idcs,

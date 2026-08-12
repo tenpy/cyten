@@ -1,6 +1,6 @@
+#include <cyten/tensors/diagonal_tensor.h>
 #include <cyten/tensors/helpers.h>
 #include <cyten/tensors/symmetric_tensor.h>
-#include <cyten/tensors/diagonal_tensor.h>
 
 #include <cyten/backends/backend_factory.h>
 #include <cyten/tools.h>
@@ -100,8 +100,9 @@ SymmetricTensor::test_sanity() const
     bool is_diagonal = dynamic_cast<DiagonalTensor const*>(this) != nullptr;
     if (!is_diagonal && Py_IsInitialized()) {
         try {
-            is_diagonal = py::isinstance(
-              as_py_object(), py::module_::import("cyten.tensors._tensors").attr("DiagonalTensor"));
+            is_diagonal =
+              py::isinstance(as_py_object(),
+                             py::module_::import("cyten.tensors._tensors").attr("DiagonalTensor"));
         } catch (py::error_already_set& e) {
             e.restore();
             PyErr_Clear();
@@ -173,8 +174,12 @@ SymmetricTensor::from_zero(py::object codomain,
     assert(dt.has_value());
     auto device_s = backend_tp->block_backend->as_device(device);
     auto data = backend_tp->zero_data(codomain_tp, domain_tp, *dt, device_s);
-    return std::make_shared<SymmetricTensor>(
-      data, codomain_tp, domain_tp, backend_tp, symmetry, _init_parse_labels(labels, codomain_tp, domain_tp));
+    return std::make_shared<SymmetricTensor>(data,
+                                             codomain_tp,
+                                             domain_tp,
+                                             backend_tp,
+                                             symmetry,
+                                             _init_parse_labels(labels, codomain_tp, domain_tp));
 }
 
 SymmetricTensor::Ptr
@@ -225,29 +230,29 @@ SymmetricTensor::from_block_func(py::function func,
     auto bb = backend_tp->block_backend;
 
     // wrap func to consider func_kwargs, shape_kw, dtype, device
-    py::cpp_function block_func(
-      [func, kwargs, shape_kw_obj, dtype_cap, device_cap, bb](py::object shape,
-                                                              py::object /*coupled*/) {
-          // use same backend function as from_sector_block_func, so we include the coupled arg
-          // but just ignore it.
-          py::object block;
-          if (shape_kw_obj.is_none()) {
-              block = func(shape, **kwargs);
-          } else {
-              py::dict call_kwargs = py::dict(kwargs);
-              call_kwargs[shape_kw_obj] = shape;
-              block = func(**call_kwargs);
-          }
-          return bb->as_block(block, dtype_cap, device_cap);
-      });
+    py::cpp_function block_func([func, kwargs, shape_kw_obj, dtype_cap, device_cap, bb](
+                                  py::object shape, py::object /*coupled*/) {
+        // use same backend function as from_sector_block_func, so we include the coupled arg
+        // but just ignore it.
+        py::object block;
+        if (shape_kw_obj.is_none()) {
+            block = func(shape, **kwargs);
+        } else {
+            py::dict call_kwargs = py::dict(kwargs);
+            call_kwargs[shape_kw_obj] = shape;
+            block = func(**call_kwargs);
+        }
+        return bb->as_block(block, dtype_cap, device_cap);
+    });
 
     auto data = backend_tp->from_sector_block_func(block_func, codomain_tp, domain_tp);
-    auto res = std::make_shared<SymmetricTensor>(data,
-                                                 codomain_tp,
-                                                 domain_tp,
-                                                 backend_tp,
-                                                 symmetry,
-                                                 _init_parse_labels(labels, codomain_tp, domain_tp));
+    auto res =
+      std::make_shared<SymmetricTensor>(data,
+                                        codomain_tp,
+                                        domain_tp,
+                                        backend_tp,
+                                        symmetry,
+                                        _init_parse_labels(labels, codomain_tp, domain_tp));
     res->test_sanity(); // OPTIMIZE remove?
     return res;
 }
@@ -282,12 +287,13 @@ SymmetricTensor::from_sector_block_func(py::function func,
       });
 
     auto data = backend_tp->from_sector_block_func(block_func, codomain_tp, domain_tp);
-    auto res = std::make_shared<SymmetricTensor>(data,
-                                                 codomain_tp,
-                                                 domain_tp,
-                                                 backend_tp,
-                                                 symmetry,
-                                                 _init_parse_labels(labels, codomain_tp, domain_tp));
+    auto res =
+      std::make_shared<SymmetricTensor>(data,
+                                        codomain_tp,
+                                        domain_tp,
+                                        backend_tp,
+                                        symmetry,
+                                        _init_parse_labels(labels, codomain_tp, domain_tp));
     res->test_sanity();
     return res;
 }
@@ -307,8 +313,8 @@ SymmetricTensor::from_dense_block(py::object block,
       _init_parse_args(codomain, domain, std::move(backend));
     dtype = _parse_default_dtype(dtype, symmetry);
     if (!symmetry->can_be_dropped()) {
-        throw SymmetryError(
-          std::format("Dense block representation is not supported for symmetry {}", symmetry->repr()));
+        throw SymmetryError(std::format(
+          "Dense block representation is not supported for symmetry {}", symmetry->repr()));
     }
     if (!symmetry->has_trivial_braid() && !understood_braiding) {
         throw SymmetryError(
@@ -323,8 +329,12 @@ SymmetricTensor::from_dense_block(py::object block,
     block_ptr = backend_tp->block_backend->apply_basis_perm(
       block_ptr, legs_from_py(conventional_leg_order(codomain_tp, domain_tp)));
     auto data = backend_tp->from_dense_block(block_ptr, codomain_tp, domain_tp, tol);
-    return std::make_shared<SymmetricTensor>(
-      data, codomain_tp, domain_tp, backend_tp, symmetry, _init_parse_labels(labels, codomain_tp, domain_tp));
+    return std::make_shared<SymmetricTensor>(data,
+                                             codomain_tp,
+                                             domain_tp,
+                                             backend_tp,
+                                             symmetry,
+                                             _init_parse_labels(labels, codomain_tp, domain_tp));
 }
 
 SymmetricTensor::Ptr
@@ -419,16 +429,20 @@ SymmetricTensor::from_random_normal(py::object codomain,
     assert(dtype.has_value());
     assert(device.has_value());
 
-    auto data =
-      backend_tp->from_random_normal(codomain_tp, domain_tp, sigma, *dtype, *device);
-    auto with_zero_mean = std::make_shared<SymmetricTensor>(
-      data, codomain_tp, domain_tp, backend_tp, symmetry, _init_parse_labels(labels, codomain_tp, domain_tp));
+    auto data = backend_tp->from_random_normal(codomain_tp, domain_tp, sigma, *dtype, *device);
+    auto with_zero_mean =
+      std::make_shared<SymmetricTensor>(data,
+                                        codomain_tp,
+                                        domain_tp,
+                                        backend_tp,
+                                        symmetry,
+                                        _init_parse_labels(labels, codomain_tp, domain_tp));
 
     if (!mean.is_none()) {
         // mean + with_zero_mean
         auto one = backend_tp->block_backend->as_scalar(1.0);
-        auto new_data = backend_tp->linear_combination(
-          one, mean, one, with_zero_mean->as_py_object());
+        auto new_data =
+          backend_tp->linear_combination(one, mean, one, with_zero_mean->as_py_object());
         return std::make_shared<SymmetricTensor>(
           new_data, codomain_tp, domain_tp, backend_tp, symmetry, with_zero_mean->labels());
     }
@@ -506,39 +520,40 @@ SymmetricTensor::from_sector_projection(py::object co_domain,
     Sector sector_copy = sector;
     auto bb = backend->block_backend;
 
-    py::cpp_function func([bb, dtype_cap, device_cap, sector_copy](py::object shape,
-                                                                   py::object coupled) {
-        Sector c = coupled.cast<Sector>();
-        auto shape_vec = shape.cast<std::vector<int64>>();
-        Dtype dt = dtype_cap.value_or(Dtype::Complex128);
-        if (c == sector_copy) {
-            std::vector<int64> half(shape_vec.begin(),
-                                    shape_vec.begin() + static_cast<std::ptrdiff_t>(shape_vec.size() / 2));
-            return bb->eye_block(half, dt, device_cap);
-        }
-        return bb->zeros(shape_vec, dt, device_cap);
-    });
+    py::cpp_function func(
+      [bb, dtype_cap, device_cap, sector_copy](py::object shape, py::object coupled) {
+          Sector c = coupled.cast<Sector>();
+          auto shape_vec = shape.cast<std::vector<int64>>();
+          Dtype dt = dtype_cap.value_or(Dtype::Complex128);
+          if (c == sector_copy) {
+              std::vector<int64> half(shape_vec.begin(),
+                                      shape_vec.begin() +
+                                        static_cast<std::ptrdiff_t>(shape_vec.size() / 2));
+              return bb->eye_block(half, dt, device_cap);
+          }
+          return bb->zeros(shape_vec, dt, device_cap);
+      });
 
     auto data = backend->from_sector_block_func(func, co_domain_tp, co_domain_tp);
-    auto res = std::make_shared<SymmetricTensor>(data,
-                                                 co_domain_tp,
-                                                 co_domain_tp,
-                                                 backend,
-                                                 co_domain_tp->symmetry,
-                                                 _init_parse_labels(labels, co_domain_tp, co_domain_tp));
+    auto res =
+      std::make_shared<SymmetricTensor>(data,
+                                        co_domain_tp,
+                                        co_domain_tp,
+                                        backend,
+                                        co_domain_tp->symmetry,
+                                        _init_parse_labels(labels, co_domain_tp, co_domain_tp));
     res->test_sanity();
     return res;
 }
 
 SymmetricTensor::Ptr
-SymmetricTensor::from_tree_pairs(
-  py::object trees_obj,
-  py::object codomain,
-  py::object domain,
-  TensorBackend::Ptr backend,
-  py::object labels,
-  std::optional<Dtype> dtype,
-  std::optional<std::string> device)
+SymmetricTensor::from_tree_pairs(py::object trees_obj,
+                                 py::object codomain,
+                                 py::object domain,
+                                 TensorBackend::Ptr backend,
+                                 py::object labels,
+                                 std::optional<Dtype> dtype,
+                                 std::optional<std::string> device)
 {
     py::dict trees = trees_obj.cast<py::dict>();
     if (py::len(trees) == 0) {
@@ -558,8 +573,8 @@ SymmetricTensor::from_tree_pairs(
     dtype = _parse_default_dtype(dtype, symmetry);
     std::string device_s;
     if (!device.has_value()) {
-        auto some_block =
-          backend_tp->block_backend->as_block(py::reinterpret_borrow<py::object>(trees.begin()->second));
+        auto some_block = backend_tp->block_backend->as_block(
+          py::reinterpret_borrow<py::object>(trees.begin()->second));
         device_s = backend_tp->block_backend->get_device(some_block);
     } else {
         device_s = *device;
@@ -602,8 +617,12 @@ SymmetricTensor::from_tree_pairs(
         dtype = dtype::common(dts);
     }
     auto data = backend_tp->from_tree_pairs(block_trees, codomain_tp, domain_tp, *dtype, device_s);
-    return std::make_shared<SymmetricTensor>(
-      data, codomain_tp, domain_tp, backend_tp, symmetry, _init_parse_labels(labels, codomain_tp, domain_tp));
+    return std::make_shared<SymmetricTensor>(data,
+                                             codomain_tp,
+                                             domain_tp,
+                                             backend_tp,
+                                             symmetry,
+                                             _init_parse_labels(labels, codomain_tp, domain_tp));
 }
 
 Tensor::Ptr
@@ -627,7 +646,9 @@ SymmetricTensor::as_SymmetricTensor(bool guarantee_copy, std::optional<std::stri
 }
 
 Tensor::Ptr
-SymmetricTensor::copy(bool deep, std::optional<std::string> device_opt, std::optional<Dtype> dtype_opt)
+SymmetricTensor::copy(bool deep,
+                      std::optional<std::string> device_opt,
+                      std::optional<Dtype> dtype_opt)
 {
     TensorBackend::DataPtr new_data;
     // Match Python: ``if dtype is not None and dtype != self.dtype:`` then
@@ -652,7 +673,8 @@ SymmetricTensor::diagonal(bool check_offdiagonal) const
 {
     // Python passes check_offdiagonal as a kwarg name mismatch to from_tensor(tol=...);
     // Map True -> default tol, False -> None (skip check), matching intended semantics.
-    std::optional<float64> tol = check_offdiagonal ? std::optional<float64>{ 1e-12 } : std::nullopt;
+    std::optional<float64> tol =
+      check_offdiagonal ? std::optional<float64>{ 1e-12 } : std::nullopt;
     return py::cast(DiagonalTensor::from_tensor(as_py_object(), tol));
 }
 
@@ -732,10 +754,11 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
         if (std::dynamic_pointer_cast<AbelianBackend>(backend)) {
             new_data = backend->to_block_backend(data, new_backend->block_backend, dt, device_s);
         } else if (std::dynamic_pointer_cast<FusionTreeBackend>(backend)) {
-            new_data = _convert_FT_to_abelian(as_py_object(),
-                                              std::dynamic_pointer_cast<AbelianBackend>(new_backend),
-                                              dt,
-                                              device_s);
+            new_data =
+              _convert_FT_to_abelian(as_py_object(),
+                                     std::dynamic_pointer_cast<AbelianBackend>(new_backend),
+                                     dt,
+                                     device_s);
         } else {
             // --- hints from Python _convert_FT_to_abelian ---
             // fusion rule violated
@@ -788,8 +811,8 @@ SymmetricTensor::to_dense_block(
   bool understood_braiding)
 {
     if (!symmetry->can_be_dropped()) {
-        throw SymmetryError(
-          std::format("Dense block representation is not supported for symmetry {}", symmetry->repr()));
+        throw SymmetryError(std::format(
+          "Dense block representation is not supported for symmetry {}", symmetry->repr()));
     }
     if (!symmetry->has_trivial_braid() && !understood_braiding) {
         throw SymmetryError(
@@ -819,7 +842,8 @@ SymmetricTensor::to_dense_block_trivial_sector() const
     // ---
     assert(num_legs == 1);
     auto block = backend->to_dense_block_trivial_sector(as_py_object());
-    assert(num_codomain_legs() == 1); // TODO assuming this for now to construct the perm. should we keep that?
+    assert(num_codomain_legs() ==
+           1); // TODO assuming this for now to construct the perm. should we keep that?
     auto space = codomain->factors[0].cast<Space::Ptr>();
     auto leg = codomain->factors[0].cast<Leg::Ptr>();
     if (leg->has_custom_basis_perm()) {
@@ -842,7 +866,9 @@ SymmetricTensor::to_dense_block_trivial_sector() const
 }
 
 void
-SymmetricTensor::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const
+SymmetricTensor::save_hdf5(py::object hdf5_saver,
+                           py::object h5gr,
+                           std::string const& subpath) const
 {
     /// Export SymmetricTensor to hdf5 such that it can be re-imported with from_hdf5
     hdf5_saver.attr("save")(py::cast(domain), subpath + "domain");
@@ -869,8 +895,7 @@ SymmetricTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string 
     auto domain = hdf5_loader.attr("load")(subpath + "domain").cast<TensorProduct::Ptr>();
     auto codomain = hdf5_loader.attr("load")(subpath + "codomain").cast<TensorProduct::Ptr>();
     auto symmetry = hdf5_loader.attr("load")(subpath + "symmetry").cast<Symmetry::Ptr>();
-    auto backend =
-      get_backend(py::cast(symmetry), py::cast("numpy")).cast<TensorBackend::Ptr>();
+    auto backend = get_backend(py::cast(symmetry), py::cast("numpy")).cast<TensorBackend::Ptr>();
     auto data = hdf5_loader.attr("load")(subpath + "data").cast<TensorBackend::DataPtr>();
     auto device = hdf5_loader.attr("load")(subpath + "device").cast<std::string>();
     auto dt = dtype::from_numpy_dtype(hdf5_loader.attr("load")(subpath + "dtype"));

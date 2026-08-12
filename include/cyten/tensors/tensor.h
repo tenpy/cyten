@@ -199,8 +199,9 @@ class Tensor
     [[nodiscard]] std::tuple<bool, int64, int64> _parse_leg_idx(
       std::variant<int64, std::string> which_leg) const;
 
-    [[nodiscard]] virtual std::vector<std::string> _repr_header_lines(std::string const& indent,
-                                                                     bool use_symm_str = false) const;
+    [[nodiscard]] virtual std::vector<std::string> _repr_header_lines(
+      std::string const& indent,
+      bool use_symm_str = false) const;
 
     /// Basically ``self.legs[which_leg]``, but allows labels and multiple indices.
     ///

@@ -137,9 +137,10 @@ class DiagonalTensor : public SymmetricTensor
 
     void move_to_device(std::string device) override;
 
-    [[nodiscard]] Tensor::Ptr to_backend(TensorBackend::Ptr backend,
-                                         std::optional<Dtype> dtype = std::nullopt,
-                                         std::optional<std::string> device = std::nullopt) override;
+    [[nodiscard]] Tensor::Ptr to_backend(
+      TensorBackend::Ptr backend,
+      std::optional<Dtype> dtype = std::nullopt,
+      std::optional<std::string> device = std::nullopt) override;
 
     [[nodiscard]] BlockBackend::BlockPtr to_dense_block(
       std::optional<std::vector<std::variant<int64, std::string>>> leg_order = std::nullopt,
@@ -261,10 +262,11 @@ class Identity : public DiagonalTensor
                                                          py::object func_kwargs = py::none(),
                                                          bool maps_zero_to_zero = false) override;
 
-    [[nodiscard]] DiagonalTensor::Ptr _elementwise_binary(py::object other,
-                                                          py::function func,
-                                                          py::object func_kwargs = py::none(),
-                                                          bool partial_zero_is_zero = false) override;
+    [[nodiscard]] DiagonalTensor::Ptr _elementwise_binary(
+      py::object other,
+      py::function func,
+      py::object func_kwargs = py::none(),
+      bool partial_zero_is_zero = false) override;
 
     [[nodiscard]] BlockBackend::Scalar _get_item(std::vector<int64> const& idx) override;
 
@@ -278,9 +280,10 @@ class Identity : public DiagonalTensor
 
     void move_to_device(std::string device) override;
 
-    [[nodiscard]] Tensor::Ptr to_backend(TensorBackend::Ptr backend,
-                                         std::optional<Dtype> dtype = std::nullopt,
-                                         std::optional<std::string> device = std::nullopt) override;
+    [[nodiscard]] Tensor::Ptr to_backend(
+      TensorBackend::Ptr backend,
+      std::optional<Dtype> dtype = std::nullopt,
+      std::optional<std::string> device = std::nullopt) override;
 
     [[nodiscard]] BlockBackend::BlockPtr to_dense_block(
       std::optional<std::vector<std::variant<int64, std::string>>> leg_order = std::nullopt,

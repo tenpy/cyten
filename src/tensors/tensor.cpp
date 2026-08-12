@@ -21,7 +21,8 @@ as_space(py::handle obj)
     return obj.cast<Space::Ptr>();
 }
 
-/// Symmetry of a :class:`TensorProduct` factor (:class:`Space` or :class:`Leg` / :class:`LegPipe`).
+/// Symmetry of a :class:`TensorProduct` factor (:class:`Space` or :class:`Leg` /
+/// :class:`LegPipe`).
 Symmetry::Ptr
 factor_symmetry(py::handle factor)
 {
@@ -400,7 +401,7 @@ Tensor::test_sanity() const
     // --- hints from Python Tensor.test_sanity ---
     // this checks all legs, and recursively through pipes
     // ---
-    domain->test_sanity();    // this checks all legs, and recursively through pipes
+    domain->test_sanity();   // this checks all legs, and recursively through pipes
     codomain->test_sanity(); // this checks all legs, and recursively through pipes
     assert(std::find(forbidden_dtypes().begin(), forbidden_dtypes().end(), dtype) ==
            forbidden_dtypes().end());
@@ -446,7 +447,8 @@ Tensor::ascii_diagram() const
     assert(static_cast<int>(huge_dim.size()) <= DISTANCE);
     huge_dim = rjust(huge_dim, DISTANCE);
     float64 const huge_dim_value = std::pow(10.0, DISTANCE);
-    assert(static_cast<int>(std::format("{}", static_cast<int64>(huge_dim_value)).size()) > DISTANCE);
+    assert(static_cast<int>(std::format("{}", static_cast<int64>(huge_dim_value)).size()) >
+           DISTANCE);
     assert(static_cast<int>(std::format("{}", static_cast<int64>(huge_dim_value) - 1).size()) <=
            DISTANCE);
 
@@ -497,7 +499,8 @@ Tensor::ascii_diagram() const
     int codomain_extra = 0;
     int domain_extra = 0;
     if (num_codomain_legs() > num_domain_legs()) {
-        domain_extra = ((DISTANCE + 1) / 2) * static_cast<int>(num_codomain_legs() - num_domain_legs());
+        domain_extra =
+          ((DISTANCE + 1) / 2) * static_cast<int>(num_codomain_legs() - num_domain_legs());
     } else {
         codomain_extra =
           ((DISTANCE + 1) / 2) * static_cast<int>(num_domain_legs() - num_codomain_legs());
@@ -527,18 +530,19 @@ Tensor::ascii_diagram() const
             }
             mid += "┷";
         }
-        top_border = start + "┏" + repeat("━", domain_extra) + mid + repeat("━", domain_extra) + "┓";
-    } else {
         top_border =
-          start + "┏" + repeat("━", (DISTANCE + 1) * static_cast<int>(num_codomain_legs() - 1) + 1) +
-          "┓";
+          start + "┏" + repeat("━", domain_extra) + mid + repeat("━", domain_extra) + "┓";
+    } else {
+        top_border = start + "┏" +
+                     repeat("━", (DISTANCE + 1) * static_cast<int>(num_codomain_legs() - 1) + 1) +
+                     "┓";
     }
     // body:
     // top_border uses UTF-8 box-drawing chars; match Python ``len`` (codepoints, not bytes).
     int const chars_in_box = utf8_len(top_border) - utf8_len(start) - 2;
     std::string front_pad((chars_in_box - static_cast<int>(text.size())) / 2, ' ');
-    std::string back_pad(chars_in_box - static_cast<int>(text.size()) - static_cast<int>(front_pad.size()),
-                         ' ');
+    std::string back_pad(
+      chars_in_box - static_cast<int>(text.size()) - static_cast<int>(front_pad.size()), ' ');
     std::string body = start + "┃" + front_pad + text + back_pad + "┃";
     // bottom border:
     std::string bottom_border;
@@ -553,9 +557,9 @@ Tensor::ascii_diagram() const
         bottom_border =
           start + "┗" + repeat("━", codomain_extra) + mid + repeat("━", codomain_extra) + "┛";
     } else {
-        bottom_border =
-          start + "┗" +
-          repeat("━", (DISTANCE + 1) * static_cast<int>(num_domain_legs() - 1) + 1) + "┛";
+        bottom_border = start + "┗" +
+                        repeat("━", (DISTANCE + 1) * static_cast<int>(num_domain_legs() - 1) + 1) +
+                        "┛";
     }
 
     // stitch together
@@ -648,15 +652,15 @@ Tensor::num_parameters() const
     assert(codomain->sector_order == std::string("sorted") &&
            domain->sector_order == std::string("sorted"));
     int64 res = 0;
-    SectorArray::iter_common_sorted(
-      codomain->sector_decomposition,
-      domain->sector_decomposition,
-      true,
-      true,
-      [&](std::ptrdiff_t i, std::ptrdiff_t j) {
-          res += codomain->multiplicities[static_cast<std::size_t>(i)] *
-                 domain->multiplicities[static_cast<std::size_t>(j)];
-      });
+    SectorArray::iter_common_sorted(codomain->sector_decomposition,
+                                    domain->sector_decomposition,
+                                    true,
+                                    true,
+                                    [&](std::ptrdiff_t i, std::ptrdiff_t j) {
+                                        res +=
+                                          codomain->multiplicities[static_cast<std::size_t>(i)] *
+                                          domain->multiplicities[static_cast<std::size_t>(j)];
+                                    });
     return res;
 }
 
@@ -710,8 +714,8 @@ Tensor::_parse_leg_idx(std::variant<int64, std::string> which_leg) const
         auto const& label = std::get<std::string>(which_leg);
         auto it = _labelmap.find(label);
         if (it == _labelmap.end()) {
-            throw std::invalid_argument(
-              std::format("No leg with label {}. Labels are {}", label, format_like_list(py::cast(_labels))));
+            throw std::invalid_argument(std::format(
+              "No leg with label {}. Labels are {}", label, format_like_list(py::cast(_labels))));
         }
         idx = it->second;
     } else {
@@ -746,9 +750,7 @@ Tensor::_repr_header_lines(std::string const& indent, bool use_symm_str) const
     std::vector<std::string> lines = {
         std::format("{}* Device: {}", indent, device),
         std::format("{}* Backend: {}", indent, backend->__str__()),
-        std::format("{}* Symmetry: {}",
-                    indent,
-                    use_symm_str ? symmetry->str() : symmetry->repr()),
+        std::format("{}* Symmetry: {}", indent, use_symm_str ? symmetry->str() : symmetry->repr()),
         std::format("{}* Labels: {}", indent, labels_str),
     };
     if (symmetry->can_be_dropped()) {

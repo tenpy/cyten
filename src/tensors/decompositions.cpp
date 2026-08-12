@@ -156,7 +156,6 @@ leg_label_to_py(LegLabel const& lab)
     return py::none();
 }
 
-
 template<typename... Args>
 py::list
 py_list(Args&&... args)
@@ -171,7 +170,7 @@ nested_labels_codomain_domain(py::object codomain_labels, py::object domain_one_
 {
     py::list out;
     out.append(codomain_labels);
-    out.append(py_list(domain_one_label ));
+    out.append(py_list(domain_one_label));
     return out;
 }
 
@@ -179,7 +178,7 @@ py::object
 nested_labels_one_and_domain(py::object one_label, py::object domain_labels)
 {
     py::list out;
-    out.append(py_list(one_label ));
+    out.append(py_list(one_label));
     out.append(domain_labels);
     return out;
 }
@@ -194,8 +193,8 @@ bool
 is_inf(py::object n)
 {
     try {
-        return py::module_::import("math").attr("isinf")(n).cast<bool>()
-               || (py::hasattr(n, "__float__") && std::isinf(n.cast<float64>()));
+        return py::module_::import("math").attr("isinf")(n).cast<bool>() ||
+               (py::hasattr(n, "__float__") && std::isinf(n.cast<float64>()));
     } catch (...) {
         return false;
     }
@@ -226,10 +225,8 @@ apply_mask_DiagonalTensor(py::object tensor, py::object mask)
                                               py::arg("labels") = tensor.attr("labels"));
     }
     auto data = backend->apply_mask_to_DiagonalTensor(tensor, mask);
-    return make_python_diagonal_tensor(std::move(data),
-                                       mask.attr("small_leg"),
-                                       backend,
-                                       tensor.attr("labels"));
+    return make_python_diagonal_tensor(
+      std::move(data), mask.attr("small_leg"), backend, tensor.attr("labels"));
 }
 
 std::tuple<py::object, py::object>
@@ -277,17 +274,18 @@ eigh(py::object tensor, py::object new_labels, bool new_leg_dual, py::object sor
         throw NotImplemented("eigh for ChargedTensor");
     }
     if (is_DiagonalTensor(tensor)) {
-        py::object V = tensors_mod().attr("SymmetricTensor").attr("from_eye")(
-          py_list(tensor.attr("leg") ),
-          py::arg("backend") = tensor.attr("backend"),
-          py::arg("labels") =
-            py_list(tensor.attr("codomain_labels").attr("__getitem__")(0),
-                            leg_label_to_py(a) ),
-          py::arg("dtype") = tensor.attr("dtype"),
-          py::arg("device") = tensor.attr("device"));
-        py::object W =
-          tensor.attr("as_DiagonalTensor")(py::arg("guarantee_copy") = true)
-            .attr("set_labels")(py_list(leg_label_to_py(b), leg_label_to_py(c) ));
+        py::object V =
+          tensors_mod()
+            .attr("SymmetricTensor")
+            .attr("from_eye")(
+              py_list(tensor.attr("leg")),
+              py::arg("backend") = tensor.attr("backend"),
+              py::arg("labels") =
+                py_list(tensor.attr("codomain_labels").attr("__getitem__")(0), leg_label_to_py(a)),
+              py::arg("dtype") = tensor.attr("dtype"),
+              py::arg("device") = tensor.attr("device"));
+        py::object W = tensor.attr("as_DiagonalTensor")(py::arg("guarantee_copy") = true)
+                         .attr("set_labels")(py_list(leg_label_to_py(b), leg_label_to_py(c)));
         return { W, V };
     }
     tensor = tensor.attr("as_SymmetricTensor")();
@@ -305,9 +303,8 @@ eigh(py::object tensor, py::object new_labels, bool new_leg_dual, py::object sor
         for (int64 i = n_cod; i < n_legs; ++i) {
             dom_range.append(i);
         }
-        tensor = combine_legs(tensor,
-                              { cod_range, dom_range },
-                              py_list(new_leg_dual, !new_leg_dual ));
+        tensor =
+          combine_legs(tensor, { cod_range, dom_range }, py_list(new_leg_dual, !new_leg_dual));
         backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
     }
 
@@ -317,15 +314,14 @@ eigh(py::object tensor, py::object new_labels, bool new_leg_dual, py::object sor
     }
     // first, compute a decomposition where the new leg is a ket space
     auto [w_data, v_data, new_leg] = backend->eigh(tensor, new_leg_dual, sort_opt);
-    py::object W = make_python_diagonal_tensor(
-      std::move(w_data),
-      py::cast(new_leg),
-      backend,
-      py_list(leg_label_to_py(b), leg_label_to_py(c) ));
+    py::object W = make_python_diagonal_tensor(std::move(w_data),
+                                               py::cast(new_leg),
+                                               backend,
+                                               py_list(leg_label_to_py(b), leg_label_to_py(c)));
     py::object V = make_python_symmetric_tensor(
       std::move(v_data),
       tensor.attr("codomain"),
-      py_list(py::cast(new_leg) ),
+      py_list(py::cast(new_leg)),
       backend,
       nested_labels_codomain_domain(tensor.attr("codomain_labels"), leg_label_to_py(a)));
 
@@ -360,12 +356,11 @@ entropy(py::object p, py::object n)
             return (-trace(prod)).attr("to_numpy")();
         }
         if (is_inf(n)) {
-            return (-py::module_::import("numpy").attr("log")(
-                      p.attr("max")().attr("to_numpy")()));
+            return (-py::module_::import("numpy").attr("log")(p.attr("max")().attr("to_numpy")()));
         }
         float64 n_f = n.cast<float64>();
-        py::object logged = py::module_::import("numpy").attr("log")(
-          trace(p.attr("__pow__")(n)).attr("to_numpy")());
+        py::object logged =
+          py::module_::import("numpy").attr("log")(trace(p.attr("__pow__")(n)).attr("to_numpy")());
         return logged.attr("__truediv__")(1.0 - n_f);
     }
     // else: sequence of floats
@@ -542,11 +537,10 @@ svd(py::object tensor,
       py::cast(new_co_domain),
       backend,
       nested_labels_codomain_domain(tens.attr("codomain_labels"), leg_label_to_py(a)));
-    py::object S = make_python_diagonal_tensor(
-      std::move(s_data),
-      py::cast(new_co_domain).attr("__getitem__")(0),
-      backend,
-      py_list(leg_label_to_py(b), leg_label_to_py(c) ));
+    py::object S = make_python_diagonal_tensor(std::move(s_data),
+                                               py::cast(new_co_domain).attr("__getitem__")(0),
+                                               backend,
+                                               py_list(leg_label_to_py(b), leg_label_to_py(c)));
     py::object Vh = make_python_symmetric_tensor(
       std::move(vh_data),
       py::cast(new_co_domain),
@@ -567,8 +561,8 @@ std::tuple<py::object, py::object, py::object>
 svd_apply_mask(py::object U, py::object S, py::object Vh, py::object mask)
 {
     assert(mask.attr("is_projection").cast<bool>());
-    assert(py_eq(mask.attr("domain").attr("__getitem__")(0),
-                 S.attr("domain").attr("__getitem__")(0)));
+    assert(
+      py_eq(mask.attr("domain").attr("__getitem__")(0), S.attr("domain").attr("__getitem__")(0)));
 
     U = _compose_with_Mask(U, dagger(mask), -1);
     S = apply_mask_DiagonalTensor(S, mask);
@@ -604,7 +598,7 @@ truncate_singular_values(py::object S,
         } else {
             dual = _dual_leg_label(lab0.cast<std::string>());
         }
-        mask_labels = py_list(lab0, leg_label_to_py(dual) );
+        mask_labels = py_list(lab0, leg_label_to_py(dual));
     }
     py::object mask = make_python_mask(std::move(mask_data),
                                        S.attr("leg"),
@@ -642,12 +636,8 @@ truncated_svd(py::object tensor,
     }
     // S / S_norm via Python
     py::object S_normed = S.attr("__truediv__")(S_norm_obj);
-    auto [mask, err, new_norm] = truncate_singular_values(S_normed,
-                                                          chi_max,
-                                                          chi_min,
-                                                          degeneracy_tol,
-                                                          trunc_cut,
-                                                          svd_min);
+    auto [mask, err, new_norm] =
+      truncate_singular_values(S_normed, chi_max, chi_min, degeneracy_tol, trunc_cut, svd_min);
     std::tie(U, S, Vh) = svd_apply_mask(U, S, Vh, mask);
     float64 renormalize = 1.;
     if (normalize_to.has_value()) {

@@ -258,9 +258,7 @@ check_same_legs(py::object t1, py::object t2)
     // --- hints from Python check_same_legs ---
     // either l1 is None or l1 not in l2.labels
     // ---
-    if (!t1.attr("symmetry")
-           .attr("is_equivalent_to")(t2.attr("symmetry"))
-           .cast<bool>()) {
+    if (!t1.attr("symmetry").attr("is_equivalent_to")(t2.attr("symmetry")).cast<bool>()) {
         throw std::invalid_argument("Incompatible symmetries");
     }
     bool incompatible_labels = false;
@@ -280,8 +278,8 @@ check_same_legs(py::object t1, py::object t2)
         }
         ++n;
     }
-    bool same_legs =
-      py_eq(t1.attr("domain"), t2.attr("domain")) && py_eq(t1.attr("codomain"), t2.attr("codomain"));
+    bool same_legs = py_eq(t1.attr("domain"), t2.attr("domain")) &&
+                     py_eq(t1.attr("codomain"), t2.attr("codomain"));
     if (!same_legs) {
         std::string msg = "Incompatible legs. ";
         if (incompatible_labels) {
@@ -293,8 +291,7 @@ check_same_legs(py::object t1, py::object t2)
         throw std::invalid_argument(msg);
     }
     if (incompatible_labels) {
-        auto logger =
-          py::module_::import("logging").attr("getLogger")("cyten.tensors._tensors");
+        auto logger = py::module_::import("logging").attr("getLogger")("cyten.tensors._tensors");
         logger.attr("warning")(
           "Compatible legs with permuted labels detected. Double check your leg order!",
           py::arg("stacklevel") = 3);
@@ -310,23 +307,17 @@ permute_legs(py::object tensor,
 {
     // --- hints from Python permute_legs ---
     // Parse domain and codomain to list[int]. Get rid of duplicates.
-    // to preserve order of Tensor.legs, need to put domain legs in descending order of their leg_idx
-    // Special case: if no legs move
-    // parse levels to format list[int | None]
-    // parse bend_right to format list[bool | None]
-    // default -> all undefined
-    // single bool applies to all legs
-    // check if those that need to be specified are
-    // it doesnt matter which way. choose all right
-    // Deal with other tensor types
-    // OPTIMIZE : else we have a twist in addition to the transpose.
-    // we could exploit that structure for DiagonalTensor, to return another DiagonalTensor.
-    // We can not preserve the Mask structure, since the twist (in general) introduces phases.
-    // other cases involve two legs either in the domain or codomain.
-    // Cant be done with Mask / DiagonalTensor
-    // assign level `None` to the charge leg. it does not braid, so we dont need to define it.
-    // Build new codomain and domain
-    // (co)domain has the same factor as before, only permuted -> can re-use sectors!
+    // to preserve order of Tensor.legs, need to put domain legs in descending order of their
+    // leg_idx Special case: if no legs move parse levels to format list[int | None] parse
+    // bend_right to format list[bool | None] default -> all undefined single bool applies to all
+    // legs check if those that need to be specified are it doesnt matter which way. choose all
+    // right Deal with other tensor types OPTIMIZE : else we have a twist in addition to the
+    // transpose. we could exploit that structure for DiagonalTensor, to return another
+    // DiagonalTensor. We can not preserve the Mask structure, since the twist (in general)
+    // introduces phases. other cases involve two legs either in the domain or codomain. Cant be
+    // done with Mask / DiagonalTensor assign level `None` to the charge leg. it does not braid, so
+    // we dont need to define it. Build new codomain and domain (co)domain has the same factor as
+    // before, only permuted -> can re-use sectors!
     // ---
     // Parse domain and codomain to list[int]. Get rid of duplicates.
     if (codomain.is_none() && domain.is_none()) {
@@ -431,9 +422,8 @@ permute_legs(py::object tensor,
             py::object level = py::reinterpret_borrow<py::object>(item.second);
             int64 idx = get_leg_idcs_py(tensor, leg)[0];
             if (levels_v[static_cast<std::size_t>(idx)].has_value()) {
-                throw std::invalid_argument(
-                  std::format("Level for leg {} defined multiple times.",
-                              std::string(py::str(leg))));
+                throw std::invalid_argument(std::format("Level for leg {} defined multiple times.",
+                                                        std::string(py::str(leg))));
             }
             levels_v[static_cast<std::size_t>(idx)] = level.cast<int64>();
         }
@@ -517,9 +507,8 @@ permute_legs(py::object tensor,
         }
         if (codomain_v == std::vector<int64>{ 1 } && domain_v == std::vector<int64>{ 0 }) {
             bool trivial_braid = tensor.attr("symmetry").attr("has_trivial_braid").cast<bool>();
-            bool opposite_bends =
-              bend_right_v[0].has_value() && bend_right_v[1].has_value()
-              && (*bend_right_v[0] != *bend_right_v[1]);
+            bool opposite_bends = bend_right_v[0].has_value() && bend_right_v[1].has_value() &&
+                                  (*bend_right_v[0] != *bend_right_v[1]);
             if (trivial_braid || opposite_bends) {
                 return transpose(tensor);
             }
@@ -527,9 +516,8 @@ permute_legs(py::object tensor,
         }
         // other cases involve two legs either in the domain or codomain.
         // Cant be done with Mask / DiagonalTensor
-        char const* msg =
-          "Converting to SymmetricTensor for permuting legs. "
-          "Use as_SymmetricTensor() explicitly to suppress the warning.";
+        char const* msg = "Converting to SymmetricTensor for permuting legs. "
+                          "Use as_SymmetricTensor() explicitly to suppress the warning.";
         tensor = tensor.attr("as_SymmetricTensor")(py::arg("warning") = msg);
     }
     if (is_ChargedTensor(tensor)) {
@@ -577,14 +565,12 @@ permute_legs(py::object tensor,
         for (auto i : domain_v) {
             dom_spaces.append(tensor.attr("_as_domain_leg")(i));
         }
-        new_codomain =
-          spaces_mod()
-            .attr("TensorProduct")(cod_spaces, tensor.attr("symmetry"))
-            .cast<TensorProduct::Ptr>();
-        new_domain =
-          spaces_mod()
-            .attr("TensorProduct")(dom_spaces, tensor.attr("symmetry"))
-            .cast<TensorProduct::Ptr>();
+        new_codomain = spaces_mod()
+                         .attr("TensorProduct")(cod_spaces, tensor.attr("symmetry"))
+                         .cast<TensorProduct::Ptr>();
+        new_domain = spaces_mod()
+                       .attr("TensorProduct")(dom_spaces, tensor.attr("symmetry"))
+                       .cast<TensorProduct::Ptr>();
     } else {
         // (co)domain has the same factor as before, only permuted -> can re-use sectors!
         new_codomain = tensor.attr("codomain").cast<TensorProduct::Ptr>()->permuted(codomain_v);
@@ -671,11 +657,7 @@ move_leg(py::object tensor,
         throw std::invalid_argument("Need to specify either codomain_pos or domain_pos.");
     }
 
-    return permute_legs(tensor,
-                        py::cast(new_codomain),
-                        py::cast(new_domain),
-                        levels,
-                        bend_right);
+    return permute_legs(tensor, py::cast(new_codomain), py::cast(new_domain), levels, bend_right);
 }
 
 py::object
@@ -707,9 +689,8 @@ combine_legs(py::object tensor,
     // ---
     // 1) Deal with different tensor types. Reduce everything to SymmetricTensor.
     if (is_DiagonalTensor(tensor) || is_Mask(tensor)) {
-        char const* msg =
-          "Converting to SymmetricTensor for combine_legs. "
-          "Use as_SymmetricTensor() explicitly to suppress the warning.";
+        char const* msg = "Converting to SymmetricTensor for combine_legs. "
+                          "Use as_SymmetricTensor() explicitly to suppress the warning.";
         tensor = tensor.attr("as_SymmetricTensor")(py::arg("warning") = msg);
     }
 
@@ -739,11 +720,8 @@ combine_legs(py::object tensor,
         for (auto const& g : which_legs_v) {
             which_as_py.push_back(py::cast(g));
         }
-        py::object inv_part = combine_legs(tensor.attr("invariant_part"),
-                                           which_as_py,
-                                           pipe_dualities,
-                                           pipes,
-                                           levels_for_inv);
+        py::object inv_part = combine_legs(
+          tensor.attr("invariant_part"), which_as_py, pipe_dualities, pipes, levels_for_inv);
         return make_python_charged_tensor(inv_part, tensor.attr("charged_state"));
     }
 
@@ -848,19 +826,17 @@ combine_legs(py::object tensor,
     for (int64 n = 0; n < N; ++n) {
         if (codomain_groups.contains(n)) {
             auto const& group = codomain_groups[n];
-            py::object spaces_to_combine = tensor.attr("codomain")
-                                             .attr("__getitem__")(py::slice(
-                                               static_cast<py::ssize_t>(group.front()),
+            py::object spaces_to_combine =
+              tensor.attr("codomain")
+                .attr("__getitem__")(py::slice(static_cast<py::ssize_t>(group.front()),
                                                static_cast<py::ssize_t>(group.back() + 1),
                                                1));
             LegPipe::Ptr pipe_arg =
               pipes_list[static_cast<py::ssize_t>(i)].is_none()
                 ? nullptr
                 : pipes_list[static_cast<py::ssize_t>(i)].cast<LegPipe::Ptr>();
-            auto combined =
-              backend->make_pipe(legs_from_sequence(spaces_to_combine),
-                                 pipe_dualities_v[i],
-                                 pipe_arg);
+            auto combined = backend->make_pipe(
+              legs_from_sequence(spaces_to_combine), pipe_dualities_v[i], pipe_arg);
             pipes_list[static_cast<py::ssize_t>(i)] = py::cast(combined);
             codomain_spaces.push_back(py::cast(combined));
             LegLabels group_labels(all_labels.begin() + group.front(),
@@ -878,21 +854,18 @@ combine_legs(py::object tensor,
             auto const& group = domain_groups[n];
             int64 domain_idx1 = N - 1 - group.front();
             int64 codomain_idx2 = N - 1 - group.back();
-            py::object spaces_to_combine = tensor.attr("domain")
-                                             .attr("__getitem__")(py::slice(
-                                               static_cast<py::ssize_t>(codomain_idx2),
-                                               static_cast<py::ssize_t>(domain_idx1 + 1),
-                                               1));
+            py::object spaces_to_combine = tensor.attr("domain").attr("__getitem__")(
+              py::slice(static_cast<py::ssize_t>(codomain_idx2),
+                        static_cast<py::ssize_t>(domain_idx1 + 1),
+                        1));
             // Note: this is the result.domain[some_idx],  which has opposite duality from
             //       result.legs[-1-some_idx], so we need to invert pipe_dualities[i]
             LegPipe::Ptr pipe_arg =
               pipes_list[static_cast<py::ssize_t>(i)].is_none()
                 ? nullptr
                 : pipes_list[static_cast<py::ssize_t>(i)].cast<LegPipe::Ptr>();
-            auto combined =
-              backend->make_pipe(legs_from_sequence(spaces_to_combine),
-                                 !pipe_dualities_v[i],
-                                 pipe_arg);
+            auto combined = backend->make_pipe(
+              legs_from_sequence(spaces_to_combine), !pipe_dualities_v[i], pipe_arg);
             pipes_list[static_cast<py::ssize_t>(i)] = py::cast(combined);
             domain_spaces_reversed.push_back(py::cast(combined));
             LegLabels group_labels(all_labels.begin() + group.front(),
@@ -912,8 +885,7 @@ combine_legs(py::object tensor,
             codomain_spaces.push_back(tensor.attr("codomain").attr("__getitem__")(n));
             codomain_labels.push_back(all_labels[static_cast<std::size_t>(n)]);
         } else {
-            domain_spaces_reversed.push_back(
-              tensor.attr("domain").attr("__getitem__")(N - 1 - n));
+            domain_spaces_reversed.push_back(tensor.attr("domain").attr("__getitem__")(N - 1 - n));
             domain_labels_reversed.push_back(all_labels[static_cast<std::size_t>(n)]);
         }
     }
@@ -925,8 +897,7 @@ combine_legs(py::object tensor,
     }
     py::object codomain =
       spaces_mod().attr("TensorProduct")(py::cast(codomain_spaces), tensor.attr("symmetry"));
-    py::object domain =
-      spaces_mod().attr("TensorProduct")(domain_spaces, tensor.attr("symmetry"));
+    py::object domain = spaces_mod().attr("TensorProduct")(domain_spaces, tensor.attr("symmetry"));
 
     // 4) Build the data / finish up
     std::sort(which_legs_v.begin(), which_legs_v.end());
@@ -944,14 +915,10 @@ combine_legs(py::object tensor,
     LegLabels res_labels = codomain_labels;
     // domain_labels_reversed is already in legs order for the domain part of tensor.legs
     // (right-to-left build), matching Python [*codomain_labels, *domain_labels_reversed]
-    res_labels.insert(res_labels.end(),
-                      domain_labels_reversed.begin(),
-                      domain_labels_reversed.end());
-    return make_python_symmetric_tensor(std::move(data),
-                                        codomain,
-                                        domain,
-                                        backend,
-                                        labels_to_py(res_labels));
+    res_labels.insert(
+      res_labels.end(), domain_labels_reversed.begin(), domain_labels_reversed.end());
+    return make_python_symmetric_tensor(
+      std::move(data), codomain, domain, backend, labels_to_py(res_labels));
 }
 
 py::object
@@ -983,9 +950,8 @@ split_legs(py::object tensor, py::object legs)
     // ---
     // Deal with different tensor types. Reduce everything to SymmetricTensor.
     if (is_DiagonalTensor(tensor) || is_Mask(tensor)) {
-        char const* msg =
-          "Converting to SymmetricTensor for split_legs. Use as_SymmetricTensor() "
-          "explicitly to suppress the warning.";
+        char const* msg = "Converting to SymmetricTensor for split_legs. Use as_SymmetricTensor() "
+                          "explicitly to suppress the warning.";
         tensor = tensor.attr("as_SymmetricTensor")(py::arg("warning") = msg);
     }
     if (is_ChargedTensor(tensor)) {
@@ -1098,15 +1064,10 @@ split_legs(py::object tensor, py::object legs)
 
     std::sort(leg_idcs.begin(), leg_idcs.end());
     auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-    auto data = backend->split_legs(tensor,
-                                    leg_idcs,
-                                    codomain.cast<TensorProduct::Ptr>(),
-                                    domain.cast<TensorProduct::Ptr>());
-    return make_python_symmetric_tensor(std::move(data),
-                                        codomain,
-                                        domain,
-                                        backend,
-                                        labels_to_py(labels));
+    auto data = backend->split_legs(
+      tensor, leg_idcs, codomain.cast<TensorProduct::Ptr>(), domain.cast<TensorProduct::Ptr>());
+    return make_python_symmetric_tensor(
+      std::move(data), codomain, domain, backend, labels_to_py(labels));
 }
 
 py::object
@@ -1137,9 +1098,8 @@ squeeze_legs(py::object tensor, py::object legs)
         return tensor;
     }
     if (is_DiagonalTensor(tensor) || is_Mask(tensor)) {
-        char const* msg =
-          "Converting to SymmetricTensor for squeeze_legs. "
-          "Use as_SymmetricTensor() explicitly to suppress the warning.";
+        char const* msg = "Converting to SymmetricTensor for squeeze_legs. "
+                          "Use as_SymmetricTensor() explicitly to suppress the warning.";
         tensor = tensor.attr("as_SymmetricTensor")(py::arg("warning") = msg);
     }
     if (is_ChargedTensor(tensor)) {
@@ -1191,11 +1151,8 @@ squeeze_legs(py::object tensor, py::object legs)
     for (auto n : remaining) {
         labels.push_back(all_labels[static_cast<std::size_t>(n)]);
     }
-    return make_python_symmetric_tensor(std::move(data),
-                                        codomain,
-                                        domain,
-                                        backend,
-                                        labels_to_py(labels));
+    return make_python_symmetric_tensor(
+      std::move(data), codomain, domain, backend, labels_to_py(labels));
 }
 
 } // namespace cyten

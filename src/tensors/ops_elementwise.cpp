@@ -32,22 +32,22 @@ numpy()
 bool
 is_diagonal_tensor(py::object x)
 {
-    return py::isinstance(x, tensors_mod().attr("DiagonalTensor"))
-           || py::isinstance<DiagonalTensor>(x);
+    return py::isinstance(x, tensors_mod().attr("DiagonalTensor")) ||
+           py::isinstance<DiagonalTensor>(x);
 }
 
 bool
 is_charged_tensor(py::object x)
 {
-    return py::isinstance(x, tensors_mod().attr("ChargedTensor"))
-           || py::isinstance<ChargedTensor>(x);
+    return py::isinstance(x, tensors_mod().attr("ChargedTensor")) ||
+           py::isinstance<ChargedTensor>(x);
 }
 
 bool
 is_symmetric_tensor(py::object x)
 {
-    return py::isinstance(x, tensors_mod().attr("SymmetricTensor"))
-           || py::isinstance<SymmetricTensor>(x);
+    return py::isinstance(x, tensors_mod().attr("SymmetricTensor")) ||
+           py::isinstance<SymmetricTensor>(x);
 }
 
 bool
@@ -65,9 +65,8 @@ is_scalar_obj(py::object x)
 [[noreturn]] void
 throw_elementwise_type_error(py::object x)
 {
-    throw py::type_error(
-      std::format("Expected DiagonalTensor or scalar. Got {}",
-                  std::string(py::str(py::type::of(x)))));
+    throw py::type_error(std::format("Expected DiagonalTensor or scalar. Got {}",
+                                     std::string(py::str(py::type::of(x)))));
 }
 
 /// DiagonalTensor path: ``block_backend.<name>(block, **kwargs)`` via ``_elementwise_unary``.
@@ -78,9 +77,7 @@ elementwise_on_diagonal(py::object x,
                         py::dict kwargs)
 {
     py::object meth = x.attr("backend").attr("block_backend").attr(block_func);
-    py::cpp_function unary([meth, kwargs](py::object block) {
-        return meth(block, **kwargs);
-    });
+    py::cpp_function unary([meth, kwargs](py::object block) { return meth(block, **kwargs); });
     return x.attr("_elementwise_unary")(unary, py::arg("maps_zero_to_zero") = maps_zero_to_zero);
 }
 
@@ -107,7 +104,8 @@ cutoff_inverse(py::object x, float64 cutoff)
         return elementwise_on_diagonal(x, "cutoff_inverse", true, kw);
     }
     if (is_scalar_obj(x)) {
-        // The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, otherwise ``0``.
+        // The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, otherwise
+        // ``0``.
         py::object abs_x = py::module_::import("builtins").attr("abs")(x);
         if (abs_x.cast<float64>() < cutoff) {
             return py::int_(0);
@@ -205,7 +203,8 @@ exp(py::object obj)
     // should have considered all tensor types above
     // ---
     if (is_diagonal_tensor(obj)) {
-        return obj.attr("_elementwise_unary")(obj.attr("backend").attr("block_backend").attr("exp"));
+        return obj.attr("_elementwise_unary")(
+          obj.attr("backend").attr("block_backend").attr("exp"));
     }
     if (is_charged_tensor(obj)) {
         throw py::type_error("ChargedTensor can not be exponentiated.");
@@ -215,8 +214,8 @@ exp(py::object obj)
                                py::make_tuple(obj.attr("codomain")));
 
         auto backend = obj.attr("backend").cast<TensorBackend::Ptr>();
-        bool combine = (!backend->can_decompose_tensors)
-                       && (obj.attr("num_domain_legs").cast<int64>() > 1);
+        bool combine =
+          (!backend->can_decompose_tensors) && (obj.attr("num_domain_legs").cast<int64>() > 1);
         if (combine) {
             // OPTIMIZE have the same pipe in domain and codomain. could avoid recomputing?
             int64 J = obj.attr("num_codomain_legs").cast<int64>();
@@ -233,11 +232,12 @@ exp(py::object obj)
         }
         py::object matrix_exp = py::cast(backend->block_backend).attr("matrix_exp");
         auto data = backend->act_block_diagonal_square_matrix(obj, matrix_exp, py::none());
-        py::object res = tensors_mod().attr("SymmetricTensor")(py::cast(std::move(data)),
-                                                               obj.attr("codomain"),
-                                                               obj.attr("domain"),
-                                                               py::arg("backend") = obj.attr("backend"),
-                                                               py::arg("labels") = obj.attr("labels"));
+        py::object res =
+          tensors_mod().attr("SymmetricTensor")(py::cast(std::move(data)),
+                                                obj.attr("codomain"),
+                                                obj.attr("domain"),
+                                                py::arg("backend") = obj.attr("backend"),
+                                                py::arg("labels") = obj.attr("labels"));
         if (combine) {
             res = split_legs(res, py::cast(std::vector<int64>{ 0, 1 }));
         }

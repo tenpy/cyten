@@ -65,14 +65,13 @@ DiagonalTensor::DiagonalTensor(TensorBackend::DataPtr data_in,
                                TensorBackend::Ptr backend_in,
                                Symmetry::Ptr symmetry_in,
                                LegLabels labels_in)
-  : SymmetricTensor(
-      std::move(data_in),
-      std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(leg_in) }),
-      std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(leg_in) }),
-      std::move(backend_in),
-      std::move(symmetry_in),
-      std::move(labels_in),
-      /*check_complex_dtype=*/false)
+  : SymmetricTensor(std::move(data_in),
+                    std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(leg_in) }),
+                    std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(leg_in) }),
+                    std::move(backend_in),
+                    std::move(symmetry_in),
+                    std::move(labels_in),
+                    /*check_complex_dtype=*/false)
 {
     if (py::isinstance<LegPipe>(py::cast(leg_in))) {
         throw std::invalid_argument("DiagonalTensor is not defined on LegPipes.");
@@ -160,25 +159,27 @@ DiagonalTensor::from_block_func(py::function func,
     std::optional<std::string> device_cap = device;
     auto bb = backend_tp->block_backend;
 
-    py::cpp_function block_func(
-      [func, kwargs, shape_kw_obj, dtype_cap, device_cap, bb](py::object shape,
-                                                              py::object /*coupled*/) {
-          // use same backend function as from_sector_block_func, so we include the coupled arg
-          // but just ignore it.
-          py::object block;
-          if (shape_kw_obj.is_none()) {
-              block = func(shape, **kwargs);
-          } else {
-              py::dict call_kwargs = py::dict(kwargs);
-              call_kwargs[shape_kw_obj] = shape;
-              block = func(**call_kwargs);
-          }
-          return bb->as_block(block, dtype_cap, device_cap);
-      });
+    py::cpp_function block_func([func, kwargs, shape_kw_obj, dtype_cap, device_cap, bb](
+                                  py::object shape, py::object /*coupled*/) {
+        // use same backend function as from_sector_block_func, so we include the coupled arg
+        // but just ignore it.
+        py::object block;
+        if (shape_kw_obj.is_none()) {
+            block = func(shape, **kwargs);
+        } else {
+            py::dict call_kwargs = py::dict(kwargs);
+            call_kwargs[shape_kw_obj] = shape;
+            block = func(**call_kwargs);
+        }
+        return bb->as_block(block, dtype_cap, device_cap);
+    });
 
     auto data = backend_tp->diagonal_from_sector_block_func(block_func, co_domain);
-    auto res = std::make_shared<DiagonalTensor>(
-      data, leg_sp, backend_tp, co_domain->symmetry, _init_parse_labels(labels, co_domain, co_domain));
+    auto res = std::make_shared<DiagonalTensor>(data,
+                                                leg_sp,
+                                                backend_tp,
+                                                co_domain->symmetry,
+                                                _init_parse_labels(labels, co_domain, co_domain));
     res->test_sanity();
     return res;
 }
@@ -195,8 +196,9 @@ DiagonalTensor::from_dense_block(py::object block,
 {
     auto leg_sp = as_space_leg(leg);
     if (!leg_sp->symmetry->can_be_dropped()) {
-        throw SymmetryError(std::format("Dense block representation is not supported for symmetry {}",
-                                        leg_sp->symmetry->repr()));
+        throw SymmetryError(
+          std::format("Dense block representation is not supported for symmetry {}",
+                      leg_sp->symmetry->repr()));
     }
     if (!leg_sp->symmetry->has_symmetric_braid() && !understood_braiding) {
         throw SymmetryError(
@@ -230,8 +232,11 @@ DiagonalTensor::from_diag_block(py::object diag,
     auto diag_ptr = backend_tp->block_backend->as_block(diag, dtype, device);
     diag_ptr = backend_tp->block_backend->apply_basis_perm(diag_ptr, { as_leg_cptr(leg) });
     auto data = backend_tp->diagonal_from_block(diag_ptr, co_domain, tol);
-    return std::make_shared<DiagonalTensor>(
-      data, leg_sp, backend_tp, co_domain->symmetry, _init_parse_labels(labels, co_domain, co_domain));
+    return std::make_shared<DiagonalTensor>(data,
+                                            leg_sp,
+                                            backend_tp,
+                                            co_domain->symmetry,
+                                            _init_parse_labels(labels, co_domain, co_domain));
 }
 
 DiagonalTensor::Ptr
@@ -252,7 +257,8 @@ DiagonalTensor::from_eye(py::object leg,
         if (kwargs.contains("device") && !kwargs["device"].is_none()) {
             dev = kwargs["device"].cast<std::string>();
         }
-        return bb->ones_block(shape.cast<std::vector<int64>>(), kwargs["dtype"].cast<Dtype>(), dev);
+        return bb->ones_block(
+          shape.cast<std::vector<int64>>(), kwargs["dtype"].cast<Dtype>(), dev);
     });
     py::dict func_kwargs;
     func_kwargs["dtype"] = py::cast(dtype);
@@ -261,7 +267,8 @@ DiagonalTensor::from_eye(py::object leg,
     } else {
         func_kwargs["device"] = py::none();
     }
-    return from_block_func(ones, leg, backend_tp, labels, func_kwargs, std::nullopt, dtype, device);
+    return from_block_func(
+      ones, leg, backend_tp, labels, func_kwargs, std::nullopt, dtype, device);
 }
 
 DiagonalTensor::Ptr
@@ -324,8 +331,11 @@ DiagonalTensor::from_random_normal(py::object leg,
         auto one = backend->block_backend->as_scalar(1.0);
         auto new_data =
           backend->linear_combination(one, mean, one, with_zero_mean->as_py_object());
-        return std::make_shared<DiagonalTensor>(
-          new_data, with_zero_mean->leg(), backend, with_zero_mean->symmetry, with_zero_mean->labels());
+        return std::make_shared<DiagonalTensor>(new_data,
+                                                with_zero_mean->leg(),
+                                                backend,
+                                                with_zero_mean->symmetry,
+                                                with_zero_mean->labels());
     }
     return with_zero_mean;
 }
@@ -359,7 +369,8 @@ DiagonalTensor::from_random_uniform(py::object leg,
     } else {
         func_kwargs["device"] = py::none();
     }
-    return from_block_func(func, leg, backend_tp, labels, func_kwargs, std::nullopt, dtype, device);
+    return from_block_func(
+      func, leg, backend_tp, labels, func_kwargs, std::nullopt, dtype, device);
 }
 
 DiagonalTensor::Ptr
@@ -393,8 +404,11 @@ DiagonalTensor::from_sector_block_func(py::function func,
       });
 
     auto data = backend_tp->diagonal_from_sector_block_func(block_func, co_domain);
-    auto res = std::make_shared<DiagonalTensor>(
-      data, leg_sp, backend_tp, co_domain->symmetry, _init_parse_labels(labels, co_domain, co_domain));
+    auto res = std::make_shared<DiagonalTensor>(data,
+                                                leg_sp,
+                                                backend_tp,
+                                                co_domain->symmetry,
+                                                _init_parse_labels(labels, co_domain, co_domain));
     res->test_sanity();
     return res;
 }
@@ -428,8 +442,11 @@ DiagonalTensor::from_zero(py::object leg,
     (void)symmetry;
     auto device_s = backend_tp->block_backend->as_device(device);
     auto data = backend_tp->zero_diagonal_data(co_domain, dtype, device_s);
-    return std::make_shared<DiagonalTensor>(
-      data, leg_sp, backend_tp, co_domain->symmetry, _init_parse_labels(labels, co_domain, co_domain));
+    return std::make_shared<DiagonalTensor>(data,
+                                            leg_sp,
+                                            backend_tp,
+                                            co_domain->symmetry,
+                                            _init_parse_labels(labels, co_domain, co_domain));
 }
 
 Tensor::Ptr
@@ -479,9 +496,9 @@ DiagonalTensor::_binary_operand(py::object other,
     if (py::isinstance(other, numbers_Number) || py::isinstance(other, ScalarCls)) {
         // Match Python: as_scalar(other) without forcing self.dtype (complex * float tensor).
         // Dispatch via pybind overloads so complex/float/int keep their native dtype.
-        auto other_scalar =
-          py::cast(bb).attr("as_scalar")(other).cast<BlockBackend::Scalar>();
-        py::object other_block = py::cast(std::const_pointer_cast<BlockBackend::Block>(other_scalar._block()));
+        auto other_scalar = py::cast(bb).attr("as_scalar")(other).cast<BlockBackend::Scalar>();
+        py::object other_block =
+          py::cast(std::const_pointer_cast<BlockBackend::Block>(other_scalar._block()));
         if (right) {
             py::cpp_function wrapped(
               [func, other_block](py::object block) { return func(other_block, block); });
@@ -496,7 +513,8 @@ DiagonalTensor::_binary_operand(py::object other,
     } else if (py::isinstance(other, tensors_mod.attr("DiagonalTensor")) ||
                py::isinstance(other, py::type::of(as_py_object())) ||
                py::isinstance<DiagonalTensor>(other)) {
-        if (py::isinstance(other, tensors_mod.attr("Identity")) || py::isinstance<Identity>(other)) {
+        if (py::isinstance(other, tensors_mod.attr("Identity")) ||
+            py::isinstance<Identity>(other)) {
             other = other.attr("as_DiagonalTensor")();
         }
         auto same = get_same_backend({ as_py_object(), other });
@@ -522,18 +540,20 @@ DiagonalTensor::_binary_operand(py::object other,
                           py::str(py::type::of(other)).cast<std::string>(),
                           class_name()));
         }
-        throw std::invalid_argument(
-          std::format("Invalid types for operand \"{}\": {} and {}",
-                      operand,
-                      class_name(),
-                      py::str(py::type::of(other)).cast<std::string>()));
+        throw std::invalid_argument(std::format("Invalid types for operand \"{}\": {} and {}",
+                                                operand,
+                                                class_name(),
+                                                py::str(py::type::of(other)).cast<std::string>()));
     }
 
-    return py::cast(std::make_shared<DiagonalTensor>(new_data, leg(), backend, symmetry, out_labels));
+    return py::cast(
+      std::make_shared<DiagonalTensor>(new_data, leg(), backend, symmetry, out_labels));
 }
 
 Tensor::Ptr
-DiagonalTensor::copy(bool deep, std::optional<std::string> device_opt, std::optional<Dtype> dtype_opt)
+DiagonalTensor::copy(bool deep,
+                     std::optional<std::string> device_opt,
+                     std::optional<Dtype> dtype_opt)
 {
     TensorBackend::DataPtr new_data;
     // Match Python: dtype change effectively always takes as_dtype branch
@@ -560,8 +580,8 @@ BlockBackend::BlockPtr
 DiagonalTensor::diagonal_as_block(std::optional<Dtype> dtype_opt)
 {
     if (!symmetry->can_be_dropped()) {
-        throw SymmetryError(
-          std::format("Dense block representation is not supported for symmetry {}", symmetry->repr()));
+        throw SymmetryError(std::format(
+          "Dense block representation is not supported for symmetry {}", symmetry->repr()));
     }
     auto res = backend->diagonal_tensor_to_block(as_py_object());
     res = backend->block_backend->apply_basis_perm(
@@ -580,7 +600,8 @@ DiagonalTensor::diagonal_as_numpy(py::object numpy_dtype)
         dt = dtype::from_numpy_dtype(numpy_dtype);
     }
     auto block = diagonal_as_block(dt);
-    std::optional<py::object> np_dt = numpy_dtype.is_none() ? std::nullopt : std::optional<py::object>{ numpy_dtype };
+    std::optional<py::object> np_dt =
+      numpy_dtype.is_none() ? std::nullopt : std::optional<py::object>{ numpy_dtype };
     return py::reinterpret_borrow<py::array>(backend->block_backend->to_numpy(block, np_dt));
 }
 
@@ -592,10 +613,12 @@ DiagonalTensor::elementwise_almost_equal(py::object other, float64 rtol, float64
     // ---
     other = other.attr("as_DiagonalTensor")();
     // no (Scalar + Block) operation defined, so requires explicit casting
-    auto ones = from_eye(py::cast(leg()), backend, py::cast(labels()), dtype::to_real(dtype), device);
+    auto ones =
+      from_eye(py::cast(leg()), backend, py::cast(labels()), dtype::to_real(dtype), device);
     py::object diff = as_py_object().attr("__sub__")(other);
     py::object left = diff.attr("__abs__")();
-    py::object right = (py::float_(atol) * py::cast(ones)) + (py::float_(rtol) * as_py_object().attr("__abs__")());
+    py::object right =
+      (py::float_(atol) * py::cast(ones)) + (py::float_(rtol) * as_py_object().attr("__abs__")());
     return left.attr("__le__")(right).cast<Ptr>();
 }
 
@@ -622,7 +645,9 @@ DiagonalTensor::_elementwise_binary(py::object other,
 }
 
 DiagonalTensor::Ptr
-DiagonalTensor::_elementwise_unary(py::function func, py::object func_kwargs, bool maps_zero_to_zero)
+DiagonalTensor::_elementwise_unary(py::function func,
+                                   py::object func_kwargs,
+                                   bool maps_zero_to_zero)
 {
     auto data_out = backend->diagonal_elementwise_unary(
       as_py_object(), func, copy_dict(func_kwargs), maps_zero_to_zero);
@@ -666,10 +691,11 @@ DiagonalTensor::max() const
 {
     assert(dtype::is_real(dtype));
     auto bb = backend->block_backend;
-    return backend->reduce_DiagonalTensor(
-      as_py_object(),
-      py::cpp_function([bb](py::object block) { return bb->max(block.cast<BlockBackend::BlockPtr>()); }),
-      py::module_::import("builtins").attr("max"));
+    return backend->reduce_DiagonalTensor(as_py_object(),
+                                          py::cpp_function([bb](py::object block) {
+                                              return bb->max(block.cast<BlockBackend::BlockPtr>());
+                                          }),
+                                          py::module_::import("builtins").attr("max"));
 }
 
 BlockBackend::Scalar
@@ -677,10 +703,11 @@ DiagonalTensor::min() const
 {
     assert(dtype::is_real(dtype));
     auto bb = backend->block_backend;
-    return backend->reduce_DiagonalTensor(
-      as_py_object(),
-      py::cpp_function([bb](py::object block) { return bb->min(block.cast<BlockBackend::BlockPtr>()); }),
-      py::module_::import("builtins").attr("min"));
+    return backend->reduce_DiagonalTensor(as_py_object(),
+                                          py::cpp_function([bb](py::object block) {
+                                              return bb->min(block.cast<BlockBackend::BlockPtr>());
+                                          }),
+                                          py::module_::import("builtins").attr("min"));
 }
 
 DiagonalTensor::Ptr
@@ -688,7 +715,8 @@ DiagonalTensor::abs() const
 {
     auto bb = backend->block_backend;
     return const_cast<DiagonalTensor*>(this)->_elementwise_unary(
-      py::cpp_function([bb](py::object block) { return bb->abs(block.cast<BlockBackend::BlockPtr>()); }),
+      py::cpp_function(
+        [bb](py::object block) { return bb->abs(block.cast<BlockBackend::BlockPtr>()); }),
       py::none(),
       /*maps_zero_to_zero=*/true);
 }
@@ -710,9 +738,8 @@ DiagonalTensor::to_backend(TensorBackend::Ptr new_backend,
     // exceptions:
     // - for non-abelian symmetries this is inefficient (needs to expand sectors into multiplets)
     // - for symmetries that can not be dropped, this is not possible
-    // Both of these exceptions can only ocurr if both backends are FusionTreeBackend, which is then also simple
-    // OPTIMIZE
-    // for abelian <-> fusion tree, this might be slightly inefficient.
+    // Both of these exceptions can only ocurr if both backends are FusionTreeBackend, which is
+    // then also simple OPTIMIZE for abelian <-> fusion tree, this might be slightly inefficient.
     // I think the blocks should be the same already, so we could get away without first
     // concatenating all of them and them splitting them back up
     // ---
@@ -724,7 +751,8 @@ DiagonalTensor::to_backend(TensorBackend::Ptr new_backend,
     // exceptions:
     //   - for non-abelian symmetries this is inefficient (needs to expand sectors into multiplets)
     //   - for symmetries that can not be dropped, this is not possible
-    // Both of these exceptions can only ocurr if both backends are FusionTreeBackend, which is then also simple
+    // Both of these exceptions can only ocurr if both backends are FusionTreeBackend, which is
+    // then also simple
 
     // OPTIMIZE
     //   for abelian <-> fusion tree, this might be slightly inefficient.
@@ -736,10 +764,12 @@ DiagonalTensor::to_backend(TensorBackend::Ptr new_backend,
     TensorBackend::DataPtr new_data;
     if (std::dynamic_pointer_cast<FusionTreeBackend>(backend) &&
         std::dynamic_pointer_cast<FusionTreeBackend>(new_backend)) {
-        new_data = backend->to_block_backend(data, new_backend->block_backend, dtype_opt, device_s);
+        new_data =
+          backend->to_block_backend(data, new_backend->block_backend, dtype_opt, device_s);
     } else {
         auto old_diag = backend->diagonal_tensor_to_block(as_py_object());
-        auto new_diag = new_backend->block_backend->as_block(py::cast(old_diag), dtype_opt, device_s);
+        auto new_diag =
+          new_backend->block_backend->as_block(py::cast(old_diag), dtype_opt, device_s);
         new_data = new_backend->diagonal_from_block(new_diag, codomain, 0.);
     }
     return std::make_shared<DiagonalTensor>(new_data, leg(), new_backend, symmetry, labels());
@@ -752,8 +782,8 @@ DiagonalTensor::to_dense_block(
   bool understood_braiding)
 {
     if (!symmetry->can_be_dropped()) {
-        throw SymmetryError(
-          std::format("Dense block representation is not supported for symmetry {}", symmetry->repr()));
+        throw SymmetryError(std::format(
+          "Dense block representation is not supported for symmetry {}", symmetry->repr()));
     }
     if (!symmetry->has_trivial_braid() && !understood_braiding) {
         throw SymmetryError(
@@ -782,8 +812,11 @@ DiagonalTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string c
 {
     /// Import DiagonalTensor from hdf5
     auto sym = SymmetricTensor::from_hdf5(hdf5_loader, h5gr, subpath);
-    return std::make_shared<DiagonalTensor>(
-      sym->data, sym->codomain->factors[0].cast<Space::Ptr>(), sym->backend, sym->symmetry, sym->labels());
+    return std::make_shared<DiagonalTensor>(sym->data,
+                                            sym->codomain->factors[0].cast<Space::Ptr>(),
+                                            sym->backend,
+                                            sym->symmetry,
+                                            sym->labels());
 }
 
 // ---------------------------------------------------------------------------
@@ -909,8 +942,8 @@ Identity::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::string>
     if (warning.has_value()) {
         warn(*warning);
     }
-    return py::cast(SymmetricTensor::from_eye(
-      py::cast(codomain), backend, py::cast(labels()), dtype, device));
+    return py::cast(
+      SymmetricTensor::from_eye(py::cast(codomain), backend, py::cast(labels()), dtype, device));
 }
 
 DiagonalTensor::Ptr
@@ -955,13 +988,11 @@ BlockBackend::BlockPtr
 Identity::diagonal_as_block(std::optional<Dtype> dtype_opt)
 {
     if (!symmetry->can_be_dropped()) {
-        throw SymmetryError(
-          std::format("Dense block representation is not supported for symmetry {}", symmetry->repr()));
+        throw SymmetryError(std::format(
+          "Dense block representation is not supported for symmetry {}", symmetry->repr()));
     }
     return backend->block_backend->ones_block(
-      { static_cast<int64>(leg()->dim) },
-      dtype_opt.value_or(dtype),
-      device);
+      { static_cast<int64>(leg()->dim) }, dtype_opt.value_or(dtype), device);
 }
 
 py::array
@@ -991,7 +1022,8 @@ Identity::_elementwise_binary(py::object other,
                               py::object func_kwargs,
                               bool partial_zero_is_zero)
 {
-    return as_DiagonalTensor()->_elementwise_binary(other, func, func_kwargs, partial_zero_is_zero);
+    return as_DiagonalTensor()->_elementwise_binary(
+      other, func, func_kwargs, partial_zero_is_zero);
 }
 
 BlockBackend::Scalar
@@ -1066,10 +1098,9 @@ Identity::to_backend(TensorBackend::Ptr new_backend,
 }
 
 BlockBackend::BlockPtr
-Identity::to_dense_block(
-  std::optional<std::vector<std::variant<int64, std::string>>> leg_order,
-  std::optional<Dtype> dtype_opt,
-  bool understood_braiding)
+Identity::to_dense_block(std::optional<std::vector<std::variant<int64, std::string>>> leg_order,
+                         std::optional<Dtype> dtype_opt,
+                         bool understood_braiding)
 {
     return as_DiagonalTensor()->to_dense_block(leg_order, dtype_opt, understood_braiding);
 }

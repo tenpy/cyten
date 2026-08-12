@@ -88,12 +88,14 @@ eye(py::object leg,
     std::optional<std::string> device,
     bool diagonal)
 {
-    py::object res = tensors_mod().attr("DiagonalTensor").attr("from_eye")(
-      py::arg("leg") = leg,
-      py::arg("backend") = backend ? py::cast(backend) : py::none(),
-      py::arg("labels") = labels,
-      py::arg("dtype") = dtype,
-      py::arg("device") = device.has_value() ? py::cast(*device) : py::none());
+    py::object res =
+      tensors_mod()
+        .attr("DiagonalTensor")
+        .attr("from_eye")(py::arg("leg") = leg,
+                          py::arg("backend") = backend ? py::cast(backend) : py::none(),
+                          py::arg("labels") = labels,
+                          py::arg("dtype") = dtype,
+                          py::arg("device") = device.has_value() ? py::cast(*device) : py::none());
     if (diagonal) {
         return res;
     }
@@ -136,15 +138,17 @@ tensor(py::object obj,
         }
         return obj.attr("as_SymmetricTensor")();
     }
-    return tensors_mod().attr("SymmetricTensor").attr("from_dense_block")(
-      obj,
-      codomain,
-      domain,
-      py::arg("backend") = backend ? py::cast(backend) : py::none(),
-      py::arg("labels") = labels,
-      py::arg("dtype") = dtype.has_value() ? py::cast(*dtype) : py::none(),
-      py::arg("device") = device.has_value() ? py::cast(*device) : py::none(),
-      py::arg("understood_braiding") = understood_braiding);
+    return tensors_mod()
+      .attr("SymmetricTensor")
+      .attr("from_dense_block")(
+        obj,
+        codomain,
+        domain,
+        py::arg("backend") = backend ? py::cast(backend) : py::none(),
+        py::arg("labels") = labels,
+        py::arg("dtype") = dtype.has_value() ? py::cast(*dtype) : py::none(),
+        py::arg("device") = device.has_value() ? py::cast(*device) : py::none(),
+        py::arg("understood_braiding") = understood_braiding);
 }
 
 py::object
@@ -175,7 +179,8 @@ add_trivial_leg(py::object tens,
 
     if (legs_pos_opt.has_value()) {
         if (codomain_pos_opt.has_value() || domain_pos_opt.has_value()) {
-            throw std::invalid_argument("legs_pos, codomain_pos, domain_pos are mutually exclusive");
+            throw std::invalid_argument(
+              "legs_pos, codomain_pos, domain_pos are mutually exclusive");
         }
         legs_pos = to_valid_idx(*legs_pos_opt, res_num_legs);
         add_to_domain = legs_pos > tens.attr("num_codomain_legs").cast<int64>();
@@ -186,7 +191,8 @@ add_trivial_leg(py::object tens,
         }
     } else if (codomain_pos_opt.has_value()) {
         if (legs_pos_opt.has_value() || domain_pos_opt.has_value()) {
-            throw std::invalid_argument("legs_pos, codomain_pos, domain_pos are mutually exclusive");
+            throw std::invalid_argument(
+              "legs_pos, codomain_pos, domain_pos are mutually exclusive");
         }
         int64 res_codomain_legs = tens.attr("num_codomain_legs").cast<int64>() + 1;
         int64 codomain_pos = to_valid_idx(*codomain_pos_opt, res_codomain_legs);
@@ -195,7 +201,8 @@ add_trivial_leg(py::object tens,
         legs_pos = codomain_pos;
     } else if (domain_pos_opt.has_value()) {
         if (legs_pos_opt.has_value() || codomain_pos_opt.has_value()) {
-            throw std::invalid_argument("legs_pos, codomain_pos, domain_pos are mutually exclusive");
+            throw std::invalid_argument(
+              "legs_pos, codomain_pos, domain_pos are mutually exclusive");
         }
         int64 res_domain_legs = tens.attr("num_domain_legs").cast<int64>() + 1;
         int64 domain_pos = to_valid_idx(*domain_pos_opt, res_domain_legs);
@@ -208,12 +215,11 @@ add_trivial_leg(py::object tens,
         legs_pos = 0;
     }
 
-    if (is_python_instance(tens, "DiagonalTensor") || py::isinstance<DiagonalTensor>(tens)
-        || is_python_instance(tens, "Mask") || py::isinstance<Mask>(tens)
-        || is_python_instance(tens, "Identity") || py::isinstance<Identity>(tens)) {
-        std::string msg =
-          "Converting to SymmetricTensor for add_trivial_leg. "
-          "Use as_SymmetricTensor() explicitly to suppress the warning.";
+    if (is_python_instance(tens, "DiagonalTensor") || py::isinstance<DiagonalTensor>(tens) ||
+        is_python_instance(tens, "Mask") || py::isinstance<Mask>(tens) ||
+        is_python_instance(tens, "Identity") || py::isinstance<Identity>(tens)) {
+        std::string msg = "Converting to SymmetricTensor for add_trivial_leg. "
+                          "Use as_SymmetricTensor() explicitly to suppress the warning.";
         tens = tens.attr("as_SymmetricTensor")(py::arg("warning") = msg);
     }
     if (is_python_instance(tens, "ChargedTensor") || py::isinstance<ChargedTensor>(tens)) {
@@ -234,9 +240,8 @@ add_trivial_leg(py::object tens,
                                        label,
                                        is_dual);
         }
-        return tensors_mod().attr("ChargedTensor")(inv_part,
-                                                   py::arg("charged_state") =
-                                                     tens.attr("charged_state"));
+        return tensors_mod().attr("ChargedTensor")(
+          inv_part, py::arg("charged_state") = tens.attr("charged_state"));
     }
     if (!(is_python_instance(tens, "SymmetricTensor") || py::isinstance<SymmetricTensor>(tens))) {
         throw py::type_error("Invalid type for tens. Expected a Tensor subtype");
@@ -256,8 +261,8 @@ add_trivial_leg(py::object tens,
         codomain = codomain_tp->insert_multiply(py::cast(new_leg), co_domain_pos);
     }
     auto backend = tens.attr("backend").cast<TensorBackend::Ptr>();
-    auto data = backend->add_trivial_leg(
-      tens, legs_pos, add_to_domain, co_domain_pos, codomain, domain);
+    auto data =
+      backend->add_trivial_leg(tens, legs_pos, add_to_domain, co_domain_pos, codomain, domain);
 
     LegLabels labels = tens.attr("labels").cast<LegLabels>();
     LegLabels new_labels;
@@ -280,34 +285,37 @@ zero_like(py::object tensor)
           py::arg("labels") = tensor.attr("labels"),
           py::arg("device") = tensor.attr("device"));
     }
-    if (is_python_instance(tensor, "DiagonalTensor") || py::isinstance<DiagonalTensor>(tensor)
-        || is_python_instance(tensor, "Identity") || py::isinstance<Identity>(tensor)) {
-        return tensors_mod().attr("DiagonalTensor").attr("from_zero")(
-          py::arg("leg") = tensor.attr("leg"),
-          py::arg("backend") = tensor.attr("backend"),
-          py::arg("labels") = tensor.attr("labels"),
-          py::arg("dtype") = tensor.attr("dtype"),
-          py::arg("device") = tensor.attr("device"));
+    if (is_python_instance(tensor, "DiagonalTensor") || py::isinstance<DiagonalTensor>(tensor) ||
+        is_python_instance(tensor, "Identity") || py::isinstance<Identity>(tensor)) {
+        return tensors_mod()
+          .attr("DiagonalTensor")
+          .attr("from_zero")(py::arg("leg") = tensor.attr("leg"),
+                             py::arg("backend") = tensor.attr("backend"),
+                             py::arg("labels") = tensor.attr("labels"),
+                             py::arg("dtype") = tensor.attr("dtype"),
+                             py::arg("device") = tensor.attr("device"));
     }
     if (is_python_instance(tensor, "SymmetricTensor") || py::isinstance<SymmetricTensor>(tensor)) {
-        return tensors_mod().attr("SymmetricTensor").attr("from_zero")(
-          py::arg("codomain") = tensor.attr("codomain"),
-          py::arg("domain") = tensor.attr("domain"),
-          py::arg("backend") = tensor.attr("backend"),
-          py::arg("labels") = tensor.attr("labels"),
-          py::arg("dtype") = tensor.attr("dtype"),
-          py::arg("device") = tensor.attr("device"));
+        return tensors_mod()
+          .attr("SymmetricTensor")
+          .attr("from_zero")(py::arg("codomain") = tensor.attr("codomain"),
+                             py::arg("domain") = tensor.attr("domain"),
+                             py::arg("backend") = tensor.attr("backend"),
+                             py::arg("labels") = tensor.attr("labels"),
+                             py::arg("dtype") = tensor.attr("dtype"),
+                             py::arg("device") = tensor.attr("device"));
     }
     if (is_python_instance(tensor, "ChargedTensor") || py::isinstance<ChargedTensor>(tensor)) {
-        return tensors_mod().attr("ChargedTensor").attr("from_zero")(
-          py::arg("codomain") = tensor.attr("codomain"),
-          py::arg("domain") = tensor.attr("domain"),
-          py::arg("charge") = tensor.attr("charge_leg"),
-          py::arg("charged_state") = tensor.attr("charged_state"),
-          py::arg("backend") = tensor.attr("backend"),
-          py::arg("labels") = tensor.attr("labels"),
-          py::arg("dtype") = tensor.attr("dtype"),
-          py::arg("device") = tensor.attr("device"));
+        return tensors_mod()
+          .attr("ChargedTensor")
+          .attr("from_zero")(py::arg("codomain") = tensor.attr("codomain"),
+                             py::arg("domain") = tensor.attr("domain"),
+                             py::arg("charge") = tensor.attr("charge_leg"),
+                             py::arg("charged_state") = tensor.attr("charged_state"),
+                             py::arg("backend") = tensor.attr("backend"),
+                             py::arg("labels") = tensor.attr("labels"),
+                             py::arg("dtype") = tensor.attr("dtype"),
+                             py::arg("device") = tensor.attr("device"));
     }
     throw py::type_error("Invalid type for tensor.");
 }
@@ -366,17 +374,17 @@ tensor_from_grid(py::object grid_obj, py::object labels, std::optional<Dtype> dt
 
     // check input
     for (auto op : op_list) {
-        if (op.attr("num_codomain_legs").cast<int64>() != n_cod
-            || op.attr("num_domain_legs").cast<int64>() != n_dom) {
+        if (op.attr("num_codomain_legs").cast<int64>() != n_cod ||
+            op.attr("num_domain_legs").cast<int64>() != n_dom) {
             throw std::runtime_error("inconsistent number of legs in grid");
         }
-        if (!py_eq(op.attr("codomain").attr("__getitem__")(slice_cod_tail), ref_cod_tail)
-            || !py_eq(op.attr("domain").attr("__getitem__")(slice_dom_head), ref_dom_head)) {
+        if (!py_eq(op.attr("codomain").attr("__getitem__")(slice_cod_tail), ref_cod_tail) ||
+            !py_eq(op.attr("domain").attr("__getitem__")(slice_dom_head), ref_dom_head)) {
             throw std::runtime_error("inconsistent legs in grid");
         }
         // only ElementarySpaces have direct_sum
-        if (!py::isinstance<ElementarySpace>(op.attr("codomain").attr("__getitem__")(0))
-            || !py::isinstance<ElementarySpace>(op.attr("domain").attr("__getitem__")(-1))) {
+        if (!py::isinstance<ElementarySpace>(op.attr("codomain").attr("__getitem__")(0)) ||
+            !py::isinstance<ElementarySpace>(op.attr("domain").attr("__getitem__")(-1))) {
             throw std::runtime_error("stacking legs must be ElementarySpace");
         }
     }
@@ -407,7 +415,8 @@ tensor_from_grid(py::object grid_obj, py::object labels, std::optional<Dtype> dt
         }
         // find op from same column
         for (py::ssize_t r = 0; r < n_rows; ++r) {
-            auto const& new_op = grid_vec[static_cast<std::size_t>(r)][static_cast<std::size_t>(i)];
+            auto const& new_op =
+              grid_vec[static_cast<std::size_t>(r)][static_cast<std::size_t>(i)];
             if (new_op.is_none()) {
                 continue;
             }
@@ -423,7 +432,8 @@ tensor_from_grid(py::object grid_obj, py::object labels, std::optional<Dtype> dt
     std::vector<ElementarySpace::Ptr> right_spaces;
     right_spaces.reserve(right_ops.size());
     for (auto const& op : right_ops) {
-        right_spaces.push_back(op.attr("domain").attr("__getitem__")(-1).cast<ElementarySpace::Ptr>());
+        right_spaces.push_back(
+          op.attr("domain").attr("__getitem__")(-1).cast<ElementarySpace::Ptr>());
     }
 
     std::vector<py::object> left_ops(static_cast<std::size_t>(n_rows));
@@ -436,7 +446,8 @@ tensor_from_grid(py::object grid_obj, py::object labels, std::optional<Dtype> dt
         }
         // find op from same row
         for (py::ssize_t c = 0; c < n_cols; ++c) {
-            auto const& new_op = grid_vec[static_cast<std::size_t>(i)][static_cast<std::size_t>(c)];
+            auto const& new_op =
+              grid_vec[static_cast<std::size_t>(i)][static_cast<std::size_t>(c)];
             if (new_op.is_none()) {
                 continue;
             }
@@ -452,7 +463,8 @@ tensor_from_grid(py::object grid_obj, py::object labels, std::optional<Dtype> dt
     std::vector<ElementarySpace::Ptr> left_spaces;
     left_spaces.reserve(left_ops.size());
     for (auto const& op : left_ops) {
-        left_spaces.push_back(op.attr("codomain").attr("__getitem__")(0).cast<ElementarySpace::Ptr>());
+        left_spaces.push_back(
+          op.attr("codomain").attr("__getitem__")(0).cast<ElementarySpace::Ptr>());
     }
 
     std::vector<ElementarySpace::Ptr> left_rest(left_spaces.begin() + 1, left_spaces.end());
@@ -497,8 +509,7 @@ tensor_from_grid(py::object grid_obj, py::object labels, std::optional<Dtype> dt
     }
     dom_factors.append(py::cast(right_space));
 
-    auto codomain = std::make_shared<TensorProduct>(
-      cod_factors.cast<std::vector<py::object>>());
+    auto codomain = std::make_shared<TensorProduct>(cod_factors.cast<std::vector<py::object>>());
     auto domain = std::make_shared<TensorProduct>(dom_factors.cast<std::vector<py::object>>());
 
     auto data = backend->from_grid(std::move(grid_vec),
