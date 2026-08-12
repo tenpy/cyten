@@ -298,6 +298,11 @@ almost_equal(py::object tensor_1,
              float64 atol,
              bool allow_different_types)
 {
+    // --- hints from Python almost_equal ---
+    // TODO this is not strictly correct, since definition is not symmetric...
+    // we implement the mixed type comparison SymmetricTensor and ChargedTensor only once.
+    // to swap the arguments we need to adjust the definition, to use abs(a2)
+    // ---
     check_same_legs_py(tensor_1, tensor_2);
     (void)same_device2(tensor_1, tensor_2);
 
@@ -423,6 +428,9 @@ apply_mask(py::object tensor, py::object mask, py::object leg)
 py::object
 enlarge_leg(py::object tensor, py::object mask, py::object leg)
 {
+    // --- hints from Python enlarge_leg ---
+    // parse inputs
+    // ---
     (void)same_device2(tensor, mask);
     auto parsed = tensor.attr("_parse_leg_idx")(leg);
     bool in_domain = parsed.attr("__getitem__")(0).cast<bool>();
@@ -437,6 +445,9 @@ enlarge_leg(py::object tensor, py::object mask, py::object leg)
 py::object
 dagger(py::object tensor)
 {
+    // --- hints from Python dagger ---
+    // charge_leg ends up as codomain[0] and is dual.
+    // ---
     if (is_Mask(tensor)) {
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
         auto data = backend->mask_dagger(tensor);
@@ -509,6 +520,9 @@ compose(py::object tensor1,
         std::optional<std::map<std::string, std::string>> relabel1,
         std::optional<std::map<std::string, std::string>> relabel2)
 {
+    // --- hints from Python compose ---
+    // only tensor2 is ChargedTensor
+    // ---
     (void)same_device2(tensor1, tensor2);
     {
         py::list a;
@@ -544,6 +558,9 @@ compose(py::object tensor1,
         return scale_axis(tensor2, tensor1, py::int_(0)).attr("set_labels")(res_labels);
     }
     if (is_DiagonalTensor(tensor2)) {
+        // --- hints from Python scale_axis ---
+        // transpose if needed
+        // ---
         return scale_axis(tensor1, tensor2, py::int_(-1)).attr("set_labels")(res_labels);
     }
 
@@ -555,6 +572,14 @@ compose(py::object tensor1,
                                relabel2);
     }
     if (is_ChargedTensor(tensor2)) {
+        // --- hints from Python partial_compose ---
+        // do these cases first since the charged_legs do not count towards the num_domain_legs
+        // in ChargedTensors, but we need them for the consistency checks below
+        // need to bend down charge leg first
+        // domain_pos 1 since domain_pos 0 would mean braiding with c1
+        // OPTIMIZE we may add this in the future when we find an actual use case
+        // tensor1 cannot be Mask or DiagonalTensor due to num_legs constraint
+        // ---
         // only tensor2 is ChargedTensor
         return make_python_charged_tensor(compose(tensor1,
                                                   tensor2.attr("invariant_part"),
@@ -585,6 +610,23 @@ get_same_device(py::args tensors, std::string const& error_msg)
 py::object
 inner(py::object A, py::object B, bool do_dagger)
 {
+    // --- hints from Python inner ---
+    // in this case, there is no benefit to having a dedicated backend function,
+    // as the dot is cheap
+    // same argument as above.
+    // remaining cases: both are either SymmetricTensor or ChargedTensor
+    // ['!*'] <- [*a_legs]
+    // [*b_legs] <- ['!']
+    // ['!*', '!']
+    // OPTIMIZE: like GEMM, should we offer an interface where dagger is implicitly done during tdot?
+    // [!A, !B] @ [!B*] -> [!A]
+    // [!A] @ [!A*] -> []
+    // and B is a SymmetricTensor
+    // reduce to the case where B is charged and A is not  # OPTIMIZE write it out instead...
+    // OPTIMIZE: by charge rule, only components in the trivial sector of the charge_leg contribute
+    // could exploit by projecting to those components first.
+    // remaining case: both are SymmetricTensor
+    // ---
     (void)same_device2(A, B);
 
     if (do_dagger) {
@@ -610,6 +652,9 @@ inner(py::object A, py::object B, bool do_dagger)
     }
 
     if (is_Identity(B)) {
+        // --- hints from Python trace ---
+        // OPTIMIZE can project to trivial sector on charge leg first
+        // ---
         if (do_dagger) {
             return complex_conj(trace(A));
         }
@@ -817,6 +862,15 @@ item(py::object tensor)
 py::object
 linear_combination(py::object a, py::object v, py::object b, py::object w)
 {
+    // --- hints from Python linear_combination ---
+    // Note: We implement Tensor.__add__ and Tensor.__sub__ in terms of this function, so we cant
+    // use them (or the ``+`` and ``-`` operations) here.
+    // we treat the following cases independently:
+    // DiagonalTensor + DiagonalTensor  ->  DiagonalTensor
+    // ChargedTensor + ChargedTensor  ->  ChargedTensor (if compatible)
+    // all other cases  ->  SymmetricTensor
+    // Remaining case: convert to SymmetricTensor
+    // ---
     (void)same_device2(v, w);
     {
         py::list lhs;
@@ -905,6 +959,10 @@ linear_combination(py::object a, py::object v, py::object b, py::object w)
 py::object
 norm(py::object tensor)
 {
+    // --- hints from Python norm ---
+    // norm ** 2 = Tr(m^\dagger . m) = Tr(id_{small_leg}) = dim(small_leg)
+    // OPTIMIZE
+    // ---
     if (is_Mask(tensor)) {
         // norm ** 2 = Tr(m^\dagger . m) = Tr(id_{small_leg}) = dim(small_leg)
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
@@ -964,6 +1022,9 @@ outer(py::object tensor1,
       std::optional<std::map<std::string, std::string>> relabel1,
       std::optional<std::map<std::string, std::string>> relabel2)
 {
+    // --- hints from Python outer ---
+    // construct new labels
+    // ---
     (void)same_device2(tensor1, tensor2);
     assert(tensor1.attr("symmetry")
              .attr("is_equivalent_to")(tensor2.attr("symmetry"))
@@ -1256,6 +1317,16 @@ partial_compose(py::object tensor1,
 py::object
 partial_trace(py::object tensor, std::vector<py::object> pairs, py::object levels)
 {
+    // --- hints from Python partial_trace ---
+    // check legs are compatible
+    // deal with other tensor types
+    // only remaining option after input checks is the full trace.
+    // charge leg is not traced and thus does not braid.
+    // so its level is irrelevant. just make sure its not a duplicate
+    // scalar result
+    // ensure copy
+    // should be a scalar
+    // ---
     // check legs are compatible
     std::vector<std::pair<int64, int64>> parsed_pairs;
     parsed_pairs.reserve(pairs.size());
@@ -1409,6 +1480,9 @@ pinv(py::object tensor, float64 cutoff)
 py::object
 scalar_multiply(py::object a, py::object v)
 {
+    // --- hints from Python scalar_multiply ---
+    // remaining case: SymmetricTensor
+    // ---
     if (!is_Number_or_Scalar(a)) {
         throw py::type_error(
           std::format("unsupported scalar type: {}",
@@ -1506,6 +1580,23 @@ tdot(py::object tensor1,
      std::optional<std::map<std::string, std::string>> relabel1,
      std::optional<std::map<std::string, std::string>> relabel2)
 {
+    // --- hints from Python tdot ---
+    // parse legs to list[int] and check they are valid
+    // deal with relabelling once using recursion.
+    // This means we do not need to worry about labels in each of the many return sites below
+    // Deal with Masks: either return or reduce to SymmetricTensor
+    // move legs to tdot convention
+    // contract the large leg first
+    // then trace over the small leg
+    // scalar result
+    // Deal with DiagonalTensor: either return or reduce to SymmetricTensor
+    // Identity is considered in this branch too
+    // Deal with ChargedTensor
+    // note: its important that we have already used get_leg_idcs
+    // Remaining case: both are SymmetricTenor
+    // OPTIMIZE actually, we only need to permute legs to *any* matching order.
+    // could use ``legs1[perm]`` and ``legs2[perm]`` instead, if that means fewer braids.
+    // ---
     (void)same_device2(tensor1, tensor2);
 
     // parse legs to list[int] and check they are valid

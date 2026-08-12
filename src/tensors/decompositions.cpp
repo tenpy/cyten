@@ -235,6 +235,13 @@ apply_mask_DiagonalTensor(py::object tensor, py::object mask)
 std::tuple<py::object, py::object>
 eigh(py::object tensor, py::object new_labels, bool new_leg_dual, py::object sort)
 {
+    // --- hints from Python eigh ---
+    // do not define decompositions for ChargedTensors.
+    // If the backend requires it, combine legs first
+    // first, compute a decomposition where the new leg is a ket space
+    // undo the combine
+    // if required, flip the leg duality
+    // ---
     py::object labels_iter = to_iterable(new_labels);
     py::ssize_t nlab = py::len(labels_iter);
     LegLabel a;
@@ -338,6 +345,9 @@ eigh(py::object tensor, py::object new_labels, bool new_leg_dual, py::object sor
 py::object
 entropy(py::object p, py::object n)
 {
+    // --- hints from Python entropy ---
+    // for stability of log
+    // ---
     if (is_Identity(p)) {
         throw py::type_error(
           "entropy does not support Identity. It is never a normalized distribution.");
@@ -488,6 +498,9 @@ svd(py::object tensor,
     bool charge_leg_top,
     py::object algorithm)
 {
+    // --- hints from Python svd ---
+    // split legs, if they were previously combined
+    // ---
     if (is_ChargedTensor(tensor)) {
         py::object inv_part = tensor.attr("invariant_part");
         if (!charge_leg_top) {
@@ -615,6 +628,9 @@ truncated_svd(py::object tensor,
               float64 trunc_cut,
               float64 svd_min)
 {
+    // --- hints from Python truncated_svd ---
+    // norm(S[mask]) == S_norm * new_norm
+    // ---
     auto [U, S, Vh] = svd(tensor, new_labels, new_leg_dual, charge_leg_top, algorithm);
     py::object S_norm_obj = norm(S);
     // norm() returns a BlockBackend.Scalar (or number); normalize to float64.

@@ -208,6 +208,12 @@ SymmetricTensor::from_block_func(py::function func,
                                  std::optional<Dtype> dtype,
                                  std::optional<std::string> device)
 {
+    // --- hints from Python SymmetricTensor.from_block_func ---
+    // wrap func to consider func_kwargs, shape_kw, dtype, device
+    // use same backend function as from_sector_block_func, so we include the coupled arg
+    // but just ignore it.
+    // OPTIMIZE remove?
+    // ---
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
       _init_parse_args(codomain, domain, std::move(backend));
     dtype = _parse_default_dtype(dtype, symmetry);
@@ -256,6 +262,9 @@ SymmetricTensor::from_sector_block_func(py::function func,
                                         std::optional<Dtype> dtype,
                                         std::optional<std::string> device)
 {
+    // --- hints from Python SymmetricTensor.from_sector_block_func ---
+    // wrap func to consider func_kwargs and dtype
+    // ---
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
       _init_parse_args(codomain, domain, std::move(backend));
     dtype = _parse_default_dtype(dtype, symmetry);
@@ -665,6 +674,12 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
                             std::optional<Dtype> dtype_opt,
                             std::optional<std::string> device_opt)
 {
+    // --- hints from Python SymmetricTensor.to_backend ---
+    // Flatten the pipes, convert backends on flat leg basis, then recombine
+    // This means we dont have to deal with the permutation induced by pipes in the AB backend
+    // or with the special AbelianLegPipe type
+    // OPTIMIZE do it directly if no abelian backend is involved?
+    // ---
     if (!new_backend->supports_symmetry(symmetry)) {
         throw SymmetryError("backend does not support symmetry");
     }
@@ -722,6 +737,15 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
                                               dt,
                                               device_s);
         } else {
+            // --- hints from Python _convert_FT_to_abelian ---
+            // fusion rule violated
+            // no block for this coupled sector -> dont need to add a result block either
+            // convert to new block_backend
+            // sector combination violates fusion rules -> no contributions
+            // move down by one tree-block
+            // reset to the top
+            // move to the right by one tree-block, for the next time we visit this block
+            // ---
             throw std::runtime_error("Unexpected backend combination");
         }
     } else if (std::dynamic_pointer_cast<FusionTreeBackend>(new_backend)) {
@@ -732,6 +756,18 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
                                      dt,
                                      device_s);
         } else if (std::dynamic_pointer_cast<FusionTreeBackend>(backend)) {
+            // --- hints from Python _convert_abelian_to_FT ---
+            // Start with all allowed blocks initialized with zeros
+            // OPTIMIZE create the blocks on-demand instead?
+            // block is missing (zero) -> nothing to do
+            // this can happen if c does not appear in the codomain at all -> no block
+            // sector combination violates fusion rules -> no contributions
+            // OPTIMIZE use that the data.block_inds are lexsorted for this lookup (also above)
+            // cstyle combine in the codomain, Fstyle in the domain
+            // move down by one tree-block
+            // reset to the top
+            // move to the right by one tree-block, for the next time we visit this block
+            // ---
             new_data = backend->to_block_backend(data, new_backend->block_backend, dt, device_s);
         } else {
             throw std::runtime_error("Unexpected backend combination");
@@ -778,6 +814,9 @@ SymmetricTensor::to_dense_block(
 BlockBackend::BlockPtr
 SymmetricTensor::to_dense_block_trivial_sector() const
 {
+    // --- hints from Python SymmetricTensor.to_dense_block_trivial_sector ---
+    // TODO assuming this for now to construct the perm. should we keep that?
+    // ---
     assert(num_legs == 1);
     auto block = backend->to_dense_block_trivial_sector(as_py_object());
     assert(num_codomain_legs() == 1); // TODO assuming this for now to construct the perm. should we keep that?

@@ -282,12 +282,18 @@ ChargedTensor::from_dense_block_single_sector(py::object /*vector*/,
                                               std::optional<std::string> /*label*/,
                                               std::optional<std::string> /*device*/)
 {
+    // --- hints from Python ChargedTensor.from_dense_block_single_sector ---
+    // how to handle multi-dim sectors? which dummy leg state to give?
+    // ---
     throw NotImplemented("ChargedTensor::from_dense_block_single_sector");
 }
 
 py::object
 ChargedTensor::from_invariant_part(py::object invariant_part_obj, py::object charged_state)
 {
+    // --- hints from Python ChargedTensor.from_invariant_part ---
+    // OPTIMIZE ?
+    // ---
     auto inv = as_symmetric_tensor(invariant_part_obj);
     if (inv->num_legs == 1) {
         if (charged_state.is_none()) {
@@ -475,6 +481,9 @@ ChargedTensor::dagger() const
 BlockBackend::Scalar
 ChargedTensor::_get_item(std::vector<int64> const& idx)
 {
+    // --- hints from Python ChargedTensor._get_item ---
+    // should do sth smarter...
+    // ---
     if (!charged_state) {
         throw std::out_of_range("Can not index a ChargedTensor with unspecified charged_state.");
     }

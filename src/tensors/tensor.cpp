@@ -244,6 +244,11 @@ Tensor::Tensor(TensorProduct::Ptr codomain_,
 std::tuple<TensorProduct::Ptr, TensorProduct::Ptr, TensorBackend::Ptr, Symmetry::Ptr>
 Tensor::_init_parse_args(py::object codomain, py::object domain, TensorBackend::Ptr backend)
 {
+    // --- hints from Python Tensor._init_parse_args ---
+    // Extract the symmetry from codomain or domain. Note that either may be empty, but not both.
+    // Make sure backend is compatible with symmetry
+    // Bring (co-)domain to TensorProduct form
+    // ---
     // Extract the symmetry from codomain or domain. Note that either may be empty, but not both.
     Symmetry::Ptr symmetry;
     if (py::isinstance<TensorProduct>(codomain)) {
@@ -304,6 +309,13 @@ Tensor::_init_parse_labels(py::object labels,
                            TensorProduct::Ptr const& domain,
                            bool is_endomorphism)
 {
+    // --- hints from Python Tensor._init_parse_labels ---
+    // case 1: None
+    // case 2: two lists, one each for codomain and domain
+    // expect nested lists
+    // case 3a: (only if is_endomorphism) a flat list for the codomain
+    // case 3: a flat list for the legs
+    // ---
     int64 const num_legs = codomain->num_factors + domain->num_factors;
     if (is_endomorphism) {
         assert(codomain->num_factors == domain->num_factors);
@@ -385,6 +397,9 @@ Tensor::_init_parse_labels(py::object labels,
 void
 Tensor::test_sanity() const
 {
+    // --- hints from Python Tensor.test_sanity ---
+    // this checks all legs, and recursively through pipes
+    // ---
     domain->test_sanity();    // this checks all legs, and recursively through pipes
     codomain->test_sanity(); // this checks all legs, and recursively through pipes
     assert(std::find(forbidden_dtypes().begin(), forbidden_dtypes().end(), dtype) ==
@@ -413,6 +428,16 @@ Tensor::class_name() const
 std::string
 Tensor::ascii_diagram() const
 {
+    // --- hints from Python Tensor.ascii_diagram ---
+    // distance between legs in chars, i.e. number of '━' between the '┯'
+    // for numbers that can not fit in DISTANCE digits
+    // this should not happen
+    // such that f'{start}┗┯' has length DISTANCE
+    // make room for the text
+    // top border:
+    // bottom border:
+    // stitch together
+    // ---
     std::string text = ascii_diagram_type_name();
 
     int const DISTANCE = 5; // distance between legs in chars, i.e. number of '━' between the '┯'
@@ -705,6 +730,9 @@ Tensor::_parse_leg_idx(std::variant<int64, std::string> which_leg) const
 std::vector<std::string>
 Tensor::_repr_header_lines(std::string const& indent, bool use_symm_str) const
 {
+    // --- hints from Python Tensor._repr_header_lines ---
+    // TODO should we put some info still ...?
+    // ---
     std::string labels_str;
     if (std::ranges::all_of(_labels, [](LegLabel const& l) { return !l; })) {
         labels_str = "None";
@@ -770,6 +798,9 @@ Tensor::_repr_header_lines(std::string const& indent, bool use_symm_str) const
 py::object
 Tensor::get_leg(std::variant<int64, std::string> which_leg) const
 {
+    // --- hints from Python Tensor.get_leg ---
+    // which_leg is a list
+    // ---
     auto [in_domain, co_domain_idx, _] = _parse_leg_idx(which_leg);
     if (in_domain) {
         return domain->factors[static_cast<std::size_t>(co_domain_idx)].attr("dual");
@@ -791,6 +822,9 @@ Tensor::get_leg(std::vector<std::variant<int64, std::string>> const& which_legs)
 py::object
 Tensor::get_leg_co_domain(std::variant<int64, std::string> which_leg) const
 {
+    // --- hints from Python Tensor.get_leg_co_domain ---
+    // which_leg is a list
+    // ---
     auto [in_domain, co_domain_idx, _] = _parse_leg_idx(which_leg);
     if (in_domain) {
         return domain->factors[static_cast<std::size_t>(co_domain_idx)];
@@ -838,6 +872,9 @@ Tensor::to_numpy(std::optional<std::vector<std::variant<int64, std::string>>> le
 std::string
 Tensor::__repr__() const
 {
+    // --- hints from Python Tensor.__repr__ ---
+    // skipped showing data. see commit 4bdaa5c for an old implementation of showing data.
+    // ---
     std::string indent(static_cast<std::size_t>(get_config().print_indent), ' ');
     std::ostringstream lines;
     lines << '<' << class_name() << '\n';

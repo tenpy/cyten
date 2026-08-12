@@ -255,6 +255,9 @@ bend_legs(py::object tensor,
 void
 check_same_legs(py::object t1, py::object t2)
 {
+    // --- hints from Python check_same_legs ---
+    // either l1 is None or l1 not in l2.labels
+    // ---
     if (!t1.attr("symmetry")
            .attr("is_equivalent_to")(t2.attr("symmetry"))
            .cast<bool>()) {
@@ -305,6 +308,26 @@ permute_legs(py::object tensor,
              py::object levels,
              py::object bend_right)
 {
+    // --- hints from Python permute_legs ---
+    // Parse domain and codomain to list[int]. Get rid of duplicates.
+    // to preserve order of Tensor.legs, need to put domain legs in descending order of their leg_idx
+    // Special case: if no legs move
+    // parse levels to format list[int | None]
+    // parse bend_right to format list[bool | None]
+    // default -> all undefined
+    // single bool applies to all legs
+    // check if those that need to be specified are
+    // it doesnt matter which way. choose all right
+    // Deal with other tensor types
+    // OPTIMIZE : else we have a twist in addition to the transpose.
+    // we could exploit that structure for DiagonalTensor, to return another DiagonalTensor.
+    // We can not preserve the Mask structure, since the twist (in general) introduces phases.
+    // other cases involve two legs either in the domain or codomain.
+    // Cant be done with Mask / DiagonalTensor
+    // assign level `None` to the charge leg. it does not braid, so we dont need to define it.
+    // Build new codomain and domain
+    // (co)domain has the same factor as before, only permuted -> can re-use sectors!
+    // ---
     // Parse domain and codomain to list[int]. Get rid of duplicates.
     if (codomain.is_none() && domain.is_none()) {
         throw std::invalid_argument("Need to specify either domain or codomain.");
@@ -662,6 +685,26 @@ combine_legs(py::object tensor,
              py::object pipes,
              py::object levels)
 {
+    // --- hints from Python combine_legs ---
+    // 1) Deal with different tensor types. Reduce everything to SymmetricTensor.
+    // note: its important to parse negative integers before via tensor.get_leg_idcs, since
+    // the invariant part has an additional leg.
+    // charge leg is not combined with anything and thus does not braid.
+    // so its level is irrelevant. just make sure its not a duplicate
+    // 2) permute legs such that the groups are contiguous and fully in codomain or fully in domain
+    // build indices for permute_legs
+    // easier to build right-to-left.
+    // note: the group is given in right-to-left convention, but this is what we expect.
+    // n is one of the legs to be combined, but it is not the first of its group.
+    // leg positions have changed, so we need to update the following lists/dicts:
+    // 3) build new domain and codomain, labels
+    // have already used pipes[:i]
+    // Note: this is the result.domain[some_idx],  which has opposite duality from
+    // result.legs[-1-some_idx], so we need to invert pipe_dualities[i]
+    // n is part of a group, but not the *first* of its group
+    // OPTIMIZE if no bending happened, we can re-use the (co)domain.sector_decomposition.
+    // 4) Build the data / finish up
+    // ---
     // 1) Deal with different tensor types. Reduce everything to SymmetricTensor.
     if (is_DiagonalTensor(tensor) || is_Mask(tensor)) {
         char const* msg =
@@ -931,6 +974,13 @@ combine_to_matrix(py::object tensor, py::object codomain, py::object domain, py:
 py::object
 split_legs(py::object tensor, py::object legs)
 {
+    // --- hints from Python split_legs ---
+    // Deal with different tensor types. Reduce everything to SymmetricTensor.
+    // parse indices
+    // build new (co)domain
+    // we only split, i.e. remove parentheses in tensor products, so sectors dont change
+    // build labels
+    // ---
     // Deal with different tensor types. Reduce everything to SymmetricTensor.
     if (is_DiagonalTensor(tensor) || is_Mask(tensor)) {
         char const* msg =
@@ -1062,6 +1112,10 @@ split_legs(py::object tensor, py::object legs)
 py::object
 squeeze_legs(py::object tensor, py::object legs)
 {
+    // --- hints from Python squeeze_legs ---
+    // Remaining case: SymmetricTensor
+    // the fusion with the trivial legs was trivial, so removing it doesnt change the sectors
+    // ---
     std::vector<int64> legs_v;
     if (legs.is_none()) {
         int64 n = 0;

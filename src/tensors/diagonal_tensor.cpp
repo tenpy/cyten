@@ -96,6 +96,9 @@ DiagonalTensor::test_sanity() const
 void
 DiagonalTensor::verify_dtype() const
 {
+    // --- hints from Python DiagonalTensor.verify_dtype ---
+    // for diagonal tensors, we always allow real dtypes
+    // ---
     // for diagonal tensors, we always allow real dtypes
 }
 
@@ -139,6 +142,11 @@ DiagonalTensor::from_block_func(py::function func,
                                 std::optional<Dtype> dtype,
                                 std::optional<std::string> device)
 {
+    // --- hints from Python DiagonalTensor.from_block_func ---
+    // wrap func to consider func_kwargs, shape_kw, dtype
+    // use same backend function as from_sector_block_func, so we include the coupled arg
+    // but just ignore it.
+    // ---
     auto leg_sp = as_space_leg(leg);
     auto [co_domain, unused_domain, backend_tp, symmetry] =
       _init_parse_args(py::make_tuple(leg), py::make_tuple(leg), std::move(backend));
@@ -363,6 +371,9 @@ DiagonalTensor::from_sector_block_func(py::function func,
                                        std::optional<Dtype> dtype,
                                        std::optional<std::string> device)
 {
+    // --- hints from Python DiagonalTensor.from_sector_block_func ---
+    // wrap func to consider func_kwargs and dtype
+    // ---
     auto leg_sp = as_space_leg(leg);
     auto [co_domain, unused_domain, backend_tp, unused_symm] =
       _init_parse_args(py::make_tuple(leg), py::make_tuple(leg), std::move(backend));
@@ -576,6 +587,9 @@ DiagonalTensor::diagonal_as_numpy(py::object numpy_dtype)
 DiagonalTensor::Ptr
 DiagonalTensor::elementwise_almost_equal(py::object other, float64 rtol, float64 atol)
 {
+    // --- hints from Python DiagonalTensor.elementwise_almost_equal ---
+    // no (Scalar + Block) operation defined, so requires explicit casting
+    // ---
     other = other.attr("as_DiagonalTensor")();
     // no (Scalar + Block) operation defined, so requires explicit casting
     auto ones = from_eye(py::cast(leg()), backend, py::cast(labels()), dtype::to_real(dtype), device);
@@ -691,6 +705,17 @@ DiagonalTensor::to_backend(TensorBackend::Ptr new_backend,
                            std::optional<Dtype> dtype_opt,
                            std::optional<std::string> device_opt)
 {
+    // --- hints from Python DiagonalTensor.to_backend ---
+    // In most cases, we can just go via a single block for the diagonal
+    // exceptions:
+    // - for non-abelian symmetries this is inefficient (needs to expand sectors into multiplets)
+    // - for symmetries that can not be dropped, this is not possible
+    // Both of these exceptions can only ocurr if both backends are FusionTreeBackend, which is then also simple
+    // OPTIMIZE
+    // for abelian <-> fusion tree, this might be slightly inefficient.
+    // I think the blocks should be the same already, so we could get away without first
+    // concatenating all of them and them splitting them back up
+    // ---
     if (!new_backend->supports_symmetry(symmetry)) {
         throw SymmetryError("backend does not support symmetry");
     }
@@ -778,6 +803,14 @@ Identity::Identity(py::object leg_obj,
                    py::object labels_obj)
   : DiagonalTensor(
       [&]() -> TensorBackend::DataPtr {
+          // --- hints from Python Identity.__init__ ---
+          // Note: SymmetricTensor.__init__ assumes that there is data, which we do not have here,
+          // so we need to skip it and go straigth to Tensor.__init__
+          // we give it dummy data here (that is not used in contractions etc.)
+          // this is important since there is a potential change in the device matching
+          // the same effect for the other tensor classes (happens e.g. for torch)
+          // using backend.block_backend.as_device() is not sufficient? Why?
+          // ---
           // Note: SymmetricTensor.__init__ assumes that there is data, which we do not have here,
           //       so we need to skip it and go straigth to Tensor.__init__
           auto [codomain, domain, backend, _] =

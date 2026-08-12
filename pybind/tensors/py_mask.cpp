@@ -158,7 +158,10 @@ Such that the result is ordered.
     cls.def_property_readonly("large_leg", &Mask::large_leg);
     cls.def_property_readonly("small_leg", &Mask::small_leg);
 
-    cls.def("test_sanity", &Mask::test_sanity, "Perform sanity checks.");
+    cls.def("test_sanity", &Mask::test_sanity,
+    R"pydoc(
+    Perform sanity checks.
+    )pydoc");
 
     cls.def_static(
       "from_eye",
@@ -319,16 +322,28 @@ from_eye
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),
-                   "Import Mask from hdf5");
+                   R"pydoc(
+                   Import Mask from hdf5
+                   )pydoc");
 
     cls.def("save_hdf5",
             &Mask::save_hdf5,
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),
-            "Export Mask to hdf5 such that it can be re-imported with from_hdf5");
+            R"pydoc(
+            Export Mask to hdf5 such that it can be re-imported with from_hdf5
+            )pydoc");
 
-    cls.def("as_dtype", &Mask::as_dtype, py::arg("dtype"));
+    cls.def("as_dtype", &Mask::as_dtype, py::arg("dtype"),
+    R"pydoc(
+    Convert to a tensor of the given dtype on the same device.
+    
+    Parameters
+    ----------
+    dtype: Dtype
+        The dtype of the result.
+    )pydoc");
 
     cls.def(
       "as_SymmetricTensor",
@@ -340,7 +355,19 @@ from_eye
       },
       py::arg("guarantee_copy") = false,
       py::arg("warning") = py::none(),
-      py::arg("dtype") = Dtype::Complex128);
+      py::arg("dtype") = Dtype::Complex128,
+      R"pydoc(
+      Convert to a :class:`SymmetricTensor`, if possible.
+      
+      Parameters
+      ----------
+      guarantee_copy : bool
+          If already a SymmetricTensor, we do *not* make a copy by default.
+          Set this flag to ``True`` to guarantee a copy.
+      warning : str, optional
+          If given, and if the conversion is non-trivial (i.e. if it was not already a
+          SymmetricTensor to begin with), a warning with this text is issued.
+      )pydoc");
 
     cls.def("as_DiagonalTensor",
             &Mask::as_DiagonalTensor,
@@ -349,33 +376,111 @@ from_eye
     cls.def("as_block_mask", &Mask::as_block_mask);
     cls.def("as_numpy_mask", &Mask::as_numpy_mask);
 
-    cls.def("all", &Mask::all, "If the mask keeps all basis elements");
-    cls.def("any", &Mask::any, "If the mask keeps any basis elements");
+    cls.def("all", &Mask::all,
+    R"pydoc(
+    If the mask keeps all basis elements
+    )pydoc");
+    cls.def("any", &Mask::any,
+    R"pydoc(
+    If the mask keeps any basis elements
+    )pydoc");
 
     cls.def("copy",
             &Mask::copy,
             py::arg("deep") = true,
             py::arg("device") = py::none(),
-            py::arg("dtype") = py::none());
+            py::arg("dtype") = py::none(),
+            R"pydoc(
+            Copy the tensor.
+            
+            Parameters
+            ----------
+            deep: bool
+                If the copy should be deep. A shallow copy is a new instance with the same data.
+            device: str, optional
+                The device for the result. Per default, use the same device as `self`.
+            dtype: Dtype, optional
+                The dtype of the result. Per default, use the same dtype as `self`.
+            )pydoc");
 
     // Override Tensor.dagger / hc properties (which delegate to the Python free function).
-    cls.def_property_readonly("dagger", &Mask::dagger);
-    cls.def_property_readonly("hc", &Mask::dagger);
+    cls.def_property_readonly("dagger", &Mask::dagger,
+    R"pydoc(
+    The hermitian conjugate tensor, a.k.a the dagger of a tensor.
+    
+    For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
+    the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
+    For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
+    Graphically::
+    
+        |          e   d             a   b   c
+        |          │   │             │   │   │
+        |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
+        |       ┃    A    ┃         ┃dagger(A)┃
+        |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
+        |        │   │   │             │   │
+        |        a   b   c             e   d
+    
+    Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
+    
+    Returns
+    -------
+    The hermitian conjugate tensor. Its legs and labels are::
+    
+        dagger(A).codomain == A.domain
+        dagger(A).domain == A.codomain
+        dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
+        dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
+    
+    Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
+    on their bipartition into domain and codomain.
+    For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
+    then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*']``.
+    )pydoc");
+    cls.def_property_readonly("hc", &Mask::dagger,
+    R"pydoc(
+    The :func:`dagger`
+    )pydoc");
 
-    cls.def("_get_item", &Mask::_get_item, py::arg("idx"));
+    cls.def("_get_item", &Mask::_get_item, py::arg("idx"),
+    R"pydoc(
+    Implementation of :meth:`__getitem__`.
+    
+    Can assume we have one non-negative integer index per leg.
+    )pydoc");
 
-    cls.def("logical_not", &Mask::logical_not, "Alias for :meth:`orthogonal_complement`");
+    cls.def("logical_not", &Mask::logical_not,
+    R"pydoc(
+    Alias for :meth:`orthogonal_complement`
+    )pydoc");
     cls.def("orthogonal_complement",
             &Mask::orthogonal_complement,
-            "The \"opposite\" Mask, that keeps exactly what self discards and vv.");
+            R"pydoc(
+            The "opposite" Mask, that keeps exactly what self discards and vv.
+            )pydoc");
 
-    cls.def("move_to_device", &Mask::move_to_device, py::arg("device"));
+    cls.def("move_to_device", &Mask::move_to_device, py::arg("device"),
+    R"pydoc(
+    Move tensor to a given device, *in place*.
+    )pydoc");
 
     cls.def("to_backend",
             &Mask::to_backend,
             py::arg("backend"),
             py::arg("dtype") = py::none(),
-            py::arg("device") = py::none());
+            py::arg("device") = py::none(),
+            R"pydoc(
+            Convert to a tensor with a different backend.
+            
+            Parameters
+            ----------
+            backend: TensorBackend
+                The backend of the result.
+            dtype: Dtype, optional
+                The dtype of the result. Per default, use the same dtype as `self`.
+            device: str, optional
+                The device for the result. Per default, use the same device as `self`.
+            )pydoc");
 
     cls.def(
       "to_dense_block",
@@ -384,7 +489,32 @@ from_eye
       },
       py::arg("leg_order") = py::none(),
       py::arg("dtype") = py::none(),
-      py::arg("understood_braiding") = false);
+      py::arg("understood_braiding") = false,
+      R"pydoc(
+      Convert to a dense block of the backend, if possible.
+      
+      This corresponds to "forgetting" the symmetry structure and is only possible if the
+      symmetry :attr:`Symmetry.can_be_dropped`.
+      The result is a backend-specific block, e.g. a numpy array if the block backend is a
+      :class:`NumpyBlockBackend` or a torch Tensor if the backend is a :class:`TorchBlockBackend`.
+      
+      Parameters
+      ----------
+      leg_order: list of (int | str), optional
+          If given, the leg of the resulting block are permuted to match this leg order.
+      dtype: Dtype, optional
+          If given, the result is converted to this dtype. Per default it has the :attr:`dtype`
+          of the tensor.
+      understood_braiding : bool
+          For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the resulting
+          dense block does no longer capture the braiding statistics correctly. This means that
+          :func:`permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on
+          the dense block representation. Permuting its legs would require e.g. explicit swap
+          gates. When using the result, special care needs to be taken regarding the leg order.
+          To avoid this pitfall, we raise an error by default. Set this flag to ``True`` to
+          disable the error. It is then your responsibility to take care of leg orders and braids.
+          See :mod:`cyten.testing.swap_gate_numpy` for manipulations on these dense blocks.
+      )pydoc");
 
     cls.def(
       "to_numpy",
@@ -393,14 +523,32 @@ from_eye
       },
       py::arg("leg_order") = py::none(),
       py::arg("numpy_dtype") = py::none(),
-      py::arg("understood_braiding") = false);
+      py::arg("understood_braiding") = false,
+      R"pydoc(
+      Convert to a numpy array
+      )pydoc");
 
     cls.def("_binary_operand",
             &Mask::_binary_operand,
             py::arg("other"),
             py::arg("func"),
             py::arg("operand"),
-            py::arg("return_NotImplemented") = true);
+            py::arg("return_NotImplemented") = true,
+            R"pydoc(
+            Utility function for a shared implementation of binary functions.
+            
+            Parameters
+            ----------
+            other
+                Either a bool or a Mask. If a Mask, must have same :attr:`is_projection`.
+            func
+                The function with signature
+                ``func(self_block: Block, other_or_other_block: bool | Block) -> Block``
+            operand
+                A string representation of the operand, used in error messages
+            return_NotImplemented
+                Whether `NotImplemented` should be returned on a non-scalar and non-`Tensor` other.
+            )pydoc");
 
     cls.def("_unary_operand", &Mask::_unary_operand, py::arg("func"));
 

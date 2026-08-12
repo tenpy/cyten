@@ -200,6 +200,10 @@ stable_log(py::object x, float64 cutoff)
 py::object
 exp(py::object obj)
 {
+    // --- hints from Python exp ---
+    // OPTIMIZE have the same pipe in domain and codomain. could avoid recomputing?
+    // should have considered all tensor types above
+    // ---
     if (is_diagonal_tensor(obj)) {
         return obj.attr("_elementwise_unary")(obj.attr("backend").attr("block_backend").attr("exp"));
     }

@@ -270,6 +270,11 @@ Mask::small_leg() const
 void
 Mask::test_sanity() const
 {
+    // --- hints from Python Mask.test_sanity ---
+    // check consistency of the basis perm of the small leg.
+    // this is consistent.
+    // check if ranks is sorted
+    // ---
     Tensor::test_sanity();
     backend->test_mask_sanity(as_py_object());
     assert(codomain->num_factors == 1 && domain->num_factors == 1);
@@ -403,6 +408,13 @@ Mask::from_random(py::object large_leg_obj,
                   std::optional<std::string> device,
                   py::object np_random)
 {
+    // --- hints from Python Mask.from_random ---
+    // diagonal entries are uniform in [-1, 1].
+    // explicitly constructing the small_leg with exactly min_keep sectors kept is
+    // quite annoying bc of basis_perm. Instead we increase p_keep until we get there.
+    // first, try a heuristic
+    // step halfway towards 100%
+    // ---
     auto large_leg = as_elementary_space(large_leg_obj);
     backend = resolve_backend(std::move(backend), large_leg);
 
@@ -515,6 +527,9 @@ Mask::as_DiagonalTensor(Dtype out_dtype)
 py::object
 Mask::as_SymmetricTensor(bool guarantee_copy, std::optional<std::string> warning)
 {
+    // --- hints from Python Mask.as_SymmetricTensor ---
+    // OPTIMIZE how hard is it to deal with inclusions in the backend?
+    // ---
     return as_SymmetricTensor(guarantee_copy, std::move(warning), Dtype::Complex128);
 }
 
@@ -541,6 +556,11 @@ Mask::_binary_operand(py::object other,
                       std::string const& operand,
                       bool return_NotImplemented)
 {
+    // --- hints from Python Mask._binary_operand ---
+    // deal with non-Mask types
+    // remaining case: other is Mask
+    // OPTIMIZE how hard is it to deal with inclusions in the backend?
+    // ---
     // deal with non-Mask types
     if (py::isinstance<py::bool_>(other)) {
         bool other_b = other.cast<bool>();
@@ -589,6 +609,10 @@ Mask::_binary_operand(py::object other,
 Mask::Ptr
 Mask::_unary_operand(py::function func)
 {
+    // --- hints from Python Mask._unary_operand ---
+    // operate on the respective projection
+    // OPTIMIZE: how hard is it to deal with inclusion Masks in the backends?
+    // ---
     // operate on the respective projection
     if (!is_projection) {
         // OPTIMIZE: how hard is it to deal with inclusion Masks in the backends?
@@ -675,6 +699,9 @@ Mask::orthogonal_complement()
 bool
 Mask::all() const
 {
+    // --- hints from Python Mask.all ---
+    // assuming subspace, it is enough to check that the total sector number is the same.
+    // ---
     // assuming subspace, it is enough to check that the total sector number is the same.
     return sum_multiplicities(*small_leg()) == sum_multiplicities(*large_leg());
 }
@@ -705,6 +732,12 @@ Mask::to_backend(TensorBackend::Ptr new_backend,
                  std::optional<Dtype> dtype_opt,
                  std::optional<std::string> device_opt)
 {
+    // --- hints from Python Mask.to_backend ---
+    // similar to DiagonalTensor, we can just go via dense mask, with some exceptions.
+    // these exceptions only occurr for FusionTreeBackend -> FusionTreeBackend, and that allows
+    // a simple implementation directly
+    // mask_from_block assumes projection mask -> swap block_inds for inclusion
+    // ---
     if (!new_backend->supports_symmetry(symmetry)) {
         throw SymmetryError("backend does not support symmetry");
     }
@@ -754,6 +787,9 @@ Mask::to_dense_block(std::optional<std::vector<std::variant<int64, std::string>>
                      std::optional<Dtype> dtype_opt,
                      bool understood_braiding)
 {
+    // --- hints from Python Mask.to_dense_block ---
+    // for Mask, defining via numpy is actually easier, to use numpy indexing
+    // ---
     if (!symmetry->can_be_dropped()) {
         throw SymmetryError(
           std::format("Dense block representation is not supported for symmetry {}", symmetry->repr()));
@@ -779,6 +815,9 @@ Mask::to_numpy(std::optional<std::vector<std::variant<int64, std::string>>> leg_
                py::object numpy_dtype,
                bool understood_braiding)
 {
+    // --- hints from Python Mask.to_numpy ---
+    // sets the appropriate dtype. e.g. sets ``True`` for bool.
+    // ---
     if (!symmetry->can_be_dropped()) {
         throw SymmetryError(
           std::format("Dense block representation is not supported for symmetry {}", symmetry->repr()));

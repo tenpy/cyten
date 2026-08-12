@@ -106,9 +106,15 @@ E.g. :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
           }
       });
 
-    cls.def_property_readonly("leg", &DiagonalTensor::leg, "Return the single space that makes up to domain and codomain.");
+    cls.def_property_readonly("leg", &DiagonalTensor::leg,
+    R"pydoc(
+    Return the single space that makes up to domain and codomain.
+    )pydoc");
 
-    cls.def("test_sanity", &DiagonalTensor::test_sanity, "Perform sanity checks.");
+    cls.def("test_sanity", &DiagonalTensor::test_sanity,
+    R"pydoc(
+    Perform sanity checks.
+    )pydoc");
     cls.def("verify_dtype", &DiagonalTensor::verify_dtype);
 
     cls.def_static("from_block_func",
@@ -120,7 +126,46 @@ E.g. :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
                    py::arg("func_kwargs") = py::none(),
                    py::arg("shape_kw") = py::none(),
                    py::arg("dtype") = py::none(),
-                   py::arg("device") = py::none());
+                   py::arg("device") = py::none(),
+                   R"pydoc(
+                   Initialize a :class:`SymmetricTensor` by generating its blocks from a function.
+                   
+                   Here "the blocks of a tensor" are the backend-specific blocks that contain the free
+                   parameters of the tensor in the :attr:`data`. The concrete meaning of these blocks depends
+                   on the backend.
+                   
+                   Parameters
+                   ----------
+                   func: callable
+                       A function with two possible signatures. If `shape_kw` is given, we expect::
+                   
+                           ``func(*, shape_kw: tuple[int, ...], **kwargs) -> BlockLike``
+                   
+                       Otherwise::
+                   
+                           ``func(shape: tuple[int, ...], **kwargs) -> BlockLike``
+                   
+                       Where ``shape`` is the shape of the block to be generate and `func_kwargs` are passed
+                       as ``kwargs``. The output is converted to backend-specific blocks
+                       via ``backend.as_block``. In particular, it may be modified in-place after that.
+                   codomain, domain, backend, labels
+                       Arguments for constructor of :class:`SymmetricTensor`.
+                   func_kwargs: dict, optional
+                       Additional keyword arguments to be passed to ``func``.
+                   shape_kw: str
+                       If given, the shape is passed to `func` as a kwarg with this keyword.
+                   dtype: Dtype, None
+                       If given, the resulting blocks from `func` are converted to this dtype.
+                   device: str, optional
+                       If given, the resulting blocks are moved to that device.
+                       Per default, if `func` returns backend-specific blocks, their device is used and
+                       otherwise the default device of the backend.
+                   
+                   See Also
+                   --------
+                   from_sector_block_func
+                       Allows the `func` to take the current coupled sectors as an argument.
+                   )pydoc");
 
     cls.def_static("from_dense_block",
                    &DiagonalTensor::from_dense_block,
@@ -131,7 +176,38 @@ E.g. :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
                    py::arg("dtype") = py::none(),
                    py::arg("tol") = 1e-6,
                    py::arg("device") = py::none(),
-                   py::arg("understood_braiding") = false);
+                   py::arg("understood_braiding") = false,
+                   R"pydoc(
+                   Convert a dense block of the backend to a Tensor.
+                   
+                   Parameters
+                   ----------
+                   block : Block-like
+                       The data to be converted to a Tensor as a backend-specific block or some data that
+                       can be converted using :meth:`BlockBackend.as_block`.
+                       This includes e.g. nested python iterables or numpy arrays.
+                       The order of axes should match the :attr:`Tensor.legs`, i.e. first the codomain legs,
+                       then the domain leg *in reverse order*.
+                       The block should be given in the "public" basis order of the `legs`, e.g.
+                       according to :attr:`ElementarySpace.sectors_of_basis`.
+                   codomain, domain, backend, labels
+                       Arguments, like for constructor of :class:`SymmetricTensor`.
+                   dtype: Dtype, optional
+                       If given, the block is converted to that dtype and the resulting tensor will have that
+                       dtype. By default, we detect the dtype from the block.
+                   device: str, optional
+                       If given, the block is moved to that device. Per default, try to use the device of
+                       the `block`, if it is a backend-specific block, or fall back to the backends default
+                       device.
+                   understood_braiding : bool
+                       For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the input
+                       dense block does not capture the braiding statistics correctly. This means e.g. that
+                       :func:`permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on
+                       the dense block representation. This means that the input dense block needs to be
+                       constructed in the correct leg order. To avoid this pitfall, we raise an error by
+                       default. Set this flag to ``True`` to disable the error. It is then your responsibility
+                       to take care of leg orders and braids.
+                   )pydoc");
 
     cls.def_static(
       "from_diag_block",
@@ -250,7 +326,49 @@ dtype: Dtype
                    py::arg("labels") = py::none(),
                    py::arg("func_kwargs") = py::none(),
                    py::arg("dtype") = py::none(),
-                   py::arg("device") = py::none());
+                   py::arg("device") = py::none(),
+                   R"pydoc(
+                   Initialize a :class:`SymmetricTensor` by generating its blocks from a function.
+                   
+                   Here "the blocks of a tensor" are the backend-specific blocks that contain the free
+                   parameters of the tensor in the :attr:`data`. The concrete meaning of these blocks depends
+                   on the backend.
+                   
+                   Unlike :meth:`from_block_func`, this classmethod supports a `func` that takes the current
+                   coupled sector as an argument. The tensor, as a map from its domain to its codomain is
+                   block-diagonal in the coupled sectors, i.e. in the ``domain.sector_decomposition``.
+                   Thus, the free parameters of a tensor are associated with one block of this structure,
+                   and thus with a given coupled sector. A value of ``coupled`` indicates that the generated
+                   block is (part of) the components that maps from ``coupled`` in the domain to ``coupled``
+                   in the codomain.
+                   
+                   Parameters
+                   ----------
+                   func: callable
+                       A function with the following signature::
+                   
+                           ``func(shape: tuple[int, ...], coupled: Sector, **kwargs) -> BlockLike``
+                   
+                       Where ``shape`` is the shape of the block to be generated, ``coupled`` is the current
+                       coupled sector and `func_kwargs` are passed as ``kwargs``.
+                       The output is converted to backend-specific blocks via ``backend.block_backend.as_block``.
+                   codomain, domain, backend, labels
+                       Arguments, like for constructor of :class:`SymmetricTensor`.
+                   func_kwargs: dict, optional
+                       Additional keyword arguments to be passed to ``func``.
+                   shape_kw: str
+                       If given, the shape is passed to `func` as a kwarg with this keyword.
+                   dtype: Dtype, None
+                       If given, the resulting blocks from `func` are converted to this dtype.
+                   device: str, optional
+                       If given, the resulting blocks are moved to that device.
+                       Per default, if `func` returns backend-specific blocks, their device is used and
+                       otherwise the default device of the backend.
+                   
+                   See Also
+                   --------
+                   from_block_func
+                   )pydoc");
 
     cls.def_static(
       "from_tensor",
@@ -297,13 +415,35 @@ device: str
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),
-                   "Import DiagonalTensor from hdf5");
+                   R"pydoc(
+                   Import DiagonalTensor from hdf5
+                   )pydoc");
 
-    cls.def("as_dtype", &DiagonalTensor::as_dtype, py::arg("dtype"));
+    cls.def("as_dtype", &DiagonalTensor::as_dtype, py::arg("dtype"),
+    R"pydoc(
+    Convert to a tensor of the given dtype on the same device.
+    
+    Parameters
+    ----------
+    dtype: Dtype
+        The dtype of the result.
+    )pydoc");
     cls.def("as_SymmetricTensor",
             &DiagonalTensor::as_SymmetricTensor,
             py::arg("guarantee_copy") = false,
-            py::arg("warning") = py::none());
+            py::arg("warning") = py::none(),
+            R"pydoc(
+            Convert to a :class:`SymmetricTensor`, if possible.
+            
+            Parameters
+            ----------
+            guarantee_copy : bool
+                If already a SymmetricTensor, we do *not* make a copy by default.
+                Set this flag to ``True`` to guarantee a copy.
+            warning : str, optional
+                If given, and if the conversion is non-trivial (i.e. if it was not already a
+                SymmetricTensor to begin with), a warning with this text is issued.
+            )pydoc");
     cls.def("as_DiagonalTensor",
             &DiagonalTensor::as_DiagonalTensor,
             py::arg("guarantee_copy") = false,
@@ -312,8 +452,28 @@ device: str
             &DiagonalTensor::copy,
             py::arg("deep") = true,
             py::arg("device") = py::none(),
-            py::arg("dtype") = py::none());
-    cls.def("diagonal", &DiagonalTensor::diagonal, py::arg("check_offdiagonal") = false);
+            py::arg("dtype") = py::none(),
+            R"pydoc(
+            Copy the tensor.
+            
+            Parameters
+            ----------
+            deep: bool
+                If the copy should be deep. A shallow copy is a new instance with the same data.
+            device: str, optional
+                The device for the result. Per default, use the same device as `self`.
+            dtype: Dtype, optional
+                The dtype of the result. Per default, use the same dtype as `self`.
+            )pydoc");
+    cls.def("diagonal", &DiagonalTensor::diagonal, py::arg("check_offdiagonal") = false,
+    R"pydoc(
+    The diagonal part as a :class:`DiagonalTensor`.
+    
+    Parameters
+    ----------
+    check_offdiagonal: bool
+        If we should check that the off-diagonal parts vanish.
+    )pydoc");
     cls.def("diagonal_as_block", &DiagonalTensor::diagonal_as_block, py::arg("dtype") = py::none());
     cls.def("diagonal_as_numpy", &DiagonalTensor::diagonal_as_numpy, py::arg("numpy_dtype") = py::none());
     cls.def("elementwise_almost_equal",
@@ -325,31 +485,87 @@ device: str
             &DiagonalTensor::_elementwise_unary,
             py::arg("func"),
             py::arg("func_kwargs") = py::none(),
-            py::arg("maps_zero_to_zero") = false);
+            py::arg("maps_zero_to_zero") = false,
+            R"pydoc(
+            An elementwise function acting on a diagonal tensor.
+            
+            Applies ``func(self_block: Block, **func_kwargs) -> Block`` elementwise.
+            Set ``maps_zero_to_zero=True`` to promise that ``func(0) == 0``.
+            )pydoc");
     cls.def("_elementwise_binary",
             &DiagonalTensor::_elementwise_binary,
             py::arg("other"),
             py::arg("func"),
             py::arg("func_kwargs") = py::none(),
-            py::arg("partial_zero_is_zero") = false);
+            py::arg("partial_zero_is_zero") = false,
+            R"pydoc(
+            An elementwise function acting on two diagonal tensors.
+            
+            Applies ``func(self_block: Block, other_block: Block, **func_kwargs) -> Block`` elementwise.
+            Set ``partial_zero_is_zero=True`` to promise that ``func(0, any) == 0 == func(any, 0)``.
+            )pydoc");
     cls.def("_binary_operand",
             &DiagonalTensor::_binary_operand,
             py::arg("other"),
             py::arg("func"),
             py::arg("operand"),
             py::arg("return_NotImplemented") = false,
-            py::arg("right") = false);
-    cls.def("_get_item", &DiagonalTensor::_get_item, py::arg("idx"));
-    cls.def("all", &DiagonalTensor::all, "For a bool dtype, if all values are True. Raises for other dtypes.");
-    cls.def("any", &DiagonalTensor::any, "For a bool dtype, if any value is True. Raises for other dtypes.");
+            py::arg("right") = false,
+            R"pydoc(
+            Common implementation for the binary dunder methods ``__mul__`` etc.
+            
+            Parameters
+            ----------
+            other
+                Either a number or a DiagonalTensor.
+            func
+                The function with signature
+                ``func(self_block: Block, other_block: Block) -> Block``
+                Scalars get passed the (0D) block representation of the scalar.
+            operand
+                A string representation of the operand, used in error messages
+            return_NotImplemented
+                Whether `NotImplemented` should be returned on a non-scalar and non-`Tensor` other.
+            right
+                If this is the "right" version, i.e. ``func(other, self)``.
+            )pydoc");
+    cls.def("_get_item", &DiagonalTensor::_get_item, py::arg("idx"),
+    R"pydoc(
+    Implementation of :meth:`__getitem__`.
+    
+    Can assume we have one non-negative integer index per leg.
+    )pydoc");
+    cls.def("all", &DiagonalTensor::all,
+    R"pydoc(
+    For a bool dtype, if all values are True. Raises for other dtypes.
+    )pydoc");
+    cls.def("any", &DiagonalTensor::any,
+    R"pydoc(
+    For a bool dtype, if any value is True. Raises for other dtypes.
+    )pydoc");
     cls.def("max", &DiagonalTensor::max);
     cls.def("min", &DiagonalTensor::min);
-    cls.def("move_to_device", &DiagonalTensor::move_to_device, py::arg("device"));
+    cls.def("move_to_device", &DiagonalTensor::move_to_device, py::arg("device"),
+    R"pydoc(
+    Move tensor to a given device, *in place*.
+    )pydoc");
     cls.def("to_backend",
             &DiagonalTensor::to_backend,
             py::arg("backend"),
             py::arg("dtype") = py::none(),
-            py::arg("device") = py::none());
+            py::arg("device") = py::none(),
+            R"pydoc(
+            Convert to a tensor with a different backend.
+            
+            Parameters
+            ----------
+            backend: TensorBackend
+                The backend of the result.
+            dtype: Dtype, optional
+                The dtype of the result. Per default, use the same dtype as `self`.
+            device: str, optional
+                The device for the result. Per default, use the same device as `self`.
+            )pydoc");
     cls.def(
       "to_dense_block",
       [](DiagonalTensor& self, py::object leg_order, std::optional<Dtype> dtype, bool understood_braiding) {
@@ -357,13 +573,40 @@ device: str
       },
       py::arg("leg_order") = py::none(),
       py::arg("dtype") = py::none(),
-      py::arg("understood_braiding") = false);
+      py::arg("understood_braiding") = false,
+      R"pydoc(
+      Convert to a dense block of the backend, if possible.
+      
+      This corresponds to "forgetting" the symmetry structure and is only possible if the
+      symmetry :attr:`Symmetry.can_be_dropped`.
+      The result is a backend-specific block, e.g. a numpy array if the block backend is a
+      :class:`NumpyBlockBackend` or a torch Tensor if the backend is a :class:`TorchBlockBackend`.
+      
+      Parameters
+      ----------
+      leg_order: list of (int | str), optional
+          If given, the leg of the resulting block are permuted to match this leg order.
+      dtype: Dtype, optional
+          If given, the result is converted to this dtype. Per default it has the :attr:`dtype`
+          of the tensor.
+      understood_braiding : bool
+          For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the resulting
+          dense block does no longer capture the braiding statistics correctly. This means that
+          :func:`permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on
+          the dense block representation. Permuting its legs would require e.g. explicit swap
+          gates. When using the result, special care needs to be taken regarding the leg order.
+          To avoid this pitfall, we raise an error by default. Set this flag to ``True`` to
+          disable the error. It is then your responsibility to take care of leg orders and braids.
+          See :mod:`cyten.testing.swap_gate_numpy` for manipulations on these dense blocks.
+      )pydoc");
     cls.def("save_hdf5",
             &DiagonalTensor::save_hdf5,
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),
-            "Export DiagonalTensor to hdf5 such that it can be re-imported with from_hdf5");
+            R"pydoc(
+            Export DiagonalTensor to hdf5 such that it can be re-imported with from_hdf5
+            )pydoc");
 
     // Elementwise dunders
     cls.def("__abs__", &DiagonalTensor::abs);
@@ -428,7 +671,10 @@ Special case of a :class:`DiagonalTensor` that is exactly the identity map on it
                py::arg("device") = py::none(),
                py::arg("labels") = py::none());
 
-    id_cls.def("test_sanity", &Identity::test_sanity, "Perform sanity checks.");
+    id_cls.def("test_sanity", &Identity::test_sanity,
+    R"pydoc(
+    Perform sanity checks.
+    )pydoc");
 
     auto bind_unsupported = [&](char const* name) {
         id_cls.def_static(
@@ -453,13 +699,43 @@ Special case of a :class:`DiagonalTensor` that is exactly the identity map on it
                       py::arg("backend") = nullptr,
                       py::arg("labels") = py::none(),
                       py::arg("dtype") = Dtype::Float64,
-                      py::arg("device") = py::none());
+                      py::arg("device") = py::none(),
+                      R"pydoc(
+                      The identity map as a DiagonalTensor.
+                      
+                      Parameters
+                      ----------
+                      leg, backend, labels
+                          Arguments for constructor of :class:`DiagonalTensor`.
+                      dtype: Dtype
+                          The dtype for the entries.
+                      )pydoc");
 
-    id_cls.def("as_dtype", &Identity::as_dtype, py::arg("dtype"));
+    id_cls.def("as_dtype", &Identity::as_dtype, py::arg("dtype"),
+    R"pydoc(
+    Convert to a tensor of the given dtype on the same device.
+    
+    Parameters
+    ----------
+    dtype: Dtype
+        The dtype of the result.
+    )pydoc");
     id_cls.def("as_SymmetricTensor",
                &Identity::as_SymmetricTensor,
                py::arg("guarantee_copy") = false,
-               py::arg("warning") = py::none());
+               py::arg("warning") = py::none(),
+               R"pydoc(
+               Convert to a :class:`SymmetricTensor`, if possible.
+               
+               Parameters
+               ----------
+               guarantee_copy : bool
+                   If already a SymmetricTensor, we do *not* make a copy by default.
+                   Set this flag to ``True`` to guarantee a copy.
+               warning : str, optional
+                   If given, and if the conversion is non-trivial (i.e. if it was not already a
+                   SymmetricTensor to begin with), a warning with this text is issued.
+               )pydoc");
     id_cls.def("as_DiagonalTensor",
                &Identity::as_DiagonalTensor,
                py::arg("guarantee_copy") = false,
@@ -468,8 +744,28 @@ Special case of a :class:`DiagonalTensor` that is exactly the identity map on it
                &Identity::copy,
                py::arg("deep") = true,
                py::arg("device") = py::none(),
-               py::arg("dtype") = py::none());
-    id_cls.def("diagonal", &Identity::diagonal, py::arg("check_offdiagonal") = false);
+               py::arg("dtype") = py::none(),
+               R"pydoc(
+               Copy the tensor.
+               
+               Parameters
+               ----------
+               deep: bool
+                   If the copy should be deep. A shallow copy is a new instance with the same data.
+               device: str, optional
+                   The device for the result. Per default, use the same device as `self`.
+               dtype: Dtype, optional
+                   The dtype of the result. Per default, use the same dtype as `self`.
+               )pydoc");
+    id_cls.def("diagonal", &Identity::diagonal, py::arg("check_offdiagonal") = false,
+    R"pydoc(
+    The diagonal part as a :class:`DiagonalTensor`.
+    
+    Parameters
+    ----------
+    check_offdiagonal: bool
+        If we should check that the off-diagonal parts vanish.
+    )pydoc");
     id_cls.def("diagonal_as_block", &Identity::diagonal_as_block, py::arg("dtype") = py::none());
     id_cls.def("diagonal_as_numpy", &Identity::diagonal_as_numpy, py::arg("numpy_dtype") = py::none());
     id_cls.def("elementwise_almost_equal",
@@ -481,31 +777,87 @@ Special case of a :class:`DiagonalTensor` that is exactly the identity map on it
                &Identity::_elementwise_unary,
                py::arg("func"),
                py::arg("func_kwargs") = py::none(),
-               py::arg("maps_zero_to_zero") = false);
+               py::arg("maps_zero_to_zero") = false,
+               R"pydoc(
+               An elementwise function acting on a diagonal tensor.
+               
+               Applies ``func(self_block: Block, **func_kwargs) -> Block`` elementwise.
+               Set ``maps_zero_to_zero=True`` to promise that ``func(0) == 0``.
+               )pydoc");
     id_cls.def("_elementwise_binary",
                &Identity::_elementwise_binary,
                py::arg("other"),
                py::arg("func"),
                py::arg("func_kwargs") = py::none(),
-               py::arg("partial_zero_is_zero") = false);
+               py::arg("partial_zero_is_zero") = false,
+               R"pydoc(
+               An elementwise function acting on two diagonal tensors.
+               
+               Applies ``func(self_block: Block, other_block: Block, **func_kwargs) -> Block`` elementwise.
+               Set ``partial_zero_is_zero=True`` to promise that ``func(0, any) == 0 == func(any, 0)``.
+               )pydoc");
     id_cls.def("_binary_operand",
                &Identity::_binary_operand,
                py::arg("other"),
                py::arg("func"),
                py::arg("operand"),
                py::arg("return_NotImplemented") = false,
-               py::arg("right") = false);
-    id_cls.def("_get_item", &Identity::_get_item, py::arg("idx"));
-    id_cls.def("all", &Identity::all);
-    id_cls.def("any", &Identity::any);
+               py::arg("right") = false,
+               R"pydoc(
+               Common implementation for the binary dunder methods ``__mul__`` etc.
+               
+               Parameters
+               ----------
+               other
+                   Either a number or a DiagonalTensor.
+               func
+                   The function with signature
+                   ``func(self_block: Block, other_block: Block) -> Block``
+                   Scalars get passed the (0D) block representation of the scalar.
+               operand
+                   A string representation of the operand, used in error messages
+               return_NotImplemented
+                   Whether `NotImplemented` should be returned on a non-scalar and non-`Tensor` other.
+               right
+                   If this is the "right" version, i.e. ``func(other, self)``.
+               )pydoc");
+    id_cls.def("_get_item", &Identity::_get_item, py::arg("idx"),
+    R"pydoc(
+    Implementation of :meth:`__getitem__`.
+    
+    Can assume we have one non-negative integer index per leg.
+    )pydoc");
+    id_cls.def("all", &Identity::all,
+    R"pydoc(
+    For a bool dtype, if all values are True. Raises for other dtypes.
+    )pydoc");
+    id_cls.def("any", &Identity::any,
+    R"pydoc(
+    For a bool dtype, if any value is True. Raises for other dtypes.
+    )pydoc");
     id_cls.def("max", &Identity::max);
     id_cls.def("min", &Identity::min);
-    id_cls.def("move_to_device", &Identity::move_to_device, py::arg("device"));
+    id_cls.def("move_to_device", &Identity::move_to_device, py::arg("device"),
+    R"pydoc(
+    Move tensor to a given device, *in place*.
+    )pydoc");
     id_cls.def("to_backend",
                &Identity::to_backend,
                py::arg("backend"),
                py::arg("dtype") = py::none(),
-               py::arg("device") = py::none());
+               py::arg("device") = py::none(),
+               R"pydoc(
+               Convert to a tensor with a different backend.
+               
+               Parameters
+               ----------
+               backend: TensorBackend
+                   The backend of the result.
+               dtype: Dtype, optional
+                   The dtype of the result. Per default, use the same dtype as `self`.
+               device: str, optional
+                   The device for the result. Per default, use the same device as `self`.
+               )pydoc");
     id_cls.def(
       "to_dense_block",
       [](Identity& self, py::object leg_order, std::optional<Dtype> dtype, bool understood_braiding) {
@@ -513,7 +865,32 @@ Special case of a :class:`DiagonalTensor` that is exactly the identity map on it
       },
       py::arg("leg_order") = py::none(),
       py::arg("dtype") = py::none(),
-      py::arg("understood_braiding") = false);
+      py::arg("understood_braiding") = false,
+      R"pydoc(
+      Convert to a dense block of the backend, if possible.
+      
+      This corresponds to "forgetting" the symmetry structure and is only possible if the
+      symmetry :attr:`Symmetry.can_be_dropped`.
+      The result is a backend-specific block, e.g. a numpy array if the block backend is a
+      :class:`NumpyBlockBackend` or a torch Tensor if the backend is a :class:`TorchBlockBackend`.
+      
+      Parameters
+      ----------
+      leg_order: list of (int | str), optional
+          If given, the leg of the resulting block are permuted to match this leg order.
+      dtype: Dtype, optional
+          If given, the result is converted to this dtype. Per default it has the :attr:`dtype`
+          of the tensor.
+      understood_braiding : bool
+          For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the resulting
+          dense block does no longer capture the braiding statistics correctly. This means that
+          :func:`permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on
+          the dense block representation. Permuting its legs would require e.g. explicit swap
+          gates. When using the result, special care needs to be taken regarding the leg order.
+          To avoid this pitfall, we raise an error by default. Set this flag to ``True`` to
+          disable the error. It is then your responsibility to take care of leg orders and braids.
+          See :mod:`cyten.testing.swap_gate_numpy` for manipulations on these dense blocks.
+      )pydoc");
 
     id_cls.def("__abs__", &Identity::abs);
     id_cls.def("__bool__", [](Identity& self) {

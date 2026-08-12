@@ -155,6 +155,14 @@ add_trivial_leg(py::object tens,
                 LegLabel label,
                 bool is_dual)
 {
+    // --- hints from Python add_trivial_leg ---
+    // parse position to format:
+    // - leg_pos: int,  0 <= leg_pos < res_num_legs
+    // - add_to_domain: bool
+    // - co_domain_pos: int, 0 <= co_domain_pos < num_[co]domain_legs
+    // - is_dual: bool, if the leg in the [co]domain should be dual
+    // domain[0] is the charge leg, so we need to add 1
+    // ---
     int64 res_num_legs = tens.attr("num_legs").cast<int64>() + 1;
     // parse position to format:
     //  - leg_pos: int,  0 <= leg_pos < res_num_legs
@@ -307,6 +315,13 @@ zero_like(py::object tensor)
 py::object
 tensor_from_grid(py::object grid_obj, py::object labels, std::optional<Dtype> dtype_opt)
 {
+    // --- hints from Python tensor_from_grid ---
+    // check input
+    // only ElementarySpaces have direct_sum
+    // find op from same column
+    // find op from same row
+    // for each sector in the direct sum, find which multiplicities come from which space
+    // ---
     py::list grid = py::reinterpret_borrow<py::list>(grid_obj);
     py::list op_list;
     for (auto row_h : grid) {

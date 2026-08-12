@@ -126,7 +126,34 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("add_to_domain"),
       py::arg("co_domain_pos"),
       py::arg("new_codomain"),
-      py::arg("new_domain"));
+      py::arg("new_domain"),
+      R"pydoc(
+      Add a trivial leg to a tensor.
+      
+      A trivial leg is one-dimensional and consists only of the trivial sector of the symmetry.
+      
+      Parameters
+      ----------
+      tens: Tensor
+          The tensor to add a leg to. Since :class:`DiagonalTensor` and :class:`Mask` do not
+          support adding legs, they will be converted to :class:`SymmetricTensor` first.
+      legs_pos, codomain_pos, domain_pos: int
+          The position of the new leg can be specified in three mutually exclusive ways.
+          If the positional argument `leg_pos` is used, ``result.legs[leg_pos]`` will be the trivial
+          leg. In most cases that unambiguously assigns it to either the domain or the codomain.
+          If ambiguous (``if legs_pos == num_codomain_legs``), it is added to the codomain.
+          Alternatively, it can be added to the codomain at ``codomain[codomain_pos]``
+          or to the domain at ``domain_pos``.
+          Note the implications for the ``is_dual`` argument!
+          Per default, we use ``0``, i.e. add at ``legs[0]`` / ``codomain[0]``.
+      label: str
+          The label for the new leg.
+      is_dual: bool
+          If we add a dual (bra-like) or ket-like leg.
+          Note that if `leg_pos` is given, we have ``result.legs[leg_pos].is_dual == is_dual``,
+          but if `domain_pos` is given, we have ``result.domain[domain_pos].is_dual == is_dual``,
+          which are mutually opposite.
+      )pydoc");
     cls.def(
       "apply_mask_to_DiagonalTensor",
       [](NoSymmetryBackend& self, py::object tensor, py::object mask) {
@@ -219,7 +246,39 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "dagger",
       [](NoSymmetryBackend& self, py::object a) { return py_block(self.dagger(a)); },
-      py::arg("a"));
+      py::arg("a"),
+      R"pydoc(
+      The hermitian conjugate tensor, a.k.a the dagger of a tensor.
+      
+      For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
+      the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
+      For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
+      Graphically::
+      
+          |          e   d             a   b   c
+          |          │   │             │   │   │
+          |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
+          |       ┃    A    ┃         ┃dagger(A)┃
+          |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
+          |        │   │   │             │   │
+          |        a   b   c             e   d
+      
+      Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
+      
+      Returns
+      -------
+      The hermitian conjugate tensor. Its legs and labels are::
+      
+          dagger(A).codomain == A.domain
+          dagger(A).domain == A.codomain
+          dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
+          dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
+      
+      Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
+      on their bipartition into domain and codomain.
+      For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
+      then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*']``.
+      )pydoc");
     cls.def(
       "item",
       [](NoSymmetryBackend& self, py::object a) {
@@ -600,7 +659,46 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
           return std::make_tuple(py_block(std::move(l)), py_block(std::move(q)));
       },
       py::arg("tensor"),
-      py::arg("new_co_domain"));
+      py::arg("new_co_domain"),
+      R"pydoc(
+      The LQ decomposition of a tensor.
+      
+      A :ref:`tensor decomposition <decompositions>` ``tensor ~ L @ Q`` with the following
+      properties:
+      
+      - ``L`` has a lower triangular structure *in the coupled basis*.
+      - ``Q`` is an isometry: ``dagger(Q) @ Q ~ eye``.
+      
+      Graphically::
+      
+          |                                 │   │   │   │
+          |                                ┏┷━━━┷━━━┷━━━┷┓
+          |        │   │   │   │           ┃      Q      ┃
+          |       ┏┷━━━┷━━━┷━━━┷┓          ┗━━━━━━┯━━━━━━┛
+          |       ┃   tensor    ┃    ==           │
+          |       ┗━━┯━━━┯━━━┯━━┛          ┏━━━━━━┷━━━━━━┓
+          |          │   │   │             ┃      L      ┃
+          |                                ┗━━┯━━━┯━━━┯━━┛
+          |                                   │   │   │
+      
+      We always compute the "reduced", a.k.a. "economic" version.
+      To group the legs differently, use :func:`permute_legs` or `combine_to_matrix` first.
+      
+      Parameters
+      ----------
+      tensor: :class:`Tensor`
+          The tensor to decompose.
+      new_labels: (list of) str
+          Labels for the new legs. Either two legs ``[a, b]`` s.t. ``L.labels[-1] == a``
+          and ``Q.labels[0] == b``. A single label ``a`` is equivalent to ``[a, a*]``.
+      new_leg_dual: bool
+          If the new leg should be a ket space (``False``) or bra space (``True``).
+      charge_leg_top: bool
+          Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
+          top tensor ``Q`` (``True``) or the bottom tensor ``L`` (``False``). The corresponding
+          tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
+          `ChargedTensor`.
+      )pydoc");
     cls.def(
       "mask_binary_operand",
       [](NoSymmetryBackend& self, py::object mask1, py::object mask2, py::function func) {
@@ -920,7 +1018,69 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       },
       py::arg("a"),
       py::arg("new_co_domain"),
-      py::arg("algorithm") = py::none());
+      py::arg("algorithm") = py::none(),
+      R"pydoc(
+      The singular value decomposition (SVD) of a tensor.
+      
+      A :ref:`tensor decomposition <decompositions>` ``tensor ~ U @ S @ Vh`` with the following
+      properties:
+      
+      - ``Vh`` and ``U`` are isometries: ``dagger(U) @ U ~ eye ~ Vh @ dagger(Vh)``.
+      - ``S`` is a :class:`DiagonalTensor` with real, non-negative entries.
+      - If `tensor` is a matrix (i.e. if it has exactly one leg each in domain and codomain), it
+        reproduces the usual matrix SVD.
+      
+      .. note ::
+          The basis for the newly generated leg is chosen arbitrarily, and in particular, unlike,
+          e.g., :func:`numpy.linalg.svd` it is not guaranteed that ``S.diag_numpy`` is sorted.
+      
+      Graphically::
+      
+          |                                 │   │   │   │
+          |                                ┏┷━━━┷━━━┷━━━┷┓
+          |                                ┃      Vh     ┃
+          |        │   │   │   │           ┗━━━━━━┯━━━━━━┛
+          |       ┏┷━━━┷━━━┷━━━┷┓               ┏━┷━┓
+          |       ┃   tensor    ┃    ==         ┃ S ┃
+          |       ┗━━┯━━━┯━━━┯━━┛               ┗━┯━┛
+          |          │   │   │             ┏━━━━━━┷━━━━━━┓
+          |                                ┃      U      ┃
+          |                                ┗━━┯━━━┯━━━┯━━┛
+          |                                   │   │   │
+      
+      We always compute the "reduced", a.k.a. "economic" version of SVD, where the isometries are
+      (in general) not full unitaries.
+      
+      To group the legs differently, use :func:`permute_legs` or `combine_to_matrix` first.
+      
+      Parameters
+      ----------
+      tensor: :class:`Tensor`
+          The tensor to decompose.
+      new_labels: (list of) str, optional
+          The labels for the new legs can be specified in the following three ways;
+          Four labels ``[a, b, c, d]`` result in ``U.labels[-1] == a``, ``S.labels == [b, c]`` and
+          ``Vh.labels[0] == d``.
+          Two labels ``[a, b]`` are equivalent to ``[a, b, a, b]``.
+          A single label ``a`` is equivalent to ``[a, a*, a, a*]``.
+          The new legs are unlabelled by default.
+      new_leg_dual: bool
+          If the new leg should be a ket space (``False``) or bra space (``True``).
+      charge_leg_top: bool
+          Fixes whether the charge leg of a decomposed :class:`ChargedTensor` should end up in the
+          top tensor ``Vh`` (``True``) or the bottom tensor ``U`` (``False``). The corresponding
+          tensor is then also a `ChargedTensor`. Is ignored if the input tensor is not a
+          `ChargedTensor`.
+      algorithm: str, optional
+          The algorithm (a.k.a. "driver") for the block-wise svd. Choices are backend-specific.
+          See :meth:`~cyten.block_backends.BlockBackend.possible_svd_algorithms`.
+      
+      Returns
+      -------
+      U: SymmetricTensor | ChargedTensor
+      S: DiagonalTensor
+      Vh: SymmetricTensor | ChargedTensor
+      )pydoc");
     cls.def(
       "to_block_backend",
       [](NoSymmetryBackend& self,

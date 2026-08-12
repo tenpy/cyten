@@ -96,7 +96,10 @@ data:
           }
       });
 
-    cls.def("test_sanity", &SymmetricTensor::test_sanity, "Perform sanity checks.");
+    cls.def("test_sanity", &SymmetricTensor::test_sanity,
+    R"pydoc(
+    Perform sanity checks.
+    )pydoc");
     cls.def("verify_dtype", &SymmetricTensor::verify_dtype);
 
     cls.def_static(
@@ -202,7 +205,9 @@ understood_braiding : bool
                    py::arg("backend") = nullptr,
                    py::arg("device") = py::none(),
                    py::arg("label") = py::none(),
-                   "Inverse of to_dense_block_trivial_sector.");
+                   R"pydoc(
+                   Inverse of to_dense_block_trivial_sector.
+                   )pydoc");
 
     cls.def_static(
       "from_eye",
@@ -364,7 +369,9 @@ from_block_func
                    py::arg("labels") = py::none(),
                    py::arg("dtype") = py::none(),
                    py::arg("device") = py::none(),
-                   "A tensor that projects onto a given coupled sector of it domain.");
+                   R"pydoc(
+                   A tensor that projects onto a given coupled sector of it domain.
+                   )pydoc");
 
     cls.def_static(
       "from_tree_pairs",
@@ -431,16 +438,48 @@ device: str
                    py::arg("dtype"),
                    py::arg("symmetry"));
 
-    cls.def("as_dtype", &SymmetricTensor::as_dtype, py::arg("dtype"));
+    cls.def("as_dtype", &SymmetricTensor::as_dtype, py::arg("dtype"),
+    R"pydoc(
+    Convert to a tensor of the given dtype on the same device.
+    
+    Parameters
+    ----------
+    dtype: Dtype
+        The dtype of the result.
+    )pydoc");
     cls.def("as_SymmetricTensor",
             &SymmetricTensor::as_SymmetricTensor,
             py::arg("guarantee_copy") = false,
-            py::arg("warning") = py::none());
+            py::arg("warning") = py::none(),
+            R"pydoc(
+            Convert to a :class:`SymmetricTensor`, if possible.
+            
+            Parameters
+            ----------
+            guarantee_copy : bool
+                If already a SymmetricTensor, we do *not* make a copy by default.
+                Set this flag to ``True`` to guarantee a copy.
+            warning : str, optional
+                If given, and if the conversion is non-trivial (i.e. if it was not already a
+                SymmetricTensor to begin with), a warning with this text is issued.
+            )pydoc");
     cls.def("copy",
             &SymmetricTensor::copy,
             py::arg("deep") = true,
             py::arg("device") = py::none(),
-            py::arg("dtype") = py::none());
+            py::arg("dtype") = py::none(),
+            R"pydoc(
+            Copy the tensor.
+            
+            Parameters
+            ----------
+            deep: bool
+                If the copy should be deep. A shallow copy is a new instance with the same data.
+            device: str, optional
+                The device for the result. Per default, use the same device as `self`.
+            dtype: Dtype, optional
+                The dtype of the result. Per default, use the same dtype as `self`.
+            )pydoc");
     cls.def("diagonal",
             &SymmetricTensor::diagonal,
             py::arg("check_offdiagonal") = false,
@@ -452,13 +491,33 @@ Parameters
 check_offdiagonal: bool
     If we should check that the off-diagonal parts vanish.
 )pydoc");
-    cls.def("_get_item", &SymmetricTensor::_get_item, py::arg("idx"));
-    cls.def("move_to_device", &SymmetricTensor::move_to_device, py::arg("device"));
+    cls.def("_get_item", &SymmetricTensor::_get_item, py::arg("idx"),
+    R"pydoc(
+    Implementation of :meth:`__getitem__`.
+    
+    Can assume we have one non-negative integer index per leg.
+    )pydoc");
+    cls.def("move_to_device", &SymmetricTensor::move_to_device, py::arg("device"),
+    R"pydoc(
+    Move tensor to a given device, *in place*.
+    )pydoc");
     cls.def("to_backend",
             &SymmetricTensor::to_backend,
             py::arg("backend"),
             py::arg("dtype") = py::none(),
-            py::arg("device") = py::none());
+            py::arg("device") = py::none(),
+            R"pydoc(
+            Convert to a tensor with a different backend.
+            
+            Parameters
+            ----------
+            backend: TensorBackend
+                The backend of the result.
+            dtype: Dtype, optional
+                The dtype of the result. Per default, use the same dtype as `self`.
+            device: str, optional
+                The device for the result. Per default, use the same device as `self`.
+            )pydoc");
     cls.def(
       "to_dense_block",
       [](SymmetricTensor& self, py::object leg_order, std::optional<Dtype> dtype, bool understood_braiding) {
@@ -466,7 +525,32 @@ check_offdiagonal: bool
       },
       py::arg("leg_order") = py::none(),
       py::arg("dtype") = py::none(),
-      py::arg("understood_braiding") = false);
+      py::arg("understood_braiding") = false,
+      R"pydoc(
+      Convert to a dense block of the backend, if possible.
+      
+      This corresponds to "forgetting" the symmetry structure and is only possible if the
+      symmetry :attr:`Symmetry.can_be_dropped`.
+      The result is a backend-specific block, e.g. a numpy array if the block backend is a
+      :class:`NumpyBlockBackend` or a torch Tensor if the backend is a :class:`TorchBlockBackend`.
+      
+      Parameters
+      ----------
+      leg_order: list of (int | str), optional
+          If given, the leg of the resulting block are permuted to match this leg order.
+      dtype: Dtype, optional
+          If given, the result is converted to this dtype. Per default it has the :attr:`dtype`
+          of the tensor.
+      understood_braiding : bool
+          For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the resulting
+          dense block does no longer capture the braiding statistics correctly. This means that
+          :func:`permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on
+          the dense block representation. Permuting its legs would require e.g. explicit swap
+          gates. When using the result, special care needs to be taken regarding the leg order.
+          To avoid this pitfall, we raise an error by default. Set this flag to ``True`` to
+          disable the error. It is then your responsibility to take care of leg orders and braids.
+          See :mod:`cyten.testing.swap_gate_numpy` for manipulations on these dense blocks.
+      )pydoc");
     cls.def("to_dense_block_trivial_sector",
             &SymmetricTensor::to_dense_block_trivial_sector,
             R"pydoc(
@@ -481,13 +565,17 @@ from_dense_block_trivial_sector
             py::arg("hdf5_saver"),
             py::arg("h5gr"),
             py::arg("subpath"),
-            "Export SymmetricTensor to hdf5 such that it can be re-imported with from_hdf5");
+            R"pydoc(
+            Export SymmetricTensor to hdf5 such that it can be re-imported with from_hdf5
+            )pydoc");
     cls.def_static("from_hdf5",
                    &SymmetricTensor::from_hdf5,
                    py::arg("hdf5_loader"),
                    py::arg("h5gr"),
                    py::arg("subpath"),
-                   "Import SymmetricTensor from hdf5");
+                   R"pydoc(
+                   Import SymmetricTensor from hdf5
+                   )pydoc");
 }
 
 } // namespace cyten

@@ -297,6 +297,9 @@ LabelledLegs::has_label(std::vector<std::string> const& more) const
 bool
 LabelledLegs::labels_are(std::vector<std::string> const& want) const
 {
+    // --- hints from Python LabelledLegs.labels_are ---
+    // have checked same length, so comparing the unique labels via set is enough.
+    // ---
     if (!is_fully_labelled()) {
         return false;
     }
@@ -364,3 +367,32 @@ LabelledLegs::set_labels(LegLabels labels)
 }
 
 } // namespace cyten
+
+// =============================================================================
+// ORPHANED PYTHON COMMENT HINTS (no matching C++ function body found)
+// =============================================================================
+// --- DiagonalTensor.__rsub__ ---
+// other - self
+// --- DiagonalTensor.__sub__ ---
+// other - self
+// --- Mask.__and__ ---
+// ``self & other``
+// --- Mask.__eq__ ---
+// ``self == other``
+// --- Mask.__invert__ ---
+// ``~self``
+// --- Mask.__ne__ ---
+// ``self != other``
+// --- Mask.__or__ ---
+// ``self | other``
+// --- Mask.__rand__ ---
+// ``other & self``
+// --- Mask.__ror__ ---
+// ``other | self``
+// --- Mask.__rxor__ ---
+// ``other ^ self``
+// --- Mask.__xor__ ---
+// ``self ^ other``
+// --- _elementwise_function ---
+// kwargs take precedence over func_kwargs
+// =============================================================================

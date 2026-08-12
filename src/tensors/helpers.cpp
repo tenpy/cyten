@@ -245,6 +245,9 @@ _check_compatible_legs(py::sequence legs1, py::sequence legs2, bool expect_equal
 py::object
 _compose_with_Mask(py::object tensor, py::object mask, int64 leg_idx)
 {
+    // --- hints from Python _compose_with_Mask ---
+    // deal with other tensor types
+    // ---
     // Match Python: ``in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg_idx)``
     auto parsed = tensor.attr("_parse_leg_idx")(leg_idx);
     bool in_domain = parsed.attr("__getitem__")(0).cast<bool>();
@@ -297,6 +300,10 @@ _compose_SymmetricTensors(py::object tensor1,
                           std::optional<std::map<std::string, std::string>> relabel1,
                           std::optional<std::map<std::string, std::string>> relabel2)
 {
+    // --- hints from Python _compose_SymmetricTensors ---
+    // no remaining open legs
+    // drop duplicate labels
+    // ---
     if (tensor1.attr("num_codomain_legs").cast<int64>() == 0
         && tensor2.attr("num_domain_legs").cast<int64>() == 0) {
         return inner(tensor1, tensor2, /*do_dagger=*/false);
@@ -632,6 +639,9 @@ _convert_FT_to_abelian(py::object tensor,
 std::tuple<py::object, TensorProduct::Ptr, bool, bool>
 _decomposition_prepare(py::object tensor, bool new_leg_dual)
 {
+    // --- hints from Python _decomposition_prepare ---
+    // do not define decompositions for ChargedTensors.
+    // ---
     if (tensor.attr("num_codomain_legs").cast<int64>() <= 0) {
         throw std::runtime_error("empty codomain");
     }

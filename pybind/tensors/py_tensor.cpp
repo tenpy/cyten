@@ -319,7 +319,39 @@ understood_braiding : bool
       "dagger",
       [](py::object self) {
           return py::module_::import("cyten.tensors._tensors").attr("dagger")(self);
-      });
+      },
+      R"pydoc(
+      The hermitian conjugate tensor, a.k.a the dagger of a tensor.
+      
+      For a tensor with one leg each in (co-)domain (i.e. a matrix), this coincides with
+      the hermitian conjugate matrix :math:`(M^\dagger)_{i,j} = \bar{M}_{j, i}` .
+      For a tensor ``A: W -> V`` the dagger is a map ``dagger(A): V -> W``.
+      Graphically::
+      
+          |          e   d             a   b   c
+          |          │   │             │   │   │
+          |       ┏━━┷━━━┷━━┓         ┏┷━━━┷━━━┷┓
+          |       ┃    A    ┃         ┃dagger(A)┃
+          |       ┗┯━━━┯━━━┯┛         ┗━━┯━━━┯━━┛
+          |        │   │   │             │   │
+          |        a   b   c             e   d
+      
+      Where ``a, b, c, d, e`` denote the legs in to (co-)domain.
+      
+      Returns
+      -------
+      The hermitian conjugate tensor. Its legs and labels are::
+      
+          dagger(A).codomain == A.domain
+          dagger(A).domain == A.codomain
+          dagger(A).legs == [leg.dual for leg in reversed(A.legs)]
+          dagger(A).labels == [_dual_leg_label(l) for l in reversed(A.labels)]
+      
+      Note that the resulting :attr:`Tensor.legs` only depend on the input :attr:`Tensor.legs`, not
+      on their bipartition into domain and codomain.
+      For labels, we toggle a duality marker, i.e. if ``A.labels == ['a', 'b', 'c', 'd*', 'e*']``,
+      then ``dagger(A).labels == ['e', 'd', 'c*', 'b*','a*']``.
+      )pydoc");
     cls.def_property_readonly("domain_labels",
                               &Tensor::domain_labels,
                               R"pydoc(The labels that refer to legs in the domain.)pydoc");
