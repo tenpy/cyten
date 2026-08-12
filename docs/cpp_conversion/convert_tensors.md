@@ -4,7 +4,7 @@
 
 Branch: **`convert_tensors`** (reuse for the whole module; no per-object branches).
 
-Python source: [`cyten/tensors/_tensors.py`](../../cyten/tensors/_tensors.py) (~7500 lines).
+Python source: [`cyten/tensors/_tensors.py`](../../cyten/tensors/_tensors.py) — thin `_core` re-export (class + free-function bodies removed).
 
 Layer 3 backends still take tensor args as interim `py::object` in [`tensor_backend.h`](../../include/cyten/backends/tensor_backend.h). Typed cleanup is **deferred** (circular includes / scale of `.attr` rewrite); see [Backend `py::object` cleanup](#backend-pyobject-cleanup-deferred) below.
 
@@ -61,7 +61,7 @@ flowchart TD
 | 13 | Leg permutation ops (`bend_legs`, `check_same_legs`, `combine_legs`, `combine_to_matrix`, `move_leg`, `permute_legs`, `split_legs`, `squeeze_legs`) | **C++ + bindings + monkey-patched** — [convert_tensor_legs.md](convert_tensor_legs.md) |
 | 14 | Decompositions (`eigh`, `entropy`, `qr`, `lq`, `svd`, `svd_apply_mask`, `truncate_singular_values`, `truncated_svd`, `apply_mask_DiagonalTensor`) | **C++ + bindings + monkey-patched** — [convert_tensor_decompositions.md](convert_tensor_decompositions.md) |
 | 15 | Backend `py::object` cleanup | **deferred** — see below |
-| 16 | Monkey-patch Tensor hierarchy + remaining free fns (`apply_mask`, `enlarge_leg`, `exp`) | **done**; not-slow pytest stepwise passed |
+| 16 | Monkey-patch Tensor hierarchy + remaining free fns (`apply_mask`, `enlarge_leg`, `exp`) | **done**; Python bodies removed (`_tensors.py` is `_core` re-export); not-slow pytest passed |
 
 ## Backend `py::object` cleanup (deferred)
 
