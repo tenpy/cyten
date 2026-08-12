@@ -77,6 +77,17 @@ Stabilized logarithm, :ref:`elementwise <diagonal_elementwise>`.
 For values ``> cutoff``, this is the standard natural logarithm. For values smaller than the
 cutoff, return 0.
 )pydoc");
+
+    m.def("exp",
+          &exp,
+          py::arg("obj"),
+          R"pydoc(
+The exponential function.
+
+For a tensor, viewed as a linear map from its domain to its codomain, the exponential
+function is defined via its power series. For a diagonal tensor, this is equivalent to
+the :ref:`elementwise <diagonal_elementwise>` exponential function.
+)pydoc");
 }
 
 } // namespace cyten

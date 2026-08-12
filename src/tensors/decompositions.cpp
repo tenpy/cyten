@@ -79,11 +79,9 @@ py_eq(py::object a, py::object b)
 }
 
 py::object
-data_as_python(TensorBackend::DataPtr data, TensorBackend::Ptr const& backend)
+data_as_python(TensorBackend::DataPtr data, TensorBackend::Ptr const& /*backend*/)
 {
-    if (std::dynamic_pointer_cast<NoSymmetryBackend>(backend)) {
-        return py::cast(NoSymmetryBackend::unwrap(std::move(data)));
-    }
+    // C++ SymmetricTensor/Mask/DiagonalTensor ctors take DataPtr (including NoSymmetry BlockData).
     return py::cast(std::move(data));
 }
 

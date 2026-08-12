@@ -88,7 +88,8 @@ ChargedTensor::ChargedTensor(SymmetricTensor::Ptr inv, BlockBackend::BlockPtr ch
       inv->device)
   , invariant_part(std::move(inv))
   , charged_state(std::move(charged_state_in))
-  , charge_leg(invariant_part->domain->factors[0].cast<Space::Ptr>())
+  // Match Python: keep the domain factor as-is (ElementarySpace or LegPipe).
+  , charge_leg(invariant_part->domain->factors[0])
 {
     assert(invariant_part->domain->num_factors > 0);
     auto labs = invariant_part->labels();
@@ -118,7 +119,7 @@ ChargedTensor::test_sanity() const
     if (charged_state) {
         backend->block_backend->test_block_sanity(
           charged_state,
-          std::vector<int64>{ static_cast<int64>(charge_leg->Space::dim) },
+          std::vector<int64>{ static_cast<int64>(charge_leg.attr("dim").cast<float64>()) },
           std::nullopt,
           device);
     }
@@ -395,11 +396,15 @@ ChargedTensor::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::st
     if (warning.has_value()) {
         warn(*warning);
     }
-    if (charge_leg->sector_decomposition.size() != 1 ||
-        charge_leg->sector_decomposition[0] != symmetry->trivial_sector) {
+    // LegPipe charge legs (from combine_legs) expose Space APIs via as_Space().
+    Space::Ptr charge_space =
+      py::isinstance<Space>(charge_leg) ? charge_leg.cast<Space::Ptr>()
+                                        : charge_leg.attr("as_Space")().cast<Space::Ptr>();
+    if (charge_space->sector_decomposition.size() != 1 ||
+        charge_space->sector_decomposition[0] != symmetry->trivial_sector) {
         throw SymmetryError("Not a symmetric tensor");
     }
-    if (charge_leg->Space::dim == 1.) {
+    if (charge_leg.attr("dim").cast<float64>() == 1.) {
         auto res = tensors_mod().attr("squeeze_legs")(py::cast(invariant_part), -1);
         if (charged_state) {
             auto scale = backend->block_backend->item(charged_state);
@@ -413,7 +418,7 @@ ChargedTensor::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::st
     // charge_leg.dual (Python wrote charged_state.dual — treat as charge_leg.dual)
     auto state = SymmetricTensor::from_dense_block(
       py::cast(charged_state),
-      py::make_tuple(py::cast(charge_leg->dual())),
+      py::make_tuple(charge_leg.attr("dual")),
       py::none(),
       backend,
       py::make_tuple(_dual_leg_label(std::string(_CHARGE_LEG_LABEL))),
@@ -504,10 +509,13 @@ ChargedTensor::_repr_header_lines(std::string const& indent, bool use_symm_str) 
 {
     auto linewidth = get_config().print_linewidth;
     auto lines = Tensor::_repr_header_lines(indent, use_symm_str);
+    Space::Ptr charge_space =
+      py::isinstance<Space>(charge_leg) ? charge_leg.cast<Space::Ptr>()
+                                        : charge_leg.attr("as_Space")().cast<Space::Ptr>();
     lines.push_back(std::format("{}* Charge Leg: dim={} sectors={}",
                                 indent,
-                                std::round(charge_leg->Space::dim * 1000.) / 1000.,
-                                py::str(py::cast(charge_leg->sector_decomposition)).cast<std::string>()));
+                                std::round(charge_leg.attr("dim").cast<float64>() * 1000.) / 1000.,
+                                py::str(py::cast(charge_space->sector_decomposition)).cast<std::string>()));
     std::string start = indent + "* Charged State: ";
     if (!charged_state) {
         lines.push_back(start + "unspecified");
@@ -588,10 +596,13 @@ ChargedTensor::to_dense_block_single_sector()
     if (num_legs > 1) {
         throw std::invalid_argument("Expected a single leg");
     }
-    if (charge_leg->num_sectors != 1 || charge_leg->multiplicities[0] != 1) {
+    Space::Ptr charge_space =
+      py::isinstance<Space>(charge_leg) ? charge_leg.cast<Space::Ptr>()
+                                        : charge_leg.attr("as_Space")().cast<Space::Ptr>();
+    if (charge_space->num_sectors != 1 || charge_space->multiplicities[0] != 1) {
         throw std::invalid_argument("Not a single sector.");
     }
-    auto sector_dims = charge_leg->sector_dims;
+    auto sector_dims = charge_space->sector_dims;
     if (sector_dims.has_value() && (*sector_dims)[0] > 1) {
         throw NotImplemented(
           "to_dense_block_single_sector does not support higher-dim sectors");

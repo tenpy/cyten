@@ -70,12 +70,9 @@ duplicate_label_entries(LegLabels const& labels)
 }
 
 py::object
-data_as_python(TensorBackend::DataPtr data, TensorBackend::Ptr const& backend)
+data_as_python(TensorBackend::DataPtr data, TensorBackend::Ptr const& /*backend*/)
 {
-    // NoSymmetry stores BlockData in C++ while Python tensors store the Block directly.
-    if (std::dynamic_pointer_cast<NoSymmetryBackend>(backend)) {
-        return py::cast(NoSymmetryBackend::unwrap(std::move(data)));
-    }
+    // C++ SymmetricTensor/Mask/DiagonalTensor ctors take DataPtr (including NoSymmetry BlockData).
     return py::cast(std::move(data));
 }
 

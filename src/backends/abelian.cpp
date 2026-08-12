@@ -3624,7 +3624,11 @@ BlockBackend::BlockPtr
 AbelianBackend::to_dense_block(py::object a)
 {
     auto a_data = data_from_tensor(a);
-    auto shape = a.attr("shape").cast<std::vector<int64>>();
+    // Tensor.shape is float64 (symmetry dims); block backends need int64 extents.
+    std::vector<int64> shape;
+    for (auto item : a.attr("shape")) {
+        shape.push_back(static_cast<int64>(std::llround(item.cast<float64>())));
+    }
     auto res = block_backend->zeros(shape, a_data->dtype);
     auto legs = conventional_leg_order(a);
     auto const& bi = a_data->block_inds;

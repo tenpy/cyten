@@ -35,19 +35,6 @@ optional_leg_order(py::object obj)
     return out;
 }
 
-std::map<std::pair<FusionTree, FusionTree>, BlockBackend::BlockPtr>
-tree_pairs_from_py(py::object trees)
-{
-    std::map<std::pair<FusionTree, FusionTree>, BlockBackend::BlockPtr> out;
-    for (auto item : trees.attr("items")()) {
-        auto pair = item.cast<py::tuple>();
-        auto key = pair[0].cast<py::tuple>();
-        out.emplace(std::make_pair(key[0].cast<FusionTree>(), key[1].cast<FusionTree>()),
-                    pair[1].cast<BlockBackend::BlockPtr>());
-    }
-    return out;
-}
-
 } // namespace
 
 void
@@ -381,16 +368,7 @@ from_block_func
 
     cls.def_static(
       "from_tree_pairs",
-      [](py::object trees,
-         py::object codomain,
-         py::object domain,
-         TensorBackend::Ptr backend,
-         py::object labels,
-         std::optional<Dtype> dtype,
-         std::optional<std::string> device) {
-          return SymmetricTensor::from_tree_pairs(
-            tree_pairs_from_py(trees), codomain, domain, std::move(backend), labels, dtype, device);
-      },
+      &SymmetricTensor::from_tree_pairs,
       py::arg("trees"),
       py::arg("codomain"),
       py::arg("domain") = py::none(),

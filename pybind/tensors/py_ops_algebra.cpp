@@ -40,6 +40,20 @@ The tensors count as almost equal if all block-entries, i.e. all their free para
 individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
 )pydoc");
 
+    m.def("apply_mask",
+          &apply_mask,
+          py::arg("tensor"),
+          py::arg("mask"),
+          py::arg("leg"),
+          R"pydoc(Apply a projection Mask to one leg of a tensor, *projecting* it to a smaller leg.)pydoc");
+
+    m.def("enlarge_leg",
+          &enlarge_leg,
+          py::arg("tensor"),
+          py::arg("mask"),
+          py::arg("leg"),
+          R"pydoc(Apply an inclusion Mask to one leg of a tensor *embedding* it into a larger leg.)pydoc");
+
     m.def("dagger",
           &dagger,
           py::arg("tensor"),

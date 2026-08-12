@@ -26,7 +26,9 @@ class ChargedTensor : public Tensor
     SymmetricTensor::Ptr invariant_part;
     /// ``nullptr`` means unspecified charged state (Python ``None``).
     BlockBackend::BlockPtr charged_state;
-    Space::Ptr charge_leg;
+    /// Usually an :class:`ElementarySpace`; may be a :class:`LegPipe` after
+    /// :meth:`from_two_charge_legs` / ``combine_legs``.
+    py::object charge_leg;
 
     /// Construct from invariant part and optional charged state.
     ChargedTensor(py::object invariant_part, py::object charged_state = py::none());

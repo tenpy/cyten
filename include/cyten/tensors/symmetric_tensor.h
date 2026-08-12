@@ -34,19 +34,27 @@ class SymmetricTensor : public Tensor
     TensorBackend::DataPtr data;
 
     /// Construct from flexible Python-style inputs.
+    ///
+    /// ``check_complex_dtype`` must be false when constructing a :class:`DiagonalTensor`
+    /// subclass: virtual ``verify_dtype`` does not dispatch to the derived override while the
+    /// base constructor runs, and diagonal tensors intentionally allow real dtypes.
     SymmetricTensor(TensorBackend::DataPtr data,
                     py::object codomain,
                     py::object domain = py::none(),
                     TensorBackend::Ptr backend = nullptr,
-                    py::object labels = py::none());
+                    py::object labels = py::none(),
+                    bool check_complex_dtype = true);
 
     /// Construct from already-parsed C++ inputs.
+    ///
+    /// See the ``check_complex_dtype`` note on the other constructor.
     SymmetricTensor(TensorBackend::DataPtr data,
                     TensorProduct::Ptr codomain,
                     TensorProduct::Ptr domain,
                     TensorBackend::Ptr backend,
                     Symmetry::Ptr symmetry,
-                    LegLabels labels);
+                    LegLabels labels,
+                    bool check_complex_dtype = true);
 
     ~SymmetricTensor() override = default;
 
@@ -130,7 +138,7 @@ class SymmetricTensor : public Tensor
       std::optional<std::string> device = std::nullopt);
 
     [[nodiscard]] static Ptr from_tree_pairs(
-      std::map<std::pair<FusionTree, FusionTree>, BlockBackend::BlockPtr> trees,
+      py::object trees,
       py::object codomain,
       py::object domain = py::none(),
       TensorBackend::Ptr backend = nullptr,

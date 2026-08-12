@@ -98,12 +98,9 @@ py_eq(py::object a, py::object b)
 }
 
 py::object
-data_as_python(TensorBackend::DataPtr data, TensorBackend::Ptr const& backend)
+data_as_python(TensorBackend::DataPtr data, TensorBackend::Ptr const& /*backend*/)
 {
-    // NoSymmetry stores BlockData in C++ while Python tensors store the Block directly.
-    if (std::dynamic_pointer_cast<NoSymmetryBackend>(backend)) {
-        return py::cast(NoSymmetryBackend::unwrap(std::move(data)));
-    }
+    // C++ SymmetricTensor/Mask/DiagonalTensor ctors take DataPtr (including NoSymmetry BlockData).
     return py::cast(std::move(data));
 }
 
@@ -306,10 +303,8 @@ almost_equal(py::object tensor_1,
 
     if (is_Mask(tensor_1)) {
         if (is_Mask(tensor_2)) {
-            return tensors_mod()
-              .attr("Mask")
-              .attr("all")(tensor_1.attr("__eq__")(tensor_2))
-              .cast<bool>();
+            // Match Python ``Mask.all(t1 == t2)`` via instance method on the equality Mask.
+            return tensor_1.attr("__eq__")(tensor_2).attr("all")().cast<bool>();
         }
         if (is_DiagonalTensor(tensor_2) && allow_different_types) {
             return almost_equal(tensor_1.attr("as_DiagonalTensor")(),
@@ -409,6 +404,34 @@ almost_equal(py::object tensor_1,
       std::format("Incompatible types: {} and {}",
                   std::string(py::str(tensor_1.attr("__class__").attr("__name__"))),
                   std::string(py::str(tensor_2.attr("__class__").attr("__name__")))));
+}
+
+py::object
+apply_mask(py::object tensor, py::object mask, py::object leg)
+{
+    (void)same_device2(tensor, mask);
+    auto parsed = tensor.attr("_parse_leg_idx")(leg);
+    bool in_domain = parsed.attr("__getitem__")(0).cast<bool>();
+    int64 leg_idx = parsed.attr("__getitem__")(2).cast<int64>();
+    assert(mask.attr("is_projection").cast<bool>());
+    if (in_domain) {
+        mask = transpose(mask);
+    }
+    return _compose_with_Mask(std::move(tensor), std::move(mask), leg_idx);
+}
+
+py::object
+enlarge_leg(py::object tensor, py::object mask, py::object leg)
+{
+    (void)same_device2(tensor, mask);
+    auto parsed = tensor.attr("_parse_leg_idx")(leg);
+    bool in_domain = parsed.attr("__getitem__")(0).cast<bool>();
+    int64 leg_idx = parsed.attr("__getitem__")(2).cast<int64>();
+    assert(!mask.attr("is_projection").cast<bool>());
+    if (in_domain) {
+        mask = transpose(mask);
+    }
+    return _compose_with_Mask(std::move(tensor), std::move(mask), leg_idx);
 }
 
 py::object

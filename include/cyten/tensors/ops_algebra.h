@@ -16,6 +16,12 @@ namespace cyten {
                                 float64 atol = 1e-8,
                                 bool allow_different_types = false);
 
+/// Apply a projection Mask to one leg of a tensor, *projecting* it to a smaller leg.
+[[nodiscard]] py::object apply_mask(py::object tensor, py::object mask, py::object leg);
+
+/// Apply an inclusion Mask to one leg of a tensor *embedding* it into a larger leg.
+[[nodiscard]] py::object enlarge_leg(py::object tensor, py::object mask, py::object leg);
+
 /// The hermitian conjugate tensor, a.k.a the dagger of a tensor.
 [[nodiscard]] py::object dagger(py::object tensor);
 

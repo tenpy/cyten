@@ -44,7 +44,8 @@ SymmetricTensor::SymmetricTensor(TensorBackend::DataPtr data_in,
                                  py::object codomain_obj,
                                  py::object domain_obj,
                                  TensorBackend::Ptr backend_in,
-                                 py::object labels_obj)
+                                 py::object labels_obj,
+                                 bool check_complex_dtype)
   : Tensor(codomain_obj,
            domain_obj,
            std::move(backend_in),
@@ -59,7 +60,9 @@ SymmetricTensor::SymmetricTensor(TensorBackend::DataPtr data_in,
         // NoSymmetry stores BlockData while DataCls is BlockCls (Python stores the Block).
         assert(py::isinstance(py::cast(data), backend->DataCls));
     }
-    verify_dtype();
+    if (check_complex_dtype) {
+        verify_dtype();
+    }
 }
 
 SymmetricTensor::SymmetricTensor(TensorBackend::DataPtr data_in,
@@ -67,7 +70,8 @@ SymmetricTensor::SymmetricTensor(TensorBackend::DataPtr data_in,
                                  TensorProduct::Ptr domain_in,
                                  TensorBackend::Ptr backend_in,
                                  Symmetry::Ptr symmetry_in,
-                                 LegLabels labels_in)
+                                 LegLabels labels_in,
+                                 bool check_complex_dtype)
   : Tensor(std::move(codomain_in),
            std::move(domain_in),
            backend_in,
@@ -81,7 +85,9 @@ SymmetricTensor::SymmetricTensor(TensorBackend::DataPtr data_in,
         // NoSymmetry stores BlockData while DataCls is BlockCls (Python stores the Block).
         assert(py::isinstance(py::cast(data), backend->DataCls));
     }
-    verify_dtype();
+    if (check_complex_dtype) {
+        verify_dtype();
+    }
 }
 
 void
@@ -517,7 +523,7 @@ SymmetricTensor::from_sector_projection(py::object co_domain,
 
 SymmetricTensor::Ptr
 SymmetricTensor::from_tree_pairs(
-  std::map<std::pair<FusionTree, FusionTree>, BlockBackend::BlockPtr> trees,
+  py::object trees_obj,
   py::object codomain,
   py::object domain,
   TensorBackend::Ptr backend,
@@ -525,7 +531,8 @@ SymmetricTensor::from_tree_pairs(
   std::optional<Dtype> dtype,
   std::optional<std::string> device)
 {
-    if (trees.empty()) {
+    py::dict trees = trees_obj.cast<py::dict>();
+    if (py::len(trees) == 0) {
         if (!dtype.has_value()) {
             throw std::invalid_argument("dtype is required if trees is empty");
         }
@@ -543,7 +550,7 @@ SymmetricTensor::from_tree_pairs(
     std::string device_s;
     if (!device.has_value()) {
         auto some_block =
-          backend_tp->block_backend->as_block(py::cast(trees.begin()->second));
+          backend_tp->block_backend->as_block(py::reinterpret_borrow<py::object>(trees.begin()->second));
         device_s = backend_tp->block_backend->get_device(some_block);
     } else {
         device_s = *device;
@@ -560,24 +567,32 @@ SymmetricTensor::from_tree_pairs(
         Y_are_dual.push_back(leg.attr("is_dual").cast<bool>() ? 1 : 0);
     }
 
-    for (auto& [key, block] : trees) {
-        auto const& [X, Y] = key;
+    std::map<std::pair<FusionTree, FusionTree>, BlockBackend::BlockPtr> block_trees;
+    // Match Python: convert BlockLikes in-place so callers can use block.to_numpy().
+    for (auto item : trees) {
+        auto key_obj = py::reinterpret_borrow<py::object>(item.first);
+        auto key_tup = key_obj.cast<py::tuple>();
+        FusionTree X = key_tup[0].cast<FusionTree>();
+        FusionTree Y = key_tup[1].cast<FusionTree>();
         assert(X.coupled == Y.coupled);
         assert(X.are_dual == X_are_dual);
         assert(Y.are_dual == Y_are_dual);
-        block = backend_tp->block_backend->as_block(py::cast(block), dtype, device_s);
+        auto block = backend_tp->block_backend->as_block(
+          py::reinterpret_borrow<py::object>(item.second), dtype, device_s);
         assert(backend_tp->block_backend->get_device(block) == device_s);
+        trees[key_obj] = py::cast(block);
+        block_trees.emplace(std::make_pair(std::move(X), std::move(Y)), std::move(block));
     }
     if (!dtype.has_value()) {
         std::vector<Dtype> dts;
-        dts.reserve(trees.size());
-        for (auto const& [_, b] : trees) {
+        dts.reserve(block_trees.size());
+        for (auto const& [_, b] : block_trees) {
             (void)_;
             dts.push_back(backend_tp->block_backend->get_dtype(b));
         }
         dtype = dtype::common(dts);
     }
-    auto data = backend_tp->from_tree_pairs(trees, codomain_tp, domain_tp, *dtype, device_s);
+    auto data = backend_tp->from_tree_pairs(block_trees, codomain_tp, domain_tp, *dtype, device_s);
     return std::make_shared<SymmetricTensor>(
       data, codomain_tp, domain_tp, backend_tp, symmetry, _init_parse_labels(labels, codomain_tp, domain_tp));
 }
@@ -685,12 +700,8 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
           flat.attr("to_backend")(py::cast(new_backend), py::cast(dt), py::cast(device_s));
         py::object res = tensors_mod.attr("combine_legs")(
           res_flat, *py::tuple(py::cast(combine)), py::arg("pipe_dualities") = pipe_dualities);
-        return std::make_shared<SymmetricTensor>(res.attr("data").cast<TensorBackend::DataPtr>(),
-                                                 res.attr("codomain").cast<TensorProduct::Ptr>(),
-                                                 res.attr("domain").cast<TensorProduct::Ptr>(),
-                                                 res.attr("backend").cast<TensorBackend::Ptr>(),
-                                                 res.attr("symmetry").cast<Symmetry::Ptr>(),
-                                                 res.attr("labels").cast<LegLabels>());
+        // Do not cast res.attr("data") to DataPtr: NoSymmetry exposes the raw Block.
+        return res.cast<SymmetricTensor::Ptr>();
     }
 
     TensorBackend::DataPtr new_data;
@@ -827,6 +838,11 @@ SymmetricTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string 
     (void)hdf5_loader.attr("get_attr")(h5gr, "num_legs");
     auto shape = hdf5_loader.attr("get_attr")(h5gr, "shape").cast<std::vector<float64>>();
     auto labels = hdf5_loader.attr("get_attr")(h5gr, "labels").cast<LegLabels>();
+    // Match Python save: all-None labels are stored as []; expand for the Tensor ctor.
+    int64 nlegs = codomain->num_factors + domain->num_factors;
+    if (labels.empty() && nlegs > 0) {
+        labels.assign(static_cast<std::size_t>(nlegs), std::nullopt);
+    }
 
     auto obj = std::make_shared<SymmetricTensor>(
       data, codomain, domain, backend, symmetry, std::move(labels));

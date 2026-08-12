@@ -50,4 +50,11 @@ namespace cyten {
 /// cutoff, return 0.
 [[nodiscard]] py::object stable_log(py::object x, float64 cutoff = 1e-30);
 
+/// The exponential function.
+///
+/// For a tensor, viewed as a linear map from its domain to its codomain, the exponential
+/// function is defined via its power series. For a diagonal tensor, this is equivalent to
+/// the :ref:`elementwise <diagonal_elementwise>` exponential function.
+[[nodiscard]] py::object exp(py::object obj);
+
 } // namespace cyten

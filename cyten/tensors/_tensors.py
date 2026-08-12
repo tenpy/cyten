@@ -3764,6 +3764,19 @@ class ChargedTensor(Tensor):
         return obj
 
 
+# Monkey-patch C++ tensor hierarchy (must be after all Python class bodies so planar.TensorPlaceholder
+# and free functions see the C++ types once this module finishes importing).
+from .._core import (  # noqa: F401, E402
+    LabelledLegs,
+    Tensor,
+    SymmetricTensor,
+    DiagonalTensor,
+    Identity,
+    Mask,
+    ChargedTensor,
+)
+
+
 def _elementwise_function(block_func: str, func_kwargs={}, maps_zero_to_zero=False):
     """Decorator factory used to define elementwise functions.
 
@@ -4153,6 +4166,9 @@ def apply_mask(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
     if in_domain:
         mask = transpose(mask)
     return _compose_with_Mask(tensor, mask, leg_idx)
+
+
+from .._core import apply_mask  # noqa: F401
 
 
 def apply_mask_DiagonalTensor(tensor: DiagonalTensor, mask: Mask) -> DiagonalTensor:
@@ -4982,6 +4998,9 @@ def enlarge_leg(tensor: Tensor, mask: Mask, leg: int | str) -> Tensor:
     return _compose_with_Mask(tensor, mask, leg_idx)
 
 
+from .._core import enlarge_leg  # noqa: F401
+
+
 def entropy(p: DiagonalTensor | Sequence[float], n=1):
     r"""The entropy of a probability distribution.
 
@@ -5052,6 +5071,9 @@ def exp(obj: Tensor | complex | float) -> Tensor | complex | float:
     if isinstance(obj, Tensor):
         raise NotImplementedError  # should have considered all tensor types above
     return math_exp(obj)
+
+
+from .._core import exp  # noqa: F401
 
 
 def get_same_device(*tensors: Tensor, error_msg: str = 'Incompatible devices.') -> str:

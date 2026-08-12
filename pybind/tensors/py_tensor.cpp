@@ -7,6 +7,7 @@
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 
+#include <cmath>
 #include <optional>
 #include <string>
 #include <variant>
@@ -102,7 +103,23 @@ shape: tuple of int
       .def_readwrite("symmetry", &Tensor::symmetry)
       .def_readwrite("dtype", &Tensor::dtype)
       .def_readwrite("device", &Tensor::device)
-      .def_readwrite("shape", &Tensor::shape);
+      .def_property(
+        "shape",
+        [](Tensor const& self) {
+            // Match Space.dim / Leg.dim: whole-number dims as int (np.zeros etc.).
+            py::list out;
+            for (float64 d : self.shape) {
+                if (std::isfinite(d) && std::floor(d) == d) {
+                    out.append(py::int_(static_cast<long long>(d)));
+                } else {
+                    out.append(py::float_(d));
+                }
+            }
+            return py::tuple(out);
+        },
+        [](Tensor& self, py::object shape_obj) {
+            self.shape = shape_obj.cast<std::vector<float64>>();
+        });
 
     cls.def_static("_init_parse_args",
                    &Tensor::_init_parse_args,
@@ -518,9 +535,13 @@ legs_idx: int
                  for (auto item : which_leg) {
                      refs.push_back(as_leg_ref(item));
                  }
-                 return py::cast(self.get_leg(refs));
+                 py::list out;
+                 for (auto const& leg : self.get_leg(refs)) {
+                     out.append(leg);
+                 }
+                 return out;
              }
-             return py::cast(self.get_leg(as_leg_ref(which_leg)));
+             return self.get_leg(as_leg_ref(which_leg));
          },
          py::arg("which_leg"),
          R"pydoc(Basically ``self.legs[which_leg]``, but allows labels and multiple indices.)pydoc")
@@ -532,9 +553,13 @@ legs_idx: int
                 for (auto item : which_leg) {
                     refs.push_back(as_leg_ref(item));
                 }
-                return py::cast(self.get_leg_co_domain(refs));
+                py::list out;
+                for (auto const& leg : self.get_leg_co_domain(refs)) {
+                    out.append(leg);
+                }
+                return out;
             }
-            return py::cast(self.get_leg_co_domain(as_leg_ref(which_leg)));
+            return self.get_leg_co_domain(as_leg_ref(which_leg));
         },
         py::arg("which_leg"),
         R"pydoc(

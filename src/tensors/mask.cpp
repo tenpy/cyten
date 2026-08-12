@@ -289,18 +289,28 @@ Mask::test_sanity() const
         } else {
             auto np = py::module_::import("numpy");
             auto expected = np.attr("arange")(space_dim(*small));
-            assert(py::bool_(np.attr("all")(py::cast(small->basis_perm()).attr("__eq__")(expected))));
+            auto actual = np.attr("asarray")(py::cast(small->basis_perm()));
+            if (!np.attr("array_equal")(actual, expected).cast<bool>()) {
+                throw std::logic_error(
+                  "Mask.test_sanity: small_leg.basis_perm inconsistent with trivial large_leg");
+            }
         }
     } else {
         auto np = py::module_::import("numpy");
         auto mask_in_internal_basis =
           backend->block_backend->to_numpy(backend->mask_to_block(as_py_object()),
                                             py::module_::import("builtins").attr("bool"));
-        auto pi_1 = py::cast(large->basis_perm());
-        auto pi_2_inv = py::cast(small->inverse_basis_perm());
-        auto ranks = pi_1[py::make_tuple(mask_in_internal_basis)][py::make_tuple(pi_2_inv)];
-        // check if ranks is sorted
-        assert(py::bool_(np.attr("all")(np.attr("diff")(ranks).attr("__gt__")(0))));
+        // Use Leg Python properties (perm_to_numpy) so empty perms stay integer dtype.
+        // np.asarray([]) defaults to float64 and breaks advanced indexing.
+        auto large_py = py::cast(large);
+        auto small_py = py::cast(small);
+        auto pi_1 = large_py.attr("basis_perm");
+        auto pi_2_inv = small_py.attr("inverse_basis_perm");
+        auto ranks = pi_1.attr("__getitem__")(mask_in_internal_basis).attr("__getitem__")(pi_2_inv);
+        // check if ranks is sorted (strictly increasing)
+        if (!np.attr("all")(np.attr("diff")(ranks).attr("__gt__")(0)).cast<bool>()) {
+            throw std::logic_error("Mask.test_sanity: kept basis ranks are not sorted");
+        }
     }
 }
 
@@ -553,11 +563,12 @@ Mask::_binary_operand(py::object other,
     }
     if (!is_projection) {
         // OPTIMIZE how hard is it to deal with inclusions in the backend?
+        // dagger is a property (like Python), not a callable method.
         auto self_proj = std::static_pointer_cast<Mask>(dagger());
-        auto other_proj = other.attr("dagger")();
+        auto other_proj = other.attr("dagger");
         auto res_projection =
           self_proj->_binary_operand(other_proj, func, operand, return_NotImplemented);
-        return res_projection.attr("dagger")();
+        return res_projection.attr("dagger");
     }
 
     auto same = get_same_backend({ as_py_object(), other });
@@ -782,7 +793,11 @@ Mask::to_numpy(std::optional<std::vector<std::variant<int64, std::string>>> leg_
     assert(symmetry->can_be_dropped());
     auto np = py::module_::import("numpy");
     auto mask = as_numpy_mask();
-    auto res = np.attr("zeros")(py::cast(shape), numpy_dtype.is_none() ? py::cast(false) : numpy_dtype);
+    // Use Python shape property (int dims) — np.zeros rejects float dims.
+    // Match Python: ``numpy_dtype or bool`` (the type, not the value False).
+    auto res = np.attr("zeros")(as_py_object().attr("shape"),
+                                numpy_dtype.is_none() ? py::module_::import("builtins").attr("bool")
+                                                      : numpy_dtype);
     // shape is [m, n] for Mask
     assert(shape.size() == 2);
     auto m = static_cast<int64>(shape[0]);
@@ -845,6 +860,10 @@ Mask::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subp
     LegLabels labels_in(2, std::nullopt);
     try {
         labels_in = hdf5_loader.attr("get_attr")(h5gr, "labels").cast<LegLabels>();
+        // Match Python save: all-None labels are stored as [].
+        if (labels_in.empty()) {
+            labels_in.assign(2, std::nullopt);
+        }
     } catch (py::error_already_set&) {
         // older saves may omit labels
     }

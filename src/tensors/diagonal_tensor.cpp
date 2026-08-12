@@ -52,7 +52,8 @@ DiagonalTensor::DiagonalTensor(TensorBackend::DataPtr data_in,
                     py::make_tuple(leg_obj),
                     py::make_tuple(leg_obj),
                     std::move(backend_in),
-                    labels_obj)
+                    labels_obj,
+                    /*check_complex_dtype=*/false)
 {
     if (py::isinstance<LegPipe>(leg_obj)) {
         throw std::invalid_argument("DiagonalTensor is not defined on LegPipes.");
@@ -70,7 +71,8 @@ DiagonalTensor::DiagonalTensor(TensorBackend::DataPtr data_in,
       std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(leg_in) }),
       std::move(backend_in),
       std::move(symmetry_in),
-      std::move(labels_in))
+      std::move(labels_in),
+      /*check_complex_dtype=*/false)
 {
     if (py::isinstance<LegPipe>(py::cast(leg_in))) {
         throw std::invalid_argument("DiagonalTensor is not defined on LegPipes.");
@@ -464,7 +466,10 @@ DiagonalTensor::_binary_operand(py::object other,
     py::object ScalarCls = py::type::of(py::cast(bb)).attr("Scalar");
 
     if (py::isinstance(other, numbers_Number) || py::isinstance(other, ScalarCls)) {
-        auto other_scalar = bb->as_scalar(other, dtype);
+        // Match Python: as_scalar(other) without forcing self.dtype (complex * float tensor).
+        // Dispatch via pybind overloads so complex/float/int keep their native dtype.
+        auto other_scalar =
+          py::cast(bb).attr("as_scalar")(other).cast<BlockBackend::Scalar>();
         py::object other_block = py::cast(std::const_pointer_cast<BlockBackend::Block>(other_scalar._block()));
         if (right) {
             py::cpp_function wrapped(
@@ -808,12 +813,14 @@ Identity::Identity(Space::Ptr leg_in,
                    Dtype dtype_in,
                    std::string device_in)
   : DiagonalTensor(
+      // Do not std::move(leg_in)/backend_in in this mem-initializer list: argument
+      // evaluation order is unspecified, and eye_data still needs both.
       backend_in->eye_data(
         std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(leg_in) }),
         dtype_in,
         device_in),
-      std::move(leg_in),
-      std::move(backend_in),
+      leg_in,
+      backend_in,
       std::move(symmetry_in),
       std::move(labels_in))
 {

@@ -143,8 +143,8 @@ class Tensor
     /// All legs of the tensor.
     ///
     /// These the spaces of the codomain, followed by the duals of the domain spaces
-    /// *in reverse order*.
-    [[nodiscard]] std::vector<Space::Ptr> legs() const;
+    /// *in reverse order*. Factors may be :class:`LegPipe` (not only :class:`Space`).
+    [[nodiscard]] std::vector<py::object> legs() const;
 
     /// Move tensor to a given device, *in place*.
     virtual void move_to_device(std::string device) = 0;
@@ -181,10 +181,14 @@ class Tensor
     [[nodiscard]] virtual BlockBackend::Scalar _get_item(std::vector<int64> const& idx) = 0;
 
     /// Return the leg, as if it was moved to the codomain.
-    [[nodiscard]] Space::Ptr _as_codomain_leg(std::variant<int64, std::string> idx) const;
+    ///
+    /// May be a :class:`LegPipe` (not only a :class:`Space`).
+    [[nodiscard]] py::object _as_codomain_leg(std::variant<int64, std::string> idx) const;
 
     /// Return the leg, as if it was moved to the domain.
-    [[nodiscard]] Space::Ptr _as_domain_leg(std::variant<int64, std::string> idx) const;
+    ///
+    /// May be a :class:`LegPipe` (not only a :class:`Space`).
+    [[nodiscard]] py::object _as_domain_leg(std::variant<int64, std::string> idx) const;
 
     /// Print :attr:`ascii_diagram` to stdout.
     void dbg() const;
@@ -199,13 +203,17 @@ class Tensor
                                                                      bool use_symm_str = false) const;
 
     /// Basically ``self.legs[which_leg]``, but allows labels and multiple indices.
-    [[nodiscard]] Space::Ptr get_leg(std::variant<int64, std::string> which_leg) const;
-    [[nodiscard]] std::vector<Space::Ptr> get_leg(
+    ///
+    /// May be a :class:`LegPipe` (not only a :class:`Space`).
+    [[nodiscard]] py::object get_leg(std::variant<int64, std::string> which_leg) const;
+    [[nodiscard]] std::vector<py::object> get_leg(
       std::vector<std::variant<int64, std::string>> const& which_legs) const;
 
     /// Get the specified leg from the domain or codomain.
-    [[nodiscard]] Space::Ptr get_leg_co_domain(std::variant<int64, std::string> which_leg) const;
-    [[nodiscard]] std::vector<Space::Ptr> get_leg_co_domain(
+    ///
+    /// May be a :class:`LegPipe` (not only a :class:`Space`).
+    [[nodiscard]] py::object get_leg_co_domain(std::variant<int64, std::string> which_leg) const;
+    [[nodiscard]] std::vector<py::object> get_leg_co_domain(
       std::vector<std::variant<int64, std::string>> const& which_legs) const;
 
     /// Set the given labels, in-place. Return the modified instance.

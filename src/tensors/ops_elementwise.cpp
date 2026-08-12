@@ -1,9 +1,17 @@
 #include <cyten/tensors/ops_elementwise.h>
 
+#include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/helpers.h>
+#include <cyten/tensors/ops_legs.h>
+#include <cyten/tensors/symmetric_tensor.h>
+#include <cyten/tensors/tensor.h>
+#include <cyten/tools.h>
 
+#include <cmath>
 #include <format>
 #include <stdexcept>
+#include <vector>
 
 namespace cyten {
 
@@ -26,6 +34,26 @@ is_diagonal_tensor(py::object x)
 {
     return py::isinstance(x, tensors_mod().attr("DiagonalTensor"))
            || py::isinstance<DiagonalTensor>(x);
+}
+
+bool
+is_charged_tensor(py::object x)
+{
+    return py::isinstance(x, tensors_mod().attr("ChargedTensor"))
+           || py::isinstance<ChargedTensor>(x);
+}
+
+bool
+is_symmetric_tensor(py::object x)
+{
+    return py::isinstance(x, tensors_mod().attr("SymmetricTensor"))
+           || py::isinstance<SymmetricTensor>(x);
+}
+
+bool
+is_tensor(py::object x)
+{
+    return py::isinstance(x, tensors_mod().attr("Tensor")) || py::isinstance<Tensor>(x);
 }
 
 bool
@@ -167,6 +195,54 @@ stable_log(py::object x, float64 cutoff)
         return np.attr("where")(np.attr("greater")(x, cutoff), np.attr("log")(x), 0.0);
     }
     throw_elementwise_type_error(x);
+}
+
+py::object
+exp(py::object obj)
+{
+    if (is_diagonal_tensor(obj)) {
+        return obj.attr("_elementwise_unary")(obj.attr("backend").attr("block_backend").attr("exp"));
+    }
+    if (is_charged_tensor(obj)) {
+        throw py::type_error("ChargedTensor can not be exponentiated.");
+    }
+    if (is_symmetric_tensor(obj)) {
+        _check_compatible_legs(py::make_tuple(obj.attr("domain")),
+                               py::make_tuple(obj.attr("codomain")));
+
+        auto backend = obj.attr("backend").cast<TensorBackend::Ptr>();
+        bool combine = (!backend->can_decompose_tensors)
+                       && (obj.attr("num_domain_legs").cast<int64>() > 1);
+        if (combine) {
+            // OPTIMIZE have the same pipe in domain and codomain. could avoid recomputing?
+            int64 J = obj.attr("num_codomain_legs").cast<int64>();
+            int64 N = obj.attr("num_legs").cast<int64>();
+            py::list cod_range;
+            py::list dom_range;
+            for (int64 i = 0; i < J; ++i) {
+                cod_range.append(i);
+            }
+            for (int64 i = J; i < N; ++i) {
+                dom_range.append(i);
+            }
+            obj = combine_legs(obj, { cod_range, dom_range });
+        }
+        py::object matrix_exp = py::cast(backend->block_backend).attr("matrix_exp");
+        auto data = backend->act_block_diagonal_square_matrix(obj, matrix_exp, py::none());
+        py::object res = tensors_mod().attr("SymmetricTensor")(py::cast(std::move(data)),
+                                                               obj.attr("codomain"),
+                                                               obj.attr("domain"),
+                                                               py::arg("backend") = obj.attr("backend"),
+                                                               py::arg("labels") = obj.attr("labels"));
+        if (combine) {
+            res = split_legs(res, py::cast(std::vector<int64>{ 0, 1 }));
+        }
+        return res;
+    }
+    if (is_tensor(obj)) {
+        throw NotImplemented("exp"); // should have considered all tensor types above
+    }
+    return py::module_::import("math").attr("exp")(obj);
 }
 
 } // namespace cyten

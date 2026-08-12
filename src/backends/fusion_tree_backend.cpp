@@ -3717,6 +3717,9 @@ FusionTreeBackend::diagonal_to_mask(py::object tens)
     // ---
     // Match Python FusionTreeBackend.diagonal_to_mask: defining sectors + ElementarySpace ctor.
     auto tens_data = data_from_tensor(tens);
+    // Keep TensorProduct alive while reading Space members (sector_decomposition is
+    // exposed via def_readwrite; chained attr() on a temporary is UAF).
+    auto codomain = tens.attr("codomain").cast<TensorProduct::Ptr>();
     py::object large_leg = tens.attr("leg");
     auto large_es = large_leg.cast<ElementarySpace::Ptr>();
     bool is_dual = large_es->is_dual;
@@ -3732,13 +3735,13 @@ FusionTreeBackend::diagonal_to_mask(py::object tens)
     auto const& bi = tens_data->block_inds;
     auto sym = tens.attr("symmetry").cast<Symmetry::Ptr>();
     auto np = numpy();
-    auto codom_secs = tens.attr("codomain").attr("sector_decomposition");
+    auto const& codom_secs = codomain->sector_decomposition;
     for (std::size_t n = 0; n < bi.nrows(); ++n) {
         auto const& diag_block = tens_data->blocks[n];
         if (!block_backend->any(diag_block))
             continue;
         int64 bii = bi(n, 0);
-        Sector coupled = codom_secs.attr("__getitem__")(bii).cast<Sector>();
+        Sector coupled = codom_secs[static_cast<std::size_t>(bii)];
         Sector defining = is_dual ? sym->dual_sector(coupled) : coupled;
         blocks.push_back(diag_block);
         codom_block_inds.push_back(bii);
