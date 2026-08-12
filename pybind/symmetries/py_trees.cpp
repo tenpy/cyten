@@ -271,7 +271,6 @@ bind_trees(py::module_& m)
     cls
       .def("test_sanity",
            &FusionTree::test_sanity,
-           "Perform sanity checks.",
            R"pydoc(
            Perform sanity checks.
            )pydoc")
@@ -298,7 +297,6 @@ bind_trees(py::module_& m)
             return FusionTree::from_empty(symmetry_from_python(symmetry_obj));
         },
         py::arg("symmetry"),
-        "The empty tree with no uncoupled sectors.",
         R"pydoc(
         The empty tree with no uncoupled sectors.
         )pydoc")
@@ -310,7 +308,6 @@ bind_trees(py::module_& m)
         py::arg("symmetry"),
         py::arg("sector"),
         py::arg("is_dual"),
-        "A tree with a single uncoupled sector and no nodes.",
         R"pydoc(
         A tree with a single uncoupled sector and no nodes.
         )pydoc")
@@ -319,7 +316,6 @@ bind_trees(py::module_& m)
       .def("ascii_diagram",
            &FusionTree::ascii_diagram,
            py::arg("dagger") = false,
-           "Visual representation of the tree as ASCII art.",
            R"pydoc(
            Visual representation of the tree as ASCII art.
            )pydoc")
@@ -354,7 +350,6 @@ bind_trees(py::module_& m)
         py::arg("Y"),
         py::arg("bend_downward"),
         py::arg("do_conj") = false,
-        "Bend a leg on a tree-pair, return the resulting linear combination of tree-pairs.",
         R"pydoc(
         Bend a leg on a tree-pair, return the resulting linear combination of tree-pairs.
 
@@ -399,7 +394,6 @@ bind_trees(py::module_& m)
         py::arg("overbraid"),
         py::arg("cutoff") = 1e-16,
         py::arg("do_conj") = false,
-        "Braid a leg on a fusion tree, return the resulting linear combination of trees.",
         R"pydoc(
         Braid a leg on a fusion tree, return the resulting linear combination of trees.
 
@@ -441,7 +435,6 @@ bind_trees(py::module_& m)
       .def("vertex_labels",
            &FusionTree::vertex_labels,
            py::arg("n"),
-           "For the ``n``-th fusion vertex, get the respective sectors.",
            R"pydoc(
            For the ``n``-th fusion vertex, get the respective sectors.
 
@@ -466,7 +459,6 @@ bind_trees(py::module_& m)
            py::arg("mu"),
            py::arg("c"),
            py::arg("copy") = true,
-           "Update the multiplicity and the three sectors around the ``n``-th vertex.",
            R"pydoc(
            Update the multiplicity and the three sectors around the ``n``-th vertex.
 
@@ -497,7 +489,6 @@ bind_trees(py::module_& m)
         py::arg("backend") = py::none(),
         py::arg("dtype") = py::none(),
         py::arg("understood_braiding") = false,
-        "Get the matrix elements of the map as a backend Block.",
         R"pydoc(
         Get the matrix elements of the map as a backend Block.
 
@@ -524,7 +515,6 @@ bind_trees(py::module_& m)
       .def("copy",
            &FusionTree::copy,
            py::arg("deep") = true,
-           "Return a shallow (or deep) copy.",
            R"pydoc(
            Return a shallow (or deep) copy.
            )pydoc")
@@ -534,7 +524,6 @@ bind_trees(py::module_& m)
            py::arg("mu"),
            py::arg("new_coupled"),
            py::arg("is_dual"),
-           "A new tree, from adding a new fusion node at the bottom, below the coupled sector.",
            R"pydoc(
            A new tree, from adding a new fusion node at the bottom, below the coupled sector.
 
@@ -559,7 +548,6 @@ bind_trees(py::module_& m)
       .def("insert",
            &FusionTree::insert,
            py::arg("t2"),
-           "Insert a tree `t2` above the first uncoupled sector.",
            R"pydoc(
            Insert a tree `t2` above the first uncoupled sector.
 
@@ -578,7 +566,6 @@ bind_trees(py::module_& m)
         py::arg("n"),
         py::arg("t2"),
         py::arg("eps") = 1.0e-14,
-        "Insert a tree `t2` above the `n`-th uncoupled sector.",
         R"pydoc(
         Insert a tree `t2` above the `n`-th uncoupled sector.
 
@@ -618,7 +605,6 @@ bind_trees(py::module_& m)
         },
         py::arg("right_tree"),
         py::arg("eps") = 1.0e-14,
-        "Outer product with another tree.",
         R"pydoc(
         Outer product with another tree.
 
@@ -647,7 +633,6 @@ bind_trees(py::module_& m)
       .def("split",
            &FusionTree::split,
            py::arg("n"),
-           "Split into two separate fusion trees.",
            R"pydoc(
            Split into two separate fusion trees.
 
@@ -670,7 +655,6 @@ bind_trees(py::module_& m)
            )pydoc")
       .def("split_bottom_vertex",
            &FusionTree::split_bottom_vertex,
-           "Split off the bottom vertex.",
            R"pydoc(
            Split off the bottom vertex.
 
@@ -709,7 +693,6 @@ bind_trees(py::module_& m)
         },
         py::arg("idcs"),
         py::arg("overtwist"),
-        "Twist some legs above a tree, return the resulting linear combination of trees.",
         R"pydoc(
         Twist some legs above a tree, return the resulting linear combination of trees.
 
@@ -820,7 +803,6 @@ bind_trees(py::module_& m)
       .def("index",
            &fusion_trees::index,
            py::arg("tree"),
-           "The index of a given tree in the iterator.",
            R"pydoc(
            The index of a given tree in the iterator.
            )pydoc");

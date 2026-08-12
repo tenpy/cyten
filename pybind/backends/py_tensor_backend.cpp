@@ -186,14 +186,12 @@ blocks.
       .def("diagonal_all",
            &TensorBackend::diagonal_all,
            py::arg("a"),
-           "Assumes a boolean DiagonalTensor. If all entries are True.",
            R"pydoc(
            Assumes a boolean DiagonalTensor. If all entries are True.
            )pydoc")
       .def("diagonal_any",
            &TensorBackend::diagonal_any,
            py::arg("a"),
-           "Assumes a boolean DiagonalTensor. If any entry is True.",
            R"pydoc(
            Assumes a boolean DiagonalTensor. If any entry is True.
            )pydoc")
@@ -232,7 +230,6 @@ blocks.
            py::arg("a"),
            py::arg("co_domain"),
            py::arg("tol"),
-           "The DiagonalData from a 1D block in *internal* basis order.",
            R"pydoc(
            The DiagonalData from a 1D block in *internal* basis order.
            )pydoc")
@@ -277,7 +274,6 @@ blocks.
       .def("diagonal_transpose",
            &TensorBackend::diagonal_transpose,
            py::arg("tens"),
-           "Transpose a diagonal tensor. Also return the new leg ``tens.leg.dual``",
            R"pydoc(
            Transpose a diagonal tensor. Also return the new leg ``tens.leg.dual``
            )pydoc")
@@ -406,7 +402,6 @@ blocks.
            py::arg("domain"),
            py::arg("dtype"),
            py::arg("device"),
-           "Compute the data for :meth:`SymmetricTensor.from_tree_pairs`.",
            R"pydoc(
            Compute the data for :meth:`SymmetricTensor.from_tree_pairs`.
            )pydoc")
@@ -417,14 +412,12 @@ blocks.
            &TensorBackend::full_data_from_mask,
            py::arg("a"),
            py::arg("dtype"),
-           "May assume that the mask is a projection.",
            R"pydoc(
            May assume that the mask is a projection.
            )pydoc")
       .def("get_device_from_data",
            &TensorBackend::get_device_from_data,
            py::arg("a"),
-           "Extract the device from the data object",
            R"pydoc(
            Extract the device from the data object
            )pydoc")
@@ -481,7 +474,6 @@ blocks.
            py::arg("a"),
            py::arg("b"),
            py::arg("do_dagger"),
-           "tensors.inner on SymmetricTensors",
            R"pydoc(
            tensors.inner on SymmetricTensors
            )pydoc")
@@ -569,7 +561,6 @@ blocks.
       .def("mask_to_block",
            &TensorBackend::mask_to_block,
            py::arg("a"),
-           "As a block of the large_leg, in *internal* basis order.",
            R"pydoc(
            As a block of the large_leg, in *internal* basis order.
            )pydoc")
@@ -610,7 +601,6 @@ blocks.
       .def("norm",
            &TensorBackend::norm,
            py::arg("a"),
-           "Norm of a tensor. order has already been parsed and is a number",
            R"pydoc(
            Norm of a tensor. order has already been parsed and is a number
            )pydoc")
@@ -742,7 +732,6 @@ blocks.
            &TensorBackend::squeeze_legs,
            py::arg("a"),
            py::arg("idcs"),
-           "Assume the legs at given indices are trivial and get rid of them",
            R"pydoc(
            Assume the legs at given indices are trivial and get rid of them
            )pydoc")
@@ -786,7 +775,6 @@ blocks.
            &TensorBackend::to_dtype,
            py::arg("a"),
            py::arg("dtype"),
-           "Cast to given dtype. No copy if already has dtype.",
            R"pydoc(
            Cast to given dtype. No copy if already has dtype.
            )pydoc")
