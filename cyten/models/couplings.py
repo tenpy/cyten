@@ -125,9 +125,7 @@ class Coupling:
 
     """
 
-    def __init__(
-        self, sites: list[Site], factorization: list[SymmetricTensor], name: str = None, skip_sanity: bool = False
-    ):
+    def __init__(self, sites: list[Site], factorization: list[SymmetricTensor], name: str = None):
         self.sites = sites
         assert len(factorization) == len(sites)
         self.factorization = factorization
@@ -135,24 +133,20 @@ class Coupling:
         self._levels: list[int] = list(range(1, len(sites) + 1))
         # cache of previously computed permutations of this instance, filled by :meth:`permute`.
         self._permuted: list[tuple[tuple[int, ...], Coupling]] = []
-        if not skip_sanity:
-            self.test_sanity()
+        self.test_sanity()
 
     def test_sanity(self):
         """Perform sanity checks."""
         backend = get_same_backend(*self.sites)
-        site_idx = 0
-        for W in self.factorization:
+        for s, W in zip(self.sites, self.factorization):
+            s.test_sanity()
             W.test_sanity()
             assert W.backend == backend
             assert W.num_codomain_legs == 2
             assert W.num_domain_legs == 2
             assert W.labels == ['wL', 'p', 'wR', 'p*']
-            if site_idx < len(self.sites):
-                s = self.sites[site_idx]
-                assert W.get_leg_co_domain('p') == s.leg
-                assert W.get_leg_co_domain('p*') == s.leg
-                site_idx += 1
+            assert W.get_leg_co_domain('p') == s.leg
+            assert W.get_leg_co_domain('p*') == s.leg
         assert self.factorization[0].get_leg('wL').is_trivial
         for W1, W2 in zip(self.factorization[:-1], self.factorization[1:]):
             assert W1.get_leg_co_domain('wR') == W2.get_leg_co_domain('wL')

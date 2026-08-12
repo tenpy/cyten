@@ -241,7 +241,7 @@ class Site:
             op = compose(op, next_op)
         return op
 
-    def identity_tensor(self, wL: ElementarySpace, wR: ElementarySpace, overbraid: bool = True) -> SymmetricTensor:
+    def identity_tensor(self, w: ElementarySpace, overbraid: bool = True) -> SymmetricTensor:
         """Build an identity MPO tensor for this site with the given virtual legs.
 
         Returns a 4-leg tensor with legs ``[wL, p, wR, p*]``; the physical legs carry :attr:`leg`.
@@ -249,8 +249,8 @@ class Site:
 
         Parameters
         ----------
-        wL, wR : ElementarySpace
-            Left and right virtual legs of the returned tensor. Must be equal.
+        w : ElementarySpace
+            Virtual leg for the `wL` and `wR` legs (they are the same) of the returned tensor.
         overbraid : bool
             Braiding direction when the virtual leg is permuted past the physical
             leg. ``True`` (default) uses an over-braid (``bend_right=False`` in
@@ -262,9 +262,7 @@ class Site:
             Identity tensor with legs ``[wL, p, wR, p*]``.
 
         """
-        if wR != wL:
-            raise ValueError(f'wR must equal wL for an identity tensor, got wR={wR}, wL={wL}')
-        tensor = SymmetricTensor.from_eye(co_domain=[self.leg, wL], backend=self.backend, labels=['p', 'w'])
+        tensor = SymmetricTensor.from_eye(co_domain=[self.leg, w], backend=self.backend, labels=['p', 'w'])
         tensor = permute_legs(tensor, codomain=['w', 'p'], domain=['p*', 'w*'], bend_right=not overbraid)
         return tensor.relabel({'w': 'wL', 'w*': 'wR'})
 
