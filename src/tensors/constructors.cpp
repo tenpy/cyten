@@ -261,8 +261,8 @@ add_trivial_leg(py::object tens,
         codomain = codomain_tp->insert_multiply(py::cast(new_leg), co_domain_pos);
     }
     auto backend = tens.attr("backend").cast<TensorBackend::Ptr>();
-    auto data =
-      backend->add_trivial_leg(tens, legs_pos, add_to_domain, co_domain_pos, codomain, domain);
+    auto data = backend->add_trivial_leg(
+      tens.cast<TensorCPtr>(), legs_pos, add_to_domain, co_domain_pos, codomain, domain);
 
     LegLabels labels = tens.attr("labels").cast<LegLabels>();
     LegLabels new_labels;

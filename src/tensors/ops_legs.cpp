@@ -583,7 +583,7 @@ permute_legs(py::object tensor,
     }
 
     auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-    auto data = backend->permute_legs(tensor,
+    auto data = backend->permute_legs(tensor.cast<TensorCPtr>(),
                                       codomain_v,
                                       domain_v,
                                       new_codomain,
@@ -906,7 +906,7 @@ combine_legs(py::object tensor,
     for (std::size_t k = 0; k < which_legs_v.size(); ++k) {
         pipes_ptr.push_back(pipes_list[static_cast<py::ssize_t>(k)].cast<LegPipe::Ptr>());
     }
-    auto data = backend->combine_legs(tensor,
+    auto data = backend->combine_legs(tensor.cast<TensorCPtr>(),
                                       which_legs_v,
                                       pipes_ptr,
                                       codomain.cast<TensorProduct::Ptr>(),
@@ -1064,8 +1064,10 @@ split_legs(py::object tensor, py::object legs)
 
     std::sort(leg_idcs.begin(), leg_idcs.end());
     auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-    auto data = backend->split_legs(
-      tensor, leg_idcs, codomain.cast<TensorProduct::Ptr>(), domain.cast<TensorProduct::Ptr>());
+    auto data = backend->split_legs(tensor.cast<TensorCPtr>(),
+                                    leg_idcs,
+                                    codomain.cast<TensorProduct::Ptr>(),
+                                    domain.cast<TensorProduct::Ptr>());
     return make_python_symmetric_tensor(
       std::move(data), codomain, domain, backend, labels_to_py(labels));
 }
@@ -1120,7 +1122,7 @@ squeeze_legs(py::object tensor, py::object legs)
     }
 
     auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-    auto data = backend->squeeze_legs(tensor, legs_v);
+    auto data = backend->squeeze_legs(tensor.cast<TensorCPtr>(), legs_v);
 
     // the fusion with the trivial legs was trivial, so removing it doesnt change the sectors
     py::list cod_spaces;

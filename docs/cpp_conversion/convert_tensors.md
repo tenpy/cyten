@@ -6,7 +6,7 @@ Branch: **`convert_tensors`** (reuse for the whole module; no per-object branche
 
 Python source: [`cyten/tensors/_tensors.py`](../../cyten/tensors/_tensors.py) — thin `_core` re-export (class + free-function bodies removed).
 
-Layer 3 backends still take tensor args as interim `py::object` in [`tensor_backend.h`](../../include/cyten/backends/tensor_backend.h). Typed cleanup is **deferred** (circular includes / scale of `.attr` rewrite); see [Backend `py::object` cleanup](#backend-pyobject-cleanup-deferred) below.
+Layer 3 backends use typed tensor Ptr args via [`forward_declare.h`](../../include/cyten/tensors/forward_declare.h) — see [convert_tensor_backend_cleanup.md](convert_tensor_backend_cleanup.md).
 
 ## Conversion order
 
@@ -60,29 +60,19 @@ flowchart TD
 | 12 | Algebra ops (`almost_equal`, `compose`, `dagger`, `inner`, `item`, `linear_combination`, `norm`, `outer`, `partial_compose`, `partial_trace`, `pinv`, `scalar_multiply`, `scale_axis`, `tdot`, `trace`, `transpose`, `is_scalar`, `get_same_device`, `on_device`) | **C++ + bindings + monkey-patched** — [convert_tensor_algebra.md](convert_tensor_algebra.md) |
 | 13 | Leg permutation ops (`bend_legs`, `check_same_legs`, `combine_legs`, `combine_to_matrix`, `move_leg`, `permute_legs`, `split_legs`, `squeeze_legs`) | **C++ + bindings + monkey-patched** — [convert_tensor_legs.md](convert_tensor_legs.md) |
 | 14 | Decompositions (`eigh`, `entropy`, `qr`, `lq`, `svd`, `svd_apply_mask`, `truncate_singular_values`, `truncated_svd`, `apply_mask_DiagonalTensor`) | **C++ + bindings + monkey-patched** — [convert_tensor_decompositions.md](convert_tensor_decompositions.md) |
-| 15 | Backend `py::object` cleanup | **deferred** — see below |
+| 15 | Backend `py::object` cleanup | **done** — [convert_tensor_backend_cleanup.md](convert_tensor_backend_cleanup.md) (`forward_declare.h`; typed virtuals; `as_py_object` removed) |
 | 16 | Monkey-patch Tensor hierarchy + remaining free fns (`apply_mask`, `enlarge_leg`, `exp`) | **done**; Python bodies removed (`_tensors.py` is `_core` re-export); not-slow pytest passed |
 
-## Backend `py::object` cleanup (deferred)
+## Backend `py::object` cleanup
 
-Attempted replacing `TensorBackend` tensor `py::object` args with `TensorPtr` / `MaskPtr` / `DiagonalTensorPtr`. Blocked by:
+**Done** — see **[convert_tensor_backend_cleanup.md](convert_tensor_backend_cleanup.md)**.
 
-1. Circular includes: tensor headers include backends; backends cannot include complete tensor types in headers (fwd decls only).
-2. `py::cast(TensorPtr)` in backend `.cpp` needs complete types; including tensor headers pulls backends again and is workable in `.cpp`, but a mechanical body rewrite (`py::object` → Ptr while keeping `.attr` access) is error-prone at this scale (~900 `.attr` uses).
-
-Done in the monkey-patch wrap-up instead:
-
-1. Port + monkey-patch `apply_mask`, `enlarge_leg`, `exp`.
-2. Monkey-patch full Tensor hierarchy (`LabelledLegs` … `ChargedTensor`).
-3. `data_as_python` / `make_python_*` pass `DataPtr` into C++ ctors (no NoSymmetry unwrap into ctor).
-4. Pytest stepwise; fix failures.
-
-Follow-up for typed backend API:
-
-1. Add `include/cyten/tensors/fwd.h` and typed virtuals on `TensorBackend`.
-2. In backend `.cpp` only: `#include` complete tensor headers; access `tensor->data` / `codomain` / etc. (prefer members over `.attr`).
-3. Update `as_py_object()` call sites to pass `shared_from_this()` / `static_pointer_cast`.
-4. Keep HDF5 / `dtype_map` / sector arrays as `py::object`.
+- `forward_declare.h` breaks the backends ↔ tensors include cycle.
+- `TensorBackend` / concrete backends / trampolines take `TensorCPtr` /
+  `SymmetricTensorCPtr` / `DiagonalTensorCPtr` / `MaskCPtr`.
+- Backend `.cpp` files include complete tensor headers; helpers use members (`data`, `dtype`, …).
+- `as_py_object()` removed; call sites pass typed `shared_from_this()` / casts.
+- HDF5 / `dtype_map` / `DataCls` / `from_grid` cells remain `py::object`.
 
 ## File layout
 

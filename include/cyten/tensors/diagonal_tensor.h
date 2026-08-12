@@ -184,10 +184,6 @@ class DiagonalTensor : public SymmetricTensor
     [[nodiscard]] virtual BlockBackend::Scalar min() const;
 
     [[nodiscard]] virtual Ptr abs() const;
-
-  protected:
-    [[nodiscard]] py::object as_py_object() override;
-    [[nodiscard]] py::object as_py_object() const override;
 };
 
 /// Special case of a :class:`DiagonalTensor` that is exactly the identity map.
@@ -289,10 +285,6 @@ class Identity : public DiagonalTensor
       std::optional<std::vector<std::variant<int64, std::string>>> leg_order = std::nullopt,
       std::optional<Dtype> dtype = std::nullopt,
       bool understood_braiding = false) override;
-
-  protected:
-    [[nodiscard]] py::object as_py_object() override;
-    [[nodiscard]] py::object as_py_object() const override;
 };
 
 } // namespace cyten

@@ -282,9 +282,11 @@ _compose_with_Mask(py::object tensor, py::object mask, int64 leg_idx)
     bool mask_is_projection = mask.attr("is_projection").cast<bool>();
     std::tuple<TensorBackend::DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> contracted;
     if (in_domain == mask_is_projection) {
-        contracted = backend->mask_contract_small_leg(tensor, mask, leg_idx);
+        contracted = backend->mask_contract_small_leg(
+          tensor.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), leg_idx);
     } else {
-        contracted = backend->mask_contract_large_leg(tensor, mask, leg_idx);
+        contracted = backend->mask_contract_large_leg(
+          tensor.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), leg_idx);
     }
     auto& [data, codomain, domain] = contracted;
     return make_python_symmetric_tensor(
@@ -326,7 +328,8 @@ _compose_SymmetricTensors(py::object tensor1,
     }
 
     auto backend = get_same_backend({ tensor1, tensor2 });
-    auto data = backend->compose(tensor1, tensor2);
+    auto data =
+      backend->compose(tensor1.cast<SymmetricTensorCPtr>(), tensor2.cast<SymmetricTensorCPtr>());
     return make_python_symmetric_tensor(std::move(data),
                                         tensor1.attr("codomain"),
                                         tensor2.attr("domain"),
@@ -343,7 +346,7 @@ _convert_abelian_to_FT(py::object tensor,
     auto codomain = tensor.attr("codomain").cast<TensorProduct::Ptr>();
     auto domain = tensor.attr("domain").cast<TensorProduct::Ptr>();
     auto symmetry = tensor.attr("symmetry").cast<Symmetry::Ptr>();
-    auto ab_data = AbelianBackend::data_from_tensor(tensor);
+    auto ab_data = AbelianBackend::data_from_tensor(tensor.cast<TensorCPtr>());
     auto old_bb =
       tensor.attr("backend").attr("block_backend").cast<std::shared_ptr<BlockBackend>>();
 
@@ -513,7 +516,7 @@ _convert_FT_to_abelian(py::object tensor,
     auto domain = tensor.attr("domain").cast<TensorProduct::Ptr>();
     auto codomain = tensor.attr("codomain").cast<TensorProduct::Ptr>();
     auto symmetry = tensor.attr("symmetry").cast<Symmetry::Ptr>();
-    auto ft_data = FusionTreeBackend::data_from_tensor(tensor);
+    auto ft_data = FusionTreeBackend::data_from_tensor(tensor.cast<TensorCPtr>());
     auto old_bb =
       tensor.attr("backend").attr("block_backend").cast<std::shared_ptr<BlockBackend>>();
 

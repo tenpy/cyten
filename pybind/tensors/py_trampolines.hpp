@@ -22,10 +22,8 @@ class PyTensor
   public:
     using Tensor::Tensor;
 
-    std::string ascii_diagram() const override
-    {
-        PYBIND11_OVERRIDE(std::string, Tensor, ascii_diagram);
-    }
+    // Bound as a pybind property; PYBIND11_OVERRIDE clashes with that.
+    std::string ascii_diagram() const override { return Tensor::ascii_diagram(); }
 
     Ptr as_dtype(Dtype dtype) override { PYBIND11_OVERRIDE_PURE(Ptr, Tensor, as_dtype, dtype); }
 

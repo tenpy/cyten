@@ -342,7 +342,8 @@ almost_equal(py::object tensor_1,
         }
         if (is_SymmetricTensor(tensor_2)) {
             auto backend = get_same_backend({ tensor_1, tensor_2 });
-            return backend->almost_equal(tensor_1, tensor_2, rtol, atol);
+            return backend->almost_equal(
+              tensor_1.cast<TensorCPtr>(), tensor_2.cast<TensorCPtr>(), rtol, atol);
         }
         if (is_ChargedTensor(tensor_2) && allow_different_types) {
             try {
@@ -441,7 +442,7 @@ dagger(py::object tensor)
     // ---
     if (is_Mask(tensor)) {
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-        auto data = backend->mask_dagger(tensor);
+        auto data = backend->mask_dagger(tensor.cast<MaskCPtr>());
         LegLabels labs = leg_labels_from_py(tensor.attr("_labels"));
         LegLabels dual_labs;
         for (auto it = labs.rbegin(); it != labs.rend(); ++it) {
@@ -474,7 +475,7 @@ dagger(py::object tensor)
     }
     if (is_SymmetricTensor(tensor)) {
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-        auto data = backend->dagger(tensor);
+        auto data = backend->dagger(tensor.cast<TensorCPtr>());
         LegLabels dual_labs;
         LegLabels labs = leg_labels_from_py(tensor.attr("_labels"));
         for (auto it = labs.rbegin(); it != labs.rend(); ++it) {
@@ -781,7 +782,8 @@ inner(py::object A, py::object B, bool do_dagger)
     }
 
     // remaining case: both are SymmetricTensor
-    return scalar_to_py(backend->inner(A, B, do_dagger));
+    return scalar_to_py(
+      backend->inner(A.cast<SymmetricTensorCPtr>(), B.cast<SymmetricTensorCPtr>(), do_dagger));
 }
 
 bool
@@ -928,7 +930,8 @@ linear_combination(py::object a, py::object v, py::object b, py::object w)
 
     auto a_sc = a.cast<BlockBackend::Scalar>();
     auto b_sc = b.cast<BlockBackend::Scalar>();
-    auto data = backend->linear_combination(a_sc, v, b_sc, w);
+    auto data =
+      backend->linear_combination(a_sc, v.cast<TensorCPtr>(), b_sc, w.cast<TensorCPtr>());
     LegLabels labels = _get_matching_labels(leg_labels_from_py(v.attr("_labels")),
                                             leg_labels_from_py(w.attr("_labels")));
     return make_python_symmetric_tensor(
@@ -957,7 +960,7 @@ norm(py::object tensor)
     }
     if (is_DiagonalTensor(tensor) || is_SymmetricTensor(tensor)) {
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-        return scalar_to_py(backend->norm(tensor));
+        return scalar_to_py(backend->norm(tensor.cast<TensorCPtr>()));
     }
     if (is_ChargedTensor(tensor)) {
         if (tensor.attr("charged_state").is_none()) {
@@ -970,7 +973,8 @@ norm(py::object tensor)
             auto factor = backend->block_backend
                             ->item(tensor.attr("charged_state").cast<BlockBackend::BlockPtr>())
                             .abs();
-            return scalar_to_py(factor * backend->norm(tensor.attr("invariant_part")));
+            return scalar_to_py(factor *
+                                backend->norm(tensor.attr("invariant_part").cast<TensorCPtr>()));
         }
         // OPTIMIZE
         py::module_::import("warnings")
@@ -1045,7 +1049,8 @@ outer(py::object tensor1,
         return make_python_charged_tensor(inv_part, tensor2.attr("charged_state"));
     }
     auto backend = get_same_backend({ tensor1, tensor2 });
-    auto data = backend->outer(tensor1, tensor2);
+    auto data =
+      backend->outer(tensor1.cast<SymmetricTensorCPtr>(), tensor2.cast<SymmetricTensorCPtr>());
     auto codomain = TensorProduct::from_partial_products(
       { tensor1.attr("codomain").cast<TensorProduct::Ptr>(),
         tensor2.attr("codomain").cast<TensorProduct::Ptr>() });
@@ -1260,8 +1265,8 @@ partial_compose(py::object tensor1,
     }
 
     auto backend = get_same_backend({ tensor1, tensor2 });
-    auto data = backend->partial_compose(tensor1,
-                                         tensor2,
+    auto data = backend->partial_compose(tensor1.cast<SymmetricTensorCPtr>(),
+                                         tensor2.cast<SymmetricTensorCPtr>(),
                                          t1_first,
                                          new_codomain.cast<TensorProduct::Ptr>(),
                                          new_domain.cast<TensorProduct::Ptr>());
@@ -1375,7 +1380,8 @@ partial_trace(py::object tensor, std::vector<py::object> pairs, py::object level
     TensorProduct::Ptr codomain;
     TensorProduct::Ptr domain;
     try {
-        auto traced = backend->partial_trace(tensor, parsed_pairs, levels_vec);
+        auto traced =
+          backend->partial_trace(tensor.cast<SymmetricTensorCPtr>(), parsed_pairs, levels_vec);
         data = std::move(std::get<0>(traced));
         codomain = std::move(std::get<1>(traced));
         domain = std::move(std::get<2>(traced));
@@ -1462,7 +1468,7 @@ scalar_multiply(py::object a, py::object v)
     }
     // remaining case: SymmetricTensor
     auto backend = v.attr("backend").cast<TensorBackend::Ptr>();
-    auto data = backend->mul(a.cast<BlockBackend::Scalar>(), v);
+    auto data = backend->mul(a.cast<BlockBackend::Scalar>(), v.cast<TensorCPtr>());
     return make_python_symmetric_tensor(
       std::move(data), v.attr("codomain"), v.attr("domain"), backend, v.attr("_labels"));
 }
@@ -1506,7 +1512,8 @@ scale_axis(py::object tensor, py::object diag, py::object leg)
         return make_python_charged_tensor(inv_part, tensor.attr("charged_state"));
     }
     auto backend = get_same_backend({ tensor, diag });
-    auto data = backend->scale_axis(tensor, diag, leg_idx);
+    auto data =
+      backend->scale_axis(tensor.cast<TensorCPtr>(), diag.cast<DiagonalTensorCPtr>(), leg_idx);
     return make_python_symmetric_tensor(std::move(data),
                                         tensor.attr("codomain"),
                                         tensor.attr("domain"),
@@ -1823,7 +1830,8 @@ trace(py::object tensor)
     }
     if (is_DiagonalTensor(tensor)) {
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-        return scalar_to_py(backend->diagonal_tensor_trace_full(tensor));
+        return scalar_to_py(
+          backend->diagonal_tensor_trace_full(tensor.cast<DiagonalTensorCPtr>()));
     }
     if (is_ChargedTensor(tensor)) {
         if (tensor.attr("charged_state").is_none()) {
@@ -1849,7 +1857,7 @@ trace(py::object tensor)
         return scalar_to_py(bb->item(res));
     }
     auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-    return scalar_to_py(backend->trace_full(tensor, {}, {}));
+    return scalar_to_py(backend->trace_full(tensor.cast<SymmetricTensorCPtr>(), {}, {}));
 }
 
 py::object
@@ -1866,7 +1874,7 @@ transpose(py::object tensor)
 
     if (is_Mask(tensor)) {
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-        auto [space_in, space_out, data] = backend->mask_transpose(tensor);
+        auto [space_in, space_out, data] = backend->mask_transpose(tensor.cast<MaskCPtr>());
         return make_python_mask(std::move(data),
                                 py::cast(space_in),
                                 py::cast(space_out),
@@ -1880,7 +1888,7 @@ transpose(py::object tensor)
     }
     if (is_DiagonalTensor(tensor)) {
         auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
-        auto [dual_leg, data] = backend->diagonal_transpose(tensor);
+        auto [dual_leg, data] = backend->diagonal_transpose(tensor.cast<DiagonalTensorCPtr>());
         return make_python_diagonal_tensor(
           std::move(data), py::cast(dual_leg), backend, labels_py);
     }

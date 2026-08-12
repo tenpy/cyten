@@ -3,6 +3,9 @@
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/block_backend/numpy.h>
 #include <cyten/block_backend/torch.h>
+#include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/mask.h>
+#include <cyten/tensors/symmetric_tensor.h>
 
 #include <memory>
 #include <optional>
@@ -88,7 +91,10 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     // Overrides that return Data → expose Block to Python (match current Python storage).
     cls.def(
       "act_block_diagonal_square_matrix",
-      [](NoSymmetryBackend& self, py::object a, py::function block_method, py::object dtype_map) {
+      [](NoSymmetryBackend& self,
+         SymmetricTensorCPtr a,
+         py::function block_method,
+         py::object dtype_map) {
           return py_block(self.act_block_diagonal_square_matrix(a, block_method, dtype_map));
       },
       py::arg("a"),
@@ -112,7 +118,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "add_trivial_leg",
       [](NoSymmetryBackend& self,
-         py::object a,
+         TensorCPtr a,
          int64 legs_pos,
          bool add_to_domain,
          int64 co_domain_pos,
@@ -156,7 +162,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "apply_mask_to_DiagonalTensor",
-      [](NoSymmetryBackend& self, py::object tensor, py::object mask) {
+      [](NoSymmetryBackend& self, DiagonalTensorCPtr tensor, MaskCPtr mask) {
           return py_block(self.apply_mask_to_DiagonalTensor(tensor, mask));
       },
       py::arg("tensor"),
@@ -164,7 +170,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "combine_legs",
       [](NoSymmetryBackend& self,
-         py::object tensor,
+         TensorCPtr tensor,
          std::vector<std::vector<int64>> leg_idcs_combine,
          std::vector<LegPipe::Ptr> pipes,
          TensorProduct::Ptr new_codomain,
@@ -208,7 +214,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "compose",
-      [](NoSymmetryBackend& self, py::object a, py::object b) {
+      [](NoSymmetryBackend& self, SymmetricTensorCPtr a, SymmetricTensorCPtr b) {
           return py_block(self.compose(a, b));
       },
       py::arg("a"),
@@ -221,7 +227,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "copy_data",
-      [](NoSymmetryBackend& self, py::object a, std::optional<std::string> device) {
+      [](NoSymmetryBackend& self, TensorCPtr a, std::optional<std::string> device) {
           return py_block(self.copy_data(a, std::move(device)));
       },
       py::arg("a"),
@@ -245,7 +251,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "dagger",
-      [](NoSymmetryBackend& self, py::object a) { return py_block(self.dagger(a)); },
+      [](NoSymmetryBackend& self, TensorCPtr a) { return py_block(self.dagger(a)); },
       py::arg("a"),
       R"pydoc(
       The hermitian conjugate tensor, a.k.a the dagger of a tensor.
@@ -281,10 +287,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "item",
-      [](NoSymmetryBackend& self, py::object a) {
-          // Python stores Block as tensor.data; wrap before data_item.
-          return self.data_item(py_data(a.attr("data")));
-      },
+      [](NoSymmetryBackend& self, TensorCPtr a) { return self.item(a); },
       py::arg("a"),
       R"pydoc(
       Convert tensor to a python scalar.
@@ -303,8 +306,8 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "diagonal_elementwise_binary",
       [](NoSymmetryBackend& self,
-         py::object a,
-         py::object b,
+         DiagonalTensorCPtr a,
+         DiagonalTensorCPtr b,
          py::function func,
          py::dict func_kwargs,
          bool partial_zero_is_zero) {
@@ -330,7 +333,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "diagonal_elementwise_unary",
       [](NoSymmetryBackend& self,
-         py::object a,
+         DiagonalTensorCPtr a,
          py::function func,
          py::dict func_kwargs,
          bool maps_zero_to_zero) {
@@ -374,7 +377,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "diagonal_tensor_from_full_tensor",
-      [](NoSymmetryBackend& self, py::object a, std::optional<float64> tol) {
+      [](NoSymmetryBackend& self, SymmetricTensorCPtr a, std::optional<float64> tol) {
           return py_block(self.diagonal_tensor_from_full_tensor(a, tol));
       },
       py::arg("a"),
@@ -386,7 +389,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "diagonal_to_mask",
-      [](NoSymmetryBackend& self, py::object tens) {
+      [](NoSymmetryBackend& self, DiagonalTensorCPtr tens) {
           auto [data, leg] = self.diagonal_to_mask(tens);
           return std::make_tuple(py_block(std::move(data)), std::move(leg));
       },
@@ -399,7 +402,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "diagonal_transpose",
-      [](NoSymmetryBackend& self, py::object tens) {
+      [](NoSymmetryBackend& self, DiagonalTensorCPtr tens) {
           auto [leg, data] = self.diagonal_transpose(tens);
           return std::make_tuple(std::move(leg), py_block(std::move(data)));
       },
@@ -410,7 +413,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "eigh",
       [](NoSymmetryBackend& self,
-         py::object a,
+         SymmetricTensorCPtr a,
          bool new_leg_dual,
          std::optional<std::string> sort) {
           auto [w, v, leg] = self.eigh(a, new_leg_dual, std::move(sort));
@@ -594,13 +597,13 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "full_data_from_diagonal_tensor",
-      [](NoSymmetryBackend& self, py::object a) {
+      [](NoSymmetryBackend& self, DiagonalTensorCPtr a) {
           return py_block(self.full_data_from_diagonal_tensor(a));
       },
       py::arg("a"));
     cls.def(
       "full_data_from_mask",
-      [](NoSymmetryBackend& self, py::object a, Dtype dtype) {
+      [](NoSymmetryBackend& self, MaskCPtr a, Dtype dtype) {
           return py_block(self.full_data_from_mask(a, dtype));
       },
       py::arg("a"),
@@ -640,9 +643,9 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       "linear_combination",
       [](NoSymmetryBackend& self,
          BlockBackend::Scalar a,
-         py::object v,
+         TensorCPtr v,
          BlockBackend::Scalar b,
-         py::object w) { return py_block(self.linear_combination(a, v, b, w)); },
+         TensorCPtr w) { return py_block(self.linear_combination(a, v, b, w)); },
       py::arg("a"),
       py::arg("v"),
       py::arg("b"),
@@ -654,7 +657,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "lq",
-      [](NoSymmetryBackend& self, py::object tensor, TensorProduct::Ptr new_co_domain) {
+      [](NoSymmetryBackend& self, SymmetricTensorCPtr tensor, TensorProduct::Ptr new_co_domain) {
           auto [l, q] = self.lq(tensor, new_co_domain);
           return std::make_tuple(py_block(std::move(l)), py_block(std::move(q)));
       },
@@ -701,7 +704,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "mask_binary_operand",
-      [](NoSymmetryBackend& self, py::object mask1, py::object mask2, py::function func) {
+      [](NoSymmetryBackend& self, MaskCPtr mask1, MaskCPtr mask2, py::function func) {
           auto [data, leg] = self.mask_binary_operand(mask1, mask2, func);
           return std::make_tuple(py_block(std::move(data)), std::move(leg));
       },
@@ -720,7 +723,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "mask_contract_large_leg",
-      [](NoSymmetryBackend& self, py::object tensor, py::object mask, int64 leg_idx) {
+      [](NoSymmetryBackend& self, TensorCPtr tensor, MaskCPtr mask, int64 leg_idx) {
           auto [data, codomain, domain] = self.mask_contract_large_leg(tensor, mask, leg_idx);
           return std::make_tuple(
             py_block(std::move(data)), std::move(codomain), std::move(domain));
@@ -738,7 +741,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "mask_contract_small_leg",
-      [](NoSymmetryBackend& self, py::object tensor, py::object mask, int64 leg_idx) {
+      [](NoSymmetryBackend& self, TensorCPtr tensor, MaskCPtr mask, int64 leg_idx) {
           auto [data, codomain, domain] = self.mask_contract_small_leg(tensor, mask, leg_idx);
           return std::make_tuple(
             py_block(std::move(data)), std::move(codomain), std::move(domain));
@@ -756,7 +759,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "mask_dagger",
-      [](NoSymmetryBackend& self, py::object mask) { return py_block(self.mask_dagger(mask)); },
+      [](NoSymmetryBackend& self, MaskCPtr mask) { return py_block(self.mask_dagger(mask)); },
       py::arg("mask"));
     cls.def(
       "mask_from_block",
@@ -773,14 +776,14 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "mask_to_diagonal",
-      [](NoSymmetryBackend& self, py::object a, Dtype dtype) {
+      [](NoSymmetryBackend& self, MaskCPtr a, Dtype dtype) {
           return py_block(self.mask_to_diagonal(a, dtype));
       },
       py::arg("a"),
       py::arg("dtype"));
     cls.def(
       "mask_transpose",
-      [](NoSymmetryBackend& self, py::object tens) {
+      [](NoSymmetryBackend& self, MaskCPtr tens) {
           auto [s_in, s_out, data] = self.mask_transpose(tens);
           return std::make_tuple(std::move(s_in), std::move(s_out), py_block(std::move(data)));
       },
@@ -792,7 +795,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "mask_unary_operand",
-      [](NoSymmetryBackend& self, py::object mask, py::function func) {
+      [](NoSymmetryBackend& self, MaskCPtr mask, py::function func) {
           auto [data, leg] = self.mask_unary_operand(mask, func);
           return std::make_tuple(py_block(std::move(data)), std::move(leg));
       },
@@ -806,7 +809,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "move_to_device",
-      [](NoSymmetryBackend& self, py::object a, std::string device) {
+      [](NoSymmetryBackend& self, TensorCPtr a, std::string device) {
           return py_block(self.move_to_device(a, std::move(device)));
       },
       py::arg("a"),
@@ -823,14 +826,14 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "mul",
-      [](NoSymmetryBackend& self, BlockBackend::Scalar a, py::object b) {
+      [](NoSymmetryBackend& self, BlockBackend::Scalar a, TensorCPtr b) {
           return py_block(self.mul(a, b));
       },
       py::arg("a"),
       py::arg("b"));
     cls.def(
       "outer",
-      [](NoSymmetryBackend& self, py::object a, py::object b) {
+      [](NoSymmetryBackend& self, SymmetricTensorCPtr a, SymmetricTensorCPtr b) {
           return py_block(self.outer(a, b));
       },
       py::arg("a"),
@@ -843,8 +846,8 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "partial_compose",
       [](NoSymmetryBackend& self,
-         py::object a,
-         py::object b,
+         SymmetricTensorCPtr a,
+         SymmetricTensorCPtr b,
          int64 a_first_leg,
          TensorProduct::Ptr new_codomain,
          TensorProduct::Ptr new_domain) {
@@ -864,7 +867,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "partial_trace",
       [](NoSymmetryBackend& self,
-         py::object tensor,
+         SymmetricTensorCPtr tensor,
          std::vector<std::pair<int64, int64>> pairs,
          std::vector<std::optional<int64>> levels) -> py::object {
           auto [data, codomain, domain] =
@@ -887,7 +890,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "permute_legs",
       [](NoSymmetryBackend& self,
-         py::object a,
+         TensorCPtr a,
          std::vector<int64> codomain_idcs,
          std::vector<int64> domain_idcs,
          TensorProduct::Ptr new_codomain,
@@ -943,7 +946,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "qr",
-      [](NoSymmetryBackend& self, py::object a, TensorProduct::Ptr new_co_domain) {
+      [](NoSymmetryBackend& self, SymmetricTensorCPtr a, TensorProduct::Ptr new_co_domain) {
           auto [q, r] = self.qr(a, new_co_domain);
           return std::make_tuple(py_block(std::move(q)), py_block(std::move(r)));
       },
@@ -958,7 +961,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "scale_axis",
-      [](NoSymmetryBackend& self, py::object a, py::object b, int64 leg) {
+      [](NoSymmetryBackend& self, TensorCPtr a, DiagonalTensorCPtr b, int64 leg) {
           return py_block(self.scale_axis(a, b, leg));
       },
       py::arg("a"),
@@ -973,7 +976,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "split_legs",
       [](NoSymmetryBackend& self,
-         py::object a,
+         TensorCPtr a,
          std::vector<int64> leg_idcs,
          TensorProduct::Ptr new_codomain,
          TensorProduct::Ptr new_domain) {
@@ -998,7 +1001,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       )pydoc");
     cls.def(
       "squeeze_legs",
-      [](NoSymmetryBackend& self, py::object a, std::vector<int64> idcs) {
+      [](NoSymmetryBackend& self, TensorCPtr a, std::vector<int64> idcs) {
           return py_block(self.squeeze_legs(a, std::move(idcs)));
       },
       py::arg("a"),
@@ -1009,7 +1012,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "svd",
       [](NoSymmetryBackend& self,
-         py::object a,
+         SymmetricTensorCPtr a,
          TensorProduct::Ptr new_co_domain,
          std::optional<std::string> algorithm) {
           auto [u, s, vh] = self.svd(a, new_co_domain, std::move(algorithm));
@@ -1097,7 +1100,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
       py::arg("device") = py::none());
     cls.def(
       "to_dtype",
-      [](NoSymmetryBackend& self, py::object a, Dtype dtype) {
+      [](NoSymmetryBackend& self, TensorCPtr a, Dtype dtype) {
           return py_block(self.to_dtype(a, dtype));
       },
       py::arg("a"),
@@ -1108,7 +1111,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "trace_full",
       [](NoSymmetryBackend& self,
-         py::object a,
+         SymmetricTensorCPtr a,
          std::vector<int64> idcs1,
          std::vector<int64> idcs2) {
           return self.trace_full(a, std::move(idcs1), std::move(idcs2));
@@ -1119,7 +1122,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "truncate_singular_values",
       [](NoSymmetryBackend& self,
-         py::object S,
+         DiagonalTensorCPtr S,
          std::optional<int64> chi_max,
          int64 chi_min,
          float64 degeneracy_tol,

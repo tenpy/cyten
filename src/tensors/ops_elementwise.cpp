@@ -231,7 +231,8 @@ exp(py::object obj)
             obj = combine_legs(obj, { cod_range, dom_range });
         }
         py::object matrix_exp = py::cast(backend->block_backend).attr("matrix_exp");
-        auto data = backend->act_block_diagonal_square_matrix(obj, matrix_exp, py::none());
+        auto data = backend->act_block_diagonal_square_matrix(
+          obj.cast<SymmetricTensorCPtr>(), matrix_exp, py::none());
         py::object res =
           tensors_mod().attr("SymmetricTensor")(py::cast(std::move(data)),
                                                 obj.attr("codomain"),

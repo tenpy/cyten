@@ -187,12 +187,6 @@ class SymmetricTensor : public Tensor
       bool understood_braiding = false) override;
 
     [[nodiscard]] BlockBackend::BlockPtr to_dense_block_trivial_sector() const;
-
-  protected:
-    /// ``py::cast`` of ``shared_from_this`` as SymmetricTensor (for backend APIs taking
-    /// ``py::object``).
-    [[nodiscard]] virtual py::object as_py_object();
-    [[nodiscard]] virtual py::object as_py_object() const;
 };
 
 } // namespace cyten

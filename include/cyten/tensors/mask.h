@@ -175,10 +175,6 @@ class Mask : public Tensor
                                              bool return_NotImplemented = true);
 
     [[nodiscard]] Ptr _unary_operand(py::function func);
-
-    /// ``py::cast`` of ``shared_from_this`` as Mask (for backend APIs taking ``py::object``).
-    [[nodiscard]] py::object as_py_object();
-    [[nodiscard]] py::object as_py_object() const;
 };
 
 } // namespace cyten

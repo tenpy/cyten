@@ -2,6 +2,9 @@
 #include "py_trampolines.hpp"
 
 #include <cyten/backends/tensor_backend.h>
+#include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/mask.h>
+#include <cyten/tensors/symmetric_tensor.h>
 
 #include <memory>
 #include <optional>

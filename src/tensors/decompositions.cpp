@@ -224,7 +224,8 @@ apply_mask_DiagonalTensor(py::object tensor, py::object mask)
                                               py::arg("backend") = py::cast(backend),
                                               py::arg("labels") = tensor.attr("labels"));
     }
-    auto data = backend->apply_mask_to_DiagonalTensor(tensor, mask);
+    auto data = backend->apply_mask_to_DiagonalTensor(tensor.cast<DiagonalTensorCPtr>(),
+                                                      mask.cast<MaskCPtr>());
     return make_python_diagonal_tensor(
       std::move(data), mask.attr("small_leg"), backend, tensor.attr("labels"));
 }
@@ -313,7 +314,8 @@ eigh(py::object tensor, py::object new_labels, bool new_leg_dual, py::object sor
         sort_opt = sort.cast<std::string>();
     }
     // first, compute a decomposition where the new leg is a ket space
-    auto [w_data, v_data, new_leg] = backend->eigh(tensor, new_leg_dual, sort_opt);
+    auto [w_data, v_data, new_leg] =
+      backend->eigh(tensor.cast<SymmetricTensorCPtr>(), new_leg_dual, sort_opt);
     py::object W = make_python_diagonal_tensor(std::move(w_data),
                                                py::cast(new_leg),
                                                backend,
@@ -410,7 +412,7 @@ qr(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_leg_
     auto [tens, new_co_domain, combine_codomain, combine_domain] =
       _decomposition_prepare(tensor, new_leg_dual);
     auto backend = tens.attr("backend").cast<TensorBackend::Ptr>();
-    auto [q_data, r_data] = backend->qr(tens, new_co_domain);
+    auto [q_data, r_data] = backend->qr(tens.cast<SymmetricTensorCPtr>(), new_co_domain);
     py::object Q = make_python_symmetric_tensor(
       std::move(q_data),
       tens.attr("codomain"),
@@ -464,7 +466,7 @@ lq(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_leg_
     auto [tens, new_co_domain, combine_codomain, combine_domain] =
       _decomposition_prepare(tensor, new_leg_dual);
     auto backend = tens.attr("backend").cast<TensorBackend::Ptr>();
-    auto [l_data, q_data] = backend->lq(tens, new_co_domain);
+    auto [l_data, q_data] = backend->lq(tens.cast<SymmetricTensorCPtr>(), new_co_domain);
     py::object L = make_python_symmetric_tensor(
       std::move(l_data),
       tens.attr("codomain"),
@@ -530,7 +532,8 @@ svd(py::object tensor,
     if (!algorithm.is_none()) {
         algo = algorithm.cast<std::string>();
     }
-    auto [u_data, s_data, vh_data] = backend->svd(tens, new_co_domain, algo);
+    auto [u_data, s_data, vh_data] =
+      backend->svd(tens.cast<SymmetricTensorCPtr>(), new_co_domain, algo);
     py::object U = make_python_symmetric_tensor(
       std::move(u_data),
       tens.attr("codomain"),
@@ -583,7 +586,7 @@ truncate_singular_values(py::object S,
     assert(S.attr("dtype").attr("is_real").cast<bool>());
     auto backend = S.attr("backend").cast<TensorBackend::Ptr>();
     auto [mask_data, new_leg, err, new_norm] =
-      backend->truncate_singular_values(S,
+      backend->truncate_singular_values(S.cast<DiagonalTensorCPtr>(),
                                         chi_max,
                                         chi_min,
                                         degeneracy_tol,

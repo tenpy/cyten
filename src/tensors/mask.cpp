@@ -238,18 +238,6 @@ Mask::class_name() const
     return "Mask";
 }
 
-py::object
-Mask::as_py_object()
-{
-    return py::cast(std::static_pointer_cast<Mask>(shared_from_this()));
-}
-
-py::object
-Mask::as_py_object() const
-{
-    return const_cast<Mask*>(this)->as_py_object();
-}
-
 ElementarySpace::Ptr
 Mask::large_leg() const
 {
@@ -277,7 +265,7 @@ Mask::test_sanity() const
     // check if ranks is sorted
     // ---
     Tensor::test_sanity();
-    backend->test_mask_sanity(as_py_object());
+    backend->test_mask_sanity(std::static_pointer_cast<Mask const>(shared_from_this()));
     assert(codomain->num_factors == 1 && domain->num_factors == 1);
     assert(py::isinstance<ElementarySpace>(codomain->factors[0]));
     assert(py::isinstance<ElementarySpace>(domain->factors[0]));
@@ -304,7 +292,8 @@ Mask::test_sanity() const
     } else {
         auto np = py::module_::import("numpy");
         auto mask_in_internal_basis = backend->block_backend->to_numpy(
-          backend->mask_to_block(as_py_object()), py::module_::import("builtins").attr("bool"));
+          backend->mask_to_block(std::static_pointer_cast<Mask const>(shared_from_this())),
+          py::module_::import("builtins").attr("bool"));
         // Use Leg Python properties (perm_to_numpy) so empty perms stay integer dtype.
         // np.asarray([]) defaults to float64 and breaks advanced indexing.
         auto large_py = py::cast(large);
@@ -367,7 +356,8 @@ Mask::from_DiagonalTensor(py::object diag_obj)
         // Python DiagonalTensor until monkey-patch — go via attributes
         assert(diag_obj.attr("dtype").cast<Dtype>() == Dtype::Bool);
         auto backend = diag_obj.attr("backend").cast<TensorBackend::Ptr>();
-        auto [data_out, small_leg] = backend->diagonal_to_mask(diag_obj);
+        auto [data_out, small_leg] =
+          backend->diagonal_to_mask(diag_obj.cast<DiagonalTensorCPtr>());
         return std::make_shared<Mask>(data_out,
                                       diag_obj.attr("domain").attr("factors")[py::int_(0)],
                                       py::cast(small_leg),
@@ -376,7 +366,7 @@ Mask::from_DiagonalTensor(py::object diag_obj)
                                       diag_obj.attr("labels"));
     }
     assert(diag->dtype == Dtype::Bool);
-    auto [data_out, small_leg] = diag->backend->diagonal_to_mask(py::cast(diag));
+    auto [data_out, small_leg] = diag->backend->diagonal_to_mask(diag);
     return std::make_shared<Mask>(data_out,
                                   diag->domain->factors[0],
                                   py::cast(small_leg),
@@ -520,10 +510,12 @@ Mask::as_dtype(Dtype new_dtype)
 DiagonalTensor::Ptr
 Mask::as_DiagonalTensor(Dtype out_dtype)
 {
-    return std::make_shared<DiagonalTensor>(backend->mask_to_diagonal(as_py_object(), out_dtype),
-                                            py::cast(large_leg()),
-                                            backend,
-                                            py::cast(labels()));
+    return std::make_shared<DiagonalTensor>(
+      backend->mask_to_diagonal(std::static_pointer_cast<Mask const>(shared_from_this()),
+                                out_dtype),
+      py::cast(large_leg()),
+      backend,
+      py::cast(labels()));
 }
 
 py::object
@@ -549,7 +541,8 @@ Mask::as_SymmetricTensor(bool /*guarantee_copy*/,
         auto sym = proj->as_SymmetricTensor(false, std::nullopt, out_dtype);
         return py::module_::import("cyten.tensors._tensors").attr("dagger")(sym);
     }
-    auto new_data = backend->full_data_from_mask(as_py_object(), out_dtype);
+    auto new_data = backend->full_data_from_mask(
+      std::static_pointer_cast<Mask const>(shared_from_this()), out_dtype);
     return py::cast(
       std::make_shared<SymmetricTensor>(new_data, codomain, domain, backend, symmetry, labels()));
 }
@@ -597,12 +590,13 @@ Mask::_binary_operand(py::object other,
         return res_projection.attr("dagger");
     }
 
-    auto same = get_same_backend({ as_py_object(), other });
-    if (!as_py_object().attr("domain").equal(other.attr("domain"))) {
+    auto same = get_same_backend({ shared_from_this(), other.cast<TensorCPtr>() });
+    if (!py::cast(domain).equal(other.attr("domain"))) {
         throw std::invalid_argument("Incompatible domain.");
     }
     auto adapted = adapt_block_bool_binary(func, same->block_backend);
-    auto [data_out, small] = same->mask_binary_operand(as_py_object(), other, adapted);
+    auto [data_out, small] = same->mask_binary_operand(
+      std::static_pointer_cast<Mask const>(shared_from_this()), other.cast<MaskCPtr>(), adapted);
     auto labs = _get_matching_labels(labels(), other.attr("labels").cast<LegLabels>());
     return py::cast(std::make_shared<Mask>(
       data_out, py::cast(large_leg()), py::cast(small), is_projection, same, py::cast(labs)));
@@ -622,8 +616,9 @@ Mask::_unary_operand(py::function func)
         return std::static_pointer_cast<Mask>(proj->_unary_operand(func)->dagger());
     }
 
-    auto [data_out, small] = backend->mask_unary_operand(
-      as_py_object(), adapt_block_bool_unary(func, backend->block_backend));
+    auto [data_out, small] =
+      backend->mask_unary_operand(std::static_pointer_cast<Mask const>(shared_from_this()),
+                                  adapt_block_bool_unary(func, backend->block_backend));
     return std::make_shared<Mask>(
       data_out, py::cast(large_leg()), py::cast(small), true, backend, py::cast(labels()));
 }
@@ -638,9 +633,9 @@ Mask::copy(bool deep, std::optional<std::string> device_opt, std::optional<Dtype
     TensorBackend::DataPtr new_data;
     if (deep) {
         std::optional<std::string> device_arg = device_opt;
-        new_data = backend->copy_data(as_py_object(), device_arg);
+        new_data = backend->copy_data(shared_from_this(), device_arg);
     } else if (device_opt.has_value()) {
-        new_data = backend->move_to_device(as_py_object(), *device_opt);
+        new_data = backend->move_to_device(shared_from_this(), *device_opt);
     } else {
         new_data = data;
     }
@@ -666,7 +661,7 @@ Mask::dagger() const
     for (auto it = labs.rbegin(); it != labs.rend(); ++it) {
         dual_rev.push_back(_dual_leg_label(*it));
     }
-    auto new_data = backend->mask_dagger(as_py_object());
+    auto new_data = backend->mask_dagger(std::static_pointer_cast<Mask const>(shared_from_this()));
     return std::make_shared<Mask>(new_data,
                                   codomain->factors[0].cast<Space::Ptr>(),
                                   domain->factors[0].cast<Space::Ptr>(),
@@ -680,7 +675,8 @@ Mask::dagger() const
 BlockBackend::Scalar
 Mask::_get_item(std::vector<int64> const& idx)
 {
-    return backend->get_element_mask(as_py_object(), idx);
+    return backend->get_element_mask(std::static_pointer_cast<Mask const>(shared_from_this()),
+                                     idx);
 }
 
 Mask::Ptr
@@ -692,7 +688,7 @@ Mask::logical_not()
 void
 Mask::move_to_device(std::string device_in)
 {
-    data = backend->move_to_device(as_py_object(), device_in);
+    data = backend->move_to_device(shared_from_this(), device_in);
     device = backend->block_backend->as_device(device_in);
 }
 
@@ -721,7 +717,7 @@ Mask::any() const
 BlockBackend::BlockPtr
 Mask::as_block_mask()
 {
-    auto res = backend->mask_to_block(as_py_object());
+    auto res = backend->mask_to_block(std::static_pointer_cast<Mask const>(shared_from_this()));
     return backend->block_backend->apply_basis_perm(
       res, { as_leg_cptr(large_leg()) }, /*inv=*/true);
 }
@@ -764,7 +760,8 @@ Mask::to_backend(TensorBackend::Ptr new_backend,
         new_data =
           backend->to_block_backend(data, new_backend->block_backend, Dtype::Bool, device_s);
     } else {
-        auto old_mask = backend->mask_to_block(as_py_object());
+        auto old_mask =
+          backend->mask_to_block(std::static_pointer_cast<Mask const>(shared_from_this()));
         auto new_mask =
           new_backend->block_backend->as_block(py::cast(old_mask), Dtype::Bool, device_s);
         auto [data_out, unused_small] = new_backend->mask_from_block(new_mask, large_leg());
@@ -841,7 +838,7 @@ Mask::to_numpy(std::optional<std::vector<std::variant<int64, std::string>>> leg_
     // Use Python shape property (int dims) — np.zeros rejects float dims.
     // Match Python: ``numpy_dtype or bool`` (the type, not the value False).
     auto res = np.attr("zeros")(
-      as_py_object().attr("shape"),
+      py::make_tuple(static_cast<int64>(shape[0]), static_cast<int64>(shape[1])),
       numpy_dtype.is_none() ? py::module_::import("builtins").attr("bool") : numpy_dtype);
     // shape is [m, n] for Mask
     assert(shape.size() == 2);
@@ -853,8 +850,8 @@ Mask::to_numpy(std::optional<std::vector<std::variant<int64, std::string>>> leg_
         res.attr("__setitem__")(py::make_tuple(mask, np.attr("arange")(n)), 1);
     }
     if (leg_order.has_value()) {
-        auto idcs = as_py_object().attr("get_leg_idcs")(py::cast(*leg_order));
-        res = np.attr("transpose")(res, idcs);
+        auto idcs = get_leg_idcs(*leg_order);
+        res = np.attr("transpose")(res, py::cast(idcs));
     }
     return res;
 }

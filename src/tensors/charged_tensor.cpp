@@ -134,18 +134,6 @@ ChargedTensor::class_name() const
     return "ChargedTensor";
 }
 
-py::object
-ChargedTensor::as_py_object()
-{
-    return py::cast(std::static_pointer_cast<ChargedTensor>(shared_from_this()));
-}
-
-py::object
-ChargedTensor::as_py_object() const
-{
-    return const_cast<ChargedTensor*>(this)->as_py_object();
-}
-
 bool
 ChargedTensor::supports_symmetry(Symmetry::Ptr const& symmetry)
 {
@@ -468,7 +456,7 @@ ChargedTensor::dagger() const
     for (auto it = labs.rbegin(); it != labs.rend(); ++it) {
         dual_rev.push_back(_dual_leg_label(*it));
     }
-    auto inv_data = backend->dagger(py::cast(invariant_part));
+    auto inv_data = backend->dagger(invariant_part);
     auto inv_sym = std::make_shared<SymmetricTensor>(inv_data,
                                                      invariant_part->domain,
                                                      invariant_part->codomain,
@@ -624,7 +612,7 @@ ChargedTensor::to_dense_block_single_sector()
     if (sector_dims.has_value() && (*sector_dims)[0] > 1) {
         throw NotImplemented("to_dense_block_single_sector does not support higher-dim sectors");
     }
-    auto block = backend->inv_part_to_dense_block_single_sector(py::cast(invariant_part));
+    auto block = backend->inv_part_to_dense_block_single_sector(invariant_part);
     return backend->block_backend->item(charged_state) * *block;
 }
 

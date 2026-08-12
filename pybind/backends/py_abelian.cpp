@@ -6,6 +6,9 @@
 #include <cyten/backends/block_inds_numpy.h>
 #include <cyten/block_backend/numpy.h>
 #include <cyten/block_backend/torch.h>
+#include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/mask.h>
+#include <cyten/tensors/symmetric_tensor.h>
 
 #include <memory>
 #include <optional>
@@ -203,7 +206,7 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "partial_trace",
       [](AbelianBackend& self,
-         py::object tensor,
+         SymmetricTensorCPtr tensor,
          std::vector<std::pair<int64, int64>> pairs,
          std::vector<std::optional<int64>> levels) -> py::object {
           auto [data, codomain, domain] =

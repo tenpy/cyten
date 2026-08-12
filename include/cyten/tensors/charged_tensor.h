@@ -156,9 +156,6 @@ class ChargedTensor : public Tensor
 
     /// Return the components associated with a single sector.
     [[nodiscard]] BlockBackend::BlockPtr to_dense_block_single_sector();
-
-    [[nodiscard]] py::object as_py_object();
-    [[nodiscard]] py::object as_py_object() const;
 };
 
 } // namespace cyten

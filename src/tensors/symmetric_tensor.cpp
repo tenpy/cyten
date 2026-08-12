@@ -101,14 +101,14 @@ SymmetricTensor::test_sanity() const
     if (!is_diagonal && Py_IsInitialized()) {
         try {
             is_diagonal =
-              py::isinstance(as_py_object(),
+              py::isinstance(py::cast(shared_from_this()),
                              py::module_::import("cyten.tensors._tensors").attr("DiagonalTensor"));
         } catch (py::error_already_set& e) {
             e.restore();
             PyErr_Clear();
         }
     }
-    backend->test_tensor_sanity(as_py_object(), is_diagonal);
+    backend->test_tensor_sanity(shared_from_this(), is_diagonal);
     verify_dtype();
 }
 
@@ -131,18 +131,6 @@ std::string
 SymmetricTensor::class_name() const
 {
     return "SymmetricTensor";
-}
-
-py::object
-SymmetricTensor::as_py_object()
-{
-    return py::cast(std::static_pointer_cast<SymmetricTensor>(shared_from_this()));
-}
-
-py::object
-SymmetricTensor::as_py_object() const
-{
-    return const_cast<SymmetricTensor*>(this)->as_py_object();
 }
 
 std::optional<Dtype>
@@ -442,7 +430,7 @@ SymmetricTensor::from_random_normal(py::object codomain,
         // mean + with_zero_mean
         auto one = backend_tp->block_backend->as_scalar(1.0);
         auto new_data =
-          backend_tp->linear_combination(one, mean, one, with_zero_mean->as_py_object());
+          backend_tp->linear_combination(one, mean.cast<TensorCPtr>(), one, with_zero_mean);
         return std::make_shared<SymmetricTensor>(
           new_data, codomain_tp, domain_tp, backend_tp, symmetry, with_zero_mean->labels());
     }
@@ -631,7 +619,7 @@ SymmetricTensor::as_dtype(Dtype new_dtype)
     if (new_dtype == dtype) {
         return shared_from_this();
     }
-    auto new_data = backend->to_dtype(as_py_object(), new_dtype);
+    auto new_data = backend->to_dtype(shared_from_this(), new_dtype);
     return std::make_shared<SymmetricTensor>(
       new_data, codomain, domain, backend, symmetry, labels());
 }
@@ -642,7 +630,7 @@ SymmetricTensor::as_SymmetricTensor(bool guarantee_copy, std::optional<std::stri
     if (guarantee_copy) {
         return py::cast(std::static_pointer_cast<SymmetricTensor>(copy()));
     }
-    return as_py_object();
+    return py::cast(std::static_pointer_cast<SymmetricTensor>(shared_from_this()));
 }
 
 Tensor::Ptr
@@ -658,9 +646,9 @@ SymmetricTensor::copy(bool deep,
         return as_dtype(*dtype_opt);
     }
     if (deep) {
-        new_data = backend->copy_data(as_py_object(), device_opt);
+        new_data = backend->copy_data(shared_from_this(), device_opt);
     } else if (device_opt.has_value()) {
-        new_data = backend->move_to_device(as_py_object(), *device_opt);
+        new_data = backend->move_to_device(shared_from_this(), *device_opt);
     } else {
         new_data = data;
     }
@@ -675,19 +663,20 @@ SymmetricTensor::diagonal(bool check_offdiagonal) const
     // Map True -> default tol, False -> None (skip check), matching intended semantics.
     std::optional<float64> tol =
       check_offdiagonal ? std::optional<float64>{ 1e-12 } : std::nullopt;
-    return py::cast(DiagonalTensor::from_tensor(as_py_object(), tol));
+    return py::cast(DiagonalTensor::from_tensor(py::cast(shared_from_this()), tol));
 }
 
 BlockBackend::Scalar
 SymmetricTensor::_get_item(std::vector<int64> const& idx)
 {
-    return backend->get_element(as_py_object(), idx);
+    return backend->get_element(std::static_pointer_cast<SymmetricTensor>(shared_from_this()),
+                                idx);
 }
 
 void
 SymmetricTensor::move_to_device(std::string device_in)
 {
-    data = backend->move_to_device(as_py_object(), device_in);
+    data = backend->move_to_device(shared_from_this(), device_in);
     device = backend->block_backend->as_device(device_in);
 }
 
@@ -718,7 +707,7 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
         std::vector<py::object> combine;
         std::vector<bool> pipe_dualities;
         int64 flat_leg_counter = 0;
-        for (auto leg : as_py_object().attr("legs")) {
+        for (auto leg : legs()) {
             if (py::isinstance<LegPipe>(leg)) {
                 auto num = leg.attr("num_legs").cast<int64>();
                 py::list group;
@@ -732,7 +721,7 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
                 flat_leg_counter += 1;
             }
         }
-        py::object flat = tensors_mod.attr("split_legs")(as_py_object());
+        py::object flat = tensors_mod.attr("split_legs")(py::cast(shared_from_this()));
         py::object res_flat =
           flat.attr("to_backend")(py::cast(new_backend), py::cast(dt), py::cast(device_s));
         py::object res = tensors_mod.attr("combine_legs")(
@@ -743,7 +732,7 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
 
     TensorBackend::DataPtr new_data;
     if (std::dynamic_pointer_cast<NoSymmetryBackend>(new_backend)) {
-        auto old_block = backend->to_dense_block(as_py_object());
+        auto old_block = backend->to_dense_block(shared_from_this());
         auto new_block = new_backend->block_backend->as_block(py::cast(old_block), dt, device_s);
         new_data = NoSymmetryBackend::wrap(new_block);
     } else if (std::dynamic_pointer_cast<NoSymmetryBackend>(backend)) {
@@ -755,7 +744,7 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
             new_data = backend->to_block_backend(data, new_backend->block_backend, dt, device_s);
         } else if (std::dynamic_pointer_cast<FusionTreeBackend>(backend)) {
             new_data =
-              _convert_FT_to_abelian(as_py_object(),
+              _convert_FT_to_abelian(py::cast(shared_from_this()),
                                      std::dynamic_pointer_cast<AbelianBackend>(new_backend),
                                      dt,
                                      device_s);
@@ -774,7 +763,7 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
     } else if (std::dynamic_pointer_cast<FusionTreeBackend>(new_backend)) {
         if (std::dynamic_pointer_cast<AbelianBackend>(backend)) {
             new_data =
-              _convert_abelian_to_FT(as_py_object(),
+              _convert_abelian_to_FT(py::cast(shared_from_this()),
                                      std::dynamic_pointer_cast<FusionTreeBackend>(new_backend),
                                      dt,
                                      device_s);
@@ -821,9 +810,9 @@ SymmetricTensor::to_dense_block(
           "that means (read the docstring of to_dense_block). Then you can disable "
           "this error by setting ``understood_braiding=True``.");
     }
-    auto block = backend->to_dense_block(as_py_object());
+    auto block = backend->to_dense_block(shared_from_this());
     block = backend->block_backend->apply_basis_perm(
-      block, legs_from_py(conventional_leg_order(as_py_object())), /*inv=*/true);
+      block, legs_from_py(conventional_leg_order(shared_from_this())), /*inv=*/true);
     if (dtype_opt.has_value()) {
         block = backend->block_backend->to_dtype(block, *dtype_opt);
     }
@@ -841,7 +830,7 @@ SymmetricTensor::to_dense_block_trivial_sector() const
     // TODO assuming this for now to construct the perm. should we keep that?
     // ---
     assert(num_legs == 1);
-    auto block = backend->to_dense_block_trivial_sector(as_py_object());
+    auto block = backend->to_dense_block_trivial_sector(shared_from_this());
     assert(num_codomain_legs() ==
            1); // TODO assuming this for now to construct the perm. should we keep that?
     auto space = codomain->factors[0].cast<Space::Ptr>();

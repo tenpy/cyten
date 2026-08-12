@@ -30,7 +30,7 @@ Stay on branch **`convert_tensors`**. Defer monkey-patch until ChargedTensor (or
 - Properties: `large_leg` / `small_leg` from domain/codomain depending on `is_projection`.
 - Boolean ops: `_binary_operand` / `_unary_operand`; bind `__and__`/`__or__`/`__xor__`/`__invert__`/etc.
 - Overrides: `test_sanity`, `as_dtype`, `as_DiagonalTensor`, `as_SymmetricTensor`, `copy`, `move_to_device`, `to_backend`, `to_dense_block`, `to_numpy`, `_get_item`.
-- Use `as_py_object()` when calling backend methods that still take `py::object` Mask.
+- Backend Mask APIs take `MaskCPtr`; pass `shared_from_this()` / typed casts.
 - Free functions still Python: `dagger`, `get_same_backend` — call via Python or C++ equivalents already available.
 - Update toml: `Mask = "Mask::Ptr"`.
 - Preserve OPTIMIZE/TODO; full docstrings in bindings.
