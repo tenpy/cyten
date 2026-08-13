@@ -43,6 +43,13 @@ blocks.
     tensor_backend //  methods
       .def("__repr__", &TensorBackend::__repr__)
       .def("__str__", &TensorBackend::__str__)
+      .def("__eq__",
+           [](TensorBackend const& self, py::object other) {
+               if (!py::isinstance<TensorBackend>(other)) {
+                   return false;
+               }
+               return self.equals(other.cast<TensorBackend const&>());
+           })
       .def("item",
            &TensorBackend::item,
            py::arg("a"),

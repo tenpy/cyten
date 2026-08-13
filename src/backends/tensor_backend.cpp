@@ -75,6 +75,23 @@ TensorBackend::__str__() const
     return __repr__();
 }
 
+bool
+TensorBackend::equals(TensorBackend const& other) const
+{
+    if (this == &other)
+        return true;
+    if (backend_type_name(*this) != backend_type_name(other))
+        return false;
+    auto const& a = block_backend;
+    auto const& b = other.block_backend;
+    if (a.get() == b.get())
+        return true;
+    if (!a || !b)
+        return false;
+    return a->get_backend_name() == b->get_backend_name() &&
+           a->default_device == b->default_device;
+}
+
 BlockBackend::Scalar
 TensorBackend::item(TensorCPtr a)
 {
@@ -315,7 +332,7 @@ get_same_backend(const std::vector<py::object>& objs, std::string error_msg)
     TensorBackend::Ptr backend = objs[0].attr("backend").cast<TensorBackend::Ptr>();
     for (std::size_t i = 1; i < objs.size(); ++i) {
         TensorBackend::Ptr other = objs[i].attr("backend").cast<TensorBackend::Ptr>();
-        if (other.get() != backend.get())
+        if (!backend || !other || !backend->equals(*other))
             throw std::invalid_argument(std::move(error_msg));
     }
     return backend;
@@ -334,7 +351,8 @@ get_same_backend(const std::vector<TensorCPtr>& objs, std::string error_msg)
         throw std::invalid_argument("Need at least one tensor");
     TensorBackend::Ptr backend = objs[0]->backend;
     for (std::size_t i = 1; i < objs.size(); ++i) {
-        if (objs[i]->backend.get() != backend.get())
+        TensorBackend::Ptr const& other = objs[i]->backend;
+        if (!backend || !other || !backend->equals(*other))
             throw std::invalid_argument(std::move(error_msg));
     }
     return backend;

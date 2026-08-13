@@ -68,6 +68,9 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
     virtual std::string __repr__() const;
     virtual std::string __str__() const;
 
+    /// Semantic equality: same backend class and equivalent :attr:`block_backend`.
+    [[nodiscard]] bool equals(TensorBackend const& other) const;
+
     /// Convert tensor to a python scalar.
     ///
     /// Assumes that tensor is a scalar (i.e. has only one entry).
