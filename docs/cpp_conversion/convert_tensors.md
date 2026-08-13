@@ -8,6 +8,8 @@ Python source: [`cyten/tensors/_tensors.py`](../../cyten/tensors/_tensors.py) �
 
 Layer 3 backends use typed tensor Ptr args via [`forward_declare.h`](../../include/cyten/tensors/forward_declare.h) — see [convert_tensor_backend_cleanup.md](convert_tensor_backend_cleanup.md).
 
+Layer 4 C++ tensor / space / leg API is typed — see [convert_tensor_typed_api.md](convert_tensor_typed_api.md).
+
 ## Conversion order
 
 ```mermaid
@@ -26,6 +28,7 @@ flowchart TD
   legs[Leg permutation ops]
   decomp[Decompositions]
   backendFix[Replace py object in TensorBackend]
+  typedApi[Typed tensor C++ API]
   labels --> tensor
   tensor --> sym
   sym --> diag
@@ -43,6 +46,7 @@ flowchart TD
   charged --> algebra
   mask --> algebra
   decomp --> backendFix
+  backendFix --> typedApi
 ```
 
 | # | Object(s) | Status |
@@ -62,6 +66,7 @@ flowchart TD
 | 14 | Decompositions (`eigh`, `entropy`, `qr`, `lq`, `svd`, `svd_apply_mask`, `truncate_singular_values`, `truncated_svd`, `apply_mask_DiagonalTensor`) | **C++ + bindings + monkey-patched** — [convert_tensor_decompositions.md](convert_tensor_decompositions.md) |
 | 15 | Backend `py::object` cleanup | **done** — [convert_tensor_backend_cleanup.md](convert_tensor_backend_cleanup.md) (`forward_declare.h`; typed virtuals; `as_py_object` removed) |
 | 16 | Monkey-patch Tensor hierarchy + remaining free fns (`apply_mask`, `enlarge_leg`, `exp`) | **done**; Python bodies removed (`_tensors.py` is `_core` re-export); not-slow pytest passed |
+| 17 | Typed tensor C++ API (drop leftover `py::object`) | **done** — [convert_tensor_typed_api.md](convert_tensor_typed_api.md) (`TensorProduct::factors` as `Leg::Ptr`; typed ctors / helpers / free fns) |
 
 ## Backend `py::object` cleanup
 
@@ -72,7 +77,20 @@ flowchart TD
   `SymmetricTensorCPtr` / `DiagonalTensorCPtr` / `MaskCPtr`.
 - Backend `.cpp` files include complete tensor headers; helpers use members (`data`, `dtype`, …).
 - `as_py_object()` removed; call sites pass typed `shared_from_this()` / casts.
-- HDF5 / `dtype_map` / `DataCls` / `from_grid` cells remain `py::object`.
+- HDF5 / `dtype_map` / `DataCls` remain `py::object`.
+
+## Typed tensor C++ API
+
+**Done** — see **[convert_tensor_typed_api.md](convert_tensor_typed_api.md)**.
+
+- `TensorProduct::factors` is `std::vector<Leg::Ptr>` (no nested products stored as factors).
+- Tensor / subclass factories and `_init_parse_*` take `TensorProduct::Ptr` / `Leg::Ptr` /
+  `BlockPtr`; py-object ctors removed from the C++ API.
+- `as_SymmetricTensor` returns `SymmetricTensor::Ptr`; `legs()` / `get_leg` / `charge_leg`
+  return `Leg::Ptr`.
+- Helpers and free functions take `Tensor(C)Ptr` / `Mask(C)Ptr` / `LegRef` / `LegLabels`.
+  Sequence-of-spaces, nested labels, numpy blocks, and `*args` stay in pybind.
+- HDF5, `py::function` factories, and numpy-facing methods remain `py::object`.
 
 ## File layout
 

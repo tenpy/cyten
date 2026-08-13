@@ -26,7 +26,7 @@ Export `cyten._core.SymmetricTensor`; **defer monkey-patch** until Mask/ChargedT
 - Inherit `Tensor`; `using Ptr = std::shared_ptr<SymmetricTensor>`.
 - Member: `TensorBackend::DataPtr data`.
 - Ctor: `(DataPtr data, py::object|TensorProduct codomain, domain=None, backend=None, labels=None)` — dtype/device from `backend->get_*_from_data(data)`.
-- Override all 7 Tensor abstracts; `as_SymmetricTensor` returns `py::object` (cast of `Ptr`) to match `Tensor` until we tighten the base signature.
+- Override all 7 Tensor abstracts; `as_SymmetricTensor` returns `SymmetricTensor::Ptr` (see [convert_tensor_typed_api.md](convert_tensor_typed_api.md)).
 - `ascii_diagram_type_name()` → `"Symm"`; `class_name()` → `"SymmetricTensor"`.
 - Factories: implement `from_zero`, `from_eye`, `from_block_func`, `from_sector_block_func`, `from_sector_projection`, `from_dense_block`, `from_random_uniform`, `from_random_normal` (mean path via Python `+` if needed), `from_tree_pairs`, `_parse_default_dtype`.
 - `from_dense_block_trivial_sector`: keep Python `NotImplementedError`.

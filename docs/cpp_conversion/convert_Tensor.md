@@ -25,7 +25,7 @@ Keep original Python `Tensor` until all subclasses are converted. Export `cyten.
 - Members: `TensorProduct::Ptr codomain/domain`, `TensorBackend::Ptr backend`, `Symmetry::Ptr symmetry`, `Dtype dtype`, `std::string device`, `std::vector<float64> shape` (Python dims can be non-integer for some symmetries — Python uses `sp.dim` which is float64 in C++ Space).
 - Class attr `_forbidden_dtypes`: `static` vector, default `{Dtype::bool_}` (match Python `Dtype.bool`).
 - Pure virtual (trampoline): `as_dtype`, `as_SymmetricTensor`, `copy`, `to_backend`, `to_dense_block`, `move_to_device`, `_get_item`.
-- `as_SymmetricTensor` return type: `py::object` until `SymmetricTensor` exists in C++ (same interim pattern as backends).
+- `as_SymmetricTensor` return type: `SymmetricTensor::Ptr` (see [convert_tensor_typed_api.md](convert_tensor_typed_api.md)).
 - Other Tensor-returning abstracts: `Tensor::Ptr`.
 - `to_dense_block` → `BlockBackend::BlockPtr`.
 - Free-function-backed API (`dagger`, `T`, `__add__`, `__matmul__`, …): implement in C++ by calling free functions once they exist; until then `throw NotImplemented(...)` in C++ methods, and/or bind operators in pybind to Python free functions. Prefer NotImplemented stubs with `// FIXME` so subclasses compile.
