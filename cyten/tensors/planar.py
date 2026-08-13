@@ -37,6 +37,7 @@ from ._tensors import (
     CONTRACT_SYMBOL,
     LEG_SELECT_SYMBOL,
     OPEN_LEG_SYMBOL,
+    ChargedTensor,
     DiagonalTensor,
     LabelledLegs,
     Tensor,
@@ -125,15 +126,15 @@ class PlanarDiagram:
     corresponding charge leg labels (`'!'`) to the tensor placeholders, where a ChargedTensor
     is allowed. Still, plain `SymmetricTensor` are accepted for such placeholders during evaluation,
     in which case the charge leg label is ignored.
-    The result of a planar diagram containing open charge legs is always a `ChargedTensor`.
-    and any (remaining) open charge legs need to be contiguous after the contractions.
+    The result of a planar diagram containing open charge legs is always a `ChargedTensor`,
+    and any remaining open charge legs need to be contiguous after the contractions.
 
     If multiple ChargedTensor placeholders with `'!'` label are specified
     (and `allow_multiple_charged_tensors` is set to True),
     one can also specify contractions between the charge legs, as is done for
     regular legs, just using the `'!'` leg label.
     Again, these contractions are ignored during evaluation if the
-    correspnding tensors are `SymmetricTensor` without charge and corresponding charge legs.
+    corresponding tensors are `SymmetricTensor` without charge and corresponding charge legs.
     If both tensors are `ChargedTensor`, the charge leg will be contracted (and has to match!),
     potentially resulting in a SymmetricTensor for the result.
     This is useful e.g. for infinite MPS with non-zero charge in the unit cell,
@@ -199,6 +200,8 @@ class PlanarDiagram:
     open_legs : list of str
         The open legs of the planar diagram, up to cyclical permutation.
         This is such that the result of :meth:`evaluate` has these leg labels (up to cycl. perm.).
+        Charge legs (``'!'``) are not included; remaining open charge legs make the result a
+        :class:`~cyten.tensors.ChargedTensor`.
     allow_multiple_charged_tensors : bool
         Whether multiple `ChargedTensor` are allowed to be part of the planar diagram.
 
@@ -215,7 +218,7 @@ class PlanarDiagram:
             'op:p0 @ theta_hc:p0*, op:p1 @ theta_hc:p1*',
             dims=dict(chi=['vR', 'vR*', 'vL', 'vL*'], d=['p0', 'p0*', 'p1', 'p1*']),
         )
-        exp_val = exp_val_diagram.evaluate(theta=theta, theta_hc=theta.hc, op=op)
+        exp_val = exp_val_diagram.evaluate(dict(theta=theta, theta_hc=theta.hc, op=op))
 
     2. For a local two-site MPS tensor `theta` with legs ``vL, p0, p1, vR`` and a two-site unitary
     operator `U` with legs ``p0, p1, p1*, p0*`` that is applied to `theta` (as done in TEBD), the
@@ -226,7 +229,7 @@ class PlanarDiagram:
             definition='theta:p0 @ U:p0*, theta:p1 @ U:p1*, theta:vL -> vL, theta:vR -> vR, U:p0 -> p0, U:p1 -> p1',
             dims=dict(chi=['vR', 'vL'], d=['p0', 'p0*', 'p1', 'p1*']),
         )
-        theta_updated = TEBD_diagram.evaluate(theta=theta, U=U)
+        theta_updated = TEBD_diagram.evaluate(dict(theta=theta, U=U))
 
     3. The two examples above (`exp_val_diagram` and `TEBD_diagram`) can be related using
     :meth:`add_tensor` and :meth:`remove_tensor` (note the correspondence between `op` and `U`)
@@ -237,7 +240,7 @@ class PlanarDiagram:
             extra_definition='theta:vL -> vL, theta:vR -> vR, '
             'op:p0 -> p0, op:p1 -> p1',
         )
-        theta_updated2 = TEBD_diagram2.evaluate(theta=theta, op=U)
+        theta_updated2 = TEBD_diagram2.evaluate(dict(theta=theta, op=U))
         assert planar_almost_equal(theta_updated, theta_updated2)
 
         exp_val_diagram2 = TEBD_diagram.add_tensor(
@@ -246,7 +249,7 @@ class PlanarDiagram:
             'U:p0 @ theta_hc:p0*, U:p1 @ theta_hc:p1*',
             extra_dims='dict(chi=['vR*', 'vL*'], d=['p0*', 'p1*'])'
         )
-        exp_val2 = exp_val_diagram2.evaluate(theta=theta, theta_hc=theta.hc, U=op)
+        exp_val2 = exp_val_diagram2.evaluate(dict(theta=theta, theta_hc=theta.hc, U=op))
         assert np.isclose(exp_val, exp_val2)  # number, not a tensor
 
     4. Contraction of a left MPS environment with the transfer matrix, where the MPS tensors may
@@ -254,11 +257,11 @@ class PlanarDiagram:
 
         TM_diagram = PlanarDiagram(
             tensors='LP[vR*, vR], ket[vL, p, vR, !], bra[vR*, p*, vL*, !]',
-            definition='LP:vR @ ket:vL, ket:p @ bra:p*, LP:vR* @ bra:vL*, ket:! @ bra:!',
+            definition='LP:vR @ ket:vL, ket:p @ bra:p*, LP:vR* @ bra:vL*, ket:! @ bra:!, ket:vR -> vR, bra:vR* -> vR*',
             dims=dict(chi=['vR', 'vL', 'vR*', 'vL*'], d=['p', 'p*']),
             allow_multiple_charged_tensors=True,
         )
-        LP = TM_diagram.evaluate(LP=LP, ket=ket, bra=bra)
+        LP = TM_diagram.evaluate(dict(LP=LP, ket=ket, bra=bra))
 
     """
 
@@ -351,7 +354,13 @@ class PlanarDiagram:
                 raise ValueError(msg)
             outdated.append(n)
         definition = [d for n, d in enumerate(self.definition) if n not in outdated] + extra_definition
-        return PlanarDiagram(tensors=tensors, definition=definition, dims=None, order=order)
+        return PlanarDiagram(
+            tensors=tensors,
+            definition=definition,
+            dims=None,
+            order=order,
+            allow_multiple_charged_tensors=self.allow_multiple_charged_tensors,
+        )
 
     @overload
     def evaluate(
@@ -366,37 +375,59 @@ class PlanarDiagram:
     def evaluate(self, tensors: dict[str, Tensor]) -> Tensor:
         """Do the contractions defined by the planar diagram for given concrete `tensors`."""
         assert tensors.keys() == self.tensors.keys(), 'Invalid tensor names (keys)'
+        charge = ChargedTensor._CHARGE_LEG_LABEL
+        charged_states = {}
+        prepared = {}
         for name, t in tensors.items():
             ph = self.tensors[name]
-            try:
-                roll = ph.labels.index(t.labels[0])
-            except ValueError:
-                msg = f'Mismatching labels on "{name}". Expected {ph.labels} up to cyclical permutation. Got {t.labels}'
-                raise ValueError(msg) from None
-            expect_labels = [*ph.labels[roll:], *ph.labels[:roll]]
-            if t.labels != expect_labels:
-                msg = f'Mismatching labels on "{name}". Expected {expect_labels}. Got {t.labels}'
-                raise ValueError(msg)
+            actual = t.invariant_part.labels if isinstance(t, ChargedTensor) else t.labels
+            expected = _expected_labels(ph.labels, t)
+            _assert_cyclic_labels(name, expected, actual)
+
+            if isinstance(t, ChargedTensor):
+                prepared[name] = t.invariant_part.copy()
+                charged_states[f'{name}:{charge}'] = t.charged_state
+            else:
+                prepared[name] = t.copy()
 
         # relabel such that labels are globally unique
         # (prepend the name of the tensor it was originally on)
-        tensors = {name: t.copy().relabel({l: f'{name}:{l}' for l in t.labels}) for name, t in tensors.items()}
+        tensors = {name: t.relabel({l: f'{name}:{l}' for l in t.labels}) for name, t in prepared.items()}
         traces = []
         contractions = []
         open_legs = []
         for t1, l1, t2, l2 in self.definition:
+            rel_l1 = f'{t1}:{l1}'
+            t1_has = rel_l1 in tensors[t1].labels
             if t2 is None:
-                open_legs.append((f'{t1}:{l1}', l2))
+                if not t1_has:
+                    if l1 == charge:
+                        continue
+                    raise ValueError(f'Missing open leg {t1}:{l1}')
+                open_legs.append((rel_l1, l2))
             elif t1 == t2:
-                traces.append((t1, f'{t1}:{l1}', f'{t1}:{l2}'))
+                rel_l2 = f'{t1}:{l2}'
+                t2_has = rel_l2 in tensors[t1].labels
+                if not t1_has or not t2_has:
+                    if l1 == charge or l2 == charge:
+                        continue
+                    raise ValueError(f'Missing trace legs {t1}:{l1}, {t1}:{l2}')
+                traces.append((t1, rel_l1, rel_l2))
             else:
-                contractions.append((t1, f'{t1}:{l1}', t2, f'{t2}:{l2}'))
+                rel_l2 = f'{t2}:{l2}'
+                t2_has = rel_l2 in tensors[t2].labels
+                if not t1_has or not t2_has:
+                    if l1 == charge or l2 == charge:
+                        continue
+                    raise ValueError(f'Missing contraction legs {t1}:{l1}, {t2}:{l2}')
+                contractions.append((t1, rel_l1, t2, rel_l2))
 
         self._do_traces(tensors, traces)
         self._do_contractions(tensors, contractions, self.order)
-        tensor = self._extract_result(tensors, open_legs)
-
-        return tensor
+        assert len(tensors) == 1
+        res_name = next(iter(tensors))
+        tensors[res_name] = _finalize_charge_legs(tensors[res_name], charged_states)
+        return self._extract_result(tensors, open_legs)
 
     def optimize_order(self, strategy: Literal['greedy', 'optimal']) -> ContractionTree:
         """Find the optimal contraction order for the given planar diagram.
@@ -483,17 +514,20 @@ class PlanarDiagram:
                     leg_label_to_dim[l] = dim
             all_leg_labels = [l for legs in tensors.values() for l in legs]
             defined = list(leg_label_to_dim.keys())
-            undefined = [l for l in all_leg_labels if l not in defined]
+            undefined = [l for l in all_leg_labels if l not in defined and l != ChargedTensor._CHARGE_LEG_LABEL]
             unused = [l for l in defined if l not in all_leg_labels]
             if len(undefined) > 0:
                 msg = f'If dims are specified, all must be specified. Missing: {", ".join(undefined)}'
                 raise ValueError(msg)
-            if any(l not in defined for l in all_leg_labels):
+            if any(l not in defined for l in all_leg_labels if l != ChargedTensor._CHARGE_LEG_LABEL):
                 msg = f'The following leg labels were given in dims, but do not exist: {", ".join(unused)}'
                 warnings.warn(msg, UserWarning, stacklevel=3)
         res = {}
         for name, legs in tensors.items():
-            t = TensorPlaceholder(legs, [leg_label_to_dim.get(l, '?') for l in legs])
+            t = TensorPlaceholder(
+                legs,
+                [leg_label_to_dim.get(l, '1' if l == ChargedTensor._CHARGE_LEG_LABEL else '?') for l in legs],
+            )
             res[name] = t
         return res
 
@@ -550,7 +584,13 @@ class PlanarDiagram:
         for t1, l1 in new_open_legs:
             # unspecified open legs, just keep their label
             definition.append((t1, l1, None, l1))
-        return PlanarDiagram(tensors=tensors, definition=definition, dims=None, order=order)
+        return PlanarDiagram(
+            tensors=tensors,
+            definition=definition,
+            dims=None,
+            order=order,
+            allow_multiple_charged_tensors=self.allow_multiple_charged_tensors,
+        )
 
     def verify_diagram(self) -> tuple[list[str], BigOPolynomial]:
         """Verify the definition of the planar diagram. Returns the :attr:`open_legs`.
@@ -577,12 +617,17 @@ class PlanarDiagram:
         if sum(tensor.num_legs for tensor in self.tensors.values()) != num_legs:
             raise ValueError('Number of contracted and open legs does not match the total number of legs')
 
+        n_charged = sum(1 for ph in self.tensors.values() if ChargedTensor._CHARGE_LEG_LABEL in ph.labels)
+        if n_charged > 1 and not self.allow_multiple_charged_tensors:
+            raise ValueError('Multiple ChargedTensor placeholders require allow_multiple_charged_tensors=True')
+
         # run the contraction with placeholders.
         # - verifies if the contractions actually are planar
         # - figures out the open_legs
         # - figures out the cost
         res = self.evaluate(self.tensors)
-        return res.labels, res.cost_to_make
+        open_legs = [l for l in res.labels if not _is_charge_leg_label(l)]
+        return open_legs, res.cost_to_make
 
     def __call__(self, **tensors: Tensor):
         return self.evaluate(tensors=tensors)
@@ -708,15 +753,24 @@ class PlanarDiagram:
         """
         assert len(tensors) == 1
         tens = next(iter(tensors.values()))
-        if len(open_legs) == 0:
+        visible_open_legs = [(old, new) for old, new in open_legs if not _is_charge_leg_label(old)]
+        if not hasattr(tens, 'labels'):
             # result is a number
-            # TODO this may change, see Issue 13 on Github
+            if visible_open_legs:
+                raise ValueError('Number of expected open legs inconsistent with planar diagram')
             return tens
-        if len(open_legs) != len(tens.labels):
+        visible_labels = [l for l in tens.labels if not _is_charge_leg_label(l)]
+        if len(visible_open_legs) == 0:
+            # result is a number, or a ChargedTensor / placeholder with only a charge leg
+            # TODO this may change, see Issue 13 on Github
+            if visible_labels:
+                raise ValueError('Number of expected open legs inconsistent with planar diagram')
+            return tens
+        if len(visible_open_legs) != len(visible_labels):
             raise ValueError('Number of expected open legs inconsistent with planar diagram')
-        if not tens.labels_are(*(old for old, _ in open_legs)):
+        if set(visible_labels) != {old for old, _ in visible_open_legs}:
             raise ValueError('Inconsistent open legs')
-        return tens.relabel({old: new for old, new in open_legs})
+        return tens.relabel({old: new for old, new in visible_open_legs})
 
     @staticmethod
     def _parse_contract_instruction(i: str) -> tuple[str, str, str, str]:
@@ -765,6 +819,109 @@ def _as_valid_name(name: str) -> str:
     name = str(name).strip()
     assert is_valid_leg_label(name)
     return name
+
+
+def _is_charge_leg_label(label: str | None) -> bool:
+    """Whether a (possibly relabelled) label refers to a ChargedTensor charge leg."""
+    if label is None:
+        return False
+    charge = ChargedTensor._CHARGE_LEG_LABEL
+    return label == charge or label.endswith(f':{charge}') or label.startswith(charge)
+
+
+def _expected_labels(ph_labels: list[str], tensor) -> list[str]:
+    """Placeholder labels that `tensor` must match, up to cyclic permutation.
+
+    SymmetricTensors may omit the charge-leg label ``'!'``. ChargedTensors and placeholders
+    that include ``'!'`` must match the full placeholder labels.
+    """
+    charge = ChargedTensor._CHARGE_LEG_LABEL
+    if isinstance(tensor, ChargedTensor):
+        return list(ph_labels)
+    if isinstance(tensor, TensorPlaceholder) and charge in tensor.labels:
+        return list(ph_labels)
+    return [l for l in ph_labels if l != charge]
+
+
+def _assert_cyclic_labels(name: str, expected: list[str], actual: list[str]) -> None:
+    """Raise if `actual` is not a cyclic permutation of `expected`."""
+    if list(actual) == list(expected):
+        return
+    if not actual:
+        msg = f'Mismatching labels on "{name}". Expected {expected} up to cyclical permutation. Got {actual}'
+        raise ValueError(msg)
+    try:
+        roll = expected.index(actual[0])
+    except ValueError:
+        msg = f'Mismatching labels on "{name}". Expected {expected} up to cyclical permutation. Got {actual}'
+        raise ValueError(msg) from None
+    expect_rolled = [*expected[roll:], *expected[:roll]]
+    if list(actual) != expect_rolled:
+        msg = f'Mismatching labels on "{name}". Expected {expect_rolled}. Got {actual}'
+        raise ValueError(msg)
+
+
+def _combine_placeholder_charge_legs(ph: TensorPlaceholder) -> TensorPlaceholder:
+    """Combine leftover charge-like labels on a placeholder into a single ``'!'``."""
+    charge = ChargedTensor._CHARGE_LEG_LABEL
+    charge_idcs = [i for i, l in enumerate(ph.labels) if _is_charge_leg_label(l)]
+    if not charge_idcs:
+        return ph
+    if len(charge_idcs) == 1:
+        labels = ph.labels
+        labels[charge_idcs[0]] = charge
+        return TensorPlaceholder(labels, ph.dims[:], cost_to_make=ph.cost_to_make)
+    try:
+        _sorted_charge, other = parse_leg_bipartition(charge_idcs, ph.num_legs)
+    except ValueError:
+        raise ValueError('Open charge legs are not contiguous') from None
+    labels = [ph.labels[i] for i in other] + [charge]
+    charge_dims = [ph.dims[i] for i in charge_idcs]
+    combined_dim = BigOPolynomial.prod(*charge_dims)
+    dims = [ph.dims[i] for i in other] + [combined_dim]
+    return TensorPlaceholder(labels, dims, cost_to_make=ph.cost_to_make)
+
+
+def _wrap_open_charge_legs(tens: Tensor, charged_states: dict) -> Tensor:
+    """Move leftover charge legs to the domain, combine them, and wrap as a ChargedTensor."""
+    charge = ChargedTensor._CHARGE_LEG_LABEL
+    charge_idcs = [i for i, l in enumerate(tens.labels) if _is_charge_leg_label(l)]
+    if not charge_idcs:
+        return tens
+    try:
+        sorted_charge, other = parse_leg_bipartition(charge_idcs, tens.num_legs)
+    except ValueError:
+        raise ValueError('Open charge legs are not contiguous') from None
+
+    if other:
+        tens = planar_permute_legs(tens, codomain=other, domain=sorted_charge[::-1])
+    else:
+        tens = planar_permute_legs(tens, domain=sorted_charge[::-1])
+
+    n_charge = len(sorted_charge)
+    states = [charged_states.get(l) for l in tens.labels[-n_charge:]]
+    while n_charge >= 2:
+        tens = combine_legs(tens, [-2, -1])
+        s1, s2 = states[-2], states[-1]
+        if s1 is None and s2 is None:
+            combined = None
+        elif s1 is None or s2 is None:
+            raise ValueError('Must specify either both or none of the states')
+        else:
+            combined = tens.backend.state_tensor_product(s1, s2, tens.domain[0])
+        states = [*states[:-2], combined]
+        n_charge -= 1
+    tens.set_label(-1, charge)
+    return ChargedTensor.from_invariant_part(tens, states[0])
+
+
+def _finalize_charge_legs(tens, charged_states: dict):
+    """Combine leftover charge legs after a planar contraction."""
+    if isinstance(tens, TensorPlaceholder):
+        return _combine_placeholder_charge_legs(tens)
+    if not isinstance(tens, Tensor):
+        return tens
+    return _wrap_open_charge_legs(tens, charged_states)
 
 
 def _split_tensor_text(text: str) -> list[tuple[str, list[str]]]:
