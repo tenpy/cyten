@@ -13,16 +13,12 @@ Cyten main module
     :toctree: reference
 
     backends
-    dtypes
+    block_backends
     config
-    krylov_based
     models
-    random_matrix
-    spaces
-    sparse
     symmetries
+    tensors
     tools
-    trees
     version
 
 .. rubric:: Module description
