@@ -287,6 +287,9 @@ class BlockBackend
     virtual std::string as_device(std::optional<std::string> device) = 0;
     /// Return the indices (one per axis) of the largest entry (by magnitude) of the block
     virtual std::vector<int64> abs_argmax(const BlockCPtr& block) = 0;
+    /// Return the indices (one per axis) of the smallest entry of the block.
+    /// Requires a real dtype. On ties, the first occurrence (C-order flatten).
+    virtual std::vector<int64> argmin(const BlockCPtr& block) = 0;
     virtual BlockPtr add_axis(const BlockCPtr& a, int64 pos) = 0;
     /// Require a boolean block. If all of its entries are True
     virtual bool all(const BlockCPtr& a) = 0;

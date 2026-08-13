@@ -740,6 +740,23 @@ TorchBlockBackend::abs_argmax(const BlockCPtr& block)
     return idcs;
 }
 
+std::vector<int64>
+TorchBlockBackend::argmin(const BlockCPtr& block)
+{
+    torch::Tensor flat_idx = torch::argmin(tens(block));
+    int64_t idx = flat_idx.item<int64_t>();
+    auto sizes = tens(block).sizes();
+    std::vector<int64> idcs;
+    idcs.reserve(static_cast<size_t>(sizes.size()));
+    for (auto it = sizes.rbegin(); it != sizes.rend(); ++it) {
+        int64_t dim = *it;
+        idcs.push_back(static_cast<int64>(idx % dim));
+        idx /= dim;
+    }
+    std::reverse(idcs.begin(), idcs.end());
+    return idcs;
+}
+
 BlockPtr
 TorchBlockBackend::add_axis(const BlockCPtr& a, int64 pos)
 {

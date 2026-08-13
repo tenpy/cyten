@@ -551,6 +551,13 @@ def test_DiagonalTensor(make_compatible_tensor):
     npt.assert_almost_equal(real_T.max().as_float64(), np.max(real_np))
     npt.assert_almost_equal(real_T.min().as_float64(), np.min(real_np))
 
+    print('checking argmin')
+    i0 = real_T.argmin()
+    assert i0 == int(np.argmin(real_np))
+    npt.assert_almost_equal(real_T[i0, i0].as_float64(), real_T.min().as_float64())
+    with pytest.raises(ValueError, match='argmin is not defined'):
+        T.as_dtype(Dtype.complex64).argmin()
+
     print('checking as_dtype')
     # use as_dtype and compare to to_backend
     dtype = Dtype.complex64
@@ -578,6 +585,9 @@ def test_Identity(compatible_backend, make_compatible_space, make_compatible_ten
 
     assert tensors.almost_equal(tens, eye_diag, allow_different_types=True)
     assert tensors.almost_equal(tens, eye_symm, allow_different_types=True)
+
+    with pytest.raises(ValueError, match='argmin is not supported for Identity'):
+        tens.argmin()
 
     assert tensors.norm(tens - eye_symm) < 1e-14
     assert tensors.norm(tens - eye_diag) < 1e-14

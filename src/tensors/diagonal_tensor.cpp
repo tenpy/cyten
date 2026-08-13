@@ -737,6 +737,19 @@ DiagonalTensor::min() const
       py::module_::import("builtins").attr("min"));
 }
 
+int64
+DiagonalTensor::argmin() const
+{
+    if (!dtype::is_real(dtype)) {
+        throw std::invalid_argument(
+          std::format("argmin is not defined for dtype {}", dtype::repr(dtype)));
+    }
+    auto idcs =
+      backend->block_backend->argmin(const_cast<DiagonalTensor*>(this)->diagonal_as_block());
+    assert(idcs.size() == 1);
+    return idcs[0];
+}
+
 DiagonalTensor::Ptr
 DiagonalTensor::abs() const
 {
@@ -1051,6 +1064,12 @@ Identity::min() const
 {
     assert(dtype::is_real(dtype));
     return backend->block_backend->as_scalar(dtype::one_scalar(dtype), dtype);
+}
+
+int64
+Identity::argmin() const
+{
+    throw std::invalid_argument("argmin is not supported for Identity");
 }
 
 DiagonalTensor::Ptr

@@ -203,6 +203,10 @@ class PyBlockBackend
     {
         PYBIND11_OVERRIDE_PURE(std::vector<int64>, BlockBackend, abs_argmax, block);
     }
+    std::vector<int64> argmin(const BlockCPtr& block) override
+    {
+        PYBIND11_OVERRIDE_PURE(std::vector<int64>, BlockBackend, argmin, block);
+    }
     BlockPtr add_axis(const BlockCPtr& a, int64 pos) override
     {
         PYBIND11_OVERRIDE_PURE(BlockPtr, BlockBackend, add_axis, a, pos);
@@ -559,6 +563,10 @@ class PyArrayApiBlockBackend
     std::vector<int64> abs_argmax(const BlockCPtr& block) override
     {
         PYBIND11_OVERRIDE(std::vector<int64>, ArrayApiBlockBackend, abs_argmax, block);
+    }
+    std::vector<int64> argmin(const BlockCPtr& block) override
+    {
+        PYBIND11_OVERRIDE(std::vector<int64>, ArrayApiBlockBackend, argmin, block);
     }
     BlockPtr add_axis(const BlockCPtr& a, int64 pos) override
     {

@@ -679,6 +679,14 @@ device: str
             )pydoc");
     cls.def("max", &DiagonalTensor::max);
     cls.def("min", &DiagonalTensor::min);
+    cls.def("argmin",
+            &DiagonalTensor::argmin,
+            R"pydoc(
+            Index ``i0`` in the public computational basis of the minimum diagonal entry.
+
+            Defined for real dtypes only. On ties, the first occurrence is returned.
+            Satisfies ``self[i0, i0] == self.min()`` when the symmetry can be dropped.
+            )pydoc");
     cls.def("move_to_device",
             &DiagonalTensor::move_to_device,
             py::arg("device"),
@@ -1011,6 +1019,11 @@ Special case of a :class:`DiagonalTensor` that is exactly the identity map on it
                )pydoc");
     id_cls.def("max", &Identity::max);
     id_cls.def("min", &Identity::min);
+    id_cls.def("argmin",
+               &Identity::argmin,
+               R"pydoc(
+               ``argmin`` is not supported for :class:`Identity`.
+               )pydoc");
     id_cls.def("move_to_device",
                &Identity::move_to_device,
                py::arg("device"),

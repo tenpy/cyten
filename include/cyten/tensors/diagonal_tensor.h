@@ -176,6 +176,7 @@ class DiagonalTensor : public SymmetricTensor
 
     [[nodiscard]] virtual BlockBackend::Scalar max() const;
     [[nodiscard]] virtual BlockBackend::Scalar min() const;
+    [[nodiscard]] virtual int64 argmin() const;
 
     [[nodiscard]] virtual Ptr abs() const;
 };
@@ -257,6 +258,7 @@ class Identity : public DiagonalTensor
 
     [[nodiscard]] BlockBackend::Scalar max() const override;
     [[nodiscard]] BlockBackend::Scalar min() const override;
+    [[nodiscard]] int64 argmin() const override;
 
     [[nodiscard]] DiagonalTensor::Ptr abs() const override;
 

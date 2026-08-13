@@ -154,3 +154,10 @@ def test_numpy_block_backend_apply_leg_permutations():
     # row 0 and row 1 swapped: (1,0,0) moved to row 1
     assert out[1, 0] == 1.0
     assert out[0, 0] == 0.0
+
+
+def test_numpy_block_backend_argmin():
+    be = NumpyBlockBackend.from_factory('cpu')
+    arr = np.array([[3.0, 1.0, 4.0], [1.0, -2.0, 0.0]])
+    block = be.as_block(arr)
+    assert tuple(be.argmin(block)) == tuple(np.unravel_index(np.argmin(arr), arr.shape))
