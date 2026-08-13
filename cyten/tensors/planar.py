@@ -835,12 +835,9 @@ def _expected_labels(ph_labels: list[str], tensor) -> list[str]:
     SymmetricTensors may omit the charge-leg label ``'!'``. ChargedTensors and placeholders
     that include ``'!'`` must match the full placeholder labels.
     """
-    charge = ChargedTensor._CHARGE_LEG_LABEL
-    if isinstance(tensor, ChargedTensor):
+    if isinstance(tensor, ChargedTensor) or isinstance(tensor, TensorPlaceholder):
         return list(ph_labels)
-    if isinstance(tensor, TensorPlaceholder) and charge in tensor.labels:
-        return list(ph_labels)
-    return [l for l in ph_labels if l != charge]
+    return [l for l in ph_labels if l != ChargedTensor._CHARGE_LEG_LABEL]
 
 
 def _assert_cyclic_labels(name: str, expected: list[str], actual: list[str]) -> None:
