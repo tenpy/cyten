@@ -219,8 +219,8 @@ Tensor::Tensor(TensorProduct::Ptr codomain_,
         PyErr_SetString(PyExc_AssertionError, "backend does not support this symmetry");
         throw py::error_already_set();
     }
-    assert(codomain->symmetry == symmetry);
-    assert(domain->symmetry == symmetry);
+    assert(codomain->symmetry && symmetry && codomain->symmetry->equals(*symmetry));
+    assert(domain->symmetry && symmetry && domain->symmetry->equals(*symmetry));
 
     shape.clear();
     shape.reserve(static_cast<std::size_t>(codomain->num_factors + domain->num_factors));
@@ -285,7 +285,7 @@ Tensor::_init_parse_args(py::object codomain, py::object domain, TensorBackend::
         }
         codomain_tp = std::make_shared<TensorProduct>(std::move(factors), symmetry);
     }
-    assert(codomain_tp->symmetry == symmetry);
+    assert(codomain_tp->symmetry && symmetry && codomain_tp->symmetry->equals(*symmetry));
 
     if (domain.is_none()) {
         domain = py::list();
@@ -300,7 +300,7 @@ Tensor::_init_parse_args(py::object codomain, py::object domain, TensorBackend::
         }
         domain_tp = std::make_shared<TensorProduct>(std::move(factors), symmetry);
     }
-    assert(domain_tp->symmetry == symmetry);
+    assert(domain_tp->symmetry && symmetry && domain_tp->symmetry->equals(*symmetry));
     return { codomain_tp, domain_tp, backend, symmetry };
 }
 
