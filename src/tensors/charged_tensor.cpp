@@ -167,7 +167,7 @@ ChargedTensor::_parse_inv_labels(py::object labels,
                                  TensorProduct::Ptr const& codomain,
                                  TensorProduct::Ptr const& domain)
 {
-    auto labs = _init_parse_labels(labels, codomain, domain);
+    auto labs = parse_tensor_init_labels(labels, codomain, domain);
     auto inv_labels = labs;
     inv_labels.emplace_back(std::string(_CHARGE_LEG_LABEL));
     return { labs, inv_labels };
@@ -187,7 +187,7 @@ ChargedTensor::from_block_func(py::function func,
                                std::optional<std::string> device)
 {
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
-      _init_parse_args(codomain, domain, std::move(backend));
+      parse_tensor_init_args(codomain, domain, std::move(backend));
     (void)symmetry;
     std::string device_s;
     if (!device.has_value()) {
@@ -233,7 +233,7 @@ ChargedTensor::from_dense_block(py::object block,
                                 bool understood_braiding)
 {
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
-      _init_parse_args(codomain, domain, std::move(backend));
+      parse_tensor_init_args(codomain, domain, std::move(backend));
     auto [labs, inv_labels] = _parse_inv_labels(labels, codomain_tp, domain_tp);
     (void)labs;
     if (!symmetry->can_be_dropped()) {
@@ -342,7 +342,7 @@ ChargedTensor::from_zero(py::object codomain,
                          std::optional<std::string> device)
 {
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
-      _init_parse_args(codomain, domain, std::move(backend));
+      parse_tensor_init_args(codomain, domain, std::move(backend));
     (void)symmetry;
     std::string device_s;
     if (!device.has_value()) {
@@ -384,7 +384,7 @@ ChargedTensor::as_dtype(Dtype new_dtype)
     return std::make_shared<ChargedTensor>(inv, charged_state);
 }
 
-py::object
+SymmetricTensorPtr
 ChargedTensor::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::string> warning)
 {
     if (warning.has_value()) {
@@ -404,7 +404,7 @@ ChargedTensor::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::st
             auto scale = backend->block_backend->item(charged_state);
             res = res.attr("__mul__")(py::cast(scale));
         }
-        return res;
+        return res.cast<SymmetricTensorPtr>();
     }
     if (!charged_state) {
         throw std::invalid_argument(
@@ -422,8 +422,9 @@ ChargedTensor::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::st
       1e-6,
       /*understood_braiding=*/true);
     auto res = tensors_mod().attr("tdot")(py::cast(state), py::cast(invariant_part), 0, -1);
-    return tensors_mod().attr("bend_legs")(res,
-                                           py::arg("num_codomain_legs") = num_codomain_legs());
+    return tensors_mod()
+      .attr("bend_legs")(res, py::arg("num_codomain_legs") = num_codomain_legs())
+      .cast<SymmetricTensorPtr>();
 }
 
 Tensor::Ptr

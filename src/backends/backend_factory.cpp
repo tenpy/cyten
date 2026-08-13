@@ -139,4 +139,11 @@ get_backend(py::object symmetry, py::object block_backend)
     return backend;
 }
 
+TensorBackend::Ptr
+get_backend(Symmetry::Ptr symmetry, std::optional<std::string> block_backend)
+{
+    py::object bb = block_backend.has_value() ? py::cast(*block_backend) : py::none();
+    return get_backend(py::cast(std::move(symmetry)), bb).cast<TensorBackend::Ptr>();
+}
+
 } // namespace cyten

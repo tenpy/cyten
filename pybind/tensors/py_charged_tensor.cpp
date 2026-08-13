@@ -342,7 +342,7 @@ In that case, we return a scalar if the charged_state is specified and raise oth
     cls.def(
       "set_labels",
       [](ChargedTensor& self, py::object labels) -> ChargedTensor& {
-          self.set_labels(Tensor::_init_parse_labels(labels, self.codomain, self.domain));
+          self.set_labels(parse_tensor_init_labels(labels, self.codomain, self.domain));
           return self;
       },
       py::arg("labels"),

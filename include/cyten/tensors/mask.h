@@ -113,12 +113,12 @@ class Mask : public Tensor
 
     [[nodiscard]] Tensor::Ptr as_dtype(Dtype dtype) override;
 
-    [[nodiscard]] py::object as_SymmetricTensor(
+    [[nodiscard]] SymmetricTensorPtr as_SymmetricTensor(
       bool guarantee_copy = false,
       std::optional<std::string> warning = std::nullopt) override;
 
     /// Like :meth:`as_SymmetricTensor`, with an explicit result dtype (Python Mask API).
-    [[nodiscard]] py::object as_SymmetricTensor(bool guarantee_copy,
+    [[nodiscard]] SymmetricTensorPtr as_SymmetricTensor(bool guarantee_copy,
                                                 std::optional<std::string> warning,
                                                 Dtype dtype);
 

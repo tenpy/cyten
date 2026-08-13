@@ -123,7 +123,7 @@ class DiagonalTensor : public SymmetricTensor
 
     [[nodiscard]] Tensor::Ptr as_dtype(Dtype dtype) override;
 
-    [[nodiscard]] py::object as_SymmetricTensor(
+    [[nodiscard]] SymmetricTensorPtr as_SymmetricTensor(
       bool guarantee_copy = false,
       std::optional<std::string> warning = std::nullopt) override;
 
@@ -225,7 +225,7 @@ class Identity : public DiagonalTensor
 
     [[nodiscard]] Tensor::Ptr as_dtype(Dtype dtype) override;
 
-    [[nodiscard]] py::object as_SymmetricTensor(
+    [[nodiscard]] SymmetricTensorPtr as_SymmetricTensor(
       bool guarantee_copy = false,
       std::optional<std::string> warning = std::nullopt) override;
 

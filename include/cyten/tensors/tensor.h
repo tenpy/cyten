@@ -8,6 +8,7 @@
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/symmetries/spaces.h>
 #include <cyten/symmetries/symmetry.h>
+#include <cyten/tensors/forward_declare.h>
 #include <cyten/tensors/labels.h>
 
 #include <memory>
@@ -49,15 +50,7 @@ class Tensor
     /// Dimension of each of the :attr:`legs` (codomain dims, then reversed domain dims).
     std::vector<float64> shape;
 
-    /// Construct from flexible Python-style inputs (used by trampoline / bindings).
-    Tensor(py::object codomain,
-           py::object domain,
-           TensorBackend::Ptr backend,
-           py::object labels,
-           Dtype dtype,
-           std::string device);
-
-    /// Construct from already-parsed C++ inputs (concrete subclasses).
+    /// Construct from already-parsed C++ inputs.
     Tensor(TensorProduct::Ptr codomain,
            TensorProduct::Ptr domain,
            TensorBackend::Ptr backend,
@@ -65,6 +58,16 @@ class Tensor
            LegLabels labels,
            Dtype dtype,
            std::string device);
+
+    /// Construct from :func:`parse_tensor_init` (py-object subclass factories).
+    struct InitParsed {
+        TensorProduct::Ptr codomain;
+        TensorProduct::Ptr domain;
+        TensorBackend::Ptr backend;
+        Symmetry::Ptr symmetry;
+        LegLabels labels;
+    };
+    Tensor(InitParsed init, Dtype dtype, std::string device);
 
     ~Tensor() override = default;
 
@@ -75,18 +78,21 @@ class Tensor
 
     /// Common input parsing for ``__init__`` methods of tensor classes.
     ///
-    /// Also checks if they are compatible.
+    /// Also checks if they are compatible. Sequence-of-spaces conversion is done in pybind
+    /// (or :func:`parse_tensor_init_args`).
     ///
     /// Returns ``(codomain, domain, backend, symmetry)``.
     static std::tuple<TensorProduct::Ptr, TensorProduct::Ptr, TensorBackend::Ptr, Symmetry::Ptr>
-    _init_parse_args(py::object codomain, py::object domain, TensorBackend::Ptr backend);
+    _init_parse_args(TensorProduct::Ptr codomain,
+                     TensorProduct::Ptr domain,
+                     TensorBackend::Ptr backend);
 
-    /// Parse the various allowed input formats for labels to the format of :attr:`labels`.
+    /// Parse already-flat labels (or ``nullopt`` for all-unlabelled) to :attr:`labels`.
     ///
-    /// Also supports a special case for input formats of endomorphisms (maps where domain
-    /// and codomain coincide), where a flat list of labels for the codomain can be given,
-    /// and the domain labels are auto-filled with the respective dual labels.
-    static LegLabels _init_parse_labels(py::object labels,
+    /// Nested / Python-flexible formats are parsed in pybind (or :func:`parse_tensor_init_labels`).
+    /// If ``is_endomorphism`` and ``labels`` has one entry per codomain factor, domain labels are
+    /// filled with the respective duals.
+    static LegLabels _init_parse_labels(std::optional<LegLabels> labels,
                                         TensorProduct::Ptr const& codomain,
                                         TensorProduct::Ptr const& domain,
                                         bool is_endomorphism = false);
@@ -103,9 +109,7 @@ class Tensor
     [[nodiscard]] virtual Ptr as_dtype(Dtype dtype) = 0;
 
     /// Convert to a :class:`SymmetricTensor`, if possible.
-    ///
-    /// Returns ``py::object`` until :class:`SymmetricTensor` exists in C++.
-    [[nodiscard]] virtual py::object as_SymmetricTensor(
+    [[nodiscard]] virtual SymmetricTensorPtr as_SymmetricTensor(
       bool guarantee_copy = false,
       std::optional<std::string> warning = std::nullopt) = 0;
 
@@ -144,7 +148,7 @@ class Tensor
     ///
     /// These the spaces of the codomain, followed by the duals of the domain spaces
     /// *in reverse order*. Factors may be :class:`LegPipe` (not only :class:`Space`).
-    [[nodiscard]] std::vector<py::object> legs() const;
+    [[nodiscard]] std::vector<Leg::Ptr> legs() const;
 
     /// Move tensor to a given device, *in place*.
     virtual void move_to_device(std::string device) = 0;
@@ -183,12 +187,12 @@ class Tensor
     /// Return the leg, as if it was moved to the codomain.
     ///
     /// May be a :class:`LegPipe` (not only a :class:`Space`).
-    [[nodiscard]] py::object _as_codomain_leg(std::variant<int64, std::string> idx) const;
+    [[nodiscard]] Leg::Ptr _as_codomain_leg(std::variant<int64, std::string> idx) const;
 
     /// Return the leg, as if it was moved to the domain.
     ///
     /// May be a :class:`LegPipe` (not only a :class:`Space`).
-    [[nodiscard]] py::object _as_domain_leg(std::variant<int64, std::string> idx) const;
+    [[nodiscard]] Leg::Ptr _as_domain_leg(std::variant<int64, std::string> idx) const;
 
     /// Print :attr:`ascii_diagram` to stdout.
     void dbg() const;
@@ -206,21 +210,18 @@ class Tensor
     /// Basically ``self.legs[which_leg]``, but allows labels and multiple indices.
     ///
     /// May be a :class:`LegPipe` (not only a :class:`Space`).
-    [[nodiscard]] py::object get_leg(std::variant<int64, std::string> which_leg) const;
-    [[nodiscard]] std::vector<py::object> get_leg(
+    [[nodiscard]] Leg::Ptr get_leg(std::variant<int64, std::string> which_leg) const;
+    [[nodiscard]] std::vector<Leg::Ptr> get_leg(
       std::vector<std::variant<int64, std::string>> const& which_legs) const;
 
     /// Get the specified leg from the domain or codomain.
     ///
     /// May be a :class:`LegPipe` (not only a :class:`Space`).
-    [[nodiscard]] py::object get_leg_co_domain(std::variant<int64, std::string> which_leg) const;
-    [[nodiscard]] std::vector<py::object> get_leg_co_domain(
+    [[nodiscard]] Leg::Ptr get_leg_co_domain(std::variant<int64, std::string> which_leg) const;
+    [[nodiscard]] std::vector<Leg::Ptr> get_leg_co_domain(
       std::vector<std::variant<int64, std::string>> const& which_legs) const;
 
     /// Set the given labels, in-place. Return the modified instance.
-    ///
-    /// Accepts the flexible Python label formats via :meth:`_init_parse_labels`.
-    Tensor& set_labels(py::object labels);
     Tensor& set_labels(LegLabels labels) override;
 
     /// Convert to a numpy array.
@@ -238,5 +239,26 @@ class Tensor
     /// Python ``type(self).__name__`` for ``__repr__`` / ``__str__``.
     [[nodiscard]] virtual std::string class_name() const;
 };
+
+/// Convert a :class:`TensorProduct`, a sequence of legs, or ``None`` (empty product).
+/// Used by pybind and remaining py-object factory overloads.
+TensorProduct::Ptr tensor_product_from_python(py::object obj, Symmetry::Ptr symmetry = nullptr);
+
+/// Python-flexible (co)domain parsing, then :meth:`Tensor::_init_parse_args`.
+std::tuple<TensorProduct::Ptr, TensorProduct::Ptr, TensorBackend::Ptr, Symmetry::Ptr>
+parse_tensor_init_args(py::object codomain, py::object domain, TensorBackend::Ptr backend);
+
+/// Python-flexible label parsing (``None``, nested lists, endomorphism shorthand).
+LegLabels parse_tensor_init_labels(py::object labels,
+                                   TensorProduct::Ptr const& codomain,
+                                   TensorProduct::Ptr const& domain,
+                                   bool is_endomorphism = false);
+
+/// Parse (co)domain, backend, and labels together for py-object subclass constructors.
+Tensor::InitParsed parse_tensor_init(py::object codomain,
+                                     py::object domain,
+                                     TensorBackend::Ptr backend,
+                                     py::object labels,
+                                     bool is_endomorphism = false);
 
 } // namespace cyten

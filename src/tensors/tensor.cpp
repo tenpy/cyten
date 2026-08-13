@@ -152,44 +152,6 @@ Tensor::forbidden_dtypes() const
     return _forbidden_dtypes;
 }
 
-Tensor::Tensor(py::object codomain_obj,
-               py::object domain_obj,
-               TensorBackend::Ptr backend_in,
-               py::object labels_obj,
-               Dtype dtype_in,
-               std::string device_in)
-  : LabelledLegs(LegLabels{})
-{
-    auto [codomain_tp, domain_tp, backend_tp, symmetry_tp] =
-      _init_parse_args(codomain_obj, domain_obj, std::move(backend_in));
-    codomain = std::move(codomain_tp);
-    domain = std::move(domain_tp);
-    backend = std::move(backend_tp);
-    symmetry = std::move(symmetry_tp);
-    dtype = dtype_in;
-    device = std::move(device_in);
-
-    shape.clear();
-    shape.reserve(static_cast<std::size_t>(codomain->num_factors + domain->num_factors));
-    for (auto const& f : codomain->factors) {
-        shape.push_back(f->dim);
-    }
-    for (auto it = domain->factors.rbegin(); it != domain->factors.rend(); ++it) {
-        shape.push_back((*it)->dim);
-    }
-
-    auto labels = _init_parse_labels(labels_obj, codomain, domain);
-    assert(static_cast<int64>(labels.size()) == codomain->num_factors + domain->num_factors);
-    num_legs = static_cast<int64>(labels.size());
-    _labels = std::move(labels);
-    _labelmap.clear();
-    for (int64 i = 0; i < num_legs; ++i) {
-        if (_labels[static_cast<std::size_t>(i)]) {
-            _labelmap[*_labels[static_cast<std::size_t>(i)]] = i;
-        }
-    }
-}
-
 Tensor::Tensor(TensorProduct::Ptr codomain_,
                TensorProduct::Ptr domain_,
                TensorBackend::Ptr backend_,
@@ -212,7 +174,7 @@ Tensor::Tensor(TensorProduct::Ptr codomain_,
         symmetry = codomain->symmetry;
     }
     if (!backend) {
-        backend = get_backend(py::cast(symmetry)).cast<TensorBackend::Ptr>();
+        backend = get_backend(symmetry);
     }
     // Use Python AssertionError (not C assert) so callers can catch with pytest.raises.
     if (!backend->supports_symmetry(symmetry)) {
@@ -242,15 +204,111 @@ Tensor::Tensor(TensorProduct::Ptr codomain_,
     }
 }
 
+Tensor::Tensor(InitParsed init, Dtype dtype, std::string device)
+  : Tensor(std::move(init.codomain),
+           std::move(init.domain),
+           std::move(init.backend),
+           std::move(init.symmetry),
+           std::move(init.labels),
+           dtype,
+           std::move(device))
+{
+}
+
 std::tuple<TensorProduct::Ptr, TensorProduct::Ptr, TensorBackend::Ptr, Symmetry::Ptr>
-Tensor::_init_parse_args(py::object codomain, py::object domain, TensorBackend::Ptr backend)
+Tensor::_init_parse_args(TensorProduct::Ptr codomain,
+                         TensorProduct::Ptr domain,
+                         TensorBackend::Ptr backend)
 {
     // --- hints from Python Tensor._init_parse_args ---
     // Extract the symmetry from codomain or domain. Note that either may be empty, but not both.
     // Make sure backend is compatible with symmetry
     // Bring (co-)domain to TensorProduct form
     // ---
-    // Extract the symmetry from codomain or domain. Note that either may be empty, but not both.
+    if (!codomain) {
+        throw std::invalid_argument("codomain must be a TensorProduct");
+    }
+    if (!domain) {
+        domain = std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{},
+                                                 codomain->symmetry);
+    }
+    Symmetry::Ptr symmetry;
+    if (codomain->num_factors > 0 || codomain->symmetry) {
+        symmetry = codomain->symmetry;
+    }
+    if (!symmetry && domain->symmetry) {
+        symmetry = domain->symmetry;
+    }
+    if (!symmetry) {
+        throw std::invalid_argument("domain and codomain can not both be empty");
+    }
+    if (codomain->num_factors == 0 && domain->num_factors == 0 && !codomain->symmetry &&
+        !domain->symmetry) {
+        throw std::invalid_argument("domain and codomain can not both be empty");
+    }
+
+    if (!backend) {
+        backend = get_backend(symmetry);
+    }
+    if (!backend->supports_symmetry(symmetry)) {
+        PyErr_SetString(PyExc_AssertionError, "backend does not support this symmetry");
+        throw py::error_already_set();
+    }
+    assert(codomain->symmetry && symmetry && codomain->symmetry->equals(*symmetry));
+    assert(domain->symmetry && symmetry && domain->symmetry->equals(*symmetry));
+    return { std::move(codomain), std::move(domain), std::move(backend), std::move(symmetry) };
+}
+
+LegLabels
+Tensor::_init_parse_labels(std::optional<LegLabels> labels,
+                           TensorProduct::Ptr const& codomain,
+                           TensorProduct::Ptr const& domain,
+                           bool is_endomorphism)
+{
+    int64 const num_legs = codomain->num_factors + domain->num_factors;
+    if (is_endomorphism) {
+        assert(codomain->num_factors == domain->num_factors);
+    }
+    if (!labels.has_value()) {
+        return LegLabels(static_cast<std::size_t>(num_legs), std::nullopt);
+    }
+    if (labels->empty()) {
+        assert(num_legs == 0);
+        return {};
+    }
+    if (is_endomorphism && static_cast<int64>(labels->size()) == codomain->num_factors) {
+        LegLabels out = *labels;
+        for (auto it = labels->rbegin(); it != labels->rend(); ++it) {
+            out.push_back(_dual_leg_label(*it));
+        }
+        return out;
+    }
+    assert(static_cast<int64>(labels->size()) == num_legs);
+    return *labels;
+}
+
+TensorProduct::Ptr
+tensor_product_from_python(py::object obj, Symmetry::Ptr symmetry)
+{
+    if (obj.is_none()) {
+        if (!symmetry) {
+            throw std::invalid_argument("Need a symmetry to build an empty TensorProduct");
+        }
+        return std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{}, std::move(symmetry));
+    }
+    if (py::isinstance<TensorProduct>(obj)) {
+        return obj.cast<TensorProduct::Ptr>();
+    }
+    std::vector<Leg::Ptr> factors;
+    for (auto item : obj) {
+        factors.push_back(item.cast<Leg::Ptr>());
+    }
+    return std::make_shared<TensorProduct>(std::move(factors), std::move(symmetry));
+}
+
+std::tuple<TensorProduct::Ptr, TensorProduct::Ptr, TensorBackend::Ptr, Symmetry::Ptr>
+parse_tensor_init_args(py::object codomain, py::object domain, TensorBackend::Ptr backend)
+{
     Symmetry::Ptr symmetry;
     if (py::isinstance<TensorProduct>(codomain)) {
         symmetry = codomain.cast<TensorProduct::Ptr>()->symmetry;
@@ -263,52 +321,19 @@ Tensor::_init_parse_args(py::object codomain, py::object domain, TensorBackend::
     } else {
         throw std::invalid_argument("domain and codomain can not both be empty");
     }
-
-    // Make sure backend is compatible with symmetry
-    if (!backend) {
-        backend = get_backend(py::cast(symmetry)).cast<TensorBackend::Ptr>();
-    }
-    // Use Python AssertionError (not C assert) so callers can catch with pytest.raises.
-    if (!backend->supports_symmetry(symmetry)) {
-        PyErr_SetString(PyExc_AssertionError, "backend does not support this symmetry");
-        throw py::error_already_set();
-    }
-
-    // Bring (co-)domain to TensorProduct form
-    TensorProduct::Ptr codomain_tp;
-    if (py::isinstance<TensorProduct>(codomain)) {
-        codomain_tp = codomain.cast<TensorProduct::Ptr>();
-    } else {
-        std::vector<Leg::Ptr> factors;
-        for (auto item : codomain) {
-            factors.push_back(item.cast<Leg::Ptr>());
-        }
-        codomain_tp = std::make_shared<TensorProduct>(std::move(factors), symmetry);
-    }
-    assert(codomain_tp->symmetry && symmetry && codomain_tp->symmetry->equals(*symmetry));
-
+    auto codomain_tp = tensor_product_from_python(codomain, symmetry);
     if (domain.is_none()) {
         domain = py::list();
     }
-    TensorProduct::Ptr domain_tp;
-    if (py::isinstance<TensorProduct>(domain)) {
-        domain_tp = domain.cast<TensorProduct::Ptr>();
-    } else {
-        std::vector<Leg::Ptr> factors;
-        for (auto item : domain) {
-            factors.push_back(item.cast<Leg::Ptr>());
-        }
-        domain_tp = std::make_shared<TensorProduct>(std::move(factors), symmetry);
-    }
-    assert(domain_tp->symmetry && symmetry && domain_tp->symmetry->equals(*symmetry));
-    return { codomain_tp, domain_tp, backend, symmetry };
+    auto domain_tp = tensor_product_from_python(domain, symmetry);
+    return Tensor::_init_parse_args(std::move(codomain_tp), std::move(domain_tp), std::move(backend));
 }
 
 LegLabels
-Tensor::_init_parse_labels(py::object labels,
-                           TensorProduct::Ptr const& codomain,
-                           TensorProduct::Ptr const& domain,
-                           bool is_endomorphism)
+parse_tensor_init_labels(py::object labels,
+                         TensorProduct::Ptr const& codomain,
+                         TensorProduct::Ptr const& domain,
+                         bool is_endomorphism)
 {
     // --- hints from Python Tensor._init_parse_labels ---
     // case 1: None
@@ -322,21 +347,17 @@ Tensor::_init_parse_labels(py::object labels,
         assert(codomain->num_factors == domain->num_factors);
     }
 
-    // case 1: None
     if (labels.is_none()) {
-        return LegLabels(static_cast<std::size_t>(num_legs), std::nullopt);
+        return Tensor::_init_parse_labels(std::nullopt, codomain, domain, is_endomorphism);
     }
 
     py::sequence seq = labels.cast<py::sequence>();
     if (py::len(seq) == 0) {
-        assert(num_legs == 0);
-        return {};
+        return Tensor::_init_parse_labels(LegLabels{}, codomain, domain, is_endomorphism);
     }
 
-    // case 2: two lists, one each for codomain and domain
     py::object first = seq[py::int_(0)];
     if (!(py::isinstance<py::str>(first) || first.is_none())) {
-        // expect nested lists
         if (py::len(seq) != 2) {
             throw std::invalid_argument("Expected [codomain_labels, domain_labels]");
         }
@@ -346,7 +367,6 @@ Tensor::_init_parse_labels(py::object labels,
         LegLabels domain_labels;
         if (codomain_labels_obj.is_none()) {
             if (is_endomorphism && !domain_labels_obj.is_none()) {
-                // Match Python: [_dual_leg_label(l) for l in domain_labels]
                 for (auto item : domain_labels_obj) {
                     codomain_labels.push_back(_dual_leg_label(as_leg_label(item)));
                 }
@@ -380,19 +400,20 @@ Tensor::_init_parse_labels(py::object labels,
         return out;
     }
 
-    // case 3a: (only if is_endomorphism) a flat list for the codomain
     LegLabels flat = sequence_as_leg_labels(seq);
-    if (is_endomorphism && static_cast<int64>(flat.size()) == codomain->num_factors) {
-        LegLabels out = flat;
-        for (auto it = flat.rbegin(); it != flat.rend(); ++it) {
-            out.push_back(_dual_leg_label(*it));
-        }
-        return out;
-    }
+    return Tensor::_init_parse_labels(std::move(flat), codomain, domain, is_endomorphism);
+}
 
-    // case 3: a flat list for the legs
-    assert(static_cast<int64>(flat.size()) == num_legs);
-    return flat;
+Tensor::InitParsed
+parse_tensor_init(py::object codomain,
+                  py::object domain,
+                  TensorBackend::Ptr backend,
+                  py::object labels,
+                  bool is_endomorphism)
+{
+    auto [c, d, b, s] = parse_tensor_init_args(codomain, domain, std::move(backend));
+    auto labs = parse_tensor_init_labels(labels, c, d, is_endomorphism);
+    return { std::move(c), std::move(d), std::move(b), std::move(s), std::move(labs) };
 }
 
 void
@@ -456,7 +477,7 @@ Tensor::ascii_diagram() const
     std::vector<std::string> dims;
     dims.reserve(leg_spaces.size());
     for (auto const& l : leg_spaces) {
-        dims.push_back(format_dim(factor_dim(l), DISTANCE, huge_dim, huge_dim_value));
+        dims.push_back(format_dim(l->dim, DISTANCE, huge_dim, huge_dim_value));
     }
     auto const n_cod = num_codomain_legs();
     std::vector<std::string> codomain_dims(dims.begin(), dims.begin() + n_cod);
@@ -602,16 +623,16 @@ Tensor::has_pipes() const
     return codomain->has_pipes() || domain->has_pipes();
 }
 
-std::vector<py::object>
+std::vector<Leg::Ptr>
 Tensor::legs() const
 {
-    std::vector<py::object> out;
+    std::vector<Leg::Ptr> out;
     out.reserve(static_cast<std::size_t>(num_legs));
     for (auto const& f : codomain->factors) {
-        out.push_back(py::cast(f));
+        out.push_back(f);
     }
     for (auto it = domain->factors.rbegin(); it != domain->factors.rend(); ++it) {
-        out.push_back(py::cast((*it)->dual()));
+        out.push_back((*it)->dual());
     }
     return out;
 }
@@ -680,24 +701,24 @@ Tensor::T() const
     throw NotImplemented("Tensor::T (free function transpose not yet converted)");
 }
 
-py::object
+Leg::Ptr
 Tensor::_as_codomain_leg(std::variant<int64, std::string> idx) const
 {
     auto [in_domain, co_domain_idx, _] = _parse_leg_idx(idx);
     if (in_domain) {
-        return py::cast(domain->factors[static_cast<std::size_t>(co_domain_idx)]->dual());
+        return domain->factors[static_cast<std::size_t>(co_domain_idx)]->dual();
     }
-    return py::cast(codomain->factors[static_cast<std::size_t>(co_domain_idx)]);
+    return codomain->factors[static_cast<std::size_t>(co_domain_idx)];
 }
 
-py::object
+Leg::Ptr
 Tensor::_as_domain_leg(std::variant<int64, std::string> idx) const
 {
     auto [in_domain, co_domain_idx, _] = _parse_leg_idx(idx);
     if (in_domain) {
-        return py::cast(domain->factors[static_cast<std::size_t>(co_domain_idx)]);
+        return domain->factors[static_cast<std::size_t>(co_domain_idx)];
     }
-    return py::cast(codomain->factors[static_cast<std::size_t>(co_domain_idx)]->dual());
+    return codomain->factors[static_cast<std::size_t>(co_domain_idx)]->dual();
 }
 
 void
@@ -797,7 +818,7 @@ Tensor::_repr_header_lines(std::string const& indent, bool use_symm_str) const
     return lines;
 }
 
-py::object
+Leg::Ptr
 Tensor::get_leg(std::variant<int64, std::string> which_leg) const
 {
     // --- hints from Python Tensor.get_leg ---
@@ -805,15 +826,15 @@ Tensor::get_leg(std::variant<int64, std::string> which_leg) const
     // ---
     auto [in_domain, co_domain_idx, _] = _parse_leg_idx(which_leg);
     if (in_domain) {
-        return py::cast(domain->factors[static_cast<std::size_t>(co_domain_idx)]->dual());
+        return domain->factors[static_cast<std::size_t>(co_domain_idx)]->dual();
     }
-    return py::cast(codomain->factors[static_cast<std::size_t>(co_domain_idx)]);
+    return codomain->factors[static_cast<std::size_t>(co_domain_idx)];
 }
 
-std::vector<py::object>
+std::vector<Leg::Ptr>
 Tensor::get_leg(std::vector<std::variant<int64, std::string>> const& which_legs) const
 {
-    std::vector<py::object> out;
+    std::vector<Leg::Ptr> out;
     out.reserve(which_legs.size());
     for (auto const& w : which_legs) {
         out.push_back(get_leg(w));
@@ -821,7 +842,7 @@ Tensor::get_leg(std::vector<std::variant<int64, std::string>> const& which_legs)
     return out;
 }
 
-py::object
+Leg::Ptr
 Tensor::get_leg_co_domain(std::variant<int64, std::string> which_leg) const
 {
     // --- hints from Python Tensor.get_leg_co_domain ---
@@ -829,26 +850,20 @@ Tensor::get_leg_co_domain(std::variant<int64, std::string> which_leg) const
     // ---
     auto [in_domain, co_domain_idx, _] = _parse_leg_idx(which_leg);
     if (in_domain) {
-        return py::cast(domain->factors[static_cast<std::size_t>(co_domain_idx)]);
+        return domain->factors[static_cast<std::size_t>(co_domain_idx)];
     }
-    return py::cast(codomain->factors[static_cast<std::size_t>(co_domain_idx)]);
+    return codomain->factors[static_cast<std::size_t>(co_domain_idx)];
 }
 
-std::vector<py::object>
+std::vector<Leg::Ptr>
 Tensor::get_leg_co_domain(std::vector<std::variant<int64, std::string>> const& which_legs) const
 {
-    std::vector<py::object> out;
+    std::vector<Leg::Ptr> out;
     out.reserve(which_legs.size());
     for (auto const& w : which_legs) {
         out.push_back(get_leg_co_domain(w));
     }
     return out;
-}
-
-Tensor&
-Tensor::set_labels(py::object labels)
-{
-    return set_labels(_init_parse_labels(labels, codomain, domain));
 }
 
 Tensor&

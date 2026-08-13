@@ -90,13 +90,24 @@ shape: tuple of int
     The dimension of each of the :attr:`legs`.
 )pydoc";
 
-    cls.def(py::init<py::object, py::object, TensorBackend::Ptr, py::object, Dtype, std::string>(),
-            py::arg("codomain"),
-            py::arg("domain"),
-            py::arg("backend"),
-            py::arg("labels"),
-            py::arg("dtype"),
-            py::arg("device"));
+    cls.def(
+      py::init([](py::object codomain,
+                  py::object domain,
+                  TensorBackend::Ptr backend,
+                  py::object labels,
+                  Dtype dtype,
+                  std::string device) {
+          auto [c, d, b, s] = parse_tensor_init_args(codomain, domain, std::move(backend));
+          auto labs = parse_tensor_init_labels(labels, c, d);
+          return std::make_shared<PyTensor>(
+            std::move(c), std::move(d), std::move(b), std::move(s), std::move(labs), dtype, device);
+      }),
+      py::arg("codomain"),
+      py::arg("domain"),
+      py::arg("backend"),
+      py::arg("labels"),
+      py::arg("dtype"),
+      py::arg("device"));
 
     cls.def_readwrite("codomain", &Tensor::codomain)
       .def_readwrite("domain", &Tensor::domain)
@@ -122,11 +133,14 @@ shape: tuple of int
             self.shape = shape_obj.cast<std::vector<float64>>();
         });
 
-    cls.def_static("_init_parse_args",
-                   &Tensor::_init_parse_args,
-                   py::arg("codomain"),
-                   py::arg("domain"),
-                   py::arg("backend"),
+    cls.def_static(
+         "_init_parse_args",
+         [](py::object codomain, py::object domain, TensorBackend::Ptr backend) {
+             return parse_tensor_init_args(codomain, domain, std::move(backend));
+         },
+         py::arg("codomain"),
+         py::arg("domain"),
+         py::arg("backend"),
                    R"pydoc(
 Common input parsing for ``__init__`` methods of tensor classes.
 
@@ -142,12 +156,18 @@ symmetry: Symmetry
     The symmetry of the domain and codomain
 )pydoc");
 
-    cls.def_static("_init_parse_labels",
-                   &Tensor::_init_parse_labels,
-                   py::arg("labels"),
-                   py::arg("codomain"),
-                   py::arg("domain"),
-                   py::arg("is_endomorphism") = false,
+    cls.def_static(
+         "_init_parse_labels",
+         [](py::object labels,
+            TensorProduct::Ptr const& codomain,
+            TensorProduct::Ptr const& domain,
+            bool is_endomorphism) {
+             return parse_tensor_init_labels(labels, codomain, domain, is_endomorphism);
+         },
+         py::arg("labels"),
+         py::arg("codomain"),
+         py::arg("domain"),
+         py::arg("is_endomorphism") = false,
                    R"pydoc(
 Parse the various allowed input formats for labels to the format of :attr:`labels`.
 
@@ -573,7 +593,7 @@ legs_idx: int
                 }
                 return out;
             }
-            return self.get_leg(as_leg_ref(which_leg));
+            return py::cast(self.get_leg(as_leg_ref(which_leg)));
         },
         py::arg("which_leg"),
         R"pydoc(Basically ``self.legs[which_leg]``, but allows labels and multiple indices.)pydoc")
@@ -591,7 +611,7 @@ legs_idx: int
                 }
                 return out;
             }
-            return self.get_leg_co_domain(as_leg_ref(which_leg));
+            return py::cast(self.get_leg_co_domain(as_leg_ref(which_leg)));
         },
         py::arg("which_leg"),
         R"pydoc(
@@ -604,7 +624,9 @@ dual if the leg is in the domain.
     cls
       .def(
         "set_labels",
-        [](Tensor& self, py::object labels) -> Tensor& { return self.set_labels(labels); },
+        [](Tensor& self, py::object labels) -> Tensor& {
+            return self.set_labels(parse_tensor_init_labels(labels, self.codomain, self.domain));
+        },
         py::arg("labels"),
         py::return_value_policy::reference,
         R"pydoc(Set the given labels, in-place. Return the modified instance.)pydoc")

@@ -46,10 +46,7 @@ SymmetricTensor::SymmetricTensor(TensorBackend::DataPtr data_in,
                                  TensorBackend::Ptr backend_in,
                                  py::object labels_obj,
                                  bool check_complex_dtype)
-  : Tensor(codomain_obj,
-           domain_obj,
-           std::move(backend_in),
-           labels_obj,
+  : Tensor(parse_tensor_init(codomain_obj, domain_obj, std::move(backend_in), labels_obj),
            Dtype::Float64, // overwritten from data below
            "")
   , data(std::move(data_in))
@@ -157,7 +154,7 @@ SymmetricTensor::from_zero(py::object codomain,
                            std::optional<std::string> device)
 {
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
-      _init_parse_args(codomain, domain, std::move(backend));
+      parse_tensor_init_args(codomain, domain, std::move(backend));
     auto dt = _parse_default_dtype(dtype, symmetry);
     assert(dt.has_value());
     auto device_s = backend_tp->block_backend->as_device(device);
@@ -167,7 +164,7 @@ SymmetricTensor::from_zero(py::object codomain,
                                              domain_tp,
                                              backend_tp,
                                              symmetry,
-                                             _init_parse_labels(labels, codomain_tp, domain_tp));
+                                             parse_tensor_init_labels(labels, codomain_tp, domain_tp));
 }
 
 SymmetricTensor::Ptr
@@ -178,12 +175,12 @@ SymmetricTensor::from_eye(py::object co_domain,
                           std::optional<std::string> device)
 {
     auto [co_domain_tp, unused_domain, backend_tp, symmetry] =
-      _init_parse_args(co_domain, co_domain, std::move(backend));
+      parse_tensor_init_args(co_domain, co_domain, std::move(backend));
     (void)unused_domain;
     auto dt = _parse_default_dtype(dtype, symmetry);
     assert(dt.has_value());
     auto labels_parsed =
-      _init_parse_labels(labels, co_domain_tp, co_domain_tp, /*is_endomorphism=*/true);
+      parse_tensor_init_labels(labels, co_domain_tp, co_domain_tp, /*is_endomorphism=*/true);
     auto device_s = backend_tp->block_backend->as_device(device);
     auto data = backend_tp->eye_data(co_domain_tp, *dt, device_s);
     return std::make_shared<SymmetricTensor>(
@@ -208,7 +205,7 @@ SymmetricTensor::from_block_func(py::function func,
     // OPTIMIZE remove?
     // ---
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
-      _init_parse_args(codomain, domain, std::move(backend));
+      parse_tensor_init_args(codomain, domain, std::move(backend));
     dtype = _parse_default_dtype(dtype, symmetry);
 
     py::dict kwargs = copy_dict(func_kwargs);
@@ -240,7 +237,7 @@ SymmetricTensor::from_block_func(py::function func,
                                         domain_tp,
                                         backend_tp,
                                         symmetry,
-                                        _init_parse_labels(labels, codomain_tp, domain_tp));
+                                        parse_tensor_init_labels(labels, codomain_tp, domain_tp));
     res->test_sanity(); // OPTIMIZE remove?
     return res;
 }
@@ -259,7 +256,7 @@ SymmetricTensor::from_sector_block_func(py::function func,
     // wrap func to consider func_kwargs and dtype
     // ---
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
-      _init_parse_args(codomain, domain, std::move(backend));
+      parse_tensor_init_args(codomain, domain, std::move(backend));
     dtype = _parse_default_dtype(dtype, symmetry);
 
     // wrap func to consider func_kwargs and dtype
@@ -281,7 +278,7 @@ SymmetricTensor::from_sector_block_func(py::function func,
                                         domain_tp,
                                         backend_tp,
                                         symmetry,
-                                        _init_parse_labels(labels, codomain_tp, domain_tp));
+                                        parse_tensor_init_labels(labels, codomain_tp, domain_tp));
     res->test_sanity();
     return res;
 }
@@ -298,7 +295,7 @@ SymmetricTensor::from_dense_block(py::object block,
                                   bool understood_braiding)
 {
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
-      _init_parse_args(codomain, domain, std::move(backend));
+      parse_tensor_init_args(codomain, domain, std::move(backend));
     dtype = _parse_default_dtype(dtype, symmetry);
     if (!symmetry->can_be_dropped()) {
         throw SymmetryError(std::format(
@@ -322,7 +319,7 @@ SymmetricTensor::from_dense_block(py::object block,
                                              domain_tp,
                                              backend_tp,
                                              symmetry,
-                                             _init_parse_labels(labels, codomain_tp, domain_tp));
+                                             parse_tensor_init_labels(labels, codomain_tp, domain_tp));
 }
 
 SymmetricTensor::Ptr
@@ -379,7 +376,7 @@ SymmetricTensor::from_random_normal(py::object codomain,
         } else {
             assert(py::object(mean.attr("backend")).is(py::cast(backend)));
         }
-        auto [c, d, b, s] = _init_parse_args(codomain, domain, backend);
+        auto [c, d, b, s] = parse_tensor_init_args(codomain, domain, backend);
         codomain_tp = std::move(c);
         domain_tp = std::move(d);
         backend_tp = std::move(b);
@@ -388,7 +385,7 @@ SymmetricTensor::from_random_normal(py::object codomain,
             labels = mean.attr("labels");
         } else {
             assert(mean.attr("labels").cast<LegLabels>() ==
-                   _init_parse_labels(labels, codomain_tp, domain_tp));
+                   parse_tensor_init_labels(labels, codomain_tp, domain_tp));
         }
         if (!dtype.has_value()) {
             dtype = mean.attr("dtype").cast<Dtype>();
@@ -403,7 +400,7 @@ SymmetricTensor::from_random_normal(py::object codomain,
         if (codomain.is_none()) {
             throw std::invalid_argument("Must specify the codomain if mean is not given.");
         }
-        auto [c, d, b, s] = _init_parse_args(codomain, domain, std::move(backend));
+        auto [c, d, b, s] = parse_tensor_init_args(codomain, domain, std::move(backend));
         codomain_tp = std::move(c);
         domain_tp = std::move(d);
         backend_tp = std::move(b);
@@ -424,7 +421,7 @@ SymmetricTensor::from_random_normal(py::object codomain,
                                         domain_tp,
                                         backend_tp,
                                         symmetry,
-                                        _init_parse_labels(labels, codomain_tp, domain_tp));
+                                        parse_tensor_init_labels(labels, codomain_tp, domain_tp));
 
     if (!mean.is_none()) {
         // mean + with_zero_mean
@@ -446,7 +443,7 @@ SymmetricTensor::from_random_uniform(py::object codomain,
                                      std::optional<std::string> device)
 {
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
-      _init_parse_args(codomain, domain, std::move(backend));
+      parse_tensor_init_args(codomain, domain, std::move(backend));
     auto dt = _parse_default_dtype(dtype, symmetry);
     assert(dt.has_value());
     auto bb = backend_tp->block_backend;
@@ -529,7 +526,7 @@ SymmetricTensor::from_sector_projection(py::object co_domain,
                                         co_domain_tp,
                                         backend,
                                         co_domain_tp->symmetry,
-                                        _init_parse_labels(labels, co_domain_tp, co_domain_tp));
+                                        parse_tensor_init_labels(labels, co_domain_tp, co_domain_tp));
     res->test_sanity();
     return res;
 }
@@ -554,7 +551,7 @@ SymmetricTensor::from_tree_pairs(py::object trees_obj,
         return from_zero(codomain, domain, std::move(backend), labels, *dtype, device);
     }
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
-      _init_parse_args(codomain, domain, std::move(backend));
+      parse_tensor_init_args(codomain, domain, std::move(backend));
     if (codomain_tp->has_pipes() || domain_tp->has_pipes()) {
         throw NotImplemented("from_tree_pairs does not support pipes (yet?)");
     }
@@ -610,7 +607,7 @@ SymmetricTensor::from_tree_pairs(py::object trees_obj,
                                              domain_tp,
                                              backend_tp,
                                              symmetry,
-                                             _init_parse_labels(labels, codomain_tp, domain_tp));
+                                             parse_tensor_init_labels(labels, codomain_tp, domain_tp));
 }
 
 Tensor::Ptr
@@ -624,13 +621,13 @@ SymmetricTensor::as_dtype(Dtype new_dtype)
       new_data, codomain, domain, backend, symmetry, labels());
 }
 
-py::object
+SymmetricTensorPtr
 SymmetricTensor::as_SymmetricTensor(bool guarantee_copy, std::optional<std::string> /*warning*/)
 {
     if (guarantee_copy) {
-        return py::cast(std::static_pointer_cast<SymmetricTensor>(copy()));
+        return std::static_pointer_cast<SymmetricTensor>(copy());
     }
-    return py::cast(std::static_pointer_cast<SymmetricTensor>(shared_from_this()));
+    return std::static_pointer_cast<SymmetricTensor>(shared_from_this());
 }
 
 Tensor::Ptr
@@ -707,15 +704,15 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
         std::vector<py::object> combine;
         std::vector<bool> pipe_dualities;
         int64 flat_leg_counter = 0;
-        for (auto leg : legs()) {
-            if (py::isinstance<LegPipe>(leg)) {
-                auto num = leg.attr("num_legs").cast<int64>();
+        for (auto const& leg : legs()) {
+            if (auto pipe = std::dynamic_pointer_cast<LegPipe>(leg)) {
+                auto num = pipe->num_legs;
                 py::list group;
                 for (int64 i = flat_leg_counter; i < flat_leg_counter + num; ++i) {
                     group.append(i);
                 }
                 combine.push_back(group);
-                pipe_dualities.push_back(leg.attr("is_dual").cast<bool>());
+                pipe_dualities.push_back(leg->is_dual);
                 flat_leg_counter += num;
             } else {
                 flat_leg_counter += 1;

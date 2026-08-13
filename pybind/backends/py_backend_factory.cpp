@@ -8,7 +8,7 @@ void
 bind_backend_factory(py::module_& m)
 {
     m.def("get_backend",
-          &get_backend,
+          py::overload_cast<py::object, py::object>(&get_backend),
           py::arg("symmetry") = py::none(),
           py::arg("block_backend") = py::none(),
           R"pydoc(

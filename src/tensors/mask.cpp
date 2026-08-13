@@ -141,16 +141,15 @@ Mask::Mask(TensorBackend::DataPtr data_in,
            std::optional<bool> is_projection_opt,
            TensorBackend::Ptr backend_in,
            py::object labels_obj)
-  : Tensor(
-      [&]() -> py::object {
-          as_elementary_space(space_out_obj); // validate early
-          return py::make_tuple(space_out_obj);
-      }(),
-      py::make_tuple(space_in_obj),
-      std::move(backend_in),
-      labels_obj,
-      Dtype::Bool,
-      "")
+  : Tensor(parse_tensor_init([&]() -> py::object {
+                               as_elementary_space(space_out_obj); // validate early
+                               return py::make_tuple(space_out_obj);
+                           }(),
+                           py::make_tuple(space_in_obj),
+                           std::move(backend_in),
+                           labels_obj),
+           Dtype::Bool,
+           "")
   , data(std::move(data_in))
 {
     auto space_in = as_elementary_space(space_in_obj);
@@ -522,7 +521,7 @@ Mask::as_DiagonalTensor(Dtype out_dtype)
       py::cast(labels()));
 }
 
-py::object
+SymmetricTensorPtr
 Mask::as_SymmetricTensor(bool guarantee_copy, std::optional<std::string> warning)
 {
     // --- hints from Python Mask.as_SymmetricTensor ---
@@ -531,7 +530,7 @@ Mask::as_SymmetricTensor(bool guarantee_copy, std::optional<std::string> warning
     return as_SymmetricTensor(guarantee_copy, std::move(warning), Dtype::Complex128);
 }
 
-py::object
+SymmetricTensorPtr
 Mask::as_SymmetricTensor(bool /*guarantee_copy*/,
                          std::optional<std::string> warning,
                          Dtype out_dtype)
@@ -543,12 +542,13 @@ Mask::as_SymmetricTensor(bool /*guarantee_copy*/,
         // OPTIMIZE how hard is it to deal with inclusions in the backend?
         auto proj = std::static_pointer_cast<Mask>(dagger());
         auto sym = proj->as_SymmetricTensor(false, std::nullopt, out_dtype);
-        return py::module_::import("cyten.tensors._tensors").attr("dagger")(sym);
+        return py::module_::import("cyten.tensors._tensors")
+          .attr("dagger")(py::cast(sym))
+          .cast<SymmetricTensorPtr>();
     }
     auto new_data = backend->full_data_from_mask(
       std::static_pointer_cast<Mask const>(shared_from_this()), out_dtype);
-    return py::cast(
-      std::make_shared<SymmetricTensor>(new_data, codomain, domain, backend, symmetry, labels()));
+    return std::make_shared<SymmetricTensor>(new_data, codomain, domain, backend, symmetry, labels());
 }
 
 py::object
