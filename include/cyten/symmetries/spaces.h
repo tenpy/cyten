@@ -377,11 +377,12 @@ class TensorProduct : public Space
     using Ptr = std::shared_ptr<TensorProduct>;
     using CPtr = std::shared_ptr<const TensorProduct>;
 
-    /// Factors of the product: each is a :class:`Space` or :class:`LegPipe` (Python or C++).
-    std::vector<py::object> factors;
+    /// Factors of the product: each is a single tensor leg (:class:`ElementarySpace` or
+    /// :class:`LegPipe`).
+    std::vector<Leg::Ptr> factors;
     int64 num_factors = 0;
 
-    explicit TensorProduct(std::vector<py::object> factors,
+    explicit TensorProduct(std::vector<Leg::Ptr> factors,
                            Symmetry::Ptr symmetry = nullptr,
                            std::optional<SectorArray> sector_decomposition = std::nullopt,
                            std::optional<std::vector<int64>> multiplicities = std::nullopt);
@@ -419,7 +420,7 @@ class TensorProduct : public Space
     [[nodiscard]] IndexSlice forest_block_slice(SectorArray const& uncoupled,
                                                 Sector coupled) const;
 
-    [[nodiscard]] Ptr insert_multiply(py::object other, int64 pos) const;
+    [[nodiscard]] Ptr insert_multiply(Leg::Ptr other, int64 pos) const;
 
     [[nodiscard]] std::vector<TreeBlockItem> iter_tree_blocks(SectorArray const& coupled) const;
 
@@ -428,11 +429,11 @@ class TensorProduct : public Space
 
     [[nodiscard]] std::vector<UncoupledItem> iter_uncoupled(bool yield_slices = false) const;
 
-    [[nodiscard]] Ptr left_multiply(py::object other) const;
+    [[nodiscard]] Ptr left_multiply(Leg::Ptr other) const;
 
     [[nodiscard]] Ptr permuted(std::vector<int64> const& perm) const;
 
-    [[nodiscard]] Ptr right_multiply(py::object other) const;
+    [[nodiscard]] Ptr right_multiply(Leg::Ptr other) const;
 
     [[nodiscard]] int64 tree_block_size(SectorArray const& uncoupled) const;
 
@@ -440,12 +441,12 @@ class TensorProduct : public Space
 
     bool operator==(Space const& other) const override;
 
-    [[nodiscard]] py::object operator[](int64 idx) const;
+    [[nodiscard]] Leg::Ptr operator[](int64 idx) const;
 
     [[nodiscard]] std::string repr(bool show_symmetry = true, bool one_line = false) const;
 
     [[nodiscard]] std::pair<SectorArray, std::vector<int64>> calc_sectors(
-      std::vector<py::object> const& factors) const;
+      std::vector<Leg::Ptr> const& factors) const;
 
     void save_hdf5(py::object hdf5_saver, py::object h5gr, std::string const& subpath) const;
 
@@ -464,12 +465,12 @@ class TensorProduct : public Space
         std::vector<int64> multiplicities;
     };
 
-    static Prepared prepare(std::vector<py::object> const& factors,
+    static Prepared prepare(std::vector<Leg::Ptr> const& factors,
                             Symmetry::Ptr symmetry,
                             std::optional<SectorArray> sector_decomposition,
                             std::optional<std::vector<int64>> multiplicities);
 
-    TensorProduct(std::vector<py::object> factors, Prepared prepared);
+    TensorProduct(std::vector<Leg::Ptr> factors, Prepared prepared);
 };
 
 /// Special case of a :class:`LegPipe` for abelian group symmetries.
@@ -606,6 +607,9 @@ class AbelianLegPipe
       std::vector<int64> const& multiplicities,
       BlockInds const& block_ind_map);
 };
+
+/// Convert a tensor leg to a :class:`Space` (identity if it already is one).
+[[nodiscard]] Space::Ptr as_space(Leg::Ptr const& leg);
 
 /// The swap gate (numpy representation of the braid) between two legs.
 ///

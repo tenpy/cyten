@@ -19,12 +19,12 @@ namespace cyten {
 namespace {
 
 std::vector<BlockBackend::LegCPtr>
-legs_from_py(std::vector<py::object> const& objs)
+legs_from_py(std::vector<Leg::Ptr> const& objs)
 {
     std::vector<BlockBackend::LegCPtr> out;
     out.reserve(objs.size());
     for (auto const& o : objs) {
-        out.push_back(o.cast<Leg::Ptr>());
+        out.push_back(o);
     }
     return out;
 }
@@ -489,9 +489,9 @@ SymmetricTensor::from_sector_projection(py::object co_domain,
     if (py::isinstance<TensorProduct>(co_domain)) {
         co_domain_tp = co_domain.cast<TensorProduct::Ptr>();
     } else {
-        std::vector<py::object> factors;
+        std::vector<Leg::Ptr> factors;
         for (auto item : co_domain) {
-            factors.push_back(py::reinterpret_borrow<py::object>(item));
+            factors.push_back(item.cast<Leg::Ptr>());
         }
         co_domain_tp = std::make_shared<TensorProduct>(std::move(factors));
     }
@@ -573,10 +573,10 @@ SymmetricTensor::from_tree_pairs(py::object trees_obj,
     X_are_dual.reserve(codomain_tp->factors.size());
     Y_are_dual.reserve(domain_tp->factors.size());
     for (auto const& leg : codomain_tp->factors) {
-        X_are_dual.push_back(leg.attr("is_dual").cast<bool>() ? 1 : 0);
+        X_are_dual.push_back(leg->is_dual ? 1 : 0);
     }
     for (auto const& leg : domain_tp->factors) {
-        Y_are_dual.push_back(leg.attr("is_dual").cast<bool>() ? 1 : 0);
+        Y_are_dual.push_back(leg->is_dual ? 1 : 0);
     }
 
     std::map<std::pair<FusionTree, FusionTree>, BlockBackend::BlockPtr> block_trees;
@@ -833,8 +833,8 @@ SymmetricTensor::to_dense_block_trivial_sector() const
     auto block = backend->to_dense_block_trivial_sector(shared_from_this());
     assert(num_codomain_legs() ==
            1); // TODO assuming this for now to construct the perm. should we keep that?
-    auto space = codomain->factors[0].cast<Space::Ptr>();
-    auto leg = codomain->factors[0].cast<Leg::Ptr>();
+    auto space = as_space(codomain->factors[0]);
+    auto leg = codomain->factors[0];
     if (leg->has_custom_basis_perm()) {
         auto i = space->sector_decomposition_where(symmetry->trivial_sector);
         assert(i.has_value());

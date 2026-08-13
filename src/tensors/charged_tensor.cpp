@@ -72,7 +72,7 @@ ChargedTensor::ChargedTensor(SymmetricTensor::Ptr inv, BlockBackend::BlockPtr ch
   : Tensor(
       inv->codomain,
       std::make_shared<TensorProduct>(
-        std::vector<py::object>(inv->domain->factors.begin() + 1, inv->domain->factors.end()),
+        std::vector<Leg::Ptr>(inv->domain->factors.begin() + 1, inv->domain->factors.end()),
         inv->symmetry),
       inv->backend,
       inv->symmetry,
@@ -86,7 +86,7 @@ ChargedTensor::ChargedTensor(SymmetricTensor::Ptr inv, BlockBackend::BlockPtr ch
   , invariant_part(std::move(inv))
   , charged_state(std::move(charged_state_in))
   // Match Python: keep the domain factor as-is (ElementarySpace or LegPipe).
-  , charge_leg(invariant_part->domain->factors[0])
+  , charge_leg(py::cast(invariant_part->domain->factors[0]))
 {
     assert(invariant_part->domain->num_factors > 0);
     auto labs = invariant_part->labels();
@@ -159,7 +159,7 @@ ChargedTensor::_parse_inv_domain(TensorProduct::Ptr domain, py::object charge)
         charge_leg =
           std::make_shared<ElementarySpace>(domain->symmetry, SectorArray::from_sector(sec));
     }
-    return { domain->left_multiply(py::cast(charge_leg)), charge_leg };
+    return { domain->left_multiply(std::dynamic_pointer_cast<Leg>(charge_leg)), charge_leg };
 }
 
 std::tuple<LegLabels, LegLabels>

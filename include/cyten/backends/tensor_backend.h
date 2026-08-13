@@ -419,16 +419,14 @@ class TensorBackend : public std::enable_shared_from_this<TensorBackend>
 };
 
 /// The conventional order of legs: ``[*codomain.factors, *reversed(domain.factors)]``.
-///
-/// Factors are stored as ``py::object`` on :class:`TensorProduct` (same as the C++ spaces API).
-std::vector<py::object> conventional_leg_order(TensorProduct::Ptr codomain,
-                                               TensorProduct::Ptr domain);
+std::vector<Leg::Ptr> conventional_leg_order(TensorProduct::Ptr codomain,
+                                             TensorProduct::Ptr domain);
 
 /// Overload accepting a tensor-like object with ``.codomain`` / ``.domain`` attributes.
-std::vector<py::object> conventional_leg_order(py::object tensor_or_codomain,
-                                               py::object domain = py::none());
+std::vector<Leg::Ptr> conventional_leg_order(py::object tensor_or_codomain,
+                                             py::object domain = py::none());
 
-std::vector<py::object> conventional_leg_order(TensorCPtr tensor);
+std::vector<Leg::Ptr> conventional_leg_order(TensorCPtr tensor);
 
 /// If the given objects have the same backend, return it. Raise otherwise.
 TensorBackend::Ptr get_same_backend(const std::vector<py::object>& objs,

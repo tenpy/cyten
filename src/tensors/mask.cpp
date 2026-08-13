@@ -191,8 +191,10 @@ Mask::Mask(TensorBackend::DataPtr data_in,
            Symmetry::Ptr symmetry_in,
            LegLabels labels_in,
            std::string device_in)
-  : Tensor(std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(space_out) }),
-           std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(space_in) }),
+  : Tensor(std::make_shared<TensorProduct>(
+             std::vector<Leg::Ptr>{ std::dynamic_pointer_cast<Leg>(space_out) }),
+           std::make_shared<TensorProduct>(
+             std::vector<Leg::Ptr>{ std::dynamic_pointer_cast<Leg>(space_in) }),
            std::move(backend_in),
            std::move(symmetry_in),
            std::move(labels_in),
@@ -242,18 +244,18 @@ ElementarySpace::Ptr
 Mask::large_leg() const
 {
     if (is_projection) {
-        return domain->factors[0].cast<ElementarySpace::Ptr>();
+        return std::dynamic_pointer_cast<ElementarySpace>(domain->factors[0]);
     }
-    return codomain->factors[0].cast<ElementarySpace::Ptr>();
+    return std::dynamic_pointer_cast<ElementarySpace>(codomain->factors[0]);
 }
 
 ElementarySpace::Ptr
 Mask::small_leg() const
 {
     if (is_projection) {
-        return codomain->factors[0].cast<ElementarySpace::Ptr>();
+        return std::dynamic_pointer_cast<ElementarySpace>(codomain->factors[0]);
     }
-    return domain->factors[0].cast<ElementarySpace::Ptr>();
+    return std::dynamic_pointer_cast<ElementarySpace>(domain->factors[0]);
 }
 
 void
@@ -267,8 +269,8 @@ Mask::test_sanity() const
     Tensor::test_sanity();
     backend->test_mask_sanity(std::static_pointer_cast<Mask const>(shared_from_this()));
     assert(codomain->num_factors == 1 && domain->num_factors == 1);
-    assert(py::isinstance<ElementarySpace>(codomain->factors[0]));
-    assert(py::isinstance<ElementarySpace>(domain->factors[0]));
+    assert(std::dynamic_pointer_cast<ElementarySpace>(codomain->factors[0]));
+    assert(std::dynamic_pointer_cast<ElementarySpace>(domain->factors[0]));
     auto large = large_leg();
     auto small = small_leg();
     assert(large->is_dual == small->is_dual);
@@ -368,11 +370,13 @@ Mask::from_DiagonalTensor(py::object diag_obj)
     assert(diag->dtype == Dtype::Bool);
     auto [data_out, small_leg] = diag->backend->diagonal_to_mask(diag);
     return std::make_shared<Mask>(data_out,
-                                  diag->domain->factors[0],
-                                  py::cast(small_leg),
+                                  as_space(diag->domain->factors[0]),
+                                  small_leg,
                                   true,
                                   diag->backend,
-                                  py::cast(diag->labels()));
+                                  diag->symmetry,
+                                  diag->labels(),
+                                  diag->device);
 }
 
 Mask::Ptr
@@ -642,8 +646,8 @@ Mask::copy(bool deep, std::optional<std::string> device_opt, std::optional<Dtype
     auto space_in = is_projection ? large_leg() : small_leg();
     auto space_out = is_projection ? small_leg() : large_leg();
     // domain is space_in, codomain is space_out
-    space_in = domain->factors[0].cast<ElementarySpace::Ptr>();
-    space_out = codomain->factors[0].cast<ElementarySpace::Ptr>();
+    space_in = std::dynamic_pointer_cast<ElementarySpace>(domain->factors[0]);
+    space_out = std::dynamic_pointer_cast<ElementarySpace>(codomain->factors[0]);
     return std::make_shared<Mask>(new_data,
                                   py::cast(space_in),
                                   py::cast(space_out),
@@ -663,8 +667,8 @@ Mask::dagger() const
     }
     auto new_data = backend->mask_dagger(std::static_pointer_cast<Mask const>(shared_from_this()));
     return std::make_shared<Mask>(new_data,
-                                  codomain->factors[0].cast<Space::Ptr>(),
-                                  domain->factors[0].cast<Space::Ptr>(),
+                                  as_space(codomain->factors[0]),
+                                  as_space(domain->factors[0]),
                                   !is_projection,
                                   backend,
                                   symmetry,
@@ -776,8 +780,8 @@ Mask::to_backend(TensorBackend::Ptr new_backend,
         }
     }
     return std::make_shared<Mask>(new_data,
-                                  domain->factors[0].cast<Space::Ptr>(),
-                                  codomain->factors[0].cast<Space::Ptr>(),
+                                  as_space(domain->factors[0]),
+                                  as_space(codomain->factors[0]),
                                   is_projection,
                                   new_backend,
                                   symmetry,
@@ -894,8 +898,8 @@ Mask::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subp
     try {
         proj = hdf5_loader.attr("get_attr")(h5gr, "is_projection").cast<bool>();
     } catch (py::error_already_set&) {
-        auto space_in = domain_tp->factors[0].cast<Space::Ptr>();
-        auto space_out = codomain_tp->factors[0].cast<Space::Ptr>();
+        auto space_in = as_space(domain_tp->factors[0]);
+        auto space_out = as_space(codomain_tp->factors[0]);
         proj = space_dim(*space_in) >= space_dim(*space_out);
     }
 
@@ -912,8 +916,8 @@ Mask::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string const& subp
 
     auto device_in = backend_in->get_device_from_data(data_in);
     auto obj = std::make_shared<Mask>(data_in,
-                                      domain_tp->factors[0].cast<Space::Ptr>(),
-                                      codomain_tp->factors[0].cast<Space::Ptr>(),
+                                      as_space(domain_tp->factors[0]),
+                                      as_space(codomain_tp->factors[0]),
                                       proj,
                                       backend_in,
                                       symmetry_in,

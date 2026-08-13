@@ -198,6 +198,16 @@ objects_from_python(py::handle obj)
     return out;
 }
 
+std::vector<Leg::Ptr>
+legs_from_python(py::handle obj)
+{
+    std::vector<Leg::Ptr> out;
+    for (py::handle item : obj) {
+        out.push_back(item.cast<Leg::Ptr>());
+    }
+    return out;
+}
+
 py::list
 objects_to_python(std::vector<py::object> const& objects)
 {
@@ -1255,13 +1265,13 @@ bind_tensor_product(py::module_& m)
                         py::object symmetry_obj,
                         py::object sector_decomposition,
                         py::object multiplicities) {
-                auto factors = objects_from_python(factors_obj);
+                auto factors = legs_from_python(factors_obj);
                 auto symmetry = optional_symmetry_from_python(symmetry_obj);
                 std::optional<SectorArray> sectors;
                 if (!sector_decomposition.is_none()) {
                     auto sym = symmetry;
                     if (!sym && !factors.empty()) {
-                        sym = symmetry_from_python(factors.front().attr("symmetry"));
+                        sym = factors.front()->symmetry;
                     }
                     if (!sym) {
                         throw py::value_error("If spaces is empty, the symmetry arg is required.");
@@ -1282,9 +1292,9 @@ bind_tensor_product(py::module_& m)
     cls
       .def_property(
         "factors",
-        [](TensorProduct const& self) { return objects_to_python(self.factors); },
+        [](TensorProduct const& self) { return self.factors; },
         [](TensorProduct& self, py::iterable factors_obj) {
-            self.factors = objects_from_python(factors_obj);
+            self.factors = legs_from_python(factors_obj);
             self.num_factors = static_cast<int64>(self.factors.size());
         })
       .def_readonly("num_factors", &TensorProduct::num_factors)
@@ -1620,13 +1630,18 @@ bind_tensor_product(py::module_& m)
       .def("__getitem__",
            [](TensorProduct const& self, py::object idx) -> py::object {
                if (py::isinstance<py::slice>(idx)) {
-                   return objects_to_python(self.factors)[idx];
+                   py::list all;
+                   for (auto const& f : self.factors) {
+                       all.append(py::cast(f));
+                   }
+                   return all[idx];
                }
-               return self[idx.cast<int64>()];
+               return py::cast(self[idx.cast<int64>()]);
            })
       .def("__len__", [](TensorProduct const& self) { return self.num_factors; })
       .def("__iter__",
-           [](TensorProduct const& self) { return py::iter(objects_to_python(self.factors)); })
+           [](TensorProduct const& self) { return py::make_iterator(self.factors); },
+           py::keep_alive<0, 1>())
       .def("__repr__",
            &TensorProduct::repr,
            py::arg("show_symmetry") = true,

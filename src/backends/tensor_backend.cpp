@@ -297,10 +297,10 @@ TensorBackend::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string su
     throw NotImplemented("TensorBackend::from_hdf5");
 }
 
-std::vector<py::object>
+std::vector<Leg::Ptr>
 conventional_leg_order(TensorProduct::Ptr codomain, TensorProduct::Ptr domain)
 {
-    std::vector<py::object> out;
+    std::vector<Leg::Ptr> out;
     out.reserve(codomain->factors.size() + domain->factors.size());
     for (auto const& f : codomain->factors)
         out.push_back(f);
@@ -309,7 +309,7 @@ conventional_leg_order(TensorProduct::Ptr codomain, TensorProduct::Ptr domain)
     return out;
 }
 
-std::vector<py::object>
+std::vector<Leg::Ptr>
 conventional_leg_order(py::object tensor_or_codomain, py::object domain)
 {
     TensorProduct::Ptr codomain_ptr;
@@ -324,6 +324,12 @@ conventional_leg_order(py::object tensor_or_codomain, py::object domain)
     return conventional_leg_order(codomain_ptr, domain_ptr);
 }
 
+std::vector<Leg::Ptr>
+conventional_leg_order(TensorCPtr tensor)
+{
+    return conventional_leg_order(tensor->codomain, tensor->domain);
+}
+
 TensorBackend::Ptr
 get_same_backend(const std::vector<py::object>& objs, std::string error_msg)
 {
@@ -336,12 +342,6 @@ get_same_backend(const std::vector<py::object>& objs, std::string error_msg)
             throw std::invalid_argument(std::move(error_msg));
     }
     return backend;
-}
-
-std::vector<py::object>
-conventional_leg_order(TensorCPtr tensor)
-{
-    return conventional_leg_order(tensor->codomain, tensor->domain);
 }
 
 TensorBackend::Ptr

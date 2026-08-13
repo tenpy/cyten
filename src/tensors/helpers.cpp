@@ -161,7 +161,7 @@ spaces_of_product(TensorProduct::Ptr const& tp)
     std::vector<Space::Ptr> out;
     out.reserve(static_cast<std::size_t>(tp->num_factors));
     for (auto const& f : tp->factors) {
-        out.push_back(f.cast<Space::Ptr>());
+        out.push_back(as_space(f));
     }
     return out;
 }
@@ -662,7 +662,7 @@ _decomposition_prepare(py::object tensor, bool new_leg_dual)
     auto new_leg =
       ElementarySpace::from_largest_common_subspace({ codomain, domain }, new_leg_dual);
     auto new_co_domain =
-      std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(new_leg) });
+      std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{ new_leg });
 
     bool combine_codomain = false;
     bool combine_domain = false;

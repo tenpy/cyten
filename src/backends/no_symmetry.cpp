@@ -44,12 +44,12 @@ shape_from_tensor(TensorCPtr a)
 }
 
 std::vector<int64>
-dims_from_legs(std::vector<py::object> const& legs)
+dims_from_legs(std::vector<Leg::Ptr> const& legs)
 {
     std::vector<int64> dims;
     dims.reserve(legs.size());
     for (auto const& leg : legs)
-        dims.push_back(leg_dim_i64(leg));
+        dims.push_back(static_cast<int64>(leg->dim));
     return dims;
 }
 
@@ -373,7 +373,7 @@ NoSymmetryBackend::eye_data(TensorProduct::Ptr co_domain, Dtype dtype, std::stri
     std::vector<int64> legs;
     legs.reserve(co_domain->factors.size());
     for (auto const& f : co_domain->factors)
-        legs.push_back(leg_dim_i64(f));
+        legs.push_back(static_cast<int64>(f->dim));
     return wrap(block_backend->eye_block(legs, dtype, device));
 }
 
@@ -502,7 +502,7 @@ NoSymmetryBackend::get_element(SymmetricTensorCPtr a, std::vector<int64> idcs)
     std::vector<int64> internal;
     internal.reserve(idcs.size());
     for (std::size_t i = 0; i < idcs.size(); ++i) {
-        internal.push_back(legs[i]
+        internal.push_back(py::cast(legs[i])
                              .attr("apply_basis_perm")(
                                idcs[i], py::arg("inverse") = true, py::arg("pre_compose") = true)
                              .cast<int64>());
@@ -530,7 +530,7 @@ NoSymmetryBackend::get_element_mask(MaskCPtr a, std::vector<int64> idcs)
     parsed.reserve(idcs.size());
     for (std::size_t i = 0; i < idcs.size(); ++i) {
         parsed.push_back(
-          legs[i].attr("parse_index")(idcs[i]).attr("__getitem__")(1).cast<int64>());
+          py::cast(legs[i]).attr("parse_index")(idcs[i]).attr("__getitem__")(1).cast<int64>());
     }
     int64 large, small;
     if (a->is_projection) {
@@ -620,16 +620,14 @@ NoSymmetryBackend::mask_contract_large_leg(TensorCPtr tensor, MaskCPtr mask, int
     TensorProduct::Ptr domain;
     if (in_domain) {
         codomain = py::cast(tensor->codomain).cast<TensorProduct::Ptr>();
-        auto spaces = py::cast(tensor->domain).attr("factors").cast<std::vector<py::object>>();
-        spaces[static_cast<std::size_t>(co_domain_idx)] = py::cast(mask->small_leg());
-        domain = std::make_shared<TensorProduct>(std::move(spaces),
-                                                 py::cast(tensor->symmetry).cast<Symmetry::Ptr>());
+        auto spaces = tensor->domain->factors;
+        spaces[static_cast<std::size_t>(co_domain_idx)] = mask->small_leg();
+        domain = std::make_shared<TensorProduct>(std::move(spaces), tensor->symmetry);
     } else {
         domain = py::cast(tensor->domain).cast<TensorProduct::Ptr>();
-        auto spaces = py::cast(tensor->codomain).attr("factors").cast<std::vector<py::object>>();
-        spaces[static_cast<std::size_t>(co_domain_idx)] = py::cast(mask->small_leg());
-        codomain = std::make_shared<TensorProduct>(
-          std::move(spaces), py::cast(tensor->symmetry).cast<Symmetry::Ptr>());
+        auto spaces = tensor->codomain->factors;
+        spaces[static_cast<std::size_t>(co_domain_idx)] = mask->small_leg();
+        codomain = std::make_shared<TensorProduct>(std::move(spaces), tensor->symmetry);
     }
     return { wrap(std::move(data)), std::move(codomain), std::move(domain) };
 }
@@ -647,16 +645,14 @@ NoSymmetryBackend::mask_contract_small_leg(TensorCPtr tensor, MaskCPtr mask, int
     TensorProduct::Ptr domain;
     if (in_domain) {
         codomain = py::cast(tensor->codomain).cast<TensorProduct::Ptr>();
-        auto spaces = py::cast(tensor->domain).attr("factors").cast<std::vector<py::object>>();
-        spaces[static_cast<std::size_t>(co_domain_idx)] = py::cast(mask->large_leg());
-        domain = std::make_shared<TensorProduct>(std::move(spaces),
-                                                 py::cast(tensor->symmetry).cast<Symmetry::Ptr>());
+        auto spaces = tensor->domain->factors;
+        spaces[static_cast<std::size_t>(co_domain_idx)] = mask->large_leg();
+        domain = std::make_shared<TensorProduct>(std::move(spaces), tensor->symmetry);
     } else {
         domain = py::cast(tensor->domain).cast<TensorProduct::Ptr>();
-        auto spaces = py::cast(tensor->codomain).attr("factors").cast<std::vector<py::object>>();
-        spaces[static_cast<std::size_t>(co_domain_idx)] = py::cast(mask->large_leg());
-        codomain = std::make_shared<TensorProduct>(
-          std::move(spaces), py::cast(tensor->symmetry).cast<Symmetry::Ptr>());
+        auto spaces = tensor->codomain->factors;
+        spaces[static_cast<std::size_t>(co_domain_idx)] = mask->large_leg();
+        codomain = std::make_shared<TensorProduct>(std::move(spaces), tensor->symmetry);
     }
     return { wrap(std::move(data)), std::move(codomain), std::move(domain) };
 }
@@ -806,17 +802,17 @@ NoSymmetryBackend::partial_trace(SymmetricTensorCPtr tensor,
     }
     auto codomain_legs = py::cast(tensor->codomain).cast<TensorProduct::Ptr>();
     auto domain_legs = py::cast(tensor->domain).cast<TensorProduct::Ptr>();
-    std::vector<py::object> codom_factors;
-    for (std::size_t n = 0; n < codomain_legs->factors.size(); ++n) {
+    std::vector<Leg::Ptr> codom_factors;
+    for (std::size_t n = 0; n < tensor->codomain->factors.size(); ++n) {
         if (std::ranges::find(remaining, static_cast<int64>(n)) != remaining.end())
-            codom_factors.push_back(codomain_legs->factors[n]);
+            codom_factors.push_back(tensor->codomain->factors[n]);
     }
-    std::vector<py::object> dom_factors;
-    for (std::size_t n = 0; n < domain_legs->factors.size(); ++n) {
+    std::vector<Leg::Ptr> dom_factors;
+    for (std::size_t n = 0; n < tensor->domain->factors.size(); ++n) {
         if (std::ranges::find(remaining, N - 1 - static_cast<int64>(n)) != remaining.end())
-            dom_factors.push_back(domain_legs->factors[n]);
+            dom_factors.push_back(tensor->domain->factors[n]);
     }
-    auto sym = py::cast(tensor->symmetry).cast<Symmetry::Ptr>();
+    auto sym = tensor->symmetry;
     auto codomain = std::make_shared<TensorProduct>(std::move(codom_factors), sym);
     auto domain = std::make_shared<TensorProduct>(std::move(dom_factors), sym);
     return { wrap(std::move(data)), std::move(codomain), std::move(domain) };

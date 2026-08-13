@@ -66,8 +66,10 @@ DiagonalTensor::DiagonalTensor(TensorBackend::DataPtr data_in,
                                Symmetry::Ptr symmetry_in,
                                LegLabels labels_in)
   : SymmetricTensor(std::move(data_in),
-                    std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(leg_in) }),
-                    std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(leg_in) }),
+                    std::make_shared<TensorProduct>(
+                      std::vector<Leg::Ptr>{ std::dynamic_pointer_cast<Leg>(leg_in) }),
+                    std::make_shared<TensorProduct>(
+                      std::vector<Leg::Ptr>{ std::dynamic_pointer_cast<Leg>(leg_in) }),
                     std::move(backend_in),
                     std::move(symmetry_in),
                     std::move(labels_in),
@@ -116,7 +118,7 @@ DiagonalTensor::class_name() const
 Space::Ptr
 DiagonalTensor::leg() const
 {
-    return codomain->factors[0].cast<Space::Ptr>();
+    return as_space(codomain->factors[0]);
 }
 
 DiagonalTensor::Ptr
@@ -591,7 +593,7 @@ DiagonalTensor::diagonal_as_block(std::optional<Dtype> dtype_opt)
     auto res = backend->diagonal_tensor_to_block(
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()));
     res = backend->block_backend->apply_basis_perm(
-      res, { as_leg_cptr(codomain->factors[0]) }, /*inv=*/true);
+      res, { codomain->factors[0] }, /*inv=*/true);
     if (dtype_opt.has_value()) {
         res = backend->block_backend->to_dtype(res, *dtype_opt);
     }
@@ -835,7 +837,7 @@ DiagonalTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string c
     /// Import DiagonalTensor from hdf5
     auto sym = SymmetricTensor::from_hdf5(hdf5_loader, h5gr, subpath);
     return std::make_shared<DiagonalTensor>(sym->data,
-                                            sym->codomain->factors[0].cast<Space::Ptr>(),
+                                            as_space(sym->codomain->factors[0]),
                                             sym->backend,
                                             sym->symmetry,
                                             sym->labels());
@@ -904,7 +906,8 @@ Identity::Identity(Space::Ptr leg_in,
       // Do not std::move(leg_in)/backend_in in this mem-initializer list: argument
       // evaluation order is unspecified, and eye_data still needs both.
       backend_in->eye_data(
-        std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(leg_in) }),
+        std::make_shared<TensorProduct>(
+          std::vector<Leg::Ptr>{ std::dynamic_pointer_cast<Leg>(leg_in) }),
         dtype_in,
         device_in),
       leg_in,

@@ -332,6 +332,12 @@ nsec(py::object leg)
     return leg.attr("num_sectors").cast<int64>();
 }
 
+int64
+nsec(Leg::Ptr const& leg)
+{
+    return as_space(leg)->num_sectors;
+}
+
 std::vector<int64>
 mults_of(py::object leg)
 {
@@ -886,7 +892,7 @@ FusionTreeBackend::diagonal_from_block(BlockBackend::BlockPtr a,
     // versus the ``a.leg`` itself
     // project onto the identity on the coupled sector
     // ---
-    auto leg = co_domain->factors[0];
+    py::object leg = py::cast(co_domain->factors[0]);
     Dtype dt = block_backend->get_dtype(a);
     BlockInds block_inds =
       BlockInds::arange_diag(static_cast<std::size_t>(co_domain->num_sectors));
@@ -1402,7 +1408,7 @@ FusionTreeBackend::get_element_mask(MaskCPtr a, std::vector<int64> idcs)
     auto np = numpy();
     py::list rows;
     for (std::size_t i = 0; i < legs.size(); ++i)
-        rows.append(legs[i].attr("parse_index")(idcs[i]));
+        rows.append(py::cast(legs[i]).attr("parse_index")(idcs[i]));
     auto pos = asarray_i64_np(np.attr("array")(rows));
     int64 sector_idx = pos.attr("__getitem__")(py::make_tuple(1, 0)).cast<int64>();
     Sector sector = py::cast(a->domain)
@@ -1719,9 +1725,9 @@ FusionTreeBackend::from_dense_block(BlockBackend::BlockPtr a,
         py::list split_dims;
         py::list legs;
         for (auto const& f : codomain->factors)
-            legs.append(f);
+            legs.append(py::cast(f));
         for (auto it = domain->factors.rbegin(); it != domain->factors.rend(); ++it)
-            legs.append((*it).attr("dual"));
+            legs.append(py::cast((*it)->dual()));
         auto axes_perm = legs_flat_leg_permutation(legs);
         int64 perm_idx = 0;
         for (py::ssize_t n = 0; n < legs.size(); ++n) {
@@ -2737,7 +2743,7 @@ FusionTreeBackend::partial_compose(SymmetricTensorCPtr a,
         factors.append(py::cast(eff_space));
         for (int64 i = a_first_leg + num_contr_legs; i < a_num_cod; ++i)
             factors.append(cod.attr("__getitem__")(i));
-        iter_space = std::make_shared<TensorProduct>(factors.cast<std::vector<py::object>>(),
+        iter_space = std::make_shared<TensorProduct>(factors.cast<std::vector<Leg::Ptr>>(),
                                                      py::cast(a->symmetry).cast<Symmetry::Ptr>());
     } else {
         in_domain = true;
@@ -2753,7 +2759,7 @@ FusionTreeBackend::partial_compose(SymmetricTensorCPtr a,
         factors.append(py::cast(eff_space));
         for (int64 i = leg_idx + num_contr_legs; i < n_dom; ++i)
             factors.append(dom.attr("__getitem__")(i));
-        iter_space = std::make_shared<TensorProduct>(factors.cast<std::vector<py::object>>(),
+        iter_space = std::make_shared<TensorProduct>(factors.cast<std::vector<Leg::Ptr>>(),
                                                      py::cast(a->symmetry).cast<Symmetry::Ptr>());
     }
 
@@ -2954,9 +2960,9 @@ FusionTreeBackend::partial_trace(SymmetricTensorCPtr tensor,
         new_dom_factors.append(py::cast(tensor->domain).attr("__getitem__")(n));
     }
     auto new_codomain =
-      std::make_shared<TensorProduct>(new_cod_factors.cast<std::vector<py::object>>(), sym);
+      std::make_shared<TensorProduct>(new_cod_factors.cast<std::vector<Leg::Ptr>>(), sym);
     auto new_domain =
-      std::make_shared<TensorProduct>(new_dom_factors.cast<std::vector<py::object>>(), sym);
+      std::make_shared<TensorProduct>(new_dom_factors.cast<std::vector<Leg::Ptr>>(), sym);
 
     py::list insert_idcs;
     for (std::size_t i = 0; i < pairs.size(); ++i) {
@@ -3017,8 +3023,8 @@ FusionTreeBackend::partial_trace(SymmetricTensorCPtr tensor,
             cf.append(py::cast(tensor).attr("_as_codomain_leg")(i));
         for (int64 i : domain_idcs)
             df.append(py::cast(tensor).attr("_as_domain_leg")(i));
-        codom = std::make_shared<TensorProduct>(cf.cast<std::vector<py::object>>(), sym);
-        dom = std::make_shared<TensorProduct>(df.cast<std::vector<py::object>>(), sym);
+        codom = std::make_shared<TensorProduct>(cf.cast<std::vector<Leg::Ptr>>(), sym);
+        dom = std::make_shared<TensorProduct>(df.cast<std::vector<Leg::Ptr>>(), sym);
     } else {
         codom = codomain_tp->permuted(codomain_idcs);
         std::vector<int64> dom_perm;
@@ -3586,7 +3592,7 @@ FusionTreeBackend::scale_axis(TensorCPtr a, DiagonalTensorCPtr b, int64 leg)
         py::list flat_factors;
         for (auto const& fl : iter_space->flat_legs())
             flat_factors.append(py::cast(fl));
-        iter_space = std::make_shared<TensorProduct>(flat_factors.cast<std::vector<py::object>>(),
+        iter_space = std::make_shared<TensorProduct>(flat_factors.cast<std::vector<Leg::Ptr>>(),
                                                      iter_space->symmetry,
                                                      iter_space->sector_decomposition,
                                                      iter_space->multiplicities);

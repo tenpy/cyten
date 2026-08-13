@@ -172,10 +172,10 @@ Tensor::Tensor(py::object codomain_obj,
     shape.clear();
     shape.reserve(static_cast<std::size_t>(codomain->num_factors + domain->num_factors));
     for (auto const& f : codomain->factors) {
-        shape.push_back(factor_dim(f));
+        shape.push_back(f->dim);
     }
     for (auto it = domain->factors.rbegin(); it != domain->factors.rend(); ++it) {
-        shape.push_back(factor_dim(*it));
+        shape.push_back((*it)->dim);
     }
 
     auto labels = _init_parse_labels(labels_obj, codomain, domain);
@@ -225,10 +225,10 @@ Tensor::Tensor(TensorProduct::Ptr codomain_,
     shape.clear();
     shape.reserve(static_cast<std::size_t>(codomain->num_factors + domain->num_factors));
     for (auto const& f : codomain->factors) {
-        shape.push_back(factor_dim(f));
+        shape.push_back(f->dim);
     }
     for (auto it = domain->factors.rbegin(); it != domain->factors.rend(); ++it) {
-        shape.push_back(factor_dim(*it));
+        shape.push_back((*it)->dim);
     }
 
     assert(static_cast<int64>(labels.size()) == codomain->num_factors + domain->num_factors);
@@ -279,9 +279,9 @@ Tensor::_init_parse_args(py::object codomain, py::object domain, TensorBackend::
     if (py::isinstance<TensorProduct>(codomain)) {
         codomain_tp = codomain.cast<TensorProduct::Ptr>();
     } else {
-        std::vector<py::object> factors;
+        std::vector<Leg::Ptr> factors;
         for (auto item : codomain) {
-            factors.push_back(py::reinterpret_borrow<py::object>(item));
+            factors.push_back(item.cast<Leg::Ptr>());
         }
         codomain_tp = std::make_shared<TensorProduct>(std::move(factors), symmetry);
     }
@@ -294,9 +294,9 @@ Tensor::_init_parse_args(py::object codomain, py::object domain, TensorBackend::
     if (py::isinstance<TensorProduct>(domain)) {
         domain_tp = domain.cast<TensorProduct::Ptr>();
     } else {
-        std::vector<py::object> factors;
+        std::vector<Leg::Ptr> factors;
         for (auto item : domain) {
-            factors.push_back(py::reinterpret_borrow<py::object>(item));
+            factors.push_back(item.cast<Leg::Ptr>());
         }
         domain_tp = std::make_shared<TensorProduct>(std::move(factors), symmetry);
     }
@@ -406,10 +406,10 @@ Tensor::test_sanity() const
     assert(std::find(forbidden_dtypes().begin(), forbidden_dtypes().end(), dtype) ==
            forbidden_dtypes().end());
     for (auto const& leg : domain->factors) {
-        assert(py::isinstance<Leg>(leg));
+        (void)leg;
     }
     for (auto const& leg : codomain->factors) {
-        assert(py::isinstance<Leg>(leg));
+        (void)leg;
     }
     LabelledLegs::test_sanity();
 }
@@ -466,10 +466,10 @@ Tensor::ascii_diagram() const
     std::vector<std::string> codomain_arrows;
     std::vector<std::string> domain_arrows;
     for (auto const& f : codomain->factors) {
-        codomain_arrows.push_back(rjust(f.attr("ascii_arrow").cast<std::string>(), DISTANCE));
+        codomain_arrows.push_back(rjust(f->ascii_arrow(), DISTANCE));
     }
     for (auto const& f : domain->factors) {
-        domain_arrows.push_back(rjust(f.attr("ascii_arrow").cast<std::string>(), DISTANCE));
+        domain_arrows.push_back(rjust(f->ascii_arrow(), DISTANCE));
     }
 
     auto const c_labs = codomain_labels();
@@ -608,10 +608,10 @@ Tensor::legs() const
     std::vector<py::object> out;
     out.reserve(static_cast<std::size_t>(num_legs));
     for (auto const& f : codomain->factors) {
-        out.push_back(f);
+        out.push_back(py::cast(f));
     }
     for (auto it = domain->factors.rbegin(); it != domain->factors.rend(); ++it) {
-        out.push_back(it->attr("dual"));
+        out.push_back(py::cast((*it)->dual()));
     }
     return out;
 }
@@ -685,9 +685,9 @@ Tensor::_as_codomain_leg(std::variant<int64, std::string> idx) const
 {
     auto [in_domain, co_domain_idx, _] = _parse_leg_idx(idx);
     if (in_domain) {
-        return domain->factors[static_cast<std::size_t>(co_domain_idx)].attr("dual");
+        return py::cast(domain->factors[static_cast<std::size_t>(co_domain_idx)]->dual());
     }
-    return codomain->factors[static_cast<std::size_t>(co_domain_idx)];
+    return py::cast(codomain->factors[static_cast<std::size_t>(co_domain_idx)]);
 }
 
 py::object
@@ -695,9 +695,9 @@ Tensor::_as_domain_leg(std::variant<int64, std::string> idx) const
 {
     auto [in_domain, co_domain_idx, _] = _parse_leg_idx(idx);
     if (in_domain) {
-        return domain->factors[static_cast<std::size_t>(co_domain_idx)];
+        return py::cast(domain->factors[static_cast<std::size_t>(co_domain_idx)]);
     }
-    return codomain->factors[static_cast<std::size_t>(co_domain_idx)].attr("dual");
+    return py::cast(codomain->factors[static_cast<std::size_t>(co_domain_idx)]->dual());
 }
 
 void
@@ -805,9 +805,9 @@ Tensor::get_leg(std::variant<int64, std::string> which_leg) const
     // ---
     auto [in_domain, co_domain_idx, _] = _parse_leg_idx(which_leg);
     if (in_domain) {
-        return domain->factors[static_cast<std::size_t>(co_domain_idx)].attr("dual");
+        return py::cast(domain->factors[static_cast<std::size_t>(co_domain_idx)]->dual());
     }
-    return codomain->factors[static_cast<std::size_t>(co_domain_idx)];
+    return py::cast(codomain->factors[static_cast<std::size_t>(co_domain_idx)]);
 }
 
 std::vector<py::object>
@@ -829,9 +829,9 @@ Tensor::get_leg_co_domain(std::variant<int64, std::string> which_leg) const
     // ---
     auto [in_domain, co_domain_idx, _] = _parse_leg_idx(which_leg);
     if (in_domain) {
-        return domain->factors[static_cast<std::size_t>(co_domain_idx)];
+        return py::cast(domain->factors[static_cast<std::size_t>(co_domain_idx)]);
     }
-    return codomain->factors[static_cast<std::size_t>(co_domain_idx)];
+    return py::cast(codomain->factors[static_cast<std::size_t>(co_domain_idx)]);
 }
 
 std::vector<py::object>

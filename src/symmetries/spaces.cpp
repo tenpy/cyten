@@ -1885,86 +1885,50 @@ ElementarySpace::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string 
 
 namespace {
 
-/// The symmetry of a :class:`TensorProduct` factor, i.e. of a :class:`Space` or :class:`Leg`.
+/// The symmetry of a :class:`TensorProduct` factor.
 [[nodiscard]] Symmetry::Ptr
-factor_symmetry(py::handle factor)
+factor_symmetry(Leg::Ptr const& factor)
 {
-    if (py::isinstance<Space>(factor)) {
-        return factor.cast<Space*>()->symmetry;
-    }
-    if (py::isinstance<Leg>(factor)) {
-        return factor.cast<Leg*>()->symmetry;
-    }
-    return factor.attr("symmetry").cast<Symmetry::Ptr>();
+    return factor->symmetry;
 }
 
-/// ``factor.flat_spaces`` if `spaces`, else ``factor.flat_legs``.
-[[nodiscard]] std::vector<Leg::Ptr>
-factor_flat(py::handle factor, bool spaces)
-{
-    if (py::isinstance<TensorProduct>(factor)) {
-        auto const* product = factor.cast<TensorProduct const*>();
-        return spaces ? product->flat_spaces() : product->flat_legs();
-    }
-    if (py::isinstance<Leg>(factor)) {
-        auto leg = factor.cast<Leg::Ptr>();
-        return spaces ? leg->flat_spaces() : leg->flat_legs();
-    }
-    // pure Python factor, e.g. an AbelianLegPipe: the flattened parts must still be C++ Legs
-    std::vector<Leg::Ptr> out;
-    for (py::handle item : factor.attr(spaces ? "flat_spaces" : "flat_legs")) {
-        out.push_back(item.cast<Leg::Ptr>());
-    }
-    return out;
-}
-
-[[nodiscard]] int64
-factor_num_flat_legs(py::handle factor)
-{
-    if (py::isinstance<TensorProduct>(factor)) {
-        return factor.cast<TensorProduct const*>()->num_flat_legs();
-    }
-    if (py::isinstance<Leg>(factor)) {
-        return factor.cast<Leg*>()->num_flat_legs();
-    }
-    return factor.attr("num_flat_legs").cast<int64>();
-}
-
-/// The :class:`Space` described by a (already flattened) leg.
-[[nodiscard]] Space::Ptr
-leg_as_space(Leg::Ptr const& leg)
-{
-    if (auto space = std::dynamic_pointer_cast<Space>(leg)) {
-        return space;
-    }
-    return leg->as_Space().cast<Space::Ptr>();
-}
-
-/// ``factor.change_symmetry(symmetry, sector_map, injective)``.
-[[nodiscard]] py::object
-factor_change_symmetry(py::handle factor,
+[[nodiscard]] Leg::Ptr
+factor_change_symmetry(Leg::Ptr const& factor,
                        Symmetry::Ptr const& symmetry,
                        SectorMapFn const& sector_map,
                        bool injective)
 {
-    if (py::isinstance<Space>(factor)) {
-        return factor.cast<Space*>()->change_symmetry(symmetry, sector_map, injective);
+    if (auto space = std::dynamic_pointer_cast<Space>(factor)) {
+        return space->change_symmetry(symmetry, sector_map, injective).cast<Leg::Ptr>();
     }
-    auto py_sector_map = py::cpp_function([sector_map](py::object sectors) {
-        return py::cast(sector_map(sectors.cast<SectorArray>()));
-    });
-    return factor.attr("change_symmetry")(symmetry, py_sector_map, injective);
+    auto pipe = std::dynamic_pointer_cast<LegPipe>(factor);
+    if (!pipe) {
+        throw std::invalid_argument("TensorProduct factor is not a Leg");
+    }
+    std::vector<Leg::Ptr> new_legs;
+    new_legs.reserve(pipe->legs.size());
+    for (auto const& leg : pipe->legs) {
+        new_legs.push_back(factor_change_symmetry(leg, symmetry, sector_map, injective));
+    }
+    return std::make_shared<LegPipe>(std::move(new_legs), pipe->is_dual, pipe->combine_cstyle);
 }
 
-/// ``factor.drop_symmetry(which)``, where ``nullopt`` means ``'all'``.
-[[nodiscard]] py::object
-factor_drop_symmetry(py::handle factor, std::optional<std::vector<int64>> const& which)
+[[nodiscard]] Leg::Ptr
+factor_drop_symmetry(Leg::Ptr const& factor, std::optional<std::vector<int64>> const& which)
 {
-    if (py::isinstance<Space>(factor)) {
-        return factor.cast<Space*>()->drop_symmetry(which);
+    if (auto space = std::dynamic_pointer_cast<Space>(factor)) {
+        return space->drop_symmetry(which).cast<Leg::Ptr>();
     }
-    py::object which_obj = which ? py::cast(*which) : py::object(py::str("all"));
-    return factor.attr("drop_symmetry")(which_obj);
+    auto pipe = std::dynamic_pointer_cast<LegPipe>(factor);
+    if (!pipe) {
+        throw std::invalid_argument("TensorProduct factor is not a Leg");
+    }
+    std::vector<Leg::Ptr> new_legs;
+    new_legs.reserve(pipe->legs.size());
+    for (auto const& leg : pipe->legs) {
+        new_legs.push_back(factor_drop_symmetry(leg, which));
+    }
+    return std::make_shared<LegPipe>(std::move(new_legs), pipe->is_dual, pipe->combine_cstyle);
 }
 
 /// ``factor.__repr__(show_symmetry=..., one_line=...)``, with fallbacks.
@@ -2107,15 +2071,15 @@ calc_sectors_of_spaces(Symmetry const& symmetry, std::span<const Space::Ptr> spa
 
 /// ``TensorProduct._calc_sectors``.
 [[nodiscard]] std::pair<SectorArray, std::vector<int64>>
-calc_sectors_of_factors(Symmetry const& symmetry, std::vector<py::object> const& factors)
+calc_sectors_of_factors(Symmetry const& symmetry, std::vector<Leg::Ptr> const& factors)
 {
     // LegPipes do not have sectors -> flatten them for the purpose of calculating sectors
     std::vector<Space::Ptr> spaces;
     for (auto const& factor : factors) {
-        for (auto const& leg : factor_flat(factor, /*spaces=*/true)) {
+        for (auto const& leg : factor->flat_spaces()) {
             // need the sector decomposition of each factor. easiest way: convert to Space
             // OPTIMIZE is this optimal? should we store the as_Space() for later use?
-            spaces.push_back(leg_as_space(leg));
+            spaces.push_back(as_space(leg));
         }
     }
     return calc_sectors_of_spaces(symmetry, spaces);
@@ -2123,8 +2087,17 @@ calc_sectors_of_factors(Symmetry const& symmetry, std::vector<py::object> const&
 
 } // namespace
 
+Space::Ptr
+as_space(Leg::Ptr const& leg)
+{
+    if (auto space = std::dynamic_pointer_cast<Space>(leg)) {
+        return space;
+    }
+    return leg->as_Space().cast<Space::Ptr>();
+}
+
 TensorProduct::Prepared
-TensorProduct::prepare(std::vector<py::object> const& factors,
+TensorProduct::prepare(std::vector<Leg::Ptr> const& factors,
                        Symmetry::Ptr symmetry,
                        std::optional<SectorArray> sector_decomposition,
                        std::optional<std::vector<int64>> multiplicities)
@@ -2153,7 +2126,7 @@ TensorProduct::prepare(std::vector<py::object> const& factors,
     return { std::move(symmetry), std::move(*sector_decomposition), std::move(*multiplicities) };
 }
 
-TensorProduct::TensorProduct(std::vector<py::object> factors_, Prepared prepared)
+TensorProduct::TensorProduct(std::vector<Leg::Ptr> factors_, Prepared prepared)
   : Space(std::move(prepared.symmetry),
           std::move(prepared.sector_decomposition),
           std::move(prepared.multiplicities),
@@ -2163,7 +2136,7 @@ TensorProduct::TensorProduct(std::vector<py::object> factors_, Prepared prepared
 {
 }
 
-TensorProduct::TensorProduct(std::vector<py::object> factors_,
+TensorProduct::TensorProduct(std::vector<Leg::Ptr> factors_,
                              Symmetry::Ptr symmetry_,
                              std::optional<SectorArray> sector_decomposition_,
                              std::optional<std::vector<int64>> multiplicities_)
@@ -2180,40 +2153,37 @@ TensorProduct::test_sanity() const
 {
     assert(static_cast<int64>(factors.size()) == num_factors);
     for (auto const& factor : factors) {
-        factor.attr("test_sanity")();
+        factor->test_sanity();
     }
     Space::test_sanity();
 }
 
 TensorProduct::Ptr
-TensorProduct::from_partial_products(std::vector<Ptr> const& factors)
+TensorProduct::from_partial_products(std::vector<Ptr> const& products)
 {
     // --- hints from Python TensorProduct.from_partial_products ---
     // forming isomorphic performs the fusion more efficiently, since it uses the partially
     // fused [f.sectors for f in factors] instead of the flat [s.factors for f in factors for s in
     // f.factors]
     // ---
-    if (factors.empty()) {
+    if (products.empty()) {
         throw std::invalid_argument("Need at least one TensorProduct");
     }
-    auto spaces = factors.front()->factors;
-    auto symmetry = factors.front()->symmetry;
-    std::vector<py::object> partial;
-    partial.reserve(factors.size());
-    partial.push_back(py::cast(factors.front()));
-    for (std::size_t i = 1; i < factors.size(); ++i) {
-        spaces.insert(spaces.end(), factors[i]->factors.begin(), factors[i]->factors.end());
-        if (!factors[i]->symmetry->equals(*symmetry)) {
+    std::vector<Leg::Ptr> legs = products.front()->factors;
+    auto symmetry = products.front()->symmetry;
+    std::vector<Space::Ptr> partial;
+    partial.reserve(products.size());
+    partial.push_back(products.front());
+    for (std::size_t i = 1; i < products.size(); ++i) {
+        legs.insert(legs.end(), products[i]->factors.begin(), products[i]->factors.end());
+        if (!products[i]->symmetry->equals(*symmetry)) {
             throw SymmetryError("Mismatched symmetries");
         }
-        partial.push_back(py::cast(factors[i]));
+        partial.push_back(products[i]);
     }
-    // forming isomorphic performs the fusion on the partially fused factors
-    auto const isomorphic = std::make_shared<TensorProduct>(std::move(partial), symmetry);
-    return std::make_shared<TensorProduct>(std::move(spaces),
-                                           std::move(symmetry),
-                                           isomorphic->sector_decomposition,
-                                           isomorphic->multiplicities);
+    auto [sectors, mults] = calc_sectors_of_spaces(*symmetry, partial);
+    return std::make_shared<TensorProduct>(
+      std::move(legs), std::move(symmetry), std::move(sectors), std::move(mults));
 }
 
 Space::Ptr
@@ -2222,10 +2192,10 @@ TensorProduct::dual_space() const
     auto const dual = symmetry->dual_sectors(sector_decomposition);
     auto [sectors, mults, perm] = sort_sectors(dual, multiplicities);
     (void)perm;
-    std::vector<py::object> dual_factors;
+    std::vector<Leg::Ptr> dual_factors;
     dual_factors.reserve(factors.size());
     for (auto it = factors.rbegin(); it != factors.rend(); ++it) {
-        dual_factors.push_back(it->attr("dual"));
+        dual_factors.push_back((*it)->dual());
     }
     return std::make_shared<TensorProduct>(
       std::move(dual_factors), symmetry, std::move(sectors), std::move(mults));
@@ -2251,7 +2221,7 @@ TensorProduct::change_symmetry(Symmetry::Ptr symmetry_, SectorMapFn sector_map, 
     } else {
         std::tie(sectors, mults, perm) = sort_sectors(sectors, mults);
     }
-    std::vector<py::object> new_factors;
+    std::vector<Leg::Ptr> new_factors;
     new_factors.reserve(factors.size());
     for (auto const& factor : factors) {
         new_factors.push_back(factor_change_symmetry(factor, symmetry_, sector_map, injective));
@@ -2300,7 +2270,7 @@ TensorProduct::drop_symmetry(std::optional<std::vector<int64>> which)
         std::vector<std::size_t> perm;
         std::tie(sectors, mults, perm) = kept.unique_sorted(multiplicities);
     }
-    std::vector<py::object> new_factors;
+    std::vector<Leg::Ptr> new_factors;
     new_factors.reserve(factors.size());
     for (auto const& factor : factors) {
         new_factors.push_back(factor_drop_symmetry(factor, which_factors));
@@ -2312,8 +2282,9 @@ TensorProduct::drop_symmetry(std::optional<std::vector<int64>> which)
 bool
 TensorProduct::has_pipes() const
 {
-    return std::ranges::any_of(factors,
-                               [](py::object const& f) { return py::isinstance<LegPipe>(f); });
+    return std::ranges::any_of(factors, [](Leg::Ptr const& f) {
+        return std::dynamic_pointer_cast<LegPipe>(f) != nullptr;
+    });
 }
 
 std::vector<Leg::Ptr>
@@ -2321,7 +2292,7 @@ TensorProduct::flat_legs() const
 {
     std::vector<Leg::Ptr> out;
     for (auto const& factor : factors) {
-        auto part = factor_flat(factor, /*spaces=*/false);
+        auto part = factor->flat_legs();
         out.insert(out.end(), part.begin(), part.end());
     }
     return out;
@@ -2332,7 +2303,7 @@ TensorProduct::flat_spaces() const
 {
     std::vector<Leg::Ptr> out;
     for (auto const& factor : factors) {
-        auto part = factor_flat(factor, /*spaces=*/true);
+        auto part = factor->flat_spaces();
         out.insert(out.end(), part.begin(), part.end());
     }
     return out;
@@ -2343,7 +2314,7 @@ TensorProduct::num_flat_legs() const
 {
     int64 n = 0;
     for (auto const& factor : factors) {
-        n += factor_num_flat_legs(factor);
+        n += factor->num_flat_legs();
     }
     return n;
 }
@@ -2355,7 +2326,7 @@ TensorProduct::flat_legs_nesting() const
     std::vector<std::vector<int64>> res;
     res.reserve(factors.size());
     for (auto const& factor : factors) {
-        auto const num = factor_num_flat_legs(factor);
+        auto const num = factor->num_flat_legs();
         std::vector<int64> idcs(static_cast<std::size_t>(num));
         std::iota(idcs.begin(), idcs.end(), i);
         res.push_back(std::move(idcs));
@@ -2370,9 +2341,9 @@ TensorProduct::flat_leg_idcs(int64 i) const
     i = to_valid_idx(i, num_factors);
     int64 start = 0;
     for (int64 k = 0; k < i; ++k) {
-        start += factor_num_flat_legs(factors[static_cast<std::size_t>(k)]);
+        start += factors[static_cast<std::size_t>(k)]->num_flat_legs();
     }
-    auto const num = factor_num_flat_legs(factors[static_cast<std::size_t>(i)]);
+    auto const num = factors[static_cast<std::size_t>(i)]->num_flat_legs();
     std::vector<int64> res(static_cast<std::size_t>(num));
     std::iota(res.begin(), res.end(), start);
     return res;
@@ -2415,26 +2386,24 @@ TensorProduct::forest_block_slice(SectorArray const& uncoupled, Sector coupled) 
 }
 
 TensorProduct::Ptr
-TensorProduct::insert_multiply(py::object other, int64 pos) const
+TensorProduct::insert_multiply(Leg::Ptr other, int64 pos) const
 {
     auto const self_ptr = std::const_pointer_cast<TensorProduct>(
       std::dynamic_pointer_cast<TensorProduct const>(shared_from_this()));
-    auto const isomorphic =
-      std::make_shared<TensorProduct>(std::vector<py::object>{ py::cast(self_ptr), other });
+    std::vector<Space::Ptr> partial{ self_ptr, as_space(other) };
+    auto [sectors, mults] = calc_sectors_of_spaces(*symmetry, partial);
     // Python uses list slicing, i.e. ``factors[:pos] + [other] + factors[pos:]``.
     // In particular, ``pos == -1`` (as used by right_multiply) inserts before the last factor.
     auto const n = static_cast<int64>(factors.size());
     auto const at =
       static_cast<std::ptrdiff_t>(pos < 0 ? std::max<int64>(0, n + pos) : std::min(pos, n));
-    std::vector<py::object> new_factors;
+    std::vector<Leg::Ptr> new_factors;
     new_factors.reserve(factors.size() + 1);
     new_factors.insert(new_factors.end(), factors.begin(), factors.begin() + at);
     new_factors.push_back(std::move(other));
     new_factors.insert(new_factors.end(), factors.begin() + at, factors.end());
-    return std::make_shared<TensorProduct>(std::move(new_factors),
-                                           symmetry,
-                                           isomorphic->sector_decomposition,
-                                           isomorphic->multiplicities);
+    return std::make_shared<TensorProduct>(
+      std::move(new_factors), symmetry, std::move(sectors), std::move(mults));
 }
 
 std::vector<TreeBlockItem>
@@ -2511,7 +2480,7 @@ TensorProduct::iter_uncoupled(bool yield_slices) const
     std::vector<Space::Ptr> spaces;
     spaces.reserve(legs.size());
     for (auto const& leg : legs) {
-        spaces.push_back(leg_as_space(leg));
+        spaces.push_back(as_space(leg));
     }
     // ``it.product``, i.e. the last index varies the fastest
     std::vector<std::size_t> strides(spaces.size());
@@ -2543,7 +2512,7 @@ TensorProduct::iter_uncoupled(bool yield_slices) const
 }
 
 TensorProduct::Ptr
-TensorProduct::left_multiply(py::object other) const
+TensorProduct::left_multiply(Leg::Ptr other) const
 {
     return insert_multiply(std::move(other), 0);
 }
@@ -2555,7 +2524,7 @@ TensorProduct::permuted(std::vector<int64> const& perm) const
         throw std::invalid_argument("perm has wrong length");
     }
     std::vector<bool> seen(perm.size(), false);
-    std::vector<py::object> new_factors;
+    std::vector<Leg::Ptr> new_factors;
     new_factors.reserve(perm.size());
     for (auto const i : perm) {
         auto const idx = static_cast<std::size_t>(to_valid_idx(i, num_factors));
@@ -2570,7 +2539,7 @@ TensorProduct::permuted(std::vector<int64> const& perm) const
 }
 
 TensorProduct::Ptr
-TensorProduct::right_multiply(py::object other) const
+TensorProduct::right_multiply(Leg::Ptr other) const
 {
     return insert_multiply(std::move(other), -1);
 }
@@ -2586,7 +2555,7 @@ TensorProduct::tree_block_size(SectorArray const& uncoupled) const
     auto const n = std::min(legs.size(), uncoupled.size());
     int64 res = 1;
     for (std::size_t i = 0; i < n; ++i) {
-        res *= leg_as_space(legs[i])->sector_multiplicity(uncoupled[i]);
+        res *= as_space(legs[i])->sector_multiplicity(uncoupled[i]);
     }
     return res;
 }
@@ -2635,14 +2604,14 @@ TensorProduct::operator==(Space const& other) const
         return false;
     }
     for (std::size_t i = 0; i < factors.size(); ++i) {
-        if (!factors[i].equal(o->factors[i])) {
+        if (!(*factors[i] == *o->factors[i])) {
             return false;
         }
     }
     return true;
 }
 
-py::object
+Leg::Ptr
 TensorProduct::operator[](int64 idx) const
 {
     return factors[static_cast<std::size_t>(to_valid_idx(idx, num_factors))];
@@ -2696,7 +2665,7 @@ TensorProduct::repr(bool show_symmetry, bool one_line) const
             std::vector<std::string> reprs;
             reprs.reserve(factors.size());
             for (auto const& factor : factors) {
-                reprs.push_back(factor_repr(factor, /*show_symmetry=*/false, /*one_line=*/true));
+                reprs.push_back(factor_repr(py::cast(factor), /*show_symmetry=*/false, /*one_line=*/true));
             }
             one_line_items.push_back(std::format("factors=[{}]", join(reprs, ", ")));
             lines.push_back(std::format("{}factors=[", indent));
@@ -2750,7 +2719,7 @@ TensorProduct::repr(bool show_symmetry, bool one_line) const
 }
 
 std::pair<SectorArray, std::vector<int64>>
-TensorProduct::calc_sectors(std::vector<py::object> const& factors_) const
+TensorProduct::calc_sectors(std::vector<Leg::Ptr> const& factors_) const
 {
     // --- hints from Python TensorProduct._calc_sectors ---
     // OPTIMIZE is this optimal? should we store the f.as_Space() for later use?
@@ -2765,7 +2734,7 @@ TensorProduct::save_hdf5(py::object hdf5_saver, py::object h5gr, std::string con
     auto save = hdf5_saver.attr("save");
     py::list factor_list;
     for (auto const& factor : factors) {
-        factor_list.append(factor);
+        factor_list.append(py::cast(factor));
     }
     save(factor_list, subpath + "factors");
     save(slices_to_py(slices), subpath + "slices");
@@ -2785,9 +2754,9 @@ TensorProduct::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string co
 {
     auto load = hdf5_loader.attr("load");
     auto symmetry = load(subpath + "symmetry").cast<Symmetry::Ptr>();
-    std::vector<py::object> factors;
+    std::vector<Leg::Ptr> factors;
     for (py::handle factor : load(subpath + "factors")) {
-        factors.push_back(py::reinterpret_borrow<py::object>(factor));
+        factors.push_back(factor.cast<Leg::Ptr>());
     }
     auto sector_decomposition = load(subpath + "sector_decomposition").cast<SectorArray>();
     auto multiplicities = py_array_to_i64(py::array::ensure(load(subpath + "multiplicities")));

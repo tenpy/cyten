@@ -254,11 +254,11 @@ add_trivial_leg(py::object tens,
     TensorProduct::Ptr domain;
     TensorProduct::Ptr codomain;
     if (add_to_domain) {
-        domain = domain_tp->insert_multiply(py::cast(new_leg), co_domain_pos);
+        domain = domain_tp->insert_multiply(new_leg, co_domain_pos);
         codomain = codomain_tp;
     } else {
         domain = domain_tp;
-        codomain = codomain_tp->insert_multiply(py::cast(new_leg), co_domain_pos);
+        codomain = codomain_tp->insert_multiply(new_leg, co_domain_pos);
     }
     auto backend = tens.attr("backend").cast<TensorBackend::Ptr>();
     auto data = backend->add_trivial_leg(
@@ -509,8 +509,15 @@ tensor_from_grid(py::object grid_obj, py::object labels, std::optional<Dtype> dt
     }
     dom_factors.append(py::cast(right_space));
 
-    auto codomain = std::make_shared<TensorProduct>(cod_factors.cast<std::vector<py::object>>());
-    auto domain = std::make_shared<TensorProduct>(dom_factors.cast<std::vector<py::object>>());
+    std::vector<Leg::Ptr> cod_legs;
+    for (auto item : cod_factors)
+        cod_legs.push_back(item.cast<Leg::Ptr>());
+    std::vector<Leg::Ptr> dom_legs;
+    for (auto item : dom_factors)
+        dom_legs.push_back(item.cast<Leg::Ptr>());
+
+    auto codomain = std::make_shared<TensorProduct>(std::move(cod_legs));
+    auto domain = std::make_shared<TensorProduct>(std::move(dom_legs));
 
     auto data = backend->from_grid(std::move(grid_vec),
                                    codomain,
