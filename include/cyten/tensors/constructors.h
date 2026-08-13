@@ -1,8 +1,10 @@
 #pragma once
 
+#include <cyten/cyten.h>
 #include <cyten/backends/tensor_backend.h>
 #include <cyten/block_backend/dtypes.h>
 #include <cyten/symmetries/spaces.h>
+#include <cyten/tensors/forward_declare.h>
 #include <cyten/tensors/labels.h>
 
 #include <optional>
@@ -15,22 +17,31 @@ namespace cyten {
 ///
 /// Returns a :class:`DiagonalTensor` if ``diagonal`` is true, otherwise a
 /// :class:`SymmetricTensor`.
-[[nodiscard]] py::object eye(py::object leg,
-                             TensorBackend::Ptr backend = nullptr,
-                             py::object labels = py::none(),
-                             Dtype dtype = Dtype::Float64,
-                             std::optional<std::string> device = std::nullopt,
-                             bool diagonal = true);
+[[nodiscard]] TensorPtr eye(Space::Ptr leg,
+                            TensorBackend::Ptr backend = nullptr,
+                            std::optional<LegLabels> labels = std::nullopt,
+                            Dtype dtype = Dtype::Float64,
+                            std::optional<std::string> device = std::nullopt,
+                            bool diagonal = true);
 
-/// Convert object to tensor if possible.
-[[nodiscard]] py::object tensor(py::object obj,
-                                py::object codomain,
-                                py::object domain = py::none(),
-                                TensorBackend::Ptr backend = nullptr,
-                                py::object labels = py::none(),
-                                std::optional<Dtype> dtype = std::nullopt,
-                                std::optional<std::string> device = std::nullopt,
-                                bool understood_braiding = false);
+/// Convert an existing tensor, checking (co)domain / backend compatibility.
+[[nodiscard]] TensorPtr tensor(TensorCPtr obj,
+                               TensorProduct::Ptr codomain,
+                               TensorProduct::Ptr domain = nullptr,
+                               TensorBackend::Ptr backend = nullptr,
+                               std::optional<LegLabels> labels = std::nullopt,
+                               std::optional<Dtype> dtype = std::nullopt,
+                               std::optional<std::string> device = std::nullopt);
+
+/// Convert a dense block to a :class:`SymmetricTensor`.
+[[nodiscard]] SymmetricTensorPtr tensor(BlockBackend::BlockPtr obj,
+                                        TensorProduct::Ptr codomain,
+                                        TensorProduct::Ptr domain = nullptr,
+                                        TensorBackend::Ptr backend = nullptr,
+                                        std::optional<LegLabels> labels = std::nullopt,
+                                        std::optional<Dtype> dtype = std::nullopt,
+                                        std::optional<std::string> device = std::nullopt,
+                                        bool understood_braiding = false);
 
 /// Add a trivial leg to a tensor.
 ///
@@ -57,25 +68,26 @@ namespace cyten {
 ///     Note that if `leg_pos` is given, we have ``result.legs[leg_pos].is_dual == is_dual``,
 ///     but if `domain_pos` is given, we have ``result.domain[domain_pos].is_dual == is_dual``,
 ///     which are mutually opposite.
-[[nodiscard]] py::object add_trivial_leg(py::object tens,
-                                         std::optional<int64> legs_pos = std::nullopt,
-                                         std::optional<int64> codomain_pos = std::nullopt,
-                                         std::optional<int64> domain_pos = std::nullopt,
-                                         LegLabel label = std::nullopt,
-                                         bool is_dual = false);
+[[nodiscard]] TensorPtr add_trivial_leg(TensorCPtr tens,
+                                        std::optional<int64> legs_pos = std::nullopt,
+                                        std::optional<int64> codomain_pos = std::nullopt,
+                                        std::optional<int64> domain_pos = std::nullopt,
+                                        LegLabel label = std::nullopt,
+                                        bool is_dual = false);
 
 /// Return a zero tensor with same type, dtype, legs, backend and labels.
-[[nodiscard]] py::object zero_like(py::object tensor);
+[[nodiscard]] TensorPtr zero_like(TensorCPtr tensor);
 
 /// Stack a grid of tensors along existing legs.
 ///
+/// ``nullptr`` cells are interpreted as all-zero tensors (Python ``None``).
 /// The tensors are stacked along the first leg in their codomain and the final leg in their
 /// domain. The resulting legs are :math:`result.codomain[0] = V = \bigoplus_m V_m` and
 /// :math:`result.domain[-1] = W = \bigoplus_n W_n`, where :math:`V_m` is the first codomain leg
 /// of all tensors in the ``m``-th row ``grid[m]``, and :math:`W_n` is the last domain leg of all
 /// tensors in the ``n``-th column, i.e. for the tensors ``[row[n] for row in grid]``.
-[[nodiscard]] py::object tensor_from_grid(py::object grid,
-                                          py::object labels = py::none(),
-                                          std::optional<Dtype> dtype = std::nullopt);
+[[nodiscard]] TensorPtr tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
+                                         std::optional<LegLabels> labels = std::nullopt,
+                                         std::optional<Dtype> dtype = std::nullopt);
 
 } // namespace cyten

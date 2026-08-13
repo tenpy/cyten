@@ -3,6 +3,7 @@
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/ops_legs.h>
+#include <cyten/tensors/symmetric_tensor.h>
 #include <cyten/tools.h>
 
 #include <cassert>
@@ -12,6 +13,7 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <variant>
+#include <vector>
 
 namespace cyten {
 
@@ -617,31 +619,23 @@ _decomposition_prepare(TensorCPtr tensor, bool new_leg_dual)
         combine_domain = tens->num_domain_legs() > 1;
         int64 n_cod = tens->num_codomain_legs();
         int64 n_legs = tens->num_legs;
-        py::object tens_py = py::cast(tens);
-        if (combine_codomain && combine_domain) {
-            py::list cod_range;
-            for (int64 i = 0; i < n_cod; ++i) {
-                cod_range.append(i);
-            }
-            py::list dom_range;
-            for (int64 i = n_cod; i < n_legs; ++i) {
-                dom_range.append(i);
-            }
-            tens_py = combine_legs(tens_py, std::vector<py::object>{ cod_range, dom_range });
-        } else if (combine_codomain) {
-            py::list cod_range;
-            for (int64 i = 0; i < n_cod; ++i) {
-                cod_range.append(i);
-            }
-            tens_py = combine_legs(tens_py, std::vector<py::object>{ cod_range });
-        } else if (combine_domain) {
-            py::list dom_range;
-            for (int64 i = n_cod; i < n_legs; ++i) {
-                dom_range.append(i);
-            }
-            tens_py = combine_legs(tens_py, std::vector<py::object>{ dom_range });
+        std::vector<LegRef> cod_idcs;
+        std::vector<LegRef> dom_idcs;
+        for (int64 i = 0; i < n_cod; ++i) {
+            cod_idcs.emplace_back(i);
         }
-        tens = tens_py.cast<SymmetricTensorPtr>();
+        for (int64 i = n_cod; i < n_legs; ++i) {
+            dom_idcs.emplace_back(i);
+        }
+        TensorPtr combined = tens;
+        if (combine_codomain && combine_domain) {
+            combined = combine_legs(tens, { std::move(cod_idcs), std::move(dom_idcs) });
+        } else if (combine_codomain) {
+            combined = combine_legs(tens, { std::move(cod_idcs) });
+        } else if (combine_domain) {
+            combined = combine_legs(tens, { std::move(dom_idcs) });
+        }
+        tens = std::dynamic_pointer_cast<SymmetricTensor>(combined);
     }
     return { tens, new_co_domain, combine_codomain, combine_domain };
 }

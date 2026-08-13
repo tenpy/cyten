@@ -1,60 +1,51 @@
 #pragma once
 
 #include <cyten/cyten.h>
+#include <cyten/block_backend/block_backend.h>
+#include <cyten/tensors/forward_declare.h>
 
 #include <optional>
 
 namespace cyten {
 
 /// The angle of a complex number, :ref:`elementwise <diagonal_elementwise>`.
-///
-/// The counterclockwise angle from the positive real axis on the complex plane in the
-/// range (-pi, pi] with a real dtype. The angle of `0.` is `0.`.
-[[nodiscard]] py::object angle(py::object x);
+[[nodiscard]] DiagonalTensorPtr angle(DiagonalTensorCPtr x);
+[[nodiscard]] BlockBackend::Scalar angle(BlockBackend::Scalar const& x);
 
 /// The :ref:`elementwise <diagonal_elementwise>` cutoff inverse.
-///
-/// The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, otherwise ``0``.
-[[nodiscard]] py::object cutoff_inverse(py::object x, float64 cutoff = 1e-15);
+[[nodiscard]] DiagonalTensorPtr cutoff_inverse(DiagonalTensorCPtr x, float64 cutoff = 1e-15);
+[[nodiscard]] BlockBackend::Scalar cutoff_inverse(BlockBackend::Scalar const& x,
+                                                  float64 cutoff = 1e-15);
 
 /// Complex conjugation, :ref:`elementwise <diagonal_elementwise>`.
-[[nodiscard]] py::object complex_conj(py::object x);
+[[nodiscard]] DiagonalTensorPtr complex_conj(DiagonalTensorCPtr x);
+[[nodiscard]] BlockBackend::Scalar complex_conj(BlockBackend::Scalar const& x);
 
 /// The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`.
-[[nodiscard]] py::object imag(py::object x);
+[[nodiscard]] DiagonalTensorPtr imag(DiagonalTensorCPtr x);
+[[nodiscard]] BlockBackend::Scalar imag(BlockBackend::Scalar const& x);
 
 /// The real part of a complex number, :ref:`elementwise <diagonal_elementwise>`.
-[[nodiscard]] py::object real(py::object x);
+[[nodiscard]] DiagonalTensorPtr real(DiagonalTensorCPtr x);
+[[nodiscard]] BlockBackend::Scalar real(BlockBackend::Scalar const& x);
 
 /// If close to real, return the :func:`real` part, :ref:`elementwise <diagonal_elementwise>`.
-///
-/// Parameters
-/// ----------
-/// x : :class:`DiagonalTensor` | Number
-///     The input complex number(s)
-/// tol : float
-///     The precision for considering the imaginary part "close to zero".
-///     Multiples of machine epsilon for the dtype of `x`.
-///
-/// Returns
-/// -------
-/// If `x` is close to real, the real part of `x`. Otherwise the original complex `x`.
-[[nodiscard]] py::object real_if_close(py::object x, float64 tol = 100.);
+[[nodiscard]] DiagonalTensorPtr real_if_close(DiagonalTensorCPtr x, float64 tol = 100.);
+[[nodiscard]] BlockBackend::Scalar real_if_close(BlockBackend::Scalar const& x, float64 tol = 100.);
 
 /// The square root of a number, :ref:`elementwise <diagonal_elementwise>`.
-[[nodiscard]] py::object sqrt(py::object x);
+[[nodiscard]] DiagonalTensorPtr sqrt(DiagonalTensorCPtr x);
+[[nodiscard]] BlockBackend::Scalar sqrt(BlockBackend::Scalar const& x);
 
 /// Stabilized logarithm, :ref:`elementwise <diagonal_elementwise>`.
-///
-/// For values ``> cutoff``, this is the standard natural logarithm. For values smaller than the
-/// cutoff, return 0.
-[[nodiscard]] py::object stable_log(py::object x, float64 cutoff = 1e-30);
+[[nodiscard]] DiagonalTensorPtr stable_log(DiagonalTensorCPtr x, float64 cutoff = 1e-30);
+[[nodiscard]] BlockBackend::Scalar stable_log(BlockBackend::Scalar const& x, float64 cutoff = 1e-30);
 
 /// The exponential function.
 ///
 /// For a tensor, viewed as a linear map from its domain to its codomain, the exponential
 /// function is defined via its power series. For a diagonal tensor, this is equivalent to
 /// the :ref:`elementwise <diagonal_elementwise>` exponential function.
-[[nodiscard]] py::object exp(py::object obj);
+[[nodiscard]] TensorPtr exp(TensorCPtr obj);
 
 } // namespace cyten

@@ -1,9 +1,13 @@
 #include <cyten/tensors/constructors.h>
+#include <cyten/tensors/tensor.h>
+
+#include "py_factory_parse.hpp"
 
 #include "../py_cyten_pybind11.h"
 
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace cyten {
 
@@ -22,8 +26,13 @@ bind_tensors_constructors(py::module_& m)
           if (!device.is_none()) {
               device_opt = device.cast<std::string>();
           }
-          return eye(
-            std::move(leg), std::move(backend), std::move(labels), dtype, device_opt, diagonal);
+          auto init = py_parse_diag(leg, std::move(backend), labels);
+          return eye(py_as_space_leg(leg),
+                     init.backend,
+                     init.labels,
+                     dtype,
+                     std::move(device_opt),
+                     diagonal);
       },
       py::arg("leg"),
       py::arg("backend") = py::none(),
@@ -51,14 +60,29 @@ bind_tensors_constructors(py::module_& m)
           if (!device.is_none()) {
               device_opt = device.cast<std::string>();
           }
-          return tensor(std::move(obj),
-                        std::move(codomain),
-                        std::move(domain),
-                        std::move(backend),
-                        std::move(labels),
-                        dtype_opt,
-                        device_opt,
-                        understood_braiding);
+          if (py::isinstance<Tensor>(obj)) {
+              auto t = obj.cast<TensorCPtr>();
+              auto cod = tensor_product_from_python(codomain, t->symmetry);
+              TensorProduct::Ptr dom;
+              if (!domain.is_none()) {
+                  dom = tensor_product_from_python(domain, t->symmetry);
+              }
+              std::optional<LegLabels> labs;
+              if (!labels.is_none()) {
+                  labs = parse_tensor_init_labels(labels, t->codomain, t->domain);
+              }
+              return py::cast(tensor(t, std::move(cod), std::move(dom), std::move(backend), labs, dtype_opt, device_opt));
+          }
+          auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
+          auto block = init.backend->block_backend->as_block(obj, dtype_opt, device_opt);
+          return py::cast(tensor(block,
+                                 init.codomain,
+                                 init.domain,
+                                 init.backend,
+                                 init.labels,
+                                 dtype_opt,
+                                 device_opt,
+                                 understood_braiding));
       },
       py::arg("obj"),
       py::arg("codomain"),
@@ -94,7 +118,7 @@ bind_tensors_constructors(py::module_& m)
           if (!label.is_none()) {
               label_opt = label.cast<std::string>();
           }
-          return add_trivial_leg(std::move(tens),
+          return add_trivial_leg(tens.cast<TensorCPtr>(),
                                  legs_pos_opt,
                                  codomain_pos_opt,
                                  domain_pos_opt,
@@ -136,10 +160,11 @@ is_dual: bool
     which are mutually opposite.
 )pydoc");
 
-    m.def("zero_like",
-          &zero_like,
-          py::arg("tensor"),
-          R"pydoc(Return a zero tensor with same type, dtype, legs, backend and labels.)pydoc");
+    m.def(
+      "zero_like",
+      [](py::object tensor) { return zero_like(tensor.cast<TensorCPtr>()); },
+      py::arg("tensor"),
+      R"pydoc(Return a zero tensor with same type, dtype, legs, backend and labels.)pydoc");
 
     m.def(
       "tensor_from_grid",
@@ -148,7 +173,20 @@ is_dual: bool
           if (!dtype.is_none()) {
               dtype_opt = dtype.cast<Dtype>();
           }
-          return tensor_from_grid(std::move(grid), std::move(labels), dtype_opt);
+          std::vector<std::vector<TensorPtr>> g;
+          for (auto row_h : py::reinterpret_borrow<py::iterable>(grid)) {
+              std::vector<TensorPtr> row;
+              for (auto item : py::reinterpret_borrow<py::iterable>(row_h)) {
+                  py::object obj = py::reinterpret_borrow<py::object>(item);
+                  row.push_back(obj.is_none() ? nullptr : obj.cast<TensorPtr>());
+              }
+              g.push_back(std::move(row));
+          }
+          auto res = tensor_from_grid(std::move(g), std::nullopt, dtype_opt);
+          if (!labels.is_none()) {
+              res->set_labels(parse_tensor_init_labels(labels, res->codomain, res->domain));
+          }
+          return res;
       },
       py::arg("grid"),
       py::arg("labels") = py::none(),
@@ -177,6 +215,7 @@ Graphically::
     |                                          ┃i_m┃ │   │   │
     |                                          ┗━┯━┛ │   │   │
     |
+
 
 where :math:`p_n : W = \bigoplus_{n'} W_{n'} \to W_n` is the projection map of the direct sum
 and :math:`i_m : V_m \to \bigoplus_{m'} V_{m'}` the inclusion.

@@ -1,52 +1,63 @@
 #pragma once
 
 #include <cyten/cyten.h>
+#include <cyten/symmetries/spaces.h>
+#include <cyten/tensors/forward_declare.h>
+#include <cyten/tensors/ops_algebra.h>
 
 #include <optional>
+#include <variant>
 #include <vector>
 
 namespace cyten {
 
+/// Single bool (broadcast) or per-leg ``bool | None``.
+using BendRight = std::variant<bool, std::vector<std::optional<bool>>>;
+/// Single bool (broadcast) or one flag per combined group.
+using PipeDualities = std::variant<bool, std::vector<bool>>;
+
 /// Move legs between codomain and domain without changing the order of ``tensor.legs``.
-[[nodiscard]] py::object bend_legs(py::object tensor,
-                                   std::optional<int64> num_codomain_legs = std::nullopt,
-                                   std::optional<int64> num_domain_legs = std::nullopt);
+[[nodiscard]] TensorPtr bend_legs(TensorCPtr tensor,
+                                  std::optional<int64> num_codomain_legs = std::nullopt,
+                                  std::optional<int64> num_domain_legs = std::nullopt);
 
 /// Check if two tensors have the same legs.
-void check_same_legs(py::object t1, py::object t2);
+void check_same_legs(TensorCPtr t1, TensorCPtr t2);
 
 /// Combine (multiple) groups of legs, each to a :class:`LegPipe`.
-[[nodiscard]] py::object combine_legs(py::object tensor,
-                                      std::vector<py::object> which_legs,
-                                      py::object pipe_dualities = py::none(),
-                                      py::object pipes = py::none(),
-                                      py::object levels = py::none());
+[[nodiscard]] TensorPtr combine_legs(TensorCPtr tensor,
+                                     std::vector<std::vector<LegRef>> which_legs,
+                                     std::optional<PipeDualities> pipe_dualities = std::nullopt,
+                                     std::optional<std::vector<Leg::Ptr>> pipes = std::nullopt,
+                                     std::optional<LevelsSpec> levels = std::nullopt);
 
 /// Combine legs of a tensor into two combined LegPipes (matrix form).
-[[nodiscard]] py::object combine_to_matrix(py::object tensor,
-                                           py::object codomain = py::none(),
-                                           py::object domain = py::none(),
-                                           py::object levels = py::none());
+[[nodiscard]] TensorPtr combine_to_matrix(TensorCPtr tensor,
+                                          std::optional<std::vector<LegRef>> codomain = std::nullopt,
+                                          std::optional<std::vector<LegRef>> domain = std::nullopt,
+                                          std::optional<LevelsSpec> levels = std::nullopt);
 
 /// Move one leg of a tensor to a specified position.
-[[nodiscard]] py::object move_leg(py::object tensor,
-                                  py::object which_leg,
-                                  std::optional<int64> codomain_pos = std::nullopt,
-                                  std::optional<int64> domain_pos = std::nullopt,
-                                  py::object levels = py::none(),
-                                  py::object bend_right = py::none());
+[[nodiscard]] TensorPtr move_leg(TensorCPtr tensor,
+                                 LegRef which_leg,
+                                 std::optional<int64> codomain_pos = std::nullopt,
+                                 std::optional<int64> domain_pos = std::nullopt,
+                                 std::optional<LevelsSpec> levels = std::nullopt,
+                                 std::optional<BendRight> bend_right = std::nullopt);
 
 /// Permute the legs of a tensor by braiding legs and bending lines.
-[[nodiscard]] py::object permute_legs(py::object tensor,
-                                      py::object codomain = py::none(),
-                                      py::object domain = py::none(),
-                                      py::object levels = py::none(),
-                                      py::object bend_right = py::none());
+[[nodiscard]] TensorPtr permute_legs(TensorCPtr tensor,
+                                     std::optional<std::vector<LegRef>> codomain = std::nullopt,
+                                     std::optional<std::vector<LegRef>> domain = std::nullopt,
+                                     std::optional<LevelsSpec> levels = std::nullopt,
+                                     std::optional<BendRight> bend_right = std::nullopt);
 
 /// Split legs that were previously combined using :func:`combine_legs`.
-[[nodiscard]] py::object split_legs(py::object tensor, py::object legs = py::none());
+[[nodiscard]] TensorPtr split_legs(TensorCPtr tensor,
+                                   std::optional<std::vector<LegRef>> legs = std::nullopt);
 
 /// Remove trivial legs.
-[[nodiscard]] py::object squeeze_legs(py::object tensor, py::object legs = py::none());
+[[nodiscard]] TensorPtr squeeze_legs(TensorCPtr tensor,
+                                     std::optional<std::vector<LegRef>> legs = std::nullopt);
 
 } // namespace cyten

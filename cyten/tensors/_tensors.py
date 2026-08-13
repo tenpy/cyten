@@ -53,7 +53,7 @@ from .._core import (  # noqa: F401
     is_scalar,
     is_valid_leg_label,
     item,
-    linear_combination,
+    linear_combination as _linear_combination,
     lq,
     move_leg,
     norm,
@@ -66,7 +66,7 @@ from .._core import (  # noqa: F401
     qr,
     real,
     real_if_close,
-    scalar_multiply,
+    scalar_multiply as _scalar_multiply,
     scale_axis,
     split_legs,
     sqrt,
@@ -83,3 +83,20 @@ from .._core import (  # noqa: F401
     truncated_svd,
     zero_like,
 )
+
+
+def scalar_multiply(a, v):
+    """The scalar multiplication ``a * v``."""
+    if a is None:
+        raise TypeError("unsupported scalar type: NoneType")
+    return _scalar_multiply(a, v)
+
+
+def linear_combination(a, v, b, w):
+    """The linear combination ``a * v + b * w``."""
+    if a is None or b is None:
+        raise TypeError(
+            f"unsupported scalar types: {type(a).__name__}, {type(b).__name__}"
+        )
+    return _linear_combination(a, v, b, w)
+

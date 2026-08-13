@@ -10,6 +10,7 @@
 
 #include <cmath>
 #include <format>
+#include <memory>
 #include <stdexcept>
 #include <vector>
 
@@ -18,237 +19,192 @@ namespace cyten {
 namespace {
 
 py::object
-tensors_mod()
-{
-    return py::module_::import("cyten.tensors._tensors");
-}
-
-py::object
 numpy()
 {
     return py::module_::import("numpy");
 }
 
-bool
-is_diagonal_tensor(py::object x)
-{
-    return py::isinstance(x, tensors_mod().attr("DiagonalTensor")) ||
-           py::isinstance<DiagonalTensor>(x);
-}
-
-bool
-is_charged_tensor(py::object x)
-{
-    return py::isinstance(x, tensors_mod().attr("ChargedTensor")) ||
-           py::isinstance<ChargedTensor>(x);
-}
-
-bool
-is_symmetric_tensor(py::object x)
-{
-    return py::isinstance(x, tensors_mod().attr("SymmetricTensor")) ||
-           py::isinstance<SymmetricTensor>(x);
-}
-
-bool
-is_tensor(py::object x)
-{
-    return py::isinstance(x, tensors_mod().attr("Tensor")) || py::isinstance<Tensor>(x);
-}
-
-bool
-is_scalar_obj(py::object x)
-{
-    return tensors_mod().attr("is_scalar")(x).cast<bool>();
-}
-
-[[noreturn]] void
-throw_elementwise_type_error(py::object x)
-{
-    throw py::type_error(std::format("Expected DiagonalTensor or scalar. Got {}",
-                                     std::string(py::str(py::type::of(x)))));
-}
-
-/// DiagonalTensor path: ``block_backend.<name>(block, **kwargs)`` via ``_elementwise_unary``.
-py::object
-elementwise_on_diagonal(py::object x,
+DiagonalTensorPtr
+elementwise_on_diagonal(DiagonalTensorCPtr x,
                         char const* block_func,
                         bool maps_zero_to_zero,
-                        py::dict kwargs)
+                        py::dict kwargs = py::dict())
 {
-    py::object meth = x.attr("backend").attr("block_backend").attr(block_func);
+    auto mut = std::const_pointer_cast<DiagonalTensor>(x);
+    py::object meth = py::cast(x->backend->block_backend).attr(block_func);
     py::cpp_function unary([meth, kwargs](py::object block) { return meth(block, **kwargs); });
-    return x.attr("_elementwise_unary")(unary, py::arg("maps_zero_to_zero") = maps_zero_to_zero);
+    return mut->_elementwise_unary(unary, py::none(), maps_zero_to_zero);
+}
+
+BlockBackend::Scalar
+numpy_unary_scalar(BlockBackend::Scalar const& x, char const* name)
+{
+    return numpy().attr(name)(py::cast(x)).cast<BlockBackend::Scalar>();
 }
 
 } // namespace
 
-py::object
-angle(py::object x)
+DiagonalTensorPtr
+angle(DiagonalTensorCPtr x)
 {
-    if (is_diagonal_tensor(x)) {
-        return elementwise_on_diagonal(x, "angle", true, py::dict());
-    }
-    if (is_scalar_obj(x)) {
-        return numpy().attr("angle")(x);
-    }
-    throw_elementwise_type_error(x);
+    return elementwise_on_diagonal(x, "angle", true);
 }
 
-py::object
-cutoff_inverse(py::object x, float64 cutoff)
+BlockBackend::Scalar
+angle(BlockBackend::Scalar const& x)
 {
-    if (is_diagonal_tensor(x)) {
-        py::dict kw;
-        kw["cutoff"] = cutoff;
-        return elementwise_on_diagonal(x, "cutoff_inverse", true, kw);
-    }
-    if (is_scalar_obj(x)) {
-        // The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, otherwise
-        // ``0``.
-        py::object abs_x = py::module_::import("builtins").attr("abs")(x);
-        if (abs_x.cast<float64>() < cutoff) {
-            return py::int_(0);
-        }
-        return py::float_(1.0) / x;
-    }
-    throw_elementwise_type_error(x);
+    return numpy_unary_scalar(x, "angle");
 }
 
-py::object
-complex_conj(py::object x)
+DiagonalTensorPtr
+cutoff_inverse(DiagonalTensorCPtr x, float64 cutoff)
 {
-    if (is_diagonal_tensor(x)) {
-        return elementwise_on_diagonal(x, "conj", true, py::dict());
-    }
-    if (is_scalar_obj(x)) {
-        return numpy().attr("conj")(x);
-    }
-    throw_elementwise_type_error(x);
+    py::dict kw;
+    kw["cutoff"] = cutoff;
+    return elementwise_on_diagonal(x, "cutoff_inverse", true, kw);
 }
 
-py::object
-imag(py::object x)
+BlockBackend::Scalar
+cutoff_inverse(BlockBackend::Scalar const& x, float64 cutoff)
 {
-    if (is_diagonal_tensor(x)) {
-        return elementwise_on_diagonal(x, "imag", true, py::dict());
+    py::object pyx = py::cast(x);
+    py::object abs_x = py::module_::import("builtins").attr("abs")(pyx);
+    if (abs_x.cast<float64>() < cutoff) {
+        return py::int_(0).cast<BlockBackend::Scalar>();
     }
-    if (is_scalar_obj(x)) {
-        return numpy().attr("imag")(x);
-    }
-    throw_elementwise_type_error(x);
+    return (py::float_(1.0) / pyx).cast<BlockBackend::Scalar>();
 }
 
-py::object
-real(py::object x)
+DiagonalTensorPtr
+complex_conj(DiagonalTensorCPtr x)
 {
-    if (is_diagonal_tensor(x)) {
-        return elementwise_on_diagonal(x, "real", true, py::dict());
-    }
-    if (is_scalar_obj(x)) {
-        return numpy().attr("real")(x);
-    }
-    throw_elementwise_type_error(x);
+    return elementwise_on_diagonal(x, "conj", true);
 }
 
-py::object
-real_if_close(py::object x, float64 tol)
+BlockBackend::Scalar
+complex_conj(BlockBackend::Scalar const& x)
 {
-    if (is_diagonal_tensor(x)) {
-        py::dict kw;
-        kw["tol"] = tol;
-        return elementwise_on_diagonal(x, "real_if_close", true, kw);
-    }
-    if (is_scalar_obj(x)) {
-        return numpy().attr("real_if_close")(x, py::arg("tol") = tol);
-    }
-    throw_elementwise_type_error(x);
+    return numpy_unary_scalar(x, "conj");
 }
 
-py::object
-sqrt(py::object x)
+DiagonalTensorPtr
+imag(DiagonalTensorCPtr x)
 {
-    if (is_diagonal_tensor(x)) {
-        return elementwise_on_diagonal(x, "sqrt", true, py::dict());
-    }
-    if (is_scalar_obj(x)) {
-        return numpy().attr("sqrt")(x);
-    }
-    throw_elementwise_type_error(x);
+    return elementwise_on_diagonal(x, "imag", true);
 }
 
-py::object
-stable_log(py::object x, float64 cutoff)
+BlockBackend::Scalar
+imag(BlockBackend::Scalar const& x)
+{
+    return numpy_unary_scalar(x, "imag");
+}
+
+DiagonalTensorPtr
+real(DiagonalTensorCPtr x)
+{
+    return elementwise_on_diagonal(x, "real", true);
+}
+
+BlockBackend::Scalar
+real(BlockBackend::Scalar const& x)
+{
+    return numpy_unary_scalar(x, "real");
+}
+
+DiagonalTensorPtr
+real_if_close(DiagonalTensorCPtr x, float64 tol)
+{
+    py::dict kw;
+    kw["tol"] = tol;
+    return elementwise_on_diagonal(x, "real_if_close", true, kw);
+}
+
+BlockBackend::Scalar
+real_if_close(BlockBackend::Scalar const& x, float64 tol)
+{
+    return numpy().attr("real_if_close")(py::cast(x), py::arg("tol") = tol).cast<BlockBackend::Scalar>();
+}
+
+DiagonalTensorPtr
+sqrt(DiagonalTensorCPtr x)
+{
+    return elementwise_on_diagonal(x, "sqrt", true);
+}
+
+BlockBackend::Scalar
+sqrt(BlockBackend::Scalar const& x)
+{
+    return numpy_unary_scalar(x, "sqrt");
+}
+
+DiagonalTensorPtr
+stable_log(DiagonalTensorCPtr x, float64 cutoff)
 {
     if (!(cutoff > 0)) {
         throw std::runtime_error("cutoff must be > 0");
     }
-    if (is_diagonal_tensor(x)) {
-        py::dict kw;
-        kw["cutoff"] = cutoff;
-        return elementwise_on_diagonal(x, "stable_log", true, kw);
-    }
-    if (is_scalar_obj(x)) {
-        auto np = numpy();
-        return np.attr("where")(np.attr("greater")(x, cutoff), np.attr("log")(x), 0.0);
-    }
-    throw_elementwise_type_error(x);
+    py::dict kw;
+    kw["cutoff"] = cutoff;
+    return elementwise_on_diagonal(x, "stable_log", true, kw);
 }
 
-py::object
-exp(py::object obj)
+BlockBackend::Scalar
+stable_log(BlockBackend::Scalar const& x, float64 cutoff)
+{
+    if (!(cutoff > 0)) {
+        throw std::runtime_error("cutoff must be > 0");
+    }
+    auto np = numpy();
+    py::object pyx = py::cast(x);
+    return np.attr("where")(np.attr("greater")(pyx, cutoff), np.attr("log")(pyx), 0.0)
+      .cast<BlockBackend::Scalar>();
+}
+
+TensorPtr
+exp(TensorCPtr obj)
 {
     // --- hints from Python exp ---
     // OPTIMIZE have the same pipe in domain and codomain. could avoid recomputing?
     // should have considered all tensor types above
     // ---
-    if (is_diagonal_tensor(obj)) {
-        return obj.attr("_elementwise_unary")(
-          obj.attr("backend").attr("block_backend").attr("exp"));
+    if (auto diag = std::dynamic_pointer_cast<DiagonalTensor const>(obj)) {
+        auto mut = std::const_pointer_cast<DiagonalTensor>(diag);
+        py::object exp_fn = py::cast(diag->backend->block_backend).attr("exp");
+        return mut->_elementwise_unary(exp_fn);
     }
-    if (is_charged_tensor(obj)) {
+    if (std::dynamic_pointer_cast<ChargedTensor const>(obj)) {
         throw py::type_error("ChargedTensor can not be exponentiated.");
     }
-    if (is_symmetric_tensor(obj)) {
-        _check_compatible_legs(
-          std::vector<Space::Ptr>{ obj.attr("domain").cast<Space::Ptr>() },
-          std::vector<Space::Ptr>{ obj.attr("codomain").cast<Space::Ptr>() });
+    if (auto sym = std::dynamic_pointer_cast<SymmetricTensor const>(obj)) {
+        _check_compatible_legs(std::vector<Space::Ptr>{ sym->domain },
+                               std::vector<Space::Ptr>{ sym->codomain });
 
-        auto backend = obj.attr("backend").cast<TensorBackend::Ptr>();
-        bool combine =
-          (!backend->can_decompose_tensors) && (obj.attr("num_domain_legs").cast<int64>() > 1);
+        auto backend = sym->backend;
+        bool combine = (!backend->can_decompose_tensors) && (sym->num_domain_legs() > 1);
         if (combine) {
-            // OPTIMIZE have the same pipe in domain and codomain. could avoid recomputing?
-            int64 J = obj.attr("num_codomain_legs").cast<int64>();
-            int64 N = obj.attr("num_legs").cast<int64>();
-            py::list cod_range;
-            py::list dom_range;
+            int64 J = sym->num_codomain_legs();
+            int64 N = sym->num_legs;
+            std::vector<LegRef> cod_idcs;
+            std::vector<LegRef> dom_idcs;
             for (int64 i = 0; i < J; ++i) {
-                cod_range.append(i);
+                cod_idcs.emplace_back(i);
             }
             for (int64 i = J; i < N; ++i) {
-                dom_range.append(i);
+                dom_idcs.emplace_back(i);
             }
-            obj = combine_legs(obj, { cod_range, dom_range });
+            auto combined = combine_legs(sym, { std::move(cod_idcs), std::move(dom_idcs) });
+            sym = std::dynamic_pointer_cast<SymmetricTensor const>(combined);
         }
         py::object matrix_exp = py::cast(backend->block_backend).attr("matrix_exp");
-        auto data = backend->act_block_diagonal_square_matrix(
-          obj.cast<SymmetricTensorCPtr>(), matrix_exp, py::none());
-        py::object res =
-          tensors_mod().attr("SymmetricTensor")(py::cast(std::move(data)),
-                                                obj.attr("codomain"),
-                                                obj.attr("domain"),
-                                                py::arg("backend") = obj.attr("backend"),
-                                                py::arg("labels") = obj.attr("labels"));
+        auto data = backend->act_block_diagonal_square_matrix(sym, matrix_exp, py::none());
+        auto res = std::make_shared<SymmetricTensor>(
+          std::move(data), sym->codomain, sym->domain, backend, sym->symmetry, sym->labels());
         if (combine) {
-            res = split_legs(res, py::cast(std::vector<int64>{ 0, 1 }));
+            return split_legs(res, std::vector<LegRef>{ int64{ 0 }, int64{ 1 } });
         }
         return res;
     }
-    if (is_tensor(obj)) {
-        throw NotImplemented("exp"); // should have considered all tensor types above
-    }
-    return py::module_::import("math").attr("exp")(obj);
+    throw NotImplemented("exp");
 }
 
 } // namespace cyten
