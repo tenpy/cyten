@@ -16,8 +16,7 @@ jobs:
     if: github.event.pull_request.draft == false
 
     runs-on: ubuntu-latest
-    # Extra headroom if we have to rebuild+retest under ASan after a segfault
-    timeout-minutes: 120
+    timeout-minutes: 60
     env:
       # make pytest output in color
       PY_COLORS: 1
@@ -50,90 +49,8 @@ jobs:
         pip install --no-build-isolation -e ".[test]"
 
     - name: Run pytest
-      id: pytest
       # configuration in pyproject.toml
       # Note: This runs in the repo root directory, which contains the cyten source folder.
       #       To use the version we just installed, it is important to run `pytest`
       #       instead of `python -m pytest`.
-      run: |
-        set +e
-        pytest --block-backends "numpy" -vv 2>&1 | tee pytest-numpy.log
-        ec=${PIPESTATUS[0]}
-        echo "exit_code=$ec" >> "$GITHUB_OUTPUT"
-        exit "$ec"
-
-    - name: Upload pytest log on failure
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: pytest-numpy-log-${{ matrix.python-version }}
-        path: pytest-numpy.log
-        if-no-files-found: ignore
-
-    - name: Detect segfault
-      id: segfault
-      if: failure()
-      run: |
-        ec="${{ steps.pytest.outputs.exit_code }}"
-        if [[ "$ec" == "139" ]] \
-          || grep -qE "Segmentation fault|Fatal Python error: Segmentation fault" pytest-numpy.log; then
-          echo "hit=true" >> "$GITHUB_OUTPUT"
-          echo "::warning::Segmentation fault detected (exit_code=$ec); rebuilding with ASan and re-running tests"
-        else
-          echo "hit=false" >> "$GITHUB_OUTPUT"
-        fi
-
-    - name: Rebuild with AddressSanitizer
-      if: failure() && steps.segfault.outputs.hit == 'true'
-      run: |
-        # Ubuntu's gcc ASan runtime (package name varies by runner image)
-        sudo apt-get update
-        sudo apt-get install -y libasan8 || sudo apt-get install -y libasan6
-        ASAN_FLAGS="-g -O1 -fsanitize=address -fno-omit-frame-pointer -fno-sanitize-recover=address"
-        pip install --no-build-isolation -e ".[test]" \
-          --config-settings=build-dir=build-asan \
-          --config-settings=cmake.build-type=Debug \
-          --config-settings=cmake.define.CMAKE_CXX_FLAGS_DEBUG="$ASAN_FLAGS" \
-          --config-settings=cmake.define.CMAKE_SHARED_LINKER_FLAGS="-fsanitize=address" \
-          --config-settings=cmake.define.CMAKE_MODULE_LINKER_FLAGS="-fsanitize=address"
-
-    - name: Re-run pytest under ASan
-      if: failure() && steps.segfault.outputs.hit == 'true'
-      env:
-        # Do not enable PYTHONFAULTHANDLER here: it races with ASan and can swallow
-        # the "ERROR: AddressSanitizer: ..." report (we only saw "Fatal Python error: Aborted").
-        ASAN_OPTIONS: >-
-          detect_leaks=0:halt_on_error=1:abort_on_error=1:print_stacktrace=1:print_summary=1:log_path=asan_report
-        PYTHONMALLOC: malloc
-      run: |
-        unset PYTHONFAULTHANDLER
-        CXX_BIN="$(${CXX:-g++} -print-prog-name=g++)"
-        ASAN_LIB="$(${CXX:-g++} -print-file-name=libasan.so)"
-        echo "CXX=$CXX_BIN"
-        ${CXX:-g++} --version | head -1
-        if [[ ! -e "$ASAN_LIB" ]]; then
-          echo "Could not resolve libasan via g++ -print-file-name; got: $ASAN_LIB" >&2
-          exit 1
-        fi
-        export LD_PRELOAD="$ASAN_LIB${LD_PRELOAD:+:$LD_PRELOAD}"
-        echo "LD_PRELOAD=$LD_PRELOAD"
-        set +e
-        # Unbuffered so an ASan abort still flushes the pytest tee log
-        python -u -m pytest --block-backends "numpy" -vv 2>&1 | tee pytest-numpy-asan.log
-        ec=${PIPESTATUS[0]}
-        # Also dump any ASan log_path files into the tee'd log for the artifact
-        if compgen -G "asan_report.*" > /dev/null; then
-          echo "===== AddressSanitizer log_path files =====" | tee -a pytest-numpy-asan.log
-          cat asan_report.* | tee -a pytest-numpy-asan.log
-        fi
-        exit "$ec"
-
-    - name: Upload ASan pytest log
-      if: failure() && steps.segfault.outputs.hit == 'true'
-      uses: actions/upload-artifact@v4
-      with:
-        name: pytest-numpy-asan-log-${{ matrix.python-version }}
-        path: |
-          pytest-numpy-asan.log
-          asan_report.*
-        if-no-files-found: ignore
+      run: pytest --block-backends "numpy" -vv
