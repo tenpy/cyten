@@ -100,11 +100,17 @@ jobs:
     - name: Re-run pytest under ASan
       if: failure() && steps.segfault.outputs.hit == 'true'
       env:
-        ASAN_OPTIONS: detect_leaks=0:halt_on_error=1:abort_on_error=1:detect_stack_use_after_return=1
+        # Do not enable PYTHONFAULTHANDLER here: it races with ASan and can swallow
+        # the "ERROR: AddressSanitizer: ..." report (we only saw "Fatal Python error: Aborted").
+        ASAN_OPTIONS: >-
+          detect_leaks=0:halt_on_error=1:abort_on_error=1:print_stacktrace=1:print_summary=1:log_path=asan_report
         PYTHONMALLOC: malloc
-        PYTHONFAULTHANDLER: "1"
       run: |
+        unset PYTHONFAULTHANDLER
+        CXX_BIN="$(${CXX:-g++} -print-prog-name=g++)"
         ASAN_LIB="$(${CXX:-g++} -print-file-name=libasan.so)"
+        echo "CXX=$CXX_BIN"
+        ${CXX:-g++} --version | head -1
         if [[ ! -e "$ASAN_LIB" ]]; then
           echo "Could not resolve libasan via g++ -print-file-name; got: $ASAN_LIB" >&2
           exit 1
@@ -112,8 +118,14 @@ jobs:
         export LD_PRELOAD="$ASAN_LIB${LD_PRELOAD:+:$LD_PRELOAD}"
         echo "LD_PRELOAD=$LD_PRELOAD"
         set +e
-        pytest --block-backends "numpy" -vv 2>&1 | tee pytest-numpy-asan.log
+        # Unbuffered so an ASan abort still flushes the pytest tee log
+        python -u -m pytest --block-backends "numpy" -vv 2>&1 | tee pytest-numpy-asan.log
         ec=${PIPESTATUS[0]}
+        # Also dump any ASan log_path files into the tee'd log for the artifact
+        if compgen -G "asan_report.*" > /dev/null; then
+          echo "===== AddressSanitizer log_path files =====" | tee -a pytest-numpy-asan.log
+          cat asan_report.* | tee -a pytest-numpy-asan.log
+        fi
         exit "$ec"
 
     - name: Upload ASan pytest log
@@ -121,5 +133,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: pytest-numpy-asan-log-${{ matrix.python-version }}
-        path: pytest-numpy-asan.log
+        path: |
+          pytest-numpy-asan.log
+          asan_report.*
         if-no-files-found: ignore
