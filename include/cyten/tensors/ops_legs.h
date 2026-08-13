@@ -61,4 +61,14 @@ void check_same_legs(TensorCPtr t1, TensorCPtr t2);
 [[nodiscard]] TensorPtr squeeze_legs(TensorCPtr tensor,
                                      std::optional<std::vector<LegRef>> legs = std::nullopt);
 
+/// Contract one multiplicity copy of one sector on `leg`.
+///
+/// The leftover one-sector space becomes the charge leg of a :class:`ChargedTensor`.
+/// The public-index form requires :attr:`Symmetry.can_be_dropped`.
+[[nodiscard]] ChargedTensorPtr slice_leg(TensorCPtr tensor, LegRef leg, int64 idx);
+[[nodiscard]] ChargedTensorPtr slice_leg(TensorCPtr tensor,
+                                         LegRef leg,
+                                         Sector const& sector,
+                                         int64 multiplicity = 0);
+
 } // namespace cyten

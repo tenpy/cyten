@@ -1,3 +1,5 @@
+#include <cyten/symmetries/sector.h>
+#include <cyten/tensors/charged_tensor.h>
 #include <cyten/tensors/ops_legs.h>
 #include <cyten/tensors/tensor.h>
 
@@ -44,6 +46,57 @@ py_opt_leg_refs(py::object obj)
     }
     return py_as_leg_refs(obj);
 }
+
+bool
+py_is_public_idx(py::handle obj)
+{
+    if (py::isinstance<py::int_>(obj)) {
+        return true;
+    }
+    if (py::isinstance<Sector>(obj)) {
+        return false;
+    }
+    if (py::isinstance<py::array>(obj)) {
+        return obj.cast<py::array>().ndim() == 0;
+    }
+    return false;
+}
+
+ChargedTensorPtr
+py_slice_leg(TensorCPtr tensor, py::object leg, py::object idx_or_sector, py::object multiplicity)
+{
+    LegRef l = py_as_leg_ref(leg);
+    if (!multiplicity.is_none() || !py_is_public_idx(idx_or_sector)) {
+        int64 m = multiplicity.is_none() ? 0 : multiplicity.cast<int64>();
+        return slice_leg(std::move(tensor), std::move(l), idx_or_sector.cast<Sector>(), m);
+    }
+    return slice_leg(std::move(tensor), std::move(l), idx_or_sector.cast<int64>());
+}
+
+char const* slice_leg_doc =
+  R"pydoc(Contract one multiplicity of one sector on a leg, as a ChargedTensor.
+
+The leftover space is an :class:`~cyten.symmetries.ElementarySpace` with that
+sector and multiplicity 1. It becomes the charge leg (``"!"``) of the result,
+with ``charged_state=None``. This does not require a droppable symmetry.
+
+Two ways to name the kept copy:
+
+- ``slice_leg(tensor, leg, idx)`` — public-basis index. Requires
+  ``symmetry.can_be_dropped``. Uses :meth:`~cyten.symmetries.ElementarySpace.parse_index`,
+  then the reduced multiplicity index of that sector.
+- ``slice_leg(tensor, leg, sector, multiplicity=0)`` — always valid.
+  ``sector`` must appear on that leg; ``multiplicity`` in
+  ``range(leg.sector_multiplicity(sector))``.
+
+``leg`` is an integer index or a label, as for :func:`apply_mask`.
+Slicing a :class:`ChargedTensor` (a second charge leg) is not supported.
+
+After ``E, V = eigh(H)``::
+
+    i0 = E.argmin()
+    psi = V.slice_leg('a', i0)
+)pydoc";
 
 int64
 py_leg_idx(TensorCPtr const& tensor, py::object key)
@@ -303,6 +356,27 @@ bind_tensors_ops_legs(py::module_& m)
       py::arg("tensor"),
       py::arg("legs") = py::none(),
       R"pydoc(Split legs that were previously combined using :func:`combine_legs`.)pydoc");
+
+    m.def("slice_leg",
+          &py_slice_leg,
+          py::arg("tensor"),
+          py::arg("leg"),
+          py::arg("idx_or_sector"),
+          py::arg("multiplicity") = py::none(),
+          slice_leg_doc);
+
+    py::object tensor_cls = m.attr("Tensor");
+    tensor_cls.attr("slice_leg") = py::cpp_function(
+      [](TensorCPtr self, py::object leg, py::object idx_or_sector, py::object multiplicity) {
+          return py_slice_leg(
+            std::move(self), std::move(leg), std::move(idx_or_sector), std::move(multiplicity));
+      },
+      py::name("slice_leg"),
+      py::is_method(tensor_cls),
+      py::arg("leg"),
+      py::arg("idx_or_sector"),
+      py::arg("multiplicity") = py::none(),
+      slice_leg_doc);
 
     m.def(
       "squeeze_legs",

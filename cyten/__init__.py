@@ -124,6 +124,7 @@ from .tensors import (
     real_if_close,
     scalar_multiply,
     scale_axis,
+    slice_leg,
     # sparse
     sparse,
     split_legs,

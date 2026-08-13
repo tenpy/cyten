@@ -2,6 +2,7 @@
 
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/backends/tensor_backend.h>
+#include <cyten/block_backend/dtypes.h>
 #include <cyten/symmetries/exceptions.h>
 #include <cyten/symmetries/spaces.h>
 #include <cyten/tensors/charged_tensor.h>
@@ -1388,6 +1389,99 @@ TensorPtr
 squeeze_legs(TensorCPtr tensor, std::optional<std::vector<LegRef>> legs)
 {
     return squeeze_legs_py(py::cast(tensor), py_opt_legs(legs)).cast<TensorPtr>();
+}
+
+namespace {
+
+ElementarySpace::Ptr
+as_elementary_leg(Leg::Ptr const& leg_obj)
+{
+    if (std::dynamic_pointer_cast<LegPipe>(leg_obj)) {
+        throw std::invalid_argument("slice_leg is not supported on LegPipes.");
+    }
+    auto es = std::dynamic_pointer_cast<ElementarySpace>(leg_obj);
+    if (!es) {
+        throw std::invalid_argument("slice_leg requires an ElementarySpace leg.");
+    }
+    return es;
+}
+
+void
+check_slice_leg_tensor(TensorCPtr const& tensor)
+{
+    if (std::dynamic_pointer_cast<ChargedTensor const>(tensor)) {
+        throw std::invalid_argument("slice_leg is not supported for ChargedTensor.");
+    }
+    if (!ChargedTensor::supports_symmetry(tensor->symmetry)) {
+        throw SymmetryError(std::format("ChargedTensor is not well-defined for symmetry {}.",
+                                        tensor->symmetry->repr()));
+    }
+}
+
+} // namespace
+
+ChargedTensorPtr
+slice_leg(TensorCPtr tensor, LegRef leg, int64 idx)
+{
+    check_slice_leg_tensor(tensor);
+    if (!tensor->symmetry->can_be_dropped()) {
+        throw SymmetryError(
+          std::format("slice_leg with a public-basis index requires a droppable symmetry. "
+                      "Got {}.",
+                      tensor->symmetry->str()));
+    }
+    auto co_space = as_elementary_leg(tensor->get_leg_co_domain(leg));
+    auto const [sector_idx, multiplicity_idx] = co_space->parse_index(idx);
+    Sector sector = co_space->sector_decomposition[static_cast<std::size_t>(sector_idx)];
+    // Fusion-tree internal slices are (sector_dim, multiplicity) in C-order, matching
+    // outer(ones(dim), diag_block). The reduced copy index is therefore
+    // multiplicity_idx % multiplicity (abelian: sector_dim == 1, same as / dim).
+    int64 const m = multiplicity_idx % co_space->sector_multiplicity(sector);
+    return slice_leg(std::move(tensor), std::move(leg), sector, m);
+}
+
+ChargedTensorPtr
+slice_leg(TensorCPtr tensor, LegRef leg, Sector const& sector, int64 multiplicity)
+{
+    check_slice_leg_tensor(tensor);
+    auto const [in_domain, unused_co, unused_legs] = tensor->_parse_leg_idx(leg);
+    (void)unused_co;
+    (void)unused_legs;
+    auto co_space = as_elementary_leg(tensor->get_leg_co_domain(leg));
+    if (!co_space->sector_decomposition_where(sector)) {
+        throw std::invalid_argument("slice_leg: sector does not appear on the chosen leg.");
+    }
+    int64 const mult = co_space->sector_multiplicity(sector);
+    int64 const m = to_valid_idx(multiplicity, mult);
+
+    // apply_mask matches the legs[] view; domain factors are dual to that view.
+    auto mask_space = as_elementary_leg(tensor->get_leg(leg));
+    Sector mask_sector = in_domain ? tensor->symmetry->dual_sector(sector) : sector;
+
+    Sector sector_cap = mask_sector;
+    py::cpp_function func([sector_cap, m](py::object shape, py::object coupled) {
+        auto np = py::module_::import("numpy");
+        py::object block = np.attr("zeros")(shape, py::arg("dtype") = np.attr("bool_"));
+        if (coupled.cast<Sector>() == sector_cap) {
+            block.attr("__setitem__")(m, true);
+        }
+        return block;
+    });
+
+    auto diag = DiagonalTensor::from_sector_block_func(
+      func, mask_space, tensor->backend, std::nullopt, py::none(), Dtype::Bool, tensor->device);
+    auto mask = Mask::from_DiagonalTensor(diag);
+    auto masked = apply_mask(tensor, mask, leg);
+    auto moved = move_leg(masked,
+                          leg,
+                          /*codomain_pos=*/std::nullopt,
+                          /*domain_pos=*/0);
+    moved->set_label(-1, std::string(ChargedTensor::_CHARGE_LEG_LABEL));
+    auto inv = std::dynamic_pointer_cast<SymmetricTensor>(moved);
+    if (!inv) {
+        inv = moved->as_SymmetricTensor();
+    }
+    return std::make_shared<ChargedTensor>(std::move(inv), nullptr);
 }
 
 } // namespace cyten

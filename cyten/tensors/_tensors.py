@@ -66,6 +66,7 @@ from .._core import (  # noqa: F401
     real,
     real_if_close,
     scale_axis,
+    slice_leg,
     split_legs,
     sqrt,
     squeeze_legs,
