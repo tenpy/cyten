@@ -24,6 +24,7 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
+#include <variant>
 
 namespace cyten {
 
@@ -95,6 +96,68 @@ py_eq(py::object a, py::object b)
         return false;
     }
     return eq.cast<bool>();
+}
+
+py::object
+py_from_compose_sym(std::variant<SymmetricTensorPtr, BlockBackend::Scalar> const& v)
+{
+    return std::visit([](auto const& x) -> py::object { return py::cast(x); }, v);
+}
+
+py::object
+py_compose_with_mask(py::object tensor, py::object mask, int64 leg_idx)
+{
+    return py::cast(_compose_with_Mask(tensor.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), leg_idx));
+}
+
+void
+check_spaces(std::initializer_list<py::object> a,
+             std::initializer_list<py::object> b,
+             bool expect_equal = true)
+{
+    std::vector<Space::Ptr> va;
+    std::vector<Space::Ptr> vb;
+    va.reserve(a.size());
+    vb.reserve(b.size());
+    for (auto const& o : a) {
+        va.push_back(o.cast<Space::Ptr>());
+    }
+    for (auto const& o : b) {
+        vb.push_back(o.cast<Space::Ptr>());
+    }
+    _check_compatible_legs(va, vb, expect_equal);
+}
+
+void
+check_leg_seq(py::handle seq1, py::handle seq2, bool expect_equal = true)
+{
+    std::vector<Leg::Ptr> a;
+    std::vector<Leg::Ptr> b;
+    for (auto item : py::reinterpret_borrow<py::iterable>(seq1)) {
+        a.push_back(item.cast<Leg::Ptr>());
+    }
+    for (auto item : py::reinterpret_borrow<py::iterable>(seq2)) {
+        b.push_back(item.cast<Leg::Ptr>());
+    }
+    _check_compatible_legs(a, b, expect_equal);
+}
+
+void
+check_legs(std::vector<py::object> const& a,
+           std::vector<py::object> const& b,
+           bool expect_equal = true)
+{
+    std::vector<Leg::Ptr> va;
+    std::vector<Leg::Ptr> vb;
+    va.reserve(a.size());
+    vb.reserve(b.size());
+    for (auto const& o : a) {
+        va.push_back(o.cast<Leg::Ptr>());
+    }
+    for (auto const& o : b) {
+        vb.push_back(o.cast<Leg::Ptr>());
+    }
+    _check_compatible_legs(va, vb, expect_equal);
 }
 
 py::object
@@ -414,7 +477,8 @@ apply_mask(py::object tensor, py::object mask, py::object leg)
     if (in_domain) {
         mask = transpose(mask);
     }
-    return _compose_with_Mask(std::move(tensor), std::move(mask), leg_idx);
+    return py::cast(
+      _compose_with_Mask(tensor.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), leg_idx));
 }
 
 py::object
@@ -431,7 +495,8 @@ enlarge_leg(py::object tensor, py::object mask, py::object leg)
     if (in_domain) {
         mask = transpose(mask);
     }
-    return _compose_with_Mask(std::move(tensor), std::move(mask), leg_idx);
+    return py::cast(
+      _compose_with_Mask(tensor.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), leg_idx));
 }
 
 py::object
@@ -514,13 +579,7 @@ compose(py::object tensor1,
     // only tensor2 is ChargedTensor
     // ---
     (void)same_device2(tensor1, tensor2);
-    {
-        py::list a;
-        a.append(tensor1.attr("domain"));
-        py::list b;
-        b.append(tensor2.attr("codomain"));
-        _check_compatible_legs(a, b);
-    }
+    check_spaces({ tensor1.attr("domain") }, { tensor2.attr("codomain") });
 
     LegLabels codomain_labels =
       apply_relabel(leg_labels_from_py(tensor1.attr("codomain_labels")), relabel1);
@@ -529,11 +588,12 @@ compose(py::object tensor1,
     py::object res_labels = nested_labels_to_py(codomain_labels, domain_labels);
 
     if (is_Mask(tensor1)) {
-        return _compose_with_Mask(tensor2, tensor1, 0)
+        return py::cast(_compose_with_Mask(tensor2.cast<TensorCPtr>(), tensor1.cast<MaskCPtr>(), 0))
           .attr("set_label")(0, tensor1.attr("labels").attr("__getitem__")(0));
     }
     if (is_Mask(tensor2)) {
-        return _compose_with_Mask(tensor1, tensor2, -1)
+        return py::cast(
+                 _compose_with_Mask(tensor1.cast<TensorCPtr>(), tensor2.cast<MaskCPtr>(), -1))
           .attr("set_label")(-1, tensor2.attr("labels").attr("__getitem__")(1));
     }
 
@@ -573,7 +633,10 @@ compose(py::object tensor1,
           tensor2.attr("charged_state"));
     }
 
-    return _compose_SymmetricTensors(tensor1, tensor2, relabel1, relabel2);
+    return py_from_compose_sym(_compose_SymmetricTensors(tensor1.cast<SymmetricTensorCPtr>(),
+                                                         tensor2.cast<SymmetricTensorCPtr>(),
+                                                         relabel1,
+                                                         relabel2));
 }
 
 std::string
@@ -617,21 +680,11 @@ inner(py::object A, py::object B, bool do_dagger)
     (void)same_device2(A, B);
 
     if (do_dagger) {
-        py::list a;
-        a.append(A.attr("codomain"));
-        a.append(A.attr("domain"));
-        py::list b;
-        b.append(B.attr("codomain"));
-        b.append(B.attr("domain"));
-        _check_compatible_legs(a, b);
+        check_spaces({ A.attr("codomain"), A.attr("domain") },
+                     { B.attr("codomain"), B.attr("domain") });
     } else {
-        py::list a;
-        a.append(A.attr("codomain"));
-        a.append(A.attr("domain"));
-        py::list b;
-        b.append(B.attr("domain"));
-        b.append(B.attr("codomain"));
-        _check_compatible_legs(a, b);
+        check_spaces({ A.attr("codomain"), A.attr("domain") },
+                     { B.attr("domain"), B.attr("codomain") });
     }
 
     if (is_Identity(A)) {
@@ -673,11 +726,14 @@ inner(py::object A, py::object B, bool do_dagger)
         }
         auto bb = backend->block_backend;
         if (do_dagger) {
-            py::object inv_part = _compose_SymmetricTensors(
-              tensors_mod().attr("bend_legs")(dagger(A.attr("invariant_part")),
-                                              py::arg("num_codomain_legs") = 1),
-              tensors_mod().attr("bend_legs")(B.attr("invariant_part"),
-                                              py::arg("num_domain_legs") = 1)); // ['!*', '!']
+            py::object inv_part = py_from_compose_sym(_compose_SymmetricTensors(
+              tensors_mod()
+                .attr("bend_legs")(dagger(A.attr("invariant_part")),
+                                   py::arg("num_codomain_legs") = 1)
+                .cast<SymmetricTensorCPtr>(),
+              tensors_mod()
+                .attr("bend_legs")(B.attr("invariant_part"), py::arg("num_domain_legs") = 1)
+                .cast<SymmetricTensorCPtr>())); // ['!*', '!']
             // OPTIMIZE: like GEMM, should we offer an interface where dagger is implicitly done
             // during tdot?
             py::object inv_block =
@@ -713,11 +769,11 @@ inner(py::object A, py::object B, bool do_dagger)
                                                                   py::cast(fwd_legs),
                                                                   py::make_tuple(-1),
                                                                   py::arg("bend_right") = true);
-            py::object inv_part =
-              _compose_SymmetricTensors(A_inv,
-                                        B_inv,
-                                        std::map<std::string, std::string>{ { "!", "!A" } },
-                                        std::map<std::string, std::string>{ { "!", "!B" } });
+            py::object inv_part = py_from_compose_sym(_compose_SymmetricTensors(
+              A_inv.cast<SymmetricTensorCPtr>(),
+              B_inv.cast<SymmetricTensorCPtr>(),
+              std::map<std::string, std::string>{ { "!", "!A" } },
+              std::map<std::string, std::string>{ { "!", "!B" } }));
             assert(
               py_eq(inv_part.attr("labels"), py::cast(std::vector<std::string>{ "!A", "!B" })));
             py::object inv_block =
@@ -860,15 +916,8 @@ linear_combination(py::object a, py::object v, py::object b, py::object w)
     // Remaining case: convert to SymmetricTensor
     // ---
     (void)same_device2(v, w);
-    {
-        py::list lhs;
-        lhs.append(v.attr("codomain"));
-        lhs.append(v.attr("domain"));
-        py::list rhs;
-        rhs.append(w.attr("codomain"));
-        rhs.append(w.attr("domain"));
-        _check_compatible_legs(lhs, rhs);
-    }
+    check_spaces({ v.attr("codomain"), v.attr("domain") },
+                 { w.attr("codomain"), w.attr("domain") });
     // Note: We implement Tensor.__add__ and Tensor.__sub__ in terms of this function, so we cant
     //       use them (or the ``+`` and ``-`` operations) here.
     if (!is_Number_or_Scalar(a) || !is_Number_or_Scalar(b)) {
@@ -1179,9 +1228,7 @@ partial_compose(py::object tensor1,
             .attr("factors")
             .attr("__getitem__")(py::slice(
               static_cast<py::ssize_t>(t1_first), static_cast<py::ssize_t>(t1_last + 1), 1));
-        _check_compatible_legs(
-          py::reinterpret_borrow<py::sequence>(factors1),
-          py::reinterpret_borrow<py::sequence>(tensor2.attr("domain").attr("factors")));
+        check_leg_seq(factors1, tensor2.attr("domain").attr("factors"));
         LegLabels tensor2_labels =
           apply_relabel(leg_labels_from_py(tensor2.attr("codomain_labels")), relabel2);
         codomain_labels.erase(codomain_labels.begin() + t1_first,
@@ -1217,9 +1264,7 @@ partial_compose(py::object tensor1,
           py::slice(static_cast<py::ssize_t>(domain_first_leg),
                     static_cast<py::ssize_t>(domain_last_leg + 1),
                     1));
-        _check_compatible_legs(
-          py::reinterpret_borrow<py::sequence>(factors1),
-          py::reinterpret_borrow<py::sequence>(tensor2.attr("codomain").attr("factors")));
+        check_leg_seq(factors1, tensor2.attr("codomain").attr("factors"));
         LegLabels tensor2_labels =
           apply_relabel(leg_labels_from_py(tensor2.attr("domain_labels")), relabel2);
         domain_labels.erase(domain_labels.begin() + domain_first_leg,
@@ -1258,7 +1303,7 @@ partial_compose(py::object tensor1,
 
     // tensor1 cannot be Mask or DiagonalTensor due to num_legs constraint
     if (is_Mask(tensor2)) {
-        return _compose_with_Mask(tensor1, tensor2, t1_first).attr("set_labels")(res_labels_py);
+        return py_compose_with_mask(tensor1, tensor2, t1_first).attr("set_labels")(res_labels_py);
     }
     if (is_DiagonalTensor(tensor2)) {
         return scale_axis(tensor1, tensor2, py::int_(t1_first)).attr("set_labels")(res_labels_py);
@@ -1304,13 +1349,13 @@ partial_trace(py::object tensor, std::vector<py::object> pairs, py::object level
         throw std::invalid_argument("Pairs may not contain duplicates.");
     }
     {
-        py::list as_cod;
-        py::list as_dom;
+        std::vector<py::object> as_cod;
+        std::vector<py::object> as_dom;
         for (auto const& [i1, i2] : parsed_pairs) {
-            as_cod.append(tensor.attr("_as_codomain_leg")(i1));
-            as_dom.append(tensor.attr("_as_domain_leg")(i2));
+            as_cod.push_back(tensor.attr("_as_codomain_leg")(i1));
+            as_dom.push_back(tensor.attr("_as_domain_leg")(i2));
         }
-        _check_compatible_legs(as_cod, as_dom);
+        check_legs(as_cod, as_dom);
     }
 
     if (pairs.empty()) {
@@ -1561,13 +1606,13 @@ tdot(py::object tensor1,
         throw std::invalid_argument("legs1 and legs2 must have the same length");
     }
     {
-        py::list as_dom;
-        py::list as_cod;
+        std::vector<py::object> as_dom;
+        std::vector<py::object> as_cod;
         for (std::size_t i = 0; i < legs1_v.size(); ++i) {
-            as_dom.append(tensor1.attr("_as_domain_leg")(legs1_v[i]));
-            as_cod.append(tensor2.attr("_as_codomain_leg")(legs2_v[i]));
+            as_dom.push_back(tensor1.attr("_as_domain_leg")(legs1_v[i]));
+            as_cod.push_back(tensor2.attr("_as_codomain_leg")(legs2_v[i]));
         }
-        _check_compatible_legs(as_dom, as_cod);
+        check_legs(as_dom, as_cod);
     }
 
     // deal with relabelling once using recursion.
@@ -1605,9 +1650,9 @@ tdot(py::object tensor1,
             bool t2_in_domain = legs2_v[0] >= tensor2.attr("num_codomain_legs").cast<int64>();
             py::object res;
             if (t2_in_domain == t1_in_domain) {
-                res = _compose_with_Mask(tensor2, transpose(tensor1), legs2_v[0]);
+                res = py_compose_with_mask(tensor2, transpose(tensor1), legs2_v[0]);
             } else {
-                res = _compose_with_Mask(tensor2, tensor1, legs2_v[0]);
+                res = py_compose_with_mask(tensor2, tensor1, legs2_v[0]);
             }
             res.attr("set_label")(legs2_v[0],
                                   tensor1.attr("labels").attr("__getitem__")(1 - legs1_v[0]));
@@ -1627,9 +1672,9 @@ tdot(py::object tensor1,
               legs2_v[which_is_large] >= tensor2.attr("num_codomain_legs").cast<int64>();
             py::object res;
             if (t1_in_domain == t2_in_domain) {
-                res = _compose_with_Mask(tensor2, transpose(tensor1), legs2_v[which_is_large]);
+                res = py_compose_with_mask(tensor2, transpose(tensor1), legs2_v[which_is_large]);
             } else {
-                res = _compose_with_Mask(tensor2, tensor1, legs2_v[which_is_large]);
+                res = py_compose_with_mask(tensor2, tensor1, legs2_v[which_is_large]);
             }
             // then trace over the small leg
             res = partial_trace(res, { legs2_idcs });
@@ -1648,9 +1693,9 @@ tdot(py::object tensor1,
             bool t2_in_domain = legs2_v[0] == 1;
             py::object res;
             if (t1_in_domain == t2_in_domain) {
-                res = _compose_with_Mask(tensor1, transpose(tensor2), legs1_v[0]);
+                res = py_compose_with_mask(tensor1, transpose(tensor2), legs1_v[0]);
             } else {
-                res = _compose_with_Mask(tensor1, tensor2, legs1_v[0]);
+                res = py_compose_with_mask(tensor1, tensor2, legs1_v[0]);
             }
             res.attr("set_label")(legs1_v[0],
                                   tensor2.attr("labels").attr("__getitem__")(1 - legs2_v[0]));
@@ -1671,9 +1716,9 @@ tdot(py::object tensor1,
             bool t2_in_domain = is_proj;
             py::object res;
             if (t1_in_domain == t2_in_domain) {
-                res = _compose_with_Mask(tensor1, transpose(tensor2), legs1_v[which_is_large]);
+                res = py_compose_with_mask(tensor1, transpose(tensor2), legs1_v[which_is_large]);
             } else {
-                res = _compose_with_Mask(tensor1, tensor2, legs1_v[which_is_large]);
+                res = py_compose_with_mask(tensor1, tensor2, legs1_v[which_is_large]);
             }
             // then trace over the small leg
             res = partial_trace(res, { legs1_idcs });
@@ -1812,19 +1857,14 @@ tdot(py::object tensor1,
     } catch (...) {
         handle_permute_legs_symmetry_error();
     }
-    return _compose_SymmetricTensors(tensor1, tensor2);
+    return py_from_compose_sym(_compose_SymmetricTensors(tensor1.cast<SymmetricTensorCPtr>(),
+                                                         tensor2.cast<SymmetricTensorCPtr>()));
 }
 
 py::object
 trace(py::object tensor)
 {
-    {
-        py::list a;
-        a.append(tensor.attr("domain"));
-        py::list b;
-        b.append(tensor.attr("codomain"));
-        _check_compatible_legs(a, b);
-    }
+    check_spaces({ tensor.attr("domain") }, { tensor.attr("codomain") });
     if (is_Identity(tensor)) {
         return tensor.attr("leg").attr("dim");
     }

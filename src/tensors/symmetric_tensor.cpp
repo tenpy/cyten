@@ -726,7 +726,7 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
             new_data = backend->to_block_backend(data, new_backend->block_backend, dt, device_s);
         } else if (std::dynamic_pointer_cast<FusionTreeBackend>(backend)) {
             new_data =
-              _convert_FT_to_abelian(py::cast(shared_from_this()),
+              _convert_FT_to_abelian(shared_from_this(),
                                      std::dynamic_pointer_cast<AbelianBackend>(new_backend),
                                      dt,
                                      device_s);
@@ -745,7 +745,7 @@ SymmetricTensor::to_backend(TensorBackend::Ptr new_backend,
     } else if (std::dynamic_pointer_cast<FusionTreeBackend>(new_backend)) {
         if (std::dynamic_pointer_cast<AbelianBackend>(backend)) {
             new_data =
-              _convert_abelian_to_FT(py::cast(shared_from_this()),
+              _convert_abelian_to_FT(shared_from_this(),
                                      std::dynamic_pointer_cast<FusionTreeBackend>(new_backend),
                                      dt,
                                      device_s);

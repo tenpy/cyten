@@ -1,19 +1,87 @@
 #include <cyten/tensors/helpers.h>
+#include <cyten/tools.h>
 
 #include "../py_cyten_pybind11.h"
 
 #include <map>
 #include <optional>
 #include <string>
+#include <variant>
+#include <vector>
 
 namespace cyten {
+
+namespace {
+
+LegLabels
+py_leg_labels(py::object seq)
+{
+    LegLabels out;
+    for (auto item : py::reinterpret_borrow<py::iterable>(seq)) {
+        if (item.is_none()) {
+            out.push_back(std::nullopt);
+        } else {
+            out.push_back(item.cast<std::string>());
+        }
+    }
+    return out;
+}
+
+void
+py_check_compatible_legs(py::sequence legs1, py::sequence legs2, bool expect_equal)
+{
+    bool all_space = true;
+    for (auto item : legs1) {
+        if (!py::isinstance<Space>(py::reinterpret_borrow<py::object>(item))) {
+            all_space = false;
+            break;
+        }
+    }
+    if (all_space) {
+        for (auto item : legs2) {
+            if (!py::isinstance<Space>(py::reinterpret_borrow<py::object>(item))) {
+                all_space = false;
+                break;
+            }
+        }
+    }
+    if (all_space) {
+        std::vector<Space::Ptr> a;
+        std::vector<Space::Ptr> b;
+        for (auto item : legs1) {
+            a.push_back(item.cast<Space::Ptr>());
+        }
+        for (auto item : legs2) {
+            b.push_back(item.cast<Space::Ptr>());
+        }
+        _check_compatible_legs(a, b, expect_equal);
+        return;
+    }
+    std::vector<Leg::Ptr> a;
+    std::vector<Leg::Ptr> b;
+    for (auto item : legs1) {
+        a.push_back(item.cast<Leg::Ptr>());
+    }
+    for (auto item : legs2) {
+        b.push_back(item.cast<Leg::Ptr>());
+    }
+    _check_compatible_legs(a, b, expect_equal);
+}
+
+py::object
+py_from_compose_sym(std::variant<SymmetricTensorPtr, BlockBackend::Scalar> const& v)
+{
+    return std::visit([](auto const& x) -> py::object { return py::cast(x); }, v);
+}
+
+} // namespace
 
 void
 bind_tensors_helpers(py::module_& m)
 {
     m.def(
       "_check_compatible_legs",
-      &_check_compatible_legs,
+      &py_check_compatible_legs,
       py::arg("legs1"),
       py::arg("legs2"),
       py::arg("expect_equal") = true,
@@ -57,7 +125,8 @@ The result hast the same leg order and labels as `tensor`.
           if (!relabel2.is_none()) {
               r2 = relabel2.cast<std::map<std::string, std::string>>();
           }
-          return _compose_SymmetricTensors(std::move(tensor1), std::move(tensor2), r1, r2);
+          return py_from_compose_sym(_compose_SymmetricTensors(
+            tensor1.cast<SymmetricTensorCPtr>(), tensor2.cast<SymmetricTensorCPtr>(), r1, r2));
       },
       py::arg("tensor1"),
       py::arg("tensor2"),
@@ -112,12 +181,23 @@ Notes
           py::arg("new_leg_dual"),
           R"pydoc(Common steps to prepare a SymmetricTensor before a decomposition)pydoc");
 
-    m.def("_decomposition_labels", &_decomposition_labels, py::arg("new_labels"));
+    m.def(
+      "_decomposition_labels",
+      [](py::object new_labels) {
+          return _decomposition_labels(py_leg_labels(to_iterable(new_labels)));
+      },
+      py::arg("new_labels"));
 
-    m.def("_svd_new_labels",
-          &_svd_new_labels,
-          py::arg("new_labels"),
-          R"pydoc(Parse label for :func:`svd`.)pydoc");
+    m.def(
+      "_svd_new_labels",
+      [](py::object new_labels) {
+          if (new_labels.is_none()) {
+              return _svd_new_labels(std::nullopt);
+          }
+          return _svd_new_labels(py_leg_labels(to_iterable(new_labels)));
+      },
+      py::arg("new_labels"),
+      R"pydoc(Parse label for :func:`svd`.)pydoc");
 }
 
 } // namespace cyten

@@ -210,8 +210,9 @@ exp(py::object obj)
         throw py::type_error("ChargedTensor can not be exponentiated.");
     }
     if (is_symmetric_tensor(obj)) {
-        _check_compatible_legs(py::make_tuple(obj.attr("domain")),
-                               py::make_tuple(obj.attr("codomain")));
+        _check_compatible_legs(
+          std::vector<Space::Ptr>{ obj.attr("domain").cast<Space::Ptr>() },
+          std::vector<Space::Ptr>{ obj.attr("codomain").cast<Space::Ptr>() });
 
         auto backend = obj.attr("backend").cast<TensorBackend::Ptr>();
         bool combine =

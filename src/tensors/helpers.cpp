@@ -2,38 +2,20 @@
 
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/charged_tensor.h>
-#include <cyten/tensors/ops_algebra.h>
+#include <cyten/tensors/ops_legs.h>
 #include <cyten/tools.h>
 
 #include <cassert>
 #include <format>
+#include <memory>
 #include <numeric>
 #include <stdexcept>
 #include <unordered_set>
+#include <variant>
 
 namespace cyten {
 
 namespace {
-
-py::object
-tensors_mod()
-{
-    return py::module_::import("cyten.tensors._tensors");
-}
-
-LegLabels
-leg_labels_from_py(py::object seq)
-{
-    LegLabels out;
-    for (auto item : py::reinterpret_borrow<py::iterable>(seq)) {
-        if (item.is_none()) {
-            out.push_back(std::nullopt);
-        } else {
-            out.push_back(item.cast<std::string>());
-        }
-    }
-    return out;
-}
 
 LegLabels
 apply_relabel(LegLabels labels, std::optional<std::map<std::string, std::string>> const& relabel)
@@ -67,39 +49,6 @@ duplicate_label_entries(LegLabels const& labels)
         }
     }
     return dups;
-}
-
-py::object
-data_as_python(TensorBackend::DataPtr data, TensorBackend::Ptr const& /*backend*/)
-{
-    // C++ SymmetricTensor/Mask/DiagonalTensor ctors take DataPtr (including NoSymmetry BlockData).
-    return py::cast(std::move(data));
-}
-
-py::object
-make_python_symmetric_tensor(TensorBackend::DataPtr data,
-                             py::object codomain,
-                             py::object domain,
-                             TensorBackend::Ptr backend,
-                             py::object labels)
-{
-    return tensors_mod().attr("SymmetricTensor")(data_as_python(std::move(data), backend),
-                                                 codomain,
-                                                 domain,
-                                                 py::arg("backend") = py::cast(backend),
-                                                 py::arg("labels") = labels);
-}
-
-py::object
-make_python_charged_tensor(py::object invariant_part, py::object charged_state)
-{
-    return tensors_mod().attr("ChargedTensor")(invariant_part, charged_state);
-}
-
-bool
-is_python_instance(py::object obj, char const* class_name)
-{
-    return py::isinstance(obj, tensors_mod().attr(class_name));
 }
 
 int64
@@ -216,86 +165,94 @@ get_block_slice(BlockBackend::BlockPtr const& src, std::initializer_list<BlockIn
     return (*src)[std::span<const BlockIndex>(key.begin(), key.size())];
 }
 
-} // namespace
-
+template<class T>
 void
-_check_compatible_legs(py::sequence legs1, py::sequence legs2, bool expect_equal)
+check_compatible_impl(std::vector<std::shared_ptr<T>> const& legs1,
+                      std::vector<std::shared_ptr<T>> const& legs2,
+                      bool expect_equal)
 {
-    if (py::len(legs1) != py::len(legs2)) {
+    if (legs1.size() != legs2.size()) {
         throw std::invalid_argument("Different number of legs");
     }
-    auto n = static_cast<py::ssize_t>(py::len(legs1));
-    for (py::ssize_t i = 0; i < n; ++i) {
-        py::object l1 = legs1[i];
-        py::object l2 = legs2[i];
-        if (!l1.attr("symmetry").attr("is_equivalent_to")(l2.attr("symmetry")).cast<bool>()) {
+    for (std::size_t i = 0; i < legs1.size(); ++i) {
+        auto const& l1 = legs1[i];
+        auto const& l2 = legs2[i];
+        if (!l1->symmetry->is_equivalent_to(*l2->symmetry)) {
             throw std::invalid_argument("Different symmetries");
         }
-        py::object rhs = expect_equal ? l2 : py::object(l2.attr("dual"));
-        // Use Python ``__eq__`` so Space/Leg bindings apply (``py::object::operator==`` is pointer
-        // identity).
-        py::object eq = l1.attr("__eq__")(rhs);
-        if (eq.is(py::reinterpret_borrow<py::object>(Py_NotImplemented)) || !eq.cast<bool>()) {
+        auto rhs = expect_equal ? l2 : l2->dual();
+        // Explicit ``operator==``: C++20 reversed candidates make ``*a == *b`` ambiguous
+        // for TensorProduct / Space.
+        if (!l1->operator==(*rhs)) {
             throw std::invalid_argument("Incompatible legs.");
         }
     }
 }
 
-py::object
-_compose_with_Mask(py::object tensor, py::object mask, int64 leg_idx)
+} // namespace
+
+void
+_check_compatible_legs(std::vector<Leg::Ptr> const& legs1,
+                       std::vector<Leg::Ptr> const& legs2,
+                       bool expect_equal)
+{
+    check_compatible_impl(legs1, legs2, expect_equal);
+}
+
+void
+_check_compatible_legs(std::vector<Space::Ptr> const& legs1,
+                       std::vector<Space::Ptr> const& legs2,
+                       bool expect_equal)
+{
+    check_compatible_impl(legs1, legs2, expect_equal);
+}
+
+TensorPtr
+_compose_with_Mask(TensorCPtr tensor, MaskCPtr mask, int64 leg_idx)
 {
     // --- hints from Python _compose_with_Mask ---
     // deal with other tensor types
     // ---
-    // Match Python: ``in_domain, co_domain_idx, leg_idx = tensor._parse_leg_idx(leg_idx)``
-    auto parsed = tensor.attr("_parse_leg_idx")(leg_idx);
-    bool in_domain = parsed.attr("__getitem__")(0).cast<bool>();
-    int64 co_domain_idx = parsed.attr("__getitem__")(1).cast<int64>();
-    leg_idx = parsed.attr("__getitem__")(2).cast<int64>();
+    auto [in_domain, co_domain_idx, parsed_leg_idx] = tensor->_parse_leg_idx(leg_idx);
+    leg_idx = parsed_leg_idx;
 
     if (in_domain) {
-        py::list a;
-        a.append(tensor.attr("domain").attr("__getitem__")(co_domain_idx));
-        py::list b;
-        b.append(mask.attr("codomain").attr("__getitem__")(0));
-        _check_compatible_legs(a, b);
+        _check_compatible_legs(std::vector<Leg::Ptr>{ (*tensor->domain)[co_domain_idx] },
+                               std::vector<Leg::Ptr>{ (*mask->codomain)[0] });
     } else {
-        py::list a;
-        a.append(tensor.attr("codomain").attr("__getitem__")(co_domain_idx));
-        py::list b;
-        b.append(mask.attr("domain").attr("__getitem__")(0));
-        _check_compatible_legs(a, b);
+        _check_compatible_legs(std::vector<Leg::Ptr>{ (*tensor->codomain)[co_domain_idx] },
+                               std::vector<Leg::Ptr>{ (*mask->domain)[0] });
     }
 
-    if (is_python_instance(tensor, "ChargedTensor") || py::isinstance<ChargedTensor>(tensor)) {
-        py::object invariant_part =
-          _compose_with_Mask(tensor.attr("invariant_part"), mask, leg_idx);
-        return make_python_charged_tensor(invariant_part, tensor.attr("charged_state"));
+    if (auto charged = std::dynamic_pointer_cast<ChargedTensor const>(tensor)) {
+        auto invariant_part = _compose_with_Mask(charged->invariant_part, mask, leg_idx);
+        auto inv_sym = std::dynamic_pointer_cast<SymmetricTensor>(invariant_part);
+        if (!inv_sym) {
+            throw std::runtime_error("_compose_with_Mask expected SymmetricTensor invariant_part");
+        }
+        return std::make_shared<ChargedTensor>(std::move(inv_sym), charged->charged_state);
     }
-    if (is_python_instance(tensor, "Mask") || py::isinstance<Mask>(tensor)) {
+    if (std::dynamic_pointer_cast<Mask const>(tensor)) {
         throw NotImplemented("tensors._compose_with_Mask not implemented for Mask");
     }
-    tensor =
-      tensor.attr("as_SymmetricTensor")(py::arg("warning") = "Converting to SymmetricTensor.");
+    auto tens = std::const_pointer_cast<Tensor>(tensor)->as_SymmetricTensor(
+      false, std::string("Converting to SymmetricTensor."));
 
-    auto backend = get_same_backend({ tensor, mask });
-    bool mask_is_projection = mask.attr("is_projection").cast<bool>();
+    auto backend = get_same_backend(std::vector<TensorCPtr>{ tens, mask });
     std::tuple<TensorBackend::DataPtr, TensorProduct::Ptr, TensorProduct::Ptr> contracted;
-    if (in_domain == mask_is_projection) {
-        contracted = backend->mask_contract_small_leg(
-          tensor.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), leg_idx);
+    if (in_domain == mask->is_projection) {
+        contracted = backend->mask_contract_small_leg(tens, mask, leg_idx);
     } else {
-        contracted = backend->mask_contract_large_leg(
-          tensor.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), leg_idx);
+        contracted = backend->mask_contract_large_leg(tens, mask, leg_idx);
     }
     auto& [data, codomain, domain] = contracted;
-    return make_python_symmetric_tensor(
-      std::move(data), py::cast(codomain), py::cast(domain), backend, tensor.attr("labels"));
+    return std::make_shared<SymmetricTensor>(
+      std::move(data), std::move(codomain), std::move(domain), backend, tens->symmetry, tens->labels());
 }
 
-py::object
-_compose_SymmetricTensors(py::object tensor1,
-                          py::object tensor2,
+std::variant<SymmetricTensorPtr, BlockBackend::Scalar>
+_compose_SymmetricTensors(SymmetricTensorCPtr tensor1,
+                          SymmetricTensorCPtr tensor2,
                           std::optional<std::map<std::string, std::string>> relabel1,
                           std::optional<std::map<std::string, std::string>> relabel2)
 {
@@ -303,15 +260,13 @@ _compose_SymmetricTensors(py::object tensor1,
     // no remaining open legs
     // drop duplicate labels
     // ---
-    if (tensor1.attr("num_codomain_legs").cast<int64>() == 0 &&
-        tensor2.attr("num_domain_legs").cast<int64>() == 0) {
-        return inner(tensor1, tensor2, /*do_dagger=*/false);
+    auto backend = get_same_backend(std::vector<TensorCPtr>{ tensor1, tensor2 });
+    if (tensor1->num_codomain_legs() == 0 && tensor2->num_domain_legs() == 0) {
+        return backend->inner(tensor1, tensor2, /*do_dagger=*/false);
     }
 
-    LegLabels labels_codomain =
-      apply_relabel(leg_labels_from_py(tensor1.attr("codomain_labels")), relabel1);
-    LegLabels labels_domain =
-      apply_relabel(leg_labels_from_py(tensor2.attr("domain_labels")), relabel2);
+    LegLabels labels_codomain = apply_relabel(tensor1->codomain_labels(), relabel1);
+    LegLabels labels_domain = apply_relabel(tensor2->domain_labels(), relabel2);
 
     LegLabels labels = labels_codomain;
     for (auto it = labels_domain.rbegin(); it != labels_domain.rend(); ++it) {
@@ -327,32 +282,26 @@ _compose_SymmetricTensors(py::object tensor1,
         }
     }
 
-    auto backend = get_same_backend({ tensor1, tensor2 });
-    auto data =
-      backend->compose(tensor1.cast<SymmetricTensorCPtr>(), tensor2.cast<SymmetricTensorCPtr>());
-    return make_python_symmetric_tensor(std::move(data),
-                                        tensor1.attr("codomain"),
-                                        tensor2.attr("domain"),
-                                        backend,
-                                        py::cast(labels));
+    auto data = backend->compose(tensor1, tensor2);
+    return std::make_shared<SymmetricTensor>(
+      std::move(data), tensor1->codomain, tensor2->domain, backend, tensor1->symmetry, labels);
 }
 
 FusionTreeData::Ptr
-_convert_abelian_to_FT(py::object tensor,
+_convert_abelian_to_FT(TensorCPtr tensor,
                        FusionTreeBackend::Ptr backend,
                        Dtype dtype,
                        std::string device)
 {
-    auto codomain = tensor.attr("codomain").cast<TensorProduct::Ptr>();
-    auto domain = tensor.attr("domain").cast<TensorProduct::Ptr>();
-    auto symmetry = tensor.attr("symmetry").cast<Symmetry::Ptr>();
-    auto ab_data = AbelianBackend::data_from_tensor(tensor.cast<TensorCPtr>());
-    auto old_bb =
-      tensor.attr("backend").attr("block_backend").cast<std::shared_ptr<BlockBackend>>();
+    auto const& codomain = tensor->codomain;
+    auto const& domain = tensor->domain;
+    auto const& symmetry = tensor->symmetry;
+    auto ab_data = AbelianBackend::data_from_tensor(tensor);
+    auto old_bb = tensor->backend->block_backend;
 
-    int64 num_codomain_legs = tensor.attr("num_codomain_legs").cast<int64>();
-    int64 num_domain_legs = tensor.attr("num_domain_legs").cast<int64>();
-    int64 num_legs = tensor.attr("num_legs").cast<int64>();
+    int64 num_codomain_legs = tensor->num_codomain_legs();
+    int64 num_domain_legs = tensor->num_domain_legs();
+    int64 num_legs = tensor->num_legs;
 
     // Start with all allowed blocks initialized with zeros
     // OPTIMIZE create the blocks on-demand instead?
@@ -508,21 +457,20 @@ _convert_abelian_to_FT(py::object tensor,
 }
 
 AbelianBackendData::Ptr
-_convert_FT_to_abelian(py::object tensor,
+_convert_FT_to_abelian(TensorCPtr tensor,
                        AbelianBackend::Ptr backend,
                        Dtype dtype,
                        std::string device)
 {
-    auto domain = tensor.attr("domain").cast<TensorProduct::Ptr>();
-    auto codomain = tensor.attr("codomain").cast<TensorProduct::Ptr>();
-    auto symmetry = tensor.attr("symmetry").cast<Symmetry::Ptr>();
-    auto ft_data = FusionTreeBackend::data_from_tensor(tensor.cast<TensorCPtr>());
-    auto old_bb =
-      tensor.attr("backend").attr("block_backend").cast<std::shared_ptr<BlockBackend>>();
+    auto const& domain = tensor->domain;
+    auto const& codomain = tensor->codomain;
+    auto const& symmetry = tensor->symmetry;
+    auto ft_data = FusionTreeBackend::data_from_tensor(tensor);
+    auto old_bb = tensor->backend->block_backend;
 
-    int64 num_codomain_legs = tensor.attr("num_codomain_legs").cast<int64>();
-    int64 num_domain_legs = tensor.attr("num_domain_legs").cast<int64>();
-    int64 num_legs = tensor.attr("num_legs").cast<int64>();
+    int64 num_codomain_legs = tensor->num_codomain_legs();
+    int64 num_domain_legs = tensor->num_domain_legs();
+    int64 num_legs = tensor->num_legs;
 
     auto cod_legs = spaces_of_product(codomain);
     auto dom_legs = spaces_of_product(domain);
@@ -638,41 +586,38 @@ _convert_FT_to_abelian(py::object tensor,
       dtype, std::move(device), std::move(res_blocks), std::move(block_inds));
 }
 
-std::tuple<py::object, TensorProduct::Ptr, bool, bool>
-_decomposition_prepare(py::object tensor, bool new_leg_dual)
+std::tuple<SymmetricTensorPtr, TensorProduct::Ptr, bool, bool>
+_decomposition_prepare(TensorCPtr tensor, bool new_leg_dual)
 {
     // --- hints from Python _decomposition_prepare ---
     // do not define decompositions for ChargedTensors.
     // ---
-    if (tensor.attr("num_codomain_legs").cast<int64>() <= 0) {
+    if (tensor->num_codomain_legs() <= 0) {
         throw std::runtime_error("empty codomain");
     }
-    if (tensor.attr("num_domain_legs").cast<int64>() <= 0) {
+    if (tensor->num_domain_legs() <= 0) {
         throw std::runtime_error("empty domain");
     }
 
-    if (is_python_instance(tensor, "ChargedTensor") || py::isinstance<ChargedTensor>(tensor)) {
+    if (std::dynamic_pointer_cast<ChargedTensor const>(tensor)) {
         // do not define decompositions for ChargedTensors.
         throw NotImplemented("_decomposition_prepare for ChargedTensor");
     }
-    tensor = tensor.attr("as_SymmetricTensor")();
+    auto tens = std::const_pointer_cast<Tensor>(tensor)->as_SymmetricTensor();
 
-    auto codomain = tensor.attr("codomain").cast<Space::Ptr>();
-    auto domain = tensor.attr("domain").cast<Space::Ptr>();
-    auto new_leg =
-      ElementarySpace::from_largest_common_subspace({ codomain, domain }, new_leg_dual);
-    auto new_co_domain =
-      std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{ new_leg });
+    auto new_leg = ElementarySpace::from_largest_common_subspace(
+      std::vector<Space::Ptr>{ tens->codomain, tens->domain }, new_leg_dual);
+    auto new_co_domain = std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{ new_leg });
 
     bool combine_codomain = false;
     bool combine_domain = false;
-    auto backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
+    auto backend = tens->backend;
     if (!backend->can_decompose_tensors) {
-        combine_codomain = tensor.attr("num_codomain_legs").cast<int64>() > 1;
-        combine_domain = tensor.attr("num_domain_legs").cast<int64>() > 1;
-        auto combine_legs = tensors_mod().attr("combine_legs");
-        int64 n_cod = tensor.attr("num_codomain_legs").cast<int64>();
-        int64 n_legs = tensor.attr("num_legs").cast<int64>();
+        combine_codomain = tens->num_codomain_legs() > 1;
+        combine_domain = tens->num_domain_legs() > 1;
+        int64 n_cod = tens->num_codomain_legs();
+        int64 n_legs = tens->num_legs;
+        py::object tens_py = py::cast(tens);
         if (combine_codomain && combine_domain) {
             py::list cod_range;
             for (int64 i = 0; i < n_cod; ++i) {
@@ -682,45 +627,45 @@ _decomposition_prepare(py::object tensor, bool new_leg_dual)
             for (int64 i = n_cod; i < n_legs; ++i) {
                 dom_range.append(i);
             }
-            tensor = combine_legs(tensor, cod_range, dom_range);
+            tens_py = combine_legs(tens_py, std::vector<py::object>{ cod_range, dom_range });
         } else if (combine_codomain) {
             py::list cod_range;
             for (int64 i = 0; i < n_cod; ++i) {
                 cod_range.append(i);
             }
-            tensor = combine_legs(tensor, cod_range);
+            tens_py = combine_legs(tens_py, std::vector<py::object>{ cod_range });
         } else if (combine_domain) {
             py::list dom_range;
             for (int64 i = n_cod; i < n_legs; ++i) {
                 dom_range.append(i);
             }
-            tensor = combine_legs(tensor, dom_range);
+            tens_py = combine_legs(tens_py, std::vector<py::object>{ dom_range });
         }
+        tens = tens_py.cast<SymmetricTensorPtr>();
     }
-    return { tensor, new_co_domain, combine_codomain, combine_domain };
+    return { tens, new_co_domain, combine_codomain, combine_domain };
 }
 
 std::pair<LegLabel, LegLabel>
-_decomposition_labels(py::object new_labels)
+_decomposition_labels(LegLabels const& new_labels)
 {
-    LegLabels labels = leg_labels_from_py(to_iterable(new_labels));
-    if (labels.size() == 1) {
-        LegLabel a = labels[0];
+    if (new_labels.size() == 1) {
+        LegLabel a = new_labels[0];
         return { a, _dual_leg_label(a) };
     }
-    if (labels.size() == 2) {
-        return { labels[0], labels[1] };
+    if (new_labels.size() == 2) {
+        return { new_labels[0], new_labels[1] };
     }
-    throw std::invalid_argument(std::format("Expected 1 or 2 labels. Got {}", labels.size()));
+    throw std::invalid_argument(std::format("Expected 1 or 2 labels. Got {}", new_labels.size()));
 }
 
 std::tuple<LegLabel, LegLabel, LegLabel, LegLabel>
-_svd_new_labels(py::object new_labels)
+_svd_new_labels(std::optional<LegLabels> new_labels)
 {
-    if (new_labels.is_none()) {
+    if (!new_labels.has_value()) {
         return { std::nullopt, std::nullopt, std::nullopt, std::nullopt };
     }
-    LegLabels labels = leg_labels_from_py(to_iterable(new_labels));
+    LegLabels const& labels = *new_labels;
     LegLabel a, b, c, d;
     if (labels.size() == 1) {
         a = c = labels[0];

@@ -15,33 +15,36 @@
 #include <string>
 #include <tuple>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace cyten {
 
 /// Check if legs are compatible (equal if `expect_equal`, otherwise mutually dual).
 ///
-/// Arguments are Python sequences of :class:`Leg` / :class:`Space` (including
-/// :class:`TensorProduct`), since callers pass either single legs or whole co-domains.
-void _check_compatible_legs(py::sequence legs1, py::sequence legs2, bool expect_equal = true);
+/// :class:`TensorProduct` (co)domains use the :class:`Space` overload. Single tensor legs
+/// (:class:`ElementarySpace` / :class:`LegPipe`) use the :class:`Leg` overload.
+void _check_compatible_legs(std::vector<Leg::Ptr> const& legs1,
+                            std::vector<Leg::Ptr> const& legs2,
+                            bool expect_equal = true);
+void _check_compatible_legs(std::vector<Space::Ptr> const& legs1,
+                            std::vector<Space::Ptr> const& legs2,
+                            bool expect_equal = true);
 
 /// Compose `tensor` with a mask, preserving the leg order of `tensor`.
-///
-/// Tensor args are ``py::object`` so Python and C++ tensor instances both work until
-/// the Tensor hierarchy is monkey-patched.
-[[nodiscard]] py::object _compose_with_Mask(py::object tensor, py::object mask, int64 leg_idx);
+[[nodiscard]] TensorPtr _compose_with_Mask(TensorCPtr tensor, MaskCPtr mask, int64 leg_idx);
 
 /// Restricted case of :func:`compose` where we assume that both tensors are SymmetricTensor.
 ///
-/// Is used by both compose and tdot.
-[[nodiscard]] py::object _compose_SymmetricTensors(
-  py::object tensor1,
-  py::object tensor2,
+/// If both tensors have no remaining open legs, returns a scalar (the contraction).
+[[nodiscard]] std::variant<SymmetricTensorPtr, BlockBackend::Scalar> _compose_SymmetricTensors(
+  SymmetricTensorCPtr tensor1,
+  SymmetricTensorCPtr tensor2,
   std::optional<std::map<std::string, std::string>> relabel1 = std::nullopt,
   std::optional<std::map<std::string, std::string>> relabel2 = std::nullopt);
 
 /// Convert tensor from abelian backend to FT backend. Return the data.
-[[nodiscard]] FusionTreeData::Ptr _convert_abelian_to_FT(py::object tensor,
+[[nodiscard]] FusionTreeData::Ptr _convert_abelian_to_FT(TensorCPtr tensor,
                                                          FusionTreeBackend::Ptr backend,
                                                          Dtype dtype,
                                                          std::string device);
@@ -62,7 +65,7 @@ void _check_compatible_legs(py::sequence legs1, py::sequence legs2, bool expect_
 ///     - While we jump back-and-forth between different coupled sectors, and thus different FT
 ///       block while iterating, we know that we visit the tree-blocks within each FT block *in
 ///       order*, and we can thus keep track of where we are within each FT block easily.
-[[nodiscard]] AbelianBackendData::Ptr _convert_FT_to_abelian(py::object tensor,
+[[nodiscard]] AbelianBackendData::Ptr _convert_FT_to_abelian(TensorCPtr tensor,
                                                              AbelianBackend::Ptr backend,
                                                              Dtype dtype,
                                                              std::string device);
@@ -72,15 +75,14 @@ void _check_compatible_legs(py::sequence legs1, py::sequence legs2, bool expect_
 /// Returns ``(tensor, new_co_domain, combine_codomain, combine_domain)``.
 /// ``new_co_domain`` is a one-factor :class:`TensorProduct` (Python type hint says
 /// ``ElementarySpace`` but callers use it as a co-domain).
-[[nodiscard]] std::tuple<py::object, TensorProduct::Ptr, bool, bool> _decomposition_prepare(
-  py::object tensor,
-  bool new_leg_dual);
+[[nodiscard]] std::tuple<SymmetricTensorPtr, TensorProduct::Ptr, bool, bool>
+_decomposition_prepare(TensorCPtr tensor, bool new_leg_dual);
 
 /// Parse labels for two-leg decompositions (QR, LQ, eigh, …).
-[[nodiscard]] std::pair<LegLabel, LegLabel> _decomposition_labels(py::object new_labels);
+[[nodiscard]] std::pair<LegLabel, LegLabel> _decomposition_labels(LegLabels const& new_labels);
 
-/// Parse label for :func:`svd`.
+/// Parse label for :func:`svd`. ``nullopt`` means all-unlabelled.
 [[nodiscard]] std::tuple<LegLabel, LegLabel, LegLabel, LegLabel> _svd_new_labels(
-  py::object new_labels);
+  std::optional<LegLabels> new_labels);
 
 } // namespace cyten

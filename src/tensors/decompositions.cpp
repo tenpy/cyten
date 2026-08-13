@@ -147,6 +147,20 @@ labels_to_py(LegLabels const& labels)
     return out;
 }
 
+LegLabels
+leg_labels_from_py(py::object seq)
+{
+    LegLabels out;
+    for (auto item : py::reinterpret_borrow<py::iterable>(seq)) {
+        if (item.is_none()) {
+            out.push_back(std::nullopt);
+        } else {
+            out.push_back(item.cast<std::string>());
+        }
+    }
+    return out;
+}
+
 py::object
 leg_label_to_py(LegLabel const& lab)
 {
@@ -408,23 +422,23 @@ qr(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_leg_
         return { Q, R };
     }
 
-    auto [a, b] = _decomposition_labels(new_labels);
+    auto [a, b] = _decomposition_labels(leg_labels_from_py(to_iterable(new_labels)));
     auto [tens, new_co_domain, combine_codomain, combine_domain] =
-      _decomposition_prepare(tensor, new_leg_dual);
-    auto backend = tens.attr("backend").cast<TensorBackend::Ptr>();
-    auto [q_data, r_data] = backend->qr(tens.cast<SymmetricTensorCPtr>(), new_co_domain);
+      _decomposition_prepare(tensor.cast<TensorCPtr>(), new_leg_dual);
+    auto backend = tens->backend;
+    auto [q_data, r_data] = backend->qr(tens, new_co_domain);
     py::object Q = make_python_symmetric_tensor(
       std::move(q_data),
-      tens.attr("codomain"),
+      py::cast(tens->codomain),
       py::cast(new_co_domain),
       backend,
-      nested_labels_codomain_domain(tens.attr("codomain_labels"), leg_label_to_py(a)));
+      nested_labels_codomain_domain(labels_to_py(tens->codomain_labels()), leg_label_to_py(a)));
     py::object R = make_python_symmetric_tensor(
       std::move(r_data),
       py::cast(new_co_domain),
-      tens.attr("domain"),
+      py::cast(tens->domain),
       backend,
-      nested_labels_one_and_domain(leg_label_to_py(b), tens.attr("domain_labels")));
+      nested_labels_one_and_domain(leg_label_to_py(b), labels_to_py(tens->domain_labels())));
     if (combine_codomain) {
         Q = split_legs(Q, py::int_(0));
     }
@@ -462,23 +476,23 @@ lq(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_leg_
         return { L, Q };
     }
 
-    auto [a, b] = _decomposition_labels(new_labels);
+    auto [a, b] = _decomposition_labels(leg_labels_from_py(to_iterable(new_labels)));
     auto [tens, new_co_domain, combine_codomain, combine_domain] =
-      _decomposition_prepare(tensor, new_leg_dual);
-    auto backend = tens.attr("backend").cast<TensorBackend::Ptr>();
-    auto [l_data, q_data] = backend->lq(tens.cast<SymmetricTensorCPtr>(), new_co_domain);
+      _decomposition_prepare(tensor.cast<TensorCPtr>(), new_leg_dual);
+    auto backend = tens->backend;
+    auto [l_data, q_data] = backend->lq(tens, new_co_domain);
     py::object L = make_python_symmetric_tensor(
       std::move(l_data),
-      tens.attr("codomain"),
+      py::cast(tens->codomain),
       py::cast(new_co_domain),
       backend,
-      nested_labels_codomain_domain(tens.attr("codomain_labels"), leg_label_to_py(a)));
+      nested_labels_codomain_domain(labels_to_py(tens->codomain_labels()), leg_label_to_py(a)));
     py::object Q = make_python_symmetric_tensor(
       std::move(q_data),
       py::cast(new_co_domain),
-      tens.attr("domain"),
+      py::cast(tens->domain),
       backend,
-      nested_labels_one_and_domain(leg_label_to_py(b), tens.attr("domain_labels")));
+      nested_labels_one_and_domain(leg_label_to_py(b), labels_to_py(tens->domain_labels())));
     if (combine_codomain) {
         L = split_legs(L, py::int_(0));
     }
@@ -524,22 +538,25 @@ svd(py::object tensor,
         return { U, S, Vh };
     }
 
-    auto [a, b, c, d] = _svd_new_labels(new_labels);
+    std::optional<LegLabels> svd_labs;
+    if (!new_labels.is_none()) {
+        svd_labs = leg_labels_from_py(to_iterable(new_labels));
+    }
+    auto [a, b, c, d] = _svd_new_labels(svd_labs);
     auto [tens, new_co_domain, combine_codomain, combine_domain] =
-      _decomposition_prepare(tensor, new_leg_dual);
-    auto backend = tens.attr("backend").cast<TensorBackend::Ptr>();
+      _decomposition_prepare(tensor.cast<TensorCPtr>(), new_leg_dual);
+    auto backend = tens->backend;
     std::optional<std::string> algo;
     if (!algorithm.is_none()) {
         algo = algorithm.cast<std::string>();
     }
-    auto [u_data, s_data, vh_data] =
-      backend->svd(tens.cast<SymmetricTensorCPtr>(), new_co_domain, algo);
+    auto [u_data, s_data, vh_data] = backend->svd(tens, new_co_domain, algo);
     py::object U = make_python_symmetric_tensor(
       std::move(u_data),
-      tens.attr("codomain"),
+      py::cast(tens->codomain),
       py::cast(new_co_domain),
       backend,
-      nested_labels_codomain_domain(tens.attr("codomain_labels"), leg_label_to_py(a)));
+      nested_labels_codomain_domain(labels_to_py(tens->codomain_labels()), leg_label_to_py(a)));
     py::object S = make_python_diagonal_tensor(std::move(s_data),
                                                py::cast(new_co_domain).attr("__getitem__")(0),
                                                backend,
@@ -547,9 +564,9 @@ svd(py::object tensor,
     py::object Vh = make_python_symmetric_tensor(
       std::move(vh_data),
       py::cast(new_co_domain),
-      tens.attr("domain"),
+      py::cast(tens->domain),
       backend,
-      nested_labels_one_and_domain(leg_label_to_py(d), tens.attr("domain_labels")));
+      nested_labels_one_and_domain(leg_label_to_py(d), labels_to_py(tens->domain_labels())));
     // split legs, if they were previously combined
     if (combine_codomain) {
         U = split_legs(U, py::int_(0));
@@ -567,9 +584,9 @@ svd_apply_mask(py::object U, py::object S, py::object Vh, py::object mask)
     assert(
       py_eq(mask.attr("domain").attr("__getitem__")(0), S.attr("domain").attr("__getitem__")(0)));
 
-    U = _compose_with_Mask(U, dagger(mask), -1);
+    U = py::cast(_compose_with_Mask(U.cast<TensorCPtr>(), dagger(mask).cast<MaskCPtr>(), -1));
     S = apply_mask_DiagonalTensor(S, mask);
-    Vh = _compose_with_Mask(Vh, mask, 0);
+    Vh = py::cast(_compose_with_Mask(Vh.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), 0));
     return { U, S, Vh };
 }
 
