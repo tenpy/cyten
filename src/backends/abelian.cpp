@@ -473,7 +473,11 @@ AbelianBackend::test_tensor_sanity(TensorCPtr a, bool is_diagonal)
         std::vector<int64> shape;
         if (is_diagonal) {
             auto diag = std::dynamic_pointer_cast<const DiagonalTensor>(a);
-            assert(diag);
+            if (!diag) {
+                throw std::logic_error(
+                  "AbelianBackend::test_tensor_sanity: is_diagonal=true but tensor is not a "
+                  "DiagonalTensor");
+            }
             auto mults = mults_of(py::cast(diag->leg()));
             shape = { mults[static_cast<std::size_t>(bi(i, 0))] };
         } else {
