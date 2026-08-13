@@ -3290,23 +3290,22 @@ FusionTreeBackend::get_element(SymmetricTensorCPtr a, std::vector<int64> idcs)
     warn("Accessing individual entries in the FusionTreeBackend is comparably expensive.");
     auto np = numpy();
     py::list flat_idcs;
-    py::list legs = py::cast(a->legs());
-    for (py::ssize_t li = 0; li < py::len(legs); ++li) {
-        py::object leg = legs[li];
+    auto legs = a->legs();
+    for (std::size_t li = 0; li < legs.size(); ++li) {
         py::list dims;
-        for (py::handle fl : leg.attr("flat_legs"))
-            dims.append(fl.attr("dim"));
-        auto unr = np.attr("unravel_index")(idcs[static_cast<std::size_t>(li)], dims);
+        for (auto const& fl : legs[li]->flat_legs())
+            dims.append(static_cast<int64>(fl->dim));
+        auto unr = np.attr("unravel_index")(idcs[li], dims);
         for (py::handle u : unr)
             flat_idcs.append(u);
     }
     int64 num_cod_legs = a->num_codomain_flat_legs();
     int64 num_legs = a->num_flat_legs();
     py::list a_legs;
-    for (py::handle l : py::cast(a->codomain).attr("flat_legs"))
-        a_legs.append(l);
-    for (py::handle l : py::cast(a->domain).attr("flat_legs"))
-        a_legs.append(l);
+    for (auto const& l : a->codomain->flat_legs())
+        a_legs.append(py::cast(l));
+    for (auto const& l : a->domain->flat_legs())
+        a_legs.append(py::cast(l));
     py::list rev_domain;
     for (py::ssize_t i = py::len(flat_idcs) - 1; i >= num_cod_legs; --i)
         rev_domain.append(flat_idcs[i]);
