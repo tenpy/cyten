@@ -681,11 +681,19 @@ device: str
     cls.def("min", &DiagonalTensor::min);
     cls.def("argmin",
             &DiagonalTensor::argmin,
+            py::arg("s") = py::none(),
             R"pydoc(
             Index ``i0`` in the public computational basis of the minimum diagonal entry.
 
-            Defined for real dtypes only. On ties, the first occurrence is returned.
-            Satisfies ``self[i0, i0] == self.min()`` when the symmetry can be dropped.
+            Defined for real dtypes only. On ties, the first occurrence (in public basis
+            order) is returned. Satisfies ``self[i0, i0] == self.min()`` when ``s`` is
+            omitted and the symmetry can be dropped.
+
+            Parameters
+            ----------
+            s : Sector, optional
+                If given, only the diagonal block of this charge sector is considered.
+                The returned index is still in the public basis of the full leg.
             )pydoc");
     cls.def("move_to_device",
             &DiagonalTensor::move_to_device,
@@ -1021,6 +1029,7 @@ Special case of a :class:`DiagonalTensor` that is exactly the identity map on it
     id_cls.def("min", &Identity::min);
     id_cls.def("argmin",
                &Identity::argmin,
+               py::arg("s") = py::none(),
                R"pydoc(
                ``argmin`` is not supported for :class:`Identity`.
                )pydoc");

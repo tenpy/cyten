@@ -176,7 +176,9 @@ class DiagonalTensor : public SymmetricTensor
 
     [[nodiscard]] virtual BlockBackend::Scalar max() const;
     [[nodiscard]] virtual BlockBackend::Scalar min() const;
-    [[nodiscard]] virtual int64 argmin() const;
+    /// Public-basis index of the minimum diagonal entry. If ``s`` is given, only that
+    /// sector's block is considered.
+    [[nodiscard]] virtual int64 argmin(std::optional<Sector> s = std::nullopt) const;
 
     [[nodiscard]] virtual Ptr abs() const;
 };
@@ -258,7 +260,7 @@ class Identity : public DiagonalTensor
 
     [[nodiscard]] BlockBackend::Scalar max() const override;
     [[nodiscard]] BlockBackend::Scalar min() const override;
-    [[nodiscard]] int64 argmin() const override;
+    [[nodiscard]] int64 argmin(std::optional<Sector> s = std::nullopt) const override;
 
     [[nodiscard]] DiagonalTensor::Ptr abs() const override;
 

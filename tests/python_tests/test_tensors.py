@@ -557,6 +557,15 @@ def test_DiagonalTensor(make_compatible_tensor):
     npt.assert_almost_equal(real_T[i0, i0].as_float64(), real_T.min().as_float64())
     with pytest.raises(ValueError, match='argmin is not defined'):
         T.as_dtype(Dtype.complex64).argmin()
+    sob = np.asarray(real_T.leg.sectors_of_basis)
+    for sec in real_T.leg.sector_decomposition:
+        i_s = real_T.argmin(sec)
+        assert real_T.leg.sector_decomposition_where(real_T.leg.idx_to_sector(i_s)) == (
+            real_T.leg.sector_decomposition_where(sec)
+        )
+        mask = np.all(sob == np.asarray(sec), axis=-1)
+        assert i_s == int(np.argmin(np.where(mask, real_np, np.inf)))
+        npt.assert_almost_equal(real_T[i_s, i_s].as_float64(), np.min(real_np[mask]))
 
     print('checking as_dtype')
     # use as_dtype and compare to to_backend

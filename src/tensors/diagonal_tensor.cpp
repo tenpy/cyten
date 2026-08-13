@@ -6,6 +6,7 @@
 #include <cyten/tools.h>
 #include <cyten/warn.h>
 
+#include <algorithm>
 #include <cassert>
 #include <format>
 #include <stdexcept>
@@ -738,16 +739,49 @@ DiagonalTensor::min() const
 }
 
 int64
-DiagonalTensor::argmin() const
+DiagonalTensor::argmin(std::optional<Sector> s) const
 {
     if (!dtype::is_real(dtype)) {
         throw std::invalid_argument(
           std::format("argmin is not defined for dtype {}", dtype::repr(dtype)));
     }
-    auto idcs =
-      backend->block_backend->argmin(const_cast<DiagonalTensor*>(this)->diagonal_as_block());
-    assert(idcs.size() == 1);
-    return idcs[0];
+    auto public_diag = const_cast<DiagonalTensor*>(this)->diagonal_as_block();
+    auto bb = backend->block_backend;
+    if (!s) {
+        auto idcs = bb->argmin(public_diag);
+        assert(idcs.size() == 1);
+        return idcs[0];
+    }
+    auto space = leg();
+    auto sector_idx = space->sector_decomposition_where(*s);
+    if (!sector_idx) {
+        throw std::invalid_argument("Sector is not in the leg of the DiagonalTensor");
+    }
+    if (!space->slices) {
+        throw SymmetryError(std::format(
+          "Dense block representation is not supported for symmetry {}", symmetry->repr()));
+    }
+    auto const& sl = (*space->slices)[static_cast<std::size_t>(*sector_idx)];
+    int64 const start = sl[0];
+    int64 const stop = sl[1];
+    if (stop <= start) {
+        throw std::invalid_argument("Cannot compute argmin of an empty sector");
+    }
+    auto es = std::dynamic_pointer_cast<ElementarySpace>(space);
+    if (!es) {
+        throw std::invalid_argument("DiagonalTensor.argmin requires an ElementarySpace leg");
+    }
+    auto const perm = es->basis_perm();
+    std::vector<int64> pub_idcs;
+    pub_idcs.reserve(static_cast<std::size_t>(stop - start));
+    for (int64 i = start; i < stop; ++i) {
+        pub_idcs.push_back(perm[static_cast<std::size_t>(i)]);
+    }
+    std::sort(pub_idcs.begin(), pub_idcs.end());
+    auto gathered = (*public_diag)[{ pub_idcs }];
+    auto local = bb->argmin(gathered);
+    assert(local.size() == 1);
+    return pub_idcs[static_cast<std::size_t>(local[0])];
 }
 
 DiagonalTensor::Ptr
@@ -1067,7 +1101,7 @@ Identity::min() const
 }
 
 int64
-Identity::argmin() const
+Identity::argmin(std::optional<Sector> /*s*/) const
 {
     throw std::invalid_argument("argmin is not supported for Identity");
 }
