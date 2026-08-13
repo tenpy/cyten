@@ -27,7 +27,8 @@ class PyTensor
 
     Ptr as_dtype(Dtype dtype) override { PYBIND11_OVERRIDE_PURE(Ptr, Tensor, as_dtype, dtype); }
 
-    SymmetricTensorPtr as_SymmetricTensor(bool guarantee_copy, std::optional<std::string> warning) override
+    SymmetricTensorPtr as_SymmetricTensor(bool guarantee_copy,
+                                          std::optional<std::string> warning) override
     {
         PYBIND11_OVERRIDE_PURE(
           SymmetricTensorPtr, Tensor, as_SymmetricTensor, guarantee_copy, warning);
@@ -114,7 +115,8 @@ class PySymmetricTensor
         PYBIND11_OVERRIDE(Tensor::Ptr, SymmetricTensor, as_dtype, dtype);
     }
 
-    SymmetricTensorPtr as_SymmetricTensor(bool guarantee_copy, std::optional<std::string> warning) override
+    SymmetricTensorPtr as_SymmetricTensor(bool guarantee_copy,
+                                          std::optional<std::string> warning) override
     {
         PYBIND11_OVERRIDE(
           SymmetricTensorPtr, SymmetricTensor, as_SymmetricTensor, guarantee_copy, warning);
@@ -192,7 +194,8 @@ class PyDiagonalTensor
         PYBIND11_OVERRIDE(Tensor::Ptr, DiagonalTensor, as_dtype, dtype);
     }
 
-    SymmetricTensorPtr as_SymmetricTensor(bool guarantee_copy, std::optional<std::string> warning) override
+    SymmetricTensorPtr as_SymmetricTensor(bool guarantee_copy,
+                                          std::optional<std::string> warning) override
     {
         PYBIND11_OVERRIDE(
           SymmetricTensorPtr, DiagonalTensor, as_SymmetricTensor, guarantee_copy, warning);

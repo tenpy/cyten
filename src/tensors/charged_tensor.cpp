@@ -196,19 +196,18 @@ ChargedTensor::from_dense_block(BlockBackend::BlockPtr block,
     if (charge_leg_sp->Space::dim != 1.) {
         throw NotImplemented("ChargedTensor::from_dense_block with charge_leg.dim != 1");
     }
-    auto inv_part = SymmetricTensor::from_dense_block(
-      backend_tp->block_backend->add_axis(block_ptr, -1),
-      codomain_tp,
-      inv_domain,
-      backend_tp,
-      inv_labels,
-      std::nullopt,
-      std::nullopt,
-      tol,
-      understood_braiding);
-    auto cs = backend_tp->block_backend->as_block(py::cast(std::vector<int64>{ 1 }),
-                                                   inv_part->dtype,
-                                                   inv_part->device);
+    auto inv_part =
+      SymmetricTensor::from_dense_block(backend_tp->block_backend->add_axis(block_ptr, -1),
+                                        codomain_tp,
+                                        inv_domain,
+                                        backend_tp,
+                                        inv_labels,
+                                        std::nullopt,
+                                        std::nullopt,
+                                        tol,
+                                        understood_braiding);
+    auto cs = backend_tp->block_backend->as_block(
+      py::cast(std::vector<int64>{ 1 }), inv_part->dtype, inv_part->device);
     return std::make_shared<ChargedTensor>(inv_part, cs);
 }
 
@@ -227,8 +226,7 @@ ChargedTensor::from_dense_block_single_sector(BlockBackend::BlockPtr /*vector*/,
 }
 
 std::variant<ChargedTensor::Ptr, BlockBackend::Scalar>
-ChargedTensor::from_invariant_part(SymmetricTensor::Ptr inv,
-                                   BlockBackend::BlockPtr charged_state)
+ChargedTensor::from_invariant_part(SymmetricTensor::Ptr inv, BlockBackend::BlockPtr charged_state)
 {
     // --- hints from Python ChargedTensor.from_invariant_part ---
     // OPTIMIZE ?
@@ -302,8 +300,8 @@ ChargedTensor::from_zero(TensorProduct::Ptr codomain,
     (void)charge_leg_sp;
     auto [labs, inv_labels] = _parse_inv_labels(std::move(labels), codomain_tp, domain_tp);
     (void)labs;
-    auto inv_part = SymmetricTensor::from_zero(
-      codomain_tp, inv_domain, backend_tp, inv_labels, dtype, device_s);
+    auto inv_part =
+      SymmetricTensor::from_zero(codomain_tp, inv_domain, backend_tp, inv_labels, dtype, device_s);
     return std::make_shared<ChargedTensor>(inv_part, charged_state);
 }
 
@@ -344,8 +342,7 @@ ChargedTensor::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::st
     }
     // charge_leg.dual (Python wrote charged_state.dual — treat as charge_leg.dual)
     auto dual = charge_leg->dual_leg();
-    auto state_codomain =
-      std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{ dual });
+    auto state_codomain = std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{ dual });
     auto state = SymmetricTensor::from_dense_block(
       charged_state,
       state_codomain,

@@ -13,7 +13,8 @@
 namespace cyten {
 
 /// Apply a mask to *both* legs of a diagonal tensor.
-[[nodiscard]] DiagonalTensorPtr apply_mask_DiagonalTensor(DiagonalTensorCPtr tensor, MaskCPtr mask);
+[[nodiscard]] DiagonalTensorPtr apply_mask_DiagonalTensor(DiagonalTensorCPtr tensor,
+                                                          MaskCPtr mask);
 
 /// The eigen-decomposition of a hermitian tensor.
 [[nodiscard]] std::tuple<DiagonalTensorPtr, TensorPtr> eigh(
@@ -26,16 +27,18 @@ namespace cyten {
 [[nodiscard]] BlockBackend::Scalar entropy(DiagonalTensorCPtr p, float64 n = 1);
 
 /// The LQ decomposition of a tensor.
-[[nodiscard]] std::tuple<TensorPtr, TensorPtr> lq(TensorCPtr tensor,
-                                                  std::optional<LegLabels> new_labels = std::nullopt,
-                                                  bool new_leg_dual = false,
-                                                  bool charge_leg_top = true);
+[[nodiscard]] std::tuple<TensorPtr, TensorPtr> lq(
+  TensorCPtr tensor,
+  std::optional<LegLabels> new_labels = std::nullopt,
+  bool new_leg_dual = false,
+  bool charge_leg_top = true);
 
 /// The QR decomposition of a tensor.
-[[nodiscard]] std::tuple<TensorPtr, TensorPtr> qr(TensorCPtr tensor,
-                                                  std::optional<LegLabels> new_labels = std::nullopt,
-                                                  bool new_leg_dual = false,
-                                                  bool charge_leg_top = true);
+[[nodiscard]] std::tuple<TensorPtr, TensorPtr> qr(
+  TensorCPtr tensor,
+  std::optional<LegLabels> new_labels = std::nullopt,
+  bool new_leg_dual = false,
+  bool charge_leg_top = true);
 
 /// The singular value decomposition (SVD) of a tensor.
 [[nodiscard]] std::tuple<TensorPtr, DiagonalTensorPtr, TensorPtr> svd(
@@ -46,10 +49,8 @@ namespace cyten {
   std::optional<std::string> algorithm = std::nullopt);
 
 /// Truncate an existing SVD.
-[[nodiscard]] std::tuple<TensorPtr, DiagonalTensorPtr, TensorPtr> svd_apply_mask(TensorCPtr U,
-                                                                                 DiagonalTensorCPtr S,
-                                                                                 TensorCPtr Vh,
-                                                                                 MaskCPtr mask);
+[[nodiscard]] std::tuple<TensorPtr, DiagonalTensorPtr, TensorPtr>
+svd_apply_mask(TensorCPtr U, DiagonalTensorCPtr S, TensorCPtr Vh, MaskCPtr mask);
 
 /// Given *normalized* singular values, determine which to keep.
 [[nodiscard]] std::tuple<MaskPtr, float64, float64> truncate_singular_values(

@@ -110,8 +110,8 @@ class Mask : public Tensor
 
     /// Like :meth:`as_SymmetricTensor`, with an explicit result dtype (Python Mask API).
     [[nodiscard]] SymmetricTensorPtr as_SymmetricTensor(bool guarantee_copy,
-                                                std::optional<std::string> warning,
-                                                Dtype dtype);
+                                                        std::optional<std::string> warning,
+                                                        Dtype dtype);
 
     [[nodiscard]] Tensor::Ptr copy(bool deep = true,
                                    std::optional<std::string> device = std::nullopt,

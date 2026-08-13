@@ -379,11 +379,11 @@ Mask::from_random(Space::Ptr large_leg_in,
 
     if (!small_leg_in) {
         assert(0. <= p_keep && p_keep <= 1.);
-        auto diag = DiagonalTensor::from_random_uniform(
-          large_leg, backend, labels, Dtype::Float32, device);
+        auto diag =
+          DiagonalTensor::from_random_uniform(large_leg, backend, labels, Dtype::Float32, device);
         float64 cutoff = 2. * p_keep - 1.; // diagonal entries are uniform in [-1, 1].
-        auto res = from_DiagonalTensor(
-          py::cast(diag).attr("__lt__")(cutoff).cast<DiagonalTensorCPtr>());
+        auto res =
+          from_DiagonalTensor(py::cast(diag).attr("__lt__")(cutoff).cast<DiagonalTensorCPtr>());
 
         if (sum_multiplicities(*res->small_leg()) >= min_keep) {
             return res;
@@ -458,8 +458,7 @@ Mask::from_zero(Space::Ptr large_leg,
         is_dual = es->is_dual;
     }
     auto small_leg = ElementarySpace::from_null_space(large_leg->symmetry, is_dual);
-    return make_mask(
-      data_out, std::move(large_leg), small_leg, true, backend, std::move(labels));
+    return make_mask(data_out, std::move(large_leg), small_leg, true, backend, std::move(labels));
 }
 
 Tensor::Ptr
@@ -512,7 +511,8 @@ Mask::as_SymmetricTensor(bool /*guarantee_copy*/,
     }
     auto new_data = backend->full_data_from_mask(
       std::static_pointer_cast<Mask const>(shared_from_this()), out_dtype);
-    return std::make_shared<SymmetricTensor>(new_data, codomain, domain, backend, symmetry, labels());
+    return std::make_shared<SymmetricTensor>(
+      new_data, codomain, domain, backend, symmetry, labels());
 }
 
 py::object

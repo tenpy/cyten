@@ -1,6 +1,6 @@
-#include <cyten/tensors/ops_algebra.h>
 #include <cyten/tensors/diagonal_tensor.h>
 #include <cyten/tensors/mask.h>
+#include <cyten/tensors/ops_algebra.h>
 #include <cyten/tensors/tensor.h>
 
 #include "../py_cyten_pybind11.h"
@@ -113,8 +113,10 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
     m.def(
       "compose",
       [](TensorCPtr tensor1, TensorCPtr tensor2, py::object relabel1, py::object relabel2) {
-          return py_from_tensor_or_scalar(
-            compose(std::move(tensor1), std::move(tensor2), optional_relabel(relabel1), optional_relabel(relabel2)));
+          return py_from_tensor_or_scalar(compose(std::move(tensor1),
+                                                  std::move(tensor2),
+                                                  optional_relabel(relabel1),
+                                                  optional_relabel(relabel2)));
       },
       py::arg("tensor1"),
       py::arg("tensor2"),
@@ -194,13 +196,15 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
               }
           };
           if (!is_ok(a) || !is_ok(b)) {
-              throw py::type_error(std::format(
-                "unsupported scalar types: {}, {}",
-                std::string(py::str(py::type::of(a).attr("__name__"))),
-                std::string(py::str(py::type::of(b).attr("__name__")))));
+              throw py::type_error(
+                std::format("unsupported scalar types: {}, {}",
+                            std::string(py::str(py::type::of(a).attr("__name__"))),
+                            std::string(py::str(py::type::of(b).attr("__name__")))));
           }
-          auto sa = py::cast(v->backend->block_backend).attr("as_scalar")(a).cast<BlockBackend::Scalar>();
-          auto sb = py::cast(w->backend->block_backend).attr("as_scalar")(b).cast<BlockBackend::Scalar>();
+          auto sa =
+            py::cast(v->backend->block_backend).attr("as_scalar")(a).cast<BlockBackend::Scalar>();
+          auto sb =
+            py::cast(w->backend->block_backend).attr("as_scalar")(b).cast<BlockBackend::Scalar>();
           return linear_combination(std::move(sa), std::move(v), std::move(sb), std::move(w));
       },
       py::arg("a").none(true),
@@ -303,8 +307,9 @@ individually fulfill ``abs(a1 - a2) <= atol + rtol * abs(a1)``.
               }
           }
           if (!ok) {
-              throw py::type_error(std::format("unsupported scalar type: {}",
-                                               std::string(py::str(py::type::of(a).attr("__name__")))));
+              throw py::type_error(
+                std::format("unsupported scalar type: {}",
+                            std::string(py::str(py::type::of(a).attr("__name__")))));
           }
           auto s = py::cast(tensor->backend->block_backend)
                      .attr("as_scalar")(a)

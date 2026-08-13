@@ -1,7 +1,7 @@
 #pragma once
 
-#include <cyten/cyten.h>
 #include <cyten/block_backend/block_backend.h>
+#include <cyten/cyten.h>
 #include <cyten/tensors/forward_declare.h>
 
 #include <optional>
@@ -31,7 +31,8 @@ namespace cyten {
 
 /// If close to real, return the :func:`real` part, :ref:`elementwise <diagonal_elementwise>`.
 [[nodiscard]] DiagonalTensorPtr real_if_close(DiagonalTensorCPtr x, float64 tol = 100.);
-[[nodiscard]] BlockBackend::Scalar real_if_close(BlockBackend::Scalar const& x, float64 tol = 100.);
+[[nodiscard]] BlockBackend::Scalar real_if_close(BlockBackend::Scalar const& x,
+                                                 float64 tol = 100.);
 
 /// The square root of a number, :ref:`elementwise <diagonal_elementwise>`.
 [[nodiscard]] DiagonalTensorPtr sqrt(DiagonalTensorCPtr x);
@@ -39,7 +40,8 @@ namespace cyten {
 
 /// Stabilized logarithm, :ref:`elementwise <diagonal_elementwise>`.
 [[nodiscard]] DiagonalTensorPtr stable_log(DiagonalTensorCPtr x, float64 cutoff = 1e-30);
-[[nodiscard]] BlockBackend::Scalar stable_log(BlockBackend::Scalar const& x, float64 cutoff = 1e-30);
+[[nodiscard]] BlockBackend::Scalar stable_log(BlockBackend::Scalar const& x,
+                                              float64 cutoff = 1e-30);
 
 /// The exponential function.
 ///

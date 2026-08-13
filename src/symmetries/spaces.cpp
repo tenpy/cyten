@@ -2282,9 +2282,8 @@ TensorProduct::drop_symmetry(std::optional<std::vector<int64>> which)
 bool
 TensorProduct::has_pipes() const
 {
-    return std::ranges::any_of(factors, [](Leg::Ptr const& f) {
-        return std::dynamic_pointer_cast<LegPipe>(f) != nullptr;
-    });
+    return std::ranges::any_of(
+      factors, [](Leg::Ptr const& f) { return std::dynamic_pointer_cast<LegPipe>(f) != nullptr; });
 }
 
 std::vector<Leg::Ptr>
@@ -2665,7 +2664,8 @@ TensorProduct::repr(bool show_symmetry, bool one_line) const
             std::vector<std::string> reprs;
             reprs.reserve(factors.size());
             for (auto const& factor : factors) {
-                reprs.push_back(factor_repr(py::cast(factor), /*show_symmetry=*/false, /*one_line=*/true));
+                reprs.push_back(
+                  factor_repr(py::cast(factor), /*show_symmetry=*/false, /*one_line=*/true));
             }
             one_line_items.push_back(std::format("factors=[{}]", join(reprs, ", ")));
             lines.push_back(std::format("{}factors=[", indent));

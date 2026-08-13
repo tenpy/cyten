@@ -161,13 +161,12 @@ DiagonalTensor::from_block_func(py::function func,
     });
 
     auto data = backend_tp->diagonal_from_sector_block_func(block_func, co_domain);
-    auto res = std::make_shared<DiagonalTensor>(data,
-                                                leg_sp,
-                                                backend_tp,
-                                                co_domain->symmetry,
-                                                _init_parse_labels(std::move(labels),
-                                                                   co_domain,
-                                                                   co_domain));
+    auto res = std::make_shared<DiagonalTensor>(
+      data,
+      leg_sp,
+      backend_tp,
+      co_domain->symmetry,
+      _init_parse_labels(std::move(labels), co_domain, co_domain));
     res->test_sanity();
     return res;
 }
@@ -221,13 +220,12 @@ DiagonalTensor::from_diag_block(BlockBackend::BlockPtr diag,
     auto diag_ptr = backend_tp->block_backend->as_block(py::cast(diag), dtype, device);
     diag_ptr = backend_tp->block_backend->apply_basis_perm(diag_ptr, { as_leg_cptr(leg_sp) });
     auto data = backend_tp->diagonal_from_block(diag_ptr, co_domain, tol);
-    return std::make_shared<DiagonalTensor>(data,
-                                            leg_sp,
-                                            backend_tp,
-                                            co_domain->symmetry,
-                                            _init_parse_labels(std::move(labels),
-                                                               co_domain,
-                                                               co_domain));
+    return std::make_shared<DiagonalTensor>(
+      data,
+      leg_sp,
+      backend_tp,
+      co_domain->symmetry,
+      _init_parse_labels(std::move(labels), co_domain, co_domain));
 }
 
 DiagonalTensor::Ptr
@@ -402,13 +400,12 @@ DiagonalTensor::from_sector_block_func(py::function func,
       });
 
     auto data = backend_tp->diagonal_from_sector_block_func(block_func, co_domain);
-    auto res = std::make_shared<DiagonalTensor>(data,
-                                                leg_sp,
-                                                backend_tp,
-                                                co_domain->symmetry,
-                                                _init_parse_labels(std::move(labels),
-                                                                   co_domain,
-                                                                   co_domain));
+    auto res = std::make_shared<DiagonalTensor>(
+      data,
+      leg_sp,
+      backend_tp,
+      co_domain->symmetry,
+      _init_parse_labels(std::move(labels), co_domain, co_domain));
     res->test_sanity();
     return res;
 }
@@ -439,13 +436,12 @@ DiagonalTensor::from_zero(Space::Ptr leg,
     (void)symmetry;
     auto device_s = backend_tp->block_backend->as_device(device);
     auto data = backend_tp->zero_diagonal_data(co_domain, dtype, device_s);
-    return std::make_shared<DiagonalTensor>(data,
-                                            leg_sp,
-                                            backend_tp,
-                                            co_domain->symmetry,
-                                            _init_parse_labels(std::move(labels),
-                                                               co_domain,
-                                                               co_domain));
+    return std::make_shared<DiagonalTensor>(
+      data,
+      leg_sp,
+      backend_tp,
+      co_domain->symmetry,
+      _init_parse_labels(std::move(labels), co_domain, co_domain));
 }
 
 Tensor::Ptr
@@ -466,7 +462,8 @@ DiagonalTensor::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::s
     }
     auto new_data = backend->full_data_from_diagonal_tensor(
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()));
-    return std::make_shared<SymmetricTensor>(new_data, codomain, domain, backend, symmetry, labels());
+    return std::make_shared<SymmetricTensor>(
+      new_data, codomain, domain, backend, symmetry, labels());
 }
 
 DiagonalTensor::Ptr
@@ -601,8 +598,7 @@ DiagonalTensor::diagonal_as_block(std::optional<Dtype> dtype_opt)
     }
     auto res = backend->diagonal_tensor_to_block(
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()));
-    res = backend->block_backend->apply_basis_perm(
-      res, { codomain->factors[0] }, /*inv=*/true);
+    res = backend->block_backend->apply_basis_perm(res, { codomain->factors[0] }, /*inv=*/true);
     if (dtype_opt.has_value()) {
         res = backend->block_backend->to_dtype(res, *dtype_opt);
     }
@@ -630,8 +626,7 @@ DiagonalTensor::elementwise_almost_equal(py::object other, float64 rtol, float64
     // ---
     other = other.attr("as_DiagonalTensor")();
     // no (Scalar + Block) operation defined, so requires explicit casting
-    auto ones =
-      from_eye(leg(), backend, labels(), dtype::to_real(dtype), device);
+    auto ones = from_eye(leg(), backend, labels(), dtype::to_real(dtype), device);
     py::object self_py =
       py::cast(std::static_pointer_cast<DiagonalTensor const>(shared_from_this()));
     py::object diff = self_py.attr("__sub__")(other);
@@ -845,11 +840,8 @@ DiagonalTensor::from_hdf5(py::object hdf5_loader, py::object h5gr, std::string c
 {
     /// Import DiagonalTensor from hdf5
     auto sym = SymmetricTensor::from_hdf5(hdf5_loader, h5gr, subpath);
-    return std::make_shared<DiagonalTensor>(sym->data,
-                                            as_space(sym->codomain->factors[0]),
-                                            sym->backend,
-                                            sym->symmetry,
-                                            sym->labels());
+    return std::make_shared<DiagonalTensor>(
+      sym->data, as_space(sym->codomain->factors[0]), sym->backend, sym->symmetry, sym->labels());
 }
 
 // ---------------------------------------------------------------------------
@@ -871,11 +863,10 @@ Identity::Identity(Space::Ptr leg_in,
   : DiagonalTensor(
       // Do not std::move(leg_in)/backend_in in this mem-initializer list: argument
       // evaluation order is unspecified, and eye_data still needs both.
-      backend_in->eye_data(
-        std::make_shared<TensorProduct>(
-          std::vector<Leg::Ptr>{ std::dynamic_pointer_cast<Leg>(leg_in) }),
-        dtype_in,
-        device_in),
+      backend_in->eye_data(std::make_shared<TensorProduct>(
+                             std::vector<Leg::Ptr>{ std::dynamic_pointer_cast<Leg>(leg_in) }),
+                           dtype_in,
+                           device_in),
       leg_in,
       backend_in,
       std::move(symmetry_in),
@@ -914,7 +905,8 @@ Identity::from_eye(Space::Ptr leg,
     }
     std::string device_s =
       device.has_value() ? *device : backend_tp->block_backend->default_device;
-    auto labs = _init_parse_labels(std::move(labels), co_domain, co_domain, /*is_endomorphism=*/true);
+    auto labs =
+      _init_parse_labels(std::move(labels), co_domain, co_domain, /*is_endomorphism=*/true);
     return std::make_shared<Identity>(
       leg_sp, backend_tp, symmetry, std::move(labs), *dt, std::move(device_s));
 }

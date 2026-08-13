@@ -70,8 +70,7 @@ charged_state: block | None
 
     cls.def(py::init([](py::object invariant_part, py::object charged_state) {
                 auto inv = invariant_part.cast<SymmetricTensor::Ptr>();
-                auto cs = py_optional_block(
-                  charged_state, inv->backend, inv->dtype, inv->device);
+                auto cs = py_optional_block(charged_state, inv->backend, inv->dtype, inv->device);
                 return std::make_shared<ChargedTensor>(inv, cs);
             }),
             py::arg("invariant_part"),
@@ -103,43 +102,42 @@ charged_state: block | None
             Perform sanity checks.
             )pydoc");
 
-    cls.def_static("_parse_inv_domain",
-                   [](TensorProduct::Ptr domain, py::object charge) {
-                       return ChargedTensor::_parse_inv_domain(std::move(domain),
-                                                               py_as_charge(charge));
-                   },
-                   py::arg("domain"),
-                   py::arg("charge"),
-                   R"pydoc(
-                   Helper function to build the domain of the invariant part.
+    cls.def_static(
+      "_parse_inv_domain",
+      [](TensorProduct::Ptr domain, py::object charge) {
+          return ChargedTensor::_parse_inv_domain(std::move(domain), py_as_charge(charge));
+      },
+      py::arg("domain"),
+      py::arg("charge"),
+      R"pydoc(
+      Helper function to build the domain of the invariant part.
 
-                   Parameters
-                   ----------
-                   domain: TensorProduct
-                       The domain of the ChargedTensor
-                   charge: Space | SectorLike
-                       Specification for the charge_leg, either as a space or a single sector
+      Parameters
+      ----------
+      domain: TensorProduct
+          The domain of the ChargedTensor
+      charge: Space | SectorLike
+          Specification for the charge_leg, either as a space or a single sector
 
-                   Returns
-                   -------
-                   inv_domain: TensorProduct
-                       The domain of the invariant part
-                   charge_leg: Space
-                       The charge_leg of the resulting ChargedTensor
-                   )pydoc");
-    cls.def_static("_parse_inv_labels",
-                   [](py::object labels,
-                      TensorProduct::Ptr codomain,
-                      TensorProduct::Ptr domain) {
-                       auto labs = parse_tensor_init_labels(labels, codomain, domain);
-                       return ChargedTensor::_parse_inv_labels(labs, codomain, domain);
-                   },
-                   py::arg("labels"),
-                   py::arg("codomain"),
-                   py::arg("domain"),
-                   R"pydoc(
-                   Utility like :meth:`_init_parse_labels`, but also returns invariant part labels.
-                   )pydoc");
+      Returns
+      -------
+      inv_domain: TensorProduct
+          The domain of the invariant part
+      charge_leg: Space
+          The charge_leg of the resulting ChargedTensor
+      )pydoc");
+    cls.def_static(
+      "_parse_inv_labels",
+      [](py::object labels, TensorProduct::Ptr codomain, TensorProduct::Ptr domain) {
+          auto labs = parse_tensor_init_labels(labels, codomain, domain);
+          return ChargedTensor::_parse_inv_labels(labs, codomain, domain);
+      },
+      py::arg("labels"),
+      py::arg("codomain"),
+      py::arg("domain"),
+      R"pydoc(
+      Utility like :meth:`_init_parse_labels`, but also returns invariant part labels.
+      )pydoc");
     cls.def_static("supports_symmetry",
                    &ChargedTensor::supports_symmetry,
                    py::arg("symmetry"),
@@ -147,187 +145,181 @@ charged_state: block | None
                    If the :class:`ChargedTensor` concept is well defined for the `symmetry`.
                    )pydoc");
 
-    cls.def_static("from_block_func",
-                   [](py::function func,
-                      py::object charge,
-                      py::object codomain,
-                      py::object domain,
-                      py::object charged_state,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      py::object func_kwargs,
-                      std::optional<std::string> shape_kw,
-                      std::optional<Dtype> dtype,
-                      std::optional<std::string> device) {
-                       auto init =
-                         parse_tensor_init(codomain, domain, std::move(backend), labels);
-                       auto cs = py_optional_block(
-                         charged_state, init.backend, dtype, device);
-                       return ChargedTensor::from_block_func(std::move(func),
-                                                             py_as_charge(charge),
-                                                             init.codomain,
-                                                             init.domain,
-                                                             cs,
-                                                             init.backend,
-                                                             init.labels,
-                                                             func_kwargs,
-                                                             shape_kw,
-                                                             dtype,
-                                                             device);
-                   },
-                   py::arg("func"),
-                   py::arg("charge"),
-                   py::arg("codomain"),
-                   py::arg("domain") = py::none(),
-                   py::arg("charged_state") = py::none(),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("func_kwargs") = py::none(),
-                   py::arg("shape_kw") = py::none(),
-                   py::arg("dtype") = py::none(),
-                   py::arg("device") = py::none(),
-                   R"pydoc(
+    cls.def_static(
+      "from_block_func",
+      [](py::function func,
+         py::object charge,
+         py::object codomain,
+         py::object domain,
+         py::object charged_state,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         py::object func_kwargs,
+         std::optional<std::string> shape_kw,
+         std::optional<Dtype> dtype,
+         std::optional<std::string> device) {
+          auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
+          auto cs = py_optional_block(charged_state, init.backend, dtype, device);
+          return ChargedTensor::from_block_func(std::move(func),
+                                                py_as_charge(charge),
+                                                init.codomain,
+                                                init.domain,
+                                                cs,
+                                                init.backend,
+                                                init.labels,
+                                                func_kwargs,
+                                                shape_kw,
+                                                dtype,
+                                                device);
+      },
+      py::arg("func"),
+      py::arg("charge"),
+      py::arg("codomain"),
+      py::arg("domain") = py::none(),
+      py::arg("charged_state") = py::none(),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("func_kwargs") = py::none(),
+      py::arg("shape_kw") = py::none(),
+      py::arg("dtype") = py::none(),
+      py::arg("device") = py::none(),
+      R"pydoc(
 Create a charged tensor with inv_part from :meth:`SymmetricTensor.from_block_func`.
 )pydoc");
 
-    cls.def_static("from_dense_block",
-                   [](py::object block,
-                      py::object codomain,
-                      py::object domain,
-                      py::object charge,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      std::optional<Dtype> dtype,
-                      std::optional<std::string> device,
-                      float64 tol,
-                      bool understood_braiding) {
-                       auto init =
-                         parse_tensor_init(codomain, domain, std::move(backend), labels);
-                       auto block_ptr =
-                         init.backend->block_backend->as_block(block, dtype, device);
-                       return ChargedTensor::from_dense_block(block_ptr,
-                                                              init.codomain,
-                                                              init.domain,
-                                                              py_optional_charge(charge),
-                                                              init.backend,
-                                                              init.labels,
-                                                              dtype,
-                                                              device,
-                                                              tol,
-                                                              understood_braiding);
-                   },
-                   py::arg("block"),
-                   py::arg("codomain"),
-                   py::arg("domain") = py::none(),
-                   py::arg("charge") = py::none(),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("dtype") = py::none(),
-                   py::arg("device") = py::none(),
-                   py::arg("tol") = 1e-6,
-                   py::arg("understood_braiding") = false,
-                   R"pydoc(
+    cls.def_static(
+      "from_dense_block",
+      [](py::object block,
+         py::object codomain,
+         py::object domain,
+         py::object charge,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         std::optional<Dtype> dtype,
+         std::optional<std::string> device,
+         float64 tol,
+         bool understood_braiding) {
+          auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
+          auto block_ptr = init.backend->block_backend->as_block(block, dtype, device);
+          return ChargedTensor::from_dense_block(block_ptr,
+                                                 init.codomain,
+                                                 init.domain,
+                                                 py_optional_charge(charge),
+                                                 init.backend,
+                                                 init.labels,
+                                                 dtype,
+                                                 device,
+                                                 tol,
+                                                 understood_braiding);
+      },
+      py::arg("block"),
+      py::arg("codomain"),
+      py::arg("domain") = py::none(),
+      py::arg("charge") = py::none(),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("dtype") = py::none(),
+      py::arg("device") = py::none(),
+      py::arg("tol") = 1e-6,
+      py::arg("understood_braiding") = false,
+      R"pydoc(
 Convert a dense block of to a ChargedTensor, if possible.
 )pydoc");
 
-    cls.def_static("from_dense_block_single_sector",
-                   [](py::object vector,
-                      py::object space,
-                      Sector sector,
-                      TensorBackend::Ptr backend,
-                      std::optional<std::string> label,
-                      std::optional<std::string> device) {
-                       auto sp = space.cast<Leg::Ptr>();
-                       if (!backend) {
-                           backend = get_backend(sp->symmetry);
-                       }
-                       auto vec =
-                         backend->block_backend->as_block(vector, std::nullopt, device);
-                       return ChargedTensor::from_dense_block_single_sector(
-                         vec, sp, sector, backend, label, device);
-                   },
-                   py::arg("vector"),
-                   py::arg("space"),
-                   py::arg("sector"),
-                   py::arg("backend") = nullptr,
-                   py::arg("label") = py::none(),
-                   py::arg("device") = py::none(),
-                   R"pydoc(
+    cls.def_static(
+      "from_dense_block_single_sector",
+      [](py::object vector,
+         py::object space,
+         Sector sector,
+         TensorBackend::Ptr backend,
+         std::optional<std::string> label,
+         std::optional<std::string> device) {
+          auto sp = space.cast<Leg::Ptr>();
+          if (!backend) {
+              backend = get_backend(sp->symmetry);
+          }
+          auto vec = backend->block_backend->as_block(vector, std::nullopt, device);
+          return ChargedTensor::from_dense_block_single_sector(
+            vec, sp, sector, backend, label, device);
+      },
+      py::arg("vector"),
+      py::arg("space"),
+      py::arg("sector"),
+      py::arg("backend") = nullptr,
+      py::arg("label") = py::none(),
+      py::arg("device") = py::none(),
+      R"pydoc(
 Given a `vector` in single `space`, represent the components in a single given `sector`.
 )pydoc");
 
-    cls.def_static("from_invariant_part",
-                   [](py::object invariant_part, py::object charged_state) {
-                       auto inv = invariant_part.cast<SymmetricTensor::Ptr>();
-                       auto cs = py_optional_block(
-                         charged_state, inv->backend, inv->dtype, inv->device);
-                       return py_from_charged_or_scalar(
-                         ChargedTensor::from_invariant_part(inv, cs));
-                   },
-                   py::arg("invariant_part"),
-                   py::arg("charged_state") = py::none(),
-                   R"pydoc(
+    cls.def_static(
+      "from_invariant_part",
+      [](py::object invariant_part, py::object charged_state) {
+          auto inv = invariant_part.cast<SymmetricTensor::Ptr>();
+          auto cs = py_optional_block(charged_state, inv->backend, inv->dtype, inv->device);
+          return py_from_charged_or_scalar(ChargedTensor::from_invariant_part(inv, cs));
+      },
+      py::arg("invariant_part"),
+      py::arg("charged_state") = py::none(),
+      R"pydoc(
 Like constructor, but deals with the case where invariant_part has only one leg.
 
 In that case, we return a scalar if the charged_state is specified and raise otherwise.
 )pydoc");
 
-    cls.def_static("from_two_charge_legs",
-                   [](py::object invariant_part, py::object state1, py::object state2) {
-                       auto inv = invariant_part.cast<SymmetricTensor::Ptr>();
-                       auto s1 = py_optional_block(
-                         state1, inv->backend, inv->dtype, inv->device);
-                       auto s2 = py_optional_block(
-                         state2, inv->backend, inv->dtype, inv->device);
-                       return py_from_charged_or_scalar(
-                         ChargedTensor::from_two_charge_legs(inv, s1, s2));
-                   },
-                   py::arg("invariant_part"),
-                   py::arg("state1") = py::none(),
-                   py::arg("state2") = py::none(),
-                   R"pydoc(
-                   Create a charged tensor from an invariant part with two charged legs.
-                   )pydoc");
+    cls.def_static(
+      "from_two_charge_legs",
+      [](py::object invariant_part, py::object state1, py::object state2) {
+          auto inv = invariant_part.cast<SymmetricTensor::Ptr>();
+          auto s1 = py_optional_block(state1, inv->backend, inv->dtype, inv->device);
+          auto s2 = py_optional_block(state2, inv->backend, inv->dtype, inv->device);
+          return py_from_charged_or_scalar(ChargedTensor::from_two_charge_legs(inv, s1, s2));
+      },
+      py::arg("invariant_part"),
+      py::arg("state1") = py::none(),
+      py::arg("state2") = py::none(),
+      R"pydoc(
+      Create a charged tensor from an invariant part with two charged legs.
+      )pydoc");
 
-    cls.def_static("from_zero",
-                   [](py::object codomain,
-                      py::object domain,
-                      py::object charge,
-                      py::object charged_state,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      Dtype dtype,
-                      std::optional<std::string> device) {
-                       auto init =
-                         parse_tensor_init(codomain, domain, std::move(backend), labels);
-                       auto cs = py_optional_block(
-                         charged_state, init.backend, dtype, device);
-                       return ChargedTensor::from_zero(init.codomain,
-                                                       init.domain,
-                                                       py_as_charge(charge),
-                                                       cs,
-                                                       init.backend,
-                                                       init.labels,
-                                                       dtype,
-                                                       device);
-                   },
-                   py::arg("codomain"),
-                   py::arg("domain") = py::none(),
-                   py::arg("charge") = py::none(),
-                   py::arg("charged_state") = py::none(),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("dtype") = Dtype::Complex128,
-                   py::arg("device") = py::none(),
-                   R"pydoc(
-                   A zero tensor.
+    cls.def_static(
+      "from_zero",
+      [](py::object codomain,
+         py::object domain,
+         py::object charge,
+         py::object charged_state,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         Dtype dtype,
+         std::optional<std::string> device) {
+          auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
+          auto cs = py_optional_block(charged_state, init.backend, dtype, device);
+          return ChargedTensor::from_zero(init.codomain,
+                                          init.domain,
+                                          py_as_charge(charge),
+                                          cs,
+                                          init.backend,
+                                          init.labels,
+                                          dtype,
+                                          device);
+      },
+      py::arg("codomain"),
+      py::arg("domain") = py::none(),
+      py::arg("charge") = py::none(),
+      py::arg("charged_state") = py::none(),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("dtype") = Dtype::Complex128,
+      py::arg("device") = py::none(),
+      R"pydoc(
+      A zero tensor.
 
-                   Parameters
-                   ----------
-                   device: str, optional
-                       The device for the tensor. Per default, we try to use the device of the `charged_state`.
-                       If not available, use the default device for the backend.
-                   )pydoc");
+      Parameters
+      ----------
+      device: str, optional
+          The device for the tensor. Per default, we try to use the device of the `charged_state`.
+          If not available, use the default device for the backend.
+      )pydoc");
 
     cls.def_static("from_hdf5",
                    &ChargedTensor::from_hdf5,

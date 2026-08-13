@@ -71,7 +71,13 @@ bind_tensors_constructors(py::module_& m)
               if (!labels.is_none()) {
                   labs = parse_tensor_init_labels(labels, t->codomain, t->domain);
               }
-              return py::cast(tensor(t, std::move(cod), std::move(dom), std::move(backend), labs, dtype_opt, device_opt));
+              return py::cast(tensor(t,
+                                     std::move(cod),
+                                     std::move(dom),
+                                     std::move(backend),
+                                     labs,
+                                     dtype_opt,
+                                     device_opt));
           }
           auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
           auto block = init.backend->block_backend->as_block(obj, dtype_opt, device_opt);

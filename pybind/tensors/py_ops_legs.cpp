@@ -93,11 +93,13 @@ py_as_bend_right(TensorCPtr const& tensor, py::object bend_right)
     if (bend_right.is_none()) {
         return std::nullopt;
     }
-    if (py::isinstance<py::bool_>(bend_right) || py::isinstance(bend_right, py::module_::import("numpy").attr("bool_"))) {
+    if (py::isinstance<py::bool_>(bend_right) ||
+        py::isinstance(bend_right, py::module_::import("numpy").attr("bool_"))) {
         return bend_right.cast<bool>();
     }
     if (py::isinstance<py::dict>(bend_right)) {
-        std::vector<std::optional<bool>> out(static_cast<std::size_t>(tensor->num_legs), std::nullopt);
+        std::vector<std::optional<bool>> out(static_cast<std::size_t>(tensor->num_legs),
+                                             std::nullopt);
         py::dict d = py::reinterpret_borrow<py::dict>(bend_right);
         for (auto item : d) {
             py::object key = py::reinterpret_borrow<py::object>(item.first);

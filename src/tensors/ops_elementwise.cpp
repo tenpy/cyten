@@ -122,7 +122,9 @@ real_if_close(DiagonalTensorCPtr x, float64 tol)
 BlockBackend::Scalar
 real_if_close(BlockBackend::Scalar const& x, float64 tol)
 {
-    return numpy().attr("real_if_close")(py::cast(x), py::arg("tol") = tol).cast<BlockBackend::Scalar>();
+    return numpy()
+      .attr("real_if_close")(py::cast(x), py::arg("tol") = tol)
+      .cast<BlockBackend::Scalar>();
 }
 
 DiagonalTensorPtr

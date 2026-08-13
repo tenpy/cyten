@@ -1397,8 +1397,8 @@ abelian_compose_worker(AbelianBackend& self,
     if (new_codomain->num_factors > 0) {
         std::vector<SectorArray> parts;
         for (int64 f = 0; f < new_codomain->num_factors; ++f) {
-            auto const& secs = as_space(new_codomain->factors[static_cast<std::size_t>(f)])
-                                 ->sector_decomposition;
+            auto const& secs =
+              as_space(new_codomain->factors[static_cast<std::size_t>(f)])->sector_decomposition;
             SectorArray selected = SectorArray::empty(secs.sector_ind_len());
             for (std::size_t r = 0; r < a_block_inds_keep.nrows(); ++r)
                 selected.push_back(secs[static_cast<std::size_t>(
@@ -1414,8 +1414,8 @@ abelian_compose_worker(AbelianBackend& self,
     if (new_domain->num_factors > 0) {
         std::vector<SectorArray> parts;
         for (int64 f = 0; f < new_domain->num_factors; ++f) {
-            auto const& secs = as_space(new_domain->factors[static_cast<std::size_t>(f)])
-                                 ->sector_decomposition;
+            auto const& secs =
+              as_space(new_domain->factors[static_cast<std::size_t>(f)])->sector_decomposition;
             SectorArray selected = SectorArray::empty(secs.sector_ind_len());
             // b_block_inds_keep[:, ::-1] column f corresponds to domain factor f
             for (std::size_t r = 0; r < b_block_inds_keep.nrows(); ++r)
@@ -1522,12 +1522,8 @@ AbelianBackend::_compose_worker(SymmetricTensorCPtr a, SymmetricTensorCPtr b)
     // finish up:
     // ---
     std::vector<Leg::Ptr> contr_spaces = b->codomain->factors;
-    return wrap(abelian_compose_worker(*this,
-                                       data_from_tensor(a),
-                                       data_from_tensor(b),
-                                       a->codomain,
-                                       contr_spaces,
-                                       b->domain));
+    return wrap(abelian_compose_worker(
+      *this, data_from_tensor(a), data_from_tensor(b), a->codomain, contr_spaces, b->domain));
 }
 
 TensorBackend::DataPtr
@@ -2029,8 +2025,8 @@ AbelianBackend::from_sector_block_func(py::function func,
               mults_of(legs[static_cast<std::size_t>(c)])[static_cast<std::size_t>(bi(r, c))]);
         std::vector<Sector> secs;
         for (int64 i = 0; i < M; ++i) {
-            auto const& sectors = as_space(codomain->factors[static_cast<std::size_t>(i)])
-                                    ->sector_decomposition;
+            auto const& sectors =
+              as_space(codomain->factors[static_cast<std::size_t>(i)])->sector_decomposition;
             secs.push_back(sectors[static_cast<std::size_t>(bi(r, i))]);
         }
         auto coupled = codomain->symmetry->multiple_fusion(secs);
@@ -2932,8 +2928,7 @@ AbelianBackend::partial_compose(SymmetricTensorCPtr a,
             mod_codomain_legs.push_back(
               py::cast(a).attr("_as_codomain_leg")(perm_a[i]).cast<Leg::Ptr>());
     }
-    auto mod_codomain =
-      std::make_shared<TensorProduct>(mod_codomain_legs, a->symmetry);
+    auto mod_codomain = std::make_shared<TensorProduct>(mod_codomain_legs, a->symmetry);
 
     std::vector<Leg::Ptr> mod_domain_legs;
     for (std::size_t i = 0; i < perm_b.size(); ++i) {
@@ -3605,8 +3600,7 @@ AbelianBackend::to_dense_block(TensorCPtr a)
         for (py::ssize_t c = 0; c < static_cast<py::ssize_t>(legs.size()); ++c) {
             slices[c] = slice_pair(py::cast(legs[static_cast<std::size_t>(c)])
                                      .attr("slices")
-                                     .attr("__getitem__")(
-                                       bi(static_cast<py::ssize_t>(i), c)));
+                                     .attr("__getitem__")(bi(static_cast<py::ssize_t>(i), c)));
         }
         b_set(res, slices, a_data->blocks[i]);
     }

@@ -1639,9 +1639,10 @@ bind_tensor_product(py::module_& m)
                return py::cast(self[idx.cast<int64>()]);
            })
       .def("__len__", [](TensorProduct const& self) { return self.num_factors; })
-      .def("__iter__",
-           [](TensorProduct const& self) { return py::make_iterator(self.factors); },
-           py::keep_alive<0, 1>())
+      .def(
+        "__iter__",
+        [](TensorProduct const& self) { return py::make_iterator(self.factors); },
+        py::keep_alive<0, 1>())
       .def("__repr__",
            &TensorProduct::repr,
            py::arg("show_symmetry") = true,

@@ -60,7 +60,8 @@ class Tensor
            std::string device);
 
     /// Construct from :func:`parse_tensor_init` (py-object subclass factories).
-    struct InitParsed {
+    struct InitParsed
+    {
         TensorProduct::Ptr codomain;
         TensorProduct::Ptr domain;
         TensorBackend::Ptr backend;
@@ -89,9 +90,9 @@ class Tensor
 
     /// Parse already-flat labels (or ``nullopt`` for all-unlabelled) to :attr:`labels`.
     ///
-    /// Nested / Python-flexible formats are parsed in pybind (or :func:`parse_tensor_init_labels`).
-    /// If ``is_endomorphism`` and ``labels`` has one entry per codomain factor, domain labels are
-    /// filled with the respective duals.
+    /// Nested / Python-flexible formats are parsed in pybind (or
+    /// :func:`parse_tensor_init_labels`). If ``is_endomorphism`` and ``labels`` has one entry per
+    /// codomain factor, domain labels are filled with the respective duals.
     static LegLabels _init_parse_labels(std::optional<LegLabels> labels,
                                         TensorProduct::Ptr const& codomain,
                                         TensorProduct::Ptr const& domain,

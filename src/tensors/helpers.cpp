@@ -248,8 +248,12 @@ _compose_with_Mask(TensorCPtr tensor, MaskCPtr mask, int64 leg_idx)
         contracted = backend->mask_contract_large_leg(tens, mask, leg_idx);
     }
     auto& [data, codomain, domain] = contracted;
-    return std::make_shared<SymmetricTensor>(
-      std::move(data), std::move(codomain), std::move(domain), backend, tens->symmetry, tens->labels());
+    return std::make_shared<SymmetricTensor>(std::move(data),
+                                             std::move(codomain),
+                                             std::move(domain),
+                                             backend,
+                                             tens->symmetry,
+                                             tens->labels());
 }
 
 std::variant<SymmetricTensorPtr, BlockBackend::Scalar>

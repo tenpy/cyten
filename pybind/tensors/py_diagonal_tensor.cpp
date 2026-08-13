@@ -128,161 +128,157 @@ E.g. :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
             )pydoc");
     cls.def("verify_dtype", &DiagonalTensor::verify_dtype);
 
-    cls.def_static("from_block_func",
-                   [](py::function func,
-                      py::object leg,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      py::object func_kwargs,
-                      std::optional<std::string> shape_kw,
-                      std::optional<Dtype> dtype,
-                      std::optional<std::string> device) {
-                       auto init = py_parse_diag(leg, std::move(backend), labels);
-                       return DiagonalTensor::from_block_func(std::move(func),
-                                                              py_as_space_leg(leg),
-                                                              init.backend,
-                                                              init.labels,
-                                                              func_kwargs,
-                                                              shape_kw,
-                                                              dtype,
-                                                              device);
-                   },
-                   py::arg("func"),
-                   py::arg("leg"),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("func_kwargs") = py::none(),
-                   py::arg("shape_kw") = py::none(),
-                   py::arg("dtype") = py::none(),
-                   py::arg("device") = py::none(),
-                   R"pydoc(
-                   Initialize a :class:`SymmetricTensor` by generating its blocks from a function.
+    cls.def_static(
+      "from_block_func",
+      [](py::function func,
+         py::object leg,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         py::object func_kwargs,
+         std::optional<std::string> shape_kw,
+         std::optional<Dtype> dtype,
+         std::optional<std::string> device) {
+          auto init = py_parse_diag(leg, std::move(backend), labels);
+          return DiagonalTensor::from_block_func(std::move(func),
+                                                 py_as_space_leg(leg),
+                                                 init.backend,
+                                                 init.labels,
+                                                 func_kwargs,
+                                                 shape_kw,
+                                                 dtype,
+                                                 device);
+      },
+      py::arg("func"),
+      py::arg("leg"),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("func_kwargs") = py::none(),
+      py::arg("shape_kw") = py::none(),
+      py::arg("dtype") = py::none(),
+      py::arg("device") = py::none(),
+      R"pydoc(
+      Initialize a :class:`SymmetricTensor` by generating its blocks from a function.
 
-                   Here "the blocks of a tensor" are the backend-specific blocks that contain the free
-                   parameters of the tensor in the :attr:`data`. The concrete meaning of these blocks depends
-                   on the backend.
+      Here "the blocks of a tensor" are the backend-specific blocks that contain the free
+      parameters of the tensor in the :attr:`data`. The concrete meaning of these blocks depends
+      on the backend.
 
-                   Parameters
-                   ----------
-                   func: callable
-                       A function with two possible signatures. If `shape_kw` is given, we expect::
+      Parameters
+      ----------
+      func: callable
+          A function with two possible signatures. If `shape_kw` is given, we expect::
 
-                           ``func(*, shape_kw: tuple[int, ...], **kwargs) -> BlockLike``
+              ``func(*, shape_kw: tuple[int, ...], **kwargs) -> BlockLike``
 
-                       Otherwise::
+          Otherwise::
 
-                           ``func(shape: tuple[int, ...], **kwargs) -> BlockLike``
+              ``func(shape: tuple[int, ...], **kwargs) -> BlockLike``
 
-                       Where ``shape`` is the shape of the block to be generate and `func_kwargs` are passed
-                       as ``kwargs``. The output is converted to backend-specific blocks
-                       via ``backend.as_block``. In particular, it may be modified in-place after that.
-                   codomain, domain, backend, labels
-                       Arguments for constructor of :class:`SymmetricTensor`.
-                   func_kwargs: dict, optional
-                       Additional keyword arguments to be passed to ``func``.
-                   shape_kw: str
-                       If given, the shape is passed to `func` as a kwarg with this keyword.
-                   dtype: Dtype, None
-                       If given, the resulting blocks from `func` are converted to this dtype.
-                   device: str, optional
-                       If given, the resulting blocks are moved to that device.
-                       Per default, if `func` returns backend-specific blocks, their device is used and
-                       otherwise the default device of the backend.
+          Where ``shape`` is the shape of the block to be generate and `func_kwargs` are passed
+          as ``kwargs``. The output is converted to backend-specific blocks
+          via ``backend.as_block``. In particular, it may be modified in-place after that.
+      codomain, domain, backend, labels
+          Arguments for constructor of :class:`SymmetricTensor`.
+      func_kwargs: dict, optional
+          Additional keyword arguments to be passed to ``func``.
+      shape_kw: str
+          If given, the shape is passed to `func` as a kwarg with this keyword.
+      dtype: Dtype, None
+          If given, the resulting blocks from `func` are converted to this dtype.
+      device: str, optional
+          If given, the resulting blocks are moved to that device.
+          Per default, if `func` returns backend-specific blocks, their device is used and
+          otherwise the default device of the backend.
 
-                   See Also
-                   --------
-                   from_sector_block_func
-                       Allows the `func` to take the current coupled sectors as an argument.
-                   )pydoc");
+      See Also
+      --------
+      from_sector_block_func
+          Allows the `func` to take the current coupled sectors as an argument.
+      )pydoc");
 
-    cls.def_static("from_dense_block",
-                   [](py::object block,
-                      py::object leg,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      std::optional<Dtype> dtype,
-                      float64 tol,
-                      std::optional<std::string> device,
-                      bool understood_braiding) {
-                       auto init = py_parse_diag(leg, std::move(backend), labels);
-                       auto block_ptr =
-                         init.backend->block_backend->as_block(block, dtype, device);
-                       return DiagonalTensor::from_dense_block(block_ptr,
-                                                               py_as_space_leg(leg),
-                                                               init.backend,
-                                                               init.labels,
-                                                               dtype,
-                                                               tol,
-                                                               device,
-                                                               understood_braiding);
-                   },
-                   py::arg("block"),
-                   py::arg("leg"),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("dtype") = py::none(),
-                   py::arg("tol") = 1e-6,
-                   py::arg("device") = py::none(),
-                   py::arg("understood_braiding") = false,
-                   R"pydoc(
-                   Convert a dense block of the backend to a Tensor.
+    cls.def_static(
+      "from_dense_block",
+      [](py::object block,
+         py::object leg,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         std::optional<Dtype> dtype,
+         float64 tol,
+         std::optional<std::string> device,
+         bool understood_braiding) {
+          auto init = py_parse_diag(leg, std::move(backend), labels);
+          auto block_ptr = init.backend->block_backend->as_block(block, dtype, device);
+          return DiagonalTensor::from_dense_block(block_ptr,
+                                                  py_as_space_leg(leg),
+                                                  init.backend,
+                                                  init.labels,
+                                                  dtype,
+                                                  tol,
+                                                  device,
+                                                  understood_braiding);
+      },
+      py::arg("block"),
+      py::arg("leg"),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("dtype") = py::none(),
+      py::arg("tol") = 1e-6,
+      py::arg("device") = py::none(),
+      py::arg("understood_braiding") = false,
+      R"pydoc(
+      Convert a dense block of the backend to a Tensor.
 
-                   Parameters
-                   ----------
-                   block : Block-like
-                       The data to be converted to a Tensor as a backend-specific block or some data that
-                       can be converted using :meth:`BlockBackend.as_block`.
-                       This includes e.g. nested python iterables or numpy arrays.
-                       The order of axes should match the :attr:`Tensor.legs`, i.e. first the codomain legs,
-                       then the domain leg *in reverse order*.
-                       The block should be given in the "public" basis order of the `legs`, e.g.
-                       according to :attr:`ElementarySpace.sectors_of_basis`.
-                   codomain, domain, backend, labels
-                       Arguments, like for constructor of :class:`SymmetricTensor`.
-                   dtype: Dtype, optional
-                       If given, the block is converted to that dtype and the resulting tensor will have that
-                       dtype. By default, we detect the dtype from the block.
-                   device: str, optional
-                       If given, the block is moved to that device. Per default, try to use the device of
-                       the `block`, if it is a backend-specific block, or fall back to the backends default
-                       device.
-                   understood_braiding : bool
-                       For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the input
-                       dense block does not capture the braiding statistics correctly. This means e.g. that
-                       :func:`permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on
-                       the dense block representation. This means that the input dense block needs to be
-                       constructed in the correct leg order. To avoid this pitfall, we raise an error by
-                       default. Set this flag to ``True`` to disable the error. It is then your responsibility
-                       to take care of leg orders and braids.
-                   )pydoc");
+      Parameters
+      ----------
+      block : Block-like
+          The data to be converted to a Tensor as a backend-specific block or some data that
+          can be converted using :meth:`BlockBackend.as_block`.
+          This includes e.g. nested python iterables or numpy arrays.
+          The order of axes should match the :attr:`Tensor.legs`, i.e. first the codomain legs,
+          then the domain leg *in reverse order*.
+          The block should be given in the "public" basis order of the `legs`, e.g.
+          according to :attr:`ElementarySpace.sectors_of_basis`.
+      codomain, domain, backend, labels
+          Arguments, like for constructor of :class:`SymmetricTensor`.
+      dtype: Dtype, optional
+          If given, the block is converted to that dtype and the resulting tensor will have that
+          dtype. By default, we detect the dtype from the block.
+      device: str, optional
+          If given, the block is moved to that device. Per default, try to use the device of
+          the `block`, if it is a backend-specific block, or fall back to the backends default
+          device.
+      understood_braiding : bool
+          For symmetries with non-trivial (but symmetric) braiding, e.g. fermions, the input
+          dense block does not capture the braiding statistics correctly. This means e.g. that
+          :func:`permute_legs` is not consistently reproduced by e.g. ``numpy.transpose`` on
+          the dense block representation. This means that the input dense block needs to be
+          constructed in the correct leg order. To avoid this pitfall, we raise an error by
+          default. Set this flag to ``True`` to disable the error. It is then your responsibility
+          to take care of leg orders and braids.
+      )pydoc");
 
-    cls.def_static("from_diag_block",
-                   [](py::object diag,
-                      py::object leg,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      std::optional<Dtype> dtype,
-                      std::optional<std::string> device,
-                      float64 tol) {
-                       auto init = py_parse_diag(leg, std::move(backend), labels);
-                       auto diag_ptr =
-                         init.backend->block_backend->as_block(diag, dtype, device);
-                       return DiagonalTensor::from_diag_block(diag_ptr,
-                                                              py_as_space_leg(leg),
-                                                              init.backend,
-                                                              init.labels,
-                                                              dtype,
-                                                              device,
-                                                              tol);
-                   },
-                   py::arg("diag"),
-                   py::arg("leg"),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("dtype") = py::none(),
-                   py::arg("device") = py::none(),
-                   py::arg("tol") = 1e-6,
-                   R"pydoc(
+    cls.def_static(
+      "from_diag_block",
+      [](py::object diag,
+         py::object leg,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         std::optional<Dtype> dtype,
+         std::optional<std::string> device,
+         float64 tol) {
+          auto init = py_parse_diag(leg, std::move(backend), labels);
+          auto diag_ptr = init.backend->block_backend->as_block(diag, dtype, device);
+          return DiagonalTensor::from_diag_block(
+            diag_ptr, py_as_space_leg(leg), init.backend, init.labels, dtype, device, tol);
+      },
+      py::arg("diag"),
+      py::arg("leg"),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("dtype") = py::none(),
+      py::arg("device") = py::none(),
+      py::arg("tol") = 1e-6,
+      R"pydoc(
 Convert a dense 1D block containing the diagonal entries to a DiagonalTensor.
 
 Parameters
@@ -302,22 +298,23 @@ diagonal_as_block, diagonal_as_numpy
     Inverse methods that recover the `diag` entries.
 )pydoc");
 
-    cls.def_static("from_eye",
-                   [](py::object leg,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      Dtype dtype,
-                      std::optional<std::string> device) {
-                       auto init = py_parse_diag(leg, std::move(backend), labels);
-                       return DiagonalTensor::from_eye(
-                         py_as_space_leg(leg), init.backend, init.labels, dtype, device);
-                   },
-                   py::arg("leg"),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("dtype") = Dtype::Float64,
-                   py::arg("device") = py::none(),
-                   R"pydoc(
+    cls.def_static(
+      "from_eye",
+      [](py::object leg,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         Dtype dtype,
+         std::optional<std::string> device) {
+          auto init = py_parse_diag(leg, std::move(backend), labels);
+          return DiagonalTensor::from_eye(
+            py_as_space_leg(leg), init.backend, init.labels, dtype, device);
+      },
+      py::arg("leg"),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("dtype") = Dtype::Float64,
+      py::arg("device") = py::none(),
+      R"pydoc(
 The identity map as a DiagonalTensor.
 
 Parameters
@@ -328,39 +325,39 @@ dtype: Dtype
     The dtype for the entries.
 )pydoc");
 
-    cls.def_static("from_random_normal",
-                   [](py::object leg,
-                      py::object mean,
-                      float64 sigma,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      Dtype dtype,
-                      std::optional<std::string> device) {
-                       auto mean_t = py_optional_tensor(mean);
-                       Space::Ptr sp;
-                       std::optional<LegLabels> labs;
-                       if (!leg.is_none()) {
-                           auto init = py_parse_diag(leg, std::move(backend), labels);
-                           sp = py_as_space_leg(leg);
-                           backend = init.backend;
-                           labs = init.labels;
-                       } else if (mean_t) {
-                           if (!labels.is_none()) {
-                               labs = parse_tensor_init_labels(
-                                 labels, mean_t->codomain, mean_t->domain);
-                           }
-                       }
-                       return DiagonalTensor::from_random_normal(
-                         sp, mean_t, sigma, std::move(backend), std::move(labs), dtype, device);
-                   },
-                   py::arg("leg"),
-                   py::arg("mean") = py::none(),
-                   py::arg("sigma") = 1.0,
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("dtype") = Dtype::Complex128,
-                   py::arg("device") = py::none(),
-                   R"pydoc(
+    cls.def_static(
+      "from_random_normal",
+      [](py::object leg,
+         py::object mean,
+         float64 sigma,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         Dtype dtype,
+         std::optional<std::string> device) {
+          auto mean_t = py_optional_tensor(mean);
+          Space::Ptr sp;
+          std::optional<LegLabels> labs;
+          if (!leg.is_none()) {
+              auto init = py_parse_diag(leg, std::move(backend), labels);
+              sp = py_as_space_leg(leg);
+              backend = init.backend;
+              labs = init.labels;
+          } else if (mean_t) {
+              if (!labels.is_none()) {
+                  labs = parse_tensor_init_labels(labels, mean_t->codomain, mean_t->domain);
+              }
+          }
+          return DiagonalTensor::from_random_normal(
+            sp, mean_t, sigma, std::move(backend), std::move(labs), dtype, device);
+      },
+      py::arg("leg"),
+      py::arg("mean") = py::none(),
+      py::arg("sigma") = 1.0,
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("dtype") = Dtype::Complex128,
+      py::arg("device") = py::none(),
+      R"pydoc(
 Generate a sample from the complex normal distribution.
 
 The probability density is
@@ -382,22 +379,23 @@ dtype: Dtype
     The dtype for the entries.
 )pydoc");
 
-    cls.def_static("from_random_uniform",
-                   [](py::object leg,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      Dtype dtype,
-                      std::optional<std::string> device) {
-                       auto init = py_parse_diag(leg, std::move(backend), labels);
-                       return DiagonalTensor::from_random_uniform(
-                         py_as_space_leg(leg), init.backend, init.labels, dtype, device);
-                   },
-                   py::arg("leg"),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("dtype") = Dtype::Complex128,
-                   py::arg("device") = py::none(),
-                   R"pydoc(
+    cls.def_static(
+      "from_random_uniform",
+      [](py::object leg,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         Dtype dtype,
+         std::optional<std::string> device) {
+          auto init = py_parse_diag(leg, std::move(backend), labels);
+          return DiagonalTensor::from_random_uniform(
+            py_as_space_leg(leg), init.backend, init.labels, dtype, device);
+      },
+      py::arg("leg"),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("dtype") = Dtype::Complex128,
+      py::arg("device") = py::none(),
+      R"pydoc(
 Generate a tensor with uniformly random block-entries.
 
 The block entries, i.e. the free parameters of the tensor are drawn independently and
@@ -417,80 +415,82 @@ dtype: Dtype
     The dtype for the entries.
 )pydoc");
 
-    cls.def_static("from_sector_block_func",
-                   [](py::function func,
-                      py::object leg,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      py::object func_kwargs,
-                      std::optional<Dtype> dtype,
-                      std::optional<std::string> device) {
-                       auto init = py_parse_diag(leg, std::move(backend), labels);
-                       return DiagonalTensor::from_sector_block_func(std::move(func),
-                                                                     py_as_space_leg(leg),
-                                                                     init.backend,
-                                                                     init.labels,
-                                                                     func_kwargs,
-                                                                     dtype,
-                                                                     device);
-                   },
-                   py::arg("func"),
-                   py::arg("leg"),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("func_kwargs") = py::none(),
-                   py::arg("dtype") = py::none(),
-                   py::arg("device") = py::none(),
-                   R"pydoc(
-                   Initialize a :class:`SymmetricTensor` by generating its blocks from a function.
+    cls.def_static(
+      "from_sector_block_func",
+      [](py::function func,
+         py::object leg,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         py::object func_kwargs,
+         std::optional<Dtype> dtype,
+         std::optional<std::string> device) {
+          auto init = py_parse_diag(leg, std::move(backend), labels);
+          return DiagonalTensor::from_sector_block_func(std::move(func),
+                                                        py_as_space_leg(leg),
+                                                        init.backend,
+                                                        init.labels,
+                                                        func_kwargs,
+                                                        dtype,
+                                                        device);
+      },
+      py::arg("func"),
+      py::arg("leg"),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("func_kwargs") = py::none(),
+      py::arg("dtype") = py::none(),
+      py::arg("device") = py::none(),
+      R"pydoc(
+      Initialize a :class:`SymmetricTensor` by generating its blocks from a function.
 
-                   Here "the blocks of a tensor" are the backend-specific blocks that contain the free
-                   parameters of the tensor in the :attr:`data`. The concrete meaning of these blocks depends
-                   on the backend.
+      Here "the blocks of a tensor" are the backend-specific blocks that contain the free
+      parameters of the tensor in the :attr:`data`. The concrete meaning of these blocks depends
+      on the backend.
 
-                   Unlike :meth:`from_block_func`, this classmethod supports a `func` that takes the current
-                   coupled sector as an argument. The tensor, as a map from its domain to its codomain is
-                   block-diagonal in the coupled sectors, i.e. in the ``domain.sector_decomposition``.
-                   Thus, the free parameters of a tensor are associated with one block of this structure,
-                   and thus with a given coupled sector. A value of ``coupled`` indicates that the generated
-                   block is (part of) the components that maps from ``coupled`` in the domain to ``coupled``
-                   in the codomain.
+      Unlike :meth:`from_block_func`, this classmethod supports a `func` that takes the current
+      coupled sector as an argument. The tensor, as a map from its domain to its codomain is
+      block-diagonal in the coupled sectors, i.e. in the ``domain.sector_decomposition``.
+      Thus, the free parameters of a tensor are associated with one block of this structure,
+      and thus with a given coupled sector. A value of ``coupled`` indicates that the generated
+      block is (part of) the components that maps from ``coupled`` in the domain to ``coupled``
+      in the codomain.
 
-                   Parameters
-                   ----------
-                   func: callable
-                       A function with the following signature::
+      Parameters
+      ----------
+      func: callable
+          A function with the following signature::
 
-                           ``func(shape: tuple[int, ...], coupled: Sector, **kwargs) -> BlockLike``
+              ``func(shape: tuple[int, ...], coupled: Sector, **kwargs) -> BlockLike``
 
-                       Where ``shape`` is the shape of the block to be generated, ``coupled`` is the current
-                       coupled sector and `func_kwargs` are passed as ``kwargs``.
-                       The output is converted to backend-specific blocks via ``backend.block_backend.as_block``.
-                   codomain, domain, backend, labels
-                       Arguments, like for constructor of :class:`SymmetricTensor`.
-                   func_kwargs: dict, optional
-                       Additional keyword arguments to be passed to ``func``.
-                   shape_kw: str
-                       If given, the shape is passed to `func` as a kwarg with this keyword.
-                   dtype: Dtype, None
-                       If given, the resulting blocks from `func` are converted to this dtype.
-                   device: str, optional
-                       If given, the resulting blocks are moved to that device.
-                       Per default, if `func` returns backend-specific blocks, their device is used and
-                       otherwise the default device of the backend.
+          Where ``shape`` is the shape of the block to be generated, ``coupled`` is the current
+          coupled sector and `func_kwargs` are passed as ``kwargs``.
+          The output is converted to backend-specific blocks via ``backend.block_backend.as_block``.
+      codomain, domain, backend, labels
+          Arguments, like for constructor of :class:`SymmetricTensor`.
+      func_kwargs: dict, optional
+          Additional keyword arguments to be passed to ``func``.
+      shape_kw: str
+          If given, the shape is passed to `func` as a kwarg with this keyword.
+      dtype: Dtype, None
+          If given, the resulting blocks from `func` are converted to this dtype.
+      device: str, optional
+          If given, the resulting blocks are moved to that device.
+          Per default, if `func` returns backend-specific blocks, their device is used and
+          otherwise the default device of the backend.
 
-                   See Also
-                   --------
-                   from_block_func
-                   )pydoc");
+      See Also
+      --------
+      from_block_func
+      )pydoc");
 
-    cls.def_static("from_tensor",
-                   [](py::object tens, std::optional<float64> tol) {
-                       return DiagonalTensor::from_tensor(tens.cast<SymmetricTensorCPtr>(), tol);
-                   },
-                   py::arg("tens"),
-                   py::arg("tol") = 1e-12,
-                   R"pydoc(
+    cls.def_static(
+      "from_tensor",
+      [](py::object tens, std::optional<float64> tol) {
+          return DiagonalTensor::from_tensor(tens.cast<SymmetricTensorCPtr>(), tol);
+      },
+      py::arg("tens"),
+      py::arg("tol") = 1e-12,
+      R"pydoc(
 Create DiagonalTensor from a Tensor.
 
 Parameters
@@ -503,22 +503,23 @@ tol : float | None
     Set to ``None`` to disable the check.
 )pydoc");
 
-    cls.def_static("from_zero",
-                   [](py::object leg,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      Dtype dtype,
-                      std::optional<std::string> device) {
-                       auto init = py_parse_diag(leg, std::move(backend), labels);
-                       return DiagonalTensor::from_zero(
-                         py_as_space_leg(leg), init.backend, init.labels, dtype, device);
-                   },
-                   py::arg("leg"),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("dtype") = Dtype::Complex128,
-                   py::arg("device") = py::none(),
-                   R"pydoc(
+    cls.def_static(
+      "from_zero",
+      [](py::object leg,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         Dtype dtype,
+         std::optional<std::string> device) {
+          auto init = py_parse_diag(leg, std::move(backend), labels);
+          return DiagonalTensor::from_zero(
+            py_as_space_leg(leg), init.backend, init.labels, dtype, device);
+      },
+      py::arg("leg"),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("dtype") = Dtype::Complex128,
+      py::arg("device") = py::none(),
+      R"pydoc(
 A zero tensor.
 
 Parameters
@@ -816,15 +817,10 @@ Special case of a :class:`DiagonalTensor` that is exactly the identity map on it
                    if (!dt.has_value()) {
                        dt = Dtype::Float64;
                    }
-                   std::string device_s = device.has_value()
-                                            ? *device
-                                            : init.backend->block_backend->default_device;
-                   return std::make_shared<Identity>(sp,
-                                                     init.backend,
-                                                     init.symmetry,
-                                                     init.labels,
-                                                     *dt,
-                                                     std::move(device_s));
+                   std::string device_s =
+                     device.has_value() ? *device : init.backend->block_backend->default_device;
+                   return std::make_shared<Identity>(
+                     sp, init.backend, init.symmetry, init.labels, *dt, std::move(device_s));
                }),
                py::arg("leg"),
                py::arg("backend") = nullptr,
@@ -853,31 +849,32 @@ Special case of a :class:`DiagonalTensor` that is exactly the identity map on it
     bind_unsupported("from_tensor");
     bind_unsupported("from_zero");
 
-    id_cls.def_static("from_eye",
-                      [](py::object leg,
-                         TensorBackend::Ptr backend,
-                         py::object labels,
-                         Dtype dtype,
-                         std::optional<std::string> device) {
-                          auto init = py_parse_diag(leg, std::move(backend), labels);
-                          return Identity::from_eye(
-                            py_as_space_leg(leg), init.backend, init.labels, dtype, device);
-                      },
-                      py::arg("leg"),
-                      py::arg("backend") = nullptr,
-                      py::arg("labels") = py::none(),
-                      py::arg("dtype") = Dtype::Float64,
-                      py::arg("device") = py::none(),
-                      R"pydoc(
-                      The identity map as a DiagonalTensor.
+    id_cls.def_static(
+      "from_eye",
+      [](py::object leg,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         Dtype dtype,
+         std::optional<std::string> device) {
+          auto init = py_parse_diag(leg, std::move(backend), labels);
+          return Identity::from_eye(
+            py_as_space_leg(leg), init.backend, init.labels, dtype, device);
+      },
+      py::arg("leg"),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("dtype") = Dtype::Float64,
+      py::arg("device") = py::none(),
+      R"pydoc(
+      The identity map as a DiagonalTensor.
 
-                      Parameters
-                      ----------
-                      leg, backend, labels
-                          Arguments for constructor of :class:`DiagonalTensor`.
-                      dtype: Dtype
-                          The dtype for the entries.
-                      )pydoc");
+      Parameters
+      ----------
+      leg, backend, labels
+          Arguments for constructor of :class:`DiagonalTensor`.
+      dtype: Dtype
+          The dtype for the entries.
+      )pydoc");
 
     id_cls.def("as_dtype",
                &Identity::as_dtype,

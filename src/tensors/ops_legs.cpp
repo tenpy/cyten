@@ -219,27 +219,37 @@ is_true_or_false(py::object obj)
 
 } // namespace
 
-py::object bend_legs_py(py::object tensor, std::optional<int64> num_codomain_legs,
+py::object bend_legs_py(py::object tensor,
+                        std::optional<int64> num_codomain_legs,
                         std::optional<int64> num_domain_legs);
 void check_same_legs_py(py::object t1, py::object t2);
-py::object permute_legs_py(py::object tensor, py::object codomain = py::none(),
-                           py::object domain = py::none(), py::object levels = py::none(),
+py::object permute_legs_py(py::object tensor,
+                           py::object codomain = py::none(),
+                           py::object domain = py::none(),
+                           py::object levels = py::none(),
                            py::object bend_right = py::none());
-py::object move_leg_py(py::object tensor, py::object which_leg,
-                       std::optional<int64> codomain_pos, std::optional<int64> domain_pos,
-                       py::object levels, py::object bend_right);
-py::object combine_legs_py(py::object tensor, std::vector<py::object> which_legs,
-                           py::object pipe_dualities = py::none(), py::object pipes = py::none(),
+py::object move_leg_py(py::object tensor,
+                       py::object which_leg,
+                       std::optional<int64> codomain_pos,
+                       std::optional<int64> domain_pos,
+                       py::object levels,
+                       py::object bend_right);
+py::object combine_legs_py(py::object tensor,
+                           std::vector<py::object> which_legs,
+                           py::object pipe_dualities = py::none(),
+                           py::object pipes = py::none(),
                            py::object levels = py::none());
-py::object combine_to_matrix_py(py::object tensor, py::object codomain, py::object domain,
+py::object combine_to_matrix_py(py::object tensor,
+                                py::object codomain,
+                                py::object domain,
                                 py::object levels);
 py::object split_legs_py(py::object tensor, py::object legs = py::none());
 py::object squeeze_legs_py(py::object tensor, py::object legs = py::none());
 
 py::object
 bend_legs_py(py::object tensor,
-          std::optional<int64> num_codomain_legs,
-          std::optional<int64> num_domain_legs)
+             std::optional<int64> num_codomain_legs,
+             std::optional<int64> num_domain_legs)
 {
     if (!num_codomain_legs.has_value() && !num_domain_legs.has_value()) {
         throw std::invalid_argument("Must specify either num_codomain_legs or num_domain_legs");
@@ -319,10 +329,10 @@ check_same_legs_py(py::object t1, py::object t2)
 
 py::object
 permute_legs_py(py::object tensor,
-             py::object codomain,
-             py::object domain,
-             py::object levels,
-             py::object bend_right)
+                py::object codomain,
+                py::object domain,
+                py::object levels,
+                py::object bend_right)
 {
     // --- hints from Python permute_legs_py ---
     // Parse domain and codomain to list[int]. Get rid of duplicates.
@@ -565,10 +575,10 @@ permute_legs_py(py::object tensor,
         }
         bend_ext.append(py::none());
         py::object inv_part = permute_legs_py(tensor.attr("invariant_part"),
-                                           py::cast(codomain_v),
-                                           domain_with_charge,
-                                           levels_ext,
-                                           bend_ext);
+                                              py::cast(codomain_v),
+                                              domain_with_charge,
+                                              levels_ext,
+                                              bend_ext);
         return make_python_charged_tensor(inv_part, tensor.attr("charged_state"));
     }
 
@@ -629,11 +639,11 @@ permute_legs_py(py::object tensor,
 
 py::object
 move_leg_py(py::object tensor,
-         py::object which_leg,
-         std::optional<int64> codomain_pos,
-         std::optional<int64> domain_pos,
-         py::object levels,
-         py::object bend_right)
+            py::object which_leg,
+            std::optional<int64> codomain_pos,
+            std::optional<int64> domain_pos,
+            py::object levels,
+            py::object bend_right)
 {
     py::object parsed = tensor.attr("_parse_leg_idx")(which_leg);
     bool from_domain = parsed.attr("__getitem__")(0).cast<bool>();
@@ -676,15 +686,16 @@ move_leg_py(py::object tensor,
         throw std::invalid_argument("Need to specify either codomain_pos or domain_pos.");
     }
 
-    return permute_legs_py(tensor, py::cast(new_codomain), py::cast(new_domain), levels, bend_right);
+    return permute_legs_py(
+      tensor, py::cast(new_codomain), py::cast(new_domain), levels, bend_right);
 }
 
 py::object
 combine_legs_py(py::object tensor,
-             std::vector<py::object> which_legs,
-             py::object pipe_dualities,
-             py::object pipes,
-             py::object levels)
+                std::vector<py::object> which_legs,
+                py::object pipe_dualities,
+                py::object pipes,
+                py::object levels)
 {
     // --- hints from Python combine_legs_py ---
     // 1) Deal with different tensor types. Reduce everything to SymmetricTensor.
@@ -978,8 +989,9 @@ split_legs_py(py::object tensor, py::object legs)
         if (!legs.is_none()) {
             legs_for_inv = py::cast(get_leg_idcs_py(tensor, legs));
         }
-        return make_python_charged_tensor(split_legs_py(tensor.attr("invariant_part"), legs_for_inv),
-                                          tensor.attr("charged_state"));
+        return make_python_charged_tensor(
+          split_legs_py(tensor.attr("invariant_part"), legs_for_inv),
+          tensor.attr("charged_state"));
     }
 
     // parse indices

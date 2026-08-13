@@ -90,24 +90,28 @@ shape: tuple of int
     The dimension of each of the :attr:`legs`.
 )pydoc";
 
-    cls.def(
-      py::init([](py::object codomain,
-                  py::object domain,
-                  TensorBackend::Ptr backend,
-                  py::object labels,
-                  Dtype dtype,
-                  std::string device) {
-          auto [c, d, b, s] = parse_tensor_init_args(codomain, domain, std::move(backend));
-          auto labs = parse_tensor_init_labels(labels, c, d);
-          return std::make_shared<PyTensor>(
-            std::move(c), std::move(d), std::move(b), std::move(s), std::move(labs), dtype, device);
-      }),
-      py::arg("codomain"),
-      py::arg("domain"),
-      py::arg("backend"),
-      py::arg("labels"),
-      py::arg("dtype"),
-      py::arg("device"));
+    cls.def(py::init([](py::object codomain,
+                        py::object domain,
+                        TensorBackend::Ptr backend,
+                        py::object labels,
+                        Dtype dtype,
+                        std::string device) {
+                auto [c, d, b, s] = parse_tensor_init_args(codomain, domain, std::move(backend));
+                auto labs = parse_tensor_init_labels(labels, c, d);
+                return std::make_shared<PyTensor>(std::move(c),
+                                                  std::move(d),
+                                                  std::move(b),
+                                                  std::move(s),
+                                                  std::move(labs),
+                                                  dtype,
+                                                  device);
+            }),
+            py::arg("codomain"),
+            py::arg("domain"),
+            py::arg("backend"),
+            py::arg("labels"),
+            py::arg("dtype"),
+            py::arg("device"));
 
     cls.def_readwrite("codomain", &Tensor::codomain)
       .def_readwrite("domain", &Tensor::domain)
@@ -134,14 +138,14 @@ shape: tuple of int
         });
 
     cls.def_static(
-         "_init_parse_args",
-         [](py::object codomain, py::object domain, TensorBackend::Ptr backend) {
-             return parse_tensor_init_args(codomain, domain, std::move(backend));
-         },
-         py::arg("codomain"),
-         py::arg("domain"),
-         py::arg("backend"),
-                   R"pydoc(
+      "_init_parse_args",
+      [](py::object codomain, py::object domain, TensorBackend::Ptr backend) {
+          return parse_tensor_init_args(codomain, domain, std::move(backend));
+      },
+      py::arg("codomain"),
+      py::arg("domain"),
+      py::arg("backend"),
+      R"pydoc(
 Common input parsing for ``__init__`` methods of tensor classes.
 
 Also checks if they are compatible.
@@ -157,18 +161,18 @@ symmetry: Symmetry
 )pydoc");
 
     cls.def_static(
-         "_init_parse_labels",
-         [](py::object labels,
-            TensorProduct::Ptr const& codomain,
-            TensorProduct::Ptr const& domain,
-            bool is_endomorphism) {
-             return parse_tensor_init_labels(labels, codomain, domain, is_endomorphism);
-         },
-         py::arg("labels"),
-         py::arg("codomain"),
-         py::arg("domain"),
-         py::arg("is_endomorphism") = false,
-                   R"pydoc(
+      "_init_parse_labels",
+      [](py::object labels,
+         TensorProduct::Ptr const& codomain,
+         TensorProduct::Ptr const& domain,
+         bool is_endomorphism) {
+          return parse_tensor_init_labels(labels, codomain, domain, is_endomorphism);
+      },
+      py::arg("labels"),
+      py::arg("codomain"),
+      py::arg("domain"),
+      py::arg("is_endomorphism") = false,
+      R"pydoc(
 Parse the various allowed input formats for labels to the format of :attr:`labels`.
 
 Also supports a special case for input formats of endomorphisms (maps where domain

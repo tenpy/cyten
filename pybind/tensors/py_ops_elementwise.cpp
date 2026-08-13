@@ -1,5 +1,5 @@
-#include <cyten/tensors/ops_elementwise.h>
 #include <cyten/tensors/diagonal_tensor.h>
+#include <cyten/tensors/ops_elementwise.h>
 #include <cyten/tensors/tensor.h>
 
 #include "../py_cyten_pybind11.h"
@@ -21,9 +21,8 @@ is_number_or_scalar(py::object x)
 {
     return py::isinstance(x, py::module_::import("numbers").attr("Number")) ||
            py::isinstance(x, py::module_::import("cyten.block_backends").attr("Scalar")) ||
-           (py::isinstance<Tensor>(x) && py::module_::import("cyten.tensors._tensors")
-                                           .attr("is_scalar")(x)
-                                           .cast<bool>());
+           (py::isinstance<Tensor>(x) &&
+            py::module_::import("cyten.tensors._tensors").attr("is_scalar")(x).cast<bool>());
 }
 
 [[noreturn]] void
@@ -55,9 +54,9 @@ bind_tensors_ops_elementwise(py::module_& m)
       "angle",
       [](py::object x) {
           return dispatch_elementwise(
-            x, [](DiagonalTensorCPtr t) { return angle(t); }, [](py::object n) {
-                return numpy().attr("angle")(n);
-            });
+            x,
+            [](DiagonalTensorCPtr t) { return angle(t); },
+            [](py::object n) { return numpy().attr("angle")(n); });
       },
       py::arg("x"),
       R"pydoc(
@@ -93,9 +92,9 @@ The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, othe
       "complex_conj",
       [](py::object x) {
           return dispatch_elementwise(
-            x, [](DiagonalTensorCPtr t) { return complex_conj(t); }, [](py::object n) {
-                return numpy().attr("conj")(n);
-            });
+            x,
+            [](DiagonalTensorCPtr t) { return complex_conj(t); },
+            [](py::object n) { return numpy().attr("conj")(n); });
       },
       py::arg("x"),
       R"pydoc(Complex conjugation, :ref:`elementwise <diagonal_elementwise>`.)pydoc");
@@ -104,9 +103,9 @@ The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, othe
       "imag",
       [](py::object x) {
           return dispatch_elementwise(
-            x, [](DiagonalTensorCPtr t) { return imag(t); }, [](py::object n) {
-                return numpy().attr("imag")(n);
-            });
+            x,
+            [](DiagonalTensorCPtr t) { return imag(t); },
+            [](py::object n) { return numpy().attr("imag")(n); });
       },
       py::arg("x"),
       R"pydoc(The imaginary part of a complex number, :ref:`elementwise <diagonal_elementwise>`.)pydoc");
@@ -115,9 +114,9 @@ The cutoff-inverse for a number ``x`` is ``1 / x`` if ``abs(x) >= cutoff``, othe
       "real",
       [](py::object x) {
           return dispatch_elementwise(
-            x, [](DiagonalTensorCPtr t) { return real(t); }, [](py::object n) {
-                return numpy().attr("real")(n);
-            });
+            x,
+            [](DiagonalTensorCPtr t) { return real(t); },
+            [](py::object n) { return numpy().attr("real")(n); });
       },
       py::arg("x"),
       R"pydoc(The real part of a complex number, :ref:`elementwise <diagonal_elementwise>`.)pydoc");
@@ -154,9 +153,9 @@ If `x` is close to real, the real part of `x`. Otherwise the original complex `x
       "sqrt",
       [](py::object x) {
           return dispatch_elementwise(
-            x, [](DiagonalTensorCPtr t) { return sqrt(t); }, [](py::object n) {
-                return numpy().attr("sqrt")(n);
-            });
+            x,
+            [](DiagonalTensorCPtr t) { return sqrt(t); },
+            [](py::object n) { return numpy().attr("sqrt")(n); });
       },
       py::arg("x"),
       R"pydoc(The square root of a number, :ref:`elementwise <diagonal_elementwise>`.)pydoc");

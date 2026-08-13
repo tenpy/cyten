@@ -72,17 +72,17 @@ class ChargedTensor : public Tensor
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
-    [[nodiscard]] static Ptr from_dense_block(BlockBackend::BlockPtr block,
-                                              TensorProduct::Ptr codomain,
-                                              TensorProduct::Ptr domain = nullptr,
-                                              std::optional<std::variant<ElementarySpace::Ptr, Sector>> charge =
-                                                std::nullopt,
-                                              TensorBackend::Ptr backend = nullptr,
-                                              std::optional<LegLabels> labels = std::nullopt,
-                                              std::optional<Dtype> dtype = std::nullopt,
-                                              std::optional<std::string> device = std::nullopt,
-                                              float64 tol = 1e-6,
-                                              bool understood_braiding = false);
+    [[nodiscard]] static Ptr from_dense_block(
+      BlockBackend::BlockPtr block,
+      TensorProduct::Ptr codomain,
+      TensorProduct::Ptr domain = nullptr,
+      std::optional<std::variant<ElementarySpace::Ptr, Sector>> charge = std::nullopt,
+      TensorBackend::Ptr backend = nullptr,
+      std::optional<LegLabels> labels = std::nullopt,
+      std::optional<Dtype> dtype = std::nullopt,
+      std::optional<std::string> device = std::nullopt,
+      float64 tol = 1e-6,
+      bool understood_braiding = false);
 
     /// Not implemented (matches Python).
     [[nodiscard]] static Ptr from_dense_block_single_sector(

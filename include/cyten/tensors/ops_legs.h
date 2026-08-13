@@ -32,10 +32,11 @@ void check_same_legs(TensorCPtr t1, TensorCPtr t2);
                                      std::optional<LevelsSpec> levels = std::nullopt);
 
 /// Combine legs of a tensor into two combined LegPipes (matrix form).
-[[nodiscard]] TensorPtr combine_to_matrix(TensorCPtr tensor,
-                                          std::optional<std::vector<LegRef>> codomain = std::nullopt,
-                                          std::optional<std::vector<LegRef>> domain = std::nullopt,
-                                          std::optional<LevelsSpec> levels = std::nullopt);
+[[nodiscard]] TensorPtr combine_to_matrix(
+  TensorCPtr tensor,
+  std::optional<std::vector<LegRef>> codomain = std::nullopt,
+  std::optional<std::vector<LegRef>> domain = std::nullopt,
+  std::optional<LevelsSpec> levels = std::nullopt);
 
 /// Move one leg of a tensor to a specified position.
 [[nodiscard]] TensorPtr move_leg(TensorCPtr tensor,

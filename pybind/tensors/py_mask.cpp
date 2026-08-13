@@ -193,25 +193,23 @@ Such that the result is ordered.
             Perform sanity checks.
             )pydoc");
 
-    cls.def_static("from_eye",
-                   [](py::object leg,
-                      bool is_projection,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      std::optional<std::string> device) {
-                       auto init = py_parse_diag(leg, std::move(backend), labels);
-                       return Mask::from_eye(py_as_space_leg(leg),
-                                             is_projection,
-                                             init.backend,
-                                             init.labels,
-                                             device);
-                   },
-                   py::arg("leg"),
-                   py::arg("is_projection") = true,
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("device") = py::none(),
-                   R"pydoc(
+    cls.def_static(
+      "from_eye",
+      [](py::object leg,
+         bool is_projection,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         std::optional<std::string> device) {
+          auto init = py_parse_diag(leg, std::move(backend), labels);
+          return Mask::from_eye(
+            py_as_space_leg(leg), is_projection, init.backend, init.labels, device);
+      },
+      py::arg("leg"),
+      py::arg("is_projection") = true,
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("device") = py::none(),
+      R"pydoc(
 The identity map as a Mask, i.e. the mask that keeps all states and discards none.
 
 Parameters
@@ -227,27 +225,24 @@ from_zero
     The projection Mask that discards all states and keeps none.
 )pydoc");
 
-    cls.def_static("from_block_mask",
-                   [](py::object block_mask,
-                      py::object large_leg,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      std::optional<std::string> device) {
-                       auto init = py_parse_diag(large_leg, std::move(backend), labels);
-                       auto block = init.backend->block_backend->as_block(
-                         block_mask, Dtype::Bool, device);
-                       return Mask::from_block_mask(block,
-                                                    py_as_space_leg(large_leg),
-                                                    init.backend,
-                                                    init.labels,
-                                                    device);
-                   },
-                   py::arg("block_mask"),
-                   py::arg("large_leg"),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("device") = py::none(),
-                   R"pydoc(
+    cls.def_static(
+      "from_block_mask",
+      [](py::object block_mask,
+         py::object large_leg,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         std::optional<std::string> device) {
+          auto init = py_parse_diag(large_leg, std::move(backend), labels);
+          auto block = init.backend->block_backend->as_block(block_mask, Dtype::Bool, device);
+          return Mask::from_block_mask(
+            block, py_as_space_leg(large_leg), init.backend, init.labels, device);
+      },
+      py::arg("block_mask"),
+      py::arg("large_leg"),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("device") = py::none(),
+      R"pydoc(
 Create a projection Mask from a boolean block.
 
 To get the related inclusion Mask, use :func:`dagger`.
@@ -266,12 +261,11 @@ backend, labels
     Arguments, like for the constructor
 )pydoc");
 
-    cls.def_static("from_DiagonalTensor",
-                   [](py::object diag) {
-                       return Mask::from_DiagonalTensor(diag.cast<DiagonalTensorCPtr>());
-                   },
-                   py::arg("diag"),
-                   R"pydoc(
+    cls.def_static(
+      "from_DiagonalTensor",
+      [](py::object diag) { return Mask::from_DiagonalTensor(diag.cast<DiagonalTensorCPtr>()); },
+      py::arg("diag"),
+      R"pydoc(
 Create a projection Mask from a boolean DiagonalTensor.
 
 The resulting mask keeps exactly those basis elements for which the entry of `diag` is
@@ -282,25 +276,23 @@ In particular, its basis permutation is such that those basis elements from the 
 that are kept appear in order.
 )pydoc");
 
-    cls.def_static("from_indices",
-                   [](py::object indices,
-                      py::object large_leg,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      std::optional<std::string> device) {
-                       auto init = py_parse_diag(large_leg, std::move(backend), labels);
-                       return Mask::from_indices(indices,
-                                                 py_as_space_leg(large_leg),
-                                                 init.backend,
-                                                 init.labels,
-                                                 device);
-                   },
-                   py::arg("indices"),
-                   py::arg("large_leg"),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("device") = py::none(),
-                   R"pydoc(
+    cls.def_static(
+      "from_indices",
+      [](py::object indices,
+         py::object large_leg,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         std::optional<std::string> device) {
+          auto init = py_parse_diag(large_leg, std::move(backend), labels);
+          return Mask::from_indices(
+            indices, py_as_space_leg(large_leg), init.backend, init.labels, device);
+      },
+      py::arg("indices"),
+      py::arg("large_leg"),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("device") = py::none(),
+      R"pydoc(
 Create a projection Mask from the indices that are kept.
 
 To get the related inclusion Mask, use :func:`dagger`.
@@ -318,38 +310,39 @@ large_leg, backend, labels
     Same as for :meth:`Mask.__init__`.
 )pydoc");
 
-    cls.def_static("from_random",
-                   [](py::object large_leg,
-                      py::object small_leg,
-                      TensorBackend::Ptr backend,
-                      float64 p_keep,
-                      int64 min_keep,
-                      py::object labels,
-                      std::optional<std::string> device,
-                      py::object np_random) {
-                       auto init = py_parse_diag(large_leg, std::move(backend), labels);
-                       Space::Ptr small;
-                       if (!small_leg.is_none()) {
-                           small = py_as_space_leg(small_leg);
-                       }
-                       return Mask::from_random(py_as_space_leg(large_leg),
-                                                small,
-                                                init.backend,
-                                                p_keep,
-                                                min_keep,
-                                                init.labels,
-                                                device,
-                                                np_random);
-                   },
-                   py::arg("large_leg"),
-                   py::arg("small_leg") = py::none(),
-                   py::arg("backend") = nullptr,
-                   py::arg("p_keep") = 0.5,
-                   py::arg("min_keep") = 0,
-                   py::arg("labels") = py::none(),
-                   py::arg("device") = py::none(),
-                   py::arg("np_random") = py::none(),
-                   R"pydoc(
+    cls.def_static(
+      "from_random",
+      [](py::object large_leg,
+         py::object small_leg,
+         TensorBackend::Ptr backend,
+         float64 p_keep,
+         int64 min_keep,
+         py::object labels,
+         std::optional<std::string> device,
+         py::object np_random) {
+          auto init = py_parse_diag(large_leg, std::move(backend), labels);
+          Space::Ptr small;
+          if (!small_leg.is_none()) {
+              small = py_as_space_leg(small_leg);
+          }
+          return Mask::from_random(py_as_space_leg(large_leg),
+                                   small,
+                                   init.backend,
+                                   p_keep,
+                                   min_keep,
+                                   init.labels,
+                                   device,
+                                   np_random);
+      },
+      py::arg("large_leg"),
+      py::arg("small_leg") = py::none(),
+      py::arg("backend") = nullptr,
+      py::arg("p_keep") = 0.5,
+      py::arg("min_keep") = 0,
+      py::arg("labels") = py::none(),
+      py::arg("device") = py::none(),
+      py::arg("np_random") = py::none(),
+      R"pydoc(
 Create a random projection Mask.
 
 To get the related inclusion Mask, use :func:`dagger`.
@@ -372,20 +365,20 @@ min_keep: int, optional
     Is ignored of `small_leg` is given.
 )pydoc");
 
-    cls.def_static("from_zero",
-                   [](py::object large_leg,
-                      TensorBackend::Ptr backend,
-                      py::object labels,
-                      std::optional<std::string> device) {
-                       auto init = py_parse_diag(large_leg, std::move(backend), labels);
-                       return Mask::from_zero(
-                         py_as_space_leg(large_leg), init.backend, init.labels, device);
-                   },
-                   py::arg("large_leg"),
-                   py::arg("backend") = nullptr,
-                   py::arg("labels") = py::none(),
-                   py::arg("device") = py::none(),
-                   R"pydoc(
+    cls.def_static(
+      "from_zero",
+      [](py::object large_leg,
+         TensorBackend::Ptr backend,
+         py::object labels,
+         std::optional<std::string> device) {
+          auto init = py_parse_diag(large_leg, std::move(backend), labels);
+          return Mask::from_zero(py_as_space_leg(large_leg), init.backend, init.labels, device);
+      },
+      py::arg("large_leg"),
+      py::arg("backend") = nullptr,
+      py::arg("labels") = py::none(),
+      py::arg("device") = py::none(),
+      R"pydoc(
 The zero projection Mask, that discards all states and keeps none.
 
 To get the related inclusion Mask, use :func:`dagger`.

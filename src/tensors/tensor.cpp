@@ -229,8 +229,7 @@ Tensor::_init_parse_args(TensorProduct::Ptr codomain,
         throw std::invalid_argument("codomain must be a TensorProduct");
     }
     if (!domain) {
-        domain = std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{},
-                                                 codomain->symmetry);
+        domain = std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{}, codomain->symmetry);
     }
     Symmetry::Ptr symmetry;
     if (codomain->num_factors > 0 || codomain->symmetry) {
@@ -326,7 +325,8 @@ parse_tensor_init_args(py::object codomain, py::object domain, TensorBackend::Pt
         domain = py::list();
     }
     auto domain_tp = tensor_product_from_python(domain, symmetry);
-    return Tensor::_init_parse_args(std::move(codomain_tp), std::move(domain_tp), std::move(backend));
+    return Tensor::_init_parse_args(
+      std::move(codomain_tp), std::move(domain_tp), std::move(backend));
 }
 
 LegLabels

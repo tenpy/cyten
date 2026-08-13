@@ -17,9 +17,9 @@
 #include <cyten/tools.h>
 
 #include <cassert>
-#include <memory>
 #include <cmath>
 #include <format>
+#include <memory>
 #include <stdexcept>
 #include <utility>
 #include <variant>
@@ -229,17 +229,55 @@ same_device2(py::object t1, py::object t2, std::string const& error_msg = "Incom
 } // namespace
 
 py::object apply_mask_DiagonalTensor_py(py::object tensor, py::object mask);
-std::tuple<py::object, py::object> eigh_py(py::object tensor, py::object new_labels, bool new_leg_dual, py::object sort);
+std::tuple<py::object, py::object> eigh_py(py::object tensor,
+                                           py::object new_labels,
+                                           bool new_leg_dual,
+                                           py::object sort);
 py::object entropy_py(py::object p, py::object n);
-std::tuple<py::object, py::object> qr_py(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_leg_top);
-std::tuple<py::object, py::object> lq_py(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_leg_top);
-std::tuple<py::object, py::object, py::object> svd_py(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_leg_top, py::object algorithm);
-std::tuple<py::object, py::object, py::object> svd_apply_mask_py(py::object U, py::object S, py::object Vh, py::object mask);
-std::tuple<py::object, float64, float64> truncate_singular_values_py(py::object S, std::optional<int64> chi_max, int64 chi_min, float64 degeneracy_tol, float64 trunc_cut, float64 svd_min, bool minimize_error = true, py::object mask_labels = py::none());
-std::tuple<py::object, py::object, py::object, float64, float64> truncated_svd_py(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_leg_top, py::object algorithm, std::optional<float64> normalize_to, std::optional<int64> chi_max, int64 chi_min, float64 degeneracy_tol, float64 trunc_cut, float64 svd_min);
+std::tuple<py::object, py::object> qr_py(py::object tensor,
+                                         py::object new_labels,
+                                         bool new_leg_dual,
+                                         bool charge_leg_top);
+std::tuple<py::object, py::object> lq_py(py::object tensor,
+                                         py::object new_labels,
+                                         bool new_leg_dual,
+                                         bool charge_leg_top);
+std::tuple<py::object, py::object, py::object> svd_py(py::object tensor,
+                                                      py::object new_labels,
+                                                      bool new_leg_dual,
+                                                      bool charge_leg_top,
+                                                      py::object algorithm);
+std::tuple<py::object, py::object, py::object> svd_apply_mask_py(py::object U,
+                                                                 py::object S,
+                                                                 py::object Vh,
+                                                                 py::object mask);
+std::tuple<py::object, float64, float64> truncate_singular_values_py(
+  py::object S,
+  std::optional<int64> chi_max,
+  int64 chi_min,
+  float64 degeneracy_tol,
+  float64 trunc_cut,
+  float64 svd_min,
+  bool minimize_error = true,
+  py::object mask_labels = py::none());
+std::tuple<py::object, py::object, py::object, float64, float64> truncated_svd_py(
+  py::object tensor,
+  py::object new_labels,
+  bool new_leg_dual,
+  bool charge_leg_top,
+  py::object algorithm,
+  std::optional<float64> normalize_to,
+  std::optional<int64> chi_max,
+  int64 chi_min,
+  float64 degeneracy_tol,
+  float64 trunc_cut,
+  float64 svd_min);
 
 py::object
-move_charge_leg(py::object tensor_part, py::object which, std::optional<int64> cpos, std::optional<int64> dpos)
+move_charge_leg(py::object tensor_part,
+                py::object which,
+                std::optional<int64> cpos,
+                std::optional<int64> dpos)
 {
     return py::cast(move_leg(tensor_part.cast<TensorCPtr>(),
                              which.cast<std::string>(),
@@ -347,10 +385,10 @@ eigh_py(py::object tensor, py::object new_labels, bool new_leg_dual, py::object 
         for (int64 i = n_cod; i < n_legs; ++i) {
             dom_idcs.emplace_back(i);
         }
-        tensor = py::cast(combine_legs(
-          tensor.cast<TensorCPtr>(),
-          { std::move(cod_idcs), std::move(dom_idcs) },
-          PipeDualities{ std::vector<bool>{ new_leg_dual, !new_leg_dual } }));
+        tensor = py::cast(
+          combine_legs(tensor.cast<TensorCPtr>(),
+                       { std::move(cod_idcs), std::move(dom_idcs) },
+                       PipeDualities{ std::vector<bool>{ new_leg_dual, !new_leg_dual } }));
         backend = tensor.attr("backend").cast<TensorBackend::Ptr>();
     }
 
@@ -406,9 +444,8 @@ entropy_py(py::object p, py::object n)
             return (-py::module_::import("numpy").attr("log")(p.attr("max")().attr("to_numpy")()));
         }
         float64 n_f = n.cast<float64>();
-        py::object logged =
-          py::module_::import("numpy").attr("log")(
-            py::cast(trace(p.attr("__pow__")(n).cast<TensorCPtr>())).attr("to_numpy")());
+        py::object logged = py::module_::import("numpy").attr("log")(
+          py::cast(trace(p.attr("__pow__")(n).cast<TensorCPtr>())).attr("to_numpy")());
         return logged.attr("__truediv__")(1.0 - n_f);
     }
     // else: sequence of floats
@@ -516,10 +553,10 @@ lq_py(py::object tensor, py::object new_labels, bool new_leg_dual, bool charge_l
 
 std::tuple<py::object, py::object, py::object>
 svd_py(py::object tensor,
-    py::object new_labels,
-    bool new_leg_dual,
-    bool charge_leg_top,
-    py::object algorithm)
+       py::object new_labels,
+       bool new_leg_dual,
+       bool charge_leg_top,
+       py::object algorithm)
 {
     // --- hints from Python svd_py ---
     // split legs, if they were previously combined
@@ -586,7 +623,8 @@ svd_apply_mask_py(py::object U, py::object S, py::object Vh, py::object mask)
     assert(
       py_eq(mask.attr("domain").attr("__getitem__")(0), S.attr("domain").attr("__getitem__")(0)));
 
-    U = py::cast(_compose_with_Mask(U.cast<TensorCPtr>(), std::dynamic_pointer_cast<Mask>(dagger(mask.cast<TensorCPtr>())), -1));
+    U = py::cast(_compose_with_Mask(
+      U.cast<TensorCPtr>(), std::dynamic_pointer_cast<Mask>(dagger(mask.cast<TensorCPtr>())), -1));
     S = apply_mask_DiagonalTensor_py(S, mask);
     Vh = py::cast(_compose_with_Mask(Vh.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), 0));
     return { U, S, Vh };
@@ -594,13 +632,13 @@ svd_apply_mask_py(py::object U, py::object S, py::object Vh, py::object mask)
 
 std::tuple<py::object, float64, float64>
 truncate_singular_values_py(py::object S,
-                         std::optional<int64> chi_max,
-                         int64 chi_min,
-                         float64 degeneracy_tol,
-                         float64 trunc_cut,
-                         float64 svd_min,
-                         bool minimize_error,
-                         py::object mask_labels)
+                            std::optional<int64> chi_max,
+                            int64 chi_min,
+                            float64 degeneracy_tol,
+                            float64 trunc_cut,
+                            float64 svd_min,
+                            bool minimize_error,
+                            py::object mask_labels)
 {
     assert(S.attr("dtype").attr("is_real").cast<bool>());
     auto backend = S.attr("backend").cast<TensorBackend::Ptr>();
@@ -633,16 +671,16 @@ truncate_singular_values_py(py::object S,
 
 std::tuple<py::object, py::object, py::object, float64, float64>
 truncated_svd_py(py::object tensor,
-              py::object new_labels,
-              bool new_leg_dual,
-              bool charge_leg_top,
-              py::object algorithm,
-              std::optional<float64> normalize_to,
-              std::optional<int64> chi_max,
-              int64 chi_min,
-              float64 degeneracy_tol,
-              float64 trunc_cut,
-              float64 svd_min)
+                 py::object new_labels,
+                 bool new_leg_dual,
+                 bool charge_leg_top,
+                 py::object algorithm,
+                 std::optional<float64> normalize_to,
+                 std::optional<int64> chi_max,
+                 int64 chi_min,
+                 float64 degeneracy_tol,
+                 float64 trunc_cut,
+                 float64 svd_min)
 {
     // --- hints from Python truncated_svd_py ---
     // norm(S[mask]) == S_norm * new_norm
@@ -719,7 +757,8 @@ coerce_scalar_decomp(py::object o, TensorCPtr hint)
 DiagonalTensorPtr
 apply_mask_DiagonalTensor(DiagonalTensorCPtr tensor, MaskCPtr mask)
 {
-    return apply_mask_DiagonalTensor_py(py::cast(tensor), py::cast(mask)).cast<DiagonalTensorPtr>();
+    return apply_mask_DiagonalTensor_py(py::cast(tensor), py::cast(mask))
+      .cast<DiagonalTensorPtr>();
 }
 
 std::tuple<DiagonalTensorPtr, TensorPtr>
@@ -739,14 +778,16 @@ entropy(DiagonalTensorCPtr p, float64 n)
 std::tuple<TensorPtr, TensorPtr>
 lq(TensorCPtr tensor, std::optional<LegLabels> new_labels, bool new_leg_dual, bool charge_leg_top)
 {
-    auto [L, Q] = lq_py(py::cast(tensor), labels_to_py_opt(new_labels), new_leg_dual, charge_leg_top);
+    auto [L, Q] =
+      lq_py(py::cast(tensor), labels_to_py_opt(new_labels), new_leg_dual, charge_leg_top);
     return { L.cast<TensorPtr>(), Q.cast<TensorPtr>() };
 }
 
 std::tuple<TensorPtr, TensorPtr>
 qr(TensorCPtr tensor, std::optional<LegLabels> new_labels, bool new_leg_dual, bool charge_leg_top)
 {
-    auto [Q, R] = qr_py(py::cast(tensor), labels_to_py_opt(new_labels), new_leg_dual, charge_leg_top);
+    auto [Q, R] =
+      qr_py(py::cast(tensor), labels_to_py_opt(new_labels), new_leg_dual, charge_leg_top);
     return { Q.cast<TensorPtr>(), R.cast<TensorPtr>() };
 }
 
@@ -817,7 +858,9 @@ truncated_svd(TensorCPtr tensor,
                                                          degeneracy_tol,
                                                          trunc_cut,
                                                          svd_min);
-    return { U.cast<TensorPtr>(), S.cast<DiagonalTensorPtr>(), Vh.cast<TensorPtr>(), err, renormalize };
+    return {
+        U.cast<TensorPtr>(), S.cast<DiagonalTensorPtr>(), Vh.cast<TensorPtr>(), err, renormalize
+    };
 }
 
 } // namespace cyten

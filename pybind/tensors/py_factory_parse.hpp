@@ -36,8 +36,11 @@ py_as_space_leg(py::object leg)
 inline Tensor::InitParsed
 py_parse_diag(py::object leg, TensorBackend::Ptr backend, py::object labels)
 {
-    return parse_tensor_init(
-      py::make_tuple(leg), py::make_tuple(leg), std::move(backend), labels, /*is_endomorphism=*/true);
+    return parse_tensor_init(py::make_tuple(leg),
+                             py::make_tuple(leg),
+                             std::move(backend),
+                             labels,
+                             /*is_endomorphism=*/true);
 }
 
 inline TensorCPtr

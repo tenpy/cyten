@@ -353,12 +353,16 @@ charge_leg_label()
 
 } // namespace
 
-bool almost_equal_py(py::object tensor_1, py::object tensor_2, float64 rtol, float64 atol,
+bool almost_equal_py(py::object tensor_1,
+                     py::object tensor_2,
+                     float64 rtol,
+                     float64 atol,
                      bool allow_different_types = false);
 py::object apply_mask_py(py::object tensor, py::object mask, py::object leg);
 py::object enlarge_leg_py(py::object tensor, py::object mask, py::object leg);
 py::object dagger_py(py::object tensor);
-py::object compose_py(py::object tensor1, py::object tensor2,
+py::object compose_py(py::object tensor1,
+                      py::object tensor2,
                       std::optional<std::map<std::string, std::string>> relabel1 = std::nullopt,
                       std::optional<std::map<std::string, std::string>> relabel2 = std::nullopt);
 py::object inner_py(py::object A, py::object B, bool do_dagger = true);
@@ -367,18 +371,26 @@ py::object item_py(py::object tensor);
 py::object linear_combination_py(py::object a, py::object v, py::object b, py::object w);
 py::object norm_py(py::object tensor);
 py::object on_device_py(py::object tensor, std::string device, bool copy);
-py::object outer_py(py::object tensor1, py::object tensor2,
+py::object outer_py(py::object tensor1,
+                    py::object tensor2,
                     std::optional<std::map<std::string, std::string>> relabel1 = std::nullopt,
                     std::optional<std::map<std::string, std::string>> relabel2 = std::nullopt);
-py::object partial_compose_py(py::object tensor1, py::object tensor2, py::object tensor1_first_leg,
-                              std::optional<std::map<std::string, std::string>> relabel1 = std::nullopt,
-                              std::optional<std::map<std::string, std::string>> relabel2 = std::nullopt);
-py::object partial_trace_py(py::object tensor, std::vector<py::object> pairs,
+py::object partial_compose_py(
+  py::object tensor1,
+  py::object tensor2,
+  py::object tensor1_first_leg,
+  std::optional<std::map<std::string, std::string>> relabel1 = std::nullopt,
+  std::optional<std::map<std::string, std::string>> relabel2 = std::nullopt);
+py::object partial_trace_py(py::object tensor,
+                            std::vector<py::object> pairs,
                             py::object levels = py::none());
 py::object pinv_py(py::object tensor, float64 cutoff);
 py::object scalar_multiply_py(py::object a, py::object v);
 py::object scale_axis_py(py::object tensor, py::object diag, py::object leg);
-py::object tdot_py(py::object tensor1, py::object tensor2, py::object legs1, py::object legs2,
+py::object tdot_py(py::object tensor1,
+                   py::object tensor2,
+                   py::object legs1,
+                   py::object legs2,
                    std::optional<std::map<std::string, std::string>> relabel1 = std::nullopt,
                    std::optional<std::map<std::string, std::string>> relabel2 = std::nullopt);
 py::object trace_py(py::object tensor);
@@ -386,10 +398,10 @@ py::object transpose_py(py::object tensor);
 
 bool
 almost_equal_py(py::object tensor_1,
-             py::object tensor_2,
-             float64 rtol,
-             float64 atol,
-             bool allow_different_types)
+                py::object tensor_2,
+                float64 rtol,
+                float64 atol,
+                bool allow_different_types)
 {
     // --- hints from Python almost_equal ---
     // TODO this is not strictly correct, since definition is not symmetric...
@@ -508,8 +520,7 @@ apply_mask_py(py::object tensor, py::object mask, py::object leg)
     if (in_domain) {
         mask = transpose_py(mask);
     }
-    return py::cast(
-      _compose_with_Mask(tensor.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), leg_idx));
+    return py::cast(_compose_with_Mask(tensor.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), leg_idx));
 }
 
 py::object
@@ -526,8 +537,7 @@ enlarge_leg_py(py::object tensor, py::object mask, py::object leg)
     if (in_domain) {
         mask = transpose_py(mask);
     }
-    return py::cast(
-      _compose_with_Mask(tensor.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), leg_idx));
+    return py::cast(_compose_with_Mask(tensor.cast<TensorCPtr>(), mask.cast<MaskCPtr>(), leg_idx));
 }
 
 py::object
@@ -602,9 +612,9 @@ dagger_py(py::object tensor)
 
 py::object
 compose_py(py::object tensor1,
-        py::object tensor2,
-        std::optional<std::map<std::string, std::string>> relabel1,
-        std::optional<std::map<std::string, std::string>> relabel2)
+           py::object tensor2,
+           std::optional<std::map<std::string, std::string>> relabel1,
+           std::optional<std::map<std::string, std::string>> relabel2)
 {
     // --- hints from Python compose ---
     // only tensor2 is ChargedTensor
@@ -619,7 +629,8 @@ compose_py(py::object tensor1,
     py::object res_labels = nested_labels_to_py(codomain_labels, domain_labels);
 
     if (is_Mask(tensor1)) {
-        return py::cast(_compose_with_Mask(tensor2.cast<TensorCPtr>(), tensor1.cast<MaskCPtr>(), 0))
+        return py::cast(
+                 _compose_with_Mask(tensor2.cast<TensorCPtr>(), tensor1.cast<MaskCPtr>(), 0))
           .attr("set_label")(0, tensor1.attr("labels").attr("__getitem__")(0));
     }
     if (is_Mask(tensor2)) {
@@ -741,7 +752,8 @@ inner_py(py::object A, py::object B, bool do_dagger)
     if (is_DiagonalTensor(B) || is_Mask(B)) {
         // same argument as above.
         if (do_dagger) {
-            return py::module_::import("numpy").attr("conj")(trace_py(compose_py(dagger_py(B), A)));
+            return py::module_::import("numpy").attr("conj")(
+              trace_py(compose_py(dagger_py(B), A)));
         }
         return trace_py(compose_py(A, B));
     }
@@ -798,11 +810,11 @@ inner_py(py::object A, py::object B, bool do_dagger)
                                                                   py::cast(fwd_legs),
                                                                   py::make_tuple(-1),
                                                                   py::arg("bend_right") = true);
-            py::object inv_part = py_from_compose_sym(_compose_SymmetricTensors(
-              A_inv.cast<SymmetricTensorCPtr>(),
-              B_inv.cast<SymmetricTensorCPtr>(),
-              std::map<std::string, std::string>{ { "!", "!A" } },
-              std::map<std::string, std::string>{ { "!", "!B" } }));
+            py::object inv_part = py_from_compose_sym(
+              _compose_SymmetricTensors(A_inv.cast<SymmetricTensorCPtr>(),
+                                        B_inv.cast<SymmetricTensorCPtr>(),
+                                        std::map<std::string, std::string>{ { "!", "!A" } },
+                                        std::map<std::string, std::string>{ { "!", "!B" } }));
             assert(
               py_eq(inv_part.attr("labels"), py::cast(std::vector<std::string>{ "!A", "!B" })));
             py::object inv_block =
@@ -858,7 +870,8 @@ inner_py(py::object A, py::object B, bool do_dagger)
                                 { 0 });
             return scalar_to_py(bb->item(res));
         }
-        py::object inv_part = tdot_py(A, B.attr("invariant_part"), py::cast(legsA), py::cast(legsB));
+        py::object inv_part =
+          tdot_py(A, B.attr("invariant_part"), py::cast(legsA), py::cast(legsB));
         auto res = bb->tdot(inv_part.attr("to_dense_block")().cast<BlockBackend::BlockPtr>(),
                             B.attr("charged_state").cast<BlockBackend::BlockPtr>(),
                             { 0 },
@@ -991,9 +1004,9 @@ linear_combination_py(py::object a, py::object v, py::object b, py::object w)
             auto factor = bb_ptr->item(w.attr("charged_state").cast<BlockBackend::BlockPtr>()) /
                           bb_ptr->item(v.attr("charged_state").cast<BlockBackend::BlockPtr>());
             py::object inv_part = linear_combination_py(a,
-                                                     v.attr("invariant_part"),
-                                                     b.attr("__mul__")(scalar_to_py(factor)),
-                                                     w.attr("invariant_part"));
+                                                        v.attr("invariant_part"),
+                                                        b.attr("__mul__")(scalar_to_py(factor)),
+                                                        w.attr("invariant_part"));
             return make_python_charged_tensor(inv_part, v.attr("charged_state"));
         }
         throw NotImplemented("linear_combination");
@@ -1076,9 +1089,9 @@ on_device_py(py::object tensor, std::string device, bool copy)
 
 py::object
 outer_py(py::object tensor1,
-      py::object tensor2,
-      std::optional<std::map<std::string, std::string>> relabel1,
-      std::optional<std::map<std::string, std::string>> relabel2)
+         py::object tensor2,
+         std::optional<std::map<std::string, std::string>> relabel1,
+         std::optional<std::map<std::string, std::string>> relabel2)
 {
     // --- hints from Python outer ---
     // construct new labels
@@ -1115,11 +1128,13 @@ outer_py(py::object tensor1,
               .attr("from_two_charge_legs")(
                 inv_part, tensor1.attr("charged_state"), tensor2.attr("charged_state"));
         }
-        py::object inv_part = outer_py(tensor1.attr("invariant_part"), tensor2, relabel1, relabel2);
+        py::object inv_part =
+          outer_py(tensor1.attr("invariant_part"), tensor2, relabel1, relabel2);
         return make_python_charged_tensor(inv_part, tensor1.attr("charged_state"));
     }
     if (is_ChargedTensor(tensor2)) {
-        py::object inv_part = outer_py(tensor1, tensor2.attr("invariant_part"), relabel1, relabel2);
+        py::object inv_part =
+          outer_py(tensor1, tensor2.attr("invariant_part"), relabel1, relabel2);
         inv_part = tensors_mod().attr("move_leg")(inv_part,
                                                   tensor1.attr("num_codomain_legs").cast<int64>() +
                                                     tensor2.attr("num_legs").cast<int64>(),
@@ -1157,10 +1172,10 @@ outer_py(py::object tensor1,
 
 py::object
 partial_compose_py(py::object tensor1,
-                py::object tensor2,
-                py::object tensor1_first_leg,
-                std::optional<std::map<std::string, std::string>> relabel1,
-                std::optional<std::map<std::string, std::string>> relabel2)
+                   py::object tensor2,
+                   py::object tensor1_first_leg,
+                   std::optional<std::map<std::string, std::string>> relabel1,
+                   std::optional<std::map<std::string, std::string>> relabel2)
 {
     // do these cases first since the charged_legs do not count towards the num_domain_legs
     // in ChargedTensors, but we need them for the consistency checks below
@@ -1335,7 +1350,8 @@ partial_compose_py(py::object tensor1,
         return py_compose_with_mask(tensor1, tensor2, t1_first).attr("set_labels")(res_labels_py);
     }
     if (is_DiagonalTensor(tensor2)) {
-        return scale_axis_py(tensor1, tensor2, py::int_(t1_first)).attr("set_labels")(res_labels_py);
+        return scale_axis_py(tensor1, tensor2, py::int_(t1_first))
+          .attr("set_labels")(res_labels_py);
     }
 
     auto backend = get_same_backend({ tensor1, tensor2 });
@@ -1505,8 +1521,8 @@ pinv_py(py::object tensor, float64 cutoff)
                                                       /*svd_min=*/cutoff);
     (void)err;
     (void)renormalize;
-    return dagger_py(compose_py(
-      compose_py(py::cast(U), py::cast(cutoff_inverse(S, cutoff))), py::cast(Vh)));
+    return dagger_py(
+      compose_py(compose_py(py::cast(U), py::cast(cutoff_inverse(S, cutoff))), py::cast(Vh)));
 }
 
 py::object
@@ -1583,7 +1599,8 @@ scale_axis_py(py::object tensor, py::object diag, py::object leg)
         return compose_py(tensor, diag).attr("set_labels")(tensor.attr("labels"));
     }
     if (is_ChargedTensor(tensor)) {
-        py::object inv_part = scale_axis_py(tensor.attr("invariant_part"), diag, py::int_(leg_idx));
+        py::object inv_part =
+          scale_axis_py(tensor.attr("invariant_part"), diag, py::int_(leg_idx));
         return make_python_charged_tensor(inv_part, tensor.attr("charged_state"));
     }
     auto backend = get_same_backend({ tensor, diag });
@@ -1598,11 +1615,11 @@ scale_axis_py(py::object tensor, py::object diag, py::object leg)
 
 py::object
 tdot_py(py::object tensor1,
-     py::object tensor2,
-     py::object legs1,
-     py::object legs2,
-     std::optional<std::map<std::string, std::string>> relabel1,
-     std::optional<std::map<std::string, std::string>> relabel2)
+        py::object tensor2,
+        py::object legs1,
+        py::object legs2,
+        std::optional<std::map<std::string, std::string>> relabel1,
+        std::optional<std::map<std::string, std::string>> relabel2)
 {
     // --- hints from Python tdot ---
     // parse legs to list[int] and check they are valid
@@ -1702,7 +1719,8 @@ tdot_py(py::object tensor1,
               legs2_v[which_is_large] >= tensor2.attr("num_codomain_legs").cast<int64>();
             py::object res;
             if (t1_in_domain == t2_in_domain) {
-                res = py_compose_with_mask(tensor2, transpose_py(tensor1), legs2_v[which_is_large]);
+                res =
+                  py_compose_with_mask(tensor2, transpose_py(tensor1), legs2_v[which_is_large]);
             } else {
                 res = py_compose_with_mask(tensor2, tensor1, legs2_v[which_is_large]);
             }
@@ -1746,7 +1764,8 @@ tdot_py(py::object tensor1,
             bool t2_in_domain = is_proj;
             py::object res;
             if (t1_in_domain == t2_in_domain) {
-                res = py_compose_with_mask(tensor1, transpose_py(tensor2), legs1_v[which_is_large]);
+                res =
+                  py_compose_with_mask(tensor1, transpose_py(tensor2), legs1_v[which_is_large]);
             } else {
                 res = py_compose_with_mask(tensor1, tensor2, legs1_v[which_is_large]);
             }
@@ -1846,11 +1865,11 @@ tdot_py(py::object tensor1,
         std::string c1 = c + "1";
         std::string c2 = c + "2";
         py::object inv_part = tdot_py(tensor1.attr("invariant_part"),
-                                   tensor2.attr("invariant_part"),
-                                   legs1_idcs,
-                                   legs2_idcs,
-                                   std::map<std::string, std::string>{ { c, c1 } },
-                                   std::map<std::string, std::string>{ { c, c2 } });
+                                      tensor2.attr("invariant_part"),
+                                      legs1_idcs,
+                                      legs2_idcs,
+                                      std::map<std::string, std::string>{ { c, c1 } },
+                                      std::map<std::string, std::string>{ { c, c2 } });
         inv_part = tensors_mod().attr("move_leg")(inv_part, c1, py::arg("domain_pos") = 0);
         return tensors_mod()
           .attr("ChargedTensor")
@@ -2043,7 +2062,8 @@ almost_equal(TensorCPtr tensor_1,
              float64 atol,
              bool allow_different_types)
 {
-    return almost_equal_py(py::cast(tensor_1), py::cast(tensor_2), rtol, atol, allow_different_types);
+    return almost_equal_py(
+      py::cast(tensor_1), py::cast(tensor_2), rtol, atol, allow_different_types);
 }
 
 TensorPtr
@@ -2098,7 +2118,8 @@ linear_combination(BlockBackend::Scalar const& a,
                    BlockBackend::Scalar const& b,
                    TensorCPtr w)
 {
-    return linear_combination_py(py::cast(a), py::cast(v), py::cast(b), py::cast(w)).cast<TensorPtr>();
+    return linear_combination_py(py::cast(a), py::cast(v), py::cast(b), py::cast(w))
+      .cast<TensorPtr>();
 }
 
 BlockBackend::Scalar
@@ -2129,11 +2150,8 @@ partial_compose(TensorCPtr tensor1,
                 std::optional<std::map<std::string, std::string>> relabel1,
                 std::optional<std::map<std::string, std::string>> relabel2)
 {
-    return partial_compose_py(py::cast(tensor1),
-                              py::cast(tensor2),
-                              py_leg(tensor1_first_leg),
-                              relabel1,
-                              relabel2)
+    return partial_compose_py(
+             py::cast(tensor1), py::cast(tensor2), py_leg(tensor1_first_leg), relabel1, relabel2)
       .cast<TensorPtr>();
 }
 
@@ -2189,13 +2207,10 @@ tdot(TensorCPtr tensor1,
      std::optional<std::map<std::string, std::string>> relabel1,
      std::optional<std::map<std::string, std::string>> relabel2)
 {
-    return coerce_tensor_or_scalar(tdot_py(py::cast(tensor1),
-                                           py::cast(tensor2),
-                                           py_legs(legs1),
-                                           py_legs(legs2),
-                                           relabel1,
-                                           relabel2),
-                                   tensor1);
+    return coerce_tensor_or_scalar(
+      tdot_py(
+        py::cast(tensor1), py::cast(tensor2), py_legs(legs1), py_legs(legs2), relabel1, relabel2),
+      tensor1);
 }
 
 BlockBackend::Scalar

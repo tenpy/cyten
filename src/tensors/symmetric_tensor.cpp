@@ -137,14 +137,13 @@ SymmetricTensor::from_zero(TensorProduct::Ptr codomain,
     assert(dt.has_value());
     auto device_s = backend_tp->block_backend->as_device(device);
     auto data = backend_tp->zero_data(codomain_tp, domain_tp, *dt, device_s);
-    return std::make_shared<SymmetricTensor>(data,
-                                             codomain_tp,
-                                             domain_tp,
-                                             backend_tp,
-                                             symmetry,
-                                             _init_parse_labels(std::move(labels),
-                                                                codomain_tp,
-                                                                domain_tp));
+    return std::make_shared<SymmetricTensor>(
+      data,
+      codomain_tp,
+      domain_tp,
+      backend_tp,
+      symmetry,
+      _init_parse_labels(std::move(labels), codomain_tp, domain_tp));
 }
 
 SymmetricTensor::Ptr
@@ -211,15 +210,13 @@ SymmetricTensor::from_block_func(py::function func,
     });
 
     auto data = backend_tp->from_sector_block_func(block_func, codomain_tp, domain_tp);
-    auto res =
-      std::make_shared<SymmetricTensor>(data,
-                                        codomain_tp,
-                                        domain_tp,
-                                        backend_tp,
-                                        symmetry,
-                                        _init_parse_labels(std::move(labels),
-                                                           codomain_tp,
-                                                           domain_tp));
+    auto res = std::make_shared<SymmetricTensor>(
+      data,
+      codomain_tp,
+      domain_tp,
+      backend_tp,
+      symmetry,
+      _init_parse_labels(std::move(labels), codomain_tp, domain_tp));
     res->test_sanity(); // OPTIMIZE remove?
     return res;
 }
@@ -254,15 +251,13 @@ SymmetricTensor::from_sector_block_func(py::function func,
       });
 
     auto data = backend_tp->from_sector_block_func(block_func, codomain_tp, domain_tp);
-    auto res =
-      std::make_shared<SymmetricTensor>(data,
-                                        codomain_tp,
-                                        domain_tp,
-                                        backend_tp,
-                                        symmetry,
-                                        _init_parse_labels(std::move(labels),
-                                                           codomain_tp,
-                                                           domain_tp));
+    auto res = std::make_shared<SymmetricTensor>(
+      data,
+      codomain_tp,
+      domain_tp,
+      backend_tp,
+      symmetry,
+      _init_parse_labels(std::move(labels), codomain_tp, domain_tp));
     res->test_sanity();
     return res;
 }
@@ -298,14 +293,13 @@ SymmetricTensor::from_dense_block(BlockBackend::BlockPtr block,
     block_ptr = backend_tp->block_backend->apply_basis_perm(
       block_ptr, legs_from_py(conventional_leg_order(codomain_tp, domain_tp)));
     auto data = backend_tp->from_dense_block(block_ptr, codomain_tp, domain_tp, tol);
-    return std::make_shared<SymmetricTensor>(data,
-                                             codomain_tp,
-                                             domain_tp,
-                                             backend_tp,
-                                             symmetry,
-                                             _init_parse_labels(std::move(labels),
-                                                                codomain_tp,
-                                                                domain_tp));
+    return std::make_shared<SymmetricTensor>(
+      data,
+      codomain_tp,
+      domain_tp,
+      backend_tp,
+      symmetry,
+      _init_parse_labels(std::move(labels), codomain_tp, domain_tp));
 }
 
 SymmetricTensor::Ptr
@@ -384,7 +378,8 @@ SymmetricTensor::from_random_normal(TensorProduct::Ptr codomain,
         if (!codomain) {
             throw std::invalid_argument("Must specify the codomain if mean is not given.");
         }
-        auto [c, d, b, s] = _init_parse_args(std::move(codomain), std::move(domain), std::move(backend));
+        auto [c, d, b, s] =
+          _init_parse_args(std::move(codomain), std::move(domain), std::move(backend));
         codomain_tp = std::move(c);
         domain_tp = std::move(d);
         backend_tp = std::move(b);
@@ -399,15 +394,13 @@ SymmetricTensor::from_random_normal(TensorProduct::Ptr codomain,
     assert(device.has_value());
 
     auto data = backend_tp->from_random_normal(codomain_tp, domain_tp, sigma, *dtype, *device);
-    auto with_zero_mean =
-      std::make_shared<SymmetricTensor>(data,
-                                        codomain_tp,
-                                        domain_tp,
-                                        backend_tp,
-                                        symmetry,
-                                        _init_parse_labels(std::move(labels),
-                                                           codomain_tp,
-                                                           domain_tp));
+    auto with_zero_mean = std::make_shared<SymmetricTensor>(
+      data,
+      codomain_tp,
+      domain_tp,
+      backend_tp,
+      symmetry,
+      _init_parse_labels(std::move(labels), codomain_tp, domain_tp));
 
     if (mean) {
         auto one = backend_tp->block_backend->as_scalar(1.0);
@@ -495,15 +488,13 @@ SymmetricTensor::from_sector_projection(TensorProduct::Ptr co_domain,
       });
 
     auto data = backend_tp->from_sector_block_func(func, co_domain_tp, co_domain_tp);
-    auto res =
-      std::make_shared<SymmetricTensor>(data,
-                                        co_domain_tp,
-                                        co_domain_tp,
-                                        backend_tp,
-                                        co_domain_tp->symmetry,
-                                        _init_parse_labels(std::move(labels),
-                                                           co_domain_tp,
-                                                           co_domain_tp));
+    auto res = std::make_shared<SymmetricTensor>(
+      data,
+      co_domain_tp,
+      co_domain_tp,
+      backend_tp,
+      co_domain_tp->symmetry,
+      _init_parse_labels(std::move(labels), co_domain_tp, co_domain_tp));
     res->test_sanity();
     return res;
 }
@@ -584,14 +575,13 @@ SymmetricTensor::from_tree_pairs(py::object trees_obj,
         dtype = dtype::common(dts);
     }
     auto data = backend_tp->from_tree_pairs(block_trees, codomain_tp, domain_tp, *dtype, device_s);
-    return std::make_shared<SymmetricTensor>(data,
-                                             codomain_tp,
-                                             domain_tp,
-                                             backend_tp,
-                                             symmetry,
-                                             _init_parse_labels(std::move(labels),
-                                                                codomain_tp,
-                                                                domain_tp));
+    return std::make_shared<SymmetricTensor>(
+      data,
+      codomain_tp,
+      domain_tp,
+      backend_tp,
+      symmetry,
+      _init_parse_labels(std::move(labels), codomain_tp, domain_tp));
 }
 
 Tensor::Ptr

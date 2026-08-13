@@ -261,8 +261,12 @@ add_trivial_leg(TensorCPtr tens,
     new_labels.push_back(label);
     new_labels.insert(new_labels.end(), labels.begin() + legs_pos, labels.end());
 
-    return std::make_shared<SymmetricTensor>(
-      std::move(data), std::move(codomain), std::move(domain), backend, tens->symmetry, new_labels);
+    return std::make_shared<SymmetricTensor>(std::move(data),
+                                             std::move(codomain),
+                                             std::move(domain),
+                                             backend,
+                                             tens->symmetry,
+                                             new_labels);
 }
 
 TensorPtr
@@ -290,12 +294,8 @@ zero_like(TensorCPtr tensor)
                                         charged->device);
     }
     if (auto sym = std::dynamic_pointer_cast<SymmetricTensor const>(tensor)) {
-        return SymmetricTensor::from_zero(sym->codomain,
-                                          sym->domain,
-                                          sym->backend,
-                                          sym->labels(),
-                                          sym->dtype,
-                                          sym->device);
+        return SymmetricTensor::from_zero(
+          sym->codomain, sym->domain, sym->backend, sym->labels(), sym->dtype, sym->device);
     }
     throw py::type_error("Invalid type for tensor.");
 }
@@ -347,15 +347,17 @@ tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
     auto const& ref = ops[0];
     int64 n_cod = ref->num_codomain_legs();
     int64 n_dom = ref->num_domain_legs();
-    auto ref_cod_tail = factors_slice(ref->codomain, 1, static_cast<int64>(ref->codomain->factors.size()));
+    auto ref_cod_tail =
+      factors_slice(ref->codomain, 1, static_cast<int64>(ref->codomain->factors.size()));
     auto ref_dom_head = factors_slice(ref->domain, 0, -1);
 
     for (auto const& op : ops) {
         if (op->num_codomain_legs() != n_cod || op->num_domain_legs() != n_dom) {
             throw std::runtime_error("inconsistent number of legs in grid");
         }
-        if (!factor_slices_equal(factors_slice(op->codomain, 1, static_cast<int64>(op->codomain->factors.size())),
-                                 ref_cod_tail) ||
+        if (!factor_slices_equal(
+              factors_slice(op->codomain, 1, static_cast<int64>(op->codomain->factors.size())),
+              ref_cod_tail) ||
             !factor_slices_equal(factors_slice(op->domain, 0, -1), ref_dom_head)) {
             throw std::runtime_error("inconsistent legs in grid");
         }
@@ -459,7 +461,8 @@ tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
 
     std::vector<Leg::Ptr> cod_legs;
     cod_legs.push_back(left_space);
-    auto ref_cod_rest = factors_slice(ref->codomain, 1, static_cast<int64>(ref->codomain->factors.size()));
+    auto ref_cod_rest =
+      factors_slice(ref->codomain, 1, static_cast<int64>(ref->codomain->factors.size()));
     cod_legs.insert(cod_legs.end(), ref_cod_rest.begin(), ref_cod_rest.end());
     std::vector<Leg::Ptr> dom_legs = factors_slice(ref->domain, 0, -1);
     dom_legs.push_back(right_space);
@@ -488,8 +491,12 @@ tensor_from_grid(std::vector<std::vector<TensorPtr>> grid,
     if (!labels.has_value()) {
         labs = Tensor::_init_parse_labels(std::nullopt, codomain, domain);
     }
-    return std::make_shared<SymmetricTensor>(
-      std::move(data), std::move(codomain), std::move(domain), backend, ref->symmetry, std::move(labs));
+    return std::make_shared<SymmetricTensor>(std::move(data),
+                                             std::move(codomain),
+                                             std::move(domain),
+                                             backend,
+                                             ref->symmetry,
+                                             std::move(labs));
 }
 
 } // namespace cyten
