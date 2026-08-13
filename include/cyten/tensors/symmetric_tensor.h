@@ -33,21 +33,9 @@ class SymmetricTensor : public Tensor
     /// Backend-specific free parameters of tensors with the given symmetry.
     TensorBackend::DataPtr data;
 
-    /// Construct from flexible Python-style inputs.
-    ///
     /// ``check_complex_dtype`` must be false when constructing a :class:`DiagonalTensor`
     /// subclass: virtual ``verify_dtype`` does not dispatch to the derived override while the
     /// base constructor runs, and diagonal tensors intentionally allow real dtypes.
-    SymmetricTensor(TensorBackend::DataPtr data,
-                    py::object codomain,
-                    py::object domain = py::none(),
-                    TensorBackend::Ptr backend = nullptr,
-                    py::object labels = py::none(),
-                    bool check_complex_dtype = true);
-
-    /// Construct from already-parsed C++ inputs.
-    ///
-    /// See the ``check_complex_dtype`` note on the other constructor.
     SymmetricTensor(TensorBackend::DataPtr data,
                     TensorProduct::Ptr codomain,
                     TensorProduct::Ptr domain,
@@ -71,84 +59,84 @@ class SymmetricTensor : public Tensor
     // --- factories ---
 
     [[nodiscard]] static Ptr from_block_func(py::function func,
-                                             py::object codomain,
-                                             py::object domain = py::none(),
+                                             TensorProduct::Ptr codomain,
+                                             TensorProduct::Ptr domain = nullptr,
                                              TensorBackend::Ptr backend = nullptr,
-                                             py::object labels = py::none(),
+                                             std::optional<LegLabels> labels = std::nullopt,
                                              py::object func_kwargs = py::none(),
                                              std::optional<std::string> shape_kw = std::nullopt,
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
-    [[nodiscard]] static Ptr from_dense_block(py::object block,
-                                              py::object codomain,
-                                              py::object domain = py::none(),
+    [[nodiscard]] static Ptr from_dense_block(BlockBackend::BlockPtr block,
+                                              TensorProduct::Ptr codomain,
+                                              TensorProduct::Ptr domain = nullptr,
                                               TensorBackend::Ptr backend = nullptr,
-                                              py::object labels = py::none(),
+                                              std::optional<LegLabels> labels = std::nullopt,
                                               std::optional<Dtype> dtype = std::nullopt,
                                               std::optional<std::string> device = std::nullopt,
                                               float64 tol = 1e-6,
                                               bool understood_braiding = false);
 
     [[nodiscard]] static Ptr from_dense_block_trivial_sector(
-      py::object vector,
+      BlockBackend::BlockPtr vector,
       Space::Ptr space,
       TensorBackend::Ptr backend = nullptr,
       std::optional<std::string> device = std::nullopt,
       LegLabel label = std::nullopt);
 
-    [[nodiscard]] static Ptr from_eye(py::object co_domain,
+    [[nodiscard]] static Ptr from_eye(TensorProduct::Ptr co_domain,
                                       TensorBackend::Ptr backend = nullptr,
-                                      py::object labels = py::none(),
+                                      std::optional<LegLabels> labels = std::nullopt,
                                       Dtype dtype = Dtype::Complex128,
                                       std::optional<std::string> device = std::nullopt);
 
-    [[nodiscard]] static Ptr from_random_normal(py::object codomain,
-                                                py::object domain = py::none(),
-                                                py::object mean = py::none(),
+    [[nodiscard]] static Ptr from_random_normal(TensorProduct::Ptr codomain,
+                                                TensorProduct::Ptr domain = nullptr,
+                                                TensorCPtr mean = nullptr,
                                                 float64 sigma = 1.0,
                                                 TensorBackend::Ptr backend = nullptr,
-                                                py::object labels = py::none(),
+                                                std::optional<LegLabels> labels = std::nullopt,
                                                 std::optional<Dtype> dtype = Dtype::Complex128,
                                                 std::optional<std::string> device = std::nullopt);
 
-    [[nodiscard]] static Ptr from_random_uniform(py::object codomain,
-                                                 py::object domain = py::none(),
+    [[nodiscard]] static Ptr from_random_uniform(TensorProduct::Ptr codomain,
+                                                 TensorProduct::Ptr domain = nullptr,
                                                  TensorBackend::Ptr backend = nullptr,
-                                                 py::object labels = py::none(),
+                                                 std::optional<LegLabels> labels = std::nullopt,
                                                  Dtype dtype = Dtype::Complex128,
                                                  std::optional<std::string> device = std::nullopt);
 
     [[nodiscard]] static Ptr from_sector_block_func(
       py::function func,
-      py::object codomain,
-      py::object domain = py::none(),
+      TensorProduct::Ptr codomain,
+      TensorProduct::Ptr domain = nullptr,
       TensorBackend::Ptr backend = nullptr,
-      py::object labels = py::none(),
+      std::optional<LegLabels> labels = std::nullopt,
       py::object func_kwargs = py::none(),
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt);
 
     [[nodiscard]] static Ptr from_sector_projection(
-      py::object co_domain,
+      TensorProduct::Ptr co_domain,
       Sector sector,
       TensorBackend::Ptr backend = nullptr,
-      py::object labels = py::none(),
+      std::optional<LegLabels> labels = std::nullopt,
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt);
 
     [[nodiscard]] static Ptr from_tree_pairs(py::object trees,
-                                             py::object codomain,
-                                             py::object domain = py::none(),
+                                             TensorProduct::Ptr codomain,
+                                             TensorProduct::Ptr domain = nullptr,
                                              TensorBackend::Ptr backend = nullptr,
-                                             py::object labels = py::none(),
+                                             std::optional<LegLabels> labels = std::nullopt,
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
-    [[nodiscard]] static Ptr from_zero(py::object codomain,
-                                       py::object domain = py::none(),
+    [[nodiscard]] static Ptr from_zero(TensorProduct::Ptr codomain,
+                                       TensorProduct::Ptr domain = nullptr,
                                        TensorBackend::Ptr backend = nullptr,
-                                       py::object labels = py::none(),
+                                       std::optional<LegLabels> labels = std::nullopt,
                                        Dtype dtype = Dtype::Complex128,
                                        std::optional<std::string> device = std::nullopt);
 
@@ -170,7 +158,7 @@ class SymmetricTensor : public Tensor
                                    std::optional<std::string> device = std::nullopt,
                                    std::optional<Dtype> dtype = std::nullopt) override;
 
-    [[nodiscard]] py::object diagonal(bool check_offdiagonal = false) const;
+    [[nodiscard]] DiagonalTensorPtr diagonal(bool check_offdiagonal = false) const;
 
     [[nodiscard]] BlockBackend::Scalar _get_item(std::vector<int64> const& idx) override;
 

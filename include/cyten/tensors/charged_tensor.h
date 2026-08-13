@@ -28,10 +28,7 @@ class ChargedTensor : public Tensor
     BlockBackend::BlockPtr charged_state;
     /// Usually an :class:`ElementarySpace`; may be a :class:`LegPipe` after
     /// :meth:`from_two_charge_legs` / ``combine_legs``.
-    py::object charge_leg;
-
-    /// Construct from invariant part and optional charged state.
-    ChargedTensor(py::object invariant_part, py::object charged_state = py::none());
+    Leg::Ptr charge_leg;
 
     ChargedTensor(SymmetricTensor::Ptr invariant_part,
                   BlockBackend::BlockPtr charged_state = nullptr);
@@ -50,11 +47,11 @@ class ChargedTensor : public Tensor
     /// Returns ``(inv_domain, charge_leg)``.
     [[nodiscard]] static std::tuple<TensorProduct::Ptr, Space::Ptr> _parse_inv_domain(
       TensorProduct::Ptr domain,
-      py::object charge);
+      std::variant<ElementarySpace::Ptr, Sector> charge);
 
     /// Like :meth:`Tensor::_init_parse_labels`, also returning invariant-part labels.
     [[nodiscard]] static std::tuple<LegLabels, LegLabels> _parse_inv_labels(
-      py::object labels,
+      std::optional<LegLabels> labels,
       TensorProduct::Ptr const& codomain,
       TensorProduct::Ptr const& domain);
 
@@ -64,23 +61,24 @@ class ChargedTensor : public Tensor
     // --- factories ---
 
     [[nodiscard]] static Ptr from_block_func(py::function func,
-                                             py::object charge,
-                                             py::object codomain,
-                                             py::object domain = py::none(),
-                                             py::object charged_state = py::none(),
+                                             std::variant<ElementarySpace::Ptr, Sector> charge,
+                                             TensorProduct::Ptr codomain,
+                                             TensorProduct::Ptr domain = nullptr,
+                                             BlockBackend::BlockPtr charged_state = nullptr,
                                              TensorBackend::Ptr backend = nullptr,
-                                             py::object labels = py::none(),
+                                             std::optional<LegLabels> labels = std::nullopt,
                                              py::object func_kwargs = py::none(),
                                              std::optional<std::string> shape_kw = std::nullopt,
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
-    [[nodiscard]] static Ptr from_dense_block(py::object block,
-                                              py::object codomain,
-                                              py::object domain = py::none(),
-                                              py::object charge = py::none(),
+    [[nodiscard]] static Ptr from_dense_block(BlockBackend::BlockPtr block,
+                                              TensorProduct::Ptr codomain,
+                                              TensorProduct::Ptr domain = nullptr,
+                                              std::optional<std::variant<ElementarySpace::Ptr, Sector>> charge =
+                                                std::nullopt,
                                               TensorBackend::Ptr backend = nullptr,
-                                              py::object labels = py::none(),
+                                              std::optional<LegLabels> labels = std::nullopt,
                                               std::optional<Dtype> dtype = std::nullopt,
                                               std::optional<std::string> device = std::nullopt,
                                               float64 tol = 1e-6,
@@ -88,28 +86,30 @@ class ChargedTensor : public Tensor
 
     /// Not implemented (matches Python).
     [[nodiscard]] static Ptr from_dense_block_single_sector(
-      py::object vector,
-      py::object space,
+      BlockBackend::BlockPtr vector,
+      Leg::Ptr space,
       Sector sector,
       TensorBackend::Ptr backend = nullptr,
       std::optional<std::string> label = std::nullopt,
       std::optional<std::string> device = std::nullopt);
 
-    /// Like constructor, but if ``invariant_part`` has only one leg, return a scalar (Python
-    /// number / BlockBackend::Scalar as ``py::object``) when ``charged_state`` is given.
-    [[nodiscard]] static py::object from_invariant_part(py::object invariant_part,
-                                                        py::object charged_state = py::none());
+    /// Like constructor, but if ``invariant_part`` has only one leg, return a scalar when
+    /// ``charged_state`` is given.
+    [[nodiscard]] static std::variant<Ptr, BlockBackend::Scalar> from_invariant_part(
+      SymmetricTensor::Ptr invariant_part,
+      BlockBackend::BlockPtr charged_state = nullptr);
 
-    [[nodiscard]] static py::object from_two_charge_legs(py::object invariant_part,
-                                                         py::object state1 = py::none(),
-                                                         py::object state2 = py::none());
+    [[nodiscard]] static std::variant<Ptr, BlockBackend::Scalar> from_two_charge_legs(
+      SymmetricTensor::Ptr invariant_part,
+      BlockBackend::BlockPtr state1 = nullptr,
+      BlockBackend::BlockPtr state2 = nullptr);
 
-    [[nodiscard]] static Ptr from_zero(py::object codomain,
-                                       py::object domain = py::none(),
-                                       py::object charge = py::none(),
-                                       py::object charged_state = py::none(),
+    [[nodiscard]] static Ptr from_zero(TensorProduct::Ptr codomain,
+                                       TensorProduct::Ptr domain,
+                                       std::variant<ElementarySpace::Ptr, Sector> charge,
+                                       BlockBackend::BlockPtr charged_state = nullptr,
                                        TensorBackend::Ptr backend = nullptr,
-                                       py::object labels = py::none(),
+                                       std::optional<LegLabels> labels = std::nullopt,
                                        Dtype dtype = Dtype::Complex128,
                                        std::optional<std::string> device = std::nullopt);
 

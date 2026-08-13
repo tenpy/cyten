@@ -1,6 +1,7 @@
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/diagonal_tensor.h>
 
+#include "py_factory_parse.hpp"
 #include "py_trampolines.hpp"
 
 #include "../py_cyten_pybind11.h"
@@ -84,7 +85,15 @@ by applying that power series to the diagonal elements individually.
 E.g. :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
 )pydoc";
 
-    cls.def(py::init<TensorBackend::DataPtr, py::object, TensorBackend::Ptr, py::object>(),
+    cls.def(py::init([](TensorBackend::DataPtr data,
+                        py::object leg,
+                        TensorBackend::Ptr backend,
+                        py::object labels) {
+                auto sp = py_as_space_leg(leg);
+                auto init = py_parse_diag(leg, std::move(backend), labels);
+                return std::make_shared<DiagonalTensor>(
+                  std::move(data), sp, init.backend, init.symmetry, init.labels);
+            }),
             py::arg("data"),
             py::arg("leg"),
             py::arg("backend") = nullptr,
@@ -120,7 +129,24 @@ E.g. :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
     cls.def("verify_dtype", &DiagonalTensor::verify_dtype);
 
     cls.def_static("from_block_func",
-                   &DiagonalTensor::from_block_func,
+                   [](py::function func,
+                      py::object leg,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      py::object func_kwargs,
+                      std::optional<std::string> shape_kw,
+                      std::optional<Dtype> dtype,
+                      std::optional<std::string> device) {
+                       auto init = py_parse_diag(leg, std::move(backend), labels);
+                       return DiagonalTensor::from_block_func(std::move(func),
+                                                              py_as_space_leg(leg),
+                                                              init.backend,
+                                                              init.labels,
+                                                              func_kwargs,
+                                                              shape_kw,
+                                                              dtype,
+                                                              device);
+                   },
                    py::arg("func"),
                    py::arg("leg"),
                    py::arg("backend") = nullptr,
@@ -170,7 +196,26 @@ E.g. :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
                    )pydoc");
 
     cls.def_static("from_dense_block",
-                   &DiagonalTensor::from_dense_block,
+                   [](py::object block,
+                      py::object leg,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      std::optional<Dtype> dtype,
+                      float64 tol,
+                      std::optional<std::string> device,
+                      bool understood_braiding) {
+                       auto init = py_parse_diag(leg, std::move(backend), labels);
+                       auto block_ptr =
+                         init.backend->block_backend->as_block(block, dtype, device);
+                       return DiagonalTensor::from_dense_block(block_ptr,
+                                                               py_as_space_leg(leg),
+                                                               init.backend,
+                                                               init.labels,
+                                                               dtype,
+                                                               tol,
+                                                               device,
+                                                               understood_braiding);
+                   },
                    py::arg("block"),
                    py::arg("leg"),
                    py::arg("backend") = nullptr,
@@ -212,7 +257,24 @@ E.g. :func:`complex_conj`, :func:`sqrt`, :func:`exp` etc.
                    )pydoc");
 
     cls.def_static("from_diag_block",
-                   &DiagonalTensor::from_diag_block,
+                   [](py::object diag,
+                      py::object leg,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      std::optional<Dtype> dtype,
+                      std::optional<std::string> device,
+                      float64 tol) {
+                       auto init = py_parse_diag(leg, std::move(backend), labels);
+                       auto diag_ptr =
+                         init.backend->block_backend->as_block(diag, dtype, device);
+                       return DiagonalTensor::from_diag_block(diag_ptr,
+                                                              py_as_space_leg(leg),
+                                                              init.backend,
+                                                              init.labels,
+                                                              dtype,
+                                                              device,
+                                                              tol);
+                   },
                    py::arg("diag"),
                    py::arg("leg"),
                    py::arg("backend") = nullptr,
@@ -241,7 +303,15 @@ diagonal_as_block, diagonal_as_numpy
 )pydoc");
 
     cls.def_static("from_eye",
-                   &DiagonalTensor::from_eye,
+                   [](py::object leg,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      Dtype dtype,
+                      std::optional<std::string> device) {
+                       auto init = py_parse_diag(leg, std::move(backend), labels);
+                       return DiagonalTensor::from_eye(
+                         py_as_space_leg(leg), init.backend, init.labels, dtype, device);
+                   },
                    py::arg("leg"),
                    py::arg("backend") = nullptr,
                    py::arg("labels") = py::none(),
@@ -259,7 +329,30 @@ dtype: Dtype
 )pydoc");
 
     cls.def_static("from_random_normal",
-                   &DiagonalTensor::from_random_normal,
+                   [](py::object leg,
+                      py::object mean,
+                      float64 sigma,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      Dtype dtype,
+                      std::optional<std::string> device) {
+                       auto mean_t = py_optional_tensor(mean);
+                       Space::Ptr sp;
+                       std::optional<LegLabels> labs;
+                       if (!leg.is_none()) {
+                           auto init = py_parse_diag(leg, std::move(backend), labels);
+                           sp = py_as_space_leg(leg);
+                           backend = init.backend;
+                           labs = init.labels;
+                       } else if (mean_t) {
+                           if (!labels.is_none()) {
+                               labs = parse_tensor_init_labels(
+                                 labels, mean_t->codomain, mean_t->domain);
+                           }
+                       }
+                       return DiagonalTensor::from_random_normal(
+                         sp, mean_t, sigma, std::move(backend), std::move(labs), dtype, device);
+                   },
                    py::arg("leg"),
                    py::arg("mean") = py::none(),
                    py::arg("sigma") = 1.0,
@@ -290,7 +383,15 @@ dtype: Dtype
 )pydoc");
 
     cls.def_static("from_random_uniform",
-                   &DiagonalTensor::from_random_uniform,
+                   [](py::object leg,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      Dtype dtype,
+                      std::optional<std::string> device) {
+                       auto init = py_parse_diag(leg, std::move(backend), labels);
+                       return DiagonalTensor::from_random_uniform(
+                         py_as_space_leg(leg), init.backend, init.labels, dtype, device);
+                   },
                    py::arg("leg"),
                    py::arg("backend") = nullptr,
                    py::arg("labels") = py::none(),
@@ -317,7 +418,22 @@ dtype: Dtype
 )pydoc");
 
     cls.def_static("from_sector_block_func",
-                   &DiagonalTensor::from_sector_block_func,
+                   [](py::function func,
+                      py::object leg,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      py::object func_kwargs,
+                      std::optional<Dtype> dtype,
+                      std::optional<std::string> device) {
+                       auto init = py_parse_diag(leg, std::move(backend), labels);
+                       return DiagonalTensor::from_sector_block_func(std::move(func),
+                                                                     py_as_space_leg(leg),
+                                                                     init.backend,
+                                                                     init.labels,
+                                                                     func_kwargs,
+                                                                     dtype,
+                                                                     device);
+                   },
                    py::arg("func"),
                    py::arg("leg"),
                    py::arg("backend") = nullptr,
@@ -369,7 +485,9 @@ dtype: Dtype
                    )pydoc");
 
     cls.def_static("from_tensor",
-                   &DiagonalTensor::from_tensor,
+                   [](py::object tens, std::optional<float64> tol) {
+                       return DiagonalTensor::from_tensor(tens.cast<SymmetricTensorCPtr>(), tol);
+                   },
                    py::arg("tens"),
                    py::arg("tol") = 1e-12,
                    R"pydoc(
@@ -386,7 +504,15 @@ tol : float | None
 )pydoc");
 
     cls.def_static("from_zero",
-                   &DiagonalTensor::from_zero,
+                   [](py::object leg,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      Dtype dtype,
+                      std::optional<std::string> device) {
+                       auto init = py_parse_diag(leg, std::move(backend), labels);
+                       return DiagonalTensor::from_zero(
+                         py_as_space_leg(leg), init.backend, init.labels, dtype, device);
+                   },
                    py::arg("leg"),
                    py::arg("backend") = nullptr,
                    py::arg("labels") = py::none(),
@@ -679,11 +805,27 @@ device: str
 Special case of a :class:`DiagonalTensor` that is exactly the identity map on its leg.
 )pydoc";
 
-    id_cls.def(py::init<py::object,
-                        TensorBackend::Ptr,
-                        std::optional<Dtype>,
-                        std::optional<std::string>,
-                        py::object>(),
+    id_cls.def(py::init([](py::object leg,
+                           TensorBackend::Ptr backend,
+                           std::optional<Dtype> dtype,
+                           std::optional<std::string> device,
+                           py::object labels) {
+                   auto sp = py_as_space_leg(leg);
+                   auto init = py_parse_diag(leg, std::move(backend), labels);
+                   auto dt = SymmetricTensor::_parse_default_dtype(dtype, init.symmetry);
+                   if (!dt.has_value()) {
+                       dt = Dtype::Float64;
+                   }
+                   std::string device_s = device.has_value()
+                                            ? *device
+                                            : init.backend->block_backend->default_device;
+                   return std::make_shared<Identity>(sp,
+                                                     init.backend,
+                                                     init.symmetry,
+                                                     init.labels,
+                                                     *dt,
+                                                     std::move(device_s));
+               }),
                py::arg("leg"),
                py::arg("backend") = nullptr,
                py::arg("dtype") = py::none(),
@@ -712,7 +854,15 @@ Special case of a :class:`DiagonalTensor` that is exactly the identity map on it
     bind_unsupported("from_zero");
 
     id_cls.def_static("from_eye",
-                      &Identity::from_eye,
+                      [](py::object leg,
+                         TensorBackend::Ptr backend,
+                         py::object labels,
+                         Dtype dtype,
+                         std::optional<std::string> device) {
+                          auto init = py_parse_diag(leg, std::move(backend), labels);
+                          return Identity::from_eye(
+                            py_as_space_leg(leg), init.backend, init.labels, dtype, device);
+                      },
                       py::arg("leg"),
                       py::arg("backend") = nullptr,
                       py::arg("labels") = py::none(),

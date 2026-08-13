@@ -1,12 +1,15 @@
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/mask.h>
 
+#include "py_factory_parse.hpp"
+
 #include "../py_cyten_pybind11.h"
 
 #include <pybind11/operators.h>
 #include <pybind11/stl.h>
 
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <variant>
 #include <vector>
@@ -122,12 +125,38 @@ Which maps an ordered basis as follows ::
 Such that the result is ordered.
 )pydoc";
 
-    cls.def(py::init<TensorBackend::DataPtr,
-                     py::object,
-                     py::object,
-                     std::optional<bool>,
-                     TensorBackend::Ptr,
-                     py::object>(),
+    cls.def(py::init([](TensorBackend::DataPtr data,
+                        py::object space_in_obj,
+                        py::object space_out_obj,
+                        std::optional<bool> is_projection,
+                        TensorBackend::Ptr backend,
+                        py::object labels) {
+                auto space_in = py_as_space_leg(space_in_obj);
+                auto space_out = py_as_space_leg(space_out_obj);
+                bool proj = false;
+                if (!is_projection.has_value()) {
+                    if (space_in->Space::dim == space_out->Space::dim) {
+                        throw std::invalid_argument(
+                          "Need to specify is_projection for equal spaces.");
+                    }
+                    proj = space_in->Space::dim > space_out->Space::dim;
+                } else {
+                    proj = *is_projection;
+                }
+                auto init = parse_tensor_init(py::make_tuple(space_out_obj),
+                                              py::make_tuple(space_in_obj),
+                                              std::move(backend),
+                                              labels);
+                auto device_s = init.backend->get_device_from_data(data);
+                return std::make_shared<Mask>(std::move(data),
+                                              space_in,
+                                              space_out,
+                                              proj,
+                                              init.backend,
+                                              init.symmetry,
+                                              init.labels,
+                                              std::move(device_s));
+            }),
             py::arg("data"),
             py::arg("space_in"),
             py::arg("space_out"),
@@ -165,7 +194,18 @@ Such that the result is ordered.
             )pydoc");
 
     cls.def_static("from_eye",
-                   &Mask::from_eye,
+                   [](py::object leg,
+                      bool is_projection,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      std::optional<std::string> device) {
+                       auto init = py_parse_diag(leg, std::move(backend), labels);
+                       return Mask::from_eye(py_as_space_leg(leg),
+                                             is_projection,
+                                             init.backend,
+                                             init.labels,
+                                             device);
+                   },
                    py::arg("leg"),
                    py::arg("is_projection") = true,
                    py::arg("backend") = nullptr,
@@ -188,7 +228,20 @@ from_zero
 )pydoc");
 
     cls.def_static("from_block_mask",
-                   &Mask::from_block_mask,
+                   [](py::object block_mask,
+                      py::object large_leg,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      std::optional<std::string> device) {
+                       auto init = py_parse_diag(large_leg, std::move(backend), labels);
+                       auto block = init.backend->block_backend->as_block(
+                         block_mask, Dtype::Bool, device);
+                       return Mask::from_block_mask(block,
+                                                    py_as_space_leg(large_leg),
+                                                    init.backend,
+                                                    init.labels,
+                                                    device);
+                   },
                    py::arg("block_mask"),
                    py::arg("large_leg"),
                    py::arg("backend") = nullptr,
@@ -214,7 +267,9 @@ backend, labels
 )pydoc");
 
     cls.def_static("from_DiagonalTensor",
-                   &Mask::from_DiagonalTensor,
+                   [](py::object diag) {
+                       return Mask::from_DiagonalTensor(diag.cast<DiagonalTensorCPtr>());
+                   },
                    py::arg("diag"),
                    R"pydoc(
 Create a projection Mask from a boolean DiagonalTensor.
@@ -228,7 +283,18 @@ that are kept appear in order.
 )pydoc");
 
     cls.def_static("from_indices",
-                   &Mask::from_indices,
+                   [](py::object indices,
+                      py::object large_leg,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      std::optional<std::string> device) {
+                       auto init = py_parse_diag(large_leg, std::move(backend), labels);
+                       return Mask::from_indices(indices,
+                                                 py_as_space_leg(large_leg),
+                                                 init.backend,
+                                                 init.labels,
+                                                 device);
+                   },
                    py::arg("indices"),
                    py::arg("large_leg"),
                    py::arg("backend") = nullptr,
@@ -253,7 +319,28 @@ large_leg, backend, labels
 )pydoc");
 
     cls.def_static("from_random",
-                   &Mask::from_random,
+                   [](py::object large_leg,
+                      py::object small_leg,
+                      TensorBackend::Ptr backend,
+                      float64 p_keep,
+                      int64 min_keep,
+                      py::object labels,
+                      std::optional<std::string> device,
+                      py::object np_random) {
+                       auto init = py_parse_diag(large_leg, std::move(backend), labels);
+                       Space::Ptr small;
+                       if (!small_leg.is_none()) {
+                           small = py_as_space_leg(small_leg);
+                       }
+                       return Mask::from_random(py_as_space_leg(large_leg),
+                                                small,
+                                                init.backend,
+                                                p_keep,
+                                                min_keep,
+                                                init.labels,
+                                                device,
+                                                np_random);
+                   },
                    py::arg("large_leg"),
                    py::arg("small_leg") = py::none(),
                    py::arg("backend") = nullptr,
@@ -286,7 +373,14 @@ min_keep: int, optional
 )pydoc");
 
     cls.def_static("from_zero",
-                   &Mask::from_zero,
+                   [](py::object large_leg,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      std::optional<std::string> device) {
+                       auto init = py_parse_diag(large_leg, std::move(backend), labels);
+                       return Mask::from_zero(
+                         py_as_space_leg(large_leg), init.backend, init.labels, device);
+                   },
                    py::arg("large_leg"),
                    py::arg("backend") = nullptr,
                    py::arg("labels") = py::none(),

@@ -1,6 +1,7 @@
 #include <cyten/backends/no_symmetry.h>
 #include <cyten/tensors/symmetric_tensor.h>
 
+#include "py_factory_parse.hpp"
 #include "py_trampolines.hpp"
 
 #include "../py_cyten_pybind11.h"
@@ -74,7 +75,19 @@ data:
 )pydoc";
 
     cls.def(
-      py::init<TensorBackend::DataPtr, py::object, py::object, TensorBackend::Ptr, py::object>(),
+      py::init([](TensorBackend::DataPtr data,
+                  py::object codomain,
+                  py::object domain,
+                  TensorBackend::Ptr backend,
+                  py::object labels) {
+          auto init = parse_tensor_init(codomain, domain, std::move(backend), labels);
+          return std::make_shared<SymmetricTensor>(std::move(data),
+                                                   init.codomain,
+                                                   init.domain,
+                                                   init.backend,
+                                                   init.symmetry,
+                                                   init.labels);
+      }),
       py::arg("data"),
       py::arg("codomain"),
       py::arg("domain") = py::none(),
@@ -106,7 +119,27 @@ data:
     cls.def("verify_dtype", &SymmetricTensor::verify_dtype);
 
     cls.def_static("from_block_func",
-                   &SymmetricTensor::from_block_func,
+                   [](py::function func,
+                      py::object codomain,
+                      py::object domain,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      py::object func_kwargs,
+                      std::optional<std::string> shape_kw,
+                      std::optional<Dtype> dtype,
+                      std::optional<std::string> device) {
+                       auto init =
+                         parse_tensor_init(codomain, domain, std::move(backend), labels);
+                       return SymmetricTensor::from_block_func(std::move(func),
+                                                               init.codomain,
+                                                               init.domain,
+                                                               init.backend,
+                                                               init.labels,
+                                                               func_kwargs,
+                                                               shape_kw,
+                                                               dtype,
+                                                               device);
+                   },
                    py::arg("func"),
                    py::arg("codomain"),
                    py::arg("domain") = py::none(),
@@ -157,7 +190,29 @@ from_sector_block_func
 )pydoc");
 
     cls.def_static("from_dense_block",
-                   &SymmetricTensor::from_dense_block,
+                   [](py::object block,
+                      py::object codomain,
+                      py::object domain,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      std::optional<Dtype> dtype,
+                      std::optional<std::string> device,
+                      float64 tol,
+                      bool understood_braiding) {
+                       auto init =
+                         parse_tensor_init(codomain, domain, std::move(backend), labels);
+                       auto block_ptr =
+                         init.backend->block_backend->as_block(block, dtype, device);
+                       return SymmetricTensor::from_dense_block(block_ptr,
+                                                                init.codomain,
+                                                                init.domain,
+                                                                init.backend,
+                                                                init.labels,
+                                                                dtype,
+                                                                device,
+                                                                tol,
+                                                                understood_braiding);
+                   },
                    py::arg("block"),
                    py::arg("codomain"),
                    py::arg("domain") = py::none(),
@@ -200,7 +255,19 @@ understood_braiding : bool
 )pydoc");
 
     cls.def_static("from_dense_block_trivial_sector",
-                   &SymmetricTensor::from_dense_block_trivial_sector,
+                   [](py::object vector,
+                      Space::Ptr space,
+                      TensorBackend::Ptr backend,
+                      std::optional<std::string> device,
+                      LegLabel label) {
+                       if (!backend) {
+                           backend = get_backend(space->symmetry);
+                       }
+                       auto vec =
+                         backend->block_backend->as_block(vector, std::nullopt, device);
+                       return SymmetricTensor::from_dense_block_trivial_sector(
+                         vec, std::move(space), std::move(backend), device, std::move(label));
+                   },
                    py::arg("vector"),
                    py::arg("space"),
                    py::arg("backend") = nullptr,
@@ -211,7 +278,19 @@ understood_braiding : bool
                    )pydoc");
 
     cls.def_static("from_eye",
-                   &SymmetricTensor::from_eye,
+                   [](py::object co_domain,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      Dtype dtype,
+                      std::optional<std::string> device) {
+                       auto init = parse_tensor_init(co_domain,
+                                                     co_domain,
+                                                     std::move(backend),
+                                                     labels,
+                                                     /*is_endomorphism=*/true);
+                       return SymmetricTensor::from_eye(
+                         init.codomain, init.backend, init.labels, dtype, device);
+                   },
                    py::arg("co_domain"),
                    py::arg("backend") = nullptr,
                    py::arg("labels") = py::none(),
@@ -239,7 +318,38 @@ device: str
 )pydoc");
 
     cls.def_static("from_random_normal",
-                   &SymmetricTensor::from_random_normal,
+                   [](py::object codomain,
+                      py::object domain,
+                      py::object mean,
+                      float64 sigma,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      std::optional<Dtype> dtype,
+                      std::optional<std::string> device) {
+                       auto mean_t = py_optional_tensor(mean);
+                       TensorProduct::Ptr c;
+                       TensorProduct::Ptr d;
+                       std::optional<LegLabels> labs;
+                       if (!codomain.is_none()) {
+                           auto init =
+                             parse_tensor_init(codomain, domain, std::move(backend), labels);
+                           c = init.codomain;
+                           d = init.domain;
+                           backend = init.backend;
+                           labs = init.labels;
+                       } else if (!labels.is_none() && mean_t) {
+                           labs = parse_tensor_init_labels(
+                             labels, mean_t->codomain, mean_t->domain);
+                       }
+                       return SymmetricTensor::from_random_normal(std::move(c),
+                                                                  std::move(d),
+                                                                  mean_t,
+                                                                  sigma,
+                                                                  std::move(backend),
+                                                                  std::move(labs),
+                                                                  dtype,
+                                                                  device);
+                   },
                    py::arg("codomain"),
                    py::arg("domain") = py::none(),
                    py::arg("mean") = py::none(),
@@ -278,7 +388,21 @@ sigma: float
 )pydoc");
 
     cls.def_static("from_random_uniform",
-                   &SymmetricTensor::from_random_uniform,
+                   [](py::object codomain,
+                      py::object domain,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      Dtype dtype,
+                      std::optional<std::string> device) {
+                       auto init =
+                         parse_tensor_init(codomain, domain, std::move(backend), labels);
+                       return SymmetricTensor::from_random_uniform(init.codomain,
+                                                                   init.domain,
+                                                                   init.backend,
+                                                                   init.labels,
+                                                                   dtype,
+                                                                   device);
+                   },
                    py::arg("codomain"),
                    py::arg("domain") = py::none(),
                    py::arg("backend") = nullptr,
@@ -306,7 +430,25 @@ dtype: Dtype
 )pydoc");
 
     cls.def_static("from_sector_block_func",
-                   &SymmetricTensor::from_sector_block_func,
+                   [](py::function func,
+                      py::object codomain,
+                      py::object domain,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      py::object func_kwargs,
+                      std::optional<Dtype> dtype,
+                      std::optional<std::string> device) {
+                       auto init =
+                         parse_tensor_init(codomain, domain, std::move(backend), labels);
+                       return SymmetricTensor::from_sector_block_func(std::move(func),
+                                                                      init.codomain,
+                                                                      init.domain,
+                                                                      init.backend,
+                                                                      init.labels,
+                                                                      func_kwargs,
+                                                                      dtype,
+                                                                      device);
+                   },
                    py::arg("func"),
                    py::arg("codomain"),
                    py::arg("domain") = py::none(),
@@ -359,7 +501,20 @@ from_block_func
 )pydoc");
 
     cls.def_static("from_sector_projection",
-                   &SymmetricTensor::from_sector_projection,
+                   [](py::object co_domain,
+                      Sector sector,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      std::optional<Dtype> dtype,
+                      std::optional<std::string> device) {
+                       auto init = parse_tensor_init(co_domain,
+                                                     co_domain,
+                                                     std::move(backend),
+                                                     labels,
+                                                     /*is_endomorphism=*/true);
+                       return SymmetricTensor::from_sector_projection(
+                         init.codomain, sector, init.backend, init.labels, dtype, device);
+                   },
                    py::arg("co_domain"),
                    py::arg("sector"),
                    py::arg("backend") = nullptr,
@@ -371,7 +526,23 @@ from_block_func
                    )pydoc");
 
     cls.def_static("from_tree_pairs",
-                   &SymmetricTensor::from_tree_pairs,
+                   [](py::object trees,
+                      py::object codomain,
+                      py::object domain,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      std::optional<Dtype> dtype,
+                      std::optional<std::string> device) {
+                       auto init =
+                         parse_tensor_init(codomain, domain, std::move(backend), labels);
+                       return SymmetricTensor::from_tree_pairs(trees,
+                                                               init.codomain,
+                                                               init.domain,
+                                                               init.backend,
+                                                               init.labels,
+                                                               dtype,
+                                                               device);
+                   },
                    py::arg("trees"),
                    py::arg("codomain"),
                    py::arg("domain") = py::none(),
@@ -407,7 +578,21 @@ codomain, domain, backend, labels
 )pydoc");
 
     cls.def_static("from_zero",
-                   &SymmetricTensor::from_zero,
+                   [](py::object codomain,
+                      py::object domain,
+                      TensorBackend::Ptr backend,
+                      py::object labels,
+                      Dtype dtype,
+                      std::optional<std::string> device) {
+                       auto init =
+                         parse_tensor_init(codomain, domain, std::move(backend), labels);
+                       return SymmetricTensor::from_zero(init.codomain,
+                                                         init.domain,
+                                                         init.backend,
+                                                         init.labels,
+                                                         dtype,
+                                                         device);
+                   },
                    py::arg("codomain"),
                    py::arg("domain") = py::none(),
                    py::arg("backend") = nullptr,

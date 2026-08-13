@@ -28,15 +28,6 @@ class Mask : public Tensor
     bool is_projection = true;
     TensorBackend::DataPtr data;
 
-    /// Construct from flexible Python-style inputs.
-    Mask(TensorBackend::DataPtr data,
-         py::object space_in,
-         py::object space_out,
-         std::optional<bool> is_projection = std::nullopt,
-         TensorBackend::Ptr backend = nullptr,
-         py::object labels = py::none());
-
-    /// Construct from already-parsed C++ inputs.
     Mask(TensorBackend::DataPtr data,
          Space::Ptr space_in,
          Space::Ptr space_out,
@@ -64,43 +55,43 @@ class Mask : public Tensor
     // --- factories ---
 
     /// The identity map as a Mask, i.e. the mask that keeps all states and discards none.
-    [[nodiscard]] static Ptr from_eye(py::object leg,
+    [[nodiscard]] static Ptr from_eye(Space::Ptr leg,
                                       bool is_projection = true,
                                       TensorBackend::Ptr backend = nullptr,
-                                      py::object labels = py::none(),
+                                      std::optional<LegLabels> labels = std::nullopt,
                                       std::optional<std::string> device = std::nullopt);
 
     /// Create a projection Mask from a boolean block.
-    [[nodiscard]] static Ptr from_block_mask(py::object block_mask,
-                                             py::object large_leg,
+    [[nodiscard]] static Ptr from_block_mask(BlockBackend::BlockPtr block_mask,
+                                             Space::Ptr large_leg,
                                              TensorBackend::Ptr backend = nullptr,
-                                             py::object labels = py::none(),
+                                             std::optional<LegLabels> labels = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
     /// Create a projection Mask from a boolean DiagonalTensor.
-    [[nodiscard]] static Ptr from_DiagonalTensor(py::object diag);
+    [[nodiscard]] static Ptr from_DiagonalTensor(DiagonalTensorCPtr diag);
 
     /// Create a projection Mask from the indices that are kept.
     [[nodiscard]] static Ptr from_indices(py::object indices,
-                                          py::object large_leg,
+                                          Space::Ptr large_leg,
                                           TensorBackend::Ptr backend = nullptr,
-                                          py::object labels = py::none(),
+                                          std::optional<LegLabels> labels = std::nullopt,
                                           std::optional<std::string> device = std::nullopt);
 
-    /// Create a random projection Mask.
-    [[nodiscard]] static Ptr from_random(py::object large_leg,
-                                         py::object small_leg = py::none(),
+    /// Create a random projection Mask. ``np_random`` stays Python-only.
+    [[nodiscard]] static Ptr from_random(Space::Ptr large_leg,
+                                         Space::Ptr small_leg = nullptr,
                                          TensorBackend::Ptr backend = nullptr,
                                          float64 p_keep = 0.5,
                                          int64 min_keep = 0,
-                                         py::object labels = py::none(),
+                                         std::optional<LegLabels> labels = std::nullopt,
                                          std::optional<std::string> device = std::nullopt,
                                          py::object np_random = py::none());
 
     /// The zero projection Mask, that discards all states and keeps none.
-    [[nodiscard]] static Ptr from_zero(py::object large_leg,
+    [[nodiscard]] static Ptr from_zero(Space::Ptr large_leg,
                                        TensorBackend::Ptr backend = nullptr,
-                                       py::object labels = py::none(),
+                                       std::optional<LegLabels> labels = std::nullopt,
                                        std::optional<std::string> device = std::nullopt);
 
     [[nodiscard]] static Ptr from_hdf5(py::object hdf5_loader,

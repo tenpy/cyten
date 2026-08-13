@@ -12,38 +12,12 @@
 #include <format>
 #include <stdexcept>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace cyten {
 
 namespace {
-
-SymmetricTensor::Ptr
-as_symmetric_tensor(py::object obj)
-{
-    if (py::isinstance<SymmetricTensor>(obj)) {
-        return obj.cast<SymmetricTensor::Ptr>();
-    }
-    // Coerce Python SymmetricTensor (e.g. from free functions) into C++.
-    auto backend = obj.attr("backend").cast<TensorBackend::Ptr>();
-    TensorBackend::DataPtr data;
-    py::object data_obj = obj.attr("data");
-    try {
-        data = data_obj.cast<TensorBackend::DataPtr>();
-    } catch (py::cast_error const&) {
-        if (std::dynamic_pointer_cast<NoSymmetryBackend>(backend)) {
-            data = NoSymmetryBackend::wrap(data_obj.cast<BlockBackend::BlockPtr>());
-        } else {
-            throw;
-        }
-    }
-    return std::make_shared<SymmetricTensor>(data,
-                                             obj.attr("codomain").cast<TensorProduct::Ptr>(),
-                                             obj.attr("domain").cast<TensorProduct::Ptr>(),
-                                             backend,
-                                             obj.attr("symmetry").cast<Symmetry::Ptr>(),
-                                             obj.attr("labels").cast<LegLabels>());
-}
 
 py::object
 tensors_mod()
@@ -52,21 +26,6 @@ tensors_mod()
 }
 
 } // namespace
-
-ChargedTensor::ChargedTensor(py::object invariant_part_obj, py::object charged_state_obj)
-  : ChargedTensor(as_symmetric_tensor(invariant_part_obj), [&]() -> BlockBackend::BlockPtr {
-      if (charged_state_obj.is_none()) {
-          return nullptr;
-      }
-      try {
-          return charged_state_obj.cast<BlockBackend::BlockPtr>();
-      } catch (py::cast_error const&) {
-          auto inv = as_symmetric_tensor(invariant_part_obj);
-          return inv->backend->block_backend->as_block(charged_state_obj, inv->dtype, inv->device);
-      }
-  }())
-{
-}
 
 ChargedTensor::ChargedTensor(SymmetricTensor::Ptr inv, BlockBackend::BlockPtr charged_state_in)
   : Tensor(
@@ -86,7 +45,7 @@ ChargedTensor::ChargedTensor(SymmetricTensor::Ptr inv, BlockBackend::BlockPtr ch
   , invariant_part(std::move(inv))
   , charged_state(std::move(charged_state_in))
   // Match Python: keep the domain factor as-is (ElementarySpace or LegPipe).
-  , charge_leg(py::cast(invariant_part->domain->factors[0]))
+  , charge_leg(invariant_part->domain->factors[0])
 {
     assert(invariant_part->domain->num_factors > 0);
     auto labs = invariant_part->labels();
@@ -116,7 +75,7 @@ ChargedTensor::test_sanity() const
     if (charged_state) {
         backend->block_backend->test_block_sanity(
           charged_state,
-          std::vector<int64>{ static_cast<int64>(charge_leg.attr("dim").cast<float64>()) },
+          std::vector<int64>{ static_cast<int64>(charge_leg->dim) },
           std::nullopt,
           device);
     }
@@ -141,33 +100,27 @@ ChargedTensor::supports_symmetry(Symmetry::Ptr const& symmetry)
 }
 
 std::tuple<TensorProduct::Ptr, Space::Ptr>
-ChargedTensor::_parse_inv_domain(TensorProduct::Ptr domain, py::object charge)
+ChargedTensor::_parse_inv_domain(TensorProduct::Ptr domain,
+                                 std::variant<ElementarySpace::Ptr, Sector> charge)
 {
     assert(domain); // call _init_parse_args first?
-    Space::Ptr charge_leg;
-    if (py::isinstance<ElementarySpace>(charge)) {
-        charge_leg = charge.cast<ElementarySpace::Ptr>();
-    } else if (py::isinstance<Space>(charge) || py::isinstance<Leg>(charge)) {
-        throw std::invalid_argument("Invalid type for charge. Expected ElementarySpace or sector");
+    Space::Ptr charge_leg_sp;
+    if (auto const* es = std::get_if<ElementarySpace::Ptr>(&charge)) {
+        charge_leg_sp = *es;
     } else {
-        Sector sec;
-        if (py::isinstance<Sector>(charge)) {
-            sec = charge.cast<Sector>();
-        } else {
-            sec = charge.cast<Sector>(); // pybind Sector caster accepts sequences
-        }
-        charge_leg =
+        Sector const& sec = std::get<Sector>(charge);
+        charge_leg_sp =
           std::make_shared<ElementarySpace>(domain->symmetry, SectorArray::from_sector(sec));
     }
-    return { domain->left_multiply(std::dynamic_pointer_cast<Leg>(charge_leg)), charge_leg };
+    return { domain->left_multiply(std::dynamic_pointer_cast<Leg>(charge_leg_sp)), charge_leg_sp };
 }
 
 std::tuple<LegLabels, LegLabels>
-ChargedTensor::_parse_inv_labels(py::object labels,
+ChargedTensor::_parse_inv_labels(std::optional<LegLabels> labels,
                                  TensorProduct::Ptr const& codomain,
                                  TensorProduct::Ptr const& domain)
 {
-    auto labs = parse_tensor_init_labels(labels, codomain, domain);
+    auto labs = _init_parse_labels(std::move(labels), codomain, domain);
     auto inv_labels = labs;
     inv_labels.emplace_back(std::string(_CHARGE_LEG_LABEL));
     return { labs, inv_labels };
@@ -175,95 +128,93 @@ ChargedTensor::_parse_inv_labels(py::object labels,
 
 ChargedTensor::Ptr
 ChargedTensor::from_block_func(py::function func,
-                               py::object charge,
-                               py::object codomain,
-                               py::object domain,
-                               py::object charged_state,
+                               std::variant<ElementarySpace::Ptr, Sector> charge,
+                               TensorProduct::Ptr codomain,
+                               TensorProduct::Ptr domain,
+                               BlockBackend::BlockPtr charged_state,
                                TensorBackend::Ptr backend,
-                               py::object labels,
+                               std::optional<LegLabels> labels,
                                py::object func_kwargs,
                                std::optional<std::string> shape_kw,
                                std::optional<Dtype> dtype,
                                std::optional<std::string> device)
 {
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
-      parse_tensor_init_args(codomain, domain, std::move(backend));
+      _init_parse_args(std::move(codomain), std::move(domain), std::move(backend));
     (void)symmetry;
     std::string device_s;
     if (!device.has_value()) {
-        if (charged_state.is_none()) {
+        if (!charged_state) {
             device_s = backend_tp->block_backend->default_device;
         } else {
-            // may be raw array — as_block later; try get_device if already Block
-            try {
-                device_s = backend_tp->block_backend->get_device(
-                  charged_state.cast<BlockBackend::BlockPtr>());
-            } catch (py::cast_error const&) {
-                device_s = backend_tp->block_backend->get_device(
-                  backend_tp->block_backend->as_block(charged_state, std::nullopt, std::nullopt));
-            }
+            device_s = backend_tp->block_backend->get_device(charged_state);
         }
     } else {
         device_s = *device;
     }
-    auto [inv_domain, charge_leg] = _parse_inv_domain(domain_tp, charge);
-    (void)charge_leg;
+    auto [inv_domain, charge_leg_sp] = _parse_inv_domain(domain_tp, std::move(charge));
+    (void)charge_leg_sp;
+    auto [labs, inv_labels] = _parse_inv_labels(std::move(labels), codomain_tp, domain_tp);
+    (void)labs;
     auto inv = SymmetricTensor::from_block_func(func,
-                                                py::cast(codomain_tp),
-                                                py::cast(inv_domain),
+                                                codomain_tp,
+                                                inv_domain,
                                                 backend_tp,
-                                                labels,
+                                                inv_labels,
                                                 func_kwargs,
                                                 shape_kw,
                                                 dtype,
                                                 std::optional<std::string>{ device_s });
-    return std::make_shared<ChargedTensor>(py::cast(inv), charged_state);
+    return std::make_shared<ChargedTensor>(inv, charged_state);
 }
 
 ChargedTensor::Ptr
-ChargedTensor::from_dense_block(py::object block,
-                                py::object codomain,
-                                py::object domain,
-                                py::object charge,
+ChargedTensor::from_dense_block(BlockBackend::BlockPtr block,
+                                TensorProduct::Ptr codomain,
+                                TensorProduct::Ptr domain,
+                                std::optional<std::variant<ElementarySpace::Ptr, Sector>> charge,
                                 TensorBackend::Ptr backend,
-                                py::object labels,
+                                std::optional<LegLabels> labels,
                                 std::optional<Dtype> dtype,
                                 std::optional<std::string> device,
                                 float64 tol,
                                 bool understood_braiding)
 {
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
-      parse_tensor_init_args(codomain, domain, std::move(backend));
-    auto [labs, inv_labels] = _parse_inv_labels(labels, codomain_tp, domain_tp);
+      _init_parse_args(std::move(codomain), std::move(domain), std::move(backend));
+    auto [labs, inv_labels] = _parse_inv_labels(std::move(labels), codomain_tp, domain_tp);
     (void)labs;
     if (!symmetry->can_be_dropped()) {
         throw SymmetryError(std::format(
           "Dense block representation is not supported for symmetry {}", symmetry->repr()));
     }
-    auto block_ptr = backend_tp->block_backend->as_block(block, dtype, device);
-    if (charge.is_none()) {
+    auto block_ptr = backend_tp->block_backend->as_block(py::cast(block), dtype, device);
+    if (!charge.has_value()) {
         throw NotImplemented("ChargedTensor::from_dense_block with charge=None");
     }
-    auto [inv_domain, charge_leg] = _parse_inv_domain(domain_tp, charge);
-    if (charge_leg->Space::dim != 1.) {
+    auto [inv_domain, charge_leg_sp] = _parse_inv_domain(domain_tp, *charge);
+    if (charge_leg_sp->Space::dim != 1.) {
         throw NotImplemented("ChargedTensor::from_dense_block with charge_leg.dim != 1");
     }
     auto inv_part = SymmetricTensor::from_dense_block(
-      py::cast(backend_tp->block_backend->add_axis(block_ptr, -1)),
-      py::cast(codomain_tp),
-      py::cast(inv_domain),
+      backend_tp->block_backend->add_axis(block_ptr, -1),
+      codomain_tp,
+      inv_domain,
       backend_tp,
-      py::cast(inv_labels),
+      inv_labels,
       std::nullopt,
       std::nullopt,
       tol,
       understood_braiding);
-    return std::make_shared<ChargedTensor>(py::cast(inv_part), py::cast(std::vector<int64>{ 1 }));
+    auto cs = backend_tp->block_backend->as_block(py::cast(std::vector<int64>{ 1 }),
+                                                   inv_part->dtype,
+                                                   inv_part->device);
+    return std::make_shared<ChargedTensor>(inv_part, cs);
 }
 
 ChargedTensor::Ptr
-ChargedTensor::from_dense_block_single_sector(py::object /*vector*/,
-                                              py::object /*space*/,
+ChargedTensor::from_dense_block_single_sector(BlockBackend::BlockPtr /*vector*/,
+                                              Leg::Ptr /*space*/,
                                               Sector /*sector*/,
                                               TensorBackend::Ptr /*backend*/,
                                               std::optional<std::string> /*label*/,
@@ -275,102 +226,85 @@ ChargedTensor::from_dense_block_single_sector(py::object /*vector*/,
     throw NotImplemented("ChargedTensor::from_dense_block_single_sector");
 }
 
-py::object
-ChargedTensor::from_invariant_part(py::object invariant_part_obj, py::object charged_state)
+std::variant<ChargedTensor::Ptr, BlockBackend::Scalar>
+ChargedTensor::from_invariant_part(SymmetricTensor::Ptr inv,
+                                   BlockBackend::BlockPtr charged_state)
 {
     // --- hints from Python ChargedTensor.from_invariant_part ---
     // OPTIMIZE ?
     // ---
-    auto inv = as_symmetric_tensor(invariant_part_obj);
+    assert(inv);
     if (inv->num_legs == 1) {
-        if (charged_state.is_none()) {
+        if (!charged_state) {
             throw std::invalid_argument(
               "Can not instantiate ChargedTensor with no legs and unspecified charged_states.");
         }
         // OPTIMIZE ?
         auto inv_block =
           inv->to_dense_block(std::nullopt, std::nullopt, /*understood_braiding=*/true);
-        auto state = inv->backend->block_backend->as_block(charged_state, inv->dtype, inv->device);
-        return py::cast(inv->backend->block_backend->inner(inv_block, state, /*do_dagger=*/false));
+        auto state =
+          inv->backend->block_backend->as_block(py::cast(charged_state), inv->dtype, inv->device);
+        return inv->backend->block_backend->inner(inv_block, state, /*do_dagger=*/false);
     }
-    return py::cast(std::make_shared<ChargedTensor>(inv, [&]() -> BlockBackend::BlockPtr {
-        if (charged_state.is_none()) {
-            return nullptr;
-        }
-        try {
-            return charged_state.cast<BlockBackend::BlockPtr>();
-        } catch (py::cast_error const&) {
-            return inv->backend->block_backend->as_block(charged_state, inv->dtype, inv->device);
-        }
-    }()));
+    return std::make_shared<ChargedTensor>(std::move(inv), std::move(charged_state));
 }
 
-py::object
-ChargedTensor::from_two_charge_legs(py::object invariant_part_obj,
-                                    py::object state1,
-                                    py::object state2)
+std::variant<ChargedTensor::Ptr, BlockBackend::Scalar>
+ChargedTensor::from_two_charge_legs(SymmetricTensor::Ptr invariant_part,
+                                    BlockBackend::BlockPtr state1,
+                                    BlockBackend::BlockPtr state2)
 {
     // Uses combine_legs free function — keep via Python helper when needed.
-    auto inv_obj = invariant_part_obj;
-    auto labs = inv_obj.attr("labels");
-    assert(std::string(py::str(labs[py::int_(-1)])).starts_with(_CHARGE_LEG_LABEL));
-    assert(std::string(py::str(labs[py::int_(-2)])).starts_with(_CHARGE_LEG_LABEL));
+    auto inv_obj = py::cast(invariant_part);
+    auto labs = invariant_part->labels();
+    assert(labs.size() >= 2);
+    assert(labs[labs.size() - 1] && labs[labs.size() - 1]->starts_with(_CHARGE_LEG_LABEL));
+    assert(labs[labs.size() - 2] && labs[labs.size() - 2]->starts_with(_CHARGE_LEG_LABEL));
     auto inv_part = tensors_mod().attr("combine_legs")(inv_obj, py::make_tuple(-2, -1));
     inv_part.attr("set_label")(-1, _CHARGE_LEG_LABEL);
-    py::object state;
-    if (state1.is_none() && state2.is_none()) {
-        state = py::none();
-    } else if (state1.is_none() || state2.is_none()) {
+    BlockBackend::BlockPtr state;
+    if (!state1 && !state2) {
+        state = nullptr;
+    } else if (!state1 || !state2) {
         throw std::invalid_argument("Must specify either both or none of the states");
     } else {
-        auto backend = inv_obj.attr("backend").cast<TensorBackend::Ptr>();
         auto pipe = inv_part.attr("domain").attr("__getitem__")(0).cast<LegPipe::Ptr>();
-        state = backend->state_tensor_product(
-          state1.cast<BlockBackend::BlockPtr>(), state2.cast<BlockBackend::BlockPtr>(), pipe);
+        state = invariant_part->backend->state_tensor_product(state1, state2, pipe)
+                  .cast<BlockBackend::BlockPtr>();
     }
-    return from_invariant_part(inv_part, state);
+    return from_invariant_part(inv_part.cast<SymmetricTensor::Ptr>(), state);
 }
 
 ChargedTensor::Ptr
-ChargedTensor::from_zero(py::object codomain,
-                         py::object domain,
-                         py::object charge,
-                         py::object charged_state,
+ChargedTensor::from_zero(TensorProduct::Ptr codomain,
+                         TensorProduct::Ptr domain,
+                         std::variant<ElementarySpace::Ptr, Sector> charge,
+                         BlockBackend::BlockPtr charged_state,
                          TensorBackend::Ptr backend,
-                         py::object labels,
+                         std::optional<LegLabels> labels,
                          Dtype dtype,
                          std::optional<std::string> device)
 {
     auto [codomain_tp, domain_tp, backend_tp, symmetry] =
-      parse_tensor_init_args(codomain, domain, std::move(backend));
+      _init_parse_args(std::move(codomain), std::move(domain), std::move(backend));
     (void)symmetry;
     std::string device_s;
     if (!device.has_value()) {
-        if (charged_state.is_none()) {
+        if (!charged_state) {
             device_s = backend_tp->block_backend->default_device;
         } else {
-            try {
-                device_s = backend_tp->block_backend->get_device(
-                  charged_state.cast<BlockBackend::BlockPtr>());
-            } catch (py::cast_error const&) {
-                device_s = backend_tp->block_backend->get_device(
-                  backend_tp->block_backend->as_block(charged_state, std::nullopt, std::nullopt));
-            }
+            device_s = backend_tp->block_backend->get_device(charged_state);
         }
     } else {
         device_s = *device;
     }
-    auto [inv_domain, charge_leg] = _parse_inv_domain(domain_tp, charge);
-    (void)charge_leg;
-    auto [labs, inv_labels] = _parse_inv_labels(labels, codomain_tp, domain_tp);
+    auto [inv_domain, charge_leg_sp] = _parse_inv_domain(domain_tp, std::move(charge));
+    (void)charge_leg_sp;
+    auto [labs, inv_labels] = _parse_inv_labels(std::move(labels), codomain_tp, domain_tp);
     (void)labs;
-    auto inv_part = SymmetricTensor::from_zero(py::cast(codomain_tp),
-                                               py::cast(inv_domain),
-                                               backend_tp,
-                                               py::cast(inv_labels),
-                                               dtype,
-                                               device_s);
-    return std::make_shared<ChargedTensor>(py::cast(inv_part), charged_state);
+    auto inv_part = SymmetricTensor::from_zero(
+      codomain_tp, inv_domain, backend_tp, inv_labels, dtype, device_s);
+    return std::make_shared<ChargedTensor>(inv_part, charged_state);
 }
 
 Tensor::Ptr
@@ -391,14 +325,12 @@ ChargedTensor::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::st
         warn(*warning);
     }
     // LegPipe charge legs (from combine_legs) expose Space APIs via as_Space().
-    Space::Ptr charge_space = py::isinstance<Space>(charge_leg)
-                                ? charge_leg.cast<Space::Ptr>()
-                                : charge_leg.attr("as_Space")().cast<Space::Ptr>();
+    Space::Ptr charge_space = as_space(charge_leg);
     if (charge_space->sector_decomposition.size() != 1 ||
         charge_space->sector_decomposition[0] != symmetry->trivial_sector) {
         throw SymmetryError("Not a symmetric tensor");
     }
-    if (charge_leg.attr("dim").cast<float64>() == 1.) {
+    if (charge_leg->dim == 1.) {
         auto res = tensors_mod().attr("squeeze_legs")(py::cast(invariant_part), -1);
         if (charged_state) {
             auto scale = backend->block_backend->item(charged_state);
@@ -411,12 +343,15 @@ ChargedTensor::as_SymmetricTensor(bool /*guarantee_copy*/, std::optional<std::st
           "Can not convert to SymmetricTensor. charged_state is not defined.");
     }
     // charge_leg.dual (Python wrote charged_state.dual — treat as charge_leg.dual)
+    auto dual = charge_leg->dual_leg();
+    auto state_codomain =
+      std::make_shared<TensorProduct>(std::vector<Leg::Ptr>{ dual });
     auto state = SymmetricTensor::from_dense_block(
-      py::cast(charged_state),
-      py::make_tuple(charge_leg.attr("dual")),
-      py::none(),
+      charged_state,
+      state_codomain,
+      nullptr,
       backend,
-      py::make_tuple(_dual_leg_label(std::string(_CHARGE_LEG_LABEL))),
+      LegLabels{ _dual_leg_label(std::string(_CHARGE_LEG_LABEL)) },
       dtype,
       std::nullopt,
       1e-6,
@@ -468,11 +403,12 @@ ChargedTensor::dagger() const
     inv_part.attr("set_label")(0, _CHARGE_LEG_LABEL);
     inv_part = tensors_mod().attr("move_leg")(
       inv_part, 0, py::arg("domain_pos") = 0, py::arg("bend_right") = true);
-    py::object cs = py::none();
+    BlockBackend::BlockPtr cs;
     if (charged_state) {
-        cs = py::cast(backend->block_backend->conj(charged_state));
+        cs = backend->block_backend->conj(charged_state);
     }
-    return from_invariant_part(inv_part, cs).cast<ChargedTensor::Ptr>();
+    return std::get<ChargedTensor::Ptr>(
+      from_invariant_part(inv_part.cast<SymmetricTensor::Ptr>(), cs));
 }
 
 BlockBackend::Scalar
@@ -516,13 +452,11 @@ ChargedTensor::_repr_header_lines(std::string const& indent, bool use_symm_str) 
 {
     auto linewidth = get_config().print_linewidth;
     auto lines = Tensor::_repr_header_lines(indent, use_symm_str);
-    Space::Ptr charge_space = py::isinstance<Space>(charge_leg)
-                                ? charge_leg.cast<Space::Ptr>()
-                                : charge_leg.attr("as_Space")().cast<Space::Ptr>();
+    Space::Ptr charge_space = as_space(charge_leg);
     lines.push_back(
       std::format("{}* Charge Leg: dim={} sectors={}",
                   indent,
-                  std::round(charge_leg.attr("dim").cast<float64>() * 1000.) / 1000.,
+                  std::round(charge_leg->dim * 1000.) / 1000.,
                   py::str(py::cast(charge_space->sector_decomposition)).cast<std::string>()));
     std::string start = indent + "* Charged State: ";
     if (!charged_state) {
@@ -603,9 +537,7 @@ ChargedTensor::to_dense_block_single_sector()
     if (num_legs > 1) {
         throw std::invalid_argument("Expected a single leg");
     }
-    Space::Ptr charge_space = py::isinstance<Space>(charge_leg)
-                                ? charge_leg.cast<Space::Ptr>()
-                                : charge_leg.attr("as_Space")().cast<Space::Ptr>();
+    Space::Ptr charge_space = as_space(charge_leg);
     if (charge_space->num_sectors != 1 || charge_space->multiplicities[0] != 1) {
         throw std::invalid_argument("Not a single sector.");
     }

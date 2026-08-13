@@ -33,22 +33,17 @@ is_mask_obj(py::handle obj)
     }
 }
 
-Space::Ptr
-as_space(py::object obj)
-{
-    return obj.cast<Space::Ptr>();
-}
-
 ElementarySpace::Ptr
-as_elementary_space(py::object obj)
+as_elementary_space(Space::Ptr obj)
 {
-    if (py::isinstance<LegPipe>(obj)) {
+    if (std::dynamic_pointer_cast<LegPipe>(obj)) {
         throw std::invalid_argument("Mask is not defined on LegPipes.");
     }
-    if (!py::isinstance<ElementarySpace>(obj)) {
+    auto es = std::dynamic_pointer_cast<ElementarySpace>(obj);
+    if (!es) {
         throw std::invalid_argument("Expected ElementarySpace.");
     }
-    return obj.cast<ElementarySpace::Ptr>();
+    return es;
 }
 
 BlockBackend::LegCPtr
@@ -121,9 +116,37 @@ TensorBackend::Ptr
 resolve_backend(TensorBackend::Ptr backend, Space::Ptr const& space)
 {
     if (!backend) {
-        return get_backend(py::cast(space->symmetry)).cast<TensorBackend::Ptr>();
+        return get_backend(space->symmetry);
     }
     return backend;
+}
+
+Mask::Ptr
+make_mask(TensorBackend::DataPtr data,
+          Space::Ptr space_in,
+          Space::Ptr space_out,
+          bool is_projection,
+          TensorBackend::Ptr backend,
+          std::optional<LegLabels> labels)
+{
+    as_elementary_space(space_in);
+    as_elementary_space(space_out);
+    auto [codomain, domain, backend_tp, symmetry] = Tensor::_init_parse_args(
+      std::make_shared<TensorProduct>(
+        std::vector<Leg::Ptr>{ std::dynamic_pointer_cast<Leg>(space_out) }),
+      std::make_shared<TensorProduct>(
+        std::vector<Leg::Ptr>{ std::dynamic_pointer_cast<Leg>(space_in) }),
+      std::move(backend));
+    auto labs = Tensor::_init_parse_labels(std::move(labels), codomain, domain);
+    auto device_s = backend_tp->get_device_from_data(data);
+    return std::make_shared<Mask>(std::move(data),
+                                  std::move(space_in),
+                                  std::move(space_out),
+                                  is_projection,
+                                  std::move(backend_tp),
+                                  std::move(symmetry),
+                                  std::move(labs),
+                                  std::move(device_s));
 }
 
 } // namespace
@@ -134,53 +157,6 @@ std::vector<Dtype> Mask::_forbidden_dtypes = {
     Dtype::Complex64,
     Dtype::Complex128,
 };
-
-Mask::Mask(TensorBackend::DataPtr data_in,
-           py::object space_in_obj,
-           py::object space_out_obj,
-           std::optional<bool> is_projection_opt,
-           TensorBackend::Ptr backend_in,
-           py::object labels_obj)
-  : Tensor(parse_tensor_init([&]() -> py::object {
-                               as_elementary_space(space_out_obj); // validate early
-                               return py::make_tuple(space_out_obj);
-                           }(),
-                           py::make_tuple(space_in_obj),
-                           std::move(backend_in),
-                           labels_obj),
-           Dtype::Bool,
-           "")
-  , data(std::move(data_in))
-{
-    auto space_in = as_elementary_space(space_in_obj);
-    auto space_out = as_elementary_space(space_out_obj);
-
-    bool proj = false;
-    if (!is_projection_opt.has_value()) {
-        if (space_dim(*space_in) == space_dim(*space_out)) {
-            throw std::invalid_argument("Need to specify is_projection for equal spaces.");
-        }
-        proj = space_dim(*space_in) > space_dim(*space_out);
-    } else {
-        proj = *is_projection_opt;
-        if (proj) {
-            assert(space_dim(*space_in) >= space_dim(*space_out));
-        } else {
-            assert(space_dim(*space_in) <= space_dim(*space_out));
-        }
-    }
-    is_projection = proj;
-
-    if (is_projection) {
-        assert(space_out->is_subspace_of(*space_in));
-    } else {
-        assert(space_in->is_subspace_of(*space_out));
-    }
-    assert(space_out->is_dual == space_in->is_dual);
-
-    dtype = Dtype::Bool;
-    device = backend->get_device_from_data(data);
-}
 
 Mask::Mask(TensorBackend::DataPtr data_in,
            Space::Ptr space_in,
@@ -311,14 +287,14 @@ Mask::test_sanity() const
 }
 
 Mask::Ptr
-Mask::from_eye(py::object leg,
+Mask::from_eye(Space::Ptr leg,
                bool is_projection_flag,
                TensorBackend::Ptr backend,
-               py::object labels,
+               std::optional<LegLabels> labels,
                std::optional<std::string> device)
 {
-    auto diag = DiagonalTensor::from_eye(leg, backend, labels, Dtype::Bool, device);
-    auto res = from_DiagonalTensor(py::cast(diag));
+    auto diag = DiagonalTensor::from_eye(std::move(leg), backend, labels, Dtype::Bool, device);
+    auto res = from_DiagonalTensor(diag);
     if (!is_projection_flag) {
         return std::static_pointer_cast<Mask>(res->dagger());
     }
@@ -326,46 +302,29 @@ Mask::from_eye(py::object leg,
 }
 
 Mask::Ptr
-Mask::from_block_mask(py::object block_mask,
-                      py::object large_leg_obj,
+Mask::from_block_mask(BlockBackend::BlockPtr block_mask,
+                      Space::Ptr large_leg,
                       TensorBackend::Ptr backend,
-                      py::object labels,
+                      std::optional<LegLabels> labels,
                       std::optional<std::string> device)
 {
-    auto large_leg = as_space(large_leg_obj);
     if (!large_leg->symmetry->can_be_dropped()) {
         throw SymmetryError(
           std::format("Dense block representation is not supported for symmetry {}",
                       large_leg->symmetry->repr()));
     }
     backend = resolve_backend(std::move(backend), large_leg);
-    auto block = backend->block_backend->as_block(block_mask, Dtype::Bool, device);
+    auto block = backend->block_backend->as_block(py::cast(block_mask), Dtype::Bool, device);
     block =
       backend->block_backend->apply_basis_perm(block, { as_leg_cptr(large_leg) }, /*inv=*/false);
     auto [data_out, small_leg] = backend->mask_from_block(block, large_leg);
-    return std::make_shared<Mask>(
-      data_out, large_leg_obj, py::cast(small_leg), true, backend, labels);
+    return make_mask(data_out, large_leg, small_leg, true, backend, std::move(labels));
 }
 
 Mask::Ptr
-Mask::from_DiagonalTensor(py::object diag_obj)
+Mask::from_DiagonalTensor(DiagonalTensorCPtr diag)
 {
-    DiagonalTensor::Ptr diag;
-    if (py::isinstance<DiagonalTensor>(diag_obj)) {
-        diag = diag_obj.cast<DiagonalTensor::Ptr>();
-    } else {
-        // Python DiagonalTensor until monkey-patch — go via attributes
-        assert(diag_obj.attr("dtype").cast<Dtype>() == Dtype::Bool);
-        auto backend = diag_obj.attr("backend").cast<TensorBackend::Ptr>();
-        auto [data_out, small_leg] =
-          backend->diagonal_to_mask(diag_obj.cast<DiagonalTensorCPtr>());
-        return std::make_shared<Mask>(data_out,
-                                      diag_obj.attr("domain").attr("factors")[py::int_(0)],
-                                      py::cast(small_leg),
-                                      true,
-                                      backend,
-                                      diag_obj.attr("labels"));
-    }
+    assert(diag);
     assert(diag->dtype == Dtype::Bool);
     auto [data_out, small_leg] = diag->backend->diagonal_to_mask(diag);
     return std::make_shared<Mask>(data_out,
@@ -380,25 +339,27 @@ Mask::from_DiagonalTensor(py::object diag_obj)
 
 Mask::Ptr
 Mask::from_indices(py::object indices,
-                   py::object large_leg_obj,
+                   Space::Ptr large_leg,
                    TensorBackend::Ptr backend,
-                   py::object labels,
+                   std::optional<LegLabels> labels,
                    std::optional<std::string> device)
 {
     auto np = py::module_::import("numpy");
-    auto large_leg = as_space(large_leg_obj);
     auto block_mask = np.attr("zeros")(space_dim(*large_leg), np.attr("bool_"));
     block_mask.attr("__setitem__")(indices, true);
-    return from_block_mask(block_mask, large_leg_obj, std::move(backend), labels, device);
+    backend = resolve_backend(std::move(backend), large_leg);
+    auto block = backend->block_backend->as_block(block_mask, Dtype::Bool, device);
+    return from_block_mask(
+      block, std::move(large_leg), std::move(backend), std::move(labels), device);
 }
 
 Mask::Ptr
-Mask::from_random(py::object large_leg_obj,
-                  py::object small_leg_obj,
+Mask::from_random(Space::Ptr large_leg_in,
+                  Space::Ptr small_leg_in,
                   TensorBackend::Ptr backend,
                   float64 p_keep,
                   int64 min_keep,
-                  py::object labels,
+                  std::optional<LegLabels> labels,
                   std::optional<std::string> device,
                   py::object np_random)
 {
@@ -409,19 +370,20 @@ Mask::from_random(py::object large_leg_obj,
     // first, try a heuristic
     // step halfway towards 100%
     // ---
-    auto large_leg = as_elementary_space(large_leg_obj);
+    auto large_leg = as_elementary_space(std::move(large_leg_in));
     backend = resolve_backend(std::move(backend), large_leg);
 
     if (np_random.is_none()) {
         np_random = py::module_::import("numpy").attr("random").attr("default_rng")();
     }
 
-    if (small_leg_obj.is_none()) {
+    if (!small_leg_in) {
         assert(0. <= p_keep && p_keep <= 1.);
         auto diag = DiagonalTensor::from_random_uniform(
-          large_leg_obj, backend, labels, Dtype::Float32, device);
+          large_leg, backend, labels, Dtype::Float32, device);
         float64 cutoff = 2. * p_keep - 1.; // diagonal entries are uniform in [-1, 1].
-        auto res = from_DiagonalTensor(py::cast(diag).attr("__lt__")(cutoff));
+        auto res = from_DiagonalTensor(
+          py::cast(diag).attr("__lt__")(cutoff).cast<DiagonalTensorCPtr>());
 
         if (sum_multiplicities(*res->small_leg()) >= min_keep) {
             return res;
@@ -430,7 +392,7 @@ Mask::from_random(py::object large_leg_obj,
         int64 large_leg_sector_num = sum_multiplicities(*large_leg);
         assert(min_keep <= large_leg_sector_num); // min_keep can not be fulfilled
         if (min_keep == large_leg_sector_num) {
-            return from_eye(large_leg_obj, /*is_projection=*/true, backend, labels, device);
+            return from_eye(large_leg, /*is_projection=*/true, backend, labels, device);
         }
         // explicitly constructing the small_leg with exactly min_keep sectors kept is
         // quite annoying bc of basis_perm. Instead we increase p_keep until we get there.
@@ -438,18 +400,20 @@ Mask::from_random(py::object large_leg_obj,
         auto np = py::module_::import("numpy");
         p_keep =
           py::float_(np.attr("ceil")(1.05 * min_keep / large_leg_sector_num)).cast<float64>();
-        res = from_DiagonalTensor(py::cast(diag).attr("__lt__")(2. * p_keep - 1.));
+        res = from_DiagonalTensor(
+          py::cast(diag).attr("__lt__")(2. * p_keep - 1.).cast<DiagonalTensorCPtr>());
         for (int i = 0; i < 20; ++i) {
             if (sum_multiplicities(*res->small_leg()) >= min_keep) {
                 return res;
             }
             p_keep = 0.5 * (p_keep + 1.); // step halfway towards 100%
-            res = from_DiagonalTensor(py::cast(diag).attr("__lt__")(2. * p_keep - 1.));
+            res = from_DiagonalTensor(
+              py::cast(diag).attr("__lt__")(2. * p_keep - 1.).cast<DiagonalTensorCPtr>());
         }
         throw std::runtime_error("Could not fulfill min_keep");
     }
 
-    auto small_leg = as_elementary_space(small_leg_obj);
+    auto small_leg = as_elementary_space(std::move(small_leg_in));
     if (!small_leg->is_subspace_of(*large_leg)) {
         throw std::invalid_argument("small_leg must be a subspace of the large leg.");
     }
@@ -474,19 +438,18 @@ Mask::from_random(py::object large_leg_obj,
       });
 
     auto diag = DiagonalTensor::from_sector_block_func(
-      func, large_leg_obj, backend, labels, py::none(), Dtype::Bool, device);
-    auto res = from_DiagonalTensor(py::cast(diag));
+      func, large_leg, backend, labels, py::none(), Dtype::Bool, device);
+    auto res = from_DiagonalTensor(diag);
     assert(static_cast<Space const&>(*res->small_leg()) == static_cast<Space const&>(*small_leg));
     return res;
 }
 
 Mask::Ptr
-Mask::from_zero(py::object large_leg_obj,
+Mask::from_zero(Space::Ptr large_leg,
                 TensorBackend::Ptr backend,
-                py::object labels,
+                std::optional<LegLabels> labels,
                 std::optional<std::string> device)
 {
-    auto large_leg = as_space(large_leg_obj);
     backend = resolve_backend(std::move(backend), large_leg);
     auto device_s = backend->block_backend->as_device(device);
     auto data_out = backend->zero_mask_data(large_leg, device_s);
@@ -495,8 +458,8 @@ Mask::from_zero(py::object large_leg_obj,
         is_dual = es->is_dual;
     }
     auto small_leg = ElementarySpace::from_null_space(large_leg->symmetry, is_dual);
-    return std::make_shared<Mask>(
-      data_out, large_leg_obj, py::cast(small_leg), true, backend, labels);
+    return make_mask(
+      data_out, std::move(large_leg), small_leg, true, backend, std::move(labels));
 }
 
 Tensor::Ptr
@@ -516,9 +479,10 @@ Mask::as_DiagonalTensor(Dtype out_dtype)
     return std::make_shared<DiagonalTensor>(
       backend->mask_to_diagonal(std::static_pointer_cast<Mask const>(shared_from_this()),
                                 out_dtype),
-      py::cast(large_leg()),
+      large_leg(),
       backend,
-      py::cast(labels()));
+      symmetry,
+      labels());
 }
 
 SymmetricTensorPtr
@@ -602,8 +566,7 @@ Mask::_binary_operand(py::object other,
     auto [data_out, small] = same->mask_binary_operand(
       std::static_pointer_cast<Mask const>(shared_from_this()), other.cast<MaskCPtr>(), adapted);
     auto labs = _get_matching_labels(labels(), other.attr("labels").cast<LegLabels>());
-    return py::cast(std::make_shared<Mask>(
-      data_out, py::cast(large_leg()), py::cast(small), is_projection, same, py::cast(labs)));
+    return py::cast(make_mask(data_out, large_leg(), small, is_projection, same, labs));
 }
 
 Mask::Ptr
@@ -623,8 +586,7 @@ Mask::_unary_operand(py::function func)
     auto [data_out, small] =
       backend->mask_unary_operand(std::static_pointer_cast<Mask const>(shared_from_this()),
                                   adapt_block_bool_unary(func, backend->block_backend));
-    return std::make_shared<Mask>(
-      data_out, py::cast(large_leg()), py::cast(small), true, backend, py::cast(labels()));
+    return make_mask(data_out, large_leg(), small, true, backend, labels());
 }
 
 Tensor::Ptr
@@ -649,11 +611,13 @@ Mask::copy(bool deep, std::optional<std::string> device_opt, std::optional<Dtype
     space_in = std::dynamic_pointer_cast<ElementarySpace>(domain->factors[0]);
     space_out = std::dynamic_pointer_cast<ElementarySpace>(codomain->factors[0]);
     return std::make_shared<Mask>(new_data,
-                                  py::cast(space_in),
-                                  py::cast(space_out),
+                                  space_in,
+                                  space_out,
                                   is_projection,
                                   backend,
-                                  py::cast(labels()));
+                                  symmetry,
+                                  labels(),
+                                  backend->get_device_from_data(new_data));
 }
 
 Tensor::Ptr

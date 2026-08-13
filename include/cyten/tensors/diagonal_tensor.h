@@ -22,13 +22,6 @@ class DiagonalTensor : public SymmetricTensor
     /// Empty — bool dtype is allowed for diagonal tensors (Python ``_forbidden_dtypes = []``).
     static std::vector<Dtype> _forbidden_dtypes;
 
-    /// Construct from flexible Python-style inputs.
-    DiagonalTensor(TensorBackend::DataPtr data,
-                   py::object leg,
-                   TensorBackend::Ptr backend = nullptr,
-                   py::object labels = py::none());
-
-    /// Construct from already-parsed C++ inputs.
     DiagonalTensor(TensorBackend::DataPtr data,
                    Space::Ptr leg,
                    TensorBackend::Ptr backend,
@@ -51,65 +44,66 @@ class DiagonalTensor : public SymmetricTensor
     // --- factories ---
 
     [[nodiscard]] static Ptr from_block_func(py::function func,
-                                             py::object leg,
+                                             Space::Ptr leg,
                                              TensorBackend::Ptr backend = nullptr,
-                                             py::object labels = py::none(),
+                                             std::optional<LegLabels> labels = std::nullopt,
                                              py::object func_kwargs = py::none(),
                                              std::optional<std::string> shape_kw = std::nullopt,
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt);
 
-    [[nodiscard]] static Ptr from_dense_block(py::object block,
-                                              py::object leg,
+    [[nodiscard]] static Ptr from_dense_block(BlockBackend::BlockPtr block,
+                                              Space::Ptr leg,
                                               TensorBackend::Ptr backend = nullptr,
-                                              py::object labels = py::none(),
+                                              std::optional<LegLabels> labels = std::nullopt,
                                               std::optional<Dtype> dtype = std::nullopt,
                                               float64 tol = 1e-6,
                                               std::optional<std::string> device = std::nullopt,
                                               bool understood_braiding = false);
 
-    [[nodiscard]] static Ptr from_diag_block(py::object diag,
-                                             py::object leg,
+    [[nodiscard]] static Ptr from_diag_block(BlockBackend::BlockPtr diag,
+                                             Space::Ptr leg,
                                              TensorBackend::Ptr backend = nullptr,
-                                             py::object labels = py::none(),
+                                             std::optional<LegLabels> labels = std::nullopt,
                                              std::optional<Dtype> dtype = std::nullopt,
                                              std::optional<std::string> device = std::nullopt,
                                              float64 tol = 1e-6);
 
-    [[nodiscard]] static Ptr from_eye(py::object leg,
+    [[nodiscard]] static Ptr from_eye(Space::Ptr leg,
                                       TensorBackend::Ptr backend = nullptr,
-                                      py::object labels = py::none(),
+                                      std::optional<LegLabels> labels = std::nullopt,
                                       Dtype dtype = Dtype::Float64,
                                       std::optional<std::string> device = std::nullopt);
 
-    [[nodiscard]] static Ptr from_random_normal(py::object leg,
-                                                py::object mean = py::none(),
+    [[nodiscard]] static Ptr from_random_normal(Space::Ptr leg = nullptr,
+                                                TensorCPtr mean = nullptr,
                                                 float64 sigma = 1.0,
                                                 TensorBackend::Ptr backend = nullptr,
-                                                py::object labels = py::none(),
+                                                std::optional<LegLabels> labels = std::nullopt,
                                                 Dtype dtype = Dtype::Complex128,
                                                 std::optional<std::string> device = std::nullopt);
 
-    [[nodiscard]] static Ptr from_random_uniform(py::object leg,
+    [[nodiscard]] static Ptr from_random_uniform(Space::Ptr leg,
                                                  TensorBackend::Ptr backend = nullptr,
-                                                 py::object labels = py::none(),
+                                                 std::optional<LegLabels> labels = std::nullopt,
                                                  Dtype dtype = Dtype::Complex128,
                                                  std::optional<std::string> device = std::nullopt);
 
     [[nodiscard]] static Ptr from_sector_block_func(
       py::function func,
-      py::object leg,
+      Space::Ptr leg,
       TensorBackend::Ptr backend = nullptr,
-      py::object labels = py::none(),
+      std::optional<LegLabels> labels = std::nullopt,
       py::object func_kwargs = py::none(),
       std::optional<Dtype> dtype = std::nullopt,
       std::optional<std::string> device = std::nullopt);
 
-    [[nodiscard]] static Ptr from_tensor(py::object tens, std::optional<float64> tol = 1e-12);
+    [[nodiscard]] static Ptr from_tensor(SymmetricTensorCPtr tens,
+                                         std::optional<float64> tol = 1e-12);
 
-    [[nodiscard]] static Ptr from_zero(py::object leg,
+    [[nodiscard]] static Ptr from_zero(Space::Ptr leg,
                                        TensorBackend::Ptr backend = nullptr,
-                                       py::object labels = py::none(),
+                                       std::optional<LegLabels> labels = std::nullopt,
                                        Dtype dtype = Dtype::Complex128,
                                        std::optional<std::string> device = std::nullopt);
 
@@ -131,7 +125,7 @@ class DiagonalTensor : public SymmetricTensor
                                    std::optional<std::string> device = std::nullopt,
                                    std::optional<Dtype> dtype = std::nullopt) override;
 
-    [[nodiscard]] virtual py::object diagonal(bool check_offdiagonal = false) const;
+    [[nodiscard]] virtual DiagonalTensorPtr diagonal(bool check_offdiagonal = false) const;
 
     [[nodiscard]] BlockBackend::Scalar _get_item(std::vector<int64> const& idx) override;
 
@@ -193,14 +187,6 @@ class Identity : public DiagonalTensor
     using Ptr = std::shared_ptr<Identity>;
     using CPtr = std::shared_ptr<const Identity>;
 
-    /// Construct from flexible Python-style inputs.
-    explicit Identity(py::object leg,
-                      TensorBackend::Ptr backend = nullptr,
-                      std::optional<Dtype> dtype = std::nullopt,
-                      std::optional<std::string> device = std::nullopt,
-                      py::object labels = py::none());
-
-    /// Construct from already-parsed C++ inputs.
     Identity(Space::Ptr leg,
              TensorBackend::Ptr backend,
              Symmetry::Ptr symmetry,
@@ -217,9 +203,9 @@ class Identity : public DiagonalTensor
     // Unsupported factories (TypeError in Python)
     static void unsupported_factory(char const* name);
 
-    [[nodiscard]] static Ptr from_eye(py::object leg,
+    [[nodiscard]] static Ptr from_eye(Space::Ptr leg,
                                       TensorBackend::Ptr backend = nullptr,
-                                      py::object labels = py::none(),
+                                      std::optional<LegLabels> labels = std::nullopt,
                                       Dtype dtype = Dtype::Float64,
                                       std::optional<std::string> device = std::nullopt);
 
@@ -243,7 +229,7 @@ class Identity : public DiagonalTensor
                                    std::optional<std::string> device = std::nullopt,
                                    std::optional<Dtype> dtype = std::nullopt) override;
 
-    [[nodiscard]] py::object diagonal(bool check_offdiagonal = false) const override;
+    [[nodiscard]] DiagonalTensorPtr diagonal(bool check_offdiagonal = false) const override;
 
     [[nodiscard]] BlockBackend::BlockPtr diagonal_as_block(
       std::optional<Dtype> dtype = std::nullopt) override;
