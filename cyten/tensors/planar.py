@@ -121,6 +121,15 @@ class PlanarDiagram:
     It is possible to use a planar diagram for creating a new one by adding or removing a tensor,
     see :meth:`add_tensor` and :meth:`remove_tensor`, respectively.
 
+    It is possible to create planar diagrams that contract `ChargedTensor`s by adding the
+    corresponding charge leg labels (`'!'`) to the tensor placeholders. The result of a planar
+    diagram containing open charge legs is always a `ChargedTensor`. Contractions of charge legs
+    are specified in the same way as done for regular legs. It is further allowed to specify
+    placeholders with charge legs and then evaluating the planar diagram for `SymmetricTensor`s.
+    In such a case, specified open charge legs and contractions between charge legs are ignored
+    (in the latter case, it is only ignored if both tensors whose charge legs were specified to be
+    contracted are `SymmetricTensor`s).
+
     Parameters
     ----------
     tensors : str or {str: TensorPlaceholder}
@@ -153,6 +162,16 @@ class PlanarDiagram:
         If nested tuples of strings, interpret those strings as tensor names, and interpret
         the bracketing as the order of pairwise contractions, contracting innermost tuples first.
         The same format as the attribute :attr:`order` (``ContractionTree``) is accepted as well.
+    allow_multiple_charged_tensors : bool
+        Whether multiple `ChargedTensor`s are allowed to be part of the planar diagram.
+        When there are multiple open charge legs, they must be contiguous after the contractions,
+        such that the individual charge legs can be combined to a single one.
+        When there is a specified contraction between two charge legs, this contraction must also
+        be planar.
+        It is allowed to evaluate a planar diagram containing tensor placeholders for
+        `ChargedTensor`s (placeholders containing the label `'!'`) with `SymmetricTensor`s. In this
+        case, the `SymmetricTensor`s must have the same leg labels except for the charge leg label.
+        The contraction between the charge legs is then ignored.
 
     Attributes
     ----------
@@ -170,6 +189,8 @@ class PlanarDiagram:
     open_legs : list of str
         The open legs of the planar diagram, up to cyclical permutation.
         This is such that the result of :meth:`evaluate` has these leg labels (up to cycl. perm.).
+    allow_multiple_charged_tensors : bool
+        Whether multiple `ChargedTensor`s are allowed to be part of the planar diagram.
 
     Examples
     --------
@@ -218,6 +239,17 @@ class PlanarDiagram:
         exp_val2 = exp_val_diagram2.evaluate(theta=theta, theta_hc=theta.hc, U=op)
         assert np.isclose(exp_val, exp_val2)  # number, not a tensor
 
+    4. Contraction of a left MPS environment with the transfer matrix, where the MPS tensors may
+    have a charge leg::
+
+        TM_diagram = PlanarDiagram(
+            tensors='LP[vR*, vR], ket[vL, p, vR, !], bra[vR*, p*, vL*, !]',
+            definition='LP:vR @ ket:vL, ket:p @ bra:p*, LP:vR* @ bra:vL*, ket:! @ bra:!',
+            dims=dict(chi=['vR', 'vL', 'vR*', 'vL*'], d=['p', 'p*']),
+            allow_multiple_charged_tensors=True,
+        )
+        LP = TM_diagram.evaluate(LP=LP, ket=ket, bra=bra)
+
     """
 
     def __init__(
@@ -226,7 +258,9 @@ class PlanarDiagram:
         definition: str | list[tuple[str, str, str | None, str]],
         dims: dict[str, Sequence[str]] = None,
         order: str | NestedContainer_str | ContractionTree = 'definition',
+        allow_multiple_charged_tensors: bool = False,
     ):
+        self.allow_multiple_charged_tensors = allow_multiple_charged_tensors
         self.tensors = self.parse_tensors(tensors, dims)
         self.definition = self.parse_definition(definition)
         self.order = self.parse_order(order)
