@@ -177,8 +177,8 @@ SymmetricTensor::from_block_func(BlockFactoryFn func,
     (void)dtype;
     (void)device;
 
-    SectorBlockFactoryFn block_func =
-      [func](std::vector<int64> const& shape, Sector const& /*coupled*/) { return func(shape); };
+    SectorBlockFactoryFn block_func = [func](std::vector<int64> const& shape,
+                                             Sector const& /*coupled*/) { return func(shape); };
 
     auto data = backend_tp->from_sector_block_func(block_func, codomain_tp, domain_tp);
     auto res = std::make_shared<SymmetricTensor>(
@@ -416,17 +416,16 @@ SymmetricTensor::from_sector_projection(TensorProduct::Ptr co_domain,
     Sector sector_copy = sector;
     auto bb = backend_tp->block_backend;
 
-    SectorBlockFactoryFn func =
-      [bb, dtype_cap, device_cap, sector_copy](std::vector<int64> const& shape,
-                                               Sector const& coupled) {
-          Dtype dt = dtype_cap.value_or(Dtype::Complex128);
-          if (coupled == sector_copy) {
-              std::vector<int64> half(shape.begin(),
-                                      shape.begin() + static_cast<std::ptrdiff_t>(shape.size() / 2));
-              return bb->eye_block(half, dt, device_cap);
-          }
-          return bb->zeros(shape, dt, device_cap);
-      };
+    SectorBlockFactoryFn func = [bb, dtype_cap, device_cap, sector_copy](
+                                  std::vector<int64> const& shape, Sector const& coupled) {
+        Dtype dt = dtype_cap.value_or(Dtype::Complex128);
+        if (coupled == sector_copy) {
+            std::vector<int64> half(shape.begin(),
+                                    shape.begin() + static_cast<std::ptrdiff_t>(shape.size() / 2));
+            return bb->eye_block(half, dt, device_cap);
+        }
+        return bb->zeros(shape, dt, device_cap);
+    };
 
     auto data = backend_tp->from_sector_block_func(func, co_domain_tp, co_domain_tp);
     auto res = std::make_shared<SymmetricTensor>(

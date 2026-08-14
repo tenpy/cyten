@@ -34,7 +34,8 @@ shape_as_tuple(std::vector<int64> const& shape)
     return t;
 }
 
-/// Wrap ``func(shape, **kwargs)`` / ``func(**{shape_kw: shape, **kwargs})`` as a C++ block factory.
+/// Wrap ``func(shape, **kwargs)`` / ``func(**{shape_kw: shape, **kwargs})`` as a C++ block
+/// factory.
 inline BlockFactoryFn
 block_factory_from_python(py::function func,
                           py::object func_kwargs,
@@ -68,11 +69,11 @@ sector_block_factory_from_python(py::function func,
                                  std::optional<std::string> device)
 {
     py::dict kwargs = copy_kwargs(func_kwargs);
-    return [func, kwargs, bb, dtype, device](std::vector<int64> const& shape,
-                                             Sector const& coupled) {
-        py::object block = func(shape_as_tuple(shape), py::cast(coupled), **kwargs);
-        return bb->as_block(block, dtype, device);
-    };
+    return
+      [func, kwargs, bb, dtype, device](std::vector<int64> const& shape, Sector const& coupled) {
+          py::object block = func(shape_as_tuple(shape), py::cast(coupled), **kwargs);
+          return bb->as_block(block, dtype, device);
+      };
 }
 
 /// Wrap a Python ``func(shape, coupled) -> Block`` (already a Block, no as_block).

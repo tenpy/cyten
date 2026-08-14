@@ -393,16 +393,15 @@ Mask::from_random(Space::Ptr large_leg_in,
     auto np_random_cap = np_random;
     auto np = py::module_::import("numpy");
     auto bb = backend->block_backend;
-    SectorBlockFactoryFn func =
-      [small_leg_cap, np_random_cap, np, bb, device](std::vector<int64> const& shape,
-                                                     Sector const& coupled) {
-          int64 num_keep = small_leg_cap->sector_multiplicity(coupled);
-          py::object block = np.attr("zeros")(py::cast(shape), np.attr("bool_"));
-          auto which = np_random_cap.attr("choice")(
-            shape[0], py::arg("size") = num_keep, py::arg("replace") = false);
-          block.attr("__setitem__")(which, true);
-          return bb->as_block(block, Dtype::Bool, device);
-      };
+    SectorBlockFactoryFn func = [small_leg_cap, np_random_cap, np, bb, device](
+                                  std::vector<int64> const& shape, Sector const& coupled) {
+        int64 num_keep = small_leg_cap->sector_multiplicity(coupled);
+        py::object block = np.attr("zeros")(py::cast(shape), np.attr("bool_"));
+        auto which = np_random_cap.attr("choice")(
+          shape[0], py::arg("size") = num_keep, py::arg("replace") = false);
+        block.attr("__setitem__")(which, true);
+        return bb->as_block(block, Dtype::Bool, device);
+    };
 
     auto diag = DiagonalTensor::from_sector_block_func(
       std::move(func), large_leg, backend, labels, Dtype::Bool, device);
@@ -614,8 +613,8 @@ Mask::move_to_device(std::string device_in)
 Mask::Ptr
 Mask::orthogonal_complement()
 {
-    return _unary_operand(
-      adapt_block_bool_unary(py::module_::import("operator").attr("invert"), backend->block_backend));
+    return _unary_operand(adapt_block_bool_unary(py::module_::import("operator").attr("invert"),
+                                                 backend->block_backend));
 }
 
 bool

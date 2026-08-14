@@ -154,7 +154,9 @@ stable_log(DiagonalTensorCPtr x, float64 cutoff)
     }
     auto bb = x->backend->block_backend;
     return elementwise_on_diagonal(
-      x, [bb, cutoff](BlockBackend::BlockPtr const& b) { return bb->stable_log(b, cutoff); }, true);
+      x,
+      [bb, cutoff](BlockBackend::BlockPtr const& b) { return bb->stable_log(b, cutoff); },
+      true);
 }
 
 BlockBackend::Scalar
@@ -179,7 +181,8 @@ exp(TensorCPtr obj)
     if (auto diag = std::dynamic_pointer_cast<DiagonalTensor const>(obj)) {
         auto mut = std::const_pointer_cast<DiagonalTensor>(diag);
         auto bb = diag->backend->block_backend;
-        return mut->_elementwise_unary([bb](BlockBackend::BlockPtr const& b) { return bb->exp(b); });
+        return mut->_elementwise_unary(
+          [bb](BlockBackend::BlockPtr const& b) { return bb->exp(b); });
     }
     if (std::dynamic_pointer_cast<ChargedTensor const>(obj)) {
         throw py::type_error("ChargedTensor can not be exponentiated.");

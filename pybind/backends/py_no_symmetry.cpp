@@ -339,8 +339,8 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
          py::function func,
          py::dict func_kwargs,
          bool maps_zero_to_zero) {
-          return py_block(
-            self.diagonal_elementwise_unary(a, block_unary_from_python(func, func_kwargs), maps_zero_to_zero));
+          return py_block(self.diagonal_elementwise_unary(
+            a, block_unary_from_python(func, func_kwargs), maps_zero_to_zero));
       },
       py::arg("a"),
       py::arg("func"),
@@ -571,8 +571,8 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
          py::function func,
          TensorProduct::Ptr codomain,
          TensorProduct::Ptr domain) {
-          return py_block(self.from_sector_block_func(
-            sector_block_factory_from_python(func), codomain, domain));
+          return py_block(
+            self.from_sector_block_func(sector_block_factory_from_python(func), codomain, domain));
       },
       py::arg("func"),
       py::arg("codomain"),
@@ -709,7 +709,8 @@ The data stored for the various tensor classes defined in ``cyten.tensors`` is::
     cls.def(
       "mask_binary_operand",
       [](NoSymmetryBackend& self, MaskCPtr mask1, MaskCPtr mask2, py::function func) {
-          auto [data, leg] = self.mask_binary_operand(mask1, mask2, block_binary_from_python(func));
+          auto [data, leg] =
+            self.mask_binary_operand(mask1, mask2, block_binary_from_python(func));
           return std::make_tuple(py_block(std::move(data)), std::move(leg));
       },
       py::arg("mask1"),

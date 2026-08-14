@@ -152,7 +152,8 @@ class DiagonalTensor : public SymmetricTensor
                                                        float64 rtol = 1e-5,
                                                        float64 atol = 1e-8);
 
-    [[nodiscard]] virtual Ptr _elementwise_unary(BlockUnaryFn func, bool maps_zero_to_zero = false);
+    [[nodiscard]] virtual Ptr _elementwise_unary(BlockUnaryFn func,
+                                                 bool maps_zero_to_zero = false);
 
     [[nodiscard]] virtual Ptr _elementwise_binary(DiagonalTensorCPtr other,
                                                   BlockBinaryFn func,

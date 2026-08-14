@@ -826,11 +826,10 @@ FusionTreeBackend::diagonal_elementwise_binary(DiagonalTensorCPtr a,
         }
         block_inds = BlockInds::arange_diag(static_cast<std::size_t>(num_sectors));
     }
-    Dtype dt =
-      blocks.empty()
-        ? block_backend->get_dtype(func(block_backend->ones_block({ 1 }, a->dtype),
-                                        block_backend->ones_block({ 1 }, b->dtype)))
-        : block_backend->get_dtype(blocks[0]);
+    Dtype dt = blocks.empty()
+                 ? block_backend->get_dtype(func(block_backend->ones_block({ 1 }, a->dtype),
+                                                 block_backend->ones_block({ 1 }, b->dtype)))
+                 : block_backend->get_dtype(blocks[0]);
     return wrap(make_data(dt, a_data->device, std::move(blocks), block_inds));
 }
 
@@ -913,8 +912,9 @@ FusionTreeBackend::diagonal_from_sector_block_func(SectorBlockFactoryFn func,
     std::vector<BlockBackend::BlockPtr> blocks;
     for (std::size_t coupled_idx = 0; coupled_idx < co_domain->sector_decomposition.size();
          ++coupled_idx) {
-        blocks.push_back(func(std::vector<int64>{ co_domain->block_size(static_cast<int64>(coupled_idx)) },
-                              co_domain->sector_decomposition[coupled_idx]));
+        blocks.push_back(
+          func(std::vector<int64>{ co_domain->block_size(static_cast<int64>(coupled_idx)) },
+               co_domain->sector_decomposition[coupled_idx]));
     }
     BlockInds block_inds =
       BlockInds::arange_diag(static_cast<std::size_t>(co_domain->num_sectors));

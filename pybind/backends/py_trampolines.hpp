@@ -137,10 +137,9 @@ class PyTensorBackend
                                                        BlockBinaryFn func,
                                                        bool partial_zero_is_zero) override
     {
-        py::function py_func = py::cpp_function(
-          [func](BlockBackend::BlockPtr const& x, BlockBackend::BlockPtr const& y) {
-              return func(x, y);
-          });
+        py::function py_func =
+          py::cpp_function([func](BlockBackend::BlockPtr const& x,
+                                  BlockBackend::BlockPtr const& y) { return func(x, y); });
         PYBIND11_OVERRIDE_PURE(TensorBackend::DataPtr,
                                TensorBackend,
                                diagonal_elementwise_binary,
@@ -154,8 +153,8 @@ class PyTensorBackend
                                                       BlockUnaryFn func,
                                                       bool maps_zero_to_zero) override
     {
-        py::function py_func = py::cpp_function(
-          [func](BlockBackend::BlockPtr const& b) { return func(b); });
+        py::function py_func =
+          py::cpp_function([func](BlockBackend::BlockPtr const& b) { return func(b); });
         PYBIND11_OVERRIDE_PURE(TensorBackend::DataPtr,
                                TensorBackend,
                                diagonal_elementwise_unary,
@@ -174,10 +173,15 @@ class PyTensorBackend
     TensorBackend::DataPtr diagonal_from_sector_block_func(SectorBlockFactoryFn func,
                                                            TensorProduct::Ptr co_domain) override
     {
-        py::function py_func = py::cpp_function(
-          [func](std::vector<int64> shape, Sector const& coupled) { return func(shape, coupled); });
-        PYBIND11_OVERRIDE_PURE(
-          TensorBackend::DataPtr, TensorBackend, diagonal_from_sector_block_func, py_func, co_domain);
+        py::function py_func =
+          py::cpp_function([func](std::vector<int64> shape, Sector const& coupled) {
+              return func(shape, coupled);
+          });
+        PYBIND11_OVERRIDE_PURE(TensorBackend::DataPtr,
+                               TensorBackend,
+                               diagonal_from_sector_block_func,
+                               py_func,
+                               co_domain);
     }
     TensorBackend::DataPtr diagonal_tensor_from_full_tensor(SymmetricTensorCPtr a,
                                                             std::optional<float64> tol) override
@@ -281,10 +285,16 @@ class PyTensorBackend
                                                   TensorProduct::Ptr codomain,
                                                   TensorProduct::Ptr domain) override
     {
-        py::function py_func = py::cpp_function(
-          [func](std::vector<int64> shape, Sector const& coupled) { return func(shape, coupled); });
-        PYBIND11_OVERRIDE_PURE(
-          TensorBackend::DataPtr, TensorBackend, from_sector_block_func, py_func, codomain, domain);
+        py::function py_func =
+          py::cpp_function([func](std::vector<int64> shape, Sector const& coupled) {
+              return func(shape, coupled);
+          });
+        PYBIND11_OVERRIDE_PURE(TensorBackend::DataPtr,
+                               TensorBackend,
+                               from_sector_block_func,
+                               py_func,
+                               codomain,
+                               domain);
     }
     TensorBackend::DataPtr from_tree_pairs(
       std::map<std::pair<FusionTree, FusionTree>, BlockBackend::BlockPtr> trees,
@@ -378,10 +388,9 @@ class PyTensorBackend
     std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>
     mask_binary_operand(MaskCPtr mask1, MaskCPtr mask2, BlockBinaryFn func) override
     {
-        py::function py_func = py::cpp_function(
-          [func](BlockBackend::BlockPtr const& x, BlockBackend::BlockPtr const& y) {
-              return func(x, y);
-          });
+        py::function py_func =
+          py::cpp_function([func](BlockBackend::BlockPtr const& x,
+                                  BlockBackend::BlockPtr const& y) { return func(x, y); });
         PYBIND11_OVERRIDE_PURE(
           PYBIND11_TYPE(std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>),
           TensorBackend,
@@ -450,8 +459,8 @@ class PyTensorBackend
       MaskCPtr mask,
       BlockUnaryFn func) override
     {
-        py::function py_func = py::cpp_function(
-          [func](BlockBackend::BlockPtr const& b) { return func(b); });
+        py::function py_func =
+          py::cpp_function([func](BlockBackend::BlockPtr const& b) { return func(b); });
         PYBIND11_OVERRIDE_PURE(
           PYBIND11_TYPE(std::tuple<TensorBackend::DataPtr, ElementarySpace::Ptr>),
           TensorBackend,

@@ -641,7 +641,8 @@ from_eye
           }
           if (return_NotImplemented &&
               !(py::isinstance<Tensor>(other) ||
-                py::isinstance(other, py::module_::import("cyten.tensors._tensors").attr("Tensor")) ||
+                py::isinstance(other,
+                               py::module_::import("cyten.tensors._tensors").attr("Tensor")) ||
                 py::isinstance(other, py::module_::import("numbers").attr("Number")))) {
               return py::reinterpret_borrow<py::object>(Py_NotImplemented);
           }
@@ -653,21 +654,21 @@ from_eye
       py::arg("func"),
       py::arg("operand"),
       py::arg("return_NotImplemented") = true,
-            R"pydoc(
-            Utility function for a shared implementation of binary functions.
+      R"pydoc(
+      Utility function for a shared implementation of binary functions.
 
-            Parameters
-            ----------
-            other
-                Either a bool or a Mask. If a Mask, must have same :attr:`is_projection`.
-            func
-                The function with signature
-                ``func(self_block: Block, other_or_other_block: bool | Block) -> Block``
-            operand
-                A string representation of the operand, used in error messages
-            return_NotImplemented
-                Whether `NotImplemented` should be returned on a non-scalar and non-`Tensor` other.
-            )pydoc");
+      Parameters
+      ----------
+      other
+          Either a bool or a Mask. If a Mask, must have same :attr:`is_projection`.
+      func
+          The function with signature
+          ``func(self_block: Block, other_or_other_block: bool | Block) -> Block``
+      operand
+          A string representation of the operand, used in error messages
+      return_NotImplemented
+          Whether `NotImplemented` should be returned on a non-scalar and non-`Tensor` other.
+      )pydoc");
 
     cls.def(
       "_unary_operand",
@@ -681,9 +682,8 @@ from_eye
     });
 
     cls.def("__invert__", [](Mask& self) {
-        return self._unary_operand(
-          adapt_block_bool_unary(py::module_::import("operator").attr("invert"),
-                                 self.backend->block_backend));
+        return self._unary_operand(adapt_block_bool_unary(
+          py::module_::import("operator").attr("invert"), self.backend->block_backend));
     });
 
     auto bind_bool_binop = [&](char const* name, char const* op_name, char const* operand) {
@@ -701,8 +701,8 @@ from_eye
                   return py::cast(self._binary_operand(other.cast<MaskCPtr>(), func, operand));
               }
               if (!(py::isinstance<Tensor>(other) ||
-                    py::isinstance(
-                      other, py::module_::import("cyten.tensors._tensors").attr("Tensor")) ||
+                    py::isinstance(other,
+                                   py::module_::import("cyten.tensors._tensors").attr("Tensor")) ||
                     py::isinstance(other, py::module_::import("numbers").attr("Number")))) {
                   return py::reinterpret_borrow<py::object>(Py_NotImplemented);
               }

@@ -130,13 +130,8 @@ data:
           auto dt = SymmetricTensor::_parse_default_dtype(dtype, init.symmetry);
           auto wrapped = block_factory_from_python(
             func, func_kwargs, shape_kw, init.backend->block_backend, dt, device);
-          return SymmetricTensor::from_block_func(std::move(wrapped),
-                                                  init.codomain,
-                                                  init.domain,
-                                                  init.backend,
-                                                  init.labels,
-                                                  dt,
-                                                  device);
+          return SymmetricTensor::from_block_func(
+            std::move(wrapped), init.codomain, init.domain, init.backend, init.labels, dt, device);
       },
       py::arg("func"),
       py::arg("codomain"),
@@ -436,13 +431,8 @@ dtype: Dtype
           auto dt = SymmetricTensor::_parse_default_dtype(dtype, init.symmetry);
           auto wrapped = sector_block_factory_from_python(
             func, func_kwargs, init.backend->block_backend, dt, device);
-          return SymmetricTensor::from_sector_block_func(std::move(wrapped),
-                                                         init.codomain,
-                                                         init.domain,
-                                                         init.backend,
-                                                         init.labels,
-                                                         dt,
-                                                         device);
+          return SymmetricTensor::from_sector_block_func(
+            std::move(wrapped), init.codomain, init.domain, init.backend, init.labels, dt, device);
       },
       py::arg("func"),
       py::arg("codomain"),

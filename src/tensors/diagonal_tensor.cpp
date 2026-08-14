@@ -129,8 +129,8 @@ DiagonalTensor::from_block_func(BlockFactoryFn func,
     (void)dtype;
     (void)device;
 
-    SectorBlockFactoryFn block_func =
-      [func](std::vector<int64> const& shape, Sector const& /*coupled*/) { return func(shape); };
+    SectorBlockFactoryFn block_func = [func](std::vector<int64> const& shape,
+                                             Sector const& /*coupled*/) { return func(shape); };
 
     auto data = backend_tp->diagonal_from_sector_block_func(block_func, co_domain);
     auto res = std::make_shared<DiagonalTensor>(
@@ -408,8 +408,7 @@ DiagonalTensor::_binary_operand(BlockBackend::Scalar other,
                                 std::string const& /*operand*/,
                                 bool right)
 {
-    auto other_block =
-      std::const_pointer_cast<BlockBackend::Block>(other._block());
+    auto other_block = std::const_pointer_cast<BlockBackend::Block>(other._block());
     TensorBackend::DataPtr new_data;
     if (right) {
         new_data = backend->diagonal_elementwise_unary(
@@ -625,7 +624,9 @@ DiagonalTensor::max() const
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
       [bb](BlockBackend::BlockPtr const& block) { return bb->max(block); },
       [](std::vector<BlockBackend::Scalar> const& xs) {
-          return py::module_::import("builtins").attr("max")(py::cast(xs)).cast<BlockBackend::Scalar>();
+          return py::module_::import("builtins")
+            .attr("max")(py::cast(xs))
+            .cast<BlockBackend::Scalar>();
       });
 }
 
@@ -638,7 +639,9 @@ DiagonalTensor::min() const
       std::static_pointer_cast<DiagonalTensor const>(shared_from_this()),
       [bb](BlockBackend::BlockPtr const& block) { return bb->min(block); },
       [](std::vector<BlockBackend::Scalar> const& xs) {
-          return py::module_::import("builtins").attr("min")(py::cast(xs)).cast<BlockBackend::Scalar>();
+          return py::module_::import("builtins")
+            .attr("min")(py::cast(xs))
+            .cast<BlockBackend::Scalar>();
       });
 }
 

@@ -92,21 +92,21 @@ blocks.
         py::arg("a"),
         py::arg("block_method"),
         py::arg("dtype_map"),
-           R"pydoc(
-           Apply functions like exp() and log() on a (square) block-diagonal `a`.
+        R"pydoc(
+        Apply functions like exp() and log() on a (square) block-diagonal `a`.
 
-           Assumes the block_method returns blocks on the same device.
+        Assumes the block_method returns blocks on the same device.
 
-           Parameters
-           ----------
-           a : Tensor
-               The tensor to act on. Can assume ``a.codomain == a.domain``.
-           block_method : function
-               A function with signature ``block_method(a: Block) -> Block`` acting on backend-blocks.
-           dtype_map : function or None
-               Specify how the result dtype depends on the input dtype. ``None`` means unchanged.
-               This is needed in abelian and fusion-tree backends, in case there are 0 blocks.
-           )pydoc")
+        Parameters
+        ----------
+        a : Tensor
+            The tensor to act on. Can assume ``a.codomain == a.domain``.
+        block_method : function
+            A function with signature ``block_method(a: Block) -> Block`` acting on backend-blocks.
+        dtype_map : function or None
+            Specify how the result dtype depends on the input dtype. ``None`` means unchanged.
+            This is needed in abelian and fusion-tree backends, in case there are 0 blocks.
+        )pydoc")
       .def("add_trivial_leg",
            &TensorBackend::add_trivial_leg,
            py::arg("a"),
@@ -318,17 +318,17 @@ blocks.
         py::arg("func"),
         py::arg("func_kwargs"),
         py::arg("partial_zero_is_zero"),
-           R"pydoc(
-           Return a modified copy of the data, resulting from applying an elementwise function.
+        R"pydoc(
+        Return a modified copy of the data, resulting from applying an elementwise function.
 
-           Apply a function ``func(a_block: Block, b_block: Block, **kwargs) -> Block`` to all
-           pairs of elements.
-           Input tensors are both DiagonalTensor and have equal legs.
-           ``partial_zero_is_zero=True`` promises that ``func(any_block, zero_block) == zero_block``,
-           and similarly for the second argument.
+        Apply a function ``func(a_block: Block, b_block: Block, **kwargs) -> Block`` to all
+        pairs of elements.
+        Input tensors are both DiagonalTensor and have equal legs.
+        ``partial_zero_is_zero=True`` promises that ``func(any_block, zero_block) == zero_block``,
+        and similarly for the second argument.
 
-           Assumes both tensors are on the same device.
-           )pydoc")
+        Assumes both tensors are on the same device.
+        )pydoc")
       .def(
         "diagonal_elementwise_unary",
         [](TensorBackend& self,
@@ -343,12 +343,12 @@ blocks.
         py::arg("func"),
         py::arg("func_kwargs"),
         py::arg("maps_zero_to_zero"),
-           R"pydoc(
-           Return a modified copy of the data, resulting from applying an elementwise function.
+        R"pydoc(
+        Return a modified copy of the data, resulting from applying an elementwise function.
 
-           Apply ``func(block: Block, **kwargs) -> Block`` to all elements of a diagonal tensor.
-           ``maps_zero_to_zero=True`` promises that ``func(zero_block) == zero_block``.
-           )pydoc")
+        Apply ``func(block: Block, **kwargs) -> Block`` to all elements of a diagonal tensor.
+        ``maps_zero_to_zero=True`` promises that ``func(zero_block) == zero_block``.
+        )pydoc")
       .def("diagonal_from_block",
            &TensorBackend::diagonal_from_block,
            py::arg("a"),
@@ -365,12 +365,12 @@ blocks.
         },
         py::arg("func"),
         py::arg("co_domain"),
-           R"pydoc(
-           Generate diagonal data from a function.
+        R"pydoc(
+        Generate diagonal data from a function.
 
-           Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
-           Assumes all generated blocks are on the same device.
-           )pydoc")
+        Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
+        Assumes all generated blocks are on the same device.
+        )pydoc")
       .def("diagonal_tensor_from_full_tensor",
            &TensorBackend::diagonal_tensor_from_full_tensor,
            py::arg("a"),
@@ -524,12 +524,12 @@ blocks.
         py::arg("func"),
         py::arg("codomain"),
         py::arg("domain"),
-           R"pydoc(
-           Generate tensor data from a function-
+        R"pydoc(
+        Generate tensor data from a function-
 
-           Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
-           Assumes all generated blocks are on the same device.
-           )pydoc")
+        Signature is ``func(shape: tuple[int], coupled: Sector) -> Block``.
+        Assumes all generated blocks are on the same device.
+        )pydoc")
       .def("from_tree_pairs",
            &TensorBackend::from_tree_pairs,
            py::arg("trees"),
@@ -692,16 +692,16 @@ blocks.
         py::arg("mask1"),
         py::arg("mask2"),
         py::arg("func"),
-           R"pydoc(
-           Elementwise binary function acting on two masks.
+        R"pydoc(
+        Elementwise binary function acting on two masks.
 
-           May assume that both masks are a projection (from large to small leg)
-           and that the large legs match.
+        May assume that both masks are a projection (from large to small leg)
+        and that the large legs match.
 
-           Assumes that `mask1` and `mask2` are on the same device.
+        Assumes that `mask1` and `mask2` are on the same device.
 
-           returns ``mask_data, new_small_leg``
-           )pydoc")
+        returns ``mask_data, new_small_leg``
+        )pydoc")
       .def("mask_contract_large_leg",
            &TensorBackend::mask_contract_large_leg,
            py::arg("tensor"),
@@ -760,12 +760,12 @@ blocks.
         },
         py::arg("mask"),
         py::arg("func"),
-           R"pydoc(
-           Elementwise function acting on a mask.
+        R"pydoc(
+        Elementwise function acting on a mask.
 
-           May assume that mask is a projection (from large to small leg).
-           Returns ``mask_data, new_small_leg``
-           )pydoc")
+        May assume that mask is a projection (from large to small leg).
+        Returns ``mask_data, new_small_leg``
+        )pydoc")
       .def("move_to_device",
            &TensorBackend::move_to_device,
            py::arg("a"),
@@ -881,13 +881,13 @@ blocks.
         py::arg("tensor"),
         py::arg("block_func"),
         py::arg("func"),
-           R"pydoc(
-           Reduce a diagonal tensor to a single number.
+        R"pydoc(
+        Reduce a diagonal tensor to a single number.
 
-           Used e.g. to implement ``DiagonalTensor.max``.
-           ``block_func(block: Block) -> Scalar`` realizes that reduction on blocks,
-           ``func(numbers: Sequence[Scalar]) -> Scalar`` for numbers.
-           )pydoc")
+        Used e.g. to implement ``DiagonalTensor.max``.
+        ``block_func(block: Block) -> Scalar`` realizes that reduction on blocks,
+        ``func(numbers: Sequence[Scalar]) -> Scalar`` for numbers.
+        )pydoc")
       .def("scale_axis",
            &TensorBackend::scale_axis,
            py::arg("a"),

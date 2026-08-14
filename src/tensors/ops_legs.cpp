@@ -1461,15 +1461,15 @@ slice_leg(TensorCPtr tensor, LegRef leg, Sector const& sector, int64 multiplicit
     Sector sector_cap = mask_sector;
     auto bb = tensor->backend->block_backend;
     auto device = tensor->device;
-    SectorBlockFactoryFn func =
-      [sector_cap, m, bb, device](std::vector<int64> const& shape, Sector const& coupled) {
-          auto np = py::module_::import("numpy");
-          py::object block = np.attr("zeros")(py::cast(shape), py::arg("dtype") = np.attr("bool_"));
-          if (coupled == sector_cap) {
-              block.attr("__setitem__")(m, true);
-          }
-          return bb->as_block(block, Dtype::Bool, device);
-      };
+    SectorBlockFactoryFn func = [sector_cap, m, bb, device](std::vector<int64> const& shape,
+                                                            Sector const& coupled) {
+        auto np = py::module_::import("numpy");
+        py::object block = np.attr("zeros")(py::cast(shape), py::arg("dtype") = np.attr("bool_"));
+        if (coupled == sector_cap) {
+            block.attr("__setitem__")(m, true);
+        }
+        return bb->as_block(block, Dtype::Bool, device);
+    };
 
     auto diag = DiagonalTensor::from_sector_block_func(
       std::move(func), mask_space, tensor->backend, std::nullopt, Dtype::Bool, tensor->device);
