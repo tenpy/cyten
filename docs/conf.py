@@ -85,12 +85,15 @@ breathe_default_members = ('members', 'undoc-members')
 
 # -- sphinx.ext.autodoc ---------------------------------------------------
 
-autodoc_default_options = {}
+autodoc_default_options = {
+    'member-order': 'bysource',
+}
 autodoc_member_order = 'bysource'
 # some options are included in the templates under
 # sphinx_templates/autosummary/class.rst
 # for example :inherited-members: and :show-inheritance:
 autosummary_generate = True
+autodoc_docstring_signature = True
 
 # -- sphinx.ext.todo ------------------------------------------------------
 

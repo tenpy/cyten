@@ -13,7 +13,7 @@ If you're new here, start with the :doc:`readme_wrap`.
 
 .. toctree::
     :caption: Python Reference
-    :maxdepth: 1
+    :maxdepth: 2
 
     main
 

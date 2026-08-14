@@ -40,12 +40,14 @@ each class (`Tensor::Ptr`, `Space::Ptr`, …).
 | `bend_right` | `BendRight` = `std::variant<bool, std::vector<std::optional<bool>>>` |
 | `pipe_dualities` | `PipeDualities` = `std::variant<bool, std::vector<bool>>` |
 
-**Python-only — keep `py::object` / `py::function` / `py::array`:**
+**Python-only — keep `py::object` / `py::array`:**
 
 - HDF5 saver/loader/`h5gr`
-- `py::function` + `func_kwargs` (`from_block_func`, `_elementwise_unary`, `_binary_operand` callbacks)
 - numpy conveniences: `to_numpy`, `diagonal_as_numpy`, `as_numpy_mask`, `numpy_dtype`
 - `np_random` on `Mask::from_random`
+
+Callbacks (`from_block_func`, `_elementwise_unary`, `_binary_operand`) are typed `std::function` —
+see [convert_tensor_callbacks.md](convert_tensor_callbacks.md) (batch 18).
 
 ## Prerequisite: `TensorProduct::factors` as `Leg::Ptr`
 
@@ -148,14 +150,16 @@ Pitfalls that showed up in pytest:
 - HDF5
 - Removing pybind includes from public headers entirely (this pass only removes **untyped
   tensor/space/leg objects**)
-- `py::function` block-func factories and elementwise operator callbacks
 - numpy-facing methods
+
+Callbacks (`py::function` factories / elementwise operators) are batch 18 —
+[convert_tensor_callbacks.md](convert_tensor_callbacks.md).
 
 ## Checklist
 
 - [x] Type `TensorProduct::factors` as `vector<Leg::Ptr>`; rework sector fusion
 - [x] Type Tensor core (`as_SymmetricTensor`, `legs` / `get_leg`, drop py-object ctor)
-- [x] Type subclass factories (except HDF5 and `py::function`)
+- [x] Type subclass factories (except HDF5)
 - [x] Type helper signatures
 - [x] Type constructors / elementwise / algebra / legs / decompositions
 - [x] Update `convert_tensors.md` §17; not-slow pytest green
